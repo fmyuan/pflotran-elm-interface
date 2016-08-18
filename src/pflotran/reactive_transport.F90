@@ -150,6 +150,7 @@ subroutine RTSetup(realization)
   type(coupler_type), pointer :: initial_condition
   type(tran_constraint_type), pointer :: sec_tran_constraint
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_property_type), pointer :: cur_material_property
 
   PetscInt :: ghosted_id, iconn, sum_connection
   PetscInt :: iphase, local_id, i
@@ -166,7 +167,8 @@ subroutine RTSetup(realization)
   patch%aux%RT%rt_parameter%ncomp = reaction%ncomp
   patch%aux%RT%rt_parameter%naqcomp = reaction%naqcomp
   patch%aux%RT%rt_parameter%offset_aqueous = reaction%offset_aqueous
-  patch%aux%RT%rt_parameter%nimcomp = reaction%nimcomp
+  patch%aux%RT%rt_parameter%nimcomp = reaction%immobile%nimmobile
+  patch%aux%RT%rt_parameter%ngas = reaction%gas%nactive_gas
   patch%aux%RT%rt_parameter%offset_immobile = reaction%offset_immobile
   if (reaction%ncollcomp > 0) then
     patch%aux%RT%rt_parameter%ncoll = reaction%ncoll
@@ -180,10 +182,21 @@ subroutine RTSetup(realization)
     patch%aux%RT%rt_parameter%coll_spec_to_pri_spec = &
       reaction%coll_spec_to_pri_spec
   endif
-  if (reaction%nimcomp > 0) then
-    patch%aux%RT%rt_parameter%nimcomp = reaction%nimcomp
+  if (reaction%immobile%nimmobile > 0) then
+    patch%aux%RT%rt_parameter%nimcomp = reaction%immobile%nimmobile
     patch%aux%RT%rt_parameter%offset_immobile = reaction%offset_immobile
   endif
+  ! loop over material properties and determine if any transverse 
+  ! dispersivities are defined.
+  cur_material_property => realization%material_properties                            
+  do                                      
+    if (.not.associated(cur_material_property)) exit
+    if (maxval(cur_material_property%dispersivity(2:3)) > 0.d0) then
+      patch%aux%RT%rt_parameter%calculate_transverse_dispersion = PETSC_TRUE
+      exit
+    endif
+    cur_material_property => cur_material_property%next
+  enddo
   
   material_auxvars => patch%aux%Material%auxvars
   flag = 0
@@ -411,7 +424,7 @@ subroutine RTComputeMassBalance(realization,mass_balance)
         enddo
 
         ! add contribution of immobile mass (still considered aqueous phase)
-        do i = 1, reaction%nimcomp
+        do i = 1, reaction%immobile%nimmobile
           mass_balance(reaction%offset_immobile+i,iphase) = &
             mass_balance(reaction%offset_immobile+i,iphase) + &
             rt_auxvars(ghosted_id)%immobile(i) * &
@@ -802,9 +815,9 @@ subroutine RTUpdateFixedAccumulation(realization)
         global_auxvars(ghosted_id)%den_kg(1)*1.d-3
     endif
     
-    if (reaction%nimcomp > 0) then
+    if (reaction%immobile%nimmobile > 0) then
       istartim = dof_offset + reaction%offset_immobile + 1
-      iendim = dof_offset + reaction%offset_immobile + reaction%nimcomp
+      iendim = dof_offset + reaction%offset_immobile + reaction%immobile%nimmobile
       rt_auxvars(ghosted_id)%immobile = xx_p(istartim:iendim)
     endif
 
@@ -882,9 +895,10 @@ subroutine RTUpdateTransportCoefs(realization)
   PetscInt :: sum_connection, iconn, num_connections
   PetscInt :: ghosted_id_up, ghosted_id_dn, local_id_up, local_id_dn
   PetscReal, allocatable :: cell_centered_Darcy_velocities(:,:)
-  PetscReal, allocatable :: cell_centered_Darcy_velocities_ghosted(:,:)
+  PetscReal, allocatable :: cell_centered_Darcy_velocities_ghosted(:,:,:)
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: i
+  PetscInt :: iphase, max_phase
   PetscErrorCode :: ierr
     
   option => realization%option
@@ -896,25 +910,31 @@ subroutine RTUpdateTransportCoefs(realization)
   grid => patch%grid
   rt_parameter => patch%aux%RT%rt_parameter
 
-  allocate(cell_centered_Darcy_velocities_ghosted(3,patch%grid%ngmax))
-  if (patch%material_property_array(1)%ptr%dispersivity(2) > 0.d0) then
+  if (rt_parameter%calculate_transverse_dispersion) then
+    allocate(cell_centered_Darcy_velocities_ghosted(3,option%nphase, &
+                                                    patch%grid%ngmax))
+    cell_centered_Darcy_velocities_ghosted = 0.d0
     allocate(cell_centered_Darcy_velocities(3,patch%grid%nlmax))
-    call PatchGetCellCenteredVelocities(patch,LIQUID_PHASE, &
-                                        cell_centered_Darcy_velocities)
-    ! at this point, velocities are at local cell centers; we need ghosted too.
-    do i=1,3
-      call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-      vec_ptr(:) = cell_centered_Darcy_velocities(i,:)
-      call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-      call DiscretizationGlobalToLocal(realization%discretization,field%work, &
-                                       field%work_loc,ONEDOF)
-      call VecGetArrayF90(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
-      cell_centered_Darcy_velocities_ghosted(i,:) = vec_ptr(:)
-      call VecRestoreArrayF90(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
+    max_phase = 1
+    if (rt_parameter%ngas > 0) max_phase = 2
+    do iphase = 1, max_phase
+      call PatchGetCellCenteredVelocities(patch,iphase, &
+                                          cell_centered_Darcy_velocities)
+      ! at this point, velocities are at local cell centers; we need 
+      ! ghosted too.
+      do i=1,3
+        call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+        vec_ptr(:) = cell_centered_Darcy_velocities(i,:)
+        call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+        call DiscretizationGlobalToLocal(realization%discretization, &
+                                         field%work, &
+                                         field%work_loc,ONEDOF)
+        call VecGetArrayF90(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
+        cell_centered_Darcy_velocities_ghosted(i,iphase,:) = vec_ptr(:)
+        call VecRestoreArrayF90(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
+      enddo
     enddo
     deallocate(cell_centered_Darcy_velocities)
-  else
-    cell_centered_Darcy_velocities_ghosted = 0.d0
   endif
   
   ! Interior Flux Terms -----------------------------------
@@ -937,12 +957,12 @@ subroutine RTUpdateTransportCoefs(realization)
 
       call TDispersion(global_auxvars(ghosted_id_up), &
                       material_auxvars(ghosted_id_up), &
-                      cell_centered_Darcy_velocities_ghosted(:,ghosted_id_up), &
+                      cell_centered_Darcy_velocities_ghosted(:,:,ghosted_id_up), &
                       patch%material_property_array(patch%imat(ghosted_id_up))% &
                         ptr%dispersivity, &
                       global_auxvars(ghosted_id_dn), &
                       material_auxvars(ghosted_id_dn), &
-                      cell_centered_Darcy_velocities_ghosted(:,ghosted_id_dn), &
+                      cell_centered_Darcy_velocities_ghosted(:,:,ghosted_id_dn), &
                       patch%material_property_array(patch%imat(ghosted_id_dn))% &
                         ptr%dispersivity, &
                       cur_connection_set%dist(:,iconn), &
@@ -973,7 +993,7 @@ subroutine RTUpdateTransportCoefs(realization)
                         global_auxvars_bc(sum_connection), &
                         global_auxvars(ghosted_id), &
                         material_auxvars(ghosted_id), &
-                        cell_centered_Darcy_velocities_ghosted(:,ghosted_id), &
+                        cell_centered_Darcy_velocities_ghosted(:,:,ghosted_id), &
                         patch%material_property_array(patch%imat(ghosted_id))% &
                           ptr%dispersivity, &
                         cur_connection_set%dist(:,iconn), &
@@ -1158,12 +1178,13 @@ subroutine RTCalculateRHS_t1(realization)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(coupler_type), pointer :: source_sink
+  type(reactive_transport_param_type), pointer :: rt_parameter
   PetscInt :: sum_connection, iconn  
-  PetscReal :: qsrc
+  PetscReal :: qsrc(2)
   PetscInt :: offset, istartcoll, iendcoll, istartall, iendall, icomp, ieqgas
   PetscBool :: volumetric
   PetscInt :: flow_src_sink_type
-  PetscReal :: coef_in, coef_out
+  PetscReal :: coef_in(2), coef_out(2)
   PetscErrorCode :: ierr
     
   option => realization%option
@@ -1174,8 +1195,11 @@ subroutine RTCalculateRHS_t1(realization)
   global_auxvars => patch%aux%Global%auxvars
   grid => patch%grid
   reaction => realization%reaction
-
+  rt_parameter => patch%aux%RT%rt_parameter
+  
   iphase = 1
+  option%io_buffer = 'RTCalculateRHS_t1 must be refactored'
+  call printErrMsg(option)
 
 !geh - activity coef updates must always be off!!!
 !geh    ! update:                             cells      bcs        act. coefs.
@@ -1206,7 +1230,7 @@ subroutine RTCalculateRHS_t1(realization)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      call TFluxCoef(option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
                      patch%boundary_velocities(:,sum_connection), &
                      patch%boundary_tran_coefs(:,sum_connection), &
                      0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
@@ -1242,7 +1266,7 @@ subroutine RTCalculateRHS_t1(realization)
     endif
     
     ! only handle injection on rhs
-    if (qsrc < 0.d0) then
+    if (qsrc(1) < 0.d0) then
       source_sink => source_sink%next
       cycle
     endif
@@ -1264,7 +1288,8 @@ subroutine RTCalculateRHS_t1(realization)
         iendcoll = reaction%offset_colloid + reaction%ncoll
       endif
 
-      qsrc = patch%ss_flow_vol_fluxes(1,sum_connection)
+      qsrc(1:option%nphase) = &
+        patch%ss_flow_vol_fluxes(1:option%nphase,sum_connection)
       call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)      
 
@@ -1307,9 +1332,9 @@ subroutine RTCalculateRHS_t1(realization)
           
           select case(source_sink%flow_condition%itype(1))
             case(MASS_RATE_SS)
-              do ieqgas = 1, reaction%ngas
+              do ieqgas = 1, reaction%gas%npassive_gas
                 if (abs(reaction%species_idx%co2_gas_id) == ieqgas) then
-                  icomp = reaction%eqgasspecid(1,ieqgas)
+                  icomp = reaction%gas%paseqspecid(1,ieqgas)
                   iendall = local_id*reaction%ncomp
                   istartall = iendall-reaction%ncomp
                   Res(icomp) = -msrc(2)
@@ -1374,14 +1399,15 @@ subroutine RTCalculateTransportMatrix(realization,T)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(coupler_type), pointer :: source_sink
+  type(reactive_transport_param_type), pointer :: rt_parameter
   PetscInt :: sum_connection, iconn
   PetscReal :: coef
-  PetscReal :: coef_up(1), coef_dn(1)
-  PetscReal :: qsrc
+  PetscReal :: coef_up(2), coef_dn(2)
+  PetscReal :: qsrc(2)
   PetscBool :: volumetric  
   PetscInt :: flow_pc
   PetscInt :: flow_src_sink_type
-  PetscReal :: coef_in, coef_out
+  PetscReal :: coef_in(2), coef_out(2)
   PetscViewer :: viewer
   PetscErrorCode :: ierr
 
@@ -1393,7 +1419,8 @@ subroutine RTCalculateTransportMatrix(realization,T)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
   grid => patch%grid  
-
+  rt_parameter => patch%aux%RT%rt_parameter
+    
   call MatZeroEntries(T,ierr);CHKERRQ(ierr)
   
   ! Get vectors
@@ -1416,7 +1443,7 @@ subroutine RTCalculateTransportMatrix(realization,T)
       if (patch%imat(ghosted_id_up) <= 0 .or.  &
           patch%imat(ghosted_id_dn) <= 0) cycle
 
-      call TFluxCoef(option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
                      patch%internal_velocities(:,sum_connection), &
                      patch%internal_tran_coefs(:,sum_connection), &
                      cur_connection_set%dist(-1,iconn), &
@@ -1461,7 +1488,7 @@ subroutine RTCalculateTransportMatrix(realization,T)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      call TFluxCoef(option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
                      patch%boundary_velocities(:,sum_connection), &
                      patch%boundary_tran_coefs(:,sum_connection), &
                      0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
@@ -1509,7 +1536,7 @@ subroutine RTCalculateTransportMatrix(realization,T)
     endif
       
     ! only handle extraction on lhs
-    if (qsrc > 0.d0) then
+    if (qsrc(1) > 0.d0) then
       source_sink => source_sink%next
       cycle
     endif
@@ -1521,11 +1548,12 @@ subroutine RTCalculateTransportMatrix(realization,T)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      qsrc = patch%ss_flow_vol_fluxes(1,sum_connection)
+      qsrc(1:option%nphase) = &
+        patch%ss_flow_vol_fluxes(1:option%nphase,sum_connection)
       call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
 
-      coef_dn(1) = coef_in
+      coef_dn = coef_in
       !geh: do not remove this conditional as otherwise MatSetValuesLocal() 
       !     will be called for injection too (wasted calls)
       if (coef_dn(1) > 0.d0) then
@@ -1668,9 +1696,9 @@ subroutine RTReact(realization)
                 num_iterations,reaction,option)
     ! set primary dependent var back to free-ion molality
     tran_xx_p(istart:iendaq) = rt_auxvars(ghosted_id)%pri_molal
-    if (reaction%nimcomp > 0) then
+    if (reaction%immobile%nimmobile > 0) then
       tran_xx_p(reaction%offset_immobile: &
-                reaction%offset_immobile + reaction%nimcomp) = &
+                reaction%offset_immobile + reaction%immobile%nimmobile) = &
         rt_auxvars(ghosted_id)%immobile
     endif
 #ifdef OS_STATISTICS
@@ -1813,11 +1841,11 @@ subroutine RTComputeBCMassBalanceOS(realization)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: sum_connection, iconn
   PetscInt :: flow_src_sink_type
-  PetscReal :: qsrc
+  PetscReal :: qsrc(2)
   
   PetscReal :: coef_up(realization%option%nphase)
   PetscReal :: coef_dn(realization%option%nphase)
-  PetscReal :: coef_in, coef_out
+  PetscReal :: coef_in(2), coef_out(2)
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -1850,7 +1878,7 @@ subroutine RTComputeBCMassBalanceOS(realization)
       if (patch%imat(ghosted_id) <= 0) cycle
 
       ! TFluxCoef accomplishes the same as what TBCCoef would
-      call TFluxCoef(option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
                      patch%boundary_velocities(:,sum_connection), &
                      patch%boundary_tran_coefs(:,sum_connection), &
                      0.5d0, &
@@ -1896,7 +1924,8 @@ subroutine RTComputeBCMassBalanceOS(realization)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      qsrc = patch%ss_flow_vol_fluxes(1,sum_connection)
+      qsrc(1:option%nphase) = &
+        patch%ss_flow_vol_fluxes(1:option%nphase,sum_connection)
       call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
       
@@ -2241,7 +2270,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
       
       
 #ifndef CENTRAL_DIFFERENCE        
-      call TFluxCoef(option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
                 patch%internal_velocities(:,sum_connection), &
                 patch%internal_tran_coefs(:,sum_connection)*vol_frac_prim, &
                 cur_connection_set%dist(-1,iconn), &
@@ -2260,7 +2289,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
       rt_auxvars(local_id_up)%mass_balance_delta(:,iphase) = &
         rt_auxvars(local_id_up)%mass_balance_delta(:,iphase) - Res        
 #endif
-      
       if (local_id_up>0) then
         iend = local_id_up*reaction%ncomp
         istart = iend-reaction%ncomp+1
@@ -2327,7 +2355,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
       
 #ifndef CENTRAL_DIFFERENCE
       ! TFluxCoef accomplishes the same as what TBCCoef would
-      call TFluxCoef(option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
                   patch%boundary_velocities(:,sum_connection), &
                   patch%boundary_tran_coefs(:,sum_connection)*vol_frac_prim, &
                   0.5d0, &
@@ -2339,7 +2367,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
                   rt_auxvars(ghosted_id), &
                   global_auxvars(ghosted_id), &
                   coef_up,coef_dn,option,Res)
-                  
       iend = local_id*reaction%ncomp
       istart = iend-reaction%ncomp+1
       r_p(istart:iend)= r_p(istart:iend) - Res(1:reaction%ncomp)
@@ -2429,7 +2456,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   
   PetscReal, pointer :: r_p(:), accum_p(:), vec_p(:)
   PetscInt :: local_id, ghosted_id
-  PetscInt, parameter :: iphase = 1
+  PetscInt :: iphase
   PetscInt :: i
   PetscInt :: istartaq, iendaq
   PetscInt :: istartcoll, iendcoll
@@ -2452,12 +2479,13 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
-  PetscReal :: qsrc, molality
+  PetscReal :: qsrc(2), molality
   PetscInt :: flow_src_sink_type
-  PetscReal :: scale, coef_in, coef_out
+  PetscReal :: scale, coef_in(2), coef_out(2)
   PetscReal :: Jup(realization%reaction%ncomp,realization%reaction%ncomp)
   PetscBool :: volumetric
   PetscInt :: sum_connection
+  PetscInt :: max_phase
 
   ! CO2-specific
   PetscReal :: msrc(1:realization%option%nflowspec)
@@ -2482,6 +2510,14 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars
   if (option%use_mc) then
     rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
+  endif
+  
+  max_phase = 1
+  if (reaction%gas%nactive_gas > 0 .and. &
+      .not.(option%iflowmode == MPH_MODE .or. &
+            option%iflowmode == IMS_MODE .or. &
+            option%iflowmode == FLASH2_MODE)) then
+    max_phase = 2
   endif
   
   ! Get pointer to Vector data
@@ -2596,15 +2632,18 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
         iendcoll = reaction%offset_colloid + reaction%ncoll
       endif
 
-      qsrc = patch%ss_flow_vol_fluxes(1,sum_connection)
+      qsrc(1:option%nphase) = &
+        patch%ss_flow_vol_fluxes(1:option%nphase,sum_connection)
       call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
 
       Res = 0.d0
-      Res(istartaq:iendaq) = coef_in*rt_auxvars(ghosted_id)%total(:,iphase) + &
-                             coef_out*source_sink%tran_condition%cur_constraint_coupler% &
+      do iphase = 1, max_phase
+        Res(istartaq:iendaq) = &
+          coef_in(iphase)*rt_auxvars(ghosted_id)%total(:,iphase) + &
+          coef_out(iphase)*source_sink%tran_condition%cur_constraint_coupler% &
                                         rt_auxvar%total(:,iphase)
-      
+      enddo
       if (reaction%ncoll > 0) then
         Res(istartcoll:iendcoll) = coef_in*rt_auxvars(ghosted_id)%colloid%conc_mob(:) + &
                                    coef_out*source_sink%tran_condition%cur_constraint_coupler% &
@@ -2618,6 +2657,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary 
+        iphase = 1
         rt_auxvars_ss(sum_connection)%mass_balance_delta(:,iphase) = &
           rt_auxvars_ss(sum_connection)%mass_balance_delta(:,iphase) + Res
         ! contribution to internal 
@@ -2654,9 +2694,9 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
           
           select case(source_sink%flow_condition%itype(1))
             case(MASS_RATE_SS)
-              do ieqgas = 1, reaction%ngas
+              do ieqgas = 1, reaction%gas%npassive_gas
                 if (abs(reaction%species_idx%co2_gas_id) == ieqgas) then
-                  icomp = reaction%eqgasspecid(1,ieqgas)
+                  icomp = reaction%gas%paseqspecid(1,ieqgas)
                   iendall = local_id*reaction%ncomp
                   istartall = iendall-reaction%ncomp
                   Res(icomp) = -msrc(2)
@@ -3055,7 +3095,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
       endif 
 
 #ifndef CENTRAL_DIFFERENCE
-      call TFluxCoef(option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
                 patch%internal_velocities(:,sum_connection), &
                 patch%internal_tran_coefs(:,sum_connection)*vol_frac_prim, &
                 cur_connection_set%dist(-1,iconn), &
@@ -3143,7 +3183,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
 
 #ifndef CENTRAL_DIFFERENCE
       ! TFluxCoef accomplishes the same as what TBCCoef would
-      call TFluxCoef(option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
                 patch%boundary_velocities(:,sum_connection), &
                 patch%boundary_tran_coefs(:,sum_connection)*vol_frac_prim, &
                 0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
@@ -3241,10 +3281,10 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn, sum_connection
-  PetscReal :: qsrc, rdum
+  PetscReal :: qsrc(2), rdum
   PetscBool :: volumetric
   PetscInt :: flow_src_sink_type
-  PetscReal :: coef_in, coef_out
+  PetscReal :: coef_in(2), coef_out(2)
   PetscReal :: scale
   
   ! secondary continuum variables
@@ -3254,7 +3294,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   PetscReal :: sec_porosity
   PetscReal :: jac_transport(realization%reaction%naqcomp,realization%reaction%naqcomp)
   PetscInt :: ncomp
-
+  PetscInt :: iphase, max_phase
   
   option => realization%option
   field => realization%field
@@ -3271,6 +3311,13 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
     rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
   endif
 
+  max_phase = 1
+  if (reaction%gas%nactive_gas > 0 .and. &
+      .not.(option%iflowmode == MPH_MODE .or. &
+            option%iflowmode == IMS_MODE .or. &
+            option%iflowmode == FLASH2_MODE)) then
+    max_phase = 2
+  endif
   vol_frac_prim = 1.d0
   
   if (.not.option%steady_state) then
@@ -3335,6 +3382,11 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   do 
     if (.not.associated(source_sink)) exit
     
+    if (reaction%ncoll > 0) then
+      option%io_buffer = 'Source/sink not yet implemented for colloids'
+      call printErrMsg(option)
+    endif
+
     cur_connection_set => source_sink%connection_set
 
     do iconn = 1, cur_connection_set%num_connections      
@@ -3347,22 +3399,20 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
       istartaq = reaction%offset_aqueous + 1
       iendaq = reaction%offset_aqueous + reaction%naqcomp
       
-      qsrc = patch%ss_flow_vol_fluxes(1,sum_connection)
-      call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype,coef_in,coef_out)
-
+      qsrc(1:option%nphase) = &
+        patch%ss_flow_vol_fluxes(1:option%nphase,sum_connection)
+      call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype, &
+                        coef_in,coef_out)
       Jup = 0.d0
       ! coef_in is non-zero
-      if (dabs(coef_in-1.d20) > 0.d0) then
-        Jup(istartaq:iendaq,istartaq:iendaq) = coef_in* &
-          rt_auxvars(ghosted_id)%aqueous%dtotal(:,:,option%liquid_phase)
-        if (reaction%ncoll > 0) then
-          option%io_buffer = 'Source/sink not yet implemented for colloids'
-          call printErrMsg(option)
-        endif
-        call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup,ADD_VALUES, &
-                                      ierr);CHKERRQ(ierr)
-      endif
-    enddo                       
+      do iphase = 1, max_phase
+        Jup(istartaq:iendaq,istartaq:iendaq) = &
+          Jup(istartaq:iendaq,istartaq:iendaq) + coef_in(iphase)* &
+            rt_auxvars(ghosted_id)%aqueous%dtotal(:,:,iphase)
+      enddo                       
+      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+    enddo
     source_sink => source_sink%next
   enddo
   
@@ -3423,9 +3473,9 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
         istartaq = offset + reaction%offset_aqueous + 1
         iendaq = offset + reaction%offset_aqueous + reaction%naqcomp
         work_loc_p(istartaq:iendaq) = rt_auxvars(ghosted_id)%pri_molal(:)
-        if (reaction%nimcomp > 0) then
+        if (reaction%immobile%nimmobile > 0) then
           istart = offset + reaction%offset_immobile + 1
-          iend = offset + reaction%offset_immobile + reaction%nimcomp
+          iend = offset + reaction%offset_immobile + reaction%immobile%nimmobile
           work_loc_p(istart:iend) = &
             rt_auxvars(ghosted_id)%immobile(:)
         endif
@@ -3648,9 +3698,9 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
       iendaq = offset + reaction%offset_aqueous + reaction%naqcomp
       
       patch%aux%RT%auxvars(ghosted_id)%pri_molal = xx_loc_p(istartaq:iendaq)
-      if (reaction%nimcomp > 0) then
+      if (reaction%immobile%nimmobile > 0) then
         istartim = offset + reaction%offset_immobile + 1
-        iendim = offset + reaction%offset_immobile + reaction%nimcomp
+        iendim = offset + reaction%offset_immobile + reaction%immobile%nimmobile
         patch%aux%RT%auxvars(ghosted_id)%immobile = xx_loc_p(istartim:iendim)
       endif
       if (reaction%ncoll > 0) then
@@ -4159,14 +4209,28 @@ subroutine RTSetPlotVariables(realization,list)
     enddo
   endif  
   
-  if (reaction%print_all_gas_species) then
-    do i=1,reaction%ngas
-      name = 'Gas species ' // trim(reaction%gas_species_names(i))
-      units = trim('mol/m^3')
+#if 0
+!geh: not yet supported as we have no function set up to calculate the
+!     passive gas partial pressures at this point.  They are calculated
+!     in the CONSTRAINT output.
+  do i=1,reaction%gas%npassive_gas
+    if (reaction%gas%passive_print_me(i)) then
+      name = 'Passive Gas ' // trim(reaction%gas%passive_names(i))
+      units = trim('Pa')
       call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
           GAS_CONCENTRATION,i)
-    enddo
-  endif
+    endif
+  enddo
+#endif
+
+  do i=1,reaction%gas%nactive_gas
+    if (reaction%gas%active_print_me(i)) then
+      name = 'Active Gas ' // trim(reaction%gas%active_names(i))
+      units = trim('Pa')
+      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+          GAS_CONCENTRATION,i)
+    endif
+  enddo
 
   if (reaction%print_total_bulk) then
     do i=1,reaction%naqcomp
@@ -4696,9 +4760,10 @@ subroutine RTExplicitAdvection(realization)
   PetscInt :: id_up2, id_dn2
   PetscInt :: local_start, local_end, istart, iend
   PetscInt :: ntvddof
-  PetscReal :: qsrc, coef_in, coef_out
+  PetscReal :: qsrc(2), coef_in(2), coef_out(2)
   PetscReal :: velocity, area, psv_t  
   PetscReal :: flux(realization%reaction%ncomp)
+  PetscInt :: max_phase
   
   PetscReal :: sum_flux(realization%reaction%ncomp,realization%patch%grid%ngmax)
   
@@ -4740,6 +4805,8 @@ subroutine RTExplicitAdvection(realization)
   material_auxvars => patch%aux%Material%auxvars
   
   ntvddof = patch%aux%RT%rt_parameter%naqcomp
+  max_phase = 1
+  if (reaction%gas%nactive_gas > 0) max_phase = 2 
   
   if (realization%option%transport%tvd_flux_limiter /= TVD_LIMITER_UPWIND) then
     allocate(total_up2(option%nphase,ntvddof))
@@ -4760,7 +4827,7 @@ subroutine RTExplicitAdvection(realization)
     if (patch%imat(ghosted_id) <= 0) cycle
     local_end = local_id*ntvddof
     local_start = local_end-ntvddof+1
-    do iphase = 1, option%nphase
+    do iphase = 1, max_phase
       tran_xx_p(local_start:local_end) = &
         rt_auxvars(ghosted_id)%total(:,iphase)
     enddo
@@ -4960,10 +5027,11 @@ subroutine RTExplicitAdvection(realization)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      do iphase = 1, option%nphase
-        qsrc = patch%ss_flow_vol_fluxes(iphase,sum_connection)
-        call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype, &
-                          coef_in,coef_out)
+      qsrc(1:option%nphase) = &
+        patch%ss_flow_vol_fluxes(1:option%nphase,sum_connection)
+      call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype, &
+                        coef_in,coef_out)
+      do iphase = 1, max_phase
         flux = coef_in*rt_auxvars(ghosted_id)%total(:,iphase) + &
                coef_out*source_sink%tran_condition%cur_constraint_coupler% &
                                           rt_auxvar%total(:,iphase)

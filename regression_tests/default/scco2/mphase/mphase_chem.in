@@ -97,6 +97,10 @@ CHEMISTRY
 !   FeSO4(aq)
 !   FeSO4+
   /
+  ACTIVE_GAS_SPECIES
+    CO2(g)
+    O2(g)
+  /
   GAS_SPECIES
     CO2(g)
     O2(g)

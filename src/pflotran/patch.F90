@@ -4328,7 +4328,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
          SURFACE_CMPLX,SURFACE_CMPLX_FREE,SURFACE_SITE_DENSITY, &
          KIN_SURFACE_CMPLX,KIN_SURFACE_CMPLX_FREE, PRIMARY_ACTIVITY_COEF, &
          SECONDARY_ACTIVITY_COEF,PRIMARY_KD,TOTAL_SORBED,TOTAL_SORBED_MOBILE, &
-         COLLOID_MOBILE,COLLOID_IMMOBILE,AGE,TOTAL_BULK,IMMOBILE_SPECIES)
+         COLLOID_MOBILE,COLLOID_IMMOBILE,AGE,TOTAL_BULK,IMMOBILE_SPECIES, &
+         GAS_CONCENTRATION)
 
       select case(ivar)
         case(PH)
@@ -4359,15 +4360,15 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                        patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar))
               ifo2 = reaction%species_idx%o2_gas_id
               ! compute gas partial pressure
-              lnQKgas = -reaction%eqgas_logK(ifo2)*LOG_TO_LN
+              lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
               ! activity of water
-              if (reaction%eqgash2oid(ifo2) > 0) then
-                lnQKgas = lnQKgas + reaction%eqgash2ostoich(ifo2) * &
+              if (reaction%gas%paseqh2oid(ifo2) > 0) then
+                lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
                     patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
               endif
-              do jcomp = 1, reaction%eqgasspecid(0,ifo2)
-                comp_id = reaction%eqgasspecid(jcomp,ifo2)
-                lnQKgas = lnQKgas + reaction%eqgasstoich(jcomp,ifo2)* &
+              do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
+                comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
+                lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
                       log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
                         patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
               enddo
@@ -4393,15 +4394,15 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                        patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar))
               ifo2 = reaction%species_idx%o2_gas_id
               ! compute gas partial pressure
-              lnQKgas = -reaction%eqgas_logK(ifo2)*LOG_TO_LN
+              lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
               ! activity of water
-              if (reaction%eqgash2oid(ifo2) > 0) then
-                lnQKgas = lnQKgas + reaction%eqgash2ostoich(ifo2) * &
+              if (reaction%gas%paseqh2oid(ifo2) > 0) then
+                lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
                     patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
               endif
-              do jcomp = 1, reaction%eqgasspecid(0,ifo2)
-                comp_id = reaction%eqgasspecid(jcomp,ifo2)
-                lnQKgas = lnQKgas + reaction%eqgasstoich(jcomp,ifo2)* &
+              do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
+                comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
+                lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
                       log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
                         patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
               enddo
@@ -4425,15 +4426,15 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               !     patch.F90.  most likely reactive_transport.F90
               ifo2 = reaction%species_idx%o2_gas_id
               ! compute gas partial pressure
-              lnQKgas = -reaction%eqgas_logK(ifo2)*LOG_TO_LN
+              lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
               ! activity of water
-              if (reaction%eqgash2oid(ifo2) > 0) then
-                lnQKgas = lnQKgas + reaction%eqgash2ostoich(ifo2) * &
+              if (reaction%gas%paseqh2oid(ifo2) > 0) then
+                lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
                     patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
               endif
-              do jcomp = 1, reaction%eqgasspecid(0,ifo2)
-                comp_id = reaction%eqgasspecid(jcomp,ifo2)
-                lnQKgas = lnQKgas + reaction%eqgasstoich(jcomp,ifo2)* &
+              do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
+                comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
+                lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
                       log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
                         patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
               enddo
@@ -4530,6 +4531,11 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               endif
             enddo
           endif
+        case(GAS_CONCENTRATION)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%RT%auxvars(grid%nL2G(local_id))%gas_pp(isubvar)
+          enddo
         case(MINERAL_VOLUME_FRACTION)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
@@ -5248,7 +5254,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
          KIN_SURFACE_CMPLX,KIN_SURFACE_CMPLX_FREE, PRIMARY_ACTIVITY_COEF, &
          SECONDARY_ACTIVITY_COEF,PRIMARY_KD, TOTAL_SORBED, &
          TOTAL_SORBED_MOBILE,COLLOID_MOBILE,COLLOID_IMMOBILE,AGE,TOTAL_BULK, &
-         IMMOBILE_SPECIES)
+         IMMOBILE_SPECIES,GAS_CONCENTRATION)
          
       select case(ivar)
         case(PH)
@@ -5269,16 +5275,16 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           ifo2 = reaction%species_idx%o2_gas_id
       
       ! compute gas partial pressure
-          lnQKgas = -reaction%eqgas_logK(ifo2)*LOG_TO_LN
+          lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
       
       ! activity of water
-          if (reaction%eqgash2oid(ifo2) > 0) then
-            lnQKgas = lnQKgas + reaction%eqgash2ostoich(ifo2) * &
+          if (reaction%gas%paseqh2oid(ifo2) > 0) then
+            lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
                     patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
           endif
-          do jcomp = 1, reaction%eqgasspecid(0,ifo2)
-            comp_id = reaction%eqgasspecid(jcomp,ifo2)
-            lnQKgas = lnQKgas + reaction%eqgasstoich(jcomp,ifo2)* &
+          do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
+            comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
+            lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
                       log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
                         patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
           enddo
@@ -5297,16 +5303,16 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           ifo2 = reaction%species_idx%o2_gas_id
       
       ! compute gas partial pressure
-          lnQKgas = -reaction%eqgas_logK(ifo2)*LOG_TO_LN
+          lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
       
       ! activity of water
-          if (reaction%eqgash2oid(ifo2) > 0) then
-            lnQKgas = lnQKgas + reaction%eqgash2ostoich(ifo2) * &
+          if (reaction%gas%paseqh2oid(ifo2) > 0) then
+            lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
                     patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
           endif
-          do jcomp = 1, reaction%eqgasspecid(0,ifo2)
-            comp_id = reaction%eqgasspecid(jcomp,ifo2)
-            lnQKgas = lnQKgas + reaction%eqgasstoich(jcomp,ifo2)* &
+          do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
+            comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
+            lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
                       log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
                         patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
           enddo
@@ -5321,16 +5327,16 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
       
       ! compute gas partial pressure
               ifo2 = reaction%species_idx%o2_gas_id
-              lnQKgas = -reaction%eqgas_logK(ifo2)*LOG_TO_LN
+              lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
       
       ! activity of water
-              if (reaction%eqgash2oid(ifo2) > 0) then
-                lnQKgas = lnQKgas + reaction%eqgash2ostoich(ifo2) * &
+              if (reaction%gas%paseqh2oid(ifo2) > 0) then
+                lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
                     patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
               endif
-              do jcomp = 1, reaction%eqgasspecid(0,ifo2)
-                comp_id = reaction%eqgasspecid(jcomp,ifo2)
-                lnQKgas = lnQKgas + reaction%eqgasstoich(jcomp,ifo2)* &
+              do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
+                comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
+                lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
                       log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
                         patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
               enddo
@@ -5375,6 +5381,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
               enddo            
             endif
           endif          
+        case(GAS_CONCENTRATION)
+          value = patch%aux%RT%auxvars(ghosted_id)%gas_pp(isubvar)
         case(MINERAL_VOLUME_FRACTION)
           value = patch%aux%RT%auxvars(ghosted_id)%mnrl_volfrac(isubvar)
         case(MINERAL_RATE)
@@ -6252,7 +6260,8 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
         end select         
       endif
     case(PRIMARY_MOLALITY,TOTAL_MOLARITY,MINERAL_VOLUME_FRACTION, &
-         PRIMARY_ACTIVITY_COEF,SECONDARY_ACTIVITY_COEF,IMMOBILE_SPECIES)
+         PRIMARY_ACTIVITY_COEF,SECONDARY_ACTIVITY_COEF,IMMOBILE_SPECIES, &
+         GAS_CONCENTRATION)
       select case(ivar)
         case(PRIMARY_MOLALITY)
           if (vec_format == GLOBAL) then
@@ -6278,6 +6287,10 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
                 total(isubvar,iphase) = vec_ptr(ghosted_id)
             enddo
           endif
+        case(GAS_CONCENTRATION)
+          option%io_buffer = 'Active gas concentrations cannot be set in &
+            &PatchSetVariable.'
+          call printErrMsg(option)
         case(MINERAL_VOLUME_FRACTION)
           if (vec_format == GLOBAL) then
             do local_id=1,grid%nlmax

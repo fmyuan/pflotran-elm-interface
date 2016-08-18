@@ -9,7 +9,7 @@ unit_test_dir = ./unittests
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
 
-MYFLAGS = -I.
+MYFLAGS = -I. 
 
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
 # PFLOTRAN_RXN_FLAG 
@@ -238,6 +238,8 @@ chem_obj = \
 	${common_src}reaction_database.o \
 	${common_src}reaction_database_aux.o \
 	${common_src}reaction_database_hpt.o \
+	${common_src}reaction_gas.o \
+	${common_src}reaction_gas_aux.o \
 	${common_src}reaction_immobile.o \
 	${common_src}reaction_immobile_aux.o \
 	${common_src}reaction_microbial.o \
@@ -1038,9 +1040,9 @@ pmc_third_party.o : option.o pflotran_constants.o pmc_base.o \
                     realization_subsurface.o timestepper_base.o utility.o
 ifdef PFLOTRAN_RXN_FLAG
 reaction.o : global_aux.o input_aux.o material_aux.o option.o \
-             pflotran_constants.o reaction_aux.o reaction_clm.o \
-             reaction_immobile.o reaction_immobile_aux.o reaction_microbial.o \
-             reaction_microbial_aux.o reaction_mineral.o \
+             pflotran_constants.o reaction_aux.o reaction_clm.o reaction_gas.o \
+             reaction_gas_aux.o reaction_immobile.o reaction_immobile_aux.o \
+             reaction_microbial.o reaction_microbial_aux.o reaction_mineral.o \
              reaction_mineral_aux.o reaction_sandbox.o \
              reaction_solid_solution.o reaction_solid_solution_aux.o \
              reaction_surf_complex.o reaction_surf_complex_aux.o \
@@ -1049,8 +1051,9 @@ reaction.o : global_aux.o input_aux.o material_aux.o option.o \
 else
 reaction.o : co2_span_wagner.o co2eos.o eos_water.o global_aux.o input_aux.o \
              material_aux.o option.o pflotran_constants.o reaction_aux.o \
-             reaction_clm.o reaction_immobile.o reaction_immobile_aux.o \
-             reaction_microbial.o reaction_microbial_aux.o reaction_mineral.o \
+             reaction_clm.o reaction_gas.o reaction_gas_aux.o \
+             reaction_immobile.o reaction_immobile_aux.o reaction_microbial.o \
+             reaction_microbial_aux.o reaction_mineral.o \
              reaction_mineral_aux.o reaction_sandbox.o \
              reaction_solid_solution.o reaction_solid_solution_aux.o \
              reaction_surf_complex.o reaction_surf_complex_aux.o \
@@ -1058,25 +1061,33 @@ reaction.o : co2_span_wagner.o co2eos.o eos_water.o global_aux.o input_aux.o \
              utility.o variables.o
 endif
 reaction_aux.o : option.o pflotran_constants.o reaction_database_aux.o \
-                 reaction_immobile_aux.o reaction_microbial_aux.o \
-                 reaction_mineral_aux.o reaction_solid_solution_aux.o \
-                 reaction_surf_complex_aux.o string.o utility.o
+                 reaction_gas_aux.o reaction_immobile_aux.o \
+                 reaction_microbial_aux.o reaction_mineral_aux.o \
+                 reaction_solid_solution_aux.o reaction_surf_complex_aux.o \
+                 string.o utility.o
 reaction_clm.o : global_aux.o input_aux.o material_aux.o option.o \
                  pflotran_constants.o reaction_aux.o reaction_immobile_aux.o \
                  reactive_transport_aux.o string.o units.o utility.o
 reaction_database.o : input_aux.o option.o pflotran_constants.o reaction.o \
                       reaction_aux.o reaction_clm.o reaction_database_aux.o \
-                      reaction_immobile.o reaction_immobile_aux.o \
-                      reaction_microbial.o reaction_microbial_aux.o \
-                      reaction_mineral.o reaction_mineral_aux.o \
-                      reaction_sandbox.o reaction_solid_solution.o \
-                      reaction_surf_complex_aux.o string.o utility.o
+                      reaction_gas_aux.o reaction_immobile.o \
+                      reaction_immobile_aux.o reaction_microbial.o \
+                      reaction_microbial_aux.o reaction_mineral.o \
+                      reaction_mineral_aux.o reaction_sandbox.o \
+                      reaction_solid_solution.o reaction_surf_complex_aux.o \
+                      string.o utility.o
 reaction_database_aux.o : input_aux.o option.o pflotran_constants.o string.o \
                           utility.o
 reaction_database_hpt.o : input_aux.o option.o pflotran_constants.o reaction.o \
                           reaction_aux.o reaction_database.o \
-                          reaction_database_aux.o reaction_mineral_aux.o \
-                          reaction_surf_complex_aux.o string.o utility.o
+                          reaction_database_aux.o reaction_gas_aux.o \
+                          reaction_mineral_aux.o reaction_surf_complex_aux.o \
+                          string.o utility.o
+reaction_gas.o : global_aux.o input_aux.o option.o pflotran_constants.o \
+                 reaction_aux.o reaction_gas_aux.o reactive_transport_aux.o \
+                 string.o utility.o
+reaction_gas_aux.o : pflotran_constants.o reaction_database_aux.o string.o \
+                     utility.o
 reaction_immobile.o : global_aux.o input_aux.o material_aux.o option.o \
                       pflotran_constants.o reaction_aux.o \
                       reaction_immobile_aux.o reactive_transport_aux.o \
