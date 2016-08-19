@@ -2505,7 +2505,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         found = PETSC_TRUE
         if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS) then
           call printErrMsg(option,'clm_et_ss is not of ' // &
-                           'HET_MASS_RATE_SS')
+                           'HET_MASS_RATE_SS for water flow (RATE) ')
         endif
 
         do iconn = 1, cur_connection_set%num_connections
@@ -2521,8 +2521,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
             if(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == DIRICHLET_BC) then
               source_sink%flow_condition%temperature%dataset%rarray(1) = qflxt_pf_loc(ghosted_id)
+
             elseif(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == HET_DIRICHLET) then
               source_sink%flow_aux_real_var(TWO_INTEGER,iconn) = qflxt_pf_loc(ghosted_id)
+
+            elseif(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) /= ZERO_GRADIENT_BC) then
+              call printErrMsg(option,'clm_et_ss is not of ' // &
+                           'DIRCHLET or HET_DIRICHLET or ZERO_GRADIENT for temperature')
             endif
 
           endif
