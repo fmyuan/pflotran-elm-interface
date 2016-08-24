@@ -161,10 +161,6 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
         rt_auxvar%aqueous%dtotal(icomp,jcomp,iphase) = &
           rt_auxvar%aqueous%dtotal(icomp,jcomp,iphase) + &
           gas%acteqstoich(i,igas)*tempreal
-        if (icomp == jcomp) then
-          rt_auxvar%aqueous%dtotal(icomp,jcomp,iphase) = &
-            rt_auxvar%aqueous%dtotal(icomp,jcomp,iphase) + 1.d0
-        endif
       enddo
     enddo
   enddo
