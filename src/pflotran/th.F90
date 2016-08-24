@@ -1834,18 +1834,26 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       ukvr = auxvar_up%kvr
       dukvr_dp_up = auxvar_up%dkvr_dp
       dukvr_dt_up = auxvar_up%dkvr_dt
-      
-      uh = auxvar_up%h
-      duh_dp_up = auxvar_up%dh_dp
-      duh_dt_up = auxvar_up%dh_dt
+
+      !uh = auxvar_up%h
+      !duh_dp_up = auxvar_up%dh_dp
+      !duh_dt_up = auxvar_up%dh_dt
+      uh = auxvar_up%u
+      duh_dp_up = auxvar_up%du_dp
+      duh_dt_up = auxvar_up%du_dt
+
     else
       ukvr = auxvar_dn%kvr
       dukvr_dp_dn = auxvar_dn%dkvr_dp
       dukvr_dt_dn = auxvar_dn%dkvr_dt
-      
+
+      !uh = auxvar_dn%h
+      !duh_dp_dn = auxvar_dn%dh_dp
+      !duh_dt_dn = auxvar_dn%dh_dt
       uh = auxvar_dn%h
       duh_dp_dn = auxvar_dn%dh_dp
       duh_dt_dn = auxvar_dn%dh_dt
+
     endif      
 
     call InterfaceApprox(auxvar_up%kvr, auxvar_dn%kvr, &
@@ -2347,10 +2355,13 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
 
     if (dphi >= 0.D0) then
       ukvr = auxvar_up%kvr
-      uh = auxvar_up%h
+      !uh = auxvar_up%h
+      uh = auxvar_up%u
     else
       ukvr = auxvar_dn%kvr
-      uh = auxvar_dn%h
+      !uh = auxvar_dn%h
+      uh = auxvar_dn%u
+
     endif
 
     call InterfaceApprox(auxvar_up%kvr, auxvar_dn%kvr, dphi, &
@@ -2911,7 +2922,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           dden_ave_dp_dn = auxvar_up%dden_dp
           dden_ave_dt_dn = auxvar_up%dden_dt
           if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
-            dden_ave_dt_dn = auxvar_dn%dden_dt
+            dden_ave_dt_dn = auxvar_up%dden_dt
           endif
         else 
           density_ave = global_auxvar_dn%den(1)
@@ -2926,21 +2937,29 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
   end select
 
-  if (v_darcy >= 0.D0) then
-    uh = auxvar_up%h
-    duh_dp_dn = auxvar_up%dh_dp
-    duh_dt_dn = auxvar_up%dh_dt
+  if (v_darcy > 0.D0) then
+    !uh = auxvar_up%h
+    !duh_dp_dn = auxvar_up%dh_dp
+    !duh_dt_dn = auxvar_up%dh_dt
+    uh = auxvar_up%u
+    duh_dp_dn = auxvar_up%du_dp
+    duh_dt_dn = auxvar_up%du_dt
     if (ibndtype(TH_PRESSURE_DOF) == ZERO_GRADIENT_BC) then
-      duh_dp_dn = auxvar_dn%dh_dp
+      !duh_dp_dn = auxvar_dn%dh_dp
+      duh_dp_dn = auxvar_dn%du_dp
     endif
     if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
-      duh_dt_dn = auxvar_dn%dh_dt
+      !duh_dt_dn = auxvar_dn%dh_dt
+      duh_dt_dn = auxvar_dn%du_dt
     endif
   else
-    uh = auxvar_dn%h
-    duh_dp_dn = auxvar_dn%dh_dp
-    duh_dt_dn = auxvar_dn%dh_dt
-  endif      
+    !uh = auxvar_dn%h
+    !duh_dp_dn = auxvar_dn%dh_dp
+    !duh_dt_dn = auxvar_dn%dh_dt
+    uh = auxvar_dn%u
+    duh_dp_dn = auxvar_dn%du_dp
+    duh_dt_dn = auxvar_dn%du_dt
+  endif
 
   !call InterfaceApprox(auxvar_up%h, auxvar_dn%h, &
   !                     auxvar_up%dh_dp, auxvar_dn%dh_dp, &
@@ -3109,7 +3128,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
       ! do nothing, but by-passing the 'default'
 
     case default
-      option%io_buffer = 'BC type "' // trim(GetSubConditionName(ibndtype(TH_TEMPERATURE_DOF))) // &
+      option%io_buffer = 'BC type for T: "' // trim(GetSubConditionName(ibndtype(TH_TEMPERATURE_DOF))) // &
         '" not implemented in TH mode.'
       call printErrMsg(option)
 
@@ -3558,7 +3577,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       ! do nothing needed to bypass default case
 
     case default
-      option%io_buffer = 'BC type "' // trim(GetSubConditionName(ibndtype(TH_PRESSURE_DOF))) // &
+      option%io_buffer = 'BC type for H: "' // trim(GetSubConditionName(ibndtype(TH_PRESSURE_DOF))) // &
         '" not implemented in TH mode.'
       call printErrMsg(option)
 
@@ -3570,11 +3589,13 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   ! to be zero
   if (option%flow%only_energy_eq) q = 0.d0
 
-  if (v_darcy >= 0.D0) then
-    uh = auxvar_up%h
+  if (v_darcy > 0.D0) then
+    !uh = auxvar_up%h
+    uh = auxvar_up%u
   else
-    uh = auxvar_dn%h
-  endif      
+    !uh = auxvar_dn%h
+    uh = auxvar_up%u
+  endif
 
   fluxm = fluxm + q*density_ave
   fluxe = fluxe + q*density_ave*uh
@@ -3668,7 +3689,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       ! No change in fluxe
 
     case default
-      option%io_buffer = 'BC type "' // trim(GetSubConditionName(ibndtype(TH_TEMPERATURE_DOF))) // &
+      option%io_buffer = 'BC type for T: "' // trim(GetSubConditionName(ibndtype(TH_TEMPERATURE_DOF))) // &
         '" not implemented in TH mode.'
       call printErrMsg(option)
   end select
@@ -4040,11 +4061,13 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       ! Update residual term associated with T
       if (qsrc1 > 0.d0) then ! injection
         Res_src(TH_TEMPERATURE_DOF) = Res_src(TH_TEMPERATURE_DOF) + &
-          qsrc1*auxvars_ss(sum_connection)%h
+          !qsrc1*auxvars_ss(sum_connection)%h
+          qsrc1*auxvars_ss(sum_connection)%u
       else
         ! extraction
         Res_src(TH_TEMPERATURE_DOF) = Res_src(TH_TEMPERATURE_DOF) + &
-          qsrc1*auxvars(ghosted_id)%h
+          !qsrc1*auxvars(ghosted_id)%h
+          qsrc1*auxvars(ghosted_id)%u
       endif
 
       r_p(istart:iend) = r_p(istart:iend) - Res_src
