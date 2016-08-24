@@ -817,13 +817,19 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 #endif
 
   call EOSWaterDensity(min(max(global_auxvar%temp,-1.0d0),99.9d0), &    ! tc: -1 ~ 99.9 oC
-                       min(pw, 165.4d5),                           &    ! p: ~ 16.54 MPa
+                       min(max(pw, 0.01d0), 165.4d5),              &    ! p: 0.01 ~ 16.54 MPa
                        dw_kg, dw_mol, dw_dp, dw_dt, ierr)
   if (iphase == 3) dw_dp = 0.d0
-  if (pw>165.4d5) dw_dp = 0.d0
+  if (pw>165.4d5 .or. pw<0.01d0) dw_dp = 0.d0
   if (global_auxvar%temp<-1.d0 .or. global_auxvar%temp>99.9d0) dw_dt = 0.d0
 
-  call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
+  !call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
+  call EOSWaterEnthalpy(min(max(global_auxvar%temp,0.01d0),99.9d0), &    ! tc: 0.01 ~ 99.9 oC (0 - 350 by IFC 67)
+                        min(max(pw, 0.01d0), 165.4d5),              &    ! p: 0.01 ~ 16.54 MPa (0 - 165.4 bars by IFC 67)
+                        hw,hw_dp,hw_dt,ierr)
+  if (pw>165.4d5 .or. pw<0.01d0) hw_dp = 0.d0
+  if (global_auxvar%temp<0.01d0 .or. global_auxvar%temp>99.9d0) hw_dt = 0.d0
+
   ! J/kmol -> MJ/kmol
   hw = hw * option%scale
   hw_dp = hw_dp * option%scale
@@ -871,12 +877,11 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! Calculate the density, internal energy and derivatives for ice
 
   ! when tc ~ -15oC, Ice-density change in the following function causes presure non-monotonic issue
-  call EOSWaterDensityIce(min(max(-10.d0,global_auxvar%temp), 0.01d0),  &  ! tc: -10 ~ 0.01
-                          min(global_auxvar%pres(1), 165.4d5),         &
+  call EOSWaterDensityIce(min(max(-10.d0,global_auxvar%temp), 0.01d0),             &  ! tc: -10 ~ 0.01
+                          min(max(0.01d0,global_auxvar%pres(1)), 165.4d5),         &
                           den_ice, dden_ice_dT, dden_ice_dp, ierr)
-  if (global_auxvar%pres(1)>165.4d5) dden_ice_dp = 0.d0
-  if (global_auxvar%temp<-10.d0) dden_ice_dT = 0.d0
-  if (global_auxvar%temp>0.01d0) dden_ice_dT = 0.d0
+  if (global_auxvar%pres(1)>165.4d5 .or. global_auxvar%pres(1)<0.01d0) dden_ice_dp = 0.d0
+  if (global_auxvar%temp<-10.d0 .or. global_auxvar%temp>0.01d0) dden_ice_dT = 0.d0
 
   call EOSWaterInternalEnergyIce(global_auxvar%temp, u_ice, du_ice_dT)
 
