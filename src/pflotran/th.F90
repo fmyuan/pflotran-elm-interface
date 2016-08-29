@@ -1850,9 +1850,9 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       !uh = auxvar_dn%h
       !duh_dp_dn = auxvar_dn%dh_dp
       !duh_dt_dn = auxvar_dn%dh_dt
-      uh = auxvar_dn%h
-      duh_dp_dn = auxvar_dn%dh_dp
-      duh_dt_dn = auxvar_dn%dh_dt
+      uh = auxvar_dn%u
+      duh_dp_dn = auxvar_dn%du_dp
+      duh_dt_dn = auxvar_dn%du_dt
 
     endif      
 
@@ -1975,8 +1975,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       ddeng_dt_dn = - p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + &
            273.15d0)**2)*1.d-3
 
-      dDiffg_dt_up = 1.8*Diffg_up/(global_auxvar_up%temp + 273.15d0)
-      dDiffg_dt_dn = 1.8*Diffg_dn/(global_auxvar_dn%temp + 273.15d0)
+      dDiffg_dt_up = 1.8d0*Diffg_up/(global_auxvar_up%temp + 273.15d0)
+      dDiffg_dt_dn = 1.8d0*Diffg_dn/(global_auxvar_dn%temp + 273.15d0)
 
       dDiffg_dp_up = 0.d0
       dDiffg_dp_dn = 0.d0
@@ -2394,14 +2394,14 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
       deng_up = p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + 273.15d0))*1.d-3
       deng_dn = p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + 273.15d0))*1.d-3
 
-      Diffg_ref = 2.13D-5 ! Reference diffusivity, need to read from input file
+      Diffg_ref = 2.13d-5 ! Reference diffusivity, need to read from input file
       p_ref = 1.01325d5 ! in Pa
       T_ref = 25.d0 ! in deg C
 
       Diffg_up = Diffg_ref*(p_ref/p_g)*((global_auxvar_up%temp + 273.15d0)/ &
-           (T_ref + 273.15d0))**(1.8)  
+           (T_ref + 273.15d0))**(1.8d0)
       Diffg_dn = Diffg_ref*(p_ref/p_g)*((global_auxvar_dn%temp + 273.15d0)/ &
-           (T_ref + 273.15d0))**(1.8)
+           (T_ref + 273.15d0))**(1.8d0)
            
       Ddiffgas_up = por_up*tor_up*satg_up*deng_up*Diffg_up
       Ddiffgas_dn = por_dn*tor_dn*satg_dn*deng_dn*Diffg_dn
@@ -2930,6 +2930,13 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           dden_ave_dt_dn = auxvar_dn%dden_dt
         endif 
         q = v_darcy * area
+
+      ! water-flow entity is zero, need to turn-off heat conduction if defined as DIRICHLET type
+      else if( ibndtype(TH_TEMPERATURE_DOF) == DIRICHLET_BC .or. &
+             ibndtype(TH_TEMPERATURE_DOF) == HET_DIRICHLET ) then
+        skip_thermal_conduction = PETSC_TRUE
+        skip_mass_flow = PETSC_TRUE    ! also shut-off other (e.g. gas) flow, if any
+
       endif
 
     case(ZERO_GRADIENT_BC)
@@ -3571,6 +3578,13 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
         else 
           density_ave = global_auxvar_dn%den(1)
         endif 
+
+      ! water-flow entity is zero, need to turn-off heat conduction if defined as DIRICHLET type
+      else if( ibndtype(TH_TEMPERATURE_DOF) == DIRICHLET_BC .or. &
+              ibndtype(TH_TEMPERATURE_DOF) == HET_DIRICHLET ) then
+        skip_thermal_conduction = PETSC_TRUE
+        skip_mass_flow = PETSC_TRUE    ! also shut-off other (e.g. gas) flow, if any
+
       endif
 
     case(ZERO_GRADIENT_BC)
@@ -3805,6 +3819,8 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   use Debug_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
+
+  use String_module
   
   implicit none
 
@@ -3867,7 +3883,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 
   PetscInt :: iconn, idof, istart, iend
   PetscInt :: sum_connection
-  PetscReal :: distance, fraction_upwind
+  !PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity
   PetscReal :: vol_frac_prim
   PetscReal :: fluxe_bulk, fluxe_cond
@@ -3938,6 +3954,9 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
                         TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
                         option,vol_frac_prim,Res)
     r_p(istart:iend) = r_p(istart:iend) + Res
+
+print *,'checking Res - Accu: ', ghosted_id, Res
+
   enddo
 
 
@@ -4085,6 +4104,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
         patch%ss_flow_fluxes(1,sum_connection) = qsrc1
       endif
 
+!print *,'checking Res - SrcSink: ', ghosted_id, Res_src, source_sink%name
 
     enddo
     source_sink => source_sink%next
@@ -4115,6 +4135,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
             1.d-10) cycle
       endif
 
+#if 0
       fraction_upwind = cur_connection_set%dist(-1,iconn)
       distance = cur_connection_set%dist(0,iconn)
       ! distance = scalar - magnitude of distance
@@ -4129,6 +4150,12 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       ! however, this introduces ever so slight error causing pflow-overhaul not
       ! to match pflow-orig.  This can be changed to 1.d0-fraction_upwind
       upweight = dd_dn/(dd_up+dd_dn)
+#else
+
+      call ConnectionCalculateDistances(cur_connection_set%dist(:,iconn), &
+                                    option%gravity,dd_up,dd_dn, &
+                                    distance_gravity,upweight)
+#endif
         
       ithrm_up = int(ithrm_loc_p(ghosted_id_up))
       ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
@@ -4188,6 +4215,9 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
         r_p(istart:iend) = r_p(istart:iend) - Res(1:option%nflowdof)
       endif
 
+print *,'checking Res - internal: ', ghosted_id_up, ghosted_id_dn, Res, &
+global_auxvars(ghosted_id_up)%pres(1), global_auxvars(ghosted_id_up)%temp
+
     enddo
     cur_connection_set => cur_connection_set%next
   enddo    
@@ -4216,12 +4246,12 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       ithrm_dn = int(ithrm_loc_p(ghosted_id))
       D_dn = TH_parameter%ckwet(ithrm_dn)
 
-      distance_gravity = cur_connection_set%dist(0,iconn) * &
-                         dot_product(option%gravity, &
-                                     cur_connection_set%dist(1:3,iconn))
+      !distance_gravity = cur_connection_set%dist(0,iconn) * &
+      !                   dot_product(option%gravity, &
+      !                               cur_connection_set%dist(1:3,iconn))
 
       icap_dn = int(icap_loc_p(ghosted_id))
-  
+
       call THBCFlux(boundary_condition%flow_condition%itype, &
                                 boundary_condition%flow_aux_real_var(:,iconn), &
                                 auxvars_bc(sum_connection), &
@@ -4252,6 +4282,10 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
       r_p(istart:iend)= r_p(istart:iend) - Res(1:option%nflowdof)
+
+print *,'checking Res - BC: ', ghosted_id, sum_connection, Res, boundary_condition%name, &
+ global_auxvars_bc(sum_connection)%pres(1), global_auxvars_bc(sum_connection)%temp
+
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -4399,6 +4433,9 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   use Debug_module
   use Secondary_Continuum_Aux_module
 
+  use String_module
+
+
   SNES :: snes
   Vec :: xx
   Mat :: A, B
@@ -4440,7 +4477,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn, idof
   PetscInt :: sum_connection  
-  PetscReal :: distance, fraction_upwind
+  !PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity 
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -4530,6 +4567,9 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
 
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
+
+print *,'checking Jac - Acc: ', ghosted_id, Jup
+
   enddo
 
 
@@ -4587,15 +4627,18 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
 
       if (qsrc1 > 0.d0) then ! injection
         Jsrc(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = & 
-          -qsrc1*auxvars_ss(sum_connection)%dh_dp
+          !-qsrc1*auxvars_ss(sum_connection)%dh_dp
+          -qsrc1*auxvars_ss(sum_connection)%du_dp
         ! dresT_dt = -qsrc1*hw_dt ! since tsrc1 is prescribed, there is no derivative
         istart = ghosted_id*option%nflowdof
       else
         ! extraction
         Jsrc(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = &
-          -qsrc1*auxvars(ghosted_id)%dh_dp
+          !-qsrc1*auxvars(ghosted_id)%dh_dp
+          -qsrc1*auxvars(ghosted_id)%du_dp
         Jsrc(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) = &
-          -qsrc1*auxvars(ghosted_id)%dh_dt
+          !-qsrc1*auxvars(ghosted_id)%dh_dt
+          -qsrc1*auxvars(ghosted_id)%du_dt
         istart = ghosted_id*option%nflowdof
       endif
       
@@ -4605,6 +4648,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jsrc, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
 
+!print *,'checking Jac - SrcSink: ', ghosted_id, sum_connection, Jsrc, source_sink%name
     
     enddo
     source_sink => source_sink%next
@@ -4643,7 +4687,8 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
 
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
-   
+
+#if 0
       fraction_upwind = cur_connection_set%dist(-1,iconn)
       distance = cur_connection_set%dist(0,iconn)
       ! distance = scalar - magnitude of distance
@@ -4658,6 +4703,13 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
       ! however, this introduces ever so slight error causing pflow-overhaul not
       ! to match pflow-orig.  This can be changed to 1.d0-fraction_upwind
       upweight = dd_dn/(dd_up+dd_dn)
+
+#else
+
+      call ConnectionCalculateDistances(cur_connection_set%dist(:,iconn), &
+                                    option%gravity,dd_up,dd_dn, &
+                                    distance_gravity,upweight)
+#endif
     
       ithrm_up = int(ithrm_loc_p(ghosted_id_up))
       ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
@@ -4735,6 +4787,10 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                                       Jup/material_auxvars(ghosted_id_dn)%volume,ADD_VALUES, &
                                       ierr);CHKERRQ(ierr)
       endif
+
+print *,'checking Jup - internal: ', ghosted_id_up, Jup
+print *,'checking Jdn - internal: ', ghosted_id_dn, Jdn
+
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
@@ -4810,6 +4866,9 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
       
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn,ADD_VALUES, &
                                     ierr);CHKERRQ(ierr)
+
+
+print *,'checking Jac - BC: ', ghosted_id, sum_connection, Jdn, boundary_condition%name
  
     enddo
     boundary_condition => boundary_condition%next

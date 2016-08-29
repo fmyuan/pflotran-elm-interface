@@ -379,6 +379,11 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   tempreal = (1.d0 - auxvar%porosity_base) * compression
   compressed_porosity = 1.d0 - tempreal
   dcompressed_porosity_dp = tempreal * compressibility
+
+  if(pressure<auxvar%soil_properties(soil_reference_pressure_index)-erf(1.d-10)) then
+    compressed_porosity = auxvar%porosity_base
+    dcompressed_porosity_dp = 0.d0
+  endif
   
 end subroutine MaterialCompressSoilLeijnse
 

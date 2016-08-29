@@ -820,15 +820,11 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                        min(max(pw, 0.01d0), 165.4d5),              &    ! p: 0.01 ~ 16.54 MPa
                        dw_kg, dw_mol, dw_dp, dw_dt, ierr)
   if (iphase == 3) dw_dp = 0.d0
-  if (pw>165.4d5 .or. pw<0.01d0) dw_dp = 0.d0
-  if (global_auxvar%temp<-1.d0 .or. global_auxvar%temp>99.9d0) dw_dt = 0.d0
 
   !call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
   call EOSWaterEnthalpy(min(max(global_auxvar%temp,0.01d0),99.9d0), &    ! tc: 0.01 ~ 99.9 oC (0 - 350 by IFC 67)
                         min(max(pw, 0.01d0), 165.4d5),              &    ! p: 0.01 ~ 16.54 MPa (0 - 165.4 bars by IFC 67)
                         hw,hw_dp,hw_dt,ierr)
-  if (pw>165.4d5 .or. pw<0.01d0) hw_dp = 0.d0
-  if (global_auxvar%temp<0.01d0 .or. global_auxvar%temp>99.9d0) hw_dt = 0.d0
 
   ! J/kmol -> MJ/kmol
   hw = hw * option%scale

@@ -2768,11 +2768,16 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                 == NEUMANN_BC) then                    ! for liq. water flow BC, thermal conduction OFF
             boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = 0.d0
 
-           elseif(boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+          elseif (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                == DIRICHLET_BC) then                    ! for liq. water flow BC, thermal conduction ON
+            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                gtemp_subsurf_pf_loc(iconn)
+
+          elseif(boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
                 /= ZERO_GRADIENT_BC) then
             option%io_buffer='pflotranModelSetTcond -  ' // &
                ' for CLM-PFLOTRAN coupling - BC flow/temperature condition "clm_gwflux_bc" MUST be: ' // &
-               ' TEMPERATURE neumann or TEMPERATURE zero_gradient '
+               ' TEMPERATURE neumann/dirichlet or TEMPERATURE zero_gradient '
             call printErrMsg(option)
 
           end if
