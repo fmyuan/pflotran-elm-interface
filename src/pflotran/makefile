@@ -126,6 +126,10 @@ ifdef well_debug
   MYFLAGS += ${FC_DEFINE_FLAG}WELL_DEBUG
 endif
 
+ifdef well_class
+  MYFLAGS += ${FC_DEFINE_FLAG}WELL_CLASS
+endif
+
 CFLAGS   = 
 FFLAGS   =
 CPPFLAGS = ${MYFLAGS}
