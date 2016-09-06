@@ -874,11 +874,12 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! Calculate the density, internal energy and derivatives for ice
 
   ! when tc ~ -15oC, Ice-density change in the following function causes presure non-monotonic issue
-  call EOSWaterDensityIce(min(max(-10.d0,global_auxvar%temp), 0.01d0),             &  ! tc: -10 ~ 0.01
+  call EOSWaterDensityIce(min(max(-10.d0,global_auxvar%temp), -0.01d0),            &  ! tc: -10 ~ -0.01
                           min(max(0.01d0,global_auxvar%pres(1)), 165.4d5),         &
                           den_ice, dden_ice_dT, dden_ice_dp, ierr)
 
-  call EOSWaterInternalEnergyIce(global_auxvar%temp, u_ice, du_ice_dT)
+  !call EOSWaterInternalEnergyIce(global_auxvar%temp, u_ice, du_ice_dT)
+  call EOSWaterInternalEnergyIce(min(-0.01d0, global_auxvar%temp), u_ice, du_ice_dT)  ! tc: ~ -0.01
 
   auxvar%ice%den_ice = den_ice
   auxvar%ice%dden_ice_dt = dden_ice_dT
@@ -891,7 +892,8 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! Calculate the values and derivatives for vapor density and internal energy
   call EOSWaterSaturationPressure(global_auxvar%temp, p_sat, ierr)
 
-  p_g                = pw !option%reference_pressure
+  !p_g                = option%reference_pressure
+  p_g                = pw
   auxvar%ice%den_gas = p_g/(IDEAL_GAS_CONSTANT*(global_auxvar%temp + 273.15d0))*1.d-3 !in kmol/m3
   mol_g              = p_sat/p_g
   C_g                = C_wv*mol_g*FMWH2O + C_a*(1.d0 - mol_g)*FMWAIR                  ! in MJ/kmol/K
