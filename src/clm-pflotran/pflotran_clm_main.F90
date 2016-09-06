@@ -1693,7 +1693,7 @@ contains
     grid            => patch%grid
     field           => realization%field
 
-    call VecGetArrayF90(field%porosity0,porosity_loc_p,ierr)
+    call VecGetArrayF90(field%porosity_t,porosity_loc_p,ierr)     ! current porosity (checking ?? 'porosity_t' or 'porosity_tpdt')
     CHKERRQ(ierr)
 
     call VecGetArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
@@ -1749,7 +1749,7 @@ contains
 
     enddo
 
-    call VecRestoreArrayF90(field%porosity0,porosity_loc_p,ierr)
+    call VecRestoreArrayF90(field%porosity_t,porosity_loc_p,ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
     CHKERRQ(ierr)
