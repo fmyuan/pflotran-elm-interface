@@ -1737,11 +1737,6 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: dmolg_dp_up, dmolg_dp_dn
   PetscReal :: fv_up_pert
 
-  ! extra variables for vapor diffusion
-  PetscReal :: dDiffgas_dp_up, dDiffgas_dt_up, dDiffgas_dp_dn, dDiffgas_dt_dn
-  PetscReal :: ddeng_dp_up, ddeng_dp_dn
-  PetscReal :: dsatg_dt_up, dsatg_dt_dn
-  
   !
   call ConnectionCalculateDistances(dist,option%gravity,dd_up,dd_dn, &
                                     dist_gravity,upweight)
@@ -1924,7 +1919,6 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     satg_dn = auxvar_dn%ice%sat_gas
     if ((satg_up > eps) .and. (satg_dn > eps)) then
 
-#if 0
       p_g = option%reference_pressure  ! set to reference pressure
       deng_up = p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + 273.15d0))*1.d-3
       deng_dn = p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + 273.15d0))*1.d-3
@@ -1981,8 +1975,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       ddeng_dt_dn = - p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + &
            273.15d0)**2)*1.d-3
 
-      dDiffg_dt_up = 1.8d0*Diffg_up/(global_auxvar_up%temp + 273.15d0)
-      dDiffg_dt_dn = 1.8d0*Diffg_dn/(global_auxvar_dn%temp + 273.15d0)
+      dDiffg_dt_up = 1.8*Diffg_up/(global_auxvar_up%temp + 273.15d0)
+      dDiffg_dt_dn = 1.8*Diffg_dn/(global_auxvar_dn%temp + 273.15d0)
 
       dDiffg_dp_up = 0.d0
       dDiffg_dp_dn = 0.d0
@@ -2018,97 +2012,16 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
            + Ddiffgas_avg*(-dmolg_dt_dn))/(dd_up + dd_dn)*area
 #endif
 
-!f-m. Yuan (2016-09-06): something may not be right above
-#else
-
-      deng_up = auxvar_up%ice%den_gas
-      deng_dn = auxvar_dn%ice%den_gas
-
-      Diffg_ref = 2.13d-5 ! Reference diffusivity, need to read from input file
-      T_ref = 25.d0 ! in deg C
-
-      Diffg_up = Diffg_ref*((global_auxvar_up%temp + &
-        273.15d0)/(T_ref + 273.15d0))**(1.8d0)
-      Diffg_dn = Diffg_ref*((global_auxvar_dn%temp + &
-        273.15d0)/(T_ref + 273.15d0))**(1.8d0)
-      Ddiffgas_up = por_up*tor_up*satg_up*deng_up*Diffg_up
-      Ddiffgas_dn = por_dn*tor_dn*satg_dn*deng_dn*Diffg_dn
-
-      dDiffg_dt_up = 1.8d0*Diffg_up/(global_auxvar_up%temp + 273.15d0)
-      dDiffg_dt_dn = 1.8d0*Diffg_dn/(global_auxvar_dn%temp + 273.15d0)
-      dDiffg_dp_up = 0.d0
-      dDiffg_dp_dn = 0.d0
-
-      dsatg_dt_up = auxvar_up%ice%dsat_gas_dt
-      dsatg_dt_dn = auxvar_dn%ice%dsat_gas_dt
-      dsatg_dp_up = auxvar_up%ice%dsat_gas_dp
-      dsatg_dp_dn = auxvar_dn%ice%dsat_gas_dp
-      ddeng_dt_up = auxvar_up%ice%dden_gas_dt
-      ddeng_dt_dn = auxvar_dn%ice%dden_gas_dt
-      ddeng_dp_up = auxvar_up%ice%dden_gas_dp
-      ddeng_dp_dn = auxvar_dn%ice%dden_gas_dp
-
-      dDiffgas_dt_up = por_up*tor_up* &
-                      ( Diffg_up*(satg_up*ddeng_dt_up+dsatg_dt_up*deng_up) &
-                       +dDiffg_dt_up*(satg_up*deng_up) )
-      dDiffgas_dt_dn = por_dn*tor_dn* &
-                      ( Diffg_dn*(satg_dn*ddeng_dt_dn+dsatg_dt_dn*deng_dn) &
-                       +dDiffg_dt_dn*(satg_dn*deng_dn) )
-      dDiffgas_dp_up = por_up*tor_up* &
-                      ( Diffg_up*(satg_up*ddeng_dp_up+dsatg_dp_up*deng_up) &
-                       +dDiffg_dp_up*(satg_up*deng_up) )
-      dDiffgas_dp_dn = por_dn*tor_dn* &
-                      ( Diffg_dn*(satg_dn*ddeng_dp_dn+dsatg_dp_dn*deng_dn) &
-                       +dDiffg_dp_dn*(satg_dn*deng_dn) )
-
-      molg_up = auxvar_up%ice%mol_gas
-      molg_dn = auxvar_dn%ice%mol_gas
-      dmolg_dt_up = auxvar_up%ice%dmol_gas_dt
-      dmolg_dt_dn = auxvar_dn%ice%dmol_gas_dt
-      dmolg_dp_up = auxvar_up%ice%dmol_gas_dp
-      dmolg_dp_dn = auxvar_dn%ice%dmol_gas_dp
-      if (molg_up > molg_dn) then
-        upweight = 0.d0
-      else
-        upweight = 1.d0
-      endif
-
-      Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn
-
-#ifndef NO_VAPOR_DIFFUSION
-      ! qm = Ddiffgas_avg*(molg_up - molg_dn)/(dd_up+dd_dn)*area
-
-      Jup(1,1) = Jup(1,1) + area/(dd_up+dd_dn)* &
-                 ( upweight*dDiffgas_dp_up*(molg_up - molg_dn) + &
-                   Ddiffgas_avg*dmolg_dp_up )
-
-      Jup(1,1) = Jup(1,1) + area/(dd_up+dd_dn)* &
-                 ( upweight*dDiffgas_dt_up*(molg_up - molg_dn) + &
-                   Ddiffgas_avg*dmolg_dt_up )
-
-      Jdn(1,1) = Jdn(1,1) + area/(dd_up+dd_dn)* &
-                 ( (1.D0 - upweight)*dDiffgas_dp_dn*(molg_up - molg_dn) + &
-                   Ddiffgas_avg*(-dmolg_dp_dn) )
-
-      Jdn(1,2) = Jdn(1,2) + area/(dd_up+dd_dn)* &
-                 ( (1.D0 - upweight)*dDiffgas_dt_dn*(molg_up - molg_dn) + &
-                   Ddiffgas_avg*(-dmolg_dt_dn) )
-
-#endif
-
-#endif
-
-
    endif
 
   endif ! if (use_th_freezing)
 
         
-    dKe_dp_up = auxvar_up%dKe_dp
-    dKe_dp_dn = auxvar_dn%dKe_dp
+  dKe_dp_up = auxvar_up%dKe_dp
+  dKe_dp_dn = auxvar_dn%dKe_dp
 
-    dKe_dt_up = auxvar_up%dKe_dt
-    dKe_dt_dn = auxvar_dn%dKe_dt
+  dKe_dt_up = auxvar_up%dKe_dt
+  dKe_dt_dn = auxvar_dn%dKe_dt
 
   if (option%use_th_freezing) then
             
@@ -2404,8 +2317,8 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   PetscErrorCode :: ierr
   PetscReal :: Ke_fr_up,Ke_fr_dn   ! frozen soil Kersten numbers
   PetscReal :: fv_up, fv_dn
-  PetscReal :: qm_g
-     
+
+  !
   call ConnectionCalculateDistances(dist,option%gravity,dd_up,dd_dn, &
                                     dist_gravity,upweight)
   call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
@@ -2480,19 +2393,18 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
     satg_dn = auxvar_dn%ice%sat_gas
     if ((satg_up > eps) .and. (satg_dn > eps)) then
 
-#if 0
       p_g = option%reference_pressure ! set to reference pressure
       deng_up = p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + 273.15d0))*1.d-3
       deng_dn = p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + 273.15d0))*1.d-3
 
-      Diffg_ref = 2.13d-5 ! Reference diffusivity, need to read from input file
+      Diffg_ref = 2.13D-5 ! Reference diffusivity, need to read from input file
       p_ref = 1.01325d5 ! in Pa
       T_ref = 25.d0 ! in deg C
 
       Diffg_up = Diffg_ref*(p_ref/p_g)*((global_auxvar_up%temp + 273.15d0)/ &
-           (T_ref + 273.15d0))**(1.8d0)
+           (T_ref + 273.15d0))**(1.8)  
       Diffg_dn = Diffg_ref*(p_ref/p_g)*((global_auxvar_dn%temp + 273.15d0)/ &
-           (T_ref + 273.15d0))**(1.8d0)
+           (T_ref + 273.15d0))**(1.8)
            
       Ddiffgas_up = por_up*tor_up*satg_up*deng_up*Diffg_up
       Ddiffgas_dn = por_dn*tor_dn*satg_dn*deng_dn*Diffg_dn
@@ -2518,40 +2430,6 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
 #ifndef NO_VAPOR_DIFFUSION
       fluxm = fluxm + Ddiffgas_avg*area*(molg_up - molg_dn)/ &
            (dd_up + dd_dn)
-#endif
-
-
-!f-m. Yuan (2016-09-06): something may not be right above
-#else
-
-      deng_up = auxvar_up%ice%den_gas
-      deng_dn = auxvar_dn%ice%den_gas
-
-      Diffg_ref = 2.13d-5 ! Reference diffusivity, need to read from input file
-      T_ref = 25.d0 ! in deg C
-
-      Diffg_up = Diffg_ref*((global_auxvar_up%temp + &
-        273.15d0)/(T_ref + 273.15d0))**(1.8d0)
-      Diffg_dn = Diffg_ref*((global_auxvar_dn%temp + &
-        273.15d0)/(T_ref + 273.15d0))**(1.8d0)
-      Ddiffgas_up = por_up*tor_up*satg_up*deng_up*Diffg_up
-      Ddiffgas_dn = por_dn*tor_dn*satg_dn*deng_dn*Diffg_dn
-
-      molg_up = auxvar_up%ice%mol_gas
-      molg_dn = auxvar_dn%ice%mol_gas
-      if (molg_up > molg_dn) then
-        upweight = 0.d0
-      else
-        upweight = 1.d0
-      endif
-
-      Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn
-
-#ifndef NO_VAPOR_DIFFUSION
-      qm_g = Ddiffgas_avg*(molg_up - molg_dn)/(dd_up+dd_dn)*area
-      fluxm = fluxm + qm_g
-#endif
-
 #endif
 
     endif
@@ -2617,7 +2495,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   use Connection_module
   use EOS_Water_module
   use Utility_module
-  use Condition_module
 
   implicit none
   
@@ -2705,13 +2582,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscBool :: skip_thermal_conduction
 
   PetscBool :: skip_mass_flow
-  PetscReal :: dDiffgas_dp_up, dDiffgas_dt_up, dDiffgas_dp_dn, dDiffgas_dt_dn
-  PetscReal :: dDiffg_dp_up, dDiffg_dt_up
-  PetscReal :: dmolg_dp_up, dmolg_dt_up, dmolg_dp_dn
-  PetscReal :: ddeng_dp_up, ddeng_dp_dn, ddeng_dt_up
-  PetscReal :: dsatg_dp_up, dsatg_dt_up, dsatg_dt_dn
-
-
   skip_thermal_conduction = PETSC_FALSE
   skip_mass_flow = PETSC_FALSE
   T_th  = 0.5d0
@@ -3220,26 +3090,11 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           endif
         endif
       endif
-
-
-    case(NEUMANN_BC, ZERO_GRADIENT_BC)
-      ! do nothing, but by-passing the 'default'
-
-    case default
-      option%io_buffer = 'BC type for T: "' // trim(GetSubConditionName(ibndtype(TH_TEMPERATURE_DOF))) // &
-        '" not implemented in TH mode.'
-      call printErrMsg(option)
-
-  end select
-
-  ! let gas-diffusion work for all BCs, unless explicitly 'skips'
-  if (option%use_th_freezing .and. (.not.skip_mass_flow)) then
+      if (option%use_th_freezing .and. (.not.skip_mass_flow)) then
          ! Added by Satish Karra, 11/21/11
          satg_up = auxvar_up%ice%sat_gas
          satg_dn = auxvar_dn%ice%sat_gas
          if ((satg_up > eps) .and. (satg_dn > eps)) then
-
-#if 0
             p_g = option%reference_pressure  ! set to reference pressure
             deng_up = p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + &
                  273.15d0))*1.d-3
@@ -3275,7 +3130,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         
             Ddiffgas_avg = upweight*Ddiffgas_up+(1.D0 - upweight)*Ddiffgas_dn 
     
-
 #ifndef NO_VAPOR_DIFFUSION
             Jdn(1,1) = Jdn(1,1) + por_dn*tor_dn*(1.D0 - upweight)* &
                  Ddiffgas_dn/satg_dn*dsatg_dp_dn*(molg_up - molg_dn)/dd_dn* &
@@ -3286,83 +3140,10 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                  tor_dn*Ddiffgas_avg*(-dmolg_dt_dn)/dd_dn*area
 #endif
 
-
-
-!f-m. Yuan (2016-09-06): something may not be right above
-#else
-
-            deng_up = auxvar_up%ice%den_gas
-            deng_dn = auxvar_dn%ice%den_gas
-
-            Diffg_ref = 2.13d-5 ! Reference diffusivity, need to read from input file
-            T_ref = 25.d0 ! in deg C
-
-            Diffg_up = Diffg_ref*((global_auxvar_up%temp + &
-                 273.15d0)/(T_ref + 273.15d0))**(1.8d0)
-            Diffg_dn = Diffg_ref*((global_auxvar_dn%temp + &
-                 273.15d0)/(T_ref + 273.15d0))**(1.8d0)
-            Ddiffgas_up = por_dn*tor_dn*satg_up*deng_up*Diffg_up
-            Ddiffgas_dn = por_dn*tor_dn*satg_dn*deng_dn*Diffg_dn
-
-            dDiffg_dt_up = 1.8d0*Diffg_up/(global_auxvar_up%temp + 273.15d0)
-            dDiffg_dt_dn = 1.8d0*Diffg_dn/(global_auxvar_dn%temp + 273.15d0)
-            dDiffg_dp_up = 0.d0
-            dDiffg_dp_dn = 0.d0
-
-            dsatg_dt_up = auxvar_up%ice%dsat_gas_dt
-            dsatg_dt_dn = auxvar_dn%ice%dsat_gas_dt
-            dsatg_dp_up = auxvar_up%ice%dsat_gas_dp
-            dsatg_dp_dn = auxvar_dn%ice%dsat_gas_dp
-            ddeng_dt_up = auxvar_up%ice%dden_gas_dt
-            ddeng_dt_dn = auxvar_dn%ice%dden_gas_dt
-            ddeng_dp_up = auxvar_up%ice%dden_gas_dp
-            ddeng_dp_dn = auxvar_dn%ice%dden_gas_dp
-
-            dDiffgas_dt_up = por_dn*tor_dn* &
-                             ( Diffg_up*(satg_up*ddeng_dt_up+dsatg_dt_up*deng_up) &
-                              +dDiffg_dt_dn*(satg_up*deng_up) )
-            dDiffgas_dp_up = por_dn*tor_dn* &
-                             ( Diffg_up*(satg_up*ddeng_dp_up+dsatg_dp_up*deng_up) &
-                              +dDiffg_dp_up*(satg_up*deng_up) )
-            dDiffgas_dt_dn = por_dn*tor_dn* &
-                             ( Diffg_dn*(satg_dn*ddeng_dt_dn+dsatg_dt_dn*deng_dn) &
-                              +dDiffg_dt_dn*(satg_dn*deng_dn) )
-            dDiffgas_dp_dn = por_dn*tor_dn* &
-                             ( Diffg_dn*(satg_dn*ddeng_dp_dn+dsatg_dp_dn*deng_dn) &
-                              +dDiffg_dp_dn*(satg_dn*deng_dn) )
-
-            molg_up = auxvar_up%ice%mol_gas
-            molg_dn = auxvar_dn%ice%mol_gas
-            dmolg_dt_up = auxvar_up%ice%dmol_gas_dt
-            dmolg_dt_dn = auxvar_dn%ice%dmol_gas_dt
-            dmolg_dp_up = auxvar_up%ice%dmol_gas_dp
-            dmolg_dp_dn = auxvar_dn%ice%dmol_gas_dp
-            if (molg_up > molg_dn) then
-              upweight = 0.d0
-            else
-              upweight = 1.d0
-            endif
-
-            Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn
-
-#ifndef NO_VAPOR_DIFFUSION
-            ! qm_g = Ddiffgas_avg*(molg_up - molg_dn)/dd_dn*area
-
-            Jdn(1,1) = Jdn(1,1) + area/dd_dn* &
-              ( (1.D0 - upweight)*dDiffgas_dp_dn*(molg_up - molg_dn) + &
-                Ddiffgas_avg*(-dmolg_dp_dn) )
-
-            Jdn(1,2) = Jdn(1,2) + area/dd_dn* &
-              ( (1.D0 - upweight)*dDiffgas_dt_dn*(molg_up - molg_dn) + &
-                Ddiffgas_avg*(-dmolg_dt_dn) )
-
-#endif
-
-#endif
-
-
          endif
-  endif ! if (use_th_freezing)
+      endif ! if (use_th_freezing)
+
+  end select
 
   ! If only solving the energy equation,
   !  - Set jacobian term corresponding to mass-equation to zero, and
@@ -3580,7 +3361,6 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   PetscReal :: q_approx, dq_approx
   PetscReal :: T_th,fctT,fct
   PetscBool :: skip_thermal_conduction,  skip_mass_flow
-  PetscReal :: qm_g
 
   skip_thermal_conduction = PETSC_FALSE
   skip_mass_flow = PETSC_FALSE
@@ -3883,6 +3663,48 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       fluxe = fluxe + cond
       fluxe_cond = cond
 
+      if (option%use_th_freezing .and. (.not.skip_mass_flow)) then
+         ! Added by Satish Karra,
+         satg_up = auxvar_up%ice%sat_gas
+         satg_dn = auxvar_dn%ice%sat_gas
+         if ((satg_up > eps) .and. (satg_dn > eps)) then
+            p_g = option%reference_pressure ! set to reference pressure
+            deng_up = p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + 273.15d0))*1.d-3
+            deng_dn = p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + 273.15d0))*1.d-3
+  
+            Diffg_ref = 2.13D-5 ! Reference diffusivity, need to read from input file
+            p_ref = 1.01325d5 ! in Pa
+            T_ref = 25.d0 ! in deg C
+
+            Diffg_up = Diffg_ref*(p_ref/p_g)*((global_auxvar_up%temp + &
+                 273.15d0)/(T_ref + 273.15d0))**(1.8)
+            Diffg_dn = Diffg_ref*(p_ref/p_g)*((global_auxvar_dn%temp + &
+                 273.15d0)/(T_ref + 273.15d0))**(1.8)
+            Ddiffgas_up = satg_up*deng_up*Diffg_up
+            Ddiffgas_dn = satg_dn*deng_dn*Diffg_dn
+            call EOSWaterSaturationPressure(global_auxvar_up%temp, psat_up, ierr)
+            call EOSWaterSaturationPressure(global_auxvar_dn%temp, psat_dn, ierr)
+        
+            ! vapor pressure lowering due to capillary pressure
+            fv_up = exp(-auxvar_up%pc/(global_auxvar_up%den(1)* &
+                 IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + 273.15d0)))
+            fv_dn = exp(-auxvar_dn%pc/(global_auxvar_dn%den(1)* &
+                 IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + 273.15d0)))
+
+            molg_up = psat_up*fv_up/p_g
+            molg_dn = psat_dn*fv_dn/p_g
+
+            if (molg_up > molg_dn) then 
+               upweight = 0.d0
+            else
+               upweight = 1.d0
+            endif
+
+            Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn 
+            fluxm = fluxm + por_dn*tor_dn*Ddiffgas_avg*(molg_up - molg_dn)/ &
+                 dd_dn*area
+         endif
+      endif ! if (use_th_freezing)
 
     case(NEUMANN_BC)
       !geh: default internal energy units are MJ (option%scale = 1.d-6 is for J->MJ)
@@ -3897,89 +3719,6 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
         '" not implemented in TH mode.'
       call printErrMsg(option)
   end select
-
-  ! let gas-diffusion workable for all BCs, unless explicitly 'skips' (f-m Yuan @ 2016-09-06)
-  if (option%use_th_freezing .and. (.not.skip_mass_flow)) then
-    ! Added by Satish Karra,
-    satg_up = auxvar_up%ice%sat_gas
-    satg_dn = auxvar_dn%ice%sat_gas
-    if ((satg_up > eps) .and. (satg_dn > eps)) then
-
-#if 0
-      p_g = option%reference_pressure ! set to reference pressure
-      deng_up = p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + 273.15d0))*1.d-3
-      deng_dn = p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + 273.15d0))*1.d-3
-  
-      Diffg_ref = 2.13D-5 ! Reference diffusivity, need to read from input file
-      p_ref = 1.01325d5 ! in Pa
-      T_ref = 25.d0 ! in deg C
-
-      Diffg_up = Diffg_ref*(p_ref/p_g)*((global_auxvar_up%temp + &
-                 273.15d0)/(T_ref + 273.15d0))**(1.8d0)
-      Diffg_dn = Diffg_ref*(p_ref/p_g)*((global_auxvar_dn%temp + &
-                 273.15d0)/(T_ref + 273.15d0))**(1.8d0)
-      Ddiffgas_up = satg_up*deng_up*Diffg_up
-      Ddiffgas_dn = satg_dn*deng_dn*Diffg_dn
-      call EOSWaterSaturationPressure(global_auxvar_up%temp, psat_up, ierr)
-      call EOSWaterSaturationPressure(global_auxvar_dn%temp, psat_dn, ierr)
-        
-      ! vapor pressure lowering due to capillary pressure
-      fv_up = exp(-auxvar_up%pc/(global_auxvar_up%den(1)* &
-                 IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + 273.15d0)))
-      fv_dn = exp(-auxvar_dn%pc/(global_auxvar_dn%den(1)* &
-                 IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + 273.15d0)))
-
-      molg_up = psat_up*fv_up/p_g
-      molg_dn = psat_dn*fv_dn/p_g
-
-      if (molg_up > molg_dn) then
-        upweight = 0.d0
-      else
-        upweight = 1.d0
-      endif
-
-#ifndef NO_VAPOR_DIFFUSION
-      Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn
-      fluxm = fluxm + por_dn*tor_dn*Ddiffgas_avg*(molg_up - molg_dn)/ &
-              dd_dn*area
-#endif
-
-!f-m. Yuan (2016-09-06): something may not be right above
-#else
-
-      deng_up = auxvar_up%ice%den_gas
-      deng_dn = auxvar_dn%ice%den_gas
-
-      Diffg_ref = 2.13d-5 ! Reference diffusivity, need to read from input file
-      T_ref = 25.d0 ! in deg C
-
-      Diffg_up = Diffg_ref*((global_auxvar_up%temp + &
-                 273.15d0)/(T_ref + 273.15d0))**(1.8d0)
-      Diffg_dn = Diffg_ref*((global_auxvar_dn%temp + &
-                 273.15d0)/(T_ref + 273.15d0))**(1.8d0)
-      Ddiffgas_up = por_dn*tor_dn*satg_up*deng_up*Diffg_up
-      Ddiffgas_dn = por_dn*tor_dn*satg_dn*deng_dn*Diffg_dn
-
-      molg_up = auxvar_up%ice%mol_gas
-      molg_dn = auxvar_dn%ice%mol_gas
-      if (molg_up > molg_dn) then
-        upweight = 0.d0
-      else
-        upweight = 1.d0
-      endif
-
-      Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn
-
-#ifndef NO_VAPOR_DIFFUSION
-      qm_g = Ddiffgas_avg*(molg_up - molg_dn)/dd_dn*area
-      fluxm = fluxm + qm_g
-#endif
-
-#endif
-
-
-    endif
-  endif ! if (use_th_freezing)
 
   ! If only solving the energy equation, set Res(1) is 0.d0
   if (option%flow%only_energy_eq) fluxm = 0.d0
@@ -4092,8 +3831,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   use Debug_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
-
-  use String_module
   
   implicit none
 
@@ -4227,11 +3964,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
                         TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
                         option,vol_frac_prim,Res)
     r_p(istart:iend) = r_p(istart:iend) + Res
-
-!if(option%time>=6904700.d0) &
-!print *,'checking Res - Accu: ', ghosted_id, Res, &
-!global_auxvars(ghosted_id)%pres(1), global_auxvars(ghosted_id)%temp
-
   enddo
 
 
@@ -4379,9 +4111,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
         patch%ss_flow_fluxes(1,sum_connection) = qsrc1
       endif
 
-!if(option%time>=6904700.d0) &
-!if(abs(Res_src(1))>eps .or. abs(Res_src(2))>eps) &
-!print *,'checking Res - SrcSink: ', ghosted_id, Res_src, source_sink%name
 
     enddo
     source_sink => source_sink%next
@@ -4494,9 +4223,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
         r_p(istart:iend) = r_p(istart:iend) - Res(1:option%nflowdof)
       endif
 
-!if(option%time>=6904700.d0) &
-!print *,'checking Res - internal: ', ghosted_id_up, ghosted_id_dn, Res
-
     enddo
     cur_connection_set => cur_connection_set%next
   enddo    
@@ -4525,12 +4251,12 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       ithrm_dn = int(ithrm_loc_p(ghosted_id))
       D_dn = TH_parameter%ckwet(ithrm_dn)
 
-      !distance_gravity = cur_connection_set%dist(0,iconn) * &
-      !                   dot_product(option%gravity, &
-      !                               cur_connection_set%dist(1:3,iconn))
+      distance_gravity = cur_connection_set%dist(0,iconn) * &
+                         dot_product(option%gravity, &
+                                     cur_connection_set%dist(1:3,iconn))
 
       icap_dn = int(icap_loc_p(ghosted_id))
-
+  
       call THBCFlux(boundary_condition%flow_condition%itype, &
                                 boundary_condition%flow_aux_real_var(:,iconn), &
                                 auxvars_bc(sum_connection), &
@@ -4561,11 +4287,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
       r_p(istart:iend)= r_p(istart:iend) - Res(1:option%nflowdof)
-
-!if(option%time>=6904700.d0) &
-!print *,'checking Res - BC: ', ghosted_id, sum_connection, Res, boundary_condition%name, &
-! global_auxvars_bc(sum_connection)%pres(1), global_auxvars_bc(sum_connection)%temp
-
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -4713,9 +4434,6 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   use Debug_module
   use Secondary_Continuum_Aux_module
 
-  use String_module
-
-
   SNES :: snes
   Vec :: xx
   Mat :: A, B
@@ -4847,10 +4565,6 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
 
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
-
-!if(option%time>=6904700.d0) &
-!print *,'checking Jac - Acc: ', ghosted_id, Jup
-
   enddo
 
 
@@ -4929,9 +4643,6 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jsrc, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
 
-!if(option%time>=6904700.d0) &
-!if(abs(qsrc1)>eps) &
-!print *,'checking Jac - SrcSink: ', ghosted_id, sum_connection, Jsrc, source_sink%name
     
     enddo
     source_sink => source_sink%next
@@ -5071,12 +4782,6 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                                       Jup/material_auxvars(ghosted_id_dn)%volume,ADD_VALUES, &
                                       ierr);CHKERRQ(ierr)
       endif
-
-!if(option%time>=6904700.d0) &
-!print *,'checking Jup - internal: ', ghosted_id_up, Jup
-!if(option%time>=6904700.d0) &
-!print *,'checking Jdn - internal: ', ghosted_id_dn, Jdn
-
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
@@ -5152,9 +4857,6 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
       
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn,ADD_VALUES, &
                                     ierr);CHKERRQ(ierr)
-
-!if(option%time>=6904700.d0) &
-!print *,'checking Jac - BC: ', ghosted_id, sum_connection, Jdn, boundary_condition%name
  
     enddo
     boundary_condition => boundary_condition%next
