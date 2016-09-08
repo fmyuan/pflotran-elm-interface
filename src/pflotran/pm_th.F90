@@ -283,6 +283,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
   ! 
+  use Realization_Subsurface_class, only : RealizationLimitDTByCFL
 
   implicit none
   
@@ -339,7 +340,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   dtt = max(dtt,dt_min/10.d0)
   dt = dtt
 
-  call PMSubsurfaceFlowLimitDTByCFL(this,dt)
+  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
   
 end subroutine PMTHUpdateTimestep
 

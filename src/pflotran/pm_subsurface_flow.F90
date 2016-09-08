@@ -65,6 +65,10 @@ module PM_Subsurface_Flow_class
     procedure, public :: RestartHDF5 => PMSubsurfaceFlowRestartHDF5
 #endif
     procedure, public :: InputRecord => PMSubsurfaceFlowInputRecord
+#ifdef WELL_CLASS
+    procedure  :: AllWellsInit
+    procedure :: AllWellsUpdate
+#endif
 !    procedure, public :: Destroy => PMSubsurfaceFlowDestroy
   end type pm_subsurface_flow_type
   
@@ -77,7 +81,6 @@ module PM_Subsurface_Flow_class
             PMSubsurfaceFlowUpdateSolution, &
             PMSubsurfaceFlowUpdatePropertiesNI, &
             PMSubsurfaceFlowTimeCut, &
-            PMSubsurfaceFlowLimitDTByCFL, &
             PMSubsurfaceFlowCheckpointBinary, &
             PMSubsurfaceFlowRestartBinary, &
             PMSubsurfaceFlowReadSelectCase, &
@@ -350,9 +353,52 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   call this%PreSolve()
   call this%UpdateAuxVars()
   call this%UpdateSolution() 
-    
+#ifdef WELL_CLASS
+  call this%AllWellsInit() !does nothing if no well exist
+#endif    
 end subroutine PMSubsurfaceFlowInitializeRun
 
+! ************************************************************************** !
+#ifdef WELL_CLASS
+subroutine AllWellsInit(this)
+  !
+  ! Initialise all wells - does nothing if no well exist
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 05/25/16
+
+  !use Well_Base_class
+  use Coupler_module
+  implicit none
+
+  class(pm_subsurface_flow_type) :: this
+
+  type(coupler_type), pointer :: source_sink
+
+  PetscMPIInt :: cur_w_myrank
+  character(len=MAXSTRINGLENGTH) :: wfile_name
+  PetscInt :: ierr 
+
+  source_sink => this%realization%patch%source_sink_list%first
+
+  do
+    if (.not.associated(source_sink)) exit
+    if (associated(source_sink%well) ) then
+      !exlude empty wells - not included in well comms
+      if (source_sink%connection_set%num_connections > 0) then
+
+        call source_sink%well%InitRun(this%realization%patch%grid, &
+                                this%realization%patch%aux%Material%auxvars, &
+                                this%realization%output_option, &
+                                this%realization%option)
+
+      end if
+    end if
+    source_sink => source_sink%next 
+  end do 
+
+end subroutine AllWellsInit
+#endif
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowInitializeTimestepA(this)
@@ -421,9 +467,52 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
       call RealizationUpdatePropertiesTS(this%realization)
     endif
   endif
-  
+#ifdef WELL_CLASS
+  call this%AllWellsUpdate()
+#endif  
 end subroutine PMSubsurfaceFlowInitializeTimestepB
 
+! ************************************************************************** !
+#ifdef WELL_CLASS
+subroutine AllWellsUpdate(this)
+  !
+  ! Update all wells at the beginning of each time step
+  !  - is permeability changes updates well factor 
+  !  - update hydrostatic corrections
+  !  - 
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 06/06/16
+
+  use Coupler_module
+  implicit none
+
+  class(pm_subsurface_flow_type) :: this
+
+  type(coupler_type), pointer :: source_sink
+
+  PetscInt :: beg_cpl_conns, end_cpl_conns
+
+  source_sink => this%realization%patch%source_sink_list%first
+
+  beg_cpl_conns = 1
+  do
+    if (.not.associated(source_sink)) exit
+    if (associated(source_sink%well) ) then
+      !exlude empty wells - not included in well comms
+      if (source_sink%connection_set%num_connections > 0) then
+
+        call source_sink%well%InitTimeStep(this%realization%patch%grid, &
+                                this%realization%patch%aux%Material%auxvars, &
+                                this%realization%option)
+
+      end if
+    end if
+    source_sink => source_sink%next 
+  end do 
+
+end subroutine AllWellsUpdate
+#endif
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowPreSolve(this)
@@ -527,48 +616,6 @@ subroutine PMSubsurfaceFlowTimeCut(this)
   endif             
 
 end subroutine PMSubsurfaceFlowTimeCut
-
-! ************************************************************************** !
-
-subroutine PMSubsurfaceFlowLimitDTByCFL(this,dt)
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 05/09/16 
-  !
-  use Option_module
-  use Output_Aux_module
-
-  implicit none
-  
-  class(pm_subsurface_flow_type) :: this
-  PetscReal :: dt
-
-  PetscReal :: max_dt_cfl_1
-  PetscReal :: prev_dt
-  type(output_option_type), pointer :: output_option
-  
-  if (Initialized(this%cfl_governor)) then
-    call RealizationCalculateCFL1Timestep(this%realization,max_dt_cfl_1) 
-    if (dt/this%cfl_governor > max_dt_cfl_1) then
-      prev_dt = dt
-      dt = max_dt_cfl_1*this%cfl_governor
-      output_option => this%realization%output_option
-      if (OptionPrintToScreen(this%option)) then
-        write(*, &
-          '(" CFL Limiting (",f4.1,"): ",1pe12.4," -> ",1pe12.4," [",a,"]")') &
-              this%cfl_governor,prev_dt/output_option%tconv, &
-              dt/output_option%tconv,trim(output_option%tunit)
-      endif
-      if (OptionPrintToFile(this%option)) then
-        write(this%option%fid_out, &
-          '(" CFL Limiting (",f4.1,"): ",1pe12.4," -> ",1pe12.4," [",a,"]")') &
-              this%cfl_governor,prev_dt/output_option%tconv, &
-              dt/output_option%tconv,trim(output_option%tunit)
-      endif
-    endif
-  endif
-
-end subroutine PMSubsurfaceFlowLimitDTByCFL
 
 ! ************************************************************************** !
 
