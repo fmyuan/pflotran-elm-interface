@@ -765,6 +765,14 @@ subroutine THUpdateAuxVarsPatch(realization)
             xxbc(idof) = boundary_condition%flow_aux_real_var(idof,iconn)
           case(NEUMANN_BC,ZERO_GRADIENT_BC)
             xxbc(idof) = xx_loc_p((ghosted_id-1)*option%nflowdof+idof)
+
+            ! a special situation of flow-in, in which NO heat-conduction/diffusion,
+            ! but with bulk-heat flux defined by fluid itself rather than boundary-cell.
+            if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC .and. &
+                boundary_condition%flow_aux_real_var(TH_PRESSURE_DOF,iconn) > floweps) then
+              xxbc(TH_TEMPERATURE_DOF) = boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn)
+            endif
+
         end select
       enddo
       
@@ -1992,8 +2000,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
 
       Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn
 
-#if 0
-!#ifndef NO_VAPOR_DIFFUSION
+#ifndef NO_VAPOR_DIFFUSION
       Jup(1,1) = Jup(1,1) + (upweight*por_up*tor_up*deng_up*(Diffg_up*dsatg_dp_up &
            + satg_up*dDiffg_dp_up)* &
            (molg_up - molg_dn) + Ddiffgas_up*dmolg_dp_up)/ &
@@ -2429,8 +2436,7 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
 
       Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn 
 
-#if 0
-!#ifndef NO_VAPOR_DIFFUSION
+#ifndef NO_VAPOR_DIFFUSION
       fluxm = fluxm + Ddiffgas_avg*area*(molg_up - molg_dn)/ &
            (dd_up + dd_dn)
 #endif
@@ -2688,12 +2694,14 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           ukvr = auxvar_up%kvr
           dukvr_dp_dn = auxvar_up%dkvr_dp
           dukvr_dt_dn = auxvar_up%dkvr_dt
-!#if 0
-! the following may be incorrect - better to calc. 'auxvar' with correct cell/BC
+
+#if 0
+          ! the following may be incorrect - better to calc. 'auxvar' with appropriate cell/BC's P/T
+          ! (NOT make sense that using UP's state but with DN's derivatives)
           if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
             dukvr_dt_dn = auxvar_dn%dkvr_dt
           endif
-!#endif
+#endif
 
         else
           ukvr = auxvar_dn%kvr
@@ -2807,12 +2815,14 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           ukvr = auxvar_up%kvr
           dukvr_dp_dn = auxvar_up%dkvr_dp
           dukvr_dt_dn = auxvar_up%dkvr_dt
-!#if 0
-! the following may be incorrect - better to calc. 'auxvar' with correct cell/BC
+
+#if 0
+          ! the following may be incorrect - better to calc. 'auxvar' with appropriate cell/BC's P/T
+          ! (NOT make sense that using UP's state but with DN's derivatives)
           if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
             dukvr_dt_dn = auxvar_dn%dkvr_dt
           endif
-!#endif
+#endif
 
         else
           ukvr = auxvar_dn%kvr
@@ -2935,12 +2945,14 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           density_ave = global_auxvar_up%den(1)
           dden_ave_dp_dn = auxvar_up%dden_dp
           dden_ave_dt_dn = auxvar_up%dden_dt
-!#if 0
-! the following may be incorrect - better to calc. 'auxvar' with correct cell/BC
+#if 0
+          ! the following may be incorrect - better to calc. 'auxvar' with appropriate cell/BC's P/T
+          ! (NOT make sense that using UP's state but with DN's derivatives)
           if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
             dden_ave_dt_dn = auxvar_dn%dden_dt
           endif
-!#endif
+#endif
+
         else 
           density_ave = global_auxvar_dn%den(1)
           dden_ave_dp_dn = auxvar_dn%dden_dp
@@ -2969,8 +2981,9 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
     duh_dp_dn = auxvar_up%du_dp
     duh_dt_dn = auxvar_up%du_dt
 
-!#if 0
-! the following may be incorrect - better to calc. 'auxvar' with correct cell/BC
+#if 0
+    ! the following may be incorrect - better to calc. 'auxvar' with appropriate cell/BC's P/T
+    ! (NOT make sense that using UP's state but with DN's derivatives)
     if (ibndtype(TH_PRESSURE_DOF) == ZERO_GRADIENT_BC) then
       !duh_dp_dn = auxvar_dn%dh_dp
       duh_dp_dn = auxvar_dn%du_dp
@@ -2979,7 +2992,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
       !duh_dt_dn = auxvar_dn%dh_dt
       duh_dt_dn = auxvar_dn%du_dt
     endif
-!#endif
+#endif
 
   else
     !uh = auxvar_dn%h
@@ -3142,8 +3155,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         
             Ddiffgas_avg = upweight*Ddiffgas_up+(1.D0 - upweight)*Ddiffgas_dn 
     
-#if 0
-!#ifndef NO_VAPOR_DIFFUSION
+#ifndef NO_VAPOR_DIFFUSION
             Jdn(1,1) = Jdn(1,1) + por_dn*tor_dn*(1.D0 - upweight)* &
                  Ddiffgas_dn/satg_dn*dsatg_dp_dn*(molg_up - molg_dn)/dd_dn* &
                  area
@@ -3625,7 +3637,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
     uh = auxvar_up%u
   else
     !uh = auxvar_dn%h
-    uh = auxvar_up%u
+    uh = auxvar_dn%u
   endif
 
   fluxm = fluxm + q*density_ave
@@ -3707,8 +3719,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
             Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn 
 
-#if 0
-!#ifndef NO_VAPOR_DIFFUSION
+#ifndef NO_VAPOR_DIFFUSION
             fluxm = fluxm + por_dn*tor_dn*Ddiffgas_avg*(molg_up - molg_dn)/ &
                  dd_dn*area
 #endif
