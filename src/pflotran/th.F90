@@ -1992,7 +1992,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
 
       Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn
 
-#ifndef NO_VAPOR_DIFFUSION
+#if 0
+!#ifndef NO_VAPOR_DIFFUSION
       Jup(1,1) = Jup(1,1) + (upweight*por_up*tor_up*deng_up*(Diffg_up*dsatg_dp_up &
            + satg_up*dDiffg_dp_up)* &
            (molg_up - molg_dn) + Ddiffgas_up*dmolg_dp_up)/ &
@@ -2427,7 +2428,9 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
       endif
 
       Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn 
-#ifndef NO_VAPOR_DIFFUSION
+
+#if 0
+!#ifndef NO_VAPOR_DIFFUSION
       fluxm = fluxm + Ddiffgas_avg*area*(molg_up - molg_dn)/ &
            (dd_up + dd_dn)
 #endif
@@ -2685,9 +2688,13 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           ukvr = auxvar_up%kvr
           dukvr_dp_dn = auxvar_up%dkvr_dp
           dukvr_dt_dn = auxvar_up%dkvr_dt
+!#if 0
+! the following may be incorrect - better to calc. 'auxvar' with correct cell/BC
           if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
             dukvr_dt_dn = auxvar_dn%dkvr_dt
           endif
+!#endif
+
         else
           ukvr = auxvar_dn%kvr
           dukvr_dp_dn = auxvar_dn%dkvr_dp
@@ -2800,9 +2807,13 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           ukvr = auxvar_up%kvr
           dukvr_dp_dn = auxvar_up%dkvr_dp
           dukvr_dt_dn = auxvar_up%dkvr_dt
+!#if 0
+! the following may be incorrect - better to calc. 'auxvar' with correct cell/BC
           if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
             dukvr_dt_dn = auxvar_dn%dkvr_dt
           endif
+!#endif
+
         else
           ukvr = auxvar_dn%kvr
           dukvr_dp_dn = auxvar_dn%dkvr_dp
@@ -2924,9 +2935,12 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           density_ave = global_auxvar_up%den(1)
           dden_ave_dp_dn = auxvar_up%dden_dp
           dden_ave_dt_dn = auxvar_up%dden_dt
+!#if 0
+! the following may be incorrect - better to calc. 'auxvar' with correct cell/BC
           if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
-            dden_ave_dt_dn = auxvar_up%dden_dt
+            dden_ave_dt_dn = auxvar_dn%dden_dt
           endif
+!#endif
         else 
           density_ave = global_auxvar_dn%den(1)
           dden_ave_dp_dn = auxvar_dn%dden_dp
@@ -2936,15 +2950,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
       endif
 
-      ! the external entity (contacting to BC cell) is VOID,
-      ! need to turn-off heat conduction if defined as DIRICHLET type (for bringing heat with flow)
-      ! e.g. infiltration - cannot use zero_gradient BC which uses BC cell's properties to cal. flow water's internal energy
-      if( ibndtype(TH_TEMPERATURE_DOF) == DIRICHLET_BC .or. &
-          ibndtype(TH_TEMPERATURE_DOF) == HET_DIRICHLET ) then
-        skip_thermal_conduction = PETSC_TRUE
-
-        if(abs(auxvars(TH_PRESSURE_DOF)) <= floweps) skip_mass_flow = PETSC_TRUE
-      endif
+      ! if NO flow at all, turn-off any mass-flow (later on, e.g. for vapor-diffusion)
+      if(abs(auxvars(TH_PRESSURE_DOF)) <= floweps) skip_mass_flow = PETSC_TRUE
 
     case(ZERO_GRADIENT_BC)
       ! do nothing, but by-passing default
@@ -2961,6 +2968,9 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
     uh = auxvar_up%u
     duh_dp_dn = auxvar_up%du_dp
     duh_dt_dn = auxvar_up%du_dt
+
+!#if 0
+! the following may be incorrect - better to calc. 'auxvar' with correct cell/BC
     if (ibndtype(TH_PRESSURE_DOF) == ZERO_GRADIENT_BC) then
       !duh_dp_dn = auxvar_dn%dh_dp
       duh_dp_dn = auxvar_dn%du_dp
@@ -2969,6 +2979,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
       !duh_dt_dn = auxvar_dn%dh_dt
       duh_dt_dn = auxvar_dn%du_dt
     endif
+!#endif
+
   else
     !uh = auxvar_dn%h
     !duh_dp_dn = auxvar_dn%dh_dp
@@ -3130,7 +3142,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         
             Ddiffgas_avg = upweight*Ddiffgas_up+(1.D0 - upweight)*Ddiffgas_dn 
     
-#ifndef NO_VAPOR_DIFFUSION
+#if 0
+!#ifndef NO_VAPOR_DIFFUSION
             Jdn(1,1) = Jdn(1,1) + por_dn*tor_dn*(1.D0 - upweight)* &
                  Ddiffgas_dn/satg_dn*dsatg_dp_dn*(molg_up - molg_dn)/dd_dn* &
                  area
@@ -3585,16 +3598,8 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
       endif
 
-      ! the external entity (contacting to BC cell) is VOID,
-      ! need to turn-off heat conduction if defined as DIRICHLET type (for bringing heat with flow)
-      ! e.g. infiltration - cannot use zero_gradient BC which uses BC cell's properties to cal. flow water's internal energy
-      if( ibndtype(TH_TEMPERATURE_DOF) == DIRICHLET_BC .or. &
-          ibndtype(TH_TEMPERATURE_DOF) == HET_DIRICHLET ) then
-        skip_thermal_conduction = PETSC_TRUE
-
-        ! if NO flow at all, turn-off any mass-flow
-        if(abs(auxvars(TH_PRESSURE_DOF)) <= floweps) skip_mass_flow = PETSC_TRUE
-      endif
+      ! if NO flow at all, turn-off any mass-flow (later on, e.g. for vapor-diffusion)
+      if(abs(auxvars(TH_PRESSURE_DOF)) <= floweps) skip_mass_flow = PETSC_TRUE
 
     case(ZERO_GRADIENT_BC)
 
@@ -3701,8 +3706,12 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
             endif
 
             Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn 
+
+#if 0
+!#ifndef NO_VAPOR_DIFFUSION
             fluxm = fluxm + por_dn*tor_dn*Ddiffgas_avg*(molg_up - molg_dn)/ &
                  dd_dn*area
+#endif
          endif
       endif ! if (use_th_freezing)
 
