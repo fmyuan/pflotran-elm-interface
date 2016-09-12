@@ -3703,10 +3703,10 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
             call EOSWaterSaturationPressure(global_auxvar_dn%temp, psat_dn, ierr)
         
             ! vapor pressure lowering due to capillary pressure
-            fv_up = exp(-auxvar_up%pc/(global_auxvar_up%den(1)* &
-                 IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + 273.15d0)))
-            fv_dn = exp(-auxvar_dn%pc/(global_auxvar_dn%den(1)* &
-                 IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + 273.15d0)))
+            fv_up = 1.d0 !exp(-auxvar_up%pc/(global_auxvar_up%den(1)* &   ! NOT done so in Derivatives
+                 !IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + 273.15d0)))
+            fv_dn = 1.d0 !exp(-auxvar_dn%pc/(global_auxvar_dn%den(1)* &
+                 !IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + 273.15d0)))
 
             molg_up = psat_up*fv_up/p_g
             molg_dn = psat_dn*fv_dn/p_g
