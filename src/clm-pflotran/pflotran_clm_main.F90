@@ -2697,7 +2697,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     ! need to check the BC list first, so that we have necessary BCs in a consistent way
     HAVE_GEV_TOPBC   = PETSC_FALSE  ! top BC: (water and heat) having soil evaporation flux type (NEUMANN)
-    HAVE_GTEMP_TOPBC = PETSC_FALSE  ! top BC: (heat) haveing thermal state (temperature) type (DIRICHLET)
+    HAVE_GTEMP_TOPBC = PETSC_FALSE  ! top BC: (heat) having thermal state (temperature) type (DIRICHLET)
 
     boundary_condition => patch%boundary_condition_list%first
     do
@@ -2749,7 +2749,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                           gtemp_subsurf_pf_loc(iconn)                          ! so, this MUST be the temperature above first soil
 
           elseif(boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
-                /= ZERO_GRADIENT_BC) then
+                == ZERO_GRADIENT_BC) then
+            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          gtemp_subsurf_pf_loc(iconn)                          ! so, this shall be the infiltration/water body temperature
+                                                                               !    (TODO: currently just taking that same as above)
+          else
             option%io_buffer='pflotranModelSetTcond -  ' // &
                ' for CLM-PFLOTRAN coupling - BC flow/temperature condition IS NOT: ' // &
                ' "TEMPERATURE dirichlet or zero_gradient" for subsurface-top '
@@ -2765,8 +2769,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           sum_connection = sum_connection + 1
 
           if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
-                == NEUMANN_BC) then                    ! for liq. water flow BC, thermal conduction OFF
-            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = 0.d0
+                == NEUMANN_BC) then                    ! for liq. water flow BC, thermal conduction OFF, but with its own thermal states
+            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          gtemp_subsurf_pf_loc(iconn)                          ! so, this shall be the infiltration/water body temperature
+                                                                               !    (TODO: currently just taking that same as above)
 
           elseif (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
                 == DIRICHLET_BC) then                    ! for liq. water flow BC, thermal conduction ON
@@ -2774,7 +2780,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                 gtemp_subsurf_pf_loc(iconn)
 
           elseif(boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
-                /= ZERO_GRADIENT_BC) then
+                == ZERO_GRADIENT_BC) then
+            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          gtemp_subsurf_pf_loc(iconn)                          ! so, this shall be the infiltration/water body temperature
+                                                                               !    (TODO: currently just taking that same as above)
+          else
             option%io_buffer='pflotranModelSetTcond -  ' // &
                ' for CLM-PFLOTRAN coupling - BC flow/temperature condition "clm_gwflux_bc" MUST be: ' // &
                ' TEMPERATURE neumann/dirichlet or TEMPERATURE zero_gradient '

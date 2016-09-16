@@ -770,6 +770,8 @@ subroutine THUpdateAuxVarsPatch(realization)
             ! but with bulk-heat flux defined by fluid itself rather than boundary-cell.
             if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC .and. &
                 boundary_condition%flow_aux_real_var(TH_PRESSURE_DOF,iconn) > floweps) then
+
+              if(boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) /= UNINITIALIZED_DOUBLE) &
               xxbc(TH_TEMPERATURE_DOF) = boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn)
             endif
 
@@ -2968,7 +2970,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
     case(ZERO_GRADIENT_BC)
       ! do nothing, but by-passing default
 
-      ! if flux-type BC for T, the fluid is totally energy form without mass
+      ! if flux-type BC for T, the fluid is totally energy form without mass (may not be needed, but just in case)
       if(ibndtype(TH_TEMPERATURE_DOF) == NEUMANN_BC) skip_mass_flow = PETSC_TRUE
 
   end select
