@@ -1384,12 +1384,18 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   J(TH_PRESSURE_DOF,TH_PRESSURE_DOF) = (sat*dden_dp + dsat_dp*den)*porXvol + &
     dcompressed_porosity_dp*sat*den*vol
 
-  J(TH_PRESSURE_DOF,TH_TEMPERATURE_DOF) = sat*dden_dt*porXvol
+  J(TH_PRESSURE_DOF,TH_TEMPERATURE_DOF) = (sat*dden_dt+dsat_dt*den)*porXvol
+
+  !eng = sat*den*u*porXvol + (1.-por)*vol*rock_dencpr*temp
   J(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = (dsat_dp*den*u + &
                                            sat*dden_dp*u + &
                                            sat*den*du_dp)*porXvol + &
                         (den*sat*u - rock_dencpr*temp)*vol*dcompressed_porosity_dp
-  J(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) = sat*(dden_dt*u + den*du_dt)*porXvol +  &
+
+  !eng = sat*den*u*porXvol + (1.-por)*vol*rock_dencpr*temp
+  J(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) = (dsat_dt*den*u + &
+                                              sat*dden_dt*u + &
+                                              sat*den*du_dt )*porXvol +  &
                                              (1.d0 - por)*vol*rock_dencpr
 
 
@@ -1419,6 +1425,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
      dmolg_dt = TH_auxvar%ice%dmol_gas_dt
      dmolg_dp = TH_auxvar%ice%dmol_gas_dp
 
+     !mol(1) = mol(1) + (sat_g*den_g*mol_g + sat_i*den_i)*porXvol
      J(TH_PRESSURE_DOF,TH_PRESSURE_DOF) = J(TH_PRESSURE_DOF,TH_PRESSURE_DOF) + &
                                           (dsatg_dp*den_g*mol_g     + &
                                            sat_g   *den_g*dmolg_dp  + &
@@ -1429,28 +1436,27 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
                                            sat_i   *den_i        )*dcompressed_porosity_dp*vol
 
      J(TH_PRESSURE_DOF,TH_TEMPERATURE_DOF) = J(TH_PRESSURE_DOF,TH_TEMPERATURE_DOF) + &
-                            (TH_auxvar%dsat_dt*global_auxvar%den(1) + &
-                             dsatg_dt * den_g    * mol_g            + &
+                            (dsatg_dt * den_g    * mol_g            + &
                              sat_g    * ddeng_dt * mol_g            + &
                              sat_g    * den_g    * dmolg_dt         + &
                              dsati_dt * den_i                       + &
                              sat_i    * ddeni_dt                    )*porXvol
 
+     !eng = eng + (sat_g*den_g*mol_g*u_g + sat_i*den_i*u_i)*porXvol
      J(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = J(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) + &
-                     (dsatg_dp * den_g    * u_g + &
-                      sat_g    * ddeng_dp * u_g  + &
-                      sat_g    * dug_dp   * den_g+ &
+                     (dsatg_dp * den_g    * mol_g * u_g                + &
+                      sat_g    *(ddeng_dp * mol_g * u_g                + &
+                                 den_g * (mol_g*dug_dp+dmolg_dp*u_g) ) + &
                       dsati_dp * den_i    * u_i + &
                       sat_i    * ddeni_dp * u_i + &
                       sat_i    * dui_dp   * den_i  )*porXvol + &
-                     (sat_g    * den_g    * u_g + &
+                     (sat_g    * den_g * mol_g * u_g + &
                       sat_i    * den_i    * u_i )*dcompressed_porosity_dp*vol
 
      J(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) = J(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) + &
-                (TH_auxvar%dsat_dt*global_auxvar%den(1)*TH_auxvar%u + &
-                  dsatg_dt * den_g    * u_g                         + &
-                  sat_g    * ddeng_dt * u_g                         + &
-                  sat_g    * den_g    * dug_dt                      + &
+                (dsatg_dt * den_g   * mol_g * u_g                   + &
+                 sat_g  * (ddeng_dt * mol_g * u_g                   + &
+                           den_g    *(mol_g*dug_dt+dmolg_dt*u_g) )  + &
                   dsati_dt * den_i    * u_i                         + &
                   sat_i    * ddeni_dt * u_i                         + &
                   sat_i    * den_i    * dui_dt                      )*porXvol
@@ -1617,7 +1623,8 @@ subroutine THAccumulation(auxvar,global_auxvar, &
      mol_g = auxvar%ice%mol_gas
      u_g = auxvar%ice%u_gas
      mol(1) = mol(1) + (sat_g*den_g*mol_g + sat_i*den_i)*porXvol
-     eng = eng + (sat_g*den_g*u_g + sat_i*den_i*u_i)*porXvol
+     eng = eng + (sat_g*den_g*mol_g*u_g + sat_i*den_i*u_i)*porXvol
+     ! if mass above excludes non-vapor gas, energy must be so as well (2016-Sep-27: fmyuan)
   endif
 
   Res(1:option%nflowdof-1) = mol(:)/option%flow_dt

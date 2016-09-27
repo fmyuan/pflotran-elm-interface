@@ -660,6 +660,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   PetscReal :: Dk_dry
   PetscReal :: Dk_ice
   character(len=MAXSTRINGLENGTH) :: error_string
+  PetscReal :: pcmax
 
   out_of_table_flag = PETSC_FALSE
  
@@ -676,11 +677,11 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   global_auxvar%temp = x(2)
   
   ! Check if the capillary pressure is less than -100MPa
-  
-  if (global_auxvar%pres(1) - option%reference_pressure < -1.d8 + 1.d0) then
-    global_auxvar%pres(1) = -1.d8 + option%reference_pressure + 1.d0
+  !pcmax = -1.d8 + 1.0d0
+   pcmax = -characteristic_curves%saturation_function%pcmax + erf(1.d-20)
+  if (global_auxvar%pres(1) - option%reference_pressure < pcmax) then
+    global_auxvar%pres(1) = pcmax + option%reference_pressure
   endif
-
  
   auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
 
@@ -817,14 +818,15 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 #endif
 
   !call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
-  call EOSWaterDensity(min(max(global_auxvar%temp,-1.0d0),99.9d0), &    ! tc: -1 ~ 99.9 oC
-                       min(max(pw, 0.01d0), 165.4d5),              &    ! p: 0.01 ~ 16.54 MPa
+  call EOSWaterDensity(min(max(global_auxvar%temp,-1.0d0),99.9d0),        &    ! tc: -1 ~ 99.9 oC
+                       min(max(pw, 0.01d0), 16.54d6),  &    ! p: 0.01 ~ 16.54 MPa
                        dw_kg, dw_mol, dw_dp, dw_dt, ierr)
   if (iphase == 3) dw_dp = 0.d0
 
+
   !call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
   call EOSWaterEnthalpy(min(max(global_auxvar%temp,0.01d0),99.9d0), &    ! tc: 0.01 ~ 99.9 oC (0 - 350 by IFC 67)
-                        min(max(pw, 0.01d0), 165.4d5),              &    ! p: 0.01 ~ 16.54 MPa (0 - 165.4 bars by IFC 67)
+                        min(max(pw, 0.01d0), 16.54d6),              &    ! p: 0.01 ~ 16.54 MPa (0 - 165.4 bars by IFC 67)
                         hw,hw_dp,hw_dt,ierr)
 
   ! J/kmol -> MJ/kmol
@@ -832,14 +834,15 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   hw_dp = hw_dp * option%scale
   hw_dt = hw_dt * option%scale
                          
-  call EOSWaterSaturationPressure(global_auxvar%temp, sat_pressure, &
-                                  dpsat_dt, ierr)
-  call EOSWaterViscosity(global_auxvar%temp, pw, sat_pressure, dpsat_dt, &
+  call EOSWaterSaturationPressure(max(global_auxvar%temp,-68.d0),  &
+                              sat_pressure, dpsat_dt, ierr)
+  call EOSWaterViscosity(min(max(global_auxvar%temp,-68.0d0),99.9d0),        &    ! tc: -1 ~ 99.9 oC
+                         min(max(pw, 0.01d0), 16.54d6),  &    ! p: 0.01 ~ 16.54 MPa
+                         sat_pressure, dpsat_dt, &
                          visl, dvis_dt,dvis_dp, ierr)
 
   if (iphase == 3) then !kludge since pw is constant in the unsat zone
     dvis_dp = 0.d0
-    dw_dp = 0.d0
     hw_dp = 0.d0
   endif
 
@@ -875,7 +878,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   ! when tc ~ -15oC, Ice-density change in the following function causes presure non-monotonic issue
   call EOSWaterDensityIce(min(max(-10.d0,global_auxvar%temp), -0.01d0),            &  ! tc: -10 ~ -0.01
-                          min(max(0.01d0,global_auxvar%pres(1)), 165.4d5),         &
+                          min(max(0.01d0,pw), 16.54d6),                            &
                           den_ice, dden_ice_dT, dden_ice_dp, ierr)
 
   !call EOSWaterInternalEnergyIce(global_auxvar%temp, u_ice, du_ice_dT)
@@ -890,7 +893,13 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%ice%du_ice_dp = 0.d0
 
   ! Calculate the values and derivatives for vapor density and internal energy
-  call EOSWaterSaturationPressure(global_auxvar%temp, p_sat, ierr)
+  !call EOSWaterSaturationPressure(global_auxvar%temp, p_sat, ierr)
+  p_sat = sat_pressure
+#ifdef NO_VAPOR_DIFFUSION
+  ! dry-air condition assumed
+  p_sat = 0.d0
+  dpsat_dt = 0.d0
+#endif
 
   !p_g                = option%reference_pressure
   p_g                = pw
