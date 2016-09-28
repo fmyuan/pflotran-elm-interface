@@ -544,8 +544,9 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 !  auxvar%kr = kr
 !  auxvar%dkr_dp = dkr_dp
   auxvar%dsat_dp = ds_dp
-  auxvar%dden_dt = dw_dt
+  auxvar%dsat_dt = 0.d0
 
+  auxvar%dden_dt = dw_dt
   auxvar%dden_dp = dw_dp
   
 !geh: contribution of dvis_dpsat is now added in EOSWaterViscosity
@@ -817,6 +818,9 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
 #endif
 
+  auxvar%dsat_dp = ds_dp
+  auxvar%dsat_dt = dsl_temp
+
   !call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
   call EOSWaterDensity(min(max(global_auxvar%temp,-1.0d0),99.9d0),        &    ! tc: -1 ~ 99.9 oC
                        min(max(pw, 0.01d0), 16.54d6),  &    ! p: 0.01 ~ 16.54 MPa
@@ -853,7 +857,6 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%u = auxvar%h - pw / dw_mol * option%scale
   auxvar%kvr = kr/visl
   auxvar%vis = visl
-  auxvar%dsat_dp = ds_dp
   auxvar%dden_dt = dw_dt
   auxvar%dden_dp = dw_dp
 !geh: contribution of dvis_dpsat is now added in EOSWaterViscosity  
@@ -868,7 +871,6 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   auxvar%ice%sat_ice = ice_saturation
   auxvar%ice%sat_gas = gas_saturation
-  auxvar%dsat_dt = dsl_temp
   auxvar%ice%dsat_ice_dp = dsi_pl
   auxvar%ice%dsat_gas_dp = dsg_pl
   auxvar%ice%dsat_ice_dt = dsi_temp

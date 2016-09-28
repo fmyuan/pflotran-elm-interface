@@ -213,6 +213,11 @@ module Option_module
 
     PetscBool :: print_ekg
 
+    ! flag to use inline surface flow in Richards mode
+    PetscBool :: inline_surface_flow
+    PetscReal :: inline_surface_Mannings_coeff
+    character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
+    
 #ifdef CLM_PFLOTRAN
     PetscBool :: mapping_files
 #endif
@@ -573,6 +578,10 @@ subroutine OptionInitRealization(option)
   option%min_allowable_scale = 1.0d-10
 
   option%print_ekg = PETSC_FALSE
+  
+  option%inline_surface_flow           = PETSC_FALSE
+  option%inline_surface_Mannings_coeff = 0.02d0
+  option%inline_surface_region_name    = ""
   
 end subroutine OptionInitRealization
 

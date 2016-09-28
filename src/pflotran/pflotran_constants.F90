@@ -162,6 +162,10 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: WELL_BHP = 30
   PetscInt, parameter, public :: WELL_BHP_MIN = 31
   PetscInt, parameter, public :: WELL_BHP_MAX = 32
+  PetscInt, parameter, public :: SURFACE_DIRICHLET = 33
+  PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
+  PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
+  
   PetscInt, parameter, public :: WELL_SS = 100
   
   ! source/sink scaling options
@@ -251,6 +255,8 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: ONE_DIM_GRID = 1
   PetscInt, parameter, public :: TWO_DIM_GRID = 2
   PetscInt, parameter, public :: THREE_DIM_GRID = 3
+  PetscInt, parameter, public :: VERTEX_CENTERED_OUTPUT_MESH = 1
+  PetscInt, parameter, public :: CELL_CENTERED_OUTPUT_MESH = 2
 
   ! Geomechanics
   PetscInt, parameter, public :: GEOMECH_DISP_X_DOF = 1

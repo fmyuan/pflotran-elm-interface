@@ -2829,7 +2829,7 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   flow_condition => coupler%flow_condition
   if (associated(flow_condition%pressure)) then
     select case(flow_condition%pressure%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
+      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC,SURFACE_DIRICHLET,SURFACE_SPILLOVER)
         select type(dataset => &
                     flow_condition%pressure%dataset)
           class is(dataset_ascii_type)
@@ -4869,6 +4869,10 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = option%myrank
       enddo
+    case(NATURAL_ID)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%nG2A(grid%nL2G(local_id))
+      enddo
     case(RESIDUAL)
       call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
       call VecStrideGather(field%flow_r,isubvar-1,vec,INSERT_VALUES,ierr)
@@ -5624,6 +5628,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
     case(MATERIAL_ID)
       value = patch%imat_internal_to_external(iabs(patch%imat(ghosted_id)))
     case(PROCESS_ID)
+      value = grid%nG2A(ghosted_id)
+    case(NATURAL_ID)
       value = option%myrank
     ! Need to fix the below two cases (they assume only one component) -- SK 02/06/13  
     case(SECONDARY_CONCENTRATION)
@@ -6528,6 +6534,9 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
     case(PROCESS_ID)
       call printErrMsg(option, &
                        'Cannot set PROCESS_ID through PatchSetVariable()')
+    case(NATURAL_ID)
+      call printErrMsg(option, &
+                       'Cannot set NATURAL_ID through PatchSetVariable()')
     case default
       write(option%io_buffer, &
             '(''IVAR ('',i3,'') not found in PatchSetVariable'')') ivar
@@ -6715,6 +6724,8 @@ function PatchGetVarNameFromKeyword(keyword,option)
   select case(keyword)
     case('PROCESS_ID')
       var_name = 'Processor ID'
+    case('NATURAL_ID')
+      var_name = 'Natural ID'
     case default
       option%io_buffer = 'Keyword "' // trim(keyword) // '" not ' // &
                          'recognized in PatchGetIvarsFromKeyword()'
@@ -6750,6 +6761,10 @@ subroutine PatchGetIvarsFromKeyword(keyword,ivar,isubvar,var_type,option)
   select case(keyword)
     case('PROCESS_ID')
       ivar = PROCESS_ID
+      isubvar = ZERO_INTEGER
+      var_type = INT_VAR
+    case('NATURAL_ID')
+      ivar = NATURAL_ID
       isubvar = ZERO_INTEGER
       var_type = INT_VAR
     case default
@@ -6825,6 +6840,10 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec,ivar, &
     case(PROCESS_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = option%myrank
+      enddo
+    case(NATURAL_ID)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%nG2A(grid%nL2G(local_id))
       enddo
     case default
       write(option%io_buffer, &
