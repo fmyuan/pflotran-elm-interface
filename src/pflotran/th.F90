@@ -2065,6 +2065,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   
   if (option%use_th_freezing) then
 
+#if 0
     dDk_dt_up = Dk**2/Dk_eff_up**2*dd_up*(Dk_up*dKe_dt_up + &
         Dk_ice_up*dKe_fr_dt_up + (- dKe_dt_up - dKe_fr_dt_up)* &
         Dk_dry_up)
@@ -2079,6 +2080,20 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     dDk_dp_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dp_dn + &
         Dk_ice_dn*dKe_fr_dp_dn + (- dKe_dp_dn - dKe_fr_dp_dn)* &
         Dk_dry_dn)
+#else
+    ! 1/Dk = dd_dn/Dk_eff_dn + dd_up/Dk_eff_up
+    dKe_dp_up = auxvar_up%dDk_eff_dp  ! effective one
+    dKe_dp_dn = auxvar_dn%dDk_eff_dp
+    dKe_dt_up = auxvar_up%dDk_eff_dt
+    dKe_dt_dn = auxvar_dn%dDk_eff_dt
+
+    dDk_dp_up = Dk*Dk * (dd_up/Dk_eff_up/Dk_eff_up*dKe_dp_up)
+    dDk_dp_dn = Dk*Dk * (dd_dn/Dk_eff_dn/Dk_eff_dn*dKe_dp_dn)
+
+    dDk_dt_up = Dk*Dk * (dd_up/Dk_eff_up/Dk_eff_up*dKe_dt_up)
+    dDk_dt_dn = Dk*Dk * (dd_dn/Dk_eff_dn/Dk_eff_dn*dKe_dt_dn)
+
+#endif
 
   else
   
@@ -2456,8 +2471,8 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
 
   if (option%use_th_freezing) then
 
-    Ke_fr_up = auxvar_up%ice%Ke_fr
-    Ke_fr_dn = auxvar_dn%ice%Ke_fr
+    !Ke_fr_up = auxvar_up%ice%Ke_fr
+    !Ke_fr_dn = auxvar_dn%ice%Ke_fr
 
     Dk_eff_up = auxvar_up%Dk_eff
     Dk_eff_dn = auxvar_dn%Dk_eff
@@ -3067,12 +3082,20 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           dKe_fr_dp_dn = auxvar_dn%ice%dKe_fr_dp
           Dk           = Dk_eff_dn/dd_dn
 
+#if 0
           dDk_dt_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dt_dn + &
               Dk_ice_dn*dKe_fr_dt_dn + (- dKe_dt_dn - dKe_fr_dt_dn)* &
               Dk_dry_dn)
           dDk_dp_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dp_dn + &
               Dk_ice_dn*dKe_fr_dp_dn + (- dKe_dp_dn - dKe_fr_dp_dn)* &
               Dk_dry_dn)
+
+#else
+         ! Dk = Dk_eff_dn/dd_dn
+         dDk_dp_dn = auxvar_dn%dDk_eff_dp/dd_dn  ! effective one
+         dDk_dt_dn = auxvar_dn%dDk_eff_dt/dd_dn
+
+#endif
   
         else
   

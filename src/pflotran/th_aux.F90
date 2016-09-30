@@ -32,10 +32,12 @@ module TH_Aux_module
     PetscReal :: du_dp
     PetscReal :: du_dt
     PetscReal :: transient_por
-    PetscReal :: Dk_eff
     PetscReal :: Ke
     PetscReal :: dKe_dp
     PetscReal :: dKe_dt
+    PetscReal :: Dk_eff
+    PetscReal :: dDk_eff_dp
+    PetscReal :: dDK_eff_dt
     ! for ice
     type(th_ice_type), pointer :: ice
     ! For surface-flow
@@ -225,6 +227,8 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%du_dt     = uninit_value    
   auxvar%transient_por = uninit_value
   auxvar%Dk_eff    = uninit_value
+  auxvar%dDK_eff_dp= uninit_value
+  auxvar%dDK_eff_dt= uninit_value
   auxvar%Ke        = uninit_value
   auxvar%dKe_dp    = uninit_value
   auxvar%dKe_dt    = uninit_value
@@ -973,6 +977,11 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%ice%dKe_fr_dp = alpha_fr* &
                          (auxvar%ice%sat_ice + epsilon)**(alpha_fr - 1.d0)* &
                          auxvar%ice%dsat_ice_dp
+
+  ! derivative of 'Dk_eff': Dk_eff = Dk_dry + (Dk-Dk_dry)*Ke + (Dk_ice-Dk_dry)*Ke_fr
+  auxvar%dDk_eff_dp = (Dk-Dk_dry)*auxvar%dKe_dp + (Dk_ice-Dk_dry)*auxvar%ice%dKe_fr_dp
+  auxvar%dDk_eff_dt = (Dk-Dk_dry)*auxvar%dKe_dt + (Dk_ice-Dk_dry)*auxvar%ice%dKe_fr_dt
+
 
   if (option%ice_model == DALL_AMICO) then
     auxvar%ice%den_ice = dw_mol

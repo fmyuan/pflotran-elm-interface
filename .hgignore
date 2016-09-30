@@ -373,3 +373,5 @@ regression_tests/ufd/wf_doubles-008.vtk
 regression_tests/ufd/wf_doubles-009.vtk
 regression_tests/ufd/wf_doubles-010.vtk
 regression_tests/ufd/wf_doubles-wf_mass-0.dat
+src/clm-pflotran/inlinesurface.F90
+src/clm-pflotran/inlinesurface_aux.F90
