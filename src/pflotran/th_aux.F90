@@ -901,11 +901,6 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! Calculate the values and derivatives for vapor density and internal energy
   !call EOSWaterSaturationPressure(global_auxvar%temp, p_sat, ierr)
   p_sat = sat_pressure  ! 'p_sat' has already calculated above
-#ifdef NO_VAPOR_DIFFUSION
-  ! dry-air condition assumed
-  p_sat = 0.d0
-  dpsat_dt = 0.d0
-#endif
 
   !p_g                = option%reference_pressure
   p_g                = pw
@@ -923,17 +918,18 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   dmolg_dp               = -p_sat/p_g/p_g
   if (iphase==3) dmolg_dp= 0.d0
 
-#if 0
-  ! vapor-only
-  auxvar%ice%mol_gas     = mol_g
-  auxvar%ice%dmol_gas_dt = dmolg_dt
-  auxvar%ice%dmol_gas_dp = dmolg_dp
-#else
+#ifdef NO_VAPOR_DIFFUSION
   ! air-mixture
   ! NOTE: vapor 'mol_gas' is included in 'den_gas', 'u_gas'
   auxvar%ice%mol_gas     = 1.d0
   auxvar%ice%dmol_gas_dt = 0.d0
   auxvar%ice%dmol_gas_dp = 0.d0
+
+#else
+  ! vapor-only
+  auxvar%ice%mol_gas     = mol_g
+  auxvar%ice%dmol_gas_dt = dmolg_dt
+  auxvar%ice%dmol_gas_dp = dmolg_dp
 #endif
 
   auxvar%ice%du_gas_dt   = C_g + (C_wv*dmolg_dt*FMWH2O - C_a*dmolg_dt*FMWAIR)* &
