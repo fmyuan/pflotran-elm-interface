@@ -3707,8 +3707,9 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
           case(LIQUID_HEAD)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)/9.81/ &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(1)                
+                patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)/ &
+                EARTH_GRAVITY/ &
+                patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(1)
             enddo
           case(LIQUID_SATURATION)
             do local_id=1,grid%nlmax
@@ -4392,7 +4393,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               enddo
               tk = patch%aux%Global%auxvars(ghosted_id)%temp + &
                    273.15d0
-              ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/faraday
+              ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
               eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
               pe0 = eh0/ehfac
               vec_ptr(local_id) = eh0
@@ -4426,7 +4427,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               enddo
               tk = patch%aux%Global%auxvars(ghosted_id)%temp + &
                    273.15d0
-              ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/faraday
+              ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
               eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
               pe0 = eh0/ehfac
               vec_ptr(local_id) = pe0
@@ -4928,7 +4929,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(LIQUID_PRESSURE)
             value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
           case(LIQUID_HEAD)
-            value = patch%aux%Global%auxvars(ghosted_id)%pres(1)/9.81/ &
+            value = patch%aux%Global%auxvars(ghosted_id)%pres(1)/ &
+                    EARTH_GRAVITY/ &
                     patch%aux%Global%auxvars(ghosted_id)%den_kg(1)
           case(LIQUID_SATURATION)
             value = patch%aux%Global%auxvars(ghosted_id)%sat(1)
@@ -5312,7 +5314,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           enddo
 
           tk = patch%aux%Global%auxvars(ghosted_id)%temp+273.15d0
-          ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/faraday
+          ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
           eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
 
           value = eh0
@@ -5340,7 +5342,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           enddo
 
           tk = patch%aux%Global%auxvars(ghosted_id)%temp+273.15d0
-          ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/faraday
+          ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
           eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
           pe0 = eh0/ehfac
           value = pe0
