@@ -931,8 +931,8 @@ contains
     CHKERRQ(ierr)
 
     if(count /= map%s2d_nwts) then
-      option%io_buffer='No. of face cells in mapping dataset does not ' // &
-        'match face cells on which BC is applied - PFLOTRAN.'
+      option%io_buffer='No. of face cells in mapping dataset (  ' // map%filename //&
+        ') does not match face cells on which BC is applied - PFLOTRAN. '
       call printErrMsg(option)
     endif
     call VecDestroy(face_ids, ierr); CHKERRQ(ierr)

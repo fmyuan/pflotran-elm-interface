@@ -919,9 +919,10 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   if (iphase==3) dmolg_dp= 0.d0
 
 #ifdef NO_VAPOR_DIFFUSION
-  ! air-mixture
   ! NOTE: vapor 'mol_gas' is included in 'den_gas', 'u_gas'
-  auxvar%ice%mol_gas     = 1.d0
+  auxvar%ice%mol_gas     = 0.d0
+  ! so, if for air-mixture, may assign this to 1.0 (may be helpful to reduce time-step)
+  !     and if totally igore gas (all), may assign this to 0.0
   auxvar%ice%dmol_gas_dt = 0.d0
   auxvar%ice%dmol_gas_dp = 0.d0
 
