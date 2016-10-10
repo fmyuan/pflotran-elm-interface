@@ -1442,24 +1442,22 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
                              dsati_dt * den_i                       + &
                              sat_i    * ddeni_dt                    )*porXvol
 
-     !eng = eng + (sat_g*den_g*mol_g*u_g + sat_i*den_i*u_i)*porXvol
+     !eng = eng + (sat_g*den_g*u_g + sat_i*den_i*u_i)*porXvol
      J(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = J(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) + &
-                     (dsatg_dp * den_g    * mol_g * u_g                + &
-                      sat_g    *(ddeng_dp * mol_g * u_g                + &
-                                 den_g * (mol_g*dug_dp+dmolg_dp*u_g) ) + &
-                      dsati_dp * den_i    * u_i + &
-                      sat_i    * ddeni_dp * u_i + &
-                      sat_i    * dui_dp   * den_i  )*porXvol + &
-                     (sat_g    * den_g * mol_g * u_g + &
+                     (dsatg_dp * den_g    * u_g                + &
+                      sat_g    *(ddeng_dp*u_g+den_g*dug_dp)    + &
+                      dsati_dp * den_i    * u_i                + &
+                      sat_i    *(ddeni_dp*u_i+dui_dp*den_i) ) *porXvol   + &
+                     (sat_g    * den_g    * u_g                + &
                       sat_i    * den_i    * u_i )*dcompressed_porosity_dp*vol
 
      J(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) = J(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) + &
-                (dsatg_dt * den_g   * mol_g * u_g                   + &
-                 sat_g  * (ddeng_dt * mol_g * u_g                   + &
-                           den_g    *(mol_g*dug_dt+dmolg_dt*u_g) )  + &
+                (dsatg_dt * den_g   * u_g                           + &
+                 sat_g  * (ddeng_dt * u_g+ den_g *dug_dt)           + &
                   dsati_dt * den_i    * u_i                         + &
                   sat_i    * ddeni_dt * u_i                         + &
                   sat_i    * den_i    * dui_dt                      )*porXvol
+
   endif
 
   J = J/option%flow_dt
@@ -1623,8 +1621,7 @@ subroutine THAccumulation(auxvar,global_auxvar, &
      mol_g = auxvar%ice%mol_gas
      u_g = auxvar%ice%u_gas
      mol(1) = mol(1) + (sat_g*den_g*mol_g + sat_i*den_i)*porXvol
-     eng = eng + (sat_g*den_g*mol_g*u_g + sat_i*den_i*u_i)*porXvol
-     ! if mass above excludes non-vapor gas, energy must be so as well (2016-Sep-27: fmyuan)
+     eng = eng + (sat_g*den_g*u_g + sat_i*den_i*u_i)*porXvol
   endif
 
   Res(1:option%nflowdof-1) = mol(:)/option%flow_dt
@@ -1753,6 +1750,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: dfv_dp_up, dfv_dp_dn
   PetscReal :: dmolg_dp_up, dmolg_dp_dn
   PetscReal :: fv_up_pert
+  PetscReal :: ugas_ave, dugas_ave_dt, dugas_ave_dp, fdiffgas, fdiffgas_dx
 
   !
   call ConnectionCalculateDistances(dist,option%gravity,dd_up,dd_dn, &
@@ -1802,16 +1800,14 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   dDk_dp_up = 0.d0
   dDk_dp_dn = 0.d0
   
-  if (option%use_th_freezing) then
-    dfv_dt_up = 0.d0
-    dfv_dt_dn = 0.d0
-    dfv_dp_up = 0.d0
-    dfv_dp_dn = 0.d0
-    dmolg_dp_up = 0.d0
-    dmolg_dp_dn = 0.d0
-    dmolg_dt_up = 0.d0
-    dmolg_dt_dn = 0.d0
-  endif
+  dfv_dt_up = 0.d0
+  dfv_dt_dn = 0.d0
+  dfv_dp_up = 0.d0
+  dfv_dp_dn = 0.d0
+  dmolg_dp_up = 0.d0
+  dmolg_dp_dn = 0.d0
+  dmolg_dt_up = 0.d0
+  dmolg_dt_dn = 0.d0
 
   ! Flow term
   if (global_auxvar_up%sat(1) > sir_up .or. global_auxvar_dn%sat(1) > sir_dn) then
@@ -1957,7 +1953,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       !call EOSWaterSaturationPressure(global_auxvar_dn%temp, psat_dn, ierr)
 
       ! vapor pressure lowering due to capillary pressure
-#ifndef NO_VAPOR_DIFFUSION
+#if 0
       fv_up = exp(-auxvar_up%pc/(global_auxvar_up%den(1)* &
            IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + 273.15d0)))
       fv_dn = exp(-auxvar_dn%pc/(global_auxvar_dn%den(1)* &
@@ -1980,17 +1976,6 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
            (global_auxvar_dn%temp + 273.15d0)*auxvar_dn%dden_dp &
            + 1.d0/IDEAL_GAS_CONSTANT/global_auxvar_dn%den(1)/ &
            (global_auxvar_dn%temp + 273.15d0))
-#else
-      fv_up = 1.d0
-      fv_dn = 1.d0
-      dfv_dt_up = 0.d0
-      dfv_dt_dn = 0.d0
-      dfv_dp_up = 0.d0
-      dfv_dp_dn = 0.d0
-#endif
-
-     ! molg_up = psat_up*fv_up/p_g
-     ! molg_dn = psat_dn*fv_dn/p_g
 
      ! dmolg_dt_up = (1/p_g)*dpsat_dt_up*fv_up + psat_up/p_g*dfv_dt_up
      ! dmolg_dt_dn = (1/p_g)*dpsat_dt_dn*fv_dn + psat_dn/p_g*dfv_dt_dn
@@ -1998,17 +1983,35 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
      ! dmolg_dp_up = psat_up/p_g*dfv_dp_up
      ! dmolg_dp_dn = psat_dn/p_g*dfv_dp_dn
 
-     ! ddeng_dt_up = - p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + &
-     !      273.15d0)**2)*1.d-3
-     ! ddeng_dt_dn = - p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + &
-     !      273.15d0)**2)*1.d-3
-
       molg_up = auxvar_up%ice%mol_gas*fv_up !psat_up*fv_up/p_g
       molg_dn = auxvar_dn%ice%mol_gas*fv_dn !psat_dn*fv_dn/p_g
       dmolg_dt_up = auxvar_up%ice%dmol_gas_dt*fv_up + auxvar_up%ice%mol_gas*dfv_dt_up
       dmolg_dt_dn = auxvar_dn%ice%dmol_gas_dt*fv_dn + auxvar_dn%ice%mol_gas*dfv_dt_dn
       dmolg_dp_up = auxvar_up%ice%dmol_gas_dp*fv_up + auxvar_up%ice%mol_gas*dfv_dp_up
       dmolg_dp_dn = auxvar_dn%ice%dmol_gas_dp*fv_dn + auxvar_dn%ice%mol_gas*dfv_dp_dn
+
+#else
+! seems having issues with vapor-only diffusion as above (not sure why)
+      fv_up = 1.d0
+      fv_dn = 1.d0
+      dfv_dt_up = 0.d0
+      dfv_dt_dn = 0.d0
+      dfv_dp_up = 0.d0
+      dfv_dp_dn = 0.d0
+
+      molg_up = auxvar_up%ice%mol_gas
+      molg_dn = auxvar_dn%ice%mol_gas
+      dmolg_dt_up = auxvar_up%ice%dmol_gas_dt
+      dmolg_dt_dn = auxvar_dn%ice%dmol_gas_dt
+      dmolg_dp_up = auxvar_up%ice%dmol_gas_dp
+      dmolg_dp_dn = auxvar_dn%ice%dmol_gas_dp
+
+#endif
+
+     ! ddeng_dt_up = - p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + &
+     !      273.15d0)**2)*1.d-3
+     ! ddeng_dt_dn = - p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + &
+     !      273.15d0)**2)*1.d-3
 
       ddeng_dt_up = auxvar_up%ice%dden_gas_dt
       ddeng_dt_dn = auxvar_dn%ice%dden_gas_dt
@@ -2027,9 +2030,15 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       dsatg_dt_dn = auxvar_dn%ice%dsat_gas_dt
  
       if (deng_up*molg_up > deng_dn*molg_dn) then   ! fmyuan: 'molg' is mole fraction of vapor in air, NOT vapor density
-         upweight = 0.d0
+        upweight = 0.d0
+        ugas_ave = auxvar_up%ice%u_gas
+        dugas_ave_dt = auxvar_up%ice%du_gas_dt
+        dugas_ave_dp = auxvar_up%ice%du_gas_dp
       else
-         upweight = 1.d0
+        upweight = 1.d0
+        ugas_ave = auxvar_dn%ice%u_gas
+        dugas_ave_dt = auxvar_dn%ice%du_gas_dt
+        dugas_ave_dp = auxvar_dn%ice%du_gas_dp
       endif
 
       Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn
@@ -2055,25 +2064,38 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
 
 #else
       ! derivaives: Ddiffgas_avg*area*(deng_up*molg_up - deng_dn*molg_dn)/(dd_up + dd_dn)
-      Jup(1,1) = Jup(1,1) + area/(dd_up+dd_dn) * &
+      fdiffgas = area/(dd_up + dd_dn)*Ddiffgas_avg*(deng_up*molg_up - deng_dn*molg_dn)
+
+      fdiffgas_dx = area/(dd_up+dd_dn) * &                                             !_up, _dp
                  ( Ddiffgas_avg * (ddeng_dp_up*molg_up + deng_up*dmolg_dp_up) + &
                    (deng_up*molg_up - deng_dn*molg_dn) * upweight * por_up*tor_up* &
                     (satg_up*dDiffg_dp_up + dsatg_dp_up*Diffg_up) )
+      Jup(1,1) = Jup(1,1) + fdiffgas_dx
+      Jup(2,1) = Jup(2,1) + (fdiffgas*dugas_ave_dp + ugas_ave*fdiffgas_dx)
 
-      Jup(1,2) = Jup(1,2) + area/(dd_up+dd_dn) * &
+
+      fdiffgas_dx = area/(dd_up+dd_dn) * &                                             !_up, _dt
                  ( Ddiffgas_avg * (ddeng_dt_up*molg_up + deng_up*dmolg_dt_up) + &
                    (deng_up*molg_up - deng_dn*molg_dn) * upweight * por_up*tor_up* &
                     (satg_up*dDiffg_dt_up + dsatg_dt_up*Diffg_up) )
+      Jup(1,2) = Jup(1,2) + fdiffgas_dx
+      Jup(2,2) = Jup(2,2) + (fdiffgas*dugas_ave_dt + ugas_ave*fdiffgas_dx)
 
-      Jdn(1,1) = Jdn(1,1) + area/(dd_up+dd_dn) * &
+
+      fdiffgas_dx = area/(dd_up+dd_dn) * &                                             !_dn, _dp
                  ( Ddiffgas_avg * (-ddeng_dp_dn*molg_dn - deng_dn*dmolg_dp_dn) + &
                    (deng_up*molg_up - deng_dn*molg_dn) * (1.d0-upweight) * por_dn*tor_dn* &
                     (satg_dn*dDiffg_dp_dn + dsatg_dp_dn*Diffg_dn) )
+      Jdn(1,1) = Jdn(1,1) + fdiffgas_dx
+      Jdn(2,1) = Jdn(2,1) + (fdiffgas*dugas_ave_dp + ugas_ave*fdiffgas_dx)
 
-      Jdn(1,2) = Jdn(1,2) + area/(dd_up+dd_dn) * &
+
+      fdiffgas_dx = area/(dd_up+dd_dn) * &                                             !_dn, _dt
                  ( Ddiffgas_avg * (-ddeng_dt_dn*molg_dn - deng_dn*dmolg_dt_dn) + &
                    (deng_up*molg_up - deng_dn*molg_dn) * (1.d0-upweight) * por_dn*tor_dn* &
                     (satg_dn*dDiffg_dt_dn + dsatg_dt_dn*Diffg_dn) )
+      Jdn(1,2) = Jdn(1,2) + fdiffgas_dx
+      Jdn(2,2) = Jdn(2,2) + (fdiffgas*dugas_ave_dt + ugas_ave*fdiffgas_dx)
 
 #endif
 
@@ -2397,6 +2419,7 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   PetscErrorCode :: ierr
   PetscReal :: Ke_fr_up,Ke_fr_dn   ! frozen soil Kersten numbers
   PetscReal :: fv_up, fv_dn
+  PetscReal :: ugas_ave, fdiffgas
 
   !
   call ConnectionCalculateDistances(dist,option%gravity,dd_up,dd_dn, &
@@ -2494,29 +2517,37 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
       !call EOSWaterSaturationPressure(global_auxvar_dn%temp, psat_dn, ierr)
 
       ! vapor pressure lowering due to capillary pressure
-#ifndef NO_VAPOR_DIFFUSION
+#if 0
       fv_up = exp(-auxvar_up%pc/(global_auxvar_up%den(1)* &
            IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + 273.15d0)))
       fv_dn = exp(-auxvar_dn%pc/(global_auxvar_dn%den(1)* &
            IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + 273.15d0)))
-#else
-      fv_up = 1.d0
-      fv_dn = 1.d0
-#endif
-
       molg_up = auxvar_up%ice%mol_gas*fv_up !psat_up*fv_up/p_g
       molg_dn = auxvar_dn%ice%mol_gas*fv_dn !psat_dn*fv_dn/p_g
+#else
+! seems having issues with vapor-only diffusion as above (not sure why)
+      fv_up = 1.d0
+      fv_dn = 1.d0
+      molg_up = auxvar_up%ice%mol_gas
+      molg_dn = auxvar_dn%ice%mol_gas
+#endif
+
         
       if (deng_up*molg_up > deng_dn*molg_dn) then   ! fmyuan: 'molg' is mole fraction of vapor in air, NOT vapor density
         upweight = 0.d0
+        ugas_ave = auxvar_up%ice%u_gas
       else 
         upweight = 1.d0
+        ugas_ave = auxvar_dn%ice%u_gas
       endif
 
       Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn 
 
-      fluxm = fluxm + Ddiffgas_avg*area*(deng_up*molg_up - deng_dn*molg_dn)/ &
-           (dd_up + dd_dn)
+      fdiffgas = area/(dd_up + dd_dn) * &
+                 Ddiffgas_avg*(deng_up*molg_up - deng_dn*molg_dn)
+
+      fluxm = fluxm + fdiffgas
+      fluxe = fluxe + fdiffgas*ugas_ave
 
     endif
 
@@ -2666,6 +2697,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: dq_lin,dP_lin
   PetscReal :: q_approx,dq_approx
   PetscBool :: skip_thermal_conduction
+  PetscReal :: ugas_ave, dugas_ave_dt, dugas_ave_dp, fdiffgas, fdiffgas_dx
 
   PetscBool :: skip_mass_flow
   skip_thermal_conduction = PETSC_FALSE
@@ -3245,8 +3277,14 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
           if (deng_up*molg_up > deng_dn*molg_dn) then  ! 'molg' is the mole fraction of vapor in air (or partial-pressure), NOT density
             upweight = 0.d0
+            ugas_ave = auxvar_up%ice%u_gas
+            dugas_ave_dt = auxvar_up%ice%du_gas_dt
+            dugas_ave_dp = auxvar_up%ice%du_gas_dp
           else
             upweight = 1.d0
+            ugas_ave = auxvar_dn%ice%u_gas
+            dugas_ave_dt = auxvar_dn%ice%du_gas_dt
+            dugas_ave_dp = auxvar_dn%ice%du_gas_dp
           endif
         
           Ddiffgas_avg = upweight*Ddiffgas_up+(1.D0 - upweight)*Ddiffgas_dn
@@ -3261,16 +3299,23 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                  tor_dn*Ddiffgas_avg*(-dmolg_dt_dn)/dd_dn*area
 #else
           ! derivaives: por_dn*tor_dn*Ddiffgas_avg*area/dd_dn*(deng_up*molg_up - deng_dn*molg_dn)
+          fdiffgas = por_dn*tor_dn*area/dd_dn * &
+                     Ddiffgas_avg*(deng_up*molg_up - deng_dn*molg_dn)
 
-          Jdn(1,1) = Jdn(1,1) + por_dn*tor_dn*area/dd_dn * &
+          fdiffgas_dx = por_dn*tor_dn*area/dd_dn * &
                  ( Ddiffgas_avg * (-ddeng_dp_dn*molg_dn - deng_dn*dmolg_dp_dn) + &
                    (deng_up*molg_up - deng_dn*molg_dn) * (1.d0-upweight) * por_dn*tor_dn* &
                     (satg_dn*dDiffg_dp_dn + dsatg_dp_dn*Diffg_dn) )
+          Jdn(1,1) = Jdn(1,1) + fdiffgas_dx
+          Jdn(2,1) = Jdn(2,1) + fdiffgas*dugas_ave_dp + ugas_ave * fdiffgas_dx  ! fdiffgas * ugas_ave
 
-          Jdn(1,2) = Jdn(1,2) + por_dn*tor_dn*area/dd_dn * &
+
+          fdiffgas_dx = por_dn*tor_dn*area/dd_dn * &
                  ( Ddiffgas_avg * (-ddeng_dt_dn*molg_dn - deng_dn*dmolg_dt_dn) + &
                    (deng_up*molg_up - deng_dn*molg_dn) * (1.d0-upweight) * por_dn*tor_dn* &
                     (satg_dn*dDiffg_dt_dn + dsatg_dt_dn*Diffg_dn) )
+          Jdn(1,2) = Jdn(1,2) + fdiffgas_dx
+          Jdn(2,2) = Jdn(2,2) + fdiffgas*dugas_ave_dt + ugas_ave * fdiffgas_dx  ! fdiffgas * ugas_ave
 
 #endif
 
@@ -3495,6 +3540,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   PetscReal :: q_approx, dq_approx
   PetscReal :: T_th,fctT,fct
   PetscBool :: skip_thermal_conduction,  skip_mass_flow
+  PetscReal :: fdiffgas, ugas_ave
 
   skip_thermal_conduction = PETSC_FALSE
   skip_mass_flow = PETSC_FALSE
@@ -3827,17 +3873,20 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
           if (deng_up*molg_up > deng_dn*molg_dn) then   ! fmyuan: 'molg' is mole fraction of vapor in air, NOT vapor density
             upweight = 0.d0
+            ugas_ave = auxvar_up%ice%u_gas
           else
             upweight = 1.d0
+            ugas_ave = auxvar_dn%ice%u_gas
           endif
 
           Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn
 
           !fluxm = fluxm + por_dn*tor_dn*Ddiffgas_avg*(molg_up - molg_dn)/ &
           !       dd_dn*area
-          fluxm = fluxm + por_dn*tor_dn*Ddiffgas_avg*area/dd_dn * &
+          fdiffgas = por_dn*tor_dn*Ddiffgas_avg*area/dd_dn * &
                   (deng_up*molg_up - deng_dn*molg_dn)
-
+          fluxm = fluxm + fdiffgas
+          fluxe = fluxe + fdiffgas*ugas_ave
 
          endif
       endif ! if (use_th_freezing)
