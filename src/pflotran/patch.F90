@@ -3480,7 +3480,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
         endif
 
         call EOSWaterDensity(global_auxvar%temp, &
-                             global_auxvar%pres(1), &
+                             max(global_auxvar%pres(1), option%reference_temperature), &
                              global_auxvar%den_kg(1), &
                              dum1,ierr)
       else

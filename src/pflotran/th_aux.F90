@@ -683,7 +683,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   
   ! Check if the capillary pressure is less than -100MPa
   !pcmax = -1.d8 + 1.0d0
-   pcmax = -characteristic_curves%saturation_function%pcmax + erf(1.d-20)
+   pcmax = -characteristic_curves%saturation_function%pcmax + 1.d0
   if (global_auxvar%pres(1) - option%reference_pressure < pcmax) then
     global_auxvar%pres(1) = pcmax + option%reference_pressure
   endif
@@ -1045,8 +1045,8 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,     &
   ! ----------------
   ! (0) inputs
   pc = max(0.d0, option%reference_pressure - pres_l)   ! always non-negative (0 = saturated)
-  if (pc > abs(characteristic_curves%saturation_function%pcmax)) then
-    pc = characteristic_curves%saturation_function%pcmax
+  if (pc > abs(characteristic_curves%saturation_function%pcmax-1.d0)) then
+    pc = characteristic_curves%saturation_function%pcmax-1.d0
   endif
 
   !

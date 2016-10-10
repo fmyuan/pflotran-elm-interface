@@ -244,6 +244,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: aux(1)
   PetscReal, parameter :: tol = 1.d-3
   character(len=MAXSTRINGLENGTH) :: error_string
+  PetscReal :: pcmax
   
   global_auxvar%sat = 0.d0
   global_auxvar%den = 0.d0
@@ -262,10 +263,20 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   global_auxvar%pres = x(1)
 !if coupled with CLM, CLM will update temperature via the interface
 #ifndef CLM_PFLOTRAN
+
   global_auxvar%temp = option%reference_temperature
+
+#else
+  ! Check if the capillary pressure is less than prescribed 'pcmax' (positive)
+  pcmax = -characteristic_curves%saturation_function%pcmax + 1.d0
+  if (global_auxvar%pres(1) - option%reference_pressure < pcmax) then
+    global_auxvar%pres(1) = pcmax + option%reference_pressure
+  endif
+
 #endif
  
   auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
+  auxvar%pc = max(0.d0, auxvar%pc)   ! always non-negative (0 = saturated)
   
 !***************  Liquid phase properties **************************
   pw = option%reference_pressure
@@ -319,7 +330,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                                           global_auxvar%sat(1), &
                                           ds_dp,option)
     ! if ds_dp is 0, we consider the cell saturated.
-    if (ds_dp < 1.d-40) then
+    if (ds_dp < 1.d-40 .and. auxvar%pc<1.0d1) then
       saturated = PETSC_TRUE
     else
       call characteristic_curves%liq_rel_perm_function% &
