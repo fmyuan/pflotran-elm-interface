@@ -2221,13 +2221,11 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   PetscReal, parameter :: Lf   = HEAT_OF_FUSION   ! fusion heat (in J/kg)
   PetscReal :: gamma, alpha, dalpha_drhol
   PetscReal :: beta_corrected, ice_pc_tmin
-  PetscReal :: rhol, drhol_dp, drhol_dt
+  PetscReal :: rhol, rhol_mol, drhol_dp, drhol_dt
   PetscReal :: rhoi
 
   PetscReal :: Tf, dTf_dt, dTf_dp
   PetscReal :: tftheta, dtftheta_dt, dtftheta_dp
-
-  PetscReal :: denw_kg, denw_mol, ddenw_dp, ddenw_dt
 
   PetscReal :: Hfunc, dHfunc, tempreal
   PetscReal :: deltaTf, xTf, a, b, c
@@ -2252,29 +2250,18 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
   ! --------------------
 
-  ! constant 'rhol'
-  rhol     = 999.8d0            ! kg/m3: kmol/m3*kg/kmol
+  ! constant 'rhol' (for liq. water): kg/m3 @ reference conditions
+  call EOSWaterdensity(option%reference_temperature, &
+                       option%reference_pressure,    &
+                       rhol, rhol_mol, ierr)
   drhol_dp = 0.d0
   drhol_dt = 0.d0
 
-#if 0
-  ! liq. water density as function of P/T
-  call EOSWaterDensity(min(max(tc,-1.0d0),99.9d0), min(pw, 165.4d5),      &
-                          denw_kg, denw_mol, ddenw_dp, ddenw_dt, ierr)
-  if (.not.saturated) ddenw_dp = 0.d0
-  if (pw>165.4d5+erf(1.d-20)) ddenw_dp = 0.d0
-  if (tc<-1.d0+erf(-1.d-20) .or. tc>99.9d0+erf(1.d-20)) ddenw_dt = 0.d0
-
-  ! fmy: added, but test shows NOT work well.
-  !  further checking needed.
-  rhol     = denw_mol*FMWH2O    ! kg/m3: kmol/m3*kg/kmol
-  drhol_dp = ddenw_dp*FMWH2O
-  drhol_dt = ddenw_dt*FMWH2O
-
-#endif
-
-  ! constant 'rhoi' (for ice)
-  rhoi    = 916.7d0             ! kg/m3 at 273.15K
+  ! constant 'rhoi' (for ice): kg/m3 at 0oC
+  call EOSWaterDensityIce(0.d0,                                       &
+                          option%reference_pressure,                  &
+                          rhoi, ierr)
+  rhoi = rhoi*FMWH2O   ! kg/m3: kmol/m3 * kg/kmol
 
   if (option%use_th_freezing) then
 

@@ -825,29 +825,54 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%dsat_dp = ds_dp
   auxvar%dsat_dt = dsl_temp
 
-  !call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
-  call EOSWaterDensity(min(max(global_auxvar%temp,-1.0d0),99.9d0),        &    ! tc: -1 ~ 99.9 oC
-                       min(max(pw, 0.01d0), 16.54d6),  &    ! p: 0.01 ~ 16.54 MPa
+#ifndef CLM_PFLOTRAN
+  call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
+
+#else
+  !call EOSWaterDensity(min(max(global_auxvar%temp,-1.0d0),99.9d0),        &    ! tc: -1 ~ 99.9 oC
+  !                     min(max(pw, 0.01d0), 16.54d6),  &    ! p: 0.01 ~ 16.54 MPa
+  !                     dw_kg, dw_mol, dw_dp, dw_dt, ierr)
+  call EOSWaterdensity(option%reference_temperature, &
+                       option%reference_pressure,    &
                        dw_kg, dw_mol, dw_dp, dw_dt, ierr)
+  dw_dp = 0.d0
+  dw_dt = 0.d0
+#endif
+
   if (iphase == 3) dw_dp = 0.d0
 
 
-  !call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
-  call EOSWaterEnthalpy(min(max(global_auxvar%temp,0.01d0),99.9d0), &    ! tc: 0.01 ~ 99.9 oC (0 - 350 by IFC 67)
-                        min(max(pw, 0.01d0), 16.54d6),              &    ! p: 0.01 ~ 16.54 MPa (0 - 165.4 bars by IFC 67)
-                        hw,hw_dp,hw_dt,ierr)
+#ifndef CLM_PFLOTRAN
+  call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
 
+#else
+  ! a note here: limit for p/t according to IFC67 p/t rangs.
+  ! This greatly improve small-timing issue (not sure why):
+  !   F/T smoothing half-width = 0.001oC, STOL=1.d-8 will do well.
+  call EOSWaterEnthalpy(min(max(global_auxvar%temp,-273.15d0), 350.d0), &    ! tc: -273.15-350 (0 - 350oC by IFC 67)
+                        min(max(pw, 0.01d0), 16.54d6),                  &    ! p: 0.01 ~ 16.54 MPa (0 - 165.4 bars by IFC 67)
+                        hw,hw_dp,hw_dt,ierr)
+#endif
   ! J/kmol -> MJ/kmol
   hw = hw * option%scale
   hw_dp = hw_dp * option%scale
   hw_dt = hw_dt * option%scale
                          
-  call EOSWaterSaturationPressure(max(global_auxvar%temp,-68.d0),  &
-                              sat_pressure, dpsat_dt, ierr)
-  call EOSWaterViscosity(min(max(global_auxvar%temp,-68.0d0),99.9d0),        &    ! tc: -1 ~ 99.9 oC
-                         min(max(pw, 0.01d0), 16.54d6),  &    ! p: 0.01 ~ 16.54 MPa
+  call EOSWaterSaturationPressure(global_auxvar%temp, sat_pressure, dpsat_dt, ierr)
+
+#ifndef CLM_PFLOTRAN
+  call EOSWaterViscosity(global_auxvar%temp,pw,   &
                          sat_pressure, dpsat_dt, &
                          visl, dvis_dt,dvis_dp, ierr)
+
+
+#else
+! a note here: the following p/tc limits seem helpful to recover small-timesteps (not sure why)
+  call EOSWaterViscosity(min(max(global_auxvar%temp,-273.15d0),350.0d0),         &   ! tc: -273.15 ~ 350 oC
+                         min(max(pw, 0.01d0), 16.54d6),                          &   ! p: 0.01 ~ 16.54 MPa
+                         sat_pressure, dpsat_dt, &
+                         visl, dvis_dt,dvis_dp, ierr)
+#endif
 
   if (iphase == 3) then !kludge since pw is constant in the unsat zone
     dvis_dp = 0.d0
@@ -882,13 +907,22 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   
   ! Calculate the density, internal energy and derivatives for ice
 
-  ! when tc ~ -15oC, Ice-density change in the following function causes presure non-monotonic issue
-  call EOSWaterDensityIce(min(max(-10.d0,global_auxvar%temp), -0.01d0),            &  ! tc: -10 ~ -0.01
-                          min(max(0.01d0,pw), 16.54d6),                            &
+#ifndef CLM_PFLOTRAN
+  call EOSWaterDensityIce(global_auxvar%temp, pw,                    &
                           den_ice, dden_ice_dT, dden_ice_dp, ierr)
+#else
+  ! when tc ~ -15oC, Ice-density change in the following function causes presure non-monotonic issue
+  !call EOSWaterDensityIce(min(max(-10.d0,global_auxvar%temp), -0.01d0),            &  ! tc: -10 ~ -0.01
+  !                        min(max(0.01d0,pw), 16.54d6),                            &
+  !                        den_ice, dden_ice_dT, dden_ice_dp, ierr)
+  call EOSWaterDensityIce(0.d0,                                       &
+                          option%reference_pressure,                  &
+                          den_ice, dden_ice_dT, dden_ice_dp, ierr)
+  dden_ice_dT = 0.d0
+  dden_ice_dp = 0.d0
+#endif
 
-  !call EOSWaterInternalEnergyIce(global_auxvar%temp, u_ice, du_ice_dT)
-  call EOSWaterInternalEnergyIce(min(-0.01d0, global_auxvar%temp), u_ice, du_ice_dT)  ! tc: ~ -0.01
+  call EOSWaterInternalEnergyIce(global_auxvar%temp, u_ice, du_ice_dT)
 
   auxvar%ice%den_ice = den_ice
   auxvar%ice%dden_ice_dt = dden_ice_dT

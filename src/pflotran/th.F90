@@ -2839,9 +2839,9 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         temp_real = global_auxvar_up%pres(1) -  &
                     max(global_auxvar_dn%pres(1), option%reference_pressure)
         if (ibndtype(TH_PRESSURE_DOF) == DIRICHLET_BC .and. temp_real >= floweps) then
-
-          call EOSWaterdensity(global_auxvar_up%temp, &
-                                option%reference_pressure,rho,dum1,ierr)
+          call EOSWaterdensity(option%reference_temperature, &
+                                option%reference_pressure,   &
+                                rho,dum1,ierr)
 
           v_darcy_allowable = temp_real/option%flow_dt/(-option%gravity(3))/rho
 
@@ -3631,9 +3631,9 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
         temp_real = global_auxvar_up%pres(1) -  &
                     max(global_auxvar_dn%pres(1), option%reference_pressure)
         if (ibndtype(TH_PRESSURE_DOF) == DIRICHLET_BC .and. temp_real >= floweps) then
-
-          call EOSWaterdensity(global_auxvar_up%temp, &
-                                option%reference_pressure,rho,dum1,ierr)
+          call EOSWaterdensity(option%reference_temperature, &
+                                option%reference_pressure,   &
+                                rho,dum1,ierr)
 
           v_darcy_allowable = temp_real/option%flow_dt/(-option%gravity(3))/rho
 
