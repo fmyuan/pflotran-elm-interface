@@ -665,7 +665,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   PetscReal :: Dk_dry
   PetscReal :: Dk_ice
   character(len=MAXSTRINGLENGTH) :: error_string
-  PetscReal :: pcmax
+  PetscReal :: pcmax, tc_offset
 
   out_of_table_flag = PETSC_FALSE
  
@@ -829,14 +829,11 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
 
 #else
-  !call EOSWaterDensity(min(max(global_auxvar%temp,-1.0d0),99.9d0),        &    ! tc: -1 ~ 99.9 oC
-  !                     min(max(pw, 0.01d0), 16.54d6),  &    ! p: 0.01 ~ 16.54 MPa
-  !                     dw_kg, dw_mol, dw_dp, dw_dt, ierr)
-  call EOSWaterdensity(option%reference_temperature, &
-                       option%reference_pressure,    &
+! the following may not be much needed
+  call EOSWaterDensity(global_auxvar%temp,                   &
+                       min(max(pw, 0.01d0), 16.54d6),        &    ! p: 0.01 ~ 16.54 MPa
                        dw_kg, dw_mol, dw_dp, dw_dt, ierr)
-  dw_dp = 0.d0
-  dw_dt = 0.d0
+  if (pw<0.01d0 .or. pw>16.54d6) dw_dp = 0.d0
 #endif
 
   if (iphase == 3) dw_dp = 0.d0
@@ -846,12 +843,18 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
 
 #else
-  ! a note here: limit for p/t according to IFC67 p/t rangs.
-  ! This greatly improve small-timing issue (not sure why):
-  !   F/T smoothing half-width = 0.001oC, STOL=1.d-8 will do well.
-  call EOSWaterEnthalpy(min(max(global_auxvar%temp,-273.15d0), 350.d0), &    ! tc: -273.15-350 (0 - 350oC by IFC 67)
-                        min(max(pw, 0.01d0), 16.54d6),                  &    ! p: 0.01 ~ 16.54 MPa (0 - 165.4 bars by IFC 67)
+  ! Liq. water Enthalpy by IFC67 eq. may have a tiny offset of temperature as following
+  ! i.e. @ tc_offset of ~-0.02404oC/1atm, hw ~ 0.d0; beyond that, hw is negative with a large negative derivative.
+  ! So for a threshold of 0 ~ -0.02oC, it will give a small positive value of 'hw' for suppercooled liq. water
+  tc_offset = +0.d0
+  ! a note here: limit for p/t according to IFC67 p/t ranges.
+  ! This may be helpful to solve small-timing issue , together with 'Viscosity' p/t limits (not sure why).
+  call EOSWaterEnthalpy(min(max(global_auxvar%temp, tc_offset), 350.d0),    &    ! tc: ~0-350 (0 - 350oC by IFC 67)
+                        min(max(pw, 0.01d0), 16.54d6),                      &    ! p: 0.01 ~ 16.54 MPa (0 - 165.4 bars by IFC 67)
                         hw,hw_dp,hw_dt,ierr)
+  if (global_auxvar%temp<tc_offset .or. global_auxvar%temp>350.d0) hw_dt = 0.d0   ! seems that this is a must
+  if (pw<0.01d0 .or. pw>16.54d6) hw_dp = 0.d0
+
 #endif
   ! J/kmol -> MJ/kmol
   hw = hw * option%scale
@@ -862,16 +865,21 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
 #ifndef CLM_PFLOTRAN
   call EOSWaterViscosity(global_auxvar%temp,pw,   &
-                         sat_pressure, dpsat_dt, &
+                         sat_pressure, dpsat_dt,  &
                          visl, dvis_dt,dvis_dp, ierr)
-
 
 #else
-! a note here: the following p/tc limits seem helpful to recover small-timesteps (not sure why)
-  call EOSWaterViscosity(min(max(global_auxvar%temp,-273.15d0),350.0d0),         &   ! tc: -273.15 ~ 350 oC
-                         min(max(pw, 0.01d0), 16.54d6),                          &   ! p: 0.01 ~ 16.54 MPa
+  ! a note here: limit for p/t according to IFC67 p/t ranges.
+  ! This may be helpful to solve small-timing issue, together with 'Enthalpy' p/t limits (not sure why).
+  call EOSWaterViscosity(min(max(global_auxvar%temp, tc_offset), 350.d0),    &    ! tc: ~0-350 (0 - 350oC by IFC 67)
+                         min(max(pw, 0.01d0), 16.54d6),                      &    ! p: 0.01 ~ 16.54 MPa (0 - 165.4 bars by IFC 67)
                          sat_pressure, dpsat_dt, &
                          visl, dvis_dt,dvis_dp, ierr)
+
+  !if (global_auxvar%temp<tc_offset .or. &
+  !    global_auxvar%temp>350.d0) dvis_dt = 0.d0       ! this causes difficulties in small-timing recovery (unknown reason, but commentted out)
+  if (pw<0.01d0 .or. pw>16.54d6) dvis_dp = 0.d0
+
 #endif
 
   if (iphase == 3) then !kludge since pw is constant in the unsat zone
@@ -906,22 +914,8 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%ice%dsat_gas_dt = dsg_temp
   
   ! Calculate the density, internal energy and derivatives for ice
-
-#ifndef CLM_PFLOTRAN
   call EOSWaterDensityIce(global_auxvar%temp, pw,                    &
                           den_ice, dden_ice_dT, dden_ice_dp, ierr)
-#else
-  ! when tc ~ -15oC, Ice-density change in the following function causes presure non-monotonic issue
-  !call EOSWaterDensityIce(min(max(-10.d0,global_auxvar%temp), -0.01d0),            &  ! tc: -10 ~ -0.01
-  !                        min(max(0.01d0,pw), 16.54d6),                            &
-  !                        den_ice, dden_ice_dT, dden_ice_dp, ierr)
-  call EOSWaterDensityIce(0.d0,                                       &
-                          option%reference_pressure,                  &
-                          den_ice, dden_ice_dT, dden_ice_dp, ierr)
-  dden_ice_dT = 0.d0
-  dden_ice_dp = 0.d0
-#endif
-
   call EOSWaterInternalEnergyIce(global_auxvar%temp, u_ice, du_ice_dT)
 
   auxvar%ice%den_ice = den_ice
@@ -954,7 +948,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
 #ifdef NO_VAPOR_DIFFUSION
   ! NOTE: vapor 'mol_gas' is included in 'den_gas', 'u_gas'
-  auxvar%ice%mol_gas     = 0.d0
+  auxvar%ice%mol_gas     = 1.d0
   ! so, if for air-mixture, may assign this to 1.0 (may be helpful to reduce time-step)
   !     and if totally igore gas (all), may assign this to 0.0
   auxvar%ice%dmol_gas_dt = 0.d0
