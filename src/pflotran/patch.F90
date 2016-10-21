@@ -3479,10 +3479,18 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
           global_auxvar%temp = option%reference_temperature
         endif
 
+#ifndef CLM_PFLOTRAN
         call EOSWaterDensity(global_auxvar%temp, &
-                             max(global_auxvar%pres(1), option%reference_temperature), &
+                             global_auxvar%pres(1), &
                              global_auxvar%den_kg(1), &
                              dum1,ierr)
+#else
+        call EOSWaterDensity(global_auxvar%temp, &
+                             max(global_auxvar%pres(1), 0.01d0), &
+                             global_auxvar%den_kg(1), &
+                             dum1,ierr)
+#endif
+
       else
         global_auxvar%pres = option%reference_pressure
         global_auxvar%temp = option%reference_temperature
