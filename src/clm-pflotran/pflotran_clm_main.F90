@@ -605,6 +605,7 @@ contains
     PetscScalar, pointer :: dlon_pf_loc(:),dlat_pf_loc(:), dzsoil_pf_loc(:)           ! soil cell length/width/thickness (deg/deg/m) for 3-D PF cells
     PetscScalar, pointer :: lonc_pf_loc(:),latc_pf_loc(:), zisoil_pf_loc(:)           ! soil cell coordinates (deg/deg/m) for 3-D PF cells
     PetscScalar, pointer :: topface_pf_loc(:)
+    PetscScalar, pointer :: cellid_clm_loc(:), cellid_pf_loc(:)
     PetscReal            :: lon_c, lat_c, lon_e, lon_w, lat_s, lat_n
     PetscReal            :: x_global, y_global
     PetscReal            :: tempreal
@@ -634,10 +635,24 @@ contains
     end select
 
     patch           => realization%patch
-      grid          => patch%grid
+    grid            => patch%grid
     field           => realization%field
     discretization  => realization%discretization
 
+    ! 2D - top layer grid id
+    if(associated(pflotran_model%map_clm_2dtop_to_pf_2dtop)) then
+      call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
+                                    option, &
+                                    clm_pf_idata%cellid_2dtop_clmp, &
+                                    clm_pf_idata%cellid_2dtop_pfs)
+    endif
+
+    ! 3D - cellid
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    option, &
+                                    clm_pf_idata%cellid_clmp, &
+                                    clm_pf_idata%cellid_pfs)
+    !
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
                                     clm_pf_idata%dzsoil_clmp, &
@@ -907,6 +922,23 @@ contains
       call VecRestoreArrayReadF90(clm_pf_idata%area_top_face_pfs, topface_pf_loc, ierr)
       CHKERRQ(ierr)
     end if
+
+    ! the following is for checking
+    call VecGetArrayReadF90(clm_pf_idata%cellid_pfp, cellid_pf_loc, ierr)
+    CHKERRQ(ierr)
+    do ghosted_id = 1, grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      cellid_pf_loc = grid%nG2A(ghosted_id)
+
+      write(option%myrank+200,*) option%myrank, ghosted_id, local_id, cellid_pf_loc(local_id)
+
+    end do
+    call VecRestoreArray90(clm_pf_idata%cellid_pfp, cellid_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    option, &
+                                    clm_pf_idata%cellid_pfp, &
+                                    clm_pf_idata%cellid_clms)
 
   end subroutine pflotranModelSetSoilDimension
 
