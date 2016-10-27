@@ -53,8 +53,8 @@ module PFLOTRAN_Constants_module
   PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31446d0 ! J/mol-K
   PetscReal, parameter, public :: HEAT_OF_FUSION = 3.34d5  ! J/kg
   PetscReal, parameter, public :: PI = 3.14159265359d0
-  PetscReal, parameter, public :: Faraday = 96485.3365d0 ! C/mol
-  PetscReal, parameter, public :: GRAVITY_CONSTANT = 9.80616d0    ! m/s^2
+  PetscReal, parameter, public :: FARADAY = 96485.3365d0 ! C/mol
+  PetscReal, parameter, public :: EARTH_GRAVITY = 9.8068d0 ! m/s^2
   
   PetscInt, parameter, public :: ZERO_INTEGER = 0
   PetscInt, parameter, public :: ONE_INTEGER = 1
@@ -188,6 +188,7 @@ module PFLOTRAN_Constants_module
   
   PetscInt, parameter, public :: TH_PRESSURE_DOF = 1
   PetscInt, parameter, public :: TH_TEMPERATURE_DOF = 2
+  PetscInt, parameter, public :: TH_CONDUCTANCE_DOF = 3
 
   PetscInt, parameter, public :: MPH_PRESSURE_DOF = 1
   PetscInt, parameter, public :: MPH_TEMPERATURE_DOF = 2
