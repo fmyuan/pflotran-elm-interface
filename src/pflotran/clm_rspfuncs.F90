@@ -140,11 +140,11 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
       CHKERRQ(ierr)
       ! sucsat [mm of H20] from CLM is the suction (positive) at water saturated (called air-entry pressure)
       ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
-      maxpsi = sucsat_pf_loc(ghosted_id) * (-GRAVITY_CONSTANT)                         ! mmH2O --> -Pa
+      maxpsi = sucsat_pf_loc(ghosted_id) * (-EARTH_GRAVITY)                         ! mmH2O --> -Pa
       lsat = theta/min(1.d0, 1.d0-min(0.9999d0,bd_dry_pf_loc(ghosted_id)/2.70d3))     ! bd = (1._r8-dry_porosity)*2.7d3
 
       ! soil matric potential by Clapp-Hornburger method (this is the default used by CLM)
-      psi = sucsat_pf_loc(ghosted_id) * (-GRAVITY_CONSTANT) * (lsat**(-bsw_pf_loc(ghosted_id)))  ! mmH2O --> -Pa
+      psi = sucsat_pf_loc(ghosted_id) * (-EARTH_GRAVITY) * (lsat**(-bsw_pf_loc(ghosted_id)))  ! mmH2O --> -Pa
       psi = min(psi, maxpsi)
       if(psi > minpsi) then
         F_theta = log(minpsi/psi)/log(minpsi/maxpsi)

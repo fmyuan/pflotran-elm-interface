@@ -1065,7 +1065,7 @@ contains
 
     den = 998.2d0       ! [kg/m^3]  @ 20 degC
     vis = 0.001002d0    ! [N s/m^2] @ 20 degC
-    grav =GRAVITY_CONSTANT       ! [m/S^2]
+    grav =EARTH_GRAVITY       ! [m/S^2]
 
 
     subname = 'pflotranModelSetSoilProp'
@@ -1550,7 +1550,7 @@ contains
     if(option%iflowmode==RICHARDS_MODE .or. &
        option%iflowmode==TH_MODE) then
 
-        unitconv  = 0.001002d0/(998.2d0*GRAVITY_CONSTANT)/1000.d0    ! from hydraulic conductivity (mmH2O/sec) to permissivity (kg/sec)
+        unitconv  = 0.001002d0/(998.2d0*EARTH_GRAVITY)/1000.d0    ! from hydraulic conductivity (mmH2O/sec) to permissivity (kg/sec)
         perm_adj  = 1.0d0
 
         call VecGetArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
