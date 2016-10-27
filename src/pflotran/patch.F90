@@ -123,6 +123,7 @@ module Patch_module
             PatchCalculateCFL1Timestep, &
             PatchGetCellCenteredVelocities, &
             PatchGetCompMassInRegion, &
+            PatchGetWaterMassInRegion, &
             PatchGetCompMassInRegionAssign
 
 contains
@@ -3593,53 +3594,6 @@ end subroutine PatchUpdateUniformVelocity
 
 ! ************************************************************************** !
 
-function PatchAuxVarsUpToDate(patch)
-  ! 
-  ! Checks to see if aux vars are up to date
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 09/12/08
-  ! 
-
-  use Grid_module
-  use Option_module
-  use Field_module
-  
-  use Mphase_Aux_module
-  use TH_Aux_module
-  use Richards_Aux_module
-  use Reactive_Transport_Aux_module  
-  
-  type(patch_type) :: patch
-  
-  PetscBool :: PatchAuxVarsUpToDate
-  PetscBool :: flow_up_to_date
-  PetscBool :: transport_up_to_date
-  PetscInt :: dummy
-  dummy = 1
-
-  if (associated(patch%aux%TH)) then
-    flow_up_to_date = patch%aux%TH%auxvars_up_to_date
-  else if (associated(patch%aux%Richards)) then
-    flow_up_to_date = patch%aux%Richards%auxvars_up_to_date
-  else if (associated(patch%aux%Mphase)) then
-    flow_up_to_date = patch%aux%Mphase%auxvars_up_to_date
-  else if (associated(patch%aux%Flash2)) then
-    flow_up_to_date = patch%aux%Flash2%auxvars_up_to_date
-  else if (associated(patch%aux%Immis)) then
-    flow_up_to_date = patch%aux%Immis%auxvars_up_to_date
-  endif
-
-  if (associated(patch%aux%RT)) then
-    transport_up_to_date = patch%aux%RT%auxvars_up_to_date
-  endif
-  
-  PatchAuxVarsUpToDate = flow_up_to_date .and. transport_up_to_date
-  
-end function PatchAuxVarsUpToDate
-
-! ************************************************************************** !
-
 subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                              ivar,isubvar,isubvar1)
   ! 
@@ -3821,8 +3775,9 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
           case(LIQUID_HEAD)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)/9.81/ &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(1)                
+                patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)/ &
+                EARTH_GRAVITY/ &
+                patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(1)
             enddo
           case(LIQUID_SATURATION)
             do local_id=1,grid%nlmax
@@ -4461,7 +4416,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
          KIN_SURFACE_CMPLX,KIN_SURFACE_CMPLX_FREE, PRIMARY_ACTIVITY_COEF, &
          SECONDARY_ACTIVITY_COEF,PRIMARY_KD,TOTAL_SORBED,TOTAL_SORBED_MOBILE, &
          COLLOID_MOBILE,COLLOID_IMMOBILE,AGE,TOTAL_BULK,IMMOBILE_SPECIES, &
-         GAS_CONCENTRATION)
+         GAS_CONCENTRATION,REACTION_AUXILIARY)
 
       select case(ivar)
         case(PH)
@@ -4506,7 +4461,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               enddo
               tk = patch%aux%Global%auxvars(ghosted_id)%temp + &
                    273.15d0
-              ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/faraday
+              ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
               eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
               pe0 = eh0/ehfac
               vec_ptr(local_id) = eh0
@@ -4540,7 +4495,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               enddo
               tk = patch%aux%Global%auxvars(ghosted_id)%temp + &
                    273.15d0
-              ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/faraday
+              ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
               eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
               pe0 = eh0/ehfac
               vec_ptr(local_id) = pe0
@@ -4850,6 +4805,11 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                 output_option%tconv
             endif
           enddo        
+        case(REACTION_AUXILIARY)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%RT%auxvars(grid%nL2G(local_id))%auxiliary_data(isubvar)
+          enddo
       end select
     case(POROSITY,MINERAL_POROSITY,PERMEABILITY,PERMEABILITY_X, &
          PERMEABILITY_Y, PERMEABILITY_Z,PERMEABILITY_XY,PERMEABILITY_XZ, &
@@ -5042,7 +5002,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(LIQUID_PRESSURE)
             value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
           case(LIQUID_HEAD)
-            value = patch%aux%Global%auxvars(ghosted_id)%pres(1)/9.81/ &
+            value = patch%aux%Global%auxvars(ghosted_id)%pres(1)/ &
+                    EARTH_GRAVITY/ &
                     patch%aux%Global%auxvars(ghosted_id)%den_kg(1)
           case(LIQUID_SATURATION)
             value = patch%aux%Global%auxvars(ghosted_id)%sat(1)
@@ -5390,7 +5351,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
          KIN_SURFACE_CMPLX,KIN_SURFACE_CMPLX_FREE, PRIMARY_ACTIVITY_COEF, &
          SECONDARY_ACTIVITY_COEF,PRIMARY_KD, TOTAL_SORBED, &
          TOTAL_SORBED_MOBILE,COLLOID_MOBILE,COLLOID_IMMOBILE,AGE,TOTAL_BULK, &
-         IMMOBILE_SPECIES,GAS_CONCENTRATION)
+         IMMOBILE_SPECIES,GAS_CONCENTRATION,REACTION_AUXILIARY)
          
       select case(ivar)
         case(PH)
@@ -5426,7 +5387,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           enddo
 
           tk = patch%aux%Global%auxvars(ghosted_id)%temp+273.15d0
-          ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/faraday
+          ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
           eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
 
           value = eh0
@@ -5454,7 +5415,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           enddo
 
           tk = patch%aux%Global%auxvars(ghosted_id)%temp+273.15d0
-          ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/faraday
+          ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
           eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
           pe0 = eh0/ehfac
           value = pe0
@@ -5621,6 +5582,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar1) / &
             output_option%tconv
           endif
+        case(REACTION_AUXILIARY)
+          value = patch%aux%RT%auxvars(ghosted_id)%auxiliary_data(isubvar)
       end select
     case(POROSITY,MINERAL_POROSITY,PERMEABILITY,PERMEABILITY_X, &
          PERMEABILITY_Y, PERMEABILITY_Z,PERMEABILITY_XY,PERMEABILITY_XZ, &
@@ -6399,7 +6362,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       endif
     case(PRIMARY_MOLALITY,TOTAL_MOLARITY,MINERAL_VOLUME_FRACTION, &
          PRIMARY_ACTIVITY_COEF,SECONDARY_ACTIVITY_COEF,IMMOBILE_SPECIES, &
-         GAS_CONCENTRATION)
+         GAS_CONCENTRATION,REACTION_AUXILIARY)
       select case(ivar)
         case(PRIMARY_MOLALITY)
           if (vec_format == GLOBAL) then
@@ -6475,6 +6438,18 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             do ghosted_id=1,grid%ngmax
               patch%aux%RT%auxvars(ghosted_id)% &
                 sec_act_coef(isubvar) = vec_ptr(ghosted_id)
+            enddo
+          endif
+        case(REACTION_AUXILIARY)
+          if (vec_format == GLOBAL) then
+            do local_id=1,grid%nlmax
+              patch%aux%RT%auxvars(grid%nL2G(local_id))% &
+                auxiliary_data(isubvar) = vec_ptr(local_id)
+            enddo
+          else if (vec_format == LOCAL) then
+            do ghosted_id=1,grid%ngmax
+              patch%aux%RT%auxvars(ghosted_id)% &
+                auxiliary_data(isubvar) = vec_ptr(ghosted_id)
             enddo
           endif
       end select
@@ -7373,6 +7348,61 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
                      MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
 
 end subroutine PatchGetCompMassInRegion
+
+! **************************************************************************** !
+
+subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
+                                     global_water_mass)
+  ! 
+  ! Calculates the water mass in a region in kg
+  ! 
+  ! Author: Satish Karra
+  ! Date: 09/20/2016
+  ! 
+  use Global_Aux_module
+  use Material_Aux_class
+  use Grid_module
+  use Option_module
+
+  implicit none
+  
+  PetscInt, pointer :: cell_ids(:)
+  PetscInt :: num_cells
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  PetscReal :: global_water_mass  
+  
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscReal :: m3_water, kg_water           
+  PetscInt :: k, j, m
+  PetscInt :: local_id, ghosted_id
+  PetscErrorCode :: ierr
+  PetscReal :: local_water_mass
+  
+  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+  local_water_mass = 0.d0
+  global_water_mass = 0.d0
+  
+  ! Loop through all cells in the region:
+  do k = 1,num_cells
+    local_id = cell_ids(k)
+    ghosted_id = patch%grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    m3_water = material_auxvars(ghosted_id)%porosity * &         ! [-]
+               global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water]
+               material_auxvars(ghosted_id)%volume               ! [m^3-bulk]
+    kg_water = m3_water*global_auxvars(ghosted_id)% &            ! [m^3-water]
+               den(LIQUID_PHASE)                                 ! [kg/m^3-water]
+    local_water_mass = local_water_mass + kg_water
+  enddo ! Cell loop
+  
+  ! Sum the local_water_mass across all processes that own the region: 
+  call MPI_Allreduce(local_water_mass,global_water_mass,ONE_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+
+end subroutine PatchGetWaterMassInRegion
 
 ! **************************************************************************** !
 

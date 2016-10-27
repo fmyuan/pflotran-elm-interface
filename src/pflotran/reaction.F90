@@ -61,6 +61,7 @@ module Reaction_module
             RTAccumulation, &
             RTAccumulationDerivative, &
             RTPrintAuxVar, &
+            RTSetPlotVariables, &
             ReactionInterpolateLogK_hpt, &
             ReactionInitializeLogK_hpt, &
             RUpdateKineticState, &
@@ -2226,7 +2227,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
         enddo
 
         tk = global_auxvar%temp+273.15d0
-        ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/faraday
+        ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
         eh = ehfac*(-4.d0*ph+lnQKgas(ifo2)*LN_TO_LOG+logKeh(tk))/4.d0
         pe = eh/ehfac
 
@@ -2774,7 +2775,6 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
   PetscReal, parameter :: tk = 273.15d0
   PetscReal, parameter :: epsilon = 78.5d0
   PetscReal, parameter :: epsilon0 = 8.854187817d-12
-  PetscReal, parameter :: faraday = 96485.d0
   
   PetscReal :: fac, boltzmann, dbl_charge, surface_charge, ionic_strength, &
                charge_balance, potential, tempk, debye_length, &
@@ -2808,7 +2808,7 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
     tempk = tk + global_auxvar%temp
     
     potential = 0.1d0 ! initial guess
-    boltzmann = exp(-faraday*potential/(IDEAL_GAS_CONSTANT*tempk))
+    boltzmann = exp(-FARADAY*potential/(IDEAL_GAS_CONSTANT*tempk))
         
     fac = sqrt(epsilon*epsilon0*IDEAL_GAS_CONSTANT*tempk)
 
@@ -2841,7 +2841,7 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
       dbl_charge = fac*sqrt(2.d0*(-dbl_charge))
     endif
 
-    srfchrg_capacitance_model = faraday* &
+    srfchrg_capacitance_model = FARADAY* &
       sqrt(2.d0*epsilon*epsilon0*ionic_strength*1.d3/(IDEAL_GAS_CONSTANT*tempk))
 
     surface_charge = 0.d0
@@ -2853,11 +2853,11 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
                          rt_auxvar%eqsrfcplx_conc(icplx)
       enddo
     enddo
-    surface_charge = faraday*surface_charge
+    surface_charge = FARADAY*surface_charge
 
-    debye_length = sqrt(fac/(2.d0*ionic_strength*1.d3))/faraday
+    debye_length = sqrt(fac/(2.d0*ionic_strength*1.d3))/FARADAY
     capacitance = sqrt(2.d0*epsilon*epsilon0*ionic_strength*1.d3/ &
-                    (IDEAL_GAS_CONSTANT*tempk)) * faraday
+                    (IDEAL_GAS_CONSTANT*tempk)) * FARADAY
     
     print *,'========================='
     print *,'dbl: debye_length = ',debye_length
@@ -2905,7 +2905,7 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
           
           ! compute ion activity product
           lnQK = -reaction%eqsrfcplx_logK(icplx)*LOG_TO_LN &
-                 + reaction%eqsrfcplx_Z(icplx)*faraday*potential &
+                 + reaction%eqsrfcplx_Z(icplx)*FARADAY*potential &
                  /(IDEAL_GAS_CONSTANT*tempk)/LOG_TO_LN
 
           ! activity of water
@@ -2952,7 +2952,6 @@ subroutine srfcmplx(irxn,icplx,lnQK,logK,Z,potential,tempk, &
 implicit none
 
   PetscReal, parameter :: tk = 273.15d0
-  PetscReal, parameter :: faraday = 96485.d0
   
   PetscReal :: fac, boltzmann, dbl_charge, surface_charge, ionic_strength, &
                charge_balance, potential, tempk, debye_length, &
@@ -2972,7 +2971,7 @@ implicit none
           icplx = reaction%srfcplxrxn_to_complex(j,irxn)
           ! compute secondary species concentration
           lnQK = -logK(icplx)*LOG_TO_LN &
-                 + Z(icplx)*faraday*potential &
+                 + Z(icplx)*FARADAY*potential &
                  /(IDEAL_GAS_CONSTANT*tempk)/LOG_TO_LN
 
           ! activity of water
@@ -3116,6 +3115,8 @@ subroutine ReactionReadOutput(reaction,input,option)
         reaction%print_tot_conc_type = TOTAL_MOLALITY
       case('AGE')
         reaction%print_age = PETSC_TRUE
+      case('AUXILIARY')
+        reaction%print_auxiliary = PETSC_TRUE
       case ('SITE_DENSITY')
         call InputReadWord(input,option,name,PETSC_TRUE)  
         call InputErrorMsg(input,option,'Site Name', &
@@ -4545,13 +4546,13 @@ subroutine RAccumulationSorb(rt_auxvar,global_auxvar,material_auxvar, &
   type(reaction_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   
-  PetscReal :: v_t
+!  PetscReal :: v_t
   
   ! units = (mol solute/m^3 bulk)*(m^3 bulk)/(sec) = mol/sec
   ! all residual entries should be in mol/sec
-  v_t = material_auxvar%volume/option%tran_dt
+!  v_t = material_auxvar%volume/option%tran_dt
   Res(1:reaction%naqcomp) = Res(1:reaction%naqcomp) + &
-    rt_auxvar%total_sorb_eq(:)*v_t
+    rt_auxvar%total_sorb_eq(:)*material_auxvar%volume
 
 end subroutine RAccumulationSorb
 
@@ -5096,7 +5097,8 @@ subroutine RTAccumulation(rt_auxvar,global_auxvar,material_auxvar, &
   ! 1000.d0 converts vol from m^3 -> L
   ! all residual entries should be in mol/sec
   psv_t = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0* &
-          material_auxvar%volume / option%tran_dt  
+!          material_auxvar%volume / option%tran_dt  
+          material_auxvar%volume
   istart = 1
   iend = reaction%naqcomp
   Res(istart:iend) = psv_t*rt_auxvar%total(:,iphase) 
@@ -5105,7 +5107,8 @@ subroutine RTAccumulation(rt_auxvar,global_auxvar,material_auxvar, &
     do iimob = 1, reaction%immobile%nimmobile
       idof = reaction%offset_immobile + iimob
       Res(idof) = Res(idof) + rt_auxvar%immobile(iimob)* &
-                              material_auxvar%volume/option%tran_dt 
+!                              material_auxvar%volume/option%tran_dt 
+                              material_auxvar%volume
     enddo
   endif
   if (reaction%ncoll > 0) then
@@ -5124,7 +5127,8 @@ subroutine RTAccumulation(rt_auxvar,global_auxvar,material_auxvar, &
   if (reaction%gas%nactive_gas > 0) then
     iphase = 2
     psv_t = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0* &
-            material_auxvar%volume / option%tran_dt  
+!            material_auxvar%volume / option%tran_dt  
+            material_auxvar%volume
     istart = 1
     iend = reaction%naqcomp
     Res(istart:iend) = Res(istart:iend) + psv_t*rt_auxvar%total(:,iphase)     
@@ -5640,5 +5644,336 @@ subroutine RTPrintAuxVar(rt_auxvar,reaction,option)
   endif
 
 end subroutine RTPrintAuxVar
+
+! ************************************************************************** !
+
+subroutine RTSetPlotVariables(list,reaction,option)
+  ! 
+  ! Adds variables to be printed to list
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/15/12
+  ! 
+  
+  use Option_module
+  use Output_Aux_module
+  use Variables_module
+    
+  implicit none
+  
+  type(output_variable_list_type), pointer :: list
+  type(reaction_type), pointer :: reaction
+  type(option_type), pointer :: option
+  
+  character(len=MAXWORDLENGTH) :: name,  units
+  character(len=MAXSTRINGLENGTH) string
+  character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
+  PetscInt :: i
+  
+  if (reaction%print_free_conc_type == PRIMARY_MOLALITY) then
+    free_mol_char = 'm'
+  else
+    free_mol_char = 'M'
+  endif
+  
+  if (reaction%print_tot_conc_type == TOTAL_MOLALITY) then
+    tot_mol_char = 'm'
+  else
+    tot_mol_char = 'M'
+  endif
+  
+  if (reaction%print_secondary_conc_type == SECONDARY_MOLALITY) then
+    sec_mol_char = 'm'
+  else
+    sec_mol_char = 'M'
+  endif
+  
+  if (reaction%print_pH .and. associated(reaction%species_idx)) then
+    if (reaction%species_idx%h_ion_id /= 0) then
+      name = 'pH'
+      units = ''
+      call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units,PH, &
+                                   reaction%species_idx%h_ion_id)
+    else
+      option%io_buffer = 'pH may not be printed when H+ is not ' // &
+        'defined as a species.'
+      call printErrMsg(option)
+    endif
+  endif  
+  
+  if (reaction%print_EH .and. associated(reaction%species_idx)) then
+    if (reaction%species_idx%o2_gas_id > 0) then
+      name = 'Eh'
+      units = 'V'
+      call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units,EH, &
+                                   reaction%species_idx%h_ion_id)
+    else
+      option%io_buffer = 'Eh may not be printed when O2(g) is not ' // &
+        'defined as a species.'
+      call printErrMsg(option)
+    endif
+  endif  
+  
+  if (reaction%print_pe .and. associated(reaction%species_idx)) then
+    if (reaction%species_idx%o2_gas_id > 0) then
+      name = 'pe'
+      units = ''
+      call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units,PE, &
+                                   reaction%species_idx%h_ion_id)
+    else
+      option%io_buffer = 'pe may not be printed when O2(g) is not ' // &
+        'defined as a species.'
+      call printErrMsg(option)   
+    endif
+  endif  
+  
+  if (reaction%print_O2 .and. associated(reaction%species_idx)) then
+    if (reaction%species_idx%o2_gas_id > 0) then
+      name = 'logfO2'
+      units = 'bars'
+      call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units,O2, &
+                                   reaction%species_idx%o2_gas_id)
+    else
+      option%io_buffer = 'logfO2 may not be printed when O2(g) is not ' // &
+        'defined as a species.'
+      call printErrMsg(option)
+    endif
+  endif  
+  
+  if (reaction%print_total_component) then
+    do i=1,reaction%naqcomp
+      if (reaction%primary_species_print(i)) then
+        name = 'Total ' // trim(reaction%primary_species_names(i))
+        units = trim(tot_mol_char)
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                     reaction%print_tot_conc_type,i)
+      endif
+    enddo
+  endif  
+  
+  if (reaction%print_free_ion) then
+    do i=1,reaction%naqcomp
+      if (reaction%primary_species_print(i)) then
+        name = 'Free ' // trim(reaction%primary_species_names(i)) 
+        units = trim(free_mol_char)
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                      reaction%print_free_conc_type,i)
+      endif
+    enddo
+  endif  
+  
+#if 0
+!geh: not yet supported as we have no function set up to calculate the
+!     passive gas partial pressures at this point.  They are calculated
+!     in the CONSTRAINT output.
+  do i=1,reaction%gas%npassive_gas
+    if (reaction%gas%passive_print_me(i)) then
+      name = 'Passive Gas ' // trim(reaction%gas%passive_names(i))
+      units = trim('Pa')
+      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+          GAS_CONCENTRATION,i)
+    endif
+  enddo
+#endif
+
+  do i=1,reaction%gas%nactive_gas
+    if (reaction%gas%active_print_me(i)) then
+      name = 'Active Gas ' // trim(reaction%gas%active_names(i))
+      units = trim('Pa')
+      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+          GAS_CONCENTRATION,i)
+    endif
+  enddo
+
+  if (reaction%print_total_bulk) then
+    do i=1,reaction%naqcomp
+      if (reaction%primary_species_print(i)) then
+        name = 'Total Bulk ' // trim(reaction%primary_species_names(i))
+        units = 'mol/m^3 bulk'
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                     TOTAL_BULK,i)   
+      endif
+    enddo
+  endif
+  
+  if (reaction%print_act_coefs) then
+    do i=1,reaction%naqcomp
+      if (reaction%primary_species_print(i)) then
+        name = 'Gamma ' // trim(reaction%primary_species_names(i))
+        units = ''
+        call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                     PRIMARY_ACTIVITY_COEF,i) 
+      endif
+    enddo
+  endif
+  
+  do i=1,reaction%neqcplx
+    if (reaction%secondary_species_print(i)) then
+      name = trim(reaction%secondary_species_names(i))
+      units = trim(sec_mol_char)
+      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                   reaction%print_secondary_conc_type,i) 
+    endif
+  enddo   
+
+  do i=1,reaction%mineral%nkinmnrl
+    if (reaction%mineral%kinmnrl_print(i)) then
+      name = trim(reaction%mineral%kinmnrl_names(i)) // ' VF'
+      units = ''
+      call OutputVariableAddToList(list,name,OUTPUT_VOLUME_FRACTION,units, &
+                                   MINERAL_VOLUME_FRACTION,i)     
+    endif
+  enddo
+  
+  do i=1,reaction%mineral%nkinmnrl
+    if (reaction%mineral%kinmnrl_print(i)) then
+      name = trim(reaction%mineral%kinmnrl_names(i)) // ' Rate'
+      units = 'mol/m^3/sec'
+      call OutputVariableAddToList(list,name,OUTPUT_RATE,units, &
+                                   MINERAL_RATE,i)      
+    endif
+  enddo  
+  
+  if (reaction%mineral%print_saturation_index) then
+    do i=1,reaction%mineral%nmnrl
+      if (reaction%mineral%mnrl_print(i)) then
+        name = trim(reaction%mineral%mineral_names(i)) // ' SI'
+        units = ''
+        call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                     MINERAL_SATURATION_INDEX,i)    
+      endif
+    enddo
+  endif
+  
+  do i=1,reaction%immobile%nimmobile
+    if (reaction%immobile%print_me(i)) then
+      name = trim(reaction%immobile%names(i)) 
+      units = 'mol/m^3'
+      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                   IMMOBILE_SPECIES,i)
+    endif
+  enddo
+  
+  do i=1,reaction%surface_complexation%nsrfcplxrxn
+    if (reaction%surface_complexation%srfcplxrxn_site_density_print(i)) then
+      name = trim(reaction%surface_complexation%srfcplxrxn_site_names(i)) // &
+             ' Site Density'
+      units = 'mol/m^3 bulk'
+      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                   SURFACE_SITE_DENSITY,i)
+    endif
+  enddo  
+
+  do i=1,reaction%surface_complexation%nsrfcplxrxn
+    if (reaction%surface_complexation%srfcplxrxn_site_print(i)) then
+      name = 'Free ' // &
+             trim(reaction%surface_complexation%srfcplxrxn_site_names(i))
+      units = 'mol/m^3 bulk'
+      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                   SURFACE_CMPLX_FREE,i)
+    endif
+  enddo
+  
+  
+  do i=1,reaction%surface_complexation%nsrfcplx
+    if (reaction%surface_complexation%srfcplx_print(i)) then
+      name = reaction%surface_complexation%srfcplx_names(i)
+      units = 'mol/m^3 bulk'
+      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                   SURFACE_CMPLX,i)
+    endif
+  enddo
+
+  do i=1,reaction%surface_complexation%nkinsrfcplxrxn
+    if (reaction%surface_complexation%srfcplxrxn_site_print(i)) then
+      option%io_buffer = 'Printing of kinetic surface complexes needs to be fixed'
+      call printErrMsg(option)
+      name = 'Free ' // &
+             trim(reaction%surface_complexation%srfcplxrxn_site_names(i))
+      units = 'mol/m^3 bulk'
+      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                   KIN_SURFACE_CMPLX_FREE,i)
+    endif
+  enddo  
+  
+  do i=1,reaction%surface_complexation%nkinsrfcplx
+    if (reaction%surface_complexation%srfcplx_print(i)) then
+      option%io_buffer = 'Printing of kinetic surface complexes needs to be fixed'
+      call printErrMsg(option)
+      name = reaction%surface_complexation%srfcplx_names(i)
+      units = 'mol/m^3 bulk'
+      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                   KIN_SURFACE_CMPLX,i)
+    endif
+  enddo  
+
+  if (associated(reaction%kd_print)) then
+    do i=1,reaction%naqcomp
+      if (reaction%kd_print(i)) then
+      name = trim(reaction%primary_species_names(i)) // ' KD'
+      units = '-'
+      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                   PRIMARY_KD,i)
+      endif
+    enddo
+  endif
+  
+  if (associated(reaction%total_sorb_print)) then
+    do i=1,reaction%naqcomp
+      if (reaction%total_sorb_print(i)) then
+        name = 'Total Sorbed ' // trim(reaction%primary_species_names(i))
+        units = 'mol/m^3'
+        call  OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                      TOTAL_SORBED,i)        
+      endif
+    enddo
+  endif
+  
+  if (associated(reaction%total_sorb_mobile_print)) then
+    do i=1,reaction%ncollcomp
+      if (reaction%total_sorb_mobile_print(i)) then
+        name = 'Total Sorbed Mobile ' // &
+               trim(reaction%colloid_species_names(i))
+        units = trim(tot_mol_char)
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                     TOTAL_SORBED_MOBILE,i)  
+      endif
+    enddo
+  endif  
+  
+  if (reaction%print_colloid) then
+    do i=1,reaction%ncoll
+      if (reaction%colloid_print(i)) then
+        name = 'Mobile Colloidal ' // trim(reaction%colloid_names(i)) 
+        units = trim(tot_mol_char)
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                     COLLOID_MOBILE,i)         
+      endif
+    enddo
+    do i=1,reaction%ncoll
+      if (reaction%colloid_print(i)) then
+        name = 'Mobile Colloidal ' // trim(reaction%colloid_names(i))
+        units = trim(tot_mol_char)
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                     COLLOID_IMMOBILE,i)         
+      endif
+    enddo
+  endif
+
+  if (reaction%print_age) then
+    if (reaction%species_idx%tracer_age_id > 0) then
+      name = 'Tracer Age'
+      units = 'sec-molar'
+      call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                   AGE,reaction%species_idx%tracer_age_id, &
+                                   reaction%species_idx%tracer_aq_id)       
+    endif
+  endif  
+
+  if (reaction%print_auxiliary) then
+    call RSandboxAuxiliaryPlotVariables(list,reaction,option)
+  endif
+  
+end subroutine RTSetPlotVariables
 
 end module Reaction_module

@@ -194,8 +194,8 @@ module Option_module
     PetscBool :: out_of_table
 
     ! Specify secondary continuum solver
-    PetscBool :: print_explicit_primal_grid    ! prints primal grid if true
-    PetscBool :: print_explicit_dual_grid      ! prints voronoi (dual) grid if true
+    !PetscBool :: print_explicit_primal_grid    ! prints primal grid if true
+    !PetscBool :: print_explicit_dual_grid      ! prints voronoi (dual) grid if true
     PetscInt :: secondary_continuum_solver     ! Specify secondary continuum solver
     
     PetscInt :: subsurface_simulation_type
@@ -455,7 +455,7 @@ subroutine OptionInitRealization(option)
   option%geomech_time = 0.d0
   option%geomech_subsurf_coupling = 0 
   option%geomech_gravity(:) = 0.d0
-  option%geomech_gravity(3) = -9.8068d0    ! m/s^2
+  option%geomech_gravity(3) = -1.d0*EARTH_GRAVITY    ! m/s^2
 
   option%tranmode = ""
   option%itranmode = NULL_MODE
@@ -500,7 +500,7 @@ subroutine OptionInitRealization(option)
   option%ideriv = 1
 
   option%gravity(:) = 0.d0
-  option%gravity(3) = -9.8068d0    ! m/s^2
+  option%gravity(3) = -1.d0*EARTH_GRAVITY ! m/s^2
 
   !physical constants and defult variables
 !  option%difaq = 1.d-9 ! m^2/s read from input file
@@ -566,8 +566,8 @@ subroutine OptionInitRealization(option)
   option%use_matrix_buffer = PETSC_FALSE
   option%status = PROCEED 
   option%force_newton_iteration = PETSC_FALSE
-  option%print_explicit_primal_grid = PETSC_FALSE
-  option%print_explicit_dual_grid = PETSC_FALSE  
+  !option%print_explicit_primal_grid = PETSC_FALSE
+  !option%print_explicit_dual_grid = PETSC_FALSE  
   option%secondary_continuum_solver = 1
 
   ! initially set to a large value to effectively disable
