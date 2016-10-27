@@ -747,7 +747,7 @@ contains
     ! Note: Presently all CLM cells are local
     allocate(grid_clm_local_nindex(grid_clm_npts_local))
     do local_id = 1, grid_clm_npts_local
-      grid_clm_local_nindex(local_id) = 1 ! LOCAL
+      grid_clm_local_nindex(local_id) = local_id ! LOCAL
     enddo
 
 
@@ -775,7 +775,6 @@ contains
             ghosted_id = grid%nL2G(local_id)
             natural_id = grid%nG2A(ghosted_id)
 
-            grid_pf_local_nindex(icell)    = 1
             grid_pf_cell_ids_nindex(icell) = natural_id - 1
             grid_pf_local_nindex(icell)    = local_id        ! LOCAL ID
 

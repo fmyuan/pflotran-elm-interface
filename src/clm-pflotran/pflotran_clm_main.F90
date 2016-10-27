@@ -948,22 +948,30 @@ contains
       CHKERRQ(ierr)
     end if
 
+#ifdef CLM_PF_DEBUG
     ! the following is for checking
-    call VecGetArrayReadF90(clm_pf_idata%cellid_pfp, cellid_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%cellid_pfp, cellid_pf_loc, ierr)
     CHKERRQ(ierr)
-    do ghosted_id = 1, grid%ngmax
-      local_id = grid%nG2L(ghosted_id)
-      cellid_pf_loc = grid%nG2A(ghosted_id)
+    call VecGetArrayF90(clm_pf_idata%cellid_pfs, cellid_clm_loc, ierr)
+    CHKERRQ(ierr)
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      cellid_pf_loc(local_id) = grid%nG2A(ghosted_id)
 
-      write(option%myrank+200,*) option%myrank, ghosted_id, local_id, cellid_pf_loc(local_id)
+      if(ghosted_id>0) &
+        write(option%myrank+200,*) 'PF: natural id -', option%myrank, ghosted_id, local_id, &
+        cellid_pf_loc(local_id),grid%nG2A(ghosted_id), cellid_clm_loc(ghosted_id)
 
     end do
-    call VecRestoreArray90(clm_pf_idata%cellid_pfp, cellid_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%cellid_pfp, cellid_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%cellid_pfs, cellid_clm_loc, ierr)
     CHKERRQ(ierr)
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     option, &
                                     clm_pf_idata%cellid_pfp, &
                                     clm_pf_idata%cellid_clms)
+#endif
 
   end subroutine pflotranModelSetSoilDimension
 
@@ -1218,9 +1226,10 @@ contains
       !            (2) data-passing IS by from 'ghosted_id' to PF's 'local_id'.
       if(option%iflowmode == RICHARDS_MODE .or. &
          option%iflowmode == TH_MODE) then
-          ! Richards_MODE/TH_MODE now are using 'charateristic_curves' module
+
+        ! Richards_MODE/TH_MODE now are using 'charateristic_curves' module
         characteristic_curves => patch%  &
-            characteristic_curves_array(patch%sat_func_id(local_id))%ptr
+            characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr  ! MUST be in 'ghosted_id' for 'sat_func_id(:)'.
 
         select type(sf => characteristic_curves%saturation_function)
           !class is(sat_func_VG_type)
@@ -1267,6 +1276,7 @@ contains
 
         end if
 
+        !
         select case(option%iflowmode)
           case(RICHARDS_MODE)
             rich_auxvar => rich_auxvars(ghosted_id)

@@ -953,10 +953,10 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%bulkdensity_dry_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%effporosity_pfs,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkwet_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkdry_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkfrz_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hcvsol_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%tkwet_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%tkdry_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%tkfrz_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%hcvsol_pfs,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%sucsat_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%bsw_pfs,ierr)
