@@ -10,7 +10,7 @@ include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
 
 MYFLAGS = -I.
-MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN
+MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN ${FC_DEFINE_FLAG}NO_VAPOR_DIFFUSION
 
 # calculate the jacobians for tracking variables if coupled with CLM-CN
 ifdef nojacboian_track_vars
@@ -66,10 +66,6 @@ endif
 
 ifdef remove_sat
   MYFLAGS += ${FC_DEFINE_FLAG}REMOVE_SATURATION
-endif
-
-ifdef no_vapor_diffusion
-  MYFLAGS += ${FC_DEFINE_FLAG}NO_VAPOR_DIFFUSION
 endif
 
 ifdef debug_gen
