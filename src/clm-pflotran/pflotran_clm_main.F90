@@ -1008,9 +1008,8 @@ contains
     use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use TH_Aux_module
-    use Saturation_Function_module    ! this now still with 'TH_module'
     use Richards_Aux_module
-    use Characteristic_Curves_module   ! this is used by Richards_module
+    use Characteristic_Curves_module   ! this is used by Richards_module and TH_module
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -1046,6 +1045,11 @@ contains
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
     PetscReal          :: bc_lambda, bc_alpha, bc_sr
     PetscInt           :: sf_func_type, rpf_func_type
+    ! Saturation/Permeability functions currently supported by coupled CLM-PFLOTRAN
+    PetscInt, parameter :: VAN_GENUCHTEN = 1   ! not yet (TODO)
+    PetscInt, parameter :: BROOKS_COREY = 2
+    PetscInt, parameter :: BURDINE = 1
+    PetscInt, parameter :: MUALEM = 2          ! not yet (TODO)
 
     PetscScalar, pointer :: tkwet_pf_loc(:)   ! thermal conductivity at saturated (W/m/K)
     PetscScalar, pointer :: tkdry_pf_loc(:)   ! thermal conductivity - dry (W/m/K)
@@ -1234,23 +1238,29 @@ contains
         select type(sf => characteristic_curves%saturation_function)
           !class is(sat_func_VG_type)
              ! not-yet (TODO)
+
           class is(sat_func_BC_type)
             sf_func_type = BROOKS_COREY
+
           class default
             option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
               ' when coupled with CLM.'
               call printErrMsg(option)
+
         end select
 
         select type(rpf => characteristic_curves%liq_rel_perm_function)
           !class is(rpf_Mualem_VG_liq_type)
               ! (TODO)
+
           class is(rpf_Burdine_BC_liq_type)
             rpf_func_type = BURDINE
+
           class default
-            option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
-             ' when coupled with CLM.'
+            option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. ' // &
+             ' permissivity function type when coupled with CLM.'
             call printErrMsg(option)
+
         end select
 
        ! currently VG-Mulaem saturation function type - NOT YET done in CLM (TODO)
