@@ -376,3 +376,5 @@ regression_tests/ufd/wf_doubles-wf_mass-0.dat
 src/clm-pflotran/inlinesurface.F90
 src/clm-pflotran/inlinesurface_aux.F90
 20x20_xz_general.h5
+general_derivative.F90
+pflotran_derivative.F90
