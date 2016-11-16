@@ -322,6 +322,7 @@ contains
     waypoint%print_snap_output = PETSC_FALSE
     waypoint%print_obs_output  = PETSC_FALSE
     waypoint%print_checkpoint  = PETSC_FALSE
+    waypoint%print_msbl_output = PETSC_FALSE
     waypoint%final             = waypoint_final
     waypoint%dt_max            = waypoint_dtmax * UnitsConvertToInternal(word, internal_units, option)
 
@@ -1039,7 +1040,7 @@ contains
     type(connection_set_type), pointer :: cur_connection_set
 
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id, ghosted_id, iconn, sum_connection
+    PetscInt           :: local_id, ghosted_id, iconn, sum_connection, i
     PetscReal          :: den, vis, grav
     PetscReal, pointer :: porosity_loc_p(:), vol_ovlap_arr(:)
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
@@ -1064,6 +1065,8 @@ contains
     PetscScalar, pointer :: bsw_pf_loc(:)     ! Clapp and Hornberger "b"
 
     PetscScalar, pointer :: bd_dry_pf_loc(:)
+
+    PetscScalar, pointer :: vec_p(:)
 
     ! -------------------------------------------
 
@@ -1217,8 +1220,8 @@ contains
 
     ! --------------------------------------------------------------------------------------
     ! for all internal grid cells
-    do ghosted_id = 1, grid%ngmax
-      local_id = grid%nG2L(ghosted_id)
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
       if (ghosted_id <= 0 .or. local_id <= 0) cycle
       if (associated(patch%imat)) then
         if (patch%imat(ghosted_id) < 0) cycle    ! imat maybe 0, which causes issue
@@ -1335,11 +1338,12 @@ contains
 #endif
 
       ! soil particle density (solid only)
-      material_auxvars(local_id)%soil_particle_density = &            ! kg soil particle /m3 soil particle
+      material_auxvars(ghosted_id)%soil_particle_density = &          ! kg soil particle /m3 soil particle
         bd_dry_pf_loc(ghosted_id)/(1.d0-watsat_pf_loc(ghosted_id))    ! kg soil particle /m3 bulk soils
 
-      material_auxvars(local_id)%soil_properties(soil_heat_capacity_index) = &
-        hcapvs_pf_loc(ghosted_id)/material_auxvars(local_id)%soil_particle_density   ! J/m3-particle/K --> J/kg soil particle/K
+      material_auxvars(ghosted_id)%soil_properties(soil_heat_capacity_index) = &
+        hcapvs_pf_loc(ghosted_id)/material_auxvars(ghosted_id)%soil_particle_density   ! J/m3-particle/K --> J/kg soil particle/K
+
     enddo
 
     ! --------------------------------------------------------------------------------------
@@ -1470,6 +1474,47 @@ contains
                                      field%work_loc,ONEDOF)
       call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_Z,ZERO_INTEGER)
+
+! not sure of needed for the following - but seems having memory issues
+#if 0
+
+      ! redo copy rock properties to neighboring ghost cells
+      call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      do local_id = 1, grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        vec_p(local_id) = &
+          material_auxvars(ghosted_id)%soil_particle_density
+      enddo
+      call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      call DiscretizationGlobalToLocal(discretization,field%work, &
+                                     field%work_loc,ONEDOF)
+      call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+      do ghosted_id = 1, grid%ngmax
+        material_auxvars(ghosted_id)%soil_particle_density = &
+          vec_p(ghosted_id)
+      enddo
+      call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+
+      ! redo copy soil properties to neighboring ghost cells
+      do i = 1, max_material_index
+        call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+        do local_id = 1, grid%nlmax
+          ghosted_id = grid%nL2G(local_id)
+          vec_p(local_id) = &
+            material_auxvars(ghosted_id)%soil_properties(i)
+        enddo
+        call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+        call DiscretizationGlobalToLocal(discretization,field%work, &
+                                     field%work_loc,ONEDOF)
+        call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+        do ghosted_id = 1, grid%ngmax
+          material_auxvars(ghosted_id)%soil_properties(i) = &
+            vec_p(ghosted_id)
+        enddo
+        call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+      enddo
+#endif
+
     endif
 
   end subroutine pflotranModelSetSoilProp

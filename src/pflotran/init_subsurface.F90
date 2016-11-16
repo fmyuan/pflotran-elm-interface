@@ -456,6 +456,22 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                TORTUOSITY,ZERO_INTEGER)
 
   ! copy rock properties to neighboring ghost cells
+  call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+  do local_id = 1, patch%grid%nlmax
+    vec_p(local_id) = &
+        Material%auxvars(patch%grid%nL2G(local_id))%soil_particle_density
+  enddo
+  call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+  call DiscretizationGlobalToLocal(discretization,field%work, &
+                                     field%work_loc,ONEDOF)
+  call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+  do ghosted_id = 1, patch%grid%ngmax
+      Material%auxvars(ghosted_id)%soil_particle_density = &
+         vec_p(ghosted_id)
+  enddo
+  call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+
+  ! additional soil properties
   do i = 1, max_material_index
     call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
     do local_id = 1, patch%grid%nlmax

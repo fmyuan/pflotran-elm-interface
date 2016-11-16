@@ -1247,10 +1247,10 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   procedure(MaterialCompressSoilDummy), pointer :: &
     MaterialCompressSoilPtrTmp 
   
-!  soil_thermal_conductivity_index = 0
-!  soil_heat_capacity_index = 0
   soil_compressibility_index = 0
   soil_reference_pressure_index = 0
+  soil_heat_capacity_index = 0
+  soil_thermal_conductivity_index = 0
   max_material_index = 0
   
   num_material_properties = size(material_property_ptrs)
