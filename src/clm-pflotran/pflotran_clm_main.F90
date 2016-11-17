@@ -1307,6 +1307,8 @@ contains
             th_auxvar%tkdry       = tkdry_pf_loc(ghosted_id)*option%scale   ! W/m/K --> MW/m/K
             th_auxvar%tkfrz       = tkfrz_pf_loc(ghosted_id)*option%scale   ! W/m/K --> MW/m/K
 
+            th_auxvar%hcapv_solid = hcapvs_pf_loc(ghosted_id)*option%scale  ! J/m3-particle/K --> MJ/m3-particle/K
+
         end select
 
       endif
@@ -1341,8 +1343,10 @@ contains
       material_auxvars(ghosted_id)%soil_particle_density = &          ! kg soil particle /m3 soil particle
         bd_dry_pf_loc(ghosted_id)/(1.d0-watsat_pf_loc(ghosted_id))    ! kg soil particle /m3 bulk soils
 
-      material_auxvars(ghosted_id)%soil_properties(soil_heat_capacity_index) = &
-        hcapvs_pf_loc(ghosted_id)/material_auxvars(ghosted_id)%soil_particle_density   ! J/m3-particle/K --> J/kg soil particle/K
+      ! the following NOT works, for unknown reason even though the soil_properties(:) is properly on
+      ! (1) seg. fault when in parallel, and (2) data actually didn't pass to the array
+      !material_auxvars(ghosted_id)%soil_properties(soil_heat_capacity_index) = &
+      !  hcapvs_pf_loc(ghosted_id)/material_auxvars(ghosted_id)%soil_particle_density   ! J/m3-particle/K --> J/kg soil particle/K
 
     enddo
 
@@ -1475,9 +1479,6 @@ contains
       call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_Z,ZERO_INTEGER)
 
-! not sure of needed for the following - but seems having memory issues
-#if 0
-
       ! redo copy rock properties to neighboring ghost cells
       call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
       do local_id = 1, grid%nlmax
@@ -1495,6 +1496,8 @@ contains
       enddo
       call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
 
+! the following seems having memory issues (seg. fault)
+#if 0
       ! redo copy soil properties to neighboring ghost cells
       do i = 1, max_material_index
         call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)

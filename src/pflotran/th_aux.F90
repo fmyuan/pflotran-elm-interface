@@ -47,10 +47,10 @@ module TH_Aux_module
     PetscReal :: bc_alpha  ! Brooks Corey - Burdine parameters: alpha
     PetscReal :: bc_lambda ! Brooks Corey - Burdine parameters: lambda
     PetscReal :: bc_sr1    ! Brooks Corey - Burdine parameters: sr(1) (i.e. liq only)
-    PetscReal :: tkwet     ! thermal properties: wet soil thermal conductivity (MW/m/K, i.e., by multiplier of option%scale)
-    PetscReal :: tkdry     ! thermal properties: dry soil thermal conductivity (MW/m/K, i.e., by multiplier of option%scale)
-    PetscReal :: tkfrz     ! thermal properties: frozen soil thermal conductivity (MW/m/K, i.e., by multiplier of option%scale)
-    PetscReal :: hcapv_solid! thermal properties: volume solid material heat capacity (MJ/m^3-K, i.e., multiplier of option%scale))
+    PetscReal :: tkwet     ! thermal properties: wet soil thermal conductivity (MW/m/K, i.e., by multiplied by option%scale)
+    PetscReal :: tkdry     ! thermal properties: dry soil thermal conductivity (MW/m/K, i.e., by multiplied by option%scale)
+    PetscReal :: tkfrz     ! thermal properties: frozen soil thermal conductivity (MW/m/K, i.e., by multiplied by option%scale)
+    PetscReal :: hcapv_solid! thermal properties: volume solid material heat capacity (MJ/m^3-K, i.e., multiplied by option%scale))
 #endif
 
   end type TH_auxvar_type
@@ -281,13 +281,13 @@ subroutine THAuxVarInit(auxvar,option)
   endif
 
 #ifdef CLM_PFLOTRAN
-    auxvar%bc_alpha    = uninit_value
-    auxvar%bc_lambda   = uninit_value
-    auxvar%bc_sr1      = uninit_value
-    auxvar%tkwet       = uninit_value
-    auxvar%tkdry       = uninit_value
-    auxvar%tkfrz       = uninit_value
-    auxvar%hcapv_solid = uninit_value
+    auxvar%bc_alpha    = UNINITIALIZED_DOUBLE
+    auxvar%bc_lambda   = UNINITIALIZED_DOUBLE
+    auxvar%bc_sr1      = UNINITIALIZED_DOUBLE
+    auxvar%tkwet       = UNINITIALIZED_DOUBLE
+    auxvar%tkdry       = UNINITIALIZED_DOUBLE
+    auxvar%tkfrz       = UNINITIALIZED_DOUBLE
+    auxvar%hcapv_solid = UNINITIALIZED_DOUBLE
 #endif
   
 end subroutine THAuxVarInit
