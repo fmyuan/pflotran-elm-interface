@@ -764,7 +764,10 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 #ifdef CLM_PFLOTRAN
   ! fmy: the following only needs calling ONCE, but not yet figured out how
   ! because CLM's every single CELL has ONE set of SF/RPF parameters
-  if(auxvar%bc_alpha /= UNINITIALIZED_DOUBLE) then
+  if(auxvar%bc_alpha /= UNINITIALIZED_DOUBLE .and. &
+     auxvar%bc_lambda /= UNINITIALIZED_DOUBLE .and. &
+     auxvar%bc_sr1 /= UNINITIALIZED_DOUBLE ) then
+
     select type(sf => characteristic_curves%saturation_function)
       !class is(sat_func_VG_type)
         ! not-yet
@@ -975,11 +978,9 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   Dk_ice = th_parameter%ckfrozen(ithrm)
 
 #ifdef CLM_PFLOTRAN
-  if(auxvar%tkwet /= UNINITIALIZED_DOUBLE) then
-    Dk     = auxvar%tkwet
-    Dk_dry = auxvar%tkdry
-    Dk_ice = auxvar%tkfrz
-  endif
+  if(auxvar%tkwet /= UNINITIALIZED_DOUBLE) Dk = auxvar%tkwet
+  if(auxvar%tkdry /= UNINITIALIZED_DOUBLE) Dk_dry = auxvar%tkdry
+  if(auxvar%tkfrz /= UNINITIALIZED_DOUBLE) Dk_ice = auxvar%tkfrz
 #endif
 
   !Soil Kersten number

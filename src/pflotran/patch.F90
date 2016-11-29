@@ -2694,7 +2694,10 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
         characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr
     auxvar => patch%aux%TH%auxvars(ghosted_id)
 
-    if(auxvar%bc_alpha /= UNINITIALIZED_DOUBLE) then
+    if(auxvar%bc_alpha /= UNINITIALIZED_DOUBLE .and. &
+       auxvar%bc_lambda /= UNINITIALIZED_DOUBLE .and. &
+       auxvar%bc_sr1 /= UNINITIALIZED_DOUBLE ) then
+
       select type(sf => characteristic_curves%saturation_function)
         !class is(sat_func_VG_type)
           ! not-yet
@@ -2905,14 +2908,17 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
         characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr
     auxvar => patch%aux%Richards%auxvars(ghosted_id)
 
-    if(auxvar%bc_alpha  > 0.d0) then
+    if(auxvar%bc_alpha /= UNINITIALIZED_DOUBLE .and. &
+       auxvar%bc_lambda /= UNINITIALIZED_DOUBLE .and. &
+       auxvar%bc_sr1 /= UNINITIALIZED_DOUBLE ) then
+
       select type(sf => characteristic_curves%saturation_function)
         !class is(sat_func_VG_type)
           ! not-yet
         class is(sat_func_BC_type)
           sf%alpha  = auxvar%bc_alpha
           sf%lambda = auxvar%bc_lambda
-          sf%Sr  = auxvar%bc_sr1
+          sf%Sr     = auxvar%bc_sr1
           ! needs to re-calculate some extra variables for 'saturation_function', if changed above
           error_string = 'passing CLM characterisitc-curves parameters: sat_function'
           call sf%SetupPolynomials(option,error_string)

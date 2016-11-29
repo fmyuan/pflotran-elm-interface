@@ -1350,68 +1350,6 @@ contains
 
     enddo
 
-    ! --------------------------------------------------------------------------------------
-    ! for all boundary cells already defined
-    ! NOTE: here assumed that boundary cells are ALL or Partial entire grid cells in PF mesh.
-    boundary_condition => patch%boundary_condition_list%first
-    sum_connection = 0
-    do
-       if (.not.associated(boundary_condition)) exit
-       cur_connection_set => boundary_condition%connection_set
-
-       do iconn = 1, cur_connection_set%num_connections
-          sum_connection = sum_connection + 1
-
-          local_id = cur_connection_set%id_dn(iconn)
-          ghosted_id = grid%nL2G(local_id)
-          if (ghosted_id <= 0 .or. local_id <= 0) cycle
-          if (patch%imat(ghosted_id) < 0) cycle
-
-          select case(option%iflowmode)
-            case(RICHARDS_MODE)
-              call RichardsAuxVarCopy(rich_auxvars(ghosted_id),       &   ! 'rich_auxvars' have already updated above
-                                rich_auxvars_bc(sum_connection), option)
-            case(TH_MODE)
-              call THAuxVarCopy(th_auxvars(ghosted_id),               &   ! 'th_auxvars' have already updated above
-                                th_auxvars_bc(sum_connection), option)
-
-
-          end select
-
-       enddo
-       boundary_condition => boundary_condition%next
-    enddo
-
-    ! --------------------------------------------------------------------------------------
-    ! for all src/sink cells already defined
-    ! NOTE: here assumed that src/sink cells are ALL or Partial entire grid cells in PF mesh.
-    source_sink => patch%source_sink_list%first
-
-    sum_connection = 0
-    do
-      if (.not.associated(source_sink)) exit
-      cur_connection_set => source_sink%connection_set
-
-      do iconn = 1, cur_connection_set%num_connections
-        sum_connection = sum_connection + 1
-
-        local_id = cur_connection_set%id_dn(iconn)
-        ghosted_id = grid%nL2G(local_id)
-        if (ghosted_id <= 0 .or. local_id <= 0) cycle
-        if (patch%imat(ghosted_id) < 0) cycle
-
-        select case(option%iflowmode)
-          case(RICHARDS_MODE)
-            call RichardsAuxVarCopy(rich_auxvars(ghosted_id),       &   ! 'rich_auxvars' have already updated above
-                                    rich_auxvars_ss(sum_connection), option)
-          case(TH_MODE)
-            call THAuxVarCopy(th_auxvars(ghosted_id),               &   ! 'th_auxvars' have already updated above
-                              th_auxvars_ss(sum_connection), option)
-        end select
-
-      enddo
-      source_sink => source_sink%next
-    enddo
 
     ! -------------
     call VecRestoreArrayF90(clm_pf_idata%tkwet_pfs, tkwet_pf_loc, ierr)
@@ -1496,6 +1434,143 @@ contains
       enddo
       call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
 
+      ! need to copy cell-wised CLM -> PF passed properties to neighboring ghost cells
+      ! (because the above data passing actually ignored 'ghosted' cells by 'cycle when local_id negative)
+      ! NOTE: this will solve issues of differences when in parallel compared to 1 single processor
+
+      ! bc_alpha
+      call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      do local_id = 1, grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        if (option%iflowmode==RICHARDS_MODE) then
+          vec_p(local_id) = rich_auxvars(ghosted_id)%bc_alpha
+        elseif(option%iflowmode==TH_MODE) then
+          vec_p(local_id) = th_auxvars(ghosted_id)%bc_alpha
+        endif
+      enddo
+      call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      call DiscretizationGlobalToLocal(discretization,field%work, &
+                                   field%work_loc,ONEDOF)
+      call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+      do ghosted_id = 1, grid%ngmax
+        if (option%iflowmode==RICHARDS_MODE) then
+          rich_auxvars(ghosted_id)%bc_alpha = vec_p(ghosted_id)
+        elseif(option%iflowmode==TH_MODE) then
+          th_auxvars(ghosted_id)%bc_alpha   = vec_p(ghosted_id)
+        endif
+      enddo
+      call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+
+      ! bc_lambda
+      call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      do local_id = 1, grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        if (option%iflowmode==RICHARDS_MODE) then
+          vec_p(local_id) = rich_auxvars(ghosted_id)%bc_lambda
+        elseif(option%iflowmode==TH_MODE) then
+          vec_p(local_id) = th_auxvars(ghosted_id)%bc_lambda
+        endif
+      enddo
+      call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      call DiscretizationGlobalToLocal(discretization,field%work, &
+                                   field%work_loc,ONEDOF)
+      call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+      do ghosted_id = 1, grid%ngmax
+        if (option%iflowmode==RICHARDS_MODE) then
+          rich_auxvars(ghosted_id)%bc_lambda = vec_p(ghosted_id)
+        elseif(option%iflowmode==TH_MODE) then
+          th_auxvars(ghosted_id)%bc_lambda   = vec_p(ghosted_id)
+        endif
+      enddo
+      call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+
+      ! bc_sr1 (liq. residual saturation)
+      call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      do local_id = 1, grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        if (option%iflowmode==RICHARDS_MODE) then
+          vec_p(local_id) = rich_auxvars(ghosted_id)%bc_sr1
+        elseif(option%iflowmode==TH_MODE) then
+          vec_p(local_id) = th_auxvars(ghosted_id)%bc_sr1
+        endif
+      enddo
+      call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      call DiscretizationGlobalToLocal(discretization,field%work, &
+                                   field%work_loc,ONEDOF)
+      call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+      do ghosted_id = 1, grid%ngmax
+        if (option%iflowmode==RICHARDS_MODE) then
+          rich_auxvars(ghosted_id)%bc_sr1 = vec_p(ghosted_id)
+        elseif(option%iflowmode==TH_MODE) then
+          th_auxvars(ghosted_id)%bc_sr1   = vec_p(ghosted_id)
+        endif
+      enddo
+      call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+
+
+      ! the following is only good when in TH_MODE
+      if(option%iflowmode==TH_MODE) then
+      ! tkwet
+        call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+        do local_id = 1, grid%nlmax
+          ghosted_id = grid%nL2G(local_id)
+          vec_p(local_id) = th_auxvars(ghosted_id)%tkwet
+        enddo
+        call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+        call DiscretizationGlobalToLocal(discretization,field%work, &
+                                     field%work_loc,ONEDOF)
+        call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+        do ghosted_id = 1, grid%ngmax
+          th_auxvars(ghosted_id)%tkwet = vec_p(ghosted_id)
+        enddo
+        call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+
+      ! tkdry
+        call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+        do local_id = 1, grid%nlmax
+          ghosted_id = grid%nL2G(local_id)
+          vec_p(local_id) = th_auxvars(ghosted_id)%tkdry
+        enddo
+        call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+        call DiscretizationGlobalToLocal(discretization,field%work, &
+                                     field%work_loc,ONEDOF)
+        call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+        do ghosted_id = 1, grid%ngmax
+          th_auxvars(ghosted_id)%tkdry = vec_p(ghosted_id)
+        enddo
+        call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+
+      ! tkfrz
+        call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+        do local_id = 1, grid%nlmax
+          ghosted_id = grid%nL2G(local_id)
+          vec_p(local_id) = th_auxvars(ghosted_id)%tkfrz
+        enddo
+        call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+        call DiscretizationGlobalToLocal(discretization,field%work, &
+                                     field%work_loc,ONEDOF)
+        call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+        do ghosted_id = 1, grid%ngmax
+          th_auxvars(ghosted_id)%tkfrz = vec_p(ghosted_id)
+        enddo
+        call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+
+      ! hcapv_solid
+        call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+        do local_id = 1, grid%nlmax
+          ghosted_id = grid%nL2G(local_id)
+          vec_p(local_id) = th_auxvars(ghosted_id)%hcapv_solid
+        enddo
+        call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+        call DiscretizationGlobalToLocal(discretization,field%work, &
+                                     field%work_loc,ONEDOF)
+        call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+        do ghosted_id = 1, grid%ngmax
+          th_auxvars(ghosted_id)%hcapv_solid = vec_p(ghosted_id)
+        enddo
+        call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+      endif
+
 ! the following seems having memory issues (seg. fault)
 #if 0
       ! redo copy soil properties to neighboring ghost cells
@@ -1519,6 +1594,70 @@ contains
 #endif
 
     endif
+
+
+    ! --------------------------------------------------------------------------------------
+    ! for all boundary cells already defined and updated above
+    ! NOTE: here assumed that boundary cells are ALL or Partial entire grid cells in PF mesh.
+    boundary_condition => patch%boundary_condition_list%first
+    sum_connection = 0
+    do
+       if (.not.associated(boundary_condition)) exit
+       cur_connection_set => boundary_condition%connection_set
+
+       do iconn = 1, cur_connection_set%num_connections
+          sum_connection = sum_connection + 1
+
+          local_id = cur_connection_set%id_dn(iconn)
+          ghosted_id = grid%nL2G(local_id)
+          if (ghosted_id <= 0 .or. local_id <= 0) cycle
+          if (patch%imat(ghosted_id) < 0) cycle
+
+          select case(option%iflowmode)
+            case(RICHARDS_MODE)
+              call RichardsAuxVarCopy(rich_auxvars(ghosted_id),       &   ! 'rich_auxvars' have already updated above
+                                rich_auxvars_bc(sum_connection), option)
+            case(TH_MODE)
+              call THAuxVarCopy(th_auxvars(ghosted_id),               &   ! 'th_auxvars' have already updated above
+                                th_auxvars_bc(sum_connection), option)
+
+
+          end select
+
+       enddo
+       boundary_condition => boundary_condition%next
+    enddo
+
+    ! --------------------------------------------------------------------------------------
+    ! for all src/sink cells already defined
+    ! NOTE: here assumed that src/sink cells are ALL or Partial entire grid cells in PF mesh.
+    source_sink => patch%source_sink_list%first
+
+    sum_connection = 0
+    do
+      if (.not.associated(source_sink)) exit
+      cur_connection_set => source_sink%connection_set
+
+      do iconn = 1, cur_connection_set%num_connections
+        sum_connection = sum_connection + 1
+
+        local_id = cur_connection_set%id_dn(iconn)
+        ghosted_id = grid%nL2G(local_id)
+        if (ghosted_id <= 0 .or. local_id <= 0) cycle
+        if (patch%imat(ghosted_id) < 0) cycle
+
+        select case(option%iflowmode)
+          case(RICHARDS_MODE)
+            call RichardsAuxVarCopy(rich_auxvars(ghosted_id),       &   ! 'rich_auxvars' have already updated above
+                                    rich_auxvars_ss(sum_connection), option)
+          case(TH_MODE)
+            call THAuxVarCopy(th_auxvars(ghosted_id),               &   ! 'th_auxvars' have already updated above
+                              th_auxvars_ss(sum_connection), option)
+        end select
+
+      enddo
+      source_sink => source_sink%next
+    enddo
 
   end subroutine pflotranModelSetSoilProp
 

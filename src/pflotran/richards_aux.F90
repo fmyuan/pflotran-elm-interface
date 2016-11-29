@@ -144,9 +144,9 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%dden_dp = 0.d0
 
 #ifdef CLM_PFLOTRAN
-  auxvar%bc_alpha  = 0.0d0
-  auxvar%bc_lambda = 0.0d0
-  auxvar%bc_sr1    = 1.0d-9
+  auxvar%bc_alpha  = UNINITIALIZED_DOUBLE
+  auxvar%bc_lambda = UNINITIALIZED_DOUBLE
+  auxvar%bc_sr1    = UNINITIALIZED_DOUBLE
 #endif
 
   if (option%surf_flow_on) then
@@ -285,7 +285,10 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (auxvar%pc > 0.d0) then
 
 #ifdef CLM_PFLOTRAN
-  if(auxvar%bc_alpha > 0.d0) then
+  if(auxvar%bc_alpha /= UNINITIALIZED_DOUBLE .and. &
+     auxvar%bc_lambda /= UNINITIALIZED_DOUBLE .and. &
+     auxvar%bc_sr1 /= UNINITIALIZED_DOUBLE ) then
+
     ! fmy: the following only needs calling ONCE, but not yet figured out how
     ! because CLM's every single CELL has ONE set of SF/RPF parameters
     select type(sf => characteristic_curves%saturation_function)
