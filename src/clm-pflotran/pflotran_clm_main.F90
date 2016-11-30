@@ -276,7 +276,7 @@ contains
 
   !-------------------------------------------------------------------!
 
-  subroutine pflotranModelInsertWaypoint(model, waypoint_time, waypoint_dtmax, waypoint_final)
+  subroutine pflotranModelInsertWaypoint(model, waypoint_time, waypoint_dtmax, waypoint_final, isprintout)
   !
   ! Inserts a waypoint within the waypoint list
   ! so that the model integration can be paused when that waypoint is
@@ -304,6 +304,7 @@ contains
     PetscReal, intent(in)              :: waypoint_time
     PetscReal, intent(in)              :: waypoint_dtmax
     PetscBool, intent(in)              :: waypoint_final
+    PetscBool, intent(in)              :: isprintout
 
     type(waypoint_type), pointer       :: waypoint
     character(len=MAXWORDLENGTH) :: word, internal_units
@@ -319,7 +320,7 @@ contains
     waypoint => WaypointCreate()
     waypoint%time              = waypoint_time * UnitsConvertToInternal(word, internal_units, option)
     waypoint%update_conditions = PETSC_TRUE
-    waypoint%print_snap_output = PETSC_FALSE
+    waypoint%print_snap_output = isprintout
     waypoint%print_obs_output  = PETSC_FALSE
     waypoint%print_checkpoint  = PETSC_FALSE
     waypoint%print_msbl_output = PETSC_FALSE
@@ -467,7 +468,7 @@ contains
 
     PetscReal :: pause_time1
 
-    if(isprintout) then
+    if(option%print_to_file) then
       if (model%option%io_rank == model%option%myrank) then
         write(model%option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
         write(model%option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
@@ -475,8 +476,7 @@ contains
     endif
 
     pause_time1 = pause_time + dtime
-    !call pflotranModelUpdateFinalWaypoint(model, pause_time1, dtime, PETSC_FALSE)
-    call pflotranModelInsertWaypoint(model, pause_time1, dtime, PETSC_FALSE)
+    call pflotranModelInsertWaypoint(model, pause_time1, dtime, PETSC_FALSE, isprintout)
 
     call model%simulation%RunToTime(pause_time)
 
