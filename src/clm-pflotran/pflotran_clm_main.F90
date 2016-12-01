@@ -465,15 +465,7 @@ contains
     PetscReal, intent(in) :: pause_time
     PetscReal, intent(in) :: dtime
     PetscBool, intent(in) :: isprintout
-
     PetscReal :: pause_time1
-
-    if(option%print_to_file) then
-      if (model%option%io_rank == model%option%myrank) then
-        write(model%option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
-        write(model%option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
-      endif
-    endif
 
     pause_time1 = pause_time + dtime
     call pflotranModelInsertWaypoint(model, pause_time1, dtime, PETSC_FALSE, isprintout)
@@ -917,6 +909,9 @@ contains
     call MaterialSetAuxVarVecLoc(patch%aux%Material, &
                                field%work_loc,VOLUME,ZERO_INTEGER)
 
+
+
+    ! --------------
     ! the following variable is directly used in 'sandbox_somdec'
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
