@@ -2411,7 +2411,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         ! smoothing 'ice_pc' when Tk ranging within deltaTf of T0, from PKE's PCice to 0.0
         ! from ATS, authored by Scott Painter et al.
         !
-        deltaTf = 1.0d-50              ! half-width of smoothing zone (by default, nearly NO smoothing)
+        deltaTf = 1.0d-10              ! half-width of smoothing zone (by default, nearly NO smoothing)
         if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = option%frzthw_halfwidth
         a = deltaTf/4.0d0
         b = -0.5d0
@@ -2422,7 +2422,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         beta_corrected = 1.d0        ! It appeared that 'beta' in P.-K. Eq. varies very much
 #ifdef CLM_PFLOTRAN
         ! assuming 'pcmax' @ -5oC so that liq. water movement might be limited below that.
-        ice_pc_tmin = -alpha * (-5.d0)
+        ice_pc_tmin = -alpha * (-5.0d0)
         if(ice_pc_tmin<this%pcmax .and. ice_pc_tmin>0.d0) then
           beta_corrected = this%pcmax/ice_pc_tmin
         endif
