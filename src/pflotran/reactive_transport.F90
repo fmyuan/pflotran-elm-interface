@@ -2528,6 +2528,11 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   PetscReal :: msrc(1:realization%option%nflowspec)
   PetscInt :: icomp, ieqgas
 
+#ifdef CLM_PFLOTRAN
+  ! temporarily changing option%iflag to pass 'ghosted_id' from CLM to PF RT bgc
+  PetscInt :: option_iflag
+#endif
+
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscReal :: vol_frac_prim
   PetscReal :: sec_diffusion_coefficient
@@ -2777,6 +2782,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 ! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
 ! it should be 'ghosted_id', because in 'clm_pf_idata%???', those are defined as PETSC seq. vecs.
 #ifdef CLM_PFLOTRAN
+    option_iflag = option%iflag
     option%iflag = ghosted_id
 #endif
 
@@ -2784,6 +2790,11 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
                      global_auxvars(ghosted_id), &
                      material_auxvars(ghosted_id), &
                      reaction,option)
+
+#ifdef CLM_PFLOTRAN
+    option%iflag = option_iflag
+#endif
+
       if (option%use_mc) then
         vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
         Res = Res*vol_frac_prim
@@ -3358,6 +3369,11 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   PetscReal :: jac_transport(realization%reaction%naqcomp,realization%reaction%naqcomp)
   PetscInt :: ncomp
   PetscInt :: iphase, max_phase
+
+#ifdef CLM_PFLOTRAN
+  ! temporarily changing option%iflag to pass 'ghosted_id' from CLM to PF RT bgc
+  PetscInt :: option_iflag
+#endif
   
   option => realization%option
   field => realization%field
@@ -3505,6 +3521,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
 ! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
 ! it should be 'ghosted_id', because in 'clm_pf_idata%???', those are defined as PETSC seq. vecs.
 #ifdef CLM_PFLOTRAN
+    option_iflag = option%iflag
     option%iflag = ghosted_id
 #endif
 
@@ -3512,6 +3529,11 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
                                global_auxvars(ghosted_id), &
                                material_auxvars(ghosted_id), &
                                reaction,option)
+
+#ifdef CLM_PFLOTRAN
+    option%iflag = option_iflag
+#endif
+
       if (option%use_mc) then
         vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
         Jup = Jup*vol_frac_prim

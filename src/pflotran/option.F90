@@ -461,6 +461,7 @@ subroutine OptionInitRealization(option)
   option%itranmode = NULL_MODE
   option%ntrandof = 0
   
+  option%nflowspec = 0
   option%nphase = 0
   option%liquid_phase = 0
   option%gas_phase = 0
