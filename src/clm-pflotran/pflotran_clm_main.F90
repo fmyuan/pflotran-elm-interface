@@ -232,7 +232,7 @@ contains
     waypoint1 => WaypointCreate()
     waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, internal_units, option)
     waypoint1%print_snap_output = PETSC_TRUE
-    waypoint1%print_checkpoint  = PETSC_TRUE
+    waypoint1%print_checkpoint  = PETSC_FALSE
     waypoint1%final             = PETSC_TRUE
     waypoint1%dt_max        = waypoint_dtmax * UnitsConvertToInternal(word, internal_units, option)
 
