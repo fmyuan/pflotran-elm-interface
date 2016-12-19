@@ -4,6 +4,7 @@ module General_Derivative_module
   use PFLOTRAN_Constants_module
   use Option_module
   use General_Aux_module
+  use General_Common_module
   use Global_Aux_module
   use Material_Aux_class
   
@@ -13,13 +14,79 @@ module General_Derivative_module
 
 #include "petsc/finclude/petscsys.h"
 
-  public :: GeneralDerivative
+  public :: GeneralDerivativeDriver
 
 contains
   
 ! ************************************************************************** !
 
-subroutine GeneralDerivative(option)
+subroutine GeneralDerivativeDriver(option)
+          
+  implicit none
+  
+  type(option_type), pointer :: option
+  
+  PetscInt :: istate
+  PetscReal :: xx(3)
+  PetscReal :: pert(3)
+  type(general_auxvar_type), pointer :: general_auxvar(:)
+  type(global_auxvar_type), pointer :: global_auxvar(:)
+  class(material_auxvar_type), pointer :: material_auxvar(:)
+
+  PetscInt :: istate2
+  PetscReal :: xx2(3)
+  PetscReal :: pert2(3)
+  type(general_auxvar_type), pointer :: general_auxvar2(:)
+  type(global_auxvar_type), pointer :: global_auxvar2(:)
+  class(material_auxvar_type), pointer :: material_auxvar2(:)
+  
+  call GeneralDerivativeSetFlowMode(option)
+  call GeneralDerivativeSetupEOS(option)
+  
+  option%flow_dt = 1.d0
+  
+  istate = LIQUID_STATE
+!  istate = GAS_STATE
+!  istate = TWO_PHASE_STATE
+  select case(istate)
+    case(LIQUID_STATE)
+      xx(1) = 1.d6
+      xx(2) = 1.d-6
+      xx(3) = 30.d0
+    case(GAS_STATE)
+!      xx(1) = 1.d4
+!      xx(2) = 0.98d4
+!      xx(3) = 15.d0
+      xx(1) = 1.d6
+      xx(2) = 0.98d6
+      xx(3) = 30.d0
+!      xx(1) = 1.d7
+!      xx(2) = 0.98d7
+!      xx(3) = 85.d0
+    case(TWO_PHASE_STATE)
+      xx(1) = 1.d6
+      xx(2) = 0.5d0
+      xx(3) = 30.d0
+  end select  
+  
+  call GeneralDerivativeSetupAuxVar(istate,xx,pert,general_auxvar, &
+                                    global_auxvar,material_auxvar,option)  
+  
+!  call GeneralDerivativeAuxVar(pert,general_auxvar,global_auxvar, &
+!                               material_auxvar,option)
+  call GeneralDerivativeAccum(pert,general_auxvar,global_auxvar, &
+                              material_auxvar,option)
+  
+  call GeneralDerivativeDestroyAuxVar(general_auxvar,global_auxvar, &
+                                      material_auxvar,option)  
+  
+end subroutine GeneralDerivativeDriver
+
+! ************************************************************************** !
+
+subroutine GeneralDerivativeSetupAuxVar(istate,xx,pert,general_auxvar, &
+                                        global_auxvar, &
+                                        material_auxvar,option)
 
   use Characteristic_Curves_module
   use Option_module
@@ -28,68 +95,24 @@ subroutine GeneralDerivative(option)
   
   implicit none
 
-  type(option_type), pointer :: option
-
+  PetscInt :: istate
+  PetscReal :: xx(3)
+  PetscReal :: pert(3)
   type(general_auxvar_type), pointer :: general_auxvar(:)
   type(global_auxvar_type), pointer :: global_auxvar(:)
   class(material_auxvar_type), pointer :: material_auxvar(:)
+  type(option_type), pointer :: option
+
   class(characteristic_curves_type), pointer :: characteristic_curves
   class(sat_func_VG_type), pointer :: sf
   class(rpf_Mualem_VG_liq_type), pointer :: rpf_liq
   class(rpf_Mualem_VG_gas_type), pointer :: rpf_gas
-  PetscReal :: xx(3), pert(3), xx_pert(3)
+  PetscReal :: xx_pert(3)
   PetscInt :: natural_id = 1
   PetscBool :: analytical_derivative = PETSC_TRUE
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXSTRINGLENGTH) :: strings(3,3)
-  PetscReal :: tlow, thigh, plow, phigh
-  PetscInt :: ntemp, npres
+  PetscReal, parameter :: perturbation_tolerance = 1.d-6
   PetscInt :: i
-  PetscInt :: istate
   
-  strings(1,1) = 'Liquid Pressure'
-  strings(2,1) = 'Air Mole Fraction in Liquid'
-  strings(3,1) = 'Temperature'
-  strings(1,2) = 'Gas Pressure'
-  strings(2,2) = 'Air Pressure'
-  strings(3,2) = 'Temperature'
-  strings(1,3) = 'Gas Pressure'
-  strings(2,3) = 'Gas Saturation'
-  strings(3,3) = 'Temperature'
-  
-  call GeneralDerivativeSetFlowMode(option)
-  call EOSWaterSetDensity('PLANAR')
-  call EOSWaterSetEnthalpy('PLANAR')
-  call EOSWaterSetSteamDensity('PLANAR')
-  
-  istate = LIQUID_STATE
-!  istate = GAS_STATE
-!  istate = TWO_PHASE_STATE
-  
-#if 0  
-  tlow = 1.d-1
-  thigh = 350.d0
-  plow = 1.d-1
-  phigh = 16.d6
-  ntemp = 100
-  npres = 100
-  word = ''
-  call EOSGasTest(tlow,thigh,plow,phigh, &
-                  ntemp, npres, &
-                  PETSC_FALSE, PETSC_FALSE, &
-                  word)  
-  word = ''
-  call EOSWaterTest(tlow,thigh,plow,phigh, &
-                    ntemp, npres, &
-                    PETSC_FALSE, PETSC_FALSE, &
-                    word)  
-  word = ''
-  call EOSWaterSteamTest(tlow,thigh,plow,phigh, &
-                         ntemp, npres, &
-                         PETSC_FALSE, PETSC_FALSE, &
-                         word) 
-#endif                         
-
   allocate(general_auxvar(0:3))
   allocate(global_auxvar(0:3))
   allocate(material_auxvar(0:3))
@@ -120,41 +143,113 @@ subroutine GeneralDerivative(option)
   rpf_gas%Srg = 1.d-40
   characteristic_curves%gas_rel_perm_function => rpf_gas
 
-  select case(istate)
-    case(LIQUID_STATE)
-      xx(1) = 1.d6
-      xx(2) = 1.d-6
-      xx(3) = 30.d0
-    case(GAS_STATE)
-!      xx(1) = 1.d4
-!      xx(2) = 0.98d4
-!      xx(3) = 15.d0
-      xx(1) = 1.d6
-      xx(2) = 0.98d6
-      xx(3) = 30.d0
-!      xx(1) = 1.d7
-!      xx(2) = 0.98d7
-!      xx(3) = 85.d0
-    case(TWO_PHASE_STATE)
-      xx(1) = 1.d6
-      xx(2) = 0.5d0
-      xx(3) = 30.d0
-  end select
-  
   option%iflag = GENERAL_UPDATE_FOR_ACCUM
   call GeneralAuxVarCompute(xx,general_auxvar(0),global_auxvar(0), &
                             material_auxvar(0),characteristic_curves, &
                             natural_id,option)  
-  call GeneralPrintAuxVars(general_auxvar(0),global_auxvar(0),material_auxvar(0), &
-                           natural_id,'',option)
+
+! default perturbation approach that does not consider global or material auxvar
+#if 0
+  call GeneralAuxVarPerturb(general_auxvar,global_auxvar(0), &
+                            material_auxvar(0), &
+                            characteristic_curves,natural_id, &
+                            option)
+#else
   do i = 1, 3
     option%iflag = GENERAL_UPDATE_FOR_DERIVATIVE
     xx_pert = xx
-    pert(i) = 1.d-6 * xx(i)
+    pert(i) = perturbation_tolerance * xx(i)
     xx_pert(i) = xx(i) + pert(i)
     call GeneralAuxVarCompute(xx_pert,general_auxvar(i),global_auxvar(i), &
                               material_auxvar(i),characteristic_curves, &
                               natural_id,option)    
+  enddo  
+#endif
+
+  call CharacteristicCurvesDestroy(characteristic_curves)
+
+end subroutine GeneralDerivativeSetupAuxVar
+
+! ************************************************************************** !
+
+subroutine GeneralDerivativeSetupEOS(option)
+
+  use Option_module
+  use EOS_Gas_module
+  use EOS_Water_module
+  
+  implicit none
+
+  type(option_type), pointer :: option
+  PetscReal :: tlow, thigh, plow, phigh
+  PetscInt :: ntemp, npres  
+  character(len=MAXWORDLENGTH) :: word
+  
+  call EOSWaterSetDensity('PLANAR')
+  call EOSWaterSetEnthalpy('PLANAR')
+  call EOSWaterSetSteamDensity('PLANAR')
+  
+  ! for ruling out gas density partial derivative
+!  call EOSGasSetDensityConstant(196.d0)
+
+  tlow = 1.d-1
+  thigh = 350.d0
+  plow = 1.d-1
+  phigh = 16.d6
+  ntemp = 100
+  npres = 100
+  word = ''
+  call EOSGasTest(tlow,thigh,plow,phigh, &
+                  ntemp, npres, &
+                  PETSC_FALSE, PETSC_FALSE, &
+                  word)  
+  word = ''
+  call EOSWaterTest(tlow,thigh,plow,phigh, &
+                    ntemp, npres, &
+                    PETSC_FALSE, PETSC_FALSE, &
+                    word)  
+  word = ''
+  call EOSWaterSteamTest(tlow,thigh,plow,phigh, &
+                         ntemp, npres, &
+                         PETSC_FALSE, PETSC_FALSE, &
+                         word) 
+  
+end subroutine GeneralDerivativeSetupEOS
+  
+! ************************************************************************** !
+
+subroutine GeneralDerivativeAuxVar(pert,general_auxvar,global_auxvar, &
+                                   material_auxvar,option)
+
+  use Option_module
+  
+  implicit none
+
+  PetscReal :: pert(3)
+  type(general_auxvar_type) :: general_auxvar(0:)
+  type(global_auxvar_type) :: global_auxvar(0:)
+  class(material_auxvar_type) :: material_auxvar(0:)
+  type(option_type), pointer :: option
+
+  PetscInt :: natural_id = 1
+  PetscBool :: analytical_derivative = PETSC_TRUE
+  character(len=MAXSTRINGLENGTH) :: strings(3,3)
+  PetscInt :: i
+  
+  strings(1,1) = 'Liquid Pressure'
+  strings(2,1) = 'Air Mole Fraction in Liquid'
+  strings(3,1) = 'Temperature'
+  strings(1,2) = 'Gas Pressure'
+  strings(2,2) = 'Air Pressure'
+  strings(3,2) = 'Temperature'
+  strings(1,3) = 'Gas Pressure'
+  strings(2,3) = 'Gas Saturation'
+  strings(3,3) = 'Temperature'
+  
+  call GeneralPrintAuxVars(general_auxvar(0),global_auxvar(0),material_auxvar(0), &
+                           natural_id,'',option)
+
+  do i = 1, 3
     call GeneralAuxVarDiff(i,general_auxvar(0),global_auxvar(0), &
                            material_auxvar(0), &
                            general_auxvar(i),global_auxvar(i), &
@@ -163,18 +258,58 @@ subroutine GeneralDerivative(option)
                            strings(i,global_auxvar(i)%istate), &
                            analytical_derivative,option) 
   enddo
+
+end subroutine GeneralDerivativeAuxVar
+
+! ************************************************************************** !
+
+subroutine GeneralDerivativeAccum(pert,general_auxvar,global_auxvar, &
+                                  material_auxvar,option)
+
+  use Option_module
   
-  do i = 0, 3
-    call GeneralAuxVarStrip(general_auxvar(i))
-    call GlobalAuxVarStrip(global_auxvar(i))
-    call MaterialAuxVarStrip(material_auxvar(i))
+  implicit none
+
+  PetscReal :: pert(3)
+  type(general_auxvar_type) :: general_auxvar(0:)
+  type(global_auxvar_type) :: global_auxvar(0:)
+  class(material_auxvar_type) :: material_auxvar(0:)
+  type(option_type), pointer :: option
+
+  PetscInt :: natural_id = 1
+  PetscInt :: i
+  PetscReal, parameter :: soil_heat_capacity = 850.d0
+  
+  PetscInt :: irow
+  PetscReal :: res(3), res_pert(3,3)
+  PetscReal :: jac_anal(3,3)
+  PetscReal :: jac_num(3,3)
+  PetscReal :: jac_dum(3,3)  
+  
+  call GeneralPrintAuxVars(general_auxvar(0),global_auxvar(0),material_auxvar(0), &
+                           natural_id,'',option)
+
+  call GeneralAccumulation(general_auxvar(ZERO_INTEGER), &
+                           global_auxvar(ZERO_INTEGER), &
+                           material_auxvar(ZERO_INTEGER), &
+                           soil_heat_capacity,option, &
+                           res,jac_anal,PETSC_TRUE,PETSC_FALSE)
+
+  do i = 1, 3
+    call GeneralAccumulation(general_auxvar(i), &
+                             global_auxvar(i), &
+                             material_auxvar(i),soil_heat_capacity,option, &
+                             res_pert(:,i),jac_dum,PETSC_FALSE,PETSC_FALSE)
+                           
+    do irow = 1, option%nflowdof
+      jac_num(irow,i) = (res_pert(irow,i)-res(irow))/pert(i)
+    enddo !irow
   enddo
-  deallocate(general_auxvar)
-  deallocate(global_auxvar)
-  deallocate(material_auxvar)
-  call CharacteristicCurvesDestroy(characteristic_curves)
   
-end subroutine GeneralDerivative
+  call GeneralDiffJacobian('',jac_num,jac_anal,res,res_pert,pert, &
+                           general_auxvar,option)
+  
+end subroutine GeneralDerivativeAccum
 
 ! ************************************************************************** !
 
@@ -273,6 +408,7 @@ subroutine GeneralAuxVarDiff(idof,general_auxvar,global_auxvar, &
   PetscReal :: denv
   PetscReal :: dena
   PetscReal :: dHc
+  PetscReal :: dmug
   
   PetscReal, parameter :: uninitialized_value = -999.d0
   
@@ -306,6 +442,7 @@ subroutine GeneralAuxVarDiff(idof,general_auxvar,global_auxvar, &
   denv = uninitialized_value
   dena = uninitialized_value
   dHc = uninitialized_value
+  dmug = uninitialized_value
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -379,6 +516,7 @@ subroutine GeneralAuxVarDiff(idof,general_auxvar,global_auxvar, &
             dHa = general_auxvar%d%Ha_pg
             dUa = general_auxvar%d%Ua_pg
             
+            dmug = general_auxvar%d%mug_pg
             dmobilityg = general_auxvar%d%mobilityg_pg
             dxmolwg = general_auxvar%d%xmol_p(wid,gid)
             dxmolag = general_auxvar%d%xmol_p(acid,gid)          
@@ -415,6 +553,7 @@ subroutine GeneralAuxVarDiff(idof,general_auxvar,global_auxvar, &
             denv = general_auxvar%d%denv_T
             dena = general_auxvar%d%dena_T
             
+            dmug = general_auxvar%d%mug_T
             dmobilityg = general_auxvar%d%mobilityg_T
             dxmolwg = general_auxvar%d%xmol_T(wid,gid)
             dxmolag = general_auxvar%d%xmol_T(acid,gid)          
@@ -439,11 +578,14 @@ subroutine GeneralAuxVarDiff(idof,general_auxvar,global_auxvar, &
             dUg = general_auxvar%d%Ug_pg
             dHg = general_auxvar%d%Hg_pg
             
+            denv = general_auxvar%d%denv_pg
+            dena = general_auxvar%d%dena_pg
             dHv = general_auxvar%d%Hv_pg
             dUv = general_auxvar%d%Uv_pg
             dHa = general_auxvar%d%Ha_pg
             dUa = general_auxvar%d%Ua_pg
             
+            dmug = general_auxvar%d%mug_pg
             dmobilityl = general_auxvar%d%mobilityl_pl
             dmobilityg = general_auxvar%d%mobilityg_pg
             dxmolwl = general_auxvar%d%xmol_p(wid,lid)
@@ -487,6 +629,7 @@ subroutine GeneralAuxVarDiff(idof,general_auxvar,global_auxvar, &
             denv = general_auxvar%d%denv_T
             dena = general_auxvar%d%dena_T
             
+            dmug = general_auxvar%d%mug_T
             dmobilityl = general_auxvar%d%mobilityl_T
             dmobilityg = general_auxvar%d%mobilityg_T
             dxmolwl = general_auxvar%d%xmol_T(wid,lid)
@@ -671,6 +814,9 @@ subroutine GeneralAuxVarDiff(idof,general_auxvar,global_auxvar, &
   call GeneralAuxVarPrintResult('            gas mobility', &
                                 (general_auxvar_pert%mobility(gid)-general_auxvar%mobility(gid))/pert, &
                                 dmobilityg,uninitialized_value,option)
+  call GeneralAuxVarPrintResult('           gas viscosity', &
+                                (general_auxvar_pert%d%mug-general_auxvar%d%mug)/pert, &
+                                dmug,uninitialized_value,option)
   call GeneralAuxVarPrintResult('      effective porosity', &
                                 (general_auxvar_pert%effective_porosity-general_auxvar%effective_porosity)/pert, &
                                 uninitialized_value,uninitialized_value,option)
@@ -766,5 +912,79 @@ subroutine GeneralAuxVarPrintResult(string,numerical,analytical, &
   
 
 end subroutine GeneralAuxVarPrintResult
+
+! ************************************************************************** !
+
+subroutine GeneralDiffJacobian(string,numerical_jacobian,analytical_jacobian, &
+                               residual,residual_pert,perturbation, &
+                               general_auxvar,option)
+
+  use Option_module
+  
+  implicit none
+  
+  character(len=*) :: string
+  PetscReal :: numerical_jacobian(3,3)
+  PetscReal :: analytical_jacobian(3,3)
+  PetscReal :: residual(3)
+  PetscReal :: residual_pert(3,3)
+  PetscReal :: perturbation(3)
+  type(general_auxvar_type) :: general_auxvar(0:)
+  type(option_type) :: option
+  
+  PetscInt :: irow, icol
+  
+100 format(2i2,2es13.5,es16.8)
+
+  write(*,'(" r c    numerical   analytical")')
+  do icol = 1, 3
+    do irow = 1, 3
+      write(*,100) irow, icol, numerical_jacobian(irow,icol), &
+                   analytical_jacobian(irow,icol)
+    enddo
+  enddo
+
+200 format(2es20.12)
+300 format(a24,2es20.12)
+
+  do icol = 1, 3
+    write(*,'(/," dof = ",i1,"  perturbation = ",es13.5)') icol, perturbation(icol)
+    write(*,300) 'density', general_auxvar(icol)%den(1), general_auxvar(0)%den(1)
+    write(*,300) 'energy', general_auxvar(icol)%U(1), general_auxvar(0)%U(1)
+    write(*,'("  residual_pert     residual")')
+    do irow = 1, 3
+      write(*,200) residual_pert(irow,icol), residual(irow)
+    enddo
+  enddo
+
+  
+end subroutine GeneralDiffJacobian
+
+! ************************************************************************** !
+
+subroutine GeneralDerivativeDestroyAuxVar(general_auxvar,global_auxvar, &
+                                          material_auxvar,option)
+
+  use Option_module
+  
+  implicit none
+
+  type(general_auxvar_type), pointer :: general_auxvar(:)
+  type(global_auxvar_type), pointer :: global_auxvar(:)
+  class(material_auxvar_type), pointer :: material_auxvar(:)
+  type(option_type), pointer :: option
+  
+  PetscInt :: i
+
+  do i = 0, 3
+    call GeneralAuxVarStrip(general_auxvar(i))
+    call GlobalAuxVarStrip(global_auxvar(i))
+    call MaterialAuxVarStrip(material_auxvar(i))
+  enddo
+  deallocate(general_auxvar)
+  deallocate(global_auxvar)
+  deallocate(material_auxvar)
+
+end subroutine GeneralDerivativeDestroyAuxVar
 
 end module General_Derivative_module
