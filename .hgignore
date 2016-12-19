@@ -346,3 +346,6 @@ src/clm-pflotran/well_oil_producer.F90
 src/clm-pflotran/well_spec_base.F90
 src/clm-pflotran/well_toil_ims.F90
 src/clm-pflotran/well_water_injector.F90
+src/clm-pflotran/general_common.F90
+src/clm-pflotran/general_derivative.F90
+src/clm-pflotran/pflotran_derivative.F90
