@@ -2290,7 +2290,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
 
        xx_loc_p(istart)  = soilpress_pf_loc(ghosted_id)
        if (option%iflowmode .eq. TH_MODE)  then
-            xx_loc_p(istart+1)= soilt_pf_loc(ghosted_id)
+         xx_loc_p(istart+1)= soilt_pf_loc(ghosted_id)
        end if
     enddo
 
