@@ -475,8 +475,8 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   pw = option%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
-!  if (auxvar%pc > 0.d0) then
-  if (auxvar%pc > 1.d0) then
+  if (auxvar%pc > 0.d0) then
+!  if (auxvar%pc > 1.d0) then
     iphase = 3
 
 #ifdef TH_CHARACTERISTIC_CURVES
@@ -696,7 +696,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   pw = option%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
-  if (auxvar%pc > 1.d0) then
+  if (auxvar%pc > 0.d0) then
     iphase = 3
     dpw_dp = 0.d0
   else
