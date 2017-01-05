@@ -2645,8 +2645,8 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
         beta_corrected = 1.d0        ! It appeared that 'beta' in P.-K. Eq. varies very much
 #ifdef CLM_PFLOTRAN
-        ! assuming 'pcmax' @ -5oC so that liq. water movement might be limited below that.
-        ice_pc_tmin = -alpha * (-deltaTf) !(-5.0d0)
+        ! assuming 'pcmax' @ -0.5oC so that liq. water movement might be limited below that.
+        ice_pc_tmin = -alpha * (-5.0d-1)
         if(ice_pc_tmin<this%pcmax .and. ice_pc_tmin>0.d0) then
           beta_corrected = this%pcmax/ice_pc_tmin
         endif
@@ -2662,9 +2662,14 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
           dice_pc_dt = alpha*(b+2.0d0*c*xTf) + &
                        dalpha_drhol*drhol_dt*tempreal        ! in case we need this later
 
-          !
+          ! a note here:
+          ! (1) if xTf=-deltaTf (negative over Tf0), tempreal = deltaTf/4.0 + 0.5*deltaTf + 0.25*deltaTf = 1.0 * deltaTf
+          !                   so, ice_pc = alpha * deltaTf = -alpha * xTf;
+          ! (2) if xTf=deltaTf (positive over Tf0), tempreal = deltaTf/4.0 - 0.5*deltaTf + 0.25*deltaTf = 0
+          !                   so, ice_pc = 0.
+          ! Then it means the smoothing_curve ends exactly with the original format
 
-        elseif(xTf<-deltaTf) then
+        elseif(xTf<=(-deltaTf)) then
           ice_pc = -alpha * xTf
           dice_pc_dt = -alpha - &
                        dalpha_drhol*drhol_dt*xTf             ! in case we need this later
