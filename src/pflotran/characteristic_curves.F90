@@ -2535,6 +2535,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   PetscReal :: beta2, T_star, T_star_th, T_star_min, T_star_max
 
   PetscErrorCode :: ierr
+  PetscReal, parameter :: dpc_dpres = -1.d0
 
   !---------------------
   !
@@ -2654,7 +2655,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         alpha = alpha * beta_corrected
         dalpha_drhol=dalpha_drhol* beta_corrected
 
-        if (abs(xTf)<deltaTf) then
+        if (abs(xTf)<=deltaTf) then
 
           tempreal   = a+b*xTf+c*xTf*xTf
 
@@ -2681,6 +2682,14 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
         ! PCice above are from '-alpha * xTf' to 0.0 ending @T0+deltaTf, so the following will be adding pcgl to avoid negetative ice saturation
         ice_pc     =  ice_pc + pcgl
+
+        ! because 'ice_pc' going to be used by saturation function for 'liq_saturation', which truncked by 'pcmax'
+        ! it's better to do truncation here as well
+        Hfunc = sign(0.5d0, -(ice_pc-this%pcmax))+0.5d0               ! Heaviside function to truncate ice_pc>=pcmax
+        dHfunc= 0.d0
+        dice_pc_dt = (ice_pc-this%pcmax) * dHfunc + dice_pc_dt * Hfunc
+        ice_pc = ice_pc * Hfunc + this%pcmax * (1.d0-Hfunc)
+
         dice_pc_dp =  dice_pc_dp + 1.d0           ! dpcgl_dp = 1.0 and dpcgl_dt = 0
 
       case (DALL_AMICO)
@@ -2730,6 +2739,8 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         call printErrMsg(option)
 
     end select ! select case (option%ice_model)
+
+    dice_pc_dp = dice_pc_dp * dpc_dpres ! convert from w.r.t 'pc' to water pressure
 
   else
 
