@@ -1471,6 +1471,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
     J(2,1) = 0.d0
   endif
 
+#if 0
   if (option%flow%numerical_derivatives) then
     call GlobalAuxVarInit(global_auxvar_pert,option)  
     call MaterialAuxVarInit(material_auxvar_pert,option)  
@@ -1532,6 +1533,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
     J = J_pert
     call GlobalAuxVarStrip(global_auxvar_pert)  
   endif
+#endif
    
 end subroutine THAccumDerivative
 
@@ -1827,7 +1829,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     dgravity_dden_up = upweight*auxvar_up%avgmw*dist_gravity
     dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-    if (option%ice_model /= DALL_AMICO) then
+    if (option%ice_model /= DALL_AMICO &
+      .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o)
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
       dphi_dp_up = 1.d0 + dgravity_dden_up*auxvar_up%dden_dp
       dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
@@ -1943,10 +1946,10 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       p_ref = 1.01325d5   ! in Pa
       T_ref = 25.d0       ! in deg C
 
-      Diffg_up = Diffg_ref*(p_ref/p_g)*((global_auxvar_up%temp + 273.15d0)/ &
-           (T_ref + 273.15d0))**(1.8)  
-      Diffg_dn = Diffg_ref*(p_ref/p_g)*((global_auxvar_dn%temp + 273.15d0)/ &
-           (T_ref + 273.15d0))**(1.8)
+      Diffg_up = Diffg_ref*(p_ref/p_g)*((max(-50d0, global_auxvar_up%temp) + 273.15d0) &
+                 /(T_ref + 273.15d0))**(1.8d0)
+      Diffg_dn = Diffg_ref*(p_ref/p_g)*((max(-50d0, global_auxvar_dn%temp) + 273.15d0) &
+                 /(T_ref + 273.15d0))**(1.8d0)
 
       !Ddiffgas_up = por_up*tor_up*satg_up*deng_up*Diffg_up
       !Ddiffgas_dn = por_dn*tor_dn*satg_dn*deng_dn*Diffg_dn
@@ -2021,9 +2024,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       ddeng_dp_up = auxvar_up%ice%dden_gas_dp
       ddeng_dp_dn = auxvar_dn%ice%dden_gas_dp
 
-      dDiffg_dt_up = 1.8*Diffg_up/(global_auxvar_up%temp + 273.15d0)
-      dDiffg_dt_dn = 1.8*Diffg_dn/(global_auxvar_dn%temp + 273.15d0)
-
+      dDiffg_dt_up = 1.8d0*Diffg_up/(max(-50.0d0,global_auxvar_up%temp) + 273.15d0)
+      dDiffg_dt_dn = 1.8d0*Diffg_dn/(max(-50.0d0,global_auxvar_dn%temp) + 273.15d0)
       dDiffg_dp_up = 0.d0
       dDiffg_dp_dn = 0.d0
 
@@ -2210,6 +2212,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   ! note: Res is the flux contribution, for node up J = J + Jup
   !                                              dn J = J - Jdn  
 
+#if 0
   if (option%flow%numerical_derivatives) then
     call THAuxVarCopy(auxvar_up,auxvar_pert_up,option)
     call THAuxVarCopy(auxvar_dn,auxvar_pert_dn,option)
@@ -2351,6 +2354,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     call MaterialAuxVarStrip(material_auxvar_pert_up)
     call MaterialAuxVarStrip(material_auxvar_pert_dn)    
   endif
+#endif
 
 end subroutine THFluxDerivative
 
@@ -2455,7 +2459,8 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
               (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
               * dist_gravity
 
-    if (option%ice_model /= DALL_AMICO) then
+    if (option%ice_model /= DALL_AMICO &
+        .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o)
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
     else
       dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -2507,10 +2512,10 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
       p_ref = 1.01325d5 ! in Pa
       T_ref = 25.d0 ! in deg C
 
-      Diffg_up = Diffg_ref*(p_ref/p_g)*((global_auxvar_up%temp + 273.15d0)/ &
-           (T_ref + 273.15d0))**(1.8)  
-      Diffg_dn = Diffg_ref*(p_ref/p_g)*((global_auxvar_dn%temp + 273.15d0)/ &
-           (T_ref + 273.15d0))**(1.8)
+      Diffg_up = Diffg_ref*(p_ref/p_g)*((max(-50d0, global_auxvar_up%temp) + 273.15d0) &
+                /(T_ref + 273.15d0)) **(1.8d0)
+      Diffg_dn = Diffg_ref*(p_ref/p_g)*((max(-50d0, global_auxvar_dn%temp) + 273.15d0) &
+                /(T_ref + 273.15d0)) **(1.8d0)
            
       !Ddiffgas_up = por_up*tor_up*satg_up*deng_up*Diffg_up
       !Ddiffgas_dn = por_dn*tor_dn*satg_dn*deng_dn*Diffg_dn
@@ -2775,7 +2780,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                   * dist_gravity
         dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-        if (option%ice_model /= DALL_AMICO) then
+        if (option%ice_model /= DALL_AMICO &
+          .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o)
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
           dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
@@ -2895,7 +2901,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                   * dist_gravity
         dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-        if (option%ice_model /= DALL_AMICO) then
+        if (option%ice_model /= DALL_AMICO &
+          .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o)
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
           dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
@@ -3257,10 +3264,10 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           p_ref = 1.01325d5 ! in Pa
           T_ref = 25.d0 ! in deg C
 
-          Diffg_up = Diffg_ref*(p_ref/p_g)*((global_auxvar_up%temp + &
-                 273.15d0)/(T_ref + 273.15d0))**(1.8)  
-          Diffg_dn = Diffg_ref*(p_ref/p_g)*((global_auxvar_dn%temp + &
-                 273.15d0)/(T_ref + 273.15d0))**(1.8)
+          Diffg_up = Diffg_ref*(p_ref/p_g)*((max(-50d0, global_auxvar_up%temp) + &
+                 273.15d0)/(T_ref + 273.15d0)) **(1.8)
+          Diffg_dn = Diffg_ref*(p_ref/p_g)*((max(-50d0, global_auxvar_dn%temp) + &
+                 273.15d0)/(T_ref + 273.15d0)) **(1.8)
 
             !Ddiffgas_up = satg_up*deng_up*Diffg_up
             !Ddiffgas_dn = satg_dn*deng_dn*Diffg_dn
@@ -3272,7 +3279,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
             !     273.15d0)**2)*1.d-3
             !dmolg_dt_dn = (1/p_g)*dpsat_dt_dn
 
-          dDiffg_dt_dn = 1.8*Diffg_dn/(global_auxvar_dn%temp + 273.15d0)
+          dDiffg_dt_dn = 1.8d0*Diffg_dn/(global_auxvar_dn%temp + 273.15d0)
+          if (global_auxvar_dn%temp<-50d0) dDiffg_dt_dn = 0.d0
           dDiffg_dp_dn = 0.d0
 
           Ddiffgas_up = satg_up*Diffg_up
@@ -3604,7 +3612,8 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
                   (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
                   * dist_gravity
 
-        if (option%ice_model /= DALL_AMICO) then
+        if (option%ice_model /= DALL_AMICO &
+          .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o)
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -3683,7 +3692,8 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
              (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
              * dist_gravity
         
-        if (option%ice_model /= DALL_AMICO) then
+        if (option%ice_model /= DALL_AMICO &
+          .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o)
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -3867,10 +3877,10 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
           p_ref = 1.01325d5 ! in Pa
           T_ref = 25.d0 ! in deg C
 
-          Diffg_up = Diffg_ref*(p_ref/p_g)*((global_auxvar_up%temp + &
-                 273.15d0)/(T_ref + 273.15d0))**(1.8)
-          Diffg_dn = Diffg_ref*(p_ref/p_g)*((global_auxvar_dn%temp + &
-                 273.15d0)/(T_ref + 273.15d0))**(1.8)
+          Diffg_up = Diffg_ref*(p_ref/p_g)*((max(-50d0, global_auxvar_up%temp) + &
+                 273.15d0)/(T_ref + 273.15d0)) **(1.8)
+          Diffg_dn = Diffg_ref*(p_ref/p_g)*((max(-50d0, global_auxvar_dn%temp) + &
+                 273.15d0)/(T_ref + 273.15d0)) **(1.8)
 
           !Ddiffgas_up = satg_up*deng_up*Diffg_up
           !Ddiffgas_dn = satg_dn*deng_dn*Diffg_dn
@@ -4168,6 +4178,15 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
                         TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
                         option,vol_frac_prim,Res)
     r_p(istart:iend) = r_p(istart:iend) + Res
+
+    if(Res(1) /= Res(1) .or. Res(2) /= Res(2) &
+      .or. abs(Res(1))>huge(Res(1)) .or. abs(Res(2))>huge(Res(2)) ) then
+      write(string,*) 'local_id: ', local_id, 'Res: ', Res
+      option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - Accumulation of ' // &
+        trim(string)
+      call printErrMsg(option)
+    endif
+
   enddo
 
 
@@ -4315,6 +4334,14 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
         patch%ss_flow_fluxes(1,sum_connection) = qsrc1
       endif
 
+      Res = Res_src
+      if(Res(1) /= Res(1) .or. Res(2) /= Res(2) &
+        .or. abs(Res(1))>huge(Res(1)) .or. abs(Res(2))>huge(Res(2)) ) then
+        write(string, *) ' name -', source_sink%name, ' @local_id -', local_id, 'with Res -', Res
+        option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - source_sink of ' // &
+          trim(string)
+        call printErrMsg(option)
+      endif
 
     enddo
     source_sink => source_sink%next
@@ -4362,7 +4389,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       upweight = dd_dn/(dd_up+dd_dn)
 
 
-! better to use the following to avoid inconsistence
+! better to use the following to avoid inconsistence (fmyuan)
 #else
       call ConnectionCalculateDistances(cur_connection_set%dist(:,iconn), &
                                     option%gravity,dd_up,dd_dn, &
@@ -4425,6 +4452,14 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
         iend = local_id_dn*option%nflowdof
         istart = iend-option%nflowdof+1
         r_p(istart:iend) = r_p(istart:iend) - Res(1:option%nflowdof)
+      endif
+
+      if(Res(1) /= Res(1) .or. Res(2) /= Res(2) &
+        .or. abs(Res(1))>huge(Res(1)) .or. abs(Res(2))>huge(Res(2)) ) then
+        write(string, *) ' @local_id -', local_id_up, local_id_dn, ' with Res -', Res
+        option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - interanl flux between ' // &
+          trim(string)
+        call printErrMsg(option)
       endif
 
     enddo
@@ -4491,6 +4526,15 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
       r_p(istart:iend)= r_p(istart:iend) - Res(1:option%nflowdof)
+
+      if(Res(1) /= Res(1) .or. Res(2) /= Res(2) &
+        .or. abs(Res(1))>huge(Res(1)) .or. abs(Res(2))>huge(Res(2)) ) then
+        write(string, *) ' name -', boundary_condition%name, ' @local_id -', local_id, 'with Res -', Res
+        option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - boundary_condition of ' // &
+          trim(string)
+        call printErrMsg(option)
+      endif
+
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -6588,7 +6632,8 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
               * FMWH2O * dist_gravity
     dgravity_dden_dn = (1.d0-upweight)*FMWH2O*dist_gravity
 
-    if (option%ice_model /= DALL_AMICO) then
+    if (option%ice_model /= DALL_AMICO &
+      .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o)
       dphi = global_auxvar_up%pres(1) - global_auxvar_max%pres(1) + gravity
       dphi_dp_dn = -1.d0 + dgravity_dden_dn*th_auxvar_max%dden_dp
     else
