@@ -1830,7 +1830,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
     if (option%ice_model /= DALL_AMICO &
-      .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o)
+      .or. .not.option%use_th_freezing) then    ! for other type 'ice_model' to us actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
       dphi_dp_up = 1.d0 + dgravity_dden_up*auxvar_up%dden_dp
       dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
@@ -2460,7 +2460,7 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
               * dist_gravity
 
     if (option%ice_model /= DALL_AMICO &
-        .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o)
+        .or. .not.option%use_th_freezing) then    ! for other type 'ice_model' to us actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
     else
       dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -2781,10 +2781,20 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
         if (option%ice_model /= DALL_AMICO &
-          .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o)
+          .or. .not.option%use_th_freezing) then    ! for other type 'ice_model' to us actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
           dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
+
+        elseif (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
+          ! F.-M. Yuan: SEEPAGE_BC outlet 'pres(1)' is for water table,
+          ! while %pres_fh2o may be incorrect due to its %temp usually as first soil layer or external input
+          dphi = global_auxvar_up%pres(1) - auxvar_dn%ice%pres_fh2o + gravity
+          dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + &
+                        dgravity_dden_dn*auxvar_dn%dden_dp
+          dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + &
+                        dgravity_dden_dn*auxvar_dn%dden_dt
+
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
           dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + &
@@ -2958,11 +2968,12 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           dukvr_dt_dn = auxvar_dn%dkvr_dt
         endif      
 
-        !call InterfaceApprox(auxvar_up%kvr, auxvar_dn%kvr, &
-        !                     auxvar_up%dkvr_dp, auxvar_dn%dkvr_dp, &
-        !                     dphi, &
-        !                     option%rel_perm_aveg, &
-        !                     ukvr, dum1, dukvr_dp_dn)
+        ! (fmyuan: the following was commented out, but NOT in FLUX alone calculation - so better turn it on as well)
+        call InterfaceApprox(auxvar_up%kvr, auxvar_dn%kvr, &
+                             auxvar_up%dkvr_dp, auxvar_dn%dkvr_dp, &
+                             dphi, &
+                             option%rel_perm_aveg, &
+                             ukvr, dum1, dukvr_dp_dn)
         !call InterfaceApprox(auxvar_up%kvr, auxvar_dn%kvr, &
         !                     auxvar_up%dkvr_dt, auxvar_dn%dkvr_dt, &
         !                     dphi, &
@@ -3141,9 +3152,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   !                     dphi, &
   !                     option%rel_perm_aveg, &
   !                     uh, dum1, duh_dt_dn)
-
-  Jdn(1,1) = (dq_dp_dn*density_ave+q*dden_ave_dp_dn)
-  Jdn(1,2) = (dq_dt_dn*density_ave+q*dden_ave_dt_dn)
       
   ! If only solving the energy equation, ensure Jdn(2,2) has no
   ! contribution from mass equation
@@ -3151,6 +3159,9 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
     q = 0.d0
     dq_dt_dn = 0.d0
   endif
+
+  Jdn(1,1) = (dq_dp_dn*density_ave+q*dden_ave_dp_dn)
+  Jdn(1,2) = (dq_dt_dn*density_ave+q*dden_ave_dt_dn)
 
   ! based on flux = q*density_ave*uh
   Jdn(option%nflowdof,1) =  &
@@ -3613,10 +3624,17 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
                   * dist_gravity
 
         if (option%ice_model /= DALL_AMICO &
-          .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o)
+          .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
+
+        elseif (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
+          ! F.-M. Yuan: SEEPAGE_BC outlet 'pres(1)' is for water table,
+          ! while %pres_fh2o may be incorrect due to its %temp usually as first soil layer or external input
+          dphi = global_auxvar_up%pres(1) - auxvar_dn%ice%pres_fh2o + gravity
+
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
+
         endif
 
         if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC .or. &
@@ -3861,6 +3879,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       else  ! subsurface only simulation
 
       endif
+
       fluxe = fluxe + cond
       fluxe_cond = cond
 
