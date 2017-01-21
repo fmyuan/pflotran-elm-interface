@@ -2517,7 +2517,6 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   type(option_type) :: option
 
   PetscReal :: pcgl, pw, tk
-  PetscBool :: saturated
 
   PetscReal, parameter :: beta = 2.33d0           ! dimensionless -- ratio of soil ice surf. tension
   PetscReal, parameter :: T0   = 273.15d0         ! freezing-point at standard pressure: in K
@@ -2540,20 +2539,11 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   !---------------------
   !
   pcgl = max(0.d0, option%reference_pressure - pres_l)       ! always non-negative (0 = saturated)
-  saturated = PETSC_FALSE
-  if (pcgl > abs(this%pcmax)) then
-    pcgl = this%pcmax
-  elseif (pcgl<=0.d0) then
-    saturated = PETSC_TRUE
-  endif
+  if (pcgl > abs(this%pcmax)) pcgl = this%pcmax
 
   Tk = tc + T0
 
-  ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pw' and 'tc'
   pw = max(option%reference_pressure, pres_l)
-
-  ! --------------------
-
   ! constant 'rhol' (for liq. water): kg/m3 @ reference conditions
   call EOSWaterdensity(option%reference_temperature, &
                        option%reference_pressure,    &
@@ -2567,6 +2557,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
                           rhoi, ierr)
   rhoi = rhoi*FMWH2O   ! kg/m3: kmol/m3 * kg/kmol
 
+  ! if ice module turns on, ice/liq. interface PC recalculated (liq. and ice) under common 'pcgl' and 'tc'
   if (option%use_th_freezing) then
 
     gamma       = beta*Lf

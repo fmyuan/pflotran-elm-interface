@@ -862,10 +862,10 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   ! ----- Liq. water ---------------------------------------------------------
 
+#ifndef CLM_PFLOTRAN
   call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
   if(DTRUNC_FLAG) dw_dp = dw_dp * dpw_dp  ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
 
-#ifndef CLM_PFLOTRAN
   call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
 
 #else
@@ -873,10 +873,16 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! Liq. water Enthalpy by IFC67 eq. may have a tiny offset of temperature as following
   ! i.e. @ t of ~-0.02404oC/1atm, hw ~ 0.d0; beyond that, hw is negative with a large negative derivative.
   ! So for a threshold of 0 ~ -0.02oC, it will give a small positive value of 'hw' for suppercooled liq. water
-  t_trunc = 0.0d0
+  t_trunc = -0.02d0
   ! a note here: limit for p/t according to IFC67 p/t ranges.
   ! This may be helpful to solve small-timing issue
-  call EOSWaterEnthalpy(max(t_trunc, global_auxvar%temp), &
+
+  call EOSWaterDensity(max(t_trunc, global_auxvar%temp),      &
+                        pw, dw_kg, dw_mol, dw_dp, dw_dt,ierr)
+  if (DTRUNC_FLAG) dw_dp = dw_dp * dpw_dp  ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
+  if (DTRUNC_FLAG .and. global_auxvar%temp<t_trunc) dw_dt = 0.d0
+
+  call EOSWaterEnthalpy(max(t_trunc, global_auxvar%temp),     &
                         pw, hw,hw_dp,hw_dt,ierr)
   if (DTRUNC_FLAG .and. global_auxvar%temp<t_trunc) hw_dt = 0.d0
 
@@ -941,12 +947,9 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   ! ----- ice water ---------------------------------------------------------
 
-  auxvar%ice%sat_ice = ice_saturation
-  auxvar%ice%sat_gas = gas_saturation
+  auxvar%ice%sat_ice     = ice_saturation
   auxvar%ice%dsat_ice_dp = dsi_dp
-  auxvar%ice%dsat_gas_dp = dsg_dp
   auxvar%ice%dsat_ice_dt = dsi_dt
-  auxvar%ice%dsat_gas_dt = dsg_dt
 
   call EOSWaterDensityIce(global_auxvar%temp, pw,                    &
                           den_ice, dden_ice_dT, dden_ice_dp, ierr)
@@ -964,15 +967,17 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   if(DTRUNC_FLAG) then
     auxvar%ice%dsat_ice_dp = auxvar%ice%dsat_ice_dp * dp_trunc
     auxvar%ice%dsat_ice_dt = auxvar%ice%dsat_ice_dt * dt_trunc
-    auxvar%ice%dsat_gas_dp = auxvar%ice%dsat_gas_dp * dp_trunc
-    auxvar%ice%dsat_gas_dt = auxvar%ice%dsat_gas_dt * dt_trunc
     auxvar%ice%dden_ice_dp = auxvar%ice%dden_ice_dp * dp_trunc
     auxvar%ice%dden_ice_dt = auxvar%ice%dden_ice_dt * dt_trunc
-    auxvar%ice%du_gas_dp   = auxvar%ice%du_gas_dp * dp_trunc
-    auxvar%ice%du_gas_dt   = auxvar%ice%du_gas_dt * dt_trunc
+    auxvar%ice%du_ice_dp   = auxvar%ice%du_ice_dp * dp_trunc
+    auxvar%ice%du_ice_dt   = auxvar%ice%du_ice_dt * dt_trunc
   endif
 
   ! ----- Air (incl. vapor) ---------------------------------------------------------
+
+  auxvar%ice%sat_gas = gas_saturation
+  auxvar%ice%dsat_gas_dp = dsg_dp
+  auxvar%ice%dsat_gas_dt = dsg_dt
 
   ! Calculate the values and derivatives for vapor density and internal energy
 
@@ -1021,6 +1026,8 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
+    auxvar%ice%dsat_gas_dp = auxvar%ice%dsat_gas_dp * dp_trunc
+    auxvar%ice%dsat_gas_dt = auxvar%ice%dsat_gas_dt * dt_trunc
     auxvar%ice%dden_gas_dp = auxvar%ice%dden_gas_dp * dp_trunc
     auxvar%ice%dden_gas_dt = auxvar%ice%dden_gas_dt * dt_trunc
     auxvar%ice%dmol_gas_dp = auxvar%ice%dmol_gas_dp * dp_trunc
@@ -1170,7 +1177,8 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
     call characteristic_curves%saturation_function%IceCapillaryPressure(pres_l, tc, &
                                    xplice, dxplice_dpl, dxplice_dt, option)
 
-    ice_presl    = -xplice + (pres_l - pc)
+    ice_presl    = option%reference_pressure - xplice
+    !ice_presl    = (pres_l - pc) - xplice
     ice_presl_dpl= dxplice_dpl  ! w.r.t 'pressure', not 'pc'
     ice_presl_dt = dxplice_dt
 
