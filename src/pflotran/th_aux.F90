@@ -905,7 +905,10 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! The Viscosity Eq. shows that: temp< ~ -63oC (1atm), 'visl' sharply increases starting from ~ 1.e-2 order.
   ! 'visl' ~ 0. around -133oC, which produces 'inf' for 'kr'
   t_trunc = -63.d0
+
   call EOSWaterSaturationPressure(max(t_trunc,global_auxvar%temp), sat_pressure, dpsat_dt, ierr)
+  ! the lowest Tk of 200 for vapor exists in EOS-h2o phase-diagram, but here make it consistent with 'Viscosity'
+
   if(DTRUNC_FLAG .and. global_auxvar%temp<=t_trunc) dpsat_dt = 0.d0
 
   call EOSWaterViscosity(max(t_trunc,global_auxvar%temp), pw,   &
@@ -951,11 +954,17 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%ice%dsat_ice_dp = dsi_dp
   auxvar%ice%dsat_ice_dt = dsi_dt
 
-  call EOSWaterDensityIce(global_auxvar%temp, pw,                    &
+  ! for ice Ih, Tk limit is ~127K (-146oC) in EOS-h2o phase-diagram
+  t_trunc = -146.d0
+
+  call EOSWaterDensityIce(max(t_trunc, global_auxvar%temp), pw,                    &
                           den_ice, dden_ice_dT, dden_ice_dp, ierr)
   if(DTRUNC_FLAG) dden_ice_dp = dden_ice_dp * dpw_dp  ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
+  if(DTRUNC_FLAG .and. global_auxvar%temp<=t_trunc) dden_ice_dT = 0.d0
 
-  call EOSWaterInternalEnergyIce(global_auxvar%temp, u_ice, du_ice_dT)
+  call EOSWaterInternalEnergyIce(max(t_trunc, global_auxvar%temp), u_ice, du_ice_dT)
+  if(DTRUNC_FLAG .and. global_auxvar%temp<=t_trunc) du_ice_dT = 0.d0
+
   auxvar%ice%den_ice     = den_ice
   auxvar%ice%dden_ice_dt = dden_ice_dT
   auxvar%ice%dden_ice_dp = dden_ice_dP
@@ -981,8 +990,10 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   ! Calculate the values and derivatives for vapor density and internal energy
 
-  p_g                = pw
-  tk_g               = max(-273.d0,global_auxvar%temp)+273.15d0
+  p_g      = pw
+  ! the lowest Tk of ~200K for vapor exists in EOS-h2o phase-diagram
+  t_trunc  = -73.d0
+  tk_g     = max(t_trunc,global_auxvar%temp)+273.15d0
 
   auxvar%ice%den_gas     = p_g/(IDEAL_GAS_CONSTANT*tk_g)*1.d-3                ! in kmol/m3 for all air-mixture
   auxvar%ice%dden_gas_dt = -p_g/(IDEAL_GAS_CONSTANT*tk_g**2)*1.d-3
@@ -990,18 +1001,17 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
     auxvar%ice%dden_gas_dp = auxvar%ice%dden_gas_dp*dpw_dp    ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
-    if (tk_g<=-273.d0) auxvar%ice%dden_gas_dt = 0.d0
+    if (tk_g<=t_trunc) auxvar%ice%dden_gas_dt = 0.d0
   endif
 
   call EOSWaterSaturationPressure(tk_g-273.15d0, p_sat, dpsat_dt, ierr)
-  !p_sat = sat_pressure  ! this is for using that calculated above for 'viscosity' of liq. water
   mol_g    = p_sat/p_g
   dmolg_dt = dpsat_dt/p_g
   dmolg_dp = -p_sat/p_g/p_g
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
     dmolg_dp = dmolg_dp * dpw_dp                              ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
-    if (tk_g<=-273.d0) then
+    if (tk_g<=t_trunc) then
       dpsat_dt = 0.d0
       dmolg_dt = 0.d0
     endif
@@ -1011,8 +1021,11 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%ice%u_gas       = C_g*tk_g                                               ! in MJ/kmol
 #ifdef CLM_PFLOTRAN
   ! NOTE: vapor 'mol_gas' is included in 'den_gas', 'u_gas'
-  auxvar%ice%mol_gas     = 0.d0  ! so, if for air-mixture, may assign this to 1.0 (may be helpful to reduce time-step)
-                                 !     and if totally ignore gas (all), may assign this to 0.0
+  ! (because 'mol_g', fraction of vapor in air-mixture, going to be as multiplier in all 'gas' calculations in 'th.F90')
+  ! so, if for air-mixture, may assign this to 1.0 ( appears very helpful to reduce time-step)
+  !     if totally ignore gas (all), may assign this to 0.0
+
+  auxvar%ice%mol_gas     = 1.d0
   auxvar%ice%dmol_gas_dt = 0.d0
   auxvar%ice%dmol_gas_dp = 0.d0
 #else
@@ -1177,8 +1190,7 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
     call characteristic_curves%saturation_function%IceCapillaryPressure(pres_l, tc, &
                                    xplice, dxplice_dpl, dxplice_dt, option)
 
-    ice_presl    = option%reference_pressure - xplice
-    !ice_presl    = (pres_l - pc) - xplice
+    ice_presl    = (pres_l - pc) - xplice
     ice_presl_dpl= dxplice_dpl  ! w.r.t 'pressure', not 'pc'
     ice_presl_dt = dxplice_dt
 
