@@ -554,7 +554,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   call process_model%FinalizeTimestep()
   
   if (this%print_ekg .and. OptionPrintToFile(option)) then
-100 format(a32," TIMESTEP ",i10,2es16.8,a,i3,i5,i3,i5,i5,i10)
+100 format(a32," TIMESTEP ",i10,2es16.8,a,i3,i5,i5,i10,i5,i10)
     write(IUNIT_EKG,100) trim(this%name), this%steps, this%target_time/tconv, &
       this%dt/tconv, trim(tunit), &
       icut, this%cumulative_time_step_cuts, &
