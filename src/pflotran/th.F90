@@ -1566,7 +1566,7 @@ subroutine THAccumulation(auxvar,global_auxvar, &
   PetscReal ::rock_dencpr,por1
 
   PetscInt :: ispec
-  PetscReal :: vol,por
+  PetscReal :: vol,por,uh
   PetscReal :: porXvol, mol(option%nflowspec), eng
   PetscReal :: vol_frac_prim
   PetscReal :: compressed_porosity, dcompressed_porosity_dp
@@ -1592,10 +1592,10 @@ subroutine THAccumulation(auxvar,global_auxvar, &
   porXvol = por*vol
 
   mol(1) = global_auxvar%sat(1)*global_auxvar%den(1)*porXvol
+  uh     = auxvar%u
 
 ! TechNotes, TH Mode: First term of Equation 9
   ! rock_dencpr [MJ/m^3 rock-K]
-
 #ifdef CLM_PFLOTRAN
   if(auxvar%hcapv_solid /= UNINITIALIZED_DOUBLE) then
     ! soil solid fraction vol. heat capacity variable with material
@@ -1607,7 +1607,7 @@ subroutine THAccumulation(auxvar,global_auxvar, &
 
   eng = global_auxvar%sat(1) * &
         global_auxvar%den(1) * &
-        auxvar%u * porXvol + &
+        uh * porXvol +         &
         (1.d0 - por) * vol * rock_dencpr * global_auxvar%temp
 
   if (option%use_th_freezing) then
@@ -2706,6 +2706,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: q_approx,dq_approx
   PetscBool :: skip_thermal_conduction
   PetscReal :: ugas_ave, dugas_ave_dt, dugas_ave_dp, fdiffgas, fdiffgas_dx
+  PetscReal :: deltaTf
 
   PetscBool :: skip_mass_flow
   skip_thermal_conduction = PETSC_FALSE
@@ -3140,6 +3141,17 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
     uh = auxvar_dn%u
     duh_dp_dn = auxvar_dn%du_dp
     duh_dt_dn = auxvar_dn%du_dt
+
+  ! F.-M. Yuan: for 1-way SEEPAGE_BC, if water flow driven by Pres(1) under freezing condition,
+  ! expansion caused high pressure is not really associated with real-water flow, but may cause very high heat loss and cause pertubation
+  if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
+    deltaTf = 1.0d-10              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
+    if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf,option%frzthw_halfwidth)
+    if(global_auxvar_dn%temp<=deltaTF+1.d-50) then   ! when iced-water exists, shut-off heat bulk outlet
+      uh = 0.d0
+      duh_dp_dn = 0.d0
+      duh_dt_dn = 0.d0
+    endif
   endif
 
   !call InterfaceApprox(auxvar_up%h, auxvar_dn%h, &
@@ -3316,6 +3328,15 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
             ugas_ave = auxvar_dn%ice%u_gas
             dugas_ave_dt = auxvar_dn%ice%du_gas_dt
             dugas_ave_dp = auxvar_dn%ice%du_gas_dp
+          endif
+          if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
+            deltaTf = 1.0d-10              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
+            if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf,option%frzthw_halfwidth)
+            if(global_auxvar_dn%temp<=deltaTF+1.d-50) then   ! when iced-water exists, shut-off heat bulk outlet
+              ugas_ave = 0.d0
+              dugas_ave_dt = 0.d0
+              dugas_ave_dp = 0.d0
+            endif
           endif
         
           Ddiffgas_avg = upweight*Ddiffgas_up+(1.D0 - upweight)*Ddiffgas_dn
@@ -3572,6 +3593,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   PetscReal :: T_th,fctT,fct
   PetscBool :: skip_thermal_conduction,  skip_mass_flow
   PetscReal :: fdiffgas, ugas_ave
+  PetscReal :: deltaTf
 
   skip_thermal_conduction = PETSC_FALSE
   skip_mass_flow = PETSC_FALSE
@@ -3710,8 +3732,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
              (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
              * dist_gravity
         
-        if (option%ice_model /= DALL_AMICO &
-          .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o)
+        if (option%ice_model /= DALL_AMICO) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -3842,6 +3863,16 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
     uh = auxvar_dn%u
   endif
 
+  ! F.-M. Yuan: for 1-way SEEPAGE_BC, if water flow driven by Pres(1) under freezing condition,
+  ! expansion caused high pressure is not really associated with real-water flow, but may cause very high heat loss and cause pertubation
+  if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
+    deltaTf = 1.0d-10              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
+    if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf,option%frzthw_halfwidth)
+    if(global_auxvar_dn%temp<=deltaTf+1.d-50) then   ! when iced-water exists, shut-off heat bulk outlet
+      uh = 0.d0
+    endif
+  endif
+
   fluxm = fluxm + q*density_ave
   fluxe = fluxe + q*density_ave*uh
   fluxe_bulk = q*density_ave*uh
@@ -3927,6 +3958,14 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
             ugas_ave = auxvar_dn%ice%u_gas
           endif
 
+          if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
+            deltaTf = 1.0d-10              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
+            if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf,option%frzthw_halfwidth)
+            if(global_auxvar_dn%temp<=deltaTF+1.d-50) then   ! when iced-water exists, shut-off heat bulk outlet
+              ugas_ave = 0.d0
+            endif
+          endif
+
           Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn
 
           !fluxm = fluxm + por_dn*tor_dn*Ddiffgas_avg*(molg_up - molg_dn)/ &
@@ -3946,6 +3985,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
     case(ZERO_GRADIENT_BC)
       ! No change in fluxe
+      fluxe_cond = 0.d0    ! need this for output
 
     case default
       option%io_buffer = 'BC type for T: "' // trim(GetSubConditionName(ibndtype(TH_TEMPERATURE_DOF))) // &
