@@ -667,7 +667,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   character(len=MAXSTRINGLENGTH) :: error_string
 
   PetscBool :: DTRUNC_FLAG = PETSC_FALSE  ! option for truncating deriatives to zero at bounds (default: FALSE)
-  PetscReal :: pcmax, pcmin, t_trunc, dt_trunc, dp_trunc
+  PetscReal :: pcmax, pcmin, p_trunc, t_trunc, dp_trunc, dt_trunc
 
   out_of_table_flag = PETSC_FALSE
  
@@ -688,11 +688,9 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   dt_trunc = 1.d0
   dp_trunc = 1.d0
 #ifdef CLM_PFLOTRAN
-  ! general bounds of P/T. We may need to further limit bounds for 3-phase water properties.
+  ! general bounds of T. We may need to further limit bounds differently when water at each phase
   if (global_auxvar%temp>=100.d0 .or. global_auxvar%temp<=-273.d0) dt_trunc = 0.d0
   global_auxvar%temp    = min(100.d0, max(-273.d0, global_auxvar%temp))
-  if (global_auxvar%pres(1)>=16.54d6) dp_trunc = 0.d0           ! 16.54 MPa is upper limit for using IFC67 EOS.
-  global_auxvar%pres(1) = min(16.54d6, global_auxvar%pres(1))
 #endif
   
   ! Check if the capillary pressure is less than -100MPa, which also limit the lower limit of pres(1).
@@ -874,17 +872,21 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! i.e. @ t of ~-0.02404oC/1atm, hw ~ 0.d0; beyond that, hw is negative with a large negative derivative.
   ! So for a threshold of 0 ~ -0.02oC, it will give a small positive value of 'hw' for suppercooled liq. water
   t_trunc = -0.02d0
+  p_trunc = 16.54d6           ! 16.54 MPa is upper limit for using IFC67 EOS.
+
   ! a note here: limit for p/t according to IFC67 p/t ranges.
   ! This may be helpful to solve small-timing issue
 
   call EOSWaterDensity(max(t_trunc, global_auxvar%temp),      &
-                        pw, dw_kg, dw_mol, dw_dp, dw_dt,ierr)
+                       max(p_trunc, pw), dw_kg, dw_mol, dw_dp, dw_dt,ierr)
   if (DTRUNC_FLAG) dw_dp = dw_dp * dpw_dp  ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
   if (DTRUNC_FLAG .and. global_auxvar%temp<t_trunc) dw_dt = 0.d0
+  if (DTRUNC_FLAG .and. pw>=p_trunc) dw_dp = 0.d0
 
   call EOSWaterEnthalpy(max(t_trunc, global_auxvar%temp),     &
-                        pw, hw,hw_dp,hw_dt,ierr)
+                        max(p_trunc, pw), hw,hw_dp,hw_dt,ierr)
   if (DTRUNC_FLAG .and. global_auxvar%temp<t_trunc) hw_dt = 0.d0
+  if (DTRUNC_FLAG .and. pw>=p_trunc) hw_dp = 0.d0
 
 #endif
   ! J/kmol -> MJ/kmol
@@ -905,16 +907,17 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! The Viscosity Eq. shows that: temp< ~ -63oC (1atm), 'visl' sharply increases starting from ~ 1.e-2 order.
   ! 'visl' ~ 0. around -133oC, which produces 'inf' for 'kr'
   t_trunc = -63.d0
+  ! the lowest Tk of 200 for vapor exists in EOS-h2o phase-diagram, but here make it consistent with 'Viscosity'
+  p_trunc = 16.54d6
 
   call EOSWaterSaturationPressure(max(t_trunc,global_auxvar%temp), sat_pressure, dpsat_dt, ierr)
-  ! the lowest Tk of 200 for vapor exists in EOS-h2o phase-diagram, but here make it consistent with 'Viscosity'
-
   if(DTRUNC_FLAG .and. global_auxvar%temp<=t_trunc) dpsat_dt = 0.d0
 
-  call EOSWaterViscosity(max(t_trunc,global_auxvar%temp), pw,   &
+  call EOSWaterViscosity(max(t_trunc,global_auxvar%temp), max(p_trunc, pw),   &
                          sat_pressure, dpsat_dt,   &
                          visl, dvis_dt,dvis_dp, ierr)
   if(DTRUNC_FLAG .and. global_auxvar%temp<=t_trunc) dvis_dt = 0.d0
+  if (DTRUNC_FLAG .and. pw>=p_trunc) dvis_dp = 0.d0
 #endif
   if(DTRUNC_FLAG) dvis_dp = dvis_dp*dpw_dp  ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
 
@@ -956,11 +959,12 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   ! for ice Ih, Tk limit is ~127K (-146oC) in EOS-h2o phase-diagram
   t_trunc = -146.d0
-
-  call EOSWaterDensityIce(max(t_trunc, global_auxvar%temp), pw,                    &
+  p_trunc = 16.54d6
+  call EOSWaterDensityIce(max(t_trunc, global_auxvar%temp), max(p_trunc, pw),         &
                           den_ice, dden_ice_dT, dden_ice_dp, ierr)
   if(DTRUNC_FLAG) dden_ice_dp = dden_ice_dp * dpw_dp  ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
   if(DTRUNC_FLAG .and. global_auxvar%temp<=t_trunc) dden_ice_dT = 0.d0
+  if(DTRUNC_FLAG .and. pw>=p_trunc) dden_ice_dp = 0.d0
 
   call EOSWaterInternalEnergyIce(max(t_trunc, global_auxvar%temp), u_ice, du_ice_dT)
   if(DTRUNC_FLAG .and. global_auxvar%temp<=t_trunc) du_ice_dT = 0.d0
@@ -990,7 +994,8 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   ! Calculate the values and derivatives for vapor density and internal energy
 
-  p_g      = pw
+  p_trunc  = 16.54d6
+  p_g      = max(p_trunc, pw)
   ! the lowest Tk of ~200K for vapor exists in EOS-h2o phase-diagram
   t_trunc  = -73.d0
   tk_g     = max(t_trunc,global_auxvar%temp)+273.15d0
@@ -1001,7 +1006,8 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
     auxvar%ice%dden_gas_dp = auxvar%ice%dden_gas_dp*dpw_dp    ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
-    if (tk_g<=t_trunc) auxvar%ice%dden_gas_dt = 0.d0
+    if (global_auxvar%temp<=t_trunc) auxvar%ice%dden_gas_dt = 0.d0
+    if (pw>=p_trunc) auxvar%ice%dden_gas_dp = 0.d0
   endif
 
   call EOSWaterSaturationPressure(tk_g-273.15d0, p_sat, dpsat_dt, ierr)
@@ -1011,9 +1017,12 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
     dmolg_dp = dmolg_dp * dpw_dp                              ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
-    if (tk_g<=t_trunc) then
+    if (global_auxvar%temp<=t_trunc) then
       dpsat_dt = 0.d0
       dmolg_dt = 0.d0
+    endif
+    if (pw>=p_trunc) then
+      dmolg_dp = 0.d0
     endif
   endif
 
@@ -1191,6 +1200,7 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
                                    xplice, dxplice_dpl, dxplice_dt, option)
 
     ice_presl    = (pres_l - pc) - xplice
+    !ice_presl    = option%reference_pressure - xplice
     ice_presl_dpl= dxplice_dpl  ! w.r.t 'pressure', not 'pc'
     ice_presl_dt = dxplice_dt
 
