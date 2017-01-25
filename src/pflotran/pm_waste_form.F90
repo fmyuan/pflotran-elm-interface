@@ -41,6 +41,7 @@ module PM_Waste_Form_class
     PetscReal :: vitality_rate_trunc
     PetscReal :: canister_material_constant
     PetscReal :: matrix_density                 ! kg/m^3
+    PetscReal :: specific_surface_area          ! m^2/kg
     character(len=MAXWORDLENGTH) :: name
     class(wf_mechanism_base_type), pointer :: next
   contains
@@ -48,8 +49,15 @@ module PM_Waste_Form_class
   end type wf_mechanism_base_type
 
   type, public, extends(wf_mechanism_base_type) :: wf_mechanism_glass_type
-    PetscReal :: specific_surface_area    ! m^2/kg
-    PetscReal :: dissolution_rate         ! kg-glass/m^2/sec
+    PetscReal :: dissolution_rate    ! kg-glass/m^2/sec
+    PetscReal :: k0                  ! k-glass/m^2/day
+    PetscReal :: k_long              ! k-glass/m^2/day
+    PetscReal :: nu                  ! [-]
+    PetscReal :: Ea                  ! [J/mol]
+    PetscReal :: Q
+    PetscReal :: K
+    PetscReal :: v
+    PetscReal :: pH
   contains
     procedure, public :: Dissolution => WFMechGlassDissolution
   end type wf_mechanism_glass_type
@@ -59,9 +67,14 @@ module PM_Waste_Form_class
   contains
     procedure, public :: Dissolution => WFMechDSNFDissolution
   end type wf_mechanism_dsnf_type
+  
+  ! the WIPP mechanism is the same as an instantaneous dissolution type
+  ! when selecting for DSNF and WIPP together, class is() can be used
+  ! when selecting for either DSNF or WIPP, type is() should be used
+  type, public, extends(wf_mechanism_dsnf_type) :: wf_mechanism_wipp_type
+  end type wf_mechanism_wipp_type
 
   type, public, extends(wf_mechanism_base_type) :: wf_mechanism_fmdm_type
-    PetscReal :: specific_surface_area    ! m^2/kg
     PetscReal :: dissolution_rate         ! kg-matrix/m^2/sec
     PetscReal :: frac_dissolution_rate    ! 1/sec
     PetscReal :: burnup                   ! GWd/MTHM (kg-matrix/m^2/sec)
@@ -88,7 +101,6 @@ module PM_Waste_Form_class
   end type wf_mechanism_fmdm_type
   
   type, public, extends(wf_mechanism_base_type) :: wf_mechanism_custom_type
-    PetscReal :: specific_surface_area    ! m^2/kg
     PetscReal :: dissolution_rate         ! kg-matrix/m^2/sec
     PetscReal :: frac_dissolution_rate    ! 1/sec
   contains
@@ -149,6 +161,7 @@ module PM_Waste_Form_class
             PMWFSetup, &
             MechanismGlassCreate, &
             MechanismDSNFCreate, &
+            MechanismWIPPCreate, &
             MechanismCustomCreate, &
             MechanismFMDMCreate, &
             RadSpeciesCreate
@@ -172,6 +185,7 @@ subroutine MechanismInit(this)
   nullify(this%rad_species_list)
   this%num_species = 0
   this%matrix_density = UNINITIALIZED_DOUBLE
+  this%specific_surface_area = UNINITIALIZED_DOUBLE
   this%name = ''
  !---- canister degradation model ----------------------
   this%canister_degradation_model = PETSC_FALSE
@@ -198,8 +212,15 @@ function MechanismGlassCreate()
   
   allocate(MechanismGlassCreate)
   call MechanismInit(MechanismGlassCreate)
-  MechanismGlassCreate%specific_surface_area = UNINITIALIZED_DOUBLE  ! m^2/kg
-  MechanismGlassCreate%dissolution_rate = 0.d0  ! kg/m^2/sec
+  MechanismGlassCreate%dissolution_rate = 0.d0        ! [kg/m^2/sec]
+  MechanismGlassCreate%k0 = UNINITIALIZED_DOUBLE      ! [kg/m^2/sec]
+  MechanismGlassCreate%k_long = UNINITIALIZED_DOUBLE  ! [kg/m^2/sec]
+  MechanismGlassCreate%nu = UNINITIALIZED_DOUBLE      ! [-]
+  MechanismGlassCreate%Ea = UNINITIALIZED_DOUBLE      ! [J/mol]
+  MechanismGlassCreate%Q = UNINITIALIZED_DOUBLE      
+  MechanismGlassCreate%K = UNINITIALIZED_DOUBLE
+  MechanismGlassCreate%v = UNINITIALIZED_DOUBLE    
+  MechanismGlassCreate%pH = UNINITIALIZED_DOUBLE            
 
 end function MechanismGlassCreate
 
@@ -224,6 +245,25 @@ end function MechanismDSNFCreate
 
 ! ************************************************************************** !
 
+function MechanismWIPPCreate()
+  ! 
+  ! Creates the WIPP (Waste Isolation Pilot Plant) waste form mechanism package
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 012/7/2016
+
+  implicit none
+  
+  class(wf_mechanism_wipp_type), pointer :: MechanismWIPPCreate
+  
+  allocate(MechanismWIPPCreate)
+  call MechanismInit(MechanismWIPPCreate)
+  MechanismWIPPCreate%frac_dissolution_rate = UNINITIALIZED_DOUBLE  ! 1/sec
+
+end function MechanismWIPPCreate
+
+! ************************************************************************** !
+
 function MechanismFMDMCreate()
   ! 
   ! Creates the FMDM waste form mechanism package
@@ -238,7 +278,6 @@ function MechanismFMDMCreate()
   allocate(MechanismFMDMCreate)
   call MechanismInit(MechanismFMDMCreate)
   
-  MechanismFMDMCreate%specific_surface_area = UNINITIALIZED_DOUBLE  ! m^2/kg
   MechanismFMDMCreate%dissolution_rate = UNINITIALIZED_DOUBLE       ! kg/m^2/sec
   MechanismFMDMCreate%frac_dissolution_rate = UNINITIALIZED_DOUBLE  ! 1/day
   MechanismFMDMCreate%burnup = UNINITIALIZED_DOUBLE     ! GWd/MTHM or (kg/m^2/sec)
@@ -269,7 +308,7 @@ function MechanismFMDMCreate()
   allocate(MechanismFMDMCreate%concentration( &
              MechanismFMDMCreate%num_concentrations, &
              MechanismFMDMCreate%num_grid_cells_in_waste_form))
-  MechanismFMDMCreate%concentration = 1.d-20
+  MechanismFMDMCreate%concentration = 1.d-13
   
   allocate(MechanismFMDMCreate%mapping_fmdm(4))
   MechanismFMDMCreate%mapping_fmdm = [MechanismFMDMCreate%iO2, &
@@ -294,11 +333,11 @@ function MechanismCustomCreate()
   
   allocate(MechanismCustomCreate)
   call MechanismInit(MechanismCustomCreate)
-  MechanismCustomCreate%specific_surface_area = UNINITIALIZED_DOUBLE  ! m^2/kg
   MechanismCustomCreate%dissolution_rate = UNINITIALIZED_DOUBLE    ! kg/m^2/sec
   MechanismCustomCreate%frac_dissolution_rate = UNINITIALIZED_DOUBLE    ! 1/sec
 
 end function MechanismCustomCreate
+
 
 ! ************************************************************************** !
 
@@ -633,6 +672,11 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
           allocate(new_mechanism)
           new_mechanism => MechanismDSNFCreate()
       !---------------------------------
+        case('WIPP')
+          error_string = trim(error_string) // ' WIPP'
+          allocate(new_mechanism)
+          new_mechanism => MechanismWIPPCreate()
+      !---------------------------------
         case('FMDM')
           ! for now, set bypass_warning_message = TRUE so we can run 
           ! the fmdm model even though its not included/linked 
@@ -681,40 +725,36 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
             call InputErrorMsg(input,option,'specific surface area', &
                                error_string)
             call InputReadAndConvertUnits(input,double,'m^2/kg', &
-                               trim(error_string)//',specific surface area', &
-                                          option)
+                            trim(error_string)//',specific surface area',option)
             select type(new_mechanism)
-              type is(wf_mechanism_dsnf_type)
+              class is(wf_mechanism_dsnf_type)
+                ! applies to dsnf & wipp types
                 option%io_buffer = 'SPECIFIC_SURFACE_AREA cannot be &
                                    &specified for ' // trim(error_string)
                 call printErrMsg(option)
-              type is(wf_mechanism_custom_type)
-                new_mechanism%specific_surface_area = double
-              type is(wf_mechanism_glass_type)
-                new_mechanism%specific_surface_area = double
-              type is(wf_mechanism_fmdm_type)
+              class default
                 new_mechanism%specific_surface_area = double
             end select
         !--------------------------
           case('MATRIX_DENSITY')
-            call InputReadDouble(input,option,new_mechanism%matrix_density)
+            call InputReadDouble(input,option,double)
             call InputErrorMsg(input,option,'matrix density',error_string)
-            call InputReadAndConvertUnits(input,new_mechanism%matrix_density, &
-                                          'kg/m^3', &
-                                       trim(error_string)//',matrix density', &
-                                          option)
+            call InputReadAndConvertUnits(input,double,'kg/m^3', &
+                                   trim(error_string)//',matrix density',option)
+            select type(new_mechanism)
+              class default
+                new_mechanism%matrix_density = double
+            end select
         !--------------------------
           case('FRACTIONAL_DISSOLUTION_RATE')
+            call InputReadDouble(input,option,double)
+            call InputErrorMsg(input,option,'fractional dissolution rate', &
+                               error_string)
+            call InputReadAndConvertUnits(input,double,'unitless/sec', &
+                      trim(error_string)//',fractional dissolution rate',option)
             select type(new_mechanism)
               type is(wf_mechanism_custom_type)
-                call InputReadDouble(input,option, &
-                     new_mechanism%frac_dissolution_rate)
-                call InputErrorMsg(input,option,'fractional dissolution rate', &
-                                   error_string)
-                call InputReadAndConvertUnits(input, &
-                         new_mechanism%frac_dissolution_rate,'unitless/sec', &
-                         trim(error_string)//',fractional dissolution rate', &
-                         option)
+                new_mechanism%frac_dissolution_rate = double
               class default
                 option%io_buffer = 'FRACTIONAL_DISSOLUTION_RATE cannot be &
                                    &specified for ' // trim(error_string)
@@ -722,18 +762,142 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
             end select
         !--------------------------
           case('DISSOLUTION_RATE')
+            call InputReadDouble(input,option,double)
+            call InputErrorMsg(input,option,'dissolution rate',error_string)
+            call InputReadAndConvertUnits(input,double,'kg/m^2-sec', &
+                                 trim(error_string)//',dissolution_rate',option)
             select type(new_mechanism)
               type is(wf_mechanism_custom_type)
-                call InputReadDouble(input,option, &
-                     new_mechanism%dissolution_rate)
-                call InputErrorMsg(input,option,'dissolution rate',error_string)
-                call InputReadAndConvertUnits(input, &
-                       new_mechanism%dissolution_rate, &
-                       'kg/m^2-sec',trim(error_string)//',dissolution_rate', &
-                       option)
+                new_mechanism%dissolution_rate = double
               class default
                 option%io_buffer = 'DISSOLUTION_RATE cannot be specified for ' &
                                    // trim(error_string)
+                call printErrMsg(option)
+            end select
+        !--------------------------
+          case('K0')
+            call InputReadDouble(input,option,double)
+            call InputErrorMsg(input,option,'K0 (intrinsic dissolution rate)', &
+                               error_string)
+            call InputReadAndConvertUnits(input,double,'kg/m^2-sec', &
+                  trim(error_string)//',K0 (intrinsic dissolution rate)',option)
+            select type(new_mechanism)
+              type is(wf_mechanism_glass_type)
+                new_mechanism%k0 = double
+              class default
+                option%io_buffer = 'K0 (intrinsic dissolution rate) cannot be &
+                                   &specified for ' // trim(error_string)
+                call printErrMsg(option)
+            end select
+        !--------------------------
+          case('K_LONG')
+            call InputReadDouble(input,option,double)
+            call InputErrorMsg(input,option,'K_LONG (dissolution rate)', &
+                               error_string)
+            call InputReadAndConvertUnits(input,double,'kg/m^2-sec', &
+                    trim(error_string)//',K_LONG (dissolution rate)',option)
+            select type(new_mechanism)
+              type is(wf_mechanism_glass_type)
+                new_mechanism%k_long = double
+              class default
+                option%io_buffer = 'K_LONG (dissolution rate) cannot be &
+                                   &specified for ' // trim(error_string)
+                call printErrMsg(option)
+            end select
+        !--------------------------
+          case('NU')
+            call InputReadDouble(input,option,double)
+            call InputErrorMsg(input,option,'NU (pH dependence parameter)', &
+                               error_string)
+            select type(new_mechanism)
+              type is(wf_mechanism_glass_type)
+                new_mechanism%nu = double
+              class default
+                option%io_buffer = 'NU (pH dependence parameter) cannot be &
+                                   &specified for ' // trim(error_string)
+                call printErrMsg(option)
+            end select
+        !--------------------------
+          case('EA')
+            call InputReadDouble(input,option,double)
+            call InputErrorMsg(input,option,'EA (effective activation energy)',&
+                               error_string)
+            call InputReadAndConvertUnits(input,double,'J/mol', &
+                 trim(error_string)//',EA (effective activation energy)',option)
+            select type(new_mechanism)
+              type is(wf_mechanism_glass_type)
+                new_mechanism%Ea = double
+              class default
+                option%io_buffer = 'EA (effective activation energy) cannot be &
+                                   &specified for ' // trim(error_string)
+                call printErrMsg(option)
+            end select
+        !--------------------------
+          case('Q')
+            call InputReadDouble(input,option,double)
+            call InputErrorMsg(input,option,'Q (ion activity product)',&
+                               error_string)
+            select type(new_mechanism)
+              type is(wf_mechanism_glass_type)
+                new_mechanism%Q = double
+              class default
+                option%io_buffer = 'Q (ion activity product) cannot be &
+                                   &specified for ' // trim(error_string)
+                call printErrMsg(option)
+            end select
+        !--------------------------
+          case('K')
+            call InputReadDouble(input,option,double)
+            call InputErrorMsg(input,option,'K (equilibrium constant)',&
+                               error_string)
+            select type(new_mechanism)
+              type is(wf_mechanism_glass_type)
+                new_mechanism%K = double
+              class default
+                option%io_buffer = 'K (equilibrium constant) cannot be &
+                                   &specified for ' // trim(error_string)
+                call printErrMsg(option)
+            end select
+        !--------------------------
+          case('V')
+            call InputReadDouble(input,option,double)
+            call InputErrorMsg(input,option,'V (exponent parameter)',&
+                               error_string)
+            select type(new_mechanism)
+              type is(wf_mechanism_glass_type)
+                new_mechanism%v = double
+              class default
+                option%io_buffer = 'V (exponent parameter) cannot be &
+                                   &specified for ' // trim(error_string)
+                call printErrMsg(option)
+            end select
+        !--------------------------
+          case('PH')
+            call InputReadDouble(input,option,double)
+            call InputErrorMsg(input,option,'PH',error_string)
+            select type(new_mechanism)
+              type is(wf_mechanism_glass_type)
+                new_mechanism%pH = double
+              class default
+                option%io_buffer = 'PH cannot be &
+                                   &specified for ' // trim(error_string)
+                call printErrMsg(option)
+            end select
+        !--------------------------
+          case('KIENZLER_DISSOLUTION')
+            select type(new_mechanism)
+              type is(wf_mechanism_glass_type)
+                new_mechanism%k0 = 560.d0/(24.d0*3600.d0)  ! kg/m^2-sec
+                new_mechanism%k_long = 0.d0
+                new_mechanism%nu = 0.d0
+                new_mechanism%Ea = 7397.d0*8.314d0
+                new_mechanism%Q = 0.d0
+                new_mechanism%K = 1.d0     ! This value doesn't matter since Q=0
+                new_mechanism%v = 1.d0
+                new_mechanism%pH = 0.d0
+              class default
+                option%io_buffer = 'KIENZLER_DISSOLUTION cannot be &
+                                   &specified for ' // trim(error_string)
                 call printErrMsg(option)
             end select
         !--------------------------
@@ -766,26 +930,40 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               call InputReadPflotranString(input,option)
               if (InputCheckExit(input,option)) exit
               k = k + 1
+              if (k > 50) then
+                option%io_buffer = 'More than 50 radionuclide species are &
+                                 &provided in the ' // trim(error_string) // &
+                                 ', SPECIES block. Reduce to less than 50 &
+                                 &species, or e-mail pflotran-dev at &
+                                 &googlegroups dot com.'
+                call printErrMsg(option)
+              endif
               temp_species_array(k) = RadSpeciesCreate() 
+              ! read species name
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'SPECIES name',error_string)
               temp_species_array(k)%name = trim(word)
+              ! read species formula weight [g-species/mol-species]
               call InputReadDouble(input,option,double)
               call InputErrorMsg(input,option,'SPECIES formula weight', &
                                  error_string)
               temp_species_array(k)%formula_weight = double
+              ! read species decay constant [1/sec]
               call InputReadDouble(input,option,double)
               call InputErrorMsg(input,option,'SPECIES decay rate constant', &
                                  error_string)
               temp_species_array(k)%decay_constant = double
+              ! read species initial mass fraction [g-species/g-bulk]
               call InputReadDouble(input,option,double)
               call InputErrorMsg(input,option,'SPECIES initial mass fraction', &
                                  error_string)
               temp_species_array(k)%mass_fraction = double
+              ! read species instant release fraction [-]
               call InputReadDouble(input,option,double)
               call InputErrorMsg(input,option,'SPECIES instant release &
                                  &fraction',error_string)
               temp_species_array(k)%inst_release_fraction = double
+              ! read species daughter
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
                 temp_species_array(k)%daughter = trim(word)
@@ -877,6 +1055,62 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
             option%io_buffer = 'SPECIFIC_SURFACE_AREA must be specified in ' &
                                // trim(error_string) // ' ' // &
                                trim(new_mechanism%name) // ' block.'
+            call printErrMsg(option)
+          endif
+          if (uninitialized(new_mechanism%k0)) then
+            option%io_buffer = 'K0 must be specified in ' &
+                               // trim(error_string) // ' ' // &
+                               trim(new_mechanism%name) // ' block, or choose &
+                               &the KIENZLER_DISSOLUTION option.'
+            call printErrMsg(option)
+          endif
+          if (uninitialized(new_mechanism%k_long)) then
+            option%io_buffer = 'K_LONG must be specified in ' &
+                               // trim(error_string) // ' ' // &
+                               trim(new_mechanism%name) // ' block, or choose &
+                               &the KIENZLER_DISSOLUTION option.'
+            call printErrMsg(option)
+          endif
+          if (uninitialized(new_mechanism%nu)) then
+            option%io_buffer = 'NU must be specified in ' &
+                               // trim(error_string) // ' ' // &
+                               trim(new_mechanism%name) // ' block, or choose &
+                               &the KIENZLER_DISSOLUTION option.'
+            call printErrMsg(option)
+          endif
+          if (uninitialized(new_mechanism%Ea)) then
+            option%io_buffer = 'EA must be specified in ' &
+                               // trim(error_string) // ' ' // &
+                               trim(new_mechanism%name) // ' block, or choose &
+                               &the KIENZLER_DISSOLUTION option.'
+            call printErrMsg(option)
+          endif
+          if (uninitialized(new_mechanism%Q)) then
+            option%io_buffer = 'Q must be specified in ' &
+                               // trim(error_string) // ' ' // &
+                               trim(new_mechanism%name) // ' block, or choose &
+                               &the KIENZLER_DISSOLUTION option.'
+            call printErrMsg(option)
+          endif
+          if (uninitialized(new_mechanism%K)) then
+            option%io_buffer = 'K must be specified in ' &
+                               // trim(error_string) // ' ' // &
+                               trim(new_mechanism%name) // ' block, or choose &
+                               &the KIENZLER_DISSOLUTION option.'
+            call printErrMsg(option)
+          endif
+          if (uninitialized(new_mechanism%pH)) then
+            option%io_buffer = 'PH must be specified in ' &
+                               // trim(error_string) // ' ' // &
+                               trim(new_mechanism%name) // ' block, or choose &
+                               &the KIENZLER_DISSOLUTION option.'
+            call printErrMsg(option)
+          endif
+          if (uninitialized(new_mechanism%v)) then
+            option%io_buffer = 'V must be specified in ' &
+                               // trim(error_string) // ' ' // &
+                               trim(new_mechanism%name) // ' block, or choose &
+                               &the KIENZLER_DISSOLUTION option.'
             call printErrMsg(option)
           endif
         type is(wf_mechanism_custom_type)
@@ -1030,6 +1264,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
             call InputReadAndConvertUnits(input,new_waste_form%volume, &
                                           'm^3',trim(error_string)//',volume', &
                                           option)
+            new_waste_form%init_volume = new_waste_form%volume
         !-----------------------------
           case('COORDINATE')
             call GeometryReadCoordinate(input,option, &
@@ -1599,18 +1834,18 @@ subroutine PMWFInitializeTimestep(this)
     allocate(concentration_old(num_species))
     ! ------ update mass balances after transport step ---------------------
     select type(cwfm => cur_waste_form%mechanism)
-      type is(wf_mechanism_dsnf_type)
+      class is(wf_mechanism_dsnf_type)
         ! note: do nothing here because the cumulative mass update for dsnf
-        ! mechanisms has already occured (if breached)
+        ! and/or wipp mechanisms has already occured (if breached)
       class default
         cur_waste_form%cumulative_mass = cur_waste_form%cumulative_mass + &
           cur_waste_form%instantaneous_mass_rate*dt
     end select
     ! ------ update matrix volume ------------------------------------------
     select type(cwfm => cur_waste_form%mechanism)
-      type is(wf_mechanism_dsnf_type)
-        ! note: do nothing here because the volume update for dsnf
-        ! mechanisms has already occured (if breached)
+      class is(wf_mechanism_dsnf_type)
+        ! note: do nothing here because the volume update for dsnf and/or
+        ! wipp mechanisms has already occured (if breached)
       class default
          dV = cur_waste_form%eff_dissolution_rate / &   ! kg-matrix/sec
            cwfm%matrix_density * &                      ! kg-matrix/m^3-matrix
@@ -1862,9 +2097,9 @@ subroutine PMWFSolve(this,time,ierr)
       call cur_waste_form%mechanism%Dissolution(cur_waste_form,this,ierr)
       select type(cwfm => cur_waste_form%mechanism)
       !-----------------------------------------------------------------------
-        ! ignore source term if dsnf type, and directly update the
-        ! solution vector instead (see note in WFMechDSNFDissolution):
-        type is(wf_mechanism_dsnf_type)
+        ! ignore source term if dsnf/wipp type, and directly update the
+        ! solution vector instead (see note in WFMech[DSNF/WIPP]Dissolution):
+        class is(wf_mechanism_dsnf_type)
           do k = 1,cur_waste_form%region%num_cells
             cell_id = cur_waste_form%region%cell_ids(k)
             do j = 1,num_species
@@ -2005,12 +2240,16 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
   ! HLW Glass, Spent Nuclear Fuel, and Compacted Hulls and End Pieces
   ! (CSD-C Waste). KIT Scientific Reports 7624. Karlsruhe Institute of
   ! Technology, Baden-Wurttemberg, Germany.
+  ! Generalized glass dissolution equation comes from Eq. 2.3.7-6 in
+  ! Yucca Mountain Repository SAR, Section 2.3.7, DOE/RW-0573 Rev.0
   
   avg_temp = (sum(global_auxvars(grid%nL2G(waste_form%region%cell_ids))% &
               temp)/waste_form%region%num_cells)+273.15d0
   
   ! kg-glass/m^2/sec
-  this%dissolution_rate = time_conversion * 560.d0*exp(-7397.d0/avg_temp)
+  this%dissolution_rate = this%k0 * (10.d0**(this%nu*this%pH)) * &
+                          exp(-this%Ea/(8.314d0*avg_temp)) * &
+                          (1.d0 - (this%Q/this%K)**(1/this%v)) + this%k_long
 
   ! kg-glass/sec
   waste_form%eff_dissolution_rate = &
@@ -2060,6 +2299,29 @@ subroutine WFMechDSNFDissolution(this,waste_form,pm,ierr)
     waste_form%exposure_factor               ! [-]
 
 end subroutine WFMechDSNFDissolution
+
+! ************************************************************************** !
+
+subroutine WFMechWIPPDissolution(this,waste_form,pm,ierr) 
+  ! 
+  ! Calculates the WIPP waste form dissolution rate
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 012/8/2016
+
+  implicit none
+
+  class(wf_mechanism_wipp_type) :: this
+  class(waste_form_base_type) :: waste_form
+  class(pm_waste_form_type) :: pm  
+  PetscErrorCode :: ierr
+  
+  ! This subroutine is only a placeholder.
+  ! The WIPP waste form mechanism is an extension of the DSNF waste form
+  ! mechanism and does not have its own dissolution routine, however, this
+  ! placeholder exists in case a different one should be implemented.
+
+end subroutine WFMechWIPPDissolution
 
 ! ************************************************************************** !
 
@@ -2134,11 +2396,13 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
     do i = 1, size(this%mapping_fmdm)
       icomp_fmdm = this%mapping_fmdm(i)
       icomp_pflotran = this%mapping_fmdm_to_pflotran(icomp_fmdm)
-      this%concentration(icomp_fmdm,1) = &
+      this%concentration(icomp_fmdm,:) = &
         rt_auxvars(ghosted_id)%total(icomp_pflotran,LIQUID_PHASE)
-        !jmf: ?? * waste_form%scaling_factor(k)
     enddo
   enddo
+  
+  ! convert total component concentration from mol/L to mol/m3 (*1.d3)
+  this%concentration = this%concentration*1.d3
   
   if (waste_form%volume /= waste_form%init_volume) then
     initialRun = PETSC_FALSE
@@ -2150,12 +2414,15 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
  ! FMDM model calculates this%dissolution_rate and Usource [g/m^2/yr]:
  !====================================================================
   time = option%time
-  avg_temp = (sum(global_auxvars(grid%nL2G(cur_waste_form%region% &
-             cell_ids))%temp)/cur_waste_form%region%num_cells)
+  avg_temp = (sum(global_auxvars(grid%nL2G(waste_form%region% &
+             cell_ids))%temp)/waste_form%region%num_cells)
   call AMP_step(this%burnup, time, avg_temp, this%concentration, &
                 initialRun, this%dissolution_rate, Usource, success) 
+  write(*,*) this%dissolution_rate
  !====================================================================
   
+  ! convert total component concentration from mol/m3 back to mol/L (/1.d3)
+  this%concentration = this%concentration/1.d3
   ! convert this%dissolution_rate from fmdm to pflotran units:
   ! g/m^2/yr => kg/m^2/sec
   this%dissolution_rate = this%dissolution_rate / (1000.0*24.0*3600.0*365)
@@ -2457,7 +2724,7 @@ subroutine PMWFOutputHeader(this)
                                icolumn)
     enddo
     variable_string = 'WF Dissolution Rate'
-    units_string = 'kg/s' !// trim(adjustl(output_option%tunit))
+    units_string = 'kg/s'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
     variable_string = 'WF Volume'
