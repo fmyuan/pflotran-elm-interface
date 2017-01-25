@@ -3141,6 +3141,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
     uh = auxvar_dn%u
     duh_dp_dn = auxvar_dn%du_dp
     duh_dt_dn = auxvar_dn%du_dt
+  endif
+
 
   ! F.-M. Yuan: for 1-way SEEPAGE_BC, if water flow driven by Pres(1) under freezing condition,
   ! expansion caused high pressure is not really associated with real-water flow, but may cause very high heat loss and cause pertubation
