@@ -1367,13 +1367,13 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   endif
 #endif
   
-  if (soil_compressibility_index > 0) then
+  if (soil_compressibility_index > 0 .and. pres>option%reference_pressure) then
     tempreal = sat*den
     call MaterialCompressSoil(material_auxvar,pres, &
                               compressed_porosity,dcompressed_porosity_dp)
     por = compressed_porosity
   else
-    por = material_auxvar%porosity
+    por = material_auxvar%porosity_base
     dcompressed_porosity_dp = 0.d0
   endif
 
@@ -1578,13 +1578,14 @@ subroutine THAccumulation(auxvar,global_auxvar, &
   
   vol = material_auxvar%volume
   
-  if (soil_compressibility_index > 0) then
+  if (soil_compressibility_index > 0 &
+  .and. global_auxvar%pres(1)>option%reference_pressure) then
     call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1), &
                               compressed_porosity,dcompressed_porosity_dp)
     material_auxvar%porosity = compressed_porosity
     por = compressed_porosity
   else
-    por = material_auxvar%porosity
+    por = material_auxvar%porosity_base
   endif
   auxvar%transient_por = por
 
@@ -3149,7 +3150,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
     deltaTf = 1.0d-10              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
     if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf,option%frzthw_halfwidth)
-    if(global_auxvar_dn%temp<=deltaTF+1.d-50) then   ! when iced-water exists, shut-off heat bulk outlet
+    if(global_auxvar_dn%temp<=deltaTF) then   ! when iced-water exists, shut-off heat bulk outlet
       uh = 0.d0
       duh_dp_dn = 0.d0
       duh_dt_dn = 0.d0
@@ -3334,7 +3335,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
             deltaTf = 1.0d-10              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
             if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf,option%frzthw_halfwidth)
-            if(global_auxvar_dn%temp<=deltaTF+1.d-50) then   ! when iced-water exists, shut-off heat bulk outlet
+            if(global_auxvar_dn%temp<=deltaTF) then   ! when iced-water exists, shut-off heat bulk outlet
               ugas_ave = 0.d0
               dugas_ave_dt = 0.d0
               dugas_ave_dp = 0.d0
@@ -3870,7 +3871,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
     deltaTf = 1.0d-10              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
     if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf,option%frzthw_halfwidth)
-    if(global_auxvar_dn%temp<=deltaTf+1.d-50) then   ! when iced-water exists, shut-off heat bulk outlet
+    if(global_auxvar_dn%temp<=deltaTf) then   ! when iced-water exists, shut-off heat bulk outlet
       uh = 0.d0
     endif
   endif
@@ -3963,7 +3964,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
           if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
             deltaTf = 1.0d-10              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
             if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf,option%frzthw_halfwidth)
-            if(global_auxvar_dn%temp<=deltaTF+1.d-50) then   ! when iced-water exists, shut-off heat bulk outlet
+            if(global_auxvar_dn%temp<=deltaTF) then   ! when iced-water exists, shut-off heat bulk outlet
               ugas_ave = 0.d0
             endif
           endif
