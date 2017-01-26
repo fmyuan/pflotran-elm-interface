@@ -862,13 +862,6 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   ! ----- Liq. water ---------------------------------------------------------
 
-#ifndef CLM_PFLOTRAN
-  call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
-  if(DTRUNC_FLAG) dw_dp = dw_dp * dpw_dp  ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
-
-  call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
-
-#else
   ! F.-M. Yuan (2016-07-10)
   ! Liq. water Enthalpy by IFC67 eq. may have a tiny offset of temperature as following
   ! i.e. @ t of ~-0.02404oC/1atm, hw ~ 0.d0; beyond that, hw is negative with a large negative derivative.
@@ -886,20 +879,11 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                         pw, hw,hw_dp,hw_dt,ierr)
   if (DTRUNC_FLAG .and. global_auxvar%temp<t_trunc) hw_dt = 0.d0
 
-#endif
   ! J/kmol -> MJ/kmol
   hw = hw * option%scale
   hw_dp = hw_dp * option%scale
   hw_dt = hw_dt * option%scale
   if(DTRUNC_FLAG) hw_dp = hw_dp * dpw_dp  ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
-
-#ifndef CLM_PFLOTRAN
-  call EOSWaterSaturationPressure(global_auxvar%temp, sat_pressure, dpsat_dt, ierr)
-
-  call EOSWaterViscosity(global_auxvar%temp,pw,   &
-                         sat_pressure, dpsat_dt,  &
-                         visl, dvis_dt,dvis_dp, ierr)
-#else
 
   ! A note here (F.-M. Yuan: 2017-01-17)
   ! The Viscosity Eq. shows that: temp< ~ -63oC (1atm), 'visl' sharply increases starting from ~ 1.e-2 order.
@@ -908,19 +892,16 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   call EOSWaterSaturationPressure(max(t_trunc,global_auxvar%temp), sat_pressure, dpsat_dt, ierr)
   ! the lowest Tk of 200 for vapor exists in EOS-h2o phase-diagram, but here make it consistent with 'Viscosity'
-
   if(DTRUNC_FLAG .and. global_auxvar%temp<=t_trunc) dpsat_dt = 0.d0
 
   call EOSWaterViscosity(max(t_trunc,global_auxvar%temp), pw,   &
                          sat_pressure, dpsat_dt,   &
                          visl, dvis_dt,dvis_dp, ierr)
   if(DTRUNC_FLAG .and. global_auxvar%temp<=t_trunc) dvis_dt = 0.d0
-#endif
   if(DTRUNC_FLAG) dvis_dp = dvis_dp*dpw_dp  ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
 
   global_auxvar%den = dw_mol
   global_auxvar%den_kg = dw_kg
-  
   auxvar%h = hw
   auxvar%u = auxvar%h - pw / dw_mol * option%scale
   auxvar%kvr = kr/visl

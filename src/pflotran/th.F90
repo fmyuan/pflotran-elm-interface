@@ -4519,7 +4519,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       if(Res(1) /= Res(1) .or. Res(2) /= Res(2) &
         .or. abs(Res(1))>huge(Res(1)) .or. abs(Res(2))>huge(Res(2)) ) then
         write(string, *) ' @local_id -', local_id_up, local_id_dn, ' with Res -', Res
-        option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - interanl flux between ' // &
+        option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - interior flux between ' // &
           trim(string)
         call printErrMsg(option)
       endif
