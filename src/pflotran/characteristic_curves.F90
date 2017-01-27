@@ -2686,6 +2686,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         ice_pc = ice_pc * Hfunc + this%pcmax * (1.d0-Hfunc)
 
         dice_pc_dp =  dice_pc_dp + 1.d0           ! dpcgl_dp = 1.0 and dpcgl_dt = 0
+        dice_pc_dp = dice_pc_dp * dpc_dpres ! convert from w.r.t 'pc' to water pressure
 
       case (DALL_AMICO)
 
@@ -2734,8 +2735,6 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         call printErrMsg(option)
 
     end select ! select case (option%ice_model)
-
-    dice_pc_dp = dice_pc_dp * dpc_dpres ! convert from w.r.t 'pc' to water pressure
 
   else
 

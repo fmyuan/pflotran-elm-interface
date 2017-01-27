@@ -1831,12 +1831,13 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
     if (option%ice_model /= DALL_AMICO &
-      .or. .not.option%use_th_freezing) then    ! for other type 'ice_model' to us actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+      .or. option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then    ! for 1 other type 'ice_model' to us actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
       dphi_dp_up = 1.d0 + dgravity_dden_up*auxvar_up%dden_dp
       dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
       dphi_dt_up = dgravity_dden_up*auxvar_up%dden_dt
       dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
+
     else
       dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
       dphi_dp_up =  auxvar_up%ice%dpres_fh2o_dp + &
@@ -2461,7 +2462,7 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
               * dist_gravity
 
     if (option%ice_model /= DALL_AMICO &
-        .or. .not.option%use_th_freezing) then    ! for other type 'ice_model' to us actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+      .or. option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then    ! for 1 other type 'ice_model' to us actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
     else
       dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -2783,26 +2784,29 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
         if (option%ice_model /= DALL_AMICO &
-          .or. .not.option%use_th_freezing) then    ! for other type 'ice_model' to us actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+          .or. option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then    ! for 1 other type 'ice_model' to us actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
           dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
 
-        elseif (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
-          ! F.-M. Yuan: SEEPAGE_BC outlet 'pres(1)' is for water table,
-          ! while %pres_fh2o may be incorrect due to its %temp usually as first soil layer or external input
-          dphi = global_auxvar_up%pres(1) - auxvar_dn%ice%pres_fh2o + gravity
-          dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + &
+        else
+          if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC &
+            .or. option%ice_model == PAINTER_KARRA_EXPLICIT_SMOOTH) then
+            ! F.-M. Yuan: SEEPAGE_BC outlet 'pres(1)' is for water table,
+            ! while %pres_fh2o may be incorrect due to its %temp usually as first soil layer or external input
+            dphi = global_auxvar_up%pres(1) - auxvar_dn%ice%pres_fh2o + gravity
+            dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + &
                         dgravity_dden_dn*auxvar_dn%dden_dp
-          dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + &
+            dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + &
                         dgravity_dden_dn*auxvar_dn%dden_dt
 
-        else
-          dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
-          dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + &
+          else
+            dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
+            dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + &
                         dgravity_dden_dn*auxvar_dn%dden_dp
-          dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + &
+            dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + &
                         dgravity_dden_dn*auxvar_dn%dden_dt
+          endif
         endif
 
         if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC .or. &
@@ -2914,10 +2918,11 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
         if (option%ice_model /= DALL_AMICO &
-          .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o)
+          .or. option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then    ! for 1 other type 'ice_model' to us actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
           dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
+
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
           dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + dgravity_dden_dn*auxvar_dn%dden_dp
@@ -3649,16 +3654,19 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
                   * dist_gravity
 
         if (option%ice_model /= DALL_AMICO &
-          .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+          .or. option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then    ! for 1 other type 'ice_model' to us actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
 
-        elseif (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
+        else
+          if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC &
+           .and. option%ice_model == PAINTER_KARRA_EXPLICIT_SMOOTH) then
           ! F.-M. Yuan: SEEPAGE_BC outlet 'pres(1)' is for water table,
           ! while %pres_fh2o may be incorrect due to its %temp usually as first soil layer or external input
           dphi = global_auxvar_up%pres(1) - auxvar_dn%ice%pres_fh2o + gravity
 
-        else
-          dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
+          else
+            dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
+          endif
 
         endif
 
@@ -3735,7 +3743,8 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
              (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
              * dist_gravity
         
-        if (option%ice_model /= DALL_AMICO) then
+        if (option%ice_model /= DALL_AMICO &
+          .or. option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then    ! for 1 other type 'ice_model' to us actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -6694,8 +6703,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
               * FMWH2O * dist_gravity
     dgravity_dden_dn = (1.d0-upweight)*FMWH2O*dist_gravity
 
-    if (option%ice_model /= DALL_AMICO &
-      .or. .not.option%use_th_freezing) then    ! for using actual soil liq. water 'pc' (%pres_fh2o)
+    if (option%ice_model /= DALL_AMICO) then
       dphi = global_auxvar_up%pres(1) - global_auxvar_max%pres(1) + gravity
       dphi_dp_dn = -1.d0 + dgravity_dden_dn*th_auxvar_max%dden_dp
     else

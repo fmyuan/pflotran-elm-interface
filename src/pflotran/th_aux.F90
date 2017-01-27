@@ -778,13 +778,6 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
       call printErrMsg(option)
   end select
 
-  ! the following is needed for 'option%use_th_freezing' now (1-10-2016)
-  if (option%ice_model /= DALL_AMICO) then
-    auxvar%ice%pres_fh2o     = global_auxvar%pres(1)
-    auxvar%ice%dpres_fh2o_dp = 1.d0
-    auxvar%ice%dpres_fh2o_dt = 0.d0
-  endif
-
 #else
 
 #ifdef CLM_PFLOTRAN
