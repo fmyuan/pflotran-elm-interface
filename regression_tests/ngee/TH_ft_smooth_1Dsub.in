@@ -9,8 +9,10 @@ SIMULATION
       OPTIONS
         FREEZING
         ! adding half-width for smoothing freezing-thawing zone when PKE model only 
-        ! (<1.d-10 implies no-smoothing by default, ideally ranging 0.001 ~ 0.100)
-        ICE_MODEL PAINTER_KARRA_EXPLICIT_SMOOTH 0.5d-1   
+        ! (<1.d-50 implies no-smoothing by default, ideally ranging 0.001 ~ )
+        ICE_MODEL PAINTER_KARRA_EXPLICIT_SMOOTH 1.0d-3
+        ITOL_SCALED_RESIDUAL
+        ITOL_RELATIVE_UPDATE
       /
     /
   /
@@ -147,7 +149,7 @@ END
 TIME
   FINAL_TIME 365.d0 d 
   INITIAL_TIMESTEP_SIZE 900.0d0 s
-  MINIMUM_TIMESTEP_SIZE 60.d-1 s
+  MINIMUM_TIMESTEP_SIZE 1.d-1 s
   MAXIMUM_TIMESTEP_SIZE 86400.0d0 s
 END
 
@@ -157,9 +159,9 @@ END
 
 NEWTON_SOLVER FLOW
   ATOL 1D-20
-  RTOL 1D-10
-  STOL 1D-10      ! changing down to 1D-8 will reduce time-step BUT cause accuracy issue when smoothing FT zone
-  ITOL 1D-08      ! this is a key tol. for reducing time-step but not impact accuracy too much when smoothing FT zone
+  RTOL 1D-15
+  STOL 1D-10      ! changing down to 1D-8 or so (but not less anymore) will reduce time-step BUT cause accuracy issue when smoothing FT zone
+  !ITOL 1D-10      ! this option doesn't work well like before (2017-01-30)
 
   MAXIT 30
   MAXF 100
@@ -168,7 +170,8 @@ END
 !=========================== V. output ==========================================
 OUTPUT
   SCREEN PERIODIC 48
-  PERIODIC TIMESTEP 1
+  !PERIODIC TIMESTEP 1
+  PERIODIC TIME 1.d0 d
   FORMAT HDF5
 END
 
