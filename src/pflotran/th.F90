@@ -1367,7 +1367,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   endif
 #endif
   
-  if (soil_compressibility_index > 0 .and. pres>option%reference_pressure) then
+  if (soil_compressibility_index > 0) then
     tempreal = sat*den
     call MaterialCompressSoil(material_auxvar,pres, &
                               compressed_porosity,dcompressed_porosity_dp)
@@ -1578,8 +1578,7 @@ subroutine THAccumulation(auxvar,global_auxvar, &
   
   vol = material_auxvar%volume
   
-  if (soil_compressibility_index > 0 &
-  .and. global_auxvar%pres(1)>option%reference_pressure) then
+  if (soil_compressibility_index > 0) then
     call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1), &
                               compressed_porosity,dcompressed_porosity_dp)
     material_auxvar%porosity = compressed_porosity
