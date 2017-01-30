@@ -2522,8 +2522,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   PetscReal, parameter :: T0   = 273.15d0         ! freezing-point at standard pressure: in K
   PetscReal, parameter :: Lf   = HEAT_OF_FUSION   ! fusion heat (in J/kg)
   PetscReal :: gamma, alpha, dalpha_drhol
-  PetscReal :: beta_corrected, ice_pc_tmin
-  PetscReal :: rhol, rhol_mol, drhol_dp, drhol_dt
+  PetscReal :: rhol, drhol_dp, drhol_dt
   PetscReal :: rhoi
 
   PetscReal :: Tf, dTf_dt, dTf_dp
@@ -2534,7 +2533,6 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   PetscReal :: beta2, T_star, T_star_th, T_star_min, T_star_max
 
   PetscErrorCode :: ierr
-  PetscReal, parameter :: dpc_dpres = -1.d0
 
   !---------------------
   !
@@ -2543,21 +2541,19 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
   Tk = tc + T0
 
+  ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pw' and 'tc'
   pw = max(option%reference_pressure, pres_l)
-  ! constant 'rhol' (for liq. water): kg/m3 @ reference conditions
-  call EOSWaterdensity(option%reference_temperature, &
-                       option%reference_pressure,    &
-                       rhol, rhol_mol, ierr)
+
+  ! --------------------
+
+  ! constant 'rhol' (liq. water)
+  rhol     = 999.8d0            ! kg/m3: kmol/m3*kg/kmol
   drhol_dp = 0.d0
   drhol_dt = 0.d0
 
-  ! constant 'rhoi' (for ice): kg/m3 at 0oC
-  call EOSWaterDensityIce(0.d0,                                       &
-                          option%reference_pressure,                  &
-                          rhoi, ierr)
-  rhoi = rhoi*FMWH2O   ! kg/m3: kmol/m3 * kg/kmol
+  ! constant 'rhoi' (for ice)
+  rhoi    = 916.7d0             ! kg/m3 at 273.15K
 
-  ! if ice module turns on, ice/liq. interface PC recalculated (liq. and ice) under common 'pcgl' and 'tc'
   if (option%use_th_freezing) then
 
     gamma       = beta*Lf
@@ -2626,34 +2622,18 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
         ! smoothing 'ice_pc' when Tk ranging within deltaTf of T0, from PKE's PCice to 0.0
         ! from ATS, authored by Scott Painter et al.
-
-        deltaTf = 1.0d-10              ! half-width of smoothing zone (by default, nearly NO smoothing)
-        if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf, option%frzthw_halfwidth)
-
-        a = deltaTf/4.0d0
-        b = -0.5d0
-        c = 0.25d0/deltaTf
+        !
+        deltaTf = 1.0d-50              ! half-width of smoothing zone (by default, nearly NO smoothing)
+        if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = option%frzthw_halfwidth
 
         dice_pc_dp = 0.d0              ! assuming that PCice not variable with 'pcgl' when iced.
 
-        beta_corrected = 1.d0          ! It appeared that 'beta' in P.-K. Eq. varies very much
-        ! assuming 'pcmax' @ the lower end of 'deltaTf' so that liq. water movement might be limited below that.
-        ! note that: (1) this means that Liq. water will be almostly frozen @-deltaTf, or, 'option%frzthw_halfwidth' controls F/T zone
-        !            (2) it also implies that, when 'xTf<-deltaTf', 'ice_pc' already @pcmax (i.e. it will cut off here below)
-        !            (3) this will eliminate the likeliness of large 'liq.' water exists even if soil temperature drops down to ~35oC at 1atm.
-
-        ice_pc_tmin = -alpha * (-deltaTf)
-        if(ice_pc_tmin<this%pcmax .and. ice_pc_tmin>0.d0) then
-          beta_corrected = this%pcmax/ice_pc_tmin
-        endif
-
-        alpha = alpha * beta_corrected
-        dalpha_drhol=dalpha_drhol* beta_corrected
-
-        if (abs(xTf)<=deltaTf) then
+        if (abs(xTf)<deltaTf) then
+          a = deltaTf/4.0d0
+          b = -0.5d0
+          c = 0.25d0/deltaTf
 
           tempreal   = a+b*xTf+c*xTf*xTf
-
           ice_pc     = alpha*tempreal
           dice_pc_dt = alpha*(b+2.0d0*c*xTf) + &
                        dalpha_drhol*drhol_dt*tempreal        ! in case we need this later
@@ -2665,7 +2645,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
           !                   so, ice_pc = 0.
           ! Then it means the smoothing_curve ends exactly with the original format
 
-        elseif(xTf<(-deltaTf)) then
+        elseif(xTf<-deltaTf) then
           ice_pc = -alpha * xTf
           dice_pc_dt = -alpha - &
                        dalpha_drhol*drhol_dt*xTf             ! in case we need this later
@@ -2677,16 +2657,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
         ! PCice above are from '-alpha * xTf' to 0.0 ending @T0+deltaTf, so the following will be adding pcgl to avoid negetative ice saturation
         ice_pc     =  ice_pc + pcgl
-
-        ! because 'ice_pc' going to be used by saturation function for 'liq_saturation', which truncked by 'pcmax'
-        ! it's better to do truncation here as well
-        Hfunc = sign(0.5d0, -(ice_pc-this%pcmax))+0.5d0               ! Heaviside function to truncate ice_pc>=pcmax
-        dHfunc= 0.d0
-        dice_pc_dt = (ice_pc-this%pcmax) * dHfunc + dice_pc_dt * Hfunc
-        ice_pc = ice_pc * Hfunc + this%pcmax * (1.d0-Hfunc)
-
         dice_pc_dp =  dice_pc_dp + 1.d0           ! dpcgl_dp = 1.0 and dpcgl_dt = 0
-        dice_pc_dp = dice_pc_dp * dpc_dpres ! convert from w.r.t 'pc' to water pressure
 
       case (DALL_AMICO)
 
