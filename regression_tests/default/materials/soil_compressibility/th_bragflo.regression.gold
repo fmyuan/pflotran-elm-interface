@@ -19,7 +19,7 @@
 -- GENERIC: Porosity --
       Max:   2.5026613577413E-01
       Min:   2.5000000000000E-01
-     Mean:   2.5001557999276E-01
+     Mean:   2.5001578995923E-01
         1:   2.5026613577413E-01
        21:   2.5000000000000E-01
        41:   2.5000000000000E-01
@@ -44,10 +44,10 @@
        61:         1
        81:         1
 -- SOLUTION: Flow --
-   Time (seconds):   3.9475861494429E-01
+   Time (seconds):   3.1737197301118E-01
    Time Steps:          115
    Newton Iterations:          264
    Solver Iterations:          264
    Time Step Cuts:            0
    Solution 2-Norm:   7.5581105820971E+05
-   Residual 2-Norm:   3.5132451716555E-16
+   Residual 2-Norm:   3.6560547605552E-16
