@@ -666,7 +666,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   PetscReal :: Dk_ice
   character(len=MAXSTRINGLENGTH) :: error_string
 
-  PetscBool :: DTRUNC_FLAG = PETSC_FALSE  ! option for truncating deriatives to zero at bounds (default: FALSE)
+  PetscBool :: DTRUNC_FLAG = PETSC_TRUE  ! option for truncating deriatives to zero at bounds (default: TRUE)
   PetscReal :: pcmax, pcmin, t_trunc, dt_trunc, dp_trunc
 
   out_of_table_flag = PETSC_FALSE
@@ -687,13 +687,12 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! for P/T of out of bounds
   dt_trunc = 1.d0
   dp_trunc = 1.d0
-#ifdef CLM_PFLOTRAN
+
   ! general bounds of P/T. We may need to further limit bounds for 3-phase water properties.
   if (global_auxvar%temp>=100.d0 .or. global_auxvar%temp<=-273.d0) dt_trunc = 0.d0
   global_auxvar%temp    = min(100.d0, max(-273.d0, global_auxvar%temp))
   if (global_auxvar%pres(1)>=16.54d6) dp_trunc = 0.d0           ! 16.54 MPa is upper limit for using IFC67 EOS.
   global_auxvar%pres(1) = min(16.54d6, global_auxvar%pres(1))
-#endif
   
   ! Check if the capillary pressure is less than -100MPa, which also limit the lower limit of pres(1).
 #ifdef TH_CHARACTERISTIC_CURVES
@@ -838,11 +837,13 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                            option)
   global_auxvar%sat(1) = liq_saturation
 
+
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
     auxvar%ice%dpres_fh2o_dp = auxvar%ice%dpres_fh2o_dp * dp_trunc
     auxvar%ice%dpres_fh2o_dt = auxvar%ice%dpres_fh2o_dt * dt_trunc
   endif
+
 
 #endif
   auxvar%dsat_dp = dsl_dp
@@ -913,7 +914,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
     auxvar%dden_dt = auxvar%dden_dt * dt_trunc
-    auxvar%dden_dp = auxvar%dden_dt * dp_trunc
+    auxvar%dden_dp = auxvar%dden_dp * dp_trunc
     auxvar%dkvr_dt = auxvar%dkvr_dt * dt_trunc
     auxvar%dkvr_dp = auxvar%dkvr_dp * dp_trunc
     auxvar%dh_dt = auxvar%dh_dt * dt_trunc
@@ -974,6 +975,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%ice%dden_gas_dp = 1.d0/(IDEAL_GAS_CONSTANT*tk_g)*1.d-3
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
+    ! the following is a MUST for reducing tiny-time step (NOT sure why).
     auxvar%ice%dden_gas_dp = auxvar%ice%dden_gas_dp*dpw_dp    ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
     if (tk_g<=t_trunc) auxvar%ice%dden_gas_dt = 0.d0
   endif
@@ -1011,9 +1013,10 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%ice%du_gas_dt   = C_g + (C_wv*dmolg_dt*FMWH2O - C_a*dmolg_dt*FMWAIR)*tk_g
   auxvar%ice%du_gas_dp   = (C_wv*FMWH2O-C_a*FMWAIR)*dmolg_dp*tk_g
 
+
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
-    auxvar%ice%dsat_gas_dp = auxvar%ice%dsat_gas_dp * dp_trunc
+    !auxvar%ice%dsat_gas_dp = auxvar%ice%dsat_gas_dp * dp_trunc  ! something here having difficulties to re-freeze soils (TODO - checking)
     auxvar%ice%dsat_gas_dt = auxvar%ice%dsat_gas_dt * dt_trunc
     auxvar%ice%dden_gas_dp = auxvar%ice%dden_gas_dp * dp_trunc
     auxvar%ice%dden_gas_dt = auxvar%ice%dden_gas_dt * dt_trunc
@@ -1022,6 +1025,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     auxvar%ice%du_gas_dp = auxvar%ice%du_gas_dp * dp_trunc
     auxvar%ice%du_gas_dt = auxvar%ice%du_gas_dt * dt_trunc
   endif
+
 
   ! ----- Thermal conductivity ---------------------------------------------------------
 
