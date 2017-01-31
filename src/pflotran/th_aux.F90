@@ -995,7 +995,9 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   C_g                    = C_wv*mol_g*FMWH2O + C_a*(1.d0 - mol_g)*FMWAIR          ! in MJ/kmol/K
   auxvar%ice%u_gas       = C_g*tk_g                                               ! in MJ/kmol
-#ifdef CLM_PFLOTRAN
+!#ifdef CLM_PFLOTRAN
+#if 0
+! 2017-01-30: tests show that the following may cause tiny-time recovering issue when re-freezing (so OFF now).
   ! NOTE: vapor 'mol_gas' is included in 'den_gas', 'u_gas'
   ! (because 'mol_g', fraction of vapor in air-mixture, going to be as multiplier in all 'gas' calculations in 'th.F90')
   ! so, if for air-mixture, may assign this to 1.0 ( appears very helpful to reduce time-step)
