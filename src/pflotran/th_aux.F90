@@ -1018,7 +1018,11 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
-    !auxvar%ice%dsat_gas_dp = auxvar%ice%dsat_gas_dp * dp_trunc  ! something here having difficulties to re-freeze soils (TODO - checking)
+    ! something happened in the following, causing difficulties to re-freeze soils (TODO - checking)
+    ! except for DALL_AMICO model
+    if (option%ice_model == DALL_AMICO) &
+    auxvar%ice%dsat_gas_dp = auxvar%ice%dsat_gas_dp * dp_trunc
+
     auxvar%ice%dsat_gas_dt = auxvar%ice%dsat_gas_dt * dt_trunc
     auxvar%ice%dden_gas_dp = auxvar%ice%dden_gas_dp * dp_trunc
     auxvar%ice%dden_gas_dt = auxvar%ice%dden_gas_dt * dt_trunc
@@ -1069,7 +1073,8 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%dDk_eff_dp = (Dk-Dk_dry)*auxvar%dKe_dp + (Dk_ice-Dk_dry)*auxvar%ice%dKe_fr_dp
   auxvar%dDk_eff_dt = (Dk-Dk_dry)*auxvar%dKe_dt + (Dk_ice-Dk_dry)*auxvar%ice%dKe_fr_dt
 
-
+#if 0
+  ! F.-M. Yuan (2017-1-30): comment the following out, so that DALL_AMICO model works as others.
   if (option%ice_model == DALL_AMICO) then
     auxvar%ice%den_ice = dw_mol
     auxvar%ice%dden_ice_dt = auxvar%dden_dt
@@ -1088,6 +1093,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     auxvar%ice%mol_gas       = 0.d0
     auxvar%ice%dmol_gas_dt   = 0.d0
   endif
+#endif
 
 end subroutine THAuxVarComputeFreezing
 
@@ -1168,10 +1174,10 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
   if (option%use_th_freezing) then
 
     call characteristic_curves%saturation_function%IceCapillaryPressure(pres_l, tc, &
-                                   xplice, dxplice_dpl, dxplice_dt, option)
+                                   xplice, dxplice_dpl, dxplice_dt, option) ! w.r.t 'pressure' already in %IceCapillaryPressure()
 
     ice_presl    = (pres_l - pc) - xplice
-    ice_presl_dpl= dxplice_dpl  ! w.r.t 'pressure', not 'pc'
+    ice_presl_dpl= dxplice_dpl
     ice_presl_dt = dxplice_dt
 
     select case (option%ice_model)
@@ -1223,8 +1229,6 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
 
       case (PAINTER_KARRA_EXPLICIT, PAINTER_KARRA_EXPLICIT_SMOOTH)
         call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
-        ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
-        ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
 
         ! liq. saturation and its derivatives, with ice-adjusted capillary pressure
         sl      = slx
@@ -1232,7 +1236,7 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
         dsl_dpl = dslx_dx*dxplice_dpl
 
         ! ice satuation and its derivatives
-        si = 1.d0 - sl/sli                 ! P.-K. Eq.(19)
+        si     = 1.d0 - sl/sli             ! P.-K. Eq.(19)
         dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
         dsi_dpl= (sl*dsli_dpl-sli*dsl_dpl)/(sli**2)
 
@@ -1247,16 +1251,17 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
         ! rewritten following 'saturation_function.F90:SatFuncComputeIceDallAmico()'
         ! NOTE: here calculate 'saturations and its derivatives'
 
-        call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)   ! Pc1 ---> S1
+        call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)   ! Pc1 ---> S1, but '_dx' is w.r.t. '_dpres'
 
         !
+        ! liq. saturation and its derivatives, with ice-adjusted capillary pressure
         sl     = slx
-        si     = sli - sl
-
         dsl_dpl= dslx_dx * dxplice_dpl
-        dsi_dpl= dsli_dpl - dsl_dpl
-
         dsl_dt = -dslx_dx * dxplice_dt
+
+        ! ice satuation and its derivatives
+        si     = sli - sl
+        dsi_dpl= dsli_dpl - dsl_dpl
         dsi_dt = -dsl_dt                 ! dsli_dt = 0 (see above)
 
         ! gas phase
