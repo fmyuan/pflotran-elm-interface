@@ -2495,7 +2495,7 @@ end subroutine RPF_DefaultRelPerm
 ! ************************************************************************** !
 
 subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
-                                   ice_pc, dice_pc_dp, dice_pc_dt, option)
+                                   ice_pc, dice_pc_dpres, dice_pc_dt, option)
   !
   ! Computes the ice capillary_pressure as a function of Pres_l, Tc
   ! Mainly from Painter et al. (2011), Painter and Karra (2014)
@@ -2513,7 +2513,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   class(sat_func_base_type) :: this
   PetscReal, intent(in) :: pres_l      ! liquid water pressure head (atm. P adjusted), in Pa
   PetscReal, intent(in) :: tc          ! in oC
-  PetscReal, intent(out) :: ice_pc, dice_pc_dt, dice_pc_dp     ! in Pa
+  PetscReal, intent(out) :: ice_pc, dice_pc_dt, dice_pc_dpres     ! in Pa
   type(option_type) :: option
 
   PetscReal :: pcgl, pw, tk
@@ -2531,6 +2531,8 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   PetscReal :: Hfunc, dHfunc, tempreal
   PetscReal :: deltaTf, xTf, a, b, c
   PetscReal :: beta2, T_star, T_star_th, T_star_min, T_star_max
+  PetscReal :: dice_pc_dp
+  PetscReal, parameter :: dpc_dpres = -1.d0
 
   PetscErrorCode :: ierr
 
@@ -2670,9 +2672,9 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
         !
         T_star_th  = 5.d-1                       ! unit: Kevin
-        beta2      = 1.d0   !beta                  ! NOT sure why changed to 1. in saturation_function.F90.
+        beta2      = beta !1.d0                  ! NOT sure why changed to 1. in saturation_function.F90.
 
-        T_star = T0-1.d0/beta2/Lf/rhol*pcgl !Tf  ! 'T_star' should be Tf as calculated above, when using same CONSTANTS
+        T_star = T0-1.d0/beta2/Lf/rhol*pcgl      ! 'T_star' shall be Tf same as other ice_model, when using same CONSTANTS
         T_star_min = T_star - T_star_th
         T_star_max = T_star
 
@@ -2692,10 +2694,30 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         endif
 
         !
-        ice_pc     = pcgl - beta2 *  (Tk-T_star)/T_star *Lf*rhol * Hfunc
+        ice_pc     = pcgl - beta2 *  (Tk-T_star)/T_star *Lf*rhol * Hfunc  ! L2030 in saturation_function.F90
+
+        ! saturation_function.F90: L2053 -
+        ! dsl_dT = dS1 * (-beta*L_f*rhol_l*H/T_star-beta*theta*L_f*rhol_l*dH_dT)
+        ! i.e., dS1* [(-beta*L_f*rhol_l)*(H/T_star+theta*dH_dT)], with theta=(T-T_star)/T_star
+        !       for second term:
+        !           -beta/T_star*L_f*rhol_l*(H+(T-T_star)*dH_dT)
+        !               (because dT_star/dt=0)
         dice_pc_dt = -beta2/T_star*Lf*rhol*        &
-                     (Hfunc + (Tk-T_star)*dHfunc)    ! dT_star/dt = 0.d0
-        dice_pc_dp = 1.0d0 - Tk/T_star/T_star*Hfunc  ! dT_star/dp = -1.d0/beta2/Lf/rhol
+                     (Hfunc + (Tk-T_star)*dHfunc)
+
+        ! saturation_function.F90: L2050 -
+        !  dsl_dpl = -dS1*(1-T*T_0/T_star/T_star*H), in which
+        !   (1) '-dS1' is w.r.t. '-Pc1' actually, because in L2045 it was negatived once
+        !   (2) (1-T*T_0/T_star/T_star*H) is 'dp_fh2o_dP' in L.2034.
+        !dice_pc_dp = -(1.0d0 - Tk*T0/T_star/T_star*Hfunc)   ! '-1' is for reverse '_dP' to '_dpc'
+
+        ! HOWever, if we do derivative here for 'ice_pc' above, 'ice_pc' shall be
+        !   ice_pc = pcgl - beta2*Lf*rhol*Hfunc* (Tk/T_star-1)
+        !  w.r.t. 'pc', the second term can be simplified as: -beta2*Lf*rhol*Hfunc*Tk * (1/T_star)
+        !              in which, dT_star_dp = -1.d0/beta2/Lf/rhol, and
+        !                        d(1/T_star)_dp = dT_star_dp/T_star/T_star
+        ! i.e.,
+        dice_pc_dp = -(1.0d0 + Tk/T_star/T_star*Hfunc)   ! '-1' is for reverse '_dP' to '_dpc'
 
       case default
         option%io_buffer = 'SF_Ice_CapillaryPressure: characteristic-curve now only support ice-model: ' // &
@@ -2707,6 +2729,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
     end select ! select case (option%ice_model)
 
+    dice_pc_dpres = dice_pc_dp*dpc_dpres  ! convert to w.r.t 'pressure' from 'pc'
   else
 
     option%io_buffer = 'SF_Ice_CapillaryPressure: Ice model is OFF.'
