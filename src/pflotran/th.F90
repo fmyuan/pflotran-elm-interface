@@ -1829,8 +1829,9 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     dgravity_dden_up = upweight*auxvar_up%avgmw*dist_gravity
     dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-    if (option%ice_model /= DALL_AMICO) then
-    !if(.not.option%use_th_freezing) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+    !if (option%ice_model /= DALL_AMICO) then
+    if(auxvar_up%ice%pres_fh2o == UNINITIALIZED_DOUBLE .or. &
+       auxvar_dn%ice%pres_fh2o == UNINITIALIZED_DOUBLE) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
       dphi_dp_up = 1.d0 + dgravity_dden_up*auxvar_up%dden_dp
       dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
@@ -2460,8 +2461,9 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
               (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
               * dist_gravity
 
-    if (option%ice_model /= DALL_AMICO) then
-    !if(.not.option%use_th_freezing) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+    !if (option%ice_model /= DALL_AMICO) then
+    if(auxvar_up%ice%pres_fh2o == UNINITIALIZED_DOUBLE .or. &
+       auxvar_dn%ice%pres_fh2o == UNINITIALIZED_DOUBLE) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
     else
       dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -2782,8 +2784,9 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                   * dist_gravity
         dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-        if (option%ice_model /= DALL_AMICO) then
-        !if(.not.option%use_th_freezing) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+        !if (option%ice_model /= DALL_AMICO) then
+        if(auxvar_up%ice%pres_fh2o == UNINITIALIZED_DOUBLE .or. &
+           auxvar_dn%ice%pres_fh2o == UNINITIALIZED_DOUBLE) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
           dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
@@ -2915,7 +2918,9 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                   * dist_gravity
         dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-        if (option%ice_model /= DALL_AMICO) then
+        !if (option%ice_model /= DALL_AMICO) then
+        if(auxvar_up%ice%pres_fh2o == UNINITIALIZED_DOUBLE .or. &
+           auxvar_dn%ice%pres_fh2o == UNINITIALIZED_DOUBLE) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
           dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
@@ -3335,7 +3340,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
             dugas_ave_dp = auxvar_dn%ice%du_gas_dp
           endif
           if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
-            deltaTf = 1.0d-50              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
+            deltaTf = 1.0d-10              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
             if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf,option%frzthw_halfwidth)
             if(global_auxvar_dn%temp<=deltaTF) then   ! when iced-water exists, shut-off heat bulk outlet
               ugas_ave = 0.d0
@@ -3650,8 +3655,9 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
                   (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
                   * dist_gravity
 
-        if (option%ice_model /= DALL_AMICO) then
-        !if(.not.option%use_th_freezing) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+        !if (option%ice_model /= DALL_AMICO) then
+        if(auxvar_up%ice%pres_fh2o == UNINITIALIZED_DOUBLE .or. &
+           auxvar_dn%ice%pres_fh2o == UNINITIALIZED_DOUBLE) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
 
         else
@@ -3739,8 +3745,9 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
              (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
              * dist_gravity
         
-        if (option%ice_model /= DALL_AMICO) then
-        !if(.not.option%use_th_freezing) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+        !if (option%ice_model /= DALL_AMICO) then
+        if(auxvar_up%ice%pres_fh2o == UNINITIALIZED_DOUBLE .or. &
+           auxvar_dn%ice%pres_fh2o == UNINITIALIZED_DOUBLE) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -3874,7 +3881,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   ! F.-M. Yuan: for 1-way SEEPAGE_BC, if water flow driven by Pres(1) under freezing condition,
   ! expansion caused high pressure is not really associated with real-water flow, but may cause very high heat loss and cause pertubation
   if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
-    deltaTf = 1.0d-50              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
+    deltaTf = 1.0d-10              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
     if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf,option%frzthw_halfwidth)
     if(global_auxvar_dn%temp<=deltaTf) then   ! when iced-water exists, shut-off heat bulk outlet
       uh = 0.d0
@@ -4874,6 +4881,19 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
       Jup(option%nflowdof,2) = Jup(option%nflowdof,2) - &
                                jac_sec_heat*material_auxvars(ghosted_id)%volume
     endif
+
+    do ii=1,option%nflowdof
+      do jj=1,option%nflowdof
+        if(Jup(ii,jj) /= Jup(ii,jj) &
+           .or. abs(Jup(ii,jj))>huge(Jup(ii,jj)) ) then
+          write(string, *) ' @local_id -', local_id, 'with Jacobin -', ii,jj,Jup(ii,jj)
+          option%io_buffer = ' NaN or INF of Jacobians @ th.F90: THJacobinPatch - Accumulation ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
+    enddo
+
                             
     ! scale by the volume of the cell
     Jup = Jup/material_auxvars(ghosted_id)%volume
@@ -4952,6 +4972,18 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
         istart = ghosted_id*option%nflowdof
       endif
       
+      do ii=1,option%nflowdof
+        do jj=1,option%nflowdof
+          if(Jsrc(ii,jj) /= Jsrc(ii,jj) &
+             .or. abs(Jsrc(ii,jj))>huge(Jsrc(ii,jj)) ) then
+            write(string, *) ' name -', source_sink%name, ' @local_id -', local_id, 'with Jacobin -', ii,jj, Jsrc
+            option%io_buffer = ' NaN or INF of Jacobians @ th.F90: THJacobinPatch - Source_Sink of ' // &
+              trim(string)
+            call printErrMsg(option)
+          endif
+        enddo
+      enddo
+
       ! scale by the volume of the cell
       Jsrc = Jsrc/material_auxvars(ghosted_id)%volume
          
@@ -5076,6 +5108,20 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                              TH_parameter, &
                              Jup,Jdn)
       
+      do ii=1,option%nflowdof
+        do jj=1,option%nflowdof
+          if(Jup(ii,jj) /= Jup(ii,jj) .or. Jdn(ii,jj) /= Jdn(ii,jj) &
+             .or. abs(Jup(ii,jj))>huge(Jup(ii,jj)) .or. abs(Jdn(ii,jj))>huge(Jdn(ii,jj)) ) then
+            write(string, *) ' between local_id up/dn -', local_id_up, local_id_dn, &
+                'with Jacobin -', ii,jj, Jup(ii,jj), Jdn(ii,jj)
+            option%io_buffer = ' NaN or INF of Jacobians @ th.F90: THJacobinPatch - Interior flux ' // &
+                trim(string)
+            call printErrMsg(option)
+          endif
+        enddo
+      enddo
+
+
 !  scale by the volume of the cell                      
       
       if (local_id_up > 0) then
@@ -5166,7 +5212,19 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                               Dk_dry_dn,Dk_ice_dn, &
                               Jdn)
       Jdn = -Jdn
-  
+
+      do ii=1,option%nflowdof
+        do jj=1,option%nflowdof
+          if(Jdn(ii,jj) /= Jdn(ii,jj) .or. &
+             abs(Jdn(ii,jj))>huge(Jdn(ii,jj)) ) then
+            write(string, *) ' name -', boundary_condition%name, ' @local_id -', local_id, 'with Jacobin -', ii,jj, Jdn(ii,jj)
+            option%io_buffer = ' NaN or INF of Jacobians @ th.F90: THJacobinPatch - Boundary_Condition of ' // &
+                trim(string)
+            call printErrMsg(option)
+          endif
+        enddo
+      enddo
+
       !  scale by the volume of the cell
       Jdn = Jdn/material_auxvars(ghosted_id)%volume
       
@@ -5826,10 +5884,12 @@ function THInitGuessCheck(xx, option)
 
   ipass = 1
 
-  if (option%ice_model /= DALL_AMICO) then
-    THInitGuessCheck = ipass
-    return
-  endif
+  ! F.-M. Yuan: appears this Check useful to other types of ice_model
+  !             which may avoid too many NaN or Inf PC warnings for divergence (2017-02-02)
+  !if (option%ice_model /= DALL_AMICO) then
+  !  THInitGuessCheck = ipass
+  !  return
+  !endif
 
   call VecStrideMin(xx,ZERO_INTEGER,idx,pres_min,ierr)
   call VecStrideMin(xx,ONE_INTEGER ,idx,temp_min,ierr)
