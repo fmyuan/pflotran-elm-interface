@@ -301,6 +301,8 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
         ! needs to re-calculate some extra variables for 'saturation_function', if changed above
         error_string = 'passing CLM characterisitc-curves parameters: sat_function'
         call sf%SetupPolynomials(option,error_string)
+        ! needs to update 'pcmax', which added into sf%verify procedure for 'Brooks_Corey' SF
+        call sf%verify(error_string, option)
 
       class default
         option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &

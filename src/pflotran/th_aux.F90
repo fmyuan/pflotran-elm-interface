@@ -793,9 +793,13 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
         sf%alpha  = auxvar%bc_alpha
         sf%lambda = auxvar%bc_lambda
         sf%Sr  = auxvar%bc_sr1
+
         ! needs to re-calculate some extra variables for 'saturation_function', if changed above
         error_string = 'passing CLM characterisitc-curves parameters: sat_function'
         call sf%SetupPolynomials(option,error_string)
+
+        ! needs to update 'pcmax', which added into sf%verify procedure for 'Brooks_Corey' SF
+        call sf%verify(error_string, option)
 
       class default
         option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
@@ -1019,9 +1023,9 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
     ! something happened in the following, causing difficulties to re-freeze soils (TODO - checking)
-    ! except for DALL_AMICO model
-    if (option%ice_model == DALL_AMICO) &
-    auxvar%ice%dsat_gas_dp = auxvar%ice%dsat_gas_dp * dp_trunc
+    ! (maybe: except for DALL_AMICO model)
+    !if (option%ice_model == DALL_AMICO) &
+    !auxvar%ice%dsat_gas_dp = auxvar%ice%dsat_gas_dp * dp_trunc
 
     auxvar%ice%dsat_gas_dt = auxvar%ice%dsat_gas_dt * dt_trunc
     auxvar%ice%dden_gas_dp = auxvar%ice%dden_gas_dp * dp_trunc
@@ -1176,10 +1180,6 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
     call characteristic_curves%saturation_function%IceCapillaryPressure(pres_l, tc, &
                                    xplice, dxplice_dpl, dxplice_dt, option) ! w.r.t 'pressure' already in %IceCapillaryPressure()
 
-    ice_presl    = (pres_l - pc) - xplice
-    ice_presl_dpl= dxplice_dpl
-    ice_presl_dt = dxplice_dt
-
     select case (option%ice_model)
       case (PAINTER_EXPLICIT)
 
@@ -1228,6 +1228,14 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
         dsi_dt  = dsl_dt*(function_A - 1.d0) + sl*dfunc_A_dt
 
       case (PAINTER_KARRA_EXPLICIT, PAINTER_KARRA_EXPLICIT_SMOOTH)
+
+#if 0
+        ! (TODO-checking) when coupled with CLM, the following is helpful to reduce tiny-time stepping, BUT not for PFLOTRAN alone
+        ice_presl    = (pres_l - pc) - xplice
+        ice_presl_dpl= dxplice_dpl
+        ice_presl_dt = dxplice_dt
+#endif
+
         call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
 
         ! liq. saturation and its derivatives, with ice-adjusted capillary pressure
@@ -1250,7 +1258,11 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
         ! Model from Dall'Amico (2010) and Dall' Amico et al. (2011)
         ! rewritten following 'saturation_function.F90:SatFuncComputeIceDallAmico()'
         ! NOTE: here calculate 'saturations and its derivatives'
-
+#if 0
+        ice_presl    = pres_l   ! this implies that actually not use ice-adjusted pressure
+        ice_presl_dpl= 1.d0
+        ice_presl_dt = 0.d0
+#endif
         call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)   ! Pc1 ---> S1, but '_dx' is w.r.t. '_dpres'
 
         !
