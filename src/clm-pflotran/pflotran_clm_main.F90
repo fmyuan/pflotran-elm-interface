@@ -1276,8 +1276,16 @@ contains
           !             relative_perm = Se**power, with power = 3+2/lamda
 
           bc_alpha  = 1.d0/(9.81d0*sucsat_pf_loc(ghosted_id))
-          bc_lambda = 1.d0/bsw_pf_loc(ghosted_id)   !
-          bc_sr     = 0.0d0
+          bc_lambda = 1.d0/bsw_pf_loc(ghosted_id)
+          ! A NOTE here:
+          ! 'lambda' of < 0.16 (or 'bsw'>6) causes large residual saturation(Sr/pcmax) in SF_BC function.
+          ! one unreasonable result of this may be large liq. water saturation under frozen condition
+          ! (TODO - it's from high SOM soil layers, implying further work on Pedo-Transfer function for peat
+          !  e.g. Letts et al. 2000. Fibric b=2.7, Sr=0.04/0.93;
+          !                          Hemic  b=6.1, Sr=0.15/0.88;
+          !                          Sapric b=12., Sr=0.22/0.83.
+          bc_sr     = 1.0d-5
+
         else
           option%io_buffer = &
              'Currently ONLY support Brooks_COREY-Burdine saturation function type when coupled with CLM'
