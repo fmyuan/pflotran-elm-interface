@@ -843,7 +843,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
 
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
-  if(DTRUNC_FLAG) then
+  if(DTRUNC_FLAG .and. option%ice_model == DALL_AMICO) then
     auxvar%ice%dpres_fh2o_dp = auxvar%ice%dpres_fh2o_dp * dp_trunc
     auxvar%ice%dpres_fh2o_dt = auxvar%ice%dpres_fh2o_dt * dt_trunc
   endif
@@ -1234,6 +1234,10 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
         ice_presl    = (pres_l - pc) - xplice
         ice_presl_dpl= dxplice_dpl
         ice_presl_dt = dxplice_dt
+#else
+        ice_presl    = pres_l   ! this implies that actually not use ice-adjusted pressure
+        ice_presl_dpl= 1.d0
+        ice_presl_dt = 0.d0
 #endif
 
         call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
@@ -1258,11 +1262,10 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
         ! Model from Dall'Amico (2010) and Dall' Amico et al. (2011)
         ! rewritten following 'saturation_function.F90:SatFuncComputeIceDallAmico()'
         ! NOTE: here calculate 'saturations and its derivatives'
-#if 0
         ice_presl    = pres_l   ! this implies that actually not use ice-adjusted pressure
         ice_presl_dpl= 1.d0
         ice_presl_dt = 0.d0
-#endif
+
         call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)   ! Pc1 ---> S1, but '_dx' is w.r.t. '_dpres'
 
         !

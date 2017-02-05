@@ -1829,9 +1829,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     dgravity_dden_up = upweight*auxvar_up%avgmw*dist_gravity
     dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-    !if (option%ice_model /= DALL_AMICO) then
-    if(auxvar_up%ice%pres_fh2o == UNINITIALIZED_DOUBLE .or. &
-       auxvar_dn%ice%pres_fh2o == UNINITIALIZED_DOUBLE) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+    if (option%ice_model /= DALL_AMICO .and. &
+        option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
       dphi_dp_up = 1.d0 + dgravity_dden_up*auxvar_up%dden_dp
       dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
@@ -2461,9 +2460,8 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
               (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
               * dist_gravity
 
-    !if (option%ice_model /= DALL_AMICO) then
-    if(auxvar_up%ice%pres_fh2o == UNINITIALIZED_DOUBLE .or. &
-       auxvar_dn%ice%pres_fh2o == UNINITIALIZED_DOUBLE) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+    if (option%ice_model /= DALL_AMICO .and. &
+        option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
     else
       dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -2784,9 +2782,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                   * dist_gravity
         dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-        !if (option%ice_model /= DALL_AMICO) then
-        if(auxvar_up%ice%pres_fh2o == UNINITIALIZED_DOUBLE .or. &
-           auxvar_dn%ice%pres_fh2o == UNINITIALIZED_DOUBLE) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+        if (option%ice_model /= DALL_AMICO .and. &
+            option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
           dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
@@ -2918,9 +2915,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                   * dist_gravity
         dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-        !if (option%ice_model /= DALL_AMICO) then
-        if(auxvar_up%ice%pres_fh2o == UNINITIALIZED_DOUBLE .or. &
-           auxvar_dn%ice%pres_fh2o == UNINITIALIZED_DOUBLE) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+        if (option%ice_model /= DALL_AMICO .and. &
+            option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
           dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
@@ -3655,9 +3651,8 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
                   (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
                   * dist_gravity
 
-        !if (option%ice_model /= DALL_AMICO) then
-        if(auxvar_up%ice%pres_fh2o == UNINITIALIZED_DOUBLE .or. &
-           auxvar_dn%ice%pres_fh2o == UNINITIALIZED_DOUBLE) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+        if (option%ice_model /= DALL_AMICO .and. &
+            option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
 
         else
@@ -3745,9 +3740,8 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
              (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
              * dist_gravity
         
-        !if (option%ice_model /= DALL_AMICO) then
-        if(auxvar_up%ice%pres_fh2o == UNINITIALIZED_DOUBLE .or. &
-           auxvar_dn%ice%pres_fh2o == UNINITIALIZED_DOUBLE) then    ! for all type 'ice_model' to use actual soil liq. water 'pc' (%pres_fh2o) (F.-M. Yuan)
+        if (option%ice_model /= DALL_AMICO .and. &
+            option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -5886,10 +5880,11 @@ function THInitGuessCheck(xx, option)
 
   ! F.-M. Yuan: appears this Check useful to other types of ice_model
   !             which may avoid too many NaN or Inf PC warnings for divergence (2017-02-02)
-  !if (option%ice_model /= DALL_AMICO) then
-  !  THInitGuessCheck = ipass
-  !  return
-  !endif
+  if (option%ice_model /= DALL_AMICO .and. &
+      option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
+    THInitGuessCheck = ipass
+    return
+  endif
 
   call VecStrideMin(xx,ZERO_INTEGER,idx,pres_min,ierr)
   call VecStrideMin(xx,ONE_INTEGER ,idx,temp_min,ierr)
