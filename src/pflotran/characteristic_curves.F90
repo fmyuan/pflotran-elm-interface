@@ -3103,11 +3103,11 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   
 #ifdef SMOOTHING2
   ! pcmax consistent with Sr (F.-M. Yuan: there is no guarrante that both Pcmax/Sr input consistent)
-  if (Uninitialized(this%Sr)) this%Sr = 0.0d0
+  if (Uninitialized(this%Sr) .or. this%Sr<0.01d0) this%Sr = 0.01d0
   if (Uninitialized(this%pcmax)) this%pcmax = 1.0d8
 
   call SF_BC_Saturation(this, this%pcmax-1.d0, x, dx, option)  ! '-1.d0' to avoid hard-weired trunction in SF_Sat
-  this%Sr = x
+  this%Sr = max(x, this%Sr)
   call SF_BC_CapillaryPressure(this,this%Sr+1.d-3, x, option)  ! '+1.d-3' to avoid hard-weired trunction in SF_CP
   this%pcmax = x
 #endif

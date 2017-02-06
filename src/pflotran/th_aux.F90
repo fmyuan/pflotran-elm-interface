@@ -839,8 +839,10 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
 
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
-  if(DTRUNC_FLAG .and. option%ice_model == DALL_AMICO) then
-    auxvar%ice%dpres_fh2o_dp = auxvar%ice%dpres_fh2o_dp * dp_trunc
+  if(DTRUNC_FLAG .and. &
+     (option%ice_model == DALL_AMICO .or. &
+      option%ice_model == PAINTER_KARRA_EXPLICIT_SMOOTH) ) then
+    !auxvar%ice%dpres_fh2o_dp = auxvar%ice%dpres_fh2o_dp * dp_trunc
     auxvar%ice%dpres_fh2o_dt = auxvar%ice%dpres_fh2o_dt * dt_trunc
   endif
 
