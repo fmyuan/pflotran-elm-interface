@@ -11,6 +11,7 @@ SIMULATION
       OPTIONS
         FREEZING
         ICE_MODEL DALL_AMICO
+        ITOL_RELATIVE_UPDATE
       /
     /
     SURFACE_SUBSURFACE flow
@@ -56,6 +57,12 @@ TIME
   INITIAL_TIMESTEP_SIZE 1.0d0 s
   MAXIMUM_TIMESTEP_SIZE 1.0d0 s
 END
+#=========================== output ===================================
+!OUTPUT
+!  SCREEN PERIODIC 12
+!  PERIODIC TIME 10 s
+!  FORMAT HDF5
+!END
 #=========================== flow conditions ==========================
 FLOW_CONDITION initial
   TYPE
