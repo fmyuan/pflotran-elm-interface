@@ -2784,9 +2784,6 @@ subroutine SF_VG_Verify(this,name,option)
   type(option_type) :: option
   
   character(len=MAXSTRINGLENGTH) :: string
-#ifdef SMOOTHING2
-  PetscReal :: x, dx
-#endif
   
   if (index(name,'SATURATION_FUNCTION') > 0) then
     string = name
@@ -2802,19 +2799,6 @@ subroutine SF_VG_Verify(this,name,option)
     option%io_buffer = UninitializedMessage('M',string)
     call printErrMsg(option)
   endif   
-
-#ifdef SMOOTHING2
-  ! pcmax consistent with Sr (F.-M. Yuan: there is no guarrante that both Pcmax/Sr input consistent)
-  if (Uninitialized(this%Sr) .or. this%Sr<=0.05d0) this%Sr = 0.05d0
-  if (Uninitialized(this%pcmax) .or. this%pcmax<=1.0d20) this%pcmax = 1.0d20
-
-  call SF_VG_Saturation(this, this%pcmax-1.d0, x, dx, option)  ! '-1.d0' to avoid hard-weired trunction in SF_Sat
-  this%Sr = min(x, 0.10d0)
-  ! By above Sr ranges: 0.05 ~ 0.10, so that NOT too much liq. water under stress.
-  ! And the input pcmax will be over-ridden to corresponding to this corrected 'Sr'
-  call SF_VG_CapillaryPressure(this,this%Sr+1.d-3, x, option)  ! '+1.d-3' to avoid hard-weired trunction in SF_CP
-  this%pcmax = x
-#endif
 
 end subroutine SF_VG_Verify
 
@@ -3026,9 +3010,6 @@ subroutine SF_BC_Verify(this,name,option)
   type(option_type) :: option
   
   character(len=MAXSTRINGLENGTH) :: string 
-#ifdef SMOOTHING2
-  PetscReal :: x, dx
-#endif
   
   if (index(name,'SATURATION_FUNCTION') > 0) then
     string = name
@@ -3044,19 +3025,6 @@ subroutine SF_BC_Verify(this,name,option)
     option%io_buffer = UninitializedMessage('LAMBDA',string)
     call printErrMsg(option)
   endif 
-
-#ifdef SMOOTHING2
-  ! pcmax consistent with Sr (F.-M. Yuan: there is no guarrante that both Pcmax/Sr input consistent)
-  if (Uninitialized(this%Sr) .or. this%Sr<=0.05d0) this%Sr = 0.05d0
-  if (Uninitialized(this%pcmax) .or. this%pcmax<=1.0d20) this%pcmax = 1.0d20
-
-  call SF_BC_Saturation(this, this%pcmax-1.d0, x, dx, option)  ! '-1.d0' to avoid hard-weired trunction in SF_Sat
-  this%Sr = min(x, 0.10d0)
-  ! By above Sr ranges: 0.05 ~ 0.10, so that NOT too much liq. water under stress.
-  ! And the input pcmax will be over-ridden to corresponding to this corrected 'Sr'
-  call SF_BC_CapillaryPressure(this,this%Sr+1.d-3, x, option)  ! '+1.d-3' to avoid hard-weired trunction in SF_CP
-  this%pcmax = x
-#endif
   
 end subroutine SF_BC_Verify
 
@@ -3076,6 +3044,9 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   character(len=MAXSTRINGLENGTH) :: error_string
   
   PetscReal :: b(4)
+#ifdef SMOOTHING2
+  PetscReal :: x, dx
+#endif
 
   ! polynomial fitting pc as a function of saturation
   ! 1.05 is essentially pc*alpha (i.e. pc = 1.05/alpha)
@@ -3130,6 +3101,16 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
 
   this%pres_poly%coefficients(1:4) = b(1:4)
   
+#ifdef SMOOTHING2
+  ! pcmax consistent with Sr (F.-M. Yuan: there is no guarrante that both Pcmax/Sr input consistent)
+  if (Uninitialized(this%Sr)) this%Sr = 0.0d0
+  if (Uninitialized(this%pcmax)) this%pcmax = 1.0d8
+
+  call SF_BC_Saturation(this, this%pcmax-1.d0, x, dx, option)  ! '-1.d0' to avoid hard-weired trunction in SF_Sat
+  this%Sr = x
+  call SF_BC_CapillaryPressure(this,this%Sr+1.d-3, x, option)  ! '+1.d-3' to avoid hard-weired trunction in SF_CP
+  this%pcmax = x
+#endif
   
 end subroutine SF_BC_SetupPolynomials
 
@@ -3276,12 +3257,10 @@ subroutine SF_BC_Saturation(this,capillary_pressure,liquid_saturation, &
     liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
     dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
 
-#ifdef SMOOTHING2
   else
     Se = (this%pcmax*this%alpha)**(-this%lambda)
     liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
     dsat_dpres = 0.d0
-#endif
 
   endif
 
