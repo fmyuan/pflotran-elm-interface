@@ -953,7 +953,7 @@ contains
       write(option%myrank+200,*) option%myrank, ghosted_id, local_id, cellid_pf_loc(local_id)
 
     end do
-    call VecRestoreArray90(clm_pf_idata%cellid_pfp, cellid_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%cellid_pfp, cellid_pf_loc, ierr)
     CHKERRQ(ierr)
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     option, &
