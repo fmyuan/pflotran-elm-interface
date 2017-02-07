@@ -3335,15 +3335,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
             dugas_ave_dt = auxvar_dn%ice%du_gas_dt
             dugas_ave_dp = auxvar_dn%ice%du_gas_dp
           endif
-          if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
-            deltaTf = 1.0d-10              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
-            if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf,option%frzthw_halfwidth)
-            if(global_auxvar_dn%temp<=deltaTF) then   ! when iced-water exists, shut-off heat bulk outlet
-              ugas_ave = 0.d0
-              dugas_ave_dt = 0.d0
-              dugas_ave_dp = 0.d0
-            endif
-          endif
         
           Ddiffgas_avg = upweight*Ddiffgas_up+(1.D0 - upweight)*Ddiffgas_dn
     
@@ -3874,13 +3865,6 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
   ! F.-M. Yuan: for 1-way SEEPAGE_BC, if water flow driven by Pres(1) under freezing condition,
   ! expansion caused high pressure is not really associated with real-water flow, but may cause very high heat loss and cause pertubation
-  if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
-    deltaTf = 1.0d-10              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
-    if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf,option%frzthw_halfwidth)
-    if(global_auxvar_dn%temp<=deltaTf) then   ! when iced-water exists, shut-off heat bulk outlet
-      uh = 0.d0
-    endif
-  endif
 
   fluxm = fluxm + q*density_ave
   fluxe = fluxe + q*density_ave*uh
@@ -4173,7 +4157,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   PetscReal :: well_inj_water
   PetscReal :: Dq, dphi, v_darcy, ukvr
 
-  PetscInt :: iconn, idof, istart, iend
+  PetscInt :: iconn, idof, istart, iend, ii
   PetscInt :: sum_connection
   PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity
@@ -4247,13 +4231,15 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
                         option,vol_frac_prim,Res)
     r_p(istart:iend) = r_p(istart:iend) + Res
 
-    if(Res(1) /= Res(1) .or. Res(2) /= Res(2) &
-      .or. abs(Res(1))>huge(Res(1)) .or. abs(Res(2))>huge(Res(2)) ) then
-      write(string,*) 'local_id: ', local_id, 'Res: ', Res
-      option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - Accumulation of ' // &
-        trim(string)
-      call printErrMsg(option)
-    endif
+
+    do ii=1,option%nflowdof
+      if(Res(ii) /= Res(ii) .or. abs(Res(ii))>huge(Res(ii)) ) then
+        write(string,*) 'local_id: ', local_id, 'Res: ', ii, Res(ii)
+        option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - Accumulation of ' // &
+          trim(string)
+        call printErrMsg(option)
+      endif
+    enddo
 
   enddo
 
@@ -4403,13 +4389,14 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       endif
 
       Res = Res_src
-      if(Res(1) /= Res(1) .or. Res(2) /= Res(2) &
-        .or. abs(Res(1))>huge(Res(1)) .or. abs(Res(2))>huge(Res(2)) ) then
-        write(string, *) ' name -', source_sink%name, ' @local_id -', local_id, 'with Res -', Res
-        option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - source_sink of ' // &
-          trim(string)
-        call printErrMsg(option)
-      endif
+      do ii=1,option%nflowdof
+        if(Res(ii) /= Res(ii) .or. abs(Res(ii))>huge(Res(ii)) ) then
+          write(string, *) ' name -', source_sink%name, ' @local_id -', local_id, 'with Res -', ii, Res(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - source_sink of ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
 
     enddo
     source_sink => source_sink%next
@@ -4522,13 +4509,14 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
         r_p(istart:iend) = r_p(istart:iend) - Res(1:option%nflowdof)
       endif
 
-      if(Res(1) /= Res(1) .or. Res(2) /= Res(2) &
-        .or. abs(Res(1))>huge(Res(1)) .or. abs(Res(2))>huge(Res(2)) ) then
-        write(string, *) ' @local_id -', local_id_up, local_id_dn, ' with Res -', Res
-        option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - interior flux between ' // &
-          trim(string)
-        call printErrMsg(option)
-      endif
+      do ii=1,option%nflowdof
+        if(Res(ii) /= Res(ii) .or. abs(Res(ii))>huge(Res(ii)) ) then
+          write(string, *) ' @local_id -', local_id_up, local_id_dn, ' with Res -', ii, Res(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - interior flux between ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
 
     enddo
     cur_connection_set => cur_connection_set%next
@@ -4595,13 +4583,14 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       istart = iend-option%nflowdof+1
       r_p(istart:iend)= r_p(istart:iend) - Res(1:option%nflowdof)
 
-      if(Res(1) /= Res(1) .or. Res(2) /= Res(2) &
-        .or. abs(Res(1))>huge(Res(1)) .or. abs(Res(2))>huge(Res(2)) ) then
-        write(string, *) ' name -', boundary_condition%name, ' @local_id -', local_id, 'with Res -', Res
-        option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - boundary_condition of ' // &
-          trim(string)
-        call printErrMsg(option)
-      endif
+      do ii=1,option%nflowdof
+        if(Res(ii) /= Res(ii) .or. abs(Res(ii))>huge(Res(ii)) ) then
+          write(string, *) ' name -', boundary_condition%name, ' @local_id -', local_id, 'with Res -', ii, Res(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - boundary_condition of ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
 
     enddo
     boundary_condition => boundary_condition%next
