@@ -3252,6 +3252,7 @@ subroutine SF_BC_Saturation(this,capillary_pressure,liquid_saturation, &
 
   ! F.-M. Yuan: the following if block should be removed, so that the calculation can go beyond.
   !             Otherwise, there seems inconsistent (or discontinued) somehow and cause issues of NaN/Inf PC.
+  !             (not sure how, but the truncation can be done after calling this subroutine).
   !if (capillary_pressure < this%pcmax) then
     pc_alpha_neg_lambda = (capillary_pressure*this%alpha)**(-this%lambda)
     Se = pc_alpha_neg_lambda
