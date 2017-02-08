@@ -371,15 +371,18 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   compressibility = auxvar%soil_properties(soil_compressibility_index)
   compression = &
     exp(-1.d0 * compressibility * &
-        (pressure - auxvar%soil_properties(soil_reference_pressure_index)))
+      min(16.54d6, max(0.d0, &
+      pressure - auxvar%soil_properties(soil_reference_pressure_index))) )
   tempreal = (1.d0 - auxvar%porosity_base) * compression
   compressed_porosity = 1.d0 - tempreal
   dcompressed_porosity_dp = tempreal * compressibility
 
-  if(pressure<auxvar%soil_properties(soil_reference_pressure_index)) then
-    compressed_porosity = auxvar%porosity_base
-    dcompressed_porosity_dp = 0.d0
-  endif
+  ! F.-M. Yuan (2017-02-07): add bounds above, but appears very bad to do
+  ! the following for derivatives (NaN/Inf PC errors)
+  !if(pressure<=auxvar%soil_properties(soil_reference_pressure_index) &
+  !   .or. pressure>=16.54d6) then
+  !  dcompressed_porosity_dp = 0.d0
+  !endif
   
 end subroutine MaterialCompressSoilLeijnse
 
