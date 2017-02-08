@@ -997,7 +997,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   C_g                    = C_wv*mol_g*FMWH2O + C_a*(1.d0 - mol_g)*FMWAIR          ! in MJ/kmol/K
   auxvar%ice%u_gas       = C_g*tk_g                                               ! in MJ/kmol
-!#ifdef CLM_PFLOTRAN
+
 #if 0
 ! 2017-01-30: tests show that the following may cause tiny-time recovering issue when re-freezing (so OFF now).
   ! NOTE: vapor 'mol_gas' is included in 'den_gas', 'u_gas'
@@ -1020,10 +1020,13 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
-    ! something happened in the following, causing difficulties to re-freeze soils (TODO - checking)
+    ! something happened in the following, causing difficulties to re-freeze soils (TODO - checking: 2017-01-18)
     ! (maybe: except for DALL_AMICO model)
-    !if (option%ice_model == DALL_AMICO) &
-    !auxvar%ice%dsat_gas_dp = auxvar%ice%dsat_gas_dp * dp_trunc
+    ! 02-07-2017: It may be relevant to soil compressibility.
+    !             This also causes LARGE temperature oscillation during F/T - with one layer supper HOT while other supper COLD.
+    if (option%ice_model == DALL_AMICO &
+      .or.option%ice_model == PAINTER_KARRA_EXPLICIT_SMOOTH) &
+    auxvar%ice%dsat_gas_dp = auxvar%ice%dsat_gas_dp * dp_trunc
 
     auxvar%ice%dsat_gas_dt = auxvar%ice%dsat_gas_dt * dt_trunc
     auxvar%ice%dden_gas_dp = auxvar%ice%dden_gas_dp * dp_trunc
@@ -1228,7 +1231,7 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
       case (PAINTER_KARRA_EXPLICIT, PAINTER_KARRA_EXPLICIT_SMOOTH)
 
 #if 0
-        ! (TODO-checking) when coupled with CLM, the following is helpful to reduce tiny-time stepping, BUT not for PFLOTRAN alone
+        ! (TODO-checking) when coupled with CLM, the following not works well
         ice_presl    = (pres_l - pc) - xplice
         ice_presl_dpl= dxplice_dpl
         ice_presl_dt = dxplice_dt
@@ -1260,10 +1263,11 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
         ! Model from Dall'Amico (2010) and Dall' Amico et al. (2011)
         ! rewritten following 'saturation_function.F90:SatFuncComputeIceDallAmico()'
         ! NOTE: here calculate 'saturations and its derivatives'
+#if 0
         ice_presl    = pres_l   ! this implies that actually not use ice-adjusted pressure
         ice_presl_dpl= 1.d0
         ice_presl_dt = 0.d0
-
+#endif
         call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)   ! Pc1 ---> S1, but '_dx' is w.r.t. '_dpres'
 
         !
