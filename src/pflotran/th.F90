@@ -1829,8 +1829,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     dgravity_dden_up = upweight*auxvar_up%avgmw*dist_gravity
     dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-    if (option%ice_model /= DALL_AMICO .and. &
-        option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
+    if (option%ice_model /= DALL_AMICO &
+        .and.option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
       dphi_dp_up = 1.d0 + dgravity_dden_up*auxvar_up%dden_dp
       dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
@@ -2460,8 +2460,8 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
               (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
               * dist_gravity
 
-    if (option%ice_model /= DALL_AMICO .and. &
-        option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
+    if (option%ice_model /= DALL_AMICO &
+        .and.option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
     else
       dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -2782,8 +2782,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                   * dist_gravity
         dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-        if (option%ice_model /= DALL_AMICO .and. &
-            option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
+        if (option%ice_model /= DALL_AMICO &
+            .and.option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
           dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
@@ -2915,8 +2915,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                   * dist_gravity
         dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-        if (option%ice_model /= DALL_AMICO .and. &
-            option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
+        if (option%ice_model /= DALL_AMICO &
+           .and.option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
           dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
@@ -3150,15 +3150,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
   ! F.-M. Yuan: for 1-way SEEPAGE_BC, if water flow driven by Pres(1) under freezing condition,
   ! expansion caused high pressure is not really associated with real-water flow, but may cause very high heat loss and cause pertubation
-  if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
-    deltaTf = 1.0d-10              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
-    if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf,option%frzthw_halfwidth)
-    if(global_auxvar_dn%temp<=deltaTF) then   ! when iced-water exists, shut-off heat bulk outlet
-      uh = 0.d0
-      duh_dp_dn = 0.d0
-      duh_dt_dn = 0.d0
-    endif
-  endif
 
   !call InterfaceApprox(auxvar_up%h, auxvar_dn%h, &
   !                     auxvar_up%dh_dp, auxvar_dn%dh_dp, &
@@ -3642,8 +3633,8 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
                   (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
                   * dist_gravity
 
-        if (option%ice_model /= DALL_AMICO .and. &
-            option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
+        if (option%ice_model /= DALL_AMICO &
+            .and.option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
 
         else
@@ -3731,8 +3722,8 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
              (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
              * dist_gravity
         
-        if (option%ice_model /= DALL_AMICO .and. &
-            option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
+        if (option%ice_model /= DALL_AMICO &
+            .and.option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -5867,10 +5858,7 @@ function THInitGuessCheck(xx, option)
 
   ipass = 1
 
-  ! F.-M. Yuan: appears this Check useful to other types of ice_model
-  !             which may avoid too many NaN or Inf PC warnings for divergence (2017-02-02)
-  if (option%ice_model /= DALL_AMICO .and. &
-      option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
+  if (option%ice_model /= DALL_AMICO) then
     THInitGuessCheck = ipass
     return
   endif

@@ -1024,8 +1024,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     ! (maybe: except for DALL_AMICO model)
     ! 02-07-2017: It may be relevant to soil compressibility.
     !             This also causes LARGE temperature oscillation during F/T - with one layer supper HOT while other supper COLD.
-    if (option%ice_model == DALL_AMICO &
-      .or.option%ice_model == PAINTER_KARRA_EXPLICIT_SMOOTH) &
+    if (option%ice_model == DALL_AMICO) &
     auxvar%ice%dsat_gas_dp = auxvar%ice%dsat_gas_dp * dp_trunc
 
     auxvar%ice%dsat_gas_dt = auxvar%ice%dsat_gas_dt * dt_trunc
@@ -1116,7 +1115,8 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
   ! ice and vapor phases are present
   !
   ! Revised by fengming Yuan @03-08-2016/CCSI-ONRL
-  ! NOTE: (1) ice_model 'PAINTER_KARRA_EXPLICIT', or, 'PAINTER_KARRA_EXPLICIT_SMOOTH'
+  ! NOTE: (1) ice_model 'PAINTER_EXPLICIT', or, 'PAINTER_KARRA_EXPLICIT',
+  !             or, 'PAINTER_KARRA_EXPLICIT_SMOOTH', or, 'DALL_AMICO'
   !       (2) ANY saturation_function, from 'Characteristic_Curves_module'
   !       (3) ANY permissivity function, from 'Characteristci_Curves_module' as well
 
@@ -1232,6 +1232,7 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
 
 #if 0
         ! (TODO-checking) when coupled with CLM, the following not works well
+        ! although it's theoretically better (because it's used for calculating 'dphi' for water Darcy flux)
         ice_presl    = (pres_l - pc) - xplice
         ice_presl_dpl= dxplice_dpl
         ice_presl_dt = dxplice_dt
