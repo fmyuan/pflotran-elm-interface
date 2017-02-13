@@ -1024,7 +1024,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     ! (maybe: except for DALL_AMICO model)
     ! 02-07-2017: It may be relevant to soil compressibility.
     !             This also causes LARGE temperature oscillation during F/T - with one layer supper HOT while other supper COLD.
-    if (option%ice_model == DALL_AMICO) &
+    !if (option%ice_model == DALL_AMICO) &
     auxvar%ice%dsat_gas_dp = auxvar%ice%dsat_gas_dp * dp_trunc
 
     auxvar%ice%dsat_gas_dt = auxvar%ice%dsat_gas_dt * dt_trunc
