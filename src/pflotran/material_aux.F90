@@ -369,8 +369,8 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   PetscReal :: tempreal
 #ifdef CLM_PFLOTRAN
   ! F.-M. Yuan (2017-02-13): freezing caused expansion max. factor
-  ! (slightly larger than liq./ice denstiy ratio for better performance)
-  PetscReal, parameter :: F_EXPANSION = 1.100d0  ! liq./ice density ratio ~ 1.0906 ~ 1.0915 or slightly less
+  ! (slightly larger, but not too much, than liq./ice denstiy ratio may be having better performance)
+  PetscReal, parameter :: F_EXPANSION = 1.0950d0  ! liq./ice density ratio ~ 1.0906 ~ 1.0915 or slightly less
   PetscReal, parameter :: MAX_POROSITY= 0.95d0
 #endif
   
