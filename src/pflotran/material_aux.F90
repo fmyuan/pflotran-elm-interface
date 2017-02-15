@@ -372,8 +372,8 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   ! (slightly larger, but not too much, than liq./ice denstiy ratio may be having better performance)
   ! liq./ice density ratio ~ 1.09065 (999.8/916.7@0degC, see Characteristic_Curves.F90 for ice-pc calculation)
   !                          or slightly less (ice density increases when temperature drops)
-  !PetscReal, parameter :: F_EXPANSION = 999.8d0/916.7d0   !
-  PetscReal, parameter :: F_EXPANSION = 1.0950d0         ! slightly larger
+  !PetscReal, parameter :: F_EXPANSION = 1.09065d0     !
+  PetscReal, parameter :: F_EXPANSION = 1.150d0        ! larger
   PetscReal, parameter :: MAX_POROSITY= 0.95d0
 #endif
   
@@ -381,18 +381,22 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
 #ifdef CLM_PFLOTRAN
   ! F.-M. Yuan (2017-02-13)
   ! it's hard to prescribe a compressibility so that thawing caused expansion properly featured
-  ! so hard-weired a large compressibility and later truncating at a max. expansion factor
-  !compressibility = 1.d-4    ! let it flexible (upon 'porosity_base').
 
+#if 0
   tempreal = min(MAX_POROSITY/F_EXPANSION, auxvar%porosity_base)           ! max. base porosity check
   compression = (1.d0-tempreal*F_EXPANSION)/(1.d0-tempreal)
 
   ! Arbitrarily set 0.2-atm water head (over reference_pressure, i.e. equivalent of ~ 2 m water head)
   ! for reaching Freezing-caused max. compressibility (test shows this may be the proper one)
   ! Setting this value too large cause difficulties of tiny-time during freezing, but neither can be too small
-  ! Tests shows it will vary with 'porosity_base' ranging from 1.d-4 ~ 1.d-9 (it implies 1.d-4 above is reasonable).
+  ! Tests shows it will vary with 'porosity_base' ranging from 1.d-4 ~ 1.d-9 (it implies 1.d-4 below is reasonable).
   compressibility = -log(compression) &
       /(1.2d0*1.01325d5-auxvar%soil_properties(soil_reference_pressure_index))
+
+#else
+  ! hard-weired a large compressibility and later truncating at a max. expansion factor
+  compressibility = 1.d-4
+#endif
 
 #endif
 
