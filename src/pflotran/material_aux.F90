@@ -372,8 +372,8 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   ! (slightly larger, but not too much, than liq./ice denstiy ratio may be having better performance)
   ! liq./ice density ratio ~ 1.09065 (999.8/916.7@0degC, see Characteristic_Curves.F90 for ice-pc calculation)
   !                          or slightly less (ice density increases when temperature drops)
-  !PetscReal, parameter :: F_EXPANSION = 1.09065d0     !
-  PetscReal, parameter :: F_EXPANSION = 1.150d0        ! larger
+  !PetscReal, parameter :: F_EXPANSION = 1.09065d0      !
+  PetscReal, parameter :: F_EXPANSION = 1.150d0        ! slightly larger to hold uncertainty (due to density equations)
   PetscReal, parameter :: MAX_POROSITY= 0.95d0
 #endif
   
@@ -382,7 +382,7 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   ! F.-M. Yuan (2017-02-13)
   ! it's hard to prescribe a compressibility so that thawing caused expansion properly featured
 
-#if 0
+!#if 0
   tempreal = min(MAX_POROSITY/F_EXPANSION, auxvar%porosity_base)           ! max. base porosity check
   compression = (1.d0-tempreal*F_EXPANSION)/(1.d0-tempreal)
 
@@ -393,10 +393,10 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   compressibility = -log(compression) &
       /(1.2d0*1.01325d5-auxvar%soil_properties(soil_reference_pressure_index))
 
-#else
+!#else
   ! hard-weired a large compressibility and later truncating at a max. expansion factor
-  compressibility = 1.d-4
-#endif
+!  compressibility = 1.d-4
+!#endif
 
 #endif
 

@@ -1004,8 +1004,11 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! (because 'mol_g', fraction of vapor in air-mixture, going to be as multiplier in all 'gas' calculations in 'th.F90')
   ! so, if for air-mixture, may assign this to 1.0 ( appears very helpful to reduce time-step)
   !     if totally ignore gas (all), may assign this to 0.0
-
-  auxvar%ice%mol_gas     = 1.d0
+#ifdef NO_VAPOR_DIFFUSION
+  auxvar%ice%mol_gas     = 0.d0   ! no gas (inc. vapor)
+#else
+  auxvar%ice%mol_gas     = 1.d0   ! air-mixture
+#endif
   auxvar%ice%dmol_gas_dt = 0.d0
   auxvar%ice%dmol_gas_dp = 0.d0
 #else
