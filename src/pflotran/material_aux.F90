@@ -382,7 +382,6 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   ! F.-M. Yuan (2017-02-13)
   ! it's hard to prescribe a compressibility so that thawing caused expansion properly featured
 
-!#if 0
   tempreal = min(MAX_POROSITY/F_EXPANSION, auxvar%porosity_base)           ! max. base porosity check
   compression = (1.d0-tempreal*F_EXPANSION)/(1.d0-tempreal)
 
@@ -391,13 +390,10 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   ! Setting this value too large cause difficulties of tiny-time during freezing, but neither can be too small
   ! Tests shows it will vary with 'porosity_base' ranging from 1.d-4 ~ 1.d-9 (it implies 1.d-4 below is reasonable).
   compressibility = -log(compression) &
-      /(1.2d0*1.01325d5-auxvar%soil_properties(soil_reference_pressure_index))
+      /(0.2d0*auxvar%soil_properties(soil_reference_pressure_index))
 
-!#else
   ! hard-weired a large compressibility and later truncating at a max. expansion factor
-!  compressibility = 1.d-4
-!#endif
-
+  !  compressibility = 1.d-4
 #endif
 
   compression = &

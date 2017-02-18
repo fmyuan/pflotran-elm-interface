@@ -794,8 +794,10 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
         sf%lambda = auxvar%bc_lambda
         sf%Sr  = auxvar%bc_sr1
         ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-        error_string = 'passing CLM characterisitc-curves parameters: sat_function'
-        call sf%SetupPolynomials(option,error_string)
+        if(associated(sf%sat_poly) .or. associated(sf%pres_poly)) then
+          error_string = 'passing CLM characterisitc-curves parameters: sat_function'
+          call sf%SetupPolynomials(option,error_string)
+        endif
 
       class default
         option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
@@ -810,10 +812,11 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
       class is(rpf_Burdine_BC_liq_type)
         rpf%lambda = auxvar%bc_lambda
         rpf%Sr  = auxvar%bc_sr1
-
-      ! Burdine_BC_liq RPF has no spline-smoothing (@ May-05-2016)
-      !error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
-      !call rpf%SetupPolynomials(option,error_string)
+        ! Burdine_BC_liq RPF has no spline-smoothing (@ May-05-2016)
+        if(associated(rpf%poly)) then
+          error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
+          call rpf%SetupPolynomials(option,error_string)
+        endif
 
       class default
         option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
