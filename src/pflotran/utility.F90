@@ -74,6 +74,8 @@ module Utility_module
             Determinant, &
             InterfaceApproxWithDeriv, &
             InterfaceApproxWithoutDeriv, &
+            ScaledQuadraticSetup, &
+            ScaledQuadraticEvaluate, &
             PrintProgressBarInt
             
 contains
@@ -2013,5 +2015,104 @@ subroutine PrintProgressBarInt(max,increment,current)
   endif
 
 end subroutine PrintProgressBarInt
+
+! ************************************************************************** !
+
+subroutine ScaledQuadraticSetup(x_1,x_2, coefficients, MATCHED_END_AT_1)
+  !
+  ! Sets up a Scaled quadratic (a special cubic polynomial)
+  ! for smoothing discontinuous functions with monotonic derivatives
+  !
+  ! Cubic polynomial: y=ax3+bx2+cx+d, so dy/dx=3ax2+2bx+c - a quadratic, i.e. NON monotonic
+  ! Quadratic: y=ax2+bx+c, so dy/dx=2ax+b - a linear, i.e. not scalable for interpolating derivatives btw 2 values
+  ! Here: y = (ax2+bx+c), so dy/dx=2ax+b,
+  !   i.e. (1) exactly matching f'(x) at x_1 and x_2 first; (2) deriving 'c' from either 'x1' or 'x2';
+  !        (3) scaling 'y' using NOT accounted point 'x2' or 'x1' in (2).
+  !    e.g. if y1 is used to derive 'c', then
+  !          k = (y2 - (a*x_2*x_2+b*x_2+c))/(x_2-x_1)
+  !          y = (ax2+bx+c)+k*(x-x_1)
+  !
+  !  dy/dx = (2*a*x+b)+k
+  !
+  ! Author: Fengming Yuan
+  ! Date: 2017-02-20
+  !
+
+  implicit none
+
+  PetscReal :: x_1
+  PetscReal :: x_2
+  PetscReal :: coefficients(5)
+  PetscBool :: MATCHED_END_AT_1
+
+  PetscReal :: y(4)
+  PetscReal :: a, b, c, k, x_0
+
+  !
+  y(1:4) = coefficients(1:4)         ! AT THIS LINE, y and dy @ x_1 and x_2, as INPUTS
+
+  ! y3-y4 = 2a*(x1-x2)
+  a = (y(3)-y(4))/(x_1-x_2)/2.d0
+  b = y(3)-2.d0*a*x_1
+
+  if (MATCHED_END_AT_1) then
+    c = y(1)-(a*x_1*x_1+b*x_1)
+    k = y(2)-(a*x_2*x_2+b*x_2+c)     ! calculated y discranpcy @ x_2
+    k = k/(x_2-x_1)                  ! adjusting difference per change of x
+    x_0 = x_1
+  else
+    c = y(2)-(a*x_2*x_2+b*x_2)
+    k = y(1)-(a*x_1*x_1+b*x_1+c)     ! calculated y discranpcy @ x_1
+    k = k/(x_1-x_2)                  ! adjusting difference per change of x
+    x_0 = x_2
+  endif
+
+
+  ! return the following coefficients
+  coefficients(1) = a
+  coefficients(2) = b
+  coefficients(3) = c
+  coefficients(4) = k             ! linear interpolation: slope
+  coefficients(5) = x_0           ! linear interpolation: x @ intercept of 0
+
+end subroutine ScaledQuadraticSetup
+
+! ************************************************************************** !
+
+subroutine ScaledQuadraticEvaluate(coefficients,x,f,df_dx)
+  !
+  ! Evaluates value in ScaledQuadratic function
+  !
+  ! Here: y = (ax2+bx+c), so dy/dx=2ax+b,
+  !   i.e. (1) exactly matching f'(x) at x_1 and x_2 first; (2) deriving 'c' from either 'x1' or 'x2';
+  !        (3) scaling 'y' using NOT accounted point 'x2' or 'x1' in (2).
+  !    e.g. if y1 is used to derive 'c', then
+  !          k = (y2 - (a*x_2*x_2+b*x_2+c))/(x_2-x_1)
+  !          y = (ax2+bx+c) + k*(x-x_1)
+  !     and, dy/dx = (2ax+b) + k
+  !
+  ! Author: Fengming Yuan
+  ! Date: 2017-02-20
+  !
+
+  implicit none
+
+  PetscReal :: coefficients(5)
+  PetscReal :: x
+  PetscReal :: f
+  PetscReal :: df_dx
+
+  f = coefficients(1)*x*x + &                   ! a
+      coefficients(2)*x + &                     ! b
+      coefficients(3) + &                       ! c
+      coefficients(4)*(x-coefficients(5))       ! k, x_0
+
+  df_dx = coefficients(1)*2.d0*x + &
+          coefficients(2) + &
+          coefficients(4)
+
+end subroutine ScaledQuadraticEvaluate
+
+! ************************************************************************** !
 
 end module Utility_module

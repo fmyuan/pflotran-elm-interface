@@ -1302,16 +1302,17 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
 
   ! Check for bounds on saturations
   if ((sl-1.d0)>1.d-15 .or. sl<-1.d-15) then
-    print *, tc, sli, sl, si, pc, xplice
+    print *, tc, pc, sl, si, sg, sli, xplice
     option%io_buffer = 'TH with ice mode: Liquid Saturation error: >1 or <0'
     call printErrMsg(option)
   endif
   if ((si-1.d0)>1.d-15 .or. si<-1.d-15) then
-    print *, tc, sli, sl, si, pc, xplice
+    print *, tc, pc, sl, si, sg, sli, xplice
     option%io_buffer = 'TH with ice mode: ICE Saturation error:  >1 or <0'
     call printErrMsg(option)
   endif
   if ((sg-1.d0)>1.d-15 .or. sg<-1.d-15) then
+    print *, tc, pc, sl, si, sg, sli, xplice
     option%io_buffer = 'TH with ice mode: Gas Saturation error:  >1 or <0'
     call printErrMsg(option)
   endif
@@ -1319,7 +1320,6 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
     option%io_buffer = 'TH with ice mode: Saturation not summed to 1 '
     call printErrMsg(option)
   endif
-
 
   ! (2) relative permissivity of liq. water in multiple-phase mixture
   kr      = 0.d0  !all initialized to zero

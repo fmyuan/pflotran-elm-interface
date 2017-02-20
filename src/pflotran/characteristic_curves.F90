@@ -13,7 +13,7 @@ module Characteristic_Curves_module
   type :: polynomial_type
     PetscReal :: low
     PetscReal :: high
-    PetscReal :: coefficients(4)
+    PetscReal :: coefficients(5)
   end type polynomial_type
  
   ! Begin Saturation Functions ------------------------------------------------
@@ -3043,7 +3043,9 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: error_string
   
-  PetscReal :: b(4)
+  PetscReal :: b(5)
+  PetscReal :: x,f,df
+  PetscInt :: i
 
   ! polynomial fitting pc as a function of saturation
   ! 1.05 is essentially pc*alpha (i.e. pc = 1.05/alpha)
@@ -3078,8 +3080,8 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   ! fill matix with values
   if (associated(this%pres_poly)) call PolynomialDestroy(this%pres_poly)
   this%pres_poly => PolynomialCreate()
-  this%pres_poly%low = 0.95/this%alpha
-  this%pres_poly%high = 1.05/this%alpha
+  this%pres_poly%low = 1.00d0/this%alpha
+  this%pres_poly%high = 1.05d0/this%alpha
   
   b = 0.d0
   ! Se at 1
@@ -3093,10 +3095,19 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   b(4) = -this%lambda/this%pres_poly%high* &
             (this%pres_poly%high*this%alpha)** &
               (-this%lambda)
-
+#if 0
   call CubicPolynomialSetup(this%pres_poly%low,this%pres_poly%high,b)
 
   this%pres_poly%coefficients(1:4) = b(1:4)
+
+#else
+  call ScaledQuadraticSetup(this%pres_poly%low,this%pres_poly%high,b, &
+                            PETSC_FALSE)
+
+  this%pres_poly%coefficients(1:5) = b(1:5)
+
+#endif
+
 
 end subroutine SF_BC_SetupPolynomials
 
@@ -3222,8 +3233,15 @@ subroutine SF_BC_Saturation(this,capillary_pressure,liquid_saturation, &
       liquid_saturation = 1.d0
       return
     else if (capillary_pressure < this%pres_poly%high) then
+#if 0
       call CubicPolynomialEvaluate(this%pres_poly%coefficients, &
                                    capillary_pressure,Se,dSe_dpc)
+
+#else
+      call ScaledQuadraticEvaluate(this%pres_poly%coefficients(1:5), &
+                                   capillary_pressure,Se,dSe_dpc)
+#endif
+
       liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
       dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
       return
