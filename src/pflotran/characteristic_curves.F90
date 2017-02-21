@@ -3080,8 +3080,13 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   ! fill matix with values
   if (associated(this%pres_poly)) call PolynomialDestroy(this%pres_poly)
   this%pres_poly => PolynomialCreate()
+
+  ! what really causes issue with BC is the max. derivatives (-alpha*bata) at pc=1/alpha
+  ! so smoothing should be starting 1/alpha toward more drier direction
+  ! (F.-M. Yuan: 2017-02-20)
   this%pres_poly%low = 1.00d0/this%alpha
-  this%pres_poly%high = 1.05d0/this%alpha
+  !this%pres_poly%high = 1.05d0/this%alpha
+  call SF_BC_CapillaryPressure(this,0.99d0, this%pres_poly%high,option)
   
   b = 0.d0
   ! Se at 1
