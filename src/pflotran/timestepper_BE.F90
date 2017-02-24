@@ -262,6 +262,11 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   use Option_module
   use Output_module, only : Output
   use Output_EKG_module, only : IUNIT_EKG
+
+  ! for checking grid cell index in which error occurs (F.-M. Yuan, 2017-02-24)
+  use PM_Subsurface_Flow_class, only : pm_subsurface_flow_type
+  use grid_module, only : grid_type
+  use grid_structured_module, only : StructGridGetIJKFromLocalID
   
   implicit none
 
@@ -271,6 +276,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
   class(timestepper_BE_type) :: this
   class(pm_base_type) :: process_model
+
   PetscInt :: stop_flag
   
   SNESConvergedReason :: snes_reason
@@ -297,8 +303,12 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 !fmy: for printing vecs if program stops
   PetscScalar, pointer :: solution_p(:)
   PetscScalar, pointer :: residual_p(:)
-  PetscInt :: vecsize1, vecsize2, i
+  PetscInt :: vecsize1, vecsize2, i, max_res_index
+  PetscInt :: cell_index, cell_i, cell_j, cell_k
+  PetscReal:: max_res
   PetscErrorCode :: ierr2
+  type(grid_type), pointer :: grid
+  !class(pm_base_type),pointer :: pm
 !fmy: for printing vecs if program stops
   
   solver => this%solver
@@ -350,16 +360,51 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
         call VecGetArrayF90(process_model%solution_vec, solution_p, ierr2)
         call VecGetArrayF90(process_model%residual_vec, residual_p, ierr2)
 
-        write(option%fid_out, *) 'Time(s): ', option%time
-        write(option%fid_out, *) ' <---vec no.-- solution_vec ----> '
-        do i=1, vecsize1
-          write(option%fid_out, *) i, solution_p(i)
+        max_res = abs(residual_p(1))
+        max_res_index = 1
+        do i=2, vecsize2
+          if (max_res< abs(residual_p(i))) then
+            max_res_index = i
+            max_res       = residual_p(i)
+          endif
         enddo
-        write(option%fid_out, *) '  '
-        write(option%fid_out, *) ' <---vec no.-- residual_vec ----> '
-        do i=1, vecsize2
-          write(option%fid_out, *) i, residual_p(i)
-        enddo
+
+        write(option%fid_out, *) 'Time(s): ', option%time, 'rank: ', option%myrank
+        ! not yet figure out how to get 'reaction_aux%ncomp' in
+        ! and either the 2 vecs are different for flow-transport model and reaction model
+        ! BE CAUTIOUS!
+        if (option%nflowdof>0 .or. option%ntrandof>0) then
+          cell_index = floor(real((max_res_index-1)/(option%nflowdof+option%ntrandof)))+1
+
+          select type (pm => process_model)
+            class is (pm_subsurface_flow_type)
+              grid => pm%realization%patch%grid
+
+              select case(grid%itype)
+                case(STRUCTURED_GRID)
+                  call StructGridGetIJKFromLocalID(grid%structured_grid, cell_index, &
+                                                   cell_i, cell_j, cell_k)
+                case default
+                  option%io_buffer = " only STRUCTURED_GRID can know cell_IJK."
+                  call printMsg(option)
+              end select
+            !
+          end select
+
+          write(option%fid_out, *) ' <---cell index.---vec. no. -- solution_vec with max. res ----> '
+          do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
+               cell_index*(option%nflowdof+option%ntrandof)
+            write(option%fid_out, *) cell_index, cell_i, cell_j, cell_k, i, solution_p(i)
+          enddo
+
+          write(option%fid_out, *) '  '
+          write(option%fid_out, *) ' <---cell index --- vec no.-- max. residual_vec ----> '
+          do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
+               cell_index*(option%nflowdof+option%ntrandof)
+            write(option%fid_out, *) cell_index, '(', cell_i, cell_j, cell_k, ')', i, residual_p(i)
+          enddo
+        endif
+
         write(option%fid_out, *) '  '
         write(option%fid_out, *) ' Stop Executing! '
 
@@ -418,16 +463,54 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
           call VecGetArrayF90(process_model%solution_vec, solution_p, ierr2)
           call VecGetArrayF90(process_model%residual_vec, residual_p, ierr2)
 
-          write(option%fid_out, *) 'Time(s): ', option%time
-          write(option%fid_out, *) ' <---vec no.-- solution_vec ----> '
-          do i=1, vecsize1
-            write(option%fid_out, *) i, solution_p(i)
+          max_res = abs(residual_p(1))
+          max_res_index = 1
+          do i=2, vecsize2
+            if (max_res< abs(residual_p(i))) then
+              max_res_index = i
+              max_res       = residual_p(i)
+            endif
           enddo
-          write(option%fid_out, *) '  '
-          write(option%fid_out, *) ' <---vec no.-- residual_vec ----> '
-          do i=1, vecsize2
-            write(option%fid_out, *) i, residual_p(i)
-          enddo
+
+          write(option%fid_out, *) 'Time(s): ', option%time, 'rank: ', option%myrank
+          ! not yet figure out how to get 'reaction_aux%ncomp' in
+          ! and neither the 2 vecs are different for flow-transport model and reaction model
+          ! BE CAUTIOUS!
+
+          if (option%nflowdof>0 .or. option%ntrandof>0) then
+            cell_index = floor(real((max_res_index-1)/(option%nflowdof+option%ntrandof)))+1
+
+            select type (pm => process_model)
+              class is (pm_subsurface_flow_type)
+                grid => pm%realization%patch%grid
+
+                select case(grid%itype)
+                  case(STRUCTURED_GRID)
+                    call StructGridGetIJKFromLocalID(grid%structured_grid, cell_index, &
+                                                   cell_i, cell_j, cell_k)
+                  case default
+                    option%io_buffer = " only STRUCTURED_GRID can know cell_IJK."
+                    call printMsg(option)
+                end select
+            end select
+
+
+            write(option%fid_out, *) ' <---cell index.---vec. no. -- solution_vec with max. res ----> '
+            do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
+                 cell_index*(option%nflowdof+option%ntrandof)
+              write(option%fid_out, *) cell_index, '(',cell_i,cell_j,cell_k, ')', &
+                i, solution_p(i)
+            enddo
+
+            write(option%fid_out, *) '  '
+            write(option%fid_out, *) ' <---cell index --- vec no.-- max. residual_vec ----> '
+            do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
+                  cell_index*(option%nflowdof+option%ntrandof)
+              write(option%fid_out, *) cell_index, '(',cell_i,cell_j,cell_k, ')', &
+                i, residual_p(i)
+            enddo
+          endif
+
           write(option%fid_out, *) '  '
           write(option%fid_out, *) ' Stop Executing! '
 
