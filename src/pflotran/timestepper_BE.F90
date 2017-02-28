@@ -303,12 +303,14 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 !fmy: for printing vecs if program stops
   PetscScalar, pointer :: solution_p(:)
   PetscScalar, pointer :: residual_p(:)
-  PetscInt :: vecsize1, vecsize2, i, max_res_index
+  PetscInt :: fileid_info
+  PetscInt :: vecsize, i
   PetscInt :: cell_index, cell_i, cell_j, cell_k
-  PetscReal:: max_res
+  PetscInt :: cell_offset, cell_offset_x, cell_offset_y, cell_offset_z
+  PetscReal:: max_res(2), max_res_global(2), max_res_value, max_res_solu
+  PetscInt :: max_res_index, max_res_rank
   PetscErrorCode :: ierr2
   type(grid_type), pointer :: grid
-  !class(pm_base_type),pointer :: pm
 !fmy: for printing vecs if program stops
   
   solver => this%solver
@@ -343,8 +345,8 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
     call SNESSolve(solver%snes,PETSC_NULL_OBJECT, &
                    process_model%solution_vec,ierr)
 
-!fmy: checking SNESSolver error and stop excuting/output messages if error occurs
     if (ierr .ne. 0) then
+
       print *, ' <-- SNES Solver ERROR @TimeStepperBEStepDT --> '
       print *, ' Time (s): ', option%time, ' log_start_time: ', log_start_time
       print *, ' Linear Iterations: ', sum_linear_iterations
@@ -353,23 +355,29 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
       if (option%print_file_flag) then
 
-        write(option%fid_out, *) ' <-- SNES Solver ERROR @TimeStepperBEStepDT -->'
-        call VecGetLocalSize(process_model%solution_vec,vecsize1,ierr2)
-        call VecGetLocalSize(process_model%residual_vec,vecsize2,ierr2)
+        !------fmy - checking the solution to see what's going on
+        call VecGetLocalSize(process_model%residual_vec, vecsize, ierr2)
 
-        call VecGetArrayF90(process_model%solution_vec, solution_p, ierr2)
         call VecGetArrayF90(process_model%residual_vec, residual_p, ierr2)
-
-        max_res = abs(residual_p(1))
-        max_res_index = 1
-        do i=2, vecsize2
-          if (max_res< abs(residual_p(i))) then
-            max_res_index = i
-            max_res       = residual_p(i)
+        call VecGetArrayF90(process_model%solution_vec, solution_p, ierr2)
+        max_res_value= abs(residual_p(1))
+        max_res_index= 1
+        do i=2, vecsize
+          if (max_res(1) < abs(residual_p(i))) then
+            max_res_value = residual_p(i)
+            max_res_index = i                  ! local at this point
+            max_res_solu  = solution_p(i)
           endif
         enddo
 
-        write(option%fid_out, *) 'Time(s): ', option%time, 'rank: ', option%myrank
+        ! a note here: because only operating on 'ierr .ne. 0' process, NO need to do MPI_Allreduce operation (TODO -checking)
+
+        ! NOTE: the following will print info to an un-initialized txt file: fort.'max_res_rank+?'.
+        fileid_info = option%myrank+1   ! when @ rank = 0, info goes to screen (not sure why), while +1 will work around
+
+        write(fileid_info, *) ' <-- SNES Solver ERROR @TimeStepperBEStepDT -->'
+
+        write(fileid_info, *) 'Time(s): ', option%time, 'rank: ', option%myrank
         ! not yet figure out how to get 'reaction_aux%ncomp' in
         ! and either the 2 vecs are different for flow-transport model and reaction model
         ! BE CAUTIOUS!
@@ -384,6 +392,14 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
                 case(STRUCTURED_GRID)
                   call StructGridGetIJKFromLocalID(grid%structured_grid, cell_index, &
                                                    cell_i, cell_j, cell_k)
+                  cell_offset   = grid%structured_grid%global_offset
+                  cell_offset_x = grid%structured_grid%lxs  ! global corner starting index (0-based)
+                  cell_offset_y = grid%structured_grid%lys
+                  cell_offset_z = grid%structured_grid%lzs
+                  ! NOTE: cell_offset+cell_index ~ global cell index (1-based)
+                  !       cell_offset_x/y/z + cell_i/j/k ~ global cell x/y/z index (0-based)
+                  !  this info will help to locate which cell has very likely caused error due to its largest RES.
+
                 case default
                   option%io_buffer = " only STRUCTURED_GRID can know cell_IJK."
                   call printMsg(option)
@@ -391,25 +407,28 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
             !
           end select
 
-          write(option%fid_out, *) ' <---cell index.---vec. no. -- solution_vec with max. res ----> '
+          write(fileid_info, *) ' <--- cell offset ---- cell index --- vec. no. -- solution_vec with max. res ----> '
           do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
-               cell_index*(option%nflowdof+option%ntrandof)
-            write(option%fid_out, *) cell_index, cell_i, cell_j, cell_k, i, solution_p(i)
+                cell_index*(option%nflowdof+option%ntrandof)
+            write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
+                cell_index, '(',cell_i,cell_j,cell_k, ')', i, solution_p(i)
           enddo
 
-          write(option%fid_out, *) '  '
-          write(option%fid_out, *) ' <---cell index --- vec no.-- max. residual_vec ----> '
+          write(fileid_info, *) '  '
+          write(fileid_info, *) ' <--- cell offset ---- cell index --- vec no. -- max. residual_vec ----> '
           do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
-               cell_index*(option%nflowdof+option%ntrandof)
-            write(option%fid_out, *) cell_index, '(', cell_i, cell_j, cell_k, ')', i, residual_p(i)
+                cell_index*(option%nflowdof+option%ntrandof)
+            write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
+                cell_index, '(',cell_i,cell_j,cell_k, ')', i, residual_p(i)
           enddo
+
         endif
 
-        write(option%fid_out, *) '  '
-        write(option%fid_out, *) ' Stop Executing! '
-
-        call VecRestoreArrayF90(process_model%solution_vec, solution_p, ierr2)
         call VecRestoreArrayF90(process_model%residual_vec, residual_p, ierr2)
+        call VecRestoreArrayF90(process_model%solution_vec, solution_p, ierr2)
+
+        write(fileid_info, *) '  '
+        write(fileid_info, *) ' Stop Executing! '
 
       endif
 
@@ -449,36 +468,54 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       if (icut > this%max_time_step_cuts .or. this%dt < this%dt_min) then
 
         !------fmy - checking the solution to see what's going on
-        if (option%print_file_flag) then
+        call VecGetLocalSize(process_model%residual_vec, vecsize, ierr2)
 
-          write(option%fid_out, *) ' <-- SNES Solver checking @TimeStepperBEStepDT -->'
-          if (icut > this%max_time_step_cuts) then
-            write(option%fid_out, *) ' -- MAX. CUTS reached --'
-          elseif (this%dt < this%dt_min) then
-            write(option%fid_out, *) ' -- MIN. TIME-STEPS reached --'
+        call VecGetArrayF90(process_model%residual_vec, residual_p, ierr2)
+        call VecGetArrayF90(process_model%solution_vec, solution_p, ierr2)
+        max_res(1)   = abs(residual_p(1))
+        max_res_index= 1
+        do i=2, vecsize
+          if (max_res(1) < abs(residual_p(i))) then
+            max_res(1)    = residual_p(i)
+            max_res_index = i                  ! local at this point
+            max_res_solu  = solution_p(i)
           endif
-          call VecGetLocalSize(process_model%solution_vec,vecsize1,ierr2)
-          call VecGetLocalSize(process_model%residual_vec,vecsize2,ierr2)
+        enddo
 
-          call VecGetArrayF90(process_model%solution_vec, solution_p, ierr2)
-          call VecGetArrayF90(process_model%residual_vec, residual_p, ierr2)
+        max_res(2)   = real(option%myrank)
+        call MPI_Allreduce(max_res,max_res_global,ONE_INTEGER_MPI, &
+                 MPI_2DOUBLE_PRECISION, MPI_MAXLOC, option%mycomm,ierr)
+        max_res_value= max_res_global(1)
+        max_res_rank = int(max_res_global(2))   ! global rank in which 'max_res(1)' located
 
-          max_res = abs(residual_p(1))
-          max_res_index = 1
-          do i=2, vecsize2
-            if (max_res< abs(residual_p(i))) then
-              max_res_index = i
-              max_res       = residual_p(i)
-            endif
-          enddo
+        max_res(2)    = real(max_res_index)     ! local at this point
+        call MPI_Allreduce(max_res,max_res_global,ONE_INTEGER_MPI, &
+                 MPI_2DOUBLE_PRECISION, MPI_MAXLOC, option%mycomm,ierr)
+        max_res_index = int(max_res_global(2))  ! global 'index' in which 'max_res(1)' located
 
-          write(option%fid_out, *) 'Time(s): ', option%time, 'rank: ', option%myrank
+        max_res(2)    = max_res_solu            ! local at this point
+        call MPI_Allreduce(max_res,max_res_global,ONE_INTEGER_MPI, &
+                 MPI_2DOUBLE_PRECISION, MPI_MAXLOC, option%mycomm,ierr)
+        max_res_solu  = max_res_global(2)       ! global 'resolution' in which 'max_res(1)' located
+
+        ! NOTE: the following will print info to an un-initialized txt file: fort.'max_res_rank+?'.
+        fileid_info = option%myrank+1   ! when @ rank = 0, info goes to screen (not sure why), while +1 will work around
+        if (option%myrank == max_res_rank) then
+
+          write(fileid_info, *) ' <-- SNES Solver checking @TimeStepperBEStepDT -->, @ rank', &
+            max_res_rank, ' max_res: ', max_res_value
+          if (icut > this%max_time_step_cuts) then
+            write(fileid_info, *) ' -- MAX. CUTS reached --'
+          elseif (this%dt < this%dt_min) then
+            write(fileid_info, *) ' -- MIN. TIME-STEPS reached --'
+          endif
+
+
           ! not yet figure out how to get 'reaction_aux%ncomp' in
           ! and neither the 2 vecs are different for flow-transport model and reaction model
           ! BE CAUTIOUS!
-
           if (option%nflowdof>0 .or. option%ntrandof>0) then
-            cell_index = floor(real((max_res_index-1)/(option%nflowdof+option%ntrandof)))+1
+            cell_index = floor(real((max_res_index-1))/(option%nflowdof+option%ntrandof))+1
 
             select type (pm => process_model)
               class is (pm_subsurface_flow_type)
@@ -488,34 +525,40 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
                   case(STRUCTURED_GRID)
                     call StructGridGetIJKFromLocalID(grid%structured_grid, cell_index, &
                                                    cell_i, cell_j, cell_k)
+                    cell_offset   = grid%structured_grid%global_offset   ! total cells prior to this rank
+                    cell_offset_x = grid%structured_grid%lxs
+                    cell_offset_y = grid%structured_grid%lys
+                    cell_offset_z = grid%structured_grid%lzs
+                    ! NOTE: cell_offset+cell_index ~ global cell index (1-based)
+                    !       cell_offset_x/y/z + cell_i/j/k ~ global cell x/y/z index (0-based)
+                    !  this info will help to locate which cell has very likely caused error due to its largest RES.
                   case default
                     option%io_buffer = " only STRUCTURED_GRID can know cell_IJK."
                     call printMsg(option)
                 end select
             end select
 
-
-            write(option%fid_out, *) ' <---cell index.---vec. no. -- solution_vec with max. res ----> '
+            write(fileid_info, *) ' <--- cell offset ---- cell index --- vec. no. -- solution_vec with max. res ----> '
             do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
                  cell_index*(option%nflowdof+option%ntrandof)
-              write(option%fid_out, *) cell_index, '(',cell_i,cell_j,cell_k, ')', &
-                i, solution_p(i)
+              write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
+                cell_index, '(',cell_i,cell_j,cell_k, ')', i, solution_p(i)
             enddo
 
-            write(option%fid_out, *) '  '
-            write(option%fid_out, *) ' <---cell index --- vec no.-- max. residual_vec ----> '
+            write(fileid_info, *) '  '
+            write(fileid_info, *) ' <--- cell offset ---- cell index --- vec no. -- max. residual_vec ----> '
             do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
                   cell_index*(option%nflowdof+option%ntrandof)
-              write(option%fid_out, *) cell_index, '(',cell_i,cell_j,cell_k, ')', &
-                i, residual_p(i)
+              write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
+                cell_index, '(',cell_i,cell_j,cell_k, ')', i, residual_p(i)
             enddo
           endif
 
-          write(option%fid_out, *) '  '
-          write(option%fid_out, *) ' Stop Executing! '
-
           call VecRestoreArrayF90(process_model%solution_vec, solution_p, ierr2)
           call VecRestoreArrayF90(process_model%residual_vec, residual_p, ierr2)
+
+          write(fileid_info, *) '  '
+          write(fileid_info, *) ' Stop Executing! @ myrank: ', option%myrank
 
         endif
         !------fmy
