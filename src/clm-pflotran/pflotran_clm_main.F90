@@ -1284,7 +1284,7 @@ contains
           !  e.g. Letts et al. 2000. Fibric b=2.7, Sr=0.04/0.93;
           !                          Hemic  b=6.1, Sr=0.15/0.88;
           !                          Sapric b=12., Sr=0.22/0.83.
-          bc_sr     = 1.0d-5
+          bc_sr     = 0.04d0
 
         else
           option%io_buffer = &

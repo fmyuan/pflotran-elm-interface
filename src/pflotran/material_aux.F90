@@ -390,7 +390,7 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   ! Setting this value too large cause difficulties of tiny-time during freezing, but neither can be too small
   ! Tests shows it will vary with 'porosity_base' ranging from 1.d-4 ~ 1.d-9 (it implies 1.d-4 below is reasonable).
   compressibility = -log(compression) &
-      /(0.2d0*auxvar%soil_properties(soil_reference_pressure_index))
+      /(0.2d-1*auxvar%soil_properties(soil_reference_pressure_index))
 
   ! hard-weired a large compressibility and later truncating at a max. expansion factor
   !  compressibility = 1.d-4
