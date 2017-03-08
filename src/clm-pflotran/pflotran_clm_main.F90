@@ -823,7 +823,7 @@ contains
         ! areas of grid (x,y)
         call area(a, f, lats, lons, 4, dummy1, dummy2)
         tempreal = grid%structured_grid%dx(ghosted_id)*grid%structured_grid%dy(ghosted_id)/dummy1
-        if (abs(tempreal-1.d0)>1.e-5) then
+        if (abs(tempreal-1.d0)>1.e-5 .and. option%mapping_files) then
           option%io_buffer = "Warning: remarkably large gaps in grid areas btw two approaches FOR cell: "
           call printMsg(option)
         end if
