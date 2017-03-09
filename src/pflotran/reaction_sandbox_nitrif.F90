@@ -5,6 +5,7 @@ module Reaction_Sandbox_Nitrif_class
   use Global_Aux_module
   use Reactive_Transport_Aux_module
   use PFLOTRAN_Constants_module
+  use Utility_module, only : HFunctionSmooth
   
   implicit none
   
@@ -321,8 +322,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 
   if(this%x0eps>0.d0) then
     ! GP's cut-off approach (sort of Heaviside function)
-    feps0     = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
-    dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
+    call HfunctionSmooth(c_nh4, this%x0eps*10.d0, this%x0eps, feps0, dfeps0_dx)
 
   else
     feps0 = 1.0d0

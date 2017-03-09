@@ -74,9 +74,8 @@ module Utility_module
             Determinant, &
             InterfaceApproxWithDeriv, &
             InterfaceApproxWithoutDeriv, &
-            ScaledQuadraticSetup, &
-            ScaledQuadraticEvaluate, &
-            PrintProgressBarInt
+            PrintProgressBarInt, &
+            HFunctionSmooth             ! F.-M. Yuan (2017-03-09)
             
 contains
 
@@ -2017,101 +2016,64 @@ subroutine PrintProgressBarInt(max,increment,current)
 end subroutine PrintProgressBarInt
 
 ! ************************************************************************** !
-
-subroutine ScaledQuadraticSetup(x_1,x_2, coefficients, MATCHED_END_AT_1)
+! something like Nathan Collier's H Function or Guoping Tang's tail cut-off approach
+! F.-M. Yuan: 2017-03-09. It's useful for truncation or interpolation, with monotonic smoothing curve
+Subroutine HfunctionSmooth(x, x_1, x_0, H, dH)
+  ! Usage: H(x) = 1, dH(x)=0 @ x_1
+  !        H(x) = 0, dH(x)=0 @ x_0
+  !        and, dH(x) is smoothed and either positive or negative Heaveside function, with peak at ~ 3-quater point
+  !    So H(x) is monotonic.
   !
-  ! Sets up a Scaled quadratic (a special cubic polynomial)
-  ! for smoothing discontinuous functions with monotonic derivatives
+  !  How to tail-smooth a curve (e.g. f(x)) monotonically:
+  !       F(x) = f(x)*H(f), and dF(x) = f(x)*dH(x)+ df(x)*H(x),
+  !      From: x_cutoff1 - F(x)=f(x), dF(x)=df(x), i.e. exactly matching with f(x) @ x_cutoff1
+  !      To:   x_cutoff0 - F(x)=0, dF(x)=0.
   !
-  ! Cubic polynomial: y=ax3+bx2+cx+d, so dy/dx=3ax2+2bx+c - a quadratic, i.e. NON monotonic
-  ! Quadratic: y=ax2+bx+c, so dy/dx=2ax+b - a linear, i.e. not scalable for interpolating derivatives btw 2 values
-  ! Here: y = (ax2+bx+c), so dy/dx=2ax+b,
-  !   i.e. (1) exactly matching f'(x) at x_1 and x_2 first; (2) deriving 'c' from either 'x1' or 'x2';
-  !        (3) scaling 'y' using NOT accounted point 'x2' or 'x1' in (2).
-  !    e.g. if y1 is used to derive 'c', then
-  !          k = (y2 - (a*x_2*x_2+b*x_2+c))/(x_2-x_1)
-  !          y = (ax2+bx+c)+k*(x-x_1)
-  !
-  !  dy/dx = (2*a*x+b)+k
-  !
-  ! Author: Fengming Yuan
-  ! Date: 2017-02-20
-  !
-
   implicit none
 
-  PetscReal :: x_1
-  PetscReal :: x_2
-  PetscReal :: coefficients(5)
-  PetscBool :: MATCHED_END_AT_1
+  PetscReal, intent(in) :: x
+  PetscReal, intent(in) :: x_1    ! starting point with H = 1.0
+  PetscReal, intent(in) :: x_0    ! ending point with H = 0.0
+  PetscReal, intent(out):: H
+  PetscReal, intent(out):: dH
+  PetscReal :: x_star
 
-  PetscReal :: y(4)
-  PetscReal :: a, b, c, k, x_0
+  !----------------------------------------------------------
 
-  !
-  y(1:4) = coefficients(1:4)         ! AT THIS LINE, y and dy @ x_1 and x_2, as INPUTS
+  ! real Heaveside function (step function)
+  if (abs(x_1-x_0)<1.d-50) then
+    H  = sign(0.5d0, (x-x_1))+0.5d0  ! if x<x_1, H=0; otherwise H=1
+    dH = 0.d0
 
-  ! y3-y4 = 2a*(x1-x2)
-  a = (y(3)-y(4))/(x_1-x_2)/2.d0
-  b = y(3)-2.d0*a*x_1
+    return
 
-  if (MATCHED_END_AT_1) then
-    c = y(1)-(a*x_1*x_1+b*x_1)
-    k = y(2)-(a*x_2*x_2+b*x_2+c)     ! calculated y discranpcy @ x_2
-    k = k/(x_2-x_1)                  ! adjusting difference per change of x
-    x_0 = x_1
   else
-    c = y(2)-(a*x_2*x_2+b*x_2)
-    k = y(1)-(a*x_1*x_1+b*x_1+c)     ! calculated y discranpcy @ x_1
-    k = k/(x_1-x_2)                  ! adjusting difference per change of x
-    x_0 = x_2
+  ! smoothed H function
+
+    if (((x-x_0)/(x_1-x_0))<0.d0) then      ! beyond 'x_0'
+      H  = 0.0d0
+      dH = 0.0d0
+
+    elseif (((x-x_0)/(x_1-x_0))>1.d0) then  ! beyond 'x_1'
+      H  = 1.0d0
+      dH = 0.0d0
+
+    else
+
+      x_star  =  1.0d0 - (x-x_0)*(x-x_0)                  &
+                        /(x_1-x_0)/(x_1-x_0)
+
+      H  = 1.0d0 - x_star*x_star                                      ! so it's a special quadratic polynomal function
+      ! so, dH = -2*x_star*d(x_star), with d(x_star)=-2*(x-x_0)/(x_1-x_0)^2
+      !    and, due to 'x_star' ranging 0~1 and (x_1-x_0)^2 positive,
+      !         sign(dH) is upon 'x-x_0' only guaranted monotonic H curve
+      dH = 4.0d0 * x_star * (x-x_0)/(x_1-x_0)/(x_1-x_0)
+
+    endif
+
   endif
 
-
-  ! return the following coefficients
-  coefficients(1) = a
-  coefficients(2) = b
-  coefficients(3) = c
-  coefficients(4) = k             ! linear interpolation: slope
-  coefficients(5) = x_0           ! linear interpolation: x @ intercept of 0
-
-end subroutine ScaledQuadraticSetup
-
-! ************************************************************************** !
-
-subroutine ScaledQuadraticEvaluate(coefficients,x,f,df_dx)
-  !
-  ! Evaluates value in ScaledQuadratic function
-  !
-  ! Here: y = (ax2+bx+c), so dy/dx=2ax+b,
-  !   i.e. (1) exactly matching f'(x) at x_1 and x_2 first; (2) deriving 'c' from either 'x1' or 'x2';
-  !        (3) scaling 'y' using NOT accounted point 'x2' or 'x1' in (2).
-  !    e.g. if y1 is used to derive 'c', then
-  !          k = (y2 - (a*x_2*x_2+b*x_2+c))/(x_2-x_1)
-  !          y = (ax2+bx+c) + k*(x-x_1)
-  !     and, dy/dx = (2ax+b) + k
-  !
-  ! Author: Fengming Yuan
-  ! Date: 2017-02-20
-  !
-
-  implicit none
-
-  PetscReal :: coefficients(5)
-  PetscReal :: x
-  PetscReal :: f
-  PetscReal :: df_dx
-
-  f = coefficients(1)*x*x + &                   ! a
-      coefficients(2)*x + &                     ! b
-      coefficients(3) + &                       ! c
-      coefficients(4)*(x-coefficients(5))       ! k, x_0
-
-  df_dx = coefficients(1)*2.d0*x + &
-          coefficients(2) + &
-          coefficients(4)
-
-end subroutine ScaledQuadraticEvaluate
+end subroutine HfunctionSmooth
 
 ! ************************************************************************** !
 
