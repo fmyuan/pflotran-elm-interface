@@ -357,6 +357,8 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   ! Date: 01/14/14
   ! 
 
+  use Utility_module
+
   implicit none
 
   class(material_auxvar_type), intent(in) :: auxvar
@@ -367,7 +369,11 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   PetscReal :: compressibility
   PetscReal :: compression
   PetscReal :: tempreal
+
 #ifdef CLM_PFLOTRAN
+  PetscReal :: Hfunc, dHfunc, x, x1, x0
+  PetscReal, parameter :: PMIN = 0.0d0, PMAX = 16.54d6
+
   ! F.-M. Yuan (2017-02-13): freezing caused expansion max. factor
   ! (slightly larger, but not too much, than liq./ice denstiy ratio may be having better performance)
   ! liq./ice density ratio ~ 1.09065 (999.8/916.7@0degC, see Characteristic_Curves.F90 for ice-pc calculation)
@@ -375,13 +381,8 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   !PetscReal, parameter :: F_EXPANSION = 1.09065d0      !
   PetscReal, parameter :: F_EXPANSION = 1.150d0        ! slightly larger to hold uncertainty (due to density equations)
   PetscReal, parameter :: MAX_POROSITY= 0.95d0
-#endif
-  
-  compressibility = auxvar%soil_properties(soil_compressibility_index)
-#ifdef CLM_PFLOTRAN
-  ! F.-M. Yuan (2017-02-13)
-  ! it's hard to prescribe a compressibility so that thawing caused expansion properly featured
 
+  ! it's hard to prescribe a compressibility so that thawing caused expansion properly featured
   tempreal = min(MAX_POROSITY/F_EXPANSION, auxvar%porosity_base)           ! max. base porosity check
   compression = (1.d0-tempreal*F_EXPANSION)/(1.d0-tempreal)
 
@@ -392,24 +393,43 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   compressibility = -log(compression) &
       /(0.2d0*auxvar%soil_properties(soil_reference_pressure_index))
 
-  ! hard-weired a large compressibility and later truncating at a max. expansion factor
-  !  compressibility = 1.d-4
+#else
+
+  compressibility = auxvar%soil_properties(soil_compressibility_index)
+
 #endif
 
   compression = &
     exp(-1.d0 * compressibility * &
-      min(16.54d6, max(0.d0, &
-      pressure - auxvar%soil_properties(soil_reference_pressure_index))) )
+      max(PMIN, min(PMAX,pressure - auxvar%soil_properties(soil_reference_pressure_index))) )
   tempreal = (1.d0 - auxvar%porosity_base) * compression
   compressed_porosity = 1.d0 - tempreal
   dcompressed_porosity_dp = tempreal * compressibility
 
-  ! F.-M. Yuan (2017-02-07): add bounds above, but appears very bad to do
-  ! the following for derivatives (NaN/Inf PC errors)
-  !if(pressure<=auxvar%soil_properties(soil_reference_pressure_index) &
-  !   .or. pressure>=16.54d6) then
-  !  dcompressed_porosity_dp = 0.d0
-  !endif
+#if 0
+!2017-03-10: TODO - seems a 'bad' idea, errors showing NaN or Inf for PC (pre-conditioner) setup
+  ! F.-M. Yuan (2017-03-09): tail-smoothing approach for function bounds
+  x  = pressure - auxvar%soil_properties(soil_reference_pressure_index)
+
+  ! (1) smoothing compression around initial post-saturation pressure
+  x1 = 1.d2   ! pressure (Pa) over reference atm pressure
+  x0 = PMIN
+  call HFunctionSmooth(x, x1, x0, Hfunc, dHfunc)
+  dcompressed_porosity_dp = dcompressed_porosity_dp * Hfunc + &
+                            (compressed_porosity - auxvar%porosity_base) * dHfunc
+  compressed_porosity = auxvar%porosity_base + &
+                        (compressed_porosity - auxvar%porosity_base) * Hfunc
+
+  ! (2) smoothing compression around possible really high pressure
+  x1 = PMAX/10.d0    ! pressure (Pa) over reference atm pressure
+  x0 = PMAX          !
+  call HFunctionSmooth(x, x1, x0, Hfunc, dHfunc)
+  dcompressed_porosity_dp = dcompressed_porosity_dp * Hfunc + &
+                            (compressed_porosity - auxvar%porosity_base) * dHfunc
+  compressed_porosity = auxvar%porosity_base + &
+                        (compressed_porosity - auxvar%porosity_base) * Hfunc
+#endif
+
 
 #ifdef CLM_PFLOTRAN
   ! it's hard to prescribe a compressibility so that thawing caused expansion properly featured

@@ -367,3 +367,5 @@ regression_tests/ngee/CLMCNplus/clm_nmit.h5
 regression_tests/ngee/CLMCNplus/clm_nuptake1.h5
 regression_tests/ngee/CLMCNplus/clm_nuptake2.h5
 regression_tests/ngee/CLMCNplus/clm_nuptake3.h5
+calcite_vsat_flow_and_tran_leijnse.h5
+th_leijnse.h5
