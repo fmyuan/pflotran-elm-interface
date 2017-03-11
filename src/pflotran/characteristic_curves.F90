@@ -3057,14 +3057,16 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   ! WET-end
   if (associated(this%pres_poly)) call PolynomialDestroy(this%pres_poly)
   this%pres_poly => PolynomialCreate()
-  this%pres_poly%low  = 0.00d0
+  this%pres_poly%low  = 1.00d0/this%alpha
   this%pres_poly%high = 1.05d0/this%alpha
 
   ! DRY-end
   if (associated(this%pres_poly2)) call PolynomialDestroy(this%pres_poly2)
   this%pres_poly2 => PolynomialCreate()
-  this%pres_poly2%low = 1.05d0**(-this%lambda)
-  this%pres_poly2%high = 1.d0
+  this%pres_poly2%low = &
+          (0.05d0**(-1.d0/this%lambda))/this%alpha      ! Se = 0.05
+  this%pres_poly2%high= min(this%pcmax, &
+          (0.001d0**(-1.d0/this%lambda))/this%alpha)    ! Se = 0.001 (note that if Se=0, pc=0?)
 
 
 #else
@@ -3232,9 +3234,14 @@ subroutine SF_BC_Saturation(this,capillary_pressure,liquid_saturation, &
   PetscReal :: Se
   PetscReal :: dSe_dpc
   PetscReal, parameter :: dpc_dpres = -1.d0
+#ifdef SMOOTHING2
+  PetscReal :: Hfunc, dHfunc
+#endif
+
   
   dsat_dpres = 0.d0
   
+#ifndef SMOOTHING2
   ! reference #1
   if (associated(this%pres_poly)) then
     if (capillary_pressure < this%pres_poly%low) then
@@ -3257,10 +3264,6 @@ subroutine SF_BC_Saturation(this,capillary_pressure,liquid_saturation, &
     endif
   endif
 
-  ! F.-M. Yuan: the following if block should be removed, so that the calculation can go beyond.
-  !             Otherwise, there seems inconsistent (or discontinued) somehow and cause issues of NaN/Inf PC.
-  !             (not sure how, but the truncation can be done after calling this subroutine).
-#ifndef SMOOTHING2
   if (capillary_pressure < this%pcmax) then
     pc_alpha_neg_lambda = (capillary_pressure*this%alpha)**(-this%lambda)
     Se = pc_alpha_neg_lambda
@@ -3271,11 +3274,40 @@ subroutine SF_BC_Saturation(this,capillary_pressure,liquid_saturation, &
 
 #else
 
-  pc_alpha_neg_lambda = (capillary_pressure*this%alpha)**(-this%lambda)
-  Se = pc_alpha_neg_lambda
-  dSe_dpc = -this%lambda/capillary_pressure*pc_alpha_neg_lambda
-  liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
-  dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
+  ! F.-M. Yuan (2017-03-10): needs full range function
+  if (capillary_pressure < 1.d0/this%alpha) then
+    liquid_saturation = 1.d0
+    dsat_dpres = 0.d0
+  else
+    pc_alpha_neg_lambda = (capillary_pressure*this%alpha)**(-this%lambda)
+    Se = pc_alpha_neg_lambda
+    dSe_dpc = -this%lambda/capillary_pressure*pc_alpha_neg_lambda
+    liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+    dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
+  endif
+
+  ! F.-M. Yuan (2017-03-10): newly smoothing approach using Heaveside Function Smoothed
+  ! WET-end
+  if (associated(this%pres_poly)) then
+    if (capillary_pressure<=this%pres_poly%high) then
+      call HFunctionSmooth(capillary_pressure, this%pres_poly%high, this%pres_poly%low, &
+                           Hfunc, dHfunc)
+      !sat = 1.0 + (sat-1.0) * Hfunc, in which '1.0' is the base sat @pc=low end
+      dsat_dpres = dsat_dpres*Hfunc + (liquid_saturation-1.d0) * dHfunc
+      liquid_saturation = 1.0d0 + (liquid_saturation-1.d0)*Hfunc
+    endif
+  endif
+
+  ! DRY-end
+  if (associated(this%pres_poly2)) then
+    if (capillary_pressure>=this%pres_poly2%low) then
+      call HFunctionSmooth(capillary_pressure, this%pres_poly2%low, this%pres_poly2%high, &
+                           Hfunc, dHfunc)
+      !sat = sr + (sat-sr) * Hfunc, in which 'sr' is the base sat @pc=high (high end)
+      dsat_dpres = dsat_dpres * Hfunc + (liquid_saturation-this%Sr) * dHfunc
+      liquid_saturation = this%Sr+(liquid_saturation-this%Sr) * Hfunc
+    endif
+  endif
 
 #endif
 
@@ -4488,7 +4520,7 @@ subroutine RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
   dkr_sat = dkr_Se * dSe_sat
 
 #ifdef SMOOTHING2
-  ! WET-end smoothing up to 1.0@Se=1.0 (ending high point)
+  ! WET-end smoothing up to 1.0@Se=ending high point
   if (associated(this%poly)) then
     if (Se>=this%poly%low) then
       call HFunctionSmooth(Se, this%poly%low, this%poly%high, Hfunc, dHfunc)
@@ -4501,7 +4533,7 @@ subroutine RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
 
   endif
 
-  ! DRY-end smoothing down to 0.0@Se=0.0 (ending low point)
+  ! DRY-end smoothing down to 0.0@Se=ending low point
   if (associated(this%poly2)) then
     if (Se<=this%poly2%high) then
       call HFunctionSmooth(Se, this%poly2%high, this%poly2%low, Hfunc, dHfunc)
@@ -4835,8 +4867,9 @@ subroutine RPF_Burdine_BC_Liq_SetupPolynomials(this,option,error_string)
   ! DRY-end smoothing
   if (associated(this%poly2)) call PolynomialDestroy(this%poly2)
   this%poly2 => PolynomialCreate()
-  this%poly2%high = 0.05d0 ! normalized effective saturation (Se) (starting smoothing point)
-  this%poly2%low  = 0.00d0 ! normalized effective saturation (Se)
+  this%poly2%high = 0.050d0 ! normalized effective saturation (Se) (starting smoothing point)
+  this%poly2%low  = 0.001d0 ! normalized effective saturation (Se)
+                            !   (note that by BC function, Se may not never be ZERO)
 
 #endif
 
@@ -4914,7 +4947,7 @@ subroutine RPF_Burdine_BC_Liq_RelPerm(this,liquid_saturation, &
 
   endif
 
-  ! DRY-end smoothing down to 0.0@Se=0.0 (ending low point)
+  ! DRY-end smoothing down to 0.0@Se=ending low point
   if (associated(this%poly2)) then
     if (Se<=this%poly2%high) then
       call HFunctionSmooth(Se, this%poly2%high, this%poly2%low, Hfunc, dHfunc)
