@@ -77,8 +77,8 @@ module pflotran_clm_main_module
 
 !------------------------------------------------------------
 
-  PetscReal, parameter :: xeps0_c = 1.0d-20
-  PetscReal, parameter :: xeps0_n = 1.0d-21
+  PetscReal, parameter :: xeps0_c = 1.0d-50
+  PetscReal, parameter :: xeps0_n = 1.0d-51
 
   character(len=MAXWORDLENGTH) :: subname
 !------------------------------------------------------------
@@ -825,7 +825,7 @@ contains
         tempreal = grid%structured_grid%dx(ghosted_id)*grid%structured_grid%dy(ghosted_id)/dummy1
         if (abs(tempreal-1.d0)>1.e-5) then
           option%io_buffer = "Warning: remarkably large gaps in grid areas btw two approaches FOR cell: "
-          call printMsg(option)
+          !call printMsg(option)
         end if
 
         ! bottom/top segment line length
@@ -847,7 +847,7 @@ contains
         tempreal = 0.5d0*tempreal/grid%structured_grid%dx(ghosted_id)
         if (abs(tempreal-1.d0)>1.e-5) then   ! mathematically, dx = 0.5*(a+b)
           option%io_buffer = "Warning: remarkably large gaps in longitudal-length FOR a cell: "
-          call printMsg(option)
+          !call printMsg(option)
         end if
 
         ! isoscele side line length
@@ -868,7 +868,7 @@ contains
         tempreal = tempreal/s12
         if (abs(tempreal-1.d0)>1.e-5) then   ! mathematically, c=d
           option%io_buffer = "Warning: remarkably large gaps in isoscele latitudal-length FOR a cell: "
-          call printMsg(option)
+          !call printMsg(option)
         end if
 
       end if ! if (clm_pf_idata%nxclm_mapped >= 1 .and. clm_pf_idata%nyclm_mapped >= 1 .and. .not.mapping_files)
@@ -5265,7 +5265,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     PetscScalar, pointer :: array_pfp(:), array_clms(:), array_temp(:)
     PetscInt             :: j, k, vec_offset
 
-    PetscReal, parameter :: zeroing_conc = 1.0d-20
+    PetscReal, parameter :: zeroing_conc = 1.0d-50
 
     !-------------------------------------------------------------------------
     subname = 'ModelSetBgcVariablesFromPF'
