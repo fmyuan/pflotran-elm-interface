@@ -367,10 +367,9 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   PetscReal :: compressibility
   PetscReal :: compression
   PetscReal :: tempreal
-
-#ifdef CLM_PFLOTRAN
   PetscReal, parameter :: PMIN = 0.0d0, PMAX = 16.54d6
 
+#ifdef CLM_PFLOTRAN
   ! F.-M. Yuan (2017-02-13): freezing caused expansion max. factor
   ! (slightly larger, but not too much, than liq./ice denstiy ratio may be having better performance)
   ! liq./ice density ratio ~ 1.09065 (999.8/916.7@0degC, see Characteristic_Curves.F90 for ice-pc calculation)
@@ -399,7 +398,7 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   compression = &
     exp(-1.d0 * compressibility * &
       max(PMIN, min(PMAX, &
-       pressure - auxvar%soil_properties(soil_reference_pressure_index))) )
+          (pressure - auxvar%soil_properties(soil_reference_pressure_index)) ) ) )
   tempreal = (1.d0 - auxvar%porosity_base) * compression
   compressed_porosity = 1.d0 - tempreal
   dcompressed_porosity_dp = tempreal * compressibility
