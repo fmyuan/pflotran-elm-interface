@@ -3035,16 +3035,16 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   ! WET-end
   if (associated(this%pres_poly)) call PolynomialDestroy(this%pres_poly)
   this%pres_poly => PolynomialCreate()
-  this%pres_poly%low  = 1.00d0/this%alpha
-  this%pres_poly%high = 1.05d0/this%alpha
+  this%pres_poly%low  = 1.000d0/this%alpha
+  this%pres_poly%high = 1.001d0/this%alpha  ! this is very sensitive (better close to 1/alpha)
 
   ! DRY-end
   if (associated(this%pres_poly2)) call PolynomialDestroy(this%pres_poly2)
   this%pres_poly2 => PolynomialCreate()
-  this%pres_poly2%low = &
-          (0.05d0**(-1.d0/this%lambda))/this%alpha      ! Se = 0.05
   this%pres_poly2%high= min(this%pcmax, &
-          (0.001d0**(-1.d0/this%lambda))/this%alpha)    ! Se = 0.001 (note that if Se=0, pc=0?)
+          (0.001d0**(-1.d0/this%lambda))/this%alpha)       ! Se = 0.001 (note that if Se=0, pc=0)
+  this%pres_poly2%low = min(this%pres_poly2%high-1.0d0, &  ! this is the starting point for smoothing, so it must be less than %high end.
+          (0.005d0**(-1.d0/this%lambda))/this%alpha)       ! Se = 0.005
 
 
 #else
