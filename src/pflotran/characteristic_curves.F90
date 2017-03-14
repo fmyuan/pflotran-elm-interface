@@ -2659,8 +2659,8 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 #else
 
           ! using the new Heaveside Smoothing function:
-          ! ice_pc@Tf-deltaTf --> ice_pc = pcgl @Tf+deltaTf  (note: @Tf, ice_pc = pcgl by PKE)
-          ! (note: Tf could be far way from T0, and 'ice_pc' above trucated at 'Tf'; So this smoothing will span over Tf-deltaTf ~ Tf+deltaTf symmetrically)
+          ! ice_pc@Tf-deltaTf --> ice_pc = pcgl @T0+deltaTf  (note: @Tf, ice_pc = pcgl by PKE, so this smoothing actually span over a large ranges around Tf~T0)
+          ! (note: Tf could be far way from T0, and 'ice_pc' above trucated at 'Tf'; So this smoothing will span over Tf-deltaTf ~ T0+deltaTf asymmetrically)
           call HFunctionSmooth(Tk, Tf-deltaTf, T0+deltaTf, Hfunc, dHfunc)
           dice_pc_dt = dice_pc_dt * Hfunc + (ice_pc - pcgl) * dHfunc
           dice_pc_dp = (dice_pc_dp - 1.0d0) * Hfunc + 1.0d0          ! dHfunc_dp = 0, dpcgl_dp = 1
