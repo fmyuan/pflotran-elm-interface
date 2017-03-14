@@ -4787,8 +4787,8 @@ subroutine RPF_Burdine_BC_Liq_SetupPolynomials(this,option,error_string)
   ! WET-end smoothing
   if (associated(this%poly)) call PolynomialDestroy(this%poly)
   this%poly => PolynomialCreate()
-  this%poly%low  = 0.95d0 ! normalized effective saturation (Se)  (starting smoothing point)
-  this%poly%high = 1.00d0 ! normalized effective saturation (Se)
+  this%poly%low  = 0.999d0 ! normalized effective saturation (Se)  (starting smoothing point)
+  this%poly%high = 1.000d0 ! normalized effective saturation (Se)  (saturated flow above this point)
 
   ! DRY-end smoothing
   if (associated(this%poly2)) call PolynomialDestroy(this%poly2)
