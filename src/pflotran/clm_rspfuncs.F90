@@ -34,8 +34,7 @@ module CLM_RspFuncs_module
   public :: GetTemperatureResponse, &
             GetMoistureResponse, &
             GetpHResponse, &
-            FuncMonod, &
-            FuncTrailersmooth
+            FuncMonod
 
 contains
 ! ************************************************************************** !
@@ -265,50 +264,6 @@ Function funcMonod(conc, conc_halfsat, compute_derivative)
   endif
 
 end function funcMonod
-
-! ************************************************************************** !
-! something like GP's cut-off approach
-Function funcTrailersmooth(conc, conc_cutoff1, conc_cutoff0, compute_derivative)
-
-  implicit none
-
-  PetscBool :: compute_derivative
-  PetscReal :: conc
-  PetscReal :: conc_cutoff1    ! starting conc to cutoff (factor of 1.0)
-  PetscReal :: conc_cutoff0    ! ending conc to cutoff (factor of 0.0)
-  PetscReal :: feps, dfeps
-  PetscReal :: funcTrailersmooth
-
-  !----------------------------------------------------------
-
-  if (.not.compute_derivative) then
-    if (conc < conc_cutoff0 .or. min(conc_cutoff1, conc_cutoff0)<1.d-50) then
-      feps  = 0.0d0
-    elseif (conc >= conc_cutoff1) then
-      feps  = 1.0d0
-    else
-      feps = 1.0d0-(conc-conc_cutoff0)*(conc-conc_cutoff0)       &
-                /(conc_cutoff1-conc_cutoff0)/(conc_cutoff1-conc_cutoff0)
-      feps = 1.0d0 - feps*feps
-    endif
-    funcTrailersmooth = feps
-
-  else   ! derivative of factor
-    if (conc < conc_cutoff0 .or. min(conc_cutoff1, conc_cutoff0)<1.d-50) then
-      dfeps = 0.0d0
-    elseif (conc >= conc_cutoff1) then
-      dfeps = 0.0d0
-    else
-      dfeps = 1.0d0-(conc-conc_cutoff0)*(conc-conc_cutoff0)       &
-                /(conc_cutoff1-conc_cutoff0)/(conc_cutoff1-conc_cutoff0)
-      dfeps = 4.0d0 * dfeps * (conc-conc_cutoff0) &
-                /(conc_cutoff1-conc_cutoff0)/(conc_cutoff1-conc_cutoff0)
-    endif
-    funcTrailersmooth = dfeps
-
-  endif
-
-end function funcTrailersmooth
 
 ! ************************************************************************** !
 
