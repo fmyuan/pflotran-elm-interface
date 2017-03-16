@@ -364,7 +364,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
         max_res_index= 1
         do i=2, vecsize
           if (max_res(1) < abs(residual_p(i))) then
-            max_res_value = residual_p(i)
+            max_res_value = abs(residual_p(i))
             max_res_index = i                  ! local at this point
             max_res_solu  = solution_p(i)
           endif
@@ -377,7 +377,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
         write(fileid_info, *) ' <-- SNES Solver ERROR @TimeStepperBEStepDT -->'
 
-        write(fileid_info, *) 'Time(s): ', option%time, 'rank: ', option%myrank
+        write(fileid_info, *) 'Time(s): ', option%time, 'rank: ', option%myrank, 'Petsc ErrCode: ', ierr
         ! not yet figure out how to get 'reaction_aux%ncomp' in
         ! and either the 2 vecs are different for flow-transport model and reaction model
         ! BE CAUTIOUS!
@@ -476,7 +476,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
         max_res_index= 1
         do i=2, vecsize
           if (max_res(1) < abs(residual_p(i))) then
-            max_res(1)    = residual_p(i)
+            max_res(1)    = abs(residual_p(i))
             max_res_index = i                  ! local at this point
             max_res_solu  = solution_p(i)
           endif
@@ -502,12 +502,12 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
         fileid_info = option%myrank+1   ! when @ rank = 0, info goes to screen (not sure why), while +1 will work around
         if (option%myrank == max_res_rank) then
 
-          write(fileid_info, *) ' <-- SNES Solver checking @TimeStepperBEStepDT -->, @ rank', &
-            max_res_rank, ' max_res: ', max_res_value
+          write(fileid_info, *) ' <-- SNES Solver checking @TimeStepperBEStepDT -->, @ rank, @time', &
+            max_res_rank, ' max_res: ', max_res_value, option%time
           if (icut > this%max_time_step_cuts) then
-            write(fileid_info, *) ' -- MAX. CUTS reached --'
+            write(fileid_info, *) ' -- MAX. CUTS reached --', icut
           elseif (this%dt < this%dt_min) then
-            write(fileid_info, *) ' -- MIN. TIME-STEPS reached --'
+            write(fileid_info, *) ' -- MIN. TIME-STEPS (sec.) reached --', this%dt
           endif
 
 
