@@ -374,7 +374,6 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   ! (slightly larger, but not too much, than liq./ice denstiy ratio may be having better performance)
   ! liq./ice density ratio ~ 1.09065 (999.8/916.7@0degC, see Characteristic_Curves.F90 for ice-pc calculation)
   !                          or slightly less (ice density increases when temperature drops)
-  !PetscReal, parameter :: F_EXPANSION = 1.09065d0      !
   PetscReal, parameter :: F_EXPANSION = 1.150d0        ! slightly larger to hold uncertainty (due to density equations)
   PetscReal, parameter :: MAX_POROSITY= 0.95d0
 
@@ -382,12 +381,12 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   tempreal = min(MAX_POROSITY/F_EXPANSION, auxvar%porosity_base)           ! max. base porosity check
   compression = (1.d0-tempreal*F_EXPANSION)/(1.d0-tempreal)
 
-  ! Arbitrarily set 0.2-atm water head (over reference_pressure, i.e. equivalent of ~ 2 m water head)
-  ! for reaching Freezing-caused max. compressibility (test shows this may be the proper one)
+  ! Arbitrarily set 0.1-atm water head (over reference_pressure, i.e. equivalent of ~ 1 m water head)
+  ! for reaching Freezing-caused max. compressibility.
   ! Setting this value too large cause difficulties of tiny-time during freezing, but neither can be too small
-  ! Tests shows it will vary with 'porosity_base' ranging from 1.d-4 ~ 1.d-9 (it implies 1.d-4 below is reasonable).
+  ! Tests shows it will vary with 'porosity_base' ranging from 1.d-4 ~ 1.d-9
   compressibility = -log(compression) &
-      /(0.2d0*auxvar%soil_properties(soil_reference_pressure_index))
+      /(1.0d-1*auxvar%soil_properties(soil_reference_pressure_index))  !
 
 #else
 
@@ -402,15 +401,7 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   tempreal = (1.d0 - auxvar%porosity_base) * compression
   compressed_porosity = 1.d0 - tempreal
   dcompressed_porosity_dp = tempreal * compressibility
-
-#ifdef CLM_PFLOTRAN
-  ! it's hard to prescribe a compressibility so that thawing caused expansion properly featured
-  if(compressed_porosity>=min(MAX_POROSITY,auxvar%porosity_base*F_EXPANSION)) then  ! liq./ice density ratio ~ 1.1
-    compressed_porosity     = min(MAX_POROSITY,auxvar%porosity_base*F_EXPANSION)
-    dcompressed_porosity_dp = 0.d0
-  endif
-#endif
-
+  ! a note here: truncating derivative causes tiny-timing (unknown reason, but seems having digit issue @ pressure=reference)
   
 end subroutine MaterialCompressSoilLeijnse
 

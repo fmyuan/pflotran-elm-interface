@@ -2512,13 +2512,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       option%io_buffer='pflotranModelSetTHbcs -  ' // &
                ' for CLM-PFLOTRAN coupling - BC flow conditions DO NOT have : ' // &
                ' "clm_gwflux_bc/NEUMANN " for subsurface-top TYPE I  '
-      call printMsg(option)
+      !call printMsg(option)
     endif
     if(HAVE_PRESS_TOPBC .and. HAVE_EXFIL_TOPBC) then
       option%io_buffer='pflotranModelSetTHbcs -  ' // &
                ' for CLM-PFLOTRAN coupling - BC flow conditions are having both : ' // &
                ' "exfiltration/SEEPAGE " and "clm_gpress_bc/DIRICHLET" for subsurface-top '
-      call printMsg(option)
+      !call printMsg(option)
     endif
 
     ! assign data to BCs from CLM
