@@ -3296,8 +3296,8 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   ! WET-end
   if (associated(this%pres_poly)) call PolynomialDestroy(this%pres_poly)
   this%pres_poly => PolynomialCreate()
-  this%pres_poly%low  = 1.000d0/this%alpha
-  this%pres_poly%high = 1.001d0/this%alpha  ! this is very sensitive (better close to 1/alpha)
+  this%pres_poly%low  = 0.000d0/this%alpha  ! have to make Se=1, exactly@pc=0 (otherwise, by BC equation, this is 1/alpha)
+  this%pres_poly%high = 1.005d0/this%alpha  ! this is very sensitive (better close to 1/alpha)
 
   ! DRY-end
   if (associated(this%pres_poly2)) call PolynomialDestroy(this%pres_poly2)
