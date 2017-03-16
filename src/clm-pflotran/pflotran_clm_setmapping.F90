@@ -512,8 +512,6 @@ contains
     type(patch_type), pointer          :: patch
     type(discretization_type), pointer :: discretization
 
-    type(point_type) :: point1, point2, point3, point4
-
     PetscInt :: local_id
     PetscInt :: ghosted_id
     PetscInt :: iface

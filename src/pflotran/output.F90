@@ -46,7 +46,8 @@ module Output_module
             OutputPrintRegions, &
             OutputVariableRead, &
             OutputFileRead, &
-            OutputInputRecord
+            OutputInputRecord, &
+            OutputEnsureVariablesExist
 
 contains
 
@@ -989,7 +990,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         name = 'Volume'
         output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
                                                 units,VOLUME)
-        output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
+        !output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
       case ('MATERIAL_ID')
@@ -1518,7 +1519,8 @@ subroutine OutputMAD(realization_base)
   ! Date: 10/25/07
   ! 
 
-  use Realization_Base_class, only : realization_base_type
+  use Realization_Base_class, only : realization_base_type, &
+                                     RealizationGetVariable
   use Discretization_module
   use Option_module
   use Grid_module
@@ -1526,7 +1528,7 @@ subroutine OutputMAD(realization_base)
   use Patch_module
   use Reaction_Aux_module
   use Variables_module
-  use Output_Common_module, only : OutputGetVarFromArray
+  use Output_Common_module, only : OutputGetVariableArray
  
 #if !defined(PETSC_HAVE_HDF5)
   implicit none
@@ -1638,13 +1640,15 @@ subroutine OutputMAD(realization_base)
                                   option)   
 
   ! pressure
-  call OutputGetVarFromArray(realization_base,global_vec,LIQUID_PRESSURE,ZERO_INTEGER)
+  call RealizationGetVariable(realization_base,global_vec,LIQUID_PRESSURE, &
+                              ZERO_INTEGER)
 #ifdef ALL
   string = 'Pressure' // trim(option%group_prefix)
 #else
   string = 'Pressure'
 #endif
-  call HDF5WriteStructDataSetFromVec(string,realization_base,global_vec,file_id,H5T_NATIVE_DOUBLE)
+  call HDF5WriteStructDataSetFromVec(string,realization_base,global_vec, &
+                                     file_id,H5T_NATIVE_DOUBLE)
 
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
 
@@ -2125,7 +2129,7 @@ subroutine OutputAvegVars(realization_base)
   use Realization_Base_class, only : realization_base_type
   use Option_module, only : OptionCheckTouch, option_type, printMsg
   use Output_Aux_module
-  use Output_Common_module, only : OutputGetVarFromArray  
+  use Output_Common_module, only : OutputGetVariableArray  
   use Field_module
 
   implicit none
@@ -2182,9 +2186,7 @@ subroutine OutputAvegVars(realization_base)
     if (.not.associated(cur_variable)) exit
 
     ! Get the variable
-    call OutputGetVarFromArray(realization_base,field%work, &
-                               cur_variable%ivar, &
-                               cur_variable%isubvar)
+    call OutputGetVariableArray(realization_base,field%work,cur_variable)
 
     ! Cumulatively add the variable*dtime
     ivar = ivar + 1
@@ -2284,6 +2286,92 @@ subroutine OutputWell(realization_base)
 
 end subroutine OutputWell
 #endif
+
+! ************************************************************************** !
+
+subroutine OutputEnsureVariablesExist(output_option,option)
+  ! 
+  ! Loop over output variables to ensure that they exist in the simulation
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/02/17
+  ! 
+  use Option_module
+
+  implicit none
+
+  type(output_option_type) :: output_option
+  type(option_type) :: option
+
+  call OutputListEnsureVariablesExist(output_option%output_variable_list, &
+                                      option)
+  call OutputListEnsureVariablesExist(output_option%output_snap_variable_list, &
+                                      option)
+  call OutputListEnsureVariablesExist(output_option%output_obs_variable_list, &
+                                      option)
+  call OutputListEnsureVariablesExist(output_option%aveg_output_variable_list, &
+                                      option)
+
+end subroutine OutputEnsureVariablesExist
+
+! ************************************************************************** !
+
+subroutine OutputListEnsureVariablesExist(output_variable_list,option)
+  ! 
+  ! Loop over output variables to ensure that they exist in the simulation
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/02/17
+  ! 
+  use Option_module
+  use Material_Aux_class, only : soil_compressibility_index, &
+                                 soil_reference_pressure_index
+  use Variables_module
+
+  implicit none
+
+  type(output_variable_list_type), pointer :: output_variable_list
+  type(option_type) :: option
+
+  type(output_variable_type), pointer :: cur_variable
+  PetscBool :: error_flag
+  PetscInt :: error_count
+
+  cur_variable => output_variable_list%first
+  error_count =  0
+  do
+    if (.not.associated(cur_variable)) exit
+    error_flag = PETSC_FALSE
+    select case(cur_variable%ivar)
+      case(SOIL_COMPRESSIBILITY)
+        if (soil_compressibility_index == 0) error_flag = PETSC_TRUE
+      case(SOIL_REFERENCE_PRESSURE)
+        if (soil_reference_pressure_index == 0) error_flag = PETSC_TRUE
+    end select
+    if (error_flag) then
+      error_count = error_count + 1
+      if (error_count == 1) then
+        if (OptionPrintToScreen(option)) then
+          print *
+          print *, 'The following OUTPUT VARIABLES are undefined in this &
+            &simulation:'
+          print *
+        endif
+      endif
+      if (OptionPrintToScreen(option)) then
+        print *, '  ' // trim(cur_variable%name)
+      endif
+    endif
+    cur_variable => cur_variable%next
+  enddo
+  if (error_count > 0) then
+    option%io_buffer = 'Simulation was stopped due to undefined output &
+                       &variables.'
+    call printErrMsg(option)
+  endif
+
+end subroutine OutputListEnsureVariablesExist
+
 ! ************************************************************************** !
 
 end module Output_module

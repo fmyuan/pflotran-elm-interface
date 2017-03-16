@@ -9,10 +9,8 @@ SIMULATION
       OPTIONS
         FREEZING
         ! adding half-width for smoothing freezing-thawing zone when PKE model only 
-        ! (<1.d-50 implies no-smoothing by default, ideally ranging 0.001 ~ 0.01)
-        ICE_MODEL PAINTER_KARRA_EXPLICIT_SMOOTH 1.0d-2
-        ITOL_SCALED_RESIDUAL
-        ITOL_RELATIVE_UPDATE
+        ! (<1.d-10 implies no-smoothing by default, ideally ranging 0.001 ~ 0.100)
+        ICE_MODEL PAINTER_KARRA_EXPLICIT_SMOOTH 0.5d-1   
       /
     /
   /
@@ -149,7 +147,7 @@ END
 TIME
   FINAL_TIME 365.d0 d 
   INITIAL_TIMESTEP_SIZE 900.0d0 s
-  MINIMUM_TIMESTEP_SIZE 1.d-1 s
+  MINIMUM_TIMESTEP_SIZE 60.d-1 s
   MAXIMUM_TIMESTEP_SIZE 86400.0d0 s
 END
 
@@ -159,9 +157,9 @@ END
 
 NEWTON_SOLVER FLOW
   ATOL 1D-20
-  RTOL 1D-15
-  STOL 1D-30      ! changing down to 1D-8 or so (but not less anymore) will reduce time-step BUT cause accuracy issue when smoothing FT zone
-  !ITOL 1D-10      ! this option doesn't work well like before (2017-01-30)
+  RTOL 1D-10
+  STOL 1D-10      ! changing down to 1D-8 will reduce time-step BUT cause accuracy issue when smoothing FT zone
+  ITOL 1D-08      ! this is a key tol. for reducing time-step but not impact accuracy too much when smoothing FT zone
 
   MAXIT 30
   MAXF 100
@@ -170,8 +168,7 @@ END
 !=========================== V. output ==========================================
 OUTPUT
   SCREEN PERIODIC 48
-  !PERIODIC TIMESTEP 1
-  PERIODIC TIME 1.d0 d
+  PERIODIC TIMESTEP 1
   FORMAT HDF5
 END
 
@@ -190,10 +187,8 @@ REFERENCE_TEMPERATURE 25.d0
 MATERIAL_PROPERTY peat1
   ID 1
   POROSITY 0.850d0
-  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT !BRAGFLO
-  ! 1d-7~1d-8 equivalent to ice expansion of volume, upon 'default' or 'BRAGFLO'
-  ! beyond this range may cause tiny-time stepping
-  SOIL_COMPRESSIBILITY 1.d-07       
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_COMPRESSIBILITY 1.d-7
   SOIL_REFERENCE_PRESSURE 101325.d0
   ROCK_DENSITY 700.0d0
   SPECIFIC_HEAT 830.0d0
@@ -213,10 +208,8 @@ END
 MATERIAL_PROPERTY soil1
   ID 2
   POROSITY 0.50d0
-  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT !BRAGFLO
-  ! 1d-7~1d-8 equivalent to ice expansion of volume, upon 'default' or 'BRAGFLO'
-  ! beyond this range may cause tiny-time stepping
-  SOIL_COMPRESSIBILITY 1.d-07
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_COMPRESSIBILITY 1.d-9
   SOIL_REFERENCE_PRESSURE 101325.d0
   ROCK_DENSITY 2170.0d0
   SPECIFIC_HEAT 830.0d0
@@ -275,7 +268,6 @@ CHARACTERISTIC_CURVES sf1
     M 0.2120d0
   /
   PERMEABILITY_FUNCTION MUALEM_VG_LIQ
-    SMOOTH      
     LIQUID_RESIDUAL_SATURATION 0.0d0
     M 0.2120d0
   /
@@ -289,7 +281,6 @@ CHARACTERISTIC_CURVES sf2
     M 0.1909d0
   /
   PERMEABILITY_FUNCTION MUALEM_VG_LIQ
-    SMOOTH      
     LIQUID_RESIDUAL_SATURATION 0.1d0
     M 0.1909d0
   / 
