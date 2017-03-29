@@ -50,6 +50,12 @@ module PM_WIPP_SrcSink_class
     PetscReal :: ironrhw    ! [kg] mass of Fe-based material in RH waste
     PetscReal :: irncchw    ! [kg] mass of Fe containers for CH waste
     PetscReal :: irncrhw    ! [kg] mass of Fe containers for RH waste
+    PetscReal :: cellchw    ! [kg] mass of cellulosics in CH waste
+    PetscReal :: cellrhw    ! [kg] mass of cellulosics in RH waste
+    PetscReal :: celcchw    ! [kg] mass of cellulosics in container materials for CH waste
+    PetscReal :: celcrhw    ! [kg] mass of cellulosics in container materials for RH waste
+    PetscReal :: celechw    ! [kg] mass of cellulosics in emplacement materials for CH waste
+    PetscReal :: celerhw    ! [kg] mass of cellulosics in emplacement materials for RH waste
   ! PFLOTRAN parameters:
     PetscReal :: Fe_in_panel          ! [total initial kg in waste panel]
     PetscReal :: MgO_in_panel         ! [total initial kg in waste panel]
@@ -58,7 +64,7 @@ module PM_WIPP_SrcSink_class
     PetscReal :: H_ion_in_panel       ! [total initial kg in waste panel]
     PetscReal :: Nitrate_in_panel     ! [total initial kg in waste panel]
     PetscReal :: Sulfate_in_panel     ! [total initial kg in waste panel]
-    PetscInt :: num_drums_packing
+    PetscInt :: num_drums_packing     ! [number of steel drums in waste panel]
     type(pre_inventory_type), pointer :: next
   end type pre_inventory_type
   
@@ -96,7 +102,7 @@ module PM_WIPP_SrcSink_class
     PetscReal :: gratmich           ! [mol/kg/sec]
     PetscReal :: brucitei           ! [mol/kg/sec]
     PetscReal :: bruciteh           ! [mol/kg/sec]
-    PetscReal :: RXCO2_factor
+    PetscReal :: RXCO2_factor       ! [-]
     PetscReal :: hymagcon_rate      ! [mol/kg/sec]
     PetscReal :: drum_surface_area  ! [m2/drum]
     PetscReal :: biogenfc           ! [-]
@@ -236,6 +242,12 @@ function PMWSSPreInventoryCreate()
   preinv%ironrhw = UNINITIALIZED_DOUBLE
   preinv%irncchw = UNINITIALIZED_DOUBLE
   preinv%irncrhw = UNINITIALIZED_DOUBLE
+  preinv%cellchw = UNINITIALIZED_DOUBLE
+  preinv%cellrhw = UNINITIALIZED_DOUBLE
+  preinv%celcchw = UNINITIALIZED_DOUBLE
+  preinv%celcrhw = UNINITIALIZED_DOUBLE
+  preinv%celechw = UNINITIALIZED_DOUBLE
+  preinv%celerhw = UNINITIALIZED_DOUBLE
   ! PFLOTRAN parameters:
   preinv%Fe_in_panel = UNINITIALIZED_DOUBLE
   preinv%MgO_in_panel = UNINITIALIZED_DOUBLE
@@ -756,14 +768,47 @@ subroutine PMWSSRead(this,input)
                          &(WTMGOTOT)',option)
                     new_inventory%MgO_in_panel = double
                 !-----------------------------
-                  case('WTCELTOT')
+                  case('CELLCHW')
                     call InputReadDouble(input,option,double)
-                    call InputErrorMsg(input,option,'initial cellulose mass &
-                                       &(WTCELTOT)',error_string2)
+                    call InputErrorMsg(input,option,'CELLCHW',error_string2)
                     call InputReadAndConvertUnits(input,double,'kg', &
-                         trim(error_string2) // ',initial cellulose mass &
-                         &(WTCELTOT) units',option)
-                    new_inventory%Cellulose_in_panel = double
+                         trim(error_string2) // ',CELLCHW',option)
+                    new_inventory%cellchw = double
+                !-----------------------------
+                  case('CELLRHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'CELLRHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',CELLRHW',option)
+                    new_inventory%cellrhw = double
+                !-----------------------------
+                  case('CELCCHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'CELCCHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',CELCCHW',option)
+                    new_inventory%celcchw = double
+                !-----------------------------
+                  case('CELCRHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'CELCRHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',CELCRHW',option)
+                    new_inventory%celcrhw = double
+                !-----------------------------
+                  case('CELECHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'CELECHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',CELECHW',option)
+                    new_inventory%celechw = double
+                !-----------------------------
+                  case('CELERHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'CELERHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',CELERHW',option)
+                    new_inventory%celerhw = double
                 !-----------------------------
                   case('WTRPLTOT')
                     call InputReadDouble(input,option,double)
@@ -861,7 +906,7 @@ subroutine PMWSSRead(this,input)
         endif
         if (Uninitialized(new_inventory%irncrhw)) then
           option%io_buffer = 'ERROR: Initial mass of Fe containers for RH &
-                        &waste must be specified using the SOLIDS,IRNCCHW &
+                        &waste must be specified using the SOLIDS,IRNCRHW &
                         &keyword in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
           call printMsg(option)
@@ -875,9 +920,53 @@ subroutine PMWSSRead(this,input)
           call printMsg(option)
           num_errors = num_errors + 1
         endif
-        if (Uninitialized(new_inventory%Cellulose_in_panel)) then
-          option%io_buffer = 'ERROR: Initial cellulose (solid) inventory must &
-                        &be specified using the SOLIDS,WTCELTOT keyword in the &
+        if (Uninitialized(new_inventory%cellchw)) then
+          option%io_buffer = 'ERROR: Initial cellulosics mass for CH waste &
+                        &must be specified using the SOLIDS,CELLCHW keyword &
+                        &in the WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%cellrhw)) then
+          option%io_buffer = 'ERROR: Initial cellulosics mass for RH waste &
+                        &must be specified using the SOLIDS,CELLRHW keyword &
+                        &in the WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%celcchw)) then
+          option%io_buffer = 'ERROR: Initial cellulosics mass in container &
+                        &materials for CH waste must be specified using the &
+                        &SOLIDS,CELCCHW keyword in the &
+                        &WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%celcrhw)) then
+          option%io_buffer = 'ERROR: Initial cellulosics mass in container &
+                        &materials for RH waste must be specified using the &
+                        &SOLIDS,CELCRHW keyword in the &
+                        &WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%celechw)) then
+          option%io_buffer = 'ERROR: Initial cellulosics mass in emplacement &
+                        &materials for CH waste must be specified using the &
+                        &SOLIDS,CELECHW keyword in the &
+                        &WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%celerhw)) then
+          option%io_buffer = 'ERROR: Initial cellulosics mass in emplacement &
+                        &materials for RH waste must be specified using the &
+                        &SOLIDS,CELERHW keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
           call printMsg(option)
@@ -1087,6 +1176,10 @@ subroutine PMWSSProcessAfterRead(this)
     preinventory%Fe_in_panel = &                             ! [kg]
           preinventory%ironchw + preinventory%ironrhw + &    ! [kg]
           preinventory%irncchw + preinventory%irncrhw        ! [kg]
+    preinventory%Cellulose_in_panel = &                      ! [kg]
+          preinventory%cellchw + preinventory%cellrhw + &    ! [kg]
+          preinventory%celcchw + preinventory%celcrhw + &    ! [kg]
+          preinventory%celechw + preinventory%celerhw        ! [kg]
     !-----mass-concentrations----------------------------------units---------
     D_c = (preinventory%Cellulose_in_panel + &               ! [kg]
            preinventory%RubberPlas_in_panel) / &             ! [kg]
