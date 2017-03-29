@@ -42,8 +42,15 @@ module PM_WIPP_SrcSink_class
     type(pre_inventory_type), pointer :: preinventory
   end type inventory_type
   
+  ! pre-inventory describes initial waste; what is emplaced in a waste panel
   type, public :: pre_inventory_type
     character(len=MAXWORDLENGTH) :: name
+  ! ALGEBRA parameters:
+    PetscReal :: ironchw    ! [kg] mass of Fe-based material in CH waste
+    PetscReal :: ironrhw    ! [kg] mass of Fe-based material in RH waste
+    PetscReal :: irncchw    ! [kg] mass of Fe containers for CH waste
+    PetscReal :: irncrhw    ! [kg] mass of Fe containers for RH waste
+  ! PFLOTRAN parameters:
     PetscReal :: Fe_in_panel          ! [total initial kg in waste panel]
     PetscReal :: MgO_in_panel         ! [total initial kg in waste panel]
     PetscReal :: Cellulose_in_panel   ! [total initial kg in waste panel]
@@ -224,6 +231,12 @@ function PMWSSPreInventoryCreate()
   nullify(preinv%next)
 
   preinv%name = ''
+  ! ALGEBRA parameters:
+  preinv%ironchw = UNINITIALIZED_DOUBLE
+  preinv%ironrhw = UNINITIALIZED_DOUBLE
+  preinv%irncchw = UNINITIALIZED_DOUBLE
+  preinv%irncrhw = UNINITIALIZED_DOUBLE
+  ! PFLOTRAN parameters:
   preinv%Fe_in_panel = UNINITIALIZED_DOUBLE
   preinv%MgO_in_panel = UNINITIALIZED_DOUBLE
   preinv%Cellulose_in_panel = UNINITIALIZED_DOUBLE
@@ -706,14 +719,33 @@ subroutine PMWSSRead(this,input)
                 call StringToUpper(word)
                 select case(trim(word))
                 !-----------------------------
-                  case('WTFETOT')
+                  case('IRONCHW')
                     call InputReadDouble(input,option,double)
-                    call InputErrorMsg(input,option,'initial Fe mass &
-                                       &(WTFETOT)',error_string2)
+                    call InputErrorMsg(input,option,'IRONCHW',error_string2)
                     call InputReadAndConvertUnits(input,double,'kg', &
-                          trim(error_string2) // ',initial Fe mass (WTFETOT) &
-                          &units',option)
-                    new_inventory%Fe_in_panel = double
+                          trim(error_string2) // ',IRONCHW',option)
+                    new_inventory%ironchw = double
+                !-----------------------------
+                  case('IRONRHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'IRONRHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                          trim(error_string2) // ',IRONRHW',option)
+                    new_inventory%ironrhw = double
+                !-----------------------------
+                  case('IRNCCHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'IRNCCHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                          trim(error_string2) // ',IRNCCHW',option)
+                    new_inventory%irncchw = double
+                !-----------------------------
+                  case('IRNCRHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'IRNCRHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                          trim(error_string2) // ',IRNCRHW',option)
+                    new_inventory%irncrhw = double
                 !-----------------------------
                   case('WTMGOTOT')
                     call InputReadDouble(input,option,double)
@@ -803,10 +835,34 @@ subroutine PMWSSRead(this,input)
           end select
         enddo
         ! error messages ---------------------
-        if (Uninitialized(new_inventory%Fe_in_panel)) then
-          option%io_buffer = 'ERROR: Initial Fe (solid) inventory must be &
-                        &specified using the SOLIDS,WTFETOT keyword in the &
-                        &WIPP_SOURCE_SINK,INVENTORY ' // &
+        if (Uninitialized(new_inventory%ironchw)) then
+          option%io_buffer = 'ERROR: Initial mass of Fe-based material in CH &
+                        &waste must be specified using the SOLIDS,IRONCHW &
+                        &keyword in the WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%ironrhw)) then
+          option%io_buffer = 'ERROR: Initial mass of Fe-based material in RH &
+                        &waste must be specified using the SOLIDS,IRONRHW &
+                        &keyword in the WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%irncchw)) then
+          option%io_buffer = 'ERROR: Initial mass of Fe containers for CH &
+                        &waste must be specified using the SOLIDS,IRNCCHW &
+                        &keyword in the WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%irncrhw)) then
+          option%io_buffer = 'ERROR: Initial mass of Fe containers for RH &
+                        &waste must be specified using the SOLIDS,IRNCCHW &
+                        &keyword in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
           call printMsg(option)
           num_errors = num_errors + 1
@@ -1027,6 +1083,10 @@ subroutine PMWSSProcessAfterRead(this)
   do
     if (.not.associated(cur_waste_panel)) exit
     preinventory => cur_waste_panel%inventory%preinventory
+    !-----inventory-totals-------------------------------------units---------
+    preinventory%Fe_in_panel = &                             ! [kg]
+          preinventory%ironchw + preinventory%ironrhw + &    ! [kg]
+          preinventory%irncchw + preinventory%irncrhw        ! [kg]
     !-----mass-concentrations----------------------------------units---------
     D_c = (preinventory%Cellulose_in_panel + &               ! [kg]
            preinventory%RubberPlas_in_panel) / &             ! [kg]
