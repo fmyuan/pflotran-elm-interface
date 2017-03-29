@@ -666,7 +666,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   PetscReal :: Dk_ice
   character(len=MAXSTRINGLENGTH) :: error_string
 
-  PetscBool :: DTRUNC_FLAG = PETSC_TRUE  ! option for truncating deriatives to zero at bounds (default: TRUE)
+  PetscBool :: DTRUNC_FLAG = PETSC_FALSE  ! option for truncating deriatives to zero at bounds (default: FALSE)
   PetscReal :: pcmax, pcmin, t_trunc, dt_trunc, dp_trunc
 
   out_of_table_flag = PETSC_FALSE
