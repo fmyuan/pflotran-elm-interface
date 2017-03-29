@@ -61,13 +61,21 @@ module PM_WIPP_SrcSink_class
     PetscReal :: rubcchw    ! [kg] mass of rubber in container materials for CH waste
     PetscReal :: rubcrhw    ! [kg] mass of rubber in container materials for RH waste
     PetscReal :: rubechw    ! [kg] mass of rubber in emplacement materials for CH waste
-    PetscReal :: ruberhw    ! [kg] mass of rubber in emplacement materials for RH waste   
+    PetscReal :: ruberhw    ! [kg] mass of rubber in emplacement materials for RH waste  
+    PetscReal :: plaschw    ! [kg] mass of plastics in CH waste
+    PetscReal :: plasrhw    ! [kg] mass of plastics in RH waste
+    PetscReal :: plscchw    ! [kg] mass of plastics in container materials for CH waste
+    PetscReal :: plscrhw    ! [kg] mass of plastics in container materials for RH waste
+    PetscReal :: plsechw    ! [kg] mass of plastics in emplacement materials for CH waste
+    PetscReal :: plserhw    ! [kg] mass of plastics in emplacement materials for RH waste 
+    PetscReal :: plasfac    ! [-] mass ratio of plastics to equivalent carbon
     PetscReal :: mgo_ef     ! [-] MgO excess factor; ratio mol-MgO/mol-organic-C
   ! PFLOTRAN parameters:
     PetscReal :: Fe_in_panel          ! [total initial kg in waste panel]
     PetscReal :: MgO_in_panel         ! [total initial kg in waste panel]
     PetscReal :: Cellulose_in_panel   ! [total initial kg in waste panel]
     PetscReal :: RubberPlas_in_panel  ! [total initial kg in waste panel]
+    PetscReal :: Biodegs_in_panel     ! [total initial kg in waste panel]
     PetscReal :: H_ion_in_panel       ! [total initial kg in waste panel]
     PetscReal :: Nitrate_in_panel     ! [total initial kg in waste panel]
     PetscReal :: Sulfate_in_panel     ! [total initial kg in waste panel]
@@ -113,6 +121,7 @@ module PM_WIPP_SrcSink_class
     PetscReal :: hymagcon_rate      ! [mol/kg/sec]
     PetscReal :: drum_surface_area  ! [m2/drum]
     PetscReal :: biogenfc           ! [-]
+    PetscInt :: plasidx             ! [-] flag
     type(srcsink_panel_type), pointer :: waste_panel_list
     type(pre_inventory_type), pointer :: pre_inventory_list
     class(data_mediator_vec_type), pointer :: data_mediator
@@ -175,6 +184,7 @@ function PMWSSCreate()
   pm%hymagcon_rate = UNINITIALIZED_DOUBLE
   pm%drum_surface_area = UNINITIALIZED_DOUBLE
   pm%biogenfc = UNINITIALIZED_DOUBLE
+  pm%plasidx = UNINITIALIZED_INTEGER
   
   call PMBaseInit(pm)
   
@@ -261,12 +271,20 @@ function PMWSSPreInventoryCreate()
   preinv%rubcrhw = UNINITIALIZED_DOUBLE
   preinv%rubechw = UNINITIALIZED_DOUBLE
   preinv%ruberhw = UNINITIALIZED_DOUBLE
+  preinv%plaschw = UNINITIALIZED_DOUBLE
+  preinv%plasrhw = UNINITIALIZED_DOUBLE
+  preinv%plscchw = UNINITIALIZED_DOUBLE
+  preinv%plscrhw = UNINITIALIZED_DOUBLE
+  preinv%plsechw = UNINITIALIZED_DOUBLE
+  preinv%plserhw = UNINITIALIZED_DOUBLE
+  preinv%plasfac = UNINITIALIZED_DOUBLE
   preinv%mgo_ef = UNINITIALIZED_DOUBLE
   ! PFLOTRAN parameters:
   preinv%Fe_in_panel = UNINITIALIZED_DOUBLE
   preinv%MgO_in_panel = UNINITIALIZED_DOUBLE
   preinv%Cellulose_in_panel = UNINITIALIZED_DOUBLE
   preinv%RubberPlas_in_panel = UNINITIALIZED_DOUBLE
+  preinv%Biodegs_in_panel = UNINITIALIZED_DOUBLE
   preinv%H_ion_in_panel = UNINITIALIZED_DOUBLE
   preinv%Nitrate_in_panel = UNINITIALIZED_DOUBLE
   preinv%Sulfate_in_panel = UNINITIALIZED_DOUBLE
@@ -644,6 +662,10 @@ subroutine PMWSSRead(this,input)
         call InputErrorMsg(input,option,'probability of attaining sampled &
                            &microbial gas generation rates (BIOGENFC)', &
                            error_string)
+      case('PLASIDX')
+        call InputReadInt(input,option,this%plasidx)
+        call InputErrorMsg(input,option,'flag: plastics inclusion (PLASIDX)', &
+                           error_string)
     !-----------------------------------------
     !-----------------------------------------
       case('WASTE_PANEL')
@@ -860,6 +882,52 @@ subroutine PMWSSRead(this,input)
                     call InputReadAndConvertUnits(input,double,'kg', &
                          trim(error_string2) // ',RUBERHW',option)
                     new_inventory%ruberhw = double
+                !-----------------------------
+                  case('PLASCHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'PLASCHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',PLASCHW',option)
+                    new_inventory%plaschw = double
+                !-----------------------------
+                  case('PLASRHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'PLASRHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',PLASRHW',option)
+                    new_inventory%plasrhw = double    
+                !-----------------------------
+                  case('PLSCCHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'PLSCCHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',PLSCCHW',option)
+                    new_inventory%plscchw = double
+                !-----------------------------
+                  case('PLSCRHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'PLSCRHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',PLSCRHW',option)
+                    new_inventory%plscrhw = double
+                !-----------------------------
+                  case('PLSECHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'PLSECHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',PLSECHW',option)
+                    new_inventory%plsechw = double
+                !-----------------------------
+                  case('PLSERHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'PLSERHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',PLSERHW',option)
+                    new_inventory%plserhw = double
+                !-----------------------------
+                  case('PLASFAC')
+                    call InputReadDouble(input,option,new_inventory%plasfac)
+                    call InputErrorMsg(input,option,'PLASFAC',error_string2)
                 !-----------------------------------
                   case('DRROOM')
                     call InputReadInt(input,option, &
@@ -922,6 +990,7 @@ subroutine PMWSSRead(this,input)
           end select
         enddo
         ! error messages ---------------------
+      !----- IRON -----!
         if (Uninitialized(new_inventory%ironchw)) then
           option%io_buffer = 'ERROR: Initial mass of Fe-based material in CH &
                         &waste must be specified using the SOLIDS,IRONCHW &
@@ -954,6 +1023,7 @@ subroutine PMWSSRead(this,input)
           call printMsg(option)
           num_errors = num_errors + 1
         endif
+      !----- MGO -----!
         if (Uninitialized(new_inventory%mgo_ef)) then
           option%io_buffer = 'ERROR: MgO excess factor must be &
                         &specified using the SOLIDS,MGO_EF keyword in the &
@@ -962,6 +1032,7 @@ subroutine PMWSSRead(this,input)
           call printMsg(option)
           num_errors = num_errors + 1
         endif
+      !----- CELLULOSICS -----!
         if (Uninitialized(new_inventory%cellchw)) then
           option%io_buffer = 'ERROR: Initial cellulosics mass for CH waste &
                         &must be specified using the SOLIDS,CELLCHW keyword &
@@ -1014,6 +1085,7 @@ subroutine PMWSSRead(this,input)
           call printMsg(option)
           num_errors = num_errors + 1
         endif
+      !----- RUBBER -----!
         if (Uninitialized(new_inventory%rubbchw)) then
           option%io_buffer = 'ERROR: Initial rubber mass for CH waste must be &
                         &specified using the SOLIDS,RUBBCHW keyword &
@@ -1066,6 +1138,68 @@ subroutine PMWSSRead(this,input)
           call printMsg(option)
           num_errors = num_errors + 1
         endif
+      !----- PLASTICS -----!
+        if (Uninitialized(new_inventory%plaschw)) then
+          option%io_buffer = 'ERROR: Initial plastics mass for CH waste must &
+                        &be specified using the SOLIDS,PLASCHW keyword &
+                        &in the WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%plasrhw)) then
+          option%io_buffer = 'ERROR: Initial plastics mass for CH waste must &
+                        &be specified using the SOLIDS,PLASRHW keyword &
+                        &in the WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%plscchw)) then
+          option%io_buffer = 'ERROR: Initial plastics mass in container &
+                        &materials for CH waste must be specified using the &
+                        &SOLIDS,PLSCCHW keyword in the &
+                        &WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%plscrhw)) then
+          option%io_buffer = 'ERROR: Initial plastics mass in container &
+                        &materials for RH waste must be specified using the &
+                        &SOLIDS,PLSCRHW keyword in the &
+                        &WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%plsechw)) then
+          option%io_buffer = 'ERROR: Initial plastics mass in emplacement &
+                        &materials for CH waste must be specified using the &
+                        &SOLIDS,PLSECHW keyword in the &
+                        &WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%plserhw)) then
+          option%io_buffer = 'ERROR: Initial plastics mass in emplacement &
+                        &materials for RH waste must be specified using the &
+                        &SOLIDS,PLSERHW keyword in the &
+                        &WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%plasfac)) then
+          option%io_buffer = 'ERROR: mass ratio of plastics to equivalent &
+                        &carbon must be specified using the SOLIDS,PLASFAC &
+                        &keyword in the WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+      !----- AQUEOUS -----!
         if (Uninitialized(new_inventory%H_ion_in_panel)) then
           option%io_buffer = 'ERROR: Initial H+ (aqueous) inventory must be &
                         &specified using the AQUEOUS,H+ keyword in the &
@@ -1098,6 +1232,7 @@ subroutine PMWSSRead(this,input)
           call printMsg(option)
           num_errors = num_errors + 1
         endif
+      !----- END COUNT -----!
         if (num_errors > 0) then
           write(option%io_buffer,*) num_errors
           option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
@@ -1214,6 +1349,12 @@ subroutine PMWSSRead(this,input)
     call printMsg(option)
     num_errors = num_errors + 1
   endif
+  if (Uninitialized(this%plasidx)) then
+    option%io_buffer = 'ERROR: PLASIDX (plastics inclusion flag) &
+                       &must be specified in the WIPP_SOURCE_SINK block.'
+    call printMsg(option)
+    num_errors = num_errors + 1
+  endif
   if (num_errors > 0) then
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
@@ -1266,16 +1407,26 @@ subroutine PMWSSProcessAfterRead(this)
           preinventory%cellchw + preinventory%cellrhw + &    ! [kg]
           preinventory%celcchw + preinventory%celcrhw + &    ! [kg]
           preinventory%celechw + preinventory%celerhw        ! [kg]
+    preinventory%RubberPlas_in_panel = &                     ! [kg]
+         (preinventory%rubbchw + preinventory%rubbrhw + &    ! [kg]
+          preinventory%rubcchw + preinventory%rubcrhw + &    ! [kg]
+          preinventory%rubechw + preinventory%ruberhw) + &   ! [kg]
+          preinventory%plasfac * &                           ! [-]
+         (preinventory%plaschw + preinventory%plasrhw + &    ! [kg]
+          preinventory%plscchw + preinventory%plscrhw + &    ! [kg]
+          preinventory%plsechw + preinventory%plserhw)       ! [kg]
+    preinventory%Biodegs_in_panel = &                        ! [kg]
+          preinventory%Cellulose_in_panel + &                ! [kg]
+         (preinventory%RubberPlas_in_panel * &               ! [kg]
+          this%plasidx)                                      ! [-]
     preinventory%MgO_in_panel = &                            ! [kg]
-          (preinventory%Cellulose_in_panel + &               ! [kg]
-           preinventory%RubberPlas_in_panel) * &             ! [kg]
-           preinventory%mgo_ef * &                           ! [-]
-           MW_MGO / MW_C                                     ! [-]
+         (preinventory%Cellulose_in_panel + &                ! [kg]
+          preinventory%RubberPlas_in_panel) * &              ! [kg]
+          preinventory%mgo_ef * &                            ! [-]
+          MW_MGO / MW_C                                      ! [-]
     !-----mass-concentrations----------------------------------units---------
-    D_c = (preinventory%Cellulose_in_panel + &               ! [kg]
-           preinventory%RubberPlas_in_panel) / &             ! [kg]
+    D_c = preinventory%Biodegs_in_panel / &                  ! [kg]
           cur_waste_panel%volume                             ! [m3]
-          ! D_c = (m_c + m_r + 1.7*m_p)/volume ???
     D_s = this%drum_surface_area * &                         ! [m2]
           cur_waste_panel%inventory%num_drums_packing / &    ! [-]
           cur_waste_panel%volume                             ! [m3]
@@ -1306,20 +1457,15 @@ subroutine PMWSSProcessAfterRead(this)
           D_c * &                                         ! [kg/m3]
           this%biogenfc                                   ! [-]            
     !-----iron-sulfidation----------------------------------------------------
-    MOL_NO3 = &
-          preinventory%Nitrate_in_panel / &               ! [kg nitrate]
-          MW_NO3                                          ! [kg/mol]
-    A1 = (preinventory%Cellulose_in_panel + &             ! [kg]
-          preinventory%RubberPlas_in_panel) / &           ! [kg]
-         MW_C                                             ! [kg/mol] 
-    A2 = this%gratmici * &                                ! [mol-cell/kg/sec]
-         (preinventory%Cellulose_in_panel + &             ! [kg]
-          preinventory%RubberPlas_in_panel) * &           ! [kg]
+    MOL_NO3 = preinventory%Nitrate_in_panel / MW_NO3      ! [mol]
+    A1 = preinventory%Biodegs_in_panel / MW_C             ! [mol]
+    A2 = this%gratmici * &                                ! [mol/kg/sec]
+         (preinventory%Biodegs_in_panel) * &              ! [kg]
          (3600.d0*24.d0*365.d0)                           ! [sec/year]
-    MAX_C = min(A1,A2)
-    F_NO3 = MOL_NO3 * (6.d0/4.8d0) / MAX_C
-    F_NO3 = min(F_NO3,1.0)
-    cur_waste_panel%RXH2S_factor = 1.0 - F_NO3
+    MAX_C = min(A1,A2)                                    ! [mol]
+    F_NO3 = MOL_NO3 * (6.d0/4.8d0) / MAX_C                ! [-]
+    F_NO3 = min(F_NO3,1.0)                                ! [-]
+    cur_waste_panel%RXH2S_factor = 1.0 - F_NO3            ! [-]
     !-----MgO-hydration-------------------------------------units-------------
     cur_waste_panel%inundated_brucite_rate = &            ! [mol-bruc/m3/sec]
           this%brucitei * &                               ! [mol-bruc/kg/sec]
