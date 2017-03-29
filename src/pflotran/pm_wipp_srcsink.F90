@@ -56,6 +56,7 @@ module PM_WIPP_SrcSink_class
     PetscReal :: celcrhw    ! [kg] mass of cellulosics in container materials for RH waste
     PetscReal :: celechw    ! [kg] mass of cellulosics in emplacement materials for CH waste
     PetscReal :: celerhw    ! [kg] mass of cellulosics in emplacement materials for RH waste
+    PetscReal :: mgo_ef     ! [-] MgO excess factor; ratio mol-MgO/mol-organic-C
   ! PFLOTRAN parameters:
     PetscReal :: Fe_in_panel          ! [total initial kg in waste panel]
     PetscReal :: MgO_in_panel         ! [total initial kg in waste panel]
@@ -248,6 +249,7 @@ function PMWSSPreInventoryCreate()
   preinv%celcrhw = UNINITIALIZED_DOUBLE
   preinv%celechw = UNINITIALIZED_DOUBLE
   preinv%celerhw = UNINITIALIZED_DOUBLE
+  preinv%mgo_ef = UNINITIALIZED_DOUBLE
   ! PFLOTRAN parameters:
   preinv%Fe_in_panel = UNINITIALIZED_DOUBLE
   preinv%MgO_in_panel = UNINITIALIZED_DOUBLE
@@ -759,14 +761,9 @@ subroutine PMWSSRead(this,input)
                           trim(error_string2) // ',IRNCRHW',option)
                     new_inventory%irncrhw = double
                 !-----------------------------
-                  case('WTMGOTOT')
-                    call InputReadDouble(input,option,double)
-                    call InputErrorMsg(input,option,'initial MgO mass &
-                                       &(WTMGOTOT)',error_string2)
-                    call InputReadAndConvertUnits(input,double,'kg', &
-                         trim(error_string2) // ',initial MgO mass units &
-                         &(WTMGOTOT)',option)
-                    new_inventory%MgO_in_panel = double
+                  case('MGO_EF')
+                    call InputReadDouble(input,option,new_inventory%mgo_ef)
+                    call InputErrorMsg(input,option,'MGO_EF',error_string2)
                 !-----------------------------
                   case('CELLCHW')
                     call InputReadDouble(input,option,double)
@@ -912,9 +909,9 @@ subroutine PMWSSRead(this,input)
           call printMsg(option)
           num_errors = num_errors + 1
         endif
-        if (Uninitialized(new_inventory%MgO_in_panel)) then
-          option%io_buffer = 'ERROR: Initial MgO (solid) inventory must be &
-                        &specified using the SOLIDS,WTMGOTOT keyword in the &
+        if (Uninitialized(new_inventory%mgo_ef)) then
+          option%io_buffer = 'ERROR: MgO excess factor must be &
+                        &specified using the SOLIDS,MGO_EF keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
           call printMsg(option)
@@ -1180,6 +1177,11 @@ subroutine PMWSSProcessAfterRead(this)
           preinventory%cellchw + preinventory%cellrhw + &    ! [kg]
           preinventory%celcchw + preinventory%celcrhw + &    ! [kg]
           preinventory%celechw + preinventory%celerhw        ! [kg]
+    preinventory%MgO_in_panel = &                            ! [kg]
+          (preinventory%Cellulose_in_panel + &               ! [kg]
+           preinventory%RubberPlas_in_panel) * &             ! [kg]
+           preinventory%mgo_ef * &                           ! [-]
+           MW_MGO / MW_C                                     ! [-]
     !-----mass-concentrations----------------------------------units---------
     D_c = (preinventory%Cellulose_in_panel + &               ! [kg]
            preinventory%RubberPlas_in_panel) / &             ! [kg]
@@ -1188,9 +1190,8 @@ subroutine PMWSSProcessAfterRead(this)
     D_s = this%drum_surface_area * &                         ! [m2]
           cur_waste_panel%inventory%num_drums_packing / &    ! [-]
           cur_waste_panel%volume                             ! [m3]
-    D_m = 1.2d0*D_c * &                                      ! [kg/m3]
-          MW_MGO / &                                         ! [kg/mol] 
-          MW_C                                               ! [kg/mol]
+    D_m = preinventory%mgo_ef * D_c * &                      ! [kg/m3]
+          MW_MGO / MW_C                                      ! [-]
     !-------------------------------------------------------------------------
     !-----anoxic-iron-corrosion--------------------------------units----------
     cur_waste_panel%inundated_corrosion_rate = &             ! [mol-Fe/m3/sec]
