@@ -56,6 +56,12 @@ module PM_WIPP_SrcSink_class
     PetscReal :: celcrhw    ! [kg] mass of cellulosics in container materials for RH waste
     PetscReal :: celechw    ! [kg] mass of cellulosics in emplacement materials for CH waste
     PetscReal :: celerhw    ! [kg] mass of cellulosics in emplacement materials for RH waste
+    PetscReal :: rubbchw    ! [kg] mass of rubber in CH waste
+    PetscReal :: rubbrhw    ! [kg] mass of rubber in RH waste
+    PetscReal :: rubcchw    ! [kg] mass of rubber in container materials for CH waste
+    PetscReal :: rubcrhw    ! [kg] mass of rubber in container materials for RH waste
+    PetscReal :: rubechw    ! [kg] mass of rubber in emplacement materials for CH waste
+    PetscReal :: ruberhw    ! [kg] mass of rubber in emplacement materials for RH waste   
     PetscReal :: mgo_ef     ! [-] MgO excess factor; ratio mol-MgO/mol-organic-C
   ! PFLOTRAN parameters:
     PetscReal :: Fe_in_panel          ! [total initial kg in waste panel]
@@ -249,6 +255,12 @@ function PMWSSPreInventoryCreate()
   preinv%celcrhw = UNINITIALIZED_DOUBLE
   preinv%celechw = UNINITIALIZED_DOUBLE
   preinv%celerhw = UNINITIALIZED_DOUBLE
+  preinv%rubbchw = UNINITIALIZED_DOUBLE
+  preinv%rubbrhw = UNINITIALIZED_DOUBLE
+  preinv%rubcchw = UNINITIALIZED_DOUBLE
+  preinv%rubcrhw = UNINITIALIZED_DOUBLE
+  preinv%rubechw = UNINITIALIZED_DOUBLE
+  preinv%ruberhw = UNINITIALIZED_DOUBLE
   preinv%mgo_ef = UNINITIALIZED_DOUBLE
   ! PFLOTRAN parameters:
   preinv%Fe_in_panel = UNINITIALIZED_DOUBLE
@@ -807,14 +819,47 @@ subroutine PMWSSRead(this,input)
                          trim(error_string2) // ',CELERHW',option)
                     new_inventory%celerhw = double
                 !-----------------------------
-                  case('WTRPLTOT')
+                  case('RUBBCHW')
                     call InputReadDouble(input,option,double)
-                    call InputErrorMsg(input,option,'initial rubber and &
-                                       &plastics mass (WTRPLTOT)',error_string2)
+                    call InputErrorMsg(input,option,'RUBBCHW',error_string2)
                     call InputReadAndConvertUnits(input,double,'kg', &
-                         trim(error_string2) // ',initial rubber and plastics &
-                         &mass (WTRPLTOT) units',option)
-                    new_inventory%RubberPlas_in_panel = double
+                         trim(error_string2) // ',RUBBCHW',option)
+                    new_inventory%rubbchw = double
+                !-----------------------------
+                  case('RUBBRHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'RUBBRHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',RUBBRHW',option)
+                    new_inventory%rubbrhw = double
+                !-----------------------------
+                  case('RUBCCHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'RUBCCHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',RUBCCHW',option)
+                    new_inventory%rubcchw = double
+                !-----------------------------
+                  case('RUBCRHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'RUBCRHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',RUBCRHW',option)
+                    new_inventory%rubcrhw = double
+                !-----------------------------
+                  case('RUBECHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'RUBECHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',RUBECHW',option)
+                    new_inventory%rubechw = double
+                !-----------------------------
+                  case('RUBERHW')
+                    call InputReadDouble(input,option,double)
+                    call InputErrorMsg(input,option,'RUBERHW',error_string2)
+                    call InputReadAndConvertUnits(input,double,'kg', &
+                         trim(error_string2) // ',RUBERHW',option)
+                    new_inventory%ruberhw = double
                 !-----------------------------------
                   case('DRROOM')
                     call InputReadInt(input,option, &
@@ -969,10 +1014,54 @@ subroutine PMWSSRead(this,input)
           call printMsg(option)
           num_errors = num_errors + 1
         endif
-        if (Uninitialized(new_inventory%RubberPlas_in_panel)) then
-          option%io_buffer = 'ERROR: Initial rubber/plastic (solid) inventory &
-                        &must be specified using the SOLIDS,WTRPLTOT keyword &
+        if (Uninitialized(new_inventory%rubbchw)) then
+          option%io_buffer = 'ERROR: Initial rubber mass for CH waste must be &
+                        &specified using the SOLIDS,RUBBCHW keyword &
                         &in the WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%rubbrhw)) then
+          option%io_buffer = 'ERROR: Initial rubber mass for CH waste must be &
+                        &specified using the SOLIDS,RUBBRHW keyword &
+                        &in the WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%rubcchw)) then
+          option%io_buffer = 'ERROR: Initial rubber mass in container &
+                        &materials for CH waste must be specified using the &
+                        &SOLIDS,RUBCCHW keyword in the &
+                        &WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%rubcrhw)) then
+          option%io_buffer = 'ERROR: Initial rubber mass in container &
+                        &materials for RH waste must be specified using the &
+                        &SOLIDS,RUBCRHW keyword in the &
+                        &WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%rubechw)) then
+          option%io_buffer = 'ERROR: Initial rubber mass in emplacement &
+                        &materials for CH waste must be specified using the &
+                        &SOLIDS,RUBECHW keyword in the &
+                        &WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_inventory%ruberhw)) then
+          option%io_buffer = 'ERROR: Initial rubber mass in emplacement &
+                        &materials for RH waste must be specified using the &
+                        &SOLIDS,RUBERHW keyword in the &
+                        &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
           call printMsg(option)
           num_errors = num_errors + 1
