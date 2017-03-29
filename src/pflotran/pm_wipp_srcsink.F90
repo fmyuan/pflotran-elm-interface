@@ -1011,10 +1011,14 @@ subroutine PMWSSProcessAfterRead(this)
   
   type(srcsink_panel_type), pointer :: cur_waste_panel
   type(pre_inventory_type), pointer :: preinventory
+  PetscReal :: MOL_NO3                      ! moles of nitrate
+  PetscReal :: F_NO3
+  PetscReal :: MAX_C, A1, A2                ! intermediate parameters
   PetscReal, parameter :: DN_FE = 7870.d0   ! [kg/m3] density of iron
   PetscReal, parameter :: MW_FE = 5.5847d-2 ! [kg/mol] mol weight of iron
   PetscReal, parameter :: MW_MGO = 4.03d-2  ! [kg/mol] mol weight of MgO
   PetscReal, parameter :: MW_C = 2.70d-2    ! [kg/mol] mol weight of cellulosics
+  PetscReal, parameter :: MW_NO3 = 6.20d-2  ! [kg/mol] mol weight of nitrate
   PetscReal :: D_c                          ! [kg/m3] mass conc biodegradables
   PetscReal :: D_m                          ! [kg/m3] mass conc MgO
   PetscReal :: D_s                          ! [m2/m3] area conc iron steel
@@ -1059,8 +1063,20 @@ subroutine PMWSSProcessAfterRead(this)
           D_c * &                                         ! [kg/m3]
           this%biogenfc                                   ! [-]            
     !-----iron-sulfidation----------------------------------------------------
-    cur_waste_panel%RXH2S_factor = 1.11d-2  ! fill in later
-           ! its 1 - (some ratio of initial nitrate to carbon loss via biodeg)
+    MOL_NO3 = &
+          preinventory%Nitrate_in_panel / &               ! [kg nitrate]
+          MW_NO3                                          ! [kg/mol]
+    A1 = (preinventory%Cellulose_in_panel + &             ! [kg]
+          preinventory%RubberPlas_in_panel) / &           ! [kg]
+         MW_C                                             ! [kg/mol] 
+    A2 = this%gratmici * &                                ! [mol-cell/kg/sec]
+         (preinventory%Cellulose_in_panel + &             ! [kg]
+          preinventory%RubberPlas_in_panel) * &           ! [kg]
+         (3600.d0*24.d0*365.d0)                           ! [sec/year]
+    MAX_C = min(A1,A2)
+    F_NO3 = MOL_NO3 * (6.d0/4.8d0) / MAX_C
+    F_NO3 = min(F_NO3,1.0)
+    cur_waste_panel%RXH2S_factor = 1.0 - F_NO3
     !-----MgO-hydration-------------------------------------units-------------
     cur_waste_panel%inundated_brucite_rate = &            ! [mol-bruc/m3/sec]
           this%brucitei * &                               ! [mol-bruc/kg/sec]
