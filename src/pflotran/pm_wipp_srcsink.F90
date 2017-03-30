@@ -121,6 +121,7 @@ module PM_WIPP_SrcSink_class
     PetscReal :: hymagcon_rate      ! [mol/kg/sec]
     PetscReal :: drum_surface_area  ! [m2/drum]
     PetscReal :: biogenfc           ! [-]
+    PetscInt :: bioidx              ! [-] flag
     PetscInt :: plasidx             ! [-] flag
     type(srcsink_panel_type), pointer :: waste_panel_list
     type(pre_inventory_type), pointer :: pre_inventory_list
@@ -184,6 +185,7 @@ function PMWSSCreate()
   pm%hymagcon_rate = UNINITIALIZED_DOUBLE
   pm%drum_surface_area = UNINITIALIZED_DOUBLE
   pm%biogenfc = UNINITIALIZED_DOUBLE
+  pm%bioidx = UNINITIALIZED_INTEGER
   pm%plasidx = UNINITIALIZED_INTEGER
   
   call PMBaseInit(pm)
@@ -662,6 +664,10 @@ subroutine PMWSSRead(this,input)
         call InputErrorMsg(input,option,'probability of attaining sampled &
                            &microbial gas generation rates (BIOGENFC)', &
                            error_string)
+      case('BIOIDX')
+        call InputReadInt(input,option,this%bioidx)
+        call InputErrorMsg(input,option,'flag: biodegradation inclusion &
+                           &(BIOIDX)',error_string)
       case('PLASIDX')
         call InputReadInt(input,option,this%plasidx)
         call InputErrorMsg(input,option,'flag: plastics inclusion (PLASIDX)', &
@@ -1349,6 +1355,12 @@ subroutine PMWSSRead(this,input)
     call printMsg(option)
     num_errors = num_errors + 1
   endif
+  if (Uninitialized(this%bioidx)) then
+    option%io_buffer = 'ERROR: BIOIDX (biodegradation inclusion flag) &
+                       &must be specified in the WIPP_SOURCE_SINK block.'
+    call printMsg(option)
+    num_errors = num_errors + 1
+  endif
   if (Uninitialized(this%plasidx)) then
     option%io_buffer = 'ERROR: PLASIDX (plastics inclusion flag) &
                        &must be specified in the WIPP_SOURCE_SINK block.'
@@ -1470,7 +1482,7 @@ subroutine PMWSSProcessAfterRead(this)
     cur_waste_panel%RXH2S_factor = 1.0 - F_NO3            ! [-]
     !-----MgO-hydration-------------------------------------units-------------
     cur_waste_panel%inundated_brucite_rate = &            ! [mol-bruc/m3/sec]
-          this%brucitei * &                               ! [mol-bruc/kg/sec]
+          max(this%brucitei,this%bruciteh) * &            ! [mol-bruc/kg/sec]
           D_m                                             ! [kg/m3]
     cur_waste_panel%humid_brucite_rate = &                ! [mol-bruc/m3/sec]
           this%bruciteh * &                               ! [mol-bruc/kg/sec]
