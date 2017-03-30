@@ -1192,7 +1192,7 @@ subroutine PMWSSRead(this,input)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%plasfac)) then
-          option%io_buffer = 'ERROR: mass ratio of plastics to equivalent &
+          option%io_buffer = 'ERROR: Mass ratio of plastics to equivalent &
                         &carbon must be specified using the SOLIDS,PLASFAC &
                         &keyword in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
@@ -1451,11 +1451,13 @@ subroutine PMWSSProcessAfterRead(this)
     cur_waste_panel%inundated_biodeg_rate = &             ! [mol-cell/m3/sec]
           this%gratmici * &                               ! [mol-cell/kg/sec]
           D_c * &                                         ! [kg/m3]
-          this%biogenfc                                   ! [-]
+          this%biogenfc * &                               ! [-]
+          this%bioidx                                     ! [-]
     cur_waste_panel%humid_biodeg_rate = &                 ! [mol-cell/m3/sec]
           this%gratmich * &                               ! [mol-cell/kg/sec]
           D_c * &                                         ! [kg/m3]
-          this%biogenfc                                   ! [-]            
+          this%biogenfc * &                               ! [-]
+          this%bioidx                                     ! [-]           
     !-----iron-sulfidation----------------------------------------------------
     MOL_NO3 = preinventory%Nitrate_in_panel / MW_NO3      ! [mol]
     A1 = preinventory%Biodegs_in_panel / MW_C             ! [mol]
