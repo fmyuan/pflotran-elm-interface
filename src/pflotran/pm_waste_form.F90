@@ -2449,10 +2449,8 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
                                             ! 1/day -> 1/sec
   PetscReal, parameter :: time_conversion = 1.d0/(24.d0*3600.d0)
   PetscReal :: avg_temp_local, avg_temp_global
-  PetscReal :: avg_pri_molal_local, avg_pri_molal_global
-  PetscReal :: avg_sec_molal_local, avg_sec_molal_global
-  PetscReal :: avg_pri_act_coef_local, avg_pri_act_coef_global
-  PetscReal :: avg_sec_act_coef_local, avg_sec_act_coef_global
+  PetscReal :: ph_local, ph_global
+  PetscReal :: Q_local, Q_global
   PetscInt :: ghosted_id
   PetscInt :: i
 
@@ -2474,108 +2472,58 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
   do i = 1,waste_form%region%num_cells
     ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
     avg_temp_local = avg_temp_local + &  ! Celcius
-                 global_auxvars(ghosted_id)%temp * waste_form%scaling_factor(i)
+               (global_auxvars(ghosted_id)%temp * waste_form%scaling_factor(i))
   enddo
   call PMWFCalcParallelSUM(pm%option,waste_form,avg_temp_local,avg_temp_global)
   avg_temp_global = avg_temp_global+273.15d0   ! Kelvin
               
-  if (this%use_pH) then
+  if (this%use_pH) then  ! pH ------------------------------------------------
     if (this%h_ion_id > 0) then   ! primary species
-      i = 0
-      avg_pri_molal_local = 0.d0
-      do while (i < waste_form%region%num_cells)
-        i = i + 1
-        avg_pri_molal_local = avg_pri_molal_local + &
-                        rt_auxvars(grid%nL2G(waste_form%region%cell_ids(i)))% &
-                        pri_molal(this%h_ion_id)*waste_form%scaling_factor(i)
+      ph_local = 0.d0
+      do i = 1,waste_form%region%num_cells
+        ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
+        ph_local = ph_local + &
+               ( -log10((rt_auxvars(ghosted_id)%pri_molal(this%h_ion_id) * &
+                         rt_auxvars(ghosted_id)%pri_act_coef(this%h_ion_id) * &
+                         waste_form%scaling_factor(i))) )
       enddo
-      call PMWFCalcParallelSUM(pm%option,waste_form,avg_pri_molal_local, &
-                               avg_pri_molal_global)
-      i = 0
-      avg_pri_act_coef_local = 0.d0
-      do while (i < waste_form%region%num_cells)
-        i = i + 1
-        avg_pri_act_coef_local = avg_pri_act_coef_local + &
-                        rt_auxvars(grid%nL2G(waste_form%region%cell_ids(i)))% &
-                        pri_act_coef(this%h_ion_id)*waste_form%scaling_factor(i)
-      enddo
-      call PMWFCalcParallelSUM(pm%option,waste_form,avg_pri_act_coef_local, &
-                               avg_pri_act_coef_global)
-      this%pH = -log10(avg_pri_molal_global*avg_pri_act_coef_global)
     elseif (this%h_ion_id < 0) then   ! secondary species
-      i = 0
-      avg_sec_molal_local = 0.d0
-      do while (i < waste_form%region%num_cells)
-        i = i + 1
-        avg_sec_molal_local = avg_sec_molal_local + &
-                        rt_auxvars(grid%nL2G(waste_form%region%cell_ids(i)))% &
-                        sec_molal(this%h_ion_id)*waste_form%scaling_factor(i)
+      ph_local = 0.d0
+      do i = 1,waste_form%region%num_cells
+        ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
+        ph_local = ph_local + &
+               ( -log10((rt_auxvars(ghosted_id)%sec_molal(this%h_ion_id) * &
+                         rt_auxvars(ghosted_id)%sec_act_coef(this%h_ion_id) * &
+                         waste_form%scaling_factor(i))) )
       enddo
-      call PMWFCalcParallelSUM(pm%option,waste_form,avg_sec_molal_local, &
-                               avg_sec_molal_global)
-      i = 0
-      avg_sec_act_coef_local = 0.d0
-      do while (i < waste_form%region%num_cells)
-        i = i + 1
-        avg_sec_act_coef_local = avg_sec_act_coef_local + &
-                        rt_auxvars(grid%nL2G(waste_form%region%cell_ids(i)))% &
-                        sec_act_coef(this%h_ion_id)*waste_form%scaling_factor(i)
-      enddo
-      call PMWFCalcParallelSUM(pm%option,waste_form,avg_sec_act_coef_local, &
-                               avg_sec_act_coef_global)
-      this%pH = -log10(avg_sec_molal_global*avg_sec_act_coef_global)
     endif
-  endif
+    call PMWFCalcParallelSUM(pm%option,waste_form,ph_local,ph_global)
+    this%pH = ph_global
+  endif ! pH -----------------------------------------------------------------
   
-  if (this%use_Q) then
+  if (this%use_Q) then  ! Q --------------------------------------------------
     if (this%SiO2_id > 0) then   ! primary species
-      i = 0
-      avg_pri_molal_local = 0.d0
-      do while (i < waste_form%region%num_cells)
-        i = i + 1
-        avg_pri_molal_local = avg_pri_molal_local + &
-                        rt_auxvars(grid%nL2G(waste_form%region%cell_ids(i)))% &
-                        pri_molal(this%SiO2_id)*waste_form%scaling_factor(i)
+      Q_local = 0.d0
+      do i = 1,waste_form%region%num_cells
+        ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
+        Q_local = Q_local + &
+                 (rt_auxvars(ghosted_id)%pri_molal(abs(this%SiO2_id)) * &
+                  rt_auxvars(ghosted_id)%pri_act_coef(abs(this%SiO2_id)) * &
+                  waste_form%scaling_factor(i))
       enddo
-      call PMWFCalcParallelSUM(pm%option,waste_form,avg_pri_molal_local, &
-                               avg_pri_molal_global)
-      i = 0
-      avg_pri_act_coef_local = 0.d0
-      do while (i < waste_form%region%num_cells)
-        i = i + 1
-        avg_pri_act_coef_local = avg_pri_act_coef_local + &
-                        rt_auxvars(grid%nL2G(waste_form%region%cell_ids(i)))% &
-                        pri_act_coef(this%SiO2_id)*waste_form%scaling_factor(i)
-      enddo
-      call PMWFCalcParallelSUM(pm%option,waste_form,avg_pri_act_coef_local, &
-                               avg_pri_act_coef_global)
-      this%Q = avg_pri_molal_global*avg_pri_act_coef_global
     elseif (this%SiO2_id < 0) then   ! secondary species
-      i = 0
-      avg_sec_molal_local = 0.d0
-      do while (i < waste_form%region%num_cells)
-        i = i + 1
-        avg_sec_molal_local = avg_sec_molal_local + &
-                        rt_auxvars(grid%nL2G(waste_form%region%cell_ids(i)))% &
-                        sec_molal(abs(this%SiO2_id))* &
-                        waste_form%scaling_factor(i)
+      Q_local = 0.d0
+      do i = 1,waste_form%region%num_cells
+        ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
+        Q_local = Q_local + &
+                 (rt_auxvars(ghosted_id)%sec_molal(abs(this%SiO2_id)) * &
+                  rt_auxvars(ghosted_id)%sec_act_coef(abs(this%SiO2_id)) * &
+                  waste_form%scaling_factor(i))
       enddo
-      call PMWFCalcParallelSUM(pm%option,waste_form,avg_sec_molal_local, &
-                               avg_sec_molal_global)
-      i = 0
-      avg_sec_act_coef_local = 0.d0
-      do while (i < waste_form%region%num_cells)
-        i = i + 1
-        avg_sec_act_coef_local = avg_sec_act_coef_local + &
-                        rt_auxvars(grid%nL2G(waste_form%region%cell_ids(i)))% &
-                        sec_act_coef(abs(this%SiO2_id))* &
-                        waste_form%scaling_factor(i)
-      enddo
-      call PMWFCalcParallelSUM(pm%option,waste_form,avg_sec_act_coef_local, &
-                               avg_sec_act_coef_global)
-      this%Q = avg_sec_molal_global*avg_sec_act_coef_global
     endif
-  endif
+    call PMWFCalcParallelSUM(pm%option,waste_form,Q_local,Q_global)
+    this%Q = Q_global
+  endif  ! Q -----------------------------------------------------------------  
   
   ! kg-glass/m^2/sec
   this%dissolution_rate = this%k0 * (10.d0**(this%nu*this%pH)) * &
