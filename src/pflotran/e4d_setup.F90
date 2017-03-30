@@ -593,7 +593,7 @@ contains
 
 1001   format(" WARNING: ELECTRODE ",I5," HAS BEEN MOVED ",F10.4," TO THE NEAREST NODE")
     end do
-    i_zpot(1) = e_nods(tne)
+    i_zpot = e_nods(tne)
 
   end subroutine get_electrode_nodes
   !____________________________________________________________________
@@ -658,9 +658,10 @@ contains
   
   !__________________________________________________________________
   subroutine setup_frun
-    implicit none
-
 #include "petsc/finclude/petscsys.h"
+   use petscsys
+   implicit none
+
     
     integer :: status(MPI_STATUS_SIZE)
     integer :: neven, nextra, ce, i,itmp

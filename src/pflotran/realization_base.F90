@@ -100,12 +100,11 @@ subroutine RealizationGetVariable(realization_base,vec,ivar,isubvar, &
   ! Date: 09/12/08
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(realization_base_type) :: realization_base
   Vec :: vec
@@ -175,12 +174,11 @@ subroutine RealizationSetVariable(realization_base,vec,vec_format,ivar,isubvar)
   ! Date: 09/12/08
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(realization_base_type) :: realization_base
   Vec :: vec
@@ -203,14 +201,16 @@ subroutine RealizCreateFlowMassTransferVec(this)
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/20/15
-  ! 
+  !
+#include <petsc/finclude/petscvec.h>
+  use petscvec
   implicit none
   
   class(realization_base_type) :: this
   
   PetscInt :: ierr
   
-  if (this%field%flow_mass_transfer == 0) then
+  if (this%field%flow_mass_transfer == PETSC_NULL_VEC) then
     call VecDuplicate(this%field%flow_xx,this%field%flow_mass_transfer, &
                       ierr);CHKERRQ(ierr)
   endif
@@ -227,13 +227,15 @@ subroutine RealizCreateTranMassTransferVec(this)
   ! Author: Glenn Hammond
   ! Date: 03/20/15
   ! 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   implicit none
   
   class(realization_base_type) :: this
   
   PetscInt :: ierr
   
-  if (this%field%tran_mass_transfer == 0) then
+  if (this%field%tran_mass_transfer == PETSC_NULL_VEC) then
     call VecDuplicate(this%field%tran_xx,this%field%tran_mass_transfer, &
                       ierr);CHKERRQ(ierr)
   endif

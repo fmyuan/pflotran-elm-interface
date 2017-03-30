@@ -1,20 +1,11 @@
 module Init_Common_module
-
+#include "petsc/finclude/petscts.h"
+  use petscts
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscsnes.h"
-#include "petsc/finclude/petscpc.h"
-#include "petsc/finclude/petscts.h"
 
   public :: &
 !            Init, &
@@ -724,7 +715,7 @@ subroutine InitCommonAddOutputWaypoints(option,output_option,waypoint_list)
       call WaypointInsertInList(waypoint,waypoint_list)
       if ((num_waypoints > warning_num_waypoints) .and. &
           OptionPrintToScreen(option)) then
-        call PrintProgressBarInt(floor(num_waypoints),10,k)
+        call PrintProgressBarInt(num_waypoints,TEN_INTEGER,k)
       endif
     enddo
   endif
@@ -752,7 +743,7 @@ subroutine InitCommonAddOutputWaypoints(option,output_option,waypoint_list)
       call WaypointInsertInList(waypoint,waypoint_list)
       if ((num_waypoints > warning_num_waypoints) .and. &
           OptionPrintToScreen(option)) then
-        call PrintProgressBarInt(floor(num_waypoints),10,k)
+        call PrintProgressBarInt(num_waypoints,TEN_INTEGER,k)
       endif
     enddo
   endif
@@ -780,7 +771,7 @@ subroutine InitCommonAddOutputWaypoints(option,output_option,waypoint_list)
       call WaypointInsertInList(waypoint,waypoint_list)
       if ((num_waypoints > warning_num_waypoints) .and. &
           OptionPrintToScreen(option)) then
-        call PrintProgressBarInt(floor(num_waypoints),10,k)
+        call PrintProgressBarInt(num_waypoints,TEN_INTEGER,k)
       endif
     enddo
   endif 

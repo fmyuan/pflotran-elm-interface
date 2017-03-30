@@ -117,7 +117,8 @@ subroutine ReactionReadPass1(reaction,input,option)
   ! Author: Glenn Hammond
   ! Date: 05/02/08
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -931,7 +932,8 @@ subroutine ReactionReadPass2(reaction,input,option)
   ! Author: Glenn Hammond
   ! Date: 01/03/13
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -1056,7 +1058,8 @@ subroutine ReactionReadRedoxSpecies(reaction,input,option)
   ! Author: Glenn Hammond
   ! Date: 04/01/11
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Input_Aux_module
   use String_module  
   use Option_module
@@ -1116,6 +1119,8 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
   ! Author: Glenn Hammond
   ! Date: 10/14/08
   ! 
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -1322,7 +1327,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   ! 
   ! Author: Glenn Hammond
   ! Date: 10/22/08
-  ! 
+  !
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module  
@@ -2055,7 +2062,8 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 10/28/08
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -2763,7 +2771,8 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
   ! Author: Peter C. Lichtner
   ! Date: ???
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -3011,7 +3020,8 @@ subroutine ReactionReadOutput(reaction,input,option)
   ! Author: Glenn Hammond
   ! Date: 01/24/09
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Input_Aux_module
   use String_module  
   use Option_module
@@ -3327,7 +3337,8 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
   ! Author: Glenn Hammond
   ! Date: 05/04/10
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Option_module
   
   implicit none
@@ -3423,18 +3434,17 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
     ! residual is overwritten in RTAccumulation()
     call RTAccumulation(rt_auxvar,global_auxvar,material_auxvar,reaction, &
                         option,residual)
-    residual = residual-fixed_accum
-
     ! J is overwritten in RTAccumulationDerivative()
     call RTAccumulationDerivative(rt_auxvar,global_auxvar,material_auxvar, &
                                   reaction,option,J)
-
     if (reaction%neqsorb > 0) then
       call RAccumulationSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
                              option,residual)
-      call RAccumulationSorbDerivative(rt_auxvar,global_auxvar,material_auxvar, &
-                                       reaction,option,J)
+      call RAccumulationSorbDerivative(rt_auxvar,global_auxvar, &
+                                       material_auxvar,reaction,option,J)
     endif
+    ! must come after sorbed accumulation
+    residual = (residual-fixed_accum) / option%tran_dt
 
                          ! derivative
     call RReaction(residual,J,PETSC_TRUE,rt_auxvar,global_auxvar, &
@@ -3593,7 +3603,8 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
   ! Author: Glenn Hammond
   ! Date: 09/30/08
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Option_module
   
   implicit none
@@ -4311,7 +4322,8 @@ subroutine RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 10/22/08; 05/26/09
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Option_module
   
   implicit none
@@ -5241,7 +5253,8 @@ subroutine RCalculateCompression(global_auxvar,rt_auxvar,material_auxvar, &
   ! Author: Glenn Hammond
   ! Date: 07/12/10
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Option_module
 
   implicit none
@@ -5326,7 +5339,8 @@ subroutine RUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
   ! Author: Glenn Hammond
   ! Date: 01/24/13
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Option_module
 
   implicit none

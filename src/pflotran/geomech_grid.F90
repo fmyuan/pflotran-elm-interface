@@ -1,5 +1,7 @@
 module Geomechanics_Grid_module
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Geomechanics_Grid_Aux_module
   use Grid_Unstructured_Cell_module
   use PFLOTRAN_Constants_module
@@ -7,12 +9,7 @@ module Geomechanics_Grid_module
   implicit none
 
   private 
-  
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
+
 #if defined(SCORPIO)
   include "scorpiof.h"
 #endif
@@ -45,6 +42,8 @@ contains
 ! ************************************************************************** !
 subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
                                         
+#include "petsc/finclude/petscdm.h"
+  use petscdm
   use Grid_Unstructured_Aux_module
   use Geomechanics_Grid_Aux_module
   use Option_module
@@ -52,16 +51,6 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   use Geometry_module  
   
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscdm.h"  
-#include "petsc/finclude/petscdm.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petscviewer.h"  
   
   type(grid_unstructured_type), pointer :: ugrid
   type(geomech_grid_type), pointer :: geomech_grid
@@ -821,20 +810,12 @@ end subroutine GeomechGridLocalizeRegions
 subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
                                              option)
 
-
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
   use Geomechanics_Region_module
   
   implicit none
-  
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petscmat.h"
-
 
   type(geomech_grid_type) :: geomech_grid
   type(gm_region_type) :: geomech_region
@@ -999,10 +980,9 @@ end subroutine GeomechGridLocalizeRegFromVertIDs
 ! ************************************************************************** !
 subroutine GeomechGridCopyIntegerArrayToVec(grid,array,vector,num_values)
 
-  implicit none
-
 #include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
+  use petscvec
+  implicit none
   
   type(geomech_grid_type) :: grid
   PetscInt :: array(:)
@@ -1028,10 +1008,9 @@ end subroutine GeomechGridCopyIntegerArrayToVec
 ! ************************************************************************** !
 subroutine GeomechGridVecGetArrayF90(grid,vec,f90ptr,ierr)
 
-  implicit none
-
 #include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
+  use petscvec
+  implicit none
 
   type(geomech_grid_type) :: grid
   Vec :: vec
@@ -1051,10 +1030,9 @@ end subroutine GeomechGridVecGetArrayF90
 ! ************************************************************************** !
 subroutine GeomechGridVecRestoreArrayF90(grid,vec,f90ptr,ierr)
 
-  implicit none
-
 #include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
+   use petscvec
+   implicit none
 
   type(geomech_grid_type) :: grid
   Vec :: vec
@@ -1074,11 +1052,9 @@ end subroutine GeomechGridVecRestoreArrayF90
 !
 ! ************************************************************************** !
 subroutine GeomechGridCopyVecToIntegerArray(grid,array,vector,num_values)
-
-  implicit none
-
 #include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
+  use petscvec
+  implicit none
   
   type(geomech_grid_type) :: grid
   PetscInt :: array(:)

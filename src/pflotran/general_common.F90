@@ -4,6 +4,7 @@ module General_Common_module
   use Global_Aux_module
 
   use PFLOTRAN_Constants_module
+  use petscsys
 
   implicit none
   

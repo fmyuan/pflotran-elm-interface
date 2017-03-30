@@ -12,6 +12,7 @@ module Reaction_Aux_module
 #endif
 
   use PFLOTRAN_Constants_module
+  use petscsys
 
   implicit none
   
@@ -401,7 +402,6 @@ function ReactionCreate()
   ! Author: Glenn Hammond
   ! Date: 05/02/08
   ! 
-
   implicit none
   
   type(reaction_type), pointer :: ReactionCreate
@@ -629,7 +629,6 @@ function AqueousSpeciesCreate()
   ! Author: Glenn Hammond
   ! Date: 05/02/08
   ! 
-
   implicit none
   
   type(aq_species_type), pointer :: AqueousSpeciesCreate
@@ -660,7 +659,6 @@ function ColloidCreate()
   ! Author: Glenn Hammond
   ! Date: 02/24/10
   ! 
-
   implicit none
   
   type(colloid_type), pointer :: ColloidCreate
@@ -746,7 +744,6 @@ function RadioactiveDecayRxnCreate()
   ! Author: Glenn Hammond
   ! Date: 01/07/14
   ! 
-
   implicit none
     
   type(radioactive_decay_rxn_type), pointer :: RadioactiveDecayRxnCreate
@@ -775,7 +772,6 @@ function GeneralRxnCreate()
   ! Author: Glenn Hammond
   ! Date: 09/03/10
   ! 
-
   implicit none
     
   type(general_rxn_type), pointer :: GeneralRxnCreate
@@ -835,7 +831,6 @@ function AqueousSpeciesConstraintCreate(reaction,option)
   ! Author: Glenn Hammond
   ! Date: 10/14/08
   ! 
-
   use Option_module
   
   implicit none
@@ -1004,7 +999,6 @@ function GetPrimarySpeciesIDFromName1(name,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 10/30/12
   ! 
-
   use Option_module
   use String_module
   

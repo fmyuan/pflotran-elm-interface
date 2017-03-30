@@ -1,5 +1,7 @@
 module Output_Common_module
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Logging_module 
   use Output_Aux_module
   
@@ -11,10 +13,6 @@ module Output_Common_module
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   PetscInt, save, public :: max_local_size_saved = -1
 
@@ -165,13 +163,11 @@ subroutine OutputGetVariableArray(realization_base,vec,variable)
   ! Date: 10/25/07
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Base_class, only : RealizationGetVariable
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   class(realization_base_type) :: realization_base
   Vec :: vec
@@ -199,13 +195,11 @@ subroutine OutputConvertArrayToNatural(indices,array,local_size,global_size,opti
   ! Author: Glenn Hammond
   ! Date: 10/25/07
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   PetscInt :: local_size, global_size
   PetscInt :: indices(:)
@@ -347,14 +341,13 @@ subroutine OutputGetCellCenteredVelocities(realization_base,vec_x,vec_y, &
   ! Author: Glenn Hammond
   ! Date: 10/25/07; refactored 01/31/14
   ! 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Logging_module
   use Patch_module
   use Grid_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(realization_base_type) :: realization_base
   Vec :: vec_x,vec_y,vec_z
@@ -400,13 +393,12 @@ subroutine OutputGetCellCoordinates(grid,vec,direction)
   ! Date: 10/25/07
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Grid_module
   use Variables_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   type(grid_type) :: grid
   Vec :: vec
@@ -446,14 +438,13 @@ subroutine OutputGetVertexCoordinates(grid,vec,direction,option)
   ! Date: 11/01/2011
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Grid_module
   use Option_module
   use Variables_module, only : X_COORDINATE, Y_COORDINATE, Z_COORDINATE
   
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   type(grid_type) :: grid
   Vec :: vec
@@ -524,14 +515,13 @@ subroutine OutputGetCellVertices(grid, vec)
   ! Date: 05/31/12
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Grid_module
   use Grid_Unstructured_Aux_module
   use Grid_Unstructured_Cell_module
 
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   type(grid_type) :: grid
   type(grid_unstructured_type),pointer :: ugrid
@@ -617,14 +607,13 @@ subroutine OutputGetCellVerticesExplicit(grid, vec)
   ! Date: 07/16/13
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Grid_module
   use Grid_Unstructured_Aux_module
   use Grid_Unstructured_Cell_module
 
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   type(grid_type) :: grid
   type(grid_unstructured_type),pointer :: ugrid
@@ -896,6 +885,8 @@ subroutine OutputGetFaceVelUGrid(realization_base)
   ! Date: 06/15/2016
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use HDF5_module
   use Realization_Base_class, only : realization_base_type
   use Patch_module
@@ -911,11 +902,6 @@ subroutine OutputGetFaceVelUGrid(realization_base)
   use Field_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscsys.h"
 
   class(realization_base_type) :: realization_base
 
@@ -1198,6 +1184,8 @@ subroutine OutputGetFaceFlowrateUGrid(realization_base)
   ! Date: 06/15/2016
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use HDF5_module
   use Realization_Base_class, only : realization_base_type
   use Patch_module
@@ -1213,11 +1201,6 @@ subroutine OutputGetFaceFlowrateUGrid(realization_base)
   use Field_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscsys.h"
 
   class(realization_base_type) :: realization_base
 
@@ -1432,6 +1415,8 @@ subroutine OutputGetExplicitIDsFlowrates(realization_base,count,vec_proc, &
   ! Date: 04/24/13
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Patch_module
   use Grid_module
@@ -1441,11 +1426,6 @@ subroutine OutputGetExplicitIDsFlowrates(realization_base,count,vec_proc, &
   use Connection_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscsys.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
@@ -1589,6 +1569,8 @@ subroutine OutputGetExplicitFlowrates(realization_base,count,vec_proc, &
   ! Date: 04/24/13
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Patch_module
   use Grid_module
@@ -1598,11 +1580,6 @@ subroutine OutputGetExplicitFlowrates(realization_base,count,vec_proc, &
   use Connection_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscsys.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
@@ -1677,6 +1654,8 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   ! Date: 07/17/13
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Patch_module
   use Grid_module
@@ -1689,11 +1668,6 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   use Material_Aux_class
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscsys.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
@@ -1787,7 +1761,8 @@ subroutine OutputGetExplicitCellInfo(realization_base,num_cells,ids,sat,por, &
   ! Author: Satish Karra, LANL
   ! Date: 08/21/13
   ! 
-                                     
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Patch_module
   use Grid_module
@@ -1798,11 +1773,6 @@ subroutine OutputGetExplicitCellInfo(realization_base,num_cells,ids,sat,por, &
   use Global_Aux_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscsys.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option

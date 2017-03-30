@@ -1,5 +1,7 @@
 module General_module
 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use General_Aux_module
   use General_Common_module
   use Global_Aux_module
@@ -10,15 +12,6 @@ module General_module
   
   private 
 
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscsnes.h"
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petsclog.h"
-  
   public :: GeneralSetup, &
             GeneralInitializeTimestep, &
             GeneralUpdateSolution, &
@@ -429,7 +422,7 @@ subroutine GeneralNumericalJacobianTest(xx,realization,B)
                     ierr);CHKERRQ(ierr)
 
   call VecZeroEntries(res,ierr);CHKERRQ(ierr)
-  call GeneralResidual(PETSC_NULL_OBJECT,xx,res,realization,ierr)
+  call GeneralResidual(PETSC_NULL_SNES,xx,res,realization,ierr)
 #if 0
   word  = 'num_0.dat'
   call PetscViewerASCIIOpen(option%mycomm,word,viewer,ierr);CHKERRQ(ierr)
@@ -446,7 +439,7 @@ subroutine GeneralNumericalJacobianTest(xx,realization,B)
       vec_p(idof) = vec_p(idof)+perturbation
       call VecRestoreArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
       call VecZeroEntries(res_pert,ierr);CHKERRQ(ierr)
-      call GeneralResidual(PETSC_NULL_OBJECT,xx_pert,res_pert,realization,ierr)
+      call GeneralResidual(PETSC_NULL_SNES,xx_pert,res_pert,realization,ierr)
 #if 0
       write(word,*) idof
       word  = 'num_' // trim(adjustl(word)) // '.dat'
@@ -1060,7 +1053,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   
-  Mat, parameter :: null_mat = 0
+  Mat, parameter :: null_mat = tMat(-1)
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -1392,7 +1385,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                         gen_auxvars,option)
 
   ! Mass Transfer
-  if (field%flow_mass_transfer /= 0) then
+  if (field%flow_mass_transfer /= PETSC_NULL_VEC) then
     ! scale by -1.d0 for contribution to residual.  A negative contribution
     ! indicates mass being added to system.
     !call VecGetArrayF90(field%flow_mass_transfer,vec_p,ierr);CHKERRQ(ierr)
@@ -1504,7 +1497,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   PetscInt :: irow
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
-  Vec, parameter :: null_vec = 0
+  Vec, parameter :: null_vec = tVec(-1)
   
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
                Jdn(realization%option%nflowdof,realization%option%nflowdof)
@@ -1783,7 +1776,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     qsrc = 1.d0 ! solely a temporary variable in this conditional
     call MatZeroRowsLocal(A,patch%aux%General%n_inactive_rows, &
                           patch%aux%General%inactive_rows_local_ghosted, &
-                          qsrc,PETSC_NULL_OBJECT,PETSC_NULL_OBJECT, &
+                          qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
 
@@ -1796,8 +1789,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       zeros(local_id) = (ghosted_id-1)*option%nflowdof+ &
                         GENERAL_ENERGY_EQUATION_INDEX - 1 ! zero-based
     enddo
-    call MatZeroRowsLocal(A,grid%nlmax,zeros,qsrc,PETSC_NULL_OBJECT, &
-                          PETSC_NULL_OBJECT,ierr);CHKERRQ(ierr)
+    call MatZeroRowsLocal(A,grid%nlmax,zeros,qsrc,PETSC_NULL_VEC, &
+                          PETSC_NULL_VEC,ierr);CHKERRQ(ierr)
   endif
 
   if (general_no_air) then
@@ -1809,8 +1802,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       zeros(local_id) = (ghosted_id-1)*option%nflowdof+ &
                         GENERAL_GAS_EQUATION_INDEX - 1 ! zero-based
     enddo
-    call MatZeroRowsLocal(A,grid%nlmax,zeros,qsrc,PETSC_NULL_OBJECT, &
-                          PETSC_NULL_OBJECT,ierr);CHKERRQ(ierr)
+    call MatZeroRowsLocal(A,grid%nlmax,zeros,qsrc,PETSC_NULL_VEC, &
+                          PETSC_NULL_VEC,ierr);CHKERRQ(ierr)
   endif
   
   if (realization%debug%matview_Jacobian) then
@@ -2150,7 +2143,8 @@ subroutine GeneralSSSandbox(residual,Jacobian,compute_derivative, &
   ! Author: Glenn Hammond
   ! Date: 04/11/14
   ! 
-
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
   use Grid_module
   use Material_Aux_class, only: material_auxvar_type
@@ -2158,11 +2152,6 @@ subroutine GeneralSSSandbox(residual,Jacobian,compute_derivative, &
   use SrcSink_Sandbox_Base_class
   
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   PetscBool :: compute_derivative
   Vec :: residual

@@ -402,7 +402,8 @@ subroutine RegionRead(region,input,option)
   ! Author: Glenn Hammond
   ! Date: 02/20/08
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Input_Aux_module
   use String_module
   use Option_module
@@ -604,6 +605,8 @@ subroutine RegionReadFromFileId(region,input,option)
   ! Date: 10/29/07
   ! 
 
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Input_Aux_module
   use Option_module
   use Utility_module
@@ -896,6 +899,8 @@ subroutine RegionReadSideSet(sideset,filename,option)
   ! Date: 12/19/11
   ! 
 
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Input_Aux_module
   use Option_module
   use String_module
@@ -1050,7 +1055,8 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
   ! Author: Glenn Hammond
   ! Date: 05/18/12
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Input_Aux_module
   use Option_module
   use String_module

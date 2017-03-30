@@ -1,5 +1,7 @@
 module Init_Subsurface_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   !geh: there can be no dependencies on simulation object in this file
   use PFLOTRAN_Constants_module
 
@@ -7,7 +9,6 @@ module Init_Subsurface_module
 
   private
 
-#include "petsc/finclude/petscsys.h"
 
   public :: InitSubsurfAssignMatIDsToRegns, &
             InitSubsurfAssignMatProperties, &
@@ -229,6 +230,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
   ! Author: Glenn Hammond
   ! Date: 10/07/14
   ! 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Subsurface_class
   use Grid_module
   use Discretization_module
@@ -246,9 +249,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
   use HDF5_module
   
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(realization_subsurface_type) :: realization
   
@@ -323,7 +323,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
     material_id = patch%imat(ghosted_id)
     if (material_id == 0) then
       material_property => null_material_property
-    else if (iabs(material_id) <= &
+    else if (abs(material_id) <= &
              size(patch%material_property_array)) then
       if (material_id < 0) then
         material_property => null_material_property
@@ -358,7 +358,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
       patch%sat_func_id(ghosted_id) = &
         material_property%saturation_function_id
       icap_loc_p(ghosted_id) = material_property%saturation_function_id
-      ithrm_loc_p(ghosted_id) = iabs(material_property%internal_id)
+      ithrm_loc_p(ghosted_id) = abs(material_property%internal_id)
       perm_xx_p(local_id) = material_property%permeability(1,1)
       perm_yy_p(local_id) = material_property%permeability(2,2)
       perm_zz_p(local_id) = material_property%permeability(3,3)
@@ -409,7 +409,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
                material_property%internal_id,PETSC_FALSE,field%porosity0)
         ! if tortuosity is a function of porosity, we must calculate the
         ! the tortuosity on a cell to cell basis.
-        if (field%tortuosity0 /= 0 .and. &
+        if (field%tortuosity0 /= PETSC_NULL_VEC .and. &
             material_property%tortuosity_function_of_porosity) then
           call VecGetArrayF90(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
           call VecGetArrayF90(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
@@ -515,6 +515,8 @@ subroutine SubsurfReadMaterialIDsFromFile(realization,realization_dependent, &
   ! Date: 1/03/08
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Subsurface_class
   use Field_module
   use Grid_module
@@ -528,9 +530,6 @@ subroutine SubsurfReadMaterialIDsFromFile(realization,realization_dependent, &
   use HDF5_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
   
   class(realization_subsurface_type) :: realization
   PetscBool :: realization_dependent
@@ -613,6 +612,8 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
   ! Date: 01/19/09
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Subsurface_class
   use Field_module
   use Grid_module
@@ -626,9 +627,6 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
   use Dataset_Common_HDF5_class
   
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(realization_subsurface_type) :: realization
   type(material_property_type) :: material_property
@@ -764,6 +762,8 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
   ! Author: Glenn Hammond
   ! Date: 01/19/2016
   ! 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
 
   use Realization_Subsurface_class
   use Field_module
@@ -779,9 +779,6 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
   use Dataset_Gridded_HDF5_class
   
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(realization_subsurface_type) :: realization
   class(dataset_base_type) :: dataset

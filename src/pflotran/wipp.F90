@@ -148,6 +148,8 @@ subroutine FractureRead(this,input,option)
   ! Author: Heeho Park
   ! Date: 4/7/15
   ! 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -463,6 +465,8 @@ subroutine CreepClosureRead(this,input,option)
   ! Author: Glenn Hammond
   ! Date: 10/13/14
   ! 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -754,6 +758,8 @@ subroutine KlinkenbergRead(this,input,option)
   ! Author: Glenn Hammond
   ! Date: 10/13/14
   ! 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -963,6 +969,8 @@ subroutine WIPPRead(input,option)
   ! Author: Glenn Hammond
   ! Date: 10/13/14
   ! 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module

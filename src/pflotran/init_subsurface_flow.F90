@@ -1,12 +1,13 @@
 module Init_Subsurface_Flow_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   public :: InitSubsurfFlowSetupRealization
   
@@ -194,6 +195,8 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   ! Date: 03/05/10, 12/04/14
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Subsurface_class
   use Option_module
   use Field_module
@@ -203,9 +206,6 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   use HDF5_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
   
   class(realization_subsurface_type) :: realization
   character(len=MAXSTRINGLENGTH) :: filename

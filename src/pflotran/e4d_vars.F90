@@ -1,16 +1,7 @@
 module e4d_vars
-
-  implicit none
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscviewer.h90"  
 #include "petsc/finclude/petscksp.h"
-#include "petsc/finclude/petscksp.h90"
-
+  use petscksp
+  implicit none
 
   logical :: tank_flag = .false.
 
@@ -46,7 +37,7 @@ module e4d_vars
   integer :: nmap
   integer :: ntime                                         !!number of e4d simulation times
   integer :: mode
-  integer, dimension(1) :: i_zpot                          !!ghost node index for tank sims 
+  integer :: i_zpot                          !!ghost node index for tank sims 
 
   integer :: pfnx                                          !!number of pf cells in x dim
   integer :: pfny                                          !!number of pf cells in y dim
@@ -101,7 +92,7 @@ module e4d_vars
   Mat :: A,Ai
   PetscErrorCode :: perr
   MatType :: tp
-  PetscInt :: prn(1),pcn(1)
+  PetscInt :: prn,pcn
   PetscInt :: d_nz,o_nz
   Vec :: psol
   Vec :: X

@@ -1,5 +1,7 @@
 module Output_HDF5_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Logging_module 
   use Output_Aux_module
   use Output_Common_module
@@ -9,8 +11,6 @@ module Output_HDF5_module
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   PetscMPIInt, private, parameter :: ON=1, OFF=0
 
@@ -100,15 +100,13 @@ subroutine OutputHDF5(realization_base,var_list_type)
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use HDF5_module
   use HDF5_Aux_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   class(realization_base_type) :: realization_base
   PetscInt :: var_list_type
@@ -417,8 +415,8 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   !
   use Option_module, only : option_type, printMsg, printErrMsg
 
-#include "petsc/finclude/petscsysdef.h"
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
 #if  !defined(PETSC_HAVE_HDF5)
   implicit none
 
@@ -628,15 +626,13 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
   use HDF5_Aux_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   class(realization_base_type) :: realization_base
   PetscInt :: var_list_type
@@ -1054,15 +1050,13 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
   use HDF5_Aux_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   class(realization_base_type) :: realization_base
   PetscInt :: var_list_type
@@ -1465,6 +1459,8 @@ subroutine WriteHDF5FluxVelocities(name,realization_base,iphase,direction, &
   ! Date: 10/25/07
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
   use Grid_module
@@ -1476,10 +1472,6 @@ subroutine WriteHDF5FluxVelocities(name,realization_base,iphase,direction, &
   use HDF5_module, only : HDF5WriteStructuredDataSet, trick_hdf5
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   character(len=32) :: name
   class(realization_base_type) :: realization_base
@@ -1671,14 +1663,14 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
   integer(HID_T) :: file_id
   
   integer(HID_T) :: file_space_id
+  integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3)
   PetscMPIInt :: rank
 #endif
-
+  integer :: hdf5_err
   PetscMPIInt :: hdf5_flag
-  PetscMPIInt :: hdf5_err
   PetscErrorCode :: ierr
   
   call PetscLogEventBegin(logging%event_output_coordinates_hdf5, &
@@ -1727,8 +1719,11 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
 #endif
   if (option%myrank == option%io_rank) then
      call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
+     ! this is due to a bug in hdf5-1.8.18 hwere H5S_ALL_F is an INTEGER.  It
+     ! should be INTEGER(HID_T)
+     memory_space_id = H5S_ALL_F
      call h5dwrite_f(data_set_id,H5T_NATIVE_DOUBLE,array,dims, &
-                    hdf5_err,H5S_ALL_F,H5S_ALL_F,prop_id)
+                     hdf5_err,memory_space_id,file_space_id,prop_id)
      call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
   endif
   call h5pclose_f(prop_id,hdf5_err)
@@ -1753,6 +1748,8 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   ! Date: 05/31/12
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use Grid_module
   use Option_module
@@ -1761,10 +1758,6 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   use Variables_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -1811,7 +1804,9 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
 
   PetscReal, pointer :: vec_ptr(:)
   Vec :: global_vec, natural_vec
-  PetscInt, pointer :: int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_array(:)
   type(ugdm_type),pointer :: ugdm_element
   PetscErrorCode :: ierr
 
@@ -2064,6 +2059,8 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   ! Date: 10/29/2012
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use Realization_Base_class, only : realization_base_type
   use Grid_module
@@ -2072,10 +2069,6 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   use Variables_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
@@ -2125,7 +2118,9 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
 
   PetscReal, pointer :: vec_ptr(:)
   Vec :: global_vec, natural_vec
-  PetscInt, pointer :: int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_array(:)
   type(ugdm_type),pointer :: ugdm_element, ugdm_cell
   PetscErrorCode :: ierr
 
@@ -2606,6 +2601,8 @@ subroutine DetermineNumVertices(realization_base,option)
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/13/2015
   ! 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Grid_module
   use Option_module
@@ -2613,10 +2610,6 @@ subroutine DetermineNumVertices(realization_base,option)
   use Variables_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
@@ -2677,6 +2670,8 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   ! Date: 07/17/2013
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use Realization_Base_class, only : realization_base_type
   use Grid_module
@@ -2685,10 +2680,6 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   use Variables_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
@@ -2735,7 +2726,9 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
 
   PetscReal, pointer :: vec_ptr(:)
   Vec :: natural_vec
-  PetscInt, pointer :: int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_array(:)
   PetscErrorCode :: ierr
 
   PetscInt :: TRI_ID_XDMF = 4
@@ -2961,6 +2954,8 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   ! Date: 03/19/2013
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use Realization_Base_class, only : realization_base_type
   use Patch_module
@@ -2976,11 +2971,6 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   use Field_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscsys.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
@@ -3234,6 +3224,8 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   ! Date: 05/25/2014
   !
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use Realization_Base_class, only : realization_base_type
   use Patch_module
@@ -3249,11 +3241,6 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   use Field_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscsys.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
@@ -3491,8 +3478,8 @@ subroutine OutputHDF5Provenance(option, output_option, file_id)
   use Output_Aux_module, only : output_option_type
   use PFLOTRAN_Provenance_module, only : provenance_max_str_len
 
-#include "petsc/finclude/petscsysdef.h"
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use hdf5
 
   implicit none

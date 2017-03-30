@@ -6,16 +6,14 @@ module Condition_Control_module
   ! and below.  Routines in this module will loop over realization, levels,
   ! and patches without calling underlying level/patch versions of the
   ! subroutines, which is common in realization.F90 - GEH
- 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   public :: CondControlAssignFlowInitCond, &
             CondControlAssignTranInitCond, &
@@ -33,7 +31,8 @@ subroutine CondControlAssignFlowInitCond(realization)
   ! Author: Glenn Hammond
   ! Date: 11/02/07, 10/18/11
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Subsurface_class
   use Discretization_module
   use Region_module
@@ -55,9 +54,6 @@ subroutine CondControlAssignFlowInitCond(realization)
   use PM_TOWG_Aux_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
   
   class(realization_subsurface_type) :: realization
   
@@ -629,6 +625,8 @@ subroutine CondControlAssignTranInitCond(realization)
   ! Author: Glenn Hammond
   ! Date: 11/02/07, 10/18/11
   ! 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
 
   use Realization_Subsurface_class
   use Discretization_module
@@ -651,9 +649,6 @@ subroutine CondControlAssignTranInitCond(realization)
   use HDF5_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
   
   class(realization_subsurface_type) :: realization
   
@@ -1086,6 +1081,8 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
   ! Author: Glenn Hammond
   ! Date: 03/23/12
   ! 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Subsurface_class
   use Option_module
   use Field_module
@@ -1096,9 +1093,7 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
 
   implicit none
   
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"  
-  
+
   class(realization_subsurface_type) :: realization
   class(dataset_base_type), pointer :: dataset
   PetscInt :: idof
@@ -1151,7 +1146,9 @@ subroutine CondControlScaleSourceSink(realization)
   ! Author: Glenn Hammond
   ! Date: 09/03/08, 10/18/11
   ! 
-
+#include "petsc/finclude/petscdmda.h"
+  use petscdmda
+      
   use Realization_Subsurface_class
   use Discretization_module
   use Region_module
@@ -1166,11 +1163,6 @@ subroutine CondControlScaleSourceSink(realization)
   use Variables_module, only : PERMEABILITY_X
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscdmda.h"
-
   
   class(realization_subsurface_type) :: realization
   
@@ -1314,6 +1306,8 @@ subroutine CondControlReadTransportIC(realization,filename)
   ! Date: 03/05/10
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Subsurface_class
   use Option_module
   use Field_module
@@ -1325,9 +1319,6 @@ subroutine CondControlReadTransportIC(realization,filename)
   use HDF5_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
   
   class(realization_subsurface_type) :: realization
   character(len=MAXSTRINGLENGTH) :: filename
@@ -1400,6 +1391,8 @@ end subroutine CondControlReadTransportIC
 
 subroutine CondControlAssignFlowInitCondSurface(surf_realization)
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Surface_class
   use Discretization_module
   use Region_module
@@ -1414,9 +1407,6 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
   use Surface_Global_Aux_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
   
   class(realization_surface_type) :: surf_realization
   

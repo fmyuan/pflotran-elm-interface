@@ -1,5 +1,7 @@
 module EOS_Water_module
  
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
   use Geometry_module
 
@@ -7,8 +9,6 @@ module EOS_Water_module
 
   private
   
-#include "petsc/finclude/petscsys.h"
-
   ! module variables
   PetscReal :: constant_density
   PetscReal :: constant_enthalpy

@@ -1,21 +1,11 @@
 module Checkpoint_module
-
+#include "petsc/finclude/petscdm.h"
+  use petscdm
   use PFLOTRAN_Constants_module
 
   implicit none
   
   private
-
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscdm.h"
-#include "petsc/finclude/petscdm.h90"
-#include "petsc/finclude/petscdef.h"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscviewer.h"
 
   type :: checkpoint_header_type
     PetscInt :: version
@@ -40,9 +30,10 @@ module Checkpoint_module
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
+#include "petsc/finclude/petscsys.h"
+      use petscsys
       import :: checkpoint_header_type
       implicit none
-#include "petsc/finclude/petscbag.h"
       PetscBag :: bag
       type(checkpoint_header_type), pointer :: header
       PetscErrorCode :: ierr
@@ -172,12 +163,11 @@ subroutine CheckpointOpenFileForWriteBinary(viewer,append_name,option)
   ! Date: 07/26/13
   ! 
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscbag.h"
 
   PetscViewer :: viewer
   character(len=MAXSTRINGLENGTH) :: append_name
@@ -230,12 +220,11 @@ subroutine CheckPointWriteCompatibilityBinary(viewer,option)
   ! Author: Glenn Hammond
   ! Date: 003/26/15
   ! 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscbag.h"
 
   PetscViewer :: viewer
   type(option_type) :: option
@@ -286,12 +275,11 @@ subroutine CheckPointReadCompatibilityBinary(viewer,option)
   ! Author: Glenn Hammond
   ! Date: 003/26/15
   ! 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscbag.h"
 
   PetscViewer :: viewer
   type(option_type) :: option
@@ -351,7 +339,8 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -363,10 +352,6 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
                                PERMEABILITY_Z, STATE
   
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   PetscViewer :: viewer
   class(realization_subsurface_type) :: realization
@@ -383,7 +368,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   discretization => realization%discretization
   grid => realization%patch%grid
   
-  global_vec = 0
+  global_vec = PETSC_NULL_VEC
   
   if (option%nflowdof > 0) then
     call DiscretizationCreateVector(realization%discretization,ONEDOF, &
@@ -437,7 +422,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   
   endif
   
-  if (global_vec /= 0) then
+  if (global_vec /= PETSC_NULL_VEC) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif  
   
@@ -452,7 +437,9 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+      
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -464,10 +451,6 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
                                PERMEABILITY_Z, STATE
   
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   PetscViewer :: viewer
   class(realization_subsurface_type) :: realization
@@ -484,7 +467,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   discretization => realization%discretization
   grid => realization%patch%grid
   
-  global_vec = 0
+  global_vec = PETSC_NULL_VEC
   
   if (option%nflowdof > 0) then
     call DiscretizationCreateVector(realization%discretization,ONEDOF, &
@@ -548,7 +531,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
                                   field%work_loc,PERMEABILITY_Z,ZERO_INTEGER)
   endif
   
-  if (global_vec /= 0) then
+  if (global_vec /= PETSC_NULL_VEC) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif  
   
@@ -715,7 +698,9 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   PetscErrorCode :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 
-  PetscInt, pointer :: data_int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: data_int_array(:)
 
   call h5screate_simple_f(dataset_rank, dims, memory_space_id, hdf5_err, dims)
 
@@ -772,14 +757,13 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   ! Author: Gautam Bisht
   ! Date: 07/30/15
   ! 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
   
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscbag.h"
 
 #if defined(SCORPIO_WRITE)
   integer :: chk_grp_id
@@ -896,7 +880,9 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   PetscErrorCode :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 
-  PetscInt, pointer :: data_int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: data_int_array(:)
 
   call h5screate_simple_f(dataset_rank, dims, memory_space_id, hdf5_err, dims)
 
@@ -1048,7 +1034,9 @@ subroutine CheckPointWriteCompatibilityHDF5(chk_grp_id, option)
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  PetscInt, pointer :: int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_array(:)
 
   dataset_name = "Revision Number" // CHAR(0)
 
@@ -1110,7 +1098,9 @@ subroutine CheckPointReadCompatibilityHDF5(chk_grp_id, option)
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  PetscInt, pointer :: int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_array(:)
   character(len=MAXWORDLENGTH) :: word, word2
 
   dataset_name = "Revision Number" // CHAR(0)
@@ -1156,6 +1146,8 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   !
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -1168,9 +1160,6 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
 #if defined(SCORPIO_WRITE)
   integer :: pm_grp_id
@@ -1193,7 +1182,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   discretization => realization%discretization
   grid => realization%patch%grid
 
-  global_vec = 0
+  global_vec = PETSC_NULL_VEC
 
   if (option%nflowdof > 0) then
      call DiscretizationCreateVector(realization%discretization, NFLOWDOF, &
@@ -1297,6 +1286,8 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   ! Author: Gautam Bisht, LBNL
   ! Date: 08/16/2015
   !
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -1309,9 +1300,6 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   use hdf5
   use HDF5_module, only : HDF5ReadDataSetInVec
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
 #if defined(SCORPIO_WRITE)
   integer :: pm_grp_id
@@ -1334,7 +1322,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   discretization => realization%discretization
   grid => realization%patch%grid
 
-  global_vec = 0
+  global_vec = PETSC_NULL_VEC
 
   if (option%nflowdof > 0) then
     call DiscretizationCreateVector(realization%discretization, NFLOWDOF, &
@@ -1657,7 +1645,7 @@ subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list)
         call WaypointInsertInList(waypoint,waypoint_list)
         if ((num_waypoints > warning_num_waypoints) .and. &
             OptionPrintToScreen(option)) then
-          call PrintProgressBarInt(floor(num_waypoints),10,k)
+          call PrintProgressBarInt(num_waypoints,TEN_INTEGER,k)
         endif
       enddo
     endif

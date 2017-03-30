@@ -1,6 +1,8 @@
 module Grid_Unstructured_Aux_module
 
 !  use Connection_module
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Grid_Unstructured_Cell_module
   use Geometry_module
   
@@ -9,12 +11,7 @@ module Grid_Unstructured_Aux_module
   implicit none
 
   private 
-  
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
+
 #if defined(SCORPIO)
   include "scorpiof.h"
 #endif
@@ -194,23 +191,23 @@ function UGDMCreate()
   type(ugdm_type), pointer :: ugdm
 
   allocate(ugdm)
-  ugdm%is_ghosted_local = 0
-  ugdm%is_local_local = 0
-  ugdm%is_ghosted_petsc = 0
-  ugdm%is_local_petsc = 0
-  ugdm%is_ghosts_local = 0
-  ugdm%is_ghosts_petsc = 0
-  ugdm%is_local_natural = 0
-  ugdm%scatter_ltog = 0
-  ugdm%scatter_gtol = 0
-  ugdm%scatter_ltol  = 0
-  ugdm%scatter_gton = 0
+  ugdm%is_ghosted_local = PETSC_NULL_IS
+  ugdm%is_local_local = PETSC_NULL_IS
+  ugdm%is_ghosted_petsc = PETSC_NULL_IS
+  ugdm%is_local_petsc = PETSC_NULL_IS
+  ugdm%is_ghosts_local = PETSC_NULL_IS
+  ugdm%is_ghosts_petsc = PETSC_NULL_IS
+  ugdm%is_local_natural = PETSC_NULL_IS
+  ugdm%scatter_ltog = PETSC_NULL_VECSCATTER
+  ugdm%scatter_gtol = PETSC_NULL_VECSCATTER
+  ugdm%scatter_ltol  = PETSC_NULL_VECSCATTER
+  ugdm%scatter_gton = PETSC_NULL_VECSCATTER
   ugdm%mapping_ltog = 0
-  ugdm%global_vec = 0
-  ugdm%local_vec = 0
-  ugdm%scatter_bet_grids = 0
-  ugdm%scatter_bet_grids_1dof = 0
-  ugdm%scatter_bet_grids_ndof = 0
+  ugdm%global_vec = PETSC_NULL_VEC
+  ugdm%local_vec = PETSC_NULL_VEC
+  ugdm%scatter_bet_grids = PETSC_NULL_VECSCATTER
+  ugdm%scatter_bet_grids_1dof = PETSC_NULL_VECSCATTER
+  ugdm%scatter_bet_grids_ndof = PETSC_NULL_VECSCATTER
   ugdm%ao_natural_to_petsc = 0 ! this is solely a pointer, do not destroy
   UGDMCreate => ugdm
 
@@ -381,20 +378,12 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
   ! Date: 09/30/09
   ! 
   
+#include "petsc/finclude/petscdm.h"
+  use petscdm
   use Option_module
   use Utility_module, only: reallocateIntArray
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscdm.h"  
-#include "petsc/finclude/petscdm.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petscviewer.h"
   
   type(grid_unstructured_type) :: unstructured_grid
   type(ugdm_type), pointer :: ugdm
@@ -727,14 +716,12 @@ subroutine UGridCreateUGDMShell(unstructured_grid,da,ugdm,ndof,option)
   ! Author: Gautam Bisht, LBNL
   ! Date: 11/10/15
   ! 
-
+#include "petsc/finclude/petscdmda.h"
+  use petscdmda
   use Option_module
   use Utility_module, only: reallocateIntArray
   
   implicit none
-
-#include "petsc/finclude/petscdm.h90"
-#include "petsc/finclude/petscdmda.h"
 
   type(grid_unstructured_type) :: unstructured_grid
   DM :: da
@@ -785,6 +772,8 @@ subroutine UGridDMCreateJacobian(unstructured_grid,ugdm,mat_type,J,option)
   ! Author: Glenn Hammond
   ! Date: 11/05/09
   ! 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
 
   use Option_module
   
@@ -985,15 +974,11 @@ subroutine UGridPartition(ugrid,option,Dual_mat,is_new, &
   ! Date: 10/05/12
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
   
   implicit none
-
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petscviewer.h"
   
   type(grid_unstructured_type) :: ugrid
   type(option_type) :: option
@@ -1004,6 +989,7 @@ subroutine UGridPartition(ugrid,option,Dual_mat,is_new, &
   MatPartitioning :: Part
   PetscInt, allocatable :: cell_counts(:)
   PetscInt :: iflag
+  PetscInt :: tempint
   PetscViewer :: viewer
   PetscInt :: local_vertex_offset
   PetscErrorCode :: ierr
@@ -1040,8 +1026,8 @@ subroutine UGridPartition(ugrid,option,Dual_mat,is_new, &
   allocate(cell_counts(option%mycommsize))
   ! ISPartitioningCount takes a ISPartitioning and determines the number of  
   ! resulting elements on each (partition) process - petsc
-  call ISPartitioningCount(is_new,option%mycommsize,cell_counts, &
-                           ierr);CHKERRQ(ierr)
+  tempint = option%mycommsize
+  call ISPartitioningCount(is_new,tempint,cell_counts,ierr);CHKERRQ(ierr)
   num_cells_local_new = cell_counts(option%myrank+1) 
   call MPI_Allreduce(num_cells_local_new,iflag,ONE_INTEGER_MPI,MPIU_INTEGER, &
                      MPI_MIN,option%mycomm,ierr)
@@ -1064,13 +1050,11 @@ subroutine UGridCreateOldVec(ugrid,option,elements_old, &
   ! Author: Glenn Hammond
   ! Date: 11/01/09
   ! 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module                  
 
   implicit none
-
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petscviewer.h"
 
   type(grid_unstructured_type) :: ugrid
   type(option_type) :: option
@@ -1135,16 +1119,12 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   ! Date: 11/01/09
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
   use Utility_module, only: reallocateIntArray, DeallocateArray
   
   implicit none
-
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petscviewer.h"
 
   type(grid_unstructured_type) :: ugrid
   type(option_type) :: option
@@ -1194,7 +1174,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
 
   ! scatter all the cell data from the old decomposition (as read in in 
   ! parallel) to the more parmetis-calculated decomposition
-  call VecScatterCreate(elements_old,PETSC_NULL_OBJECT,elements_natural,is_scatter, &
+  call VecScatterCreate(elements_old,PETSC_NULL_IS,elements_natural,is_scatter, &
                         vec_scatter,ierr);CHKERRQ(ierr)
   call ISDestroy(is_scatter,ierr);CHKERRQ(ierr)
   call VecScatterBegin(vec_scatter,elements_old,elements_natural, &
@@ -1746,24 +1726,56 @@ subroutine UGridDMDestroy(ugdm)
   PetscErrorCode :: ierr
     
   if (.not.associated(ugdm)) return
-  
-  call ISDestroy(ugdm%is_ghosted_local,ierr);CHKERRQ(ierr)
-  call ISDestroy(ugdm%is_local_local,ierr);CHKERRQ(ierr)
-  call ISDestroy(ugdm%is_ghosted_petsc,ierr);CHKERRQ(ierr)
-  call ISDestroy(ugdm%is_local_petsc,ierr);CHKERRQ(ierr)
-  call ISDestroy(ugdm%is_ghosts_local,ierr);CHKERRQ(ierr)
-  call ISDestroy(ugdm%is_ghosts_petsc,ierr);CHKERRQ(ierr)
-  call ISDestroy(ugdm%is_local_natural,ierr);CHKERRQ(ierr)
-  call VecScatterDestroy(ugdm%scatter_ltog,ierr);CHKERRQ(ierr)
-  call VecScatterDestroy(ugdm%scatter_gtol,ierr);CHKERRQ(ierr)
-  call VecScatterDestroy(ugdm%scatter_ltol,ierr);CHKERRQ(ierr)
-  call VecScatterDestroy(ugdm%scatter_gton,ierr);CHKERRQ(ierr)
+
+  if (ugdm%is_ghosted_local /= PETSC_NULL_IS) then
+    call ISDestroy(ugdm%is_ghosted_local,ierr);CHKERRQ(ierr)
+  endif
+  if (ugdm%is_local_local /= PETSC_NULL_IS) then
+    call ISDestroy(ugdm%is_local_local,ierr);CHKERRQ(ierr)
+  endif
+  if (ugdm%is_ghosted_petsc /= PETSC_NULL_IS) then
+    call ISDestroy(ugdm%is_ghosted_petsc,ierr);CHKERRQ(ierr)
+  endif
+  if (ugdm%is_local_petsc /= PETSC_NULL_IS) then
+    call ISDestroy(ugdm%is_local_petsc,ierr);CHKERRQ(ierr)
+  endif
+  if (ugdm%is_ghosts_local /= PETSC_NULL_IS) then
+    call ISDestroy(ugdm%is_ghosts_local,ierr);CHKERRQ(ierr)
+  endif
+  if (ugdm%is_ghosts_petsc /= PETSC_NULL_IS) then
+    call ISDestroy(ugdm%is_ghosts_petsc,ierr);CHKERRQ(ierr)
+  endif
+  if (ugdm%is_local_natural /= PETSC_NULL_IS) then
+    call ISDestroy(ugdm%is_local_natural,ierr);CHKERRQ(ierr)
+  endif
+  if (ugdm%scatter_ltog /= PETSC_NULL_VECSCATTER) then
+    call VecScatterDestroy(ugdm%scatter_ltog,ierr);CHKERRQ(ierr)
+  endif
+  if (ugdm%scatter_gtol /= PETSC_NULL_VECSCATTER) then
+    call VecScatterDestroy(ugdm%scatter_gtol,ierr);CHKERRQ(ierr)
+  endif
+  if (ugdm%scatter_ltol /= PETSC_NULL_VECSCATTER) then
+    call VecScatterDestroy(ugdm%scatter_ltol,ierr);CHKERRQ(ierr)
+  endif
+  if (ugdm%scatter_gton /= PETSC_NULL_VECSCATTER) then
+    call VecScatterDestroy(ugdm%scatter_gton,ierr);CHKERRQ(ierr)
+  endif
   call ISLocalToGlobalMappingDestroy(ugdm%mapping_ltog,ierr);CHKERRQ(ierr)
-  call VecDestroy(ugdm%global_vec,ierr);CHKERRQ(ierr)
-  call VecDestroy(ugdm%local_vec,ierr);CHKERRQ(ierr)
-  call VecScatterDestroy(ugdm%scatter_bet_grids,ierr);CHKERRQ(ierr)
-  call VecScatterDestroy(ugdm%scatter_bet_grids_1dof,ierr);CHKERRQ(ierr)
-  call VecScatterDestroy(ugdm%scatter_bet_grids_ndof,ierr);CHKERRQ(ierr)
+  if (ugdm%global_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(ugdm%global_vec,ierr);CHKERRQ(ierr)
+  endif
+  if (ugdm%local_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(ugdm%local_vec,ierr);CHKERRQ(ierr)
+  endif
+  if (ugdm%scatter_bet_grids /= PETSC_NULL_VECSCATTER) then
+    call VecScatterDestroy(ugdm%scatter_bet_grids,ierr);CHKERRQ(ierr)
+  endif
+  if (ugdm%scatter_bet_grids_1dof /= PETSC_NULL_VECSCATTER) then
+    call VecScatterDestroy(ugdm%scatter_bet_grids_1dof,ierr);CHKERRQ(ierr)
+  endif
+  if (ugdm%scatter_bet_grids_ndof /= PETSC_NULL_VECSCATTER) then
+    call VecScatterDestroy(ugdm%scatter_bet_grids_ndof,ierr);CHKERRQ(ierr)
+  endif
   ! ugdm%ao_natural_to_petsc is a pointer to ugrid%ao_natural_to_petsc.  Do
   ! not destroy here.
   ugdm%ao_natural_to_petsc = 0 

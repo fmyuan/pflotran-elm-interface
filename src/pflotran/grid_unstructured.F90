@@ -1,5 +1,7 @@
 module Grid_Unstructured_module
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Connection_module
   use Grid_Unstructured_Aux_module
   use Grid_Unstructured_Cell_module
@@ -9,12 +11,7 @@ module Grid_Unstructured_module
   implicit none
 
   private 
-  
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
+
 #if defined(SCORPIO)
   include "scorpiof.h"
 #endif
@@ -612,14 +609,15 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   PetscInt :: num_vertices_local
   PetscInt :: num_vertices_local_save
   PetscInt :: remainder
-  PetscInt, pointer :: int_buffer(:,:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_buffer(:,:)
   PetscReal, pointer :: double_buffer(:,:)
   PetscInt, parameter :: max_nvert_per_cell = 8  
   PetscErrorCode :: ierr
 
 #if defined(PETSC_HAVE_HDF5)
   integer(HID_T) :: file_id
-  integer(HID_T) :: ndims
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
   integer(HID_T) :: data_set_id
@@ -630,6 +628,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(2), length(2), stride(2), block(2), dims(2)
 #endif
+  integer :: ndims_h5
 
   ! Initialize FORTRAN predefined datatypes
   call h5open_f(hdf5_err)
@@ -661,16 +660,16 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
   
   ! Get number of dimensions and check
-  call h5sget_simple_extent_ndims_f(data_space_id, ndims, hdf5_err)
-  if (ndims /= 2) then
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
+  if (ndims_h5 /= 2) then
     option%io_buffer='Dimension of Domain/Cells dataset in ' // trim(filename) // &
           ' is not equal to 2.'
     call printErrMsg(option)
   endif
   
   ! Allocate memory
-  allocate(dims_h5(ndims))
-  allocate(max_dims_h5(ndims))
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
   
   ! Get dimensions of dataset
   call h5sget_simple_extent_dims_f(data_space_id, dims_h5, max_dims_h5, &
@@ -755,16 +754,16 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
   
   ! Get number of dimensions and check
-  call h5sget_simple_extent_ndims_f(data_space_id, ndims, hdf5_err)
-  if (ndims /= 2) then
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
+  if (ndims_h5 /= 2) then
     option%io_buffer='Dimension of Domain/Vertices dataset in ' // trim(filename) // &
           ' is not equal to 2.'
     call printErrMsg(option)
   endif
   
   ! Allocate memory
-  allocate(dims_h5(ndims))
-  allocate(max_dims_h5(ndims))
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
   
   ! Get dimensions of dataset
   call h5sget_simple_extent_dims_f(data_space_id, dims_h5, max_dims_h5, &
@@ -894,7 +893,9 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   PetscInt :: num_vertices_local
   PetscInt :: num_vertices_local_save
   PetscInt :: remainder
-  PetscInt, pointer :: int_buffer(:,:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_buffer(:,:)
   PetscReal, pointer :: double_buffer(:,:)
   PetscInt, parameter :: max_nvert_per_cell = 8  
   PetscInt :: error_count
@@ -902,7 +903,6 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
 
 #if defined(PETSC_HAVE_HDF5)
   integer(HID_T) :: file_id
-  integer(HID_T) :: ndims
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
   integer(HID_T) :: data_set_id
@@ -913,6 +913,7 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(2), length(2), stride(2), block(2), dims(2)
 #endif
+  integer :: ndims_h5
 
   ! Initialize FORTRAN predefined datatypes
   call h5open_f(hdf5_err)
@@ -944,16 +945,16 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
   
   ! Get number of dimensions and check
-  call h5sget_simple_extent_ndims_f(data_space_id, ndims, hdf5_err)
-  if (ndims /= 2) then
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
+  if (ndims_h5 /= 2) then
     option%io_buffer='Dimension of Domain/Cells dataset in ' // trim(filename) // &
           ' is not equal to 2.'
     call printErrMsg(option)
   endif
   
   ! Allocate memory
-  allocate(dims_h5(ndims))
-  allocate(max_dims_h5(ndims))
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
   
   ! Get dimensions of dataset
   call h5sget_simple_extent_dims_f(data_space_id, dims_h5, max_dims_h5, &
@@ -1058,16 +1059,16 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
   
   ! Get number of dimensions and check
-  call h5sget_simple_extent_ndims_f(data_space_id, ndims, hdf5_err)
-  if (ndims /= 2) then
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
+  if (ndims_h5 /= 2) then
     option%io_buffer='Dimension of Domain/Vertices dataset in ' // trim(filename) // &
           ' is not equal to 2.'
     call printErrMsg(option)
   endif
   
   ! Allocate memory
-  allocate(dims_h5(ndims))
-  allocate(max_dims_h5(ndims))
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
   
   ! Get dimensions of dataset
   call h5sget_simple_extent_dims_f(data_space_id, dims_h5, max_dims_h5, &
@@ -1265,20 +1266,12 @@ subroutine UGridDecompose(unstructured_grid,option)
   ! Date: 09/30/09
   ! 
   
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
   use Utility_module, only: reallocateIntArray, SearchOrderedArray
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscdm.h" 
-#include "petsc/finclude/petscdm.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petscviewer.h"
   
   type(grid_unstructured_type) :: unstructured_grid
   type(option_type) :: option
@@ -3252,14 +3245,11 @@ subroutine UGridMapSideSet(unstructured_grid,face_vertices,n_ss_faces, &
   ! Date: 12/16/11
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   type(grid_unstructured_type) :: unstructured_grid
   PetscInt :: face_vertices(:,:)
@@ -3573,14 +3563,11 @@ subroutine UGridMapSideSet2(unstructured_grid,face_vertices,n_ss_faces, &
   ! Date: 03/21/17
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   type(grid_unstructured_type) :: unstructured_grid
   PetscInt :: face_vertices(:,:)
@@ -3977,14 +3964,11 @@ subroutine UGridGetBoundaryFaces(unstructured_grid,option,boundary_faces)
   ! Date: 01/12/12
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   type(grid_unstructured_type) :: unstructured_grid
   PetscInt, pointer :: boundary_faces(:)
@@ -4048,14 +4032,11 @@ subroutine UGridGrowStencilSupport(unstructured_grid,stencil_width, &
   ! Date: 09/17/12
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   type(grid_unstructured_type) :: unstructured_grid
   type(option_type) :: option
@@ -4307,14 +4288,11 @@ subroutine UGridFindCellIDsAfterGrowingStencilWidthByOne(Mat_vert_to_cell, &
   ! Date: 09/17/12
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   type(option_type) :: option
   Mat :: Mat_vert_to_cell
@@ -4471,15 +4449,11 @@ subroutine UGridFindNewGhostCellIDsAfterGrowingStencilWidth(unstructured_grid, &
   ! Author: Gautam Bisht, LBNL
   ! Date: 09/17/12
   ! 
-              
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   type(grid_unstructured_type) :: unstructured_grid
   PetscInt :: cids_new(:)
@@ -4720,14 +4694,11 @@ subroutine UGridUpdateMeshAfterGrowingStencilWidth(unstructured_grid, &
   ! 
 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   type(grid_unstructured_type) :: unstructured_grid
   type(option_type) :: option

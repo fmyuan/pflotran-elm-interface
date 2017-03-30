@@ -10,7 +10,6 @@ module HDF5_Aux_module
   implicit none
 
 #include "petsc/finclude/petscsys.h"
-
   private
 
   PetscInt, parameter, public :: HDF5_READ_BUFFER_SIZE = 1000000
@@ -19,7 +18,7 @@ module HDF5_Aux_module
   PetscErrorCode :: ierr
 
 #if defined(PETSC_HAVE_HDF5)
-  PetscMPIInt :: hdf5_err
+  integer :: hdf5_err
   PetscMPIInt :: io_rank_mpi
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -62,6 +61,8 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   ! Date: 01/13/10
   ! 
 
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use hdf5
   
   use Option_module
@@ -79,7 +80,6 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
-  integer(HID_T) :: ndims_hdf5
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(1), length(1), stride(1)
   PetscMPIInt :: rank_mpi
@@ -87,6 +87,7 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   integer(HSIZE_T) :: num_reals_in_dataset
   PetscInt :: temp_int, i, index
   PetscMPIInt :: int_mpi
+  integer :: ndims_hdf5
   
   call PetscLogEventBegin(logging%event_read_ndim_real_array_hdf5, &
                           ierr);CHKERRQ(ierr)
@@ -321,6 +322,8 @@ function HDF5GroupExists(filename,group_name,option)
   ! Date: 03/26/2012
   ! 
 
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use hdf5
   use Option_module
   
@@ -415,6 +418,8 @@ function HDF5DatasetExists(filename,group_name,dataset_name,option)
   ! Date: 04/30/2015
   !
 
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use hdf5
   use Option_module
 
@@ -529,6 +534,8 @@ subroutine HDF5ReadDbase(filename,option)
   ! Author: Glenn Hammond
   ! Date: 08/19/14
   ! 
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module, only : dbase
@@ -542,7 +549,9 @@ subroutine HDF5ReadDbase(filename,option)
   character(len=MAXWORDLENGTH), allocatable :: wbuffer(:)
   character(len=MAXWORDLENGTH) :: wbuffer_word
   PetscReal, allocatable :: rbuffer(:)
-  PetscInt, allocatable :: ibuffer(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, allocatable :: ibuffer(:)
   PetscInt :: dummy_int
   PetscInt :: value_index
   character(len=MAXSTRINGLENGTH) :: string
@@ -550,12 +559,8 @@ subroutine HDF5ReadDbase(filename,option)
   character(len=MAXWORDLENGTH) :: word
 #if defined(PETSC_HAVE_HDF5)  
   integer(HID_T) :: file_id
-  integer(HID_T) :: num_objects
-  integer(HID_T) :: i_object
-  integer(HID_T) :: object_type
   integer(HID_T) :: prop_id
   integer(HID_T) :: dataset_id
-  integer(HID_T) :: class_id
   integer(HID_T) :: datatype_id
   integer(HID_T) :: datatype_id2
   integer(HID_T) :: file_space_id
@@ -567,8 +572,12 @@ subroutine HDF5ReadDbase(filename,option)
   integer(HSIZE_T) :: offset(1), length(1), stride(1)
   PetscMPIInt :: rank_mpi
   PetscMPIInt :: int_mpi
-  PetscMPIInt :: hdf5_err
 #endif
+  integer :: num_objects
+  integer :: i_object
+  integer :: object_type
+  integer :: class_id
+  integer :: hdf5_err
   PetscInt :: num_ints
   PetscInt :: num_reals
   PetscInt :: num_words
@@ -789,7 +798,7 @@ subroutine HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
   integer(HID_T) :: prop_id
   type(option_type) :: option
   
-  PetscMPIInt :: hdf5_err
+  integer :: hdf5_err
 
   call h5fopen_f(filename,H5F_ACC_RDONLY_F,file_id,hdf5_err,prop_id)
   if (hdf5_err /= 0) then

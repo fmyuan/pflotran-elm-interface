@@ -1,5 +1,7 @@
 module Material_module
  
+#include "petsc/finclude/petscsys.h"
+   use petscsys
   use Dataset_Base_class
 
   use PFLOTRAN_Constants_module
@@ -10,8 +12,7 @@ module Material_module
 
   private
 
-#include "petsc/finclude/petscsys.h"
- 
+
   type, public :: material_property_type
     PetscInt :: external_id
     PetscInt :: internal_id
@@ -833,7 +834,7 @@ subroutine MaterialPropertyAddToList(material_property,list)
       cur_material_property => cur_material_property%next
     enddo
     cur_material_property%next => material_property
-    material_property%internal_id = iabs(cur_material_property%internal_id) + 1
+    material_property%internal_id = abs(cur_material_property%internal_id) + 1
   else
     list => material_property
     material_property%internal_id = 1
@@ -910,7 +911,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
     if (.not.associated(cur_material_property)) exit
     max_internal_id = max_internal_id + 1
     max_external_id = max(max_external_id,cur_material_property%external_id)
-    if (max_internal_id /= iabs(cur_material_property%internal_id)) then
+    if (max_internal_id /= abs(cur_material_property%internal_id)) then
       write(string,*) cur_material_property%external_id
       option%io_buffer = 'Non-contiguous internal material id for ' // &
         'material named "' // trim(cur_material_property%name) // &
@@ -938,7 +939,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
     if (.not.associated(cur_material_property)) exit
     id_count(cur_material_property%external_id) = &
       id_count(cur_material_property%external_id) + 1
-    array(iabs(cur_material_property%internal_id))%ptr => cur_material_property
+    array(abs(cur_material_property%internal_id))%ptr => cur_material_property
     cur_material_property => cur_material_property%next
   enddo
   
@@ -1035,7 +1036,7 @@ subroutine MaterialCreateIntToExtMapping(material_property_array,mapping)
   mapping(0) = 0
   
   do i = 1, size(material_property_array)
-    mapping(iabs(material_property_array(i)%ptr%internal_id)) = &
+    mapping(abs(material_property_array(i)%ptr%internal_id)) = &
       material_property_array(i)%ptr%external_id
   enddo
 
@@ -1526,12 +1527,11 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   ! Date: 01/09/14
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Variables_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   type(material_type) :: Material ! from realization%patch%aux%Material
   Vec :: vec_loc
@@ -1623,13 +1623,11 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   ! Author: Glenn Hammond
   ! Date: 01/09/14
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Variables_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   type(material_type) :: Material ! from realization%patch%aux%Material
   Vec :: vec_loc
@@ -1731,16 +1729,14 @@ subroutine MaterialWeightAuxVars(Material,weight,field,comm1)
   ! Author: Glenn Hammond
   ! Date: 04/17/14
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Field_module
   use Communicator_Base_module
   use Variables_module, only : POROSITY
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   type(material_type) :: Material
   type(field_type) :: field
@@ -1799,14 +1795,13 @@ subroutine MaterialUpdateAuxVars(Material,comm1,vec_loc,time_level,time)
   ! Date: 01/14/09
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Communicator_Base_module
   use Variables_module, only : POROSITY
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
   
   type(material_type) :: Material
   class(communicator_type) :: comm1
@@ -1842,12 +1837,11 @@ subroutine MaterialAuxVarCommunicate(comm,Material,vec_loc,ivar,isubvar)
   ! Date: 01/09/14
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Communicator_Base_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(communicator_type), pointer :: comm
   type(material_type) :: Material ! from realization%patch%aux%Material
@@ -1871,13 +1865,12 @@ subroutine MaterialUpdatePorosity(Material,global_auxvars,porosity_loc)
   ! Date: 01/09/14
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Variables_module
   use Global_Aux_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   type(material_type) :: Material ! from realization%patch%aux%Material
   type(global_auxvar_type) :: global_auxvars(:)
