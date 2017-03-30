@@ -1572,6 +1572,7 @@ subroutine PMWSSSetup(this)
                          cur_waste_panel%myMPIcomm,ierr)
     if (local) then
       call PMWSSSetRegionScaling(this,cur_waste_panel)
+      call PMWSSProcessAfterRead(this)
       call PMWSSInventoryAllocate(cur_waste_panel%inventory, &
                              cur_waste_panel%region%num_cells, &
                              cur_waste_panel%volume)
@@ -1754,8 +1755,6 @@ subroutine PMWSSInitializeRun(this)
                         this%realization%field%flow_r,is, &
                         this%data_mediator%scatter_ctx,ierr);CHKERRQ(ierr)
   call ISDestroy(is,ierr);CHKERRQ(ierr)
-  
-  call PMWSSProcessAfterRead(this)
   
   if (.not.this%option%restart_flag) then
     call PMWSSOutputHeader(this)
