@@ -623,11 +623,11 @@ subroutine PMWSSRead(this,input)
       case('SOCMIN')
         call InputReadDouble(input,option,this%smin)
         call InputErrorMsg(input,option,'SOCMIN',error_string)
-      case('SAMPLED_SAT_WICK')
+      case('SAT_WICK')
         call InputReadDouble(input,option,this%satwick)
         call InputErrorMsg(input,option,'wicking saturation parameter &
                            &(SAT_WICK)',error_string)
-      case('SAMPLED_CORRMCO2','CORRMCO2')
+      case('CORRMCO2')
         call InputReadDouble(input,option,this%corrmco2)
         call InputErrorMsg(input,option,'inundated steel corrosion rate &
                            &(CORRMCO2)',error_string)
@@ -635,23 +635,23 @@ subroutine PMWSSRead(this,input)
         call InputReadDouble(input,option,this%humcorr)
         call InputErrorMsg(input,option,'humid steel corrosion rate &
                            &(HUMCORR)',error_string)
-      case('SAMPLED_GRATMICI','GRATMICI')
+      case('GRATMICI')
         call InputReadDouble(input,option,this%gratmici)
         call InputErrorMsg(input,option,'inundated biodegradation rate for &
                            &cellulose (GRATMICI)',error_string)
-      case('SAMPLED_GRATMICH','GRATMICH')
+      case('GRATMICH')
         call InputReadDouble(input,option,this%gratmich)
         call InputErrorMsg(input,option,'humid diodegradation rate for &
                            &cellulose (GRATMICH)',error_string)
-      case('SAMPLED_BRUCITEI','BRUCITEI')
+      case('BRUCITEI')
         call InputReadDouble(input,option,this%brucitei)
         call InputErrorMsg(input,option,'MgO inundated hydration rate in &
                            &brine (BRUCITEI)',error_string)
-      case('SAMPLED_BRUCITEH','BRUCITEH')
+      case('BRUCITEH')
         call InputReadDouble(input,option,this%bruciteh)
         call InputErrorMsg(input,option,'MgO humid hydration rate (BRUCITEH)', &
                            error_string)
-      case('SAMPLED_HYMAGCON','HYMAGCON')
+      case('HYMAGCON')
         call InputReadDouble(input,option,this%hymagcon_rate)
         call InputErrorMsg(input,option,'hydromagnesite to magnesite &
                            &conversion rate (HYMAGCON)',error_string)
