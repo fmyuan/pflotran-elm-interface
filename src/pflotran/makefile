@@ -858,8 +858,7 @@ grid_unstructured_polyhedra.o : connection.o geometry.o grid_unstructured.o \
 hdf5.o : discretization.o field.o grid.o grid_unstructured_cell.o hdf5_aux.o \
          logging.o option.o patch.o pflotran_constants.o realization_base.o \
          realization_subsurface.o region.o utility.o
-hdf5_aux.o : input_aux.o logging.o option.o pflotran_constants.o region.o \
-             string.o
+hdf5_aux.o : input_aux.o logging.o option.o pflotran_constants.o string.o
 hydrostatic.o : condition.o connection.o coupler.o dataset_ascii.o \
                 dataset_common_hdf5.o dataset_gridded_hdf5.o eos_water.o \
                 general_aux.o grid.o grid_structured.o option.o \
