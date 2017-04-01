@@ -162,6 +162,11 @@ NOHDF5_CFG = \
 	default/regions/regions.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg
 
+WIPP_CFG = \
+	wipp/bragflo/bragflo.cfg \
+	wipp/nuts/nuts.cfg
+
+
 test : standard
 
 standard :
@@ -232,6 +237,10 @@ nonhdf5_test :
 	$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--suite standard standard_parallel \
 		--config-files $(NOHDF5_CFG)
+
+wipp_test :
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--config-files $(WIPP_CFG)
 
 #
 # Try to cleanup the regression test output.
