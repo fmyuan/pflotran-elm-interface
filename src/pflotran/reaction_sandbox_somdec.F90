@@ -898,7 +898,7 @@ subroutine SomDecSetup(this,reaction,option)
   this%species_id_nmin = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
  
-  word = 'Nimmp'
+  word = 'Nimp'
   this%species_id_nimp = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
 

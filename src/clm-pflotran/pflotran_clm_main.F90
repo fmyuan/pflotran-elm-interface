@@ -5569,6 +5569,13 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
            xx_p(offsetim + clm_pf_idata%ispec_nimm) = zeroing_conc
         endif
 
+        if (clm_pf_idata%ispec_plantndemand > 0) then
+           ! NO need to pass back to CLM
+
+           ! resetting the tracking variable state so that cumulative IS for the time-step only
+           xx_p(offsetim + clm_pf_idata%ispec_plantndemand) = zeroing_conc
+        endif
+
         if (clm_pf_idata%ispec_plantnh4uptake > 0) then
            !conc = xx_p(offsetim + clm_pf_idata%ispec_plantnh4uptake)
            conc = rt_auxvar%immobile(clm_pf_idata%ispec_plantnh4uptake)
