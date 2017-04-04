@@ -1755,12 +1755,9 @@ subroutine PMWSSInitializeRun(this)
                         this%realization%field%flow_r,is, &
                         this%data_mediator%scatter_ctx,ierr);CHKERRQ(ierr)
   call ISDestroy(is,ierr);CHKERRQ(ierr)
-  
-  if (.not.this%option%restart_flag) then
-    call PMWSSOutputHeader(this)
-    call PMWSSOutput(this)
-  endif
-  
+
+  call PMWSSOutputHeader(this)
+  call PMWSSOutput(this)
   call PMWSSSolve(this,0.d0,ierr)
   
 end subroutine PMWSSInitializeRun
@@ -2419,6 +2416,7 @@ subroutine PMWSSOutputHeader(this)
   ! Date: 03/27/17
 
   use Output_Aux_module
+  use Utility_module
     
   implicit none
   
@@ -2433,6 +2431,7 @@ subroutine PMWSSOutputHeader(this)
   character(len=MAXWORDLENGTH) :: cell_string
   PetscInt :: fid
   PetscInt :: icolumn
+  PetscBool :: exist
   
   if (.not.associated(this%waste_panel_list)) return
   
@@ -2440,6 +2439,8 @@ subroutine PMWSSOutputHeader(this)
   
   fid = 88
   filename = PMWSSOutputFilename(this%option)
+  exist = FileExists(trim(filename))
+  if (this%option%restart_flag .and. exist) return
   open(unit=fid,file=filename,action="write",status="replace")
   
   if (output_option%print_column_ids) then

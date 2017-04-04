@@ -1908,7 +1908,7 @@ end subroutine PMWFSetup
       this%option%overwrite_restart_transport) then
   endif
   
-  if (.not.this%option%restart_flag .and. this%print_mass_balance) then
+  if (this%print_mass_balance) then
     call PMWFOutputHeader(this)
     call PMWFOutput(this)
   endif
@@ -2995,7 +2995,7 @@ subroutine PMWFOutputHeader(this)
 
   use Output_Aux_module
   use Grid_module
-  use Utility_module, only : BestFloat
+  use Utility_module
   
   implicit none
   
@@ -3010,6 +3010,7 @@ subroutine PMWFOutputHeader(this)
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: fid
   PetscInt :: icolumn, i
+  PetscBool :: exist
   
   if (.not.associated(this%waste_form_list)) return
   
@@ -3018,6 +3019,8 @@ subroutine PMWFOutputHeader(this)
   
   fid = 86
   filename = PMWFOutputFilename(this%option)
+  exist = FileExists(trim(filename))
+  if (this%option%restart_flag .and. exist) return
   open(unit=fid,file=filename,action="write",status="replace")  
   
   if (output_option%print_column_ids) then
