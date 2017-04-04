@@ -492,9 +492,7 @@ subroutine CreepClosureRead(this,input,option)
   input%ierr = 0
 
   do
-  
     call InputReadPflotranString(input,option)
-
     if (InputCheckExit(input,option)) exit  
 
     call InputReadWord(input,option,keyword,PETSC_TRUE)
@@ -502,13 +500,12 @@ subroutine CreepClosureRead(this,input,option)
     call StringToUpper(keyword)   
       
     select case(trim(keyword))
-    
       case('FILENAME') 
-        call InputReadWord(input,option,filename,PETSC_TRUE)
-        call InputErrorMsg(input,option,'filename',error_string)
+        call InputReadNChars(input,option,filename,MAXSTRINGLENGTH,PETSC_TRUE)
+        call InputErrorMsg(input,option,'FILENAME',error_string)
       case('MATERIAL') 
         call InputReadWord(input,option,this%material_name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'material',error_string)
+        call InputErrorMsg(input,option,'MATERIAL',error_string)
      case default
         call InputKeywordUnrecognized(keyword,'CREEP_CLOSURE',option)
     end select
@@ -524,9 +521,7 @@ subroutine CreepClosureRead(this,input,option)
   input2 => InputCreate(IUNIT_TEMP,filename,option)
   input2%ierr = 0
   do
-  
     call InputReadPflotranString(input2,option)
-
     if (InputError(input2)) exit
 
     call InputReadWord(input2,option,keyword,PETSC_TRUE)
