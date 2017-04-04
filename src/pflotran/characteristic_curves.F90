@@ -124,8 +124,8 @@ module Characteristic_Curves_module
   ! BRAGFLO KRP12 modified Brooks-Corey Model
   type, public, extends(sat_func_BC_type) :: sat_func_BF_KRP12_type
     PetscReal :: Srg
-    PetscReal :: socmin
-    PetscReal :: soceffmin
+    PetscReal :: s_min
+    PetscReal :: s_effmin
   contains
     procedure, public :: Verify => SF_BF_KRP12_Verify
     procedure, public :: CapillaryPressure => SF_BF_KRP12_CapillaryPressure
@@ -900,12 +900,12 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
           case('GAS_RESIDUAL_SATURATION') 
             call InputReadDouble(input,option,sf%Srg)
             call InputErrorMsg(input,option,'Srg',error_string)
-          case('SOCMIN') 
-            call InputReadDouble(input,option,sf%socmin)
-            call InputErrorMsg(input,option,'socmin',error_string)
-          case('SOCEFFMIN') 
-            call InputReadDouble(input,option,sf%soceffmin)
-            call InputErrorMsg(input,option,'soceffmin',error_string)
+          case('S_MIN') 
+            call InputReadDouble(input,option,sf%s_min)
+            call InputErrorMsg(input,option,'s_min',error_string)
+          case('S_EFFMIN') 
+            call InputReadDouble(input,option,sf%s_effmin)
+            call InputErrorMsg(input,option,'s_effmin',error_string)
           case default
             call InputKeywordUnrecognized(keyword, &
                    'BRAGFLO_KRP12 saturation function',option)
@@ -1942,11 +1942,11 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(id,'(a29)',advance='no') 'gas residual sat.: '
           write(word1,*) sf%Srg
           write(id,'(a)') adjustl(trim(word1))
-          write(id,'(a29)',advance='no') 'socmin: '
-          write(word1,*) sf%socmin
+          write(id,'(a29)',advance='no') 's_min: '
+          write(word1,*) sf%s_min
           write(id,'(a)') adjustl(trim(word1))
-          write(id,'(a29)',advance='no') 'soceffmin: '
-          write(word1,*) sf%soceffmin
+          write(id,'(a29)',advance='no') 's_effmin: '
+          write(word1,*) sf%s_effmin
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
         class is (sat_func_mK_type)
@@ -4238,11 +4238,11 @@ subroutine SF_BF_KRP12_Verify(this,name,option)
     string = trim(name) // 'SATURATION_FUNCTION,BROOKS_COREY'
   endif  
   call SFBaseVerify(this,string,option)
-  if (Uninitialized(this%socmin)) then
+  if (Uninitialized(this%s_min)) then
     option%io_buffer = UninitializedMessage('ALPHA',string)
     call printErrMsg(option)
   endif 
-  if (Uninitialized(this%soceffmin)) then
+  if (Uninitialized(this%s_effmin)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
     call printErrMsg(option)
   endif 
@@ -4282,7 +4282,7 @@ subroutine SF_BF_KRP12_CapillaryPressure(this,liquid_saturation, &
   PetscReal :: dummy_real
   PetscReal :: soczro
   
-  soczro = this%socmin - this%soceffmin
+  soczro = this%s_min - this%s_effmin
   
   if (liquid_saturation >= 1.d0) then
     capillary_pressure = 0.d0
@@ -4295,7 +4295,7 @@ subroutine SF_BF_KRP12_CapillaryPressure(this,liquid_saturation, &
   endif
 
   Se = (liquid_saturation-soczro)/(1.d0-soczro)
-  Se = max(min(Se,1.0d0),this%soceffmin)
+  Se = max(min(Se,1.0d0),this%s_effmin)
   
   if (associated(this%sat_poly)) then
     if (Se > this%sat_poly%low) then
