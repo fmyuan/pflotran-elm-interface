@@ -182,7 +182,6 @@ REGION leftFace
 END
 
 REGION injection
-  FACE TOP
   COORDINATES
     0.d0 0.d0 0.d0
     1.d0 1.d0 1.d0
@@ -190,7 +189,6 @@ REGION injection
 END
 
 REGION production
-  FACE BOTTOM
   COORDINATES
     14.d0 0.d0 0.d0
     15.d0 1.d0 1.d0

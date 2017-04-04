@@ -10,7 +10,6 @@
 !
 ! Note: for this case, BRAGFLO uses g=9.8068, STP 3.00150E+02  1.01320E+05
 ! need to update SOIL_REFERENCE_PRESSURE 4e6
-! need to update initial brine pressure for layer 12 to 0.39755E+07
 !
 !==============================================================================
 
@@ -352,7 +351,7 @@ FLOW_CONDITION 12
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 3.97552E+06
+  GAS_PRESSURE 3.9755E+06
   LIQUID_SATURATION 9.999800e-01
   TEMPERATURE 25.d0
 END
