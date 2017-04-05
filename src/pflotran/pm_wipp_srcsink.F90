@@ -27,7 +27,6 @@ module PM_WIPP_SrcSink_class
     type(chem_species_type) :: FeOH2_s
     type(chem_species_type) :: C6H10O5_s
     type(chem_species_type) :: RuPl_s
-    type(chem_species_type) :: H_ion_aq
     type(chem_species_type) :: NO3_minus_aq
     type(chem_species_type) :: CO2_g
     type(chem_species_type) :: N2_g
@@ -38,7 +37,15 @@ module PM_WIPP_SrcSink_class
     type(chem_species_type) :: MgOH2_s
     type(chem_species_type) :: Mg5CO34OH24H2_s
     type(chem_species_type) :: MgCO3_s
-    PetscInt :: num_drums_packing
+  ! Initial Values:
+    PetscReal :: Fe_in_panel          ! [total initial kg in waste panel]
+    PetscReal :: MgO_in_panel         ! [total initial kg in waste panel]
+    PetscReal :: Cellulose_in_panel   ! [total initial kg in waste panel]
+    PetscReal :: RubberPlas_in_panel  ! [total initial kg in waste panel]
+    PetscReal :: Biodegs_in_panel     ! [total initial kg in waste panel]
+    PetscReal :: Nitrate_in_panel     ! [total initial kg in waste panel]
+    PetscReal :: Sulfate_in_panel     ! [total initial kg in waste panel]
+    PetscInt :: num_drums_packing     ! [number of steel drums in waste panel]
     type(pre_inventory_type), pointer :: preinventory
   end type inventory_type
   
@@ -70,16 +77,10 @@ module PM_WIPP_SrcSink_class
     PetscReal :: plserhw    ! [kg] mass of plastics in emplacement materials for RH waste 
     PetscReal :: plasfac    ! [-] mass ratio of plastics to equivalent carbon
     PetscReal :: mgo_ef     ! [-] MgO excess factor; ratio mol-MgO/mol-organic-C
-  ! PFLOTRAN parameters:
-    PetscReal :: Fe_in_panel          ! [total initial kg in waste panel]
-    PetscReal :: MgO_in_panel         ! [total initial kg in waste panel]
-    PetscReal :: Cellulose_in_panel   ! [total initial kg in waste panel]
-    PetscReal :: RubberPlas_in_panel  ! [total initial kg in waste panel]
-    PetscReal :: Biodegs_in_panel     ! [total initial kg in waste panel]
-    PetscReal :: H_ion_in_panel       ! [total initial kg in waste panel]
-    PetscReal :: Nitrate_in_panel     ! [total initial kg in waste panel]
-    PetscReal :: Sulfate_in_panel     ! [total initial kg in waste panel]
-    PetscInt :: num_drums_packing     ! [number of steel drums in waste panel]
+    PetscReal :: vrepos     ! [m3] volume of total repository (not always needed)
+    PetscInt :: drroom      ! [-] number of steel drums in waste panel
+    PetscReal :: nitrate    ! [kg] mass of nitrate
+    PetscReal :: sulfate    ! [kg] mass of sulfate
     type(pre_inventory_type), pointer :: next
   end type pre_inventory_type
   
@@ -100,6 +101,7 @@ module PM_WIPP_SrcSink_class
     PetscReal :: humid_brucite_rate                ! [mol/m3-bulk/sec]
     PetscReal :: RXH2S_factor                      ! [-]
     PetscReal :: volume                            ! [m3]
+    PetscBool :: scale_by_volume                   ! flag to scale given inventory to waste panel volume
     PetscInt :: id
     PetscMPIInt :: myMPIcomm
     PetscMPIInt :: myMPIgroup
@@ -121,6 +123,7 @@ module PM_WIPP_SrcSink_class
     PetscReal :: hymagcon_rate      ! [mol/kg/sec]
     PetscReal :: drum_surface_area  ! [m2/drum]
     PetscReal :: biogenfc           ! [-]
+    PetscInt :: probdeg             ! [-]
     PetscInt :: bioidx              ! [-] flag
     PetscInt :: plasidx             ! [-] flag
     type(srcsink_panel_type), pointer :: waste_panel_list
@@ -185,6 +188,7 @@ function PMWSSCreate()
   pm%hymagcon_rate = UNINITIALIZED_DOUBLE
   pm%drum_surface_area = UNINITIALIZED_DOUBLE
   pm%biogenfc = UNINITIALIZED_DOUBLE
+  pm%probdeg = UNINITIALIZED_INTEGER
   pm%bioidx = UNINITIALIZED_INTEGER
   pm%plasidx = UNINITIALIZED_INTEGER
   
@@ -222,6 +226,7 @@ function PMWSSWastePanelCreate()
   panel%region_name = ''
   panel%inventory_name = ''
   panel%volume = UNINITIALIZED_DOUBLE
+  panel%scale_by_volume = PETSC_FALSE
   panel%inundated_corrosion_rate = UNINITIALIZED_DOUBLE
   panel%humid_corrosion_rate = UNINITIALIZED_DOUBLE
   panel%inundated_biodeg_rate = UNINITIALIZED_DOUBLE
@@ -281,16 +286,10 @@ function PMWSSPreInventoryCreate()
   preinv%plserhw = UNINITIALIZED_DOUBLE
   preinv%plasfac = UNINITIALIZED_DOUBLE
   preinv%mgo_ef = UNINITIALIZED_DOUBLE
-  ! PFLOTRAN parameters:
-  preinv%Fe_in_panel = UNINITIALIZED_DOUBLE
-  preinv%MgO_in_panel = UNINITIALIZED_DOUBLE
-  preinv%Cellulose_in_panel = UNINITIALIZED_DOUBLE
-  preinv%RubberPlas_in_panel = UNINITIALIZED_DOUBLE
-  preinv%Biodegs_in_panel = UNINITIALIZED_DOUBLE
-  preinv%H_ion_in_panel = UNINITIALIZED_DOUBLE
-  preinv%Nitrate_in_panel = UNINITIALIZED_DOUBLE
-  preinv%Sulfate_in_panel = UNINITIALIZED_DOUBLE
-  preinv%num_drums_packing = UNINITIALIZED_INTEGER
+  preinv%vrepos = UNINITIALIZED_DOUBLE
+  preinv%drroom = UNINITIALIZED_INTEGER
+  preinv%nitrate = UNINITIALIZED_DOUBLE
+  preinv%sulfate = UNINITIALIZED_DOUBLE
   
   PMWSSPreInventoryCreate => preinv
 
@@ -327,9 +326,6 @@ subroutine PMWSSInventoryInit(inventory)
   molar_mass = (0.027023d0) ! [rubber/plastic kg/mol, same as MW_CELL]
   call PMWSSInitChemSpecies(inventory%RuPl_s,molar_mass)  ! rubber/plastics
   
-  molar_mass = (1.01d-3) ! [H+ kg/mol] 
-  call PMWSSInitChemSpecies(inventory%H_ion_aq,molar_mass)  ! h+
-  
   molar_mass = (14.0067d-3 + 3.d0*15.9994d-3) ! [NO3- kg/mol]
   call PMWSSInitChemSpecies(inventory%NO3_minus_aq,molar_mass)  ! nitrate
   
@@ -361,6 +357,15 @@ subroutine PMWSSInventoryInit(inventory)
   
   molar_mass = (0.084314d0) ! [kg/mol MW_MGCO3]
   call PMWSSInitChemSpecies(inventory%MgCO3_s,molar_mass)  ! magnesium carbonate
+  
+  inventory%Fe_in_panel = UNINITIALIZED_DOUBLE
+  inventory%MgO_in_panel = UNINITIALIZED_DOUBLE
+  inventory%Cellulose_in_panel = UNINITIALIZED_DOUBLE
+  inventory%RubberPlas_in_panel = UNINITIALIZED_DOUBLE
+  inventory%Biodegs_in_panel = UNINITIALIZED_DOUBLE
+  inventory%Nitrate_in_panel = UNINITIALIZED_DOUBLE
+  inventory%Sulfate_in_panel = UNINITIALIZED_DOUBLE
+  inventory%num_drums_packing = UNINITIALIZED_INTEGER
 
 end subroutine PMWSSInventoryInit
 
@@ -481,21 +486,29 @@ subroutine PMWSSAssociateInventory(this)
   cur_waste_panel => this%waste_panel_list
   do
     if (.not.associated(cur_waste_panel)) exit
-      cur_preinventory => this%pre_inventory_list     
-      do
-        if (.not.associated(cur_preinventory)) exit
-        if (StringCompare(cur_preinventory%name, &
-                          cur_waste_panel%inventory_name)) then
-          call PMWSSCopyPreInvToInv(cur_preinventory,cur_waste_panel%inventory)
-          exit
-        endif
-        cur_preinventory => cur_preinventory%next
-      enddo      
-      if (.not.associated(cur_waste_panel%inventory%preinventory)) then
-        option%io_buffer = 'WASTE_PANEL INVENTORY ' // &
-                           trim(cur_waste_panel%inventory_name) // ' not found.'
-        call printErrMsg(option)
+    cur_preinventory => this%pre_inventory_list     
+    do
+      if (.not.associated(cur_preinventory)) exit
+      if (StringCompare(cur_preinventory%name, &
+                        cur_waste_panel%inventory_name)) then
+        call PMWSSCopyPreInvToInv(cur_preinventory,cur_waste_panel%inventory)
+        exit
       endif
+      cur_preinventory => cur_preinventory%next
+    enddo      
+    if (.not.associated(cur_waste_panel%inventory%preinventory)) then
+      option%io_buffer = 'WASTE_PANEL INVENTORY ' // &
+                         trim(cur_waste_panel%inventory_name) // ' not found.'
+      call printErrMsg(option)
+    endif
+    if (cur_waste_panel%scale_by_volume .and. &
+        Uninitialized(cur_waste_panel%inventory%preinventory%vrepos)) then
+      option%io_buffer = 'ERROR: WASTE_PANEL ' // trim(cur_waste_panel%name) &
+                        // ' indicated SCALE_BY VOLUME = YES, but keyword &
+                        &VREPOS was not given in INVENTORY ' // &
+                        trim(cur_waste_panel%inventory%preinventory%name) // '.'
+      call printErrMsg(option)
+    endif
     cur_waste_panel => cur_waste_panel%next
   enddo
   
@@ -517,7 +530,7 @@ subroutine PMWSSCopyPreInvToInv(preinventory,inventory)
   type(inventory_type) :: inventory
   
   inventory%name = preinventory%name
-  inventory%num_drums_packing = preinventory%num_drums_packing
+  inventory%num_drums_packing = preinventory%drroom
   inventory%preinventory => preinventory
   
 end subroutine PMWSSCopyPreInvToInv
@@ -664,14 +677,9 @@ subroutine PMWSSRead(this,input)
         call InputErrorMsg(input,option,'probability of attaining sampled &
                            &microbial gas generation rates (BIOGENFC)', &
                            error_string)
-      case('BIOIDX')
-        call InputReadInt(input,option,this%bioidx)
-        call InputErrorMsg(input,option,'flag: biodegradation inclusion &
-                           &(BIOIDX)',error_string)
-      case('PLASIDX')
-        call InputReadInt(input,option,this%plasidx)
-        call InputErrorMsg(input,option,'flag: plastics inclusion (PLASIDX)', &
-                           error_string)
+      case('PROBDEG')
+        call InputReadInt(input,option,this%probdeg)
+        call InputErrorMsg(input,option,'flag: (PROBDEG)',error_string)
     !-----------------------------------------
     !-----------------------------------------
       case('WASTE_PANEL')
@@ -700,6 +708,20 @@ subroutine PMWSSRead(this,input)
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'inventory assignment',error_string)
               new_waste_panel%inventory_name = trim(word)
+          !-----------------------------------
+            case('SCALE_BY_VOLUME')
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'SCALE_BY_VOLUME',error_string)
+              call StringToUpper(word)
+              select case(trim(word))
+                case('YES')
+                  new_waste_panel%scale_by_volume = PETSC_TRUE
+                case('NO')
+                  new_waste_panel%scale_by_volume = PETSC_FALSE
+                case default
+                  call InputKeywordUnrecognized(word,'SCALE_BY_VOLUME (must &
+                  &be "YES" or "NO")',option)
+              end select
           !-----------------------------------    
             case default
               call InputKeywordUnrecognized(word,error_string,option)
@@ -936,10 +958,8 @@ subroutine PMWSSRead(this,input)
                     call InputErrorMsg(input,option,'PLASFAC',error_string2)
                 !-----------------------------------
                   case('DRROOM')
-                    call InputReadInt(input,option, &
-                                      new_inventory%num_drums_packing)
-                    call InputErrorMsg(input,option,'number of metal drums per &
-                                &panel in ideal packing (DRROOM)',error_string2)
+                    call InputReadInt(input,option,new_inventory%drroom)
+                    call InputErrorMsg(input,option,'DRROOM',error_string2)
                 !-----------------------------
                   case default
                     call InputKeywordUnrecognized(word,error_string2,option)
@@ -958,37 +978,28 @@ subroutine PMWSSRead(this,input)
                 call StringToUpper(word)
                 select case(trim(word))
                 !-----------------------------
-                  case('H+')
-                    call InputReadDouble(input,option,double)
-                    call InputErrorMsg(input,option,'initial H+ mass', &
-                                       error_string3)
-                    call InputReadAndConvertUnits(input,double,'kg', &
-                         trim(error_string3) // ',initial H+ mass units',option)
-                    new_inventory%H_ion_in_panel = double
-                !-----------------------------
                   case('NITRATE')
-                    call InputReadDouble(input,option,double)
-                    call InputErrorMsg(input,option,'initial nitrate mass', &
-                                       error_string3)
-                    call InputReadAndConvertUnits(input,double,'kg', &
-                      trim(error_string3) // ',initial nitrate mass units', &
-                      option)
-                    new_inventory%Nitrate_in_panel = double
+                    call InputReadDouble(input,option,new_inventory%nitrate)
+                    call InputErrorMsg(input,option,'initial nitrate moles &
+                                       &(NITRATE)',error_string3)
                 !-----------------------------
                   case('SULFATE')
-                    call InputReadDouble(input,option,double)
-                    call InputErrorMsg(input,option,'initial sulfate mass', &
-                                       error_string3)
-                    call InputReadAndConvertUnits(input,double,'kg', &
-                      trim(error_string3) // ',initial sulfate mass units', &
-                      option)
-                    new_inventory%Sulfate_in_panel = double
+                    call InputReadDouble(input,option,new_inventory%sulfate)
+                    call InputErrorMsg(input,option,'initial sulfate moles &
+                                       &(SULFATE)',error_string3)
                 !-----------------------------
                   case default
                     call InputKeywordUnrecognized(word,error_string3,option)
                 !-----------------------------
                 end select
               enddo
+          !-----------------------------------
+            case('VREPOS')
+              call InputReadDouble(input,option,double)
+              call InputErrorMsg(input,option,'VREPOS',error_string)
+              call InputReadAndConvertUnits(input,double,'m^3', &
+                      trim(error_string) // ',VREPOS volume units',option)
+              new_inventory%vrepos = double
           !-----------------------------------    
             case default
               call InputKeywordUnrecognized(word,error_string,option)
@@ -996,6 +1007,14 @@ subroutine PMWSSRead(this,input)
           end select
         enddo
         ! error messages ---------------------
+        if (Uninitialized(new_inventory%drroom)) then
+          option%io_buffer = 'ERROR: Number of metal drums must be specified &
+                        &using the SOLIDS,DRROOM keyword in the &
+                        &WIPP_SOURCE_SINK,INVENTORY ' // &
+                        trim(new_inventory%name) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
       !----- IRON -----!
         if (Uninitialized(new_inventory%ironchw)) then
           option%io_buffer = 'ERROR: Initial mass of Fe-based material in CH &
@@ -1206,33 +1225,17 @@ subroutine PMWSSRead(this,input)
           num_errors = num_errors + 1
         endif
       !----- AQUEOUS -----!
-        if (Uninitialized(new_inventory%H_ion_in_panel)) then
-          option%io_buffer = 'ERROR: Initial H+ (aqueous) inventory must be &
-                        &specified using the AQUEOUS,H+ keyword in the &
-                        &WIPP_SOURCE_SINK,INVENTORY ' // &
-                        trim(new_inventory%name) // ' block.'
-          call printMsg(option)
-          num_errors = num_errors + 1
-        endif
-        if (Uninitialized(new_inventory%Nitrate_in_panel)) then
-          option%io_buffer = 'ERROR: Initial nitrate (aqueous) inventory must &
+        if (Uninitialized(new_inventory%nitrate)) then
+          option%io_buffer = 'ERROR: Initial nitrate moles inventory must &
                         &be specified using the AQUEOUS,NITRATE keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
           call printMsg(option)
           num_errors = num_errors + 1
         endif
-        if (Uninitialized(new_inventory%Sulfate_in_panel)) then
-          option%io_buffer = 'ERROR: Initial sulfate (aqueous) inventory must &
+        if (Uninitialized(new_inventory%sulfate)) then
+          option%io_buffer = 'ERROR: Initial sulfate moles inventory must &
                         &be specified using the AQUEOUS,SULFATE keyword in the &
-                        &WIPP_SOURCE_SINK,INVENTORY ' // &
-                        trim(new_inventory%name) // ' block.'
-          call printMsg(option)
-          num_errors = num_errors + 1
-        endif
-        if (Uninitialized(new_inventory%num_drums_packing)) then
-          option%io_buffer = 'ERROR: Number of metal drums must be specified &
-                        &using the SOLIDS,DRROOM keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
           call printMsg(option)
@@ -1355,15 +1358,10 @@ subroutine PMWSSRead(this,input)
     call printMsg(option)
     num_errors = num_errors + 1
   endif
-  if (Uninitialized(this%bioidx)) then
-    option%io_buffer = 'ERROR: BIOIDX (biodegradation inclusion flag) &
-                       &must be specified in the WIPP_SOURCE_SINK block.'
-    call printMsg(option)
-    num_errors = num_errors + 1
-  endif
-  if (Uninitialized(this%plasidx)) then
-    option%io_buffer = 'ERROR: PLASIDX (plastics inclusion flag) &
-                       &must be specified in the WIPP_SOURCE_SINK block.'
+  if (Uninitialized(this%probdeg)) then
+    option%io_buffer = 'ERROR: PROBDEG (biodegradation and/or plastics &
+                       &inclusion flag) must be specified in the &
+                       &WIPP_SOURCE_SINK block.'
     call printMsg(option)
     num_errors = num_errors + 1
   endif
@@ -1380,7 +1378,7 @@ end subroutine PMWSSRead
 
 ! *************************************************************************** !
 
-subroutine PMWSSProcessAfterRead(this)
+subroutine PMWSSProcessAfterRead(this,waste_panel)
   !
   ! After reading input parameters, ALGEBRA processing is done to get final 
   ! input parameters required.
@@ -1388,13 +1386,17 @@ subroutine PMWSSProcessAfterRead(this)
   ! Author: Jenn Frederick
   ! Date: 3/10/2017
   !
+  
+  use Option_module
 
   implicit none
   
   class(pm_wipp_srcsink_type) :: this
+  type(srcsink_panel_type), pointer :: waste_panel
   
-  type(srcsink_panel_type), pointer :: cur_waste_panel
   type(pre_inventory_type), pointer :: preinventory
+  type(inventory_type), pointer :: inventory
+  PetscReal :: vol_scaling_factor
   PetscReal :: MOL_NO3                      ! moles of nitrate
   PetscReal :: F_NO3
   PetscReal :: MAX_C, A1, A2                ! intermediate parameters
@@ -1403,98 +1405,134 @@ subroutine PMWSSProcessAfterRead(this)
   PetscReal, parameter :: MW_MGO = 4.03d-2  ! [kg/mol] mol weight of MgO
   PetscReal, parameter :: MW_C = 2.70d-2    ! [kg/mol] mol weight of cellulosics
   PetscReal, parameter :: MW_NO3 = 6.20d-2  ! [kg/mol] mol weight of nitrate
+  PetscReal, parameter :: MW_SO4 = 9.60d-2  ! [kg/mol] mol weight of sulfate
   PetscReal :: D_c                          ! [kg/m3] mass conc biodegradables
   PetscReal :: D_m                          ! [kg/m3] mass conc MgO
   PetscReal :: D_s                          ! [m2/m3] area conc iron steel
   
-  cur_waste_panel => this%waste_panel_list
-  do
-    if (.not.associated(cur_waste_panel)) exit
-    preinventory => cur_waste_panel%inventory%preinventory
-    !-----inventory-totals-------------------------------------units---------
-    preinventory%Fe_in_panel = &                             ! [kg]
-          preinventory%ironchw + preinventory%ironrhw + &    ! [kg]
-          preinventory%irncchw + preinventory%irncrhw        ! [kg]
-    preinventory%Cellulose_in_panel = &                      ! [kg]
-          preinventory%cellchw + preinventory%cellrhw + &    ! [kg]
-          preinventory%celcchw + preinventory%celcrhw + &    ! [kg]
-          preinventory%celechw + preinventory%celerhw        ! [kg]
-    preinventory%RubberPlas_in_panel = &                     ! [kg]
-         (preinventory%rubbchw + preinventory%rubbrhw + &    ! [kg]
-          preinventory%rubcchw + preinventory%rubcrhw + &    ! [kg]
-          preinventory%rubechw + preinventory%ruberhw) + &   ! [kg]
-          preinventory%plasfac * &                           ! [-]
-         (preinventory%plaschw + preinventory%plasrhw + &    ! [kg]
-          preinventory%plscchw + preinventory%plscrhw + &    ! [kg]
-          preinventory%plsechw + preinventory%plserhw)       ! [kg]
-    preinventory%Biodegs_in_panel = &                        ! [kg]
-          preinventory%Cellulose_in_panel + &                ! [kg]
-         (preinventory%RubberPlas_in_panel * &               ! [kg]
-          this%plasidx)                                      ! [-]
-    preinventory%MgO_in_panel = &                            ! [kg]
-         (preinventory%Cellulose_in_panel + &                ! [kg]
-          preinventory%RubberPlas_in_panel) * &              ! [kg]
-          preinventory%mgo_ef * &                            ! [-]
-          MW_MGO / MW_C                                      ! [-]
-    !-----mass-concentrations----------------------------------units---------
-    D_c = preinventory%Biodegs_in_panel / &                  ! [kg]
-          cur_waste_panel%volume                             ! [m3]
-    D_s = this%drum_surface_area * &                         ! [m2]
-          cur_waste_panel%inventory%num_drums_packing / &    ! [-]
-          cur_waste_panel%volume                             ! [m3]
-    D_m = preinventory%mgo_ef * D_c * &                      ! [kg/m3]
-          MW_MGO / MW_C                                      ! [-]
-    !-------------------------------------------------------------------------
-    !-----anoxic-iron-corrosion--------------------------------units----------
-    cur_waste_panel%inundated_corrosion_rate = &             ! [mol-Fe/m3/sec]
-          this%corrmco2 * &                                  ! [m/s]
-          D_s * &                                            ! [m2/m3]
-          DN_FE / &                                          ! [kg/m3]
-          MW_FE                                              ! [kg/mol]
-    cur_waste_panel%humid_corrosion_rate = &                 ! [mol-Fe/m3/sec]
-          this%humcorr * &                                   ! [m/s]
-          D_s * &                                            ! [m2/m3]
-          DN_FE / &                                          ! [kg/m3]
-          MW_FE                                              ! [kg/mol]
-    cur_waste_panel%humid_corrosion_rate = &                 ! [-]
-          cur_waste_panel%humid_corrosion_rate / &
-          cur_waste_panel%inundated_corrosion_rate
-    !-----biodegradation------------------------------------units-------------
-    cur_waste_panel%inundated_biodeg_rate = &             ! [mol-cell/m3/sec]
-          this%gratmici * &                               ! [mol-cell/kg/sec]
-          D_c * &                                         ! [kg/m3]
-          this%biogenfc * &                               ! [-]
-          this%bioidx                                     ! [-]
-    cur_waste_panel%humid_biodeg_rate = &                 ! [mol-cell/m3/sec]
-          this%gratmich * &                               ! [mol-cell/kg/sec]
-          D_c * &                                         ! [kg/m3]
-          this%biogenfc * &                               ! [-]
-          this%bioidx                                     ! [-]           
-    !-----iron-sulfidation----------------------------------------------------
-    MOL_NO3 = preinventory%Nitrate_in_panel / MW_NO3      ! [mol]
-    A1 = preinventory%Biodegs_in_panel / MW_C             ! [mol]
-    A2 = this%gratmici * &                                ! [mol/kg/sec]
-         (preinventory%Biodegs_in_panel) * &              ! [kg]
-         (3600.d0*24.d0*365.d0)                           ! [sec/year]
-    MAX_C = min(A1,A2)                                    ! [mol]
-    F_NO3 = MOL_NO3 * (6.d0/4.8d0) / MAX_C                ! [-]
-    F_NO3 = min(F_NO3,1.0)                                ! [-]
-    cur_waste_panel%RXH2S_factor = 1.0 - F_NO3            ! [-]
-    !-----MgO-hydration-------------------------------------units-------------
-    cur_waste_panel%inundated_brucite_rate = &            ! [mol-bruc/m3/sec]
-          max(this%brucitei,this%bruciteh) * &            ! [mol-bruc/kg/sec]
-          D_m                                             ! [kg/m3]
-    cur_waste_panel%humid_brucite_rate = &                ! [mol-bruc/m3/sec]
-          this%bruciteh * &                               ! [mol-bruc/kg/sec]
-          D_m                                             ! [kg/m3]
-    !-------------------------------------------------------------------------
-    this%RXCO2_factor = 1.d0  ! BRAGFLO User's Manual Eq. 155, based on
-                              ! Eqs. 145 & 146 stoichiometry 
-    !-------------------------------------------------------------------------
-    !-------------------------------------------------------------------------
-    cur_waste_panel => cur_waste_panel%next
-  enddo
-
+  !-----PROBDEG-calculations-----------------------------------------------
+  select case(this%probdeg)
+    case(0)
+      this%bioidx = 0
+      this%plasidx = 0
+    case(1)
+      this%bioidx = 1
+      this%plasidx = 0
+    case(2)
+      this%bioidx = 1
+      this%plasidx = 1
+    case default
+      this%option%io_buffer = 'WIPP_SOURCE_SINK,PROBDEG values: 0,1,2 only.'
+      call printErrMsg(this%option)
+  end select
+  
+  preinventory => waste_panel%inventory%preinventory
+  inventory => waste_panel%inventory
+  !-----inventory-totals-------------------------------------units---------
+  inventory%Fe_in_panel = &                                ! [kg]
+        preinventory%ironchw + preinventory%ironrhw + &    ! [kg]
+        preinventory%irncchw + preinventory%irncrhw        ! [kg]
+  inventory%Cellulose_in_panel = &                         ! [kg]
+        preinventory%cellchw + preinventory%cellrhw + &    ! [kg]
+        preinventory%celcchw + preinventory%celcrhw + &    ! [kg]
+        preinventory%celechw + preinventory%celerhw        ! [kg]
+  inventory%RubberPlas_in_panel = &                        ! [kg]
+       (preinventory%rubbchw + preinventory%rubbrhw + &    ! [kg]
+        preinventory%rubcchw + preinventory%rubcrhw + &    ! [kg]
+        preinventory%rubechw + preinventory%ruberhw) + &   ! [kg]
+        preinventory%plasfac * &                           ! [-]
+       (preinventory%plaschw + preinventory%plasrhw + &    ! [kg]
+        preinventory%plscchw + preinventory%plscrhw + &    ! [kg]
+        preinventory%plsechw + preinventory%plserhw)       ! [kg]
+  inventory%Biodegs_in_panel = &                           ! [kg]
+        inventory%Cellulose_in_panel + &                   ! [kg]
+       (inventory%RubberPlas_in_panel*this%plasidx)        ! [kg]
+  inventory%MgO_in_panel = &                               ! [kg]
+       (inventory%Cellulose_in_panel + &                   ! [kg]
+        inventory%RubberPlas_in_panel) * &                 ! [kg]
+        preinventory%mgo_ef * MW_MGO / MW_C                ! [-]
+  inventory%Nitrate_in_panel = &                           ! [kg]
+        preinventory%nitrate * MW_NO3                      ! [kg]
+  inventory%Sulfate_in_panel = &                           ! [kg]
+        preinventory%sulfate * MW_SO4                      ! [kg]
+  !-----scale-inventory-totals-------------------------------units---------
+  if (waste_panel%scale_by_volume) then
+    vol_scaling_factor = waste_panel%volume / &            ! [m3]
+                         preinventory%vrepos               ! [m3]
+    inventory%Fe_in_panel = &                              ! [kg] 
+        inventory%Fe_in_panel*vol_scaling_factor           ! [kg]
+    inventory%Cellulose_in_panel = &                       ! [kg] 
+        inventory%Cellulose_in_panel*vol_scaling_factor    ! [kg]
+    inventory%RubberPlas_in_panel = &                      ! [kg] 
+        inventory%RubberPlas_in_panel*vol_scaling_factor   ! [kg]
+    inventory%Biodegs_in_panel = &                         ! [kg] 
+        inventory%Biodegs_in_panel*vol_scaling_factor      ! [kg]
+    inventory%MgO_in_panel = &                             ! [kg] 
+        inventory%MgO_in_panel*vol_scaling_factor          ! [kg]
+    inventory%num_drums_packing = &                        ! [-]
+        nint(inventory%num_drums_packing * &               ! [-]
+             vol_scaling_factor)                           ! [-]
+    if (inventory%num_drums_packing == 0) then             ! in case the
+      inventory%num_drums_packing = 1                      ! scaling rounds
+    endif                                                  ! to 0, set to 1
+  endif
+  !-----mass-concentrations----------------------------------units---------
+  D_c = inventory%Biodegs_in_panel / &                     ! [kg]
+        waste_panel%volume                                 ! [m3]
+  D_s = this%drum_surface_area * &                         ! [m2]
+        inventory%num_drums_packing / &                    ! [-]
+        waste_panel%volume                                 ! [m3]
+  D_m = preinventory%mgo_ef * D_c * &                      ! [kg/m3]
+        MW_MGO / MW_C                                      ! [-]
+  !-------------------------------------------------------------------------
+  !-----anoxic-iron-corrosion--------------------------------units----------
+  waste_panel%inundated_corrosion_rate = &                 ! [mol-Fe/m3/sec]
+        this%corrmco2 * &                                  ! [m/s]
+        D_s * &                                            ! [m2/m3]
+        DN_FE / &                                          ! [kg/m3]
+        MW_FE                                              ! [kg/mol]
+  waste_panel%humid_corrosion_rate = &                     ! [mol-Fe/m3/sec]
+        this%humcorr * &                                   ! [m/s]
+        D_s * &                                            ! [m2/m3]
+        DN_FE / &                                          ! [kg/m3]
+        MW_FE                                              ! [kg/mol]
+  waste_panel%humid_corrosion_rate = &                     ! [-]
+        waste_panel%humid_corrosion_rate / &
+        waste_panel%inundated_corrosion_rate
+  !-----biodegradation------------------------------------units-------------
+  waste_panel%inundated_biodeg_rate = &                 ! [mol-cell/m3/sec]
+        this%gratmici * &                               ! [mol-cell/kg/sec]
+        D_c * &                                         ! [kg/m3]
+        this%biogenfc * &                               ! [-]
+        this%bioidx                                     ! [-]
+  waste_panel%humid_biodeg_rate = &                     ! [mol-cell/m3/sec]
+        this%gratmich * &                               ! [mol-cell/kg/sec]
+        D_c * &                                         ! [kg/m3]
+        this%biogenfc * &                               ! [-]
+        this%bioidx                                     ! [-]           
+  !-----iron-sulfidation----------------------------------------------------
+  MOL_NO3 = inventory%Nitrate_in_panel / MW_NO3         ! [mol]
+  A1 = inventory%Biodegs_in_panel / MW_C                ! [mol]
+  A2 = this%gratmici * &                                ! [mol/kg/sec]
+       (inventory%Biodegs_in_panel) * &                 ! [kg]
+       (3600.d0*24.d0*365.d0)                           ! [sec/year]
+  MAX_C = min(A1,A2)                                    ! [mol]
+  F_NO3 = MOL_NO3 * (6.d0/4.8d0) / MAX_C                ! [-]
+  F_NO3 = min(F_NO3,1.0)                                ! [-]
+  waste_panel%RXH2S_factor = 1.0 - F_NO3                ! [-]
+  !-----MgO-hydration-------------------------------------units-------------
+  waste_panel%inundated_brucite_rate = &                ! [mol-bruc/m3/sec]
+        max(this%brucitei,this%bruciteh) * &            ! [mol-bruc/kg/sec]
+        D_m                                             ! [kg/m3]
+  waste_panel%humid_brucite_rate = &                    ! [mol-bruc/m3/sec]
+        this%bruciteh * &                               ! [mol-bruc/kg/sec]
+        D_m                                             ! [kg/m3]
+  !-------------------------------------------------------------------------
+  this%RXCO2_factor = 1.d0  ! BRAGFLO User's Manual Eq. 155, based on
+                            ! Eqs. 145 & 146 stoichiometry 
+  !-------------------------------------------------------------------------
+  !-------------------------------------------------------------------------
+  
 end subroutine PMWSSProcessAfterRead
 
 ! *************************************************************************** !
@@ -1572,7 +1610,7 @@ subroutine PMWSSSetup(this)
                          cur_waste_panel%myMPIcomm,ierr)
     if (local) then
       call PMWSSSetRegionScaling(this,cur_waste_panel)
-      call PMWSSProcessAfterRead(this)
+      call PMWSSProcessAfterRead(this,cur_waste_panel)
       call PMWSSInventoryAllocate(cur_waste_panel%inventory, &
                              cur_waste_panel%region%num_cells, &
                              cur_waste_panel%volume)
@@ -1620,19 +1658,17 @@ subroutine PMWSSInventoryAllocate(inventory,num_cells,volume)
   PetscReal :: volume
   
   call PMWSSChemSpeciesAllocate(num_cells,inventory%Fe_s, &
-                           inventory%preinventory%Fe_in_panel,volume)
+                                inventory%Fe_in_panel,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%MgO_s, &
-                           inventory%preinventory%MgO_in_panel,volume)
+                                inventory%MgO_in_panel,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%RuPl_s, &
-                           inventory%preinventory%RubberPlas_in_panel,volume)
+                                inventory%RubberPlas_in_panel,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%C6H10O5_s, &
-                           inventory%preinventory%Cellulose_in_panel,volume)
+                                inventory%Cellulose_in_panel,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%SO42_minus_aq, &
-                           inventory%preinventory%Sulfate_in_panel,volume)
+                                inventory%Sulfate_in_panel,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%NO3_minus_aq, &
-                           inventory%preinventory%Nitrate_in_panel,volume)
-  call PMWSSChemSpeciesAllocate(num_cells,inventory%H_ion_aq, &
-                           inventory%preinventory%H_ion_in_panel,volume)
+                                inventory%Nitrate_in_panel,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%FeOH2_s,0.d0,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%CO2_g,0.d0,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%N2_g,0.d0,volume)
@@ -1820,8 +1856,6 @@ subroutine PMWSSUpdateInventory(waste_panel,dt,option)
   call PMWSSUpdateChemSpecies(waste_panel%inventory%C6H10O5_s,waste_panel,dt, &
                               option)
   call PMWSSUpdateChemSpecies(waste_panel%inventory%RuPl_s,waste_panel,dt, &
-                              option)
-  call PMWSSUpdateChemSpecies(waste_panel%inventory%H_ion_aq,waste_panel,dt, &
                               option)
   call PMWSSUpdateChemSpecies(waste_panel%inventory%NO3_minus_aq,waste_panel, &
                               dt,option)
@@ -2043,8 +2077,6 @@ end subroutine PMWSSUpdateChemSpecies
           (-1.d0*rxnrate_biodeg_nitrate) + (-1.d0*rxnrate_biodeg_sulfate)
       cur_waste_panel%inventory%RuPl_s%inst_rate(i) = &
           (-1.d0*rxnrate_biodeg_nitrate) + (-1.d0*rxnrate_biodeg_sulfate)
-      cur_waste_panel%inventory%H_ion_aq%inst_rate(i) = &
-          (-4.8d0*rxnrate_biodeg_nitrate) + (-6.d0*rxnrate_biodeg_sulfate)
       cur_waste_panel%inventory%NO3_minus_aq%inst_rate(i) = &
           (-4.8d0*rxnrate_biodeg_nitrate)
       cur_waste_panel%inventory%CO2_g%inst_rate(i) = &
@@ -2617,7 +2649,6 @@ subroutine PMWSSInventoryDestroy(inventory)
   call PMWSSChemSpeciesDeallocate(inventory%FeOH2_s)
   call PMWSSChemSpeciesDeallocate(inventory%C6H10O5_s)
   call PMWSSChemSpeciesDeallocate(inventory%RuPl_s)
-  call PMWSSChemSpeciesDeallocate(inventory%H_ion_aq)
   call PMWSSChemSpeciesDeallocate(inventory%NO3_minus_aq)
   call PMWSSChemSpeciesDeallocate(inventory%CO2_g)
   call PMWSSChemSpeciesDeallocate(inventory%N2_g)
