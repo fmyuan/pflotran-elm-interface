@@ -27,7 +27,7 @@ SIMULATION
         ISOTHERMAL
         TWO_PHASE_ENERGY_DOF TEMPERATURE
         GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! H2 kg/kmol
-        MAXIMUM_PRESSURE_CHANGE 5.0D5
+        MAXIMUM_PRESSURE_CHANGE 1.0D6 ! Chop pressure change inside Newton
         ITOL_RELATIVE_UPDATE 1.d-30  ! Turn off ITOL_RELATIVE_UPDATE
         TOUGH2_ITOL_SCALED_RESIDUAL 1.d-5
       /
@@ -407,15 +407,15 @@ END
 
 !========================== solver ============================================
 NEWTON_SOLVER FLOW
-  RTOL 1.d-30       ! Turn off RTOL criteria
-  ATOL 1.d-30       ! Turn off ATOL criteria
-  STOL 1.d-30       ! Turn off STOL criteria
+!  RTOL 1.d-08
+!  ATOL 1.d-08
+!  STOL 1.d-30       ! Turn off STOL criteria
   MAXIT 20          ! Maximum newton iteration number
 END
 
-! LINEAR_SOLVER FLOW
-!   SOLVER DIRECT
-! END
+LINEAR_SOLVER FLOW
+!  SOLVER DIRECT
+END
 
 !=========================== output options ===================================
 skip
