@@ -2026,6 +2026,7 @@ end subroutine PMWSSUpdateChemSpecies
         gen_auxvar(ZERO_INTEGER,ghosted_id)%sat(option%liquid_phase)
       s_eff = water_saturation - this%smin + this%satwick*(1.d0 - &
         exp(200.d0*this%alpharxn*(max((water_saturation-this%smin),0.d0))**2.d0))
+      if (s_eff > 1.d0) s_eff = 1.d0
     !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
       rxnrate_corrosion = (cur_waste_panel%inundated_corrosion_rate*s_eff) + &
                           (cur_waste_panel%humid_corrosion_rate*(1.d0-s_eff))
