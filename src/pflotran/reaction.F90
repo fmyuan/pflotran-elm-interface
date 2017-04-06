@@ -5795,7 +5795,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
   do i=1,reaction%gas%npassive_gas
     if (reaction%gas%passive_print_me(i)) then
       name = 'Passive Gas ' // trim(reaction%gas%passive_names(i))
-      units = trim('Pa')
+      units = trim('Bar')
       call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
           GAS_CONCENTRATION,i)
     endif
@@ -5805,7 +5805,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
   do i=1,reaction%gas%nactive_gas
     if (reaction%gas%active_print_me(i)) then
       name = 'Active Gas ' // trim(reaction%gas%active_names(i))
-      units = trim('Pa')
+      units = trim('Bar')
       call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
           GAS_CONCENTRATION,i)
     endif
