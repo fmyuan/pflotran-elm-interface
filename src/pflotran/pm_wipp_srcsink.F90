@@ -117,8 +117,7 @@ module PM_WIPP_SrcSink_class
     PetscReal :: humcorr            ! [m/s]
     PetscReal :: gratmici           ! [mol/kg/sec]
     PetscReal :: gratmich           ! [mol/kg/sec]
-    PetscReal :: brucites           ! [mol/kg/sec]
-    PetscReal :: brucitec           ! [mol/kg/sec]
+    PetscReal :: brucitei           ! [mol/kg/sec]
     PetscReal :: bruciteh           ! [mol/kg/sec]
     PetscReal :: RXCO2_factor       ! [-]
     PetscReal :: hymagcon_rate      ! [mol/kg/sec]
@@ -183,8 +182,7 @@ function PMWSSCreate()
   pm%humcorr = UNINITIALIZED_DOUBLE
   pm%gratmici = UNINITIALIZED_DOUBLE
   pm%gratmich = UNINITIALIZED_DOUBLE
-  pm%brucites = UNINITIALIZED_DOUBLE
-  pm%brucitec = UNINITIALIZED_DOUBLE
+  pm%brucitei = UNINITIALIZED_DOUBLE
   pm%bruciteh = UNINITIALIZED_DOUBLE
   pm%RXCO2_factor = UNINITIALIZED_DOUBLE
   pm%hymagcon_rate = UNINITIALIZED_DOUBLE
@@ -658,14 +656,11 @@ subroutine PMWSSRead(this,input)
         call InputReadDouble(input,option,this%gratmich)
         call InputErrorMsg(input,option,'humid diodegradation rate for &
                            &cellulose (GRATMICH)',error_string)
-      case('BRUCITEC')
-        call InputReadDouble(input,option,this%brucitec)
+      case('BRUCITEC','BRUCITES')
+        call InputReadDouble(input,option,this%brucitei)
         call InputErrorMsg(input,option,'MgO inundated hydration rate in &
-                           &Castile brine (BRUCITEI)',error_string)
-      case('BRUCITES')
-        call InputReadDouble(input,option,this%brucites)
-        call InputErrorMsg(input,option,'MgO inundated hydration rate in &
-                           &Salado brine (BRUCITEI)',error_string)
+                           &Castile or Salado brine (BRUCITE[C/S])', &
+                           error_string)
       case('BRUCITEH')
         call InputReadDouble(input,option,this%bruciteh)
         call InputErrorMsg(input,option,'MgO humid hydration rate (BRUCITEH)', &
@@ -1314,16 +1309,9 @@ subroutine PMWSSRead(this,input)
     call printMsg(option)
     num_errors = num_errors + 1
   endif
-  if (Uninitialized(this%brucitec)) then
-    option%io_buffer = 'ERROR: BRUCITEI (MgO inundated hydration rate in &
-                       &Castile brine) must be specified in the &
-                       &WIPP_SOURCE_SINK block.'
-    call printMsg(option)
-    num_errors = num_errors + 1
-  endif
-  if (Uninitialized(this%brucites)) then
-    option%io_buffer = 'ERROR: BRUCITEI (MgO inundated hydration rate in &
-                       &Salado brine) must be specified in the &
+  if (Uninitialized(this%brucitei)) then
+    option%io_buffer = 'ERROR: BRUCITE[C/S] (MgO inundated hydration rate in &
+                       &Castile or Salado brine) must be specified in the &
                        &WIPP_SOURCE_SINK block.'
     call printMsg(option)
     num_errors = num_errors + 1
@@ -1536,7 +1524,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   waste_panel%RXH2S_factor = 1.0 - F_NO3                ! [-]
   !-----MgO-hydration-------------------------------------units-------------
   waste_panel%inundated_brucite_rate = &                ! [mol-bruc/m3/sec]
-        max(this%brucites,this%bruciteh) * &            ! [mol-bruc/kg/sec]
+        max(this%brucitei,this%bruciteh) * &            ! [mol-bruc/kg/sec]
         D_m                                             ! [kg/m3]
   waste_panel%humid_brucite_rate = &                    ! [mol-bruc/m3/sec]
         this%bruciteh * &                               ! [mol-bruc/kg/sec]
