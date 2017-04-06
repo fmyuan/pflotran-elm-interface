@@ -673,6 +673,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   input%ierr = 0
   allocate(temp_species_array(50))
   k = 0
+  num_errors = 0
 
   select case(trim(keyword))
   !-------------------------------------
