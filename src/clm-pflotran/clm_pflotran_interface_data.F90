@@ -139,7 +139,8 @@ module clm_pflotran_interface_data
   PetscInt, pointer:: ispec_decomp_nimp(:)           ! name: pool_name // "NIMM"
   PetscInt, pointer:: ispec_decomp_nimm(:)           ! name: pool_name // "NIMP"
   character(len=32), pointer :: decomp_pool_name(:)  ! name of pools
-  PetscReal, pointer:: ck_decomp_c(:)                ! K: corrected first-order decomposition rate constant in 1/sec
+  PetscReal, pointer:: ck_decomp_c(:)                ! K: first-order decomposition rate constant in 1/sec
+  PetscReal, pointer:: adfactor_ck_c(:)              ! scalar to adjust K based on decomp pools - currently used for speeding-up decomposition
   PetscReal, pointer:: fr_decomp_c(:,:)              ! fractions of downstream pools (receivers - pools excluding donor but adding CO2, note (k,k) is that fraction of CO2 respired)
 
   PetscInt:: ispec_hrimm
@@ -313,11 +314,13 @@ module clm_pflotran_interface_data
   Vec :: smin_nh4_vr_pfs           ! (moleN/m3) vertically-resolved soil mineral NH4
   Vec :: smin_nh4sorb_vr_pfs       ! (moleN/m3) vertically-resolved soil absorbed mineral NH4
   ! time-varying ground/soil C/N rates from CLM (mpi) to PF (seq) (Units: moleC(N)/m3/s)
+  Vec :: kscalar_decomp_c_clmp     ! (unitless) a site scalar (c,j) to adjust SOM decomposition rate constants (default: 1.0)
   Vec :: rate_decomp_c_clmp
   Vec :: rate_decomp_n_clmp
   Vec :: rate_smin_no3_clmp
   Vec :: rate_smin_nh4_clmp
   Vec :: rate_plantndemand_clmp
+  Vec :: kscalar_decomp_c_pfs
   Vec :: rate_decomp_c_pfs
   Vec :: rate_decomp_n_pfs
   Vec :: rate_smin_no3_pfs
@@ -561,6 +564,7 @@ contains
     nullify(clm_pf_idata%ispec_decomp_nimm)
     nullify(clm_pf_idata%decomp_pool_name)
     nullify(clm_pf_idata%ck_decomp_c)
+    nullify(clm_pf_idata%adfactor_ck_c)
     nullify(clm_pf_idata%fr_decomp_c)
 
     clm_pf_idata%ndecomp_pools    = 0
@@ -648,7 +652,7 @@ contains
 
     clm_pf_idata%decomp_cpools_vr_clmp = 0
     clm_pf_idata%decomp_npools_vr_clmp = 0
-
+    clm_pf_idata%kscalar_decomp_c_clmp = 0
 
     clm_pf_idata%smin_no3_vr_clmp      = 0
     clm_pf_idata%smin_nh4_vr_clmp      = 0
@@ -656,19 +660,22 @@ contains
 
     clm_pf_idata%decomp_cpools_vr_pfs = 0
     clm_pf_idata%decomp_npools_vr_pfs = 0
+    clm_pf_idata%kscalar_decomp_c_pfs  = 0
+
     clm_pf_idata%smin_no3_vr_pfs      = 0
     clm_pf_idata%smin_nh4_vr_pfs      = 0
     clm_pf_idata%smin_nh4sorb_vr_pfs  = 0
 
+
     !ground/soil C/N rates as source/sink
-    clm_pf_idata%rate_decomp_c_clmp          = 0
-    clm_pf_idata%rate_decomp_n_clmp          = 0
+    clm_pf_idata%rate_decomp_c_clmp         = 0
+    clm_pf_idata%rate_decomp_n_clmp         = 0
     clm_pf_idata%rate_smin_no3_clmp         = 0
     clm_pf_idata%rate_smin_nh4_clmp         = 0
     clm_pf_idata%rate_plantndemand_clmp     = 0
 
-    clm_pf_idata%rate_decomp_c_pfs          = 0
-    clm_pf_idata%rate_decomp_n_pfs          = 0
+    clm_pf_idata%rate_decomp_c_pfs         = 0
+    clm_pf_idata%rate_decomp_n_pfs         = 0
     clm_pf_idata%rate_smin_no3_pfs         = 0
     clm_pf_idata%rate_smin_nh4_pfs         = 0
     clm_pf_idata%rate_plantndemand_pfs     = 0
@@ -1039,6 +1046,8 @@ contains
     call VecSet(clm_pf_idata%decomp_cpools_vr_clmp,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clmp, clm_pf_idata%decomp_npools_vr_clmp,ierr)
 
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%kscalar_decomp_c_clmp,ierr)
+
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%t_scalar_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%w_scalar_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%o_scalar_clmp,ierr)
@@ -1053,6 +1062,9 @@ contains
           clm_pf_idata%decomp_cpools_vr_pfs,ierr)
     call VecSet(clm_pf_idata%decomp_cpools_vr_pfs,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfs, clm_pf_idata%decomp_npools_vr_pfs,ierr)
+
+    call VecDuplicate(clm_pf_idata%zsoil_pfs, clm_pf_idata%kscalar_decomp_c_pfs,ierr)
+
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%t_scalar_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%w_scalar_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%o_scalar_pfs,ierr)
@@ -1489,6 +1501,8 @@ contains
     deallocate(clm_pf_idata%floating_cn_ratio)
     if (associated(clm_pf_idata%ck_decomp_c)) &
     deallocate(clm_pf_idata%ck_decomp_c)
+    if (associated(clm_pf_idata%adfactor_ck_c)) &
+    deallocate(clm_pf_idata%adfactor_ck_c)
     if (associated(clm_pf_idata%fr_decomp_c)) &
     deallocate(clm_pf_idata%fr_decomp_c)
 
@@ -1507,6 +1521,15 @@ contains
     if (associated(clm_pf_idata%decomp_pool_name)) &
     deallocate(clm_pf_idata%decomp_pool_name)
 
+    ! soil C/N pools (initial)
+    if(clm_pf_idata%decomp_cpools_vr_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_clmp,ierr)
+    if(clm_pf_idata%decomp_npools_vr_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_clmp,ierr)
+
+    if(clm_pf_idata%kscalar_decomp_c_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%kscalar_decomp_c_clmp,ierr)
+
     if(clm_pf_idata%t_scalar_clmp /= 0) &
        call VecDestroy(clm_pf_idata%t_scalar_clmp,ierr)
     if(clm_pf_idata%w_scalar_clmp /= 0) &
@@ -1515,12 +1538,6 @@ contains
        call VecDestroy(clm_pf_idata%o_scalar_clmp,ierr)
     if(clm_pf_idata%depth_scalar_clmp /= 0) &
        call VecDestroy(clm_pf_idata%depth_scalar_clmp,ierr)
-
-    ! soil C/N pools (initial)
-    if(clm_pf_idata%decomp_cpools_vr_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_cpools_vr_clmp,ierr)
-    if(clm_pf_idata%decomp_npools_vr_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_npools_vr_clmp,ierr)
 
     if(clm_pf_idata%smin_no3_vr_clmp /= 0) &
        call VecDestroy(clm_pf_idata%smin_no3_vr_clmp,ierr)
@@ -1534,6 +1551,10 @@ contains
        call VecDestroy(clm_pf_idata%decomp_cpools_vr_pfs,ierr)
     if(clm_pf_idata%decomp_npools_vr_pfs /= 0) &
        call VecDestroy(clm_pf_idata%decomp_npools_vr_pfs,ierr)
+
+    if(clm_pf_idata%kscalar_decomp_c_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%kscalar_decomp_c_pfs,ierr)
+
     if(clm_pf_idata%t_scalar_pfs /= 0) &
        call VecDestroy(clm_pf_idata%t_scalar_pfs,ierr)
     if(clm_pf_idata%w_scalar_pfs /= 0) &

@@ -4114,7 +4114,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
               rtsandbox_somdec%rate_constant(irxn)      = clm_pf_idata%ck_decomp_c(ki)
               rtsandbox_somdec%rate_decomposition(irxn) = UNINITIALIZED_DOUBLE
-              rtsandbox_somdec%rate_ad_factor(irxn)     = 1.0d0     ! note the rate_constant already adjusted by ad_factor
+              rtsandbox_somdec%rate_ad_factor(irxn)     = clm_pf_idata%adfactor_ck_c(ki)
               rtsandbox_somdec%upstream_is_varycn(irxn) = clm_pf_idata%floating_cn_ratio(ki)
               rtsandbox_somdec%upstream_nc(irxn)        = clm_pf_idata%decomp_element_ratios(ki,2) &
                                                          /clm_pf_idata%decomp_element_ratios(ki,1)
@@ -4714,6 +4714,14 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     ! clear-up of temporary vecs/arrarys
     call VecDestroy(vec_clmp,ierr); CHKERRQ(ierr)
     call VecDestroy(vec_pfs,ierr); CHKERRQ(ierr)
+
+    !-----------------------------------------------------------------
+    ! the following is a site-scalar to adjust decomposition rate constants
+    ! due to its dependency upon 'time', it must be called each CLM time-step.
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    option, &
+                                    clm_pf_idata%kscalar_decomp_c_clmp, &
+                                    clm_pf_idata%kscalar_decomp_c_pfs)
 
 
     !-----------------------------------------------------------------

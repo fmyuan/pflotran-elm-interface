@@ -36,7 +36,7 @@ module Reaction_Sandbox_SomDec_class
     PetscInt :: nrxn
     PetscReal, pointer :: rate_constant(:)         !nrxn: rate = kd * [C], i.e. C = C0*exp(-kd*t)
     PetscReal, pointer :: rate_decomposition(:)    !nrxn: this is the K in Eq: 1.0-exp(-K*dt) as in CLM-CN's CTC framework)
-    PetscReal, pointer :: rate_ad_factor(:)        !nrxn
+    PetscReal, pointer :: rate_ad_factor(:)        !nrxn: when doing Accelerated-Spinup, Kd above will be multiplied by this factor (unitless)
 
     PetscInt,  pointer :: upstream_c_id(:)         !nrxn
     PetscInt,  pointer :: upstream_n_id(:)         !nrxn
@@ -200,7 +200,8 @@ subroutine SomDecRead(this,input,option)
   type(somdec_reaction_type), pointer :: new_reaction, prev_reaction
   
   PetscReal :: rate_constant, turnover_time
-  PetscReal :: rate_decomposition, rate_ad_factor
+  PetscReal :: rate_decomposition
+  PetscReal :: rate_ad_factor
   PetscReal :: temp_real
   
   nullify(new_pool)
@@ -353,8 +354,7 @@ subroutine SomDecRead(this,input,option)
         nullify(new_reaction%downstream_pools)
         nullify(new_reaction%next)
         
-        ! need to set these temporarily in order to check that they
-        ! are not all set.
+        ! need to set these temporarily in order to check if they are not all set.
         turnover_time = -1.d0
         rate_constant = -1.d0
         rate_decomposition = -1.d0
@@ -956,7 +956,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscInt  :: ghosted_id
   PetscErrorCode :: ierr
   PetscInt, parameter :: iphase = 1
-  PetscScalar, pointer :: zsoi_pf_loc(:)    !
+  PetscScalar, pointer :: zsoi_pf_loc(:)
+  PetscScalar, pointer :: kd_scalar_pf_loc(:)
 
   PetscReal :: temp_real
   PetscReal :: c_uc, c_un    ! concentration (mole/m3 or mole/L, upon species type) => mole/m3bulk if needed
@@ -970,7 +971,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: tc     ! temperature in degC
   PetscReal :: f_t    ! temperature response function
   PetscReal :: f_w    ! moisture response function
-  PetscReal :: f_depth     ! reduction factor due to deep soil
+  PetscReal :: f_depth! reduction factor due to deep soil
 
   PetscReal :: crate_uc        ! crate function of upstream C ('uc')
   PetscReal :: dcrate_uc_duc   ! d crate_uc / d uc
@@ -982,6 +983,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscInt :: i, j
   PetscReal:: feps0, dfeps0_dx
   PetscReal:: k_decomp
+  PetscReal:: kd_scalar       ! (-) a scalar relevant to site for adjusting 'k_decomp'
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   !------------------------------------------------------------------------------------------------
@@ -1073,8 +1075,18 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   else
     f_depth = 1.0d0
   endif
+
+  ! the following is an additional scalar to relate SOM decomposition rate with location (site)
+  call VecGetArrayReadF90(clm_pf_idata%kscalar_decomp_c_pfs, kd_scalar_pf_loc, ierr)
+  CHKERRQ(ierr)
+  kd_scalar = kd_scalar_pf_loc(ghosted_id)
+
+  call VecRestoreArrayReadF90(clm_pf_idata%kscalar_decomp_c_pfs, kd_scalar_pf_loc, ierr)
+  CHKERRQ(ierr)
+
 #else
-  f_depth = 1.0d0
+  f_depth   = 1.0d0
+  kd_scalar = 1.0d0
 #endif
 
   !----------------------------------------------------------------------------------------------
@@ -1093,7 +1105,13 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       k_decomp = 1.0d0-exp(-this%rate_decomposition(irxn)*option%tran_dt)
       k_decomp = k_decomp/option%tran_dt
     endif
+
+    ! adjusting factors for rate constants
     k_decomp = this%rate_ad_factor(irxn)*k_decomp
+    if (kd_scalar>0.d0 .and. this%rate_ad_factor(irxn)>1.0d0) then
+      k_decomp = k_decomp/kd_scalar
+    endif
+
     k_decomp = min(k_decomp, 1.0d0/option%tran_dt)        ! make sure of NO over-decomposition rate (just in case, maybe not needed)
 
     ! scaled_rate_const units: (m^3 bulk / s) = (1/s) * (m^3 bulk)
