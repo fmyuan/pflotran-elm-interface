@@ -77,8 +77,8 @@ module pflotran_clm_main_module
 
 !------------------------------------------------------------
 
-  PetscReal, parameter :: xeps0_c = 1.0d-50
-  PetscReal, parameter :: xeps0_n = 1.0d-51
+  PetscReal, parameter :: xeps0_c = 1.0d-30
+  PetscReal, parameter :: xeps0_n = 1.0d-31
 
   character(len=MAXWORDLENGTH) :: subname
 !------------------------------------------------------------
