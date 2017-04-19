@@ -77,8 +77,8 @@ module pflotran_clm_main_module
 
 !------------------------------------------------------------
 
-  PetscReal, parameter :: xeps0_c = 1.0d-30
-  PetscReal, parameter :: xeps0_n = 1.0d-31
+  PetscReal, parameter :: xeps0_c = 1.0d-50
+  PetscReal, parameter :: xeps0_n = 1.0d-51
 
   character(len=MAXWORDLENGTH) :: subname
 !------------------------------------------------------------
@@ -5273,7 +5273,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     PetscScalar, pointer :: array_pfp(:), array_clms(:), array_temp(:)
     PetscInt             :: j, k, vec_offset
 
-    PetscReal, parameter :: zeroing_conc = 1.0d-50
+    PetscReal :: zeroing_conc = 1.0d-50
 
     !-------------------------------------------------------------------------
     subname = 'ModelSetBgcVariablesFromPF'
@@ -5295,6 +5295,11 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     field => realization%field
 
     reaction => realization%reaction
+
+    ! using user-input zeroing concentration, if available
+    if (Initialized(reaction%truncated_concentration)) then
+      zeroing_conc = reaction%truncated_concentration
+    endif
 
     !-----------------------------------------------------------------
 

@@ -176,9 +176,9 @@ subroutine PMRTRead(this,input)
         option%transport%numerical_derivatives = PETSC_TRUE
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
-    case('MAX_CFL')
-      call InputReadDouble(input,option,this%cfl_governor)
-      call InputErrorMsg(input,option,'MAX_CFL', &
+      case('MAX_CFL')
+        call InputReadDouble(input,option,this%cfl_governor)
+        call InputErrorMsg(input,option,'MAX_CFL', &
                          'SUBSURFACE_TRANSPORT OPTIONS')
       case default
         call InputKeywordUnrecognized(word,error_string,option)
