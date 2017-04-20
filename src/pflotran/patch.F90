@@ -1483,7 +1483,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   type(flow_general_condition_type), pointer :: general
   PetscBool :: update
   PetscBool :: dof1, dof2, dof3
-  PetscReal :: temperature, p_sat, p_air, p_gas, p_cap, s_liq
+  PetscReal :: temperature, p_sat, p_air, p_gas, p_cap, s_liq, xmol
   PetscReal :: relative_humidity
   PetscReal :: dummy_real
   PetscReal :: x(option%nflowdof)
@@ -1506,7 +1506,8 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   real_count = 0
   select case(flow_condition%iphase)
     case(TWO_PHASE_STATE)
-      coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = TWO_PHASE_STATE
+      coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
+        TWO_PHASE_STATE
       real_count = real_count + 1
       select case(general%gas_pressure%itype)
         case(DIRICHLET_BC)
@@ -1565,7 +1566,8 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           call printErrMsg(option)
       end select
     case(LIQUID_STATE)
-      coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = LIQUID_STATE
+      coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
+        LIQUID_STATE
       if (general%liquid_pressure%itype == HYDROSTATIC_BC) then
 !        option%io_buffer = 'Hydrostatic BC for general phase cannot possibly ' // &
 !          'be set up correctly. - GEH'
@@ -1669,8 +1671,11 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
         select case(general%mole_fraction%itype)
           case(DIRICHLET_BC)
             coupler%flow_aux_mapping(GENERAL_MOLE_FRACTION_INDEX) = real_count
-            coupler%flow_aux_real_var(real_count,1:num_connections) = &
-              general%mole_fraction%dataset%rarray(1)
+            xmol = general%mole_fraction%dataset%rarray(1)
+            if (general_immiscible) then
+              xmol = GENERAL_IMMISCIBLE_VALUE
+            endif
+            coupler%flow_aux_real_var(real_count,1:num_connections) = xmol
             dof2 = PETSC_TRUE
             coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = DIRICHLET_BC
           case default
@@ -1759,6 +1764,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
             endif
             coupler%flow_aux_mapping(GENERAL_AIR_PRESSURE_INDEX) = real_count
             p_air = general%mole_fraction%dataset%rarray(1) * p_gas
+            if (general_immiscible) then
+              p_air = p_gas - GENERAL_IMMISCIBLE_VALUE
+            endif
             call EOSWaterSaturationPressure(temperature,p_sat,ierr)
             if (p_gas - p_air >= p_sat) then
               option%io_buffer = 'MOLE_FRACTION set in flow condition "' // &
@@ -1799,6 +1807,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
             call EOSWaterSaturationPressure(temperature,p_sat,ierr)
                              ! convert from % to fraction
             p_air = p_gas - relative_humidity*1.d-2*p_sat
+            if (general_immiscible) then
+              p_air = p_gas - GENERAL_IMMISCIBLE_VALUE
+            endif
             coupler%flow_aux_real_var(real_count,1:num_connections) = p_air
             dof2 = PETSC_TRUE
             coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = DIRICHLET_BC

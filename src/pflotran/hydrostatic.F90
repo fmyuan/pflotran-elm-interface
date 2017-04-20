@@ -117,6 +117,10 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         concentration_gradient(1:3) = &
         condition%general%mole_fraction%gradient%rarray(1:3)
       endif
+      if (general_immiscible) then
+        concentration_at_datum = GENERAL_IMMISCIBLE_VALUE
+        concentration_gradient = 0.d0
+      endif
       datum(1:3) = condition%datum%rarray(1:3)
       pressure_at_datum = &
         condition%general%liquid_pressure%dataset%rarray(1)    
