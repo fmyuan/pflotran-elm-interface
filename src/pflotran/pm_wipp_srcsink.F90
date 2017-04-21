@@ -1810,23 +1810,27 @@ subroutine PMWSSInitializeTimestep(this)
   ! Date: 01/31/2017
   !
   
+  use Option_module
+  
   implicit none
 
   class(pm_wipp_srcsink_type) :: this
   
   type(srcsink_panel_type), pointer :: cur_waste_panel
+  type(option_type), pointer :: option
   PetscReal :: dt
 
-  dt = this%option%flow_dt
+  option => this%option
+  dt = option%flow_dt
   
-  if (this%option%print_screen_flag) then
+  if (option%print_screen_flag) then
     write(*,'(/,2("=")," WIPP SRC/SINK PANEL MODEL ",51("="))')
   endif
   
   cur_waste_panel => this%waste_panel_list
   do
     if (.not.associated(cur_waste_panel)) exit
-    call PMWSSUpdateInventory(cur_waste_panel,dt,this%option)
+    call PMWSSUpdateInventory(cur_waste_panel,dt,option)
     cur_waste_panel => cur_waste_panel%next
   enddo
   
@@ -1850,7 +1854,7 @@ subroutine PMWSSUpdateInventory(waste_panel,dt,option)
   
   type(srcsink_panel_type) :: waste_panel
   PetscReal :: dt ! [sec; flow_dt]
-  type(option_type) :: option
+  type(option_type), pointer :: option
  
   call PMWSSUpdateChemSpecies(waste_panel%inventory%Fe_s,waste_panel,dt,option)
   call PMWSSUpdateChemSpecies(waste_panel%inventory%FeOH2_s,waste_panel,dt,&
@@ -1895,7 +1899,7 @@ subroutine PMWSSUpdateChemSpecies(chem_species,waste_panel,dt,option)
   type(chem_species_type) :: chem_species
   type(srcsink_panel_type) :: waste_panel
   PetscReal :: dt       ! [sec; flow_dt]
-  type(option_type) :: option
+  type(option_type), pointer :: option
   
   PetscInt :: k
   PetscInt :: num_cells
@@ -2296,6 +2300,7 @@ end subroutine PMWSSFinalizeTimestep
   
   use Option_module
   use Output_Aux_module
+  use Utility_module
   
   implicit none
 
