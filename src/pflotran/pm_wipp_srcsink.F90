@@ -2202,8 +2202,9 @@ subroutine PMWSSSmoothRxnrate(rxnrate,cell_num,limiting_species,alpharxn)
   
   PetscReal :: conc_ratio
   
-  conc_ratio = ( limiting_species%initial_conc_mol(cell_num) / &
-                 limiting_species%current_conc_mol(cell_num) ) 
+  conc_ratio = ( limiting_species%current_conc_mol(cell_num) / &
+                 limiting_species%initial_conc_mol(cell_num) ) 
+  conc_ratio = min(1.d0,conc_ratio)
   ! K_smoothed = K * (1.0 - exp(A*C/Ci)  BRAGFLO User's Manual Eq. 158
   rxnrate = rxnrate * (1.d0 - exp(alpharxn*conc_ratio))
   
