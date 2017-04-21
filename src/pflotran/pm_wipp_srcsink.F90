@@ -1913,10 +1913,14 @@ subroutine PMWSSUpdateChemSpecies(chem_species,waste_panel,dt,option)
                  chem_species%current_conc_mol(k) + &   ! [mol/m3]
                  chem_species%inst_rate(k) * &          ! [mol/m3/sec]
                  dt                                     ! [sec]
+    chem_species%current_conc_mol = max(0.d0,chem_species%current_conc_mol)
+    
     ! [kg/m3]
     chem_species%current_conc_kg(k) = &
                  chem_species%current_conc_mol(k) * &   ! [mol/m3]
                  chem_species%molar_mass                ! [kg/mol]
+    chem_species%current_conc_kg = max(0.d0,chem_species%current_conc_kg)
+    
     ! [kg/m3]             
     local_conc_kg = local_conc_kg + &
                 (chem_species%current_conc_kg(k)*waste_panel%scaling_factor(k))
