@@ -1578,6 +1578,7 @@ subroutine PMWFSetRegionScaling(this,waste_form)
 
   use Material_Aux_class
   use Grid_module
+  use Utility_module
 
   implicit none
   
@@ -1604,8 +1605,8 @@ subroutine PMWFSetRegionScaling(this,waste_form)
     total_volume_local = total_volume_local &
                          + material_auxvars(ghosted_id)%volume  ! [m^3]
   enddo
-  call PMWFCalcParallelSUM(this%option,waste_form,total_volume_local, &
-                           total_volume_global)
+  call CalcParallelSUM(this%option,waste_form%rank_list, &
+                       total_volume_local,total_volume_global)
   waste_form%scaling_factor = waste_form%scaling_factor/total_volume_global 
   
 end subroutine PMWFSetRegionScaling
@@ -1981,6 +1982,7 @@ subroutine PMWFInitializeTimestep(this)
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
+  use Utility_module
   use Global_Aux_module
   use Material_Aux_class
   use Field_module
@@ -2086,7 +2088,7 @@ subroutine PMWFInitializeTimestep(this)
           avg_temp_local = avg_temp_local + global_auxvars(ghosted_id)%temp * &
                            cur_waste_form%scaling_factor(i)
         enddo
-        call PMWFCalcParallelSUM(option,cur_waste_form,avg_temp_local, &
+        call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
                              avg_temp_global)
         avg_temp_global = avg_temp_global+273.15d0   ! Kelvin
         cur_waste_form%eff_canister_vit_rate = &
@@ -2433,6 +2435,7 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
   ! Date: 03/28/2016
 
   use Grid_module  
+  use Utility_module
   use Global_Aux_module
   use String_module
   use Reactive_Transport_Aux_module
@@ -2475,7 +2478,8 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
     avg_temp_local = avg_temp_local + &  ! Celcius
                (global_auxvars(ghosted_id)%temp * waste_form%scaling_factor(i))
   enddo
-  call PMWFCalcParallelSUM(pm%option,waste_form,avg_temp_local,avg_temp_global)
+  call CalcParallelSUM(pm%option,waste_form%rank_list,avg_temp_local, &
+                       avg_temp_global)
   avg_temp_global = avg_temp_global+273.15d0   ! Kelvin
               
   if (this%use_pH) then  ! pH ------------------------------------------------
@@ -2498,7 +2502,7 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
                          waste_form%scaling_factor(i))) )
       enddo
     endif
-    call PMWFCalcParallelSUM(pm%option,waste_form,ph_local,ph_global)
+    call CalcParallelSUM(pm%option,waste_form%rank_list,ph_local,ph_global)
     this%pH = ph_global
   endif ! pH -----------------------------------------------------------------
   
@@ -2522,7 +2526,7 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
                   waste_form%scaling_factor(i))
       enddo
     endif
-    call PMWFCalcParallelSUM(pm%option,waste_form,Q_local,Q_global)
+    call CalcParallelSUM(pm%option,waste_form%rank_list,Q_local,Q_global)
     this%Q = Q_global
   endif  ! Q -----------------------------------------------------------------  
   
@@ -2616,6 +2620,7 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   use Reactive_Transport_Aux_module
   use Global_Aux_module
   use Option_module
+  use Utility_module
 
   implicit none
   
@@ -2702,7 +2707,8 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
     avg_temp_local = avg_temp_local + &  ! Celcius
                global_auxvars(ghosted_id)%temp * waste_form%scaling_factor(i)
   enddo
-  call PMWFCalcParallelSUM(option,waste_form,avg_temp_local,avg_temp_global)
+  call CalcParallelSUM(option,waste_form%rank_list,avg_temp_local, &
+                       avg_temp_global)
   call AMP_step(this%burnup, time, avg_temp_global, this%concentration, &
                 initialRun, this%dissolution_rate, Usource, success) 
   write(*,*) this%dissolution_rate
@@ -2831,71 +2837,6 @@ recursive subroutine PMWFFinalizeRun(this)
   endif  
   
 end subroutine PMWFFinalizeRun
-
-! ************************************************************************** !
-
-subroutine PMWFCalcParallelSUM(option,waste_form,local_val,global_sum)
-  ! 
-  ! Calculates global sum for a MPI_DOUBLE_PRECISION number over a
-  ! waste form region. This function uses only MPI_Send and MPI_Recv functions
-  ! and does not need a communicator object. It reduces communication to the
-  ! processes that are in the waste form's rank_list object rather than using
-  ! a call to MPI_Allreduce.
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 03/23/17
-  
-  implicit none
-  
-  type(option_type), pointer :: option
-  type(waste_form_base_type) :: waste_form
-  PetscReal :: local_val
-  PetscReal :: global_sum
-
-  PetscReal, pointer :: temp_array(:)
-  PetscInt :: num_ranks
-  PetscInt :: m
-  PetscInt :: TAG
-  PetscErrorCode :: ierr
-  
-  num_ranks = size(waste_form%rank_list)
-  allocate(temp_array(num_ranks))
-  temp_array = 0.d0
-  TAG = 0
-  
-  if (num_ranks > 1) then
-  !------------------------------------------
-    if (option%myrank .ne. waste_form%rank_list(1)) then
-      call MPI_Send(local_val,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                    waste_form%rank_list(1),TAG,option%mycomm,ierr)
-    else
-      temp_array(1) = local_val
-      do m = 2,num_ranks
-        call MPI_Recv(local_val,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                      waste_form%rank_list(m),TAG,option%mycomm, &
-                      MPI_STATUS_IGNORE,ierr)
-        temp_array(m) = local_val
-      enddo
-      global_sum = sum(temp_array)
-    endif
-    if (option%myrank == waste_form%rank_list(1)) then
-      do m = 2,num_ranks
-        call MPI_Send(global_sum,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                      waste_form%rank_list(m),TAG,option%mycomm,ierr)
-      enddo
-    else
-      call MPI_Recv(global_sum,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                    waste_form%rank_list(1),TAG,option%mycomm, &
-                    MPI_STATUS_IGNORE,ierr)
-    endif             
-  !------------------------------------------        
-  else 
-    global_sum = local_val
-  endif
-  
-  deallocate(temp_array)
-
-end subroutine PMWFCalcParallelSUM
 
 ! ************************************************************************** !
 
