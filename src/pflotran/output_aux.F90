@@ -96,6 +96,7 @@ module Output_Aux_module
     PetscBool :: print_hydrograph
     PetscInt :: surf_xmf_vert_len
 
+    PetscReal :: print_vel_unitconv  ! velocity unit coversion - default 1.0, i.e. in 'm/s'
   end type output_option_type
   
   type, public :: output_variable_list_type
@@ -250,6 +251,8 @@ function OutputOptionCreate()
   
   output_option%print_hydrograph = PETSC_FALSE
 
+  output_option%print_vel_unitconv = 1.d0
+
   OutputOptionCreate => output_option
   
 end function OutputOptionCreate
@@ -341,6 +344,8 @@ function OutputOptionDuplicate(output_option)
   output_option2%tunit = output_option%tunit
   
   output_option2%print_hydrograph = output_option%print_hydrograph
+
+  output_option2%print_vel_unitconv = output_option%print_vel_unitconv
 
   OutputOptionDuplicate => output_option2
   

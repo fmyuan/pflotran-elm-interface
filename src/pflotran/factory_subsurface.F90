@@ -1509,6 +1509,7 @@ subroutine SubsurfaceReadInput(simulation)
   PetscReal :: dt_init
   PetscReal :: dt_min
   PetscReal :: units_conversion
+  PetscReal :: vel_unitconv
   
   class(timestepper_BE_type), pointer :: flow_timestepper
   class(timestepper_BE_type), pointer :: tran_timestepper
@@ -2540,6 +2541,13 @@ subroutine SubsurfaceReadInput(simulation)
               vel_cent = PETSC_TRUE
             case('VELOCITY_AT_FACE')
               vel_face = PETSC_TRUE
+
+            ! in case default 'm/s' unit for velocity is NOT good for data processing,
+            ! may need to do conversion (e.g. velocity is so tiny for VISIT reading in)
+            ! (F.-M. Yuan: 2017-04-20)
+            case('VELOCITY_UNIT_CONVERSION')
+              call InputReadDouble(input,option, vel_unitconv)
+              call InputErrorMsg(input,option,'VELOCITY_UNIT_CONVERSION','velocity unit conversion')
             case('FLUXES')
               fluxes = PETSC_TRUE
             case('FLOWRATES','FLOWRATE')
@@ -2591,12 +2599,16 @@ subroutine SubsurfaceReadInput(simulation)
             output_option%print_hdf5_vel_cent = PETSC_TRUE
           if (output_option%print_vtk) &
             output_option%print_vtk_vel_cent = PETSC_TRUE
+          if (output_option%print_hdf5) &
+            output_option%print_vel_unitconv = vel_unitconv  ! only do this when in hdf5 format
         endif
         if (vel_face) then
           if (output_option%print_tecplot) &
             output_option%print_tecplot_vel_face = PETSC_TRUE
           if (output_option%print_hdf5) &
            output_option%print_hdf5_vel_face = PETSC_TRUE
+          if (output_option%print_hdf5) &
+            output_option%print_vel_unitconv = vel_unitconv  ! only do this when in hdf5 format
         endif
         if (fluxes) then
           output_option%print_fluxes = PETSC_TRUE

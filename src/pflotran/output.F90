@@ -125,6 +125,7 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
   PetscBool :: fluxes
   PetscBool :: mass_flowrate, energy_flowrate
   PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate
+  PetscReal :: vel_unitconv
 
   option => realization%option
   input => realization%input
@@ -133,6 +134,7 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
 
   vel_cent = PETSC_FALSE
   vel_face = PETSC_FALSE
+  vel_unitconv = 1.0d0
   fluxes = PETSC_FALSE
   mass_flowrate = PETSC_FALSE
   energy_flowrate = PETSC_FALSE
@@ -515,6 +517,15 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
         vel_face = PETSC_TRUE
 
 !...................
+      ! in case default 'm/s' unit for velocity is NOT good for data processing,
+      ! may need to do conversion (e.g. velocity is so tiny for VISIT reading in)
+      ! (F.-M. Yuan: 2017-04-20)
+      case('VELOCITY_UNIT_CONVERSION')
+        call InputReadDouble(input,option, vel_unitconv)
+        string = 'OUTPUT,VELOCITY_UNIT_CONVERSION'
+        call InputErrorMsg(input,option,'velocity unit conversion',string)
+
+!...................
       case('FLUXES')
         fluxes = PETSC_TRUE
       case('FLOWRATES','FLOWRATE')
@@ -547,6 +558,8 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
          output_option%print_hdf5_vel_cent = PETSC_TRUE
     if (output_option%print_vtk) &
          output_option%print_vtk_vel_cent = PETSC_TRUE
+    if (output_option%print_hdf5) &
+         output_option%print_vel_unitconv = vel_unitconv  ! only do this when in hdf5 format
   endif
 
   if (vel_face) then
@@ -554,6 +567,8 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
          output_option%print_tecplot_vel_face = PETSC_TRUE
     if (output_option%print_hdf5) &
          output_option%print_hdf5_vel_face = PETSC_TRUE
+    if (output_option%print_hdf5) &
+         output_option%print_vel_unitconv = vel_unitconv  ! only do this when in hdf5 format
   endif
 
   if (fluxes) then

@@ -72,8 +72,11 @@ subroutine OutputVTK(realization_base)
   filename = OutputFilename(output_option,option,'vtk','')
   
   if (option%myrank == option%io_rank) then
+#ifndef CLM_PFLOTRAN
+  ! the following may generate a huge screen print info to log file (F.-M. Yuan).
     option%io_buffer = '--> write vtk output file: ' // trim(filename)
-    call printMsg(option)    
+    call printMsg(option)
+#endif
     open(unit=OUTPUT_UNIT,file=filename,action="write")
   
     ! write header

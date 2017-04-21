@@ -1614,7 +1614,10 @@ subroutine WriteHDF5FluxVelocities(name,realization_base,iphase,direction, &
         count = count + 1
         local_id = i + (j-1)*grid%structured_grid%nlx + &
                    (k-1)*grid%structured_grid%nlxy
-        array(count) = vec_ptr(local_id) 
+        array(count) = vec_ptr(local_id)
+        if(abs(vec_ptr(local_id))<=1.d-20) array(count)=0.d0
+        if(vec_ptr(local_id)/=vec_ptr(local_id)) array(count)=0.d0
+        if(abs(vec_ptr(local_id))>huge(1.d-20)) array(count)=0.d0
       enddo
     enddo
   enddo
@@ -1623,7 +1626,8 @@ subroutine WriteHDF5FluxVelocities(name,realization_base,iphase,direction, &
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   
   array(1:nx_local*ny_local*nz_local) = &  ! convert time units
-    array(1:nx_local*ny_local*nz_local) * output_option%tconv
+    array(1:nx_local*ny_local*nz_local) * output_option%tconv * &
+    output_option%print_vel_unitconv       ! unit conversion (m/s --> ??? by conversion factor)
 
   call HDF5WriteStructuredDataSet(name,array,file_id,H5T_NATIVE_DOUBLE, &
                                   option,nx_global,ny_global,nz_global, &

@@ -3765,7 +3765,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas
               else
-                vec_ptr(local_id) = 0.d0
+                vec_ptr(local_id) = &
+                  1.d0 - patch%aux%Global%auxvars(grid%nL2G(local_id))%sat(1)
               endif
             enddo
           case(ICE_SATURATION)
@@ -3774,6 +3775,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice
               enddo
+            else
+              call printErrMsg(option, 'ICE_SATURATION not supported by without freezing option TH')
             endif
           case(ICE_DENSITY)
             if (option%use_th_freezing) then
@@ -3781,6 +3784,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice*FMWH2O
               enddo
+            else
+              call printErrMsg(option, 'ICE_SATURATION not supported by without freezing option TH')
             endif
           case(LIQUID_VISCOSITY)
             do local_id=1,grid%nlmax
