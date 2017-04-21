@@ -1888,6 +1888,7 @@ subroutine PMWSSUpdateChemSpecies(chem_species,waste_panel,dt,option)
   !
   
   use Option_module
+  use Utility_module
   
   implicit none
   
@@ -1917,7 +1918,8 @@ subroutine PMWSSUpdateChemSpecies(chem_species,waste_panel,dt,option)
                 (chem_species%current_conc_kg(k)*waste_panel%scaling_factor(k))
   enddo
   ! [kg]
-  call PMWSSCalcParallelSUM(option,waste_panel,local_conc_kg,global_conc_kg)
+  call CalcParallelSUM(option,waste_panel%rank_list,local_conc_kg, &
+                       global_conc_kg)
   chem_species%tot_mass_in_panel = global_conc_kg * &   ! [kg/m3]
                                    waste_panel%volume   ! [m3]
                                    
@@ -2282,73 +2284,6 @@ subroutine PMWSSFinalizeTimestep(this)
   
 end subroutine PMWSSFinalizeTimestep
 
-! ************************************************************************** !
-
-subroutine PMWSSCalcParallelSUM(option,waste_panel,local_val,global_sum)
-  ! 
-  ! Calculates global sum for a MPI_DOUBLE_PRECISION number over a
-  ! waste panel region. This function uses only MPI_Send and MPI_Recv functions
-  ! and does not need a communicator object. It reduces communication to the
-  ! processes that are in the waste panel's rank_list object rather than using
-  ! a call to MPI_Allreduce.
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 03/23/17
-  
-  use Option_module
-  
-  implicit none
-  
-  type(option_type) :: option
-  type(srcsink_panel_type) :: waste_panel
-  PetscReal :: local_val
-  PetscReal :: global_sum
-
-  PetscReal, pointer :: temp_array(:)
-  PetscInt :: num_ranks
-  PetscInt :: m
-  PetscInt :: TAG
-  PetscErrorCode :: ierr
-  
-  num_ranks = size(waste_panel%rank_list)
-  allocate(temp_array(num_ranks))
-  temp_array = 0.d0
-  TAG = 0
-  
-  if (num_ranks > 1) then
-  !------------------------------------------
-    if (option%myrank .ne. waste_panel%rank_list(1)) then
-      call MPI_Send(local_val,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                    waste_panel%rank_list(1),TAG,option%mycomm,ierr)
-    else
-      temp_array(1) = local_val
-      do m = 2,num_ranks
-        call MPI_Recv(local_val,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                      waste_panel%rank_list(m),TAG,option%mycomm, &
-                      MPI_STATUS_IGNORE,ierr)
-        temp_array(m) = local_val
-      enddo
-      global_sum = sum(temp_array)
-    endif
-    if (option%myrank == waste_panel%rank_list(1)) then
-      do m = 2,num_ranks
-        call MPI_Send(global_sum,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                      waste_panel%rank_list(m),TAG,option%mycomm,ierr)
-      enddo
-    else
-      call MPI_Recv(global_sum,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                    waste_panel%rank_list(1),TAG,option%mycomm, &
-                    MPI_STATUS_IGNORE,ierr)
-    endif             
-  !------------------------------------------        
-  else 
-    global_sum = local_val
-  endif
-  
-  deallocate(temp_array)
-
-end subroutine PMWSSCalcParallelSUM
-
 ! *************************************************************************** !
 
  subroutine PMWSSOutput(this)
@@ -2404,10 +2339,10 @@ end subroutine PMWSSCalcParallelSUM
                    (cur_waste_panel%brine_generation_rate(i) * &
                     cur_waste_panel%scaling_factor(i))
     enddo
-    call PMWSSCalcParallelSUM(option,cur_waste_panel,local_gas_rate, &
-                              global_gas_rate)
-    call PMWSSCalcParallelSUM(option,cur_waste_panel,local_brine_rate, &
-                              global_brine_rate)
+    call CalcParallelSUM(option,cur_waste_panel%rank_list,local_gas_rate, &
+                         global_gas_rate)
+    call CalcParallelSUM(option,cur_waste_panel%rank_list,local_brine_rate, &
+                         global_brine_rate)
     write(fid,101,advance="no") cur_waste_panel%id
     write(fid,100,advance="no") &
       cur_waste_panel%inventory%Fe_s%tot_mass_in_panel, &
