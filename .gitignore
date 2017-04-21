@@ -79,3 +79,6 @@ src/pflotran/pflotran_source_files.txt
 .gitignore
 *.rej
 *.pyc
+regression_tests/*
+tpls/*
+src/pflotran/unittests/*
