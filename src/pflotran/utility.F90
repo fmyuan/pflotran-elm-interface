@@ -78,7 +78,8 @@ module Utility_module
             PrintProgressBarInt, &
             InverseNorm, &
             Erf_, &
-            DigitsOfAccuracy
+            DigitsOfAccuracy, &
+            CalcParallelSum
             
 contains
 
@@ -2093,5 +2094,72 @@ function DigitsOfAccuracy(num1,num2)
   endif
     
 end function DigitsOfAccuracy
+
+! ************************************************************************** !
+
+subroutine CalcParallelSUM(option,rank_list,local_val,global_sum)
+  ! 
+  ! Calculates global sum for a MPI_DOUBLE_PRECISION number (local_val).
+  ! This function uses only MPI_Send and MPI_Recv functions and does not need 
+  ! a communicator object other than option%mycomm. It reduces communication 
+  ! to the processes that are included in the rank_list array rather than using
+  ! a call to MPI_Allreduce.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/23/17
+  
+  use Option_module
+  
+  implicit none
+  
+  type(option_type), pointer :: option
+  PetscInt :: rank_list(:)
+  PetscReal :: local_val
+  PetscReal :: global_sum
+
+  PetscReal, pointer :: temp_array(:)
+  PetscInt :: num_ranks
+  PetscInt :: m
+  PetscInt :: TAG
+  PetscErrorCode :: ierr
+  
+  num_ranks = size(rank_list)
+  allocate(temp_array(num_ranks))
+  temp_array = 0.d0
+  TAG = 0
+  
+  if (num_ranks > 1) then
+  !------------------------------------------
+    if (option%myrank .ne. rank_list(1)) then
+      call MPI_Send(local_val,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                    rank_list(1),TAG,option%mycomm,ierr)
+    else
+      temp_array(1) = local_val
+      do m = 2,num_ranks
+        call MPI_Recv(local_val,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                      rank_list(m),TAG,option%mycomm,MPI_STATUS_IGNORE,ierr)
+        temp_array(m) = local_val
+      enddo
+      global_sum = sum(temp_array)
+    endif
+    if (option%myrank == rank_list(1)) then
+      do m = 2,num_ranks
+        call MPI_Send(global_sum,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                      rank_list(m),TAG,option%mycomm,ierr)
+      enddo
+    else
+      call MPI_Recv(global_sum,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                    rank_list(1),TAG,option%mycomm,MPI_STATUS_IGNORE,ierr)
+    endif             
+  !------------------------------------------        
+  else 
+    global_sum = local_val
+  endif
+  
+  deallocate(temp_array)
+
+end subroutine CalcParallelSUM
+
+! ************************************************************************** !
 
 end module Utility_module
