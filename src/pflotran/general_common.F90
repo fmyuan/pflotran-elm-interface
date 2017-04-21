@@ -1459,6 +1459,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
 #endif
 
 #ifdef DIFFUSION
+  if (.not.general_immiscible) then
   ! add in gas component diffusion in gas and liquid phases
 !#if 0
 #ifdef LIQUID_DIFFUSION  
@@ -2314,6 +2315,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   endif
 #endif
 ! DIFFUSION
+  endif ! if (.not.general_immiscible)
 #endif
 
 #ifdef CONDUCTION
@@ -3221,6 +3223,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
 #endif
   
 #ifdef DIFFUSION
+  if (.not.general_immiscible) then
 #ifdef LIQUID_DIFFUSION  
   iphase = LIQUID_PHASE
   dsatdn = 1.d0
@@ -3705,6 +3708,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   endif
 #endif
 ! DIFFUSION
+  endif ! if (.not.general_immiscible)
 #endif
 
 #ifdef CONDUCTION
