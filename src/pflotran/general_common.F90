@@ -1459,6 +1459,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
 #endif
 
 #ifdef DIFFUSION
+  if (.not.general_immiscible) then
   ! add in gas component diffusion in gas and liquid phases
 !#if 0
 #ifdef LIQUID_DIFFUSION  
@@ -2314,6 +2315,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   endif
 #endif
 ! DIFFUSION
+  endif ! if (.not.general_immiscible)
 #endif
 
 #ifdef CONDUCTION
@@ -3221,6 +3223,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
 #endif
   
 #ifdef DIFFUSION
+  if (.not.general_immiscible) then
 #ifdef LIQUID_DIFFUSION  
   iphase = LIQUID_PHASE
   dsatdn = 1.d0
@@ -3705,6 +3708,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   endif
 #endif
 ! DIFFUSION
+  endif ! if (.not.general_immiscible)
 #endif
 
 #ifdef CONDUCTION
@@ -5023,10 +5027,9 @@ subroutine GeneralDiffJacobian(string,numerical_jacobian,analytical_jacobian, &
     enddo
   enddo
 
+#if 0
 200 format(2es20.12)
 300 format(a24,10es20.12)
-
-#if 0
   do icol = 1, 3
     write(*,'(/," dof = ",i1,"  perturbation = ",es13.5)') icol, perturbation(icol)
 !    write(*,300) 'density', general_auxvar(icol)%den(:), general_auxvar(0)%den(:)
