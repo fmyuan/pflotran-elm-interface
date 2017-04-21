@@ -44,6 +44,7 @@ module PM_UFD_Biosphere_class
     PetscReal, pointer :: annual_dose_supp_rad(:)
     PetscReal, pointer :: annual_dose_unsupp_rad(:)
     PetscReal, pointer :: annual_dose_supp_w_unsupp_rads(:)
+    character(len=MAXSTRINGLENGTH), pointer :: names_supp_w_unsupp_rads(:)
     PetscReal :: total_annual_dose
     PetscReal :: indv_consumption_rate
     PetscBool :: incl_unsupported_rads
@@ -141,6 +142,7 @@ subroutine PMUFDB_ERBInit(ERB_model)
   nullify(ERB_model%annual_dose_supp_rad)
   nullify(ERB_model%annual_dose_unsupp_rad)
   nullify(ERB_model%annual_dose_supp_w_unsupp_rads)
+  nullify(ERB_model%names_supp_w_unsupp_rads)
   nullify(ERB_model%region)
   nullify(ERB_model%next)
 
@@ -1122,8 +1124,11 @@ subroutine PMUFDBAllocateERBarrays(this)
   type(supported_rad_type), pointer :: cur_supp_rad
   type(unsupported_rad_type), pointer :: cur_unsupp_rad
   type(option_type), pointer :: option
+  character(len=MAXSTRINGLENGTH) :: temp_string
   PetscInt :: num_supp_rads
   PetscInt :: num_unsupp_rads
+  PetscInt :: position
+  PetscInt :: k
   
   option => this%option
   
@@ -1156,12 +1161,40 @@ subroutine PMUFDBAllocateERBarrays(this)
     allocate(cur_ERB%annual_dose_supp_rad(num_supp_rads))
     allocate(cur_ERB%annual_dose_unsupp_rad(num_unsupp_rads))
     allocate(cur_ERB%annual_dose_supp_w_unsupp_rads(num_supp_rads))
+    allocate(cur_ERB%names_supp_w_unsupp_rads(num_supp_rads))
     cur_ERB%aqueous_conc_supp_rad_avg(:) = 0.d0
     cur_ERB%aqueous_conc_supported_rad(:) = 0.d0
     cur_ERB%aqueous_conc_unsupported_rad(:) = 0.d0
     cur_ERB%annual_dose_supp_rad(:) = 0.d0
     cur_ERB%annual_dose_unsupp_rad(:) = 0.d0
     cur_ERB%annual_dose_supp_w_unsupp_rads(:) = 0.d0
+    cur_ERB%names_supp_w_unsupp_rads(:) = ''
+    cur_ERB => cur_ERB%next
+  enddo
+  
+  !-----Build-the-array-of-names-for-output--------------------------------
+  cur_ERB => this%ERB_list
+  do
+    if (.not.associated(cur_ERB)) exit
+    k = 0
+    cur_supp_rad => this%supported_rad_list
+    do
+      if (.not.associated(cur_supp_rad)) exit
+      k = k + 1
+      cur_ERB%names_supp_w_unsupp_rads(k) = trim(cur_supp_rad%name)
+      cur_supp_rad => cur_supp_rad%next
+    enddo
+    cur_unsupp_rad => this%unsupported_rad_list
+    if (cur_ERB%incl_unsupported_rads) then
+      do
+        if (.not.associated(cur_unsupp_rad)) exit
+        position = cur_unsupp_rad%supported_parent%position_in_list
+        temp_string = trim(cur_ERB%names_supp_w_unsupp_rads(position)) // '+' &
+                      // trim(cur_unsupp_rad%name) // '*'
+        cur_ERB%names_supp_w_unsupp_rads(position) = temp_string
+        cur_unsupp_rad => cur_unsupp_rad%next
+      enddo
+    endif
     cur_ERB => cur_ERB%next
   enddo
   
@@ -1374,9 +1407,57 @@ subroutine PMUFDBOutput(this)
   ! Date: 03/13/2017
   !
   
+  use Option_module
+  use Output_Aux_module
+  
   implicit none
 
   class(pm_ufd_biosphere_type) :: this
+  
+  type(option_type), pointer :: option
+  type(output_option_type), pointer :: output_option
+  class(ERB_base_type), pointer :: cur_ERB
+  type(unsupported_rad_type), pointer :: cur_unsupp_rad
+  character(len=MAXSTRINGLENGTH) :: filename
+  PetscInt :: fid
+  PetscInt :: k
+  
+  if (.not.associated(this%ERB_list)) return
+  
+100 format(100es18.8)
+101 format(1I6.1)
+
+  option => this%realization%option
+  output_option => this%realization%output_option
+  
+  fid = 91
+  filename = PMUFDBOutputFilename(option)
+  open(unit=fid,file=filename,action="write",status="old", &
+       position="append")
+       
+  ! this time is set at the end of the reactive transport step
+  write(fid,100,advance="no") option%time / output_option%tconv
+  
+  cur_ERB => this%ERB_list
+  do
+    if (.not.associated(cur_ERB)) exit
+    write(fid,'(a32)',advance="no") trim(cur_ERB%name)
+    do k = 1,size(cur_ERB%annual_dose_supp_w_unsupp_rads)
+      write(fid,100,advance="no") cur_ERB%annual_dose_supp_w_unsupp_rads(k)
+    enddo
+    if (cur_ERB%incl_unsupported_rads) then
+      k = 0
+      cur_unsupp_rad => this%unsupported_rad_list
+      do
+        if (.not.associated(cur_unsupp_rad)) exit
+        write(fid,100,advance="no") cur_ERB%annual_dose_unsupp_rad(k)
+        cur_unsupp_rad => cur_unsupp_rad%next
+      enddo
+    endif
+    cur_ERB => cur_ERB%next
+  enddo
+  
+  close(fid)
   
 end subroutine PMUFDBOutput
 
@@ -1403,8 +1484,8 @@ subroutine PMUFDBOutputHeader(this)
   character(len=MAXWORDLENGTH) :: cell_string
   character(len=MAXSTRINGLENGTH) :: filename
   class(ERB_base_type), pointer :: cur_ERB
-  type(supported_rad_type), pointer :: cur_supp_rad
-  PetscInt :: fid
+  type(unsupported_rad_type), pointer :: cur_unsupp_rad
+  PetscInt :: fid, i
   PetscInt :: icolumn
   PetscBool :: exist
   
@@ -1427,21 +1508,35 @@ subroutine PMUFDBOutputHeader(this)
   cur_ERB => this%ERB_list
   do
     if (.not.associated(cur_ERB)) exit
-    variable_string = 'ERB Model Name'
+    variable_string = 'ERB Model'
     units_string = ''
-    cell_string = cur_ERB%region_name
+    cell_string = '(' // trim(cur_ERB%region_name) // ')'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    cur_supp_rad => this%supported_rad_list
-    do
-      if (.not.associated(cur_supp_rad)) exit
-      variable_string = 'Annual Dose ' // trim(cur_supp_rad%name)
+    do i = 1,size(cur_ERB%annual_dose_supp_w_unsupp_rads)
+      variable_string = 'Annual Dose ' // &
+                        trim(cur_ERB%names_supp_w_unsupp_rads(i))
       units_string = 'Sv/yr'
       cell_string = ''
-      cur_supp_rad => cur_supp_rad%next
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
     enddo
+    if (cur_ERB%incl_unsupported_rads) then
+      cur_unsupp_rad => this%unsupported_rad_list
+      do
+        if (.not.associated(cur_unsupp_rad)) exit
+        variable_string = 'Annual Dose ' // trim(cur_unsupp_rad%name) // '*'
+        units_string = 'Sv/yr'
+        cell_string = ''
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
+        cur_unsupp_rad => cur_unsupp_rad%next
+      enddo
+    endif
     cur_ERB => cur_ERB%next
   enddo
+  
+  close(fid)
   
 end subroutine PMUFDBOutputHeader
 
