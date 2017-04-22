@@ -314,6 +314,8 @@ subroutine PMCGeomechanicsSetAuxData(this)
   ! This routine updates data in simulation_aux that is required by other
   ! process models.
   ! 
+  ! DANNY - e.g. it takes P, T data from initial condition or flow solve for geomech solve 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   ! 
@@ -322,6 +324,7 @@ subroutine PMCGeomechanicsSetAuxData(this)
   use petscvec
   use Option_module
   use Grid_module
+  use Geomechanics_Subsurface_Properties_module
 
   implicit none
 
@@ -332,10 +335,17 @@ subroutine PMCGeomechanicsSetAuxData(this)
   PetscInt :: local_id
   PetscScalar, pointer :: por0_p(:)
   PetscScalar, pointer :: por_p(:)
+  PetscScalar, pointer :: perm0_p(:)
+  PetscScalar, pointer :: perm_p(:)
   PetscScalar, pointer :: strain_p(:)
+  PetscScalar, pointer :: stress_p(:)
+  PetscScalar, pointer :: press_p(:)
+  PetscReal :: local_stress(6), local_strain(6), local_pressure
   PetscErrorCode :: ierr
   PetscReal :: trace_epsilon
   PetscReal :: por_new
+  PetscReal :: perm_new
+  PetscInt :: i
 
   ! If at initialization stage, do nothing
   if (this%timestepper%steps == 0) return
@@ -367,28 +377,63 @@ subroutine PMCGeomechanicsSetAuxData(this)
                            INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
         ! Update porosity dataset in sim_aux%subsurf_por
-        call VecGetArrayF90(pmc%sim_aux%subsurf_por0, por0_p,  &
+        call VecGetArrayF90(pmc%sim_aux%subsurf_por0,por0_p,  &
                             ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_por, por_p,  &
+        call VecGetArrayF90(pmc%sim_aux%subsurf_por,por_p,  &
                             ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_strain, strain_p,  &
+        ! Perm
+        call VecGetArrayF90(pmc%sim_aux%subsurf_perm0,perm0_p,  &
                             ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(pmc%sim_aux%subsurf_perm,perm_p,  &
+                            ierr);CHKERRQ(ierr)   
+        ! Strain
+        call VecGetArrayF90(pmc%sim_aux%subsurf_strain,strain_p,  &
+                            ierr);CHKERRQ(ierr)
+        ! Stress
+        call VecGetArrayF90(pmc%sim_aux%subsurf_stress,stress_p, &
+                            ierr);CHKERRQ(ierr)
+        ! Flow
+        call VecGetArrayF90(pmc%subsurf_realization%field%flow_xx, &
+                            press_p,ierr);CHKERRQ(ierr)
 
         do local_id = 1, grid%nlmax
-          trace_epsilon = strain_p((local_id - 1)*SIX_INTEGER + ONE_INTEGER) + &
-                          strain_p((local_id - 1)*SIX_INTEGER + TWO_INTEGER) + &
-                          strain_p((local_id - 1)*SIX_INTEGER + THREE_INTEGER)
-          por_new = por0_p(local_id)/(1.d0 + (1.d0 - por0_p(local_id))*trace_epsilon)
+          do i = 1, SIX_INTEGER                
+            local_stress(i) = stress_p((local_id - 1)*SIX_INTEGER + i)
+            local_strain(i) = strain_p((local_id - 1)*SIX_INTEGER + i)
+          enddo
+            local_pressure = press_p(local_id)
+          ! Update porosity based on stress/strain
+          call GeomechanicsSubsurfacePropsPoroEvaluate( &
+                 grid, &
+                 pmc%subsurf_realization%patch%aux%Material%auxvars(local_id), &
+                 por0_p(local_id),local_stress,local_strain,local_pressure, &
+                 por_new)
           por_p(local_id) = por_new
+          ! Update permeability based on stress/strain
+          call GeomechanicsSubsurfacePropsPermEvaluate( &
+                 grid, &
+                 pmc%subsurf_realization%patch%aux%Material%auxvars(local_id), &
+                 perm0_p(local_id),local_stress,local_strain,local_pressure, &
+                 perm_new)
+          perm_p(local_id) = perm_new
         enddo
 
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0, por0_p,  &
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0,por0_p,  &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_strain, strain_p,  &
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_strain,strain_p,  &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por, por_p,  &
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,por_p,  &
                                 ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_stress,stress_p, &
+                                ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%subsurf_realization%field%flow_xx, &
+                                press_p,ierr);CHKERRQ(ierr)
 
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm0,perm0_p,  &
+                                ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm,perm_p,  &
+                                ierr);CHKERRQ(ierr)
+                            
       endif
 
   end select

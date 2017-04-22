@@ -511,6 +511,7 @@ geomech_obj = \
 	${common_src}geomechanics_region.o \
 	${common_src}geomechanics_regression.o \
 	${common_src}geomechanics_strata.o \
+	${common_src}geomechanics_subsurface_properties.o \
 	${common_src}output_geomechanics.o \
 	${common_src}pm_geomechanics_force.o \
 	${common_src}pmc_geomechanics.o \
@@ -831,6 +832,10 @@ geomechanics_regression.o : geomech_grid_aux.o geomechanics_discretization.o \
                             utility.o
 geomechanics_strata.o : geomechanics_material.o geomechanics_region.o \
                         input_aux.o option.o pflotran_constants.o string.o
+geomechanics_subsurface_properties.o : input_aux.o grid.o \
+                                       material_aux.o option.o \
+                                       pflotran_constants.o \
+                                       string.o units.o utility.o
 geometry.o : input_aux.o option.o pflotran_constants.o
 global.o : communicator_base.o connection.o coupler.o field.o global_aux.o \
            grid.o material.o option.o patch.o pflotran_constants.o \
@@ -885,6 +890,7 @@ init_common.o : condition.o connection.o coupler.o discretization.o field.o \
                 string.o utility.o waypoint.o
 init_subsurface.o : dataset_base.o dataset_common_hdf5.o \
                     dataset_gridded_hdf5.o discretization.o field.o grid.o \
+                    geomechanics_subsurface_properties.o \
                     hdf5.o input_aux.o logging.o material.o material_aux.o \
                     option.o patch.o pflotran_constants.o \
                     realization_subsurface.o region.o srcsink_sandbox.o \
@@ -915,7 +921,8 @@ integral_flux.o : geometry.o input_aux.o option.o pflotran_constants.o \
 logging.o : pflotran_constants.o
 lookup_table.o : pflotran_constants.o utility.o
 material.o : characteristic_curves.o communicator_base.o dataset.o \
-             dataset_base.o field.o global_aux.o input_aux.o material_aux.o \
+             dataset_base.o field.o global_aux.o geomechanics_subsurface_properties.o \
+             input_aux.o material_aux.o \
              option.o pflotran_constants.o string.o variables.o wipp.o
 material_aux.o : option.o pflotran_constants.o utility.o variables.o
 matrix_block_aux.o : option.o pflotran_constants.o utility.o
@@ -1132,8 +1139,10 @@ pmc_base.o : checkpoint.o logging.o option.o output.o output_aux.o \
              pflotran_constants.o pm_base.o pm_base_pointer.o simulation_aux.o \
              timestepper_base.o utility.o waypoint.o
 pmc_geomechanics.o : convergence.o geomechanics_discretization.o \
-                     geomechanics_force.o geomechanics_realization.o grid.o \
-                     option.o output_geomechanics.o pflotran_constants.o \
+                     geomechanics_force.o geomechanics_realization.o \
+                     geomechanics_subsurface_properties.o \
+                     grid.o option.o output_geomechanics.o \
+                     pflotran_constants.o \
                      pm_base.o pm_base_pointer.o pmc_base.o \
                      realization_subsurface.o solver.o timestepper_base.o \
                      timestepper_steady.o

@@ -79,7 +79,7 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
   if (soil_compressibility_index > 0) then
     tempreal = global_auxvar%sat(1)*global_auxvar%den(1)
     call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1), &
-                                 compressed_porosity,dcompressed_porosity_dp)
+                              compressed_porosity,dcompressed_porosity_dp)
     por = compressed_porosity
     derivative = derivative + dcompressed_porosity_dp * tempreal
   endif

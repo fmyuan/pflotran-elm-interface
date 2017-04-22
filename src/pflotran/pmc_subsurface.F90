@@ -902,6 +902,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   type(field_type), pointer :: subsurf_field
 
   PetscScalar, pointer :: sim_por_p(:)
+  PetscScalar, pointer :: sim_perm_p(:) !DANNY added
   class(material_auxvar_type), pointer :: subsurf_material_auxvars(:)
 
   PetscInt :: local_id
@@ -909,7 +910,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
 
   PetscErrorCode :: ierr
   PetscViewer :: viewer
-
+  
   if (associated(this%sim_aux)) then
     select type (pmc => this)
       class is (pmc_subsurface_type)
@@ -917,28 +918,32 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
         subsurf_grid  => pmc%realization%discretization%grid
         subsurf_field => pmc%realization%field
         subsurf_material_auxvars => pmc%realization%patch%aux%Material%auxvars
-
         if (pmc%timestepper%steps == 0) return
 
         if (option%geomech_subsurf_coupling == GEOMECH_TWO_WAY_COUPLED) then
 
           call VecGetArrayF90(pmc%sim_aux%subsurf_por, sim_por_p,  &
                               ierr);CHKERRQ(ierr)
+          call VecGetArrayF90(pmc%sim_aux%subsurf_perm, sim_perm_p,  & 
+                              ierr);CHKERRQ(ierr)
 
           do local_id = 1, subsurf_grid%nlmax
             ghosted_id = subsurf_grid%nL2G(local_id)
             subsurf_material_auxvars(ghosted_id)%porosity = sim_por_p(local_id)
+            subsurf_material_auxvars(ghosted_id)%permeability = sim_perm_p(local_id) 
           enddo
-
+            
           call VecRestoreArrayF90(pmc%sim_aux%subsurf_por, sim_por_p,  &
                                   ierr);CHKERRQ(ierr)
-
+          call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm, sim_perm_p,  & !DANNY-new (11/16/16)
+                                  ierr);CHKERRQ(ierr)
+ 
 !          call PetscViewerBinaryOpen(pmc%realization%option%mycomm, &
 !                                     'por_before.bin',FILE_MODE_WRITE,viewer, &
 !                                     ierr);CHKERRQ(ierr)
           call MaterialGetAuxVarVecLoc(pmc%realization%patch%aux%Material, &
                                        subsurf_field%work_loc, &
-                                       POROSITY,ZERO_INTEGER)
+                                       POROSITY,ZERO_INTEGER) !DANNY-add for PERMEABILITY?
 
 !          call VecView(subsurf_field%work_loc,viewer,ierr);CHKERRQ(ierr)
 !          call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -954,7 +959,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
 
           call MaterialSetAuxVarVecLoc(pmc%realization%patch%aux%Material, &
                                        subsurf_field%work_loc, &
-                                       POROSITY,ZERO_INTEGER)
+                                       POROSITY,ZERO_INTEGER)!DANNY-add for PERMEABILITY?
 
         endif
     end select
@@ -993,7 +998,8 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   PetscScalar, pointer :: temp_p(:)
   PetscScalar, pointer :: sub_por_loc_p(:)
   PetscScalar, pointer :: sim_por0_p(:)
-
+  PetscScalar, pointer :: sim_perm0_p(:) !DANNY - added this 11/7/16
+  
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: pres_dof
@@ -1059,11 +1065,19 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
           material_auxvars => pmc%realization%patch%aux%Material%auxvars
           call VecGetArrayF90(pmc%sim_aux%subsurf_por0, sim_por0_p,  &
                               ierr);CHKERRQ(ierr)
+          call VecGetArrayF90(pmc%sim_aux%subsurf_perm0, sim_perm0_p,  &
+                              ierr);CHKERRQ(ierr)
+
+          ghosted_id = subsurf_grid%nL2G(1)
+          
           do local_id = 1, subsurf_grid%nlmax
             ghosted_id = subsurf_grid%nL2G(local_id)
-            sim_por0_p(local_id) = material_auxvars(ghosted_id)%porosity
+            sim_por0_p(local_id) = material_auxvars(ghosted_id)%porosity ! Set here.  
+            sim_perm0_p(local_id) = material_auxvars(ghosted_id)%permeability(perm_xx_index) ! assuming isotropic perm
           enddo
           call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0, sim_por0_p,  &
+                                  ierr);CHKERRQ(ierr)
+          call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm0, sim_perm0_p,  &
                                   ierr);CHKERRQ(ierr)
         endif
     end select

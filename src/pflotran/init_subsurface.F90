@@ -242,6 +242,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   use Option_module
   use Creep_Closure_module
   use Fracture_module
+  use Geomechanics_Subsurface_Properties_module
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, PERMEABILITY_XY, &
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
@@ -315,6 +316,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
         patch%material_property_array(material_id)%ptr
       call FractureAuxVarInit(material_property%fracture, &
         patch%aux%Material%auxvars(ghosted_id))
+      call GeomechanicsSubsurfacePropsAuxvarInit( &
+          material_property%geomechanics_subsurface_properties, &
+          patch%aux%Material%auxvars(ghosted_id))
     endif
   enddo
   

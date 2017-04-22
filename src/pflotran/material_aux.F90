@@ -37,6 +37,8 @@ module Material_Aux_class
     PetscReal, pointer :: sat_func_prop(:)
     PetscReal, pointer :: soil_properties(:) ! den, therm. cond., heat cap.
     type(fracture_auxvar_type), pointer :: fracture
+    type(geomechanics_subsurf_auxvar_type), pointer :: & 
+      geomechanics_subsurface_properties
 
 !    procedure(SaturationFunction), nopass, pointer :: SaturationFunction
   contains
@@ -48,6 +50,10 @@ module Material_Aux_class
     PetscReal, pointer :: properties(:)
     PetscReal, pointer :: vector(:) ! < 0. 0. 0. >
   end type fracture_auxvar_type
+  
+  type, public :: geomechanics_subsurf_auxvar_type
+    PetscReal, pointer :: properties(:)
+  end type geomechanics_subsurf_auxvar_type
   
   type, public :: material_parameter_type
     PetscReal, pointer :: soil_residual_saturation(:,:)
@@ -88,6 +94,7 @@ module Material_Aux_class
             MaterialCompressSoil, &
             MaterialCompressSoilBragflo, &
             MaterialCompressSoilLeijnse, &
+            MaterialCompressSoilConstant, &
             MaterialCompressSoilQuadratic
   
   public :: MaterialAuxCreate, &
@@ -403,6 +410,7 @@ subroutine MaterialCompressSoilBRAGFLO(auxvar,pressure, &
   
   PetscReal :: compressibility
   
+
   ! convert to pore compressiblity by dividing by base porosity
   compressibility = auxvar%soil_properties(soil_compressibility_index) / &
                     auxvar%porosity_base
@@ -415,6 +423,36 @@ end subroutine MaterialCompressSoilBRAGFLO
 
 ! ************************************************************************** !
 
+subroutine MaterialCompressSoilConstant(auxvar,pressure, &
+                                        compressed_porosity, &
+                                        dcompressed_porosity_dp)
+  ! 
+  ! Calculates soil matrix compression for standard constant 
+  ! aquifer compressibility
+  !
+  ! variable 'alpha' is Freeze and Cherry, 1982
+  ! 
+  ! Author: Danny Birdsell and Satish Karra
+  ! Date: 07/26/2016
+  ! 
+
+  implicit none
+
+  class(material_auxvar_type), intent(in) :: auxvar
+  PetscReal, intent(in) :: pressure
+  PetscReal, intent(out) :: compressed_porosity
+  PetscReal, intent(out) :: dcompressed_porosity_dp
+  
+  PetscReal :: compressibility
+  
+  compressibility = auxvar%soil_properties(soil_compressibility_index)
+  compressed_porosity = auxvar%porosity_base + compressibility * &
+            (pressure - auxvar%soil_properties(soil_reference_pressure_index)) 
+  dcompressed_porosity_dp = compressibility
+
+end subroutine MaterialCompressSoilConstant
+
+! ************************************************************************** !
 subroutine MaterialCompressSoilQuadratic(auxvar,pressure, &
                                          compressed_porosity, &
                                          dcompressed_porosity_dp)
