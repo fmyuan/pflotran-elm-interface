@@ -870,6 +870,8 @@ subroutine PMUFDBSetup(this)
   PetscBool :: local
   PetscErrorCode :: ierr
   class(ERB_base_type), pointer :: cur_ERB
+  class(ERB_base_type), pointer :: prev_ERB
+  class(ERB_base_type), pointer :: next_ERB
   
   call PMUFDBAssociateRegion(this,this%realization%patch%region_list)
   call PMUFDBSupportedRadCheckRT(this)
@@ -877,6 +879,7 @@ subroutine PMUFDBSetup(this)
   call PMUFDBCheckSrcSinkCouplers(this)
   call PMUFDBAllocateERBarrays(this)
   
+  nullify(prev_ERB)
   allocate(ranks(this%option%mycommsize))
   cur_ERB => this%ERB_list
   do
@@ -900,8 +903,22 @@ subroutine PMUFDBSetup(this)
         j = j + 1
         cur_ERB%rank_list(j) = (i - 1)  ! (world ranks)
       endif
-    enddo   
-    cur_ERB => cur_ERB%next
+    enddo  
+    if (local) then
+      prev_ERB => cur_ERB
+      cur_ERB => cur_ERB%next
+    else 
+      ! remove ERB model because it is not local
+      next_ERB => cur_ERB%next
+      if (associated(prev_ERB)) then
+        prev_ERB%next => next_ERB
+      else
+        this%ERB_list => next_ERB
+      endif
+      call PMUFDBDestroyERB(cur_ERB)
+      cur_ERB => next_ERB
+    endif
+    !cur_ERB => cur_ERB%next
   enddo
   deallocate(ranks)
   
@@ -1425,7 +1442,6 @@ subroutine PMUFDBOutput(this)
   if (.not.associated(this%ERB_list)) return
   
 100 format(100es18.8)
-101 format(1I6.1)
 
   option => this%realization%option
   output_option => this%realization%output_option
@@ -1450,10 +1466,12 @@ subroutine PMUFDBOutput(this)
       cur_unsupp_rad => this%unsupported_rad_list
       do
         if (.not.associated(cur_unsupp_rad)) exit
+        k = k + 1
         write(fid,100,advance="no") cur_ERB%annual_dose_unsupp_rad(k)
         cur_unsupp_rad => cur_unsupp_rad%next
       enddo
     endif
+    write(fid,100,advance="no") cur_ERB%total_annual_dose
     cur_ERB => cur_ERB%next
   enddo
   
@@ -1514,10 +1532,9 @@ subroutine PMUFDBOutputHeader(this)
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
     do i = 1,size(cur_ERB%annual_dose_supp_w_unsupp_rads)
-      variable_string = 'Annual Dose ' // &
-                        trim(cur_ERB%names_supp_w_unsupp_rads(i))
+      variable_string = 'Annual Dose'                   
       units_string = 'Sv/yr'
-      cell_string = ''
+      cell_string = trim(cur_ERB%names_supp_w_unsupp_rads(i))
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
     enddo
@@ -1525,14 +1542,19 @@ subroutine PMUFDBOutputHeader(this)
       cur_unsupp_rad => this%unsupported_rad_list
       do
         if (.not.associated(cur_unsupp_rad)) exit
-        variable_string = 'Annual Dose ' // trim(cur_unsupp_rad%name) // '*'
+        variable_string = 'Annual Dose '
         units_string = 'Sv/yr'
-        cell_string = ''
+        cell_string = trim(cur_unsupp_rad%name) // '*'
         call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                  icolumn)
         cur_unsupp_rad => cur_unsupp_rad%next
       enddo
     endif
+    variable_string = 'Total Annual Dose'
+    units_string = 'Sv/yr'
+    cell_string = ''
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
     cur_ERB => cur_ERB%next
   enddo
   
@@ -1589,6 +1611,22 @@ subroutine PMUFDBInputRecord(this)
 
   
 end subroutine PMUFDBInputRecord
+
+! *************************************************************************** !
+
+subroutine PMUFDBDestroyERB(ERB)
+  ! 
+  ! Strips and destroys a ERB model in the UFD Biosphere process model.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 04/24/2017
+  !
+
+  implicit none
+  
+  class(ERB_base_type) :: ERB
+  
+end subroutine PMUFDBDestroyERB
 
 ! *************************************************************************** !
 
