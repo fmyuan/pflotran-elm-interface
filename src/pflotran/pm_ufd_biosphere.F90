@@ -25,6 +25,7 @@ module PM_UFD_Biosphere_class
     character(len=MAXWORDLENGTH) :: name
     character(len=MAXWORDLENGTH) :: supported_parent_name
     type(supported_rad_type), pointer :: supported_parent
+    PetscReal :: decay_rate
     PetscReal :: dcf
     PetscReal :: emanation_factor
     PetscReal :: kd
@@ -233,6 +234,7 @@ function PMUFDBUnsuppRadCreate()
   
   PMUFDBUnsuppRadCreate%name = ''
   PMUFDBUnsuppRadCreate%supported_parent_name = ''
+  PMUFDBUnsuppRadCreate%decay_rate = UNINITIALIZED_DOUBLE  ! 1/sec
   PMUFDBUnsuppRadCreate%dcf = UNINITIALIZED_DOUBLE  ! Sv/Bq
   PMUFDBUnsuppRadCreate%emanation_factor = 1.d0     ! default value
   PMUFDBUnsuppRadCreate%kd = UNINITIALIZED_DOUBLE   ! kg-water/m^3-bulk
@@ -670,6 +672,7 @@ subroutine PMUFDBReadUnsuppRad(this,input,option,error_string)
   type(unsupported_rad_type), pointer :: new_unsupp_rad
   type(unsupported_rad_type), pointer :: cur_unsupp_rad
   character(len=MAXWORDLENGTH) :: word
+  PetscReal :: double
   PetscInt :: num_errors
   PetscBool :: added
   
@@ -714,6 +717,13 @@ subroutine PMUFDBReadUnsuppRad(this,input,option,error_string)
               call InputErrorMsg(input,option,'INGESTION_DOSE_COEF', &
                                  error_string)
           !-----------------------------------
+            case('DECAY_RATE')
+              call InputReadDouble(input,option,double)
+              call InputErrorMsg(input,option,'DECAY_RATE',error_string)
+              call InputReadAndConvertUnits(input,double,'1/sec', &
+                     trim(error_string) // ',DECAY_RATE units',option)
+              new_unsupp_rad%decay_rate = double
+          !-----------------------------------
             case('EMANATION_FACTOR')
               call InputReadDouble(input,option,new_unsupp_rad%emanation_factor)
               call InputErrorMsg(input,option,'EMANATION_FACTOR',error_string)
@@ -733,6 +743,12 @@ subroutine PMUFDBReadUnsuppRad(this,input,option,error_string)
         if (Uninitialized(new_unsupp_rad%dcf)) then
           option%io_buffer = 'ERROR: INGESTION_DOSE_COEF must be specified in &
                              &the ' // trim(error_string) // ' block.'
+          call printMsg(option)
+          num_errors = num_errors + 1
+        endif
+        if (Uninitialized(new_unsupp_rad%decay_rate)) then
+          option%io_buffer = 'ERROR: DECAY_RATE must be specified &
+                             &in the ' // trim(error_string) // ' block.'
           call printMsg(option)
           num_errors = num_errors + 1
         endif
@@ -1434,10 +1450,12 @@ subroutine PMUFDBOutput(this)
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
   class(ERB_base_type), pointer :: cur_ERB
+  type(supported_rad_type), pointer :: cur_supp_rad
   type(unsupported_rad_type), pointer :: cur_unsupp_rad
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: fid
   PetscInt :: k
+  PetscReal, parameter :: avagadro = 6.0221409d23
   
   if (.not.associated(this%ERB_list)) return
   
@@ -1458,9 +1476,12 @@ subroutine PMUFDBOutput(this)
   do
     if (.not.associated(cur_ERB)) exit
     write(fid,'(a32)',advance="no") trim(cur_ERB%name)
+    write(fid,100,advance="no") cur_ERB%total_annual_dose
+    
     do k = 1,size(cur_ERB%annual_dose_supp_w_unsupp_rads)
       write(fid,100,advance="no") cur_ERB%annual_dose_supp_w_unsupp_rads(k)
     enddo
+    
     if (cur_ERB%incl_unsupported_rads) then
       k = 0
       cur_unsupp_rad => this%unsupported_rad_list
@@ -1471,7 +1492,33 @@ subroutine PMUFDBOutput(this)
         cur_unsupp_rad => cur_unsupp_rad%next
       enddo
     endif
-    write(fid,100,advance="no") cur_ERB%total_annual_dose
+    
+    k = 0
+    cur_supp_rad => this%supported_rad_list
+    do
+      if (.not.associated(cur_supp_rad)) exit
+      k = k + 1
+      write(fid,100,advance="no") &
+           cur_ERB%aqueous_conc_supported_rad(k), &     ! [Bq/m^3]
+          (cur_ERB%aqueous_conc_supported_rad(k)/ &     ! [mol/m^3] 
+           (avagadro*cur_supp_rad%decay_rate))
+      cur_supp_rad => cur_supp_rad%next
+    enddo
+  
+    if (cur_ERB%incl_unsupported_rads) then
+      k = 0
+      cur_unsupp_rad => this%unsupported_rad_list
+      do
+        if (.not.associated(cur_unsupp_rad)) exit
+        k = k + 1
+        write(fid,100,advance="no") &
+             cur_ERB%aqueous_conc_unsupported_rad(k), &     ! [Bq/m^3]
+            (cur_ERB%aqueous_conc_unsupported_rad(k)/ &     ! [mol/m^3] 
+             (avagadro*cur_unsupp_rad%decay_rate))
+        cur_unsupp_rad => cur_unsupp_rad%next
+      enddo
+    endif
+    
     cur_ERB => cur_ERB%next
   enddo
   
@@ -1502,6 +1549,7 @@ subroutine PMUFDBOutputHeader(this)
   character(len=MAXWORDLENGTH) :: cell_string
   character(len=MAXSTRINGLENGTH) :: filename
   class(ERB_base_type), pointer :: cur_ERB
+  type(supported_rad_type), pointer :: cur_supp_rad
   type(unsupported_rad_type), pointer :: cur_unsupp_rad
   PetscInt :: fid, i
   PetscInt :: icolumn
@@ -1531,6 +1579,12 @@ subroutine PMUFDBOutputHeader(this)
     cell_string = '(' // trim(cur_ERB%region_name) // ')'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
+    variable_string = 'Total Annual Dose'
+    units_string = 'Sv/yr'
+    cell_string = ''
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+                             
     do i = 1,size(cur_ERB%annual_dose_supp_w_unsupp_rads)
       variable_string = 'Annual Dose'                   
       units_string = 'Sv/yr'
@@ -1538,11 +1592,12 @@ subroutine PMUFDBOutputHeader(this)
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
     enddo
+    
     if (cur_ERB%incl_unsupported_rads) then
       cur_unsupp_rad => this%unsupported_rad_list
       do
         if (.not.associated(cur_unsupp_rad)) exit
-        variable_string = 'Annual Dose '
+        variable_string = 'Annual Dose'
         units_string = 'Sv/yr'
         cell_string = trim(cur_unsupp_rad%name) // '*'
         call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
@@ -1550,11 +1605,41 @@ subroutine PMUFDBOutputHeader(this)
         cur_unsupp_rad => cur_unsupp_rad%next
       enddo
     endif
-    variable_string = 'Total Annual Dose'
-    units_string = 'Sv/yr'
-    cell_string = ''
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
+    
+    cur_supp_rad => this%supported_rad_list
+    do
+      if (.not.associated(cur_supp_rad)) exit
+      variable_string = 'Aq. Conc.'
+      units_string = 'Bq/m^3'
+      cell_string = trim(cur_supp_rad%name) 
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Aq. Conc.'
+      units_string = 'mol/m^3'
+      cell_string = trim(cur_supp_rad%name) 
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      cur_supp_rad =>cur_supp_rad%next
+    enddo
+    
+    if (cur_ERB%incl_unsupported_rads) then
+      cur_unsupp_rad => this%unsupported_rad_list
+      do
+        if (.not.associated(cur_unsupp_rad)) exit
+        variable_string = 'Aq. Conc.'
+        units_string = 'Bq/m^3'
+        cell_string = trim(cur_unsupp_rad%name) // '*'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
+        variable_string = 'Aq. Conc.'
+        units_string = 'mol/m^3'
+        cell_string = trim(cur_unsupp_rad%name) // '*'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
+        cur_unsupp_rad => cur_unsupp_rad%next
+      enddo
+    endif
+                                 
     cur_ERB => cur_ERB%next
   enddo
   
@@ -1621,14 +1706,88 @@ subroutine PMUFDBDestroyERB(ERB)
   ! Author: Jenn Frederick
   ! Date: 04/24/2017
   !
+  
+  use Utility_module, only : DeallocateArray
 
   implicit none
   
-  class(ERB_base_type) :: ERB
+  class(ERB_base_type), pointer :: ERB
+  
+  call DeallocateArray(ERB%rank_list)
+  call DeallocateArray(ERB%region_scaling_factor)
+  call DeallocateArray(ERB%aqueous_conc_supp_rad_avg)
+  call DeallocateArray(ERB%aqueous_conc_supported_rad)
+  call DeallocateArray(ERB%aqueous_conc_unsupported_rad)
+  call DeallocateArray(ERB%annual_dose_supp_rad)
+  call DeallocateArray(ERB%annual_dose_unsupp_rad)
+  call DeallocateArray(ERB%annual_dose_supp_w_unsupp_rads)
+  deallocate(ERB%names_supp_w_unsupp_rads)
+  nullify(ERB%region)
+  nullify(ERB%next)
+  deallocate(ERB)
+  nullify(ERB)
   
 end subroutine PMUFDBDestroyERB
 
 ! *************************************************************************** !
+
+subroutine PMUFDBStrip(this)
+  ! 
+  ! Strips the UFD Biosphere process model.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/13/2017
+  !
+  use Utility_module, only : DeallocateArray
+  
+  implicit none
+  
+  class(pm_ufd_biosphere_type) :: this
+  
+  class(ERB_base_type), pointer :: cur_ERB 
+  class(ERB_BASE_type), pointer :: prev_ERB
+  type(supported_rad_type), pointer :: cur_supp_rad
+  type(supported_rad_type), pointer :: prev_supp_rad
+  type(unsupported_rad_type), pointer :: cur_unsupp_rad
+  type(unsupported_rad_type), pointer :: prev_unsupp_rad
+  
+  nullify(this%realization)
+  
+  cur_ERB => this%ERB_list
+  do
+    if (.not.associated(cur_ERB)) exit
+    prev_ERB => cur_ERB
+    cur_ERB => cur_ERB%next
+    call PMUFDBDestroyERB(prev_ERB)
+  enddo
+  nullify(this%ERB_list)
+
+  cur_supp_rad => this%supported_rad_list
+  do
+    if (.not.associated(cur_supp_rad)) exit
+    prev_supp_rad => cur_supp_rad
+    cur_supp_rad => cur_supp_rad%next
+    nullify(prev_supp_rad%next)
+    deallocate(prev_supp_rad)
+    nullify(prev_supp_rad)
+  enddo
+  nullify(this%supported_rad_list)
+  
+  cur_unsupp_rad => this%unsupported_rad_list
+  do
+    if (.not.associated(cur_unsupp_rad)) exit
+    prev_unsupp_rad => cur_unsupp_rad
+    cur_unsupp_rad => cur_unsupp_rad%next
+    nullify(prev_unsupp_rad%supported_parent)
+    nullify(prev_unsupp_rad%next)
+    deallocate(prev_unsupp_rad)
+    nullify(prev_unsupp_rad)
+  enddo
+  nullify(this%unsupported_rad_list)
+
+end subroutine PMUFDBStrip
+
+! ************************************************************************** !
 
 subroutine PMUFDBDestroy(this)
   ! 
@@ -1645,24 +1804,6 @@ subroutine PMUFDBDestroy(this)
   call PMUFDBStrip(this)
   
 end subroutine PMUFDBDestroy
-
-! ************************************************************************** !
-
-subroutine PMUFDBStrip(this)
-  ! 
-  ! Strips the UFD Biosphere process model.
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 03/13/2017
-  !
-  use Utility_module, only : DeallocateArray
-  
-  implicit none
-  
-  class(pm_ufd_biosphere_type) :: this
-
-
-end subroutine PMUFDBStrip
 
 ! ************************************************************************** !
 
