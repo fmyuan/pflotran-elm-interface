@@ -10,6 +10,7 @@ module General_Aux_module
 
 
   PetscBool, public :: general_analytical_derivatives = PETSC_FALSE
+  PetscBool, public :: general_immiscible = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4
   PetscReal, public :: fmw_comp(2) = [FMWH2O,FMWAIR]
   PetscReal, public :: general_max_pressure_change = 5.d4
@@ -73,7 +74,8 @@ module General_Aux_module
   PetscInt, parameter, public :: GENERAL_UPDATE_FOR_ACCUM = 1
   PetscInt, parameter, public :: GENERAL_UPDATE_FOR_BOUNDARY = 2
 
-  PetscReal, parameter, public :: general_pressure_scale = 1.d0
+  PetscReal, parameter, public :: GENERAL_IMMISCIBLE_VALUE = 1.d-10
+  PetscReal, parameter, public :: GENERAL_PRESSURE_SCALE = 1.d0
   
   ! these variables, which are global to general, can be modified
   PetscInt, public :: dof_to_primary_variable(3,3)
@@ -721,6 +723,9 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                                           gen_auxvar%pres(spid),ierr)
           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde)
         endif
+        if (general_immiscible) then
+          gen_auxvar%pres(spid) = GENERAL_IMMISCIBLE_VALUE
+        endif
         gen_auxvar%pres(vpid) = gen_auxvar%pres(spid)
         gen_auxvar%pres(apid) = gen_auxvar%pres(gid) - gen_auxvar%pres(vpid)
         if (associated(gen_auxvar%d)) then
@@ -762,8 +767,9 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                               gen_auxvar%pres(cpid)
 
       gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
-      ! immiscible.
-!      gen_auxvar%xmol(acid,lid) = 1.d-10
+      if (general_immiscible) then
+        gen_auxvar%xmol(acid,lid) = GENERAL_IMMISCIBLE_VALUE
+      endif
       
       gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
       gen_auxvar%xmol(acid,gid) = gen_auxvar%pres(apid) / &
@@ -1213,6 +1219,8 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
   PetscBool :: flag
   character(len=MAXSTRINGLENGTH) :: state_change_string, string
 
+  if (general_immiscible) return
+
   lid = option%liquid_phase
   gid = option%gas_phase
   apid = option%air_pressure_id
@@ -1651,20 +1659,21 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
   select case(global_auxvar%istate)
     case(LIQUID_STATE)
       gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert / general_pressure_scale
+        gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
     case(TWO_PHASE_STATE)
       gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / general_pressure_scale
+        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
       if (general_2ph_energy_dof == GENERAL_AIR_PRESSURE_INDEX) then
         gen_auxvar(GENERAL_2PH_STATE_AIR_PRESSURE_DOF)%pert = &
           gen_auxvar(GENERAL_2PH_STATE_AIR_PRESSURE_DOF)%pert / &
-          general_pressure_scale
+          GENERAL_PRESSURE_SCALE
       endif
     case(GAS_STATE)
       gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / general_pressure_scale
+        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
       gen_auxvar(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)%pert / general_pressure_scale
+        gen_auxvar(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)%pert / &
+        GENERAL_PRESSURE_SCALE
   end select
   
 #ifdef DEBUG_GENERAL

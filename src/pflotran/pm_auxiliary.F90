@@ -268,6 +268,7 @@ recursive subroutine PMAuxiliaryInitializeRun(this)
   PetscInt :: i
   PetscErrorCode :: ierr
   
+  ierr = 0
   time = 0.d0
   select case(this%ctype)
     case('EVOLVING_STRATA')
@@ -311,6 +312,7 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
 
   PetscInt :: ndof
 
+  ierr = 0
   call InitSubsurfAssignMatIDsToRegns(this%realization)
   call InitSubsurfAssignMatProperties(this%realization)
   call InitSubsurfaceSetupZeroArrays(this%realization)
@@ -341,6 +343,7 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt, parameter :: iphase = 1
     
+  ierr = 0
   do j = 1, 2
     if (j == 1) then
       rt_auxvars => this%realization%patch%aux%RT%auxvars
