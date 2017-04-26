@@ -4009,11 +4009,7 @@ subroutine SF_BF_KRP4_CapillaryPressure(this,liquid_saturation, &
 
   Se = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
   
-  if (Se > 1.d0) then
-     Se = 1.d0
-  else if (Se < 0.d0) then
-     Se = 0.d0
-  endif
+  Se = max(Se,0.d0)
 
   if (associated(this%sat_poly)) then
     if (Se > this%sat_poly%low) then
