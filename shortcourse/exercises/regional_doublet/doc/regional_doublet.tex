@@ -927,7 +927,7 @@ END
 %-----------------------------------------------------------------------------
 \section{CHECKPOINT/RESTART}
 
-\begin{frame}[fragile]\frametitle{CHECKPOINT/RESTART}
+\begin{frame}[fragile]\frametitle{CHECKPOINT/RESTART I}
 
 \begin{itemize}
 \item Checkpointing: saving the ``state'' of the simulation at a point in time, from which the entire solution can be reconstructed.
@@ -941,6 +941,9 @@ END
 \item Restart: resetting a simulation to a ``state''
 \end{itemize}
 
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{CHECKPOINT/RESTART II}
 
 \begin{semiverbatim}
 
@@ -950,16 +953,13 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE RICHARDS
     /
-    SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
-    /
-  /
   CHECKPOINT               \bluecomment{! write a checkpoint file}
     PERIODIC TIMESTEP 50   \bluecomment{! write it every 50 timesteps}
     PERIODIC TIME 2 yr     \bluecomment{! write it every 2 years}
   /
-  RESTART restart.chk \redcomment{0.d0}  \bluecomment{! restart simulation using file \redcomment{restart.chk}}
-END                                      \bluecomment{! reset time to 0.}
+  RESTART restart.chk \redcomment{0.d0}  \bluecomment{! restart simulation using}
+END                         \bluecomment{! file \redcomment{restart.chk}}
+                            \bluecomment{! and reset time to 0.}
 
 \end{semiverbatim}
 
