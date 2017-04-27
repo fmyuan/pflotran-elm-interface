@@ -810,7 +810,7 @@ END
 \begin{frame}[fragile]\frametitle{INITIAL\_CONDITION}
 
 \begin{itemize}
-\item Couple the greencomment{initial} flow and transport conditions with region \greencomment{all} for the initial condition
+\item Couple the \greencomment{initial} flow and transport conditions with region \greencomment{all} for the initial condition
 \end{itemize}
 
 \begin{semiverbatim}
@@ -934,8 +934,9 @@ END
   \begin{itemize}
     \item Fault tolerance
     \item Restarting from a saved initial condition
-    \item Checkpoint files named ``pflotran.chk\#'' where \# is the time step number (e.g. pflotran.chk100)
-    \item Restart file named ``restart.chk''
+    \item Checkpoint files named ``pflotran-ts\#.chk'' where \# is the time step number (e.g. pflotran-ts100.chk)
+    \item Checkpoint files named ``pflotran-\#unit.chk`` where \# is the time and unit is the unit of time (e.g. pflotran-2yr.chk)
+    \item Restart file named ``pflotran-restart.chk''
   \end{itemize}
 \item Restart: resetting a simulation to a ``state''
 \end{itemize}
@@ -943,11 +944,23 @@ END
 
 \begin{semiverbatim}
 
-CHECKPOINT 100          \bluecomment{! write a checkpoint file every}
-                        \bluecomment{!   100 time steps}
-RESTART pflotran.chk100 \bluecomment{! restart simulation using file}
-                        \bluecomment{!   \redcomment{restart.chk}}
-RESTART restart.chk \redcomment{0.d0}  \bluecomment{! reset time to 0.}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+  CHECKPOINT               \bluecomment{! write a checkpoint file}
+    PERIODIC TIMESTEP 50   \bluecomment{! write it every 50 timesteps}
+    PERIODIC TIME 2 yr     \bluecomment{! write it every 2 years}
+  /
+  RESTART restart.chk \redcomment{0.d0}  \bluecomment{! restart simulation using file \redcomment{restart.chk}}
+END                                      \bluecomment{! reset time to 0.}
+
 \end{semiverbatim}
 
 \end{frame}
