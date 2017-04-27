@@ -10,6 +10,11 @@ SIMULATION
       GLOBAL_IMPLICIT
     /
   /
+  CHECKPOINT
+    PERIODIC TIMESTEP 50
+    PERIODIC TIME 2 yr
+  /
+  #RESTART regional_doublet-restart.chk 0.d0
 END
 
 SUBSURFACE
@@ -142,42 +147,42 @@ END
 #=========================== regions ==========================================
 REGION all
   COORDINATES
-    0.d0 0.d0 0.d0
+    0.d0    0.d0    0.d0
     5000.d0 2500.d0 100.d0
   /
 END
 
 REGION layer1
   COORDINATES
-    0.d0 0.d0 0.d0
+    0.d0    0.d0    0.d0
     5000.d0 2500.d0 30.d0
   /
 END
 
 REGION layer2
   COORDINATES
-    0.d0 0.d0 30.d0
+    0.d0    0.d0    30.d0
     5000.d0 2500.d0 50.d0
   /
 END
 
 REGION layer3
   COORDINATES
-    0.d0 0.d0 50.d0
+    0.d0    0.d0    50.d0
     5000.d0 2500.d0 70.d0
   /
 END
 
 REGION layer4
   COORDINATES
-    0.d0 0.d0 70.d0
+    0.d0    0.d0    70.d0
     5000.d0 2500.d0 100.d0
   /
 END
 
 REGION west
   COORDINATES
-    0.d0 0.d0 0.d0
+    0.d0 0.d0    0.d0
     0.d0 2500.d0 100.d0
   /
   FACE WEST
@@ -185,7 +190,7 @@ END
 
 REGION east
   COORDINATES
-    5000.d0 0.d0 0.d0
+    5000.d0 0.d0    0.d0
     5000.d0 2500.d0 100.d0
   /
   FACE EAST
@@ -193,7 +198,7 @@ END
 
 REGION top
   COORDINATES
-    0.d0 0.d0 100.d0
+    0.d0    0.d0    100.d0
     5000.d0 2500.d0 100.d0
   /
   FACE TOP
@@ -421,5 +426,7 @@ STRATA
   REGION layer4
   MATERIAL soil4
 END
+
+#========================== checkpointing
 
 END_SUBSURFACE
