@@ -347,8 +347,8 @@ subroutine PMRichardsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       sat_pert = sat - sign(1.d0,sat-0.5d0)*pert
       call patch%characteristic_curves_array( &
              patch%sat_func_id(ghosted_id))%ptr% &
-             saturation_function%CapillaryPressure(sat_pert,pc_pert, &
-                                                   dpc_dsatl,option)
+             saturation_function%CapillaryPressure(sat_pert,pc_pert,dpc_dsatl, &
+             this%realization%patch%aux%Material%auxvars(ghosted_id),option)
       press_pert = option%reference_pressure - pc_pert
       P0 = X_p(local_id)
       delP = dX_p(local_id)

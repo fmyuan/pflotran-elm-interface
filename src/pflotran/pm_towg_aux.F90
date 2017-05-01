@@ -415,7 +415,8 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   !for capillary press computation 
   sat_tot_liq = auxvar%sat(lid) + auxvar%sat(oid)
   call characteristic_curves%saturation_function% &
-             CapillaryPressure(sat_tot_liq,auxvar%pc(lid),dummy,option)
+       CapillaryPressure(sat_tot_liq,auxvar%pc(lid),dummy,material_auxvar, &
+                         option)
   
   auxvar%pres(gid) = auxvar%pres(lid) + auxvar%pc(lid)
 

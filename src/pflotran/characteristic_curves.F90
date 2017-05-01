@@ -2344,8 +2344,10 @@ end subroutine RPFBaseSetupPolynomials
 ! ************************************************************************** !
 
 subroutine SFBaseCapillaryPressure(this,liquid_saturation, &
-                                   capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl, &
+                                   material_auxvars,option)
   use Option_module
+  use Material_Aux_class
   
   implicit none
   
@@ -2353,6 +2355,7 @@ subroutine SFBaseCapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
+  class(material_auxvar_type) :: material_auxvars
   type(option_type), intent(inout) :: option
   
   option%io_buffer = 'SFBaseCapillaryPressure must be extended.'
@@ -2384,6 +2387,7 @@ end subroutine SFBaseSaturation
 subroutine SFBaseTest(this,cc_name,option)
 
   use Option_module
+  use Material_Aux_class
 
   implicit none
   
@@ -2391,6 +2395,7 @@ subroutine SFBaseTest(this,cc_name,option)
   character(len=MAXWORDLENGTH) :: cc_name
   type(option_type), intent(inout) :: option
   
+  type(material_auxvar_type) :: dummy_material_auxvars
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt, parameter :: num_values = 101
   PetscReal :: pc, pc_increment
@@ -2449,7 +2454,7 @@ subroutine SFBaseTest(this,cc_name,option)
       liquid_saturation(i) = 1.d0-1.d-7
     endif
     call this%CapillaryPressure(liquid_saturation(i),capillary_pressure(i), &
-                                dpc_dsatl(i),option)
+                                dpc_dsatl(i),dummy_material_auxvars,option)
     ! calculate numerical derivative dpc_dsatl_numerical
     pert = liquid_saturation(i) * perturbation
     if (liquid_saturation(i) > 0.5d0) then
@@ -2458,7 +2463,7 @@ subroutine SFBaseTest(this,cc_name,option)
     liquid_saturation_pert = liquid_saturation(i) + pert
     call this%CapillaryPressure(liquid_saturation_pert, &
                                 capillary_pressure_pert, &
-                                dummy_real,option)
+                                dummy_real,dummy_material_auxvars,option)
     dpc_dsatl_numerical(i) = (capillary_pressure_pert - &
          & capillary_pressure(i))/pert 
   enddo
@@ -2589,8 +2594,10 @@ end subroutine SFDefaultVerify
 ! ************************************************************************** !
 
 subroutine SFDefaultCapillaryPressure(this,liquid_saturation, &
-                                      capillary_pressure,dpc_dsatl,option)
+                                      capillary_pressure,dpc_dsatl, &
+                                      material_auxvars,option)
   use Option_module
+  use Material_Aux_class
   
   implicit none
   
@@ -2598,6 +2605,7 @@ subroutine SFDefaultCapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
+  class(material_auxvar_type) :: material_auxvars
   type(option_type), intent(inout) :: option
   
   if (liquid_saturation < 1.d0) then
@@ -2763,8 +2771,10 @@ end subroutine SFConstantVerify
 ! ************************************************************************** !
 
 subroutine SFConstantCapillaryPressure(this,liquid_saturation, &
-                                       capillary_pressure,dpc_dsatl,option)
+                                       capillary_pressure,dpc_dsatl, &
+                                       material_auxvars,option)
   use Option_module
+  use Material_Aux_class
   
   implicit none
   
@@ -2772,6 +2782,7 @@ subroutine SFConstantCapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
+  class(material_auxvar_type) :: material_auxvars
   type(option_type), intent(inout) :: option
   
   dpc_dsatl = 0.d0
@@ -2865,7 +2876,8 @@ end subroutine SF_VG_Verify
 ! ************************************************************************** !
 
 subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
-                                   capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl, &
+                                   material_auxvars,option)
   ! 
   ! Computes the capillary_pressure as a function of saturation
   ! 
@@ -2878,6 +2890,7 @@ subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
   ! Date: 12/11/07, 09/23/14
   !
   use Option_module
+  use Material_Aux_class
   
   implicit none
   
@@ -2885,13 +2898,11 @@ subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
+  class(material_auxvar_type) :: material_auxvars
   type(option_type), intent(inout) :: option
   
   PetscReal :: n
   PetscReal :: Se
-  PetscReal :: one_plus_pc_alpha_n
-  PetscReal :: pc_alpha_n
-  PetscReal :: pc_alpha
 
   PetscReal :: neg_one_over_m
   PetscReal :: one_over_n
@@ -3039,7 +3050,6 @@ subroutine SF_BC_Init(this)
   implicit none
   
   class(sat_func_BC_type) :: this
-  type(option_type) :: option
 
   call SFBaseInit(this)
   this%alpha = UNINITIALIZED_DOUBLE
@@ -3152,7 +3162,8 @@ end subroutine SF_BC_SetupPolynomials
 ! ************************************************************************** !
 
 subroutine SF_BC_CapillaryPressure(this,liquid_saturation, &
-                                   capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl, &
+                                   material_auxvars,option)
   ! 
   ! Computes the capillary_pressure as a function of saturation using the
   ! Brooks-Corey formulation
@@ -3167,6 +3178,7 @@ subroutine SF_BC_CapillaryPressure(this,liquid_saturation, &
   !
   use Option_module
   use Utility_module
+  use Material_Aux_class
   
   implicit none
   
@@ -3174,6 +3186,7 @@ subroutine SF_BC_CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
+  class(material_auxvar_type) :: material_auxvars
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
@@ -3344,7 +3357,8 @@ end subroutine SF_Linear_Verify
 ! ************************************************************************** !
 
 subroutine SF_Linear_CapillaryPressure(this,liquid_saturation, &
-                                       capillary_pressure,dpc_dsatl,option)
+                                       capillary_pressure,dpc_dsatl, &
+                                       material_auxvars,option)
   ! 
   ! Computes the capillary_pressure as a function of saturation
   ! 
@@ -3354,6 +3368,7 @@ subroutine SF_Linear_CapillaryPressure(this,liquid_saturation, &
   ! Date: 11/14/14
   !
   use Option_module
+  use Material_Aux_class
   
   implicit none
   
@@ -3361,6 +3376,7 @@ subroutine SF_Linear_CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
+  class(material_auxvar_type) :: material_auxvars
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
@@ -3511,7 +3527,8 @@ end subroutine SF_BF_KRP1_Verify
 ! ************************************************************************** !
 
 subroutine SF_BF_KRP1_CapillaryPressure(this,liquid_saturation, &
-                                        capillary_pressure,dpc_dsatl,option)
+                                        capillary_pressure,dpc_dsatl, &
+                                        material_auxvars,option)     
   ! 
   ! Computes the capillary_pressure as a function of saturation using the
   ! van Genuchten formulation with non-zero gas residual saturation
@@ -3524,6 +3541,7 @@ subroutine SF_BF_KRP1_CapillaryPressure(this,liquid_saturation, &
   ! Date: 11/17/16; Modified 04/26/2017
   !
   use Option_module
+  use Material_Aux_class
   
   implicit none
   
@@ -3531,6 +3549,7 @@ subroutine SF_BF_KRP1_CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
+  class(material_auxvar_type) :: material_auxvars
   type(option_type), intent(inout) :: option
   
   PetscReal :: lambda
@@ -3694,7 +3713,8 @@ end subroutine SF_BF_KRP5_Verify
 ! ************************************************************************** !
 
 subroutine SF_BF_KRP5_CapillaryPressure(this,liquid_saturation, &
-                                        capillary_pressure,dpc_dsatl,option)
+                                        capillary_pressure,dpc_dsatl, &
+                                        material_auxvars,option)  
   ! 
   ! Computes the capillary_pressure as a function of saturation
   ! From BRAGFLO 6.02 User Manual page 121 KRP=5.
@@ -3704,6 +3724,7 @@ subroutine SF_BF_KRP5_CapillaryPressure(this,liquid_saturation, &
   ! Date: 11/18/16
   !
   use Option_module
+  use Material_Aux_class
   
   implicit none
   
@@ -3711,6 +3732,7 @@ subroutine SF_BF_KRP5_CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
+  class(material_auxvar_type) :: material_auxvars
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
@@ -3827,7 +3849,8 @@ end subroutine SF_BF_KRP9_Verify
 ! ************************************************************************** !
 
 subroutine SF_BF_KRP9_CapillaryPressure(this,liquid_saturation, &
-                                        capillary_pressure,dpc_dsatl,option)
+                                        capillary_pressure,dpc_dsatl, &
+                                        material_auxvars,option)
   ! 
   ! Computes the capillary_pressure as a function of saturation
   ! based on experimental measurements and analyses done by Vauclin et al.
@@ -3841,6 +3864,7 @@ subroutine SF_BF_KRP9_CapillaryPressure(this,liquid_saturation, &
   ! Date: 03/26/15
   !
   use Option_module
+  use Material_Aux_class
   
   implicit none
   
@@ -3848,6 +3872,7 @@ subroutine SF_BF_KRP9_CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
+  class(material_auxvar_type) :: material_auxvars
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
@@ -3979,7 +4004,8 @@ end subroutine SF_BF_KRP4_Verify
 ! ************************************************************************** !
 
 subroutine SF_BF_KRP4_CapillaryPressure(this,liquid_saturation, &
-                                        capillary_pressure,dpc_dsatl,option)
+                                        capillary_pressure,dpc_dsatl, &
+                                        material_auxvars,option)
   ! 
   ! Computes the capillary_pressure as a function of saturation using the
   ! Brooks-Corey formulation
@@ -3994,6 +4020,7 @@ subroutine SF_BF_KRP4_CapillaryPressure(this,liquid_saturation, &
   !
   use Option_module
   use Utility_module
+  use Material_Aux_class
   
   implicit none
   
@@ -4001,6 +4028,7 @@ subroutine SF_BF_KRP4_CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
+  class(material_auxvar_type) :: material_auxvars
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
@@ -4155,7 +4183,8 @@ end subroutine SF_BF_KRP11_Verify
 ! ************************************************************************** !
 
 subroutine SF_BF_KRP11_CapillaryPressure(this,liquid_saturation, &
-                                         capillary_pressure,dpc_dsatl,option)
+                                         capillary_pressure,dpc_dsatl, &
+                                         material_auxvars,option)
   ! 
   ! KRP=11 of BRAGFLO
   ! capillary pressure is 0 at all times
@@ -4163,6 +4192,7 @@ subroutine SF_BF_KRP11_CapillaryPressure(this,liquid_saturation, &
   ! Date: 03/26/15
   !
   use Option_module
+  use Material_Aux_class
   
   implicit none
   
@@ -4170,6 +4200,7 @@ subroutine SF_BF_KRP11_CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
+  class(material_auxvar_type) :: material_auxvars
   type(option_type), intent(inout) :: option
 
   dpc_dsatl = 0.d0
@@ -4260,7 +4291,8 @@ end subroutine SF_BF_KRP12_Verify
 ! ************************************************************************** !
 
 subroutine SF_BF_KRP12_CapillaryPressure(this,liquid_saturation, &
-                                         capillary_pressure,dpc_dsatl,option)
+                                         capillary_pressure,dpc_dsatl, &
+                                         material_auxvars,option)
   ! 
   ! Computes the capillary_pressure as a function of saturation using the
   ! Brooks-Corey formulation
@@ -4274,6 +4306,7 @@ subroutine SF_BF_KRP12_CapillaryPressure(this,liquid_saturation, &
   !
   use Option_module
   use Utility_module
+  use Material_Aux_class
   
   implicit none
   
@@ -4281,6 +4314,7 @@ subroutine SF_BF_KRP12_CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
+  class(material_auxvar_type) :: material_auxvars
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
@@ -4410,7 +4444,8 @@ end subroutine SF_mK_Verify
 ! ************************************************************************** !
 
 subroutine SF_mK_CapillaryPressure(this,liquid_saturation, &
-                                   capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl, &
+                                   material_auxvars,option)
   !
   ! Computes the capillary_pressure as a function of saturation
   ! for modified Kosugi model.
@@ -4424,6 +4459,7 @@ subroutine SF_mK_CapillaryPressure(this,liquid_saturation, &
   !
   use Option_module
   use Utility_module, only : InverseNorm
+  use Material_Aux_class
 
   implicit none
 
@@ -4435,6 +4471,7 @@ subroutine SF_mK_CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
+  class(material_auxvar_type) :: material_auxvars
   type(option_type), intent(inout) :: option
 
   PetscReal :: Se
@@ -7140,7 +7177,7 @@ subroutine RPF_mK_Gas_RelPerm(this,liquid_saturation, &
   type(option_type), intent(inout) :: option
 
   PetscReal :: Se, Seg, InvSatRange
-  PetscReal :: dkr_Se, dSe_sat
+  PetscReal :: dkr_Se
   PetscReal :: erfcArg, erfcRes
   PetscReal :: invErfcRes
   PetscReal :: sqrtSe, expArg

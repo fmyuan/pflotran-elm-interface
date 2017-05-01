@@ -272,7 +272,7 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
 
   toil_auxvar%mobility = 0.d0
 
-  !assing auxvars given by the solution variables
+  ! passing auxvars given by the solution variables
   toil_auxvar%pres(oid) = x(TOIL_IMS_PRESSURE_DOF)
   toil_auxvar%sat(oid) = x(TOIL_IMS_SATURATION_DOF)
   toil_auxvar%temp = x(TOIL_IMS_ENERGY_DOF)
@@ -281,7 +281,7 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
       
   call characteristic_curves%saturation_function% &
              CapillaryPressure(toil_auxvar%sat(lid),toil_auxvar%pres(cpid), &
-                               dpc_dsatl,option)                             
+                               dpc_dsatl,material_auxvar,option)                             
 
   ! Testing zero capillary pressure
   !toil_auxvar%pres(cpid) = 0.d0
