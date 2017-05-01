@@ -20,11 +20,12 @@ addons:
 matrix:
   include:
     # linux + gcc
-    - env: DEBUG=0; CC=mpicc; export CXX=mpicxx; export FC=mpif90
+# commented out for now as mpich is being installed through PETSc for now.
+#    - env: DEBUG=0; CC=mpicc; export CXX=mpicxx; export FC=mpif90
       os: linux
 
     # osx + gcc
-    - env: DEBUG=0; CC=mpicc; export CXX=mpicxx; export FC=mpif90
+#    - env: DEBUG=0; CC=mpicc; export CXX=mpicxx; export FC=mpif90
       os: osx
 
 script: 
