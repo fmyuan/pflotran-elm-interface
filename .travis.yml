@@ -29,9 +29,9 @@ matrix:
       os: osx
 
 script: 
-  - echo CC=${CC}
-  - echo CXX=${CXX}
-  - echo FC=${FC}
+#  - echo CC=${CC}
+#  - echo CXX=${CXX}
+#  - echo FC=${FC}
   - ./.travis/install-petsc.sh
   - ./.travis/pflotran-build.sh
   - ./.travis/pflotran-test.sh
