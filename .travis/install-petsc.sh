@@ -10,9 +10,8 @@ git checkout ${PETSC_GIT_HASH}
 
 export PETSC_DIR=$PWD
 export PETSC_ARCH=petsc-arch
-export PETSC_WITH_HDF5=1
 
-./configure PETSC_ARCH=petsc-arch --with-mpi=1 --with-debug=$DEBUG --with-shared-libraries=0 --download-hdf5 --download-metis --download-parmetis
+./configure PETSC_ARCH=petsc-arch --with-cc=mpicc --with-dxx=mpicxx --with-fc=mpif90 --CFLAGS='-g -O0' --CXXFLAGS='-g -O0' --FFLAGS='-g -O0 -Wno-unused-function' --with-clanguage=c --with-debug=1 --with-shared-libraries=0 --download-hdf5 --download-metis --download-parmetis --download-fblaslapack --download-mpich=http://www.mpich.org/static/downloads/3.2/mpich-3.2.tar.gz
 
 make
 
