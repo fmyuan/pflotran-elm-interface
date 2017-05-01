@@ -10,6 +10,11 @@ SIMULATION
       GLOBAL_IMPLICIT
     /
   /
+  CHECKPOINT
+    PERIODIC TIMESTEP 50
+    PERIODIC TIME 2 yr
+  /
+  #RESTART regional_doublet-restart.chk 0.d0
 END
 
 SUBSURFACE
@@ -123,12 +128,21 @@ END
 
 #=========================== output options ===================================
 OUTPUT
-  TIMES y 1.25 1.5 1.75
-  PERIODIC TIME 1. y
-  PERIODIC_OBSERVATION TIMESTEP 1
-  FORMAT TECPLOT BLOCK
-  FORMAT HDF5
-  PRINT_COLUMN_IDS
+  SNAPSHOT_FILE
+    PERIODIC TIME 0.25 y between 0. y and 2. y
+    PERIODIC TIME 1. y between 0. y and 10. y
+    FORMAT TECPLOT BLOCK
+    FORMAT HDF5
+    PRINT_COLUMN_IDS
+    VARIABLES
+      LIQUID_PRESSURE
+      LIQUID_SATURATION
+      MATERIAL_ID_KLUDGE_FOR_VISIT
+    /
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+  /
   VELOCITY_AT_CENTER
 END
 
@@ -142,42 +156,42 @@ END
 #=========================== regions ==========================================
 REGION all
   COORDINATES
-    0.d0 0.d0 0.d0
+    0.d0    0.d0    0.d0
     5000.d0 2500.d0 100.d0
   /
 END
 
 REGION layer1
   COORDINATES
-    0.d0 0.d0 0.d0
+    0.d0    0.d0    0.d0
     5000.d0 2500.d0 30.d0
   /
 END
 
 REGION layer2
   COORDINATES
-    0.d0 0.d0 30.d0
+    0.d0    0.d0    30.d0
     5000.d0 2500.d0 50.d0
   /
 END
 
 REGION layer3
   COORDINATES
-    0.d0 0.d0 50.d0
+    0.d0    0.d0    50.d0
     5000.d0 2500.d0 70.d0
   /
 END
 
 REGION layer4
   COORDINATES
-    0.d0 0.d0 70.d0
+    0.d0    0.d0    70.d0
     5000.d0 2500.d0 100.d0
   /
 END
 
 REGION west
   COORDINATES
-    0.d0 0.d0 0.d0
+    0.d0 0.d0    0.d0
     0.d0 2500.d0 100.d0
   /
   FACE WEST
@@ -185,7 +199,7 @@ END
 
 REGION east
   COORDINATES
-    5000.d0 0.d0 0.d0
+    5000.d0 0.d0    0.d0
     5000.d0 2500.d0 100.d0
   /
   FACE EAST
@@ -193,7 +207,7 @@ END
 
 REGION top
   COORDINATES
-    0.d0 0.d0 100.d0
+    0.d0    0.d0    100.d0
     5000.d0 2500.d0 100.d0
   /
   FACE TOP
@@ -421,5 +435,7 @@ STRATA
   REGION layer4
   MATERIAL soil4
 END
+
+#========================== checkpointing
 
 END_SUBSURFACE
