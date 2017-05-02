@@ -8,7 +8,8 @@ cd src/pflotran;
 # Run unit tests
 make utest || UNIT_EXIT_CODE=$?
 
-if [$UNIT_EXIT_CODE -ne 0]; then
+echo $UNIT_EXIT_CODE >&2
+if [ $UNIT_EXIT_CODE -ne 0 ]; then
   echo "Unit tests failed" >&2
 fi
 
@@ -17,11 +18,12 @@ cd ../../regression_tests
 
 make test || REGRESSION_EXIT_CODE=$?
 
-if [$REGRESSION_EXIT_CODE -ne 0]; then
+echo $REGRESSION_EXIT_CODE >&2
+if [ $REGRESSION_EXIT_CODE -ne 0 ]; then
   echo "Regression tests failed" >&2
 fi
 
-if [$UNIT_EXIT_CODE -eq 0] && [$REGRESSION_EXIT_CODE -eq 0]; then
+if [ $UNIT_EXIT_CODE -eq 0 ] && [ $REGRESSION_EXIT_CODE -eq 0 ]; then
   echo "Reporting failure even on success" >&2
   exit 1
 else

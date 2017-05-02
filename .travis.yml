@@ -22,11 +22,11 @@ matrix:
     # linux + gcc
 # commented out for now as mpich is being installed through PETSc for now.
 #    - env: DEBUG=0; CC=mpicc; export CXX=mpicxx; export FC=mpif90
-      os: linux
+     -  os: linux
 
     # osx + gcc
 #    - env: DEBUG=0; CC=mpicc; export CXX=mpicxx; export FC=mpif90
-      os: osx
+     - os: osx
 
 script: 
 #  - echo CC=${CC}
