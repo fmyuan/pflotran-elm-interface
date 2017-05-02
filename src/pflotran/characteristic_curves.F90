@@ -3520,8 +3520,8 @@ subroutine SF_BF_KRP1_CapillaryPressure(this,liquid_saturation, &
   ! Explanation: residual gas saturation is in the denominator of effective 
   ! saturation
   !
-  ! Author: Heeho Park
-  ! Date: 11/17/16
+  ! Author: Heeho Park; Modified by Jennifer Frederick
+  ! Date: 11/17/16; Modified 04/26/2017
   !
   use Option_module
   
@@ -3533,7 +3533,9 @@ subroutine SF_BF_KRP1_CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
   
+  PetscReal :: lambda
   PetscReal :: Se2
+  PetscReal :: P0
   
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = this%pcmax
@@ -3543,8 +3545,15 @@ subroutine SF_BF_KRP1_CapillaryPressure(this,liquid_saturation, &
     return
   endif
   
+  lambda = this%m/(1.d0-this%m)
+  ! Derivation for P0 is in Appendix PA:
+  ! It is derived by setting Se2 in KRP4 to the value 0.5, and then 
+  ! equating Pc(KRP1,P0) = Pc(KRP4,Se2=0.5) and solving for P0.
+  P0 = (1.d0/this%alpha) * (2.d0**(1.d0/lambda)) * &
+       (((0.5d0**(-1.d0/this%m))-1.d0)**(this%m-1.d0))
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
-  capillary_pressure = (1/this%alpha)*(Se2**(-1/this%m)-1)**(1-this%m)
+  Se2 = min(Se2,1.d0)
+  capillary_pressure = P0*(Se2**(-1.d0/this%m)-1.d0)**(1.d0-this%m)
 #if defined(MATCH_TOUGH2)
   if (liquid_saturation > 0.999d0) then
     capillary_pressure = capillary_pressure*(1.d0-liquid_saturation)/0.001d0
@@ -4009,11 +4018,7 @@ subroutine SF_BF_KRP4_CapillaryPressure(this,liquid_saturation, &
 
   Se = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
   
-  if (Se > 1.d0) then
-     Se = 1.d0
-  else if (Se < 0.d0) then
-     Se = 0.d0
-  endif
+  Se = max(Se,0.d0)
 
   if (associated(this%sat_poly)) then
     if (Se > this%sat_poly%low) then
