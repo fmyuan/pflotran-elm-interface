@@ -123,12 +123,21 @@ END
 
 #=========================== output options ===================================
 OUTPUT
-  TIMES y 1.25 1.5 1.75
-  PERIODIC TIME 1. y
-  PERIODIC_OBSERVATION TIMESTEP 1
-  FORMAT TECPLOT BLOCK
-  FORMAT HDF5
-  PRINT_COLUMN_IDS
+  SNAPSHOT_FILE
+    PERIODIC TIME 0.25 y between 0. y and 2. y
+    PERIODIC TIME 1. y between 0. y and 10. y
+    FORMAT TECPLOT BLOCK
+    FORMAT HDF5
+    PRINT_COLUMN_IDS
+    VARIABLES
+      LIQUID_PRESSURE
+      LIQUID_SATURATION
+      MATERIAL_ID_KLUDGE_FOR_VISIT
+    /
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+  /
   VELOCITY_AT_CENTER
 END
 
@@ -240,8 +249,8 @@ END
 #=========================== observation points ===============================
 OBSERVATION
   REGION Obs_pt_center
-  AT_CELL_CENTER
-  VELOCITY
+  AT_CELL_CENTER #is this necessary here?
+  VELOCITY #ditto?
 END
  
 OBSERVATION
