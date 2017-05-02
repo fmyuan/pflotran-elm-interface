@@ -396,7 +396,7 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   !below pc_ow /= 0
   !compute capillary presssure water/oil (pc_ow)
   !call characteristic_curves%saturation_function% &
-  !     CapillaryPressure(auxvar%sat(lid),auxvar%pc(lid),material_auxvar,option)
+  !     CapillaryPressure(material_auxvar,auxvar%sat(lid),auxvar%pc(lid),option)
   !auxvar%pres(lid) = auxvar%pres(oid) - auxvar%pc(lid)
 
   !Assumptions below on capillary pressure for comparison with TOUGH2-EOS8:
@@ -410,12 +410,12 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   !compute capillary pressure gas/water (pc_gw),
   ! pc_go = pc_gw when pc_ow = 0
   !call characteristic_curves%saturation_function% &
-  !     CapillaryPressure(auxvar%sat(lid),auxvar%pc(lid),material_auxvar,option)
+  !     CapillaryPressure(material_auxvar,auxvar%sat(lid),auxvar%pc(lid),option)
   !To match TOUGH-EOS8, consider water plu poil as wetting phase
   !for capillary press computation 
   sat_tot_liq = auxvar%sat(lid) + auxvar%sat(oid)
   call characteristic_curves%saturation_function% &
-       CapillaryPressure(sat_tot_liq,auxvar%pc(lid),dummy,material_auxvar, &
+       CapillaryPressure(material_auxvar,sat_tot_liq,auxvar%pc(lid),dummy, &
                          option)
   
   auxvar%pres(gid) = auxvar%pres(lid) + auxvar%pc(lid)
