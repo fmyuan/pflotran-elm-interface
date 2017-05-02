@@ -2446,6 +2446,8 @@ subroutine SFBaseTest(this,cc_name,option)
   close(86)
 
  ! calculate capillary pressure as a function of saturation
+  allocate(dummy_material_auxvars%permeability(3))
+  dummy_material_auxvars%permeability = 1.d-15
   do i = 1, num_values
     liquid_saturation(i) = dble(i-1)*0.01d0
     if (liquid_saturation(i) < 1.d-7) then
@@ -2479,6 +2481,7 @@ subroutine SFBaseTest(this,cc_name,option)
                           dpc_dsatl(i), dpc_dsatl_numerical(i)
   enddo
   close(86)
+  deallocate(dummy_material_auxvars%permeability)
 
 end subroutine SFBaseTest
 
@@ -2773,6 +2776,7 @@ end subroutine SFConstantVerify
 subroutine SFConstantCapillaryPressure(this,liquid_saturation, &
                                        capillary_pressure,dpc_dsatl, &
                                        material_auxvars,option)
+  ! Warning: Before using material_auxvars, confirm it is not a dummy
   use Option_module
   use Material_Aux_class
   
@@ -2886,6 +2890,8 @@ subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
   !     Advances in Water Resources, Vol. 22, No. 5, pp 479-493,
   !     http://dx.doi.org/10.1016/S0309-1708(98)00025-6.
   !   
+  ! Warning: Before using material_auxvars, confirm it is not a dummy
+  !
   ! Author: Glenn Hammond
   ! Date: 12/11/07, 09/23/14
   !
@@ -3173,6 +3179,8 @@ subroutine SF_BC_CapillaryPressure(this,liquid_saturation, &
   !     Advances in Water Resources, Vol. 22, No. 5, pp 479-493,
   !     http://dx.doi.org/10.1016/S0309-1708(98)00025-6.
   !   
+  ! Warning: Before using material_auxvars, confirm it is not a dummy
+  !
   ! Author: Glenn Hammond
   ! Date: 12/11/07, 09/23/14
   !
@@ -3360,10 +3368,10 @@ subroutine SF_Linear_CapillaryPressure(this,liquid_saturation, &
                                        capillary_pressure,dpc_dsatl, &
                                        material_auxvars,option)
   ! 
-  ! Computes the capillary_pressure as a function of saturation
-  ! 
-  !   
-
+  ! Computes the capillary pressure as a function of saturation.
+  !      
+  ! Warning: Before using material_auxvars, confirm it is not a dummy
+  !
   ! Author: Bwalya Malama, Heeho Park
   ! Date: 11/14/14
   !
@@ -3593,6 +3601,8 @@ subroutine SF_BF_KRP1_Saturation(this,capillary_pressure,liquid_saturation, &
   ! Modified according to KRP=1 option of BRAGFLO
   ! Explanation: residual gas saturation is in the denominator of effective 
   ! saturation
+  !  
+  ! Warning: Before using material_auxvars, confirm it is not a dummy
   !
   ! Author: Heeho Park
   ! Date: 11/17/16
@@ -3719,7 +3729,9 @@ subroutine SF_BF_KRP5_CapillaryPressure(this,liquid_saturation, &
   ! Computes the capillary_pressure as a function of saturation
   ! From BRAGFLO 6.02 User Manual page 121 KRP=5.
   ! I also referenced the source code of BRAGFLO 6.02
-
+  !
+  ! Warning: Before using material_auxvars, confirm it is not a dummy
+  !
   ! Author: Heeho Park
   ! Date: 11/18/16
   !
@@ -3860,6 +3872,9 @@ subroutine SF_BF_KRP9_CapillaryPressure(this,liquid_saturation, &
   ! Moridis, G. J., and K. Pruess.  1992.  TOUGH Simulations of 
   ! Updegraff's Set of Fluid and Heat Flow Problems.  LBL-32611, ERMS# 138458. 
   ! Berkeley, CA:  Lawrence Berkeley Laboratory.
+  !  
+  ! Warning: Before using material_auxvars, confirm it is not a dummy
+  !
   ! Author: Heeho Park
   ! Date: 03/26/15
   !
@@ -4015,6 +4030,9 @@ subroutine SF_BF_KRP4_CapillaryPressure(this,liquid_saturation, &
   ! saturation
   ! There is no usage of Pc Max unless KPC card is defined as 2. If KPC = 0,
   ! then there is no cut off in Pc Max
+  !  
+  ! Warning: Before using material_auxvars, confirm it is not a dummy
+  !
   ! Author: Heeho Park
   ! Date: 11/14/15
   !
@@ -4186,8 +4204,10 @@ subroutine SF_BF_KRP11_CapillaryPressure(this,liquid_saturation, &
                                          capillary_pressure,dpc_dsatl, &
                                          material_auxvars,option)
   ! 
-  ! KRP=11 of BRAGFLO
-  ! capillary pressure is 0 at all times
+  ! KRP=11 of BRAGFLO: capillary pressure is 0 at all times
+  !  
+  ! Warning: Before using material_auxvars, confirm it is not a dummy
+  !
   ! Author: Heeho Park
   ! Date: 03/26/15
   !
@@ -4301,6 +4321,9 @@ subroutine SF_BF_KRP12_CapillaryPressure(this,liquid_saturation, &
   ! Explanation: The relative permeabilities are unchanged from the 
   ! modified Brooks-Corey model but the capillary presssure is 
   ! calculated with modified saturation
+  !  
+  ! Warning: Before using material_auxvars, confirm it is not a dummy
+  !
   ! Author: Heeho Park
   ! Date: 11/14/15
   !
@@ -4453,6 +4476,8 @@ subroutine SF_mK_CapillaryPressure(this,liquid_saturation, &
   ! Malama, B. & K.L. Kuhlman, 2015. Unsaturated Hydraulic Conductivity
   ! Models Based on Truncated Lognormal Pore-size Distributions, Groundwater,
   ! 53(3):498–502. http://dx.doi.org/10.1111/gwat.12220
+  !  
+  ! Warning: Before using material_auxvars, confirm it is not a dummy
   !
   ! Author: Kris Kuhlman
   ! Date: 2017
@@ -7285,7 +7310,7 @@ end subroutine RPF_TOUGH2_Linear_Oil_Verify
 ! ************************************************************************** !
 
 subroutine RPF_TOUGH2_Linear_Oil_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_sat,option)
+                                         relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -7483,7 +7508,7 @@ end subroutine RPF_Mod_BC_SetupPolynomials
 ! ************************************************************************** !
 
 subroutine RPF_Mod_BC_Liq_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_sat,option)
+                                  relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -7536,7 +7561,7 @@ end subroutine RPF_Mod_BC_Liq_RelPerm
 
 
 subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_sat,option)
+                                  relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation

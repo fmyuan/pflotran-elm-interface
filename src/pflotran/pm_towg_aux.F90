@@ -348,14 +348,14 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   implicit none
 
   type(option_type) :: option
-  class(characteristic_curves_type) :: characteristic_curves
   PetscReal :: x(option%nflowdof)
-  class(auxvar_towg_type) :: auxvar
+  class(auxvar_towg_type) :: auxvar  
   type(global_auxvar_type) :: global_auxvar ! passing this for salt conc.
-                                            ! not currenty used  
+                                            ! not currenty used
   class(material_auxvar_type) :: material_auxvar
+  class(characteristic_curves_type) :: characteristic_curves
   PetscInt :: natural_id !only for debugging/print out - currently not used 
-
+  
   PetscInt :: lid, oid, gid
   PetscReal :: cell_pressure, wat_sat_pres
   PetscReal :: krl, visl, dkrl_Se
@@ -396,7 +396,7 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   !below pc_ow /= 0
   !compute capillary presssure water/oil (pc_ow)
   !call characteristic_curves%saturation_function% &
-  !           CapillaryPressure(auxvar%sat(lid),auxvar%pc(lid),option)
+  !     CapillaryPressure(auxvar%sat(lid),auxvar%pc(lid),material_auxvar,option)
   !auxvar%pres(lid) = auxvar%pres(oid) - auxvar%pc(lid)
 
   !Assumptions below on capillary pressure for comparison with TOUGH2-EOS8:
@@ -410,7 +410,7 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   !compute capillary pressure gas/water (pc_gw),
   ! pc_go = pc_gw when pc_ow = 0
   !call characteristic_curves%saturation_function% &
-  !           CapillaryPressure(auxvar%sat(lid),auxvar%pc(lid),option)
+  !     CapillaryPressure(auxvar%sat(lid),auxvar%pc(lid),material_auxvar,option)
   !To match TOUGH-EOS8, consider water plu poil as wetting phase
   !for capillary press computation 
   sat_tot_liq = auxvar%sat(lid) + auxvar%sat(oid)

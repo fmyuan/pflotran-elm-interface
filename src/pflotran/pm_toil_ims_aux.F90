@@ -232,17 +232,17 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   use Material_Aux_class
   
   implicit none
-
+  
   type(option_type) :: option
-  class(characteristic_curves_type) :: characteristic_curves
   PetscReal :: x(option%nflowdof)
   !type(toil_ims_auxvar_type) :: toil_auxvar
   class(auxvar_toil_ims_type) :: toil_auxvar
   type(global_auxvar_type) :: global_auxvar ! passing this for salt conc.
                                             ! not currenty used  
   class(material_auxvar_type) :: material_auxvar
+  class(characteristic_curves_type) :: characteristic_curves
   PetscInt :: natural_id !only for debugging/print out - currently not used 
-
+  
   PetscInt :: lid, oid, cpid
   PetscReal :: cell_pressure, wat_sat_pres
   PetscReal :: krl, visl, dkrl_Se
