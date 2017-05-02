@@ -6,9 +6,8 @@ export PETSC_ARCH=petsc-arch
 cd src/pflotran; 
 
 # Run unit tests
-make utest || UNIT_EXIT_CODE=$?
-
-echo "$UNIT_EXIT_CODE" >&2
+make utest
+UNIT_EXIT_CODE=$?
 if [ $UNIT_EXIT_CODE -ne 0 ]; then
   echo "Unit tests failed" >&2
 fi
@@ -16,16 +15,14 @@ fi
 # Run regression tests
 cd ../../regression_tests
 
-make test || REGRESSION_EXIT_CODE=$?
-
-echo "$REGRESSION_EXIT_CODE" >&2
+make test
+REGRESSION_EXIT_CODE=$?
 if [ $REGRESSION_EXIT_CODE -ne 0 ]; then
   echo "Regression tests failed" >&2
 fi
 
 if [ $UNIT_EXIT_CODE -eq 0 ] && [ $REGRESSION_EXIT_CODE -eq 0 ]; then
-  echo "Reporting failure even on success" >&2
-  exit 1
+  exit 0
 else
   exit 1
 fi
