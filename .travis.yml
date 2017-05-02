@@ -24,9 +24,10 @@ matrix:
 #    - env: DEBUG=0; CC=mpicc; export CXX=mpicxx; export FC=mpif90
      -  os: linux
 
-    # osx + gcc
-#    - env: DEBUG=0; CC=mpicc; export CXX=mpicxx; export FC=mpif90
-     - os: osx
+# To add 'osx' back in, remove one layer of # below
+#    # osx + gcc
+##    - env: DEBUG=0; CC=mpicc; export CXX=mpicxx; export FC=mpif90
+#     - os: osx
 
 script: 
 #  - echo CC=${CC}
