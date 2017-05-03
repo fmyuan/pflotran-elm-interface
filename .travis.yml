@@ -22,8 +22,8 @@ matrix:
     - env: CMAKE_BUILD=0
       os: linux
 
-    - env: CMAKE_BUILD=0
-      os: osx
+#    - env: CMAKE_BUILD=0
+#      os: osx
 
     - env: CMAKE_BUILD=1
       os: linux
