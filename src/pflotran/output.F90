@@ -282,7 +282,6 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
                 call InputErrorMsg(input,option,'start time',string)
                 call InputReadWord(input,option,word,PETSC_TRUE)
                 call InputErrorMsg(input,option,'start time units',string)
-                internal_units = 'sec'
                 units_conversion = UnitsConvertToInternal(word, &
                      internal_units,option) 
                 temp_real = temp_real * units_conversion
@@ -295,6 +294,8 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
                 call InputErrorMsg(input,option,'end time',string)
                 call InputReadWord(input,option,word,PETSC_TRUE)
                 call InputErrorMsg(input,option,'end time units',string)
+                units_conversion = UnitsConvertToInternal(word, &
+                     internal_units,option) 
                 temp_real2 = temp_real2 * units_conversion
                 select case(trim(block_name))
                   case('SNAPSHOT_FILE')

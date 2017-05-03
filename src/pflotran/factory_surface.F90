@@ -572,6 +572,8 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                       call InputReadWord(input,option,word,PETSC_TRUE)
                       call InputErrorMsg(input,option,'end time units', &
                                          'SURF_OUTPUT,PERIODIC,TIME')
+                      units_conversion = UnitsConvertToInternal(word, &
+                                         internal_units,option)
                       temp_real2 = temp_real2 * units_conversion
                       do
                         waypoint => WaypointCreate()

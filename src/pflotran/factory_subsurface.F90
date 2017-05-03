@@ -2550,13 +2550,13 @@ subroutine SubsurfaceReadInput(simulation)
               call StringToUpper(word)
               select case(trim(word))
                 case('TIME')
+                  internal_units = 'sec'
                   call InputReadDouble(input,option,temp_real)
                   call InputErrorMsg(input,option,'time increment', &
                                      'OUTPUT,PERIODIC,TIME')
                   call InputReadWord(input,option,word,PETSC_TRUE)
                   call InputErrorMsg(input,option,'time increment units', &
                                      'OUTPUT,PERIODIC,TIME')
-                  internal_units = 'sec'
                   units_conversion = UnitsConvertToInternal(word, &
                                      internal_units,option) 
                   output_option%periodic_snap_output_time_incr = temp_real* &
@@ -2564,14 +2564,12 @@ subroutine SubsurfaceReadInput(simulation)
                   call InputReadWord(input,option,word,PETSC_TRUE)
                   if (input%ierr == 0) then
                     if (StringCompareIgnoreCase(word,'between')) then
-
                       call InputReadDouble(input,option,temp_real)
                       call InputErrorMsg(input,option,'start time', &
                                          'OUTPUT,PERIODIC,TIME')
                       call InputReadWord(input,option,word,PETSC_TRUE)
                       call InputErrorMsg(input,option,'start time units', &
                                          'OUTPUT,PERIODIC,TIME')
-                      internal_units = 'sec'
                       units_conversion = UnitsConvertToInternal(word, &
                                          internal_units,option) 
                       temp_real = temp_real * units_conversion
@@ -2587,6 +2585,8 @@ subroutine SubsurfaceReadInput(simulation)
                       call InputReadWord(input,option,word,PETSC_TRUE)
                       call InputErrorMsg(input,option,'end time units', &
                                          'OUTPUT,PERIODIC,TIME')
+                      units_conversion = UnitsConvertToInternal(word, &
+                                         internal_units,option) 
                       temp_real2 = temp_real2 * units_conversion
                       do
                         waypoint => WaypointCreate()
