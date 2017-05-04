@@ -19,15 +19,17 @@ addons:
 
 matrix:
   include:
-    # linux + gcc
-# commented out for now as mpich is being installed through PETSc for now.
-#    - env: DEBUG=0; CC=mpicc; export CXX=mpicxx; export FC=mpif90
-     -  os: linux
+    - env: CMAKE_BUILD=0
+      os: linux
 
-# To add 'osx' back in, remove one layer of # below
-#    # osx + gcc
-##    - env: DEBUG=0; CC=mpicc; export CXX=mpicxx; export FC=mpif90
-#     - os: osx
+#    - env: CMAKE_BUILD=0
+#      os: osx
+
+    - env: CMAKE_BUILD=1
+      os: linux
+
+#    - env: CMAKE_BUILD=1
+#      os: osx
 
 script: 
 #  - echo CC=${CC}

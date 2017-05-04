@@ -15,6 +15,10 @@ if (NOT CMAKE_INSTALL_PREFIX)
   set(CMAKE_INSTALL_PREFIX /usr/local)
 endif()
 
+set(PETSC_ARCH $ENV{PETSC_ARCH})
+set(PETSC_DIR $ENV{PETSC_DIR})
+include($ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/initial_cache_file.cmake)
+
 # Make sure compilers are set. This must be done before enabling languages.
 if (NOT CMAKE_C_COMPILER)
   if (NOT $ENV{CC} STREQUAL "")
@@ -123,14 +127,12 @@ endif ()
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-
-set(PETSC_ARCH $ENV{PETSC_ARCH})
-set(PETSC_DIR $ENV{PETSC_DIR})
 find_package(PETSc)
 if (NOT PETSC_FOUND)
   message(FATAL_ERROR "PETSc was not found.")
 endif()
 include_directories(${PETSC_INCLUDES})
+
 
 
 # Include PETSc in the rpath.
@@ -474,10 +476,10 @@ set (PFLOTRAN_SOURCES
 include(add_pflotran_library)
 add_pflotran_library(pflotran ${PFLOTRAN_SOURCES})
 
-set(PFLOTRAN_LIBRARIES pflotran;${PFLOTRAN_LIBRARIES} PARENT_SCOPE)
+set(PFLOTRAN_LIBRARIES pflotran;${PFLOTRAN_LIBRARIES})
 
-link_libraries(${petsc_lib})
 link_libraries(pflotran)
+link_libraries(${petsc_lib})
 
 include(add_pflotran_executable)
 add_pflotran_executable(pflotran.exe pflotran.F90)
