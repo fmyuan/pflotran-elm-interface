@@ -447,8 +447,8 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
       else
         ! water/oil transition zone
         coupler%flow_aux_real_var(1,iconn) = po_cell      
-        call characteristic_curves%saturation_function%Saturation(pc_comp, &
-                sat_liq_comp,dsat_dpres,option) 
+        call characteristic_curves%saturation_function%Saturation( &
+                   dummy_material_auxvar,pc_comp,sat_liq_comp,dsat_dpres,option) 
         coupler%flow_aux_real_var(2,iconn) = 1.0d0 - sat_liq_comp
         if (coupler%flow_aux_real_var(2,iconn) < 1.0d-6 ) &
            coupler%flow_aux_real_var(2,iconn) = 1.0d-6 

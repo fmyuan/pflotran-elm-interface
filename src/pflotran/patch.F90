@@ -1628,7 +1628,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                     p_gas - p_sat ! air pressure
             endif
             call patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))% &
-                   ptr%saturation_function%Saturation(p_cap,s_liq,dummy_real,option)
+                   ptr%saturation_function%Saturation( &
+                   patch%aux%Material%auxvars(ghosted_id),p_cap,s_liq, &
+                   dummy_real,option)
             ! %flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) set to 3 in hydrostatic
             coupler%flow_aux_real_var( &
               coupler%flow_aux_mapping( &
