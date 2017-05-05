@@ -96,13 +96,6 @@ contains
     nullify(model%map_pf_2dbot_to_clm_2dbot)
     nullify(model%map_pf_2dtop_to_clm_2dtop)
 
-    model%map_clm_sub_to_pf_sub            => MappingCreate()
-    model%map_clm_2dtop_to_pf_2dtop        => MappingCreate()
-    model%map_pf_sub_to_clm_sub            => MappingCreate()
-    model%map_pf_2dtop_to_clm_2dtop        => MappingCreate()
-    model%map_clm_2dbot_to_pf_2dbot        => MappingCreate()
-    model%map_pf_2dbot_to_clm_2dbot        => MappingCreate()
-
     model%nlclm = -1
     model%ngclm = -1
 
@@ -131,6 +124,7 @@ contains
 
       select case(trim(word))
         case('CLM2PF_SUB_FILE')
+          model%map_clm_sub_to_pf_sub => MappingCreate()
           call InputReadNChars(input, model%option, model%map_clm_sub_to_pf_sub%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_clm_sub_to_pf_sub%filename = &
@@ -140,6 +134,7 @@ contains
                              model%option, 'type', 'MAPPING_FILES')   
           clm2pf_3dsub_file=PETSC_TRUE
         case('PF2CLM_SUB_FILE')
+          model%map_pf_sub_to_clm_sub => MappingCreate()
           call InputReadNChars(input, model%option, model%map_pf_sub_to_clm_sub%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_pf_sub_to_clm_sub%filename = &
@@ -148,7 +143,9 @@ contains
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           pf2clm_3dsub_file=PETSC_TRUE
+
         case('CLM2PF_BCTOP_FILE')
+          model%map_clm_2dtop_to_pf_2dtop => MappingCreate()
           call InputReadNChars(input, model%option, model%map_clm_2dtop_to_pf_2dtop%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_clm_2dtop_to_pf_2dtop%filename = &
@@ -158,6 +155,7 @@ contains
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_bctop_file=PETSC_TRUE
         case('PF2CLM_BCTOP_FILE')
+          model%map_pf_2dtop_to_clm_2dtop => MappingCreate()
           call InputReadNChars(input, model%option, model%map_pf_2dtop_to_clm_2dtop%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_pf_2dtop_to_clm_2dtop%filename = &
@@ -167,6 +165,7 @@ contains
                              model%option, 'type', 'MAPPING_FILES')
           pf2clm_bctop_file=PETSC_TRUE
         case('CLM2PF_BCBOT_FILE')
+          model%map_clm_2dbot_to_pf_2dbot => MappingCreate()
           call InputReadNChars(input, model%option, model%map_clm_2dbot_to_pf_2dbot%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_clm_2dbot_to_pf_2dbot%filename = &
@@ -176,6 +175,7 @@ contains
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_bcbot_file=PETSC_TRUE
         case('PF2CLM_BCBOT_FILE')
+          model%map_pf_2dbot_to_clm_2dbot => MappingCreate()
           call InputReadNChars(input, model%option, model%map_pf_2dbot_to_clm_2dbot%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_pf_2dbot_to_clm_2dbot%filename = &
@@ -199,11 +199,13 @@ contains
       ' CLM grids conversion to PF structured-cartesian grid USED!'
       call printMsg(model%option)
 
-      if(associated(model%map_clm_sub_to_pf_sub)) then
+      if(.not.associated(model%map_clm_sub_to_pf_sub)) then
+        model%map_clm_sub_to_pf_sub => MappingCreate()
         model%map_clm_sub_to_pf_sub%id = CLM_3DSUB_TO_PF_3DSUB
       endif
 
-      if(associated(model%map_pf_sub_to_clm_sub)) then
+      if(.not.associated(model%map_pf_sub_to_clm_sub)) then
+        model%map_pf_sub_to_clm_sub => MappingCreate()
         model%map_pf_sub_to_clm_sub%id = PF_3DSUB_TO_CLM_3DSUB
       endif
 
@@ -216,11 +218,13 @@ contains
           ' CLM grids conversion to PF structured-cartesian grid USED!'
         call printMsg(model%option)
 
-        if(associated(model%map_clm_2dtop_to_pf_2dtop)) then
+        if(.not.associated(model%map_clm_2dtop_to_pf_2dtop)) then
+          model%map_clm_2dtop_to_pf_2dtop => MappingCreate()
           model%map_clm_2dtop_to_pf_2dtop%id = CLM_2DTOP_TO_PF_2DTOP
         endif
 
-        if(associated(model%map_pf_2dtop_to_clm_2dtop)) then
+        if(.not.associated(model%map_pf_2dtop_to_clm_2dtop)) then
+          model%map_pf_2dtop_to_clm_2dtop => MappingCreate()
           model%map_pf_2dtop_to_clm_2dtop%id = PF_2DTOP_TO_CLM_2DTOP
         endif
 
@@ -232,11 +236,13 @@ contains
           ' CLM grids conversion to PF structured-cartesian grid USED!'
         call printMsg(model%option)
 
-        if(associated(model%map_clm_2dbot_to_pf_2dbot)) then
+        if(.not.associated(model%map_clm_2dbot_to_pf_2dbot)) then
+          model%map_clm_2dbot_to_pf_2dbot => MappingCreate()
           model%map_clm_2dbot_to_pf_2dbot%id = CLM_2DBOT_TO_PF_2DBOT
         endif
 
-        if(associated(model%map_pf_2dbot_to_clm_2dbot)) then
+        if(.not.associated(model%map_pf_2dbot_to_clm_2dbot)) then
+          model%map_pf_2dbot_to_clm_2dbot => MappingCreate()
           model%map_pf_2dbot_to_clm_2dbot%id = PF_2DBOT_TO_CLM_2DBOT
         endif
 

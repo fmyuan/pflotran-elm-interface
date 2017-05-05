@@ -307,13 +307,13 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   volume = material_auxvar%volume
   porosity = material_auxvar%porosity
   saturation = global_auxvar%sat(1)
-  !if(saturation < 0.01d0) return
+  if(saturation < 0.01d0) return
 
   theta = saturation * porosity
   L_water = theta * 1.0d3      ! Litres of H2O /m3 bulk soil
 
   tc = global_auxvar%temp
-  !if(tc < -10.0d0) return
+  if(tc < -0.1d0) return
 
   if(this%ispec_plantn>0) ires_plantn = this%ispec_plantn + reaction%offset_immobile
   if(this%ispec_nh4>0) ires_nh4 = this%ispec_nh4 + reaction%offset_aqueous
