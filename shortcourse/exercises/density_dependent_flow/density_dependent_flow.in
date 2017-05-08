@@ -32,7 +32,7 @@ CHEMISTRY
     Halite
       # Alkattan, Oelkers et al. (1997)
       # Experimental Studies of Halite Dissolution Kinetics
-      RATE_CONSTANT 1.0d-7 mol/cm^2-sec 
+      RATE_CONSTANT 1.d-7 mol/cm^2-sec 
     /
   /
   LOG_FORMULATION
@@ -64,6 +64,47 @@ GRID
   /
 END
 
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION halite_along_top
+  COORDINATES
+    0.d0 -1.d20 19.d0
+    15.d0 1.d20 20.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY aquifer
+  ID 1
+  CHARACTERISTIC_CURVES sf1
+  POROSITY  0.25d0
+  TORTUOSITY 0.1d0
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+END
+
+MATERIAL_PROPERTY halite
+  ID 2
+  CHARACTERISTIC_CURVES sf1
+  POROSITY  0.15d0
+  TORTUOSITY 0.1d0
+  PERMEABILITY
+    PERM_ISO 1.d-16
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES sf1
+  DEFAULT
+END
+
 #=========================== output options ===================================
 OUTPUT
   NO_PRINT_INITIAL
@@ -83,46 +124,6 @@ TIME
   FINAL_TIME 100.d0 y
   INITIAL_TIMESTEP_SIZE 1.d-4 d
   MAXIMUM_TIMESTEP_SIZE 100.d0 d
-END
-
-#=========================== material properties ==============================
-MATERIAL_PROPERTY aquifer
-  ID 1
-  CHARACTERISTIC_CURVES sf1
-  POROSITY  2.5d-1
-  TORTUOSITY 1.d-1
-  PERMEABILITY
-    PERM_ISO 1.d-12
-  /
-END
-
-MATERIAL_PROPERTY halite
-  ID 2
-  CHARACTERISTIC_CURVES sf1
-  POROSITY  0.15
-  TORTUOSITY 1.d-1
-  PERMEABILITY
-    PERM_ISO 1.0E-16
-  /
-END
-
-CHARACTERISTIC_CURVES sf1
-  DEFAULT
-END
-
-#=========================== regions ==========================================
-REGION all
-  COORDINATES
-    -1.d20 -1.d20 -1.d20
-    1.d20 1.d20 1.d20
-  /
-END
-
-REGION halite_along_top
-  COORDINATES
-    0.d0 0.d0 19.d0
-    15.d0 1.d0 20.d0
-  /
 END
 
 #=========================== flow conditions ==================================
