@@ -142,7 +142,7 @@ CHEMISTRY
   OUTPUT
     PH
     TOTAL
-    all
+    ALL
   /
 END
 
@@ -195,10 +195,11 @@ OUTPUT
   TIMES w 1.
   TIMES mo 1.
   PERIODIC TIME 0.25 y
+  PERIODIC_OBSERVATION TIMESTEP 1
   FORMAT TECPLOT BLOCK
-  VELOCITY_AT_CENTER
+  FORMAT HDF5
   PRINT_COLUMN_IDS
-  SCREEN PERIODIC 10
+  VELOCITY_AT_CENTER
 END
 
 #=========================== times ============================================
