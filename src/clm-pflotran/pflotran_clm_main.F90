@@ -2230,7 +2230,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
     class(realization_subsurface_type), pointer :: realization
 
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id, ghosted_id, istart, iend, vecsize
+    PetscInt           :: local_id, ghosted_id, istart, iend
     PetscReal, pointer :: xx_loc_p(:)
 
     PetscScalar, pointer :: soilt_pf_loc(:)      ! temperature [oC]
@@ -4420,9 +4420,10 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     call VecGetArrayReadF90(field%porosity0, porosity_loc_p, ierr)
     CHKERRQ(ierr)
 
+
     !----------------------------------------------------------------------------------------------------
-    do local_id = 1, grid%nlmax
-      ghosted_id=grid%nL2G(local_id)
+    do ghosted_id=1, grid%ngmax
+      local_id=grid%nG2L(ghosted_id)
       if (ghosted_id<=0 .or. local_id <= 0) cycle ! bypass ghosted corner cells
       !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
@@ -4485,22 +4486,23 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
                        decomp_npools_vr_pf_loc(vec_offset+ghosted_id) )      ! Seq. decomp_pfs vec: 'cell' first, then 'species'
         endif
 
-      enddo
 
 #ifdef CLM_PF_DEBUG
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (som4c pool):
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
       !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
-      write(option%myrank+200,*) 'checking bgc - pflotran-model setting init. conc.: ', &
-        'rank=',option%myrank, &
-        'local_id=',local_id, 'ghosted_id=',ghosted_id, 'xxp_som4_id', offsetim+ispec_som4, &
-        'som4_pfs(ghosted_id)=',decomp_cpools_vr_som4_pf_loc(ghosted_id), &
-        'xx_p(xxp_som4_id)=',xx_p(offsetim + ispec_som4), &
-        'sat_glob(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
-        'poro(local_id)=',porosity_loc_p(local_id)
-
+        if (k==8) then
+          write(option%myrank+200,*) 'checking bgc - pflotran-model setting init. conc.: '
+          write(option%myrank+200,*) 'rank=',option%myrank, &
+          'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+          'xxp_som4_id', (offsetim+clm_pf_idata%ispec_decomp_c(k)), &
+          'som4_pfs(ghosted_id)=', decomp_cpools_vr_pf_loc(vec_offset+ghosted_id), &
+          'xx_p(xxp_som4_id)=',xx_p(offsetim + clm_pf_idata%ispec_decomp_c(k))
+        endif
 #endif
+
+      enddo  ! k=1,clm_pf_idata%ndecomp_pools
 
     enddo
 
