@@ -1,4 +1,6 @@
-# 3D CO2 injection by Hannah
+# 3D large-scale CO2 injection problem with caprock
+# Change the no. of grid cells to make the mesh finer
+# Satish Karra and Peter Lichtner
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -9,147 +11,139 @@ SIMULATION
   /
 END
 
-
 SUBSURFACE
 
+#=== make sure CO2_DATABASE points to the right path =========================
 CO2_DATABASE ../../../database/co2data0.dat
 
-#CHECKPOINT 100
-#RESTART pflotran.chk500
-
-#=====define the grid======
+#=========================== discretization ===================================
 GRID
   TYPE structured
-#  GRAVITY 0.d0 0.d0 -9.81d0
   ORIGIN 0.d0 0.d0 0.d0
-  NXYZ 51 1 100 
+  NXYZ 21 21 20 
   BOUNDS
-    0. 0. 0.
-    2000. 100. 1000.
+    0.d0 0.d0 0.d0
+    2500.d0 2500.d0 1000.d0
   /
 END
 
-#
-#=======define solver======
+#=========================== solver options ===================================
 TIMESTEPPER FLOW
   TS_ACCELERATION 8
-/
-
-NEWTON_SOLVER FLOW
-MAXIT 10
 END
 
-#=====times======
+NEWTON_SOLVER FLOW
+  ATOL 1D-12
+  RTOL 1D-8
+  STOL 1D-30
+  ITOL 1D-7
+  MAXIT 25
+END
+
+#=========================== times ============================================
 TIME
-  FINAL_TIME 250.d0 y
-  INITIAL_TIMESTEP_SIZE 1.d-6 y
-#  MAXIMUM_TIMESTEP_SIZE 1.d-2 y
-  MAXIMUM_TIMESTEP_SIZE 1.0 y
-  MAXIMUM_TIMESTEP_SIZE 5.0 y at 10 y
+  FINAL_TIME 1.d2 y
+  INITIAL_TIMESTEP_SIZE 1.d-8 y
+  MAXIMUM_TIMESTEP_SIZE 2.5d1 y
+  #MAXIMUM_TIMESTEP_SIZE 2.d0 y at 50. y
+  #MAXIMUM_TIMESTEP_SIZE 25.d0 y at 1000. y
 /
 
-#======output options====
+#=========================== output options ===================================
 OUTPUT
-  TIMES y 0.5 1. 1.5 2 2.5 3 3.5 4. 4.5 5 5.5 6. 6.5 7 7.5 8 8.5 9 9.5 
-  PERIODIC TIME 5. y
-  SCREEN PERIODIC 10
-  #PERIODIC_OBSERVATION TIMESTEP 1
+  MASS_BALANCE
+  TIMES y 1.e-6 0.5 1. 2. 3. 4. 5. 6. 7. 8. 9. 10. 12. 14. 16. 18. 19. 19.25 19.5 19.75 20. \
+  20.25 20.5 20.75 21. 22. 24. 26. 28. 30. 35. 40. 45. 50. 60. 70. 80. 90. 100. 
+  #FORMAT TECPLOT POINT
   FORMAT HDF5
-#  FORMAT TECPLOT POINT
-  VELOCITY_AT_CENTER
 /
 
-#=====fluid properties=====
-FLUID_PROPERTY
+#=========================== fluid properties =================================
+FLUID_PROPERTY 
   DIFFUSION_COEFFICIENT 1.d-9
 /
 
-#====== material properties=====
-MATERIAL_PROPERTY sandstone
+#=========================== material properties ==============================
+MATERIAL_PROPERTY formation
   ID 1
-  POROSITY 0.10d0 
+  POROSITY 0.15d0
   TORTUOSITY 1.d0
-  ROCK_DENSITY 2.84E3
-  SPECIFIC_HEAT 1E3
-  THERMAL_CONDUCTIVITY_DRY 0.5 
-  THERMAL_CONDUCTIVITY_WET 0.5
+  ROCK_DENSITY 2.65d3
+  SPECIFIC_HEAT 1.d3
+  THERMAL_CONDUCTIVITY_DRY 2.5
+  THERMAL_CONDUCTIVITY_WET 2.5 
   SATURATION_FUNCTION sf2
   PERMEABILITY
-    PERM_X 1.d-13
-    PERM_Y 1.d-13
-    PERM_Z 1.d-13
+    PERM_X 2.e-14
+    PERM_Y 2.e-14
+    PERM_Z 2.e-14
   /
 /
 
-MATERIAL_PROPERTY shale
+MATERIAL_PROPERTY caprock
   ID 2
   POROSITY 0.01d0
   TORTUOSITY 1.d0
-  ROCK_DENSITY 2.84E3
-  SPECIFIC_HEAT 1E3
-  THERMAL_CONDUCTIVITY_DRY 0.5
-  THERMAL_CONDUCTIVITY_WET 0.5
+  ROCK_DENSITY 2.65d3
+  SPECIFIC_HEAT 1.d3
+  THERMAL_CONDUCTIVITY_DRY 2.5
+  THERMAL_CONDUCTIVITY_WET 2.5 
   SATURATION_FUNCTION sf2
   PERMEABILITY
-    PERM_X 1.d-16
-    PERM_Y 1.d-16
-    PERM_Z 1.d-16
+    PERM_X 1.e-17
+    PERM_Y 1.e-17
+    PERM_Z 1.e-17
   /
 /
-MATERIAL_PROPERTY int
+
+MATERIAL_PROPERTY overburden
   ID 3
-  POROSITY 0.05d0
+  POROSITY 0.15d0
   TORTUOSITY 1.d0
-  ROCK_DENSITY 2.84E3
-  SPECIFIC_HEAT 1E3
-  THERMAL_CONDUCTIVITY_DRY 0.5
-  THERMAL_CONDUCTIVITY_WET 0.5
+  ROCK_DENSITY 5.d3
+  SPECIFIC_HEAT 1.d3
+  THERMAL_CONDUCTIVITY_DRY 2.5
+  THERMAL_CONDUCTIVITY_WET 2.5 
   SATURATION_FUNCTION sf2
   PERMEABILITY
-    PERM_X 1.d-13
-    PERM_Y 1.d-13
-    PERM_Z 1.d-13
+    PERM_X 2.e-14
+    PERM_Y 2.e-14
+    PERM_Z 2.e-14
   /
-END
+/
 
-#======saturation functions
+MATERIAL_PROPERTY basement
+  ID 4
+  POROSITY 0.1d0
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2.65d3
+  SPECIFIC_HEAT 1.d3
+  THERMAL_CONDUCTIVITY_DRY 2.5
+  THERMAL_CONDUCTIVITY_WET 2.5 
+  SATURATION_FUNCTION sf2
+  PERMEABILITY
+    PERM_X 1.e-16
+    PERM_Y 1.e-16
+    PERM_Z 1.e-16
+  /
+/
+
+#=========================== saturation functions =============================
 SATURATION_FUNCTION sf2
   PERMEABILITY_FUNCTION_TYPE MUALEM
   SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
   RESIDUAL_SATURATION LIQUID_PHASE 0.1
-  RESIDUAL_SATURATION GAS_PHASE 0.00
-  LAMBDA 0.457
-  ALPHA 5.1d-5
+  RESIDUAL_SATURATION GAS_PHASE 0.0
+  LAMBDA 0.762d0
+  ALPHA 7.5d-4
   MAX_CAPILLARY_PRESSURE 1.d6
 /
 
-#=======regions===
-
+#=========================== regions ==========================================
 REGION all
   COORDINATES
     0.d0 0.d0 0.d0
-    2000.d0 100.d0 1000.d0
-  /
-END
-
-REGION sstop
-  COORDINATES
-    0.d0 0.d0 600.d0
-    2000.d0 100.d0 1000.d0
-  /
-END
-
-REGION shale
-  COORDINATES
-    0.d0 0.d0 400.d0
-    2000.d0 100.d0 600.d0
-  /
-END
-
-REGION ssbottom
-  COORDINATES 
-    0.d0 0.d0 0.d0
-    2000.d0 100.d0 400.d0
+    2500.d0 2500.d0 1000.d0
   /
 END
 
@@ -157,15 +151,23 @@ REGION top
   FACE TOP
   COORDINATES
     0.d0 0.d0 1000.d0
-    2000.d0 100.d0 1000.d0
-  /
+    2500.d0 2500.d0 1000.d0
+  / 
 END
 
 REGION bottom
   FACE BOTTOM
   COORDINATES
     0.d0 0.d0 0.d0
-    2000.d0 100.d0 0.d0
+    2500.d0 2500.d0 0.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    2500.d0 0.d0 0.d0
+    2500.d0 2500.d0 1000.d0
   /
 END
 
@@ -173,15 +175,15 @@ REGION west
   FACE WEST
   COORDINATES
     0.d0 0.d0 0.d0
-    0.d0 100.d0 1000.d0
+    0.d0 2500.d0 1000.d0
   /
 END
 
-REGION east
-  FACE EAST
+REGION north
+  FACE NORTH
   COORDINATES
-    2000.d0 0.d0 0.d0
-    2000.d0 100.d0 1000.d0
+    0.d0 2500.d0 0.d0
+    2500.d0 2500.d0 1000.d0
   /
 END
 
@@ -189,103 +191,168 @@ REGION south
   FACE SOUTH
   COORDINATES
     0.d0 0.d0 0.d0
-    2000.d0 0.d0 1000.d0
+    2500.d0 0.d0 1000.d0
   /
 END
 
-REGION north
-  FACE NORTH
+REGION basement
   COORDINATES
-    0.d0 100.d0 0.d0 
-    2000.d0 100.d0 1000.d0
+    0.d0 0.d0 0.d0
+    2500.d0 2500.d0 400.d0
+  /
+END
+
+REGION formation
+  COORDINATES
+    0.d0 0.d0 400.d0
+    2500.d0 2500.d0 500.d0
+  /
+END
+
+REGION caprock
+  COORDINATES
+    0.d0 0.d0 500.d0
+    2500.d0 2500.d0 600.d0
+  /
+END
+
+REGION overburden
+  COORDINATES
+    0.d0 0.d0 600.d0
+    2500.d0 2500.d0 1000.d0
   /
 END
 
 REGION well
   COORDINATES
-    1000.d0 50.d0 200.d0
-    1000.d0 50.d0 200.d0
+    1250.d0 1250.d0 400.d0
+    1250.d0 1250.d0 500.d0
   /
 END
 
-#====flow conditions====
+REGION obs
+  COORDINATES
+    1250.d0 1250.d0 500.d0
+    1250.d0 1250.d0 500.d0
+  /
+END
+
+#=========================== observation points ===============================
+OBSERVATION obs
+  REGION obs
+  AT_CELL_CENTER
+  VELOCITY
+END
+
+#=========================== flow conditions ==================================
 FLOW_CONDITION initial
   UNITS Pa,C,M,yr
   TYPE
     PRESSURE hydrostatic
-    TEMPERATURE zero_gradient
-    CONCENTRATION zero_gradient
-    ENTHALPY dirichlet
-  /
-  IPHASE 1
-  DATUM 0.d0 0.d0 200.d0
-  PRESSURE 2.5d7 2.5d7
-  TEMPERATURE 62 C
-  CONCENTRATION 1.d-6
-  ENTHALPY 0.d0 0.d0
-/
-
-FLOW_CONDITION source
-  UNITS Pa,C,M,yr
-  TYPE
-    RATE mass_rate
     TEMPERATURE dirichlet
     CONCENTRATION dirichlet
     ENTHALPY dirichlet
   /
-# PRESSURE 2.5d7 2.5d7
-  RATE file c2i.txt ! kg/s
-  TEMPERATURE 62.d0
-  CONCENTRATION 0.d0 
+  DATUM 0.d0 0.d0 1000.d0
+  GRADIENT
+    TEMPERATURE 0.d0 0.d0 -0.025d0
+  /
+  IPHASE 1
+  PRESSURE 2.d7 2.d7 
+  TEMPERATURE 75.d0 C
+  CONCENTRATION 1.d-8 
   ENTHALPY 0.d0 0.d0
 /
 
-#==== condition couplers=====
+FLOW_CONDITION src
+  #UNITS Pa,C,M,yr
+  SYNC_TIMESTEP_WITH_UPDATE
+  TYPE
+    RATE mass_rate
+    PRESSURE dirichlet
+    TEMPERATURE dirichlet
+    CONCENTRATION dirichlet
+    ENTHALPY dirichlet
+  /
+  RATE LIST
+    TIME_UNITS y
+    DATA_UNITS kg/s
+    0.  0. 10.d0
+    20. 0. 0.
+  /
+  PRESSURE 2.d7 2.d7 
+  TEMPERATURE 75.d0
+  CONCENTRATION 1.d-16 
+  ENTHALPY 0.d0 0.d0
+/
 
-INITIAL_CONDITION dol
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
   FLOW_CONDITION initial
   REGION all
 END
 
-BOUNDARY_CONDITION dol_north
-  FLOW_CONDITION initial
-  REGION north
-END
-
-BOUNDARY_CONDITION dol_south
-  FLOW_CONDITION initial
-  REGION south
-END
-
-BOUNDARY_CONDITION dol_east
-  FLOW_CONDITION initial
+# east boundary condition
+BOUNDARY_CONDITION east
+  FLOW_CONDITION initial 
   REGION east
 END
 
-BOUNDARY_CONDITION dol_west
-  FLOW_CONDITION initial
+# west boundary condition
+BOUNDARY_CONDITION west
+  FLOW_CONDITION initial 
   REGION west
 END
 
-SOURCE_SINK
-  FLOW_CONDITION source
+# north boundary condition
+BOUNDARY_CONDITION north
+  FLOW_CONDITION initial 
+  REGION north
+END
+
+# south boundary condition
+BOUNDARY_CONDITION south
+  FLOW_CONDITION initial 
+  REGION south
+END
+
+# top boundary condition
+BOUNDARY_CONDITION top
+  FLOW_CONDITION initial 
+  REGION top
+END
+
+# bottom boundary condition
+BOUNDARY_CONDITION bottom
+  FLOW_CONDITION initial 
+  REGION bottom
+END
+
+SOURCE_SINK src
+  FLOW_CONDITION src
   REGION well
 END
 
-#==== stratigraphy couplers ==
+#=========================== stratigraphy couplers ============================
 STRATA
-  REGION sstop
-  MATERIAL sandstone
+  REGION formation
+  MATERIAL formation
 END
 
 STRATA
-  REGION shale
-  MATERIAL shale
+  REGION caprock
+  MATERIAL caprock
 END
 
 STRATA
-  REGION ssbottom
-  MATERIAL sandstone
+  REGION overburden
+  MATERIAL overburden
+END
+
+STRATA
+  REGION basement
+  MATERIAL basement
 END
 
 END_SUBSURFACE
