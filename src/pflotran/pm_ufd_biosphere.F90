@@ -13,9 +13,9 @@ module PM_UFD_Biosphere_class
 
   type, public :: supported_rad_type
     character(len=MAXWORDLENGTH) :: name
-    PetscReal :: decay_rate
-    PetscReal :: dcf
-    PetscReal :: kd
+    PetscReal :: decay_rate                   ! [1/sec]
+    PetscReal :: dcf                          ! [Sv/Bq]
+    PetscReal :: kd                           ! (see note below on units)       
     PetscInt :: species_id
     PetscInt :: position_in_list
     type(supported_rad_type), pointer :: next
@@ -25,12 +25,16 @@ module PM_UFD_Biosphere_class
     character(len=MAXWORDLENGTH) :: name
     character(len=MAXWORDLENGTH) :: supported_parent_name
     type(supported_rad_type), pointer :: supported_parent
-    PetscReal :: decay_rate
-    PetscReal :: dcf
-    PetscReal :: emanation_factor
-    PetscReal :: kd
+    PetscReal :: decay_rate                   ! [1/sec]
+    PetscReal :: dcf                          ! [Sv/Bq]
+    PetscReal :: emanation_factor             ! [-]
+    PetscReal :: kd                           ! (see note below on units) 
     type(unsupported_rad_type), pointer :: next
   end type unsupported_rad_type
+  
+   ! NOTE: Kd units do not matter, but must be entered consistently in the 
+   ! input file. They can be [L-water/kg-solid] or [kg-water/m3-bulk].
+   ! The Kd refers to the material where the screen part of the well resides.
 
   type, public :: ERB_base_type
     class(ERB_base_type), pointer :: next
@@ -52,10 +56,12 @@ module PM_UFD_Biosphere_class
   contains
   end type ERB_base_type
   
+  ! ERB_1A model assumes a pumping well (e.g., source/sink)
   type, public, extends(ERB_base_type) :: ERB_1A_type
   contains
   end type ERB_1A_type
   
+  ! ERB_1B model assumes a hypothetical pumping well with a dilution factor
   type, public, extends(ERB_base_type) :: ERB_1B_type
     PetscReal :: dilution_factor
   contains
@@ -207,9 +213,9 @@ function PMUFDBSupportedRadCreate()
   allocate(PMUFDBSupportedRadCreate)
   
   PMUFDBSupportedRadCreate%name = ''
-  PMUFDBSupportedRadCreate%decay_rate = UNINITIALIZED_DOUBLE  ! 1/sec
-  PMUFDBSupportedRadCreate%dcf = UNINITIALIZED_DOUBLE    ! Sv/Bq
-  PMUFDBSupportedRadCreate%kd = UNINITIALIZED_DOUBLE     ! kg-water/m^3-bulk
+  PMUFDBSupportedRadCreate%decay_rate = UNINITIALIZED_DOUBLE
+  PMUFDBSupportedRadCreate%dcf = UNINITIALIZED_DOUBLE    
+  PMUFDBSupportedRadCreate%kd = UNINITIALIZED_DOUBLE    
   PMUFDBSupportedRadCreate%species_id = 0
   PMUFDBSupportedRadCreate%position_in_list = 0
   nullify(PMUFDBSupportedRadCreate%next)
@@ -234,10 +240,10 @@ function PMUFDBUnsuppRadCreate()
   
   PMUFDBUnsuppRadCreate%name = ''
   PMUFDBUnsuppRadCreate%supported_parent_name = ''
-  PMUFDBUnsuppRadCreate%decay_rate = UNINITIALIZED_DOUBLE  ! 1/sec
-  PMUFDBUnsuppRadCreate%dcf = UNINITIALIZED_DOUBLE  ! Sv/Bq
-  PMUFDBUnsuppRadCreate%emanation_factor = 1.d0     ! default value
-  PMUFDBUnsuppRadCreate%kd = UNINITIALIZED_DOUBLE   ! kg-water/m^3-bulk
+  PMUFDBUnsuppRadCreate%decay_rate = UNINITIALIZED_DOUBLE 
+  PMUFDBUnsuppRadCreate%dcf = UNINITIALIZED_DOUBLE  
+  PMUFDBUnsuppRadCreate%emanation_factor = 1.d0     
+  PMUFDBUnsuppRadCreate%kd = UNINITIALIZED_DOUBLE  
   nullify(PMUFDBUnsuppRadCreate%supported_parent)
   nullify(PMUFDBUnsuppRadCreate%next)
   
