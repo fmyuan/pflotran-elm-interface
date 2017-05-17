@@ -1037,6 +1037,8 @@ subroutine PMUFDBAscUnsuppRadWithSuppRad(this)
 
   use Option_module
   use String_module
+  use Material_Aux_class
+  use Grid_module
   
   implicit none
   
@@ -1044,9 +1046,16 @@ subroutine PMUFDBAscUnsuppRadWithSuppRad(this)
   
   type(supported_rad_type), pointer :: cur_supp_rad
   type(unsupported_rad_type), pointer :: cur_unsupp_rad
+  class(ERB_base_type), pointer :: cur_ERB
+  class(material_auxvar_type), pointer :: material_auxvar(:)
   type(option_type), pointer :: option
+  type(grid_type), pointer :: grid
+  PetscInt :: ghosted_id
+  PetscBool :: no_density
   
   option => this%option
+  grid => this%realization%patch%grid
+  material_auxvar => this%realization%patch%aux%Material%auxvars
   
   cur_unsupp_rad => this%unsupported_rad_list
   do
@@ -1070,6 +1079,26 @@ subroutine PMUFDBAscUnsuppRadWithSuppRad(this)
     endif
     cur_unsupp_rad => cur_unsupp_rad%next
   enddo
+  
+  ! check that rock density has been specified because it is needed 
+  ! for the Rfi/Rfu calculation later for all models that include
+  ! unsupported radionuclides
+  if (associated(this%unsupported_rad_list)) then
+    cur_ERB => this%ERB_list
+    do
+      if (.not.associated(cur_ERB)) exit
+      ghosted_id = grid%nL2G(cur_ERB%region%cell_ids(1))
+      no_density = Uninitialized(material_auxvar(ghosted_id)% &
+                   soil_particle_density)
+      if (cur_ERB%incl_unsupported_rads .and. no_density) then
+        option%io_buffer = 'ROCK_DENSITY is not specified in the &
+            &MATERIAL_PROPERTY that ERB Model ' // trim(cur_ERB%name) // &
+            ' resides in.'
+        call printErrMsg(option)
+      endif
+    cur_ERB => cur_ERB%next
+    enddo
+  endif
   
 end subroutine PMUFDBAscUnsuppRadWithSuppRad
 
