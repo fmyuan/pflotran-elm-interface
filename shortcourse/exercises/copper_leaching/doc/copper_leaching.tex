@@ -621,7 +621,7 @@ and do not add to number of degrees of freedom
 \begin{semiverbatim}
   MINERAL_KINETICS
     Alunite
-      RATE_CONSTANT 1.d-11
+      RATE_CONSTANT 1.d-11 mol/cm^2-sec
     /
     Chrysocolla2
       SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
@@ -636,31 +636,31 @@ and do not add to number of degrees of freedom
 
     Goethite
       SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
-      RATE_CONSTANT 1.d-11
+      RATE_CONSTANT 1.d-11 mol/cm^2-sec
     /
     Gypsum
-      RATE_CONSTANT 1.d-10
+      RATE_CONSTANT 1.d-10 mol/cm^2-sec
     /
     Jarosite
-      RATE_CONSTANT 1.d-11
+      RATE_CONSTANT 1.d-11 mol/cm^2-sec
     /
     Jurbanite
-      RATE_CONSTANT 1.d-11
+      RATE_CONSTANT 1.d-11 mol/cm^2-sec
     /
     Kaolinite
       SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
-      RATE_CONSTANT 1.d-13
+      RATE_CONSTANT 1.d-13 mol/cm^2-sec
     /
     Muscovite
       SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
-      RATE_CONSTANT 1.d-13
+      RATE_CONSTANT 1.d-13 mol/cm^2-sec
     /
     SiO2(am)
-      RATE_CONSTANT 1.d-11
+      RATE_CONSTANT 1.d-11 mol/cm^2-sec
     /
     Quartz
       SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
-      RATE_CONSTANT 1.d-14
+      RATE_CONSTANT 1.d-14 mol/cm^2-sec
     /
   /
 \end{semiverbatim}
@@ -676,16 +676,14 @@ and do not add to number of degrees of freedom
 \end{itemize}
 
 \begin{semiverbatim}
-: DATABASE ./hanford.dat
-  DATABASE /Users/lichtner/pflotran/repository/
-    pflotran/database/hanford.dat
+  DATABASE ../../../hanford.dat
   LOG_FORMULATION
-:  OPERATOR_SPLITTING
+#  OPERATOR_SPLITTING
   ACTIVITY_COEFFICIENTS TIMESTEP
   OUTPUT
-    pH
+    PH
     TOTAL
-    all
+    ALL
   /
 END
 \end{semiverbatim}
@@ -710,14 +708,14 @@ END
 !       Mass balance blows up.
 FLOW_CONDITION inlet
   TYPE
-    RATE SCALED_MASS_RATE
+    RATE SCALED_MASS_RATE VOLUME
   /
   RATE 0.68 kg/s \bluecomment{! flow rate (injection)}
 END
 
 FLOW_CONDITION outlet
   TYPE
-    RATE SCALED_MASS_RATE
+    RATE SCALED_MASS_RATE VOLUME
   /
   RATE -0.68 kg/s \bluecomment{! flow rate (extraction)}
 END
@@ -771,10 +769,10 @@ CONSTRAINT initial
     Al+++      2.8d-17  M Kaolinite
     Fe++       1.2d-23  M Goethite
     SiO2(aq)   1.8d-4   M Chalcedony
-    HCO3-      -3.d0    G CO2(g)
+    HCO3-      \magentacomment{-3.d0}    G CO2(g)
     SO4--      5.0d-4   T
     Cl-        3.7d-3   Z
-    O2(aq)     -0.699d0 G O2(g)
+    O2(aq)     \magentacomment{-0.699d0} G O2(g)
   /
 \end{semiverbatim}
 
@@ -782,16 +780,16 @@ CONSTRAINT initial
 \begin{semiverbatim}
 
   MINERALS !volume fraction specific surface area
-    Alunite       0.d0    1.d0
-    Chrysocolla2  5.0d-3  1.d0
-    Goethite      2.5d-2  1.d0
-    Gypsum        0.d0    1.d0
-    Jarosite      0.d0    1.d0
-    Jurbanite     0.d0    1.d0
-    Kaolinite     5.0d-2  1.d0
-    Muscovite     5.0d-2  1.d0
-    SiO2(am)      0.d0    1.d0
-    Quartz        8.2d-1  1.d0
+    Alunite       0.d0    1.d0 cm^2/cm^3
+    Chrysocolla2  5.0d-3  1.d0 cm^2/cm^3
+    Goethite      2.5d-2  1.d0 cm^2/cm^3
+    Gypsum        0.d0    1.d0 cm^2/cm^3
+    Jarosite      0.d0    1.d0 cm^2/cm^3
+    Jurbanite     0.d0    1.d0 cm^2/cm^3
+    Kaolinite     5.0d-2  1.d0 cm^2/cm^3
+    Muscovite     5.0d-2  1.d0 cm^2/cm^3
+    SiO2(am)      0.d0    1.d0 cm^2/cm^3
+    Quartz        8.2d-1  1.d0 cm^2/cm^3
   /
 END
 \end{semiverbatim}
@@ -808,10 +806,10 @@ CONSTRAINT inlet
     Al+++      2.5d-2   T
     Fe++       3.4d-9   M Goethite
     SiO2(aq)   1.9d-3   M SiO2(am)
-    HCO3-      -2.d0    G CO2(g)
+    HCO3-      \magentacomment{-2.d0}    G CO2(g)
     SO4--      6.1d-2   Z
     Cl-        5.0d-3   T
-    O2(aq)     -0.699d0 G O2(g)
+    O2(aq)     \magentacomment{-0.699d0} G O2(g)
   /
 END
 \end{semiverbatim}
@@ -905,9 +903,9 @@ END
 \begin{frame}[fragile]\frametitle{\bf TIMESTEPPER}
 
 \begin{semiverbatim}
-TIMESTEPPER FLOW
-  INITIALIZE_TO_STEADY_STATE
-  RUN_AS_STEADY_STATE
+TIMESTEPPER FLOW            
+  INITIALIZE_TO_STEADY_STATE 1.d-8 \bluecomment{! steady state}
+  RUN_AS_STEADY_STATE              \bluecomment{!   relative tolerance}
 END
 
 TIMESTEPPER TRANSPORT
@@ -959,9 +957,9 @@ OUTPUT
   PERIODIC TIME 0.25 y     \bluecomment{! solution every year}
   PERIODIC_OBSERVATION TIMESTEP 1  \bluecomment{! observ. every step}
   FORMAT TECPLOT BLOCK \bluecomment{! Tecplot BLOCK format}
-  FORMAT HDF5          \bluecomment{! PFLOTRAN HDF5 Visit format}
+  FORMAT HDF5          \bluecomment{! PFLOTRAN HDF5 format}
   PRINT_COLUMN_IDS     \bluecomment{! Adds column ids to obs. header}
-  VELOCITIES           \bluecomment{! include velocities}
+  VELOCITY_AT_CENTER   \bluecomment{! include velocities}
 END
 \end{semiverbatim}
 

@@ -163,14 +163,14 @@ The ``3D Regional Flow and Transport Scenario'' simulates groundwater flow and s
 \begin{itemize}
 \item $\varphi \eq $ porosity
 \item $s \eq $ saturation
-\item $\rho \eq $ water density
+\item $\rho \eq $ liquid density
 \item $\bk \eq $ intrinsic permeability tensor
 \item $k_r \eq $ relative permeability
 \end{itemize}
 \column{0.5\linewidth}
 \begin{itemize}
 \item $\mu \eq $ viscosity
-\item $\pressure \eq $ water pressure
+\item $\pressure \eq $ liquid pressure
 \item $g \eq $ gravity
 \item $z \eq $ distance in direction of gravity
 \item $Q \eq $ source/sink
@@ -393,6 +393,21 @@ S_j &\eq \text{source/sink term for aqueous species } j\\
 \section{Description of Input Deck}
 
 \subsection{SIMULATION}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{SIMULATION}
+
+Location of this example problem:
+
+\begin{semiverbatim}
+\$PFLOTRAN_DIR/shortcourse/exercises/regional_doublet
+
+regional_doublet.in
+river_stage.txt
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \begin{frame}[fragile,containsverbatim]\frametitle{SIMULATION}
 
 \begin{itemize}
