@@ -1952,7 +1952,12 @@ def setup_testlog(txtwrap):
 
     print("\nPFLOTRAN repository status :", file=testlog)
     print("----------------------------", file=testlog)
-    if os.path.isdir("{0}/../.hg".format(test_dir)):
+    if os.path.isdir("{0}/../.git".format(test_dir)):
+        cmd = ["git", "log", "-1", "HEAD"]
+        append_command_to_log(cmd, testlog, tempfile)
+        cmd = ["git", "status", "-u", "no"]
+        append_command_to_log(cmd, testlog, tempfile)
+    elif os.path.isdir("{0}/../.hg".format(test_dir)):
         cmd = ["hg", "parent"]
         append_command_to_log(cmd, testlog, tempfile)
         cmd = ["hg", "status", "-q"]
