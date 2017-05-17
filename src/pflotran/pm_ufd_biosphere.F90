@@ -39,15 +39,15 @@ module PM_UFD_Biosphere_class
     character(len=MAXWORDLENGTH) :: region_name
     PetscInt, pointer :: rank_list(:)
     PetscReal, pointer :: region_scaling_factor(:)
-    PetscReal, pointer :: aqueous_conc_supp_rad_avg(:)
-    PetscReal, pointer :: aqueous_conc_supported_rad(:)
-    PetscReal, pointer :: aqueous_conc_unsupported_rad(:)
-    PetscReal, pointer :: annual_dose_supp_rad(:)
-    PetscReal, pointer :: annual_dose_unsupp_rad(:)
-    PetscReal, pointer :: annual_dose_supp_w_unsupp_rads(:)
+    PetscReal, pointer :: aqueous_conc_supp_rad_avg(:)          ! [mol/L]
+    PetscReal, pointer :: aqueous_conc_supported_rad(:)         ! [Bq/L]
+    PetscReal, pointer :: aqueous_conc_unsupported_rad(:)       ! [Bq/L]
+    PetscReal, pointer :: annual_dose_supp_rad(:)               ! [Sv/yr]
+    PetscReal, pointer :: annual_dose_unsupp_rad(:)             ! [Sv/yr]
+    PetscReal, pointer :: annual_dose_supp_w_unsupp_rads(:)     ! [Sv/yr]
     character(len=MAXSTRINGLENGTH), pointer :: names_supp_w_unsupp_rads(:)
-    PetscReal :: total_annual_dose
-    PetscReal :: indv_consumption_rate
+    PetscReal :: total_annual_dose                              ! [Sv/yr]
+    PetscReal :: indv_consumption_rate                          ! [L/yr]
     PetscBool :: incl_unsupported_rads
   contains
   end type ERB_base_type
@@ -1349,25 +1349,27 @@ end subroutine PMUFDBInitializeTimestep
       call CalcParallelSum(this%option,cur_ERB%rank_list, &
                            local_conc,global_conc)
       cur_ERB%aqueous_conc_supp_rad_avg(k) = global_conc
-      !--------------------------------------------------------------------
+      !-----Calculate-aqueous-concentration-(DF=1)-------------------------
       select type(cur_ERB)
         type is(ERB_1A_type)
-          cur_ERB%aqueous_conc_supported_rad(k) = &   
-              cur_ERB%aqueous_conc_supp_rad_avg(k)
+          cur_ERB%aqueous_conc_supported_rad(k) = &           ! [Bq/L]
+              cur_ERB%aqueous_conc_supp_rad_avg(k) * &        ! [mol/L]
+              avagadro * &                                    ! [1/mol]
+              cur_supp_rad%decay_rate                         ! [1/sec]
       !-----Calculate-aqueous-concentration-based-on-dilution-factor-------
         type is(ERB_1B_type)          
-          cur_ERB%aqueous_conc_supported_rad(k) = &           ! [mol/L/sec]
+          cur_ERB%aqueous_conc_supported_rad(k) = &           ! [Bq/L]
               cur_ERB%aqueous_conc_supp_rad_avg(k) * &        ! [mol/L]
-              avagadro * &                                    ! [-]
-              cur_supp_rad%decay_rate * &                     ! [1/sec] 
+              avagadro * &                                    ! [1/mol]
+              cur_supp_rad%decay_rate / &                     ! [1/sec] 
               cur_ERB%dilution_factor                         ! [-]       
       !--------------------------------------------------------------------
       end select
       !-----Calculate-dose:-supported-radionuclides------------------------
-      cur_ERB%annual_dose_supp_rad(k) = &                 ! [Sv/yr]
-          cur_ERB%aqueous_conc_supported_rad(k) * &       ! [mol/L/sec]
-          cur_ERB%indv_consumption_rate * &               ! [L/yr]
-          cur_supp_rad%dcf                                ! [Sv/Bq]
+      cur_ERB%annual_dose_supp_rad(k) = &                     ! [Sv/yr]
+          cur_ERB%aqueous_conc_supported_rad(k) * &           ! [Bq/L]
+          cur_ERB%indv_consumption_rate * &                   ! [L/yr]
+          cur_supp_rad%dcf                                    ! [Sv/Bq]
       !-----Initialize-dose-from-supp'd-+-unsupp'd-rads--------------------
       cur_ERB%annual_dose_supp_w_unsupp_rads(k) = &
           cur_ERB%annual_dose_supp_rad(k)  
@@ -1397,20 +1399,20 @@ end subroutine PMUFDBInitializeTimestep
             cur_ERB%aqueous_conc_supported_rad(position) * & 
             (Rfi/Rfu) * cur_unsupp_rad%emanation_factor
     !-----Calculate-dose:-unsupported-radionuclides------------------------
-        cur_ERB%annual_dose_unsupp_rad(k) = &             ! [Sv/yr]
-          cur_ERB%aqueous_conc_unsupported_rad(k) * &     ! [mol/L/sec]
-          cur_ERB%indv_consumption_rate * &               ! [L/yr]
-          cur_unsupp_rad%dcf                              ! [Sv/Bq]
+        cur_ERB%annual_dose_unsupp_rad(k) = &                   ! [Sv/yr]
+          cur_ERB%aqueous_conc_unsupported_rad(k) * &           ! [Bq/L]
+          cur_ERB%indv_consumption_rate * &                     ! [L/yr]
+          cur_unsupp_rad%dcf                                    ! [Sv/Bq]
     !-----Calculate-dose-from-supp'd-rads-with-their-unsupp'd-desc's-------
-        cur_ERB%annual_dose_supp_w_unsupp_rads(position) = &
-          cur_ERB%annual_dose_supp_w_unsupp_rads(position) + &
-          cur_ERB%annual_dose_unsupp_rad(k)
+        cur_ERB%annual_dose_supp_w_unsupp_rads(position) = &    ! [Sv/yr]
+          cur_ERB%annual_dose_supp_w_unsupp_rads(position) + &  ! [Sv/yr]
+          cur_ERB%annual_dose_unsupp_rad(k)                     ! [Sv/yr]
         cur_unsupp_rad => cur_unsupp_rad%next
       enddo
     endif     
     !-----Calculate-total-annual-dose--------------------------------------
-    cur_ERB%total_annual_dose = &
-        sum(cur_ERB%annual_dose_supp_w_unsupp_rads) 
+    cur_ERB%total_annual_dose = &                               ! [Sv/yr]
+        sum(cur_ERB%annual_dose_supp_w_unsupp_rads)             ! [Sv/yr]
     !----------------------------------------------------------------------
     cur_ERB => cur_ERB%next
   enddo
@@ -1499,8 +1501,8 @@ subroutine PMUFDBOutput(this)
       if (.not.associated(cur_supp_rad)) exit
       k = k + 1
       write(fid,100,advance="no") &
-           cur_ERB%aqueous_conc_supported_rad(k), &     ! [Bq/m^3]
-          (cur_ERB%aqueous_conc_supported_rad(k)/ &     ! [mol/m^3] 
+           cur_ERB%aqueous_conc_supported_rad(k), &     ! [Bq/L]
+          (cur_ERB%aqueous_conc_supported_rad(k)/ &     ! [mol/L] 
            (avagadro*cur_supp_rad%decay_rate))
       cur_supp_rad => cur_supp_rad%next
     enddo
@@ -1512,8 +1514,8 @@ subroutine PMUFDBOutput(this)
         if (.not.associated(cur_unsupp_rad)) exit
         k = k + 1
         write(fid,100,advance="no") &
-             cur_ERB%aqueous_conc_unsupported_rad(k), &     ! [Bq/m^3]
-            (cur_ERB%aqueous_conc_unsupported_rad(k)/ &     ! [mol/m^3] 
+             cur_ERB%aqueous_conc_unsupported_rad(k), &     ! [Bq/L]
+            (cur_ERB%aqueous_conc_unsupported_rad(k)/ &     ! [mol/L] 
              (avagadro*cur_unsupp_rad%decay_rate))
         cur_unsupp_rad => cur_unsupp_rad%next
       enddo
@@ -1610,12 +1612,12 @@ subroutine PMUFDBOutputHeader(this)
     do
       if (.not.associated(cur_supp_rad)) exit
       variable_string = 'Aq. Conc.'
-      units_string = 'Bq/m^3'
+      units_string = 'Bq/L'
       cell_string = trim(cur_supp_rad%name) 
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
       variable_string = 'Aq. Conc.'
-      units_string = 'mol/m^3'
+      units_string = 'mol/L'
       cell_string = trim(cur_supp_rad%name) 
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
@@ -1627,12 +1629,12 @@ subroutine PMUFDBOutputHeader(this)
       do
         if (.not.associated(cur_unsupp_rad)) exit
         variable_string = 'Aq. Conc.'
-        units_string = 'Bq/m^3'
+        units_string = 'Bq/L'
         cell_string = trim(cur_unsupp_rad%name) // '*'
         call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                  icolumn)
         variable_string = 'Aq. Conc.'
-        units_string = 'mol/m^3'
+        units_string = 'mol/L'
         cell_string = trim(cur_unsupp_rad%name) // '*'
         call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                  icolumn)
