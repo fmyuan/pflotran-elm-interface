@@ -1379,12 +1379,26 @@ end subroutine PMUFDBInitializeTimestep
     
     !-----Unsupported-radionuclides----------------------------------------
     if (cur_ERB%incl_unsupported_rads) then
-      dry_bulk_density = &
-         (material_auxvars(ghosted_id)%soil_particle_density * &
-          (1.d0-material_auxvars(ghosted_id)%porosity))
-      water_content = &
-         (material_auxvars(ghosted_id)%porosity * &        
-          global_auxvars(ghosted_id)%sat(LIQUID_PHASE)) 
+      dry_bulk_density = 0.d0
+      do i = 1,cur_ERB%region%num_cells
+        ghosted_id = grid%nL2G(cur_ERB%region%cell_ids(i))
+        dry_bulk_density = dry_bulk_density + &
+         ((material_auxvars(ghosted_id)%soil_particle_density * &
+          (1.d0-material_auxvars(ghosted_id)%porosity)) * &
+          cur_ERB%region_scaling_factor(i))
+      enddo  ! get average dry_bulk_density over region:
+      call CalcParallelSum(this%option,cur_ERB%rank_list, &
+                           dry_bulk_density,dry_bulk_density)
+      water_content = 0.d0
+      do i = 1,cur_ERB%region%num_cells
+        ghosted_id = grid%nL2G(cur_ERB%region%cell_ids(i))
+        water_content = water_content + &
+         ((material_auxvars(ghosted_id)%porosity * &        
+          global_auxvars(ghosted_id)%sat(LIQUID_PHASE)) * &
+          cur_ERB%region_scaling_factor(i))
+      enddo  ! get average water_content over region:
+      call CalcParallelSum(this%option,cur_ERB%rank_list, &
+                           water_content,water_content) 
       den_sat_ratio = (dry_bulk_density/water_content)
       cur_unsupp_rad => this%unsupported_rad_list
       k = 0
