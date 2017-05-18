@@ -1948,23 +1948,21 @@ def setup_testlog(txtwrap):
     print("Test directory : ", file=testlog)
     print("    {0}".format(test_dir), file=testlog)
 
+    git_found = which('git')
+
     tempfile = "{0}/tmp-pflotran-regression-test-info.txt".format(test_dir)
 
     print("\nPFLOTRAN repository status :", file=testlog)
     print("----------------------------", file=testlog)
-    if os.path.isdir("{0}/../.git".format(test_dir)):
+    if os.path.isdir("{0}/../.git".format(test_dir)) and git_found:
         cmd = ["git", "log", "-1", "HEAD"]
         append_command_to_log(cmd, testlog, tempfile)
         cmd = ["git", "status", "-u", "no"]
         append_command_to_log(cmd, testlog, tempfile)
-    elif os.path.isdir("{0}/../.hg".format(test_dir)):
-        cmd = ["hg", "parent"]
-        append_command_to_log(cmd, testlog, tempfile)
-        cmd = ["hg", "status", "-q"]
-        append_command_to_log(cmd, testlog, tempfile)
-        print("\n\n", file=testlog)
     else:
-        print("    unknown", file=testlog)
+        print("    No git or hg directory was found in your PFLOTRAN_DIR",
+              file=testlog)
+    print("\n\n", file=testlog)
 
     print("PETSc information :", file=testlog)
     print("-------------------", file=testlog)
@@ -1981,15 +1979,10 @@ def setup_testlog(txtwrap):
 
         os.chdir(petsc_dir)
         print("    petsc repository status :", file=testlog)
-        if os.path.isdir("{0}/.git".format(petsc_dir)):
+        if os.path.isdir("{0}/.git".format(petsc_dir)) and git_found:
             cmd = ["git", "log", "-1", "HEAD"]
             append_command_to_log(cmd, testlog, tempfile)
             cmd = ["git", "status", "-u", "no"]
-            append_command_to_log(cmd, testlog, tempfile)
-        elif os.path.isdir("{0}/.hg".format(petsc_dir)):
-            cmd = ["hg", "parent"]
-            append_command_to_log(cmd, testlog, tempfile)
-            cmd = ["hg", "status", "-q"]
             append_command_to_log(cmd, testlog, tempfile)
         else:
             print("    No git or hg directory was found in your PETSC_DIR",
@@ -1999,9 +1992,27 @@ def setup_testlog(txtwrap):
     else:
         print("    PETSC_DIR was not defined.", file=testlog)
 
-    os.remove(tempfile)
+    if os.path.isfile(tempfile):
+      os.remove(tempfile)
     return testlog
 
+def which(program):
+    import os
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            path = path.strip('"')
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return exe_file
+
+    return None
 
 def main(options):
     txtwrap = textwrap.TextWrapper(width=78, subsequent_indent=4*" ")
