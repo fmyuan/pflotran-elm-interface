@@ -50,9 +50,6 @@ program pflotran
   use Output_Aux_module, only : INSTANTANEOUS_VARS
   use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
   
-  !TODO(geh): remove
-  use PM_Base_class
-
   implicit none
 
 #include "petsc/finclude/petscsys.h"
