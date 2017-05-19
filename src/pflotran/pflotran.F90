@@ -59,7 +59,6 @@ program pflotran
   ! and/or one after another until a specified set of simulations has 
   ! completed.
   type(multi_simulation_type), pointer :: multisimulation
-  class(pm_base_type), pointer :: dummy_list
   type(option_type), pointer :: option
   
   nullify(simulation)
