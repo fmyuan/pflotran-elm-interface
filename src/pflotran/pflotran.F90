@@ -43,7 +43,6 @@ program pflotran
   use Factory_PFLOTRAN_module
   use Factory_Subsurface_module
   use Factory_Hydrogeophysics_module
-  use Factory_Surface_module
   use PFLOTRAN_Constants_module
   use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
   
