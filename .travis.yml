@@ -17,6 +17,11 @@ addons:
     packages:
       - cmake
 
+branches:
+  only:
+    - master
+    - next
+
 matrix:
   include:
     - env: CMAKE_BUILD=0
