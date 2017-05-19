@@ -47,7 +47,6 @@ program pflotran
   use Factory_Surf_Subsurf_module
   use Factory_Geomechanics_module
   use PFLOTRAN_Constants_module
-  use Output_Aux_module, only : INSTANTANEOUS_VARS
   use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
   
   implicit none
