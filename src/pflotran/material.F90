@@ -42,6 +42,9 @@ module Material_module
 
     class(fracture_type), pointer :: fracture
     
+    PetscInt :: creep_closure_id
+    character(len=MAXWORDLENGTH) :: creep_closure_name
+    
     character(len=MAXWORDLENGTH) :: soil_compressibility_function
     PetscReal :: soil_compressibility
     PetscReal :: soil_reference_pressure
@@ -169,6 +172,9 @@ function MaterialPropertyCreate()
   material_property%alpha = 0.45d0
 
   nullify(material_property%fracture)
+  
+  material_property%creep_closure_id = 1 ! one is the index to a null pointer
+  material_property%creep_closure_name = ''
   
   material_property%soil_compressibility_function = ''
   material_property%soil_compressibility = UNINITIALIZED_DOUBLE
@@ -405,6 +411,12 @@ subroutine MaterialPropertyRead(material_property,input,option)
         material_property%fracture => FractureCreate()
         call material_property%fracture%Read(input,option)
         option%flow%transient_porosity = PETSC_TRUE
+      case('CREEP_CLOSURE_TABLE') 
+        call InputReadWordDbaseCompatible(input,option, &
+                           material_property%creep_closure_name, &
+                           PETSC_TRUE)
+        call InputErrorMsg(input,option,'creep closure table name', &
+                           'MATERIAL_PROPERTY')
       case('PERMEABILITY')
         do
           call InputReadPflotranString(input,option)

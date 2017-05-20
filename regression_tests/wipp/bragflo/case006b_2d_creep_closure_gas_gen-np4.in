@@ -121,14 +121,12 @@ MATERIAL_PROPERTY M_WP
   PERMEABILITY
     PERM_ISO 2.39994E-13
   /
+  CREEP_CLOSURE_TABLE  creep001
 END
 
-! Turn on Creep Closure
-WIPP
-  CREEP_CLOSURE
-    FILENAME pflotran_closure.dat
-    MATERIAL M_WP
-  END
+! Creep Closure
+CREEP_CLOSURE_TABLE  creep001
+  FILENAME pflotran_closure.dat
 END
 
 !=========================== regions ==========================================

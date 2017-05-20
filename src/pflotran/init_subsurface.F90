@@ -240,6 +240,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   use Material_Aux_class
   use Material_module
   use Option_module
+  use WIPP_module
   use Creep_Closure_module
   use Fracture_module
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
@@ -306,17 +307,42 @@ subroutine InitSubsurfAssignMatProperties(realization)
   ! have to use Material%auxvars() and not material_auxvars() due to memory
   ! errors in gfortran
   Material => patch%aux%Material
-
-  !if material is associated with fracture, then allocate memory.  
+  
+  !if material is associated with fracture, then allocate memory.
+  wipp => WIPPGetPtr()
+  if (option%flow%creep_closure_on) then
+    call CreepClosureConvertListToArray(wipp%creep_closure_tables, &
+                                      wipp%creep_closure_tables_array, &
+                                      option)
+  else
+    call CreepClosureConvertListToArray(null(), &
+                                      wipp%creep_closure_tables_array, &
+                                      option)
+  endif
+  
   do ghosted_id = 1, grid%ngmax
     material_id = patch%imat(ghosted_id)
     if (material_id > 0) then
       material_property => &
         patch%material_property_array(material_id)%ptr
+        
+      !if material is associated with fracture, then allocate memory.
       call FractureAuxVarInit(material_property%fracture, &
         patch%aux%Material%auxvars(ghosted_id))
+      
+      ! lookup creep closure table id from creep closure table name
+      if (option%flow%creep_closure_on) then
+        material_property%creep_closure_id = &
+          CreepClosureGetID(wipp%creep_closure_tables_array, &
+                             material_property%creep_closure_name, &
+                             material_property%name,option)
+      ! copy creep closure table id from material to material_aux
+      patch%aux%Material%auxvars(ghosted_id)%creep_closure_id = &
+        material_property%creep_closure_id
+      endif
     endif
   enddo
+  
   
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -488,19 +514,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
     enddo
     call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
   enddo
-  
-  if (associated(creep_closure)) then
-    material_property => &
-      MaterialPropGetPtrFromArray(creep_closure%material_name, &
-                                  patch%material_property_array)
-    if (.not.associated(material_property)) then
-      option%io_buffer = 'Creep material "' // &
-                        trim(creep_closure%material_name) // &
-                        '" not found in material list'
-      call printErrMsg(option)
-    endif
-    creep_closure%imat = material_property%internal_id
-  endif
+
   
 end subroutine InitSubsurfAssignMatProperties
 

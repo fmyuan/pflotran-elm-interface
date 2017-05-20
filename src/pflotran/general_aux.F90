@@ -465,6 +465,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   use Material_Aux_class
   use Creep_Closure_module
   use Fracture_module
+  use WIPP_module
   
   implicit none
 
@@ -474,6 +475,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   type(general_auxvar_type) :: gen_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
+  class(creep_closure_type), pointer :: creep_closure
   PetscInt :: natural_id
 
   PetscInt :: gid, lid, acid, wid, eid
@@ -819,13 +821,17 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       call MaterialReferencePressureSetup(material_auxvar,cell_pressure)
     endif
 #endif
-    if (associated(creep_closure)) then
-      if (creep_closure%imat == material_auxvar%id) then
+    ! creep_closure, fracture, and soil_compressibility are mutually exclusive
+    if (option%flow%creep_closure_on) then
+      creep_closure => wipp%creep_closure_tables_array( &
+                         material_auxvar%creep_closure_id )%ptr
+      if ( associated(creep_closure) ) then
         ! option%time here is the t time, not t + dt time.
         creep_closure_time = option%time
         if (option%iflag /= GENERAL_UPDATE_FOR_FIXED_ACCUM) then
           creep_closure_time = creep_closure_time + option%flow_dt
         endif
+        
         gen_auxvar%effective_porosity = &
           creep_closure%Evaluate(creep_closure_time,cell_pressure)
       else if (associated(material_auxvar%fracture)) then

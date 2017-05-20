@@ -396,27 +396,31 @@ module Creep_Closure_module
 #include "petsc/finclude/petscsys.h"
 
   type, public :: creep_closure_type
-    character(len=MAXWORDLENGTH) :: material_name
-    PetscInt :: imat
+    character(len=MAXWORDLENGTH) :: name
     PetscInt :: num_times
     PetscInt :: num_values_per_time
     class(lookup_table_general_type), pointer :: lookup_table
+    
+    type(creep_closure_type), pointer :: next
+    
   contains
     procedure, public :: Read => CreepClosureRead
     procedure, public :: Evaluate => CreepClosureEvaluate
     procedure, public :: Test => CreepClosureTest
   end type creep_closure_type
   
-  class(creep_closure_type), pointer, public :: creep_closure
-  
-  interface CreepClosureDestroy
-    module procedure CreepClosureDestroy1
-    module procedure CreepClosureDestroy2
-  end interface
+  type, public :: creep_closure_ptr_type
+    class(creep_closure_type), pointer :: ptr
+  end type creep_closure_ptr_type
 
   public :: CreepClosureInit, &
             CreepClosureCreate, &
-            CreepClosureDestroy
+            CreepClosureDestroy, &
+            CreepClosureArrayDestroy, &
+            CreepClosureRead, &
+            CreepClosureAddToList, &
+            CreepClosureConvertListToArray, &
+            CreepClosureGetID
   
   contains
   
@@ -430,10 +434,7 @@ subroutine CreepClosureInit()
 
   implicit none
   
-  if (associated(creep_closure)) then
-    call CreepClosureDestroy(creep_closure)
-  endif
-  nullify(creep_closure)
+ 
   
 end subroutine CreepClosureInit
 
@@ -450,11 +451,11 @@ function CreepClosureCreate()
   class(creep_closure_type), pointer :: CreepClosureCreate
   
   allocate(CreepClosureCreate)
-  CreepClosureCreate%material_name = ''
-  CreepClosureCreate%imat = UNINITIALIZED_INTEGER
+  CreepClosureCreate%name = ''
   CreepClosureCreate%num_times = UNINITIALIZED_INTEGER
   CreepClosureCreate%num_values_per_time = UNINITIALIZED_INTEGER
   nullify(CreepClosureCreate%lookup_table)
+  nullify(CreepClosureCreate%next)
   
 end function CreepClosureCreate
 
@@ -503,9 +504,7 @@ subroutine CreepClosureRead(this,input,option)
       case('FILENAME') 
         call InputReadNChars(input,option,filename,MAXSTRINGLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'FILENAME',error_string)
-      case('MATERIAL') 
-        call InputReadWord(input,option,this%material_name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'MATERIAL',error_string)
+      
      case default
         call InputKeywordUnrecognized(keyword,'CREEP_CLOSURE',option)
     end select
@@ -597,6 +596,127 @@ subroutine CreepClosureRead(this,input,option)
   
 end subroutine CreepClosureRead
 
+
+! ************************************************************************** !
+
+subroutine CreepClosureAddToList(new_creep_closure,list)
+  ! 
+  ! Adds an object to linked list
+  ! 
+
+  implicit none
+  
+  class(creep_closure_type), pointer :: new_creep_closure
+  class(creep_closure_type), pointer :: list
+
+  class(creep_closure_type), pointer :: cur_creep_closure
+  
+  if (associated(list)) then
+    cur_creep_closure => list
+    ! loop to end of list
+    do
+      if (.not.associated(cur_creep_closure%next)) exit
+      cur_creep_closure => cur_creep_closure%next
+    enddo
+    cur_creep_closure%next => new_creep_closure
+  else
+    list => new_creep_closure
+  endif
+  
+end subroutine CreepClosureAddToList
+
+! ************************************************************************** !
+
+subroutine CreepClosureConvertListToArray(list,array,option)
+  ! 
+  ! Creates an array of pointers to the objects in the list
+  ! 
+
+  use String_module
+  use Option_module
+  
+  implicit none
+  
+  class(creep_closure_type), pointer :: list
+  type(creep_closure_ptr_type), pointer :: array(:)
+  type(option_type) :: option
+    
+  type(creep_closure_type), pointer :: cur_creep_closure
+  PetscInt :: count
+  
+  ! Start at 2
+  ! The first element will be a null pointer (no creep closure)  
+  count = 1
+  cur_creep_closure => list
+  do 
+    if (.not.associated(cur_creep_closure)) exit
+    count = count + 1
+    cur_creep_closure => cur_creep_closure%next
+  enddo
+  
+  if (associated(array)) deallocate(array)
+  allocate(array(count))
+
+  ! Start at 2
+  ! The first element is a null pointer (no creep closure)  
+  cur_creep_closure => list
+  count = 1
+  nullify(array(count)%ptr)
+  do 
+    if (.not.associated(cur_creep_closure)) exit
+    count = count + 1
+    array(count)%ptr => cur_creep_closure
+    !if (cur_creep_closure%test .and. &
+    !    option%myrank == option%io_rank) then
+    !  call CreepClosureTest(cur_creep_closure,option)
+    !endif
+    cur_creep_closure => cur_creep_closure%next
+  enddo
+
+end subroutine CreepClosureConvertListToArray
+
+! ************************************************************************** !
+
+function CreepClosureGetID(creep_closure_array, &
+                                   creep_closure_name, &
+                                   material_property_name, option)
+  ! 
+  ! Returns the ID of the creep_closure object named
+  ! "creep_closure_name"
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/12/11
+  ! 
+
+  use Option_module
+  use String_module
+  
+  type(creep_closure_ptr_type), pointer :: &
+    creep_closure_array(:)
+  character(len=MAXWORDLENGTH) :: creep_closure_name
+  character(len=MAXWORDLENGTH) :: material_property_name
+  type(option_type) :: option
+
+  PetscInt :: CreepClosureGetID
+  
+  ! CreepClosureGetID = 1 is a null pointer (no creep closure)
+  CreepClosureGetID = 1
+  do CreepClosureGetID = 2, size(creep_closure_array)
+    if (StringCompare(creep_closure_name, &
+                      creep_closure_array( &
+                        CreepClosureGetID)%ptr%name)) then
+      return
+    endif
+  enddo
+  option%io_buffer = 'Creep closure "' // &
+           trim(creep_closure_name) // &
+           '" in material property "' // &
+           trim(material_property_name) // &
+           '" not found among available creep closure tables.'
+  call printErrMsg(option)    
+
+end function CreepClosureGetID
+
 ! ************************************************************************** !
 
 function CreepClosureEvaluate(this,time,pressure)
@@ -634,25 +754,10 @@ subroutine CreepClosureTest(this,time,pressure)
   
 end subroutine CreepClosureTest
 
-! ************************************************************************** !
-
-subroutine CreepClosureDestroy1()
-  ! 
-  ! Deallocates any allocated pointers in auxiliary object
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 10/13/14
-  ! 
-
-  implicit none
-  
-  call CreepClosureDestroy(creep_closure)
-
-end subroutine CreepClosureDestroy1
 
 ! ************************************************************************** !
 
-subroutine CreepClosureDestroy2(creep_closure)
+subroutine CreepClosureDestroy(creep_closure)
   ! 
   ! Deallocates any allocated pointers in auxiliary object
   ! 
@@ -670,7 +775,36 @@ subroutine CreepClosureDestroy2(creep_closure)
   deallocate(creep_closure)
   nullify(creep_closure)
 
-end subroutine CreepClosureDestroy2
+end subroutine CreepClosureDestroy
+
+
+! ************************************************************************** !
+
+subroutine CreepClosureArrayDestroy(creep_closure_array)
+  ! 
+  ! Destroys an array of pointers
+  ! 
+  
+  implicit none
+  
+  type(creep_closure_ptr_type), pointer :: &
+    creep_closure_array(:)
+  
+  type(creep_closure_type), pointer :: cur_creep_closure
+  PetscInt :: i
+  
+  if (.not. associated(creep_closure_array)) return
+
+  ! The first element is a null pointer (no creep closure)
+  do i=1,size(creep_closure_array)
+    call CreepClosureDestroy(creep_closure_array(i)%ptr)
+    nullify(creep_closure_array(i)%ptr)
+  enddo
+  
+  deallocate(creep_closure_array)
+  nullify(creep_closure_array)
+
+end subroutine CreepClosureArrayDestroy
 
 end module Creep_Closure_module
 
@@ -681,7 +815,6 @@ end module Creep_Closure_module
 module Klinkenberg_module
   
   use PFLOTRAN_Constants_module
-  use Lookup_Table_module
 
   implicit none
   
@@ -901,7 +1034,8 @@ module WIPP_module
 #include "petsc/finclude/petscsys.h"
 
   type :: wipp_type
-    class(creep_closure_type), pointer :: creep_closure
+    class(creep_closure_type), pointer :: creep_closure_tables
+    type(creep_closure_ptr_type), pointer :: creep_closure_tables_array(:)
   end type wipp_type
   
   type(wipp_type), pointer, public :: wipp
@@ -950,7 +1084,8 @@ function WIPPGetPtr()
 
   if (.not.associated(wipp)) then
     allocate(wipp)
-    nullify(wipp%creep_closure)
+    nullify(wipp%creep_closure_tables)
+    nullify(wipp%creep_closure_tables_array)
   endif
   
   WIPPGetPtr => wipp
@@ -994,12 +1129,12 @@ subroutine WIPPRead(input,option)
     call StringToUpper(keyword)   
       
     select case(trim(keyword))
-      case('CREEP_CLOSURE')
-        call CreepClosureInit()
-        creep_closure => CreepClosureCreate()
-        call creep_closure%Read(input,option)
-        option%flow%transient_porosity = PETSC_TRUE
-        wipp%creep_closure => creep_closure      
+!      case('CREEP_CLOSURE')
+!        call CreepClosureInit()
+!        creep_closure => CreepClosureCreate()
+!        call creep_closure%Read(input,option)
+!        option%flow%transient_porosity = PETSC_TRUE
+!        wipp%creep_closure => creep_closure      
      case default
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
@@ -1035,7 +1170,10 @@ subroutine WippDestroy2(wipp)
   
   if (.not.associated(wipp)) return
 
-  call CreepClosureDestroy(wipp%creep_closure)
+  call CreepClosureArrayDestroy(wipp%creep_closure_tables_array)
+  nullify(wipp%creep_closure_tables)
+  nullify(wipp%creep_closure_tables_array)
+  
   deallocate(wipp)
   nullify(wipp)
 

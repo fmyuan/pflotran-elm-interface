@@ -37,6 +37,7 @@ module Material_Aux_class
     PetscReal, pointer :: sat_func_prop(:)
     PetscReal, pointer :: soil_properties(:) ! den, therm. cond., heat cap.
     type(fracture_auxvar_type), pointer :: fracture
+    PetscInt :: creep_closure_id
 
 !    procedure(SaturationFunction), nopass, pointer :: SaturationFunction
   contains
@@ -165,7 +166,8 @@ subroutine MaterialAuxVarInit(auxvar,option)
   endif
   nullify(auxvar%sat_func_prop)
   nullify(auxvar%fracture)
-
+  auxvar%creep_closure_id = 1
+  
   if (max_material_index > 0) then
     allocate(auxvar%soil_properties(max_material_index))
     ! initialize these to zero for now
@@ -207,7 +209,7 @@ subroutine MaterialAuxVarCopy(auxvar,auxvar2,option)
   if (associated(auxvar%soil_properties)) then
     auxvar2%soil_properties = auxvar%soil_properties
   endif
-
+  auxvar2%creep_closure_id = auxvar%creep_closure_id
 end subroutine MaterialAuxVarCopy
 
 ! ************************************************************************** !
