@@ -2132,7 +2132,7 @@ subroutine SubsurfaceReadInput(simulation)
 !......................
 
       case ('NUMERICAL_JACOBIAN_RXN')
-        option%io_buffer = 'The NUMERICAL_JACOBIAN_FLOW card within &
+        option%io_buffer = 'The NUMERICAL_JACOBIAN_RXN card within &
           &SUBSURFACE block must be listed under the SIMULATION/&
           &PROCESS_MODELS/SUBSURFACE_TRANSPORT block as &
           &NUMERICAL_JACOBIAN.'
