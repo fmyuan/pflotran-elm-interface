@@ -189,6 +189,13 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found,option)
     case('NUMERICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_TRUE
 
+    case('ANALYTICAL_JACOBIAN')
+      option%flow%numerical_derivatives = PETSC_FALSE
+
+    case('ANALYTICAL_DERIVATIVES')
+      option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  Please &
+        &use ANALYTICAL_JACOBIAN instead.'
+
     case default
       found = PETSC_FALSE
   end select  

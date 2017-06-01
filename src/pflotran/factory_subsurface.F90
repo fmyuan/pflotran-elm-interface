@@ -660,6 +660,12 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
         select case(word)
           case('GENERAL')
             pm => PMGeneralCreate()
+            ! In OptionFlowInitRealization(), numerical_derivatives is set to
+            ! PETSC_FALSE, but the default for GENERAL needs to be PETSC_TRUE.
+            ! This is will eventually affect all flow modes with numerical
+            ! derivatives as default if analytical derivatives are available
+            ! and we are keying off this flag. 
+            option%flow%numerical_derivatives = PETSC_TRUE
           case('MPHASE')
             pm => PMMphaseCreate()
           case('FLASH2')
