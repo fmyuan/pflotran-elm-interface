@@ -3948,26 +3948,15 @@ subroutine SF_KRP1_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   PetscReal :: perm_xx
   PetscReal :: pct
   
-  dpc_dsatl = UNINITIALIZED_DOUBLE
+  dpc_dsatl = 0.d0
+  dpc_dsatl = 1.d0/dpc_dsatl
+  dpc_dsatl = 0.d0*dpc_dsatl
   
-  if (liquid_saturation <= this%Sr) then
-    capillary_pressure = this%pcmax
-    return
-  else if (liquid_saturation >= 1.d0) then
+  if (liquid_saturation >= 1.d0) then
     capillary_pressure = 0.d0
     return
   endif
   
-  lambda = this%m/(1.d0-this%m)
-  ! Derivation for P0 is in Appendix PA:
-  ! It is derived by setting Se2 in KRP4 to the value 0.5, and then 
-  ! equating Pc(KRP1,P0) = Pc(KRP4,Se2=0.5) and solving for P0.
-  P0 = (1.d0/this%alpha) * (2.d0**(1.d0/lambda)) * &
-       (((0.5d0**(-1.d0/this%m))-1.d0)**(this%m-1.d0))
-  Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
-  Se2 = min(Se2,1.d0)
-  capillary_pressure = P0*(Se2**(-1.d0/this%m)-1.d0)**(1.d0-this%m)
-
   if (associated(material_auxvar%permeability)) then
     perm_xx = material_auxvar%permeability(perm_xx_index)
   else
@@ -3977,13 +3966,27 @@ subroutine SF_KRP1_CapillaryPressure(this,material_auxvar,liquid_saturation, &
     call printErrMsg(option)
   endif
   pct = this%pct_a*(perm_xx**this%pct_exp)
+  lambda = this%m/(1.d0-this%m)
+  ! Derivation for P0 is in Appendix PA:
+  ! It is derived by setting Se2 in KRP4 and KRP1 to the value 0.5, and then 
+  ! equating Pc(KRP1,Se2=0.5) = Pc(KRP4,Se2=0.5) and solving for P0.
+  P0 = pct * (2.d0**(1.d0/lambda)) * &
+       (((0.5d0**(-1.d0/this%m))-1.d0)**(this%m-1.d0))
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
-  capillary_pressure = pct*(Se2**(-1/this%m)-1)**(1-this%m)
+  
+  if ((liquid_saturation > this%Sr) .or. &
+      ((1.d0 - liquid_saturation) <= this%Srg)) then
+    capillary_pressure = P0*(Se2**(-1/this%m)-1)**(1-this%m)
+  else
+    capillary_pressure = 0.d0
+  endif
+
 #if defined(MATCH_TOUGH2)
   if (liquid_saturation > 0.999d0) then
     capillary_pressure = capillary_pressure*(1.d0-liquid_saturation)/0.001d0
   endif
 #endif
+
   capillary_pressure = min(capillary_pressure,this%pcmax)
   
 end subroutine SF_KRP1_CapillaryPressure
@@ -4143,8 +4146,10 @@ subroutine SF_KRP2_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   PetscReal :: Se1
   PetscReal :: perm_xx
   PetscReal :: pct
-  
-  dpc_dsatl = UNINITIALIZED_DOUBLE
+
+  dpc_dsatl = 0.d0
+  dpc_dsatl = 1.d0/dpc_dsatl
+  dpc_dsatl = 0.d0*dpc_dsatl
     
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = 0.d0
@@ -4324,7 +4329,9 @@ subroutine SF_KRP3_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   PetscReal :: perm_xx
   PetscReal :: pct
   
-  dpc_dsatl = UNINITIALIZED_DOUBLE
+  dpc_dsatl = 0.d0
+  dpc_dsatl = 1.d0/dpc_dsatl
+  dpc_dsatl = 0.d0*dpc_dsatl
   
   if (associated(material_auxvar%permeability)) then
     perm_xx = material_auxvar%permeability(perm_xx_index)
@@ -4508,7 +4515,9 @@ subroutine SF_KRP4_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   PetscReal :: perm_xx
   PetscReal :: pct
   
-  dpc_dsatl = UNINITIALIZED_DOUBLE
+  dpc_dsatl = 0.d0
+  dpc_dsatl = 1.d0/dpc_dsatl
+  dpc_dsatl = 0.d0*dpc_dsatl
   
   if (associated(material_auxvar%permeability)) then
     perm_xx = material_auxvar%permeability(perm_xx_index)
@@ -4687,7 +4696,9 @@ subroutine SF_KRP5_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   PetscReal :: perm_xx
   PetscReal :: pct
   
-  dpc_dsatl = UNINITIALIZED_DOUBLE
+  dpc_dsatl = 0.d0
+  dpc_dsatl = 1.d0/dpc_dsatl
+  dpc_dsatl = 0.d0*dpc_dsatl
   
   if (associated(material_auxvar%permeability)) then
     perm_xx = material_auxvar%permeability(perm_xx_index)
@@ -4879,7 +4890,9 @@ subroutine SF_KRP8_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   PetscReal :: pct
   PetscReal :: P0
   
-  dpc_dsatl = UNINITIALIZED_DOUBLE
+  dpc_dsatl = 0.d0
+  dpc_dsatl = 1.d0/dpc_dsatl
+  dpc_dsatl = 0.d0*dpc_dsatl
   
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = this%pcmax
@@ -5082,6 +5095,10 @@ subroutine SF_KRP9_CapillaryPressure(this,material_auxvar,liquid_saturation, &
 #endif
 
   capillary_pressure = min(capillary_pressure,this%pcmax)
+  
+  dpc_dsatl = capillary_pressure / &
+              (liquid_saturation*b*(liquid_saturation - 1.d0))
+
   
 end subroutine SF_KRP9_CapillaryPressure
 
@@ -5366,7 +5383,9 @@ subroutine SF_KRP12_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   PetscReal :: perm_xx
   PetscReal :: pct
   
-  dpc_dsatl = UNINITIALIZED_DOUBLE
+  dpc_dsatl = 0.d0
+  dpc_dsatl = 1.d0/dpc_dsatl
+  dpc_dsatl = 0.d0*dpc_dsatl
 
   if (associated(material_auxvar%permeability)) then
     perm_xx = material_auxvar%permeability(perm_xx_index)
