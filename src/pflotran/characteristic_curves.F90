@@ -2529,6 +2529,13 @@ subroutine SFBaseVerify(this,name,option)
     call printErrMsg(option)
   endif
   
+  if ((.not.this%analytical_derivative_available) .and. &
+      (.not.option%flow%numerical_derivatives)) then
+    option%io_buffer = 'Analytical derivatives are not available for the &
+      &capillary pressure - saturation function chosen: ' // &
+      trim(name)
+  endif
+  
 end subroutine SFBaseVerify
 
 ! ************************************************************************** !
@@ -2840,6 +2847,8 @@ function SF_Default_Create()
   call SFBaseInit(SF_Default_Create)
   SF_Default_Create%Sr = 0.d0
   
+  SF_Default_Create%analytical_derivative_available = PETSC_TRUE
+  
 end function SF_Default_Create
 
 ! ************************************************************************** !
@@ -2985,6 +2994,8 @@ function SF_Constant_Create()
   SF_Constant_Create%constant_capillary_pressure = UNINITIALIZED_DOUBLE
   SF_Constant_Create%constant_saturation = UNINITIALIZED_DOUBLE
   
+  SF_Constant_Create%analytical_derivative_available = PETSC_TRUE
+  
 end function SF_Constant_Create
 
 ! ************************************************************************** !
@@ -3111,6 +3122,8 @@ subroutine SF_VG_Init(this)
   call SFBaseInit(this)
   this%alpha = UNINITIALIZED_DOUBLE
   this%m = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_TRUE
   
 end subroutine SF_VG_Init
 
@@ -3330,6 +3343,8 @@ subroutine SF_BC_Init(this)
   call SFBaseInit(this)
   this%alpha = UNINITIALIZED_DOUBLE
   this%lambda = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_TRUE
   
 end subroutine SF_BC_Init
 
@@ -3603,6 +3618,8 @@ subroutine SF_Linear_Init(this)
   call SFBaseInit(this)
   this%alpha = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine SF_Linear_Init
 
 ! ************************************************************************** !
@@ -3869,6 +3886,8 @@ subroutine SF_KRP1_Init(this)
   this%Srg = UNINITIALIZED_DOUBLE
   this%m = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_FALSE
+  
 end subroutine SF_KRP1_Init
 
 ! ************************************************************************** !
@@ -4088,6 +4107,8 @@ subroutine SF_KRP2_Init(this)
   call SF_WIPP_Init(this)
   this%lambda = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_FALSE
+  
 end subroutine SF_KRP2_Init
 
 ! ************************************************************************** !
@@ -4256,6 +4277,8 @@ subroutine SF_KRP3_Init(this)
   call SF_WIPP_Init(this)
   this%Srg = UNINITIALIZED_DOUBLE
   this%lambda = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_FALSE
   
 end subroutine SF_KRP3_Init
 
@@ -4445,6 +4468,8 @@ subroutine SF_KRP4_Init(this)
   this%Srg = UNINITIALIZED_DOUBLE
   this%lambda = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_FALSE
+  
 end subroutine SF_KRP4_Init
 
 ! ************************************************************************** !
@@ -4628,6 +4653,8 @@ subroutine SF_KRP5_Init(this)
   call SF_WIPP_Init(this)
   this%Srg = UNINITIALIZED_DOUBLE
   this%pcmax = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_FALSE
   
 end subroutine SF_KRP5_Init
 
@@ -4821,6 +4848,8 @@ subroutine SF_KRP8_Init(this)
   call SF_WIPP_Init(this)
   this%Srg = UNINITIALIZED_DOUBLE
   this%m = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_FALSE
   
 end subroutine SF_KRP8_Init
 
@@ -5031,6 +5060,8 @@ subroutine SF_KRP9_Init(this)
 
   call SFBaseInit(this)
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine SF_KRP9_Init
 
 ! ************************************************************************** !
@@ -5193,6 +5224,8 @@ subroutine SF_KRP11_Init(this)
 
   call SFBaseInit(this)
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine SF_KRP11_Init
 
 ! ************************************************************************** !
@@ -5312,6 +5345,8 @@ subroutine SF_KRP12_Init(this)
   this%lambda = UNINITIALIZED_DOUBLE
   this%s_min = UNINITIALIZED_DOUBLE
   this%s_effmin = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_FALSE
   
 end subroutine SF_KRP12_Init
 
@@ -5505,6 +5540,8 @@ subroutine SF_mK_Init(this)
   this%rmax = UNINITIALIZED_DOUBLE
   this%r0 = UNINITIALIZED_DOUBLE
   this%nparam = UNINITIALIZED_INTEGER
+  
+  this%analytical_derivative_available = PETSC_TRUE
   
 end subroutine SF_mK_Init
 
@@ -5718,6 +5755,7 @@ subroutine SF_mK_Saturation(this,material_auxvar,capillary_pressure, &
 
 end subroutine SF_mK_Saturation
 
+! ************************************************************************** !
 ! ************************************************************************** !
 
 function RPF_Mualem_VG_Liq_Create()
