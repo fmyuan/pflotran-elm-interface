@@ -80,6 +80,17 @@ module Characteristic_Curves_module
     procedure, public :: Saturation => SF_Linear_Saturation
   end type sat_func_Linear_type
   !---------------------------------------------------------------------------
+  type, public, extends(sat_func_base_type) :: sat_func_mK_type
+    PetscReal :: sigmaz, muz
+    PetscReal :: rmax, r0
+    PetscInt :: nparam
+  contains
+    procedure, public :: Init => SF_mK_Init
+    procedure, public :: Verify => SF_mK_Verify
+    procedure, public :: CapillaryPressure => SF_mK_CapillaryPressure
+    procedure, public :: Saturation => SF_mK_Saturation
+  end type sat_func_mK_type
+  !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_WIPP_type
     PetscReal :: pct_a
     PetscReal :: pct_exp
@@ -164,25 +175,16 @@ module Characteristic_Curves_module
     procedure, public :: Saturation => SF_KRP11_Saturation
   end type sat_func_KRP11_type 
   !---------------------------------------------------------------------------
-  type, public, extends(sat_func_BC_type) :: sat_func_BF_KRP12_type
-    PetscReal :: Srg
+  type, public, extends(sat_func_WIPP_type) :: sat_func_KRP12_type
+    PetscReal :: lambda
     PetscReal :: s_min
     PetscReal :: s_effmin
   contains
-    procedure, public :: Verify => SF_BF_KRP12_Verify
-    procedure, public :: CapillaryPressure => SF_BF_KRP12_CapillaryPressure
-  end type sat_func_BF_KRP12_type
-  !---------------------------------------------------------------------------
-  type, public, extends(sat_func_base_type) :: sat_func_mK_type
-    PetscReal :: sigmaz, muz
-    PetscReal :: rmax, r0
-    PetscInt :: nparam
-  contains
-    procedure, public :: Init => SF_mK_Init
-    procedure, public :: Verify => SF_mK_Verify
-    procedure, public :: CapillaryPressure => SF_mK_CapillaryPressure
-    procedure, public :: Saturation => SF_mK_Saturation
-  end type sat_func_mK_type
+    procedure, public :: Init => SF_KRP12_Init
+    procedure, public :: Verify => SF_KRP12_Verify
+    procedure, public :: CapillaryPressure => SF_KRP12_CapillaryPressure
+    procedure, public :: Saturation => SF_KRP12_Saturation
+  end type sat_func_KRP12_type
 !-----------------------------------------------------------------------------
 
 !-----------------------------------------------------------------------------
@@ -483,7 +485,7 @@ module Characteristic_Curves_module
             SF_KRP8_Create, &
             SF_KRP9_Create, &
             SF_KRP11_Create, &
-            SF_BF_KRP12_Create, &
+            SF_KRP12_Create, &
             ! standard rel. perm. curves:
             RPF_Mualem_VG_Liq_Create, &
             RPF_Mualem_VG_Gas_Create, &
@@ -620,7 +622,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('BRAGFLO_KRP11')
             this%saturation_function => SF_KRP11_Create()
           case('BRAGFLO_KRP12')
-            this%saturation_function => SF_BF_KRP12_Create()
+            this%saturation_function => SF_KRP12_Create()
           case default
             call InputKeywordUnrecognized(word,'SATURATION_FUNCTION',option)
         end select
@@ -806,6 +808,8 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       error_string = trim(error_string) // 'BROOKS_COREY'
     class is(sat_func_Linear_type)
       error_string = trim(error_string) // 'LINEAR'
+    class is(sat_func_mK_type)
+      error_string = trim(error_string) // 'MODIFIED_KOSUGI'
     class is(sat_func_KRP1_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP1'
     class is(sat_func_KRP2_type)
@@ -822,10 +826,8 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       error_string = trim(error_string) // 'BRAGFLO_KRP9'
     class is(sat_func_KRP11_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP11'
-    class is(sat_func_BF_KRP12_type)
+    class is(sat_func_KRP12_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP12'
-    class is(sat_func_mK_type)
-      error_string = trim(error_string) // 'MODIFIED_KOSUGI'
   end select
   do
     call InputReadPflotranString(input,option)
@@ -1056,17 +1058,17 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
                    'SATURATION_FUNCTION BRAGFLO_KRP11',option)
         end select
     !------------------------------------------
-      class is(sat_func_BF_KRP12_type)
+      class is(sat_func_KRP12_type)
         select case(keyword)
+          case('PCT_A') 
+            call InputReadDouble(input,option,sf%pct_a)
+            call InputErrorMsg(input,option,'PCT_A',error_string)
+          case('PCT_EXP') 
+            call InputReadDouble(input,option,sf%pct_exp)
+            call InputErrorMsg(input,option,'PCT_EXP',error_string)
           case('LAMBDA') 
             call InputReadDouble(input,option,sf%lambda)
             call InputErrorMsg(input,option,'lambda',error_string)
-          case('ALPHA') 
-            call InputReadDouble(input,option,sf%alpha)
-            call InputErrorMsg(input,option,'alpha',error_string)
-          case('GAS_RESIDUAL_SATURATION') 
-            call InputReadDouble(input,option,sf%Srg)
-            call InputErrorMsg(input,option,'Srg',error_string)
           case('S_MIN') 
             call InputReadDouble(input,option,sf%s_min)
             call InputErrorMsg(input,option,'s_min',error_string)
@@ -1141,7 +1143,13 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   !------------------------------------------
     class is(sat_func_KRP11_type)
   !------------------------------------------
-    class is(sat_func_BF_KRP12_type)
+    class is(sat_func_KRP12_type)
+      if (smooth) then
+        option%io_buffer = 'SMOOTH option cannot be used with WIPP saturation &
+                           &function BRAGFLO_KRP12.'
+        call printWrnMsg(option)
+        smooth = PETSC_FALSE
+      endif
   !------------------------------------------
   end select
 
@@ -2075,7 +2083,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
       select type (sf => cur_ccurve%saturation_function)
       !---------------------------------
         class is (sat_func_VG_type)
-          write(id,'(a)') 'van genuchten'
+          write(id,'(a)') 'van Genuchten'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) sf%m
           write(id,'(a)') adjustl(trim(word1))
@@ -2084,7 +2092,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
         class is (sat_func_BC_type)
-          write(id,'(a)') 'brooks corey'
+          write(id,'(a)') 'Brooks Corey'
           write(id,'(a29)',advance='no') 'alpha: '
           write(word1,*) sf%alpha
           write(id,'(a)') adjustl(trim(word1))
@@ -2096,6 +2104,24 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(id,'(a)') 'linear'
           write(id,'(a29)',advance='no') 'alpha: '
           write(word1,*) sf%alpha
+          write(id,'(a)') adjustl(trim(word1))
+      !---------------------------------
+        class is (sat_func_mK_type)
+          write(id,'(a)') 'Modified Kosugi'
+          write(id,'(a29)',advance='no') 'sigmaz: '
+          write(word1,*) sf%sigmaz
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'muz: '
+          write(word1,*) sf%muz
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'liquid residual sat.: '
+          write(word1,*) sf%Sr
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'rmax: '
+          write(word1,*) sf%rmax
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'r0: '
+          write(word1,*) sf%r0
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
         class is (sat_func_KRP1_type)
@@ -2166,9 +2192,6 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(id,'(a29)',advance='no') 'gas residual sat.: '
           write(word1,*) sf%Srg
           write(id,'(a)') adjustl(trim(word1))
-          write(id,'(a29)',advance='no') 'max capillary press.: '
-          write(word1,*) sf%pcmax
-          write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
         class is (sat_func_KRP8_type)
           write(id,'(a)') 'Bragflo KRP8 original van Genuchten-Parker'
@@ -2191,40 +2214,22 @@ subroutine CharCurvesInputRecord(char_curve_list)
         class is (sat_func_KRP11_type)
           write(id,'(a)') 'Bragflo KRP11 open cavity modification'
       !---------------------------------
-        class is (sat_func_BF_KRP12_type)
-          write(id,'(a)') 'Bragflo KRP12 modified brooks corey'
-          write(id,'(a29)',advance='no') 'alpha: '
-          write(word1,*) sf%alpha
+        class is (sat_func_KRP12_type)
+          write(id,'(a)') 'Bragflo KRP12 waste area modification'
+          write(id,'(a29)',advance='no') 'pct_a: '
+          write(word1,*) sf%pct_a
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'pct_exp: '
+          write(word1,*) sf%pct_exp
           write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 'lambda: '
           write(word1,*) sf%lambda
-          write(id,'(a)') adjustl(trim(word1))
-          write(id,'(a29)',advance='no') 'gas residual sat.: '
-          write(word1,*) sf%Srg
           write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 's_min: '
           write(word1,*) sf%s_min
           write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 's_effmin: '
           write(word1,*) sf%s_effmin
-          write(id,'(a)') adjustl(trim(word1))
-      !---------------------------------
-        class is (sat_func_mK_type)
-          write(id,'(a)') 'Modified Kosugi'
-          write(id,'(a29)',advance='no') 'sigmaz: '
-          write(word1,*) sf%sigmaz
-          write(id,'(a)') adjustl(trim(word1))
-          write(id,'(a29)',advance='no') 'muz: '
-          write(word1,*) sf%muz
-          write(id,'(a)') adjustl(trim(word1))
-          write(id,'(a29)',advance='no') 'liquid residual sat.: '
-          write(word1,*) sf%Sr
-          write(id,'(a)') adjustl(trim(word1))
-          write(id,'(a29)',advance='no') 'rmax: '
-          write(word1,*) sf%rmax
-          write(id,'(a)') adjustl(trim(word1))
-          write(id,'(a29)',advance='no') 'r0: '
-          write(word1,*) sf%r0
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
         class is (sat_func_default_type)
@@ -4364,7 +4369,6 @@ subroutine SF_KRP3_Saturation(this,material_auxvar,capillary_pressure, &
   ! Date: 05/04/2017
   !
   use Option_module
-  use Utility_module
   use Material_Aux_class
   
   implicit none
@@ -4391,6 +4395,7 @@ subroutine SF_KRP3_Saturation(this,material_auxvar,capillary_pressure, &
     call printErrMsg(option)
   endif
   pct = this%pct_a*(perm_xx**this%pct_exp)  
+  
   Se2 = (pct/capillary_pressure)**this%lambda
   liquid_saturation = this%Sr + (1.d0-this%Sr-this%Srg)*Se2
   
@@ -5250,115 +5255,192 @@ end subroutine SF_KRP11_Saturation
 
 ! ************************************************************************** !
 
-function SF_BF_KRP12_Create()
+function SF_KRP12_Create()
 
-  ! Creates the van Genutchten capillary pressure function object
+  ! Creates the BRAGFLO KRP12 capillary pressure function object
 
   implicit none
   
-  class(sat_func_BF_KRP12_type), pointer :: SF_BF_KRP12_Create
+  class(sat_func_KRP12_type), pointer :: SF_KRP12_Create
   
-  allocate(SF_BF_KRP12_Create)
-  call SF_BF_KRP12_Create%Init()
+  allocate(SF_KRP12_Create)
+  call SF_KRP12_Create%Init()
   
-end function SF_BF_KRP12_Create
+end function SF_KRP12_Create
 
 ! ************************************************************************** !
 
-subroutine SF_BF_KRP12_Verify(this,name,option)
+subroutine SF_KRP12_Init(this)
+
+  ! Creates the BRAGFLO KRP12 capillary pressure function object
+
+  implicit none
+  
+  class(sat_func_KRP12_type) :: this
+
+  call SFBaseInit(this)
+  call SF_WIPP_Init(this)
+  this%lambda = UNINITIALIZED_DOUBLE
+  this%s_min = UNINITIALIZED_DOUBLE
+  this%s_effmin = UNINITIALIZED_DOUBLE
+  
+end subroutine SF_KRP12_Init
+
+! ************************************************************************** !
+
+subroutine SF_KRP12_Verify(this,name,option)
 
   use Option_module
 
   implicit none
   
-  class(sat_func_BF_KRP12_type) :: this
+  class(sat_func_KRP12_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
   
   character(len=MAXSTRINGLENGTH) :: string 
+  PetscInt :: num_errors
   
+  num_errors = 0
   if (index(name,'SATURATION_FUNCTION') > 0) then
     string = name
   else
-    string = trim(name) // 'SATURATION_FUNCTION,BROOKS_COREY'
+    string = trim(name) // 'SATURATION_FUNCTION,BRAGFLO_KRP12'
   endif  
   call SFBaseVerify(this,string,option)
-  if (Uninitialized(this%s_min)) then
-    option%io_buffer = UninitializedMessage('ALPHA',string)
-    call printErrMsg(option)
-  endif 
-  if (Uninitialized(this%s_effmin)) then
+  call SF_WIPP_Verify(this,string,option)
+ 
+  if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
+    call printMsg(option)
+    num_errors = num_errors + 1
+  endif
+  if (Uninitialized(this%s_min)) then
+    option%io_buffer = UninitializedMessage('S_MIN',string)
+    call printMsg(option)
+    num_errors = num_errors + 1
+  endif
+  if (Uninitialized(this%s_effmin)) then
+    option%io_buffer = UninitializedMessage('S_EFFMIN',string)
+    call printMsg(option)
+    num_errors = num_errors + 1
+  endif
+  if (num_errors > 0) then
+    write(option%io_buffer,*) num_errors
+    option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
+                       &the ' // trim(string) // ' block. See above.'
     call printErrMsg(option)
-  endif 
-  if (Uninitialized(this%Srg)) then
-    option%io_buffer = UninitializedMessage('Srg',string)
-    call printErrMsg(option)
-  endif 
+  endif
   
-end subroutine SF_BF_KRP12_Verify
+end subroutine SF_KRP12_Verify
+
 ! ************************************************************************** !
 
-subroutine SF_BF_KRP12_CapillaryPressure(this,material_auxvar,liquid_saturation, &
-                                         capillary_pressure,dpc_dsatl,option)
+subroutine SF_KRP12_CapillaryPressure(this,material_auxvar,liquid_saturation, &
+                                      capillary_pressure,dpc_dsatl,option)
   ! 
-  ! Computes the capillary_pressure as a function of saturation using the
-  ! Brooks-Corey formulation
-  ! 
-  ! Modified according to KRP=12 option of BRAGFLO
-  ! Explanation: The relative permeabilities are unchanged from the 
-  ! modified Brooks-Corey model but the capillary presssure is 
-  ! calculated with modified saturation
-  !  
-  ! Warning: Before using material_auxvar, confirm it is not a dummy
+  ! Computes the capillary pressure as a function of saturation using the
+  ! modified Brooks Corey formulation for a waste area.
+  ! BRAGFLO UM 6.02 pg 47; eq. 130
+  ! Modified according to KRP=12 option of BRAGFLO:
+  ! Threshold pressure is a function of permeability.
+  ! Effective saturation is a function of the parameters s_min and s_effmin.
   !
-  ! Author: Heeho Park
-  ! Date: 11/14/15
+  ! Author: Jennifer Frederick
+  ! Date: 06/02/2017
   !
   use Option_module
-  use Utility_module
   use Material_Aux_class
   
   implicit none
   
-  class(sat_func_BF_KRP12_type) :: this
+  class(sat_func_KRP12_type) :: this
+  class(material_auxvar_type) :: material_auxvar
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
-  class(material_auxvar_type) :: material_auxvar
   type(option_type), intent(inout) :: option
   
+  PetscReal :: Se21
   PetscReal :: Se
-  PetscReal :: dummy_real
-  PetscReal :: soczro
+  PetscReal :: perm_xx
+  PetscReal :: pct
   
-  soczro = this%s_min - this%s_effmin
+  dpc_dsatl = UNINITIALIZED_DOUBLE
+
+  if (associated(material_auxvar%permeability)) then
+    perm_xx = material_auxvar%permeability(perm_xx_index)
+  else
+    option%io_buffer = 'material_auxvar%permeability is null in &
+      &SF_KRP3_CapillaryPressure. Contact PFLOTRAN developers list &
+      &pflotran-dev@googlegroups.com with this error message.' 
+    call printErrMsg(option)
+  endif
+  pct = this%pct_a*(perm_xx**this%pct_exp)
   
   if (liquid_saturation >= 1.d0) then
     capillary_pressure = 0.d0
     return
   endif
+
+  Se = (liquid_saturation - this%s_min - this%s_effmin) / &
+       (1.d0 - this%s_min - this%s_effmin)
+  Se21 = max(min(Se,1.d0),this%s_effmin)
   
-  if (this%alpha > 1.0d20) then
-    capillary_pressure = 0.d0
-    return
-  endif
+  capillary_pressure = pct/(Se21**(1.d0/this%lambda))
 
-  Se = (liquid_saturation-soczro)/(1.d0-soczro)
-  Se = max(min(Se,1.0d0),this%s_effmin)
+end subroutine SF_KRP12_CapillaryPressure
+
+! ************************************************************************** !
+
+subroutine SF_KRP12_Saturation(this,material_auxvar,capillary_pressure, &
+                               liquid_saturation,dsat_dpres,option)
+  ! 
+  ! Computes the liquid saturation as a function of capillary pressure using 
+  ! the modified Brooks Corey formulation for a waste area.
+  ! BRAGFLO UM 6.02 pg 47; eq. 130
+  ! Modified according to KRP=12 option of BRAGFLO:
+  ! Threshold pressure is a function of permeability.
+  ! Effective saturation is a function of the parameters s_min and s_effmin.
+  !
+  ! Author: Jennifer Frederick
+  ! Date: 06/02/2017
+  !
+  use Option_module
+  use Material_Aux_class
   
-  if (associated(this%sat_poly)) then
-    if (Se > this%sat_poly%low) then
-      call QuadraticPolynomialEvaluate(this%sat_poly%coefficients(1:3), &
-                                       Se,capillary_pressure,dummy_real)
-      return
-    endif
+  implicit none      
+  
+  class(sat_func_KRP12_type) :: this
+  class(material_auxvar_type) :: material_auxvar
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: liquid_saturation
+  PetscReal, intent(out) :: dsat_dpres
+  type(option_type), intent(inout) :: option
+  
+  PetscReal :: Se21
+  PetscReal :: perm_xx
+  PetscReal :: pct
+  
+  dsat_dpres = UNINITIALIZED_DOUBLE
+
+  if (associated(material_auxvar%permeability)) then
+    perm_xx = material_auxvar%permeability(perm_xx_index)
+  else
+    option%io_buffer = 'material_auxvar%permeability is null in &
+      &SF_KRP3_Saturation. Contact PFLOTRAN developers list &
+      &pflotran-dev@googlegroups.com with this error message.' 
+    call printErrMsg(option)
   endif
+  pct = this%pct_a*(perm_xx**this%pct_exp) 
+  
+  Se21 = (pct/capillary_pressure)**this%lambda
+  liquid_saturation = Se21*(1.d0 - this%s_min - this%s_effmin) + &
+                      this%s_min + this%s_effmin
+                               
+end subroutine SF_KRP12_Saturation
 
-  capillary_pressure = (Se**(-1.d0/this%lambda))/this%alpha
-
-end subroutine SF_BF_KRP12_CapillaryPressure
-
+! ************************************************************************** !
 ! ************************************************************************** !
 
 function SF_mK_Create()
