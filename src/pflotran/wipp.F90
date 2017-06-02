@@ -401,7 +401,7 @@ module Creep_Closure_module
     PetscInt :: num_values_per_time
     class(lookup_table_general_type), pointer :: lookup_table
     
-    type(creep_closure_type), pointer :: next
+    class(creep_closure_type), pointer :: next
     
   contains
     procedure, public :: Read => CreepClosureRead
@@ -638,10 +638,10 @@ subroutine CreepClosureConvertListToArray(list,array,option)
   implicit none
   
   class(creep_closure_type), pointer :: list
-  type(creep_closure_ptr_type), pointer :: array(:)
+  class(creep_closure_ptr_type), pointer :: array(:)
   type(option_type) :: option
     
-  type(creep_closure_type), pointer :: cur_creep_closure
+  class(creep_closure_type), pointer :: cur_creep_closure
   PetscInt :: count
   
   ! Start at 2
@@ -691,7 +691,7 @@ function CreepClosureGetID(creep_closure_array, &
   use Option_module
   use String_module
   
-  type(creep_closure_ptr_type), pointer :: &
+  class(creep_closure_ptr_type), pointer :: &
     creep_closure_array(:)
   character(len=MAXWORDLENGTH) :: creep_closure_name
   character(len=MAXWORDLENGTH) :: material_property_name
@@ -787,10 +787,10 @@ subroutine CreepClosureArrayDestroy(creep_closure_array)
   
   implicit none
   
-  type(creep_closure_ptr_type), pointer :: &
+  class(creep_closure_ptr_type), pointer :: &
     creep_closure_array(:)
   
-  type(creep_closure_type), pointer :: cur_creep_closure
+  class(creep_closure_type), pointer :: cur_creep_closure
   PetscInt :: i
   
   if (.not. associated(creep_closure_array)) return
@@ -1035,7 +1035,7 @@ module WIPP_module
 
   type :: wipp_type
     class(creep_closure_type), pointer :: creep_closure_tables
-    type(creep_closure_ptr_type), pointer :: creep_closure_tables_array(:)
+    class(creep_closure_ptr_type), pointer :: creep_closure_tables_array(:)
   end type wipp_type
   
   type(wipp_type), pointer, public :: wipp
