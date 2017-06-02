@@ -310,15 +310,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
   
   !if material is associated with fracture, then allocate memory.
   wipp => WIPPGetPtr()
-  if (option%flow%creep_closure_on) then
-    call CreepClosureConvertListToArray(wipp%creep_closure_tables, &
+  call CreepClosureConvertListToArray(wipp%creep_closure_tables, &
                                       wipp%creep_closure_tables_array, &
                                       option)
-  else
-    call CreepClosureConvertListToArray(null(), &
-                                      wipp%creep_closure_tables_array, &
-                                      option)
-  endif
   
   do ghosted_id = 1, grid%ngmax
     material_id = patch%imat(ghosted_id)
