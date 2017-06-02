@@ -4027,7 +4027,9 @@ subroutine SF_KRP1_Saturation(this,material_auxvar,capillary_pressure, &
   PetscReal :: P0
   PetscReal :: n
   
-  dsat_dpres = UNINITIALIZED_DOUBLE
+  dsat_dpres = 0.d0
+  dsat_dpres = 1.d0/dsat_dpres
+  dsat_dpres = 0.d0*dsat_dpres
   
   if (associated(material_auxvar%permeability)) then
     perm_xx = material_auxvar%permeability(perm_xx_index)
@@ -4206,7 +4208,9 @@ subroutine SF_KRP2_Saturation(this,material_auxvar,capillary_pressure, &
   PetscReal :: perm_xx 
   PetscReal :: pct      
   
-  dsat_dpres = UNINITIALIZED_DOUBLE
+  dsat_dpres = 0.d0
+  dsat_dpres = 1.d0/dsat_dpres
+  dsat_dpres = 0.d0*dsat_dpres
 
   if (associated(material_auxvar%permeability)) then
     perm_xx = material_auxvar%permeability(perm_xx_index)
@@ -4391,7 +4395,9 @@ subroutine SF_KRP3_Saturation(this,material_auxvar,capillary_pressure, &
   PetscReal :: perm_xx 
   PetscReal :: pct      
   
-  dsat_dpres = UNINITIALIZED_DOUBLE
+  dsat_dpres = 0.d0
+  dsat_dpres = 1.d0/dsat_dpres
+  dsat_dpres = 0.d0*dsat_dpres
 
   if (associated(material_auxvar%permeability)) then
     perm_xx = material_auxvar%permeability(perm_xx_index)
@@ -4574,7 +4580,9 @@ subroutine SF_KRP4_Saturation(this,material_auxvar,capillary_pressure, &
   PetscReal :: perm_xx 
   PetscReal :: pct      
   
-  dsat_dpres = UNINITIALIZED_DOUBLE
+  dsat_dpres = 0.d0
+  dsat_dpres = 1.d0/dsat_dpres
+  dsat_dpres = 0.d0*dsat_dpres
 
   if (associated(material_auxvar%permeability)) then
     perm_xx = material_auxvar%permeability(perm_xx_index)
@@ -4759,7 +4767,9 @@ subroutine SF_KRP5_Saturation(this,material_auxvar,capillary_pressure, &
   PetscReal :: perm_xx 
   PetscReal :: pct      
   
-  dsat_dpres = UNINITIALIZED_DOUBLE
+  dsat_dpres = 0.d0
+  dsat_dpres = 1.d0/dsat_dpres
+  dsat_dpres = 0.d0*dsat_dpres
 
   if (associated(material_auxvar%permeability)) then
     perm_xx = material_auxvar%permeability(perm_xx_index)
@@ -4960,7 +4970,9 @@ subroutine SF_KRP8_Saturation(this,material_auxvar,capillary_pressure, &
   PetscReal :: P0
   PetscReal :: n
   
-  dsat_dpres = UNINITIALIZED_DOUBLE
+  dsat_dpres = 0.d0
+  dsat_dpres = 1.d0/dsat_dpres
+  dsat_dpres = 0.d0*dsat_dpres
   
   if (associated(material_auxvar%permeability)) then
     perm_xx = material_auxvar%permeability(perm_xx_index)
@@ -5077,6 +5089,9 @@ subroutine SF_KRP9_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   PetscReal, parameter :: a = 3783.0145d0
   PetscReal, parameter :: b = 2.9d0
   
+  dpc_dsatl = capillary_pressure / &
+              (liquid_saturation*b*(liquid_saturation - 1.d0))
+  
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = 0.d0
     return
@@ -5095,10 +5110,6 @@ subroutine SF_KRP9_CapillaryPressure(this,material_auxvar,liquid_saturation, &
 #endif
 
   capillary_pressure = min(capillary_pressure,this%pcmax)
-  
-  dpc_dsatl = capillary_pressure / &
-              (liquid_saturation*b*(liquid_saturation - 1.d0))
-
   
 end subroutine SF_KRP9_CapillaryPressure
 
@@ -5271,6 +5282,7 @@ subroutine SF_KRP11_Saturation(this,material_auxvar,capillary_pressure, &
 end subroutine SF_KRP11_Saturation
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
 function SF_KRP12_Create()
 
@@ -5441,7 +5453,9 @@ subroutine SF_KRP12_Saturation(this,material_auxvar,capillary_pressure, &
   PetscReal :: perm_xx
   PetscReal :: pct
   
-  dsat_dpres = UNINITIALIZED_DOUBLE
+  dsat_dpres = 0.d0
+  dsat_dpres = 1.d0/dsat_dpres
+  dsat_dpres = 0.d0*dsat_dpres
 
   if (associated(material_auxvar%permeability)) then
     perm_xx = material_auxvar%permeability(perm_xx_index)
