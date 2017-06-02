@@ -866,11 +866,11 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   else
     aux(1) = global_auxvar%m_nacl(1)
     if (associated(gen_auxvar%d)) then
-      call EOSWaterDensityExt(gen_auxvar%temp,celL_pressure,aux, &
+      call EOSWaterDensityExt(gen_auxvar%temp,cell_pressure,aux, &
                               gen_auxvar%den_kg(lid),gen_auxvar%den(lid), &
                               gen_auxvar%d%denl_pl,gen_auxvar%d%denl_T,ierr)
     else
-      call EOSWaterDensityExt(gen_auxvar%temp,celL_pressure,aux, &
+      call EOSWaterDensityExt(gen_auxvar%temp,cell_pressure,aux, &
                               gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
     endif
   endif
