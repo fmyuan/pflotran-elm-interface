@@ -94,6 +94,7 @@ module Characteristic_Curves_module
   type, public, extends(sat_func_base_type) :: sat_func_WIPP_type
     PetscReal :: pct_a
     PetscReal :: pct_exp
+    PetscReal :: alpha
     PetscBool :: ignore_permeability
   contains
     procedure, public :: Init => SF_WIPP_Init
@@ -946,6 +947,12 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputReadDouble(input,option,sf%Srg)
             call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
                                error_string)
+          case('IGNORE_PERMEABILITY') 
+            call InputReadDouble(input,option,sf%ignore_permeability)
+            call InputErrorMsg(input,option,'IGNORE_PERMEABILITY',error_string)
+          case('ALPHA')
+            call InputReadDouble(input,option,sf%alpha)
+            call InputErrorMsg(input,option,'ALPHA',error_string)
           case default
             call InputKeywordUnrecognized(keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP1',option)
@@ -962,6 +969,12 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
           case('PCT_EXP') 
             call InputReadDouble(input,option,sf%pct_exp)
             call InputErrorMsg(input,option,'PCT_EXP',error_string)
+          case('IGNORE_PERMEABILITY') 
+            call InputReadDouble(input,option,sf%ignore_permeability)
+            call InputErrorMsg(input,option,'IGNORE_PERMEABILITY',error_string)
+          case('ALPHA')
+            call InputReadDouble(input,option,sf%alpha)
+            call InputErrorMsg(input,option,'ALPHA',error_string)
           case default
             call InputKeywordUnrecognized(keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP2',option)
@@ -982,6 +995,12 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputReadDouble(input,option,sf%Srg)
             call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
                                error_string)
+          case('IGNORE_PERMEABILITY') 
+            call InputReadDouble(input,option,sf%ignore_permeability)
+            call InputErrorMsg(input,option,'IGNORE_PERMEABILITY',error_string)
+          case('ALPHA')
+            call InputReadDouble(input,option,sf%alpha)
+            call InputErrorMsg(input,option,'ALPHA',error_string)
           case default
             call InputKeywordUnrecognized(keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP3',option)
@@ -1002,6 +1021,12 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputReadDouble(input,option,sf%Srg)
             call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
                                error_string)
+          case('IGNORE_PERMEABILITY') 
+            call InputReadDouble(input,option,sf%ignore_permeability)
+            call InputErrorMsg(input,option,'IGNORE_PERMEABILITY',error_string)
+          case('ALPHA')
+            call InputReadDouble(input,option,sf%alpha)
+            call InputErrorMsg(input,option,'ALPHA',error_string)
           case default
             call InputKeywordUnrecognized(keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP4',option)
@@ -1019,6 +1044,12 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputReadDouble(input,option,sf%Srg)
             call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
                                error_string)
+          case('IGNORE_PERMEABILITY') 
+            call InputReadDouble(input,option,sf%ignore_permeability)
+            call InputErrorMsg(input,option,'IGNORE_PERMEABILITY',error_string)
+          case('ALPHA')
+            call InputReadDouble(input,option,sf%alpha)
+            call InputErrorMsg(input,option,'ALPHA',error_string)
           case default
             call InputKeywordUnrecognized(keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP5',option)
@@ -1039,6 +1070,12 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputReadDouble(input,option,sf%Srg)
             call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
                                error_string)
+          case('IGNORE_PERMEABILITY') 
+            call InputReadDouble(input,option,sf%ignore_permeability)
+            call InputErrorMsg(input,option,'IGNORE_PERMEABILITY',error_string)
+          case('ALPHA')
+            call InputReadDouble(input,option,sf%alpha)
+            call InputErrorMsg(input,option,'ALPHA',error_string)
           case default
             call InputKeywordUnrecognized(keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP8',option)
@@ -1075,6 +1112,12 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
           case('S_EFFMIN') 
             call InputReadDouble(input,option,sf%s_effmin)
             call InputErrorMsg(input,option,'s_effmin',error_string)
+          case('IGNORE_PERMEABILITY') 
+            call InputReadDouble(input,option,sf%ignore_permeability)
+            call InputErrorMsg(input,option,'IGNORE_PERMEABILITY',error_string)
+          case('ALPHA')
+            call InputReadDouble(input,option,sf%alpha)
+            call InputErrorMsg(input,option,'ALPHA',error_string)
           case default
             call InputKeywordUnrecognized(keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP12',option)
