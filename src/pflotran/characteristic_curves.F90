@@ -3983,7 +3983,6 @@ subroutine SF_KRP1_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   PetscReal :: lambda
   PetscReal :: Se2
   PetscReal :: P0
-  PetscReal :: perm_xx
   PetscReal :: pct
   
   dpc_dsatl = 0.d0
@@ -3995,15 +3994,13 @@ subroutine SF_KRP1_CapillaryPressure(this,material_auxvar,liquid_saturation, &
     return
   endif
   
-  if (associated(material_auxvar%permeability)) then
-    perm_xx = material_auxvar%permeability(perm_xx_index)
+  if (.not.this%ignore_permeability) then
+    ! call getPct(this%pct_a,this%pct_exp,pct)
+    ! pct = this%pct_a*(perm_xx**this%pct_exp)
   else
-    option%io_buffer = 'material_auxvar%permeability is null in &
-      &SF_KRP1_CapillaryPressure. Contact PFLOTRAN developers list &
-      &pflotran-dev@googlegroups.com with this error message.' 
-    call printErrMsg(option)
+    pct = 1.d0/this%alpha
   endif
-  pct = this%pct_a*(perm_xx**this%pct_exp)
+  
   lambda = this%m/(1.d0-this%m)
   ! Derivation for P0 is in Appendix PA:
   ! It is derived by setting Se2 in KRP4 and KRP1 to the value 0.5, and then 
@@ -4060,7 +4057,6 @@ subroutine SF_KRP1_Saturation(this,material_auxvar,capillary_pressure, &
   
   PetscReal :: lambda
   PetscReal :: Se2
-  PetscReal :: perm_xx
   PetscReal :: pct
   PetscReal :: P0
   PetscReal :: n
@@ -4069,15 +4065,13 @@ subroutine SF_KRP1_Saturation(this,material_auxvar,capillary_pressure, &
   dsat_dpres = 1.d0/dsat_dpres
   dsat_dpres = 0.d0*dsat_dpres
   
-  if (associated(material_auxvar%permeability)) then
-    perm_xx = material_auxvar%permeability(perm_xx_index)
+  if (.not.this%ignore_permeability) then
+    ! call getPct(this%pct_a,this%pct_exp,pct)
+    ! pct = this%pct_a*(perm_xx**this%pct_exp)
   else
-    option%io_buffer = 'material_auxvar%permeability is null in &
-      &SF_KRP1_Saturation. Contact PFLOTRAN developers list &
-      &pflotran-dev@googlegroups.com with this error message.' 
-    call printErrMsg(option)
+    pct = 1.d0/this%alpha
   endif
-  pct = this%pct_a*(perm_xx**this%pct_exp)
+  
   lambda = this%m/(1.d0-this%m)
   ! Derivation for P0 is in Appendix PA:
   ! It is derived by setting Se2 in KRP4 and KRP1 to the value 0.5, and then 
@@ -4186,7 +4180,6 @@ subroutine SF_KRP2_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se1
-  PetscReal :: perm_xx
   PetscReal :: pct
 
   dpc_dsatl = 0.d0
@@ -4201,15 +4194,13 @@ subroutine SF_KRP2_CapillaryPressure(this,material_auxvar,liquid_saturation, &
     return
   endif
   
-  if (associated(material_auxvar%permeability)) then
-    perm_xx = material_auxvar%permeability(perm_xx_index)
+  if (.not.this%ignore_permeability) then
+    ! call getPct(this%pct_a,this%pct_exp,pct)
+    ! pct = this%pct_a*(perm_xx**this%pct_exp)
   else
-    option%io_buffer = 'material_auxvar%permeability is null in &
-      &SF_KRP2_CapillaryPressure. Contact PFLOTRAN developers list &
-      &pflotran-dev@googlegroups.com with this error message.' 
-    call printErrMsg(option)
+    pct = 1.d0/this%alpha
   endif
-  pct = this%pct_a*(perm_xx**this%pct_exp)
+  
   Se1 = (liquid_saturation-this%Sr)/(1.d0-this%Sr)
   Se1 = min(Se1,1.d0)  
   capillary_pressure = pct/(Se1**(1.d0/this%lambda))
@@ -4244,23 +4235,20 @@ subroutine SF_KRP2_Saturation(this,material_auxvar,capillary_pressure, &
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
   
-  PetscReal :: Se1
-  PetscReal :: perm_xx 
+  PetscReal :: Se1 
   PetscReal :: pct      
   
   dsat_dpres = 0.d0
   dsat_dpres = 1.d0/dsat_dpres
   dsat_dpres = 0.d0*dsat_dpres
 
-  if (associated(material_auxvar%permeability)) then
-    perm_xx = material_auxvar%permeability(perm_xx_index)
+  if (.not.this%ignore_permeability) then
+    ! call getPct(this%pct_a,this%pct_exp,pct)
+    ! pct = this%pct_a*(perm_xx**this%pct_exp)
   else
-    option%io_buffer = 'material_auxvar%permeability is null in &
-      &SF_KRP2_Saturation. Contact PFLOTRAN developers list &
-      &pflotran-dev@googlegroups.com with this error message.' 
-    call printErrMsg(option)
+    pct = 1.d0/this%alpha
   endif
-  pct = this%pct_a*(perm_xx**this%pct_exp)  
+  
   Se1 = (pct/capillary_pressure)**this%lambda
   liquid_saturation = this%Sr + (1.d0-this%Sr)*Se1
   
@@ -4372,22 +4360,19 @@ subroutine SF_KRP3_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se2
-  PetscReal :: perm_xx
   PetscReal :: pct
   
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
   
-  if (associated(material_auxvar%permeability)) then
-    perm_xx = material_auxvar%permeability(perm_xx_index)
+  if (.not.this%ignore_permeability) then
+    ! call getPct(this%pct_a,this%pct_exp,pct)
+    ! pct = this%pct_a*(perm_xx**this%pct_exp)
   else
-    option%io_buffer = 'material_auxvar%permeability is null in &
-      &SF_KRP3_CapillaryPressure. Contact PFLOTRAN developers list &
-      &pflotran-dev@googlegroups.com with this error message.' 
-    call printErrMsg(option)
+    pct = 1.d0/this%alpha
   endif
-  pct = this%pct_a*(perm_xx**this%pct_exp)
+  
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
   
   if (liquid_saturation <= this%Sr) then
@@ -4434,22 +4419,18 @@ subroutine SF_KRP3_Saturation(this,material_auxvar,capillary_pressure, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se2
-  PetscReal :: perm_xx 
   PetscReal :: pct      
   
   dsat_dpres = 0.d0
   dsat_dpres = 1.d0/dsat_dpres
   dsat_dpres = 0.d0*dsat_dpres
 
-  if (associated(material_auxvar%permeability)) then
-    perm_xx = material_auxvar%permeability(perm_xx_index)
+  if (.not.this%ignore_permeability) then
+    ! call getPct(this%pct_a,this%pct_exp,pct)
+    ! pct = this%pct_a*(perm_xx**this%pct_exp)
   else
-    option%io_buffer = 'material_auxvar%permeability is null in &
-      &SF_KRP3_Saturation. Contact PFLOTRAN developers list &
-      &pflotran-dev@googlegroups.com with this error message.' 
-    call printErrMsg(option)
+    pct = 1.d0/this%alpha
   endif
-  pct = this%pct_a*(perm_xx**this%pct_exp)  
   
   Se2 = (pct/capillary_pressure)**this%lambda
   liquid_saturation = this%Sr + (1.d0-this%Sr-this%Srg)*Se2
@@ -4562,22 +4543,19 @@ subroutine SF_KRP4_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se2
-  PetscReal :: perm_xx
   PetscReal :: pct
   
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
   
-  if (associated(material_auxvar%permeability)) then
-    perm_xx = material_auxvar%permeability(perm_xx_index)
+  if (.not.this%ignore_permeability) then
+    ! call getPct(this%pct_a,this%pct_exp,pct)
+    ! pct = this%pct_a*(perm_xx**this%pct_exp)
   else
-    option%io_buffer = 'material_auxvar%permeability is null in &
-      &SF_KRP4_CapillaryPressure. Contact PFLOTRAN developers list &
-      &pflotran-dev@googlegroups.com with this error message.' 
-    call printErrMsg(option)
+    pct = 1.d0/this%alpha
   endif
-  pct = this%pct_a*(perm_xx**this%pct_exp)
+  
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
   
   if (liquid_saturation <= this%Sr) then
@@ -4621,22 +4599,19 @@ subroutine SF_KRP4_Saturation(this,material_auxvar,capillary_pressure, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se2
-  PetscReal :: perm_xx 
   PetscReal :: pct      
   
   dsat_dpres = 0.d0
   dsat_dpres = 1.d0/dsat_dpres
   dsat_dpres = 0.d0*dsat_dpres
 
-  if (associated(material_auxvar%permeability)) then
-    perm_xx = material_auxvar%permeability(perm_xx_index)
+  if (.not.this%ignore_permeability) then
+    ! call getPct(this%pct_a,this%pct_exp,pct)
+    ! pct = this%pct_a*(perm_xx**this%pct_exp)
   else
-    option%io_buffer = 'material_auxvar%permeability is null in &
-      &SF_KRP4_Saturation. Contact PFLOTRAN developers list &
-      &pflotran-dev@googlegroups.com with this error message.' 
-    call printErrMsg(option)
+    pct = 1.d0/this%alpha
   endif
-  pct = this%pct_a*(perm_xx**this%pct_exp)  
+  
   Se2 = (pct/capillary_pressure)**this%lambda
   liquid_saturation = this%Sr + (1.d0-this%Sr-this%Srg)*Se2
   
@@ -4747,22 +4722,19 @@ subroutine SF_KRP5_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se2
-  PetscReal :: perm_xx
   PetscReal :: pct
   
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
   
-  if (associated(material_auxvar%permeability)) then
-    perm_xx = material_auxvar%permeability(perm_xx_index)
+  if (.not.this%ignore_permeability) then
+    ! call getPct(this%pct_a,this%pct_exp,pct)
+    ! pct = this%pct_a*(perm_xx**this%pct_exp)
   else
-    option%io_buffer = 'material_auxvar%permeability is null in &
-      &SF_KRP5_CapillaryPressure. Contact PFLOTRAN developers list &
-      &pflotran-dev@googlegroups.com with this error message.' 
-    call printErrMsg(option)
+    pct = 1.d0/this%alpha
   endif
-  pct = this%pct_a*(perm_xx**this%pct_exp)
+  
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
   
   if (liquid_saturation <= this%Sr) then
@@ -4810,22 +4782,18 @@ subroutine SF_KRP5_Saturation(this,material_auxvar,capillary_pressure, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se2
-  PetscReal :: perm_xx 
   PetscReal :: pct      
   
   dsat_dpres = 0.d0
   dsat_dpres = 1.d0/dsat_dpres
   dsat_dpres = 0.d0*dsat_dpres
 
-  if (associated(material_auxvar%permeability)) then
-    perm_xx = material_auxvar%permeability(perm_xx_index)
+  if (.not.this%ignore_permeability) then
+    ! call getPct(this%pct_a,this%pct_exp,pct)
+    ! pct = this%pct_a*(perm_xx**this%pct_exp)
   else
-    option%io_buffer = 'material_auxvar%permeability is null in &
-      &SF_KRP5_Saturation. Contact PFLOTRAN developers list &
-      &pflotran-dev@googlegroups.com with this error message.' 
-    call printErrMsg(option)
-  endif
-  pct = this%pct_a*(perm_xx**this%pct_exp)  
+    pct = 1.d0/this%alpha
+  endif 
 
   if (capillary_pressure <= 0.d0) then
     liquid_saturation = 1.d0
@@ -4944,7 +4912,6 @@ subroutine SF_KRP8_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   
   PetscReal :: lambda
   PetscReal :: Se1
-  PetscReal :: perm_xx
   PetscReal :: pct
   PetscReal :: P0
   
@@ -4957,15 +4924,13 @@ subroutine SF_KRP8_CapillaryPressure(this,material_auxvar,liquid_saturation, &
     return
   endif
   
-  if (associated(material_auxvar%permeability)) then
-    perm_xx = material_auxvar%permeability(perm_xx_index)
+  if (.not.this%ignore_permeability) then
+    ! call getPct(this%pct_a,this%pct_exp,pct)
+    ! pct = this%pct_a*(perm_xx**this%pct_exp)
   else
-    option%io_buffer = 'material_auxvar%permeability is null in &
-      &SF_KRP8_CapillaryPressure. Contact PFLOTRAN developers list &
-      &pflotran-dev@googlegroups.com with this error message.' 
-    call printErrMsg(option)
+    pct = 1.d0/this%alpha
   endif
-  pct = this%pct_a*(perm_xx**this%pct_exp)
+  
   lambda = this%m/(1.d0-this%m)
   ! Derivation for P0 is in Appendix PA:
   ! It is derived by setting Se2 in KRP4 and Se1 KRP8 to the value 0.5, and then 
@@ -5013,7 +4978,6 @@ subroutine SF_KRP8_Saturation(this,material_auxvar,capillary_pressure, &
   
   PetscReal :: lambda
   PetscReal :: Se1
-  PetscReal :: perm_xx
   PetscReal :: pct
   PetscReal :: P0
   PetscReal :: n
@@ -5022,15 +4986,13 @@ subroutine SF_KRP8_Saturation(this,material_auxvar,capillary_pressure, &
   dsat_dpres = 1.d0/dsat_dpres
   dsat_dpres = 0.d0*dsat_dpres
   
-  if (associated(material_auxvar%permeability)) then
-    perm_xx = material_auxvar%permeability(perm_xx_index)
+  if (.not.this%ignore_permeability) then
+    ! call getPct(this%pct_a,this%pct_exp,pct)
+    ! pct = this%pct_a*(perm_xx**this%pct_exp)
   else
-    option%io_buffer = 'material_auxvar%permeability is null in &
-      &SF_KRP8_Saturation. Contact PFLOTRAN developers list &
-      &pflotran-dev@googlegroups.com with this error message.' 
-    call printErrMsg(option)
+    pct = 1.d0/this%alpha
   endif
-  pct = this%pct_a*(perm_xx**this%pct_exp)
+  
   lambda = this%m/(1.d0-this%m)
   ! Derivation for P0 is in Appendix PA:
   ! It is derived by setting Se2 in KRP4 and Se1 KRP8 to the value 0.5, and then 
@@ -5446,22 +5408,18 @@ subroutine SF_KRP12_CapillaryPressure(this,material_auxvar,liquid_saturation, &
   
   PetscReal :: Se21
   PetscReal :: Se
-  PetscReal :: perm_xx
   PetscReal :: pct
   
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
 
-  if (associated(material_auxvar%permeability)) then
-    perm_xx = material_auxvar%permeability(perm_xx_index)
+  if (.not.this%ignore_permeability) then
+    ! call getPct(this%pct_a,this%pct_exp,pct)
+    ! pct = this%pct_a*(perm_xx**this%pct_exp)
   else
-    option%io_buffer = 'material_auxvar%permeability is null in &
-      &SF_KRP3_CapillaryPressure. Contact PFLOTRAN developers list &
-      &pflotran-dev@googlegroups.com with this error message.' 
-    call printErrMsg(option)
+    pct = 1.d0/this%alpha
   endif
-  pct = this%pct_a*(perm_xx**this%pct_exp)
   
   if (liquid_saturation >= 1.d0) then
     capillary_pressure = 0.d0
@@ -5504,22 +5462,18 @@ subroutine SF_KRP12_Saturation(this,material_auxvar,capillary_pressure, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se21
-  PetscReal :: perm_xx
   PetscReal :: pct
   
   dsat_dpres = 0.d0
   dsat_dpres = 1.d0/dsat_dpres
   dsat_dpres = 0.d0*dsat_dpres
 
-  if (associated(material_auxvar%permeability)) then
-    perm_xx = material_auxvar%permeability(perm_xx_index)
+  if (.not.this%ignore_permeability) then
+    ! call getPct(this%pct_a,this%pct_exp,pct)
+    ! pct = this%pct_a*(perm_xx**this%pct_exp)
   else
-    option%io_buffer = 'material_auxvar%permeability is null in &
-      &SF_KRP3_Saturation. Contact PFLOTRAN developers list &
-      &pflotran-dev@googlegroups.com with this error message.' 
-    call printErrMsg(option)
+    pct = 1.d0/this%alpha
   endif
-  pct = this%pct_a*(perm_xx**this%pct_exp) 
   
   Se21 = (pct/capillary_pressure)**this%lambda
   liquid_saturation = Se21*(1.d0 - this%s_min - this%s_effmin) + &
