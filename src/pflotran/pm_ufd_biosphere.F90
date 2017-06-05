@@ -1527,11 +1527,11 @@ subroutine PMUFDBOutput(this)
   do
     if (.not.associated(cur_ERB)) exit
     write(fid,'(a32)',advance="no") trim(cur_ERB%name)
-    write(fid,100,advance="no") cur_ERB%total_annual_dose
+    write(fid,100,advance="no") cur_ERB%total_annual_dose   ! [Sv/yr]
     
     do k = 1,size(cur_ERB%annual_dose_supp_w_unsupp_rads)
       write(fid,100,advance="no") cur_ERB%annual_dose_supp_w_unsupp_rads(k)
-    enddo
+    enddo                                  ! [Sv/yr]
     
     if (cur_ERB%incl_unsupported_rads) then
       k = 0
@@ -1539,7 +1539,7 @@ subroutine PMUFDBOutput(this)
       do
         if (.not.associated(cur_unsupp_rad)) exit
         k = k + 1
-        write(fid,100,advance="no") cur_ERB%annual_dose_unsupp_rad(k)
+        write(fid,100,advance="no") cur_ERB%annual_dose_unsupp_rad(k)  ! [Sv/yr]
         cur_unsupp_rad => cur_unsupp_rad%next
       enddo
     endif
@@ -1550,8 +1550,8 @@ subroutine PMUFDBOutput(this)
       if (.not.associated(cur_supp_rad)) exit
       k = k + 1
       write(fid,100,advance="no") &
-           cur_ERB%aqueous_conc_supported_rad(k), &     ! [Bq/L]
-          (cur_ERB%aqueous_conc_supported_rad(k)/ &     ! [mol/L] 
+          (cur_ERB%aqueous_conc_supported_rad(k)/0.001d0), &     ! [Bq/m3]
+          ((cur_ERB%aqueous_conc_supported_rad(k)/0.001d0)/ &    ! [mol/m3] 
            (avagadro*cur_supp_rad%decay_rate))
       cur_supp_rad => cur_supp_rad%next
     enddo
@@ -1563,8 +1563,8 @@ subroutine PMUFDBOutput(this)
         if (.not.associated(cur_unsupp_rad)) exit
         k = k + 1
         write(fid,100,advance="no") &
-             cur_ERB%aqueous_conc_unsupported_rad(k), &     ! [Bq/L]
-            (cur_ERB%aqueous_conc_unsupported_rad(k)/ &     ! [mol/L] 
+            (cur_ERB%aqueous_conc_unsupported_rad(k)/0.001d0), &     ! [Bq/m3]
+            ((cur_ERB%aqueous_conc_unsupported_rad(k)/0.001d0)/ &    ! [mol/m3] 
              (avagadro*cur_unsupp_rad%decay_rate))
         cur_unsupp_rad => cur_unsupp_rad%next
       enddo
@@ -1661,12 +1661,12 @@ subroutine PMUFDBOutputHeader(this)
     do
       if (.not.associated(cur_supp_rad)) exit
       variable_string = 'Aq. Conc.'
-      units_string = 'Bq/L'
+      units_string = 'Bq/m3'
       cell_string = trim(cur_supp_rad%name) 
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
       variable_string = 'Aq. Conc.'
-      units_string = 'mol/L'
+      units_string = 'mol/m3'
       cell_string = trim(cur_supp_rad%name) 
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
@@ -1678,12 +1678,12 @@ subroutine PMUFDBOutputHeader(this)
       do
         if (.not.associated(cur_unsupp_rad)) exit
         variable_string = 'Aq. Conc.'
-        units_string = 'Bq/L'
+        units_string = 'Bq/m3'
         cell_string = trim(cur_unsupp_rad%name) // '*'
         call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                  icolumn)
         variable_string = 'Aq. Conc.'
-        units_string = 'mol/L'
+        units_string = 'mol/m3'
         cell_string = trim(cur_unsupp_rad%name) // '*'
         call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                  icolumn)
