@@ -4560,7 +4560,6 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     use Field_module
     use Reaction_Aux_module
     use Reaction_Immobile_Aux_module
-    use Reactive_Transport_module, only : RTUpdateAuxVars
     use Reactive_Transport_Aux_module
     use Discretization_module
     use Data_Mediator_Base_class, only : data_mediator_base_type
@@ -5154,26 +5153,24 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     CHKERRQ(ierr)  ! extract data from pflotran internal portion
 
     do local_id=1,grid%nlmax
-        ghosted_id = grid%nL2G(local_id)
-        if (ghosted_id <= 0 .or. local_id <= 0) cycle
-        if (associated(patch%imat)) then
-           if (patch%imat(ghosted_id) < 0) cycle
-        endif
+      ghosted_id = grid%nL2G(local_id)
+      if (ghosted_id<=0 .or. local_id <= 0) cycle ! bypass ghosted corner cells
+      !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
-        offset = (local_id-1) * realization%reaction%ncomp &
+      offset = (local_id-1) * realization%reaction%ncomp &
                 + realization%reaction%offset_immobile
 
-        if(clm_pf_idata%ispec_co2 > 0) then
-            xx_p(offset + clm_pf_idata%ispec_co2) = max(gco2_vr_pf_loc(ghosted_id), xeps0_c)
-        endif
+      if(clm_pf_idata%ispec_co2 > 0) then
+        xx_p(offset + clm_pf_idata%ispec_co2) = max(gco2_vr_pf_loc(ghosted_id), xeps0_c)
+      endif
 
-        if(clm_pf_idata%ispec_n2 > 0) then
-            xx_p(offset + clm_pf_idata%ispec_n2) = max(gn2_vr_pf_loc(ghosted_id), xeps0_n)
-        endif
+      if(clm_pf_idata%ispec_n2 > 0) then
+        xx_p(offset + clm_pf_idata%ispec_n2) = max(gn2_vr_pf_loc(ghosted_id), xeps0_n)
+      endif
 
-        if(clm_pf_idata%ispec_n2o > 0) then
-            xx_p(offset + clm_pf_idata%ispec_n2o) = max(gn2o_vr_pf_loc(ghosted_id), xeps0_n)
-        endif
+      if(clm_pf_idata%ispec_n2o > 0) then
+        xx_p(offset + clm_pf_idata%ispec_n2o) = max(gn2o_vr_pf_loc(ghosted_id), xeps0_n)
+      endif
 
     enddo
 
