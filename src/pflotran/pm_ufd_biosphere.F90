@@ -1614,7 +1614,7 @@ subroutine PMUFDBOutputHeader(this)
   type(output_option_type), pointer :: output_option
   character(len=MAXWORDLENGTH) :: units_string
   character(len=MAXWORDLENGTH) :: variable_string
-  character(len=MAXWORDLENGTH) :: cell_string
+  character(len=MAXSTRINGLENGTH) :: cell_string
   character(len=MAXSTRINGLENGTH) :: filename
   class(ERB_base_type), pointer :: cur_ERB
   type(supported_rad_type), pointer :: cur_supp_rad
