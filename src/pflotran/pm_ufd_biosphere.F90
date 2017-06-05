@@ -29,6 +29,7 @@ module PM_UFD_Biosphere_class
     PetscReal :: dcf                          ! [Sv/Bq]
     PetscReal :: emanation_factor             ! [-]
     PetscReal :: kd                           ! (see note below on units) 
+    PetscReal :: sorption_enhancement         ! [-]
     type(unsupported_rad_type), pointer :: next
   end type unsupported_rad_type
   
@@ -51,7 +52,7 @@ module PM_UFD_Biosphere_class
     PetscReal, pointer :: annual_dose_supp_w_unsupp_rads(:)     ! [Sv/yr]
     character(len=MAXSTRINGLENGTH), pointer :: names_supp_w_unsupp_rads(:)
     PetscReal :: total_annual_dose                              ! [Sv/yr]
-    PetscReal :: indv_consumption_rate                          ! [L/yr]
+    PetscReal :: indv_consumption_rate                          ! [L/day]
     PetscBool :: incl_unsupported_rads
   contains
   end type ERB_base_type
@@ -244,6 +245,7 @@ function PMUFDBUnsuppRadCreate()
   PMUFDBUnsuppRadCreate%dcf = UNINITIALIZED_DOUBLE  
   PMUFDBUnsuppRadCreate%emanation_factor = 1.d0     
   PMUFDBUnsuppRadCreate%kd = UNINITIALIZED_DOUBLE  
+  PMUFDBUnsuppRadCreate%sorption_enhancement = UNINITIALIZED_DOUBLE  
   nullify(PMUFDBUnsuppRadCreate%supported_parent)
   nullify(PMUFDBUnsuppRadCreate%next)
   
@@ -1355,7 +1357,7 @@ end subroutine PMUFDBInitializeTimestep
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   PetscReal, parameter :: avagadro = 6.0221409d23
-  PetscInt, parameter :: iphase = 1
+  PetscInt, parameter :: iphase = 1  ! LIQUID_PHASE
   
   rt_auxvars => this%realization%patch%aux%RT%auxvars
   global_auxvars => this%realization%patch%aux%Global%auxvars
@@ -1403,7 +1405,8 @@ end subroutine PMUFDBInitializeTimestep
       !-----Calculate-dose:-supported-radionuclides------------------------
       cur_ERB%annual_dose_supp_rad(k) = &                     ! [Sv/yr]
           cur_ERB%aqueous_conc_supported_rad(k) * &           ! [Bq/L]
-          cur_ERB%indv_consumption_rate * &                   ! [L/yr]
+          cur_ERB%indv_consumption_rate * &                   ! [L/day]
+          (365.d0/1.d0) * &                                   ! [day/L]
           cur_supp_rad%dcf                                    ! [Sv/Bq]
       !-----Initialize-dose-from-supp'd-+-unsupp'd-rads--------------------
       cur_ERB%annual_dose_supp_w_unsupp_rads(k) = &
@@ -1417,13 +1420,14 @@ end subroutine PMUFDBInitializeTimestep
       dry_bulk_density = 0.d0
       do i = 1,cur_ERB%region%num_cells
         ghosted_id = grid%nL2G(cur_ERB%region%cell_ids(i))
-        dry_bulk_density = dry_bulk_density + &
+        dry_bulk_density = dry_bulk_density + &   ! [kg/m3]
          ((material_auxvars(ghosted_id)%soil_particle_density * &
           (1.d0-material_auxvars(ghosted_id)%porosity)) * &
           cur_ERB%region_scaling_factor(i))
       enddo  ! get average dry_bulk_density over region:
       call CalcParallelSum(this%option,cur_ERB%rank_list, &
                            dry_bulk_density,dry_bulk_density)
+      dry_bulk_density = dry_bulk_density/1.d3   ! [kg/L]
       water_content = 0.d0
       do i = 1,cur_ERB%region%num_cells
         ghosted_id = grid%nL2G(cur_ERB%region%cell_ids(i))
@@ -1443,6 +1447,7 @@ end subroutine PMUFDBInitializeTimestep
     !-----Calculate-aqueous-concentration-of-unsupported-rads--------------
         Rfi = 1.d0 + cur_unsupp_rad%supported_parent%kd*(den_sat_ratio)
         Rfu = 1.d0 + cur_unsupp_rad%kd*(den_sat_ratio) 
+        cur_unsupp_rad%sorption_enhancement = (Rfi/Rfu)
         position = cur_unsupp_rad%supported_parent%position_in_list
         cur_ERB%aqueous_conc_unsupported_rad(k) = &    
             cur_ERB%aqueous_conc_supported_rad(position) * & 
@@ -1450,7 +1455,8 @@ end subroutine PMUFDBInitializeTimestep
     !-----Calculate-dose:-unsupported-radionuclides------------------------
         cur_ERB%annual_dose_unsupp_rad(k) = &                   ! [Sv/yr]
           cur_ERB%aqueous_conc_unsupported_rad(k) * &           ! [Bq/L]
-          cur_ERB%indv_consumption_rate * &                     ! [L/yr]
+          cur_ERB%indv_consumption_rate * &                     ! [L/day]
+          (365.d0/1.d0) * &                                     ! [day/L]
           cur_unsupp_rad%dcf                                    ! [Sv/Bq]
     !-----Calculate-dose-from-supp'd-rads-with-their-unsupp'd-desc's-------
         cur_ERB%annual_dose_supp_w_unsupp_rads(position) = &    ! [Sv/yr]
@@ -1533,6 +1539,16 @@ subroutine PMUFDBOutput(this)
       write(fid,100,advance="no") cur_ERB%annual_dose_supp_w_unsupp_rads(k)
     enddo                                  ! [Sv/yr]
     
+    k = 0
+    cur_supp_rad => this%supported_rad_list
+    do
+      if (.not.associated(cur_supp_rad)) exit
+      k = k + 1
+      write(fid,100,advance="no") &
+          cur_ERB%annual_dose_supp_rad(k)  ! [Sv/yr]
+      cur_supp_rad => cur_supp_rad%next
+    enddo
+    
     if (cur_ERB%incl_unsupported_rads) then
       k = 0
       cur_unsupp_rad => this%unsupported_rad_list
@@ -1551,7 +1567,7 @@ subroutine PMUFDBOutput(this)
       k = k + 1
       write(fid,100,advance="no") &
           (cur_ERB%aqueous_conc_supported_rad(k)/0.001d0), &     ! [Bq/m3]
-          ((cur_ERB%aqueous_conc_supported_rad(k)/0.001d0)/ &    ! [mol/m3] 
+          ((cur_ERB%aqueous_conc_supported_rad(k))/ &    ! [mol/L] 
            (avagadro*cur_supp_rad%decay_rate))
       cur_supp_rad => cur_supp_rad%next
     enddo
@@ -1563,8 +1579,9 @@ subroutine PMUFDBOutput(this)
         if (.not.associated(cur_unsupp_rad)) exit
         k = k + 1
         write(fid,100,advance="no") &
-            (cur_ERB%aqueous_conc_unsupported_rad(k)/0.001d0), &     ! [Bq/m3]
-            ((cur_ERB%aqueous_conc_unsupported_rad(k)/0.001d0)/ &    ! [mol/m3] 
+             cur_unsupp_rad%sorption_enhancement, &                 ! [-]
+            (cur_ERB%aqueous_conc_unsupported_rad(k)/0.001d0), &    ! [Bq/m3]
+            ((cur_ERB%aqueous_conc_unsupported_rad(k))/ &           ! [mol/L] 
              (avagadro*cur_unsupp_rad%decay_rate))
         cur_unsupp_rad => cur_unsupp_rad%next
       enddo
@@ -1644,6 +1661,17 @@ subroutine PMUFDBOutputHeader(this)
                                icolumn)
     enddo
     
+    cur_supp_rad => this%supported_rad_list
+    do
+      if (.not.associated(cur_supp_rad)) exit
+      variable_string = 'Annual Dose'                    
+      units_string = 'Sv/yr'
+      cell_string = trim(cur_supp_rad%name) 
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      cur_supp_rad =>cur_supp_rad%next
+    enddo
+    
     if (cur_ERB%incl_unsupported_rads) then
       cur_unsupp_rad => this%unsupported_rad_list
       do
@@ -1666,7 +1694,7 @@ subroutine PMUFDBOutputHeader(this)
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
       variable_string = 'Aq. Conc.'
-      units_string = 'mol/m3'
+      units_string = 'mol/L'
       cell_string = trim(cur_supp_rad%name) 
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
@@ -1677,13 +1705,18 @@ subroutine PMUFDBOutputHeader(this)
       cur_unsupp_rad => this%unsupported_rad_list
       do
         if (.not.associated(cur_unsupp_rad)) exit
+        variable_string = 'E_i'
+        units_string = ''
+        cell_string = trim(cur_unsupp_rad%name) // '*'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
         variable_string = 'Aq. Conc.'
         units_string = 'Bq/m3'
         cell_string = trim(cur_unsupp_rad%name) // '*'
         call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                  icolumn)
         variable_string = 'Aq. Conc.'
-        units_string = 'mol/m3'
+        units_string = 'mol/L'
         cell_string = trim(cur_unsupp_rad%name) // '*'
         call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                  icolumn)
