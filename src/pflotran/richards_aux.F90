@@ -257,8 +257,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (auxvar%pc > 0.d0) then
     saturated = PETSC_FALSE
     call characteristic_curves%saturation_function% &
-                               Saturation(material_auxvar,auxvar%pc, &
-                                          global_auxvar%sat(1), &
+                               Saturation(auxvar%pc,global_auxvar%sat(1), &
                                           ds_dp,option)
     ! if ds_dp is 0, we consider the cell saturated.
     if (ds_dp < 1.d-40) then

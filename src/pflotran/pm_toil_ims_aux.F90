@@ -280,7 +280,7 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   toil_auxvar%sat(lid) = 1.d0 - toil_auxvar%sat(oid)
       
   call characteristic_curves%saturation_function% &
-             CapillaryPressure(material_auxvar,toil_auxvar%sat(lid), &
+             CapillaryPressure(toil_auxvar%sat(lid), &
                                toil_auxvar%pres(cpid),dpc_dsatl,option)                             
 
   ! Testing zero capillary pressure

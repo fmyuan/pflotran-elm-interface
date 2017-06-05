@@ -91,7 +91,6 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
   use Utility_module
   use Dataset_Gridded_HDF5_class
   use Dataset_Ascii_class
-  use Material_Aux_class
  
   !use TOilIms_Aux_module
   use PM_TOilIms_Aux_module 
@@ -127,7 +126,6 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
   PetscReal :: sat_liq_owc, pc_comp, sat_liq_comp, dsat_dpres
   PetscReal :: sat_ir(2)
   PetscReal :: dpc_dsatl
-  type(material_auxvar_type) :: dummy_material_auxvar
 
   class(one_dim_grid_type), pointer :: one_d_grid
   type(flow_condition_type), pointer :: condition
@@ -279,8 +277,7 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
   sat_liq_owc = 1.0 - sat_ir(2)
       
   call characteristic_curves%saturation_function% &
-       CapillaryPressure(dummy_material_auxvar,sat_liq_owc,pc_owc,dpc_dsatl, &
-                         option)
+       CapillaryPressure(sat_liq_owc,pc_owc,dpc_dsatl,option)
 
   ! compute pressure and density profiles for phases where hydrostatic pressure
   ! is imposed. And pressure (water or oil) at owc elevation
@@ -448,7 +445,7 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
         ! water/oil transition zone
         coupler%flow_aux_real_var(1,iconn) = po_cell      
         call characteristic_curves%saturation_function%Saturation( &
-                   dummy_material_auxvar,pc_comp,sat_liq_comp,dsat_dpres,option) 
+                   pc_comp,sat_liq_comp,dsat_dpres,option) 
         coupler%flow_aux_real_var(2,iconn) = 1.0d0 - sat_liq_comp
         if (coupler%flow_aux_real_var(2,iconn) < 1.0d-6 ) &
            coupler%flow_aux_real_var(2,iconn) = 1.0d-6 
