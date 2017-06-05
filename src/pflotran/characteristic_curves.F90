@@ -948,7 +948,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
                                error_string)
           case('IGNORE_PERMEABILITY') 
-            call InputReadDouble(input,option,sf%ignore_permeability)
+            sf%ignore_permeability = PETSC_TRUE
             call InputErrorMsg(input,option,'IGNORE_PERMEABILITY',error_string)
           case('ALPHA')
             call InputReadDouble(input,option,sf%alpha)
@@ -970,7 +970,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputReadDouble(input,option,sf%pct_exp)
             call InputErrorMsg(input,option,'PCT_EXP',error_string)
           case('IGNORE_PERMEABILITY') 
-            call InputReadDouble(input,option,sf%ignore_permeability)
+            sf%ignore_permeability = PETSC_TRUE
             call InputErrorMsg(input,option,'IGNORE_PERMEABILITY',error_string)
           case('ALPHA')
             call InputReadDouble(input,option,sf%alpha)
@@ -996,7 +996,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
                                error_string)
           case('IGNORE_PERMEABILITY') 
-            call InputReadDouble(input,option,sf%ignore_permeability)
+            sf%ignore_permeability = PETSC_TRUE
             call InputErrorMsg(input,option,'IGNORE_PERMEABILITY',error_string)
           case('ALPHA')
             call InputReadDouble(input,option,sf%alpha)
@@ -1022,7 +1022,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
                                error_string)
           case('IGNORE_PERMEABILITY') 
-            call InputReadDouble(input,option,sf%ignore_permeability)
+            sf%ignore_permeability = PETSC_TRUE
             call InputErrorMsg(input,option,'IGNORE_PERMEABILITY',error_string)
           case('ALPHA')
             call InputReadDouble(input,option,sf%alpha)
@@ -1045,7 +1045,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
                                error_string)
           case('IGNORE_PERMEABILITY') 
-            call InputReadDouble(input,option,sf%ignore_permeability)
+            sf%ignore_permeability = PETSC_TRUE
             call InputErrorMsg(input,option,'IGNORE_PERMEABILITY',error_string)
           case('ALPHA')
             call InputReadDouble(input,option,sf%alpha)
@@ -1071,7 +1071,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
                                error_string)
           case('IGNORE_PERMEABILITY') 
-            call InputReadDouble(input,option,sf%ignore_permeability)
+            sf%ignore_permeability = PETSC_TRUE
             call InputErrorMsg(input,option,'IGNORE_PERMEABILITY',error_string)
           case('ALPHA')
             call InputReadDouble(input,option,sf%alpha)
@@ -1113,7 +1113,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputReadDouble(input,option,sf%s_effmin)
             call InputErrorMsg(input,option,'s_effmin',error_string)
           case('IGNORE_PERMEABILITY') 
-            call InputReadDouble(input,option,sf%ignore_permeability)
+            sf%ignore_permeability = PETSC_TRUE
             call InputErrorMsg(input,option,'IGNORE_PERMEABILITY',error_string)
           case('ALPHA')
             call InputReadDouble(input,option,sf%alpha)
@@ -1152,46 +1152,13 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   !------------------------------------------
     class is(sat_func_Linear_type)
   !------------------------------------------
-    class is(sat_func_KRP1_type)
-  !------------------------------------------
-    class is(sat_func_KRP2_type)
-      if (smooth) then
-        option%io_buffer = 'SMOOTH option cannot be used with WIPP saturation &
-                           &function BRAGFLO_KRP2.'
-        call printWrnMsg(option)
-        smooth = PETSC_FALSE
-      endif
-  !------------------------------------------
-    class is(sat_func_KRP3_type)
-      if (smooth) then
-        option%io_buffer = 'SMOOTH option cannot be used with WIPP saturation &
-                           &function BRAGFLO_KRP3.'
-        call printWrnMsg(option)
-        smooth = PETSC_FALSE
-      endif
-  !------------------------------------------
-    class is(sat_func_KRP4_type)
-      if (smooth) then
-        option%io_buffer = 'SMOOTH option cannot be used with WIPP saturation &
-                           &function BRAGFLO_KRP4.'
-        call printWrnMsg(option)
-        smooth = PETSC_FALSE
-      endif
-  !------------------------------------------
-    class is(sat_func_KRP5_type)
-  !------------------------------------------
-    class is(sat_func_KRP8_type)
-  !------------------------------------------
-    class is(sat_func_KRP9_type)
-  !------------------------------------------
-    class is(sat_func_KRP11_type)
-  !------------------------------------------
-    class is(sat_func_KRP12_type)
-      if (smooth) then
-        option%io_buffer = 'SMOOTH option cannot be used with WIPP saturation &
-                           &function BRAGFLO_KRP12.'
-        call printWrnMsg(option)
-        smooth = PETSC_FALSE
+    class is(sat_func_WIPP_type)
+      if (sf%ignore_permeability .and. Uninitialized(sf%alpha)) then
+        option%io_buffer = 'If a WIPP capillary presure - saturation function &
+          &is being used with the IGNORE_PERMEABILITY feature, you must &
+          &specify ALPHA (inverse of the threshold capillary pressure). Do &
+          &not specify PCT_A or PCT_EXP.'
+        call printErrMsg(option)
       endif
   !------------------------------------------
   end select
@@ -3810,6 +3777,7 @@ subroutine SF_WIPP_Init(this)
   this%pct_a = UNINITIALIZED_DOUBLE
   this%pct_exp = UNINITIALIZED_DOUBLE
   this%ignore_permeability = PETSC_FALSE
+  this%alpha = UNINITIALIZED_DOUBLE
   
 end subroutine SF_WIPP_Init
 
@@ -3836,16 +3804,24 @@ subroutine SF_WIPP_Verify(this,name,option)
   endif
   call SFBaseVerify(this,string,option)
   
-  if (Uninitialized(this%pct_a)) then
-    option%io_buffer = UninitializedMessage('PCT_A',string)
-    call printMsg(option)
-    num_errors = num_errors + 1
-  endif   
-  if (Uninitialized(this%pct_exp)) then
-    option%io_buffer = UninitializedMessage('PCT_EXP',string)
-    call printMsg(option)
-    num_errors = num_errors + 1
-  endif 
+  if (.not.this%ignore_permeability) then
+    if (Uninitialized(this%pct_a)) then
+      option%io_buffer = UninitializedMessage('PCT_A',string)
+      call printMsg(option)
+      num_errors = num_errors + 1
+    endif   
+    if (Uninitialized(this%pct_exp)) then
+      option%io_buffer = UninitializedMessage('PCT_EXP',string)
+      call printMsg(option)
+      num_errors = num_errors + 1
+    endif 
+  else
+    if (Uninitialized(this%alpha)) then
+      option%io_buffer = UninitializedMessage('ALPHA',string)
+      call printMsg(option)
+      num_errors = num_errors + 1
+    endif   
+  endif
    
   if (num_errors > 0) then
     write(option%io_buffer,*) num_errors

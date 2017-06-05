@@ -214,13 +214,16 @@ subroutine PMSubsurfaceFlowSetup(this)
   use Discretization_module
   use Communicator_Structured_class
   use Communicator_Unstructured_class
-  use Grid_module 
+  use Grid_module
+  use Characteristic_Curves_module
+  use Option_module
 
   implicit none
   
   class(pm_subsurface_flow_type) :: this
   
   PetscErrorCode :: ierr
+  class(characteristic_curves_type), pointer :: cur_cc
 
   ! set the communicator
   this%comm1 => this%realization%comm1
@@ -238,6 +241,27 @@ subroutine PMSubsurfaceFlowSetup(this)
     if (this%option%ntrandof > 0) then
       this%store_porosity_for_transport = PETSC_TRUE
     endif
+  endif
+  
+  ! check on WIPP_type characteristic curves against simulation mode
+  if (this%option%iflowmode /= 10) then   ! 10 = twophase_mode
+    cur_cc => this%realization%characteristic_curves
+    do
+      if (.not.associated(cur_cc)) exit
+      select type(sf => cur_cc%saturation_function)
+        class is(sat_func_WIPP_type)
+          if (.not.sf%ignore_permeability) then
+            this%option%io_buffer = 'A WIPP capillary pressure - saturation &
+              &function (' // trim(cur_cc%name) // ') is being used without &
+              &the IGNORE_PERMEABILITY feature in a flow mode &
+              &that does not support the permeability feature. &
+              &Please chose a different mode, such as TWOPHASE_MODE, or use &
+              &the IGNORE_PERMEABILITY feature, and provide ALPHA.'
+            call printErrMsg(this%option)
+          endif
+      end select
+      cur_cc => cur_cc%next
+    enddo
   endif
   
 end subroutine PMSubsurfaceFlowSetup
