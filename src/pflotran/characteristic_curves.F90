@@ -328,6 +328,7 @@ module Characteristic_Curves_module
   !---------------------------------------------------------------------------
   type, public, extends(rpf_Mualem_VG_liq_type) :: rpf_KRP1_liq_type
   contains
+    procedure, public :: Verify => RPF_KRP1_Liq_Verify
   end type rpf_KRP1_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rpf_Mualem_VG_gas_type) :: rpf_KRP1_gas_type
@@ -5796,7 +5797,7 @@ end subroutine RPF_Mualem_SetupPolynomials
 ! ************************************************************************** !
 
 subroutine RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
-                              relative_permeability,dkr_sat,option)
+                                     relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -7235,9 +7236,37 @@ function RPF_KRP1_Liq_Create()
   class(rpf_KRP1_liq_type), pointer :: RPF_KRP1_Liq_Create
   
   allocate(RPF_KRP1_Liq_Create)
-  call RPF_KRP1_Liq_Create%Init() ! from MUALEM_VG_LIQ function
+  call RPF_KRP1_Liq_Create%Init() ! calls MUALEM_VG_LIQ function's Init()
   
 end function RPF_KRP1_Liq_Create
+
+
+! ************************************************************************** !
+
+subroutine RPF_KRP1_Liq_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+  
+  class(rpf_KRP1_liq_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+  
+  character(len=MAXSTRINGLENGTH) :: string
+  
+  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION,BRAGFLO_KRP1_LIQ'
+  endif  
+  call RPFBaseVerify(this,string,option)
+  if (Uninitialized(this%m)) then
+    option%io_buffer = UninitializedMessage('M',string)
+    call printErrMsg(option)
+  endif   
+  
+end subroutine RPF_KRP1_Liq_Verify
 
 ! ************************************************************************** !
 ! ************************************************************************** !
@@ -7251,9 +7280,36 @@ function RPF_KRP1_Gas_Create()
   class(rpf_KRP1_gas_type), pointer :: RPF_KRP1_Gas_Create
   
   allocate(RPF_KRP1_Gas_Create)
-  call RPF_KRP1_Gas_Create%Init()
+  call RPF_KRP1_Gas_Create%Init() ! calls MUALEM_VG_GAS function's Init()
   
 end function RPF_KRP1_Gas_Create
+
+! ************************************************************************** !
+
+subroutine RPF_KRP1_Gas_Verify(this,name,option)
+
+  use Option_module
+  
+  implicit none
+  
+  class(rpf_KRP1_gas_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+  
+  character(len=MAXSTRINGLENGTH) :: string
+  
+  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION,BRAGFLO_KRP1_GAS'
+  endif  
+  call RPFBaseVerify(this,string,option)
+  if (Uninitialized(this%Srg)) then
+    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+    call printErrMsg(option)
+  endif 
+  
+end subroutine RPF_KRP1_Gas_Verify
 
 ! ************************************************************************** !
 ! ************************************************************************** !
