@@ -94,6 +94,7 @@ module Characteristic_Curves_module
   type, public, extends(sat_func_base_type) :: sat_func_WIPP_type
     PetscReal :: pct_a
     PetscReal :: pct_exp
+    PetscReal :: pct
     PetscReal :: alpha
     PetscBool :: ignore_permeability
   contains
@@ -324,13 +325,14 @@ module Characteristic_Curves_module
     procedure, public :: RelativePermeability => RPF_Burdine_Linear_Gas_RelPerm
   end type rpf_Burdine_Linear_gas_type
   !---------------------------------------------------------------------------
-  type, public, extends(rpf_Mualem_VG_liq_type) :: rpf_BRAGFLO_KRP1_liq_type
-  contains
-  end type rpf_BRAGFLO_KRP1_liq_type
   !---------------------------------------------------------------------------
-  type, public, extends(rpf_Mualem_VG_gas_type) :: rpf_BRAGFLO_KRP1_gas_type
+  type, public, extends(rpf_Mualem_VG_liq_type) :: rpf_KRP1_liq_type
   contains
-  end type rpf_BRAGFLO_KRP1_gas_type
+  end type rpf_KRP1_liq_type
+  !---------------------------------------------------------------------------
+  type, public, extends(rpf_Mualem_VG_gas_type) :: rpf_KRP1_gas_type
+  contains
+  end type rpf_KRP1_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_BRAGFLO_KRP5_liq_type
     PetscReal :: Srg
@@ -504,8 +506,8 @@ module Characteristic_Curves_module
             RPF_mK_Liq_Create, &
             RPF_mK_Gas_Create, &
             ! WIPP rel. perm. curves:
-            RPF_BRAGFLO_KRP1_Liq_Create, &
-            RPF_BRAGFLO_KRP1_Gas_Create, &
+            RPF_KRP1_Liq_Create, &
+            RPF_KRP1_Gas_Create, &
             RPF_BRAGFLO_KRP5_Liq_Create, &
             RPF_BRAGFLO_KRP5_Gas_Create, &
             RPF_BRAGFLO_KRP9_Liq_Create, &
@@ -590,10 +592,10 @@ subroutine CharacteristicCurvesRead(this,input,option)
     call StringToUpper(keyword)   
       
     select case(trim(keyword))
+    !-----------------------------------------------------------------------
       case('SATURATION_FUNCTION')
         call InputReadWordDbaseCompatible(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'saturation_function_type', &
-                           error_string)
+        call InputErrorMsg(input,option,'SATURATION_FUNCTION',error_string)
         call StringToUpper(word)
         select case(word)
           case('CONSTANT')
@@ -628,12 +630,12 @@ subroutine CharacteristicCurvesRead(this,input,option)
             call InputKeywordUnrecognized(word,'SATURATION_FUNCTION',option)
         end select
         call SaturationFunctionRead(this%saturation_function,input,option)
+    !-----------------------------------------------------------------------
       case('PERMEABILITY_FUNCTION')
         nullify(rel_perm_function_ptr)
         phase_keyword = 'NONE'
         call InputReadWordDbaseCompatible(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'permeability_function_type', &
-                           error_string)
+        call InputErrorMsg(input,option,'PERMEABILITY_FUNCTION',error_string)
         call StringToUpper(word)
         select case(word)
           case('MUALEM','MUALEM_VG_LIQ')
@@ -679,10 +681,10 @@ subroutine CharacteristicCurvesRead(this,input,option)
             rel_perm_function_ptr => RPF_Burdine_Linear_Gas_Create()
             phase_keyword = 'GAS'
           case('BRAGFLO_KRP1_LIQ')
-            rel_perm_function_ptr => RPF_BRAGFLO_KRP1_Liq_Create()
+            rel_perm_function_ptr => RPF_KRP1_Liq_Create()
             phase_keyword = 'LIQUID'
           case('BRAGFLO_KRP1_GAS')
-            rel_perm_function_ptr => RPF_BRAGFLO_KRP1_Gas_Create()
+            rel_perm_function_ptr => RPF_KRP1_Gas_Create()
             phase_keyword = 'GAS'
           case('BRAGFLO_KRP4_LIQ')
             rel_perm_function_ptr => RPF_BRAGFLO_KRP4_Liq_Create()
@@ -755,7 +757,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
                                &CHARACTERISTIC_CURVES,PERMEABILITY_FUNCTION. &
                                &This is most likely a development issue, and &
                                &not an input deck mistake. Please e-mail &
-                               &pflotran-dev [at] googlegroups [dot] com.' 
+                               &pflotran-dev@googlegroups.com.' 
             call printErrMsg(option)
           case default
             call InputKeywordUnrecognized(word, &
@@ -768,7 +770,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
         this%liq_rel_perm_function => RPF_Default_Create()
         this%gas_rel_perm_function => this%liq_rel_perm_function
       case default
-        call InputKeywordUnrecognized(keyword,'charateristic_curves',option)
+        call InputKeywordUnrecognized(keyword,'CHARACTERISTIC_CURVES',option)
     end select 
   enddo
   
@@ -1219,10 +1221,10 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'BURDINE_Linear_LIQ'
     class is(rpf_Burdine_Linear_gas_type)
       error_string = trim(error_string) // 'BURDINE_Linear_GAS'
-    class is(rpf_BRAGFLO_KRP1_liq_type)
-      error_string = trim(error_string) // 'MUALEM_BF_KRP1_LIQ'
-    class is(rpf_BRAGFLO_KRP1_gas_type)
-      error_string = trim(error_string) // 'MUALEM_BF_KRP1_GAS'
+    class is(rpf_KRP1_liq_type)
+      error_string = trim(error_string) // 'BRAGFLO_KRP1_LIQ'
+    class is(rpf_KRP1_gas_type)
+      error_string = trim(error_string) // 'BRAGFLO_KRP1_GAS'
     class is(rpf_BRAGFLO_KRP4_liq_type)
       error_string = trim(error_string) // 'BURDINE_BF_KRP4_LIQ'
     class is(rpf_BRAGFLO_KRP4_gas_type)
@@ -1447,28 +1449,29 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_BRAGFLO_KRP1_liq_type)
+      class is(rpf_KRP1_liq_type)
         select case(keyword)
           case('M') 
             call InputReadDouble(input,option,rpf%m)
-            call InputErrorMsg(input,option,'m',error_string)
+            call InputErrorMsg(input,option,'M',error_string)
           case default
             call InputKeywordUnrecognized(keyword, &
-              'BRAGFLO KRP1 liquid relative permeability function', &
+              'BRAGFLO_KRP1_LIQ relative permeability function', &
               option)
         end select
     !------------------------------------------
-      class is(rpf_BRAGFLO_KRP1_gas_type)
+      class is(rpf_KRP1_gas_type)
         select case(keyword)
           case('M') 
             call InputReadDouble(input,option,rpf%m)
-            call InputErrorMsg(input,option,'m',error_string)
+            call InputErrorMsg(input,option,'M',error_string)
           case('GAS_RESIDUAL_SATURATION') 
             call InputReadDouble(input,option,rpf%Srg)
-            call InputErrorMsg(input,option,'Srg',error_string)
+            call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(keyword, &
-              'BRAGFLO KRP1 gas relative permeability function', &
+              'BRAGFLO_KRP1_GAS relative permeability function', &
               option)
         end select
     !------------------------------------------
@@ -1858,9 +1861,9 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
       class is(rpf_Burdine_Linear_gas_type)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_BRAGFLO_KRP1_liq_type)
+      class is(rpf_KRP1_liq_type)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_BRAGFLO_KRP1_gas_type)
+      class is(rpf_KRP1_gas_type)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
       class is(rpf_BRAGFLO_KRP5_liq_type)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
@@ -2297,8 +2300,8 @@ subroutine CharCurvesInputRecord(char_curve_list)
         class is (rpf_Burdine_Linear_liq_type)
           write(id,'(a)') 'burdine_linear_liq'
       !------------------------------------
-        class is (rpf_BRAGFLO_KRP1_liq_type)
-          write(id,'(a)') 'bragflo_krp1_liq'
+        class is (rpf_KRP1_liq_type)
+          write(id,'(a)') 'Bragflo KRP1 liquid'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
           write(id,'(a)') adjustl(trim(word1))
@@ -2409,8 +2412,8 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_BRAGFLO_KRP1_gas_type)
-          write(id,'(a)') 'bragflo_krp1_gas'
+        class is (rpf_KRP1_gas_type)
+          write(id,'(a)') 'Bragflo KRP1 gas'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
           write(id,'(a)') adjustl(trim(word1))
@@ -3935,7 +3938,6 @@ subroutine SF_KRP1_CapillaryPressure(this,liquid_saturation, &
   PetscReal :: lambda
   PetscReal :: Se2
   PetscReal :: P0
-  PetscReal :: pct
   
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
@@ -3946,18 +3948,23 @@ subroutine SF_KRP1_CapillaryPressure(this,liquid_saturation, &
     return
   endif
   
-  if (.not.this%ignore_permeability) then
-    ! call getPct(this%pct_a,this%pct_exp,pct)
-    ! pct = this%pct_a*(perm_xx**this%pct_exp)
+  if (this%ignore_permeability) then
+    this%pct = 1.d0/this%alpha
   else
-    pct = 1.d0/this%alpha
+    ! check if pct has been updated before using
+    if (.not.option%pct_updated) then
+      option%io_buffer = '!! this%pct has not been updated: &
+                         &sat_func_KRP1_type. STOPPING.'
+      call printErrMsg(option)
+    endif
+    option%pct_updated = PETSC_FALSE
   endif
   
   lambda = this%m/(1.d0-this%m)
   ! Derivation for P0 is in Appendix PA:
   ! It is derived by setting Se2 in KRP4 and KRP1 to the value 0.5, and then 
   ! equating Pc(KRP1,Se2=0.5) = Pc(KRP4,Se2=0.5) and solving for P0.
-  P0 = pct * (2.d0**(1.d0/lambda)) * &
+  P0 = this%pct * (2.d0**(1.d0/lambda)) * &
        (((0.5d0**(-1.d0/this%m))-1.d0)**(this%m-1.d0))
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
   
@@ -4006,7 +4013,6 @@ subroutine SF_KRP1_Saturation(this,capillary_pressure, &
   
   PetscReal :: lambda
   PetscReal :: Se2
-  PetscReal :: pct
   PetscReal :: P0
   PetscReal :: n
   
@@ -4014,18 +4020,23 @@ subroutine SF_KRP1_Saturation(this,capillary_pressure, &
   dsat_dpres = 1.d0/dsat_dpres
   dsat_dpres = 0.d0*dsat_dpres
   
-  if (.not.this%ignore_permeability) then
-    ! call getPct(this%pct_a,this%pct_exp,pct)
-    ! pct = this%pct_a*(perm_xx**this%pct_exp)
+  if (this%ignore_permeability) then
+    this%pct = 1.d0/this%alpha
   else
-    pct = 1.d0/this%alpha
+    ! check if pct has been updated before using
+    if (.not.option%pct_updated) then
+      option%io_buffer = '!! this%pct has not been updated: &
+                         &sat_func_KRP1_type. STOPPING.'
+      call printErrMsg(option)
+    endif
+    option%pct_updated = PETSC_FALSE
   endif
   
   lambda = this%m/(1.d0-this%m)
   ! Derivation for P0 is in Appendix PA:
   ! It is derived by setting Se2 in KRP4 and KRP1 to the value 0.5, and then 
   ! equating Pc(KRP1,Se2=0.5) = Pc(KRP4,Se2=0.5) and solving for P0.
-  P0 = pct * (2.d0**(1.d0/lambda)) * &
+  P0 = this%pct * (2.d0**(1.d0/lambda)) * &
        (((0.5d0**(-1.d0/this%m))-1.d0)**(this%m-1.d0))
     
   if (capillary_pressure <= 0.d0) then
@@ -4127,7 +4138,6 @@ subroutine SF_KRP2_CapillaryPressure(this,liquid_saturation, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se1
-  PetscReal :: pct
 
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
@@ -4141,16 +4151,21 @@ subroutine SF_KRP2_CapillaryPressure(this,liquid_saturation, &
     return
   endif
   
-  if (.not.this%ignore_permeability) then
-    ! call getPct(this%pct_a,this%pct_exp,pct)
-    ! pct = this%pct_a*(perm_xx**this%pct_exp)
+  if (this%ignore_permeability) then
+    this%pct = 1.d0/this%alpha
   else
-    pct = 1.d0/this%alpha
+    ! check if pct has been updated before using
+    if (.not.option%pct_updated) then
+      option%io_buffer = '!! this%pct has not been updated: &
+                         &sat_func_KRP2_type. STOPPING.'
+      call printErrMsg(option)
+    endif
+    option%pct_updated = PETSC_FALSE
   endif
   
   Se1 = (liquid_saturation-this%Sr)/(1.d0-this%Sr)
   Se1 = min(Se1,1.d0)  
-  capillary_pressure = pct/(Se1**(1.d0/this%lambda))
+  capillary_pressure = this%pct/(Se1**(1.d0/this%lambda))
   capillary_pressure = min(capillary_pressure,this%pcmax)
   
 end subroutine SF_KRP2_CapillaryPressure
@@ -4179,21 +4194,25 @@ subroutine SF_KRP2_Saturation(this,capillary_pressure, &
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
   
-  PetscReal :: Se1 
-  PetscReal :: pct      
+  PetscReal :: Se1     
   
   dsat_dpres = 0.d0
   dsat_dpres = 1.d0/dsat_dpres
   dsat_dpres = 0.d0*dsat_dpres
 
-  if (.not.this%ignore_permeability) then
-    ! call getPct(this%pct_a,this%pct_exp,pct)
-    ! pct = this%pct_a*(perm_xx**this%pct_exp)
+  if (this%ignore_permeability) then
+    this%pct = 1.d0/this%alpha
   else
-    pct = 1.d0/this%alpha
+    ! check if pct has been updated before using
+    if (.not.option%pct_updated) then
+      option%io_buffer = '!! this%pct has not been updated: &
+                         &sat_func_KRP2_type. STOPPING.'
+      call printErrMsg(option)
+    endif
+    option%pct_updated = PETSC_FALSE
   endif
   
-  Se1 = (pct/capillary_pressure)**this%lambda
+  Se1 = (this%pct/capillary_pressure)**this%lambda
   liquid_saturation = this%Sr + (1.d0-this%Sr)*Se1
   
 end subroutine SF_KRP2_Saturation
@@ -4302,17 +4321,21 @@ subroutine SF_KRP3_CapillaryPressure(this,liquid_saturation, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se2
-  PetscReal :: pct
   
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
   
-  if (.not.this%ignore_permeability) then
-    ! call getPct(this%pct_a,this%pct_exp,pct)
-    ! pct = this%pct_a*(perm_xx**this%pct_exp)
+  if (this%ignore_permeability) then
+    this%pct = 1.d0/this%alpha
   else
-    pct = 1.d0/this%alpha
+    ! check if pct has been updated before using
+    if (.not.option%pct_updated) then
+      option%io_buffer = '!! this%pct has not been updated: &
+                         &sat_func_KRP3_type. STOPPING.'
+      call printErrMsg(option)
+    endif
+    option%pct_updated = PETSC_FALSE
   endif
   
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
@@ -4324,11 +4347,11 @@ subroutine SF_KRP3_CapillaryPressure(this,liquid_saturation, &
     capillary_pressure = 0.d0
     return
   else if ((1.d0-liquid_saturation) <= this%Srg) then
-    capillary_pressure = pct
+    capillary_pressure = this%pct
     return
   endif
   
-  capillary_pressure = pct/(Se2**(1.d0/this%lambda))
+  capillary_pressure = this%pct/(Se2**(1.d0/this%lambda))
   capillary_pressure = min(capillary_pressure,this%pcmax)
   
 end subroutine SF_KRP3_CapillaryPressure
@@ -4358,21 +4381,25 @@ subroutine SF_KRP3_Saturation(this,capillary_pressure, &
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
   
-  PetscReal :: Se2
-  PetscReal :: pct      
+  PetscReal :: Se2    
   
   dsat_dpres = 0.d0
   dsat_dpres = 1.d0/dsat_dpres
   dsat_dpres = 0.d0*dsat_dpres
 
-  if (.not.this%ignore_permeability) then
-    ! call getPct(this%pct_a,this%pct_exp,pct)
-    ! pct = this%pct_a*(perm_xx**this%pct_exp)
+  if (this%ignore_permeability) then
+    this%pct = 1.d0/this%alpha
   else
-    pct = 1.d0/this%alpha
+    ! check if pct has been updated before using
+    if (.not.option%pct_updated) then
+      option%io_buffer = '!! this%pct has not been updated: &
+                         &sat_func_KRP3_type. STOPPING.'
+      call printErrMsg(option)
+    endif
+    option%pct_updated = PETSC_FALSE
   endif
   
-  Se2 = (pct/capillary_pressure)**this%lambda
+  Se2 = (this%pct/capillary_pressure)**this%lambda
   liquid_saturation = this%Sr + (1.d0-this%Sr-this%Srg)*Se2
   
 end subroutine SF_KRP3_Saturation
@@ -4481,17 +4508,21 @@ subroutine SF_KRP4_CapillaryPressure(this,liquid_saturation, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se2
-  PetscReal :: pct
   
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
   
-  if (.not.this%ignore_permeability) then
-    ! call getPct(this%pct_a,this%pct_exp,pct)
-    ! pct = this%pct_a*(perm_xx**this%pct_exp)
+  if (this%ignore_permeability) then
+    this%pct = 1.d0/this%alpha
   else
-    pct = 1.d0/this%alpha
+    ! check if pct has been updated before using
+    if (.not.option%pct_updated) then
+      option%io_buffer = '!! this%pct has not been updated: &
+                         &sat_func_KRP4_type. STOPPING.'
+      call printErrMsg(option)
+    endif
+    option%pct_updated = PETSC_FALSE
   endif
   
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
@@ -4504,7 +4535,7 @@ subroutine SF_KRP4_CapillaryPressure(this,liquid_saturation, &
     return
   endif
   
-  capillary_pressure = pct/(Se2**(1.d0/this%lambda))
+  capillary_pressure = this%pct/(Se2**(1.d0/this%lambda))
   capillary_pressure = min(capillary_pressure,this%pcmax)
   
 end subroutine SF_KRP4_CapillaryPressure
@@ -4534,21 +4565,25 @@ subroutine SF_KRP4_Saturation(this,capillary_pressure, &
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
   
-  PetscReal :: Se2
-  PetscReal :: pct      
+  PetscReal :: Se2  
   
   dsat_dpres = 0.d0
   dsat_dpres = 1.d0/dsat_dpres
   dsat_dpres = 0.d0*dsat_dpres
 
-  if (.not.this%ignore_permeability) then
-    ! call getPct(this%pct_a,this%pct_exp,pct)
-    ! pct = this%pct_a*(perm_xx**this%pct_exp)
+  if (this%ignore_permeability) then
+    this%pct = 1.d0/this%alpha
   else
-    pct = 1.d0/this%alpha
+    ! check if pct has been updated before using
+    if (.not.option%pct_updated) then
+      option%io_buffer = '!! this%pct has not been updated: &
+                         &sat_func_KRP1_type. STOPPING.'
+      call printErrMsg(option)
+    endif
+    option%pct_updated = PETSC_FALSE
   endif
   
-  Se2 = (pct/capillary_pressure)**this%lambda
+  Se2 = (this%pct/capillary_pressure)**this%lambda
   liquid_saturation = this%Sr + (1.d0-this%Sr-this%Srg)*Se2
   
 end subroutine SF_KRP4_Saturation
@@ -4656,17 +4691,21 @@ subroutine SF_KRP5_CapillaryPressure(this,liquid_saturation, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se2
-  PetscReal :: pct
   
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
   
-  if (.not.this%ignore_permeability) then
-    ! call getPct(this%pct_a,this%pct_exp,pct)
-    ! pct = this%pct_a*(perm_xx**this%pct_exp)
+  if (this%ignore_permeability) then
+    this%pct = 1.d0/this%alpha
   else
-    pct = 1.d0/this%alpha
+    ! check if pct has been updated before using
+    if (.not.option%pct_updated) then
+      option%io_buffer = '!! this%pct has not been updated: &
+                         &sat_func_KRP5_type. STOPPING.'
+      call printErrMsg(option)
+    endif
+    option%pct_updated = PETSC_FALSE
   endif
   
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
@@ -4675,7 +4714,7 @@ subroutine SF_KRP5_CapillaryPressure(this,liquid_saturation, &
     capillary_pressure = this%pcmax
     return
   else if ((1.d0 - liquid_saturation) <= this%Srg) then
-    capillary_pressure = pct
+    capillary_pressure = this%pct
     return
   else if (liquid_saturation >= 1.d0) then
     capillary_pressure = 0.d0
@@ -4683,7 +4722,7 @@ subroutine SF_KRP5_CapillaryPressure(this,liquid_saturation, &
   endif
   
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
-  capillary_pressure = (pct-this%pcmax)*Se2 + this%pcmax
+  capillary_pressure = (this%pct-this%pcmax)*Se2 + this%pcmax
 
   capillary_pressure = min(capillary_pressure,this%pcmax)
   
@@ -4714,25 +4753,29 @@ subroutine SF_KRP5_Saturation(this,capillary_pressure, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se2
-  PetscReal :: pct      
   
   dsat_dpres = 0.d0
   dsat_dpres = 1.d0/dsat_dpres
   dsat_dpres = 0.d0*dsat_dpres
 
-  if (.not.this%ignore_permeability) then
-    ! call getPct(this%pct_a,this%pct_exp,pct)
-    ! pct = this%pct_a*(perm_xx**this%pct_exp)
+  if (this%ignore_permeability) then
+    this%pct = 1.d0/this%alpha
   else
-    pct = 1.d0/this%alpha
-  endif 
+    ! check if pct has been updated before using
+    if (.not.option%pct_updated) then
+      option%io_buffer = '!! this%pct has not been updated: &
+                         &sat_func_KRP5_type. STOPPING.'
+      call printErrMsg(option)
+    endif
+    option%pct_updated = PETSC_FALSE
+  endif
 
   if (capillary_pressure <= 0.d0) then
     liquid_saturation = 1.d0
     return
   endif
   
-  Se2 = (capillary_pressure-this%pcmax)/(pct-this%pcmax)
+  Se2 = (capillary_pressure-this%pcmax)/(this%pct-this%pcmax)
   liquid_saturation = this%Sr + (1.d0-this%Sr-this%Srg)*Se2
 
 end subroutine SF_KRP5_Saturation
@@ -4842,7 +4885,6 @@ subroutine SF_KRP8_CapillaryPressure(this,liquid_saturation, &
   
   PetscReal :: lambda
   PetscReal :: Se1
-  PetscReal :: pct
   PetscReal :: P0
   
   dpc_dsatl = 0.d0
@@ -4854,18 +4896,23 @@ subroutine SF_KRP8_CapillaryPressure(this,liquid_saturation, &
     return
   endif
   
-  if (.not.this%ignore_permeability) then
-    ! call getPct(this%pct_a,this%pct_exp,pct)
-    ! pct = this%pct_a*(perm_xx**this%pct_exp)
+  if (this%ignore_permeability) then
+    this%pct = 1.d0/this%alpha
   else
-    pct = 1.d0/this%alpha
+    ! check if pct has been updated before using
+    if (.not.option%pct_updated) then
+      option%io_buffer = '!! this%pct has not been updated: &
+                         &sat_func_KRP8_type. STOPPING.'
+      call printErrMsg(option)
+    endif
+    option%pct_updated = PETSC_FALSE
   endif
   
   lambda = this%m/(1.d0-this%m)
   ! Derivation for P0 is in Appendix PA:
   ! It is derived by setting Se2 in KRP4 and Se1 KRP8 to the value 0.5, and then 
   ! equating Pc(KRP4,Se2=0.5) = Pc(KRP8,Se1=0.5) and solving for P0.
-  P0 = pct * (2.d0**(1.d0/lambda)) * &
+  P0 = this%pct * (2.d0**(1.d0/lambda)) * &
        (((((0.5d0*(1.d0-this%Srg-this%Sr))/(1.d0-this%Sr)) &
        **(-1.d0/this%m))-1.d0)**(this%m-1.d0))
   Se1 = (liquid_saturation-this%Sr)/(1.d0-this%Sr)
@@ -4906,7 +4953,6 @@ subroutine SF_KRP8_Saturation(this,capillary_pressure, &
   
   PetscReal :: lambda
   PetscReal :: Se1
-  PetscReal :: pct
   PetscReal :: P0
   PetscReal :: n
   
@@ -4914,18 +4960,23 @@ subroutine SF_KRP8_Saturation(this,capillary_pressure, &
   dsat_dpres = 1.d0/dsat_dpres
   dsat_dpres = 0.d0*dsat_dpres
   
-  if (.not.this%ignore_permeability) then
-    ! call getPct(this%pct_a,this%pct_exp,pct)
-    ! pct = this%pct_a*(perm_xx**this%pct_exp)
+  if (this%ignore_permeability) then
+    this%pct = 1.d0/this%alpha
   else
-    pct = 1.d0/this%alpha
+    ! check if pct has been updated before using
+    if (.not.option%pct_updated) then
+      option%io_buffer = '!! this%pct has not been updated: &
+                         &sat_func_KRP8_type. STOPPING.'
+      call printErrMsg(option)
+    endif
+    option%pct_updated = PETSC_FALSE
   endif
   
   lambda = this%m/(1.d0-this%m)
   ! Derivation for P0 is in Appendix PA:
   ! It is derived by setting Se2 in KRP4 and Se1 KRP8 to the value 0.5, and then 
   ! equating Pc(KRP4,Se2=0.5) = Pc(KRP8,Se1=0.5) and solving for P0.
-  P0 = pct * (2.d0**(1.d0/lambda)) * &
+  P0 = this%pct * (2.d0**(1.d0/lambda)) * &
        (((((0.5d0*(1.d0-this%Srg-this%Sr))/(1.d0-this%Sr)) &
        **(-1.d0/this%m))-1.d0)**(this%m-1.d0))
   Se1 = (liquid_saturation-this%Sr)/(1.d0-this%Sr)
@@ -5325,17 +5376,21 @@ subroutine SF_KRP12_CapillaryPressure(this,liquid_saturation, &
   
   PetscReal :: Se21
   PetscReal :: Se
-  PetscReal :: pct
   
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
 
-  if (.not.this%ignore_permeability) then
-    ! call getPct(this%pct_a,this%pct_exp,pct)
-    ! pct = this%pct_a*(perm_xx**this%pct_exp)
+  if (this%ignore_permeability) then
+    this%pct = 1.d0/this%alpha
   else
-    pct = 1.d0/this%alpha
+    ! check if pct has been updated before using
+    if (.not.option%pct_updated) then
+      option%io_buffer = '!! this%pct has not been updated: &
+                         &sat_func_KRP12_type. STOPPING.'
+      call printErrMsg(option)
+    endif
+    option%pct_updated = PETSC_FALSE
   endif
   
   if (liquid_saturation >= 1.d0) then
@@ -5347,7 +5402,7 @@ subroutine SF_KRP12_CapillaryPressure(this,liquid_saturation, &
        (1.d0 - this%s_min - this%s_effmin)
   Se21 = max(min(Se,1.d0),this%s_effmin)
   
-  capillary_pressure = pct/(Se21**(1.d0/this%lambda))
+  capillary_pressure = this%pct/(Se21**(1.d0/this%lambda))
 
 end subroutine SF_KRP12_CapillaryPressure
 
@@ -5377,20 +5432,24 @@ subroutine SF_KRP12_Saturation(this,capillary_pressure, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se21
-  PetscReal :: pct
   
   dsat_dpres = 0.d0
   dsat_dpres = 1.d0/dsat_dpres
   dsat_dpres = 0.d0*dsat_dpres
 
-  if (.not.this%ignore_permeability) then
-    ! call getPct(this%pct_a,this%pct_exp,pct)
-    ! pct = this%pct_a*(perm_xx**this%pct_exp)
+  if (this%ignore_permeability) then
+    this%pct = 1.d0/this%alpha
   else
-    pct = 1.d0/this%alpha
+    ! check if pct has been updated before using
+    if (.not.option%pct_updated) then
+      option%io_buffer = '!! this%pct has not been updated: &
+                         &sat_func_KRP12_type. STOPPING.'
+      call printErrMsg(option)
+    endif
+    option%pct_updated = PETSC_FALSE
   endif
   
-  Se21 = (pct/capillary_pressure)**this%lambda
+  Se21 = (this%pct/capillary_pressure)**this%lambda
   liquid_saturation = Se21*(1.d0 - this%s_min - this%s_effmin) + &
                       this%s_min + this%s_effmin
                                
@@ -5800,6 +5859,7 @@ subroutine RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
 end subroutine RPF_Mualem_VG_Liq_RelPerm
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
 function RPF_Mualem_VG_Gas_Create()
 
@@ -5913,6 +5973,7 @@ subroutine RPF_Mualem_VG_Gas_RelPerm(this,liquid_saturation, &
 end subroutine RPF_Mualem_VG_Gas_RelPerm
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
 function RPF_TOUGH2_IRP7_Gas_Create()
 
@@ -6022,6 +6083,7 @@ subroutine RPF_TOUGH2_IRP7_Gas_RelPerm(this,liquid_saturation, &
     
 end subroutine RPF_TOUGH2_IRP7_Gas_RelPerm
 
+! ************************************************************************** !
 ! ************************************************************************** !
 
 function RPF_Burdine_BC_Liq_Create()
@@ -6133,6 +6195,7 @@ subroutine RPF_Burdine_BC_Liq_RelPerm(this,liquid_saturation, &
   
 end subroutine RPF_Burdine_BC_Liq_RelPerm
 
+! ************************************************************************** !
 ! ************************************************************************** !
 
 function RPF_Burdine_BC_Gas_Create()
@@ -6248,6 +6311,7 @@ subroutine RPF_Burdine_BC_Gas_RelPerm(this,liquid_saturation, &
 end subroutine RPF_Burdine_BC_Gas_RelPerm
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
 function RPF_Mualem_BC_Liq_Create()
 
@@ -6358,11 +6422,10 @@ subroutine RPF_Mualem_BC_Liq_RelPerm(this,liquid_saturation, &
   dkr_sat = dkr_Se * dSe_sat 
 
 end subroutine RPF_Mualem_BC_Liq_RelPerm
-! End RPF: Mualem, Brooks-Corey (Liq)
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin RPF: Mualem, Brooks-Corey (Gas)
 function RPF_Mualem_BC_Gas_Create()
 
   ! Creates the Brooks-Corey Mualem gas relative permeability function object
@@ -6475,11 +6538,10 @@ subroutine RPF_Mualem_BC_Gas_RelPerm(this,liquid_saturation, &
   dkr_sat = dkr_Se * dSe_sat
   
 end subroutine RPF_Mualem_BC_Gas_RelPerm
-! End RPF: Mualem, Brooks-Corey (Gas)
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin RPF: Burdine, Van Genuchten (Liq)
 function RPF_Burdine_VG_Liq_Create()
 
   ! Creates the van Genutchten Mualem relative permeability function object
@@ -6589,11 +6651,10 @@ subroutine RPF_Burdine_VG_Liq_RelPerm(this,liquid_saturation, &
   dkr_sat = dkr_Se * dSe_sat
   
 end subroutine RPF_Burdine_VG_Liq_RelPerm
-! End RPF: Burdine, Van Genuchten (Liq)
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin RPF: Burdine, Van Genuchten (Gas)
 function RPF_Burdine_VG_Gas_Create()
 
   ! Creates the Brooks-Corey Burdine gas relative permeability function object
@@ -6703,11 +6764,10 @@ subroutine RPF_Burdine_VG_Gas_RelPerm(this,liquid_saturation, &
   dkr_sat = dkr_Se * dSe_sat
   
 end subroutine RPF_Burdine_VG_Gas_RelPerm
-! End RPF: Burdine, Van Genuchten (Gas)
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin RPF: Mualem, Linear (Liquid)
 function RPF_Mualem_Linear_Liq_Create()
 
   ! Creates the Linear Mualem relative permeability function object
@@ -6725,8 +6785,7 @@ end function RPF_Mualem_Linear_Liq_Create
 
 subroutine RPF_Mualem_Linear_Liq_Init(this)
 
-  ! Initializes the Linear Mualem relative permeability function 
-  ! object
+  ! Initializes the Linear Mualem relative permeability function object
 
   implicit none
   
@@ -6832,11 +6891,10 @@ subroutine RPF_Mualem_Linear_Liq_RelPerm(this,liquid_saturation, &
   dkr_sat = dkr_Se * dSe_sat
          
 end subroutine RPF_Mualem_Linear_Liq_RelPerm
-! End RPF: Mualem, Linear (Liquid)
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin RPF: Mualem, Linear (Gas)
 function RPF_Mualem_Linear_Gas_Create()
 
   ! Creates the Linear Mualem gas relative permeability function object
@@ -6962,11 +7020,10 @@ subroutine RPF_Mualem_Linear_Gas_RelPerm(this,liquid_saturation, &
   dkr_sat = dkr_dSe*dSe_dsat
 
 end subroutine RPF_Mualem_Linear_Gas_RelPerm
-! End RPF: Mualem, Linear (Gas)
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin RPF: Burdine, Linear (Liquid)
 function RPF_Burdine_Linear_Liq_Create()
 
   ! Creates the Linear Burdine relative permeability function object
@@ -6984,8 +7041,7 @@ end function RPF_Burdine_Linear_Liq_Create
 
 subroutine RPF_Burdine_Linear_Liq_Init(this)
 
-  ! Initializes the Linear Burdine relative permeability function 
-  ! object
+  ! Initializes the Linear Burdine relative permeability function object
 
   implicit none
   
@@ -7058,11 +7114,10 @@ subroutine RPF_Burdine_Linear_Liq_RelPerm(this,liquid_saturation, &
   dkr_sat = 1.d0 / (1.d0 - this%Sr)
   
 end subroutine RPF_Burdine_Linear_Liq_RelPerm
-! End RPF: Burdine, Linear (Liquid)
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin Burdine Linear (Gas)
 function RPF_Burdine_Linear_Gas_Create()
 
   ! Creates the Linear Burdine gas relative permeability function object
@@ -7123,12 +7178,10 @@ end subroutine RPF_Burdine_Linear_Gas_Verify
 ! ************************************************************************** !
 
 subroutine RPF_Burdine_Linear_Gas_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_sat,option)
+                                          relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
-  !
-  !
   !
   ! Author: Bwalya Malama, Heeho Park
   ! Date: 11/14/14
@@ -7169,45 +7222,42 @@ subroutine RPF_Burdine_Linear_Gas_RelPerm(this,liquid_saturation, &
   dkr_sat = dkr_Se * dSe_sat
   
 end subroutine RPF_Burdine_Linear_Gas_RelPerm
-! End Burdine Linear (Gas)
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin RPF: BRAGFLO KRP1 (Liq)
-function RPF_BRAGFLO_KRP1_Liq_Create()
+function RPF_KRP1_Liq_Create()
 
-  ! Creates the KRP1 or VG_Mualem liq relative permeability function object
+  ! Creates the BRAGFLO_KRP1_LIQ relative permeability function object
 
   implicit none
   
-  class(rpf_BRAGFLO_KRP1_liq_type), pointer :: RPF_BRAGFLO_KRP1_Liq_Create
+  class(rpf_KRP1_liq_type), pointer :: RPF_KRP1_Liq_Create
   
-  allocate(RPF_BRAGFLO_KRP1_Liq_Create)
-  call RPF_BRAGFLO_KRP1_Liq_Create%Init()
+  allocate(RPF_KRP1_Liq_Create)
+  call RPF_KRP1_Liq_Create%Init() ! from MUALEM_VG_LIQ function
   
-end function RPF_BRAGFLO_KRP1_Liq_Create
-! End RPF: BRAGFLO KRP4 (Liq)
+end function RPF_KRP1_Liq_Create
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin RPF: BRAGFLO KRP1 (Gas)
-function RPF_BRAGFLO_KRP1_Gas_Create()
+function RPF_KRP1_Gas_Create()
 
-  ! Creates the KRP1 or VG_Mualem liq relative permeability function object
+  ! Creates the BRAGFLO_KRP1_GAS relative permeability function object
 
   implicit none
   
-  class(rpf_BRAGFLO_KRP1_gas_type), pointer :: RPF_BRAGFLO_KRP1_Gas_Create
+  class(rpf_KRP1_gas_type), pointer :: RPF_KRP1_Gas_Create
   
-  allocate(RPF_BRAGFLO_KRP1_Gas_Create)
-  call RPF_BRAGFLO_KRP1_Gas_Create%Init()
+  allocate(RPF_KRP1_Gas_Create)
+  call RPF_KRP1_Gas_Create%Init()
   
-end function RPF_BRAGFLO_KRP1_Gas_Create
-! End RPF: BRAGFLO KRP4 (Gas)
+end function RPF_KRP1_Gas_Create
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin RPF: BRAGFLO KRP5 (Liquid)
 function RPF_BRAGFLO_KRP5_Liq_Create()
 
   ! Creates the BRAGFLO KRP5 relative permeability function object
