@@ -375,17 +375,17 @@ module Characteristic_Curves_module
     procedure, public :: Verify => RPF_KRP4_Gas_Verify
   end type rpf_KRP4_gas_type
   !---------------------------------------------------------------------------
-  type, public, extends(rel_perm_func_base_type) :: rpf_BRAGFLO_KRP5_liq_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_KRP5_liq_type
     PetscReal :: Srg
   contains
-    procedure, public :: Init => RPF_BRAGFLO_KRP5_Liq_Init
-    procedure, public :: Verify => RPF_BRAGFLO_KRP5_Liq_Verify
-    procedure, public :: RelativePermeability => RPF_BRAGFLO_KRP5_Liq_RelPerm
-  end type rpf_BRAGFLO_KRP5_liq_type
+    procedure, public :: Init => RPF_KRP5_Liq_Init
+    procedure, public :: Verify => RPF_KRP5_Liq_Verify
+    procedure, public :: RelativePermeability => RPF_KRP5_Liq_RelPerm
+  end type rpf_KRP5_liq_type
   !---------------------------------------------------------------------------
-  type, public, extends(rpf_Burdine_Linear_gas_type) :: rpf_BRAGFLO_KRP5_gas_type
+  type, public, extends(rpf_Burdine_Linear_gas_type) :: rpf_KRP5_gas_type
   contains
-  end type rpf_BRAGFLO_KRP5_gas_type
+  end type rpf_KRP5_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_BRAGFLO_KRP9_liq_type
   contains
@@ -546,8 +546,8 @@ module Characteristic_Curves_module
             RPF_KRP3_Gas_Create, &
             RPF_KRP4_Liq_Create, &
             RPF_KRP4_Gas_Create, &
-            RPF_BRAGFLO_KRP5_Liq_Create, &
-            RPF_BRAGFLO_KRP5_Gas_Create, &
+            RPF_KRP5_Liq_Create, &
+            RPF_KRP5_Gas_Create, &
             RPF_BRAGFLO_KRP9_Liq_Create, &
             RPF_BRAGFLO_KRP9_Gas_Create, &
             RPF_BRAGFLO_KRP11_Liq_Create, &
@@ -741,10 +741,10 @@ subroutine CharacteristicCurvesRead(this,input,option)
             rel_perm_function_ptr => RPF_KRP4_Gas_Create()
             phase_keyword = 'GAS'
           case('BRAGFLO_KRP5_LIQ')
-            rel_perm_function_ptr => RPF_BRAGFLO_KRP5_Liq_Create()
+            rel_perm_function_ptr => RPF_KRP5_Liq_Create()
             phase_keyword = 'LIQUID'
           case('BRAGFLO_KRP5_GAS')
-            rel_perm_function_ptr => RPF_BRAGFLO_KRP5_Gas_Create()
+            rel_perm_function_ptr => RPF_KRP5_Gas_Create()
             phase_keyword = 'GAS'
           case('BRAGFLO_KRP9_LIQ')
             rel_perm_function_ptr => RPF_BRAGFLO_KRP9_Liq_Create()
@@ -1285,10 +1285,10 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'BRAGFLO_KRP4_LIQ'
     class is(rpf_KRP4_gas_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP4_GAS'  
-    class is(rpf_BRAGFLO_KRP5_liq_type)
-      error_string = trim(error_string) // 'BURDINE_BF_KRP5_LIQ'
-    class is(rpf_BRAGFLO_KRP5_gas_type)
-      error_string = trim(error_string) // 'BURDINE_BF_KRP5_GAS'
+    class is(rpf_KRP5_liq_type)
+      error_string = trim(error_string) // 'BRAGFLO_KRP5_LIQ'
+    class is(rpf_KRP5_gas_type)
+      error_string = trim(error_string) // 'BRAGFLO_KRP5_GAS'
     class is(rpf_BRAGFLO_KRP9_liq_type)
       error_string = trim(error_string) // 'BURDINE_BF_KRP9_LIQ'
     class is(rpf_BRAGFLO_KRP9_gas_type)
@@ -1614,25 +1614,27 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_BRAGFLO_KRP5_liq_type)
+      class is(rpf_KRP5_liq_type)
         select case(keyword)
           case('GAS_RESIDUAL_SATURATION') 
             call InputReadDouble(input,option,rpf%Srg)
-            call InputErrorMsg(input,option,'Srg',error_string)
+            call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(keyword, &
-              'BRAGFLO KRP5 liquid relative permeability function', &
+              'BRAGFLO_KRP5_LIQ relative permeability function', &
               option)
         end select
     !------------------------------------------
-      class is(rpf_BRAGFLO_KRP5_gas_type)
+      class is(rpf_KRP5_gas_type)
         select case(keyword)
           case('GAS_RESIDUAL_SATURATION') 
             call InputReadDouble(input,option,rpf%Srg)
-            call InputErrorMsg(input,option,'Srg',error_string)
+            call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(keyword, &
-              'BRAGFLO KRP5 gas relative permeability function', &
+              'BRAGFLO_KRP5_GAS relative permeability function', &
               option)
         end select
     !------------------------------------------
@@ -1991,9 +1993,9 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
       class is(rpf_KRP4_gas_type)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_BRAGFLO_KRP5_liq_type)
+      class is(rpf_KRP5_liq_type)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_BRAGFLO_KRP5_gas_type)
+      class is(rpf_KRP5_gas_type)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
       class is(rpf_BRAGFLO_KRP9_liq_type)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
@@ -2449,6 +2451,12 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%lambda
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
+        class is (rpf_KRP5_liq_type)
+          write(id,'(a)') 'Bragflo KRP5 liquid'
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) rpf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
         class is (rpf_BRAGFLO_KRP9_liq_type)
           write(id,'(a)') 'bragflo_krp9_liq'
       !------------------------------------
@@ -2581,6 +2589,12 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(id,'(a29)',advance='no') 'lambda: '
           write(word1,*) rpf%lambda
           write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) rpf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_KRP5_gas_type)
+          write(id,'(a)') 'Bragflo KRP5 gas'
           write(id,'(a29)',advance='no') 'gas residual sat.: '
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
@@ -7920,45 +7934,43 @@ end subroutine RPF_KRP4_Gas_Verify
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_BRAGFLO_KRP5_Liq_Create()
+function RPF_KRP5_Liq_Create()
 
-  ! Creates the BRAGFLO KRP5 relative permeability function object
-  ! Linear Burdine with gas residual saturation.
+  ! Creates the BRAGFLO_KRP5_LIQ relative permeability function object
 
   implicit none
   
-  class(rpf_BRAGFLO_KRP5_liq_type), pointer :: RPF_BRAGFLO_KRP5_Liq_Create
+  class(rpf_KRP5_liq_type), pointer :: RPF_KRP5_Liq_Create
   
-  allocate(RPF_BRAGFLO_KRP5_Liq_Create)
-  call RPF_BRAGFLO_KRP5_Liq_Create%Init()
+  allocate(RPF_KRP5_Liq_Create)
+  call RPF_KRP5_Liq_Create%Init()
   
-end function RPF_BRAGFLO_KRP5_Liq_Create
+end function RPF_KRP5_Liq_Create
 
 ! ************************************************************************** !
 
-subroutine RPF_BRAGFLO_KRP5_Liq_Init(this)
+subroutine RPF_KRP5_Liq_Init(this)
 
-  ! Initializes the BRAGFLO KRP5 relative permeability function 
-  ! object
+  ! Initializes the BRAGFLO_KRP5_LIQ relative permeability function object
 
   implicit none
   
-  class(rpf_BRAGFLO_KRP5_liq_type) :: this
+  class(rpf_KRP5_liq_type) :: this
 
   call RPFBaseInit(this)
   this%Srg = UNINITIALIZED_DOUBLE
   
-end subroutine RPF_BRAGFLO_KRP5_Liq_Init
+end subroutine RPF_KRP5_Liq_Init
 
 ! ************************************************************************** !
 
-subroutine RPF_BRAGFLO_KRP5_Liq_Verify(this,name,option)
+subroutine RPF_KRP5_Liq_Verify(this,name,option)
 
   use Option_module
 
   implicit none
   
-  class(rpf_BRAGFLO_KRP5_liq_type) :: this
+  class(rpf_KRP5_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
   
@@ -7967,7 +7979,7 @@ subroutine RPF_BRAGFLO_KRP5_Liq_Verify(this,name,option)
   if (index(name,'PERMEABILITY_FUNCTION') > 0) then
     string = name
   else
-    string = trim(name) // 'PERMEABILITY_FUNCTION,BRAGFLO_KRP5'
+    string = trim(name) // 'PERMEABILITY_FUNCTION,BRAGFLO_KRP5_LIQ'
   endif  
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%Srg)) then
@@ -7975,66 +7987,92 @@ subroutine RPF_BRAGFLO_KRP5_Liq_Verify(this,name,option)
     call printErrMsg(option)
   endif  
     
-end subroutine RPF_BRAGFLO_KRP5_Liq_Verify
+end subroutine RPF_KRP5_Liq_Verify
 
 ! ************************************************************************** !
 
-subroutine RPF_BRAGFLO_KRP5_Liq_RelPerm(this,liquid_saturation, &
-                              relative_permeability,dkr_sat,option)
+subroutine RPF_KRP5_Liq_RelPerm(this,liquid_saturation, &
+                                relative_permeability,dkr_sat,option)
   !
-  ! Author: Heeho Park
-  ! Date: 11/18/16
+  ! Author: Heeho Park; Modified by Jennifer Frederick
+  ! Date: 11/18/16; 06/06/2017
   !
   use Option_module
   use Utility_module
   
   implicit none
 
-  class(rpf_BRAGFLO_KRP5_liq_type) :: this
+  class(rpf_KRP5_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
-  PetscReal :: Se
+  PetscReal :: Se2
   
   relative_permeability = 0.d0
   dkr_sat = 0.d0
   
-  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
-  if (Se >= 1.d0) then
+  Se2 = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
+  if ((1.d0-liquid_saturation) <= this%Srg) then
     relative_permeability = 1.d0
     return
-  else if (Se <= 0.d0) then
+  else if (liquid_saturation <= this%Sr) then
     relative_permeability = 0.d0
     return
   endif
   
-  relative_permeability = Se
+  relative_permeability = Se2
   dkr_sat = 1.d0 / (1.d0 - this%Sr - this%Srg)
   
-end subroutine RPF_BRAGFLO_KRP5_Liq_RelPerm
+end subroutine RPF_KRP5_Liq_RelPerm
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin BRAGFLO KRP5 (Gas)
-function RPF_BRAGFLO_KRP5_Gas_Create()
+function RPF_KRP5_Gas_Create()
 
-  ! Creates the BRAGFLO KRP5 gas relative permeability function object
+  ! Creates the BRAGFLO_KRP5_GAS relative permeability function object
 
   implicit none
   
-  class(rpf_BRAGFLO_KRP5_gas_type), pointer :: RPF_BRAGFLO_KRP5_Gas_Create
+  class(rpf_KRP5_gas_type), pointer :: RPF_KRP5_Gas_Create
   
-  allocate(RPF_BRAGFLO_KRP5_Gas_Create)
-  call RPF_BRAGFLO_KRP5_Gas_Create%Init()
+  allocate(RPF_KRP5_Gas_Create)
+  call RPF_KRP5_Gas_Create%Init()
   
-end function RPF_BRAGFLO_KRP5_Gas_Create
-! End RPF: BRAGFLO KRP5 (Liquid)
+end function RPF_KRP5_Gas_Create
 
 ! ************************************************************************** !
+
+subroutine RPF_KRP5_Gas_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+  
+  class(rpf_KRP5_gas_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+  
+  character(len=MAXSTRINGLENGTH) :: string
+  
+  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION,BRAGFLO_KRP5_GAS'
+  endif  
+  call RPFBaseVerify(this,string,option)
+  if (Uninitialized(this%Srg)) then
+    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+    call printErrMsg(option)
+  endif  
+    
+end subroutine RPF_KRP5_Gas_Verify
+
+! ************************************************************************** !
+! ************************************************************************** !
                                      
-! Begin RPF: BRAGFLO KRP9 (Liquid)
 function RPF_BRAGFLO_KRP9_Liq_Create()
 
   ! Creates the Linear Burdine relative permeability function object
@@ -8133,11 +8171,10 @@ subroutine RPF_BRAGFLO_KRP9_Liq_RelPerm(this,liquid_saturation, &
   dkr_sat = dkr_dSe * dSe_dsat
   
 end subroutine RPF_BRAGFLO_KRP9_Liq_RelPerm
-! End RPF: BRAGFLO KRP9 (Liquid)
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin BRAGFLO KRP9 (Gas)
 function RPF_BRAGFLO_KRP9_Gas_Create()
 
   ! Creates the Linear Burdine gas relative permeability function object
@@ -8236,11 +8273,10 @@ subroutine RPF_BRAGFLO_KRP9_Gas_RelPerm(this,liquid_saturation, &
   dkr_sat = -1.d0 * liquid_dkr_sat
   
 end subroutine RPF_BRAGFLO_KRP9_Gas_RelPerm
-! End RPF: BRAGFLO KRP9 (Gas)
 
 ! ************************************************************************** !
-  
-! Begin RPF: BRAGFLO KRP11 (Liquid)
+! ************************************************************************** !
+ 
 function RPF_BRAGFLO_KRP11_Liq_Create()
 
   ! Creates the Linear Burdine relative permeability function object
@@ -8352,11 +8388,10 @@ subroutine RPF_BRAGFLO_KRP11_Liq_RelPerm(this,liquid_saturation, &
   endif
     
 end subroutine RPF_BRAGFLO_KRP11_Liq_RelPerm
-! End RPF: BRAGFLO KRP11 (Liquid)
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin BRAGFLO KRP11 (Gas)
 function RPF_BRAGFLO_KRP11_Gas_Create()
 
   ! Creates the Linear Burdine gas relative permeability function object
@@ -8422,11 +8457,10 @@ subroutine RPF_BRAGFLO_KRP11_Gas_RelPerm(this,liquid_saturation, &
   endif
   
   end subroutine RPF_BRAGFLO_KRP11_Gas_RelPerm
-! End RPF: BRAGFLO KRP11 (Gas)
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin RPF: BRAGFLO KRP12 (Liq)
 function RPF_BRAGFLO_KRP12_Liq_Create()
 
   ! Creates the KRP12 or BC_Burdine liq relative permeability function object
@@ -8439,7 +8473,6 @@ function RPF_BRAGFLO_KRP12_Liq_Create()
   call RPF_BRAGFLO_KRP12_Liq_Create%Init()
   
 end function RPF_BRAGFLO_KRP12_Liq_Create
-! End RPF: BRAGFLO KRP12 (Liq)
 
 ! ************************************************************************** !
 
@@ -8493,11 +8526,10 @@ subroutine RPF_BRAGFLO_KRP12_Liq_RelPerm(this,liquid_saturation, &
   dkr_sat = dkr_dSe * dSe_dsat
   
 end subroutine RPF_BRAGFLO_KRP12_Liq_RelPerm
-! End RPF: Burdine, Brooks-Corey (Liquid)
   
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin RPF: BRAGFLO KRP12 (Gas)
 function RPF_BRAGFLO_KRP12_Gas_Create()
 
   ! Creates the KRP12 or BC_Burdine gas relative permeability function object
@@ -8510,7 +8542,6 @@ function RPF_BRAGFLO_KRP12_Gas_Create()
   call RPF_BRAGFLO_KRP12_Gas_Create%Init()
   
 end function RPF_BRAGFLO_KRP12_Gas_Create
-! End RPF: BRAGFLO KRP12 (Gas)
 
 ! ************************************************************************** !
 
@@ -8563,11 +8594,10 @@ subroutine RPF_BRAGFLO_KRP12_Gas_RelPerm(this,liquid_saturation, &
   endif
   
 end subroutine RPF_BRAGFLO_KRP12_Gas_RelPerm
-! End RPF: Burdine, Brooks-Corey (Gas)
   
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin RPF: modified Kosugi (Liq)
 function RPF_mK_Liq_Create()
 
   ! Creates the modified Kosugi liq relative permeability function object
@@ -8580,7 +8610,6 @@ function RPF_mK_Liq_Create()
   call RPF_mK_Liq_Create%Init()
 
 end function RPF_mK_Liq_Create
-! End RPF:  modified Kosugi (Liq)
 
 ! ************************************************************************** !
 
@@ -8695,11 +8724,10 @@ subroutine RPF_mK_Liq_RelPerm(this,liquid_saturation, &
   dkr_sat = dkr_Se * InvSatRange 
 
 end subroutine RPF_mK_Liq_RelPerm
-! End RPF: modified Kosugi (Liquid)
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin RPF: modified Kosugi (Gas)
 function RPF_mK_Gas_Create()
 
   ! Creates the modified Kosugi gas relative permeability function object
@@ -8712,7 +8740,6 @@ function RPF_mK_Gas_Create()
   call RPF_mK_Gas_Create%Init()
 
 end function RPF_mK_Gas_Create
-! End RPF:  modified Kosugi (Gas)
 
 ! ************************************************************************** !
 
@@ -8759,6 +8786,7 @@ subroutine RPF_mK_Gas_Verify(this,name,option)
   endif
 
 end subroutine RPF_mK_Gas_Verify
+
 ! ************************************************************************** !
 
 subroutine RPF_mK_Gas_RelPerm(this,liquid_saturation, &
@@ -8833,11 +8861,10 @@ subroutine RPF_mK_Gas_RelPerm(this,liquid_saturation, &
   dkr_sat = -1.d0 * dkr_Se * InvSatRange 
 
 end subroutine RPF_mK_Gas_RelPerm
-! End RPF: modified Kosigi (Gas)
 
 ! ************************************************************************** !
+! ************************************************************************** !
 
-! Begin RPF: TOUGH2, Linear (Oil) 
 function RPF_TOUGH2_Linear_Oil_Create()
 
   ! Creates the TOUGH2 Linear oil relative permeability function object
@@ -8941,8 +8968,8 @@ subroutine RPF_TOUGH2_Linear_Oil_RelPerm(this,liquid_saturation, &
   relative_permeability = Seo
 
 end subroutine RPF_TOUGH2_Linear_Oil_RelPerm
-! End RPF: TOUGH2, Linear (Oil)
 
+! ************************************************************************** !
 ! ************************************************************************** !
 
 !Beginning RPF Modified Brooks-Corey for liq and oil phase (RPF_Mod_BC_Oil)
@@ -9048,7 +9075,6 @@ subroutine RPF_Mod_BC_Verify(this,name,option)
 !end subroutine RPF_Mod_BC_Oil_Verify
 end subroutine RPF_Mod_BC_Verify
 
-
 ! ************************************************************************** !
 
 subroutine RPF_Mod_BC_SetupPolynomials(this,option,error_string)
@@ -9148,7 +9174,6 @@ end subroutine RPF_Mod_BC_Liq_RelPerm
 
 ! ************************************************************************** !
 
-
 subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
                                   relative_permeability,dkr_sat,option)
   ! 
@@ -9202,8 +9227,7 @@ subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
 
 end subroutine RPF_Mod_BC_Oil_RelPerm
 
-!End RPF: Modified Brooks-Corey for the oil phase (RPF_Mod_BC_Oil)
-
+! ************************************************************************** !
 ! ************************************************************************** !
 
 function RPF_Constant_Create()
@@ -9268,6 +9292,7 @@ subroutine RPF_ConstantRelPerm(this,liquid_saturation,relative_permeability, &
   
 end subroutine RPF_ConstantRelPerm
 
+! ************************************************************************** !
 ! ************************************************************************** !
 
 subroutine PolynomialDestroy(poly)
