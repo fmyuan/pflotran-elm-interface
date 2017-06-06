@@ -333,7 +333,18 @@ module Characteristic_Curves_module
   !---------------------------------------------------------------------------
   type, public, extends(rpf_Mualem_VG_gas_type) :: rpf_KRP1_gas_type
   contains
+    procedure, public :: Verify => RPF_KRP1_Gas_Verify
   end type rpf_KRP1_gas_type
+  !---------------------------------------------------------------------------
+  type, public, extends(rpf_Burdine_BC_liq_type) :: rpf_KRP2_liq_type
+  contains
+    procedure, public :: Verify => RPF_KRP2_Liq_Verify
+  end type rpf_KRP2_liq_type
+  !---------------------------------------------------------------------------
+  type, public, extends(rpf_Burdine_BC_gas_type) :: rpf_KRP2_gas_type
+  contains
+    procedure, public :: Verify => RPF_KRP2_Gas_Verify
+  end type rpf_KRP2_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_BRAGFLO_KRP5_liq_type
     PetscReal :: Srg
@@ -509,6 +520,8 @@ module Characteristic_Curves_module
             ! WIPP rel. perm. curves:
             RPF_KRP1_Liq_Create, &
             RPF_KRP1_Gas_Create, &
+            RPF_KRP2_Liq_Create, &
+            RPF_KRP2_Gas_Create, &
             RPF_BRAGFLO_KRP5_Liq_Create, &
             RPF_BRAGFLO_KRP5_Gas_Create, &
             RPF_BRAGFLO_KRP9_Liq_Create, &
@@ -686,6 +699,12 @@ subroutine CharacteristicCurvesRead(this,input,option)
             phase_keyword = 'LIQUID'
           case('BRAGFLO_KRP1_GAS')
             rel_perm_function_ptr => RPF_KRP1_Gas_Create()
+            phase_keyword = 'GAS'
+          case('BRAGFLO_KRP2_LIQ')
+            rel_perm_function_ptr => RPF_KRP2_Liq_Create()
+            phase_keyword = 'LIQUID'
+          case('BRAGFLO_KRP2_GAS')
+            rel_perm_function_ptr => RPF_KRP2_Gas_Create()
             phase_keyword = 'GAS'
           case('BRAGFLO_KRP4_LIQ')
             rel_perm_function_ptr => RPF_BRAGFLO_KRP4_Liq_Create()
@@ -1226,6 +1245,10 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'BRAGFLO_KRP1_LIQ'
     class is(rpf_KRP1_gas_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP1_GAS'
+    class is(rpf_KRP2_liq_type)
+      error_string = trim(error_string) // 'BRAGFLO_KRP2_LIQ'
+    class is(rpf_KRP2_gas_type)
+      error_string = trim(error_string) // 'BRAGFLO_KRP2_GAS'
     class is(rpf_BRAGFLO_KRP4_liq_type)
       error_string = trim(error_string) // 'BURDINE_BF_KRP4_LIQ'
     class is(rpf_BRAGFLO_KRP4_gas_type)
@@ -1473,6 +1496,32 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
           case default
             call InputKeywordUnrecognized(keyword, &
               'BRAGFLO_KRP1_GAS relative permeability function', &
+              option)
+        end select
+    !------------------------------------------
+      class is(rpf_KRP2_liq_type)
+        select case(keyword)
+          case('LAMBDA') 
+            call InputReadDouble(input,option,rpf%lambda)
+            call InputErrorMsg(input,option,'LAMBDA',error_string)
+          case default
+            call InputKeywordUnrecognized(keyword, &
+              'BRAGFLO_KRP2_LIQ relative permeability function', &
+              option)
+        end select
+    !------------------------------------------
+      class is(rpf_KRP2_gas_type)
+        select case(keyword)
+          case('LAMBDA') 
+            call InputReadDouble(input,option,rpf%lambda)
+            call InputErrorMsg(input,option,'LAMBDA',error_string)
+          case('GAS_RESIDUAL_SATURATION') 
+            call InputReadDouble(input,option,rpf%Srg)
+            call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
+                               error_string)
+          case default
+            call InputKeywordUnrecognized(keyword, &
+              'BRAGFLO_KRP2_GAS relative permeability function', &
               option)
         end select
     !------------------------------------------
@@ -1865,6 +1914,10 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
       class is(rpf_KRP1_liq_type)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
       class is(rpf_KRP1_gas_type)
+        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+      class is(rpf_KRP2_liq_type)
+        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+      class is(rpf_KRP2_gas_type)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
       class is(rpf_BRAGFLO_KRP5_liq_type)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
@@ -2307,6 +2360,12 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%m
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
+        class is (rpf_KRP2_liq_type)
+          write(id,'(a)') 'Bragflo KRP2 liquid'
+          write(id,'(a29)',advance='no') 'lambda: '
+          write(word1,*) rpf%lambda
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
         class is (rpf_BRAGFLO_KRP9_liq_type)
           write(id,'(a)') 'bragflo_krp9_liq'
       !------------------------------------
@@ -2417,6 +2476,15 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(id,'(a)') 'Bragflo KRP1 gas'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) rpf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_KRP2_gas_type)
+          write(id,'(a)') 'Bragflo KRP2 gas'
+          write(id,'(a29)',advance='no') 'lambda: '
+          write(word1,*) rpf%lambda
           write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 'gas residual sat.: '
           write(word1,*) rpf%Srg
@@ -6249,6 +6317,10 @@ subroutine RPF_Burdine_BC_Gas_Verify(this,name,option)
     string = trim(name) // 'PERMEABILITY_FUNCTION,BURDINE_BC_GAS'
   endif    
   call RPFBaseVerify(this,string,option)
+  if (Uninitialized(this%lambda)) then
+    option%io_buffer = UninitializedMessage('LAMBDA',string)
+    call printErrMsg(option)
+  endif
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
     call printErrMsg(option)
@@ -7240,7 +7312,6 @@ function RPF_KRP1_Liq_Create()
   
 end function RPF_KRP1_Liq_Create
 
-
 ! ************************************************************************** !
 
 subroutine RPF_KRP1_Liq_Verify(this,name,option)
@@ -7310,6 +7381,96 @@ subroutine RPF_KRP1_Gas_Verify(this,name,option)
   endif 
   
 end subroutine RPF_KRP1_Gas_Verify
+
+! ************************************************************************** !
+! ************************************************************************** !
+
+function RPF_KRP2_Liq_Create()
+
+  ! Creates the BRAGFLO_KRP2_LIQ relative permeability function object
+
+  implicit none
+  
+  class(rpf_KRP2_liq_type), pointer :: RPF_KRP2_Liq_Create
+  
+  allocate(RPF_KRP2_Liq_Create)
+  call RPF_KRP2_Liq_Create%Init() ! calls BURDINE_BC_LIQ function's Init()
+  
+end function RPF_KRP2_Liq_Create
+
+! ************************************************************************** !
+
+subroutine RPF_KRP2_Liq_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+  
+  class(rpf_KRP2_liq_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+  
+  character(len=MAXSTRINGLENGTH) :: string
+  
+  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION,BRAGFLO_KRP2_LIQ'
+  endif  
+  call RPFBaseVerify(this,string,option)
+  if (Uninitialized(this%lambda)) then
+    option%io_buffer = UninitializedMessage('LAMBDA',string)
+    call printErrMsg(option)
+  endif   
+  
+end subroutine RPF_KRP2_Liq_Verify
+
+! ************************************************************************** !
+! ************************************************************************** !
+
+function RPF_KRP2_Gas_Create()
+
+  ! Creates the BRAGFLO_KRP2_GAS relative permeability function object
+
+  implicit none
+  
+  class(rpf_KRP2_gas_type), pointer :: RPF_KRP2_Gas_Create
+  
+  allocate(RPF_KRP2_Gas_Create)
+  call RPF_KRP2_Gas_Create%Init() ! calls BURDINE_BC_GAS function's Init()
+  
+end function RPF_KRP2_Gas_Create
+
+! ************************************************************************** !
+
+subroutine RPF_KRP2_Gas_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+  
+  class(rpf_KRP2_gas_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+  
+  character(len=MAXSTRINGLENGTH) :: string
+  
+  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION,BRAGFLO_KRP2_GAS'
+  endif  
+  call RPFBaseVerify(this,string,option)
+  if (Uninitialized(this%lambda)) then
+    option%io_buffer = UninitializedMessage('LAMBDA',string)
+    call printErrMsg(option)
+  endif   
+  if (Uninitialized(this%Srg)) then
+    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+    call printErrMsg(option)
+  endif 
+  
+end subroutine RPF_KRP2_Gas_Verify
 
 ! ************************************************************************** !
 ! ************************************************************************** !
