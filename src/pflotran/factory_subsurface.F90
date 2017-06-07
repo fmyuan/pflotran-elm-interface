@@ -658,14 +658,18 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
+          case('GENERAL','TOIL_IMS','TOWG_IMMISCIBLE','TODD_LONGOSTAFF', &
+               'TOWG_MISCIBLE','BLACK_OIL','SOLVENT_TL')
+          ! In OptionFlowInitRealization(), numerical_derivatives is set to
+          ! PETSC_FALSE, but the default for GENERAL needs to be PETSC_TRUE.
+          ! This is will eventually affect all flow modes with numerical
+          ! derivatives as default if analytical derivatives are available
+          ! and we are keying off this flag. 
+          option%flow%numerical_derivatives = PETSC_TRUE
+        end select
+        select case(word)
           case('GENERAL')
             pm => PMGeneralCreate()
-            ! In OptionFlowInitRealization(), numerical_derivatives is set to
-            ! PETSC_FALSE, but the default for GENERAL needs to be PETSC_TRUE.
-            ! This is will eventually affect all flow modes with numerical
-            ! derivatives as default if analytical derivatives are available
-            ! and we are keying off this flag. 
-            option%flow%numerical_derivatives = PETSC_TRUE
           case('MPHASE')
             pm => PMMphaseCreate()
           case('FLASH2')
