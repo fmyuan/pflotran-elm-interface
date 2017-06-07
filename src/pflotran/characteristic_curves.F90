@@ -6268,7 +6268,7 @@ subroutine RPF_TOUGH2_IRP7_Gas_Init(this)
   call RPFBaseInit(this)
   this%Srg = UNINITIALIZED_DOUBLE
   
-  this%analytical_derivative_available = PETSC_FALSE
+  this%analytical_derivative_available = PETSC_TRUE
   
 end subroutine RPF_TOUGH2_IRP7_Gas_Init
 
@@ -9322,7 +9322,7 @@ subroutine RPF_TOUGH2_Linear_Oil_Init(this)
   call RPFBaseInit(this)
   this%Sro = UNINITIALIZED_DOUBLE
   
-  this%analytical_derivative_available = PETSC_FALSE
+  this%analytical_derivative_available = PETSC_TRUE
   
 end subroutine RPF_TOUGH2_Linear_Oil_Init
 
@@ -9458,7 +9458,7 @@ subroutine RPF_Mod_BC_Init(this)
   this%Sro = UNINITIALIZED_DOUBLE
   this%kr_max = 1.0d0
   
-  this%analytical_derivative_available = PETSC_FALSE
+  this%analytical_derivative_available = PETSC_TRUE
    
 !end subroutine RPF_Mod_BC_Oil_Init
 end subroutine RPF_Mod_BC_Init
