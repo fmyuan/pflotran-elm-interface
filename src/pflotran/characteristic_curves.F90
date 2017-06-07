@@ -385,6 +385,7 @@ module Characteristic_Curves_module
   !---------------------------------------------------------------------------
   type, public, extends(rpf_Burdine_Linear_gas_type) :: rpf_KRP5_gas_type
   contains
+    procedure, public :: Verify => RPF_KRP5_Gas_Verify
   end type rpf_KRP5_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rpf_Mualem_VG_liq_type) :: rpf_KRP8_liq_type
@@ -2800,6 +2801,7 @@ subroutine SFBaseVerify(this,name,option)
     option%io_buffer = 'Analytical derivatives are not available for the &
       &capillary pressure - saturation function chosen: ' // &
       trim(name)
+    call printErrMsg(option)
   endif
   
 end subroutine SFBaseVerify
@@ -2834,6 +2836,13 @@ subroutine RPFBaseVerify(this,name,option)
   if (Uninitialized(this%Sr)) then
     option%io_buffer = UninitializedMessage('LIQUID_RESIDUAL_SATURATION', &
                                             name)
+    call printErrMsg(option)
+  endif
+  
+  if ((.not.this%analytical_derivative_available) .and. &
+      (.not.option%flow%numerical_derivatives)) then
+    option%io_buffer = 'Analytical derivatives are not available for the &
+      &relative permeability function chosen: ' // trim(name)
     call printErrMsg(option)
   endif
   
@@ -5977,6 +5986,8 @@ subroutine RPF_Mualem_VG_Liq_Init(this)
   call RPFBaseInit(this)
   this%m = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine RPF_Mualem_VG_Liq_Init
 
 ! ************************************************************************** !
@@ -6141,6 +6152,8 @@ subroutine RPF_Mualem_VG_Gas_Init(this)
   call RPFBaseInit(this)
   this%Srg = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine RPF_Mualem_VG_Gas_Init
 
 ! ************************************************************************** !
@@ -6255,6 +6268,8 @@ subroutine RPF_TOUGH2_IRP7_Gas_Init(this)
   call RPFBaseInit(this)
   this%Srg = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_FALSE
+  
 end subroutine RPF_TOUGH2_IRP7_Gas_Init
 
 ! ************************************************************************** !
@@ -6364,6 +6379,8 @@ subroutine RPF_Burdine_BC_Liq_Init(this)
 
   call RPFBaseInit(this)
   this%lambda = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_TRUE
   
 end subroutine RPF_Burdine_BC_Liq_Init
 
@@ -6478,6 +6495,8 @@ subroutine RPF_Burdine_BC_Gas_Init(this)
 
   call RPFBaseInit(this)
   this%Srg = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_TRUE
   
 end subroutine RPF_Burdine_BC_Gas_Init
 
@@ -6596,6 +6615,8 @@ subroutine RPF_Mualem_BC_Liq_Init(this)
 
   call RPFBaseInit(this)
   this%lambda = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_TRUE
 
 end subroutine RPF_Mualem_BC_Liq_Init
 
@@ -6709,6 +6730,8 @@ subroutine RPF_Mualem_BC_Gas_Init(this)
 
   call RPFBaseInit(this)
   this%Srg = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_TRUE
   
 end subroutine RPF_Mualem_BC_Gas_Init
 
@@ -6825,6 +6848,8 @@ subroutine RPF_Burdine_VG_Liq_Init(this)
   call RPFBaseInit(this)
   this%m = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine RPF_Burdine_VG_Liq_Init
 
 ! ************************************************************************** !
@@ -6939,6 +6964,8 @@ subroutine RPF_Burdine_VG_Gas_Init(this)
   call RPFBaseInit(this)
   this%Srg = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine RPF_Burdine_VG_Gas_Init
 
 ! ************************************************************************** !
@@ -7051,6 +7078,8 @@ subroutine RPF_Mualem_Linear_Liq_Init(this)
   call RPFBaseInit(this)
   this%alpha = UNINITIALIZED_DOUBLE
   this%pcmax = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_TRUE
   
 end subroutine RPF_Mualem_Linear_Liq_Init
 
@@ -7181,6 +7210,8 @@ subroutine RPF_Mualem_Linear_Gas_Init(this)
   this%alpha = UNINITIALIZED_DOUBLE
   this%pcmax = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine RPF_Mualem_Linear_Gas_Init
 
 ! ************************************************************************** !
@@ -7306,6 +7337,8 @@ subroutine RPF_Burdine_Linear_Liq_Init(this)
 
   call RPFBaseInit(this)
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine RPF_Burdine_Linear_Liq_Init
 
 ! ************************************************************************** !
@@ -7401,6 +7434,8 @@ subroutine RPF_Burdine_Linear_Gas_Init(this)
 
   call RPFBaseInit(this)
   this%Srg = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_TRUE
   
 end subroutine RPF_Burdine_Linear_Gas_Init
 
@@ -7686,6 +7721,8 @@ subroutine RPF_KRP3_Liq_Init(this)
   this%lambda = UNINITIALIZED_DOUBLE
   this%Srg = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine RPF_KRP3_Liq_Init
 
 ! ************************************************************************** !
@@ -7794,6 +7831,8 @@ subroutine RPF_KRP3_Gas_Init(this)
   call RPFBaseInit(this)
   this%lambda = UNINITIALIZED_DOUBLE
   this%Srg = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_TRUE
   
 end subroutine RPF_KRP3_Gas_Init
 
@@ -8048,6 +8087,8 @@ subroutine RPF_KRP5_Liq_Init(this)
   call RPFBaseInit(this)
   this%Srg = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine RPF_KRP5_Liq_Init
 
 ! ************************************************************************** !
@@ -8286,6 +8327,8 @@ subroutine RPF_KRP8_Gas_Init(this)
   call RPFBaseInit(this)
   this%m = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine RPF_KRP8_Gas_Init
 
 ! ************************************************************************** !
@@ -8398,6 +8441,8 @@ subroutine RPF_KRP9_Liq_Init(this)
 
   call RPFBaseInit(this)
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine RPF_KRP9_Liq_Init
 
 ! ************************************************************************** !
@@ -8500,6 +8545,8 @@ subroutine RPF_KRP9_Gas_Init(this)
 
   call RPFBaseInit(this)
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine RPF_KRP9_Gas_Init
 
 ! ************************************************************************** !
@@ -8600,6 +8647,8 @@ subroutine RPF_KRP11_Liq_Init(this)
   class(rpf_KRP11_liq_type) :: this
 
   call RPFBaseInit(this)
+  
+  this%analytical_derivative_available = PETSC_TRUE
   
 end subroutine RPF_KRP11_Liq_Init
 
@@ -8999,6 +9048,8 @@ subroutine RPF_mK_Liq_Init(this)
   call RPFBaseInit(this)
   this%sigmaz = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_TRUE
+  
 end subroutine RPF_mK_Liq_Init
 
 ! ************************************************************************** !
@@ -9128,6 +9179,8 @@ subroutine RPF_mK_Gas_Init(this)
 
   call RPFBaseInit(this)
   this%sigmaz = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_TRUE
   
 end subroutine RPF_mK_Gas_Init
 
@@ -9269,6 +9322,8 @@ subroutine RPF_TOUGH2_Linear_Oil_Init(this)
   call RPFBaseInit(this)
   this%Sro = UNINITIALIZED_DOUBLE
   
+  this%analytical_derivative_available = PETSC_FALSE
+  
 end subroutine RPF_TOUGH2_Linear_Oil_Init
 
 ! ************************************************************************** !
@@ -9402,6 +9457,8 @@ subroutine RPF_Mod_BC_Init(this)
   this%Srg = UNINITIALIZED_DOUBLE
   this%Sro = UNINITIALIZED_DOUBLE
   this%kr_max = 1.0d0
+  
+  this%analytical_derivative_available = PETSC_FALSE
    
 !end subroutine RPF_Mod_BC_Oil_Init
 end subroutine RPF_Mod_BC_Init
