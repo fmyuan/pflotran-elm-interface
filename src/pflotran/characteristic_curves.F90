@@ -4961,17 +4961,11 @@ subroutine SF_KRP5_CapillaryPressure(this,liquid_saturation, &
   
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = this%pcmax
-    return
   else if ((1.d0 - liquid_saturation) <= this%Srg) then
     capillary_pressure = this%pct
-    return
-  else if (liquid_saturation >= 1.d0) then
-    capillary_pressure = 0.d0
-    return
+  else 
+    capillary_pressure = (this%pct-this%pcmax)*Se2 + this%pcmax
   endif
-  
-  Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
-  capillary_pressure = (this%pct-this%pcmax)*Se2 + this%pcmax
 
   capillary_pressure = min(capillary_pressure,this%pcmax)
   
