@@ -8284,7 +8284,7 @@ function RPF_KRP4_Liq_Create()
   class(rpf_KRP4_liq_type), pointer :: RPF_KRP4_Liq_Create
   
   allocate(RPF_KRP4_Liq_Create)
-  call RPF_KRP4_Liq_Create%Init()
+  call RPF_KRP4_Liq_Create%Init() ! Calls KRP3_Liq's Init()
   
 end function RPF_KRP4_Liq_Create
 
@@ -8349,22 +8349,19 @@ subroutine RPF_KRP4_Liq_RelPerm(this,liquid_saturation, &
   PetscReal :: power
   PetscReal :: dkr_dSe1
   PetscReal :: dSe1_dsat
-
-  relative_permeability = 0.d0
-  dkr_sat = 0.d0
-  if (liquid_saturation <= this%Sr) then
+  
+  if (((1.d0-liquid_saturation) <= this%Srg) .or. &
+      (liquid_saturation > this%Sr)) then
+    Se1 = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
+    power = (2.d0+(3.d0*this%lambda))/this%lambda
+    relative_permeability = Se1**power
+    dkr_dSe1 = power*relative_permeability/Se1          
+    dSe1_dsat = 1.d0 / (1.d0 - this%Sr)
+    dkr_sat = dkr_dSe1 * dSe1_dsat
+  else
     relative_permeability = 0.d0
-    return
+    dkr_sat = 0.d0
   endif
-  
-  Se1 = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
-
-  power = (2.d0+(3.d0*this%lambda))/this%lambda
-  relative_permeability = Se1**power
-  
-  dkr_dSe1 = power*relative_permeability/Se1          
-  dSe1_dsat = 1.d0 / (1.d0 - this%Sr)
-  dkr_sat = dkr_dSe1 * dSe1_dsat
   
 end subroutine RPF_KRP4_Liq_RelPerm
 
@@ -8380,7 +8377,7 @@ function RPF_KRP4_Gas_Create()
   class(rpf_KRP4_gas_type), pointer :: RPF_KRP4_Gas_Create
   
   allocate(RPF_KRP4_Gas_Create)
-  call RPF_KRP4_Gas_Create%Init()
+  call RPF_KRP4_Gas_Create%Init() ! calls KRP3_Gas's Init()
   
 end function RPF_KRP4_Gas_Create
 
