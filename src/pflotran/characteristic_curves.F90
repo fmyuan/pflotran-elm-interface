@@ -398,9 +398,12 @@ module Characteristic_Curves_module
     procedure, public :: RelativePermeability => RPF_KRP5_Liq_RelPerm
   end type rpf_KRP5_liq_type
   !---------------------------------------------------------------------------
-  type, public, extends(rpf_Burdine_Linear_gas_type) :: rpf_KRP5_gas_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_KRP5_gas_type
+    PetscReal :: Srg
   contains
+    procedure, public :: Init => RPF_KRP5_Gas_Init
     procedure, public :: Verify => RPF_KRP5_Gas_Verify
+    procedure, public :: RelativePermeability => RPF_KRP5_Gas_RelPerm
   end type rpf_KRP5_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rpf_Mualem_VG_liq_type) :: rpf_KRP8_liq_type
@@ -8481,7 +8484,6 @@ subroutine RPF_KRP5_Liq_RelPerm(this,liquid_saturation, &
   ! Date: 11/18/16; 06/06/2017
   !
   use Option_module
-  use Utility_module
   
   implicit none
 
@@ -8493,21 +8495,18 @@ subroutine RPF_KRP5_Liq_RelPerm(this,liquid_saturation, &
   
   PetscReal :: Se2
   
-  relative_permeability = 0.d0
-  dkr_sat = 0.d0
-  
-  Se2 = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
-  if ((1.d0-liquid_saturation) <= this%Srg) then
-    relative_permeability = 1.d0
-    return
-  else if (liquid_saturation <= this%Sr) then
+  if (liquid_saturation <= this%Sr) then
     relative_permeability = 0.d0
-    return
+    dkr_sat = 0.d0
+  else if ((1.d0-liquid_saturation) <= this%Srg) then
+    relative_permeability = 1.d0
+    dkr_sat = 0.d0
+  else
+    Se2 = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
+    relative_permeability = Se2
+    dkr_sat = 1.d0 / (1.d0 - this%Sr - this%Srg)
   endif
-  
-  relative_permeability = Se2
-  dkr_sat = 1.d0 / (1.d0 - this%Sr - this%Srg)
-  
+   
 end subroutine RPF_KRP5_Liq_RelPerm
 
 ! ************************************************************************** !
@@ -8525,6 +8524,23 @@ function RPF_KRP5_Gas_Create()
   call RPF_KRP5_Gas_Create%Init()
   
 end function RPF_KRP5_Gas_Create
+
+! ************************************************************************** !
+
+subroutine RPF_KRP5_Gas_Init(this)
+
+  ! Initializes the BRAGFLO_KRP5_GAS relative permeability function object
+
+  implicit none
+  
+  class(rpf_KRP5_gas_type) :: this
+
+  call RPFBaseInit(this)
+  this%Srg = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_TRUE
+  
+end subroutine RPF_KRP5_Gas_Init
 
 ! ************************************************************************** !
 
@@ -8552,6 +8568,44 @@ subroutine RPF_KRP5_Gas_Verify(this,name,option)
   endif  
     
 end subroutine RPF_KRP5_Gas_Verify
+
+! ************************************************************************** !
+
+subroutine RPF_KRP5_Gas_RelPerm(this,liquid_saturation, &
+                                relative_permeability,dkr_sat,option)
+  !
+  ! Author: Jennifer Frederick
+  ! Date: 06/12/2017
+  !
+  use Option_module
+  
+  implicit none
+
+  class(rpf_KRP5_gas_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_sat
+  type(option_type), intent(inout) :: option
+  
+  PetscReal :: Se2
+  PetscReal :: dkr_Se2
+  PetscReal :: dSe2_sat
+  
+  if (liquid_saturation <= this%Sr) then
+    relative_permeability = 1.d0
+    dkr_sat = 0.d0
+  else if ((1.d0-liquid_saturation) <= this%Srg) then
+    relative_permeability = 0.d0
+    dkr_sat = 0.d0
+  else
+    Se2 = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
+    relative_permeability = 1.d0 - Se2
+    dkr_Se2 = -1.d0
+    dSe2_sat = 1.d0 / (1.d0 - this%Sr - this%Srg)
+    dkr_sat = dkr_Se2 * dSe2_sat
+  endif
+   
+end subroutine RPF_KRP5_Gas_RelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
