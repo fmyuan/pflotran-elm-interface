@@ -5319,17 +5319,14 @@ subroutine SF_KRP9_CapillaryPressure(this,liquid_saturation, &
   
   dpc_dsatl = capillary_pressure / &
               (liquid_saturation*b*(liquid_saturation - 1.d0))
+              
+  Se1 = (1.d0-liquid_saturation)/(liquid_saturation)
   
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = 0.d0
-    return
-  else if (liquid_saturation >= 1.d0) then
-    capillary_pressure = 0.d0
-    return
+  else 
+    capillary_pressure = a*Se1**(1.d0/b)
   endif
-  
-  Se1 = (1.d0-liquid_saturation)/(liquid_saturation)
-  capillary_pressure = a*Se1**(1.d0/b)
   
 #if defined(MATCH_TOUGH2)
   if (liquid_saturation > 0.999d0) then
