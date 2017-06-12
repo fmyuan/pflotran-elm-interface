@@ -5628,11 +5628,6 @@ subroutine SF_KRP12_CapillaryPressure(this,liquid_saturation, &
     endif
     option%pct_updated = PETSC_FALSE
   endif
-  
-  if (liquid_saturation >= 1.d0) then
-    capillary_pressure = 0.d0
-    return
-  endif
 
   Se = (liquid_saturation - this%s_min - this%s_effmin) / &
        (1.d0 - this%s_min - this%s_effmin)
