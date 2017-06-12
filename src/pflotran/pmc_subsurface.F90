@@ -937,25 +937,29 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
                                   ierr);CHKERRQ(ierr)
           call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm, sim_perm_p,  & !DANNY-new (11/16/16)
                                   ierr);CHKERRQ(ierr)
- 
-!          call PetscViewerBinaryOpen(pmc%realization%option%mycomm, &
-!                                     'por_before.bin',FILE_MODE_WRITE,viewer, &
-!                                     ierr);CHKERRQ(ierr)
+#ifdef GEOMECH_DEBUG
+          call PetscViewerASCIIOpen(pmc%realization%option%mycomm, &
+                                     'por_before.out',viewer, &
+                                     ierr);CHKERRQ(ierr)
           call MaterialGetAuxVarVecLoc(pmc%realization%patch%aux%Material, &
                                        subsurf_field%work_loc, &
                                        POROSITY,ZERO_INTEGER) !DANNY-add for PERMEABILITY?
 
-!          call VecView(subsurf_field%work_loc,viewer,ierr);CHKERRQ(ierr)
-!          call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+          call VecView(subsurf_field%work_loc,viewer,ierr);CHKERRQ(ierr)
+          call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
 
           call DiscretizationLocalToLocal(pmc%realization%discretization, &
                                           subsurf_field%work_loc, &
                                           subsurf_field%work_loc,ONEDOF)
-!          call PetscViewerBinaryOpen(pmc%realization%option%mycomm, &
-!                                     'por_after.bin',FILE_MODE_WRITE,viewer, &
-!                                     ierr);CHKERRQ(ierr)
-!          call VecView(subsurf_field%work_loc,viewer,ierr);CHKERRQ(ierr)
-!          call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+
+#ifdef GEOMECH_DEBUG
+          call PetscViewerASCIIOpen(pmc%realization%option%mycomm, &
+                                     'por_after.out',viewer, &
+                                     ierr);CHKERRQ(ierr)
+          call VecView(subsurf_field%work_loc,viewer,ierr);CHKERRQ(ierr)
+          call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
 
           call MaterialSetAuxVarVecLoc(pmc%realization%patch%aux%Material, &
                                        subsurf_field%work_loc, &
