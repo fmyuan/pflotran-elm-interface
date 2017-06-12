@@ -4204,12 +4204,7 @@ subroutine SF_KRP1_CapillaryPressure(this,liquid_saturation, &
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
-  
-  if (liquid_saturation >= 1.d0) then
-    capillary_pressure = 0.d0
-    return
-  endif
-  
+   
   if (this%ignore_permeability) then
     this%pct = 1.d0/this%alpha
   else
@@ -4229,6 +4224,7 @@ subroutine SF_KRP1_CapillaryPressure(this,liquid_saturation, &
   P0 = this%pct * (2.d0**(1.d0/lambda)) * &
        (((0.5d0**(-1.d0/this%m))-1.d0)**(this%m-1.d0))
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
+  Se2 = min(Se2,1.d0)
   
   if ((liquid_saturation > this%Sr) .or. &
       ((1.d0 - liquid_saturation) <= this%Srg)) then
