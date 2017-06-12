@@ -92,6 +92,7 @@ module Characteristic_Curves_module
   end type sat_func_mK_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_WIPP_type
+    PetscInt :: kpc
     PetscReal :: pct_a
     PetscReal :: pct_exp
     PetscReal :: pct
@@ -1007,6 +1008,9 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     !------------------------------------------
       class is(sat_func_KRP1_type)
         select case(keyword)
+          case('KPC') 
+            call InputReadInt(input,option,sf%kpc)
+            call InputErrorMsg(input,option,'KPC',error_string)
           case('M') 
             call InputReadDouble(input,option,sf%m)
             call InputErrorMsg(input,option,'M',error_string)
@@ -1033,6 +1037,9 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     !------------------------------------------
       class is(sat_func_KRP2_type)
         select case(keyword)
+          case('KPC') 
+            call InputReadInt(input,option,sf%kpc)
+            call InputErrorMsg(input,option,'KPC',error_string)
           case('LAMBDA') 
             call InputReadDouble(input,option,sf%lambda)
             call InputErrorMsg(input,option,'LAMBDA',error_string)
@@ -1055,6 +1062,9 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     !------------------------------------------
       class is(sat_func_KRP3_type)
         select case(keyword)
+          case('KPC') 
+            call InputReadInt(input,option,sf%kpc)
+            call InputErrorMsg(input,option,'KPC',error_string)
           case('LAMBDA') 
             call InputReadDouble(input,option,sf%lambda)
             call InputErrorMsg(input,option,'LAMBDA',error_string)
@@ -1081,6 +1091,9 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     !------------------------------------------
       class is(sat_func_KRP4_type)
         select case(keyword)
+          case('KPC') 
+            call InputReadInt(input,option,sf%kpc)
+            call InputErrorMsg(input,option,'KPC',error_string)
           case('LAMBDA') 
             call InputReadDouble(input,option,sf%lambda)
             call InputErrorMsg(input,option,'LAMBDA',error_string)
@@ -1107,6 +1120,9 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     !------------------------------------------
       class is(sat_func_KRP5_type)
         select case(keyword)
+          case('KPC') 
+            call InputReadInt(input,option,sf%kpc)
+            call InputErrorMsg(input,option,'KPC',error_string)
           case('PCT_A') 
             call InputReadDouble(input,option,sf%pct_a)
             call InputErrorMsg(input,option,'PCT_A',error_string)
@@ -1130,6 +1146,9 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     !------------------------------------------
       class is(sat_func_KRP8_type)
         select case(keyword)
+          case('KPC') 
+            call InputReadInt(input,option,sf%kpc)
+            call InputErrorMsg(input,option,'KPC',error_string)
           case('M') 
             call InputReadDouble(input,option,sf%m)
             call InputErrorMsg(input,option,'M',error_string)
@@ -1170,6 +1189,9 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     !------------------------------------------
       class is(sat_func_KRP12_type)
         select case(keyword)
+          case('KPC') 
+            call InputReadInt(input,option,sf%kpc)
+            call InputErrorMsg(input,option,'KPC',error_string)
           case('PCT_A') 
             call InputReadDouble(input,option,sf%pct_a)
             call InputErrorMsg(input,option,'PCT_A',error_string)
@@ -2333,6 +2355,9 @@ subroutine CharCurvesInputRecord(char_curve_list)
       !---------------------------------
         class is (sat_func_KRP1_type)
           write(id,'(a)') 'Bragflo KRP1 modified van Genuchten'
+          write(id,'(a29)',advance='no') 'kpc: '
+          write(word1,*) sf%kpc
+          write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 'pct_a: '
           write(word1,*) sf%pct_a
           write(id,'(a)') adjustl(trim(word1))
@@ -2348,6 +2373,9 @@ subroutine CharCurvesInputRecord(char_curve_list)
       !---------------------------------
         class is (sat_func_KRP2_type)
           write(id,'(a)') 'Bragflo KRP2 original Brooks Corey'
+          write(id,'(a29)',advance='no') 'kpc: '
+          write(word1,*) sf%kpc
+          write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 'pct_a: '
           write(word1,*) sf%pct_a
           write(id,'(a)') adjustl(trim(word1))
@@ -2360,6 +2388,9 @@ subroutine CharCurvesInputRecord(char_curve_list)
       !---------------------------------
         class is (sat_func_KRP3_type)
           write(id,'(a)') 'Bragflo KRP3 1st modified Brooks Corey'
+          write(id,'(a29)',advance='no') 'kpc: '
+          write(word1,*) sf%kpc
+          write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 'pct_a: '
           write(word1,*) sf%pct_a
           write(id,'(a)') adjustl(trim(word1))
@@ -2375,6 +2406,9 @@ subroutine CharCurvesInputRecord(char_curve_list)
       !---------------------------------
         class is (sat_func_KRP4_type)
           write(id,'(a)') 'Bragflo KRP4 2nd modified Brooks Corey'
+          write(id,'(a29)',advance='no') 'kpc: '
+          write(word1,*) sf%kpc
+          write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 'pct_a: '
           write(word1,*) sf%pct_a
           write(id,'(a)') adjustl(trim(word1))
@@ -2390,6 +2424,9 @@ subroutine CharCurvesInputRecord(char_curve_list)
       !---------------------------------
         class is (sat_func_KRP5_type)
           write(id,'(a)') 'Bragflo KRP5 modified Linear'
+          write(id,'(a29)',advance='no') 'kpc: '
+          write(word1,*) sf%kpc
+          write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 'pct_a: '
           write(word1,*) sf%pct_a
           write(id,'(a)') adjustl(trim(word1))
@@ -2402,6 +2439,9 @@ subroutine CharCurvesInputRecord(char_curve_list)
       !---------------------------------
         class is (sat_func_KRP8_type)
           write(id,'(a)') 'Bragflo KRP8 original van Genuchten-Parker'
+          write(id,'(a29)',advance='no') 'kpc: '
+          write(word1,*) sf%kpc
+          write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 'pct_a: '
           write(word1,*) sf%pct_a
           write(id,'(a)') adjustl(trim(word1))
@@ -2423,6 +2463,9 @@ subroutine CharCurvesInputRecord(char_curve_list)
       !---------------------------------
         class is (sat_func_KRP12_type)
           write(id,'(a)') 'Bragflo KRP12 waste area modification'
+          write(id,'(a29)',advance='no') 'kpc: '
+          write(word1,*) sf%kpc
+          write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 'pct_a: '
           write(word1,*) sf%pct_a
           write(id,'(a)') adjustl(trim(word1))
@@ -3997,6 +4040,7 @@ subroutine SF_WIPP_Init(this)
   class(sat_func_WIPP_type) :: this
 
   call SFBaseInit(this)
+  this%kpc = UNINITIALIZED_INTEGER
   this%pct_a = UNINITIALIZED_DOUBLE
   this%pct_exp = UNINITIALIZED_DOUBLE
   this%ignore_permeability = PETSC_FALSE
@@ -4045,6 +4089,11 @@ subroutine SF_WIPP_Verify(this,name,option)
       num_errors = num_errors + 1
     endif   
   endif
+  if (Uninitialized(this%kpc)) then
+    option%io_buffer = UninitializedMessage('KPC',string)
+    call printMsg(option)
+    num_errors = num_errors + 1
+  endif 
    
   if (num_errors > 0) then
     write(option%io_buffer,*) num_errors
@@ -4092,6 +4141,66 @@ subroutine SF_WIPP_Saturation(this,capillary_pressure, &
   call printErrMsg(option)
   
 end subroutine SF_WIPP_Saturation
+
+! ************************************************************************** !
+
+subroutine SF_WIPP_KPC(this,lambda,PT,Se,capillary_pressure)
+  !
+  ! Calculates the SEMIN value that is used for truncation of capillary 
+  ! pressure in the CapillaryPressure functions if KPC=2.
+  !
+  ! Author: Jennifer Frederick
+  ! Date: 06/12/2017
+  !
+  
+  implicit none
+  
+  class(sat_func_WIPP_type) :: this
+  PetscReal :: lambda
+  PetscReal :: PT
+  PetscReal :: Se
+  PetscReal :: capillary_pressure
+  
+  PetscReal :: SEMIN
+  PetscBool :: BC     ! Brooks-Corey type
+  PetscBool :: VG     ! van Genuchten type
+  
+  BC = PETSC_FALSE
+  VG = PETSC_FALSE
+  
+  if (this%kpc /= 2) return
+  
+  ! calculate SEMIN:
+  if (PT < 0.d0) then
+    SEMIN = -1.d0
+  else
+    select type(this)
+      type is(sat_func_KRP1_type)
+        VG = PETSC_TRUE
+      type is(sat_func_KRP2_type)
+        BC = PETSC_TRUE
+      type is(sat_func_KRP3_type)
+        BC = PETSC_TRUE
+      type is(sat_func_KRP4_type)
+        BC = PETSC_TRUE
+      type is(sat_func_KRP8_type)
+        VG = PETSC_TRUE
+      class default
+        return
+    end select
+    if (BC) then
+      SEMIN = (PT/this%pcmax)**lambda
+    else if (VG) then
+      SEMIN = (1.d0+((this%pcmax/PT)**(lambda+1.d0))) &
+               **(-1.d0*lambda/(1.d0+lambda))
+    endif
+  endif
+  
+  if (Se > SEMIN) then
+    capillary_pressure = min(capillary_pressure,this%pcmax)
+  endif
+  
+end subroutine SF_WIPP_KPC
 
 ! ************************************************************************** !
 ! ************************************************************************** !
@@ -4239,8 +4348,8 @@ subroutine SF_KRP1_CapillaryPressure(this,liquid_saturation, &
   endif
 #endif
 
-  capillary_pressure = min(capillary_pressure,this%pcmax)
-  
+  call SF_WIPP_KPC(this,lambda,P0,Se2,capillary_pressure)
+
 end subroutine SF_KRP1_CapillaryPressure
 
 ! ************************************************************************** !
@@ -4421,7 +4530,7 @@ subroutine SF_KRP2_CapillaryPressure(this,liquid_saturation, &
     capillary_pressure = this%pct/(Se1**(1.d0/this%lambda))
   endif
   
-  capillary_pressure = min(capillary_pressure,this%pcmax)
+  call SF_WIPP_KPC(this,this%lambda,this%pct,Se1,capillary_pressure)
   
 end subroutine SF_KRP2_CapillaryPressure
 
@@ -4603,7 +4712,7 @@ subroutine SF_KRP3_CapillaryPressure(this,liquid_saturation, &
     capillary_pressure = 0.d0
   endif
   
-  capillary_pressure = min(capillary_pressure,this%pcmax)
+  call SF_WIPP_KPC(this,this%lambda,this%pct,Se2,capillary_pressure)
   
 end subroutine SF_KRP3_CapillaryPressure
 
@@ -4785,7 +4894,7 @@ subroutine SF_KRP4_CapillaryPressure(this,liquid_saturation, &
     capillary_pressure = 0.d0
   endif
   
-  capillary_pressure = min(capillary_pressure,this%pcmax)
+  call SF_WIPP_KPC(this,this%lambda,this%pct,Se2,capillary_pressure)
   
 end subroutine SF_KRP4_CapillaryPressure
 
@@ -4966,8 +5075,6 @@ subroutine SF_KRP5_CapillaryPressure(this,liquid_saturation, &
   else 
     capillary_pressure = (this%pct-this%pcmax)*Se2 + this%pcmax
   endif
-
-  capillary_pressure = min(capillary_pressure,this%pcmax)
   
 end subroutine SF_KRP5_CapillaryPressure
 
@@ -5161,7 +5268,7 @@ subroutine SF_KRP8_CapillaryPressure(this,liquid_saturation, &
     capillary_pressure = 0.d0
   endif
 
-  capillary_pressure = min(capillary_pressure,this%pcmax)
+call SF_WIPP_KPC(this,lambda,P0,Se1,capillary_pressure)
   
 end subroutine SF_KRP8_CapillaryPressure
 
@@ -5333,8 +5440,6 @@ subroutine SF_KRP9_CapillaryPressure(this,liquid_saturation, &
     capillary_pressure = capillary_pressure*(1.d0-liquid_saturation)/0.001d0
   endif
 #endif
-
-  capillary_pressure = min(capillary_pressure,this%pcmax)
   
 end subroutine SF_KRP9_CapillaryPressure
 
