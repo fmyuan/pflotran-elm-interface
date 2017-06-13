@@ -9069,6 +9069,8 @@ subroutine RPF_KRP11_Liq_Init(this)
   class(rpf_KRP11_liq_type) :: this
 
   call RPFBaseInit(this)
+  this%tolc = UNINITIALIZED_DOUBLE
+  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   
@@ -9164,7 +9166,7 @@ function RPF_KRP11_Gas_Create()
   class(rpf_KRP11_gas_type), pointer :: RPF_KRP11_Gas_Create
   
   allocate(RPF_KRP11_Gas_Create)
-  call RPF_KRP11_Gas_Create%Init()
+  call RPF_KRP11_Gas_Create%Init() ! calls KRP11_LIQ's Init()
   
 end function RPF_KRP11_Gas_Create
 
