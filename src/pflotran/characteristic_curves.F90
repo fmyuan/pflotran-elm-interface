@@ -9326,23 +9326,20 @@ subroutine RPF_KRP12_Liq_RelPerm(this,liquid_saturation, &
   PetscReal :: power
   PetscReal :: dkr_dSe1
   PetscReal :: dSe1_dsat
-
-  relative_permeability = 0.d0
-  dkr_sat = 0.d0
-  if (liquid_saturation <= this%Sr) then
+  
+  if (((1.d0-liquid_saturation) <= this%Srg) .or. &
+      (liquid_saturation > this%Sr)) then
+    Se1 = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
+    Se1 = max(min(Se1,1.d0),0.d0)
+    power = (2.d0+(3.d0*this%lambda))/this%lambda
+    relative_permeability = Se1**power
+    dkr_dSe1 = power*relative_permeability/Se1          
+    dSe1_dsat = 1.d0 / (1.d0 - this%Sr)
+    dkr_sat = dkr_dSe1 * dSe1_dsat
+  else
     relative_permeability = 0.d0
-    return
+    dkr_sat = 0.d0
   endif
-  
-  Se1 = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
-  Se1 = max(min(Se1,1.d0),0.d0)
-  
-  power = (2.d0+(3.d0*this%lambda))/this%lambda
-  relative_permeability = Se1**power
-  
-  dkr_dSe1 = power*relative_permeability/Se1          
-  dSe1_dsat = 1.d0 / (1.d0 - this%Sr)
-  dkr_sat = dkr_dSe1 * dSe1_dsat
   
 end subroutine RPF_KRP12_Liq_RelPerm
   
@@ -9419,27 +9416,23 @@ subroutine RPF_KRP12_Gas_RelPerm(this,liquid_saturation, &
   PetscReal :: dkr_dSe2
   PetscReal :: dSe2_dsat
   
-  relative_permeability = 0.d0
-  dkr_sat = 0.d0
   if ((1.d0-liquid_saturation) <= this%Srg) then
     relative_permeability = 0.d0
-    return
-  else if (liquid_saturation <= this%Sr) then
+    dkr_sat = 0.d0
+  else if (liquid_saturation > this%Sr) then
+    Se2 = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
+    Se2 = max(min(Se2,1.d0),0.d0)
+    lambda_exp = (2.d0+this%lambda)/this%lambda
+    relative_permeability = ((1.d0-Se2)**2.d0) * (1.d0-(Se2**lambda_exp))
+    dSe2_dsat = 1.d0 / (1.d0 - this%Sr - this%Srg)
+    ! Python analytical derivative (Jenn Frederick)
+    dkr_dSe2 = -1.d0*(Se2-1.d0)*(lambda_exp*(Se2**lambda_exp)*(Se2-1.d0) + &
+               2.d0*Se2*(Se2**lambda_exp-1.d0))/Se2
+    dkr_sat = dkr_dSe2 * dSe2_dsat
+  else
     relative_permeability = 1.d0
-    return
+    dkr_sat = 0.d0
   endif
-    
-  Se2 = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
-  Se2 = max(min(Se2,1.d0),0.d0)
-  
-  lambda_exp = (2.d0+this%lambda)/this%lambda
-  relative_permeability = ((1.d0-Se2)**2.d0) * (1.d0-(Se2**lambda_exp))
-  
-  dSe2_dsat = 1.d0 / (1.d0 - this%Sr - this%Srg)
-  ! Python analytical derivative (Jenn Frederick)
-  dkr_dSe2 = -1.d0*(Se2-1.d0)*(lambda_exp*(Se2**lambda_exp)*(Se2-1.d0) + &
-            2.d0*Se2*(Se2**lambda_exp-1.d0))/Se2
-  dkr_sat = dkr_dSe2 * dSe2_dsat
   
 end subroutine RPF_KRP12_Gas_RelPerm
   
