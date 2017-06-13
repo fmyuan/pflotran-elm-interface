@@ -406,8 +406,10 @@ module Characteristic_Curves_module
     procedure, public :: RelativePermeability => RPF_KRP5_Gas_RelPerm
   end type rpf_KRP5_gas_type
   !---------------------------------------------------------------------------
-  type, public, extends(rpf_Mualem_VG_liq_type) :: rpf_KRP8_liq_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_KRP8_liq_type
+    PetscReal :: m
   contains
+    procedure, public :: Init => RPF_KRP8_Liq_Init
     procedure, public :: Verify => RPF_KRP8_Liq_Verify
     procedure, public :: RelativePermeability => RPF_KRP8_Liq_RelPerm
   end type rpf_KRP8_liq_type
@@ -7714,8 +7716,8 @@ subroutine RPF_KRP1_Liq_RelPerm(this,liquid_saturation, &
     relative_permeability = sqrt(Se1)*(1.d0-(1.d0-Se1_one_over_m)**this%m)**2.d0
     dkr_Se1 = 0.5d0*relative_permeability/Se1+ &
               2.d0*Se1**(one_over_m-0.5d0)* &
-                  (1.d0-Se1_one_over_m)**(this%m-1.d0)* &
-                  (1.d0-(1.d0-Se1_one_over_m)**this%m)
+              (1.d0-Se1_one_over_m)**(this%m-1.d0)* &
+              (1.d0-(1.d0-Se1_one_over_m)**this%m)
     dSe1_sat = 1.d0 / (1.d0 - this%Sr)
     dkr_sat = dkr_Se1 * dSe1_sat
   else
@@ -8625,6 +8627,23 @@ end function RPF_KRP8_Liq_Create
 
 ! ************************************************************************** !
 
+subroutine RPF_KRP8_Liq_Init(this)
+
+  ! Initializes the BRAGFLO_KRP8_LIQ relative permeability function object
+
+  implicit none
+  
+  class(rpf_KRP8_liq_type) :: this
+
+  call RPFBaseInit(this)
+  this%m = UNINITIALIZED_DOUBLE
+  
+  this%analytical_derivative_available = PETSC_TRUE
+  
+end subroutine RPF_KRP8_Liq_Init
+
+! ************************************************************************** !
+
 subroutine RPF_KRP8_Liq_Verify(this,name,option)
 
   use Option_module
@@ -8679,30 +8698,27 @@ subroutine RPF_KRP8_Liq_RelPerm(this,liquid_saturation, &
   PetscReal :: Se1
   PetscReal :: dkr_dSe1
   PetscReal :: dSe1_dsat
-
-  relative_permeability = 0.d0
-  dkr_sat = 0.d0
-  
-  if (liquid_saturation <= this%Sr) then
-    relative_permeability = 0.d0
-    return
-  endif
   
   Se1 = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
   
-  if (Se1 >= 1.d0) then
-    relative_permeability = 1.d0
-    return
+  if (liquid_saturation > this%Sr) then
+    if (Se1 < 1.d0) then
+      relative_permeability = sqrt(Se1)* &
+                              (1.d0-((1.d0-(Se1**(1.d0/this%m)))**this%m))**2.d0
+      dkr_dSe1 = 0.5d0*relative_permeability/Se1+ &
+                 2.d0*Se1**((1.d0/this%m)-0.5d0)* &
+                 (1.d0-(Se1**(1.d0/this%m)))**(this%m-1.d0)* &
+                 (1.d0-(1.d0-(Se1**(1.d0/this%m)))**this%m)
+      dSe1_dsat = 1.d0 / (1.d0 - this%Sr)
+      dkr_sat = dkr_dSe1 * dSe1_dsat
+    else
+      relative_permeability = 1.d0
+      dkr_sat = 0.d0
+    endif
+  else
+    relative_permeability = 0.d0
+    dkr_sat = 0.d0
   endif
-  
-  relative_permeability = sqrt(Se1)* &
-                          (1.d0-((1.d0-(Se1**(1.d0/this%m)))**this%m))**2.d0
-  dkr_dSe1 = 0.5d0*relative_permeability/Se1+ &
-             2.d0*Se1**((1.d0/this%m)-0.5d0)* &
-             (1.d0-(Se1**(1.d0/this%m)))**(this%m-1.d0)* &
-             (1.d0-(1.d0-(Se1**(1.d0/this%m)))**this%m)
-  dSe1_dsat = 1.d0 / (1.d0 - this%Sr)
-  dkr_sat = dkr_dSe1 * dSe1_dsat
   
 end subroutine RPF_KRP8_Liq_RelPerm
 
@@ -8795,29 +8811,27 @@ subroutine RPF_KRP8_Gas_RelPerm(this,liquid_saturation, &
   PetscReal :: Se1
   PetscReal :: dkr_dSe1
   PetscReal :: dSe1_dsat
-    
-  relative_permeability = 0.d0
-  dkr_sat = 0.d0
-  
-  if (liquid_saturation <= this%Sr) then
-    relative_permeability = 1.d0
-    return
-  endif
   
   Se1 = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
   
-  if (Se1 >= 1.d0) then
-    relative_permeability = 0.d0
+  if (liquid_saturation > this%Sr) then
+    if (Se1 < 1.d0) then
+      relative_permeability = sqrt(1.d0-Se1)* &
+                              (1.d0-Se1**(1.d0/this%m))**(2.d0*this%m)
+      ! Mathematica analytical derivative (Heeho Park)
+      dkr_dSe1 = -(1.d0-Se1**(1.d0/this%m))**(2.d0*this%m)/ &
+          (2.d0*sqrt(1.d0-Se1)) - 2.d0*sqrt(1.d0-Se1)*Se1**(1.d0/this%m-1.d0) &
+          * (1.d0-Se1**(1.d0/this%m))**(2.d0*this%m-1.d0)
+      dSe1_dsat = 1.d0 / (1.d0 - this%Sr)
+      dkr_sat = dkr_dSe1 * dSe1_dsat
+    else
+      relative_permeability = 0.d0
+      dkr_sat = 0.d0
+    endif
+  else
+    relative_permeability = 1.d0
+    dkr_sat = 0.d0
   endif
-  
-  relative_permeability = sqrt(1.d0-Se1)* &
-                          (1.d0-Se1**(1.d0/this%m))**(2.d0*this%m)
-  ! Mathematica analytical derivative (Heeho Park)
-  dkr_dSe1 = -(1.d0-Se1**(1.d0/this%m))**(2.d0*this%m)/(2.d0*sqrt(1.d0-Se1)) &
-             - 2.d0*sqrt(1.d0-Se1)*Se1**(1.d0/this%m-1.d0) &
-             * (1.d0-Se1**(1.d0/this%m))**(2.d0*this%m-1.d0)
-  dSe1_dsat = 1.d0 / (1.d0 - this%Sr)
-  dkr_sat = dkr_dSe1 * dSe1_dsat
   
 end subroutine RPF_KRP8_Gas_RelPerm
 
