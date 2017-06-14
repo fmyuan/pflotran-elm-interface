@@ -4205,6 +4205,8 @@ subroutine SF_WIPP_KPC(this,lambda,PT,Se,capillary_pressure)
         BC = PETSC_TRUE
       type is(sat_func_KRP8_type)
         VG = PETSC_TRUE
+      type is(sat_func_KRP12_type)
+        BC = PETSC_TRUE
       class default
         return
     end select
@@ -5069,6 +5071,7 @@ subroutine SF_KRP5_CapillaryPressure(this,liquid_saturation, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se2
+  PetscReal :: dummy_lambda
   
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
@@ -5288,7 +5291,7 @@ subroutine SF_KRP8_CapillaryPressure(this,liquid_saturation, &
     capillary_pressure = 0.d0
   endif
 
-call SF_WIPP_KPC(this,lambda,P0,Se1,capillary_pressure)
+  call SF_WIPP_KPC(this,lambda,P0,Se1,capillary_pressure)
   
 end subroutine SF_KRP8_CapillaryPressure
 
@@ -5736,6 +5739,7 @@ subroutine SF_KRP12_CapillaryPressure(this,liquid_saturation, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se21
+  PetscReal :: Se1
   PetscReal :: Se
   
   dpc_dsatl = 0.d0
@@ -5759,6 +5763,10 @@ subroutine SF_KRP12_CapillaryPressure(this,liquid_saturation, &
   Se21 = max(min(Se,1.d0),this%s_effmin)
   
   capillary_pressure = this%pct/(Se21**(1.d0/this%lambda))
+  
+  ! do not pass in Se21 into the following function, it needs Se1:
+  Se1 = (liquid_saturation - this%Sr)/(1.d0 - this%Sr)
+  call SF_WIPP_KPC(this,this%lambda,this%pct,Se1,capillary_pressure)
 
 end subroutine SF_KRP12_CapillaryPressure
 
@@ -8931,9 +8939,9 @@ subroutine RPF_KRP9_Liq_RelPerm(this,liquid_saturation, &
     return
   endif
   
-  relative_permeability = 1.d0/(1.d0+a*Se**b)
+  relative_permeability = 1.d0/((1.d0+a)*Se**b)
   ! Python analytical derivative (Jenn Frederick)
-  dkr_dSe = -1.d0*a*b*(Se**(b - 1))/(a*(Se**b) + 1.d0)**2.d0
+  dkr_dSe = -1.d0*Se**(-b)*b/(Se*(a + 1.d0))
   dSe_dsat = -1.d0/(liquid_saturation**2.d0)
   dkr_sat = dkr_dSe * dSe_dsat
   
