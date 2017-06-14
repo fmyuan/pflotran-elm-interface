@@ -4206,7 +4206,8 @@ subroutine SF_WIPP_KPC(this,lambda,PT,Se,capillary_pressure)
       type is(sat_func_KRP8_type)
         VG = PETSC_TRUE
       type is(sat_func_KRP12_type)
-        BC = PETSC_TRUE
+        SEMIN = 0.d0
+        ! BC = PETSC_TRUE
       class default
         return
     end select
