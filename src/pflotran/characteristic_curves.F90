@@ -4217,7 +4217,7 @@ subroutine SF_WIPP_KPC(this,lambda,PT,Se,capillary_pressure)
   endif
   
   if (Se <= SEMIN) then
-    capillary_pressure = min(capillary_pressure,this%pcmax)
+    capillary_pressure = this%pcmax
   endif
   
 end subroutine SF_WIPP_KPC
