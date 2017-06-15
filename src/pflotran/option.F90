@@ -195,6 +195,9 @@ module Option_module
     PetscInt :: secondary_continuum_solver     ! Specify secondary continuum solver
     
     PetscInt :: subsurface_simulation_type
+    
+    ! For WIPP_type pc-sat characteristic curves that use Pct
+    PetscBool :: pct_updated
 
     ! Type of averaging scheme for relative permeability
     PetscInt :: rel_perm_aveg
@@ -561,6 +564,8 @@ subroutine OptionInitRealization(option)
   option%min_allowable_scale = 1.0d-10
 
   option%print_ekg = PETSC_FALSE
+  
+  option%pct_updated = PETSC_FALSE
   
   option%inline_surface_flow           = PETSC_FALSE
   option%inline_surface_Mannings_coeff = 0.02d0

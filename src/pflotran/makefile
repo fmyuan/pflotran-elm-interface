@@ -578,8 +578,8 @@ auxvars_towg.o : auxvars_base.o auxvars_flow.o auxvars_flow_energy.o option.o \
                  pflotran_constants.o utility.o
 block_solve.o :
 block_tridiag.o : pflotran_constants.o
-characteristic_curves.o : input_aux.o option.o pflotran_constants.o string.o \
-                          utility.o
+characteristic_curves.o : input_aux.o material_aux.o option.o \
+                          pflotran_constants.o string.o utility.o
 checkpoint.o : discretization.o field.o global.o grid.o hdf5.o input_aux.o \
                material.o option.o output_aux.o pflotran_constants.o \
                realization_subsurface.o string.o units.o utility.o variables.o \
@@ -868,8 +868,9 @@ hydrostatic_common.o : connection.o eos_gas.o eos_oil.o eos_water.o grid.o \
 hydrostatic_multi_phase.o : characteristic_curves.o condition.o connection.o \
                             coupler.o dataset_ascii.o dataset_gridded_hdf5.o \
                             eos_gas.o eos_oil.o eos_water.o grid.o \
-                            hydrostatic_common.o option.o pflotran_constants.o \
-                            pm_toil_ims_aux.o region.o utility.o
+                            hydrostatic_common.o material_aux.o option.o \
+                            pflotran_constants.o pm_toil_ims_aux.o region.o \
+                            utility.o
 immis.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
           connection.o coupler.o debug.o discretization.o eos_water.o field.o \
           global_aux.o grid.o immis_aux.o material.o material_aux.o option.o \
@@ -1106,8 +1107,9 @@ pm_towg.o : checkpoint.o field.o global.o input_aux.o material.o option.o \
 pm_towg_aux.o : auxvars_towg.o characteristic_curves.o eos_gas.o eos_oil.o \
                 eos_water.o global_aux.o grid.o material_aux.o option.o \
                 pflotran_constants.o pm_base_aux.o utility.o
-pm_ufd_biosphere.o : grid.o input_aux.o material_aux.o option.o \
-                     pflotran_constants.o pm_base.o reaction_aux.o \
+pm_ufd_biosphere.o : coupler.o global_aux.o grid.o input_aux.o material_aux.o \
+                     option.o output_aux.o pflotran_constants.o pm_base.o \
+                     reaction_aux.o reactive_transport_aux.o \
                      realization_subsurface.o region.o string.o utility.o
 pm_ufd_decay.o : field.o global.o global_aux.o grid.o input_aux.o material.o \
                  material_aux.o option.o patch.o pflotran_constants.o \
