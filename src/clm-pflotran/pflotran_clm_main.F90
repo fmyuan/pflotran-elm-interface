@@ -125,6 +125,9 @@ contains
 
     model%option => OptionCreate()
     call OptionInitMPI(model%option, mpicomm)
+    ! NOTE: 'mpicomm' from caller should have already initialized beyond PFLOTRAN.
+    !       SO it must also be finalized beyond PFLOTRAN. Otherwise it causes MPI_Finalize failure.
+
     call PFLOTRANInitializePrePetsc(model%multisimulation, model%option)
 
     ! NOTE(bja) 2013-06-25 : external driver must provide an input
