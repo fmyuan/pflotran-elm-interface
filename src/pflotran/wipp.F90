@@ -140,8 +140,8 @@ subroutine FracturePropertytoAux(fracture_auxvar,fracture_property)
         fracture_property%change_perm_z
     else
       fracture_auxvar%fracture_is_on = PETSC_FALSE
-      auxvar%fracture%properties = UNINITIALIZED_DOUBLE
-      auxvar%fracture%vector = 0.d0
+      fracture_auxvar%properties = UNINITIALIZED_DOUBLE
+      fracture_auxvar%vector = 0.d0
     endif
   endif
 
