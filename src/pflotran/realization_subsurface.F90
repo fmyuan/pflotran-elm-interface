@@ -2486,19 +2486,13 @@ subroutine RealizSetSoilReferencePressure(realization)
   PetscInt :: ghosted_id
   PetscInt :: imat
   PetscErrorCode :: ierr
+  PetscBool :: initial_pressure_set
 
   option => realization%option
   patch => realization%patch
   grid => patch%grid
   material_property_array => patch%material_property_array
   material_auxvars => patch%aux%Material%auxvars
-
-  if (option%time > 0.d0) then
-    option%io_buffer = 'Restarted simulations (restarted with time > 0) &
-      &that set reference pressure based on the initial pressure will be &
-      &incorrect as the initial pressure is not stored in a checkpoint file.'
-    call printErrMsg(option)
-  endif
 
   call RealizationGetVariable(realization,realization%field%work, &
                               MAXIMUM_PRESSURE,ZERO_INTEGER)
@@ -2509,22 +2503,32 @@ subroutine RealizSetSoilReferencePressure(realization)
   call VecGetArrayReadF90(realization%field%work_loc,vec_loc_p, &
                           ierr); CHKERRQ(ierr)
 
+  initial_pressure_set = PETSC_FALSE
   do ghosted_id = 1, grid%ngmax
     imat = patch%imat(ghosted_id)
     if (imat <= 0) cycle
     if (associated(material_auxvars(ghosted_id)%fracture)) then
       call FractureSetInitialPressure(material_auxvars(ghosted_id)%fracture, &
                                       vec_loc_p(ghosted_id))
+      initial_pressure_set = PETSC_TRUE
     endif
     if (material_property_array(imat)%ptr%soil_reference_pressure_initial) then
       call MaterialAuxVarSetValue(material_auxvars(ghosted_id), &
                                   SOIL_REFERENCE_PRESSURE, &
                                   vec_loc_p(ghosted_id))
+      initial_pressure_set = PETSC_TRUE
     endif
   enddo
 
   call VecRestoreArrayReadF90(realization%field%work_loc,vec_loc_p, &
                               ierr); CHKERRQ(ierr)
+
+  if (initial_pressure_set .and. option%time > 0.d0) then
+    option%io_buffer = 'Restarted simulations (restarted with time > 0) &
+      &that set reference pressure based on the initial pressure will be &
+      &incorrect as the initial pressure is not stored in a checkpoint file.'
+    call printErrMsg(option)
+  endif
 
 end subroutine RealizSetSoilReferencePressure
 
