@@ -98,12 +98,19 @@ subroutine FractureAuxVarInit(fracture_material,auxvar)
   class(fracture_type), pointer :: fracture_material
   class(material_auxvar_type), intent(inout) :: auxvar
 
+  ! It is possible due to changes in material IDs that auxvar%fracture may be
+  ! associated coming into this routine.  If auxvar%fracture is associated
+  ! and fracture_material is not, deallocate it.  Otherwise, allocate if 
+  ! necessary and initialize.
   if (associated(fracture_material)) then
-    allocate(auxvar%fracture)
-    allocate(auxvar%fracture%properties(4))
-    allocate(auxvar%fracture%vector(3))
-    auxvar%fracture%properties = 0.d0
-    auxvar%fracture%vector = 0.d0
+    if (.not.associated(auxvar%fracture)) then
+      allocate(auxvar%fracture)
+      auxvar%fracture%properties = 0.d0
+      auxvar%fracture%vector = 0.d0
+    endif
+    ! Whether to initialize properties all together?
+  else
+    call MaterialAuxVarFractureStrip(auxvar%fracture)
   endif
 
 end subroutine FractureAuxVarInit
