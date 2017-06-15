@@ -118,27 +118,31 @@ subroutine FracturePropertytoAux(fracture_auxvar,fracture_property)
   
   implicit none
 
-  class(fracture_auxvar_type), intent(inout) :: fracture_auxvar
+  type(fracture_auxvar_type), pointer :: fracture_auxvar
   class(fracture_type), pointer :: fracture_property
 
-  if (associated(fracture_property)) then
-    fracture_auxvar%fracture_is_on = PETSC_TRUE
-    fracture_auxvar%properties(frac_init_pres_index) = &
-      fracture_property%init_pressure
-    fracture_auxvar%properties(frac_alt_pres_index) = &
-      fracture_property%altered_pressure
-    fracture_auxvar%properties(frac_max_poro_index) = &
-      fracture_property%maximum_porosity
-    fracture_auxvar%properties(frac_poro_exp_index) = &
-      fracture_property%porosity_exponent
-    fracture_auxvar%vector(frac_change_perm_x_index) = &
-      fracture_property%change_perm_x
-    fracture_auxvar%vector(frac_change_perm_y_index) = &
-      fracture_property%change_perm_y
-    fracture_auxvar%vector(frac_change_perm_z_index) = &
-      fracture_property%change_perm_z
-  else
-    fracture_auxvar%fracture_is_on = PETSC_FALSE
+  if (associated(fracture_auxvar)) then
+    if (associated(fracture_property)) then
+      fracture_auxvar%fracture_is_on = PETSC_TRUE
+      fracture_auxvar%properties(frac_init_pres_index) = &
+        fracture_property%init_pressure
+      fracture_auxvar%properties(frac_alt_pres_index) = &
+        fracture_property%altered_pressure
+      fracture_auxvar%properties(frac_max_poro_index) = &
+        fracture_property%maximum_porosity
+      fracture_auxvar%properties(frac_poro_exp_index) = &
+        fracture_property%porosity_exponent
+      fracture_auxvar%vector(frac_change_perm_x_index) = &
+        fracture_property%change_perm_x
+      fracture_auxvar%vector(frac_change_perm_y_index) = &
+        fracture_property%change_perm_y
+      fracture_auxvar%vector(frac_change_perm_z_index) = &
+        fracture_property%change_perm_z
+    else
+      fracture_auxvar%fracture_is_on = PETSC_FALSE
+      auxvar%fracture%properties = UNINITIALIZED_DOUBLE
+      auxvar%fracture%vector = 0.d0
+    endif
   endif
 
 end subroutine FracturePropertytoAux

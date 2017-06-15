@@ -1436,10 +1436,8 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
       material_property%rock_density
   endif
   
-  if (associated(material_property%fracture)) then
-    call FracturePropertytoAux(material_auxvar%fracture, &
-                               material_property%fracture)
-  endif
+  call FracturePropertytoAux(material_auxvar%fracture, &
+                             material_property%fracture)
   
   if (soil_compressibility_index > 0) then
     material_auxvar%soil_properties(soil_compressibility_index) = &
