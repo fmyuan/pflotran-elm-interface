@@ -46,8 +46,8 @@ module Material_Aux_class
   end type material_auxvar_type
   
   type, public :: fracture_auxvar_type
-    PetscReal, pointer :: properties(:)
-    PetscReal, pointer :: vector(:) ! < 0. 0. 0. >
+    PetscReal :: properties(4)
+    PetscReal :: vector(3) ! < 0. 0. 0. >
   end type fracture_auxvar_type
   
   type, public :: material_parameter_type
@@ -98,7 +98,8 @@ module Material_Aux_class
             MaterialAuxVarGetValue, &
             MaterialAuxVarSetValue, &
             MaterialAuxIndexToPropertyName, &
-            MaterialAuxDestroy
+            MaterialAuxDestroy, &
+            MaterialAuxVarFractureStrip
   
 contains
 
@@ -483,6 +484,29 @@ end function MaterialAuxIndexToPropertyName
 
 ! ************************************************************************** !
 
+subroutine MaterialAuxVarFractureStrip(fracture)
+  ! 
+  ! Deallocates a fracture auxiliary object
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 06/14/17
+  ! 
+  use Utility_module, only : DeallocateArray
+  
+  implicit none
+
+  type(fracture_auxvar_type), pointer :: fracture
+
+  if (.not.associated(fracture)) return
+
+  ! properties and vector are now static arrays.
+  deallocate(fracture)
+  nullify(fracture)
+  
+end subroutine MaterialAuxVarFractureStrip
+
+! ************************************************************************** !
+
 subroutine MaterialAuxVarStrip(auxvar)
   ! 
   ! Deallocates a material auxiliary object
@@ -490,7 +514,6 @@ subroutine MaterialAuxVarStrip(auxvar)
   ! Author: Glenn Hammond
   ! Date: 01/09/14
   ! 
-
   use Utility_module, only : DeallocateArray
   
   implicit none
@@ -500,6 +523,7 @@ subroutine MaterialAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%permeability)
   call DeallocateArray(auxvar%sat_func_prop)
   call DeallocateArray(auxvar%soil_properties)
+  call MaterialAuxVarFractureStrip(auxvar%fracture)
   
 end subroutine MaterialAuxVarStrip
 
@@ -512,6 +536,7 @@ subroutine MaterialAuxDestroy(aux)
   ! Author: Glenn Hammond
   ! Date: 03/02/11
   ! 
+  use Utility_module, only : DeallocateArray
 
   implicit none
 
@@ -530,16 +555,9 @@ subroutine MaterialAuxDestroy(aux)
   nullify(aux%auxvars)
     
   if (associated(aux%material_parameter)) then
-    if (associated(aux%material_parameter%soil_residual_saturation)) &
-      deallocate(aux%material_parameter%soil_residual_saturation)
-    nullify(aux%material_parameter%soil_residual_saturation)
-    if (associated(aux%material_parameter%soil_heat_capacity)) &
-      deallocate(aux%material_parameter%soil_heat_capacity)
-    nullify(aux%material_parameter%soil_heat_capacity)
-    if (associated(aux%material_parameter%soil_thermal_conductivity)) &
-      deallocate(aux%material_parameter%soil_thermal_conductivity)
-    nullify(aux%material_parameter%soil_thermal_conductivity)
-    deallocate(aux%material_parameter)
+    call DeallocateArray(aux%material_parameter%soil_residual_saturation)
+    call DeallocateArray(aux%material_parameter%soil_heat_capacity)
+    call DeallocateArray(aux%material_parameter%soil_thermal_conductivity)
   endif
   nullify(aux%material_parameter)
   
