@@ -313,8 +313,6 @@ subroutine PMCGeomechanicsSetAuxData(this)
   ! 
   ! This routine updates data in simulation_aux that is required by other
   ! process models.
-  ! 
-  ! DANNY - e.g. it takes P, T data from initial condition or flow solve for geomech solve 
   !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14

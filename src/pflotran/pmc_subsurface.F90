@@ -883,7 +883,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
-  use Discretization_module, only : DiscretizationLocalToLocal
+  use Discretization_module, only : DiscretizationLocalToGlobal
   use Field_module
   use Grid_module
   use Option_module
@@ -902,7 +902,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   type(field_type), pointer :: subsurf_field
 
   PetscScalar, pointer :: sim_por_p(:)
-  PetscScalar, pointer :: sim_perm_p(:) !DANNY added
+  PetscScalar, pointer :: work_loc_p(:)
   class(material_auxvar_type), pointer :: subsurf_material_auxvars(:)
 
   PetscInt :: local_id
@@ -910,7 +910,11 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
 
   PetscErrorCode :: ierr
   PetscViewer :: viewer
-  
+
+#ifdef GEOMECH_DEBUG
+  print *, 'Inside PMCSubsurfaceGetAuxDataFromGeomech'
+#endif
+
   if (associated(this%sim_aux)) then
     select type (pmc => this)
       class is (pmc_subsurface_type)
@@ -922,48 +926,33 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
 
         if (option%geomech_subsurf_coupling == GEOMECH_TWO_WAY_COUPLED) then
 
-          call VecGetArrayF90(pmc%sim_aux%subsurf_por, sim_por_p,  &
+          call VecGetArrayF90(pmc%sim_aux%subsurf_por,sim_por_p,  &
                               ierr);CHKERRQ(ierr)
-          call VecGetArrayF90(pmc%sim_aux%subsurf_perm, sim_perm_p,  & 
+          call VecGetArrayF90(subsurf_field%work_loc,work_loc_p,  &
                               ierr);CHKERRQ(ierr)
 
           do local_id = 1, subsurf_grid%nlmax
             ghosted_id = subsurf_grid%nL2G(local_id)
-            subsurf_material_auxvars(ghosted_id)%porosity = sim_por_p(local_id)
-            subsurf_material_auxvars(ghosted_id)%permeability = sim_perm_p(local_id) 
+            work_loc_p(ghosted_id) = sim_por_p(local_id)
           enddo
             
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por, sim_por_p,  &
+          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,sim_por_p,  &
                                   ierr);CHKERRQ(ierr)
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm, sim_perm_p,  & !DANNY-new (11/16/16)
-                                  ierr);CHKERRQ(ierr)
-#ifdef GEOMECH_DEBUG
-          call PetscViewerASCIIOpen(pmc%realization%option%mycomm, &
-                                     'por_before.out',viewer, &
-                                     ierr);CHKERRQ(ierr)
-          call MaterialGetAuxVarVecLoc(pmc%realization%patch%aux%Material, &
-                                       subsurf_field%work_loc, &
-                                       POROSITY,ZERO_INTEGER) !DANNY-add for PERMEABILITY?
+          call VecRestoreArrayF90(subsurf_field%work_loc,work_loc_p,  &
+                              ierr);CHKERRQ(ierr)
 
-          call VecView(subsurf_field%work_loc,viewer,ierr);CHKERRQ(ierr)
-          call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-#endif
-
-          call DiscretizationLocalToLocal(pmc%realization%discretization, &
+          call DiscretizationLocalToGlobal(pmc%realization%discretization, &
                                           subsurf_field%work_loc, &
-                                          subsurf_field%work_loc,ONEDOF)
-
+                                          subsurf_field%porosity_geomech_store, &
+                                          ONEDOF)
 #ifdef GEOMECH_DEBUG
           call PetscViewerASCIIOpen(pmc%realization%option%mycomm, &
-                                     'por_after.out',viewer, &
-                                     ierr);CHKERRQ(ierr)
-          call VecView(subsurf_field%work_loc,viewer,ierr);CHKERRQ(ierr)
+                                    'porosity_geomech_store.out', &
+                                    viewer,ierr);CHKERRQ(ierr)
+          call VecView(subsurf_field%porosity_geomech_store,viewer,ierr);CHKERRQ(ierr)
           call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
-          call MaterialSetAuxVarVecLoc(pmc%realization%patch%aux%Material, &
-                                       subsurf_field%work_loc, &
-                                       POROSITY,ZERO_INTEGER)!DANNY-add for PERMEABILITY?
 
         endif
     end select

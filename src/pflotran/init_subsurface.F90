@@ -281,7 +281,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscInt :: tempint
   PetscReal :: tempreal
   PetscErrorCode :: ierr
-  
+  PetscViewer :: viewer
+
   option => realization%option
   discretization => realization%discretization
   field => realization%field
@@ -505,7 +506,19 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
     creep_closure%imat = material_property%internal_id
   endif
-  
+
+  if (option%geomech_on) then
+    call VecCopy(field%porosity0,field%porosity_geomech_store,ierr);CHKERRQ(ierr)
+#ifdef GEOMECH_DEBUG
+    print *, 'InitSubsurfAssignMatProperties'
+    call PetscViewerASCIIOpen(realization%option%mycomm, &
+                              'porosity_geomech_store_por0.out', &
+                              viewer,ierr);CHKERRQ(ierr)
+    call VecView(field%porosity_geomech_store,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+  endif
+
 end subroutine InitSubsurfAssignMatProperties
 
 ! ************************************************************************** !

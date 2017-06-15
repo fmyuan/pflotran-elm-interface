@@ -18,6 +18,7 @@ module Field_module
     Vec :: porosity_base_store
     Vec :: porosity_t
     Vec :: porosity_tpdt
+    Vec :: porosity_geomech_store
     Vec :: tortuosity0
     Vec :: ithrm_loc
     Vec :: icap_loc
@@ -99,6 +100,7 @@ function FieldCreate()
   ! nullify PetscVecs
   field%porosity0 = PETSC_NULL_VEC
   field%porosity_base_store = PETSC_NULL_VEC
+  field%porosity_geomech_store = PETSC_NULL_VEC
   field%porosity_t = PETSC_NULL_VEC
   field%porosity_tpdt = PETSC_NULL_VEC
   field%tortuosity0 = PETSC_NULL_VEC
@@ -189,6 +191,9 @@ subroutine FieldDestroy(field)
   endif
   if (field%porosity_base_store /= PETSC_NULL_VEC) then
     call VecDestroy(field%porosity_base_store,ierr);CHKERRQ(ierr)
+  endif
+  if (field%porosity_geomech_store /= PETSC_NULL_VEC) then
+    call VecDestroy(field%porosity_geomech_store,ierr);CHKERRQ(ierr)
   endif
   if (field%porosity_t /= PETSC_NULL_VEC) then
     call VecDestroy(field%porosity_t,ierr);CHKERRQ(ierr)

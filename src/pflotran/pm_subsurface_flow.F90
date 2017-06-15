@@ -418,6 +418,8 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
   implicit none
   
   class(pm_subsurface_flow_type) :: this
+  PetscViewer :: viewer
+PetscErrorCode :: ierr
 
   if (this%option%ntrandof > 0) then ! store initial saturations for transport
     call GlobalUpdateAuxVars(this%realization,TIME_T,this%option%time)
@@ -441,9 +443,29 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
     endif
   endif
 
+  if (this%option%ngeomechdof > 0) then
+    print *, 'Inside PMSubsurfaceFlowInitializeTimestepB'
+    call this%comm1%GlobalToLocal(this%realization%field%porosity_geomech_store, &
+                                  this%realization%field%work_loc)
+    ! push values to porosity_current
+    call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc, &
+                                 POROSITY,POROSITY_CURRENT)
+
+#ifdef GEOMECH_DEBUG
+    call PetscViewerASCIIOpen(PETSC_COMM_SELF, &
+                              'porosity_geomech_store_timestep.out', &
+                              viewer,ierr);CHKERRQ(ierr)
+    call VecView(this%realization%field%porosity_geomech_store,viewer, &
+                 ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+
+  endif
+
 #ifdef WELL_CLASS
   call this%AllWellsUpdate()
-#endif  
+#endif
 
 end subroutine PMSubsurfaceFlowInitializeTimestepB
 

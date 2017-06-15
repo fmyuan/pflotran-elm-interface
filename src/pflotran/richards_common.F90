@@ -158,7 +158,7 @@ subroutine RichardsAccumulation(rich_auxvar,global_auxvar, &
     material_auxvar%porosity = compressed_porosity
     por = compressed_porosity
   endif
-    
+
   ! accumulation term units = kmol/s
   Res(1) = global_auxvar%sat(1) * global_auxvar%den(1) * por * &
            vol_over_dt

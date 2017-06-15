@@ -242,6 +242,11 @@ subroutine RealizationCreateDiscretization(realization)
                                        field%porosity_tpdt)
   endif
 
+  if (option%geomech_on) then
+    call DiscretizationDuplicateVector(discretization,field%work, &
+                                       field%porosity_geomech_store)
+  endif
+
   ! 1 degree of freedom, local
   call DiscretizationCreateVector(discretization,ONEDOF,field%work_loc, &
                                   LOCAL,option)
