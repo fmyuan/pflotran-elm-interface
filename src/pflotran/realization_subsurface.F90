@@ -2480,16 +2480,25 @@ subroutine RealizSetSoilReferencePressure(realization)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_type), pointer :: Material
   type(material_property_ptr_type), pointer :: material_property_array(:)
+  type(option_type), pointer :: option
   PetscReal, pointer :: vec_loc_p(:)
 
   PetscInt :: ghosted_id
   PetscInt :: imat
   PetscErrorCode :: ierr
 
+  option => realization%option
   patch => realization%patch
   grid => patch%grid
   material_property_array => patch%material_property_array
   material_auxvars => patch%aux%Material%auxvars
+
+  if (option%time > 0.d0) then
+    option%io_buffer = 'Restarted simulations (restarted with time > 0) &
+      &that set reference pressure based on the initial pressure will be &
+      &incorrect as the initial pressure is not stored in a checkpoint file.'
+    call printErrMsg(option)
+  endif
 
   call RealizationGetVariable(realization,realization%field%work, &
                               MAXIMUM_PRESSURE,ZERO_INTEGER)

@@ -2,11 +2,12 @@ module Fracture_module
   
   use PFLOTRAN_Constants_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   implicit none
   
   private
-
-#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter, public :: frac_init_pres_index = 1
   PetscInt, parameter, public :: frac_alt_pres_index = 2
@@ -85,39 +86,29 @@ end subroutine FractureInit
 
 ! ************************************************************************** !
 
-subroutine FractureAuxVarInit(fracture_material,auxvar)
+subroutine FractureAuxVarInit(auxvar)
   !
-  ! Author: Heeho Park
-  ! Date: 7/8/2015
+  ! Author: Heeho Park, Glenn Hammond
+  ! Date: 7/8/2015, 6/15/17
   !
 
   use Material_Aux_class
   
   implicit none
   
-  class(fracture_type), pointer :: fracture_material
   class(material_auxvar_type), intent(inout) :: auxvar
 
-  ! It is possible due to changes in material IDs that auxvar%fracture may be
-  ! associated coming into this routine.  If auxvar%fracture is associated
-  ! and fracture_material is not, deallocate it.  Otherwise, allocate if 
-  ! necessary and initialize.
-  if (associated(fracture_material)) then
-    if (.not.associated(auxvar%fracture)) then
-      allocate(auxvar%fracture)
-      auxvar%fracture%properties = 0.d0
-      auxvar%fracture%vector = 0.d0
-    endif
-    ! Whether to initialize properties all together?
-  else
-    call MaterialAuxVarFractureStrip(auxvar%fracture)
-  endif
+  call MaterialAuxVarFractureStrip(auxvar%fracture)
+  allocate(auxvar%fracture)
+  auxvar%fracture%initial_pressure = UNINITIALIZED_DOUBLE
+  auxvar%fracture%properties = UNINITIALIZED_DOUBLE
+  auxvar%fracture%vector = 0.d0
 
 end subroutine FractureAuxVarInit
 
 ! ************************************************************************** !
 
-subroutine FracturePropertytoAux(auxvar,fracture_property)
+subroutine FracturePropertytoAux(fracture_auxvar,fracture_property)
   !
   ! Author: Heeho Park
   ! Date: 7/8/2015
@@ -127,24 +118,28 @@ subroutine FracturePropertytoAux(auxvar,fracture_property)
   
   implicit none
 
-  class(material_auxvar_type), intent(inout) :: auxvar
+  class(fracture_auxvar_type), intent(inout) :: fracture_auxvar
   class(fracture_type), pointer :: fracture_property
 
-  
-  auxvar%fracture%properties(frac_init_pres_index) = &
-    fracture_property%init_pressure
-  auxvar%fracture%properties(frac_alt_pres_index) = &
-    fracture_property%altered_pressure
-  auxvar%fracture%properties(frac_max_poro_index) = &
-    fracture_property%maximum_porosity
-  auxvar%fracture%properties(frac_poro_exp_index) = &
-    fracture_property%porosity_exponent
-  auxvar%fracture%vector(frac_change_perm_x_index) = &
-    fracture_property%change_perm_x
-  auxvar%fracture%vector(frac_change_perm_y_index) = &
-    fracture_property%change_perm_y
-  auxvar%fracture%vector(frac_change_perm_z_index) = &
-    fracture_property%change_perm_z
+  if (associated(fracture_property)) then
+    fracture_auxvar%fracture_is_on = PETSC_TRUE
+    fracture_auxvar%properties(frac_init_pres_index) = &
+      fracture_property%init_pressure
+    fracture_auxvar%properties(frac_alt_pres_index) = &
+      fracture_property%altered_pressure
+    fracture_auxvar%properties(frac_max_poro_index) = &
+      fracture_property%maximum_porosity
+    fracture_auxvar%properties(frac_poro_exp_index) = &
+      fracture_property%porosity_exponent
+    fracture_auxvar%vector(frac_change_perm_x_index) = &
+      fracture_property%change_perm_x
+    fracture_auxvar%vector(frac_change_perm_y_index) = &
+      fracture_property%change_perm_y
+    fracture_auxvar%vector(frac_change_perm_z_index) = &
+      fracture_property%change_perm_z
+  else
+    fracture_auxvar%fracture_is_on = PETSC_FALSE
+  endif
 
 end subroutine FracturePropertytoAux
 
@@ -167,6 +162,8 @@ subroutine FractureRead(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: word
+
+  option%flow%fracture_on = PETSC_TRUE
   
   do
       call InputReadPflotranString(input,option)
@@ -231,11 +228,12 @@ subroutine FractureSetInitialPressure(fracture,initial_cell_pressure)
   type(fracture_auxvar_type) :: fracture
   PetscReal, intent(in) :: initial_cell_pressure
   
-  fracture%properties(frac_init_pres_index) = &
-    fracture%properties(frac_init_pres_index) + initial_cell_pressure
-  fracture%properties(frac_alt_pres_index) = &
-    fracture%properties(frac_alt_pres_index) + &
-    fracture%properties(frac_init_pres_index)
+  fracture%initial_pressure = initial_cell_pressure
+!  fracture%properties(frac_init_pres_index) = &
+!    fracture%properties(frac_init_pres_index) + initial_cell_pressure
+!  fracture%properties(frac_alt_pres_index) = &
+!    fracture%properties(frac_alt_pres_index) + &
+!    fracture%properties(frac_init_pres_index)
 
 end subroutine FractureSetInitialPressure
 
@@ -272,8 +270,9 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
   Ci = auxvar%soil_properties(soil_compressibility_index) / &
        auxvar%porosity_base
   P0 = auxvar%soil_properties(soil_reference_pressure_index)
-  Pa = auxvar%fracture%properties(frac_alt_pres_index)
-  Pi = auxvar%fracture%properties(frac_init_pres_index)
+  Pi = auxvar%fracture%properties(frac_init_pres_index) + &
+       auxvar%fracture%initial_pressure
+  Pa = auxvar%fracture%properties(frac_alt_pres_index) + Pi
   phia = auxvar%fracture%properties(frac_max_poro_index)
   phi0 = auxvar%porosity_base
   

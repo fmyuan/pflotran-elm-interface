@@ -56,6 +56,7 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
   use Grid_module
   use Patch_module
   use Material_Aux_class
+  use Fracture_module, only : FractureAuxVarInit
   
   implicit none
   
@@ -95,6 +96,9 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
     allocate(material_auxvars(grid%ngmax))
     do ghosted_id = 1, grid%ngmax
       call MaterialAuxVarInit(material_auxvars(ghosted_id),option)
+      if (option%flow%fracture_on) then
+        call FractureAuxVarInit(material_auxvars(ghosted_id))
+      endif
     enddo
     cur_patch%aux%Material%num_aux = grid%ngmax
     cur_patch%aux%Material%auxvars => material_auxvars
@@ -320,10 +324,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
       material_property => &
         patch%material_property_array(material_id)%ptr
         
-      !if material is associated with fracture, then allocate memory.
-      call FractureAuxVarInit(material_property%fracture, &
-        patch%aux%Material%auxvars(ghosted_id))
-      
       ! lookup creep closure table id from creep closure table name
       if (option%flow%creep_closure_on) then
         material_property%creep_closure_id = &

@@ -46,6 +46,8 @@ module Material_Aux_class
   end type material_auxvar_type
   
   type, public :: fracture_auxvar_type
+    PetscBool :: fracture_is_on
+    PetscReal :: initial_pressure
     PetscReal :: properties(4)
     PetscReal :: vector(3) ! < 0. 0. 0. >
   end type fracture_auxvar_type
