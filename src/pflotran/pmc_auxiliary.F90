@@ -99,6 +99,8 @@ recursive subroutine PMCAuxiliaryRunToTime(this,sync_time,stop_flag)
   
   PetscInt :: local_stop_flag
   PetscErrorCode :: ierr
+
+  if (stop_flag == TS_STOP_FAILURE) return
   
   if (this%stage /= 0) then
     call PetscLogStagePush(this%stage,ierr);CHKERRQ(ierr)

@@ -120,6 +120,8 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
   PetscReal :: dt_max_glb
   PetscViewer :: viewer
   PetscErrorCode :: ierr
+
+  if (stop_flag == TS_STOP_FAILURE) return
   
   this%option%io_buffer = trim(this%name) // ':' // trim(this%pm_list%name)
   call printVerboseMsg(this%option)

@@ -446,6 +446,8 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
   class(pm_base_type), pointer :: cur_pm
   PetscErrorCode :: ierr
 
+  if (stop_flag == TS_STOP_FAILURE) return
+
   if (this%stage /= 0) then
     call PetscLogStagePush(this%stage,ierr);CHKERRQ(ierr)
   endif

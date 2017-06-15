@@ -230,6 +230,8 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
     
   class(pm_base_type), pointer :: cur_pm
 
+  if (stop_flag == TS_STOP_FAILURE) return
+
   this%option%io_buffer = trim(this%name) // ':' // trim(this%pm_list%name)
   call printVerboseMsg(this%option)
   
