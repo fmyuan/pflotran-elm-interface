@@ -38,7 +38,7 @@ CHEMISTRY
       RATE_CONSTANT 0.d0
     /
   /
-  DATABASE ../ufd-decay.dat
+  DATABASE ./ufd-decay.dat
   
   OUTPUT
     ALL 
