@@ -868,9 +868,8 @@ hydrostatic_common.o : connection.o eos_gas.o eos_oil.o eos_water.o grid.o \
 hydrostatic_multi_phase.o : characteristic_curves.o condition.o connection.o \
                             coupler.o dataset_ascii.o dataset_gridded_hdf5.o \
                             eos_gas.o eos_oil.o eos_water.o grid.o \
-                            hydrostatic_common.o material_aux.o option.o \
-                            pflotran_constants.o pm_toil_ims_aux.o region.o \
-                            utility.o
+                            hydrostatic_common.o option.o pflotran_constants.o \
+                            pm_toil_ims_aux.o region.o utility.o
 immis.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
           connection.o coupler.o debug.o discretization.o eos_water.o field.o \
           global_aux.o grid.o immis_aux.o material.o material_aux.o option.o \
@@ -1012,11 +1011,9 @@ patch.o : auxiliary.o characteristic_curves.o condition.o connection.o \
           saturation_function.o strata.o string.o surface_auxiliary.o \
           surface_field.o surface_material.o th_aux.o transport_constraint.o \
           utility.o variables.o well.o well_spec_base.o
-pflotran.o : factory_geomechanics.o factory_hydrogeophysics.o \
-             factory_pflotran.o factory_subsurface.o factory_surface.o \
-             factory_surfsubsurface.o multisimulation.o option.o output_aux.o \
-             pflotran_constants.o pflotran_provenance.o pm_base.o \
-             simulation_base.o
+pflotran.o : factory_hydrogeophysics.o factory_pflotran.o factory_subsurface.o \
+             multisimulation.o option.o pflotran_constants.o \
+             pflotran_provenance.o simulation_base.o
 pflotran_constants.o :
 pflotran_provenance.o :
 pm_auxiliary.o : communicator_base.o global_aux.o init_subsurface.o \
@@ -1066,14 +1063,14 @@ pm_rt.o : checkpoint.o communicator_base.o communicator_structured.o \
           output_ekg.o patch.o pflotran_constants.o pm_base.o reaction_aux.o \
           reactive_transport.o reactive_transport_aux.o realization_base.o \
           realization_subsurface.o secondary_continuum.o string.o variables.o
-pm_subsurface_flow.o : checkpoint.o communicator_base.o \
-                       communicator_structured.o communicator_unstructured.o \
-                       condition.o condition_control.o coupler.o \
-                       data_mediator.o discretization.o global.o grid.o \
-                       input_aux.o integral_flux.o material.o material_aux.o \
-                       option.o pflotran_constants.o pm_base.o \
-                       realization_subsurface.o srcsink_sandbox.o string.o \
-                       variables.o
+pm_subsurface_flow.o : characteristic_curves.o checkpoint.o \
+                       communicator_base.o communicator_structured.o \
+                       communicator_unstructured.o condition.o \
+                       condition_control.o coupler.o data_mediator.o \
+                       discretization.o global.o grid.o input_aux.o \
+                       integral_flux.o material.o material_aux.o option.o \
+                       pflotran_constants.o pm_base.o realization_subsurface.o \
+                       srcsink_sandbox.o string.o variables.o
 pm_surface.o : checkpoint_surface.o communicator_base.o \
                communicator_unstructured.o condition.o discretization.o \
                global.o grid.o input_aux.o option.o pflotran_constants.o \
