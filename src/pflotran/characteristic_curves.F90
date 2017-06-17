@@ -4962,6 +4962,7 @@ subroutine SF_KRP4_Saturation(this,capillary_pressure, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se2  
+  PetscReal :: term
   
   dsat_dpres = 0.d0
   dsat_dpres = 1.d0/dsat_dpres
@@ -4979,7 +4980,9 @@ subroutine SF_KRP4_Saturation(this,capillary_pressure, &
     option%pct_updated = PETSC_FALSE
   endif
   
-  if (capillary_pressure < this%pct) then
+  term = this%pct*((1.d0-this%Sr)/(1.d0-this%Sr-this%Srg))**(-1.d0/this%lambda)
+
+  if ((capillary_pressure) < term) then
     liquid_saturation = 1.d0
     dsat_dpres = 0.d0
     return
