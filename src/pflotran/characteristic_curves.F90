@@ -8970,9 +8970,9 @@ subroutine RPF_KRP9_Liq_RelPerm(this,liquid_saturation, &
     return
   endif
   
-  relative_permeability = 1.d0/((1.d0+a)*Se**b)
+  relative_permeability = 1.d0/(1.d0+a*Se**b)
   ! Python analytical derivative (Jenn Frederick)
-  dkr_dSe = -1.d0*Se**(-b)*b/(Se*(a + 1.d0))
+  dkr_dSe = -1.d0*Se**(b-1.d0)*a*b/(Se**b*a + 1.d0)**2.d0
   dSe_dsat = -1.d0/(liquid_saturation**2.d0)
   dkr_sat = dkr_dSe * dSe_dsat
   

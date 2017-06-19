@@ -1973,16 +1973,14 @@ contains
                               dkr_sat,this%option)
     string = 'KRP9 liquid relative permeability as a function of &
              &capillary pressure at low capillary pressure'
-    value = 1.0d0
-    print *, 'VALUE===>', relative_permeability
+    value = 0.99999998839687010d0
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
     call this%cc_krp9%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP9 gas relative permeability as a function of &
              &capillary pressure at low capillary pressure'
-    value = 0.0d0
-    print *, 'VALUE===>', relative_permeability
+    value = 1.1603129901338605d-8
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
 
   ! saturation = f(capillary_pressure) at high capillary pressure
@@ -1995,24 +1993,21 @@ contains
                                                      dsat_pres,this%option)
     string = 'KRP9 saturation as a function of capillary &
              &pressure at high capillary pressure'
-    value = 0.74007809371245503d0
-    print *, 'VALUE===>', liquid_saturation
+    value = 1.8062138845808708d-7
     @assertEqual(value, liquid_saturation, dabs(value)*tolerance, string)
     call this%cc_krp9%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP9 liquid relative permeability as a function of &
              &capillary pressure at high capillary pressure'
-    value = 0.92010412494993998d0
-    print *, 'VALUE===>', relative_permeability
+    value = 0.d0
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
     call this%cc_krp9%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP9 gas relative permeability as a function of &
              &capillary pressure at high capillary pressure'
-    value = 7.9895875050060017d-2
-    print *, 'VALUE===>', relative_permeability
+    value = 1.d0
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
 
   end subroutine testsf_KRP9
