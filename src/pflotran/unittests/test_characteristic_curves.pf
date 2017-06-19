@@ -37,7 +37,7 @@ module Test_Characteristic_Curves_module
       class(characteristic_curves_type), pointer :: cc_krp8
      ! class(characteristic_curves_type), pointer :: cc_krp9
      ! class(characteristic_curves_type), pointer :: cc_krp11
-     ! class(characteristic_curves_type), pointer :: cc_krp12
+      class(characteristic_curves_type), pointer :: cc_krp12
       procedure(runMethod), pointer :: userMethod => null()
     contains
       procedure :: setUp     
@@ -439,6 +439,35 @@ contains
     select type(sf=>this%cc_krp8%gas_rel_perm_function)
       class is(rpf_KRP8_gas_type)
         sf%m = 0.45d0
+    end select
+    
+  ! Setting up the characteristic curve for BRAGFLO_KRP12
+    this%cc_krp12 => CharacteristicCurvesCreate()
+    this%cc_krp12%saturation_function => SF_KRP12_Create()
+    this%cc_krp12%saturation_function%Sr = 0.12d0
+    this%cc_krp12%saturation_function%pcmax = 0.999d7
+    select type(sf=>this%cc_krp12%saturation_function)
+      class is(sat_func_KRP12_type)
+        sf%lambda = 0.2d0
+        sf%alpha = 5.0d-4
+        sf%s_min = 0.015d0
+        sf%s_effmin = 0.005d0
+        sf%ignore_permeability = PETSC_TRUE
+        sf%kpc = 2
+    end select
+    this%cc_krp12%liq_rel_perm_function => RPF_KRP12_Liq_Create()
+    this%cc_krp12%liq_rel_perm_function%Sr = 0.12d0
+    select type(sf=>this%cc_krp12%liq_rel_perm_function)
+      class is(rpf_KRP12_liq_type)
+        sf%lambda = 0.20d0
+        sf%Srg = 0.20d0
+    end select
+    this%cc_krp12%gas_rel_perm_function => RPF_KRP12_Gas_Create()
+    this%cc_krp12%gas_rel_perm_function%Sr = 0.12d0
+    select type(sf=>this%cc_krp12%gas_rel_perm_function)
+      class is(rpf_KRP12_gas_type)
+        sf%lambda = 0.20d0
+        sf%Srg = 0.20d0
     end select
 
   end subroutine setUp
@@ -1805,6 +1834,77 @@ contains
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
 
   end subroutine testsf_KRP8
+  
+! ************************************************************************** !
+
+  @Test
+  subroutine testsf_KRP12(this)
+    
+    implicit none
+
+    class(Test_Characteristic_Curves), intent(inout) :: this
+
+    PetscReal :: capillary_pressure
+    PetscReal :: liquid_saturation
+    PetscReal :: relative_permeability
+    PetscReal :: dsat_pres
+    PetscReal :: value
+    PetscReal :: dkr_sat
+    PetscReal, parameter :: tolerance = 1.d-8
+    character(len=128) :: string
+
+  ! saturation = f(capillary_pressure) at low capillary pressure    
+    capillary_pressure = 100.d0
+    call this%cc_krp12%saturation_function%Saturation(capillary_pressure, &
+                                                      liquid_saturation, &
+                                                      dsat_pres,this%option)
+    string = 'KRP12 saturation as a function of capillary &
+             &pressure at low capillary pressure'
+    value = 1.0d0
+    @assertEqual(value, liquid_saturation, dabs(value)*tolerance, string)
+    call this%cc_krp12%liq_rel_perm_function% &
+         RelativePermeability(liquid_saturation,relative_permeability, &
+                              dkr_sat,this%option)
+    string = 'KRP12 liquid relative permeability as a function of &
+             &capillary pressure at low capillary pressure'
+    value = 1.0d0
+    @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
+    call this%cc_krp12%gas_rel_perm_function% &
+         RelativePermeability(liquid_saturation,relative_permeability, &
+                              dkr_sat,this%option)
+    string = 'KRP12 gas relative permeability as a function of &
+             &capillary pressure at low capillary pressure'
+    value = 0.d0
+    @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
+
+  ! saturation = f(capillary_pressure) at high capillary pressure
+    select type(sf=>this%cc_krp12%saturation_function)
+      class is(sat_func_KRP12_type)
+        capillary_pressure = 1.d6
+    end select
+    call this%cc_krp12%saturation_function%Saturation(capillary_pressure, &
+                                                      liquid_saturation, &
+                                                      dsat_pres,this%option)
+    string = 'KRP12 saturation as a function of capillary &
+             &pressure at high capillary pressure'
+    value = 0.30276918155781385d0
+    @assertEqual(value, liquid_saturation, dabs(value)*tolerance, string)
+    call this%cc_krp12%liq_rel_perm_function% &
+         RelativePermeability(liquid_saturation,relative_permeability, &
+                              dkr_sat,this%option)
+    string = 'KRP12 liquid relative permeability as a function of &
+             &capillary pressure at high capillary pressure'
+    value = 1.3380237859265290d-9
+    @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
+    call this%cc_krp12%gas_rel_perm_function% &
+         RelativePermeability(liquid_saturation,relative_permeability, &
+                              dkr_sat,this%option)
+    string = 'KRP12 gas relative permeability as a function of &
+             &capillary pressure at high capillary pressure'
+    value = 0.53468502607262869d0
+    @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
+
+  end subroutine testsf_KRP12
 
 ! ************************************************************************** !
 
