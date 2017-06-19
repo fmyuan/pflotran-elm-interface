@@ -1089,14 +1089,16 @@ subroutine PMUFDBAscUnsuppRadWithSuppRad(this)
     cur_ERB => this%ERB_list
     do
       if (.not.associated(cur_ERB)) exit
-      ghosted_id = grid%nL2G(cur_ERB%region%cell_ids(1))
-      no_density = Uninitialized(material_auxvar(ghosted_id)% &
-                   soil_particle_density)
-      if (cur_ERB%incl_unsupported_rads .and. no_density) then
-        option%io_buffer = 'ROCK_DENSITY is not specified in the &
-            &MATERIAL_PROPERTY that ERB Model ' // trim(cur_ERB%name) // &
-            ' resides in.'
-        call printErrMsg(option)
+      if (cur_ERB%region%num_cells > 0) then
+        ghosted_id = grid%nL2G(cur_ERB%region%cell_ids(1))
+        no_density = Uninitialized(material_auxvar(ghosted_id)% &
+                                   soil_particle_density)
+        if (cur_ERB%incl_unsupported_rads .and. no_density) then
+          option%io_buffer = 'ROCK_DENSITY is not specified in the &
+              &MATERIAL_PROPERTY that ERB Model ' // trim(cur_ERB%name) // &
+              ' resides in.'
+          call printErrMsgByRank(option)
+        endif
       endif
     cur_ERB => cur_ERB%next
     enddo
