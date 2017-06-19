@@ -990,6 +990,7 @@ subroutine FlowConditionRead(condition,input,option)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: rate_string
+  character(len=MAXWORDLENGTH) :: energy_rate_string
   character(len=MAXWORDLENGTH) :: internal_units
   type(flow_sub_condition_type), pointer :: pressure, flux, temperature, &
                                        concentration, enthalpy, rate, well,&
@@ -1014,6 +1015,7 @@ subroutine FlowConditionRead(condition,input,option)
   default_time_storage%time_interpolation_method = INTERPOLATION_STEP
 
   rate_string = 'not_assigned'
+  energy_rate_string = 'not_assigned'
   internal_units = 'not_assigned'
   
   pressure => FlowSubConditionCreate(option%nphase)
@@ -1170,10 +1172,10 @@ subroutine FlowConditionRead(condition,input,option)
               rate_string = 'kg/sec'
             case('energy_rate')
               sub_condition_ptr%itype = ENERGY_RATE_SS
-              rate_string = 'MJ/sec|MW'
+              energy_rate_string = 'MJ/sec|MW'
             case('heterogeneous_energy_rate')
               sub_condition_ptr%itype = HET_ENERGY_RATE_SS
-              rate_string = 'MJ/sec|MW'
+              energy_rate_string = 'MJ/sec|MW'
             case('scaled_mass_rate','scaled_volumetric_rate', &
                  'scaled_energy_rate')
               select case(word)
@@ -1185,7 +1187,7 @@ subroutine FlowConditionRead(condition,input,option)
                   rate_string = 'm^3/sec'
                 case('scaled_energy_rate')
                   sub_condition_ptr%itype = SCALED_ENERGY_RATE_SS
-                  rate_string = 'MW|MJ/sec'
+                  energy_rate_string = 'MW|MJ/sec'
               end select
               ! store name of type for error messaging below.
               string = word
@@ -1354,7 +1356,7 @@ subroutine FlowConditionRead(condition,input,option)
         input%force_units = PETSC_FALSE
       case('ENERGY_RATE')
         input%force_units = PETSC_TRUE
-        internal_units = 'MJ/sec|MW'
+        internal_units = energy_rate_string
         input%err_buf = word
         call ConditionReadValues(input,option,word, &
                                  energy_rate%dataset, &
