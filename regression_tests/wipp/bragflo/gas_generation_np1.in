@@ -25,6 +25,11 @@ END
 
 SUBSURFACE
 
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 5
+END
+
 !=========================== discretization ===================================
 GRID
   TYPE structured
