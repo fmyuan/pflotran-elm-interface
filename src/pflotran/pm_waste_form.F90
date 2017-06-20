@@ -134,6 +134,7 @@ module PM_Waste_Form_class
     PetscReal :: eff_canister_vit_rate
     PetscReal :: breach_time                            ! sec
     PetscBool :: breached
+    PetscReal :: decay_start_time                       ! sec
     character(len=MAXWORDLENGTH) :: mech_name
     class(wf_mechanism_base_type), pointer :: mechanism
     class(waste_form_base_type), pointer :: next
@@ -411,6 +412,7 @@ function PMWFWasteFormCreate()
   wf%exposure_factor = 1.0d0
   wf%eff_dissolution_rate = UNINITIALIZED_DOUBLE
   wf%mech_name = ''
+  wf%decay_start_time = 0.d0 ! sec (default value)
   nullify(wf%instantaneous_mass_rate) ! mol-rad/sec
   nullify(wf%cumulative_mass) ! mol-rad
   nullify(wf%rad_mass_fraction) ! g-rad/g-matrix
@@ -1393,6 +1395,14 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
             call InputReadAndConvertUnits(input,new_waste_form%breach_time, &
                            'sec',trim(error_string)//',CANISTER_BREACH_TIME', &
                            option)
+        !-----------------------------
+          case('DECAY_START_TIME')
+            call InputReadDouble(input,option, &
+                                 new_waste_form%decay_start_time)
+            call InputErrorMsg(input,option,'DECAY_START_TIME',error_string)
+            call InputReadAndConvertUnits(input, &
+                 new_waste_form%decay_start_time,'sec',trim(error_string)// &
+                 ',DECAY_START_TIME',option)
         !-----------------------------    
           case default
             call InputKeywordUnrecognized(word,error_string,option)
@@ -2153,7 +2163,8 @@ subroutine PMWFInitializeTimestep(this)
     ! Save the concentration after inst. release for the decay step
     concentration_old = cur_waste_form%rad_concentration
 
-    if (cur_waste_form%volume >= 0.d0) then
+    if ((cur_waste_form%volume >= 0.d0) .and. &
+        (option%time >= cur_waste_form%decay_start_time)) then
       !------- decay the radionuclide species --------------------------------
       ! FIRST PASS =====================
       do d = 1,num_species
