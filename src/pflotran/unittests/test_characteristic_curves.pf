@@ -1553,12 +1553,20 @@ contains
     PetscReal :: liquid_saturation
     PetscReal :: relative_permeability
     PetscReal :: dsat_pres
+    PetscReal :: dpc_dsatl
     PetscReal :: value
     PetscReal :: dkr_sat
     PetscReal, parameter :: tolerance = 1.d-8
     character(len=128) :: string
 
-  ! saturation = f(capillary_pressure) at low capillary pressure    
+    liquid_saturation = 0.22
+    call this%cc_krp1%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP1 capillary pressure as a function of saturation &
+             &at low liquid saturation'
+    value = 211645.56118006655d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)     
     capillary_pressure = 10.d0
     call this%cc_krp1%saturation_function%Saturation(capillary_pressure, &
                                                      liquid_saturation, &
@@ -1582,7 +1590,14 @@ contains
     value = 5.9765155008000600d-4
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
 
-  ! saturation = f(capillary_pressure) at high capillary pressure
+    liquid_saturation = 0.81
+    call this%cc_krp1%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP1 capillary pressure as a function of saturation &
+             &at high liquid saturation'
+    value = 0.0d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)
     select type(sf=>this%cc_krp1%saturation_function)
       class is(sat_func_KRP1_type)
         capillary_pressure = 10.d0/sf%alpha
@@ -1624,12 +1639,20 @@ contains
     PetscReal :: liquid_saturation
     PetscReal :: relative_permeability
     PetscReal :: dsat_pres
+    PetscReal :: dpc_dsatl
     PetscReal :: value
     PetscReal :: dkr_sat
     PetscReal, parameter :: tolerance = 1.d-8
     character(len=128) :: string
 
-  ! saturation = f(capillary_pressure) at low capillary pressure    
+    liquid_saturation = 0.05
+    call this%cc_krp2%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP2 capillary pressure as a function of saturation &
+             &at low liquid saturation'
+    value = 9990000.0d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)     
     capillary_pressure = 100.d0
     call this%cc_krp2%saturation_function%Saturation(capillary_pressure, &
                                                      liquid_saturation, &
@@ -1653,7 +1676,14 @@ contains
     value = 0.0d0
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
 
-  ! saturation = f(capillary_pressure) at high capillary pressure
+    liquid_saturation = 0.81
+    call this%cc_krp2%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP2 capillary pressure as a function of saturation &
+             &at high liquid saturation'
+    value = 51637.669399930157d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)
     select type(sf=>this%cc_krp2%saturation_function)
       class is(sat_func_KRP2_type)
         capillary_pressure = 15.d0/sf%alpha
@@ -1694,12 +1724,20 @@ contains
     PetscReal :: liquid_saturation
     PetscReal :: relative_permeability
     PetscReal :: dsat_pres
+    PetscReal :: dpc_dsatl
     PetscReal :: value
     PetscReal :: dkr_sat
     PetscReal, parameter :: tolerance = 1.d-8
     character(len=128) :: string
 
-  ! saturation = f(capillary_pressure) at low capillary pressure    
+    liquid_saturation = 0.21
+    call this%cc_krp3%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP3 capillary pressure as a function of saturation &
+             &at low liquid saturation'
+    value = 143937.17953954436d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)    
     capillary_pressure = 10.d0
     call this%cc_krp3%saturation_function%Saturation(capillary_pressure, &
                                    liquid_saturation,dsat_pres,this%option)
@@ -1722,11 +1760,15 @@ contains
     value = 0.0d0
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
 
-  ! saturation = f(capillary_pressure) at high capillary pressure
-    select type(sf=>this%cc_krp3%saturation_function)
-      class is(sat_func_KRP3_type)
-        capillary_pressure = 1.d5
-    end select
+    liquid_saturation = 0.81
+    call this%cc_krp3%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP3 capillary pressure as a function of saturation &
+             &at high liquid saturation'
+    value = 200.0d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)
+    capillary_pressure = 1.d5
     call this%cc_krp3%saturation_function%Saturation(capillary_pressure, &
                                    liquid_saturation,dsat_pres,this%option)
     string = 'KRP3 saturation as a function of capillary &
@@ -1763,12 +1805,20 @@ contains
     PetscReal :: liquid_saturation
     PetscReal :: relative_permeability
     PetscReal :: dsat_pres
+    PetscReal :: dpc_dsatl
     PetscReal :: value
     PetscReal :: dkr_sat
     PetscReal, parameter :: tolerance = 1.d-8
     character(len=128) :: string
 
-  ! saturation = f(capillary_pressure) at low capillary pressure    
+    liquid_saturation = 0.16
+    call this%cc_krp4%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP4 capillary pressure as a function of saturation &
+             &at low liquid saturation'
+    value = 9990000.0d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)    
     capillary_pressure = 10.d0
     call this%cc_krp4%saturation_function%Saturation(capillary_pressure, &
                                    liquid_saturation,dsat_pres,this%option)
@@ -1791,11 +1841,15 @@ contains
     value = 0.0d0
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
 
-  ! saturation = f(capillary_pressure) at high capillary pressure
-    select type(sf=>this%cc_krp4%saturation_function)
-      class is(sat_func_KRP4_type)
-        capillary_pressure = 1.d5
-    end select
+    liquid_saturation = 0.81
+    call this%cc_krp4%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP4 capillary pressure as a function of saturation &
+             &at high liquid saturation'
+    value = 152.32289193581161d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)
+    capillary_pressure = 1.d5
     call this%cc_krp4%saturation_function%Saturation(capillary_pressure, &
                                    liquid_saturation,dsat_pres,this%option)
     string = 'KRP4 saturation as a function of capillary &
@@ -1832,12 +1886,20 @@ contains
     PetscReal :: liquid_saturation
     PetscReal :: relative_permeability
     PetscReal :: dsat_pres
+    PetscReal :: dpc_dsatl
     PetscReal :: value
     PetscReal :: dkr_sat
     PetscReal, parameter :: tolerance = 1.d-8
     character(len=128) :: string
 
-  ! saturation = f(capillary_pressure) at low capillary pressure    
+    liquid_saturation = 0.16
+    call this%cc_krp5%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP5 capillary pressure as a function of saturation &
+             &at low liquid saturation'
+    value = 8525093.3809598293d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)     
     capillary_pressure = 50.d0
     call this%cc_krp5%saturation_function%Saturation(capillary_pressure, &
                                                      liquid_saturation, &
@@ -1861,11 +1923,15 @@ contains
     value = 0.0d0
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
 
-  ! saturation = f(capillary_pressure) at high capillary pressure
-    select type(sf=>this%cc_krp5%saturation_function)
-      class is(sat_func_KRP5_type)
-        capillary_pressure = 8.d5
-    end select
+    liquid_saturation = 0.81
+    call this%cc_krp5%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP5 capillary pressure as a function of saturation &
+             &at high liquid saturation'
+    value = 2000.0d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)
+    capillary_pressure = 8.d5
     call this%cc_krp5%saturation_function%Saturation(capillary_pressure, &
                                                      liquid_saturation, &
                                                      dsat_pres,this%option)
@@ -1903,12 +1969,20 @@ contains
     PetscReal :: liquid_saturation
     PetscReal :: relative_permeability
     PetscReal :: dsat_pres
+    PetscReal :: dpc_dsatl
     PetscReal :: value
     PetscReal :: dkr_sat
     PetscReal, parameter :: tolerance = 1.d-8
     character(len=128) :: string
 
-  ! saturation = f(capillary_pressure) at low capillary pressure    
+    liquid_saturation = 0.16
+    call this%cc_krp8%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP8 capillary pressure as a function of saturation &
+             &at low liquid saturation'
+    value = 390287.05422819848d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)     
     capillary_pressure = 10.d0
     call this%cc_krp8%saturation_function%Saturation(capillary_pressure, &
                                                      liquid_saturation, &
@@ -1932,7 +2006,14 @@ contains
     value = 3.5744473041460765d-4
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
 
-  ! saturation = f(capillary_pressure) at high capillary pressure
+    liquid_saturation = 0.81
+    call this%cc_krp8%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP8 capillary pressure as a function of saturation &
+             &at high liquid saturation'
+    value = 11673.176741409796d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)
     select type(sf=>this%cc_krp8%saturation_function)
       class is(sat_func_KRP8_type)
         capillary_pressure = 15.d0/sf%alpha
@@ -1974,12 +2055,20 @@ contains
     PetscReal :: liquid_saturation
     PetscReal :: relative_permeability
     PetscReal :: dsat_pres
+    PetscReal :: dpc_dsatl
     PetscReal :: value
     PetscReal :: dkr_sat
     PetscReal, parameter :: tolerance = 1.d-8
     character(len=128) :: string
 
-  ! saturation = f(capillary_pressure) at low capillary pressure    
+    liquid_saturation = 0.16
+    call this%cc_krp9%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP9 capillary pressure as a function of saturation &
+             &at low liquid saturation'
+    value = 6701.4503478003835d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)    
     capillary_pressure = 50.d0
     call this%cc_krp9%saturation_function%Saturation(capillary_pressure, &
                                                      liquid_saturation, &
@@ -2003,7 +2092,14 @@ contains
     value = 1.1603129901338605d-8
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
 
-  ! saturation = f(capillary_pressure) at high capillary pressure
+    liquid_saturation = 0.81
+    call this%cc_krp9%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP9 capillary pressure as a function of saturation &
+             &at high liquid saturation'
+    value = 2294.5062171637132d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)
     select type(sf=>this%cc_krp9%saturation_function)
       class is(sat_func_KRP9_type)
         capillary_pressure = 8.d5
@@ -2045,12 +2141,20 @@ contains
     PetscReal :: liquid_saturation
     PetscReal :: relative_permeability
     PetscReal :: dsat_pres
+    PetscReal :: dpc_dsatl
     PetscReal :: value
     PetscReal :: dkr_sat
     PetscReal, parameter :: tolerance = 1.d-8
     character(len=128) :: string
-
-  ! saturation = f(capillary_pressure) at low capillary pressure    
+ 
+    liquid_saturation = 0.15
+    call this%cc_krp11%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP11 capillary pressure as a function of saturation &
+             &at low liquid saturation'
+    value = 0.0d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)  
     capillary_pressure = 100.d0
     call this%cc_krp11%saturation_function%Saturation(capillary_pressure, &
                                                       liquid_saturation, &
@@ -2074,11 +2178,15 @@ contains
     value = 0.d0
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
 
-  ! saturation = f(capillary_pressure) at high capillary pressure
-    select type(sf=>this%cc_krp11%saturation_function)
-      class is(sat_func_KRP11_type)
-        capillary_pressure = 1.d6
-    end select
+    liquid_saturation = 0.85
+    call this%cc_krp11%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP11 capillary pressure as a function of saturation &
+             &at high liquid saturation'
+    value = 0.0d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)
+    capillary_pressure = 1.d6
     call this%cc_krp11%saturation_function%Saturation(capillary_pressure, &
                                                       liquid_saturation, &
                                                       dsat_pres,this%option)
@@ -2116,12 +2224,20 @@ contains
     PetscReal :: liquid_saturation
     PetscReal :: relative_permeability
     PetscReal :: dsat_pres
+    PetscReal :: dpc_dsatl
     PetscReal :: value
     PetscReal :: dkr_sat
     PetscReal, parameter :: tolerance = 1.d-8
     character(len=128) :: string
-
-  ! saturation = f(capillary_pressure) at low capillary pressure    
+  
+    liquid_saturation = 0.15
+    call this%cc_krp12%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP12 capillary pressure as a function of saturation &
+             &at low liquid saturation'
+    value = 48690419.134075843d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)
     capillary_pressure = 100.d0
     call this%cc_krp12%saturation_function%Saturation(capillary_pressure, &
                                                       liquid_saturation, &
@@ -2145,11 +2261,15 @@ contains
     value = 0.d0
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
 
-  ! saturation = f(capillary_pressure) at high capillary pressure
-    select type(sf=>this%cc_krp12%saturation_function)
-      class is(sat_func_KRP12_type)
-        capillary_pressure = 1.d6
-    end select
+    liquid_saturation = 0.85
+    call this%cc_krp12%saturation_function% &
+         CapillaryPressure(liquid_saturation,capillary_pressure, &
+                           dpc_dsatl,this%option)
+    string = 'KRP12 capillary pressure as a function of saturation &
+             &at high liquid saturation'
+    value = 4589.5472979195620d0
+    @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)
+    capillary_pressure = 1.d6
     call this%cc_krp12%saturation_function%Saturation(capillary_pressure, &
                                                       liquid_saturation, &
                                                       dsat_pres,this%option)
