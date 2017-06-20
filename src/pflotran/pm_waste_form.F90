@@ -2933,7 +2933,7 @@ function PMWFOutputFilename(option)
   write(word,'(i6)') option%myrank
   PMWFOutputFilename = trim(option%global_prefix) // &
                        trim(option%group_prefix) // &
-                       '-wf_mass-' // trim(adjustl(word)) // '.dat'
+                       '-' // trim(adjustl(word)) // '.wf'
   
 end function PMWFOutputFilename  
 
