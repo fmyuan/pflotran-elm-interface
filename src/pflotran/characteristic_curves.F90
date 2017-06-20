@@ -4599,7 +4599,13 @@ subroutine SF_KRP2_Saturation(this,capillary_pressure, &
     option%pct_updated = PETSC_FALSE
   endif
   
-  Se1 = (this%pct/capillary_pressure)**this%lambda
+  if (capillary_pressure < this%pct) then
+    liquid_saturation = 1.d0
+    dsat_dpres = 0.d0
+    return
+  endif
+  
+  Se1 = (capillary_pressure/this%pct)**(-1.d0*this%lambda)
   liquid_saturation = this%Sr + (1.d0-this%Sr)*Se1
   
 end subroutine SF_KRP2_Saturation
@@ -4765,6 +4771,7 @@ subroutine SF_KRP3_Saturation(this,capillary_pressure, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se2    
+  PetscReal :: term
   
   dsat_dpres = 0.d0
   dsat_dpres = 1.d0/dsat_dpres
@@ -4780,6 +4787,14 @@ subroutine SF_KRP3_Saturation(this,capillary_pressure, &
       call printErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
+  endif
+  
+  term = this%pct*((1.d0-this%Sr)/(1.d0-this%Sr-this%Srg))**(-1.d0/this%lambda)
+
+  if ((capillary_pressure) < term) then
+    liquid_saturation = 1.d0
+    dsat_dpres = 0.d0
+    return
   endif
   
   Se2 = (this%pct/capillary_pressure)**this%lambda
@@ -4947,6 +4962,7 @@ subroutine SF_KRP4_Saturation(this,capillary_pressure, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se2  
+  PetscReal :: term
   
   dsat_dpres = 0.d0
   dsat_dpres = 1.d0/dsat_dpres
@@ -4962,6 +4978,14 @@ subroutine SF_KRP4_Saturation(this,capillary_pressure, &
       call printErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
+  endif
+  
+  term = this%pct*((1.d0-this%Sr)/(1.d0-this%Sr-this%Srg))**(-1.d0/this%lambda)
+
+  if ((capillary_pressure) < term) then
+    liquid_saturation = 1.d0
+    dsat_dpres = 0.d0
+    return
   endif
   
   Se2 = (this%pct/capillary_pressure)**this%lambda
@@ -5812,6 +5836,12 @@ subroutine SF_KRP12_Saturation(this,capillary_pressure, &
       call printErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
+  endif
+  
+  if (capillary_pressure < this%pct) then
+    liquid_saturation = 1.d0
+    dsat_dpres = 0.d0
+    return
   endif
   
   Se21 = (this%pct/capillary_pressure)**this%lambda
@@ -8940,9 +8970,9 @@ subroutine RPF_KRP9_Liq_RelPerm(this,liquid_saturation, &
     return
   endif
   
-  relative_permeability = 1.d0/((1.d0+a)*Se**b)
+  relative_permeability = 1.d0/(1.d0+a*Se**b)
   ! Python analytical derivative (Jenn Frederick)
-  dkr_dSe = -1.d0*Se**(-b)*b/(Se*(a + 1.d0))
+  dkr_dSe = -1.d0*Se**(b-1.d0)*a*b/(Se**b*a + 1.d0)**2.d0
   dSe_dsat = -1.d0/(liquid_saturation**2.d0)
   dkr_sat = dkr_dSe * dSe_dsat
   
