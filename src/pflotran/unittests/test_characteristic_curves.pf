@@ -439,7 +439,7 @@ contains
       class is(rpf_KRP5_gas_type)
         sf%Srg = 0.20d0
     end select
-    
+
   ! Setting up the characteristic curve for BRAGFLO_KRP8
     this%cc_krp8 => CharacteristicCurvesCreate()
     this%cc_krp8%saturation_function => SF_KRP8_Create()
