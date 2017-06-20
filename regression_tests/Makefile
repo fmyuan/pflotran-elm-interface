@@ -289,6 +289,7 @@ clean-tests :
 	-rm -f wipp/bragflo/well_production2-ss_mass-0.dat
 	-rm -f wipp/bragflo/gas_generation_2d.h5
 	-rm -f wipp/bragflo/gas_generation_one_cell.h5
+	-rm -f wipp/bragflo/*.pnl
 	-rm -f default/multicontinuum/0D_heat_MPH-int.dat
 	-rm -f default/multicontinuum/0D_heat_TH-int.dat
 	-rm -f default/543/543_hanford_srfcplx_base*.h5
@@ -309,6 +310,7 @@ clean-tests :
 	-rm -f default/salinity/20x20_xz.h5
 	-rm -f default/timestepping/20x20_xz.h5
 	-rm -f default/output/output_biosphere-0.bio
+	-rm -f default/output/output_WIPP_pnl-0.pnl
 	-rm -f hydrogeophysics/e4d__000000000003600.dpd
 	-rm -f hydrogeophysics/e4d__000000000010800.dpd
 	-rm -f hydrogeophysics/e4d__000000000025200.dpd

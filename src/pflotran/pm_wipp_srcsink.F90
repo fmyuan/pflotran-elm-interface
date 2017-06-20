@@ -126,6 +126,7 @@ module PM_WIPP_SrcSink_class
     PetscInt :: probdeg             ! [-]
     PetscInt :: bioidx              ! [-] flag
     PetscInt :: plasidx             ! [-] flag
+    PetscReal :: output_start_time
     type(srcsink_panel_type), pointer :: waste_panel_list
     type(pre_inventory_type), pointer :: pre_inventory_list
     class(data_mediator_vec_type), pointer :: data_mediator
@@ -191,6 +192,7 @@ function PMWSSCreate()
   pm%probdeg = UNINITIALIZED_INTEGER
   pm%bioidx = UNINITIALIZED_INTEGER
   pm%plasidx = UNINITIALIZED_INTEGER
+  pm%output_start_time = 0.d0  ! [sec] default value
   
   call PMBaseInit(pm)
   
@@ -681,6 +683,12 @@ subroutine PMWSSRead(this,input)
       case('PROBDEG')
         call InputReadInt(input,option,this%probdeg)
         call InputErrorMsg(input,option,'flag: (PROBDEG)',error_string)
+      case('OUTPUT_START_TIME')
+        call InputReadDouble(input,option,double)
+        call InputErrorMsg(input,option,'OUTPUT_START_TIME',error_string)
+        call InputReadAndConvertUnits(input,double,'sec',trim(error_string) &
+                                      // ',OUTPUT_START_TIME units',option)
+        this%output_start_time = double
     !-----------------------------------------
     !-----------------------------------------
       case('WASTE_PANEL')
@@ -1834,7 +1842,9 @@ subroutine PMWSSInitializeTimestep(this)
     cur_waste_panel => cur_waste_panel%next
   enddo
   
-  call PMWSSOutput(this)
+  if (option%time >= this%output_start_time) then
+    call PMWSSOutput(this)
+  endif
   
 end subroutine PMWSSInitializeTimestep
 
