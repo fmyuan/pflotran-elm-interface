@@ -311,6 +311,7 @@ clean-tests :
 	-rm -f default/timestepping/20x20_xz.h5
 	-rm -f default/output/output_biosphere-0.bio
 	-rm -f default/output/output_WIPP_pnl-0.pnl
+	-rm -f default/output/output_waste_form_wf-0.wf
 	-rm -f hydrogeophysics/e4d__000000000003600.dpd
 	-rm -f hydrogeophysics/e4d__000000000010800.dpd
 	-rm -f hydrogeophysics/e4d__000000000025200.dpd
