@@ -33,6 +33,11 @@ module EOS_Water_module
   PetscReal :: quadratic_reference_pressure
   PetscReal :: quadratic_wat_compressibility
 
+  ! linear
+  PetscReal :: linear_reference_density
+  PetscReal :: linear_reference_pressure
+  PetscReal :: linear_water_compressibility
+
   ! In order to support generic EOS subroutines, we need the following:
   ! 1. An interface declaration that defines the argument list (best to have 
   !    "Dummy" appended.
@@ -301,6 +306,15 @@ subroutine EOSWaterVerify(ierr,error_string)
     ierr = 1
   endif
 
+  if (associated(EOSWaterDensityPtr,EOSWaterDensityLinear) .and. &
+      (Uninitialized(linear_reference_density) .or. & 
+       Uninitialized(linear_reference_pressure) .or. &
+       Uninitialized(linear_water_compressibility))) then
+    error_string = trim(error_string) // &
+      ' Linear parameters incorrect.'
+    ierr = 1
+  endif
+
   if ((associated(EOSWaterViscosityPtr, &
                   EOSWaterViscosityConstant) .and. &
        Uninitialized(constant_viscosity)) .or. &
@@ -348,6 +362,11 @@ subroutine EOSWaterSetDensity(keyword,aux)
       exponent_reference_pressure = aux(2)
       exponent_water_compressibility = aux(3)  
       EOSWaterDensityPtr => EOSWaterDensityExponential
+    case('LINEAR')
+      linear_reference_density = aux(1)
+      linear_reference_pressure = aux(2)
+      linear_water_compressibility = aux(3)
+      EOSWaterDensityPtr => EOSWaterDensityLinear
     case('QUADRATIC')
       if (Initialized(aux(1))) then
         quadratic_reference_density = 999.014d0 !kg/m3
@@ -1425,6 +1444,42 @@ subroutine EOSWaterDensityExponential(t,p,calculate_derivatives, &
   dwt = 0.d0
 
 end subroutine EOSWaterDensityExponential
+
+! ************************************************************************** !
+
+subroutine EOSWaterDensityLinear(t,p,calculate_derivatives, &
+                                      dw,dwmol,dwp,dwt,ierr)
+  !
+  ! Water density linear model
+  !
+  ! Author: Satish Karra 
+  ! Date: 06/19/17
+
+  implicit none
+  
+  PetscReal, intent(in) :: t   ! Temperature in centigrade
+  PetscReal, intent(in) :: p   ! Pressure in Pascals
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: dw,dwmol,dwp,dwt
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: X_pr
+
+  ! kg/m^3
+  dw = linear_reference_density*(1 + & 
+         linear_water_compressibility*(p-linear_reference_pressure))
+  
+  dwmol = dw/FMWH2O ! kmol/m^3
+  
+  if (calculate_derivatives) then
+    dwp = linear_reference_density*linear_water_compressibility
+  else
+    dwp = UNINITIALIZED_DOUBLE
+  endif
+  dwt = 0.d0
+
+end subroutine EOSWaterDensityLinear
+
 
 ! ************************************************************************** !
 
@@ -3060,6 +3115,19 @@ subroutine EOSWaterInputRecord()
     write(word1,*) exponent_water_compressibility
     write(id,'(a)') adjustl(trim(word1)) // ' 1/Pa'
   endif
+  if (associated(EOSWaterDensityPtr,EOSWaterDensityLinear)) then
+    write(id,'(a29)',advance='no') 'water density: '
+    write(id,'(a)') 'linear'
+    write(id,'(a29)',advance='no') 'linear ref. density: '
+    write(word1,*) linear_reference_density
+    write(id,'(a)') adjustl(trim(word1)) // ' kg/m^3'
+    write(id,'(a29)',advance='no') 'linear ref. pressure: '
+    write(word1,*) linear_reference_pressure
+    write(id,'(a)') adjustl(trim(word1)) // ' Pa'
+    write(id,'(a29)',advance='no') 'linear water compressibility: '
+    write(word1,*) linear_water_compressibility
+    write(id,'(a)') adjustl(trim(word1)) // ' 1/Pa'
+  endif
   if (associated(EOSWaterDensityPtr,EOSWaterDensityIFC67)) then
     write(id,'(a29)',advance='no') 'water density: '
     write(id,'(a)') 'default, IFC67'
@@ -3242,6 +3310,8 @@ subroutine EOSWaterTest(temp_low,temp_high,pres_low,pres_high, &
     eos_density_name = 'Constant'
   else if (associated(EOSWaterDensityPtr,EOSWaterDensityExponential)) then
     eos_density_name = 'Exponential'
+  else if (associated(EOSWaterDensityPtr,EOSWaterDensityLinear)) then
+    eos_density_name = 'Linear'
   else if (associated(EOSWaterDensityPtr,EOSWaterDensityIFC67)) then
     eos_density_name = 'IFC67'
   else if (associated(EOSWaterDensityPtr,EOSWaterDensityTGDPB01)) then
