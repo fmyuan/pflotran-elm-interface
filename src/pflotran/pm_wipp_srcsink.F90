@@ -1,5 +1,17 @@
 module PM_WIPP_SrcSink_class
 
+! MODULE DESCRIPTION:
+! ============================================================================
+! This process model tracks chemical species in waste panel inventories 
+! involved in the generation/uptake of H2 gas and brine (water).
+! The chemical species are tracked for accounting purposes and also for the
+! calculation of gas and brine generation rates as determined by reaction
+! rate constants of chemical reactions between the chemical species, and the 
+! availability of limiting chemical species.
+! The calculated gas and brine generation rates are assigned to fluid and gas
+! source terms, respectively, in the flow process model.
+!=============================================================================
+
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use PM_Base_class
@@ -12,15 +24,92 @@ module PM_WIPP_SrcSink_class
 
   private
 
+! OBJECT chem_species_type:
+! =========================
+! ---------------------------------------------------------------------------
+! Description:  This object describes a chemical species in the waste panel
+! that is tracked for accounting purposes, or influences a reaction rate
+! constant for gas/brine generation. It is a member object of the
+! inventory_type object.
+! ---------------------------------------------------------------------------
+! initial_conc_mol(:): [mol-species/m3-bulk] initial molar concentration of
+! a chemical species in the waste panel, and indexed by each cell in the
+! waste panel region
+!
+! inst_rate(:): [mol/m3-bulk/sec] instantaneous reaction rate constant of a
+! chamical species in the waste panel, and indexed by each cell in the
+! waste panel region
+!
+! current_conc_mol(:): [mol-species/m3-bulk] current molar concentration of
+! a chemical species in the waste panel, and indexed by each cell in the
+! waste panel region
+!
+! current_conc_kg(:): [kg-species/m3-bulk] current concentration of a
+! chemical species in the waste panel (in BRAGFLO units), and indexed by each 
+! cell in the waste panel region
+!
+! molar_mass: [kg/mol] molar mass of the chemical species
+!
+! tot_mass_in_panel: [kg] total mass of the chemical species in the entire
+! panel volume
+! -------------------------------------------
   type, public :: chem_species_type
-    PetscReal, pointer :: initial_conc_mol(:)  ! [mol/m3-bulk]
-    PetscReal, pointer :: inst_rate(:)         ! [mol/m3-bulk/sec]
-    PetscReal, pointer :: current_conc_mol(:)  ! [mol/m3-bulk]
-    PetscReal, pointer :: current_conc_kg(:)   ! [kg/m3-bulk] per BRAGFLO U.M.
-    PetscReal :: molar_mass                    ! [kg/mol]
-    PetscReal :: tot_mass_in_panel             ! [kg/panel-volume]
+    PetscReal, pointer :: initial_conc_mol(:)
+    PetscReal, pointer :: inst_rate(:)  
+    PetscReal, pointer :: current_conc_mol(:)
+    PetscReal, pointer :: current_conc_kg(:)
+    PetscReal :: molar_mass              
+    PetscReal :: tot_mass_in_panel           
   end type chem_species_type
+! -------------------------------------------
   
+! OBJECT inventory_type:
+! ======================
+! ---------------------------------------------------------------------------
+! Description:  This object describes a waste panel's current inventory, and  
+! is made up of several chem_species_type objects. It also stores the initial 
+! values of several tracked species as well as the steel drum content. A 
+! pointer to a pre-inventory object aids in this object's initialization.
+! ---------------------------------------------------------------------------
+! name: name string
+!
+! Fe_s: solid iron species object
+!
+! FeOH2_s: solid corrosion product iron hydroxide species object
+!
+! C6H10O5_s: solid cellulosic materials object
+!
+! RuPl_s: solid rubber and plastic materials object
+!
+! NO3_minus_aq: aqueous nitrate species object
+!
+! CO2_g: gaseous carbon dioxide species object
+!
+! N2_g: gaseous nitrogen species object
+!
+! SO42_minus_aq: aqueous sulfate species object
+!
+! H2S_g: gaseous hydrogen sulfide species object
+!
+! FeS_s: solid iron sulfide species object
+!
+! MgO_s: solid magnesium oxide species object
+!
+! MgOH2_s: solid magnesium hydroxide (brucite) species object
+!
+! Mg5CO34OH24H2_s: solid hydromagnesite species object
+!
+! MgCO3_s: solid magnesium carbonate species object
+!
+! *_in_panel: [kg] total initial mass of species/material in waste panel
+!
+! drum_conc: [-/m3] number of steel drums per unit volume of waste panel
+! note: this parameter is defined by the parameter of the same name in the 
+! pre-inventory object.
+!
+! preinventory: pointer to the pre-inventory object, which stores the
+! initial inventory values
+! ---------------------------------------------------
   type, public :: inventory_type
     character(len=MAXWORDLENGTH) :: name
     type(chem_species_type) :: Fe_s 
@@ -38,94 +127,301 @@ module PM_WIPP_SrcSink_class
     type(chem_species_type) :: Mg5CO34OH24H2_s
     type(chem_species_type) :: MgCO3_s
   ! Initial Values:
-    PetscReal :: Fe_in_panel          ! [total initial kg in waste panel]
-    PetscReal :: MgO_in_panel         ! [total initial kg in waste panel]
-    PetscReal :: Cellulose_in_panel   ! [total initial kg in waste panel]
-    PetscReal :: RubberPlas_in_panel  ! [total initial kg in waste panel]
-    PetscReal :: Biodegs_in_panel     ! [total initial kg in waste panel]
-    PetscReal :: Nitrate_in_panel     ! [total initial kg in waste panel]
-    PetscReal :: Sulfate_in_panel     ! [total initial kg in waste panel]
-    PetscReal :: drum_conc            ! [number of steel drums per m3 waste panel]
+    PetscReal :: Fe_in_panel         
+    PetscReal :: MgO_in_panel        
+    PetscReal :: Cellulose_in_panel  
+    PetscReal :: RubberPlas_in_panel 
+    PetscReal :: Biodegs_in_panel    
+    PetscReal :: Nitrate_in_panel    
+    PetscReal :: Sulfate_in_panel    
+    PetscReal :: drum_conc    
     type(pre_inventory_type), pointer :: preinventory
   end type inventory_type
+! ---------------------------------------------------
   
-  ! pre-inventory describes initial waste; what is emplaced in a waste panel
+! OBJECT pre_inventory_type:
+! ==========================
+! ---------------------------------------------------------------------------
+! Description:  This object describes the initial waste inventory emplaced in
+! a waste panel. Several of the member parameters are ALGEBRA input 
+! parameters, preprocessed by ALGEBRA for BRAGFLO input. A pre-inventory object 
+! can be defined for each waste panel. Alternatively, a single pre-inventory 
+! object can be defined for an entire repository that is made up of several 
+! waste panels. In this latter case, "vrepos" should be specifed and each 
+! waste panel will get assigned a portion of the single pre-inventory values 
+! which are scaled by the volume ratio vol-panel/vrepos.
+! Note: RH-remotely handled; CH-contact handled
+! ---------------------------------------------------------------------------
+! name: name string
+! 
+! ironchw: [kg] mass of Fe-based material in CH waste
+!
+! ironrhw: [kg] mass of Fe-based material in RH waste
+!
+! irncchw: [kg] mass of Fe containers for CH waste
+!
+! irncrhw: [kg] mass of Fe containers for RH waste
+!
+! cellchw: [kg] mass of cellulosics in CH waste
+!
+! cellrhw: [kg] mass of cellulosics in RH waste
+!
+! celcchw: [kg] mass of cellulosics in container materials for CH waste
+!
+! celcrhw: [kg] mass of cellulosics in container materials for RH waste
+!
+! celechw: [kg] mass of cellulosics in emplacement materials for CH waste
+!
+! celerhw: [kg] mass of cellulosics in emplacement materials for RH waste
+!
+! rubbchw: [kg] mass of rubber in CH waste
+!
+! rubbrhw: [kg] mass of rubber in RH waste
+!
+! rubcchw: [kg] mass of rubber in container materials for CH waste
+!
+! rubcrhw: [kg] mass of rubber in container materials for RH waste
+!
+! rubechw: [kg] mass of rubber in emplacement materials for CH waste
+!
+! ruberhw: [kg] mass of rubber in emplacement materials for RH waste  
+!
+! plaschw: [kg] mass of plastics in CH waste
+!
+! plasrhw: [kg] mass of plastics in RH waste
+!
+! plscchw: [kg] mass of plastics in container materials for CH waste
+!
+! plscrhw: [kg] mass of plastics in container materials for RH waste
+!
+! plsechw: [kg] mass of plastics in emplacement materials for CH waste
+!
+! plserhw: [kg] mass of plastics in emplacement materials for RH waste
+!
+! plasfac: [-] mass ratio of plastics to equivalent carbon
+!
+! mgo_ef: [-] MgO excess factor; ratio mol-MgO/mol-organic-carbon
+!
+! vrepos: [m3] volume of total repository (optional) note: this parameter
+! should be defined if the waste panel inventories are being distributed 
+! from a single pre-inventory, where the amount of pre-inventory going to 
+! each waste panel inventory is scaled by the volume ratio vol-panel/vrepos
+!
+! drum_conc: [-/m3] number of steel drums per unit volume of inventory
+! volume (which can be a waste panel volume or an entire repository volume)
+! note: this defines the parameter of the same name in the inventory object
+!
+! nitrate: [kg] initial mass of aqueous nitrate in inventory
+!
+! sulfate: [kg] initial mass of aqueous sulfate in inventory
+!
+! next: pointer to the next pre-inventory object in a linked list
+! -------------------------------------------
   type, public :: pre_inventory_type
     character(len=MAXWORDLENGTH) :: name
   ! ALGEBRA parameters:
-    PetscReal :: ironchw    ! [kg] mass of Fe-based material in CH waste
-    PetscReal :: ironrhw    ! [kg] mass of Fe-based material in RH waste
-    PetscReal :: irncchw    ! [kg] mass of Fe containers for CH waste
-    PetscReal :: irncrhw    ! [kg] mass of Fe containers for RH waste
-    PetscReal :: cellchw    ! [kg] mass of cellulosics in CH waste
-    PetscReal :: cellrhw    ! [kg] mass of cellulosics in RH waste
-    PetscReal :: celcchw    ! [kg] mass of cellulosics in container materials for CH waste
-    PetscReal :: celcrhw    ! [kg] mass of cellulosics in container materials for RH waste
-    PetscReal :: celechw    ! [kg] mass of cellulosics in emplacement materials for CH waste
-    PetscReal :: celerhw    ! [kg] mass of cellulosics in emplacement materials for RH waste
-    PetscReal :: rubbchw    ! [kg] mass of rubber in CH waste
-    PetscReal :: rubbrhw    ! [kg] mass of rubber in RH waste
-    PetscReal :: rubcchw    ! [kg] mass of rubber in container materials for CH waste
-    PetscReal :: rubcrhw    ! [kg] mass of rubber in container materials for RH waste
-    PetscReal :: rubechw    ! [kg] mass of rubber in emplacement materials for CH waste
-    PetscReal :: ruberhw    ! [kg] mass of rubber in emplacement materials for RH waste  
-    PetscReal :: plaschw    ! [kg] mass of plastics in CH waste
-    PetscReal :: plasrhw    ! [kg] mass of plastics in RH waste
-    PetscReal :: plscchw    ! [kg] mass of plastics in container materials for CH waste
-    PetscReal :: plscrhw    ! [kg] mass of plastics in container materials for RH waste
-    PetscReal :: plsechw    ! [kg] mass of plastics in emplacement materials for CH waste
-    PetscReal :: plserhw    ! [kg] mass of plastics in emplacement materials for RH waste 
-    PetscReal :: plasfac    ! [-] mass ratio of plastics to equivalent carbon
-    PetscReal :: mgo_ef     ! [-] MgO excess factor; ratio mol-MgO/mol-organic-C
-    PetscReal :: vrepos     ! [m3] volume of total repository (not always needed)
-    PetscReal :: drum_conc  ! [-/m3] number of steel drums per m3 waste panel
-    PetscReal :: nitrate    ! [kg] mass of nitrate
-    PetscReal :: sulfate    ! [kg] mass of sulfate
+    PetscReal :: ironchw 
+    PetscReal :: ironrhw
+    PetscReal :: irncchw 
+    PetscReal :: irncrhw
+    PetscReal :: cellchw 
+    PetscReal :: cellrhw
+    PetscReal :: celcchw 
+    PetscReal :: celcrhw  
+    PetscReal :: celechw
+    PetscReal :: celerhw  
+    PetscReal :: rubbchw
+    PetscReal :: rubbrhw 
+    PetscReal :: rubcchw 
+    PetscReal :: rubcrhw 
+    PetscReal :: rubechw  
+    PetscReal :: ruberhw    
+    PetscReal :: plaschw  
+    PetscReal :: plasrhw  
+    PetscReal :: plscchw  
+    PetscReal :: plscrhw  
+    PetscReal :: plsechw  
+    PetscReal :: plserhw   
+    PetscReal :: plasfac   
+    PetscReal :: mgo_ef    
+    PetscReal :: vrepos    
+    PetscReal :: drum_conc 
+    PetscReal :: nitrate   
+    PetscReal :: sulfate   
     type(pre_inventory_type), pointer :: next
   end type pre_inventory_type
+! -------------------------------------------
   
+! OBJECT srcsink_panel_type:
+! ==========================
+! ---------------------------------------------------------------------------
+! Description:  This object represents a waste panel within a repository. It
+! contains member pointers to it's inventory and region objects. It also
+! stores the calculates gas/brine generation rates, indexed by each grid cell
+! within the waste panel region. The pre-processed ALGEBRA parameters are
+! also stored per waste panel because some depend on waste panel volume.
+! MPI information is stored for efficient parallel processing algorithms used
+! at the waste panel level.
+! ---------------------------------------------------------------------------
+! name: name string of the waste panel
+!
+! region: pointer to the waste panel's region object
+!
+! region_name: name string of the waste panel's region object
+!
+! inventory: pointer to the waste panel's inventory object
+!
+! inventory_name: name string of the waste panel's inventory object
+!
+! scaling_factor(:): [-] array of volume scaling factors for each grid cell
+! in the waste panel region
+!
+! gas_generation_rate(:): [mol-H2/m3-bulk/sec] array of the current gas 
+! generation rate for each grid cell in the waste panel region
+!
+! brine_generation_rate(:): [mol-H2O/m3-bulk/sec] array of the current brine 
+! generation rate for each grid cell in the waste panel region
+!
+! inundated_corrosion_rate: [mol-Fe/m3-bulk/sec] corrosion rate of iron
+! when inundated in brine
+!
+! humid_corrosion_rate: [mol-Fe/m3-bulk/sec], [-] corrosion rate of iron
+! in a humid environment
+!
+! inundated_biodeg_rate: [mol-cellulosics/m3-bulk/sec] biodegradation rate
+! when inundated in brine
+!
+! humid_biodeg_rate: [mol-cellulosics/m3-bulk/sec] biodegradation rate
+! in a humid environment
+!
+! inundated_brucite_rate: [mol-MgOH2/m3-bulk/sec] rate of MgO hydration
+! when inundated in brine
+!
+! humid_brucite_rate: [mol-MgOH2/m3-bulk/sec] rate of MgO hydration
+! in a humid environment
+!
+! RXH2S_factor: [-] H2S reaction rate factor; eq. PA.88, section PS-4.2.5
+!
+! volume: [m3] waste panel volume
+!
+! scale_by_volume: Boolean flag to scale given inventory to waste panel volume
+!
+! id: [-] waste panel id number
+!
+! myMPIcomm: [-] MPI communicator number object
+!
+! myMPIgroup: [-] MPI group number object
+!
+! rank_list(:): [-] array of 1's and 0's used to determine local waste panels
+!
+! next: pointer to the next waste panel object in linked list
+! ------------------------------------------------
   type, public :: srcsink_panel_type
     character(len=MAXWORDLENGTH) :: name
     type(region_type), pointer :: region
     character(len=MAXWORDLENGTH) :: region_name
     type(inventory_type) :: inventory
     character(len=MAXWORDLENGTH) :: inventory_name
-    PetscReal, pointer :: scaling_factor(:)        ! [-]
-    PetscReal, pointer :: gas_generation_rate(:)   ! [mol/m3-bulk/sec]
-    PetscReal, pointer :: brine_generation_rate(:) ! [mol/m3-bulk/sec]
-    PetscReal :: inundated_corrosion_rate          ! [mol/m3-bulk/sec]
-    PetscReal :: humid_corrosion_rate              ! [mol/m3-bulk/sec], [-]
-    PetscReal :: inundated_biodeg_rate             ! [mol/m3-bulk/sec]
-    PetscReal :: humid_biodeg_rate                 ! [mol/m3-bulk/sec]
-    PetscReal :: inundated_brucite_rate            ! [mol/m3-bulk/sec]
-    PetscReal :: humid_brucite_rate                ! [mol/m3-bulk/sec]
-    PetscReal :: RXH2S_factor                      ! [-]
-    PetscReal :: volume                            ! [m3]
-    PetscBool :: scale_by_volume                   ! flag to scale given inventory to waste panel volume
+    PetscReal, pointer :: scaling_factor(:)      
+    PetscReal, pointer :: gas_generation_rate(:) 
+    PetscReal, pointer :: brine_generation_rate(:)
+    PetscReal :: inundated_corrosion_rate    
+    PetscReal :: humid_corrosion_rate        
+    PetscReal :: inundated_biodeg_rate       
+    PetscReal :: humid_biodeg_rate           
+    PetscReal :: inundated_brucite_rate      
+    PetscReal :: humid_brucite_rate          
+    PetscReal :: RXH2S_factor     
+    PetscReal :: volume           
+    PetscBool :: scale_by_volume  
     PetscInt :: id
     PetscMPIInt :: myMPIcomm
     PetscMPIInt :: myMPIgroup
     PetscInt, pointer :: rank_list(:)
     type(srcsink_panel_type), pointer :: next
   end type srcsink_panel_type
+! ------------------------------------------------
 
+! OBJECT pm_wipp_srcsink_type:
+! ============================
+! ---------------------------------------------------------------------------
+! Description:  This is the wipp-srcsink process model object. It contains
+! several ALGEBRA parameters. It has a list of waste panels, and a list of 
+! pre-inventory member objects. Several procedures, allow interfacing with
+! the process model structure and extend the pm_base_type procedures.
+! This is the highest level object in this module.
+! ---------------------------------------------------------------------------
+! alpharxn: [-] smoothing parameter used in s_eff calculation
+!
+! smin: [-] minimum brine saturation where a grid cell is considered dry,
+! note: this is not brine residual saturation, but much smaller
+! 
+! satwick: [-] wicking saturation
+!
+! corrmco2: [m/s] iron corrosion rate in inundated conditions
+!
+! humcorr: [m/s] iron corrosion rate in humid conditions
+!
+! gratmici: [mol-cellulosics/kg/sec] biodegradation rate in inundated 
+! conditions 
+!
+! gratmich: [mol-cellulosics/kg/sec] biodegradation rate in humid 
+! conditions 
+!
+! brucitei: [mol-MgOH2/kg/sec] MgO hydration rate in inundated conditions
+!
+! bruciteh: [mol-MgOH2/kg/sec] MgO hydration rate in humid conditions
+!
+! RXCO2_factor: [-] CO2 reaction rate factor
+!
+! hymagcon_rate: [mol-hydromagnesite/kg/sec] rate of hydromagnesite conversion
+!
+! drum_surface_area: [m2/drum] surface area of steel drums
+!
+! biogenfc: [-] parameter uniformly sampled between 0 and 1, used to account
+! for the uncertainty in whether microbial gas generation could be realized 
+! in the WIPP at experimentally measured rates
+!
+! probdeg: [-] flag value of 0, 1, or 2; indicates whether gas
+! generation is produced by biodegradation, and/or rubbers and plastics,
+! in addition to iron corrosion
+!
+! bioidx: [-] flag value of 0 or 1; indicates whether gas generation is
+! produced by biodegradation
+!
+! plasidx: [-] flag value of 0 or 1; indicates whether gas generation is
+! produced by rubbers and plastics
+!
+! output_start_time: [sec] the time when output *.pnl files are generated,
+! with the default value set at 0.d0 sec
+!
+! waste_panel_list: linked list of waste panel objects that make up a
+! repository setting
+!
+! pre_inventory_list: linked list of pre-inventory objects
+!
+! data_mediator: pointer to data mediator object which stores the gas and
+! brine generation source terms 
+! 
+! realization: pointer to the realization object
+! --------------------------------------------------------------------
   type, public, extends(pm_base_type) :: pm_wipp_srcsink_type
-    PetscReal :: alpharxn           ! [-] 
-    PetscReal :: smin               ! [-]
-    PetscReal :: satwick            ! [-]
-    PetscReal :: corrmco2           ! [m/s]
-    PetscReal :: humcorr            ! [m/s]
-    PetscReal :: gratmici           ! [mol/kg/sec]
-    PetscReal :: gratmich           ! [mol/kg/sec]
-    PetscReal :: brucitei           ! [mol/kg/sec]
-    PetscReal :: bruciteh           ! [mol/kg/sec]
-    PetscReal :: RXCO2_factor       ! [-]
-    PetscReal :: hymagcon_rate      ! [mol/kg/sec]
-    PetscReal :: drum_surface_area  ! [m2/drum]
-    PetscReal :: biogenfc           ! [-]
-    PetscInt :: probdeg             ! [-]
-    PetscInt :: bioidx              ! [-] flag
-    PetscInt :: plasidx             ! [-] flag
+    PetscReal :: alpharxn        
+    PetscReal :: smin           
+    PetscReal :: satwick        
+    PetscReal :: corrmco2         
+    PetscReal :: humcorr          
+    PetscReal :: gratmici         
+    PetscReal :: gratmich         
+    PetscReal :: brucitei         
+    PetscReal :: bruciteh         
+    PetscReal :: RXCO2_factor       
+    PetscReal :: hymagcon_rate      
+    PetscReal :: drum_surface_area  
+    PetscReal :: biogenfc           
+    PetscInt :: probdeg             
+    PetscInt :: bioidx              
+    PetscInt :: plasidx             
     PetscReal :: output_start_time
     type(srcsink_panel_type), pointer :: waste_panel_list
     type(pre_inventory_type), pointer :: pre_inventory_list
@@ -143,6 +439,7 @@ module PM_WIPP_SrcSink_class
     procedure, public :: InputRecord => PMWSSInputRecord
     procedure, public :: Destroy => PMWSSDestroy
   end type pm_wipp_srcsink_type
+! --------------------------------------------------------------------
   
   interface PMWSSTaperRxnrate
     module procedure PMWSSTaperRxnrate1
@@ -476,7 +773,7 @@ subroutine PMWSSAssociateRegion(this,region_list)
   
   implicit none
   
-! INPUT ARGUEMENTS:
+! INPUT ARGUMENTS:
 ! =================
 ! this (input/output): wipp-srcsink process model object
 !
