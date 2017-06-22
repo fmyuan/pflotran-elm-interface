@@ -322,10 +322,23 @@ module PM_Waste_Form_class
   end type waste_form_base_type
 ! -----------------------------------------------------
 
-! --------------- waste form process model ------------------------------------
+! OBJECT pm_waste_form_type:
+! ============================
+! ---------------------------------------------------------------------------
+! Description:  This is the waste form process model object. It has a list of 
+! waste forms, mechanisms, and a data mediator vector. Several procedures, 
+! allow interfacing with the process model structure and extend the 
+! pm_base_type procedures. This is the highest level object in this module.
+! ---------------------------------------------------------------------------
+! realization: pointer to the realization object
+! data_mediator: pointer to the data mediator array which stores the values
+!    of the radionuclide source terms
+! waste_form_list: pointer to the linked list of waste form objects
+! mechanism_list: pointer to the linked list of mechanism objects
+! print_mass_balance: Boolean that indicates if the *.wf file is generated
+! -------------------------------------------------------------------
   type, public, extends(pm_base_type) :: pm_waste_form_type
     class(realization_subsurface_type), pointer :: realization
-    character(len=MAXWORDLENGTH) :: data_mediator_species
     class(data_mediator_vec_type), pointer :: data_mediator
     class(waste_form_base_type), pointer :: waste_form_list
     class(wf_mechanism_base_type), pointer :: mechanism_list
@@ -344,6 +357,7 @@ module PM_Waste_Form_class
     procedure, public :: InputRecord => PMWFInputRecord
     procedure, public :: Destroy => PMWFDestroy
   end type pm_waste_form_type
+! -------------------------------------------------------------------
   
   public :: PMWFCreate, &
             PMWFSetup, &
