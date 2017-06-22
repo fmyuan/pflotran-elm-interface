@@ -19,7 +19,11 @@ REGRESSION
   CELLS_PER_PROCESS 5
 END
 
-#=========================== flow mode ========================================
+#=========================== datasets =========================================
+DATASET soil_reference_pressure
+  FILENAME soil_reference_pressure_dataset.h5
+  HDF5_DATASET_NAME soil_reference_pressure
+END
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -96,6 +100,19 @@ MATERIAL_PROPERTY soil1
   CHARACTERISTIC_CURVES sf1
 END
 
+MATERIAL_PROPERTY soil2
+  ID 2
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  SOIL_COMPRESSIBILITY_FUNCTION BRAGFLO
+  BULK_COMPRESSIBILITY 1.d-7
+  SOIL_REFERENCE_PRESSURE DATASET soil_reference_pressure
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  CHARACTERISTIC_CURVES sf1
+END
+
 #=========================== characteristic curves ============================
 CHARACTERISTIC_CURVES sf1
   SATURATION_FUNCTION VAN_GENUCHTEN
@@ -135,6 +152,20 @@ REGION all
   COORDINATES
     0.d0 0.d0 0.d0
     1.d0 1.d0 10.d0
+  /
+END
+
+REGION top_half
+  COORDINATES
+    0.d0 0.d0 5.d0
+    1.d0 1.d0 10.d0
+  /
+END
+
+REGION bottom_half
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 5.d0
   /
 END
 
@@ -227,7 +258,12 @@ END
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  REGION all
+  REGION top_half
+  MATERIAL soil2
+END
+
+STRATA
+  REGION bottom_half
   MATERIAL soil1
 END
 

@@ -49,6 +49,7 @@ module Material_module
     PetscReal :: soil_compressibility
     PetscReal :: soil_reference_pressure
     PetscBool :: soil_reference_pressure_initial
+    class(dataset_base_type), pointer :: soil_reference_pressure_dataset
 !    character(len=MAXWORDLENGTH) :: compressibility_dataset_name
     class(dataset_base_type), pointer :: compressibility_dataset
 
@@ -180,6 +181,7 @@ function MaterialPropertyCreate()
   material_property%soil_compressibility = UNINITIALIZED_DOUBLE
   material_property%soil_reference_pressure = UNINITIALIZED_DOUBLE
   material_property%soil_reference_pressure_initial = PETSC_FALSE
+  nullify(material_property%soil_reference_pressure_dataset)
 !  material_property%compressibility_dataset_name = ''
   nullify(material_property%compressibility_dataset)
 
@@ -376,12 +378,12 @@ subroutine MaterialPropertyRead(material_property,input,option)
           material_property%soil_reference_pressure_initial = PETSC_TRUE
         else
           ! if not the keyword above, copy back into buffer to be read as a
-          ! double precision.
+          ! double precision or dataset.
           input%buf = string
-          call InputReadDouble(input,option, &
-                               material_property%soil_reference_pressure)
-          call InputErrorMsg(input,option,'soil reference pressure', &
-                             'MATERIAL_PROPERTY')
+          call DatasetReadDoubleOrDataset(input, &
+                  material_property%soil_reference_pressure, &
+                  material_property%soil_reference_pressure_dataset, &
+                  'soil reference pressure','MATERIAL_PROPERTY',option)
         endif
       case('THERMAL_EXPANSITIVITY') 
         call InputReadDouble(input,option, &
@@ -792,6 +794,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
       call printErrMsg(option)
     endif
     if (Uninitialized(material_property%soil_reference_pressure) .and. &
+        .not.associated(material_property% &
+                          soil_reference_pressure_dataset) .and. &
         .not.material_property%soil_reference_pressure_initial) then
       option%io_buffer = 'SOIL_COMPRESSIBILITY_FUNCTION is specified in &
         &inputdeck for MATERIAL_PROPERTY "' // &
@@ -799,7 +803,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
         '", but a SOIL_REFERENCE_PRESSURE is not defined.'
       call printErrMsg(option)
     endif
-    if (Initialized(material_property%soil_reference_pressure) .and. &
+    if ((Initialized(material_property%soil_reference_pressure) .or. &
+         associated(material_property%soil_reference_pressure_dataset)) .and. &
         material_property%soil_reference_pressure_initial) then
       option%io_buffer = 'SOIL_REFERENCE_PRESSURE may not be defined by the &
         &initial pressure and a specified pressure in material "' // &
@@ -1359,6 +1364,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
     endif
     if (Initialized(material_property_ptrs(i)%ptr%&
                       soil_reference_pressure) .or. &
+        associated(material_property_ptrs(i)%ptr%&
+                      soil_reference_pressure_dataset) .or. &
         material_property_ptrs(i)%ptr%soil_reference_pressure_initial) then
       if (soil_reference_pressure_index == 0) then
         icount = icount + 1
@@ -2118,6 +2125,7 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%porosity_dataset)
   nullify(material_property%tortuosity_dataset)
   nullify(material_property%compressibility_dataset)
+  nullify(material_property%soil_reference_pressure_dataset)
     
   deallocate(material_property)
   nullify(material_property)

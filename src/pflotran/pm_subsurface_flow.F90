@@ -308,7 +308,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   PetscBool :: update_initial_porosity
 
   ! must come before RealizUnInitializedVarsTran
-  call RealizSetSoilReferencePressure(this%realization)
+  call PMSubsurfaceFlowSetSoilRefPres(this%realization)
   ! check for uninitialized flow variables
   call RealizUnInitializedVarsTran(this%realization)
 
@@ -361,6 +361,135 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   call this%AllWellsInit() !does nothing if no well exist
 #endif    
 end subroutine PMSubsurfaceFlowInitializeRun
+
+! ************************************************************************** !
+
+subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
+  ! 
+  ! Deallocates a realization
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/06/16
+  ! 
+  use Realization_Subsurface_class
+  use Realization_Base_class
+  use Patch_module
+  use Discretization_module
+  use Grid_module
+  use Material_Aux_class
+  use Material_module
+  use HDF5_module
+  use Dataset_Base_class
+  use Dataset_Common_HDF5_class
+  use Dataset_Gridded_HDF5_class
+  use Fracture_module
+  use Variables_module, only : MAXIMUM_PRESSURE, SOIL_REFERENCE_PRESSURE
+
+  implicit none
+
+  type(realization_subsurface_type) :: realization
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_type), pointer :: Material
+  type(material_property_ptr_type), pointer :: material_property_array(:)
+  type(material_property_type), pointer :: material_property
+  type(option_type), pointer :: option
+  PetscReal, pointer :: vec_loc_p(:)
+
+  PetscInt :: ghosted_id
+  PetscInt :: material_id
+  PetscErrorCode :: ierr
+  PetscBool :: ref_pres_set_by_initial
+  Vec :: vec_int_ptr
+  Vec :: dataset_vec
+  character(len=MAXSTRINGLENGTH) :: group_name
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+
+  option => realization%option
+  patch => realization%patch
+  grid => patch%grid
+  material_property_array => patch%material_property_array
+  material_auxvars => patch%aux%Material%auxvars
+
+  dataset_vec = PETSC_NULL_VEC
+
+  call RealizationGetVariable(realization,realization%field%work, &
+                              MAXIMUM_PRESSURE,ZERO_INTEGER)
+  call DiscretizationGlobalToLocal(realization%discretization, &
+                                   realization%field%work, &
+                                   realization%field%work_loc, &
+                                   ONEDOF)
+  call VecGetArrayReadF90(realization%field%work_loc,vec_loc_p, &
+                          ierr); CHKERRQ(ierr)
+
+  ref_pres_set_by_initial = PETSC_FALSE
+  ! read in any user-defined property fields
+  do material_id = 1, size(patch%material_property_array)
+    material_property => &
+            patch%material_property_array(material_id)%ptr
+    if (.not.associated(material_property)) cycle
+    if (associated(material_property%soil_reference_pressure_dataset)) then
+      if (dataset_vec == PETSC_NULL_VEC) then
+        call DiscretizationDuplicateVector(realization%discretization, &
+                                           realization%field%work_loc, &
+                                           dataset_vec)
+      endif
+      call VecZeroEntries(realization%field%work,ierr)
+      vec_int_ptr = dataset_vec
+      select type(dataset => material_property%soil_reference_pressure_dataset)
+        class is(dataset_gridded_hdf5_type)
+          option%io_buffer = 'Gridded dataset "' // trim(dataset%name) // &
+            ' not yet suppored in RealizSetSoilReferencePressure().'
+          call printErrMsg(option)
+        class is(dataset_common_hdf5_type)
+          dataset_name = dataset%hdf5_dataset_name
+          group_name = ''
+          call HDF5ReadCellIndexedRealArray(realization, &
+                                            realization%field%work, &
+                                            dataset%filename, &
+                                            group_name,dataset_name, &
+                                            dataset%realization_dependent)
+        class default
+          option%io_buffer = 'Dataset "' // trim(dataset%name) // '" is of the &
+            &wrong type for RealizSetSoilReferencePressure()'
+          call printErrMsg(option)
+      end select
+      call DiscretizationGlobalToLocal(realization%discretization, &
+                                       realization%field%work, &
+                                       dataset_vec,ONEDOF)
+    else if (material_property%soil_reference_pressure_initial) then
+      vec_int_ptr = realization%field%work_loc
+      ref_pres_set_by_initial = PETSC_TRUE
+    else
+      cycle
+    endif
+    call VecGetArrayReadF90(vec_int_ptr,vec_loc_p,ierr); CHKERRQ(ierr)
+    do ghosted_id = 1, grid%ngmax
+      if (patch%imat(ghosted_id) /= material_property%internal_id) cycle
+      if (associated(material_auxvars(ghosted_id)%fracture)) then
+        call FractureSetInitialPressure(material_auxvars(ghosted_id)%fracture, &
+                                        vec_loc_p(ghosted_id))
+      endif
+      call MaterialAuxVarSetValue(material_auxvars(ghosted_id), &
+                                  SOIL_REFERENCE_PRESSURE, &
+                                  vec_loc_p(ghosted_id))
+    enddo
+    call VecRestoreArrayReadF90(vec_int_ptr,vec_loc_p,ierr); CHKERRQ(ierr)
+  enddo
+
+  if (ref_pres_set_by_initial .and. option%time > 0.d0) then
+    option%io_buffer = 'Restarted simulations (restarted with time > 0) &
+      &that set reference pressure based on the initial pressure will be &
+      &incorrect as the initial pressure is not stored in a checkpoint file.'
+    call printErrMsg(option)
+  endif
+
+  if (dataset_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(dataset_vec,ierr);CHKERRQ(ierr)
+  endif
+
+end subroutine PMSubsurfaceFlowSetSoilRefPres
 
 ! ************************************************************************** !
 #ifdef WELL_CLASS

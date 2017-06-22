@@ -94,7 +94,6 @@ private
             RealizUpdateAllCouplerAuxVars, &
             RealizUnInitializedVarsFlow, &
             RealizUnInitializedVarsTran, &
-            RealizSetSoilReferencePressure, &
             RealizationLimitDTByCFL
 
   !TODO(intel)
@@ -868,6 +867,23 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           option%io_buffer = 'Incorrect dataset type for permeability Z.'
           call printErrMsg(option)
       end select      
+    endif
+    if (associated(cur_material_property%soil_reference_pressure_dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),SOIL_REFERENCE_PRESSURE'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                 cur_material_property%soil_reference_pressure_dataset%name, &
+                 string,option)
+      call DatasetDestroy(cur_material_property%soil_reference_pressure_dataset)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%soil_reference_pressure_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for soil reference &
+                              &pressure.'
+          call printErrMsg(option)
+      end select
     endif
     if (associated(cur_material_property%compressibility_dataset)) then
       string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
@@ -2455,82 +2471,6 @@ subroutine RealizUnInitializedVar1(realization,ivar,var_name)
   endif
 
 end subroutine RealizUnInitializedVar1
-
-! ************************************************************************** !
-
-subroutine RealizSetSoilReferencePressure(realization)
-  ! 
-  ! Deallocates a realization
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 07/06/16
-  ! 
-  use Patch_module
-  use Grid_module
-  use Material_Aux_class
-  use Fracture_module
-  use Variables_module, only : MAXIMUM_PRESSURE, SOIL_REFERENCE_PRESSURE
-
-  implicit none
-
-  type(realization_subsurface_type) :: realization
-
-  type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
-  class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(material_type), pointer :: Material
-  type(material_property_ptr_type), pointer :: material_property_array(:)
-  type(option_type), pointer :: option
-  PetscReal, pointer :: vec_loc_p(:)
-
-  PetscInt :: ghosted_id
-  PetscInt :: imat
-  PetscErrorCode :: ierr
-  PetscBool :: initial_pressure_set
-
-  option => realization%option
-  patch => realization%patch
-  grid => patch%grid
-  material_property_array => patch%material_property_array
-  material_auxvars => patch%aux%Material%auxvars
-
-  call RealizationGetVariable(realization,realization%field%work, &
-                              MAXIMUM_PRESSURE,ZERO_INTEGER)
-  call DiscretizationGlobalToLocal(realization%discretization, &
-                                   realization%field%work, &
-                                   realization%field%work_loc, &
-                                   ONEDOF)
-  call VecGetArrayReadF90(realization%field%work_loc,vec_loc_p, &
-                          ierr); CHKERRQ(ierr)
-
-  initial_pressure_set = PETSC_FALSE
-  do ghosted_id = 1, grid%ngmax
-    imat = patch%imat(ghosted_id)
-    if (imat <= 0) cycle
-    if (associated(material_auxvars(ghosted_id)%fracture)) then
-      call FractureSetInitialPressure(material_auxvars(ghosted_id)%fracture, &
-                                      vec_loc_p(ghosted_id))
-      initial_pressure_set = PETSC_TRUE
-    endif
-    if (material_property_array(imat)%ptr%soil_reference_pressure_initial) then
-      call MaterialAuxVarSetValue(material_auxvars(ghosted_id), &
-                                  SOIL_REFERENCE_PRESSURE, &
-                                  vec_loc_p(ghosted_id))
-      initial_pressure_set = PETSC_TRUE
-    endif
-  enddo
-
-  call VecRestoreArrayReadF90(realization%field%work_loc,vec_loc_p, &
-                              ierr); CHKERRQ(ierr)
-
-  if (initial_pressure_set .and. option%time > 0.d0) then
-    option%io_buffer = 'Restarted simulations (restarted with time > 0) &
-      &that set reference pressure based on the initial pressure will be &
-      &incorrect as the initial pressure is not stored in a checkpoint file.'
-    call printErrMsg(option)
-  endif
-
-end subroutine RealizSetSoilReferencePressure
 
 ! ************************************************************************** !
 
