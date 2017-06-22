@@ -215,7 +215,7 @@ module PM_Waste_Form_class
     PetscInt, pointer :: mapping_fmdm(:)
     PetscInt, pointer :: mapping_fmdm_to_pflotran(:)
     PetscReal, pointer :: concentration(:,:)
-    PetscInt :: num_concentrations            ! hardwired to 11
+    PetscInt :: num_concentrations        
     PetscInt :: iUO2_2p
     PetscInt :: iUCO3_2n
     PetscInt :: iUO2
@@ -431,10 +431,10 @@ function PMWFMechanismGlassCreate()
   glass%k_long = UNINITIALIZED_DOUBLE  ! [kg/m^2/sec]
   glass%nu = UNINITIALIZED_DOUBLE      ! [-]
   glass%Ea = UNINITIALIZED_DOUBLE      ! [J/mol]
-  glass%Q = UNINITIALIZED_DOUBLE      
-  glass%K = UNINITIALIZED_DOUBLE
-  glass%v = UNINITIALIZED_DOUBLE    
-  glass%pH = UNINITIALIZED_DOUBLE   
+  glass%Q = UNINITIALIZED_DOUBLE       ! [-]
+  glass%K = UNINITIALIZED_DOUBLE       ! [-]
+  glass%v = UNINITIALIZED_DOUBLE       ! [-]
+  glass%pH = UNINITIALIZED_DOUBLE      ! [-]
   glass%use_pH = PETSC_FALSE  
   glass%use_Q = PETSC_FALSE
   glass%h_ion_id = 0
@@ -448,7 +448,7 @@ end function PMWFMechanismGlassCreate
 
 function PMWFMechanismDSNFCreate()
   ! 
-  ! Creates the DSNF (DOE Spent Nuclear Fuel) waste form mechanism 
+  ! Creates the DSNF (Defense Spent Nuclear Fuel) waste form mechanism 
   ! 
   ! Author: Jenn Frederick
   ! Date: 03/24/2016
@@ -530,7 +530,7 @@ function PMWFMechanismFMDMCreate()
   fmdm%num_grid_cells_in_waste_form = 40  ! hardwired
   
   nullify(fmdm%concentration)
-  fmdm%num_concentrations = 11         
+  fmdm%num_concentrations = 11  ! hardwired
   fmdm%iUO2_2p = 1
   fmdm%iUCO3_2n = 2
   fmdm%iUO2 = 3
@@ -2712,10 +2712,41 @@ subroutine PMWFSolve(this,time,ierr)
   
   implicit none
 
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! time (input): [sec] simulation time
+! ierr (input/output): [-] PETSc error integer
+! ---------------------------------
   class(pm_waste_form_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
+! ---------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! cur_waste_form: pointer to current waste form object
+! i, j, k: [-] looping index integers
+! num_species: [-] number of radionuclide species objects
+! local_id: [-] local grid cell id number
+! ghosted_id: [-] ghosted grid cell id number
+! idof: [-] degree of freedom index
+! inst_diss_molality: [mol-RN/kg-water] molality of radionuclide (RN) that
+!    is dissolved from waste form
+! vec_p(:): [mol-RN/sec] pointer to data mediator array that stores the
+!    radionuclide source term
+! xx_p(:): [mol-RN/kg-water] pointer to solution vector for species 
+!    concentration
+! fmdm_count_*: [-] number of time the FMDM is called
+! word: temporary string
+! global_auxvars(:): pointer to global auxvar object, which stores the
+!    liquid saturation and liquid density at each grid cell, indexed by
+!    the ghosted cell id
+! material_auxvars(:): pointer to material auxvar object, which stores the
+!    porosity and grid cell volume at each grid cell, indexed by the
+!    ghosted cell id
+! grid: pointer to the grid object
+! -----------------------------------------------------------
   class(waste_form_base_type), pointer :: cur_waste_form
   PetscInt :: i, j, k
   PetscInt :: num_species
@@ -2729,6 +2760,7 @@ subroutine PMWFSolve(this,time,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
+! -----------------------------------------------------------
   
   fmdm_count_global = 0
   fmdm_count_local = 0
@@ -2748,7 +2780,7 @@ subroutine PMWFSolve(this,time,ierr)
     if ((cur_waste_form%volume > 0.d0) .and. &
         (cur_waste_form%canister_vitality <= 1.d-40)) then
     !---------------------------------------------------------------------------
-      ! calculate the mechanism-specific eff_dissolution_rate [kg-matrix/sec]:
+      ! calculate the mechanism-specific eff_dissolution_rate [kg-bulk/sec]:
       call cur_waste_form%mechanism%Dissolution(cur_waste_form,this,ierr)
       select type(cwfm => cur_waste_form%mechanism)
       !-----------------------------------------------------------------------
@@ -2760,10 +2792,10 @@ subroutine PMWFSolve(this,time,ierr)
             ghosted_id = grid%nL2G(local_id)
             do j = 1,num_species
               i = i + 1
-              cur_waste_form%instantaneous_mass_rate(j) = &
-                (cur_waste_form%eff_dissolution_rate / &      ! kg-matrix/sec
+              cur_waste_form%instantaneous_mass_rate(j) = &   ! mol-rad/sec
+                (cur_waste_form%eff_dissolution_rate / &      ! kg-bulk/sec
                  cur_waste_form%mechanism%rad_species_list(j)%formula_weight * &! kg-rad/kmol-rad
-                 cur_waste_form%rad_mass_fraction(j) * &      ! kg-rad/kg-matrix
+                 cur_waste_form%rad_mass_fraction(j) * &      ! kg-rad/kg-bulk
                  1.d3) 
               inst_diss_molality = &                          ! mol-rad/kg-water
                 cur_waste_form%instantaneous_mass_rate(j) * & ! mol-rad/sec
@@ -2780,7 +2812,7 @@ subroutine PMWFSolve(this,time,ierr)
               vec_p(i) = 0.d0
               if (k == 1) then
                 ! update the cumulative mass now, not at next timestep:
-                cur_waste_form%cumulative_mass(j) = &
+                cur_waste_form%cumulative_mass(j) = &            ! mol-rad
                   cur_waste_form%cumulative_mass(j) + &          ! mol-rad
                   cur_waste_form%instantaneous_mass_rate(j) * &  ! mol-rad/sec
                   this%realization%option%tran_dt                ! sec
@@ -2796,13 +2828,13 @@ subroutine PMWFSolve(this,time,ierr)
           do k = 1,cur_waste_form%region%num_cells
             do j = 1,num_species
               i = i + 1
-              cur_waste_form%instantaneous_mass_rate(j) = &
+              cur_waste_form%instantaneous_mass_rate(j) = &   ! mol-red/sec
                 (cur_waste_form%eff_dissolution_rate / &      ! kg-matrix/sec
                  cur_waste_form%mechanism%rad_species_list(j)%formula_weight * &! kg-rad/kmol-rad
                  cur_waste_form%rad_mass_fraction(j) * &      ! kg-rad/kg-matrix
                  1.d3)
               vec_p(i) = cur_waste_form%instantaneous_mass_rate(j) * &
-                         cur_waste_form%scaling_factor(k)  ! mol/sec * [-]
+                         cur_waste_form%scaling_factor(k)  ! mol-rad/sec * [-]
             enddo 
           enddo
       !-------------------------------------------------------------------------
@@ -2851,10 +2883,18 @@ subroutine WFMechBaseDissolution(this,waste_form,pm,ierr)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): base mechanism object
+! waste_form (input/output): base waste form object
+! pm (input/output): waste form process model
+! ierr (input/output): [-] PETSc error integer
+! -----------------------------------------
   class(wf_mechanism_base_type) :: this
   class(waste_form_base_type) :: waste_form
   class(pm_waste_form_type) :: pm
   PetscErrorCode :: ierr
+! -----------------------------------------
 
   ! This routine must be extended.
   print *, 'subroutine WFMechBaseDissolution must be extended!'
@@ -2879,21 +2919,45 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): base mechanism object
+! waste_form (input/output): base waste form object
+! pm (input/output): waste form process model
+! ierr (input/output): [-] PETSc error integer
+! -----------------------------------------
   class(wf_mechanism_glass_type) :: this
   class(waste_form_base_type) :: waste_form
   class(pm_waste_form_type) :: pm
   PetscErrorCode :: ierr
+! -----------------------------------------
 
+! LOCAL VARIABLES:
+! ================
+! grid: pointer to grid object
+! global_auxvars(:): pointer to global auxvar object, which stores the
+!    temperature at each grid cell, and is indexed by the ghosted cell id
+! rt_auxvars(:): pointer to the reactive transport auxvar object, which
+!    stores the molality of each species and the activity coefficients of
+!    each species, and is indexed by the ghosted cell id
+! time_conversion: [1/day] --> [1/sec]
+! avg_temp_local/global: [C] average temperature in waste form region
+! ph_local/global: [-] average pH in waste form region
+! Q_local/global: [-] average activity coefficient for H4SiO4 in waste
+!    form region
+! ghosted_id: [-] ghosted grid cell id
+! i: [-] looping index integer
+! --------------------------------------------------------------
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-                                            ! 1/day -> 1/sec
   PetscReal, parameter :: time_conversion = 1.d0/(24.d0*3600.d0)
   PetscReal :: avg_temp_local, avg_temp_global
   PetscReal :: ph_local, ph_global
   PetscReal :: Q_local, Q_global
   PetscInt :: ghosted_id
   PetscInt :: i
+! --------------------------------------------------------------
 
   grid => pm%realization%patch%grid
   global_auxvars => pm%realization%patch%aux%Global%auxvars
@@ -2993,10 +3057,18 @@ subroutine WFMechDSNFDissolution(this,waste_form,pm,ierr)
 
   implicit none
 
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): base mechanism object
+! waste_form (input/output): base waste form object
+! pm (input/output): waste form process model
+! ierr (input/output): [-] PETSc error integer
+! -----------------------------------------
   class(wf_mechanism_dsnf_type) :: this
   class(waste_form_base_type) :: waste_form
   class(pm_waste_form_type) :: pm  
   PetscErrorCode :: ierr
+! -----------------------------------------
   
   ierr = 0
   
@@ -3032,10 +3104,18 @@ subroutine WFMechWIPPDissolution(this,waste_form,pm,ierr)
 
   implicit none
 
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): base mechanism object
+! waste_form (input/output): base waste form object
+! pm (input/output): waste form process model
+! ierr (input/output): [-] PETSc error integer
+! -----------------------------------------
   class(wf_mechanism_wipp_type) :: this
   class(waste_form_base_type) :: waste_form
   class(pm_waste_form_type) :: pm  
   PetscErrorCode :: ierr
+! -----------------------------------------
   
   ! This subroutine is only a placeholder.
   ! The WIPP waste form mechanism is an extension of the DSNF waste form
@@ -3082,11 +3162,30 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   end interface  
  !===================================================================
 
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): base mechanism object
+! waste_form (input/output): base waste form object
+! pm (input/output): waste form process model
+! ierr (input/output): [-] PETSc error integer
+! -----------------------------------------
   class(wf_mechanism_fmdm_type) :: this
   class(waste_form_base_type) :: waste_form
   class(pm_waste_form_type) :: pm
   PetscErrorCode :: ierr
+! -----------------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! grid: pointer to grid object
+! rt_auxvars(:): pointer to reactive transport auxvar object, which stores
+!    the total component concentration, and is indexed by the ghosted cell id
+! i, k: [-] looping index integers
+! icomp_fmdm: [-] FMDM species component number
+! icomp_pflotran: [-] species component number mapped from FMDM to PFLOTRAN
+! ghosted_id: [-] ghosted grid cell id
+! avg_temp_local: [C] average temperature in the waste form region
+! --------------------------------------------------------------
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   PetscInt :: i, k
@@ -3094,6 +3193,7 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   PetscInt :: icomp_pflotran
   PetscInt :: ghosted_id
   PetscReal :: avg_temp_local
+! --------------------------------------------------------------
   
  ! FMDM model: 
  !=======================================================
@@ -3199,10 +3299,18 @@ subroutine WFMechCustomDissolution(this,waste_form,pm,ierr)
 
   implicit none
 
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): base mechanism object
+! waste_form (input/output): base waste form object
+! pm (input/output): waste form process model
+! ierr (input/output): [-] PETSc error integer
+! -----------------------------------------
   class(wf_mechanism_custom_type) :: this
   class(waste_form_base_type) :: waste_form
   class(pm_waste_form_type) :: pm
   PetscErrorCode :: ierr
+! -----------------------------------------
 
   ! Note: Units for dissolution rates have already been converted to
   ! internal units within the PMWFRead routine.
@@ -3237,7 +3345,12 @@ subroutine PMWFFinalizeTimestep(this)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process mode object
+! ---------------------------------
   class(pm_waste_form_type) :: this
+! ---------------------------------
   
 end subroutine PMWFFinalizeTimestep
 
@@ -3250,7 +3363,12 @@ subroutine PMWFUpdateSolution(this)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process mode object
+! ---------------------------------
   class(pm_waste_form_type) :: this
+! ---------------------------------
 
 end subroutine PMWFUpdateSolution
 
@@ -3265,7 +3383,12 @@ recursive subroutine PMWFFinalizeRun(this)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process mode object
+! ---------------------------------
   class(pm_waste_form_type) :: this
+! ---------------------------------
   
   ! do something here
   
@@ -3291,16 +3414,31 @@ subroutine PMWFOutput(this)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process mode object
+! ---------------------------------
   class(pm_waste_form_type) :: this
+! ---------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! option: pointer to option object
+! output_option: pointer to output option object
+! cur_waste_form: pointer to curent waste form object
+! grid: pointer to grid object
+! filename: filename string
+! fid: [-] file id number
+! i: [-] looping index integer
+! ------------------------------------------------------
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
   class(waste_form_base_type), pointer :: cur_waste_form
   type(grid_type), pointer :: grid
-  type(global_auxvar_type), pointer :: global_auxvars(:)
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: fid
   PetscInt :: i
+! ------------------------------------------------------
   
   if (.not.associated(this%waste_form_list)) return
   
@@ -3310,7 +3448,6 @@ subroutine PMWFOutput(this)
   option => this%realization%option
   output_option => this%realization%output_option
   grid => this%realization%patch%grid
-  global_auxvars => this%realization%patch%aux%Global%auxvars
   
   fid = 86
   filename = PMWFOutputFilename(option)
@@ -3351,10 +3488,22 @@ function PMWFOutputFilename(option)
   use Option_module
 
   implicit none
-  
+
+! INPUT ARGUMENTS:
+! ================
+! option (input): pointer to option object 
+! ------------------------------------  
   type(option_type), pointer :: option
+! ------------------------------------
+
+! LOCAL VARIABLES:
+! ================
+! PMWFOutputFilename (output): filename string
+! word: temporary string
+! ----------------------------------------------------
   character(len=MAXSTRINGLENGTH) :: PMWFOutputFilename
   character(len=MAXWORDLENGTH) :: word
+! ----------------------------------------------------
 
   write(word,'(i6)') option%myrank
   PMWFOutputFilename = trim(option%global_prefix) // &
@@ -3378,8 +3527,28 @@ subroutine PMWFOutputHeader(this)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! ---------------------------------
   class(pm_waste_form_type) :: this
+! ---------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! output_option: pointer to output option object
+! grid: pointer to grid object
+! cur_waste_form: pointer to current waste form object
+! cell_string: cell string
+! x_string, y_string, z_string: coordinate strings
+! units_string: units string
+! variable_string: variable string
+! filename: filename string
+! fid: [-] file id number
+! icolumn: [-] column number
+! i: [-] looping index integer
+! exist: Boolean helper to check is file exists
+! -------------------------------------------------------------
   type(output_option_type), pointer :: output_option
   type(grid_type), pointer :: grid
   class(waste_form_base_type), pointer :: cur_waste_form
@@ -3390,6 +3559,7 @@ subroutine PMWFOutputHeader(this)
   PetscInt :: fid
   PetscInt :: icolumn, i
   PetscBool :: exist
+! -------------------------------------------------------------
   
   if (.not.associated(this%waste_form_list)) return
   
@@ -3490,16 +3660,25 @@ subroutine PMWFCheckpoint(this,viewer)
 
   implicit none
 
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! viewer (input): PETSc viewer object
+! ---------------------------------
   class(pm_waste_form_type) :: this
   PetscViewer :: viewer
+! ---------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! ------------------------------------------------------
   class(waste_form_base_type), pointer :: cur_waste_form
   PetscInt :: maximum_waste_form_id
   PetscInt :: local_waste_form_count
   PetscInt :: temp_int
-  
   Vec :: local, global
   PetscErrorCode :: ierr
+! ------------------------------------------------------
   
   this%option%io_buffer = 'PMWFCheckpoint not implemented.'
   call printErrMsg(this%option)
@@ -3533,11 +3712,18 @@ subroutine PMWFRestart(this,viewer)
   implicit none
 #include "petsc/finclude/petscviewer.h"      
 
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! viewer (input): PETSc viewer object
+! ---------------------------------
   class(pm_waste_form_type) :: this
   PetscViewer :: viewer
+! ---------------------------------
   
   this%option%io_buffer = 'PMWFRestart not implemented.'
   call printErrMsg(this%option)
+
 !  call RestartFlowProcessModel(viewer,this%realization)
 !  call this%UpdateAuxVars()
 !  call this%UpdateSolution()
@@ -3556,9 +3742,19 @@ subroutine PMWFInputRecord(this)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! ---------------------------------
   class(pm_waste_form_type) :: this
+! ---------------------------------
 
+! LOCAL VARIABLES:
+! ================
+! id: [-] file id number
+! --------------
   PetscInt :: id
+! --------------
 
   id = INPUT_RECORD_UNIT
   
@@ -3582,9 +3778,21 @@ subroutine PMWFStrip(this)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! ---------------------------------
   class(pm_waste_form_type) :: this
+! ---------------------------------
   
-  class(waste_form_base_type), pointer :: cur_waste_form, prev_waste_form
+! LOCAL VARIABLES:
+! ================
+! cur_waste_form: pointer to current waste form object
+! prev_waste_form: pointer to previous waste form object
+! -------------------------------------------------------
+  class(waste_form_base_type), pointer :: cur_waste_form
+  class(waste_form_base_type), pointer :: prev_waste_form
+! -------------------------------------------------------
 
   nullify(this%realization)
   nullify(this%data_mediator)
@@ -3615,9 +3823,21 @@ subroutine PMWFMechanismStrip(this)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! ---------------------------------
   class(pm_waste_form_type) :: this
+! ---------------------------------
   
-  class(wf_mechanism_base_type), pointer :: cur_mechanism, prev_mechanism
+! LOCAL VARIABLES:
+! ================
+! cur_mechanism: pointer to current mechanism object
+! prev_mechanism: pointer to previous mechanism object
+! --------------------------------------------------------
+  class(wf_mechanism_base_type), pointer :: cur_mechanism
+  class(wf_mechanism_base_type), pointer :: prev_mechanism
+! --------------------------------------------------------
 
   cur_mechanism => this%mechanism_list
   do
@@ -3653,7 +3873,12 @@ subroutine PMWFDestroyWasteForm(waste_form)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! waste_form (input/output): waste form object to be destroyed
+! --------------------------------------------------
   class(waste_form_base_type), pointer :: waste_form
+! --------------------------------------------------
   
   call DeallocateArray(waste_form%rad_mass_fraction)
   call DeallocateArray(waste_form%rad_concentration)
@@ -3680,7 +3905,12 @@ subroutine PMWFDestroy(this)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! ---------------------------------
   class(pm_waste_form_type) :: this
+! ---------------------------------
   
   call PMWFStrip(this)
   
