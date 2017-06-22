@@ -257,7 +257,41 @@ module PM_Waste_Form_class
 ! Description:
 ! ---------------------------------------------------------------------------
 ! id: [-] waste form id number
-! rank_list(:): []
+! rank_list(:): [-] array of 1's and 0's used to determine local waste forms
+! coordinate: pointer to coordinate object that stores waste form's location
+!    if a coordinate point was given
+! region_name: name string for waste form's region
+! region: pointer to the waste form's region object
+! scaling_factor(:): [-] array of volume scaling factor for each grid cell
+!    in the waste form's region object
+! init_volume: [m3] initial waste form volume
+! volume: [m3] current waste form volume
+! exposure_factor: [-] multiplying factor to the waste form dissolution rate,
+!    by default the value is 1.d0
+! eff_dissolution_rate: [kg-bulk/sec] effective waste form dissolution rate
+!    which takes into account the specific surface area, matrix density, 
+!    volume, and exposure factor
+! instantaneous_mass_rate(:): [mol/sec] radionuclide source term
+! cumulative_mass(:): [mol] cumulative mass of radionuclide released
+! rad_mass_fraction(:): [g-RN/g-bulk] current radionuclide (RN) mass fraction
+!    in the waste form 
+! rad_concentration(:): [mol-RN/g-bulk] current radionuclide (RN)
+!    concentration in the waste form
+! inst_release_amount(:): [mol-RN/g-bulk] fraction of current radionuclide 
+!    (RN) concentration that is instantly released upon waste package breach
+! canister_degradation_flag: Boolean that indicates if the waste package
+!    degradation model is on of off
+! canister_vitality: [%] current waste package vitality (between 0 and 1)
+! canister_vitality_rate: [%/sec] base rate of vitality degradation
+! eff_canister_vit_rate: [%/sec] effective rate of vitality degradation
+!    after effects of temperature and canister material constant
+! breach_time: [sec] time of waste package breach
+! breached: Boolean indicating if waste package has breached 
+! decay_start_time: [sec] time in simuation when radionuclides in the waste
+!    form should start decaying, default time is 0.d0 sec
+! mech_name: name string for the waste form mechanism object
+! mechanism: pointer to waste form's mechanism object
+! next: pointer to next waste form object in linked list
 ! -----------------------------------------------------
   type :: waste_form_base_type
     PetscInt :: id
@@ -265,23 +299,23 @@ module PM_Waste_Form_class
     type(point3d_type) :: coordinate
     character(len=MAXWORDLENGTH) :: region_name
     type(region_type), pointer :: region
-    PetscReal, pointer :: scaling_factor(:)             ! [-]
-    PetscReal :: init_volume                            ! m^3
-    PetscReal :: volume                                 ! m^3
-    PetscReal :: exposure_factor                        ! unitless 
-    PetscReal :: eff_dissolution_rate                   ! kg-matrix/sec
-    PetscReal, pointer :: instantaneous_mass_rate(:)    ! mol/sec
-    PetscReal, pointer :: cumulative_mass(:)            ! mol
-    PetscReal, pointer :: rad_mass_fraction(:)          ! g-rad/g-matrix
-    PetscReal, pointer :: rad_concentration(:)          ! mol-rad/g-matrix
-    PetscReal, pointer :: inst_release_amount(:)        ! of rad
+    PetscReal, pointer :: scaling_factor(:)       
+    PetscReal :: init_volume                      
+    PetscReal :: volume                             
+    PetscReal :: exposure_factor                     
+    PetscReal :: eff_dissolution_rate               
+    PetscReal, pointer :: instantaneous_mass_rate(:)
+    PetscReal, pointer :: cumulative_mass(:)        
+    PetscReal, pointer :: rad_mass_fraction(:)      
+    PetscReal, pointer :: rad_concentration(:)      
+    PetscReal, pointer :: inst_release_amount(:)    
     PetscBool :: canister_degradation_flag
-    PetscReal :: canister_vitality                      ! %
+    PetscReal :: canister_vitality                     
     PetscReal :: canister_vitality_rate
     PetscReal :: eff_canister_vit_rate
-    PetscReal :: breach_time                            ! sec
+    PetscReal :: breach_time                           
     PetscBool :: breached
-    PetscReal :: decay_start_time                       ! sec
+    PetscReal :: decay_start_time                      
     character(len=MAXWORDLENGTH) :: mech_name
     class(wf_mechanism_base_type), pointer :: mechanism
     class(waste_form_base_type), pointer :: next
