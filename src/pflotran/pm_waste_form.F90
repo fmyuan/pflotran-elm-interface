@@ -1,5 +1,15 @@
 module PM_Waste_Form_class
 
+! MODULE DESCRIPTION:
+! ===========================================================================
+! This process model calculates the radionuclide source term due to 
+! nuclear waste form dissolution. The process model includes a waste
+! package degradation model (including an instant release fraction), and 
+! several waste form dissolution models. Radionuclide decay is calculated
+! to adjust radionuclide mass fractions (concentrations) within the waste
+! form before and after waste package breach.  
+! ===========================================================================
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PM_Base_class
