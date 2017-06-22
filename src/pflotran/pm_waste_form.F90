@@ -374,14 +374,19 @@ contains
 
 subroutine PMWFMechanismInit(this)
   ! 
-  ! Initializes the base waste form mechanism package
+  ! Initializes the base waste form mechanism
   ! 
   ! Author: Jenn Frederick
   ! Date: 03/24/2016
 
   implicit none
 
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): base mechanism object
+! -------------------------------------
   class(wf_mechanism_base_type) :: this
+! -------------------------------------
 
   nullify(this%next)
   nullify(this%rad_species_list)
@@ -403,15 +408,21 @@ end subroutine PMWFMechanismInit
 
 function PMWFMechanismGlassCreate()
   ! 
-  ! Creates the glass waste form mechanism package
+  ! Creates the glass waste form mechanism 
   ! 
   ! Author: Jenn Frederick
   ! Date: 03/24/2016
 
   implicit none
   
+! LOCAL VARIABLES:
+! ================
+! PMWFMechanismGlassCreate (output): new GLASS mechanism object
+! glass: new GLASS mechanism object with shorter name
+! -------------------------------------------------------------------
   class(wf_mechanism_glass_type), pointer :: PMWFMechanismGlassCreate
   class(wf_mechanism_glass_type), pointer :: glass
+! -------------------------------------------------------------------
   
   allocate(glass)
   call PMWFMechanismInit(glass)
@@ -437,15 +448,21 @@ end function PMWFMechanismGlassCreate
 
 function PMWFMechanismDSNFCreate()
   ! 
-  ! Creates the DSNF (DOE Spent Nuclear Fuel) waste form mechanism package
+  ! Creates the DSNF (DOE Spent Nuclear Fuel) waste form mechanism 
   ! 
   ! Author: Jenn Frederick
   ! Date: 03/24/2016
 
   implicit none
   
+! LOCAL VARIABLES:
+! ================
+! PMWFMechanismDSNFCreate (output): new DSNF mechanism object
+! dsnf: new DSNF mechanism object with shorter name
+! -----------------------------------------------------------------
   class(wf_mechanism_dsnf_type), pointer :: PMWFMechanismDSNFCreate
   class(wf_mechanism_dsnf_type), pointer :: dsnf
+! -----------------------------------------------------------------
   
   allocate(dsnf)
   call PMWFMechanismInit(dsnf)
@@ -459,15 +476,21 @@ end function PMWFMechanismDSNFCreate
 
 function PMWFMechanismWIPPCreate()
   ! 
-  ! Creates the WIPP (Waste Isolation Pilot Plant) waste form mechanism package
+  ! Creates the WIPP (Waste Isolation Pilot Plant) waste form mechanism 
   ! 
   ! Author: Jenn Frederick
   ! Date: 012/7/2016
 
   implicit none
   
+! LOCAL VARIABLES:
+! ================
+! PMWFMechanismWIPPCreate (output): new WIPP mechanism object
+! wipp: new WIPP mechanism object with shorter name
+! -----------------------------------------------------------------
   class(wf_mechanism_wipp_type), pointer :: PMWFMechanismWIPPCreate
   class(wf_mechanism_wipp_type), pointer :: wipp
+! -----------------------------------------------------------------
   
   allocate(wipp)
   call PMWFMechanismInit(wipp)
@@ -487,16 +510,22 @@ function PMWFMechanismFMDMCreate()
   ! Date: 03/24/2016
 
   implicit none
-  
+
+! LOCAL VARIABLES:
+! ================
+! PMWFMechanismFMDMCreate (output): new FMDM mechanism object
+! fmdm: new FMDM mechanism object with shorter name
+! ----------------------------------------------------------------- 
   class(wf_mechanism_fmdm_type), pointer :: PMWFMechanismFMDMCreate
   class(wf_mechanism_fmdm_type), pointer :: fmdm
+! -----------------------------------------------------------------
   
   allocate(fmdm)
   call PMWFMechanismInit(fmdm)
   
-  fmdm%dissolution_rate = UNINITIALIZED_DOUBLE   ! kg/m^2/sec
+  fmdm%dissolution_rate = UNINITIALIZED_DOUBLE       ! kg/m^2/sec
   fmdm%frac_dissolution_rate = UNINITIALIZED_DOUBLE  ! 1/day
-  fmdm%burnup = UNINITIALIZED_DOUBLE ! GWd/MTHM or (kg/m^2/sec)
+  fmdm%burnup = UNINITIALIZED_DOUBLE                 ! GWd/MTHM or (kg/m^2/sec)
   
   fmdm%num_grid_cells_in_waste_form = 40  ! hardwired
   
@@ -542,12 +571,18 @@ function PMWFMechanismCustomCreate()
 
   implicit none
   
+! LOCAL VARIABLES:
+! ================
+! PMWFMechanismCustomCreate (output): new CUSTOM mechanism object
+! custom: new CUSTOM mechanism object with shorter name
+! ---------------------------------------------------------------------
   class(wf_mechanism_custom_type), pointer :: PMWFMechanismCustomCreate
   class(wf_mechanism_custom_type), pointer :: custom
+! ---------------------------------------------------------------------
   
   allocate(custom)
   call PMWFMechanismInit(custom)
-  custom%dissolution_rate = UNINITIALIZED_DOUBLE ! kg/m^2/sec
+  custom%dissolution_rate = UNINITIALIZED_DOUBLE      ! kg/m^2/sec
   custom%frac_dissolution_rate = UNINITIALIZED_DOUBLE ! 1/sec
   
   PMWFMechanismCustomCreate => custom
@@ -565,8 +600,13 @@ function PMWFRadSpeciesCreate()
   ! Date: 03/09/16
 
   implicit none
-  
+
+! LOCAL VARIABLES:
+! ================
+! PMWFRadSpeciesCreate (output): new radionuclide species object
+! ---------------------------------------------- 
   type(rad_species_type) :: PMWFRadSpeciesCreate
+! ----------------------------------------------
 
   PMWFRadSpeciesCreate%name = ''
   PMWFRadSpeciesCreate%daughter = ''
@@ -590,8 +630,14 @@ function PMWFWasteFormCreate()
 
   implicit none
 
+! LOCAL VARIABLES:
+! ================
+! PMWFWasteFormCreate (output): new waste form object
+! wf: new waste form object with a shorter name
+! ----------------------------------------------------------
   type(waste_form_base_type), pointer :: PMWFWasteFormCreate
   type(waste_form_base_type), pointer :: wf
+! ----------------------------------------------------------
 
   allocate(wf)
   wf%id = UNINITIALIZED_INTEGER
@@ -601,18 +647,18 @@ function PMWFWasteFormCreate()
   wf%coordinate%z = UNINITIALIZED_DOUBLE
   nullify(wf%region)
   wf%region_name = ''
-  nullify(wf%scaling_factor) ! [-]
-  wf%init_volume = UNINITIALIZED_DOUBLE
-  wf%volume = UNINITIALIZED_DOUBLE
-  wf%exposure_factor = 1.0d0
-  wf%eff_dissolution_rate = UNINITIALIZED_DOUBLE
+  nullify(wf%scaling_factor)            ! [-]
+  wf%init_volume = UNINITIALIZED_DOUBLE ! m3
+  wf%volume = UNINITIALIZED_DOUBLE      ! m3
+  wf%exposure_factor = 1.0d0            ! [-]
+  wf%eff_dissolution_rate = UNINITIALIZED_DOUBLE ! kg/sec
   wf%mech_name = ''
-  wf%decay_start_time = 0.d0 ! sec (default value)
+  wf%decay_start_time = 0.d0          ! sec (default value)
   nullify(wf%instantaneous_mass_rate) ! mol-rad/sec
-  nullify(wf%cumulative_mass) ! mol-rad
-  nullify(wf%rad_mass_fraction) ! g-rad/g-matrix
-  nullify(wf%rad_concentration) ! mol-rad/g-matrix
-  nullify(wf%inst_release_amount) ! of rad
+  nullify(wf%cumulative_mass)         ! mol-rad
+  nullify(wf%rad_mass_fraction)       ! g-rad/g-matrix
+  nullify(wf%rad_concentration)       ! mol-rad/g-matrix
+  nullify(wf%inst_release_amount)     ! mol-rad/g-matrix
   nullify(wf%mechanism)
   nullify(wf%next)
  !------- canister degradation model -----------------
@@ -640,7 +686,12 @@ function PMWFCreate()
 
   implicit none
   
+! LOCAL VARIABLES:
+! ================
+! PMWFCreate (output): new waste form process model object
+! ------------------------------------------------
   class(pm_waste_form_type), pointer :: PMWFCreate
+! ------------------------------------------------
   
   allocate(PMWFCreate)
   nullify(PMWFCreate%realization)
@@ -671,15 +722,31 @@ subroutine PMWFRead(this,input)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (intput/output): waste form process model object
+! input (input/output): pointer to input object
+! ----------------------------------
   class(pm_waste_form_type) :: this
   type(input_type), pointer :: input
+! ----------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! cur_waste_form: pointer to current waste form object
+! cur_mechanism: pointer to current mechanism object
+! option: pointer to option object
+! word: temporary string
+! error_string: error message string
+! found: Boolean helper 
+! -------------------------------------------------------
   class(waste_form_base_type), pointer :: cur_waste_form
   class(wf_mechanism_base_type), pointer :: cur_mechanism
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
+! -------------------------------------------------------
 
   option => this%option
   input%ierr = 0
@@ -848,13 +915,35 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! input (input/output): pointer to input object
+! option (input/output): pointer to option object
+! keyword (input): keyword string
+! error_string (input/output): error message string
+! found (input/output): Boolean helper
+! ----------------------------------------------
   class(pm_waste_form_type) :: this
   type(input_type), pointer :: input
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
+! ----------------------------------------------
 
+! LOCAL VARIABLES:
+! ================
+! added: Boolean helper
+! num_errors: [-] number of errors that occured during read
+! word: temporary string
+! temp_buf: temporary buffer string
+! temp_species_array(:): temporary array of radionuclide species objects
+! new_mechanism: pointer to new mechanism object
+! cur_mechanism: pointer to current mechanism object
+! k, j: [-] looping index integers
+! double: temporary double precision number
+! ----------------------------------------------------------------------
   PetscBool :: added
   PetscInt :: num_errors
   character(len=MAXWORDLENGTH) :: word
@@ -863,6 +952,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   class(wf_mechanism_base_type), pointer :: new_mechanism, cur_mechanism
   PetscInt :: k, j
   PetscReal :: double
+! ----------------------------------------------------------------------
 
   error_string = trim(error_string) // ',MECHANISM'
   found = PETSC_TRUE
@@ -1516,17 +1606,36 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! input (input/output): pointer to input object
+! option (input/output): pointer to option object
+! keyword (input): keyword string
+! error_string (input/output): error message string
+! found (input/output): Boolean helper
+! ----------------------------------------------
   class(pm_waste_form_type) :: this
   type(input_type), pointer :: input
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
+! ----------------------------------------------
 
+! LOCAL VARIABLES:
+! ================
+! added: Boolean helper
+! num_errors: [-] number of errors during read
+! word: temporary string
+! new_waste_form: pointer to new waste form object
+! cur_waste_form: pointer to current waste form object
+! ----------------------------------------------------------------------
   PetscBool :: added
   PetscInt :: num_errors
   character(len=MAXWORDLENGTH) :: word
   class(waste_form_base_type), pointer :: new_waste_form, cur_waste_form
+! ----------------------------------------------------------------------
 
   error_string = trim(error_string) // ',WASTE_FORM'
   found = PETSC_TRUE
@@ -1691,9 +1800,28 @@ subroutine PMWFAssociateRegion(this,region_list)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form object
+! region_list (input): pointer to linked list of region objects
+! ----------------------------------------------
   class(pm_waste_form_type) :: this
   type(region_list_type), pointer :: region_list
+! ----------------------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! cur_region: pointer to current region object
+! new_region: pointer to new region object
+! cur_waste_form: pointer to current waste form object
+! option: pointer to option object
+! grid: pointer to grid object
+! word*: temporary word string
+! x, y, z: [m] coordinates
+! i, j, k: indexing for structure grid
+! local_id: [-] grid cell id number
+! coordinate_counter: [-] counting integer helper for naming regions
+! ------------------------------------------------------
   type(region_type), pointer :: cur_region
   type(region_type), pointer :: new_region
   class(waste_form_base_type), pointer :: cur_waste_form
@@ -1704,6 +1832,7 @@ subroutine PMWFAssociateRegion(this,region_list)
   PetscInt :: i, j, k
   PetscInt :: local_id(1)
   PetscInt :: coordinate_counter
+! ------------------------------------------------------
   
   option => this%option
   grid => this%realization%patch%grid
@@ -1787,14 +1916,32 @@ subroutine PMWFSetRegionScaling(this,waste_form)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! waste_form (input/output): pointer to waste form object
+! --------------------------------------------------
   class(pm_waste_form_type) :: this
   class(waste_form_base_type), pointer :: waste_form
+! --------------------------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! material_auxvars(:): pointer to material auxvar object, which stores
+!    the grid cell volume and indexed by the ghosted grid cell id
+! grid: pointer to the grid object
+! k: [-] looping index integer
+! local_id: [-] local grid cell id
+! ghosted_id: [-] ghosted grid cell id
+! total_volume_local: [m3] total local waste form region volume
+! total_volume_global: [m3] total global waste form region volume
+! -----------------------------------------------------------
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
   PetscInt :: k 
   PetscInt :: local_id, ghosted_id
   PetscReal :: total_volume_local, total_volume_global
+! -----------------------------------------------------------
   
   material_auxvars => this%realization%patch%aux%Material%auxvars
   grid => this%realization%patch%grid
@@ -1827,8 +1974,14 @@ subroutine PMWFSetRealization(this,realization)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! realization (input): subsurface realization object
+! ----------------------------------------------------------
   class(pm_waste_form_type) :: this
   class(realization_subsurface_type), pointer :: realization
+! ----------------------------------------------------------
   
   this%realization => realization
   this%realization_base => realization
@@ -1858,13 +2011,37 @@ subroutine PMWFSetup(this)
 
   implicit none
   
+! INPUT ARGUEMENTS:
+! =================
+! this (input/output): waste form process model object
+! ---------------------------------
   class(pm_waste_form_type) :: this
-  
+! ---------------------------------
+
+! LOCAL VARIABLES:
+! ================
+! option: pointer to option object
+! reaction: pointer to reaction object
+! species_name: species name string
+! names(:): array of name strings
+! cur_waste_form: pointer to current waste form object
+! prev_waste_form: pointer to previous waste form object
+! next_waste_form: pointer to next waste form object
+! cur_mechanism: pointer to current mechanism object
+! waste_form_id: [-] waste form id number
+! i, j,: [-] looping index integers
+! local: Boolean helper indicating if waste form is local
+! found: Boolean helper
+! ierr: [-] PETSc error integer
+! newcomm_size: [-] size of new MPI communicator number
+! ranks(:): array of size(mycommsize) used to find local waste form objects
+! -------------------------------------------------------  
   type(option_type), pointer :: option
   type(reaction_type), pointer :: reaction
   character(len=MAXWORDLENGTH) :: species_name
   character(len=MAXWORDLENGTH), pointer :: names(:)
-  class(waste_form_base_type), pointer :: cur_waste_form, prev_waste_form
+  class(waste_form_base_type), pointer :: cur_waste_form
+  class(waste_form_base_type), pointer :: prev_waste_form
   class(waste_form_base_type), pointer :: next_waste_form
   class(wf_mechanism_base_type), pointer :: cur_mechanism
   PetscInt :: waste_form_id
@@ -1873,6 +2050,7 @@ subroutine PMWFSetup(this)
   PetscErrorCode :: ierr
   PetscMPIInt :: newcomm_size
   PetscInt, pointer :: ranks(:)
+! -------------------------------------------------------
   
   option => this%realization%option
   reaction => this%realization%reaction
@@ -1998,7 +2176,7 @@ subroutine PMWFSetup(this)
             call printErrMsg(option)
           else
             cur_mechanism%h_ion_id = &
-                                 this%realization%reaction%species_idx%h_ion_id                                
+                    this%realization%reaction%species_idx%h_ion_id                                
           endif  
         endif
         if (cur_mechanism%use_Q) then   
@@ -2075,8 +2253,24 @@ end subroutine PMWFSetup
   
   implicit none
 
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! ---------------------------------
   class(pm_waste_form_type) :: this
+! ---------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! is: PETSc index set object
+! cur_waste_form: pointer to current waste form object
+! num_waste_form_cells: [-] number of cells in waste form region
+! num_species: [-] number of readionuclide species objects
+! size_of_vec: [-] size of data mediator array
+! i, j, k: [-] looping index integers
+! species_indices_in_residual(:): [-] array of indexes in the residual
+! ierr: [-] PETSc error integer
+! -------------------------------------------------------
   IS :: is
   class(waste_form_base_type), pointer :: cur_waste_form
   PetscInt :: num_waste_form_cells
@@ -2085,6 +2279,7 @@ end subroutine PMWFSetup
   PetscInt :: i, j, k
   PetscInt, allocatable :: species_indices_in_residual(:)
   PetscErrorCode :: ierr
+! -------------------------------------------------------
 
   cur_waste_form => this%waste_form_list
   do
@@ -2197,8 +2392,43 @@ subroutine PMWFInitializeTimestep(this)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! ---------------------------------
   class(pm_waste_form_type) :: this
+! ---------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! cur_waste_form: pointer to current waste form object
+! cwfm: pointer to current waste form mechanism object
+! global_auxvars(:): pointer to global auxvar object, which stores the
+!    temperature, liquid saturation, and liquid density, and is indexed
+!    by the ghosted cell id
+! material_auxvars(:): pointer to material auxvar object, which stores
+!    the porosity and grid cell volume, and is indexed by the ghosted cell id
+! field: pointer to field object
+! option: pointer to option object
+! grid: pointer to grid object
+! dV: [m3] volume change
+! dt: [sec] transport time step length
+! avg_temp_local/global: [C] average temperature in waste form region
+! local_id: [-] local grid cell id
+! ghosted_id: [-] ghosted grid cell id
+! idof: [-] degree of freedom number
+! i, k, p, g, d, f: [-] looping index integers
+! num_species: [-] number of readionuclide species objects
+! ierr: [-] PETSc error integer
+! Coeff(:): [mol-RN/g-bulk] coefficient in radionuclide (RN) decay equations
+! concentration_old(:): [mol-RN/g-bulk] radionuclide concentration from 
+!    previous time step in decay equations
+! inst_release_molality: [mol-RN/kg-water] instant release fraction of a
+!    radionuclide (RN) in molality units
+! conversion: [1/day] --> [1/sec]
+! xx_p(:): [mol-RN/kg-water] pointer to solution vector for species 
+!    concentration
+! -----------------------------------------------------------
   class(waste_form_base_type), pointer :: cur_waste_form
   class(wf_mechanism_base_type), pointer :: cwfm
   type(global_auxvar_type), pointer :: global_auxvars(:)
@@ -2219,6 +2449,7 @@ subroutine PMWFInitializeTimestep(this)
   PetscReal :: inst_release_molality
   PetscReal, parameter :: conversion = 1.d0/(24.d0*3600.d0)
   PetscReal, pointer :: xx_p(:)
+! -----------------------------------------------------------
 
   global_auxvars => this%realization%patch%aux%Global%auxvars
   material_auxvars => this%realization%patch%aux%Material%auxvars
