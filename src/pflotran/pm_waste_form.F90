@@ -28,7 +28,25 @@ module PM_Waste_Form_class
 
   PetscBool, public :: bypass_warning_message = PETSC_FALSE
 
-! --------------- waste form species packages ---------------------------------
+! OBJECT rad_species_type:
+! ========================
+! ---------------------------------------------------------------------------
+! Description:  This object describes a radionuclide (RN) inside a waste 
+! form. A linked list of these objects is a member of the base waste form 
+! mechanism object.
+! ---------------------------------------------------------------------------
+! formula_weight: [g-RN/mol] molar mass of the radionuclide (RN)
+! decay_constant: [1/sec] decay rate constant of the radionuclide
+! mass_fraction: [g-RN/g-bulk] mass fraction of radionuclide (RN) as defined
+!    by the mass of RN over the mass of the bulk waste form
+! inst_release_fraction: [-] the fraction of the radionuclide mass that is
+!    instantly released from the waste package upon breach
+! daugh_id: [-] daughter radionuclide id number
+! daughter: daughter name string
+! ispecies: [-] primary species id number of radionuclide in reactive
+!    transport process model
+! name: name string for radionuclide
+! -----------------------------------------
   type, public :: rad_species_type
    PetscReal :: formula_weight
    PetscReal :: decay_constant
@@ -36,12 +54,39 @@ module PM_Waste_Form_class
    PetscReal :: inst_release_fraction
    PetscInt :: daugh_id
    character(len=MAXWORDLENGTH) :: daughter
-   PetscInt :: column_id
    PetscInt :: ispecies
    character(len=MAXWORDLENGTH) :: name
   end type rad_species_type
+! -----------------------------------------
 
-! --------------- waste form mechanism types ----------------------------------
+! OBJECT wf_mechanism_base_type:
+! ==============================
+! ---------------------------------------------------------------------------
+! Description:  This object describes/defines the behavior of the waste form
+! object, and contains a linked list of radionuclides, parameters defining
+! properties of the waste form object important to its dissolution behavior,
+! and waste package degradation model parameters. This is the base mechanism
+! object, and therefore the member procedure "Dissolution" must be extended.
+! ---------------------------------------------------------------------------
+! rad_species_list(:): pointer to a linked list of radionuclide objects
+! num_species: [-] number of radionuclides in the waste form inventory
+! canister_degradation_model: Boolean which indicates if the waste package
+!    degradation model is on or off
+! vitality_rate_mean: [log10/yr] mean waste package degradation rate, used
+!    to calculate a degradation rate from a normal distribution
+! vitality_rate_stdev: [log10/yr] standard deviation of the waste package
+!    degradation rate, used to calculate a degradation rate from a normal
+!    distribution
+! vitality_rate_trunc: [log10/yr] waste package degradation rate truncation
+!    value, which is used to truncate the normal distribution
+! canister_material_constant: [-] waste package material constant
+! matrix_density: [kg/m3] waste form bulk matrix density
+! specific_surface_area: [m2/kg] waste form surface area per waste form mass
+! name: name string of the mechanism object
+! next: pointer to next mechanism object in linked list
+! Dissolution (procedure): must be extended; defines the dissolution 
+!    behavior of the waste form after breach occurs
+! -----------------------------------------------------------
   type, public :: wf_mechanism_base_type
     type(rad_species_type), pointer :: rad_species_list(:)
     PetscInt :: num_species
@@ -50,20 +95,44 @@ module PM_Waste_Form_class
     PetscReal :: vitality_rate_stdev
     PetscReal :: vitality_rate_trunc
     PetscReal :: canister_material_constant
-    PetscReal :: matrix_density                 ! kg/m^3
-    PetscReal :: specific_surface_area          ! m^2/kg
+    PetscReal :: matrix_density                
+    PetscReal :: specific_surface_area         
     character(len=MAXWORDLENGTH) :: name
     class(wf_mechanism_base_type), pointer :: next
   contains
     procedure, public :: Dissolution => WFMechBaseDissolution
   end type wf_mechanism_base_type
+! -----------------------------------------------------------
 
+! OBJECT wf_mechanism_glass_type:
+! ===============================
+! ---------------------------------------------------------------------------
+! Description:  Defines the dissolution behavior of a glass log type of 
+! waste form containing high level nuclear waste. This object extends the
+! base mechanism object.
+! ---------------------------------------------------------------------------
+! dissolution_rate: [kg-glass/m2/sec] glass waste form dissolution rate
+! k0: [kg-glass/m2/sec] base glass waste form dissolution rate
+! k_long: [kg-glass/m2/sec] long-term glass waste form dissolution rate
+! nu: [-] pH dependence parameter
+! Ea: [J/mol] effective activation energy
+! Q: [-] ion activity product of H4SiO4 
+! K: [-] equilibrium constant for rate limiting step, which is the activity
+!    of H4SiO4 at saturation with glass
+! v: [-] affinity term exponent
+! pH: [-] the pH in the waste form region
+! use_pH: Boolean that indicates if pH should be calculated from simulation
+! use_Q: Boolean that indicates if Q should be calulated from simulation
+! h_ion_id: [-] species id of H+ ion in reactive transport process model
+! SiO2_id: [-] species id of SiO2 in reactive transport process model
+! Dissolution (procedure): calculates the glass dissolution rate
+! ------------------------------------------------------------------------
   type, public, extends(wf_mechanism_base_type) :: wf_mechanism_glass_type
-    PetscReal :: dissolution_rate    ! kg-glass/m^2/sec
-    PetscReal :: k0                  ! k-glass/m^2/day
-    PetscReal :: k_long              ! k-glass/m^2/day
-    PetscReal :: nu                  ! [-]
-    PetscReal :: Ea                  ! [J/mol]
+    PetscReal :: dissolution_rate  
+    PetscReal :: k0                
+    PetscReal :: k_long            
+    PetscReal :: nu             
+    PetscReal :: Ea             
     PetscReal :: Q
     PetscReal :: K
     PetscReal :: v
@@ -75,27 +144,75 @@ module PM_Waste_Form_class
   contains
     procedure, public :: Dissolution => WFMechGlassDissolution
   end type wf_mechanism_glass_type
+! ------------------------------------------------------------------------
 
+! OBJECT wf_mechanism_dsnf_type:
+! ==============================
+! ---------------------------------------------------------------------------
+! Description:  Defines the dissolution behavior of defense-related spent
+! nuclear fuel type of waste form containing high level nuclear waste. This 
+! object extends the base mechanism object. 
+! ---------------------------------------------------------------------------
+! frac_dissolution_rate: [1/sec] fractional dissolution rate of the waste
+!    form
+! Dissolution (procedure): calculates the DSNF dissolution rate
+! -----------------------------------------------------------------------
   type, public, extends(wf_mechanism_base_type) :: wf_mechanism_dsnf_type
     PetscReal :: frac_dissolution_rate    ! 1/sec
   contains
     procedure, public :: Dissolution => WFMechDSNFDissolution
   end type wf_mechanism_dsnf_type
-  
-  ! the WIPP mechanism is the same as an instantaneous dissolution type
-  ! when selecting for DSNF and WIPP together, class is() can be used
-  ! when selecting for either DSNF or WIPP, type is() should be used
+! -----------------------------------------------------------------------
+
+! OBJECT wf_mechanism_wipp_type:
+! ==============================
+! ---------------------------------------------------------------------------
+! Description:  Defines the dissolution behavior of transuranic waste at the
+! Waste Isolation Pilot Plant (WIPP). This object extends the DSNF mechanism 
+! object. When using the WIPP waste form mechanism, the UFD_DECAY process
+! model must also be used.
+! Note: when selecting for DSNF and WIPP together, class is() can be used,
+! but when selecting for either DSNF or WIPP, type is() should be used
+! ---------------------------------------------------------------------------
+! All member variables and procedures are defined by the DSNF mechanism
+!    object.
+! -----------------------------------------------------------------------
   type, public, extends(wf_mechanism_dsnf_type) :: wf_mechanism_wipp_type
   end type wf_mechanism_wipp_type
+! -----------------------------------------------------------------------
 
+! OBJECT wf_mechanism_fmdm_type:
+! ==============================
+! ---------------------------------------------------------------------------
+! Description:  Defines the dissolution behavior of uranium dioxide high
+! level nuclear waste through coupling to an external model called the
+! Fuel Matrix Degradation Model (FMDM). This object extends the base
+! mechanism object.
+! ---------------------------------------------------------------------------
+! dissolution_rate: [kg-bulk/m2/sec] bulk dissolution rate of the waste form
+! frac_dissolution_rate: [1/sec] fractional dissolution rate of the waste form
+! burnup: [GWd/MTHM] waste form burnup if the FMDM is linked
+! burnup: [kg-bulk/m2/sec] used as bulk dissolution rate of the waste form
+!    if the FMDM is not linked
+! num_grid_cells_in_waste_form: [-] number of grid cells in the 1D 
+!    calculations within the FMDM (currently hardwired to 40)
+! mapping_fmdm(:): [-] mapping of fmdm species into fmdm concentration array
+! mapping_fmdm_to_pflotran(:): [-] mapping of species in fmdm concentration 
+!    array to pflotran
+! concentration(:,:): [mol/L] concentrations of chemical species relevant to
+!    the calculation of dissolution rate in the FMDM, sized by
+!    (num_concentrations,num_grid_cells_in_waste_form)
+! num_concentrations: [-] number of chemical species (currently hardwired 
+!    to 11)
+! i*: [-] species id number
+! Dissolution (procedure): calculates the FMDM dissolution rate
+! -----------------------------------------------------------------------
   type, public, extends(wf_mechanism_base_type) :: wf_mechanism_fmdm_type
-    PetscReal :: dissolution_rate         ! kg-matrix/m^2/sec
-    PetscReal :: frac_dissolution_rate    ! 1/sec
-    PetscReal :: burnup                   ! GWd/MTHM (kg-matrix/m^2/sec)
-    PetscInt :: num_grid_cells_in_waste_form  ! hardwired to 40
-    ! mapping of fmdm species into fmdm concentration array:
+    PetscReal :: dissolution_rate       
+    PetscReal :: frac_dissolution_rate 
+    PetscReal :: burnup                
+    PetscInt :: num_grid_cells_in_waste_form
     PetscInt, pointer :: mapping_fmdm(:)
-    ! mapping of species in fmdm concentration array to pflotran:
     PetscInt, pointer :: mapping_fmdm_to_pflotran(:)
     PetscReal, pointer :: concentration(:,:)
     PetscInt :: num_concentrations            ! hardwired to 11
@@ -113,15 +230,35 @@ module PM_Waste_Form_class
   contains
     procedure, public :: Dissolution => WFMechFMDMDissolution
   end type wf_mechanism_fmdm_type
+! -----------------------------------------------------------------------
   
+! OBJECT wf_mechanism_custom_type:
+! ================================
+! ---------------------------------------------------------------------------
+! Description:  Defines the dissolution behavior of a custom type of waste 
+! form containing high level nuclear waste. This object extends the base 
+! mechanism object. 
+! ---------------------------------------------------------------------------
+! dissolution_rate: [kg-bulk/m2/sec] bulk dissolution rate of the waste form
+! frac_dissolution_rate: [1/sec] fractional dissolution rate of the waste form
+! Dissolution (procedure): calculates the CUSTOM dissolution rate
+! -------------------------------------------------------------------------
   type, public, extends(wf_mechanism_base_type) :: wf_mechanism_custom_type
-    PetscReal :: dissolution_rate         ! kg-matrix/m^2/sec
-    PetscReal :: frac_dissolution_rate    ! 1/sec
+    PetscReal :: dissolution_rate       
+    PetscReal :: frac_dissolution_rate 
   contains
     procedure, public :: Dissolution => WFMechCustomDissolution
   end type wf_mechanism_custom_type
+! -------------------------------------------------------------------------
 
-! --------------- waste form types --------------------------------------------
+! OBJECT waste_form_base_type:
+! ============================
+! ---------------------------------------------------------------------------
+! Description:
+! ---------------------------------------------------------------------------
+! id: [-] waste form id number
+! rank_list(:): []
+! -----------------------------------------------------
   type :: waste_form_base_type
     PetscInt :: id
     PetscInt, pointer :: rank_list(:)
@@ -149,6 +286,7 @@ module PM_Waste_Form_class
     class(wf_mechanism_base_type), pointer :: mechanism
     class(waste_form_base_type), pointer :: next
   end type waste_form_base_type
+! -----------------------------------------------------
 
 ! --------------- waste form process model ------------------------------------
   type, public, extends(pm_base_type) :: pm_waste_form_type
@@ -389,7 +527,6 @@ function PMWFRadSpeciesCreate()
   PMWFRadSpeciesCreate%decay_constant = UNINITIALIZED_DOUBLE
   PMWFRadSpeciesCreate%mass_fraction = UNINITIALIZED_DOUBLE
   PMWFRadSpeciesCreate%inst_release_fraction = UNINITIALIZED_DOUBLE
-  PMWFRadSpeciesCreate%column_id = UNINITIALIZED_INTEGER
   PMWFRadSpeciesCreate%ispecies = UNINITIALIZED_INTEGER
 
 end function PMWFRadSpeciesCreate
