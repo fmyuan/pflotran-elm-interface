@@ -1,5 +1,17 @@
 module PM_WIPP_SrcSink_class
 
+! MODULE DESCRIPTION:
+! ============================================================================
+! This process model tracks chemical species in waste panel inventories 
+! involved in the generation/uptake of H2 gas and brine (water).
+! The chemical species are tracked for accounting purposes and also for the
+! calculation of gas and brine generation rates as determined by reaction
+! rate constants of chemical reactions between the chemical species, and the 
+! availability of limiting chemical species.
+! The calculated gas and brine generation rates are assigned to fluid and gas
+! source terms, respectively, in the flow process model.
+!=============================================================================
+
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use PM_Base_class
@@ -12,15 +24,69 @@ module PM_WIPP_SrcSink_class
 
   private
 
+! OBJECT chem_species_type:
+! =========================
+! ---------------------------------------------------------------------------
+! Description:  This object describes a chemical species in the waste panel
+! that is tracked for accounting purposes, or influences a reaction rate
+! constant for gas/brine generation. It is a member object of the
+! inventory_type object.
+! ---------------------------------------------------------------------------
+! initial_conc_mol(:): [mol-species/m3-bulk] initial molar concentration of
+!    a chemical species in the waste panel, and indexed by each cell in the
+!    waste panel region
+! inst_rate(:): [mol/m3-bulk/sec] instantaneous reaction rate constant of a
+!    chemical species in the waste panel, and indexed by each cell in the
+!    waste panel region
+! current_conc_mol(:): [mol-species/m3-bulk] current molar concentration of
+!    a chemical species in the waste panel, and indexed by each cell in the
+!    waste panel region
+! current_conc_kg(:): [kg-species/m3-bulk] current concentration of a
+!    chemical species in the waste panel (in BRAGFLO units), and indexed by 
+!    each cell in the waste panel region
+! molar_mass: [kg/mol] molar mass of the chemical species
+! tot_mass_in_panel: [kg] total mass of the chemical species in the entire
+!    panel volume
+! -------------------------------------------
   type, public :: chem_species_type
-    PetscReal, pointer :: initial_conc_mol(:)  ! [mol/m3-bulk]
-    PetscReal, pointer :: inst_rate(:)         ! [mol/m3-bulk/sec]
-    PetscReal, pointer :: current_conc_mol(:)  ! [mol/m3-bulk]
-    PetscReal, pointer :: current_conc_kg(:)   ! [kg/m3-bulk] per BRAGFLO U.M.
-    PetscReal :: molar_mass                    ! [kg/mol]
-    PetscReal :: tot_mass_in_panel             ! [kg/panel-volume]
+    PetscReal, pointer :: initial_conc_mol(:)
+    PetscReal, pointer :: inst_rate(:)  
+    PetscReal, pointer :: current_conc_mol(:)
+    PetscReal, pointer :: current_conc_kg(:)
+    PetscReal :: molar_mass              
+    PetscReal :: tot_mass_in_panel           
   end type chem_species_type
+! -------------------------------------------
   
+! OBJECT inventory_type:
+! ======================
+! ---------------------------------------------------------------------------
+! Description:  This object describes a waste panel's current inventory, and  
+! is made up of several chem_species_type objects. It also stores the initial 
+! values of several tracked species as well as the steel drum content. A 
+! pointer to a pre-inventory object aids in this object's initialization.
+! ---------------------------------------------------------------------------
+! name: name string
+! Fe_s: solid iron species object
+! FeOH2_s: solid corrosion product iron hydroxide species object
+! C6H10O5_s: solid cellulosic materials object
+! RuPl_s: solid rubber and plastic materials object
+! NO3_minus_aq: aqueous nitrate species object
+! CO2_g: gaseous carbon dioxide species object
+! N2_g: gaseous nitrogen species object
+! SO42_minus_aq: aqueous sulfate species object
+! H2S_g: gaseous hydrogen sulfide species object
+! FeS_s: solid iron sulfide species object
+! MgO_s: solid magnesium oxide species object
+! MgOH2_s: solid magnesium hydroxide (brucite) species object
+! Mg5CO34OH24H2_s: solid hydromagnesite species object
+! MgCO3_s: solid magnesium carbonate species object
+! *_in_panel: [kg] total initial mass of species/material in waste panel
+! drum_conc: [-/m3] number of steel drums per unit volume of waste panel
+!    note: this parameter is defined by the parameter of the same name in 
+!    the preinventory: pointer to the pre-inventory object, which stores the
+!    initial inventory values
+! ---------------------------------------------------
   type, public :: inventory_type
     character(len=MAXWORDLENGTH) :: name
     type(chem_species_type) :: Fe_s 
@@ -38,94 +104,231 @@ module PM_WIPP_SrcSink_class
     type(chem_species_type) :: Mg5CO34OH24H2_s
     type(chem_species_type) :: MgCO3_s
   ! Initial Values:
-    PetscReal :: Fe_in_panel          ! [total initial kg in waste panel]
-    PetscReal :: MgO_in_panel         ! [total initial kg in waste panel]
-    PetscReal :: Cellulose_in_panel   ! [total initial kg in waste panel]
-    PetscReal :: RubberPlas_in_panel  ! [total initial kg in waste panel]
-    PetscReal :: Biodegs_in_panel     ! [total initial kg in waste panel]
-    PetscReal :: Nitrate_in_panel     ! [total initial kg in waste panel]
-    PetscReal :: Sulfate_in_panel     ! [total initial kg in waste panel]
-    PetscReal :: drum_conc            ! [number of steel drums per m3 waste panel]
+    PetscReal :: Fe_in_panel         
+    PetscReal :: MgO_in_panel        
+    PetscReal :: Cellulose_in_panel  
+    PetscReal :: RubberPlas_in_panel 
+    PetscReal :: Biodegs_in_panel    
+    PetscReal :: Nitrate_in_panel    
+    PetscReal :: Sulfate_in_panel    
+    PetscReal :: drum_conc    
     type(pre_inventory_type), pointer :: preinventory
   end type inventory_type
+! ---------------------------------------------------
   
-  ! pre-inventory describes initial waste; what is emplaced in a waste panel
+! OBJECT pre_inventory_type:
+! ==========================
+! ---------------------------------------------------------------------------
+! Description:  This object describes the initial waste inventory emplaced in
+! a waste panel. Several of the member parameters are ALGEBRA input 
+! parameters, preprocessed by ALGEBRA for BRAGFLO input. A pre-inventory object 
+! can be defined for each waste panel. Alternatively, a single pre-inventory 
+! object can be defined for an entire repository that is made up of several 
+! waste panels. In this latter case, "vrepos" should be specifed and each 
+! waste panel will get assigned a portion of the single pre-inventory values 
+! which are scaled by the volume ratio vol-panel/vrepos.
+! Note: RH-remotely handled; CH-contact handled
+! ---------------------------------------------------------------------------
+! name: name string
+! ironchw: [kg] mass of Fe-based material in CH waste
+! ironrhw: [kg] mass of Fe-based material in RH waste
+! irncchw: [kg] mass of Fe containers for CH waste
+! irncrhw: [kg] mass of Fe containers for RH waste
+! cellchw: [kg] mass of cellulosics in CH waste
+! cellrhw: [kg] mass of cellulosics in RH waste
+! celcchw: [kg] mass of cellulosics in container materials for CH waste
+! celcrhw: [kg] mass of cellulosics in container materials for RH waste
+! celechw: [kg] mass of cellulosics in emplacement materials for CH waste
+! celerhw: [kg] mass of cellulosics in emplacement materials for RH waste
+! rubbchw: [kg] mass of rubber in CH waste
+! rubbrhw: [kg] mass of rubber in RH waste
+! rubcchw: [kg] mass of rubber in container materials for CH waste
+! rubcrhw: [kg] mass of rubber in container materials for RH waste
+! rubechw: [kg] mass of rubber in emplacement materials for CH waste
+! ruberhw: [kg] mass of rubber in emplacement materials for RH waste  
+! plaschw: [kg] mass of plastics in CH waste
+! plasrhw: [kg] mass of plastics in RH waste
+! plscchw: [kg] mass of plastics in container materials for CH waste
+! plscrhw: [kg] mass of plastics in container materials for RH waste
+! plsechw: [kg] mass of plastics in emplacement materials for CH waste
+! plserhw: [kg] mass of plastics in emplacement materials for RH waste
+! plasfac: [-] mass ratio of plastics to equivalent carbon
+! mgo_ef: [-] MgO excess factor; ratio mol-MgO/mol-organic-carbon
+! vrepos: [m3] volume of total repository (optional) note: this parameter
+!    should be defined if the waste panel inventories are being distributed 
+!    from a single pre-inventory, where the amount of pre-inventory going to 
+!    each waste panel inventory is scaled by the volume ratio vol-panel/vrepos
+! drum_conc: [-/m3] number of steel drums per unit volume of inventory
+!    volume (which can be a waste panel volume or an entire repository volume)
+!    note: this defines the parameter of the same name in the inventory object
+! nitrate: [kg] initial mass of aqueous nitrate in inventory
+! sulfate: [kg] initial mass of aqueous sulfate in inventory
+! next: pointer to the next pre-inventory object in a linked list
+! -------------------------------------------
   type, public :: pre_inventory_type
     character(len=MAXWORDLENGTH) :: name
   ! ALGEBRA parameters:
-    PetscReal :: ironchw    ! [kg] mass of Fe-based material in CH waste
-    PetscReal :: ironrhw    ! [kg] mass of Fe-based material in RH waste
-    PetscReal :: irncchw    ! [kg] mass of Fe containers for CH waste
-    PetscReal :: irncrhw    ! [kg] mass of Fe containers for RH waste
-    PetscReal :: cellchw    ! [kg] mass of cellulosics in CH waste
-    PetscReal :: cellrhw    ! [kg] mass of cellulosics in RH waste
-    PetscReal :: celcchw    ! [kg] mass of cellulosics in container materials for CH waste
-    PetscReal :: celcrhw    ! [kg] mass of cellulosics in container materials for RH waste
-    PetscReal :: celechw    ! [kg] mass of cellulosics in emplacement materials for CH waste
-    PetscReal :: celerhw    ! [kg] mass of cellulosics in emplacement materials for RH waste
-    PetscReal :: rubbchw    ! [kg] mass of rubber in CH waste
-    PetscReal :: rubbrhw    ! [kg] mass of rubber in RH waste
-    PetscReal :: rubcchw    ! [kg] mass of rubber in container materials for CH waste
-    PetscReal :: rubcrhw    ! [kg] mass of rubber in container materials for RH waste
-    PetscReal :: rubechw    ! [kg] mass of rubber in emplacement materials for CH waste
-    PetscReal :: ruberhw    ! [kg] mass of rubber in emplacement materials for RH waste  
-    PetscReal :: plaschw    ! [kg] mass of plastics in CH waste
-    PetscReal :: plasrhw    ! [kg] mass of plastics in RH waste
-    PetscReal :: plscchw    ! [kg] mass of plastics in container materials for CH waste
-    PetscReal :: plscrhw    ! [kg] mass of plastics in container materials for RH waste
-    PetscReal :: plsechw    ! [kg] mass of plastics in emplacement materials for CH waste
-    PetscReal :: plserhw    ! [kg] mass of plastics in emplacement materials for RH waste 
-    PetscReal :: plasfac    ! [-] mass ratio of plastics to equivalent carbon
-    PetscReal :: mgo_ef     ! [-] MgO excess factor; ratio mol-MgO/mol-organic-C
-    PetscReal :: vrepos     ! [m3] volume of total repository (not always needed)
-    PetscReal :: drum_conc  ! [-/m3] number of steel drums per m3 waste panel
-    PetscReal :: nitrate    ! [kg] mass of nitrate
-    PetscReal :: sulfate    ! [kg] mass of sulfate
+    PetscReal :: ironchw 
+    PetscReal :: ironrhw
+    PetscReal :: irncchw 
+    PetscReal :: irncrhw
+    PetscReal :: cellchw 
+    PetscReal :: cellrhw
+    PetscReal :: celcchw 
+    PetscReal :: celcrhw  
+    PetscReal :: celechw
+    PetscReal :: celerhw  
+    PetscReal :: rubbchw
+    PetscReal :: rubbrhw 
+    PetscReal :: rubcchw 
+    PetscReal :: rubcrhw 
+    PetscReal :: rubechw  
+    PetscReal :: ruberhw    
+    PetscReal :: plaschw  
+    PetscReal :: plasrhw  
+    PetscReal :: plscchw  
+    PetscReal :: plscrhw  
+    PetscReal :: plsechw  
+    PetscReal :: plserhw   
+    PetscReal :: plasfac   
+    PetscReal :: mgo_ef    
+    PetscReal :: vrepos    
+    PetscReal :: drum_conc 
+    PetscReal :: nitrate   
+    PetscReal :: sulfate   
     type(pre_inventory_type), pointer :: next
   end type pre_inventory_type
+! -------------------------------------------
   
+! OBJECT srcsink_panel_type:
+! ==========================
+! ---------------------------------------------------------------------------
+! Description:  This object represents a waste panel within a repository. It
+! contains member pointers to it's inventory and region objects. It also
+! stores the calculated gas/brine generation rates, indexed by each grid cell
+! within the waste panel region. The pre-processed ALGEBRA parameters are
+! also stored per waste panel because some depend on waste panel volume.
+! MPI information is stored for efficient parallel processing algorithms used
+! at the waste panel level.
+! ---------------------------------------------------------------------------
+! name: name string of the waste panel
+! region: pointer to the waste panel's region object
+! region_name: name string of the waste panel's region object
+! inventory: pointer to the waste panel's inventory object
+! inventory_name: name string of the waste panel's inventory object
+! scaling_factor(:): [-] array of volume scaling factors for each grid cell
+!    in the waste panel region
+! gas_generation_rate(:): [mol-H2/m3-bulk/sec] array of the current gas 
+!    generation rate for each grid cell in the waste panel region
+! brine_generation_rate(:): [mol-H2O/m3-bulk/sec] array of the current brine 
+!    generation rate for each grid cell in the waste panel region
+! inundated_corrosion_rate: [mol-Fe/m3-bulk/sec] corrosion rate of iron
+!    when inundated in brine
+! humid_corrosion_rate: [mol-Fe/m3-bulk/sec], [-] corrosion rate of iron
+!    in a humid environment
+! inundated_biodeg_rate: [mol-cellulosics/m3-bulk/sec] biodegradation rate
+!    when inundated in brine
+! humid_biodeg_rate: [mol-cellulosics/m3-bulk/sec] biodegradation rate
+!    in a humid environment
+! inundated_brucite_rate: [mol-MgOH2/m3-bulk/sec] rate of MgO hydration
+!    when inundated in brine
+! humid_brucite_rate: [mol-MgOH2/m3-bulk/sec] rate of MgO hydration
+!    in a humid environment
+! RXH2S_factor: [-] H2S reaction rate factor; eq. PA.88, section PS-4.2.5
+! volume: [m3] waste panel volume
+! scale_by_volume: Boolean flag to scale given inventory to waste panel volume
+! id: [-] waste panel id number
+! myMPIcomm: [-] MPI communicator number object
+! myMPIgroup: [-] MPI group number object
+! rank_list(:): [-] array of 1's and 0's used to determine local waste panels
+! next: pointer to the next waste panel object in linked list
+! ------------------------------------------------
   type, public :: srcsink_panel_type
     character(len=MAXWORDLENGTH) :: name
     type(region_type), pointer :: region
     character(len=MAXWORDLENGTH) :: region_name
     type(inventory_type) :: inventory
     character(len=MAXWORDLENGTH) :: inventory_name
-    PetscReal, pointer :: scaling_factor(:)        ! [-]
-    PetscReal, pointer :: gas_generation_rate(:)   ! [mol/m3-bulk/sec]
-    PetscReal, pointer :: brine_generation_rate(:) ! [mol/m3-bulk/sec]
-    PetscReal :: inundated_corrosion_rate          ! [mol/m3-bulk/sec]
-    PetscReal :: humid_corrosion_rate              ! [mol/m3-bulk/sec], [-]
-    PetscReal :: inundated_biodeg_rate             ! [mol/m3-bulk/sec]
-    PetscReal :: humid_biodeg_rate                 ! [mol/m3-bulk/sec]
-    PetscReal :: inundated_brucite_rate            ! [mol/m3-bulk/sec]
-    PetscReal :: humid_brucite_rate                ! [mol/m3-bulk/sec]
-    PetscReal :: RXH2S_factor                      ! [-]
-    PetscReal :: volume                            ! [m3]
-    PetscBool :: scale_by_volume                   ! flag to scale given inventory to waste panel volume
+    PetscReal, pointer :: scaling_factor(:)      
+    PetscReal, pointer :: gas_generation_rate(:) 
+    PetscReal, pointer :: brine_generation_rate(:)
+    PetscReal :: inundated_corrosion_rate    
+    PetscReal :: humid_corrosion_rate        
+    PetscReal :: inundated_biodeg_rate       
+    PetscReal :: humid_biodeg_rate           
+    PetscReal :: inundated_brucite_rate      
+    PetscReal :: humid_brucite_rate          
+    PetscReal :: RXH2S_factor     
+    PetscReal :: volume           
+    PetscBool :: scale_by_volume  
     PetscInt :: id
     PetscMPIInt :: myMPIcomm
     PetscMPIInt :: myMPIgroup
     PetscInt, pointer :: rank_list(:)
     type(srcsink_panel_type), pointer :: next
   end type srcsink_panel_type
+! ------------------------------------------------
 
+! OBJECT pm_wipp_srcsink_type:
+! ============================
+! ---------------------------------------------------------------------------
+! Description:  This is the wipp-srcsink process model object. It contains
+! several ALGEBRA parameters. It has a list of waste panels, and a list of 
+! pre-inventory member objects. Several procedures, allow interfacing with
+! the process model structure and extend the pm_base_type procedures.
+! This is the highest level object in this module.
+! ---------------------------------------------------------------------------
+! alpharxn: [-] smoothing parameter used in s_eff calculation
+! smin: [-] minimum brine saturation where a grid cell is considered dry,
+!    note: this is not brine residual saturation, but much smaller
+! satwick: [-] wicking saturation
+! corrmco2: [m/s] iron corrosion rate in inundated conditions
+! humcorr: [m/s] iron corrosion rate in humid conditions
+! gratmici: [mol-cellulosics/kg/sec] biodegradation rate in inundated 
+!    conditions 
+! gratmich: [mol-cellulosics/kg/sec] biodegradation rate in humid 
+!    conditions 
+! brucitei: [mol-MgOH2/kg/sec] MgO hydration rate in inundated conditions
+! bruciteh: [mol-MgOH2/kg/sec] MgO hydration rate in humid conditions
+! RXCO2_factor: [-] CO2 reaction rate factor
+! hymagcon_rate: [mol-hydromagnesite/kg/sec] rate of hydromagnesite conversion
+! drum_surface_area: [m2/drum] surface area of steel drums
+! biogenfc: [-] parameter uniformly sampled between 0 and 1, used to account
+!    for the uncertainty in whether microbial gas generation could be realized 
+!    in the WIPP at experimentally measured rates
+! probdeg: [-] flag value of 0, 1, or 2; indicates whether gas
+!    generation is produced by biodegradation, and/or rubbers and plastics,
+!    in addition to iron corrosion
+! bioidx: [-] flag value of 0 or 1; indicates whether gas generation is
+!    produced by biodegradation
+! plasidx: [-] flag value of 0 or 1; indicates whether gas generation is
+!    produced by rubbers and plastics
+! output_start_time: [sec] the time when output *.pnl files are generated,
+!    with the default value set at 0.d0 sec
+! waste_panel_list: linked list of waste panel objects that make up a
+!    repository setting
+! pre_inventory_list: linked list of pre-inventory objects
+! data_mediator: pointer to data mediator object which stores the gas and
+!    brine generation source terms 
+! realization: pointer to the realization object
+! --------------------------------------------------------------------
   type, public, extends(pm_base_type) :: pm_wipp_srcsink_type
-    PetscReal :: alpharxn           ! [-] 
-    PetscReal :: smin               ! [-]
-    PetscReal :: satwick            ! [-]
-    PetscReal :: corrmco2           ! [m/s]
-    PetscReal :: humcorr            ! [m/s]
-    PetscReal :: gratmici           ! [mol/kg/sec]
-    PetscReal :: gratmich           ! [mol/kg/sec]
-    PetscReal :: brucitei           ! [mol/kg/sec]
-    PetscReal :: bruciteh           ! [mol/kg/sec]
-    PetscReal :: RXCO2_factor       ! [-]
-    PetscReal :: hymagcon_rate      ! [mol/kg/sec]
-    PetscReal :: drum_surface_area  ! [m2/drum]
-    PetscReal :: biogenfc           ! [-]
-    PetscInt :: probdeg             ! [-]
-    PetscInt :: bioidx              ! [-] flag
-    PetscInt :: plasidx             ! [-] flag
+    PetscReal :: alpharxn        
+    PetscReal :: smin           
+    PetscReal :: satwick        
+    PetscReal :: corrmco2         
+    PetscReal :: humcorr          
+    PetscReal :: gratmici         
+    PetscReal :: gratmich         
+    PetscReal :: brucitei         
+    PetscReal :: bruciteh         
+    PetscReal :: RXCO2_factor       
+    PetscReal :: hymagcon_rate      
+    PetscReal :: drum_surface_area  
+    PetscReal :: biogenfc           
+    PetscInt :: probdeg             
+    PetscInt :: bioidx              
+    PetscInt :: plasidx             
     PetscReal :: output_start_time
     type(srcsink_panel_type), pointer :: waste_panel_list
     type(pre_inventory_type), pointer :: pre_inventory_list
@@ -143,6 +346,7 @@ module PM_WIPP_SrcSink_class
     procedure, public :: InputRecord => PMWSSInputRecord
     procedure, public :: Destroy => PMWSSDestroy
   end type pm_wipp_srcsink_type
+! --------------------------------------------------------------------
   
   interface PMWSSTaperRxnrate
     module procedure PMWSSTaperRxnrate1
@@ -167,8 +371,14 @@ function PMWSSCreate()
   
   implicit none
   
+! LOCAL VARIABLES:
+! ================
+! PMWSSCreate (output): pointer to new wipp-srcsink process model object
+! pm: pointer to new wipp-srcsink process model object with shorter name
+! ---------------------------------------------------
   class(pm_wipp_srcsink_type), pointer :: PMWSSCreate
   class(pm_wipp_srcsink_type), pointer :: pm
+! ---------------------------------------------------
   
   allocate(pm)
   nullify(pm%waste_panel_list)
@@ -212,8 +422,14 @@ function PMWSSWastePanelCreate()
   
   implicit none
   
+! LOCAL VARIABLES:
+! ================
+! PMWSSWastePanelCreate (output): pointer to new waste panel object
+! panel: pointer to new waste panel object with shorter name
+! ----------------------------------------------------------
   type(srcsink_panel_type), pointer :: PMWSSWastePanelCreate
   type(srcsink_panel_type), pointer :: panel
+! ----------------------------------------------------------
   
   allocate(panel)
   
@@ -256,8 +472,14 @@ function PMWSSPreInventoryCreate()
   
   implicit none
   
+! LOCAL VARIABLES:
+! ================
+! PMWSSPreInventoryCreate (output): pointer to new pre-inventory object
+! preinv: pointer to new pre-inventory object with shorter name
+! ------------------------------------------------------------
   type(pre_inventory_type), pointer :: PMWSSPreInventoryCreate
   type(pre_inventory_type), pointer :: preinv
+! ------------------------------------------------------------
   
   allocate(preinv)
   nullify(preinv%next)
@@ -308,57 +530,67 @@ subroutine PMWSSInventoryInit(inventory)
   !
   
   implicit none
-  
+
+! INPUT ARGUMENTS:
+! ================
+! inventory (input/output): waste panel inventory object
+! ---------------------------------
   type(inventory_type) :: inventory
+! ---------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! molar_mass: [kg/mol] molar mass of a chemical species object
+! -----------------------
   PetscReal :: molar_mass
+! -----------------------
   
   nullify(inventory%preinventory)
   inventory%name = ''
   
-  molar_mass = (0.055847d0) ! [kg/mol MW_FE]
-  call PMWSSInitChemSpecies(inventory%Fe_s,molar_mass)  ! iron
+  molar_mass = (0.055847d0) ! [MW_FE] iron
+  call PMWSSInitChemSpecies(inventory%Fe_s,molar_mass) 
   
-  molar_mass = (0.08986d0) ! [kg/mol MW_FEOH2]
-  call PMWSSInitChemSpecies(inventory%FeOH2_s,molar_mass) ! iron hydroxide
+  molar_mass = (0.08986d0) ! [MW_FEOH2] iron hydroxide
+  call PMWSSInitChemSpecies(inventory%FeOH2_s,molar_mass) 
   
-  molar_mass = (0.027023d0) ! [kg/mol MW_CELL]
-  call PMWSSInitChemSpecies(inventory%C6H10O5_s,molar_mass)  ! cellulose
+  molar_mass = (0.027023d0) ! [MW_CELL] cellulosics
+  call PMWSSInitChemSpecies(inventory%C6H10O5_s,molar_mass) 
   
-  molar_mass = (0.027023d0) ! [rubber/plastic kg/mol, same as MW_CELL]
-  call PMWSSInitChemSpecies(inventory%RuPl_s,molar_mass)  ! rubber/plastics
+  molar_mass = (0.027023d0) ! [MW_CELL] rubber/plastics
+  call PMWSSInitChemSpecies(inventory%RuPl_s,molar_mass)  
   
-  molar_mass = (14.0067d-3 + 3.d0*15.9994d-3) ! [NO3- kg/mol]
-  call PMWSSInitChemSpecies(inventory%NO3_minus_aq,molar_mass)  ! nitrate
+  molar_mass = (0.0440098d0) ! [MW_CO2] carbon dioxide gas
+  call PMWSSInitChemSpecies(inventory%CO2_g,molar_mass)  
   
-  molar_mass = (0.0440098d0) ! [kg/mol MW_CO2]
-  call PMWSSInitChemSpecies(inventory%CO2_g,molar_mass)  ! carbon dioxide gas 
+  molar_mass = (0.02801348d0) ! [MW_N2] nitrogen gas
+  call PMWSSInitChemSpecies(inventory%N2_g,molar_mass) 
+   
+  molar_mass = (14.0067d-3 + 3.d0*15.9994d-3) ! nitrate
+  call PMWSSInitChemSpecies(inventory%NO3_minus_aq,molar_mass)
   
-  molar_mass = (0.02801348d0) ! [kg/mol MW_N2]
-  call PMWSSInitChemSpecies(inventory%N2_g,molar_mass)  ! nitrogen gas  
+  molar_mass = (32.065d-3 + 4.d0*15.9994d-3) ! sulfate
+  call PMWSSInitChemSpecies(inventory%SO42_minus_aq,molar_mass)  
   
-  molar_mass = (32.065d-3 + 4.d0*15.9994d-3) ! [SO42- kg/mol]
-  call PMWSSInitChemSpecies(inventory%SO42_minus_aq,molar_mass)  ! sulfate
-  
-  molar_mass = (0.03408188d0) ! [kg/mol MW_H2S]
+  molar_mass = (0.03408188d0) ! [MW_H2S] hydrogen sulfide 
   call PMWSSInitChemSpecies(inventory%H2S_g,molar_mass)  
   
-  molar_mass = (0.087911d0) ! [kg/mol MW_FES]
-  call PMWSSInitChemSpecies(inventory%FeS_s,molar_mass)  ! iron sulfide 
+  molar_mass = (0.087911d0) ! [MW_FES] iron sulfide
+  call PMWSSInitChemSpecies(inventory%FeS_s,molar_mass)   
   
-  molar_mass = (0.040304d0) ! [kg/mol MW_MGO]
-  call PMWSSInitChemSpecies(inventory%MgO_s,molar_mass)  ! magnesium oxide
+  molar_mass = (0.040304d0) ! [MW_MGO] magnesium oxide
+  call PMWSSInitChemSpecies(inventory%MgO_s,molar_mass)  
   
-  molar_mass = (0.05832d0) ! [kg/mol MW_MGOH2]
-  call PMWSSInitChemSpecies(inventory%MgOH2_s,molar_mass)  ! magnesium hydroxide              
+  molar_mass = (0.05832d0) ! [MW_MGOH2] magnesium hydroxide
+  call PMWSSInitChemSpecies(inventory%MgOH2_s,molar_mass)                
   
   molar_mass = (5.d0*24.305d-3 + 4.d0*12.0107d-3 + 4.d0*3.d0*15.9994d-3 + &
                 2.d0*15.9994d-3 + 2.d0*1.01d-3 + 8.d0*1.01d-3 + &
-                4.d0*15.9994d-3) ! [Mg5CO34OH24H2 kg/mol]
-  call PMWSSInitChemSpecies(inventory%Mg5CO34OH24H2_s,molar_mass)  ! hydromagnesite
+                4.d0*15.9994d-3) ! hydromagnesite
+  call PMWSSInitChemSpecies(inventory%Mg5CO34OH24H2_s,molar_mass)  
   
-  molar_mass = (0.084314d0) ! [kg/mol MW_MGCO3]
-  call PMWSSInitChemSpecies(inventory%MgCO3_s,molar_mass)  ! magnesium carbonate
+  molar_mass = (0.084314d0) ! [MW_MGCO3] magnesium carbonate
+  call PMWSSInitChemSpecies(inventory%MgCO3_s,molar_mass)  
   
   inventory%Fe_in_panel = UNINITIALIZED_DOUBLE
   inventory%MgO_in_panel = UNINITIALIZED_DOUBLE
@@ -383,8 +615,14 @@ subroutine PMWSSInitChemSpecies(chem_species,molar_mass)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! chem_species (input/output): chemical species object
+! molar_mass (input): [kg/mol] molar mass of the chemical species object
+! ---------------------------------------
   type(chem_species_type) :: chem_species
   PetscReal :: molar_mass
+! ---------------------------------------
   
   nullify(chem_species%current_conc_mol)        ! [mol/m3]
   nullify(chem_species%current_conc_kg)         ! [kg/m3]
@@ -407,8 +645,14 @@ subroutine PMWSSSetRealization(this,realization)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! realization (input): pointer to subsurface realization object
+! ----------------------------------------------------------
   class(pm_wipp_srcsink_type) :: this
   class(realization_subsurface_type), pointer :: realization
+! ----------------------------------------------------------
   
   this%realization => realization
   this%realization_base => realization
@@ -431,12 +675,26 @@ subroutine PMWSSAssociateRegion(this,region_list)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! =================
+! this (input/output): wipp-srcsink process model object
+! region_list (input): pointer to list object of region objects in the 
+!    simulation
+! ----------------------------------------------
   class(pm_wipp_srcsink_type) :: this
   type(region_list_type), pointer :: region_list
+! ----------------------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! cur_region: pointer to current region object
+! cur_waste_panel: pointer to current waste panel object
+! option: pointer to option object
+! -----------------------------------------------------
   type(region_type), pointer :: cur_region
   class(srcsink_panel_type), pointer :: cur_waste_panel
   type(option_type), pointer :: option
+! -----------------------------------------------------
   
   option => this%option
   
@@ -477,11 +735,23 @@ subroutine PMWSSAssociateInventory(this)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
+! -----------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! cur_preinventory: pointer to current preinventory object
+! cur_waste_panel: pointer to current waste panel object
+! option: pointer to option object
+! -----------------------------------------------------
   type(pre_inventory_type), pointer :: cur_preinventory
   class(srcsink_panel_type), pointer :: cur_waste_panel
   type(option_type), pointer :: option
+! -----------------------------------------------------
   
   option => this%option
   
@@ -528,8 +798,14 @@ subroutine PMWSSCopyPreInvToInv(preinventory,inventory)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! preinventory (input/output): pointer to pre-inventory object
+! inventory (input): inventory object
+! -------------------------------------------------
   type(pre_inventory_type), pointer :: preinventory
   type(inventory_type) :: inventory
+! -------------------------------------------------
   
   inventory%name = preinventory%name
   inventory%drum_conc = preinventory%drum_conc
@@ -554,15 +830,36 @@ subroutine PMWSSSetRegionScaling(this,waste_panel)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! waste_panel (input/output): pointer to waste panel object
+! ------------------------------------------------
   class(pm_wipp_srcsink_type) :: this
   type(srcsink_panel_type), pointer :: waste_panel
+! ------------------------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! material_auxvars(:): pointer to material auxvar object which stores 
+!    grid cell volume indexed by the ghosted cell id
+! grid: pointer to grid object
+! k: [-] looping index
+! local_id: [-] local grid cell id
+! ghosted_id: [-] ghosted grid cell id
+! total_volume_local: [m3] total local volume of grid cells in a waste panel
+! total_volume_global: [m3] total global volume of grid cells in a waste panel
+! ierr: PETSc error integer
+! -----------------------------------------------------------
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
   PetscInt :: k
-  PetscInt :: local_id, ghosted_id
-  PetscReal :: total_volume_local, total_volume_global
+  PetscInt :: local_id
+  PetscInt :: ghosted_id
+  PetscReal :: total_volume_local
+  PetscReal :: total_volume_global
   PetscErrorCode :: ierr
+! -----------------------------------------------------------
   
   material_auxvars => this%realization%patch%aux%Material%auxvars
   grid => this%realization%patch%grid
@@ -601,9 +898,28 @@ subroutine PMWSSRead(this,input)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! input (input/output): pointer to input object
+! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
   type(input_type), pointer :: input
+! -----------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! option: pointer to option object
+! word: temporary string
+! double: temporary double precision number
+! error_string#: temporary string
+! new_waste_panel: pointer to waste panel object for new allocation
+! cur_waste_panel: pointer to current waste panel object
+! new_inventory: pointer to inventory object for new allocation
+! cur_preinventory: pointer to current pre-inventory object
+! num_errors: [-] number of errors integer
+! added: temporary Boolean
+! ----------------------------------------------------------------------------
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: word
   PetscReal :: double
@@ -614,6 +930,7 @@ subroutine PMWSSRead(this,input)
   type(pre_inventory_type), pointer :: cur_preinventory
   PetscInt :: num_errors
   PetscBool :: added
+! ----------------------------------------------------------------------------
   
   option => this%option
   input%ierr = 0
@@ -715,7 +1032,8 @@ subroutine PMWSSRead(this,input)
           !-----------------------------------
             case('INVENTORY')
               call InputReadWord(input,option,word,PETSC_TRUE)
-              call InputErrorMsg(input,option,'inventory assignment',error_string)
+              call InputErrorMsg(input,option,'inventory assignment', &        
+                                 error_string)
               new_waste_panel%inventory_name = trim(word)
           !-----------------------------------
             case('SCALE_BY_VOLUME')
@@ -1401,33 +1719,62 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! waste_panel (input/output): pointer to waste panel object
+! ------------------------------------------------
   class(pm_wipp_srcsink_type) :: this
   type(srcsink_panel_type), pointer :: waste_panel
+! ------------------------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! preinventory: pointer to pre-inventory object
+! inventory: pointer to inventory object
+! vol_scaling_factor: [-] grid cell volume scaling factor
+! MOL_NO3: [mol] moles of nitrate
+! F_NO3: [-] fraction of carbon consumed through the denitrification reaction
+! MAX_C, A1, A2: intermediate calculation parameters
+! DN_FE: [kg/m3] density of iron       
+! MW_FE: [kg/mol] molar mass of iron
+! MW_MGO: [kg/mol] molar mass of MgO
+! MW_C: [kg/mol] molar mass of cellulosics 
+! MW_NO3: [kg/mol] molar mass of nitrate
+! MW_SO4: [kg/mol] molar mass of sulfate
+! D_c: [kg/m3] mass concentration of biodegradable materials
+! D_m: [kg/m3] mass concentration of MgO
+! D_s: [m2/m3] surface area concentration of iron steel
+! -------------------------------------------------
   type(pre_inventory_type), pointer :: preinventory
   type(inventory_type), pointer :: inventory
   PetscReal :: vol_scaling_factor
-  PetscReal :: MOL_NO3                        ! moles of nitrate
+  PetscReal :: MOL_NO3
   PetscReal :: F_NO3
-  PetscReal :: MAX_C, A1, A2                  ! intermediate parameters
-  PetscReal, parameter :: DN_FE = 7870.d0     ! [kg/m3] density of iron
-  PetscReal, parameter :: MW_FE = 5.5847d-2   ! [kg/mol] mol weight of iron
-  PetscReal, parameter :: MW_MGO = 4.0304d-2  ! [kg/mol] mol weight of MgO
-  PetscReal, parameter :: MW_C = 2.7023d-2    ! [kg/mol] mol weight of cellulosics
-  PetscReal, parameter :: MW_NO3 = 6.20d-2    ! [kg/mol] mol weight of nitrate
-  PetscReal, parameter :: MW_SO4 = 9.60d-2    ! [kg/mol] mol weight of sulfate
-  PetscReal :: D_c                            ! [kg/m3] mass conc biodegradables
-  PetscReal :: D_m                            ! [kg/m3] mass conc MgO
-  PetscReal :: D_s                            ! [m2/m3] area conc iron steel
+  PetscReal :: MAX_C, A1, A2         
+  PetscReal, parameter :: DN_FE = 7870.d0
+  PetscReal, parameter :: MW_FE = 5.5847d-2 
+  PetscReal, parameter :: MW_MGO = 4.0304d-2
+  PetscReal, parameter :: MW_C = 2.7023d-2 
+  PetscReal, parameter :: MW_NO3 = 6.20d-2 
+  PetscReal, parameter :: MW_SO4 = 9.60d-2 
+  PetscReal :: D_c 
+  PetscReal :: D_m 
+  PetscReal :: D_s
+! -------------------------------------------------
   
   !-----PROBDEG-calculations-----------------------------------------------
+  !-----(see Table PA-6, section PA-4.2.5)
   select case(this%probdeg)
+  !--no-biodegradation--no-rubbers/plastics-degradation----
     case(0)
       this%bioidx = 0
       this%plasidx = 0
+  !--yes-biodegradation--no-rubbers/plastics-degradation----
     case(1)
       this%bioidx = 1
       this%plasidx = 0
+  !--yes-biodegradation--yes-rubbers/plastics-degradation----
     case(2)
       this%bioidx = 1
       this%plasidx = 1
@@ -1484,6 +1831,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
     inventory%Sulfate_in_panel = &                         ! [kg] 
         inventory%Sulfate_in_panel*vol_scaling_factor      ! [kg]
   endif
+  !-----(see equation PA.76, PA.75, PA.93, section PA-4.2.5)---------------
   !-----mass-concentrations----------------------------------units---------
   D_c = inventory%Biodegs_in_panel / &                     ! [kg]
         waste_panel%volume                                 ! [m3]
@@ -1492,6 +1840,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   D_m = inventory%MgO_in_panel / &                         ! [kg]
         waste_panel%volume                                 ! [m3]
   !-------------------------------------------------------------------------
+  !-----(see equation PA.67, section PA-4.2.5)------------------------------
   !-----anoxic-iron-corrosion--------------------------------units----------
   waste_panel%inundated_corrosion_rate = &                 ! [mol-Fe/m3/sec]
         this%corrmco2 * &                                  ! [m/s]
@@ -1506,6 +1855,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   waste_panel%humid_corrosion_rate = &                     ! [-]
         waste_panel%humid_corrosion_rate / &
         waste_panel%inundated_corrosion_rate
+  !-----(see equation PA.69, section PA-4.2.5)------------------------------
   !-----biodegradation------------------------------------units-------------
   waste_panel%inundated_biodeg_rate = &                 ! [mol-cell/m3/sec]
         this%gratmici * &                               ! [mol-cell/kg/sec]
@@ -1520,7 +1870,8 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   waste_panel%humid_biodeg_rate = &                     ! [-]
         waste_panel%humid_biodeg_rate / &
         waste_panel%inundated_biodeg_rate
-  !-----iron-sulfidation----------------------------------------------------
+  !-----(see equation PA.86, PA.87, PA.88, section PA-4.2.5)----------------
+  !-----iron-sulfidation----------------------------------units-------------
   MOL_NO3 = inventory%Nitrate_in_panel / MW_NO3         ! [mol]
   A1 = inventory%Biodegs_in_panel / MW_C                ! [mol]
   A2 = this%gratmici * &                                ! [mol/kg/sec]
@@ -1530,6 +1881,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   F_NO3 = MOL_NO3 * (6.d0/4.8d0) / MAX_C                ! [-]
   F_NO3 = min(F_NO3,1.0)                                ! [-]
   waste_panel%RXH2S_factor = 1.0 - F_NO3                ! [-]
+  !-----(see equation PA.73, section PA-4.2.5)------------------------------
   !-----MgO-hydration-------------------------------------units-------------
   waste_panel%inundated_brucite_rate = &                ! [mol-bruc/m3/sec]
         max(this%brucitei,this%bruciteh) * &            ! [mol-bruc/kg/sec]
@@ -1561,10 +1913,31 @@ subroutine PMWSSSetup(this)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
-  
+! -----------------------------------
+
+! LOCAL VARIABLES:
+! ================
+! option: pointer to option object  
+! cur_waste_panel: pointer to current waste panel object
+! prev_waste_panel: pointer to previous waste panel object
+! next_waste_panel: pointer to next waste panel object
+! waste_panel_id: [-] waste panel id number
+! i, j: [-] looping index integers
+! local: Boolean that indicates whether a waste panel object is local to
+!    the current process
+! ierr: PETSc error integer
+! newcomm_size: [-] new MPI communicator size
+! ranks(:): [-] pointer to array of size(ranks) used to find local waste 
+!    panel objects
+! -----------------------------------------------------
   type(option_type), pointer :: option
-  type(srcsink_panel_type), pointer :: cur_waste_panel, prev_waste_panel
+  type(srcsink_panel_type), pointer :: cur_waste_panel
+  type(srcsink_panel_type), pointer :: prev_waste_panel
   type(srcsink_panel_type), pointer :: next_waste_panel
   PetscInt :: waste_panel_id
   PetscInt :: i, j
@@ -1572,6 +1945,7 @@ subroutine PMWSSSetup(this)
   PetscErrorCode :: ierr
   PetscMPIInt :: newcomm_size
   PetscInt, pointer :: ranks(:)
+! -----------------------------------------------------
   
   option => this%realization%option
   
@@ -1663,10 +2037,18 @@ subroutine PMWSSInventoryAllocate(inventory,num_cells,volume)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! inventory (input/output): inventory object
+! num_cells (input): [-] number of cells in a waste panel region
+! volume (input): [m3] volume of a waste panel region
+! ---------------------------------
   type(inventory_type) :: inventory
   PetscInt :: num_cells
   PetscReal :: volume
+! ---------------------------------
   
+  !----species-with-initial-inventory-values------------------
   call PMWSSChemSpeciesAllocate(num_cells,inventory%Fe_s, &
                                 inventory%Fe_in_panel,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%MgO_s, &
@@ -1679,6 +2061,8 @@ subroutine PMWSSInventoryAllocate(inventory,num_cells,volume)
                                 inventory%Sulfate_in_panel,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%NO3_minus_aq, &
                                 inventory%Nitrate_in_panel,volume)
+  !----species-without-initial-inventory-values---------------
+  !----assign-0.d0-kg-as-initial-value------------------------
   call PMWSSChemSpeciesAllocate(num_cells,inventory%FeOH2_s,0.d0,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%CO2_g,0.d0,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%N2_g,0.d0,volume)
@@ -1703,22 +2087,32 @@ subroutine PMWSSChemSpeciesAllocate(num_cells,chem_species,initial_mass,volume)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! num_cells (input): [-] number of cells in a waste panel region
+! chem_species (input/output): chemical species object
+! initial_mass (input): [kg] initial mass of chemical species in waste panel
+! volume (input): [m3] volume of waste panel object
+! ---------------------------------------
   PetscInt :: num_cells
   type(chem_species_type) :: chem_species
-  PetscReal :: initial_mass     ! mass species in waste panel [kg]
-  PetscReal :: volume           ! volume of waste panel [m3]
+  PetscReal :: initial_mass 
+  PetscReal :: volume 
+! ---------------------------------------
   
   allocate(chem_species%initial_conc_mol(num_cells))
   allocate(chem_species%current_conc_mol(num_cells))
   allocate(chem_species%current_conc_kg(num_cells))
   allocate(chem_species%inst_rate(num_cells))
   
-  chem_species%current_conc_kg(:) = initial_mass / volume             ! [kg/m3]
-  chem_species%initial_conc_mol(:) = initial_mass / volume / &
-                                     chem_species%molar_mass
-  chem_species%current_conc_mol(:) = chem_species%initial_conc_mol(:) ! [mol/m3]
-  chem_species%inst_rate(:) = 0.d0        
-  chem_species%tot_mass_in_panel = initial_mass
+  !----------------------------------------------------------!-[units]--------
+  chem_species%current_conc_kg(:) = initial_mass/volume      ! [kg/m3]
+  chem_species%initial_conc_mol(:) = initial_mass/volume/ &  ! [kg/m3]
+                                     chem_species%molar_mass ! [kg/mol]
+  chem_species%current_conc_mol(:) =  &
+                            chem_species%initial_conc_mol(:) ! [mol/m3]
+  chem_species%inst_rate(:) = 0.d0                           ! [mol/m3/sec]        
+  chem_species%tot_mass_in_panel = initial_mass              ! [kg]
   
 end subroutine PMWSSChemSpeciesAllocate
 
@@ -1739,14 +2133,29 @@ subroutine PMWSSInitializeRun(this)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/ouput): wipp-srcsink process model object
+! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
+! -----------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! is: PETSc index set object
+! i, j, k: [-] looping index integers
+! ierr: PETSc error integer
+! size_of_vec: [-] size of array
+! dofs_in_residual(:): [-] degrees of freedom in residual array
+! cur_waste_panel: pointer to curent waste panel object
+! ----------------------------------------------------
   IS :: is
   PetscInt :: i, j, k
   PetscErrorCode :: ierr
   PetscInt :: size_of_vec
   PetscInt, allocatable :: dofs_in_residual(:)
   type(srcsink_panel_type), pointer :: cur_waste_panel
+! ----------------------------------------------------
   
   ierr = 0
   
@@ -1802,8 +2211,11 @@ subroutine PMWSSInitializeRun(this)
                         this%data_mediator%scatter_ctx,ierr);CHKERRQ(ierr)
   call ISDestroy(is,ierr);CHKERRQ(ierr)
 
+  ! write header in the *.pnl files
   call PMWSSOutputHeader(this)
   call PMWSSOutput(this)
+
+  ! solve for initial process model state
   call PMWSSSolve(this,0.d0,ierr)
   
 end subroutine PMWSSInitializeRun
@@ -1812,7 +2224,9 @@ end subroutine PMWSSInitializeRun
 
 subroutine PMWSSInitializeTimestep(this)
   ! 
-  ! Initializes the process model to take a time step in the simulation.
+  ! Initializes the process model to take a time step in the simulation:
+  ! Updates the waste panel inventory.
+  ! Writes data to output file from end of previous time step.
   ! 
   ! Author: Jenn Frederick
   ! Date: 01/31/2017
@@ -1822,19 +2236,32 @@ subroutine PMWSSInitializeTimestep(this)
   
   implicit none
 
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
+! -----------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! cur_waste_panel: pointer to current waste panel object
+! option: pointer to option object
+! dt: [sec] flow time step value
+! ----------------------------------------------------
   type(srcsink_panel_type), pointer :: cur_waste_panel
   type(option_type), pointer :: option
   PetscReal :: dt
+! ----------------------------------------------------
 
   option => this%option
-  dt = option%flow_dt
+  dt = option%flow_dt  ! [sec]
   
   if (option%print_screen_flag) then
     write(*,'(/,2("=")," WIPP SRC/SINK PANEL MODEL ",51("="))')
   endif
   
+  ! update the waste panel inventory
   cur_waste_panel => this%waste_panel_list
   do
     if (.not.associated(cur_waste_panel)) exit
@@ -1842,6 +2269,7 @@ subroutine PMWSSInitializeTimestep(this)
     cur_waste_panel => cur_waste_panel%next
   enddo
   
+  ! write data to *.pnl output files from previous time step
   if (option%time >= this%output_start_time) then
     call PMWSSOutput(this)
   endif
@@ -1862,9 +2290,16 @@ subroutine PMWSSUpdateInventory(waste_panel,dt,option)
  
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! waste_panel (input/output): waste panel object
+! dt (input): [sec] flow time step value (flow_dt)
+! option (input/output): pointer to option object
+! ---------------------------------------
   type(srcsink_panel_type) :: waste_panel
-  PetscReal :: dt ! [sec; flow_dt]
+  PetscReal :: dt
   type(option_type), pointer :: option
+! ---------------------------------------
  
   call PMWSSUpdateChemSpecies(waste_panel%inventory%Fe_s,waste_panel,dt,option)
   call PMWSSUpdateChemSpecies(waste_panel%inventory%FeOH2_s,waste_panel,dt,&
@@ -1906,38 +2341,56 @@ subroutine PMWSSUpdateChemSpecies(chem_species,waste_panel,dt,option)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! chem_species (input/output): chemical species object
+! waste_panel (input): waste panel object
+! dt (input): [sec] flow time step value
+! option (input/output): pointer to option object
+! ---------------------------------------
   type(chem_species_type) :: chem_species
   type(srcsink_panel_type) :: waste_panel
-  PetscReal :: dt       ! [sec; flow_dt]
+  PetscReal :: dt
   type(option_type), pointer :: option
+! ---------------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! k: [-] looping index integer
+! num_cells: [-] number of cells in a waste panel region
+! local_conc_kg: [kg/m3] local concentration of a chemical species
+! global_conc_kg: [kg/m3] global concentration of a chemical species
+! ---------------------------
   PetscInt :: k
   PetscInt :: num_cells
-  PetscReal :: local_conc_kg, global_conc_kg
+  PetscReal :: local_conc_kg 
+  PetscReal :: global_conc_kg
+! ---------------------------
   
   num_cells = waste_panel%region%num_cells
   local_conc_kg = 0.d0  
   do k = 1,num_cells
-    ! [mol/m3]
-    chem_species%current_conc_mol(k) = &
+    !--[mol/m3]-----------------------------------------!-units---------------
+    chem_species%current_conc_mol(k) = &                ! [mol/m3]
                  chem_species%current_conc_mol(k) + &   ! [mol/m3]
                  chem_species%inst_rate(k) * &          ! [mol/m3/sec]
                  dt                                     ! [sec]
     chem_species%current_conc_mol = max(0.d0,chem_species%current_conc_mol)
     
-    ! [kg/m3]
-    chem_species%current_conc_kg(k) = &
+    !--[kg/m3]------------------------------------------!-units---------------
+    chem_species%current_conc_kg(k) = &                 ! [kg/m3]
                  chem_species%current_conc_mol(k) * &   ! [mol/m3]
                  chem_species%molar_mass                ! [kg/mol]
     chem_species%current_conc_kg = max(0.d0,chem_species%current_conc_kg)
     
-    ! [kg/m3]             
-    local_conc_kg = local_conc_kg + &
-                (chem_species%current_conc_kg(k)*waste_panel%scaling_factor(k))
+    !--[kg/m3]------------------------------------------!-units---------------             
+    local_conc_kg = local_conc_kg + &                   ! [kg/m3]
+                    (chem_species%current_conc_kg(k) * &! [kg/m3]
+                     waste_panel%scaling_factor(k))     ! [-]
   enddo
-  ! [kg]
   call CalcParallelSUM(option,waste_panel%rank_list,local_conc_kg, &
                        global_conc_kg)
+  !--[kg]-----------------------------------------------!-units---------------
   chem_species%tot_mass_in_panel = global_conc_kg * &   ! [kg/m3]
                                    waste_panel%volume   ! [m3]
                                    
@@ -1964,14 +2417,58 @@ end subroutine PMWSSUpdateChemSpecies
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! time (input): [sec] simulation time
+! ierr (input/output): PETSc error integer
+! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
+! -----------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! option: pointer to option object
+! grid: pointer to grid object
+! gen_auxvar(:,:): pointer to general mode auxvar object, which stores the 
+!    liquid saturation, temperature, and pressure at each grid cell, and
+!    indexed by the ghosted grid cell id
+! global_auxvar(:): pointer to global auxvar object, which stores the phase
+!    state of the system (gas, liquid, or two-phase state), and indexed by
+!    the ghosted grid cell id
+! material_auxvars(:): pointer to material auxvars object, which stores the
+!    grid cell volume, and indexed by the ghosted grid cell id
+! vec_p(:): pointer to the data mediator array, which stores the liquid
+!    source term [kmol/sec], gas source term [kmol/sec], and energy source
+!    term [MJ/sec], and is indexed by j
+! cur_waste_panel: pointer to current waste panel object
+! i, j: [-] looping index integers
+! local_id, ghosted_id: [-] local and ghosted grid cell id number
+! num_cells: number of grid cells in a waste panel region
+! SOCEXP: exponent value in effective brine saturation equation
+! water_saturation: [-] liquid saturation from simulation
+! s_eff: [-] effective brine saturation due to capillary action
+!    in the waste materials
+! rxnrate_corrosion: [mol-Fe/m3-bulk/sec] anoxic iron corrosion rate constant
+! rxnrate_biodeg_nitrate: [mol-cell/m3-bulk/sec] biodegradation/denitrification 
+!    rate constant
+! rxnrate_biodeg_sulfate: [mol-cell/m3-bulk/sec] biodegradation/sulfate
+!    reduction rate constant
+! rxnrate_FeS_Fe: [mol-H2S/m3-bulk/sec] iron sulfidation rate constant
+! rxnrate_FeS_FeOH2: [mol-H2S/m3-bulk/sec] iron corrosion product sulfidation 
+!    rate constant
+! rxnrate_mgoh2: [mol-MgO/m3-bulk/sec] MgO hydration to brucite rate constant
+! rxnrate_hydromag: [mol-hydromagnesite/m3-bulk/sec] Brucite to hydromagnesite
+!    rate constant
+! rxnrate_hymagcon: [mol-hydromagnesite/m3-bulk/sec] Hydromagnesite to brucite
+!    and magnesite rate constant
+! -----------------------------------------------------------
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(general_auxvar_type), pointer :: gen_auxvar(:,:)
-  type(global_auxvar_type), pointer :: global_auxvar(:)
+  type(global_auxvar_type), pointer :: global_auxvar(:) 
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal, pointer :: vec_p(:)
   type(srcsink_panel_type), pointer :: cur_waste_panel
@@ -1979,7 +2476,7 @@ end subroutine PMWSSUpdateChemSpecies
   PetscInt :: local_id, ghosted_id
   PetscInt :: num_cells
   PetscReal :: SOCEXP
-  ! brine/gas generation variable
+  ! brine/gas generation variables
   PetscReal :: water_saturation
   PetscReal :: s_eff
   PetscReal :: rxnrate_corrosion
@@ -1999,8 +2496,7 @@ end subroutine PMWSSUpdateChemSpecies
   PetscReal :: U_gas
   PetscReal :: gas_energy
   PetscReal :: brine_energy
-  
-  !return
+! -----------------------------------------------------------
   
   option => this%realization%option
   grid => this%realization%patch%grid
@@ -2031,6 +2527,7 @@ end subroutine PMWSSUpdateChemSpecies
       local_id = cur_waste_panel%region%cell_ids(i)
       ghosted_id = grid%nL2G(local_id)
     !-----effective-brine-saturation------------------------------------------
+    !-----(see equation PA.99, section PA-4.2.6)------------------------------
       water_saturation = &
         gen_auxvar(ZERO_INTEGER,ghosted_id)%sat(option%liquid_phase)
       if (this%smin > 0.d0) then
@@ -2043,12 +2540,14 @@ end subroutine PMWSSUpdateChemSpecies
       s_eff = min(s_eff,1.d0)
       s_eff = max(s_eff,0.d0)
     !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
+    !-----(see equation PA.67, PA.77, section PA-4.2.5)-----------------------
       rxnrate_corrosion = (cur_waste_panel%inundated_corrosion_rate*s_eff) + &
                           (cur_waste_panel%humid_corrosion_rate*(1.d0-s_eff))
       call PMWSSSmoothRxnrate(rxnrate_corrosion,i, &
                               cur_waste_panel%inventory%Fe_s,this%alpharxn) 
       call PMWSSTaperRxnrate(rxnrate_corrosion,i,cur_waste_panel%inventory%Fe_s)
     !-----biodegradation-[mol-cell/m3/sec]------------------------------------
+    !-----(see equation PA.69, PA.82, PA.83, section PA-4.2.5)----------------
       rxnrate_biodeg_nitrate = (cur_waste_panel%inundated_biodeg_rate*s_eff) + &
                                (cur_waste_panel%humid_biodeg_rate*(1.d0-s_eff))
       rxnrate_biodeg_sulfate = (cur_waste_panel%inundated_biodeg_rate*s_eff) + &
@@ -2064,6 +2563,7 @@ end subroutine PMWSSUpdateChemSpecies
                              cur_waste_panel%inventory%C6H10O5_s, &
                              cur_waste_panel%inventory%SO42_minus_aq)
     !-----iron-sulfidation-[mol-H2S/m3/sec]-----------------------------------
+    !-----(see equation PA.68, PA.89, PA.90, section PA-4.2.5)----------------
       rxnrate_FeS_Fe = rxnrate_biodeg_sulfate*cur_waste_panel%RXH2S_factor
       rxnrate_FeS_FeOH2 = rxnrate_biodeg_sulfate*cur_waste_panel%RXH2S_factor
       call PMWSSSmoothRxnrate(rxnrate_FeS_Fe,i,cur_waste_panel%inventory%Fe_s, &
@@ -2077,19 +2577,22 @@ end subroutine PMWSSUpdateChemSpecies
                              cur_waste_panel%inventory%FeOH2_s, &
                              cur_waste_panel%inventory%H2S_g)
     !-----MgO-hydration-[mol-MgO/m3/sec]--------------------------------------
+    !-----(see equation PA.73, PA.94, section PA-4.2.5)-----------------------
       rxnrate_mgoh2 = (cur_waste_panel%inundated_brucite_rate*s_eff) + &
                       ((cur_waste_panel%humid_brucite_rate)*(1.d0-s_eff))
       call PMWSSSmoothRxnrate(rxnrate_mgoh2,i,cur_waste_panel%inventory%MgO_s, &
                               this%alpharxn)
       call PMWSSTaperRxnrate(rxnrate_mgoh2,i,cur_waste_panel%inventory%MgO_s)
-    !-----hydromagnesite-[mol/m3-bulk/sec]------------------------------------
+    !-----hydromagnesite-[mol-hydromagnesite/m3-bulk/sec]---------------------
+    !-----(see equation PA.74, PA.96, section PA-4.2.5)-----------------------
       rxnrate_hydromag = max(rxnrate_biodeg_nitrate,rxnrate_biodeg_sulfate) * &
                          this%RXCO2_factor
       call PMWSSSmoothRxnrate(rxnrate_hydromag,i, &
                               cur_waste_panel%inventory%MgO_s,this%alpharxn)
       call PMWSSTaperRxnrate(rxnrate_hydromag,i, &
                              cur_waste_panel%inventory%MgOH2_s)
-    !-----hydromagnesite-conversion-[mol/m3-bulk/sec]-------------------------
+    !-----hydromagnesite-conversion-[mol-hydromagnesite/m3-bulk/sec]----------
+    !-----(see equation PA.74, PA.97, section PA-4.2.5)-----------------------
       rxnrate_hymagcon = this%hymagcon_rate* &
                   cur_waste_panel%inventory%Mg5CO34OH24H2_s%current_conc_kg(i)
       call PMWSSSmoothRxnrate(rxnrate_hymagcon,i, &
@@ -2128,64 +2631,67 @@ end subroutine PMWSSUpdateChemSpecies
       cur_waste_panel%inventory%MgCO3_s%inst_rate(i) = &
           4.d0*rxnrate_hymagcon 
     !-----gas-generation-[mol-H2/m3-bulk/sec]---------------------------------
+    !-----(see equations PA.77, PA.82, PA.89, section PA-4.2.5)---------------
       cur_waste_panel%gas_generation_rate(i) = &
           1.d0*rxnrate_corrosion + 1.d0*rxnrate_FeS_Fe + &
           2.4d0*rxnrate_biodeg_nitrate
     !-----brine-generation-[mol-H2O/m3-bulk/sec]------------------------------
+    !-----(see equations PA.77, PA.78, PA.82, PA.83, PA.90, PA.96, PA.97,)----
+    !-----(section PA-4.2.5)--------------------------------------------------
       cur_waste_panel%brine_generation_rate(i) = &
           (-2.d0*rxnrate_corrosion) + 7.4d0*rxnrate_biodeg_nitrate + &
           5.d0*rxnrate_biodeg_sulfate + 2.d0*rxnrate_FeS_FeOH2 + &
           (-1.d0*rxnrate_mgoh2) + 4.d0*rxnrate_hymagcon
     !------source-term-calculation--------------------------------------------
       j = j + 1
-      ! liquid source term [kmol/sec]
+      !---liquid-source-term-[kmol/sec]------------------------!-[units]------
       vec_p(j) = cur_waste_panel%brine_generation_rate(i) * &  ! [mol/m3/sec]
                  material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                  1.d3                                          ! [mol -> kmol]
       j = j + 1
-      ! gas source term [kmol/sec]
+      !---gas-source-term-[kmol/sec]---------------------------!-[units]------
       vec_p(j) = cur_waste_panel%gas_generation_rate(i) * &    ! [mol/m3/sec]
                  material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                  1.d3                                          ! [mol -> kmol]
       j = j + 1
-      ! energy source term [MJ/sec]; H from EOS [J/kmol]
+      !---energy-source-term-[MJ/sec];-H-from-EOS-[J/kmol]--------------------
       brine_energy = 0.d0
       gas_energy = 0.d0
       temperature = gen_auxvar(ZERO_INTEGER,ghosted_id)%temp
       select case(global_auxvar(ghosted_id)%istate)
-        case(GAS_STATE) !------------------------------------------------------
+        case(GAS_STATE) !-----------------------------------------------------
           pressure_gas = gen_auxvar(ZERO_INTEGER,ghosted_id)% &
                          pres(option%gas_phase)
           call EOSGasEnergy(temperature,pressure_gas,H_gas,U_gas,ierr)
-          gas_energy = &
+          gas_energy = & !---[MJ/sec]-----------------------!-[units]---------
               cur_waste_panel%gas_generation_rate(i) * &    ! [mol/m3/sec]
               material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
               H_gas * 1.d-3 * 1.d-6                         ! [MJ/mol]
-        case(LIQUID_STATE) !---------------------------------------------------
+        case(LIQUID_STATE) !--------------------------------------------------
           pressure_liq = gen_auxvar(ZERO_INTEGER,ghosted_id)% &
                          pres(option%liquid_phase)
           call EOSWaterEnthalpy(temperature,pressure_liq,H_liq,ierr)
-          brine_energy = &
+          brine_energy = & !---[MJ/sec]---------------------!-[units]---------
               cur_waste_panel%brine_generation_rate(i) * &  ! [mol/m3/sec]
               material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
               H_liq * 1.d-3 * 1.d-6                         ! [MJ/mol]
-        case(TWO_PHASE_STATE) !------------------------------------------------
+        case(TWO_PHASE_STATE) !-----------------------------------------------
           pressure_liq = gen_auxvar(ZERO_INTEGER,ghosted_id)% &
                          pres(option%liquid_phase)
           pressure_gas = gen_auxvar(ZERO_INTEGER,ghosted_id)% &
                          pres(option%gas_phase)
           call EOSWaterEnthalpy(temperature,pressure_liq,H_liq,ierr)
           call EOSGasEnergy(temperature,pressure_gas,H_gas,U_gas,ierr)
-          brine_energy = &
+          brine_energy = & !---[MJ/sec]---------------------!-[units]---------
               cur_waste_panel%brine_generation_rate(i) * &  ! [mol/m3/sec]
               material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
               H_liq * 1.d-3 * 1.d-6                         ! [MJ/mol]
-          gas_energy = &
+          gas_energy = & !---[MJ/sec]-----------------------!-[units]---------
               cur_waste_panel%gas_generation_rate(i) * &    ! [mol/m3/sec]
               material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
               H_gas * 1.d-3 * 1.d-6                         ! [MJ/mol]
       end select
-      vec_p(j) = brine_energy + gas_energy
+      vec_p(j) = brine_energy + gas_energy  ! [MJ/sec]
     enddo
     !-------------------------------------------------------------------------
     cur_waste_panel => cur_waste_panel%next
@@ -2209,17 +2715,33 @@ subroutine PMWSSSmoothRxnrate(rxnrate,cell_num,limiting_species,alpharxn)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! rxnrate (input/output): [mol-species/m3-bulk/sec] reaction rate constant 
+! cell_num (input): [-] grid cell numbering in waste panel region
+! limiting_species (input): chemical species object that is the limiting
+!    species of the reaction with reaction rate constant "rxnrate"
+! alpharxn (input): [-] BRAGFLO parameter ALPHARXN
+! -------------------------------------------
   PetscReal :: rxnrate
   PetscInt :: cell_num
   type(chem_species_type) :: limiting_species
   PetscReal :: alpharxn
+! -------------------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! conc_ratio: [-] concentratio ratio of current molar concentration to
+!    initial molar concentration of a chemical species
+! -----------------------
   PetscReal :: conc_ratio
+! -----------------------
   
   conc_ratio = ( limiting_species%current_conc_mol(cell_num) / &
                  limiting_species%initial_conc_mol(cell_num) ) 
   conc_ratio = min(1.d0,conc_ratio)
   ! K_smoothed = K * (1.0 - exp(A*C/Ci)  BRAGFLO User's Manual Eq. 158
+  ! However, the above equation is an error. The correct equation is below:
   rxnrate = rxnrate * (1.d0 - exp(alpharxn*conc_ratio))
   
 end subroutine PMWSSSmoothRxnrate
@@ -2239,9 +2761,17 @@ subroutine PMWSSTaperRxnrate1(rxnrate,cell_num,limiting_species1)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! rxnrate (input/output): [mol-species/m3-bulk/sec] reaction rate constant
+! cell_num (input): [-] grid cell numbering in waste panel region
+! limiting_species1 (input): chemical species object that is the limiting
+!    species of the reaction with reaction rate constant "rxnrate"
+! --------------------------------------------
   PetscReal :: rxnrate
   PetscInt :: cell_num
   type(chem_species_type) :: limiting_species1
+! --------------------------------------------
   
   if (limiting_species1%current_conc_mol(cell_num) <= 0.d0) then
     rxnrate = 0.d0
@@ -2267,13 +2797,30 @@ subroutine PMWSSTaperRxnrate2(rxnrate,cell_num,limiting_species1, &
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! rxnrate (input/output): [mol-species/m3-bulk/sec] reaction rate constant
+! cell_num (input): [-] grid cell numbering in waste panel region
+! limiting_species1 (input): first possible chemical species object that 
+!    is the limiting species of the reaction with reaction rate 
+!    constant "rxnrate"
+! limiting_species2 (input): second possible chemical species object that 
+!    is the limiting species of the reaction with reaction rate  
+!    constant "rxnrate"
+! --------------------------------------------
   PetscReal :: rxnrate
   PetscInt :: cell_num
   type(chem_species_type) :: limiting_species1
   type(chem_species_type) :: limiting_species2
+! --------------------------------------------
   
+! LOCAL_VARIABLES:
+! ================
+! rxnrate1, rxnrate2: [mol-species/m3-bulk/sec] reaction rate constant
+! ---------------------
   PetscReal :: rxnrate1
   PetscReal :: rxnrate2
+! ---------------------
   
   if (limiting_species1%current_conc_mol(cell_num) <= 0.d0) then
     rxnrate1 = 0.d0
@@ -2299,7 +2846,12 @@ subroutine PMWSSFinalizeTimestep(this)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
+! -----------------------------------
   
 end subroutine PMWSSFinalizeTimestep
 
@@ -2307,7 +2859,7 @@ end subroutine PMWSSFinalizeTimestep
 
  subroutine PMWSSOutput(this)
   ! 
-  ! Sets up output for the process model.
+  ! Sets up output for the process model in the *.pnl files.
   ! 
   ! Author: Jenn Frederick
   ! Date: 03/27/2017
@@ -2319,8 +2871,26 @@ end subroutine PMWSSFinalizeTimestep
   
   implicit none
 
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
+! -----------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! option: pointer to option object
+! output_option: pointer to output option object
+! cur_waste_panel: pointer to current waste panel object
+! filename: filename string
+! fid: [-] file id integer
+! i: [-] looping index integer
+! local_gas_rate: [mol-H2/m3-bulk/sec] local gas generation rate 
+! global_gas_rate: [mol-H2/m3-bulk/sec] global gas generation rate 
+! local_brine_rate: [mol-H2O/m3-bulk/sec] local brine generation rate 
+! global_brine_rate: [mol-H2O/m3-bulk/sec] global brine generation rate
+! -----------------------------------------------------
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
   class(srcsink_panel_type), pointer :: cur_waste_panel
@@ -2329,6 +2899,7 @@ end subroutine PMWSSFinalizeTimestep
   PetscInt :: i
   PetscReal :: local_gas_rate, global_gas_rate
   PetscReal :: local_brine_rate, global_brine_rate
+! -----------------------------------------------------
   
   if (.not.associated(this%waste_panel_list)) return
   
@@ -2338,39 +2909,44 @@ end subroutine PMWSSFinalizeTimestep
   option => this%realization%option
   output_option => this%realization%output_option
   
+  ! open file and set write action to append
   fid = 88
   filename = PMWSSOutputFilename(option)
   open(unit=fid,file=filename,action="write",status="old", &
        position="append")
        
-  write(fid,100,advance="no") option%time / output_option%tconv
+  ! write time in user's time units
+  write(fid,100,advance="no") option%time / output_option%tconv  ! [T units]
   
   cur_waste_panel => this%waste_panel_list
   do
     if (.not.associated(cur_waste_panel)) exit
-    ! pre-calculations
+    ! pre-calculations for writing data
     local_gas_rate = 0.d0 
     local_brine_rate = 0.d0
     do i = 1,cur_waste_panel%region%num_cells            
-      local_gas_rate = local_gas_rate + &    ! [mol/m3-bulk/sec]
-                   (cur_waste_panel%gas_generation_rate(i) * &
-                    cur_waste_panel%scaling_factor(i))
-      local_brine_rate = local_brine_rate + &    ! [mol/m3-bulk/sec]
-                   (cur_waste_panel%brine_generation_rate(i) * &
-                    cur_waste_panel%scaling_factor(i))
+      local_gas_rate = local_gas_rate + &                ! [mol/m3-bulk/sec]
+           (cur_waste_panel%gas_generation_rate(i) * &   ! [mol/m3-bulk/sec]
+            cur_waste_panel%scaling_factor(i))           ! [-]
+      local_brine_rate = local_brine_rate + &            ! [mol/m3-bulk/sec]
+           (cur_waste_panel%brine_generation_rate(i) * & ! [mol/m3-bulk/sec]
+            cur_waste_panel%scaling_factor(i))           ! [-]
     enddo
+    ! calculate the average gas/brine generation rates in the waste
+    ! panel region
     call CalcParallelSUM(option,cur_waste_panel%rank_list,local_gas_rate, &
                          global_gas_rate)
     call CalcParallelSUM(option,cur_waste_panel%rank_list,local_brine_rate, &
                          global_brine_rate)
-    write(fid,101,advance="no") cur_waste_panel%id
+    ! write data to file
+    write(fid,101,advance="no") cur_waste_panel%id             ! [-]
     write(fid,100,advance="no") &
-      cur_waste_panel%inventory%Fe_s%tot_mass_in_panel, &
-      cur_waste_panel%inventory%MgO_s%tot_mass_in_panel, &
-      cur_waste_panel%inventory%C6H10O5_s%tot_mass_in_panel, &
-      cur_waste_panel%inventory%RuPl_s%tot_mass_in_panel, &
-      global_gas_rate, &
-      global_brine_rate
+      cur_waste_panel%inventory%Fe_s%tot_mass_in_panel, &      ! [kg]
+      cur_waste_panel%inventory%MgO_s%tot_mass_in_panel, &     ! [kg]
+      cur_waste_panel%inventory%C6H10O5_s%tot_mass_in_panel, & ! [kg]
+      cur_waste_panel%inventory%RuPl_s%tot_mass_in_panel, &    ! [kg]
+      global_gas_rate, &                                 ! [mol/m3-bulk/sec]
+      global_brine_rate                                  ! [mol/m3-bulk/sec]
   !----------------------------------------
     cur_waste_panel => cur_waste_panel%next
   enddo
@@ -2387,14 +2963,26 @@ function PMWSSOutputFilename(option)
   ! 
   ! Author: Jennifer Frederick
   ! Date: 03/27/17
-
+  !
   use Option_module
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! option (input): pointer to option object
+! ------------------------------------
   type(option_type), pointer :: option
+! ------------------------------------
+
+! LOCAL VARIABLES:
+! ================
+! PMWSSOutputFilename (output): filename string
+! word: temporary string
+! -----------------------------------------------------
   character(len=MAXSTRINGLENGTH) :: PMWSSOutputFilename
   character(len=MAXWORDLENGTH) :: word
+! -----------------------------------------------------
 
   write(word,'(i6)') option%myrank
   PMWSSOutputFilename = trim(option%global_prefix) // &
@@ -2407,7 +2995,7 @@ end function PMWSSOutputFilename
 
 subroutine PMWSSOutputHeader(this)
   ! 
-  ! Writes header for waste panel output file.
+  ! Writes the header for a waste panel output file.
   ! 
   ! Author: Jennifer Frederick
   ! Date: 03/27/17
@@ -2417,10 +3005,26 @@ subroutine PMWSSOutputHeader(this)
     
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
+! -----------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! output_option: pointer to output option object
+! cur_waste_panel: pointer to current waste panel object
+! filename: filename string
+! units_string: unit string
+! variable_string: variable string
+! cell_string: cell string
+! fid: [-] file id integer
+! icolumn: [-] column integer
+! exist: Boolean to check if file exists
+! -----------------------------------------------------
   type(output_option_type), pointer :: output_option
-  
   class(srcsink_panel_type), pointer :: cur_waste_panel
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: units_string 
@@ -2429,6 +3033,7 @@ subroutine PMWSSOutputHeader(this)
   PetscInt :: fid
   PetscInt :: icolumn
   PetscBool :: exist
+! -----------------------------------------------------
   
   if (.not.associated(this%waste_panel_list)) return
   
@@ -2436,6 +3041,7 @@ subroutine PMWSSOutputHeader(this)
   
   fid = 88
   filename = PMWSSOutputFilename(this%option)
+  ! check if file exists
   exist = FileExists(trim(filename))
   if (this%option%restart_flag .and. exist) return
   open(unit=fid,file=filename,action="write",status="replace")
@@ -2445,9 +3051,11 @@ subroutine PMWSSOutputHeader(this)
   else
     icolumn = -1
   endif
-  
+   
+  ! write time in user's time units
   write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
   
+  ! write the rest of the data
   cur_waste_panel => this%waste_panel_list
   do
     if (.not.associated(cur_waste_panel)) exit
@@ -2500,16 +3108,25 @@ subroutine PMWSSInputRecord(this)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
+! -----------------------------------
 
+! LOCAL VARIABLES:
+! ================
+! id: filename id for the *.rec file
+! --------------
   PetscInt :: id
+! --------------
 
   id = INPUT_RECORD_UNIT
   
   write(id,'(a29)',advance='no') 'pm: '
   write(id,'(a)') this%name
 
-  
 end subroutine PMWSSInputRecord
 
 ! *************************************************************************** !
@@ -2524,7 +3141,12 @@ subroutine PMWSSDestroy(this)
 
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
+! -----------------------------------
   
   call PMWSSStrip(this)
   
@@ -2542,10 +3164,23 @@ subroutine PMWSSStrip(this)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
+! -----------------------------------
   
+! LOCAL VARIABLES:
+! ================
+! cur_waste_panel: pointer to current waste panel object
+! prev_waste_panel: pointer to previous waste panel object
+! cur_preinventory: pointer to current pre-inventory object
+! prev_preinventory: pointer to previous pre-inventory object
+! ------------------------------------------------------------------------
   type(srcsink_panel_type), pointer :: cur_waste_panel, prev_waste_panel
   type(pre_inventory_type), pointer :: cur_preinventory, prev_preinventory
+! ------------------------------------------------------------------------
 
   cur_waste_panel => this%waste_panel_list
   do
@@ -2577,12 +3212,16 @@ subroutine PMWSSDestroyPanel(waste_panel)
   ! Author: Jenn Frederick
   ! Date: 03/28/2017
   !
-  
   use Utility_module, only : DeallocateArray
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! waste_panel (input/output): pointer to waste panel object
+! ------------------------------------------------
   type(srcsink_panel_type), pointer :: waste_panel
+! ------------------------------------------------
   
   if (.not.associated(waste_panel)) return
   call PMWSSInventoryDestroy(waste_panel%inventory)
@@ -2608,7 +3247,12 @@ subroutine PMWSSInventoryDestroy(inventory)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! inventory (input/output): inventory object
+! ---------------------------------
   type(inventory_type) :: inventory
+! ---------------------------------
   
   call PMWSSChemSpeciesDeallocate(inventory%Fe_s)
   call PMWSSChemSpeciesDeallocate(inventory%FeOH2_s)
@@ -2641,7 +3285,12 @@ subroutine PMWSSChemSpeciesDeallocate(chem_species)
   
   implicit none
   
+! INPUT ARGUMENTS:
+! ================
+! chem_species (input/output): chemical species object
+! ---------------------------------------
   type(chem_species_type) :: chem_species
+! ---------------------------------------
   
   call DeallocateArray(chem_species%initial_conc_mol)
   call DeallocateArray(chem_species%current_conc_mol)
