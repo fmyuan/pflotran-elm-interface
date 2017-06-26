@@ -336,6 +336,8 @@ module PM_Waste_Form_class
 ! waste_form_list: pointer to the linked list of waste form objects
 ! mechanism_list: pointer to the linked list of mechanism objects
 ! print_mass_balance: Boolean that indicates if the *.wf file is generated
+! implicit_solution: Boolean that indicates if the explicit solution method
+!    is used for calculation of isotope decay and ingrowth
 ! -------------------------------------------------------------------
   type, public, extends(pm_base_type) :: pm_waste_form_type
     class(realization_subsurface_type), pointer :: realization
@@ -343,6 +345,7 @@ module PM_Waste_Form_class
     class(waste_form_base_type), pointer :: waste_form_list
     class(wf_mechanism_base_type), pointer :: mechanism_list
     PetscBool :: print_mass_balance
+    PetscBool :: implicit_solution
   contains
     procedure, public :: PMWFSetRealization
     procedure, public :: Setup => PMWFSetup
@@ -699,6 +702,7 @@ function PMWFCreate()
   nullify(PMWFCreate%waste_form_list)
   nullify(PMWFCreate%mechanism_list)  
   PMWFCreate%print_mass_balance = PETSC_FALSE
+  PMWFCreate%implicit_solution = PETSC_FALSE
   PMWFCreate%name = 'waste form general'
 
   call PMBaseInit(PMWFCreate)
@@ -776,6 +780,9 @@ subroutine PMWFRead(this,input)
     !-------------------------------------
       case('PRINT_MASS_BALANCE')
         this%print_mass_balance = PETSC_TRUE
+    !-------------------------------------
+      case('IMPLICIT_SOLUTION')
+        this%implicit_solution = PETSC_TRUE
     !-------------------------------------
       case default
         call InputKeywordUnrecognized(word,error_string,option)
@@ -2389,6 +2396,7 @@ subroutine PMWFInitializeTimestep(this)
   use Option_module
   use Grid_module
   use Patch_module
+  use Utility_module
   
   implicit none
   
