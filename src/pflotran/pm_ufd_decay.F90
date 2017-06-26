@@ -1253,31 +1253,42 @@ subroutine PMUFDDecaySolve(this,time,ierr)
       solution = mass_iso_tot0 ! to start, set solution to initial mass
       it = 0
       do ! nonlinear loop
-        if (dot_product(residual,residual) < tolerance) exit
+        if (dot_product(residual,residual) < tolerance) exit ! 2-norm(residual)
         it = it + 1
         residual = 0.d0 ! set to zero because we are summing
+        ! f(M_e^{k+1,p}) = (M_e^{k+1,p} - M_e^k)/dt -R(M_e^{k+1,p})
         Jacobian = 0.d0 ! set to zero because we are summing
+        ! J_ij = del[f_i(M_e^{k+1,p})]/del[M_ej^{k+1,p}]
+        ! isotope loop
         do iiso = 1, this%num_isotopes
-          ! accumulation term isotope
+          ! ----accumulation term for isotope------------------------!-units--
+          ! dM_e/dt = (M_e^{k+1,p} - M_e^k)/dt
           residual(iiso) = residual(iiso) + &                        ! mol/sec
                            (solution(iiso) - mass_iso_tot0(iiso)) * &! mol
                            one_over_dt                               ! 1/sec
+          ! d[(M_e^{k+1,p} - M_e^k)/dt]/d[M_e^{k+1,p}] = 1/dt
           Jacobian(iiso,iiso) = Jacobian(iiso,iiso) + &              ! 1/sec
                                 one_over_dt                          ! 1/sec
-          ! source/sink term isotope
+          ! ----source/sink term for isotope-------------------------!-units--
+          ! -R(M_e^{k+1,p}) = -(-L*(M_e^{k+1,p}))    L=lambda
           rate_constant = this%isotope_decay_rate(iiso)              ! 1/sec
           rate = rate_constant * solution(iiso)                      ! mol/sec
           residual(iiso) = residual(iiso) + rate                     ! mol/sec
+          ! d[-(-L*(M_e^{k+1,p}))]/d[M_e^{k+1,p}] = L
           Jacobian(iiso,iiso) = Jacobian(iiso,iiso) + rate_constant  ! 1/sec
-          ! source/sink term daughter
+          ! daughter loop
           do i = 1, this%isotope_daughters(0,iiso)
+            ! ----source/sink term for daughter----------------------!-units--
             idaughter = this%isotope_daughters(i,iiso)
             stoich = this%isotope_daughter_stoich(i,iiso)            ! -
+            ! -R(M_e^{k+1,p}) = -(L*S*(M_e^{k+1,p}))    L=lambda
             residual(idaughter) = residual(idaughter) - &            ! mol/sec
                                   (rate * stoich)                    ! mol/sec
+            ! d[-(L*S*(M_e^{k+1,p}))]/d[M_e^{k+1,p}] = -L*S
             Jacobian(idaughter,iiso) = Jacobian(idaughter,iiso) - &  ! 1/sec
                                        (rate_constant * stoich)      ! 1/sec
           enddo
+          ! k=time, p=iterate, M_e=element mass
         enddo
         ! scale Jacobian
         do iiso = 1, this%num_isotopes
