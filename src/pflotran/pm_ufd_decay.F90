@@ -1090,13 +1090,13 @@ subroutine PMUFDDecaySolve(this,time,ierr)
 ! above_solubility: Boolean helper
 ! xx_p(:): [mol/kg-water] transport solution vector
 ! norm: [-] norm calculation value
-! residual(:): [-] residual array for implicit calculation
-! rsolution(:): [-] solution array for implicit calculation
-! rhs(:): [-] right hand side array for implicit calculation
+! residual(:): [mol/sec] residual array for implicit calculation
+! solution(:): [mol] solution array for implicit calculation
+! rhs(:): [mol/sec] right hand side array for implicit calculation
 ! indices(:): [-] array of indices
-! Jacobian(:): [-] Jacobian matrix for implicit calculation
-! rate: [1/sec] isotope decay constant
-! rate_constant: [-] isotope decay constant
+! Jacobian(:): [1/sec] Jacobian matrix for implicit calculation
+! rate: [mol/sec] isotope mass decay rate
+! rate_constant: [1/sec] isotope decay constant
 ! stoich: [-] daughter stoichiometry factor
 ! one_over_dt: [1/sec] helper variable to avoid dividing
 ! tolerance: [-] tolerance parameter for implicit calculation
@@ -1249,30 +1249,34 @@ subroutine PMUFDDecaySolve(this,time,ierr)
 
     else
       ! implicit solution approach
-      residual = 1.d0
-      solution = mass_iso_tot0
+      residual = 1.d0 ! to start, must set bigger than tolerance
+      solution = mass_iso_tot0 ! to start, set solution to initial mass
       it = 0
       do ! nonlinear loop
         if (dot_product(residual,residual) < tolerance) exit
         it = it + 1
-        residual = 0.d0
-        Jacobian = 0.d0
+        residual = 0.d0 ! set to zero because we are summing
+        Jacobian = 0.d0 ! set to zero because we are summing
         do iiso = 1, this%num_isotopes
-          rate_constant = this%isotope_decay_rate(iiso)
-          ! accumulation term
-          residual(iiso) = residual(iiso) + &
-                           (solution(iiso) - mass_iso_tot0(iiso)) * one_over_dt
-          Jacobian(iiso,iiso) = Jacobian(iiso,iiso) + &
-                                one_over_dt
-          rate = rate_constant * solution(iiso)
-          residual(iiso) = residual(iiso) + rate
-          Jacobian(iiso,iiso) = Jacobian(iiso,iiso) + rate_constant
+          ! accumulation term isotope
+          residual(iiso) = residual(iiso) + &                        ! mol/sec
+                           (solution(iiso) - mass_iso_tot0(iiso)) * &! mol
+                           one_over_dt                               ! 1/sec
+          Jacobian(iiso,iiso) = Jacobian(iiso,iiso) + &              ! 1/sec
+                                one_over_dt                          ! 1/sec
+          ! source/sink term isotope
+          rate_constant = this%isotope_decay_rate(iiso)              ! 1/sec
+          rate = rate_constant * solution(iiso)                      ! mol/sec
+          residual(iiso) = residual(iiso) + rate                     ! mol/sec
+          Jacobian(iiso,iiso) = Jacobian(iiso,iiso) + rate_constant  ! 1/sec
+          ! source/sink term daughter
           do i = 1, this%isotope_daughters(0,iiso)
             idaughter = this%isotope_daughters(i,iiso)
-            stoich = this%isotope_daughter_stoich(i,iiso)
-            residual(idaughter) = residual(idaughter) - rate * stoich
-            Jacobian(idaughter,iiso) = Jacobian(idaughter,iiso) - &
-                                       rate_constant * stoich
+            stoich = this%isotope_daughter_stoich(i,iiso)            ! -
+            residual(idaughter) = residual(idaughter) - &            ! mol/sec
+                                  (rate * stoich)                    ! mol/sec
+            Jacobian(idaughter,iiso) = Jacobian(idaughter,iiso) - &  ! 1/sec
+                                       (rate_constant * stoich)      ! 1/sec
           enddo
         enddo
         ! scale Jacobian
@@ -1280,15 +1284,20 @@ subroutine PMUFDDecaySolve(this,time,ierr)
           norm = max(1.d0,maxval(abs(Jacobian(iiso,:))))
           norm = 1.d0/norm
           rhs(iiso) = residual(iiso)*norm
+          ! row scaling
           Jacobian(iiso,:) = Jacobian(iiso,:)*norm
         enddo 
-        ! log formulation for derivatives
+        ! log formulation for derivatives, column scaling
         do iiso = 1, this%num_isotopes
           Jacobian(:,iiso) = Jacobian(:,iiso)*solution(iiso)
         enddo
+        ! linear solve steps
+        ! solve step 1/2: get LU decomposition
         call ludcmp(Jacobian,this%num_isotopes,indices,i)
+        ! solve step 2/2: LU back substitution linear solve
         call lubksb(Jacobian,this%num_isotopes,indices,rhs)
         rhs = dsign(1.d0,rhs)*min(dabs(rhs),10.d0)
+        ! update the solution
         solution = solution*exp(-rhs)
       enddo
       mass_iso_tot1 = solution 
