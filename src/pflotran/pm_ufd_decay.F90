@@ -1,5 +1,20 @@
 module PM_UFD_Decay_class
 
+! MODULE DESCRIPTION:
+! ===========================================================================
+! This module calculates isotope decay, ingrowth, and phase partitioning for
+! radioactive isotopes. Decay and ingrowth is calculated according to either
+! (a) a 3-generation analytical solution derived for multiple parents and
+! grandparents and non-zero initial daughter concentrations (see Section
+! 3.2.3 of Mariner et al. (2016), SAND2016-9610R), where the solution is
+! obtained explicitly in time, or (b) a fully implicit solution for decay
+! and ingrowth for any number of generations.
+! For phase partitioning, first all isotope mass is summed up and decayed. 
+! Then, the updated isotope mass is partitioned into aqueous, sorbed, and
+! precipitated phases according to the elemental solubility limit, and the 
+! elemental Kd value.
+! ===========================================================================
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PM_Base_class
@@ -12,7 +27,42 @@ module PM_UFD_Decay_class
 
   private
 
-  
+! OBJECT pm_ufd_decay_type:
+! =========================
+! ---------------------------------------------------------------------------
+! Description:  This is the UFD Decay process model object. It has a list of 
+! isotopes, elements, and several arrays that store relevant parameters
+! associated with the decay, ingrowth, and partitioning calculation. Several 
+! procedures allow interfacing with the process model structure and extend the 
+! pm_base_type procedures. This is the highest level object in this module.
+! ---------------------------------------------------------------------------
+! realization: pointer to subsurface realization object
+! element_isotopes(:,:): [-] matrix that stores the element isotopes, sized
+!    by the max number of isotopes per element X number of elements
+! isotope_to_primary_species(:): [-] array that maps the isotope number in
+!    the process model to the primary species id number
+! isotope_to_mineral(:): [-] array that amps the isotope number to the
+!    mineral species id number
+! isotope_decay_rate(:): [1/sec] array of isotope decay rate constants
+! isotope_daughters(:,:): [-] matrix that stores the isotope daughters, sized
+!    by the max number of daughters per isotope X number of isotopes
+! isotope_daughter_stoich(:,:): [-] matrix that stores the isotope daughter
+!    stoichiometry factors, sized by the max number of daughters per isotope 
+!    X number of isotopes
+! isotope_parents(:,:): [-] matrix that stores the isotope parents, sized by
+!    the maximum number of parents per isotope X number of isotopes
+! element_solubility(:): [mol/L] elemental solubility limit array
+! element_Kd(:,:): [kg-water/m3-bulk] matrix that stores the elemental Kd 
+!    values, sized by the number of elements X number of materials
+! num_elements: [-] number of elements
+! num_isotopes: [-] number of isotopes
+! implicit_solution: Boolean that indicates whether the implicit or the
+!    explicit solution is calculated
+! element_name(:): array of element name strings
+! isotope_name(:): array of isotope name strings
+! element_list: pointer to element linked list
+! isotope_list: pointer to isotope linked list
+! --------------------------------------------------------------------------  
   type, public, extends(pm_base_type) :: pm_ufd_decay_type
     class(realization_subsurface_type), pointer :: realization
     PetscInt, pointer :: element_isotopes(:,:)
@@ -52,7 +102,22 @@ module PM_UFD_Decay_class
     procedure, public :: InputRecord => PMUFDDecayInputRecord
     procedure, public :: Destroy => PMUFDDecayDestroy
   end type pm_ufd_decay_type
+! --------------------------------------------------------------------------  
   
+! OBJECT isotope_type:
+! ====================
+! ---------------------------------------------------------------------------
+! Description:  This object stores the information for each isotope for
+! decay, ingrowth, and partitioning calculations.
+! ---------------------------------------------------------------------------
+! name: isotope name string
+! element: name string of the isotope's element
+! iisotope: [-] isotope id number
+! ielement: [-] isotope's element id number
+! decay_rate: [1/sec] isotope decay rate constant
+! daughter_list: pointer to the isotope's daughter linked list
+! next: pointer to the next isotope in a linked list
+! -----------------------------------------------
   type :: isotope_type
     character(len=MAXWORDLENGTH) :: name
     character(len=MAXWORDLENGTH) :: element
@@ -62,13 +127,38 @@ module PM_UFD_Decay_class
     type(daughter_type), pointer :: daughter_list
     type(isotope_type), pointer :: next
   end type isotope_type
+! -----------------------------------------------
   
+! OBJECT daughter_type:
+! =====================
+! ---------------------------------------------------------------------------
+! Description:  This object stores the information for each isotope's
+! daughter for decay, ingrowth, and partitioning calculations.
+! ---------------------------------------------------------------------------
+! name: daughter name string
+! stoichiometry: [-] daughter to parent isotope stoichiometry factor
+! next: pointer to the next daughter in a linked list
+! -------------------------------------- 
   type :: daughter_type
     character(len=MAXWORDLENGTH) :: name
     PetscReal :: stoichiometry
     type(daughter_type), pointer :: next
   end type
+! --------------------------------------
   
+! OBJECT element_type:
+! ====================
+! ---------------------------------------------------------------------------
+! Description:  This object stores the information for each isotope's
+! element for decay, ingrowth, and partitioning calculations.
+! ---------------------------------------------------------------------------
+! name: element name string
+! ielement: [-] element id number
+! solubility: [mol/L] elemental solubility limit
+! Kd(:): [kg-water/m3-bulk] array of Kd values for each material
+! Kd_material_name(:): array of material name strings
+! next: pointer to next element object in a linked list
+! --------------------------------------------------------------
   type :: element_type
     character(len=MAXWORDLENGTH) :: name
     PetscInt :: ielement
@@ -77,6 +167,7 @@ module PM_UFD_Decay_class
     character(len=MAXWORDLENGTH), pointer :: Kd_material_name(:)
     type(element_type), pointer :: next
   end type
+! --------------------------------------------------------------
   
   public :: PMUFDDecayCreate, &
             PMUFDDecayInit !, &

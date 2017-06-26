@@ -323,10 +323,10 @@ module PM_Waste_Form_class
 ! -----------------------------------------------------
 
 ! OBJECT pm_waste_form_type:
-! ============================
+! ==========================
 ! ---------------------------------------------------------------------------
 ! Description:  This is the waste form process model object. It has a list of 
-! waste forms, mechanisms, and a data mediator vector. Several procedures, 
+! waste forms, mechanisms, and a data mediator vector. Several procedures 
 ! allow interfacing with the process model structure and extend the 
 ! pm_base_type procedures. This is the highest level object in this module.
 ! ---------------------------------------------------------------------------
