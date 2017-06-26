@@ -1192,6 +1192,11 @@ subroutine PMUFDDecaySolve(this,time,ierr)
 
     if (.not.this%implicit_solution) then
 
+    ! 3-generation analytical solution derived for multiple parents and
+    ! grandparents and non-zero initial daughter concentrations (see Section
+    ! 3.2.3 of Mariner et al. (2016), SAND2016-9610R), where the solution is
+    ! obtained explicitly in time
+
       ! FIRST PASS decay ==============================================
       do i = 1,this%num_isotopes
         ! update the initial value of the isotope coefficient:

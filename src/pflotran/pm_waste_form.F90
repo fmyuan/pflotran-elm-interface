@@ -2589,6 +2589,11 @@ subroutine PMWFInitializeTimestep(this)
     ! Save the concentration after inst. release for the decay step
     concentration_old = cur_waste_form%rad_concentration
 
+    ! 3-generation analytical solution derived for multiple parents and
+    ! grandparents and non-zero initial daughter concentrations (see Section
+    ! 3.2.3 of Mariner et al. (2016), SAND2016-9610R), where the solution is
+    ! obtained explicitly in time
+
     if ((cur_waste_form%volume >= 0.d0) .and. &
         (option%time >= cur_waste_form%decay_start_time)) then
       !------- decay the radionuclide species --------------------------------
