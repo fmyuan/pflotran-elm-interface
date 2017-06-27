@@ -322,9 +322,9 @@ clean-tests :
 	-rm -f hydrogeophysics/sigma__000000000025200.txt
 	-rm -f hydrogeophysics/sigma__000000000054000.txt
 	-rm -f hydrogeophysics/sigma__000000000111600.txt
-	-rm -f ufd/glass-wf_mass-0.dat
-	-rm -f ufd/fmdm_dummy-wf_mass-0.dat
-	-rm -f ufd/wf_doubles-wf_mass-0.dat
+	-rm -f ufd/glass-0.wf
+	-rm -f ufd/fmdm_dummy-0.wf
+	-rm -f ufd/wf_doubles-0.wf
 	-rm -f ufd/wf_region-wf_mass-*.dat
 	-rm -f ufd/glass-*.vtk
 	-rm -f ufd/wf_doubles-*.vtk

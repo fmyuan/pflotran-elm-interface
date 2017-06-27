@@ -767,6 +767,18 @@ subroutine PMWFRead(this,input)
     call InputReadWord(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
+    
+    select case(trim(word))
+    !-------------------------------------
+      case('PRINT_MASS_BALANCE')
+        this%print_mass_balance = PETSC_TRUE
+        cycle
+    !-------------------------------------
+      case('IMPLICIT_SOLUTION')
+        this%implicit_solution = PETSC_TRUE
+        cycle
+    !-------------------------------------
+    end select
 
     error_string = 'WASTE_FORM_GENERAL'
     call PMWFReadMechanism(this,input,option,word,error_string,found)
@@ -776,18 +788,6 @@ subroutine PMWFRead(this,input)
     call PMWFReadWasteForm(this,input,option,word,error_string,found)
     if (found) cycle
    
-    select case(trim(word))
-    !-------------------------------------
-      case('PRINT_MASS_BALANCE')
-        this%print_mass_balance = PETSC_TRUE
-    !-------------------------------------
-      case('IMPLICIT_SOLUTION')
-        this%implicit_solution = PETSC_TRUE
-    !-------------------------------------
-      case default
-        call InputKeywordUnrecognized(word,error_string,option)
-    !-------------------------------------
-    end select
   enddo
 
   ! Assign chosen mechanism to each waste form
@@ -2756,7 +2756,7 @@ subroutine PMWFInitializeTimestep(this)
           Jacobian(idaughter,iiso) = Jacobian(idaughter,iiso) - &  ! 1/sec
                                      rate_constant                 ! 1/sec
         !enddo
-        ! k=time, p=iterate, M_e=element mass
+        ! k=time, p=iterate, C=isotope concentration
       enddo
       ! scale Jacobian
       do iiso = 1, num_species
@@ -2789,16 +2789,16 @@ subroutine PMWFInitializeTimestep(this)
 
     endif !-----implicit_solution---------------------------------------------
     
-      ! ------ update species mass fractions ---------------------------------
-      do k = 1,num_species
-        cur_waste_form%rad_mass_fraction(k) = &       ! [g-rad/g-wf]
-        cur_waste_form%rad_concentration(k) * &       ! [mol-rad/g-wf]
-          cur_waste_form%mechanism%rad_species_list(k)%formula_weight
-        ! to avoid errors in plotting data when conc is very very low:  
-        if (cur_waste_form%rad_mass_fraction(k) <= 1d-40) then
-          cur_waste_form%rad_mass_fraction(k) = 0.d0
-        endif
-      enddo
+    ! ------ update species mass fractions ---------------------------------
+    do k = 1,num_species
+      cur_waste_form%rad_mass_fraction(k) = &       ! [g-rad/g-wf]
+      cur_waste_form%rad_concentration(k) * &       ! [mol-rad/g-wf]
+        cur_waste_form%mechanism%rad_species_list(k)%formula_weight
+      ! to avoid errors in plotting data when conc is very very low:  
+      if (cur_waste_form%rad_mass_fraction(k) <= 1d-40) then
+        cur_waste_form%rad_mass_fraction(k) = 0.d0
+      endif
+    enddo
 
     endif !-------------------------------------------------------------------
 
