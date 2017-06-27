@@ -2436,6 +2436,18 @@ subroutine PMWFInitializeTimestep(this)
 ! conversion: [1/day] --> [1/sec]
 ! xx_p(:): [mol-RN/kg-water] pointer to solution vector for species 
 !    concentration
+! norm: [-] norm calculation value
+! residual(:): [mol/g-bulk/sec] residual array for implicit calculation
+! solution(:): [mol/g-bulk] solution array for implicit calculation
+! rhs(:): [mol/g-bulk/sec] right hand side array for implicit calculation
+! indices(:): [-] array of indices
+! Jacobian(:): [1/sec] Jacobian matrix for implicit calculation
+! rate: [mol/g-bulk/sec] isotope mass decay rate
+! rate_constant: [1/sec] isotope decay constant
+! one_over_dt: [1/sec] helper variable to avoid dividing
+! tolerance: [-] tolerance parameter for implicit calculation
+! idaughter: [-] daughter integer number
+! it: [-] iteration number for implicit calculation
 ! -----------------------------------------------------------
   class(waste_form_base_type), pointer :: cur_waste_form
   class(wf_mechanism_base_type), pointer :: cwfm
@@ -2459,11 +2471,11 @@ subroutine PMWFInitializeTimestep(this)
   PetscReal, pointer :: xx_p(:)
   ! implicit solution parameters
   PetscReal :: norm
-  PetscReal, allocatable :: residual(:) !size=num_species
-  PetscReal, allocatable :: solution(:) !size=num_species
-  PetscReal, allocatable :: rhs(:) !size=num_species
-  PetscInt, allocatable :: indices(:) !size=num_species
-  PetscReal, allocatable :: Jacobian(:,:) !size=num_speciesXnum_species
+  PetscReal, allocatable :: residual(:)
+  PetscReal, allocatable :: solution(:)
+  PetscReal, allocatable :: rhs(:)
+  PetscInt, allocatable :: indices(:)
+  PetscReal, allocatable :: Jacobian(:,:)
   PetscReal :: rate, rate_constant, one_over_dt
   PetscReal, parameter :: tolerance = 1.d-12
   PetscInt :: it, iiso, idaughter
