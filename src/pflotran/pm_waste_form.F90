@@ -2720,7 +2720,9 @@ subroutine PMWFInitializeTimestep(this)
     allocate(Jacobian(num_species,num_species))
 
     residual = 1.d0 ! to start, must set bigger than tolerance
-    solution = concentration_old ! to start, set solution to old concentration
+    ! to start, set solution to old concentration, but ensure it's not zero
+    solution = max(concentration_old,1.d-40) 
+    one_over_dt = 1.d0/dt
     it = 0
     do ! nonlinear loop
       if (dot_product(residual,residual) < tolerance) exit ! 2-norm(residual)
@@ -2733,8 +2735,8 @@ subroutine PMWFInitializeTimestep(this)
       do iiso = 1, num_species
         ! ----accumulation term for isotope------------------------!-units--
         ! dC/dt = (C^{k+1,p} - C^k)/dt
-        residual(iiso) = residual(iiso) + &                        ! mol/sec
-                     (solution(iiso) - concentration_old(iiso)) * &! mol
+        residual(iiso) = residual(iiso) + &                        ! mol/g/sec
+                     (solution(iiso) - concentration_old(iiso)) * &! mol/g
                      one_over_dt                                   ! 1/sec
         ! d[(C^{k+1,p} - C^k)/dt]/d[C^{k+1,p}] = 1/dt
         Jacobian(iiso,iiso) = Jacobian(iiso,iiso) + &              ! 1/sec
@@ -2742,19 +2744,21 @@ subroutine PMWFInitializeTimestep(this)
         ! ----source/sink term for isotope-------------------------!-units--
         ! -R(C^{k+1,p}) = -(-L*(C^{k+1,p}))    L=lambda
         rate_constant = cwfm%rad_species_list(iiso)%decay_constant ! 1/sec
-        rate = rate_constant * solution(iiso)                      ! mol/sec
-        residual(iiso) = residual(iiso) + rate                     ! mol/sec
+        rate = rate_constant * solution(iiso)                      ! mol/g/sec
+        residual(iiso) = residual(iiso) + rate                     ! mol/g/sec
         ! d[-(-L*(C^{k+1,p}))]/d[C^{k+1,p}] = L
         Jacobian(iiso,iiso) = Jacobian(iiso,iiso) + rate_constant  ! 1/sec
         ! daughter loop (there is only one daughter currently)
         !do i = 1, this%isotope_daughters(0,iiso)
-          ! ----source/sink term for daughter----------------------!-units--
-          idaughter = cwfm%rad_species_list(iiso)%daugh_id
+        ! ----source/sink term for daughter----------------------!-units--
+        idaughter = cwfm%rad_species_list(iiso)%daugh_id
+        if (idaughter > 0) then
           ! -R(C^{k+1,p}) = -(L*S*(C^{k+1,p}))    L=lambda
-          residual(idaughter) = residual(idaughter) - rate         ! mol/sec
+          residual(idaughter) = residual(idaughter) - rate         ! mol/g/sec
           ! d[-(L*S*(C^{k+1,p}))]/d[C^{k+1,p}] = -L*S
           Jacobian(idaughter,iiso) = Jacobian(idaughter,iiso) - &  ! 1/sec
                                      rate_constant                 ! 1/sec
+        endif
         !enddo
         ! k=time, p=iterate, C=isotope concentration
       enddo
@@ -2778,6 +2782,10 @@ subroutine PMWFInitializeTimestep(this)
       rhs = dsign(1.d0,rhs)*min(dabs(rhs),10.d0)
       ! update the solution
       solution = solution*exp(-rhs)
+    enddo
+    ! if old_concentration was zero, set it back to zero here
+    do iiso = 1,num_species
+      if (solution(iiso) <= 1.d-40) solution(iiso) = 0.d0
     enddo
     cur_waste_form%rad_concentration = solution
 
