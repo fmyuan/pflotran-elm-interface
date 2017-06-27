@@ -2457,6 +2457,16 @@ subroutine PMWFInitializeTimestep(this)
   PetscReal :: inst_release_molality
   PetscReal, parameter :: conversion = 1.d0/(24.d0*3600.d0)
   PetscReal, pointer :: xx_p(:)
+  ! implicit solution parameters
+  PetscReal :: norm
+  PetscReal, allocatable :: residual(:) !size=num_species
+  PetscReal, allocatable :: solution(:) !size=num_species
+  PetscReal, allocatable :: rhs(:) !size=num_species
+  PetscInt, allocatable :: indices(:) !size=num_species
+  PetscReal, allocatable :: Jacobian(:,:) !size=num_speciesXnum_species
+  PetscReal :: rate, rate_constant, one_over_dt
+  PetscReal, parameter :: tolerance = 1.d-12
+  PetscInt :: it, iiso, idaughter
 ! -----------------------------------------------------------
 
   global_auxvars => this%realization%patch%aux%Global%auxvars
@@ -2597,13 +2607,18 @@ subroutine PMWFInitializeTimestep(this)
     ! Save the concentration after inst. release for the decay step
     concentration_old = cur_waste_form%rad_concentration
 
+    
+
+    if ((cur_waste_form%volume >= 0.d0) .and. &
+        (option%time >= cur_waste_form%decay_start_time)) then !--------------
+
+    if (.not.this%implicit_solution) then !-----------------------------------
+
     ! 3-generation analytical solution derived for multiple parents and
     ! grandparents and non-zero initial daughter concentrations (see Section
     ! 3.2.3 of Mariner et al. (2016), SAND2016-9610R), where the solution is
     ! obtained explicitly in time
 
-    if ((cur_waste_form%volume >= 0.d0) .and. &
-        (option%time >= cur_waste_form%decay_start_time)) then
       !------- decay the radionuclide species --------------------------------
       ! FIRST PASS =====================
       do d = 1,num_species
@@ -2682,6 +2697,86 @@ subroutine PMWFInitializeTimestep(this)
         enddo ! parent loop
       enddo     
 
+    else !--------------------------------------------------------------------
+
+    ! implicit solution based on Bateman's equations and Newton's method
+
+    allocate(residual(num_species))
+    allocate(solution(num_species))
+    allocate(rhs(num_species))
+    allocate(indices(num_species))
+    allocate(Jacobian(num_species,num_species))
+
+    residual = 1.d0 ! to start, must set bigger than tolerance
+    solution = concentration_old ! to start, set solution to old concentration
+    it = 0
+    do ! nonlinear loop
+      if (dot_product(residual,residual) < tolerance) exit ! 2-norm(residual)
+      it = it + 1
+      residual = 0.d0 ! set to zero because we are summing
+      ! f(C^{k+1,p}) = (C^{k+1,p} - C^k)/dt -R(C^{k+1,p})
+      Jacobian = 0.d0 ! set to zero because we are summing
+      ! J_ij = del[f_i(C^{k+1,p})]/del[C_j^{k+1,p}]
+      ! isotope loop
+      do iiso = 1, num_species
+        ! ----accumulation term for isotope------------------------!-units--
+        ! dC/dt = (C^{k+1,p} - C^k)/dt
+        residual(iiso) = residual(iiso) + &                        ! mol/sec
+                     (solution(iiso) - concentration_old(iiso)) * &! mol
+                     one_over_dt                                   ! 1/sec
+        ! d[(C^{k+1,p} - C^k)/dt]/d[C^{k+1,p}] = 1/dt
+        Jacobian(iiso,iiso) = Jacobian(iiso,iiso) + &              ! 1/sec
+                              one_over_dt                          ! 1/sec
+        ! ----source/sink term for isotope-------------------------!-units--
+        ! -R(C^{k+1,p}) = -(-L*(C^{k+1,p}))    L=lambda
+        rate_constant = cwfm%rad_species_list(iiso)%decay_constant ! 1/sec
+        rate = rate_constant * solution(iiso)                      ! mol/sec
+        residual(iiso) = residual(iiso) + rate                     ! mol/sec
+        ! d[-(-L*(C^{k+1,p}))]/d[C^{k+1,p}] = L
+        Jacobian(iiso,iiso) = Jacobian(iiso,iiso) + rate_constant  ! 1/sec
+        ! daughter loop (there is only one daughter currently)
+        !do i = 1, this%isotope_daughters(0,iiso)
+          ! ----source/sink term for daughter----------------------!-units--
+          idaughter = cwfm%rad_species_list(iiso)%daugh_id
+          ! -R(C^{k+1,p}) = -(L*S*(C^{k+1,p}))    L=lambda
+          residual(idaughter) = residual(idaughter) - rate         ! mol/sec
+          ! d[-(L*S*(C^{k+1,p}))]/d[C^{k+1,p}] = -L*S
+          Jacobian(idaughter,iiso) = Jacobian(idaughter,iiso) - &  ! 1/sec
+                                     rate_constant                 ! 1/sec
+        !enddo
+        ! k=time, p=iterate, M_e=element mass
+      enddo
+      ! scale Jacobian
+      do iiso = 1, num_species
+        norm = max(1.d0,maxval(abs(Jacobian(iiso,:))))
+        norm = 1.d0/norm
+        rhs(iiso) = residual(iiso)*norm
+        ! row scaling
+        Jacobian(iiso,:) = Jacobian(iiso,:)*norm
+      enddo 
+      ! log formulation for derivatives, column scaling
+      do iiso = 1, num_species
+        Jacobian(:,iiso) = Jacobian(:,iiso)*solution(iiso)
+      enddo
+      ! linear solve steps
+      ! solve step 1/2: get LU decomposition
+      call ludcmp(Jacobian,num_species,indices,i)
+      ! solve step 2/2: LU back substitution linear solve
+      call lubksb(Jacobian,num_species,indices,rhs)
+      rhs = dsign(1.d0,rhs)*min(dabs(rhs),10.d0)
+      ! update the solution
+      solution = solution*exp(-rhs)
+    enddo
+    cur_waste_form%rad_concentration = solution
+
+    deallocate(residual)
+    deallocate(solution)
+    deallocate(rhs)
+    deallocate(indices)
+    deallocate(Jacobian)
+
+    endif !-----implicit_solution---------------------------------------------
+    
       ! ------ update species mass fractions ---------------------------------
       do k = 1,num_species
         cur_waste_form%rad_mass_fraction(k) = &       ! [g-rad/g-wf]
@@ -2692,7 +2787,9 @@ subroutine PMWFInitializeTimestep(this)
           cur_waste_form%rad_mass_fraction(k) = 0.d0
         endif
       enddo
-    endif
+
+    endif !-------------------------------------------------------------------
+
     deallocate(concentration_old)
     deallocate(Coeff)
     cur_waste_form => cur_waste_form%next
