@@ -184,6 +184,8 @@ module clm_pflotran_interface_data
   ! note: mapping ONLY can do from MPI vecs to Seq. vecs now
 
   ! -----TH vecs from CLM to PF --------------------
+  PetscBool :: head_based
+
   ! TH properties
   PetscReal :: pressure_reference
 
@@ -591,6 +593,8 @@ contains
     clm_pf_idata%ispec_n2o = 0
 
    !--------------------------------------------------------------------
+    clm_pf_idata%head_based = PETSC_TRUE
+
     clm_pf_idata%hksat_x_clmp = 0
     clm_pf_idata%hksat_y_clmp = 0
     clm_pf_idata%hksat_z_clmp = 0

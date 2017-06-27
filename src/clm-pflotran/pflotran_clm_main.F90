@@ -2199,19 +2199,22 @@ contains
   ! author: Fengming YUAN
   ! date: 9/23/2013
   ! ************************************************************************** !
-subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
+subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATAPASSING)
 
-    use Realization_Base_class
+    use Option_module
     use Patch_module
     use Grid_module
     use Field_module
     use Discretization_module
     use TH_Aux_module
     use Richards_Aux_module
-    use Option_module
+    use Material_Aux_class
+    use Global_Aux_module
 
+    use Realization_Base_class
     use Simulation_Subsurface_class, only : simulation_subsurface_type
     use Realization_Subsurface_class, only : realization_subsurface_type
+    use Characteristic_Curves_module
     use TH_module, only : THUpdateAuxVars
     use Richards_module, Only : RichardsUpdateAuxVars
 
@@ -2225,19 +2228,26 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
 
     type(Option_type), pointer :: option
     type(pflotran_model_type), pointer        :: pflotran_model
+    logical, intent(in)                       :: PRESSURE_DATAPASSING
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
+    type(global_auxvar_type), pointer         :: global_auxvars(:)
+    class(material_auxvar_type), pointer      :: material_auxvars(:)
 
     class(simulation_subsurface_type), pointer  :: simulation
     class(realization_subsurface_type), pointer :: realization
+    class(characteristic_curves_type), pointer  :: characteristic_curves
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id, istart, iend
+    PetscInt           :: cur_sat_func_id
+    PetscReal          :: liquid_saturation, capillary_pressure, dx, porosity, volume
     PetscReal, pointer :: xx_loc_p(:)
 
     PetscScalar, pointer :: soilt_pf_loc(:)      ! temperature [oC]
     PetscScalar, pointer :: soilpress_pf_loc(:)  ! water pressure (Pa)
+    PetscScalar, pointer :: soillsat_pf_loc(:)   ! liq. water saturation (-)
 
     subname = 'ModelSetInternalTHStatesFromCLM'
 
@@ -2256,9 +2266,15 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
     patch           => realization%patch
     grid            => patch%grid
     field           => realization%field
+    global_auxvars  => patch%aux%Global%auxvars
+    material_auxvars=> patch%aux%Material%auxvars
 
     select case(option%iflowmode)
       case (RICHARDS_MODE)
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    option, &
+                                    clm_pf_idata%soillsat_clmp, &
+                                    clm_pf_idata%soillsat_pfs)
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
                                     clm_pf_idata%press_clmp, &
@@ -2269,7 +2285,11 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
                                     option, &
                                     clm_pf_idata%soilt_clmp, &
                                     clm_pf_idata%soilt_pfs)
-
+        !
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    option, &
+                                    clm_pf_idata%soillsat_clmp, &
+                                    clm_pf_idata%soillsat_pfs)
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
                                     clm_pf_idata%press_clmp, &
@@ -2286,6 +2306,8 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
     CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
+    CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
     CHKERRQ(ierr)
 
@@ -2299,7 +2321,44 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
        iend = local_id*option%nflowdof
        istart = iend-option%nflowdof+1
 
-       xx_loc_p(istart)  = soilpress_pf_loc(ghosted_id)
+       if (PRESSURE_DATAPASSING) then
+         xx_loc_p(istart)  = soilpress_pf_loc(ghosted_id)
+
+       else
+         ! need to recalculate 'pressure' from saturation/water-mass
+
+         ! soil hydraulic properties ID for current cell
+         cur_sat_func_id = patch%sat_func_id(ghosted_id)
+
+         characteristic_curves => patch% &
+           characteristic_curves_array(cur_sat_func_id)%ptr
+         select type(sf => characteristic_curves%saturation_function)
+           !class is(sat_func_VG_type)
+             ! not-yet (TODO)
+           class is(sat_func_BC_type)
+             liquid_saturation = soillsat_pf_loc(ghosted_id)
+             call sf%CapillaryPressure(liquid_saturation, capillary_pressure, option)
+
+             porosity = material_auxvars(ghosted_id)%porosity
+             volume = material_auxvars(ghosted_id)%volume
+             dx = global_auxvars(ghosted_id)%den(1)*FMWH2O ! water den = kg/m^3
+             !dx = liquid_saturation*porosity*volume  ! m3h2o
+
+print *, 'pf0 - ', ghosted_id, liquid_saturation, capillary_pressure, dx, &
+liquid_saturation*porosity*volume*dx
+
+             xx_loc_p(istart) = option%reference_pressure - capillary_pressure
+
+
+
+           class default
+             option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
+               ' when coupled with CLM.'
+             call printErrMsg(option)
+         end select
+
+       end if
+
        if (option%iflowmode .eq. TH_MODE)  then
          xx_loc_p(istart+1)= soilt_pf_loc(ghosted_id)
        end if
@@ -2310,6 +2369,8 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
     call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
     CHKERRQ(ierr)
 
     call DiscretizationGlobalToLocal(realization%discretization, field%flow_xx, &
