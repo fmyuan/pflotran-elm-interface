@@ -1,14 +1,13 @@
 module WellSpec_Base_class
 #if WELL_CLASS
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-
-
-#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter, public :: WATER_PROD_WELL_TYPE = 1
   PetscInt, parameter, public :: OIL_PROD_WELL_TYPE = 2

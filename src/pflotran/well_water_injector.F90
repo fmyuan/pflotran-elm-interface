@@ -1,6 +1,8 @@
 module Well_WaterInjector_class
 #ifdef WELL_CLASS
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
   use WellSpec_Base_class
   use Well_Base_class
