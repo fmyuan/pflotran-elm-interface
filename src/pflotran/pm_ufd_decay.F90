@@ -303,6 +303,7 @@ subroutine PMUFDDecayRead(this,input)
         element => ElementCreate()
         call InputReadWord(input,option,element%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'name',error_string)
+        error_string = 'UFD Decay, Element, ' // trim(element%name)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
