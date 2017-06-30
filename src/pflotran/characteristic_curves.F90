@@ -2854,9 +2854,14 @@ subroutine SFBaseVerify(this,name,option)
   type(option_type) :: option  
   
   if (Uninitialized(this%Sr)) then
-    option%io_buffer = UninitializedMessage('LIQUID_RESIDUAL_SATURATION', &
+    select type(this)
+      class is(sat_func_KRP11_type)
+        ! really doesn't need a %Sr, do nothing
+      class default
+        option%io_buffer = UninitializedMessage('LIQUID_RESIDUAL_SATURATION', &
                                             name)
-    call printErrMsg(option)
+        call printErrMsg(option)
+    end select
   endif
   
   if ((.not.this%analytical_derivative_available) .and. &
