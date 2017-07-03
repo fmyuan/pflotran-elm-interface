@@ -2705,8 +2705,8 @@ end subroutine PMWSSUpdateChemSpecies
                 material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
                 H_gas * 1.d-3 * 1.d-6                         ! [MJ/mol]
         end select
+        vec_p(j) = brine_energy + gas_energy
       endif
-      vec_p(j) = brine_energy + gas_energy
     enddo
     !-------------------------------------------------------------------------
     cur_waste_panel => cur_waste_panel%next
