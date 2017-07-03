@@ -74,7 +74,8 @@ STANDARD_CFG = \
 	towg/towg.cfg \
 	ufd/ufd.cfg \
 	wipp/nuts/nuts.cfg \
-	wipp/bragflo/bragflo.cfg
+	wipp/bragflo/bragflo.cfg \
+	wipp/bragflo/wipp_flow/wipp_flow.cfg
 
 ifneq ($(strip $(PARMETIS_LIB)),)
 	STANDARD_CFG += \

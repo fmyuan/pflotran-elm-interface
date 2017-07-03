@@ -18,14 +18,12 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
-      MODE GENERAL
+      MODE WIPP_FLOW
       OPTIONS
-        ISOTHERMAL
-        TWO_PHASE_ENERGY_DOF TEMPERATURE
+        FIX_UPWIND_DIRECTION
+        MAX_PRESSURE_CHANGE 1.d20
+        MAX_SATURATION_CHANGE 1.d20
         GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! H2 kg/kmol
-        MAXIMUM_PRESSURE_CHANGE 1.0D6 ! Chop pressure change inside Newton
-        ITOL_RELATIVE_UPDATE 1.d-30  ! Turn off ITOL_RELATIVE_UPDATE
-        TOUGH2_ITOL_SCALED_RESIDUAL 1.d-5
       /
     /
   /
@@ -38,7 +36,7 @@ SUBSURFACE
 
 !=========================== regression =======================================
 REGRESSION
-  CELLS_PER_PROCESS 2
+  CELLS_PER_PROCESS 10
   CELLS
     89
     111

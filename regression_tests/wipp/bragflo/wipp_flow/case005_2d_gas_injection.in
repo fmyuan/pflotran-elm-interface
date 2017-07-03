@@ -1,15 +1,15 @@
 !==============================================================================
-! Test Case 6a - Gas Generation
-! In this 2D model, gas is generated using the
-! SOURCE_SINK_SANDBOX/WIPP-GAS_GENERATION function. 
-! The reaction rates in WIPP-GAS_GENERATION only vary with water saturation.
-! Currently, the SOURCE_SINK_SANDBOX/WIPP-GAS_GENERATION must be specified
-! at a COORDINATE (not over a region).
-! This is the same 2D model used in case 5 (no-flow boundary conditions, 
-! water-gas initially in capillary-gravity equilibrium).
-!
-! Note: for this case, BRAGFLO uses g=9.8068, STP 3.00150E+02  1.01320E+05
+! Test Case 5 - 2D Gas Injection
+! In this 2D model, gas is injected at a constant rate of 1e-5 kg/s
+! into a single cell located at the left, in the middle layer.
+! The two-phase initial conditions are enumerated by layer as given by BRAGFLO, 
+! but were calculated by capillary-gravity equilibrium (dp_c/dz=rho*g), 
+! assuming that the bottom layer is at residual gas saturation (here sg=1e-5).
+! All boundaries have no-flow conditions.
+! 
+! Note: for this case, BRAGFLO uses g=9.79, STP 3.00150E+02  1.01325E+05
 ! need to update SOIL_REFERENCE_PRESSURE 4e6
+! need to change DENSITY EXPONENTIAL 101320. to 101325.
 !
 !==============================================================================
 
@@ -18,14 +18,12 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
-      MODE GENERAL
+      MODE WIPP_FLOW
       OPTIONS
-        ISOTHERMAL
-        TWO_PHASE_ENERGY_DOF TEMPERATURE
+        FIX_UPWIND_DIRECTION
+        MAX_PRESSURE_CHANGE 1.d20
+        MAX_SATURATION_CHANGE 1.d20
         GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! H2 kg/kmol
-        MAXIMUM_PRESSURE_CHANGE 1.0D6 ! Chop pressure change inside Newton
-        ITOL_RELATIVE_UPDATE 1.d-30  ! Turn off ITOL_RELATIVE_UPDATE
-        TOUGH2_ITOL_SCALED_RESIDUAL 1.d-5
       /
     /
   /
@@ -38,7 +36,7 @@ SUBSURFACE
 
 !=========================== regression =======================================
 REGRESSION
-  CELLS_PER_PROCESS 2
+  CELLS_PER_PROCESS 10
   CELLS
     89
     111
@@ -86,7 +84,7 @@ CHARACTERISTIC_CURVES sf1
   SATURATION_FUNCTION BROOKS_COREY  !KRP = 4 in BF
     SMOOTH              !required for convergence
     LAMBDA 0.7D0        !LAMBDA in BF
-    ALPHA  1.20482D-5   !ALPHA = 1/(PCT_A*PERMX**PCT_EXP) for KRP = 4 in BF
+    ALPHA  1.000D-6     !ALPHA = 1/(PCT_A*PERMX**PCT_EXP) for KRP = 4 in BF
     LIQUID_RESIDUAL_SATURATION 0.2D0  !SOR = 0.2
     MAX_CAPILLARY_PRESSURE 1.D8       !PCMAX = 1.0E+08
   /
@@ -101,12 +99,11 @@ CHARACTERISTIC_CURVES sf1
   /
 END
 
-
 !=========================== material properties ==============================
 MATERIAL_PROPERTY soil
   ID 1
   CHARACTERISTIC_CURVES sf1
-  POROSITY 0.45
+  POROSITY 0.45d0
   TORTUOSITY 1.                  ! for diffusion calculations.
   ROCK_DENSITY 2650.d0           ! thermal parameter. isothermal ignores this.
   THERMAL_CONDUCTIVITY_DRY 0.5   ! thermal parameter. isothermal ignores this.
@@ -120,13 +117,17 @@ MATERIAL_PROPERTY soil
   /
 END
 
-
 !=========================== regions ==========================================
 REGION all
   COORDINATES
     0.d0 0.d0 0.d0
     10.5d0 1.d0 21.d0
   /
+END
+
+! Well
+REGION injection_point
+  COORDINATE 0.d0 0.5d0 10.5d0  ! WELL DATA in BF
 END
 
 ! Layers
@@ -230,7 +231,7 @@ FLOW_CONDITION 1
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 4.08320E+06
+  GAS_PRESSURE 4.083200e+06
   LIQUID_SATURATION 9.999900e-01
   TEMPERATURE 25.d0
 END
@@ -241,7 +242,7 @@ FLOW_CONDITION 2
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 4.07340E+06
+  GAS_PRESSURE 4.073400e+06
   LIQUID_SATURATION 9.999900e-01
   TEMPERATURE 25.d0
 END
@@ -252,7 +253,7 @@ FLOW_CONDITION 3
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 4.06360E+06
+  GAS_PRESSURE 4.063600e+06
   LIQUID_SATURATION 9.999900e-01
   TEMPERATURE 25.d0
 END
@@ -263,7 +264,7 @@ FLOW_CONDITION 4
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 4.05380E+06
+  GAS_PRESSURE 4.053800e+06
   LIQUID_SATURATION 9.999900e-01
   TEMPERATURE 25.d0
 END
@@ -274,7 +275,7 @@ FLOW_CONDITION 5
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 4.04400E+06
+  GAS_PRESSURE 4.044000e+06
   LIQUID_SATURATION 9.999900e-01
   TEMPERATURE 25.d0
 END
@@ -285,7 +286,7 @@ FLOW_CONDITION 6
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 4.03420E+06
+  GAS_PRESSURE 4.034200e+06
   LIQUID_SATURATION 9.999900e-01
   TEMPERATURE 25.d0
 END
@@ -296,7 +297,7 @@ FLOW_CONDITION 7
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 4.02440E+06
+  GAS_PRESSURE 4.024400e+06
   LIQUID_SATURATION 9.999900e-01
   TEMPERATURE 25.d0
 END
@@ -307,7 +308,7 @@ FLOW_CONDITION 8
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 4.01470E+06
+  GAS_PRESSURE 4.014700e+06
   LIQUID_SATURATION 9.999900e-01
   TEMPERATURE 25.d0
 END
@@ -318,7 +319,7 @@ FLOW_CONDITION 9
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 4.00490E+06
+  GAS_PRESSURE 4.004900e+06
   LIQUID_SATURATION 9.999900e-01
   TEMPERATURE 25.d0
 END
@@ -329,7 +330,7 @@ FLOW_CONDITION 10
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 3.99510E+06
+  GAS_PRESSURE 3.995100e+06
   LIQUID_SATURATION 9.999900e-01
   TEMPERATURE 25.d0
 END
@@ -340,7 +341,7 @@ FLOW_CONDITION 11
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 3.98530E+06
+  GAS_PRESSURE 3.985300e+06
   LIQUID_SATURATION 9.999900e-01
   TEMPERATURE 25.d0
 END
@@ -351,7 +352,7 @@ FLOW_CONDITION 12
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 3.9755E+06
+  GAS_PRESSURE 3.975500e+06
   LIQUID_SATURATION 9.999800e-01
   TEMPERATURE 25.d0
 END
@@ -362,7 +363,7 @@ FLOW_CONDITION 13
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 3.9657E+06
+  GAS_PRESSURE 3.965700e+06
   LIQUID_SATURATION 9.972900e-01
   TEMPERATURE 25.d0
 END
@@ -373,7 +374,7 @@ FLOW_CONDITION 14
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 3.9559E+06
+  GAS_PRESSURE 3.955900e+06
   LIQUID_SATURATION 9.919200e-01
   TEMPERATURE 25.d0
 END
@@ -384,7 +385,7 @@ FLOW_CONDITION 15
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 3.9461E+06
+  GAS_PRESSURE 3.946100e+06
   LIQUID_SATURATION 9.866300e-01
   TEMPERATURE 25.d0
 END
@@ -395,7 +396,7 @@ FLOW_CONDITION 16
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 3.9363E+06
+  GAS_PRESSURE 3.936300e+06
   LIQUID_SATURATION 9.814300e-01
   TEMPERATURE 25.d0
 END
@@ -406,7 +407,7 @@ FLOW_CONDITION 17
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 3.9265E+06
+  GAS_PRESSURE 3.926500e+06
   LIQUID_SATURATION 9.763100e-01
   TEMPERATURE 25.d0
 END
@@ -417,7 +418,7 @@ FLOW_CONDITION 18
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 3.9167E+06
+  GAS_PRESSURE 3.916700e+06
   LIQUID_SATURATION 9.712700e-01
   TEMPERATURE 25.d0
 END
@@ -428,7 +429,7 @@ FLOW_CONDITION 19
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 3.9069E+06
+  GAS_PRESSURE 3.906900e+06
   LIQUID_SATURATION 9.663100e-01
   TEMPERATURE 25.d0
 END
@@ -439,7 +440,7 @@ FLOW_CONDITION 20
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 3.8971E+06
+  GAS_PRESSURE 3.897100e+06
   LIQUID_SATURATION 9.614300e-01
   TEMPERATURE 25.d0
 END
@@ -450,9 +451,17 @@ FLOW_CONDITION 21
     LIQUID_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  GAS_PRESSURE 3.8873E+06
+  GAS_PRESSURE 3.887300e+06
   LIQUID_SATURATION 9.566200e-01
   TEMPERATURE 25.d0
+END
+
+! Injector
+FLOW_CONDITION well  ! INJQ in BF
+  TYPE
+    RATE mass_rate
+  /
+  RATE 0.d0 1.d-5 0.d0 kg/s kg/s MW ! water(kg/s) gas(kg/s) energy(MW)
 END
 
 !=========================== condition couplers ===============================
@@ -561,20 +570,10 @@ INITIAL_CONDITION
   REGION 21
 END
 
-! Gas generation source term
-SOURCE_SINK_SANDBOX
-  WIPP-GAS_GENERATION
-    COORDINATE 0.25d0 0.5d0 10.5d0
-    INUNDATED_CORROSION_RATE 3d-7  ! RATE CONSTANTS: CORROSION (RKCOR) in BF
-    INUNDATED_DEGRADATION_RATE 1.5d-6  ! BIODEGRADATION (RKBIO) in BF
-    HUMID_CORROSION_FACTOR 1.0d-3  ! HUMIDITY FACTORS: HUMFAC_COR
-    HUMID_DEGRADATION_FACTOR 0.2d0  ! HUMFAC_BIO
-    H2_FE_RATIO 1.3081d0  ! S_H2
-    H2_CH2O_RATIO 1.1100d0  ! RATE COEFFICIENTS: RXH2S
-    ALPHARXN -1.d3
-    SOCMIN 1.5d-2
-    SATWICK 0.25
-  /
+! Assign well to region
+SOURCE_SINK well
+  FLOW_CONDITION well
+  REGION injection_point
 END
 
 !=========================== solver options ===================================
@@ -592,22 +591,29 @@ END
 !=========================== output options ===================================
 skip
 OUTPUT
-  TIMES s 1.d6 1.d7 1.d8 1.d9 5.d9   ! USER REQUESTED PRINTOUT TIMES
+  TIMES s 1.d2 1.d3 1.d4 1.d5 1.d6   ! USER REQUESTED PRINTOUT TIMES
   FORMAT HDF5
   VARIABLES
+    TEMPERATURE
     LIQUID_PRESSURE
     GAS_PRESSURE
+    AIR_PRESSURE
     GAS_SATURATION
+    LIQUID_MOLE_FRACTIONS
+    GAS_MOLE_FRACTIONS
+    LIQUID_ENERGY PER_VOLUME
+    GAS_ENERGY PER_VOLUME
+    GAS_DENSITY
   /
 END
 noskip
 
 !=========================== times ============================================
 TIME
-  FINAL_TIME 5.d9 s ! TMAX
-  INITIAL_TIMESTEP_SIZE 1.d0 s    ! DT_INIT in BF: BF units are all in seconds
-  MAXIMUM_TIMESTEP_SIZE 1000.d0 s  ! DT_MAX in BF: BF units are all in seconds
-  MAXIMUM_TIMESTEP_SIZE 1.d9 s at 5000 s   ! DT_MAX in BF: BF units are all in seconds
+  FINAL_TIME 1.d7 s
+  INITIAL_TIMESTEP_SIZE 1.d0 s
+  MAXIMUM_TIMESTEP_SIZE 1000.d0 s
+  MAXIMUM_TIMESTEP_SIZE 1.d5 y at 5000 s  ! DT_MAX in BF: BF units are all in seconds
 END
 
 !==============================================================================
