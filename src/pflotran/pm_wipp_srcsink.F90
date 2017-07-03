@@ -2463,10 +2463,7 @@ end subroutine PMWSSUpdateChemSpecies
 ! s_eff: [-] effective brine saturation due to capillary action
 !    in the waste materials
 ! rxnrate_corrosion: [mol-Fe/m3-bulk/sec] anoxic iron corrosion rate constant
-! rxnrate_biodeg_nitrate: [mol-cell/m3-bulk/sec] biodegradation/denitrification 
-!    rate constant
-! rxnrate_biodeg_sulfate: [mol-cell/m3-bulk/sec] biodegradation/sulfate
-!    reduction rate constant
+! rxnrate_biodeg: [mol-cell/m3-bulk/sec] biodegradation rate constant
 ! rxnrate_FeS_Fe: [mol-H2S/m3-bulk/sec] iron sulfidation rate constant
 ! rxnrate_FeS_FeOH2: [mol-H2S/m3-bulk/sec] iron corrosion product sulfidation 
 !    rate constant
@@ -2492,8 +2489,7 @@ end subroutine PMWSSUpdateChemSpecies
   PetscReal :: water_saturation
   PetscReal :: s_eff
   PetscReal :: rxnrate_corrosion
-  PetscReal :: rxnrate_biodeg_nitrate
-  PetscReal :: rxnrate_biodeg_sulfate
+  PetscReal :: rxnrate_biodeg
   PetscReal :: rxnrate_FeS_Fe
   PetscReal :: rxnrate_FeS_FeOH2
   PetscReal :: rxnrate_mgoh2
@@ -2533,8 +2529,7 @@ end subroutine PMWSSUpdateChemSpecies
     water_saturation = 0.d0
     s_eff = 0.d0
     rxnrate_corrosion = 0.d0
-    rxnrate_biodeg_nitrate = 0.d0
-    rxnrate_biodeg_sulfate = 0.d0
+    rxnrate_biodeg = 0.d0
     rxnrate_FeS_Fe = 0.d0
     rxnrate_FeS_FeOH2 = 0.d0
     rxnrate_mgoh2 = 0.d0
@@ -2571,23 +2566,15 @@ end subroutine PMWSSUpdateChemSpecies
       call PMWSSTaperRxnrate(rxnrate_corrosion,i,cur_waste_panel%inventory%Fe_s)
     !-----biodegradation-[mol-cell/m3/sec]------------------------------------
     !-----(see equation PA.69, PA.82, PA.83, section PA-4.2.5)----------------
-      rxnrate_biodeg_nitrate = (cur_waste_panel%inundated_biodeg_rate*s_eff) + &
-                               (cur_waste_panel%humid_biodeg_rate*(1.d0-s_eff))
-      rxnrate_biodeg_sulfate = (cur_waste_panel%inundated_biodeg_rate*s_eff) + &
-                               (cur_waste_panel%humid_biodeg_rate*(1.d0-s_eff))
-      call PMWSSSmoothRxnrate(rxnrate_biodeg_nitrate,i, &
+      rxnrate_biodeg = (cur_waste_panel%inundated_biodeg_rate*s_eff) + &
+                       (cur_waste_panel%humid_biodeg_rate*(1.d0-s_eff))
+      call PMWSSSmoothRxnrate(rxnrate_biodeg,i, &
                               cur_waste_panel%inventory%C6H10O5_s,this%alpharxn)
-      call PMWSSSmoothRxnrate(rxnrate_biodeg_sulfate,i, &
-                              cur_waste_panel%inventory%C6H10O5_s,this%alpharxn)
-      call PMWSSTaperRxnrate(rxnrate_biodeg_nitrate,i, &
-                             cur_waste_panel%inventory%C6H10O5_s, &
-                             cur_waste_panel%inventory%NO3_minus_aq)
-      call PMWSSTaperRxnrate(rxnrate_biodeg_sulfate,i, &
-                             cur_waste_panel%inventory%C6H10O5_s, &
-                             cur_waste_panel%inventory%SO42_minus_aq)
+      call PMWSSTaperRxnrate(rxnrate_biodeg,i, &
+                             cur_waste_panel%inventory%C6H10O5_s)
     !-----iron-sulfidation-[mol-H2S/m3/sec]-----------------------------------
     !-----(see equation PA.68, PA.89, PA.90, section PA-4.2.5)----------------
-      rxnrate_FeS_Fe = rxnrate_biodeg_sulfate*cur_waste_panel%F_SO4*(3.d0/6.d0)
+      rxnrate_FeS_Fe = rxnrate_biodeg*cur_waste_panel%F_SO4*(3.d0/6.d0)
       rxnrate_FeS_FeOH2 = rxnrate_FeS_Fe
       call PMWSSSmoothRxnrate(rxnrate_FeS_Fe,i,cur_waste_panel%inventory%Fe_s, &
                               this%alpharxn) 
@@ -2608,8 +2595,7 @@ end subroutine PMWSSUpdateChemSpecies
       call PMWSSTaperRxnrate(rxnrate_mgoh2,i,cur_waste_panel%inventory%MgO_s)
     !-----hydromagnesite-[mol-hydromagnesite/m3-bulk/sec]---------------------
     !-----(see equation PA.74, PA.96, section PA-4.2.5)-----------------------
-      rxnrate_hydromag = max(rxnrate_biodeg_nitrate,rxnrate_biodeg_sulfate) * &
-                         this%RXCO2_factor
+      rxnrate_hydromag = rxnrate_biodeg * this%RXCO2_factor
       call PMWSSSmoothRxnrate(rxnrate_hydromag,i, &
                               cur_waste_panel%inventory%MgO_s,this%alpharxn)
       call PMWSSTaperRxnrate(rxnrate_hydromag,i, &
@@ -2634,22 +2620,19 @@ end subroutine PMWSSUpdateChemSpecies
                       this%stoic_mat(4,7)*rxnrate_FeS_Fe + &
                       this%stoic_mat(3,7)*rxnrate_FeS_FeOH2
       cur_waste_panel%inventory%C6H10O5_s%inst_rate(i) = &
-                      this%stoic_mat(2,5)*rxnrate_biodeg_nitrate + &
-                      this%stoic_mat(2,5)*rxnrate_biodeg_sulfate
+                      this%stoic_mat(2,5)*rxnrate_biodeg
       cur_waste_panel%inventory%RuPl_s%inst_rate(i) = &
-                      this%stoic_mat(2,5)*rxnrate_biodeg_nitrate + &
-                      this%stoic_mat(2,5)*rxnrate_biodeg_sulfate
+                      this%stoic_mat(2,5)*rxnrate_biodeg
       cur_waste_panel%inventory%NO3_minus_aq%inst_rate(i) = &
-          (-4.8d0*rxnrate_biodeg_nitrate)
+          (-4.8d0*rxnrate_biodeg)
       cur_waste_panel%inventory%CO2_g%inst_rate(i) = &
-          6.d0*rxnrate_biodeg_sulfate + 6.d0*rxnrate_biodeg_nitrate + &
-          (-1.d0*rxnrate_hydromag)
+          6.d0*rxnrate_biodeg + 6.d0*rxnrate_biodeg + (-1.d0*rxnrate_hydromag)
       cur_waste_panel%inventory%N2_g%inst_rate(i) = &
-          2.4d0*rxnrate_biodeg_nitrate
+          2.4d0*rxnrate_biodeg
       cur_waste_panel%inventory%SO42_minus_aq%inst_rate(i) = &
-          (-3.d0*rxnrate_biodeg_sulfate)
+          (-3.d0*rxnrate_biodeg)
       cur_waste_panel%inventory%H2S_g%inst_rate(i) = &
-          3.d0*rxnrate_biodeg_sulfate + (-1.d0*rxnrate_FeS_Fe) + &
+          3.d0*rxnrate_biodeg + (-1.d0*rxnrate_FeS_Fe) + &
           (-1.d0*rxnrate_FeS_FeOH2)
       cur_waste_panel%inventory%MgO_s%inst_rate(i) = &
                       this%stoic_mat(5,8)*rxnrate_mgoh2
@@ -2668,8 +2651,7 @@ end subroutine PMWSSUpdateChemSpecies
                       this%stoic_mat(1,2)*rxnrate_corrosion + &
                       this%stoic_mat(4,2)*rxnrate_FeS_Fe + &
                       (((2.4d0/6.0d0*cur_waste_panel%F_NO3) + &
-                        (3.0d0/6.0d0*cur_waste_panel%F_SO4))* &
-                       rxnrate_biodeg_nitrate)
+                        (3.0d0/6.0d0*cur_waste_panel%F_SO4))*rxnrate_biodeg)
     !-----brine-generation-[mol-H2O/m3-bulk/sec]------------------------------
     !-----(see equations PA.77, PA.78, PA.82, PA.83, PA.90, PA.96, PA.97,)----
     !-----(section PA-4.2.5)--------------------------------------------------
@@ -2679,8 +2661,7 @@ end subroutine PMWSSUpdateChemSpecies
                       this%stoic_mat(5,3)*rxnrate_mgoh2 + &
                       this%stoic_mat(8,3)*rxnrate_hymagcon + &
                       (((7.4d0/6.0d0*cur_waste_panel%F_NO3) + &
-                        (5.0d0/6.0d0*cur_waste_panel%F_SO4))* &
-                       rxnrate_biodeg_nitrate)
+                        (5.0d0/6.0d0*cur_waste_panel%F_SO4))*rxnrate_biodeg)
     !------source-term-calculation--------------------------------------------
       j = j + 1
       !---liquid-source-term-[kmol/sec]------------------------!-[units]------
