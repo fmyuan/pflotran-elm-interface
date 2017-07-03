@@ -143,6 +143,11 @@ subroutine PMWIPPFloRead(this,input)
       case('GAS_SATURATION_TOLERANCE')
         call InputReadDouble(input,option,this%gas_saturation_tolerance)
         call InputDefaultMsg(input,option,'GAS_SATURATION_TOLERANCE')
+      case('GAS_COMPONENT_FORMULA_WEIGHT')
+        !geh: assuming gas component is index 2
+        call InputReadDouble(input,option,fmw_comp(2))
+        call InputErrorMsg(input,option,'gas component formula wt.', &
+                           error_string)
       case('MAXIMUM_PRESSURE_CHANGE')
         call InputReadDouble(input,option,wippflo_max_pressure_change)
         call InputErrorMsg(input,option,'maximum pressure change', &
