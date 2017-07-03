@@ -497,6 +497,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: dtot_mole_flux_dp, dtot_mole_flux_dT, dtot_mole_flux_dsatg
   PetscReal :: dpl_dsatg
   PetscReal :: ddelta_pressure_pl
+  PetscReal :: perm3(3)
 
   ! Diffusion
   PetscReal :: dstpd_up_dporup, dstpd_dn_dpordn
@@ -533,6 +534,8 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
   call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
   
+#if 0
+!TODO(geh): remove for now
   ! Fracture permeability change only available for structured grid (Heeho)
   if (associated(material_auxvar_up%fracture)) then
     call FracturePermEvaluate(material_auxvar_up,perm_up,temp_perm_up, &
@@ -544,14 +547,19 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
                               dummy_dperm_dn,dist)
     perm_dn = temp_perm_dn
   endif
+#endif
   
   if (associated(klinkenberg)) then
     perm_ave_over_dist(1) = (perm_up * perm_dn) / &
                             (dist_up*perm_dn + dist_dn*perm_up)
-    temp_perm_up = klinkenberg%Evaluate(perm_up, &
-                                         gen_auxvar_up%pres(option%gas_phase))
-    temp_perm_dn = klinkenberg%Evaluate(perm_dn, &
-                                         gen_auxvar_dn%pres(option%gas_phase))
+    perm3(:) = perm_up                                        
+    perm3 = klinkenberg%Evaluate(perm3, &
+                                 gen_auxvar_up%pres(option%gas_phase))
+    temp_perm_up = perm3(1)
+    perm3(:) = perm_dn                                        
+    perm3 = klinkenberg%Evaluate(perm3, &
+                                 gen_auxvar_dn%pres(option%gas_phase))
+    temp_perm_dn = perm3(1)
     perm_ave_over_dist(2) = (temp_perm_up * temp_perm_dn) / &
                             (dist_up*temp_perm_dn + dist_dn*temp_perm_up)
   else
@@ -2498,6 +2506,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dtot_mole_flux_ddiffusion_coef
   PetscReal :: dstpd_ave_over_dist_dstpd_dn
   PetscReal :: pressure_ave
+  PetscReal :: perm3(3)
   
   ! Conduction
   PetscReal :: dkeff_up_dsatlup, dkeff_dn_dsatldn
@@ -2525,18 +2534,21 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
 
   call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
 
+#if 0
   ! Fracture permeability change only available for structured grid (Heeho)
   if (associated(material_auxvar_dn%fracture)) then
     call FracturePermEvaluate(material_auxvar_dn,perm_dn,temp_perm_dn, &
                               dummy_dperm_dn,dist)
     perm_dn = temp_perm_dn
   endif  
+#endif
   
   if (associated(klinkenberg)) then
     perm_dn_adj(1) = perm_dn
-                                          
-    perm_dn_adj(2) = klinkenberg%Evaluate(perm_dn, &
-                                          gen_auxvar_dn%pres(option%gas_phase))
+    perm3(:) = perm_dn                                        
+    perm3 = klinkenberg%Evaluate(perm3, &
+                                 gen_auxvar_dn%pres(option%gas_phase))
+    perm_dn_adj(2) = perm3(1)
   else
     perm_dn_adj(:) = perm_dn
   endif

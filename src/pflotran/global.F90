@@ -573,6 +573,12 @@ subroutine GlobalWeightAuxVars(realization,weight)
           (weight*auxvars(ghosted_id)%temp_store(TIME_TpDT)+ &
            (1.d0-weight)*auxvars(ghosted_id)%temp_store(TIME_T))
       enddo  
+    case(WF_MODE)
+      do ghosted_id = 1, realization%patch%aux%Global%num_aux
+        auxvars(ghosted_id)%pres(:) = &
+          (weight*auxvars(ghosted_id)%pres_store(:,TIME_TpDT)+ &
+           (1.d0-weight)*auxvars(ghosted_id)%pres_store(:,TIME_T))
+      enddo  
     case(MPH_MODE,FLASH2_MODE)
       ! need future implementation for ims_mode too    
       do ghosted_id = 1, realization%patch%aux%Global%num_aux
@@ -736,19 +742,21 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
       call realization%comm1%GlobalToLocal(field%work,field%work_loc)
       call GlobalSetAuxVarVecLoc(realization,field%work_loc,TEMPERATURE, &
                                  time_level)
-    case(G_MODE)
+    case(G_MODE,WF_MODE)
       ! pressure
       call RealizationGetVariable(realization,field%work,LIQUID_PRESSURE, &
                                   ZERO_INTEGER)
       call realization%comm1%GlobalToLocal(field%work,field%work_loc)
       call GlobalSetAuxVarVecLoc(realization,field%work_loc,LIQUID_PRESSURE, &
                                  time_level)
-      ! temperature
-      call RealizationGetVariable(realization,field%work,TEMPERATURE, &
-                                  ZERO_INTEGER)
-      call realization%comm1%GlobalToLocal(field%work,field%work_loc)
-      call GlobalSetAuxVarVecLoc(realization,field%work_loc,TEMPERATURE, &
-                                 time_level)
+      if (option%iflowmode == G_MODE) then
+        ! temperature
+        call RealizationGetVariable(realization,field%work,TEMPERATURE, &
+                                    ZERO_INTEGER)
+        call realization%comm1%GlobalToLocal(field%work,field%work_loc)
+        call GlobalSetAuxVarVecLoc(realization,field%work_loc,TEMPERATURE, &
+                                   time_level)
+      endif
       ! Gas density
       call RealizationGetVariable(realization,field%work,GAS_DENSITY, &
                                  ZERO_INTEGER)

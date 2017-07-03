@@ -1469,10 +1469,16 @@ subroutine FlowConditionRead(condition,input,option)
 
   select case(option%iflowmode)
     case(G_MODE)
-      option%io_buffer = 'General mode not supported in original FlowConditionRead.'
+      option%io_buffer = 'General mode not supported in original &
+        &FlowConditionRead.'
+      call printMsg(option)
+    case(WF_MODE)
+      option%io_buffer = 'WIPP Flow mode not supported in original &
+        &FlowConditionRead.'
       call printMsg(option)
     case(TOIL_IMS_MODE)
-      option%io_buffer = 'TOilIms mode not supported in original FlowConditionRead.'
+      option%io_buffer = 'TOilIms mode not supported in original &
+        &FlowConditionRead.'
       call printMsg(option)
     case(MPH_MODE,IMS_MODE,FLASH2_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate)&
@@ -1764,6 +1770,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   use Time_Storage_module
   use Dataset_module
   
+  ! needed for STATES
   use General_Aux_module
   
   implicit none
@@ -1801,7 +1808,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   default_time_storage%time_interpolation_method = INTERPOLATION_STEP
   
   select case(option%iflowmode)
-    case(G_MODE)
+    case(G_MODE,WF_MODE)
       general => FlowGeneralConditionCreate(option)
       condition%general => general
   end select
@@ -1849,7 +1856,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')   
           call StringToUpper(word)
           select case(option%iflowmode)
-            case(G_MODE)
+            case(G_MODE,WF_MODE)
               sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
                                                               option)
           end select
@@ -1962,7 +1969,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')   
           call StringToUpper(word)
           select case(option%iflowmode)
-            case(G_MODE)
+            case(G_MODE,WF_MODE)
               sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
                                                               option)
           end select
@@ -1981,7 +1988,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
       case('CONDUCTANCE')
         word = 'LIQUID_PRESSURE'
         select case(option%iflowmode)
-          case(G_MODE)
+          case(G_MODE,WF_MODE)
             sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
                                                             option)
         end select
@@ -1991,7 +1998,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
            'GAS_SATURATION','TEMPERATURE','MOLE_FRACTION','RATE', &
            'LIQUID_FLUX','GAS_FLUX','ENERGY_FLUX','RELATIVE_HUMIDITY')
         select case(option%iflowmode)
-          case(G_MODE)
+          case(G_MODE,WF_MODE)
             sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
                                                             option)
         end select
@@ -2042,7 +2049,6 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   if (.false.) then
     ! neumann or mass/volumetric flux
     ! need temperature
-  !  condition%sub_condition_ptr(GENERAL_FLUX_DOF)%ptr => general%flux
     if (.not.associated(general%mole_fraction) .and. &
         .not.associated(general%gas_saturation)) then
       option%io_buffer = 'General Phase flux condition must include ' // &

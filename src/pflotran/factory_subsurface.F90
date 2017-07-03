@@ -451,6 +451,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use PM_Base_class
   use PM_Flash2_class
   use PM_General_class
+  use PM_WIPP_Flow_class
   use PM_Immis_class
   use PM_Miscible_class
   use PM_Mphase_class
@@ -485,6 +486,20 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%use_isothermal = PETSC_FALSE
       option%water_id = 1
       option%air_id = 2
+    class is (pm_wippflo_type)
+      option%iflowmode = WF_MODE
+      option%nphase = 2
+      option%liquid_phase = 1  ! liquid_pressure
+      option%gas_phase = 2     ! gas_pressure
+
+      option%capillary_pressure_id = 3
+      option%saturation_pressure_id = 4
+
+      option%water_id = 1
+      option%air_id = 2
+
+      option%nflowdof = 2
+      option%nflowspec = 2
     class is (pm_general_type)
       option%iflowmode = G_MODE
       option%nphase = 2
@@ -622,6 +637,7 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
   use PM_Base_class
   use PM_Flash2_class
   use PM_General_class
+  use PM_WIPP_Flow_class
   use PM_Immis_class
   use PM_Miscible_class
   use PM_Mphase_class
@@ -659,7 +675,7 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
         call StringToUpper(word)
         select case(word)
           case('GENERAL','TOIL_IMS','TOWG_IMMISCIBLE','TODD_LONGOSTAFF', &
-               'TOWG_MISCIBLE','BLACK_OIL','SOLVENT_TL')
+               'TOWG_MISCIBLE','BLACK_OIL','SOLVENT_TL','WIPP_FLOW')
           ! In OptionFlowInitRealization(), numerical_derivatives is set to
           ! PETSC_FALSE, but the default for GENERAL needs to be PETSC_TRUE.
           ! This is will eventually affect all flow modes with numerical
@@ -670,6 +686,8 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
         select case(word)
           case('GENERAL')
             pm => PMGeneralCreate()
+          case('WIPP_FLOW')
+            pm => PMWIPPFloCreate()
           case('MPHASE')
             pm => PMMphaseCreate()
           case('FLASH2')
@@ -976,7 +994,9 @@ subroutine SubsurfaceInitSimulation(simulation)
   use PM_Subsurface_Flow_class
   use PM_Auxiliary_class
   
+  !TODO(geh): are these needed?
   use PM_General_class
+  use PM_WIPP_Flow_class
   use PM_Richards_class
   use PM_TH_class
   use PM_RT_class
@@ -1104,7 +1124,9 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
   use PM_Base_Pointer_module
   use PM_Base_class
   use PM_Subsurface_Flow_class
+  !TODO(geh): are these needed
   use PM_General_class
+  use PM_WIPP_Flow_class
   use PM_Richards_class
   use PM_TH_class
   use PM_RT_class
@@ -1848,15 +1870,16 @@ subroutine SubsurfaceReadInput(simulation)
         call InputReadWord(input,option,flow_condition%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'FLOW_CONDITION','name') 
         call printMsg(option,flow_condition%name)
-        if (option%iflowmode == G_MODE) then
-          call FlowConditionGeneralRead(flow_condition,input,option)
-        else if(option%iflowmode == TOIL_IMS_MODE) then
-          call FlowConditionTOilImsRead(flow_condition,input,option)
-        else if (option%iflowmode == TOWG_MODE) then
-          call FlowConditionTOWGRead(flow_condition,input,option)
-        else 
-          call FlowConditionRead(flow_condition,input,option)
-        endif
+        select case(option%iflowmode)
+          case(G_MODE,WF_MODE)
+            call FlowConditionGeneralRead(flow_condition,input,option)
+          case(TOIL_IMS_MODE)
+            call FlowConditionTOilImsRead(flow_condition,input,option)
+          case(TOWG_MODE)
+            call FlowConditionTOWGRead(flow_condition,input,option)
+          case default
+            call FlowConditionRead(flow_condition,input,option)
+        end select
         call FlowConditionAddToList(flow_condition,realization%flow_conditions)
         nullify(flow_condition)
 
@@ -2231,7 +2254,8 @@ subroutine SubsurfaceReadInput(simulation)
         if (option%iflowmode == RICHARDS_MODE .or. &
             option%iflowmode == TOIL_IMS_MODE .or. &
             option%iflowmode == TOWG_MODE .or. &
-            option%iflowmode == G_MODE) then
+            option%iflowmode == G_MODE .or. &
+            option%iflowmode == WF_MODE) then
           option%io_buffer = &
             'Must compile with legacy_saturation_function=1 ' //&
             'to use the SATURATION_FUNCTION keyword.  Otherwise, use ' // &
@@ -2256,7 +2280,8 @@ subroutine SubsurfaceReadInput(simulation)
                   option%iflowmode == RICHARDS_MODE .or. &
                   option%iflowmode == TOIL_IMS_MODE .or. &
                   option%iflowmode == TOWG_MODE .or. &
-                  option%iflowmode == G_MODE)) then
+                  option%iflowmode == G_MODE .or. &
+                  option%iflowmode == WF_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow ' // &
             'modes other than RICHARDS, TOIL_IMS,  or GENERAL.  Use ' // &
             'SATURATION_FUNCTION.'

@@ -327,7 +327,7 @@ subroutine OutputTecplotBlock(realization_base)
       call OutputFluxVelocitiesTecplotBlk(realization_base,LIQUID_PHASE, &
                                           X_DIRECTION,PETSC_FALSE)
       select case(option%iflowmode)
-        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
+        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
                                               X_DIRECTION,PETSC_FALSE)
       end select
@@ -336,7 +336,7 @@ subroutine OutputTecplotBlock(realization_base)
       call OutputFluxVelocitiesTecplotBlk(realization_base,LIQUID_PHASE, &
                                           Y_DIRECTION,PETSC_FALSE)
       select case(option%iflowmode)
-        case(MPH_MODE, IMS_MODE,FLASH2_MODE,G_MODE)
+        case(MPH_MODE, IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
                                               Y_DIRECTION,PETSC_FALSE)
       end select
@@ -345,7 +345,7 @@ subroutine OutputTecplotBlock(realization_base)
       call OutputFluxVelocitiesTecplotBlk(realization_base,LIQUID_PHASE, &
                                           Z_DIRECTION,PETSC_FALSE)
       select case(option%iflowmode)
-        case(MPH_MODE, IMS_MODE,FLASH2_MODE,G_MODE)
+        case(MPH_MODE, IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
                                               Z_DIRECTION,PETSC_FALSE)
       end select
@@ -355,7 +355,7 @@ subroutine OutputTecplotBlock(realization_base)
       realization_base%discretization%itype == STRUCTURED_GRID) then
     if (grid%structured_grid%nx > 1) then
       select case(option%iflowmode)
-        case(G_MODE)
+        case(G_MODE,WF_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
                                               X_DIRECTION,PETSC_TRUE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &
@@ -366,7 +366,7 @@ subroutine OutputTecplotBlock(realization_base)
     endif
     if (grid%structured_grid%ny > 1) then
       select case(option%iflowmode)
-        case(G_MODE)
+        case(G_MODE,WF_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
                                               Y_DIRECTION,PETSC_TRUE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &
@@ -377,7 +377,7 @@ subroutine OutputTecplotBlock(realization_base)
     endif
     if (grid%structured_grid%nz > 1) then
       select case(option%iflowmode)
-        case(G_MODE)
+        case(G_MODE,WF_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
                                               Z_DIRECTION,PETSC_TRUE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &

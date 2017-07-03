@@ -35,6 +35,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   use Richards_module
   use TH_module
   use General_module
+  use WIPP_Flow_module
   use TOilIms_module
   use TOWG_module
   use Condition_Control_module
@@ -74,6 +75,13 @@ subroutine InitSubsurfFlowSetupRealization(realization)
       case(FLASH2_MODE)
         call init_span_wagner(option)      
         call Flash2Setup(realization)
+      !TODO(geh): combine with Richareds, TOIL, etc.
+      case(WF_MODE)
+        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
+                           patch%material_property_array, &
+                           patch%characteristic_curves_array, &
+                           realization%option)
+        call WIPPFloSetup(realization)
       case(G_MODE)
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
@@ -121,6 +129,8 @@ subroutine InitSubsurfFlowSetupRealization(realization)
         !     assigned as the initial conditin if the state changes. therefore,
         !     pass in PETSC_FALSE
         call GeneralUpdateAuxVars(realization,PETSC_FALSE)
+      case(WF_MODE)
+        call WIPPFloUpdateAuxVars(realization)
       case(TOIL_IMS_MODE)
         call TOilImsUpdateAuxVars(realization)
       case(TOWG_MODE)

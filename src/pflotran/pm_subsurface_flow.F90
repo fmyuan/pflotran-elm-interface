@@ -250,12 +250,15 @@ subroutine PMSubsurfaceFlowSetup(this)
       if (.not.associated(cur_cc)) exit
       select type(sf => cur_cc%saturation_function)
         class is(sat_func_WIPP_type)
-          if (.not.sf%ignore_permeability) then
+          if (.not.sf%ignore_permeability .and. &
+              .not.(this%option%iflowmode == WF_MODE .or. &
+                    this%option%iflowmode == G_MODE)) then
             this%option%io_buffer = 'A WIPP capillary pressure - saturation &
               &function (' // trim(cur_cc%name) // ') is being used without &
               &the IGNORE_PERMEABILITY feature in a flow mode &
               &that does not support the permeability feature. &
-              &Please chose a different mode, such as TWOPHASE_MODE, or use &
+              &Please chose a different mode, such as General Mode or &
+              &WIPP Flow Mode, or use &
               &the IGNORE_PERMEABILITY feature, and provide ALPHA.'
             call printErrMsg(this%option)
           endif

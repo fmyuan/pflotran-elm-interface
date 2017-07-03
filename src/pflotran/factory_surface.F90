@@ -381,7 +381,8 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
         call InputReadWord(input,option,flow_condition%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'SURF_FLOW_CONDITION','name')
         call printMsg(option,flow_condition%name)
-        if (option%iflowmode == G_MODE) then
+        if (option%iflowmode == G_MODE .or. &
+            option%iflowmode == WF_MODE) then
           call FlowConditionGeneralRead(flow_condition,input,option)
         else
           call FlowConditionRead(flow_condition,input,option)

@@ -2271,7 +2271,8 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
   if (associated(characteristic_curves%gas_rel_perm_function) ) then
     call characteristic_curves%gas_rel_perm_function%Verify(string,option)
   else
-    if (option%iflowmode == G_MODE .or. option%iflowmode == TOWG_MODE) then
+    if (option%iflowmode == G_MODE .or. option%iflowmode == TOWG_MODE .or. &
+        option%iflowmode == WF_MODE) then
       option%io_buffer = 'A gas phase relative permeability curve has &
                          &not been set under CHARACTERISTIC_CURVES "' // &
                          trim(characteristic_curves%name) // '". Another &
@@ -2285,7 +2286,7 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
     call characteristic_curves%oil_rel_perm_function%Verify(string,option)
   else 
     if (option%iflowmode == TOIL_IMS_MODE .or. &
-       option%iflowmode == TOWG_MODE  ) then
+        option%iflowmode == TOWG_MODE  ) then
       option%io_buffer = 'An oil phase relative permeability curve has &
                          &not been set under CHARACTERISTIC_CURVES "' // &
                          trim(characteristic_curves%name) // '". Another &
@@ -3359,7 +3360,7 @@ subroutine SFConstantVerify(this,name,option)
           trim(string) // '.'
         call printErrMsg(option)
       endif
-    case(G_MODE,TOIL_IMS_MODE,IMS_MODE,MIS_MODE,MPH_MODE,FLASH2_MODE)
+    case(WF_MODE,G_MODE,TOIL_IMS_MODE,IMS_MODE,MIS_MODE,MPH_MODE,FLASH2_MODE)
       if (Initialized(this%constant_saturation)) then
         option%io_buffer = 'CONSTANT_SATURATION is not supported for &
           &multiphase flow modes as CONSTANT_CAPILLARY_PRESSURE must be &

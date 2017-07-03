@@ -40,6 +40,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   use Dataset_Ascii_class
   
   use General_Aux_module
+  use WIPP_Flow_Aux_module
   !use TOilIms_Aux_module
   use PM_TOilIms_Aux_module 
     ! to use constant paramters such as TOIL_IMS_PRESSURE_DOF
@@ -143,6 +144,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       coupler%flow_aux_mapping(GENERAL_AIR_PRESSURE_INDEX) = 2
       coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = 3
       coupler%flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) = 3
+    case(WF_MODE)
     case(TOIL_IMS_MODE)
       temperature_at_datum = &
         condition%toil_ims%temperature%dataset%rarray(1)
@@ -290,7 +292,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum+1,num_pressures
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE, MIS_MODE, &
+        case(TH_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,MIS_MODE, &
              TOIL_IMS_MODE)
           temperature = temperature + temperature_gradient(Z_DIRECTION)*delta_z
       end select
@@ -418,7 +420,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
     ! assign pressure
     select case(option%iflowmode)
-      case(G_MODE)
+      case(G_MODE,WF_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure
       case (MPH_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure

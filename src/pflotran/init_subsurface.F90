@@ -982,6 +982,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
     end select
 #endif
     select case(option%iflowmode)
+      !TODO(geh): refactors so that we don't need all these variants?
       case(RICHARDS_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
                       realization%patch%aux%Richards%zero_rows_local, &
@@ -1009,6 +1010,13 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
                     realization%patch%aux%General%inactive_rows_local_ghosted, &
                       realization%patch%aux%General%n_inactive_rows, &
                       realization%patch%aux%General%inactive_cells_exist, &
+                      option)
+      case(WF_MODE)
+        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
+                      realization%patch%aux%WIPPFlo%inactive_rows_local, &
+                    realization%patch%aux%WIPPFlo%inactive_rows_local_ghosted, &
+                      realization%patch%aux%WIPPFlo%n_inactive_rows, &
+                      realization%patch%aux%WIPPFlo%inactive_cells_exist, &
                       option)
       case(TOIL_IMS_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &

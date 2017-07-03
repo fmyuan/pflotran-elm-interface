@@ -148,6 +148,7 @@ module Option_module
     PetscReal :: reference_saturation
     
     PetscBool :: converged
+    PetscInt :: convergence
     
     PetscReal :: infnorm_res_sec  ! inf. norm of secondary continuum rt residual
     
@@ -485,6 +486,7 @@ subroutine OptionInitRealization(option)
   option%reference_saturation = 1.d0
   
   option%converged = PETSC_FALSE
+  option%convergence = CONVERGENCE_OFF
   
   option%infnorm_res_sec = 0.d0
   
