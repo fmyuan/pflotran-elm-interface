@@ -1847,8 +1847,13 @@ contains
     !
     call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                field%work_loc,ONEDOF)
+    !call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+    !                           POROSITY,ZERO_INTEGER)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,ZERO_INTEGER)
+                               POROSITY,POROSITY_MINERAL)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               POROSITY,POROSITY_CURRENT)
+
 
     if(option%iflowmode==RICHARDS_MODE .or. &
        option%iflowmode==TH_MODE) then
@@ -2250,7 +2255,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id, istart, iend
     PetscInt           :: cur_sat_func_id
-    PetscReal          :: liquid_saturation, capillary_pressure, dx, porosity, volume
+    PetscReal          :: liquid_saturation, capillary_pressure, dx, porosity, volume, den_kgm3
     PetscReal, pointer :: xx_loc_p(:)
 
     PetscScalar, pointer :: soilt_pf_loc(:)      ! temperature [oC]
@@ -2329,17 +2334,34 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
        iend = local_id*option%nflowdof
        istart = iend-option%nflowdof+1
 
+       porosity = material_auxvars(ghosted_id)%porosity
+       volume   = material_auxvars(ghosted_id)%volume
+       den_kgm3 = global_auxvars(ghosted_id)%den(1)*FMWH2O ! water den = kg/m^3
+
+       ! soil hydraulic properties ID for current cell
+       cur_sat_func_id = patch%sat_func_id(ghosted_id)
+       characteristic_curves => patch% &
+         characteristic_curves_array(cur_sat_func_id)%ptr
+
        if (PRESSURE_DATAPASSING) then
          xx_loc_p(istart)  = soilpress_pf_loc(ghosted_id)
 
+         ! need to recalculate 'pressure' from saturation/water-mass
+         select type(sf => characteristic_curves%saturation_function)
+           !class is(sat_func_VG_type)
+             ! not-yet (TODO)
+           class is(sat_func_BC_type)
+             capillary_pressure = option%reference_pressure - xx_loc_p(istart)
+             call sf%Saturation(capillary_pressure, liquid_saturation, dx, option)
+
+           class default
+             option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
+               ' when coupled with CLM.'
+             call printErrMsg(option)
+         end select
+
        else
          ! need to recalculate 'pressure' from saturation/water-mass
-
-         ! soil hydraulic properties ID for current cell
-         cur_sat_func_id = patch%sat_func_id(ghosted_id)
-
-         characteristic_curves => patch% &
-           characteristic_curves_array(cur_sat_func_id)%ptr
          select type(sf => characteristic_curves%saturation_function)
            !class is(sat_func_VG_type)
              ! not-yet (TODO)
@@ -2347,17 +2369,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
              liquid_saturation = soillsat_pf_loc(ghosted_id)
              call sf%CapillaryPressure(liquid_saturation, capillary_pressure, option)
 
-             porosity = material_auxvars(ghosted_id)%porosity
-             volume = material_auxvars(ghosted_id)%volume
-             dx = global_auxvars(ghosted_id)%den(1)*FMWH2O ! water den = kg/m^3
-             !dx = liquid_saturation*porosity*volume  ! m3h2o
-
-print *, 'pf0 - ', ghosted_id, liquid_saturation, capillary_pressure, dx, &
-liquid_saturation*porosity*volume*dx
-
              xx_loc_p(istart) = option%reference_pressure - capillary_pressure
-
-
 
            class default
              option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
@@ -3409,7 +3421,6 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         'idata%sat_pfp(local_id)=',soillsat_pf_p(local_id)
 #endif
 
-
       if (option%iflowmode == RICHARDS_MODE) then
         soilpsi_pf_p(local_id) = -rich_auxvars(ghosted_id)%pc
 
@@ -3683,7 +3694,15 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
              if (ghosted_id <= 0 .or. local_id <= 0) cycle
              if (patch%imat(ghosted_id) < 0) cycle
 
-             if(StringCompare(boundary_condition%name,'clm_gpress_bc')) then          ! infilitration (+)
+             ! for infiltration, the BC is either by 'pressure head' or by 'water flux', but not both
+             if(StringCompare(boundary_condition%name,'clm_gpress_bc')) then              ! infilitration (+) (TYPE II)
+                qinfl_subsurf_pf_loc(iconn) = &
+                               -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
+
+                ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
+                global_auxvars_bc(offset+iconn)%mass_balance(1,1) = 0.d0
+
+             elseif(StringCompare(boundary_condition%name,'clm_gwflux_bc')) then          ! infilitration (+) (TYPE I)
                 qinfl_subsurf_pf_loc(iconn) = &
                                -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
 
@@ -3692,7 +3711,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
              endif
 
-             if(StringCompare(boundary_condition%name,'exfiltration')) then          ! exfiltration (-)
+             if(StringCompare(boundary_condition%name,'clm_exfiltration_bc')) then         ! exfiltration (-)
                 qsurf_subsurf_pf_loc(iconn) = &
                                -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
 
@@ -3702,7 +3721,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
              endif
 
              ! retrieving H2O flux at bottom BC
-             if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then          ! bottom water flux
+             if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then                ! bottom water flux
                 qflux_subbase_pf_loc(iconn) = &
                                -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
 
