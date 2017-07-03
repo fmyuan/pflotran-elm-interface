@@ -234,7 +234,10 @@ module PM_WIPP_SrcSink_class
 !    when inundated in brine
 ! humid_brucite_rate: [mol-MgOH2/m3-bulk/sec] rate of MgO hydration
 !    in a humid environment
-! RXH2S_factor: [-] H2S reaction rate factor; eq. PA.88, section PS-4.2.5
+! F_NO3: [-] fraction of carbon consumed through denitrification process; 
+!    eq. PA.85, section PA-4.2.5
+! F_SO4: [-] fraction of carbon consumed through sulfate reduction process; 
+!    eq. PA.85, section PA-4.2.5
 ! volume: [m3] waste panel volume
 ! scale_by_volume: Boolean flag to scale given inventory to waste panel volume
 ! id: [-] waste panel id number
@@ -258,7 +261,8 @@ module PM_WIPP_SrcSink_class
     PetscReal :: humid_biodeg_rate           
     PetscReal :: inundated_brucite_rate      
     PetscReal :: humid_brucite_rate          
-    PetscReal :: RXH2S_factor     
+    PetscReal :: F_NO3
+    PetscReal :: F_SO4
     PetscReal :: volume           
     PetscBool :: scale_by_volume  
     PetscInt :: id
@@ -303,6 +307,8 @@ module PM_WIPP_SrcSink_class
 !    produced by biodegradation
 ! plasidx: [-] flag value of 0 or 1; indicates whether gas generation is
 !    produced by rubbers and plastics
+! stoic_mat(8,10): [-] stoichiometry matrix for the 8 reactions, and for 
+!    10 reactant species
 ! output_start_time: [sec] the time when output *.pnl files are generated,
 !    with the default value set at 0.d0 sec
 ! waste_panel_list: linked list of waste panel objects that make up a
@@ -330,6 +336,7 @@ module PM_WIPP_SrcSink_class
     PetscInt :: bioidx              
     PetscInt :: plasidx             
     PetscReal :: output_start_time
+    PetscReal :: stoic_mat(8,10)
     type(srcsink_panel_type), pointer :: waste_panel_list
     type(pre_inventory_type), pointer :: pre_inventory_list
     class(data_mediator_vec_type), pointer :: data_mediator
@@ -403,6 +410,7 @@ function PMWSSCreate()
   pm%bioidx = UNINITIALIZED_INTEGER
   pm%plasidx = UNINITIALIZED_INTEGER
   pm%output_start_time = 0.d0  ! [sec] default value
+  pm%stoic_mat = 0.d0
   
   call PMBaseInit(pm)
   
@@ -451,7 +459,8 @@ function PMWSSWastePanelCreate()
   panel%humid_biodeg_rate = UNINITIALIZED_DOUBLE
   panel%inundated_brucite_rate = UNINITIALIZED_DOUBLE
   panel%humid_brucite_rate = UNINITIALIZED_DOUBLE
-  panel%RXH2S_factor = UNINITIALIZED_DOUBLE
+  panel%F_NO3 = UNINITIALIZED_DOUBLE
+  panel%F_SO4 = UNINITIALIZED_DOUBLE
   panel%id = 0
   panel%myMPIgroup = 0
   panel%myMPIcomm = 0
@@ -1880,7 +1889,8 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   MAX_C = min(A1,A2)                                    ! [mol]
   F_NO3 = MOL_NO3 * (6.d0/4.8d0) / MAX_C                ! [-]
   F_NO3 = min(F_NO3,1.0)                                ! [-]
-  waste_panel%RXH2S_factor = 1.0 - F_NO3                ! [-]
+  waste_panel%F_NO3 = F_NO3                             ! [-]
+  waste_panel%F_SO4 = 1.d0 - F_NO3                      ! [-]
   !-----(see equation PA.73, section PA-4.2.5)------------------------------
   !-----MgO-hydration-------------------------------------units-------------
   waste_panel%inundated_brucite_rate = &                ! [mol-bruc/m3/sec]
@@ -2577,8 +2587,8 @@ end subroutine PMWSSUpdateChemSpecies
                              cur_waste_panel%inventory%SO42_minus_aq)
     !-----iron-sulfidation-[mol-H2S/m3/sec]-----------------------------------
     !-----(see equation PA.68, PA.89, PA.90, section PA-4.2.5)----------------
-      rxnrate_FeS_Fe = rxnrate_biodeg_sulfate*cur_waste_panel%RXH2S_factor
-      rxnrate_FeS_FeOH2 = rxnrate_biodeg_sulfate*cur_waste_panel%RXH2S_factor
+      rxnrate_FeS_Fe = rxnrate_biodeg_sulfate*cur_waste_panel%F_SO4*(3.d0/6.d0)
+      rxnrate_FeS_FeOH2 = rxnrate_FeS_Fe
       call PMWSSSmoothRxnrate(rxnrate_FeS_Fe,i,cur_waste_panel%inventory%Fe_s, &
                               this%alpharxn) 
       call PMWSSSmoothRxnrate(rxnrate_FeS_FeOH2,i, &
@@ -2613,21 +2623,27 @@ end subroutine PMWSSUpdateChemSpecies
       call PMWSSTaperRxnrate(rxnrate_hydromag,i, &
                              cur_waste_panel%inventory%Mg5CO34OH24H2_s)
     !-----tracked-species-[mol-species/m3-bulk/sec]---------------------------
+    !-----note:column-id-is-shifted-by-+1-since-a-0-index-not-possible--------
       cur_waste_panel%inventory%FeOH2_s%inst_rate(i) = &
-          1.d0*rxnrate_corrosion + (-1.d0*rxnrate_FeS_FeOH2)
+                      this%stoic_mat(1,6)*rxnrate_corrosion + &
+                      this%stoic_mat(3,6)*rxnrate_FeS_FeOH2
       cur_waste_panel%inventory%Fe_s%inst_rate(i) = &
-          (-1.d0*rxnrate_corrosion) + (-1.d0*rxnrate_FeS_Fe) 
+                      this%stoic_mat(1,4)*rxnrate_corrosion + &
+                      this%stoic_mat(4,4)*rxnrate_FeS_Fe 
       cur_waste_panel%inventory%FeS_s%inst_rate(i) = &
-          1.d0*rxnrate_FeS_Fe + 1.d0*rxnrate_FeS_FeOH2
+                      this%stoic_mat(4,7)*rxnrate_FeS_Fe + &
+                      this%stoic_mat(3,7)*rxnrate_FeS_FeOH2
       cur_waste_panel%inventory%C6H10O5_s%inst_rate(i) = &
-          (-1.d0*rxnrate_biodeg_nitrate) + (-1.d0*rxnrate_biodeg_sulfate)
+                      this%stoic_mat(2,5)*rxnrate_biodeg_nitrate + &
+                      this%stoic_mat(2,5)*rxnrate_biodeg_sulfate
       cur_waste_panel%inventory%RuPl_s%inst_rate(i) = &
-          (-1.d0*rxnrate_biodeg_nitrate) + (-1.d0*rxnrate_biodeg_sulfate)
+                      this%stoic_mat(2,5)*rxnrate_biodeg_nitrate + &
+                      this%stoic_mat(2,5)*rxnrate_biodeg_sulfate
       cur_waste_panel%inventory%NO3_minus_aq%inst_rate(i) = &
           (-4.8d0*rxnrate_biodeg_nitrate)
       cur_waste_panel%inventory%CO2_g%inst_rate(i) = &
           6.d0*rxnrate_biodeg_sulfate + 6.d0*rxnrate_biodeg_nitrate + &
-          (-4.d0*rxnrate_hydromag)
+          (-1.d0*rxnrate_hydromag)
       cur_waste_panel%inventory%N2_g%inst_rate(i) = &
           2.4d0*rxnrate_biodeg_nitrate
       cur_waste_panel%inventory%SO42_minus_aq%inst_rate(i) = &
@@ -2636,25 +2652,35 @@ end subroutine PMWSSUpdateChemSpecies
           3.d0*rxnrate_biodeg_sulfate + (-1.d0*rxnrate_FeS_Fe) + &
           (-1.d0*rxnrate_FeS_FeOH2)
       cur_waste_panel%inventory%MgO_s%inst_rate(i) = &
-          (-1.d0*rxnrate_mgoh2)
+                      this%stoic_mat(5,8)*rxnrate_mgoh2
       cur_waste_panel%inventory%MgOH2_s%inst_rate(i) = &
-          1.d0*rxnrate_mgoh2 + (-5.d0*rxnrate_hydromag) + 1.d0*rxnrate_hymagcon
+                      this%stoic_mat(5,9)*rxnrate_mgoh2 + & 
+                      this%stoic_mat(6,9)*rxnrate_hydromag + &
+                      this%stoic_mat(8,9)*rxnrate_hymagcon
       cur_waste_panel%inventory%Mg5CO34OH24H2_s%inst_rate(i) = &
-          1.d0*rxnrate_hydromag + (-1.d0*rxnrate_hymagcon) 
+                      this%stoic_mat(6,1)*rxnrate_hydromag + &
+                      this%stoic_mat(8,1)*rxnrate_hymagcon 
       cur_waste_panel%inventory%MgCO3_s%inst_rate(i) = &
-          4.d0*rxnrate_hymagcon 
+                      this%stoic_mat(8,10)*rxnrate_hymagcon 
     !-----gas-generation-[mol-H2/m3-bulk/sec]---------------------------------
-    !-----(see equations PA.77, PA.82, PA.89, section PA-4.2.5)---------------
+    !-----(see equations PA.67-69, PA.77, PA.82-83, PA.86, PA.89, sec PA-4.2.5)
       cur_waste_panel%gas_generation_rate(i) = &
-          1.d0*rxnrate_corrosion + 1.d0*rxnrate_FeS_Fe + &
-          2.4d0*rxnrate_biodeg_nitrate
+                      this%stoic_mat(1,2)*rxnrate_corrosion + &
+                      this%stoic_mat(4,2)*rxnrate_FeS_Fe + &
+                      (((2.4d0/6.0d0*cur_waste_panel%F_NO3) + &
+                        (3.0d0/6.0d0*cur_waste_panel%F_SO4))* &
+                       rxnrate_biodeg_nitrate)
     !-----brine-generation-[mol-H2O/m3-bulk/sec]------------------------------
     !-----(see equations PA.77, PA.78, PA.82, PA.83, PA.90, PA.96, PA.97,)----
     !-----(section PA-4.2.5)--------------------------------------------------
       cur_waste_panel%brine_generation_rate(i) = &
-          (-2.d0*rxnrate_corrosion) + 7.4d0*rxnrate_biodeg_nitrate + &
-          5.d0*rxnrate_biodeg_sulfate + 2.d0*rxnrate_FeS_FeOH2 + &
-          (-1.d0*rxnrate_mgoh2) + 4.d0*rxnrate_hymagcon
+                      this%stoic_mat(1,3)*rxnrate_corrosion + &
+                      this%stoic_mat(3,3)*rxnrate_FeS_FeOH2 + &
+                      this%stoic_mat(5,3)*rxnrate_mgoh2 + &
+                      this%stoic_mat(8,3)*rxnrate_hymagcon + &
+                      (((7.4d0/6.0d0*cur_waste_panel%F_NO3) + &
+                        (5.0d0/6.0d0*cur_waste_panel%F_SO4))* &
+                       rxnrate_biodeg_nitrate)
     !------source-term-calculation--------------------------------------------
       j = j + 1
       !---liquid-source-term-[kmol/sec]------------------------!-[units]------
