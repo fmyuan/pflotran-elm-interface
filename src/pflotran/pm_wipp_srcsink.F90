@@ -1725,6 +1725,20 @@ subroutine PMWSSRead(this,input)
     call printMsg(option)
     num_errors = num_errors + 1
   endif
+  do rxn_num = 1,8
+    do spec_num = 1,10
+      if (Uninitialized(this%stoic_mat(rxn_num,spec_num))) then
+        option%io_buffer = 'ERROR: There is a missing value in the &
+                           &STOICHIOMETRIC_MATRIX at ROW ' // &
+                           trim(adjustl(word)) // ', COL ' // &
+                           trim(adjustl(word2)) // '. This may mean you did &
+                           &not provide enough values for the matrix. The &
+                           &matrix should be sized 8x10.'
+      call printMsg(option)
+      num_errors = num_errors + 1
+      endif
+    enddo
+  enddo
   if (num_errors > 0) then
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
