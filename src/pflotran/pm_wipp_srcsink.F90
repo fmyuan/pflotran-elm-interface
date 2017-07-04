@@ -308,7 +308,10 @@ module PM_WIPP_SrcSink_class
 ! plasidx: [-] flag value of 0 or 1; indicates whether gas generation is
 !    produced by rubbers and plastics
 ! stoic_mat(8,10): [-] stoichiometry matrix for the 8 reactions, and for 
-!    10 reactant species
+!    10 reactant species; the numbering for the rows is the same as the first
+!    number of the STCO_## parameters in the PFD analysis of the database,
+!    but the column number is one off due to >0 indexing, e.g., STCO_34
+!    is contained in stoic_mat(3,5)
 ! output_start_time: [sec] the time when output *.pnl files are generated,
 !    with the default value set at 0.d0 sec
 ! waste_panel_list: linked list of waste panel objects that make up a
@@ -410,7 +413,7 @@ function PMWSSCreate()
   pm%bioidx = UNINITIALIZED_INTEGER
   pm%plasidx = UNINITIALIZED_INTEGER
   pm%output_start_time = 0.d0  ! [sec] default value
-  pm%stoic_mat = 0.d0
+  pm%stoic_mat = UNINITIALIZED_DOUBLE
   
   call PMBaseInit(pm)
   
@@ -919,7 +922,7 @@ subroutine PMWSSRead(this,input)
 ! LOCAL VARIABLES:
 ! ================
 ! option: pointer to option object
-! word: temporary string
+! word, word2: temporary strings
 ! double: temporary double precision number
 ! error_string#: temporary string
 ! new_waste_panel: pointer to waste panel object for new allocation
@@ -927,10 +930,12 @@ subroutine PMWSSRead(this,input)
 ! new_inventory: pointer to inventory object for new allocation
 ! cur_preinventory: pointer to current pre-inventory object
 ! num_errors: [-] number of errors integer
+! rxn_num: [-] looping index integer for the reaction number
+! spec_num: [-] looping index integer for the species number
 ! added: temporary Boolean
 ! ----------------------------------------------------------------------------
   type(option_type), pointer :: option
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, word2
   PetscReal :: double
   character(len=MAXSTRINGLENGTH) :: error_string, error_string2, error_string3
   type(srcsink_panel_type), pointer :: new_waste_panel
@@ -938,6 +943,7 @@ subroutine PMWSSRead(this,input)
   type(pre_inventory_type), pointer :: new_inventory
   type(pre_inventory_type), pointer :: cur_preinventory
   PetscInt :: num_errors
+  PetscInt :: rxn_num, spec_num
   PetscBool :: added
 ! ----------------------------------------------------------------------------
   
@@ -1101,6 +1107,23 @@ subroutine PMWSSRead(this,input)
           enddo
         endif
         nullify(new_waste_panel)
+    !-----------------------------------------
+    !-----------------------------------------
+      case('STOICHIOMETRIC_MATRIX')
+        error_string = trim(error_string) // ',STOICHIOMETRIC_MATRIX'
+        do rxn_num = 1,8
+          call InputReadPflotranString(input,option)
+          do spec_num = 1,10
+            write(word,'(i1)') rxn_num
+            write(word2,'(i2)') spec_num
+            call InputReadDouble(input,option,this%stoic_mat(rxn_num,spec_num))
+            call InputErrorMsg(input,option,'ROW ' // trim(adjustl(word)) // &
+                               ', COL ' // trim(adjustl(word2)),error_string)
+          enddo
+        enddo
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        !if (InputCheckExit(input,option)) exit
     !-----------------------------------------
     !-----------------------------------------
       case('INVENTORY')
