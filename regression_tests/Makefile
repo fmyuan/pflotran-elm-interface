@@ -312,6 +312,10 @@ clean-tests :
 	-rm -f default/output/output_biosphere-0.bio
 	-rm -f default/output/output_WIPP_pnl-0.pnl
 	-rm -f default/output/output_waste_form_wf-0.wf
+	-rm -f default/output/output_vtk-000.vtk
+	-rm -f default/output/output_vtk-np3-000.vtk
+	-rm -f default/output/output_xdmf_explicit-000.xmf
+	-rm -f default/output/output_xdmf_explicit_primal-000.xmf
 	-rm -f hydrogeophysics/e4d__000000000003600.dpd
 	-rm -f hydrogeophysics/e4d__000000000010800.dpd
 	-rm -f hydrogeophysics/e4d__000000000025200.dpd
