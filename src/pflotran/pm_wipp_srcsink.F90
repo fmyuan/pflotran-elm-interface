@@ -1728,6 +1728,8 @@ subroutine PMWSSRead(this,input)
   do rxn_num = 1,8
     do spec_num = 1,10
       if (Uninitialized(this%stoic_mat(rxn_num,spec_num))) then
+        write(word,'(i1)') rxn_num
+        write(word2,'(i2)') spec_num
         option%io_buffer = 'ERROR: There is a missing value in the &
                            &STOICHIOMETRIC_MATRIX at ROW ' // &
                            trim(adjustl(word)) // ', COL ' // &
