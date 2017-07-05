@@ -2936,10 +2936,10 @@ end subroutine PMWSSFinalizeTimestep
 ! filename: filename string
 ! fid: [-] file id integer
 ! i: [-] looping index integer
-! local_gas_rate: [mol-H2/m3-bulk/sec] local gas generation rate 
-! global_gas_rate: [mol-H2/m3-bulk/sec] global gas generation rate 
-! local_brine_rate: [mol-H2O/m3-bulk/sec] local brine generation rate 
-! global_brine_rate: [mol-H2O/m3-bulk/sec] global brine generation rate
+! local_variables: [units vary] an array of local variable values for the 
+!    parallel averaging calculation
+! global_variables: [units vary] an array of global variable values for the 
+!    parallel averaging calculation
 ! -----------------------------------------------------
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
@@ -2947,8 +2947,8 @@ end subroutine PMWSSFinalizeTimestep
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: fid
   PetscInt :: i
-  PetscReal :: local_gas_rate, global_gas_rate
-  PetscReal :: local_brine_rate, global_brine_rate
+  PetscReal :: local_variables(3)
+  PetscReal :: global_variables(3)
 ! -----------------------------------------------------
   
   if (.not.associated(this%waste_panel_list)) return
@@ -2972,17 +2972,34 @@ end subroutine PMWSSFinalizeTimestep
   do
     if (.not.associated(cwp)) exit
   ! ----- pre-calculations for writing data ---------------------------------
-    local_gas_rate = 0.d0 
-    local_brine_rate = 0.d0
+    !local_gas_rate = 0.d0 
+    !local_brine_rate = 0.d0
+    !do i = 1,cwp%region%num_cells            
+    !  local_gas_rate = local_gas_rate + &                    ! [mol/m3-bulk/sec]
+    !    (cwp%gas_generation_rate(i)*cwp%scaling_factor(i))   ! [mol/m3-bulk/sec]
+    !  local_brine_rate = local_brine_rate + &                ! [mol/m3-bulk/sec]
+    !    (cwp%brine_generation_rate(i)*cwp%scaling_factor(i)) ! [mol/m3-bulk/sec]
+    !enddo
+    !! calculate the average gas/brine generation rates in the panel region
+    !call CalcParallelSUM(option,cwp%rank_list,local_gas_rate,global_gas_rate)
+    !call CalcParallelSUM(option,cwp%rank_list,local_brine_rate,global_brine_rate)
+       
+    
+    
+    local_variables = 0.d0
+    global_variables = 0.d0
     do i = 1,cwp%region%num_cells            
-      local_gas_rate = local_gas_rate + &                    ! [mol/m3-bulk/sec]
-        (cwp%gas_generation_rate(i)*cwp%scaling_factor(i))   ! [mol/m3-bulk/sec]
-      local_brine_rate = local_brine_rate + &                ! [mol/m3-bulk/sec]
-        (cwp%brine_generation_rate(i)*cwp%scaling_factor(i)) ! [mol/m3-bulk/sec]
+      ! H2RATE [mol-gas/m3-bulk/sec] index=1
+      local_variables(1) = local_variables(1) + &    
+        (cwp%gas_generation_rate(i)*cwp%scaling_factor(i)) 
+      ! BRINRATE [mol-brine/m3-bulk/sec] index=2
+      local_variables(2) = local_variables(2) + &  
+        (cwp%brine_generation_rate(i)*cwp%scaling_factor(i)) 
+      ! FERATE [mol-Fe/m3-bulk/sec] index=3
+      local_variables(3) = local_variables(3) + &
+        (cwp%inventory%Fe_s%inst_rate(i)*cwp%scaling_factor(i))
     enddo
-    ! calculate the average gas/brine generation rates in the panel region
-    call CalcParallelSUM(option,cwp%rank_list,local_gas_rate,global_gas_rate)
-    call CalcParallelSUM(option,cwp%rank_list,local_brine_rate,global_brine_rate)
+    call CalcParallelSUM(option,cwp%rank_list,local_variables,global_variables)
   ! ----- write data to file ------------------------------------------------
   ! ----- see table 7 in BRAGFLO's User Manual, pg. 86 ----------------------
   ! -------------------------------------------------------------------------
@@ -2997,9 +3014,11 @@ end subroutine PMWSSFinalizeTimestep
   ! BIORATH [mol-Cell/sec] #42 humid biodegradation rate
     write(fid,100,advance="no") cwp%humid_biodeg_rate*cwp%volume
   ! H2RATE [mol/m3-bulk/sec] #49 gas generation rate
-    write(fid,100,advance="no") global_gas_rate     
+    write(fid,100,advance="no") global_variables(1)    
   ! BRINRATE [mol/m3-bulk/sec] #50 brine consumption rate
-    write(fid,100,advance="no") global_brine_rate 
+    write(fid,100,advance="no") global_variables(2)
+  ! FERATE [mol/m3-bulk/sec] #51 Fe consumption rate
+    write(fid,100,advance="no") global_variables(3)
   ! FECONC [kg/m3-bulk] #59 Fe concentration
     write(fid,100,advance="no") &
       (cwp%inventory%Fe_s%tot_mass_in_panel)/cwp%volume
@@ -3130,30 +3149,31 @@ subroutine PMWSSOutputHeader(this)
   endif
    
   ! write time in user's time units
-  write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
+  write(fid,'(a)',advance="no") ' "(1)Time [' // trim(output_option%tunit) &
+                                // ']"'
   
   ! write the rest of the data
   cur_waste_panel => this%waste_panel_list
   do
     if (.not.associated(cur_waste_panel)) exit
     cell_string = trim(cur_waste_panel%region_name)
-    variable_string = 'PNL_ID#'
+    variable_string = '(2)PNL_ID#'
     units_string = ''
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'CORRATI'  ! #39
+    variable_string = '(3)CORRATI'  ! #39
     units_string = 'mol-Fe/sec'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'CORRATH'  ! #40
+    variable_string = '(4)CORRATH'  ! #40
     units_string = 'mol-Fe/sec'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'BIORATI'  ! #41
+    variable_string = '(5)BIORATI'  ! #41
     units_string = 'mol-Cell/sec'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'BIORATH'  ! #42
+    variable_string = '(6)BIORATH'  ! #42
     units_string = 'mol-Cell/sec'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
@@ -3162,6 +3182,10 @@ subroutine PMWSSOutputHeader(this)
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
     variable_string = 'BRINRATE'  ! #50
+    units_string = 'mol/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'FERATE'  ! #51
     units_string = 'mol/m3/sec'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
