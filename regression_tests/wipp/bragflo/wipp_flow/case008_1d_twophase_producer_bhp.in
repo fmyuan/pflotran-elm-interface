@@ -138,13 +138,11 @@ END
 ! initial condition
 FLOW_CONDITION 1
   TYPE
-    GAS_PRESSURE dirichlet
-    LIQUID_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
   /
-  GAS_PRESSURE 10.0e+06
+  LIQUID_PRESSURE 10.0e+06
   LIQUID_SATURATION 0.5d0
-  TEMPERATURE 25.d0
 END
 
 !=========================== condition couplers ===============================
@@ -206,7 +204,6 @@ OUTPUT
     GAS_SATURATION
 !    LIQUID_WELL_FLOW_RATE
 !    GAS_WELL_FLOW_RATE
-    LIQUID_MOLE_FRACTIONS
   /
 END
 noskip

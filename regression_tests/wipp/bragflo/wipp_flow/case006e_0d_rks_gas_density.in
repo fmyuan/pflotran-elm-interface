@@ -142,20 +142,18 @@ END
 ! initial condition
 FLOW_CONDITION 1
   TYPE
-    GAS_PRESSURE dirichlet
-    LIQUID_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
   /
-  GAS_PRESSURE 1.00E+06
+  LIQUID_PRESSURE 1.00E+06
   LIQUID_SATURATION 9.0000e-01
-  TEMPERATURE 25.d0
 END
 
 FLOW_CONDITION well  ! INJQ in BF
   TYPE
     RATE mass_rate
   /
-  RATE 0.d0 1.d-3 0.d0 kg/s kg/s MW ! water(kg/s) gas(kg/s) energy(MW)
+  RATE 0.d0 1.d-3 kg/s kg/s ! water(kg/s) gas(kg/s) 
 END
 
 !=========================== condition couplers ===============================

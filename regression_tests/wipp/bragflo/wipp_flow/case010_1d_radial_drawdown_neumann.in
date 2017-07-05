@@ -193,19 +193,17 @@ END
 FLOW_CONDITION initial
   TYPE
     LIQUID_PRESSURE DIRICHLET
-    MOLE_FRACTION DIRICHLET
-    TEMPERATURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
   /
   LIQUID_PRESSURE 1.D7
-  MOLE_FRACTION 1.D-9
-  TEMPERATURE 25.D0
+  LIQUID_SATURATION 1.d0
 END
 
 FLOW_CONDITION well
   TYPE
     RATE mass_rate
   /
-  RATE -1.0 0.0 0.0 kg/s kg/s MW ! water(kg/s) gas(kg/s) energy(MW)
+  RATE -1.0 0.0 kg/s kg/s ! water(kg/s) gas(kg/s)
 END
 
 ! farfield boundary condition is no flow as a default.

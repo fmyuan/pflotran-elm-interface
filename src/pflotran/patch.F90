@@ -1524,19 +1524,19 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
       coupler%flow_aux_int_var(WIPPFLO_STATE_INDEX,1:num_connections) = &
         TWO_PHASE_STATE
       real_count = real_count + 1
-      select case(general%gas_pressure%itype)
+      select case(general%liquid_pressure%itype)
         case(DIRICHLET_BC)
           coupler%flow_aux_mapping(WIPPFLO_LIQUID_PRESSURE_INDEX) = real_count
           coupler%flow_aux_real_var(real_count,1:num_connections) = &
-            general%gas_pressure%dataset%rarray(1)
+            general%liquid_pressure%dataset%rarray(1)
           dof1 = PETSC_TRUE
           coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
         case default
           string = &
-            GetSubConditionName(general%gas_pressure%itype)
+            GetSubConditionName(general%liquid_pressure%itype)
           option%io_buffer = &
             FlowConditionUnknownItype(coupler%flow_condition, &
-              'general two phase state gas pressure',string)
+              'wipp flow liquid pressure',string)
           call printErrMsg(option)
       end select
       ! in two-phase flow, gas saturation is second dof
@@ -1553,69 +1553,15 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
             GetSubConditionName(general%gas_saturation%itype)
           option%io_buffer = &
             FlowConditionUnknownItype(coupler%flow_condition, &
-              'general two phase state gas saturation',string)
+              'wipp flow gas saturation',string)
           call printErrMsg(option)
       end select
     case(LIQUID_STATE)
-      coupler%flow_aux_int_var(WIPPFLO_STATE_INDEX,1:num_connections) = &
-        TWO_PHASE_STATE
-      select case(general%liquid_pressure%itype)
-        case(DIRICHLET_BC)
-          real_count = real_count + 1
-          coupler%flow_aux_mapping(WIPPFLO_LIQUID_PRESSURE_INDEX) = real_count
-          select type(selector => general%liquid_pressure%dataset)
-            class is(dataset_ascii_type)
-              coupler%flow_aux_real_var(real_count,1:num_connections) = &
-                selector%rarray(1)
-              dof1 = PETSC_TRUE
-            class is(dataset_gridded_hdf5_type)
-              call PatchUpdateCouplerFromDataset(coupler,option, &
-                                                 patch%grid,selector, &
-                                                 real_count)
-              dof1 = PETSC_TRUE
-            class default
-              option%io_buffer = 'Unknown dataset class (general%liquid_' // &
-                'pressure%itype,LIQUID_STATE,DIRICHLET_BC)'
-              call printErrMsg(option)
-          end select
-          coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(general%liquid_pressure%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'general liquid state liquid pressure',string)
-          call printErrMsg(option)
-      end select
-      real_count = real_count + 1
-      coupler%flow_aux_mapping(WIPPFLO_GAS_SATURATION_INDEX) = real_count
-      coupler%flow_aux_real_var(real_count,1:num_connections) = 0.d0
-      dof2 = PETSC_TRUE
-      coupler%flow_bc_type(WIPPFLO_GAS_EQUATION_INDEX) = DIRICHLET_BC
+      option%io_buffer = 'LIQUID State not support for WIPP Flow mode.'
+      call printErrMsg(option)
     case(GAS_STATE)
-      coupler%flow_aux_int_var(WIPPFLO_STATE_INDEX,1:num_connections) = &
-        TWO_PHASE_STATE
-      select case(general%gas_pressure%itype)
-        case(DIRICHLET_BC)
-          real_count = real_count + 1
-          coupler%flow_aux_mapping(WIPPFLO_LIQUID_PRESSURE_INDEX) = real_count
-          coupler%flow_aux_real_var(real_count,1:num_connections) = &
-            general%gas_pressure%dataset%rarray(1)
-          dof1 = PETSC_TRUE
-          coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(general%gas_pressure%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'general gas state gas pressure',string)
-          call printErrMsg(option)
-      end select
-      real_count = real_count + 1
-      coupler%flow_aux_mapping(WIPPFLO_GAS_SATURATION_INDEX) = real_count
-      coupler%flow_aux_real_var(real_count,1:num_connections) = 1.d0
-      dof2 = PETSC_TRUE
-      coupler%flow_bc_type(WIPPFLO_GAS_EQUATION_INDEX) = DIRICHLET_BC
+      option%io_buffer = 'GAS State not support for WIPP Flow mode.'
+      call printErrMsg(option)
     case(ANY_STATE)
       if (associated(coupler%flow_aux_int_var)) then ! not used with rate
         coupler%flow_aux_int_var(WIPPFLO_STATE_INDEX,1:num_connections) = &

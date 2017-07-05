@@ -163,12 +163,10 @@ END
 FLOW_CONDITION initial
   TYPE
     LIQUID_PRESSURE DIRICHLET
-    MOLE_FRACTION DIRICHLET
-    TEMPERATURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
   /
   LIQUID_PRESSURE 1.D7
-  MOLE_FRACTION 1.D-10
-  TEMPERATURE 25.D0
+  LIQUID_SATURATION 1.d0
 END
 
 FLOW_CONDITION well
@@ -178,8 +176,8 @@ FLOW_CONDITION well
   RATE LIST
     TIME_UNITS s
     DATA_UNITS kg/s kg/s MW
-    0.d0 -12.33d0  0.d0  0.d0  ! time(s) water(kg/s) gas(kg/s) energy(MW)
-    5.d3   0.d0  0.d0  0.d0  ! time(s) water(kg/s) gas(kg/s) energy(MW)
+    0.d0 -12.33d0  0.d0  ! time(s) water(kg/s) gas(kg/s) 
+    5.d3   0.d0  0.d0  ! time(s) water(kg/s) gas(kg/s) 
   /
 END
 
