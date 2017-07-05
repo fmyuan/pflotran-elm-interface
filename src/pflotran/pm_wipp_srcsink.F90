@@ -23,6 +23,23 @@ module PM_WIPP_SrcSink_class
   implicit none
 
   private
+  
+  ! molar mass parameters [kg/mol]
+  PetscReal, parameter :: MW_FE = 0.055847d0
+  PetscReal, parameter :: MW_CELL = 0.027023d0
+  PetscReal, parameter :: MW_FEOH2 = 0.08986d0
+  PetscReal, parameter :: MW_CO2 = 0.0440098d0
+  PetscReal, parameter :: MW_N2 = 0.02801348d0
+  PetscReal, parameter :: MW_H2S = 0.03408188d0
+  PetscReal, parameter :: MW_FES = 0.087911d0
+  PetscReal, parameter :: MW_MGO = 0.040304d0
+  PetscReal, parameter :: MW_MGOH2 = 0.05832d0
+  PetscReal, parameter :: MW_MGCO3 = 0.084314d0
+  PetscReal, parameter :: MW_HYDRO = 0.467636d0
+  PetscReal, parameter :: MW_NO3 = (14.0067d-3 + 3.d0*15.9994d-3) ! not in database
+  PetscReal, parameter :: MW_SO4 = (32.065d-3 + 4.d0*15.9994d-3) ! not in database
+  ! density parameters [kg/m3]
+  PetscReal, parameter :: DN_FE = 7870.d0
 
 ! OBJECT chem_species_type:
 ! =========================
@@ -558,45 +575,43 @@ subroutine PMWSSInventoryInit(inventory)
   nullify(inventory%preinventory)
   inventory%name = ''
   
-  molar_mass = (0.055847d0) ! [MW_FE] iron
+  molar_mass = MW_FE ! iron
   call PMWSSInitChemSpecies(inventory%Fe_s,molar_mass) 
   
-  molar_mass = (0.08986d0) ! [MW_FEOH2] iron hydroxide
+  molar_mass = MW_FEOH2 ! iron hydroxide
   call PMWSSInitChemSpecies(inventory%FeOH2_s,molar_mass) 
   
-  molar_mass = (0.027023d0) ! [MW_CELL] cellulosics/rubbers/plastics
+  molar_mass = MW_CELL ! cellulosics/rubbers/plastics
   call PMWSSInitChemSpecies(inventory%BioDegs_s,molar_mass)  
   
-  molar_mass = (0.0440098d0) ! [MW_CO2] carbon dioxide gas
+  molar_mass = MW_CO2 ! carbon dioxide gas
   call PMWSSInitChemSpecies(inventory%CO2_g,molar_mass)  
   
-  molar_mass = (0.02801348d0) ! [MW_N2] nitrogen gas
+  molar_mass = MW_N2 ! nitrogen gas
   call PMWSSInitChemSpecies(inventory%N2_g,molar_mass) 
    
-  molar_mass = (14.0067d-3 + 3.d0*15.9994d-3) ! nitrate
+  molar_mass = MW_NO3 ! nitrate
   call PMWSSInitChemSpecies(inventory%NO3_minus_aq,molar_mass)
   
-  molar_mass = (32.065d-3 + 4.d0*15.9994d-3) ! sulfate
+  molar_mass = MW_SO4 ! sulfate
   call PMWSSInitChemSpecies(inventory%SO42_minus_aq,molar_mass)  
   
-  molar_mass = (0.03408188d0) ! [MW_H2S] hydrogen sulfide 
+  molar_mass = MW_H2S ! hydrogen sulfide 
   call PMWSSInitChemSpecies(inventory%H2S_g,molar_mass)  
   
-  molar_mass = (0.087911d0) ! [MW_FES] iron sulfide
+  molar_mass = MW_FES ! iron sulfide
   call PMWSSInitChemSpecies(inventory%FeS_s,molar_mass)   
   
-  molar_mass = (0.040304d0) ! [MW_MGO] magnesium oxide
+  molar_mass = MW_MGO ! magnesium oxide
   call PMWSSInitChemSpecies(inventory%MgO_s,molar_mass)  
   
-  molar_mass = (0.05832d0) ! [MW_MGOH2] magnesium hydroxide
+  molar_mass = MW_MGOH2 ! magnesium hydroxide
   call PMWSSInitChemSpecies(inventory%MgOH2_s,molar_mass)                
   
-  molar_mass = (5.d0*24.305d-3 + 4.d0*12.0107d-3 + 4.d0*3.d0*15.9994d-3 + &
-                2.d0*15.9994d-3 + 2.d0*1.01d-3 + 8.d0*1.01d-3 + &
-                4.d0*15.9994d-3) ! hydromagnesite
+  molar_mass = MW_HYDRO ! hydromagnesite
   call PMWSSInitChemSpecies(inventory%Mg5CO34OH24H2_s,molar_mass)  
   
-  molar_mass = (0.084314d0) ! [MW_MGCO3] magnesium carbonate
+  molar_mass = MW_MGCO3 ! magnesium carbonate
   call PMWSSInitChemSpecies(inventory%MgCO3_s,molar_mass)  
   
   inventory%Fe_in_panel = UNINITIALIZED_DOUBLE
@@ -1779,12 +1794,6 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
 ! MOL_NO3: [mol] moles of nitrate
 ! F_NO3: [-] fraction of carbon consumed through the denitrification reaction
 ! MAX_C, A1, A2: intermediate calculation parameters
-! DN_FE: [kg/m3] density of iron       
-! MW_FE: [kg/mol] molar mass of iron
-! MW_MGO: [kg/mol] molar mass of MgO
-! MW_C: [kg/mol] molar mass of cellulosics 
-! MW_NO3: [kg/mol] molar mass of nitrate
-! MW_SO4: [kg/mol] molar mass of sulfate
 ! D_c: [kg/m3] mass concentration of biodegradable materials
 ! D_m: [kg/m3] mass concentration of MgO
 ! D_s: [m2/m3] surface area concentration of iron steel
@@ -1795,12 +1804,6 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   PetscReal :: MOL_NO3
   PetscReal :: F_NO3
   PetscReal :: MAX_C, A1, A2         
-  PetscReal, parameter :: DN_FE = 7870.d0
-  PetscReal, parameter :: MW_FE = 5.5847d-2 
-  PetscReal, parameter :: MW_MGO = 4.0304d-2
-  PetscReal, parameter :: MW_C = 2.7023d-2 
-  PetscReal, parameter :: MW_NO3 = 6.20d-2 
-  PetscReal, parameter :: MW_SO4 = 9.60d-2 
   PetscReal :: D_c 
   PetscReal :: D_m 
   PetscReal :: D_s
@@ -1850,7 +1853,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   inventory%MgO_in_panel = &                               ! [kg]
        (inventory%Cellulose_in_panel + &                   ! [kg]
         inventory%RubberPlas_in_panel) * &                 ! [kg]
-        preinventory%mgo_ef * MW_MGO / MW_C                ! [-]
+        preinventory%mgo_ef * MW_MGO / MW_CELL             ! [-]
   inventory%Nitrate_in_panel = &                           ! [kg]
         preinventory%nitrate * MW_NO3                      ! [kg]
   inventory%Sulfate_in_panel = &                           ! [kg]
@@ -1916,7 +1919,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   !-----(see equation PA.86, PA.87, PA.88, section PA-4.2.5)----------------
   !-----iron-sulfidation----------------------------------units-------------
   MOL_NO3 = inventory%Nitrate_in_panel / MW_NO3         ! [mol]
-  A1 = inventory%Biodegs_in_panel / MW_C                ! [mol]
+  A1 = inventory%Biodegs_in_panel / MW_CELL             ! [mol]
   A2 = this%gratmici * &                                ! [mol/kg/sec]
        (inventory%Biodegs_in_panel) * &                 ! [kg]
        (31556930.d0) * 10000.d0                         ! [sec/year]*[year]
@@ -2947,8 +2950,8 @@ end subroutine PMWSSFinalizeTimestep
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: fid
   PetscInt :: i
-  PetscReal :: local_variables(4)
-  PetscReal :: global_variables(4)
+  PetscReal :: local_variables(10)
+  PetscReal :: global_variables(10)
 ! -----------------------------------------------------
   
   if (.not.associated(this%waste_panel_list)) return
@@ -2987,6 +2990,24 @@ end subroutine PMWSSFinalizeTimestep
       ! CELLRATE [mol-Cell/m3-bulk/sec] index=4
       local_variables(4) = local_variables(4) + &
         (cwp%inventory%BioDegs_s%inst_rate(i)*cwp%scaling_factor(i))
+      ! FEOH2R [mol-FeOH2/m3-bulk/sec] index=5
+      local_variables(5) = local_variables(5) + &
+        (cwp%inventory%FeOH2_s%inst_rate(i)*cwp%scaling_factor(i))
+      ! FESR [mol-FeS/m3-bulk/sec] index=6
+      local_variables(6) = local_variables(6) + &
+        (cwp%inventory%FeS_s%inst_rate(i)*cwp%scaling_factor(i))
+      ! MGOR [mol-MgO/m3-bulk/sec] index=7
+      local_variables(7) = local_variables(7) + &
+        (cwp%inventory%MgO_s%inst_rate(i)*cwp%scaling_factor(i))
+      ! MGOH2R [mol-Mg(OH)2/m3-bulk/sec] index=8
+      local_variables(8) = local_variables(8) + &
+        (cwp%inventory%MgOH2_s%inst_rate(i)*cwp%scaling_factor(i))
+      ! HYMAGR [mol-Hydromagnesite/m3-bulk/sec] index=9
+      local_variables(9) = local_variables(9) + &
+        (cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i)*cwp%scaling_factor(i))    
+      ! MGCO3R [mol-MgCO3/m3-bulk/sec] index=10
+      local_variables(10) = local_variables(10) + &
+        (cwp%inventory%MgCO3_s%inst_rate(i)*cwp%scaling_factor(i))   
     enddo
     call CalcParallelSUM(option,cwp%rank_list,local_variables,global_variables)
   ! ----- write data to file ------------------------------------------------
@@ -3006,10 +3027,22 @@ end subroutine PMWSSFinalizeTimestep
     write(fid,100,advance="no") global_variables(1)    
   ! BRINRATE [mol/m3-bulk/sec] #50 brine consumption rate
     write(fid,100,advance="no") global_variables(2)
-  ! FERATE [mol/m3-bulk/sec] #51 Fe consumption rate
-    write(fid,100,advance="no") global_variables(3)
-  ! CELLRATE [mol/m3-bulk/sec] #52 Biodegradables consumption rate
-    write(fid,100,advance="no") global_variables(4)
+  ! FERATE [kg/m3-bulk/sec] #51 Fe consumption rate
+    write(fid,100,advance="no") global_variables(3)*MW_FE
+  ! CELLRATE [kg/m3-bulk/sec] #52 Biodegradables consumption rate
+    write(fid,100,advance="no") global_variables(4)*MW_CELL
+  ! FEOH2R [kg-FeOH2/m3-bulk/sec] #53 Fe(OH)2 consumption rate
+    write(fid,100,advance="no") global_variables(5)*MW_FEOH2
+  ! FESR [kg-FeS/m3-bulk/sec] #54 FeS consumption rate
+    write(fid,100,advance="no") global_variables(6)*MW_FES
+  ! MGOR [kg-MgO/m3-bulk/sec] #55 MgO consumption rate
+    write(fid,100,advance="no") global_variables(7)*MW_MGO
+  ! MGOH2R [kg-Mg(OH)2/m3-bulk/sec] #56 Mg(OH)2 consumption rate
+    write(fid,100,advance="no") global_variables(8)*MW_MGOH2
+  ! HYMAGR [kg-Hymag/m3-bulk/sec] #57 Hydromagnesite consumption rate
+    write(fid,100,advance="no") global_variables(9)*MW_HYDRO
+  ! MGCO3R [kg-MgCO3/m3-bulk/sec] #58 MgCO3 consumption rate
+    write(fid,100,advance="no") global_variables(10)*MW_MGCO3
   ! FECONC [kg/m3-bulk] #59 Fe concentration
     write(fid,100,advance="no") &
       (cwp%inventory%Fe_s%tot_mass_in_panel)/cwp%volume
@@ -3177,13 +3210,37 @@ subroutine PMWSSOutputHeader(this)
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
     variable_string = 'FERATE'  ! #51
-    units_string = 'mol/m3/sec'
+    units_string = 'kg/m3/sec'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
     variable_string = 'CELLRATE'  ! #52
-    units_string = 'mol/m3/sec'
+    units_string = 'kg/m3/sec'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
+    variable_string = 'FEOH2R'  ! #53
+    units_string = 'kg/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'FESR'  ! #54
+    units_string = 'kg/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'MGOR'  ! #55
+    units_string = 'kg/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'MGOH2R'  ! #56
+    units_string = 'kg/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'HYMAGR'  ! #57
+    units_string = 'kg/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'MGCO3R'  ! #58
+    units_string = 'kg/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)                         
     variable_string = 'FECONC'  ! #59
     units_string = 'kg/m3'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
