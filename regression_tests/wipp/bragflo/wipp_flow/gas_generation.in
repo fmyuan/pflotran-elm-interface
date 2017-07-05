@@ -254,6 +254,17 @@ WIPP_SOURCE_SINK
   PROBDEG   2       ![-]
 
   OUTPUT_START_TIME 2.6d0 yr
+
+  STOICHIOMETRIC_MATRIX
+    0.0d0  1.0d0 -2.0d0 -1.0d0  0.0d0  1.0d0  0.0d0  0.0d0  0.0d0  0.0d0 # anoxic iron corrosion reaction
+    0.0d0  0.0d0  0.0d0  0.0d0 -1.0d0  0.0d0  0.0d0  0.0d0  0.0d0  0.0d0 # microbial gas generation reaction
+    0.0d0 -1.0d0  2.0d0  0.0d0  0.0d0 -1.0d0  1.0d0  0.0d0  0.0d0  0.0d0 # iron hydroxide sulfidation
+    0.0d0  0.0d0  0.0d0 -1.0d0  0.0d0  0.0d0  1.0d0  0.0d0  0.0d0  0.0d0 # metallic iron sulfidation
+    0.0d0  0.0d0 -1.0d0  0.0d0  0.0d0  0.0d0  0.0d0 -1.0d0  1.0d0  0.0d0 # MgO hydration
+    0.25d0 0.0d0  0.0d0  0.0d0  0.0d0  0.0d0  0.0d0  0.0d0 -1.25d0 0.0d0 # brucite carbonation
+    0.0d0  0.0d0  0.0d0  0.0d0  0.0d0  0.0d0  0.0d0 -1.0d0  0.0d0  1.0d0 # MgO carbonation
+   -1.0d0  0.0d0  4.0d0  0.0d0  0.0d0  0.0d0  0.0d0  0.0d0  1.0d0  4.0d0 # hydromagnesite conversion
+  /
   
  #The inventory gives totals in a waste panel# 
   INVENTORY inv1
