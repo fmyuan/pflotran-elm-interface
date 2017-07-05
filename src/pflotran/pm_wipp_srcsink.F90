@@ -2988,6 +2988,14 @@ end subroutine PMWSSFinalizeTimestep
   ! -------------------------------------------------------------------------
   ! PNL_ID [-]
     write(fid,101,advance="no") cwp%id 
+  ! CORRATI [mol-Fe/sec] #39 inundated iron corrosion rate
+    write(fid,100,advance="no") cwp%inundated_corrosion_rate*cwp%volume
+  ! CORRATH [mol-Fe/sec] #40 humid iron corrosion rate
+    write(fid,100,advance="no") cwp%humid_corrosion_rate*cwp%volume
+  ! BIORATI [mol-Cell/sec] #41 inundated biodegradation rate
+    write(fid,100,advance="no") cwp%inundated_biodeg_rate*cwp%volume
+  ! BIORATH [mol-Cell/sec] #42 humid biodegradation rate
+    write(fid,100,advance="no") cwp%humid_biodeg_rate*cwp%volume
   ! H2RATE [mol/m3-bulk/sec] #49 gas generation rate
     write(fid,100,advance="no") global_gas_rate     
   ! BRINRATE [mol/m3-bulk/sec] #50 brine consumption rate
@@ -3133,43 +3141,59 @@ subroutine PMWSSOutputHeader(this)
     units_string = ''
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'H2RATE'
+    variable_string = 'CORRATI'  ! #39
+    units_string = 'mol-Fe/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'CORRATH'  ! #40
+    units_string = 'mol-Fe/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'BIORATI'  ! #41
+    units_string = 'mol-Cell/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'BIORATH'  ! #42
+    units_string = 'mol-Cell/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'H2RATE'  ! #49
     units_string = 'mol/m3/sec'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'BRINRATE'
+    variable_string = 'BRINRATE'  ! #50
     units_string = 'mol/m3/sec'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'FECONC'
+    variable_string = 'FECONC'  ! #59
     units_string = 'kg/m3'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'CELLCONC'
+    variable_string = 'CELLCONC'  ! #60
     units_string = 'kg/m3'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'FEOH2C'
+    variable_string = 'FEOH2C'  ! #61
     units_string = 'kg/m3'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'FESC'
+    variable_string = 'FESC'  ! #62
     units_string = 'kg/m3'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'MGOC'
+    variable_string = 'MGOC'  ! #63
     units_string = 'kg/m3'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'MGOH2C'
+    variable_string = 'MGOH2C'  ! #64
     units_string = 'kg/m3'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'HYMAGC'
+    variable_string = 'HYMAGC'  ! #65
     units_string = 'kg/m3'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'MGCO3C'
+    variable_string = 'MGCO3C'  ! #66
     units_string = 'kg/m3'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
