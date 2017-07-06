@@ -516,7 +516,6 @@ function PMWSSWastePanelCreate()
   panel%humid_biodeg_rate = UNINITIALIZED_DOUBLE
   panel%inundated_brucite_rate = UNINITIALIZED_DOUBLE
   panel%humid_brucite_rate = UNINITIALIZED_DOUBLE
-  panel%solids_production = UNINITIALIZED_DOUBLE
   panel%F_NO3 = UNINITIALIZED_DOUBLE
   panel%F_SO4 = UNINITIALIZED_DOUBLE
   panel%id = 0
