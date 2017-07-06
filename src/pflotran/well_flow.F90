@@ -1,6 +1,8 @@
 module Well_Flow_class
 #ifdef WELL_CLASS
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
   use WellSpec_Base_class
   use Well_Base_class
@@ -9,8 +11,6 @@ module Well_Flow_class
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   PetscReal, parameter, public :: wfloweps = 1.D-24 
   PetscInt, parameter, public :: WELL_HYDROSTATIC_LINEAR = 1
