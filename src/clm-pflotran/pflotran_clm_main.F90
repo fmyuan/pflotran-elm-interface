@@ -2266,21 +2266,6 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
 
 !-------------------------------------------------------------------------
     option => pflotran_model%option
-    select type (modelsim => pflotran_model%simulation)
-      class is (simulation_subsurface_type)
-        simulation  => modelsim
-        realization => simulation%realization
-
-      class default
-        option%io_buffer = " subroutine is " // trim(subname) // &
-              "currently is Not support in this simulation."
-        call printErrMsg(option)
-    end select
-    patch           => realization%patch
-    grid            => patch%grid
-    field           => realization%field
-    global_auxvars  => patch%aux%Global%auxvars
-    material_auxvars=> patch%aux%Material%auxvars
 
     select case(option%iflowmode)
       case (RICHARDS_MODE)
@@ -2312,8 +2297,29 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
             option%io_buffer='pflotranModelSetInitialTHStatesfromCLM ' // &
               'not implmented for this mode.'
             call printErrMsg(option)
+        else
+            ! reactive-transport without flow-mode on
+            return
         endif
     end select
+
+    !
+    select type (modelsim => pflotran_model%simulation)
+      class is (simulation_subsurface_type)
+        simulation  => modelsim
+        realization => simulation%realization
+
+      class default
+        option%io_buffer = " subroutine is " // trim(subname) // &
+              "currently is Not support in this simulation."
+        call printErrMsg(option)
+    end select
+    patch           => realization%patch
+    grid            => patch%grid
+    field           => realization%field
+    global_auxvars  => patch%aux%Global%auxvars
+    material_auxvars=> patch%aux%Material%auxvars
+
 
     call VecGetArrayF90(field%flow_xx, xx_loc_p, ierr)
     CHKERRQ(ierr)
@@ -2478,6 +2484,17 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
 !-------------------------------------------------------------------------
     option => pflotran_model%option
+    select case(option%iflowmode)
+      case (RICHARDS_MODE)
+        press_dof = RICHARDS_PRESSURE_DOF
+      case (TH_MODE)
+        press_dof = TH_PRESSURE_DOF
+      case default
+        option%io_buffer='pflotranModelSetTHbcs ' // &
+          'not implmented for this mode.'
+        call printErrMsg(option)
+    end select
+
     select type (modelsim => pflotran_model%simulation)
       class is (simulation_subsurface_type)
         simulation  => modelsim
@@ -2539,16 +2556,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     CHKERRQ(ierr)
 
     ! passing from interface to internal
-    select case(option%iflowmode)
-      case (RICHARDS_MODE)
-        press_dof = RICHARDS_PRESSURE_DOF
-      case (TH_MODE)
-        press_dof = TH_PRESSURE_DOF
-      case default
-        option%io_buffer='pflotranModelSetTHbcs ' // &
-          'not implmented for this mode.'
-        call printErrMsg(option)
-    end select
 
     ! need to check the BC list first, so that we have necessary BCs in a consistent way
     HAVE_QFLUX_TOPBC = PETSC_FALSE  ! top BC: (water) flux type (NEUMANN)
