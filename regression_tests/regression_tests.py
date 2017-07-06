@@ -253,6 +253,8 @@ class RegressionTest(object):
             # may be empty)
             command = command + self._pflotran_args
 
+        #geh: must initialize for check below when dry run scenario
+        pflotran_status = self._PFLOTRAN_SUCCESS
         if not dry_run:
             print("    cd {0}".format(os.getcwd()), file=testlog)
             print("    {0}".format(" ".join(command)), file=testlog)
@@ -2080,7 +2082,13 @@ def main(options):
                                    options.check_only,
                                    testlog)
 
-            report_entry = config_file.split('regression_tests/')[1]
+            #geh: if run from regression_tests directory, truncate path. 
+            #     Otherwise, full path
+            w = config_file.split('regression_tests/')
+            if len(w) > 1:
+              report_entry = w[1]
+            else:
+              report_entry = config_file
             report[report_entry] = test_manager.run_status()
             os.chdir(root_dir)
         except Exception as error:
