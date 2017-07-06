@@ -23,6 +23,31 @@ module PM_WIPP_SrcSink_class
   implicit none
 
   private
+  
+  ! molar mass parameters [kg/mol]
+  PetscReal, parameter :: MW_FE = 0.055847d0
+  PetscReal, parameter :: MW_CELL = 0.027023d0
+  PetscReal, parameter :: MW_FEOH2 = 0.08986d0
+  PetscReal, parameter :: MW_CO2 = 0.0440098d0
+  PetscReal, parameter :: MW_N2 = 0.02801348d0
+  PetscReal, parameter :: MW_H2S = 0.03408188d0
+  PetscReal, parameter :: MW_FES = 0.087911d0
+  PetscReal, parameter :: MW_MGO = 0.040304d0
+  PetscReal, parameter :: MW_MGOH2 = 0.05832d0
+  PetscReal, parameter :: MW_MGCO3 = 0.084314d0
+  PetscReal, parameter :: MW_HYDRO = 0.467636d0
+  PetscReal, parameter :: MW_NO3 = (14.0067d-3 + 3.d0*15.9994d-3) ! not in database
+  PetscReal, parameter :: MW_SO4 = (32.065d-3 + 4.d0*15.9994d-3) ! not in database
+  ! density parameters [kg/m3]
+  PetscReal, parameter :: DN_FE = 7870.d0
+  PetscReal, parameter :: DN_FEOH2 = 3400.d0
+  PetscReal, parameter :: DN_CELL = 1100.d0
+  PetscReal, parameter :: DN_FES = 4700.d0
+  PetscReal, parameter :: DN_HYDRO = 2300.d0
+  PetscReal, parameter :: DN_MGCO3 = 3050.d0
+  PetscReal, parameter :: DN_MGO = 3600.d0
+  PetscReal, parameter :: DN_MGOH2 = 2370.d0
+  PetscReal, parameter :: DN_SALT = 2180.d0
 
 ! OBJECT chem_species_type:
 ! =========================
@@ -69,8 +94,7 @@ module PM_WIPP_SrcSink_class
 ! name: name string
 ! Fe_s: solid iron species object
 ! FeOH2_s: solid corrosion product iron hydroxide species object
-! C6H10O5_s: solid cellulosic materials object
-! RuPl_s: solid rubber and plastic materials object
+! BioDegs_s: solid biodegradables (cellulosics+rubber/plastics) species object
 ! NO3_minus_aq: aqueous nitrate species object
 ! CO2_g: gaseous carbon dioxide species object
 ! N2_g: gaseous nitrogen species object
@@ -91,8 +115,7 @@ module PM_WIPP_SrcSink_class
     character(len=MAXWORDLENGTH) :: name
     type(chem_species_type) :: Fe_s 
     type(chem_species_type) :: FeOH2_s
-    type(chem_species_type) :: C6H10O5_s
-    type(chem_species_type) :: RuPl_s
+    type(chem_species_type) :: BioDegs_s
     type(chem_species_type) :: NO3_minus_aq
     type(chem_species_type) :: CO2_g
     type(chem_species_type) :: N2_g
@@ -222,6 +245,20 @@ module PM_WIPP_SrcSink_class
 !    generation rate for each grid cell in the waste panel region
 ! brine_generation_rate(:): [mol-H2O/m3-bulk/sec] array of the current brine 
 !    generation rate for each grid cell in the waste panel region
+! rxnrate_corrosion(:): [mol-Fe/m3-bulk/sec] array of the current anoxic iron 
+!    corrosion rate constant
+! rxnrate_biodeg(:): [mol-cell/m3-bulk/sec] array of the current biodegradation 
+!    rate constant
+! rxnrate_FeS_Fe(:): [mol-H2S/m3-bulk/sec] array of the current iron 
+!    sulfidation rate constant
+! rxnrate_FeS_FeOH2(:): [mol-H2S/m3-bulk/sec] array of the current iron 
+!    corrosion product sulfidation rate constant
+! rxnrate_mgoh2(:): [mol-MgO/m3-bulk/sec] array of the current MgO hydration to 
+!    brucite rate constant
+! rxnrate_hydromag(:): [mol-hydromagnesite/m3-bulk/sec] array of the current 
+!    Brucite to hydromagnesite  rate constant
+! rxnrate_hymagcon(:): [mol-hydromagnesite/m3-bulk/sec] array of the current 
+!    Hydromagnesite to brucite and magnesite rate constant
 ! inundated_corrosion_rate: [mol-Fe/m3-bulk/sec] corrosion rate of iron
 !    when inundated in brine
 ! humid_corrosion_rate: [mol-Fe/m3-bulk/sec], [-] corrosion rate of iron
@@ -234,6 +271,7 @@ module PM_WIPP_SrcSink_class
 !    when inundated in brine
 ! humid_brucite_rate: [mol-MgOH2/m3-bulk/sec] rate of MgO hydration
 !    in a humid environment
+! solids_production(:): [-] normalized volume of solids produced in the panel
 ! F_NO3: [-] fraction of carbon consumed through denitrification process; 
 !    eq. PA.85, section PA-4.2.5
 ! F_SO4: [-] fraction of carbon consumed through sulfate reduction process; 
@@ -252,15 +290,23 @@ module PM_WIPP_SrcSink_class
     character(len=MAXWORDLENGTH) :: region_name
     type(inventory_type) :: inventory
     character(len=MAXWORDLENGTH) :: inventory_name
-    PetscReal, pointer :: scaling_factor(:)      
+    PetscReal, pointer :: scaling_factor(:)        
+    PetscReal, pointer :: solids_production(:)  
     PetscReal, pointer :: gas_generation_rate(:) 
     PetscReal, pointer :: brine_generation_rate(:)
+    PetscReal, pointer :: rxnrate_corrosion(:)
+    PetscReal, pointer :: rxnrate_biodeg(:)
+    PetscReal, pointer :: rxnrate_FeS_Fe(:)
+    PetscReal, pointer :: rxnrate_FeS_FeOH2(:)
+    PetscReal, pointer :: rxnrate_mgoh2(:)
+    PetscReal, pointer :: rxnrate_hydromag(:)
+    PetscReal, pointer :: rxnrate_hymagcon(:)
     PetscReal :: inundated_corrosion_rate    
     PetscReal :: humid_corrosion_rate        
     PetscReal :: inundated_biodeg_rate       
     PetscReal :: humid_biodeg_rate           
     PetscReal :: inundated_brucite_rate      
-    PetscReal :: humid_brucite_rate          
+    PetscReal :: humid_brucite_rate    
     PetscReal :: F_NO3
     PetscReal :: F_SO4
     PetscReal :: volume           
@@ -447,8 +493,16 @@ function PMWSSWastePanelCreate()
   nullify(panel%next)
   nullify(panel%region)
   nullify(panel%scaling_factor)
+  nullify(panel%solids_production)
   nullify(panel%gas_generation_rate)
   nullify(panel%brine_generation_rate)
+  nullify(panel%rxnrate_biodeg)
+  nullify(panel%rxnrate_corrosion)
+  nullify(panel%rxnrate_FeS_Fe)
+  nullify(panel%rxnrate_FeS_FeOH2)
+  nullify(panel%rxnrate_hydromag)
+  nullify(panel%rxnrate_hymagcon)
+  nullify(panel%rxnrate_mgoh2)
   nullify(panel%rank_list)
   call PMWSSInventoryInit(panel%inventory)
   panel%name = ''
@@ -560,48 +614,43 @@ subroutine PMWSSInventoryInit(inventory)
   nullify(inventory%preinventory)
   inventory%name = ''
   
-  molar_mass = (0.055847d0) ! [MW_FE] iron
+  molar_mass = MW_FE ! iron
   call PMWSSInitChemSpecies(inventory%Fe_s,molar_mass) 
   
-  molar_mass = (0.08986d0) ! [MW_FEOH2] iron hydroxide
+  molar_mass = MW_FEOH2 ! iron hydroxide
   call PMWSSInitChemSpecies(inventory%FeOH2_s,molar_mass) 
   
-  molar_mass = (0.027023d0) ! [MW_CELL] cellulosics
-  call PMWSSInitChemSpecies(inventory%C6H10O5_s,molar_mass) 
+  molar_mass = MW_CELL ! cellulosics/rubbers/plastics
+  call PMWSSInitChemSpecies(inventory%BioDegs_s,molar_mass)  
   
-  molar_mass = (0.027023d0) ! [MW_CELL] rubber/plastics
-  call PMWSSInitChemSpecies(inventory%RuPl_s,molar_mass)  
-  
-  molar_mass = (0.0440098d0) ! [MW_CO2] carbon dioxide gas
+  molar_mass = MW_CO2 ! carbon dioxide gas
   call PMWSSInitChemSpecies(inventory%CO2_g,molar_mass)  
   
-  molar_mass = (0.02801348d0) ! [MW_N2] nitrogen gas
+  molar_mass = MW_N2 ! nitrogen gas
   call PMWSSInitChemSpecies(inventory%N2_g,molar_mass) 
    
-  molar_mass = (14.0067d-3 + 3.d0*15.9994d-3) ! nitrate
+  molar_mass = MW_NO3 ! nitrate
   call PMWSSInitChemSpecies(inventory%NO3_minus_aq,molar_mass)
   
-  molar_mass = (32.065d-3 + 4.d0*15.9994d-3) ! sulfate
+  molar_mass = MW_SO4 ! sulfate
   call PMWSSInitChemSpecies(inventory%SO42_minus_aq,molar_mass)  
   
-  molar_mass = (0.03408188d0) ! [MW_H2S] hydrogen sulfide 
+  molar_mass = MW_H2S ! hydrogen sulfide 
   call PMWSSInitChemSpecies(inventory%H2S_g,molar_mass)  
   
-  molar_mass = (0.087911d0) ! [MW_FES] iron sulfide
+  molar_mass = MW_FES ! iron sulfide
   call PMWSSInitChemSpecies(inventory%FeS_s,molar_mass)   
   
-  molar_mass = (0.040304d0) ! [MW_MGO] magnesium oxide
+  molar_mass = MW_MGO ! magnesium oxide
   call PMWSSInitChemSpecies(inventory%MgO_s,molar_mass)  
   
-  molar_mass = (0.05832d0) ! [MW_MGOH2] magnesium hydroxide
+  molar_mass = MW_MGOH2 ! magnesium hydroxide
   call PMWSSInitChemSpecies(inventory%MgOH2_s,molar_mass)                
   
-  molar_mass = (5.d0*24.305d-3 + 4.d0*12.0107d-3 + 4.d0*3.d0*15.9994d-3 + &
-                2.d0*15.9994d-3 + 2.d0*1.01d-3 + 8.d0*1.01d-3 + &
-                4.d0*15.9994d-3) ! hydromagnesite
+  molar_mass = MW_HYDRO ! hydromagnesite
   call PMWSSInitChemSpecies(inventory%Mg5CO34OH24H2_s,molar_mass)  
   
-  molar_mass = (0.084314d0) ! [MW_MGCO3] magnesium carbonate
+  molar_mass = MW_MGCO3 ! magnesium carbonate
   call PMWSSInitChemSpecies(inventory%MgCO3_s,molar_mass)  
   
   inventory%Fe_in_panel = UNINITIALIZED_DOUBLE
@@ -1784,12 +1833,6 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
 ! MOL_NO3: [mol] moles of nitrate
 ! F_NO3: [-] fraction of carbon consumed through the denitrification reaction
 ! MAX_C, A1, A2: intermediate calculation parameters
-! DN_FE: [kg/m3] density of iron       
-! MW_FE: [kg/mol] molar mass of iron
-! MW_MGO: [kg/mol] molar mass of MgO
-! MW_C: [kg/mol] molar mass of cellulosics 
-! MW_NO3: [kg/mol] molar mass of nitrate
-! MW_SO4: [kg/mol] molar mass of sulfate
 ! D_c: [kg/m3] mass concentration of biodegradable materials
 ! D_m: [kg/m3] mass concentration of MgO
 ! D_s: [m2/m3] surface area concentration of iron steel
@@ -1800,19 +1843,13 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   PetscReal :: MOL_NO3
   PetscReal :: F_NO3
   PetscReal :: MAX_C, A1, A2         
-  PetscReal, parameter :: DN_FE = 7870.d0
-  PetscReal, parameter :: MW_FE = 5.5847d-2 
-  PetscReal, parameter :: MW_MGO = 4.0304d-2
-  PetscReal, parameter :: MW_C = 2.7023d-2 
-  PetscReal, parameter :: MW_NO3 = 6.20d-2 
-  PetscReal, parameter :: MW_SO4 = 9.60d-2 
   PetscReal :: D_c 
   PetscReal :: D_m 
   PetscReal :: D_s
 ! -------------------------------------------------
   
   !-----PROBDEG-calculations-----------------------------------------------
-  !-----(see Table PA-6, section PA-4.2.5)
+  !-----(see Table PA-6, section PA-4.2.5)---------------------------------
   select case(this%probdeg)
   !--no-biodegradation--no-rubbers/plastics-degradation----
     case(0)
@@ -1855,7 +1892,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   inventory%MgO_in_panel = &                               ! [kg]
        (inventory%Cellulose_in_panel + &                   ! [kg]
         inventory%RubberPlas_in_panel) * &                 ! [kg]
-        preinventory%mgo_ef * MW_MGO / MW_C                ! [-]
+        preinventory%mgo_ef * MW_MGO / MW_CELL             ! [-]
   inventory%Nitrate_in_panel = &                           ! [kg]
         preinventory%nitrate * MW_NO3                      ! [kg]
   inventory%Sulfate_in_panel = &                           ! [kg]
@@ -1921,7 +1958,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   !-----(see equation PA.86, PA.87, PA.88, section PA-4.2.5)----------------
   !-----iron-sulfidation----------------------------------units-------------
   MOL_NO3 = inventory%Nitrate_in_panel / MW_NO3         ! [mol]
-  A1 = inventory%Biodegs_in_panel / MW_C                ! [mol]
+  A1 = inventory%Biodegs_in_panel / MW_CELL             ! [mol]
   A2 = this%gratmici * &                                ! [mol/kg/sec]
        (inventory%Biodegs_in_panel) * &                 ! [kg]
        (31556930.d0) * 10000.d0                         ! [sec/year]*[year]
@@ -2047,12 +2084,37 @@ subroutine PMWSSSetup(this)
       call PMWSSInventoryAllocate(cur_waste_panel%inventory, &
                              cur_waste_panel%region%num_cells, &
                              cur_waste_panel%volume)
+      ! allocate all of the rate arrays here
       allocate(cur_waste_panel%gas_generation_rate( &
                cur_waste_panel%region%num_cells))
       cur_waste_panel%gas_generation_rate(:) = 0.d0
       allocate(cur_waste_panel%brine_generation_rate( &
                cur_waste_panel%region%num_cells))
       cur_waste_panel%brine_generation_rate(:) = 0.d0
+      allocate(cur_waste_panel%rxnrate_biodeg( &
+               cur_waste_panel%region%num_cells))
+      cur_waste_panel%rxnrate_biodeg(:) = 0.d0
+      allocate(cur_waste_panel%rxnrate_corrosion( &
+               cur_waste_panel%region%num_cells))
+      cur_waste_panel%rxnrate_corrosion(:) = 0.d0
+      allocate(cur_waste_panel%rxnrate_FeS_Fe( &
+               cur_waste_panel%region%num_cells))
+      cur_waste_panel%rxnrate_FeS_Fe(:) = 0.d0
+      allocate(cur_waste_panel%rxnrate_FeS_FeOH2( &
+               cur_waste_panel%region%num_cells))
+      cur_waste_panel%rxnrate_FeS_FeOH2(:) = 0.d0
+      allocate(cur_waste_panel%rxnrate_mgoh2( &
+               cur_waste_panel%region%num_cells))
+      cur_waste_panel%rxnrate_mgoh2(:) = 0.d0
+      allocate(cur_waste_panel%rxnrate_hydromag( &
+               cur_waste_panel%region%num_cells))
+      cur_waste_panel%rxnrate_hydromag(:) = 0.d0
+      allocate(cur_waste_panel%rxnrate_hymagcon( &
+               cur_waste_panel%region%num_cells))
+      cur_waste_panel%rxnrate_hymagcon(:) = 0.d0
+      allocate(cur_waste_panel%solids_production( &
+               cur_waste_panel%region%num_cells))
+      cur_waste_panel%solids_production(:) = 0.d0
       prev_waste_panel => cur_waste_panel
       cur_waste_panel => cur_waste_panel%next
     else 
@@ -2102,10 +2164,8 @@ subroutine PMWSSInventoryAllocate(inventory,num_cells,volume)
                                 inventory%Fe_in_panel,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%MgO_s, &
                                 inventory%MgO_in_panel,volume)
-  call PMWSSChemSpeciesAllocate(num_cells,inventory%RuPl_s, &
-                                inventory%RubberPlas_in_panel,volume)
-  call PMWSSChemSpeciesAllocate(num_cells,inventory%C6H10O5_s, &
-                                inventory%Cellulose_in_panel,volume)
+  call PMWSSChemSpeciesAllocate(num_cells,inventory%BioDegs_s, &
+                                inventory%Biodegs_in_panel,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%SO42_minus_aq, &
                                 inventory%Sulfate_in_panel,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%NO3_minus_aq, &
@@ -2351,11 +2411,9 @@ subroutine PMWSSUpdateInventory(waste_panel,dt,option)
 ! ---------------------------------------
  
   call PMWSSUpdateChemSpecies(waste_panel%inventory%Fe_s,waste_panel,dt,option)
-  call PMWSSUpdateChemSpecies(waste_panel%inventory%FeOH2_s,waste_panel,dt,&
+  call PMWSSUpdateChemSpecies(waste_panel%inventory%FeOH2_s,waste_panel,dt, &
                               option)
-  call PMWSSUpdateChemSpecies(waste_panel%inventory%C6H10O5_s,waste_panel,dt, &
-                              option)
-  call PMWSSUpdateChemSpecies(waste_panel%inventory%RuPl_s,waste_panel,dt, &
+  call PMWSSUpdateChemSpecies(waste_panel%inventory%BioDegs_s,waste_panel,dt, &
                               option)
   call PMWSSUpdateChemSpecies(waste_panel%inventory%NO3_minus_aq,waste_panel, &
                               dt,option)
@@ -2372,6 +2430,36 @@ subroutine PMWSSUpdateInventory(waste_panel,dt,option)
                               waste_panel,dt,option)
   call PMWSSUpdateChemSpecies(waste_panel%inventory%MgCO3_s,waste_panel,dt, &
                               option)
+               
+  ! solids production calculation
+  ! BRAGFLO User's Manual Section 4.13.7, eq. 159, eq. 160
+  ! this sum does not include salt
+  waste_panel%solids_production = 0.d0
+  waste_panel%solids_production = &
+    ((waste_panel%inventory%Fe_s%current_conc_kg - &
+      (waste_panel%inventory%Fe_s%initial_conc_mol* &
+       waste_panel%inventory%Fe_s%molar_mass))/DN_FE) + &
+    ((waste_panel%inventory%FeOH2_s%current_conc_kg - &
+      (waste_panel%inventory%FeOH2_s%initial_conc_mol* &
+       waste_panel%inventory%FeOH2_s%molar_mass))/DN_FEOH2) + &
+    ((waste_panel%inventory%FeS_s%current_conc_kg - &
+      (waste_panel%inventory%FeS_s%initial_conc_mol* &
+       waste_panel%inventory%FeS_s%molar_mass))/DN_FES) + &
+    ((waste_panel%inventory%BioDegs_s%current_conc_kg - &
+      (waste_panel%inventory%BioDegs_s%initial_conc_mol* &
+       waste_panel%inventory%BioDegs_s%molar_mass))/DN_CELL) + &
+    ((waste_panel%inventory%MgO_s%current_conc_kg - &
+      (waste_panel%inventory%MgO_s%initial_conc_mol* &
+       waste_panel%inventory%MgO_s%molar_mass))/DN_MGO) + &
+    ((waste_panel%inventory%MgOH2_s%current_conc_kg - &
+      (waste_panel%inventory%MgOH2_s%initial_conc_mol* &
+       waste_panel%inventory%MgOH2_s%molar_mass))/DN_MGOH2) + &
+    ((waste_panel%inventory%Mg5CO34OH24H2_s%current_conc_kg - &
+      (waste_panel%inventory%Mg5CO34OH24H2_s%initial_conc_mol* &
+       waste_panel%inventory%Mg5CO34OH24H2_s%molar_mass))/DN_HYDRO) + &
+    ((waste_panel%inventory%MgCO3_s%current_conc_kg - &
+      (waste_panel%inventory%MgCO3_s%initial_conc_mol* &
+       waste_panel%inventory%MgCO3_s%molar_mass))/DN_MGCO3)
                                       
  end subroutine PMWSSUpdateInventory
  
@@ -2493,7 +2581,7 @@ end subroutine PMWSSUpdateChemSpecies
 ! vec_p(:): pointer to the data mediator array, which stores the liquid
 !    source term [kmol/sec], gas source term [kmol/sec], and energy source
 !    term [MJ/sec], and is indexed by j
-! cur_waste_panel: pointer to current waste panel object
+! cwp: pointer to current waste panel object
 ! i, j: [-] looping index integers
 ! local_id, ghosted_id: [-] local and ghosted grid cell id number
 ! num_cells: number of grid cells in a waste panel region
@@ -2501,16 +2589,6 @@ end subroutine PMWSSUpdateChemSpecies
 ! water_saturation: [-] liquid saturation from simulation
 ! s_eff: [-] effective brine saturation due to capillary action
 !    in the waste materials
-! rxnrate_corrosion: [mol-Fe/m3-bulk/sec] anoxic iron corrosion rate constant
-! rxnrate_biodeg: [mol-cell/m3-bulk/sec] biodegradation rate constant
-! rxnrate_FeS_Fe: [mol-H2S/m3-bulk/sec] iron sulfidation rate constant
-! rxnrate_FeS_FeOH2: [mol-H2S/m3-bulk/sec] iron corrosion product sulfidation 
-!    rate constant
-! rxnrate_mgoh2: [mol-MgO/m3-bulk/sec] MgO hydration to brucite rate constant
-! rxnrate_hydromag: [mol-hydromagnesite/m3-bulk/sec] Brucite to hydromagnesite
-!    rate constant
-! rxnrate_hymagcon: [mol-hydromagnesite/m3-bulk/sec] Hydromagnesite to brucite
-!    and magnesite rate constant
 ! -----------------------------------------------------------
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
@@ -2519,7 +2597,7 @@ end subroutine PMWSSUpdateChemSpecies
   type(global_auxvar_type), pointer :: global_auxvar(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal, pointer :: vec_p(:)
-  type(srcsink_panel_type), pointer :: cur_waste_panel
+  type(srcsink_panel_type), pointer :: cwp
   PetscInt :: i, j
   PetscInt :: local_id, ghosted_id
   PetscInt :: num_cells
@@ -2527,13 +2605,6 @@ end subroutine PMWSSUpdateChemSpecies
   ! brine/gas generation variables
   PetscReal :: water_saturation
   PetscReal :: s_eff
-  PetscReal :: rxnrate_corrosion
-  PetscReal :: rxnrate_biodeg
-  PetscReal :: rxnrate_FeS_Fe
-  PetscReal :: rxnrate_FeS_FeOH2
-  PetscReal :: rxnrate_mgoh2
-  PetscReal :: rxnrate_hydromag
-  PetscReal :: rxnrate_hymagcon
   ! enthalpy calculation variables
   PetscReal :: temperature
   PetscReal :: pressure_liq
@@ -2560,23 +2631,23 @@ end subroutine PMWSSUpdateChemSpecies
   call VecGetArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
   
   j = 0  ! (j indexes the data mediator vec)
-  cur_waste_panel => this%waste_panel_list
+  cwp => this%waste_panel_list
   do
-    if (.not.associated(cur_waste_panel)) exit
-    num_cells = cur_waste_panel%region%num_cells
+    if (.not.associated(cwp)) exit
+    num_cells = cwp%region%num_cells
     !-----zero-out-reaction-rates---------------------------------------------
     water_saturation = 0.d0
     s_eff = 0.d0
-    rxnrate_corrosion = 0.d0
-    rxnrate_biodeg = 0.d0
-    rxnrate_FeS_Fe = 0.d0
-    rxnrate_FeS_FeOH2 = 0.d0
-    rxnrate_mgoh2 = 0.d0
-    rxnrate_hydromag = 0.d0
-    rxnrate_hymagcon = 0.d0
+    cwp%rxnrate_corrosion(:) = 0.d0
+    cwp%rxnrate_biodeg(:) = 0.d0
+    cwp%rxnrate_FeS_Fe(:) = 0.d0
+    cwp%rxnrate_FeS_FeOH2(:) = 0.d0
+    cwp%rxnrate_mgoh2(:) = 0.d0
+    cwp%rxnrate_hydromag(:) = 0.d0
+    cwp%rxnrate_hymagcon(:) = 0.d0
 
     do i = 1,num_cells
-      local_id = cur_waste_panel%region%cell_ids(i)
+      local_id = cwp%region%cell_ids(i)
       ghosted_id = grid%nL2G(local_id)
     !-----effective-brine-saturation------------------------------------------
     !-----(see equation PA.99, section PA-4.2.6)------------------------------
@@ -2598,118 +2669,118 @@ end subroutine PMWSSUpdateChemSpecies
       s_eff = max(s_eff,0.d0)
     !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
     !-----(see equation PA.67, PA.77, section PA-4.2.5)-----------------------
-      rxnrate_corrosion = (cur_waste_panel%inundated_corrosion_rate*s_eff) + &
-                          (cur_waste_panel%humid_corrosion_rate*(1.d0-s_eff))
-      call PMWSSSmoothRxnrate(rxnrate_corrosion,i, &
-                              cur_waste_panel%inventory%Fe_s,this%alpharxn) 
-      call PMWSSTaperRxnrate(rxnrate_corrosion,i,cur_waste_panel%inventory%Fe_s)
+      cwp%rxnrate_corrosion(i) = (cwp%inundated_corrosion_rate*s_eff) + &
+                                 (cwp%humid_corrosion_rate*(1.d0-s_eff))
+      call PMWSSSmoothRxnrate(cwp%rxnrate_corrosion(i),i, &
+                              cwp%inventory%Fe_s,this%alpharxn) 
+      call PMWSSTaperRxnrate(cwp%rxnrate_corrosion(i),i, &
+                              cwp%inventory%Fe_s)
     !-----biodegradation-[mol-cell/m3/sec]------------------------------------
     !-----(see equation PA.69, PA.82, PA.83, section PA-4.2.5)----------------
-      rxnrate_biodeg = (cur_waste_panel%inundated_biodeg_rate*s_eff) + &
-                       (cur_waste_panel%humid_biodeg_rate*(1.d0-s_eff))
-      call PMWSSSmoothRxnrate(rxnrate_biodeg,i, &
-                              cur_waste_panel%inventory%C6H10O5_s,this%alpharxn)
-      call PMWSSTaperRxnrate(rxnrate_biodeg,i, &
-                             cur_waste_panel%inventory%C6H10O5_s)
+      cwp%rxnrate_biodeg(i) = (cwp%inundated_biodeg_rate*s_eff) + &
+                              (cwp%humid_biodeg_rate*(1.d0-s_eff))
+      call PMWSSSmoothRxnrate(cwp%rxnrate_biodeg(i),i, &
+                              cwp%inventory%BioDegs_s,this%alpharxn)
+      call PMWSSTaperRxnrate(cwp%rxnrate_biodeg(i),i, &
+                             cwp%inventory%BioDegs_s)
     !-----iron-sulfidation-[mol-H2S/m3/sec]-----------------------------------
     !-----(see equation PA.68, PA.89, PA.90, section PA-4.2.5)----------------
-      rxnrate_FeS_Fe = rxnrate_biodeg*cur_waste_panel%F_SO4*(3.d0/6.d0)
-      rxnrate_FeS_FeOH2 = rxnrate_FeS_Fe
-      call PMWSSSmoothRxnrate(rxnrate_FeS_Fe,i,cur_waste_panel%inventory%Fe_s, &
-                              this%alpharxn) 
-      call PMWSSSmoothRxnrate(rxnrate_FeS_FeOH2,i, &
-                              cur_waste_panel%inventory%Fe_s,this%alpharxn)
-      call PMWSSTaperRxnrate(rxnrate_FeS_Fe,i, &
-                             cur_waste_panel%inventory%Fe_s, &
-                             cur_waste_panel%inventory%H2S_g)
-      call PMWSSTaperRxnrate(rxnrate_FeS_FeOH2,i, &
-                             cur_waste_panel%inventory%FeOH2_s, &
-                             cur_waste_panel%inventory%H2S_g)
+      cwp%rxnrate_FeS_Fe(i) = cwp%rxnrate_biodeg(i)*cwp%F_SO4*(3.d0/6.d0)
+      cwp%rxnrate_FeS_FeOH2(i) = cwp%rxnrate_FeS_Fe(i)
+      call PMWSSSmoothRxnrate(cwp%rxnrate_FeS_Fe(i),i, &
+                              cwp%inventory%Fe_s,this%alpharxn) 
+      call PMWSSSmoothRxnrate(cwp%rxnrate_FeS_FeOH2(i),i, &
+                              cwp%inventory%Fe_s,this%alpharxn)
+      call PMWSSTaperRxnrate(cwp%rxnrate_FeS_Fe(i),i, &
+                             cwp%inventory%Fe_s, &
+                             cwp%inventory%H2S_g)
+      call PMWSSTaperRxnrate(cwp%rxnrate_FeS_FeOH2(i),i, &
+                             cwp%inventory%FeOH2_s, &
+                             cwp%inventory%H2S_g)
     !-----MgO-hydration-[mol-MgO/m3/sec]--------------------------------------
     !-----(see equation PA.73, PA.94, section PA-4.2.5)-----------------------
-      rxnrate_mgoh2 = (cur_waste_panel%inundated_brucite_rate*s_eff) + &
-                      ((cur_waste_panel%humid_brucite_rate)*(1.d0-s_eff))
-      call PMWSSSmoothRxnrate(rxnrate_mgoh2,i,cur_waste_panel%inventory%MgO_s, &
-                              this%alpharxn)
-      call PMWSSTaperRxnrate(rxnrate_mgoh2,i,cur_waste_panel%inventory%MgO_s)
+      cwp%rxnrate_mgoh2(i) = (cwp%inundated_brucite_rate*s_eff) + &
+                             ((cwp%humid_brucite_rate)*(1.d0-s_eff))
+      call PMWSSSmoothRxnrate(cwp%rxnrate_mgoh2(i),i, &
+                              cwp%inventory%MgO_s,this%alpharxn)
+      call PMWSSTaperRxnrate(cwp%rxnrate_mgoh2(i),i,cwp%inventory%MgO_s)
     !-----hydromagnesite-[mol-hydromagnesite/m3-bulk/sec]---------------------
     !-----(see equation PA.74, PA.96, section PA-4.2.5)-----------------------
-      rxnrate_hydromag = rxnrate_biodeg * this%RXCO2_factor
-      call PMWSSSmoothRxnrate(rxnrate_hydromag,i, &
-                              cur_waste_panel%inventory%MgO_s,this%alpharxn)
-      call PMWSSTaperRxnrate(rxnrate_hydromag,i, &
-                             cur_waste_panel%inventory%MgOH2_s)
+      cwp%rxnrate_hydromag(i) = cwp%rxnrate_biodeg(i)*this%RXCO2_factor
+      call PMWSSSmoothRxnrate(cwp%rxnrate_hydromag(i),i, &
+                              cwp%inventory%MgO_s,this%alpharxn)
+      call PMWSSTaperRxnrate(cwp%rxnrate_hydromag(i),i, &
+                             cwp%inventory%MgOH2_s)
     !-----hydromagnesite-conversion-[mol-hydromagnesite/m3-bulk/sec]----------
     !-----(see equation PA.74, PA.97, section PA-4.2.5)-----------------------
-      rxnrate_hymagcon = this%hymagcon_rate* &
-                  cur_waste_panel%inventory%Mg5CO34OH24H2_s%current_conc_kg(i)
-      call PMWSSSmoothRxnrate(rxnrate_hymagcon,i, &
-                              cur_waste_panel%inventory%MgO_s,this%alpharxn)
-      call PMWSSTaperRxnrate(rxnrate_hydromag,i, &
-                             cur_waste_panel%inventory%Mg5CO34OH24H2_s)
+      cwp%rxnrate_hymagcon(i) = this%hymagcon_rate* &
+                                cwp%inventory%Mg5CO34OH24H2_s%current_conc_kg(i)
+      call PMWSSSmoothRxnrate(cwp%rxnrate_hymagcon(i),i, &
+                              cwp%inventory%MgO_s,this%alpharxn)
+      call PMWSSTaperRxnrate(cwp%rxnrate_hydromag(i),i, &
+                             cwp%inventory%Mg5CO34OH24H2_s)
     !-----tracked-species-[mol-species/m3-bulk/sec]---------------------------
     !-----note:column-id-is-shifted-by-+1-since-a-0-index-not-possible--------
-      cur_waste_panel%inventory%FeOH2_s%inst_rate(i) = &
-                      this%stoic_mat(1,6)*rxnrate_corrosion + &
-                      this%stoic_mat(3,6)*rxnrate_FeS_FeOH2
-      cur_waste_panel%inventory%Fe_s%inst_rate(i) = &
-                      this%stoic_mat(1,4)*rxnrate_corrosion + &
-                      this%stoic_mat(4,4)*rxnrate_FeS_Fe 
-      cur_waste_panel%inventory%FeS_s%inst_rate(i) = &
-                      this%stoic_mat(4,7)*rxnrate_FeS_Fe + &
-                      this%stoic_mat(3,7)*rxnrate_FeS_FeOH2
-      cur_waste_panel%inventory%C6H10O5_s%inst_rate(i) = &
-                      this%stoic_mat(2,5)*rxnrate_biodeg
-      cur_waste_panel%inventory%RuPl_s%inst_rate(i) = &
-                      this%stoic_mat(2,5)*rxnrate_biodeg
-      cur_waste_panel%inventory%NO3_minus_aq%inst_rate(i) = &
-          (-4.8d0*rxnrate_biodeg)
-      cur_waste_panel%inventory%CO2_g%inst_rate(i) = &
-          6.d0*rxnrate_biodeg + 6.d0*rxnrate_biodeg + (-1.d0*rxnrate_hydromag)
-      cur_waste_panel%inventory%N2_g%inst_rate(i) = &
-          2.4d0*rxnrate_biodeg
-      cur_waste_panel%inventory%SO42_minus_aq%inst_rate(i) = &
-          (-3.d0*rxnrate_biodeg)
-      cur_waste_panel%inventory%H2S_g%inst_rate(i) = &
-          3.d0*rxnrate_biodeg + (-1.d0*rxnrate_FeS_Fe) + &
-          (-1.d0*rxnrate_FeS_FeOH2)
-      cur_waste_panel%inventory%MgO_s%inst_rate(i) = &
-                      this%stoic_mat(5,8)*rxnrate_mgoh2
-      cur_waste_panel%inventory%MgOH2_s%inst_rate(i) = &
-                      this%stoic_mat(5,9)*rxnrate_mgoh2 + & 
-                      this%stoic_mat(6,9)*rxnrate_hydromag + &
-                      this%stoic_mat(8,9)*rxnrate_hymagcon
-      cur_waste_panel%inventory%Mg5CO34OH24H2_s%inst_rate(i) = &
-                      this%stoic_mat(6,1)*rxnrate_hydromag + &
-                      this%stoic_mat(8,1)*rxnrate_hymagcon 
-      cur_waste_panel%inventory%MgCO3_s%inst_rate(i) = &
-                      this%stoic_mat(8,10)*rxnrate_hymagcon 
+      cwp%inventory%FeOH2_s%inst_rate(i) = &
+                    this%stoic_mat(1,6)*cwp%rxnrate_corrosion(i) + &
+                    this%stoic_mat(3,6)*cwp%rxnrate_FeS_FeOH2(i)
+      cwp%inventory%Fe_s%inst_rate(i) = &
+                    this%stoic_mat(1,4)*cwp%rxnrate_corrosion(i) + &
+                    this%stoic_mat(4,4)*cwp%rxnrate_FeS_Fe(i) 
+      cwp%inventory%FeS_s%inst_rate(i) = &
+                    this%stoic_mat(4,7)*cwp%rxnrate_FeS_Fe(i) + &
+                    this%stoic_mat(3,7)*cwp%rxnrate_FeS_FeOH2(i)
+      cwp%inventory%BioDegs_s%inst_rate(i) = &
+                    this%stoic_mat(2,5)*cwp%rxnrate_biodeg(i)
+      cwp%inventory%NO3_minus_aq%inst_rate(i) = &
+          (-4.8d0*cwp%rxnrate_biodeg(i))
+      cwp%inventory%CO2_g%inst_rate(i) = &
+          6.d0*cwp%rxnrate_biodeg(i) + 6.d0*cwp%rxnrate_biodeg(i) + &
+          (-1.d0*cwp%rxnrate_hydromag(i))
+      cwp%inventory%N2_g%inst_rate(i) = &
+          2.4d0*cwp%rxnrate_biodeg(i)
+      cwp%inventory%SO42_minus_aq%inst_rate(i) = &
+          (-3.d0*cwp%rxnrate_biodeg(i))
+      cwp%inventory%H2S_g%inst_rate(i) = &
+          3.d0*cwp%rxnrate_biodeg(i) + (-1.d0*cwp%rxnrate_FeS_Fe(i)) + &
+          (-1.d0*cwp%rxnrate_FeS_FeOH2(i))
+      cwp%inventory%MgO_s%inst_rate(i) = &
+                    this%stoic_mat(5,8)*cwp%rxnrate_mgoh2(i)
+      cwp%inventory%MgOH2_s%inst_rate(i) = &
+                    this%stoic_mat(5,9)*cwp%rxnrate_mgoh2(i) + & 
+                    this%stoic_mat(6,9)*cwp%rxnrate_hydromag(i) + &
+                    this%stoic_mat(8,9)*cwp%rxnrate_hymagcon(i)
+      cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i) = &
+                    this%stoic_mat(6,1)*cwp%rxnrate_hydromag(i) + &
+                    this%stoic_mat(8,1)*cwp%rxnrate_hymagcon(i) 
+      cwp%inventory%MgCO3_s%inst_rate(i) = &
+                    this%stoic_mat(8,10)*cwp%rxnrate_hymagcon(i) 
     !-----gas-generation-[mol-H2/m3-bulk/sec]---------------------------------
     !-----(see equations PA.67-69, PA.77, PA.82-83, PA.86, PA.89, sec PA-4.2.5)
-      cur_waste_panel%gas_generation_rate(i) = &
-                      this%stoic_mat(1,2)*rxnrate_corrosion + &
-                      this%stoic_mat(4,2)*rxnrate_FeS_Fe + &
-                      (((2.4d0/6.0d0*cur_waste_panel%F_NO3) + &
-                        (3.0d0/6.0d0*cur_waste_panel%F_SO4))*rxnrate_biodeg)
+      cwp%gas_generation_rate(i) = &
+                    this%stoic_mat(1,2)*cwp%rxnrate_corrosion(i) + &
+                    this%stoic_mat(4,2)*cwp%rxnrate_FeS_Fe(i) + &
+                    (((2.4d0/6.0d0*cwp%F_NO3) + &
+                      (3.0d0/6.0d0*cwp%F_SO4))*cwp%rxnrate_biodeg(i))
     !-----brine-generation-[mol-H2O/m3-bulk/sec]------------------------------
     !-----(see equations PA.77, PA.78, PA.82, PA.83, PA.90, PA.96, PA.97,)----
     !-----(section PA-4.2.5)--------------------------------------------------
-      cur_waste_panel%brine_generation_rate(i) = &
-                      this%stoic_mat(1,3)*rxnrate_corrosion + &
-                      this%stoic_mat(3,3)*rxnrate_FeS_FeOH2 + &
-                      this%stoic_mat(5,3)*rxnrate_mgoh2 + &
-                      this%stoic_mat(8,3)*rxnrate_hymagcon + &
-                      (((7.4d0/6.0d0*cur_waste_panel%F_NO3) + &
-                        (5.0d0/6.0d0*cur_waste_panel%F_SO4))*rxnrate_biodeg)
+      cwp%brine_generation_rate(i) = &
+                    this%stoic_mat(1,3)*cwp%rxnrate_corrosion(i) + &
+                    this%stoic_mat(3,3)*cwp%rxnrate_FeS_FeOH2(i) + &
+                    this%stoic_mat(5,3)*cwp%rxnrate_mgoh2(i) + &
+                    this%stoic_mat(8,3)*cwp%rxnrate_hymagcon(i) + &
+                    (((7.4d0/6.0d0*cwp%F_NO3) + &
+                      (5.0d0/6.0d0*cwp%F_SO4))*cwp%rxnrate_biodeg(i))
     !------source-term-calculation--------------------------------------------
       j = j + 1
       !---liquid-source-term-[kmol/sec]------------------------!-[units]------
-      vec_p(j) = cur_waste_panel%brine_generation_rate(i) * &  ! [mol/m3/sec]
+      vec_p(j) = cwp%brine_generation_rate(i) * &  ! [mol/m3/sec]
                  material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                  1.d3                                          ! [mol -> kmol]
       j = j + 1
       !---gas-source-term-[kmol/sec]---------------------------!-[units]------
-      vec_p(j) = cur_waste_panel%gas_generation_rate(i) * &    ! [mol/m3/sec]
+      vec_p(j) = cwp%gas_generation_rate(i) * &    ! [mol/m3/sec]
                  material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                  1.d3                                          ! [mol -> kmol]
       if (associated(general_auxvar)) then
@@ -2724,7 +2795,7 @@ end subroutine PMWSSUpdateChemSpecies
                            pres(option%gas_phase)
             call EOSGasEnergy(temperature,pressure_gas,H_gas,U_gas,ierr)
             gas_energy = & !---[MJ/sec]-----------------------!-[units]--------
-                cur_waste_panel%gas_generation_rate(i) * &    ! [mol/m3/sec]
+                cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
                 material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
                 H_gas * 1.d-3 * 1.d-6                         ! [MJ/mol]
           case(LIQUID_STATE) !-------------------------------------------------
@@ -2732,7 +2803,7 @@ end subroutine PMWSSUpdateChemSpecies
                            pres(option%liquid_phase)
             call EOSWaterEnthalpy(temperature,pressure_liq,H_liq,ierr)
             brine_energy = & !---[MJ/sec]---------------------!-[units]--------
-                cur_waste_panel%brine_generation_rate(i) * &  ! [mol/m3/sec]
+                cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
                 material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
                 H_liq * 1.d-3 * 1.d-6                         ! [MJ/mol]
           case(TWO_PHASE_STATE) !----------------------------------------------
@@ -2743,11 +2814,11 @@ end subroutine PMWSSUpdateChemSpecies
             call EOSWaterEnthalpy(temperature,pressure_liq,H_liq,ierr)
             call EOSGasEnergy(temperature,pressure_gas,H_gas,U_gas,ierr)
             brine_energy = & !---[MJ/sec]---------------------!-[units]--------
-                cur_waste_panel%brine_generation_rate(i) * &  ! [mol/m3/sec]
+                cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
                 material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
                 H_liq * 1.d-3 * 1.d-6                         ! [MJ/mol]
             gas_energy = & !---[MJ/sec]-----------------------!-[units]--------
-                cur_waste_panel%gas_generation_rate(i) * &    ! [mol/m3/sec]
+                cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
                 material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
                 H_gas * 1.d-3 * 1.d-6                         ! [MJ/mol]
         end select
@@ -2755,7 +2826,7 @@ end subroutine PMWSSUpdateChemSpecies
       endif
     enddo
     !-------------------------------------------------------------------------
-    cur_waste_panel => cur_waste_panel%next
+    cwp => cwp%next
   enddo
   
   call VecRestoreArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
@@ -2943,29 +3014,29 @@ end subroutine PMWSSFinalizeTimestep
 ! ================
 ! option: pointer to option object
 ! output_option: pointer to output option object
-! cur_waste_panel: pointer to current waste panel object
+! cwp: pointer to current waste panel object
 ! filename: filename string
 ! fid: [-] file id integer
 ! i: [-] looping index integer
-! local_gas_rate: [mol-H2/m3-bulk/sec] local gas generation rate 
-! global_gas_rate: [mol-H2/m3-bulk/sec] global gas generation rate 
-! local_brine_rate: [mol-H2O/m3-bulk/sec] local brine generation rate 
-! global_brine_rate: [mol-H2O/m3-bulk/sec] global brine generation rate
+! local_variables: [units vary] an array of local variable values for the 
+!    parallel averaging calculation
+! global_variables: [units vary] an array of global variable values for the 
+!    parallel averaging calculation
 ! -----------------------------------------------------
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
-  class(srcsink_panel_type), pointer :: cur_waste_panel
+  class(srcsink_panel_type), pointer :: cwp
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: fid
   PetscInt :: i
-  PetscReal :: local_gas_rate, global_gas_rate
-  PetscReal :: local_brine_rate, global_brine_rate
+  PetscReal :: local_variables(17)
+  PetscReal :: global_variables(17)
 ! -----------------------------------------------------
   
   if (.not.associated(this%waste_panel_list)) return
   
-100 format(100es18.8)
-101 format(1I6.1)
+100 format(100es18.8)  ! double
+101 format(1I6.1)      ! integer
 
   option => this%realization%option
   output_option => this%realization%output_option
@@ -2979,37 +3050,134 @@ end subroutine PMWSSFinalizeTimestep
   ! write time in user's time units
   write(fid,100,advance="no") option%time / output_option%tconv  ! [T units]
   
-  cur_waste_panel => this%waste_panel_list
+  cwp => this%waste_panel_list
   do
-    if (.not.associated(cur_waste_panel)) exit
-    ! pre-calculations for writing data
-    local_gas_rate = 0.d0 
-    local_brine_rate = 0.d0
-    do i = 1,cur_waste_panel%region%num_cells            
-      local_gas_rate = local_gas_rate + &                ! [mol/m3-bulk/sec]
-           (cur_waste_panel%gas_generation_rate(i) * &   ! [mol/m3-bulk/sec]
-            cur_waste_panel%scaling_factor(i))           ! [-]
-      local_brine_rate = local_brine_rate + &            ! [mol/m3-bulk/sec]
-           (cur_waste_panel%brine_generation_rate(i) * & ! [mol/m3-bulk/sec]
-            cur_waste_panel%scaling_factor(i))           ! [-]
+    if (.not.associated(cwp)) exit
+  ! ----- pre-calculations for writing data ---------------------------------
+    local_variables = 0.d0
+    global_variables = 0.d0
+    do i = 1,cwp%region%num_cells            
+      ! H2RATE [mol-gas/m3-bulk/sec] index=1
+      local_variables(1) = local_variables(1) + &    
+        (cwp%gas_generation_rate(i)*cwp%scaling_factor(i)) 
+      ! BRINRATE [mol-brine/m3-bulk/sec] index=2
+      local_variables(2) = local_variables(2) + &  
+        (cwp%brine_generation_rate(i)*cwp%scaling_factor(i)) 
+      ! FERATE [mol-Fe/m3-bulk/sec] index=3
+      local_variables(3) = local_variables(3) + &
+        (cwp%inventory%Fe_s%inst_rate(i)*cwp%scaling_factor(i))
+      ! CELLRATE [mol-Cell/m3-bulk/sec] index=4
+      local_variables(4) = local_variables(4) + &
+        (cwp%inventory%BioDegs_s%inst_rate(i)*cwp%scaling_factor(i))
+      ! FEOH2R [mol-FeOH2/m3-bulk/sec] index=5
+      local_variables(5) = local_variables(5) + &
+        (cwp%inventory%FeOH2_s%inst_rate(i)*cwp%scaling_factor(i))
+      ! FESR [mol-FeS/m3-bulk/sec] index=6
+      local_variables(6) = local_variables(6) + &
+        (cwp%inventory%FeS_s%inst_rate(i)*cwp%scaling_factor(i))
+      ! MGOR [mol-MgO/m3-bulk/sec] index=7
+      local_variables(7) = local_variables(7) + &
+        (cwp%inventory%MgO_s%inst_rate(i)*cwp%scaling_factor(i))
+      ! MGOH2R [mol-Mg(OH)2/m3-bulk/sec] index=8
+      local_variables(8) = local_variables(8) + &
+        (cwp%inventory%MgOH2_s%inst_rate(i)*cwp%scaling_factor(i))
+      ! HYMAGR [mol-Hydromagnesite/m3-bulk/sec] index=9
+      local_variables(9) = local_variables(9) + &
+        (cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i)*cwp%scaling_factor(i))    
+      ! MGCO3R [mol-MgCO3/m3-bulk/sec] index=10
+      local_variables(10) = local_variables(10) + &
+        (cwp%inventory%MgCO3_s%inst_rate(i)*cwp%scaling_factor(i))  
+      ! FEOH2_SR [mol/m3-bulk/sec] index=11
+      local_variables(11) = local_variables(11) + &
+        (cwp%rxnrate_FeS_FeOH2(i)*cwp%scaling_factor(i))   
+      ! FE_SR [mol/m3-bulk/sec] index=12
+      local_variables(12) = local_variables(12) + &
+        (cwp%rxnrate_FeS_Fe(i)*cwp%scaling_factor(i))
+      ! MGO_HR [mol/m3-bulk/sec] index=13
+      local_variables(13) = local_variables(13) + &
+        (cwp%rxnrate_mgoh2(i)*cwp%scaling_factor(i))
+      ! MGOH2_CR [mol/m3-bulk/sec] index=14
+      local_variables(14) = local_variables(14) + &
+        (cwp%rxnrate_hydromag(i)*cwp%scaling_factor(i))
+      ! HYMAG_CR [mol/m3-bulk/sec] index=16
+      local_variables(16) = local_variables(16) + &
+        (cwp%rxnrate_hymagcon(i)*cwp%scaling_factor(i))
+      ! PORSOLID [-] index=17
+      local_variables(17) = local_variables(17) + &
+        (cwp%solids_production(i)*cwp%scaling_factor(i))
     enddo
-    ! calculate the average gas/brine generation rates in the waste
-    ! panel region
-    call CalcParallelSUM(option,cur_waste_panel%rank_list,local_gas_rate, &
-                         global_gas_rate)
-    call CalcParallelSUM(option,cur_waste_panel%rank_list,local_brine_rate, &
-                         global_brine_rate)
-    ! write data to file
-    write(fid,101,advance="no") cur_waste_panel%id             ! [-]
+    call CalcParallelSUM(option,cwp%rank_list,local_variables,global_variables)
+  ! ----- write data to file ------------------------------------------------
+  ! ----- see table 7 in BRAGFLO's User Manual, pg. 86 ----------------------
+  ! -------------------------------------------------------------------------
+  ! PNL_ID [-]
+    write(fid,101,advance="no") cwp%id 
+  ! CORRATI [mol-Fe/sec] #39 inundated iron corrosion rate
+    write(fid,100,advance="no") cwp%inundated_corrosion_rate*cwp%volume
+  ! CORRATH [mol-Fe/sec] #40 humid iron corrosion rate
+    write(fid,100,advance="no") cwp%humid_corrosion_rate*cwp%volume
+  ! BIORATI [mol-Cell/sec] #41 inundated biodegradation rate
+    write(fid,100,advance="no") cwp%inundated_biodeg_rate*cwp%volume
+  ! BIORATH [mol-Cell/sec] #42 humid biodegradation rate
+    write(fid,100,advance="no") cwp%humid_biodeg_rate*cwp%volume
+  ! FEOH2_SR [mol/sec] #43 iron hydroxide sulfidation rate
+    write(fid,100,advance="no") global_variables(11)*cwp%volume
+  ! FE_SR [mol/sec] #44 iron sulfidation rate
+    write(fid,100,advance="no") global_variables(12)*cwp%volume
+  ! MGO_HR [mol/sec] #45 MgO hydration rate
+    write(fid,100,advance="no") global_variables(13)*cwp%volume
+  ! MGOH2_CR [mol/sec] #46 Mg(OH)2 carbonation rate
+    write(fid,100,advance="no") global_variables(14)*cwp%volume
+  ! HYMAG_CR [mol/sec] #48 hydromagnesite conversion rate
+    write(fid,100,advance="no") global_variables(16)*cwp%volume
+  ! H2RATE [mol/m3-bulk/sec] #49 gas generation rate
+    write(fid,100,advance="no") global_variables(1)    
+  ! BRINRATE [mol/m3-bulk/sec] #50 brine consumption rate
+    write(fid,100,advance="no") global_variables(2)
+  ! FERATE [kg/m3-bulk/sec] #51 Fe consumption rate
+    write(fid,100,advance="no") global_variables(3)*MW_FE
+  ! CELLRATE [kg/m3-bulk/sec] #52 Biodegradables consumption rate
+    write(fid,100,advance="no") global_variables(4)*MW_CELL
+  ! FEOH2R [kg-FeOH2/m3-bulk/sec] #53 Fe(OH)2 consumption rate
+    write(fid,100,advance="no") global_variables(5)*MW_FEOH2
+  ! FESR [kg-FeS/m3-bulk/sec] #54 FeS consumption rate
+    write(fid,100,advance="no") global_variables(6)*MW_FES
+  ! MGOR [kg-MgO/m3-bulk/sec] #55 MgO consumption rate
+    write(fid,100,advance="no") global_variables(7)*MW_MGO
+  ! MGOH2R [kg-Mg(OH)2/m3-bulk/sec] #56 Mg(OH)2 consumption rate
+    write(fid,100,advance="no") global_variables(8)*MW_MGOH2
+  ! HYMAGR [kg-Hymag/m3-bulk/sec] #57 Hydromagnesite consumption rate
+    write(fid,100,advance="no") global_variables(9)*MW_HYDRO
+  ! MGCO3R [kg-MgCO3/m3-bulk/sec] #58 MgCO3 consumption rate
+    write(fid,100,advance="no") global_variables(10)*MW_MGCO3
+  ! FECONC [kg/m3-bulk] #59 Fe concentration
     write(fid,100,advance="no") &
-      cur_waste_panel%inventory%Fe_s%tot_mass_in_panel, &      ! [kg]
-      cur_waste_panel%inventory%MgO_s%tot_mass_in_panel, &     ! [kg]
-      cur_waste_panel%inventory%C6H10O5_s%tot_mass_in_panel, & ! [kg]
-      cur_waste_panel%inventory%RuPl_s%tot_mass_in_panel, &    ! [kg]
-      global_gas_rate, &                                 ! [mol/m3-bulk/sec]
-      global_brine_rate                                  ! [mol/m3-bulk/sec]
+      (cwp%inventory%Fe_s%tot_mass_in_panel)/cwp%volume
+  ! CELLCONC [kg/m3-bulk] #60 Biodegradables concentration
+    write(fid,100,advance="no") &
+      (cwp%inventory%BioDegs_s%tot_mass_in_panel)/cwp%volume
+  ! FEOH2C [kg/m3-bulk] #61 Fe(OH)2 concentration
+    write(fid,100,advance="no") &
+      (cwp%inventory%FeOH2_s%tot_mass_in_panel)/cwp%volume
+  ! FESC [kg/m3-bulk] #62 FeS concentration
+    write(fid,100,advance="no") &
+      (cwp%inventory%FeS_s%tot_mass_in_panel)/cwp%volume
+  ! MGOC [kg/m3-bulk] #63 MgO concentration
+    write(fid,100,advance="no") &
+      (cwp%inventory%MgO_s%tot_mass_in_panel)/cwp%volume
+  ! MGOH2C [kg/m3-bulk] #64 Mg(OH)2 concentration
+    write(fid,100,advance="no") &
+      (cwp%inventory%MgOH2_s%tot_mass_in_panel)/cwp%volume
+  ! HYMAGC [kg/m3-bulk] #65 Hydromagnesite concentration
+    write(fid,100,advance="no") &
+      (cwp%inventory%Mg5CO34OH24H2_s%tot_mass_in_panel)/cwp%volume
+  ! MGCO3C [kg/m3-bulk] #66 MgCO3 concentration
+    write(fid,100,advance="no") &
+      (cwp%inventory%MgCO3_s%tot_mass_in_panel)/cwp%volume
+  ! PORSOLID [-] #68 Solids production normalized by panel volume
+    write(fid,100,advance="no") global_variables(17)
   !----------------------------------------
-    cur_waste_panel => cur_waste_panel%next
+    cwp => cwp%next
   enddo
   
   close(fid)
@@ -3114,39 +3282,128 @@ subroutine PMWSSOutputHeader(this)
   endif
    
   ! write time in user's time units
-  write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
+  write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) &
+                                // ']"'
   
   ! write the rest of the data
   cur_waste_panel => this%waste_panel_list
   do
     if (.not.associated(cur_waste_panel)) exit
     cell_string = trim(cur_waste_panel%region_name)
-    variable_string = 'WP ID#'
+    variable_string = 'PNL_ID#'
     units_string = ''
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'Fe(s) mass'
-    units_string = 'kg'
+    variable_string = 'CORRATI'  ! #39
+    units_string = 'mol-Fe/sec'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'MgO(s) mass'
-    units_string = 'kg'
+    variable_string = 'CORRATH'  ! #40
+    units_string = 'mol-Fe/sec'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'Cellulosics(s) mass'
-    units_string = 'kg'
+    variable_string = 'BIORATI'  ! #41
+    units_string = 'mol-Cell/sec'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'Rubber/Plastics(s) mass'
-    units_string = 'kg'
+    variable_string = 'BIORATH'  ! #42
+    units_string = 'mol-Cell/sec'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'Avg. gas gen. rate'
-    units_string = 'mol/m3-bulk/sec'
+    variable_string = 'FEOH2_SR'  ! #43
+    units_string = 'mol/sec'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'Avg. brine gen. rate'
-    units_string = 'mol/m3-bulk/sec'
+    variable_string = 'FE_SR'  ! #44
+    units_string = 'mol/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'MGO_HR'  ! #45
+    units_string = 'mol/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'MGOH2_CR'  ! #46
+    units_string = 'mol/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'HYMAG_CR'  ! #48
+    units_string = 'mol/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'H2RATE'  ! #49
+    units_string = 'mol/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'BRINRATE'  ! #50
+    units_string = 'mol/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'FERATE'  ! #51
+    units_string = 'kg/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'CELLRATE'  ! #52
+    units_string = 'kg/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'FEOH2R'  ! #53
+    units_string = 'kg/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'FESR'  ! #54
+    units_string = 'kg/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'MGOR'  ! #55
+    units_string = 'kg/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'MGOH2R'  ! #56
+    units_string = 'kg/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'HYMAGR'  ! #57
+    units_string = 'kg/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'MGCO3R'  ! #58
+    units_string = 'kg/m3/sec'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)                         
+    variable_string = 'FECONC'  ! #59
+    units_string = 'kg/m3'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'CELLCONC'  ! #60
+    units_string = 'kg/m3'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'FEOH2C'  ! #61
+    units_string = 'kg/m3'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'FESC'  ! #62
+    units_string = 'kg/m3'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'MGOC'  ! #63
+    units_string = 'kg/m3'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'MGOH2C'  ! #64
+    units_string = 'kg/m3'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'HYMAGC'  ! #65
+    units_string = 'kg/m3'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'MGCO3C'  ! #66
+    units_string = 'kg/m3'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'PORSOLID'  ! #68
+    units_string = '-'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
   !----------------------------------------
@@ -3287,8 +3544,16 @@ subroutine PMWSSDestroyPanel(waste_panel)
   if (.not.associated(waste_panel)) return
   call PMWSSInventoryDestroy(waste_panel%inventory)
   call DeallocateArray(waste_panel%scaling_factor)
+  call DeallocateArray(waste_panel%solids_production)
   call DeallocateArray(waste_panel%gas_generation_rate)
   call DeallocateArray(waste_panel%brine_generation_rate)
+  call DeallocateArray(waste_panel%rxnrate_biodeg)
+  call DeallocateArray(waste_panel%rxnrate_corrosion)
+  call DeallocateArray(waste_panel%rxnrate_FeS_Fe)
+  call DeallocateArray(waste_panel%rxnrate_FeS_FeOH2)
+  call DeallocateArray(waste_panel%rxnrate_hydromag)
+  call DeallocateArray(waste_panel%rxnrate_hymagcon)
+  call DeallocateArray(waste_panel%rxnrate_mgoh2)
   call DeallocateArray(waste_panel%rank_list)
   nullify(waste_panel%next)
   deallocate(waste_panel)
@@ -3317,8 +3582,7 @@ subroutine PMWSSInventoryDestroy(inventory)
   
   call PMWSSChemSpeciesDeallocate(inventory%Fe_s)
   call PMWSSChemSpeciesDeallocate(inventory%FeOH2_s)
-  call PMWSSChemSpeciesDeallocate(inventory%C6H10O5_s)
-  call PMWSSChemSpeciesDeallocate(inventory%RuPl_s)
+  call PMWSSChemSpeciesDeallocate(inventory%BioDegs_s)
   call PMWSSChemSpeciesDeallocate(inventory%NO3_minus_aq)
   call PMWSSChemSpeciesDeallocate(inventory%CO2_g)
   call PMWSSChemSpeciesDeallocate(inventory%N2_g)
