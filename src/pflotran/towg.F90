@@ -2750,9 +2750,11 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
-        global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) = &
-          global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) - &
-          Res(1:2)
+        global_auxvars_bc(sum_connection)% &
+            mass_balance_delta(1:option%nflowspec,1) = &
+          global_auxvars_bc(sum_connection)% &
+            mass_balance_delta(1:option%nflowspec,1) - &
+          Res(1:option%nflowspec)
       endif
 
       local_end = local_id * option%nflowdof
@@ -2801,9 +2803,11 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       endif      
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
-        global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) = &
-          global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) - &
-          Res(1:2)
+        global_auxvars_ss(sum_connection)% &
+            mass_balance_delta(1:option%nflowspec,1) = &
+          global_auxvars_ss(sum_connection)% &
+            mass_balance_delta(1:option%nflowspec,1) - &
+          Res(1:option%nflowspec)
       endif
 
     enddo
