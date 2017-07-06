@@ -21,6 +21,8 @@ module PM_TOWG_Aux_module
   PetscInt, public :: towg_debug_cell_id = UNINITIALIZED_INTEGER
   PetscReal, parameter, public :: towg_pressure_scale = 1.d0
 
+  PetscReal, public :: val_tl_omega = 0.0d0
+
   PetscBool, public :: towg_isothermal = PETSC_FALSE
   !PO:needs to add input for towg_no_gas and towg_no_oil in pm_towg%Read
   !   towg_no_oil currently supported only for TOWG_IMMISCIBLE 
@@ -172,6 +174,7 @@ module PM_TOWG_Aux_module
             TOWGAuxVarStrip, &
             TOWGAuxVarCompute, &
             TOWGImsAuxVarComputeSetup, &
+            TOWGTLAuxVarComputeSetup, &
             TOWGAuxVarPerturb
   !          TOilImsAuxVarPerturb, TOilImsAuxDestroy, &
   !          TOilImsAuxVarStrip
@@ -301,6 +304,9 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
   do ghosted_id = 1, grid%ngmax
     do idof = 0, option%nflowdof
       call this%auxvars(idof,ghosted_id)%Init(option)
+      if (towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
+        call this%auxvars(idof,ghosted_id)%InitTL(option)
+      end if
     enddo
   enddo
 
@@ -310,6 +316,9 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
     allocate(this%auxvars_bc(num_bc_connection))
     do iconn = 1, num_bc_connection
       call this%auxvars_bc(iconn)%Init(option)
+      if (towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
+        call this%auxvars_bc(iconn)%InitTL(option)
+      end if
     enddo
   endif
   this%num_aux_bc = num_bc_connection
@@ -318,6 +327,9 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
     allocate(this%auxvars_ss(num_ss_connection))
     do iconn = 1, num_ss_connection
       call this%auxvars_ss(iconn)%Init(option)
+      if (towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
+        call this%auxvars_ss(iconn)%InitTL(option)
+      end if
     enddo
   endif
   this%num_aux_ss = num_ss_connection
@@ -529,6 +541,201 @@ end subroutine TOWGImsAuxVarCompute
 
 ! ************************************************************************** !
 
+subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
+                               characteristic_curves,natural_id,option)
+  ! 
+  ! Computes auxiliary variables for each grid cell for TOWGTL
+  ! 
+  ! Author: Paolo Orsini (OGS) - David Ponting (OGS)
+  ! Date: 07/06/17
+  ! 
+
+  use Option_module
+  use Global_Aux_module
+  use EOS_Water_module
+  use EOS_Oil_module
+  use EOS_Gas_module
+  use Characteristic_Curves_module
+  use Material_Aux_class
+  
+  implicit none
+
+  type(option_type) :: option
+  PetscReal :: x(option%nflowdof)
+  class(auxvar_towg_type) :: auxvar  
+  type(global_auxvar_type) :: global_auxvar ! passing this for salt conc.
+                                            ! not currenty used
+  class(material_auxvar_type) :: material_auxvar
+  class(characteristic_curves_type) :: characteristic_curves
+  PetscInt :: natural_id !only for debugging/print out - currently not used 
+  
+  PetscInt :: lid, oid, gid
+  PetscReal :: cell_pressure, wat_sat_pres
+  PetscReal :: krl, visl, dkrl_Se
+  PetscReal :: kro, viso, dkro_Se
+  PetscReal :: krg, visg, dkrg_Se
+  PetscReal :: sat_liq_gas, sat_tot_liq
+  PetscReal :: dummy
+  !PetscReal :: Uoil_J_kg, Hoil_J_kg
+  PetscErrorCode :: ierr
+
+  ! from SubsurfaceSetFlowMode
+  ! option%liquid_phase = 1           ! liquid_pressure
+  ! option%oil_phase = 2              ! oil_pressure
+  ! option%gas_phase = 3              ! gas_pressure
+  lid = option%liquid_phase
+  oid = option%oil_phase
+  gid = option%gas_phase
+
+  auxvar%effective_porosity = 0.d0
+  auxvar%pres = 0.d0
+  auxvar%sat = 0.d0
+  auxvar%pc = 0.d0
+  auxvar%den = 0.d0
+  auxvar%den_kg = 0.d0
+  auxvar%mobility = 0.d0
+  auxvar%H = 0.d0
+  auxvar%U = 0.d0
+  auxvar%temp = 0.0d0
+
+  !assing auxvars given by the solution variables
+  auxvar%pres(oid) = x(TOWG_OIL_PRESSURE_DOF)
+  auxvar%sat(oid) = x(TOWG_OIL_SATURATION_DOF)
+  auxvar%sat(gid) = x(TOWG_GAS_SATURATION_3PH_DOF)
+  auxvar%temp = x(towg_energy_dof)
+
+  auxvar%sat(lid) = 1.d0 - auxvar%sat(oid) - auxvar%sat(gid)
+
+  !below pc_ow /= 0
+  !compute capillary presssure water/oil (pc_ow)
+  !call characteristic_curves%saturation_function% &
+  !     CapillaryPressure(material_auxvar,auxvar%sat(lid),auxvar%pc(lid),option)
+  !auxvar%pres(lid) = auxvar%pres(oid) - auxvar%pc(lid)
+
+  !Assumptions below on capillary pressure for comparison with TOUGH2-EOS8:
+  ! pc_ow = 0, only pc_gw /= 0 and computed considering water saturation only
+  ! this results in pc_gw = pc_go
+  
+  !assuming no capillary pressure between oil and water: pc_ow = 0
+  ! pc_ow = 0.0d0
+  auxvar%pres(lid) = auxvar%pres(oid) 
+
+  !compute capillary pressure gas/water (pc_gw),
+  ! pc_go = pc_gw when pc_ow = 0
+  !call characteristic_curves%saturation_function% &
+  !     CapillaryPressure(material_auxvar,auxvar%sat(lid),auxvar%pc(lid),option)
+  !To match TOUGH-EOS8, consider water plu poil as wetting phase
+  !for capillary press computation 
+  sat_tot_liq = auxvar%sat(lid) + auxvar%sat(oid)
+  call characteristic_curves%saturation_function% &
+       CapillaryPressure(sat_tot_liq,auxvar%pc(lid),dummy,option)
+  
+  auxvar%pres(gid) = auxvar%pres(lid) + auxvar%pc(lid)
+
+  auxvar%pc(oid) = 0.0d0
+
+
+  cell_pressure = max(auxvar%pres(lid),auxvar%pres(oid),auxvar%pres(gid))
+
+
+  ! calculate effective porosity as a function of pressure
+  if (option%iflag /= TOWG_UPDATE_FOR_BOUNDARY) then
+    auxvar%effective_porosity = material_auxvar%porosity_base
+
+    if (soil_compressibility_index > 0) then
+      call MaterialCompressSoil(material_auxvar,cell_pressure, &
+                                auxvar%effective_porosity,dummy)
+    endif
+    if (option%iflag /= TOWG_UPDATE_FOR_DERIVATIVE) then
+      material_auxvar%porosity = auxvar%effective_porosity
+    endif
+  endif
+
+  ! UPDATE THERMODYNAMIC PROPERTIES FOR ALL PHASES!!!
+
+  ! Liquid phase thermodynamic properties
+  ! using cell_pressure (which is the max press)? or %pres(lid)?
+  call EOSWaterDensity(auxvar%temp,cell_pressure, &
+                       auxvar%den_kg(lid),auxvar%den(lid),ierr)
+  call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(lid),ierr)
+  auxvar%H(lid) = auxvar%H(lid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+  ! MJ/kmol comp                  ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
+  auxvar%U(lid) = auxvar%H(lid) - (cell_pressure / auxvar%den(lid) * 1.d-6)
+
+  ! ADD HERE BRINE dependency. Two options (see mphase)
+  ! - salinity constant in space and time (passed in option%option%m_nacl)
+  ! - salt can be trasnported by RT (sequential coupling) and passed 
+  !   and passed with global_auxvar%m_nacl 
+
+  call EOSOilDensityEnergy(auxvar%temp,auxvar%pres(oid),&
+                           auxvar%den(oid),auxvar%H(oid), &
+                           auxvar%U(oid),ierr)
+
+  auxvar%den_kg(oid) = auxvar%den(oid) * EOSOilGetFMW()
+
+  auxvar%H(oid) = auxvar%H(oid) * 1.d-6 ! J/kmol -> MJ/kmol
+  auxvar%U(oid) = auxvar%U(oid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+  !compute gas properties (default is air - but methane can be set up)
+  call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid), &
+                           auxvar%H(gid),auxvar%U(gid),ierr)
+
+  auxvar%den_kg(gid) = auxvar%den(gid) * EOSGasGetFMW()
+  auxvar%H(gid) = auxvar%H(gid) * 1.d-6 ! J/kmol -> MJ/kmol
+  auxvar%U(gid) = auxvar%U(gid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+
+  ! compute water mobility (rel. perm / viscostiy)
+  call characteristic_curves%liq_rel_perm_function% &
+         RelativePermeability(auxvar%sat(lid),krl,dkrl_Se,option)
+                            
+  call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)                   
+
+  ! use cell_pressure; cell_pressure - psat calculated internally
+  call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visl,ierr)
+
+  auxvar%mobility(lid) = krl/visl
+
+  ! compute oil mobility (rel. perm / viscostiy)
+  sat_liq_gas = auxvar%sat(lid) + auxvar%sat(gid)
+  call characteristic_curves%oil_rel_perm_function% &
+         RelativePermeability(sat_liq_gas,kro,dkro_Se,option)
+
+  call EOSOilViscosity(auxvar%temp,auxvar%pres(oid), &
+                       auxvar%den(oid), viso, ierr)
+
+  auxvar%mobility(oid) = kro/viso
+
+  !compute gas mobility (rel. perm / viscosity) 
+  sat_tot_liq = auxvar%sat(lid) + auxvar%sat(oid)
+  call characteristic_curves%gas_rel_perm_function% &
+         RelativePermeability(sat_tot_liq,krg,dkrg_Se,option)
+
+  !currently only a viscosity model for air or constant value   
+  call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
+                       auxvar%pres(gid),auxvar%den(gid),visg,ierr)
+
+  auxvar%mobility(gid) = krg/visg
+
+  !ADD HERE TODD_LONGSTAFF - if required can modify everything needed above.
+  ! this is now a TL specific function.
+
+  !below the new data structure to host the TL densities 
+  auxvar%tl%den_oil_eff_kg = 0.0
+  auxvar%tl%den_gas_eff_kg = 0.0
+
+  !below the tl_omega value read from the input deck
+  !write(*,*) val_tl_omega
+
+  !option%io_buffer = 'TOWGTLAuxVarCompute not yet implemented'
+  !call printErrMsg(option)
+
+
+end subroutine TOWGTLAuxVarCompute
+
+! ************************************************************************** !
+
 subroutine TOWGImsTLAuxVarPerturb(auxvar,global_auxvar, &
                                   material_auxvar, &
                                   characteristic_curves,natural_id, &
@@ -609,6 +816,16 @@ subroutine TOWGImsAuxVarComputeSetup()
   TOWGAuxVarPerturb => TOWGImsTLAuxVarPerturb
 
 end subroutine TOWGImsAuxVarComputeSetup
+
+! ************************************************************************** !
+subroutine TOWGTLAuxVarComputeSetup()
+
+  implicit none
+
+  TOWGAuxVarCompute => TOWGTLAuxVarCompute
+  TOWGAuxVarPerturb => TOWGImsTLAuxVarPerturb
+
+end subroutine TOWGTLAuxVarComputeSetup
 
 ! ************************************************************************** !
 

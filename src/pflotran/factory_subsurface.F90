@@ -517,7 +517,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%phase_map(3) = GAS_PHASE
       option%energy_id = towg_energy_eq_idx
       select case (towg_miscibility_model)
-        case(TOWG_IMMISCIBLE)
+        case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
           option%nflowdof = 4
           option%nflowspec = 3 !H20, Oil, Gas
         !case(TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
@@ -668,7 +668,7 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
           case('TOIL_IMS')
             pm => PMTOilImsCreate() 
           !case('TOWG')
-          case('TOWG_IMMISCIBLE','TODD_LONGOSTAFF','TOWG_MISCIBLE', &
+          case('TOWG_IMMISCIBLE','TODD_LONGSTAFF','TOWG_MISCIBLE', &
                'BLACK_OIL','SOLVENT_TL')
             pm => PMTOWGCreate(word,option) 
           case default

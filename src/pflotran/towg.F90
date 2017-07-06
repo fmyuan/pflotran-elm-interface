@@ -354,8 +354,8 @@ subroutine TOWGSetup(realization)
 
   !set up TOWG functions that can vary with the miscibility model
   select case(towg_miscibility_model)
-    case(TOWG_IMMISCIBLE)
-      TOWGUpdateAuxVars => TOWGImsUpdateAuxVars
+    case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+      TOWGUpdateAuxVars => TOWGImsTLUpdateAuxVars
       TOWGAccumulation => TOWGImsTLAccumulation
       TOWGComputeMassBalance => TOWGImsTLComputeMassBalance
       TOWGFlux => TOWGImsTLFlux
@@ -363,7 +363,13 @@ subroutine TOWGSetup(realization)
       TOWGSrcSink => TOWGImsTLSrcSink
       TOWGCheckUpdatePre => TOWGImsTLCheckUpdatePre
       TOWGMaxChange => TOWGImsTLMaxChange
-      call TOWGImsAuxVarComputeSetup()
+      select case(towg_miscibility_model)
+        case(TOWG_IMMISCIBLE)
+          call TOWGImsAuxVarComputeSetup()
+        case(TOWG_TODD_LONGSTAFF)
+          call TOWGTLAuxVarComputeSetup()
+      end select
+    !case(TOWG_BLACK_OIL)
     case default
       option%io_buffer = 'TOWGSetup: only TOWG_IMMISCIBLE is supported.'
       call printErrMsg(option)
@@ -385,7 +391,7 @@ end subroutine TOWGSetup
 
 ! ************************************************************************** !
 
-subroutine TOWGImsUpdateAuxVars(realization,update_state)
+subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
   ! 
   ! Updates the auxiliary variables associated with the TOWG_IMS problem
   ! 
@@ -602,7 +608,7 @@ subroutine TOWGImsUpdateAuxVars(realization,update_state)
 
   patch%aux%TOWG%auxvars_up_to_date = PETSC_TRUE
 
-end subroutine TOWGImsUpdateAuxVars
+end subroutine TOWGImsTLUpdateAuxVars
 
 ! ************************************************************************** !
 
