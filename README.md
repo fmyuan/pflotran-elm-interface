@@ -69,7 +69,6 @@ make PETSC_DIR=$PETSC_DIR th_characteristic_curves=TRUE pflotran
 ```
 make PETSC_DIR=$PETSC_DIR th_characteristic_curves=TRUE test
 (where $PETSC_DIR is your PETSC_DIR directory)
-
 ```
 
 **(3b)** *if coupling CLM with PFLOTRAN, need to build a library named as **libpflotran.a**.*
