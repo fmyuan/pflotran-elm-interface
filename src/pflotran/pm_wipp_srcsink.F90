@@ -95,11 +95,6 @@ module PM_WIPP_SrcSink_class
 ! Fe_s: solid iron species object
 ! FeOH2_s: solid corrosion product iron hydroxide species object
 ! BioDegs_s: solid biodegradables (cellulosics+rubber/plastics) species object
-! NO3_minus_aq: aqueous nitrate species object
-! CO2_g: gaseous carbon dioxide species object
-! N2_g: gaseous nitrogen species object
-! SO42_minus_aq: aqueous sulfate species object
-! H2S_g: gaseous hydrogen sulfide species object
 ! FeS_s: solid iron sulfide species object
 ! MgO_s: solid magnesium oxide species object
 ! MgOH2_s: solid magnesium hydroxide (brucite) species object
@@ -116,11 +111,6 @@ module PM_WIPP_SrcSink_class
     type(chem_species_type) :: Fe_s 
     type(chem_species_type) :: FeOH2_s
     type(chem_species_type) :: BioDegs_s
-    type(chem_species_type) :: NO3_minus_aq
-    type(chem_species_type) :: CO2_g
-    type(chem_species_type) :: N2_g
-    type(chem_species_type) :: SO42_minus_aq
-    type(chem_species_type) :: H2S_g
     type(chem_species_type) :: FeS_s
     type(chem_species_type) :: MgO_s
     type(chem_species_type) :: MgOH2_s
@@ -622,21 +612,6 @@ subroutine PMWSSInventoryInit(inventory)
   
   molar_mass = MW_CELL ! cellulosics/rubbers/plastics
   call PMWSSInitChemSpecies(inventory%BioDegs_s,molar_mass)  
-  
-  molar_mass = MW_CO2 ! carbon dioxide gas
-  call PMWSSInitChemSpecies(inventory%CO2_g,molar_mass)  
-  
-  molar_mass = MW_N2 ! nitrogen gas
-  call PMWSSInitChemSpecies(inventory%N2_g,molar_mass) 
-   
-  molar_mass = MW_NO3 ! nitrate
-  call PMWSSInitChemSpecies(inventory%NO3_minus_aq,molar_mass)
-  
-  molar_mass = MW_SO4 ! sulfate
-  call PMWSSInitChemSpecies(inventory%SO42_minus_aq,molar_mass)  
-  
-  molar_mass = MW_H2S ! hydrogen sulfide 
-  call PMWSSInitChemSpecies(inventory%H2S_g,molar_mass)  
   
   molar_mass = MW_FES ! iron sulfide
   call PMWSSInitChemSpecies(inventory%FeS_s,molar_mass)   
@@ -2166,16 +2141,9 @@ subroutine PMWSSInventoryAllocate(inventory,num_cells,volume)
                                 inventory%MgO_in_panel,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%BioDegs_s, &
                                 inventory%Biodegs_in_panel,volume)
-  call PMWSSChemSpeciesAllocate(num_cells,inventory%SO42_minus_aq, &
-                                inventory%Sulfate_in_panel,volume)
-  call PMWSSChemSpeciesAllocate(num_cells,inventory%NO3_minus_aq, &
-                                inventory%Nitrate_in_panel,volume)
   !----species-without-initial-inventory-values---------------
   !----assign-0.d0-kg-as-initial-value------------------------
   call PMWSSChemSpeciesAllocate(num_cells,inventory%FeOH2_s,0.d0,volume)
-  call PMWSSChemSpeciesAllocate(num_cells,inventory%CO2_g,0.d0,volume)
-  call PMWSSChemSpeciesAllocate(num_cells,inventory%N2_g,0.d0,volume)
-  call PMWSSChemSpeciesAllocate(num_cells,inventory%H2S_g,0.d0,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%FeS_s,0.d0,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%MgOH2_s,0.d0,volume)
   call PMWSSChemSpeciesAllocate(num_cells,inventory%Mg5CO34OH24H2_s,0.d0,volume)
@@ -2415,13 +2383,6 @@ subroutine PMWSSUpdateInventory(waste_panel,dt,option)
                               option)
   call PMWSSUpdateChemSpecies(waste_panel%inventory%BioDegs_s,waste_panel,dt, &
                               option)
-  call PMWSSUpdateChemSpecies(waste_panel%inventory%NO3_minus_aq,waste_panel, &
-                              dt,option)
-  call PMWSSUpdateChemSpecies(waste_panel%inventory%N2_g,waste_panel,dt,option)
-  call PMWSSUpdateChemSpecies(waste_panel%inventory%CO2_g,waste_panel,dt,option)
-  call PMWSSUpdateChemSpecies(waste_panel%inventory%SO42_minus_aq,waste_panel, &
-                              dt,option)
-  call PMWSSUpdateChemSpecies(waste_panel%inventory%H2S_g,waste_panel,dt,option)
   call PMWSSUpdateChemSpecies(waste_panel%inventory%FeS_s,waste_panel,dt,option)
   call PMWSSUpdateChemSpecies(waste_panel%inventory%MgO_s,waste_panel,dt,option)
   call PMWSSUpdateChemSpecies(waste_panel%inventory%MgOH2_s,waste_panel,dt, &
@@ -2673,16 +2634,14 @@ end subroutine PMWSSUpdateChemSpecies
                                  (cwp%humid_corrosion_rate*(1.d0-s_eff))
       call PMWSSSmoothRxnrate(cwp%rxnrate_corrosion(i),i, &
                               cwp%inventory%Fe_s,this%alpharxn) 
-      call PMWSSTaperRxnrate(cwp%rxnrate_corrosion(i),i, &
-                              cwp%inventory%Fe_s)
+      call PMWSSTaperRxnrate(cwp%rxnrate_corrosion(i),i,cwp%inventory%Fe_s)
     !-----biodegradation-[mol-cell/m3/sec]------------------------------------
     !-----(see equation PA.69, PA.82, PA.83, section PA-4.2.5)----------------
       cwp%rxnrate_biodeg(i) = (cwp%inundated_biodeg_rate*s_eff) + &
                               (cwp%humid_biodeg_rate*(1.d0-s_eff))
       call PMWSSSmoothRxnrate(cwp%rxnrate_biodeg(i),i, &
                               cwp%inventory%BioDegs_s,this%alpharxn)
-      call PMWSSTaperRxnrate(cwp%rxnrate_biodeg(i),i, &
-                             cwp%inventory%BioDegs_s)
+      call PMWSSTaperRxnrate(cwp%rxnrate_biodeg(i),i,cwp%inventory%BioDegs_s)
     !-----iron-sulfidation-[mol-H2S/m3/sec]-----------------------------------
     !-----(see equation PA.68, PA.89, PA.90, section PA-4.2.5)----------------
       cwp%rxnrate_FeS_Fe(i) = cwp%rxnrate_biodeg(i)*cwp%F_SO4*(3.d0/6.d0)
@@ -2691,12 +2650,8 @@ end subroutine PMWSSUpdateChemSpecies
                               cwp%inventory%Fe_s,this%alpharxn) 
       call PMWSSSmoothRxnrate(cwp%rxnrate_FeS_FeOH2(i),i, &
                               cwp%inventory%Fe_s,this%alpharxn)
-      call PMWSSTaperRxnrate(cwp%rxnrate_FeS_Fe(i),i, &
-                             cwp%inventory%Fe_s, &
-                             cwp%inventory%H2S_g)
-      call PMWSSTaperRxnrate(cwp%rxnrate_FeS_FeOH2(i),i, &
-                             cwp%inventory%FeOH2_s, &
-                             cwp%inventory%H2S_g)
+      call PMWSSTaperRxnrate(cwp%rxnrate_FeS_Fe(i),i,cwp%inventory%Fe_s)
+      call PMWSSTaperRxnrate(cwp%rxnrate_FeS_FeOH2(i),i,cwp%inventory%FeOH2_s)
     !-----MgO-hydration-[mol-MgO/m3/sec]--------------------------------------
     !-----(see equation PA.73, PA.94, section PA-4.2.5)-----------------------
       cwp%rxnrate_mgoh2(i) = (cwp%inundated_brucite_rate*s_eff) + &
@@ -2709,8 +2664,7 @@ end subroutine PMWSSUpdateChemSpecies
       cwp%rxnrate_hydromag(i) = cwp%rxnrate_biodeg(i)*this%RXCO2_factor
       call PMWSSSmoothRxnrate(cwp%rxnrate_hydromag(i),i, &
                               cwp%inventory%MgO_s,this%alpharxn)
-      call PMWSSTaperRxnrate(cwp%rxnrate_hydromag(i),i, &
-                             cwp%inventory%MgOH2_s)
+      call PMWSSTaperRxnrate(cwp%rxnrate_hydromag(i),i,cwp%inventory%MgOH2_s)
     !-----hydromagnesite-conversion-[mol-hydromagnesite/m3-bulk/sec]----------
     !-----(see equation PA.74, PA.97, section PA-4.2.5)-----------------------
       cwp%rxnrate_hymagcon(i) = this%hymagcon_rate* &
@@ -2732,18 +2686,6 @@ end subroutine PMWSSUpdateChemSpecies
                     this%stoic_mat(3,7)*cwp%rxnrate_FeS_FeOH2(i)
       cwp%inventory%BioDegs_s%inst_rate(i) = &
                     this%stoic_mat(2,5)*cwp%rxnrate_biodeg(i)
-      cwp%inventory%NO3_minus_aq%inst_rate(i) = &
-          (-4.8d0*cwp%rxnrate_biodeg(i))
-      cwp%inventory%CO2_g%inst_rate(i) = &
-          6.d0*cwp%rxnrate_biodeg(i) + 6.d0*cwp%rxnrate_biodeg(i) + &
-          (-1.d0*cwp%rxnrate_hydromag(i))
-      cwp%inventory%N2_g%inst_rate(i) = &
-          2.4d0*cwp%rxnrate_biodeg(i)
-      cwp%inventory%SO42_minus_aq%inst_rate(i) = &
-          (-3.d0*cwp%rxnrate_biodeg(i))
-      cwp%inventory%H2S_g%inst_rate(i) = &
-          3.d0*cwp%rxnrate_biodeg(i) + (-1.d0*cwp%rxnrate_FeS_Fe(i)) + &
-          (-1.d0*cwp%rxnrate_FeS_FeOH2(i))
       cwp%inventory%MgO_s%inst_rate(i) = &
                     this%stoic_mat(5,8)*cwp%rxnrate_mgoh2(i)
       cwp%inventory%MgOH2_s%inst_rate(i) = &
@@ -3583,11 +3525,6 @@ subroutine PMWSSInventoryDestroy(inventory)
   call PMWSSChemSpeciesDeallocate(inventory%Fe_s)
   call PMWSSChemSpeciesDeallocate(inventory%FeOH2_s)
   call PMWSSChemSpeciesDeallocate(inventory%BioDegs_s)
-  call PMWSSChemSpeciesDeallocate(inventory%NO3_minus_aq)
-  call PMWSSChemSpeciesDeallocate(inventory%CO2_g)
-  call PMWSSChemSpeciesDeallocate(inventory%N2_g)
-  call PMWSSChemSpeciesDeallocate(inventory%SO42_minus_aq)
-  call PMWSSChemSpeciesDeallocate(inventory%H2S_g)
   call PMWSSChemSpeciesDeallocate(inventory%FeS_s)
   call PMWSSChemSpeciesDeallocate(inventory%MgO_s)
   call PMWSSChemSpeciesDeallocate(inventory%MgOH2_s)
