@@ -1649,14 +1649,14 @@ subroutine PMUFDBOutputHeader(this)
     cell_string = '(' // trim(cur_ERB%region_name) // ')'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'Total Annual Dose'
+    variable_string = 'Total Dose'
     units_string = 'Sv/yr'
     cell_string = ''
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
                              
     do i = 1,size(cur_ERB%annual_dose_supp_w_unsupp_rads)
-      variable_string = 'Annual Dose'                   
+      variable_string = 'Dose'                   
       units_string = 'Sv/yr'
       cell_string = trim(cur_ERB%names_supp_w_unsupp_rads(i))
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
@@ -1666,9 +1666,9 @@ subroutine PMUFDBOutputHeader(this)
     cur_supp_rad => this%supported_rad_list
     do
       if (.not.associated(cur_supp_rad)) exit
-      variable_string = 'Annual Dose'                    
+      variable_string = trim(cur_supp_rad%name) // ' Dose'                    
       units_string = 'Sv/yr'
-      cell_string = trim(cur_supp_rad%name) 
+      cell_string = '' 
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
       cur_supp_rad =>cur_supp_rad%next
@@ -1678,9 +1678,9 @@ subroutine PMUFDBOutputHeader(this)
       cur_unsupp_rad => this%unsupported_rad_list
       do
         if (.not.associated(cur_unsupp_rad)) exit
-        variable_string = 'Annual Dose'
+        variable_string = trim(cur_unsupp_rad%name) // '* Dose'
         units_string = 'Sv/yr'
-        cell_string = trim(cur_unsupp_rad%name) // '*'
+        cell_string = ''
         call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                  icolumn)
         cur_unsupp_rad => cur_unsupp_rad%next
@@ -1690,14 +1690,14 @@ subroutine PMUFDBOutputHeader(this)
     cur_supp_rad => this%supported_rad_list
     do
       if (.not.associated(cur_supp_rad)) exit
-      variable_string = 'Aq. Conc.'
+      variable_string = trim(cur_supp_rad%name) // ' Aq. Conc.'
       units_string = 'Bq/m3'
-      cell_string = trim(cur_supp_rad%name) 
+      cell_string = '' 
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
-      variable_string = 'Aq. Conc.'
+      variable_string = trim(cur_supp_rad%name) // ' Aq. Conc.'
       units_string = 'mol/L'
-      cell_string = trim(cur_supp_rad%name) 
+      cell_string = '' 
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
       cur_supp_rad =>cur_supp_rad%next
@@ -1707,19 +1707,19 @@ subroutine PMUFDBOutputHeader(this)
       cur_unsupp_rad => this%unsupported_rad_list
       do
         if (.not.associated(cur_unsupp_rad)) exit
-        variable_string = 'E_i'
+        variable_string = trim(cur_unsupp_rad%name) // '* E_i'
         units_string = ''
-        cell_string = trim(cur_unsupp_rad%name) // '*'
+        cell_string = ''
         call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                  icolumn)
-        variable_string = 'Aq. Conc.'
+        variable_string = trim(cur_unsupp_rad%name) // '* Aq. Conc.'
         units_string = 'Bq/m3'
-        cell_string = trim(cur_unsupp_rad%name) // '*'
+        cell_string = ''
         call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                  icolumn)
-        variable_string = 'Aq. Conc.'
+        variable_string = trim(cur_unsupp_rad%name) // '* Aq. Conc.'
         units_string = 'mol/L'
-        cell_string = trim(cur_unsupp_rad%name) // '*'
+        cell_string = ''
         call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                  icolumn)
         cur_unsupp_rad => cur_unsupp_rad%next
