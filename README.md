@@ -41,9 +41,16 @@ This repository is the PFLOTRAN portion for coupling. The CLM portion is in CLM-
 
 ### How do I get set up? ###
 
-**(1)** *git clone the repository* 
+**(1)** *git clone the repository* using your 3-digit XCAMS/UCAMS id and pwd.
+```
+git clone https://code.ornl.gov/alm-pflotran/pflotran-interface
+```
 
-**(2)** *hg update branch to 'default-thc'*
+**(2)** *git checkout branch 'default-thc'*
+```
+cd pflotran-interface
+git checkout default-thc
+```
 
 **(3a)** *if not coupled with CLM, this repository should be a **stand-alone PFLOTRAN** model.*
 
@@ -56,6 +63,13 @@ cd ./src/pflotran
 ```
 make PETSC_DIR=$PETSC_DIR th_characteristic_curves=TRUE pflotran
 (where $PETSC_DIR is your PETSC_DIR directory)
+```
+
+- check your repository (regression test):
+```
+make PETSC_DIR=$PETSC_DIR th_characteristic_curves=TRUE test
+(where $PETSC_DIR is your PETSC_DIR directory)
+
 ```
 
 **(3b)** *if coupling CLM with PFLOTRAN, need to build a library named as **libpflotran.a**.*
@@ -172,4 +186,4 @@ endif
 
 
 
-***UPDATED: 2016-09-08***
+***UPDATED: 2017-07-05***
