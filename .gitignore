@@ -267,3 +267,5 @@ src/clm-pflotran/*.mod
 src/clm-pflotran/*.o
 pflotran_provenance.F90
 libpflotran.a
+*.mod
+*.o
