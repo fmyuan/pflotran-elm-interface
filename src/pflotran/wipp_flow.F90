@@ -34,7 +34,7 @@ subroutine WIPPFloSetup(realization)
   ! Creates arrays for auxiliary variables
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Date: 07/11/17
   ! 
 
   use Realization_Subsurface_class
@@ -43,7 +43,6 @@ subroutine WIPPFloSetup(realization)
   use Coupler_module
   use Connection_module
   use Grid_module
-  use Fluid_module
   use Material_Aux_class
   use Output_Aux_module
  
@@ -68,7 +67,6 @@ subroutine WIPPFloSetup(realization)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars_bc(:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars_ss(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(fluid_property_type), pointer :: cur_fluid_property
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   
@@ -105,11 +103,6 @@ subroutine WIPPFloSetup(realization)
     if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
-      call printMsg(option)
-    endif
-    if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
-      flag(3) = 1
-      option%io_buffer = 'ERROR: Non-initialized tortuosity.'
       call printMsg(option)
     endif
     if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
@@ -166,7 +159,8 @@ subroutine WIPPFloSetup(realization)
   endif
   patch%aux%WIPPFlo%num_aux_ss = sum_connection
 
-  ! allocate arrays for directions
+  ! allocate arrays for upwind directions
+  ! internal connections
   connection_set_list => grid%internal_connection_set_list
   sum_connection = ConnectionGetNumberInList(connection_set_list)
   allocate(patch%aux%WIPPFlo%upwind_direction(option%nphase,sum_connection))
@@ -188,6 +182,7 @@ subroutine WIPPFloSetup(realization)
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
+  ! boundary connections
   sum_connection = CouplerGetNumConnectionsInList(patch%boundary_condition_list)
   boundary_condition => patch%boundary_condition_list%first
   allocate(patch%aux%WIPPFlo%upwind_direction_bc(option%nphase,sum_connection))
@@ -219,6 +214,8 @@ subroutine WIPPFloSetup(realization)
   list => realization%output_option%output_obs_variable_list
   call WIPPFloSetPlotVariables(realization,list)
   
+  ! these counters are used for performance analysis only.  they will not 
+  ! affect simulation results.
   liq_upwind_flip_count_by_res = 0
   gas_upwind_flip_count_by_res = 0
   liq_bc_upwind_flip_count_by_res = 0
@@ -237,7 +234,7 @@ subroutine WIPPFloInitializeTimestep(realization)
   ! Update data in module prior to time step
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Date: 07/11/17
   ! 
 
   use Realization_Subsurface_class
@@ -259,36 +256,15 @@ subroutine WIPPFloUpdateSolution(realization)
   ! step
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Date: 07/11/17
   ! 
 
   use Realization_Subsurface_class
-  use Field_module
-  use Patch_module
-  use Discretization_module
-  use Option_module
-  use Grid_module
   
   implicit none
   
   type(realization_subsurface_type) :: realization
 
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
-  type(field_type), pointer :: field
-  type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
-  type(global_auxvar_type), pointer :: global_auxvars(:)  
-  PetscInt :: local_id, ghosted_id
-  PetscErrorCode :: ierr
-  
-  option => realization%option
-  field => realization%field
-  patch => realization%patch
-  grid => patch%grid
-  wippflo_auxvars => patch%aux%WIPPFlo%auxvars  
-  global_auxvars => patch%aux%Global%auxvars
-  
   if (realization%option%compute_mass_balance_new) then
     call WIPPFloUpdateMassBalance(realization)
   endif
@@ -302,14 +278,9 @@ subroutine WIPPFloTimeCut(realization)
   ! Resets arrays for time step cut
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Date: 07/11/17
   ! 
   use Realization_Subsurface_class
-  use Option_module
-  use Field_module
-  use Patch_module
-  use Discretization_module
-  use Grid_module
  
   implicit none
   
@@ -326,7 +297,7 @@ subroutine WIPPFloComputeMassBalance(realization,mass_balance)
   ! Initializes mass balance
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Date: 07/11/17
   ! 
  
   use Realization_Subsurface_class
@@ -379,6 +350,7 @@ subroutine WIPPFloComputeMassBalance(realization,mass_balance)
       do icomp = 1, option%nflowspec
         mass_balance(icomp,iphase) = mass_balance(icomp,iphase) + &
           wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den(iphase)* &
+          !TODO(geh): remove xmol
           wippflo_auxvars(ZERO_INTEGER,ghosted_id)%xmol(icomp,iphase) * &
           fmw_comp(icomp)*vol_phase
       enddo
@@ -394,7 +366,7 @@ subroutine WIPPFloZeroMassBalanceDelta(realization)
   ! Zeros mass balance delta array
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Date: 07/11/17
   ! 
  
   use Realization_Subsurface_class
@@ -435,7 +407,7 @@ subroutine WIPPFloUpdateMassBalance(realization)
   ! Updates mass balance
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Date: 07/11/17
   ! 
  
   use Realization_Subsurface_class
@@ -487,7 +459,7 @@ subroutine WIPPFloUpdateAuxVars(realization)
   ! Updates the auxiliary variables associated with the WIPPFlo problem
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Date: 07/11/17
   ! 
 
   use Realization_Subsurface_class
@@ -499,8 +471,6 @@ subroutine WIPPFloUpdateAuxVars(realization)
   use Connection_module
   use Material_module
   use Material_Aux_class
-  use EOS_Water_module
-  use Saturation_Function_module
   use General_Aux_module, only : ANY_STATE, TWO_PHASE_STATE
   
   implicit none
@@ -513,17 +483,15 @@ subroutine WIPPFloUpdateAuxVars(realization)
   type(field_type), pointer :: field
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
-  type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:), wippflo_auxvars_bc(:)  
+  type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
+  type(wippflo_auxvar_type), pointer :: wippflo_auxvars_bc(:)  
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)  
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
   PetscInt :: ghosted_start, ghosted_end
-  PetscInt :: iphasebc, iphase
   PetscInt :: offset
   PetscInt :: istate
-  PetscReal :: gas_pressure, capillary_pressure, liquid_saturation
-  PetscReal :: saturation_pressure, temperature
   PetscInt :: real_index, variable
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
@@ -583,8 +551,10 @@ subroutine WIPPFloUpdateAuxVars(realization)
         do idof = 1, option%nflowdof
           select case(boundary_condition%flow_bc_type(idof))
             case(HYDROSTATIC_BC)
-              real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof))
-              xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+              real_index = boundary_condition% &
+                             flow_aux_mapping(dof_to_primary_variable(idof))
+              xxbc(idof) = boundary_condition% &
+                             flow_aux_real_var(real_index,iconn)
             case(DIRICHLET_BC)
               variable = dof_to_primary_variable(idof)
               select case(variable)
@@ -592,7 +562,8 @@ subroutine WIPPFloUpdateAuxVars(realization)
                 case(WIPPFLO_LIQUID_PRESSURE_INDEX)
                   real_index = boundary_condition%flow_aux_mapping(variable)
                   if (real_index /= 0) then
-                    xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+                    xxbc(idof) = boundary_condition% &
+                                   flow_aux_real_var(real_index,iconn)
                   else
                     option%io_buffer = 'Mixed FLOW_CONDITION "' // &
                       trim(boundary_condition%flow_condition%name) // &
@@ -603,13 +574,8 @@ subroutine WIPPFloUpdateAuxVars(realization)
                 case(WIPPFLO_GAS_SATURATION_INDEX)
                   real_index = boundary_condition%flow_aux_mapping(variable)
                   if (real_index /= 0) then
-                    xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
-                  else
-!geh: should be able to use the saturation within the cell
-!                        option%io_buffer = 'Mixed FLOW_CONDITION "' // &
-!                          trim(boundary_condition%flow_condition%name) // &
-!                          '" needs saturation defined.'
-!                        call printErrMsg(option)
+                    xxbc(idof) = boundary_condition% &
+                                   flow_aux_real_var(real_index,iconn)
                   endif
               end select
             case(NEUMANN_BC)
@@ -621,11 +587,13 @@ subroutine WIPPFloUpdateAuxVars(realization)
       else
         ! we do this for all BCs; Neumann bcs will be set later
         do idof = 1, option%nflowdof
-          real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof))
+          real_index = boundary_condition% &
+                         flow_aux_mapping(dof_to_primary_variable(idof))
           if (real_index > 0) then
             xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
           else
-            option%io_buffer = 'Error setting up boundary condition in WIPPFloUpdateAuxVars'
+            option%io_buffer = 'Error setting up boundary condition in &
+                               &WIPPFloUpdateAuxVars'
             call printErrMsg(option)
           endif
         enddo
@@ -660,7 +628,7 @@ subroutine WIPPFloUpdateFixedAccum(realization)
   ! accumulation term
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Date: 07/11/17
   ! 
 
   use Realization_Subsurface_class
@@ -744,7 +712,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
   ! Computes the residual equation
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Date: 07/11/17
   ! 
 
   use Realization_Subsurface_class
@@ -778,7 +746,8 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
   type(coupler_type), pointer :: source_sink
   type(material_parameter_type), pointer :: material_parameter
   type(wippflo_parameter_type), pointer :: wippflo_parameter
-  type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:), wippflo_auxvars_bc(:)
+  type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
+  type(wippflo_auxvar_type), pointer :: wippflo_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
@@ -787,7 +756,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
 
   PetscInt :: iconn
-  PetscInt :: iphase
   PetscReal :: scale
   PetscReal :: ss_flow_vol_flux(realization%option%nphase)
   PetscInt :: sum_connection
@@ -795,7 +763,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
   PetscInt :: i, imat, imat_up, imat_dn
-  PetscInt, save :: iplot = 0
   PetscInt, pointer :: upwind_direction(:,:), upwind_direction_bc(:,:)
 
   PetscReal, pointer :: r_p(:)
@@ -803,7 +770,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
   PetscReal, pointer :: vec_p(:)
   
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: word
 
   PetscInt :: icap_up, icap_dn
   PetscReal :: Res(realization%option%nflowdof)
@@ -828,18 +794,12 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
   upwind_direction_bc => patch%aux%WIPPFlo%upwind_direction_bc
   
   ! Communication -----------------------------------------
-  ! These 3 must be called before WIPPFloUpdateAuxVars()
+  ! must be called before WIPPFloUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
   call WIPPFloUpdateAuxVars(realization)
 
   ! override flags since they will soon be out of date
   patch%aux%WIPPFlo%auxvars_up_to_date = PETSC_FALSE 
-
-  ! always assume variables have been swapped; therefore, must copy back
-  call VecLockPop(xx,ierr); CHKERRQ(ierr)
-  call DiscretizationLocalToGlobal(discretization,field%flow_xx_loc,xx, &
-                                   NFLOWDOF)
-  call VecLockPush(xx,ierr); CHKERRQ(ierr)
 
   if (option%compute_mass_balance_new) then
     call WIPPFloZeroMassBalanceDelta(realization)
@@ -954,11 +914,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
       imat_dn = patch%imat(ghosted_id)
       if (imat_dn <= 0) cycle
 
-      if (ghosted_id<=0) then
-        print *, "Wrong boundary node index... STOP!!!"
-        stop
-      endif
-
       icap_dn = patch%sat_func_id(ghosted_id)
 
       call WIPPFloBCFlux(boundary_condition%flow_bc_type, &
@@ -1072,20 +1027,18 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
   endif                      
                         
   if (realization%debug%vecview_residual) then
-    string = 'Gresidual'
+    string = 'WFresidual'
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(r,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
   if (realization%debug%vecview_solution) then
-    string = 'Gxx'
+    string = 'WFxx'
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(xx,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-  print *, '    wippflo_update_upwind_direction: ', &
-    wippflo_update_upwind_direction
   wippflo_update_upwind_direction = PETSC_FALSE
 
 end subroutine WIPPFloResidual
@@ -1097,7 +1050,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
   ! Computes the Jacobian
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Date: 07/11/17
   ! 
 
   use Realization_Subsurface_class
@@ -1127,7 +1080,6 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
   PetscReal :: qsrc, scale
   PetscInt :: imat, imat_up, imat_dn
   PetscInt :: local_id, ghosted_id, natural_id
-  PetscInt :: irow
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   Vec, parameter :: null_vec = tVec(-1)
@@ -1140,8 +1092,6 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
   PetscInt :: sum_connection  
-  PetscReal :: distance, fraction_upwind
-  PetscReal :: distance_gravity 
   PetscInt, pointer :: zeros(:)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -1149,13 +1099,13 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
   type(field_type), pointer :: field 
   type(material_parameter_type), pointer :: material_parameter
   type(wippflo_parameter_type), pointer :: wippflo_parameter
-  type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:), wippflo_auxvars_bc(:)
+  type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
+  type(wippflo_auxvar_type), pointer :: wippflo_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt, pointer :: upwind_direction(:,:), upwind_direction_bc(:,:)
   
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: word
   
   patch => realization%patch
   grid => patch%grid
@@ -1212,16 +1162,6 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
 
-  if (realization%debug%matview_Jacobian_detailed) then
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_accum'
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
-
-
   ! Interior Flux Terms -----------------------------------  
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
@@ -1273,15 +1213,6 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
     cur_connection_set => cur_connection_set%next
   enddo
 
-  if (realization%debug%matview_Jacobian_detailed) then
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_flux'
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
-
   ! Boundary Flux Terms -----------------------------------
   boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
@@ -1298,11 +1229,6 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
 
       imat_dn = patch%imat(ghosted_id)
       if (imat_dn <= 0) cycle
-
-      if (ghosted_id<=0) then
-        print *, "Wrong boundary node index... STOP!!!"
-        stop
-      endif
 
       icap_dn = patch%sat_func_id(ghosted_id)
 
@@ -1326,15 +1252,6 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
     enddo
     boundary_condition => boundary_condition%next
   enddo
-
-  if (realization%debug%matview_Jacobian_detailed) then
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_bcflux'
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
 
   ! Source/sinks
   source_sink => patch%source_sink_list%first 
@@ -1373,15 +1290,6 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
   call WIPPFloSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
                         wippflo_auxvars,option)
 
-  if (realization%debug%matview_Jacobian_detailed) then
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_srcsink'
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
-  
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
@@ -1395,7 +1303,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
   endif
 
   if (realization%debug%matview_Jacobian) then
-    string = 'Gjacobian'
+    string = 'WFjacobian'
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -1422,7 +1330,7 @@ subroutine WIPPFloSetPlotVariables(realization,list)
   ! Adds variables to be printed to list
   ! 
   ! Author: Glenn Hammond
-  ! Date: 02/15/13
+  ! Date: 07/11/17
   ! 
   
   use Realization_Subsurface_class
@@ -1481,7 +1389,7 @@ subroutine WIPPFloSSSandbox(residual,Jacobian,compute_derivative, &
   ! Evaluates source/sink term storing residual and/or Jacobian
   ! 
   ! Author: Glenn Hammond
-  ! Date: 04/11/14
+  ! Date: 07/11/17
   ! 
 #include "petsc/finclude/petscmat.h"
   use petscmat
@@ -1579,8 +1487,6 @@ subroutine WIPPFloSSSandboxLoadAuxReal(srcsink,aux_real,wippflo_auxvar,option)
     class is(srcsink_sandbox_wipp_gas_type)
       aux_real(WIPP_GAS_WATER_SATURATION_INDEX) = &
         wippflo_auxvar%sat(option%liquid_phase)
-      aux_real(WIPP_GAS_TEMPERATURE_INDEX) = &
-        wippflo_auxvar%temp
     class is(srcsink_sandbox_wipp_well_type)
       aux_real(WIPP_WELL_LIQUID_MOBILITY) = &
         wippflo_auxvar%mobility(option%liquid_phase)
@@ -1605,7 +1511,7 @@ subroutine WIPPFloMapBCAuxVarsToGlobal(realization)
   ! Maps variables in general auxvar to global equivalent.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Date: 07/11/17
   ! 
 
   use Realization_Subsurface_class
@@ -1646,8 +1552,6 @@ subroutine WIPPFloMapBCAuxVarsToGlobal(realization)
         wippflo_auxvars_bc(sum_connection)%sat
       global_auxvars_bc(sum_connection)%den_kg = &
         wippflo_auxvars_bc(sum_connection)%den_kg
-      global_auxvars_bc(sum_connection)%temp = &
-        wippflo_auxvars_bc(sum_connection)%temp
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -1661,7 +1565,7 @@ subroutine WIPPFloDestroy(realization)
   ! Deallocates variables associated with Richard
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Date: 07/11/17
   ! 
 
   use Realization_Subsurface_class

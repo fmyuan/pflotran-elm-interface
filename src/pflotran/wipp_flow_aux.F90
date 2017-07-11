@@ -27,8 +27,6 @@ module WIPP_Flow_Aux_module
   PetscInt, public :: wippflo_max_it_before_damping = UNINITIALIZED_INTEGER
   PetscReal, public :: wippflo_damping_factor = 0.6d0
   
-  PetscInt, parameter, public :: PREV_TS = 1
-  PetscInt, parameter, public :: PREV_IT = 2
 
   PetscInt, parameter, public :: WIPPFLO_LIQUID_PRESSURE_DOF = 1
   PetscInt, parameter, public :: WIPPFLO_GAS_SATURATION_DOF = 2
@@ -147,7 +145,7 @@ function WIPPFloAuxCreate(option)
   ! Allocate and initialize auxiliary object
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/07/11
+  ! Date: 07/11/17
   ! 
 
   use Option_module
@@ -195,7 +193,7 @@ subroutine WIPPFloAuxVarInit(auxvar,allocate_derivative,option)
   ! Initialize auxiliary object
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/07/11
+  ! Date: 07/11/17
   ! 
 
   use Option_module
@@ -261,7 +259,7 @@ subroutine WIPPFloAuxVarCopy(auxvar,auxvar2,option)
   ! Copies an auxiliary variable
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/07/11
+  ! Date: 07/11/17
   ! 
 
   use Option_module
@@ -290,7 +288,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar,material_auxvar, 
   ! Computes auxiliary variables for each grid cell
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/07/11
+  ! Date: 07/11/17
   ! 
 
   use Option_module
@@ -325,7 +323,6 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar,material_auxvar, 
   PetscReal :: krg, visg
   PetscReal :: guess, dummy
   PetscInt :: cpid, spid
-  PetscReal :: NaN
   PetscReal :: creep_closure_time
   PetscReal :: aux(1)
   PetscReal :: dpor_dp
@@ -354,6 +351,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar,material_auxvar, 
   wippflo_auxvar%temp = option%reference_temperature
   wippflo_auxvar%pres(lid) = x(WIPPFLO_LIQUID_PRESSURE_DOF)
   wippflo_auxvar%sat(gid) = x(WIPPFLO_GAS_SATURATION_DOF)
+  ! calculate saturation pressure as reference.
   call EOSWaterSaturationPressure(wippflo_auxvar%temp, &
                                   wippflo_auxvar%pres(spid),ierr)
   if (associated(wippflo_auxvar%d)) then
@@ -371,7 +369,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar,material_auxvar, 
     if (option%flow%creep_closure_on .and. wippflo_use_creep_closure) then
       creep_closure => wipp%creep_closure_tables_array( &
                          material_auxvar%creep_closure_id )%ptr
-      if ( associated(creep_closure) ) then
+      if (associated(creep_closure)) then
         ! option%time here is the t time, not t + dt time.
         creep_closure_time = option%time
         if (option%iflag /= WIPPFLO_UPDATE_FOR_FIXED_ACCUM) then
@@ -413,9 +411,8 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar,material_auxvar, 
                            wippflo_auxvar%fracture_perm_scaling_factor)
   endif
   ! According to the order of operations (PTHRESH/RELPERM prior to ROCKCOMP) 
-  ! in PROPS1 in BRAGFLO, fracture has no impact on PTHRESH perm.
-!  perm_for_cc = material_auxvar%permeability(perm_xx_index) * &
-!                wippflo_auxvar%fracture_perm_scaling_factor
+  ! in PROPS1 in BRAGFLO, fracture has no impact on PTHRESH perm. Thus, the
+  ! permeability used in characteristic curves is unmodified.
   perm_for_cc = material_auxvar%permeability(perm_xx_index)
   select type(sf => characteristic_curves%saturation_function)
     class is(sat_func_WIPP_type)
@@ -586,7 +583,7 @@ subroutine WIPPFloAuxVarPerturb(wippflo_auxvar,global_auxvar, &
   ! Calculates auxiliary variables for perturbed system
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Date: 07/11/17
   ! 
 
   use Option_module
@@ -648,7 +645,7 @@ subroutine WIPPFloPrintAuxVars(wippflo_auxvar,global_auxvar,material_auxvar, &
   ! Prints out the contents of an auxvar
   ! 
   ! Author: Glenn Hammond
-  ! Date: 02/18/13
+  ! Date: 07/11/17
   ! 
 
   use Global_Aux_module
@@ -719,7 +716,7 @@ subroutine WIPPFloOutputAuxVars1(wippflo_auxvar,global_auxvar,material_auxvar, &
   ! Prints out the contents of an auxvar to a file
   ! 
   ! Author: Glenn Hammond
-  ! Date: 02/18/13
+  ! Date: 07/11/17
   ! 
 
   use Global_Aux_module
@@ -819,7 +816,7 @@ subroutine WIPPFloOutputAuxVars2(wippflo_auxvars,global_auxvars,option)
   ! Prints out the contents of an auxvar to a file
   ! 
   ! Author: Glenn Hammond
-  ! Date: 02/18/13
+  ! Date: 07/11/17
   ! 
 
   use Global_Aux_module
@@ -888,7 +885,7 @@ subroutine WIPPFloAuxVarSingleDestroy(auxvar)
   ! Deallocates a mode auxiliary object
   ! 
   ! Author: Glenn Hammond
-  ! Date: 01/10/12
+  ! Date: 07/11/17
   ! 
 
   implicit none
@@ -910,7 +907,7 @@ subroutine WIPPFloAuxVarArray1Destroy(auxvars)
   ! Deallocates a mode auxiliary object
   ! 
   ! Author: Glenn Hammond
-  ! Date: 01/10/12
+  ! Date: 07/11/17
   ! 
 
   implicit none
@@ -936,7 +933,7 @@ subroutine WIPPFloAuxVarArray2Destroy(auxvars)
   ! Deallocates a mode auxiliary object
   ! 
   ! Author: Glenn Hammond
-  ! Date: 01/10/12
+  ! Date: 07/11/17
   ! 
 
   implicit none
@@ -964,7 +961,7 @@ subroutine WIPPFloAuxVarStrip(auxvar)
   ! WIPPFloAuxVarDestroy: Deallocates a general auxiliary object
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/07/11
+  ! Date: 07/11/17
   ! 
   use Utility_module, only : DeallocateArray
 
@@ -991,7 +988,7 @@ subroutine WIPPFloAuxDestroy(aux)
   ! Deallocates a general auxiliary object
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/07/11
+  ! Date: 07/11/17
   ! 
   use Utility_module, only : DeallocateArray
 

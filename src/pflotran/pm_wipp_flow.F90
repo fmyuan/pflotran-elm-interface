@@ -50,7 +50,7 @@ function PMWIPPFloCreate()
   ! Creates WIPPFlo process models shell
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 07/11/17
   ! 
   use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
                                LIQUID_MOLE_FRACTION, TEMPERATURE, &
@@ -91,7 +91,7 @@ subroutine PMWIPPFloRead(this,input)
   ! Sets up SNES solvers.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/04/15
+  ! Date: 07/11/17
   !
   use WIPP_Flow_module
   use WIPP_Flow_Aux_module
@@ -182,7 +182,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   ! Initializes the time stepping
   ! 
   ! Author: Glenn Hammond
-  ! Date: 04/21/14 
+  ! Date: 07/11/17
 
   use Realization_Base_class
   
@@ -216,7 +216,7 @@ subroutine PMWIPPFloInitializeTimestep(this)
   ! Should not need this as it is called in PreSolve.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 07/11/17
   ! 
 
   use WIPP_Flow_module, only : WIPPFloInitializeTimestep
@@ -243,7 +243,7 @@ end subroutine PMWIPPFloInitializeTimestep
 subroutine PMWIPPFloPreSolve(this)
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 07/11/17
 
   implicit none
 
@@ -258,7 +258,7 @@ end subroutine PMWIPPFloPreSolve
 subroutine PMWIPPFloPostSolve(this)
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 07/11/17
   
   use WIPP_Flow_Common_module
   use WIPP_Flow_Aux_module
@@ -311,7 +311,7 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                                     num_newton_iterations,tfac)
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 07/11/17
   ! 
 
   use Realization_Base_class, only : RealizationGetVariable
@@ -335,10 +335,6 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: dtt
   type(field_type), pointer :: field
   
-#ifdef PM_WIPPFLO_DEBUG  
-  call printMsg(this%option,'PMWIPPFlo%UpdateTimestep()')
-#endif
-
   fac = 0.5d0
   if (num_newton_iterations >= iacceleration) then
     fac = 0.33d0
@@ -354,7 +350,7 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   dt = max(dt,dt_min)
 
   if (Initialized(this%cfl_governor)) then
-    ! Since saturations are not stored in global_auxvar for general mode, we
+    ! Since saturations are not stored in global_auxvar for wipp flow mode, we
     ! must copy them over for the CFL check
     ! liquid saturation
     field => this%realization%field
@@ -378,7 +374,7 @@ end subroutine PMWIPPFloUpdateTimestep
 subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 07/11/17
   ! 
 
   use WIPP_Flow_module, only : WIPPFloResidual
@@ -403,7 +399,7 @@ end subroutine PMWIPPFloResidual
 subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 07/11/17
   ! 
 
   use WIPP_Flow_module, only : WIPPFloJacobian
@@ -425,7 +421,7 @@ end subroutine PMWIPPFloJacobian
 subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 07/11/17
   ! 
   use Realization_Subsurface_class
   use Grid_module
@@ -532,7 +528,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
                                     X1_changed,ierr)
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 07/11/17
   ! 
   use WIPP_Flow_Aux_module
   use Global_Aux_module
@@ -579,6 +575,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscInt :: saturation_index
   PetscInt :: pressure_index
   PetscInt :: temp_int(5)
+  PetscReal :: temp_real(4)
 
   PetscReal, parameter :: zero_saturation = 1.d-15
   PetscReal, parameter :: zero_accumulation = 1.d-15
@@ -734,6 +731,16 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   if (min_gas_pressure < 0.d0) temp_int(5) = 1
   call MPI_Allreduce(MPI_IN_PLACE,temp_int,FIVE_INTEGER_MPI, &
                      MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
+  temp_real(1) = max_liq_eq
+  temp_real(2) = max_gas_eq
+  temp_real(3) = max_liq_pres_rel_change
+  temp_real(4) = max_gas_sat_change
+  call MPI_Allreduce(MPI_IN_PLACE,temp_real,FOUR_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+  max_liq_eq = temp_real(1)
+  max_gas_eq = temp_real(2)
+  max_liq_pres_rel_change = temp_real(3)
+  max_gas_sat_change = temp_real(4)
 
   if (option%convergence == CONVERGENCE_CUT_TIMESTEP) then
     reason = '!cut'
@@ -753,19 +760,30 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     reason = '----'
     option%convergence = CONVERGENCE_CONVERGED
   endif
-  write(*,'(4x,"Reason: ",a4,4(i5,es10.2))') reason, &
-    max_liq_eq_cell, max_liq_eq, &
-    max_gas_eq_cell, max_gas_eq, &
-    max_liq_pres_rel_change_cell, max_liq_pres_rel_change, &
-    max_gas_sat_change_cell, max_gas_sat_change
-  local_id = min_gas_pressure_cell
-  offset = (local_id-1)*option%nflowdof
-  istart = offset + 1
-  iend = offset + option%nflowdof
-  ghosted_id = grid%nL2G(local_id)
-  write(*,'(4x,i5,3es11.3)') local_id, &
-    wippflo_auxvars(0,ghosted_id)%pres(1:2), &
-    wippflo_auxvars(0,ghosted_id)%pres(option%capillary_pressure_id)
+  if (OptionPrintToScreen(option)) then
+    if (option%mycommsize > 1) then
+      write(*,'(4x,"Reason: ",a4,4es10.2)') reason, &
+        max_liq_eq, max_gas_eq, &
+        max_liq_pres_rel_change, max_gas_sat_change
+    else
+      write(*,'(4x,"Reason: ",a4,4(i5,es10.2))') reason, &
+        max_liq_eq_cell, max_liq_eq, &
+        max_gas_eq_cell, max_gas_eq, &
+        max_liq_pres_rel_change_cell, max_liq_pres_rel_change, &
+        max_gas_sat_change_cell, max_gas_sat_change
+! for debugging
+#if 0
+      local_id = min_gas_pressure_cell
+      offset = (local_id-1)*option%nflowdof
+      istart = offset + 1
+      iend = offset + option%nflowdof
+      ghosted_id = grid%nL2G(local_id)
+      write(*,'(4x,i5,3es11.3)') local_id, &
+        wippflo_auxvars(0,ghosted_id)%pres(1:2), &
+        wippflo_auxvars(0,ghosted_id)%pres(option%capillary_pressure_id)
+#endif
+    endif
+  endif
 
   call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
@@ -781,7 +799,7 @@ end subroutine PMWIPPFloCheckUpdatePost
 subroutine PMWIPPFloTimeCut(this)
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 07/11/17
   ! 
 
   use WIPP_Flow_module, only : WIPPFloTimeCut
@@ -800,7 +818,7 @@ end subroutine PMWIPPFloTimeCut
 subroutine PMWIPPFloUpdateSolution(this)
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 07/11/17
   ! 
 
   use WIPP_Flow_module, only : WIPPFloUpdateSolution, &
@@ -821,7 +839,7 @@ end subroutine PMWIPPFloUpdateSolution
 subroutine PMWIPPFloUpdateAuxVars(this)
   ! 
   ! Author: Glenn Hammond
-  ! Date: 04/21/14
+  ! Date: 07/11/17
   use WIPP_Flow_module, only : WIPPFloUpdateAuxVars
 
   implicit none
@@ -839,7 +857,7 @@ subroutine PMWIPPFloMaxChange(this)
   ! Not needed given WIPPFloMaxChange is called in PostSolve
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 07/11/17
   ! 
 
   use Realization_Base_class
@@ -847,7 +865,6 @@ subroutine PMWIPPFloMaxChange(this)
   use Option_module
   use Field_module
   use Grid_module
-  use Global_Aux_module
   use WIPP_Flow_Aux_module
   use Variables_module, only : LIQUID_PRESSURE, LIQUID_MOLE_FRACTION, &
                                TEMPERATURE, GAS_PRESSURE, AIR_PRESSURE, &
@@ -924,7 +941,7 @@ end subroutine PMWIPPFloMaxChange
 subroutine PMWIPPFloComputeMassBalance(this,mass_balance_array)
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 07/11/17
   ! 
 
   use WIPP_Flow_module, only : WIPPFloComputeMassBalance
@@ -945,7 +962,7 @@ subroutine PMWIPPFloInputRecord(this)
   ! Writes ingested information to the input record file.
   ! 
   ! Author: Jenn Frederick, SNL
-  ! Date: 03/21/2016
+  ! Date: 07/11/17
   ! 
   
   implicit none
@@ -960,7 +977,7 @@ subroutine PMWIPPFloInputRecord(this)
   write(id,'(a29)',advance='no') 'pm: '
   write(id,'(a)') this%name
   write(id,'(a29)',advance='no') 'mode: '
-  write(id,'(a)') 'general'
+  write(id,'(a)') 'wipp flow'
 
 end subroutine PMWIPPFloInputRecord
 
@@ -971,7 +988,7 @@ subroutine PMWIPPFloCheckpointBinary(this,viewer)
   ! Checkpoints data associated with WIPPFlo PM
   ! 
   ! Author: Glenn Hammond
-  ! Date: 02/18/15
+  ! Date: 07/11/17
 
   use Checkpoint_module
   use Global_module
@@ -994,7 +1011,7 @@ subroutine PMWIPPFloRestartBinary(this,viewer)
   ! Restarts data associated with WIPPFlo PM
   ! 
   ! Author: Glenn Hammond
-  ! Date: 02/18/15
+  ! Date: 07/11/17
 
   use Checkpoint_module
   use Global_module
@@ -1017,7 +1034,7 @@ subroutine PMWIPPFloDestroy(this)
   ! Destroys WIPPFlo process model
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 07/11/17
   ! 
 
   use WIPP_Flow_module, only : WIPPFloDestroy

@@ -16,6 +16,8 @@ module WIPP_Flow_Common_module
   PetscReal, parameter :: eps       = 1.d-8
   PetscReal, parameter :: floweps   = 1.d-24
 
+  ! variables that track the number of times the upwind direction changes
+  ! during the residual and Jacobian calculations.
   PetscInt, public :: liq_upwind_flip_count_by_res
   PetscInt, public :: gas_upwind_flip_count_by_res
   PetscInt, public :: liq_bc_upwind_flip_count_by_res
@@ -49,7 +51,7 @@ subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
   ! term for the residual
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Date: 07/11/17
   ! 
 
   use Option_module
@@ -85,6 +87,7 @@ subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
     !                           den[kmol phase/m^3 phase] * 
     !                           xmol[kmol comp/kmol phase]
     do icomp = 1, option%nflowspec
+!TODO(geh): remove xmol and iphase 
       Res(icomp) = Res(icomp) + wippflo_auxvar%sat(iphase) * &
                                 wippflo_auxvar%den(iphase) * &
                                 wippflo_auxvar%xmol(icomp,iphase)
@@ -109,21 +112,16 @@ subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
     ! por * (satl * denl * dXwl_dpg + satg * deng * dXwg_dpg)
     Jac(1,1) = &
       wippflo_auxvar%d%por_p * &
-        (wippflo_auxvar%sat(1) * wippflo_auxvar%den(1) * wippflo_auxvar%xmol(1,1) + &
-          wippflo_auxvar%sat(2) * wippflo_auxvar%den(2) * wippflo_auxvar%xmol(1,2)) + &
+        (wippflo_auxvar%sat(1) * wippflo_auxvar%den(1) * &
+         wippflo_auxvar%xmol(1,1) + &
+         wippflo_auxvar%sat(2) * wippflo_auxvar%den(2) * &
+         wippflo_auxvar%xmol(1,2)) + &
       porosity * &
                               ! denl_pl = denl_pg
-        (wippflo_auxvar%sat(1) * wippflo_auxvar%d%denl_pl * wippflo_auxvar%xmol(1,1) + &
-          wippflo_auxvar%sat(2) * wippflo_auxvar%d%deng_pg * wippflo_auxvar%xmol(1,2)) !+ &
-!geh: miscibility removed
-!      porosity * &
-!        (wippflo_auxvar%sat(1) * wippflo_auxvar%den(1) * wippflo_auxvar%d%xmol_p(1,1) + &
-!          wippflo_auxvar%sat(2) * wippflo_auxvar%den(2) * wippflo_auxvar%d%xmol_p(1,2))
-    ! w/respect to gas saturation
-    ! porosity, density, mole fraction are independent of gas saturation
-    ! por * (dsatl_dsatg * denl * Xwl + dsatg_dsatg * deng * Xwg)
-    ! dsatl_dsatg = -1.
-    ! dsatg_dsatg = 1.
+        (wippflo_auxvar%sat(1) * wippflo_auxvar%d%denl_pl * &
+         wippflo_auxvar%xmol(1,1) + &
+         wippflo_auxvar%sat(2) * wippflo_auxvar%d%deng_pg * &
+         wippflo_auxvar%xmol(1,2)) !+ &
     Jac(1,2) = porosity * &
       (-1.d0 * wippflo_auxvar%den(1) * wippflo_auxvar%xmol(1,1) + &
         1.d0 * wippflo_auxvar%den(2) * wippflo_auxvar%xmol(1,2))
@@ -137,15 +135,15 @@ subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
     ! por * (satl * denl * dXal_dpg + satg * deng * dXag_dpg)
     Jac(2,1) = &
       wippflo_auxvar%d%por_p * &
-        (wippflo_auxvar%sat(1) * wippflo_auxvar%den(1) * wippflo_auxvar%xmol(2,1) + &
-          wippflo_auxvar%sat(2) * wippflo_auxvar%den(2) * wippflo_auxvar%xmol(2,2)) + &
+        (wippflo_auxvar%sat(1) * wippflo_auxvar%den(1) * &
+         wippflo_auxvar%xmol(2,1) + &
+         wippflo_auxvar%sat(2) * wippflo_auxvar%den(2) * &
+         wippflo_auxvar%xmol(2,2)) + &
       porosity * &
-        (wippflo_auxvar%sat(1) * wippflo_auxvar%d%denl_pl * wippflo_auxvar%xmol(2,1) + &
-          wippflo_auxvar%sat(2) * wippflo_auxvar%d%deng_pg * wippflo_auxvar%xmol(2,2)) !+ &
-!geh: miscibility removed
-!      porosity * &
-!        (wippflo_auxvar%sat(1) * wippflo_auxvar%den(1) * wippflo_auxvar%d%xmol_p(2,1) + &
-!          wippflo_auxvar%sat(2) * wippflo_auxvar%den(2) * wippflo_auxvar%d%xmol_p(2,2))
+        (wippflo_auxvar%sat(1) * wippflo_auxvar%d%denl_pl * &
+         wippflo_auxvar%xmol(2,1) + &
+         wippflo_auxvar%sat(2) * wippflo_auxvar%d%deng_pg * &
+         wippflo_auxvar%xmol(2,2)) !+ &
     ! w/respect to gas saturation
     ! porosity, density, mole fraction are independent of gas saturation
     ! por * (dsatl_dsatg * denl * Xal + dsatg_dsatg * deng * Xag)
@@ -157,12 +155,6 @@ subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
     Jac = Jac * volume_over_dt
   endif
   
-#ifdef DEBUG_WIPPFLO_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(debug_unit,'(a,7es24.15)') 'accum:', Res
-  endif
-#endif                    
-
 end subroutine WIPPFloAccumulation
 
 ! ************************************************************************** !
@@ -184,7 +176,7 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
   ! Computes the internal flux terms for the residual
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Date: 07/11/17
   ! 
   use Option_module
   use Material_Aux_class
@@ -303,6 +295,8 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
   
   v_darcy = 0.d0
 
+  !TODO(geh): merge phases and use arrays for partial derivatives.  This can 
+  !           only be done after analytical derivatives are set up.
   iphase = LIQUID_PHASE
   if (wippflo_auxvar_up%mobility(iphase) + &
       wippflo_auxvar_dn%mobility(iphase) > eps) then
@@ -359,6 +353,7 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
     if (upwind) then
       up_scale = 1.d0
       mobility = wippflo_auxvar_up%mobility(iphase)
+!TODO(geh) :: remove xmol
       xmol(:) = wippflo_auxvar_up%xmol(:,iphase)
     else
       dn_scale = 1.d0
@@ -673,7 +668,7 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! Computes the boundary flux terms for the residual
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Date: 07/11/17
   ! 
   use Option_module                              
   use Material_Aux_class
@@ -1213,7 +1208,7 @@ subroutine WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
   ! Computes the source/sink terms for the residual
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Date: 07/11/17
   ! 
 
   use Option_module
@@ -1334,7 +1329,7 @@ subroutine WIPPFloAccumDerivative(wippflo_auxvar,global_auxvar,material_auxvar, 
   ! term for the Jacobian
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Date: 07/11/17
   ! 
 
   use Option_module
@@ -1391,7 +1386,7 @@ subroutine WIPPFloFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
   ! for the Jacobian
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Date: 07/11/17
   ! 
   use Option_module
   use Material_Aux_class
@@ -1493,7 +1488,7 @@ subroutine WIPPFloBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   ! for the Jacobian
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Date: 07/11/17
   ! 
 
   use Option_module 
@@ -1568,7 +1563,7 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   ! Computes the source/sink terms for the residual
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Date: 07/11/17
   ! 
 
   use Option_module
@@ -1618,7 +1613,7 @@ function WIPPFloAverageDensity(iphase,istate_up,istate_dn, &
   ! Averages density, using opposite cell density if phase non-existent
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/07/14
+  ! Date: 07/11/17
   ! 
 
   implicit none
