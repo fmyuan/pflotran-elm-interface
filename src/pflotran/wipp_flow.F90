@@ -310,8 +310,7 @@ subroutine WIPPFloComputeMassBalance(realization,mass_balance)
   implicit none
   
   type(realization_subsurface_type) :: realization
-  PetscReal :: mass_balance(realization%option%nflowspec, &
-                            realization%option%nphase)
+  PetscReal :: mass_balance(realization%option%nphase)
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -347,13 +346,9 @@ subroutine WIPPFloComputeMassBalance(realization,mass_balance)
         wippflo_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity* &
         material_auxvars(ghosted_id)%volume
       ! mass = volume_phase*density
-      do icomp = 1, option%nflowspec
-        mass_balance(icomp,iphase) = mass_balance(icomp,iphase) + &
-          wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den(iphase)* &
-          !TODO(geh): remove xmol
-          wippflo_auxvars(ZERO_INTEGER,ghosted_id)%xmol(icomp,iphase) * &
-          fmw_comp(icomp)*vol_phase
-      enddo
+      mass_balance(iphase) = mass_balance(iphase) + &
+        wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den(iphase)* &
+        fmw_comp(iphase)*vol_phase
     enddo
   enddo
 

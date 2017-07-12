@@ -85,13 +85,8 @@ subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
   do iphase = 1, option%nphase
     ! Res[kmol comp/m^3 void] = sat[m^3 phase/m^3 void] * 
     !                           den[kmol phase/m^3 phase] * 
-    !                           xmol[kmol comp/kmol phase]
-    do icomp = 1, option%nflowspec
-!TODO(geh): remove xmol and iphase 
-      Res(icomp) = Res(icomp) + wippflo_auxvar%sat(iphase) * &
-                                wippflo_auxvar%den(iphase) * &
-                                wippflo_auxvar%xmol(icomp,iphase)
-    enddo
+    Res(iphase) = Res(iphase) + wippflo_auxvar%sat(iphase) * &
+                                wippflo_auxvar%den(iphase)
   enddo
 
   ! scale by porosity * volume / dt
@@ -112,19 +107,12 @@ subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
     ! por * (satl * denl * dXwl_dpg + satg * deng * dXwg_dpg)
     Jac(1,1) = &
       wippflo_auxvar%d%por_p * &
-        (wippflo_auxvar%sat(1) * wippflo_auxvar%den(1) * &
-         wippflo_auxvar%xmol(1,1) + &
-         wippflo_auxvar%sat(2) * wippflo_auxvar%den(2) * &
-         wippflo_auxvar%xmol(1,2)) + &
+        (wippflo_auxvar%sat(1) * wippflo_auxvar%den(1)) + &
       porosity * &
                               ! denl_pl = denl_pg
-        (wippflo_auxvar%sat(1) * wippflo_auxvar%d%denl_pl * &
-         wippflo_auxvar%xmol(1,1) + &
-         wippflo_auxvar%sat(2) * wippflo_auxvar%d%deng_pg * &
-         wippflo_auxvar%xmol(1,2)) !+ &
+        (wippflo_auxvar%sat(1) * wippflo_auxvar%d%denl_pl)
     Jac(1,2) = porosity * &
-      (-1.d0 * wippflo_auxvar%den(1) * wippflo_auxvar%xmol(1,1) + &
-        1.d0 * wippflo_auxvar%den(2) * wippflo_auxvar%xmol(1,2))
+      (-1.d0 * wippflo_auxvar%den(1))
     ! ----------
     ! Gas Equation
     ! por * (satl * denl * Xal + satg * deng * Xag)
@@ -135,23 +123,16 @@ subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
     ! por * (satl * denl * dXal_dpg + satg * deng * dXag_dpg)
     Jac(2,1) = &
       wippflo_auxvar%d%por_p * &
-        (wippflo_auxvar%sat(1) * wippflo_auxvar%den(1) * &
-         wippflo_auxvar%xmol(2,1) + &
-         wippflo_auxvar%sat(2) * wippflo_auxvar%den(2) * &
-         wippflo_auxvar%xmol(2,2)) + &
+        (wippflo_auxvar%sat(2) * wippflo_auxvar%den(2)) + &
       porosity * &
-        (wippflo_auxvar%sat(1) * wippflo_auxvar%d%denl_pl * &
-         wippflo_auxvar%xmol(2,1) + &
-         wippflo_auxvar%sat(2) * wippflo_auxvar%d%deng_pg * &
-         wippflo_auxvar%xmol(2,2)) !+ &
+        (wippflo_auxvar%sat(2) * wippflo_auxvar%d%deng_pg)
     ! w/respect to gas saturation
     ! porosity, density, mole fraction are independent of gas saturation
     ! por * (dsatl_dsatg * denl * Xal + dsatg_dsatg * deng * Xag)
     ! dsatl_dsatg = -1.
     ! dsatg_dsatg = 1.
     Jac(2,2) = porosity * &
-      (-1.d0 * wippflo_auxvar%den(1) * wippflo_auxvar%xmol(2,1) + &
-        1.d0 * wippflo_auxvar%den(2) * wippflo_auxvar%xmol(2,2))
+      (1.d0 * wippflo_auxvar%den(2))
     Jac = Jac * volume_over_dt
   endif
   
@@ -210,7 +191,6 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
   PetscInt :: iphase
   PetscBool :: upwind
   
-  PetscReal :: xmol(option%nflowspec)
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: perm_ave_over_dist(option%nphase)
   PetscReal :: perm_up, perm_dn
@@ -353,12 +333,9 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
     if (upwind) then
       up_scale = 1.d0
       mobility = wippflo_auxvar_up%mobility(iphase)
-!TODO(geh) :: remove xmol
-      xmol(:) = wippflo_auxvar_up%xmol(:,iphase)
     else
       dn_scale = 1.d0
       mobility = wippflo_auxvar_dn%mobility(iphase)
-      xmol(:) = wippflo_auxvar_dn%xmol(:,iphase)
     endif      
 
     if (mobility > floweps ) then
@@ -381,10 +358,8 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
                                        mobility * area * density_ave
       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
       !                                 xmol[kmol comp/kmol phase]
-      wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
-      air_mole_flux = tot_mole_flux * xmol(air_comp_id)
+      wat_mole_flux = tot_mole_flux
       Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
-      Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
       
       if (analytical_derivatives) then
         option%io_buffer = 'Derivatives must be posed in terms of liquid &
@@ -406,9 +381,8 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
           ! pressure gradient
           tot_mole_flux_ddel_pressure * ddelta_pressure_dpup
         ! derivative water wrt gas pressure
-        Jlup(1,1) = xmol(wat_comp_id) * dtot_mole_flux_dp
+        Jlup(1,1) = dtot_mole_flux_dp
         ! derivative air wrt gas pressure
-        Jlup(2,1) = xmol(air_comp_id) * dtot_mole_flux_dp
             
         ! derivative wrt gas saturation
         ! pl = pg - pc(satg)
@@ -431,9 +405,8 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
           ! pressure gradient
           tot_mole_flux_ddel_pressure * ddelta_pressure_pl * dpl_dsatg         
         ! derivative water wrt gas saturation
-        Jlup(1,2) = xmol(wat_comp_id) * dtot_mole_flux_dsatg
+        Jlup(1,2) = dtot_mole_flux_dsatg
         ! derivative air wrt gas saturation
-        Jlup(2,2) = xmol(air_comp_id) * dtot_mole_flux_dsatg
 
         ! Downstream Cell
         ! derivative wrt gas pressure
@@ -449,9 +422,8 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
           ! pressure gradient
           tot_mole_flux_ddel_pressure * ddelta_pressure_dpdn
         ! derivative water wrt gas pressure
-        Jldn(1,1) = xmol(wat_comp_id) * dtot_mole_flux_dp
+        Jldn(1,1) = dtot_mole_flux_dp
         ! derivative air wrt gas pressure
-        Jldn(2,1) = xmol(air_comp_id) * dtot_mole_flux_dp
             
         ! derivative wrt gas saturation
         ! pl = pg - pc(satg)
@@ -474,9 +446,8 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
           !pressure gradient
           tot_mole_flux_ddel_pressure * ddelta_pressure_pl * dpl_dsatg
         ! derivative water wrt gas saturation
-        Jldn(1,2) = xmol(wat_comp_id) * dtot_mole_flux_dsatg
+        Jldn(1,2) = dtot_mole_flux_dsatg
         ! derivative air wrt gas saturation
-        Jldn(2,2) = xmol(air_comp_id) * dtot_mole_flux_dsatg
           
         Jup = Jup + Jlup
         Jdn = Jdn + Jldn
@@ -546,11 +517,9 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
     if (upwind) then
       up_scale = 1.d0
       mobility = wippflo_auxvar_up%mobility(iphase)
-      xmol(:) = wippflo_auxvar_up%xmol(:,iphase)
     else
       dn_scale = 1.d0
       mobility = wippflo_auxvar_dn%mobility(iphase)
-      xmol(:) = wippflo_auxvar_dn%xmol(:,iphase)
     endif      
 
     if (mobility > floweps) then
@@ -573,9 +542,7 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
                                        mobility * area * density_ave      
       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
       !                                 xmol[kmol comp/kmol phase]
-      wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
-      air_mole_flux = tot_mole_flux * xmol(air_comp_id)
-      Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+      air_mole_flux = tot_mole_flux
       Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
 
       if (analytical_derivatives) then
@@ -597,9 +564,8 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
           ! pressure gradient
           tot_mole_flux_ddel_pressure * ddelta_pressure_dpup
         ! derivative water wrt gas pressure
-        Jgup(1,1) = xmol(wat_comp_id) * dtot_mole_flux_dp
         ! derivative air wrt gas pressure
-        Jgup(2,1) = xmol(air_comp_id) * dtot_mole_flux_dp
+        Jgup(2,1) = dtot_mole_flux_dp
             
         ! derivative wrt gas saturation
         ! derivative total mole flux wrt gas saturation
@@ -608,9 +574,8 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
           up_scale * &
           tot_mole_flux / mobility * wippflo_auxvar_up%d%mobilityg_satg
         ! derivative water wrt gas saturation
-        Jgup(1,2) = xmol(wat_comp_id) * dtot_mole_flux_dsatg
         ! derivative air wrt gas saturation
-        Jgup(2,2) = xmol(air_comp_id) * dtot_mole_flux_dsatg
+        Jgup(2,2) = dtot_mole_flux_dsatg
           
         ! Downstream Cell
         ! derivative wrt gas pressure
@@ -626,9 +591,8 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
           ! pressure gradient
           tot_mole_flux_ddel_pressure * ddelta_pressure_dpdn
         ! derivative water wrt gas pressure
-        Jgdn(1,1) = xmol(wat_comp_id) * dtot_mole_flux_dp
         ! derivative air wrt gas pressure
-        Jgdn(2,1) = xmol(air_comp_id) * dtot_mole_flux_dp
+        Jgdn(2,1) = dtot_mole_flux_dp
             
         ! derivative wrt gas saturation
         ! derivative total mole flux wrt gas saturation
@@ -637,9 +601,8 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
           dn_scale * &
           tot_mole_flux / mobility * wippflo_auxvar_dn%d%mobilityg_satg
         ! derivative water wrt gas saturation
-        Jgdn(1,2) = xmol(wat_comp_id) * dtot_mole_flux_dsatg
         ! derivative air wrt gas saturation
-        Jgdn(2,2) = xmol(air_comp_id) * dtot_mole_flux_dsatg
+        Jgdn(2,2) = dtot_mole_flux_dsatg
           
         Jup = Jup + Jgup
         Jdn = Jdn + Jgdn
@@ -700,7 +663,6 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscInt :: wat_comp_id, air_comp_id
   PetscInt :: icomp, iphase
   PetscInt :: bc_type
-  PetscReal :: xmol(option%nflowspec)  
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: perm_dn_adj(option%nphase)
   PetscReal :: perm_ave_over_dist
@@ -730,7 +692,6 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dpl_dsatg
   PetscReal :: ddelta_pressure_pl
   PetscReal :: tot_mole_flux_ddel_pressure, tot_mole_flux_dmobility
-  PetscReal :: xmol_bool
   PetscReal :: dn_scale
 
   PetscReal :: Jl(2,2)
@@ -772,7 +733,6 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   
   iphase = LIQUID_PHASE
   mobility = 0.d0
-  xmol_bool = 1.d0
   bc_type = ibndtype(iphase)
   select case(bc_type)
     ! figure out the direction of flow
@@ -870,11 +830,9 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         endif
         if (upwind) then
           mobility = wippflo_auxvar_up%mobility(iphase)
-          xmol(:) = wippflo_auxvar_up%xmol(:,iphase)
         else
           dn_scale = 1.d0        
           mobility = wippflo_auxvar_dn%mobility(iphase)
-          xmol(:) = wippflo_auxvar_dn%xmol(:,iphase)
         endif      
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
@@ -893,7 +851,6 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
       endif
     case(NEUMANN_BC)
-      xmol_bool = 0.d0
       dv_darcy_ddelta_pressure = 0.d0
       dv_darcy_dmobility = 0.d0
       ddensity_ave_dden_up = 0.d0
@@ -906,10 +863,8 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         case(GAS_PHASE)
           idof = auxvar_mapping(WIPPFLO_GAS_FLUX_INDEX)
       end select
-      xmol = 0.d0
       !geh: we should read in the mole fraction for both phases as the
       !     enthalpy, etc. applies to phase, not pure component.
-      xmol(iphase) = 1.d0
       if (dabs(auxvars(idof)) > floweps) then
         v_darcy(iphase) = auxvars(idof)
         if (v_darcy(iphase) > 0.d0) then 
@@ -936,10 +891,8 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
     tot_mole_flux_dmobility = dv_darcy_dmobility * area * density_ave
     ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
     !                                 xmol[kmol comp/kmol phase]
-    wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
-    air_mole_flux = tot_mole_flux * xmol(air_comp_id)
+    wat_mole_flux = tot_mole_flux
     Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
-    Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
    
     if (analytical_derivatives) then
       Jl = 0.d0
@@ -957,9 +910,8 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ! pressure gradient
         tot_mole_flux_ddel_pressure * ddelta_pressure_dpdn
       ! derivative water wrt gas pressure
-      Jl(1,1) = xmol(wat_comp_id) * dtot_mole_flux_dp
+      Jl(1,1) = dtot_mole_flux_dp
       ! derivative air wrt gas pressure
-      Jl(2,1) = xmol(air_comp_id) * dtot_mole_flux_dp
             
       ! derivative wrt gas saturation
       ! pl = pg - pc(satg)
@@ -982,9 +934,8 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         !pressure gradient
         tot_mole_flux_ddel_pressure * ddelta_pressure_pl * dpl_dsatg
       ! derivative water wrt gas saturation
-      Jl(1,2) = xmol(wat_comp_id) * dtot_mole_flux_dsatg
+      Jl(1,2) = dtot_mole_flux_dsatg
       ! derivative air wrt gas saturation
-      Jl(2,2) = xmol(air_comp_id) * dtot_mole_flux_dsatg
           
       J = J + Jl
     endif
@@ -992,7 +943,6 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
 
   iphase = GAS_PHASE
   mobility = 0.d0
-  xmol_bool = 1.d0
   bc_type = ibndtype(iphase)
   select case(bc_type)
     case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
@@ -1090,11 +1040,9 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         endif
         if (upwind) then
           mobility = wippflo_auxvar_up%mobility(iphase)
-          xmol(:) = wippflo_auxvar_up%xmol(:,iphase)
         else
           dn_scale = 1.d0        
           mobility = wippflo_auxvar_dn%mobility(iphase)
-          xmol(:) = wippflo_auxvar_dn%xmol(:,iphase)
         endif      
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
@@ -1112,7 +1060,6 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
       endif
     case(NEUMANN_BC)
-      xmol_bool = 0.d0
       dv_darcy_ddelta_pressure = 0.d0
       dv_darcy_dmobility = 0.d0
       ddensity_ave_dden_up = 0.d0 ! always
@@ -1126,10 +1073,8 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         case(GAS_PHASE)
           idof = auxvar_mapping(WIPPFLO_GAS_FLUX_INDEX)
       end select
-      xmol = 0.d0
       !geh: we should read in the mole fraction for both phases as the
       !     enthalpy, etc. applies to phase, not pure component.
-      xmol(iphase) = 1.d0
       if (dabs(auxvars(idof)) > floweps) then
         v_darcy(iphase) = auxvars(idof)
         if (v_darcy(iphase) > 0.d0) then 
@@ -1157,9 +1102,7 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
     tot_mole_flux_dmobility = dv_darcy_dmobility * area * density_ave
     ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
     !                                 xmol[kmol comp/kmol phase]
-    wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
-    air_mole_flux = tot_mole_flux * xmol(air_comp_id)
-    Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+    air_mole_flux = tot_mole_flux
     Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
       
     if (analytical_derivatives) then
@@ -1178,9 +1121,8 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ! pressure gradient
         tot_mole_flux_ddel_pressure * ddelta_pressure_dpdn
       ! derivative water wrt gas pressure
-      Jg(1,1) = xmol(wat_comp_id) * dtot_mole_flux_dp
       ! derivative air wrt gas pressure
-      Jg(2,1) = xmol(air_comp_id) * dtot_mole_flux_dp
+      Jg(2,1) = dtot_mole_flux_dp
             
       ! derivative wrt gas saturation
       ! derivative total mole flux wrt gas saturation
@@ -1189,9 +1131,8 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         dn_scale * &
         tot_mole_flux_dmobility * wippflo_auxvar_dn%d%mobilityg_satg
       ! derivative water wrt gas saturation
-      Jg(1,2) = xmol(wat_comp_id) * dtot_mole_flux_dsatg
       ! derivative air wrt gas saturation
-      Jg(2,2) = xmol(air_comp_id) * dtot_mole_flux_dsatg
+      Jg(2,2) = dtot_mole_flux_dsatg
           
       J = J + Jg
     endif
@@ -1300,20 +1241,12 @@ subroutine WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
 
   if (dabs(qsrc(TWO_INTEGER)) < 1.d-40 .and. &
       qsrc(ONE_INTEGER) < 0.d0) then ! extraction only
-    ! Res(1) holds qsrc_mol for water.  If the src/sink value for air is zero,
-    ! remove/add the equivalent mole fraction of air in the liquid phase.
-    qsrc_mol = Res(wat_comp_id)*wippflo_auxvar%xmol(TWO_INTEGER,ONE_INTEGER)
     Res(TWO_INTEGER) = qsrc_mol
     ss_flow_vol_flux(air_comp_id) = qsrc_mol/wippflo_auxvar%den(TWO_INTEGER)
     if (analytical_derivatives) then
-      !Jg = 0.d0
+      Jg = 0.d0
       ! derivative wrt gas pressure
-      Jg(2,1) = Jg(2,1) + &
-                dden_bool * qsrc(wat_comp_id) * wippflo_auxvar%d%denl_pl * &
-                wippflo_auxvar%xmol(TWO_INTEGER,ONE_INTEGER)! + &
-!geh: miscibility removed
-!                Res(ONE_INTEGER) * wippflo_auxvar%d%xmol_p(2,1)
-          ! derivative wrt gas saturation
+      ! derivative wrt gas saturation
       J = J + Jg
     endif
   endif
@@ -1751,32 +1684,18 @@ subroutine WIPPFloAuxVarDiff(idof,wippflo_auxvar,global_auxvar, &
   gas_density = wippflo_auxvar%den(gid)
   liquid_saturation = wippflo_auxvar%sat(lid)
   gas_saturation = wippflo_auxvar%sat(gid)
-  liquid_mass = (liquid_density*wippflo_auxvar%xmol(lid,lid)* & 
-                 liquid_saturation+ &
-                 gas_density*wippflo_auxvar%xmol(lid,gid)* & 
-                 gas_saturation)* & 
+  liquid_mass = (liquid_density*liquid_saturation)* &
                  wippflo_auxvar%effective_porosity*material_auxvar%volume
-  gas_mass = (liquid_density*wippflo_auxvar%xmol(gid,lid)* & 
-              liquid_saturation+ &
-              gas_density*wippflo_auxvar%xmol(gid,gid)* & 
-              gas_saturation)* & 
+  gas_mass = (gas_density*gas_saturation)* & 
               wippflo_auxvar%effective_porosity*material_auxvar%volume
   liquid_density_pert = wippflo_auxvar_pert%den(lid)
   gas_density_pert = wippflo_auxvar_pert%den(gid)
   liquid_saturation_pert = wippflo_auxvar_pert%sat(lid)
   gas_saturation_pert = wippflo_auxvar_pert%sat(gid)
-  liquid_mass_pert = (liquid_density_pert*wippflo_auxvar_pert%xmol(lid,lid)* & 
-                 liquid_saturation_pert+ &
-                 gas_density_pert*wippflo_auxvar_pert%xmol(lid,gid)* & 
-                 gas_saturation_pert)* & 
-                 wippflo_auxvar_pert%effective_porosity*material_auxvar_pert%volume
-  gas_mass_pert = (liquid_density_pert*wippflo_auxvar_pert%xmol(gid,lid)* & 
-              liquid_saturation_pert+ &
-              gas_density_pert*wippflo_auxvar_pert%xmol(gid,gid)* & 
-              gas_saturation_pert)* & 
+  liquid_mass_pert = (liquid_density_pert*liquid_saturation_pert)* &
+              wippflo_auxvar_pert%effective_porosity*material_auxvar_pert%volume
+  gas_mass_pert = (gas_density_pert*gas_saturation_pert)* & 
               wippflo_auxvar_pert%effective_porosity*material_auxvar_pert%volume 
-              
-              
   call WIPPFloAuxVarPrintResult('tot liq comp mass [kmol]', &
                                 (liquid_mass_pert-liquid_mass)/pert, &
                                 uninitialized_value,uninitialized_value,option)
