@@ -22,6 +22,7 @@ module WIPP_Flow_Aux_module
   PetscBool, public :: wippflo_count_upwind_dir_flip = PETSC_FALSE
   PetscBool, public :: wippflo_use_fracture = PETSC_TRUE
   PetscBool, public :: wippflo_use_creep_closure = PETSC_TRUE
+  !TODO(geh): hardwire gas to H2
   PetscReal, public :: fmw_comp(2) = [FMWH2O,FMWAIR]
   PetscReal, public :: wippflo_max_pressure_change = 5.d4
   PetscInt, public :: wippflo_max_it_before_damping = UNINITIALIZED_INTEGER

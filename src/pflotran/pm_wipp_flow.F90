@@ -130,21 +130,19 @@ subroutine PMWIPPFloRead(this,input)
     if (found) cycle
     
     select case(trim(keyword))
-      !TODO(geh): remove these cards
       case('LIQUID_EQUATION_TOLERANCE')
         call InputReadDouble(input,option,this%liquid_equation_tolerance)
         call InputDefaultMsg(input,option,'LIQUID_EQUATION_TOLERANCE')
       case('GAS_EQUATION_TOLERANCE')
         call InputReadDouble(input,option,this%gas_equation_tolerance)
         call InputDefaultMsg(input,option,'GAS_EQUATION_TOLERANCE')
-      case('GAS_PRESSURE_TOLERANCE')
+      case('LIQUID_PRESSURE_TOLERANCE')
         call InputReadDouble(input,option,this%liquid_pressure_tolerance)
-        call InputDefaultMsg(input,option,'GAS_PRESSURE_TOLERANCE')
+        call InputDefaultMsg(input,option,'LIQUID_PRESSURE_TOLERANCE')
       case('GAS_SATURATION_TOLERANCE')
         call InputReadDouble(input,option,this%gas_saturation_tolerance)
         call InputDefaultMsg(input,option,'GAS_SATURATION_TOLERANCE')
       case('GAS_COMPONENT_FORMULA_WEIGHT')
-        !geh: assuming gas component is index 2
         call InputReadDouble(input,option,fmw_comp(2))
         call InputErrorMsg(input,option,'gas component formula wt.', &
                            error_string)

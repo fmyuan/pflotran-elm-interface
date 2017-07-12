@@ -387,8 +387,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
         call DiscretizationLocalToGlobal(realization%discretization, &
                                          field%iphas_loc,global_vec,ONEDOF)
         call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
-      !TODO(geh): remove WF_MODE as it should not need STATE
-      case(WF_MODE,G_MODE,TOWG_MODE)
+      case(G_MODE,TOWG_MODE)
         call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
                                    STATE,ZERO_INTEGER)
         call DiscretizationLocalToGlobal(discretization,field%work_loc, &
@@ -501,8 +500,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
         if (option%iflowmode == FLASH2_MODE) then
         ! set vardof vec in mphase
         endif
-      !TODO(geh): remove WF_MODE as it should not need STATE
-      case(WF_MODE,G_MODE,TOWG_MODE) 
+      case(G_MODE,TOWG_MODE) 
         call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
         call DiscretizationGlobalToLocal(discretization,global_vec, &
                                          field%work_loc,ONEDOF)
@@ -1217,8 +1215,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
         dataset_name = "State" // CHAR(0)
         call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
             pm_grp_id, H5T_NATIVE_DOUBLE)
-      !TODO(geh): remove WF_MODE as it should not need STATE
-      case(WF_MODE,G_MODE,TOWG_MODE)
+      case(G_MODE,TOWG_MODE)
         call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
                                    STATE,ZERO_INTEGER)
         call DiscretizationLocalToGlobal(discretization,field%work_loc, &
@@ -1373,8 +1370,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
         if (option%iflowmode == FLASH2_MODE) then
         ! set vardof vec in mphase
         endif
-      !TODO(geh): remove WF_MODE as it should not need STATE
-      case(WF_MODE,G_MODE,TOWG_MODE)
+      case(G_MODE,TOWG_MODE)
         call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
              pm_grp_id, H5T_NATIVE_DOUBLE)
         call DiscretizationNaturalToGlobal(discretization, natural_vec, &

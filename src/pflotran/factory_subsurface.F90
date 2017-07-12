@@ -994,16 +994,6 @@ subroutine SubsurfaceInitSimulation(simulation)
   use PM_Subsurface_Flow_class
   use PM_Auxiliary_class
   
-  !TODO(geh): are these needed?
-  use PM_General_class
-  use PM_WIPP_Flow_class
-  use PM_Richards_class
-  use PM_TH_class
-  use PM_RT_class
-  use PM_Waste_Form_class
-  use PM_UFD_Decay_class
-  use PM_TOilIms_class
-
   use Timestepper_BE_class
   
   implicit none

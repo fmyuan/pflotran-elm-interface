@@ -56,13 +56,16 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(TH_MODE)
-        call THSetup(realization)
-      case(RICHARDS_MODE)
+      case(RICHARDS_MODE,WF_MODE,G_MODE,TOIL_IMS_MODE,TOWG_MODE)
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
                            patch%characteristic_curves_array, &
                            realization%option)
+    end select
+    select case(option%iflowmode)
+      case(TH_MODE)
+        call THSetup(realization)
+      case(RICHARDS_MODE)
         call RichardsSetup(realization)
       case(MPH_MODE)
         call init_span_wagner(option)      
@@ -75,30 +78,13 @@ subroutine InitSubsurfFlowSetupRealization(realization)
       case(FLASH2_MODE)
         call init_span_wagner(option)      
         call Flash2Setup(realization)
-      !TODO(geh): combine with Richareds, TOIL, etc.
       case(WF_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           patch%material_property_array, &
-                           patch%characteristic_curves_array, &
-                           realization%option)
         call WIPPFloSetup(realization)
       case(G_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           patch%material_property_array, &
-                           patch%characteristic_curves_array, &
-                           realization%option)
         call GeneralSetup(realization)
       case(TOIL_IMS_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           patch%material_property_array, &
-                           patch%characteristic_curves_array, &
-                           realization%option)
         call TOilImsSetup(realization)
       case(TOWG_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           patch%material_property_array, &
-                           patch%characteristic_curves_array, &
-                           realization%option)
         call TOWGSetup(realization)
     end select
   

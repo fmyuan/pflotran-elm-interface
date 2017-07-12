@@ -196,8 +196,6 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason,context, &
     option%converged = PETSC_FALSE
   endif
 
-  !TODO(geh): remove conditional on WF_MODE
-  if (option%iflowmode == WF_MODE) then
   if (option%convergence /= CONVERGENCE_OFF) then
     select case(option%convergence)
       case(CONVERGENCE_CUT_TIMESTEP)
@@ -209,7 +207,6 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason,context, &
       case(CONVERGENCE_CONVERGED)
         reason = 999
     end select
-  endif
   endif
     
 !  if (reason <= 0 .and. solver%check_infinity_norm) then

@@ -657,7 +657,6 @@ subroutine CondControlAssignFlowInitCond(realization)
             ! TODO(geh): phase out field%iphas_loc
             iphase_loc_p(ghosted_id) = &
               initial_condition%flow_condition%iphase
-            !TODO(geh): remove?!
             if (option%iflowmode == G_MODE) then
               cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
                 int(iphase_loc_p(ghosted_id))
