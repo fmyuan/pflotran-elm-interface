@@ -17,7 +17,7 @@ module WIPP_Flow_Aux_module
 #endif
   
   PetscBool, public :: wippflo_analytical_derivatives = PETSC_FALSE
-  PetscBool, public :: wippflo_fix_upwind_direction = PETSC_FALSE
+  PetscBool, public :: wippflo_fix_upwind_direction = PETSC_TRUE
   PetscBool, public :: wippflo_update_upwind_direction = PETSC_FALSE
   PetscBool, public :: wippflo_count_upwind_dir_flip = PETSC_FALSE
   PetscBool, public :: wippflo_use_fracture = PETSC_TRUE

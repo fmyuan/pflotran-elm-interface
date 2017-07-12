@@ -159,6 +159,8 @@ subroutine PMWIPPFloRead(this,input)
         call InputErrorMsg(input,option,'damping factor',error_string)
       case('FIX_UPWIND_DIRECTION')
         wippflo_fix_upwind_direction = PETSC_TRUE
+      case('UNFIX_UPWIND_DIRECTION')
+        wippflo_fix_upwind_direction = PETSC_FALSE
       case('COUNT_UPWIND_DIRECTION_FLIP')
         wippflo_count_upwind_dir_flip = PETSC_TRUE
       case('NO_FRACTURE')
