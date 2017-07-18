@@ -169,9 +169,7 @@ module Condition_module
             TranConditionCreate, &
             TranConditionAddToList, TranConditionInitList, &
             TranConditionDestroyList, TranConditionGetPtrFromList, &
-            TranConstraintAddToList, TranConstraintInitList, &
-            TranConstraintDestroyList, TranConstraintGetPtrFromList, &
-            TranConditionRead, TranConstraintRead, &
+            TranConditionRead, &
             TranConditionUpdate, &
             FlowConditionIsTransient, &
             ConditionReadValues, &
@@ -3568,11 +3566,7 @@ subroutine TranConditionRead(condition,constraint_list,reaction,input,option)
         call printMsg(option)
         call TranConstraintRead(constraint,reaction,input,option)
         call TranConstraintAddToList(constraint,constraint_list)
-        constraint_coupler%aqueous_species => constraint%aqueous_species
-        constraint_coupler%minerals => constraint%minerals
-        constraint_coupler%surface_complexes => constraint%surface_complexes
-        constraint_coupler%colloids => constraint%colloids
-        constraint_coupler%immobile_species => constraint%immobile_species
+        call TranConstraintMapToCoupler(constraint_coupler,constraint)
         constraint_coupler%time = default_time
         ! add to end of coupler list
         if (.not.associated(condition%constraint_coupler_list)) then

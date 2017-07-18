@@ -1074,14 +1074,14 @@ subroutine RealProcessTranConditions(realization)
   
   if (option%use_mc) then
     call ReactionProcessConstraint(realization%reaction, &
-                                   realization%sec_transport_constraint%name, &
-                                   realization%sec_transport_constraint%aqueous_species, &
-                                   realization%sec_transport_constraint%free_ion_guess, &
-                                   realization%sec_transport_constraint%minerals, &
-                                   realization%sec_transport_constraint%surface_complexes, &
-                                   realization%sec_transport_constraint%colloids, &
-                                   realization%sec_transport_constraint%immobile_species, &
-                                   realization%option)
+                     realization%sec_transport_constraint%name, &
+                     realization%sec_transport_constraint%aqueous_species, &
+                     realization%sec_transport_constraint%free_ion_guess, &
+                     realization%sec_transport_constraint%minerals, &
+                     realization%sec_transport_constraint%surface_complexes, &
+                     realization%sec_transport_constraint%colloids, &
+                     realization%sec_transport_constraint%immobile_species, &
+                     realization%option)
   endif
   
   ! tie constraints to couplers, if not already associated
@@ -1092,19 +1092,16 @@ subroutine RealProcessTranConditions(realization)
     cur_constraint_coupler => cur_condition%constraint_coupler_list
     do
       if (.not.associated(cur_constraint_coupler)) exit
+      ! if aqueous_species exists, it was coupled during the embedded read.
       if (.not.associated(cur_constraint_coupler%aqueous_species)) then
         cur_constraint => realization%transport_constraints%first
         do
           if (.not.associated(cur_constraint)) exit
           if (StringCompare(cur_constraint%name, &
-                             cur_constraint_coupler%constraint_name, &
-                             MAXWORDLENGTH)) then
-            cur_constraint_coupler%aqueous_species => cur_constraint%aqueous_species
-            cur_constraint_coupler%free_ion_guess => cur_constraint%free_ion_guess
-            cur_constraint_coupler%minerals => cur_constraint%minerals
-            cur_constraint_coupler%surface_complexes => cur_constraint%surface_complexes
-            cur_constraint_coupler%colloids => cur_constraint%colloids
-            cur_constraint_coupler%immobile_species => cur_constraint%immobile_species
+                            cur_constraint_coupler%constraint_name, &
+                            MAXWORDLENGTH)) then
+            call TranConstraintMapToCoupler(cur_constraint_coupler, &
+                                            cur_constraint)
             exit
           endif
           cur_constraint => cur_constraint%next
