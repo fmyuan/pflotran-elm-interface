@@ -42,10 +42,14 @@ module Material_module
 
     class(fracture_type), pointer :: fracture
     
+    PetscInt :: creep_closure_id
+    character(len=MAXWORDLENGTH) :: creep_closure_name
+    
     character(len=MAXWORDLENGTH) :: soil_compressibility_function
     PetscReal :: soil_compressibility
     PetscReal :: soil_reference_pressure
     PetscBool :: soil_reference_pressure_initial
+    class(dataset_base_type), pointer :: soil_reference_pressure_dataset
 !    character(len=MAXWORDLENGTH) :: compressibility_dataset_name
     class(dataset_base_type), pointer :: compressibility_dataset
 
@@ -170,10 +174,14 @@ function MaterialPropertyCreate()
 
   nullify(material_property%fracture)
   
+  material_property%creep_closure_id = 1 ! one is the index to a null pointer
+  material_property%creep_closure_name = ''
+  
   material_property%soil_compressibility_function = ''
   material_property%soil_compressibility = UNINITIALIZED_DOUBLE
   material_property%soil_reference_pressure = UNINITIALIZED_DOUBLE
   material_property%soil_reference_pressure_initial = PETSC_FALSE
+  nullify(material_property%soil_reference_pressure_dataset)
 !  material_property%compressibility_dataset_name = ''
   nullify(material_property%compressibility_dataset)
 
@@ -370,12 +378,12 @@ subroutine MaterialPropertyRead(material_property,input,option)
           material_property%soil_reference_pressure_initial = PETSC_TRUE
         else
           ! if not the keyword above, copy back into buffer to be read as a
-          ! double precision.
+          ! double precision or dataset.
           input%buf = string
-          call InputReadDouble(input,option, &
-                               material_property%soil_reference_pressure)
-          call InputErrorMsg(input,option,'soil reference pressure', &
-                             'MATERIAL_PROPERTY')
+          call DatasetReadDoubleOrDataset(input, &
+                  material_property%soil_reference_pressure, &
+                  material_property%soil_reference_pressure_dataset, &
+                  'soil reference pressure','MATERIAL_PROPERTY',option)
         endif
       case('THERMAL_EXPANSITIVITY') 
         call InputReadDouble(input,option, &
@@ -405,6 +413,12 @@ subroutine MaterialPropertyRead(material_property,input,option)
         material_property%fracture => FractureCreate()
         call material_property%fracture%Read(input,option)
         option%flow%transient_porosity = PETSC_TRUE
+      case('CREEP_CLOSURE_TABLE') 
+        call InputReadWordDbaseCompatible(input,option, &
+                           material_property%creep_closure_name, &
+                           PETSC_TRUE)
+        call InputErrorMsg(input,option,'creep closure table name', &
+                           'MATERIAL_PROPERTY')
       case('PERMEABILITY')
         do
           call InputReadPflotranString(input,option)
@@ -780,6 +794,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
       call printErrMsg(option)
     endif
     if (Uninitialized(material_property%soil_reference_pressure) .and. &
+        .not.associated(material_property% &
+                          soil_reference_pressure_dataset) .and. &
         .not.material_property%soil_reference_pressure_initial) then
       option%io_buffer = 'SOIL_COMPRESSIBILITY_FUNCTION is specified in &
         &inputdeck for MATERIAL_PROPERTY "' // &
@@ -787,7 +803,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
         '", but a SOIL_REFERENCE_PRESSURE is not defined.'
       call printErrMsg(option)
     endif
-    if (Initialized(material_property%soil_reference_pressure) .and. &
+    if ((Initialized(material_property%soil_reference_pressure) .or. &
+         associated(material_property%soil_reference_pressure_dataset)) .and. &
         material_property%soil_reference_pressure_initial) then
       option%io_buffer = 'SOIL_REFERENCE_PRESSURE may not be defined by the &
         &initial pressure and a specified pressure in material "' // &
@@ -1347,6 +1364,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
     endif
     if (Initialized(material_property_ptrs(i)%ptr%&
                       soil_reference_pressure) .or. &
+        associated(material_property_ptrs(i)%ptr%&
+                      soil_reference_pressure_dataset) .or. &
         material_property_ptrs(i)%ptr%soil_reference_pressure_initial) then
       if (soil_reference_pressure_index == 0) then
         icount = icount + 1
@@ -1424,9 +1443,8 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
       material_property%rock_density
   endif
   
-  if (associated(material_property%fracture)) then
-    call FracturePropertytoAux(material_auxvar, material_property%fracture)
-  endif
+  call FracturePropertytoAux(material_auxvar%fracture, &
+                             material_property%fracture)
   
   if (soil_compressibility_index > 0) then
     material_auxvar%soil_properties(soil_compressibility_index) = &
@@ -2107,6 +2125,7 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%porosity_dataset)
   nullify(material_property%tortuosity_dataset)
   nullify(material_property%compressibility_dataset)
+  nullify(material_property%soil_reference_pressure_dataset)
     
   deallocate(material_property)
   nullify(material_property)

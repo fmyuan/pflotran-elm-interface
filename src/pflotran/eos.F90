@@ -88,7 +88,7 @@ subroutine EOSRead(input,option)
                                    'EOS,WATER,DENSITY,CONSTANT')
                 call InputReadAndConvertUnits(input,temparray(1), &
                                'kg/m^3','EOS,WATER,DENSITY,CONSTANT',option)
-              case('EXPONENTIAL')
+              case('EXPONENTIAL','BRAGFLO')
                 call InputReadDouble(input,option,temparray(1))
                 call InputErrorMsg(input,option,'REFERENCE_DENSITY', &
                                    'EOS,WATER,DENSITY,EXPONENTIAL')

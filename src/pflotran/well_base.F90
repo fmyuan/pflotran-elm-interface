@@ -1,6 +1,8 @@
 module Well_Base_class
 #ifdef WELL_CLASS
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
   use WellSpec_Base_class
 
@@ -11,8 +13,6 @@ module Well_Base_class
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public :: well_base_type 
     !PetscInt :: id                            ! well id is not needed - use coupler id

@@ -243,6 +243,10 @@ END_SUBSURFACE
 #=========================== waste forms ======================================
 WASTE_FORM_GENERAL
 
+  PRINT_MASS_BALANCE
+
+  IMPLICIT_SOLUTION
+
   MECHANISM GLASS 
     NAME glass01
     SPECIFIC_SURFACE_AREA 2.78d-3 m^2/kg
@@ -312,8 +316,6 @@ WASTE_FORM_GENERAL
     VOLUME 1.14d0 m^3
     MECHANISM_NAME custom01
   /
-  
-  PRINT_MASS_BALANCE
   
 END_WASTE_FORM_GENERAL
 

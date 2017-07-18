@@ -207,10 +207,12 @@ set(MODE_AUX_SOURCES
 	pm_th.F90
 	pm_ufd_decay.F90
 	pm_waste_form.F90
+	pm_wipp_flow.F90
 	pm_wipp_srcsink.F90
 	pm_ufd_biosphere.F90
 	richards_aux.F90
 	th_aux.F90
+	wipp_flow_aux.F90
 	inlinesurface_aux.F90
 )
 
@@ -228,6 +230,8 @@ set(MODE_SOURCES
 	richards.F90
 	richards_common.F90
 	th.F90
+	wipp_flow.F90
+	wipp_flow_common.F90
 	inlinesurface.F90
 )
 

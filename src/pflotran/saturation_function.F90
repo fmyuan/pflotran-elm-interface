@@ -171,7 +171,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   PetscReal :: tempreal
 
   select case(option%iflowmode)
-    case(G_MODE)
+    case(G_MODE,WF_MODE)
       option%io_buffer = 'SATURATION_FUNCTION card is no longer ' // &
         'supported for GENERAL mode.  Please use CHARACTERISTIC_' // &
         'CURVES card defined on the PFLOTRAN wiki.'

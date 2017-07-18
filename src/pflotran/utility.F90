@@ -48,6 +48,11 @@ module Utility_module
     module procedure InterfaceApproxWithDeriv
     module procedure InterfaceApproxWithoutDeriv
   end interface
+  
+  interface CalcParallelSUM
+    module procedure CalcParallelSUM1
+    module procedure CalcParallelSUM2
+  end interface
 
   public :: GetRndNumFromNormalDist, &
             DotProduct, &
@@ -2097,7 +2102,7 @@ end function DigitsOfAccuracy
 
 ! ************************************************************************** !
 
-subroutine CalcParallelSUM(option,rank_list,local_val,global_sum)
+subroutine CalcParallelSUM1(option,rank_list,local_val,global_sum)
   ! 
   ! Calculates global sum for a MPI_DOUBLE_PRECISION number (local_val).
   ! This function uses only MPI_Send and MPI_Recv functions and does not need 
@@ -2106,7 +2111,7 @@ subroutine CalcParallelSUM(option,rank_list,local_val,global_sum)
   ! a call to MPI_Allreduce.
   ! 
   ! Author: Jenn Frederick
-  ! Date: 03/23/17
+  ! Date: 07/05/2017
   
   use Option_module
   
@@ -2116,41 +2121,80 @@ subroutine CalcParallelSUM(option,rank_list,local_val,global_sum)
   PetscInt :: rank_list(:)
   PetscReal :: local_val
   PetscReal :: global_sum
+  
+  PetscReal :: passed_local_val(1)
+  PetscReal :: passed_global_val(1)
+  
+  passed_local_val(1) = local_val
+  passed_global_val(1) = 0.d0
+  
+  call CalcParallelSUM2(option,rank_list,passed_local_val,passed_global_val)
+  
+  global_sum = passed_global_val(1)
+
+end subroutine CalcParallelSUM1
+
+! ************************************************************************** !
+
+subroutine CalcParallelSUM2(option,rank_list,local_val,global_sum)
+  ! 
+  ! Calculates global sum for a MPI_DOUBLE_PRECISION number (local_val).
+  ! This function uses only MPI_Send and MPI_Recv functions and does not need 
+  ! a communicator object other than option%mycomm. It reduces communication 
+  ! to the processes that are included in the rank_list array rather than using
+  ! a call to MPI_Allreduce.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/23/17, 07/05/2017
+  
+  use Option_module
+  
+  implicit none
+  
+  type(option_type), pointer :: option
+  PetscInt :: rank_list(:)
+  PetscReal :: local_val(:)
+  PetscReal :: global_sum(:)
 
   PetscReal, pointer :: temp_array(:)
-  PetscInt :: num_ranks
-  PetscInt :: m
+  PetscInt :: num_ranks, val_size
+  PetscInt :: m, j
   PetscInt :: TAG
   PetscErrorCode :: ierr
   
   num_ranks = size(rank_list)
+  val_size = size(local_val)
   allocate(temp_array(num_ranks))
-  temp_array = 0.d0
   TAG = 0
   
   if (num_ranks > 1) then
   !------------------------------------------
-    if (option%myrank .ne. rank_list(1)) then
-      call MPI_Send(local_val,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                    rank_list(1),TAG,option%mycomm,ierr)
-    else
-      temp_array(1) = local_val
-      do m = 2,num_ranks
-        call MPI_Recv(local_val,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                      rank_list(m),TAG,option%mycomm,MPI_STATUS_IGNORE,ierr)
-        temp_array(m) = local_val
-      enddo
-      global_sum = sum(temp_array)
-    endif
-    if (option%myrank == rank_list(1)) then
-      do m = 2,num_ranks
-        call MPI_Send(global_sum,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                      rank_list(m),TAG,option%mycomm,ierr)
-      enddo
-    else
-      call MPI_Recv(global_sum,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                    rank_list(1),TAG,option%mycomm,MPI_STATUS_IGNORE,ierr)
-    endif             
+    temp_array = 0.d0
+    do j = 1,val_size
+  
+      if (option%myrank .ne. rank_list(1)) then
+        call MPI_Send(local_val(j),ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                      rank_list(1),TAG,option%mycomm,ierr)
+      else
+        temp_array(1) = local_val(j)
+        do m = 2,num_ranks
+          call MPI_Recv(local_val(j),ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                        rank_list(m),TAG,option%mycomm,MPI_STATUS_IGNORE,ierr)
+          temp_array(m) = local_val(j)
+        enddo
+        global_sum(j) = sum(temp_array)
+      endif
+      if (option%myrank == rank_list(1)) then
+        do m = 2,num_ranks
+          call MPI_Send(global_sum(j),ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                        rank_list(m),TAG,option%mycomm,ierr)
+        enddo
+      else
+        call MPI_Recv(global_sum(j),ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                      rank_list(1),TAG,option%mycomm,MPI_STATUS_IGNORE,ierr)
+      endif             
+    
+    enddo
   !------------------------------------------        
   else 
     global_sum = local_val
@@ -2158,7 +2202,7 @@ subroutine CalcParallelSUM(option,rank_list,local_val,global_sum)
   
   deallocate(temp_array)
 
-end subroutine CalcParallelSUM
+end subroutine CalcParallelSUM2
 
 ! ************************************************************************** !
 

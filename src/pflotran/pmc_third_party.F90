@@ -92,6 +92,8 @@ recursive subroutine PMCThirdPartyRunToTime(this,sync_time,stop_flag)
   class(pmc_base_type), pointer :: pmc_base
   PetscErrorCode :: ierr
   PetscInt :: local_stop_flag
+
+  if (stop_flag == TS_STOP_FAILURE) return
   
   this%option%io_buffer = trim(this%name)
   call printVerboseMsg(this%option)

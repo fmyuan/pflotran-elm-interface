@@ -1,0 +1,200 @@
+!==============================================================================
+! Test Case 6e - Redlich-Kwong-Soave equation of state for gas density
+! In this single-cell model, gas (H2) is injected at 1e-3kg/s for 1e5 s.
+! The initial conditions are sw=0.9 and brine pressure 1e6pa.
+! The default no-flow boundary conditions apply.
+! The gas pressure is monitored as a function of time.
+!
+! Note: for this case, BRAGFLO uses g=9.8068, STP 3.00150E+02  1.01320E+05
+! why is ALPHA  1.d30
+! 
+! Also, the true Tc and Pc values are used for H2 in this test case 
+! (both for BRAGFLO and PFLOTRAN), contradicting what the VV doc states.
+!
+!==============================================================================
+
+!=========================== flow mode ========================================
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE WIPP_FLOW
+      OPTIONS
+        FIX_UPWIND_DIRECTION
+        MAX_PRESSURE_CHANGE 1.d20
+        MAX_SATURATION_CHANGE 1.d20
+        GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! H2 kg/kmol
+      /
+    /
+  /
+END
+
+!==============================================================================
+SUBSURFACE
+!==============================================================================
+
+!=========================== regression =======================================
+REGRESSION
+  CELLS
+    1
+  /
+END
+
+!=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 1 1 1
+  DXYZ
+    10.d0
+    10.d0
+    10.d0
+  /
+END
+
+!=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 0.d0
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 0.d0
+END
+
+EOS WATER
+  DENSITY CONSTANT 996.629
+  VISCOSITY CONSTANT 8.5077d-4
+  ENTHALPY CONSTANT 1.8890d6
+END
+
+EOS GAS
+  DENSITY RKS
+    HYDROGEN
+    TC 41.67
+    PC 2.1029d6
+    AC 0.00
+    A 0.42747
+    B 0.08664
+  /
+  VISCOSITY CONSTANT 9.0829d-6
+  HENRYS_CONSTANT CONSTANT 1.d10
+END
+
+!=========================== saturation functions =============================
+CHARACTERISTIC_CURVES SF_BH_OPEN
+  SATURATION_FUNCTION LINEAR
+    ALPHA  1.d30
+    LIQUID_RESIDUAL_SATURATION 0.00000d+00
+    MAX_CAPILLARY_PRESSURE 1.00000d+08
+  /
+  PERMEABILITY_FUNCTION BURDINE_LINEAR_LIQ
+    LIQUID_RESIDUAL_SATURATION 0.00000d+00
+  /
+  PERMEABILITY_FUNCTION BURDINE_LINEAR_GAS
+    LIQUID_RESIDUAL_SATURATION 0.00000d+00
+    GAS_RESIDUAL_SATURATION    0.00000d+00
+  /
+END
+
+!=========================== material properties ==============================
+MATERIAL_PROPERTY soil
+  ID 1
+  CHARACTERISTIC_CURVES SF_BH_OPEN
+  POROSITY 3.0000d-01
+  TORTUOSITY 1.                  ! for diffusion calculations.
+  ROCK_DENSITY 2650.d0           ! thermal parameter. isothermal ignores this.
+  THERMAL_CONDUCTIVITY_DRY 0.5   ! thermal parameter. isothermal ignores this.
+  THERMAL_CONDUCTIVITY_WET 2.    ! thermal parameter. isothermal ignores this.
+  HEAT_CAPACITY 830.             ! thermal parameter. isothermal ignores this.
+  SOIL_COMPRESSIBILITY_FUNCTION BRAGFLO
+  BULK_COMPRESSIBILITY 0.0d0
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  PERMEABILITY
+    PERM_ISO 1.0d-15
+    ! PERM_ISO_LOG10 -15.d0
+  /
+END
+
+!=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    10.d0 10.d0 10.d0
+  /
+END
+
+REGION 1
+  BLOCK 1 1 1 1 1 1
+END
+
+REGION injection_point
+  BLOCK 1 1 1 1 1 1
+END
+
+!=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL soil
+  REGION all
+END
+
+!=========================== flow conditions ==================================
+! initial condition
+FLOW_CONDITION 1
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 1.00E+06
+  LIQUID_SATURATION 9.0000e-01
+END
+
+FLOW_CONDITION well  ! INJQ in BF
+  TYPE
+    RATE mass_rate
+  /
+  RATE 0.d0 1.d-3 kg/s kg/s ! water(kg/s) gas(kg/s) 
+END
+
+!=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION 1
+  REGION 1
+END
+
+SOURCE_SINK well
+  FLOW_CONDITION well
+  REGION injection_point
+END
+
+!=========================== solver options ===================================
+NEWTON_SOLVER FLOW
+!  RTOL 1.d-08
+!  ATOL 1.d-08
+!  STOL 1.d-30       ! Turn off STOL criteria
+  MAXIT 20          ! Maximum newton iteration number
+END
+
+LINEAR_SOLVER FLOW
+!  SOLVER DIRECT
+END
+
+!=========================== times ============================================
+TIME
+  FINAL_TIME 1.d5 s ! 0.317... y
+  INITIAL_TIMESTEP_SIZE 1.d0 s
+  MAXIMUM_TIMESTEP_SIZE 1.d4 s
+END
+
+!=========================== output options ===================================
+skip
+OUTPUT
+!  PERIODIC_OBSERVATION TIMESTEP 1
+  TIMES s 2.d4 4.d4 6.d4 8.d4
+  FORMAT HDF5
+/
+noskip
+
+!==============================================================================
+END_SUBSURFACE
+!==============================================================================

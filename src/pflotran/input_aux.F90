@@ -14,7 +14,7 @@ module Input_Aux_module
   type, public :: input_type 
     PetscInt :: fid
     PetscErrorCode :: ierr
-    character(len=MAXWORDLENGTH) :: filename
+    character(len=MAXSTRINGLENGTH) :: filename
     character(len=MAXSTRINGLENGTH) :: buf
     character(len=MAXSTRINGLENGTH) :: err_buf
     character(len=MAXSTRINGLENGTH) :: err_buf2

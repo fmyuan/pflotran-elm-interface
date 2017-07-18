@@ -496,7 +496,7 @@ function FlowGeneralSubConditionPtr(sub_condition_name,general, &
       if (associated(general%rate)) then
         sub_condition_ptr => general%rate
       else
-        sub_condition_ptr => FlowSubConditionCreate(THREE_INTEGER)
+        sub_condition_ptr => FlowSubConditionCreate(option%nflowdof)
         general%rate => sub_condition_ptr
       endif
     case default
@@ -990,6 +990,7 @@ subroutine FlowConditionRead(condition,input,option)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: rate_string
+  character(len=MAXWORDLENGTH) :: energy_rate_string
   character(len=MAXWORDLENGTH) :: internal_units
   type(flow_sub_condition_type), pointer :: pressure, flux, temperature, &
                                        concentration, enthalpy, rate, well,&
@@ -1014,6 +1015,7 @@ subroutine FlowConditionRead(condition,input,option)
   default_time_storage%time_interpolation_method = INTERPOLATION_STEP
 
   rate_string = 'not_assigned'
+  energy_rate_string = 'not_assigned'
   internal_units = 'not_assigned'
   
   pressure => FlowSubConditionCreate(option%nphase)
@@ -1170,10 +1172,10 @@ subroutine FlowConditionRead(condition,input,option)
               rate_string = 'kg/sec'
             case('energy_rate')
               sub_condition_ptr%itype = ENERGY_RATE_SS
-              rate_string = 'MJ/sec|MW'
+              energy_rate_string = 'MJ/sec|MW'
             case('heterogeneous_energy_rate')
               sub_condition_ptr%itype = HET_ENERGY_RATE_SS
-              rate_string = 'MJ/sec|MW'
+              energy_rate_string = 'MJ/sec|MW'
             case('scaled_mass_rate','scaled_volumetric_rate', &
                  'scaled_energy_rate')
               select case(word)
@@ -1185,7 +1187,7 @@ subroutine FlowConditionRead(condition,input,option)
                   rate_string = 'm^3/sec'
                 case('scaled_energy_rate')
                   sub_condition_ptr%itype = SCALED_ENERGY_RATE_SS
-                  rate_string = 'MW|MJ/sec'
+                  energy_rate_string = 'MW|MJ/sec'
               end select
               ! store name of type for error messaging below.
               string = word
@@ -1354,7 +1356,7 @@ subroutine FlowConditionRead(condition,input,option)
         input%force_units = PETSC_FALSE
       case('ENERGY_RATE')
         input%force_units = PETSC_TRUE
-        internal_units = 'MJ/sec|MW'
+        internal_units = energy_rate_string
         input%err_buf = word
         call ConditionReadValues(input,option,word, &
                                  energy_rate%dataset, &
@@ -1467,10 +1469,16 @@ subroutine FlowConditionRead(condition,input,option)
 
   select case(option%iflowmode)
     case(G_MODE)
-      option%io_buffer = 'General mode not supported in original FlowConditionRead.'
+      option%io_buffer = 'General mode not supported in original &
+        &FlowConditionRead.'
+      call printMsg(option)
+    case(WF_MODE)
+      option%io_buffer = 'WIPP Flow mode not supported in original &
+        &FlowConditionRead.'
       call printMsg(option)
     case(TOIL_IMS_MODE)
-      option%io_buffer = 'TOilIms mode not supported in original FlowConditionRead.'
+      option%io_buffer = 'TOilIms mode not supported in original &
+        &FlowConditionRead.'
       call printMsg(option)
     case(MPH_MODE,IMS_MODE,FLASH2_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate)&
@@ -1762,6 +1770,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   use Time_Storage_module
   use Dataset_module
   
+  ! needed for STATES
   use General_Aux_module
   
   implicit none
@@ -1783,10 +1792,18 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   PetscBool :: default_is_cyclic
   type(time_storage_type), pointer :: default_time_storage
   class(dataset_ascii_type), pointer :: dataset_ascii  
+  character(len=MAXWORDLENGTH) :: flow_mode_chars
   PetscErrorCode :: ierr
 
   call PetscLogEventBegin(logging%event_flow_condition_read, &
                           ierr);CHKERRQ(ierr)
+
+  select case(option%iflowmode)
+    case(G_MODE)
+      flow_mode_chars = 'General Mode'
+    case(WF_MODE)
+      flow_mode_chars = 'WIPP Flow Mode'
+  end select
 
   rate_string = 'not_assigned'
   internal_units = 'not_assigned'
@@ -1799,7 +1816,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   default_time_storage%time_interpolation_method = INTERPOLATION_STEP
   
   select case(option%iflowmode)
-    case(G_MODE)
+    case(G_MODE,WF_MODE)
       general => FlowGeneralConditionCreate(option)
       condition%general => general
   end select
@@ -1847,7 +1864,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')   
           call StringToUpper(word)
           select case(option%iflowmode)
-            case(G_MODE)
+            case(G_MODE,WF_MODE)
               sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
                                                               option)
           end select
@@ -1960,7 +1977,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')   
           call StringToUpper(word)
           select case(option%iflowmode)
-            case(G_MODE)
+            case(G_MODE,WF_MODE)
               sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
                                                               option)
           end select
@@ -1979,7 +1996,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
       case('CONDUCTANCE')
         word = 'LIQUID_PRESSURE'
         select case(option%iflowmode)
-          case(G_MODE)
+          case(G_MODE,WF_MODE)
             sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
                                                             option)
         end select
@@ -1989,7 +2006,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
            'GAS_SATURATION','TEMPERATURE','MOLE_FRACTION','RATE', &
            'LIQUID_FLUX','GAS_FLUX','ENERGY_FLUX','RELATIVE_HUMIDITY')
         select case(option%iflowmode)
-          case(G_MODE)
+          case(G_MODE,WF_MODE)
             sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
                                                             option)
         end select
@@ -2040,22 +2057,21 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   if (.false.) then
     ! neumann or mass/volumetric flux
     ! need temperature
-  !  condition%sub_condition_ptr(GENERAL_FLUX_DOF)%ptr => general%flux
     if (.not.associated(general%mole_fraction) .and. &
         .not.associated(general%gas_saturation)) then
-      option%io_buffer = 'General Phase flux condition must include ' // &
-        'a MOLE_FRACTION or GAS/LIQUID_SATURATION.'
+      option%io_buffer = trim(flow_mode_chars) // ' flux condition must &
+        &include a MOLE_FRACTION or GAS/LIQUID_SATURATION.'
       call printErrMsg(option)
     endif
     if (associated(general%mole_fraction) .and. &
         associated(general%gas_saturation)) then
-      option%io_buffer = 'General Phase flux condition must include ' // &
-        'only a MOLE_FRACTION or GAS/LIQUID_SATURATION, not both.'
+      option%io_buffer = trim(flow_mode_chars) // ' flux condition must &
+        &include only a MOLE_FRACTION or GAS/LIQUID_SATURATION, not both.'
       call printErrMsg(option)
     endif
     if (.not.associated(general%temperature)) then
-      option%io_buffer = 'General Phase flux condition must include ' // &
-        'a temperature'
+      option%io_buffer = trim(flow_mode_chars) // ' flux condition must &
+        &include a temperature.'
       call printErrMsg(option)
     endif
   else
@@ -2068,37 +2084,51 @@ subroutine FlowConditionGeneralRead(condition,input,option)
       condition%iphase = ANY_STATE
     else
       ! some sort of dirichlet-based pressure, temperature, etc.
-      if (.not.associated(general%liquid_pressure) .and. &
-          .not.associated(general%gas_pressure)) then
-        option%io_buffer = 'General Phase non-rate condition must ' // &
-          'include a liquid or gas pressure'
-        call printErrMsg(option)
-      endif
-      if (.not.associated(general%mole_fraction) .and. &
-          .not.associated(general%relative_humidity) .and. &
-          .not.associated(general%gas_saturation)) then
-        option%io_buffer = 'General Phase non-rate condition must ' // &
-          'include mole fraction, relative humidity, or gas/liquid saturation'
-        call printErrMsg(option)
-      endif
-      if (.not.associated(general%temperature)) then
-        option%io_buffer = 'General Phase non-rate condition must ' // &
-          'include temperature'
-        call printErrMsg(option)
-      endif
-      if (associated(general%gas_pressure) .and. &
-          associated(general%gas_saturation)) then
-        ! two phase condition
+      if (option%iflowmode == G_MODE) then
+        if (.not.associated(general%liquid_pressure) .and. &
+            .not.associated(general%gas_pressure)) then
+          option%io_buffer = 'General Mode non-rate condition must include &
+            &a liquid or gas pressure'
+          call printErrMsg(option)
+        endif
+        if (.not.associated(general%mole_fraction) .and. &
+            .not.associated(general%relative_humidity) .and. &
+            .not.associated(general%gas_saturation)) then
+          option%io_buffer = 'General Mode non-rate condition must include &
+            &a mole fraction, relative humidity, or gas/liquid saturation'
+          call printErrMsg(option)
+        endif
+        if (.not.associated(general%temperature)) then
+          option%io_buffer = 'General Mode non-rate condition must include &
+            &a temperature'
+          call printErrMsg(option)
+        endif
+        if (associated(general%gas_pressure) .and. &
+            associated(general%gas_saturation)) then
+          ! two phase condition
+          condition%iphase = TWO_PHASE_STATE
+        else if (associated(general%liquid_pressure) .and. &
+                 associated(general%mole_fraction)) then
+          ! liquid phase condition
+          condition%iphase = LIQUID_STATE
+        else if (associated(general%gas_pressure) .and. &
+                 (associated(general%mole_fraction) .or. &
+                  associated(general%relative_humidity))) then
+          ! gas phase condition
+          condition%iphase = GAS_STATE
+        endif
+      else
+        if (.not.associated(general%liquid_pressure)) then
+          option%io_buffer = 'WIPP Flow Mode non-rate condition must include &
+            &a liquid pressure'
+          call printErrMsg(option)
+        endif
+        if (.not.associated(general%gas_saturation)) then
+          option%io_buffer = 'WIPP Flow Mode non-rate condition must include &
+            &a liquid saturation'
+          call printErrMsg(option)
+        endif
         condition%iphase = TWO_PHASE_STATE
-      else if (associated(general%liquid_pressure) .and. &
-               associated(general%mole_fraction)) then
-        ! liquid phase condition
-        condition%iphase = LIQUID_STATE
-      else if (associated(general%gas_pressure) .and. &
-               (associated(general%mole_fraction) .or. &
-                associated(general%relative_humidity))) then
-        ! gas phase condition
-        condition%iphase = GAS_STATE
       endif
     endif
     if (condition%iphase == NULL_STATE) then

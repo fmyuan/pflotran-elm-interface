@@ -74,7 +74,8 @@ STANDARD_CFG = \
 	towg/towg.cfg \
 	ufd/ufd.cfg \
 	wipp/nuts/nuts.cfg \
-	wipp/bragflo/bragflo.cfg
+	wipp/bragflo/bragflo.cfg \
+	wipp/bragflo/wipp_flow/wipp_flow.cfg
 
 ifneq ($(strip $(PARMETIS_LIB)),)
 	STANDARD_CFG += \
@@ -265,8 +266,6 @@ clean-tests :
 	-find . -type f -name '*.dpd' -print0 | xargs -0 rm
 	-find . -type f -name 'e4d*.log' -print0 | xargs -0 rm
 	-find . -type d -name '__pycache__' -print0 | xargs -0 rm -r
-	-rm -f default/anisothermal/thc_1d.h5
-	-rm -f default/anisothermal/th_1d.h5
 	-rm -f mfd/mfd-mas.dat
 	-rm -f mfd/mfd.h5
 	-rm -f default/543/543_flow_and_tracer-np8.h5
@@ -279,20 +278,24 @@ clean-tests :
 	-rm -f ngee/source-mas.dat
 	-rm -f ngee/source.h5
 	-rm -f default/543/543_flow_and_tracer_dbase.h5
-	-rm -f wipp/bragflo/gas_generation_2d.h5
-	-rm -f wipp/bragflo/gas_generation_one_cell.h5
 	-rm -f ascem/batch/calcite-kinetics-int.dat
 	-rm -f ascem/batch/calcite-kinetics-volume-fractions-int.dat
 	-rm -f ascem/batch/general-reaction-int.dat
-	-rm -f default/multicontinuum/0D_heat_MPH-int.dat
-	-rm -f default/multicontinuum/0D_heat_TH-int.dat
 	-rm -f ngee/CLM-CN-int.dat
 	-rm -f shortcourse/1D_variably_saturated_flow/vsat_flow_pulse_2layer-int.dat
 	-rm -f shortcourse/copper_leaching/cu_leaching-int.dat
 	-rm -f wipp/nuts/case3-int.dat
 	-rm -f wipp/nuts/case4r1_modified-int.dat
 	-rm -f wipp/bragflo/gas_generation_2d-np4.h5
+	-rm -f wipp/bragflo/well_production2-ss_mass-0.dat
+	-rm -f wipp/bragflo/gas_generation_2d.h5
+	-rm -f wipp/bragflo/gas_generation_one_cell.h5
+	-rm -f wipp/bragflo/*.pnl
+	-rm -f default/multicontinuum/0D_heat_MPH-int.dat
+	-rm -f default/multicontinuum/0D_heat_TH-int.dat
 	-rm -f default/543/543_hanford_srfcplx_base*.h5
+	-rm -f default/anisothermal/thc_1d.h5
+	-rm -f default/anisothermal/th_1d.h5
 	-rm -f default/condition/dataset/east_surface_cell_centered.h5
 	-rm -f default/condition/dataset/east_surface_node_centered.h5
 	-rm -f default/condition/dataset/north_surface_cell_centered.h5
@@ -307,6 +310,13 @@ clean-tests :
 	-rm -f default/condition/dataset/z_line_node_centered.h5
 	-rm -f default/salinity/20x20_xz.h5
 	-rm -f default/timestepping/20x20_xz.h5
+	-rm -f default/output/output_biosphere-0.bio
+	-rm -f default/output/output_WIPP_pnl-0.pnl
+	-rm -f default/output/output_waste_form_wf-0.wf
+	-rm -f default/output/output_vtk-000.vtk
+	-rm -f default/output/output_vtk-np3-000.vtk
+	-rm -f default/output/output_xdmf_explicit-000.xmf
+	-rm -f default/output/output_xdmf_explicit_primal-000.xmf
 	-rm -f hydrogeophysics/e4d__000000000003600.dpd
 	-rm -f hydrogeophysics/e4d__000000000010800.dpd
 	-rm -f hydrogeophysics/e4d__000000000025200.dpd
@@ -317,11 +327,10 @@ clean-tests :
 	-rm -f hydrogeophysics/sigma__000000000025200.txt
 	-rm -f hydrogeophysics/sigma__000000000054000.txt
 	-rm -f hydrogeophysics/sigma__000000000111600.txt
-	-rm -f ufd/glass-wf_mass-0.dat
-	-rm -f ufd/fmdm_dummy-wf_mass-0.dat
-	-rm -f ufd/wf_doubles-wf_mass-0.dat
+	-rm -f ufd/glass-0.wf
+	-rm -f ufd/fmdm_dummy-0.wf
+	-rm -f ufd/wf_doubles-0.wf
 	-rm -f ufd/wf_region-wf_mass-*.dat
-	-rm -f wipp/bragflo/well_production2-ss_mass-0.dat
 	-rm -f ufd/glass-*.vtk
 	-rm -f ufd/wf_doubles-*.vtk
 	-rm -f ufd/wf_region-*.vtk

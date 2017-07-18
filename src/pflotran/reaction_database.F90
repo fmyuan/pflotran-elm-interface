@@ -1772,8 +1772,8 @@ subroutine BasisInit(reaction,option)
       (option%iflowmode == MPH_MODE .or. &
        option%iflowmode == IMS_MODE .or. &
        option%iflowmode == FLASH2_MODE)) then
-    option%io_buffer = 'An ACTIVE_GAS block must be specified in CHEMISTRY &
-      &to run a CO2 flow mode coupled with reactive transport.'
+    option%io_buffer = 'An ACTIVE_GAS_SPECIES block must be specified in &
+      &CHEMISTRY to run a CO2 flow mode coupled with reactive transport.'
     call printErrMsg(option)
   endif
   

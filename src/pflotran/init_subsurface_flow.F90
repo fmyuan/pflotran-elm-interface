@@ -35,6 +35,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   use Richards_module
   use TH_module
   use General_module
+  use WIPP_Flow_module
   use TOilIms_module
   use TOWG_module
   use Condition_Control_module
@@ -55,13 +56,16 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(TH_MODE)
-        call THSetup(realization)
-      case(RICHARDS_MODE)
+      case(RICHARDS_MODE,WF_MODE,G_MODE,TOIL_IMS_MODE,TOWG_MODE)
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
                            patch%characteristic_curves_array, &
                            realization%option)
+    end select
+    select case(option%iflowmode)
+      case(TH_MODE)
+        call THSetup(realization)
+      case(RICHARDS_MODE)
         call RichardsSetup(realization)
       case(MPH_MODE)
         call init_span_wagner(option)      
@@ -74,23 +78,13 @@ subroutine InitSubsurfFlowSetupRealization(realization)
       case(FLASH2_MODE)
         call init_span_wagner(option)      
         call Flash2Setup(realization)
+      case(WF_MODE)
+        call WIPPFloSetup(realization)
       case(G_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           patch%material_property_array, &
-                           patch%characteristic_curves_array, &
-                           realization%option)
         call GeneralSetup(realization)
       case(TOIL_IMS_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           patch%material_property_array, &
-                           patch%characteristic_curves_array, &
-                           realization%option)
         call TOilImsSetup(realization)
       case(TOWG_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           patch%material_property_array, &
-                           patch%characteristic_curves_array, &
-                           realization%option)
         call TOWGSetup(realization)
     end select
   
@@ -121,6 +115,8 @@ subroutine InitSubsurfFlowSetupRealization(realization)
         !     assigned as the initial conditin if the state changes. therefore,
         !     pass in PETSC_FALSE
         call GeneralUpdateAuxVars(realization,PETSC_FALSE)
+      case(WF_MODE)
+        call WIPPFloUpdateAuxVars(realization)
       case(TOIL_IMS_MODE)
         call TOilImsUpdateAuxVars(realization)
       case(TOWG_MODE)

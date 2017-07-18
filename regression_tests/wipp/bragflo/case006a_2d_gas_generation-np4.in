@@ -38,7 +38,7 @@ SUBSURFACE
 
 !=========================== regression =======================================
 REGRESSION
-  CELLS_PER_PROCESS 10
+  CELLS_PER_PROCESS 2
   CELLS
     89
     111
