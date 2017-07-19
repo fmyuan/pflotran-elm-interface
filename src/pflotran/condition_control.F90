@@ -941,8 +941,10 @@ subroutine CondControlAssignTranInitCond(realization)
               PETSC_FALSE,option)
           else
             ! copy molalities from previous equilibrated auxvar as initial guess
-            rt_auxvars(ghosted_id)%pri_molal = &
-              rt_auxvars(prev_equilibrated_ghosted_id)%pri_molal
+            call RTAuxVarCopyInitialGuess(rt_auxvars(ghosted_id), &
+              rt_auxvars(prev_equilibrated_ghosted_id),option)
+!            rt_auxvars(ghosted_id)%pri_molal = &
+!              rt_auxvars(prev_equilibrated_ghosted_id)%pri_molal
             call ReactionEquilibrateConstraint(rt_auxvars(ghosted_id), &
               global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
               reaction, &

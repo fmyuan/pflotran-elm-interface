@@ -1497,6 +1497,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       case(CONSTRAINT_TOTAL_SORB)
         ! units = mol/m^3 bulk
         total_conc(icomp) = conc(icomp)
+      case(CONSTRAINT_TOTAL_AQ_PLUS_SORB)
+        ! units = mol/m^3 bulk
+        total_conc(icomp) = conc(icomp)
       case(CONSTRAINT_FREE)
         free_conc(icomp) = conc(icomp)*convert_molar_to_molal
       case(CONSTRAINT_LOG)
@@ -1619,6 +1622,20 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           ! dtotal_sorb units = kg water/m^3 bulk
           ! Jac units = kg water/m^3 bulk
           Jac(icomp,:) = rt_auxvar%dtotal_sorb_eq(icomp,:)
+
+        case(CONSTRAINT_TOTAL_AQ_PLUS_SORB)
+        
+          ! L water/m^3 bulk
+          tempreal = material_auxvar%porosity * global_auxvar%sat(1) * 1.d3
+          ! units = mol/L water
+          Res(icomp) = rt_auxvar%total(icomp,1) + &
+                       rt_auxvar%total_sorb_eq(icomp) / tempreal - &
+                       total_conc(icomp)
+          ! dtotal units = kg water/L water
+          ! dtotal_sorb units = kg water/m^3 bulk / tempreal => kg water/L water
+          ! Jac units = kg water/L water
+          Jac(icomp,:) = rt_auxvar%aqueous%dtotal(icomp,:,1) + &
+                         rt_auxvar%dtotal_sorb_eq(icomp,:) / tempreal
 
         case(CONSTRAINT_FREE,CONSTRAINT_LOG)
         
@@ -2328,6 +2345,8 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
           string = 'total aq'
         case(CONSTRAINT_TOTAL_SORB)
           string = 'total sorb'
+        case(CONSTRAINT_TOTAL_AQ_PLUS_SORB)
+          string = 'total aq+sorb'
         case(CONSTRAINT_FREE)
           string = 'free'
         case(CONSTRAINT_CHARGE_BAL)

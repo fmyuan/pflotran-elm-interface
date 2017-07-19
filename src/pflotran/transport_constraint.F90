@@ -28,6 +28,7 @@ module Transport_Constraint_module
   PetscInt, parameter, public :: CONSTRAINT_CHARGE_BAL = 7
   PetscInt, parameter, public :: CONSTRAINT_TOTAL_SORB = 9
   PetscInt, parameter, public :: CONSTRAINT_SUPERCRIT_CO2 = 10
+  PetscInt, parameter, public :: CONSTRAINT_TOTAL_AQ_PLUS_SORB = 11
 
   type, public :: tran_constraint_type
     PetscInt :: id
@@ -269,6 +270,9 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
               case('TOTAL_SORB')
                 aq_species_constraint%constraint_type(icomp) = &
                   CONSTRAINT_TOTAL_SORB
+              case('TOTAL_AQ_PLUS_SORB')
+                aq_species_constraint%constraint_type(icomp) = &
+                  CONSTRAINT_TOTAL_AQ_PLUS_SORB
               case('S')
                 option%io_buffer = '"S" constraint type no longer ' // &
                   'supported as of March 4, 2013.'
