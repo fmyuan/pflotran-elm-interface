@@ -639,7 +639,7 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
-          case('GENERAL','TOIL_IMS','TOWG_IMMISCIBLE','TODD_LONGOSTAFF', &
+          case('GENERAL','TOIL_IMS','TOWG_IMMISCIBLE','TODD_LONGSTAFF', &
                'TOWG_MISCIBLE','BLACK_OIL','SOLVENT_TL','WIPP_FLOW')
           ! In OptionFlowInitRealization(), numerical_derivatives is set to
           ! PETSC_FALSE, but the default for GENERAL needs to be PETSC_TRUE.

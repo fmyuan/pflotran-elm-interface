@@ -697,8 +697,12 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   auxvar%mobility(lid) = krl/visl
 
-  ! compute oil mobility (rel. perm / viscostiy)
-  sat_liq_gas = auxvar%sat(lid) + auxvar%sat(gid)
+  ! compute oil mobility (rel. perm / viscosity)
+  
+  ! In Todd-Longstaff case, look up the oil rel perm using the
+  ! hydrocarbon (non-wetting) saturation (Sn=1-sat_liq_gas=1-Sw)
+  
+  sat_liq_gas = auxvar%sat(lid)
   call characteristic_curves%oil_rel_perm_function% &
          RelativePermeability(sat_liq_gas,kro,dkro_Se,option)
 
@@ -718,9 +722,10 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   auxvar%mobility(gid) = krg/visg
 
-  !ADD HERE TODD_LONGSTAFF - if required can modify everything needed above.
-  ! this is now a TL specific function.
+  !set up the Todd-Longstaff mobilities
 
+  call vToddLongstaff(val_tl_omega,oid,gid,kro,krg,viso,visg,auxvar)
+  
   !below the new data structure to host the TL densities 
   auxvar%tl%den_oil_eff_kg = 0.0
   auxvar%tl%den_gas_eff_kg = 0.0
@@ -733,6 +738,164 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
 
 end subroutine TOWGTLAuxVarCompute
+
+!==============================================================================
+
+subroutine vToddLongstaff(tlomega,oid,gid,kro,krg,viso,visg,auxvar)
+
+!------------------------------------------------------------------------------
+! Routine to calculate the Todd-Longstaff mobilities
+! Based on the reference TL:
+! 'The Development, Testing and Application of a Numerical Simulator for 
+!  Predicting Miscible Flood Performance', M.R.Todd and W.J.Longstaff,
+!  Journal Pet. Tech., 1972
+!  SPE 3484, downloadable from OnePetro on www.spe.org
+!------------------------------------------------------------------------------
+! inout: kro, krg   : kro contains hydrocarbon rel. perm. on input. 
+!                     Input krg not used
+!                     phase mixed (miscible) phase rel. perm. values on output
+! inout: viso, visg : phase unmixed viscosity values on input
+!                     phase mixed viscosity values on output
+! inout: auxvar     : oil and gas mobility values will be replaced 
+!                     by Todd-Longstaff ones
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : jul 2017
+!------------------------------------------------------------------------------
+  
+  implicit none
+
+  PetscReal,intent(in)   ::tlomega
+  PetscInt ,intent(in)   ::oid,gid
+  PetscReal,intent(inout)::kro,krg
+  PetscReal,intent(inout)::viso,visg
+  class(auxvar_towg_type) :: auxvar
+  PetscReal::so,sg,den,deninv,fo,fg,krh
+
+!--Get oil and gas saturations and form fractions------------------------------
+
+  so=auxvar%sat(oid)
+  sg=auxvar%sat(gid)
+  den=so+sg
+  if( den>0.0 ) then
+    deninv=1.0/den
+    fo=so*deninv
+    fg=sg*deninv
+  else
+    fo=0.5
+    fg=0.5
+  endif
+
+!--Split the hydrocarbon relative permeability using fractions (TL,eqn. 2a,2b)-
+
+  krh=kro
+  kro=fo*krh
+  krg=fg*krh
+
+!--Form the omega-weighted oil and gas viscosities-----------------------------
+
+  call vToddLongstaffViscosity(tlomega,so,sg,viso,visg)
+
+!--Recalculate the oil and gas mobilities--------------------------------------
+
+  if( viso>0.0 ) then
+    auxvar%mobility(oid) = kro/viso
+  else
+    auxvar%mobility(oid) = 0.0
+  endif
+
+  if( visg>0.0 ) then
+    auxvar%mobility(gid) = krg/visg
+  else
+    auxvar%mobility(gid) = 0.0
+  endif
+
+end subroutine vToddLongstaff
+
+!==============================================================================
+
+subroutine vToddLongstaffViscosity(tlomega,so,sg,visco,viscg)
+
+!------------------------------------------------------------------------------
+! Routine to calculate the Todd-Longstaff mixed viscosities
+! Based on the reference TL (see header of calling routine for details)
+!------------------------------------------------------------------------------
+! inout: viso, visg : phase unmixed viscosity values on input
+!                     phase mixed viscosity values on input
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : jul 2017
+!------------------------------------------------------------------------------
+  implicit none
+
+  PetscReal,intent(in   ):: tlomega,so,sg
+  PetscReal,intent(inout):: visco,viscg
+  PetscReal              :: tlomegac,sn,sni,fo,fg,viscqpo,viscqpg,wviscqp &
+                           ,denom,denominv,viscm
+  PetscReal              :: viscoimw,viscgimw,viscmw,viscotl,viscgtl
+ 
+!--Set up complement of the Todd Longstaff omega-------------------------------
+ 
+  tlomegac=1.0-tlomega
+
+!--Form non-wetting saturation-------------------------------------------------
+
+  sn=so+sg
+
+!--Form safe inverse non-wetting saturation------------------------------------
+
+  if( sn>0.0 ) then
+    sni=1.0/sn
+  else
+    sni=0.0
+  endif
+
+!--Form oil and solvent fractions of non-wetting saturation--------------------
+
+  fo=so*sni
+  fg=sg*sni
+
+!--Form quarter-powers of basic viscosities------------------------------------
+
+  viscqpo=visco**0.25
+  viscqpg=viscg**0.25
+
+!--Form weighted combination of the 1/4 powers & its 4th power (denom of TL 4a)
+
+  wviscqp=fo*viscqpo+fg*viscqpg
+  denom=wviscqp**4.0
+
+!--Obtain a safe denominator inverse-------------------------------------------
+
+  if( denom>0.0 ) then
+    denominv=1.0/denom
+  else      
+    denominv=0.0
+  endif
+
+!--Form mixed viscosity--(TL equation 4a)--------------------------------------
+
+  viscm=visco*viscg*denominv
+
+!--Form omega-weighted replacement viscosities---------------------------------
+
+! 1-omega and omega power contributions
+
+    viscoimw=visco**tlomegac
+    viscgimw=viscg**tlomegac
+    viscmw  =viscm**tlomega 
+
+! Combine to get final value (TL 3a and 3b)
+
+    viscotl=viscoimw*viscmw
+    viscgtl=viscgimw*viscmw
+
+!--Store final values----------------------------------------------------------
+
+    visco=viscotl
+    viscg=viscgtl
+
+end subroutine vToddLongstaffViscosity
 
 ! ************************************************************************** !
 
