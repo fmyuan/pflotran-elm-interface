@@ -663,7 +663,7 @@ e4d_mat_inv.o :
 e4d_run.o : e4d_vars.o
 e4d_setup.o : e4d_mat_inv.o e4d_vars.o
 e4d_vars.o :
-eos.o : eos_gas.o eos_oil.o eos_water.o input_aux.o option.o \
+eos.o : co2_span_wagner.o eos_gas.o eos_oil.o eos_water.o input_aux.o option.o \
         pflotran_constants.o string.o
 eos_database.o : input_aux.o lookup_table.o option.o pflotran_constants.o \
                  string.o utility.o

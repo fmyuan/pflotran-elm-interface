@@ -6,6 +6,7 @@ module EOS_module
   use EOS_Water_module
   use EOS_Gas_module
   use EOS_Oil_module 
+  use co2_span_wagner_module
   
   implicit none
 
@@ -476,6 +477,63 @@ subroutine EOSRead(input,option)
             call InputReadAndConvertUnits(input,tempreal, &
                              'g/mol','EOS,GAS,FORMULA_WEIGHT',option)
             call EOSGasSetFMWConstant(tempreal)
+          case('CO2_SPAN_WAGNER_DB')
+            temparray = UNINITIALIZED_DOUBLE
+            subkeyword =''
+            do
+              call InputReadPflotranString(input,option)
+              call InputReadStringErrorMsg(input,option, &
+                                           'EOS GAS,CO2_SPAN_WAGNER_DB')
+              if (InputCheckExit(input,option)) exit
+              if (InputError(input)) exit
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'keyword', &
+                                       'EOS GAS, CO2_SPANWAGNER_DB')
+              select case(trim(word))
+                case('PRESSURE_MIN')
+                  call InputReadDouble(input,option,temparray(1))
+                  call InputErrorMsg(input,option, &
+                                    'min pressure - properties look up', &
+                                    'EOS GAS,CO2_SPAN_WAGNER_DB')
+                case('PRESSURE_MAX')
+                  call InputReadDouble(input,option,temparray(2))
+                  call InputErrorMsg(input,option, &
+                                    'MAX pressure - properties look up', &
+                                    'EOS GAS,CO2_SPAN_WAGNER_DB')
+                case('PRESSURE_DELTA')
+                  call InputReadDouble(input,option,temparray(3))
+                  call InputErrorMsg(input,option, &
+                                    'Delta pressure - properties look up', &
+                                    'EOS GAS,CO2_SPAN_WAGNER_DB')
+                case('TEMPERATURE_MIN')
+                  call InputReadDouble(input,option,temparray(4))
+                  call InputErrorMsg(input,option, &
+                                    'min temperature - properties look up', &
+                                    'EOS GAS,CO2_SPAN_WAGNER_DB')
+                case('TEMPERATURE_MAX')
+                  call InputReadDouble(input,option,temparray(5))
+                  call InputErrorMsg(input,option, &
+                                    'MAX temperature - properties look up', &
+                                    'EOS GAS,CO2_SPAN_WAGNER_DB')
+                case('TEMPERATURE_DELTA')
+                  call InputReadDouble(input,option,temparray(6))
+                  call InputErrorMsg(input,option, &
+                                    'Delta temperature - properties look up', &
+                                    'EOS GAS,CO2_SPAN_WAGNER_DB')
+                case('DATABASE_FILE_NAME')
+                  call InputReadWord(input,option,subkeyword,PETSC_TRUE)
+                  call InputErrorMsg(input,option, &
+                                     'databas file name',&
+                                     'EOS,GAS,FORMULA_WEIGHT')
+                case default
+                  call InputKeywordUnrecognized(subkeyword,&
+                                     'EOS,GAS,CO2_SPAN_WAGNER_DB',option)
+              end select 
+            end do
+            if (option%myrank == option%io_rank) then
+              call co2_span_wagner_db_write(temparray,subkeyword,option)
+            end if
+            ! call EOSGasSetEOSDBase(filename,option)
           case default
             call InputKeywordUnrecognized(keyword,'EOS,GAS',option)
         end select
