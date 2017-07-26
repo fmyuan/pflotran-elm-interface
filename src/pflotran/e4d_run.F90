@@ -33,9 +33,9 @@ contains
     if (.not. allocated(sigma)) allocate(sigma(nelem))
    
 
+    call get_pf_porosity       !!get the pflotran porosity
     call get_mcomm
     call cpu_time(Cbeg)
-    call get_pf_porosity       !!get the pflotran porosity
   
     do while (mcomm==1)
 
