@@ -1423,6 +1423,9 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   
   PetscReal :: dummy_dperm_up, dummy_dperm_dn
   PetscReal :: temp_perm_up, temp_perm_dn
+  PetscReal :: denup,dendn
+
+  PetscBool :: istl,isoil,isgas
 
   energy_id = option%energy_id
 
@@ -1469,6 +1472,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
 #endif
 
 #ifdef CONVECTION
+
   do iphase = 1, option%nphase
  
     if (auxvar_up%mobility(iphase) + &
@@ -1476,10 +1480,27 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
       cycle
     endif
 
-    density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
-                                             auxvar_dn%sat(iphase), &
-                                             auxvar_up%den_kg(iphase), &
-                                             auxvar_dn%den_kg(iphase) )
+    istl =(towg_miscibility_model == TOWG_TODD_LONGSTAFF)
+    isoil=(iphase == OIL_PHASE)
+    isgas=(iphase == GAS_PHASE)
+    if( istl .and. (isoil.or.isgas) ) then
+      if( isoil ) then
+        denup=auxvar_up%tl%den_oil_eff_kg
+        dendn=auxvar_dn%tl%den_oil_eff_kg
+      else
+        denup=auxvar_up%tl%den_gas_eff_kg
+        dendn=auxvar_dn%tl%den_gas_eff_kg
+      endif
+      density_kg_ave = TOWGImsTLAverageDensity( auxvar_up%sat(iphase), &
+                                                auxvar_dn%sat(iphase), &
+                                                denup                , &
+                                                dendn )
+    else
+      density_kg_ave = TOWGImsTLAverageDensity( auxvar_up%sat(iphase)   , &
+                                                auxvar_dn%sat(iphase)   , &
+                                                auxvar_up%den_kg(iphase), &
+                                                auxvar_dn%den_kg(iphase) )
+    endif
 
     gravity_term = density_kg_ave * dist_gravity
     delta_pressure = auxvar_up%pres(iphase) - &
@@ -1686,6 +1707,10 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   
   PetscReal :: temp_perm_dn
   PetscReal :: dummy_dperm_dn
+
+  PetscReal :: denup,dendn
+
+  PetscBool :: istl,isoil,isgas
   
   energy_id = option%energy_id
 
@@ -1766,10 +1791,27 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
           !  boundary_pressure = gen_auxvar_up%pres(option%gas_phase)
           !endif
 
-          density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
-                                                   auxvar_dn%sat(iphase), &
-                                                   auxvar_up%den_kg(iphase), &
-                                                   auxvar_dn%den_kg(iphase) )
+          istl =(towg_miscibility_model == TOWG_TODD_LONGSTAFF)
+          isoil=(iphase == OIL_PHASE)
+          isgas=(iphase == GAS_PHASE)
+          if( istl .and. (isoil.or.isgas) ) then
+            if( isoil ) then
+              denup=auxvar_up%tl%den_oil_eff_kg
+              dendn=auxvar_dn%tl%den_oil_eff_kg
+            else
+              denup=auxvar_up%tl%den_gas_eff_kg
+              dendn=auxvar_dn%tl%den_gas_eff_kg
+            endif
+            density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
+                                                     auxvar_dn%sat(iphase), &
+                                                     denup                , &
+                                                     dendn )
+          else
+            density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase)   , &
+                                                     auxvar_dn%sat(iphase)   , &
+                                                     auxvar_up%den_kg(iphase), &
+                                                     auxvar_dn%den_kg(iphase) )
+          endif
 
 
           gravity_term = density_kg_ave * dist_gravity

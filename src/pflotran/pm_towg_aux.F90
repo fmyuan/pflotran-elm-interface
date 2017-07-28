@@ -571,18 +571,24 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   
   PetscInt :: lid, oid, gid
   PetscReal :: cell_pressure, wat_sat_pres
-  PetscReal :: krl, visl, dkrl_Se
-  PetscReal :: kro, viso, dkro_Se
-  PetscReal :: krg, visg, dkrg_Se
-  PetscReal :: sat_liq_gas, sat_tot_liq
-  PetscReal :: dummy
+  PetscReal :: krl, dkrl_Se
+  PetscReal :: krh, dkrh_Se
+  PetscReal :: viso
+  PetscReal :: visg
+  PetscReal :: visl
+  PetscReal :: sat_water
+  PetscReal :: dummy,deno,deng
   !PetscReal :: Uoil_J_kg, Hoil_J_kg
   PetscErrorCode :: ierr
+  PetscReal :: krotl=0.0,krgtl=0.0,viscotl=0.0,viscgtl=0.0,denotl=0.0,dengtl=0.0
+
+!--Get phase pointers for water,oil and gas-----------------------------------
 
   ! from SubsurfaceSetFlowMode
   ! option%liquid_phase = 1           ! liquid_pressure
   ! option%oil_phase = 2              ! oil_pressure
   ! option%gas_phase = 3              ! gas_pressure
+
   lid = option%liquid_phase
   oid = option%oil_phase
   gid = option%gas_phase
@@ -598,47 +604,34 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%U = 0.d0
   auxvar%temp = 0.0d0
 
-  !assing auxvars given by the solution variables
+!--Extract into auxvars from the solution variables----------------------------
+
   auxvar%pres(oid) = x(TOWG_OIL_PRESSURE_DOF)
   auxvar%sat(oid) = x(TOWG_OIL_SATURATION_DOF)
   auxvar%sat(gid) = x(TOWG_GAS_SATURATION_3PH_DOF)
   auxvar%temp = x(towg_energy_dof)
 
   auxvar%sat(lid) = 1.d0 - auxvar%sat(oid) - auxvar%sat(gid)
-
-  !below pc_ow /= 0
-  !compute capillary presssure water/oil (pc_ow)
-  !call characteristic_curves%saturation_function% &
-  !     CapillaryPressure(material_auxvar,auxvar%sat(lid),auxvar%pc(lid),option)
-  !auxvar%pres(lid) = auxvar%pres(oid) - auxvar%pc(lid)
-
-  !Assumptions below on capillary pressure for comparison with TOUGH2-EOS8:
-  ! pc_ow = 0, only pc_gw /= 0 and computed considering water saturation only
-  ! this results in pc_gw = pc_go
   
-  !assuming no capillary pressure between oil and water: pc_ow = 0
-  ! pc_ow = 0.0d0
-  auxvar%pres(lid) = auxvar%pres(oid) 
-
-  !compute capillary pressure gas/water (pc_gw),
-  ! pc_go = pc_gw when pc_ow = 0
-  !call characteristic_curves%saturation_function% &
-  !     CapillaryPressure(material_auxvar,auxvar%sat(lid),auxvar%pc(lid),option)
-  !To match TOUGH-EOS8, consider water plu poil as wetting phase
-  !for capillary press computation 
-  sat_tot_liq = auxvar%sat(lid) + auxvar%sat(oid)
-  call characteristic_curves%saturation_function% &
-       CapillaryPressure(sat_tot_liq,auxvar%pc(lid),dummy,option)
-  
-  auxvar%pres(gid) = auxvar%pres(lid) + auxvar%pc(lid)
+!--Set up phase pressures and capillary pressures-----------------------------
+ 
+  ! In Todd-Longstaff mode assume no cap. pressure between oil and gas: pcog=0
+  ! The cap. pressure is hydrocarbon/water (pchw) as function of water satn.
 
   auxvar%pc(oid) = 0.0d0
 
+  sat_water = auxvar%sat(lid)
+
+  call characteristic_curves%saturation_function% &
+       CapillaryPressure(sat_water,auxvar%pc(lid),dummy,option)
+
+  auxvar%pres(gid) = auxvar%pres(oid)  
+  auxvar%pres(lid) = auxvar%pres(oid) - auxvar%pc(lid) 
 
   cell_pressure = max(auxvar%pres(lid),auxvar%pres(oid),auxvar%pres(gid))
 
+!--Calculate effective porosity as a function of pressure---------------------
 
-  ! calculate effective porosity as a function of pressure
   if (option%iflag /= TOWG_UPDATE_FOR_BOUNDARY) then
     auxvar%effective_porosity = material_auxvar%porosity_base
 
@@ -651,10 +644,11 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     endif
   endif
 
-  ! UPDATE THERMODYNAMIC PROPERTIES FOR ALL PHASES!!!
+!--Update thermodynamic properties (density, enphalpy..) for all phases-------
 
   ! Liquid phase thermodynamic properties
   ! using cell_pressure (which is the max press)? or %pres(lid)?
+
   call EOSWaterDensity(auxvar%temp,cell_pressure, &
                        auxvar%den_kg(lid),auxvar%den(lid),ierr)
   call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(lid),ierr)
@@ -665,7 +659,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   ! ADD HERE BRINE dependency. Two options (see mphase)
   ! - salinity constant in space and time (passed in option%option%m_nacl)
-  ! - salt can be trasnported by RT (sequential coupling) and passed 
+  ! - salt can be transported by RT (sequential coupling) and passed 
   !   and passed with global_auxvar%m_nacl 
 
   call EOSOilDensityEnergy(auxvar%temp,auxvar%pres(oid),&
@@ -685,10 +679,11 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%H(gid) = auxvar%H(gid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(gid) = auxvar%U(gid) * 1.d-6 ! J/kmol -> MJ/kmol
 
+!--Set up water phase rel. perm. and unmixed viscosities-----------------------
 
-  ! compute water mobility (rel. perm / viscostiy)
+  ! compute water relative permability Krw(Sw)
   call characteristic_curves%liq_rel_perm_function% &
-         RelativePermeability(auxvar%sat(lid),krl,dkrl_Se,option)
+         RelativePermeability(sat_water,krl,dkrl_Se,option)
                             
   call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)                   
 
@@ -697,51 +692,55 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   auxvar%mobility(lid) = krl/visl
 
-  ! compute oil mobility (rel. perm / viscosity)
-  
-  ! In Todd-Longstaff case, look up the oil rel perm using the
-  ! hydrocarbon (non-wetting) saturation (Sn=1-sat_liq_gas=1-Sw)
-  
-  sat_liq_gas = auxvar%sat(lid)
-  call characteristic_curves%oil_rel_perm_function% &
-         RelativePermeability(sat_liq_gas,kro,dkro_Se,option)
+!--Set up hydrocarbon phase rel. perm. and unmixed viscosities----------------
 
+  ! In Todd-Longstaff case, look up the hydrocarbon rel perm using the
+  ! hydrocarbon saturation (Sh=So+Sg=1-Sw), with water saturation as argument
+  
+  call characteristic_curves%oil_rel_perm_function% &
+         RelativePermeability(sat_water,krh,dkrh_Se,option)
+
+  ! Oil viscosity
   call EOSOilViscosity(auxvar%temp,auxvar%pres(oid), &
                        auxvar%den(oid), viso, ierr)
 
-  auxvar%mobility(oid) = kro/viso
-
-  !compute gas mobility (rel. perm / viscosity) 
-  sat_tot_liq = auxvar%sat(lid) + auxvar%sat(oid)
-  call characteristic_curves%gas_rel_perm_function% &
-         RelativePermeability(sat_tot_liq,krg,dkrg_Se,option)
-
-  !currently only a viscosity model for air or constant value   
+  ! Gas viscosity : currently only viscosity model for air or constant value   
   call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
                        auxvar%pres(gid),auxvar%den(gid),visg,ierr)
 
-  auxvar%mobility(gid) = krg/visg
+!--Set up the Todd-Longstaff rel perms, viscosities and densities-------------
 
-  !set up the Todd-Longstaff mobilities
+  deno=auxvar%den_kg(oid)
+  deng=auxvar%den_kg(gid)
 
-  call vToddLongstaff(val_tl_omega,oid,gid,kro,krg,viso,visg,auxvar)
-  
-  !below the new data structure to host the TL densities 
-  auxvar%tl%den_oil_eff_kg = 0.0
-  auxvar%tl%den_gas_eff_kg = 0.0
+  call vToddLongstaff( oid,gid,krh,viso,visg,deno,deng,auxvar &
+                      ,krotl,krgtl,viscotl,viscgtl,denotl,dengtl )
 
-  !below the tl_omega value read from the input deck
-  !write(*,*) val_tl_omega
+!--Calculate and store oil and gas mobilities---------------------------------
 
-  !option%io_buffer = 'TOWGTLAuxVarCompute not yet implemented'
-  !call printErrMsg(option)
+  if( viscotl>0.0 ) then
+    auxvar%mobility(oid) = krotl/viscotl
+  else
+    auxvar%mobility(oid) = 0.0
+  endif
 
+  if( viscgtl>0.0 ) then
+    auxvar%mobility(gid) = krgtl/viscgtl
+  else
+    auxvar%mobility(gid) = 0.0
+  endif
+
+!--Store mixed density values-------------------------------------------------
+
+  auxvar%tl%den_oil_eff_kg = denotl
+  auxvar%tl%den_gas_eff_kg = dengtl
 
 end subroutine TOWGTLAuxVarCompute
 
 !==============================================================================
 
-subroutine vToddLongstaff(tlomega,oid,gid,kro,krg,viso,visg,auxvar)
+subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
+                          ,krotl,krgtl,viscotl,viscgtl,denotl,dengtl )
 
 !------------------------------------------------------------------------------
 ! Routine to calculate the Todd-Longstaff mobilities
@@ -751,31 +750,39 @@ subroutine vToddLongstaff(tlomega,oid,gid,kro,krg,viso,visg,auxvar)
 !  Journal Pet. Tech., 1972
 !  SPE 3484, downloadable from OnePetro on www.spe.org
 !------------------------------------------------------------------------------
-! inout: kro, krg   : kro contains hydrocarbon rel. perm. on input. 
-!                     Input krg not used
-!                     phase mixed (miscible) phase rel. perm. values on output
-! inout: viso, visg : phase unmixed viscosity values on input
-!                     phase mixed viscosity values on output
-! inout: auxvar     : oil and gas mobility values will be replaced 
-!                     by Todd-Longstaff ones
+!
+! input  : oid,gid         : Pointers to oil and gas saturations
+! input  : krh             : krh contains hydrocarbon rel. perm. on input. 
+! input  : visco,viscg     : Unmixed phase viscosity values on input
+! input  : deno ,deng      : Unmixed phase density   values on input
+! input  : auxvar          : Used to obtain saturation values
+! output : krh             : Contains oil and gas rel. perms. on output
+! output : viscotl,viscgtl : Mixed phase viscosity values on output
+! output : denotl ,dengtl  : Mixed phase density   values on output
+!
 !------------------------------------------------------------------------------
 ! Author: Dave Ponting
-! Date  : jul 2017
+! Date  : Jul 2017
 !------------------------------------------------------------------------------
   
   implicit none
 
-  PetscReal,intent(in)   ::tlomega
-  PetscInt ,intent(in)   ::oid,gid
-  PetscReal,intent(inout)::kro,krg
-  PetscReal,intent(inout)::viso,visg
+  PetscInt ,intent(in )   ::oid,gid
+  PetscReal,intent(in )   ::krh
+  PetscReal,intent(in )   ::visco,viscg
+  PetscReal,intent(in )   ::deno,deng
   class(auxvar_towg_type) :: auxvar
-  PetscReal::so,sg,den,deninv,fo,fg,krh
+  PetscReal,intent(out)   ::krotl,krgtl
+  PetscReal,intent(out)   ::viscotl,viscgtl
+  PetscReal,intent(out)   ::denotl,dengtl
+
+  PetscReal::so,sg,den,deninv,fo,fg
 
 !--Get oil and gas saturations and form fractions------------------------------
 
   so=auxvar%sat(oid)
   sg=auxvar%sat(gid)
+
   den=so+sg
   if( den>0.0 ) then
     deninv=1.0/den
@@ -788,72 +795,46 @@ subroutine vToddLongstaff(tlomega,oid,gid,kro,krg,viso,visg,auxvar)
 
 !--Split the hydrocarbon relative permeability using fractions (TL,eqn. 2a,2b)-
 
-  krh=kro
-  kro=fo*krh
-  krg=fg*krh
+  krotl=fo*krh
+  krgtl=fg*krh
 
 !--Form the omega-weighted oil and gas viscosities-----------------------------
 
-  call vToddLongstaffViscosity(tlomega,so,sg,viso,visg)
+  call vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl)
 
-!--Recalculate the oil and gas mobilities--------------------------------------
+!--Form the omega weighted oil and gas densities (for Darcy flow only)---------
 
-  if( viso>0.0 ) then
-    auxvar%mobility(oid) = kro/viso
-  else
-    auxvar%mobility(oid) = 0.0
-  endif
-
-  if( visg>0.0 ) then
-    auxvar%mobility(gid) = krg/visg
-  else
-    auxvar%mobility(gid) = 0.0
-  endif
+  call vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
+                             ,deno,deng,denotl,dengtl)
 
 end subroutine vToddLongstaff
 
 !==============================================================================
 
-subroutine vToddLongstaffViscosity(tlomega,so,sg,visco,viscg)
+subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl)
 
 !------------------------------------------------------------------------------
 ! Routine to calculate the Todd-Longstaff mixed viscosities
 ! Based on the reference TL (see header of calling routine for details)
 !------------------------------------------------------------------------------
-! inout: viso, visg : phase unmixed viscosity values on input
-!                     phase mixed viscosity values on input
+! input : fo     ,fg     : Oil and gas fractions
+! input : visco  ,viscg  : Unmixed phase viscosity values on input
+! output: viscotl,viscgtl: Mixed   phase viscosity values on output
 !------------------------------------------------------------------------------
 ! Author: Dave Ponting
-! Date  : jul 2017
+! Date  : Jul 2017
 !------------------------------------------------------------------------------
   implicit none
 
-  PetscReal,intent(in   ):: tlomega,so,sg
-  PetscReal,intent(inout):: visco,viscg
-  PetscReal              :: tlomegac,sn,sni,fo,fg,viscqpo,viscqpg,wviscqp &
-                           ,denom,denominv,viscm
-  PetscReal              :: viscoimw,viscgimw,viscmw,viscotl,viscgtl
+  PetscReal,intent(in ):: fo,fg,so,sg,visco,viscg
+  PetscReal,intent(out):: viscotl,viscgtl
+  PetscReal            :: tlomegac,sn,sni,viscqpo,viscqpg,wviscqp &
+                         ,denom,denominv,viscm
+  PetscReal            :: viscoimw,viscgimw,viscmw
  
 !--Set up complement of the Todd Longstaff omega-------------------------------
  
-  tlomegac=1.0-tlomega
-
-!--Form non-wetting saturation-------------------------------------------------
-
-  sn=so+sg
-
-!--Form safe inverse non-wetting saturation------------------------------------
-
-  if( sn>0.0 ) then
-    sni=1.0/sn
-  else
-    sni=0.0
-  endif
-
-!--Form oil and solvent fractions of non-wetting saturation--------------------
-
-  fo=so*sni
-  fg=sg*sni
+  tlomegac=1.0-val_tl_omega
 
 !--Form quarter-powers of basic viscosities------------------------------------
 
@@ -881,21 +862,115 @@ subroutine vToddLongstaffViscosity(tlomega,so,sg,visco,viscg)
 
 ! 1-omega and omega power contributions
 
-    viscoimw=visco**tlomegac
-    viscgimw=viscg**tlomegac
-    viscmw  =viscm**tlomega 
+  viscoimw=visco**tlomegac
+  viscgimw=viscg**tlomegac
+  viscmw  =viscm**val_tl_omega 
 
 ! Combine to get final value (TL 3a and 3b)
 
-    viscotl=viscoimw*viscmw
-    viscgtl=viscgimw*viscmw
-
-!--Store final values----------------------------------------------------------
-
-    visco=viscotl
-    viscg=viscgtl
+  viscotl=viscoimw*viscmw
+  viscgtl=viscgimw*viscmw
 
 end subroutine vToddLongstaffViscosity
+
+subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
+                                 ,deno,deng,denotl,dengtl)
+
+!------------------------------------------------------------------------------
+! Routine to calculate the Todd-Longstaff mixed densities
+! Based on the reference TL (see header of calling routine for details)
+!------------------------------------------------------------------------------
+! input : fo     ,fg     : Oil and gas fractions
+! input : visco  ,viscg  : unmixed phase viscosity values
+! input : viscotl,viscgtl: mixed   phase viscosity values
+! input : deno   ,deng   : unmixed phase density   values
+! output: denotl ,dengtl : mixed   phase density   values
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Jul 2017
+!------------------------------------------------------------------------------
+
+  implicit none
+
+  PetscReal,intent(in) :: fo,fg,visco,viscg,viscotl,viscgtl,deno,deng
+  PetscReal,intent(out):: denotl,dengtl
+  PetscReal            :: tlomegac,viscginv,viscotlinv,viscgtlinv &
+                         ,m,mooe,moge,mqp,mooeqp,mogeqp,mqpm,mqpm1,mqpm1inv &
+                         ,fo_oe,fo_ge,fg_oe,fg_ge &
+                         ,denm
+
+!--Set up complement of omega--------------------------------------------------
+
+  tlomegac=1.0-val_tl_omega
+
+! Build quarter power of mobility ratio of:
+!
+!     m   =visco/viscg  , original oil and original     gas viscosity
+!     mooe=visco/viscotl, original oil and effective TL oil viscosity
+!     moge=visco/viscgtl, original oil and effective TL gas viscosity
+
+  viscginv=0.0
+  if( viscg>0.0 ) then
+    viscgInv=1.0/viscg
+  endif
+
+  viscotlinv=0.0
+  if( viscotl>0.0 ) then
+    viscotlinv=1.0/viscotl
+  endif
+
+  viscgtlinv=0.0
+  if( viscgtl>0.0 ) then
+    viscgtlinv=1.0/viscgtl
+  endif
+ 
+  m=visco*viscginv
+  if( abs(m-1.0)>1.0E-6 .and. viscotl>0.0 .and. viscgtl>0.0 ) then
+
+! Case of non-unit mobility ratio
+
+! Form (visco(unmixed))/viscptl), p=o,g, as used in eqn. 8b and 8a in TL
+
+    mooe=visco*viscotlinv
+    moge=visco*viscgtlinv
+
+    mqp   =m   **0.25
+    mooeqp=mooe**0.25
+    mogeqp=moge**0.25
+
+    mqpm1=mqp-1.0
+
+    mqpm1inv=0.0;
+    if( abs(mqpm1)>0.0 ) then
+      mqpm1inv=1.0/mqpm1
+    endif
+
+!  Form effective fractional saturations, eqn. 8b and 8a in TL
+
+    fo_oe=(mqp-mooeqp)*mqpm1inv  
+    fo_ge=(mqp-mogeqp)*mqpm1inv      
+
+!  Complements of effective oil saturations, as used in eqn. 9a and 9b
+
+    fg_oe=1.0-fo_oe      
+    fg_ge=1.0-fo_ge      
+        
+!  Set up mixed densities, eqn. 9b and 9a
+
+    denotl=deno*fo_oe+deng*fg_oe
+    dengtl=deno*fo_ge+deng*fg_ge
+
+  else
+
+! Case of unit mobility ratio, eqn. 10a and 10b
+
+    denm=fo*deno+fg*deng
+    denotl=tlomegac*deno+val_tl_omega*denm
+    dengtl=tlomegac*deng+val_tl_omega*denm
+
+  endif
+
+end subroutine vToddLongstaffDensity
 
 ! ************************************************************************** !
 
