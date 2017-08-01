@@ -1481,8 +1481,8 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
     endif
 
     istl =(towg_miscibility_model == TOWG_TODD_LONGSTAFF)
-    isoil=(iphase == OIL_PHASE)
-    isgas=(iphase == GAS_PHASE)
+    isoil=(option%phase_map(iphase) == OIL_PHASE)
+    isgas=(option%phase_map(iphase) == GAS_PHASE)
     if( istl .and. (isoil.or.isgas) ) then
       if( isoil ) then
         denup=auxvar_up%tl%den_oil_eff_kg
@@ -1792,8 +1792,8 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
           !endif
 
           istl =(towg_miscibility_model == TOWG_TODD_LONGSTAFF)
-          isoil=(iphase == OIL_PHASE)
-          isgas=(iphase == GAS_PHASE)
+          isoil=(option%phase_map(iphase) == OIL_PHASE)
+          isgas=(option%phase_map(iphase) == GAS_PHASE)
           if( istl .and. (isoil.or.isgas) ) then
             if( isoil ) then
               denup=auxvar_up%tl%den_oil_eff_kg
