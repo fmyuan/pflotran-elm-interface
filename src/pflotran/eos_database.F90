@@ -12,9 +12,10 @@ module EOSDatabase_module
  
   PetscInt, parameter, public :: EOS_DENSITY = 1
   PetscInt, parameter, public :: EOS_ENTHALPY = 2
-  PetscInt, parameter, public :: EOS_VISCOSITY = 3 
+  PetscInt, parameter, public :: EOS_VISCOSITY = 3
+  PetscInt, parameter, public :: EOS_INTERNAL_ENERGY = 4
   !add here other properties and derivatives and increase MAX_PROP_NUM
-  PetscInt, parameter, public :: MAX_PROP_NUM = 3
+  PetscInt, parameter, public :: MAX_PROP_NUM = 4
 
   type, public :: eos_database_type 
     character(len=MAXWORDLENGTH) :: dbase_name
@@ -108,12 +109,14 @@ subroutine EOSDatabaseRead(this,option)
   class(eos_database_type) :: this
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword, word, input_unit, internal_units
   character(len=MAXSTRINGLENGTH) :: error_string = 'EOS_DATABASE'
   character(len=MAXSTRINGLENGTH) :: string 
   PetscInt :: prop_idx, prop_count, i_idx, j_idx 
   PetscInt :: data_size
   PetscReal :: tempreal
+  PetscReal :: press_conv_factor, temp_conv_factor
+  PetscReal, pointer :: prop_unit_conv_factor(:)
   PetscBool :: pres_present, temp_present
 
   type(input_type), pointer :: input_table
@@ -126,11 +129,15 @@ subroutine EOSDatabaseRead(this,option)
 
   input_table => InputCreate(IUNIT_TEMP,this%file_name,option)
   input_table%ierr = 0
+  input_table%force_units = PETSC_FALSE
 
   !if ( option%myrank == 0 ) then
     option%io_buffer = 'Reading database = ' // this%file_name
     call printMsg(option) 
   !end if
+
+  allocate(prop_unit_conv_factor(MAX_PROP_NUM))
+  prop_unit_conv_factor = UNINITIALIZED_DOUBLE
 
   !reading the database file header
   do
@@ -159,20 +166,47 @@ subroutine EOSDatabaseRead(this,option)
           select case(word)
             case('PRESSURE')
               pres_present = PETSC_TRUE
+              internal_units = 'Pa'
+              press_conv_factor = UnitReadAndConversionFactor(input_table, &
+                                                  internal_units,word,option)
             case('TEMPERATURE')
               temp_present = PETSC_TRUE 
+              !only C currently supported
+              !internal_units = 'C'
+              !temp_conv_factor = UnitReadAndConversionFactor(input_table, &
+              !                                    internal_units,word,option)
             case('DENSITY')
               prop_idx = prop_idx + 1
               this%data_to_prop_map(prop_idx) = EOS_DENSITY 
-              this%prop_to_data_map(EOS_DENSITY) = prop_idx 
+              this%prop_to_data_map(EOS_DENSITY) = prop_idx
+              internal_units = 'kg/m^3'
+              prop_unit_conv_factor(prop_idx) = &
+                              UnitReadAndConversionFactor(input_table, &
+                                             internal_units,word,option)
             case('ENTHALPY')
               prop_idx = prop_idx + 1
               this%data_to_prop_map(prop_idx) = EOS_ENTHALPY 
               this%prop_to_data_map(EOS_ENTHALPY) = prop_idx 
+              internal_units = 'J/kg'
+              prop_unit_conv_factor(prop_idx) = &
+                              UnitReadAndConversionFactor(input_table, &
+                                             internal_units,word,option)
+            case('INTERNAL_ENERGY')
+              prop_idx = prop_idx + 1
+              this%data_to_prop_map(prop_idx) = EOS_INTERNAL_ENERGY
+              this%prop_to_data_map(EOS_INTERNAL_ENERGY) = prop_idx 
+              internal_units = 'J/kg'
+              prop_unit_conv_factor(prop_idx) = &
+                              UnitReadAndConversionFactor(input_table, &
+                                             internal_units,word,option)
             case('VISCOSITY')
               prop_idx = prop_idx + 1
               this%data_to_prop_map(prop_idx) = EOS_VISCOSITY 
               this%prop_to_data_map(EOS_VISCOSITY) = prop_idx 
+              internal_units = 'Pa-s'
+              prop_unit_conv_factor(prop_idx) = &
+                              UnitReadAndConversionFactor(input_table, &
+                                             internal_units,word,option)
             case default
               error_string = trim(error_string) // ': ' // this%file_name // &
               ': DATA_LIST_ORDER'
@@ -229,8 +263,8 @@ subroutine EOSDatabaseRead(this,option)
       call InputReadDouble(input_table,option,tempreal) 
       call InputErrorMsg(input_table,option, &
                            'VALUE', 'EOS_DATABASE PRESS_VALUE') 
-      ! convert MPa in Pa
-      this%lookup_table%axis2%values(j_idx) = tempreal * 1.0d6
+      ! convert pressure to internal units - Pa
+      this%lookup_table%axis2%values(j_idx) = tempreal * press_conv_factor
    
       ! this is repeated this%num_dp times - not efficient
       call InputReadDouble(input_table,option, &
@@ -243,12 +277,16 @@ subroutine EOSDatabaseRead(this,option)
         call InputReadDouble(input_table,option,this%data(prop_idx,prop_count))
         call InputErrorMsg(input_table,option,&
                            'VALUE','EOS_DATABASE PROP_VALUE')
+        !convert to intenral units
+        this%data(prop_idx,prop_count) = prop_unit_conv_factor(prop_idx) * &
+                                         this%data(prop_idx,prop_count)
       end do      
 
     end do
 
   end do
 
+  deallocate(prop_unit_conv_factor)
   call InputDestroy(input_table)
 
 end subroutine EOSDatabaseRead

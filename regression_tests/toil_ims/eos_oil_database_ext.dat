@@ -1,11 +1,11 @@
 NUM_DP 4
 NUM_DT 4
 DATA_LIST_ORDER
-  PRESSURE  ! MPa, todo add unit control
-  TEMPERATURE ! °C, todo add unit control
-  DENSITY   ! kg/m3, todo add unit control
-  ENTHALPY  ! J/kg, todo add unit control
-  VISCOSITY ! Pas, todo add unit control
+  PRESSURE MPa
+  TEMPERATURE C
+  DENSITY kg/m^3
+  ENTHALPY J/kg
+  VISCOSITY Pa-s
 END
 DATA
 1.0000E-002	1.0000E+001	7.3811089500E+002	1.0000000000E+004	1.0399870000E-003

@@ -1749,20 +1749,23 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
   
   !for GENERAL print also fugacity 
   !derivatives to be done numerically during look-up 
-  write(IUNIT_TEMP,'(A6,1X,I6)') "NUM_DP", n_tab_press
-  write(IUNIT_TEMP,'(A6,1X,I6)') "NUM_DP", n_tab_temp
+  write(IUNIT_TEMP,'(A6,1X,I6)') "NUM_DP", n_tab_press + 1
+  write(IUNIT_TEMP,'(A6,1X,I6)') "NUM_DT", n_tab_temp + 1
   write(IUNIT_TEMP,'(A15)') "DATA_LIST_ORDER"
-  write(IUNIT_TEMP,'(2X,A8)') "PRESSURE"
-  write(IUNIT_TEMP,'(2X,A11)') "TEMPERATURE"
-  write(IUNIT_TEMP,'(2X,A7)') "DENSITY"
-  write(IUNIT_TEMP,'(2X,A6)') "ENERGY" 
-  write(IUNIT_TEMP,'(2X,A8)') "ENTHALPY"
-  write(IUNIT_TEMP,'(2X,A9)') "VISCOSITY"
+  write(IUNIT_TEMP,'(2X,A8,2X,A3)') "PRESSURE", "MPa"
+  write(IUNIT_TEMP,'(2X,A11,2X,A1)') "TEMPERATURE", "C"
+  write(IUNIT_TEMP,'(2X,A7,2X,A6)') "DENSITY", "kg/m^3"
+  write(IUNIT_TEMP,'(2X,A15,2X,A5)') "INTERNAL_ENERGY", "MJ/kg" 
+  write(IUNIT_TEMP,'(2X,A8,2X,A5)') "ENTHALPY", "MJ/kg"
+  write(IUNIT_TEMP,'(2X,A9,2X,A4)') "VISCOSITY", "Pa-s"
+  write(IUNIT_TEMP,'(A3)') "END"
   write(IUNIT_TEMP,'(A4)') "DATA"
 
   do i = 0, n_tab_press
     do j = 0, n_tab_temp
-      write(IUNIT_TEMP,'(1p6e14.6)') co2_properties(i,j,1:3), &
+      write(IUNIT_TEMP,'(1p6e14.6)') co2_properties(i,j,1), &
+        co2_properties(i,j,2) - 273.15D0, & !back to C
+        co2_properties(i,j,3), &
         co2_properties(i,j,9:10), co2_properties(i,j,13)
     enddo
   enddo

@@ -667,7 +667,7 @@ eos.o : co2_span_wagner.o eos_gas.o eos_oil.o eos_water.o input_aux.o option.o \
         pflotran_constants.o string.o
 eos_database.o : input_aux.o lookup_table.o option.o pflotran_constants.o \
                  string.o utility.o
-eos_gas.o : eos_water.o pflotran_constants.o
+eos_gas.o : eos_database.o eos_water.o option.o pflotran_constants.o
 eos_oil.o : eos_database.o option.o pflotran_constants.o
 eos_water.o : geometry.o pflotran_constants.o
 factory_geomechanics.o : condition_control.o convergence.o discretization.o \
