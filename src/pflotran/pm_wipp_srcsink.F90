@@ -38,7 +38,6 @@ module PM_WIPP_SrcSink_class
   PetscReal, parameter :: MW_HYDRO = 0.467636d0
   PetscReal, parameter :: MW_NO3 = (14.0067d-3 + 3.d0*15.9994d-3) ! not in database
   PetscReal, parameter :: MW_SO4 = (32.065d-3 + 4.d0*15.9994d-3) ! not in database
-  
   PetscReal, parameter :: MW_H2 = 2.015880d-3
   PetscReal, parameter :: MW_H2O = 1.801528d-2
   
@@ -239,20 +238,23 @@ module PM_WIPP_SrcSink_class
 !    generation rate for each grid cell in the waste panel region
 ! brine_generation_rate(:): [mol-H2O/m3-bulk/sec] array of the current brine 
 !    generation rate for each grid cell in the waste panel region
-! rxnrate_corrosion(:): [mol-Fe/m3-bulk/sec] array of the current anoxic iron 
+! rxnrate_Fe_corrosion(:): [mol-Fe/m3-bulk/sec] array of the current anoxic iron 
 !    corrosion rate constant
-! rxnrate_biodeg(:): [mol-cell/m3-bulk/sec] array of the current biodegradation 
-!    rate constant
-! rxnrate_FeS_Fe(:): [mol-H2S/m3-bulk/sec] array of the current iron 
-!    sulfidation rate constant
-! rxnrate_FeS_FeOH2(:): [mol-H2S/m3-bulk/sec] array of the current iron 
-!    corrosion product sulfidation rate constant
-! rxnrate_mgoh2(:): [mol-MgO/m3-bulk/sec] array of the current MgO hydration to 
-!    brucite rate constant
-! rxnrate_hydromag(:): [mol-hydromagnesite/m3-bulk/sec] array of the current 
-!    Brucite to hydromagnesite  rate constant
-! rxnrate_hymagcon(:): [mol-hydromagnesite/m3-bulk/sec] array of the current 
-!    Hydromagnesite to brucite and magnesite rate constant
+! rxnrate_cell_biodeg(:): [mol-cell/m3-bulk/sec] array of the current
+!     biodegradation rate constant
+! rxnrate_Fe_sulf(:): [mol-Fe/m3-bulk/sec] array of the current (metallic) iron 
+!    sulfidation to FeS rate constant
+! rxnrate_FeOH2_sulf(:): [mol-FeOH2/m3-bulk/sec] array of the current iron 
+!    corrosion product iron hydroxide (Fe(OH)2) sulfidation to FeS rate constant
+! rxnrate_MgO_hyd(:): [mol-MgO/m3-bulk/sec] array of the current MgO hydration to 
+!    brucite (Mg(OH)2) rate constant
+! rxnrate_MgOH2_carb(:): [mol-hydromagnesite/m3-bulk/sec] array of the current 
+!    brucite (Mg(OH)2) carbonation to hydromagnesite (Mg5(CO3)4(OH)2:4H2O) rate constant
+! rxnrate_MgO_carb(:): [mol-MgO/m3-bulk/sec] array of the current 
+!    MgO carbonation to magnesite (MgCO3) rate constant
+! rxnrate_hydromag_conv(:): [mol-hydromagnesite/m3-bulk/sec] array of the current 
+!    hydromagnesite (Mg5(CO3)4(OH)2:4H2O) conversion to 
+!    brucite (Mg(OH)2) and magnesite (MgCO3) rate constant
 ! inundated_corrosion_rate: [mol-Fe/m3-bulk/sec] corrosion rate of iron
 !    when inundated in brine
 ! humid_corrosion_rate: [mol-Fe/m3-bulk/sec], [-] corrosion rate of iron
@@ -272,6 +274,8 @@ module PM_WIPP_SrcSink_class
 !    eq. PA.85, section PA-4.2.5
 ! RXH2S_factor: [-] mol H2S / mol Carbon (cellulose) consumed by biodegradation
 ! RXCO2_factor: [-] mol CO2 / mol Carbon (cellulose) consumed by biodegradation
+! RXH2_factor:  [-] mol H2  / mol Carbon (cellulose) consumed by biodegradation
+! RXH2O_factor: [-] mol H2O / mol Carbon (cellulose) consumed by biodegradation
 ! volume: [m3] waste panel volume
 ! scale_by_volume: Boolean flag to scale given inventory to waste panel volume
 ! id: [-] waste panel id number
@@ -314,6 +318,7 @@ module PM_WIPP_SrcSink_class
     PetscReal :: humid_biodeg_rate           
     PetscReal :: inundated_brucite_rate      
     PetscReal :: humid_brucite_rate    
+    
     PetscReal :: F_NO3
     PetscReal :: F_SO4
     PetscReal :: RXH2S_factor       
@@ -345,13 +350,14 @@ module PM_WIPP_SrcSink_class
 ! satwick: [-] wicking saturation
 ! corrmco2: [m/s] iron corrosion rate in inundated conditions
 ! humcorr: [m/s] iron corrosion rate in humid conditions
-! gratmici: [mol-cellulosics/kg/sec] biodegradation rate in inundated 
+! gratmici: [mol-cellulosics/kg-cellulosics/sec] biodegradation rate in inundated 
 !    conditions 
-! gratmich: [mol-cellulosics/kg/sec] biodegradation rate in humid 
+! gratmich: [mol-cellulosics/kg-cellulosics/sec] biodegradation rate in humid 
 !    conditions 
-! brucitei: [mol-MgOH2/kg/sec] MgO hydration rate in inundated conditions
-! bruciteh: [mol-MgOH2/kg/sec] MgO hydration rate in humid conditions
-! hymagcon_rate: [mol-hydromagnesite/kg/sec] rate of hydromagnesite conversion
+! brucitei: [mol-MgOH2/kg-MgO/sec] MgO hydration rate in inundated conditions
+! bruciteh: [mol-MgOH2/kg-MgO/sec] MgO hydration rate in humid conditions
+! hymagcon_rate: [mol-hydromagnesite/kg-hydromagnesite/sec] 
+!                rate of hydromagnesite conversion
 ! drum_surface_area: [m2/drum] surface area of steel drums
 ! biogenfc: [-] parameter uniformly sampled between 0 and 1, used to account
 !    for the uncertainty in whether microbial gas generation could be realized 
@@ -363,7 +369,7 @@ module PM_WIPP_SrcSink_class
 !    produced by biodegradation
 ! plasidx: [-] flag value of 0 or 1; indicates whether gas generation is
 !    produced by rubbers and plastics
-! stoic_mat(8,10): [-] stoichiometry matrix for the 8 reactions, and for 
+! stoic_mat(8,10): [mol/mol] stoichiometry matrix for the 8 reactions, and for 
 !    10 reactant species; the numbering for the rows is the same as the first
 !    number of the STCO_## parameters in the PFD analysis of the database,
 !    but the column number is one off due to >0 indexing, e.g., STCO_34
@@ -1044,7 +1050,7 @@ subroutine PMWSSRead(this,input)
         call InputReadDouble(input,option,this%gratmich)
         call InputErrorMsg(input,option,'humid diodegradation rate for &
                            &cellulose (GRATMICH)',error_string)
-      case('BRUCITEC','BRUCITES')
+      case('BRUCITEC','BRUCITES','BRUCITEI')
         call InputReadDouble(input,option,this%brucitei)
         call InputErrorMsg(input,option,'MgO inundated hydration rate in &
                            &Castile or Salado brine (BRUCITE[C/S])', &
@@ -1899,9 +1905,9 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
         inventory%RubberPlas_in_panel) * &                 ! [kg]
         preinventory%mgo_ef * MW_MGO / MW_CELL             ! [-]
   inventory%Nitrate_in_panel = &                           ! [mol]
-        preinventory%nitrate !* MW_NO3                     ! [mol]
+        preinventory%nitrate                               ! [mol]
   inventory%Sulfate_in_panel = &                           ! [mol]
-        preinventory%sulfate !* MW_SO4                     ! [mol]
+        preinventory%sulfate                               ! [mol]
   !-----scale-inventory-totals-------------------------------units---------
   if (waste_panel%scale_by_volume) then
     vol_scaling_factor = waste_panel%volume / &            ! [m3]
@@ -1956,7 +1962,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
         this%bioidx                                     ! [-]
   !-----(see equation PA.86, PA.87, PA.88, section PA-4.2.5)----------------
   !-----iron-sulfidation----------------------------------units-------------
-  MOL_NO3 = inventory%Nitrate_in_panel !/ MW_NO3        ! [mol]
+  MOL_NO3 = inventory%Nitrate_in_panel                  ! [mol]
   A1 = inventory%Biodegs_in_panel / MW_CELL             ! [mol]
   A2 = this%gratmici * &                                ! [mol/kg/sec]
        (inventory%Biodegs_in_panel) * &                 ! [kg]
@@ -1973,6 +1979,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   waste_panel%RXH2O_factor = &                          ! [mol-H2O/mol-cell]
         waste_panel%F_NO3*(7.4d0/6.0d0) + &
         waste_panel%F_SO4*(5.0d0/6.0d0)
+  
   ! algebra/pre-brag/bragflo use the H2 (i.e. total gas) value for H2S
   waste_panel%RXH2S_factor = waste_panel%RXH2_factor   ! [mol-H2S/mol-cell]
   ! this is the correct, H2S-only, value
@@ -1990,11 +1997,11 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   !-----(see equation PA.73, section PA-4.2.5)------------------------------
   !-----MgO-hydration-------------------------------------units-------------
   waste_panel%inundated_brucite_rate = &                ! [mol-bruc/m3/sec]
-        max(this%brucitei,this%bruciteh) * &            ! [mol-bruc/kg/sec]
-        D_m                                             ! [kg/m3]
+        max(this%brucitei,this%bruciteh) * &            ! [mol-bruc/kg-MgO/sec]
+        D_m                                             ! [kg-MgO/m3]
   waste_panel%humid_brucite_rate = &                    ! [mol-bruc/m3/sec]
-        this%bruciteh * &                               ! [mol-bruc/kg/sec]
-        D_m                                             ! [kg/m3]
+        this%bruciteh * &                               ! [mol-bruc/kg-MgO/sec]
+        D_m                                             ! [kg-MgO/m3]
   !-------------------------------------------------------------------------
   !-------------------------------------------------------------------------
   
@@ -2701,7 +2708,7 @@ end subroutine PMWSSUpdateChemSpecies
           wippflo_auxvar(ZERO_INTEGER,ghosted_id)%sat(option%liquid_phase)
       endif
       if (this%smin > 0.d0) then
-        SOCEXP = 200.d0*(max((water_saturation-this%smin),0.d0))**2
+        SOCEXP = 200.d0*(max((water_saturation-this%smin),0.d0))**2.d0
       else
         SOCEXP = water_saturation
       endif
@@ -2838,11 +2845,13 @@ end subroutine PMWSSUpdateChemSpecies
       ! this is a first-order reaction, not zero-order; also rate is on /kg basis
       cwp%rxnrate_hydromag_conv(i) = this%hymagcon_rate* &
                                 cwp%inventory%Mg5CO34OH24H2_s%current_conc_kg(i)
-      call PMWSSSmoothRxnrate(cwp%rxnrate_hydromag_conv(i),i, &
-                              cwp%inventory%MgO_s,this%alpharxn)
+      ! for smoothing, the initial and current species are different
+      call PMWSSSmoothRxnrate2(cwp%rxnrate_hydromag_conv(i), &
+                               cwp%inventory%Mg5CO34OH24H2_s%current_conc_mol(i), & 
+                               cwp%inventory%MgO_s%initial_conc_mol(i), & 
+                               this%alpharxn)
       call PMWSSTaperRxnrate(cwp%rxnrate_hydromag_conv(i),i, &
                              cwp%inventory%Mg5CO34OH24H2_s,1.d0,dt)
-      
       
     !-----tracked-species-[mol-species/m3-bulk/sec]---------------------------
     !-----note:column-id-is-shifted-by-+1-since-a-0-index-not-possible--------
@@ -3075,7 +3084,7 @@ subroutine PMWSSTaperRxnrate1(rxnrate,cell_num,limiting_species1,stocoef,dt)
 ! limiting_species1 (input): chemical species object that is the limiting
 !    species of the reaction with reaction rate constant "rxnrate"
 ! stocoef: [mol/mol] stoichiometric coefficient for limiting reactant
-! dt: timestep size
+! dt: timestep size [sec]
 ! --------------------------------------------
   PetscReal :: rxnrate
   PetscInt :: cell_num
