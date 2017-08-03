@@ -25,6 +25,7 @@ contains
 subroutine WIPPFloDerivativeDriver(option)
           
   use Characteristic_Curves_module
+  use General_Aux_module, only : LIQUID_STATE, GAS_STATE, TWO_PHASE_STATE
 
   implicit none
   
