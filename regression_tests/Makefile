@@ -74,7 +74,6 @@ STANDARD_CFG = \
 	towg/towg.cfg \
 	ufd/ufd.cfg \
 	wipp/nuts/nuts.cfg \
-	wipp/bragflo/bragflo.cfg \
 	wipp/bragflo/wipp_flow/wipp_flow.cfg
 
 ifneq ($(strip $(PARMETIS_LIB)),)
@@ -124,7 +123,7 @@ FLOW_CFG = \
 	towg/towg.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
-	wipp/bragflo/bragflo.cfg
+	wipp/bragflo/wipp_flow/wipp_flow.cfg
 
 TRANSPORT_CFG = \
 	default/543/543.cfg \
@@ -148,7 +147,7 @@ NOHDF5_CFG = \
 	default/materials/soil_compressibility/soil_compressibility.cfg \
 	wipp/nuts/nuts.cfg \
 	default/multicontinuum/multicontinuum.cfg \
-	wipp/bragflo/bragflo.cfg \
+	wipp/bragflo/wipp_flow/wipp_flow.cfg \
 	ufd/ufd.cfg \
 	hydrogeophysics/hydrogeophysics.cfg \
 	ascem/1d/1d-calcite/1d-calcite.cfg \
@@ -164,7 +163,7 @@ NOHDF5_CFG = \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg
 
 WIPP_CFG = \
-	wipp/bragflo/bragflo.cfg \
+	wipp/bragflo/wipp_flow/wipp_flow.cfg \
 	wipp/nuts/nuts.cfg
 
 
@@ -286,11 +285,11 @@ clean-tests :
 	-rm -f shortcourse/copper_leaching/cu_leaching-int.dat
 	-rm -f wipp/nuts/case3-int.dat
 	-rm -f wipp/nuts/case4r1_modified-int.dat
-	-rm -f wipp/bragflo/gas_generation_2d-np4.h5
-	-rm -f wipp/bragflo/well_production2-ss_mass-0.dat
-	-rm -f wipp/bragflo/gas_generation_2d.h5
-	-rm -f wipp/bragflo/gas_generation_one_cell.h5
-	-rm -f wipp/bragflo/*.pnl
+	-rm -f wipp/bragflo/wipp_flow/gas_generation_2d-np4.h5
+	-rm -f wipp/bragflo/wipp_flow/well_production2-ss_mass-0.dat
+	-rm -f wipp/bragflo/wipp_flow/gas_generation_2d.h5
+	-rm -f wipp/bragflo/wipp_flow/gas_generation_one_cell.h5
+	-rm -f wipp/bragflo/wipp_flow/*.pnl
 	-rm -f default/multicontinuum/0D_heat_MPH-int.dat
 	-rm -f default/multicontinuum/0D_heat_TH-int.dat
 	-rm -f default/543/543_hanford_srfcplx_base*.h5
