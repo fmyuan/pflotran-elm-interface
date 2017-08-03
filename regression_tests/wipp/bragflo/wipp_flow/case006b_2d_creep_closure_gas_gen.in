@@ -124,7 +124,7 @@ END
 
 ! Creep Closure
 CREEP_CLOSURE_TABLE  creep001
-  FILENAME ../pflotran_closure.dat
+  FILENAME pflotran_closure.dat
 END
 
 !=========================== regions ==========================================
