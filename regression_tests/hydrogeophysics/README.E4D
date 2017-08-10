@@ -165,7 +165,7 @@ pflotran documentation for details. The command line sequence to run PFLOTRAN
 with the E4D module is:
 
 mpirun -n TP pflotran -pflotranin PFIN < -stochastic > < -num_realizations NR >
-< -num_groups NG> -num_slave NS
+< -num_groups NG> -num_slaves NS
 
 where:
 TP = total number of process (i.e. compute cores) to use
