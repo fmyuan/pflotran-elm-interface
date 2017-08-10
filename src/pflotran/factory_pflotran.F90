@@ -453,6 +453,8 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   PetscBool :: bool_flag
   PetscBool :: pflotranin_option_found
   PetscBool :: input_prefix_option_found
+  PetscBool :: output_dir_found
+  PetscBool :: output_file_prefix_found
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscInt :: i
   PetscErrorCode :: ierr
@@ -478,10 +480,18 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   else if (input_prefix_option_found) then
     option%input_filename = trim(option%input_prefix) // '.in'
   endif
-  
+
   string = '-output_prefix'
   call InputGetCommandLineString(string,option%global_prefix,option_found,option)
-  if (.not.option_found) option%global_prefix = option%input_prefix  
+
+  if (.not.option_found) then
+    option%global_prefix = option%input_prefix
+    option%output_file_name_prefix = option%input_prefix
+  else
+    call InputReadFileDirNamePrefix(option%global_prefix, &
+                                    option%output_file_name_prefix, &
+                                    option%output_dir)
+  end if
   
   string = '-screen_output'
   call InputGetCommandLineTruth(string,option%print_to_screen,option_found,option)

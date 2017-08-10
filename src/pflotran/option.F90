@@ -185,6 +185,10 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: input_prefix
     character(len=MAXSTRINGLENGTH) :: global_prefix
     character(len=MAXWORDLENGTH) :: group_prefix
+    !PO
+    character(len=MAXSTRINGLENGTH) :: output_file_name_prefix
+    character(len=MAXSTRINGLENGTH) :: output_dir
+    !PO end
     
     PetscBool :: steady_state
     PetscBool :: use_matrix_buffer
@@ -358,6 +362,8 @@ subroutine OptionInitAll(option)
   option%input_prefix = 'pflotran'
   option%group_prefix = ''
   option%global_prefix = ''
+  option%output_file_name_prefix = ''
+  option%output_dir = ''
     
   option%broadcast_read = PETSC_FALSE
   option%io_rank = 0

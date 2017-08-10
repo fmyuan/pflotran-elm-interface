@@ -134,6 +134,7 @@ module Input_Aux_module
             InputReadAndConvertUnits, &
             InputRewind, &
             InputCloseNestedFiles, &
+            InputReadFileDirNamePrefix, &
             UnitReadAndConversionFactor
 
 contains
@@ -1202,6 +1203,48 @@ subroutine InputReadPath(string, word, return_blank_error, ierr)
   endif
   
 end subroutine InputReadPath
+
+! ************************************************************************** !
+
+subroutine InputReadFileDirNamePrefix(prefix,name_prefix,directory)
+  ! 
+  ! Reads in file_name_prefix and file_directory given the full file_prefix
+  !
+  ! Author: Paolo Orsini
+  ! Date: 08/10/17
+  ! 
+
+  use String_module
+
+  implicit none
+
+  character(len=MAXSTRINGLENGTH), intent(in) :: prefix
+  character(len=MAXSTRINGLENGTH), intent(out) :: name_prefix
+  character(len=MAXSTRINGLENGTH), intent(out) :: directory
+
+  character(len=MAXSTRINGLENGTH), pointer :: strings(:)
+  character(len=MAXSTRINGLENGTH) :: string_tmp
+  PetscInt :: i_dir
+
+  string_tmp = trim(prefix)
+
+  strings => StringSplit(string_tmp,'/')
+
+  name_prefix = adjustl(trim(strings(size(strings))))
+
+  directory = ''
+  if ( size(strings) > 1 ) then
+    do i_dir = 1, size(strings) - 1 
+      if ( i_dir == (size(strings) - 1) ) then 
+        directory = adjustl(trim(directory)) // adjustl(trim(strings(i_dir)))
+      else
+        directory = adjustl(trim(directory)) &
+                    // adjustl(trim(strings(i_dir))) // '/'
+      end if
+    end do
+  end if
+
+end subroutine InputReadFileDirNamePrefix
 
 ! ************************************************************************** !
 
