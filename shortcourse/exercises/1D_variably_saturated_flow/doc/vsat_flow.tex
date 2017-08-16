@@ -151,7 +151,7 @@ The ``1D Variably Saturated Flow Scenario'' simulates single phase groundwater f
   \end{itemize}
   \item Total simulation time: 10 y
 \end{itemize}
-\begin{textblock}{.5}[1,1](10.5,-.75)
+\begin{textblock}{.5}[1,1](9.5,-.75)
 \includegraphics[height=2in]{./vsat_flow_uniform}
 \end{textblock}  
 }
@@ -560,6 +560,21 @@ END                       \bluecomment{!   converted to SI}
 \end{frame}
 
 %-----------------------------------------------------------------------------
+\subsection{Running vsat_flow.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_variably_saturated_flow
+> pflotran -input_prefix vsat_flow
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \section{Description of Input Deck: Adding a pulsed recharge}
 
 \subsection{Input File Modifications}
@@ -627,6 +642,21 @@ END
 \end{frame}
 
 %-----------------------------------------------------------------------------
+\subsection{Running vsat_flow_pulse.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_variably_saturated_flow
+> pflotran -input_prefix vsat_flow_pulse
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \section{Description of Input Deck: Split into two soil layers and add observation point}
 
 \subsection{Input File Modifications}
@@ -647,7 +677,7 @@ END
     \item OUTPUT
    \end{itemize}
 \end{itemize}
-\begin{textblock}{.5}[1,1](9,3)
+\begin{textblock}{.5}[1,1](8,3)
 \includegraphics[height=2.5in]{./vsat_flow_layered}
 \end{textblock} 
 \end{frame}
@@ -808,6 +838,21 @@ OUTPUT
   FORMAT TECPLOT POINT       \bluecomment{!   0.1 years}
   \magentacomment{PERIODIC_OBSERVATION TIMESTEP 1} \bluecomment{! print observation}
 END                               \bluecomment{!   data every time step}
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Running vsat_flow_pulse_2layer.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_variably_saturated_flow
+> pflotran -input_prefix vsat_flow_pulse_2layer
 
 \end{semiverbatim}
 

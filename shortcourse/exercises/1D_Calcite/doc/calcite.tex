@@ -634,6 +634,21 @@ UNIFORM_VELOCITY 1.d0 0.d0 0.d0 m/yr  \bluecomment{! 1 m/yr Darcy}
 \end{frame}
 
 %-----------------------------------------------------------------------------
+\subsection{Running calcite_tran_only.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_Calcite
+> pflotran -input_prefix calcite_tran_only
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \section{Description of Input Deck: Adding a Flow Solution}
 
 \subsection{Input File Modifications}
@@ -836,6 +851,21 @@ END}
 \end{frame}
 
 %-----------------------------------------------------------------------------
+\subsection{Running calcite_flow_and_tran.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_Calcite
+> pflotran -input_prefix calcite_flow_and_tran
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \section{Description of Input Deck: Switch to Infiltration}
 
 \subsection{Input File Modifications}
@@ -1024,6 +1054,22 @@ BOUNDARY_CONDITION inlet
   TRANSPORT_CONDITION inlet_conc
   REGION \magentacomment{top}
 END
+\end{semiverbatim}
+
+\end{frame}
+
+
+%-----------------------------------------------------------------------------
+\subsection{Running calcite_vsat_flow_and_tran.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_Calcite
+> pflotran -input_prefix calcite_vsat_flow_and_tran
+
 \end{semiverbatim}
 
 \end{frame}
