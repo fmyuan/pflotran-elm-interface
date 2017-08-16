@@ -842,8 +842,11 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl)
   viscqpg=viscg**0.25
 
 !--Form weighted combination of the 1/4 powers & its 4th power (denom of TL 4a)
+!  Note that:
+!  fg multiplies the oil viscosity 1/4-power term
+!  fo multiplies the gas viscosity 1/4-power term
 
-  wviscqp=fo*viscqpo+fg*viscqpg
+  wviscqp=fg*viscqpo+fo*viscqpg
   denom=wviscqp**4.0
 
 !--Obtain a safe denominator inverse-------------------------------------------
@@ -911,7 +914,7 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
 
   viscginv=0.0
   if( viscg>0.0 ) then
-    viscgInv=1.0/viscg
+    viscginv=1.0/viscg
   endif
 
   viscotlinv=0.0
