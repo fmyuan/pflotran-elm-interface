@@ -312,6 +312,10 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
 
   PetscInt :: ndof
 
+  if (this%option%print_screen_flag) then
+    write(*,'(/,2("=")," EVOLVE STRATA ",63("="))')
+  endif
+
   ierr = 0
   call InitSubsurfAssignMatIDsToRegns(this%realization)
   call InitSubsurfAssignMatProperties(this%realization)
@@ -343,6 +347,10 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt, parameter :: iphase = 1
     
+  if (this%option%print_screen_flag) then
+    write(*,'(/,2("=")," UPDATE SALINITY ",61("="))')
+  endif
+
   ierr = 0
   do j = 1, 2
     if (j == 1) then
