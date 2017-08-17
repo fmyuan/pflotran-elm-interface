@@ -1,0 +1,96 @@
+\subsection{SIMULATION}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{SIMULATION}
+
+\begin{itemize}
+\item[] \textbf{Purpose:} Defines 
+\begin{itemize}
+  \item Type of simulation
+  \item Process models required
+  \item Process model specific options
+  \item Checkpoint/restart
+\end{itemize}
+\begin{comment}
+\item[] \textbf{Example uses:}
+\begin{itemize}
+  \item 
+\end{itemize}
+\end{comment}
+\item[] \textbf{Key sub-cards:}
+\begin{itemize}
+\item[] \verb|SIMULATION_TYPE|
+\item[] \verb|  SUBSURFACE|
+\item[] \verb|  HYDROGEOPHYSICS|
+\item[] \verb|  GEOMECHANICS_SUBSURFACE|
+\item[] \verb|  ...|
+\item[] \verb|PROCESS_MODELS|
+\item[] \verb|  SUBSURFACE_FLOW|
+\item[] \verb|  SUBSURFACE_TRANSPORT|
+\item[] \verb|  UFD_DECAY|
+\item[] \verb|  ...|
+\item[] \verb|CHECKPOINT|
+\item[] \verb|RESTART|
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{SIMULATION Example: Flow and Transport}
+
+\begin{semiverbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{SIMULATION Example: Multiphase Flow}
+
+\begin{semiverbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        ANALYTICAL_JACOBIAN
+        ARITHMETIC_GAS_DIFFUSIVE_DENSITY
+      /
+    /
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{SIMULATION Example: With Checkpointing}
+\begin{semiverbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE TH
+    /
+  /
+  CHECKPOINT
+    PERIODIC TIMESTEP 10
+    PERIODIC TIME y 100.
+    TIMES y 137.
+    FORMAT HDF5
+  /
+END
+\end{semiverbatim}
+
+\end{frame}

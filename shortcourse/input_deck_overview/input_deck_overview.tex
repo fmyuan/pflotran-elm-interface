@@ -1,0 +1,37 @@
+\documentclass{beamer}
+
+\usepackage{comment}
+\usepackage{color}
+
+\title{An Overview of the PFLOTRAN Input Deck}
+\author{Glenn Hammond}
+\date{\today}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}
+\tableofcontents[]
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\section{Control Cards}
+\include{simulation}
+
+%-----------------------------------------------------------------------------
+\section{Required Cards}
+\include{grid}
+\include{region}
+\include{material_property}
+\include{strata}
+\include{time}
+\include{initial_condition}
+
+%-----------------------------------------------------------------------------
+\section{Optional Cards}
+\include{flow_condition}
+\include{boundary_condition}
+\include{output}
+
+\end{document}

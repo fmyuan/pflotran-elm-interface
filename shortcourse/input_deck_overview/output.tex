@@ -1,0 +1,64 @@
+\subsection{OUTPUT}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{OUTPUT}
+
+\begin{itemize}
+\item[] \textbf{Purpose:} Defines file output for simulation.
+\item[] \textbf{Example uses:}
+\begin{itemize}
+  \item Define times for plot file output
+  \item Define times for observation point output
+  \item Define output formatting
+  \item Define output variables
+\end{itemize}
+\item[] \textbf{Key sub-cards:}
+\begin{itemize}
+  \item[] \verb|OBSERVATION_FILE|
+  \item[] \verb|SNAPSHOT_FILE|
+  \item[] \verb|MASS_BALANCE_FILE|
+  \item[] \verb|VARIABLES|
+  \item[] \verb|TIMES|
+  \item[] \verb|FORMAT|
+  \item[] \verb|  TECPLOT POINT|
+  \item[] \verb|  HDF5|
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{OUTPUT Example: Simple}
+
+\begin{semiverbatim}
+OUTPUT
+  TIMES y 0.01 0.1 1.0
+  FORMAT TECPLOT POINT
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{OUTPUT Example: Complex}
+
+\begin{semiverbatim}
+OUTPUT
+  SNAPSHOT_FILE
+    PERIODIC TIME 0.25 y BETWEEN 0. y AND 2. y
+    PERIODIC TIME 1. y BETWEEN 0. y AND 10. y
+    FORMAT TECPLOT BLOCK
+    FORMAT HDF5
+    PRINT_COLUMN_IDS
+    VARIABLES
+      LIQUID_PRESSURE
+      LIQUID_SATURATION
+    /
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+  /
+  VELOCITY_AT_CENTER
+END
+\end{semiverbatim}
+
+\end{frame}
