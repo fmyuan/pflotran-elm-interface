@@ -12,8 +12,11 @@
 \frame{\titlepage}
 
 \begin{frame}
+\footnotesize
 \tableofcontents[]
 \end{frame}
+
+\include{syntax}
 
 %-----------------------------------------------------------------------------
 \section{Control Cards}
@@ -28,10 +31,18 @@
 \include{time}
 \include{initial_condition}
 
+\section{Required Cards for Flow}
+\include{flow_condition}
+
+\section{Required Cards for Reactive Transport}
+\include{chemistry}
+\include{transport_condition}
+\include{constraint}
+
 %-----------------------------------------------------------------------------
 \section{Optional Cards}
-\include{flow_condition}
 \include{boundary_condition}
 \include{output}
+\include{fluid_property}
 
 \end{document}
