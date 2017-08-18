@@ -31,8 +31,8 @@ NEWTON_SOLVER FLOW
 END
 
 LINEAR_SOLVER FLOW
-  KSP_TYPE PREONLY
-  PC_TYPE LU
+#  KSP_TYPE PREONLY
+#  PC_TYPE LU
 END
 
 #=========================== discretization ===================================
