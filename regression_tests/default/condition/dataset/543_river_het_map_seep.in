@@ -14,7 +14,7 @@ SUBSURFACE
 
 #=========================== regression =======================================
 REGRESSION
-  CELLS_PER_PROCESS 2
+  CELLS_PER_PROCESS 5
   CELLS
     53
   /
@@ -54,28 +54,28 @@ END
 
 #=========================== datasets =========================================
 DATASET MAPPED Pressure_2
-  FILENAME 543_river_het_pres_dirichlet.h5
+  FILENAME 543_river_het_pres_seepage.h5
   HDF5_DATASET_NAME Pressure_2
   MAX_BUFFER_SIZE 200
   MAP_HDF5_DATASET_NAME Map_2
 END
 
 DATASET MAPPED Pressure_3
-  FILENAME 543_river_het_pres_dirichlet.h5
+  FILENAME 543_river_het_pres_seepage.h5
   HDF5_DATASET_NAME Pressure_3
   MAX_BUFFER_SIZE 200
   MAP_HDF5_DATASET_NAME Map_3
 END
 
 DATASET MAPPED Pressure_4
-  FILENAME 543_river_het_pres_dirichlet.h5
+  FILENAME 543_river_het_pres_seepage.h5
   HDF5_DATASET_NAME Pressure_4
   MAX_BUFFER_SIZE 200
   MAP_HDF5_DATASET_NAME Map_4
 END
 
 DATASET MAPPED Pressure_6
-  FILENAME 543_river_het_pres_dirichlet.h5
+  FILENAME 543_river_het_pres_seepage.h5
   HDF5_DATASET_NAME Pressure_6
   MAX_BUFFER_SIZE 200
   MAP_HDF5_DATASET_NAME Map_6
@@ -268,7 +268,7 @@ END
 
 FLOW_CONDITION east_2
   TYPE
-    PRESSURE heterogeneous_dirichlet  
+    PRESSURE heterogeneous_seepage  
   /
   INTERPOLATION LINEAR
   PRESSURE DATASET Pressure_2
@@ -276,7 +276,7 @@ END
 
 FLOW_CONDITION east_3
   TYPE
-    PRESSURE heterogeneous_dirichlet  
+    PRESSURE heterogeneous_seepage  
   /
   INTERPOLATION LINEAR
   PRESSURE DATASET Pressure_3
@@ -284,7 +284,7 @@ END
 
 FLOW_CONDITION east_4
   TYPE
-    PRESSURE heterogeneous_dirichlet  
+    PRESSURE heterogeneous_seepage  
   /
   INTERPOLATION LINEAR
   PRESSURE DATASET Pressure_4
@@ -292,7 +292,7 @@ END
 
 FLOW_CONDITION east_6
   TYPE
-    PRESSURE heterogeneous_dirichlet  
+    PRESSURE heterogeneous_seepage  
   /
   INTERPOLATION LINEAR
   PRESSURE DATASET Pressure_6
