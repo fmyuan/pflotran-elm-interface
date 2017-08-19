@@ -865,7 +865,7 @@ subroutine printMsgAnyRank1(option)
   
   type(option_type) :: option
   
-  call printMsgAnyRank2(option%io_buffer)
+  if (OptionPrintToScreen(option)) call printMsgAnyRank2(option%io_buffer)
   
 end subroutine printMsgAnyRank1
 
@@ -922,8 +922,10 @@ subroutine printMsgByRank2(option,string)
   
   character(len=MAXWORDLENGTH) :: word
   
-  write(word,*) option%myrank
-  print *, '(' // trim(adjustl(word)) // '): ' // trim(string)
+  if (OptionPrintToScreen(option)) then
+    write(word,*) option%myrank
+    print *, '(' // trim(adjustl(word)) // '): ' // trim(string)
+  endif
   
 end subroutine printMsgByRank2
 

@@ -164,17 +164,10 @@ This is one of PFLOTRAN's QA tests (2D Steady Flow, BCs of 1st 2nd kind).
 \begin{frame}[fragile,containsverbatim]\frametitle{PROBLEM DESCRIPTION}
 
 This is one of PFLOTRAN's QA tests (2D Steady Flow, BCs of 1st 2nd kind).
-  \begin{itemize}
-    \item Boundary Conditions:
-    \begin{itemize}
-      \item $p(x,0) = p_0 {x \over L} $  \hspace{0.25in} y=0 \hspace{0.15in} face
-      \item $p(x,L) = p_0 {{x+2L} \over L} $  \hspace{0.25in} y=L \hspace{0.15in} face
-      \item $p(2L,y) = p_0 {{2y+2L} \over L} $  \hspace{0.25in} x=2L \hspace{0.15in} face
-      \item $q(0,y) = {{-k}\over{\mu}}{p_0 \over L} = -10^{-5} $  \hspace{0.25in} x=0 \hspace{0.15in} face
-    \end{itemize}
-  \item L = 1 m and P0 = 1 MPa  
-  \item How do we apply these more complex boundary conditions?
-  \end{itemize}
+
+\includegraphics[width=1.2\textheight]{./BC_schematic.png}
+
+L = 1 m
 
 \end{frame}
 
@@ -199,6 +192,17 @@ $p(x,y) = {p_0 \over L} (x+2y)$
 \begin{frame}[fragile,containsverbatim]\frametitle{PROBLEM DESCRIPTION}
 
 \includegraphics[width=0.75\textheight]{./visit_figure.png}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile,containsverbatim]\frametitle{PROBLEM DESCRIPTION}
+
+\includegraphics[width=1.2\textheight]{./BC_schematic.png}
+
+How do we apply these more complex boundary conditions? 
+
+With a gridded dataset!
 
 \end{frame}
 
@@ -303,8 +307,24 @@ BOUNDARY_CONDITION north_face
 END
 \end{semiverbatim}
 
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{How To Run the Problem}
+
+\begin{semiverbatim}
+
+ > cd \$PFLOTRAN_DIR
+ > cd shortcourse/exercises/gridded_datasets/
+ 
+ > pflotran -input_prefix 2D_steady_pressure_BC_1st_2nd_kind
+
+\end{semiverbatim}
+
+The output is in VTK format. You can use Paraview to visualize it.
 
 \end{frame}
+
 
 
 

@@ -460,19 +460,23 @@ subroutine PMCSurfaceSetAuxData(this)
                   do iconn = 1, cur_connection_set%num_connections
 
                     local_id = cur_connection_set%id_dn(iconn)
-                    select case(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF))
+                    select case(source_sink%flow_condition% &
+                                  itype(TH_TEMPERATURE_DOF))
                       case (ENERGY_RATE_SS)
-                        esrc = source_sink%flow_condition%energy_rate%dataset%rarray(1)
+                        esrc = source_sink%flow_condition%energy_rate% &
+                                  dataset%rarray(1)
                       case (HET_ENERGY_RATE_SS)
                         esrc = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
                       case (DIRICHLET_BC)
-                        esrc = source_sink%flow_condition%temperature%dataset%rarray(1)
-                      case (HET_DIRICHLET)
+                        esrc = source_sink%flow_condition%temperature% &
+                                  dataset%rarray(1)
+                      case (HET_DIRICHLET_BC)
                         esrc = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
                       case default
-                        this%option%io_buffer = 'atm_energy_ss does not have '// &
-                          'a temperature condition that is either a ' // &
-                          ' ENERGY_RATE_SS/HET_ENERGY_RATE_SSDIRICHLET_BC/HET_DIRICHLET'
+                        this%option%io_buffer = 'atm_energy_ss does not have &
+                          &a temperature condition that is either a &
+                          &ENERGY_RATE_SS/HET_ENERGY_RATE_SS/DIRICHLET_BC/ &
+                          &HET_DIRICHLET_BC'
                         call printErrMsg(this%option)
                     end select
 

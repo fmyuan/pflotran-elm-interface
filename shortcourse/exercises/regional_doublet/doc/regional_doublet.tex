@@ -996,4 +996,38 @@ END                         \bluecomment{! file \redcomment{restart.chk}}
 
 \end{frame}
 
+%-----------------------------------------------------------------------------
+\section{How To Run the Problem}
+
+\begin{frame}[fragile]\frametitle{How To Run the Problem}
+
+\begin{semiverbatim}
+
+ > cd \$PFLOTRAN_DIR
+ > cd shortcourse/exercises/regional_doublet/
+ 
+ > pflotran -input_prefix regional_doublet
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\section{How To Run the Python Script}
+
+\begin{frame}[fragile]\frametitle{How To Run the Python Script to Plot}
+
+When the simulation is finished running, you can plot the results using
+the python script called regional\_doublet\_center\_obs.py
+
+To run the python script:
+
+\begin{semiverbatim}
+
+ > python regional_doublet_center_obs.py
+
+\end{semiverbatim}
+
+\end{frame}
+
 \end{document}

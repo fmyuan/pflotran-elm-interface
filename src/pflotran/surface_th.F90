@@ -1098,7 +1098,8 @@ subroutine SurfaceTHUpdateAuxVars(surf_realization)
 
       do idof=1,option%nflowdof
         select case(boundary_condition%flow_condition%itype(idof))
-          case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,HET_DIRICHLET,NEUMANN_BC)
+          case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,NEUMANN_BC, &
+               HET_DIRICHLET_BC)
             xxbc(idof) = boundary_condition%flow_aux_real_var(idof,iconn)
           case(ZERO_GRADIENT_BC)
             xxbc(idof) = xx_loc_p((ghosted_id-1)*option%nflowdof+idof)
@@ -1132,7 +1133,8 @@ subroutine SurfaceTHUpdateAuxVars(surf_realization)
       istart = iend-option%nflowdof+1
 
       if (associated(source_sink%flow_condition%temperature)) then
-        if (source_sink%flow_condition%temperature%itype/=HET_DIRICHLET) then
+        if (source_sink%flow_condition%temperature%itype /= &
+            HET_DIRICHLET_BC) then
           tsrc1 = source_sink%flow_condition%temperature%dataset%rarray(1)
         else
           tsrc1 = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
@@ -1596,7 +1598,8 @@ subroutine SurfaceTHImplicitAtmForcing(surf_realization)
 
     if (StringCompare(source_sink%name,'atm_energy_ss')) then
 
-      if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == HET_DIRICHLET) then
+      if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == &
+          HET_DIRICHLET_BC) then
 
         do iconn = 1, cur_connection_set%num_connections
 
