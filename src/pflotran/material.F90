@@ -777,7 +777,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         endif
         word = 'BULK_COMPRESSIBILITY'
       case('POROSITY_EXPONENTIAL')
-        if (soil_or_pore_compressibility /= TMP_POROSITY_COMPRESSIBILITY) then
+        if (soil_or_bulk_compressibility /= TMP_POROSITY_COMPRESSIBILITY) then
           option%io_buffer = 'A POROSITY_COMPRESSIBILITY should be entered &
             &in MATERIAL_PROPERTY "' // &
             trim(material_property%name) // '" since a POROSITY_EXPONENTIAL &
