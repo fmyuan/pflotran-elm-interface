@@ -300,12 +300,12 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
     return
   endif
 
-  if (.not.associated(MaterialCompressSoilPtr, &
-                      MaterialCompressSoilBRAGFLO)) then
-    option%io_buffer = 'WIPP Fracture Function must be used with ' // &
-      'BRAGFLO soil compressibility function.'
-    call printErrMsg(option)
-  endif
+  ! if (.not.associated(MaterialCompressSoilPtr, &
+  !                     MaterialCompressSoilBRAGFLO)) then
+  !   option%io_buffer = 'WIPP Fracture Function must be used with ' // &
+  !     'BRAGFLO soil compressibility function.'
+  !   call printErrMsg(option)
+  ! endif
   
   if (pressure < Pi) then
 !    call MaterialCompressSoil(auxvar,pressure, compressed_porosity, &

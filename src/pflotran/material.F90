@@ -767,7 +767,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   if (len_trim(material_property%soil_compressibility_function) > 0) then
     word = material_property%soil_compressibility_function
     select case(word)
-      case('BRAGFLO','WIPP')
+      case('BRAGFLO','BULK_EXPONENTIAL')
         if (soil_or_bulk_compressibility /= TMP_BULK_COMPRESSIBILITY) then
           option%io_buffer = 'A BULK_COMPRESSIBILITY should be entered &
             &instead of a SOIL_COMPRESSIBILITY in MATERIAL_PROPERTY "' // &
