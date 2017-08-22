@@ -1,6 +1,5 @@
-#Description: Multiphase flow using GENERAL mode. Also features gridded and cell-indexed datasets.
+#Description: Multiphase flow using GENERAL mode.
 #Conceptual model: 2D domain with gas source at lower left corner
-#Optional: Add a gas flux at the bottom boundary
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -8,6 +7,7 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL ! two-phase flow and energy
       OPTIONS
+        ANALYTICAL_DERIVATIVES
         GAS_COMPONENT_FORMULA_WEIGHT 44.d0 ! CO2
         ISOTHERMAL ! ignore energy component for this simulation
       /
@@ -25,13 +25,6 @@ GRID
     0.d0 0.d0 0.d0
     100.d0 1.d0 100.d0
   /
-END
-
-#=========================== solver options ===================================
-NEWTON_SOLVER FLOW
-  ATOL 1.d-50 ! default
-  RTOL 1.d-08 ! default
-  STOL 1.d-08 ! default
 END
 
 #=========================== fluid properties =================================
@@ -61,6 +54,27 @@ OUTPUT
     PERIODIC TIMESTEP 1
   /
   VELOCITY_AT_CENTER
+  VARIABLES
+    MATERIAL_ID_KLUDGE_FOR_VISIT
+    TEMPERATURE
+    LIQUID_PRESSURE
+    LIQUID_DENSITY
+    LIQUID_SATURATION
+    LIQUID_MOBILITY
+    LIQUID_ENERGY
+    LIQUID_MOLE_FRACTIONS
+    MAXIMUM_PRESSURE
+    CAPILLARY_PRESSURE
+    VAPOR_PRESSURE
+    SATURATION_PRESSURE
+    THERMODYNAMIC_STATE
+    GAS_PRESSURE
+    GAS_SATURATION
+    GAS_DENSITY
+    GAS_MOBILITY
+    GAS_ENERGY
+    GAS_MOLE_FRACTIONS
+  /
 END
 
 #=========================== times ============================================
@@ -72,19 +86,33 @@ TIME
 END
 
 #=========================== material properties ==============================
-MATERIAL_PROPERTY soil1
+MATERIAL_PROPERTY sand
   ID 1
-  SATURATION_FUNCTION default
+  CHARACTERISTIC_CURVES default
   POROSITY 0.20
-  TORTUOSITY 0.11
+  TORTUOSITY 0.58
   ROCK_DENSITY 2700.
-  THERMAL_CONDUCTIVITY_DRY 1.7d0
-  THERMAL_CONDUCTIVITY_WET 1.7d0
+  THERMAL_CONDUCTIVITY_DRY 1.0d0
+  THERMAL_CONDUCTIVITY_WET 3.1d0
   HEAT_CAPACITY 830.
   PERMEABILITY
-    PERM_ISO 1.d-12
+    PERM_ISO 1.d-13
   /
-/
+END
+
+MATERIAL_PROPERTY clay
+  ID 2
+  CHARACTERISTIC_CURVES clay
+  POROSITY 0.35
+  TORTUOSITY 0.23
+  ROCK_DENSITY 2700.
+  THERMAL_CONDUCTIVITY_DRY 0.7d0
+  THERMAL_CONDUCTIVITY_WET 1.4d0
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO 1.d-19
+  /
+END
 
 #=========================== characteristic curves ============================
 CHARACTERISTIC_CURVES default
@@ -106,6 +134,25 @@ CHARACTERISTIC_CURVES default
   /
 END
 
+CHARACTERISTIC_CURVES clay
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 7.d-7
+    M 0.375
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    PHASE LIQUID
+    M 0.375
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    PHASE GAS
+    M 0.375
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    GAS_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
 #=========================== regions ==========================================
 REGION all
   COORDINATES
@@ -114,46 +161,76 @@ REGION all
   /
 END
 
-REGION top
-  FACE top
+REGION upper_right
+  FACE top #for use with boundary condition
   COORDINATES
-    -1.d20 -1.d20 100.d0
-     1.d20  1.d20 100.d0
+    90.d0 0.d0 100.d0
+    100.d0 1.d0 100.d0
   /
 END
 
-REGION bottom
-  FACE bottom
-  COORDINATES
-    -1.d20 -1.d20 0.d0
-     1.d20  1.d20 0.d0
-  /
-END
-
-REGION lower_left
+REGION lower_left #for use with source_sink
   COORDINATES
     0.d0 0.d0 0.d0
     10.d0 1.d0 5.d0
   /
 END
+
+REGION clay1 #for material assignment
+  COORDINATES
+    00.d0 0.d0 20.d0
+    60.d0 1.d0 30.d0
+  /
+END
+
+REGION clay2 #for material assignment
+  COORDINATES
+    30.d0 0.d0 50.d0
+    70.d0 1.d0 60.d0
+  /
+END
+
+REGION clay3 #for material assignment
+  COORDINATES
+    40.d0 0.d0 80.d0
+    80.d0 1.d0 90.d0
+  /
+END
 #=========================== observation points ===============================
+REGION lower
+  COORDINATE 52.5 0.5 17.5
+/
+
 REGION middle
-  COORDINATE 52.5 0.5 52.5
+  COORDINATE 52.5 0.5 47.5
+/
+
+REGION upper
+  COORDINATE 52.5 0.5 77.5
+/
+
+OBSERVATION
+  REGION lower
 /
 
 OBSERVATION
   REGION middle
 /
 
+OBSERVATION
+  REGION upper
+/
+
 #=========================== flow conditions ==================================
-FLOW_CONDITION unsaturated #two-phase
+FLOW_CONDITION saturated #single phase liquid
   TYPE
-    GAS_PRESSURE DIRICHLET
-    GAS_SATURATION DIRICHLET
+    LIQUID_PRESSURE HYDROSTATIC
+    MOLE_FRACTION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  GAS_PRESSURE 1.d6 #Pa
-  GAS_SATURATION 0.1d0
+  DATUM 0.d0 0.d0 100.d0
+  LIQUID_PRESSURE 101325. #Pa
+  MOLE_FRACTION 1.d-8     #dissolved gas
   TEMPERATURE 25.d0
 END
 
@@ -164,48 +241,44 @@ FLOW_CONDITION gas_injection
   RATE 0.d0 1.d-4 0.d0 kg/s kg/s MW
 END
 
-skip ! if you prefer gas source at bottom boundary use this instead
-FLOW_CONDITION gas_flow_bc
-  TYPE
-    GAS_FLUX NEUMANN
-    LIQUID_FLUX NEUMANN
-    ENERGY_FLUX NEUMANN
-  /
-  GAS_FLUX 1.d1 m/yr
-  LIQUID_FLUX 0.d0 m/yr
-  ENERGY_FLUX 0.d0 W/m^2
-END
-noskip
-
 #=========================== condition couplers ===============================
 # initial condition
-INITIAL_CONDITION
-  FLOW_CONDITION unsaturated #initial
+INITIAL_CONDITION all
+  FLOW_CONDITION saturated
   REGION all
 END
 
 #boundary condition
-BOUNDARY_CONDITION
-  FLOW_CONDITION unsaturated #initial
-  REGION top
+BOUNDARY_CONDITION upper_right
+  FLOW_CONDITION saturated
+  REGION upper_right
 END
-
-skip ! if you prefer gas source at bottom boundary use this instead
-BOUNDARY_CONDITION
-  FLOW_CONDITION gas_flow_bc
-  REGION bottom
-END
-noskip
 
 #source sink
-SOURCE_SINK
+SOURCE_SINK gas
   FLOW_CONDITION gas_injection
   REGION lower_left
 END
+
 #=========================== stratigraphy couplers ============================
 STRATA
   REGION all
-  MATERIAL soil1
+  MATERIAL sand
+END
+
+STRATA
+  REGION clay1
+  MATERIAL clay
+END
+
+STRATA
+  REGION clay2
+  MATERIAL clay
+END
+
+STRATA
+  REGION clay3
+  MATERIAL clay
 END
 
 END_SUBSURFACE

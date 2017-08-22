@@ -38,30 +38,30 @@
 %\frame{\titlepage}
 
 %-----------------------------------------------------------------------------
-\section{Description of Gas Injection}
+\section{Description of Heater}
 
-\subsection{Gas Injection Conceptual Model}
+\subsection{Heater Conceptual Model}
 
-\begin{frame}\frametitle{Description of Gas Injection Scenario}
-The ``Gas Injection Scenario'' demonstrates how to set up a multiphase flow simulation using GENERAL MODE. It simulates gas injection into a 2D liquid saturated domain. Assumptions include:
+\begin{frame}\frametitle{Description of Heater Scenario}
+The ``Heater Scenario'' demonstrates how to set up a multiphase flow simulation using GENERAL MODE. It simulates a heat source (such as radioactive waste) in a partially saturated domain. Assumptions include:
 \begin{itemize}
-  \item Problem domain: $100 \times 1 \times 100$ m (x $\times$ y $\times$ z)
-  \item Grid resolution: $5 \times 1 \times 5$ m 
+  \item Problem domain: $15 \times 1 \times 30$ m (x $\times$ y $\times$ z)
+  \item Grid resolution: Varies in an unstructured grid
   \item Flow mode: General
-  \item Gas Source: Rate scaled by cell volume
+  \item Heat Source: Rate scaled by cell volume
   \item Maximum time step size: changes with simulation time
-  \item Total simulation time: 100 y
+  \item Total simulation time: 1000 d
 \end{itemize}
 
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\frame{\frametitle{2D Gas Injection Scenario Schematic}
+\frame{\frametitle{2D Heater Scenario Schematic}
 \includegraphics[width=\linewidth]{./gas_injection_bc}
 }
 
 %-----------------------------------------------------------------------------
-\frame{\frametitle{2D Gas Injection Initial Conditions}
+\frame{\frametitle{2D Heater Initial Conditions}
 \includegraphics[width=\linewidth]{./gas_injection_ic}
 }
 
@@ -85,8 +85,7 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL ! two-phase flow and energy
       OPTIONS
-        GAS_COMPONENT_FORMULA_WEIGHT 44.d0 ! CO2(g) 
-        ISOTHERMAL ! ignore energy component for this simulation
+        ANALYTICAL_DERIVATIVES
       /   
     /   
   /
@@ -105,18 +104,13 @@ END_SUBSURFACE
 \begin{frame}[fragile]\frametitle{GRID}
 
 \begin{itemize}
-  \item Problem domain: $100 \times 1 \times 100$ m (x $\times$ y $\times$ z)
-  \item Grid resolution: $5 \times 1 \times 5$ m
+  \item Problem domain: $15 \times 1 \times 30$ m (x $\times$ y $\times$ z)
+  \item Grid resolution: Varies in unstructured grid
 \end{itemize}
 
 \begin{semiverbatim}
 GRID
-  TYPE STRUCTURED
-  NXYZ 20 1 20
-  BOUNDS
-    0.d0 0.d0 0.d0 \bluecomment{! xmin ymin zmin}
-    100.d0 1.d0 100.d0 \bluecomment{! xmax ymax zmax}
-  /
+  TYPE UNSTRUCTURED ./heater.h5
 END
 \end{semiverbatim}
 
@@ -165,10 +159,10 @@ END
 OUTPUT
   SNAPSHOT_FILE
     FORMAT HDF5
-    PERIODIC TIME 0.01 y between 0. y and .1 y \bluecomment{! print every 0.01 year}
-    PERIODIC TIME 0.1 y between 0. y and 5. y  \bluecomment{! then every 0.1 year}
-    PERIODIC TIME 1. y between 0. y and 30. y  \bluecomment{! etc.}
-    PERIODIC TIME 10. y between 0. y and 100. y
+    PERIODIC TIME .1 d between 0. d and .1 d \bluecomment{! print every 0.1 day}
+    PERIODIC TIME 1. d between 0. d and 10. d  \bluecomment{! then every 1. day}
+    PERIODIC TIME 10. d between 0. d and 100. d  \bluecomment{! etc.}
+    PERIODIC TIME 100. d between 0. d and 1000. d
   /
   OBSERVATION_FILE
     PERIODIC TIMESTEP 1 \bluecomment{! print every time step}
@@ -178,6 +172,7 @@ OUTPUT
   /
   VELOCITY_AT_CENTER \bluecomment{! of cell}
   VARIABLES
+    TEMPERATURE
     LIQUID_SATURATION
     GAS_SATURATION \bluecomment{! see input deck for more}
   /
@@ -198,10 +193,11 @@ END
 \begin{semiverbatim}
 
 TIME
-  FINAL_TIME 100.d0 y \bluecomment{! end of simulation}
-  MAXIMUM_TIMESTEP_SIZE 0.05 y at 0. y \bluecomment{! start small}
-  MAXIMUM_TIMESTEP_SIZE 0.5 y at 5. y \bluecomment{! allow larger}
-  MAXIMUM_TIMESTEP_SIZE 5. y at 30. y \bluecomment{! at late times}
+  FINAL_TIME 1000.d0 d \bluecomment{! end of simulation}
+  MAXIMUM_TIMESTEP_SIZE .1 d at 0. d \bluecomment{! start small}
+  MAXIMUM_TIMESTEP_SIZE 1. d at 1. d \bluecomment{! allow larger}
+  MAXIMUM_TIMESTEP_SIZE 10. d at 10. d \bluecomment{! at late times}
+  MAXIMUM_TIMESTEP_SIZE 100. d at 100. d
 END
 \end{semiverbatim}
 
@@ -220,52 +216,83 @@ END
   \end{itemize}
 \end{itemize}
 
-\begin{semiverbatim}
-MATERIAL_PROPERTY sand
-  ID 1
+\begin{semiverbatim}\small
+MATERIAL_PROPERTY shale
+  ID 4
   CHARACTERISTIC_CURVES default
   POROSITY 0.20
-  TORTUOSITY 0.58
+  TORTUOSITY 0.11
   ROCK_DENSITY 2700. \bluecomment{! density of the solid phase}
   THERMAL_CONDUCTIVITY_DRY 1.0d0 \bluecomment{! dry bulk medium}
-  THERMAL_CONDUCTIVITY_WET 3.1d0 \bluecomment{! wet bulk medium}
-  HEAT_CAPACITY 830. \bluecomment{! heat capacity of the solid phase}
-  PERMEABILITY
-    PERM_ISO 1.d-13
-  /
-END
-\end{semiverbatim}
-
-\end{frame}
-
-\begin{frame}[fragile]\frametitle{MATERIAL\_PROPERTY}
-
-\begin{semiverbatim}
-MATERIAL_PROPERTY clay
-  ID 2
-  CHARACTERISTIC_CURVES clay
-  POROSITY 0.35
-  TORTUOSITY 0.23
-  ROCK_DENSITY 2700. \bluecomment{! density of the solid phase}
-  THERMAL_CONDUCTIVITY_DRY 0.7d0 \bluecomment{! dry bulk medium}
-  THERMAL_CONDUCTIVITY_WET 1.4d0 \bluecomment{! wet bulk medium}
+  THERMAL_CONDUCTIVITY_WET 1.7d0 \bluecomment{! wet bulk medium}
   HEAT_CAPACITY 830. \bluecomment{! heat capacity of the solid phase}
   PERMEABILITY
     PERM_ISO 1.d-19
   /
 END
 \end{semiverbatim}
+\end{frame}
 
+\begin{frame}[fragile]\frametitle{MATERIAL\_PROPERTY}
+\begin{semiverbatim}
+MATERIAL_PROPERTY drz
+  ID 3
+  CHARACTERISTIC_CURVES drz
+  POROSITY 0.20
+  TORTUOSITY 0.11
+  ROCK_DENSITY 2700. \bluecomment{! density of the solid phase}
+  THERMAL_CONDUCTIVITY_DRY 1.0d0 \bluecomment{! dry bulk medium}
+  THERMAL_CONDUCTIVITY_WET 1.7d0 \bluecomment{! wet bulk medium}
+  HEAT_CAPACITY 830. \bluecomment{! heat capacity of the solid phase}
+  PERMEABILITY
+    PERM_ISO 1.d-18
+  /
+END
+\end{semiverbatim}
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{MATERIAL\_PROPERTY}
+\begin{semiverbatim}
+MATERIAL_PROPERTY bentonite
+  ID 2
+  CHARACTERISTIC_CURVES bentonite
+  POROSITY 0.35
+  TORTUOSITY 0.23
+  ROCK_DENSITY 2700. \bluecomment{! density of the solid phase}
+  THERMAL_CONDUCTIVITY_DRY 0.6d0 \bluecomment{! dry bulk medium}
+  THERMAL_CONDUCTIVITY_WET 1.2d0 \bluecomment{! wet bulk medium}
+  HEAT_CAPACITY 830. \bluecomment{! heat capacity of the solid phase}
+  PERMEABILITY
+    PERM_ISO 1.d-20
+  /
+END
+\end{semiverbatim}
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{MATERIAL\_PROPERTY}
+\begin{semiverbatim}
+MATERIAL_PROPERTY heater
+  ID 1
+  CHARACTERISTIC_CURVES default
+  POROSITY 0.01 ! a small value
+  TORTUOSITY 1.0
+  ROCK_DENSITY 5000. \bluecomment{! density of the solid phase}
+  THERMAL_CONDUCTIVITY_DRY 16.7d0 \bluecomment{! dry bulk medium}
+  THERMAL_CONDUCTIVITY_WET 16.7d0 \bluecomment{! wet bulk medium}
+  HEAT_CAPACITY 466. \bluecomment{! heat capacity of the solid phase}
+  PERMEABILITY
+    PERM_ISO 1.d-23 ! a small value
+  /
+END
+\end{semiverbatim}
 \end{frame}
 %-----------------------------------------------------------------------------
 \subsection{CHARACTERISTIC\_CURVES}
 
 \begin{frame}[fragile,containsverbatim]\frametitle{CHARACTERISTIC\_CURVES}
-
 \begin{itemize}
   \item Van Genuchten/Mualem
 \end{itemize}
-
 \begin{semiverbatim}\small
 CHARACTERISTIC_CURVES default
   SATURATION_FUNCTION VAN_GENUCHTEN
@@ -286,19 +313,42 @@ CHARACTERISTIC_CURVES default
   /
 END
 \end{semiverbatim}
-
 \end{frame}
 
 \begin{frame}[fragile,containsverbatim]\frametitle{CHARACTERISTIC\_CURVES}
-
 \begin{itemize}
   \item Van Genuchten/Mualem
 \end{itemize}
-
 \begin{semiverbatim}\small
-CHARACTERISTIC_CURVES clay
+CHARACTERISTIC_CURVES shale
   SATURATION_FUNCTION VAN_GENUCHTEN
     ALPHA 7.d-7
+    M 0.333
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    PHASE LIQUID
+    M 0.333
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    PHASE GAS
+    M 0.333
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    GAS_RESIDUAL_SATURATION 0.1d0
+  /
+END
+\end{semiverbatim}
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{CHARACTERISTIC\_CURVES}
+\begin{itemize}
+  \item Van Genuchten/Mualem
+\end{itemize}
+\begin{semiverbatim}\small
+CHARACTERISTIC_CURVES bentonite
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 6.d-8
     M 0.375
     LIQUID_RESIDUAL_SATURATION 0.1d0
   /
@@ -315,7 +365,6 @@ CHARACTERISTIC_CURVES clay
   /
 END
 \end{semiverbatim}
-
 \end{frame}
 %-----------------------------------------------------------------------------
 \subsection{REGION}
@@ -323,9 +372,8 @@ END
 \begin{frame}[fragile]\frametitle{REGION}
 \begin{itemize}
   \item{Entire domain}
-  \item{Regions for boundary condition}
-  \item{Region for gas source}
-  \item{Regions for materials}
+  \item{Regions for initial conditions}
+  \item{Region for boundary condition}
 \end{itemize}
 
 \begin{semiverbatim}\small
@@ -336,76 +384,40 @@ REGION all
   /
 END
 
-REGION upper_right
-  FACE top \bluecomment{! face for boundary condition}
-  COORDINATES
-    90.d0 0.d0 100.d0
-    100.d0 1.d0 100.d0
-  /
+REGION Region1 \bluecomment{! heater}
+  FILE ./heater_usg.h5
+END
+
+REGION Region2 \bluecomment{! bentonite}
+  FILE ./heater_usg.h5
+END
+
+REGION outer_face \bluecomment{! for b.c.}
+  FILE ./heater_usg.h5
 END
 \end{semiverbatim}
-\end{frame}
-
-\begin{frame}[fragile]\frametitle{REGION}
-
-\begin{semiverbatim}\small
-REGION lower_left \bluecomment{! for source}
-  COORDINATES
-    0.d0 0.d0 0.d0
-    10.d0 1.d0 5.d0
-  /
-END
-
-REGION clay1 \bluecomment{! for material}
-  COORDINATES
-    00.d0 0.d0 20.d0
-    60.d0 1.d0 30.d0
-  /
-END
-
-REGION clay2 \bluecomment{! for material}
-  COORDINATES
-    30.d0 0.d0 50.d0
-    70.d0 1.d0 60.d0
-  /
-END
-
-REGION clay3 \bluecomment{! for material}
-  COORDINATES
-    40.d0 0.d0 80.d0
-    80.d0 1.d0 90.d0
-  /
-END
-\end{semiverbatim}
-  
 \end{frame}
 %-----------------------------------------------------------------------------
 \subsection{OBSERVATION}
 
 \begin{frame}[fragile]\frametitle{OBSERVATION}
 \begin{itemize}
-  \item{Define three more regions for output}
+  \item{Define two more regions for output}
 \end{itemize}
 
 \begin{semiverbatim}\small
-REGION lower
-  COORDINATE 52.5 0.5 17.5
+REGION bentonite_obs
+  COORDINATE 1.3d0 0.5d0 0.d0
 /
-REGION middle
-  COORDINATE 52.5 0.5 47.5
-/
-REGION upper
-  COORDINATE 52.5 0.5 77.5
+REGION drz_obs
+  COORDINATE 2.6d0 0.5d0 0.d0
 /
 
 OBSERVATION
-  REGION lower
+  REGION bentonite_obs
 /
 OBSERVATION
-  REGION middle
-/
-OBSERVATION
-  REGION upper
+  REGION drz_obs
 /
 \end{semiverbatim}
 \end{frame}
@@ -419,15 +431,34 @@ OBSERVATION
 \end{itemize}
 
 \begin{semiverbatim}
-FLOW_CONDITION saturated \bluecomment{! single phase liquid}
+FLOW_CONDITION initial_shale \bluecomment{! single phase liquid}
   TYPE
     LIQUID_PRESSURE HYDROSTATIC
     MOLE_FRACTION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  DATUM 0.d0 0.d0 100.d0
-  LIQUID_PRESSURE 101325. \bluecomment{! Pa}
+  DATUM 0.d0 0.d0 0.d0 \bluecomment{! center of drift}
+  LIQUID_PRESSURE 5.d6 \bluecomment{! Pa}
   MOLE_FRACTION 1.d-8 \bluecomment{! dissolved gas}
+  TEMPERATURE 25.d0 \bluecomment{! degrees C}
+END
+\end{semiverbatim}
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{FLOW\_CONDITION}
+\begin{itemize}
+  \item{Two-phase}
+\end{itemize}
+
+\begin{semiverbatim}
+FLOW_CONDITION initial_bentonite \bluecomment{! two-phase}
+  TYPE
+    GAS_PRESSURE DIRICHLET
+    GAS_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  GAS_PRESSURE 101325.d0 \bluecomment{! Pa}
+  GAS_SATURATION 0.8d0
   TEMPERATURE 25.d0 \bluecomment{! degrees C}
 END
 \end{semiverbatim}
@@ -439,12 +470,19 @@ END
 \end{itemize}
 
 \begin{semiverbatim}
-FLOW_CONDITION gas_injection
+FLOW_CONDITION heater
   TYPE
     RATE SCALED_MASS_RATE VOLUME \bluecomment{! volume averaged}
   /
-       \bluecomment{! liquid gas energy}
-  RATE 0.d0 1.d-4 0.d0 kg/s kg/s MW
+  SYNC_TIMESTEP_WITH_UPDATE
+  RATE LIST
+    TIME_UNITS d
+    DATA_UNITS kg/s kg/s W
+    \bluecomment{! time liquid gas energy}
+    0.d0 0.d0 0.d0 0.d0
+    .1d0 0.d0 0.d0 100.d0
+    365.d0 0.d0 0.d0 0.d0
+  /
 END
 \end{semiverbatim}
 \end{frame}
@@ -462,19 +500,34 @@ END
 
 \begin{semiverbatim}\small
 \bluecomment{! initial condition}
-INITIAL_CONDITION initial \bluecomment{! optional name}
-  FLOW_CONDITION unsaturated
+INITIAL_CONDITION shale \bluecomment{! optional name}
+  FLOW_CONDITION initial_shale
   REGION all
 END
+
+INITIAL_CONDITION heater \bluecomment{! optional name}
+  FLOW_CONDITION initial_bentonite
+  REGION Region1
+END
+
+INITIAL_CONDITION bentonite \bluecomment{! optional name}
+  FLOW_CONDITION initial_bentonite
+  REGION Region2
+END
+\end{semiverbatim}
+\end{frame}
+
+\begin{frame}
+\begin{semiverbatim}
 \bluecomment{! boundary condition}
 BOUNDARY_CONDITION open \bluecomment{! optional name}
-  FLOW_CONDITION saturated
-  REGION upper_right
+  FLOW_CONDITION initial_shale
+  REGION outer_face
 END
 \bluecomment{! source_sink }
-SOURCE_SINK gas \bluecomment{! optional name}
-  FLOW_CONDITION gas_injection
-  REGION lower_left
+SOURCE_SINK heat \bluecomment{! optional name}
+  FLOW_CONDITION heatsource
+  REGION Region1
 END
 \end{semiverbatim}
 \end{frame}
@@ -485,35 +538,20 @@ END
   \item{Material with region}
 \end{itemize}
 
-\begin{semiverbatim}\small
+\begin{semiverbatim}
 STRATA
-  REGION all
-  MATERIAL sand
+  MATERIAL ./heater_usg.h5
 END
 
-STRATA \bluecomment{! Overwrite previous}
-  REGION clay1
-  MATERIAL clay
-END
-
-STRATA
-  REGION clay2
-  MATERIAL clay
-END
-
-STRATA
-  REGION clay3
-  MATERIAL clay
-END
+END_SUBSURFACE \bluecomment{! That's all!}
 \end{semiverbatim}
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\subsection{END\_SUBSURFACE}
-\begin{frame}[fragile]\frametitle{END\_SUBSURFACE}
+\subsection{Command Line}
+\begin{frame}[fragile]\frametitle{Command Line}
 \begin{semiverbatim}
-\bluecomment{! That's all! So:}
-END_SUBSURFACE
+\$ pflotran -input_prefix heater
 \end{semiverbatim}
 
 \end{frame}
