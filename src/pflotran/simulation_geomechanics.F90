@@ -191,6 +191,7 @@ subroutine GeomechanicsSimulationExecuteRun(this)
 
         time = time + dt
         this%geomech_process_model_coupler%timestepper%dt = dt
+        print *, 'Inside RunToTime Geomechanics'
         call this%RunToTime(time)
 
         if (this%stop_flag /= TS_CONTINUE) exit ! end simulation

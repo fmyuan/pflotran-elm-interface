@@ -348,8 +348,13 @@ subroutine PMCGeomechanicsSetAuxData(this)
   Vec :: subsurf_vec
   PetscScalar, pointer :: subsurf_vec_p(:)
 
+#if GEOMECH_DEBUG
+print *, 'PMCGeomechSetAuxData'
+#endif
+
+
   ! If at initialization stage, do nothing
-  if (this%timestepper%steps == 0) return
+!  if (this%timestepper%steps == 0) return
 
   select type(pmc => this)
     class is(pmc_geomechanics_type)
@@ -491,6 +496,10 @@ subroutine PMCGeomechanicsGetAuxData(this)
   class(pmc_geomechanics_type) :: this
 
   PetscErrorCode :: ierr
+
+#if GEOMECH_DEBUG
+print *, 'PMCGeomechanicsGetAuxData'
+#endif
 
   select type(pmc => this)
     class is(pmc_geomechanics_type)

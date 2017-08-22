@@ -912,7 +912,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   PetscViewer :: viewer
 
 #ifdef GEOMECH_DEBUG
-  print *, 'Inside PMCSubsurfaceGetAuxDataFromGeomech'
+  print *, 'PMCSubsurfaceGetAuxDataFromGeomech()'
 #endif
 
   if (associated(this%sim_aux)) then
@@ -922,7 +922,6 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
         subsurf_grid  => pmc%realization%discretization%grid
         subsurf_field => pmc%realization%field
         subsurf_material_auxvars => pmc%realization%patch%aux%Material%auxvars
-        if (pmc%timestepper%steps == 0) return
 
         if (option%geomech_subsurf_coupling == GEOMECH_TWO_WAY_COUPLED) then
 
@@ -1001,6 +1000,11 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscErrorCode :: ierr
+
+#ifdef GEOMECH_DEBUG
+  print *, 'PMCSubsurfaceSetAuxDataForGeomech()'
+#endif
+
 
   select case(this%option%iflowmode)
     case (TH_MODE)
