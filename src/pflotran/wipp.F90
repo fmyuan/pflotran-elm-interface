@@ -283,7 +283,7 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
 
 
   Ci = auxvar%soil_properties(soil_compressibility_index)
-  if(associated(MaterialCompressSoilPtr,MaterialCompressSoilBRAGFLO)) then
+  if (associated(MaterialCompressSoilPtr,MaterialCompressSoilBRAGFLO)) then
     ! convert bulk compressibility to pore compressibility
     Ci = auxvar%soil_properties(soil_compressibility_index) / &
          auxvar%porosity_base
@@ -299,13 +299,6 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
     compressed_porosity = phi0
     return
   endif
-
-  ! if (.not.associated(MaterialCompressSoilPtr, &
-  !                     MaterialCompressSoilBRAGFLO)) then
-  !   option%io_buffer = 'WIPP Fracture Function must be used with ' // &
-  !     'BRAGFLO soil compressibility function.'
-  !   call printErrMsg(option)
-  ! endif
   
   if (pressure < Pi) then
 !    call MaterialCompressSoil(auxvar,pressure, compressed_porosity, &
