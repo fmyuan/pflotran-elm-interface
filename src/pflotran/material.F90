@@ -1343,7 +1343,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       call StringToUpper(material_property_ptrs(i)%ptr% &
                            soil_compressibility_function)
       select case(material_property_ptrs(i)%ptr%soil_compressibility_function)
-        case('BRAGFLO','WIPP')
+        case('BRAGFLO','BULK_EXPONENTIAL')
           MaterialCompressSoilPtrTmp => MaterialCompressSoilBRAGFLO
         case('POROSITY_EXPONENTIAL')
           MaterialCompressSoilPtrTmp => MaterialCompressSoilPoroExp
