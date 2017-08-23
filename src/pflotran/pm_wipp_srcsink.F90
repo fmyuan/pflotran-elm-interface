@@ -2721,6 +2721,9 @@ end subroutine PMWSSUpdateChemSpecies
       if (s_eff > 1.d-16) then
         sg_eff = (1.d0-s_eff)
       endif
+        
+      print *, 's_eff = ' 
+      print *, s_eff
       
     ! note, bragflo applies a separate smoothing on the humid rates using s_eff 
     !
@@ -3183,6 +3186,7 @@ subroutine PMWSSFinalizeTimestep(this)
 end subroutine PMWSSFinalizeTimestep
 
 ! *************************************************************************** !
+
  subroutine PMWSSOutput(this)
   ! 
   ! Sets up output for the process model in the *.pnl files.
