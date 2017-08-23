@@ -58,6 +58,7 @@ module PM_UFD_Decay_class
 ! num_isotopes: [-] number of isotopes
 ! implicit_solution: Boolean that indicates whether the implicit or the
 !    explicit solution is calculated
+! print_output: Boolean that indicates whether the *.dcy file is printed
 ! element_name(:): array of element name strings
 ! isotope_name(:): array of isotope name strings
 ! element_list: pointer to element linked list
@@ -72,11 +73,13 @@ module PM_UFD_Decay_class
     PetscInt, pointer :: isotope_daughters(:,:)
     PetscReal, pointer :: isotope_daughter_stoich(:,:)
     PetscInt, pointer :: isotope_parents(:,:)
+    PetscReal, pointer :: isotope_tot_mass(:)
     PetscReal, pointer :: element_solubility(:)
     PetscReal, pointer :: element_Kd(:,:)
     PetscInt :: num_elements
     PetscInt :: num_isotopes
     PetscBool :: implicit_solution
+    PetscBool :: print_output
     character(len=MAXWORDLENGTH), pointer :: element_name(:)
     character(len=MAXWORDLENGTH), pointer :: isotope_name(:)
     type(isotope_type), pointer :: isotope_list
@@ -99,6 +102,7 @@ module PM_UFD_Decay_class
 !    procedure, public :: UpdateAuxVars => PMUFDDecayUpdateAuxVars
 !    procedure, public :: Checkpoint => PMUFDDecayCheckpoint    
 !    procedure, public :: Restart => PMUFDDecayRestart  
+    procedure, public :: Output => PMUFDDecayOutput
     procedure, public :: InputRecord => PMUFDDecayInputRecord
     procedure, public :: Destroy => PMUFDDecayDestroy
   end type pm_ufd_decay_type
@@ -205,6 +209,7 @@ function PMUFDDecayCreate()
   PMUFDDecayCreate%num_isotopes = 0
   PMUFDDecayCreate%num_elements = 0
   PMUFDDecayCreate%implicit_solution = PETSC_FALSE
+  PMUFDDecayCreate%print_output = PETSC_FALSE
   nullify(PMUFDDecayCreate%realization)
   nullify(PMUFDDecayCreate%element_isotopes)
   nullify(PMUFDDecayCreate%isotope_to_primary_species)
@@ -213,6 +218,7 @@ function PMUFDDecayCreate()
   nullify(PMUFDDecayCreate%isotope_daughters)
   nullify(PMUFDDecayCreate%isotope_daughter_stoich)
   nullify(PMUFDDecayCreate%isotope_parents)
+  nullify(PMUFDDecayCreate%isotope_tot_mass)
   nullify(PMUFDDecayCreate%element_solubility)
   nullify(PMUFDDecayCreate%element_Kd)
   nullify(PMUFDDecayCreate%element_name)
@@ -416,6 +422,8 @@ subroutine PMUFDDecayRead(this,input)
         nullify(isotope)
       case('IMPLICIT_SOLUTION')
         this%implicit_solution = PETSC_TRUE
+      case('PRINT_DECAY_FILE')
+        this%print_output = PETSC_TRUE
       case default
         error_string = 'UFD Decay'
         call InputKeywordUnrecognized(word,error_string,option)
@@ -705,6 +713,8 @@ subroutine PMUFDDecayInit(this)
   this%element_isotopes(0,:) = 0
   allocate(this%isotope_decay_rate(this%num_isotopes))
   this%isotope_decay_rate = UNINITIALIZED_DOUBLE
+  allocate(this%isotope_tot_mass(this%num_isotopes))
+  this%isotope_tot_mass = UNINITIALIZED_DOUBLE
   allocate(this%isotope_daughters(0:max_daughters_per_isotope, &
                                   this%num_isotopes))
   this%isotope_daughters = UNINITIALIZED_INTEGER
@@ -944,7 +954,13 @@ recursive subroutine PMUFDDecayInitializeRun(this)
       &in pm_ufd_decay.F90.'
     call printErrMsg(this%option)
   endif
-
+  
+  if (this%print_output) then
+    ! write header in the *.dcy files
+    call PMUFDDecayOutputHeader(this)
+    call PMUFDDecayOutput(this)
+  endif
+  
 end subroutine PMUFDDecayInitializeRun
 
 ! ************************************************************************** !
@@ -1316,6 +1332,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
     endif
 
     mass_iso_tot1 = max(mass_iso_tot1,1.d-90)
+    this%isotope_tot_mass = mass_iso_tot1
 
     do iele = 1, this%num_elements
       ! calculate mole fractions
@@ -1378,6 +1395,11 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   endif  
 !  call DiscretizationGlobalToLocal(this%realization%discretization, &
 !                                   field%tran_xx,field%tran_xx_loc,NTRANDOF)
+
+  if (this%print_output) then
+    ! write data to *.dcy output files from current time step
+    call PMUFDDecayOutput(this)
+  endif
   
 end subroutine PMUFDDecaySolve
 
@@ -1570,6 +1592,130 @@ subroutine PMUFDDecayRestart(this,viewer)
 ! --------------------------------
   
 end subroutine PMUFDDecayRestart
+
+! *************************************************************************** !
+
+subroutine PMUFDDecayOutput(this)
+  ! 
+  ! Sets up output for the process model to the *.dcy file.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 08/18/2017
+  !
+  
+  use Option_module
+  use Output_Aux_module
+  
+  implicit none
+
+  class(pm_ufd_decay_type) :: this
+  
+  type(option_type), pointer :: option
+  type(output_option_type), pointer :: output_option
+  character(len=MAXSTRINGLENGTH) :: filename
+  PetscInt :: fid
+  PetscInt :: k
+  
+100 format(100es18.8)
+
+  option => this%realization%option
+  output_option => this%realization%output_option
+  
+  fid = 223
+  filename = PMUFDDecayOutputFilename(option)
+  open(unit=fid,file=filename,action="write",status="old", &
+       position="append")
+       
+  ! this time is set at the end of the reactive transport step
+  write(fid,100,advance="no") option%time / output_option%tconv
+  
+  do k = 1,this%num_isotopes
+    write(fid,100,advance="no") this%isotope_tot_mass(k)
+  enddo
+ 
+  close(fid)
+  
+end subroutine PMUFDDecayOutput
+
+! *************************************************************************** !
+
+subroutine PMUFDDecayOutputHeader(this)
+  !
+  ! Opens the output file and writes the header line.
+  !
+  ! Author: Jenn Frederick
+  ! Date: 08/18/2017
+  !
+  
+  use Output_Aux_module
+  use Utility_module
+  
+  implicit none
+  
+  class(pm_ufd_decay_type) :: this
+  
+  type(output_option_type), pointer :: output_option
+  character(len=MAXWORDLENGTH) :: units_string
+  character(len=MAXWORDLENGTH) :: variable_string
+  character(len=MAXSTRINGLENGTH) :: cell_string
+  character(len=MAXSTRINGLENGTH) :: filename
+  PetscInt :: fid, i
+  PetscInt :: icolumn
+  PetscBool :: exist
+  
+  output_option => this%realization%output_option
+  
+  fid = 91
+  filename = PMUFDDecayOutputFilename(this%option)
+  exist = FileExists(trim(filename))
+  if (this%option%restart_flag .and. exist) return
+  open(unit=fid,file=filename,action="write",status="replace")  
+  
+  if (output_option%print_column_ids) then
+    icolumn = 1
+  else
+    icolumn = -1
+  endif 
+  
+  write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
+  
+  do i = 1,this%num_isotopes
+    variable_string = 'Total Mass'
+    units_string = 'mol'
+    cell_string = '(' // trim(this%isotope_name(i)) // ')'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+  enddo
+  
+  close(fid)
+  
+end subroutine PMUFDDecayOutputHeader
+
+! ************************************************************************** !
+
+function PMUFDDecayOutputFilename(option)
+  ! 
+  ! Generates filename for ufd_decay output file, *.dcy.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 08/18/2017
+  !
+
+  use Option_module
+
+  implicit none
+  
+  type(option_type), pointer :: option
+  
+  character(len=MAXSTRINGLENGTH) :: PMUFDDecayOutputFilename
+  character(len=MAXWORDLENGTH) :: word
+
+  write(word,'(i6)') option%myrank
+  PMUFDDecayOutputFilename = trim(option%global_prefix) // &
+                             trim(option%group_prefix) // &
+                             '-' // trim(adjustl(word)) // '.dcy'
+  
+end function PMUFDDecayOutputFilename
 
 ! ************************************************************************** !
 
