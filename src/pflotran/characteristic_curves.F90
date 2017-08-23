@@ -4931,11 +4931,18 @@ subroutine SF_KRP4_CapillaryPressure(this,liquid_saturation, &
   
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
   
-  if (((1.d0-liquid_saturation) <= this%Srg) .or. &
-      (liquid_saturation > this%Sr)) then
+  print *, 'liquid saturation = ', liquid_saturation
+  
+  capillary_pressure = 0.d0
+  if ((1.d0-liquid_saturation) <= this%Srg) then
     capillary_pressure = this%pct/(Se2**(1.d0/this%lambda))
-  else
-    capillary_pressure = 0.d0
+  endif
+  if (liquid_saturation > this%Sr) then
+    capillary_pressure = this%pct/(Se2**(1.d0/this%lambda))
+  endif
+  
+  if (capillary_pressure == 0.d0) then
+    print *, 'capillary pressure = 0 entered in KRP4'
   endif
   
   call SF_WIPP_KPC(this,this%lambda,this%pct,Se2,capillary_pressure)
