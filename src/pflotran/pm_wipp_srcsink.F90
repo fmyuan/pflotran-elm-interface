@@ -2707,13 +2707,13 @@ end subroutine PMWSSUpdateChemSpecies
         water_saturation = &
           wippflo_auxvar(ZERO_INTEGER,ghosted_id)%sat(option%liquid_phase)
       endif
-      if (this%smin > 0.d0) then
-        SOCEXP = 200.d0*(max((water_saturation-this%smin),0.d0))**2.d0
-      else
-        SOCEXP = water_saturation
-      endif
+      
+      SOCEXP = 200.d0*(max((water_saturation-this%smin),0.d0))**2.d0
       s_eff = water_saturation-this%smin+(this%satwick * &
                                           (1.d0-exp(this%alpharxn*SOCEXP)))
+      if (water_saturation <= this%smin) s_eff = 0.d0
+      if (water_saturation > (1.d0-this%satwick+this%smin)) s_eff = 1.d0
+      
       s_eff = min(s_eff,1.d0)
       s_eff = max(s_eff,0.d0)
       ! sg_eff is set to zero if sw_eff is also zero
@@ -2721,9 +2721,6 @@ end subroutine PMWSSUpdateChemSpecies
       if (s_eff > 1.d-16) then
         sg_eff = (1.d0-s_eff)
       endif
-        
-      print *, 's_eff = ' 
-      print *, s_eff
       
     ! note, bragflo applies a separate smoothing on the humid rates using s_eff 
     !
@@ -3186,7 +3183,6 @@ subroutine PMWSSFinalizeTimestep(this)
 end subroutine PMWSSFinalizeTimestep
 
 ! *************************************************************************** !
-
  subroutine PMWSSOutput(this)
   ! 
   ! Sets up output for the process model in the *.pnl files.
