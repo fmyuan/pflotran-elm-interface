@@ -1032,7 +1032,6 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
 !  numfaces = 6     ! hex only
 !  allocate(sq_faces(numfaces))
 !  allocate(faces_pr(numfaces))
-  print *, 'Fixed Accum'
   do local_id = 1, grid%nlmax
 
     ghosted_id = grid%nL2G(local_id)
@@ -1923,7 +1922,6 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
   ! now assign access pointer to local variables
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  print *, 'Inside residual'
   ! Accumulation terms ------------------------------------
   if (.not.option%steady_state) then
     r_p = r_p - accum_p

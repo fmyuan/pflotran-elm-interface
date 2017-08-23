@@ -456,7 +456,9 @@ PetscErrorCode :: ierr
   endif
 
   if (this%option%ngeomechdof > 0) then
-    print *, 'Inside PMSubsurfaceFlowInitializeTimestepB'
+#ifdef GEOMECH_DEBUG
+    print *, 'PMSubsurfaceFlowInitializeTimestepB'
+#endif
     call this%comm1%GlobalToLocal(this%realization%field%porosity_geomech_store, &
                                   this%realization%field%work_loc)
     ! push values to porosity_current
@@ -625,7 +627,6 @@ subroutine PMSubsurfaceFlowTimeCut(this)
                                  this%realization%field%work_loc,POROSITY, &
                                  POROSITY_MINERAL)
   endif            
-  print *, 'Inside PMSubsurfaceFlowTimeCut'
   if (this%option%ngeomechdof > 0) then
     call this%comm1%GlobalToLocal(this%realization%field%porosity_base_store, &
                                   this%realization%field%work_loc)
@@ -641,8 +642,8 @@ end subroutine PMSubsurfaceFlowTimeCut
 
 subroutine PMSubsurfaceFlowTimeCutPostInit(this)
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 04/21/14 
+  ! Author: Satish Karra
+  ! Date: 08/23/17
   use Material_module
   use Variables_module, only : POROSITY
   use Material_Aux_class, only : POROSITY_CURRENT
@@ -655,7 +656,6 @@ subroutine PMSubsurfaceFlowTimeCutPostInit(this)
   
   this%option%flow_dt = this%option%dt
            
-  print *, 'Inside PMSubsurfaceFlowTimeCutPostInit'
   if (this%option%ngeomechdof > 0) then
     call this%comm1%GlobalToLocal(this%realization%field%porosity_geomech_store, &
                                   this%realization%field%work_loc)

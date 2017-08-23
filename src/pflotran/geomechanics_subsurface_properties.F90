@@ -368,9 +368,7 @@ subroutine GeomechanicsSubsurfaceLinearPoroEvaluate(porosity_before, &
   PetscReal :: volumetric_strain
   
   volumetric_strain = local_strain(1) + local_strain(2) + local_strain(3)
-  
   porosity_after = porosity_before + volumetric_strain
-    
   
 end subroutine GeomechanicsSubsurfaceLinearPoroEvaluate
 
