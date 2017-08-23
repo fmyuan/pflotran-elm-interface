@@ -83,10 +83,10 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
-      MODE GENERAL ! two-phase flow and energy
+      MODE GENERAL \bluecomment{! two-phase flow and energy}
       OPTIONS
-        GAS_COMPONENT_FORMULA_WEIGHT 44.d0 ! CO2(g) 
-        ISOTHERMAL ! ignore energy component for this simulation
+        GAS_COMPONENT_FORMULA_WEIGHT 44.d0 \bluecomment{! CO2(g)} 
+        ISOTHERMAL \bluecomment{! ignore energy component}
       /   
     /   
   /
@@ -165,8 +165,8 @@ END
 OUTPUT
   SNAPSHOT_FILE
     FORMAT HDF5
-    PERIODIC TIME 0.01 y between 0. y and .1 y \bluecomment{! print every 0.01 year}
-    PERIODIC TIME 0.1 y between 0. y and 5. y  \bluecomment{! then every 0.1 year}
+    PERIODIC TIME 0.01 y between 0. y and .1 y \bluecomment{! every 0.01 y}
+    PERIODIC TIME 0.1 y between 0. y and 5. y  \bluecomment{! then 0.1 y}
     PERIODIC TIME 1. y between 0. y and 30. y  \bluecomment{! etc.}
     PERIODIC TIME 10. y between 0. y and 100. y
   /
@@ -391,19 +391,31 @@ END
 REGION lower
   COORDINATE 52.5 0.5 17.5
 /
+
 REGION middle
   COORDINATE 52.5 0.5 47.5
 /
+
 REGION upper
   COORDINATE 52.5 0.5 77.5
 /
+\end{semiverbatim}
+\end{frame}
 
+\begin{frame}[fragile]\frametitle{OBSERVATION}
+\begin{itemize}
+  \item{Use them as observation points}
+\end{itemize}
+
+\begin{semiverbatim}\small
 OBSERVATION
   REGION lower
 /
+
 OBSERVATION
   REGION middle
 /
+
 OBSERVATION
   REGION upper
 /
@@ -425,7 +437,7 @@ FLOW_CONDITION saturated \bluecomment{! single phase liquid}
     MOLE_FRACTION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  DATUM 0.d0 0.d0 100.d0
+  DATUM 0.d0 0.d0 100.d0 \bluecomment{! top of domain}
   LIQUID_PRESSURE 101325. \bluecomment{! Pa}
   MOLE_FRACTION 1.d-8 \bluecomment{! dissolved gas}
   TEMPERATURE 25.d0 \bluecomment{! degrees C}
@@ -511,9 +523,37 @@ END
 %-----------------------------------------------------------------------------
 \subsection{END\_SUBSURFACE}
 \begin{frame}[fragile]\frametitle{END\_SUBSURFACE}
+\begin{itemize}
+  \item Close the SUBSURFACE block
+\end{itemize}
+
 \begin{semiverbatim}
-\bluecomment{! That's all! So:}
-END_SUBSURFACE
+END_SUBSURFACE \bluecomment{That's all!}
+\end{semiverbatim}
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Command Line}
+\begin{frame}[fragile]\frametitle{Command Line}
+
+\begin{itemize}
+  \item Run the simulation
+\end{itemize}
+
+\begin{semiverbatim}
+\$ pflotran -input_prefix gas_injection
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{Command Line}
+
+\begin{itemize}
+  \item Plot the results
+\end{itemize}
+
+\begin{semiverbatim}
+\$ python gas_injection.py
 \end{semiverbatim}
 
 \end{frame}
