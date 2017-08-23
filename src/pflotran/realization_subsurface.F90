@@ -244,6 +244,8 @@ subroutine RealizationCreateDiscretization(realization)
 
   if (option%geomech_on) then
     call DiscretizationDuplicateVector(discretization,field%work, &
+                                       field%porosity_base_store)
+    call DiscretizationDuplicateVector(discretization,field%work, &
                                        field%porosity_geomech_store)
   endif
 
