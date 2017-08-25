@@ -1152,6 +1152,15 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
       print *, 'Error: Zero Slope in Equation of State'
     end if
   end do
+
+
+  if (Rho_gas < 0.d0) then
+    print *
+    print *, 'EOSGasDensityRKS calculated a negative density: ', Rho_gas
+    print *, 'Stopping....'
+    print *
+    stop
+  endif
   
 end subroutine EOSGasDensityRKS
 
