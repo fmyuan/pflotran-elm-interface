@@ -278,6 +278,7 @@ module PM_WIPP_SrcSink_class
 ! RXH2O_factor: [-] mol H2O / mol Carbon (cellulose) consumed by biodegradation
 ! volume: [m3] waste panel volume
 ! scale_by_volume: Boolean flag to scale given inventory to waste panel volume
+! prev_dt: [sec] value of the previous time step
 ! id: [-] waste panel id number
 ! myMPIcomm: [-] MPI communicator number object
 ! myMPIgroup: [-] MPI group number object
@@ -327,6 +328,7 @@ module PM_WIPP_SrcSink_class
     PetscReal :: RXH2O_factor       
     PetscReal :: volume           
     PetscBool :: scale_by_volume  
+    PetscReal :: prev_dt
     PetscInt :: id
     PetscMPIInt :: myMPIcomm
     PetscMPIInt :: myMPIgroup
@@ -544,6 +546,7 @@ function PMWSSWastePanelCreate()
   panel%RXCO2_factor = UNINITIALIZED_DOUBLE
   panel%RXH2_factor = UNINITIALIZED_DOUBLE
   panel%RXH2O_factor = UNINITIALIZED_DOUBLE
+  panel%prev_dt = 0.d0
   panel%id = 0
   panel%myMPIgroup = 0
   panel%myMPIcomm = 0
@@ -2415,7 +2418,9 @@ subroutine PMWSSInitializeTimestep(this)
   cur_waste_panel => this%waste_panel_list
   do
     if (.not.associated(cur_waste_panel)) exit
-    call PMWSSUpdateInventory(cur_waste_panel,dt,option)
+    call PMWSSUpdateInventory(cur_waste_panel,option)
+    ! set current dt after using the previous in the update above
+    cur_waste_panel%prev_dt = dt
     cur_waste_panel => cur_waste_panel%next
   enddo
   
@@ -2428,7 +2433,7 @@ end subroutine PMWSSInitializeTimestep
 
 ! *************************************************************************** !
 
-subroutine PMWSSUpdateInventory(waste_panel,dt,option)
+subroutine PMWSSUpdateInventory(waste_panel,option)
   !
   ! Updates the waste panel tracked species inventory concentrations.
   !
@@ -2443,13 +2448,20 @@ subroutine PMWSSUpdateInventory(waste_panel,dt,option)
 ! INPUT ARGUMENTS:
 ! ================
 ! waste_panel (input/output): waste panel object
-! dt (input): [sec] flow time step value (flow_dt)
 ! option (input/output): pointer to option object
 ! ---------------------------------------
   type(srcsink_panel_type) :: waste_panel
-  PetscReal :: dt
   type(option_type), pointer :: option
 ! ---------------------------------------
+
+! LOCAL VARIABLES:
+! ================
+! dt: [sec] flow time step value (flow_dt)
+! ---------------
+  PetscReal :: dt
+! ---------------
+
+  dt =  waste_panel%prev_dt
  
   call PMWSSUpdateChemSpecies(waste_panel%inventory%Fe_s,waste_panel,dt,option)
   call PMWSSUpdateChemSpecies(waste_panel%inventory%FeOH2_s,waste_panel,dt, &
@@ -2906,14 +2918,22 @@ end subroutine PMWSSUpdateChemSpecies
     !------source-term-calculation--------------------------------------------
       j = j + 1
       !---liquid-source-term-[kmol/sec]------------------------!-[units]------
-      vec_p(j) = cwp%brine_generation_rate(i) * &  ! [mol/m3/sec]
+      vec_p(j) = cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
                  material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                  1.d3                                          ! [mol -> kmol]
+      print *, 'vec_p brine [kmol/sec]'
+      print *, vec_p(j)
+      print *, 'brine_generation_rate [mol/m3/sec]'
+      print *, cwp%brine_generation_rate(i)
       j = j + 1
       !---gas-source-term-[kmol/sec]---------------------------!-[units]------
-      vec_p(j) = cwp%gas_generation_rate(i) * &    ! [mol/m3/sec]
+      vec_p(j) = cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
                  material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                  1.d3                                          ! [mol -> kmol]
+      print *, 'vec_p gas [kmol/sec]'
+      print *, vec_p(j)
+      print *, 'gas_generation_rate [mol/m3/sec]'
+      print *, cwp%gas_generation_rate(i)
       if (associated(general_auxvar)) then
         j = j + 1
         !---energy-source-term-[MJ/sec];-H-from-EOS-[J/kmol]-------------------
