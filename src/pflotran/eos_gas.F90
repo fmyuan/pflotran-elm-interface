@@ -16,6 +16,7 @@ module EOS_Gas_module
   PetscReal :: constant_viscosity
   PetscReal :: constant_henry
   PetscBool :: hydrogen
+  PetscBool :: use_effective_critical_props
   PetscReal :: Tc
   PetscReal :: Pc
   PetscReal :: acentric
@@ -180,6 +181,20 @@ subroutine EOSGasInit()
   constant_enthalpy = UNINITIALIZED_DOUBLE
   constant_henry = UNINITIALIZED_DOUBLE
 
+  ! exponential
+  exponent_reference_density = UNINITIALIZED_DOUBLE
+  exponent_reference_pressure = UNINITIALIZED_DOUBLE
+  exponent_gas_compressibility = UNINITIALIZED_DOUBLE
+
+  ! for RKS gas density
+  hydrogen = PETSC_FALSE
+  use_effective_critical_props = PETSC_FALSE
+  Tc = UNINITIALIZED_DOUBLE
+  Pc = UNINITIALIZED_DOUBLE
+  acentric = UNINITIALIZED_DOUBLE
+  coeff_a = UNINITIALIZED_DOUBLE
+  coeff_b = UNINITIALIZED_DOUBLE
+
   EOSGasDensityEnergyPtr => EOSGasDensityEnergyGeneral
   EOSGasDensityPtr => EOSGasDensityIdeal
   EOSGasEnergyPtr => EOSGasEnergyIdeal
@@ -296,11 +311,13 @@ end subroutine EOSGasSetDensityIdeal
 
 ! ************************************************************************** !
 
-subroutine EOSGasSetDensityRKS(h,rks_tc,rks_pc,rks_acen,rks_omegaa,rks_omegab)
+subroutine EOSGasSetDensityRKS(h,use_effective,rks_tc,rks_pc,rks_acen, &
+                               rks_omegaa,rks_omegab)
 
   implicit none
 
   PetscBool :: h
+  PetscBool :: use_effective
   PetscReal :: rks_tc
   PetscReal :: rks_pc
   PetscReal :: rks_acen
@@ -308,6 +325,7 @@ subroutine EOSGasSetDensityRKS(h,rks_tc,rks_pc,rks_acen,rks_omegaa,rks_omegab)
   PetscReal :: rks_omegab
   
   hydrogen = h
+  use_effective_critical_props = use_effective
   Tc = rks_tc
   Pc = rks_pc
   acentric = rks_acen
@@ -1059,6 +1077,7 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
   
   PetscReal :: T_kelvin, RT, alpha, a, B , a_RT, p_RT
   PetscReal :: b2, V, f, dfdV, dVd
+  PetscReal :: Tc_eff, Pc_eff
   PetscInt :: i
   PetscReal :: coeff_alpha
   
@@ -1074,20 +1093,37 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
   
   T_kelvin = T + 273.15d0
   RT = IDEAL_GAS_CONSTANT * T_kelvin
+
+  if (use_effective_critical_props) then
+    ! Effective critical hydrogen temperature and pressure from BRAGFLO
+    ! Taken from BRAGFLO DENGZ()
+    Tc_eff = Tc/(1.d0+21.8d-3/(T_kelvin*2.01588d-3))
+    Pc_eff = Pc/(1.d0+44.2d-3/(T_kelvin*2.01588d-3))
+  else
+    Tc_eff = Tc
+    Pc_eff = Pc
+  endif
   
   if (hydrogen) then
+  ! geh: commenting out Peter's suggestion that Heeho implemented in favor of
+  !      what is implemented in BRAGFLO.
+#if 0
     ! suggested by Peter Lichtner
     ! this function honors alpha(Tc)=1 while closely fitting Graboski curve from
     ! "A Modified Soave Equation of State for Phase Equilibrium
     !  Calculations. 3. Systems Containing Hydrogen"
-    alpha = EXP(0.340d0*(1-T_kelvin/Tc))
+    alpha = exp(0.340d0*(1-T_kelvin/Tc_eff))
+#else
+    ! from BRAGFLO DENGZ()
+    alpha = 1.202d0*exp(-0.30288d0*(T_kelvin/Tc_eff))
+#endif
   else
     coeff_alpha = 0.48508d0 + acentric*(1.55171d0 - 0.15613*acentric)
-    alpha = (1.d0 + coeff_alpha*(1.d0 - SQRT(T_Kelvin/Tc)))**2
+    alpha = (1.d0 + coeff_alpha*(1.d0 - sqrt(T_Kelvin/Tc_eff)))**2
   end if
   
-  a = coeff_a * alpha * (IDEAL_GAS_CONSTANT * Tc)**2 / Pc
-  b = coeff_b * IDEAL_GAS_CONSTANT * Tc / Pc
+  a = coeff_a * alpha * (IDEAL_GAS_CONSTANT * Tc_eff)**2 / Pc_eff
+  b = coeff_b * IDEAL_GAS_CONSTANT * Tc_eff / Pc_eff
   
   a_RT = a / RT
   P_RT = P / RT
