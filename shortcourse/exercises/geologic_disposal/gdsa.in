@@ -3,6 +3,7 @@
 # Initial and boundary conditions from gridded datasets
 # EXTERNAL files
 # Waste package and waste form degradation
+# Waste package heat sources
 # Radioactive decay and ingrowth
 # Biosphere
 # SUBSURFACE_FLOW MODE TH (thermal/hydro - no gas flow)
