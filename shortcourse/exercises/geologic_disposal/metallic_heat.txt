@@ -1,5 +1,6 @@
 #500-1000 W bin DSNF decayed to t0 = 2038 
-#DSNF500-1000Wbin.xlsm
+#Wilson 2016, "Decay Heat of Selected DOE Defense Waste Materials,"
+#FCRD-UFD-2016-000636
     TIME_UNITS y
     DATA_UNITS W
 # time energy (W/canister)

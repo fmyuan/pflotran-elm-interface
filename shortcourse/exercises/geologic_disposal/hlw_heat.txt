@@ -1,5 +1,6 @@
 #Average calcine heat per wp (10 cans per wp) decayed to 2038
-#Calcine total decay heat.xls
+#Carter et al. 2013, "Fuel Cycle Potential Waste Inventory for Disposition,"
+#FCRD-USED-2010-000031 Rev 6 Table F-1
     TIME_UNITS y
     DATA_UNITS W
 # time energy (W/waste package)
