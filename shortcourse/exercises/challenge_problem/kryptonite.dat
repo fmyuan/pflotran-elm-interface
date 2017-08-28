@@ -1,0 +1,12 @@
+'temperature points' 8 0. 25. 60. 100. 150. 200. 250. 300.
+'KrA(aq)' 3.0 0.0 1.
+'KrB(aq)' 3.0 0.0 1.
+'KrC(aq)' 3.0 0.0 1.
+'null' ! aqueous complexes
+'null' ! gasses
+'null' ! minerals
+'Kryptonite(s)' 3. 3 1.0 'KrA(aq)' 1.0 'KrB(aq)' 1.0 'KrC(aq)' 500. 0.9 500. 500. 500. 500. 500. 500. 500.
+'KrB(s)' 1. 1 1.0 'KrB(aq)' 500. -2. 500. 500. 500. 500. 500. 500. 500. 
+'null' ! surface complexes
+'null' ! end of file
+
