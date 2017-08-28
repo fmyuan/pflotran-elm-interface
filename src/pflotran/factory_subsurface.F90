@@ -451,6 +451,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use PM_Base_class
   use PM_Flash2_class
   use PM_General_class
+  use PM_WIPP_Flow_class
   use PM_Immis_class
   use PM_Miscible_class
   use PM_Mphase_class
@@ -485,6 +486,20 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%use_isothermal = PETSC_FALSE
       option%water_id = 1
       option%air_id = 2
+    class is (pm_wippflo_type)
+      option%iflowmode = WF_MODE
+      option%nphase = 2
+      option%liquid_phase = 1  ! liquid_pressure
+      option%gas_phase = 2     ! gas_pressure
+
+      option%capillary_pressure_id = 3
+      option%saturation_pressure_id = 4
+
+      option%water_id = 1
+      option%air_id = 2
+
+      option%nflowdof = 2
+      option%nflowspec = 2
     class is (pm_general_type)
       option%iflowmode = G_MODE
       option%nphase = 2
@@ -622,6 +637,7 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
   use PM_Base_class
   use PM_Flash2_class
   use PM_General_class
+  use PM_WIPP_Flow_class
   use PM_Immis_class
   use PM_Miscible_class
   use PM_Mphase_class
@@ -658,8 +674,20 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
+          case('GENERAL','TOIL_IMS','TOWG_IMMISCIBLE','TODD_LONGOSTAFF', &
+               'TOWG_MISCIBLE','BLACK_OIL','SOLVENT_TL','WIPP_FLOW')
+          ! In OptionFlowInitRealization(), numerical_derivatives is set to
+          ! PETSC_FALSE, but the default for GENERAL needs to be PETSC_TRUE.
+          ! This is will eventually affect all flow modes with numerical
+          ! derivatives as default if analytical derivatives are available
+          ! and we are keying off this flag. 
+          option%flow%numerical_derivatives = PETSC_TRUE
+        end select
+        select case(word)
           case('GENERAL')
             pm => PMGeneralCreate()
+          case('WIPP_FLOW')
+            pm => PMWIPPFloCreate()
           case('MPHASE')
             pm => PMMphaseCreate()
           case('FLASH2')
@@ -966,14 +994,6 @@ subroutine SubsurfaceInitSimulation(simulation)
   use PM_Subsurface_Flow_class
   use PM_Auxiliary_class
   
-  use PM_General_class
-  use PM_Richards_class
-  use PM_TH_class
-  use PM_RT_class
-  use PM_Waste_Form_class
-  use PM_UFD_Decay_class
-  use PM_TOilIms_class
-
   use Timestepper_BE_class
   
   implicit none
@@ -1094,7 +1114,9 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
   use PM_Base_Pointer_module
   use PM_Base_class
   use PM_Subsurface_Flow_class
+  !TODO(geh): are these needed
   use PM_General_class
+  use PM_WIPP_Flow_class
   use PM_Richards_class
   use PM_TH_class
   use PM_RT_class
@@ -1600,6 +1622,7 @@ subroutine SubsurfaceReadInput(simulation)
   use Material_module
   use Saturation_Function_module  
   use Characteristic_Curves_module
+  use Creep_Closure_module
   use Dataset_Base_class
   use Dataset_module
   use Dataset_Common_HDF5_class
@@ -1691,6 +1714,7 @@ subroutine SubsurfaceReadInput(simulation)
   type(fluid_property_type), pointer :: fluid_property
   type(saturation_function_type), pointer :: saturation_function
   class(characteristic_curves_type), pointer :: characteristic_curves
+  class(creep_closure_type), pointer :: creep_closure
 
   class(realization_subsurface_type), pointer :: realization
   type(grid_type), pointer :: grid
@@ -1836,15 +1860,16 @@ subroutine SubsurfaceReadInput(simulation)
         call InputReadWord(input,option,flow_condition%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'FLOW_CONDITION','name') 
         call printMsg(option,flow_condition%name)
-        if (option%iflowmode == G_MODE) then
-          call FlowConditionGeneralRead(flow_condition,input,option)
-        else if(option%iflowmode == TOIL_IMS_MODE) then
-          call FlowConditionTOilImsRead(flow_condition,input,option)
-        else if (option%iflowmode == TOWG_MODE) then
-          call FlowConditionTOWGRead(flow_condition,input,option)
-        else 
-          call FlowConditionRead(flow_condition,input,option)
-        endif
+        select case(option%iflowmode)
+          case(G_MODE,WF_MODE)
+            call FlowConditionGeneralRead(flow_condition,input,option)
+          case(TOIL_IMS_MODE)
+            call FlowConditionTOilImsRead(flow_condition,input,option)
+          case(TOWG_MODE)
+            call FlowConditionTOWGRead(flow_condition,input,option)
+          case default
+            call FlowConditionRead(flow_condition,input,option)
+        end select
         call FlowConditionAddToList(flow_condition,realization%flow_conditions)
         nullify(flow_condition)
 
@@ -2132,7 +2157,7 @@ subroutine SubsurfaceReadInput(simulation)
 !......................
 
       case ('NUMERICAL_JACOBIAN_RXN')
-        option%io_buffer = 'The NUMERICAL_JACOBIAN_FLOW card within &
+        option%io_buffer = 'The NUMERICAL_JACOBIAN_RXN card within &
           &SUBSURFACE block must be listed under the SIMULATION/&
           &PROCESS_MODELS/SUBSURFACE_TRANSPORT block as &
           &NUMERICAL_JACOBIAN.'
@@ -2219,7 +2244,8 @@ subroutine SubsurfaceReadInput(simulation)
         if (option%iflowmode == RICHARDS_MODE .or. &
             option%iflowmode == TOIL_IMS_MODE .or. &
             option%iflowmode == TOWG_MODE .or. &
-            option%iflowmode == G_MODE) then
+            option%iflowmode == G_MODE .or. &
+            option%iflowmode == WF_MODE) then
           option%io_buffer = &
             'Must compile with legacy_saturation_function=1 ' //&
             'to use the SATURATION_FUNCTION keyword.  Otherwise, use ' // &
@@ -2244,7 +2270,8 @@ subroutine SubsurfaceReadInput(simulation)
                   option%iflowmode == RICHARDS_MODE .or. &
                   option%iflowmode == TOIL_IMS_MODE .or. &
                   option%iflowmode == TOWG_MODE .or. &
-                  option%iflowmode == G_MODE)) then
+                  option%iflowmode == G_MODE .or. &
+                  option%iflowmode == WF_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow ' // &
             'modes other than RICHARDS, TOIL_IMS,  or GENERAL.  Use ' // &
             'SATURATION_FUNCTION.'
@@ -2262,6 +2289,21 @@ subroutine SubsurfaceReadInput(simulation)
         call CharacteristicCurvesAddToList(characteristic_curves, &
                                           realization%characteristic_curves)
         nullify(characteristic_curves)   
+
+!....................
+      case('CREEP_CLOSURE_TABLE')
+        wipp => WIPPGetPtr()
+        option%flow%transient_porosity = PETSC_TRUE
+        option%flow%creep_closure_on = PETSC_TRUE
+        creep_closure => CreepClosureCreate()
+        call InputReadWord(input,option,creep_closure%name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'name','CREEP_CLOSURE_TABLE')
+        option%io_buffer = '  Name :: ' // trim(creep_closure%name)
+        call printMsg(option)
+        call creep_closure%Read(input,option)
+        call CreepClosureAddToList(creep_closure, &
+             wipp%creep_closure_tables)
+        nullify(creep_closure)
 
 !....................
       
@@ -2550,13 +2592,13 @@ subroutine SubsurfaceReadInput(simulation)
               call StringToUpper(word)
               select case(trim(word))
                 case('TIME')
+                  internal_units = 'sec'
                   call InputReadDouble(input,option,temp_real)
                   call InputErrorMsg(input,option,'time increment', &
                                      'OUTPUT,PERIODIC,TIME')
                   call InputReadWord(input,option,word,PETSC_TRUE)
                   call InputErrorMsg(input,option,'time increment units', &
                                      'OUTPUT,PERIODIC,TIME')
-                  internal_units = 'sec'
                   units_conversion = UnitsConvertToInternal(word, &
                                      internal_units,option) 
                   output_option%periodic_snap_output_time_incr = temp_real* &
@@ -2564,14 +2606,12 @@ subroutine SubsurfaceReadInput(simulation)
                   call InputReadWord(input,option,word,PETSC_TRUE)
                   if (input%ierr == 0) then
                     if (StringCompareIgnoreCase(word,'between')) then
-
                       call InputReadDouble(input,option,temp_real)
                       call InputErrorMsg(input,option,'start time', &
                                          'OUTPUT,PERIODIC,TIME')
                       call InputReadWord(input,option,word,PETSC_TRUE)
                       call InputErrorMsg(input,option,'start time units', &
                                          'OUTPUT,PERIODIC,TIME')
-                      internal_units = 'sec'
                       units_conversion = UnitsConvertToInternal(word, &
                                          internal_units,option) 
                       temp_real = temp_real * units_conversion
@@ -2587,6 +2627,8 @@ subroutine SubsurfaceReadInput(simulation)
                       call InputReadWord(input,option,word,PETSC_TRUE)
                       call InputErrorMsg(input,option,'end time units', &
                                          'OUTPUT,PERIODIC,TIME')
+                      units_conversion = UnitsConvertToInternal(word, &
+                                         internal_units,option) 
                       temp_real2 = temp_real2 * units_conversion
                       do
                         waypoint => WaypointCreate()

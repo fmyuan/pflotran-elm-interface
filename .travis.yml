@@ -1,0 +1,46 @@
+language: 
+
+before_script:
+  - echo -e "Host *\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
+
+sudo: required
+
+dist: trusty # Ubuntu 14.04.
+
+compiler:
+  - gcc
+
+install: sh ./.travis/install-$TRAVIS_OS_NAME-deps.sh
+
+addons:
+  apt:
+    packages:
+      - cmake
+
+branches:
+  only:
+    - master
+#    - next
+
+matrix:
+  include:
+    - env: CMAKE_BUILD=0
+      os: linux
+
+#    - env: CMAKE_BUILD=0
+#      os: osx
+
+    - env: CMAKE_BUILD=1
+      os: linux
+
+#    - env: CMAKE_BUILD=1
+#      os: osx
+
+script: 
+#  - echo CC=${CC}
+#  - echo CXX=${CXX}
+#  - echo FC=${FC}
+  - ./.travis/install-petsc.sh
+  - ./.travis/pflotran-build.sh
+  - ./.travis/pflotran-test.sh
+  - cat regression_tests/*.testlog

@@ -269,6 +269,23 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   !Rate = (k * Aaq - kr * Caq) * L_water
   !RateA = stoichA * Rate
   !RateC = stoichC * Rate
+
+  ! mass transfer between aqueous and immobile phases
+  ! k [1/sec]
+  ! kr [1/sec]
+  ! Baq [mol/L]
+  ! Yim [mol/m^3 bulk]
+  ! volume [m^3]
+  ! L_water [L]
+  ! Rate [mole/sec]
+  ! uncomment from here down
+  !k = 1.d-8
+  !kr = 1.d-10
+  !stoichB = -1.d0
+  !stoichY = 1.d0
+  !Rate = k * Baq * L_water - kr * Yim * volume
+  !RateB = stoichB * Rate
+  !RateY = stoichY * Rate
   
   ! NOTES
   ! 1. Always subtract contribution from residual
@@ -279,8 +296,10 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   Residual(this%species_Daq_id) = Residual(this%species_Daq_id) - RateD
   Residual(this%species_Eaq_id) = Residual(this%species_Eaq_id) - RateE
   Residual(this%species_Faq_id) = Residual(this%species_Faq_id) - RateF
-  Residual(this%species_Xim_id) = Residual(this%species_Xim_id) - RateX
-  Residual(this%species_Yim_id) = Residual(this%species_Yim_id) - RateY
+  Residual(this%species_Xim_id + reaction%offset_immobile) = &
+    Residual(this%species_Xim_id + reaction%offset_immobile) - RateX
+  Residual(this%species_Yim_id + reaction%offset_immobile) = &
+    Residual(this%species_Yim_id + reaction%offset_immobile) - RateY
   
 end subroutine SimpleReact
 

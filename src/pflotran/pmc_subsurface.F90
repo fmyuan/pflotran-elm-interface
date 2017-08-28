@@ -96,6 +96,7 @@ subroutine PMCSubsurfaceSetupSolvers(this)
   use PM_Base_class
   use PM_Subsurface_Flow_class
   use PM_General_class
+  use PM_WIPP_Flow_class
   use PM_Richards_class
   use PM_TH_class
   use PM_RT_class
@@ -157,8 +158,11 @@ subroutine PMCSubsurfaceSetupSolvers(this)
                 case(TH_MODE)
                   write(*,'(" mode = TH: p, T")')
                 case(RICHARDS_MODE)
-                  write(*,'(" mode = Richards: p")')  
+                  write(*,'(" mode = Richards: p")')
                 case(G_MODE) 
+                  write(*,'(" mode = General: p, sg/X, T")')
+                case(WF_MODE) 
+                  write(*,'(" mode = WIPP Flow: p, sg")')
                 case(TOIL_IMS_MODE)   
               end select
             endif
@@ -248,6 +252,7 @@ subroutine PMCSubsurfaceSetupSolvers(this)
             endif
             select type(pm)
             !-------------------------------------
+              !TODO(geh): Can't these be consolidated?
               class is(pm_richards_type)
                 if (Initialized(pm%pressure_dampening_factor) .or. &
                     Initialized(pm%saturation_change_limit)) then
@@ -263,6 +268,17 @@ subroutine PMCSubsurfaceSetupSolvers(this)
                 endif   
             !-------------------------------------
               class is(pm_general_type)
+                call SNESLineSearchSetPreCheck(linesearch, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                               PMCheckUpdatePre, &
+                                               this%pm_ptr%pm, &
+#else
+                                               PMCheckUpdatePrePtr, &
+                                               this%pm_ptr, &
+#endif
+                                               ierr);CHKERRQ(ierr)
+            !-------------------------------------
+              class is(pm_wippflo_type)
                 call SNESLineSearchSetPreCheck(linesearch, &
 #if defined(USE_PM_AS_PETSC_CONTEXT)
                                                PMCheckUpdatePre, &

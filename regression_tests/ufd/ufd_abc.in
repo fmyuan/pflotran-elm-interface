@@ -1,4 +1,4 @@
-#Description: 0D microbial degradation problem with biomass
+#Description: Tests UFD_Decay process model using IMPLICIT_SOLUTION
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE

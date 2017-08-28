@@ -496,7 +496,7 @@ function FlowGeneralSubConditionPtr(sub_condition_name,general, &
       if (associated(general%rate)) then
         sub_condition_ptr => general%rate
       else
-        sub_condition_ptr => FlowSubConditionCreate(THREE_INTEGER)
+        sub_condition_ptr => FlowSubConditionCreate(option%nflowdof)
         general%rate => sub_condition_ptr
       endif
     case default
@@ -900,8 +900,8 @@ function GetFlowSubCondFromArrayByName(sub_condition_ptr_list,name)
     endif
   enddo
 
-  print *, 'GetFlowSubCondFromArrayByName() needs to be updated to include' // &
-           'the general_condition_type.'
+  print *, 'GetFlowSubCondFromArrayByName() needs to be updated to include &
+           &the general_condition_type.'
   stop
   
 end function GetFlowSubCondFromArrayByName
@@ -951,12 +951,12 @@ subroutine FlowSubConditionVerify(option, condition, sub_condition_name, &
     call printErrMsg(option)
   endif
   
-  header = 'SUBSURFACE/FLOW_CONDITION' // '/' // &
+  header = 'SUBSURFACE/FLOW_CONDITION/' // &
            trim(condition%name) // '/' // &
            trim(sub_condition_name) // '/Value(s)'
   call DatasetVerify(sub_condition%dataset,default_time_storage, &
                      header,option)
-  header = 'SUBSURFACE/FLOW_CONDITION' // '/' // &
+  header = 'SUBSURFACE/FLOW_CONDITION/' // &
            trim(condition%name) // '/' // &
            trim(sub_condition_name) // '/Gradient'
   call DatasetVerify(sub_condition%gradient,default_time_storage, &
@@ -990,6 +990,7 @@ subroutine FlowConditionRead(condition,input,option)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: rate_string
+  character(len=MAXWORDLENGTH) :: energy_rate_string
   character(len=MAXWORDLENGTH) :: internal_units
   type(flow_sub_condition_type), pointer :: pressure, flux, temperature, &
                                        concentration, enthalpy, rate, well,&
@@ -1014,6 +1015,7 @@ subroutine FlowConditionRead(condition,input,option)
   default_time_storage%time_interpolation_method = INTERPOLATION_STEP
 
   rate_string = 'not_assigned'
+  energy_rate_string = 'not_assigned'
   internal_units = 'not_assigned'
   
   pressure => FlowSubConditionCreate(option%nphase)
@@ -1170,10 +1172,10 @@ subroutine FlowConditionRead(condition,input,option)
               rate_string = 'kg/sec'
             case('energy_rate')
               sub_condition_ptr%itype = ENERGY_RATE_SS
-              rate_string = 'MJ/sec|MW'
+              energy_rate_string = 'MJ/sec|MW'
             case('heterogeneous_energy_rate')
               sub_condition_ptr%itype = HET_ENERGY_RATE_SS
-              rate_string = 'MJ/sec|MW'
+              energy_rate_string = 'MJ/sec|MW'
             case('scaled_mass_rate','scaled_volumetric_rate', &
                  'scaled_energy_rate')
               select case(word)
@@ -1185,7 +1187,7 @@ subroutine FlowConditionRead(condition,input,option)
                   rate_string = 'm^3/sec'
                 case('scaled_energy_rate')
                   sub_condition_ptr%itype = SCALED_ENERGY_RATE_SS
-                  rate_string = 'MW|MJ/sec'
+                  energy_rate_string = 'MW|MJ/sec'
               end select
               ! store name of type for error messaging below.
               string = word
@@ -1206,10 +1208,9 @@ subroutine FlowConditionRead(condition,input,option)
                     call InputKeywordUnrecognized(word,string,option)
                 end select
               else
-                option%io_buffer = 'Specify one of NEIGHBOR_PERM, ' // &
-                  'VOLUME, PERM subtypes in '// &
-                  'flow condition "' // trim(condition%name) // &
-                  '" ' // trim(string)
+                option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
+                  &VOLUME, PERM subtypes in flow condition "' // &
+                  trim(condition%name) // '" ' // trim(string)
                 call printErrMsg(option)              
                 endif
             case('hydrostatic')
@@ -1229,8 +1230,8 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr%itype = EQUILIBRIUM_SS
             case('unit_gradient')
               if (.not.associated(sub_condition_ptr,pressure)) then
-                option%io_buffer = 'unit_gradient flow condition type may ' // &
-                  'only be associated with a PRESSURE flow condition.'
+                option%io_buffer = 'unit_gradient flow condition type may &
+                  &only be associated with a PRESSURE flow condition.'
                 call printErrMsg(option)
               endif
               sub_condition_ptr%itype = UNIT_GRADIENT_BC 
@@ -1241,7 +1242,11 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr%itype = HET_MASS_RATE_SS
               rate_string = 'kg/sec'
             case('heterogeneous_dirichlet')
-              sub_condition_ptr%itype = HET_DIRICHLET
+              sub_condition_ptr%itype = HET_DIRICHLET_BC
+            case('heterogeneous_seepage')
+              sub_condition_ptr%itype = HET_SEEPAGE_BC
+            case('heterogeneous_conductance')
+              sub_condition_ptr%itype = HET_CONDUCTANCE_BC
             case('heterogeneous_surface_seepage')
               sub_condition_ptr%itype = HET_SURF_SEEPAGE_BC
             case('spillover')
@@ -1354,7 +1359,7 @@ subroutine FlowConditionRead(condition,input,option)
         input%force_units = PETSC_FALSE
       case('ENERGY_RATE')
         input%force_units = PETSC_TRUE
-        internal_units = 'MJ/sec|MW'
+        internal_units = energy_rate_string
         input%err_buf = word
         call ConditionReadValues(input,option,word, &
                                  energy_rate%dataset, &
@@ -1407,10 +1412,11 @@ subroutine FlowConditionRead(condition,input,option)
     select case(rate%itype)
       case(DIRICHLET_BC,NEUMANN_BC,HYDROSTATIC_BC,UNIT_GRADIENT_BC, &
            CONDUCTANCE_BC,ZERO_GRADIENT_BC,SEEPAGE_BC,SURFACE_DIRICHLET, &
-           SURFACE_SPILLOVER)
-        option%io_buffer = 'RATE condition must not be of type: dirichlet, ' // &
-          'neumann, zero_gradient, dirichlet_zero_gradient, hydrostatic, ' // &
-          'seepage, or conductance".'
+           SURFACE_SPILLOVER,HET_DIRICHLET_BC,HET_SEEPAGE_BC,&
+           HET_CONDUCTANCE_BC)
+        option%io_buffer = 'RATE condition must not be of type: dirichlet, &
+          &neumann, zero_gradient, dirichlet_zero_gradient, hydrostatic, &
+          &seepage, or conductance".'
         call printErrMsg(option)
     end select
   endif
@@ -1419,9 +1425,9 @@ subroutine FlowConditionRead(condition,input,option)
     select case(pressure%itype)
       case(MASS_RATE_SS,SCALED_MASS_RATE_SS,VOLUMETRIC_RATE_SS, &
            SCALED_VOLUMETRIC_RATE_SS,EQUILIBRIUM_SS)
-        option%io_buffer = 'PRESSURE or FLUX condition must not be of type: ' // &
-          'mass_rate, scaled_mass_rate, volumetric_rate, ' // &
-          'scaled_volumetric_rate, equilibrium, or production_well.'
+        option%io_buffer = 'PRESSURE or FLUX condition must not be of type: &
+          &mass_rate, scaled_mass_rate, volumetric_rate, &
+          &scaled_volumetric_rate, equilibrium, or production_well.'
         call printErrMsg(option)
     end select
   endif
@@ -1467,16 +1473,22 @@ subroutine FlowConditionRead(condition,input,option)
 
   select case(option%iflowmode)
     case(G_MODE)
-      option%io_buffer = 'General mode not supported in original FlowConditionRead.'
+      option%io_buffer = 'General mode not supported in original &
+        &FlowConditionRead.'
+      call printMsg(option)
+    case(WF_MODE)
+      option%io_buffer = 'WIPP Flow mode not supported in original &
+        &FlowConditionRead.'
       call printMsg(option)
     case(TOIL_IMS_MODE)
-      option%io_buffer = 'TOilIms mode not supported in original FlowConditionRead.'
+      option%io_buffer = 'TOilIms mode not supported in original &
+        &FlowConditionRead.'
       call printMsg(option)
     case(MPH_MODE,IMS_MODE,FLASH2_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate)&
            .and. .not.associated(well) .and. .not.associated(saturation)) then
-        option%io_buffer = 'pressure, rate and saturation condition null in ' // &
-                           'condition: ' // trim(condition%name)
+        option%io_buffer = 'pressure, rate and saturation condition null in &
+                           &condition: ' // trim(condition%name)
         call printErrMsg(option)
       endif
       
@@ -1495,8 +1507,8 @@ subroutine FlowConditionRead(condition,input,option)
      
       
       if (.not.associated(temperature) .and. .not.associated(energy_rate)) then
-        option%io_buffer = 'temperature and energy rate condition null in condition: ' // &
-                            trim(condition%name)      
+        option%io_buffer = 'temperature and energy rate condition null &
+          &in condition: ' // trim(condition%name)      
         call printErrMsg(option)
       endif                         
       if (associated(temperature)) then
@@ -1556,8 +1568,8 @@ subroutine FlowConditionRead(condition,input,option)
     case(TH_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate)&
            .and. .not.associated(well) .and. .not.associated(saturation)) then
-        option%io_buffer = 'pressure, rate and saturation condition null in ' // &
-                           'condition: ' // trim(condition%name)
+        option%io_buffer = 'pressure, rate and saturation condition null in &
+          &condition: ' // trim(condition%name)
         call printErrMsg(option)
       endif
 
@@ -1576,13 +1588,13 @@ subroutine FlowConditionRead(condition,input,option)
 
       if (.not.associated(temperature) .and. .not.associated(energy_rate) &
           .and. .not.associated(energy_flux)) then
-        option%io_buffer = 'temperature, energy_flux, and energy_rate ' // &
-          'condition null in condition: ' // trim(condition%name)
+        option%io_buffer = 'temperature, energy_flux, and energy_rate &
+          &condition null in condition: ' // trim(condition%name)
         call printErrMsg(option)
       endif
       if (associated(temperature) .and. associated(energy_rate) ) then
-        option%io_buffer = 'Both, temperature and energy_rate cannot be ' // &
-                            'specified in condition: ' // trim(condition%name)
+        option%io_buffer = 'Both, temperature and energy_rate cannot be &
+                           &specified in condition: ' // trim(condition%name)
         call printErrMsg(option)
       endif
       if (associated(temperature)) condition%temperature => temperature
@@ -1628,8 +1640,8 @@ subroutine FlowConditionRead(condition,input,option)
     case(MIS_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate)&
            .and. .not.associated(well)) then
-        option%io_buffer = 'pressure and rate condition null in ' // &
-                           'condition: ' // trim(condition%name)
+        option%io_buffer = 'pressure and rate condition null in &
+                           &condition: ' // trim(condition%name)
         call printErrMsg(option)
       endif
       
@@ -1691,8 +1703,8 @@ subroutine FlowConditionRead(condition,input,option)
     case(RICHARDS_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate) .and. &
           .not.associated(saturation) .and. .not.associated(well)) then
-        option%io_buffer = 'pressure, rate and saturation condition null in ' // &
-                           'condition: ' // trim(condition%name)
+        option%io_buffer = 'pressure, rate and saturation condition null in &
+                           &condition: ' // trim(condition%name)
         call printErrMsg(option)      
       endif
       
@@ -1762,6 +1774,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   use Time_Storage_module
   use Dataset_module
   
+  ! needed for STATES
   use General_Aux_module
   
   implicit none
@@ -1783,10 +1796,18 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   PetscBool :: default_is_cyclic
   type(time_storage_type), pointer :: default_time_storage
   class(dataset_ascii_type), pointer :: dataset_ascii  
+  character(len=MAXWORDLENGTH) :: flow_mode_chars
   PetscErrorCode :: ierr
 
   call PetscLogEventBegin(logging%event_flow_condition_read, &
                           ierr);CHKERRQ(ierr)
+
+  select case(option%iflowmode)
+    case(G_MODE)
+      flow_mode_chars = 'General Mode'
+    case(WF_MODE)
+      flow_mode_chars = 'WIPP Flow Mode'
+  end select
 
   rate_string = 'not_assigned'
   internal_units = 'not_assigned'
@@ -1799,7 +1820,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   default_time_storage%time_interpolation_method = INTERPOLATION_STEP
   
   select case(option%iflowmode)
-    case(G_MODE)
+    case(G_MODE,WF_MODE)
       general => FlowGeneralConditionCreate(option)
       condition%general => general
   end select
@@ -1847,7 +1868,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')   
           call StringToUpper(word)
           select case(option%iflowmode)
-            case(G_MODE)
+            case(G_MODE,WF_MODE)
               sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
                                                               option)
           end select
@@ -1889,9 +1910,9 @@ subroutine FlowConditionGeneralRead(condition,input,option)
                     call InputKeywordUnrecognized(word,string,option)
                 end select
               else      
-                option%io_buffer = 'Specify one of NEIGHBOR_PERM, ' // &
-                  'VOLUME, PERM subtypes in '// &
-                  'flow condition "' // trim(condition%name) // &
+                option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
+                  &VOLUME, PERM subtypes in &
+                  &flow condition "' // trim(condition%name) // &
                   '" scaled_mass_rate type'
                 call printErrMsg(option)
               endif
@@ -1918,9 +1939,9 @@ subroutine FlowConditionGeneralRead(condition,input,option)
                     call InputKeywordUnrecognized(word,string,option)
                 end select
               else
-                option%io_buffer = 'Specify one of NEIGHBOR_PERM, ' // &
-                  'VOLUME, PERM subtypes in '// &
-                  'flow condition "' // trim(condition%name) // &
+                option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
+                  &VOLUME, PERM subtypes in &
+                  &flow condition "' // trim(condition%name) // &
                   '" scaled_volumetric_rate type'
                 call printErrMsg(option)
               endif
@@ -1931,7 +1952,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               sub_condition_ptr%itype = HET_MASS_RATE_SS
               rate_string = 'kg/sec'                                 
             case('heterogeneous_dirichlet')
-              sub_condition_ptr%itype = HET_DIRICHLET
+              sub_condition_ptr%itype = HET_DIRICHLET_BC
             case('heterogeneous_surface_seepage')
               sub_condition_ptr%itype = HET_SURF_SEEPAGE_BC
             case default
@@ -1960,7 +1981,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')   
           call StringToUpper(word)
           select case(option%iflowmode)
-            case(G_MODE)
+            case(G_MODE,WF_MODE)
               sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
                                                               option)
           end select
@@ -1979,7 +2000,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
       case('CONDUCTANCE')
         word = 'LIQUID_PRESSURE'
         select case(option%iflowmode)
-          case(G_MODE)
+          case(G_MODE,WF_MODE)
             sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
                                                             option)
         end select
@@ -1989,7 +2010,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
            'GAS_SATURATION','TEMPERATURE','MOLE_FRACTION','RATE', &
            'LIQUID_FLUX','GAS_FLUX','ENERGY_FLUX','RELATIVE_HUMIDITY')
         select case(option%iflowmode)
-          case(G_MODE)
+          case(G_MODE,WF_MODE)
             sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
                                                             option)
         end select
@@ -2040,22 +2061,21 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   if (.false.) then
     ! neumann or mass/volumetric flux
     ! need temperature
-  !  condition%sub_condition_ptr(GENERAL_FLUX_DOF)%ptr => general%flux
     if (.not.associated(general%mole_fraction) .and. &
         .not.associated(general%gas_saturation)) then
-      option%io_buffer = 'General Phase flux condition must include ' // &
-        'a MOLE_FRACTION or GAS/LIQUID_SATURATION.'
+      option%io_buffer = trim(flow_mode_chars) // ' flux condition must &
+        &include a MOLE_FRACTION or GAS/LIQUID_SATURATION.'
       call printErrMsg(option)
     endif
     if (associated(general%mole_fraction) .and. &
         associated(general%gas_saturation)) then
-      option%io_buffer = 'General Phase flux condition must include ' // &
-        'only a MOLE_FRACTION or GAS/LIQUID_SATURATION, not both.'
+      option%io_buffer = trim(flow_mode_chars) // ' flux condition must &
+        &include only a MOLE_FRACTION or GAS/LIQUID_SATURATION, not both.'
       call printErrMsg(option)
     endif
     if (.not.associated(general%temperature)) then
-      option%io_buffer = 'General Phase flux condition must include ' // &
-        'a temperature'
+      option%io_buffer = trim(flow_mode_chars) // ' flux condition must &
+        &include a temperature.'
       call printErrMsg(option)
     endif
   else
@@ -2068,42 +2088,56 @@ subroutine FlowConditionGeneralRead(condition,input,option)
       condition%iphase = ANY_STATE
     else
       ! some sort of dirichlet-based pressure, temperature, etc.
-      if (.not.associated(general%liquid_pressure) .and. &
-          .not.associated(general%gas_pressure)) then
-        option%io_buffer = 'General Phase non-rate condition must ' // &
-          'include a liquid or gas pressure'
-        call printErrMsg(option)
-      endif
-      if (.not.associated(general%mole_fraction) .and. &
-          .not.associated(general%relative_humidity) .and. &
-          .not.associated(general%gas_saturation)) then
-        option%io_buffer = 'General Phase non-rate condition must ' // &
-          'include mole fraction, relative humidity, or gas/liquid saturation'
-        call printErrMsg(option)
-      endif
-      if (.not.associated(general%temperature)) then
-        option%io_buffer = 'General Phase non-rate condition must ' // &
-          'include temperature'
-        call printErrMsg(option)
-      endif
-      if (associated(general%gas_pressure) .and. &
-          associated(general%gas_saturation)) then
-        ! two phase condition
+      if (option%iflowmode == G_MODE) then
+        if (.not.associated(general%liquid_pressure) .and. &
+            .not.associated(general%gas_pressure)) then
+          option%io_buffer = 'General Mode non-rate condition must include &
+            &a liquid or gas pressure'
+          call printErrMsg(option)
+        endif
+        if (.not.associated(general%mole_fraction) .and. &
+            .not.associated(general%relative_humidity) .and. &
+            .not.associated(general%gas_saturation)) then
+          option%io_buffer = 'General Mode non-rate condition must include &
+            &a mole fraction, relative humidity, or gas/liquid saturation'
+          call printErrMsg(option)
+        endif
+        if (.not.associated(general%temperature)) then
+          option%io_buffer = 'General Mode non-rate condition must include &
+            &a temperature'
+          call printErrMsg(option)
+        endif
+        if (associated(general%gas_pressure) .and. &
+            associated(general%gas_saturation)) then
+          ! two phase condition
+          condition%iphase = TWO_PHASE_STATE
+        else if (associated(general%liquid_pressure) .and. &
+                 associated(general%mole_fraction)) then
+          ! liquid phase condition
+          condition%iphase = LIQUID_STATE
+        else if (associated(general%gas_pressure) .and. &
+                 (associated(general%mole_fraction) .or. &
+                  associated(general%relative_humidity))) then
+          ! gas phase condition
+          condition%iphase = GAS_STATE
+        endif
+      else
+        if (.not.associated(general%liquid_pressure)) then
+          option%io_buffer = 'WIPP Flow Mode non-rate condition must include &
+            &a liquid pressure'
+          call printErrMsg(option)
+        endif
+        if (.not.associated(general%gas_saturation)) then
+          option%io_buffer = 'WIPP Flow Mode non-rate condition must include &
+            &a liquid saturation'
+          call printErrMsg(option)
+        endif
         condition%iphase = TWO_PHASE_STATE
-      else if (associated(general%liquid_pressure) .and. &
-               associated(general%mole_fraction)) then
-        ! liquid phase condition
-        condition%iphase = LIQUID_STATE
-      else if (associated(general%gas_pressure) .and. &
-               (associated(general%mole_fraction) .or. &
-                associated(general%relative_humidity))) then
-        ! gas phase condition
-        condition%iphase = GAS_STATE
       endif
     endif
     if (condition%iphase == NULL_STATE) then
-      option%io_buffer = 'General Phase non-rate/flux condition contains ' // &
-        'an unsupported combination of primary dependent variables.'
+      option%io_buffer = 'General Phase non-rate/flux condition contains &
+        &an unsupported combination of primary dependent variables.'
       call printErrMsg(option)
     endif
   endif
@@ -2405,9 +2439,9 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
                   call InputKeywordUnrecognized(word,string,option)
                 end select
               else
-                option%io_buffer = 'Specify one of NEIGHBOR_PERM, ' // &
-                  'VOLUME, PERM subtypes in '// &
-                  'flow condition "' // trim(condition%name) // &
+                option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
+                  &VOLUME, PERM subtypes in flow condition "' // &
+                  trim(condition%name) // &
                   '" scaled_mass_rate type'
                 call printErrMsg(option)
               endif
@@ -2434,10 +2468,9 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
                     call InputKeywordUnrecognized(word,string,option)
                 end select
               else
-                option%io_buffer = 'Specify one of NEIGHBOR_PERM, ' // &
-                  'VOLUME, PERM subtypes in '// &
-                  'flow condition "' // trim(condition%name) // &
-                  '" scaled_volumetric_rate type'
+                option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
+                  &VOLUME, PERM subtypes in flow condition "' // &
+                  trim(condition%name) // '" scaled_volumetric_rate type'
                 call printErrMsg(option)
               endif
             case('heterogeneous_volumetric_rate')
@@ -2447,7 +2480,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
               sub_condition_ptr%itype = HET_MASS_RATE_SS
               rate_string = 'kg/sec'                                         
             case('heterogeneous_dirichlet')
-              sub_condition_ptr%itype = HET_DIRICHLET
+              sub_condition_ptr%itype = HET_DIRICHLET_BC
             case('heterogeneous_surface_seepage')
               sub_condition_ptr%itype = HET_SURF_SEEPAGE_BC
             case('mass_rate_target')
@@ -2625,19 +2658,19 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
     ! this branch is executed for sub_conditions that are not a rate or well
     ! some sort of dirichlet-based pressure, temperature, etc.
     if (.not.associated(toil_ims%pressure)) then
-      option%io_buffer = 'TOilIms Phase non-rate condition must ' // &
-        'include a pressure'
+      option%io_buffer = 'TOilIms Phase non-rate condition must &
+        &include a pressure'
       call printErrMsg(option)
     endif
 
     if (.not.associated(toil_ims%saturation) ) then
-      option%io_buffer = 'TOilIms Phase non-rate condition must ' // &
-        'include liquid or oil saturation'
+      option%io_buffer = 'TOilIms Phase non-rate condition must &
+        &include liquid or oil saturation'
       call printErrMsg(option)
     endif
     if (.not.associated(toil_ims%temperature)) then
-      option%io_buffer = 'TOilIms Phase non-rate condition must ' // &
-        'include temperature'
+      option%io_buffer = 'TOilIms Phase non-rate condition must &
+        &include temperature'
       call printErrMsg(option)
     endif
   endif
@@ -2645,8 +2678,8 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
   ! control that enthalpy is used for src/sink only
   if ( (.not.associated(toil_ims%rate)) .and. &
         associated(toil_ims%enthalpy)  ) then
-      option%io_buffer = 'TOilIms Enthlapy condition is not' // &
-       'currently supported for boundary & initial conditions'
+      option%io_buffer = 'TOilIms Enthlapy condition is not &
+       &currently supported for boundary & initial conditions'
       call printErrMsg(option)          
   end if
   ! within a src/sink either temp or enthalpy can be defined   
@@ -2654,8 +2687,8 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
     if ( associated(toil_ims%temperature).and. &
         associated(toil_ims%enthalpy) &
        ) then
-      option%io_buffer = 'TOilIms Rate condition can ' // &
-       'have either temp or enthalpy'
+      option%io_buffer = 'TOilIms Rate condition can &
+       &have either temp or enthalpy'
       call printErrMsg(option)      
     end if
     ! only dirich condition supported for src/sink temp or enthalpy
@@ -2666,8 +2699,8 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
           (toil_ims%enthalpy%itype /= DIRICHLET_BC ) &
          ) &
        ) then
-      option%io_buffer = 'TOilIms Src/Sink; only dirichlet type ' // &
-       'is supported for temperature and enthalpy conditions'
+      option%io_buffer = 'TOilIms Src/Sink; only dirichlet type &
+       &is supported for temperature and enthalpy conditions'
       call printErrMsg(option)      
     end if
 
@@ -2985,9 +3018,9 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                     call InputKeywordUnrecognized(word,string,option)
                 end select
               else      
-                option%io_buffer = 'Specify one of NEIGHBOR_PERM, ' // &
-                  'VOLUME, PERM subtypes in '// &
-                  'flow condition "' // trim(condition%name) // &
+                option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
+                  &VOLUME, PERM subtypes in flow condition "' // &
+                  trim(condition%name) // &
                   '" scaled_mass_rate type'
                 call printErrMsg(option)
               endif
@@ -3014,9 +3047,9 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                     call InputKeywordUnrecognized(word,string,option)
                 end select
               else
-                option%io_buffer = 'Specify one of NEIGHBOR_PERM, ' // &
-                  'VOLUME, PERM subtypes in '// &
-                  'flow condition "' // trim(condition%name) // &
+                option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
+                  &VOLUME, PERM subtypes in flow condition "' // &
+                  trim(condition%name) // &
                   '" scaled_volumetric_rate type'
                 call printErrMsg(option)
               endif
@@ -3027,7 +3060,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
               sub_condition_ptr%itype = HET_MASS_RATE_SS
               rate_string = 'kg/sec'                                 
             case('heterogeneous_dirichlet')
-              sub_condition_ptr%itype = HET_DIRICHLET
+              sub_condition_ptr%itype = HET_DIRICHLET_BC
             case default
               call InputKeywordUnrecognized(word,'flow condition,type',option)
           end select
@@ -3157,25 +3190,25 @@ subroutine FlowConditionTOWGRead(condition,input,option)
        ) then
       condition%iphase = TOWG_THREE_PHASE_STATE 
     else
-      option%io_buffer = 'TOWG consdition - phase state  ' // &
-        'Currently only THREE_PHASE_STATE implemented'
+      option%io_buffer = 'TOWG consdition - phase state  &
+        &Currently only THREE_PHASE_STATE implemented'
     end if 
     !check if conditions are compatible with miscibility model
     if ( (towg_miscibility_model == TOWG_IMMISCIBLE .or. &
           towg_miscibility_model == TOWG_TODD_LONGSTAFF) .and. &
           condition%iphase /= TOWG_THREE_PHASE_STATE  & 
        ) then
-      option%io_buffer = 'FlowConditionTOWGRead: For TOWG_IMMISCIBLE and ' // &
-         'TOWG_TODD_LONGSTAFF only three phase state conditions ' // &
-         'are supported other than rate and flux conditions ' 
+      option%io_buffer = 'FlowConditionTOWGRead: For TOWG_IMMISCIBLE and &
+         &TOWG_TODD_LONGSTAFF only three phase state conditions &
+         &are supported other than rate and flux conditions ' 
     end if 
   end if
 
   ! control that enthalpy is used for src/sink only
   if ( (.not.associated(towg%rate)) .and. &
         associated(towg%enthalpy)  ) then
-      option%io_buffer = 'TOWG Enthlapy condition is not' // &
-       'currently supported for boundary & initial conditions'
+      option%io_buffer = 'TOWG Enthlapy condition is not &
+       &currently supported for boundary & initial conditions'
       call printErrMsg(option)          
   end if
   ! within a src/sink either temp or enthalpy can be defined   
@@ -3183,8 +3216,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
     if ( associated(towg%temperature).and. &
         associated(towg%enthalpy) &
        ) then
-      option%io_buffer = 'TOWG Rate condition can ' // &
-       'have either temp or enthalpy'
+      option%io_buffer = 'TOWG Rate condition can &
+       &have either temp or enthalpy'
       call printErrMsg(option)      
     end if
     ! only dirich condition supported for src/sink temp or enthalpy
@@ -3195,15 +3228,15 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           (towg%enthalpy%itype /= DIRICHLET_BC ) &
          ) &
        ) then
-      option%io_buffer = 'TOWG Src/Sink; only dirichlet type ' // &
-       'is supported for temperature and enthalpy conditions'
+      option%io_buffer = 'TOWG Src/Sink; only dirichlet type &
+       &is supported for temperature and enthalpy conditions'
       call printErrMsg(option)      
     end if
   end if ! end if rate
 
   if (condition%iphase == TOWG_NULL_STATE) then
-    option%io_buffer = 'TOWG Phase non-rate/flux condition contains ' // &
-      'an unsupported combination of primary dependent variables.'
+    option%io_buffer = 'TOWG Phase non-rate/flux condition contains &
+      &an unsupported combination of primary dependent variables.'
     call printErrMsg(option)
   endif  
     
@@ -3647,8 +3680,8 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base,units, &
     ! The dataset was not of type dataset_asci and was likely set to a different
     ! type.  There is a bug in the input file.
     option%io_buffer = 'Dataset associated with ' // trim(keyword) // &
-      ' in the input file is already associated with a different dataset ' // &
-      'type.  Check for duplicate definitions of ' // trim(keyword) // '.'
+      ' in the input file is already associated with a different dataset &
+      &type.  Check for duplicate definitions of ' // trim(keyword) // '.'
     call printErrMsg(option)
   endif
 
@@ -3673,8 +3706,8 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base,units, &
       if (input%ierr == 0) then
         filename = string2
       else
-        option%io_buffer = 'The ability to read realization dependent ' // &
-          'datasets outside the DATASET block is no longer supported'
+        option%io_buffer = 'The ability to read realization dependent &
+          &datasets outside the DATASET block is no longer supported'
         call printErrMsg(option)
       endif
     
@@ -3737,8 +3770,8 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base,units, &
             enddo
           enddo  
         else
-          option%io_buffer = 'HDF condition data set rank does not match' // &
-            'rank of internal data set.  Email Glenn for additions'
+          option%io_buffer = 'HDF condition data set rank does not match &
+            &rank of internal data set.  Email Glenn for additions'
           call printErrMsg(option)
         endif
         if (associated(dims)) deallocate(dims)
@@ -3953,8 +3986,12 @@ function GetSubConditionName(subcon_itype)
       string = 'heterogeneous volumetric rate'
     case(HET_MASS_RATE_SS)
       string = 'heterogeneous mass rate'
-    case(HET_DIRICHLET)
+    case(HET_DIRICHLET_BC)
       string = 'heterogeneous dirichlet'
+    case(HET_SEEPAGE_BC)
+      string = 'heterogeneous seepage'
+    case(HET_CONDUCTANCE_BC)
+      string = 'heterogeneous conductance'
     case(ENERGY_RATE_SS)
       string = 'energy rate'
     case(SCALED_ENERGY_RATE_SS)

@@ -282,7 +282,6 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
                 call InputErrorMsg(input,option,'start time',string)
                 call InputReadWord(input,option,word,PETSC_TRUE)
                 call InputErrorMsg(input,option,'start time units',string)
-                internal_units = 'sec'
                 units_conversion = UnitsConvertToInternal(word, &
                      internal_units,option) 
                 temp_real = temp_real * units_conversion
@@ -295,6 +294,8 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
                 call InputErrorMsg(input,option,'end time',string)
                 call InputReadWord(input,option,word,PETSC_TRUE)
                 call InputErrorMsg(input,option,'end time units',string)
+                units_conversion = UnitsConvertToInternal(word, &
+                     internal_units,option) 
                 temp_real2 = temp_real2 * units_conversion
                 select case(trim(block_name))
                   case('SNAPSHOT_FILE')
@@ -1014,6 +1015,13 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE, &
                                                 units,MATERIAL_ID)
         output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
+        output_variable%iformat = 1 ! integer
+        call OutputVariableAddToList(output_variable_list,output_variable)
+      case ('FRACTURE')
+        units = ''
+        name = 'Fracture Flag'
+        output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE, &
+                                                units,FRACTURE)
         output_variable%iformat = 1 ! integer
         call OutputVariableAddToList(output_variable_list,output_variable)
       case ('MATERIAL_ID_KLUDGE_FOR_VISIT')
@@ -1984,6 +1992,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
   use Grid_module
   use Input_Aux_module
   use General_Aux_module
+  use WIPP_Flow_Aux_module
 
   class(realization_base_type) :: realization_base
   PetscInt :: istep
@@ -2025,6 +2034,12 @@ subroutine OutputPrintCouplers(realization_base,istep)
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = GENERAL_ENERGY_DOF
       auxvar_names(2) = 'temperature'
+    case(WF_MODE)
+      allocate(iauxvars(2),auxvar_names(2))
+      iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
+      auxvar_names(1) = 'liquid_pressure'
+      iauxvars(2) = GENERAL_ENERGY_DOF
+      auxvar_names(2) = 'gas_saturation'
     case default
       option%io_buffer = &
         'OutputPrintCouplers() not yet supported for this flow mode'

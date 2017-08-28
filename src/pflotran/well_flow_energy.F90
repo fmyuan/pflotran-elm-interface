@@ -1,6 +1,8 @@
 module Well_FlowEnergy_class
 #ifdef WELL_CLASS
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
   use Well_Base_class
   use Well_Flow_class
@@ -9,8 +11,6 @@ module Well_FlowEnergy_class
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public, extends(well_flow_type) :: well_flow_energy_type
       PetscReal :: tw_ref                          ! [°C] well temperature at reference elevation

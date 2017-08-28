@@ -586,7 +586,7 @@ contains
              !!There should always be a node at all
              !!electrode locations. If not, something is
              !!wrong
-             write(*,1001) i,dist(indb)
+             write(*,1001) i,dist(indb(1))
           end if
        end if
        e_nods(i) = indb(1)

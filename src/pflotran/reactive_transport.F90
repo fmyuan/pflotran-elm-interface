@@ -946,9 +946,9 @@ subroutine RTUpdateTransportCoefs(realization)
       ! have to use temporary array since unallocated arrays cannot be
       ! indexed in call to subroutine.
       if (allocated(cell_centered_Darcy_velocities_ghosted)) then
-        local_Darcy_velocities_up = &
+        local_Darcy_velocities_up(:,1:max_phase) = &
           cell_centered_Darcy_velocities_ghosted(:,1:max_phase,ghosted_id_up)
-        local_Darcy_velocities_dn = &
+        local_Darcy_velocities_dn(:,1:max_phase) = &
           cell_centered_Darcy_velocities_ghosted(:,1:max_phase,ghosted_id_dn)
       endif
 
@@ -987,7 +987,7 @@ subroutine RTUpdateTransportCoefs(realization)
       if (patch%imat(ghosted_id) <= 0) cycle
 
       if (allocated(cell_centered_Darcy_velocities_ghosted)) then
-        local_Darcy_velocities_up = &
+        local_Darcy_velocities_up(:,1:max_phase) = &
           cell_centered_Darcy_velocities_ghosted(:,1:max_phase,ghosted_id)
       endif
       

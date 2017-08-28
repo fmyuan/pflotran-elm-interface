@@ -232,17 +232,17 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   use Material_Aux_class
   
   implicit none
-
+  
   type(option_type) :: option
-  class(characteristic_curves_type) :: characteristic_curves
   PetscReal :: x(option%nflowdof)
   !type(toil_ims_auxvar_type) :: toil_auxvar
   class(auxvar_toil_ims_type) :: toil_auxvar
   type(global_auxvar_type) :: global_auxvar ! passing this for salt conc.
                                             ! not currenty used  
   class(material_auxvar_type) :: material_auxvar
+  class(characteristic_curves_type) :: characteristic_curves
   PetscInt :: natural_id !only for debugging/print out - currently not used 
-
+  
   PetscInt :: lid, oid, cpid
   PetscReal :: cell_pressure, wat_sat_pres
   PetscReal :: krl, visl, dkrl_Se
@@ -272,7 +272,7 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
 
   toil_auxvar%mobility = 0.d0
 
-  !assing auxvars given by the solution variables
+  ! passing auxvars given by the solution variables
   toil_auxvar%pres(oid) = x(TOIL_IMS_PRESSURE_DOF)
   toil_auxvar%sat(oid) = x(TOIL_IMS_SATURATION_DOF)
   toil_auxvar%temp = x(TOIL_IMS_ENERGY_DOF)
@@ -280,8 +280,8 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   toil_auxvar%sat(lid) = 1.d0 - toil_auxvar%sat(oid)
       
   call characteristic_curves%saturation_function% &
-             CapillaryPressure(toil_auxvar%sat(lid),toil_auxvar%pres(cpid), &
-                               dpc_dsatl,option)                             
+             CapillaryPressure(toil_auxvar%sat(lid), &
+                               toil_auxvar%pres(cpid),dpc_dsatl,option)                             
 
   ! Testing zero capillary pressure
   !toil_auxvar%pres(cpid) = 0.d0

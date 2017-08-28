@@ -1,0 +1,227 @@
+\documentclass{beamer}
+
+\usepackage{comment}
+\usepackage{color}
+\usepackage{listings}
+\usepackage{verbatim}
+\usepackage{multicol}
+\usepackage{booktabs}
+\definecolor{green}{RGB}{0,128,0}
+
+\newcommand\gehcomment[1]{{{\color{orange} #1}}}
+\newcommand\add[1]{{{\color{blue} #1}}}
+\newcommand\remove[1]{\sout{{\color{red} #1}}}
+\newcommand\codecomment[1]{{{\color{green} #1}}}
+\newcommand\redcomment[1]{{{\color{red} #1}}}
+\newcommand\bluecomment[1]{{{\color{blue} #1}}}
+\newcommand\greencomment[1]{{{\color{green} #1}}}
+\newcommand\magentacomment[1]{{{\color{magenta} #1}}}
+
+\begin{comment}
+\tiny
+\scriptsize
+\footnotesize
+\small
+\normalsize
+\large
+\Large
+\LARGE
+\huge
+\Huge
+\end{comment}
+
+\begin{document}
+\title{Mixed Implicit Grid}
+\author{Emily Stein}
+\date{\today}
+
+%\frame{\titlepage}
+
+%-----------------------------------------------------------------------------
+\section{Description of Mixed Implicit Grid}
+
+\subsection{Mixed Implicit Grid Conceptual Model}
+
+%\frame{\frametitle{Description of Mixed Implicit Grid}
+\begin{frame}\frametitle{Description of Mixed Implicit Grid}
+The ``Mixed Implicit Grid Scenario'' demonstrates how to set up a flow and transport problem using an implicit unstructured grid.  The grid includes hexahedral, tetrahedral, wedge, and pyramid cells.  Other features include:
+\begin{itemize}
+  \item Problem domain: $5 \times 5 \times 5$ m (x $\times$ y $\times$ z)
+  \item Grid resolution 15 cells
+  \item Flow mode: Richards
+  \item Initial conditions: Hydrostatic
+  \item Boundary conditions: Recharge and time-varying hydrostatic
+  \item Source: Volumetric rate
+  \item Maximum time step size: 10 d
+  \item Total simulation time: 100 d
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\section{Partial Description of Input Deck: Grid, Regions, TIMESTEPPER}
+
+%-----------------------------------------------------------------------------
+\subsection{GRID}
+
+\begin{frame}[fragile]\frametitle{GRID}
+
+\begin{itemize}
+  \item Specify grid type
+  \item Specify grid file
+\end{itemize}
+
+
+\begin{semiverbatim}
+
+GRID \bluecomment{!unstructured grid implicit}
+  TYPE UNSTRUCTURED ./mixed.ugi
+END
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{implicitgrid}
+
+\begin{frame}[fragile]\frametitle{mixed\_implicit.ugi}
+
+\begin{semiverbatim}
+15 24 \bluecomment{! 15 cells, 24 vertices}
+P 4 5 6 2 1           \bluecomment{! Pyramid}
+T 4 3 5 1             \bluecomment{! Tetrahedron}
+W 2 7 6 4 9 5         \bluecomment{! Wedge}
+... \gehcomment{2 more cells here}
+H 19 9 5 12 17 7 6 16 \bluecomment{! Hexahedron}
+... \gehcomment{remaining 11 cells here}
+5.000000e+00 5.000000e+00 5.000000e+00 \bluecomment{x y z}
+5.000000e+00 2.500000e+00 5.000000e+00
+5.000000e+00 5.000000e+00 2.500000e+00
+5.000000e+00 2.500000e+00 2.500000e+00
+2.500000e+00 5.000000e+00 2.500000e+00
+... \gehcomment{remaining 19 vertices here}
+\end{semiverbatim}
+
+\end{frame}
+%-----------------------------------------------------------------------------
+\subsection{REGION}
+
+\begin{frame}[fragile,containsverbatim,allowframebreaks]\frametitle{REGION}
+
+\begin{itemize}
+  \item Delineate regions in the 3D domain:
+  \begin{itemize}
+    \item using COORDINATES
+    \item using FILE
+    \item using COORDINATE
+  \end{itemize}
+\end{itemize}
+
+\begin{semiverbatim}
+REGION all            \bluecomment{! define a region and name it: \greencomment{all}}
+  COORDINATES         \bluecomment{! using \redcomment{volume}}
+    0.d0 0.d0 0.d0    \bluecomment{! xmin ymin zmin}
+    5.d0 5.d0 5.d0    \bluecomment{! xmax ymax zmax}
+  /   \bluecomment{! <-- closes out COORDINATES card}
+END   \bluecomment{! <-- closes out REGION card}
+
+\newpage
+REGION top      \bluecomment{! define region:} \greencomment{top}
+  FILE top.ss   \bluecomment{! using a file}
+END
+
+REGION west     \bluecomment{! define region:} \greencomment{west}
+  FILE west.ss  \bluecomment{! using a file}
+END
+
+REGION well  \bluecomment{! define a region for the well}
+  COORDINATE 1.25d0 2.91667 1.25d0 \bluecomment{! using \redcomment{point} x y z}
+END
+
+REGION middle \bluecomment{! define a region for the obs pt}
+  COORDINATE 2.50001d0 2.50001d0 2.50001d0 \bluecomment{! x y z}
+END
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{FILE}
+
+\begin{frame}[fragile]\frametitle{FILE top.ss}
+
+\begin{semiverbatim}
+5 \bluecomment{! 5 cell faces}
+T 6 2 1     \bluecomment{! Triangular face}
+T 2 7 6     \bluecomment{! Vertices listed counterclockwise}
+T 8 7 2     \bluecomment{! or clockwise}
+Q 17 7 6 16 \bluecomment{! Quadrilateral face}
+Q 18 8 7 17
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Couplers}
+
+\begin{frame}[fragile]\frametitle{Couplers}
+
+\begin{itemize}
+\item Use the same syntax whether REGION is defined with COORDINATE, COORDINATES or FILE.
+\end{itemize}
+
+\begin{semiverbatim}
+
+STRATA
+  REGION all \bluecomment{! REGION \greencomment{all} is defined with COORDINATES}
+  MATERIAL soil1
+END
+
+BOUNDARY_CONDITION west
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION west \bluecomment{! REGION \greencomment{west} is defined with FILE}
+END
+
+OBSERVATION \bluecomment{! use REGION \greencomment{middle} as an obs pt}
+  REGION middle \bluecomment{! REGION \greencomment{middle} is defined with COORDINATE}
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{TIMESTEPPER}
+
+\begin{frame}[fragile]\frametitle{TIMESTEPPER}
+
+\begin{itemize}
+\item To check that initial conditions, materials, and grid are good run for only 1 time step
+\end{itemize}
+
+\begin{semiverbatim}
+
+TIMESTEPPER FLOW
+  MAX_STEPS 1
+END
+\end{semiverbatim}
+
+\begin{itemize}
+\item Skip this block when you are ready to run the full simulation
+\end{itemize}
+
+\begin{semiverbatim}
+
+skip \bluecomment{! \greencomment{skip} until encounter \greencomment{noskip}}
+TIMESTEPPER FLOW
+  MAX_STEPS 1
+END
+noskip \bluecomment{! begin using input again}
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\end{document}

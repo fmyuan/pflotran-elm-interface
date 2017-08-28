@@ -1,0 +1,187 @@
+#Description: Density dependent flow within a 2D domain with dissolving salt.
+#Thanks to Kris Kuhlman, Sandia
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+    AUXILIARY SALINITY
+      SPECIES Na+ 22.9898
+      SPECIES Cl- 35.4527
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Na+
+    Cl-
+  /
+  MINERALS
+    Halite
+  /
+  MINERAL_KINETICS
+    Halite
+      # Alkattan, Oelkers et al. (1997)
+      # Experimental Studies of Halite Dissolution Kinetics
+      RATE_CONSTANT 1.d-7 mol/cm^2-sec 
+    /
+  /
+  LOG_FORMULATION
+  DATABASE ./density_dep_flow_database.dat
+  OUTPUT
+    ALL
+    TOTAL
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-10
+END
+
+#=========================== equation of state ================================
+EOS WATER
+  DENSITY BATZLE_AND_WANG
+  VISCOSITY BATZLE_AND_WANG
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE structured 
+  NXYZ 100 1 100
+  BOUNDS
+    0.d0 0.d0 0.d0
+    20.d0 1.d0 20.d0 
+  /
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION halite_along_top
+  COORDINATES
+    0.d0 -1.d20 19.d0
+    15.d0 1.d20 20.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY aquifer
+  ID 1
+  CHARACTERISTIC_CURVES sf1
+  POROSITY  0.25d0
+  TORTUOSITY 0.1d0
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+END
+
+MATERIAL_PROPERTY halite
+  ID 2
+  CHARACTERISTIC_CURVES sf1
+  POROSITY  0.15d0
+  TORTUOSITY 0.1d0
+  PERMEABILITY
+    PERM_ISO 1.d-16
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES sf1
+  DEFAULT
+END
+
+#=========================== output options ===================================
+OUTPUT
+  NO_PRINT_INITIAL
+  SNAPSHOT_FILE
+    FORMAT HDF5
+    TIMES y 1.d-2
+    PERIODIC TIME 1.d0 y
+    VARIABLES
+      LIQUID_PRESSURE
+      LIQUID_DENSITY
+    /
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 100.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d-4 d
+  MAXIMUM_TIMESTEP_SIZE 100.d0 d
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE hydrostatic
+  /
+  DATUM 0.d0 0.d0 20.d0
+  PRESSURE 150000.d0
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION halite_initial
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT halite_constraint
+    CONCENTRATIONS
+      Na+ 7.533d0  T
+      Cl- 7.533d0  T
+    /
+    MINERALS
+      Halite 0.85 1.0
+    /
+  /
+END
+
+TRANSPORT_CONDITION aquifer_initial
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT aquifer_constraint
+    CONCENTRATIONS
+      Na+ 1.d-6  T
+      Cl- 1.d-6  T    
+    /
+  /
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION aquifer_ic
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION aquifer_initial
+  REGION all
+END
+
+INITIAL_CONDITION halite_ic
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION halite_initial
+  REGION halite_along_top
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL aquifer
+  REGION all
+END
+
+STRATA
+  MATERIAL halite
+  REGION halite_along_top
+END
+
+END_SUBSURFACE
+

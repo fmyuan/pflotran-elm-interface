@@ -1,0 +1,353 @@
+#Description: 3D test problem for testing chemical reactions
+#             based on chemistry from Hammond and Lichtner, WRR, 2010
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 5
+  CELLS
+    53
+  /
+END
+
+#=========================== flow mode ========================================
+
+#=========================== solver options ===================================
+TIMESTEPPER FLOW
+  TS_ACCELERATION 8
+END
+
+NEWTON_SOLVER FLOW
+END
+
+LINEAR_SOLVER FLOW
+  KSP_TYPE PREONLY
+  PC_TYPE LU
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE structured
+  ORIGIN 0.d0 0.d0 0.d0
+  NXYZ 5 4 3
+  DXYZ
+    10. 11. 12. 13. 14.
+    13. 12. 11. 10.
+    15. 20. 25.
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== datasets =========================================
+DATASET MAPPED Pressure_2
+  FILENAME 543_river_het_pres_dirichlet.h5
+  HDF5_DATASET_NAME Pressure_2
+  MAX_BUFFER_SIZE 200
+  MAP_HDF5_DATASET_NAME Map_2
+END
+
+DATASET MAPPED Pressure_3
+  FILENAME 543_river_het_pres_dirichlet.h5
+  HDF5_DATASET_NAME Pressure_3
+  MAX_BUFFER_SIZE 200
+  MAP_HDF5_DATASET_NAME Map_3
+END
+
+DATASET MAPPED Pressure_4
+  FILENAME 543_river_het_pres_dirichlet.h5
+  HDF5_DATASET_NAME Pressure_4
+  MAX_BUFFER_SIZE 200
+  MAP_HDF5_DATASET_NAME Map_4
+END
+
+DATASET MAPPED Pressure_6
+  FILENAME 543_river_het_pres_dirichlet.h5
+  HDF5_DATASET_NAME Pressure_6
+  MAX_BUFFER_SIZE 200
+  MAP_HDF5_DATASET_NAME Map_6
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES sf1
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-13
+  /
+END
+
+MATERIAL_PROPERTY soil2
+  ID 2
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES sf2
+  PERMEABILITY
+    PERM_X 1.d-11
+    PERM_Y 1.d-11
+    PERM_Z 1.d-12
+  /
+END
+
+MATERIAL_PROPERTY soil3
+  ID 3
+  POROSITY 0.2d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES sf3
+  PERMEABILITY
+    PERM_X 1.d-10
+    PERM_Y 1.d-10
+    PERM_Z 1.d-11
+  /
+END
+
+MATERIAL_PROPERTY soil4
+  ID 4
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES sf4
+  PERMEABILITY
+    PERM_X 1.d-9
+    PERM_Y 1.d-9
+    PERM_Z 1.d-10
+  /
+END
+
+! this material property is never used, but introduces a gap in material
+! ids (notice no material id of 5 in file) for testing purposes.
+MATERIAL_PROPERTY soil6
+  ID 6
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES sf4
+  PERMEABILITY
+    PERM_X 1.d-9
+    PERM_Y 1.d-9
+    PERM_Z 1.d-10
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.286
+    ALPHA  1.9401d-4
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.286
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+END
+
+CHARACTERISTIC_CURVES sf2
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.486
+    ALPHA  3.8801d-4
+    LIQUID_RESIDUAL_SATURATION 0.110
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.486
+    LIQUID_RESIDUAL_SATURATION 0.110
+  /
+END
+
+CHARACTERISTIC_CURVES sf3
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.541
+    ALPHA 1.0211d-4
+    LIQUID_RESIDUAL_SATURATION 0.118
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.541
+    LIQUID_RESIDUAL_SATURATION 0.118
+  /
+END
+
+CHARACTERISTIC_CURVES sf4
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.527
+    ALPHA 5.1054d-5
+    LIQUID_RESIDUAL_SATURATION 0.143
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.527
+    LIQUID_RESIDUAL_SATURATION 0.143
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+#  TIMES d 0.001 0.01 0.1 1. 10.
+#  PERIODIC TIME 1 d
+  TIME_UNITS y
+  FORMAT TECPLOT BLOCK
+#  FORMAT HDF5 SINGLE_FILE  
+  VELOCITY_AT_CENTER
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 100.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d-6 d
+  MAXIMUM_TIMESTEP_SIZE 10.d0 d
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION top
+  FILE ./543_river_setup.h5
+END
+
+REGION bottom
+  FILE ./543_river_setup.h5
+END
+
+REGION west
+  FILE ./543_river_setup.h5
+END
+
+REGION east_2
+  FILE ./543_river_setup.h5
+END
+
+REGION east_3
+  FILE ./543_river_setup.h5
+END
+
+REGION east_4
+  FILE ./543_river_setup.h5
+END
+
+REGION east_6
+  FILE ./543_river_setup.h5
+END
+
+REGION north
+  FILE ./543_river_setup.h5
+END
+
+REGION south
+  FILE ./543_river_setup.h5
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE hydrostatic
+  /
+  DATUM 0.d0 0.d0 35.d0
+  GRADIENT
+    PRESSURE -1.6666667d-2 0.d0 0.d0
+  /
+  PRESSURE 101325 ! Pa
+END
+
+FLOW_CONDITION east_2
+  TYPE
+    PRESSURE heterogeneous_dirichlet  
+  /
+  INTERPOLATION LINEAR
+  PRESSURE DATASET Pressure_2
+END
+
+FLOW_CONDITION east_3
+  TYPE
+    PRESSURE heterogeneous_dirichlet  
+  /
+  INTERPOLATION LINEAR
+  PRESSURE DATASET Pressure_3
+END
+
+FLOW_CONDITION east_4
+  TYPE
+    PRESSURE heterogeneous_dirichlet  
+  /
+  INTERPOLATION LINEAR
+  PRESSURE DATASET Pressure_4
+END
+
+FLOW_CONDITION east_6
+  TYPE
+    PRESSURE heterogeneous_dirichlet  
+  /
+  INTERPOLATION LINEAR
+  PRESSURE DATASET Pressure_6
+END
+
+FLOW_CONDITION recharge
+  TYPE
+    FLUX neumann
+  /
+  FLUX 5.d0 cm/yr
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+# west boundary condition
+BOUNDARY_CONDITION west
+  FLOW_CONDITION initial
+  REGION west
+END
+
+# east boundary condition
+BOUNDARY_CONDITION east_2
+  FLOW_CONDITION east_2
+  REGION east_2
+END
+
+BOUNDARY_CONDITION east_3
+  FLOW_CONDITION east_3
+  REGION east_3
+END
+
+BOUNDARY_CONDITION east_4
+  FLOW_CONDITION east_4
+  REGION east_4
+END
+
+BOUNDARY_CONDITION east_6
+  FLOW_CONDITION east_6
+  REGION east_6
+END
+
+# top boundary condition
+BOUNDARY_CONDITION top
+  FLOW_CONDITION recharge
+  REGION top
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL ./543_river_setup.h5
+END
+
+END_SUBSURFACE

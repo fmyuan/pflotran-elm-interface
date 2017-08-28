@@ -146,7 +146,7 @@ recursive subroutine PMCHydrogeophysicsRunToTime(this,sync_time,stop_flag)
   ! 
 
   use Wrapper_Hydrogeophysics_module, only : HydrogeophysicsWrapperStep
-  use Timestepper_Base_class, only : TS_CONTINUE
+  use Timestepper_Base_class, only : TS_CONTINUE, TS_STOP_FAILURE
 
   implicit none
   
@@ -156,6 +156,8 @@ recursive subroutine PMCHydrogeophysicsRunToTime(this,sync_time,stop_flag)
   
   class(pmc_base_type), pointer :: pmc_base
   PetscInt :: local_stop_flag
+
+  if (stop_flag == TS_STOP_FAILURE) return
   
   this%option%io_buffer = trim(this%name)
   call printVerboseMsg(this%option)

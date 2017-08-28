@@ -1,6 +1,8 @@
 module Well_OilProducer_class
 #ifdef WELL_CLASS
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
   use WellSpec_Base_class
   use Well_Base_class
@@ -10,8 +12,6 @@ module Well_OilProducer_class
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public, extends(well_flow_energy_type) :: well_oil_producer_type
     ! .................

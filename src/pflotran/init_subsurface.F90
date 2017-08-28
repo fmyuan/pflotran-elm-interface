@@ -56,6 +56,7 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
   use Grid_module
   use Patch_module
   use Material_Aux_class
+  use Fracture_module, only : FractureAuxVarInit
   
   implicit none
   
@@ -95,6 +96,9 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
     allocate(material_auxvars(grid%ngmax))
     do ghosted_id = 1, grid%ngmax
       call MaterialAuxVarInit(material_auxvars(ghosted_id),option)
+      if (option%flow%fracture_on) then
+        call FractureAuxVarInit(material_auxvars(ghosted_id))
+      endif
     enddo
     cur_patch%aux%Material%num_aux = grid%ngmax
     cur_patch%aux%Material%auxvars => material_auxvars
@@ -240,6 +244,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   use Material_Aux_class
   use Material_module
   use Option_module
+  use WIPP_module
   use Creep_Closure_module
   use Fracture_module
   use Geomechanics_Subsurface_Properties_module
@@ -308,20 +313,36 @@ subroutine InitSubsurfAssignMatProperties(realization)
   ! have to use Material%auxvars() and not material_auxvars() due to memory
   ! errors in gfortran
   Material => patch%aux%Material
-
-  !if material is associated with fracture, then allocate memory.  
+  
+  !if material is associated with fracture, then allocate memory.
+  wipp => WIPPGetPtr()
+  call CreepClosureConvertListToArray(wipp%creep_closure_tables, &
+                                      wipp%creep_closure_tables_array, &
+                                      option)
+  
   do ghosted_id = 1, grid%ngmax
     material_id = patch%imat(ghosted_id)
     if (material_id > 0) then
       material_property => &
         patch%material_property_array(material_id)%ptr
-      call FractureAuxVarInit(material_property%fracture, &
-        patch%aux%Material%auxvars(ghosted_id))
-      call GeomechanicsSubsurfacePropsAuxvarInit( &
+      
+    call GeomechanicsSubsurfacePropsAuxvarInit( &
           material_property%geomechanics_subsurface_properties, &
           patch%aux%Material%auxvars(ghosted_id))
+        
+      ! lookup creep closure table id from creep closure table name
+      if (option%flow%creep_closure_on) then
+        material_property%creep_closure_id = &
+          CreepClosureGetID(wipp%creep_closure_tables_array, &
+                             material_property%creep_closure_name, &
+                             material_property%name,option)
+      ! copy creep closure table id from material to material_aux
+      patch%aux%Material%auxvars(ghosted_id)%creep_closure_id = &
+        material_property%creep_closure_id
+      endif
     endif
   enddo
+  
   
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -493,19 +514,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
     enddo
     call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
   enddo
-  
-  if (associated(creep_closure)) then
-    material_property => &
-      MaterialPropGetPtrFromArray(creep_closure%material_name, &
-                                  patch%material_property_array)
-    if (.not.associated(material_property)) then
-      option%io_buffer = 'Creep material "' // &
-                        trim(creep_closure%material_name) // &
-                        '" not found in material list'
-      call printErrMsg(option)
-    endif
-    creep_closure%imat = material_property%internal_id
-  endif
 
   if (option%geomech_on) then
     call VecCopy(field%porosity0,field%porosity_geomech_store,ierr);CHKERRQ(ierr)
@@ -991,6 +999,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
     end select
 #endif
     select case(option%iflowmode)
+      !TODO(geh): refactors so that we don't need all these variants?
       case(RICHARDS_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
                       realization%patch%aux%Richards%zero_rows_local, &
@@ -1018,6 +1027,13 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
                     realization%patch%aux%General%inactive_rows_local_ghosted, &
                       realization%patch%aux%General%n_inactive_rows, &
                       realization%patch%aux%General%inactive_cells_exist, &
+                      option)
+      case(WF_MODE)
+        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
+                      realization%patch%aux%WIPPFlo%inactive_rows_local, &
+                    realization%patch%aux%WIPPFlo%inactive_rows_local_ghosted, &
+                      realization%patch%aux%WIPPFlo%n_inactive_rows, &
+                      realization%patch%aux%WIPPFlo%inactive_cells_exist, &
                       option)
       case(TOIL_IMS_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &

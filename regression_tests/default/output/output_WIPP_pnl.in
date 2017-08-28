@@ -1,0 +1,326 @@
+! 9.6 Test Case #6-a. Gas Generation.
+! BF = BRAGFLO
+! For more descriptions of the problem please read case_6-a.docx
+!=========================== flow mode ========================================
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        ITOL_RELATIVE_UPDATE 1.d-30  ! Turn off ITOL_RELATIVE_UPDATE criteria
+        ISOTHERMAL                        ! BF is fundamentally isothermal
+        TWO_PHASE_ENERGY_DOF TEMPERATURE  ! isothermal ignores this but needs to be specified
+        GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! hydrogen gas that BF uses (kg/kmol)
+        MAXIMUM_PRESSURE_CHANGE 5.0D5          ! PRESNORM in BF
+        TOUGH2_ITOL_SCALED_RESIDUAL 1.d-5
+      /
+    /
+    WIPP_SOURCE_SINK wipp
+    /
+  /
+END
+
+
+SUBSURFACE
+
+!=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 10 1 20      
+  DXYZ
+    10.d0 # [m]
+    10.d0 # [m]           
+    10.d0 # [m]            
+  /
+/
+
+!=========================== solver options ===================================
+NEWTON_SOLVER FLOW
+  RTOL 1.d-30      ! Turn off RTOL criteria
+  ATOL 1.d-30       ! Turn off ATOL criteria
+  STOL 1.d-30       ! Turn off STOL criteria
+  MAXIT 20          ! Maximum newton iteration number
+/
+
+LINEAR_SOLVER FLOW  !default convergence criteria by PFLOTRAN
+  SOLVER ITERATIVE
+/
+
+!=========================== fluid properties =================================
+! BF is fundamentally immiscible and PFLOTRAN is miscible. We currently do not
+! have an option to change PFLOTRAN to miscible mode.
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 0.d-0  ! no diffusion as BF runs on immiscible flow
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 0.d-0  ! no diffusion as BF runs on immiscible flow
+END
+
+EOS WATER
+  DENSITY EXPONENTIAL 996.629 101320.d0 4.45d-10  ! DEN_BR in BF
+  ! REFERENCE TEMPERATURE AND PRESSURE FOR DENSITY CALCULATIONS in BF
+  VISCOSITY CONSTANT 8.5077d-4  ! VISC_BR in BF
+  ENTHALPY CONSTANT 1.8890d6    ! default water enthalpy constant. isothermal ignores this.
+/
+
+EOS GAS
+  VISCOSITY CONSTANT 9.0829d-6  ! VISC_GAS in BF
+/
+
+!=========================== material properties ==============================
+MATERIAL_PROPERTY soil
+  ID 1
+  CHARACTERISTIC_CURVES SF1
+  POROSITY 0.45             ! POROSITY in BF
+  TORTUOSITY 1.             ! always 1 in BF
+  ROCK_DENSITY 2650.d0      ! thermal parameter. isothermal ignores this.
+  THERMAL_CONDUCTIVITY_DRY 0.5   ! thermal parameter. isothermal ignores this.
+  THERMAL_CONDUCTIVITY_WET 2.    ! thermal parameter. isothermal ignores this.
+  HEAT_CAPACITY 830.             ! thermal parameter. isothermal ignores this.
+  SOIL_COMPRESSIBILITY_FUNCTION BRAGFLO  !Function used in BF
+  BULK_COMPRESSIBILITY 1.d-8     ! COMPRES in BF
+  SOIL_REFERENCE_PRESSURE 4e6 ! 101320.d0 ! REFERENCE TEMPERATURE AND PRESSURE FOR DENSITY CALCULATIONS in BF
+  PERMEABILITY
+    PERM_ISO 1.d-17         ! PERMX, PERMY, PERMZ in BF. use PERM_ISO when uniform.
+                            ! otherwise use PERM_X, PERM_Y, PERM_Z in PFLOTRAN
+  /
+/
+
+!=========================== saturation functions =============================
+CHARACTERISTIC_CURVES SF1
+  SATURATION_FUNCTION BRAGFLO_KRP4
+    LAMBDA 0.7D0 
+    IGNORE_PERMEABILITY
+    ALPHA  1.20482D-5     !ALPHA = 1/(PCT_A*PERMX**PCT_EXP)
+    GAS_RESIDUAL_SATURATION    0.15   !SGR = 0.00001 in BF
+    LIQUID_RESIDUAL_SATURATION 0.2D0  !SOR = 0.2
+    MAX_CAPILLARY_PRESSURE 1.D8       !PCMAX = 1.0E+08
+    KPC 2
+  /
+  PERMEABILITY_FUNCTION BRAGFLO_KRP4_LIQ
+    LAMBDA 0.7D0                      !LAMBDA in BF
+    GAS_RESIDUAL_SATURATION    0.15   !SGR = 0.00001 in BF
+    LIQUID_RESIDUAL_SATURATION 0.2D0  !SOR = 0.2
+  /
+  PERMEABILITY_FUNCTION BURDINE_BC_GAS
+    LAMBDA 0.7D0                      !LAMBDA in BF
+    GAS_RESIDUAL_SATURATION    0.15   !SGR = 0.00001 in BF
+    LIQUID_RESIDUAL_SATURATION 0.2D0  !SOR = 0.2 in BF
+  / 
+END
+
+!=========================== output options ===================================
+
+OUTPUT
+ # TIMES yr 0.5 1.0 1.5 2.5 3.0
+ # FORMAT VTK
+ # VARIABLES
+ #   LIQUID_PRESSURE
+ #   LIQUID_SATURATION
+ #   LIQUID_MOLE_FRACTIONS
+ #   GAS_PRESSURE
+ #   GAS_SATURATION
+ #   GAS_MOLE_FRACTIONS
+ # /
+/
+
+!=========================== times ============================================
+TIME
+  FINAL_TIME 3.0 yr
+  INITIAL_TIMESTEP_SIZE 1.d0 s    ! DT_INIT in BF: BF units are all in seconds
+  MAXIMUM_TIMESTEP_SIZE 10.d0 day  ! DT_MAX in BF: BF units are all in seconds
+/
+
+
+!=========================== flow conditions ==================================
+
+FLOW_CONDITION initial  ! single-phase liquid state
+  TYPE
+    LIQUID_PRESSURE dirichlet
+    MOLE_FRACTION dirichlet
+    TEMPERATURE dirichlet
+  /
+  LIQUID_PRESSURE 101325.d0 Pa
+  MOLE_FRACTION 1.d-15
+  TEMPERATURE 25.d0 
+END
+
+FLOW_CONDITION outlet
+  TYPE
+    LIQUID_PRESSURE dirichlet
+    MOLE_FRACTION dirichlet
+    TEMPERATURE dirichlet
+  /
+  LIQUID_PRESSURE 101325.d0 Pa
+  MOLE_FRACTION 1.d-15
+  TEMPERATURE 25.d0 
+END
+
+!=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0   0.d0  0.d0
+    100.d0 10.d0 200.d0
+  /
+/
+
+REGION top
+  FACE top
+  COORDINATES
+    0.d0   0.d0  200.d0
+    100.d0 10.d0 200.d0
+  /
+/
+
+REGION wp1
+  COORDINATES
+    20.d0 0.d0  100.d0
+    60.d0 10.d0 120.d0
+  /
+/
+
+REGION wp2
+  COORDINATES
+    20.d0 0.d0  50.d0
+    60.d0 10.d0 60.d0
+  /
+/
+
+REGION wp3
+  COORDINATES
+    20.d0 0.d0  30.d0
+    60.d0 10.d0 40.d0
+  /
+/
+
+REGION wp4
+  COORDINATES
+    70.d0 0.d0  80.d0
+    90.d0 10.d0 190.d0
+  /
+/
+
+REGION wp5
+  COORDINATES
+    30.d0 0.d0  140.d0
+    60.d0 10.d0 180.d0
+  /
+/
+
+!=========================== condition couplers ===============================
+
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION outlet
+  REGION top
+END
+
+
+!=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL soil
+  REGION all
+/
+
+END_SUBSURFACE
+
+!=========================== WIPP Source Sink =================================
+
+WIPP_SOURCE_SINK
+  BRUCITES  5.48464982233278e-08  ![mol/kg/s] MgO inundated hydration rate in Salado brine
+  BRUCITEH  1.90935050526199e-08  ![mol/kg/s] MgO humid hydration rate
+  HYMAGCON  3.d-10  ![mol/kg/s] hydromagnesite to magnesite conversion rate
+  SAT_WICK  0.20d0  ![-] wicking saturation parameter
+  GRATMICI  2.38570594086619e-10  ![mol/kg/s] inundated biodegradation rate for cellulose
+  GRATMICH  3.38837738770187e-11  ![mol/kg/s] humid biodegradation rate for cellulose
+  CORRMCO2  6.67748215472072e-15  ![m/s] inundated steel corrosion rate without microbial gas generation
+  HUMCORR   0.d0    ![m/s] humid steel corrosion rate
+  ASDRUM    6.d0    ![m2] surface area of corrodable metal per drum
+  ALPHARXN -1.d3    ![-]
+  SOCMIN    1.5d-2  ![-]
+  BIOGENFC  0.725563609600067   ![-]
+  PROBDEG   2       ![-]
+
+  OUTPUT_START_TIME 2.6d0 yr
+  
+  STOICHIOMETRIC_MATRIX
+    0.0d0  1.0d0 -2.0d0 -1.0d0  0.0d0  1.0d0  0.0d0  0.0d0  0.0d0  0.0d0 # anoxic iron corrosion reaction
+    0.0d0  0.0d0  0.0d0  0.0d0 -1.0d0  0.0d0  0.0d0  0.0d0  0.0d0  0.0d0 # microbial gas generation reaction
+    0.0d0 -1.0d0  2.0d0  0.0d0  0.0d0 -1.0d0  1.0d0  0.0d0  0.0d0  0.0d0 # iron hydroxide sulfidation
+    0.0d0  0.0d0  0.0d0 -1.0d0  0.0d0  0.0d0  1.0d0  0.0d0  0.0d0  0.0d0 # metallic iron sulfidation
+    0.0d0  0.0d0 -1.0d0  0.0d0  0.0d0  0.0d0  0.0d0 -1.0d0  1.0d0  0.0d0 # MgO hydration
+    0.25d0 0.0d0  0.0d0  0.0d0  0.0d0  0.0d0  0.0d0  0.0d0 -1.25d0 0.0d0 # brucite carbonation
+    0.0d0  0.0d0  0.0d0  0.0d0  0.0d0  0.0d0  0.0d0 -1.0d0  0.0d0  1.0d0 # MgO carbonation
+   -1.0d0  0.0d0  4.0d0  0.0d0  0.0d0  0.0d0  0.0d0  0.0d0  1.0d0  4.0d0 # hydromagnesite conversion
+  /
+  
+ #The inventory gives totals in a waste panel# 
+  INVENTORY inv1
+    VREPOS     438406.08 m^3 ! optional - only needed if a WASTE_PANEL including this inventory needs to SCALE_BY_VOLUME
+    SOLIDS
+      IRONCHW  1.09d7 kg   ! mass of Fe-based material in CH waste
+      IRONRHW  1.35d6 kg   ! mass of Fe-based material in RH waste
+      IRNCCHW  3.00d7 kg   ! mass of Fe containers for CH waste
+      IRNCRHW  6.86d6 kg   ! mass of Fe containers for RH waste
+      CELLCHW  3.55d6 kg   ! mass of cellulosics in CH waste
+      CELLRHW  1.18d5 kg   ! mass of cellulosics in RH waste
+      CELCCHW  7.23d5 kg   ! mass of cellulosics in container materials for CH waste
+      CELCRHW  0.d0   kg   ! mass of cellulosics in container materials for RH waste
+      CELECHW  2.60d5 kg   ! mass of cellulosics in emplacement materials for CH waste
+      CELERHW  0.d0   kg   ! mass of cellulosics in emplacement materials for RH waste
+      RUBBCHW  1.09d6 kg   ! mass of rubber in CH waste
+      RUBBRHW  8.80d4 kg   ! mass of rubber in RH waste
+      RUBCCHW  6.91d4 kg   ! mass of rubber in container materials for CH waste
+      RUBCRHW  4.18d3 kg   ! mass of rubber in container materials for RH waste
+      RUBECHW  0.d0   kg   ! mass of rubber in emplacement materials for CH waste
+      RUBERHW  0.d0   kg   ! mass of rubber in emplacement materials for RH waste
+      PLASCHW  5.20d6 kg   ! mass of plastics in CH waste
+      PLASRHW  2.93d5 kg   ! mass of plastics in RH waste
+      PLSCCHW  2.47d6 kg   ! mass of plastics in container materials for CH waste
+      PLSCRHW  3.01d5 kg   ! mass of plastics in container materials for RH waste
+      PLSECHW  1.25d6 kg   ! mass of plastics in emplacement materials for CH waste
+      PLSERHW  0.d0   kg   ! mass of plastics in emplacement materials for RH waste
+      PLASFAC  1.7d0       ! [-] mass ratio of plastics to equivalent carbon
+      MGO_EF   1.2d0       ! [-] MgO excess factor: ratio mol-MgO/mol-Organic-C
+      DRMCONC  1.80        ! [-/m3] number of metal drums per m3 in a panel in ideal packing (DRROOM/VROOM = 6804/3644.378))
+    /
+    AQUEOUS 
+      NITRATE 2.74d7   ! moles in panel  QINIT[B:32] (2.74d7)
+      SULFATE 4.91d6   ! moles in panel  QINIT[B:31] (4.91d6)
+    /
+  /
+  #WASTE_PANEL wp1
+  #  REGION wp1
+  #  INVENTORY inv1
+  #  SCALE_BY_VOLUME yes
+  #/
+  WASTE_PANEL wp2
+    REGION wp2
+    INVENTORY inv1
+    SCALE_BY_VOLUME yes
+  /
+  #WASTE_PANEL wp3
+  #  REGION wp3
+  #  INVENTORY inv1
+  #  SCALE_BY_VOLUME yes
+  #/
+  WASTE_PANEL wp4
+    REGION wp4
+    INVENTORY inv1
+    SCALE_BY_VOLUME yes
+  /
+  WASTE_PANEL wp5
+    REGION wp5
+    INVENTORY inv1
+    SCALE_BY_VOLUME yes
+  /
+END_WIPP_SOURCE_SINK

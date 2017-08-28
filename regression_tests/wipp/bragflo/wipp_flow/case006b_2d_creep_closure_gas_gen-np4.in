@@ -1,0 +1,438 @@
+!==============================================================================
+! Test Case 6b - Creep Closure with Gas Generation
+! In this 2d, 5x3 cell model, gas is generated in all 15 cells using the
+! SOURCE_SINK_SANDBOX/WIPP-GAS_GENERATION function. 
+! The Creep Closure functionality is enabled, and modifies porosity
+! as a function of time, pressure, and generation rate according to the
+! specified lookup table (.dat file). 
+! The pore compressibility is set to zero in the deck.
+! The default no-flow boundary conditions apply, and all
+! cells have an initial condition of sw=0.65 and pw=1.280390E+05.
+!
+! Currently, the SOURCE_SINK_SANDBOX/WIPP-GAS_GENERATION must be specified
+! at a COORDINATE.
+!
+! Note: for this case, BRAGFLO uses g=9.8068, STP 3.00150E+02  1.01320E+05
+! need to change DENSITY EXPONENTIAL 101320. to 101325.
+!
+!==============================================================================
+
+!=========================== flow mode ========================================
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE WIPP_FLOW
+      OPTIONS
+        FIX_UPWIND_DIRECTION
+        MAX_PRESSURE_CHANGE 1.d20
+        MAX_SATURATION_CHANGE 1.d20
+        GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! H2 kg/kmol
+      /
+    /
+  /
+END
+
+!==============================================================================
+SUBSURFACE
+!==============================================================================
+
+
+!=========================== regression =======================================
+REGRESSION
+  CELLS
+    1
+    7
+    15
+    3
+    13
+  /
+END
+
+!=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 5 1 3
+  DXYZ
+    5*10
+    1*1
+    3*1.32
+  /
+END
+
+!=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 0.d0
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 0.d0
+END
+
+EOS WATER
+  DENSITY EXPONENTIAL 1.2200E+03 101325.d0 3.1000E-10 ! ref_dens ref_pres compres
+  VISCOSITY CONSTANT 2.10000E-03
+  ENTHALPY CONSTANT 1.8890d6
+END
+
+EOS GAS
+  VISCOSITY CONSTANT 8.93389E-06
+  HENRYS_CONSTANT CONSTANT 1.d10
+  DENSITY IDEAL
+END
+
+!=========================== saturation functions =============================
+CHARACTERISTIC_CURVES CC_WP
+  SATURATION_FUNCTION BROOKS_COREY  !KRP = 4 in BF
+    SMOOTH              !required for convergence
+    LAMBDA 2.89D0        !LAMBDA in BF
+    ALPHA  9.869d-6     !ALPHA = 1/(PCT_A*PERMX**PCT_EXP) for KRP = 4 in BF
+    LIQUID_RESIDUAL_SATURATION 0.5509D0  !SOR = 0.5509
+    MAX_CAPILLARY_PRESSURE 1.D8         !PCMAX = 1.0E+08
+  /
+  PERMEABILITY_FUNCTION BURDINE
+    LAMBDA 2.89D0                        !LAMBDA in BF
+    LIQUID_RESIDUAL_SATURATION 0.5509D0  !SOR = 0.5509
+  /
+  PERMEABILITY_FUNCTION BURDINE_BC_GAS
+    LAMBDA 2.89D0                        !LAMBDA in BF
+    LIQUID_RESIDUAL_SATURATION 0.5509D0  !SOR = 0.5509 in BF
+    GAS_RESIDUAL_SATURATION    0.1484d0  !SGR = 0.1484 in BF
+  /
+END
+
+!=========================== material properties ==============================
+MATERIAL_PROPERTY M_WP
+  ID 1
+  CHARACTERISTIC_CURVES CC_WP
+  POROSITY 8.48000E-01
+  TORTUOSITY 1.                  ! for diffusion calculations.
+  ROCK_DENSITY 2650.d0           ! thermal parameter. isothermal ignores this.
+  THERMAL_CONDUCTIVITY_DRY 0.5   ! thermal parameter. isothermal ignores this.
+  THERMAL_CONDUCTIVITY_WET 2.    ! thermal parameter. isothermal ignores this.
+  HEAT_CAPACITY 830.             ! thermal parameter. isothermal ignores this.
+  SOIL_COMPRESSIBILITY_FUNCTION BRAGFLO
+  BULK_COMPRESSIBILITY 0.0
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  PERMEABILITY
+    PERM_ISO 2.39994E-13
+  /
+  CREEP_CLOSURE_TABLE  creep001
+END
+
+! Creep Closure
+CREEP_CLOSURE_TABLE  creep001
+  FILENAME pflotran_closure.dat
+END
+
+!=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    50.d0  1.d0  3.96d0
+  /
+END
+
+REGION R_WAS_AREA
+  BLOCK 1 5 1 1 1 3
+END
+
+REGION R_WAS_AREA_TOP
+  BLOCK 1 5 1 1 3 3
+END
+
+REGION R_WAS_AREA_MID
+  BLOCK 1 5 1 1 2 2
+END
+
+REGION R_WAS_AREA_BOT
+  BLOCK 1 5 1 1 1 1
+END
+
+!=========================== stratigraphy couplers ============================
+STRATA
+  REGION R_WAS_AREA
+  MATERIAL M_WP
+END
+
+
+!=========================== flow conditions ==================================
+! initial conditions
+FLOW_CONDITION FC_WAS_AREA_TOP
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 1.280390E+05
+  LIQUID_SATURATION 6.500000e-02
+END
+
+FLOW_CONDITION FC_WAS_AREA_MID
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 1.280390E+05
+  LIQUID_SATURATION 6.500000e-02
+END
+
+FLOW_CONDITION FC_WAS_AREA_BOT
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 1.280390E+05
+  LIQUID_SATURATION 6.500000e-02
+END
+
+! Gas Generation
+! Specified for each cell
+SOURCE_SINK_SANDBOX
+  WIPP-GAS_GENERATION
+    COORDINATE 5.d0 0.5d0 0.66d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+  WIPP-GAS_GENERATION
+    COORDINATE 5.d0 0.5d0 1.98d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+  WIPP-GAS_GENERATION
+    COORDINATE 5.d0 0.5d0 3.3d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+  WIPP-GAS_GENERATION
+    COORDINATE 15.d0 0.5d0 0.66d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+  WIPP-GAS_GENERATION
+    COORDINATE 15.d0 0.5d0 1.98d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+  WIPP-GAS_GENERATION
+    COORDINATE 15.d0 0.5d0 3.3d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+  WIPP-GAS_GENERATION
+    COORDINATE 25.d0 0.5d0 0.66d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+  WIPP-GAS_GENERATION
+    COORDINATE 25.d0 0.5d0 1.98d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+  WIPP-GAS_GENERATION
+    COORDINATE 25.d0 0.5d0 3.3d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+  WIPP-GAS_GENERATION
+    COORDINATE 35.d0 0.5d0 0.66d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+  WIPP-GAS_GENERATION
+    COORDINATE 35.d0 0.5d0 1.98d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+  WIPP-GAS_GENERATION
+    COORDINATE 35.d0 0.5d0 3.3d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+  WIPP-GAS_GENERATION
+    COORDINATE 45.d0 0.5d0 0.66d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+  WIPP-GAS_GENERATION
+    COORDINATE 45.d0 0.5d0 1.98d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+  WIPP-GAS_GENERATION
+    COORDINATE 45.d0 0.5d0 3.3d0
+    INUNDATED_CORROSION_RATE 1.0365E-08
+    INUNDATED_DEGRADATION_RATE 1.6737E-09
+    HUMID_CORROSION_FACTOR 0.0000E+00
+    HUMID_DEGRADATION_FACTOR 6.5526E-01
+    H2_FE_RATIO 1.0000E+00
+    H2_CH2O_RATIO 4.9065E-01
+    ALPHARXN -1.d3
+    SOCMIN 1.5d-2
+    SATWICK 0.25
+  /
+END
+
+!=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION FC_WAS_AREA_TOP
+  REGION R_WAS_AREA_TOP
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION FC_WAS_AREA_MID
+  REGION R_WAS_AREA_MID
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION FC_WAS_AREA_BOT
+  REGION R_WAS_AREA_BOT
+END
+
+
+!=========================== time stepper options =============================
+TIMESTEPPER FLOW
+  TS_ACCELERATION 10
+  DT_FACTOR 2.d0 2.d0 1.8d0 1.6d0 1.4d0 1.2d0 1.d0 0.8d0 0.6d0 0.5d0
+END
+
+!========================== solver ============================================
+NEWTON_SOLVER FLOW
+!  RTOL 1.d-08
+!  ATOL 1.d-08
+!  STOL 1.d-30       ! Turn off STOL criteria
+  MAXIT 20          ! Maximum newton iteration number
+END
+
+LINEAR_SOLVER FLOW
+!  SOLVER DIRECT
+END
+
+!=========================== output options ===================================
+skip
+OUTPUT
+!  PERIODIC_OBSERVATION TIMESTEP 1
+  TIMES y 0.0 0.05 0.1 0.3 0.5 1.0 3.0 5.0 10.0 30.0 50.0 100.0 300.0 500.0 1000.0 3000.0 5000.0 10000.0
+  FORMAT HDF5
+  VARIABLES
+    LIQUID_PRESSURE
+    GAS_PRESSURE
+    MINERAL_POROSITY
+    EFFECTIVE_POROSITY
+    LIQUID_DENSITY
+    GAS_DENSITY
+    LIQUID_SATURATION
+    GAS_SATURATION
+  /
+END
+noskip
+
+!=========================== times ============================================
+TIME
+  FINAL_TIME 10000 y ! 0.317... y
+  INITIAL_TIMESTEP_SIZE 1.00E+00 s
+  MAXIMUM_TIMESTEP_SIZE 1000 y
+END
+
+!==============================================================================
+END_SUBSURFACE
+!==============================================================================

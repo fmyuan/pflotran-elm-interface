@@ -70,7 +70,7 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
   ! - temperature_at_datum, or temp_array(npressure)
 
   !The oil and water pressure arrays on the 1D grid are used to interpolate
-  ! the pressure and copute the saturation on the 3D grid cells
+  ! the pressure and compute the saturation on the 3D grid cells
   ! - compute oil initial phase pressures
   ! - compute equilibrating capillary pressure: pc = po - pw 
   ! - compute saturation from inverse pc curve: sw = pc^(-1)(sw) 
@@ -277,7 +277,7 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
   sat_liq_owc = 1.0 - sat_ir(2)
       
   call characteristic_curves%saturation_function% &
-              CapillaryPressure(sat_liq_owc,pc_owc,dpc_dsatl,option)
+       CapillaryPressure(sat_liq_owc,pc_owc,dpc_dsatl,option)
 
   ! compute pressure and density profiles for phases where hydrostatic pressure
   ! is imposed. And pressure (water or oil) at owc elevation
@@ -444,8 +444,8 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
       else
         ! water/oil transition zone
         coupler%flow_aux_real_var(1,iconn) = po_cell      
-        call characteristic_curves%saturation_function%Saturation(pc_comp, &
-                sat_liq_comp,dsat_dpres,option) 
+        call characteristic_curves%saturation_function%Saturation( &
+                   pc_comp,sat_liq_comp,dsat_dpres,option) 
         coupler%flow_aux_real_var(2,iconn) = 1.0d0 - sat_liq_comp
         if (coupler%flow_aux_real_var(2,iconn) < 1.0d-6 ) &
            coupler%flow_aux_real_var(2,iconn) = 1.0d-6 

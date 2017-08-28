@@ -40,6 +40,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   use Dataset_Ascii_class
   
   use General_Aux_module
+  use WIPP_Flow_Aux_module
   !use TOilIms_Aux_module
   use PM_TOilIms_Aux_module 
     ! to use constant paramters such as TOIL_IMS_PRESSURE_DOF
@@ -121,7 +122,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         concentration_at_datum = GENERAL_IMMISCIBLE_VALUE
         concentration_gradient = 0.d0
       endif
-      datum(1:3) = condition%datum%rarray(1:3)
       pressure_at_datum = &
         condition%general%liquid_pressure%dataset%rarray(1)    
       gas_pressure = option%reference_pressure
@@ -143,6 +143,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       coupler%flow_aux_mapping(GENERAL_AIR_PRESSURE_INDEX) = 2
       coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = 3
       coupler%flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) = 3
+    case(WF_MODE)
     case(TOIL_IMS_MODE)
       temperature_at_datum = &
         condition%toil_ims%temperature%dataset%rarray(1)
@@ -150,7 +151,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         temperature_gradient(1:3) = &
           condition%toil_ims%temperature%gradient%rarray(1:3)
       endif
-      datum(1:3) = condition%datum%rarray(1:3)
       pressure_at_datum = &
         condition%toil_ims%pressure%dataset%rarray(1)    
       ! gradient is in m/m; needs conversion to Pa/m
@@ -161,7 +161,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       coupler%flow_aux_mapping(TOIL_IMS_PRESSURE_INDEX) = 1
       coupler%flow_aux_mapping(TOIL_IMS_TEMPERATURE_INDEX) = 3 
     case default
-      ! for now, just set it; in future need to account for a different temperature datum
+      ! for now, just set it; in future need to account for a different 
+      ! temperature datum
       !geh: this is a trick to determine if the dataset is hdf5 type.
       if (associated(condition%temperature)) then
         if (associated(DatasetCommonHDF5Cast(condition%&
@@ -204,28 +205,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         endif
       endif
 
-      if (associated(condition%datum)) then
-        nullify(datum_dataset)
-        select type(dataset=>condition%datum)
-          class is (dataset_ascii_type)
-            datum = dataset%rarray(1:3)
-          class is (dataset_gridded_hdf5_type)
-            datum_dataset => dataset
-            ! set datum here equal to estimated mid value of dataset
-            datum(1:3) = UNINITIALIZED_DOUBLE
-            datum_dataset_rmax = maxval(datum_dataset%rarray)
-            datum_dataset_rmin = minval(datum_dataset%rarray)
-            datum(3) = 0.5d0*(datum_dataset_rmax+datum_dataset_rmin)
-            ! round the number to the nearest whole number
-            datum(3) = int(datum(3))
-          class default
-            option%io_buffer = &
-              'Incorrect dataset type in HydrostaticUpdateCoupler. ' // &
-              'Dataset "' // trim(condition%datum%name) // '" in file "' // &
-              trim(condition%datum%filename) // '".'
-            call printErrMsg(option)
-        end select
-      endif
       pressure_at_datum = &
         condition%pressure%dataset%rarray(1)
       ! gradient is in m/m; needs conversion to Pa/m
@@ -234,6 +213,29 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           condition%pressure%gradient%rarray(1:3)
       endif
   end select      
+
+  if (associated(condition%datum)) then
+    nullify(datum_dataset)
+    select type(dataset=>condition%datum)
+      class is (dataset_ascii_type)
+        datum = dataset%rarray(1:3)
+      class is (dataset_gridded_hdf5_type)
+        datum_dataset => dataset
+        ! set datum here equal to estimated mid value of dataset
+        datum(1:3) = UNINITIALIZED_DOUBLE
+        datum_dataset_rmax = maxval(datum_dataset%rarray)
+        datum_dataset_rmin = minval(datum_dataset%rarray)
+        datum(3) = 0.5d0*(datum_dataset_rmax+datum_dataset_rmin)
+        ! round the number to the nearest whole number
+        datum(3) = int(datum(3))
+      class default
+        option%io_buffer = &
+          'Incorrect dataset type in HydrostaticUpdateCoupler. Dataset "' // &
+          trim(condition%datum%name) // '" in file "' // &
+          trim(condition%datum%filename) // '".'
+        call printErrMsg(option)
+    end select
+  endif
       
   call EOSWaterDensityExt(temperature_at_datum,pressure_at_datum, &
                           aux,rho_kg,dummy,ierr)
@@ -290,7 +292,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum+1,num_pressures
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE, MIS_MODE, &
+        case(TH_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,MIS_MODE, &
              TOIL_IMS_MODE)
           temperature = temperature + temperature_gradient(Z_DIRECTION)*delta_z
       end select
@@ -306,7 +308,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         rho_kg = rho_one
         num_iteration = num_iteration + 1
         if (num_iteration > 100) then
-          print *,'Hydrostatic iteration failed to converge',num_iteration,rho_one,rho_kg
+          print *,'Hydrostatic iteration failed to converge',num_iteration, &
+                   rho_one,rho_kg
           print *, condition%name, idatum
           print *, pressure_array
           stop
@@ -344,7 +347,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         rho_kg = rho_one
         num_iteration = num_iteration + 1
         if (num_iteration > 100) then
-          print *,'Hydrostatic iteration failed to converge',num_iteration,rho_one,rho_kg
+          print *,'Hydrostatic iteration failed to converge',num_iteration, &
+                  rho_one,rho_kg
           print *, condition%name, idatum
           print *, pressure_array
           stop
@@ -368,17 +372,20 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     local_id = coupler%connection_set%id_dn(iconn)
     ghosted_id = grid%nL2G(local_id)
   
-    ! geh: note that this is a boundary connection, thus the entire distance is between
-    ! the face and cell center
+    ! geh: note that this is a boundary connection, thus the entire 
+    !      distance is between the face and cell center
     if (associated(coupler%connection_set%dist)) then
-      dx_conn = coupler%connection_set%dist(0,iconn)*coupler%connection_set%dist(1,iconn)
-      dy_conn = coupler%connection_set%dist(0,iconn)*coupler%connection_set%dist(2,iconn)
-      dz_conn = coupler%connection_set%dist(0,iconn)*coupler%connection_set%dist(3,iconn)
+      dx_conn = coupler%connection_set%dist(0,iconn)* &
+        coupler%connection_set%dist(1,iconn)
+      dy_conn = coupler%connection_set%dist(0,iconn)* &
+        coupler%connection_set%dist(2,iconn)
+      dz_conn = coupler%connection_set%dist(0,iconn)* &
+        coupler%connection_set%dist(3,iconn)
     endif
     if (associated(datum_dataset)) then
       ! correct datum based on dataset value
-      ! if we interpolate in x and y, then we can use grid%x/y - dx/y_conn for x and y
-      ! then we set dist_x and dist_y = 0.
+      ! if we interpolate in x and y, then we can use grid%x/y - dx/y_conn 
+      ! for x and y then we set dist_x and dist_y = 0.
       dist_x = 0.d0
       dist_y = 0.d0
       call DatasetGriddedHDF5InterpolateReal(datum_dataset, &
@@ -389,7 +396,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       dist_z = grid%z(ghosted_id)-dz_conn-temp_real
       z_offset = temp_real-datum(Z_DIRECTION)
     else
-      ! note the negative (-) d?_conn is required due to the offset of the boundary face
+      ! note the negative (-) d?_conn is required due to the offset of 
+      ! the boundary face
       dist_x = grid%x(ghosted_id)-dx_conn-datum(X_DIRECTION)
       dist_y = grid%y(ghosted_id)-dy_conn-datum(Y_DIRECTION)
       dist_z = grid%z(ghosted_id)-dz_conn-datum(Z_DIRECTION)
@@ -418,7 +426,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
     ! assign pressure
     select case(option%iflowmode)
-      case(G_MODE)
+      case(G_MODE,WF_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure
       case (MPH_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure
@@ -448,7 +456,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     select case(option%iflowmode)
       case(MPH_MODE,IMS_MODE,FLASH2_MODE)
         temperature = temperature_at_datum + &
-                    temperature_gradient(X_DIRECTION)*dist_x + & ! gradient in K/m
+                    ! gradient in K/m
+                    temperature_gradient(X_DIRECTION)*dist_x + & 
                     temperature_gradient(Y_DIRECTION)*dist_y + &
                     temperature_gradient(Z_DIRECTION)*dist_z 
         coupler%flow_aux_real_var(2,iconn) = temperature
@@ -458,7 +467,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
       case(TH_MODE)
         temperature = temperature_at_datum + &
-                    temperature_gradient(X_DIRECTION)*dist_x + & ! gradient in K/m
+                    ! gradient in K/m
+                    temperature_gradient(X_DIRECTION)*dist_x + & 
                     temperature_gradient(Y_DIRECTION)*dist_y + &
                     temperature_gradient(Z_DIRECTION)*dist_z
         coupler%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = temperature
@@ -466,7 +476,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
       case(MIS_MODE)
         temperature = temperature_at_datum + &
-                    temperature_gradient(X_DIRECTION)*dist_x + & ! gradient in K/m
+                    ! gradient in K/m
+                    temperature_gradient(X_DIRECTION)*dist_x + & 
                     temperature_gradient(Y_DIRECTION)*dist_y + &
                     temperature_gradient(Z_DIRECTION)*dist_z 
 !       coupler%flow_aux_real_var(2,iconn) = temperature
@@ -476,7 +487,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
       case(G_MODE)
         temperature = temperature_at_datum + &
-                    temperature_gradient(X_DIRECTION)*dist_x + & ! gradient in K/m
+                    ! gradient in K/m
+                    temperature_gradient(X_DIRECTION)*dist_x + & 
                     temperature_gradient(Y_DIRECTION)*dist_y + &
                     temperature_gradient(Z_DIRECTION)*dist_z 
         coupler%flow_aux_real_var(3,iconn) = &
@@ -493,7 +505,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         endif
       case(TOIL_IMS_MODE)
         temperature = temperature_at_datum + &
-                    temperature_gradient(X_DIRECTION)*dist_x + & ! gradient in K/m
+                    ! gradient in K/m
+                    temperature_gradient(X_DIRECTION)*dist_x + & 
                     temperature_gradient(Y_DIRECTION)*dist_y + &
                     temperature_gradient(Z_DIRECTION)*dist_z 
         coupler%flow_aux_real_var(3,iconn) = &
@@ -575,7 +588,8 @@ subroutine HydrostaticTest()
         rho_kg = rho_one
         num_iteration = num_iteration + 1
         if (num_iteration > 100) then
-          print *,'HydrostaticInitCondition failed to converge',num_iteration,rho_one,rho_kg
+          print *,'HydrostaticInitCondition failed to converge', &
+                  num_iteration,rho_one,rho_kg
           stop
         endif
       enddo
@@ -597,10 +611,14 @@ subroutine HydrostaticTest()
       do 
         i = i + 1
         if (dist >= 0.9999d0*increment(i_increment)) exit
-        pressure_array(i,i_increment) = pressure_array(i_up,i_increment)*(1.d0-dist/increment(i_increment))+ &
-                                        pressure_array(i_dn,i_increment)*dist/increment(i_increment)
-        density_array(i,i_increment) = density_array(i_up,i_increment)*(1.d0-dist/increment(i_increment))+ &
-                                        density_array(i_dn,i_increment)*dist/increment(i_increment)
+        pressure_array(i,i_increment) = pressure_array(i_up,i_increment)* &
+                                        (1.d0-dist/increment(i_increment))+ &
+                                        pressure_array(i_dn,i_increment)* &
+                                        dist/increment(i_increment)
+        density_array(i,i_increment) = density_array(i_up,i_increment)* &
+                                       (1.d0-dist/increment(i_increment))+ &
+                                       density_array(i_dn,i_increment)* &
+                                       dist/increment(i_increment)
         dist = dist + increment(1)
       enddo
       dist_z = dist_z + increment(i_increment)
@@ -612,8 +630,9 @@ subroutine HydrostaticTest()
   open(unit=86,file='pressures.dat')
   dist_z = 0.d0
   do iz = 1,max_num_pressures
-    write(86,'(100(es16.10,x))') dist_z,(density_array(iz,i_increment),i_increment=1,num_increment), &
-                       (pressure_array(iz,i_increment),i_increment=1,num_increment)
+    write(86,'(100(es16.10,x))') dist_z, &
+                (density_array(iz,i_increment),i_increment=1,num_increment), &
+                (pressure_array(iz,i_increment),i_increment=1,num_increment)
     dist_z = dist_z + increment(1)
   enddo
   close(86)

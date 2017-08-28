@@ -7,6 +7,7 @@ SIMULATION
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
       GLOBAL_IMPLICIT
+      NUMERICAL_JACOBIAN
     /
   /
 END
@@ -49,8 +50,6 @@ END
 # DO NOT MODIFY ANYTHING BELOW (unless you know what you are doing)
 #==============================================================================
 #==============================================================================
-
-NUMERICAL_JACOBIAN_RXN
 
 #=========================== uniform flow =====================================
 UNIFORM_VELOCITY 1.d0 0.d0 0.d0 m/yr

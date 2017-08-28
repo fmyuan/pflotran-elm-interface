@@ -312,6 +312,15 @@ subroutine EOSWaterVerify(ierr,error_string)
        Uninitialized(linear_water_compressibility))) then
     error_string = trim(error_string) // &
       ' Linear parameters incorrect.'
+     ierr = 1
+  endif
+ 
+  if (associated(EOSWaterDensityPtr,EOSWaterDensityBRAGFLO) .and. &
+      (Uninitialized(exponent_reference_density) .or. & 
+       Uninitialized(exponent_reference_pressure) .or. &
+       Uninitialized(exponent_water_compressibility))) then
+    error_string = trim(error_string) // &
+      ' BRAGFLO parameters incorrect.'
     ierr = 1
   endif
 
@@ -367,6 +376,11 @@ subroutine EOSWaterSetDensity(keyword,aux)
       linear_reference_pressure = aux(2)
       linear_water_compressibility = aux(3)
       EOSWaterDensityPtr => EOSWaterDensityLinear
+    case('BRAGFLO')
+      exponent_reference_density = aux(1)
+      exponent_reference_pressure = aux(2)
+      exponent_water_compressibility = aux(3)  
+      EOSWaterDensityPtr => EOSWaterDensityBRAGFLO
     case('QUADRATIC')
       if (Initialized(aux(1))) then
         quadratic_reference_density = 999.014d0 !kg/m3
@@ -1463,8 +1477,6 @@ subroutine EOSWaterDensityLinear(t,p,calculate_derivatives, &
   PetscReal, intent(out) :: dw,dwmol,dwp,dwt
   PetscErrorCode, intent(out) :: ierr
 
-  PetscReal :: X_pr
-
   ! kg/m^3
   dw = linear_reference_density*(1 + & 
          linear_water_compressibility*(p-linear_reference_pressure))
@@ -1480,6 +1492,47 @@ subroutine EOSWaterDensityLinear(t,p,calculate_derivatives, &
 
 end subroutine EOSWaterDensityLinear
 
+! ************************************************************************** !
+
+subroutine EOSWaterDensityBRAGFLO(t,p,calculate_derivatives, &
+                                  dw,dwmol,dwp,dwt,ierr)
+  !
+  ! Water density based on formulation in BRAGFLO.  The BRAGFLO user manual
+  ! is incorrect as it does not include the truncation in the code (see
+  ! subroutine DENO near line 6848 of Bragflo.f
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/02/17
+                                  
+  implicit none
+  
+  PetscReal, intent(in) :: t   ! Temperature in centigrade (ignored)
+  PetscReal, intent(in) :: p   ! Pressure in Pascal
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: dw,dwmol,dwp,dwt
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: p_adjust
+  
+  ! kg/m^3
+  p_adjust = max(p,0.d0)
+  dw = exponent_reference_density* &
+         exp(min(80.d0,exponent_water_compressibility* &
+                       (p_adjust-exponent_reference_pressure)))
+  
+  dwmol = dw/FMWH2O ! kmol/m^3
+  
+  if (calculate_derivatives) then
+    print *, 'Analytical derivatives in EOSWaterDensityBRAGFLO() &
+      &currently not possible due to discontinuities in the formulation.'
+    stop
+    !dwp = dwmol*exponent_water_compressibility !kmol/m^3/Pa
+  else
+    dwp = UNINITIALIZED_DOUBLE
+  endif
+  dwt = 0.d0
+
+end subroutine EOSWaterDensityBRAGFLO
 
 ! ************************************************************************** !
 
@@ -3128,6 +3181,19 @@ subroutine EOSWaterInputRecord()
     write(word1,*) linear_water_compressibility
     write(id,'(a)') adjustl(trim(word1)) // ' 1/Pa'
   endif
+  if (associated(EOSWaterDensityPtr,EOSWaterDensityBRAGFLO)) then
+    write(id,'(a29)',advance='no') 'water density: '
+    write(id,'(a)') 'BRAGFLO'
+    write(id,'(a29)',advance='no') 'exp. ref. density: '
+    write(word1,*) exponent_reference_density
+    write(id,'(a)') adjustl(trim(word1)) // ' kg/m^3'
+    write(id,'(a29)',advance='no') 'exp. ref. pressure: '
+    write(word1,*) exponent_reference_pressure
+    write(id,'(a)') adjustl(trim(word1)) // ' Pa'
+    write(id,'(a29)',advance='no') 'exp. water compressibility: '
+    write(word1,*) exponent_water_compressibility
+    write(id,'(a)') adjustl(trim(word1)) // ' 1/Pa'
+  endif
   if (associated(EOSWaterDensityPtr,EOSWaterDensityIFC67)) then
     write(id,'(a29)',advance='no') 'water density: '
     write(id,'(a)') 'default, IFC67'
@@ -3312,6 +3378,8 @@ subroutine EOSWaterTest(temp_low,temp_high,pres_low,pres_high, &
     eos_density_name = 'Exponential'
   else if (associated(EOSWaterDensityPtr,EOSWaterDensityLinear)) then
     eos_density_name = 'Linear'
+  else if (associated(EOSWaterDensityPtr,EOSWaterDensityBRAGFLO)) then
+    eos_density_name = 'BRAGFLO'
   else if (associated(EOSWaterDensityPtr,EOSWaterDensityIFC67)) then
     eos_density_name = 'IFC67'
   else if (associated(EOSWaterDensityPtr,EOSWaterDensityTGDPB01)) then

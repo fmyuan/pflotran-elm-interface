@@ -49,7 +49,8 @@ subroutine CondControlAssignFlowInitCond(realization)
 
   use Global_module
   use Global_Aux_module
-  use General_Aux_module
+  use General_Aux_module, gen_dof_to_primary_variable => dof_to_primary_variable
+  use WIPP_Flow_Aux_module, wf_dof_to_primary_variable => dof_to_primary_variable
   use PM_TOilIms_Aux_module 
   use PM_TOWG_Aux_module
 
@@ -76,7 +77,6 @@ subroutine CondControlAssignFlowInitCond(realization)
   type(flow_towg_condition_type), pointer :: towg
   class(dataset_base_type), pointer :: dataset
   type(global_auxvar_type) :: global_aux
-  type(general_auxvar_type) :: general_aux
   PetscBool :: use_dataset
   PetscBool :: dataset_flag(realization%option%nflowdof)
   PetscInt :: num_connections
@@ -96,11 +96,6 @@ subroutine CondControlAssignFlowInitCond(realization)
   iphase_loc_p = UNINITIALIZED_DOUBLE
   call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
 
-  if (option%iflowmode == G_MODE) then
-    call GlobalAuxVarInit(global_aux,option)
-    call GeneralAuxVarInit(general_aux,PETSC_FALSE,option)
-  endif
-  
   cur_patch => realization%patch_list%first
   do
     if (.not.associated(cur_patch)) exit
@@ -108,6 +103,95 @@ subroutine CondControlAssignFlowInitCond(realization)
     grid => cur_patch%grid
 
     select case(option%iflowmode)
+
+      case(WF_MODE)
+
+        call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
+
+        xx_p = UNINITIALIZED_DOUBLE
+
+        initial_condition => cur_patch%initial_condition_list%first
+        do
+
+          if (.not.associated(initial_condition)) exit
+
+          if (.not.associated(initial_condition%flow_aux_real_var)) then
+            if (.not.associated(initial_condition%flow_condition)) then
+              option%io_buffer = 'Flow condition is NULL in initial condition'
+              call printErrMsg(option)
+            endif
+
+            general => initial_condition%flow_condition%general
+
+            string = 'in flow condition "' // &
+              trim(initial_condition%flow_condition%name) // &
+              '" within initial condition "' // &
+              trim(initial_condition%flow_condition%name) // &
+              '" must be of type Dirichlet or Hydrostatic'
+            ! error checking.  the data must match the state
+            if (.not. &
+                (general%liquid_pressure%itype == DIRICHLET_BC .or. &
+                  general%liquid_pressure%itype == HYDROSTATIC_BC)) then
+              option%io_buffer = 'Liquid pressure ' // trim(string)
+              call printErrMsg(option)
+            endif
+            if (.not. &
+                (general%gas_saturation%itype == DIRICHLET_BC .or. &
+                  general%gas_saturation%itype == HYDROSTATIC_BC)) then
+              option%io_buffer = 'Gas saturation ' // trim(string)
+              call printErrMsg(option)
+            endif
+
+            do icell=1,initial_condition%region%num_cells
+              local_id = initial_condition%region%cell_ids(icell)
+              ghosted_id = grid%nL2G(local_id)
+              iend = local_id*option%nflowdof
+              ibegin = iend-option%nflowdof+1
+              if (cur_patch%imat(ghosted_id) <= 0) then
+                xx_p(ibegin:iend) = 0.d0
+                iphase_loc_p(ghosted_id) = 0
+                cycle
+              endif
+              ! decrement ibegin to give a local offset of 0
+              ibegin = ibegin - 1
+              xx_p(ibegin+WIPPFLO_LIQUID_PRESSURE_DOF) = &
+                general%gas_pressure%dataset%rarray(1)
+              xx_p(ibegin+WIPPFLO_GAS_SATURATION_DOF) = &
+                general%gas_saturation%dataset%rarray(1)
+              iphase_loc_p(ghosted_id) = initial_condition%flow_condition%iphase
+              cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
+                initial_condition%flow_condition%iphase
+            enddo
+          else
+            do iconn=1,initial_condition%connection_set%num_connections
+              local_id = initial_condition%connection_set%id_dn(iconn)
+              ghosted_id = grid%nL2G(local_id)
+              if (cur_patch%imat(ghosted_id) <= 0) then
+                iend = local_id*option%nflowdof
+                ibegin = iend-option%nflowdof+1
+                xx_p(ibegin:iend) = 0.d0
+                iphase_loc_p(ghosted_id) = 0
+                cycle
+              endif
+              offset = (local_id-1)*option%nflowdof
+              istate = initial_condition%flow_aux_int_var(1,iconn)
+              do idof = 1, option%nflowdof
+                xx_p(offset+idof) = &
+                  initial_condition%flow_aux_real_var( &
+                    initial_condition%flow_aux_mapping( &
+                      wf_dof_to_primary_variable(idof)),iconn)
+              enddo
+              iphase_loc_p(ghosted_id) = istate
+              cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
+            enddo
+          endif
+          initial_condition => initial_condition%next
+        enddo
+
+        call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p, &
+                                ierr);CHKERRQ(ierr)
       
       case(G_MODE) ! general phase mode
 
@@ -249,7 +333,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                 xx_p(offset+idof) = &
                   initial_condition%flow_aux_real_var( &
                     initial_condition%flow_aux_mapping( &
-                      dof_to_primary_variable(idof,istate)),iconn)
+                      gen_dof_to_primary_variable(idof,istate)),iconn)
               enddo
               iphase_loc_p(ghosted_id) = istate
               cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
@@ -586,13 +670,11 @@ subroutine CondControlAssignFlowInitCond(realization)
    
     cur_patch => cur_patch%next
   enddo
-  
+
   if (option%iflowmode == G_MODE) then
     call GlobalUpdateState(realization)
-    call GlobalAuxVarStrip(global_aux)
-    call GeneralAuxVarStrip(general_aux)
   endif  
-   
+  
   ! update dependent vectors
   call DiscretizationGlobalToLocal(discretization,field%flow_xx, &
                                    field%flow_xx_loc,NFLOWDOF)  
@@ -1219,7 +1301,7 @@ subroutine CondControlScaleSourceSink(realization)
         ghosted_id = grid%nL2G(local_id)
 
         select case(option%iflowmode)
-          case(RICHARDS_MODE,G_MODE)
+          case(RICHARDS_MODE,G_MODE,WF_MODE)
               call GridGetGhostedNeighbors(grid,ghosted_id,DMDA_STENCIL_STAR, &
                                           x_width,y_width,z_width, &
                                           x_count,y_count,z_count, &
@@ -1275,7 +1357,7 @@ subroutine CondControlScaleSourceSink(realization)
       do iconn = 1, cur_connection_set%num_connections      
         local_id = cur_connection_set%id_dn(iconn)
         select case(option%iflowmode)
-          case(RICHARDS_MODE,G_MODE)
+          case(RICHARDS_MODE,G_MODE,WF_MODE)
             cur_source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
               vec_ptr(local_id)
           case(TH_MODE)
@@ -1450,8 +1532,6 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
 
     select case(option%iflowmode)
       
-      case(G_MODE) ! general phase mode
-
       case (RICHARDS_MODE,TH_MODE)
         ! assign initial conditions values to domain
         call VecGetArrayF90(surf_field%flow_xx,xx_p, ierr);CHKERRQ(ierr)

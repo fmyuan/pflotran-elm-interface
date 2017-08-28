@@ -675,6 +675,12 @@ subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, &
   V_mix = visg
   
   if (calculate_derivative) then
+
+    if (xg1 < 1.d-100) then
+      print *, 'Derivatives in EOSGasViscosity1() may not be calculated &
+        &when the water vapor pressure is essentially zero.'
+      stop
+    endif
   
     ! air density (kg)
     ! d = d_air * FMWAIR   
@@ -1659,7 +1665,7 @@ subroutine EOSGasTest(temp_low,temp_high,pres_low,pres_high, &
 
   allocate(temp(ntemp))
   temp = UNINITIALIZED_DOUBLE
-  allocate(pres(ntemp))
+  allocate(pres(npres))
   pres = UNINITIALIZED_DOUBLE
   allocate(density_kg(npres,ntemp))
   density_kg = UNINITIALIZED_DOUBLE

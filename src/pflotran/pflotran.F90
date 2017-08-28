@@ -43,16 +43,9 @@ program pflotran
   use Factory_PFLOTRAN_module
   use Factory_Subsurface_module
   use Factory_Hydrogeophysics_module
-  use Factory_Surface_module
-  use Factory_Surf_Subsurf_module
-  use Factory_Geomechanics_module
   use PFLOTRAN_Constants_module
-  use Output_Aux_module, only : INSTANTANEOUS_VARS
   use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
   
-  !TODO(geh): remove
-  use PM_Base_class
-
   implicit none
 
 #include "petsc/finclude/petscsys.h"
@@ -62,7 +55,6 @@ program pflotran
   ! and/or one after another until a specified set of simulations has 
   ! completed.
   type(multi_simulation_type), pointer :: multisimulation
-  class(pm_base_type), pointer :: dummy_list
   type(option_type), pointer :: option
   
   nullify(simulation)

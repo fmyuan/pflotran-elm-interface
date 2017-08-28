@@ -1,0 +1,673 @@
+!==============================================================================
+! Test Case 4 - 2D infiltration
+! In this 2d model, water infiltrates at the top of the reservoir, but only
+! over a region of 0.5m from the left. 
+! The reservoir is initially partially saturated, with the phreatic surface 
+! (the water-gas interface) at 0.65m above the bottom of the reservoir. 
+! A capillary transition zone exists above this.
+! The initial saturation/pressure conditions are enumerated by layer (these
+! are taken from the BRAGFLO deck).
+!
+! The infiltration rate is given as a Darcy flux of 4.111e-5 m/s, 
+! and is divided over the left 0.5m (4 cells) of the top boundary.
+! The remaining 2.5m of the top boundary has a no-flow condition, and
+! the bottom and left boundaries also have no-flow conditions.
+! The right boundary has Dirichlet conditions - the bottom four layers (0.65 m)
+! are fixed at their initial conditions, ensuring that they remain saturated.
+! The remaining layers are prescribed a "seepage" condition, i.e. a fixed 
+! gas pressure and fraction (essentially gas-saturated). 
+!
+! Note: for this case, BRAGFLO uses g=9.8068, STP 297.15  1.01330D+05
+!
+!==============================================================================
+
+!=========================== flow mode ========================================
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE WIPP_FLOW
+      OPTIONS
+        FIX_UPWIND_DIRECTION
+        MAX_PRESSURE_CHANGE 1.d20
+        MAX_SATURATION_CHANGE 1.d20
+        GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! H2 kg/kmol
+      /
+    /
+  /
+END
+
+!==============================================================================
+SUBSURFACE
+!==============================================================================
+
+!=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 5
+  CELLS
+    1
+    2
+    3
+    4
+  /
+END
+
+!=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 20 1 18
+  DXYZ
+    0.115  0.15  0.15   0.085 0.075 0.14  0.15  0.15  0.15  0.15  \
+    0.15   0.15  0.15   0.15  0.15  0.155 0.18  0.20  0.20  0.20
+    1.d0
+    0.30  0.20  0.10  0.05  0.05  0.10  0.10  0.10  0.10  0.10  \
+    0.10  0.10  0.10  0.10  0.10  0.10  0.10  0.10
+  /
+END
+
+
+!=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 0.d0
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 0.d0
+END
+
+EOS WATER
+  DENSITY EXPONENTIAL 0.9984E+03 101330.d0 2.5000E-10 ! ref_dens ref_pres compres
+  VISCOSITY CONSTANT 1.d-3
+  ENTHALPY CONSTANT 1.8890d0
+END
+
+EOS GAS
+  VISCOSITY CONSTANT 17.9E-06
+  HENRYS_CONSTANT CONSTANT 1.d10
+  DENSITY IDEAL
+END
+
+
+!=========================== saturation functions =============================
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION BRAGFLO_KRP9
+    LIQUID_RESIDUAL_SATURATION 0.d0
+    MAX_CAPILLARY_PRESSURE 6.40601E+06
+  /
+  PERMEABILITY_FUNCTION BRAGFLO_KRP9_LIQ
+    LIQUID_RESIDUAL_SATURATION 0.d0
+  /
+  PERMEABILITY_FUNCTION BRAGFLO_KRP9_GAS
+    LIQUID_RESIDUAL_SATURATION 0.d0
+    ! GAS_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+!=========================== material properties ==============================
+MATERIAL_PROPERTY soil
+  ID 1
+  CHARACTERISTIC_CURVES sf1
+  POROSITY 0.30d0
+  TORTUOSITY 1.                  ! for diffusion calculations.
+  ROCK_DENSITY 2650.d0           ! thermal parameter. isothermal ignores this.
+  THERMAL_CONDUCTIVITY_DRY 0.5   ! thermal parameter. isothermal ignores this.
+  THERMAL_CONDUCTIVITY_WET 2.    ! thermal parameter. isothermal ignores this.
+  HEAT_CAPACITY 830.             ! thermal parameter. isothermal ignores this.
+  ! SOIL_COMPRESSIBILITY_FUNCTION BRAGFLO
+  ! BULK_COMPRESSIBILITY 1.d-8
+  ! SOIL_REFERENCE_PRESSURE 101330.d0
+  PERMEABILITY
+    PERM_ISO 9.95d-12
+  /
+END
+
+!=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    3.d0 1.d0 2.d0
+  /
+END
+
+! assign a region to each layer - these are used for the initial conditions
+REGION 1
+  BLOCK 1 20 1 1 1 1
+END
+
+REGION 2
+  BLOCK 1 20 1 1 2 2
+END
+
+REGION 3
+  BLOCK 1 20 1 1 3 3
+END
+
+REGION 4
+  BLOCK 1 20 1 1 4 4
+END
+
+REGION 5
+  BLOCK 1 20 1 1 5 5
+END
+
+REGION 6
+  BLOCK 1 20 1 1 6 6
+END
+
+REGION 7
+  BLOCK 1 20 1 1 7 7
+END
+
+REGION 8
+  BLOCK 1 20 1 1 8 8
+END
+
+REGION 9
+  BLOCK 1 20 1 1 9 9
+END
+
+REGION 10
+  BLOCK 1 20 1 1 10 10
+END
+
+REGION 11
+  BLOCK 1 20 1 1 11 11
+END
+
+REGION 12
+  BLOCK 1 20 1 1 12 12
+END
+
+REGION 13
+  BLOCK 1 20 1 1 13 13
+END
+
+REGION 14
+  BLOCK 1 20 1 1 14 14
+END
+
+REGION 15
+  BLOCK 1 20 1 1 15 15
+END
+
+REGION 16
+  BLOCK 1 20 1 1 16 16
+END
+
+REGION 17
+  BLOCK 1 20 1 1 17 17
+END
+
+REGION 18
+  BLOCK 1 20 1 1 18 18
+END
+
+! assign a region to the right face of the right boundary cells
+! these are used for the right-seepage boundary condition
+REGION B1
+  FACE EAST
+  BLOCK 20 20 1 1 1 1
+END
+
+REGION B2
+  FACE EAST
+  BLOCK 20 20 1 1 2 2
+END
+
+REGION B3
+  FACE EAST
+  BLOCK 20 20 1 1 3 3
+END
+
+REGION B4
+  FACE EAST
+  BLOCK 20 20 1 1 4 4
+END
+
+REGION R_EAST_BOUNDARY
+  FACE EAST
+  BLOCK 20 20 1 1 5 18
+END
+
+! assign regions to the top-left cells
+! these are used for the injection/infiltration boundary conditions
+
+REGION INJQ1
+  BLOCK 1 1 1 1 18 18
+END
+
+REGION INJQ2
+  BLOCK 2 2 1 1 18 18
+END
+
+REGION INJQ3
+  BLOCK 3 3 1 1 18 18
+END
+
+REGION INJQ4
+  BLOCK 4 4 1 1 18 18
+END
+
+!=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil
+END
+
+!=========================== flow conditions ==================================
+
+! Infiltration conditions for left portion of top boundary 
+! note the rate is divided between 4 cells
+FLOW_CONDITION well1  ! INJQ in BF
+  TYPE
+    RATE mass_rate
+  /
+  SYNC_TIMESTEP_WITH_UPDATE
+  RATE LIST
+    TIME_UNITS s
+    DATA_UNITS kg/s
+    0.d0 0.0047201 0.d0 ! time(s) water(kg/s) gas(kg/s)
+  /
+END
+
+FLOW_CONDITION well2  ! INJQ in BF
+  TYPE
+    RATE mass_rate
+  /
+  SYNC_TIMESTEP_WITH_UPDATE
+  RATE LIST
+    TIME_UNITS s
+    DATA_UNITS kg/s
+    0.d0 0.0061566 0.d0  ! time(s) water(kg/s) gas(kg/s) 
+  /
+END
+
+FLOW_CONDITION well3  ! INJQ in BF
+  TYPE
+    RATE mass_rate
+  /
+  SYNC_TIMESTEP_WITH_UPDATE
+  RATE LIST
+    TIME_UNITS s
+    DATA_UNITS kg/s
+    0.d0 0.0061566 0.d0  ! time(s) water(kg/s) gas(kg/s) 
+  /
+END
+
+FLOW_CONDITION well4  ! INJQ in BF
+  TYPE
+    RATE mass_rate
+  /
+  SYNC_TIMESTEP_WITH_UPDATE
+  RATE LIST
+    TIME_UNITS s
+    DATA_UNITS kg/s
+    0.d0 0.0034888 0.d0  ! time(s) water(kg/s) gas(kg/s) 
+  /
+END
+
+! Seepage BC for top-portion of right boundary
+FLOW_CONDITION seep1
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.101330D+06
+  LIQUID_SATURATION 1.d0
+END
+
+
+! Initial Conditions
+! Bottom 4 layers are saturated (single-phase water)
+! Values were calculated by capillary-gravity equilibrium
+
+FLOW_CONDITION 1
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.10622565D+06
+  LIQUID_SATURATION 1.d0
+END
+
+FLOW_CONDITION 2
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.10377783D+06
+  LIQUID_SATURATION 1.d0
+END
+
+FLOW_CONDITION 3
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.10230913D+06
+  LIQUID_SATURATION 1.d0
+END
+
+FLOW_CONDITION 4
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.10157478D+06
+  LIQUID_SATURATION 1.d0
+END
+
+! Initial Conditions
+! Remaining layers are two-phase, in capillary-gravity equilibrium
+
+FLOW_CONDITION 5
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.10108522D+06
+  LIQUID_SATURATION 0.99964370D+00
+END
+
+FLOW_CONDITION 6
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.10035087D+06
+  LIQUID_SATURATION 0.98052838D+00
+END
+
+FLOW_CONDITION 7
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.99371738D+05
+  LIQUID_SATURATION 0.87090754D+00
+END
+
+FLOW_CONDITION 8
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.98392607D+05
+  LIQUID_SATURATION 0.67549792D+00
+END
+
+FLOW_CONDITION 9
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.97413476D+05
+  LIQUID_SATURATION 0.47474155D+00
+END
+
+FLOW_CONDITION 10
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.96434346D+05
+  LIQUID_SATURATION 0.32120575D+00
+END
+
+FLOW_CONDITION 11
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.95455215D+05
+  LIQUID_SATURATION 0.21806666D+00
+END
+
+FLOW_CONDITION 12
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.94476084D+05
+  LIQUID_SATURATION 0.15135593D+00
+END
+
+FLOW_CONDITION 13
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.93496953D+05
+  LIQUID_SATURATION 0.10800850D+00
+END
+
+FLOW_CONDITION 14
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.92517822D+05
+  LIQUID_SATURATION 0.79232753D-01
+END
+
+FLOW_CONDITION 15
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.91538691D+05
+  LIQUID_SATURATION 0.59616072D-01
+END
+
+FLOW_CONDITION 16
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.90559560D+05
+  LIQUID_SATURATION 0.45879896D-01
+END
+
+FLOW_CONDITION 17
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.89580429D+05
+  LIQUID_SATURATION 0.36016551D-01
+END
+
+FLOW_CONDITION 18
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 0.88601299D+05
+  LIQUID_SATURATION 0.28770300D-01
+END
+
+
+!=========================== condition couplers ===============================
+
+! assign initial conditions by layer
+INITIAL_CONDITION
+  FLOW_CONDITION 1
+  REGION 1
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 2
+  REGION 2
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 3
+  REGION 3
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 4
+  REGION 4
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 5
+  REGION 5
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 6
+  REGION 6
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 7
+  REGION 7
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 8
+  REGION 8
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 9
+  REGION 9
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 10
+  REGION 10
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 11
+  REGION 11
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 12
+  REGION 12
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 13
+  REGION 13
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 14
+  REGION 14
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 15
+  REGION 15
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 16
+  REGION 16
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 17
+  REGION 17
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION 18
+  REGION 18
+END
+
+
+! right BC for bottom 4 layers
+BOUNDARY_CONDITION
+  FLOW_CONDITION 1
+  REGION B1
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION 2
+  REGION B2
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION 3
+  REGION B3
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION 4
+  REGION B4
+END
+
+! right BC for remaining layers
+BOUNDARY_CONDITION
+  FLOW_CONDITION seep1
+  REGION R_EAST_BOUNDARY
+END
+
+! infiltration source terms
+SOURCE_SINK well1
+  FLOW_CONDITION well1
+  REGION INJQ1
+END
+
+SOURCE_SINK well2
+  FLOW_CONDITION well2
+  REGION INJQ2
+END
+
+SOURCE_SINK well3
+  FLOW_CONDITION well3
+  REGION INJQ3
+END
+
+SOURCE_SINK well4
+  FLOW_CONDITION well4
+  REGION INJQ4
+END
+
+!========================== solver ============================================
+NEWTON_SOLVER FLOW
+!  RTOL 1.d-08
+!  ATOL 1.d-08
+!  STOL 1.d-30       ! Turn off STOL criteria
+  MAXIT 20          ! Maximum newton iteration number
+END
+
+LINEAR_SOLVER FLOW
+!  SOLVER DIRECT
+END
+
+!=========================== output options ===================================
+skip
+OUTPUT
+  FORMAT TECPLOT POINT
+  FORMAT HDF5
+  TIMES s 3600. 7200. 28800.
+  VARIABLES
+    MAXIMUM_PRESSURE
+    LIQUID_PRESSURE
+    GAS_PRESSURE
+    LIQUID_SATURATION
+    GAS_SATURATION
+    LIQUID_DENSITY
+    GAS_DENSITY
+  /
+END
+noskip
+
+!=========================== times ============================================
+TIME
+  FINAL_TIME 28800.0 s
+  INITIAL_TIMESTEP_SIZE 0.1 s
+  MAXIMUM_TIMESTEP_SIZE 300.0 s
+END
+
+!==============================================================================
+END_SUBSURFACE
+!==============================================================================

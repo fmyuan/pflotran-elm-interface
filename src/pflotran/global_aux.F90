@@ -198,6 +198,11 @@ subroutine GlobalAuxVarInit(auxvar,option)
 !geh        allocate(auxvar%den_kg_store(option%nphase,TWO_INTEGER))
 !geh        auxvar%den_kg_store = 0.d0
       endif
+    case (WF_MODE)
+      if (option%ntrandof > 0) then
+        allocate(auxvar%pres_store(option%nphase,TWO_INTEGER))
+        auxvar%pres_store = 0.d0
+      endif
     case default
   end select
   

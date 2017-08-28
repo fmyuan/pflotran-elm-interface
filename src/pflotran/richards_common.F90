@@ -581,14 +581,15 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
     ! figure out the direction of flow
     case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC, &
          HET_SURF_SEEPAGE_BC, &
-         HET_DIRICHLET)
+         HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
 
       ! dist(0) = scalar - magnitude of distance
       ! gravity = vector(3)
       ! dist(1:3) = vector(3) - unit vector
       dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-      if (pressure_bc_type == CONDUCTANCE_BC) then
+      if (pressure_bc_type == CONDUCTANCE_BC .or. &
+          pressure_bc_type == HET_CONDUCTANCE_BC) then
         Dq = auxvars(RICHARDS_CONDUCTANCE_DOF)
       else
         Dq = perm_dn / dist(0)
@@ -615,16 +616,17 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
         dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         dphi_dp_dn = -1.d0 + dgravity_dden_dn*rich_auxvar_dn%dden_dp
 
-        if (pressure_bc_type == SEEPAGE_BC .or. &
-            pressure_bc_type == CONDUCTANCE_BC .or. &
-            pressure_bc_type == HET_SURF_SEEPAGE_BC) then
-              ! flow in         ! boundary cell is <= pref
-          if (dphi > 0.d0 .and. global_auxvar_up%pres(1)- &
-                                option%reference_pressure < eps) then
-            dphi = 0.d0
-            dphi_dp_dn = 0.d0
-          endif
-        endif
+        select case(pressure_bc_type)
+          case(SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC, &
+               HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+                ! flow in
+            if (dphi > 0.d0 .and. &
+                ! boundary cell is <= pref
+                global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+              dphi = 0.d0
+              dphi_dp_dn = 0.d0
+            endif
+        end select
         
         if (dphi>=0.D0) then
 #ifdef USE_ANISOTROPIC_MOBILITY  
@@ -891,15 +893,17 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
   pressure_bc_type = ibndtype(RICHARDS_PRESSURE_DOF)
   select case(pressure_bc_type)
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC, &
-         HET_DIRICHLET)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC, &
+         HET_SURF_SEEPAGE_BC, &
+         HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
 
       ! dist(0) = scalar - magnitude of distance
       ! gravity = vector(3)
       ! dist(1:3) = vector(3) - unit vector
       dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-      if (pressure_bc_type == CONDUCTANCE_BC) then
+      if (pressure_bc_type == CONDUCTANCE_BC .or. &
+          pressure_bc_type == HET_CONDUCTANCE_BC) then
         Dq = auxvars(RICHARDS_CONDUCTANCE_DOF)
       else
         Dq = perm_dn / dist(0)
@@ -920,14 +924,16 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
        
         dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
 
-        if (pressure_bc_type == SEEPAGE_BC .or. &
-            pressure_bc_type == CONDUCTANCE_BC .or. &
-            pressure_bc_type == HET_SURF_SEEPAGE_BC) then
-              ! flow in         ! boundary cell is <= pref
-          if (dphi > 0.d0 .and. global_auxvar_up%pres(1)-option%reference_pressure < eps) then
-            dphi = 0.d0
-          endif
-        endif
+        select case(pressure_bc_type)
+          case(SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC, &
+               HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+                ! flow in
+            if (dphi > 0.d0 .and. &
+                ! boundary cell is <= pref
+                global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+              dphi = 0.d0
+            endif
+        end select
    
        if (dphi>=0.D0) then
 #ifdef USE_ANISOTROPIC_MOBILITY       
@@ -960,7 +966,8 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
 
         ! If running with surface-flow model, ensure (darcy_velocity*dt) does
         ! not exceed depth of standing water.
-        if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%surf_flow_on) then
+        if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. &
+            option%surf_flow_on) then
           call EOSWaterdensity(option%reference_temperature, &
                                option%reference_pressure,rho,dum1,ierr)
 

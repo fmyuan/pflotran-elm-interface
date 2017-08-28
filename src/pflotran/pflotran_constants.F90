@@ -75,6 +75,7 @@ module PFLOTRAN_Constants_module
   PetscMPIInt, parameter, public :: TWO_INTEGER_MPI = TWO_INTEGER
   PetscMPIInt, parameter, public :: THREE_INTEGER_MPI = THREE_INTEGER
   PetscMPIInt, parameter, public :: FOUR_INTEGER_MPI = FOUR_INTEGER
+  PetscMPIInt, parameter, public :: FIVE_INTEGER_MPI = FIVE_INTEGER
   PetscMPIInt, parameter, public :: SIX_INTEGER_MPI = SIX_INTEGER
   PetscMPIInt, parameter, public :: SEVEN_INTEGER_MPI = SEVEN_INTEGER
   PetscMPIInt, parameter, public :: TWELVE_INTEGER_MPI = TWELVE_INTEGER
@@ -124,6 +125,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: TH_MODE = 7
   PetscInt, parameter, public :: TOIL_IMS_MODE = 8
   PetscInt, parameter, public :: TOWG_MODE = 9
+  PetscInt, parameter, public :: WF_MODE = 10
   
   ! transport modes
   PetscInt, parameter, public :: EXPLICIT_ADVECTION = 1
@@ -147,7 +149,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SATURATION_BC = 15
   PetscInt, parameter, public :: HET_VOL_RATE_SS = 16
   PetscInt, parameter, public :: HET_MASS_RATE_SS = 17
-  PetscInt, parameter, public :: HET_DIRICHLET = 18
+  PetscInt, parameter, public :: HET_DIRICHLET_BC = 18
   PetscInt, parameter, public :: ENERGY_RATE_SS = 19
   PetscInt, parameter, public :: SCALED_ENERGY_RATE_SS = 20
   PetscInt, parameter, public :: HET_ENERGY_RATE_SS = 21
@@ -165,6 +167,8 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SURFACE_DIRICHLET = 33
   PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
   PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
+  PetscInt, parameter, public :: HET_SEEPAGE_BC = 36
+  PetscInt, parameter, public :: HET_CONDUCTANCE_BC = 37
   
   PetscInt, parameter, public :: WELL_SS = 100
   
@@ -288,6 +292,13 @@ module PFLOTRAN_Constants_module
   ! uninitialized values
   PetscInt, parameter, public :: UNINITIALIZED_INTEGER = -999
   PetscReal, parameter, public :: UNINITIALIZED_DOUBLE = -999.d0
+
+  ! global solver convergence criteria
+  PetscInt, parameter, public :: CONVERGENCE_OFF = -999
+  PetscInt, parameter, public :: CONVERGENCE_CUT_TIMESTEP = -1
+  PetscInt, parameter, public :: CONVERGENCE_KEEP_ITERATING = 0
+  PetscInt, parameter, public :: CONVERGENCE_FORCE_ITERATION = 1
+  PetscInt, parameter, public :: CONVERGENCE_CONVERGED = 2
   
   ! Dummy value
   PetscReal, parameter, public :: DUMMY_VALUE = UNINITIALIZED_DOUBLE

@@ -148,6 +148,7 @@ module Option_module
     PetscReal :: reference_saturation
     
     PetscBool :: converged
+    PetscInt :: convergence
     
     PetscReal :: infnorm_res_sec  ! inf. norm of secondary continuum rt residual
     
@@ -195,6 +196,9 @@ module Option_module
     PetscInt :: secondary_continuum_solver     ! Specify secondary continuum solver
     
     PetscInt :: subsurface_simulation_type
+    
+    ! For WIPP_type pc-sat characteristic curves that use Pct
+    PetscBool :: pct_updated
 
     ! Type of averaging scheme for relative permeability
     PetscInt :: rel_perm_aveg
@@ -482,6 +486,7 @@ subroutine OptionInitRealization(option)
   option%reference_saturation = 1.d0
   
   option%converged = PETSC_FALSE
+  option%convergence = CONVERGENCE_OFF
   
   option%infnorm_res_sec = 0.d0
   
@@ -561,6 +566,8 @@ subroutine OptionInitRealization(option)
   option%min_allowable_scale = 1.0d-10
 
   option%print_ekg = PETSC_FALSE
+  
+  option%pct_updated = PETSC_FALSE
   
   option%inline_surface_flow           = PETSC_FALSE
   option%inline_surface_Mannings_coeff = 0.02d0
@@ -858,7 +865,7 @@ subroutine printMsgAnyRank1(option)
   
   type(option_type) :: option
   
-  call printMsgAnyRank2(option%io_buffer)
+  if (OptionPrintToScreen(option)) call printMsgAnyRank2(option%io_buffer)
   
 end subroutine printMsgAnyRank1
 
@@ -915,8 +922,10 @@ subroutine printMsgByRank2(option,string)
   
   character(len=MAXWORDLENGTH) :: word
   
-  write(word,*) option%myrank
-  print *, '(' // trim(adjustl(word)) // '): ' // trim(string)
+  if (OptionPrintToScreen(option)) then
+    write(word,*) option%myrank
+    print *, '(' // trim(adjustl(word)) // '): ' // trim(string)
+  endif
   
 end subroutine printMsgByRank2
 

@@ -1,0 +1,248 @@
+#Description: 3D test problem for unstructured richards equation with mixed
+#             elements in explicit format
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== flow mode ========================================
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer
+    Tracer2
+    Tracer3
+  /
+  OUTPUT
+    TOTAL
+  /
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE UNSTRUCTURED ./mixed.ugi
+END
+
+#=========================== solver options ===================================
+TIMESTEPPER FLOW
+  MAX_STEPS 1
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 0.5d0
+  CHARACTERISTIC_CURVES default
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 5.d-13
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION BROOKS_COREY
+    ALPHA 1.d-4
+    LAMBDA 0.3d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    SMOOTH
+  /
+  PERMEABILITY_FUNCTION MUALEM_BC_LIQ
+    LAMBDA 0.3d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+  SNAPSHOT_FILE
+    PERIODIC TIME 1.d0 d between 0. d and 10. d
+    PERIODIC TIME 1.d1 d between 0. d and 100. d
+    FORMAT HDF5
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+  /
+  MASS_BALANCE_FILE
+    PERIODIC TIMESTEP 1
+  /
+  VELOCITY_AT_CENTER
+  VELOCITY_AT_FACE
+  FLOWRATE
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 100.d0 d
+  MAXIMUM_TIMESTEP_SIZE 10.d0 d
+END
+
+REFERENCE_PRESSURE 101325.
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    5.d0 5.d0 5.d0
+  /
+END
+
+REGION top
+  FILE top.ss
+END
+
+REGION west
+  file west.ss
+END
+
+REGION well
+  COORDINATE 1.25d0 2.91667 1.25d0
+END
+
+REGION middle
+  COORDINATE 2.50001d0 2.50001d0 2.50001d0
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION middle
+/
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE hydrostatic
+  /
+  DATUM 0.d0 0.d0 2.5d0
+  PRESSURE 101325.d0
+END
+
+FLOW_CONDITION west
+  TYPE
+    PRESSURE hydrostatic
+  /
+  DATUM list
+    TIME_UNITS d
+    0.d0 0.d0 0.d0 2.5d0
+    10.d0 0.d0 0.d0 4.d0
+    20.d0 0.d0 0.d0 -2.d0
+    40.d0 0.d0 0.d0 3.d0
+    60.d0 0.d0 0.d0 5.d0
+    80.d0 0.d0 0.d0 -1.d0
+    100.d0 0.d0 0.d0 2.5d0
+  /
+  PRESSURE 101325.d0
+  INTERPOLATION LINEAR
+END
+
+FLOW_CONDITION recharge
+  TYPE
+    PRESSURE neumann
+  /
+  FLUX 15 cm/y
+END
+
+FLOW_CONDITION well
+  TYPE
+    RATE volumetric_rate
+  /
+  RATE 0.1 l/min
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT initial
+    CONCENTRATIONS
+      Tracer  1.d-10  T
+      Tracer2 1.d-10 T
+      Tracer3 1.d-10 T
+    /
+  /
+END
+
+TRANSPORT_CONDITION tracer1
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT tracer1
+    CONCENTRATIONS
+      Tracer  1.d-3  T
+      Tracer2 1.d-10 T
+      Tracer3 1.d-10 T
+    /
+  /
+END
+
+TRANSPORT_CONDITION tracer2
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT tracer2
+    CONCENTRATIONS
+      Tracer  1.d-10 T
+      Tracer2 1.d-3  T
+      Tracer3 1.d-10 T
+    /
+  /
+END
+
+TRANSPORT_CONDITION tracer3
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT tracer3
+    CONCENTRATIONS
+      Tracer  1.d-10 T
+      Tracer2 1.d-10 T
+      Tracer3 1.d-3  T
+    /
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+# boundary conditions
+BOUNDARY_CONDITION west
+  FLOW_CONDITION west
+  TRANSPORT_CONDITION tracer1
+  REGION west
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION recharge
+  TRANSPORT_CONDITION tracer2
+  REGION top
+END
+
+# source/sink
+SOURCE_SINK
+  FLOW_CONDITION well
+  TRANSPORT_CONDITION tracer3
+  REGION well
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+END_SUBSURFACE

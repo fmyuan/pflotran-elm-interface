@@ -76,6 +76,8 @@ subroutine GeneralSetup(realization)
   
   patch%aux%General => GeneralAuxCreate(option)
 
+  general_analytical_derivatives = .not.option%flow%numerical_derivatives
+
   ! ensure that material properties specific to this module are properly
   ! initialized
   material_parameter => patch%aux%Material%material_parameter
