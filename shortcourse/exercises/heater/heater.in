@@ -214,7 +214,7 @@ REGION Region2 ! buffer in drift
 END
 
 REGION outer_face
-  FILE ./sideset_0.ss #heater_0.ss
+  FILE ./sideset_0.ss
 END
 
 #=========================== observation points ===============================
