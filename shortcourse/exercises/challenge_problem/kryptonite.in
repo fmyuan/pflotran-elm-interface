@@ -1,0 +1,398 @@
+# WARNING!!! THIS IS THE SOLUTION TO THE CHALLENGE PROBLEM.
+# CHALLENGE YOURSELF BY READING THE PROBLEM FIRST AND
+# CREATING YOUR OWN SOLUTION.
+#   cd doc
+#   pdflatex kryptonite.tex
+#   evince kryptonite.pdf
+#
+# The Challenge Problem features:
+# Structured grid
+# SUBSURFACE_FLOW MODE RICHARDS
+# Hydrostatic initial conditions
+# Regional pressure gradient (Dirichlet boundary conditions)
+# Pumping well
+# Recharge (Neumann boundary condition)
+# SUBSURFACE_TRANSPORT
+# Aqueous, solid, sorbed phases
+# 
+# Superman drinks from a well downgradient of a kryptonite deposit.
+# The kryptonite dissolves into three components: KrA, KrB, and KrC.
+# At 1e-3 M, KrA will make Superman weak.
+# At 1e-3 M, KrB will make Superman very weak.
+# At 1e-3 M, KrC will bring Superman to the brink of death.
+# Will kryptonite contaminate the well at levels Superman should avoid?
+# When should Superman stop drinking from the well if he wants to avoid
+# damage from KrA, KrB, and KrC?
+#
+# BONUS #1
+# Make the number of grid cells the same as in 
+# regional_doublet/stochastic_regional_doublet.in,
+# and try one or more heterogeneous permeability fields from that problem for 
+# MATERIAL_PROPERTY aquifer. (Eight cores would be nice to run the 
+# simulation: mpirun -n 8 pflotran -input_prefix kryptonite)
+# How does heterogeneity in the aquifer affect your advice to Superman?
+#
+# BONUS #2
+# Set this problem up in TH mode and make REGION kryptonite_deposit a heat
+# source that decays with time. You choose the wattage.
+# Hint - see geologic_disposal/gdsa.in for 
+# help with FLOW_CONDITION and SOURCE_SINK blocks. You'll also need to change
+# CHARACTERISTIC_CURVES to SATURATION_FUNCTIONS.
+# Is the heat source you added enough to change the fluid flow field?
+# Does it affect the time at which 1e-3 M concentrations reach the well?
+# 
+#=========================== flow mode ========================================
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    KrA(aq) ! conservative species, no precipitation, no sorbtion
+    KrB(aq) ! species that precipitates
+    KrC(aq) ! species that sorbs
+  /
+  MINERALS
+    Kryptonite(s)
+    KrB(s)
+  /
+  MINERAL_KINETICS
+    Kryptonite(s)
+      RATE_CONSTANT 1.d-6 mol/m^2-sec
+    /
+    KrB(s)
+      RATE_CONSTANT 1.d-6 mol/m^2-sec
+    /
+  /
+skip
+  RADIOACTIVE_DECAY_REACTION ! see documentation.pflotran.org
+    REACTION KrB(aq) -> ! We don't care about the daughter
+    HALF_LIFE 1.d1 y
+  /
+noskip
+  SORPTION
+    ISOTHERM_REACTIONS ! see documentation.pflotran.org
+      KrC(aq)
+        DISTRIBUTION_COEFFICIENT 1.d6 ! kg water / m^3 bulk
+      /
+    /
+  /
+  DATABASE ./kryptonite.dat
+  LOG_FORMULATION
+  OUTPUT
+    TOTAL
+    TOTAL_SORBED
+    ALL
+  /
+END
+
+#=========================== solver options ===================================
+TIMESTEPPER FLOW
+END
+
+NEWTON_SOLVER FLOW
+  ITOL_UPDATE 1.d0     ! Convergences with max change in pressure is 1 Pa.
+END
+
+LINEAR_SOLVER FLOW
+END
+
+NEWTON_SOLVER TRANSPORT
+END
+
+LINEAR_SOLVER TRANSPORT
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 40 21 20
+  BOUNDS
+    0.d0 0.d0 0.d0
+    2000.d0 1000.d0 100.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d2 y
+  INITIAL_TIMESTEP_SIZE 1.d-6 y
+  MAXIMUM_TIMESTEP_SIZE 1. y at 1. y
+END
+
+#=========================== output options ===================================
+OUTPUT
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+  /
+  MASS_BALANCE_FILE
+    PERIODIC TIMESTEP 1
+  /
+  SNAPSHOT_FILE
+    FORMAT HDF5
+    PRINT_COLUMN_IDS
+    PERIODIC TIME 5. y between 0. y and 100. y
+  /
+  VELOCITY_AT_CENTER
+  VARIABLES
+    MATERIAL_ID_KLUDGE_FOR_VISIT
+    LIQUID_SATURATION
+    LIQUID_PRESSURE
+    LIQUID_DENSITY
+  /
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION well_obs
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY aquitard
+  ID 1
+  POROSITY 0.20d0
+  TORTUOSITY 0.11d0
+  ROCK_DENSITY 2650.
+  CHARACTERISTIC_CURVES cc1
+  PERMEABILITY
+    PERM_ISO 1.d-15
+  /
+END
+
+MATERIAL_PROPERTY aquifer
+  ID 2
+  POROSITY 0.35d0
+  TORTUOSITY 0.15d0
+  ROCK_DENSITY 2650.
+  CHARACTERISTIC_CURVES cc1
+  PERMEABILITY
+    PERM_ISO 1.d-11
+    VERTICAL_ANISOTROPY_RATIO 0.1
+  /
+END
+
+MATERIAL_PROPERTY overburden
+  ID 3
+  POROSITY 0.25
+  TORTUOSITY 0.2d0
+  ROCK_DENSITY 2650.
+  CHARACTERISTIC_CURVES cc1
+  PERMEABILITY
+    PERM_ISO 1.d-13
+  /
+END
+
+#=========================== saturation functions =============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA  1.d-4
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    MAX_CAPILLARY_PRESSURE 1.d8
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+REFERENCE_PRESSURE 101325.d0
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20 ! very large volume
+     1.d20  1.d20  1.d20 ! nothing will be left out
+  /
+END
+
+REGION east
+  FACE east
+  COORDINATES
+    2000.d0 0.d0 0.d0
+    2000.d0 1000.d0 100.d0
+  /
+END
+
+REGION west
+  FACE west
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1000.d0 100.d0
+  /
+END
+
+REGION top 
+  FACE top
+  COORDINATES
+    0.d0 0.d0 100.d0
+    2000.d0 1000.d0 100.d0
+  /
+END
+
+REGION layer1
+  COORDINATES
+    0.d0 0.d0 0.d0
+    2000.d0 1000.d0 50.d0
+  /
+END
+
+REGION aquifer
+  COORDINATES
+    0.d0 0.d0 50.d0
+    2000.d0 1000.d0 70.d0
+  /
+END
+
+REGION layer3
+  COORDINATES
+    0.d0 0.d0 70.d0
+    2000.d0 1000.d0 100.d0
+  /
+END
+
+REGION kryptonite_deposit
+  COORDINATES
+    100.d0 250.d0 50.d0
+    200.d0 750.d0 70.d0
+ /
+END
+
+REGION well
+  COORDINATES
+    1500.d0 500.d0 50.d0 ! if line falls on cell edge
+    1500.d0 500.d0 70.d0 ! grab upwind cells
+  /
+END
+
+REGION well_obs
+  COORDINATE 1500.d0 500.d0 60.d0 ! grab upwind cells
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE HYDROSTATIC
+  /
+  DATUM 0.d0 0.d0 190.d0 ! will have unsaturated zone
+  GRADIENT
+    PRESSURE -0.0023 0. 0. ! m/m
+  /
+  PRESSURE 101325.d0
+END
+
+FLOW_CONDITION recharge
+  TYPE
+    FLUX NEUMANN
+  /
+  FLUX 0.11 m/yr
+END
+
+FLOW_CONDITION extraction
+  TYPE
+    RATE SCALED_VOLUMETRIC_RATE NEIGHBOR_PERM
+  /
+  RATE -2.1d0 m^3/day
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION background_conc
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT initial
+    CONCENTRATIONS
+      KrA(aq) 1.d-10 T
+      KrB(aq) 1.d-10 T
+      KrC(aq) 1.d-10 T
+    /
+    MINERALS
+      Kryptonite(s) 0.d0 1.d0 m^2/m^3
+      KrB(s)        0.d0 1.d0 m^2/m^3
+    /
+  /
+END
+
+TRANSPORT_CONDITION kryptonite_deposit
+  TYPE DIRICHLET
+  CONSTRAINT kryptonite_deposit
+    CONCENTRATIONS
+      KrA(aq) 1.d-10 T
+      KrB(aq) 1.d-10 T
+      KrC(aq) 1.d-10 T
+    /
+    MINERALS
+      Kryptonite(s) 9.5d-1 1.d0 m^2/m^3
+      KrB(s)        0.d0 1.d0 m^2/m^3
+    /
+  /
+END
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION background_conc
+  REGION all
+END
+
+INITIAL_CONDITION ! overwrites preceding
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION kryptonite_deposit
+  REGION kryptonite_deposit
+END
+
+BOUNDARY_CONDITION outlet
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION background_conc
+  REGION east
+END
+
+BOUNDARY_CONDITION inlet
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION background_conc
+  REGION west
+END
+
+BOUNDARY_CONDITION recharge
+  FLOW_CONDITION recharge
+  TRANSPORT_CONDITION background_conc
+  REGION top
+END
+
+SOURCE_SINK extraction_well
+  FLOW_CONDITION extraction
+  TRANSPORT_CONDITION background_conc
+  REGION well
+END
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL aquifer
+END
+
+STRATA ! overwrites preceding
+  REGION layer1
+  MATERIAL aquitard
+END
+
+STRATA ! overwrites preceding
+  REGION layer3
+  MATERIAL overburden
+END
+
+END_SUBSURFACE
+
