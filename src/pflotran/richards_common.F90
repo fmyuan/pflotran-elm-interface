@@ -79,7 +79,7 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
   if (soil_compressibility_index > 0) then
     tempreal = global_auxvar%sat(1)*global_auxvar%den(1)
     call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1), &
-                              compressed_porosity,dcompressed_porosity_dp)
+                                 compressed_porosity,dcompressed_porosity_dp)
     por = compressed_porosity
     derivative = derivative + dcompressed_porosity_dp * tempreal
   endif
@@ -151,14 +151,14 @@ subroutine RichardsAccumulation(rich_auxvar,global_auxvar, &
        
   vol_over_dt = material_auxvar%volume/option%flow_dt
   por = material_auxvar%porosity
- 
+  
   if (soil_compressibility_index > 0) then
     call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1), &
                               compressed_porosity,dcompressed_porosity_dp)
     material_auxvar%porosity = compressed_porosity
     por = compressed_porosity
   endif
-
+    
   ! accumulation term units = kmol/s
   Res(1) = global_auxvar%sat(1) * global_auxvar%den(1) * por * &
            vol_over_dt
