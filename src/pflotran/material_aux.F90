@@ -37,8 +37,7 @@ module Material_Aux_class
     PetscReal, pointer :: sat_func_prop(:)
     PetscReal, pointer :: soil_properties(:) ! den, therm. cond., heat cap.
     type(fracture_auxvar_type), pointer :: fracture
-    type(geomechanics_subsurf_auxvar_type), pointer :: & 
-      geomechanics_subsurface_properties
+    PetscReal, pointer :: geomechanics_subsurface_prop(:)
     PetscInt :: creep_closure_id
 
 !    procedure(SaturationFunction), nopass, pointer :: SaturationFunction
@@ -53,11 +52,7 @@ module Material_Aux_class
     PetscReal :: properties(4)
     PetscReal :: vector(3) ! < 0. 0. 0. >
   end type fracture_auxvar_type
-  
-  type, public :: geomechanics_subsurf_auxvar_type
-    PetscReal, pointer :: properties(:)
-  end type geomechanics_subsurf_auxvar_type
-  
+ 
   type, public :: material_parameter_type
     PetscReal, pointer :: soil_residual_saturation(:,:)
     PetscReal, pointer :: soil_heat_capacity(:) ! MJ/kg rock-K

@@ -56,12 +56,12 @@ function GeomechanicsSubsurfacePropsCreate()
   class(geomechanics_subsurface_properties_type), pointer :: &  
     GeomechanicsSubsurfacePropsCreate
   class(geomechanics_subsurface_properties_type), pointer :: &
-    geomechanics_subsurface_properties
+    this 
   
-  allocate(geomechanics_subsurface_properties)
-  call GeomechanicsSubsurfacePropsInit(geomechanics_subsurface_properties)
+  allocate(this)
+  call GeomechanicsSubsurfacePropsInit(this)
   
-  GeomechanicsSubsurfacePropsCreate => geomechanics_subsurface_properties 
+  GeomechanicsSubsurfacePropsCreate => this 
   
 end function GeomechanicsSubsurfacePropsCreate
 
@@ -81,13 +81,16 @@ subroutine GeomechanicsSubsurfacePropsInit(this)
   this%Bandis_A = UNINITIALIZED_DOUBLE
   this%Bandis_B = UNINITIALIZED_DOUBLE
   this%maximum_aperture = UNINITIALIZED_DOUBLE
+  this%normal_vector_x = UNINITIALIZED_DOUBLE
+  this%normal_vector_y = UNINITIALIZED_DOUBLE
+  this%normal_vector_z = UNINITIALIZED_DOUBLE
 
 end subroutine GeomechanicsSubsurfacePropsInit
 
 ! ************************************************************************** !
 
 subroutine GeomechanicsSubsurfacePropsAuxvarInit( &
-                                      geomechanics_subsurface_properties,auxvar)
+                                      this,auxvar)
   !
   ! Author: Satish Karra
   ! Date: 07/29/16
@@ -98,19 +101,17 @@ subroutine GeomechanicsSubsurfacePropsAuxvarInit( &
   implicit none
   
   class(geomechanics_subsurface_properties_type), pointer :: &
-    geomechanics_subsurface_properties                    
+    this 
   class(material_auxvar_type), intent(inout) :: auxvar    
    
-  allocate(auxvar%geomechanics_subsurface_properties)
-  allocate(auxvar%geomechanics_subsurface_properties%properties(7))
-  auxvar%geomechanics_subsurface_properties%properties = 0.d0
+  allocate(auxvar%geomechanics_subsurface_prop(7))
+  auxvar%geomechanics_subsurface_prop = 0.d0
 
 end subroutine GeomechanicsSubsurfacePropsAuxvarInit
 
 ! ************************************************************************** !
 
-subroutine GeomechanicsSubsurfacePropsPropertytoAux(auxvar, &
-                                            geomechanics_subsurface_properties)
+subroutine GeomechanicsSubsurfacePropsPropertytoAux(auxvar,this)
   !
   ! Author: Satish Karra
   ! Date: 07/29/16
@@ -124,42 +125,39 @@ subroutine GeomechanicsSubsurfacePropsPropertytoAux(auxvar, &
 
   class(material_auxvar_type), intent(inout) :: auxvar
   class(geomechanics_subsurface_properties_type), pointer :: &
-    geomechanics_subsurface_properties
+    this 
   type(option_type) :: option
  
-  auxvar%geomechanics_subsurface_properties%properties(Bandis_A_index) = &
-    geomechanics_subsurface_properties%Bandis_A  
-  auxvar%geomechanics_subsurface_properties%properties(Bandis_B_index) = &
-    geomechanics_subsurface_properties%Bandis_B
-  auxvar%geomechanics_subsurface_properties% &
-    properties(maximum_aperture_index) = &
-    geomechanics_subsurface_properties%maximum_aperture
+  auxvar%geomechanics_subsurface_prop(Bandis_A_index) = &
+    this%Bandis_A  
+  auxvar%geomechanics_subsurface_prop(Bandis_B_index) = &
+    this%Bandis_B
+  auxvar%geomechanics_subsurface_prop(maximum_aperture_index) = &
+    this%maximum_aperture
 
   ! Normal vector to the fracture/fault plane
-  auxvar%geomechanics_subsurface_properties%properties(normal_vector_x_index) = &
-    geomechanics_subsurface_properties%normal_vector_x
-  auxvar%geomechanics_subsurface_properties%properties(normal_vector_y_index) = &
-    geomechanics_subsurface_properties%normal_vector_y
-  auxvar%geomechanics_subsurface_properties%properties(normal_vector_z_index) = &
-    geomechanics_subsurface_properties%normal_vector_z
+  auxvar%geomechanics_subsurface_prop(normal_vector_x_index) = &
+    this%normal_vector_x
+  auxvar%geomechanics_subsurface_prop(normal_vector_y_index) = &
+    this%normal_vector_y
+  auxvar%geomechanics_subsurface_prop(normal_vector_z_index) = &
+    this%normal_vector_z
   
   ! set the model index
-  call StringToUpper(geomechanics_subsurface_properties% &
-    geomechanical_compressibility_function)
-  select case(geomechanics_subsurface_properties% &
-    geomechanical_compressibility_function)
+  call StringToUpper(this%geomechanical_compressibility_function)
+  select case(this%geomechanical_compressibility_function)
     case ('BANDIS')
-      auxvar%geomechanics_subsurface_properties% &
-        properties(model_index) = BANDIS_MODEL
+      auxvar%geomechanics_subsurface_prop(model_index) = &
+        BANDIS_MODEL
     case ('LINEAR')
-      auxvar%geomechanics_subsurface_properties% &
-        properties(model_index) = LINEAR_MODEL
+      auxvar%geomechanics_subsurface_prop(model_index) = &
+        LINEAR_MODEL
     case ('TURNER')
-      auxvar%geomechanics_subsurface_properties% &
-        properties(model_index) = TURNER_MODEL
+      auxvar%geomechanics_subsurface_prop(model_index) = &
+        TURNER_MODEL
     case default
-      auxvar%geomechanics_subsurface_properties% &
-        properties(model_index) = LINEAR_MODEL
+      auxvar%geomechanics_subsurface_prop(model_index) = &
+        LINEAR_MODEL
   end select
  
 end subroutine GeomechanicsSubsurfacePropsPropertytoAux
@@ -267,10 +265,7 @@ subroutine GeomechanicsSubsurfacePropsPoroEvaluate(grid, &
   PetscReal :: normal_vector_x, normal_vector_y, normal_vector_z
   PetscInt :: model_id
 
-  if (associated(auxvar%geomechanics_subsurface_properties)) then
-    model_id = auxvar%geomechanics_subsurface_properties% &
-      properties(model_index)
-  endif
+  model_id = int(auxvar%geomechanics_subsurface_prop(model_index))
 
   if (model_id == 0) then
     model_id = LINEAR_MODEL ! set linear model by default if nothing is specified in the input file
@@ -278,17 +273,12 @@ subroutine GeomechanicsSubsurfacePropsPoroEvaluate(grid, &
         
   select case(model_id)
     case(BANDIS_MODEL)
-      Bandis_A = auxvar%geomechanics_subsurface_properties%properties(Bandis_A_index)
-      Bandis_B = auxvar%geomechanics_subsurface_properties% &
-        properties(Bandis_B_index)
-      maximum_aperture = auxvar%geomechanics_subsurface_properties% &
-        properties(maximum_aperture_index)
-      normal_vector_x = auxvar%geomechanics_subsurface_properties% &
-        properties(normal_vector_x_index)
-      normal_vector_y = auxvar%geomechanics_subsurface_properties% &
-        properties(normal_vector_y_index)
-      normal_vector_z = auxvar%geomechanics_subsurface_properties% &
-        properties(normal_vector_z_index)
+      Bandis_A = auxvar%geomechanics_subsurface_prop(Bandis_A_index)
+      Bandis_B = auxvar%geomechanics_subsurface_prop(Bandis_B_index)
+      maximum_aperture = auxvar%geomechanics_subsurface_prop(maximum_aperture_index)
+      normal_vector_x = auxvar%geomechanics_subsurface_prop(normal_vector_x_index)
+      normal_vector_y = auxvar%geomechanics_subsurface_prop(normal_vector_y_index)
+      normal_vector_z = auxvar%geomechanics_subsurface_prop(normal_vector_z_index)
       call GeomechanicsSubsurfaceBandisPoroEvaluate(grid,porosity_before, &
         local_stress,local_strain,local_pressure, &
         Bandis_A,Bandis_B,maximum_aperture,normal_vector_x,normal_vector_y, &
@@ -436,10 +426,7 @@ subroutine GeomechanicsSubsurfacePropsPermEvaluate(grid, &
   PetscReal :: normal_vector_x, normal_vector_y, normal_vector_z
   PetscInt :: model_id
   
-  if (associated(auxvar%geomechanics_subsurface_properties)) then
-    model_id = auxvar%geomechanics_subsurface_properties% &
-      properties(model_index)
-  endif
+  model_id = int(auxvar%geomechanics_subsurface_prop(model_index))
 
   if (model_id == 0) then
     model_id = LINEAR_MODEL ! set linear model by default if nothing is specified in the input file
@@ -447,18 +434,12 @@ subroutine GeomechanicsSubsurfacePropsPermEvaluate(grid, &
     
   select case(model_id)
     case(BANDIS_MODEL)
-      Bandis_A = auxvar%geomechanics_subsurface_properties% &
-        properties(Bandis_A_index)
-      Bandis_B = auxvar%geomechanics_subsurface_properties% &
-        properties(Bandis_B_index)
-      maximum_aperture = auxvar%geomechanics_subsurface_properties% &
-        properties(maximum_aperture_index)
-      normal_vector_x = auxvar%geomechanics_subsurface_properties% &
-        properties(normal_vector_x_index)
-      normal_vector_y = auxvar%geomechanics_subsurface_properties% &
-        properties(normal_vector_y_index)
-      normal_vector_z = auxvar%geomechanics_subsurface_properties% &
-        properties(normal_vector_z_index)
+      Bandis_A = auxvar%geomechanics_subsurface_prop(Bandis_A_index)
+      Bandis_B = auxvar%geomechanics_subsurface_prop(Bandis_B_index)
+      maximum_aperture = auxvar%geomechanics_subsurface_prop(maximum_aperture_index)
+      normal_vector_x = auxvar%geomechanics_subsurface_prop(normal_vector_x_index)
+      normal_vector_y = auxvar%geomechanics_subsurface_prop(normal_vector_y_index)
+      normal_vector_z = auxvar%geomechanics_subsurface_prop(normal_vector_z_index)
       call GeomechanicsSubsurfaceBandisPermEvaluate(grid,permeability_before, &
         local_stress,local_strain,local_pressure, &
         Bandis_A,Bandis_B,maximum_aperture,normal_vector_x,normal_vector_y, &
