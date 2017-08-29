@@ -63,6 +63,7 @@ CHEMISTRY
     KrA(aq) ! conservative species, no precipitation, no sorbtion
     KrB(aq) ! species that precipitates
     KrC(aq) ! species that sorbs
+    I129(aq) ! anthropogenic iodine in rain
   /
   MINERALS
     Kryptonite(s)
@@ -76,12 +77,10 @@ CHEMISTRY
       RATE_CONSTANT 1.d-6 mol/m^2-sec
     /
   /
-skip
   RADIOACTIVE_DECAY_REACTION ! see documentation.pflotran.org
-    REACTION KrB(aq) -> ! We don't care about the daughter
-    HALF_LIFE 1.d1 y
+    REACTION I129(aq) -> ! We don't care about the daughter
+    HALF_LIFE 1.57d7 y
   /
-noskip
   SORPTION
     ISOTHERM_REACTIONS ! see documentation.pflotran.org
       KrC(aq)
@@ -118,10 +117,10 @@ END
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED
-  NXYZ 40 21 20
+  NXYZ 50 1 40
   BOUNDS
-    0.d0 0.d0 0.d0
-    2000.d0 1000.d0 100.d0
+    0.d0    0.d0 0.d0
+    2000.d0 1.d0 800.d0
   /
 END
 
@@ -132,7 +131,7 @@ END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 1.d2 y
+  FINAL_TIME 1.2d2 y
   INITIAL_TIMESTEP_SIZE 1.d-6 y
   MAXIMUM_TIMESTEP_SIZE 1. y at 1. y
 END
@@ -147,8 +146,9 @@ OUTPUT
   /
   SNAPSHOT_FILE
     FORMAT HDF5
+    FORMAT VTK
     PRINT_COLUMN_IDS
-    PERIODIC TIME 5. y between 0. y and 100. y
+    PERIODIC TIME 5. y between 0. y and 120. y
   /
   VELOCITY_AT_CENTER
   VARIABLES
@@ -165,14 +165,15 @@ OBSERVATION
 END
 
 #=========================== material properties ==============================
-MATERIAL_PROPERTY aquitard
+MATERIAL_PROPERTY well_screen
   ID 1
-  POROSITY 0.20d0
-  TORTUOSITY 0.11d0
+  POROSITY 0.35d0
+  TORTUOSITY 0.15d0
   ROCK_DENSITY 2650.
   CHARACTERISTIC_CURVES cc1
   PERMEABILITY
-    PERM_ISO 1.d-15
+    PERM_ISO 1.d-11
+    VERTICAL_ANISOTROPY_RATIO 0.1
   /
 END
 
@@ -195,7 +196,7 @@ MATERIAL_PROPERTY overburden
   ROCK_DENSITY 2650.
   CHARACTERISTIC_CURVES cc1
   PERMEABILITY
-    PERM_ISO 1.d-13
+    PERM_ISO 1.d-14
   /
 END
 
@@ -226,7 +227,7 @@ REGION east
   FACE east
   COORDINATES
     2000.d0 0.d0 0.d0
-    2000.d0 1000.d0 100.d0
+    2000.d0 1.d0 800.d0
   /
 END
 
@@ -234,55 +235,48 @@ REGION west
   FACE west
   COORDINATES
     0.d0 0.d0 0.d0
-    0.d0 1000.d0 100.d0
+    0.d0 1.d0 800.d0
   /
 END
 
 REGION top 
   FACE top
   COORDINATES
-    0.d0 0.d0 100.d0
-    2000.d0 1000.d0 100.d0
+    0.d0    0.d0 800.d0
+    2000.d0 1.d0 800.d0
   /
 END
 
-REGION layer1
+REGION overburden_layer
   COORDINATES
-    0.d0 0.d0 0.d0
-    2000.d0 1000.d0 50.d0
+    0.d0    0.d0 600.d0
+    2000.d0 1.d0 800.d0
   /
 END
 
 REGION aquifer
   COORDINATES
-    0.d0 0.d0 50.d0
-    2000.d0 1000.d0 70.d0
-  /
-END
-
-REGION layer3
-  COORDINATES
-    0.d0 0.d0 70.d0
-    2000.d0 1000.d0 100.d0
+    0.d0    0.d0 0.d0
+    2000.d0 1.d0 600.d0
   /
 END
 
 REGION kryptonite_deposit
   COORDINATES
-    100.d0 250.d0 50.d0
-    200.d0 750.d0 70.d0
+    200.d0 0.d0 200.d0
+    300.d0 1.d0 300.d0
  /
 END
 
 REGION well
   COORDINATES
-    1500.d0 500.d0 50.d0 ! if line falls on cell edge
-    1500.d0 500.d0 70.d0 ! grab upwind cells
+    1499.d0 0.d0 410.d0 
+    1500.d0 1.d0 430.d0 
   /
 END
 
 REGION well_obs
-  COORDINATE 1500.d0 500.d0 60.d0 ! grab upwind cells
+  COORDINATE 1499.5d0 0.5d0 420.d0
 END
 
 #=========================== flow conditions ==================================
@@ -290,7 +284,7 @@ FLOW_CONDITION initial
   TYPE
     PRESSURE HYDROSTATIC
   /
-  DATUM 0.d0 0.d0 190.d0 ! will have unsaturated zone
+  DATUM 0.d0 0.d0 800.d0 
   GRADIENT
     PRESSURE -0.0023 0. 0. ! m/m
   /
@@ -301,14 +295,14 @@ FLOW_CONDITION recharge
   TYPE
     FLUX NEUMANN
   /
-  FLUX 0.11 m/yr
+  FLUX 0.21 m/yr
 END
 
 FLOW_CONDITION extraction
   TYPE
     RATE SCALED_VOLUMETRIC_RATE NEIGHBOR_PERM
   /
-  RATE -2.1d0 m^3/day
+  RATE -6.1d0 m^3/day
 END
 
 #=========================== transport conditions =============================
@@ -319,6 +313,23 @@ TRANSPORT_CONDITION background_conc
       KrA(aq) 1.d-10 T
       KrB(aq) 1.d-10 T
       KrC(aq) 1.d-10 T
+      I129(aq) 1.d-20 T
+    /
+    MINERALS
+      Kryptonite(s) 0.d0 1.d0 m^2/m^3
+      KrB(s)        0.d0 1.d0 m^2/m^3
+    /
+  /
+END
+
+TRANSPORT_CONDITION rain
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT rain
+    CONCENTRATIONS
+      KrA(aq) 1.d-10 T
+      KrB(aq) 1.d-10 T
+      KrC(aq) 1.d-10 T
+      I129(aq) 1.64d-8 T
     /
     MINERALS
       Kryptonite(s) 0.d0 1.d0 m^2/m^3
@@ -334,6 +345,7 @@ TRANSPORT_CONDITION kryptonite_deposit
       KrA(aq) 1.d-10 T
       KrB(aq) 1.d-10 T
       KrC(aq) 1.d-10 T
+      I129(aq) 1.d-20 T
     /
     MINERALS
       Kryptonite(s) 9.5d-1 1.d0 m^2/m^3
@@ -369,7 +381,7 @@ END
 
 BOUNDARY_CONDITION recharge
   FLOW_CONDITION recharge
-  TRANSPORT_CONDITION background_conc
+  TRANSPORT_CONDITION rain
   REGION top
 END
 
@@ -385,13 +397,13 @@ STRATA
 END
 
 STRATA ! overwrites preceding
-  REGION layer1
-  MATERIAL aquitard
+  REGION overburden_layer
+  MATERIAL overburden
 END
 
 STRATA ! overwrites preceding
-  REGION layer3
-  MATERIAL overburden
+  REGION well
+  MATERIAL well_screen
 END
 
 END_SUBSURFACE

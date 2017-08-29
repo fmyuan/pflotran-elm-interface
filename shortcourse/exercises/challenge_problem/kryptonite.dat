@@ -2,6 +2,7 @@
 'KrA(aq)' 3.0 0.0 1.
 'KrB(aq)' 3.0 0.0 1.
 'KrC(aq)' 3.0 0.0 1.
+'I129(aq)' 3.0 0.0 1.
 'null' ! aqueous complexes
 'null' ! gasses
 'null' ! minerals
