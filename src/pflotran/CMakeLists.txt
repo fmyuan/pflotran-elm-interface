@@ -448,6 +448,7 @@ set(GEOMECH_SOURCES
 	geomechanics_region.F90
 	geomechanics_regression.F90
 	geomechanics_strata.F90
+        geomechanics_subsurface_properties.F90
 	output_geomechanics.F90
 	pm_geomechanics_force.F90
 	pmc_geomechanics.F90
