@@ -247,6 +247,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   use WIPP_module
   use Creep_Closure_module
   use Fracture_module
+  use Geomechanics_Subsurface_Properties_module
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, PERMEABILITY_XY, &
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
@@ -285,7 +286,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscInt :: tempint
   PetscReal :: tempreal
   PetscErrorCode :: ierr
-  
+  PetscViewer :: viewer
+
   option => realization%option
   discretization => realization%discretization
   field => realization%field
@@ -323,6 +325,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
     if (material_id > 0) then
       material_property => &
         patch%material_property_array(material_id)%ptr
+      
+    call GeomechanicsSubsurfacePropsAuxvarInit( &
+          material_property%geomechanics_subsurface_properties, &
+          patch%aux%Material%auxvars(ghosted_id))
         
       ! lookup creep closure table id from creep closure table name
       if (option%flow%creep_closure_on) then
@@ -509,7 +515,18 @@ subroutine InitSubsurfAssignMatProperties(realization)
     call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
   enddo
 
-  
+  if (option%geomech_on) then
+    call VecCopy(field%porosity0,field%porosity_geomech_store,ierr);CHKERRQ(ierr)
+#ifdef GEOMECH_DEBUG
+    print *, 'InitSubsurfAssignMatProperties'
+    call PetscViewerASCIIOpen(realization%option%mycomm, &
+                              'porosity_geomech_store_por0.out', &
+                              viewer,ierr);CHKERRQ(ierr)
+    call VecView(field%porosity_geomech_store,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+  endif
+
 end subroutine InitSubsurfAssignMatProperties
 
 ! ************************************************************************** !

@@ -371,6 +371,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   PetscInt, pointer :: int_ptr(:)
   IS :: is_geomech_petsc_block
   IS :: is_subsurf_petsc_block
+  PetscInt :: size_int_ptr
 
   geomech_grid => geomech_realization%geomech_discretization%grid
   grid => realization%discretization%grid
@@ -471,6 +472,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   call ISDuplicate(is_geomech,is_geomech_petsc,ierr);CHKERRQ(ierr)
   call ISCopy(is_geomech,is_geomech_petsc,ierr);CHKERRQ(ierr)
 
+  ! natural ordering of the geomech nodes
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm,'geomech_is_geomech_petsc.out', &
                             viewer,ierr);CHKERRQ(ierr)
@@ -479,6 +481,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
 #endif
 
   ! Now calculate the petsc ordering of the mapped geomech nodes
+  ! from natural ordering
   call AOApplicationToPetscIS(geomech_grid%ao_natural_to_petsc_nodes, &
                               is_geomech_petsc,ierr);CHKERRQ(ierr)
                               
@@ -521,13 +524,14 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   
   ! Geomech to subsurf scatter
   
-  allocate(int_array(grid%nlmax))
   call ISGetIndicesF90(is_geomech_petsc,int_ptr,ierr);CHKERRQ(ierr)
-  do local_id = 1, grid%nlmax
+  size_int_ptr = size(int_ptr)
+  allocate(int_array(size_int_ptr))
+  do local_id = 1, size_int_ptr
     int_array(local_id) = int_ptr(local_id)
   enddo  
   call ISRestoreIndicesF90(is_geomech_petsc,int_ptr,ierr);CHKERRQ(ierr)
-  call ISCreateBlock(option%mycomm,SIX_INTEGER,grid%nlmax, &
+  call ISCreateBlock(option%mycomm,SIX_INTEGER,size_int_ptr, &
                      int_array,PETSC_COPY_VALUES,is_geomech_petsc_block, &
                      ierr);CHKERRQ(ierr)
   deallocate(int_array)
@@ -540,13 +544,14 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif 
 
-  allocate(int_array(grid%nlmax))
-  call ISGetIndicesF90(is_subsurf_petsc,int_ptr,ierr);CHKERRQ(ierr)
-  do local_id = 1, grid%nlmax
+  call ISGetIndicesF90(is_subsurf,int_ptr,ierr);CHKERRQ(ierr)
+  size_int_ptr = size(int_ptr)
+  allocate(int_array(size_int_ptr))
+  do local_id = 1, size_int_ptr
     int_array(local_id) = int_ptr(local_id)
   enddo  
-  call ISRestoreIndicesF90(is_subsurf_petsc,int_ptr,ierr);CHKERRQ(ierr)
-  call ISCreateBlock(option%mycomm,SIX_INTEGER,grid%nlmax, &
+  call ISRestoreIndicesF90(is_subsurf,int_ptr,ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,SIX_INTEGER,size_int_ptr, &
                      int_array,PETSC_COPY_VALUES,is_subsurf_petsc_block, &
                      ierr);CHKERRQ(ierr)
   deallocate(int_array)

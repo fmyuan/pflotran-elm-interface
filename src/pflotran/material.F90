@@ -7,6 +7,7 @@ module Material_module
   use PFLOTRAN_Constants_module
   use Material_Aux_class
   use Fracture_module
+  use Geomechanics_Subsurface_Properties_module
 
   implicit none
 
@@ -52,6 +53,9 @@ module Material_module
     class(dataset_base_type), pointer :: soil_reference_pressure_dataset
 !    character(len=MAXWORDLENGTH) :: compressibility_dataset_name
     class(dataset_base_type), pointer :: compressibility_dataset
+
+    class(geomechanics_subsurface_properties_type), pointer :: &
+         geomechanics_subsurface_properties
 
     ! ice properties
     PetscReal :: thermal_conductivity_frozen
@@ -173,6 +177,7 @@ function MaterialPropertyCreate()
   material_property%alpha = 0.45d0
 
   nullify(material_property%fracture)
+  nullify(material_property%geomechanics_subsurface_properties)
   
   material_property%creep_closure_id = 1 ! one is the index to a null pointer
   material_property%creep_closure_name = ''
@@ -230,7 +235,9 @@ subroutine MaterialPropertyRead(material_property,input,option)
   use Input_Aux_module
   use String_module
   use Fracture_module
+  use Geomechanics_Subsurface_Properties_module
   use Dataset_module
+  use Units_module
   
   implicit none
   
@@ -401,6 +408,14 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call DatasetReadDoubleOrDataset(input,material_property%tortuosity, &
                                         material_property%tortuosity_dataset, &
                                         'tortuosity','MATERIAL_PROPERTY',option)
+      case('GEOMECHANICS_SUBSURFACE_PROPS')
+        ! Changes the subsurface props (perm/porosity) due to changes in
+        ! geomechanical stresses and strains
+        material_property%geomechanics_subsurface_properties => &
+          GeomechanicsSubsurfacePropsCreate()
+        call material_property%geomechanics_subsurface_properties% &
+          Read(input,option)
+        option%flow%transient_porosity = PETSC_TRUE
       case('TORTUOSITY_FUNCTION_OF_POROSITY')
         material_property%tortuosity_function_of_porosity = PETSC_TRUE
         material_property%tortuosity = UNINITIALIZED_DOUBLE
@@ -1351,6 +1366,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
           MaterialCompressSoilPtrTmp => MaterialCompressSoilQuadratic
         case('LEIJNSE','DEFAULT')
           MaterialCompressSoilPtrTmp => MaterialCompressSoilLeijnse
+        case('CONSTANT')
+          MaterialCompressSoilPtrTmp => MaterialCompressSoilConstant
         case default
           option%io_buffer = 'Soil compressibility function "' // &
             trim(material_property_ptrs(i)%ptr% &
@@ -1455,6 +1472,11 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
   if (Initialized(material_property%rock_density)) then
     material_auxvar%soil_particle_density = &
       material_property%rock_density
+  endif
+  
+  if (associated(material_property%geomechanics_subsurface_properties)) then
+    call GeomechanicsSubsurfacePropsPropertytoAux(material_auxvar, &
+      material_property%geomechanics_subsurface_properties)
   endif
   
   call FracturePropertytoAux(material_auxvar%fracture, &

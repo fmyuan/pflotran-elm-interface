@@ -518,6 +518,7 @@ subroutine PMRichardsTimeCut(this)
   
   call PMSubsurfaceFlowTimeCut(this)
   call RichardsTimeCut(this%realization)
+  call PMSubsurfaceFlowTimeCutPostInit(this)
 
 end subroutine PMRichardsTimeCut
 
