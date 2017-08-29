@@ -1367,7 +1367,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
         case('LEIJNSE','DEFAULT')
           MaterialCompressSoilPtrTmp => MaterialCompressSoilLeijnse
         case('CONSTANT')
-          MaterialCompressSoilPtrTmp => MaterialCompressSoilConstant
+          MaterialCompressSoilPtrTmp => MaterialCompressSoilLinear
         case default
           option%io_buffer = 'Soil compressibility function "' // &
             trim(material_property_ptrs(i)%ptr% &

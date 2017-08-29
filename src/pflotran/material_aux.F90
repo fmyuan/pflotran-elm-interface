@@ -93,7 +93,7 @@ module Material_Aux_class
             MaterialCompressSoilBragflo, &
             MaterialCompressSoilPoroExp, &
             MaterialCompressSoilLeijnse, &
-            MaterialCompressSoilConstant, &
+            MaterialCompressSoilLinear, &
             MaterialCompressSoilQuadratic
   
   public :: MaterialAuxCreate, &
@@ -424,9 +424,9 @@ end subroutine MaterialCompressSoilBRAGFLO
 
 ! ************************************************************************** !
 
-subroutine MaterialCompressSoilConstant(auxvar,pressure, &
-                                        compressed_porosity, &
-                                        dcompressed_porosity_dp)
+subroutine MaterialCompressSoilLinear(auxvar,pressure, &
+                                      compressed_porosity, &
+                                      dcompressed_porosity_dp)
   ! 
   ! Calculates soil matrix compression for standard constant 
   ! aquifer compressibility
@@ -451,7 +451,7 @@ subroutine MaterialCompressSoilConstant(auxvar,pressure, &
             (pressure - auxvar%soil_properties(soil_reference_pressure_index)) 
   dcompressed_porosity_dp = compressibility
 
-end subroutine MaterialCompressSoilConstant
+end subroutine MaterialCompressSoilLinear
 
 ! ************************************************************************** !
 
