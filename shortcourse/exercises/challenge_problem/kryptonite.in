@@ -24,7 +24,36 @@
 # When should Superman stop drinking from the well if he wants to avoid
 # damage from KrA, KrB, and KrC?
 #
+# After the kryptonite deposit dissolves completely, Superman will no
+# longer have to worry about his well water. 
+# At what time does kryptonite(s) completely dissolve? 
+# When does the concentration of KrA at the well drop below 1e-3 M?
+# Why does dissolved KrB remain above 1e-3 M for a longer time?
+#
+# Superman isn't affected by I129, but the rest of us are. Regular people
+# should avoid drinking water with concentrations greater than about 1e-9 M.
+# Is it okay for a person to drink water from Superman's well?
+# 
 # BONUS #1
+# Time steps or grid cells that are too large can cause numerical dispersion.
+# Does decreasing MAXIMUM_TIMESTEP_SIZE affect your answers?
+# Does decreasing the size of grid cells affect your answers?
+# 
+# BONUS #2
+# Play with increasing the recharge at the top boundary and decreasing
+# the pressure gradient from west to east until Superman doesn't have to 
+# worry about his drinking water. What combinations of the two prevent
+# kryptonite from reaching the well?
+#
+# BONUS #3
+# Use DXYZ instead of BOUNDS in the GRID block to discretize a 1 m wide well
+# that extends from x = 1499. to 1500. and y = 399. to 400. m
+#
+# BONUS #4
+# Modify the HYDROSTATIC initial condition to create a 20 m thick unsaturated
+# zone at the top of the model domain. Hint - use the DATUM.
+#
+# BONUS #5
 # Make the number of grid cells the same as in 
 # regional_doublet/stochastic_regional_doublet.in,
 # and try one or more heterogeneous permeability fields from that problem for 
@@ -32,7 +61,7 @@
 # simulation: mpirun -n 8 pflotran -input_prefix kryptonite)
 # How does heterogeneity in the aquifer affect your advice to Superman?
 #
-# BONUS #2
+# BONUS #6
 # Set this problem up in TH mode and make REGION kryptonite_deposit a heat
 # source that decays with time. You choose the wattage.
 # Hint - see geologic_disposal/gdsa.in for 
@@ -117,10 +146,10 @@ END
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED
-  NXYZ 50 1 40
+  NXYZ 50 5 40
   BOUNDS
     0.d0    0.d0 0.d0
-    2000.d0 1.d0 800.d0
+    2000.d0 200.d0 800.d0
   /
 END
 
@@ -131,7 +160,7 @@ END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 1.2d2 y
+  FINAL_TIME 1.5d2 y
   INITIAL_TIMESTEP_SIZE 1.d-6 y
   MAXIMUM_TIMESTEP_SIZE 1. y at 1. y
 END
@@ -148,7 +177,7 @@ OUTPUT
     FORMAT HDF5
     FORMAT VTK
     PRINT_COLUMN_IDS
-    PERIODIC TIME 5. y between 0. y and 120. y
+    PERIODIC TIME 5. y between 0. y and 150. y
   /
   VELOCITY_AT_CENTER
   VARIABLES
@@ -164,8 +193,12 @@ OBSERVATION
   REGION well_obs
 END
 
+OBSERVATION
+  REGION kryptonite_obs
+END
+
 #=========================== material properties ==============================
-MATERIAL_PROPERTY well_screen
+MATERIAL_PROPERTY aquifer
   ID 1
   POROSITY 0.35d0
   TORTUOSITY 0.15d0
@@ -177,8 +210,20 @@ MATERIAL_PROPERTY well_screen
   /
 END
 
-MATERIAL_PROPERTY aquifer
-  ID 2
+MATERIAL_PROPERTY well_screen ! same as aquifer
+  ID 2                        ! for visualization convenience
+  POROSITY 0.35d0
+  TORTUOSITY 0.15d0
+  ROCK_DENSITY 2650.
+  CHARACTERISTIC_CURVES cc1
+  PERMEABILITY
+    PERM_ISO 1.d-11
+    VERTICAL_ANISOTROPY_RATIO 0.1
+  /
+END
+
+MATERIAL_PROPERTY kryptonite ! same as aquifer
+  ID 3                       ! for visualization convenience
   POROSITY 0.35d0
   TORTUOSITY 0.15d0
   ROCK_DENSITY 2650.
@@ -227,7 +272,7 @@ REGION east
   FACE east
   COORDINATES
     2000.d0 0.d0 0.d0
-    2000.d0 1.d0 800.d0
+    2000.d0 200.d0 800.d0
   /
 END
 
@@ -235,7 +280,7 @@ REGION west
   FACE west
   COORDINATES
     0.d0 0.d0 0.d0
-    0.d0 1.d0 800.d0
+    0.d0 200.d0 800.d0
   /
 END
 
@@ -243,40 +288,44 @@ REGION top
   FACE top
   COORDINATES
     0.d0    0.d0 800.d0
-    2000.d0 1.d0 800.d0
+    2000.d0 200.d0 800.d0
   /
 END
 
 REGION overburden_layer
   COORDINATES
     0.d0    0.d0 600.d0
-    2000.d0 1.d0 800.d0
+    2000.d0 200.d0 800.d0
   /
 END
 
 REGION aquifer
   COORDINATES
     0.d0    0.d0 0.d0
-    2000.d0 1.d0 600.d0
+    2000.d0 200.d0 600.d0
   /
 END
 
 REGION kryptonite_deposit
   COORDINATES
-    200.d0 0.d0 200.d0
-    300.d0 1.d0 300.d0
+    200.d0 0.d0 580.d0
+    300.d0 200.d0 600.d0
  /
 END
 
 REGION well
   COORDINATES
-    1499.d0 0.d0 410.d0 
-    1500.d0 1.d0 430.d0 
+    1500.d0 100.d0 580.d0 ! grab upwind cell
+    1500.d0 100.d0 600.d0 
   /
 END
 
+REGION kryptonite_obs
+  COORDINATE 250.d0 100.d0 590.d0
+END
+
 REGION well_obs
-  COORDINATE 1499.5d0 0.5d0 420.d0
+  COORDINATE 1500.d0 100.d0 590.d0 ! grab upwind cell
 END
 
 #=========================== flow conditions ==================================
@@ -348,8 +397,8 @@ TRANSPORT_CONDITION kryptonite_deposit
       I129(aq) 1.d-20 T
     /
     MINERALS
-      Kryptonite(s) 9.5d-1 1.d0 m^2/m^3
-      KrB(s)        0.d0 1.d0 m^2/m^3
+      Kryptonite(s) 1.d-3 1.d0 m^2/m^3
+      KrB(s)        0.d0  1.d0 m^2/m^3
     /
   /
 END
@@ -399,6 +448,11 @@ END
 STRATA ! overwrites preceding
   REGION overburden_layer
   MATERIAL overburden
+END
+
+STRATA ! overwrites preceding
+  REGION kryptonite_deposit
+  MATERIAL kryptonite
 END
 
 STRATA ! overwrites preceding
