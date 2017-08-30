@@ -1,3 +1,15 @@
+# This file is part of the following SAND report described in gdsa.in:
+# SAND2017-9343 O
+#
+# Title: Geologic Disposal Safety Assessment PFLOTRAN Short Course Example
+# Author: Emily Stein (Sandia National Laboratories) ergiamb@sandia.gov
+#
+# Sandia National Laboratories is a multi-mission laboratory managed and
+# operated by National Technology and Engineering Solutions of Sandia, LLC,
+# a wholly owned subsidiary of Honeywell International Inc. for the U.S.
+# Department of Energy's National Nuclear Security Administration under
+# contract DE-NA0003525.
+
 #Average calcine heat per wp (10 cans per wp) decayed to 2038
 #Carter et al. 2013, "Fuel Cycle Potential Waste Inventory for Disposition,"
 #FCRD-USED-2010-000031 Rev 6 Table F-1
