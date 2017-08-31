@@ -131,6 +131,7 @@ module WIPP_Flow_Aux_module
             WIPPFloAuxVarCompute, &
             WIPPFloAuxVarInit, &
             WIPPFloAuxVarCopy, &
+            WIPPFloScalePerm, &
             WIPPFloAuxVarDestroy, &
             WIPPFloAuxVarStrip, &
             WIPPFloAuxVarPerturb, &
@@ -637,6 +638,42 @@ subroutine WIPPFloAuxVarPerturb(wippflo_auxvar,global_auxvar, &
     wippflo_auxvar(WIPPFLO_LIQUID_PRESSURE_DOF)%pert / WIPPFLO_PRESSURE_SCALE
   
 end subroutine WIPPFloAuxVarPerturb
+
+! ************************************************************************** !
+
+subroutine WIPPFloScalePerm(wippflo_auxvar,material_auxvar,perm,ivar)
+  ! 
+  ! Scales the permeability by fracture and Klinkenbert (gas only)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/29/17
+  ! 
+  use Material_Aux_class
+  use Variables_module, only : GAS_PERMEABILITY, GAS_PERMEABILITY_X, &
+                               GAS_PERMEABILITY_Y, GAS_PERMEABILITY_Z
+
+  implicit none
+
+  type(wippflo_auxvar_type) :: wippflo_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  PetscReal :: perm
+  PetscInt :: ivar
+
+  if (associated(material_auxvar%fracture)) then
+    if (material_auxvar%fracture%fracture_is_on) then
+      perm = perm * wippflo_auxvar%fracture_perm_scaling_factor
+    endif
+  endif
+  select case(ivar)
+    case(GAS_PERMEABILITY,GAS_PERMEABILITY_X)
+      perm = perm * wippflo_auxvar%klinkenberg_scaling_factor(X_DIRECTION)
+    case(GAS_PERMEABILITY_Y)
+      perm = perm * wippflo_auxvar%klinkenberg_scaling_factor(Y_DIRECTION)
+    case(GAS_PERMEABILITY_Z)
+      perm = perm * wippflo_auxvar%klinkenberg_scaling_factor(Z_DIRECTION)
+  end select
+
+end subroutine WIPPFloScalePerm
 
 ! ************************************************************************** !
 

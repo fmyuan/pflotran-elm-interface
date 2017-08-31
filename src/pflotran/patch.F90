@@ -4045,6 +4045,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
   use Reaction_Surface_Complexation_Aux_module
   use General_Aux_module, only : general_fmw => fmw_comp, &
                                  GAS_STATE, LIQUID_STATE
+  use WIPP_Flow_Aux_module, only : WIPPFloScalePerm
   use Output_Aux_module
   use Variables_module
   use Material_Aux_class
@@ -5525,17 +5526,41 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               patch%aux%RT%auxvars(grid%nL2G(local_id))%auxiliary_data(isubvar)
           enddo
       end select
-    case(POROSITY,MINERAL_POROSITY,PERMEABILITY,PERMEABILITY_X, &
-         PERMEABILITY_Y, PERMEABILITY_Z,PERMEABILITY_XY,PERMEABILITY_XZ, &
-         PERMEABILITY_YZ,VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
+    case(POROSITY,MINERAL_POROSITY,VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
          SOIL_REFERENCE_PRESSURE)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          MaterialAuxVarGetValue(material_auxvars(grid%nL2G(local_id)),ivar)
+      enddo
+    case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y, PERMEABILITY_Z, &
+         PERMEABILITY_XY,PERMEABILITY_XZ,PERMEABILITY_YZ, &
+         GAS_PERMEABILITY,GAS_PERMEABILITY_X,GAS_PERMEABILITY_Y, &
+         GAS_PERMEABILITY_Z)
       ivar_temp = ivar
-      if (ivar_temp == PERMEABILITY) ivar_temp = PERMEABILITY_X 
+      ! only liquid permeabilities in x, y, z are stored.  
+      select case(ivar)
+        case(PERMEABILITY,GAS_PERMEABILITY,GAS_PERMEABILITY_X)
+          ivar_temp = PERMEABILITY_X
+        case(GAS_PERMEABILITY_Y)
+          ivar_temp = PERMEABILITY_Y
+        case(GAS_PERMEABILITY_Z)
+          ivar_temp = PERMEABILITY_Z
+      end select
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
           MaterialAuxVarGetValue(material_auxvars(grid%nL2G(local_id)), &
                                  ivar_temp)
       enddo
+      select case(option%iflowmode)
+        case(WF_MODE)
+          do local_id=1,grid%nlmax
+            ghosted_id = grid%nL2G(local_id)
+            call WIPPFloScalePerm(patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
+                                                            ghosted_id), &
+                                  material_auxvars(ghosted_id), &
+                                  vec_ptr(local_id),ivar)
+          enddo
+      end select
     case(PHASE)
       call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
       do local_id=1,grid%nlmax
@@ -5611,6 +5636,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
   use Variables_module
   use General_Aux_module, only : general_fmw => fmw_comp, &
                                  GAS_STATE, LIQUID_STATE
+  use WIPP_Flow_Aux_module, only : WIPPFloScalePerm
   use Material_Aux_class
 
   implicit none
@@ -6382,13 +6408,31 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
         case(REACTION_AUXILIARY)
           value = patch%aux%RT%auxvars(ghosted_id)%auxiliary_data(isubvar)
       end select
-    case(POROSITY,MINERAL_POROSITY,PERMEABILITY,PERMEABILITY_X, &
-         PERMEABILITY_Y, PERMEABILITY_Z,PERMEABILITY_XY,PERMEABILITY_XZ, &
-         PERMEABILITY_YZ,VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
+    case(POROSITY,MINERAL_POROSITY,VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
          SOIL_REFERENCE_PRESSURE)
+      value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar)
+    case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y, PERMEABILITY_Z, &
+         PERMEABILITY_XY,PERMEABILITY_XZ,PERMEABILITY_YZ, &
+         GAS_PERMEABILITY,GAS_PERMEABILITY_X,GAS_PERMEABILITY_Y, &
+         GAS_PERMEABILITY_Z)
       ivar_temp = ivar
-      if (ivar_temp == PERMEABILITY) ivar_temp = PERMEABILITY_X 
+      ! only liquid permeabilities in x, y, z are stored.  
+      select case(ivar)
+        case(PERMEABILITY,GAS_PERMEABILITY,GAS_PERMEABILITY_X)
+          ivar_temp = PERMEABILITY_X
+        case(GAS_PERMEABILITY_Y)
+          ivar_temp = PERMEABILITY_Y
+        case(GAS_PERMEABILITY_Z)
+          ivar_temp = PERMEABILITY_Z
+      end select
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar_temp)
+      select case(option%iflowmode)
+        case(WF_MODE)
+          call WIPPFloScalePerm(patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
+                                                          ghosted_id), &
+                                material_auxvars(ghosted_id), &
+                                value,ivar)
+      end select
     case(PHASE)
       call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
       value = vec_ptr2(ghosted_id)
@@ -7328,7 +7372,9 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
         'soil compressibility or soil reference pressure in ' // &
         '"PatchSetVariable" not supported.'
       call printErrMsg(option)
-    case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y,PERMEABILITY_Z)
+    case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y,PERMEABILITY_Z, &
+         GAS_PERMEABILITY,GAS_PERMEABILITY_X,GAS_PERMEABILITY_Y, &
+         GAS_PERMEABILITY_Z)
       option%io_buffer = 'Setting of permeability in "PatchSetVariable"' // &
         ' not supported.'
       call printErrMsg(option)

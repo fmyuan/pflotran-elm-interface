@@ -74,6 +74,7 @@ module PM_Subsurface_Flow_class
             PMSubsurfaceFlowUpdateSolution, &
             PMSubsurfaceFlowUpdatePropertiesNI, &
             PMSubsurfaceFlowTimeCut, &
+            PMSubsurfaceFlowTimeCutPostInit, &
             PMSubsurfaceFlowCheckpointBinary, &
             PMSubsurfaceFlowRestartBinary, &
             PMSubsurfaceFlowReadSelectCase, &
@@ -546,7 +547,7 @@ subroutine PMSubsurfaceFlowInitializeTimestepA(this)
   use Variables_module, only : POROSITY, PERMEABILITY_X, &
                                PERMEABILITY_Y, PERMEABILITY_Z
   use Material_module
-  use Material_Aux_class, only : POROSITY_MINERAL
+  use Material_Aux_class, only : POROSITY_MINERAL, POROSITY_CURRENT
   
   implicit none
   
@@ -562,6 +563,17 @@ subroutine PMSubsurfaceFlowInitializeTimestepA(this)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity_base_store)
   endif
+
+  if (this%option%ngeomechdof > 0) then
+    ! store base properties for reverting at time step cut
+    call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc,POROSITY, &
+                                 POROSITY_CURRENT)
+    call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
+                                  this%realization%field%porosity_base_store)
+                                 
+  endif
+
 
 end subroutine PMSubsurfaceFlowInitializeTimestepA
 
@@ -581,6 +593,8 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
   implicit none
   
   class(pm_subsurface_flow_type) :: this
+  PetscViewer :: viewer
+PetscErrorCode :: ierr
 
   if (this%option%ntrandof > 0) then ! store initial saturations for transport
     call GlobalUpdateAuxVars(this%realization,TIME_T,this%option%time)
@@ -604,9 +618,31 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
     endif
   endif
 
+  if (this%option%ngeomechdof > 0) then
+#ifdef GEOMECH_DEBUG
+    print *, 'PMSubsurfaceFlowInitializeTimestepB'
+#endif
+    call this%comm1%GlobalToLocal(this%realization%field%porosity_geomech_store, &
+                                  this%realization%field%work_loc)
+    ! push values to porosity_current
+    call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc, &
+                                 POROSITY,POROSITY_CURRENT)
+
+#ifdef GEOMECH_DEBUG
+    call PetscViewerASCIIOpen(PETSC_COMM_SELF, &
+                              'porosity_geomech_store_timestep.out', &
+                              viewer,ierr);CHKERRQ(ierr)
+    call VecView(this%realization%field%porosity_geomech_store,viewer, &
+                 ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+
+  endif
+
 #ifdef WELL_CLASS
   call this%AllWellsUpdate()
-#endif  
+#endif
 
 end subroutine PMSubsurfaceFlowInitializeTimestepB
 
@@ -735,7 +771,7 @@ subroutine PMSubsurfaceFlowTimeCut(this)
   ! Date: 04/21/14 
   use Material_module
   use Variables_module, only : POROSITY
-  use Material_Aux_class, only : POROSITY_MINERAL
+  use Material_Aux_class, only : POROSITY_MINERAL, POROSITY_CURRENT
   
   implicit none
   
@@ -753,9 +789,45 @@ subroutine PMSubsurfaceFlowTimeCut(this)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc,POROSITY, &
                                  POROSITY_MINERAL)
-  endif             
+  endif            
+  if (this%option%ngeomechdof > 0) then
+    call this%comm1%GlobalToLocal(this%realization%field%porosity_base_store, &
+                                  this%realization%field%work_loc)
+    call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc,POROSITY, &
+                                 POROSITY_CURRENT)
+ endif 
+
 
 end subroutine PMSubsurfaceFlowTimeCut
+
+! ************************************************************************** !
+
+subroutine PMSubsurfaceFlowTimeCutPostInit(this)
+  ! 
+  ! Author: Satish Karra
+  ! Date: 08/23/17
+  use Material_module
+  use Variables_module, only : POROSITY
+  use Material_Aux_class, only : POROSITY_CURRENT
+  
+  implicit none
+  
+  class(pm_subsurface_flow_type) :: this
+  
+  PetscErrorCode :: ierr
+  
+  this%option%flow_dt = this%option%dt
+           
+  if (this%option%ngeomechdof > 0) then
+    call this%comm1%GlobalToLocal(this%realization%field%porosity_geomech_store, &
+                                  this%realization%field%work_loc)
+    call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc,POROSITY, &
+                                 POROSITY_CURRENT)
+ endif 
+
+end subroutine PMSubsurfaceFlowTimeCutPostInit
 
 ! ************************************************************************** !
 

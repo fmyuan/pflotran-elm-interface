@@ -26,7 +26,6 @@ module Geomechanics_Force_module
             GeomechStoreInitialPressTemp, &
             GeomechStoreInitialDisp, &
             GeomechStoreInitialPorosity, &
-            GeomechUpdateSubsurfPorosity, &
             GeomechForceJacobianLinearPart
  
 contains
@@ -2361,84 +2360,5 @@ subroutine GeomechStoreInitialDisp(geomech_realization)
                ierr);CHKERRQ(ierr)
    
 end subroutine GeomechStoreInitialDisp
-
-! ************************************************************************** !
-
-subroutine GeomechUpdateSubsurfPorosity(realization,geomech_realization)
-  ! 
-  ! Updates the porosity in the subsurface based
-  ! on the deformation in geomechanics
-  ! 
-  ! Author: Satish Karra, LANL
-  ! Date: 10/08/13
-  ! 
-
-  use Realization_Subsurface_class
-  use Option_module
-  use Patch_module
-  use Field_module
-  use Grid_module
-  use Discretization_module
-  use Geomechanics_Field_module
-  use Material_Aux_class
-  use Material_module
-  use Variables_module, only : POROSITY
-  use Geomechanics_Realization_class
-
-  implicit none
-  
-  class(realization_subsurface_type) :: realization
-  class(realization_geomech_type) :: geomech_realization
-  type(field_type), pointer :: field
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  type(geomech_field_type), pointer :: geomech_field
-  type(grid_type), pointer :: grid
-  class(material_auxvar_type), pointer :: material_auxvars(:)
-
-  PetscReal :: trace_epsilon
-  PetscReal, pointer :: por0_loc_p(:), strain_loc_p(:)
-  PetscInt :: ghosted_id
-  PetscErrorCode :: ierr
-
-  option => realization%option
-  field => realization%field
-  patch => realization%patch
-  grid => patch%grid
-  geomech_field => geomech_realization%geomech_field
-  material_auxvars => realization%patch%aux%Material%auxvars
-
-  if (.not.associated(patch%imat)) then
-    option%io_buffer = 'Materials IDs not present in run.  Material ' // &
-      ' properties cannot be updated without material ids'
-    call printErrMsg(option)
-  endif
-  
-  call VecGetArrayF90(geomech_field%porosity_init_loc,por0_loc_p, &
-                      ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(geomech_field%strain_subsurf_loc,strain_loc_p, &
-                      ierr);CHKERRQ(ierr)
-  
-  do ghosted_id = 1, grid%ngmax
-    trace_epsilon = strain_loc_p((ghosted_id-1)*SIX_INTEGER+ONE_INTEGER) + &
-                    strain_loc_p((ghosted_id-1)*SIX_INTEGER+TWO_INTEGER) + &
-                    strain_loc_p((ghosted_id-1)*SIX_INTEGER+THREE_INTEGER)
-    material_auxvars(ghosted_id)%porosity = por0_loc_p(ghosted_id)/ &
-      (1.d0 + (1.d0 - por0_loc_p(ghosted_id))*trace_epsilon)
-  enddo
-  
-  call VecRestoreArrayF90(geomech_field%porosity_init_loc,por0_loc_p, &
-                          ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(geomech_field%strain_subsurf_loc,strain_loc_p, &
-                          ierr);CHKERRQ(ierr)
-
-  call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,ZERO_INTEGER)
-  call DiscretizationLocalToLocal(realization%discretization,field%work_loc, &
-                                  field%work_loc,ONEDOF)
-  call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,ZERO_INTEGER)
-
-end subroutine GeomechUpdateSubsurfPorosity
 
 end module Geomechanics_Force_module
