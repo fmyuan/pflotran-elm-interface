@@ -1826,7 +1826,7 @@ subroutine EOSGasTest(temp_low,temp_high,pres_low,pres_high, &
   endif
   open(unit=IUNIT_TEMP,file=string)
   header = 'T[C], P[Pa], &
-    &Density (' // trim(eos_density_name) // ') [kg/m^3], &
+    &Density (' // trim(eos_density_name) // ') [kmol/m^3], &
     &Enthalpy (' // trim(eos_energy_name) // ') [J/kmol], &
     &Internal Energy (' // trim(eos_energy_name) // ') [J/kmol], &
     &Viscosity (' // trim(eos_viscosity_name) // ') [Pa-s], &
