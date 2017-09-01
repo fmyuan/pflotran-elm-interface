@@ -198,69 +198,6 @@ END
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\subsection{TIME}
-
-\begin{frame}[fragile]\frametitle{TIME}
-\begin{itemize}
-  \item Final simulation time = 500,000 y
-\end{itemize}
-
-\begin{semiverbatim}
-
-TIME
-  FINAL_TIME 5.d5 y
-  INITIAL_TIMESTEP_SIZE 1.d-6 y
-  MAXIMUM_TIMESTEP_SIZE 1. y at 1. y
-  MAXIMUM_TIMESTEP_SIZE 5. y at 10. y
-  MAXIMUM_TIMESTEP_SIZE 50. y at 100. y
-  MAXIMUM_TIMESTEP_SIZE 500. y at 1000. y
-  MAXIMUM_TIMESTEP_SIZE 5000. y at 10000. y
-END
-\end{semiverbatim}
-
-\end{frame}
-
-%-----------------------------------------------------------------------------
-\subsection{OUTPUT}
-
-\begin{frame}[fragile]\frametitle{OUTPUT}
-\begin{itemize}
-  \item Print a snapshot of entire solution periodically
-  \item Print the solution at observation points every time step
-  \item Print mass balance file every time step
-  \item Choose output variables
-\end{itemize}
-
-\end{frame}
-
-\begin{frame}[fragile]\frametitle{OUTPUT}
-
-\begin{semiverbatim}\small
-OUTPUT
-  SNAPSHOT_FILE
-    FORMAT HDF5
-    PRINT_COLUMN_IDS \bluecomment{! useful for plotting}
-    PERIODIC TIME 1. y between 0. y and 10. y  \bluecomment{! every year}
-    PERIODIC TIME 10. y between 0. y and 100. y  \bluecomment{! then every 10 y}
-    \bluecomment{! see input deck for more}
-  /
-  OBSERVATION_FILE
-    PERIODIC TIMESTEP 1 \bluecomment{! print every time step}
-  /
-  MASS_BALANCE_FILE
-    PERIODIC TIMESTEP 1 \bluecomment{! print every time step}
-  /
-  VELOCITY_AT_CENTER \bluecomment{! of cell}
-  VARIABLES
-    TEMPERATURE
-    LIQUID_PRESSURE \bluecomment{! see input deck for more}
-  /
-END
-\end{semiverbatim}
-
-\end{frame}
-
-%-----------------------------------------------------------------------------
 \subsection{EXTERNAL\_FILE}
 
 \begin{frame}[fragile]\frametitle{EXTERNAL\_FILE}
@@ -284,69 +221,6 @@ EXTERNAL_FILE ./strata.txt \bluecomment{! STRATA blocks}
 EXTERNAL_FILE ./wfg.txt \bluecomment{! WASTE_FORM blocks}
 \end{semiverbatim}
 
-\end{frame}
-
-%-----------------------------------------------------------------------------
-\subsection{FLUID\_PROPERTY}
-
-\begin{frame}[fragile]\frametitle{FLUID\_PROPERTY}
-\begin{itemize}
-  \item Free water diffusion coefficient
-\end{itemize}
-
-\begin{semiverbatim}
-FLUID_PROPERTY
-  PHASE LIQUID
-  DIFFUSION_COEFFICIENT 1.d-9
-END
-\end{semiverbatim}
-
-\end{frame}
-
-%-----------------------------------------------------------------------------
-\subsection{MATERIAL\_PROPERTY}
-
-\begin{frame}[fragile]\frametitle{MATERIAL\_PROPERTY}
-\begin{itemize}
-  \item Input deck contains 12 MATERIAL\_PROPERTY blocks
-  \item One example shown below
-\end{itemize}
-
-\begin{semiverbatim}\small
-MATERIAL_PROPERTY shale
-  ID 1
-  SATURATION_FUNCTION default
-  POROSITY 0.20
-  TORTUOSITY_FUNCTION_OF_POROSITY 1.4
-  SOIL_COMPRESSIBILITY 1.6d-8 #1/Pa
-  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
-  SOIL_REFERENCE_PRESSURE 101325.d0
-  ROCK_DENSITY 2700.
-  THERMAL_CONDUCTIVITY_DRY 1.2d0 ! not used
-  THERMAL_CONDUCTIVITY_WET 1.2d0
-  HEAT_CAPACITY 830.
-  PERMEABILITY
-    PERM_ISO 1.d-19
-  /
-/
-\end{semiverbatim}
-\end{frame}
-
-%-----------------------------------------------------------------------------
-\subsection{CHARACTERISTIC\_CURVES}
-
-\begin{frame}[fragile,containsverbatim]\frametitle{SATURATION\_FUNCTION}
-\begin{itemize}
-  \item TH mode syntax
-\end{itemize}
-\begin{semiverbatim}\small
-SATURATION_FUNCTION default
-  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-  RESIDUAL_SATURATION 0.1d0
-  LAMBDA 0.5
-  ALPHA 1.d-4
-END
-\end{semiverbatim}
 \end{frame}
 
 %-----------------------------------------------------------------------------
@@ -383,7 +257,7 @@ FLOW_CONDITION hlw
     ENERGY_RATE SCALED_ENERGY_RATE VOLUME \bluecomment{! vol ave}
   /
   \bluecomment{!SYNC_TIMESTEP_WITH_UPDATE}
-  INTERPOLATION LINEAR \bluecomment{interpolate between times}
+  INTERPOLATION LINEAR \bluecomment{! interpolate between times}
   RATE 0.d0 \bluecomment{! liquid flux rate}
   ENERGY_RATE FILE ./hlw_heat.txt \bluecomment{! list of times, watts}
 END
@@ -399,7 +273,7 @@ END
 \begin{semiverbatim}\small
 TIME_UNITS y
 DATA_UNITS W
-# time energy (W/waste package)
+\bluecomment{! time energy (W/waste package)}
 0.00E+00        1.755E+02
 1.00E-01        1.751E+02
 2.00E-01        1.747E+02
@@ -439,6 +313,7 @@ END_SUBSURFACE
 
 \begin{itemize}
   \item WASTE\_FORM block for each waste package
+  \item MECHANISM block for each type of waste (next slide)
 \end{itemize}
 
 \begin{semiverbatim}\small
@@ -457,7 +332,7 @@ WASTE_FORM_GENERAL
      REGION hlw0 \bluecomment{! a waste package}
      EXPOSURE_FACTOR 5.416057 \bluecomment{! adjust surface area}
      VOLUME 9.500000 \bluecomment{! m^3}
-     MECHANISM_NAME hlw \bluecomment{! dissolution mechanism & inventory}
+     MECHANISM_NAME hlw \bluecomment{! dissolution mech. & inventory}
   /
 \end{semiverbatim}
 \end{frame}
@@ -466,10 +341,6 @@ WASTE_FORM_GENERAL
 \subsection{WASTE\_FORM}
 \begin{frame}[fragile]\frametitle{WASTE\_FORM GENERAL}
 
-\begin{itemize}
-  \item MECHANISM block for each type of waste
-\end{itemize}
-
 \begin{semiverbatim}\small
   MECHANISM GLASS
     KIENZLER_DISSOLUTION
@@ -477,8 +348,7 @@ WASTE_FORM_GENERAL
     SPECIFIC_SURFACE_AREA 2.8d-3 m^2/kg
     MATRIX_DENSITY 2750. kg/m^3
     SPECIES
-    \bluecomment{!mass fractions are g/g glass}
-    \bluecomment{!isotope, atom wt (g/mol), 1/s, g/g, instant release, daughter}
+    \bluecomment{!r'n, atom wt (g/mol), 1/s, g/g, instant release, daughter}
       Am241  241.06d0  5.08d-11  3.179d-7  0.0d0  Np237
       Am243  243.06d0  2.98d-12  6.348d-10 0.0d0  Pu239
       \bluecomment{...}
@@ -534,13 +404,13 @@ UFD_DECAY
 \begin{semiverbatim}\small
   ISOTOPE Am241
     ELEMENT Am
-    DECAY_RATE 5.08d-11
+    DECAY_RATE 5.08d-11 \bluecomment{! 1/s}
     DAUGHTER Np237 1.d0
   /
   ISOTOPE Am243
     ELEMENT Am
-    DECAY_RATE 2.98d-12
-    !DAUGHTER Pu239 1.d0
+    DECAY_RATE 2.98d-12 \bluecomment{! 1/s}
+    \bluecomment{!DAUGHTER Pu239 1.d0}
   /
 \bluecomment{...}
 
@@ -565,10 +435,10 @@ skip \bluecomment{! not using this right now}
     INDIVIDUAL_CONSUMPTION_RATE 2.d0 L/day
     \bluecomment{! INCLUDE_UNSUPPORTED_RADS}
   /
-noskip \bluecomment{!}
+noskip \bluecomment{! end the skip statement}
 
   ERB_1B B_model1 \bluecomment{! use this model without a sink}
-    REGION fake_well \bluecomment{! does not pump}
+    REGION fake_well \bluecomment{! does not extract}
     DILUTION_FACTOR 1.0 \bluecomment{! use dilution factor instead}
     INDIVIDUAL_CONSUMPTION_RATE 2.d0 L/day
     \bluecomment{! INCLUDE_UNSUPPORTED_RADS}
