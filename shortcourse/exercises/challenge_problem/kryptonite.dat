@@ -7,7 +7,7 @@
 'null' ! gasses
 'null' ! minerals
 'Kryptonite(s)' 3. 3 1.0 'KrA(aq)' 1.0 'KrB(aq)' 1.0 'KrC(aq)' 500. 0.9 500. 500. 500. 500. 500. 500. 500.
-'KrB(s)' 1. 1 1.0 'KrB(aq)' 500. -2. 500. 500. 500. 500. 500. 500. 500. 
+'KrB(s)' 1. 1 1.0 'KrB(aq)' 500. -1.5 500. 500. 500. 500. 500. 500. 500. 
 'null' ! surface complexes
 'null' ! end of file
 
