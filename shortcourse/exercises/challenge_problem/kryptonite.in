@@ -311,8 +311,8 @@ END
 
 REGION kryptonite_deposit
   COORDINATES
-    200.d0 0.d0 580.d0
-    300.d0 1.d0 600.d0
+    200.d0 0.d0 560.d0
+    300.d0 1.d0 580.d0
  /
 END
 
