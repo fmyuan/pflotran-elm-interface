@@ -309,6 +309,7 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
       2.d0/(Pa-Pi)*log(phia/phi0)
     compressed_porosity = phi0 * exp(Ci*(pressure-P0) + &
       ((Ca-Ci)*(pressure-Pi)**2.d0)/(2.d0*(Pa-Pi)))
+    compressed_porosity=min(compressed_porosity, phia)
     !mathematica solution
     dcompressed_porosity_dp = exp(Ci*(pressure-P0) + &
       ((Ca-Ci)*(pressure-Pi)**2.d0) / (2.d0*(Pa-Pi))) * &
@@ -359,8 +360,12 @@ subroutine FracturePermScale(auxvar,liquid_pressure,effective_porosity, &
     return
   endif
 
-  Ci = auxvar%soil_properties(soil_compressibility_index) / &
-       auxvar%porosity_base
+  Ci = auxvar%soil_properties(soil_compressibility_index)
+  if (associated(MaterialCompressSoilPtr,MaterialCompressSoilBRAGFLO)) then
+    ! convert bulk compressibility to pore compressibility
+    Ci = auxvar%soil_properties(soil_compressibility_index) / &
+         auxvar%porosity_base
+  endif
   P0 = auxvar%fracture%initial_pressure
   Pi = auxvar%fracture%properties(frac_init_pres_index) + P0
 

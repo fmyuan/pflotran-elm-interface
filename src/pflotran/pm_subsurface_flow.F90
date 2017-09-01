@@ -387,7 +387,8 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
   use Dataset_Common_HDF5_class
   use Dataset_Gridded_HDF5_class
   use Fracture_module
-  use Variables_module, only : MAXIMUM_PRESSURE, SOIL_REFERENCE_PRESSURE
+  use Variables_module, only : MAXIMUM_PRESSURE, LIQUID_PRESSURE, & 
+                      SOIL_REFERENCE_PRESSURE 
 
   implicit none
 
@@ -417,9 +418,15 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
   material_auxvars => patch%aux%Material%auxvars
 
   dataset_vec = PETSC_NULL_VEC
-
-  call RealizationGetVariable(realization,realization%field%work, &
-                              MAXIMUM_PRESSURE,ZERO_INTEGER)
+  
+  if(option%iflowmode == WF_MODE) then
+    call RealizationGetVariable(realization,realization%field%work, &
+                                LIQUID_PRESSURE,ZERO_INTEGER)
+  else
+    call RealizationGetVariable(realization,realization%field%work, &
+                                MAXIMUM_PRESSURE,ZERO_INTEGER)
+  endif
+  
   call DiscretizationGlobalToLocal(realization%discretization, &
                                    realization%field%work, &
                                    realization%field%work_loc, &
