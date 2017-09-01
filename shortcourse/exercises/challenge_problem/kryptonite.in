@@ -10,7 +10,7 @@
 # SUBSURFACE_FLOW MODE RICHARDS
 # Hydrostatic initial conditions
 # Regional pressure gradient (Dirichlet boundary conditions)
-# Pumping well
+# Extraction well
 # Recharge (Neumann boundary condition)
 # SUBSURFACE_TRANSPORT
 # Aqueous, solid, sorbed phases
@@ -46,8 +46,12 @@
 # kryptonite from reaching the well?
 #
 # BONUS #3
-# Use DXYZ instead of BOUNDS in the GRID block to discretize a 1 m wide well
-# that extends from x = 1499. to 1500. and y = 399. to 400. m
+# Use DXYZ instead of BOUNDS in the GRID block.
+# Add the third dimension to the domain by making the Y dimension 200 m
+# and discretizing it.
+# Discretize a 1-m wide well that extends from X = 1499. to 1500. 
+# and Y = 99. to 100. m
+# Don't forget to adjust the COORDINATES of REGION kryptonite_deposit.
 #
 # BONUS #4
 # Modify the HYDROSTATIC initial condition to create a 20 m thick unsaturated
@@ -146,10 +150,10 @@ END
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED
-  NXYZ 50 5 40
+  NXYZ 50 1 40
   BOUNDS
     0.d0    0.d0 0.d0
-    2000.d0 200.d0 800.d0
+    2000.d0 1.d0 800.d0
   /
 END
 
@@ -175,7 +179,6 @@ OUTPUT
   /
   SNAPSHOT_FILE
     FORMAT HDF5
-    FORMAT VTK
     PRINT_COLUMN_IDS
     PERIODIC TIME 5. y between 0. y and 150. y
   /
@@ -235,7 +238,7 @@ MATERIAL_PROPERTY kryptonite ! same as aquifer
 END
 
 MATERIAL_PROPERTY overburden
-  ID 3
+  ID 4
   POROSITY 0.25
   TORTUOSITY 0.2d0
   ROCK_DENSITY 2650.
@@ -272,7 +275,7 @@ REGION east
   FACE east
   COORDINATES
     2000.d0 0.d0 0.d0
-    2000.d0 200.d0 800.d0
+    2000.d0 1.d0 800.d0
   /
 END
 
@@ -280,7 +283,7 @@ REGION west
   FACE west
   COORDINATES
     0.d0 0.d0 0.d0
-    0.d0 200.d0 800.d0
+    0.d0 1.d0 800.d0
   /
 END
 
@@ -288,44 +291,44 @@ REGION top
   FACE top
   COORDINATES
     0.d0    0.d0 800.d0
-    2000.d0 200.d0 800.d0
+    2000.d0 1.d0 800.d0
   /
 END
 
 REGION overburden_layer
   COORDINATES
     0.d0    0.d0 600.d0
-    2000.d0 200.d0 800.d0
+    2000.d0 1.d0 800.d0
   /
 END
 
 REGION aquifer
   COORDINATES
     0.d0    0.d0 0.d0
-    2000.d0 200.d0 600.d0
+    2000.d0 1.d0 600.d0
   /
 END
 
 REGION kryptonite_deposit
   COORDINATES
     200.d0 0.d0 580.d0
-    300.d0 200.d0 600.d0
+    300.d0 1.d0 600.d0
  /
 END
 
 REGION well
   COORDINATES
-    1500.d0 100.d0 580.d0 ! grab upwind cell
-    1500.d0 100.d0 600.d0 
+    1500.d0 0.5d0 580.d0 ! grab upwind cell
+    1500.d0 0.5d0 600.d0 
   /
 END
 
 REGION kryptonite_obs
-  COORDINATE 250.d0 100.d0 590.d0
+  COORDINATE 250.d0 0.5d0 590.d0
 END
 
 REGION well_obs
-  COORDINATE 1500.d0 100.d0 590.d0 ! grab upwind cell
+  COORDINATE 1500.d0 0.5d0 590.d0 ! grab upwind cell
 END
 
 #=========================== flow conditions ==================================
