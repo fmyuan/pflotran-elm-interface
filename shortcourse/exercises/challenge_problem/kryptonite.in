@@ -323,8 +323,8 @@ REGION well
   /
 END
 
-REGION kryptonite_obs
-  COORDINATE 250.d0 0.5d0 590.d0
+REGION kryptonite_obs ! grab upwind cell
+  COORDINATE 250.d0 0.5d0 570.d0
 END
 
 REGION well_obs
