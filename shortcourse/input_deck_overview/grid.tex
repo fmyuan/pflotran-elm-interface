@@ -1,0 +1,85 @@
+\subsection{GRID}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{GRID}
+
+\begin{itemize}
+\item[] \textbf{Purpose:} Defines the physically discretized domain
+\item[] \textbf{Example uses:}
+\begin{itemize}
+  \item Type of discretization [structured, unstructured]
+  \item Extent of domain
+  \item Grid resolution
+  \item Specifying direction of gravity vector
+\end{itemize}
+\item[] \textbf{Key sub-cards:}
+\begin{itemize}
+  \item[] \verb|TYPE|
+  \item[] \verb|  STRUCTURED|
+  \item[] \verb|  UNSTRUCTURED|
+  \item[] \verb|  UNSTRUCTURED_EXPLICIT|
+  \item[] \verb|ORIGIN|
+  \item[] \verb|BOUNDS|
+  \item[] \verb|NXYZ|
+  \item[] \verb|DXYZ|
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{GRID Example: Cartesian Grid with BOUNDS}
+
+\begin{semiverbatim}
+GRID
+  TYPE STRUCTURED
+  NXYZ 16 16 16
+  BOUNDS
+    0.d0 0.d0 0.d0
+    16.d0 16.d0 16.d0
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{GRID Example: Cartesian Grid with DXYZ}
+
+\begin{semiverbatim}
+GRID
+  TYPE STRUCTURED
+  ORIGIN 0.d0 0.d0 0.d0
+  NXYZ 5 4 3
+  DXYZ
+    10. 11. 12. 13. 14.
+    13. 12. 11. 10.
+    15. 20. 25.
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{GRID Example: Explicit Unstructured Grid}
+
+\begin{semiverbatim}
+GRID
+  TYPE UNSTRUCTURED_EXPLICIT ./mixed.uge
+END
+\end{semiverbatim}
+\textit{mixed.uge contents}
+\begin{semiverbatim}
+CELLS 15
+1 4.0625 4.0625 4.0625 5.20833
+2 4.375 4.375 3.125 2.60417
+...
+15 1.25 3.75 0.3125 2.60417
+CONNECTIONS 24
+1 2 4.16667 4.16667 3.3333 6.25
+1 3 3.75 3.75 3.75 8.8388
+...
+14 15 0.41667 3.75 0.41667 2.2097
+\end{semiverbatim}
+
+\end{frame}

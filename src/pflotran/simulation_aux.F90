@@ -23,6 +23,8 @@ module Simulation_Aux_module
     Vec :: subsurf_por
     Vec :: subsurf_strain
     Vec :: subsurf_stress
+    Vec :: subsurf_perm0 
+    Vec :: subsurf_perm
 
     ! Size of surface cells of subsurface domain
     Vec :: subsurf_pres_top_bc
@@ -80,6 +82,8 @@ function SimAuxCreate()
   aux%subsurf_den = PETSC_NULL_VEC
   aux%subsurf_por0 = PETSC_NULL_VEC
   aux%subsurf_por = PETSC_NULL_VEC
+  aux%subsurf_perm0 = PETSC_NULL_VEC
+  aux%subsurf_perm = PETSC_NULL_VEC
   aux%subsurf_strain = PETSC_NULL_VEC
   aux%subsurf_stress = PETSC_NULL_VEC
   aux%subsurf_pres_top_bc = PETSC_NULL_VEC
@@ -161,7 +165,9 @@ subroutine SimAuxCopySubsurfVec(aux, subsurf_vec)
   call VecDuplicate(subsurf_vec,aux%subsurf_den,ierr);CHKERRQ(ierr)
   call VecDuplicate(subsurf_vec,aux%subsurf_por0,ierr);CHKERRQ(ierr)
   call VecDuplicate(subsurf_vec,aux%subsurf_por,ierr);CHKERRQ(ierr)
-
+  call VecDuplicate(subsurf_vec,aux%subsurf_perm0,ierr);CHKERRQ(ierr) !DANNY
+  call VecDuplicate(subsurf_vec,aux%subsurf_perm,ierr);CHKERRQ(ierr)
+  
 end subroutine SimAuxCopySubsurfVec
 
 ! ************************************************************************** !
@@ -277,6 +283,12 @@ subroutine SimAuxDestroy(aux)
   endif
   if (aux%subsurf_por /= PETSC_NULL_VEC) then
     call VecDestroy(aux%subsurf_por,ierr);CHKERRQ(ierr)
+  endif
+  if (aux%subsurf_perm0 /= PETSC_NULL_VEC) then !DANNY
+    call VecDestroy(aux%subsurf_perm0,ierr);CHKERRQ(ierr)
+  endif
+  if (aux%subsurf_perm /= PETSC_NULL_VEC) then
+    call VecDestroy(aux%subsurf_perm,ierr);CHKERRQ(ierr)
   endif
   if (aux%subsurf_stress /= PETSC_NULL_VEC) then
     call VecDestroy(aux%subsurf_stress,ierr);CHKERRQ(ierr)

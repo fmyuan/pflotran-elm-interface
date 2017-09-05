@@ -307,8 +307,24 @@ BOUNDARY_CONDITION north_face
 END
 \end{semiverbatim}
 
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{How To Run the Problem}
+
+\begin{semiverbatim}
+
+ > cd \$PFLOTRAN_DIR
+ > cd shortcourse/exercises/gridded_datasets/
+ 
+ > pflotran -input_prefix 2D_steady_pressure_BC_1st_2nd_kind
+
+\end{semiverbatim}
+
+The output is in VTK format. You can use Paraview to visualize it.
 
 \end{frame}
+
 
 
 

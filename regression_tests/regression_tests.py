@@ -904,9 +904,9 @@ class RegressionTest(object):
         elif (tolerance_type == self._RELATIVE or
               tolerance_type == self._PERCENT):
             if previous != 0:
-                delta = abs(previous - current) / previous
+                delta = abs((previous - current) / previous)
             elif current != 0:
-                delta = abs(previous - current) / current
+                delta = abs((previous - current) / current)
             else:
                 # both are zero
                 delta = 0.0

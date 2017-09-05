@@ -282,9 +282,12 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
   endif
 
 
-       ! convert bulk compressibility to pore compressibility
-  Ci = auxvar%soil_properties(soil_compressibility_index) / &
-       auxvar%porosity_base
+  Ci = auxvar%soil_properties(soil_compressibility_index)
+  if (associated(MaterialCompressSoilPtr,MaterialCompressSoilBRAGFLO)) then
+    ! convert bulk compressibility to pore compressibility
+    Ci = auxvar%soil_properties(soil_compressibility_index) / &
+         auxvar%porosity_base
+  endif
 !  P0 = auxvar%soil_properties(soil_reference_pressure_index)
   P0 = auxvar%fracture%initial_pressure
   Pi = auxvar%fracture%properties(frac_init_pres_index) + P0
@@ -296,13 +299,6 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
     compressed_porosity = phi0
     return
   endif
-
-  if (.not.associated(MaterialCompressSoilPtr, &
-                      MaterialCompressSoilBRAGFLO)) then
-    option%io_buffer = 'WIPP Fracture Function must be used with ' // &
-      'BRAGFLO soil compressibility function.'
-    call printErrMsg(option)
-  endif
   
   if (pressure < Pi) then
 !    call MaterialCompressSoil(auxvar,pressure, compressed_porosity, &
@@ -313,6 +309,7 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
       2.d0/(Pa-Pi)*log(phia/phi0)
     compressed_porosity = phi0 * exp(Ci*(pressure-P0) + &
       ((Ca-Ci)*(pressure-Pi)**2.d0)/(2.d0*(Pa-Pi)))
+    compressed_porosity=min(compressed_porosity, phia)
     !mathematica solution
     dcompressed_porosity_dp = exp(Ci*(pressure-P0) + &
       ((Ca-Ci)*(pressure-Pi)**2.d0) / (2.d0*(Pa-Pi))) * &
@@ -363,8 +360,12 @@ subroutine FracturePermScale(auxvar,liquid_pressure,effective_porosity, &
     return
   endif
 
-  Ci = auxvar%soil_properties(soil_compressibility_index) / &
-       auxvar%porosity_base
+  Ci = auxvar%soil_properties(soil_compressibility_index)
+  if (associated(MaterialCompressSoilPtr,MaterialCompressSoilBRAGFLO)) then
+    ! convert bulk compressibility to pore compressibility
+    Ci = auxvar%soil_properties(soil_compressibility_index) / &
+         auxvar%porosity_base
+  endif
   P0 = auxvar%fracture%initial_pressure
   Pi = auxvar%fracture%properties(frac_init_pres_index) + P0
 

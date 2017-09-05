@@ -1,0 +1,49 @@
+\subsection{Syntax}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Syntax}
+
+The PFLOTRAN input deck is defined using keywords or cards that are associated with data.  The file is designed with modularity in mind and the cards need not be in any particular order.  Many cards open a section that provides additional cards and is terminated by an ``END'' or ``/''.  For example:
+
+\begin{semiverbatim}
+CARD1
+  CARD2 value value
+  CARD3
+    CARD4 value
+    CARD5 value
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{Syntax: Commenting}
+Several options exist for commenting out lines or sections of the input file:
+\begin{itemize}
+\item Individual lines may be commented out by placing a hash (\#) or exclamation point (!) at the beginning of line (i.e. before any text).
+\item The SKIP/NOSKIP cards may be used to comment out a large number of lines.  SKIP/NOSKIP may be used in a nested manner.  
+\item Comment characters (\# and !) may be used to place comments at the end of a line or to comment out the remainder of a line.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[containsverbatim]\frametitle{Syntax: Commenting Example}
+
+\begin{semiverbatim}
+CARD0
+SKIP
+CARD1
+  ! comment on CARD2
+  CARD2 value1 value2
+  CARD3
+  !  CARD4 value3 
+    CARD5 value4 # comment explaining value3
+  /
+  CARD6 value5 ! comment explaining value5
+#  CARD7 value6
+  CARD7 value7
+END
+NOSKIP
+CARD8
+\end{semiverbatim}
+
+\end{frame}

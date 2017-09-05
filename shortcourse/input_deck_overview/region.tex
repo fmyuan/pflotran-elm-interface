@@ -1,0 +1,95 @@
+\subsection{REGION}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{REGION}
+
+\begin{itemize}
+\item[] \textbf{Purpose:} Defines a region of the physically discretized domain
+\item[] \textbf{Example uses:}
+\begin{itemize}
+  \item Specify a 0-3D zone
+  \item Specify an individual grid cell through i,j,k indices
+  \item Specify a list of grid cells
+\end{itemize}
+\item[] \textbf{Key sub-cards:}
+\begin{itemize}
+  \item[] \verb|BLOCK|
+  \item[] \verb|COORDINATE|
+  \item[] \verb|COORDINATES|
+  \item[] \verb|FACE|
+  \item[] \verb|  EAST, WEST, SOUTH, NORTH, BOTTOM, TOP|
+  \item[] \verb|FILE|
+  \item[] \verb|CARTESIAN_BOUNDARY|
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{REGION Example: Infinite}
+
+\begin{semiverbatim}
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{REGION Example: Plane}
+
+\begin{semiverbatim}
+REGION north
+  FACE NORTH
+  COORDINATES
+    0.d0 46.d0 0.d0
+    60.d0 46.d0 60.d0
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{REGION Example: Point}
+
+\begin{semiverbatim}
+REGION center_of_13
+  COORDINATE 1.25d0 2.91667 1.25d0
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{REGION Example: Line}
+
+\begin{semiverbatim}
+REGION well
+  BLOCK 4 4 2 3 3 3
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{REGION Example: List of cell faces in file}
+
+\begin{semiverbatim}
+REGION west
+  file west_of_12.ss
+END
+\end{semiverbatim}
+
+\textit{west\_of\_12.ss contents}
+\begin{semiverbatim}
+1
+Q 24 20 19 23
+\end{semiverbatim}
+
+\end{frame}
+
+

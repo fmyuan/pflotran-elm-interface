@@ -146,5 +146,9 @@ module Variables_module
   PetscInt, parameter, public :: CAPILLARY_PRESSURE_OGC  = 117
   PetscInt, parameter, public :: FRACTURE                = 118
 
+  PetscInt, parameter, public :: GAS_PERMEABILITY        = 119
+  PetscInt, parameter, public :: GAS_PERMEABILITY_X      = 120
+  PetscInt, parameter, public :: GAS_PERMEABILITY_Y      = 121
+  PetscInt, parameter, public :: GAS_PERMEABILITY_Z      = 122
 
 end module Variables_module

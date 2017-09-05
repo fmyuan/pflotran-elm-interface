@@ -149,7 +149,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SATURATION_BC = 15
   PetscInt, parameter, public :: HET_VOL_RATE_SS = 16
   PetscInt, parameter, public :: HET_MASS_RATE_SS = 17
-  PetscInt, parameter, public :: HET_DIRICHLET = 18
+  PetscInt, parameter, public :: HET_DIRICHLET_BC = 18
   PetscInt, parameter, public :: ENERGY_RATE_SS = 19
   PetscInt, parameter, public :: SCALED_ENERGY_RATE_SS = 20
   PetscInt, parameter, public :: HET_ENERGY_RATE_SS = 21
@@ -167,6 +167,8 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SURFACE_DIRICHLET = 33
   PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
   PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
+  PetscInt, parameter, public :: HET_SEEPAGE_BC = 36
+  PetscInt, parameter, public :: HET_CONDUCTANCE_BC = 37
   
   PetscInt, parameter, public :: WELL_SS = 100
   
