@@ -605,8 +605,6 @@ WASTE_FORM_GENERAL
     SPECIFIC_SURFACE_AREA 2.8d-3 m^2/kg
     MATRIX_DENSITY 2750. kg/m^3
     SPECIES
-    !mass fractions are g/g glass for HIP'd Calcine in 2038 (Calcine total decay heat.xlsm)
-    !based on volumes in SNL 2014, which are messy and not correct
     !isotope, atomic wt (g/mol), 1/s, g/g glass, instant release fraction, daughter
 skip
       Am241  241.06d0  5.08d-11  3.179d-7  0.0d0  Np237

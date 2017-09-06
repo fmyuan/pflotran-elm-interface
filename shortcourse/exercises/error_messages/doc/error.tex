@@ -64,7 +64,7 @@ The examples in ``error\_messages'' demonstrate some common input deck errors, t
 Most input errors result in tidy error messages, such as:
 \begin{semiverbatim}
 
-\$ pflotran -pflotranin calcite_missing_parameter.in
+\$ pflotran -input_prefix calcite_missing_parameter
 ... \gehcomment{returns screen output that ends with:}
   ERROR: Non-initialized porosity.
 
@@ -114,7 +114,7 @@ END
 Another tidy error message.
 \begin{semiverbatim}
 
-\$ pflotran -pflotranin calcite_file_not_found.in
+\$ pflotran -input_prefix calcite_file_not_found
 ... \gehcomment{returns screen output that ends with:}
   ERROR: File: "../../../database/hanord.dat" not found.
 
@@ -147,7 +147,7 @@ DATABASE ../../../database/han\redcomment{f}ord.dat \bluecomment{! had a typo!}
 One last example of a very tidy error message:
 \begin{semiverbatim}
 
-\$ pflotran -pflotranin calcite_mineral_constraint.in
+\$ pflotran -input_prefix calcite_mineral_constraint
 ... \gehcomment{returns screen output ending with:}
   ERROR: Two aqueous species (HCO3- and Ca++) are
   constrained by the same mineral (Calcite) in 
@@ -207,7 +207,7 @@ END
 \end{itemize}
 \begin{semiverbatim}
 
-\$ pflotran -pflotranin calcite_missing_end.in
+\$ pflotran -input_prefix calcite_missing_end
 ... \gehcomment{returns screen output that ends with:}
   ERROR:  Keyword "TIME" not recognized in OUTPUT.
 
@@ -258,7 +258,7 @@ END
 \redcomment{You fix that and run it again:}
 \begin{semiverbatim}
 
-\$ pflotran -pflotranin calcite_missing_end.in
+\$ pflotran -input_prefix calcite_missing_end
 ... \gehcomment{returns screen output that ends with:}
   ERROR: Number of concentration constraints exceeds 
   number of primary chemical components in constraint:
@@ -310,7 +310,7 @@ END
 \redcomment{This file requires one last fix:}
 \begin{semiverbatim}
 
-\$ pflotran -pflotranin calcite_missing_end.in
+\$ pflotran -input_prefix calcite_missing_end
 ... \gehcomment{returns screen output that ends with:}
   ERROR: Species not found in database.
 
@@ -382,7 +382,7 @@ CHEMISTRY
 \begin{frame}[fragile,containsverbatim]\frametitle{PETSc Errors}
 For best effect run with many cores, and one little error will give you lots and lots of PETSc output. (This is only one core.)
 \begin{semiverbatim}
-\$ mpirun -n 1 pflotran -pflotranin calcite_petsc.in
+\$ mpirun -n 1 pflotran -input_prefix calcite_petsc
 ... \gehcomment{returns screen output ending with:} \small
 {[}0{]}PETSC ERROR: --------------------- Error Message --------------------------------------------------------------
 {[}0{]}PETSC ERROR: Argument out of range
