@@ -643,6 +643,8 @@ UNIFORM_VELOCITY 1.d0 0.d0 0.d0 m/yr  \bluecomment{! 1 m/yr Darcy}
 > cd $PFLOTRAN_DIR
 > cd shortcourse/exercises/1D_Calcite
 > pflotran -input_prefix calcite_tran_only
+> python conc_at_25y_tran_only.py
+> python pH_tran_only.py
 
 \end{semiverbatim}
 
@@ -860,7 +862,8 @@ END}
 > cd $PFLOTRAN_DIR
 > cd shortcourse/exercises/1D_Calcite
 > pflotran -input_prefix calcite_flow_and_tran
-
+> python conc_at_25y_flow_and_tran.py
+> python pH_flow_and_tran.py
 \end{semiverbatim}
 
 \end{frame}
@@ -1069,7 +1072,7 @@ END
 > cd $PFLOTRAN_DIR
 > cd shortcourse/exercises/1D_Calcite
 > pflotran -input_prefix calcite_vsat_flow_and_tran
-
+> python pH_vsat.py
 \end{semiverbatim}
 
 \end{frame}
