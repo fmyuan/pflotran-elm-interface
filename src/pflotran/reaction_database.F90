@@ -3428,7 +3428,7 @@ subroutine BasisInit(reaction,option)
         endif
       enddo
       if (.not.found) then
-        option%io_buffer = 'Species ' // trim(word) // &
+        option%io_buffer = 'Species ' // trim(cur_kd_rxn%species_name) // &
                  ' in kd reaction' // &
                  ' not found among primary species list.'
         call printErrMsg(option)     
