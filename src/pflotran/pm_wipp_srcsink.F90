@@ -2921,19 +2921,11 @@ end subroutine PMWSSUpdateChemSpecies
       vec_p(j) = cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
                  material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                  1.d3                                          ! [mol -> kmol]
-      print *, 'vec_p brine [kmol/sec]'
-      print *, vec_p(j)
-      print *, 'brine_generation_rate [mol/m3/sec]'
-      print *, cwp%brine_generation_rate(i)
       j = j + 1
       !---gas-source-term-[kmol/sec]---------------------------!-[units]------
       vec_p(j) = cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
                  material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                  1.d3                                          ! [mol -> kmol]
-      print *, 'vec_p gas [kmol/sec]'
-      print *, vec_p(j)
-      print *, 'gas_generation_rate [mol/m3/sec]'
-      print *, cwp%gas_generation_rate(i)
       if (associated(general_auxvar)) then
         j = j + 1
         !---energy-source-term-[MJ/sec];-H-from-EOS-[J/kmol]-------------------
