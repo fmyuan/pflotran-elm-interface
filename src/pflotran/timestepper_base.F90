@@ -618,7 +618,7 @@ subroutine TimestepperBaseInputRecord(this)
   class(timestepper_base_type) :: this
 
 #ifdef DEBUG
-  call printMsg(this%option,'TimestepperBaseInputRecord()')
+  write(*,*) 'TimestepperBaseInputRecord()'
 #endif
 
   write(*,*) 'TimestepperBaseInputRecord must be extended for &
