@@ -274,8 +274,8 @@ recursive subroutine PMCBaseSetChildPeerPtr(pmcA,relationship_to,pmcB, &
           else
             pmcB%peer => pmcA
 #ifdef DEBUG
-        option%io_buffer = trim(pmcA%name) // ' assigned as peer of ' // &
-                           trim(pmcB%name) // ' via "append".'
+        pmcA%option%io_buffer = trim(pmcA%name) // ' assigned as peer of ' // &
+                                trim(pmcB%name) // ' via "append".'
         call printMsg(option)
 #endif
           endif
@@ -285,8 +285,8 @@ recursive subroutine PMCBaseSetChildPeerPtr(pmcA,relationship_to,pmcB, &
           if (associated(pmcB_parent)) then
             pmcB_parent%child => pmcA
 #ifdef DEBUG
-        option%io_buffer = trim(pmcA%name)// ' assigned as first child of ' // &
-                           trim(pmcB%name) // ' via "insert".'
+        pmcA%option%io_buffer = trim(pmcA%name)// ' assigned as first child&
+                                & of ' // trim(pmcB%name) // ' via "insert".'
         call printMsg(option)
 #endif
           else
