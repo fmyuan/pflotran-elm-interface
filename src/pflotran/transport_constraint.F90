@@ -271,6 +271,12 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                 aq_species_constraint%constraint_type(icomp) = &
                   CONSTRAINT_TOTAL_SORB
               case('TOTAL_AQ_PLUS_SORB')
+                if (reaction%neqsorb == 0) then
+                  option%io_buffer = 'TOTAL_AQ_PLUS_SORB constraint may not &
+                    &be used unless equilibrium sorption is employed within &
+                    &the CHEMISTRY block.'
+                  call printErrMsg(option)
+                endif
                 aq_species_constraint%constraint_type(icomp) = &
                   CONSTRAINT_TOTAL_AQ_PLUS_SORB
               case('S')
