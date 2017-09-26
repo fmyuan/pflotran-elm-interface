@@ -30,8 +30,9 @@
 # When does the concentration of KrA at the well drop below 1e-3 M?
 # Why does dissolved KrB remain above 1e-3 M for a longer time?
 #
-# Superman isn't affected by I129, but the rest of us are. Regular people
-# should avoid drinking water with concentrations greater than about 1e-9 M.
+# Superman isn't affected by 137Cs, but the rest of us are. Regular people
+# should avoid drinking water with concentrations greater than about 2e-11 M.
+# (EPA limit 200 pCi/L)
 # Is it okay for a person to drink water from Superman's well?
 # 
 # BONUS #1
@@ -96,7 +97,7 @@ CHEMISTRY
     KrA(aq) ! conservative species, no precipitation, no sorbtion
     KrB(aq) ! species that precipitates
     KrC(aq) ! species that sorbs
-    I129(aq) ! anthropogenic iodine in rain
+    Cs137(aq) ! anthropogenic 137Cs in rain
   /
   MINERALS
     Kryptonite(s)
@@ -111,8 +112,8 @@ CHEMISTRY
     /
   /
   RADIOACTIVE_DECAY_REACTION ! see documentation.pflotran.org
-    REACTION I129(aq) -> ! We don't care about the daughter
-    HALF_LIFE 1.57d7 y
+    REACTION Cs137(aq) -> ! We don't care about the daughter
+    HALF_LIFE 30.17d0 y
   /
   SORPTION
     ISOTHERM_REACTIONS ! see documentation.pflotran.org
@@ -365,7 +366,7 @@ TRANSPORT_CONDITION background_conc
       KrA(aq) 1.d-10 T
       KrB(aq) 1.d-10 T
       KrC(aq) 1.d-10 T
-      I129(aq) 1.d-20 T
+      Cs137(aq) 1.d-20 T
     /
     MINERALS
       Kryptonite(s) 0.d0 1.d0 m^2/m^3
@@ -381,7 +382,7 @@ TRANSPORT_CONDITION rain
       KrA(aq) 1.d-10 T
       KrB(aq) 1.d-10 T
       KrC(aq) 1.d-10 T
-      I129(aq) 1.64d-8 T
+      Cs137(aq) 2.93d-10 T #Concentration observed shortly after Fukushima
     /
     MINERALS
       Kryptonite(s) 0.d0 1.d0 m^2/m^3
@@ -397,10 +398,10 @@ TRANSPORT_CONDITION kryptonite_deposit
       KrA(aq) 1.d-10 T
       KrB(aq) 1.d-10 T
       KrC(aq) 1.d-10 T
-      I129(aq) 1.d-20 T
+      Cs137(aq) 1.d-20 T
     /
     MINERALS
-      Kryptonite(s) 1.d-3 1.d0 m^2/m^3
+      Kryptonite(s) 1.d-2 1.d0 m^2/m^3
       KrB(s)        0.d0  1.d0 m^2/m^3
     /
   /
