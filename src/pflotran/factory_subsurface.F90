@@ -1722,6 +1722,11 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
 
   use Grid_Grdecl_module, only : SetUGrdEclCmplLocation
 
+#ifdef CLM_PFLOTRAN
+  use clm_pflotran_interface_data
+#endif
+
+
   implicit none
 
   class(simulation_subsurface_type) :: simulation
@@ -1754,6 +1759,21 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
 
 ! Read in select required cards
 !.........................................................................
+!-------------------
+  ! when coupling with CLM, need to know if meshmaps are provided prior to 'GRID' reading
+  ! if not, CLM mesh will directly over-ride whatever in PF input card
+#ifdef CLM_PFLOTRAN
+  string = "MAPPING_FILES"
+  call InputFindStringInFile(input,option,string)
+  if (.not.InputError(input)) then
+    option%mapping_files = PETSC_TRUE
+    option%io_buffer = ' CLM-PF grid/mesh mapping files will be USED!'
+    call printMsg(option)
+  end if
+  rewind(input%fid)
+#endif
+!-------------------
+  
 
 !  Search for 'WELL_DATA' section and read well locations if found
 
@@ -1890,6 +1910,19 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
           call InputReadInt(input,option,grid%structured_grid%npz)
           call InputDefaultMsg(input,option,'npz')
 
+#ifdef CLM_PFLOTRAN
+          if (.not. option%mapping_files) then
+            ! note that, if coupled with CLM, CLM land domain configuration
+            ! will over-ride 'npx/npy/npz' read above
+            option%io_buffer = ' CLM land mpi configuration will over-ride PF'
+            call printMsg(option)
+
+            grid%structured_grid%npx = clm_pf_idata%npx
+            grid%structured_grid%npy = clm_pf_idata%npy
+            grid%structured_grid%npz = clm_pf_idata%npz
+          endif
+#endif
+ 
           if (option%myrank == option%io_rank .and. &
               option%print_to_screen) then
             option%io_buffer = ' Processor Decomposition:'
@@ -2114,6 +2147,14 @@ subroutine SubsurfaceReadInput(simulation,input)
     call printMsg(option)
 
     select case(trim(card))
+
+#ifdef CLM_PFLOTRAN
+!....................
+      case ('MAPPING_FILES')
+        call InputSkipToEND(input,option,'')
+        ! skip 'MAPPING_FILES ... END' block, which will read in pflotran_clm_setmapping.F90
+        ! needed, otherwise model crashes
+#endif
 
 !....................
       case ('GRID')
