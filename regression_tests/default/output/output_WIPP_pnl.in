@@ -17,8 +17,6 @@ SIMULATION
         TOUGH2_ITOL_SCALED_RESIDUAL 1.d-5
       /
     /
-    WIPP_SOURCE_SINK wipp
-    /
   /
 END
 
