@@ -268,24 +268,42 @@ subroutine SolverSetSNESOptions(solver, option)
   ! the below must come after SNESSetFromOptions
   ! PETSc no longer performs a shift on matrix diagonals by default.  We 
   ! force the shift since it helps alleviate zero pivots.
+  ! Note that if the preconditioner type does not support a shift, the shift 
+  ! we've set is ignored; we don't need to check to see if the type supports 
+  ! a shift before calling this.
   call PCFactorSetShiftType(solver%pc,MAT_SHIFT_INBLOCKS,ierr);CHKERRQ(ierr)
-  if (solver%pc_type == PCBJACOBI) then
+  if (solver%pc_type == PCBJACOBI .or. solver%pc_type == PCASM .or. &
+      solver%pc_type == PCGASM) then
     call KSPSetup(solver%ksp,ierr);CHKERRQ(ierr)
-    call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
+    select case(solver%pc_type)
+      case(PCBJACOBI)
+        call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
+                                PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
+      case(PCASM)
+        call PCASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                             PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
+      case(PCGASM)
+        call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
+                             PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
+    end select
     allocate(sub_ksps(nsub_ksp))
-    call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
+    select case(solver%pc_type)
+      case(PCBJACOBI)
+        call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
+                                sub_ksps,ierr);CHKERRQ(ierr)
+      case(PCASM)
+        call PCASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                             sub_ksps,ierr);CHKERRQ(ierr)
+      case(PCGASM)
+        call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
+                             sub_ksps,ierr);CHKERRQ(ierr)
+    end select
     do i = 1, nsub_ksp
       call KSPGetPC(sub_ksps(i),pc,ierr);CHKERRQ(ierr)
       call PCFactorSetShiftType(pc,MAT_SHIFT_INBLOCKS,ierr);CHKERRQ(ierr)
     enddo
     deallocate(sub_ksps)
     nullify(sub_ksps)
-  elseif (.not.(solver%pc_type == PCLU .or. solver%pc_type == PCILU)) then
-    option%io_buffer = 'PCFactorShiftType for PC ' // &
-      trim(solver%pc_type) // ' is not supported at this time.'
-    call printErrMsg(option)
   endif
   
   if (Initialized(solver%linear_zero_pivot_tol)) then
