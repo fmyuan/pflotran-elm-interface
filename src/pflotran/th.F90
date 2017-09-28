@@ -3924,8 +3924,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
        
-      if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS .and. &
-        source_sink%flow_condition%itype(1) /= WELL_SS) &
+      if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS) &
         qsrc1 = source_sink%flow_condition%rate%dataset%rarray(1)
       
       Res_src = 0.d0
@@ -3944,39 +3943,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
             source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
         case(HET_MASS_RATE_SS)
           qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
-        case(WELL_SS) ! production well, Karra 11/10/2015
-          ! if node pessure is lower than the given extraction pressure, shut it down
-          !  well parameter explanation
-          !   1. well status. 1 injection; -1 production; 0 shut in!
-          !   2. well factor [m^3],  the effective permeability [m^2/s]
-          !   3. bottomhole pressure:  [Pa]
-          !   4. max pressure: [Pa]
-          !   5. min pressure: [Pa]   
-          mmsrc => source_sink%flow_condition%well%dataset%rarray
-
-          well_status = mmsrc(1)
-          well_factor = mmsrc(2)
-          pressure_bh = mmsrc(3)
-          pressure_max = mmsrc(4)
-          pressure_min = mmsrc(5)
-    
-          ! production well (well status = -1)
-          if (dabs(well_status + 1.d0) < 1.d-1) then
-            if (global_auxvars(ghosted_id)%pres(1) > pressure_min) then
-              Dq = well_factor 
-              dphi = global_auxvars(ghosted_id)%pres(1) - pressure_bh
-              if (dphi >= 0.d0) then ! outflow only
-                ukvr = auxvars(ghosted_id)%kvr
-                if (ukvr < 1.d-20) ukvr = 0.d0
-                v_darcy = 0.d0
-                if (ukvr*Dq > floweps) then
-                  v_darcy = Dq * ukvr * dphi
-                  ! store volumetric rate for ss_fluid_fluxes()
-                  qsrc1 = -1.d0*v_darcy*global_auxvars(ghosted_id)%den(1)
-                endif
-              endif
-            endif
-          endif 
 
         case default
           write(string,*) source_sink%flow_condition%rate%itype
@@ -4557,8 +4523,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS .and. &
-        source_sink%flow_condition%itype(1) /= WELL_SS) &
+      if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS) &
         qsrc1 = source_sink%flow_condition%rate%dataset%rarray(1)
       
       select case (source_sink%flow_condition%rate%itype)
@@ -6191,7 +6156,6 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
   use Field_module
   use Material_Aux_class
   use Option_module
-  use Saturation_Function_module
   use Characteristic_Curves_module
   use String_module
   use Utility_module

@@ -14,7 +14,6 @@ module Factory_Surface_module
   public :: SurfaceInitialize, &
             SurfaceInitializePostPETSc, &
             SurfaceReadInput, &
-!            HijackSurfaceSimulation, &
             SurfaceJumpStart
 
 contains
@@ -258,7 +257,6 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
   use Patch_module
   use Solver_module
   use Output_Aux_module
-  use Output_Tecplot_module
   use Output_Surface_module
   use Utility_module, only : DeallocateArray, UtilityReadArray
 
@@ -382,12 +380,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
         call InputReadWord(input,option,flow_condition%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'SURF_FLOW_CONDITION','name')
         call printMsg(option,flow_condition%name)
-        if (option%iflowmode == G_MODE .or. &
-            option%iflowmode == WF_MODE) then
-          call FlowConditionGeneralRead(flow_condition,input,option)
-        else
-          call FlowConditionRead(flow_condition,input,option)
-        endif
+        call FlowConditionRead(flow_condition,input,option)
         call FlowConditionAddToList(flow_condition, &
                                     surf_realization%surf_flow_conditions)
         nullify(flow_condition)
@@ -670,34 +663,6 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                   endif
                 case ('MAD')
                   output_option%print_mad = PETSC_TRUE
-                case ('TECPLOT')
-                  output_option%print_tecplot = PETSC_TRUE
-                  call InputReadWord(input,option,word,PETSC_TRUE)
-                  call InputErrorMsg(input,option,'TECPLOT','OUTPUT,FORMAT') 
-                  call StringToUpper(word)
-                  select case(trim(word))
-                    case('POINT')
-                      output_option%tecplot_format = TECPLOT_POINT_FORMAT
-                    case('BLOCK')
-                      output_option%tecplot_format = TECPLOT_BLOCK_FORMAT
-                    case('FEQUADRILATERAL')
-                      output_option%tecplot_format = &
-                        TECPLOT_FEQUADRILATERAL_FORMAT
-                    case default
-                      option%io_buffer = 'TECPLOT format (' // trim(word) // &
-                                         ') not recongnized.'
-                      call printErrMsg(option)
-                  end select
-                  if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
-                      .and. option%mycommsize > 1) then
-                    output_option%tecplot_format = TECPLOT_BLOCK_FORMAT
-                  endif
-                  if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
-                    output_option%tecplot_format = &
-                      TECPLOT_FEQUADRILATERAL_FORMAT
-                  endif
-                case ('VTK')
-                  output_option%print_vtk = PETSC_TRUE
                 case default
                   call InputKeywordUnrecognized(word, &
                          'SURF_OUTPUT,FORMAT',option)

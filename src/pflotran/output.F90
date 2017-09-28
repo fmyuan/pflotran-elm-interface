@@ -5,10 +5,7 @@ module Output_module
   use Logging_module 
   use Output_Aux_module
 
- ! use Output_Surface_module
   use Output_HDF5_module
-  use Output_Tecplot_module
-  use Output_VTK_module
   use Output_Observation_module
   
   use PFLOTRAN_Constants_module
@@ -22,13 +19,6 @@ module Output_module
   include "scorpiof.h"
 #endif
 
-  PetscInt, parameter :: TECPLOT_INTEGER = 0
-  PetscInt, parameter :: TECPLOT_REAL = 1
-
-  PetscInt, parameter :: VTK_INTEGER = 0
-  PetscInt, parameter :: VTK_REAL = 1
-
-  PetscInt, parameter :: TECPLOT_FILE = 0
   PetscInt, parameter ::  HDF5_FILE = 1
 
   
@@ -435,33 +425,6 @@ subroutine OutputFileRead(input,realization,output_option, &
         !.............
           case ('MAD')
             output_option%print_mad = PETSC_TRUE
-        !.................
-          case ('TECPLOT')
-            string = trim(string) // ',TECPLOT'
-            output_option%print_tecplot = PETSC_TRUE
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'TECPLOT format',string) 
-            call StringToUpper(word)
-            select case(trim(word))
-              case('POINT')
-                output_option%tecplot_format = TECPLOT_POINT_FORMAT
-              case('BLOCK')
-                output_option%tecplot_format = TECPLOT_BLOCK_FORMAT
-              case('FEBRICK')
-                output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
-              case default
-                call InputKeywordUnrecognized(word,string,option)
-            end select
-            if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
-                 .and. option%mycommsize > 1) then
-              output_option%tecplot_format = TECPLOT_BLOCK_FORMAT
-            endif
-            if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
-              output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
-            endif
-        !.............
-          case ('VTK')
-            output_option%print_vtk = PETSC_TRUE
         !.............
           case default
             call InputKeywordUnrecognized(word,string,option)
@@ -475,12 +438,6 @@ subroutine OutputFileRead(input,realization,output_option, &
 
 !......................
       case('VARIABLES')
-        select case (option%iflowmode)
-          case(FLASH2_MODE,MPH_MODE)
-            option%io_buffer = 'A variable list cannot be specified for &
-                  &the CO2 flow modes. Variables are determined internally.'
-            call printErrMsg(option)
-        end select
         select case(trim(block_name))
           case('SNAPSHOT_FILE')           
             call OutputVariableRead(input,option, &
@@ -1216,44 +1173,16 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       call printMsg(option)
 #endif
     endif
-   
-    if (realization_base%output_option%print_tecplot) then
-      call PetscTime(tstart,ierr);CHKERRQ(ierr)
-      call PetscLogEventBegin(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
-      select case(realization_base%output_option%tecplot_format)
-        case (TECPLOT_POINT_FORMAT)
-          call OutputTecplotPoint(realization_base)
-        case (TECPLOT_BLOCK_FORMAT,TECPLOT_FEBRICK_FORMAT)
-          call OutputTecplotBlock(realization_base)
-      end select
-      call PetscLogEventEnd(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
-      call PetscTime(tend,ierr);CHKERRQ(ierr)
-      write(option%io_buffer,'(f10.2," Seconds to write to Tecplot file(s)")') &
-            tend-tstart
-      call printMsg(option)        
-    endif
-    
+
     if (realization_base%output_option%print_explicit_flowrate) then
       call PetscTime(tstart,ierr);CHKERRQ(ierr)
       call PetscLogEventBegin(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
-      call OutputPrintExplicitFlowrates(realization_base)
+      !call OutputPrintExplicitFlowrates(realization_base)
       call PetscLogEventEnd(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write to Rates file.")') &
             tend-tstart
       call printMsg(option)        
-    endif
-
-    if (realization_base%output_option%print_vtk) then
-      call PetscTime(tstart,ierr);CHKERRQ(ierr)
-      call PetscLogEventBegin(logging%event_output_vtk,ierr);CHKERRQ(ierr)
-      call OutputVTK(realization_base)
-
-      call PetscLogEventEnd(logging%event_output_vtk,ierr);CHKERRQ(ierr)
-      call PetscTime(tend,ierr);CHKERRQ(ierr)
-      write(option%io_buffer,'(f10.2," Seconds to write to VTK file(s)")') &
-            tend-tstart
-      call printMsg(option) 
     endif
       
     if (realization_base%output_option%print_mad) then
@@ -1267,24 +1196,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
                              &file(s)")') tend-tstart
       call printMsg(option) 
     endif
-    
-    ! Print secondary continuum variables vs sec. continuum dist.
-    if (option%use_mc) then
-      if (realization_base%output_option%print_tecplot) then
-        call PetscTime(tstart,ierr);CHKERRQ(ierr)
-        call PetscLogEventBegin(logging%event_output_secondary_tecplot, &
-                                ierr);CHKERRQ(ierr)
-        call OutputSecondaryContinuumTecplot(realization_base)
-        call PetscLogEventEnd(logging%event_output_secondary_tecplot, &
-                              ierr);CHKERRQ(ierr)
-        call PetscTime(tend,ierr);CHKERRQ(ierr)
-        write(option%io_buffer,'(f10.2," Seconds to write to secondary' // &
-              ' continuum Tecplot file(s)")') &
-              tend-tstart
-        call printMsg(option) 
-      endif
-    endif
-      
+
     if (option%compute_statistics) then
       call ComputeFlowCellVelocityStats(realization_base)
       call ComputeFlowFluxVelocityStats(realization_base)
@@ -1304,10 +1216,6 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
 
   ! Output temporally average variables 
   call OutputAvegVars(realization_base)
-
-#ifdef WELL_CLASS
-  call OutputWell(realization_base)
-#endif
 
   if (snapshot_plot_flag) then
     realization_base%output_option%plot_number = &
@@ -1398,30 +1306,6 @@ subroutine OutputInputRecord(output_option,waypoint_list)
 
   write(id,'(a29)',advance='no') '---------------------------: '
   write(id,'(a)') 'snapshot file output'
-  if (output_option%print_tecplot) then
-    write(id,'(a29)',advance='no') 'format: '
-    if (output_option%tecplot_format == TECPLOT_POINT_FORMAT) then
-      write(id,'(a)') 'tecplot point'
-    endif
-    if (output_option%tecplot_format == TECPLOT_BLOCK_FORMAT) then
-      write(id,'(a)') 'tecplot block'
-    endif
-    if (output_option%tecplot_format == TECPLOT_FEBRICK_FORMAT) then
-      write(id,'(a)') 'tecplot febrick'
-    endif
-    if (output_option%print_fluxes) then
-      write(id,'(a29)',advance='no') ' '
-      write(id,'(a)') 'print fluxes'
-    endif
-    if (output_option%print_tecplot_vel_cent) then
-      write(id,'(a29)',advance='no') ' '
-      write(id,'(a)') 'velocity on cell centers'
-    endif
-    if (output_option%print_tecplot_vel_face) then
-      write(id,'(a29)',advance='no') ' '
-      write(id,'(a)') 'velocity on cell faces'
-    endif
-  endif
   if (output_option%print_hdf5) then
     write(id,'(a29)',advance='no') 'format: '
     if (output_option%print_single_h5_file) then
@@ -2092,8 +1976,6 @@ subroutine OutputPrintCouplers(realization_base,istep)
   use Patch_module
   use Grid_module
   use Input_Aux_module
-  use General_Aux_module
-  use WIPP_Flow_Aux_module
 
   class(realization_base_type) :: realization_base
   PetscInt :: istep
@@ -2129,18 +2011,12 @@ subroutine OutputPrintCouplers(realization_base,istep)
       allocate(iauxvars(1),auxvar_names(1))
       iauxvars(1) = RICHARDS_PRESSURE_DOF
       auxvar_names(1) = 'pressure'
-    case(G_MODE)
+    case(TH_MODE)
       allocate(iauxvars(2),auxvar_names(2))
-      iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
+      iauxvars(1) = TH_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
-      iauxvars(2) = GENERAL_ENERGY_DOF
+      iauxvars(2) = TH_TEMPERATURE_DOF
       auxvar_names(2) = 'temperature'
-    case(WF_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
-      iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
-      auxvar_names(1) = 'liquid_pressure'
-      iauxvars(2) = GENERAL_ENERGY_DOF
-      auxvar_names(2) = 'gas_saturation'
     case default
       option%io_buffer = &
         'OutputPrintCouplers() not yet supported for this flow mode'
@@ -2185,7 +2061,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
         string = trim(string) // trim(option%group_prefix)
       endif
       string = trim(string) // '.tec'
-      call OutputVectorTecplot(string,word,realization_base,field%work)
+      !call OutputVectorTecplot(string,word,realization_base,field%work)
     enddo
       
   enddo
@@ -2240,7 +2116,7 @@ subroutine OutputPrintRegions(realization_base)
     call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     string = 'region_' // trim(cur_region%name) // '.tec'
     word = 'region'
-    call OutputVectorTecplot(string,word,realization_base,field%work)
+    !call OutputVectorTecplot(string,word,realization_base,field%work)
     cur_region => cur_region%next
   enddo
   
@@ -2370,53 +2246,6 @@ subroutine OutputAvegVars(realization_base)
 
 
 end subroutine OutputAvegVars
-
-! ************************************************************************** !
-#ifdef WELL_CLASS
-subroutine OutputWell(realization_base)
-  ! 
-  ! Prints out the well variables
-  ! 
-  ! Author: Paolo Orsini - OpenGoSim
-  ! Date: 10/7/15
-  ! 
-  use Realization_Base_class, only : realization_base_type
-  use Option_module
-  use Coupler_module
-  use Patch_module
-  use Well_module
-
-  implicit none
-
-  class(realization_base_type) :: realization_base  
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch  
-  type(output_option_type), pointer :: output_option
-  type(coupler_type), pointer :: source_sink
-  !class(well_auxvar_base_type), pointer :: well_auxvar 
-
-  PetscInt :: iconn
-  PetscInt :: local_id, ghosted_id
-
-  patch => realization_base%patch
-  !grid => patch%grid
-  option => realization_base%option
-  output_option => realization_base%output_option
-
-  source_sink => patch%source_sink_list%first
-  do
-    if (.not.associated(source_sink)) exit
-    if( associated(source_sink%well) ) then
-      if (source_sink%connection_set%num_connections > 0 ) then
-        !call WellOutput(source_sink%well,output_option,source_sink%name,option)
-        call WellOutput(source_sink%well,output_option,option)
-      end if 
-    end if
-    source_sink => source_sink%next
-  enddo
-
-end subroutine OutputWell
-#endif
 
 ! ************************************************************************** !
 

@@ -133,8 +133,6 @@ subroutine MassRateSetup(this,grid,option)
 
   use Option_module
   use Grid_module
-  use General_Aux_module, only : general_fmw => fmw_comp
-  use WIPP_Flow_Aux_module, only : wipp_flow_fmw => fmw_comp
 
   implicit none
   
@@ -145,12 +143,8 @@ subroutine MassRateSetup(this,grid,option)
   call SSSandboxBaseSetup(this,grid,option)
   ! convert rate from kg/s to mol/s
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE, TH_MODE)
       this%rate(1) = this%rate(1) / FMWH2O
-    case(G_MODE)
-      this%rate(:) = this%rate(:) / general_fmw(:)
-    case(WF_MODE)
-      this%rate(:) = this%rate(:) / wipp_flow_fmw(:)
     case default
       option%io_buffer = 'Rate conversion not set up for flow mode in ' // &
                          'MassRateSetup'

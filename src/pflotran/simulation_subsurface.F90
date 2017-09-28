@@ -6,7 +6,6 @@ module Simulation_Subsurface_class
   use Regression_module
   use Option_module
   use PMC_Subsurface_class
-  use PMC_Third_Party_class
   use PMC_Base_class
   use Realization_Subsurface_class
   use Waypoint_module
@@ -30,8 +29,6 @@ module Simulation_Subsurface_class
     procedure, public :: Init => SubsurfaceSimulationInit
     procedure, public :: JumpStart => SubsurfaceSimulationJumpStart
     procedure, public :: InputRecord => SubsurfaceSimInputRecord
-!    procedure, public :: ExecuteRun
-!    procedure, public :: RunToTime
     procedure, public :: FinalizeRun => SubsurfaceFinalizeRun
     procedure, public :: Strip => SubsurfaceSimulationStrip
   end type simulation_subsurface_type
@@ -137,24 +134,10 @@ subroutine SubsurfaceSimInputRecord(this)
   write(id,'(a)') 'subsurface'
   write(id,'(a29)',advance='no') 'flow mode: '
   select case(this%realization%option%iflowmode)
-    case(MPH_MODE)
-      write(id,'(a)') 'multi-phase'
     case(RICHARDS_MODE)
       write(id,'(a)') 'richards'
-    case(IMS_MODE)
-      write(id,'(a)') 'immiscible'
-    case(FLASH2_MODE)
-      write(id,'(a)') 'flash2'
-    case(G_MODE)
-      write(id,'(a)') 'general'
-    case(WF_MODE)
-      write(id,'(a)') 'wipp flow'
-    case(MIS_MODE)
-      write(id,'(a)') 'miscible'
     case(TH_MODE)
       write(id,'(a)') 'thermo-hydro'
-    case(TOIL_IMS_MODE)
-      write(id,'(a)') 'thermal-oil-immiscible'
   end select
   
   ! print time information
@@ -340,8 +323,6 @@ subroutine SubsurfaceFinalizeRun(this)
   use Timestepper_BE_class
   use Reaction_Sandbox_module, only : RSandboxDestroy
   use SrcSink_Sandbox_module, only : SSSandboxDestroyList
-  use WIPP_module, only : WIPPDestroy
-  use Klinkenberg_module, only : KlinkenbergDestroy
   use CLM_Rxn_module, only : RCLMRxnDestroy
 
   implicit none
@@ -367,8 +348,6 @@ subroutine SubsurfaceFinalizeRun(this)
         flow_timestepper => ts
     end select
     call SSSandboxDestroyList()
-    call WIPPDestroy()
-    call KlinkenbergDestroy()
   endif
   if (associated(this%rt_process_model_coupler)) then
     select type(ts => this%rt_process_model_coupler%timestepper)

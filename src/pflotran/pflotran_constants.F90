@@ -56,7 +56,6 @@ module PFLOTRAN_Constants_module
   ! constants
                              ! from http://physics.nist.gov/cgi-bin/cuu/Value?r
   PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31446d0 ! J/mol-K
-!to match BRAGFLO  PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31451 ! J/mol-K
   PetscReal, parameter, public :: HEAT_OF_FUSION = 3.34d5  ! J/kg
   PetscReal, parameter, public :: PI = 3.14159265359d0
   PetscReal, parameter, public :: FARADAY = 96485.3365d0 ! C/mol
@@ -125,16 +124,8 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: NULL_MODE = 0
   
   ! flow modes
-  PetscInt, parameter, public :: MPH_MODE = 1
-  PetscInt, parameter, public :: RICHARDS_MODE = 2
-  PetscInt, parameter, public :: IMS_MODE = 3
-  PetscInt, parameter, public :: FLASH2_MODE = 4
-  PetscInt, parameter, public :: G_MODE = 5
-  PetscInt, parameter, public :: MIS_MODE = 6
-  PetscInt, parameter, public :: TH_MODE = 7
-  PetscInt, parameter, public :: TOIL_IMS_MODE = 8
-  PetscInt, parameter, public :: TOWG_MODE = 9
-  PetscInt, parameter, public :: WF_MODE = 10
+  PetscInt, parameter, public :: RICHARDS_MODE = 1
+  PetscInt, parameter, public :: TH_MODE = 2
   
   ! flow sub-modes
   PetscInt, parameter, public :: TOWG_IMMISCIBLE = 1
@@ -170,15 +161,6 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: HET_ENERGY_RATE_SS = 21
   PetscInt, parameter, public :: HET_SURF_SEEPAGE_BC = 22
   PetscInt, parameter, public :: SPILLOVER_BC = 23
-  PetscInt, parameter, public :: WELL_MASS_RATE_TARGET = 24
-  PetscInt, parameter, public :: WELL_MASS_RATE_MAX = 25
-  PetscInt, parameter, public :: WELL_MASS_RATE_MIN = 26
-  PetscInt, parameter, public :: WELL_VOL_RATE_TARGET = 27
-  PetscInt, parameter, public :: WELL_VOL_RATE_MAX = 28
-  PetscInt, parameter, public :: WELL_VOL_RATE_MIN = 29
-  PetscInt, parameter, public :: WELL_BHP = 30
-  PetscInt, parameter, public :: WELL_BHP_MIN = 31
-  PetscInt, parameter, public :: WELL_BHP_MAX = 32
   PetscInt, parameter, public :: SURFACE_DIRICHLET = 33
   PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
   PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
@@ -208,17 +190,10 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: TH_PRESSURE_DOF = 1
   PetscInt, parameter, public :: TH_TEMPERATURE_DOF = 2
   PetscInt, parameter, public :: TH_CONDUCTANCE_DOF = 3
-
-  PetscInt, parameter, public :: MPH_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: MPH_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: MPH_CONCENTRATION_DOF = 3
   
   PetscInt, parameter, public :: RICHARDS_PRESSURE_DOF = 1
   PetscInt, parameter, public :: RICHARDS_CONDUCTANCE_DOF = 2
-  
-  PetscInt, parameter, public :: MIS_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: MIS_CONCENTRATION_DOF = 2
-  
+
   ! mphase equation of state
   PetscInt, parameter, public :: EOS_SPAN_WAGNER = 1
   PetscInt, parameter, public :: EOS_MRK = 2
@@ -281,19 +256,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: VERTEX_CENTERED_OUTPUT_MESH = 1
   PetscInt, parameter, public :: CELL_CENTERED_OUTPUT_MESH = 2
 
-  ! Geomechanics
-  PetscInt, parameter, public :: GEOMECH_DISP_X_DOF = 1
-  PetscInt, parameter, public :: GEOMECH_DISP_Y_DOF = 2
-  PetscInt, parameter, public :: GEOMECH_DISP_Z_DOF = 3
-  PetscInt, parameter, public :: GEOMECH_ONE_WAY_COUPLED = 4
-  PetscInt, parameter, public :: GEOMECH_TWO_WAY_COUPLED = 5
-
   ! Macros that are used as 'vscatter_index' values
   PetscInt, parameter, public :: SURF_TO_SUBSURF = 1
   PetscInt, parameter, public :: SUBSURF_TO_SURF = 2
-  PetscInt, parameter, public :: SUBSURF_TO_HYDROGEOPHY = 3
-  PetscInt, parameter, public :: SUBSURF_TO_GEOMECHANICS = 4
-  PetscInt, parameter, public :: GEOMECHANICS_TO_SUBSURF = 5
   
   ! Ice/water/vapor partitioning model
   PetscInt, parameter, public :: PAINTER_EXPLICIT = 1

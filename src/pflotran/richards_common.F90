@@ -109,7 +109,6 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
     call RichardsAuxVarCompute(x_pert(1),rich_auxvar_pert,global_auxvar_pert, &
                                material_auxvar_pert, &
                                characteristic_curves, &
-                               -999, &
                                option)
     call RichardsAccumulation(rich_auxvar_pert,global_auxvar_pert, &
                               material_auxvar_pert, &
@@ -329,13 +328,11 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
                                global_auxvar_pert_up, &
                                material_auxvar_pert_up, &
                                characteristic_curves_up, &
-                               -999, &
                                option)
     call RichardsAuxVarCompute(x_pert_dn(1),rich_auxvar_pert_dn, &
                                global_auxvar_pert_dn, &
                                material_auxvar_pert_dn, &
                                characteristic_curves_dn, &
-                               -999, &
                                option)
     call RichardsFlux(rich_auxvar_pert_up,global_auxvar_pert_up, &
                       material_auxvar_pert_up,sir_up, &
@@ -730,13 +727,11 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                                global_auxvar_pert_dn, &
                                material_auxvar_pert_dn, &
                                characteristic_curves_dn, &
-                               -999, &
                                option)
     call RichardsAuxVarCompute(x_pert_up(1),rich_auxvar_pert_up, &
                                global_auxvar_pert_up, &
                                material_auxvar_pert_up, &
                                characteristic_curves_dn, &
-                               -999, &
                                option)
     call RichardsBCFlux(ibndtype,auxvars, &
                         rich_auxvar_pert_up,global_auxvar_pert_up, &

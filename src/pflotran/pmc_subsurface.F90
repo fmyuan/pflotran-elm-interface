@@ -95,15 +95,9 @@ subroutine PMCSubsurfaceSetupSolvers(this)
   use PM_Base_Pointer_module
   use PM_Base_class
   use PM_Subsurface_Flow_class
-  use PM_General_class
-  use PM_WIPP_Flow_class
   use PM_Richards_class
   use PM_TH_class
   use PM_RT_class
-  use PM_Waste_Form_class
-  use PM_UFD_Decay_class
-  use PM_TOilIms_class
-  use PM_TOWG_class
   use Secondary_Continuum_module, only : SecondaryRTUpdateIterate  
   use Solver_module
   use Timestepper_Base_class
@@ -148,23 +142,10 @@ subroutine PMCSubsurfaceSetupSolvers(this)
               write(*,'(" number of dofs = ",i3,", number of &
                         &phases = ",i3,i2)') option%nflowdof,option%nphase
               select case(option%iflowmode)
-                case(FLASH2_MODE)
-                  write(*,'(" mode = FLASH2: p, T, s/X")')
-                case(MPH_MODE)
-                  write(*,'(" mode = MPH: p, T, s/X")')
-                case(IMS_MODE)
-                  write(*,'(" mode = IMS: p, T, s")')
-                case(MIS_MODE)
-                  write(*,'(" mode = MIS: p, Xs")')
                 case(TH_MODE)
                   write(*,'(" mode = TH: p, T")')
                 case(RICHARDS_MODE)
-                  write(*,'(" mode = Richards: p")')
-                case(G_MODE) 
-                  write(*,'(" mode = General: p, sg/X, T")')
-                case(WF_MODE) 
-                  write(*,'(" mode = WIPP Flow: p, sg")')
-                case(TOIL_IMS_MODE)   
+                  write(*,'(" mode = Richards: p")')  
               end select
             endif
 
@@ -273,50 +254,6 @@ subroutine PMCSubsurfaceSetupSolvers(this)
 #endif
                                                  ierr);CHKERRQ(ierr)
                 endif   
-            !-------------------------------------
-              class is(pm_general_type)
-                call SNESLineSearchSetPreCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                               PMCheckUpdatePre, &
-                                               this%pm_ptr%pm, &
-#else
-                                               PMCheckUpdatePrePtr, &
-                                               this%pm_ptr, &
-#endif
-                                               ierr);CHKERRQ(ierr)
-            !-------------------------------------
-              class is(pm_wippflo_type)
-                call SNESLineSearchSetPreCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                               PMCheckUpdatePre, &
-                                               this%pm_ptr%pm, &
-#else
-                                               PMCheckUpdatePrePtr, &
-                                               this%pm_ptr, &
-#endif
-                                               ierr);CHKERRQ(ierr)
-            !-------------------------------------
-              class is(pm_toil_ims_type)
-                call SNESLineSearchSetPreCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                               PMCheckUpdatePre, &
-                                               this%pm_ptr%pm, &
-#else
-                                               PMCheckUpdatePrePtr, &
-                                               this%pm_ptr, &
-#endif
-                                               ierr);CHKERRQ(ierr)
-            !-------------------------------------
-              class is(pm_towg_type)
-                call SNESLineSearchSetPreCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                               PMCheckUpdatePre, &
-                                               this%pm_ptr%pm, &
-#else
-                                               PMCheckUpdatePrePtr, &
-                                               this%pm_ptr, &
-#endif
-                                               ierr);CHKERRQ(ierr)
             !-------------------------------------
               class is(pm_th_type)
                 if (Initialized(pm%pressure_dampening_factor) .or. &
@@ -491,7 +428,6 @@ subroutine PMCSubsurfaceGetAuxData(this)
   class(pmc_subsurface_type) :: this
 
   if (this%option%surf_flow_on) call PMCSubsurfaceGetAuxDataFromSurf(this)
-  if (this%option%ngeomechdof > 0) call PMCSubsurfaceGetAuxDataFromGeomech(this)
 
 end subroutine PMCSubsurfaceGetAuxData
 
@@ -508,7 +444,6 @@ subroutine PMCSubsurfaceSetAuxData(this)
   class(pmc_subsurface_type) :: this
 
   if (this%option%surf_flow_on) call PMCSubsurfaceSetAuxDataForSurf(this)
-  if (this%option%ngeomechdof > 0) call PMCSubsurfaceSetAuxDataForGeomech(this)
 
 end subroutine PMCSubsurfaceSetAuxData
 
@@ -891,216 +826,6 @@ subroutine PMCSubsurfaceSetAuxDataForSurf(this)
   endif
 
 end subroutine PMCSubsurfaceSetAuxDataForSurf
-
-! ************************************************************************** !
-
-subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
-  !
-  ! This routine updates subsurface data from geomechanics process model.
-  !
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 01/04/14
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use Discretization_module, only : DiscretizationLocalToGlobal
-  use Field_module
-  use Grid_module
-  use Option_module
-  use Realization_Subsurface_class
-  use PFLOTRAN_Constants_module
-  use Material_Aux_class
-  use Material_module
-  use Variables_module, only : POROSITY
-
-  implicit none
-
-  class (pmc_subsurface_type) :: this
-
-  type(grid_type), pointer :: subsurf_grid
-  type(option_type), pointer :: option
-  type(field_type), pointer :: subsurf_field
-
-  PetscScalar, pointer :: sim_por_p(:)
-  PetscScalar, pointer :: work_loc_p(:)
-  class(material_auxvar_type), pointer :: subsurf_material_auxvars(:)
-
-  PetscInt :: local_id
-  PetscInt :: ghosted_id
-
-  PetscErrorCode :: ierr
-  PetscViewer :: viewer
-
-#ifdef GEOMECH_DEBUG
-  print *, 'PMCSubsurfaceGetAuxDataFromGeomech()'
-#endif
-
-  if (associated(this%sim_aux)) then
-    select type (pmc => this)
-      class is (pmc_subsurface_type)
-        option        => pmc%option
-        subsurf_grid  => pmc%realization%discretization%grid
-        subsurf_field => pmc%realization%field
-        subsurf_material_auxvars => pmc%realization%patch%aux%Material%auxvars
-
-        if (option%geomech_subsurf_coupling == GEOMECH_TWO_WAY_COUPLED) then
-
-          call VecGetArrayF90(pmc%sim_aux%subsurf_por,sim_por_p,  &
-                              ierr);CHKERRQ(ierr)
-          call VecGetArrayF90(subsurf_field%work_loc,work_loc_p,  &
-                              ierr);CHKERRQ(ierr)
-
-          do local_id = 1, subsurf_grid%nlmax
-            ghosted_id = subsurf_grid%nL2G(local_id)
-            work_loc_p(ghosted_id) = sim_por_p(local_id)
-          enddo
-            
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,sim_por_p,  &
-                                  ierr);CHKERRQ(ierr)
-          call VecRestoreArrayF90(subsurf_field%work_loc,work_loc_p,  &
-                              ierr);CHKERRQ(ierr)
-
-          call DiscretizationLocalToGlobal(pmc%realization%discretization, &
-                                          subsurf_field%work_loc, &
-                                          subsurf_field%porosity_geomech_store, &
-                                          ONEDOF)
-#ifdef GEOMECH_DEBUG
-          call PetscViewerASCIIOpen(pmc%realization%option%mycomm, &
-                                    'porosity_geomech_store.out', &
-                                    viewer,ierr);CHKERRQ(ierr)
-          call VecView(subsurf_field%porosity_geomech_store,viewer,ierr);CHKERRQ(ierr)
-          call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-#endif
-
-
-        endif
-    end select
-  endif
-
-end subroutine PMCSubsurfaceGetAuxDataFromGeomech
-
-! ************************************************************************** !
-
-subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
-  !
-  ! This routine sets auxiliary needed by geomechanics process model.
-  !
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 01/04/14
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use Option_module
-  use Realization_Subsurface_class
-  use Grid_module
-  use Field_module
-  use Material_Aux_class
-  use PFLOTRAN_Constants_module
-
-  implicit none
-
-  class (pmc_subsurface_type) :: this
-
-  type(grid_type), pointer :: subsurf_grid
-  type(option_type), pointer :: option
-  type(field_type), pointer :: subsurf_field
-
-  PetscScalar, pointer :: xx_loc_p(:)
-  PetscScalar, pointer :: pres_p(:)
-  PetscScalar, pointer :: temp_p(:)
-  PetscScalar, pointer :: sub_por_loc_p(:)
-  PetscScalar, pointer :: sim_por0_p(:)
-  PetscScalar, pointer :: sim_perm0_p(:) !DANNY - added this 11/7/16
-  
-  PetscInt :: local_id
-  PetscInt :: ghosted_id
-  PetscInt :: pres_dof
-  PetscInt :: temp_dof
-
-  class(material_auxvar_type), pointer :: material_auxvars(:)
-
-  PetscErrorCode :: ierr
-
-#ifdef GEOMECH_DEBUG
-  print *, 'PMCSubsurfaceSetAuxDataForGeomech()'
-#endif
-
-
-  select case(this%option%iflowmode)
-    case (TH_MODE)
-      pres_dof = TH_PRESSURE_DOF
-      temp_dof = TH_TEMPERATURE_DOF
-    case (MPH_MODE)
-      pres_dof = MPH_PRESSURE_DOF
-      temp_dof = MPH_TEMPERATURE_DOF
-    case(RICHARDS_MODE)
-      pres_dof = RICHARDS_PRESSURE_DOF
-    case default
-      this%option%io_buffer = 'PMCSubsurfaceSetAuxDataForGeomech() not ' // &
-        'supported for ' // trim(this%option%flowmode)
-      call printErrMsg(this%option)
-  end select
-
-  if (associated(this%sim_aux)) then
-
-    select type (pmc => this)
-      class is (pmc_subsurface_type)
-
-        option        => pmc%option
-        subsurf_grid  => pmc%realization%discretization%grid
-        subsurf_field => pmc%realization%field
-
-
-        ! Extract pressure, temperature and porosity from subsurface realization
-        call VecGetArrayF90(subsurf_field%flow_xx_loc, xx_loc_p,  &
-                            ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_pres, pres_p,  &
-                            ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_temp, temp_p,  &
-                            ierr);CHKERRQ(ierr)
-
-        do local_id = 1, subsurf_grid%nlmax
-          ghosted_id = subsurf_grid%nL2G(local_id)
-          pres_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
-                                      pres_dof)
-          if (this%option%iflowmode == RICHARDS_MODE) then
-            temp_p(local_id) = this%option%reference_temperature
-          else
-            temp_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
-                                        temp_dof)
-          endif
-        enddo
-
-        call VecRestoreArrayF90(subsurf_field%flow_xx_loc, xx_loc_p,  &
-                                ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_pres, pres_p,  &
-                                ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_temp, temp_p,  &
-                                ierr);CHKERRQ(ierr)
-
-        if (pmc%timestepper%steps == 0) then
-          material_auxvars => pmc%realization%patch%aux%Material%auxvars
-          call VecGetArrayF90(pmc%sim_aux%subsurf_por0, sim_por0_p,  &
-                              ierr);CHKERRQ(ierr)
-          call VecGetArrayF90(pmc%sim_aux%subsurf_perm0, sim_perm0_p,  &
-                              ierr);CHKERRQ(ierr)
-
-          ghosted_id = subsurf_grid%nL2G(1)
-          
-          do local_id = 1, subsurf_grid%nlmax
-            ghosted_id = subsurf_grid%nL2G(local_id)
-            sim_por0_p(local_id) = material_auxvars(ghosted_id)%porosity ! Set here.  
-            sim_perm0_p(local_id) = material_auxvars(ghosted_id)%permeability(perm_xx_index) ! assuming isotropic perm
-          enddo
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0, sim_por0_p,  &
-                                  ierr);CHKERRQ(ierr)
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm0, sim_perm0_p,  &
-                                  ierr);CHKERRQ(ierr)
-        endif
-    end select
-  endif
-
-end subroutine PMCSubsurfaceSetAuxDataForGeomech
 
 ! ************************************************************************** !
 !

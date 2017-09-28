@@ -2,10 +2,6 @@ module Reaction_Sandbox_module
 
   use Reaction_Sandbox_Base_class
   use Reaction_Sandbox_CLM_CN_class
-  use Reaction_Sandbox_UFD_WP_class
-  use Reaction_Sandbox_Example_class
-  use Reaction_Sandbox_Simple_class
-  use Reaction_Sandbox_Cyber_class
   
   ! Add new reacton sandbox classes here.
   use Reaction_Sandbox_SomDec_class
@@ -176,14 +172,6 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => degasCreate()
       case('LANGMUIR')
         new_sandbox => LangmuirCreate()
-      case('UFD-WP')
-        new_sandbox => WastePackageCreate()
-      case('EXAMPLE')
-        new_sandbox => EXAMPLECreate()
-      case('SIMPLE')
-        new_sandbox => SimpleCreate()
-      case('CYBERNETIC')
-        new_sandbox => CyberCreate()
       case default
         call InputKeywordUnrecognized(word,'CHEMISTRY,REACTION_SANDBOX',option)
     end select

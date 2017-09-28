@@ -1,10 +1,8 @@
 module SrcSink_Sandbox_module
 
   use SrcSink_Sandbox_Base_class
-  use SrcSink_Sandbox_WIPP_Gas_class
   use SrcSink_Sandbox_Mass_Rate_class
   use SrcSink_Sandbox_Downreg_class
-  use SrcSink_Sandbox_WIPP_Well_class
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -129,10 +127,6 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
     call StringToUpper(word)   
 
     select case(trim(word))
-      case('WIPP-WELL')
-        new_sandbox => WIPPWellCreate()
-      case('WIPP-GAS_GENERATION')
-        new_sandbox => WIPPGasGenerationCreate()
       case('MASS_RATE')
         new_sandbox => MassRateCreate()
       case('MASS_RATE_DOWNREGULATED')
@@ -405,7 +399,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
              ' ' // trim(adjustl(y_string)) // &
              ' ' // trim(adjustl(z_string)) // ')'
     select case(option%iflowmode)
-      case(RICHARDS_MODE,G_MODE,WF_MODE)
+      case(RICHARDS_MODE, TH_MODE)
         variable_string = ' Water'
         ! cumulative
         units_string = 'kg'
@@ -417,7 +411,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
                                  cell_string,icolumn)
     end select
     select case(option%iflowmode)
-      case(G_MODE,WF_MODE)
+      case(TH_MODE)
         variable_string = ' Gas Component'
         ! cumulative
         units_string = 'kg'
@@ -455,8 +449,6 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
 
   use Option_module
   use Output_Aux_module
-  use General_Aux_module, only : general_fmw => fmw_comp
-  use WIPP_Flow_Aux_module, only : wipp_flow_fmw => fmw_comp
 
   implicit none
   
@@ -477,16 +469,6 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
       flow_dof_scale(1) = FMWH2O
     case(TH_MODE)
       flow_dof_scale(1) = FMWH2O
-    case(MIS_MODE)
-      flow_dof_scale(1) = FMWH2O
-      flow_dof_scale(2) = FMWGLYC
-    case(G_MODE)
-      flow_dof_scale(1:2) = general_fmw(1:2)
-    case(WF_MODE)
-      flow_dof_scale(1:2) = wipp_flow_fmw(1:2)
-    case(MPH_MODE,FLASH2_MODE,IMS_MODE)
-      flow_dof_scale(1) = FMWH2O
-      flow_dof_scale(2) = FMWCO2
   end select  
   
 100 format(100es16.8)
