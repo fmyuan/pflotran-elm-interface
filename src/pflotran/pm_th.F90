@@ -405,7 +405,6 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   use Grid_module
   use Field_module
   use Option_module
-  use Saturation_Function_module
   use Patch_module
   use TH_Aux_module
   use Global_Aux_module

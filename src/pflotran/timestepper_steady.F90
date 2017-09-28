@@ -12,14 +12,7 @@ module Timestepper_Steady_class
 #include "petsc/finclude/petscsys.h"
  
   type, public, extends(timestepper_BE_type) :: timestepper_steady_type
-  
- !   PetscInt :: num_newton_iterations ! number of Newton iterations in a time step
- !   PetscInt :: num_linear_iterations ! number of linear solver iterations in a time step
- !   PetscInt :: cumulative_newton_iterations       ! Total number of Newton iterations
- !   PetscInt :: cumulative_linear_iterations     ! Total number of linear iterations
 
- !   type(solver_type), pointer :: solver
-  
   contains
 
  !   procedure, public :: Init => TimestepperSteadyInit
@@ -192,7 +185,6 @@ subroutine TimestepperSteadyStepDT(this, process_model, stop_flag)
   use petscsnes
   use PM_Base_class
   use Option_module
-  use PM_Geomechanics_Force_class
   use Output_module, only : Output
 
   use Solver_module
@@ -278,13 +270,6 @@ subroutine TimestepperSteadyStepDT(this, process_model, stop_flag)
   call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
   if (option%print_screen_flag) then
     select type(pm => process_model)
-      class is(pm_geomech_force_type)
-        if (associated(pm%geomech_realization%geomech_discretization%grid)) then
-          scaled_fnorm = fnorm/pm%geomech_realization%geomech_discretization% &
-                          grid%nmax_node
-        else
-          scaled_fnorm = fnorm
-        endif
     end select
     write(*,*) ''
     print *,' --> SNES Linear/Non-Linear Iterations = ', &

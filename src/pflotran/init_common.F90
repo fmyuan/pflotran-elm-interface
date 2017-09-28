@@ -175,7 +175,6 @@ subroutine InitCommonVerifyCoupler(realization,patch,coupler_list)
   use Condition_module
   use Grid_module
   use Output_module
-  use Output_Tecplot_module, only : OutputVectorTecplot  
   use Patch_module
 
   implicit none
@@ -233,13 +232,13 @@ subroutine InitCommonVerifyCoupler(realization,patch,coupler_list)
     else if (len_trim(coupler%tran_condition_name) > 0) then
       dataset_name = coupler%tran_condition_name
     endif
-    write(word,*) patch%id
-    dataset_name = trim(dataset_name) // '_' // &
-                   trim(coupler%region%name) // '_' // &
-                   trim(adjustl(word))
-    dataset_name = dataset_name(1:28)
-    filename = trim(dataset_name) // '.tec'
-    call OutputVectorTecplot(filename,dataset_name,realization,global_vec)
+    !write(word,*) patch%id
+    !dataset_name = trim(dataset_name) // '_' // &
+    !               trim(coupler%region%name) // '_' // &
+    !               trim(adjustl(word))
+    !dataset_name = dataset_name(1:28)
+    !filename = trim(dataset_name) // '.tec'
+    !call OutputVectorTecplot(filename,dataset_name,realization,global_vec)
 
     coupler => coupler%next
   enddo

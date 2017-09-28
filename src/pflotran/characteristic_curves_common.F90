@@ -431,19 +431,6 @@ subroutine SFConstantVerify(this,name,option)
           trim(string) // '.'
         call printErrMsg(option)
       endif
-    case(WF_MODE,G_MODE,TOIL_IMS_MODE,IMS_MODE,MIS_MODE,MPH_MODE,FLASH2_MODE)
-      if (Initialized(this%constant_saturation)) then
-        option%io_buffer = 'CONSTANT_SATURATION is not supported for &
-          &multiphase flow modes as CONSTANT_CAPILLARY_PRESSURE must be &
-          &applied. Saturation is a primary dependent variables. &
-          &See ' // trim(string) // '.'
-        call printErrMsg(option)
-      endif
-      if (Uninitialized(this%constant_capillary_pressure)) then
-        option%io_buffer = 'CONSTANT_CAPILLARY_PRESSURE must be specified &
-          &for ' // trim(string) // '.'
-        call printErrMsg(option)
-      endif
     case default
   end select
 

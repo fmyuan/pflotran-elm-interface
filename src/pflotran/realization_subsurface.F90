@@ -9,12 +9,8 @@ module Realization_Subsurface_class
   use Input_Aux_module
   use Region_module
   use Condition_module
-#ifdef WELL_CLASS
-  use WellSpec_Base_class
-#endif
   use Transport_Constraint_module
   use Material_module
-  use Saturation_Function_module
   use Characteristic_Curves_module
   use Dataset_Base_class
   use Fluid_module
@@ -37,9 +33,6 @@ private
 
     type(region_list_type), pointer :: region_list
     type(condition_list_type), pointer :: flow_conditions
-#ifdef WELL_CLASS
-    type(well_spec_list_type), pointer :: well_specs
-#endif
     type(tran_condition_list_type), pointer :: transport_conditions
     type(tran_constraint_list_type), pointer :: transport_constraints
     
@@ -47,7 +40,6 @@ private
     type(material_property_type), pointer :: material_properties
     type(fluid_property_type), pointer :: fluid_properties
     type(fluid_property_type), pointer :: fluid_property_array(:)
-    type(saturation_function_type), pointer :: saturation_functions
     class(characteristic_curves_type), pointer :: characteristic_curves
     class(dataset_base_type), pointer :: datasets
     
@@ -149,10 +141,6 @@ function RealizationCreate2(option)
 
   allocate(realization%flow_conditions)
   call FlowConditionInitList(realization%flow_conditions)
-#ifdef WELL_CLASS
-  allocate(realization%well_specs)
-  call WellSpecInitList(realization%well_specs)
-#endif
   allocate(realization%transport_conditions)
   call TranConditionInitList(realization%transport_conditions)
   allocate(realization%transport_constraints)
@@ -161,7 +149,6 @@ function RealizationCreate2(option)
   nullify(realization%material_properties)
   nullify(realization%fluid_properties)
   nullify(realization%fluid_property_array)
-  nullify(realization%saturation_functions)
   nullify(realization%characteristic_curves)
   nullify(realization%datasets)
   nullify(realization%uniform_velocity_dataset)
@@ -238,13 +225,6 @@ subroutine RealizationCreateDiscretization(realization)
                                        field%porosity_t)
     call DiscretizationDuplicateVector(discretization,field%work, &
                                        field%porosity_tpdt)
-  endif
-
-  if (option%geomech_on) then
-    call DiscretizationDuplicateVector(discretization,field%work, &
-                                       field%porosity_base_store)
-    call DiscretizationDuplicateVector(discretization,field%work, &
-                                       field%porosity_geomech_store)
   endif
 
   ! 1 degree of freedom, local
@@ -624,9 +604,6 @@ subroutine RealizationProcessCouplers(realization)
   
   call PatchProcessCouplers( realization%patch,realization%flow_conditions, &
                              realization%transport_conditions, &
-#ifdef WELL_CLASS
-                             realization%well_specs, &
-#endif
                              realization%option)
   
 end subroutine RealizationProcessCouplers
@@ -749,12 +726,6 @@ subroutine RealProcessMatPropAndSatFunc(realization)
   call MaterialPropConvertListToArray(patch%material_properties, &
                                       patch%material_property_array, &
                                       option)
-  if (associated(realization%saturation_functions)) then
-    patch%saturation_functions => realization%saturation_functions
-    call SaturatFuncConvertListToArray(patch%saturation_functions, &
-                                       patch%saturation_function_array, &
-                                       option)
-  endif
   if (associated(realization%characteristic_curves)) then
     patch%characteristic_curves => realization%characteristic_curves
     call CharCurvesConvertListToArray(patch%characteristic_curves, &
@@ -772,12 +743,6 @@ subroutine RealProcessMatPropAndSatFunc(realization)
 
     ! obtain saturation function id
     if (option%iflowmode /= NULL_MODE) then
-      if (associated(patch%saturation_function_array)) then
-        cur_material_property%saturation_function_id = &
-          SaturationFunctionGetID(patch%saturation_functions, &
-                             cur_material_property%saturation_function_name, &
-                             cur_material_property%name,option)
-      endif
       if (associated(patch%characteristic_curves_array)) then
         cur_material_property%saturation_function_id = &
           CharacteristicCurvesGetID(patch%characteristic_curves_array, &
@@ -2548,9 +2513,6 @@ subroutine RealizationDestroyLegacy(realization)
   call RegionDestroyList(realization%region_list)
   
   call FlowConditionDestroyList(realization%flow_conditions)
-#ifdef WELL_CLASS
-  call WellSpecDestroyList(realization%well_specs)
-#endif
   call TranConditionDestroyList(realization%transport_conditions)
   call TranConstraintDestroyList(realization%transport_constraints)
 
@@ -2566,7 +2528,6 @@ subroutine RealizationDestroyLegacy(realization)
   
   call MaterialPropertyDestroy(realization%material_properties)
 
-  call SaturationFunctionDestroy(realization%saturation_functions)
   print *, 'RealizationDestroyLegacy cannot be removed.'
   stop
   call CharacteristicCurvesDestroy(realization%characteristic_curves)
@@ -2606,9 +2567,6 @@ subroutine RealizationStrip(this)
   call RegionDestroyList(this%region_list)
   
   call FlowConditionDestroyList(this%flow_conditions)
-#ifdef WELL_CLASS
-  call WellSpecDestroyList(this%well_specs)
-#endif
   call TranConditionDestroyList(this%transport_conditions)
   call TranConstraintDestroyList(this%transport_constraints)
 
@@ -2619,7 +2577,6 @@ subroutine RealizationStrip(this)
   
   call MaterialPropertyDestroy(this%material_properties)
 
-  call SaturationFunctionDestroy(this%saturation_functions)
   call CharacteristicCurvesDestroy(this%characteristic_curves)  
 
   call DatasetDestroy(this%datasets)
