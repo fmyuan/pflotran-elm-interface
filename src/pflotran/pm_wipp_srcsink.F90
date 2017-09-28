@@ -431,7 +431,8 @@ module PM_WIPP_SrcSink_class
 
   public :: PMWSSCreate, &
             PMWSSWastePanelCreate, &
-            PMWSSPreInventoryCreate
+            PMWSSPreInventoryCreate, &
+            PMWSSSetRealization
 
 contains
 
@@ -2646,7 +2647,8 @@ end subroutine PMWSSUpdateChemSpecies
 ! -----------------------------------------------------------
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
-  type(general_auxvar_type), pointer :: general_auxvar(:,:)
+  !jmf: removing to do picard iteration
+  !type(general_auxvar_type), pointer :: general_auxvar(:,:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvar(:,:)
   type(global_auxvar_type), pointer :: global_auxvar(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
@@ -2675,13 +2677,15 @@ end subroutine PMWSSUpdateChemSpecies
   
   option => this%realization%option
   grid => this%realization%patch%grid
-  nullify(general_auxvar)
+  !jmf: removing to do picard iteration
+  !nullify(general_auxvar)
   nullify(wippflo_auxvar)
-  if (associated(this%realization%patch%aux%General)) then
-    general_auxvar => this%realization%patch%aux%General%auxvars
-  else
-    wippflo_auxvar => this%realization%patch%aux%WIPPFlo%auxvars
-  endif
+  wippflo_auxvar => this%realization%patch%aux%WIPPFlo%auxvars
+  !if (associated(this%realization%patch%aux%General)) then
+  !  general_auxvar => this%realization%patch%aux%General%auxvars
+  !else
+  !  wippflo_auxvar => this%realization%patch%aux%WIPPFlo%auxvars
+  !endif
   material_auxvars => this%realization%patch%aux%Material%auxvars
   global_auxvar => this%realization%patch%aux%Global%auxvars
   
@@ -2720,13 +2724,16 @@ end subroutine PMWSSUpdateChemSpecies
       ghosted_id = grid%nL2G(local_id)
     !-----effective-brine-saturation------------------------------------------
     !-----(see equation PA.99, section PA-4.2.6)------------------------------
-      if (associated(general_auxvar)) then
-        water_saturation = &
-          general_auxvar(ZERO_INTEGER,ghosted_id)%sat(option%liquid_phase)
-      else
-        water_saturation = &
+      !jmf: removing to do picard iteration
+      !if (associated(general_auxvar)) then
+      !  water_saturation = &
+      !    general_auxvar(ZERO_INTEGER,ghosted_id)%sat(option%liquid_phase)
+      !else
+      !  water_saturation = &
+      !    wippflo_auxvar(ZERO_INTEGER,ghosted_id)%sat(option%liquid_phase)
+      !endif
+      water_saturation = &
           wippflo_auxvar(ZERO_INTEGER,ghosted_id)%sat(option%liquid_phase)
-      endif
       
       SOCEXP = 200.d0*(max((water_saturation-this%smin),0.d0))**2.d0
       s_eff = water_saturation-this%smin+(this%satwick * &
@@ -2937,47 +2944,48 @@ end subroutine PMWSSUpdateChemSpecies
       vec_p(j) = cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
                  material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                  1.d3                                          ! [mol -> kmol]
-      if (associated(general_auxvar)) then
-        j = j + 1
-        !---energy-source-term-[MJ/sec];-H-from-EOS-[J/kmol]-------------------
-        brine_energy = 0.d0
-        gas_energy = 0.d0
-        temperature = general_auxvar(ZERO_INTEGER,ghosted_id)%temp
-        select case(global_auxvar(ghosted_id)%istate)
-          case(GAS_STATE) !----------------------------------------------------
-            pressure_gas = general_auxvar(ZERO_INTEGER,ghosted_id)% &
-                           pres(option%gas_phase)
-            call EOSGasEnergy(temperature,pressure_gas,H_gas,U_gas,ierr)
-            gas_energy = & !---[MJ/sec]-----------------------!-[units]--------
-                cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
-                material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
-                H_gas * 1.d-3 * 1.d-6                         ! [MJ/mol]
-          case(LIQUID_STATE) !-------------------------------------------------
-            pressure_liq = general_auxvar(ZERO_INTEGER,ghosted_id)% &
-                           pres(option%liquid_phase)
-            call EOSWaterEnthalpy(temperature,pressure_liq,H_liq,ierr)
-            brine_energy = & !---[MJ/sec]---------------------!-[units]--------
-                cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
-                material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
-                H_liq * 1.d-3 * 1.d-6                         ! [MJ/mol]
-          case(TWO_PHASE_STATE) !----------------------------------------------
-            pressure_liq = general_auxvar(ZERO_INTEGER,ghosted_id)% &
-                           pres(option%liquid_phase)
-            pressure_gas = general_auxvar(ZERO_INTEGER,ghosted_id)% &
-                           pres(option%gas_phase)
-            call EOSWaterEnthalpy(temperature,pressure_liq,H_liq,ierr)
-            call EOSGasEnergy(temperature,pressure_gas,H_gas,U_gas,ierr)
-            brine_energy = & !---[MJ/sec]---------------------!-[units]--------
-                cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
-                material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
-                H_liq * 1.d-3 * 1.d-6                         ! [MJ/mol]
-            gas_energy = & !---[MJ/sec]-----------------------!-[units]--------
-                cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
-                material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
-                H_gas * 1.d-3 * 1.d-6                         ! [MJ/mol]
-        end select
-        vec_p(j) = brine_energy + gas_energy
-      endif
+      !jmf: keep in the case WIPP_FLOW mode will solve for temperature
+      !if (associated(general_auxvar)) then
+      !  j = j + 1
+      !  !---energy-source-term-[MJ/sec];-H-from-EOS-[J/kmol]-------------------
+      !  brine_energy = 0.d0
+      !  gas_energy = 0.d0
+      !  temperature = general_auxvar(ZERO_INTEGER,ghosted_id)%temp
+      !  select case(global_auxvar(ghosted_id)%istate)
+      !    case(GAS_STATE) !----------------------------------------------------
+      !      pressure_gas = general_auxvar(ZERO_INTEGER,ghosted_id)% &
+      !                     pres(option%gas_phase)
+      !      call EOSGasEnergy(temperature,pressure_gas,H_gas,U_gas,ierr)
+      !      gas_energy = & !---[MJ/sec]-----------------------!-[units]--------
+      !          cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
+      !          material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
+      !          H_gas * 1.d-3 * 1.d-6                         ! [MJ/mol]
+      !    case(LIQUID_STATE) !-------------------------------------------------
+      !      pressure_liq = general_auxvar(ZERO_INTEGER,ghosted_id)% &
+      !                     pres(option%liquid_phase)
+      !      call EOSWaterEnthalpy(temperature,pressure_liq,H_liq,ierr)
+      !      brine_energy = & !---[MJ/sec]---------------------!-[units]--------
+      !          cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
+      !          material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
+      !          H_liq * 1.d-3 * 1.d-6                         ! [MJ/mol]
+      !    case(TWO_PHASE_STATE) !----------------------------------------------
+      !      pressure_liq = general_auxvar(ZERO_INTEGER,ghosted_id)% &
+      !                     pres(option%liquid_phase)
+      !      pressure_gas = general_auxvar(ZERO_INTEGER,ghosted_id)% &
+      !                     pres(option%gas_phase)
+      !      call EOSWaterEnthalpy(temperature,pressure_liq,H_liq,ierr)
+      !      call EOSGasEnergy(temperature,pressure_gas,H_gas,U_gas,ierr)
+      !      brine_energy = & !---[MJ/sec]---------------------!-[units]--------
+      !          cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
+      !          material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
+      !          H_liq * 1.d-3 * 1.d-6                         ! [MJ/mol]
+      !      gas_energy = & !---[MJ/sec]-----------------------!-[units]--------
+      !          cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
+      !          material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
+      !          H_gas * 1.d-3 * 1.d-6                         ! [MJ/mol]
+      !  end select
+      !  vec_p(j) = brine_energy + gas_energy
+      !endif
     enddo
     !-------------------------------------------------------------------------
     cwp => cwp%next

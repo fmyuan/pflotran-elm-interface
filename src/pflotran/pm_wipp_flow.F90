@@ -4,6 +4,7 @@ module PM_WIPP_Flow_class
   use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
+  use PM_WIPP_SrcSink_class
   
   use PFLOTRAN_Constants_module
 
@@ -17,6 +18,7 @@ module PM_WIPP_Flow_class
     PetscReal :: gas_equation_tolerance
     PetscReal :: liquid_pressure_tolerance
     PetscReal :: gas_saturation_tolerance
+    class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   contains
     procedure, public :: Read => PMWIPPFloRead
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
@@ -68,6 +70,7 @@ function PMWIPPFloCreate()
   allocate(wippflo_pm)
   allocate(wippflo_pm%max_change_ivar(3))
   wippflo_pm%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
+  nullify(wippflo_pm%pmwss_ptr)
   
   call PMSubsurfaceFlowCreate(wippflo_pm)
   wippflo_pm%name = 'WIPP Immiscible Multiphase Flow'
@@ -167,9 +170,17 @@ subroutine PMWIPPFloRead(this,input)
         wippflo_use_fracture = PETSC_FALSE
       case('NO_CREEP_CLOSURE')
         wippflo_use_creep_closure = PETSC_FALSE
+      case('NO_GAS_GENERATION')
+        wippflo_use_gas_gen = PETSC_FALSE
       case default
         call InputKeywordUnrecognized(keyword,'WIPP Flow Mode',option)
     end select
+    
+    if (wippflo_use_gas_gen) then
+      this%pmwss_ptr => PMWSSCreate()
+      this%pmwss_ptr%option => this%option
+      call this%pmwss_ptr%Read(input)
+    endif
     
   enddo  
   
@@ -185,6 +196,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   ! Date: 07/11/17
 
   use Realization_Base_class
+  use WIPP_Flow_Aux_module
+  use PM_WIPP_SrcSink_class
   
   implicit none
   
@@ -206,7 +219,14 @@ recursive subroutine PMWIPPFloInitializeRun(this)
 
   ! call parent implementation
   call PMSubsurfaceFlowInitializeRun(this)
-
+  
+  ! call setup/initialization of all WIPP process models
+  if (wippflo_use_gas_gen) then
+    call PMWSSSetRealization(this%pmwss_ptr,this%realization)
+    call this%pmwss_ptr%Setup()
+    call this%pmwss_ptr%InitializeRun()
+  endif
+  
 end subroutine PMWIPPFloInitializeRun
 
 ! ************************************************************************** !
@@ -220,6 +240,7 @@ subroutine PMWIPPFloInitializeTimestep(this)
   ! 
 
   use WIPP_Flow_module, only : WIPPFloInitializeTimestep
+  use WIPP_Flow_Aux_module
   use Global_module
   use Variables_module, only : TORTUOSITY
   use Material_module, only : MaterialAuxVarCommunicate
@@ -234,7 +255,12 @@ subroutine PMWIPPFloInitializeTimestep(this)
   endif
   
   call WIPPFloInitializeTimestep(this%realization)
-  call PMSubsurfaceFlowInitializeTimestepB(this)                                 
+  call PMSubsurfaceFlowInitializeTimestepB(this)  
+  
+  ! initialize timestep of all WIPP process models
+  if (wippflo_use_gas_gen) then
+    call this%pmwss_ptr%InitializeTimestep()
+  endif
   
 end subroutine PMWIPPFloInitializeTimestep
 
@@ -378,6 +404,7 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   ! 
 
   use WIPP_Flow_module, only : WIPPFloResidual
+  use WIPP_Flow_Aux_module
 
   implicit none
   
@@ -388,6 +415,12 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   PetscErrorCode :: ierr
   
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
+  ! call all WIPP process models using picard method
+  ! these updates will lag one Newton iteration
+  if (wippflo_use_gas_gen) then
+    call this%pmwss_ptr%Solve(this%option%time,ierr)
+  endif
+  ! calculate residual
   call WIPPFloResidual(snes,xx,r,this%realization,ierr)
 
   call this%PostSolve()
