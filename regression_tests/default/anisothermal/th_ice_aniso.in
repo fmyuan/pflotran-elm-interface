@@ -66,7 +66,7 @@ FLUID_PROPERTY
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil_1
   ID 1
-  SATURATION_FUNCTION default
+  CHARACTERISTIC_CURVES default
   POROSITY 0.30
   TORTUOSITY 0.5
   ROCK_DENSITY 2650.0 kg/m^3
@@ -81,7 +81,7 @@ END
 
 MATERIAL_PROPERTY soil_2
   ID 2
-  SATURATION_FUNCTION default
+  CHARACTERISTIC_CURVES default
   POROSITY 0.25
   TORTUOSITY 0.5
   ROCK_DENSITY 2850.0 kg/m^3
@@ -123,11 +123,18 @@ THERMAL_CHARACTERISTIC_CURVES cct_f2
 END
 
 #========================== saturation functions ==============================
-SATURATION_FUNCTION default
-  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-  RESIDUAL_SATURATION 0.005
-  LAMBDA 0.721d0
-  ALPHA 2.83d-4
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.005d0
+    ALPHA 2.83d-4
+    M 0.721d0
+    MAX_CAPILLARY_PRESSURE 1.d9
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.005d0
+    M 0.721d0
+  /
 /
 
 #============================== output options ================================
