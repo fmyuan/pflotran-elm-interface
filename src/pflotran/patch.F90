@@ -2699,6 +2699,7 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
+                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
 
@@ -2801,6 +2802,7 @@ subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
+                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
 
@@ -2902,6 +2904,7 @@ subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
+                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
 
@@ -3162,6 +3165,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
+                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
 
@@ -3321,6 +3325,7 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
+                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
   if (associated(flow_condition%rate)) then
