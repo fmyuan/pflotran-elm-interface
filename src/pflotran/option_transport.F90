@@ -25,6 +25,7 @@ module Option_Transport_module
     PetscBool :: no_checkpoint_kinetic_sorption
     PetscBool :: no_restart_kinetic_sorption
     PetscBool :: no_restart_mineral_vol_frac
+    PetscBool :: only_vertical_tran
     PetscBool :: numerical_derivatives
 
     PetscInt :: nphase
@@ -125,6 +126,8 @@ subroutine OptionTransportInitRealization(option)
   option%inf_scaled_res_tol = UNINITIALIZED_DOUBLE 
 
   option%nphase = 1
+
+  option%only_vertical_tran = PETSC_FALSE
   
 end subroutine OptionTransportInitRealization
 
