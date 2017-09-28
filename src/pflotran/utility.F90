@@ -102,6 +102,8 @@ module Utility_module
             ArrayIsSMonotonicInc, &
             expm1
             
+  public :: HFunctionSmooth             ! F.-M. Yuan (2017-03-09)
+
 contains
 
 ! ************************************************************************** !
@@ -2522,6 +2524,66 @@ subroutine CalcParallelSUM2(option,rank_list,local_val,global_sum)
   deallocate(temp_array)
 
 end subroutine CalcParallelSUM2
+
+! ************************************************************************** !
+! something like Nathan Collier's H Function or Guoping Tang's tail cut-off approach
+! F.-M. Yuan: 2017-03-09. It's useful for truncation or interpolation, with monotonic smoothing curve
+Subroutine HfunctionSmooth(x, x_1, x_0, H, dH)
+  ! Usage: H(x) = 1, dH(x)=0 @ x_1
+  !        H(x) = 0, dH(x)=0 @ x_0
+  !        and, dH(x) is smoothed and either positive or negative Heaveside function, with peak at ~ 3-quater point
+  !    So H(x) is monotonic.
+  !
+  !  How to tail-smooth a curve (e.g. f(x)) monotonically:
+  !       F(x) = f(x)*H(f), and dF(x) = f(x)*dH(x)+ df(x)*H(x),
+  !      From: x_cutoff1 - F(x)=f(x), dF(x)=df(x), i.e. exactly matching with f(x) @ x_cutoff1
+  !      To:   x_cutoff0 - F(x)=0, dF(x)=0.
+  !
+  implicit none
+
+  PetscReal, intent(in) :: x
+  PetscReal, intent(in) :: x_1    ! starting point with H = 1.0
+  PetscReal, intent(in) :: x_0    ! ending point with H = 0.0
+  PetscReal, intent(out):: H
+  PetscReal, intent(out):: dH
+  PetscReal :: x_star
+
+  !----------------------------------------------------------
+
+  ! real Heaveside function (step function)
+  if (abs(x_1-x_0)<1.d-50) then
+    H  = sign(0.5d0, (x-x_1))+0.5d0  ! if x<x_1, H=0; otherwise H=1
+    dH = 0.d0
+
+    return
+
+  else
+  ! smoothed H function
+
+    if (((x-x_0)/(x_1-x_0))<0.d0) then      ! beyond 'x_0'
+      H  = 0.0d0
+      dH = 0.0d0
+
+    elseif (((x-x_0)/(x_1-x_0))>1.d0) then  ! beyond 'x_1'
+      H  = 1.0d0
+      dH = 0.0d0
+
+    else
+
+      x_star  =  1.0d0 - (x-x_0)*(x-x_0)                  &
+                        /(x_1-x_0)/(x_1-x_0)
+
+      H  = 1.0d0 - x_star*x_star                                      ! so it's a special quadratic polynomal function
+      ! so, dH = -2*x_star*d(x_star), with d(x_star)=-2*(x-x_0)/(x_1-x_0)^2
+      !    and, due to 'x_star' ranging 0~1 and (x_1-x_0)^2 positive,
+      !         sign(dH) is upon 'x-x_0' only guaranted monotonic H curve
+      dH = 4.0d0 * x_star * (x-x_0)/(x_1-x_0)/(x_1-x_0)
+
+    endif
+
+  endif
+
+end subroutine HfunctionSmooth
 
 ! ************************************************************************** !
 

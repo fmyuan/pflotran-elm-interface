@@ -124,6 +124,7 @@ subroutine THSetupPatch(realization)
   use Fluid_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
+  use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
  
   implicit none
@@ -161,14 +162,8 @@ subroutine THSetupPatch(realization)
 
 ! call printErrMsg(option)
 
-  if (option%flow%th_freezing) then
-    allocate(patch%aux%TH%th_parameter%sir(option%nphase, &
-              size(patch%saturation_function_array)))
-  else
-    allocate(patch%aux%TH%th_parameter%sir(option%nphase, &
+  allocate(patch%aux%TH%th_parameter%sir(option%nphase, &
               size(patch%characteristic_curves_array)))
-    
-  endif
  
 
   !Jitu, 08/04/2010: Check these allocations. Currently assumes only 
@@ -323,13 +318,13 @@ subroutine THSetupPatch(realization)
     call PrintErrMsg(option)
   endif
 
-  if (option%flow%th_freezing) then
-    do i = 1, size(patch%saturation_function_array)
+  !if (option%flow%th_freezing) then
+    do i = 1, size(patch%characteristic_curves_array)
       patch%aux%TH%th_parameter% &
-        sir(:,patch%saturation_function_array(i)%ptr%id) = &
-        patch%saturation_function_array(i)%ptr%Sr(:)
+        sir(:,i) = &   ! the outer index should be saturation_function_id, i.e. the order of saturation_function in CC array
+        patch%characteristic_curves_array(i)%ptr%saturation_function%Sr
     enddo
-  endif
+  !endif
 
   ! allocate auxvar data structures for all grid cells
   allocate(TH_auxvars(grid%ngmax))
@@ -796,7 +791,7 @@ subroutine THUpdateAuxVarsPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-            patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr, &
+            patch%characteristic_curves_array(patch%cc_id(ghosted_id))%ptr, &
             patch%char_curves_thermal_array(patch%cct_id(ghosted_id))%ptr, &
             th_parameter, icct, &
             grid%nG2A(ghosted_id),PETSC_TRUE,option)
@@ -855,7 +850,7 @@ subroutine THUpdateAuxVarsPatch(realization)
                                       global_auxvars_bc(sum_connection), &
               material_auxvars(ghosted_id), &
               iphasebc, &
-              patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr, &
+              patch%characteristic_curves_array(patch%cc_id(ghosted_id))%ptr, &
               patch%char_curves_thermal_array(patch%cct_id(ghosted_id))%ptr, &
               th_parameter, icct, &
               -grid%nG2A(ghosted_id),PETSC_FALSE,option)
@@ -914,7 +909,7 @@ subroutine THUpdateAuxVarsPatch(realization)
                                       global_auxvars_ss(sum_connection), &
                                       material_auxvars(ghosted_id), &
                                       iphase, &
-                                      patch%saturation_function_array( &
+                                      patch%characteristic_curves_array( &
                                         patch%cc_id(ghosted_id))%ptr, &
                                       patch%char_curves_thermal_array( &
                                         patch%cct_id(ghosted_id))%ptr, &
@@ -1183,7 +1178,7 @@ subroutine THUpdateFixedAccumPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-            patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr, &
+            patch%characteristic_curves_array(patch%cc_id(ghosted_id))%ptr, &
             patch%char_curves_thermal_array(patch%cct_id(ghosted_id))%ptr, &
             th_parameter, icct, &
             grid%nG2A(ghosted_id),PETSC_TRUE,option)
@@ -1320,7 +1315,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
                              rock_dencpr, &
                              th_parameter, &
                              icct, &
-                             option,sat_func, &
+                             option, &
                              characteristic_curves, &
                              thermal_cc, &
                              vol_frac_prim,J)
@@ -1352,7 +1347,6 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   PetscInt :: icct
   class(characteristic_curves_type) :: characteristic_curves
   class(cc_thermal_type) :: thermal_cc
-  type(saturation_function_type) :: sat_func
   PetscReal :: J(option%nflowdof,option%nflowdof)
      
   PetscInt :: ispec 
@@ -1529,7 +1523,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
       if (option%flow%th_freezing) then
          call THAuxVarComputeFreezing(x_pert,TH_auxvar_pert, &
                                  global_auxvar_pert,material_auxvar_pert, &
-                                 iphase,sat_func,thermal_cc, &
+                                 iphase, characteristic_curves, thermal_cc, &
                                  th_parameter, icct, &
                                  -999,PETSC_TRUE,option)
       else
@@ -1638,7 +1632,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                             area, &
                             dist, upweight, &
                             sir_up,sir_dn, &
-                            option,sf_up,sf_dn, &
+                            option, &
                             cc_up,cc_dn, &   
                             tcc_up,tcc_dn, &   
                             Dk_dry_up,Dk_dry_dn, &
@@ -1680,7 +1674,6 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscInt :: icct_up, icct_dn
   PetscReal :: v_darcy, area
   PetscReal :: dist(-1:3)
-  type(saturation_function_type), pointer :: sf_up, sf_dn 
   class(characteristic_curves_type), pointer :: cc_up, cc_dn
   class(cc_thermal_type), pointer :: tcc_up, tcc_dn
   type(th_parameter_type) :: th_parameter
@@ -1843,7 +1836,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     dgravity_dden_up = upweight*auxvar_up%avgmw*dist_gravity
     dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-    if (th_ice_model /= DALL_AMICO) then
+    if (option%th_ice_model /= DALL_AMICO) then
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
       dphi_dp_up = 1.d0 + dgravity_dden_up*auxvar_up%dden_dp
       dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
@@ -2231,12 +2224,12 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       if (option%flow%th_freezing) then
         call THAuxVarComputeFreezing(x_pert_up,auxvar_pert_up, &
              global_auxvar_pert_up, material_auxvar_pert_up, &
-             iphase,sf_up, tcc_up, &
+             iphase,cc_up, tcc_up, &
              th_parameter,icct_up, &
              -999,PETSC_TRUE,option)
         call THAuxVarComputeFreezing(x_pert_dn,auxvar_pert_dn, &
              global_auxvar_pert_dn, material_auxvar_pert_up, &
-             iphase,sf_dn, tcc_dn, &
+             iphase,cc_dn, tcc_dn, &
              th_parameter,icct_up, &
              -999,PETSC_TRUE,option)
       else
@@ -2411,7 +2404,7 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
               (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
               * dist_gravity
 
-    if (th_ice_model /= DALL_AMICO) then
+    if (option%th_ice_model /= DALL_AMICO) then
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
     else
       dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -2555,7 +2548,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                               dist, &
                               sir_dn, &
                               option, &
-                              sf_dn, &
                               cc_dn, &
                               tcc_dn, &
                               Dk_dry_dn, &
@@ -2569,7 +2561,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   ! Date: 12/13/07
   ! 
   use Option_module
-  use Saturation_Function_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
   use Connection_module
@@ -2589,7 +2580,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: auxvars(:) ! from aux_real_var array in boundary condition
   PetscReal :: por_dn,perm_dn,Dk_dn,tor_dn
   PetscReal :: area
-  type(saturation_function_type) :: sf_dn  
   class(characteristic_curves_type) :: cc_dn
   class(cc_thermal_type), pointer :: tcc_dn
 
@@ -3334,7 +3324,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
                   (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
                   * dist_gravity
 
-        if (th_ice_model /= DALL_AMICO) then
+        if (option%th_ice_model /= DALL_AMICO) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -3403,7 +3393,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
              (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
              * dist_gravity
         
-        if (th_ice_model /= DALL_AMICO) then
+        if (option%th_ice_model /= DALL_AMICO) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -4620,7 +4610,6 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   use Field_module
   use Debug_module
   use Secondary_Continuum_Aux_module
-  use Saturation_Function_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
 
@@ -4670,8 +4659,6 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(saturation_function_type), pointer :: sf_up
-  type(saturation_function_type), pointer :: sf_dn
   class(characteristic_curves_type), pointer :: cc_up, cc_dn
   class(cc_thermal_type), pointer :: tcc_up, tcc_dn
 
@@ -4755,8 +4742,6 @@ subroutine THJacobianInternalConn(A,realization,ierr)
          alpha_fr_up = th_parameter%alpha_fr(icct_up)
          alpha_fr_dn = th_parameter%alpha_fr(icct_dn)
 
-         sf_up => patch%saturation_function_array(icc_up)%ptr
-         sf_dn => patch%saturation_function_array(icc_dn)%ptr
       else
          Dk_ice_up = Dk_dry_up
          Dk_ice_dn = Dk_dry_dn
@@ -4787,7 +4772,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
                             th_parameter%sir(1,icc_up), &
                             th_parameter%sir(1,icc_dn), &
                             option, &
-                            sf_up,sf_dn,cc_up,cc_dn,tcc_up,tcc_dn, &
+                            cc_up,cc_dn,tcc_up,tcc_dn, &
                             Dk_dry_up,Dk_dry_dn, &
                             Dk_ice_up,Dk_ice_dn, &
                             alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -4852,7 +4837,6 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   use Field_module
   use Debug_module
   use Secondary_Continuum_Aux_module
-  use Saturation_Function_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
 
@@ -4903,7 +4887,6 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars_bc(:), auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(saturation_function_type), pointer :: sf_dn
   class(characteristic_curves_type), pointer :: cc_dn
   class(cc_thermal_type), pointer :: tcc_dn
 
@@ -4960,7 +4943,6 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
          DK_ice_dn = th_parameter%ckfrozen(icct_dn)
          alpha_fr_dn = th_parameter%alpha_fr(icct_dn)
 
-         sf_dn => patch%saturation_function_array(icc_dn)%ptr
       else
          Dk_ice_dn = Dk_dry_dn
          alpha_fr_dn = alpha_dn
@@ -4982,7 +4964,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
                               cur_connection_set%dist(-1:3,iconn), &
                               th_parameter%sir(1,icc_dn), &
                               option, &
-                              sf_dn,cc_dn, tcc_dn, &
+                              cc_dn, tcc_dn, &
                               Dk_dry_dn,Dk_ice_dn, &
                               Jdn)
       Jdn = -Jdn
@@ -5031,7 +5013,6 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   use Field_module
   use Debug_module
   use Secondary_Continuum_Aux_module
-  use Saturation_Function_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
 
@@ -5068,7 +5049,6 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
-  type(saturation_function_type), pointer :: sat_func, sf_up, sf_dn
   class(characteristic_curves_type), pointer :: characteristic_curves, cc_up, cc_dn
   class(cc_thermal_type), pointer :: thermal_cc
 
@@ -5117,11 +5097,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
 
     icct = patch%cct_id(ghosted_id)
 
-    if (option%flow%th_freezing) then
-      sat_func => patch%saturation_function_array(icc)%ptr
-    else
-      characteristic_curves => patch%characteristic_curves_array(icc)%ptr
-    endif
+    characteristic_curves => patch%characteristic_curves_array(icc)%ptr
     
     thermal_cc => patch%char_curves_thermal_array(icct)%ptr
     
@@ -5129,7 +5105,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
                             material_auxvars(ghosted_id), &
                             th_parameter%dencpr(icct), &
                             th_parameter, icct, option, &
-                            sat_func, characteristic_curves, &
+                            characteristic_curves, &
                             thermal_cc, &
                             vol_frac_prim,Jup) 
 
@@ -5683,7 +5659,7 @@ subroutine THSetPlotVariables(realization,list)
 
   if (option%flow%th_freezing) then
   
-    if (th_ice_model /= DALL_AMICO) then
+    if (realization%option%th_ice_model /= DALL_AMICO) then
       name = 'Gas Saturation'
       units = ''
       call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
@@ -5928,7 +5904,7 @@ function THInitGuessCheck(xx, option)
 
   ipass = 1
 
-  if (th_ice_model /= DALL_AMICO) then
+  if (option%th_ice_model /= DALL_AMICO) then
     THInitGuessCheck = ipass
     return
   endif

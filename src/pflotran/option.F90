@@ -165,6 +165,11 @@ module Option_module
 
     PetscBool :: print_ekg
 
+    
+    ! flag to use freezing model in TH mode
+    PetscInt  :: th_ice_model         ! specify water/ice/vapor phase partitioning model
+    PetscReal :: th_frzthw_halfwidth     ! freezing-thawing smoothing half-width (oC)
+
   end type option_type
 
   interface PrintMsg
@@ -522,6 +527,11 @@ subroutine OptionInitRealization(option)
   option%min_allowable_scale = 1.0d-10
 
   option%print_ekg = PETSC_FALSE
+
+  
+  option%th_ice_model = PAINTER_EXPLICIT
+  option%th_frzthw_halfwidth = UNINITIALIZED_DOUBLE
+
 
 end subroutine OptionInitRealization
 

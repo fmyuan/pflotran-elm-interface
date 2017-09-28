@@ -191,8 +191,9 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   field => realization%field
   patch => realization%patch
 
-  if (option%iflowmode /= RICHARDS_MODE .and. & 
-      option%iflowmode /= RICHARDS_TS_MODE) then
+  if (option%iflowmode /= RICHARDS_MODE &
+    .or. option%iflowmode /= RICHARDS_TS_MODE &
+    .or. option%iflowmode /= TH_MODE) then
     option%io_buffer = 'Reading of flow initial conditions from HDF5 ' // &
                        'file (' // trim(filename) // &
                        'not currently not supported for mode: ' // &
@@ -209,7 +210,13 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
     call VecGetArrayF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
 
     ! Pressure for all modes 
-    offset = 1
+    if (option%iflowmode == RICHARDS_MODE &
+      .or. option%iflowmode == RICHARDS_TS_MODE) then
+      offset = RICHARDS_PRESSURE_DOF
+    elseif (option%iflowmode == TH_MODE) then
+      offset = TH_PRESSURE_DOF
+    endif
+    !offset = 1
     group_name = ''
     dataset_name = 'Pressure'
     call HDF5ReadCellIndexedRealArray(realization,field%work, &
@@ -226,6 +233,23 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
       xx_p(idx) = vec_p(local_id)
     enddo
     call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+
+    ! Temperature for TH mode
+    if (option%iflowmode == TH_MODE) then
+      offset = TH_TEMPERATURE_DOF
+      group_name = ''
+      dataset_name = 'Temperature'
+      call HDF5ReadCellIndexedRealArray(realization,field%work, &
+                                      filename,group_name, &
+                                      dataset_name,option%id>0)
+      call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      do local_id=1, grid%nlmax
+        if (cur_patch%imat(grid%nL2G(local_id)) <= 0) cycle
+        idx = (local_id-1)*option%nflowdof + offset
+        xx_p(idx) = vec_p(local_id)
+      enddo
+      call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+    endif
 
     call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
         
