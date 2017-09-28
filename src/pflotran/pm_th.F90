@@ -736,12 +736,13 @@ subroutine PMTHMaxChange(this)
     write(*,'("  --> max chng: dpmx= ",1pe12.4," dtmpmx= ",1pe12.4)') &
       this%max_pressure_change,this%max_temperature_change
   endif
+#ifndef CLM_PFLOTRAN
   if (this%option%print_file_flag) then
     write(this%option%fid_out,'("  --> max chng: dpmx= ",1pe12.4, &
       & " dtmpmx= ",1pe12.4)') &
       this%max_pressure_change,this%max_temperature_change
   endif 
-
+#endif
 end subroutine PMTHMaxChange
 
 ! ************************************************************************** !
