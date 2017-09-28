@@ -111,6 +111,7 @@ subroutine PMWIPPFloRead(this,input)
   type(option_type), pointer :: option
   PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXSTRINGLENGTH) :: block_string
   PetscBool :: found
 
   option => this%option
@@ -176,13 +177,16 @@ subroutine PMWIPPFloRead(this,input)
         call InputKeywordUnrecognized(keyword,'WIPP Flow Mode',option)
     end select
     
-    if (wippflo_use_gas_gen) then
-      this%pmwss_ptr => PMWSSCreate()
-      this%pmwss_ptr%option => this%option
-      call this%pmwss_ptr%Read(input)
-    endif
-    
   enddo  
+  
+  if (wippflo_use_gas_gen) then
+    this%pmwss_ptr => PMWSSCreate()
+    this%pmwss_ptr%option => this%option
+    block_string = 'WIPP_SOURCE_SINK'
+    call InputFindStringInFile(input,option,block_string)
+    call InputFindStringErrorMsg(input,option,block_string)
+    call this%pmwss_ptr%Read(input)
+  endif
   
 end subroutine PMWIPPFloRead
 
@@ -1084,9 +1088,11 @@ subroutine PMWIPPFloDestroy(this)
   nullify(this%max_change_ivar)
 
   ! preserve this ordering
-  call this%pmwss_ptr%Destroy()
-  deallocate(this%pmwss_ptr)
-  nullify(this%pmwss_ptr)
+  if (associated(this%pmwss_ptr)) then
+    call this%pmwss_ptr%Destroy()
+    deallocate(this%pmwss_ptr)
+    nullify(this%pmwss_ptr)
+  endif
   call WIPPFloDestroy(this%realization)
   call PMSubsurfaceFlowDestroy(this)
   

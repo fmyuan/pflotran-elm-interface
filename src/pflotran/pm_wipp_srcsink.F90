@@ -1429,7 +1429,7 @@ subroutine PMWSSRead(this,input)
               call InputReadDouble(input,option,double)
               call InputErrorMsg(input,option,'VREPOS',error_string)
               call InputReadAndConvertUnits(input,double,'m^3', &
-                      trim(error_string) // ',VREPOS volume units',option)
+                      trim(error_string) // ',VREPOS volume',option)
               new_inventory%vrepos = double
           !-----------------------------------    
             case default
