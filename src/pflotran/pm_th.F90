@@ -1037,12 +1037,20 @@ subroutine PMTHMaxChange(this)
   
   class(pm_th_type) :: this
   character(len=MAXSTRINGLENGTH) :: string
+
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHMaxChange()'
+#endif
+
   
   call THMaxChange(this%realization,this%max_pressure_change, &
                    this%max_temperature_change)
+
+#ifndef CLM_PFLOTRAN
   write(string,'("  --> max chng: dpmx= ",1pe12.4," dtmpmx= ",1pe12.4)') &
       this%max_pressure_change,this%max_temperature_change
   call OptionPrint(string,this%option)
+#endif
 
 end subroutine PMTHMaxChange
 
