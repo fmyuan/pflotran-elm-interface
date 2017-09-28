@@ -559,6 +559,9 @@ subroutine PMRTFinalizeTimestep(this)
         maxval(this%max_volfrac_change)/this%option%tran_dt
     endif
   endif
+
+#ifndef CLM_PFLOTRAN
+!the following generates a large ascii file if coupled with CLM duo to long run steps
   if (this%option%print_file_flag) then  
     write(this%option%fid_out,&
             '("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
@@ -572,7 +575,8 @@ subroutine PMRTFinalizeTimestep(this)
         maxval(this%max_volfrac_change)/this%option%tran_dt
     endif
   endif
-  
+#endif
+
 end subroutine PMRTFinalizeTimestep
 
 ! ************************************************************************** !
