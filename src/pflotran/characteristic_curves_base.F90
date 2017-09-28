@@ -26,6 +26,10 @@ module Characteristic_Curves_Base_module
     PetscReal :: pcmax
     PetscBool :: analytical_derivative_available
     PetscBool :: calc_int_tension
+#ifdef SMOOTHING2
+    type(polynomial_type), pointer :: sat_poly2      ! dry-end of the curve  ! added by F.-M. Yuan (2017-03-10)
+    type(polynomial_type), pointer :: pres_poly2     ! dry-end of the curve  ! added by F.-M. Yuan (2017-03-10)
+#endif
   contains
     procedure, public :: Init => SFBaseInit
     procedure, public :: Verify => SFBaseVerify
@@ -35,13 +39,20 @@ module Characteristic_Curves_Base_module
     procedure, public :: Saturation => SFBaseSaturation
     procedure, public :: D2SatDP2 => SFBaseD2SatDP2
     procedure, public :: CalcInterfacialTension => SFBaseSurfaceTension
+    !added pc function if ice exists
+    procedure, public :: IceCapillaryPressure => SFBaseIceCapillaryPressure
   end type sat_func_base_type
+
+
 
 !-----------------------------------------------------------------------------
 !-- Relative Permeability Functions ------------------------------------------
 !-----------------------------------------------------------------------------  
   type, public :: rel_perm_func_base_type
     type(polynomial_type), pointer :: poly
+#ifdef SMOOTHING2
+    type(polynomial_type), pointer :: poly2     ! dry-end of the curve  ! added by F.-M. Yuan (2017-03-10)
+#endif
     PetscReal :: Sr
     PetscBool :: analytical_derivative_available
   contains
@@ -95,6 +106,10 @@ subroutine SFBaseInit(this)
   ! Cannot allocate here.  Allocation takes place in daughter class
   nullify(this%sat_poly)
   nullify(this%pres_poly)
+#ifdef SMOOTHING2
+  nullify(this%sat_poly2)
+  nullify(this%pres_poly2)
+#endif
   this%Sr = UNINITIALIZED_DOUBLE
   this%pcmax = DEFAULT_PCMAX
   this%analytical_derivative_available = PETSC_FALSE
@@ -140,6 +155,9 @@ subroutine RPFBaseInit(this)
 
   ! Cannot allocate here.  Allocation takes place in daughter class
   nullify(this%poly)
+#ifdef SMOOTHING2
+  nullify(this%poly2)
+#endif
   this%Sr = UNINITIALIZED_DOUBLE
   this%analytical_derivative_available = PETSC_FALSE
   
@@ -228,6 +246,30 @@ subroutine SFBaseCapillaryPressure(this,liquid_saturation, &
   call PrintErrMsg(option)
   
 end subroutine SFBaseCapillaryPressure
+
+! ************************************************************************** !
+
+subroutine SFBaseIceCapillaryPressure(this, pres_l, tc, &
+                           ice_pc, dice_pc_dpres, dice_pc_dt, option)
+
+  ! Ice capillary_pressure as a function of Pres_l, Tc
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_base_type) :: this
+  PetscReal, intent(in) :: pres_l      ! liquid water pressure head (atm. P adjusted), in Pa
+  PetscReal, intent(in) :: tc          ! in oC
+  PetscReal, intent(out) :: ice_pc, dice_pc_dt, dice_pc_dpres     ! in Pa
+  type(option_type), intent(inout) :: option
+
+  if (option%th_use_freezing) then
+    call SF_Ice_CapillaryPressure(this, pres_l, tc, &
+                           ice_pc, dice_pc_dpres, dice_pc_dt, option)
+  end if
+
+end subroutine SFBaseIceCapillaryPressure
 
 ! ************************************************************************** !
 
@@ -445,6 +487,254 @@ end subroutine RPF_Base_Test
 
 ! ************************************************************************** !
 
+subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
+                                ice_pc, dice_pc_dpres, dice_pc_dt, option)
+!
+! Computes the ice capillary_pressure as a function of Pres_l, Tc
+! Mainly from Painter et al. (2011), Painter and Karra (2014)
+!
+! Author: Fengming Yuan
+!         Based on relevant saturation_functions by Satish K.
+!         Revised with freezing-thawing zone smoothing following ATS algorithm
+! Date: 06/01/2016
+!
+  use Option_module
+  use EOS_Water_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_base_type) :: this
+  PetscReal, intent(in) :: pres_l      ! liquid water pressure head (atm. P adjusted), in Pa
+  PetscReal, intent(in) :: tc          ! in oC
+  PetscReal, intent(out) :: ice_pc, dice_pc_dt, dice_pc_dpres     ! in Pa
+  type(option_type) :: option
+
+  PetscReal :: pcgl, pw, tk
+
+  PetscReal, parameter :: beta = 2.33d0           ! dimensionless -- ratio of soil ice surf. tension
+  PetscReal, parameter :: T0   = 273.15d0         ! freezing-point at standard pressure: in K
+  PetscReal, parameter :: Lf   = HEAT_OF_FUSION   ! fusion heat (in J/kg)
+  PetscReal :: gamma, alpha, dalpha_drhol
+  PetscReal :: rhol, drhol_dp, drhol_dt
+  PetscReal :: rhoi
+
+  PetscReal :: Tf, dTf_dt, dTf_dp
+  PetscReal :: tftheta, dtftheta_dt, dtftheta_dp
+
+  PetscReal :: Hfunc, dHfunc, tempreal
+  PetscReal :: deltaTf, xTf, a, b, c
+  PetscReal :: beta2, T_star, T_star_th, T_star_min, T_star_max
+  PetscReal :: dice_pc_dp
+  PetscReal, parameter :: dpc_dpres = -1.d0
+  PetscReal :: PCGL_MAX_FRZ = 1.d8   ! max. soil matrical potential (Pa) for liq. water exists under super-cooling
+
+  PetscErrorCode :: ierr
+
+  !---------------------
+  !
+  pcgl = max(0.d0, option%reference_pressure - pres_l)       ! always non-negative (0 = saturated)
+  if (pcgl > abs(this%pcmax)) pcgl = this%pcmax
+
+  PCGL_MAX_FRZ = this%pcmax-1.0d0
+
+  Tk = tc + T0
+
+  ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pw' and 'tc'
+  pw = max(option%reference_pressure, pres_l)
+
+  ! --------------------
+
+  ! constant 'rhol' (liq. water)
+  rhol     = 999.8d0            ! kg/m3: kmol/m3*kg/kmol
+  drhol_dp = 0.d0
+  drhol_dt = 0.d0
+
+  ! constant 'rhoi' (for ice)
+  rhoi    = 916.7d0             ! kg/m3 at 273.15K
+
+  if (option%th_use_freezing) then
+
+    gamma       = beta*Lf
+    alpha       = gamma/T0*rhol
+    dalpha_drhol= gamma/T0
+
+    Tf     = T0 - 1.d0/alpha*min(PCGL_MAX_FRZ,pcgl)                               ! P.-K. Eq.(10), omiga=1/beta
+    dTf_dt = pcgl/alpha/alpha*(dalpha_drhol*drhol_dt)
+    dTf_dp = (pcgl*dalpha_drhol*drhol_dp - alpha)/alpha/alpha   ! dpcgl_dp = 1.0
+    if(pcgl>PCGL_MAX_FRZ) then
+      dTf_dt = 0.d0
+      dTf_dp = 0.d0
+    endif
+
+    xTf = Tk - T0
+
+    select case (option%th_ice_model)
+
+      case (PAINTER_EXPLICIT)
+
+        ! explicit model from Painter (Comp. Geosci, 2011)
+        ice_pc = pcgl
+        dice_pc_dt = 0.d0
+        dice_pc_dp = 1.d0
+
+        if(tc<0.d0) then
+
+          ice_pc = rhoi*beta*Lf*(-tc)/T0
+          dice_pc_dt = -rhoi*beta*Lf/T0
+          dice_pc_dp = 0.d0
+
+         endif
+
+       case (PAINTER_KARRA_EXPLICIT, PAINTER_KARRA_EXPLICIT_SMOOTH)
+
+         ! The following is a slightly-modified version from PKE in saturation_function module
+         ! without smoothing of freezing-thawing zone
+
+         ! explicit model from Painter & Karra, VJZ (2014)
+         tftheta = xTf/T0                              ! P.-K. Eq.(18): theta: (Tk-T0)/T0, assuming Tf~T0 (ignored FP depression) in Eq. (12)
+         dtftheta_dt = 1.0d0/T0
+         dtftheta_dp = 0.d0
+
+         ice_pc     = -gamma * rhol*tftheta           ! P.-K. Eq.(18), first term (i.e. ice only)
+         tempreal   = rhol*dtftheta_dt+tftheta*drhol_dt
+         dice_pc_dt = -gamma * tempreal
+         tempreal   = rhol*dtftheta_dp+tftheta*drhol_dp
+         dice_pc_dp = -gamma * tempreal
+
+         ! Heaviside function to truncate Eq. (18) at 'Tf': Tf = T0-1/alpha*pcgl, i.e. -alpha*(Tf-T0)=pcgl, the left side IS exactly ice_pc @Tf
+         Hfunc = sign(0.5d0, -(Tk-Tf))+0.5d0
+         dice_pc_dt =  dice_pc_dt*Hfunc                          ! no need to adjust dice_pc_dt due to dpcgl_dt = 0
+         dice_pc_dp =  dice_pc_dp*Hfunc + (1.d0-Hfunc)           ! dpcgl_dp = 1.0
+         ice_pc     =  ice_pc*Hfunc + pcgl*(1.d0-Hfunc)
+
+         ! -----------
+         ! smoothing 'ice_pc' when Tk ranging within deltaTf of T0, from PKE's PCice to 0.0
+         ! from ATS, authored by Scott Painter et al.
+         deltaTf = 1.0d-50              ! half-width of smoothing zone (by default, nearly NO smoothing)
+         if(option%th_frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = option%th_frzthw_halfwidth
+         if (option%th_ice_model==PAINTER_KARRA_EXPLICIT_SMOOTH .and. deltaTf>1.0d-50) then
+
+#if 0
+           ! F.-M. Yuan (2017-03-14): OFF
+           ! symmetrically smoothing over 'T0', so may create a gap from Tf ~ T0-deltaTf (Tf could be far away from T0)
+           if (abs(xTf)<deltaTf) then
+             a = deltaTf/4.0d0
+             b = -0.5d0
+             c = 0.25d0/deltaTf
+
+             tempreal   = a+b*xTf+c*xTf*xTf
+             ice_pc     = alpha*tempreal
+             dice_pc_dt = alpha*(b+2.0d0*c*xTf) + &
+             dalpha_drhol*drhol_dt*tempreal        ! in case we need this later
+
+             ! a note here:
+             ! (1) if xTf=-deltaTf (negative over Tf0), tempreal = deltaTf/4.0 + 0.5*deltaTf + 0.25*deltaTf = 1.0 * deltaTf
+             !                   so, ice_pc = alpha * deltaTf = -alpha * xTf;
+             !
+             !                     and, b+2*c*xTf = -1, so ice_pc_dt = -alpha
+             ! (2) if xTf=deltaTf (positive over Tf0), tempreal = deltaTf/4.0 - 0.5*deltaTf + 0.25*deltaTf = 0
+             !                   so, ice_pc = 0.
+             !                     and, b+2*x*xTf = 0, ice_pc_dt = 0
+             ! Then it means the smoothing_curve ends exactly with the original format
+           endif
+
+#else
+
+           ! using the new Heaveside Smoothing function:
+           ! ice_pc@Tf-deltaTf --> ice_pc = pcgl @T0+deltaTf  (note: @Tf, ice_pc = pcgl by PKE, so this smoothing actually span over a large ranges around Tf~T0)
+           ! (note: Tf could be far way from T0, and 'ice_pc' above trucated at 'Tf'; So this smoothing will span over Tf-deltaTf ~ T0+deltaTf asymmetrically)
+           call HFunctionSmooth(Tk, Tf-deltaTf, T0+deltaTf, Hfunc, dHfunc)
+           dice_pc_dt = dice_pc_dt * Hfunc + (ice_pc - pcgl) * dHfunc
+           dice_pc_dp = (dice_pc_dp - 1.0d0) * Hfunc + 1.0d0          ! dHfunc_dp = 0, dpcgl_dp = 1
+           ice_pc = (ice_pc - pcgl) * Hfunc + pcgl                    ! do this after derivatives
+#endif
+         endif !(option%th_ice_model==PAINTER_KARRA_EXPLICIT_SMOOTH)
+         ! -----------
+
+       case (DALL_AMICO)
+
+         ! Model from Dall'Amico (2010) and Dall' Amico et al. (2011)
+         ! rewritten following 'saturation_function.F90:SatFuncComputeIceDallAmico()'
+         ! NOTE: here only calculate Pc1 and its derivatives
+         ice_pc = pcgl
+         dice_pc_dt = 0.d0
+         dice_pc_dp = 1.d0
+
+         !
+         T_star_th  = 5.d-1                       ! unit: Kevin
+         beta2      = beta !1.d0                  ! NOT sure why changed to 1. in saturation_function.F90.
+
+         T_star = T0-1.d0/beta2/Lf/rhol*pcgl      ! 'T_star' shall be Tf same as other ice_model, when using same CONSTANTS
+         T_star_min = T_star - T_star_th
+         T_star_max = T_star
+
+         ! H function
+         if (Tk<T_star_min) then
+           Hfunc = 1.0d0
+           dHfunc= 0.d0
+         else if (Tk>T_star_max) then
+           Hfunc = 0.0d0
+           dHfunc= 0.d0
+         else
+           tempreal = (Tk-T_star_min)/(T_star_max-T_star_min)
+           tempreal = 1.d0 - tempreal*tempreal
+           Hfunc = tempreal * tempreal
+           dHfunc= -4.0d0*tempreal &
+                   *(Tk-T_star_min)/(T_star_max-T_star_min)/(T_star_max-T_star_min)
+         endif
+
+         !
+         ice_pc     = pcgl - beta2 *  (Tk-T_star)/T_star *Lf*rhol * Hfunc  ! L2030 in saturation_function.F90
+
+         ! saturation_function.F90: L2053 -
+         ! dsl_dT = dS1 * (-beta*L_f*rhol_l*H/T_star-beta*theta*L_f*rhol_l*dH_dT)
+         ! i.e., dS1* [(-beta*L_f*rhol_l)*(H/T_star+theta*dH_dT)], with theta=(T-T_star)/T_star
+         !       for second term:
+         !           -beta/T_star*L_f*rhol_l*(H+(T-T_star)*dH_dT)
+         !               (because dT_star/dt=0)
+         dice_pc_dt = -beta2/T_star*Lf*rhol*        &
+                      (Hfunc + (Tk-T_star)*dHfunc)
+
+         ! saturation_function.F90: L2050 -
+         !  dsl_dpl = -dS1*(1-T*T_0/T_star/T_star*H), in which
+         !   (1) '-dS1' is w.r.t. '-Pc1' actually, because in L2045 it was negatived once
+         !   (2) (1-T*T_0/T_star/T_star*H) is 'dp_fh2o_dP' in L.2034.
+         !dice_pc_dp = -(1.0d0 - Tk*T0/T_star/T_star*Hfunc)   ! '-1' is for reverse '_dP' to '_dpc'
+
+         ! HOWever, if we do derivative here for 'ice_pc' above, 'ice_pc' shall be
+         !   ice_pc = pcgl - beta2*Lf*rhol*Hfunc* (Tk/T_star-1)
+         !  w.r.t. 'pc', the second term can be simplified as: -beta2*Lf*rhol*Hfunc*Tk * (1/T_star)
+         !              in which, dT_star_dp = -1.d0/beta2/Lf/rhol, and
+         !                        d(1/T_star)_dp = dT_star_dp/T_star/T_star
+         ! i.e.,
+         dice_pc_dp = -(1.0d0 + Tk/T_star/T_star*Hfunc)   ! '-1' is for reverse '_dP' to '_dpc'
+
+       case default
+         option%io_buffer = 'SF_Ice_CapillaryPressure: characteristic-curve now only  ' // &
+                       'support ice-model: PAINTER_KARRA_EXPLICIT, or ' // &
+                       ' PAINTER_KARRA_EXPLICIT_SMOOTH, or ' // &
+                       ' PAINTER_EXPLICIT, or ' // &
+                       ' DALL_AMICO '
+
+         call printErrMsg(option)
+
+       end select ! select case (option%th_ice_model)
+
+     dice_pc_dpres = dice_pc_dp*dpc_dpres  ! convert to w.r.t 'pressure' from 'pc'
+
+   else
+
+     option%io_buffer = 'SF_Ice_CapillaryPressure: Ice model is OFF.'
+     call printMsg(option)
+
+   endif ! 'option%th_use_freezing'
+
+end subroutine SF_Ice_CapillaryPressure
+
+
+! ************************************************************************** !
+
 subroutine PolynomialDestroy(poly)
   !
   ! Destroys a polynomial smoother
@@ -481,7 +771,11 @@ subroutine SaturationFunctionDestroy(sf)
   if (.not.associated(sf)) return
   
   call PolynomialDestroy(sf%sat_poly)
-  call PolynomialDestroy(sf%sat_poly)
+  call PolynomialDestroy(sf%pres_poly)
+#ifdef SMOOTHING2
+  call PolynomialDestroy(sf%sat_poly2)
+  call PolynomialDestroy(sf%pres_poly2)
+#endif
   deallocate(sf)
   nullify(sf)
 
@@ -504,6 +798,9 @@ subroutine PermeabilityFunctionDestroy(rpf)
   if (.not.associated(rpf)) return
   
   call PolynomialDestroy(rpf%poly)
+#ifdef SMOOTHING2
+  call PolynomialDestroy(rpf%poly2)
+#endif
   deallocate(rpf)
   nullify(rpf)
 
