@@ -124,7 +124,9 @@ module Input_Aux_module
             InputDbaseDestroy, &
             InputPushExternalFile, &
             InputReadWordDbaseCompatible, &
-            InputReadAndConvertUnits
+            InputReadAndConvertUnits, &
+            InputRewind, &
+            InputCloseNestedFiles
 
 contains
 
@@ -147,7 +149,7 @@ function InputCreate(fid,filename,option)
   type(option_type) :: option
   
   type(input_type), pointer :: InputCreate
-  PetscInt :: status  
+  PetscInt :: istatus  
   type(input_type), pointer :: input
   
   allocate(input)
@@ -168,8 +170,8 @@ function InputCreate(fid,filename,option)
     call printErrMsg(option)
   endif
 
-  open(unit=input%fid,file=filename,status="old",iostat=status)
-  if (status /= 0) then
+  open(unit=input%fid,file=filename,status="old",iostat=istatus)
+  if (istatus /= 0) then
     if (len_trim(filename) == 0) filename = '<blank>'
     option%io_buffer = 'File: "' // trim(filename) // '" not found.'
     call printErrMsg(option)
@@ -688,7 +690,7 @@ subroutine InputReadPflotranStringSlave(input, option)
     call StringToUpper(word)
     
     if (word(1:13) == 'EXTERNAL_FILE') then
-      ! have to stip the card 'EXTERNAL_FILE' from the buffer
+      ! have to strip the card 'EXTERNAL_FILE' from the buffer
       call InputReadWord(input,option,word,PETSC_TRUE)
       ! push a new input file to stack
       call InputPushExternalFile(input,option)
@@ -1185,7 +1187,7 @@ subroutine InputFindStringInFile2(input, option, string, print_warning)
   ! the file.
   if (InputError(input)) then
     input%ierr = 0
-    rewind(input%fid)
+    call InputRewind(input)
     do 
       call InputReadPflotranString(input,option)
       if (InputError(input)) exit
@@ -1630,7 +1632,7 @@ subroutine InputReadFilenames(option,filenames)
   if (InputError(input)) then
     ! if the FILENAMES card is not included, we will assume that only
     ! filenames exist in the file.
-    rewind(input%fid)
+    call InputRewind(input)
   else
     card_found = PETSC_TRUE
   endif
@@ -1646,7 +1648,7 @@ subroutine InputReadFilenames(option,filenames)
   
   allocate(filenames(filename_count))
   filenames = ''
-  rewind(input%fid) 
+  call InputRewind(input)
 
   if (card_found) then
     string = "FILENAMES"
@@ -1669,47 +1671,110 @@ end subroutine InputReadFilenames
 
 ! ************************************************************************** !
 
-function InputGetLineCount(input)
+function InputGetLineCount(input,option)
+
+  use String_module
 
   implicit none
   
   type(input_type), pointer :: input
+  type(option_type) :: option
+
   PetscInt :: line_count
   PetscInt :: InputGetLineCount
 
-  rewind(input%fid)
+  character(len=MAXSTRINGLENGTH) :: tempstring
+  character(len=MAXWORDLENGTH) :: word
+
+  call InputRewind(input)
 
   line_count = 0
   do
-    read(input%fid, '(a512)', iostat=input%ierr)
+#if 1
+    read(input%fid,'(a512)',iostat=input%ierr) input%buf
+    call StringAdjustl(input%buf)
+
+    if (InputError(input)) then
+      ! check to see if another file is on the stack
+      if (InputPopExternalFile(input)) then
+        cycle
+      else
+        exit
+      endif
+    endif
+
+    tempstring = input%buf
+    call InputReadWord(tempstring,word,PETSC_TRUE,input%ierr)
+    call StringToUpper(word)
+
+    if (word(1:13) == 'EXTERNAL_FILE') then
+      ! have to strip the card 'EXTERNAL_FILE' from the buffer
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      ! push a new input file to stack
+      call InputPushExternalFile(input,option)
+    endif 
+#else
+    call InputReadPflotranString(input,option)
     if (InputError(input)) exit
+#endif
     line_count = line_count + 1
   enddo
-  
+
   InputGetLineCount = line_count
-  
+
 end function InputGetLineCount
 
 ! ************************************************************************** !
 
-subroutine InputReadToBuffer(input, buffer)
+subroutine InputReadToBuffer(input, buffer, option)
+
+  use String_module
 
   implicit none
   
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: buffer(:)
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: line
+  type(option_type) :: option
 
-  rewind(input%fid)
-  line = 0
+  character(len=MAXSTRINGLENGTH) :: tempstring
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: line_count
+
+  call InputRewind(input)
+
+  line_count = 0
   do
-    read(input%fid, '(a512)', iostat=input%ierr) string
+#if 1
+    read(input%fid,'(a512)',iostat=input%ierr) input%buf
+    call StringAdjustl(input%buf)
+
+    if (InputError(input)) then
+      ! check to see if another file is on the stack
+      if (InputPopExternalFile(input)) then
+        cycle
+      else
+        exit
+      endif
+    endif
+
+    tempstring = input%buf
+    call InputReadWord(tempstring,word,PETSC_TRUE,input%ierr)
+    call StringToUpper(word)
+
+    if (word(1:13) == 'EXTERNAL_FILE') then
+      ! have to strip the card 'EXTERNAL_FILE' from the buffer
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      ! push a new input file to stack
+      call InputPushExternalFile(input,option)
+    endif 
+#else
+    call InputReadPflotranString(input,option)
     if (InputError(input)) exit
-    line = line + 1
-    buffer(line) = string
-  end do
-  
+#endif
+    line_count = line_count + 1
+    buffer(line_count) = input%buf
+  enddo
+
 end subroutine InputReadToBuffer
 
 ! ************************************************************************** !
@@ -1798,7 +1863,7 @@ subroutine InputReadASCIIDbase(filename,option)
   allocate(words(num_values_in_dataset))
   words = ''
   
-  rewind(input%fid)
+  call InputRewind(input)
   allocate(dbase)
   if (num_ints > 0) then
     allocate(dbase%icard(num_ints))
@@ -2280,13 +2345,58 @@ function InputPopExternalFile(input)
   InputPopExternalFile = PETSC_FALSE
   if (associated(input%parent)) then
     input_parent => input%parent
-    call InputDestroy(input)
+    call InputDestroySingleLevel(input)
     input => input_parent
     nullify(input_parent)
     InputPopExternalFile = PETSC_TRUE
   endif
 
 end function InputPopExternalFile
+
+! ************************************************************************** !
+
+subroutine InputCloseNestedFiles(input)
+  ! 
+  ! Closes all files opened through the EXTERNAL_FILE cards.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/27/17
+  ! 
+  implicit none
+
+  type(input_type), pointer :: input
+
+  ! With the EXTERNAL_FILE card, files may be nested.  The following loop
+  ! un-nests the input deck back to the main input file.
+  do
+    if (InputPopExternalFile(input)) then
+      cycle
+    else
+      exit
+    endif
+  enddo
+  rewind(input%fid)
+
+end subroutine InputCloseNestedFiles
+
+! ************************************************************************** !
+
+subroutine InputRewind(input)
+  ! 
+  ! Rewinds the input deck taking into count the EXTERNAL_FILE card 
+  ! capability.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/27/17
+  ! 
+  implicit none
+
+  type(input_type), pointer :: input
+
+  call InputCloseNestedFiles(input)
+  rewind(input%fid)
+
+end subroutine InputRewind
 
 ! ************************************************************************** !
 
@@ -2322,17 +2432,45 @@ end subroutine InputDbaseDestroy
 
 ! ************************************************************************** !
 
-subroutine InputDestroy(input)
+subroutine InputDestroySingleLevel(input)
   ! 
-  ! Deallocates an input object
+  ! Deallocates a single input object within a linked list of nested
+  ! input objects.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 11/10/08
+  ! Date: 09/27/17
   ! 
 
   implicit none
   
   type(input_type), pointer :: input
+  
+  if (input%fid /= 0) close(input%fid)
+  input%fid = 0
+  deallocate(input)
+  nullify(input)
+  
+end subroutine InputDestroySingleLevel
+
+! ************************************************************************** !
+
+recursive subroutine InputDestroy(input)
+  ! 
+  ! Deallocates all input objects, included those in a nestd linked list 
+  ! created due to the EXTERNAL_FILE capability.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/10/08, 09/27/17
+  ! 
+
+  implicit none
+  
+  type(input_type), pointer :: input
+
+  ! destroy any parents first
+  if (associated(input%parent)) then
+    call InputDestroy(input%parent)
+  endif
   
   if (input%fid /= 0) close(input%fid)
   input%fid = 0

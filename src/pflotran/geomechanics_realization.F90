@@ -82,7 +82,6 @@ function GeomechRealizCreate(option)
     geomech_realization%option => OptionCreate()
   endif
   
-  nullify(geomech_realization%input)
   geomech_realization%geomech_discretization => GeomechDiscretizationCreate()
   
   geomech_realization%geomech_field => GeomechFieldCreate()

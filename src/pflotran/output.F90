@@ -73,7 +73,8 @@ end subroutine OutputInit
 
 ! ************************************************************************** !
 
-subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
+subroutine OutputFileRead(input,realization,output_option, &
+                          waypoint_list,block_name)
   ! 
   ! Reads the *_FILE block within the OUTPUT block.
   ! 
@@ -95,12 +96,12 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
 
   implicit none
 
+  type(input_type), pointer :: input
   class(realization_subsurface_type), pointer :: realization
   type(output_option_type), pointer :: output_option
   type(waypoint_list_type), pointer :: waypoint_list
   character(len=*) :: block_name
   
-  type(input_type), pointer :: input
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -122,7 +123,6 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
   PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate
 
   option => realization%option
-  input => realization%input
   patch => realization%patch
   if (associated(patch)) grid => patch%grid
 

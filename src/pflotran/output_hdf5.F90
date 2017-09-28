@@ -3616,9 +3616,9 @@ subroutine OutputHDF5Provenance_input(option, pflotran_id)
   integer(SIZE_T) :: size_t_int
 
   input => InputCreate(IN_UNIT, option%input_filename, option)
-  input_line_count = InputGetLineCount(input)
+  input_line_count = InputGetLineCount(input,option)
   allocate(input_buffer(input_line_count))
-  call InputReadToBuffer(input, input_buffer)
+  call InputReadToBuffer(input, input_buffer, option)
   call h5tcopy_f(H5T_FORTRAN_S1, input_string_type, hdf5_err)
   size_t_int = MAXWORDLENGTH
   call h5tset_size_f(input_string_type, size_t_int, hdf5_err)

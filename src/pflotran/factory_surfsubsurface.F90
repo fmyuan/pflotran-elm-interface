@@ -144,10 +144,10 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
     surf_realization%output_option%output_snap_variable_list => OutputVariableListCreate()
     surf_realization%output_option%output_obs_variable_list => OutputVariableListCreate()
     subsurf_realization => simulation%realization
-    surf_realization%input => InputCreate(IN_UNIT,option%input_filename,option)
+    input => InputCreate(IN_UNIT,option%input_filename,option)
     surf_realization%subsurf_filename = &
       subsurf_realization%discretization%filename
-    call SurfaceInitReadRequiredCards(simulation%surf_realization)
+    call SurfaceInitReadRequiredCards(simulation%surf_realization,input)
   
     call setSurfaceFlowMode(option)
   

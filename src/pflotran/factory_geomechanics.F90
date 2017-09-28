@@ -113,8 +113,8 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     geomech_realization => simulation%geomech_realization
     subsurf_realization => simulation%realization
     subsurf_realization%output_option => OutputOptionDuplicate(simulation%output_option)
-    geomech_realization%input => InputCreate(IN_UNIT,option%input_filename,option)
-    call GeomechicsInitReadRequiredCards(geomech_realization)
+    input => InputCreate(IN_UNIT,option%input_filename,option)
+    call GeomechicsInitReadRequiredCards(geomech_realization,input)
     pmc_geomech => PMCGeomechanicsCreate()
     pmc_geomech%name = 'PMCGeomech'
     simulation%geomech_process_model_coupler => pmc_geomech
@@ -131,15 +131,17 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     string = trim(pmc_geomech%name) // 'Geomechanics'
     call LoggingCreateStage(string,pmc_geomech%stage)
 
-    input => InputCreate(IN_UNIT,option%input_filename,option)    
     string = 'GEOMECHANICS'
     call InputFindStringInFile(input,option,string)
     call InputFindStringErrorMsg(input,option,string)  
-    geomech_realization%output_option => OutputOptionDuplicate(simulation%output_option)
+    geomech_realization%output_option => &
+      OutputOptionDuplicate(simulation%output_option)
     nullify(geomech_realization%output_option%output_snap_variable_list)
     nullify(geomech_realization%output_option%output_obs_variable_list)    
-    geomech_realization%output_option%output_snap_variable_list => OutputVariableListCreate()
-    geomech_realization%output_option%output_obs_variable_list => OutputVariableListCreate()
+    geomech_realization%output_option%output_snap_variable_list => &
+      OutputVariableListCreate()
+    geomech_realization%output_option%output_obs_variable_list => &
+      OutputVariableListCreate()
     call GeomechanicsInitReadInput(simulation,timestepper%solver,input)
     pm_geomech%output_option => geomech_realization%output_option
 
@@ -249,7 +251,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   endif    
 
   call GeomechanicsJumpStart(simulation)
-  call InputDestroy(geomech_realization%input)
+  call InputDestroy(input)
   
 end subroutine GeomechanicsInitializePostPETSc
 
@@ -331,7 +333,7 @@ end subroutine GeomechanicsJumpStart
 
 ! ************************************************************************** !
 
-subroutine GeomechicsInitReadRequiredCards(geomech_realization)
+subroutine GeomechicsInitReadRequiredCards(geomech_realization,input)
   ! 
   ! Reads the required input file cards
   ! related to geomechanics
@@ -352,15 +354,13 @@ subroutine GeomechicsInitReadRequiredCards(geomech_realization)
   implicit none
   
   class(realization_geomech_type) :: geomech_realization
-  type(geomech_discretization_type), pointer :: geomech_discretization
-  
-  character(len=MAXSTRINGLENGTH) :: string
-  
-  type(option_type), pointer :: option
   type(input_type), pointer :: input
+
+  type(geomech_discretization_type), pointer :: geomech_discretization
+  character(len=MAXSTRINGLENGTH) :: string
+  type(option_type), pointer :: option
   
   option         => geomech_realization%option  
-  input          => geomech_realization%input
   
 ! Read in select required cards
 !.........................................................................

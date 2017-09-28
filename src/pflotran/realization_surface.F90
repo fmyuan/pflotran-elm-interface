@@ -109,7 +109,6 @@ function RealizSurfCreate(option)
   allocate(surf_realization)
   call RealizationBaseInit(surf_realization,option)
   surf_realization%option => option
-  nullify(surf_realization%input)
 
   surf_realization%surf_field => SurfaceFieldCreate()
   !geh: debug, output_option, patch_list already allocated in 

@@ -54,7 +54,7 @@ subroutine InitReadInputFilenames(option,filenames)
   if (InputError(input)) then
     ! if the FILENAMES card is not included, we will assume that only
     ! filenames exist in the file.
-    rewind(input%fid)
+    call InputRewind(input)
   else
     card_found = PETSC_TRUE
   endif
@@ -70,7 +70,7 @@ subroutine InitReadInputFilenames(option,filenames)
   
   allocate(filenames(filename_count))
   filenames = ''
-  rewind(input%fid) 
+  call InputRewind(input)
 
   if (card_found) then
     string = "FILENAMES"

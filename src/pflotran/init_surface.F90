@@ -14,7 +14,7 @@ contains
 
 ! ************************************************************************** !
 
-subroutine SurfaceInitReadRequiredCards(surf_realization)
+subroutine SurfaceInitReadRequiredCards(surf_realization,input)
   ! 
   ! This routine reads the required input file cards related to surface flows
   ! 
@@ -35,20 +35,17 @@ subroutine SurfaceInitReadRequiredCards(surf_realization)
   implicit none
 
   class(realization_surface_type) :: surf_realization
-  type(discretization_type), pointer :: discretization
+  type(input_type), pointer :: input
 
+  type(discretization_type), pointer :: discretization
   character(len=MAXSTRINGLENGTH) :: string
-  
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
-  type(input_type), pointer :: input
   
   patch          => surf_realization%patch
   option         => surf_realization%option
   discretization => surf_realization%discretization
-  
-  input => surf_realization%input
   
 ! Read in select required cards
 !.........................................................................

@@ -110,7 +110,8 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   class(timestepper_BE_type), pointer :: timestepper
   type(waypoint_list_type), pointer :: sync_waypoint_list
   character(len=MAXSTRINGLENGTH) :: string
-  
+  type(input_type), pointer :: input
+
   option => simulation%option
   ! process command line arguments specific to subsurface
   call SubsurfInitCommandLineSettings(option)
@@ -205,34 +206,34 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
     nullify(pmc_subsurface)
   endif
 
-  realization%input => InputCreate(IN_UNIT,option%input_filename,option)
-  call SubsurfaceReadRequiredCards(simulation)
-  call SubsurfaceReadInput(simulation)
+  input => InputCreate(IN_UNIT,option%input_filename,option)
+  call SubsurfaceReadRequiredCards(simulation,input)
+  call SubsurfaceReadInput(simulation,input)
   if (associated(pm_waste_form)) then
     string = 'WASTE_FORM_GENERAL'
-    call InputFindStringInFile(realization%input,option,string)
-    call InputFindStringErrorMsg(realization%input,option,string)
-    call pm_waste_form%Read(realization%input)
+    call InputFindStringInFile(input,option,string)
+    call InputFindStringErrorMsg(input,option,string)
+    call pm_waste_form%Read(input)
   endif
   if (associated(pm_wipp_srcsink)) then
     string = 'WIPP_SOURCE_SINK'
-    call InputFindStringInFile(realization%input,option,string)
-    call InputFindStringErrorMsg(realization%input,option,string)
-    call pm_wipp_srcsink%Read(realization%input)
+    call InputFindStringInFile(input,option,string)
+    call InputFindStringErrorMsg(input,option,string)
+    call pm_wipp_srcsink%Read(input)
   endif
   if (associated(pm_ufd_decay)) then
     string = 'UFD_DECAY'
-    call InputFindStringInFile(realization%input,option,string)
-    call InputFindStringErrorMsg(realization%input,option,string)
-    call pm_ufd_decay%Read(realization%input)
+    call InputFindStringInFile(input,option,string)
+    call InputFindStringErrorMsg(input,option,string)
+    call pm_ufd_decay%Read(input)
   endif
   if (associated(pm_ufd_biosphere)) then
     string = 'UFD_BIOSPHERE'
-    call InputFindStringInFile(realization%input,option,string)
-    call InputFindStringErrorMsg(realization%input,option,string)
-    call pm_ufd_biosphere%Read(realization%input)
+    call InputFindStringInFile(input,option,string)
+    call InputFindStringErrorMsg(input,option,string)
+    call pm_ufd_biosphere%Read(input)
   endif
-  call InputDestroy(realization%input)
+  call InputDestroy(input)
   
   if (associated(pm_waste_form)) then
     if (.not.associated(simulation%rt_process_model_coupler)) then
@@ -1443,7 +1444,7 @@ end subroutine SubsurfaceJumpStart
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadRequiredCards(simulation)
+subroutine SubsurfaceReadRequiredCards(simulation,input)
   ! 
   ! Reads required cards from input file
   ! 
@@ -1485,8 +1486,6 @@ subroutine SubsurfaceReadRequiredCards(simulation)
   option => realization%option
   discretization => realization%discretization
   
-  input => realization%input
-  
 ! Read in select required cards
 !.........................................................................
   
@@ -1510,7 +1509,7 @@ subroutine SubsurfaceReadRequiredCards(simulation)
 
   ! optional required cards - yes, an oxymoron, but we need to know if
   ! these exist before we can go any further.
-  rewind(input%fid)  
+  call InputRewind(input)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -1605,7 +1604,7 @@ end subroutine SubsurfaceReadRequiredCards
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadInput(simulation)
+subroutine SubsurfaceReadInput(simulation,input)
   ! 
   ! Reads pflow input file
   ! 
@@ -1749,7 +1748,6 @@ subroutine SubsurfaceReadInput(simulation)
   option => realization%option
   field => realization%field
   reaction => realization%reaction
-  input => realization%input
   
   flow_timestepper => TimestepperBECreate()
   flow_timestepper%solver%itype = FLOW_CLASS
@@ -1759,7 +1757,7 @@ subroutine SubsurfaceReadInput(simulation)
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
                               
-  rewind(input%fid)  
+  call InputRewind(input)
   string = 'SUBSURFACE'
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)  
@@ -2406,13 +2404,13 @@ subroutine SubsurfaceReadInput(simulation)
         !----------------------------------------------------------------------
           select case(trim(word))
             case('OBSERVATION_FILE')
-              call OutputFileRead(realization,output_option, &
+              call OutputFileRead(input,realization,output_option, &
                                   waypoint_list,trim(word))
             case('SNAPSHOT_FILE')
-              call OutputFileRead(realization,output_option, &
+              call OutputFileRead(input,realization,output_option, &
                                   waypoint_list,trim(word))
             case('MASS_BALANCE_FILE')
-              call OutputFileRead(realization,output_option, &
+              call OutputFileRead(input,realization,output_option, &
                                   waypoint_list,trim(word))
             case('TIME_UNITS')
               call InputReadWord(input,option,word,PETSC_TRUE)

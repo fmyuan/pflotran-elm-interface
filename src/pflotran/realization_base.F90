@@ -29,7 +29,6 @@ module Realization_Base_class
     type(patch_type), pointer :: patch
 
     type(option_type), pointer :: option
-    type(input_type), pointer :: input
     type(field_type), pointer :: field
     type(debug_type), pointer :: debug
     type(output_option_type), pointer :: output_option
@@ -71,7 +70,6 @@ subroutine RealizationBaseInit(realization_base,option)
   else
     realization_base%option => OptionCreate()
   endif
-  nullify(realization_base%input)
   realization_base%discretization => DiscretizationCreate()
   nullify(realization_base%comm1)  
   realization_base%field => FieldCreate()
