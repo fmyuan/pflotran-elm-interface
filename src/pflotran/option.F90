@@ -227,6 +227,8 @@ module Option_module
     
     ! flag to use freezing model in TH mode
     PetscBool :: th_freezing
+    PetscInt  :: th_ice_model         ! specify water/ice/vapor phase partitioning model
+    PetscReal :: th_frzthw_halfwidth     ! freezing-thawing smoothing half-width (oC)
 
   end type option_type
 
@@ -609,6 +611,8 @@ subroutine OptionInitRealization(option)
   option%inline_surface_region_name    = ""
   
   option%th_freezing = PETSC_FALSE
+  option%th_ice_model = PAINTER_EXPLICIT
+  option%th_frzthw_halfwidth = UNINITIALIZED_DOUBLE
 
 
 end subroutine OptionInitRealization
