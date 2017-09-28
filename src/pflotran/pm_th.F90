@@ -227,7 +227,7 @@ subroutine PMTHRead(this,input)
         this%rel_update_inf_tol(2) = tempreal
 
       case('FREEZING')
-        th_use_freezing = PETSC_TRUE
+        option%use_th_freezing = PETSC_TRUE
         option%io_buffer = ' TH: using FREEZING submode!'
         call PrintMsg(option)
         ! Override the default setting for TH-mode with freezing
@@ -238,21 +238,26 @@ subroutine PMTHRead(this,input)
         call StringToUpper(word)
         select case (trim(word))
           case ('PAINTER_EXPLICIT')
-            th_ice_model = PAINTER_EXPLICIT
+            option%ice_model = PAINTER_EXPLICIT
           case ('PAINTER_KARRA_IMPLICIT')
-            th_ice_model = PAINTER_KARRA_IMPLICIT
+            option%ice_model = PAINTER_KARRA_IMPLICIT
           case ('PAINTER_KARRA_EXPLICIT')
-            th_ice_model = PAINTER_KARRA_EXPLICIT
+            option%ice_model = PAINTER_KARRA_EXPLICIT
           case ('PAINTER_KARRA_EXPLICIT_NOCRYO')
-            th_ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
+            option%ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
+          case ('PAINTER_KARRA_EXPLICIT_SMOOTH')
+            option%ice_model = PAINTER_KARRA_EXPLICIT_SMOOTH
+            call InputReadDouble(input,option,tempreal)
+            call InputDefaultMsg(input,option,'freezing-thawing smoothing')
+            if(tempreal > 1.d-10) option%frzthw_halfwidth = tempreal
           case ('DALL_AMICO')
-            th_ice_model = DALL_AMICO
+            option%ice_model = DALL_AMICO
           case default
             option%io_buffer = 'Cannot identify the specificed ice model.' // &
              'Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT' // &
              ' or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO ' // &
-             ' or DALL_AMICO.'
-            call PrintErrMsg(option)
+             ' or PAINTER_KARRA_EXPLICIT_SMOOTH or DALL_AMICO.'
+            call printErrMsg(option)
           end select
       case default
         call InputKeywordUnrecognized(word,error_string,option)

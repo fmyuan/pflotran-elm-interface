@@ -3354,6 +3354,7 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
+                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
 
@@ -3456,6 +3457,7 @@ subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
+                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
 
@@ -3557,6 +3559,7 @@ subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
+                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
 
@@ -3824,6 +3827,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
+                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
 
@@ -3989,6 +3993,7 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
+                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
   if (associated(flow_condition%rate)) then
@@ -4903,7 +4908,7 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
             call PatchUnsupportedVariable('TH','for gas phase',option)
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
-              if (th_use_freezing) then
+              if (option%use_th_freezing) then
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas
               else
@@ -4912,7 +4917,7 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
               endif
             enddo
           case(ICE_SATURATION)
-            if (th_use_freezing) then
+            if (option%use_th_freezing) then
               do local_id=1,grid%nlmax
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice
@@ -4922,7 +4927,7 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
                                       &without freezing option TH')
             endif
           case(ICE_DENSITY)
-            if (th_use_freezing) then
+            if (option%use_th_freezing) then
               do local_id=1,grid%nlmax
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice*FMWH2O
@@ -6947,7 +6952,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY)
             call PatchUnsupportedVariable('TH','GAS_MOLE_FRACTION',option)
           case(GAS_SATURATION)
-            if (th_use_freezing) then
+            if (option%use_th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_gas
             else
               value = 0.d0
@@ -6955,11 +6960,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
           case(CAPILLARY_PRESSURE)
             value = patch%aux%TH%auxvars(ghosted_id)%pc
           case(ICE_SATURATION)
-            if (th_use_freezing) then
+            if (option%use_th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_ice
             endif
           case(ICE_DENSITY)
-            if (th_use_freezing) then
+            if (option%use_th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%den_ice*FMWH2O
             endif
           case(LIQUID_MOLE_FRACTION)
@@ -8226,7 +8231,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY)
             call PrintErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
           case(GAS_SATURATION)
-            if (th_use_freezing) then
+            if (option%use_th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas = &
@@ -8239,7 +8244,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               endif
             endif
           case(ICE_SATURATION)
-            if (th_use_freezing) then
+            if (option%use_th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice = &
@@ -8252,7 +8257,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               endif
             endif
           case(ICE_DENSITY)
-            if (th_use_freezing) then
+            if (option%use_th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice = &

@@ -67,6 +67,7 @@ module Option_module
     PetscInt :: nmechdof
     PetscInt :: nsec_cells
     PetscInt :: num_table_indices
+    PetscBool :: use_th_freezing
 
 ! Indicates request for one-line-per-step console output
     PetscBool :: linerept
@@ -128,6 +129,9 @@ module Option_module
 
     PetscBool :: update_flow_perm ! If true, permeability changes due to pressure
 
+    PetscInt :: ice_model         ! specify water/ice/vapor phase partitioning model
+    PetscReal:: frzthw_halfwidth  ! freezing-thawing smoothing half-width (oC)
+      
     PetscReal :: flow_time, tran_time, time  ! The time elapsed in the simulation.
     PetscReal :: flow_dt ! The size of the time step.
     PetscReal :: tran_dt
@@ -433,6 +437,8 @@ subroutine OptionInitRealization(option)
   option%use_matrix_free = PETSC_FALSE
   option%use_mc = PETSC_FALSE
   option%set_secondary_init_temp = PETSC_FALSE
+  option%ice_model = PAINTER_EXPLICIT
+  option%frzthw_halfwidth = UNINITIALIZED_DOUBLE
   option%set_secondary_init_conc = PETSC_FALSE
 
   option%update_flow_perm = PETSC_FALSE
@@ -444,6 +450,7 @@ subroutine OptionInitRealization(option)
   option%nmechdof = 0
   option%nsec_cells = 0
   option%num_table_indices = 0
+  option%use_th_freezing = PETSC_FALSE
 
   option%linerept = PETSC_FALSE
   option%linpernl = 0
