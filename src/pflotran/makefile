@@ -28,6 +28,8 @@
 #
 ###############################################################################
 
+PATH = /usr/local/gcc-x/netcdf-4.x-hdf5/bin:/usr/local/gcc-x/hdf5-1.10/bin:/usr/local/gcc-x/mpich-3.3/bin:/usr/local/gcc-x/gdb-8/bin:/usr/local/gcc-x/gcc-x-clang/bin:/usr/local/gnutools/bin:/usr/local/bin:/usr/local/CMake.app/Contents/bin:/usr/sbin:/sbin:/usr/bin:/bin:/opt/X11/bin
+
 # PFLOTRAN source directory -- default to the current directory
 SRC_DIR = ./
 
@@ -141,6 +143,10 @@ endif
 
 ifdef debug
   MYFLAGS += ${FC_DEFINE_FLAG}DEBUG
+endif
+
+ifdef smoothing2
+  MYFLAGS += ${FC_DEFINE_FLAG}SMOOTHING2
 endif
 
 ifdef use_matseqaij_fix
