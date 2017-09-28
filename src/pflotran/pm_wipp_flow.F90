@@ -178,6 +178,12 @@ subroutine PMWIPPFloRead(this,input)
         call InputKeywordUnrecognized(keyword,'WIPP Flow Mode',option)
     end select
     
+    if (wippflo_use_gas_gen) then
+      this%pmwss_ptr => PMWSSCreate()
+      this%pmwss_ptr%option => this%option
+      call this%pmwss_ptr%Read(input)
+    endif
+    
   enddo  
   
   if (wippflo_use_gas_gen) then
