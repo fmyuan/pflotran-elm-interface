@@ -1084,6 +1084,9 @@ subroutine PMWIPPFloDestroy(this)
   nullify(this%max_change_ivar)
 
   ! preserve this ordering
+  call this%pmwss_ptr%Destroy()
+  deallocate(this%pmwss_ptr)
+  nullify(this%pmwss_ptr)
   call WIPPFloDestroy(this%realization)
   call PMSubsurfaceFlowDestroy(this)
   
