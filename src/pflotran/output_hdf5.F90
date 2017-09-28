@@ -407,7 +407,9 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
-  call PrintMsg(option)
+#ifndef CLM_PFLOTRAN
+  call printMsg(option)
+#endif
 
 end subroutine OutputHDF5OpenFile
 
@@ -592,7 +594,9 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename_path)
   endif
-  call PrintMsg(option)
+#ifndef CLM_PFLOTRAN
+  call printMsg(option)
+#endif
 
   if (first) then
     ! create a group for the coordinates data set
@@ -992,7 +996,9 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
     option%io_buffer = '--> appending to hdf5 output file: ' // &
                        trim(filename_path)
   endif
-  call PrintMsg(option)
+#ifndef CLM_PFLOTRAN
+  call printMsg(option)
+#endif
   
   domain_filename_path = trim(option%global_prefix) // '-domain.h5'
   domain_filename_header = &

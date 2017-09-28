@@ -919,6 +919,12 @@ subroutine SetOutputFlags(this)
 
   endif
 
+#ifdef CLM_PFLOTRAN
+  ! when coupling with CLM, the output of ascii to either screen or file could be huge
+  this%option%print_screen_flag = PETSC_FALSE
+  this%option%print_file_flag   = PETSC_FALSE
+#endif
+
 end subroutine SetOutputFlags
 
 ! ************************************************************************** !

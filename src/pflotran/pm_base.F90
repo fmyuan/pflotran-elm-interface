@@ -469,6 +469,8 @@ subroutine PMBasePrintHeader(this)
 
   character(len=MAXSTRINGLENGTH) :: string
 
+  if (this%option%print_screen_flag .or. this%option%print_file_flag) then
+
   if (len_trim(this%header) == 0) then
     this%option%io_buffer = &
       'header name needs to be set for PMBaseInitializeTimestep'
@@ -479,6 +481,8 @@ subroutine PMBasePrintHeader(this)
   write(string,string)
   call OptionPrint('',this%option)
   call OptionPrint(string,this%option)
+
+  endif
 
 end subroutine PMBasePrintHeader
 
