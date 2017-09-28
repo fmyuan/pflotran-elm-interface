@@ -1785,12 +1785,9 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   PetscReal, pointer :: r_p(:), accum_p(:)
   PetscReal, pointer :: mmsrc(:)
   PetscReal, allocatable :: msrc(:)
-  PetscReal :: well_status
-  PetscReal :: well_factor
   PetscReal :: pressure_bh
   PetscReal :: pressure_max
   PetscReal :: pressure_min
-  PetscReal :: well_inj_water
   PetscReal :: Dq, dphi, v_darcy, ukvr
 
   Mat, parameter :: null_mat = tMat(0)
@@ -1825,8 +1822,7 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
       if (patch%imat(ghosted_id) <= 0) cycle
 
       if (source_sink%flow_condition%itype(1)/=HET_VOL_RATE_SS .and. &
-          source_sink%flow_condition%itype(1)/=HET_MASS_RATE_SS .and. &
-          source_sink%flow_condition%itype(1)/=WELL_SS) &
+          source_sink%flow_condition%itype(1)/=HET_MASS_RATE_SS) &
         qsrc = source_sink%flow_condition%rate%dataset%rarray(1)
 
       select case(source_sink%flow_condition%itype(1))
@@ -1851,40 +1847,7 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
                                                            ! kg/sec -> kmol/sec
           qsrc_mol = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O 
       
-        case(WELL_SS) ! production well, SK 12/19/13
-          ! if node pessure is lower than the given extraction pressure, 
-          ! shut it down
-          !  well parameter explanation
-          !   1. well status. 1 injection; -1 production; 0 shut in!
-          !   2. well factor [m^3],  the effective permeability [m^2/s]
-          !   3. bottomhole pressure:  [Pa]
-          !   4. max pressure: [Pa]
-          !   5. min pressure: [Pa]   
-          mmsrc => source_sink%flow_condition%well%dataset%rarray
 
-          well_status = mmsrc(1)
-          well_factor = mmsrc(2)
-          pressure_bh = mmsrc(3)
-          pressure_max = mmsrc(4)
-          pressure_min = mmsrc(5)
-    
-          ! production well (well status = -1)
-          if (dabs(well_status + 1.D0) < 1.D-1) then
-            if (global_auxvars(ghosted_id)%pres(1) > pressure_min) then
-              Dq = well_factor 
-              dphi = global_auxvars(ghosted_id)%pres(1) - pressure_bh
-              if (dphi >= 0.D0) then ! outflow only
-                ukvr = rich_auxvars(ghosted_id)%kvr
-                if (ukvr < 1.e-20) ukvr = 0.D0
-                v_darcy = 0.D0
-                if (ukvr*Dq > floweps) then
-                  v_darcy = Dq * ukvr * dphi
-                  ! store volumetric rate for ss_fluid_fluxes()
-                  qsrc_mol = -1.d0*v_darcy*global_auxvars(ghosted_id)%den(1)
-                endif
-              endif
-            endif
-          endif 
       end select
 
       if (option%compute_mass_balance_new) then
@@ -2704,8 +2667,6 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   PetscInt :: flow_pc
   PetscViewer :: viewer
   PetscReal, pointer :: mmsrc(:)
-  PetscReal :: well_status
-  PetscReal :: well_factor
   PetscReal :: pressure_bh
   PetscReal :: pressure_max
   PetscReal :: pressure_min
@@ -2727,8 +2688,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
     if (.not.associated(source_sink)) exit
     
     if (source_sink%flow_condition%itype(1)/=HET_VOL_RATE_SS.and. &
-       source_sink%flow_condition%itype(1)/=HET_MASS_RATE_SS .and. &
-       source_sink%flow_condition%itype(1)/=WELL_SS) &
+       source_sink%flow_condition%itype(1)/=HET_MASS_RATE_SS) &
       qsrc = source_sink%flow_condition%rate%dataset%rarray(1)
 
     cur_connection_set => source_sink%connection_set
@@ -2750,43 +2710,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
         case(HET_VOL_RATE_SS)
           Jup(1,1) = -source_sink%flow_aux_real_var(ONE_INTEGER,iconn)* &
                     rich_auxvars(ghosted_id)%dden_dp*FMWH2O
-        case(WELL_SS) ! production well, SK 12/19/13
-          ! if node pessure is lower than the given extraction pressure, 
-          ! shut it down
-          !  well parameter explanation
-          !   1. well status. 1 injection; -1 production; 0 shut in!
-          !   2. well factor [m^3],  the effective permeability [m^2/s]
-          !   3. bottomhole pressure:  [Pa]
-          !   4. max pressure: [Pa]
-          !   5. min pressure: [Pa]
-          mmsrc => source_sink%flow_condition%well%dataset%rarray
 
-          well_status = mmsrc(1)
-          well_factor = mmsrc(2)
-          pressure_bh = mmsrc(3)
-          pressure_max = mmsrc(4)
-          pressure_min = mmsrc(5)
-    
-          ! production well (well status = -1)
-          if (dabs(well_status + 1.D0) < 1.D-1) then
-            if (global_auxvars(ghosted_id)%pres(1) > pressure_min) then
-              Dq = well_factor 
-              dphi = global_auxvars(ghosted_id)%pres(1) - pressure_bh
-              if (dphi >= 0.D0) then ! outflow only
-                ukvr = rich_auxvars(ghosted_id)%kvr
-                if (ukvr < 1.e-20) ukvr = 0.D0
-                v_darcy = 0.D0
-                if (ukvr*Dq > floweps) then
-                  v_darcy = Dq * ukvr * dphi
-                  ! store volumetric rate for ss_fluid_fluxes()
-                  Jup(1,1) = -1.d0*(-Dq*rich_auxvars(ghosted_id)%dkvr_dp*dphi* &
-                             global_auxvars(ghosted_id)%den(1) &
-                             -Dq*ukvr*1.d0*global_auxvars(ghosted_id)%den(1) &
-                             -Dq*ukvr*dphi*rich_auxvars(ghosted_id)%dden_dp)
-                endif
-              endif
-            endif
-          endif 
       end select
 #ifdef BUFFER_MATRIX
       if (option%use_matrix_buffer) then

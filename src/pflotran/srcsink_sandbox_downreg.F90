@@ -191,7 +191,6 @@ subroutine DownregSetup(this,grid,option)
 
   use Option_module
   use Grid_module
-  use General_Aux_module, only : general_fmw_com => fmw_comp
 
   implicit none
   

@@ -815,7 +815,6 @@ subroutine BasisInit(reaction,option)
   use Reaction_Solid_Solution_module
 #endif
   use Reaction_Sandbox_module
-  use CLM_Rxn_module
 
   implicit none
   
@@ -1790,14 +1789,6 @@ subroutine BasisInit(reaction,option)
                                   reaction%gas%acteqh2ostoich, &
                                   reaction%gas%acteqlogK, &
                                   reaction%gas%acteqlogKcoef)
-  if (option%nphase > 1 .and. reaction%gas%nactive_gas == 0 .and. &
-      (option%iflowmode == MPH_MODE .or. &
-       option%iflowmode == IMS_MODE .or. &
-       option%iflowmode == FLASH2_MODE)) then
-    option%io_buffer = 'An ACTIVE_GAS_SPECIES block must be specified in &
-      &CHEMISTRY to run a CO2 flow mode coupled with reactive transport.'
-    call printErrMsg(option)
-  endif
   
   
   ! immobile species
@@ -3632,7 +3623,6 @@ subroutine BasisInit(reaction,option)
   
   ! sandbox reactions
   call RSandboxSetup(reaction,option)
-  call RCLMRxnSetup(reaction,option)
   
 90 format(80('-'))
 100 format(/,2x,i4,2x,a)

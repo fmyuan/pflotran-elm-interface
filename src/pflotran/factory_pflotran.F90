@@ -64,7 +64,6 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   use Logging_module
   use EOS_module
   use PM_Surface_class
-  use PM_Geomechanics_Force_class
   use PM_Subsurface_Flow_class
   use PM_RT_class
   
@@ -114,11 +113,9 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   use Simulation_Base_class
   use Simulation_Subsurface_class
   use Simulation_Surf_Subsurf_class
-  use Simulation_Geomechanics_class
   use PM_Base_class
   use PM_Surface_Flow_class
   use PM_Surface_TH_class
-  use PM_Geomechanics_Force_class
   use PM_Auxiliary_class
   use PMC_Base_class
   use Checkpoint_module
@@ -128,7 +125,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   
   use Factory_Subsurface_module
   use Factory_Surf_Subsurf_module
-  use Factory_Geomechanics_module
   
   implicit none
   
@@ -201,23 +197,9 @@ subroutine PFLOTRANReadSimulation(simulation,option)
             case('SUBSURFACE_FLOW')
               call SubsurfaceReadFlowPM(input,option,new_pm)
             case('SUBSURFACE_TRANSPORT')
-              call SubsurfaceReadRTPM(input,option,new_pm)
-            case('WASTE_FORM')
-              call SubsurfaceReadWasteFormPM(input,option,new_pm)
-            case('UFD_DECAY')
-              call SubsurfaceReadUFDDecayPM(input,option,new_pm)
-            case('UFD_BIOSPHERE')
-              call SubsurfaceReadUFDBiospherePM(input,option,new_pm)
-            case('WIPP_SOURCE_SINK')
-              option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
-                &unless you are running in WIPP_FLOW mode and intend to &
-                &include gas generation.'
-              call printErrMsg(option)
+              call SubsurfaceReadRTPM(input, option, new_pm)
             case('SURFACE_SUBSURFACE')
-              call SurfSubsurfaceReadFlowPM(input,option,new_pm)
-            case('GEOMECHANICS_SUBSURFACE')
-              option%geomech_on = PETSC_TRUE
-              new_pm => PMGeomechForceCreate()
+              call SurfSubsurfaceReadFlowPM(input, option, new_pm)
             case('AUXILIARY')
               if (len_trim(pm_name) < 1) then
                 option%io_buffer = 'AUXILIARY process models must have a name.'
@@ -332,8 +314,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
       simulation => SubsurfaceSimulationCreate(option)
     case('SURFACE_SUBSURFACE')
       simulation => SurfSubsurfaceSimulationCreate(option)
-    case('GEOMECHANICS_SUBSURFACE')
-      simulation => GeomechanicsSimulationCreate(option)
     case default
       if (len_trim(simulation_type) == 0) then
         option%io_buffer = 'A SIMULATION_TYPE (e.g. "SIMULATION_TYPE &
@@ -352,8 +332,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
       call SubsurfaceInitialize(simulation)  
     class is(simulation_surfsubsurface_type)
       call SurfSubsurfaceInitialize(simulation)
-    class is(simulation_geomechanics_type)
-      call GeomechanicsInitialize(simulation)
   end select
   
 end subroutine PFLOTRANReadSimulation

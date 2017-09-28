@@ -148,65 +148,20 @@ subroutine GlobalAuxVarInit(auxvar,option)
  
   select case(option%iflowmode)
     case(RICHARDS_MODE)
-!      if (option%ntrandof > 0) then
-!        allocate(auxvar%den_store(nphase,TWO_INTEGER))
-!        auxvar%den_store = 0.d0
-!      endif
-    case(IMS_MODE, MPH_MODE, FLASH2_MODE)
-      allocate(auxvar%xmass(nphase))
-      auxvar%xmass = 1.d0
-      allocate(auxvar%pres_store(nphase,TWO_INTEGER))
-      auxvar%pres_store = option%reference_pressure
-      allocate(auxvar%temp_store(TWO_INTEGER))
-      auxvar%temp_store = 0.d0
-      allocate(auxvar%fugacoeff(ONE_INTEGER))
-      auxvar%fugacoeff = 1.d0
-      allocate(auxvar%fugacoeff_store(ONE_INTEGER,TWO_INTEGER))
-      auxvar%fugacoeff_store = 1.d0    
-      allocate(auxvar%den_store(nphase,TWO_INTEGER))
-      auxvar%den_store = 0.d0
-      allocate(auxvar%m_nacl(TWO_INTEGER))
-      auxvar%m_nacl = option%m_nacl
-      allocate(auxvar%reaction_rate(option%nflowspec))
-      auxvar%reaction_rate = 0.d0
-      allocate(auxvar%reaction_rate_store(option%nflowspec))
-      auxvar%reaction_rate_store = 0.d0
+      !
     case(TH_MODE)
-    ! allocate(auxvar%xmass(nphase))
-    ! auxvar%xmass = 1.d0
       allocate(auxvar%pres_store(nphase,TWO_INTEGER))
       auxvar%pres_store = 0.d0
       allocate(auxvar%temp_store(TWO_INTEGER))
       auxvar%temp_store = 0.d0
-    ! allocate(auxvar%fugacoeff(ONE_INTEGER))
-    ! auxvar%fugacoeff = 1.d0
-    ! allocate(auxvar%fugacoeff_store(ONE_INTEGER,TWO_INTEGER))
-    ! auxvar%fugacoeff_store = 1.d0    
       allocate(auxvar%den_store(nphase,TWO_INTEGER))
       auxvar%den_store = 0.d0
-    ! allocate(auxvar%m_nacl(TWO_INTEGER))
-    ! auxvar%m_nacl = option%m_nacl
       nullify(auxvar%xmass)
       nullify(auxvar%fugacoeff)
       nullify(auxvar%fugacoeff_store)
       nullify(auxvar%m_nacl)
       nullify(auxvar%reaction_rate)
       nullify(auxvar%reaction_rate_store)  
-    case (G_MODE)
-      if (option%ntrandof > 0) then
-        allocate(auxvar%pres_store(nphase,TWO_INTEGER))
-        auxvar%pres_store = 0.d0
-        allocate(auxvar%temp_store(TWO_INTEGER))
-        auxvar%temp_store = 0.d0
-!geh: these are allocated above        
-!geh        allocate(auxvar%den_kg_store(nphase,TWO_INTEGER))
-!geh        auxvar%den_kg_store = 0.d0
-      endif
-    case (WF_MODE)
-      if (option%ntrandof > 0) then
-        allocate(auxvar%pres_store(nphase,TWO_INTEGER))
-        auxvar%pres_store = 0.d0
-      endif
     case default
   end select
   

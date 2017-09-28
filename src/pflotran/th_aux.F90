@@ -424,7 +424,6 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   ds_dp = 0.d0
   dkr_dp = 0.d0
   if (auxvar%pc > 0.d0) then
-!  if (auxvar%pc > 1.d0) then
     iphase = 3
 
     call characteristic_curves%saturation_function%Saturation(auxvar%pc, &
@@ -434,7 +433,6 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
          global_auxvar%sat(1), &
          kr, dkr_dsl, option)
     dkr_dp = dkr_dsl*ds_dp
-
 
     dpw_dp = 0.d0
   else
@@ -472,8 +470,6 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
     hw_dp = 0.d0
   endif
 
-! auxvar%den = dw_mol
-! auxvar%den_kg = dw_kg
   global_auxvar%den = dw_mol
   global_auxvar%den_kg = dw_kg
   
@@ -482,17 +478,12 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   auxvar%kvr = kr/visl
   
   auxvar%vis = visl
-!  auxvar%dvis_dp = dvis_dp
-!  auxvar%kr = kr
-!  auxvar%dkr_dp = dkr_dp
   auxvar%dsat_dp = ds_dp
   auxvar%dsat_dt = 0.d0
 
   auxvar%dden_dt = dw_dt
   auxvar%dden_dp = dw_dp
   
-!geh: contribution of dvis_dpsat is now added in EOSWaterViscosity
-!  auxvar%dkvr_dt = -kr/(visl*visl)*(dvis_dt+dvis_dpsat*dpsat_dt)
   auxvar%dkvr_dt = -kr/(visl*visl)*dvis_dt
   auxvar%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp
   if (iphase < 3) then !kludge since pw is constant in the unsat zone

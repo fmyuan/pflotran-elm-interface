@@ -327,10 +327,10 @@ subroutine OutputTecplotBlock(realization_base)
   if (output_option%print_tecplot_vel_face .and. &
       realization_base%discretization%itype == STRUCTURED_GRID) then
     select case(option%iflowmode)
-      case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
-        call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
-                                            X_DIRECTION,PETSC_FALSE)
-        include_gas_phase = PETSC_TRUE
+      !case(TH_MODE) (TODO)
+      !  call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
+      !                                      X_DIRECTION,PETSC_FALSE)
+      !  include_gas_phase = PETSC_TRUE
       case(NULL_MODE)
         if (option%transport%nphase > 1) include_gas_phase = PETSC_TRUE
     end select
@@ -363,7 +363,7 @@ subroutine OutputTecplotBlock(realization_base)
       realization_base%discretization%itype == STRUCTURED_GRID) then
     if (grid%structured_grid%nx > 1) then
       select case(option%iflowmode)
-        case(G_MODE,WF_MODE)
+        case(TH_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
                                               X_DIRECTION,PETSC_TRUE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &
@@ -374,7 +374,7 @@ subroutine OutputTecplotBlock(realization_base)
     endif
     if (grid%structured_grid%ny > 1) then
       select case(option%iflowmode)
-        case(G_MODE,WF_MODE)
+        case(TH_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
                                               Y_DIRECTION,PETSC_TRUE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &
@@ -385,7 +385,7 @@ subroutine OutputTecplotBlock(realization_base)
     endif
     if (grid%structured_grid%nz > 1) then
       select case(option%iflowmode)
-        case(G_MODE,WF_MODE)
+        case(TH_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
                                               Z_DIRECTION,PETSC_TRUE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &
@@ -2332,8 +2332,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
       rt_sec_tranport_vars => patch%aux%SC_RT%sec_transport_vars
       reaction => realization_base%reaction
     endif
-    if (option%iflowmode == TH_MODE &
-        .or. option%iflowmode == MPH_MODE) then
+    if (option%iflowmode == TH_MODE) then
       sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
     endif
   endif
@@ -2625,7 +2624,7 @@ subroutine WriteTecplotHeaderSec(fid,realization_base,cell_string, &
   ! add secondary temperature to header
   if (print_secondary_data(1)) then
     select case (option%iflowmode) 
-      case (TH_MODE, MPH_MODE)
+      case (TH_MODE)
         string = 'T'
         call OutputWriteToHeader(fid,string,'C',cell_string,icolumn)
       case default
