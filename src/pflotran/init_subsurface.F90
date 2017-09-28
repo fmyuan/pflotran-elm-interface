@@ -56,7 +56,6 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
   use Grid_module
   use Patch_module
   use Material_Aux_class
-  use Fracture_module, only : FractureAuxVarInit
   
   implicit none
   
@@ -96,9 +95,6 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
     allocate(material_auxvars(grid%ngmax))
     do ghosted_id = 1, grid%ngmax
       call MaterialAuxVarInit(material_auxvars(ghosted_id),option)
-      if (option%flow%fracture_on) then
-        call FractureAuxVarInit(material_auxvars(ghosted_id))
-      endif
     enddo
     cur_patch%aux%Material%num_aux = grid%ngmax
     cur_patch%aux%Material%auxvars => material_auxvars
@@ -287,10 +283,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
   use Material_Aux_class
   use Material_module
   use Option_module
-  use WIPP_module
-  use Creep_Closure_module
-  use Fracture_module
-  use Geomechanics_Subsurface_Properties_module
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, PERMEABILITY_XY, &
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
@@ -356,37 +348,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   ! have to use Material%auxvars() and not material_auxvars() due to memory
   ! errors in gfortran
   Material => patch%aux%Material
-  
-  !if material is associated with fracture, then allocate memory.
-  wipp => WIPPGetPtr()
-  call CreepClosureConvertListToArray(wipp%creep_closure_tables, &
-                                      wipp%creep_closure_tables_array, &
-                                      option)
-  
-  do ghosted_id = 1, grid%ngmax
-    material_id = patch%imat(ghosted_id)
-    if (material_id > 0) then
-      material_property => &
-        patch%material_property_array(material_id)%ptr
-      
-    call GeomechanicsSubsurfacePropsAuxvarInit( &
-          material_property%geomechanics_subsurface_properties, &
-          patch%aux%Material%auxvars(ghosted_id))
-        
-      ! lookup creep closure table id from creep closure table name
-      if (option%flow%creep_closure_on) then
-        material_property%creep_closure_id = &
-          CreepClosureGetID(wipp%creep_closure_tables_array, &
-                             material_property%creep_closure_name, &
-                             material_property%name,option)
-      ! copy creep closure table id from material to material_aux
-      patch%aux%Material%auxvars(ghosted_id)%creep_closure_id = &
-        material_property%creep_closure_id
-      endif
-    endif
-  enddo
-  
-  
+
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     material_id = patch%imat(ghosted_id)
@@ -557,18 +519,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
     enddo
     call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
   enddo
-
-  if (option%geomech_on) then
-    call VecCopy(field%porosity0,field%porosity_geomech_store,ierr);CHKERRQ(ierr)
-#ifdef GEOMECH_DEBUG
-    print *, 'InitSubsurfAssignMatProperties'
-    call PetscViewerASCIIOpen(realization%option%mycomm, &
-                              'porosity_geomech_store_por0.out', &
-                              viewer,ierr);CHKERRQ(ierr)
-    call VecView(field%porosity_geomech_store,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-#endif
-  endif
 
 end subroutine InitSubsurfAssignMatProperties
 
@@ -1036,9 +986,6 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
       case(TH_MODE)
         ! second equation is energy
         dof_is_active(TWO_INTEGER) = PETSC_FALSE
-      case(MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE)
-        ! third equation is energy
-        dof_is_active(THREE_INTEGER) = PETSC_FALSE
     end select
 #endif
     select case(option%iflowmode)
@@ -1056,63 +1003,6 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
                       realization%patch%aux%TH%zero_rows_local_ghosted, &
                       realization%patch%aux%TH%n_zero_rows, &
                       realization%patch%aux%TH%inactive_cells_exist, &
-                      option)
-      case(MPH_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Mphase%zero_rows_local, &
-                      realization%patch%aux%Mphase%zero_rows_local_ghosted, &
-                      realization%patch%aux%Mphase%n_zero_rows, &
-                      realization%patch%aux%Mphase%inactive_cells_exist, &
-                      option)
-      case(G_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%General%inactive_rows_local, &
-                    realization%patch%aux%General%inactive_rows_local_ghosted, &
-                      realization%patch%aux%General%n_inactive_rows, &
-                      realization%patch%aux%General%inactive_cells_exist, &
-                      option)
-      case(WF_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%WIPPFlo%inactive_rows_local, &
-                    realization%patch%aux%WIPPFlo%inactive_rows_local_ghosted, &
-                      realization%patch%aux%WIPPFlo%n_inactive_rows, &
-                      realization%patch%aux%WIPPFlo%inactive_cells_exist, &
-                      option)
-      case(TOIL_IMS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%TOil_ims%inactive_rows_local, &
-                   realization%patch%aux%TOil_ims%inactive_rows_local_ghosted, &
-                      realization%patch%aux%TOil_ims%n_inactive_rows, &
-                      realization%patch%aux%TOil_ims%inactive_cells_exist, &
-                      option)
-      case(TOWG_MODE)
-        !PO: same for all pm_XXX_aux - can be defined in PM_Base_Aux_module
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%TOWG%inactive_rows_local, &
-                   realization%patch%aux%TOWG%inactive_rows_local_ghosted, &
-                      realization%patch%aux%TOWG%n_inactive_rows, &
-                      realization%patch%aux%TOWG%inactive_cells_exist, &
-                      option)
-      case(IMS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Immis%zero_rows_local, &
-                      realization%patch%aux%Immis%zero_rows_local_ghosted, &
-                      realization%patch%aux%Immis%n_zero_rows, &
-                      realization%patch%aux%Immis%inactive_cells_exist, &
-                      option)
-      case(MIS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Miscible%zero_rows_local, &
-                      realization%patch%aux%Miscible%zero_rows_local_ghosted, &
-                      realization%patch%aux%Miscible%n_zero_rows, &
-                      realization%patch%aux%Miscible%inactive_cells_exist, &
-                      option)
-      case(FLASH2_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Flash2%zero_rows_local, &
-                      realization%patch%aux%Flash2%zero_rows_local_ghosted, &
-                      realization%patch%aux%Flash2%n_zero_rows, &
-                      realization%patch%aux%Flash2%inactive_cells_exist, &
                       option)
     end select
     deallocate(dof_is_active)

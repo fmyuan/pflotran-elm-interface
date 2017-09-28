@@ -1,13 +1,10 @@
 module Reaction_Sandbox_module
 
   use Reaction_Sandbox_Base_class
-  use Reaction_Sandbox_CLM_CN_class
-  use Reaction_Sandbox_UFD_WP_class
   use Reaction_Sandbox_Example_class
   use Reaction_Sandbox_Simple_class
-  use Reaction_Sandbox_Cyber_class
-  use Reaction_Sandbox_Gas_class 
-
+  use Reaction_Sandbox_Gas_class
+  
   ! Add new reacton sandbox classes here.
   use Reaction_Sandbox_SomDec_class
   use Reaction_Sandbox_PlantN_class
@@ -160,8 +157,6 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
     call StringToUpper(word)   
 
     select case(trim(word))
-      case('CLM-CN')
-        new_sandbox => CLM_CN_Create()
       ! Add new cases statements for new reacton sandbox classes here.
       case('SOMDECOMP')
         new_sandbox => SomDecCreate()
@@ -177,14 +172,10 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => degasCreate()
       case('LANGMUIR')
         new_sandbox => LangmuirCreate()
-      case('UFD-WP')
-        new_sandbox => WastePackageCreate()
       case('EXAMPLE')
         new_sandbox => EXAMPLECreate()
       case('SIMPLE')
         new_sandbox => SimpleCreate()
-      case('CYBERNETIC')
-        new_sandbox => CyberCreate()
       case('GAS')
         new_sandbox => GasCreate()
       case default

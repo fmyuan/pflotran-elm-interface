@@ -23,7 +23,6 @@ module Reaction_module
 #endif  
 
   use Reaction_Sandbox_module
-  use CLM_Rxn_module
 
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
@@ -85,7 +84,6 @@ subroutine ReactionInit(reaction,input,option)
 
   use Option_module
   use Input_Aux_module
-  use CLM_Rxn_module, only : RCLMRxnInit
   
   implicit none
   
@@ -97,7 +95,6 @@ subroutine ReactionInit(reaction,input,option)
   
   ! must be called prior to the first pass
   call RSandboxInit(option)
-  call RCLMRxnInit(option) 
  
   call ReactionReadPass1(reaction,input,option)
   reaction%primary_species_names => GetPrimarySpeciesNames(reaction)
@@ -132,7 +129,6 @@ subroutine ReactionReadPass1(reaction,input,option)
   use Variables_module, only : PRIMARY_MOLALITY, PRIMARY_MOLARITY, &
                                TOTAL_MOLALITY, TOTAL_MOLARITY, &
                                SECONDARY_MOLALITY, SECONDARY_MOLARITY
-  use CLM_Rxn_module, only : RCLMRxnRead
   use Generic_module
   
   implicit none
@@ -442,9 +438,6 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('REACTION_SANDBOX')
         call RSandboxRead(input,option)
         reaction_sandbox_read = PETSC_TRUE
-      case('CLM_REACTION')
-        call RCLMRxnRead(input,option)
-        reaction_clm_read = PETSC_TRUE
       case('MICROBIAL_REACTION')
         call MicrobialRead(reaction%microbial,input,option)
       case('MINERALS')
@@ -1016,8 +1009,6 @@ subroutine ReactionReadPass2(reaction,input,option)
         call MineralReadKinetics(reaction%mineral,input,option)
       case('REACTION_SANDBOX')
         call RSandboxSkipInput(input,option)
-      case('CLM_REACTION')
-        call RCLMRxnSkipInput(input,option)
       case('SOLID_SOLUTIONS')
 #ifdef SOLID_SOLUTION                
         call SolidSolutionReadFromInputFile(reaction%solid_solution_list, &
@@ -1618,10 +1609,6 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF .and. &
         compute_activity_coefs) then
       call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
-      if (option%iflowmode == MPH_MODE .or. &
-          option%iflowmode == FLASH2_MODE) then
-        call CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)  
-      endif
     endif
     call RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     
@@ -2157,7 +2144,6 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   mineral_reaction => reaction%mineral
 
   select case(option%iflowmode)
-    case(FLASH2_MODE,MPH_MODE,IMS_MODE,MIS_MODE)
     case(NULL_MODE)
       global_auxvar%den_kg(iphase) = &
         option%reference_density(option%liquid_phase)
@@ -2217,27 +2203,6 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
       call RUpdateTempDependentCoefs(global_auxvar,reaction,PETSC_TRUE,option)
     endif
   
-    ! CO2-specific
-    if (.not.option%use_isothermal .and. &
-        (option%iflowmode == MPH_MODE .or. &
-         option%iflowmode == FLASH2_MODE)) then
-      if (associated(reaction%gas%paseqlogKcoef)) then
-        do i = 1, reaction%naqcomp
-          if (aq_species_constraint%constraint_type(i) == &
-              CONSTRAINT_SUPERCRIT_CO2) then
-            igas = aq_species_constraint%constraint_spec_id(i)
-            if (abs(reaction%species_idx%co2_gas_id) == igas) then
-              option%io_buffer = 'Adding "scco2_eq_logK" to &
-                &global_auxvar_type solely so you can set reaction%&
-                &%gas%paseqlogK(igas) within ReactionPrintConstraint&
-                & is not acceptable.  Find another way! - Regards, Glenn'
-              call printErrMsg(option)
-!geh              reaction%gas%paseqlogK(igas) = global_auxvar%scco2_eq_logK
-            endif
-          endif
-        enddo
-      endif
-    endif
 
 201 format(a20,i5)
 203 format(a20,f8.4)
@@ -2326,28 +2291,6 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
       mole_fraction_h2o,' [---]'
     write(option%fid_out,'(a20,1pe12.4,a9)') 'mass fraction H2O: ', &
       mass_fraction_h2o,' [---]'
-
-    ! CO2-specific
-    if (option%iflowmode == MPH_MODE .or. option%iflowmode == FLASH2_MODE) then
-      if (global_auxvar%den_kg(2) > 0.d0) then
-        write(option%fid_out,'(a20,f8.2,a9)') '     density CO2: ', &
-          global_auxvar%den_kg(2),' [kg/m^3]'
-        write(option%fid_out,'(a20,es12.4,a9)') '            xphi: ', &
-          global_auxvar%fugacoeff(1)
-
-        if (reaction%species_idx%co2_aq_id /= 0) then
-          icomp = reaction%species_idx%co2_aq_id
-          mass_fraction_co2 = reaction%primary_spec_molar_wt(icomp)*rt_auxvar%pri_molal(icomp)* &
-            mass_fraction_h2o*1.d-3
-          mole_fraction_co2 = rt_auxvar%pri_molal(icomp)*FMWH2O*mole_fraction_h2o*1.e-3
-          write(option%fid_out,'(a20,es12.4,a9)') 'mole fraction CO2: ', &
-            mole_fraction_co2
-          write(option%fid_out,'(a20,es12.4,a9)') 'mass fraction CO2: ', &
-            mass_fraction_co2
-        endif
-      endif
-    endif
-    ! end CO2-specific
 
     write(option%fid_out,90)
 
@@ -3568,7 +3511,6 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   ! 
 
   use Option_module
-  use CLM_Rxn_module, only : RCLMRxn, clmrxn_list 
  
   implicit none
   
@@ -3623,12 +3565,6 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
                   material_auxvar,reaction,option)
   endif
   
-  ! add new reactions here and in RReactionDerivative
-  if (associated(clmrxn_list)) then
-    call RCLMRxn(Res,Jac,derivative,rt_auxvar,global_auxvar, &
-                  material_auxvar,reaction,option)
-  endif
-
 end subroutine RReaction
 
 ! ************************************************************************** !
@@ -4131,11 +4067,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar, &
                     reaction,option)
   endif
-  if (option%iflowmode == MPH_MODE .or. &
-      option%iflowmode == IMS_MODE .or. &
-      option%iflowmode == FLASH2_MODE) then
-    call RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
-  else if (reaction%gas%nactive_gas > 0) then
+  if (reaction%gas%nactive_gas > 0) then
     call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
   endif
 
@@ -5473,29 +5405,6 @@ subroutine RUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
       if (rt_auxvar%mnrl_volfrac(imnrl) < 0.d0) &
         rt_auxvar%mnrl_volfrac(imnrl) = 0.d0
 
-      ! CO2-specific
-      if (option%iflowmode == MPH_MODE .or. &
-          option%iflowmode == FLASH2_MODE) then
-        ncomp = reaction%mineral%kinmnrlspecid(0,imnrl)
-        do iaqspec = 1, ncomp  
-          icomp = reaction%mineral%kinmnrlspecid(iaqspec,imnrl)
-          if (icomp == reaction%species_idx%co2_aq_id) then
-            global_auxvar%reaction_rate(2) &
-              = global_auxvar%reaction_rate(2) & 
-              + rt_auxvar%mnrl_rate(imnrl)*option%tran_dt &
-              * reaction%mineral%kinmnrlstoich(iaqspec,imnrl) /option%flow_dt
-            cycle
-          endif
-        enddo
-
-!       water rate
-        if (reaction%mineral%kinmnrlh2ostoich(imnrl) /= 0) then
-          global_auxvar%reaction_rate(1) &
-            = global_auxvar%reaction_rate(1) &
-            + rt_auxvar%mnrl_rate(imnrl)*option%tran_dt &
-            * reaction%mineral%kinmnrlh2ostoich(imnrl) /option%flow_dt
-        endif
-      endif
     enddo
   endif
 
