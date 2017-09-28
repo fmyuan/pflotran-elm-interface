@@ -117,6 +117,7 @@ subroutine DataMediatorDatasetInit(data_mediator, discretization, &
   use Dataset_Base_class
   use Dataset_Common_HDF5_class
   use Option_module
+  use String_module
 
   implicit none
   
@@ -152,6 +153,17 @@ subroutine DataMediatorDatasetInit(data_mediator, discretization, &
   data_mediator%dataset%dm_wrapper => discretization%dm_1dof
   data_mediator%dataset%local_size = discretization%grid%nlmax
   data_mediator%dataset%global_size = discretization%grid%nmax
+
+
+#ifdef CLM_PFLOTRAN
+  ! by-passing reading dataset%time_storage from the dummy hdf5 file ('dummy.h5'),
+  ! which implies that CLM directly updates 'this%dataset%rarray' at each clm-timestep
+  if (.not.(StringEndswith(trim(data_mediator%dataset%filename), "dummy.h5")) ) then
+      option%io_buffer = 'DATASET filename ' // trim(data_mediator%dataset%filename) // &
+        'should be named as dummy.h5 (none) for coupling with CLM '
+      call printErrMsg(option)
+  endif
+#else
   
   if (.not.associated(data_mediator%dataset%time_storage)) then
     call DatasetCommonHDF5ReadTimes(data_mediator%dataset%filename, &
@@ -164,6 +176,8 @@ subroutine DataMediatorDatasetInit(data_mediator, discretization, &
         INTERPOLATION_STEP
     endif
   endif 
+
+#endif
   
 end subroutine DataMediatorDatasetInit
 
@@ -178,6 +192,7 @@ recursive subroutine DataMediatorDatasetUpdate(this,data_mediator_vec,option)
   ! Date: 05/01/13
   ! 
   use Option_module
+  use String_module
   
   implicit none
   
@@ -192,7 +207,30 @@ recursive subroutine DataMediatorDatasetUpdate(this,data_mediator_vec,option)
   PetscInt :: i
   PetscErrorCode :: ierr
   
+#ifdef CLM_PFLOTRAN
+  ! by-passing reading dataset from the dummy hdf5 file,
+  ! which implies that CLM directly updates 'this%dataset%rarray' instead of reading
+  if (.not.(StringEndswith(trim(this%dataset%filename), "dummy.h5")) ) then
+    option%io_buffer = 'DATASET filename ' // trim(this%dataset%filename) // &
+      'must be named as dummy.h5 (none) for coupling with CLM '
+    call printErrMsg(option)
+
+  else
+    ! need to initialize this%dataset%rarray, when first-time uses it (and skip reading from h5 file)
+    if (.not.associated(this%dataset%rarray)) then
+      if (this%dataset%local_size == 0) then
+        option%io_buffer = 'Local size of Global Dataset has not been set.'
+        call printErrMsg(option)
+      endif
+      allocate(this%dataset%rarray(this%dataset%local_size))
+      this%dataset%rarray = 0.d0
+    endif
+
+  endif
+#else
+
   call DatasetGlobalHDF5Load(this%dataset,option)
+#endif
 
   call VecGetLocalSize(data_mediator_vec,mdof_local_size,ierr);CHKERRQ(ierr)
   ndof_per_cell = mdof_local_size / this%dataset%local_size
