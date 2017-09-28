@@ -510,24 +510,10 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
         write(option%io_buffer,'("U -> S:",1i7,2f12.1)') &
           grid%nG2A(grid%nL2G(local_id)),P0,P1 
         call printMsgAnyRank(option)
-#if 0
-        ghosted_id = grid%nL2G(local_id)
-        call RichardsPrintAuxVars(rich_auxvars(ghosted_id), &
-                                  global_auxvars(ghosted_id),ghosted_id)
-        write(option%io_buffer,'("Residual:",es15.7)') r_p(istart)
-        call printMsgAnyRank(option)
-#endif
       else if (P1 < P_R .and. P0 > P_R) then
         write(option%io_buffer,'("S -> U:",1i7,2f12.1)') &
           grid%nG2A(grid%nL2G(local_id)),P0,P1
         call printMsgAnyRank(option)
-#if 0
-        ghosted_id = grid%nL2G(local_id)
-        call RichardsPrintAuxVars(rich_auxvars(ghosted_id), &
-                                  global_auxvars(ghosted_id),ghosted_id)
-        write(option%io_buffer,'("Residual:",es15.7)') r_p(istart)
-        call printMsgAnyRank(option)
-#endif
       endif
       ! transition from unsaturated to saturated
       if (P0 < P_R .and. P1 > P_R) then
@@ -637,16 +623,18 @@ subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
                                   dabs(r_p(istart)/Res(1)), &
                                   dabs(dX_p(iend)/X1_p(iend)), &
                                   dabs(r_p(iend)/Res(2))))
+
     enddo
     call MPI_Allreduce(inf_norm,global_inf_norm,ONE_INTEGER_MPI, &
                        MPI_DOUBLE_PRECISION, &
                        MPI_MAX,option%mycomm,ierr)
     option%converged = PETSC_TRUE
-    if (global_inf_norm > th_itol_scaled_res) &
+    if (global_inf_norm > th_itol_scaled_res) then
       option%converged = PETSC_FALSE
+    endif
     call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
   endif
   
 end subroutine PMTHCheckUpdatePost
@@ -729,12 +717,20 @@ subroutine PMTHMaxChange(this)
   
   class(pm_th_type) :: this
   character(len=MAXSTRINGLENGTH) :: string
+
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHMaxChange()'
+#endif
+
   
   call THMaxChange(this%realization,this%max_pressure_change, &
                    this%max_temperature_change)
+
+#ifndef CLM_PFLOTRAN
   write(string,'("  --> max chng: dpmx= ",1pe12.4," dtmpmx= ",1pe12.4)') &
       this%max_pressure_change,this%max_temperature_change
   call OptionPrint(string,this%option)
+#endif
 
 end subroutine PMTHMaxChange
 
