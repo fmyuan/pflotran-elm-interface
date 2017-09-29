@@ -106,7 +106,7 @@ subroutine PMWIPPFloRead(this,input)
   
   type(input_type), pointer :: input
   
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword, last_keyword, word
   class(pm_wippflo_type) :: this
   type(option_type), pointer :: option
   PetscReal :: tempreal
@@ -128,6 +128,7 @@ subroutine PMWIPPFloRead(this,input)
     call InputReadWord(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
+    last_keyword = trim(keyword)
     
     found = PETSC_FALSE
     call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found,option)    
@@ -186,6 +187,9 @@ subroutine PMWIPPFloRead(this,input)
     call InputFindStringInFile(input,option,block_string)
     call InputFindStringErrorMsg(input,option,block_string)
     call this%pmwss_ptr%Read(input)
+    block_string = last_keyword
+    call InputFindStringInFile(input,option,block_string)
+    call InputFindStringErrorMsg(input,option,block_string)
   endif
   
 end subroutine PMWIPPFloRead
