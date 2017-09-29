@@ -14,6 +14,7 @@ module Input_Aux_module
   type, public :: input_type 
     PetscInt :: fid
     PetscErrorCode :: ierr
+    character(len=MAXSTRINGLENGTH) :: path
     character(len=MAXSTRINGLENGTH) :: filename
     character(len=MAXSTRINGLENGTH) :: buf
     character(len=MAXSTRINGLENGTH) :: err_buf
@@ -34,6 +35,12 @@ module Input_Aux_module
 
   type(input_dbase_type), pointer, public :: dbase => null()
 
+  interface InputCreate
+    module procedure InputCreate1
+    module procedure InputCreate2
+    module procedure InputCreate3
+  end interface
+  
   interface InputReadWord
     module procedure InputReadWord1
     module procedure InputReadWord2
@@ -132,7 +139,77 @@ contains
 
 ! ************************************************************************** !
 
-function InputCreate(fid,filename,option)
+function InputCreate1(fid,path,filename,option)
+  ! 
+  ! Allocates and initializes a new Input object
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/10/08
+  ! 
+
+  use Option_module
+
+  implicit none
+  
+  PetscInt :: fid
+  character(len=*) :: path
+  character(len=*) :: filename
+  type(option_type) :: option
+  
+  type(input_type), pointer :: InputCreate1
+  PetscInt :: istatus  
+  PetscInt :: islash  
+  character(len=MAXSTRINGLENGTH) :: local_path
+  character(len=MAXSTRINGLENGTH) :: full_path
+  type(input_type), pointer :: input
+  
+  allocate(input)
+  input%fid = fid
+  input%path = ''
+  input%filename = ''
+  input%ierr = 0
+  input%buf = ''
+  input%err_buf = ''
+  input%err_buf2 = ''
+  input%broadcast_read = PETSC_FALSE
+  input%force_units = PETSC_FALSE
+  nullify(input%parent)
+  
+  local_path = ''
+  ! split the filename into a path and filename
+                              ! backwards search
+  islash = index(filename,'/',PETSC_TRUE)
+  if (islash > 0) then
+    local_path(1:islash) = filename(1:islash)
+    input%filename(1:len_trim(filename)-islash) = &
+      filename(islash+1:len_trim(filename))
+  else
+    input%filename = filename
+  endif
+  input%path = trim(path) // trim(local_path)
+
+  if (fid == MAX_IN_UNIT) then
+    option%io_buffer = 'MAX_IN_UNIT in pflotran_constants.h must be &
+      &increased to accommodate a larger number of embedded files.'
+    call printErrMsg(option)
+  endif
+
+  full_path = trim(input%path) // trim(input%filename)
+  open(unit=input%fid,file=full_path,status="old",iostat=istatus)
+  !TODO(geh): update the error messaging
+  if (istatus /= 0) then
+    if (len_trim(filename) == 0) filename = '<blank>'
+    option%io_buffer = 'File: "' // trim(filename) // '" not found.'
+    call printErrMsg(option)
+  endif
+  
+  InputCreate1 => input
+  
+end function InputCreate1
+
+! ************************************************************************** !
+
+function InputCreate2(fid,filename,option)
   ! 
   ! Allocates and initializes a new Input object
   ! 
@@ -148,38 +225,37 @@ function InputCreate(fid,filename,option)
   character(len=*) :: filename
   type(option_type) :: option
   
-  type(input_type), pointer :: InputCreate
-  PetscInt :: istatus  
-  type(input_type), pointer :: input
-  
-  allocate(input)
+  type(input_type), pointer :: InputCreate2
+  character(len=MAXWORDLENGTH) :: word
 
-  input%fid = fid
-  input%filename = filename
-  input%ierr = 0
-  input%buf = ''
-  input%err_buf = ''
-  input%err_buf2 = ''
-  input%broadcast_read = PETSC_FALSE
-  input%force_units = PETSC_FALSE
-  nullify(input%parent)
+  word = ''
+  InputCreate2 => InputCreate1(fid,word,filename,option)
   
-  if (fid == MAX_IN_UNIT) then
-    option%io_buffer = 'MAX_IN_UNIT in pflotran_constants.h must be &
-      &increased to accommodate a larger number of embedded files.'
-    call printErrMsg(option)
-  endif
+end function InputCreate2
 
-  open(unit=input%fid,file=filename,status="old",iostat=istatus)
-  if (istatus /= 0) then
-    if (len_trim(filename) == 0) filename = '<blank>'
-    option%io_buffer = 'File: "' // trim(filename) // '" not found.'
-    call printErrMsg(option)
-  endif
+! ************************************************************************** !
+
+function InputCreate3(input,filename,option)
+  ! 
+  ! Allocates and initializes a new input object without a path
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/28/17
+  ! 
+
+  use Option_module
+
+  implicit none
   
-  InputCreate => input
+  type(input_type), pointer :: input ! note that this is the old input object
+  character(len=MAXSTRINGLENGTH) :: filename
+  type(option_type) :: option
   
-end function InputCreate
+  type(input_type), pointer :: InputCreate3
+
+  InputCreate3 => InputCreate1(input%fid + 1,input%path,filename,option)
+  
+end function InputCreate3
 
 ! ************************************************************************** !
 
@@ -2319,7 +2395,7 @@ subroutine InputPushExternalFile(input,option)
   
   call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
   call InputErrorMsg(input,option,'filename','EXTERNAL_FILE')
-  input_child => InputCreate(input%fid+1,string,option) 
+  input_child => InputCreate(input,string,option) 
   input_child%parent => input
   input => input_child
 

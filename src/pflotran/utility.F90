@@ -993,7 +993,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
   implicit none
   
   type(option_type) :: option
-  type(input_type), target :: input
+  type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: comment
   PetscInt :: array_size
   PetscInt, pointer :: array(:)
@@ -1031,7 +1031,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
       input%err_buf = 'filename'
       input%err_buf2 = comment
       call InputErrorMsg(input,option)
-      input2 => InputCreate(input%fid + 1,string2,option)
+      input2 => InputCreate(input,string2,option)
     else
       input2 => input
       input%buf = string2
@@ -1156,7 +1156,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
   implicit none
   
   type(option_type) :: option
-  type(input_type), target :: input
+  type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: comment
   PetscInt :: array_size
   PetscReal, pointer :: array(:)
@@ -1194,7 +1194,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
       input%err_buf = 'filename'
       input%err_buf2 = comment
       call InputErrorMsg(input,option)
-      input2 => InputCreate(input%fid + 1,string2,option)
+      input2 => InputCreate(input,string2,option)
     else
       input2 => input
       input%buf = string2
