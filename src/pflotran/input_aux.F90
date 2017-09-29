@@ -174,6 +174,7 @@ function InputCreate1(fid,path,filename,option)
   input%broadcast_read = PETSC_FALSE
   input%force_units = PETSC_FALSE
   nullify(input%parent)
+
   
   local_path = ''
   ! split the filename into a path and filename
@@ -186,7 +187,15 @@ function InputCreate1(fid,path,filename,option)
   else
     input%filename = filename
   endif
-  input%path = trim(path) // trim(local_path)
+
+  ! If the path starts with a '/', then it is not relative, but absolute. 
+  ! Do not add the externally passed path.
+  local_path = adjustl(local_path)
+  if (index(local_path,'/') == 1) then
+    input%path = local_path
+  else
+    input%path = trim(path) // trim(local_path)
+  endif
 
   if (fid == MAX_IN_UNIT) then
     option%io_buffer = 'MAX_IN_UNIT in pflotran_constants.h must be &
@@ -198,8 +207,8 @@ function InputCreate1(fid,path,filename,option)
   open(unit=input%fid,file=full_path,status="old",iostat=istatus)
   !TODO(geh): update the error messaging
   if (istatus /= 0) then
-    if (len_trim(filename) == 0) filename = '<blank>'
-    option%io_buffer = 'File: "' // trim(filename) // '" not found.'
+    if (len_trim(full_path) == 0) full_path = '<blank>'
+    option%io_buffer = 'File: "' // trim(full_path) // '" not found.'
     call printErrMsg(option)
   endif
   
