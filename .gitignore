@@ -400,3 +400,10 @@ src/pflotran-elm-interface/reaction_base.F90
 src/pflotran-elm-interface/transport_constraint_base.F90
 src/pflotran-elm-interface/transport_constraint_nwt.F90
 src/pflotran-elm-interface/transport_constraint_rt.F90
+src/pflotran-elm-interface/reaction_sandbox_degas.F90
+src/pflotran-elm-interface/reaction_sandbox_denitr.F90
+src/pflotran-elm-interface/reaction_sandbox_langmu.F90
+src/pflotran-elm-interface/reaction_sandbox_microbial.F90
+src/pflotran-elm-interface/reaction_sandbox_nitrif.F90
+src/pflotran-elm-interface/reaction_sandbox_plantn.F90
+src/pflotran-elm-interface/reaction_sandbox_somdec.F90
