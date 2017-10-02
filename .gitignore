@@ -383,3 +383,10 @@ src/pflotran-elm-interface/wipp_flow_derivative.F90
 src/pflotran-elm-interface/wrapper_hydrogeophysics.F90
 src/pflotran-elm-interface/clm_rspfuncs.F90
 src/pflotran-elm-interface/criticality.F90
+src/pflotran-elm-interface/reaction_sandbox_degas.F90
+src/pflotran-elm-interface/reaction_sandbox_denitr.F90
+src/pflotran-elm-interface/reaction_sandbox_langmu.F90
+src/pflotran-elm-interface/reaction_sandbox_microbial.F90
+src/pflotran-elm-interface/reaction_sandbox_nitrif.F90
+src/pflotran-elm-interface/reaction_sandbox_plantn.F90
+src/pflotran-elm-interface/reaction_sandbox_somdec.F90
