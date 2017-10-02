@@ -392,3 +392,10 @@ src/pflotran-elm-interface/output_eclipse.F90
 src/pflotran-elm-interface/pm_nwt.F90
 src/pflotran-elm-interface/pm_th_ts.F90
 src/pflotran-elm-interface/well_type.F90
+src/pflotran-elm-interface/reaction_sandbox_degas.F90
+src/pflotran-elm-interface/reaction_sandbox_denitr.F90
+src/pflotran-elm-interface/reaction_sandbox_langmu.F90
+src/pflotran-elm-interface/reaction_sandbox_microbial.F90
+src/pflotran-elm-interface/reaction_sandbox_nitrif.F90
+src/pflotran-elm-interface/reaction_sandbox_plantn.F90
+src/pflotran-elm-interface/reaction_sandbox_somdec.F90
