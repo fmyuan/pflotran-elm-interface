@@ -6,3 +6,11 @@ for file in `ls ../pflotran/*.F90`; do
     fi
 done
 
+if [ -f pflotran_no_provenance.F90 ]; then
+    unlink pflotran_no_provenance.F90
+fi
+
+if [ -f pflotran_provenance.F90 ]; then
+    unlink pflotran_provenance.F90
+fi
+
