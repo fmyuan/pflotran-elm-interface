@@ -1484,7 +1484,7 @@ subroutine EOSWaterDensityLinear(t,p,calculate_derivatives, &
   dwmol = dw/FMWH2O ! kmol/m^3
   
   if (calculate_derivatives) then
-    dwp = linear_reference_density*linear_water_compressibility
+    dwp = linear_reference_density*linear_water_compressibility/FMWH2O
   else
     dwp = UNINITIALIZED_DOUBLE
   endif
