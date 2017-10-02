@@ -244,11 +244,14 @@ subroutine WIPPGasGenerationSrcSink(this,Residual,Jacobian, &
   ! kmol/s
   Residual(TWO_INTEGER) = gas_generation_rate 
   
-  T = aux_real(WIPP_GAS_TEMPERATURE_INDEX)
-  call EOSGasEnergy(T,dummy_P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
-  ! energy equation
-  ! units = MJ/s -> enthalpy(J/kmol) * (MJ/1E+6J) * gas_generation_rate (kmol/s)
-  Residual(THREE_INTEGER) = H * 1.d-6 * gas_generation_rate
+  if (option%nflowdof > 2) then
+    T = aux_real(WIPP_GAS_TEMPERATURE_INDEX)
+    call EOSGasEnergy(T,dummy_P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
+    ! energy equation
+    ! units = MJ/s -> enthalpy(J/kmol) * (MJ/1E+6J) * 
+    !                 gas_generation_rate (kmol/s)
+    Residual(THREE_INTEGER) = H * 1.d-6 * gas_generation_rate
+  endif
   
   if (compute_derivative) then
     option%io_buffer = 'WIPPGasGenerationSrcSink is not configured for &
