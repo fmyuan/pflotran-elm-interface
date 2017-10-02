@@ -1388,8 +1388,8 @@ contains
     t2vec(1:nvals)=cols(1:nvals)
     deallocate(rows,cols)
     allocate(rows(nvals),cols(nvals))
-    rows=t1vec
-    cols=t2vec
+    rows=int(t1vec)
+    cols=int(t2vec)
     deallocate(t1vec,t2vec)
     allocate(trows(nvals),tcols(nvals))
     
@@ -1463,7 +1463,6 @@ contains
                 S_map(mcount)=k
              end if
              
-21           continue
           end do
           
        end do

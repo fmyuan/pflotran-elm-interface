@@ -1474,7 +1474,7 @@ subroutine EOSGasHenry_air(T,Psat,Hc,calculate_derivative, &
     !tmp = a/Tr + b * tau**0.355d0/Tr + c * (Tr**(-0.41d0)) * exp(tau)
     tmpA = a/Tr
     tmpB = b*(tau**0.355d0)/Tr
-    tmpC = c*(Tr**-0.41d0)*exp(tau)
+    tmpC = c*(Tr**(-0.41d0))*exp(tau)
     tmp = tmpA+tmpB+tmpC
     Hc = exp(tmp)*Psat
     if (calculate_derivative) then
