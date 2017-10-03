@@ -1112,24 +1112,24 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
     ! this function honors alpha(Tc)=1 while closely fitting Graboski curve from
     ! "A Modified Soave Equation of State for Phase Equilibrium
     !  Calculations. 3. Systems Containing Hydrogen"
-    alpha = exp(0.340d0*(1-T_kelvin/Tc_eff))
+    alpha = exp(0.340d0*(1.d0-T_kelvin/Tc_eff))
 #else
     ! from BRAGFLO DENGZ()
     alpha = 1.202d0*exp(-0.30288d0*(T_kelvin/Tc_eff))
 #endif
   else
     coeff_alpha = 0.48508d0 + acentric*(1.55171d0 - 0.15613*acentric)
-    alpha = (1.d0 + coeff_alpha*(1.d0 - sqrt(T_Kelvin/Tc_eff)))**2
+    alpha = (1.d0 + coeff_alpha*(1.d0 - sqrt(T_Kelvin/Tc_eff)))**2.d0
   end if
   
-  a = coeff_a * alpha * (IDEAL_GAS_CONSTANT * Tc_eff)**2 / Pc_eff
+  a = coeff_a * alpha * (IDEAL_GAS_CONSTANT * Tc_eff)**2.d0 / Pc_eff
   b = coeff_b * IDEAL_GAS_CONSTANT * Tc_eff / Pc_eff
   
   a_RT = a / RT
   P_RT = P / RT
   coef(4) = P / RT
   coef(3) = 1.0d0
-  coef(2) = a_RT - b - P_RT*b**2
+  coef(2) = a_RT - b - P_RT*b**2.d0
   coef(1) = a_RT*b
   V = RT/P  ! initial guess
   
@@ -1142,7 +1142,7 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
       V = V - dVd
       if (V .ne. 0.d0) then
         if (abs(dVd/V) .lt. 1.d-10) then
-          Rho_gas = 1/V * 1d-3 ! mol/m^3 -> kmol/m^3
+          Rho_gas = 1.d0/V * 1.d-3 ! mol/m^3 -> kmol/m^3
           exit
         end if
       else
