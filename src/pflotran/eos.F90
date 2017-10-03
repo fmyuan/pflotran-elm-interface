@@ -55,6 +55,7 @@ subroutine EOSRead(input,option)
   PetscReal :: rks_omegab = UNINITIALIZED_DOUBLE
   PetscBool :: rks_hydrogen = PETSC_TRUE
   PetscBool :: rks_use_effective_properties = PETSC_TRUE
+  PetscBool :: rks_use_cubic_root_solution = PETSC_FALSE
   PetscReal :: temparray(10)
   PetscReal :: test_t_high, test_t_low, test_p_high, test_p_low
   PetscInt :: test_n_temp, test_n_pres
@@ -311,12 +312,16 @@ subroutine EOSRead(input,option)
                     select case(trim(word))
                       case('HYDROGEN')
                         rks_hydrogen = PETSC_TRUE
+                      case('NON-HYDROGEN')
+                        rks_hydrogen = PETSC_FALSE
                       case('USE_EFFECTIVE_PROPERTIES')
                         rks_use_effective_properties = PETSC_TRUE
                       case('DONT_USE_EFFECTIVE_PROPERTIES')
                         rks_use_effective_properties = PETSC_FALSE
-                      case('NON-HYDROGEN')
-                        rks_hydrogen = PETSC_FALSE
+                      case('USE_CUBIC_ROOT_SOLUTION')
+                        rks_use_cubic_root_solution = PETSC_TRUE
+                      case('DONT_USE_CUBIC_ROOT_SOLUTION')
+                        rks_use_cubic_root_solution = PETSC_FALSE
                       case('CRITICAL_TEMPERATURE','TC')
                         call InputReadDouble(input,option,rks_tc)
                         call InputErrorMsg(input,option, &
@@ -350,6 +355,7 @@ subroutine EOSRead(input,option)
                 enddo
                 call EOSGasSetDensityRKS(rks_hydrogen, &
                                          rks_use_effective_properties, &
+                                         rks_use_cubic_root_solution, &
                                          rks_tc,rks_pc,rks_acen, &
                                          rks_omegaa,rks_omegab)
               case('PR_METHANE')

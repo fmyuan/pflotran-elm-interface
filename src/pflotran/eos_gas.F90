@@ -15,13 +15,15 @@ module EOS_Gas_module
   PetscReal :: constant_enthalpy
   PetscReal :: constant_viscosity
   PetscReal :: constant_henry
-  PetscBool :: hydrogen
-  PetscBool :: use_effective_critical_props
-  PetscReal :: Tc
-  PetscReal :: Pc
-  PetscReal :: acentric
-  PetscReal :: coeff_a
-  PetscReal :: coeff_b
+  ! specific to RKS EOS
+  PetscBool :: rks_use_hydrogen
+  PetscBool :: rks_use_effect_critical_props
+  PetscBool :: rks_use_cubic_root_solution
+  PetscReal :: rks_Tc
+  PetscReal :: rks_Pc
+  PetscReal :: rks_acentric
+  PetscReal :: rks_coeff_a
+  PetscReal :: rks_coeff_b
   
   ! exponential
   PetscReal :: exponent_reference_density
@@ -187,13 +189,13 @@ subroutine EOSGasInit()
   exponent_gas_compressibility = UNINITIALIZED_DOUBLE
 
   ! for RKS gas density
-  hydrogen = PETSC_FALSE
-  use_effective_critical_props = PETSC_FALSE
-  Tc = UNINITIALIZED_DOUBLE
-  Pc = UNINITIALIZED_DOUBLE
-  acentric = UNINITIALIZED_DOUBLE
-  coeff_a = UNINITIALIZED_DOUBLE
-  coeff_b = UNINITIALIZED_DOUBLE
+  rks_use_hydrogen = PETSC_FALSE
+  rks_use_effect_critical_props = PETSC_FALSE
+  rks_Tc = UNINITIALIZED_DOUBLE
+  rks_Pc = UNINITIALIZED_DOUBLE
+  rks_acentric = UNINITIALIZED_DOUBLE
+  rks_coeff_a = UNINITIALIZED_DOUBLE
+  rks_coeff_b = UNINITIALIZED_DOUBLE
 
   EOSGasDensityEnergyPtr => EOSGasDensityEnergyGeneral
   EOSGasDensityPtr => EOSGasDensityIdeal
@@ -256,32 +258,32 @@ subroutine EOSGasVerify(ierr,error_string)
   endif
   
   if (associated(EOSGasDensityPtr,EOSGasDensityRKS)) then
-    if (hydrogen) then
+    if (rks_use_hydrogen) then
       ! Assign default hydrogen parameters if not assigned
-      if (Uninitialized(Tc)) then
-        Tc = 41.67d0
+      if (Uninitialized(rks_Tc)) then
+        rks_Tc = 41.67d0
         ierr = 5
         error_string = trim(error_string) // " Tc"
       endif
-      if (Uninitialized(Pc)) then
-        Pc = 2.1029d6
+      if (Uninitialized(rks_Pc)) then
+        rks_Pc = 2.1029d6
         ierr = 5
         error_string = trim(error_string) // " Pc"
       endif
-      if (Uninitialized(coeff_a)) then
-        coeff_a = 0.42747d0
+      if (Uninitialized(rks_coeff_a)) then
+        rks_coeff_a = 0.42747d0
         ierr = 5
         error_string = trim(error_string) // " omega_a"
       endif
-      if (Uninitialized(coeff_b)) then
-        coeff_b = 0.08664d0
+      if (Uninitialized(rks_coeff_b)) then
+        rks_coeff_b = 0.08664d0
         ierr = 5
         error_string = trim(error_string) // " omega_b"
       endif
     else
-      if (Uninitialized(Tc) .or. Uninitialized(coeff_a) .or. &
-        Uninitialized(Pc) .or. Uninitialized(coeff_b) .or. &
-        Uninitialized(acentric)) then
+      if (Uninitialized(rks_Tc) .or. Uninitialized(rks_coeff_a) .or. &
+        Uninitialized(rks_Pc) .or. Uninitialized(rks_coeff_b) .or. &
+        Uninitialized(rks_acentric)) then
           error_string = trim(error_string) // &
           " RKS parameters not set for non-hydrogen gas"
           ierr = 1
@@ -311,26 +313,29 @@ end subroutine EOSGasSetDensityIdeal
 
 ! ************************************************************************** !
 
-subroutine EOSGasSetDensityRKS(h,use_effective,rks_tc,rks_pc,rks_acen, &
-                               rks_omegaa,rks_omegab)
+subroutine EOSGasSetDensityRKS(use_hydrogen,use_effective_properties, &
+                               use_cubic_root_solution, &
+                               tc,pc,acen,omegaa,omegab)
 
   implicit none
 
-  PetscBool :: h
-  PetscBool :: use_effective
-  PetscReal :: rks_tc
-  PetscReal :: rks_pc
-  PetscReal :: rks_acen
-  PetscReal :: rks_omegaa
-  PetscReal :: rks_omegab
+  PetscBool :: use_hydrogen
+  PetscBool :: use_effective_properties
+  PetscBool :: use_cubic_root_solution
+  PetscReal :: tc
+  PetscReal :: pc
+  PetscReal :: acen
+  PetscReal :: omegaa
+  PetscReal :: omegab
   
-  hydrogen = h
-  use_effective_critical_props = use_effective
-  Tc = rks_tc
-  Pc = rks_pc
-  acentric = rks_acen
-  coeff_a = rks_omegaa
-  coeff_b = rks_omegab
+  rks_use_hydrogen = use_hydrogen
+  rks_use_effect_critical_props = use_effective_properties
+  rks_use_cubic_root_solution = use_cubic_root_solution
+  rks_Tc = tc
+  rks_Pc = pc
+  rks_acentric = acen
+  rks_coeff_a = omegaa
+  rks_coeff_b = omegab
   
   EOSGasDensityEnergyPtr => EOSGasDensityEnergyGeneral
   EOSGasDensityPtr => EOSGasDensityRKS
@@ -1075,36 +1080,42 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
   PetscReal, intent(out) :: dRho_dP ! derivative gas density wrt pressure
   PetscErrorCode, intent(out) :: ierr
   
-  PetscReal :: T_kelvin, RT, alpha, a, B , a_RT, p_RT
-  PetscReal :: b2, V, f, dfdV, dVd
+  PetscReal :: T_kelvin, RT, alpha
   PetscReal :: Tc_eff, Pc_eff
-  PetscInt :: i
   PetscReal :: coeff_alpha
   
+  ! Newton method approach
+  PetscReal :: a_Newton, b_Newton , a_RT, p_RT
+  PetscReal :: b2, V, f, dfdV, dVd
+  PetscInt :: i
+  PetscReal :: coef(4)
+  PetscInt, parameter :: maxit = 50
+
+  ! analytical cubic root approach
+  PetscReal :: A_cubic, B_cubic
+  PetscReal :: c1, c0, xn, yn, del2, del1, h, theta, z1
+
   !for hydrogen
   ! American Petroleum Institute,
   ! "Technical Data Book-Petroleum Refining" (1977)
   
-  !solver
-  PetscReal :: coef(4)
-  PetscInt, parameter :: maxit = 50
   dRho_dT = UNINITIALIZED_DOUBLE
   dRho_dP = UNINITIALIZED_DOUBLE
   
   T_kelvin = T + 273.15d0
   RT = IDEAL_GAS_CONSTANT * T_kelvin
 
-  if (use_effective_critical_props) then
+  if (rks_use_effect_critical_props) then
     ! Effective critical hydrogen temperature and pressure from BRAGFLO
     ! Taken from BRAGFLO DENGZ()
-    Tc_eff = Tc/(1.d0+21.8d-3/(T_kelvin*2.01588d-3))
-    Pc_eff = Pc/(1.d0+44.2d-3/(T_kelvin*2.01588d-3))
+    Tc_eff = rks_Tc/(1.d0+21.8d-3/(T_kelvin*2.01588d-3))
+    Pc_eff = rks_Pc/(1.d0+44.2d-3/(T_kelvin*2.01588d-3))
   else
-    Tc_eff = Tc
-    Pc_eff = Pc
+    Tc_eff = rks_Tc
+    Pc_eff = rks_Pc
   endif
   
-  if (hydrogen) then
+  if (rks_use_hydrogen) then
   ! geh: commenting out Peter's suggestion that Heeho implemented in favor of
   !      what is implemented in BRAGFLO.
 #if 0
@@ -1118,41 +1129,89 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
     alpha = 1.202d0*exp(-0.30288d0*(T_kelvin/Tc_eff))
 #endif
   else
-    coeff_alpha = 0.48508d0 + acentric*(1.55171d0 - 0.15613*acentric)
+    coeff_alpha = 0.48508d0 + rks_acentric*(1.55171d0 - 0.15613*rks_acentric)
     alpha = (1.d0 + coeff_alpha*(1.d0 - sqrt(T_Kelvin/Tc_eff)))**2.d0
   end if
-  
-  a = coeff_a * alpha * (IDEAL_GAS_CONSTANT * Tc_eff)**2.d0 / Pc_eff
-  b = coeff_b * IDEAL_GAS_CONSTANT * Tc_eff / Pc_eff
-  
-  a_RT = a / RT
-  P_RT = P / RT
-  coef(4) = P / RT
-  coef(3) = 1.0d0
-  coef(2) = a_RT - b - P_RT*b**2.d0
-  coef(1) = a_RT*b
-  V = RT/P  ! initial guess
-  
-  !Newton iteration to find a Volume of gas
-  do i = 1, maxit
-    f = V*(V*(coef(4)*V - coef(3)) + coef(2)) - coef(1)
-    dfdV = V*(3.0d0*coef(4)*V - 2.0d0*coef(3)) + coef(2)
-    if (dfdV .ne. 0.d0) then
-      dVd = F/dfdV
-      V = V - dVd
-      if (V .ne. 0.d0) then
-        if (abs(dVd/V) .lt. 1.d-10) then
-          Rho_gas = 1.d0/V * 1.d-3 ! mol/m^3 -> kmol/m^3
-          exit
-        end if
-      else
-        print *, 'Error: RKS gas density cannot be solved'
-      end if 
-    else
-      print *, 'Error: Zero Slope in Equation of State'
-    end if
-  end do
 
+  if (rks_use_cubic_root_solution) then ! analtyical cubic root soltion
+
+    A_cubic = rks_coeff_a*alpha*(P/Pc_eff)/(T_kelvin/Tc_eff)**2
+    B_cubic = rks_coeff_b*(P/Pc_eff)/(T_kelvin/Tc_eff)
+
+    ! Solve the cubic eos for compressibility z = pv/(RT)
+    ! z^3 - z^2 + (A_cubic-B_cubic-B_cubic^2)*z - (A_cubic*B_cubic) = 0
+    ! cubic(a,b,c,d) = (1, -1, c1, c0)
+    c1 = A_cubic-B_cubic-B_cubic*B_cubic
+    c0 = -A_cubic*B_cubic
+
+    ! Analytical solution to cubic root
+    ! See Abramowitz and Stegun pg17 (requires imaginary numbers)
+    ! See Cubic function from Wikipedia, and 
+    ! Nickalls 1993,  A new approach to solving the cubic Cardans solution 
+    ! revealed you get three-real-roots if yn^2 < hn^2, which is the case here
+    ! the first root, z1, is the correct one for gas
+
+    xn = 1.0d0/3.0d0
+    yn = -2.0d0/27.0d0 + c1/3.0d0 + c0
+    del2 = (1.0d0 - 3.0d0*c1)/9.0d0
+    del1 = sqrt(del2)
+    h = 2.0d0 * del2 * del1
+
+    theta = acos(-yn/h)/3.0d0
+    z1 = xn + 2.0d0*del1*cos(theta)
+    ! z2 = xn + 2.0d0*del1*cos(theta + 4.0d0/3.0d0*pi)
+    ! z3 = xn + 2.0d0*del1*cos(theta + 2.0d0/3.0d0*pi)
+
+
+    Rho_gas = p/(z1*RT) * 1.0d-3 ! mol/m^3 -> kmol/m^3
+    ! BRAGFLO: if pressure is less than zero, 
+    ! the density is set to 1/10 the density at 1e4 Pa
+    Rho_gas = max(Rho_gas, 1.d0/RT) ! kmol/m^3
+
+    if (p < 0.d0) then
+      print *
+      print *, 'EOSGasDensityRKS received a bad pressure: ', p
+      print *, 'EOSGasDensityRKS temperature: ', T
+      print *, 'EOSGasDensityRKS calculated a density: ', p/(z1*RT)*1.0d-3
+      print *, 'EOSGasDensityRKS reset density to: ', Rho_gas
+      print *
+    endif
+
+  else ! Newton's method
+  
+    a_Newton = rks_coeff_a * alpha * (IDEAL_GAS_CONSTANT * Tc_eff)**2.d0 / &
+               Pc_eff
+    b_Newton = rks_coeff_b * IDEAL_GAS_CONSTANT * Tc_eff / Pc_eff
+  
+    a_RT = a_Newton / RT
+    P_RT = P / RT
+    coef(4) = P / RT
+    coef(3) = 1.0d0
+    coef(2) = a_RT - b_Newton - P_RT*b_Newton**2.d0
+    coef(1) = a_RT*b_Newton
+    V = RT/P  ! initial guess
+  
+    !Newton iteration to find a Volume of gas
+    do i = 1, maxit
+      f = V*(V*(coef(4)*V - coef(3)) + coef(2)) - coef(1)
+      dfdV = V*(3.0d0*coef(4)*V - 2.0d0*coef(3)) + coef(2)
+      if (dfdV .ne. 0.d0) then
+        dVd = F/dfdV
+        V = V - dVd
+        if (V .ne. 0.d0) then
+          if (abs(dVd/V) .lt. 1.d-10) then
+            Rho_gas = 1.d0/V * 1.d-3 ! mol/m^3 -> kmol/m^3
+            exit
+          end if
+        else
+          print *, 'Error: RKS gas density cannot be solved'
+        end if 
+      else
+        print *, 'Error: Zero Slope in Equation of State'
+      end if
+    end do
+
+  endif
 
   if (Rho_gas < 0.d0) then
     print *
@@ -1589,21 +1648,26 @@ subroutine EOSGasInputRecord()
     write(id,'(a29)',advance='no') 'gas density: '
     write(id,'(a)') 'rsk'
     write(id,'(a29)',advance='no') 'critical temperature: '
-    write(word1,*) Tc
+    write(word1,*) rks_Tc
     write(id,'(a)') adjustl(trim(word1)) // ' C'
     write(id,'(a29)',advance='no') 'critical pressure: '
-    write(word1,*) Pc
+    write(word1,*) rks_Pc
     write(id,'(a)') adjustl(trim(word1)) // ' Pa'
-    if (.not.hydrogen) then
+    if (rks_use_cubic_root_solution) then
+      write(id,'(a29)',advance='no') 'use analytical cubic root solution: True'
+    else
+      write(id,'(a29)',advance='no') 'use analytical cubic root solution: False'
+    endif
+    if (.not.rks_use_hydrogen) then
       write(id,'(a29)',advance='no') 'acentric factor: '
-      write(word1,*) acentric
+      write(word1,*) rks_acentric
       write(id,'(a)') adjustl(trim(word1)) 
     endif
     write(id,'(a29)',advance='no') 'omega A: '
-    write(word1,*) coeff_a
+    write(word1,*) rks_coeff_a
     write(id,'(a)') adjustl(trim(word1))
     write(id,'(a29)',advance='no') 'omega B: '
-    write(word1,*) coeff_b
+    write(word1,*) rks_coeff_b
     write(id,'(a)') adjustl(trim(word1))
   endif
   if (associated(EOSGasDensityEnergyPtr,EOSGasDensityEnergyGeneral) .and. &
