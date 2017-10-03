@@ -2647,8 +2647,6 @@ end subroutine PMWSSUpdateChemSpecies
 ! -----------------------------------------------------------
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
-  !jmf: removing to do picard iteration
-  !type(general_auxvar_type), pointer :: general_auxvar(:,:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvar(:,:)
   type(global_auxvar_type), pointer :: global_auxvar(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
@@ -2677,15 +2675,8 @@ end subroutine PMWSSUpdateChemSpecies
   
   option => this%realization%option
   grid => this%realization%patch%grid
-  !jmf: removing to do picard iteration
-  !nullify(general_auxvar)
   nullify(wippflo_auxvar)
   wippflo_auxvar => this%realization%patch%aux%WIPPFlo%auxvars
-  !if (associated(this%realization%patch%aux%General)) then
-  !  general_auxvar => this%realization%patch%aux%General%auxvars
-  !else
-  !  wippflo_auxvar => this%realization%patch%aux%WIPPFlo%auxvars
-  !endif
   material_auxvars => this%realization%patch%aux%Material%auxvars
   global_auxvar => this%realization%patch%aux%Global%auxvars
   
@@ -2724,14 +2715,6 @@ end subroutine PMWSSUpdateChemSpecies
       ghosted_id = grid%nL2G(local_id)
     !-----effective-brine-saturation------------------------------------------
     !-----(see equation PA.99, section PA-4.2.6)------------------------------
-      !jmf: removing to do picard iteration
-      !if (associated(general_auxvar)) then
-      !  water_saturation = &
-      !    general_auxvar(ZERO_INTEGER,ghosted_id)%sat(option%liquid_phase)
-      !else
-      !  water_saturation = &
-      !    wippflo_auxvar(ZERO_INTEGER,ghosted_id)%sat(option%liquid_phase)
-      !endif
       water_saturation = &
           wippflo_auxvar(ZERO_INTEGER,ghosted_id)%sat(option%liquid_phase)
       

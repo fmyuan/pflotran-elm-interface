@@ -17,8 +17,6 @@ module Factory_Subsurface_module
             SubsurfaceReadFlowPM, &
             SubsurfaceReadRTPM, &
             SubsurfaceReadWasteFormPM, &
-            !jmf: removing to do picard iteration
-            !SubsurfaceReadWIPPSrcSinkPM, &
             SubsurfaceReadUFDDecayPM, &
             SubsurfaceReadUFDBiospherePM
 
@@ -66,8 +64,6 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   use PM_Base_class
   use PM_RT_class
   use PM_Waste_Form_class
-  !jmf: removing to do picard iteration
-  !use PM_WIPP_SrcSink_class
   use PM_UFD_Decay_class
   use PM_UFD_Biosphere_class
   use PM_Auxiliary_class
@@ -97,9 +93,6 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   class(pm_rt_type), pointer :: pm_rt
   class(pmc_third_party_type), pointer :: pmc_waste_form
   class(pm_waste_form_type), pointer :: pm_waste_form
-  !jmf: removing to do picard iteration
-  !class(pmc_third_party_type), pointer :: pmc_wipp_srcsink
-  !class(pm_wipp_srcsink_type), pointer :: pm_wipp_srcsink
   class(pmc_third_party_type), pointer :: pmc_ufd_decay
   class(pm_ufd_decay_type), pointer :: pm_ufd_decay
   class(pmc_third_party_type), pointer :: pmc_ufd_biosphere
@@ -120,16 +113,12 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   call SubsurfInitCommandLineSettings(option)
   nullify(pmc_subsurface)
   nullify(pmc_waste_form)
-  !jmf: removing to do picard iteration
-  !nullify(pmc_wipp_srcsink)
   nullify(pmc_ufd_decay)
   nullify(pmc_auxiliary)
   nullify(pmc_dummy)
   nullify(pm_flow)
   nullify(pm_rt)
   nullify(pm_waste_form)
-  !jmf: removing to do picard iteration
-  !nullify(pm_wipp_srcsink)
   nullify(pm_ufd_decay)
   nullify(pm_ufd_biosphere)
   nullify(pm_auxiliary)
@@ -143,9 +132,6 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
         pm_rt => cur_pm
       class is(pm_waste_form_type)
         pm_waste_form => cur_pm
-      !jmf: removing to do picard iteration 
-      !class is(pm_wipp_srcsink_type)
-      !  pm_wipp_srcsink => cur_pm
       class is(pm_ufd_decay_type)
         pm_ufd_decay => cur_pm
       class is(pm_ufd_biosphere_type)
@@ -221,13 +207,6 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
     call InputFindStringErrorMsg(input,option,string)
     call pm_waste_form%Read(input)
   endif
-  !jmf: removing to do picard iteration
-  !if (associated(pm_wipp_srcsink)) then
-  !  string = 'WIPP_SOURCE_SINK'
-  !  call InputFindStringInFile(input,option,string)
-  !  call InputFindStringErrorMsg(input,option,string)
-  !  call pm_wipp_srcsink%Read(input)
-  !endif
   if (associated(pm_ufd_decay)) then
     string = 'UFD_DECAY'
     call InputFindStringInFile(input,option,string)
@@ -275,29 +254,6 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
                         PMCCastToBase(simulation%rt_process_model_coupler), &
                         pmc_dummy,PM_APPEND)
   endif
-  
-  !jmf: removing to do picard iteration
-  !if (associated(pm_wipp_srcsink)) then
-  !  if (.not.associated(simulation%flow_process_model_coupler)) then
-  !    option%io_buffer = 'The WIPP_SOURCE_SINK process model requires &
-  !    &the FLOW process model.'
-  !    call printErrMsg(option)
-  !  endif
-  !  pmc_wipp_srcsink => PMCThirdPartyCreate()
-  !  pmc_wipp_srcsink%name = 'WIPP_SRCSINK'
-  !  pmc_wipp_srcsink%option => option
-  !  pmc_wipp_srcsink%checkpoint_option => simulation%checkpoint_option
-  !  pmc_wipp_srcsink%waypoint_list => simulation%waypoint_list_subsurface
-  !  pmc_wipp_srcsink%pm_list => pm_wipp_srcsink
-  !  pmc_wipp_srcsink%pm_ptr%pm => pm_wipp_srcsink
-  !  pmc_wipp_srcsink%realization => realization
-  !  ! set up logging stage
-  !  string = 'WIPP_SOURCE_SINK'
-  !  call LoggingCreateStage(string,pmc_wipp_srcsink%stage)
-  !  call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_wipp_srcsink),PM_CHILD, &
-  !                      PMCCastToBase(simulation%flow_process_model_coupler), &
-  !                      pmc_dummy,PM_APPEND)
-  !endif
   
   if (associated(pm_ufd_decay)) then
     if (.not.associated(simulation%rt_process_model_coupler)) then
@@ -926,50 +882,6 @@ subroutine SubsurfaceReadUFDBiospherePM(input, option, pm)
 end subroutine SubsurfaceReadUFDBiospherePM
 
 ! ************************************************************************** !
-!jmf: removing to do picard iteration
-! subroutine SubsurfaceReadWIPPSrcSinkPM(input, option, pm)
-!   ! 
-!   ! Author: Jenn Frederick
-!   ! Date: 02/02/207
-!   !
-!   use Input_Aux_module
-!   use Option_module
-!   use String_module
-!   
-!   use PM_Base_class
-!   use PM_WIPP_SrcSink_class
-! 
-!   implicit none
-!   
-!   type(input_type), pointer :: input
-!   type(option_type), pointer :: option
-!   class(pm_base_type), pointer :: pm
-!   
-!   character(len=MAXWORDLENGTH) :: word
-!   character(len=MAXSTRINGLENGTH) :: error_string
-!   
-!   error_string = 'SIMULATION,PROCESS_MODELS,WIPP_SOURCE_SINK'
-! 
-!   pm => PMWSSCreate()
-!   pm%option => option
-!   
-!   word = ''
-!   do   
-!     call InputReadPflotranString(input,option)
-!     if (InputCheckExit(input,option)) exit
-!     call InputReadWord(input,option,word,PETSC_FALSE)
-!     call StringToUpper(word)
-!     select case(word)
-!       case default
-!         option%io_buffer = 'Keyword ' // trim(word) // &
-!               ' not recognized for the ' // trim(error_string) // ' block.' 
-!         call printErrMsg(option)
-!     end select
-!   enddo
-!   
-! end subroutine SubsurfaceReadWIPPSrcSinkPM
-
-! ************************************************************************** !
 
 subroutine SubsurfaceInitSimulation(simulation)
   ! 
@@ -1178,10 +1090,6 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
     !-----------------------------------
       class is(pm_waste_form_type)
         call cur_pm%PMWFSetRealization(realization)
-    !-----------------------------------
-      !jmf: removing to do picard iteration
-      !class is(pm_wipp_srcsink_type)
-      !  call cur_pm%PMWSSSetRealization(realization)
     !-----------------------------------
       class is(pm_ufd_decay_type)
         call cur_pm%PMUFDDecaySetRealization(realization)
