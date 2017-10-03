@@ -40,6 +40,7 @@ module PM_WIPP_SrcSink_class
   PetscReal, parameter :: MW_SO4 = (32.065d-3 + 4.d0*15.9994d-3) ! not in database
   PetscReal, parameter :: MW_H2 = 2.015880d-3
   PetscReal, parameter :: MW_H2O = 1.801528d-2
+  PetscReal, parameter :: MW_SALT = 5.8442d-2
   
   ! density parameters [kg/m3]
   PetscReal, parameter :: DN_FE = 7870.d0
@@ -349,6 +350,7 @@ module PM_WIPP_SrcSink_class
 ! alpharxn: [-] smoothing parameter used in s_eff calculation
 ! smin: [-] minimum brine saturation where a grid cell is considered dry,
 !    note: this is not brine residual saturation, but much smaller
+! salt_wtpercent: [100*kg NaCl/kg H2O] weight percent of salt (NaCl) in the brine
 ! satwick: [-] wicking saturation
 ! corrmco2: [m/s] iron corrosion rate in inundated conditions
 ! humcorr: [m/s] iron corrosion rate in humid conditions
@@ -388,6 +390,7 @@ module PM_WIPP_SrcSink_class
   type, public, extends(pm_base_type) :: pm_wipp_srcsink_type
     PetscReal :: alpharxn        
     PetscReal :: smin           
+    PetscReal :: salt_wtpercent        
     PetscReal :: satwick        
     PetscReal :: corrmco2         
     PetscReal :: humcorr          
@@ -461,6 +464,7 @@ function PMWSSCreate()
   pm%name = 'wipp source sink'
   pm%alpharxn = UNINITIALIZED_DOUBLE
   pm%smin = UNINITIALIZED_DOUBLE
+  pm%salt_wtpercent = 0.d0
   pm%satwick = UNINITIALIZED_DOUBLE
   pm%corrmco2 = UNINITIALIZED_DOUBLE
   pm%humcorr = UNINITIALIZED_DOUBLE
@@ -1033,6 +1037,10 @@ subroutine PMWSSRead(this,input)
       case('SOCMIN')
         call InputReadDouble(input,option,this%smin)
         call InputErrorMsg(input,option,'SOCMIN',error_string)
+      case('SALT_PERCENT')
+        call InputReadDouble(input,option,this%salt_wtpercent)
+        call InputErrorMsg(input,option,'salt weight percent &
+                           &(SALT_PERCENT)',error_string)
       case('SAT_WICK')
         call InputReadDouble(input,option,this%satwick)
         call InputErrorMsg(input,option,'wicking saturation parameter &
@@ -2914,7 +2922,10 @@ end subroutine PMWSSUpdateChemSpecies
                     this%stoic_mat(8,3)*cwp%rxnrate_hydromag_conv(i) + &
                     this%stoic_mat(2,3)*cwp%rxnrate_cell_biodeg(i) + & ! STCO_22=SMIC_H20
                     cwp%RXH2O_factor*cwp%rxnrate_cell_biodeg(i)        ! zero
-      
+      ! Convert water weight to brine rate (bragflo BRH2O)
+      cwp%brine_generation_rate(i) = cwp%brine_generation_rate(i) / &
+                    (1.d0 - 1.d-2*this%salt_wtpercent)
+
     !------source-term-calculation--------------------------------------------
       j = j + 1
       !---liquid-source-term-[kmol/sec]------------------------!-[units]------

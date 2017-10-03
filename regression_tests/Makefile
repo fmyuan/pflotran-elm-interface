@@ -73,8 +73,8 @@ STANDARD_CFG = \
 	toil_ims/toil_ims.cfg \
 	towg/towg.cfg \
 	ufd/ufd.cfg \
-	wipp/nuts/nuts.cfg \
-	wipp/bragflo/wipp_flow/wipp_flow.cfg
+	wipp/nuts/nuts.cfg
+#	wipp/bragflo/wipp_flow/wipp_flow.cfg \
 
 ifneq ($(strip $(PARMETIS_LIB)),)
 	STANDARD_CFG += \
@@ -124,8 +124,8 @@ FLOW_CFG = \
         toil_ims/toil_ims.cfg \
 	towg/towg.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
-	shortcourse/copper_leaching/cu_leaching.cfg \
-	wipp/bragflo/wipp_flow/wipp_flow.cfg
+	shortcourse/copper_leaching/cu_leaching.cfg
+#	wipp/bragflo/wipp_flow/wipp_flow.cfg
 
 TRANSPORT_CFG = \
 	default/543/543.cfg \
@@ -149,7 +149,6 @@ NOHDF5_CFG = \
 	default/materials/soil_compressibility/soil_compressibility.cfg \
 	wipp/nuts/nuts.cfg \
 	default/multicontinuum/multicontinuum.cfg \
-	wipp/bragflo/wipp_flow/wipp_flow.cfg \
 	ufd/ufd.cfg \
 	hydrogeophysics/hydrogeophysics.cfg \
 	ascem/1d/1d-calcite/1d-calcite.cfg \
@@ -163,10 +162,11 @@ NOHDF5_CFG = \
 	default/eos/eos.cfg \
 	default/regions/regions.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg
+#	wipp/bragflo/wipp_flow/wipp_flow.cfg \
 
 WIPP_CFG = \
-	wipp/bragflo/wipp_flow/wipp_flow.cfg \
 	wipp/nuts/nuts.cfg
+#	wipp/bragflo/wipp_flow/wipp_flow.cfg \
 
 
 test : standard
