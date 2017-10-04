@@ -3468,6 +3468,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           endif
         endif
         if (Initialized(dt_min)) then
+          option%dt_min = dt_min
           if (associated(flow_timestepper)) then
             flow_timestepper%dt_min = dt_min
           endif
