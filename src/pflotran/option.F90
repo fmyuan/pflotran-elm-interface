@@ -136,6 +136,7 @@ module Option_module
     PetscReal :: flow_dt ! The size of the time step.
     PetscReal :: tran_dt
     PetscReal :: dt
+    PetscReal :: dt_min
     PetscBool :: match_waypoint
 
     PetscReal :: gravity(3)
@@ -576,6 +577,7 @@ subroutine OptionInitRealization(option)
   option%flow_dt = 0.d0
   option%tran_dt = 0.d0
   option%dt = 0.d0
+  option%dt_min = 1.d-20   ! Ten zeptoseconds
   option%match_waypoint = PETSC_FALSE
 
   option%io_handshake_buffer_size = 0
