@@ -134,6 +134,7 @@ module Option_module
     PetscReal :: flow_dt ! The size of the time step.
     PetscReal :: tran_dt
     PetscReal :: dt
+    PetscReal :: dt_min
     PetscBool :: match_waypoint
     PetscReal :: refactor_dt
 
@@ -227,6 +228,7 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
     
 #ifdef CLM_PFLOTRAN
+    character(len=MAXSTRINGLENGTH) :: input_dir
     PetscBool :: mapping_files
 #endif
 
@@ -555,6 +557,7 @@ subroutine OptionInitRealization(option)
 !fmy: mass_balance for bc/ss IS needed by default if coupled with CLM
 #ifdef CLM_PFLOTRAN
   option%compute_mass_balance_new = PETSC_TRUE
+  option%input_dir = ""
   option%mapping_files = PETSC_FALSE
   ! user-defined CLM-PFLOTRAN mesh maps NOT provided (default)
 #endif
@@ -570,6 +573,7 @@ subroutine OptionInitRealization(option)
   option%flow_dt = 0.d0
   option%tran_dt = 0.d0
   option%dt = 0.d0
+  option%dt_min = 1.d-20   ! Ten zeptoseconds
   option%refactor_dt = 0.d0
   option%match_waypoint = PETSC_FALSE
 
