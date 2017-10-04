@@ -1816,7 +1816,12 @@ subroutine PMWSSRead(this,input)
   if (num_errors > 0) then
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
-                       &the WIPP_SOURCE_SINK block. See above.'
+                       &the WIPP_SOURCE_SINK block. See above.    &
+                       &[[If there are several errors, it might be because you &
+                       &included the WIPP_SOURCE_SINK keyword in the &
+                       &PROCESS_MODELS block. The WIPP_SOURCE_SINK process &
+                       &model is now embedded in WIPP_FLOW, and should no &
+                       &longer be included in the PROCESS_MODELS block.]]'
     call printErrMsg(option)
   endif
   
