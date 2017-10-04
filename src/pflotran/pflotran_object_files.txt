@@ -33,7 +33,7 @@ eos_obj = \
 	${common_src}eos.o \
 	${common_src}eos_gas.o \
 	${common_src}eos_oil.o \
-        ${common_src}eos_slv.o \
+    ${common_src}eos_slv.o \
 	${common_src}gas_eos_mod.o 
 
 mode_aux_obj = \
@@ -147,6 +147,14 @@ chem_obj = \
 	${common_src}reaction_sandbox_gas.o \
         ${common_src}reaction_sandbox_simple.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
+	${common_src}clm_rspfuncs.o \
+	${common_src}reaction_sandbox_degas.o \
+	${common_src}reaction_sandbox_denitr.o \
+	${common_src}reaction_sandbox_langmu.o \
+	${common_src}reaction_sandbox_microbial.o \
+	${common_src}reaction_sandbox_nitrif.o \
+	${common_src}reaction_sandbox_plantn.o \
+	${common_src}reaction_sandbox_somdec.o \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \
 	${common_src}reaction_surf_complex.o \
@@ -266,6 +274,7 @@ misc_obj = \
 	${common_src}timestepper_base.o \
 	${common_src}timestepper_KSP.o \
 	${common_src}timestepper_BE.o \
+	${common_src}timestepper_steady.o \
 	${common_src}timestepper_TS.o \
 	${common_src}transport.o \
 	${common_src}upwind_direction.o \
@@ -321,8 +330,7 @@ geomech_obj = \
 	${common_src}pm_geomechanics_force.o \
 	${common_src}pmc_geomechanics.o \
 	${common_src}simulation_geomechanics.o \
-	${common_src}shape_function.o \
-	${common_src}timestepper_steady.o
+	${common_src}shape_function.o
 
 solver_obj = \
 	${common_src}preconditioner_cpr.o \
