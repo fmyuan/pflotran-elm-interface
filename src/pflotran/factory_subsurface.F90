@@ -3713,6 +3713,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               trim(master_pmc%timestepper%name) // ' card, but not both.'
             call PrintErrMsg(option)
           endif
+          option%dt_min = dt_min
           if (associated(simulation%flow_process_model_coupler)) then
             temp_timestepper => &
               simulation%flow_process_model_coupler%timestepper
