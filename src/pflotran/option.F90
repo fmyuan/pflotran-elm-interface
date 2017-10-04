@@ -133,6 +133,7 @@ module Option_module
     PetscReal :: flow_dt ! The size of the time step.
     PetscReal :: tran_dt
     PetscReal :: dt
+    PetscReal :: dt_min
     PetscBool :: match_waypoint
     PetscReal :: refactor_dt
 
@@ -576,6 +577,7 @@ subroutine OptionInitRealization(option)
   option%flow_dt = 0.d0
   option%tran_dt = 0.d0
   option%dt = 0.d0
+  option%dt_min = 1.d-20   ! Ten zeptoseconds
   option%refactor_dt = 0.d0
   option%match_waypoint = PETSC_FALSE
 
