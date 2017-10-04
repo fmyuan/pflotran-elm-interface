@@ -1352,7 +1352,12 @@ subroutine OptionInitMPI1(option)
 
   PetscErrorCode :: ierr
 
+  ! when coupling with CLM, MPI has already initialized, i.e. using MPI_COMM_WORLD directly.
+  ! (actually this subroutine is not called in pflotran_clm_main.F90)
+#ifndef CLM_PFLOTRAN
   call MPI_Init(ierr)
+#endif
+
   call OptionInitMPI2(option,MPI_COMM_WORLD)
 
 end subroutine OptionInitMPI1
@@ -1666,10 +1671,15 @@ subroutine OptionFinalize(option)
   call MPI_Barrier(option%global_comm,ierr)
   iflag = option%exit_code
   call OptionDestroy(option)
+
+  ! NOTE: MPI communitcator from CLM should have already initialized beyond PFLOTRAN.
+  !       SO it must also be finalized beyond PFLOTRAN. Otherwise it causes MPI_Finalize failure.
+#ifndef CLM_PFLOTRAN
   call PetscFinalize(ierr);CHKERRQ(ierr)
   call MPI_Finalize(ierr)
   call exit(iflag)
-
+#endif
+  
 end subroutine OptionFinalize
 
 ! ************************************************************************** !
