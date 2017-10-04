@@ -206,6 +206,9 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
 #include "petsc/finclude/petscdmda.h"
   use petscdmda
   use Option_module
+#ifdef CLM_PFLOTRAN
+  use clmpf_interface_data
+#endif
         
   implicit none
 
@@ -218,10 +221,15 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
 
   PetscErrorCode :: ierr
 
+#ifdef CLM_PFLOTRAN
+  PetscInt :: i, ncell
+#endif
+
   !-----------------------------------------------------------------------
   ! Generate the DM object that will manage communication.
   !-----------------------------------------------------------------------
   ! This code is for the DMDACreate3D() interface in PETSc versions >= 3.2 --RTM
+#ifndef CLM_PFLOTRAN
   call DMDACreate3D(option%mycomm,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE, &
                     DM_BOUNDARY_NONE,stencil_type, &
                     structured_grid%nx,structured_grid%ny,structured_grid%nz, &
@@ -229,6 +237,77 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
                     structured_grid%npz,ndof,stencil_width, &
                     PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
                     da,ierr);CHKERRQ(ierr)
+
+#else
+
+  if (option%mapping_files) then
+    call DMDACreate3D(option%mycomm,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE, &
+                    DM_BOUNDARY_NONE,stencil_type, &
+                    structured_grid%nx,structured_grid%ny,structured_grid%nz, &
+                    structured_grid%npx,structured_grid%npy, &
+                    structured_grid%npz,ndof,stencil_width, &
+                    PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
+                    da,ierr);CHKERRQ(ierr)
+
+  else
+    ! when coupling with CLM with NO mapping files,
+    ! CLM domain is decomposed along X and Y directions (round-robin approach)
+    ! in order to match both with each other, it's better to do direct (explicit) decompose as following
+    ! (Fengming Yuan @ornl, 2016 Feb.)
+    ! some checking
+    if (structured_grid%npx /= size(clm_pf_idata%clm_lx)) then
+      option%io_buffer = 'clm domain X-direction decompose incorrect '
+      call printErrMsg(option)
+    end if
+    if (structured_grid%npy /= size(clm_pf_idata%clm_ly)) then
+      option%io_buffer = 'clm domain Y-direction decompose incorrect '
+      call printErrMsg(option)
+    end if
+    if (structured_grid%npz /= size(clm_pf_idata%clm_lz)) then
+      option%io_buffer = 'clm domain Z-direction decompose incorrect '
+      call printErrMsg(option)
+    end if
+
+    ncell = 0
+    do i=1, structured_grid%npx
+      ncell = ncell + clm_pf_idata%clm_lx(i)
+    end do
+    if (structured_grid%nx /= ncell) then
+      option%io_buffer = 'clm domain decomposed X-direction cell no. sum NOT matches with grid%nx'
+      call printErrMsg(option)
+    end if
+
+    ncell = 0
+    do i=1, structured_grid%npy
+      ncell = ncell + clm_pf_idata%clm_ly(i)
+    end do
+    if (structured_grid%ny /= ncell) then
+      option%io_buffer = 'clm domain decomposed Y-direction cell no. sum NOT matches with grid%ny'
+      call printErrMsg(option)
+    end if
+
+    ncell = 0
+    do i=1, structured_grid%npz
+      ncell = ncell + clm_pf_idata%clm_lz(i)
+    end do
+    if (structured_grid%nz /= ncell) then
+      option%io_buffer = 'clm domain decomposed Z-direction cell no. sum NOT matches with grid%nz'
+      call printErrMsg(option)
+    end if
+
+    call DMDACreate3D(option%mycomm,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE, &
+                    DM_BOUNDARY_NONE,stencil_type, &
+                    structured_grid%nx,structured_grid%ny,structured_grid%nz, &
+                    structured_grid%npx,structured_grid%npy,structured_grid%npz, &
+                    ndof,stencil_width, &
+                    clm_pf_idata%clm_lx, &
+                    clm_pf_idata%clm_ly, &
+                    clm_pf_idata%clm_lz, &
+                    da,ierr);CHKERRQ(ierr)
+
+  endif
+#endif
+
   call DMSetFromOptions(da,ierr);CHKERRQ(ierr)
   call DMSetup(da,ierr);CHKERRQ(ierr)
   call DMDAGetInfo(da,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
