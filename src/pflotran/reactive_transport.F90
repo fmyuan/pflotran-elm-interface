@@ -2359,6 +2359,11 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   PetscReal :: msrc(1:realization%option%nflowspec)
   PetscInt :: icomp, iactgas
 
+#ifdef ELM_PFLOTRAN
+  ! temporarily changing option%iflag to pass 'ghosted_id or local_id' from CLM to PF RT bgc
+  PetscInt :: option_iflag
+#endif
+
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscReal :: sec_diffusion_coefficient(2)
   PetscReal :: sec_porosity
@@ -2604,10 +2609,31 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
         call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
                                        PETSC_FALSE,option)
       endif
+
+!F.-M. YUAN: option%iflag IS used here as indexing of cell-id for passing data from
+! elm_pf_idata%??? to PFLOTRAN for driving reaction sandboxes
+! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
+! it should be upon what exactly defined in 'elm_pf_idata%???' as PETSC seq. vecs.
+#ifdef ELM_PFLOTRAN
+      option_iflag = option%iflag
+#ifdef COLUMN_MODE
+      ! PETSc seq. vecs NOT include ghost cells
+      option%iflag = local_id
+#else
+      option%iflag = ghosted_id
+#endif
+#endif
+
       call RReaction(Res,Jup,PETSC_FALSE,rt_auxvars(ghosted_id), &
                      global_auxvars(ghosted_id), &
                      material_auxvars(ghosted_id), &
                      reaction,option)
+
+#ifdef ELM_PFLOTRAN
+      ! copy-back the original 'option%iflag' so that not changed at all
+      option%iflag = option_iflag
+#endif
+
       if (option%use_sc) then
         Res = Res*rt_sec_transport_vars(ghosted_id)%epsilon
       endif
@@ -3119,6 +3145,11 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   PetscInt :: nphase
   PetscInt :: iphase
 
+#ifdef ELM_PFLOTRAN
+  ! temporarily changing option%iflag to pass 'ghosted_id' from CLM to PF RT bgc
+  PetscInt :: option_iflag
+#endif
+  
   option => realization%option
   field => realization%field
   patch => realization%patch
@@ -3239,10 +3270,31 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
         call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
                                        PETSC_FALSE,option)
       endif
+
+!F.-M. YUAN: option%iflag IS used here as indexing of cell-id for passing data from
+! elm_pf_idata%??? to PFLOTRAN for driving reaction sandboxes
+! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
+! it should be upon what exactly defined in 'elm_pf_idata%???' as PETSC seq. vecs.
+#ifdef ELM_PFLOTRAN
+      option_iflag = option%iflag
+#ifdef COLUMN_MODE
+      ! PETSc seq. vecs NOT include ghost cells
+      option%iflag = local_id
+#else
+      option%iflag = ghosted_id
+#endif
+#endif
+
       call RReactionDerivative(Res,Jup,rt_auxvars(ghosted_id), &
                                global_auxvars(ghosted_id), &
                                material_auxvars(ghosted_id), &
                                reaction,option)
+
+#ifdef ELM_PFLOTRAN
+    ! copy-back the original 'option%iflag' so that not changed at all
+    option%iflag = option_iflag
+#endif
+
       if (option%use_sc) then
         Jup = Jup*rt_sec_transport_vars(ghosted_id)%epsilon
       endif

@@ -321,6 +321,7 @@ driver.o : \
   communicator_aux.o \
   pflotran_constants.o \
   print.o
+elm_rspfuncs.o :
 eos.o : \
   co2_span_wagner.o \
   communicator_aux.o \
@@ -2754,6 +2755,12 @@ reaction_sandbox.o : \
   reaction_sandbox_radon.o \
   reaction_sandbox_simple.o \
   reaction_sandbox_ufd_wp.o \
+  reaction_sandbox_cndegas.o \
+  reaction_sandbox_denitr.o \
+  reaction_sandbox_langmu.o \
+  reaction_sandbox_nitrif.o \
+  reaction_sandbox_plantn.o \
+  reaction_sandbox_somdec.o \
   reactive_transport_aux.o \
   string.o \
   utility.o
@@ -2934,6 +2941,87 @@ reaction_sandbox_ufd_wp.o : \
   reactive_transport_aux.o \
   string.o \
   units.o
+reaction_sandbox_cndegas.o  : \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_immobile_aux.o \
+  reaction_sandbox_base.o \
+  reactive_transport_aux.o \
+  string.o \
+  units.o \
+  utility.o
+reaction_sandbox_denitr.o : \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_immobile_aux.o \
+  reaction_sandbox_base.o \
+  reactive_transport_aux.o \
+  string.o \
+  units.o \
+  utility.o \
+  elm_rspfuncs.o
+reaction_sandbox_langmu.o : \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_immobile_aux.o \
+  reaction_sandbox_base.o \
+  reactive_transport_aux.o \
+  string.o \
+  units.o \
+  utility.o \
+  elm_rspfuncs.o
+reaction_sandbox_nitrif.o : \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_immobile_aux.o \
+  reaction_sandbox_base.o \
+  reactive_transport_aux.o \
+  string.o units.o \
+  utility.o \
+  elm_rspfuncs.o
+reaction_sandbox_plantn.o : \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_immobile_aux.o \
+  reaction_sandbox_base.o \
+  reactive_transport_aux.o \
+  string.o units.o \
+  utility.o \
+  elm_rspfuncs.o
+reaction_sandbox_somdec.o : \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_immobile_aux.o \
+  reaction_sandbox_base.o \
+  reactive_transport_aux.o \
+  string.o \
+  units.o \
+  utility.o \
+  elm_rspfuncs.o
 reaction_solid_solution.o : \
   input_aux.o \
   option.o \

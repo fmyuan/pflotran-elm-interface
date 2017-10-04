@@ -184,6 +184,7 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
     option%nphase = 1
     ! assume default isothermal when only transport
     option%use_isothermal = PETSC_TRUE
+    option%nflowspec = 1
     return
   endif
 

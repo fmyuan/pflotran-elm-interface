@@ -149,6 +149,13 @@ chem_obj = \
 	${common_src}reaction_sandbox_radon.o \
 	${common_src}reaction_sandbox_simple.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
+    ${common_src}elm_rspfuncs.o \
+    ${common_src}reaction_sandbox_cndegas.o \
+    ${common_src}reaction_sandbox_denitr.o \
+    ${common_src}reaction_sandbox_langmu.o \
+    ${common_src}reaction_sandbox_nitrif.o \
+    ${common_src}reaction_sandbox_plantn.o \
+    ${common_src}reaction_sandbox_somdec.o \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \
 	${common_src}reaction_surf_complex.o \
