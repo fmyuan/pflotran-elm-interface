@@ -13,6 +13,10 @@ module Discretization_module
 
   use PFLOTRAN_Constants_module
 
+#ifdef ELM_PFLOTRAN
+  use elmpf_interface_data
+#endif
+
   implicit none
 
   private
@@ -287,6 +291,47 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       grid%ctype = unstructured_grid_ctype
     case(STRUCTURED_GRID)
       call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_LINEAR,option)
+
+#ifdef ELM_PFLOTRAN
+
+      ! override readings from input cards above, if coupled with CLM BUT no mapping files provided
+      if (.not.option%mapping_files) then
+        !  nodes along X/Y direction
+        if (elm_pf_idata%nxelm_mapped <= 0 .or.  &
+            elm_pf_idata%nyelm_mapped <= 0) then
+          call printErrMsg(option,'nxelm_mapped/nyelm_mapped NOT valid')
+
+        else
+          nx = elm_pf_idata%nxelm_mapped
+          ny = elm_pf_idata%nyelm_mapped
+        endif
+
+        ! X/Y origins
+        if (elm_pf_idata%x0elm_global == -9999.d0 .or.  &
+            elm_pf_idata%y0elm_global == -9999.d0) then
+          call printErrMsg(option,'x0elm_global/y0elm_global NOT valid')
+
+        else
+          discretization%origin_global(X_DIRECTION) = elm_pf_idata%x0elm_global
+          discretization%origin_global(Y_DIRECTION) = elm_pf_idata%y0elm_global
+
+        endif
+
+      end if
+
+      ! but always over-ride soil (vertical) discretization scheme
+      if (elm_pf_idata%nyelm_mapped <= 0.or.  &
+          elm_pf_idata%z0elm_global == -9999.d0) then
+        call printErrMsg(option,'nx0elm_mapped/z0elm_global NOT valid')
+
+      else
+        nz = elm_pf_idata%nzelm_mapped
+        discretization%origin_global(Z_DIRECTION) = elm_pf_idata%z0elm_global
+
+      endif
+
+#endif
+
       if (nx*ny*nz <= 0) &
         call PrintErrMsg(option,'NXYZ not set correctly for structured grid.')
       str_grid => StructGridCreate()
@@ -362,11 +407,54 @@ subroutine DiscretizationRead(discretization,input,option)
         dxyz_read = PETSC_TRUE
         select case(discretization%itype)
           case(STRUCTURED_GRID)
+
+#ifdef ELM_PFLOTRAN
+
+            !don't read input cards of PF grid, if coupled with CLM but no mapping files provided
+            if (.not.option%mapping_files) then
+
+              if (.not.associated(elm_pf_idata%dxelm_global) .or. &
+                  .not.associated(elm_pf_idata%dyelm_global) .or. &
+                   minval(elm_pf_idata%dxelm_global)<=1.d-6  .or. &
+                   minval(elm_pf_idata%dyelm_global)<=1.d-6 )    then
+                call printErrMsg(option,'dxelm_global or dyelm_global NOT valid FOR using CLM provided grid')
+              endif
+
+              allocate(discretization%grid%structured_grid%dx_global &
+                (discretization%grid%structured_grid%nx))
+
+              discretization%grid%structured_grid%dx_global = &
+                elm_pf_idata%dxelm_global                               ! unit: longitudal degrees
+
+              allocate(discretization%grid%structured_grid%dy_global &
+                (discretization%grid%structured_grid%ny))
+              discretization%grid%structured_grid%dy_global = &
+                elm_pf_idata%dyelm_global                               ! unit: latitudal degrees
+
+            else  ! the following IS needed, if providing mapping files
+              call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
+
+            endif
+
+            ! always over-riding z-thickness
+            if (.not.associated(discretization%grid%structured_grid%dz_global)) then
+              allocate(discretization%grid%structured_grid%dz_global &
+                 (discretization%grid%structured_grid%nz))
+            endif
+            discretization%grid%structured_grid%dz_global = &
+              elm_pf_idata%dzelm_global                               ! unit: vertical meters
+
+#else
             call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
+#endif
           case default
             call PrintErrMsg(option,&
                            'Keyword "DXYZ" not supported for unstructured grid')
         end select
+
+#ifdef ELM_PFLOTRAN
+        call InputSkipToEND(input,option,'')    ! skip 'GRID/DXYZ ... END' block
+#else
         call InputReadPflotranString(input,option) ! read END card
         call InputReadStringErrorMsg(input,option,'DISCRETIZATION,DXYZ,END')
         if (.not.(InputCheckExit(input,option))) then
@@ -374,6 +462,7 @@ subroutine DiscretizationRead(discretization,input,option)
                    '(one for each grid direction or NX+NY+NZ entries)'
           call PrintErrMsg(option)
         endif
+#endif
       case('BOUNDS')
         bounds_read = PETSC_TRUE
         select case(discretization%itype)
