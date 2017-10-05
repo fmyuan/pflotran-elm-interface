@@ -1,0 +1,53 @@
+-- CONCENTRATION: Total CO2(aq) --
+      Max:   1.4334653004899E-03
+      Min:   1.4334653004899E-03
+     Mean:   1.4334653004899E-03
+        1:   1.4334653004899E-03
+-- CONCENTRATION: Total NH4+ --
+      Max:   1.2255179725967E-04
+      Min:   1.2255179725967E-04
+     Mean:   1.2255179725967E-04
+        1:   1.2255179725967E-04
+-- CONCENTRATION: Total N2O(aq) --
+      Max:   1.8522970226182E-07
+      Min:   1.8522970226182E-07
+     Mean:   1.8522970226182E-07
+        1:   1.8522970226182E-07
+-- CONCENTRATION: Total H+ --
+      Max:   3.1622776601684E-07
+      Min:   3.1622776601684E-07
+     Mean:   3.1622776601684E-07
+        1:   3.1622776601684E-07
+-- CONCENTRATION: SOIL4 --
+      Max:   9.6416336748775E+00
+      Min:   9.6416336748775E+00
+     Mean:   9.6416336748775E+00
+        1:   9.6416336748775E+00
+-- CONCENTRATION: Nmin --
+      Max:   3.0730564166049E-02
+      Min:   3.0730564166049E-02
+     Mean:   3.0730564166049E-02
+        1:   3.0730564166049E-02
+-- CONCENTRATION: HRimm --
+      Max:   3.5836632512247E-01
+      Min:   3.5836632512247E-01
+     Mean:   3.5836632512247E-01
+        1:   3.5836632512247E-01
+-- CONCENTRATION: NGASmin --
+      Max:   9.2614851130910E-05
+      Min:   9.2614851130910E-05
+     Mean:   9.2614851130910E-05
+        1:   9.2614851130910E-05
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   4.0810122890980E-01
+   Time Steps:          369
+   Newton Iterations:          738
+   Solver Iterations:          738
+   Time Step Cuts:            0
+   Solution 2-Norm:   9.6483404163363E+00
+   Residual 2-Norm:   1.2927695900154E-20
