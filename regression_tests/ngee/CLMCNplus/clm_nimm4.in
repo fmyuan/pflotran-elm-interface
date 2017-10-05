@@ -1,0 +1,204 @@
+#Description: CLM-CN N immobilization module test
+# (3) NH4-N and NO3-N as reactants for 3 reactions
+
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+    !ATOL 1.d-50
+    !RTOL 1.d-10
+    !STOL 1.d-10
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== useful tranport parameters =======================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0
+END
+
+REFERENCE_LIQUID_DENSITY 1.d3
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    CO2(aq)
+    NH4+
+    NO3-
+  /
+  
+  IMMOBILE_SPECIES
+    SOM
+    Lit1C
+    Lit1N
+    Lit2C
+    Lit2N
+    Lit3C
+    Lit3N
+  /
+  
+  REACTION_SANDBOX
+    SOMDECOMP
+      POOLS
+        SOM  12.d0
+        Lit1
+        Lit2
+        Lit3
+      /
+
+      REACTION
+        UPSTREAM_POOL Lit1
+        DOWNSTREAM_POOL SOM 0.61d0
+        TURNOVER_TIME 20. h
+      /
+
+      REACTION
+        UPSTREAM_POOL Lit2
+        DOWNSTREAM_POOL SOM 0.61d0
+        TURNOVER_TIME 20. d
+      /
+
+      REACTION
+        UPSTREAM_POOL Lit3
+        DOWNSTREAM_POOL SOM 0.61d0
+        TURNOVER_TIME 20. y
+      /
+
+      AMMONIUM_HALF_SATURATION 1.0d-5          ! unit: moles/m3 (default: 1.d-15)
+      NITRATE_HALF_SATURATION 1.0d-5           ! unit: moles/m3 (default: 1.d-15)
+      AMMONIUM_INHIBITION_NITRATE 1.0d0        ! ratio of NH4/NO3
+
+    /
+
+  /
+
+  !LOG_FORMULATION
+
+  DATABASE ./CLM-CN_database.dat
+  OUTPUT
+    ALL
+    TOTAL
+  /
+END
+
+#=========================== solver options ===================================
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+END
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC TIMESTEP 1
+  FORMAT HDF5
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 30.d0 d
+  INITIAL_TIMESTEP_SIZE 1.0d0 min
+  MINIMUM_TIMESTEP_SIZE 1.0d0 min
+  MAXIMUM_TIMESTEP_SIZE 1.d0 h
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+REGION obs_pt
+  COORDINATE 0.5 0.5 0.5
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION obs_pt
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+#=========================== transport constraints ============================
+CONSTRAINT initial
+  CONCENTRATIONS
+    CO2(aq)  1.d-40     T  ! moles/L
+    NH4+     8.d-4      T  ! moles/L
+    NO3-     8.d-4      T  ! moles/L
+  /
+  IMMOBILE
+    SOM   1.d-40
+    Lit1C 1.852d1
+    Lit1N 0.0508954d1
+    Lit2C 1.852d1
+    Lit2N 0.0508954d1
+    Lit3C 1.852d1
+    Lit3N 0.0508954d1
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+
+END_SUBSURFACE
+
