@@ -1,0 +1,43 @@
+-- GENERIC: Volume --
+      Max:   1.0000000000000E+00
+      Min:   1.0000000000000E+00
+     Mean:   1.0000000000000E+00
+        1:   1.0000000000000E+00
+-- GENERIC: Porosity --
+      Max:   2.5000000000000E-01
+      Min:   2.5000000000000E-01
+     Mean:   2.5000000000000E-01
+        1:   2.5000000000000E-01
+-- CONCENTRATION: Total NO3- --
+      Max:   7.1158060807418E-14
+      Min:   7.1158060807418E-14
+     Mean:   7.1158060807418E-14
+        1:   7.1158060807418E-14
+-- CONCENTRATION: PlantN --
+      Max:   1.9999999999822E+00
+      Min:   1.9999999999822E+00
+     Mean:   1.9999999999822E+00
+        1:   1.9999999999822E+00
+-- CONCENTRATION: Plantno3uptake --
+      Max:   1.9999999999822E+00
+      Min:   1.9999999999822E+00
+     Mean:   1.9999999999822E+00
+        1:   1.9999999999822E+00
+-- CONCENTRATION: Plantndemand --
+      Max:   8.6400000000000E+02
+      Min:   8.6400000000000E+02
+     Mean:   8.6400000000000E+02
+        1:   8.6400000000000E+02
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   1.1623894086806E+00
+   Time Steps:          118
+   Newton Iterations:         1471
+   Solver Iterations:         1471
+   Time Step Cuts:           25
+   Solution 2-Norm:   8.6400462961723E+02
+   Residual 2-Norm:   1.5769559895757E-17

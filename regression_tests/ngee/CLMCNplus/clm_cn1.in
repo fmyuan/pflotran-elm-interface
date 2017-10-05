@@ -1,0 +1,218 @@
+#Description: Batch CLM-CN simulation
+# Rate constants, C/N ratios, respiration fractions from Bonan et al., 2012
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+    ATOL 1.d-50
+    #  RTOL 1.d-12
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== useful tranport parameters =======================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0
+END
+
+REFERENCE_LIQUID_DENSITY 1.d3
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    CO2(aq)
+    NH4+
+    NO3-
+    H+
+  /
+  IMMOBILE_SPECIES
+    SOM1
+    SOM2
+    SOM3
+    SOM4
+    Lit1C
+    Lit2C
+    Lit3C
+    Lit1N
+    Lit2N
+    Lit3N
+  /
+  REACTION_SANDBOX
+    SOMDECOMP
+      POOLS
+        SOM1 12.d0
+        SOM2 12.d0
+        SOM3 10.d0
+        SOM4 10.d0
+        Lit1
+        Lit2
+        Lit3
+      /
+      REACTION
+        UPSTREAM_POOL Lit1
+        DOWNSTREAM_POOL SOM1 0.61d0
+        TURNOVER_TIME 20. h
+      /
+      REACTION
+        UPSTREAM_POOL Lit2
+        DOWNSTREAM_POOL SOM2 0.45
+        TURNOVER_TIME 14. d
+      /
+      REACTION
+        UPSTREAM_POOL Lit3
+        DOWNSTREAM_POOL SOM3 0.71d0
+        TURNOVER_TIME 71. d
+      /
+      REACTION
+        UPSTREAM_POOL SOM1
+        DOWNSTREAM_POOL SOM2 0.72d0
+        TURNOVER_TIME 14. d
+      /
+      REACTION
+        UPSTREAM_POOL SOM2
+        DOWNSTREAM_POOL SOM3 0.54d0
+        TURNOVER_TIME 71. d
+      /
+      REACTION
+        UPSTREAM_POOL SOM3
+        DOWNSTREAM_POOL SOM4 0.45d0
+        TURNOVER_TIME 2. y
+      /
+      REACTION
+        UPSTREAM_POOL SOM4
+        TURNOVER_TIME 27.4 y
+      /
+    /
+  /
+
+  DATABASE ./CLM-CN_database.dat
+  OUTPUT
+    ALL
+    pH
+    TOTAL
+  /
+END
+
+#=========================== solver options ===================================
+
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+END
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 400.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 10.d0 d
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+REGION obs_pt
+  COORDINATE 0.5 0.5 0.5
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION obs_pt
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+#=========================== transport constraints ============================
+CONSTRAINT initial
+  CONCENTRATIONS
+    NH4+    4.d-5      T  ! moles/L
+    NO3-    1.d-40     T  ! moles/L
+    CO2(aq) 1.d-40     T  ! moles/L
+    H+      6.0d0      pH
+  /
+  IMMOBILE
+    SOM1  1.d-40
+    SOM2  1.d-40
+    SOM3  1.d-40
+    SOM4  1.d-40
+    Lit1C 0.1852d-0
+    Lit2C 0.4578d-0
+    Lit3C 0.2662d-0
+    Lit1N 0.00508954d-0
+    Lit2N 0.01258096d-0
+    Lit3N 0.00731553d-0
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+
+END_SUBSURFACE
