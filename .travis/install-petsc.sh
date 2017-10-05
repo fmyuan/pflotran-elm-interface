@@ -2,7 +2,11 @@
 
 git clone https://bitbucket.org/petsc/petsc.git
 
-PETSC_GIT_HASH=`cat tools/buildbot/petsc/petsc-git-version.txt`
+if [ $PETSC_MASTER -eq 1 ]; then
+  PETSC_GIT_HASH='master'
+else
+  PETSC_GIT_HASH=`cat tools/buildbot/petsc/petsc-git-version.txt`
+fi
 
 cd petsc
 
