@@ -83,6 +83,8 @@ module Condition_module
     ! any new sub conditions must be added to FlowConditionIsTransient
   end type flow_toil_ims_condition_type
 
+! DKP bubble point added to initial condition for towg case--------------------
+
   ! data structure for towg
   ! some of these variables depend on primary variable choice
   type, public :: flow_towg_condition_type
@@ -91,6 +93,7 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: oil_saturation
     type(flow_sub_condition_type), pointer :: gas_saturation
     type(flow_sub_condition_type), pointer :: solvent_saturation
+    type(flow_sub_condition_type), pointer :: bubble_point
     type(flow_sub_condition_type), pointer :: liquid_flux
     type(flow_sub_condition_type), pointer :: oil_flux
     type(flow_sub_condition_type), pointer :: gas_flux
@@ -360,6 +363,7 @@ function FlowTOWGConditionCreate(option)
   nullify(towg_condition%oil_saturation)
   nullify(towg_condition%gas_saturation)
   nullify(towg_condition%solvent_saturation)
+  nullify(towg_condition%bubble_point)
   nullify(towg_condition%liquid_flux)
   nullify(towg_condition%oil_flux)
   nullify(towg_condition%gas_flux)
@@ -681,6 +685,13 @@ function FlowTOWGSubConditionPtr(sub_condition_name,towg, &
       else
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         towg%solvent_saturation => sub_condition_ptr
+      endif
+    case('BUBBLE_POINT')
+      if (associated(towg%bubble_point)) then
+        sub_condition_ptr => towg%bubble_point
+      else
+        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+        towg%bubble_point => sub_condition_ptr
       endif
     case('TEMPERATURE')
       if (associated(towg%temperature)) then
@@ -3106,12 +3117,12 @@ subroutine FlowConditionTOWGRead(condition,input,option)
         call InputErrorMsg(input,option,'LIQUID_CONDUCTANCE','CONDITION')   
       !when refactoring replace this block  with a mode-specific function 
       case('OIL_PRESSURE','GAS_PRESSURE','OIL_SATURATION', 'GAS_SATURATION', &
-           'SOLVENT_SATURATION','TEMPERATURE','GAS_IN_OIL_MOLE_FRACTION', &
+           'SOLVENT_SATURATION','BUBBLE_POINT','TEMPERATURE','GAS_IN_OIL_MOLE_FRACTION', &
            'GAS_IN_GAS_MOLE_FRACTION','RATE','BHP_PRESSURE', 'LIQUID_FLUX', &
            'OIL_FLUX','GAS_FLUX','SOLVENT_FLUX','ENERGY_FLUX','ENTHALPY')
         sub_condition_ptr => FlowTOWGSubConditionPtr(word,towg,option)
         select case(trim(word))
-          case('OIL_PRESSURE','GAS_PRESSURE','BHP_PRESSURE')
+          case('OIL_PRESSURE','GAS_PRESSURE','BHP_PRESSURE','BUBBLE_POINT')
             internal_units = 'Pa'
           case('OIL_SATURATION','GAS_SATURATION','SOLVENT_SATURATION', &
                'GAS_IN_OIL_MOLE_FRACTION', 'GAS_IN_GAS_MOLE_FRACTION')
@@ -3261,6 +3272,10 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   call FlowSubConditionVerify(option,condition,word,towg%solvent_saturation, &
                               default_time_storage, &
                               PETSC_TRUE)
+  word = 'bubble point'
+  call FlowSubConditionVerify(option,condition,word,towg%bubble_point, &
+                              default_time_storage, &
+                              PETSC_TRUE)
   word = 'gas in oil mole fraction'
   call FlowSubConditionVerify(option,condition,word, & 
                               towg%gas_in_oil_mole_fraction, &
@@ -3321,6 +3336,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
     i = i + 1
   if (associated(towg%solvent_saturation)) &
     i = i + 1
+  if (associated(towg%bubble_point)) &
+    i = i + 1
   if (associated(towg%gas_in_oil_mole_fraction)) &
     i = i + 1
   if (associated(towg%gas_in_gas_mole_fraction)) &
@@ -3369,7 +3386,11 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   if (associated(towg%solvent_saturation)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => towg%solvent_saturation
-  endif  
+  endif
+  if (associated(towg%bubble_point)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => towg%bubble_point
+  endif
   if (associated(towg%gas_in_oil_mole_fraction)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => towg%gas_in_oil_mole_fraction
@@ -4893,6 +4914,7 @@ subroutine FlowTOWGConditionDestroy(towg_condition)
   call FlowSubConditionDestroy(towg_condition%gas_pressure)
   call FlowSubConditionDestroy(towg_condition%oil_saturation)
   call FlowSubConditionDestroy(towg_condition%gas_saturation)
+  call FlowSubConditionDestroy(towg_condition%bubble_point)
   call FlowSubConditionDestroy(towg_condition%solvent_saturation)
   call FlowSubConditionDestroy(towg_condition%liquid_flux)
   call FlowSubConditionDestroy(towg_condition%oil_flux)

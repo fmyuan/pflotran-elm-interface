@@ -94,15 +94,13 @@ function PMTOWGCreate(miscibility_model,option)
       allocate(towg_pm%max_change_isubvar(4))
       towg_pm%max_change_isubvar = [0,0,0,0]
     case('BLACK_OIL')
-      allocate(towg_pm%max_change_ivar(7))
-      towg_pm%max_change_ivar = [OIL_PRESSURE, GAS_PRESSURE, &
+! DKP Variable setup for black oil matches case above, could be combined
+      allocate(towg_pm%max_change_ivar(4))
+      towg_pm%max_change_ivar = [OIL_PRESSURE, &
                                  OIL_SATURATION, GAS_SATURATION, &
-                                 OIL_MOLE_FRACTION, GAS_MOLE_FRACTION, &
                                  TEMPERATURE]
-      allocate(towg_pm%max_change_isubvar(8))
-                                           !2 = gas in xmol(gas_c,oil_phase)
-      towg_pm%max_change_isubvar = [0,0,0,0,2,1,0]
-                                             !1 = gas in xmol(gas_c,gas_phase)
+      allocate(towg_pm%max_change_isubvar(4))
+      towg_pm%max_change_isubvar = [0,0,0,0]
     case('SOLVENT_TL')
       allocate(towg_pm%max_change_ivar(8))
       towg_pm%max_change_ivar = [OIL_PRESSURE, GAS_PRESSURE, &

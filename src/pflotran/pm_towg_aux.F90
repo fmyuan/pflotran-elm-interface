@@ -55,6 +55,7 @@ module PM_TOWG_Aux_module
   PetscInt, parameter, public :: TOWG_OIL_SATURATION_DOF = 2
   PetscInt, parameter, public :: TOWG_GAS_SATURATION_2PH_DOF = 2
   PetscInt, parameter, public :: TOWG_GAS_SATURATION_3PH_DOF = 3
+  PetscInt, parameter, public :: TOWG_BUBBLE_POINT_3PH_DOF   = 3 !Variable substitutes with gas saturation DKP
   PetscInt, parameter, public :: TOWG_X_GAS_IN_OIL_DOF = 3
   PetscInt, parameter, public :: TOWG_X_OIL_IN_GAS_DOF = 3
   PetscInt, parameter, public :: TOWG_SOLV_SATURATION = 4
@@ -75,22 +76,23 @@ module PM_TOWG_Aux_module
   PetscInt, public :: towg_energy_eq_idx = UNINITIALIZED_INTEGER
 
   !Indices used to map aux_real for condition values
+! DKP Note twin values for Sg and Pb, TOWG_X_GAS_IN_GAS_INDEX removed
   PetscInt, parameter, public :: TOWG_OIL_PRESSURE_INDEX = 1
   PetscInt, parameter, public :: TOWG_OIL_SATURATION_INDEX = 2
   PetscInt, parameter, public :: TOWG_GAS_SATURATION_INDEX = 3
+  PetscInt, parameter, public :: TOWG_BUBBLE_POINT_INDEX   = 3
   PetscInt, parameter, public :: TOWG_SOLV_SATURATION_INDEX = 4
   PetscInt, parameter, public :: TOWG_X_GAS_IN_OIL_INDEX = 5
-  PetscInt, parameter, public :: TOWG_X_GAS_IN_GAS_INDEX = 6
-  PetscInt, parameter, public :: TOWG_TEMPERATURE_INDEX = 7
-  PetscInt, parameter, public :: TOWG_LIQUID_FLUX_INDEX = 8
-  PetscInt, parameter, public :: TOWG_OIL_FLUX_INDEX = 9
-  PetscInt, parameter, public :: TOWG_GAS_FLUX_INDEX = 10
-  PetscInt, parameter, public :: TOWG_SOLV_FLUX_INDEX = 11
-  PetscInt, parameter, public :: TOWG_ENERGY_FLUX_INDEX = 12
-  PetscInt, parameter, public :: TOWG_LIQ_CONDUCTANCE_INDEX = 13
-  PetscInt, parameter, public :: TOWG_OIL_CONDUCTANCE_INDEX = 14
-  PetscInt, parameter, public :: TOWG_GAS_CONDUCTANCE_INDEX = 15
-  PetscInt, parameter, public :: TOWG_MAX_INDEX = 15
+  PetscInt, parameter, public :: TOWG_TEMPERATURE_INDEX = 6
+  PetscInt, parameter, public :: TOWG_LIQUID_FLUX_INDEX = 7
+  PetscInt, parameter, public :: TOWG_OIL_FLUX_INDEX = 8
+  PetscInt, parameter, public :: TOWG_GAS_FLUX_INDEX = 9
+  PetscInt, parameter, public :: TOWG_SOLV_FLUX_INDEX = 10
+  PetscInt, parameter, public :: TOWG_ENERGY_FLUX_INDEX = 11
+  PetscInt, parameter, public :: TOWG_LIQ_CONDUCTANCE_INDEX = 12
+  PetscInt, parameter, public :: TOWG_OIL_CONDUCTANCE_INDEX = 13
+  PetscInt, parameter, public :: TOWG_GAS_CONDUCTANCE_INDEX = 14
+  PetscInt, parameter, public :: TOWG_MAX_INDEX = 14
 
   !Indices used to map aux_int_var for condition values
   PetscInt, parameter, public :: TOWG_STATE_INDEX = 1
@@ -137,6 +139,7 @@ module PM_TOWG_Aux_module
       use AuxVars_TOWG_module
       use Global_Aux_module
       use EOS_Water_module
+      use EOS_Oil_module
       use Characteristic_Curves_module
       use Material_Aux_class
       implicit none
@@ -165,6 +168,7 @@ module PM_TOWG_Aux_module
       type(global_auxvar_type) :: global_auxvar
       class(material_auxvar_type) :: material_auxvar
       class(characteristic_curves_type) :: characteristic_curves
+
     end subroutine
 
   end interface
@@ -175,7 +179,8 @@ module PM_TOWG_Aux_module
             TOWGAuxVarCompute, &
             TOWGImsAuxVarComputeSetup, &
             TOWGTLAuxVarComputeSetup, &
-            TOWGAuxVarPerturb
+            TOWGAuxVarPerturb, &
+            TOWGBlackOilAuxVarComputeSetup
   !          TOilImsAuxVarPerturb, TOilImsAuxDestroy, &
   !          TOilImsAuxVarStrip
 
@@ -227,20 +232,20 @@ function TOWGAuxCreate(option)
   select case(towg_miscibility_model)
     case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
       towg_dof_to_primary_variable(1:option%nflowdof,1:3) = &
-        reshape([TOWG_OIL_PRESSURE_INDEX, TOWG_OIL_SATURATION_INDEX, &
-                TOWG_X_GAS_IN_OIL_INDEX, TOWG_TEMPERATURE_INDEX, &
-                TOWG_OIL_PRESSURE_INDEX, TOWG_GAS_SATURATION_INDEX, &
-                TOWG_X_GAS_IN_GAS_INDEX, TOWG_TEMPERATURE_INDEX, &
-                TOWG_OIL_PRESSURE_INDEX, TOWG_OIL_SATURATION_INDEX, &
+        reshape([TOWG_OIL_PRESSURE_INDEX, TOWG_OIL_SATURATION_INDEX, & ! LiQUID_STATE
+                TOWG_BUBBLE_POINT_INDEX, TOWG_TEMPERATURE_INDEX, &
+                TOWG_OIL_PRESSURE_INDEX, TOWG_GAS_SATURATION_INDEX, &  ! GAS_STATE (not used yet,for Rv)
+                TOWG_BUBBLE_POINT_INDEX, TOWG_TEMPERATURE_INDEX, &
+                TOWG_OIL_PRESSURE_INDEX, TOWG_OIL_SATURATION_INDEX, &  ! TWO_PHASE_STATE
                 TOWG_GAS_SATURATION_INDEX,TOWG_TEMPERATURE_INDEX], &
                 shape(towg_dof_to_primary_variable))
     case(TOWG_SOLVENT_TL)
       towg_dof_to_primary_variable(1:option%nflowdof,1:3) = &
         reshape([TOWG_OIL_PRESSURE_INDEX, TOWG_OIL_SATURATION_INDEX, &
-                TOWG_X_GAS_IN_OIL_INDEX, TOWG_SOLV_SATURATION_INDEX, &
+                TOWG_BUBBLE_POINT_INDEX, TOWG_SOLV_SATURATION_INDEX, &
                 TOWG_TEMPERATURE_INDEX, &
-                TOWG_OIL_PRESSURE_INDEX, TOWG_GAS_SATURATION_INDEX, &
-                TOWG_X_GAS_IN_GAS_INDEX, TOWG_SOLV_SATURATION_INDEX, &
+                TOWG_OIL_PRESSURE_INDEX, TOWG_GAS_SATURATION_INDEX, & ! GAS_STATE (not used yet,for Rv)
+                TOWG_BUBBLE_POINT_INDEX, TOWG_SOLV_SATURATION_INDEX, &
                 TOWG_TEMPERATURE_INDEX, &
                 TOWG_OIL_PRESSURE_INDEX, TOWG_OIL_SATURATION_INDEX, &
                 TOWG_GAS_SATURATION_INDEX, TOWG_SOLV_SATURATION_INDEX, &
@@ -307,6 +312,9 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
       if (towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
         call this%auxvars(idof,ghosted_id)%InitTL(option)
       end if
+      if (towg_miscibility_model == TOWG_BLACK_OIL      ) then
+        call this%auxvars(idof,ghosted_id)%InitBO(option)
+      end if
     enddo
   enddo
 
@@ -319,6 +327,9 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
       if (towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
         call this%auxvars_bc(iconn)%InitTL(option)
       end if
+      if (towg_miscibility_model == TOWG_BLACK_OIL      ) then
+        call this%auxvars_bc(iconn)%InitBO(option)
+      end if
     enddo
   endif
   this%num_aux_bc = num_bc_connection
@@ -329,6 +340,9 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
       call this%auxvars_ss(iconn)%Init(option)
       if (towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
         call this%auxvars_ss(iconn)%InitTL(option)
+      end if
+      if (towg_miscibility_model == TOWG_BLACK_OIL      ) then
+        call this%auxvars_ss(iconn)%InitBO(option)
       end if
     enddo
   endif
@@ -538,6 +552,366 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
 
 end subroutine TOWGImsAuxVarCompute
+
+! DKP New routines to find oil phase mole fractions as a function of (P,Pb)---
+
+subroutine getRsVolume(bubble_point,rs_volume)
+
+!------------------------------------------------------------------------------
+! Obtain the Rs value (as surface vol gas)/(surface volume oil)
+! This is a function for now - needs replacement with table
+! Taken roughly from SPE1 (Rs~0.8*Pb(Bars)=0.8*1.0d-5*P(Pa)
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Jul 2017
+!------------------------------------------------------------------------------
+
+  PetscReal, intent(in ) :: bubble_point
+  PetscReal, intent(out) :: rs_volume
+
+  rs_volume=1.0+0.8*1.0d-5*bubble_point !DKPDKP This is dummy value for tests
+
+end subroutine getRsVolume
+
+subroutine getBlackOilComposition(bubble_point,xo,xg,pref,tref)
+
+  use EOS_Oil_module
+  use EOS_Gas_module
+
+  PetscReal, intent(in ) :: bubble_point
+  PetscReal, intent(out) :: xo
+  PetscReal, intent(out) :: xg
+  PetscReal              :: pref,tref
+  PetscReal              :: rs_volume=0.0d0,rs_molar
+  PetscReal              :: mdenrefo,mdenrefg,denrefo,denrefg,mwo,mwg,ideal_gas_molar_density
+
+
+!--Get molecular weights of oil and gas----------------------------------------
+
+  mwo=EOSOilGetFMW()
+  mwg=EOSGasGetFMW()
+
+!--Get surface mass densities of oil and gas components------------------------
+
+  !denrefo=EOSOilGetDenRef()
+  denrefo=EOSOilGetReferenceDensity()
+
+  ideal_gas_molar_density=pref/(IDEAL_GAS_CONSTANT*(273.15+tref))*1.d-3
+
+  denrefg=mwg*ideal_gas_molar_density !DKPDKP ideal gas form needs work - ie PVTG table
+
+!--Molar density = (mass density)/MW = (Kg/sm3)/(Kg/KG-mol) = KG-mol/sm3-------
+
+  mdenrefo=denrefo/Mwo
+  mdenrefg=denrefg/Mwg
+
+!--Get GOR as a surface volume ratio Rsv=(vol gas)/(vol oil)-------------------
+
+  call getRsVolume(bubble_point,rs_volume)
+
+!--Convert to molar GOR, Rsm---------------------------------------------------
+!
+!  Rsm=(moles gas)/(moles oil)=(mol den gas)*(vol gas)/((mol den oil)*(vol oil))
+!                             =Rsv*(mol den gas)/(mol den oil)
+!
+!------------------------------------------------------------------------------
+
+  rs_molar=rs_volume*(mdenrefg/mdenrefo)
+
+!--Get oil and gas mole fractions----------------------------------------------
+!
+! xo=(moles oil)/(moles oil+moles gas)=1/(1+(moles gas)/(moles oil))=1/(1+Rsm)
+! xg=1-xo=1-1/(1+Rsm)=(1+Rsm-1)/(1+Rsm)=Rsm/(1+Rsm)
+!
+!------------------------------------------------------------------------------
+
+  xo=1.0d0   /(1.0d0+rs_molar)
+  xg=rs_molar/(1.0d0+rs_molar)
+
+end subroutine getBlackOilComposition
+
+! DKP---------------------------------------------------------------------------
+
+! DKP New black oil auxillary variable calculation------------------------------
+
+subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, & !This updates ths black oil variables
+                                     characteristic_curves,natural_id,option)
+!------------------------------------------------------------------------------
+! Auxillary variable calculation for black oil
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Jul 2017
+!------------------------------------------------------------------------------
+
+  use Option_module
+  use Global_Aux_module
+  use EOS_Water_module
+  use EOS_Oil_module
+  use EOS_Gas_module
+  use Characteristic_Curves_module
+  use Material_Aux_class
+  use General_Aux_module, only : LIQUID_STATE, TWO_PHASE_STATE
+
+  implicit none
+
+  type(option_type) :: option
+  PetscReal :: x(option%nflowdof)
+  class(auxvar_towg_type) :: auxvar
+  type(global_auxvar_type) :: global_auxvar ! passing this for salt conc.
+                                            ! not currenty used
+  class(material_auxvar_type) :: material_auxvar
+  class(characteristic_curves_type) :: characteristic_curves
+  PetscInt :: natural_id !only for debugging/print out - currently not used
+
+  PetscInt :: lid, oid, gid, istate
+  PetscReal :: cell_pressure, wat_sat_pres
+  PetscReal :: krl, visl, dkrl_Se
+  PetscReal :: kro, viso, dkro_Se
+  PetscReal :: krg, visg, dkrg_Se
+  PetscReal :: sat_liq_gas, sat_tot_liq
+  PetscReal :: dummy,So,Sg,Sw,Pb,So1,Sg1,Sw1,Pb1
+  !PetscReal :: Uoil_J_kg, Hoil_J_kg
+  PetscErrorCode :: ierr
+  PetscBool isSat
+  PetscReal :: epss=1.0d-4,epssc,epsp=1.0d3,pref,tref,pressure
+
+  epssc=1.0d0-epss
+
+  ! from SubsurfaceSetFlowMode
+  ! option%liquid_phase = 1           ! liquid_pressure
+  ! option%oil_phase = 2              ! oil_pressure
+  ! option%gas_phase = 3              ! gas_pressure
+  lid = option%liquid_phase
+  oid = option%oil_phase
+  gid = option%gas_phase
+
+  auxvar%effective_porosity = 0.d0
+  auxvar%pres = 0.d0
+  auxvar%sat = 0.d0
+  auxvar%pc = 0.d0
+  auxvar%den = 0.d0
+  auxvar%den_kg = 0.d0
+  auxvar%mobility = 0.d0
+  auxvar%H = 0.d0
+  auxvar%U = 0.d0
+  auxvar%temp = 0.0d0
+
+!--Check state to see if saturated----------------------------------------------
+
+  istate=global_auxvar%istate
+
+  if( istate==TOWG_THREE_PHASE_STATE ) then
+    isSat=.true.
+  else
+    isSat=.false.
+  endif
+
+!-------------------------------------------------------------------------------
+! Getting auxvars as given by the solution variables,
+! allowing for saturated/undersaturated switch
+!-------------------------------------------------------------------------------
+
+  auxvar%pres(oid) = x(TOWG_OIL_PRESSURE_DOF  )
+  auxvar%sat (oid) = x(TOWG_OIL_SATURATION_DOF)
+  if( isSat ) then
+    auxvar%sat(gid)        = x(TOWG_GAS_SATURATION_3PH_DOF)
+    auxvar%bo%bubble_point = auxvar%pres(oid)
+  else
+    auxvar%bo%bubble_point = x(TOWG_GAS_SATURATION_3PH_DOF)
+    auxvar%sat(gid)        = 0.0
+  endif
+  auxvar%temp = x(towg_energy_dof)
+
+  pressure=auxvar%pres(oid)
+  Pb      =auxvar%bo%bubble_point
+
+!------------------------------------------------------------------------------
+! Check if this state still valid and flip if not (but not on diff call)
+!------------------------------------------------------------------------------
+
+  So=auxvar%sat(oid)
+  Sg=auxvar%sat(gid)
+  Sw=auxvar%sat(lid)
+  Pb=auxvar%bo%bubble_point
+
+  if (option%iflag /= TOWG_UPDATE_FOR_DERIVATIVE) then
+    if( isSat ) then
+      if( Sg<0.0d0 ) then
+        global_auxvar%istate          =TOWG_LIQ_OIL_STATE
+        auxvar%sat(gid)               =0.0d0
+        auxvar%bo%bubble_point        =auxvar%pres(oid)-epsp
+        x(TOWG_BUBBLE_POINT_3PH_DOF)  =auxvar%pres(oid)-epsp
+      endif
+    else
+      if( auxvar%bo%bubble_point.gt.auxvar%pres(oid) ) then
+        global_auxvar%istate          =TOWG_THREE_PHASE_STATE
+        auxvar%bo%bubble_point        =auxvar%pres(oid)
+        auxvar%sat(gid)               =epss
+        x(TOWG_GAS_SATURATION_3PH_DOF)=epss
+        if( auxvar%sat(oid).gt.epssc ) then
+          auxvar%sat(oid)             =epssc
+          x(TOWG_OIL_SATURATION_DOF)  =epssc
+        endif
+      endif
+    endif
+  endif
+
+  So1=auxvar%sat(oid)
+  Sg1=auxvar%sat(gid)
+  Sw1=auxvar%sat(lid)
+  Pb1=auxvar%bo%bubble_point
+
+!------------------------------------------------------------------------------
+! Set up the final saturation value (water)
+!------------------------------------------------------------------------------
+
+  auxvar%sat(lid) = 1.d0 - auxvar%sat(oid) - auxvar%sat(gid)
+
+!--Look up the Rs value--------------------------------------------------------
+
+  pref=option%reference_pressure
+  tref=option%reference_temperature
+  call getBlackOilComposition(auxvar%bo%bubble_point,auxvar%bo%xo,auxvar%bo%xg,pref,tref)
+
+!--Get the capillary pressures-------------------------------------------------
+
+  !below pc_ow /= 0
+  !compute capillary presssure water/oil (pc_ow)
+  !call characteristic_curves%saturation_function% &
+  !     CapillaryPressure(material_auxvar,auxvar%sat(lid),auxvar%pc(lid),option)
+  !auxvar%pres(lid) = auxvar%pres(oid) - auxvar%pc(lid)
+
+  !Assumptions below on capillary pressure for comparison with TOUGH2-EOS8:
+  ! pc_ow = 0, only pc_gw /= 0 and computed considering water saturation only
+  ! this results in pc_gw = pc_go
+
+  !assuming no capillary pressure between oil and water: pc_ow = 0
+  ! pc_ow = 0.0d0
+  auxvar%pres(lid) = auxvar%pres(oid)
+
+  !compute capillary pressure gas/water (pc_gw),
+  ! pc_go = pc_gw when pc_ow = 0
+  !call characteristic_curves%saturation_function% &
+  !     CapillaryPressure(material_auxvar,auxvar%sat(lid),auxvar%pc(lid),option)
+  !To match TOUGH-EOS8, consider water plu poil as wetting phase
+  !for capillary press computation
+  sat_tot_liq = auxvar%sat(lid) + auxvar%sat(oid)
+  call characteristic_curves%saturation_function% &
+       CapillaryPressure(sat_tot_liq,auxvar%pc(lid),dummy,option)
+
+  auxvar%pres(gid) = auxvar%pres(lid) + auxvar%pc(lid)
+
+  auxvar%pc(oid) = 0.0d0
+
+
+  cell_pressure = max(auxvar%pres(lid),auxvar%pres(oid),auxvar%pres(gid))
+
+!--Get rock and fluid properties-----------------------------------------------
+
+  ! calculate effective porosity as a function of pressure
+  if (option%iflag /= TOWG_UPDATE_FOR_BOUNDARY) then
+    auxvar%effective_porosity = material_auxvar%porosity_base
+
+    if (soil_compressibility_index > 0) then
+      call MaterialCompressSoil(material_auxvar,cell_pressure, &
+                                auxvar%effective_porosity,dummy)
+    endif
+    if (option%iflag /= TOWG_UPDATE_FOR_DERIVATIVE) then
+      material_auxvar%porosity = auxvar%effective_porosity
+    endif
+  endif
+
+!------------------------------------------------------------------------------
+!DKPDKP Thermodynamic properties for all phases in black oil model
+! Will need more work - eg total molar density as function of P and Pb
+!------------------------------------------------------------------------------
+
+! Water phase thermodynamic properties
+
+  call EOSWaterDensity(auxvar%temp,cell_pressure, &
+                       auxvar%den_kg(lid),auxvar%den(lid),ierr)
+  call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(lid),ierr)
+  auxvar%H(lid) = auxvar%H(lid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+  ! MJ/kmol comp                  ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
+  auxvar%U(lid) = auxvar%H(lid) - (cell_pressure / auxvar%den(lid) * 1.d-6)
+
+! Gas phase thermodynamic properties (also needed for dissolved gas)
+
+  !compute gas properties (default is air - but methane can be set up)
+  call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid), &
+                           auxvar%H(gid),auxvar%U(gid),ierr)
+
+  auxvar%den_kg(gid) = auxvar%den(gid) * EOSGasGetFMW()
+
+  auxvar%H(gid) = auxvar%H(gid) * 1.d-6 ! J/kmol -> MJ/kmol
+  auxvar%U(gid) = auxvar%U(gid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+! Oil phase thermodynamic properties currently not including Pb dependence--
+
+!  Note:see comment 'ADD HERE BRINE dependency...' elsewhere
+
+  call EOSOilDensityEnergy(auxvar%temp,auxvar%pres(oid),&
+                           auxvar%den(oid),auxvar%H(oid), &
+                           auxvar%U(oid),ierr)
+
+! Correct oil phase molar density and enthalpy for oil composition----------
+
+! EOSOilDensity returns oil moles/volume in oil phase,
+! but really have (1+Rsmolar) times as many moles when dissolved gas included
+! 1+Rsmolar=1+xg/xo=(xo+xg)/xo=1/xo
+
+  auxvar%den(oid)=auxvar%den(oid)/auxvar%bo%xo
+
+! Get oil mass density as (mixture oil molar density).(mixture oil molecular weight)
+  auxvar%den_kg(oid) = auxvar%den(oid) * ( auxvar%bo%xo*EOSOilGetFMW() &
+                                          +auxvar%bo%xg*EOSGasGetFMW() )
+
+  auxvar%H(oid) = auxvar%H(oid) * 1.d-6 ! J/kmol -> MJ/kmol
+  auxvar%U(oid) = auxvar%U(oid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+! We now have oil enthalpy/oil mole in oil phase (if calculation done for pure oil)
+! but really have total molar enthalpy of:
+! hydrocarbon enthalpy/hydrocarbon mole= xo.(oil enthalpy/oil mole+xg*(gas enthalpy/gas mole)
+
+  auxvar%H(oid) = auxvar%bo%xo*auxvar%H(oid)+auxvar%bo%xg*auxvar%H(gid)
+  auxvar%U(oid) = auxvar%bo%xo*auxvar%U(oid)+auxvar%bo%xg*auxvar%U(gid)
+
+!--Remainder of the fluid mobility calculation is standard---------------------
+
+  ! compute water mobility (rel. perm / viscosity)
+  call characteristic_curves%liq_rel_perm_function% &
+         RelativePermeability(auxvar%sat(lid),krl,dkrl_Se,option)
+
+  call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
+
+  ! use cell_pressure; cell_pressure - psat calculated internally
+  call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visl,ierr)
+
+  auxvar%mobility(lid) = krl/visl
+
+  ! compute oil mobility (rel. perm / viscosity)
+  sat_liq_gas = auxvar%sat(lid) + auxvar%sat(gid)
+  call characteristic_curves%oil_rel_perm_function% &
+         RelativePermeability(sat_liq_gas,kro,dkro_Se,option)
+
+  call EOSOilViscosity(auxvar%temp,auxvar%pres(oid), &
+                       auxvar%den(oid), viso, ierr)
+
+  auxvar%mobility(oid) = kro/viso
+
+  !compute gas mobility (rel. perm / viscosity)
+  sat_tot_liq = auxvar%sat(lid) + auxvar%sat(oid)
+  call characteristic_curves%gas_rel_perm_function% &
+         RelativePermeability(sat_tot_liq,krg,dkrg_Se,option)
+
+  !currently only a viscosity model for air or constant value
+  call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
+                       auxvar%pres(gid),auxvar%den(gid),visg,ierr)
+
+  auxvar%mobility(gid) = krg/visg
+
+end subroutine TOWGBlackOilAuxVarCompute
 
 ! ************************************************************************** !
 
@@ -1047,7 +1421,103 @@ subroutine TOWGImsTLAuxVarPerturb(auxvar,global_auxvar, &
 
 end subroutine TOWGImsTLAuxVarPerturb
 
-! ************************************************************************** !
+! DKP Set up auxillary variables for perturbed black oil system----------------
+
+subroutine TOWGBlackOilAuxVarPerturb(auxvar,global_auxvar, &
+                                     material_auxvar, &
+                                     characteristic_curves,natural_id, &
+                                     option)
+!------------------------------------------------------------------------------
+! Used in TOWG_BLACK_OIL, auxillary variables for perturbed system
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Oct 2017
+!------------------------------------------------------------------------------
+
+  use Option_module
+  use Characteristic_Curves_module
+  use Global_Aux_module
+  use Material_Aux_class
+
+  implicit none
+
+  type(option_type) :: option
+  PetscInt :: natural_id
+  type(auxvar_towg_type) :: auxvar(0:)
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  class(characteristic_curves_type) :: characteristic_curves
+
+  PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), &
+               pert(option%nflowdof), x_pert_save(option%nflowdof)
+
+  PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: tempreal
+  PetscReal, parameter :: perturbation_tolerance = 1.d-8
+  PetscReal, parameter :: min_perturbation = 1.d-10
+  PetscInt :: idof,saturated_state
+  PetscBool::isSaturated
+
+!--Look at the state and set saturated oil flag--------------------------------
+
+  saturated_state=global_auxvar%istate
+  if( saturated_state==TOWG_THREE_PHASE_STATE ) then
+    isSaturated=.true.
+  else
+    isSaturated=.false.
+  endif
+
+!--Set up perturbed solution---------------------------------------------------
+
+  x(TOWG_OIL_PRESSURE_DOF) = auxvar(ZERO_INTEGER)%pres(option%oil_phase)
+  x(TOWG_OIL_SATURATION_DOF) = auxvar(ZERO_INTEGER)%sat(option%oil_phase)
+  if( isSaturated ) then
+    x(TOWG_GAS_SATURATION_3PH_DOF) = auxvar(ZERO_INTEGER)%sat(option%gas_phase)
+  else
+    x(TOWG_BUBBLE_POINT_3PH_DOF  ) = auxvar(ZERO_INTEGER)%bo%bubble_point
+  endif
+  x(TOWG_3CMPS_ENERGY_DOF) = auxvar(ZERO_INTEGER)%temp
+
+  pert(TOWG_OIL_PRESSURE_DOF) = &
+    perturbation_tolerance*x(TOWG_OIL_PRESSURE_DOF)+min_perturbation
+  pert(TOWG_3CMPS_ENERGY_DOF) = &
+    perturbation_tolerance*x(TOWG_3CMPS_ENERGY_DOF)+min_perturbation
+  if (x(TOWG_OIL_SATURATION_DOF) > 0.5d0) then
+    pert(TOWG_OIL_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+  else
+    pert(TOWG_OIL_SATURATION_DOF) = perturbation_tolerance
+  endif
+
+  if( isSaturated ) then
+    if (x(TOWG_GAS_SATURATION_3PH_DOF) > 0.5d0) then
+      pert(TOWG_GAS_SATURATION_3PH_DOF) = -1.d0 * perturbation_tolerance
+    else
+      pert(TOWG_GAS_SATURATION_3PH_DOF) = perturbation_tolerance
+    endif
+  else
+    pert(TOWG_BUBBLE_POINT_3PH_DOF) = &
+    perturbation_tolerance*x(TOWG_BUBBLE_POINT_3PH_DOF)+min_perturbation
+  endif
+
+  ! TOWG_UPDATE_FOR_DERIVATIVE indicates call from perturbation
+  option%iflag = TOWG_UPDATE_FOR_DERIVATIVE
+  do idof = 1, option%nflowdof
+    auxvar(idof)%pert = pert(idof)
+    x_pert = x
+    x_pert(idof) = x(idof) + pert(idof)
+    x_pert_save = x_pert
+    call TOWGAuxVarCompute(x_pert,auxvar(idof),global_auxvar, &
+                           material_auxvar, &
+                           characteristic_curves,natural_id,option)
+  enddo
+
+  auxvar(TOWG_OIL_PRESSURE_DOF)%pert = &
+     auxvar(TOWG_OIL_PRESSURE_DOF)%pert / towg_pressure_scale
+
+end subroutine TOWGBlackOilAuxVarPerturb
+
+! DKP--------------------------------------------------------------------------
+
 subroutine TOWGImsAuxVarComputeSetup()
 
   implicit none
@@ -1057,7 +1527,19 @@ subroutine TOWGImsAuxVarComputeSetup()
 
 end subroutine TOWGImsAuxVarComputeSetup
 
-! ************************************************************************** !
+! DKP Routine to set up black oil values and perturbed values------------------
+
+subroutine TOWGBlackOilAuxVarComputeSetup()
+
+  implicit none
+
+  TOWGAuxVarCompute => TOWGBlackOilAuxVarCompute
+  TOWGAuxVarPerturb => TOWGBlackOilAuxVarPerturb
+
+end subroutine TOWGBlackOilAuxVarComputeSetup
+
+! DKP--------------------------------------------------------------------------
+
 subroutine TOWGTLAuxVarComputeSetup()
 
   implicit none

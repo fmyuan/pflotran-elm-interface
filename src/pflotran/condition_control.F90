@@ -84,7 +84,8 @@ subroutine CondControlAssignFlowInitCond(realization)
   PetscInt :: offset, istate
   PetscReal :: x(realization%option%nflowdof)
   PetscReal :: temperature, p_sat
-  PetscReal :: tempreal
+  PetscReal :: tempreal,pru,sou,sgu,pbu
+  PetscInt :: saturated_state
 
   option => realization%option
   discretization => realization%discretization
@@ -486,6 +487,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 
             select case(initial_condition%flow_condition%iphase)
               case(TOWG_THREE_PHASE_STATE)  
+! DKP Initial condition needs bubble point
                 if (.not. &
                     (towg%oil_pressure%itype == DIRICHLET_BC .or. &
                       towg%oil_pressure%itype == HYDROSTATIC_BC)) then
@@ -504,6 +506,13 @@ subroutine CondControlAssignFlowInitCond(realization)
                   option%io_buffer = 'Gas saturation ' // trim(string)
                   call printErrMsg(option)
                 endif
+                if (.not. &
+                    (towg%bubble_point%itype == DIRICHLET_BC .or. &
+                      towg%bubble_point%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Bubble point ' // trim(string)
+                  call printErrMsg(option)
+                endif
+!DKP Maybe next 2 cases can be removed (cond. is always TOWG_THREE_PHASE_STATE)
               case(TOWG_LIQ_OIL_STATE)
                 !to be implemented 
                 option%io_buffer = 'CondControlAssignFlowInitCond in ' // &
@@ -528,12 +537,31 @@ subroutine CondControlAssignFlowInitCond(realization)
               ibegin = ibegin - 1
               select case(initial_condition%flow_condition%iphase)
                 case(TOWG_THREE_PHASE_STATE)
+! DKP Get (P,So,Sg,Pb) and set up saturated/unsaturated state-------------------
+                  pru=towg%oil_pressure%dataset%rarray(1)
+                  sou=towg%oil_saturation%dataset%rarray(1)
+                  sgu=towg%gas_saturation%dataset%rarray(1)
+                  pbu=towg%bubble_point%dataset%rarray(1)
+
+                  if( sgu>1.0D-6 ) then
+                    saturated_state=TOWG_THREE_PHASE_STATE
+                  else
+                    saturated_state=TOWG_LIQ_OIL_STATE
+                  endif
+
+                  cur_patch%aux%Global%auxvars(ghosted_id)%istate=saturated_state
                   xx_p(ibegin+TOWG_OIL_PRESSURE_DOF) = &
                     towg%oil_pressure%dataset%rarray(1)
                   xx_p(ibegin+TOWG_OIL_SATURATION_DOF) = &
                     towg%oil_saturation%dataset%rarray(1)
-                  xx_p(ibegin+TOWG_GAS_SATURATION_3PH_DOF) = &
+                  if( saturated_state==TOWG_THREE_PHASE_STATE ) then
+                    xx_p(ibegin+TOWG_GAS_SATURATION_3PH_DOF) = &
                     towg%gas_saturation%dataset%rarray(1)
+                  else
+                    xx_p(ibegin+TOWG_BUBBLE_POINT_3PH_DOF) = &
+                      towg%bubble_point%dataset%rarray(1)
+                  endif
+!DKP Maybe next 2 cases can be removed (cond. is always TOWG_THREE_PHASE_STATE)
                 case(TOWG_LIQ_OIL_STATE)
                   !to be implemented
                   option%io_buffer = 'CondControlAssignFlowInitCond-2 in ' // &

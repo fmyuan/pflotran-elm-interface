@@ -145,6 +145,7 @@ module Variables_module
   PetscInt, parameter, public :: SOLVENT_SATURATION      = 116
   PetscInt, parameter, public :: CAPILLARY_PRESSURE_OGC  = 117
   PetscInt, parameter, public :: FRACTURE                = 118
+  PetscInt, parameter, public :: BUBBLE_POINT            = 119
 
   PetscInt, parameter, public :: GAS_PERMEABILITY        = 119
   PetscInt, parameter, public :: GAS_PERMEABILITY_X      = 120

@@ -564,7 +564,19 @@ subroutine EOSOilSetDenLinearRefDen(den0)
 
 end subroutine EOSOilSetDenLinearRefDen
 
-! ************************************************************************** !
+! DKP New function to get reference (surface) density for black oil model------
+!
+!function EOSOilGetDenRef()
+!
+!  implicit none
+!
+!  PetscReal :: EOSOilGetDenRef
+!
+!  EOSOilGetDenRef=den_linear_den0
+!
+!end function EOSOilGetDenRef
+
+! DKP-------------------------------------------------------------------------
 
 subroutine EOSOilSetDenLinearRefPres(ref_pres)
 

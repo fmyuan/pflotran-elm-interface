@@ -2056,18 +2056,17 @@ subroutine OutputMassBalance(realization_base)
           call OutputWriteToHeader(fid,'Global Water Mass', &
                                     'kg','',icol)
           select case(towg_miscibility_model)
-            case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+! DKP TOWG_BLACK_OIL output now supported
+            case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
               call OutputWriteToHeader(fid,'Global Oil Mass', &
                                        'kg','',icol)
               call OutputWriteToHeader(fid,'Global Gas Mass', &
                                        'kg','',icol)
-            case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+            case(TOWG_SOLVENT_TL)
               option%io_buffer = 'OutputMassBalance not yet ' // &
-                'implemented for: TOWG_BLACK_OIL and TOWG_SOLVENT_TL '
+                'implemented for: TOWG_SOLVENT_TL '
               call printErrMsg(option)
-              !must add: oil in oil_phase, diss. gas in oil_phase, 
-              !          oil vap. in gas_phase, gas in gas_phase
-              !if TOWG_SOLVENT_TL, add also solvent mass
+              !must add: solvent mass
           end select
         case(MPH_MODE,FLASH2_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Water Phase', &
@@ -2388,19 +2387,20 @@ subroutine OutputMassBalance(realization_base)
           enddo
         case(TOWG_MODE)
           select case(towg_miscibility_model)
-            case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+! DKP TOWG_BLACK_OIL output now supported
+            case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
               do iphase = 1, option%nphase
                 write(fid,110,advance="no") sum_kg_global(iphase,1)
               enddo
-            case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+            case(TOWG_SOLVENT_TL)
               option%io_buffer = 'OutputMassBalance not yet ' // &
-                'implemented for: TOWG_BLACK_OIL and TOWG_SOLVENT_TL '
+                'implemented for: TOWG_SOLVENT_TL '
               call printErrMsg(option)
-              !do iphase = 1, option%nphase
-              !  do ispec = 1, option%nflowspec
-              !    write(fid,110,advance="no") sum_kg_global(ispec,iphase)
-              !  enddo
-              !enddo
+!              !do iphase = 1, option%nphase
+!              !  do ispec = 1, option%nflowspec
+!              !    write(fid,110,advance="no") sum_kg_global(ispec,iphase)
+!              !  enddo
+!              !enddo
           end select
         case(MPH_MODE,FLASH2_MODE)
           do iphase = 1, option%nphase

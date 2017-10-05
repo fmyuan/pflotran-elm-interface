@@ -520,9 +520,10 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
         case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
           option%nflowdof = 4
           option%nflowspec = 3 !H20, Oil, Gas
-        !case(TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
-        !  option%nflowdof = 4
-        !  option%nflowspec = 3 !H20, Oil, Gas
+        case(TOWG_BLACK_OIL)
+! DKP Variable setup for black oil matches case above, could be combined
+          option%nflowdof = 4
+          option%nflowspec = 3 !H20, Oil, Gas
         !case(TOWG_SOLVENT_TL)
         !  option%nphase = 4
         !  option%nflowdof = 5
