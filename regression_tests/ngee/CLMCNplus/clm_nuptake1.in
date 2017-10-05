@@ -1,0 +1,163 @@
+#Description: CLM-CN N uptake module
+# (1) NNH4-N uptake
+
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS
+    1
+  /
+END
+
+#=========================== useful tranport parameters =======================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0
+END
+
+REFERENCE_LIQUID_DENSITY 1.d3
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    NH4+
+  /
+  IMMOBILE_SPECIES
+    PlantN         ! (3) total plant N pool
+    Plantnh4uptake ! (4) accumulative plant N uptake (for tracking)
+    Plantndemand   ! (5) accumulative plant N demand (for tracking)
+  /
+
+  REACTION_SANDBOX
+
+    PLANTN
+      AMMONIUM_HALF_SATURATION 1.0d-5
+      NITRATE_HALF_SATURATION 1.0d-5
+      AMMONIUM_INHIBITION_NITRATE 1.0d0
+    END
+
+  /
+
+  !LOG_FORMULATION
+
+  DATABASE ./CLM-CN_database.dat
+
+  OUTPUT
+    all
+    TOTAL
+  /
+END
+
+#=========================== solver options ===================================
+LINEAR_SOLVER TRANSPORT
+  SOLVER DIRECT
+END
+
+NEWTON_SOLVER TRANSPORT
+  ATOL 1.d-30
+  RTOL 1.d-12
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY 
+  DIFFUSION_COEFFICIENT 0.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+END
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC TIMESTEP 1
+  FORMAT HDF5
+  Variables
+    POROSITY
+    VOLUME
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d0 min
+  MAXIMUM_TIMESTEP_SIZE 0.5d0 h
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+REGION obs_pt
+  COORDINATE 0.5 0.5 0.5
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION obs_pt
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE zero_gradient
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+#=========================== transport constraints ============================
+CONSTRAINT initial
+  CONCENTRATIONS
+    NH4+     8.d-3      T  ! moles/L
+  /
+  IMMOBILE
+    PlantN       1.d-20
+    Plantnh4uptake 1.d-20  ! 0-resetting its value at end of a CLM time-step, when coupled
+    Plantndemand 1.d-20    ! 0-resetting its value at end of a CLM time-step, when coupled
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE
+
+
