@@ -1,0 +1,166 @@
+#Description: CLM-CN N mineralization module test
+# NH4-N reactants for SOM4 decomposition (CO2 is the only C productant) 
+
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS
+    1
+  /
+END
+
+#=========================== useful tranport parameters =======================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0
+END
+
+REFERENCE_LIQUID_DENSITY 1.d3
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    CO2(aq)
+    NH4+
+    N2O(aq)
+    H+
+  /
+
+  IMMOBILE_SPECIES
+    SOIL4
+    Nmin
+    HRimm
+    NGASmin
+  /
+  REACTION_SANDBOX
+    SOMDECOMP
+      POOLS
+        SOIL4 10.d0
+      /
+      REACTION
+        UPSTREAM_POOL SOIL4
+        TURNOVER_TIME 27.4 y
+      /
+    /
+  /
+
+#  LOG_FORMULATION
+  DATABASE ./CLM-CN_database.dat
+  OUTPUT
+    all
+    TOTAL
+  /
+END
+
+#=========================== solver options ===================================
+LINEAR_SOLVER TRANSPORT
+  SOLVER DIRECT
+END
+
+NEWTON_SOLVER TRANSPORT
+  ATOL 1.d-50
+  RTOL 1.d-12
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY 
+  DIFFUSION_COEFFICIENT 0.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+END
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC TIMESTEP 1
+  FORMAT HDF5
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 365.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  !MINIMUM_TIMESTEP_SIZE 1.d-5 s
+  MAXIMUM_TIMESTEP_SIZE 1.d0 d
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+REGION obs_pt
+  COORDINATE 0.5 0.5 0.5
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION obs_pt
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE zero_gradient
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+#=========================== transport constraints ============================
+CONSTRAINT initial
+  CONCENTRATIONS
+    NH4+    1.d-40     T  ! moles/L
+    CO2(aq) 1.d-40     T  ! moles/L
+    N2O(aq) 1.d-40     T  ! moles/L
+    H+      6.5d0      pH
+  /
+  IMMOBILE
+    SOIL4  1.d01
+    Nmin  1.d-40
+    HRimm 1.d-40
+    NGASmin 1.d-40
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE

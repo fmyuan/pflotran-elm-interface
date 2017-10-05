@@ -1,0 +1,53 @@
+-- GENERIC: pH --
+      Max:   6.0000000000000E+00
+      Min:   6.0000000000000E+00
+     Mean:   6.0000000000000E+00
+        1:   6.0000000000000E+00
+-- CONCENTRATION: Total CO2(aq) --
+      Max:   2.8891199995371E-07
+      Min:   2.8891199995371E-07
+     Mean:   2.8891199995371E-07
+        1:   2.8891199995371E-07
+-- CONCENTRATION: Total NH4+ --
+      Max:   3.0663117653121E-09
+      Min:   3.0663117653121E-09
+     Mean:   3.0663117653121E-09
+        1:   3.0663117653121E-09
+-- CONCENTRATION: Total NO3- --
+      Max:   1.5251542381462E-19
+      Min:   1.5251542381462E-19
+     Mean:   1.5251542381462E-19
+        1:   1.5251542381462E-19
+-- CONCENTRATION: Total H+ --
+      Max:   1.0000000000000E-06
+      Min:   1.0000000000000E-06
+     Mean:   1.0000000000000E-06
+        1:   1.0000000000000E-06
+-- CONCENTRATION: LabileC --
+      Max:   1.7132241405212E-20
+      Min:   1.7132241405212E-20
+     Mean:   1.7132241405212E-20
+        1:   1.7132241405212E-20
+-- CONCENTRATION: LabileN --
+      Max:   4.7081656545077E-22
+      Min:   4.7081656545077E-22
+     Mean:   4.7081656545077E-22
+        1:   4.7081656545077E-22
+-- CONCENTRATION: SOM1 --
+      Max:   1.1297200000000E-04
+      Min:   1.1297200000000E-04
+     Mean:   1.1297200000000E-04
+        1:   1.1297200000000E-04
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   4.8318409919739E-01
+   Time Steps:          178
+   Newton Iterations:         1343
+   Solver Iterations:         1343
+   Time Step Cuts:           19
+   Solution 2-Norm:   1.1297679524374E-04
+   Residual 2-Norm:   1.2585880920881E-26
