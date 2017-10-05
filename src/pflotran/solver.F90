@@ -283,9 +283,10 @@ subroutine SolverSetSNESOptions(solver, option)
         call PCASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                             PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
       case(PCGASM)
-!geh: Richard will need to uncomment for the time being.
-!        call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
-!                             PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
+#if (PETSC_VERSION_MINOR >= 8)
+        call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
+                             PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
+#endif
     end select
     allocate(sub_ksps(nsub_ksp))
     select case(solver%pc_type)
@@ -296,9 +297,10 @@ subroutine SolverSetSNESOptions(solver, option)
         call PCASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                             sub_ksps,ierr);CHKERRQ(ierr)
       case(PCGASM)
-!geh: Richard will need to uncomment for the time being.
-!        call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
-!                             sub_ksps,ierr);CHKERRQ(ierr)
+#if (PETSC_VERSION_MINOR >= 8)
+        call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
+                             sub_ksps,ierr);CHKERRQ(ierr)
+#endif
     end select
     do i = 1, nsub_ksp
       call KSPGetPC(sub_ksps(i),pc,ierr);CHKERRQ(ierr)
