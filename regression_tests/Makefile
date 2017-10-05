@@ -107,6 +107,7 @@ STANDARD_CFG = \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	inversion/inversion.cfg \
 	ngee/ngee.cfg \
+	ngee/CLMCNplus/clmcn.cfg \
 	pnf/unit_cube/unit_cube.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
