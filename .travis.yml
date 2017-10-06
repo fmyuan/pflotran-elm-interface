@@ -24,13 +24,16 @@ branches:
 
 matrix:
   include:
-    - env: CMAKE_BUILD=0
+    - env: CMAKE_BUILD=0 PETSC_MASTER=0
+      os: linux
+
+    - env: CMAKE_BUILD=0 PETSC_MASTER=1
       os: linux
 
 #    - env: CMAKE_BUILD=0
 #      os: osx
 
-    - env: CMAKE_BUILD=1
+    - env: CMAKE_BUILD=1 PETSC_MASTER=0
       os: linux
 
 #    - env: CMAKE_BUILD=1
