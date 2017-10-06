@@ -209,9 +209,9 @@ subroutine PFLOTRANReadSimulation(simulation,option)
             case('UFD_BIOSPHERE')
               call SubsurfaceReadUFDBiospherePM(input,option,new_pm)
             case('WIPP_SOURCE_SINK')
-              option%io_buffer = 'The WIPP_SOURCE_SINK process model is now an &
-                &embedded process model in WIPP_FLOW mode only, and does not &
-                &need to be listed in the PROCESS_MODELS block.'
+              option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
+                &unless you are running in WIPP_FLOW mode and intend to &
+                &include gas generation.'
               call printErrMsg(option)
             case('HYDROGEOPHYSICS')
             case('SURFACE_SUBSURFACE')
