@@ -70,7 +70,7 @@ contains
 
 ! ************************************************************************************ !
 
-  subroutine pflotranModelCreate(mpicomm, pflotran_prefix, model)
+  subroutine pflotranModelCreate(mpicomm, pflotran_inputdir, pflotran_prefix, model)
   ! 
   ! Allocates and initializes the pflotranModel object.
   ! It performs the same sequence of commands as done in pflotran.F90
@@ -94,6 +94,7 @@ contains
     implicit none
 
     PetscInt, intent(in) :: mpicomm
+    character(len=256), intent(in) :: pflotran_inputdir
     character(len=256), intent(in) :: pflotran_prefix
 
     type(pflotran_model_type),      pointer :: model
@@ -113,8 +114,18 @@ contains
     ! should explicitly request that with 'pflotran'.
     if (len(trim(pflotran_prefix)) > 1) then
       model%option%input_prefix = trim(pflotran_prefix)
+
+      if (len(trim(pflotran_inputdir)) > 1) then
+        model%option%input_dir = trim(pflotran_inputdir)
+        model%option%input_prefix = trim(pflotran_inputdir) // '/' // trim(pflotran_prefix)
+
+      else
+        model%option%input_dir = "."
+        model%option%input_prefix = trim(pflotran_prefix)
+      endif
+
       model%option%input_filename = trim(model%option%input_prefix) // '.in'
-      model%option%global_prefix = model%option%input_prefix
+      model%option%global_prefix = trim(pflotran_prefix)
     else
       model%option%io_buffer = 'The external driver must provide the ' // &
            'pflotran input file prefix.'

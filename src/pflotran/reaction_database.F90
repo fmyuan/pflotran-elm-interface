@@ -122,7 +122,11 @@ subroutine DatabaseRead(reaction,option)
     option%io_buffer = 'Database filename not included in input deck.'
     call printErrMsg(option)
   endif
+#ifdef CLM_PFLOTRAN
+  input => InputCreate(IUNIT_TEMP,trim(option%input_dir) // '/' //reaction%database_filename,option)
+#else
   input => InputCreate(IUNIT_TEMP,reaction%database_filename,option)
+#endif
 
   ! read temperatures
   call InputReadPflotranString(input,option)
