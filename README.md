@@ -10,19 +10,26 @@ This repository is the PFLOTRAN portion for coupling. The CLM portion is in CLM-
 
 ### Branches and Versions ###
 
-* The repository contains 4 branches for development and stable release purposes:
+* The repository contains ONE(1) stable branch for release and FOUR(4) branches for development:
+
+***default-release-v3.7***
+ - The current STABLE version of clm-pflotran, specifically for testing all thermal-hydrology (TH) and biogeochemistry (BGC) portion. 
+ - **PFLOTRAN**: 6571d9ae3d1cdd699bfc993155c958173e76c20f [6571d9a]. It's older (**Updated: 2017-03-09**) than 'default', and with ***PETSc-dev*** version **3.7.x**.
+ - Stable CLM Version: **CLM4_5_35**. (2017-04-25).  *STATUS*: TH & BGC coupling is STABLE. 
+ - Target ALM Version: **ALM v1**. (Commit # a4e5c4d. 2017-06-27).  *STATUS*: STABLE for ```BGC```. (2017-06-27); UNDER test for ```TH mode``` 
+
   
 ***(1) default*** 
 
- - the most updated PFLOTRAN codes (change set:5952e67b6b8072d99c6f9353a87107c6634f4482 xsdk-0.2.0-rc2
- [5952e67b6b80]) with CLM-PFLOTRAN grid/mesh coupling. 
- - NOT suggested to use for production run. 
- - updated: **2017-04-04**
+ - the most updated PFLOTRAN codes, with ***PETSc-dev*** version **3.8**
+ - only added CLM-PFLOTRAN grid/mesh coupling. 
+ - NOT suggested to use coupling run, rather as a stand-alone PFLOTRAN. 
+ - updated: **2017-10-04**
  
 
 ***(2) default-bgc*** 
  - the current develop version for coupling subsurface BGC between CLM and PFLOTRAN (both soil thermal-hydrology are from CLM45, so NO transport BUT can have diffusion). 
- - **PFLOTRAN**: [5952e67b6b80]. i.e. same as 'default'. It's with most recent ***PETSc-dev*** version **xsdk-0.2.0-rc2**
+ - **PFLOTRAN**: same as 'default'. It's with most recent ***PETSc-dev*** version **3.8**
  - Current Version of **CLM: 4.5.35**
  - STATUS: **stable**
  
@@ -30,11 +37,11 @@ This repository is the PFLOTRAN portion for coupling. The CLM portion is in CLM-
 ***(3) default-thc*** 
 
  - the current development version of clm-pflotran, specifically for testing all thermal-hydrology (TH) and biogeochemistry (C) portion. 
- - **PFLOTRAN**: 6571d9ae3d1cdd699bfc993155c958173e76c20f [6571d9a]. It's older (**Updated: 2017-03-09**) than 'default', and with ***PETSc-dev*** version **3.7.3**.
+ - **PFLOTRAN**: 6571d9ae3d1cdd699bfc993155c958173e76c20f [6571d9a]. It's older (**Updated: 2017-03-09**) than 'default', and with ***PETSc-dev*** version **3.7.x**.
  - Stable CLM Version: **CLM4_5_35**. (2017-04-25).  *STATUS*: TH & BGC coupling is STABLE. 
  - Target ALM Version: **ALM v1**. (Commit # a4e5c4d. 2017-06-27).  *STATUS*: UNDER test for TH mode; STABLE for BGC. (2017-06-27) 
 
-***(3) default-thc-light*** 
+***(3) default-light*** 
 
  - **Light-weight version** of 'default-thc'.  The purpose is to slim the full package of PFLOTRAN-dev for ONLY **THREE (3) MODES:** Richards-MODE, TH-MODE, and CHEMISTRY (i.e. BGC).
 
@@ -46,10 +53,10 @@ This repository is the PFLOTRAN portion for coupling. The CLM portion is in CLM-
 git clone https://code.ornl.gov/alm-pflotran/pflotran-interface
 ```
 
-**(2)** *git checkout branch 'default-thc'*
+**(2)** *git checkout branch 'default-release-v3.7'*
 ```
 cd pflotran-interface
-git checkout default-thc
+git checkout default-release-v3.7
 ```
 
 **(3a)** *if not coupled with CLM, this repository should be a **stand-alone PFLOTRAN** model.*
