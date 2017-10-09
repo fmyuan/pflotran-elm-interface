@@ -221,7 +221,7 @@ subroutine RTSetup(realization)
       if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
           flag(4) == 0) then
         flag(4) = 1
-        option%io_buffer = 'Non-initialized rock density.'
+        option%io_buffer = 'Non-initialized soil particle density.'
         call PrintMsg(option)
       endif
     endif
@@ -2409,6 +2409,9 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   PetscInt :: axis, side, nlx, nly, nlz, ngx, ngxy, pstart, pend, flux_id
   PetscInt :: direction, max_x_conn, max_y_conn
   
+  PetscInt :: ii
+  character(len=MAXSTRINGLENGTH) :: string
+  
 #ifdef CENTRAL_DIFFERENCE  
   PetscReal :: T_11(realization%option%transport%nphase)
   PetscReal :: T_12(realization%option%transport%nphase)
@@ -2506,6 +2509,16 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
                   global_auxvars(ghosted_id_dn), &
                   coef_up,coef_dn,option,Res)
 
+      ! checking NaN or INF
+      do ii=1,reaction%ncomp
+        if(Res(ii) /= Res(ii) .or. &
+          abs(Res(ii))>huge(Res(ii)) ) then
+          write(string,*) 'local_id: ', local_id_up, 'Res: ', ii, Res(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ reactive_transport.F90: RTResidualFlux - Interior Flux ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
 
 
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
@@ -2545,6 +2558,27 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
                   global_auxvars(ghosted_id_dn), &
                   T_11,T_12,T_21,T_22,option,Res_1,Res_2)
                              
+
+      ! checking NaN or INF
+      do ii=1,reaction%ncomp
+        if(Res_1(ii) /= Res_1(ii) .or. &
+          abs(Res_1(ii))>huge(Res_1(ii)) ) then
+          write(string,*) 'local_id: ', local_id_up, 'Res: ', ii, Res_1(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ reactive_transport.F90: RTResidualFlux - Interior Upwind ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
+      do ii=1,reaction%ncomp
+        if(Res_2(ii) /= Res_2(ii) .or. &
+          abs(Res_2(ii))>huge(Res_2(ii)) ) then
+          write(string,*) 'local_id: ', local_id_dn, 'Res: ', ii, Res_2(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ reactive_transport.F90: RTResidualFlux - Interior Downwind ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
+
       if (local_id_up>0) then
         iend = local_id_up*reaction%ncomp
         istart = iend-reaction%ncomp+1
@@ -2620,6 +2654,17 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
             -Res(1:reaction%ncomp)
       endif
 
+      ! checking NaN or INF
+      do ii=1,reaction%ncomp
+        if(Res(ii) /= Res(ii) .or. &
+          abs(Res(ii))>huge(Res(ii)) ) then
+          write(string,*) 'local_id: ', local_id, 'Res: ', ii, Res(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ reactive_transport.F90: RTResidualFlux - BC flux ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
+
 #else
       call TFluxCoef_CD(rt_parameter, &
                 global_auxvars_bc(sum_connection), &
@@ -2654,10 +2699,31 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
             -Res_2(1:reaction%ncomp)
       endif
 
+      ! checking NaN or INF
+      do ii=1,option%ncomp
+        if(Res_1(ii) /= Res_1(ii) .or. &
+          abs(Res_1(ii))>huge(Res_1(ii)) ) then
+          write(string,*) 'local_id: ', local_id, 'Res: ', ii, Res_1(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ reactive_transport.F90: RTResidualFlux - BC Upwind ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
+      do ii=1,option%ncomp
+        if(Res_2(ii) /= Res_2(ii) .or. &
+          abs(Res_2(ii))>huge(Res_2(ii)) ) then
+          write(string,*) 'local_id: ', local_id, 'Res: ', ii, Res_2(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ reactive_transport.F90: RTResidualFlux - BC Downwind ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
+
 #endif
 
     enddo
     boundary_condition => boundary_condition%next
+
   enddo
 
   ! Restore vectors
@@ -2748,6 +2814,9 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   PetscReal :: sec_porosity
   PetscReal :: res_sec_transport(realization%reaction%ncomp)
 
+  PetscInt  :: ii
+  character(len=MAXSTRINGLENGTH) :: string
+
   option => realization%option
   field => realization%field
   patch => realization%patch
@@ -2797,6 +2866,16 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       if (option%use_mc) then
         Res = Res*rt_sec_transport_vars(ghosted_id)%epsilon
       endif        
+
+      ! checking NaN or INF
+      do ii=1,reaction%ncomp
+        if(Res(ii) /= Res(ii) .or. abs(Res(ii))>huge(Res(ii)) ) then
+          write(string,*) 'local_id: ', local_id, 'Res: ', ii, Res(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ reactive_transport.F90: RTResidualNonFlux - Accumulation of ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
       
       r_p(istartall:iendall) = r_p(istartall:iendall) + Res(1:reaction%ncomp)
       
@@ -2844,6 +2923,17 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
                                   sec_diffusion_coefficient, &
                                   sec_porosity, &
                                   option,res_sec_transport)
+
+      ! checking NaN or INF
+      do ii=1,reaction%ncomp
+        if(res_sec_transport(ii) /= res_sec_transport(ii) .or. &
+          abs(res_sec_transport(ii))>huge(res_sec_transport(ii)) ) then
+          write(string,*) 'local_id: ', local_id, 'Res: ', ii, res_sec_transport(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ reactive_transport.F90: RTResidualNonFlux - Secondary continuum of ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
 
       r_p(istartall:iendall) = r_p(istartall:iendall) - &
                                res_sec_transport(1:reaction%ncomp) ! in mol/s
@@ -2897,6 +2987,18 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
           coef_in*rt_auxvars(ghosted_id)%colloid%conc_mob(:) + &
           coef_out*rt_auxvar_out%colloid%conc_mob(:)
       endif
+
+      ! checking NaN or INF
+      do ii=1,reaction%ncomp
+        if(Res(ii) /= Res(ii) .or. &
+          abs(Res(ii))>huge(Res(ii)) ) then
+          write(string,*) 'local_id: ', local_id, 'Res: ', ii, Res(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ reactive_transport.F90: RTResidualNonFlux - SrcSink of ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
+
       istartall = offset + 1
       iendall = offset + reaction%ncomp
       r_p(istartall:iendall) = r_p(istartall:iendall) + Res(1:reaction%ncomp)
@@ -3000,6 +3102,19 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       if (option%use_mc) then
         Res = Res*rt_sec_transport_vars(ghosted_id)%epsilon
       endif 
+
+      ! checking NaN or INF
+      do ii=1,reaction%ncomp
+        if(Res(ii) /= Res(ii) .or. &
+          abs(Res(ii))>huge(Res(ii)) ) then
+          write(string,*) 'local_id: ', local_id, 'Res: ', ii, Res(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ reactive_transport.F90: RTResidualNonFlux - Reaction of ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+
+      enddo
+
       r_p(istartall:iendall) = r_p(istartall:iendall) + Res(1:reaction%ncomp)                    
 
     enddo

@@ -1124,6 +1124,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   !----------------------------------------------------------------------------------------------
 
   net_nmin_rate     = 0.0d0
+  nmin = 0.d0
+  nimm = 0.d0
 
   do irxn = 1, this%nrxn
   
