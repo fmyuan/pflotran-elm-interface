@@ -3754,6 +3754,9 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
 
   ! add new reactions in the 3 locations below
 
+  Res = 0.d0
+  Jac = 0.d0
+
   if (.not.option%transport%numerical_derivatives) then ! analytical derivative
     compute_derivative = PETSC_TRUE
     call RReaction(Res,Jac,compute_derivative,rt_auxvar, &
