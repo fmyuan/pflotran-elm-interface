@@ -747,91 +747,91 @@ subroutine BasisInit_hpt(reaction,option)
 !TODO(geh)
 #if 0
 ! get database temperature based on REFERENCE_TEMPERATURE
-  if (option%reference_temperature <= 0.01d0) then
+  if (option%flow%reference_temperature <= 0.01d0) then
     reaction%debyeA = 0.4939d0 
     reaction%debyeB = 0.3253d0 
     reaction%debyeBdot = 0.0374d0
-  else if (option%reference_temperature > 0.d0 .and. &
-           option%reference_temperature <= 25.d0) then
+  else if (option%flow%reference_temperature > 0.d0 .and. &
+           option%flow%reference_temperature <= 25.d0) then
     temp_low = 0.d0
     temp_high = 25.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.5114d0,0.4939d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3288d0,0.3253d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0410d0,0.0374d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 25.d0 .and. &
-           option%reference_temperature <= 60.d0) then
+  else if (option%flow%reference_temperature > 25.d0 .and. &
+           option%flow%reference_temperature <= 60.d0) then
     temp_low = 25.d0
     temp_high = 60.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.5465d0,0.5114d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3346d0,0.3288d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0440d0,0.0410d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 60.d0 .and. &
-           option%reference_temperature <= 100.d0) then
+  else if (option%flow%reference_temperature > 60.d0 .and. &
+           option%flow%reference_temperature <= 100.d0) then
     temp_low = 60.d0
     temp_high = 100.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.5995d0,0.5465d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3421d0,0.3346d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0460d0,0.0440d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 100.d0 .and. &
-           option%reference_temperature <= 150.d0) then
+  else if (option%flow%reference_temperature > 100.d0 .and. &
+           option%flow%reference_temperature <= 150.d0) then
     temp_low = 100.d0
     temp_high = 150.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.6855d0,0.5995d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3525d0,0.3421d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0470d0,0.0460d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 150.d0 .and. &
-           option%reference_temperature <= 200.d0) then
+  else if (option%flow%reference_temperature > 150.d0 .and. &
+           option%flow%reference_temperature <= 200.d0) then
     temp_low = 150.d0
     temp_high = 200.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.7994d0,0.6855d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3639d0,0.3525d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0470d0,0.0470d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 200.d0 .and. &
-           option%reference_temperature <= 250.d0) then
+  else if (option%flow%reference_temperature > 200.d0 .and. &
+           option%flow%reference_temperature <= 250.d0) then
     temp_low = 200.d0
     temp_high = 250.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.9593d0,0.7994d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3766d0,0.3639d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0340d0,0.0470d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 250.d0 .and. &
-           option%reference_temperature <= 300.d0) then
+  else if (option%flow%reference_temperature > 250.d0 .and. &
+           option%flow%reference_temperature <= 300.d0) then
     temp_low = 250.d0
     temp_high = 300.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      1.2180d0,0.9593d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3925d0,0.3766d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0000d0,0.0340d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 300.d0 .and. &
-           option%reference_temperature <= 350.d0) then
+  else if (option%flow%reference_temperature > 300.d0 .and. &
+           option%flow%reference_temperature <= 350.d0) then
     temp_low = 300.d0
     temp_high = 350.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      1.2180d0,1.2180d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3925d0,0.3925d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0000d0,0.0000d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 350.d0) then
+  else if (option%flow%reference_temperature > 350.d0) then
     reaction%debyeA = 1.2180d0 
     reaction%debyeB = 0.3925d0 
     reaction%debyeBdot = 0.0000d0
@@ -841,12 +841,12 @@ subroutine BasisInit_hpt(reaction,option)
     reaction%debyeBdot = 0.d0
   endif
 
-  if (option%reference_temperature <= reaction%dbase_temperatures(1)) then
+  if (option%flow%reference_temperature <= reaction%dbase_temperatures(1)) then
     itemp_low = 1
     itemp_high = 1
     temp_low = reaction%dbase_temperatures(itemp_low)
     temp_high = reaction%dbase_temperatures(itemp_high)
-  else if (option%reference_temperature > &
+  else if (option%flow%reference_temperature > &
            reaction%dbase_temperatures(reaction%num_dbase_temperatures)) then
     itemp_low = reaction%num_dbase_temperatures
     itemp_high = reaction%num_dbase_temperatures
@@ -858,8 +858,8 @@ subroutine BasisInit_hpt(reaction,option)
       itemp_high = itemp+1
       temp_low = reaction%dbase_temperatures(itemp_low)
       temp_high = reaction%dbase_temperatures(itemp_high)
-      if (option%reference_temperature > temp_low .and. &
-          option%reference_temperature <= temp_high) then
+      if (option%flow%reference_temperature > temp_low .and. &
+          option%flow%reference_temperature <= temp_high) then
         exit
       endif
     enddo
@@ -2241,7 +2241,7 @@ subroutine BasisInit_hpt(reaction,option)
           reaction%kinsrfcplx_forward_rate(isrfcplx) = cur_srfcplx%forward_rate
           if (Uninitialized(cur_srfcplx%backward_rate)) then
             ! backward rate will be calculated based on Kb = Kf * Keq
-            call Interpolate(temp_high,temp_low,option%reference_temperature, &
+            call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                              cur_srfcplx%dbaserxn%logK(itemp_high), &
                              cur_srfcplx%dbaserxn%logK(itemp_low), &
                              value)

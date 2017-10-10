@@ -299,15 +299,15 @@ subroutine THCAuxVarCompute(x,auxvar,global_auxvar, &
   global_auxvar%pres = x(1)  
   global_auxvar%temp = x(2)
  
-! auxvar%pc = option%reference_pressure - auxvar%pres
-  auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
+! auxvar%pc = option%flow%reference_pressure - auxvar%pres
+  auxvar%pc = option%flow%reference_pressure - global_auxvar%pres(1)
   auxvar%xmol(1) = 1.d0
   if (option%nflowspec > 1) auxvar%xmol(2:option%nflowspec) = x(3:option%nflowspec+1)   
 
 !***************  Liquid phase properties **************************
   auxvar%avgmw = FMWH2O
 
-  pw = option%reference_pressure
+  pw = option%flow%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
 !  if (auxvar%pc > 0.d0) then
@@ -446,19 +446,19 @@ subroutine THCAuxVarComputeIce(x, auxvar, global_auxvar, iphase, &
   
   ! Check if the capillary pressure is less than -100MPa
   
-  if (global_auxvar%pres(1) - option%reference_pressure < -1.d8 + 1.d0) then
-    global_auxvar%pres(1) = -1.d8 + option%reference_pressure + 1.d0
+  if (global_auxvar%pres(1) - option%flow%reference_pressure < -1.d8 + 1.d0) then
+    global_auxvar%pres(1) = -1.d8 + option%flow%reference_pressure + 1.d0
   endif
 
  
-  auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
+  auxvar%pc = option%flow%reference_pressure - global_auxvar%pres(1)
   auxvar%xmol(1) = 1.d0
   if (option%nflowspec > 1) auxvar%xmol(2:option%nflowspec) = x(3:option%nflowspec+1)   
 
 !***************  Liquid phase properties **************************
   auxvar%avgmw = FMWH2O
 
-  pw = option%reference_pressure
+  pw = option%flow%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
   if (auxvar%pc > 1.d0) then

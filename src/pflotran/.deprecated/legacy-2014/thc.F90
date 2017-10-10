@@ -426,7 +426,7 @@ subroutine THCCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
 
   if (dabs(option%pressure_dampening_factor) > 0.d0) then
     ! P^p+1 = P^p - dP^p
-    P_R = option%reference_pressure
+    P_R = option%flow%reference_pressure
     scale = option%pressure_dampening_factor
 
     call VecGetArrayF90(dP,dP_p,ierr);CHKERRQ(ierr)
@@ -1461,7 +1461,7 @@ subroutine THCAccumDerivative(thc_auxvar,global_auxvar,por,vol, &
     por1 = por
   else
     por1 = 1.d0-(1.d0-por)*exp(-1.d-10*(abs(global_auxvar%pres(1)- &
-                                       option%reference_pressure)))
+                                       option%flow%reference_pressure)))
   endif
   
   porXvol = por1*vol
@@ -1470,13 +1470,13 @@ subroutine THCAccumDerivative(thc_auxvar,global_auxvar,por,vol, &
     J(1,1) = (global_auxvar%sat(1)*thc_auxvar%dden_dp + &
              thc_auxvar%dsat_dp*global_auxvar%den(1))*porXvol
   else
-    tempreal = exp(-1.d-10*(abs(global_auxvar%pres(1)-option%reference_pressure)))
+    tempreal = exp(-1.d-10*(abs(global_auxvar%pres(1)-option%flow%reference_pressure)))
     J(1,1) = (global_auxvar%sat(1)*thc_auxvar%dden_dp + &
              thc_auxvar%dsat_dp*global_auxvar%den(1))*porXvol + &
              global_auxvar%sat(1)*global_auxvar%den(1)*vol*1.d-10* &
              (1.d0 - por)*tempreal*abs(global_auxvar%pres(1)- &
-             option%reference_pressure)/(global_auxvar%pres(1)- &
-             option%reference_pressure)
+             option%flow%reference_pressure)/(global_auxvar%pres(1)- &
+             option%flow%reference_pressure)
   endif
 #endif
 
@@ -1501,7 +1501,7 @@ subroutine THCAccumDerivative(thc_auxvar,global_auxvar,por,vol, &
      sat_i = thc_auxvar%sat_ice
      u_i = thc_auxvar%u_ice
      den_i = thc_auxvar%den_ice
-     p_g = option%reference_pressure ! set to reference pressure
+     p_g = option%flow%reference_pressure ! set to reference pressure
      den_g = p_g/(IDEAL_GAS_CONST*(global_auxvar%temp + 273.15d0))*1.d-3
      call EOSWaterSaturationPressure(global_auxvar%temp, p_sat, dpsat_dt, ierr)
      mol_g = p_sat/p_g
@@ -1566,7 +1566,7 @@ subroutine THCAccumDerivative(thc_auxvar,global_auxvar,por,vol, &
       
       if (option%use_th_freezing) then
          if (ideriv == 1) then
-            if (x_pert(ideriv) < option%reference_pressure) then
+            if (x_pert(ideriv) < option%flow%reference_pressure) then
                pert = - pert
             endif
             x_pert(ideriv) = x_pert(ideriv) + pert
@@ -1683,7 +1683,7 @@ subroutine THCAccumulation(auxvar,global_auxvar,por,vol, &
     por1 = por 
   else
     por1 = 1.d0-(1.d0-por)*exp(-1.d-10*(abs(global_auxvar%pres(1)- &
-                                       option%reference_pressure)))
+                                       option%flow%reference_pressure)))
   endif
   mol(1) = global_auxvar%sat(1)*global_auxvar%den(1)*por1*vol
 #endif
@@ -1702,7 +1702,7 @@ subroutine THCAccumulation(auxvar,global_auxvar,por,vol, &
      sat_i = auxvar%sat_ice
      u_i = auxvar%u_ice
      den_i = auxvar%den_ice
-     p_g = option%reference_pressure
+     p_g = option%flow%reference_pressure
      den_g = p_g/(IDEAL_GAS_CONST*(global_auxvar%temp + 273.15d0))*1.d-3 !in kmol/m3
      call EOSWaterSaturationPressure(global_auxvar%temp, p_sat, ierr)
      mol_g = p_sat/p_g
@@ -1989,7 +1989,7 @@ subroutine THCFluxDerivative(auxvar_up,global_auxvar_up,por_up,tor_up, &
        satg_up = auxvar_up%sat_gas
        satg_dn = auxvar_dn%sat_gas
        if ((satg_up > eps) .and. (satg_dn > eps)) then
-          p_g = option%reference_pressure  ! set to reference pressure
+          p_g = option%flow%reference_pressure  ! set to reference pressure
           deng_up = p_g/(IDEAL_GAS_CONST*(global_auxvar_up%temp + 273.15d0))*1.d-3
           deng_dn = p_g/(IDEAL_GAS_CONST*(global_auxvar_dn%temp + 273.15d0))*1.d-3
 
@@ -2236,12 +2236,12 @@ subroutine THCFluxDerivative(auxvar_up,global_auxvar_up,por_up,tor_up, &
 
       if (option%use_th_freezing) then      
          if (ideriv == 1) then
-            if (x_pert_up(ideriv) < option%reference_pressure) then
+            if (x_pert_up(ideriv) < option%flow%reference_pressure) then
                pert_up = - pert_up
             endif
             x_pert_up(ideriv) = x_pert_up(ideriv) + pert_up
       
-            if (x_pert_dn(ideriv) < option%reference_pressure) then
+            if (x_pert_dn(ideriv) < option%flow%reference_pressure) then
                pert_dn = - pert_dn
             endif
             x_pert_dn(ideriv) = x_pert_dn(ideriv) + pert_dn
@@ -2442,7 +2442,7 @@ subroutine THCFlux(auxvar_up,global_auxvar_up, &
      satg_up = auxvar_up%sat_gas
      satg_dn = auxvar_dn%sat_gas
      if ((satg_up > eps) .and. (satg_dn > eps)) then
-        p_g = option%reference_pressure ! set to reference pressure
+        p_g = option%flow%reference_pressure ! set to reference pressure
         deng_up = p_g/(IDEAL_GAS_CONST*(global_auxvar_up%temp + 273.15d0))*1.d-3
         deng_dn = p_g/(IDEAL_GAS_CONST*(global_auxvar_dn%temp + 273.15d0))*1.d-3
     
@@ -2653,7 +2653,7 @@ subroutine THCBCFluxDerivative(ibndtype,auxvars, &
 
         if (ibndtype(THC_PRESSURE_DOF) == SEEPAGE_BC) then
               ! flow in         ! boundary cell is <= pref
-          if (dphi > 0.d0 .and. global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+          if (dphi > 0.d0 .and. global_auxvar_up%pres(1)-option%flow%reference_pressure < eps) then
             dphi = 0.d0
             dphi_dp_dn = 0.d0
             dphi_dt_dn = 0.d0
@@ -2782,7 +2782,7 @@ subroutine THCBCFluxDerivative(ibndtype,auxvars, &
          satg_up = auxvar_up%sat_gas
          satg_dn = auxvar_dn%sat_gas
          if ((satg_up > eps) .and. (satg_dn > eps)) then
-            p_g = option%reference_pressure  ! set to reference pressure
+            p_g = option%flow%reference_pressure  ! set to reference pressure
             deng_up = p_g/(IDEAL_GAS_CONST*(global_auxvar_up%temp + &
                  273.15d0))*1.d-3
             deng_dn = p_g/(IDEAL_GAS_CONST*(global_auxvar_dn%temp + &
@@ -2883,7 +2883,7 @@ subroutine THCBCFluxDerivative(ibndtype,auxvars, &
      
       if (option%use_th_freezing) then
          if (ideriv == 1) then
-            if (x_pert_dn(ideriv) < option%reference_pressure) then
+            if (x_pert_dn(ideriv) < option%flow%reference_pressure) then
                pert_dn = - pert_dn
             endif
             x_pert_dn(ideriv) = x_pert_dn(ideriv) + pert_dn
@@ -3020,7 +3020,7 @@ subroutine THCBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
         if (ibndtype(THC_PRESSURE_DOF) == SEEPAGE_BC) then
               ! flow in         ! boundary cell is <= pref
-          if (dphi > 0.d0 .and. global_auxvar_up%pres(1) - option%reference_pressure < eps) then
+          if (dphi > 0.d0 .and. global_auxvar_up%pres(1) - option%flow%reference_pressure < eps) then
             dphi = 0.d0
           endif
         endif
@@ -3103,7 +3103,7 @@ subroutine THCBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
          satg_up = auxvar_up%sat_gas
          satg_dn = auxvar_dn%sat_gas
          if ((satg_up > eps) .and. (satg_dn > eps)) then
-            p_g = option%reference_pressure ! set to reference pressure
+            p_g = option%flow%reference_pressure ! set to reference pressure
             deng_up = p_g/(IDEAL_GAS_CONST*(global_auxvar_up%temp + 273.15d0))*1.d-3
             deng_dn = p_g/(IDEAL_GAS_CONST*(global_auxvar_dn%temp + 273.15d0))*1.d-3
         
