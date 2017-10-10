@@ -1108,10 +1108,10 @@ subroutine MFDComputeDensity(global_auxvar, pres, den, dden_dp, option)
   PetscReal :: dw_kg, dw_mol, dw_dp, dw_dt, hw, hw_dp, hw_dt
 
 
-  pc = option%reference_pressure - pres
+  pc = option%flow%reference_pressure - pres
 
   if (pc > 1.0) then
-    pw = option%reference_pressure
+    pw = option%flow%reference_pressure
   else 
     pw = pres
   endif

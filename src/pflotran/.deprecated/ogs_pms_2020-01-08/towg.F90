@@ -2895,7 +2895,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                 ! flow in         ! boundary cell is <= pref
             if (delta_pressure > 0.d0 .and. &
                 auxvar_up%pres(iphase) - &
-                 option%reference_pressure < eps) then
+                 option%flow%reference_pressure < eps) then
               delta_pressure = 0.d0
               if (analytical_derivatives) then !!!! CHECK is this correct?
                 D_delta_presure_up = 0.d0
@@ -3667,7 +3667,7 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
   dof_temp = towg_energy_dof
 
 
-  !ref_pressure=option%reference_pressure
+  !ref_pressure=option%flow%reference_pressure
   ref_pressure = 1.0D5 !used as Pb for dead oil injection
 
   if (analytical_derivatives) then

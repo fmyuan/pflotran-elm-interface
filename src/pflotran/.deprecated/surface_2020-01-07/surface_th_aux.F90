@@ -195,7 +195,7 @@ subroutine SurfaceTHAuxVarCompute(xx,auxvar,global_auxvar, &
 
 !***************  Liquid phase properties **************************
 
-  pw = option%reference_pressure
+  pw = option%flow%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
 

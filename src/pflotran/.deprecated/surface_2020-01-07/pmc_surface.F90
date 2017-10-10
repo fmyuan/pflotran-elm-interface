@@ -440,7 +440,7 @@ subroutine PMCSurfaceSetAuxData(this)
               istart = iend - this%option%nflowdof+1
               if (xx_loc_p(istart) < 1.d-8) then
                 surf_head_p(local_id) = 0.d0
-                surf_temp_p(local_id) = this%option%reference_temperature
+                surf_temp_p(local_id) = this%option%flow%reference_temperature
               else
                 surf_head_p(local_id) = xx_loc_p(istart)
                 surf_temp_p(local_id) = surf_global_auxvars(ghosted_id)%temp
@@ -561,8 +561,8 @@ subroutine PMCSurfaceGetAuxDataAfterRestart(this)
         select case(this%option%iflowmode)
           case (RICHARDS_MODE)
 
-            call EOSWaterdensity(this%option%reference_temperature, &
-                                 this%option%reference_pressure,den,dum1,ierr)
+            call EOSWaterdensity(this%option%flow%reference_temperature, &
+                                 this%option%flow%reference_pressure,den,dum1,ierr)
 
             call VecGetArrayF90(pmc%surf_realization%surf_field%flow_xx, xx_p,  &
                                 ierr);CHKERRQ(ierr)
@@ -576,7 +576,7 @@ subroutine PMCSurfaceGetAuxDataAfterRestart(this)
 
               count = count + 1
               surfpress_p(count) = xx_p(ghosted_id)*den*abs(this%option%gravity(3)) + &
-                                   this%option%reference_pressure
+                                   this%option%flow%reference_pressure
             enddo
             call VecRestoreArrayF90(pmc%surf_realization%surf_field%flow_xx, xx_p,  &
                                     ierr);CHKERRQ(ierr)
@@ -601,8 +601,8 @@ subroutine PMCSurfaceGetAuxDataAfterRestart(this)
             ! reference-temperature). Presently, SurfaceCheckpointProcessModel()
             ! does not output surface-water temperature for TH-Mode and the
             ! subroutine needs to be modified in future.
-            call EOSWaterdensity(this%option%reference_temperature, &
-                                 this%option%reference_pressure,den,dum1,ierr)
+            call EOSWaterdensity(this%option%flow%reference_temperature, &
+                                 this%option%flow%reference_pressure,den,dum1,ierr)
 
             surf_auxvars => pmc%surf_realization%patch%surf_aux%SurfaceTH%auxvars
 
@@ -623,7 +623,7 @@ subroutine PMCSurfaceGetAuxDataAfterRestart(this)
               iend = ghosted_id*this%option%nflowdof
               istart = iend - this%option%nflowdof+1
               surfpress_p(count) = xx_p(istart)*den*abs(this%option%gravity(3)) + &
-                                   this%option%reference_pressure
+                                   this%option%flow%reference_pressure
               surftemp_p = xx_p(iend)/xx_p(istart)/den/ &
                       surf_auxvars(ghosted_id)%Cwi - 273.15d0
             enddo

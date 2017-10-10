@@ -89,7 +89,7 @@ subroutine SurfaceGlobalAuxVarInit(auxvar,option)
   auxvar%is_dry = PETSC_FALSE
   allocate(auxvar%head(option%nphase))
   auxvar%head = 0.d0
-  auxvar%temp = option%reference_temperature
+  auxvar%temp = option%flow%reference_temperature
   allocate(auxvar%den_kg(option%nphase))
   auxvar%den_kg = 0.d0
 
