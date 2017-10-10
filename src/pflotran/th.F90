@@ -2604,7 +2604,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: dsatg_dt_dn, dsatg_dp_dn
   PetscReal :: Diffg_ref, p_ref, T_ref
   PetscErrorCode :: ierr
-  PetscReal :: v_darcy_allowable, temp_real
+  PetscReal :: v_darcy_allowable
+  PetscReal :: temp_real
   PetscReal :: dum1
   PetscReal :: T_th,fct,fctT,dfctT_dT
   PetscReal :: rho
@@ -2774,6 +2775,32 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           endif
 
         endif
+
+#ifdef CLM_PFLOTRAN
+        ! when coupled with CLM, 'pressure-type' BC due to water-column formed on the BC-contacted cell(s)
+        ! should not be producing 'darcy-flow' over standing water availability
+        ! NOTE: this IS not appropriate for 'injection' caused pressure-type BC.
+        temp_real = global_auxvar_up%pres(1) -  &
+                    max(global_auxvar_dn%pres(1), option%reference_pressure)
+        if (ibndtype(TH_PRESSURE_DOF) == DIRICHLET_BC .and. temp_real >= floweps) then
+          call EOSWaterdensity(option%reference_temperature, &
+                                option%reference_pressure,   &
+                                rho,dum1,ierr)
+
+          v_darcy_allowable = temp_real/option%flow_dt/(-option%gravity(3))/rho
+
+          if (v_darcy > v_darcy_allowable) then
+            v_darcy = v_darcy_allowable
+            q = v_darcy * area
+            ukvr = v_darcy/Dq/dphi
+            dq_dp_dn = Dq*(dukvr_dp_dn*dphi+ukvr*dphi_dp_dn)*area
+            dq_dt_dn = Dq*(dukvr_dt_dn*dphi+ukvr*dphi_dt_dn)*area
+          endif
+
+        endif     !if (ibndtype(TH_PRESSURE_DOF) == DIRICHLET_BC)
+#endif
+
+
       endif
 
     case(HET_SURF_SEEPAGE_BC)
@@ -3018,17 +3045,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
     duh_dt_dn = auxvar_dn%du_dt
   endif
 
-
-  !call InterfaceApprox(auxvar_up%h, auxvar_dn%h, &
-  !                     auxvar_up%dh_dp, auxvar_dn%dh_dp, &
-  !                     dphi, &
-  !                     option%rel_perm_aveg, &
-  !                     uh, dum1, duh_dp_dn)
-  !call InterfaceApprox(auxvar_up%h, auxvar_dn%h, &
-  !                     auxvar_up%dh_dt, auxvar_dn%dh_dt, &
-  !                     dphi, &
-  !                     option%rel_perm_aveg, &
-  !                     uh, dum1, duh_dt_dn)
       
   ! If only solving the energy equation, ensure Jdn(2,2) has no
   ! contribution from mass equation
@@ -3412,7 +3428,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   PetscReal :: Diffg_ref, p_ref, T_ref
   PetscErrorCode :: ierr
   PetscReal :: fv_up, fv_dn
-  PetscReal :: v_darcy_allowable
+  PetscReal :: v_darcy_allowable, temp_real
   PetscReal :: rho,dum1
   PetscReal :: q_approx, dq_approx
   PetscReal :: T_th,fctT,fct
@@ -3522,6 +3538,30 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
         if (ukvr*Dq>floweps) then
           v_darcy = Dq * ukvr * dphi
         endif
+
+
+#ifdef CLM_PFLOTRAN
+        ! when coupled with CLM, 'pressure-type' BC due to water-column formed on the BC-contacted cell(s)
+        ! should not be producing 'darcy-flow' over standing water availability
+        ! NOTE: this IS not appropriate for 'injection' caused pressure-type BC.
+        temp_real = global_auxvar_up%pres(1) -  &
+                    max(global_auxvar_dn%pres(1), option%reference_pressure)
+        if (ibndtype(TH_PRESSURE_DOF) == DIRICHLET_BC .and. temp_real >= floweps) then
+          call EOSWaterdensity(option%reference_temperature, &
+                                option%reference_pressure,   &
+                                rho,dum1,ierr)
+
+          v_darcy_allowable = temp_real/option%flow_dt/(-option%gravity(3))/rho
+
+          if (v_darcy > v_darcy_allowable) then
+            v_darcy = v_darcy_allowable
+            q = v_darcy * area
+          endif
+
+        endif     !if (ibndtype(TH_PRESSURE_DOF) == DIRICHLET_BC)
+#endif
+
+
       endif 
 
     case(HET_SURF_SEEPAGE_BC)
