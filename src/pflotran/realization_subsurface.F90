@@ -757,8 +757,6 @@ subroutine RealProcessMatPropAndSatFunc(realization)
   use Dataset_Common_HDF5_class
   use Dataset_module
   use Characteristic_Curves_Thermal_module
-  use TH_Aux_module, only : th_ice_model
-
 
   implicit none
 
@@ -853,7 +851,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           patch%material_property_array(i)%ptr%thermal_conductivity_frozen, &
           patch%material_property_array(i)%ptr%alpha, &
           patch%material_property_array(i)%ptr%alpha_fr, &
-          th_ice_model, &
+          option%th_ice_model, &
           option)
       else
         thermal_cc%thermal_conductivity_function => TCFDefaultCreate()
