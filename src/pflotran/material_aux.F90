@@ -38,8 +38,8 @@ module Material_Aux_class
   ! of permeability
   PetscInt :: perm_tens_to_scal_model = TENSOR_TO_SCALAR_LINEAR
   
-!  PetscInt, public :: soil_thermal_conductivity_index
-!  PetscInt, public :: soil_heat_capacity_index
+  PetscInt, public :: soil_thermal_conductivity_index
+  PetscInt, public :: soil_heat_capacity_index
   PetscInt, public :: soil_compressibility_index
   PetscInt, public :: soil_reference_pressure_index
   PetscInt, public :: max_material_index
@@ -748,14 +748,41 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   PetscReal :: compressibility
   PetscReal :: compression
   PetscReal :: tempreal
-  
+  PetscReal, parameter :: PMIN = 0.0d0, PMAX = 16.54d6
+
+#ifdef CLM_PFLOTRAN
+  ! F.-M. Yuan (2017-02-13): freezing caused expansion max. factor
+  ! (slightly larger, but not too much, than liq./ice denstiy ratio may be having better performance)
+  ! liq./ice density ratio ~ 1.09065 (999.8/916.7@0degC, see Characteristic_Curves.F90 for ice-pc calculation)
+  !                          or slightly less (ice density increases when temperature drops)
+  PetscReal, parameter :: F_EXPANSION = 1.150d0        ! slightly larger to hold uncertainty (due to density equations)
+  PetscReal, parameter :: MAX_POROSITY= 0.95d0
+
+  ! it's hard to prescribe a compressibility so that thawing caused expansion properly featured
+  tempreal = min(MAX_POROSITY/F_EXPANSION, auxvar%porosity_base)           ! max. base porosity check
+  compression = (1.d0-tempreal*F_EXPANSION)/(1.d0-tempreal)
+
+  ! Arbitrarily set 0.1-atm water head (over reference_pressure, i.e. equivalent of ~ 1 m water head)
+  ! for reaching Freezing-caused max. compressibility.
+  ! Setting this value too large cause difficulties of tiny-time during freezing, but neither can be too small
+  ! Tests shows it will vary with 'porosity_base' ranging from 1.d-4 ~ 1.d-9
+  compressibility = -log(compression) &
+      /(1.0d-1*auxvar%soil_properties(soil_reference_pressure_index))  !
+
+#else
+
   compressibility = auxvar%soil_properties(soil_compressibility_index)
+
+#endif
+
   compression = &
     exp(-1.d0 * compressibility * &
-        (pressure - auxvar%soil_properties(soil_reference_pressure_index)))
+      max(PMIN, min(PMAX, &
+          (pressure - auxvar%soil_properties(soil_reference_pressure_index)) ) ) )
   tempreal = (1.d0 - auxvar%porosity_base) * compression
   compressed_porosity = 1.d0 - tempreal
   dcompressed_porosity_dp = tempreal * compressibility
+  ! a note here: truncating derivative causes tiny-timing (unknown reason, but seems having digit issue @ pressure=reference)
   
 end subroutine MaterialCompressSoilLeijnse
 
