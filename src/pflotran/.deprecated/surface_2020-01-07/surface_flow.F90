@@ -986,8 +986,8 @@ subroutine SurfaceFlowUpdateSurfState(surf_realization)
   surf_field => surf_realization%surf_field
   surf_grid  => surf_realization%discretization%grid
   
-  call EOSWaterdensity(option%reference_temperature, &
-                       option%reference_pressure,den,dum1,ierr)
+  call EOSWaterdensity(option%flow%reference_temperature, &
+                       option%flow%reference_pressure,den,dum1,ierr)
 
   call VecGetArrayF90(surf_field%flow_xx, hw_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(surf_field%press_subsurf, surfpress_p,  &
@@ -995,7 +995,7 @@ subroutine SurfaceFlowUpdateSurfState(surf_realization)
 
   do local_id = 1,surf_grid%nlmax
 
-    hw_p(local_id) = (surfpress_p(local_id)-option%reference_pressure)/ &
+    hw_p(local_id) = (surfpress_p(local_id)-option%flow%reference_pressure)/ &
                         (abs(option%gravity(3)))/den
     if (hw_p(local_id)<1.d-15) hw_p(local_id) = 0.d0
 

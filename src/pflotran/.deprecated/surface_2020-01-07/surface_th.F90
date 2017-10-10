@@ -1324,10 +1324,10 @@ subroutine SurfaceTHUpdateTemperature(surf_realization)
                                         xx_loc_p(istart), &
                                         xx_loc_p(iend), &
                                         surf_auxvars(ghosted_id)%Cwi, &
-                                        option%reference_pressure,option)
+                                        option%flow%reference_pressure,option)
     endif
     surf_global_auxvars(ghosted_id)%temp = temp
-    call EOSWaterdensity(temp,option%reference_pressure,den,dum1,ierr)
+    call EOSWaterdensity(temp,option%flow%reference_pressure,den,dum1,ierr)
     surf_global_auxvars(ghosted_id)%den_kg(1) = den
   enddo
 
@@ -1418,10 +1418,10 @@ subroutine SurfaceTHUpdateSurfState(surf_realization)
 
     ! Compute density
     count = count + 1
-    call EOSWaterdensity(surftemp_p(count),option%reference_pressure,den,dum1,ierr)
-    xx_p(ibeg) = (surfpress_p(count)-option%reference_pressure)/ &
+    call EOSWaterdensity(surftemp_p(count),option%flow%reference_pressure,den,dum1,ierr)
+    xx_p(ibeg) = (surfpress_p(count)-option%flow%reference_pressure)/ &
                         (abs(option%gravity(3)))/den
-    if (surfpress_p(count)-option%reference_pressure < 1.0d-8) then
+    if (surfpress_p(count)-option%flow%reference_pressure < 1.0d-8) then
       xx_p(ibeg) = 0.d0
       xx_p(iend) = 0.d0
     else
@@ -1616,16 +1616,16 @@ subroutine SurfaceTHImplicitAtmForcing(surf_realization)
 
           if (head > MIN_SURFACE_WATER_HEIGHT) then
 
-            call EOSWaterdensity(temp_old,option%reference_pressure,den_old,dum1,ierr)
-            call EOSWaterdensity(temp_old,option%reference_pressure,den_iter,dum1,ierr)
+            call EOSWaterdensity(temp_old,option%flow%reference_pressure,den_old,dum1,ierr)
+            call EOSWaterdensity(temp_old,option%flow%reference_pressure,den_iter,dum1,ierr)
 
             TL    = -100.d0
             TR    =  100.d0
             beta  = (2.d0*k_therm*option%surf_flow_dt)/(Cw*head**2.d0)
             RHS   =  den_old*(temp_old+273.15d0)+beta*(surf_global_auxvars_ss(sum_connection)%temp+273.15d0)
-            call AtmEnergyToTemperatureBisection(temp,TL,TR,beta,RHS,option%reference_pressure,option)
+            call AtmEnergyToTemperatureBisection(temp,TL,TR,beta,RHS,option%flow%reference_pressure,option)
 
-            call EOSWaterdensity(temp,option%reference_pressure,den_iter,dum1,ierr)
+            call EOSWaterdensity(temp,option%flow%reference_pressure,den_iter,dum1,ierr)
             surf_global_auxvars(ghosted_id)%temp = temp
 
             iend = local_id*option%nflowdof
