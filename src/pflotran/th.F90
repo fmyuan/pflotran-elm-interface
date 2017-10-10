@@ -1349,7 +1349,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
                               compressed_porosity,dcompressed_porosity_dp)
     por = compressed_porosity
   else
-    por = material_auxvar%porosity
+    por = material_auxvar%porosity_base
     dcompressed_porosity_dp = 0.d0
   endif
 
@@ -1558,7 +1558,7 @@ subroutine THAccumulation(auxvar,global_auxvar, &
     material_auxvar%porosity = compressed_porosity
     por = compressed_porosity
   else
-    por = material_auxvar%porosity
+    por = material_auxvar%porosity_base
   endif
   auxvar%transient_por = por
 
@@ -2604,7 +2604,9 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: ugas_ave, dugas_ave_dt, dugas_ave_dp, fdiffgas, fdiffgas_dx
   PetscReal :: deltaTf
 
+  PetscBool :: skip_mass_flow
   skip_thermal_conduction = PETSC_FALSE
+  skip_mass_flow = PETSC_FALSE
   T_th  = 0.5d0
 
   fluxm = 0.d0
@@ -6198,8 +6200,9 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                    iphase, &
                                    saturation_function, &
                                    th_parameter, &
-                                   ithrm_dn, &
+                                   ithrm_up, &
                                    option)
+
   endif
 
   if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_max%sat(1) > sir_dn) then
