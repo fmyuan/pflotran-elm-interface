@@ -760,6 +760,16 @@ subroutine THUpdateAuxVarsPatch(realization)
             xxbc(idof) = boundary_condition%flow_aux_real_var(idof,iconn)
           case(NEUMANN_BC,ZERO_GRADIENT_BC)
             xxbc(idof) = xx_loc_p((ghosted_id-1)*option%nflowdof+idof)
+
+            ! a special situation of flow-in, in which NO heat-conduction/diffusion,
+            ! but with bulk-heat flux defined by fluid itself rather than boundary-cell.
+            if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC .and. &
+                boundary_condition%flow_aux_real_var(TH_PRESSURE_DOF,iconn) > floweps) then
+
+              if(boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) /= UNINITIALIZED_DOUBLE) &
+              xxbc(TH_TEMPERATURE_DOF) = boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn)
+            endif
+
         end select
       enddo
       
