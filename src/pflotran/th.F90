@@ -2610,11 +2610,12 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: rho
   PetscReal :: dq_lin,dP_lin
   PetscReal :: q_approx,dq_approx
-  PetscBool :: skip_thermal_conduction
-  PetscReal :: ugas_ave, dugas_ave_dt, dugas_ave_dp, fdiffgas, fdiffgas_dx
-  PetscReal :: deltaTf
+  PetscBool :: skip_thermal_conduction, skip_mass_flow
+  PetscReal :: ugas_ave, dugas_ave_dt, dugas_ave_dp
+  PetscReal :: deltaTf, fdiffgas, fdiffgas_dx
 
-  PetscBool :: skip_mass_flow
+  !---------------------------------------------------------
+
   skip_thermal_conduction = PETSC_FALSE
   skip_mass_flow = PETSC_FALSE
   T_th  = 0.5d0
@@ -2696,27 +2697,46 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
 
         else
-          dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
-          dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + &
+          if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC .or. &
+              ibndtype(TH_PRESSURE_DOF) == HET_SEEPAGE_BC) then
+            ! F.-M. Yuan: SEEPAGE_BC outlet 'pres(1)' is for water table,
+            ! while %pres_fh2o may be incorrect due to its %temp usually as first soil layer or external input
+            dphi = global_auxvar_up%pres(1) - auxvar_dn%ice%pres_fh2o + gravity
+            dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + &
                         dgravity_dden_dn*auxvar_dn%dden_dp
-          dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + &
+            dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + &
                         dgravity_dden_dn*auxvar_dn%dden_dt
+
+          else
+            dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
+            dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + &
+                        dgravity_dden_dn*auxvar_dn%dden_dp
+            dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + &
+                        dgravity_dden_dn*auxvar_dn%dden_dt
+          endif
         endif
 
-        select case(ibndtype(TH_PRESSURE_DOF))
-          case(SEEPAGE_BC,CONDUCTANCE_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
-            ! boundary cell is <= pref 
-            if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
-              ! skip thermal conduction whenever water table is lower than cell
-              skip_thermal_conduction = PETSC_TRUE
-              ! flow inward
-              if (dphi > 0.d0) then
-                dphi = 0.d0
-                dphi_dp_dn = 0.d0
-                dphi_dt_dn = 0.d0
-              endif
+        if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC .or. &
+            ibndtype(TH_PRESSURE_DOF) == CONDUCTANCE_BC .or. &
+            ibndtype(TH_PRESSURE_DOF) == HET_SEEPAGE_BC .or. &
+            ibndtype(TH_PRESSURE_DOF) == HET_CONDUCTANCE_BC &
+           ) then
+          ! boundary cell is <= pref 
+          ! commenting out the following 'if ... endif' block
+          ! so that always shut-off 'flow-in' because boundary-cells CAN be under water-table
+          !if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+            ! skip thermal conduction whenever water table is lower than cell
+            skip_thermal_conduction = PETSC_TRUE
+            ! flow inward
+            if (dphi >= 0.d0) then
+              dphi = 0.d0
+              dphi_dp_dn = 0.d0
+              dphi_dt_dn = 0.d0
+              skip_mass_flow = PETSC_TRUE   ! also shut-off other (e.g. gas) mass flow, if any
             endif
-        end select
+
+          !endif
+        endif
 
         if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
                                    !( dgravity_dden_up                   ) (dden_dt_up)
@@ -2747,6 +2767,13 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           q = v_darcy * area
           dq_dp_dn = Dq*(dukvr_dp_dn*dphi+ukvr*dphi_dp_dn)*area
           dq_dt_dn = Dq*(dukvr_dt_dn*dphi+ukvr*dphi_dt_dn)*area
+
+          ! for SEEPAGE_BC: if conduction OFF, Q W.r.t T should be off as well.
+          ! i.e. no permissivity dependence on T.
+          if(skip_thermal_conduction) then
+            dq_dt_dn = 0.d0
+          endif
+
         endif
       endif
 
@@ -2956,10 +2983,14 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           dden_ave_dt_dn = auxvar_dn%dden_dt
         endif 
         q = v_darcy * area
+
       endif
 
     case(ZERO_GRADIENT_BC)
-      ! do nothing
+      ! do nothing, but by-passing default
+
+      ! if flux-type BC for T, the fluid is totally energy form without mass (may not be needed, but just in case)
+      if(ibndtype(TH_TEMPERATURE_DOF) == NEUMANN_BC) skip_mass_flow = PETSC_TRUE
 
   end select
 
@@ -3095,7 +3126,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           endif
         endif
       endif
-      if (option%use_th_freezing) then
+      if (option%use_th_freezing .and. (.not.skip_mass_flow)) then
         ! Added by Satish Karra, 11/21/11
         satg_up = auxvar_up%ice%sat_gas
         satg_dn = auxvar_dn%ice%sat_gas
@@ -3244,11 +3275,12 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   PetscReal :: rho,dum1
   PetscReal :: q_approx, dq_approx
   PetscReal :: T_th,fctT,fct
-  PetscBool :: skip_thermal_conduction
+  PetscBool :: skip_thermal_conduction,  skip_mass_flow
   PetscReal :: deltaTF, fdiffgas, ugas_ave
 
-
+  !--------------------------------------------------------------------
   skip_thermal_conduction = PETSC_FALSE
+  skip_mass_flow = PETSC_FALSE
   T_th  = 0.5d0
 
   fluxm = 0.d0
@@ -3301,22 +3333,39 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
         if (option%ice_model /= DALL_AMICO &
             .and.option%ice_model /= PAINTER_KARRA_EXPLICIT_SMOOTH) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
+
         else
-          dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
+          if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC .or. &
+              ibndtype(TH_PRESSURE_DOF) == HET_SEEPAGE_BC) then
+          ! F.-M. Yuan: SEEPAGE_BC outlet 'pres(1)' is for water table,
+          ! while %pres_fh2o may be incorrect due to its %temp usually as first soil layer or external input
+            dphi = global_auxvar_up%pres(1) - auxvar_dn%ice%pres_fh2o + gravity
+
+          else
+            dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
+          endif
+
         endif
 
-        select case(ibndtype(TH_PRESSURE_DOF))
-          case(SEEPAGE_BC,CONDUCTANCE_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
-            ! boundary cell is <= pref 
-            if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
-              ! skip thermal conduction whenever water table is lower than cell
-              skip_thermal_conduction = PETSC_TRUE
-              ! flow inward
-              if (dphi > 0.d0) then
-                dphi = 0.d0
-              endif
+        if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC .or. &
+            ibndtype(TH_PRESSURE_DOF) == CONDUCTANCE_BC .or. &
+            ibndtype(TH_PRESSURE_DOF) == HET_SEEPAGE_BC .or. &
+            ibndtype(TH_PRESSURE_DOF) == HET_CONDUCTANCE_BC &
+           ) then
+          ! boundary cell is <= pref 
+
+          ! commenting out the following 'if ... endif' block
+          ! so that always shut-off 'flow-in' because boundary-cells CAN be under water-table
+          !if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+            ! skip thermal conduction whenever water table is lower than cell
+            skip_thermal_conduction = PETSC_TRUE
+            ! flow inward
+            if (dphi > 0.d0) then
+              dphi = 0.d0
+              skip_mass_flow = PETSC_TRUE    ! also shut-off other (e.g. gas) flow, if any
             endif
-        end select
+          !endif
+        endif
         
         if (dphi>=0.D0) then
           ukvr = auxvar_up%kvr
@@ -3447,14 +3496,17 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
         else 
           density_ave = global_auxvar_dn%den(1)
         endif 
+
       endif
 
     case(ZERO_GRADIENT_BC)
-      ! do nothing needed to bypass default case
+
+      ! if flux-type BC for T, the fluid is totally energy form without mass
+      ! (in this case, any 'aux_var%' calculation involving PRESSURE_DOF will virtually use boundary-cell's.)
+      if(ibndtype(TH_TEMPERATURE_DOF) == NEUMANN_BC) skip_mass_flow = PETSC_TRUE
 
     case default
-      option%io_buffer = 'BC type "' // &
-        trim(GetSubConditionName(ibndtype(TH_PRESSURE_DOF))) // &
+      option%io_buffer = 'BC type for H: "' // trim(GetSubConditionName(ibndtype(TH_PRESSURE_DOF))) // &
         '" not implemented in TH mode.'
       call printErrMsg(option)
 
@@ -3514,7 +3566,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       fluxe = fluxe + cond
       fluxe_cond = cond
 
-      if (option%use_th_freezing) then
+      if (option%use_th_freezing .and. (.not.skip_mass_flow)) then
         ! Added by Satish Karra,
         satg_up = auxvar_up%ice%sat_gas
         satg_dn = auxvar_dn%ice%sat_gas
@@ -3546,7 +3598,8 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
             ugas_ave = auxvar_dn%ice%u_gas
           endif
 
-          if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
+          if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC .or. &
+              ibndtype(TH_PRESSURE_DOF) == HET_SEEPAGE_BC) then
             deltaTf = 1.0d-10              ! half-width of smoothing zone of Freezing-Thawing (by default, nearly NO smoothing)
             if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = max(deltaTf,option%frzthw_halfwidth)
             if(global_auxvar_dn%temp<=deltaTF) then   ! when iced-water exists, shut-off heat bulk outlet
