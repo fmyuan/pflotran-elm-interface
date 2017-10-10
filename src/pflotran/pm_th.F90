@@ -168,15 +168,15 @@ subroutine PMTHReadSimOptionsBlock(this,input)
         call StringToUpper(keyword)
         select case (trim(keyword))
           case ('PAINTER_EXPLICIT')
-            th_ice_model = PAINTER_EXPLICIT
+            option%th_ice_model = PAINTER_EXPLICIT
           case ('PAINTER_KARRA_IMPLICIT')
-            th_ice_model = PAINTER_KARRA_IMPLICIT
+            option%th_ice_model = PAINTER_KARRA_IMPLICIT
           case ('PAINTER_KARRA_EXPLICIT')
-            th_ice_model = PAINTER_KARRA_EXPLICIT
+            option%th_ice_model = PAINTER_KARRA_EXPLICIT
           case ('PAINTER_KARRA_EXPLICIT_NOCRYO')
-            th_ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
+            option%th_ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
           case ('DALL_AMICO')
-            th_ice_model = DALL_AMICO
+            option%th_ice_model = DALL_AMICO
           case default
             option%io_buffer = 'Cannot identify the specificed ice model. &
              &Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT &
