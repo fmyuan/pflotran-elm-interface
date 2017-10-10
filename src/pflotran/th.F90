@@ -2616,6 +2616,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: deltaTf
 
   PetscBool :: skip_mass_flow
+
+!----------------------------------------------------------------------------------------
   skip_thermal_conduction = PETSC_FALSE
   skip_mass_flow = PETSC_FALSE
   T_th  = 0.5d0
@@ -3226,7 +3228,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
     Jdn(option%nflowdof,1) = 0.d0
   endif
 
-
+#if 0
   if (option%flow%numerical_derivatives) then
     allocate(material_auxvar_pert_up,material_auxvar_pert_dn)
 
@@ -3363,7 +3365,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
     call GlobalAuxVarStrip(global_auxvar_pert_up)
     call GlobalAuxVarStrip(global_auxvar_pert_dn)      
   endif
-
+#endif
 
 end subroutine THBCFluxDerivative
 
@@ -4255,6 +4257,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
             1.d-10) cycle
       endif
 
+#if 0
       fraction_upwind = cur_connection_set%dist(-1,iconn)
       distance = cur_connection_set%dist(0,iconn)
       ! distance = scalar - magnitude of distance
@@ -4269,6 +4272,14 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       ! however, this introduces ever so slight error causing pflow-overhaul not
       ! to match pflow-orig.  This can be changed to 1.d0-fraction_upwind
       upweight = dd_dn/(dd_up+dd_dn)
+
+
+! better to use the following to avoid inconsistence (fmyuan)
+#else
+      call ConnectionCalculateDistances(cur_connection_set%dist(:,iconn), &
+                                    option%gravity,dd_up,dd_dn, &
+                                    distance_gravity,upweight)
+#endif
         
       ithrm_up = int(ithrm_loc_p(ghosted_id_up))
       ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
@@ -4827,7 +4838,8 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
 
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
-   
+
+#if 0
       fraction_upwind = cur_connection_set%dist(-1,iconn)
       distance = cur_connection_set%dist(0,iconn)
       ! distance = scalar - magnitude of distance
@@ -4842,6 +4854,14 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
       ! however, this introduces ever so slight error causing pflow-overhaul not
       ! to match pflow-orig.  This can be changed to 1.d0-fraction_upwind
       upweight = dd_dn/(dd_up+dd_dn)
+
+
+! better to use the following to avoid inconsistence
+#else
+      call ConnectionCalculateDistances(cur_connection_set%dist(:,iconn), &
+                                    option%gravity,dd_up,dd_dn, &
+                                    distance_gravity,upweight)
+#endif
     
       ithrm_up = int(ithrm_loc_p(ghosted_id_up))
       ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
