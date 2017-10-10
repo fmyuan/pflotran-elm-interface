@@ -1326,10 +1326,10 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   procedure(MaterialCompressSoilDummy), pointer :: &
     MaterialCompressSoilPtrTmp 
   
-!  soil_thermal_conductivity_index = 0
-!  soil_heat_capacity_index = 0
   soil_compressibility_index = 0
   soil_reference_pressure_index = 0
+  soil_heat_capacity_index = 0
+  soil_thermal_conductivity_index = 0
   max_material_index = 0
   
   num_material_properties = size(material_property_ptrs)
@@ -1390,16 +1390,16 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       endif
       num_soil_ref_press = num_soil_ref_press + 1
     endif
-!    if (material_property_ptrs(i)%ptr%specific_heat > 0.d0 .and. &
-!        soil_heat_capacity_index == 0) then
-!      icount = icount + 1
-!      soil_heat_capacity_index = icount
-!    endif
-!    if (material_property_ptrs(i)%ptr%thermal_conductivity_wet > 0.d0 .and. &
-!        soil_thermal_conductivity_index == 0) then
-!      icount = icount + 1
-!      soil_thermal_conductivity_index = icount
-!    endif
+    if (material_property_ptrs(i)%ptr%specific_heat > 0.d0 .and. &
+        soil_heat_capacity_index == 0) then
+      icount = icount + 1
+      soil_heat_capacity_index = icount
+    endif
+    if (material_property_ptrs(i)%ptr%thermal_conductivity_wet > 0.d0 .and. &
+        soil_thermal_conductivity_index == 0) then
+      icount = icount + 1
+      soil_thermal_conductivity_index = icount
+    endif
   enddo
   max_material_index = icount
   
@@ -1480,14 +1480,14 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
         material_property%soil_reference_pressure
     endif
   endif
-!  if (soil_heat_capacity_index > 0) then
-!    material_auxvar%soil_properties(soil_heat_capacity_index) = &
-!      material_property%specific_heat
-!  endif
-!  if (soil_thermal_conductivity_index > 0) then
-!    material_auxvar%soil_properties(soil_thermal_conductivity_index) = &
-!      material_property%thermal_conductivity_wet
-!  endif
+  if (soil_heat_capacity_index > 0) then
+    material_auxvar%soil_properties(soil_heat_capacity_index) = &
+      material_property%specific_heat
+  endif
+  if (soil_thermal_conductivity_index > 0) then
+    material_auxvar%soil_properties(soil_thermal_conductivity_index) = &
+      material_property%thermal_conductivity_wet
+  endif
   
 end subroutine MaterialAssignPropertyToAux
 
