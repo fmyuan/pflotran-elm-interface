@@ -3877,7 +3877,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   PetscReal :: well_inj_water
   PetscReal :: Dq, dphi, v_darcy, ukvr
 
-  PetscInt :: iconn, idof, istart, iend
+  PetscInt :: iconn, idof, istart, iend, ii
   PetscInt :: sum_connection
   PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity
@@ -3950,6 +3950,17 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
                         TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
                         option,vol_frac_prim,Res)
     r_p(istart:iend) = r_p(istart:iend) + Res
+
+
+    do ii=1,option%nflowdof
+      if(Res(ii) /= Res(ii) .or. abs(Res(ii))>huge(Res(ii)) ) then
+        write(string,*) 'local_id: ', local_id, 'Res: ', ii, Res(ii)
+        option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - Accumulation of ' // &
+          trim(string)
+        call printErrMsg(option)
+      endif
+    enddo
+
   enddo
 
 
@@ -4095,6 +4106,15 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
         patch%ss_flow_fluxes(1,sum_connection) = qsrc1
       endif
 
+      Res = Res_src
+      do ii=1,option%nflowdof
+        if(Res(ii) /= Res(ii) .or. abs(Res(ii))>huge(Res(ii)) ) then
+          write(string, *) ' name -', source_sink%name, ' @local_id -', local_id, 'with Res -', ii, Res(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - source_sink of ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
 
     enddo
     source_sink => source_sink%next
@@ -4198,6 +4218,15 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
         r_p(istart:iend) = r_p(istart:iend) - Res(1:option%nflowdof)
       endif
 
+      do ii=1,option%nflowdof
+        if(Res(ii) /= Res(ii) .or. abs(Res(ii))>huge(Res(ii)) ) then
+          write(string, *) ' @local_id -', local_id_up, local_id_dn, ' with Res -', ii, Res(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - interior flux between ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
+
     enddo
     cur_connection_set => cur_connection_set%next
   enddo    
@@ -4262,6 +4291,16 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
       r_p(istart:iend)= r_p(istart:iend) - Res(1:option%nflowdof)
+
+      do ii=1,option%nflowdof
+        if(Res(ii) /= Res(ii) .or. abs(Res(ii))>huge(Res(ii)) ) then
+          write(string, *) ' name -', boundary_condition%name, ' @local_id -', local_id, 'with Res -', ii, Res(ii)
+          option%io_buffer = ' NaN or INF of Residuals @ th.F90: THResidualPatch - boundary_condition of ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
+
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -4534,6 +4573,19 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
       Jup(option%nflowdof,2) = Jup(option%nflowdof,2) - &
                                jac_sec_heat*material_auxvars(ghosted_id)%volume
     endif
+
+    do ii=1,option%nflowdof
+      do jj=1,option%nflowdof
+        if(Jup(ii,jj) /= Jup(ii,jj) &
+           .or. abs(Jup(ii,jj))>huge(Jup(ii,jj)) ) then
+          write(string, *) ' @local_id -', local_id, 'with Jacobin -', ii,jj,Jup(ii,jj)
+          option%io_buffer = ' NaN or INF of Jacobians @ th.F90: THJacobinPatch - Accumulation ' // &
+            trim(string)
+          call printErrMsg(option)
+        endif
+      enddo
+    enddo
+
                             
     ! scale by the volume of the cell
     Jup = Jup/material_auxvars(ghosted_id)%volume
@@ -4609,6 +4661,18 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
         istart = ghosted_id*option%nflowdof
       endif
       
+      do ii=1,option%nflowdof
+        do jj=1,option%nflowdof
+          if(Jsrc(ii,jj) /= Jsrc(ii,jj) &
+             .or. abs(Jsrc(ii,jj))>huge(Jsrc(ii,jj)) ) then
+            write(string, *) ' name -', source_sink%name, ' @local_id -', local_id, 'with Jacobin -', ii,jj, Jsrc
+            option%io_buffer = ' NaN or INF of Jacobians @ th.F90: THJacobinPatch - Source_Sink of ' // &
+              trim(string)
+            call printErrMsg(option)
+          endif
+        enddo
+      enddo
+
       ! scale by the volume of the cell
       Jsrc = Jsrc/material_auxvars(ghosted_id)%volume
          
@@ -4724,6 +4788,20 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                              TH_parameter, &
                              Jup,Jdn)
       
+      do ii=1,option%nflowdof
+        do jj=1,option%nflowdof
+          if(Jup(ii,jj) /= Jup(ii,jj) .or. Jdn(ii,jj) /= Jdn(ii,jj) &
+             .or. abs(Jup(ii,jj))>huge(Jup(ii,jj)) .or. abs(Jdn(ii,jj))>huge(Jdn(ii,jj)) ) then
+            write(string, *) ' between local_id up/dn -', local_id_up, local_id_dn, &
+                'with Jacobin -', ii,jj, Jup(ii,jj), Jdn(ii,jj)
+            option%io_buffer = ' NaN or INF of Jacobians @ th.F90: THJacobinPatch - Interior flux ' // &
+                trim(string)
+            call printErrMsg(option)
+          endif
+        enddo
+      enddo
+
+
 !  scale by the volume of the cell                      
       
       if (local_id_up > 0) then
@@ -4814,7 +4892,19 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                               Dk_dry_dn,Dk_ice_dn, &
                               Jdn)
       Jdn = -Jdn
-  
+
+      do ii=1,option%nflowdof
+        do jj=1,option%nflowdof
+          if(Jdn(ii,jj) /= Jdn(ii,jj) .or. &
+             abs(Jdn(ii,jj))>huge(Jdn(ii,jj)) ) then
+            write(string, *) ' name -', boundary_condition%name, ' @local_id -', local_id, 'with Jacobin -', ii,jj, Jdn(ii,jj)
+            option%io_buffer = ' NaN or INF of Jacobians @ th.F90: THJacobinPatch - Boundary_Condition of ' // &
+                trim(string)
+            call printErrMsg(option)
+          endif
+        enddo
+      enddo
+
       !  scale by the volume of the cell
       Jdn = Jdn/material_auxvars(ghosted_id)%volume
       
