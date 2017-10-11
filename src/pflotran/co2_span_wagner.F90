@@ -39,7 +39,8 @@
       PetscReal ,private, allocatable :: co2_prop_spwag(:,:,:)
       PetscReal, private :: p,t,rhosav
 
-      public initialize_span_wagner, co2_span_wagner, vappr
+      public initialize_span_wagner, co2_span_wagner, vappr, &
+             co2_span_wagner_db_write
 
       private
 
@@ -1599,5 +1600,181 @@ subroutine dissco2(p,t,mco2,fg,mol)
       p = p*0.1d0
 
 end subroutine dissco2
+
+
+! ************************************************************************** !
+
+subroutine co2_span_wagner_db_write(temparray,filename,option)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 07/25/17
+  ! 
+  ! Write CO2 database using the Span and Wagner EOS in co2_span_wagner_module
+  !
+  ! Input: temparray(1:10)
+  !         temparray(1:3) = press_min, press_max, press_delta
+  !         temparray(4:6) = temp_min, temp_max, temp_delta
+  !         temparray(6:10) = UNINITIALIZED_DOUBLE
+  !       option = pflotran option object 
+  !       Units:
+  !       P[Pa]
+  !       T[C]
+  ! I/O   filename = name of the CO2 database file to write 
+  !       
+  ! output: I/O rank writes CO2 database file on disk
+  !         if the input filename is empty will be overwritten by a default
+  !         option 
+
+  use Option_module
+
+  implicit none
+
+  PetscReal, intent(in) :: temparray(10)
+  type(option_type), intent(inout) :: option
+  character(len=MAXWORDLENGTH), intent(inout) :: filename  
+ 
+  PetscReal :: press_min, press_max, press_delta
+  PetscReal :: temp_min, temp_max, temp_delta
+  PetscReal :: tmp, tmp2, press, temp
+  PetscReal, pointer :: co2_properties(:,:,:)
+  PetscInt :: n_tab_press, n_tab_temp, n_sub_tab
+  PetscInt :: myrank, itable, iflag
+  PetscInt :: i,j
+  PetscInt :: status
+
+  press_min = temparray(1)
+  press_max = temparray(2)
+  press_delta = temparray(3)
+  temp_min = temparray(4)
+  temp_max = temparray(5)
+  temp_delta = temparray(6)
+
+  !PO TODO: must add:
+  ! - checks user inputs for consistency between min max and delta values
+  ! - add unit conversion to allow P, T ranges and deltas to be entered in
+  !   different units than C and MPa. To be done in eos_read.
+  ! - control round-off of deltas to avoid issues with writting datbase
+  !   in a datafile 
+
+  !set default ranges and steps
+  if (press_min == UNINITIALIZED_DOUBLE ) then 
+    press_min = 0.01d0 
+  else 
+    press_min = press_min * 1.0d-6 !convert to MPa
+  end if
+
+  if (press_max == UNINITIALIZED_DOUBLE ) then 
+    press_max = 250.01d0 
+  else 
+    press_max = press_max * 1.0d-6 !MPa
+  end if
+
+  if (press_delta == UNINITIALIZED_DOUBLE ) then 
+    press_delta = 0.5d0 !MPa 
+  else 
+    press_delta = press_delta * 1.0d-6 !MPa
+    n_sub_tab = int(press_delta/0.001d0)
+    press_delta = n_sub_tab * 0.001d0  
+  end if
+  
+  n_tab_press = int( (press_max - press_min ) / press_delta ) + 1
+
+  if (temp_min == UNINITIALIZED_DOUBLE ) then 
+    temp_min = 0.0d0 + 273.15D0 !temp in Kelvin
+  else 
+    temp_min = temp_min + 273.15D0 !convert to K
+  end if
+
+  if (temp_max == UNINITIALIZED_DOUBLE ) then 
+    temp_max = 375.0d0 + 273.15D0 !Kelvin
+  else 
+    temp_max = temp_max + 273.15D0 !convert to K
+  end if
+
+  if (temp_delta == UNINITIALIZED_DOUBLE ) then 
+    temp_delta = 2.5d0 !k 
+  else 
+    n_sub_tab = int(temp_delta/0.01d0)
+    temp_delta = n_sub_tab * 0.01d0  
+  end if
+
+  n_tab_temp = int( dabs(temp_max - temp_min ) / temp_delta ) + 1
+
+  if (len(trim(filename)) < 2) then
+    filename = "co2datbase_eos.dat"
+  end if
+
+  option%co2_database_filename = filename
+
+  myrank=0; itable=0;
+  call initialize_span_wagner(itable,myrank,option)
+ 
+  !code snippet taken from PFLOTRAN Span and Wagner original implementation
+  ! Generate the table: 3 dimensional array
+  !  1 p,     2  T
+  !  3 rho    4 dddt,  5 dddp,
+  !  6 fg,    7 dfgdp, 8 dfgdt
+  !  9 eng (internal energy),  
+  ! 10 ent,  11 dhdt, 12 dhdp,
+  ! 13 visc, 14 dvdt, 15 dvdp
+
+  allocate(co2_properties(0:n_tab_press,0:n_tab_temp,1:15))
+ 
+  iflag = 0         
+  tmp2=0.D0    
+  do i = 0,n_tab_press
+    tmp=tmp2
+    press = press_min + press_delta * real(i)
+     
+    do j = 0, n_tab_temp
+      temp = temp_min + temp_delta * real(j)
+        
+      co2_properties(i,j,1) = press
+      co2_properties(i,j,2) = temp
+      co2_properties(i,j,3) = tmp
+      call co2_span_wagner(press,temp,co2_properties(i,j,3), &
+        co2_properties(i,j,4),co2_properties(i,j,5),co2_properties(i,j,6), &
+        co2_properties(i,j,7),co2_properties(i,j,8),co2_properties(i,j,9), &
+        co2_properties(i,j,10),co2_properties(i,j,11),co2_properties(i,j,12),&
+        co2_properties(i,j,13), co2_properties(i,j,14), &
+        co2_properties(i,j,15),iflag)
+      !update density inital guess
+      tmp = co2_properties(i,j,3)
+      if (j==0) tmp2 = co2_properties(i,j,3)
+    enddo
+
+  enddo
+
+  open(unit=IUNIT_TEMP,file=filename,status='unknown',iostat=status)  
+  
+  !for GENERAL print also fugacity 
+  !derivatives to be done numerically during look-up 
+  write(IUNIT_TEMP,'(A6,1X,I6)') "NUM_DP", n_tab_press + 1
+  write(IUNIT_TEMP,'(A6,1X,I6)') "NUM_DT", n_tab_temp + 1
+  write(IUNIT_TEMP,'(A15)') "DATA_LIST_ORDER"
+  write(IUNIT_TEMP,'(2X,A8,2X,A3)') "PRESSURE", "MPa"
+  write(IUNIT_TEMP,'(2X,A11,2X,A1)') "TEMPERATURE", "C"
+  write(IUNIT_TEMP,'(2X,A7,2X,A6)') "DENSITY", "kg/m^3"
+  write(IUNIT_TEMP,'(2X,A15,2X,A5)') "INTERNAL_ENERGY", "MJ/kg" 
+  write(IUNIT_TEMP,'(2X,A8,2X,A5)') "ENTHALPY", "MJ/kg"
+  write(IUNIT_TEMP,'(2X,A9,2X,A4)') "VISCOSITY", "Pa-s"
+  write(IUNIT_TEMP,'(A3)') "END"
+  write(IUNIT_TEMP,'(A4)') "DATA"
+
+  do i = 0, n_tab_press
+    do j = 0, n_tab_temp
+      write(IUNIT_TEMP,'(1p6e14.6)') co2_properties(i,j,1), &
+        co2_properties(i,j,2) - 273.15D0, & !back to C
+        co2_properties(i,j,3), &
+        co2_properties(i,j,9:10), co2_properties(i,j,13)
+    enddo
+  enddo
+  close (IUNIT_TEMP)
+  
+  deallocate(co2_properties)
+
+end subroutine co2_span_wagner_db_write
+
+! ************************************************************************** !
 
 end module co2_span_wagner_module

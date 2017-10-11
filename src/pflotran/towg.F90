@@ -354,8 +354,8 @@ subroutine TOWGSetup(realization)
 
   !set up TOWG functions that can vary with the miscibility model
   select case(towg_miscibility_model)
-    case(TOWG_IMMISCIBLE)
-      TOWGUpdateAuxVars => TOWGImsUpdateAuxVars
+    case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+      TOWGUpdateAuxVars => TOWGImsTLUpdateAuxVars
       TOWGAccumulation => TOWGImsTLAccumulation
       TOWGComputeMassBalance => TOWGImsTLComputeMassBalance
       TOWGFlux => TOWGImsTLFlux
@@ -363,7 +363,13 @@ subroutine TOWGSetup(realization)
       TOWGSrcSink => TOWGImsTLSrcSink
       TOWGCheckUpdatePre => TOWGImsTLCheckUpdatePre
       TOWGMaxChange => TOWGImsTLMaxChange
-      call TOWGImsAuxVarComputeSetup()
+      select case(towg_miscibility_model)
+        case(TOWG_IMMISCIBLE)
+          call TOWGImsAuxVarComputeSetup()
+        case(TOWG_TODD_LONGSTAFF)
+          call TOWGTLAuxVarComputeSetup()
+      end select
+    !case(TOWG_BLACK_OIL)
     case default
       option%io_buffer = 'TOWGSetup: only TOWG_IMMISCIBLE is supported.'
       call printErrMsg(option)
@@ -385,7 +391,7 @@ end subroutine TOWGSetup
 
 ! ************************************************************************** !
 
-subroutine TOWGImsUpdateAuxVars(realization,update_state)
+subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
   ! 
   ! Updates the auxiliary variables associated with the TOWG_IMS problem
   ! 
@@ -602,7 +608,7 @@ subroutine TOWGImsUpdateAuxVars(realization,update_state)
 
   patch%aux%TOWG%auxvars_up_to_date = PETSC_TRUE
 
-end subroutine TOWGImsUpdateAuxVars
+end subroutine TOWGImsTLUpdateAuxVars
 
 ! ************************************************************************** !
 
@@ -1417,6 +1423,9 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   
   PetscReal :: dummy_dperm_up, dummy_dperm_dn
   PetscReal :: temp_perm_up, temp_perm_dn
+  PetscReal :: denup,dendn
+
+  PetscBool :: istl,isoil,isgas
 
   energy_id = option%energy_id
 
@@ -1463,6 +1472,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
 #endif
 
 #ifdef CONVECTION
+
   do iphase = 1, option%nphase
  
     if (auxvar_up%mobility(iphase) + &
@@ -1470,10 +1480,27 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
       cycle
     endif
 
-    density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
-                                             auxvar_dn%sat(iphase), &
-                                             auxvar_up%den_kg(iphase), &
-                                             auxvar_dn%den_kg(iphase) )
+    istl =(towg_miscibility_model == TOWG_TODD_LONGSTAFF)
+    isoil=(option%phase_map(iphase) == OIL_PHASE)
+    isgas=(option%phase_map(iphase) == GAS_PHASE)
+    if( istl .and. (isoil.or.isgas) ) then
+      if( isoil ) then
+        denup=auxvar_up%tl%den_oil_eff_kg
+        dendn=auxvar_dn%tl%den_oil_eff_kg
+      else
+        denup=auxvar_up%tl%den_gas_eff_kg
+        dendn=auxvar_dn%tl%den_gas_eff_kg
+      endif
+      density_kg_ave = TOWGImsTLAverageDensity( auxvar_up%sat(iphase), &
+                                                auxvar_dn%sat(iphase), &
+                                                denup                , &
+                                                dendn )
+    else
+      density_kg_ave = TOWGImsTLAverageDensity( auxvar_up%sat(iphase)   , &
+                                                auxvar_dn%sat(iphase)   , &
+                                                auxvar_up%den_kg(iphase), &
+                                                auxvar_dn%den_kg(iphase) )
+    endif
 
     gravity_term = density_kg_ave * dist_gravity
     delta_pressure = auxvar_up%pres(iphase) - &
@@ -1680,6 +1707,10 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   
   PetscReal :: temp_perm_dn
   PetscReal :: dummy_dperm_dn
+
+  PetscReal :: denup,dendn
+
+  PetscBool :: istl,isoil,isgas
   
   energy_id = option%energy_id
 
@@ -1760,10 +1791,27 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
           !  boundary_pressure = gen_auxvar_up%pres(option%gas_phase)
           !endif
 
-          density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
-                                                   auxvar_dn%sat(iphase), &
-                                                   auxvar_up%den_kg(iphase), &
-                                                   auxvar_dn%den_kg(iphase) )
+          istl =(towg_miscibility_model == TOWG_TODD_LONGSTAFF)
+          isoil=(option%phase_map(iphase) == OIL_PHASE)
+          isgas=(option%phase_map(iphase) == GAS_PHASE)
+          if( istl .and. (isoil.or.isgas) ) then
+            if( isoil ) then
+              denup=auxvar_up%tl%den_oil_eff_kg
+              dendn=auxvar_dn%tl%den_oil_eff_kg
+            else
+              denup=auxvar_up%tl%den_gas_eff_kg
+              dendn=auxvar_dn%tl%den_gas_eff_kg
+            endif
+            density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
+                                                     auxvar_dn%sat(iphase), &
+                                                     denup                , &
+                                                     dendn )
+          else
+            density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase)   , &
+                                                     auxvar_dn%sat(iphase)   , &
+                                                     auxvar_up%den_kg(iphase), &
+                                                     auxvar_dn%den_kg(iphase) )
+          endif
 
 
           gravity_term = density_kg_ave * dist_gravity
@@ -2750,9 +2798,11 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
-        global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) = &
-          global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) - &
-          Res(1:2)
+        global_auxvars_bc(sum_connection)% &
+            mass_balance_delta(1:option%nflowspec,1) = &
+          global_auxvars_bc(sum_connection)% &
+            mass_balance_delta(1:option%nflowspec,1) - &
+          Res(1:option%nflowspec)
       endif
 
       local_end = local_id * option%nflowdof
@@ -2801,9 +2851,11 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       endif      
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
-        global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) = &
-          global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) - &
-          Res(1:2)
+        global_auxvars_ss(sum_connection)% &
+            mass_balance_delta(1:option%nflowspec,1) = &
+          global_auxvars_ss(sum_connection)% &
+            mass_balance_delta(1:option%nflowspec,1) - &
+          Res(1:option%nflowspec)
       endif
 
     enddo

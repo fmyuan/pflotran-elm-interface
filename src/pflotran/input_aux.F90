@@ -133,7 +133,8 @@ module Input_Aux_module
             InputReadWordDbaseCompatible, &
             InputReadAndConvertUnits, &
             InputRewind, &
-            InputCloseNestedFiles
+            InputCloseNestedFiles, &
+            UnitReadAndConversionFactor
 
 contains
 
@@ -2382,6 +2383,53 @@ subroutine InputReadAndConvertUnits(input,double_value,internal_units, &
   endif
   
 end subroutine InputReadAndConvertUnits
+
+! ************************************************************************** !
+
+function UnitReadAndConversionFactor(input,internal_units, &
+                                     keyword_string,option)
+  ! 
+  ! Reads units if they exist and returns the units conversion factor.
+  ! If force_unit == true throws an error if units are not present
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 07/27/17
+  ! 
+  use Option_module
+  use Units_module
+  
+  implicit none
+ 
+  type(input_type) :: input
+  character(len=*) :: internal_units
+  character(len=*) :: keyword_string
+  type(option_type) :: option
+
+  PetscReal :: UnitReadAndConversionFactor
+
+  character(len=MAXWORDLENGTH) :: units
+  character(len=MAXWORDLENGTH) :: internal_units_word
+  character(len=MAXSTRINGLENGTH) :: string
+
+  call InputReadWord(input,option,units,PETSC_TRUE)
+  if (input%ierr == 0) then
+    if (len_trim(internal_units) < 1) then
+      option%io_buffer = 'No internal units provided in &
+                         & UnitReadAndConversionFactor()'
+      call printErrMsg(option)
+    endif
+    internal_units_word = trim(internal_units)
+    UnitReadAndConversionFactor =  &
+                   UnitsConvertToInternal(units,internal_units_word,option)
+  else
+    input%err_buf = keyword_string
+    call InputCheckMandatoryUnits(input,option)
+    string = trim(keyword_string) // ' units'
+    call InputDefaultMsg(input,option,string)
+    UnitReadAndConversionFactor = 1.0d0
+  endif
+  
+end function UnitReadAndConversionFactor
 
 ! ************************************************************************** !
 

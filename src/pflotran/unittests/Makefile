@@ -32,7 +32,9 @@ PFLOTRAN_OBJS = \
         $(EXE_DIR)/characteristic_curves.o \
 	$(EXE_DIR)/string.o \
 	$(EXE_DIR)/units.o \
-	$(EXE_DIR)/utility.o
+	$(EXE_DIR)/utility.o \
+	$(EXE_DIR)/eos_database.o \
+	$(EXE_DIR)/lookup_table.o
 
 FFLAGS = -g -I. -I$(EXE_DIR) -I$(PFUNIT_DIR)/source -I$(PFUNIT_DIR)/include
 

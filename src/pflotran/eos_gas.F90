@@ -4,6 +4,7 @@ module EOS_Gas_module
   use petscsys
 
   use PFLOTRAN_Constants_module
+  use EOSDatabase_module
 
   implicit none
 
@@ -37,6 +38,9 @@ module EOS_Gas_module
 #else
   PetscReal, parameter :: T_energy_offset = 273.15d0
 #endif
+
+  ! EOS databases
+  class(eos_database_type), pointer :: eos_dbase
 
   ! In order to support generic EOS subroutines, we need the following:
   ! 1. An interface declaration that defines the argument list (best to have 
@@ -167,7 +171,8 @@ module EOS_Gas_module
             EOSGasSetEnergyConstant, &
             EOSGasSetViscosityConstant, &
             EOSGasSetHenry, &
-            EOSGasSetHenryConstant
+            EOSGasSetHenryConstant, &
+            EOSGasSetEOSDBase
  
   contains
 
@@ -894,6 +899,49 @@ end subroutine EOSGasViscosityConstant
 
 ! ************************************************************************** !
 
+subroutine EOSGasViscosityEOSDBase(T, P_comp, P_gas, Rho_comp, V_mix, &
+                                   calculate_derivative, dV_dT, dV_dPcomp, &
+                                   dV_dPgas, dV_dRhocomp, ierr)
+  implicit none
+
+  PetscReal, intent(in) :: T        ! temperature [C]
+  PetscReal, intent(in) :: P_comp   ! air pressure [Pa]
+  PetscReal, intent(in) :: P_gas    ! gas pressure [Pa]
+  PetscReal, intent(in) :: Rho_comp ! air density [C]
+  PetscReal, intent(out) :: V_mix   ! mixture viscosity
+  PetscBool, intent(in) :: calculate_derivative
+  PetscReal, intent(out) :: dV_dT       ! derivative wrt temperature
+  PetscReal, intent(out) :: dV_dPcomp   ! derivative wrt component pressure
+  PetscReal, intent(out) :: dV_dPgas    ! derivative wrt gas pressure
+  PetscReal, intent(out) :: dV_dRhocomp ! derivative wrt component density    
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: NaN
+
+  !ierr initialised in EOSEOSProp 
+  call eos_dbase%EOSProp(T,P_gas,EOS_VISCOSITY,V_mix,ierr)
+
+  ! initialize to derivative to NaN so that not mistakenly used.
+  NaN = 0.0
+  NaN = 1.0/NaN
+  NaN = 0.0d0*NaN
+
+  dV_dT = NaN
+  dV_dPcomp = NaN
+  dV_dPgas = NaN
+  dV_dRhocomp = NaN
+
+  if (calculate_derivative) then
+    ! not yet implemented
+    ierr = 99 !error 99 points out that deriv are asked but not available yet. 
+    print*, "EOSGasViscosityEOSDBase - Viscosity derivatives not supported"
+    stop
+  end if
+  
+end subroutine EOSGasViscosityEOSDBase
+
+! ************************************************************************** !
+
 subroutine EOSGasDensityNoDerive(T,P,Rho_gas,ierr)
 
   implicit none
@@ -1303,6 +1351,40 @@ end subroutine EOSGasDensityPRMethane
 
 ! ************************************************************************** !
 
+subroutine EOSGasDensityEOSDBase(T, P, Rho_gas, dRho_dT, dRho_dP, ierr)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 07/27/17
+  ! 
+  implicit none
+
+  PetscReal, intent(in) :: T        ! temperature [C]
+  PetscReal, intent(in) :: P        ! pressure [Pa]
+  PetscReal, intent(out) :: Rho_gas ! oil density [kmol/m^3]
+  PetscReal, intent(out) :: dRho_dT ! derivative oil density wrt temperature
+  PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: NaN
+
+  !ierr initialised in EOSEOSProp 
+  call eos_dbase%EOSProp(T,P,EOS_DENSITY,Rho_gas,ierr)
+
+           ! conversion to molar density
+           ! kg/m3 * kmol/kg  = kmol/m3
+  Rho_gas = Rho_gas / fmw_gas ! kmol/m^3
+
+  ! initialize to derivative to NaN so that not mistakenly used.
+  NaN = 0.0
+  NaN = 1.0/NaN
+  NaN = 0.0d0*NaN
+  dRho_dT = NaN
+  dRho_dP = NaN
+
+end subroutine EOSGasDensityEOSDBase
+
+! ************************************************************************** !
+
 subroutine EOSGasFugacity(T,P,Rho_gas,phi,ierr)
 ! current version is for hydrogen only. See
 ! Soave, Giorgio, 1972, "Equilibrium constants from a modified Redlich-Kwong
@@ -1412,6 +1494,44 @@ subroutine EOSGasEnergyIdeal(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
   dH_dT = dU_dT + IDEAL_GAS_CONSTANT * 1.d3
     
 end subroutine EOSGasEnergyIdeal
+
+! ************************************************************************** !
+
+subroutine EOSGasEnergyEOSDBase(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
+    
+  implicit none
+
+  PetscReal, intent(in) :: T        ! temperature [C]
+  PetscReal, intent(in) :: P        ! pressure [Pa]
+  PetscReal, intent(out) :: H       ! enthalpy [J/kmol]
+  PetscReal, intent(out) :: dH_dT   ! derivative enthalpy wrt temperature
+  PetscReal, intent(out) :: dH_dP   ! derivative enthalpy wrt pressure
+  PetscReal, intent(out) :: U       ! internal energy [J/kmol]
+  PetscReal, intent(out) :: dU_dT   ! deriv. internal energy wrt temperature
+  PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: NaN
+
+  !ierr initialised in EOSEOSProp - PO: should do only one lookup here
+  call eos_dbase%EOSProp(T,P,EOS_ENTHALPY,H,ierr)
+  call eos_dbase%EOSProp(T,P,EOS_INTERNAL_ENERGY,U,ierr)
+
+  ! conversion to molar energy
+  ! J/kg * kg/Kmol = J/Kmol
+  H = H  * fmw_gas
+  U = U  * fmw_gas
+
+  NaN = 0.0
+  NaN = 1.0/NaN
+  NaN = 0.0d0*NaN
+
+  dU_dP = NaN
+  dU_dT = NaN
+  dH_dP = NaN
+  dH_dT = NaN
+    
+end subroutine EOSGasEnergyEOSDBase
 
 ! ************************************************************************** !
 
@@ -1618,6 +1738,28 @@ subroutine EOSGasHenryConstant(T,Psat,Hc,calculate_derivative, &
 end subroutine EOSGasHenryConstant
 
 ! **************************************************************************** !
+
+subroutine EOSGasSetEOSDBase(filename,option)
+
+  use Option_module
+
+  implicit none
+
+  character(len=MAXWORDLENGTH) :: filename
+  type(option_type) :: option
+
+  eos_dbase => EOSDatabaseCreate(filename,'gas_database')
+  call eos_dbase%Read(option)
+
+  !set property function pointers
+  EOSGasDensityEnergyPtr => EOSGasDensityEnergyGeneral
+  EOSGasDensityPtr => EOSGasDensityEOSDBase
+  EOSGasEnergyPtr => EOSGasEnergyEOSDBase
+  EOSGasViscosityPtr => EOSGasViscosityEOSDBase
+
+end subroutine EOSGasSetEOSDBase
+
+! ************************************************************************** !
 
 subroutine EOSGasInputRecord()
   ! 

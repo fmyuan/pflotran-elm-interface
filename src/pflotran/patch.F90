@@ -6164,7 +6164,104 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
                     effective_porosity
         end select 
-    
+
+      else if (associated(patch%aux%TOWG)) then 
+
+        select case(ivar)
+          case(TEMPERATURE)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)%temp
+          case(MAXIMUM_PRESSURE)
+            value = maxval(patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                           pres(option%liquid_phase:option%gas_phase))
+          case(LIQUID_PRESSURE)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%liquid_phase)
+          case(OIL_PRESSURE)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% & 
+                  pres(option%oil_phase)
+          case(GAS_PRESSURE)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% & 
+                  pres(option%gas_phase)
+          case(CAPILLARY_PRESSURE)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pc(option%liquid_phase)
+          case(CAPILLARY_PRESSURE_OGC)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pc(option%oil_phase)
+          case(LIQUID_SATURATION)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  sat(option%liquid_phase)
+          case(LIQUID_DENSITY)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  den_kg(option%liquid_phase)
+          case(LIQUID_DENSITY_MOL)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  den(option%liquid_phase)
+          case(LIQUID_ENERGY)
+            if (isubvar == ZERO_INTEGER) then
+              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  U(option%liquid_phase)
+            else
+              value = patch%aux%TOWG%auxvars(ZERO_INTEGER, & 
+                      ghosted_id)%U(option%liquid_phase) * &
+                    patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                      ghosted_id)%den(option%liquid_phase)
+            endif
+          case(LIQUID_MOBILITY)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    mobility(option%liquid_phase)
+          case(OIL_SATURATION)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    sat(option%oil_phase)
+          case(OIL_ENERGY)
+            if (isubvar == ZERO_INTEGER) then
+              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    U(option%oil_phase)
+            else
+              value = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                      ghosted_id)%U(option%oil_phase) * &
+                    patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                      ghosted_id)%den(option%oil_phase)
+            endif
+          case(OIL_DENSITY) 
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    den_kg(option%oil_phase)
+          case(OIL_DENSITY_MOL) 
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    den(option%oil_phase)
+          case(OIL_MOBILITY)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    mobility(option%oil_phase)
+          case(GAS_SATURATION)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    sat(option%gas_phase)
+          case(GAS_ENERGY)
+            if (isubvar == ZERO_INTEGER) then
+              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      U(option%gas_phase)
+            else
+              value = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                      ghosted_id)%U(option%gas_phase) * &
+                    patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                      ghosted_id)%den(option%gas_phase)
+            endif
+          case(GAS_DENSITY) 
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    den_kg(option%gas_phase)
+          case(GAS_DENSITY_MOL) 
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    den(option%gas_phase)
+          case(GAS_MOBILITY)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    mobility(option%gas_phase)
+          case(EFFECTIVE_POROSITY)
+            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    effective_porosity
+          !need to add:
+          ! - gas and oil mole fraction for the black oil model
+          ! - solvent_saturation for SOLVENT model
+        end select 
+        
       endif
       
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
