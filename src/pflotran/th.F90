@@ -147,13 +147,8 @@ subroutine THSetupPatch(realization)
 !                    'THAuxCreate() is called anywhere.'
 ! call printErrMsg(option)
 
-#ifdef TH_CHARACTERISTIC_CURVES
   allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
                                   size(patch%characteristic_curves_array)))
-#else
-  allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
-                                  size(patch%saturation_function_array)))
-#endif
 
   !Jitu, 08/04/2010: Check these allocations. Currently assumes only single value in the array	<modified pcl 1-13-11>
   allocate(patch%aux%TH%TH_parameter%dencpr(size(patch%material_property_array)))
@@ -235,17 +230,10 @@ subroutine THSetupPatch(realization)
     call printErrMsg(option)
   endif
 
-#ifdef TH_CHARACTERISTIC_CURVES
   do i = 1, size(patch%characteristic_curves_array)
     patch%aux%TH%TH_parameter%sir(:,i) = &
         CharCurvesGetGetResidualSats(patch%characteristic_curves_array(i)%ptr,option)
   enddo
-#else
-  do i = 1, size(patch%saturation_function_array)
-    patch%aux%TH%TH_parameter%sir(:,patch%saturation_function_array(i)%ptr%id) = &
-      patch%saturation_function_array(i)%ptr%Sr(:)
-  enddo
-#endif
 
   ! allocate auxvar data structures for all grid cells
   allocate(TH_auxvars(grid%ngmax))
@@ -717,11 +705,7 @@ subroutine THUpdateAuxVarsPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-#ifdef TH_CHARACTERISTIC_CURVES
             patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#else
-            patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#endif
             TH_parameter, ithrm, &
             option)
     else
@@ -729,11 +713,7 @@ subroutine THUpdateAuxVarsPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-#ifdef TH_CHARACTERISTIC_CURVES
             patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#else
-            patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#endif
             TH_parameter, ithrm, &
             option)
     endif
@@ -787,11 +767,7 @@ subroutine THUpdateAuxVarsPatch(realization)
               global_auxvars_bc(sum_connection), &
               material_auxvars(ghosted_id), &
               iphasebc, &
-#ifdef TH_CHARACTERISTIC_CURVES
               patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#else
-              patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#endif
               TH_parameter, ithrm, &
               option)
       else
@@ -799,11 +775,7 @@ subroutine THUpdateAuxVarsPatch(realization)
               global_auxvars_bc(sum_connection), &
               material_auxvars(ghosted_id), &
               iphasebc, &
-#ifdef TH_CHARACTERISTIC_CURVES
               patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#else
-              patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#endif
               TH_parameter, ithrm, &
               option)
       endif
@@ -851,11 +823,7 @@ subroutine THUpdateAuxVarsPatch(realization)
               TH_auxvars_ss(sum_connection),global_auxvars_ss(sum_connection), &
               material_auxvars(ghosted_id), &
               iphase, &
-#ifdef TH_CHARACTERISTIC_CURVES
               patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#else
-              patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#endif
               TH_parameter, ithrm, &
               option)
       else
@@ -863,11 +831,7 @@ subroutine THUpdateAuxVarsPatch(realization)
               TH_auxvars_ss(sum_connection),global_auxvars_ss(sum_connection), &
               material_auxvars(ghosted_id), &
               iphase, &
-#ifdef TH_CHARACTERISTIC_CURVES
               patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#else
-              patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#endif
               TH_parameter, ithrm, &
               option)
       endif
@@ -1127,11 +1091,7 @@ subroutine THUpdateFixedAccumPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-#ifdef TH_CHARACTERISTIC_CURVES
             patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#else
-            patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#endif
             TH_parameter, ithrm, &
             option)
     else
@@ -1139,11 +1099,7 @@ subroutine THUpdateFixedAccumPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-#ifdef TH_CHARACTERISTIC_CURVES
             patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#else
-            patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
-#endif
             TH_parameter, ithrm, &
             option)
     endif
@@ -1284,7 +1240,6 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   ! 
 
   use Option_module
-  use Saturation_Function_module
   use Characteristic_Curves_module
   use Material_Aux_class, only : material_auxvar_type, &
                                  soil_compressibility_index, &
@@ -1300,11 +1255,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   PetscReal :: vol,por,rock_dencpr
   type(TH_parameter_type) :: th_parameter
   PetscInt :: ithrm
-#ifdef TH_CHARACTERISTIC_CURVES
   class(Characteristic_Curves_type), pointer :: sat_func
-#else
-  type(saturation_function_type) :: sat_func
-#endif
   PetscReal :: J(option%nflowdof,option%nflowdof)
      
   PetscInt :: ispec 
@@ -1635,7 +1586,6 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   ! 
                              
   use Option_module 
-  use Saturation_Function_module             
   use Characteristic_Curves_module
   use Connection_module
   use EOS_Water_module
@@ -1658,11 +1608,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscInt :: ithrm_up, ithrm_dn
   PetscReal :: v_darcy, area
   PetscReal :: dist(-1:3)
-#ifdef TH_CHARACTERISTIC_CURVES
   class(Characteristic_Curves_type), pointer :: sat_func_up, sat_func_dn
-#else
-  type(saturation_function_type) :: sat_func_up, sat_func_dn
-#endif
   type(TH_parameter_type) :: th_parameter
   PetscReal :: Jup(option%nflowdof,option%nflowdof), Jdn(option%nflowdof,option%nflowdof)
      
@@ -2523,7 +2469,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   ! Date: 12/13/07
   ! 
   use Option_module
-  use Saturation_Function_module
   use Characteristic_Curves_module
   use Connection_module
   use EOS_Water_module
@@ -2540,11 +2485,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: auxvars(:) ! from aux_real_var array in boundary condition
   PetscReal :: por_dn,perm_dn,Dk_dn,tor_dn
   PetscReal :: area
-#ifdef TH_CHARACTERISTIC_CURVES
   class(Characteristic_Curves_type), pointer :: sat_func_dn
-#else
-  type(saturation_function_type) :: sat_func_dn
-#endif
   PetscReal :: Dk_dry_dn
   PetscReal :: Dk_ice_dn
   PetscReal :: alpha_dn
@@ -4531,11 +4472,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                             material_auxvars(ghosted_id), &
                             TH_parameter%dencpr(ithrm), &
                             TH_parameter, ithrm, option, &
-#ifdef TH_CHARACTERISTIC_CURVES
                             patch%characteristic_curves_array(icap)%ptr, &
-#else
-                            patch%saturation_function_array(icap)%ptr, &
-#endif
                             vol_frac_prim,Jup) 
 
     if (option%use_mc) then
@@ -4749,13 +4686,8 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                              cur_connection_set%area(iconn), &
                              cur_connection_set%dist(-1:3,iconn), &
                              upweight,option, &
-#ifdef TH_CHARACTERISTIC_CURVES
                              patch%characteristic_curves_array(icap_up)%ptr, &
                              patch%characteristic_curves_array(icap_dn)%ptr, &
-#else
-                             patch%saturation_function_array(icap_up)%ptr, &
-                             patch%saturation_function_array(icap_dn)%ptr, &
-#endif
                              Dk_dry_up,Dk_dry_dn, &
                              Dk_ice_up,Dk_ice_dn, &
                              alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -4858,11 +4790,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                               cur_connection_set%area(iconn), &
                               cur_connection_set%dist(-1:3,iconn), &
                               option, &
-#ifdef TH_CHARACTERISTIC_CURVES
                               patch%characteristic_curves_array(icap_dn)%ptr,&
-#else
-                              patch%saturation_function_array(icap_dn)%ptr,&
-#endif
                               Dk_dry_dn,Dk_ice_dn, &
                               Jdn)
       Jdn = -Jdn
@@ -6115,11 +6043,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
                                     material_auxvars(ghosted_id), &
                                     TH_parameter, &
                                     iphase, &
-#ifdef TH_CHARACTERISTIC_CURVES
                                     patch%characteristic_curves_array(icap_dn)%ptr, &
-#else
-                                    patch%saturation_function_array(icap_dn)%ptr, &
-#endif
                                     dist_gravity, &
                                     area, &
                                     Dq, &
@@ -6141,11 +6065,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
                                    material_auxvars(ghosted_id), &
                                    TH_parameter, &
                                    iphase, &
-#ifdef TH_CHARACTERISTIC_CURVES
                                    patch%characteristic_curves_array(icap_dn)%ptr, &
-#else
-                                   patch%saturation_function_array(icap_dn)%ptr, &
-#endif
                                    dist_gravity, &
                                    area, &
                                    Dq, &
@@ -6250,11 +6170,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
   class(material_auxvar_type) :: material_auxvar
   type(TH_parameter_type) :: th_parameter
   PetscInt :: iphase
-#ifdef TH_CHARACTERISTIC_CURVES
   class(characteristic_curves_type), pointer :: saturation_function
-#else
-  type(saturation_function_type) :: saturation_function
-#endif
   PetscReal :: dist_gravity
   PetscReal :: area
   PetscReal :: Dq
