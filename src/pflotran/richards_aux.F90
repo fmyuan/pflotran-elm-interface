@@ -18,17 +18,8 @@ module Richards_Aux_module
   type, public :: richards_auxvar_type
   
     PetscReal :: pc
-#ifdef USE_ANISOTROPIC_MOBILITY
-    PetscReal :: kvr_x
-    PetscReal :: kvr_y
-    PetscReal :: kvr_z
-    PetscReal :: dkvr_x_dp
-    PetscReal :: dkvr_y_dp
-    PetscReal :: dkvr_z_dp
-#else
     PetscReal :: kvr
     PetscReal :: dkvr_dp
-#endif
     PetscReal :: dsat_dp
     PetscReal :: dden_dp
 
@@ -125,17 +116,8 @@ subroutine RichardsAuxVarInit(auxvar,option)
   
   auxvar%pc = 0.d0
 
-#ifdef USE_ANISOTROPIC_MOBILITY
-  auxvar%kvr_x = 0.d0
-  auxvar%kvr_y = 0.d0
-  auxvar%kvr_z = 0.d0
-  auxvar%dkvr_x_dp = 0.d0
-  auxvar%dkvr_y_dp = 0.d0
-  auxvar%dkvr_z_dp = 0.d0
-#else
   auxvar%kvr = 0.d0
   auxvar%dkvr_dp = 0.d0
-#endif
 
   auxvar%dsat_dp = 0.d0
   auxvar%dden_dp = 0.d0
@@ -169,17 +151,8 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
 
   auxvar2%pc = auxvar%pc
 
-#ifdef USE_ANISOTROPIC_MOBILITY
-  auxvar2%kvr_x = auxvar%kvr_x 
-  auxvar2%kvr_y = auxvar%kvr_y 
-  auxvar2%kvr_z = auxvar%kvr_z 
-  auxvar2%dkvr_x_dp = auxvar%dkvr_x_dp 
-  auxvar2%dkvr_y_dp = auxvar%dkvr_y_dp 
-  auxvar2%dkvr_z_dp = auxvar%dkvr_z_dp 
-#else
   auxvar2%kvr = auxvar%kvr
   auxvar2%dkvr_dp = auxvar%dkvr_dp
-#endif
 
   auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dden_dp = auxvar%dden_dp
@@ -235,13 +208,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   global_auxvar%den = 0.d0
   global_auxvar%den_kg = 0.d0
   
-#ifdef USE_ANISOTROPIC_MOBILITY
-  auxvar%kvr_x = 0.d0
-  auxvar%kvr_y = 0.d0
-  auxvar%kvr_z = 0.d0
-#else
   auxvar%kvr = 0.d0
-#endif
 
   kr = 0.d0
  
