@@ -355,11 +355,7 @@ end subroutine THAuxVarCopy
 subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
                                      material_auxvar, &
                                      iphase, &
-#ifdef TH_CHARACTERISTIC_CURVES
                                      characteristic_curves,    &
-#else
-                                     saturation_function,      &
-#endif
                                      th_parameter, ithrm, &
                                      option)
   ! 
@@ -373,18 +369,13 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   use Global_Aux_module
   
   use EOS_Water_module
-  use Saturation_Function_module  
   use Characteristic_Curves_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
-#ifdef TH_CHARACTERISTIC_CURVES
   class(characteristic_curves_type), pointer :: characteristic_curves
-#else
-  type(saturation_function_type) :: saturation_function
-#endif
   PetscReal :: x(option%nflowdof)
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -421,11 +412,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
  
 ! auxvar%pc = option%reference_pressure - auxvar%pres
   auxvar%pc = min(option%reference_pressure - global_auxvar%pres(1), &
-#ifdef TH_CHARACTERISTIC_CURVES
                   characteristic_curves%saturation_function%pcmax)
-#else
-                  saturation_function%pcwmax)
-#endif
 
 !***************  Liquid phase properties **************************
   auxvar%avgmw = FMWH2O
@@ -437,7 +424,6 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 !  if (auxvar%pc > 1.d0) then
     iphase = 3
 
-#ifdef TH_CHARACTERISTIC_CURVES
     call characteristic_curves%saturation_function%Saturation(auxvar%pc, &
          global_auxvar%sat(1), ds_dp, option)
 
@@ -446,14 +432,6 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
          kr, dkr_dsl, option)
     dkr_dp = dkr_dsl*ds_dp
 
-#else
-    call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
-                                   kr,ds_dp,dkr_dp, &
-                                   saturation_function, &
-                                   material_auxvar%porosity, &
-                                   material_auxvar%permeability(perm_xx_index), &
-                                   option)
-#endif
 
     dpw_dp = 0.d0
   else
@@ -549,11 +527,7 @@ end subroutine THAuxVarComputeNoFreezing
 subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                    material_auxvar,          &
                                    iphase,                   &
-#ifdef TH_CHARACTERISTIC_CURVES
                                    characteristic_curves,    &
-#else
-                                   saturation_function,      &
-#endif
                                    th_parameter, ithrm,      &
                                    option)
   ! 
@@ -572,18 +546,13 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   use Global_Aux_module
   
   use EOS_Water_module
-  use Saturation_Function_module  
   use Characteristic_Curves_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
-#ifdef TH_CHARACTERISTIC_CURVES
   class(characteristic_curves_type), pointer :: characteristic_curves
-#else
-  type(saturation_function_type) :: saturation_function
-#endif
   PetscReal :: x(option%nflowdof)
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -658,11 +627,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   global_auxvar%pres(1) = min(16.54d6, global_auxvar%pres(1))
   
   ! Check if the capillary pressure is less than -100MPa, which also limit the lower limit of pres(1).
-#ifdef TH_CHARACTERISTIC_CURVES
   pcmax = abs(characteristic_curves%saturation_function%pcmax)  ! non-negative
-#else
-  pcmax = 1.d8 - 1.0d0
-#endif
   if (global_auxvar%pres(1) - option%reference_pressure <= -pcmax) then
     dp_trunc = 0.d0
     global_auxvar%pres(1) = -pcmax + option%reference_pressure
@@ -673,73 +638,6 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
 !***************  Characteristic Curves ***********************************
   
-#ifndef TH_CHARACTERISTIC_CURVES
-  call CapillaryPressureThreshold(saturation_function,p_th,option)
-
-  select case (option%ice_model)
-    case (PAINTER_EXPLICIT)
-      ! Model from Painter, Comp. Geosci. (2011)
-      call SatFuncComputeIcePExplicit(global_auxvar%pres(1), & 
-                                      global_auxvar%temp,    &
-                                      ice_saturation, &
-                                      liq_saturation, &
-                                      gas_saturation, &
-                                      kr, dsl_dp, dsl_dt, dsg_dp, dsg_dt, &
-                                      dsi_dp, dsi_dt, dkr_dp, dkr_dt,     &
-                                      saturation_function, p_th, option)    
-    case (PAINTER_KARRA_IMPLICIT)
-      ! Implicit model from Painter & Karra, VJZ (2013)
-      call SatFuncComputeIcePKImplicit(global_auxvar%pres(1), & 
-                                       global_auxvar%temp,    &
-                                       ice_saturation, &
-                                       liq_saturation, &
-                                       gas_saturation, &
-                                       kr, dsl_dp, dsl_dt, dsg_dp, dsg_dt, &
-                                       dsi_dp, dsi_dt, dkr_dp, dkr_dt,     &
-                                       saturation_function, p_th, option)    
-    case (PAINTER_KARRA_EXPLICIT)
-      ! Explicit model from Painter & Karra, VJZ (2013)
-      call SatFuncComputeIcePKExplicit(global_auxvar%pres(1), &
-                                       global_auxvar%temp,    &
-                                       ice_saturation, &
-                                       liq_saturation, &
-                                       gas_saturation, &
-                                       kr, dsl_dp, dsl_dt, dsg_dp, dsg_dt, &
-                                       dsi_dp, dsi_dt, dkr_dp, dkr_dt,     &
-                                       saturation_function, p_th, option)
-    case (DALL_AMICO)
-      ! Model from Dall'Amico (2010) and Dall' Amico et al. (2011)
-      call SatFuncComputeIceDallAmico(global_auxvar%pres(1), &
-                                      global_auxvar%temp,    &
-                                      auxvar%ice%pres_fh2o,     &
-                                      auxvar%ice%dpres_fh2o_dp, &
-                                      auxvar%ice%dpres_fh2o_dt, &
-                                      ice_saturation, &
-                                      liq_saturation, &
-                                      gas_saturation, &
-                                      kr,             &
-                                      dsl_dp, dsl_dt, dsg_dp, dsg_dt, &
-                                      dsi_dp, dsi_dt, dkr_dp, dkr_dt, &
-                                      saturation_function, option)
-    case (PAINTER_KARRA_EXPLICIT_NOCRYO)
-      ! Explicit model from Painter & Karra, VJZ (2013) and removed cryosuction
-      call SatFuncComputeIcePKExplicitNoCryo(global_auxvar%pres(1), & 
-                                      global_auxvar%temp,           &
-                                      ice_saturation, &
-                                      liq_saturation, &
-                                      gas_saturation, &
-                                      kr,             &
-                                      dsl_dp, dsl_dt, dsg_dp, dsg_dt,  &
-                                      dsi_dp, dsi_dt, dkr_dp, dkr_dt,  &
-                                      saturation_function, p_th, option)
-    case default
-      option%io_buffer = 'THCAuxVarComputeIce: Ice model not recognized.'
-      call printErrMsg(option)
-  end select
-
-#else
-
-
   ! using modules in 'characteristic_curves.F90' to calculate needed variables:
   ! saturations and derivatives for 3 phases
   call THAuxVarComputeCharacteristicCurves(global_auxvar%pres(1), global_auxvar%temp,   &
@@ -752,9 +650,6 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                            gas_saturation,  dsg_dp, dsg_dt,             &
                                            kr,              dkr_dp, dkr_dt,             &
                                            option)
-
-#endif
-
 
 
 
