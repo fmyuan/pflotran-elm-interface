@@ -669,12 +669,14 @@ END
     \item MATERIAL\_PROPERTY
     \item CHARACTERISTIC\_CURVES
     \item REGION
+    \item OBSERVATION
     \item STRATA
   \end{itemize}
 \item Modify card:
   \begin{itemize}
     \item STRATA
     \item OUTPUT
+    \item TIME
    \end{itemize}
 \end{itemize}
 \begin{textblock}{.5}[1,1](8,3)
@@ -826,7 +828,7 @@ END}
 \begin{frame}[fragile]\frametitle{OUTPUT}
 
 \begin{itemize}
-\item Change output times to every 0.1 years
+\item Change output times to 0.5 1. 2. 5. years
 \item Add output of observation data at every time step
 \end{itemize}
 
@@ -834,10 +836,31 @@ END}
 \begin{semiverbatim}
 
 OUTPUT
-  \magentacomment{PERIODIC TIME 0.1 y}        \bluecomment{! print plot files every}
-  FORMAT TECPLOT POINT       \bluecomment{!   0.1 years}
+  \magentacomment{TIMES y 0.5 1. 2. 5.}   
   \magentacomment{PERIODIC_OBSERVATION TIMESTEP 1} \bluecomment{! print observation}
-END                               \bluecomment{!   data every time step}
+  FORMAT TECPLOT POINT            \bluecomment{!   data every time step}
+END
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{TIME}
+
+\begin{frame}[fragile]\frametitle{TIME}
+
+\begin{itemize}
+\item Change final simulation time to 35 years
+\end{itemize}
+
+\begin{semiverbatim}
+
+TIME
+  FINAL_TIME \magentacomment{35.d0} y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 5.d-2 y
+END
 
 \end{semiverbatim}
 
