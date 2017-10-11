@@ -1297,7 +1297,7 @@ contains
             !  e.g. Letts et al. 2000. Fibric b=2.7, Sr=0.04/0.93;
             !                          Hemic  b=6.1, Sr=0.15/0.88;
             !                          Sapric b=12., Sr=0.22/0.83.
-            sf%Sr     = 0.04d0
+            sf%Sr     = 0.0d0
 
             if(associated(sf%sat_poly) .and. associated(sf%pres_poly)) then
               call sf%SetupPolynomials(option, 'Error for setup smoothing saturation function')
@@ -1325,7 +1325,7 @@ contains
             !  e.g. Letts et al. 2000. Fibric b=2.7, Sr=0.04/0.93;
             !                          Hemic  b=6.1, Sr=0.15/0.88;
             !                          Sapric b=12., Sr=0.22/0.83.
-            rpf%Sr     = 0.04d0
+            rpf%Sr     = 0.0d0
 
             if(associated(rpf%poly)) then
               call rpf%SetupPolynomials(option, 'Error for setup smoothing liq. permeability function')
@@ -2145,7 +2145,7 @@ contains
       press_pf_p(local_id)   =global_auxvars(ghosted_id)%pres(1)
 
       ! PF's field porosity pass to clm-pf-idata and saved
-       porosity_loc_pfp(local_id) = porosity0_loc_p(local_id)
+      porosity_loc_pfp(local_id) = porosity0_loc_p(local_id)
 
 #ifdef CLM_PF_DEBUG
 ! F.-M. Yuan: the following check proves DATA-passing from PF to CLM MUST BE done by ghosted_id --> local_id
@@ -4961,7 +4961,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
        if (PRESSURE_DATAPASSING) then
          xx_loc_p(istart)  = soilpress_pf_loc(ghosted_id)
 
-         ! need to recalculate 'pressure' from saturation/water-mass
+         ! may need to recalculate 'saturation' from pressure
          select type(sf => characteristic_curves%saturation_function)
            !class is(sat_func_VG_type)
              ! not-yet (TODO)
