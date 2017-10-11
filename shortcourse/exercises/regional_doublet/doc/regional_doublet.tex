@@ -120,6 +120,39 @@
 %\frame{\titlepage}
 
 %-----------------------------------------------------------------------------
+\section{Running regional_doublet.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+This problem takes a while to run, so lets get it started first.
+Homogeneous permeability field version:
+
+\begin{semiverbatim}
+
+ > cd \$PFLOTRAN_DIR
+ > cd shortcourse/exercises/regional_doublet/
+ > pflotran -input_prefix regional_doublet
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+This problem takes a while to run, so lets get it started first.
+Stoichastic permeability field version:
+
+\begin{semiverbatim}
+ > cd \$PFLOTRAN_DIR
+ > cd shortcourse/exercises/regional_doublet/
+ > pflotran -input_prefix stochastic_regional_model
+  -realization_id 5
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \section{Description of 3D Regional Flow and Transport Model}
 
 \subsection{3D Regional Flow and Transport Model}
@@ -996,20 +1029,6 @@ END                         \bluecomment{! file \redcomment{restart.chk}}
 
 \end{frame}
 
-%-----------------------------------------------------------------------------
-\section{Running regional_doublet.in}
-
-\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
-
-\begin{semiverbatim}
-
- > cd \$PFLOTRAN_DIR
- > cd shortcourse/exercises/regional_doublet/
-  > pflotran -input_prefix regional_doublet
-
-\end{semiverbatim}
-
-\end{frame}
 
 %-----------------------------------------------------------------------------
 \section{How To Run the Python Script}
