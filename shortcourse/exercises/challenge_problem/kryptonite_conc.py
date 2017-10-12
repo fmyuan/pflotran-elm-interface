@@ -32,7 +32,8 @@ def make_subplots(nrow, ncol, nplots, filenames, columns, name, titles):
       ifile = icol
       data = pft.Dataset(filenames[ifile],1,columns[icol])
       string = name[icol]
-      plt.semilogy(data.get_array('x'),data.get_array('y'),color=colors[icol],linestyle=linestyles[icol],label=string)
+      plt.semilogy(data.get_array('x'),data.get_array('y'),color=colors[icol],
+                   linestyle=linestyles[icol],linewidth=linewidths[icol],label=string)
 
 path = []
 path.append('.')
@@ -42,8 +43,10 @@ files = []
 columns = []
 name = []
 linestyles = []
+linewidths = []
 colors = []
 basestyles = ['-','-','-','--'] #'-.',':'
+basewidths = [2,2,2,2]
 basecolors = ['red','green','blue','purple']
 
 #Concentration at well
@@ -59,9 +62,10 @@ columns.append(7)
 name.append('KrC(aq)')
 files.append('./kryptonite-obs-0.tec')
 columns.append(8)
-name.append('I129')
+name.append('Cs137')
 
 linestyles.extend(basestyles)
+linewidths.extend(basewidths)
 colors.extend(basecolors)
 
 filenames = pft.get_full_paths(path,files)
