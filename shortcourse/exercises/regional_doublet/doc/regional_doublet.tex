@@ -700,14 +700,14 @@ FLOW_CONDITION injection
   TYPE                           \bluecomment{! volumetric flow}
     RATE SCALED_VOLUMETRIC_RATE  \bluecomment{!   rate scaled by}
   /                              \bluecomment{!   f(permeability)}
-  RATE 1.d5 m^3/day  \bluecomment{! flow rate 10,000 [m^3/day]}
+  RATE 1.d5 m^3/day  \bluecomment{! flow rate 100,000 [m^3/day]}
 END
 
 FLOW_CONDITION extraction
   TYPE
     RATE SCALED_VOLUMETRIC_RATE
   /
-  RATE -1.d5 m^3/day  \bluecomment{! flow rate -10,000 [m^3/day]}
+  RATE -1.d5 m^3/day  \bluecomment{! flow rate -100,000 [m^3/day]}
 END                   \bluecomment{! negative rate = extraction}
 
 \end{semiverbatim}
@@ -1017,6 +1017,8 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE RICHARDS
     /
+    ...
+  /
   CHECKPOINT               \bluecomment{! write a checkpoint file}
     PERIODIC TIMESTEP 50   \bluecomment{! write it every 50 timesteps}
     PERIODIC TIME 2 yr     \bluecomment{! write it every 2 years}
