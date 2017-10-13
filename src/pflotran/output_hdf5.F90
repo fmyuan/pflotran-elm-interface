@@ -678,7 +678,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   Vec :: natural_vec
   PetscReal, pointer :: v_ptr
 
-  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXSTRINGLENGTH) :: filename_path, filename_header
   character(len=MAXSTRINGLENGTH) :: xmf_filename, att_datasetname, group_name
   character(len=MAXSTRINGLENGTH) :: string, string2,string3
   character(len=MAXWORDLENGTH) :: word
@@ -716,8 +716,12 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 
   if (output_option%print_single_h5_file) then
     first = hdf5_first
-    filename = trim(option%global_prefix) // trim(string2) // &
+    !filename = trim(option%global_prefix) // trim(string2) // &
+    !           trim(option%group_prefix) // '.h5'
+    filename_path = trim(option%global_prefix) // trim(string2) // &
                trim(option%group_prefix) // '.h5'
+    filename_header = trim(option%output_file_name_prefix) //  &
+                      trim(string2) // trim(option%group_prefix) // '.h5'
   else
     string = OutputHDF5FilenameID(output_option,option,var_list_type)
     select case (var_list_type)
@@ -738,8 +742,14 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
         endif
     end select
 
-    filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-               trim(string2) // '-' // trim(string) // '.h5'
+    !filename = trim(option%global_prefix) // trim(option%group_prefix) // &
+    !           trim(string2) // '-' // trim(string) // '.h5'
+    filename_path = trim(option%global_prefix) // & 
+                    trim(option%group_prefix) // &
+                    trim(string2) // '-' // trim(string) // '.h5'
+    filename_header = trim(option%output_file_name_prefix) // & 
+                    trim(option%group_prefix) // &
+                    trim(string2) // '-' // trim(string) // '.h5'
   endif
 
   grid => patch%grid
@@ -759,12 +769,12 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 
   if (.not.first) then
     call h5eset_auto_f(OFF,hdf5_err)
-    call h5fopen_f(filename,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
+    call h5fopen_f(filename_path,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
     if (hdf5_err /= 0) first = PETSC_TRUE
     call h5eset_auto_f(ON,hdf5_err)
   endif
   if (first) then
-    call h5fcreate_f(filename,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
+    call h5fcreate_f(filename_path,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
                      H5P_DEFAULT_F,prop_id)
   else if (Uninitialized(realization_base%output_option%xmf_vert_len)) then
     call DetermineNumVertices(realization_base,option)
@@ -772,9 +782,9 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   call h5pclose_f(prop_id,hdf5_err)
 
   if (first) then
-    option%io_buffer = '--> creating hdf5 output file: ' // trim(filename)
+    option%io_buffer = '--> creating hdf5 output file: ' // trim(filename_path)
   else
-    option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
+    option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename_path)
   endif
   call printMsg(option)
 
@@ -787,15 +797,15 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   endif
 
   if (option%myrank == option%io_rank) then
-    option%io_buffer = '--> write xmf output file: ' // trim(filename)
+    option%io_buffer = '--> write xmf output file: ' // trim(filename_path)
     call printMsg(option)
     open(unit=OUTPUT_UNIT,file=xmf_filename,action="write")
     call OutputXMFHeader(OUTPUT_UNIT, &
                          option%time/output_option%tconv, &
                          grid%nmax, &
                          realization_base%output_option%xmf_vert_len, &
-                         grid%unstructured_grid%num_vertices_global,filename, &
-                         PETSC_TRUE)
+                         grid%unstructured_grid%num_vertices_global,&
+                         filename_header,PETSC_TRUE)
   endif
 
   ! create a group for the data set
@@ -846,7 +856,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
           call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
                                        H5T_NATIVE_INTEGER)
         endif
-        att_datasetname = trim(filename) // ":/" // trim(group_name) // &
+        att_datasetname = trim(filename_header) // ":/" // trim(group_name) // &
                           "/" // trim(string)
         if (option%myrank == option%io_rank) then
           call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
@@ -871,7 +881,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
                                              natural_vec,ONEDOF)
           call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
                                        H5T_NATIVE_DOUBLE)
-          att_datasetname = trim(filename) // ":/" // trim(group_name) // &
+          att_datasetname = trim(filename_header) // ":/" // trim(group_name) // &
                             "/" // trim(string)
           if (option%myrank == option%io_rank) then
             call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
@@ -931,8 +941,8 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
                                        natural_vec,ONEDOF)
       call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
                                    H5T_NATIVE_DOUBLE)
-      att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" &
-                        // trim(string)
+      att_datasetname = trim(filename_header) // ":/" // &
+                        trim(group_name) // "/" // trim(string)
       if (option%myrank == option%io_rank) then
       call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,att_datasetname, &
                               CELL_CENTERED_OUTPUT_MESH)
@@ -961,8 +971,8 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
                                          natural_vec,ONEDOF)
         call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
                                      H5T_NATIVE_DOUBLE)
-        att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" &
-                          // trim(string)
+        att_datasetname = trim(filename_header) // ":/" // &
+                          trim(group_name) // "/" // trim(string)
         if (option%myrank == option%io_rank) then
           call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
                                   att_datasetname,CELL_CENTERED_OUTPUT_MESH)
@@ -1101,9 +1111,9 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   Vec :: natural_vec
   PetscReal, pointer :: v_ptr
 
-  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXSTRINGLENGTH) :: filename_path, filename_header
   character(len=MAXSTRINGLENGTH) :: xmf_filename, att_datasetname, group_name
-  character(len=MAXSTRINGLENGTH) :: domain_filename
+  character(len=MAXSTRINGLENGTH) :: domain_filename_path, domain_filename_header
   character(len=MAXSTRINGLENGTH) :: string, string2,string3
   character(len=MAXWORDLENGTH) :: word
   character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
@@ -1144,8 +1154,12 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 
   if (output_option%print_single_h5_file) then
     first = hdf5_first
-    filename = trim(option%global_prefix) // trim(string2) // &
+    !filename = trim(option%global_prefix) // trim(string2) // &
+    !           trim(option%group_prefix) // '.h5'
+    filename_path = trim(option%global_prefix) // trim(string2) // &
                trim(option%group_prefix) // '.h5'
+    filename_header = trim(option%output_file_name_prefix) & 
+               // trim(string2) // trim(option%group_prefix) // '.h5'
   else
     string = OutputHDF5FilenameID(output_option,option,var_list_type)
     select case (var_list_type)
@@ -1166,8 +1180,14 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
         endif
     end select
 
-    filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-               trim(string2) // '-' // trim(string) // '.h5'
+    !filename = trim(option%global_prefix) // trim(option%group_prefix) // &
+    !           trim(string2) // '-' // trim(string) // '.h5'
+    filename_path = trim(option%global_prefix) // &
+                    trim(option%group_prefix) // &
+                    trim(string2) // '-' // trim(string) // '.h5'
+    filename_header = trim(option%output_file_name_prefix) // &
+                    trim(option%group_prefix) // &
+                    trim(string2) // '-' // trim(string) // '.h5'
   endif
 
   grid => patch%grid
@@ -1187,24 +1207,26 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 
   if (.not.first) then
     call h5eset_auto_f(OFF,hdf5_err)
-    call h5fopen_f(filename,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
+    call h5fopen_f(filename_path,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
     if (hdf5_err /= 0) first = PETSC_TRUE
     call h5eset_auto_f(ON,hdf5_err)
   endif
   if (first) then
-    call h5fcreate_f(filename,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
+    call h5fcreate_f(filename_path,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
                      H5P_DEFAULT_F,prop_id)
   endif
   call h5pclose_f(prop_id,hdf5_err)
 
   if (first) then
-    option%io_buffer = '--> creating hdf5 output file: ' // trim(filename)
+    option%io_buffer = '--> creating hdf5 output file: ' // trim(filename_path)
   else
-    option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
+    option%io_buffer = '--> appending to hdf5 output file: ' // &
+                       trim(filename_path)
   endif
   call printMsg(option)
   
-  domain_filename = trim(option%global_prefix) // '-domain.h5'
+  domain_filename_path = trim(option%global_prefix) // '-domain.h5'
+  domain_filename_header = trim(option%output_file_name_prefix) // '-domain.h5'
   write_xdmf = PETSC_FALSE
   include_cell_centers = PETSC_FALSE
   mesh_type = grid%unstructured_grid%explicit_grid%output_mesh_type
@@ -1214,18 +1236,20 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
                   domain_filename) > 0)) then
     if (.not.output_option%print_explicit_primal_grid) then
       ! have to open up domain file read the size of the vertex array
-      domain_filename = grid%unstructured_grid%explicit_grid%domain_filename
+      domain_filename_path = & 
+        grid%unstructured_grid%explicit_grid%domain_filename
+      domain_filename_header = domain_filename_path
         ! initialize fortran hdf5 interface 
-      option%io_buffer = 'Opening hdf5 file: ' // trim(domain_filename)
+      option%io_buffer = 'Opening hdf5 file: ' // trim(domain_filename_path)
 !      call printMsg(option)
       call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-      call HDF5OpenFileReadOnly(domain_filename,file_id2,prop_id,option)
+      call HDF5OpenFileReadOnly(domain_filename_path,file_id2,prop_id,option)
       call h5pclose_f(prop_id,hdf5_err)
       string = 'Domain/Cells'      
       call h5dopen_f(file_id2,string,data_set_id,hdf5_err)
       if (hdf5_err /= 0) then
         option%io_buffer = 'HDF5 dataset "' // trim(string) // '" not found &
-          &in file "' // trim(domain_filename) // '".'
+          &in file "' // trim(domain_filename_path) // '".'
         call printErrMsg(option)
       endif
       call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
@@ -1239,7 +1263,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
       call h5dopen_f(file_id2,string,data_set_id,hdf5_err)
       if (hdf5_err /= 0) then
         option%io_buffer = 'HDF5 dataset "' // trim(string) // '" not found &
-          &in file "' // trim(domain_filename) // '".'
+          &in file "' // trim(domain_filename_path) // '".'
         call printErrMsg(option)
       endif
       call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
@@ -1263,8 +1287,8 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   
   if (first .and. output_option%print_explicit_primal_grid) then
     call h5pcreate_f(H5P_FILE_ACCESS_F,new_prop_id,hdf5_err)
-    call h5fcreate_f(domain_filename,H5F_ACC_TRUNC_F,new_file_id,hdf5_err, &
-                   H5P_DEFAULT_F,new_prop_id)
+    call h5fcreate_f(domain_filename_path,H5F_ACC_TRUNC_F,new_file_id, &
+                     hdf5_err,H5P_DEFAULT_F,new_prop_id)
     call h5pclose_f(new_prop_id,hdf5_err)
     ! create a group for the coordinates data set
     string = "Domain"
@@ -1286,7 +1310,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
                        grid%unstructured_grid%explicit_grid%num_elems, &
                        num_cells, &
                        num_vertices, &
-                       domain_filename,include_cell_centers)
+                       domain_filename_header,include_cell_centers)
   endif
 
   ! create a group for the data set
@@ -1334,8 +1358,8 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
           call HDF5WriteDataSetFromVec(string,option,natural_vec, &
                                        grp_id,H5T_NATIVE_INTEGER)
         endif
-        att_datasetname = trim(filename) // ":/" // trim(group_name) // &
-                          "/" // trim(string)
+        att_datasetname = trim(filename_header) // ":/" // &
+                          trim(group_name) // "/" // trim(string)
         if (write_xdmf) then
           !call OutputXMFAttributeExplicit(OUTPUT_UNIT,grid%nmax,string, &
           !                                att_datasetname)
@@ -1361,8 +1385,8 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
                                              natural_vec,ONEDOF)
           call HDF5WriteDataSetFromVec(string,option,natural_vec, &
                                        grp_id,H5T_NATIVE_DOUBLE)
-          att_datasetname = trim(filename) // ":/" // trim(group_name) // &
-                            "/" // trim(string)
+          att_datasetname = trim(filename_header) // ":/" // &
+                            trim(group_name) // "/" // trim(string)
           if (write_xdmf) then
             call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
                                     att_datasetname,mesh_type)
