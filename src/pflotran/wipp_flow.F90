@@ -1282,6 +1282,24 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
     source_sink => source_sink%next
   enddo
   
+  !jmf: Add another loop over grid cells within dense array that contains the 
+  !     src/sink values that were once in vec_p but are now in a member array
+  !     There will be two member arrays - one that stores the rates based on
+  !     non-perturbed saturation values and another that stores the rates based 
+  !     on perturbed saturation. The end result is as if you called 
+  !     WIPPFloSrcSinkDerivative, which functions to load Jup and then call
+  !     MatSetValues to load Jup value into A matrix (Jacobian).
+  
+  ! WIPP gas/brine generation process model source/sinks
+  
+  !call PMWSSGetPnlCellIDs(cell_ids)    ! gives you an array of cell ids
+  !call PMWSSGetJacobianValues(wippflo_auxvars,J_array) ! gives you an array of J values ordered same as cell_ids
+  !do k = 1,len(cell_ids)
+  !  local_id = cell_ids(k)
+  !  ghosted_id = grid%nL2G(local_id)
+  !  call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,J_array(k), &
+  !                                ADD_VALUES,ierr);CHKERRQ(ierr)
+  
   call WIPPFloSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
                         wippflo_auxvars,option)
 
