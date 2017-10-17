@@ -35,7 +35,7 @@ module Characteristic_Curves_module
             CharCurvesGetGetResidualSats, &
             CharacteristicCurvesDestroy, &
             CharCurvesInputRecord
-
+  public :: CharacteristicCurvesCreateCopy
 contains
 
 ! ************************************************************************** !
@@ -2330,6 +2330,234 @@ recursive subroutine CharacteristicCurvesDestroy(cc)
   
 end subroutine CharacteristicCurvesDestroy
 
+! ************************************************************************** !
+
+function CharacteristicCurvesCreateCopy(cc, option)
+  !
+  ! Creates a SINGLE (i.e. NULL next) characteristic curve object that copy input 'cc'
+  !
+  ! Date: 10/18/2017
+  ! Author: Fengming Yuan
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  type(option_type) :: option
+
+  class(characteristic_curves_type), pointer :: CharacteristicCurvesCreateCopy
+
+  class(characteristic_curves_type), pointer, intent(in) :: cc
+  class(characteristic_curves_type), pointer :: cc2
+
+  !
+  cc2 => CharacteristicCurvesCreate()
+
+  cc2%name = trim(adjustl(cc%name))//'Copy'
+  !
+  if (associated(cc%saturation_function)) then
+    select type(sf => cc%saturation_function)
+      class is(sat_func_VG_type)
+        cc2%saturation_function => SFVGCreate()
+      select type(sf2=>cc2%saturation_function)
+        class is(sat_func_VG_type)
+          sf2%alpha  = sf%alpha
+          sf2%m      = sf%m
+      end select
+      !
+      class is(sat_func_BC_type)
+        cc2%saturation_function => SFBCCreate()
+        select type(sf2=>cc2%saturation_function)
+          class is(sat_func_BC_type)
+            sf2%alpha  = sf%alpha
+            sf2%lambda = sf%lambda
+        end select
+      !
+      class default
+        option%io_buffer = 'Currently NOT yet supported duplicating of saturation function type' // &
+              ' when copying Characteristic_Curves'
+        call printErrMsg(option)
+    end select
+
+    cc2%saturation_function%Sr     = &
+      cc%saturation_function%Sr
+    cc2%saturation_function%pcmax  = &
+      cc%saturation_function%pcmax
+    cc2%saturation_function%analytical_derivative_available = &
+      cc%saturation_function%analytical_derivative_available
+    !
+    if(associated(cc%saturation_function%sat_poly)) then
+        cc2%saturation_function%sat_poly => PolynomialCreate()
+        cc2%saturation_function%sat_poly%low = &
+          cc%saturation_function%sat_poly%low
+        cc2%saturation_function%sat_poly%high = &
+          cc%saturation_function%sat_poly%high
+        cc2%saturation_function%sat_poly%coefficients(1:4) = &
+          cc%saturation_function%sat_poly%coefficients(1:4)
+    endif
+
+    if(associated(cc%saturation_function%pres_poly)) then
+        cc2%saturation_function%pres_poly => PolynomialCreate()
+        cc2%saturation_function%pres_poly%low = &
+          cc%saturation_function%pres_poly%low
+        cc2%saturation_function%pres_poly%high = &
+          cc%saturation_function%pres_poly%high
+        cc2%saturation_function%pres_poly%coefficients(1:4) = &
+          cc%saturation_function%pres_poly%coefficients(1:4)
+    endif
+    !
+#ifdef SMOOTHING2
+    if(associated(cc%saturation_function%sat_poly2)) then
+      cc2%saturation_function%sat_poly2 => PolynomialCreate()
+
+      cc2%saturation_function%sat_poly2%low = &
+        cc%saturation_function%sat_poly2%low
+      cc2%saturation_function%sat_poly2%high = &
+        cc%saturation_function%sat_poly2%high
+      cc2%saturation_function%sat_poly2%coefficients(1:4) = &
+        cc%saturation_function%sat_poly2%coefficients(1:4)
+    endif
+    if(associated(cc%saturation_function%pres_poly2)) then
+      cc2%saturation_function%pres_poly2 => PolynomialCreate()
+
+      cc2%saturation_function%pres_poly2%low = &
+        cc%saturation_function%pres_poly2%low
+      cc2%saturation_function%pres_poly2%high = &
+        cc%saturation_function%pres_poly2%high
+      cc2%saturation_function%pres_poly2%coefficients(1:4) = &
+        cc%saturation_function%pres_poly2%coefficients(1:4)
+    endif
+    !
+#endif
+  end if
+
+  ! LIQ-RPF
+  if(associated(cc%liq_rel_perm_function)) then
+    !
+    select type(rpf => cc%liq_rel_perm_function)
+      class is(rpf_Mualem_VG_liq_type)
+        cc2%liq_rel_perm_function => RPFMualemVGLiqCreate()
+        select type(rpf2 => cc2%liq_rel_perm_function)
+          class is(rpf_Mualem_VG_liq_type)
+            rpf2%m     = rpf%m
+        end select
+      !
+      class is(rpf_Burdine_BC_liq_type)
+        cc2%liq_rel_perm_function => RPFBurdineBCLiqCreate()
+        select type(rpf2 => cc2%liq_rel_perm_function)
+          class is(rpf_Burdine_BC_liq_type)
+            rpf2%lambda = rpf%lambda
+        end select
+      !
+      class is(rpf_Mualem_BC_liq_type)
+        cc2%liq_rel_perm_function => RPFMualemBCLiqCreate()
+        select type(rpf2 => cc2%liq_rel_perm_function)
+          class is(rpf_Mualem_BC_liq_type)
+            rpf2%lambda     = rpf%lambda
+        end select
+      !
+      class default
+        option%io_buffer = 'Currently NOT yet supported liq. ' // &
+             ' permissivity function type when copying.'
+        call printErrMsg(option)
+    end select
+
+    cc2%liq_rel_perm_function%Sr  = &
+      cc%liq_rel_perm_function%Sr
+    cc2%liq_rel_perm_function%analytical_derivative_available = &
+      cc%liq_rel_perm_function%analytical_derivative_available
+    !
+    if(associated(cc%liq_rel_perm_function%poly)) then
+      cc2%liq_rel_perm_function%poly => PolynomialCreate()
+
+      cc2%liq_rel_perm_function%poly%low = &
+        cc%liq_rel_perm_function%poly%low
+      cc2%liq_rel_perm_function%poly%high = &
+        cc%liq_rel_perm_function%poly%high
+      cc2%liq_rel_perm_function%poly%coefficients(1:4) = &
+        cc%liq_rel_perm_function%poly%coefficients(1:4)
+    endif
+#ifdef SMOOTHING2
+    if(associated(cc%liq_rel_perm_function%poly2)) then
+      cc2%liq_rel_perm_function%poly2 => PolynomialCreate()
+
+      cc2%liq_rel_perm_function%poly2%low = &
+        cc%liq_rel_perm_function%poly2%low
+      cc2%liq_rel_perm_function%poly2%high = &
+        cc%liq_rel_perm_function%poly2%high
+      cc2%liq_rel_perm_function%poly2%coefficients(1:4) = &
+        cc%liq_rel_perm_function%poly2%coefficients(1:4)
+    endif
+#endif
+  endif
+
+
+  ! GAS-RPF
+  if(associated(cc%gas_rel_perm_function)) then
+    !
+    select type(rpf => cc%gas_rel_perm_function)
+      class is(rpf_Mualem_VG_gas_type)
+        cc2%gas_rel_perm_function => RPFMualemVGGasCreate()
+        select type(rpf2 => cc2%gas_rel_perm_function)
+          class is(rpf_Mualem_VG_gas_type)
+            rpf2%m       = rpf%m
+            rpf2%Srg     = rpf%Srg
+        end select
+      !
+      class is(rpf_Burdine_BC_gas_type)
+        cc2%gas_rel_perm_function => RPFBurdineBCGasCreate()
+        select type(rpf2 => cc2%gas_rel_perm_function)
+          class is(rpf_Burdine_BC_gas_type)
+            rpf2%lambda  = rpf%lambda
+            rpf2%Srg     = rpf%Srg
+        end select
+      !
+      class is(rpf_Mualem_BC_gas_type)
+        cc2%gas_rel_perm_function => RPFMualemBCGasCreate()
+        select type(rpf2 => cc2%gas_rel_perm_function)
+          class is(rpf_Mualem_BC_gas_type)
+            rpf2%lambda  = rpf%lambda
+            rpf2%Srg     = rpf%Srg
+        end select
+      !
+      class default
+        option%io_buffer = 'Currently NOT yet supported gas ' // &
+             ' permissivity function type when copying.'
+        call printErrMsg(option)
+    end select
+
+    cc2%gas_rel_perm_function%Sr  = &
+      cc%gas_rel_perm_function%Sr
+    cc2%gas_rel_perm_function%analytical_derivative_available = &
+      cc%gas_rel_perm_function%analytical_derivative_available
+    !
+    if(associated(cc%gas_rel_perm_function%poly)) then
+      cc2%gas_rel_perm_function%poly => PolynomialCreate()
+
+      cc2%gas_rel_perm_function%poly%low = &
+        cc%gas_rel_perm_function%poly%low
+      cc2%gas_rel_perm_function%poly%high = &
+        cc%gas_rel_perm_function%poly%high
+      cc2%gas_rel_perm_function%poly%coefficients(1:4) = &
+        cc%gas_rel_perm_function%poly%coefficients(1:4)
+    endif
+#ifdef SMOOTHING2
+    if(associated(cc%gas_rel_perm_function%poly2)) then
+      cc2%gas_rel_perm_function%poly2 => PolynomialCreate()
+
+      cc2%gas_rel_perm_function%poly2%low = &
+        cc%gas_rel_perm_function%poly2%low
+      cc2%gas_rel_perm_function%poly2%high = &
+        cc%gas_rel_perm_function%poly2%high
+      cc2%gas_rel_perm_function%poly2%coefficients(1:4) = &
+        cc%gas_rel_perm_function%poly2%coefficients(1:4)
+    endif
+#endif
+  endif
+
+  CharacteristicCurvesCreateCopy => cc2
+end function CharacteristicCurvesCreateCopy
 ! ************************************************************************** !
 
 end module Characteristic_Curves_module
