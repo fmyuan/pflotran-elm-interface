@@ -7,6 +7,11 @@ module Factory_Subsurface_module
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
   
+
+#ifdef CLM_PFLOTRAN
+  use clm_pflotran_interface_data, only : clm_pf_idata
+#endif
+
   implicit none
 
   private
@@ -1449,7 +1454,6 @@ subroutine SubsurfaceInitSimulation(simulation)
                                       output_snap_variable_list,option)
 
   call RegressionCreateMapping(simulation%regression,realization)
-! end from old Init()
 
   call DiscretizationPrintInfo(realization%discretization, &
                                realization%patch%grid,option)
@@ -2268,6 +2272,14 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(waypoint_list_type), pointer :: waypoint_list
   type(input_type), pointer :: input, input_parent
 
+#ifdef CLM_PFLOTRAN
+  type(material_property_type), pointer :: material_property_default
+  class(characteristic_curves_type), pointer :: characteristic_curves_default
+  type(strata_type), pointer :: pre_strata
+  PetscInt :: local_id
+  PetscBool:: found_TOP, found_BOTTOM, found_ALL
+#endif
+  
   PetscReal :: dt_init
   PetscReal :: dt_min
   PetscReal :: units_conversion
@@ -3586,7 +3598,6 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !.....................
       case ('TIME')
-!        dt_init = UNINITIALIZED_DOUBLE
         dt_init = 1.d0
         dt_min = UNINITIALIZED_DOUBLE
         do
@@ -3803,6 +3814,204 @@ subroutine SubsurfaceReadInput(simulation,input)
     end select
 
   enddo
+
+#ifdef CLM_PFLOTRAN
+    ! material_properties are unique for each cell, if CLM coupling with PFLOTRAN
+    ! hack here to re-create a series of materials, and then
+    ! (1) in 'strata' material properties will be assigned to each cell
+    ! (2) in 'PFLOTRAN_CLM_MAIN' will do the data-passing
+
+    ! clear Characteristic Curves, but the first one as a template to copy from
+    characteristic_curves_default => realization%characteristic_curves
+    do
+      if(.not.associated(characteristic_curves_default%next)) exit
+      call CharacteristicCurvesDestroy(characteristic_curves_default%next)
+    end do
+
+    ! clear material properties, but the first one as a template to copy from
+    material_property_default => realization%material_properties
+    do
+      if(.not.associated(material_property_default%next)) exit
+      call MaterialPropertyDestroy(material_property_default%next)
+    end do
+
+    ! clear 'strata' from strata_list to avoid duplication, but NOT nullifying it
+    strata => realization%patch%strata_list%first
+    do
+      if (.not.associated(strata)) exit
+        pre_strata => strata
+        strata => strata%next
+        call StrataDestroy(pre_strata)
+    enddo
+    call StrataInitList(realization%patch%strata_list)
+
+    ! reset cell by cell
+    do local_id = 1, clm_pf_idata%nlclm_sub
+      write(string,*) local_id
+      !
+      !----------
+      characteristic_curves => CharacteristicCurvesCreateCopy(characteristic_curves_default, option)
+      !
+      characteristic_curves%name = 'CLMsoil_SatFunc' // trim(adjustl(string))
+        call CharacteristicCurvesAddToList(characteristic_curves, &
+                                          realization%characteristic_curves)
+
+      !----------
+      material_property => MaterialPropertyCreate()
+      ! copy what in 'default' may be needed only for CLM-PFLOTRAN coupling
+      ! material_property = material_property_default
+      ! NOTE: the above-line assignment syntax will not work (due to complicated class and pointer derivative-types in 'material_property')
+      material_property%permeability(1:3,1:3) = material_property_default%permeability(1:3,1:3)
+      material_property%isotropic_permeability = material_property_default%isotropic_permeability
+      material_property%vertical_anisotropy_ratio = material_property_default%vertical_anisotropy_ratio
+      material_property%permeability_scaling_factor = material_property_default%permeability_scaling_factor
+      material_property%permeability_pwr = material_property_default%permeability_pwr
+      material_property%permeability_crit_por = material_property_default%permeability_crit_por
+      material_property%permeability_min_scale_fac = material_property_default%permeability_min_scale_fac
+      material_property%porosity = material_property_default%porosity
+      material_property%tortuosity_function_of_porosity = material_property_default%tortuosity_function_of_porosity
+      material_property%tortuosity = material_property_default%tortuosity
+      material_property%tortuosity_pwr = material_property_default%tortuosity_pwr
+      material_property%tortuosity_func_porosity_pwr = material_property_default%tortuosity_func_porosity_pwr
+      material_property%rock_density = material_property_default%rock_density
+      material_property%specific_heat = material_property_default%specific_heat
+      material_property%thermal_conductivity_dry = material_property_default%thermal_conductivity_dry
+      material_property%thermal_conductivity_wet = material_property_default%thermal_conductivity_wet
+      material_property%alpha = material_property_default%alpha
+      material_property%soil_compressibility_function = material_property_default%soil_compressibility_function
+      material_property%soil_compressibility = material_property_default%soil_compressibility
+      material_property%soil_reference_pressure = material_property_default%soil_reference_pressure
+      material_property%soil_reference_pressure_initial = material_property_default%soil_reference_pressure_initial
+      material_property%thermal_conductivity_frozen = material_property_default%thermal_conductivity_frozen
+      material_property%alpha_fr = material_property_default%alpha_fr
+      material_property%thermal_expansitivity = material_property_default%thermal_expansitivity
+      material_property%dispersivity(1:3) = material_property_default%dispersivity(1:3)
+      material_property%min_pressure = material_property_default%min_pressure
+      material_property%max_pressure = material_property_default%max_pressure
+      material_property%max_permfactor = material_property_default%max_permfactor
+      !
+      material_property%secondary_continuum_name = material_property_default%secondary_continuum_name
+      material_property%secondary_continuum_length = material_property_default%secondary_continuum_length
+      material_property%secondary_continuum_matrix_block_size = material_property_default%secondary_continuum_matrix_block_size
+      material_property%secondary_continuum_fracture_spacing = material_property_default%secondary_continuum_fracture_spacing
+      material_property%secondary_continuum_radius = material_property_default%secondary_continuum_radius
+      material_property%secondary_continuum_area = material_property_default%secondary_continuum_area
+      material_property%secondary_continuum_epsilon = material_property_default%secondary_continuum_epsilon
+      material_property%secondary_continuum_aperture = material_property_default%secondary_continuum_aperture
+      material_property%secondary_continuum_init_temp = material_property_default%secondary_continuum_init_temp
+      material_property%secondary_continuum_init_conc = material_property_default%secondary_continuum_init_conc
+      material_property%secondary_continuum_porosity = material_property_default%secondary_continuum_porosity
+      material_property%secondary_continuum_diff_coeff = material_property_default%secondary_continuum_diff_coeff
+      material_property%secondary_continuum_mnrl_volfrac = material_property_default%secondary_continuum_mnrl_volfrac
+      material_property%secondary_continuum_mnrl_area = material_property_default%secondary_continuum_mnrl_area
+      material_property%secondary_continuum_ncells = material_property_default%secondary_continuum_ncells
+      material_property%secondary_continuum_log_spacing = material_property_default%secondary_continuum_log_spacing
+      material_property%secondary_continuum_outer_spacing = material_property_default%secondary_continuum_outer_spacing
+      material_property%secondary_continuum_area_scaling = material_property_default%secondary_continuum_area_scaling
+
+      ! editing name as 'CLMsoil+id', and external id to default's + local_id
+      material_property%external_id = local_id + material_property_default%external_id ! to avoid duplicated 'id'
+      material_property%name = 'CLMsoil' // trim(adjustl(string))
+      material_property%saturation_function_name = characteristic_curves%name
+      call MaterialPropertyAddToList(material_property, &
+                                     realization%material_properties)
+
+      !--------
+      ! Then create a new 'strata' cell by cell, without associated 'region'
+      ! in such a case, in 'init_subsurface.F90', patch%imat(:) would be assigned cell-by-cell as well.
+      ! and add into list
+      strata => StrataCreate()
+      strata%material_property_name = material_property%name
+      strata%material_property_filename = ""
+      strata%region_name = ""
+      strata%iregion = 0
+      strata%active = PETSC_TRUE
+      call RealizationAddStrata(realization,strata)
+
+      !--------
+      nullify(characteristic_curves)
+      nullify(material_property)
+      nullify(strata)
+
+    end do
+
+    ! checking if 3 must-have regions exist
+    found_TOP    = PETSC_FALSE
+    found_BOTTOM = PETSC_FALSE
+    found_ALL    = PETSC_FALSE
+    region => realization%region_list%first
+    do
+      if (.not.associated(region)) exit
+
+      if (StringCompareIgnoreCase(trim(region%name), trim("top"))) found_TOP = PETSC_TRUE
+      if (StringCompareIgnoreCase(trim(region%name), trim("bottom"))) found_BOTTOM = PETSC_TRUE
+      if (StringCompareIgnoreCase(trim(region%name), trim("all"))) found_ALL = PETSC_TRUE
+
+      ! when not using mapping files (i.e. CLM grids completely override PF's input deck grid settings)
+      ! It's necessary to edit already read-in data under 'REGION' keyword (otherwise, coordinate checking would crash model)
+      if (.not.option%mapping_files) then
+        if(region%def_type == DEFINED_BY_COORD) then
+          region%coordinates(1)%x = -1.d20
+          region%coordinates(2)%x = +1.d20
+          region%coordinates(1)%y = -1.d20
+          region%coordinates(2)%y = +1.d20
+        elseif(region%def_type == DEFINED_BY_BLOCK) then
+          region%i1 = 1
+          region%i2 = clm_pf_idata%nxclm_mapped
+          region%j1 = 1
+          region%j2 = clm_pf_idata%nyclm_mapped
+        end if
+      end if
+
+      region => region%next
+    enddo
+
+    ! if any required 'REGION' not existed, add one as 'BLOCK'
+    if ( .not.found_TOP ) then
+      region => RegionCreate()
+      region%def_type = DEFINED_BY_BLOCK
+      region%name= "top"
+      region%iface = TOP_FACE
+      region%i1 = 1
+      region%i2 = clm_pf_idata%nxclm_mapped
+      region%j1 = 1
+      region%j2 = clm_pf_idata%nyclm_mapped
+      region%k1 = clm_pf_idata%nzclm_mapped
+      region%k2 = clm_pf_idata%nzclm_mapped
+      call RegionAddToList(region,realization%region_list)
+      nullify(region)
+    end if
+    if ( .not.found_BOTTOM ) then
+      region => RegionCreate()
+      region%def_type = DEFINED_BY_BLOCK
+      region%name= "bottom"
+      region%iface = BOTTOM_FACE
+      region%i1 = 1
+      region%i2 = clm_pf_idata%nxclm_mapped
+      region%j1 = 1
+      region%j2 = clm_pf_idata%nyclm_mapped
+      region%k1 = 1
+      region%k2 = 1
+      call RegionAddToList(region,realization%region_list)
+      nullify(region)
+    end if
+    if ( .not.found_ALL ) then
+      region => RegionCreate()
+      region%def_type = DEFINED_BY_BLOCK
+      region%name= "all"
+      region%i1 = 1
+      region%i2 = clm_pf_idata%nxclm_mapped
+      region%j1 = 1
+      region%j2 = clm_pf_idata%nyclm_mapped
+      region%k1 = 1
+      region%k2 = clm_pf_idata%nzclm_mapped
+      call RegionAddToList(region,realization%region_list)
+      nullify(region)
+    end if
+
+#endif
+
+
 
   if (associated(simulation%flow_process_model_coupler)) then
     if (option%iflowmode == RICHARDS_TS_MODE) then

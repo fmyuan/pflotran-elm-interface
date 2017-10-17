@@ -134,6 +134,7 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
   use Field_module
   use Material_module
   use Material_Aux_class
+  use String_module
   
   implicit none
   
@@ -153,6 +154,11 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
   type(material_property_type), pointer :: material_property
   type(region_type), pointer :: region
   class(material_auxvar_type), pointer :: material_auxvars(:)
+#ifdef CLM_PFLOTRAN
+  type(material_property_type), pointer :: material_property_default
+  type(strata_type), pointer :: pre_strata
+  character(len=MAXSTRINGLENGTH) :: string
+#endif
   
   option => realization%option
 
@@ -163,6 +169,41 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
     material_auxvars => cur_patch%aux%Material%auxvars
     cur_patch%imat = UNINITIALIZED_INTEGER
     grid => cur_patch%grid
+
+#ifdef CLM_PFLOTRAN
+    ! strata(_list) and material_property are unique for each cell, if CLM coupling with PFLOTRAN
+    if(cur_patch%strata_list%num_strata /= grid%nlmax) then
+      write(string,*) 'num_strata -', cur_patch%strata_list%num_strata, &
+        '; grid number -', grid%nlmax
+      option%io_buffer = 'CLM-PFLOTRAN: strata_list number is ' // &
+              ' not same as grid numbers: ' // &
+              trim(string)
+      call printErrMsg(option)
+    end if
+    strata => cur_patch%strata_list%first
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+
+      ! pointer to material
+      if (cur_patch%surf_or_subsurf_flag == SUBSURFACE) then
+        strata%material_property => &
+            MaterialPropGetPtrFromArray(strata%material_property_name, &
+                                        cur_patch%material_property_array)
+        if (.not.associated(strata%material_property)) then
+          option%io_buffer = 'Material "' // &
+                              trim(strata%material_property_name) // &
+                              '" not found in material list'
+          call printErrMsg(option)
+        endif
+      endif
+
+      cur_patch%imat(ghosted_id) = strata%material_property%internal_id
+
+      strata => strata%next
+
+    end do
+#else
+
     strata => cur_patch%strata_list%first
     do
       if (.not.associated(strata)) exit
@@ -203,6 +244,8 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
       endif
       strata => strata%next
     enddo
+#endif
+
     cur_patch => cur_patch%next
   enddo
   
