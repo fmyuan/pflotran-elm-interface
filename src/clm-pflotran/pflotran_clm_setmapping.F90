@@ -446,22 +446,22 @@ contains
     select case(source_mesh_id)
       case(CLM_3DSUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
-                                         grid_clm_npts_ghost, &
-                                         grid_clm_cell_ids_nindex, &
-                                         grid_clm_local_nindex)
+                                                      grid_clm_npts_ghost, &
+                                                      grid_clm_cell_ids_nindex, &
+                                                      grid_clm_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
-                                              grid_pf_npts_ghost, &
-                                              grid_pf_cell_ids_nindex, &
-                                              grid_pf_local_nindex)
+                                                           grid_pf_npts_ghost, &
+                                                           grid_pf_cell_ids_nindex, &
+                                                           grid_pf_local_nindex)
       case(PF_3DSUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
-                                        grid_pf_npts_ghost, &
-                                        grid_pf_cell_ids_nindex, &
-                                        grid_pf_local_nindex)
+                                                      grid_pf_npts_ghost, &
+                                                      grid_pf_cell_ids_nindex, &
+                                                      grid_pf_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
-                                              grid_clm_npts_ghost, &
-                                              grid_clm_cell_ids_nindex, &
-                                              grid_clm_local_nindex)
+                                                           grid_clm_npts_ghost, &
+                                                           grid_clm_cell_ids_nindex, &
+                                                           grid_clm_local_nindex)
       case default
         option%io_buffer = 'Invalid argument source_mesh_id passed to pflotranModelInitMapping'
         call printErrMsg(option)
@@ -476,6 +476,21 @@ contains
     deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
     deallocate(grid_clm_local_nindex)
+
+    ! Setting the number of cells constituting the 3D
+    ! subsurface domain for each model.
+    ! NOTE: no need for CLM's cell numbers, which have already set in clm_interface.
+    select case(map_id)
+      case(CLM_3DSUB_TO_PF_3DSUB)
+        ! none
+      case(PF_3DSUB_TO_CLM_3DSUB)
+        clm_pf_idata%nlpf_sub  = grid_pf_npts_local
+        clm_pf_idata%ngpf_sub  = grid_pf_npts_ghost+grid_pf_npts_local
+      case default
+        option%io_buffer = 'map_id argument NOT yet supported in ' // &
+                        'pflotranModelInitMappingSubToSub'
+        call printErrMsg(option)
+    end select
 
   end subroutine pflotranModelInitMappingSub2Sub
 
@@ -1099,22 +1114,22 @@ contains
     select case(source_mesh_id)
       case(CLM_FACE_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
-                                         grid_clm_npts_ghost, &
-                                         grid_clm_cell_ids_nindex_copy, &
-                                         grid_clm_local_nindex)
+                                                      grid_clm_npts_ghost, &
+                                                      grid_clm_cell_ids_nindex_copy, &
+                                                      grid_clm_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
-                                              grid_pf_npts_ghost, &
-                                              grid_pf_cell_ids_nindex, &
-                                              grid_pf_local_nindex)
+                                                           grid_pf_npts_ghost, &
+                                                           grid_pf_cell_ids_nindex, &
+                                                           grid_pf_local_nindex)
       case(PF_FACE_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
-                                         grid_pf_npts_ghost, &
-                                         grid_pf_cell_ids_nindex, &
-                                         grid_pf_local_nindex)
+                                                      grid_pf_npts_ghost, &
+                                                      grid_pf_cell_ids_nindex, &
+                                                      grid_pf_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
-                                              grid_clm_npts_ghost, &
-                                              grid_clm_cell_ids_nindex_copy, &
-                                              grid_clm_local_nindex)
+                                                           grid_clm_npts_ghost, &
+                                                           grid_clm_cell_ids_nindex_copy, &
+                                                           grid_clm_local_nindex)
       case default
         option%io_buffer = 'Invalid argument source_mesh_id passed to ' // &
           'pflotranModelInitMappingFaceToFace'
@@ -1134,17 +1149,16 @@ contains
 
     ! Setting the number of cells constituting the face of the 3D
     ! subsurface domain for each model.
+    ! NOTE: no need for CLM's cell numbers, which have already set in clm_interface.
     select case(map_id)
-      case(CLM_2DTOP_TO_PF_2DTOP, PF_2DTOP_TO_CLM_2DTOP)
-        clm_pf_idata%nlclm_2dtop = grid_clm_npts_local
-        clm_pf_idata%ngclm_2dtop = grid_clm_npts_local
+      case(CLM_2DTOP_TO_PF_2DTOP, CLM_2DBOT_TO_PF_2DBOT)
+        ! none
+      case(PF_2DTOP_TO_CLM_2DTOP)
         clm_pf_idata%nlpf_2dtop  = grid_pf_npts_local
-        clm_pf_idata%ngpf_2dtop  = grid_pf_npts_local
-      case(CLM_2DBOT_TO_PF_2DBOT, PF_2DBOT_TO_CLM_2DBOT)
-        clm_pf_idata%nlclm_2dbot = grid_clm_npts_local
-        clm_pf_idata%ngclm_2dbot = grid_clm_npts_local
+        clm_pf_idata%ngpf_2dtop  = grid_pf_npts_ghost+grid_pf_npts_local
+      case(PF_2DBOT_TO_CLM_2DBOT)
         clm_pf_idata%nlpf_2dbot  = grid_pf_npts_local
-        clm_pf_idata%ngpf_2dbot  = grid_pf_npts_local
+        clm_pf_idata%ngpf_2dbot  = grid_pf_npts_ghost+grid_pf_npts_local
       case default
         option%io_buffer = 'map_id argument NOT yet supported in ' // &
                         'pflotranModelInitMappingFaceToFace'
