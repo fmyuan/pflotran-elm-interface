@@ -15,9 +15,6 @@ module Richards_module
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
   
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  use clm_pflotran_interface_data
-#endif
   implicit none
   
   private 
@@ -1779,9 +1776,6 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   PetscInt :: istart
   PetscInt :: iconn
   PetscInt :: sum_connection
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  PetscReal, pointer :: qflx_pf_p(:)
-#endif
   PetscReal :: qsrc, qsrc_mol
   PetscReal :: Res(realization%option%nflowdof)
   PetscReal, pointer :: r_p(:), accum_p(:)
@@ -1811,9 +1805,6 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
 
   ! now assign access pointer to local variables
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  call VecGetArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr); CHKERRQ(ierr)
-#endif
 
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first
@@ -1829,9 +1820,6 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-      qsrc = qflx_pf_p(local_id)
-#endif
       if (source_sink%flow_condition%itype(1)/=HET_VOL_RATE_SS .and. &
           source_sink%flow_condition%itype(1)/=HET_MASS_RATE_SS .and. &
           source_sink%flow_condition%itype(1)/=WELL_SS) &
@@ -1929,10 +1917,6 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   call RichardsSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
                          global_auxvars,rich_auxvars,option)
   
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  call VecRestoreArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr); CHKERRQ(ierr)
-#endif
-
   ! Mass Transfer
   if (field%flow_mass_transfer /= PETSC_NULL_VEC) then
     ! scale by -1.d0 for contribution to residual.  A negative contribution
