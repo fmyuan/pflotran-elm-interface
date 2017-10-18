@@ -661,7 +661,8 @@ subroutine THUpdateAuxVarsPatch(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  !class(material_auxvar_type), pointer :: material_auxvars(:)  ! this unknownly would likely mess up %soil_properties(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(TH_parameter_type), pointer :: TH_parameter
 
   PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
@@ -1080,7 +1081,8 @@ subroutine THUpdateFixedAccumPatch(realization)
   type(TH_auxvar_type), pointer :: TH_auxvars(:)
   type(TH_parameter_type), pointer :: TH_parameter
   type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  !class(material_auxvar_type), pointer :: material_auxvars(:)  ! this unknownly would likely mess up %soil_properties(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, istart, iend, iphase
   PetscReal, pointer :: xx_p(:), icap_loc_p(:), iphase_loc_p(:)
@@ -3828,7 +3830,8 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  !class(material_auxvar_type), pointer :: material_auxvars(:)  ! this unknownly would likely mess up %soil_properties(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set  
@@ -4464,7 +4467,8 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   type(TH_parameter_type), pointer :: TH_parameter
   type(TH_auxvar_type), pointer :: auxvars(:), auxvars_bc(:),auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  !class(material_auxvar_type), pointer :: material_auxvars(:)  ! this unknownly would likely mess up %soil_properties(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   type(sec_heat_type), pointer :: sec_heat_vars(:)
   character(len=MAXSTRINGLENGTH) :: string
@@ -5996,7 +6000,8 @@ subroutine THComputeCoeffsForSurfFlux(realization)
   type(global_auxvar_type) :: global_auxvar_max
   type(th_auxvar_type),pointer :: th_auxvar_up, th_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  !class(material_auxvar_type), pointer :: material_auxvars(:)  ! this unknownly would likely mess up %soil_properties(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvar_dn
 
   PetscInt :: pressure_bc_type
