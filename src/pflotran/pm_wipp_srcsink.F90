@@ -409,6 +409,8 @@ module PM_WIPP_SrcSink_class
     type(srcsink_panel_type), pointer :: waste_panel_list
     type(pre_inventory_type), pointer :: pre_inventory_list
     class(data_mediator_vec_type), pointer :: data_mediator
+    PetscReal, pointer :: srcsink_vec_brine(:,:)
+    PetscReal, pointer :: srcsink_vec_gas(:,:)
     class(realization_subsurface_type), pointer :: realization
   contains
     procedure, public :: PMWSSSetRealization
@@ -462,6 +464,8 @@ function PMWSSCreate()
   nullify(pm%pre_inventory_list)
   nullify(pm%data_mediator)
   nullify(pm%realization)
+  nullify(pm%srcsink_vec_brine)
+  nullify(pm%srcsink_vec_gas)
   pm%name = 'wipp source sink'
   pm%alpharxn = UNINITIALIZED_DOUBLE
   pm%smin = UNINITIALIZED_DOUBLE
@@ -2310,16 +2314,18 @@ subroutine PMWSSInitializeRun(this)
 ! LOCAL VARIABLES:
 ! ================
 ! is: PETSc index set object
-! i, j, k: [-] looping index integers
+! i, j, k, p: [-] looping index integers
 ! ierr: PETSc error integer
 ! size_of_vec: [-] size of array
+! local_id, ghosted_id: [-] local and ghosted grid cell id number
 ! dofs_in_residual(:): [-] degrees of freedom in residual array
 ! cur_waste_panel: pointer to curent waste panel object
 ! ----------------------------------------------------
   IS :: is
-  PetscInt :: i, j, k
+  PetscInt :: i, j, k, p
   PetscErrorCode :: ierr
   PetscInt :: size_of_vec
+  PetscInt :: local_id, ghosted_id
   PetscInt, allocatable :: dofs_in_residual(:)
   type(srcsink_panel_type), pointer :: cur_waste_panel
 ! ----------------------------------------------------
@@ -2331,16 +2337,42 @@ subroutine PMWSSInitializeRun(this)
   this%data_mediator => DataMediatorVecCreate()
   call this%data_mediator%AddToList(this%realization%flow_data_mediator_list)
   
-  ! create a Vec sized by # waste panels * # waste panel cells in region *
-  ! # src/sinks (water [mol/s], gas [mol/s], energy [MJ/s])
+  ! create a Vec sized by # waste panels * # waste panel cells in region 
   cur_waste_panel => this%waste_panel_list
   size_of_vec = 0
   do
     if (.not.associated(cur_waste_panel)) exit
-    size_of_vec = size_of_vec + (cur_waste_panel%region%num_cells * &
-                                 this%option%nflowdof)
+    size_of_vec = size_of_vec + cur_waste_panel%region%num_cells
     cur_waste_panel => cur_waste_panel%next
   enddo
+  ! srcsink_vec_brine/gas is indexed (1,:) perturbed value wrt idof#1
+  !                                  (2,:) perturbed value wrt idof#2
+  !                                  (3,:) unperturbed value
+  !                                  (4,:) ghosted_id of grid cell
+  allocate(this%srcsink_vec_brine((this%option%nflowdof+2),size_of_vec))
+  allocate(this%srcsink_vec_gas((this%option%nflowdof+2),size_of_vec))
+  this%srcsink_vec_brine((this%option%nflowdof+2),:) = 0
+  this%srcsink_vec_brine(1:(this%option%nflowdof+1),:) = 0.d0
+  this%srcsink_vec_gas((this%option%nflowdof+2),:) = 0
+  this%srcsink_vec_gas(1:(this%option%nflowdof+1),:) = 0.d0
+  ! load srcsink_vec_brine/gas with ghosted_id values
+  p = 0
+  cur_waste_panel => this%waste_panel_list
+  do
+    if (.not.associated(cur_waste_panel)) exit
+    do k = 1,cur_waste_panel%region%num_cells
+      p = p + 1
+      local_id = cur_waste_panel%region%cell_ids(k)
+      ghosted_id = this%realization%patch%grid%nL2G(local_id)
+      this%srcsink_vec_brine((this%option%nflowdof+2),p) = ghosted_id
+      this%srcsink_vec_gas((this%option%nflowdof+2),p) = ghosted_id
+    enddo
+    cur_waste_panel => cur_waste_panel%next
+  enddo
+  
+  ! create a Vec sized by # waste panels * # waste panel cells in region *
+  ! # src/sinks (water [kmol/s], gas [kmol/s])
+  size_of_vec = size_of_vec * this%option%nflowdof 
   call VecCreateSeq(PETSC_COMM_SELF,size_of_vec, &
                     this%data_mediator%vec,ierr);CHKERRQ(ierr)
   call VecSetFromOptions(this%data_mediator%vec,ierr);CHKERRQ(ierr)
@@ -2680,7 +2712,7 @@ end subroutine PMWSSUpdateChemSpecies
   
   option => this%realization%option
   grid => this%realization%patch%grid
-  nullify(wippflo_auxvar)
+  nullify(wippflo_auxvars)
   wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
   material_auxvars => this%realization%patch%aux%Material%auxvars
   global_auxvars => this%realization%patch%aux%Global%auxvars
@@ -3718,6 +3750,7 @@ subroutine PMWSSStrip(this)
   ! Author: Jenn Frederick
   ! Date: 01/31/2017
   !
+  use Utility_module, only : DeallocateArray
   
   implicit none
   
@@ -3757,6 +3790,9 @@ subroutine PMWSSStrip(this)
     nullify(prev_preinventory)
   enddo
   nullify(this%pre_inventory_list)
+  
+  call DeallocateArray(this%srcsink_vec_brine)
+  call DeallocateArray(this%srcsink_vec_gas)
 
 end subroutine PMWSSStrip
 
