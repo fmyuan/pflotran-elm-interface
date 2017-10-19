@@ -1040,7 +1040,7 @@ end subroutine WIPPFloResidual
 
 ! ************************************************************************** !
 
-subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
+subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   ! 
   ! Computes the Jacobian
   ! 
@@ -1057,6 +1057,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
   use Field_module
   use Debug_module
   use Material_Aux_class
+  use PM_WIPP_SrcSink_class
 
   implicit none
 
@@ -1064,6 +1065,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
   Vec :: xx
   Mat :: A, B
   type(realization_subsurface_type) :: realization
+  type(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   PetscErrorCode :: ierr
 
   Mat :: J
@@ -1101,6 +1103,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
   PetscInt, pointer :: upwind_direction(:,:), upwind_direction_bc(:,:)
   
   character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: k
   
   patch => realization%patch
   grid => patch%grid
@@ -1282,23 +1285,24 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
     source_sink => source_sink%next
   enddo
   
-  !jmf: Add another loop over grid cells within dense array that contains the 
-  !     src/sink values that were once in vec_p but are now in a member array
-  !     There will be two member arrays - one that stores the rates based on
-  !     non-perturbed saturation values and another that stores the rates based 
-  !     on perturbed saturation. The end result is as if you called 
-  !     WIPPFloSrcSinkDerivative, which functions to load Jup and then call
-  !     MatSetValues to load Jup value into A matrix (Jacobian).
   
   ! WIPP gas/brine generation process model source/sinks
-  
-  !call PMWSSGetPnlCellIDs(cell_ids)    ! gives you an array of cell ids
-  !call PMWSSGetJacobianValues(wippflo_auxvars,J_array) ! gives you an array of J values ordered same as cell_ids
-  !do k = 1,len(cell_ids)
-  !  local_id = cell_ids(k)
-  !  ghosted_id = grid%nL2G(local_id)
-  !  call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,J_array(k), &
-  !                                ADD_VALUES,ierr);CHKERRQ(ierr)
+  if (wippflo_use_gas_gen) then
+    if (wippflo_analytical_derivatives) then
+      option%io_buffer = "Currently, WIPP gas/brine generation process model &
+         &cannot be used with ANALYTICAL DERIVATIVES. Sorry!!"
+         call printErrMsg(option)
+    endif
+    call pmwss_ptr%Solve(option%time,ierr)
+    ! loop over ghosted cell id array
+    do k = 1,size(pmwss_ptr%srcsink_vec_brine((option%nflowdof+2),:))
+      ghosted_id = pmwss_ptr%srcsink_vec_brine((option%nflowdof+2),k)
+      call PMWSSCalcJacobianValues(pmwss_ptr,k,wippflo_auxvars%pert,Jup) ! re-using Jup
+      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+    enddo
+  endif
+
   
   call WIPPFloSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
                         wippflo_auxvars,option)

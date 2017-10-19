@@ -423,11 +423,12 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   PetscErrorCode :: ierr
   
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
-  ! call all WIPP process models using picard method
-  ! these updates will lag one Newton iteration
-  if (wippflo_use_gas_gen) then
-    call this%pmwss_ptr%Solve(this%option%time,ierr)
-  endif
+  !jmf: remove
+  !! call all WIPP process models using picard method
+  !! these updates will lag one Newton iteration
+  !if (wippflo_use_gas_gen) then
+  !  call this%pmwss_ptr%Solve(this%option%time,ierr)
+  !endif
   ! calculate residual
   call WIPPFloResidual(snes,xx,r,this%realization,ierr)
 
@@ -453,7 +454,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
   
-  call WIPPFloJacobian(snes,xx,A,B,this%realization,ierr)
+  call WIPPFloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
 
 end subroutine PMWIPPFloJacobian
 

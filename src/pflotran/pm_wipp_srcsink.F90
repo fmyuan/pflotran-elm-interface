@@ -434,7 +434,8 @@ module PM_WIPP_SrcSink_class
   public :: PMWSSCreate, &
             PMWSSWastePanelCreate, &
             PMWSSPreInventoryCreate, &
-            PMWSSSetRealization
+            PMWSSSetRealization, &
+            PMWSSCalcJacobianValues
 
 contains
 
@@ -2678,6 +2679,12 @@ end subroutine PMWSSUpdateChemSpecies
 ! local_id, ghosted_id: [-] local and ghosted grid cell id number
 ! num_cells: number of grid cells in a waste panel region
 ! SOCEXP: exponent value in effective brine saturation equation
+! dt: [sec] flow process model time steo value
+! UNPERT: unperturbed array index value in srcsink_vec_brine/gas
+! PERT_WRT_PL: perturbed array index value in srcsink_vec_brine/gas with 
+!    respect to liquid pressure (1st dof)
+! PERT_WRT_SG: perturbed array index value in srcsink_vec_brine/gas with 
+!    respect to gas saturation (2nd dof)
 ! water_saturation: [-] liquid saturation from simulation
 ! s_eff: [-] effective brine saturation due to capillary action
 !    in the waste materials
@@ -2689,12 +2696,16 @@ end subroutine PMWSSUpdateChemSpecies
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal, pointer :: vec_p(:)
   type(srcsink_panel_type), pointer :: cwp
-  PetscInt :: i, j
+  PetscInt :: i, j, p, k
   PetscInt :: local_id, ghosted_id
   PetscInt :: num_cells
   PetscReal :: SOCEXP
   PetscReal :: dt
   
+  ! srcsink vector indexing
+  PetscInt, parameter :: PERT_WRT_PL = 1     ! hard wire for now; 1st dof
+  PetscInt, parameter :: PERT_WRT_SG = 2     ! hard wire for now; 2nd dof
+  PetscInt, parameter :: UNPERT = 3          ! hard wire for now
   ! brine/gas generation variables
   PetscReal :: water_saturation
   PetscReal :: s_eff
@@ -2720,296 +2731,327 @@ end subroutine PMWSSUpdateChemSpecies
   call VecGetArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
   
   dt = option%flow_dt  ! [sec]
+
+  do k = 1,(this%option%nflowdof+1)  ! loops over perturbations: k = 1,2,3
   
-  j = 0  ! (j indexes the data mediator vec)
-  cwp => this%waste_panel_list
-  do
-    if (.not.associated(cwp)) exit
-    num_cells = cwp%region%num_cells
-    !-----zero-out-reaction-rates---------------------------------------------
-    water_saturation = 0.d0
-    s_eff = 0.d0
-    sg_eff = 0.d0
-    
-    cwp%rxnrate_Fe_corrosion_inund(:) = 0.d0
-    cwp%rxnrate_Fe_corrosion_humid(:) = 0.d0
-    cwp%rxnrate_cell_biodeg_inund(:) = 0.d0
-    cwp%rxnrate_cell_biodeg_humid(:) = 0.d0
-    cwp%rxnrate_MgO_hyd_inund(:) = 0.d0
-    cwp%rxnrate_MgO_hyd_humid(:) = 0.d0
-    cwp%rxnrate_Fe_corrosion(:) = 0.d0
-    cwp%rxnrate_cell_biodeg(:) = 0.d0
-    cwp%rxnrate_FeOH2_sulf(:) = 0.d0
-    cwp%rxnrate_Fe_sulf(:) = 0.d0
-    cwp%rxnrate_MgO_hyd(:) = 0.d0
-    cwp%rxnrate_MgOH2_carb(:) = 0.d0
-    cwp%rxnrate_MgO_carb(:) = 0.d0
-    cwp%rxnrate_hydromag_conv(:) = 0.d0
-    
-
-    do i = 1,num_cells
-      local_id = cwp%region%cell_ids(i)
-      ghosted_id = grid%nL2G(local_id)
-    !-----effective-brine-saturation------------------------------------------
-    !-----(see equation PA.99, section PA-4.2.6)------------------------------
-      water_saturation = &
-          wippflo_auxvars(ZERO_INTEGER,ghosted_id)%sat(option%liquid_phase)
-      
-      SOCEXP = 200.d0*(max((water_saturation-this%smin),0.d0))**2.d0
-      s_eff = water_saturation-this%smin+(this%satwick * &
-                                          (1.d0-exp(this%alpharxn*SOCEXP)))
-      if (water_saturation <= this%smin) s_eff = 0.d0
-      if (water_saturation > (1.d0-this%satwick+this%smin)) s_eff = 1.d0
-      
-      s_eff = min(s_eff,1.d0)
-      s_eff = max(s_eff,0.d0)
-      ! sg_eff is set to zero if sw_eff is also zero
+    j = 0  ! (j indexes the data mediator vec)
+    p = 0  ! (p indexes the srcsink_vec)
+    cwp => this%waste_panel_list
+    do
+      if (.not.associated(cwp)) exit
+      num_cells = cwp%region%num_cells
+      !-----zero-out-reaction-rates---------------------------------------------
+      water_saturation = 0.d0
+      s_eff = 0.d0
       sg_eff = 0.d0
-      if (s_eff > 1.d-16) then
-        sg_eff = (1.d0-s_eff)
-      endif
       
-    ! note, bragflo applies a separate smoothing on the humid rates using s_eff 
-    !
-    ! bragflo calculates and reports inundated and humid rates separately
-    ! inundated_rate_cons*s_eff and humid_rate_constant*sg_eff
-    ! and sequentially - humid proceeds only if there is remaining solid after inundated
-    
-    
-    !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
-    !-----(see equation PA.67, PA.77, section PA-4.2.5)-----------------------
-    
-      ! CORSAT
-      cwp%rxnrate_Fe_corrosion_inund(i) = cwp%inundated_corrosion_rate*s_eff
-      call PMWSSSmoothRxnrate(cwp%rxnrate_Fe_corrosion_inund(i),i, &
-                              cwp%inventory%Fe_s,this%alpharxn) 
-      call PMWSSTaperRxnrate(cwp%rxnrate_Fe_corrosion_inund(i),i, &
-                              cwp%inventory%Fe_s,1.d0,dt)
+      cwp%rxnrate_Fe_corrosion_inund(:) = 0.d0
+      cwp%rxnrate_Fe_corrosion_humid(:) = 0.d0
+      cwp%rxnrate_cell_biodeg_inund(:) = 0.d0
+      cwp%rxnrate_cell_biodeg_humid(:) = 0.d0
+      cwp%rxnrate_MgO_hyd_inund(:) = 0.d0
+      cwp%rxnrate_MgO_hyd_humid(:) = 0.d0
+      cwp%rxnrate_Fe_corrosion(:) = 0.d0
+      cwp%rxnrate_cell_biodeg(:) = 0.d0
+      cwp%rxnrate_FeOH2_sulf(:) = 0.d0
+      cwp%rxnrate_Fe_sulf(:) = 0.d0
+      cwp%rxnrate_MgO_hyd(:) = 0.d0
+      cwp%rxnrate_MgOH2_carb(:) = 0.d0
+      cwp%rxnrate_MgO_carb(:) = 0.d0
+      cwp%rxnrate_hydromag_conv(:) = 0.d0
       
-      ! CORHUM
-      cwp%rxnrate_Fe_corrosion_humid(i) = cwp%humid_corrosion_rate*sg_eff
-      call PMWSSSmoothRxnrate(cwp%rxnrate_Fe_corrosion_humid(i),i, &
-                              cwp%inventory%Fe_s,this%alpharxn) 
-      call PMWSSTaperRxnrate(cwp%rxnrate_Fe_corrosion_humid(i),i, &
-                              cwp%inventory%Fe_s,1.d0,dt)
-      ! the humid rate is also smoothed based on sg_eff; neglected here
-      
-      ! total corrosion
-      cwp%rxnrate_Fe_corrosion(i) = & 
-          cwp%rxnrate_Fe_corrosion_inund(i) + cwp%rxnrate_Fe_corrosion_humid(i)
-      
-      
-    !-----biodegradation-[mol-cell/m3/sec]------------------------------------
-    !-----(see equation PA.69, PA.82, PA.83, section PA-4.2.5)----------------
-      
-      ! BIOSAT
-      cwp%rxnrate_cell_biodeg_inund(i) = cwp%inundated_biodeg_rate*s_eff
-      call PMWSSSmoothRxnrate(cwp%rxnrate_cell_biodeg_inund(i),i, &
-                              cwp%inventory%BioDegs_s,this%alpharxn) 
-      call PMWSSTaperRxnrate(cwp%rxnrate_cell_biodeg_inund(i),i, &
-                              cwp%inventory%BioDegs_s,1.d0,dt)
-      
-      ! BIOHUM
-      cwp%rxnrate_cell_biodeg_humid(i) = cwp%humid_biodeg_rate*sg_eff
-      call PMWSSSmoothRxnrate(cwp%rxnrate_cell_biodeg_humid(i),i, &
-                              cwp%inventory%BioDegs_s,this%alpharxn) 
-      call PMWSSTaperRxnrate(cwp%rxnrate_cell_biodeg_humid(i),i, &
-                              cwp%inventory%BioDegs_s,1.d0,dt)
-      ! the humid rate is also smoothed based on sg_eff; neglected here
-      
-      ! total microbial gas generation
-      cwp%rxnrate_cell_biodeg(i) = & 
-          cwp%rxnrate_cell_biodeg_inund(i) + cwp%rxnrate_cell_biodeg_humid(i)
-      
-      
-    !-----iron-sulfidation-[mol-H2S/m3/sec]-----------------------------------
-    !-----(see equation PA.68, PA.89, PA.90, section PA-4.2.5)----------------
-      
-      ! BIOFES
-      ! FeOH2 sulfidation is assumed to kinetically dominate Fe sulfidation.
-      ! The H2S generation rate is proportioned between FeOH and Fe.
-      ! FeOH2 is sulifidized first, then Fe is sulifidized with remaining H2S
-      cwp%rxnrate_FeOH2_sulf(i) = cwp%rxnrate_cell_biodeg(i)*cwp%RXH2S_factor
-      ! bragflo uses Fe as initial concentration, not FeOH2, so this is correct
-      
-      ! for smoothing, the initial and current species are different
-      call PMWSSSmoothRxnrate2(cwp%rxnrate_FeOH2_sulf(i), &
-                               cwp%inventory%FeOH2_s%current_conc_mol(i), & 
-                               cwp%inventory%Fe_s%initial_conc_mol(i), & 
-                               this%alpharxn)
-      
-      ! here tapering actually truncates the rate, so this call is important
-      call PMWSSTaperRxnrate(cwp%rxnrate_FeOH2_sulf(i),i,cwp%inventory%FeOH2_s,1.d0,dt)
-      
-      ! FeS rate is caculated based on the left over H2S rate
-      cwp%rxnrate_Fe_sulf(i) = cwp%rxnrate_cell_biodeg(i)*cwp%RXH2S_factor - &
-                              cwp%rxnrate_FeOH2_sulf(i)
-      call PMWSSTaperRxnrate(cwp%rxnrate_Fe_sulf(i),i,cwp%inventory%Fe_s,1.d0,dt)
-      
-      
-    !-----MgO-hydration-[mol-MgO/m3/sec]--------------------------------------
-    !-----(see equation PA.73, PA.94, section PA-4.2.5)-----------------------
-      
-      ! CORMGO
-      cwp%rxnrate_MgO_hyd_inund(i) = cwp%inundated_brucite_rate*s_eff
-      cwp%rxnrate_MgO_hyd_humid(i) = cwp%humid_brucite_rate*sg_eff
-      ! the humid rate is also smoothed based on sg_eff; neglected here
-      
-      ! unlike for corrorosion and biodegradation, bragflo doesn't
-      ! separately store and report inundated and humid rates for MgO hydration
-      cwp%rxnrate_MgO_hyd(i) = & 
-          cwp%rxnrate_MgO_hyd_inund(i) + cwp%rxnrate_MgO_hyd_humid(i)
-      
-      call PMWSSSmoothRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
-                              cwp%inventory%MgO_s,this%alpharxn) 
-      call PMWSSTaperRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
-                              cwp%inventory%MgO_s,1.d0,dt)
-      
-    !-----hydromagnesite-[mol-hydromagnesite/m3-bulk/sec]---------------------
-    !-----(see equation PA.74, PA.96, section PA-4.2.5)-----------------------
-      
-      ! BIOMGO
-      cwp%rxnrate_MgOH2_carb(i) = cwp%rxnrate_cell_biodeg(i)*cwp%RXCO2_factor
-      
-      ! for smoothing, the initial and current species are different
-      call PMWSSSmoothRxnrate2(cwp%rxnrate_MgOH2_carb(i), &
-                               cwp%inventory%MgOH2_s%current_conc_mol(i), & 
-                               cwp%inventory%MgO_s%initial_conc_mol(i), & 
-                               this%alpharxn)
-      
-      ! here tapering actually truncates the rate, so this call is important
-      call PMWSSTaperRxnrate(cwp%rxnrate_MgOH2_carb(i),i,cwp%inventory%MgOH2_s,1.d0,dt)
-      
-      ! the remaining CO2 reacts with MgO
-      cwp%rxnrate_MgO_carb(i) = cwp%rxnrate_cell_biodeg(i)*cwp%RXCO2_factor - &
-                                cwp%rxnrate_MgOH2_carb(i)
-      call PMWSSTaperRxnrate(cwp%rxnrate_MgO_carb(i),i,cwp%inventory%MgO_s,1.d0,dt)
-      
-    !-----hydromagnesite-conversion-[mol-hydromagnesite/m3-bulk/sec]----------
-    !-----(see equation PA.74, PA.97, section PA-4.2.5)-----------------------
-      
-      ! HYDROCONV
-      ! this is a first-order reaction, not zero-order; also rate is on /kg basis
-      cwp%rxnrate_hydromag_conv(i) = this%hymagcon_rate* &
-                                cwp%inventory%Mg5CO34OH24H2_s%current_conc_kg(i)
-      ! for smoothing, the initial and current species are different
-      call PMWSSSmoothRxnrate2(cwp%rxnrate_hydromag_conv(i), &
-                               cwp%inventory%Mg5CO34OH24H2_s%current_conc_mol(i), & 
-                               cwp%inventory%MgO_s%initial_conc_mol(i), & 
-                               this%alpharxn)
-      call PMWSSTaperRxnrate(cwp%rxnrate_hydromag_conv(i),i, &
-                             cwp%inventory%Mg5CO34OH24H2_s,1.d0,dt)
-      
-    !-----tracked-species-[mol-species/m3-bulk/sec]---------------------------
-    !-----note:column-id-is-shifted-by-+1-since-a-0-index-not-possible--------
-      
-      cwp%inventory%FeOH2_s%inst_rate(i) = &
-                    this%stoic_mat(1,6)*cwp%rxnrate_Fe_corrosion(i) + &
-                    this%stoic_mat(3,6)*cwp%rxnrate_FeOH2_sulf(i)
-      cwp%inventory%Fe_s%inst_rate(i) = &
-                    this%stoic_mat(1,4)*cwp%rxnrate_Fe_corrosion(i) + &
-                    this%stoic_mat(4,4)*cwp%rxnrate_Fe_sulf(i) 
-      cwp%inventory%FeS_s%inst_rate(i) = &
-                    this%stoic_mat(4,7)*cwp%rxnrate_Fe_sulf(i) + &
-                    this%stoic_mat(3,7)*cwp%rxnrate_FeOH2_sulf(i)
-      cwp%inventory%BioDegs_s%inst_rate(i) = &
-                    this%stoic_mat(2,5)*cwp%rxnrate_cell_biodeg(i)
-      cwp%inventory%MgO_s%inst_rate(i) = &
-                    this%stoic_mat(5,8)*cwp%rxnrate_MgO_hyd(i) + &
-                    this%stoic_mat(7,8)*cwp%rxnrate_MgO_carb(i)
-      cwp%inventory%MgOH2_s%inst_rate(i) = &
-                    this%stoic_mat(5,9)*cwp%rxnrate_MgO_hyd(i) + & 
-                    this%stoic_mat(6,9)*cwp%rxnrate_MgOH2_carb(i) + &
-                    this%stoic_mat(8,9)*cwp%rxnrate_hydromag_conv(i)
-      cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i) = &
-                    this%stoic_mat(6,1)*cwp%rxnrate_MgOH2_carb(i) + &
-                    this%stoic_mat(8,1)*cwp%rxnrate_hydromag_conv(i) 
-      cwp%inventory%MgCO3_s%inst_rate(i) = &
-                    this%stoic_mat(7,10)*cwp%rxnrate_MgO_carb(i) + &
-                    this%stoic_mat(8,10)*cwp%rxnrate_hydromag_conv(i)
-      
-    !-----gas-generation-[mol-H2/m3-bulk/sec]---------------------------------
-    !-----(see equations PA.67-69, PA.77, PA.82-83, PA.86, PA.89, sec PA-4.2.5)
-    
-      cwp%gas_generation_rate(i) = &
-                    this%stoic_mat(1,2)*cwp%rxnrate_Fe_corrosion(i) + &
-                    this%stoic_mat(3,2)*cwp%rxnrate_FeOH2_sulf(i) + &
-                    this%stoic_mat(4,2)*cwp%rxnrate_Fe_sulf(i) + &
-                    this%stoic_mat(2,2)*cwp%rxnrate_cell_biodeg(i) + & ! zero
-                    cwp%RXH2_factor*cwp%rxnrate_cell_biodeg(i)         ! H2
-      
-    !-----brine-generation-[mol-H2O/m3-bulk/sec]------------------------------
-    !-----(see equations PA.77, PA.78, PA.82, PA.83, PA.90, PA.96, PA.97,)----
-    !-----(section PA-4.2.5)--------------------------------------------------
-      
-      cwp%brine_generation_rate(i) = &
-                    this%stoic_mat(1,3)*cwp%rxnrate_Fe_corrosion(i) + &
-                    this%stoic_mat(3,3)*cwp%rxnrate_FeOH2_sulf(i) + &
-                    this%stoic_mat(5,3)*cwp%rxnrate_MgO_hyd(i) + &
-                    this%stoic_mat(8,3)*cwp%rxnrate_hydromag_conv(i) + &
-                    this%stoic_mat(2,3)*cwp%rxnrate_cell_biodeg(i) + & ! STCO_22=SMIC_H20
-                    cwp%RXH2O_factor*cwp%rxnrate_cell_biodeg(i)        ! zero
-      ! Convert water weight to brine rate (bragflo BRH2O)
-      cwp%brine_generation_rate(i) = cwp%brine_generation_rate(i) / &
-                    (1.d0 - 1.d-2*this%salt_wtpercent)
+      do i = 1,num_cells
+        p = p + 1  ! (p indexes srcsink_vec)
+        local_id = cwp%region%cell_ids(i)
+        ghosted_id = grid%nL2G(local_id)
+      !-----effective-brine-saturation------------------------------------------
+      !-----(see equation PA.99, section PA-4.2.6)------------------------------
+        select case(k)
+          case(PERT_WRT_PL)  ! 1 in auxvars; k = 1
+            water_saturation = 1.d0 - &
+              wippflo_auxvars(k,ghosted_id)%sat(option%gas_phase)
+          case(PERT_WRT_SG)  ! 2 in auxvars; k = 2
+            water_saturation = 1.d0 - &
+              wippflo_auxvars(k,ghosted_id)%sat(option%gas_phase)
+          case(UNPERT)  ! 0 in auxvars; k = 3
+            water_saturation = 1.d0 - &
+              wippflo_auxvars(ZERO_INTEGER,ghosted_id)%sat(option%gas_phase)
+        end select
 
-    !------source-term-calculation--------------------------------------------
-      j = j + 1
-      !---liquid-source-term-[kmol/sec]------------------------!-[units]------
-      vec_p(j) = cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
-                 material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
-                 1.d3                                          ! [mol -> kmol]
-      j = j + 1
-      !---gas-source-term-[kmol/sec]---------------------------!-[units]------
-      vec_p(j) = cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
-                 material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
-                 1.d3                                          ! [mol -> kmol]
-      !jmf: keep in the case WIPP_FLOW mode will solve for temperature
-      !if (associated(general_auxvars)) then
-      !  j = j + 1
-      !  !---energy-source-term-[MJ/sec];-H-from-EOS-[J/kmol]-------------------
-      !  brine_energy = 0.d0
-      !  gas_energy = 0.d0
-      !  temperature = general_auxvars(ZERO_INTEGER,ghosted_id)%temp
-      !  select case(global_auxvars(ghosted_id)%istate)
-      !    case(GAS_STATE) !----------------------------------------------------
-      !      pressure_gas = general_auxvars(ZERO_INTEGER,ghosted_id)% &
-      !                     pres(option%gas_phase)
-      !      call EOSGasEnergy(temperature,pressure_gas,H_gas,U_gas,ierr)
-      !      gas_energy = & !---[MJ/sec]-----------------------!-[units]--------
-      !          cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
-      !          material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
-      !          H_gas * 1.d-3 * 1.d-6                         ! [MJ/mol]
-      !    case(LIQUID_STATE) !-------------------------------------------------
-      !      pressure_liq = general_auxvars(ZERO_INTEGER,ghosted_id)% &
-      !                     pres(option%liquid_phase)
-      !      call EOSWaterEnthalpy(temperature,pressure_liq,H_liq,ierr)
-      !      brine_energy = & !---[MJ/sec]---------------------!-[units]--------
-      !          cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
-      !          material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
-      !          H_liq * 1.d-3 * 1.d-6                         ! [MJ/mol]
-      !    case(TWO_PHASE_STATE) !----------------------------------------------
-      !      pressure_liq = general_auxvars(ZERO_INTEGER,ghosted_id)% &
-      !                     pres(option%liquid_phase)
-      !      pressure_gas = general_auxvars(ZERO_INTEGER,ghosted_id)% &
-      !                     pres(option%gas_phase)
-      !      call EOSWaterEnthalpy(temperature,pressure_liq,H_liq,ierr)
-      !      call EOSGasEnergy(temperature,pressure_gas,H_gas,U_gas,ierr)
-      !      brine_energy = & !---[MJ/sec]---------------------!-[units]--------
-      !          cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
-      !          material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
-      !          H_liq * 1.d-3 * 1.d-6                         ! [MJ/mol]
-      !      gas_energy = & !---[MJ/sec]-----------------------!-[units]--------
-      !          cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
-      !          material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
-      !          H_gas * 1.d-3 * 1.d-6                         ! [MJ/mol]
-      !  end select
-      !  vec_p(j) = brine_energy + gas_energy
-      !endif
-    enddo
-    !-------------------------------------------------------------------------
-    cwp => cwp%next
-  enddo
+        SOCEXP = 200.d0*(max((water_saturation-this%smin),0.d0))**2.d0
+        s_eff = water_saturation-this%smin+(this%satwick * &
+                                           (1.d0-exp(this%alpharxn*SOCEXP)))
+        if (water_saturation <= this%smin) s_eff = 0.d0
+        if (water_saturation > (1.d0-this%satwick+this%smin)) s_eff = 1.d0
+
+        s_eff = min(s_eff,1.d0)
+        s_eff = max(s_eff,0.d0)
+        ! sg_eff is set to zero if sw_eff is also zero
+        sg_eff = 0.d0
+        if (s_eff > 1.d-16) then
+          sg_eff = (1.d0-s_eff)
+        endif
+
+      ! note, bragflo applies a separate smoothing on the humid rates using 
+      ! s_eff 
+      ! bragflo calculates and reports inundated and humid rates separately
+      ! inundated_rate_cons*s_eff and humid_rate_constant*sg_eff
+      ! and sequentially - humid proceeds only if there is remaining solid 
+      ! after inundated
+      
+      
+      !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
+      !-----(see equation PA.67, PA.77, section PA-4.2.5)-----------------------
+      
+        ! CORSAT
+        cwp%rxnrate_Fe_corrosion_inund(i) = cwp%inundated_corrosion_rate*s_eff
+        call PMWSSSmoothRxnrate(cwp%rxnrate_Fe_corrosion_inund(i),i, &
+                                cwp%inventory%Fe_s,this%alpharxn) 
+        call PMWSSTaperRxnrate(cwp%rxnrate_Fe_corrosion_inund(i),i, &
+                               cwp%inventory%Fe_s,1.d0,dt)
+
+        ! CORHUM
+        cwp%rxnrate_Fe_corrosion_humid(i) = cwp%humid_corrosion_rate*sg_eff
+        call PMWSSSmoothRxnrate(cwp%rxnrate_Fe_corrosion_humid(i),i, &
+                                cwp%inventory%Fe_s,this%alpharxn) 
+        call PMWSSTaperRxnrate(cwp%rxnrate_Fe_corrosion_humid(i),i, &
+                               cwp%inventory%Fe_s,1.d0,dt)
+        ! the humid rate is also smoothed based on sg_eff; neglected here
+
+        ! total corrosion
+        cwp%rxnrate_Fe_corrosion(i) = & 
+             cwp%rxnrate_Fe_corrosion_inund(i) + &
+             cwp%rxnrate_Fe_corrosion_humid(i)
+  
+    
+      !-----biodegradation-[mol-cell/m3/sec]------------------------------------
+      !-----(see equation PA.69, PA.82, PA.83, section PA-4.2.5)----------------
+
+        ! BIOSAT
+        cwp%rxnrate_cell_biodeg_inund(i) = cwp%inundated_biodeg_rate*s_eff
+        call PMWSSSmoothRxnrate(cwp%rxnrate_cell_biodeg_inund(i),i, &
+                                cwp%inventory%BioDegs_s,this%alpharxn) 
+        call PMWSSTaperRxnrate(cwp%rxnrate_cell_biodeg_inund(i),i, &
+                               cwp%inventory%BioDegs_s,1.d0,dt)
+
+        ! BIOHUM
+        cwp%rxnrate_cell_biodeg_humid(i) = cwp%humid_biodeg_rate*sg_eff
+        call PMWSSSmoothRxnrate(cwp%rxnrate_cell_biodeg_humid(i),i, &
+                                cwp%inventory%BioDegs_s,this%alpharxn) 
+        call PMWSSTaperRxnrate(cwp%rxnrate_cell_biodeg_humid(i),i, &
+                               cwp%inventory%BioDegs_s,1.d0,dt)
+        ! the humid rate is also smoothed based on sg_eff; neglected here
+      
+        ! total microbial gas generation
+        cwp%rxnrate_cell_biodeg(i) = & 
+          cwp%rxnrate_cell_biodeg_inund(i) + cwp%rxnrate_cell_biodeg_humid(i)
+
+
+      !-----iron-sulfidation-[mol-H2S/m3/sec]-----------------------------------
+      !-----(see equation PA.68, PA.89, PA.90, section PA-4.2.5)----------------
+      
+        ! BIOFES
+        ! FeOH2 sulfidation is assumed to kinetically dominate Fe sulfidation.
+        ! The H2S generation rate is proportioned between FeOH and Fe.
+        ! FeOH2 is sulifidized first, then Fe is sulifidized with remaining H2S
+        cwp%rxnrate_FeOH2_sulf(i) = cwp%rxnrate_cell_biodeg(i)*cwp%RXH2S_factor
+        ! bragflo uses Fe as initial concentration, not FeOH2, so this is right
+
+        ! for smoothing, the initial and current species are different
+        call PMWSSSmoothRxnrate2(cwp%rxnrate_FeOH2_sulf(i), &
+        cwp%inventory%FeOH2_s%current_conc_mol(i), & 
+        cwp%inventory%Fe_s%initial_conc_mol(i), & 
+        this%alpharxn)
+      
+        ! here tapering actually truncates the rate, so this call is important
+        call PMWSSTaperRxnrate(cwp%rxnrate_FeOH2_sulf(i),i, &
+                                cwp%inventory%FeOH2_s,1.d0,dt)
+        
+        ! FeS rate is caculated based on the left over H2S rate
+        cwp%rxnrate_Fe_sulf(i) = cwp%rxnrate_cell_biodeg(i)*cwp%RXH2S_factor - &
+                                  cwp%rxnrate_FeOH2_sulf(i)
+        call PMWSSTaperRxnrate(cwp%rxnrate_Fe_sulf(i),i,cwp%inventory%Fe_s, &
+                                1.d0,dt)
+
+      !-----MgO-hydration-[mol-MgO/m3/sec]--------------------------------------
+      !-----(see equation PA.73, PA.94, section PA-4.2.5)-----------------------
+        
+        ! CORMGO
+        cwp%rxnrate_MgO_hyd_inund(i) = cwp%inundated_brucite_rate*s_eff
+        cwp%rxnrate_MgO_hyd_humid(i) = cwp%humid_brucite_rate*sg_eff
+        ! the humid rate is also smoothed based on sg_eff; neglected here
+        
+        ! unlike for corrorosion and biodegradation, bragflo doesn't
+        ! separately store and report inundated and humid rates for MgO hydration
+        cwp%rxnrate_MgO_hyd(i) = & 
+                  cwp%rxnrate_MgO_hyd_inund(i) + cwp%rxnrate_MgO_hyd_humid(i)
+        
+        call PMWSSSmoothRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
+                                cwp%inventory%MgO_s,this%alpharxn) 
+        call PMWSSTaperRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
+                                cwp%inventory%MgO_s,1.d0,dt)
+                              
+                              
+      !-----hydromagnesite-[mol-hydromagnesite/m3-bulk/sec]---------------------
+      !-----(see equation PA.74, PA.96, section PA-4.2.5)-----------------------
+        
+        ! BIOMGO
+        cwp%rxnrate_MgOH2_carb(i) = cwp%rxnrate_cell_biodeg(i)*cwp%RXCO2_factor
+        
+        ! for smoothing, the initial and current species are different
+        call PMWSSSmoothRxnrate2(cwp%rxnrate_MgOH2_carb(i), &
+                                  cwp%inventory%MgOH2_s%current_conc_mol(i), & 
+                                  cwp%inventory%MgO_s%initial_conc_mol(i), & 
+                                  this%alpharxn)
+        
+        ! here tapering actually truncates the rate, so this call is important
+        call PMWSSTaperRxnrate(cwp%rxnrate_MgOH2_carb(i),i, &
+                                cwp%inventory%MgOH2_s,1.d0,dt)
+        
+        ! the remaining CO2 reacts with MgO
+        cwp%rxnrate_MgO_carb(i) = &
+                    cwp%rxnrate_cell_biodeg(i)*cwp%RXCO2_factor - &
+                    cwp%rxnrate_MgOH2_carb(i)
+        call PMWSSTaperRxnrate(cwp%rxnrate_MgO_carb(i),i,cwp%inventory%MgO_s, &
+                                1.d0,dt)
+      
+      !-----hydromagnesite-conversion-[mol-hydromagnesite/m3-bulk/sec]----------
+      !-----(see equation PA.74, PA.97, section PA-4.2.5)-----------------------
+        
+        ! HYDROCONV
+        ! this is a first-order reaction, not zero-order
+        ! also rate is on /kg basis
+        cwp%rxnrate_hydromag_conv(i) = this%hymagcon_rate* &
+                              cwp%inventory%Mg5CO34OH24H2_s%current_conc_kg(i)
+        ! for smoothing, the initial and current species are different
+        call PMWSSSmoothRxnrate2(cwp%rxnrate_hydromag_conv(i), &
+                        cwp%inventory%Mg5CO34OH24H2_s%current_conc_mol(i), & 
+                        cwp%inventory%MgO_s%initial_conc_mol(i),this%alpharxn)
+        call PMWSSTaperRxnrate(cwp%rxnrate_hydromag_conv(i),i, &
+                                cwp%inventory%Mg5CO34OH24H2_s,1.d0,dt)
+                             
+                             
+      !-----tracked-species-[mol-species/m3-bulk/sec]---------------------------
+      !-----note:column-id-is-shifted-by-+1-since-a-0-index-not-possible--------
+        
+        cwp%inventory%FeOH2_s%inst_rate(i) = &
+                      this%stoic_mat(1,6)*cwp%rxnrate_Fe_corrosion(i) + &
+                      this%stoic_mat(3,6)*cwp%rxnrate_FeOH2_sulf(i)
+        cwp%inventory%Fe_s%inst_rate(i) = &
+                      this%stoic_mat(1,4)*cwp%rxnrate_Fe_corrosion(i) + &
+                      this%stoic_mat(4,4)*cwp%rxnrate_Fe_sulf(i) 
+        cwp%inventory%FeS_s%inst_rate(i) = &
+                      this%stoic_mat(4,7)*cwp%rxnrate_Fe_sulf(i) + &
+                      this%stoic_mat(3,7)*cwp%rxnrate_FeOH2_sulf(i)
+        cwp%inventory%BioDegs_s%inst_rate(i) = &
+                      this%stoic_mat(2,5)*cwp%rxnrate_cell_biodeg(i)
+        cwp%inventory%MgO_s%inst_rate(i) = &
+                      this%stoic_mat(5,8)*cwp%rxnrate_MgO_hyd(i) + &
+                      this%stoic_mat(7,8)*cwp%rxnrate_MgO_carb(i)
+        cwp%inventory%MgOH2_s%inst_rate(i) = &
+                      this%stoic_mat(5,9)*cwp%rxnrate_MgO_hyd(i) + & 
+                      this%stoic_mat(6,9)*cwp%rxnrate_MgOH2_carb(i) + &
+                      this%stoic_mat(8,9)*cwp%rxnrate_hydromag_conv(i)
+        cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i) = &
+                      this%stoic_mat(6,1)*cwp%rxnrate_MgOH2_carb(i) + &
+                      this%stoic_mat(8,1)*cwp%rxnrate_hydromag_conv(i) 
+        cwp%inventory%MgCO3_s%inst_rate(i) = &
+                      this%stoic_mat(7,10)*cwp%rxnrate_MgO_carb(i) + &
+                      this%stoic_mat(8,10)*cwp%rxnrate_hydromag_conv(i)
+
+                    
+      !-----gas-generation-[mol-H2/m3-bulk/sec]---------------------------------
+      !-----(see equations PA.67-69, PA.77, PA.82-83, PA.86, PA.89, sec PA-4.2.5)
+      
+        cwp%gas_generation_rate(i) = &
+                      this%stoic_mat(1,2)*cwp%rxnrate_Fe_corrosion(i) + &
+                      this%stoic_mat(3,2)*cwp%rxnrate_FeOH2_sulf(i) + &
+                      this%stoic_mat(4,2)*cwp%rxnrate_Fe_sulf(i) + &
+                      this%stoic_mat(2,2)*cwp%rxnrate_cell_biodeg(i) + & ! zero
+                      cwp%RXH2_factor*cwp%rxnrate_cell_biodeg(i)         ! H2
+      
+      !-----brine-generation-[mol-H2O/m3-bulk/sec]------------------------------
+      !-----(see equations PA.77, PA.78, PA.82, PA.83, PA.90, PA.96, PA.97,)----
+      !-----(section PA-4.2.5)--------------------------------------------------
+        
+        cwp%brine_generation_rate(i) = &
+                      this%stoic_mat(1,3)*cwp%rxnrate_Fe_corrosion(i) + &
+                      this%stoic_mat(3,3)*cwp%rxnrate_FeOH2_sulf(i) + &
+                      this%stoic_mat(5,3)*cwp%rxnrate_MgO_hyd(i) + &
+                      this%stoic_mat(8,3)*cwp%rxnrate_hydromag_conv(i) + &
+                      this%stoic_mat(2,3)*cwp%rxnrate_cell_biodeg(i) + & ! STCO_22=SMIC_H20
+                      cwp%RXH2O_factor*cwp%rxnrate_cell_biodeg(i)        ! zero
+        ! Convert water weight to brine rate (bragflo BRH2O)
+        cwp%brine_generation_rate(i) = cwp%brine_generation_rate(i) / &
+                      (1.d0 - 1.d-2*this%salt_wtpercent)
+
+      !------source-term-calculation--------------------------------------------
+        j = j + 1
+        !---liquid-source-term-[kmol/sec]------------------------!-[units]------
+        !vec_p(j) = cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
+        !           material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
+        !           1.d3                                          ! [mol -> kmol]
+        this%srcsink_vec_brine(k,p) = &                         ! [kmol/sec]
+                  cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
+                  material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
+                  1.d3                                          ! [mol -> kmol]
+        j = j + 1
+        !---gas-source-term-[kmol/sec]---------------------------!-[units]------
+        !vec_p(j) = cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
+        !           material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
+        !           1.d3                                          ! [mol -> kmol]
+        this%srcsink_vec_gas(k,p) = &                           ! [kmol/sec]
+                  cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
+                  material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
+                  1.d3                                          ! [mol -> kmol]
+        !jmf: keep in the case WIPP_FLOW mode will solve for temperature
+        !if (associated(general_auxvars)) then
+        !  j = j + 1
+        !  !---energy-source-term-[MJ/sec];-H-from-EOS-[J/kmol]-------------------
+        !  brine_energy = 0.d0
+        !  gas_energy = 0.d0
+        !  temperature = general_auxvars(ZERO_INTEGER,ghosted_id)%temp
+        !  select case(global_auxvars(ghosted_id)%istate)
+        !    case(GAS_STATE) !----------------------------------------------------
+        !      pressure_gas = general_auxvars(ZERO_INTEGER,ghosted_id)% &
+        !                     pres(option%gas_phase)
+        !      call EOSGasEnergy(temperature,pressure_gas,H_gas,U_gas,ierr)
+        !      gas_energy = & !---[MJ/sec]-----------------------!-[units]--------
+        !          cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
+        !          material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
+        !          H_gas * 1.d-3 * 1.d-6                         ! [MJ/mol]
+        !    case(LIQUID_STATE) !-------------------------------------------------
+        !      pressure_liq = general_auxvars(ZERO_INTEGER,ghosted_id)% &
+        !                     pres(option%liquid_phase)
+        !      call EOSWaterEnthalpy(temperature,pressure_liq,H_liq,ierr)
+        !      brine_energy = & !---[MJ/sec]---------------------!-[units]--------
+        !          cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
+        !          material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
+        !          H_liq * 1.d-3 * 1.d-6                         ! [MJ/mol]
+        !    case(TWO_PHASE_STATE) !----------------------------------------------
+        !      pressure_liq = general_auxvars(ZERO_INTEGER,ghosted_id)% &
+        !                     pres(option%liquid_phase)
+        !      pressure_gas = general_auxvars(ZERO_INTEGER,ghosted_id)% &
+        !                     pres(option%gas_phase)
+        !      call EOSWaterEnthalpy(temperature,pressure_liq,H_liq,ierr)
+        !      call EOSGasEnergy(temperature,pressure_gas,H_gas,U_gas,ierr)
+        !      brine_energy = & !---[MJ/sec]---------------------!-[units]--------
+        !          cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
+        !          material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
+        !          H_liq * 1.d-3 * 1.d-6                         ! [MJ/mol]
+        !      gas_energy = & !---[MJ/sec]-----------------------!-[units]--------
+        !          cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
+        !          material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
+        !          H_gas * 1.d-3 * 1.d-6                         ! [MJ/mol]
+        !  end select
+        !  vec_p(j) = brine_energy + gas_energy
+        !endif
+      enddo
+      !-------------------------------------------------------------------------
+      cwp => cwp%next
+    enddo  ! loop over waste panels
+    
+  enddo  ! loop over perturbations
   
   call VecRestoreArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
   
@@ -3684,6 +3726,68 @@ subroutine PMWSSOutputHeader(this)
   close(fid)
   
 end subroutine PMWSSOutputHeader
+
+! *************************************************************************** !
+
+subroutine PMWSSCalcJacobianValues(this,ighosted_id,idof_pert,J_block)
+  ! 
+  ! Constructs a Jacobian block for a given ghosted cell id.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 10/19/2017
+  ! 
+  
+  implicit none
+  
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! ighosted_id (input): [-] ghosted grid cell id index
+! idof_pert (input): [?] perturbation value for each idof
+! J_block (output): [kmol/sec] Jacobian block matrix
+! ---------------------------------------------------------------
+  class(pm_wipp_srcsink_type) :: this
+  PetscInt :: ighosted_id
+  PetscReal :: idof_pert(this%option%nflowdof)
+  PetscReal :: J_block(this%option%nflowdof,this%option%nflowdof)
+! ---------------------------------------------------------------
+
+! LOCAL VARIABLES:
+! ================
+! i: [-] looping index integer
+! res: [kmol/sec] contribution to unperturbed residual
+! res_pert: [kmol/sec] contribution to perturbed residual
+! -------------------------------------------
+  PetscInt :: i
+  PetscReal :: res
+  PetscReal :: res_pert
+! -------------------------------------------
+
+  ! ==== LIQUID ===== index = 1
+  ! load up contribution to unperturbed residual
+  res = this%srcsink_vec_brine((this%option%nflowdof+1),ighosted_id)
+  ! load up contribution to perturbed residual and add to Jacobain block
+  do i = 1,this%option%nflowdof
+    res_pert = this%srcsink_vec_brine(i,ighosted_id)
+    J_block(ONE_INTEGER,i) = (res_pert - res)/idof_pert(i)
+  enddo
+  ! note the above doesn't work because the gas/brine generation rates are 
+  ! not changed by a perturbation in liquid pressure
+  J_block(ONE_INTEGER,ONE_INTEGER) = 0.d0
+  
+  ! ==== GAS ===== index = 2
+  ! load up contribution to unperturbed residual
+  res = this%srcsink_vec_gas((this%option%nflowdof+1),ighosted_id)
+  ! load up contribution to perturbed residual and add to Jacobian block
+  do i = 1,this%option%nflowdof
+    res_pert = this%srcsink_vec_gas(i,ighosted_id)
+    J_block(TWO_INTEGER,i) = (res_pert - res)/idof_pert(i)
+  enddo
+  ! note the above doesn't work because the gas/brine generation rates are 
+  ! not changed by a perturbation in liquid pressure
+  J_block(TWO_INTEGER,ONE_INTEGER) = 0.d0
+
+end subroutine PMWSSCalcJacobianValues
 
 ! *************************************************************************** !
 
