@@ -116,6 +116,25 @@ subroutine CondControlAssignFlowInitCond(realization)
 
           if (.not.associated(initial_condition)) exit
 
+          use_dataset = PETSC_FALSE
+          dataset_flag = PETSC_FALSE
+          do idof = 1, option%nflowdof
+            dataset =>  initial_condition%flow_condition% &
+                              sub_condition_ptr(idof)%ptr%dataset
+            select type(dataset_ptr => dataset)
+              class is(dataset_gridded_hdf5_type)
+                ! already mapped to flow_aux_real_var
+              class is(dataset_common_hdf5_type)
+                use_dataset = PETSC_TRUE
+                dataset_flag(idof) = PETSC_TRUE
+                call ConditionControlMapDatasetToVec(realization, &
+                        initial_condition%flow_condition% &
+                          sub_condition_ptr(idof)%ptr%dataset,idof, &
+                        field%flow_xx,GLOBAL)
+              class default
+            end select
+          enddo            
+
           if (.not.associated(initial_condition%flow_aux_real_var)) then
             if (.not.associated(initial_condition%flow_condition)) then
               option%io_buffer = 'Flow condition is NULL in initial condition'
@@ -155,10 +174,14 @@ subroutine CondControlAssignFlowInitCond(realization)
               endif
               ! decrement ibegin to give a local offset of 0
               ibegin = ibegin - 1
-              xx_p(ibegin+WIPPFLO_LIQUID_PRESSURE_DOF) = &
-                general%gas_pressure%dataset%rarray(1)
-              xx_p(ibegin+WIPPFLO_GAS_SATURATION_DOF) = &
-                general%gas_saturation%dataset%rarray(1)
+              if (.not.dataset_flag(WIPPFLO_LIQUID_PRESSURE_DOF)) then
+                xx_p(ibegin+WIPPFLO_LIQUID_PRESSURE_DOF) = &
+                  general%gas_pressure%dataset%rarray(1)
+              endif
+              if (.not.dataset_flag(WIPPFLO_GAS_SATURATION_DOF)) then
+                xx_p(ibegin+WIPPFLO_GAS_SATURATION_DOF) = &
+                  general%gas_saturation%dataset%rarray(1)
+              endif
               iphase_loc_p(ghosted_id) = initial_condition%flow_condition%iphase
               cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
                 initial_condition%flow_condition%iphase
@@ -177,6 +200,7 @@ subroutine CondControlAssignFlowInitCond(realization)
               offset = (local_id-1)*option%nflowdof
               istate = initial_condition%flow_aux_int_var(1,iconn)
               do idof = 1, option%nflowdof
+                if (dataset_flag(idof)) cycle
                 xx_p(offset+idof) = &
                   initial_condition%flow_aux_real_var( &
                     initial_condition%flow_aux_mapping( &
