@@ -1298,15 +1298,8 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   
   ! WIPP gas/brine generation process model source/sinks
   if (wippflo_use_gas_gen) then
-    ! loop over ghosted cell id array
-    do k = 1,size(pmwss_ptr%srcsink2ghosted)
-      ghosted_id = pmwss_ptr%srcsink2ghosted(k)
-      call PMWSSCalcJacobianValues(pmwss_ptr,k,wippflo_auxvars%pert,Jup) ! re-using Jup
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
-                                    ADD_VALUES,ierr);CHKERRQ(ierr)
-    enddo
+    call PMWSSCalcJacobianValues(pmwss_ptr,A,ierr)
   endif
-
   
   call WIPPFloSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
                         wippflo_auxvars,option)

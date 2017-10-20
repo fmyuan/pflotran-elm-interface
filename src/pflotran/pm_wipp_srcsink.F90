@@ -3662,7 +3662,8 @@ end subroutine PMWSSOutputHeader
 subroutine PMWSSCalcResidualValues(this,local_start,local_end,r_p, &
                                    ss_flow_vol_flux)
   ! 
-  ! Constructs a Residual array for a given ghosted cell id.
+  ! Constructs a Residual array for a given ghosted cell id and adds it to
+  ! the PETSc residual Vec pointer r_p.
   ! 
   ! Author: Jenn Frederick
   ! Date: 10/20/2017
@@ -3715,13 +3716,13 @@ subroutine PMWSSCalcResidualValues(this,local_start,local_end,r_p, &
     
     ! ==== LIQUID ===== !
     ! load up contribution to residual
-    Res(wat_comp_id) = this%srcsink_brine(ZERO_INTEGER,k)
+    Res(wat_comp_id) = this%srcsink_brine(UNPERT,k)
     ss_flow_vol_flux(wat_comp_id) = Res(wat_comp_id) / &
                       wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den(wat_comp_id)
                  
     ! ==== GAS ===== !
     ! load up contribution to residual
-    Res(air_comp_id) = this%srcsink_gas(ZERO_INTEGER,k)
+    Res(air_comp_id) = this%srcsink_gas(UNPERT,k)
     ss_flow_vol_flux(air_comp_id) = Res(air_comp_id) / &
                       wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den(air_comp_id)
                      
@@ -3734,13 +3735,16 @@ end subroutine PMWSSCalcResidualValues
 
 ! *************************************************************************** !
 
-subroutine PMWSSCalcJacobianValues(this,ighosted_id,idof_pert,J_block)
+subroutine PMWSSCalcJacobianValues(this,A,ierr)
   ! 
-  ! Constructs a Jacobian block for a given ghosted cell id.
+  ! Constructs a Jacobian block for a given ghosted cell id and adds it to
+  ! the PETSc Mat A.
   ! 
   ! Author: Jenn Frederick
   ! Date: 10/19/2017
   ! 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use WIPP_Flow_Aux_module
   
   implicit none
@@ -3748,57 +3752,67 @@ subroutine PMWSSCalcJacobianValues(this,ighosted_id,idof_pert,J_block)
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): wipp-srcsink process model object
-! ighosted_id (input): [-] ghosted grid cell id index
-! idof_pert (input): [?] perturbation value for each idof
-! J_block (output): [kmol/sec] Jacobian block matrix
+! A (input/output): [?] PETSc matrix containing Jacobian
+! ierr (input/output): [-] PETSc error integer
 ! ---------------------------------------------------------------
   class(pm_wipp_srcsink_type) :: this
-  PetscInt :: ighosted_id
-  PetscReal :: idof_pert(this%option%nflowdof)
-  PetscReal :: J_block(this%option%nflowdof,this%option%nflowdof)
+  Mat :: A
+  PetscErrorCode :: ierr
 ! ---------------------------------------------------------------
 
 ! LOCAL VARIABLES:
 ! ================
-! i: [-] looping index integer
+! k: [-] looping index integer
 ! res: [kmol/sec] contribution to unperturbed residual
 ! res_pert: [kmol/sec] contribution to perturbed residual
+! pert_sg: [-] perturbation to gas saturation
+! ghosted_id: [-] ghosted grid cell id number
 ! wat_comp_id: [-] water component id number
 ! air_comp_id: [-] air component id number
-! -------------------------------------------
-  PetscInt :: i
-  PetscReal :: res
-  PetscReal :: res_pert
+! wippflo_auxvars: [-] pointer to the wippflo auxvar object
+! J_block (output): [kmol/sec] Jacobian block matrix (partial)
+! ---------------------------------------------------------------
+  PetscInt :: k
+  PetscReal :: res, res_pert
+  PetscReal :: pert_sg
+  PetscInt :: ghosted_id
   PetscInt :: wat_comp_id, air_comp_id
-! -------------------------------------------
+  type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
+  PetscReal :: J_block(this%option%nflowdof,this%option%nflowdof)
+! ---------------------------------------------------------------
 
   wat_comp_id = this%option%water_id
   air_comp_id = this%option%air_id
+ 
+  wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
   
-  ! ==== LIQUID ===== index = 1
-  ! load up contribution to unperturbed residual
-  res = this%srcsink_brine((this%option%nflowdof+1),ighosted_id)
-  ! load up contribution to perturbed residual and add to Jacobain block
-  do i = 1,this%option%nflowdof
-    res_pert = this%srcsink_brine(i,ighosted_id)
-    J_block(wat_comp_id,i) = (res_pert - res)/idof_pert(i)
-  enddo
-  ! note the above doesn't work because the gas/brine generation rates are 
-  ! not changed by a perturbation in liquid pressure
-  J_block(wat_comp_id,WIPPFLO_LIQUID_PRESSURE_DOF) = 0.d0
+  do k = 1,size(this%srcsink2ghosted)
   
-  ! ==== GAS ===== index = 2
-  ! load up contribution to unperturbed residual
-  res = this%srcsink_gas((this%option%nflowdof+1),ighosted_id)
-  ! load up contribution to perturbed residual and add to Jacobian block
-  do i = 1,this%option%nflowdof
-    res_pert = this%srcsink_gas(i,ighosted_id)
-    J_block(air_comp_id,i) = (res_pert - res)/idof_pert(i)
+    J_block = 0.d0
+    ghosted_id = this%srcsink2ghosted(k)
+    pert_sg = wippflo_auxvars(WIPPFLO_GAS_SATURATION_DOF,ghosted_id)%pert
+  
+    ! ==== LIQUID ===== !
+    ! load up contribution to unperturbed residual
+    res = this%srcsink_brine(UNPERT,k)
+    ! load up contribution to perturbed residual
+    res_pert = this%srcsink_brine(PERT_WRT_SG,k)
+    ! construct non-zero portion of Jacobian block dRes/dSg contribution
+    J_block(wat_comp_id,WIPPFLO_GAS_SATURATION_DOF) = (res_pert - res)/pert_sg
+    
+    ! ==== GAS ===== !
+    ! load up contribution to unperturbed residual
+    res = this%srcsink_gas(UNPERT,k)
+    ! load up contribution to perturbed residual
+    res_pert = this%srcsink_gas(PERT_WRT_SG,k)
+    ! construct non-zero portion of Jacobian block dRes/dSg contribution
+    J_block(air_comp_id,WIPPFLO_GAS_SATURATION_DOF) = (res_pert - res)/pert_sg
+  
+    call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,J_block, &
+                                  ADD_VALUES,ierr);CHKERRQ(ierr)
+  
   enddo
-  ! note the above doesn't work because the gas/brine generation rates are 
-  ! not changed by a perturbation in liquid pressure
-  J_block(air_comp_id,WIPPFLO_LIQUID_PRESSURE_DOF) = 0.d0
-
+  
 end subroutine PMWSSCalcJacobianValues
 
 ! *************************************************************************** !
