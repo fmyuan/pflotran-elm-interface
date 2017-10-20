@@ -729,7 +729,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   Vec :: xx
   Vec :: r
   type(realization_subsurface_type) :: realization
-  type(pm_wipp_srcsink_type), pointer :: pmwss_ptr
+  class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   
@@ -1075,7 +1075,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   Vec :: xx
   Mat :: A, B
   type(realization_subsurface_type) :: realization
-  type(pm_wipp_srcsink_type), pointer :: pmwss_ptr
+  class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   PetscErrorCode :: ierr
 
   Mat :: J
