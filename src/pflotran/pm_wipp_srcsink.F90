@@ -51,6 +51,10 @@ module PM_WIPP_SrcSink_class
   PetscReal, parameter :: DN_MGO = 3600.d0
   PetscReal, parameter :: DN_MGOH2 = 2370.d0
   PetscReal, parameter :: DN_SALT = 2180.d0
+  
+  ! srcsink vector indexing
+  PetscInt, parameter :: PERT_WRT_SG = 1
+  PetscInt, parameter :: UNPERT = 0
 
 ! OBJECT chem_species_type:
 ! =========================
@@ -403,10 +407,11 @@ module PM_WIPP_SrcSink_class
     PetscInt :: plasidx             
     PetscReal :: output_start_time
     PetscReal :: stoic_mat(8,10)
+    PetscReal, pointer :: srcsink_brine(:,:)
+    PetscReal, pointer :: srcsink_gas(:,:)
+    PetscInt, pointer :: srcsink2ghosted(:)
     type(srcsink_panel_type), pointer :: waste_panel_list
     type(pre_inventory_type), pointer :: pre_inventory_list
-    PetscReal, pointer :: srcsink_vec_brine(:,:)
-    PetscReal, pointer :: srcsink_vec_gas(:,:)
     class(realization_subsurface_type), pointer :: realization
   contains
     procedure, public :: PMWSSSetRealization
@@ -461,8 +466,9 @@ function PMWSSCreate()
   nullify(pm%waste_panel_list)
   nullify(pm%pre_inventory_list)
   nullify(pm%realization)
-  nullify(pm%srcsink_vec_brine)
-  nullify(pm%srcsink_vec_gas)
+  nullify(pm%srcsink_brine)
+  nullify(pm%srcsink_gas)
+  nullify(pm%srcsink2ghosted)
   pm%name = 'wipp source sink'
   pm%alpharxn = UNINITIALIZED_DOUBLE
   pm%smin = UNINITIALIZED_DOUBLE
@@ -2334,18 +2340,17 @@ subroutine PMWSSInitializeRun(this)
     cur_waste_panel => cur_waste_panel%next
   enddo
   
-  ! srcsink_vec_brine/gas is indexed (1,:) perturbed value wrt idof#1
-  !                                  (2,:) perturbed value wrt idof#2
-  !                                  (3,:) unperturbed value
-  !                                  (4,:) ghosted_id of grid cell
-  allocate(this%srcsink_vec_brine((this%option%nflowdof+2),size_of_vec))
-  allocate(this%srcsink_vec_gas((this%option%nflowdof+2),size_of_vec))
-  this%srcsink_vec_brine((this%option%nflowdof+2),:) = 0
-  this%srcsink_vec_brine(1:(this%option%nflowdof+1),:) = 0.d0
-  this%srcsink_vec_gas((this%option%nflowdof+2),:) = 0
-  this%srcsink_vec_gas(1:(this%option%nflowdof+1),:) = 0.d0
+  ! srcsink_brine/gas is indexed (0,:) unperturbed value
+  !                              (1,:) perturbed value wrt sat_g
+  ! srcsink2ghosted contains the corresponding ghosted_ids in srcsink_brine/gas
+  allocate(this%srcsink_brine(0:1,size_of_vec))
+  allocate(this%srcsink_gas(0:1,size_of_vec))
+  allocate(this%srcsink2ghosted(size_of_vec))
+  this%srcsink_brine(:,:) = 0.d0
+  this%srcsink_gas(:,:) = 0.d0
+  this%srcsink2ghosted(:) = 0
   
-  ! load srcsink_vec_brine/gas with ghosted_id values
+  ! load srcsink2ghosted with ghosted_id values
   p = 0
   cur_waste_panel => this%waste_panel_list
   do
@@ -2354,8 +2359,7 @@ subroutine PMWSSInitializeRun(this)
       p = p + 1
       local_id = cur_waste_panel%region%cell_ids(k)
       ghosted_id = this%realization%patch%grid%nL2G(local_id)
-      this%srcsink_vec_brine((this%option%nflowdof+2),p) = ghosted_id
-      this%srcsink_vec_gas((this%option%nflowdof+2),p) = ghosted_id
+      this%srcsink2ghosted(p) = ghosted_id
     enddo
     cur_waste_panel => cur_waste_panel%next
   enddo
@@ -2626,8 +2630,8 @@ end subroutine PMWSSUpdateChemSpecies
 ! num_cells: number of grid cells in a waste panel region
 ! SOCEXP: exponent value in effective brine saturation equation
 ! dt: [sec] flow process model time step value
-! UNPERT: unperturbed array index value in srcsink_vec_brine/gas
-! PERT_WRT_SG: perturbed array index value in srcsink_vec_brine/gas with 
+! UNPERT: unperturbed array index value in srcsink_brine/gas
+! PERT_WRT_SG: perturbed array index value in srcsink_brine/gas with 
 !    respect to gas saturation (2nd dof)
 ! water_saturation: [-] liquid saturation from simulation
 ! s_eff: [-] effective brine saturation due to capillary action
@@ -2646,9 +2650,6 @@ end subroutine PMWSSUpdateChemSpecies
   PetscReal :: SOCEXP
   PetscReal :: dt
   
-  ! srcsink vector indexing
-  PetscInt, parameter :: PERT_WRT_SG = 2     ! hard wire for now; 2nd dof
-  PetscInt, parameter :: UNPERT = 3          ! hard wire for now
   ! brine/gas generation variables
   PetscReal :: water_saturation
   PetscReal :: s_eff
@@ -2672,7 +2673,7 @@ end subroutine PMWSSUpdateChemSpecies
   global_auxvars => this%realization%patch%aux%Global%auxvars
   dt = option%flow_dt  ! [sec]
 
-  do k = 2,(this%option%nflowdof+1)  ! loops over perturbations: k = 2,3
+  do k = 0,1  ! loops over perturbations: k = 0,1
   
     p = 0  ! (p indexes the srcsink_vec)
     cwp => this%waste_panel_list
@@ -2706,10 +2707,11 @@ end subroutine PMWSSUpdateChemSpecies
       !-----effective-brine-saturation------------------------------------------
       !-----(see equation PA.99, section PA-4.2.6)------------------------------
         select case(k)
-          case(PERT_WRT_SG)  ! 2 in auxvars; k = 2
+          case(PERT_WRT_SG)  ! 2 in auxvars; k = 1
             water_saturation = 1.d0 - &
-              wippflo_auxvars(k,ghosted_id)%sat(option%gas_phase)
-          case(UNPERT)  ! 0 in auxvars; k = 3
+              wippflo_auxvars(WIPPFLO_GAS_SATURATION_DOF,ghosted_id)% &
+              sat(option%gas_phase)
+          case(UNPERT)  ! 0 in auxvars; k = 0
             water_saturation = 1.d0 - &
               wippflo_auxvars(ZERO_INTEGER,ghosted_id)%sat(option%gas_phase)
         end select
@@ -2924,13 +2926,13 @@ end subroutine PMWSSUpdateChemSpecies
       !------source-term-calculation--------------------------------------------
 
         !---liquid-source-term-[kmol/sec]-----------------------!-[units]-------
-        this%srcsink_vec_brine(k,p) = &                         ! [kmol/sec]
+        this%srcsink_brine(k,p) = &                             ! [kmol/sec]
                   cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
                   material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                   1.d3                                          ! [mol -> kmol]
 
         !---gas-source-term-[kmol/sec]--------------------------!-[units]-------
-        this%srcsink_vec_gas(k,p) = &                           ! [kmol/sec]
+        this%srcsink_gas(k,p) = &                               ! [kmol/sec]
                   cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
                   material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                   1.d3                                          ! [mol -> kmol]
@@ -3657,7 +3659,8 @@ end subroutine PMWSSOutputHeader
 
 ! *************************************************************************** !
 
-subroutine PMWSSCalcResidualValues(this,ighosted_id,res,ss_flow_vol_flux)
+subroutine PMWSSCalcResidualValues(this,local_start,local_end,r_p, &
+                                   ss_flow_vol_flux)
   ! 
   ! Constructs a Residual array for a given ghosted cell id.
   ! 
@@ -3671,45 +3674,61 @@ subroutine PMWSSCalcResidualValues(this,ighosted_id,res,ss_flow_vol_flux)
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): wipp-srcsink process model object
-! ighosted_id (input): [-] ghosted grid cell id index
-! res (output): [kmol/sec] residual array
+! local_start (input/output): [-] starting local grid cell id
+! local_end (input/output): [-] ending local grid cell id
+! r_p (input/output): [kmol/sec] pointer to residual vector
 ! ss_flow_vol_flux (input/output): [m3/sec] volume flux of source or sink
-! ---------------------------------------------------
+! --------------------------------------------------
   class(pm_wipp_srcsink_type) :: this
-  PetscInt :: ighosted_id
-  PetscReal :: res(this%option%nflowdof)
-  PetscReal :: ss_flow_vol_flux(this%option%nflowdof)
-! ---------------------------------------------------
+  PetscInt :: local_start, local_end
+  PetscReal, pointer :: r_p(:)
+  PetscReal :: ss_flow_vol_flux(this%option%nphase)
+! --------------------------------------------------
 
 ! LOCAL VARIABLES:
 ! ================
+! Res (input/output): [kmol/sec] residual array
 ! ghosted_id: [-] ghosted grid cell id number
+! local_id: [-] local grid cell id number
 ! wat_comp_id: [-] water component id number
 ! air_comp_id: [-] air component id number
+! k: [-] looping index integer
 ! wippflo_auxvars: [-] pointer to the wippflo auxvar object
 ! ----------------------------------------------------------
-  PetscInt :: ghosted_id
+  PetscReal :: Res(this%option%nflowdof)
+  PetscInt :: ghosted_id, local_id
   PetscInt :: wat_comp_id, air_comp_id
+  PetscInt :: k
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
 ! ----------------------------------------------------------
 
   wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
-  ghosted_id = this%srcsink_vec_brine((this%option%nflowdof+2),ighosted_id)
   wat_comp_id = this%option%water_id
   air_comp_id = this%option%air_id
-
-  ! ==== LIQUID ===== index = 1
-  ! load up contribution to residual
-  res(wat_comp_id) = this%srcsink_vec_brine((this%option%nflowdof+1), &
-                                            ighosted_id)
-  ss_flow_vol_flux(wat_comp_id) = res(wat_comp_id) / &
-                     wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den(wat_comp_id)
   
-  ! ==== GAS ===== index = 2
-  ! load up contribution to unperturbed residual
-  res(air_comp_id) = this%srcsink_vec_gas((this%option%nflowdof+1),ighosted_id)
-  ss_flow_vol_flux(air_comp_id) = res(air_comp_id) / &
-                     wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den(air_comp_id)
+  do k = 1,size(this%srcsink2ghosted)
+  
+    ghosted_id = this%srcsink2ghosted(k)
+    local_id = this%realization%patch%grid%nG2L(ghosted_id)
+    local_end = local_id * this%option%nflowdof
+    local_start = local_end - this%option%nflowdof + 1
+    
+    ! ==== LIQUID ===== !
+    ! load up contribution to residual
+    Res(wat_comp_id) = this%srcsink_brine(ZERO_INTEGER,k)
+    ss_flow_vol_flux(wat_comp_id) = Res(wat_comp_id) / &
+                      wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den(wat_comp_id)
+                 
+    ! ==== GAS ===== !
+    ! load up contribution to residual
+    Res(air_comp_id) = this%srcsink_gas(ZERO_INTEGER,k)
+    ss_flow_vol_flux(air_comp_id) = Res(air_comp_id) / &
+                      wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den(air_comp_id)
+                     
+    ! add Res(:) contribution to r_p vector
+    r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)                     
+                     
+  enddo
 
 end subroutine PMWSSCalcResidualValues
 
@@ -3758,10 +3777,10 @@ subroutine PMWSSCalcJacobianValues(this,ighosted_id,idof_pert,J_block)
   
   ! ==== LIQUID ===== index = 1
   ! load up contribution to unperturbed residual
-  res = this%srcsink_vec_brine((this%option%nflowdof+1),ighosted_id)
+  res = this%srcsink_brine((this%option%nflowdof+1),ighosted_id)
   ! load up contribution to perturbed residual and add to Jacobain block
   do i = 1,this%option%nflowdof
-    res_pert = this%srcsink_vec_brine(i,ighosted_id)
+    res_pert = this%srcsink_brine(i,ighosted_id)
     J_block(wat_comp_id,i) = (res_pert - res)/idof_pert(i)
   enddo
   ! note the above doesn't work because the gas/brine generation rates are 
@@ -3770,10 +3789,10 @@ subroutine PMWSSCalcJacobianValues(this,ighosted_id,idof_pert,J_block)
   
   ! ==== GAS ===== index = 2
   ! load up contribution to unperturbed residual
-  res = this%srcsink_vec_gas((this%option%nflowdof+1),ighosted_id)
+  res = this%srcsink_gas((this%option%nflowdof+1),ighosted_id)
   ! load up contribution to perturbed residual and add to Jacobian block
   do i = 1,this%option%nflowdof
-    res_pert = this%srcsink_vec_gas(i,ighosted_id)
+    res_pert = this%srcsink_gas(i,ighosted_id)
     J_block(air_comp_id,i) = (res_pert - res)/idof_pert(i)
   enddo
   ! note the above doesn't work because the gas/brine generation rates are 
@@ -3888,8 +3907,8 @@ subroutine PMWSSStrip(this)
   enddo
   nullify(this%pre_inventory_list)
   
-  call DeallocateArray(this%srcsink_vec_brine)
-  call DeallocateArray(this%srcsink_vec_gas)
+  call DeallocateArray(this%srcsink_brine)
+  call DeallocateArray(this%srcsink_gas)
 
 end subroutine PMWSSStrip
 

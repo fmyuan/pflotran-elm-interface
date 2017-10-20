@@ -181,6 +181,11 @@ subroutine PMWIPPFloRead(this,input)
   enddo  
   
   if (wippflo_use_gas_gen) then
+    if (wippflo_analytical_derivatives) then
+      option%io_buffer = "Currently, WIPP gas/brine generation process model &
+                         &cannot be used with ANALYTICAL DERIVATIVES. Sorry!!"
+      call printErrMsg(option)
+    endif
     this%pmwss_ptr => PMWSSCreate()
     this%pmwss_ptr%option => this%option
     block_string = 'WIPP_SOURCE_SINK'

@@ -1006,18 +1006,9 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   
   ! WIPP gas/brine generation process model source/sinks
   if (wippflo_use_gas_gen) then
-    ! loop over ghosted cell id array
-    do k = 1,size(pmwss_ptr%srcsink_vec_brine((option%nflowdof+2),:))
-      ! get Res(:)
-      call PMWSSCalcResidualValues(pmwss_ptr,k,Res,ss_flow_vol_flux)
-      ghosted_id = pmwss_ptr%srcsink_vec_brine((option%nflowdof+2),k)
-      local_id = grid%nG2L(ghosted_id)
-      local_end = local_id * option%nflowdof
-      local_start = local_end - option%nflowdof + 1
-      ! add Res(:) contribution to r_p vector
-      r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
-      ! what to do with ss_flow_vol_flux????
-    enddo
+    call pmwss_ptr%Solve(option%time,ierr)
+    call PMWSSCalcResidualValues(pmwss_ptr,local_start,local_end, &
+                                 r_p,ss_flow_vol_flux)    
   endif
 
   if (patch%aux%WIPPFlo%inactive_cells_exist) then
@@ -1307,15 +1298,9 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   
   ! WIPP gas/brine generation process model source/sinks
   if (wippflo_use_gas_gen) then
-    if (wippflo_analytical_derivatives) then
-      option%io_buffer = "Currently, WIPP gas/brine generation process model &
-         &cannot be used with ANALYTICAL DERIVATIVES. Sorry!!"
-         call printErrMsg(option)
-    endif
-    call pmwss_ptr%Solve(option%time,ierr)
     ! loop over ghosted cell id array
-    do k = 1,size(pmwss_ptr%srcsink_vec_brine((option%nflowdof+2),:))
-      ghosted_id = pmwss_ptr%srcsink_vec_brine((option%nflowdof+2),k)
+    do k = 1,size(pmwss_ptr%srcsink2ghosted)
+      ghosted_id = pmwss_ptr%srcsink2ghosted(k)
       call PMWSSCalcJacobianValues(pmwss_ptr,k,wippflo_auxvars%pert,Jup) ! re-using Jup
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
