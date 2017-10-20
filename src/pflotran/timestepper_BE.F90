@@ -298,10 +298,6 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   Vec :: residual_vec
   PetscErrorCode :: ierr
 
-  ! GNU -O3 can fail below in SNESGetFunction() as the compiler can set the
-  ! initial value to -1, which CHKFORTRANNULLOBJECT() interprets as NULL.
-  residual_vec = tVec(0) 
-
 !fmy: for printing vecs if program stops
   PetscScalar, pointer :: solution_p(:)
   PetscScalar, pointer :: residual_p(:)
@@ -314,6 +310,10 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscErrorCode :: ierr2
   type(grid_type), pointer :: grid
 !fmy: for printing vecs if program stops
+
+  ! GNU -O3 can fail below in SNESGetFunction() as the compiler can set the
+  ! initial value to -1, which CHKFORTRANNULLOBJECT() interprets as NULL.
+  residual_vec = tVec(0)
   
   solver => this%solver
   option => process_model%option
@@ -642,10 +642,14 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   this%num_linear_iterations = num_linear_iterations  
   
   ! print screen output
-  call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
-                       PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
-  call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
-  call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
+  ! (TODO -checking, fmyuan) after updating TH mode, the following 'residual_vec' is NULL
+  !            when surf_subsurface simulation is on
+  !call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
+  !                     PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+  !call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
+  !call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
+  call VecNorm(process_model%residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
+  call VecNorm(process_model%residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
   if (option%print_screen_flag) then
       write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
            & " [",a,"]", " snes_conv_reason: ",i4,/,"  newton = ",i3, &
