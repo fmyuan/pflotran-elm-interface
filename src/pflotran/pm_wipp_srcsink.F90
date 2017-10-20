@@ -18,7 +18,6 @@ module PM_WIPP_SrcSink_class
   use Region_module
   use PFLOTRAN_Constants_module
   use Realization_Subsurface_class
-  use Data_Mediator_Vec_class
 
   implicit none
 
@@ -383,8 +382,6 @@ module PM_WIPP_SrcSink_class
 ! waste_panel_list: linked list of waste panel objects that make up a
 !    repository setting
 ! pre_inventory_list: linked list of pre-inventory objects
-! data_mediator: pointer to data mediator object which stores the gas and
-!    brine generation source terms 
 ! realization: pointer to the realization object
 ! --------------------------------------------------------------------
   type, public, extends(pm_base_type) :: pm_wipp_srcsink_type
@@ -408,7 +405,6 @@ module PM_WIPP_SrcSink_class
     PetscReal :: stoic_mat(8,10)
     type(srcsink_panel_type), pointer :: waste_panel_list
     type(pre_inventory_type), pointer :: pre_inventory_list
-    class(data_mediator_vec_type), pointer :: data_mediator
     PetscReal, pointer :: srcsink_vec_brine(:,:)
     PetscReal, pointer :: srcsink_vec_gas(:,:)
     class(realization_subsurface_type), pointer :: realization
@@ -464,7 +460,6 @@ function PMWSSCreate()
   allocate(pm)
   nullify(pm%waste_panel_list)
   nullify(pm%pre_inventory_list)
-  nullify(pm%data_mediator)
   nullify(pm%realization)
   nullify(pm%srcsink_vec_brine)
   nullify(pm%srcsink_vec_gas)
@@ -2315,29 +2310,20 @@ subroutine PMWSSInitializeRun(this)
   
 ! LOCAL VARIABLES:
 ! ================
-! is: PETSc index set object
-! i, j, k, p: [-] looping index integers
-! ierr: PETSc error integer
+! p, k: [-] looping index integers
 ! size_of_vec: [-] size of array
 ! local_id, ghosted_id: [-] local and ghosted grid cell id number
-! dofs_in_residual(:): [-] degrees of freedom in residual array
 ! cur_waste_panel: pointer to curent waste panel object
+! ierr: [-] PETSc error integer
 ! ----------------------------------------------------
-  IS :: is
-  PetscInt :: i, j, k, p
-  PetscErrorCode :: ierr
+  PetscInt :: p, k
   PetscInt :: size_of_vec
   PetscInt :: local_id, ghosted_id
-  PetscInt, allocatable :: dofs_in_residual(:)
   type(srcsink_panel_type), pointer :: cur_waste_panel
+  PetscErrorCode :: ierr
 ! ----------------------------------------------------
-  
+
   ierr = 0
-  
-  ! set up mass transfer vector
-  call RealizCreateFlowMassTransferVec(this%realization)
-  this%data_mediator => DataMediatorVecCreate()
-  call this%data_mediator%AddToList(this%realization%flow_data_mediator_list)
   
   ! create a Vec sized by # waste panels * # waste panel cells in region 
   cur_waste_panel => this%waste_panel_list
@@ -2347,6 +2333,7 @@ subroutine PMWSSInitializeRun(this)
     size_of_vec = size_of_vec + cur_waste_panel%region%num_cells
     cur_waste_panel => cur_waste_panel%next
   enddo
+  
   ! srcsink_vec_brine/gas is indexed (1,:) perturbed value wrt idof#1
   !                                  (2,:) perturbed value wrt idof#2
   !                                  (3,:) unperturbed value
@@ -2357,6 +2344,7 @@ subroutine PMWSSInitializeRun(this)
   this%srcsink_vec_brine(1:(this%option%nflowdof+1),:) = 0.d0
   this%srcsink_vec_gas((this%option%nflowdof+2),:) = 0
   this%srcsink_vec_gas(1:(this%option%nflowdof+1),:) = 0.d0
+  
   ! load srcsink_vec_brine/gas with ghosted_id values
   p = 0
   cur_waste_panel => this%waste_panel_list
@@ -2371,46 +2359,6 @@ subroutine PMWSSInitializeRun(this)
     enddo
     cur_waste_panel => cur_waste_panel%next
   enddo
-  
-  ! create a Vec sized by # waste panels * # waste panel cells in region *
-  ! # src/sinks (water [kmol/s], gas [kmol/s])
-  size_of_vec = size_of_vec * this%option%nflowdof 
-  call VecCreateSeq(PETSC_COMM_SELF,size_of_vec, &
-                    this%data_mediator%vec,ierr);CHKERRQ(ierr)
-  call VecSetFromOptions(this%data_mediator%vec,ierr);CHKERRQ(ierr)
-  
-  if (size_of_vec > 0) then
-    allocate(dofs_in_residual(size_of_vec))
-    dofs_in_residual = 0
-    i = 0
-    cur_waste_panel => this%waste_panel_list
-    do
-      if (.not.associated(cur_waste_panel)) exit
-      do k = 1,cur_waste_panel%region%num_cells
-        do j = 1,this%option%nflowdof
-          i = i + 1
-          dofs_in_residual(i) = &
-            (cur_waste_panel%region%cell_ids(k)-1)*this%option%nflowdof + j
-        enddo
-      enddo
-      cur_waste_panel => cur_waste_panel%next
-    enddo
-    ! zero-based indexing
-    dofs_in_residual(:) = dofs_in_residual(:) - 1
-    ! index to global petsc ordering
-    dofs_in_residual(:) = dofs_in_residual(:) + &
-               this%realization%patch%grid%global_offset * this%option%nflowdof
-  endif
-  ! create the index set (IS)
-  call ISCreateGeneral(this%option%mycomm,size_of_vec, &
-                       dofs_in_residual, &
-                       PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
-  if (allocated(dofs_in_residual)) deallocate(dofs_in_residual)
-  ! load the data mediator vec scatter context with the IS
-  call VecScatterCreate(this%data_mediator%vec,PETSC_NULL_VEC, &
-                        this%realization%field%flow_r,is, &
-                        this%data_mediator%scatter_ctx,ierr);CHKERRQ(ierr)
-  call ISDestroy(is,ierr);CHKERRQ(ierr)
 
   ! write header in the *.pnl files
   call PMWSSOutputHeader(this)
@@ -2664,38 +2612,35 @@ end subroutine PMWSSUpdateChemSpecies
 ! ================
 ! option: pointer to option object
 ! grid: pointer to grid object
-! gen_auxvar(:,:): pointer to general mode auxvar object, which stores the 
-!    liquid saturation, temperature, and pressure at each grid cell, and
-!    indexed by the ghosted grid cell id
-! global_auxvar(:): pointer to global auxvar object, which stores the phase
+! wippflo_auxvars(:,:): pointer to wipp flow mode auxvar object, which stores  
+!    liquid saturation, and pressure at each grid cell, and is indexed by the 
+!    ghosted grid cell id
+! global_auxvars(:): pointer to global auxvar object, which stores the phase
 !    state of the system (gas, liquid, or two-phase state), and indexed by
 !    the ghosted grid cell id
 ! material_auxvars(:): pointer to material auxvars object, which stores the
 !    grid cell volume, and indexed by the ghosted grid cell id
-! vec_p(:): pointer to the data mediator array, which stores the liquid
-!    source term [kmol/sec], gas source term [kmol/sec], and energy source
-!    term [MJ/sec], and is indexed by j
 ! cwp: pointer to current waste panel object
-! i, j: [-] looping index integers
+! i, p, k: [-] looping index integers
 ! local_id, ghosted_id: [-] local and ghosted grid cell id number
 ! num_cells: number of grid cells in a waste panel region
 ! SOCEXP: exponent value in effective brine saturation equation
-! dt: [sec] flow process model time steo value
+! dt: [sec] flow process model time step value
 ! UNPERT: unperturbed array index value in srcsink_vec_brine/gas
 ! PERT_WRT_SG: perturbed array index value in srcsink_vec_brine/gas with 
 !    respect to gas saturation (2nd dof)
 ! water_saturation: [-] liquid saturation from simulation
 ! s_eff: [-] effective brine saturation due to capillary action
 !    in the waste materials
+! sg_eff: [-] effective gas saturation (1-s_eff)
 ! -----------------------------------------------------------
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  PetscReal, pointer :: vec_p(:)
   type(srcsink_panel_type), pointer :: cwp
-  PetscInt :: i, j, p, k
+  PetscInt :: i, p, k
   PetscInt :: local_id, ghosted_id
   PetscInt :: num_cells
   PetscReal :: SOCEXP
@@ -2708,15 +2653,15 @@ end subroutine PMWSSUpdateChemSpecies
   PetscReal :: water_saturation
   PetscReal :: s_eff
   PetscReal :: sg_eff
-  ! enthalpy calculation variables
-  PetscReal :: temperature
-  PetscReal :: pressure_liq
-  PetscReal :: pressure_gas
-  PetscReal :: H_liq
-  PetscReal :: H_gas
-  PetscReal :: U_gas
-  PetscReal :: gas_energy
-  PetscReal :: brine_energy
+  ! enthalpy calculation variables  (not used currently)
+  !PetscReal :: temperature
+  !PetscReal :: pressure_liq
+  !PetscReal :: pressure_gas
+  !PetscReal :: H_liq
+  !PetscReal :: H_gas
+  !PetscReal :: U_gas
+  !PetscReal :: gas_energy
+  !PetscReal :: brine_energy
 ! -----------------------------------------------------------
   
   option => this%realization%option
@@ -2725,14 +2670,10 @@ end subroutine PMWSSUpdateChemSpecies
   wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
   material_auxvars => this%realization%patch%aux%Material%auxvars
   global_auxvars => this%realization%patch%aux%Global%auxvars
-  
-  call VecGetArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
-  
   dt = option%flow_dt  ! [sec]
 
   do k = 2,(this%option%nflowdof+1)  ! loops over perturbations: k = 2,3
   
-    j = 0  ! (j indexes the data mediator vec)
     p = 0  ! (p indexes the srcsink_vec)
     cwp => this%waste_panel_list
     do
@@ -2759,7 +2700,7 @@ end subroutine PMWSSUpdateChemSpecies
       cwp%rxnrate_hydromag_conv(:) = 0.d0
       
       do i = 1,num_cells
-        p = p + 1  ! (p indexes srcsink_vec)
+        p = p + 1  ! (p indexes the srcsink_vec)
         local_id = cwp%region%cell_ids(i)
         ghosted_id = grid%nL2G(local_id)
       !-----effective-brine-saturation------------------------------------------
@@ -2981,28 +2922,22 @@ end subroutine PMWSSUpdateChemSpecies
                       (1.d0 - 1.d-2*this%salt_wtpercent)
 
       !------source-term-calculation--------------------------------------------
-        j = j + 1
-        !---liquid-source-term-[kmol/sec]------------------------!-[units]------
-        !vec_p(j) = cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
-        !           material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
-        !           1.d3                                          ! [mol -> kmol]
+
+        !---liquid-source-term-[kmol/sec]-----------------------!-[units]-------
         this%srcsink_vec_brine(k,p) = &                         ! [kmol/sec]
                   cwp%brine_generation_rate(i) * &              ! [mol/m3/sec]
                   material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                   1.d3                                          ! [mol -> kmol]
-        j = j + 1
-        !---gas-source-term-[kmol/sec]---------------------------!-[units]------
-        !vec_p(j) = cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
-        !           material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
-        !           1.d3                                          ! [mol -> kmol]
+
+        !---gas-source-term-[kmol/sec]--------------------------!-[units]-------
         this%srcsink_vec_gas(k,p) = &                           ! [kmol/sec]
                   cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
                   material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                   1.d3                                          ! [mol -> kmol]
+                  
+        !---energy-source-term-[MJ/sec];-H-from-EOS-[J/kmol]--------------------
         !jmf: keep in the case WIPP_FLOW mode will solve for temperature
         !if (associated(general_auxvars)) then
-        !  j = j + 1
-        !  !---energy-source-term-[MJ/sec];-H-from-EOS-[J/kmol]-------------------
         !  brine_energy = 0.d0
         !  gas_energy = 0.d0
         !  temperature = general_auxvars(ZERO_INTEGER,ghosted_id)%temp
@@ -3039,7 +2974,7 @@ end subroutine PMWSSUpdateChemSpecies
         !          material_auxvars(ghosted_id)%volume * &       ! [m3-bulk] 
         !          H_gas * 1.d-3 * 1.d-6                         ! [MJ/mol]
         !  end select
-        !  vec_p(j) = brine_energy + gas_energy
+        !  vec_p(j) = brine_energy + gas_energy  ! must be in srcsink_vec
         !endif
       enddo
       !-------------------------------------------------------------------------
@@ -3047,9 +2982,7 @@ end subroutine PMWSSUpdateChemSpecies
     enddo  ! loop over waste panels
     
   enddo  ! loop over perturbations
-  
-  call VecRestoreArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
-  
+    
 end subroutine PMWSSSolve
 
 ! ************************************************************************** !
@@ -3750,13 +3683,11 @@ subroutine PMWSSCalcResidualValues(this,ighosted_id,res,ss_flow_vol_flux)
 
 ! LOCAL VARIABLES:
 ! ================
-! i: [-] looping index integer
 ! ghosted_id: [-] ghosted grid cell id number
 ! wat_comp_id: [-] water component id number
 ! air_comp_id: [-] air component id number
 ! wippflo_auxvars: [-] pointer to the wippflo auxvar object
 ! ----------------------------------------------------------
-  PetscInt :: i
   PetscInt :: ghosted_id
   PetscInt :: wat_comp_id, air_comp_id
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)

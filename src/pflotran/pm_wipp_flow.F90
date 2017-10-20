@@ -919,8 +919,6 @@ subroutine PMWIPPFloMaxChange(this)
   PetscReal :: max_change_global(6)
   PetscReal :: max_change
   PetscInt :: i, j
-  PetscInt :: local_id, ghosted_id
-
   
   PetscErrorCode :: ierr
 
