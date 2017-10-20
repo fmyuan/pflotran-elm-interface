@@ -435,6 +435,7 @@ module PM_WIPP_SrcSink_class
             PMWSSWastePanelCreate, &
             PMWSSPreInventoryCreate, &
             PMWSSSetRealization, &
+            PMWSSCalcResidualValues, &
             PMWSSCalcJacobianValues
 
 contains
@@ -2681,8 +2682,6 @@ end subroutine PMWSSUpdateChemSpecies
 ! SOCEXP: exponent value in effective brine saturation equation
 ! dt: [sec] flow process model time steo value
 ! UNPERT: unperturbed array index value in srcsink_vec_brine/gas
-! PERT_WRT_PL: perturbed array index value in srcsink_vec_brine/gas with 
-!    respect to liquid pressure (1st dof)
 ! PERT_WRT_SG: perturbed array index value in srcsink_vec_brine/gas with 
 !    respect to gas saturation (2nd dof)
 ! water_saturation: [-] liquid saturation from simulation
@@ -2703,7 +2702,6 @@ end subroutine PMWSSUpdateChemSpecies
   PetscReal :: dt
   
   ! srcsink vector indexing
-  PetscInt, parameter :: PERT_WRT_PL = 1     ! hard wire for now; 1st dof
   PetscInt, parameter :: PERT_WRT_SG = 2     ! hard wire for now; 2nd dof
   PetscInt, parameter :: UNPERT = 3          ! hard wire for now
   ! brine/gas generation variables
@@ -2732,7 +2730,7 @@ end subroutine PMWSSUpdateChemSpecies
   
   dt = option%flow_dt  ! [sec]
 
-  do k = 1,(this%option%nflowdof+1)  ! loops over perturbations: k = 1,2,3
+  do k = 2,(this%option%nflowdof+1)  ! loops over perturbations: k = 2,3
   
     j = 0  ! (j indexes the data mediator vec)
     p = 0  ! (p indexes the srcsink_vec)
@@ -2767,9 +2765,6 @@ end subroutine PMWSSUpdateChemSpecies
       !-----effective-brine-saturation------------------------------------------
       !-----(see equation PA.99, section PA-4.2.6)------------------------------
         select case(k)
-          case(PERT_WRT_PL)  ! 1 in auxvars; k = 1
-            water_saturation = 1.d0 - &
-              wippflo_auxvars(k,ghosted_id)%sat(option%gas_phase)
           case(PERT_WRT_SG)  ! 2 in auxvars; k = 2
             water_saturation = 1.d0 - &
               wippflo_auxvars(k,ghosted_id)%sat(option%gas_phase)
@@ -3729,6 +3724,66 @@ end subroutine PMWSSOutputHeader
 
 ! *************************************************************************** !
 
+subroutine PMWSSCalcResidualValues(this,ighosted_id,res,ss_flow_vol_flux)
+  ! 
+  ! Constructs a Residual array for a given ghosted cell id.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 10/20/2017
+  ! 
+  use WIPP_Flow_Aux_module
+  
+  implicit none
+  
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): wipp-srcsink process model object
+! ighosted_id (input): [-] ghosted grid cell id index
+! res (output): [kmol/sec] residual array
+! ss_flow_vol_flux (input/output): [m3/sec] volume flux of source or sink
+! ---------------------------------------------------
+  class(pm_wipp_srcsink_type) :: this
+  PetscInt :: ighosted_id
+  PetscReal :: res(this%option%nflowdof)
+  PetscReal :: ss_flow_vol_flux(this%option%nflowdof)
+! ---------------------------------------------------
+
+! LOCAL VARIABLES:
+! ================
+! i: [-] looping index integer
+! ghosted_id: [-] ghosted grid cell id number
+! wat_comp_id: [-] water component id number
+! air_comp_id: [-] air component id number
+! wippflo_auxvars: [-] pointer to the wippflo auxvar object
+! ----------------------------------------------------------
+  PetscInt :: i
+  PetscInt :: ghosted_id
+  PetscInt :: wat_comp_id, air_comp_id
+  type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
+! ----------------------------------------------------------
+
+  wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
+  ghosted_id = this%srcsink_vec_brine((this%option%nflowdof+2),ighosted_id)
+  wat_comp_id = this%option%water_id
+  air_comp_id = this%option%air_id
+
+  ! ==== LIQUID ===== index = 1
+  ! load up contribution to residual
+  res(wat_comp_id) = this%srcsink_vec_brine((this%option%nflowdof+1), &
+                                            ighosted_id)
+  ss_flow_vol_flux(wat_comp_id) = res(wat_comp_id) / &
+                     wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den(wat_comp_id)
+  
+  ! ==== GAS ===== index = 2
+  ! load up contribution to unperturbed residual
+  res(air_comp_id) = this%srcsink_vec_gas((this%option%nflowdof+1),ighosted_id)
+  ss_flow_vol_flux(air_comp_id) = res(air_comp_id) / &
+                     wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den(air_comp_id)
+
+end subroutine PMWSSCalcResidualValues
+
+! *************************************************************************** !
+
 subroutine PMWSSCalcJacobianValues(this,ighosted_id,idof_pert,J_block)
   ! 
   ! Constructs a Jacobian block for a given ghosted cell id.
@@ -3736,6 +3791,7 @@ subroutine PMWSSCalcJacobianValues(this,ighosted_id,idof_pert,J_block)
   ! Author: Jenn Frederick
   ! Date: 10/19/2017
   ! 
+  use WIPP_Flow_Aux_module
   
   implicit none
   
@@ -3757,23 +3813,29 @@ subroutine PMWSSCalcJacobianValues(this,ighosted_id,idof_pert,J_block)
 ! i: [-] looping index integer
 ! res: [kmol/sec] contribution to unperturbed residual
 ! res_pert: [kmol/sec] contribution to perturbed residual
+! wat_comp_id: [-] water component id number
+! air_comp_id: [-] air component id number
 ! -------------------------------------------
   PetscInt :: i
   PetscReal :: res
   PetscReal :: res_pert
+  PetscInt :: wat_comp_id, air_comp_id
 ! -------------------------------------------
 
+  wat_comp_id = this%option%water_id
+  air_comp_id = this%option%air_id
+  
   ! ==== LIQUID ===== index = 1
   ! load up contribution to unperturbed residual
   res = this%srcsink_vec_brine((this%option%nflowdof+1),ighosted_id)
   ! load up contribution to perturbed residual and add to Jacobain block
   do i = 1,this%option%nflowdof
     res_pert = this%srcsink_vec_brine(i,ighosted_id)
-    J_block(ONE_INTEGER,i) = (res_pert - res)/idof_pert(i)
+    J_block(wat_comp_id,i) = (res_pert - res)/idof_pert(i)
   enddo
   ! note the above doesn't work because the gas/brine generation rates are 
   ! not changed by a perturbation in liquid pressure
-  J_block(ONE_INTEGER,ONE_INTEGER) = 0.d0
+  J_block(wat_comp_id,WIPPFLO_LIQUID_PRESSURE_DOF) = 0.d0
   
   ! ==== GAS ===== index = 2
   ! load up contribution to unperturbed residual
@@ -3781,11 +3843,11 @@ subroutine PMWSSCalcJacobianValues(this,ighosted_id,idof_pert,J_block)
   ! load up contribution to perturbed residual and add to Jacobian block
   do i = 1,this%option%nflowdof
     res_pert = this%srcsink_vec_gas(i,ighosted_id)
-    J_block(TWO_INTEGER,i) = (res_pert - res)/idof_pert(i)
+    J_block(air_comp_id,i) = (res_pert - res)/idof_pert(i)
   enddo
   ! note the above doesn't work because the gas/brine generation rates are 
   ! not changed by a perturbation in liquid pressure
-  J_block(TWO_INTEGER,ONE_INTEGER) = 0.d0
+  J_block(air_comp_id,WIPPFLO_LIQUID_PRESSURE_DOF) = 0.d0
 
 end subroutine PMWSSCalcJacobianValues
 

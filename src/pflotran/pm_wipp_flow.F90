@@ -423,14 +423,9 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   PetscErrorCode :: ierr
   
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
-  !jmf: remove
-  !! call all WIPP process models using picard method
-  !! these updates will lag one Newton iteration
-  !if (wippflo_use_gas_gen) then
-  !  call this%pmwss_ptr%Solve(this%option%time,ierr)
-  !endif
+
   ! calculate residual
-  call WIPPFloResidual(snes,xx,r,this%realization,ierr)
+  call WIPPFloResidual(snes,xx,r,this%realization,this%pmwss_ptr,ierr)
 
   call this%PostSolve()
 

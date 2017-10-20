@@ -702,7 +702,7 @@ end subroutine WIPPFloUpdateFixedAccum
 
 ! ************************************************************************** !
 
-subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
+subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   ! 
   ! Computes the residual equation
   ! 
@@ -721,6 +721,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
   use Coupler_module  
   use Debug_module
   use Material_Aux_class
+  use PM_WIPP_SrcSink_class
 
   implicit none
 
@@ -728,6 +729,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
   Vec :: xx
   Vec :: r
   type(realization_subsurface_type) :: realization
+  type(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   
@@ -765,6 +767,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
   PetscReal, pointer :: vec_p(:)
   
   character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: k
 
   PetscInt :: icap_up, icap_dn
   PetscReal :: Res(realization%option%nflowdof)
@@ -1000,6 +1003,22 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
+  
+  ! WIPP gas/brine generation process model source/sinks
+  if (wippflo_use_gas_gen) then
+    ! loop over ghosted cell id array
+    do k = 1,size(pmwss_ptr%srcsink_vec_brine((option%nflowdof+2),:))
+      ! get Res(:)
+      call PMWSSCalcResidualValues(pmwss_ptr,k,Res,ss_flow_vol_flux)
+      ghosted_id = pmwss_ptr%srcsink_vec_brine((option%nflowdof+2),k)
+      local_id = grid%nG2L(ghosted_id)
+      local_end = local_id * option%nflowdof
+      local_start = local_end - option%nflowdof + 1
+      ! add Res(:) contribution to r_p vector
+      r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
+      ! what to do with ss_flow_vol_flux????
+    enddo
+  endif
 
   if (patch%aux%WIPPFlo%inactive_cells_exist) then
     do i=1,patch%aux%WIPPFlo%n_inactive_rows
