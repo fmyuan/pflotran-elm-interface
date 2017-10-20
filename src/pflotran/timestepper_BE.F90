@@ -1,7 +1,7 @@
 module Timestepper_BE_class
- 
 #include "petsc/finclude/petscsys.h"
   use petscsys
+
   use Solver_module
   use Convergence_module
   use Timestepper_Base_class
@@ -11,9 +11,7 @@ module Timestepper_BE_class
   implicit none
 
   private
-  
-#include "petsc/finclude/petscsys.h"
- 
+
   type, public, extends(timestepper_base_type) :: timestepper_BE_type
   
     PetscInt :: num_newton_iterations ! number of Newton iterations in a time step
@@ -62,7 +60,7 @@ module Timestepper_BE_class
     subroutine PetscBagGetData(bag,header,ierr)
       import :: stepper_BE_header_type
       implicit none
-#include "petsc/finclude/petscbag.h"      
+#include "petsc/finclude/petscbag.h"
       PetscBag :: bag
       class(stepper_BE_header_type), pointer :: header
       PetscErrorCode :: ierr
@@ -294,12 +292,8 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscReal :: tconv
   PetscReal :: fnorm, inorm, scaled_fnorm
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
-  Vec :: residual_vec
+  !Vec :: residual_vec  !NOT NEEDED (fmy, 2018-09-06)
   PetscErrorCode :: ierr
-
-  ! GNU -O3 can fail below in SNESGetFunction() as the compiler can set the
-  ! initial value to -1, which CHKFORTRANNULLOBJECT() interprets as NULL.
-  residual_vec = tVec(0) 
 
 !fmy: for printing vecs if program stops
   PetscScalar, pointer :: solution_p(:)
@@ -313,6 +307,10 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscErrorCode :: ierr2
   type(grid_type), pointer :: grid
 !fmy: for printing vecs if program stops
+
+  ! GNU -O3 can fail below in SNESGetFunction() as the compiler can set the
+  ! initial value to -1, which CHKFORTRANNULLOBJECT() interprets as NULL.
+  !residual_vec = tVec(0)  !NOT NEEDED (fmy, 2018-09-06) and also solved the unknown error below
   
   solver => this%solver
   option => process_model%option
@@ -602,10 +600,10 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
           select case(snes_reason)
             case(SNES_DIVERGED_FNORM_NAN)
               ! attempt to find cells with NaNs.
-              call SNESGetFunction(solver%snes,residual_vec, &
+              call SNESGetFunction(solver%snes,process_model%residual_vec, &
                                    PETSC_NULL_FUNCTION,PETSC_NULL_INTEGER, &
                                  ierr);CHKERRQ(ierr)
-              call OutputFindNaNOrInfInVec(residual_vec, &
+              call OutputFindNaNOrInfInVec(process_model%residual_vec, &
                                            process_model%realization_base% &
                                              discretization%grid,option)
           end select
@@ -636,10 +634,16 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   this%num_linear_iterations = num_linear_iterations  
   
   ! print screen output
-  call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
+  ! (2018-09-06, fmy) after updating TH mode, the following 'residual_vec' is NULL
+  !            when surf_subsurface simulation is on, because actually didn't associated with
+  !call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
+  !                     PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+  !call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
+  !call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
+  call SNESGetFunction(solver%snes,process_model%residual_vec,PETSC_NULL_FUNCTION, &
                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
-  call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
-  call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
+  call VecNorm(process_model%residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
+  call VecNorm(process_model%residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
   if (option%print_screen_flag) then
       write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
            & " [",a,"]", " snes_conv_reason: ",i4,/,"  newton = ",i3, &
