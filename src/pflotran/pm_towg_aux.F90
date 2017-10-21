@@ -25,12 +25,12 @@ module PM_TOWG_Aux_module
 
   PetscBool, public :: towg_isothermal = PETSC_FALSE
   !PO:needs to add input for towg_no_gas and towg_no_oil in pm_towg%Read
-  !   towg_no_oil currently supported only for TOWG_IMMISCIBLE 
+  !   towg_no_oil currently supported only for TOWG_IMMISCIBLE
   !   and TOWG_TODD_LONGSTAFF. To have it working also for BLACK_OIL and SOLV.
   !   must swap the orger of primary vars for TOWG_LIQ_GAS_STATE,
   !   Po,Sg,Xg^G -> Po,Xg^G,Sg
   PetscBool, public :: towg_no_gas = PETSC_FALSE
-  PetscBool, public :: towg_no_oil = PETSC_FALSE 
+  PetscBool, public :: towg_no_oil = PETSC_FALSE
   PetscInt, public :: towg_miscibility_model = UNINITIALIZED_INTEGER
 
   !list of TOWG paramters
@@ -43,14 +43,14 @@ module PM_TOWG_Aux_module
   PetscInt, parameter, public :: TOWG_BLACK_OIL = 3
   PetscInt, parameter, public :: TOWG_SOLVENT_TL = 4
 
-  ! thermodynamic state of fluid ids - for BLACK OIL 
+  ! thermodynamic state of fluid ids - for BLACK OIL
   PetscInt, parameter, public :: TOWG_NULL_STATE = 0
   PetscInt, parameter, public :: TOWG_LIQ_OIL_STATE = 1
   PetscInt, parameter, public :: TOWG_LIQ_GAS_STATE = 2
   PetscInt, parameter, public :: TOWG_THREE_PHASE_STATE = 3
   PetscInt, parameter, public :: TOWG_ANY_STATE = 4
 
-  ! Primary DOF indices - 
+  ! Primary DOF indices -
   PetscInt, parameter, public :: TOWG_OIL_PRESSURE_DOF = 1
   PetscInt, parameter, public :: TOWG_OIL_SATURATION_DOF = 2
   PetscInt, parameter, public :: TOWG_GAS_SATURATION_2PH_DOF = 2
@@ -59,13 +59,13 @@ module PM_TOWG_Aux_module
   PetscInt, parameter, public :: TOWG_X_OIL_IN_GAS_DOF = 3
   PetscInt, parameter, public :: TOWG_SOLV_SATURATION = 4
   PetscInt, parameter, public :: TOWG_3CMPS_ENERGY_DOF = 4
-  PetscInt, parameter, public :: TOWG_SOLV_TL_ENERGY_DOF = 5 
+  PetscInt, parameter, public :: TOWG_SOLV_TL_ENERGY_DOF = 5
   !towg_energy_dof assigned TOWG_3CMPS_ENERGY_DOF or TOWG_SOLV_TL_ENERGY_DOF
-  !in PMTOWGCreate 
-  PetscInt, public :: towg_energy_dof = UNINITIALIZED_INTEGER 
-  
+  !in PMTOWGCreate
+  PetscInt, public :: towg_energy_dof = UNINITIALIZED_INTEGER
 
-  ! Equation indices -   
+
+  ! Equation indices -
   PetscInt, parameter, public :: TOWG_LIQ_EQ_IDX = 1
   PetscInt, parameter, public :: TOWG_OIL_EQ_IDX = 2
   PetscInt, parameter, public :: TOWG_GAS_EQ_IDX = 3
@@ -74,10 +74,10 @@ module PM_TOWG_Aux_module
   PetscInt, parameter, public :: TOWG_SOLV_TL_ENERGY_EQ_IDX = 5
   PetscInt, public :: towg_energy_eq_idx = UNINITIALIZED_INTEGER
 
-  !Indices used to map aux_real for condition values 
+  !Indices used to map aux_real for condition values
   PetscInt, parameter, public :: TOWG_OIL_PRESSURE_INDEX = 1
-  PetscInt, parameter, public :: TOWG_OIL_SATURATION_INDEX = 2 
-  PetscInt, parameter, public :: TOWG_GAS_SATURATION_INDEX = 3  
+  PetscInt, parameter, public :: TOWG_OIL_SATURATION_INDEX = 2
+  PetscInt, parameter, public :: TOWG_GAS_SATURATION_INDEX = 3
   PetscInt, parameter, public :: TOWG_SOLV_SATURATION_INDEX = 4
   PetscInt, parameter, public :: TOWG_X_GAS_IN_OIL_INDEX = 5
   PetscInt, parameter, public :: TOWG_X_GAS_IN_GAS_INDEX = 6
@@ -109,7 +109,7 @@ module PM_TOWG_Aux_module
   end type towg_parameter_type
 
   !if required, could add other intermediate classes:
-  type, public, extends(pm_base_aux_type) :: pm_towg_aux_type 
+  type, public, extends(pm_base_aux_type) :: pm_towg_aux_type
     type(towg_parameter_type), pointer :: parameter
     class(auxvar_towg_type), pointer :: auxvars(:,:)
     class(auxvar_towg_type), pointer :: auxvars_bc(:)
@@ -165,10 +165,10 @@ module PM_TOWG_Aux_module
       type(global_auxvar_type) :: global_auxvar
       class(material_auxvar_type) :: material_auxvar
       class(characteristic_curves_type) :: characteristic_curves
-    end subroutine 
+    end subroutine
 
   end interface
- 
+
   public :: TOWGAuxCreate, &
             TOWGAuxDestroy, &
             TOWGAuxVarStrip, &
@@ -184,12 +184,12 @@ contains
 ! ************************************************************************** !
 
 function TOWGAuxCreate(option)
-  ! 
+  !
   ! Allocate and initialize auxiliary object for TOWG
-  ! 
+  !
   ! Author: Paolo Orsini (OGS)
   ! Date: 11/05/16
-  ! 
+  !
 
   use Option_module
   use EOS_Oil_module
@@ -198,29 +198,29 @@ function TOWGAuxCreate(option)
   implicit none
 
   type(option_type) :: option
-    
+
   class(pm_towg_aux_type), pointer :: TOWGAuxCreate
 
   class(pm_towg_aux_type), pointer :: aux
 
-  allocate(towg_fmw_comp(option%nflowspec)) 
+  allocate(towg_fmw_comp(option%nflowspec))
 
   !in TOWG the gas FMW must be defined in the input deck
   if ( Uninitialized(EOSGasGetFMW()) ) then
     option%io_buffer = 'TOWG: gas FMW not initialised. ' // &
                        'Define its value in the the input deck' // &
-                       ' or add EOS GAS card to default to FMWAIR' 
-    call printErrMsg(option)    
+                       ' or add EOS GAS card to default to FMWAIR'
+    call printErrMsg(option)
   endif
-  
+
   towg_fmw_comp(1) = FMWH2O
   towg_fmw_comp(2) = EOSOilGetFMW()
   towg_fmw_comp(3) = EOSGasGetFMW()
 
-  !need to add an EOS for solvent, before adding solvent 
+  !need to add an EOS for solvent, before adding solvent
   !if ( towg_miscibility_model == TOWG_SOLVENT_TL ) then
-  !  towg_fmw_comp(4) = 
-  !end if   
+  !  towg_fmw_comp(4) =
+  !end if
 
   allocate( towg_dof_to_primary_variable(1:option%nflowdof,1:3) )
 
@@ -249,9 +249,9 @@ function TOWGAuxCreate(option)
   end select
 
   !allocate here to define this is a pm_toil_ims_aux_type
-  allocate(aux) 
+  allocate(aux)
 
-  call PMBaseAuxInit(aux) 
+  call PMBaseAuxInit(aux)
 
   !nullify here and not in the parent class, because auxvars are mode dependent
   nullify(aux%auxvars)
@@ -259,10 +259,10 @@ function TOWGAuxCreate(option)
   nullify(aux%auxvars_ss)
 
   allocate(aux%parameter)
-  
+
   !PO - to allocate when supporting diffusion the oil and gas phase
-  !allocate(aux%parameter%diffusion_coefficient(option%nphase)) 
-  !aux%parameter%diffusion_coefficient(option%liquid_phase) = & 
+  !allocate(aux%parameter%diffusion_coefficient(option%nphase))
+  !aux%parameter%diffusion_coefficient(option%liquid_phase) = &
   !                                                 UNINITIALIZED_DOUBLE
   !aux%parameter%diffusion_coefficient(option%oil_phase) = &
   !                                                 UNINITIALIZED_DOUBLE
@@ -272,35 +272,35 @@ function TOWGAuxCreate(option)
 
 
   TOWGAuxCreate => aux
-  
+
 end function TOWGAuxCreate
 
 ! ************************************************************************** !
 
 subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
                               num_ss_connection,option)
-  ! 
-  ! Initialize pm_towg_auxvars  
-  ! 
+  !
+  ! Initialize pm_towg_auxvars
+  !
   ! Author: Paolo Orsini (OGS)
   ! Date: 11/07/16
-  ! 
+  !
 
   use Option_module
-  use Grid_module 
+  use Grid_module
 
   implicit none
 
   class(pm_towg_aux_type) :: this
   PetscInt :: num_bc_connection
-  PetscInt :: num_ss_connection  
+  PetscInt :: num_ss_connection
   type(grid_type) :: grid
   type(option_type) :: option
 
   PetscInt :: ghosted_id, iconn, local_id
-  PetscInt :: idof 
- 
-  allocate(this%auxvars(0:option%nflowdof,grid%ngmax)) 
+  PetscInt :: idof
+
+  allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     do idof = 0, option%nflowdof
       call this%auxvars(idof,ghosted_id)%Init(option)
@@ -342,12 +342,12 @@ end subroutine InitTOWGAuxVars
 
 subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                                 characteristic_curves,natural_id,option)
-  ! 
+  !
   ! Computes auxiliary variables for each grid cell for TOWGIms
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/02/16
-  ! 
+  !
 
   use Option_module
   use Global_Aux_module
@@ -356,18 +356,18 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   use EOS_Gas_module
   use Characteristic_Curves_module
   use Material_Aux_class
-  
+
   implicit none
 
   type(option_type) :: option
   PetscReal :: x(option%nflowdof)
-  class(auxvar_towg_type) :: auxvar  
+  class(auxvar_towg_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar ! passing this for salt conc.
                                             ! not currenty used
   class(material_auxvar_type) :: material_auxvar
   class(characteristic_curves_type) :: characteristic_curves
-  PetscInt :: natural_id !only for debugging/print out - currently not used 
-  
+  PetscInt :: natural_id !only for debugging/print out - currently not used
+
   PetscInt :: lid, oid, gid
   PetscReal :: cell_pressure, wat_sat_pres
   PetscReal :: krl, visl, dkrl_Se
@@ -414,21 +414,21 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   !Assumptions below on capillary pressure for comparison with TOUGH2-EOS8:
   ! pc_ow = 0, only pc_gw /= 0 and computed considering water saturation only
   ! this results in pc_gw = pc_go
-  
+
   !assuming no capillary pressure between oil and water: pc_ow = 0
   ! pc_ow = 0.0d0
-  auxvar%pres(lid) = auxvar%pres(oid) 
+  auxvar%pres(lid) = auxvar%pres(oid)
 
   !compute capillary pressure gas/water (pc_gw),
   ! pc_go = pc_gw when pc_ow = 0
   !call characteristic_curves%saturation_function% &
   !     CapillaryPressure(material_auxvar,auxvar%sat(lid),auxvar%pc(lid),option)
   !To match TOUGH-EOS8, consider water plu poil as wetting phase
-  !for capillary press computation 
+  !for capillary press computation
   sat_tot_liq = auxvar%sat(lid) + auxvar%sat(oid)
   call characteristic_curves%saturation_function% &
        CapillaryPressure(sat_tot_liq,auxvar%pc(lid),dummy,option)
-  
+
   auxvar%pres(gid) = auxvar%pres(lid) + auxvar%pc(lid)
 
   auxvar%pc(oid) = 0.0d0
@@ -464,16 +464,16 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   ! ADD HERE BRINE dependency. Two options (see mphase)
   ! - salinity constant in space and time (passed in option%option%m_nacl)
-  ! - salt can be trasnported by RT (sequential coupling) and passed 
-  !   and passed with global_auxvar%m_nacl 
-  !  ! Assign salinity 
-  !  m_na=option%m_nacl; m_cl=m_na; m_nacl=m_na 
+  ! - salt can be trasnported by RT (sequential coupling) and passed
+  !   and passed with global_auxvar%m_nacl
+  !  ! Assign salinity
+  !  m_na=option%m_nacl; m_cl=m_na; m_nacl=m_na
   !  if (option%ntrandof > 0) then
   !    m_na = global_auxvar%m_nacl(1)
   !    m_cl = global_auxvar%m_nacl(2)
   !    m_nacl = m_na
   !    if (m_cl > m_na) m_nacl = m_cl
-  !  endif    
+  !  endif
   !
   !  ! calculate density for pure water
   !  call EOSWaterDensityEnthalpy(t,pw,dw_kg,dw_mol,hw,ierr)
@@ -481,7 +481,7 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   !  xm_nacl = m_nacl*FMWNACL
   !  xm_nacl = xm_nacl/(1.D3 + xm_nacl)
   !  ! corrects water densit previously calculated as pure water
-  !  call EOSWaterDensityNaCl(t,p,xm_nacl,dw_kg)  
+  !  call EOSWaterDensityNaCl(t,p,xm_nacl,dw_kg)
   !  ! water viscosity dependence on salt concetration, but no derivatives
   !  !  call EOSWaterViscosityNaCl(t,p,xm_nacl,visl)
   !  call EOSWaterViscosity(t,pw,sat_pressure,0.d0,visl,dvdt,dvdp,dvdps,ierr)
@@ -507,8 +507,8 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! compute water mobility (rel. perm / viscostiy)
   call characteristic_curves%liq_rel_perm_function% &
          RelativePermeability(auxvar%sat(lid),krl,dkrl_Se,option)
-                            
-  call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)                   
+
+  call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
   ! use cell_pressure; cell_pressure - psat calculated internally
   call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visl,ierr)
@@ -525,12 +525,12 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   auxvar%mobility(oid) = kro/viso
 
-  !compute gas mobility (rel. perm / viscosity) 
+  !compute gas mobility (rel. perm / viscosity)
   sat_tot_liq = auxvar%sat(lid) + auxvar%sat(oid)
   call characteristic_curves%gas_rel_perm_function% &
          RelativePermeability(sat_tot_liq,krg,dkrg_Se,option)
 
-  !currently only a viscosity model for air or constant value   
+  !currently only a viscosity model for air or constant value
   call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
                        auxvar%pres(gid),auxvar%den(gid),visg,ierr)
 
@@ -543,12 +543,12 @@ end subroutine TOWGImsAuxVarCompute
 
 subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                                characteristic_curves,natural_id,option)
-  ! 
+  !
   ! Computes auxiliary variables for each grid cell for TOWGTL
-  ! 
+  !
   ! Author: Paolo Orsini (OGS) - David Ponting (OGS)
   ! Date: 07/06/17
-  ! 
+  !
 
   use Option_module
   use Global_Aux_module
@@ -557,18 +557,18 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   use EOS_Gas_module
   use Characteristic_Curves_module
   use Material_Aux_class
-  
+
   implicit none
 
   type(option_type) :: option
   PetscReal :: x(option%nflowdof)
-  class(auxvar_towg_type) :: auxvar  
+  class(auxvar_towg_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar ! passing this for salt conc.
                                             ! not currenty used
   class(material_auxvar_type) :: material_auxvar
   class(characteristic_curves_type) :: characteristic_curves
-  PetscInt :: natural_id !only for debugging/print out - currently not used 
-  
+  PetscInt :: natural_id !only for debugging/print out - currently not used
+
   PetscInt :: lid, oid, gid
   PetscReal :: cell_pressure, wat_sat_pres
   PetscReal :: krl, dkrl_Se
@@ -581,7 +581,9 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   !PetscReal :: Uoil_J_kg, Hoil_J_kg
   PetscErrorCode :: ierr
   PetscReal :: krotl=0.0,krgtl=0.0,viscotl=0.0,viscgtl=0.0,denotl=0.0,dengtl=0.0
-
+  !PO: iT,iP1,iP2, Ttmp, Ptmp tmp vars for testing tables - to be removed
+  PetscInt :: iT,iP1,iP2
+  PetscReal :: Ttmp, Ptmp
 !--Get phase pointers for water,oil and gas-----------------------------------
 
   ! from SubsurfaceSetFlowMode
@@ -612,9 +614,9 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%temp = x(towg_energy_dof)
 
   auxvar%sat(lid) = 1.d0 - auxvar%sat(oid) - auxvar%sat(gid)
-  
+
 !--Set up phase pressures and capillary pressures-----------------------------
- 
+
   ! In Todd-Longstaff mode assume no cap. pressure between oil and gas: pcog=0
   ! The cap. pressure is hydrocarbon/water (pchw) as function of water satn.
 
@@ -625,8 +627,8 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   call characteristic_curves%saturation_function% &
        CapillaryPressure(sat_water,auxvar%pc(lid),dummy,option)
 
-  auxvar%pres(gid) = auxvar%pres(oid)  
-  auxvar%pres(lid) = auxvar%pres(oid) - auxvar%pc(lid) 
+  auxvar%pres(gid) = auxvar%pres(oid)
+  auxvar%pres(lid) = auxvar%pres(oid) - auxvar%pc(lid)
 
   cell_pressure = max(auxvar%pres(lid),auxvar%pres(oid),auxvar%pres(gid))
 
@@ -659,8 +661,8 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   ! ADD HERE BRINE dependency. Two options (see mphase)
   ! - salinity constant in space and time (passed in option%option%m_nacl)
-  ! - salt can be transported by RT (sequential coupling) and passed 
-  !   and passed with global_auxvar%m_nacl 
+  ! - salt can be transported by RT (sequential coupling) and passed
+  !   and passed with global_auxvar%m_nacl
 
   call EOSOilDensityEnergy(auxvar%temp,auxvar%pres(oid),&
                            auxvar%den(oid),auxvar%H(oid), &
@@ -670,6 +672,14 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   auxvar%H(oid) = auxvar%H(oid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(oid) = auxvar%U(oid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+  !iT = 1
+  !iP1 = 1
+  !iP2 = 1
+  !Ptmp = 42.0d0
+  !Ttmp = 50.d0
+                                 ! EOS_FVF=5
+  !call pvdo%EOSPropTable(Ttmp,Ptmp,5,dummy,ierr,iP1,iT,iP2)
 
   !compute gas properties (default is air - but methane can be set up)
   call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid), &
@@ -684,8 +694,8 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! compute water relative permability Krw(Sw)
   call characteristic_curves%liq_rel_perm_function% &
          RelativePermeability(sat_water,krl,dkrl_Se,option)
-                            
-  call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)                   
+
+  call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
   ! use cell_pressure; cell_pressure - psat calculated internally
   call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visl,ierr)
@@ -696,7 +706,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   ! In Todd-Longstaff case, look up the hydrocarbon rel perm using the
   ! hydrocarbon saturation (Sh=So+Sg=1-Sw), with water saturation as argument
-  
+
   call characteristic_curves%oil_rel_perm_function% &
          RelativePermeability(sat_water,krh,dkrh_Se,option)
 
@@ -704,7 +714,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   call EOSOilViscosity(auxvar%temp,auxvar%pres(oid), &
                        auxvar%den(oid), viso, ierr)
 
-  ! Gas viscosity : currently only viscosity model for air or constant value   
+  ! Gas viscosity : currently only viscosity model for air or constant value
   call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
                        auxvar%pres(gid),auxvar%den(gid),visg,ierr)
 
@@ -745,14 +755,14 @@ subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
 !------------------------------------------------------------------------------
 ! Routine to calculate the Todd-Longstaff mobilities
 ! Based on the reference TL:
-! 'The Development, Testing and Application of a Numerical Simulator for 
+! 'The Development, Testing and Application of a Numerical Simulator for
 !  Predicting Miscible Flood Performance', M.R.Todd and W.J.Longstaff,
 !  Journal Pet. Tech., 1972
 !  SPE 3484, downloadable from OnePetro on www.spe.org
 !------------------------------------------------------------------------------
 !
 ! input  : oid,gid         : Pointers to oil and gas saturations
-! input  : krh             : krh contains hydrocarbon rel. perm. on input. 
+! input  : krh             : krh contains hydrocarbon rel. perm. on input.
 ! input  : visco,viscg     : Unmixed phase viscosity values on input
 ! input  : deno ,deng      : Unmixed phase density   values on input
 ! input  : auxvar          : Used to obtain saturation values
@@ -764,7 +774,7 @@ subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
 ! Author: Dave Ponting
 ! Date  : Jul 2017
 !------------------------------------------------------------------------------
-  
+
   implicit none
 
   PetscInt ,intent(in )   ::oid,gid
@@ -831,9 +841,9 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl)
   PetscReal            :: tlomegac,sn,sni,viscqpo,viscqpg,wviscqp &
                          ,denom,denominv,viscm
   PetscReal            :: viscoimw,viscgimw,viscmw
- 
+
 !--Set up complement of the Todd Longstaff omega-------------------------------
- 
+
   tlomegac=1.0-val_tl_omega
 
 !--Form quarter-powers of basic viscosities------------------------------------
@@ -853,7 +863,7 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl)
 
   if( denom>0.0 ) then
     denominv=1.0/denom
-  else      
+  else
     denominv=0.0
   endif
 
@@ -867,7 +877,7 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl)
 
   viscoimw=visco**tlomegac
   viscgimw=viscg**tlomegac
-  viscmw  =viscm**val_tl_omega 
+  viscmw  =viscm**val_tl_omega
 
 ! Combine to get final value (TL 3a and 3b)
 
@@ -926,7 +936,7 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
   if( viscgtl>0.0 ) then
     viscgtlinv=1.0/viscgtl
   endif
- 
+
   m=visco*viscginv
   if( abs(m-1.0)>1.0E-6 .and. viscotl>0.0 .and. viscgtl>0.0 ) then
 
@@ -950,14 +960,14 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
 
 !  Form effective fractional saturations, eqn. 8b and 8a in TL
 
-    fo_oe=(mqp-mooeqp)*mqpm1inv  
-    fo_ge=(mqp-mogeqp)*mqpm1inv      
+    fo_oe=(mqp-mooeqp)*mqpm1inv
+    fo_ge=(mqp-mogeqp)*mqpm1inv
 
 !  Complements of effective oil saturations, as used in eqn. 9a and 9b
 
-    fg_oe=1.0-fo_oe      
-    fg_ge=1.0-fo_ge      
-        
+    fg_oe=1.0-fo_oe
+    fg_ge=1.0-fo_ge
+
 !  Set up mixed densities, eqn. 9b and 9a
 
     denotl=deno*fo_oe+deng*fg_oe
@@ -981,12 +991,12 @@ subroutine TOWGImsTLAuxVarPerturb(auxvar,global_auxvar, &
                                   material_auxvar, &
                                   characteristic_curves,natural_id, &
                                   option)
-  ! 
+  !
   ! Calculates auxiliary variables for perturbed system
-  ! 
+  !
   ! Author: Paolo Orsini (OGS)
   ! Date: 12/27/16
-  ! 
+  !
 
   use Option_module
   use Characteristic_Curves_module
@@ -1001,7 +1011,7 @@ subroutine TOWGImsTLAuxVarPerturb(auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   class(characteristic_curves_type) :: characteristic_curves
-     
+
   PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), &
                pert(option%nflowdof), x_pert_save(option%nflowdof)
 
@@ -1015,17 +1025,17 @@ subroutine TOWGImsTLAuxVarPerturb(auxvar,global_auxvar, &
   x(TOWG_OIL_SATURATION_DOF) = auxvar(ZERO_INTEGER)%sat(option%oil_phase)
   x(TOWG_GAS_SATURATION_3PH_DOF) = auxvar(ZERO_INTEGER)%sat(option%gas_phase)
   x(TOWG_3CMPS_ENERGY_DOF) = auxvar(ZERO_INTEGER)%temp
-  
+
   pert(TOWG_OIL_PRESSURE_DOF) = &
     perturbation_tolerance*x(TOWG_OIL_PRESSURE_DOF)+min_perturbation
   pert(TOWG_3CMPS_ENERGY_DOF) = &
     perturbation_tolerance*x(TOWG_3CMPS_ENERGY_DOF)+min_perturbation
-  if (x(TOWG_OIL_SATURATION_DOF) > 0.5d0) then 
+  if (x(TOWG_OIL_SATURATION_DOF) > 0.5d0) then
     pert(TOWG_OIL_SATURATION_DOF) = -1.d0 * perturbation_tolerance
   else
     pert(TOWG_OIL_SATURATION_DOF) = perturbation_tolerance
   endif
-  if (x(TOWG_GAS_SATURATION_3PH_DOF) > 0.5d0) then 
+  if (x(TOWG_GAS_SATURATION_3PH_DOF) > 0.5d0) then
     pert(TOWG_GAS_SATURATION_3PH_DOF) = -1.d0 * perturbation_tolerance
   else
     pert(TOWG_GAS_SATURATION_3PH_DOF) = perturbation_tolerance
@@ -1045,7 +1055,7 @@ subroutine TOWGImsTLAuxVarPerturb(auxvar,global_auxvar, &
 
   auxvar(TOWG_OIL_PRESSURE_DOF)%pert = &
      auxvar(TOWG_OIL_PRESSURE_DOF)%pert / towg_pressure_scale
- 
+
 end subroutine TOWGImsTLAuxVarPerturb
 
 ! ************************************************************************** !
@@ -1071,26 +1081,26 @@ end subroutine TOWGTLAuxVarComputeSetup
 ! ************************************************************************** !
 
 subroutine TOWGAuxDestroy(aux)
-  ! 
+  !
   ! Deallocates a towg auxiliary object
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 11/07/16
-  ! 
+  !
   use Utility_module, only : DeallocateArray
 
   implicit none
 
   class(pm_towg_aux_type), pointer :: aux
   PetscInt :: iaux, idof
-  
+
   if (.not.associated(aux)) return
-  
+
   if (associated(aux%auxvars) ) then
     call TOWGAuxVarStrip(aux%auxvars)
     deallocate(aux%auxvars)
-  end if 
-  nullify(aux%auxvars) 
+  end if
+  nullify(aux%auxvars)
 
   if (associated(aux%auxvars_bc) ) then
     call TOWGAuxVarStrip(aux%auxvars_bc)
@@ -1107,14 +1117,14 @@ subroutine TOWGAuxDestroy(aux)
   call PMBaseAuxStrip(aux)
 
   if (associated(aux%parameter)) then
-    deallocate(aux%parameter) 
+    deallocate(aux%parameter)
     !to add paramter strip when introducing diff in oil and gas phases
   end if
   nullify(aux%parameter)
-  
+
   deallocate(aux)
   nullify(aux)
-  
+
 end subroutine TOWGAuxDestroy
 
 ! ************************************************************************** !
@@ -1122,14 +1132,14 @@ end subroutine TOWGAuxDestroy
 ! ************************************************************************** !
 
 subroutine  TOWGAuxVarArray1Strip(auxvars)
-  ! 
+  !
   ! Deallocates a mode auxiliary object
-  ! this could be generalised for different modes 
+  ! this could be generalised for different modes
   ! using class(*) (unlimited polymorphic)
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 11/07/16
-  ! 
+  !
 
   use AuxVars_TOWG_module
 
@@ -1138,31 +1148,31 @@ subroutine  TOWGAuxVarArray1Strip(auxvars)
   !can't use class due to gfortran (4.8.4) bug (values passed are not correct)
   !bug fixed in gfortran 6.2.0
   !here we can pass by pointer, we could destroy the array within the routine
-  !but we don't to be consistent with TOilImsAuxVarArray2Strip 
+  !but we don't to be consistent with TOilImsAuxVarArray2Strip
   !class(auxvar_towg_type), pointer :: auxvars(:)
   type(auxvar_towg_type) :: auxvars(:)
 
   PetscInt :: iaux
 
   !print *, "den oil bc/ss pass = ", auxvars(1)%den(2)
-  
+
   do iaux = 1, size(auxvars)
     call auxvars(iaux)%Strip
-  enddo  
+  enddo
 
 end subroutine TOWGAuxVarArray1Strip
 
 ! ************************************************************************** !
 
 subroutine TOWGAuxVarArray2Strip(auxvars)
-  ! 
+  !
   ! Deallocates a mode auxiliary object
-  ! this could be generalised for different modes 
+  ! this could be generalised for different modes
   ! using class(*) (unlimited polymorphic)
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 11/07/16
-  ! 
+  !
 
   use AuxVars_TOWG_module
 
@@ -1170,8 +1180,8 @@ subroutine TOWGAuxVarArray2Strip(auxvars)
 
   !can't use class due to gfortran (4.8.4) bug (values passed are not correct)
   !bug fixed in gfortran 6.2.0
-  !cannot use type(...) with pointer attribute, therefore we deallocate and 
-  !nullify pointer outide this routine 
+  !cannot use type(...) with pointer attribute, therefore we deallocate and
+  !nullify pointer outide this routine
   !because the compiler does not allow to specify lower 0-bound in auxvar
   !type(auxvar_towg_type), pointer :: auxvars(:,:)
   !class(auxvar_towg_type) :: auxvars(0:,:)
@@ -1183,7 +1193,7 @@ subroutine TOWGAuxVarArray2Strip(auxvars)
     do idof = 1, size(auxvars,1)
       call auxvars(idof-1,iaux)%Strip()
     enddo
-  enddo  
+  enddo
 
 end subroutine TOWGAuxVarArray2Strip
 

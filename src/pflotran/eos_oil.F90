@@ -1,5 +1,5 @@
 module EOS_Oil_module
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
@@ -8,28 +8,28 @@ module EOS_Oil_module
   implicit none
 
   private
-  
-      
+
+
   ! module variables
   PetscReal :: fmw_oil           !kg/Kmol
   PetscReal :: constant_density  !kg/m3
   PetscReal :: constant_enthalpy
   PetscReal :: constant_viscosity
   PetscReal :: constant_sp_heat
-  ! quadratic viscosity 
+  ! quadratic viscosity
   PetscReal :: quad_vis0
-  PetscReal :: quad_vis_ref_pres(2) 
+  PetscReal :: quad_vis_ref_pres(2)
   PetscReal :: quad_vis_ref_temp(2)
   PetscReal :: quad_vis_pres_coef(2)
   PetscReal :: quad_vis_temp_coef(2)
-  ! parameters for linear density 
-  PetscReal :: compress_coeff      ! [kg/m3/Pa]   
+  ! parameters for linear density
+  PetscReal :: compress_coeff      ! [kg/m3/Pa]
   PetscReal :: th_expansion_coeff  ! [kg/m3/°C]
   PetscReal :: den_linear_den0     ! [kg/m3]
   PetscReal :: den_linear_ref_pres ! [Pa]
-  PetscReal :: den_linear_ref_temp ! [°C] 
+  PetscReal :: den_linear_ref_temp ! [°C]
 
-  ! quadratic enthalpy 
+  ! quadratic enthalpy
   PetscReal :: quad_ent_ref_temp(2)
   PetscReal :: quad_ent_temp_coef(2)
 
@@ -37,12 +37,16 @@ module EOS_Oil_module
   ! EOS databases
   class(eos_database_type), pointer :: eos_dbase
   class(eos_database_type), pointer :: eos_den_dbase
-  class(eos_database_type), pointer :: eos_ent_dbase 
+  class(eos_database_type), pointer :: eos_ent_dbase
   class(eos_database_type), pointer :: eos_vis_dbase
+  ! PVT tables - eos_dbase Classes
+  class(eos_database_type), pointer :: pvdo
+  class(eos_database_type), pointer :: pvco
+
   ! when adding a new eos_database, remember to add it to EOSOilDBaseDestroy()
 
   ! In order to support generic EOS subroutines, we need the following:
-  ! 1. An interface declaration that defines the argument list (best to have 
+  ! 1. An interface declaration that defines the argument list (best to have
   !    "Dummy" appended.
   ! 2. A procedure pointer that is initially set to null.  This pointer is
   !    pointed to the appropriate subroutine later on (e.g. EOSOilInit())
@@ -56,16 +60,16 @@ module EOS_Oil_module
   procedure(EOSOilDensityEnergyDummy), pointer :: &
     EOSOilDensityEnergyPtr => null()
 
-  ! these should be define as astract interfaces, because there are no   
+  ! these should be define as astract interfaces, because there are no
   ! precedures named as xxxDummy that have such interfaces
   interface
     subroutine EOSOilViscosityDummy(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
       implicit none
       PetscReal, intent(in) :: T        ! temperature [C]
       PetscReal, intent(in) :: P        ! oil pressure [Pa]
-      PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]  
+      PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]
       PetscBool, intent(in) :: deriv    ! indicate if derivatives are needed or not
-      PetscReal, intent(out) :: Vis     ! oil viscosity 
+      PetscReal, intent(out) :: Vis     ! oil viscosity
       PetscReal, intent(out) :: dVis_dT ! derivative oil viscosity wrt temperature
       PetscReal, intent(out) :: dVis_dP ! derivative oil viscosity wrt Pressure
       PetscErrorCode, intent(out) :: ierr
@@ -107,7 +111,7 @@ module EOS_Oil_module
       PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure
       PetscErrorCode, intent(out) :: ierr
     end subroutine EOSOilDensityEnergyDummy
-  end interface 
+  end interface
 
   ! interfaces for derivative/non-derivative versions that are visible outside
   ! the module.
@@ -126,14 +130,14 @@ module EOS_Oil_module
   interface EOSOilDensityEnergy
     procedure EOSOilDenEnergyNoDerive
    ! procedure EOSOilDenEnergyDerive
-  end interface  
+  end interface
 
 
   public :: EOSOilInit, &
             EOSOilVerify, &
             EOSOilViscosity, &
             EOSOilDensity, &
-            EOSOilEnthalpy, & 
+            EOSOilEnthalpy, &
             EOSOilDensityEnergy, &
             EOSOilInputRecord
 
@@ -145,7 +149,7 @@ module EOS_Oil_module
             EOSOilSetVisQuadRefPres, &
             EOSOilSetVisQuadRefTemp, &
             EOSOilSetVisQuadPresCoef, &
-            EOSOilSetVisQuadTempCoef, &  
+            EOSOilSetVisQuadTempCoef, &
             EOSOilSetVisDBase, &
             EOSOilSetDensityConstant, &
             EOSOilSetDensityLinear, &
@@ -153,7 +157,7 @@ module EOS_Oil_module
             EOSOilSetDenLinearRefDen, &
             EOSOilSetDenLinearComprCoef, &
             EOSOilSetDenLinearExpanCoef, &
-            EOSOilSetDenLinearRefPres, & 
+            EOSOilSetDenLinearRefPres, &
             EOSOilSetDenLinearRefTemp, &
             EOSOilSetDenDBase, &
             EOSOilSetEnthalpyConstant, &
@@ -163,6 +167,7 @@ module EOS_Oil_module
             EOSOilSetEntQuadTempCoef, &
             EOSOilSetEntDBase, &
             EOSOilSetEOSDBase, &
+            EOSOilSetPVDO, &
             EOSOilDBaseDestroy
 
 contains
@@ -172,25 +177,25 @@ contains
 subroutine EOSOilInit()
 
   implicit none
-  
+
   constant_density = UNINITIALIZED_DOUBLE
   constant_viscosity = UNINITIALIZED_DOUBLE
   constant_enthalpy = UNINITIALIZED_DOUBLE
 
   quad_vis0 = UNINITIALIZED_DOUBLE
-  quad_vis_ref_pres(1:2) = UNINITIALIZED_DOUBLE 
+  quad_vis_ref_pres(1:2) = UNINITIALIZED_DOUBLE
   quad_vis_ref_temp(1:2) = UNINITIALIZED_DOUBLE
   quad_vis_pres_coef(1:2) = UNINITIALIZED_DOUBLE
   quad_vis_temp_coef(1:2) = UNINITIALIZED_DOUBLE
 
-  compress_coeff = UNINITIALIZED_DOUBLE  
-  th_expansion_coeff = UNINITIALIZED_DOUBLE 
+  compress_coeff = UNINITIALIZED_DOUBLE
+  th_expansion_coeff = UNINITIALIZED_DOUBLE
   den_linear_den0 = UNINITIALIZED_DOUBLE
   den_linear_ref_pres = UNINITIALIZED_DOUBLE
   den_linear_ref_temp = UNINITIALIZED_DOUBLE
 
-  quad_ent_ref_temp(1:2) = UNINITIALIZED_DOUBLE 
-  quad_ent_temp_coef(1:2) = UNINITIALIZED_DOUBLE 
+  quad_ent_ref_temp(1:2) = UNINITIALIZED_DOUBLE
+  quad_ent_temp_coef(1:2) = UNINITIALIZED_DOUBLE
 
 
   fmw_oil = FMWOIL !default oil formula weight C10H22 (142 g/mol)
@@ -210,8 +215,8 @@ subroutine EOSOilInit()
   ! does nto require input parameters
   !EOSOilViscosityPtr => EOSOilViscosityConstant
   !EOSOilDensityPtr => EOSOilDensityConstant
-  !EOSOilEnthalpyPtr => EOSOilEnthalpyConstant  
-  
+  !EOSOilEnthalpyPtr => EOSOilEnthalpyConstant
+
 end subroutine EOSOilInit
 
 ! ************************************************************************** !
@@ -219,15 +224,15 @@ end subroutine EOSOilInit
 subroutine EOSOilVerify(ierr,error_string)
   !
   ! Author: Paolo Orsini
-  ! 
+  !
   ! to do : add check on unitialized coeffiecinets for linear and quadratic
   !         functions (density, viscosity, enthalpy)
   !
   implicit none
-  
+
   PetscErrorCode, intent(out) :: ierr
   character(len=MAXSTRINGLENGTH), intent(out) :: error_string
-  
+
   ierr = 0
 
   error_string = ''
@@ -256,23 +261,23 @@ subroutine EOSOilVerify(ierr,error_string)
     return
   end if
 
-  if ( associated(EOSOilDensityPtr,EOSOilDensityEOSDBase) ) then 
+  if ( associated(EOSOilDensityPtr,EOSOilDensityEOSDBase) ) then
     if ( .not.eos_dbase%EOSPropPresent(EOS_DENSITY) ) then
       error_string = trim(error_string) // &
       ' Oil Density to be interpolated from database = ' // &
       eos_dbase%file_name // &
-      ' which does not have data for density'   
+      ' which does not have data for density'
       ierr = 1
       return
-    end if 
+    end if
   end if
 
-  if ( associated(EOSOilDensityPtr,EOSOilDensityDenDBase) ) then 
-    if ( .not.eos_den_dbase%EOSPropPresent(EOS_DENSITY) ) then 
+  if ( associated(EOSOilDensityPtr,EOSOilDensityDenDBase) ) then
+    if ( .not.eos_den_dbase%EOSPropPresent(EOS_DENSITY) ) then
       error_string = trim(error_string) // &
       ' Oil Density to be interpoalted from database = ' // &
       eos_dbase%file_name // &
-      ' which does not have data for density'   
+      ' which does not have data for density'
       ierr = 1
       return
     end if
@@ -287,23 +292,23 @@ subroutine EOSOilVerify(ierr,error_string)
     return
   end if
 
-  if ( associated(EOSOilEnthalpyPtr,EOSOilEnthalpyEOSDBase) ) then 
-    if ( .not.eos_dbase%EOSPropPresent(EOS_ENTHALPY) ) then 
+  if ( associated(EOSOilEnthalpyPtr,EOSOilEnthalpyEOSDBase) ) then
+    if ( .not.eos_dbase%EOSPropPresent(EOS_ENTHALPY) ) then
       error_string = trim(error_string) // &
       ' Oil Enthalpy to be interpolated from database = ' // &
       eos_dbase%file_name // &
-      ' which does not have data for Enthalpy'   
+      ' which does not have data for Enthalpy'
       ierr = 1
-      return 
+      return
     end if
   end if
 
-  if ( associated(EOSOilEnthalpyPtr,EOSOilEnthalpyEntDBase) ) then 
+  if ( associated(EOSOilEnthalpyPtr,EOSOilEnthalpyEntDBase) ) then
     if ( .not.eos_ent_dbase%EOSPropPresent(EOS_ENTHALPY) ) then
       error_string = trim(error_string) // &
       ' Oil Density to be interpolated from database = ' // &
       eos_dbase%file_name // &
-      ' which does not have data for enthalpy'   
+      ' which does not have data for enthalpy'
       ierr = 1
       return
     end if
@@ -318,23 +323,23 @@ subroutine EOSOilVerify(ierr,error_string)
     return
   end if
 
-  if ( associated(EOSOilViscosityPtr,EOSOilViscosityEOSDBase) ) then 
+  if ( associated(EOSOilViscosityPtr,EOSOilViscosityEOSDBase) ) then
     if ( .not.eos_dbase%EOSPropPresent(EOS_VISCOSITY) ) then
       error_string = trim(error_string) // &
       ' Oil Enthalpy to be interpolated from database = ' // &
       eos_dbase%file_name // &
-      ' which does not have data for Viscosity'   
+      ' which does not have data for Viscosity'
       ierr = 1
       return
     end if
   end if
 
-  if ( associated(EOSOilViscosityPtr,EOSOilViscosityVisDBase) ) then 
+  if ( associated(EOSOilViscosityPtr,EOSOilViscosityVisDBase) ) then
     if ( .not.eos_vis_dbase%EOSPropPresent(EOS_VISCOSITY) ) then
       error_string = trim(error_string) // &
       ' Oil Density to be interpolated from database = ' // &
       eos_dbase%file_name // &
-      ' which does not have data for visosity'   
+      ' which does not have data for visosity'
       ierr = 1
       return
     end if
@@ -347,11 +352,11 @@ end subroutine EOSOilVerify
 subroutine EOSOilSetFMWConstant(fmw_input)
 
   implicit none
-  
+
   PetscReal :: fmw_input
-  
-  fmw_oil = fmw_input  
-  
+
+  fmw_oil = fmw_input
+
 end subroutine EOSOilSetFMWConstant
 
 ! ************************************************************************** !
@@ -359,11 +364,11 @@ end subroutine EOSOilSetFMWConstant
 function EOSOilGetFMW()
 
   implicit none
-  
+
   PetscReal :: EOSOilGetFMW
-  
+
   EOSOilGetFMW = fmw_oil
-  
+
 end function EOSOilGetFMW
 
 ! ************************************************************************** !
@@ -371,12 +376,12 @@ end function EOSOilGetFMW
 subroutine EOSOilSetViscosityConstant(viscosity)
 
   implicit none
-  
+
   PetscReal :: viscosity
-  
-  constant_viscosity = viscosity  
+
+  constant_viscosity = viscosity
   EOSOilViscosityPtr => EOSOilViscosityConstant
-  
+
 end subroutine EOSOilSetViscosityConstant
 
 ! ************************************************************************** !
@@ -384,9 +389,9 @@ end subroutine EOSOilSetViscosityConstant
 subroutine EOSOilSetViscosityQuad()
 
   implicit none
-  
+
   EOSOilViscosityPtr => EOSOilQuadViscosity
-  
+
 end subroutine EOSOilSetViscosityQuad
 
 ! ************************************************************************** !
@@ -394,11 +399,11 @@ end subroutine EOSOilSetViscosityQuad
 subroutine EOSOilSetVisQuadRefVis(vis0)
 
   implicit none
-  
+
   PetscReal :: vis0
-  
+
   quad_vis0 = vis0
-  
+
 end subroutine EOSOilSetVisQuadRefVis
 
 ! ************************************************************************** !
@@ -406,12 +411,12 @@ end subroutine EOSOilSetVisQuadRefVis
 subroutine EOSOilSetVisQuadRefPres(p1,p2)
 
   implicit none
-  
+
   PetscReal :: p1, p2
-  
+
   quad_vis_ref_pres(1) = p1
   quad_vis_ref_pres(2) = p2
-  
+
 end subroutine EOSOilSetVisQuadRefPres
 
 ! ************************************************************************** !
@@ -419,12 +424,12 @@ end subroutine EOSOilSetVisQuadRefPres
 subroutine EOSOilSetVisQuadRefTemp(t1,t2)
 
   implicit none
-  
+
   PetscReal :: t1, t2
-  
+
   quad_vis_ref_temp(1) = t1
   quad_vis_ref_temp(2) = t2
-  
+
 end subroutine EOSOilSetVisQuadRefTemp
 
 ! ************************************************************************** !
@@ -432,12 +437,12 @@ end subroutine EOSOilSetVisQuadRefTemp
 subroutine EOSOilSetVisQuadPresCoef(a1,a2)
 
   implicit none
-  
+
   PetscReal :: a1, a2
-  
+
   quad_vis_pres_coef(1) = a1
   quad_vis_pres_coef(2) = a2
-  
+
 end subroutine EOSOilSetVisQuadPresCoef
 
 ! ************************************************************************** !
@@ -445,12 +450,12 @@ end subroutine EOSOilSetVisQuadPresCoef
 subroutine EOSOilSetVisQuadTempCoef(b1,b2)
 
   implicit none
-  
+
   PetscReal :: b1, b2
-  
+
   quad_vis_temp_coef(1) = b1
   quad_vis_temp_coef(2) = b2
-  
+
 end subroutine EOSOilSetVisQuadTempCoef
 
 ! ************************************************************************** !
@@ -477,13 +482,13 @@ end subroutine EOSOilSetVisDBase
 subroutine EOSOilSetDensityConstant(density)
 
   implicit none
-  
+
   PetscReal :: density
-  
-  constant_density = density  
+
+  constant_density = density
   EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
   EOSOilDensityPtr => EOSOilDensityConstant
-  
+
 end subroutine EOSOilSetDensityConstant
 
 ! ************************************************************************** !
@@ -491,10 +496,10 @@ end subroutine EOSOilSetDensityConstant
 subroutine EOSOilSetDensityLinear()
 
   implicit none
-  
+
   EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
   EOSOilDensityPtr => EOSOilDensityLinear
-  
+
 end subroutine EOSOilSetDensityLinear
 
 ! ************************************************************************** !
@@ -502,10 +507,10 @@ end subroutine EOSOilSetDensityLinear
 subroutine EOSOilSetDensityInverseLinear()
 
   implicit none
-  
+
   EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
   EOSOilDensityPtr => EOSOilDensityInverseLinear
-  
+
 end subroutine EOSOilSetDensityInverseLinear
 
 
@@ -514,11 +519,11 @@ end subroutine EOSOilSetDensityInverseLinear
 subroutine EOSOilSetDenLinearRefDen(den0)
 
   implicit none
-  
+
   PetscReal :: den0
 
-  den_linear_den0 = den0 
-  
+  den_linear_den0 = den0
+
 end subroutine EOSOilSetDenLinearRefDen
 
 ! ************************************************************************** !
@@ -526,11 +531,11 @@ end subroutine EOSOilSetDenLinearRefDen
 subroutine EOSOilSetDenLinearRefPres(ref_pres)
 
   implicit none
-  
+
   PetscReal :: ref_pres
 
-  den_linear_ref_pres = ref_pres 
-   
+  den_linear_ref_pres = ref_pres
+
 end subroutine EOSOilSetDenLinearRefPres
 
 ! ************************************************************************** !
@@ -538,11 +543,11 @@ end subroutine EOSOilSetDenLinearRefPres
 subroutine EOSOilSetDenLinearRefTemp(ref_temp)
 
   implicit none
-  
+
   PetscReal :: ref_temp
 
-  den_linear_ref_temp = ref_temp 
-   
+  den_linear_ref_temp = ref_temp
+
 end subroutine EOSOilSetDenLinearRefTemp
 
 ! ************************************************************************** !
@@ -550,11 +555,11 @@ end subroutine EOSOilSetDenLinearRefTemp
 subroutine EOSOilSetDenLinearComprCoef(compress_c)
 
   implicit none
-  
+
   PetscReal :: compress_c
 
-  compress_coeff = compress_c  
-  
+  compress_coeff = compress_c
+
 end subroutine EOSOilSetDenLinearComprCoef
 
 ! ************************************************************************** !
@@ -562,11 +567,11 @@ end subroutine EOSOilSetDenLinearComprCoef
 subroutine EOSOilSetDenLinearExpanCoef(expansion_c)
 
   implicit none
-  
+
   PetscReal :: expansion_c
 
-  th_expansion_coeff = expansion_c 
-   
+  th_expansion_coeff = expansion_c
+
 end subroutine EOSOilSetDenLinearExpanCoef
 
 ! ************************************************************************** !
@@ -584,7 +589,7 @@ subroutine EOSOilSetDenDBase(filename,option)
   call eos_den_dbase%Read(option)
 
   !set property function pointers
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms 
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
   EOSOilDensityPtr => EOSOilDensityDenDBase
 
 end subroutine EOSOilSetDenDBase
@@ -594,13 +599,13 @@ end subroutine EOSOilSetDenDBase
 subroutine EOSOilSetEnthalpyConstant(enthalpy)
 
   implicit none
-  
+
   PetscReal :: enthalpy
-  
-  constant_enthalpy = enthalpy  
+
+  constant_enthalpy = enthalpy
   EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
   EOSOilEnthalpyPtr => EOSOilEnthalpyConstant
-  
+
 end subroutine EOSOilSetEnthalpyConstant
 
 ! ************************************************************************** !
@@ -608,14 +613,14 @@ end subroutine EOSOilSetEnthalpyConstant
 subroutine EOSOilSetEnthalpyLinearTemp(specific_heat)
 
   implicit none
-  
-  PetscReal :: specific_heat 
-  
-  constant_sp_heat = specific_heat  
+
+  PetscReal :: specific_heat
+
+  constant_sp_heat = specific_heat
   EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
   EOSOilEnthalpyPtr => EOSOilEnthalpyLinearTemp
 
-  !write(*,*) "I am in EOS oil linear set up"  
+  !write(*,*) "I am in EOS oil linear set up"
 
 end subroutine EOSOilSetEnthalpyLinearTemp
 
@@ -624,7 +629,7 @@ end subroutine EOSOilSetEnthalpyLinearTemp
 subroutine EOSOilSetEnthalpyQuadraticTemp()
 
   implicit none
-  
+
   EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
   EOSOilEnthalpyPtr => EOSOilEnthalpyQuadTemp
 
@@ -636,12 +641,12 @@ end subroutine EOSOilSetEnthalpyQuadraticTemp
 subroutine EOSOilSetEntQuadRefTemp(t1,t2)
 
   implicit none
-  
+
   PetscReal :: t1, t2
-  
+
   quad_ent_ref_temp(1) = t1
   quad_ent_ref_temp(2) = t2
-  
+
 end subroutine EOSOilSetEntQuadRefTemp
 
 ! ************************************************************************** !
@@ -649,12 +654,12 @@ end subroutine EOSOilSetEntQuadRefTemp
 subroutine EOSOilSetEntQuadTempCoef(c1,c2)
 
   implicit none
-  
-  PetscReal :: c1, c2 
-  
+
+  PetscReal :: c1, c2
+
   quad_ent_temp_coef(1) = c1
   quad_ent_temp_coef(2) = c2
-  
+
 end subroutine EOSOilSetEntQuadTempCoef
 
 ! ************************************************************************** !
@@ -672,7 +677,7 @@ subroutine EOSOilSetEntDBase(filename,option)
   call eos_ent_dbase%Read(option)
 
   !set property function pointers
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms 
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
   EOSOilEnthalpyPtr => EOSOilEnthalpyEntDBase
 
 
@@ -693,7 +698,7 @@ subroutine EOSOilSetEOSDBase(filename,option)
   call eos_dbase%Read(option)
 
   !set property function pointers
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms 
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
   if (.not.associated(EOSOilDensityPtr))  &
             EOSOilDensityPtr => EOSOilDensityEOSDBase
   if (.not.associated(EOSOilEnthalpyPtr)) &
@@ -709,14 +714,14 @@ subroutine EOSOilViscosityConstant(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
-  ! 
+  !
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
   PetscReal, intent(in) :: P        ! oil pressure [Pa]
-  PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]  
+  PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]
   PetscBool, intent(in) :: deriv    ! indicate if derivatives are needed or not
-  PetscReal, intent(out) :: Vis     ! oil viscosity 
+  PetscReal, intent(out) :: Vis     ! oil viscosity
   PetscReal, intent(out) :: dVis_dT ! derivative oil viscosity wrt temperature
   PetscReal, intent(out) :: dVis_dP ! derivative oil viscosity wrt Pressure
   PetscErrorCode, intent(out) :: ierr
@@ -725,7 +730,7 @@ subroutine EOSOilViscosityConstant(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
 
   dVis_dT = 0.0d0
   dVis_dP = 0.0d0
-  
+
 end subroutine EOSOilViscosityConstant
 
 ! ************************************************************************** !
@@ -734,14 +739,14 @@ subroutine EOSOilQuadViscosity(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
-  ! 
+  !
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
   PetscReal, intent(in) :: P        ! oil pressure [Pa]
-  PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]  
+  PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]
   PetscBool, intent(in) :: deriv    ! indicate if derivatives are needed or not
-  PetscReal, intent(out) :: Vis     ! oil viscosity 
+  PetscReal, intent(out) :: Vis     ! oil viscosity
   PetscReal, intent(out) :: dVis_dT ! derivative oil viscosity wrt temperature
   PetscReal, intent(out) :: dVis_dP ! derivative oil viscosity wrt Pressure
   PetscErrorCode, intent(out) :: ierr
@@ -750,14 +755,14 @@ subroutine EOSOilQuadViscosity(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
         quad_vis_pres_coef(1) * ( P - quad_vis_ref_pres(1) ) + &
         quad_vis_pres_coef(2) * ( P - quad_vis_ref_pres(2) )**2.0d0 + &
         quad_vis_temp_coef(1) * ( T - quad_vis_ref_temp(1) ) + &
-        quad_vis_temp_coef(2) * ( T - quad_vis_ref_temp(2) )**2.0d0 
+        quad_vis_temp_coef(2) * ( T - quad_vis_ref_temp(2) )**2.0d0
 
   if (deriv) then
     dVis_dP = quad_vis_pres_coef(1) + &
               2.0d0 * quad_vis_pres_coef(2) * ( P - quad_vis_ref_pres(2) )
     dVis_dT = quad_vis_temp_coef(1) + &
               2.0d0 * quad_vis_temp_coef(2) * ( T - quad_vis_ref_temp(2) )
-  end if  
+  end if
 
 end subroutine EOSOilQuadViscosity
 
@@ -767,19 +772,19 @@ subroutine EOSOilViscosityEOSDBase(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
-  ! 
+  !
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
   PetscReal, intent(in) :: P        ! oil pressure [Pa]
-  PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]  
+  PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]
   PetscBool, intent(in) :: deriv    ! indicate if derivatives are needed or not
-  PetscReal, intent(out) :: Vis     ! oil viscosity 
+  PetscReal, intent(out) :: Vis     ! oil viscosity
   PetscReal, intent(out) :: dVis_dT ! derivative oil viscosity wrt temperature
   PetscReal, intent(out) :: dVis_dP ! derivative oil viscosity wrt Pressure
   PetscErrorCode, intent(out) :: ierr
 
-  !ierr initialised in EOSEOSProp 
+  !ierr initialised in EOSEOSProp
   call eos_dbase%EOSProp(T,P,EOS_VISCOSITY,Vis,ierr)
 
   dVis_dT = 0.0d0
@@ -787,11 +792,11 @@ subroutine EOSOilViscosityEOSDBase(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
 
   if (deriv) then
     ! not yet implemented
-    ierr = 99 !error 99 points out that deriv are asked but not available yet. 
+    ierr = 99 !error 99 points out that deriv are asked but not available yet.
     print*, "EOSOilViscosityEOSDBase - Viscosity derivatives not supported"
     stop
   end if
-  
+
 end subroutine EOSOilViscosityEOSDBase
 
 ! ************************************************************************** !
@@ -800,19 +805,19 @@ subroutine EOSOilViscosityVisDBase(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
-  ! 
+  !
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
   PetscReal, intent(in) :: P        ! oil pressure [Pa]
-  PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]  
+  PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]
   PetscBool, intent(in) :: deriv    ! indicate if derivatives are needed or not
-  PetscReal, intent(out) :: Vis     ! oil viscosity 
+  PetscReal, intent(out) :: Vis     ! oil viscosity
   PetscReal, intent(out) :: dVis_dT ! derivative oil viscosity wrt temperature
   PetscReal, intent(out) :: dVis_dP ! derivative oil viscosity wrt Pressure
   PetscErrorCode, intent(out) :: ierr
 
-  !ierr initialised in EOSEOSProp 
+  !ierr initialised in EOSEOSProp
   call eos_vis_dbase%EOSProp(T,P,EOS_VISCOSITY,Vis,ierr)
 
   dVis_dT = 0.0d0
@@ -820,11 +825,11 @@ subroutine EOSOilViscosityVisDBase(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
 
   if (deriv) then
     ! not yet implemented
-    ierr = 99 !error 99 points out that deriv are asked but not available yet. 
+    ierr = 99 !error 99 points out that deriv are asked but not available yet.
     print*, "EOSOilViscosityVisDBase - Viscosity derivatives not supported"
     stop
   end if
-  
+
 end subroutine EOSOilViscosityVisDBase
 
 ! ************************************************************************** !
@@ -835,14 +840,14 @@ subroutine EOSOilViscosityNoDerive(T,P,Rho,Vis,ierr)
 
   PetscReal, intent(in) :: T        ! temperature [C]
   PetscReal, intent(in) :: P        ! oil pressure [Pa]
-  PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]  
-  PetscReal, intent(out) :: Vis     ! oil viscosity 
+  PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]
+  PetscReal, intent(out) :: Vis     ! oil viscosity
   PetscErrorCode, intent(out) :: ierr
 
   PetscReal :: dum1, dum2
-  
+
   call EOSOilViscosityPtr(T,P,Rho,PETSC_FALSE,Vis,dum1,dum2,ierr)
-  
+
 end subroutine EOSOilViscosityNoDerive
 
 ! ************************************************************************** !
@@ -851,7 +856,7 @@ subroutine EOSOilDensityConstant(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
-  ! 
+  !
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
@@ -875,7 +880,7 @@ subroutine EOSOilDensityLinear(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
-  ! 
+  !
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
@@ -887,7 +892,7 @@ subroutine EOSOilDensityLinear(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
   PetscErrorCode, intent(out) :: ierr
 
   Rho = den_linear_den0 + &
-        compress_coeff * (P - den_linear_ref_pres ) - & ! compression 
+        compress_coeff * (P - den_linear_ref_pres ) - & ! compression
         th_expansion_coeff * (T - den_linear_ref_temp )    ! expansion
 
   ! conversion to molar density
@@ -907,7 +912,7 @@ subroutine EOSOilDensityInverseLinear(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
-  ! 
+  !
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
@@ -919,7 +924,7 @@ subroutine EOSOilDensityInverseLinear(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
   PetscErrorCode, intent(out) :: ierr
 
   Rho = den_linear_den0 / &
-        ( 1.0d0 - compress_coeff * (P - den_linear_ref_pres ) ) / &  ! compression 
+        ( 1.0d0 - compress_coeff * (P - den_linear_ref_pres ) ) / &  ! compression
         ( 1.0d0 + th_expansion_coeff * (T - den_linear_ref_temp ) )  ! expansion
 
   ! conversion to molar density
@@ -945,7 +950,7 @@ subroutine EOSOilDensityEOSDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
-  ! 
+  !
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
@@ -956,7 +961,7 @@ subroutine EOSOilDensityEOSDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
   PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
   PetscErrorCode, intent(out) :: ierr
 
-  !ierr initialised in EOSEOSProp 
+  !ierr initialised in EOSEOSProp
   call eos_dbase%EOSProp(T,P,EOS_DENSITY,Rho,ierr)
 
   ! conversion to molar density
@@ -965,7 +970,7 @@ subroutine EOSOilDensityEOSDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
 
   if (deriv) then
     ! not yet implemented
-    ierr = 99 !error 99 points out that deriv are asked but not available yet. 
+    ierr = 99 !error 99 points out that deriv are asked but not available yet.
     print*, "EOSOilDensityEOSDBase - Den derivatives not supported"
     stop
   end if
@@ -978,7 +983,7 @@ subroutine EOSOilDensityDenDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
-  ! 
+  !
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
@@ -989,7 +994,7 @@ subroutine EOSOilDensityDenDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
   PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
   PetscErrorCode, intent(out) :: ierr
 
-  !ierr initialised in EOSEOSProp 
+  !ierr initialised in EOSEOSProp
   call eos_den_dbase%EOSProp(T,P,EOS_DENSITY,Rho,ierr)
 
   ! conversion to molar density
@@ -998,7 +1003,7 @@ subroutine EOSOilDensityDenDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
 
   if (deriv) then
     ! not yet implemented
-    ierr = 99 !error 99 points out that deriv are asked but not available yet. 
+    ierr = 99 !error 99 points out that deriv are asked but not available yet.
     print*, "EOSOilDensityDenDBase - Den derivatives not supported"
     stop
   end if
@@ -1015,12 +1020,12 @@ subroutine EOSOilDensityNoDerive(T,P,Rho,ierr)
   PetscReal, intent(in) :: P        ! pressure [Pa]
   PetscReal, intent(out) :: Rho     ! oil density [kmol/m^3]
   PetscErrorCode, intent(out) :: ierr
-  
+
   PetscReal :: dum1, dum2
-  
+
   ! derivatives are so cheap, just compute them
   call EOSOilDensityPtr(T, P, PETSC_FALSE, Rho, dum1, dum2, ierr)
-  
+
 end subroutine EOSOilDensityNoDerive
 
 ! ************************************************************************** !
@@ -1035,9 +1040,9 @@ subroutine EOSOilDensityDerive(T,P,Rho,dRho_dT,dRho_dP,ierr)
   PetscReal, intent(out) :: dRho_dT ! derivative oil density wrt temperature
   PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
   PetscErrorCode, intent(out) :: ierr
-  
+
   call EOSOilDensityPtr(T,P,PETSC_TRUE,Rho,dRho_dT,dRho_dP,ierr)
-                          
+
 end subroutine EOSOilDensityDerive
 
 ! ************************************************************************** !
@@ -1065,7 +1070,7 @@ subroutine EOSOilEnthalpyLinearTemp(T,P,deriv,H,dH_dT,dH_dP,ierr)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
-  ! 
+  !
   implicit none
   PetscReal, intent(in) :: T        ! temperature [C]
   PetscReal, intent(in) :: P        ! pressure [Pa]
@@ -1075,7 +1080,7 @@ subroutine EOSOilEnthalpyLinearTemp(T,P,deriv,H,dH_dT,dH_dP,ierr)
   PetscReal, intent(out) :: dH_dP   ! derivative enthalpy wrt pressure
   PetscErrorCode, intent(out) :: ierr
 
-  H = constant_sp_heat * T * fmw_oil ! J/(kg °C) °C * Kg/Kmol = J/Kmol 
+  H = constant_sp_heat * T * fmw_oil ! J/(kg °C) °C * Kg/Kmol = J/Kmol
 
   dH_dT = UNINITIALIZED_DOUBLE
   dH_dP = UNINITIALIZED_DOUBLE
@@ -1093,7 +1098,7 @@ subroutine EOSOilEnthalpyQuadTemp(T,P,deriv,H,dH_dT,dH_dP,ierr)
 
   ! Author: Paolo Orsini
   ! Date: 6/23/16
-  ! 
+  !
   implicit none
   PetscReal, intent(in) :: T        ! temperature [C]
   PetscReal, intent(in) :: P        ! pressure [Pa]
@@ -1103,16 +1108,16 @@ subroutine EOSOilEnthalpyQuadTemp(T,P,deriv,H,dH_dT,dH_dP,ierr)
   PetscReal, intent(out) :: dH_dP   ! derivative enthalpy wrt pressure
   PetscErrorCode, intent(out) :: ierr
 
-  !H = constant_sp_heat * T * fmw_oil ! J/(kg °C) °C * Kg/Kmol = J/Kmol 
+  !H = constant_sp_heat * T * fmw_oil ! J/(kg °C) °C * Kg/Kmol = J/Kmol
 
 
        ! [ J/(kg °C) * °C ] * [ J/(kg °C °C) °C °C ] * Kg/Kmol = J/Kmol
   H = ( quad_ent_temp_coef(1) * (T-quad_ent_ref_temp(1)) + &
         0.5d0 * quad_ent_temp_coef(2) * (T-quad_ent_ref_temp(2))**2.0d0 ) &
-        * fmw_oil 
+        * fmw_oil
 
   dH_dT = UNINITIALIZED_DOUBLE
-  dH_dP = UNINITIALIZED_DOUBLE 
+  dH_dP = UNINITIALIZED_DOUBLE
 
   if (deriv) then
     dH_dP = 0.d0
@@ -1135,22 +1140,22 @@ subroutine EOSOilEnthalpyEOSDBase(T,P,deriv,H,dH_dT,dH_dP,ierr)
   PetscReal, intent(out) :: dH_dP   ! derivative enthalpy wrt pressure
   PetscErrorCode, intent(out) :: ierr
 
-  !ierr initialised in EOSEOSProp 
+  !ierr initialised in EOSEOSProp
   call eos_dbase%EOSProp(T,P,EOS_ENTHALPY,H,ierr)
 
 
   ! conversion to molar energy
   ! J/kg * kg/Kmol = J/Kmol
-  H = H  * fmw_oil  
+  H = H  * fmw_oil
 
   dH_dT = UNINITIALIZED_DOUBLE
   dH_dP = UNINITIALIZED_DOUBLE
 
   if (deriv) then
     ! not yet implemented
-    ierr = 99 !error 99 points out that deriv are asked but not available yet. 
+    ierr = 99 !error 99 points out that deriv are asked but not available yet.
     print*, "EOSOilEnthalpyEOSDBase - H derivatives not supported"
-    stop  
+    stop
   end if
 
 end subroutine EOSOilEnthalpyEOSDBase
@@ -1167,22 +1172,22 @@ subroutine EOSOilEnthalpyEntDBase(T,P,deriv,H,dH_dT,dH_dP,ierr)
   PetscReal, intent(out) :: dH_dP   ! derivative enthalpy wrt pressure
   PetscErrorCode, intent(out) :: ierr
 
-  !ierr initialised in EOSEOSProp 
+  !ierr initialised in EOSEOSProp
   call eos_ent_dbase%EOSProp(T,P,EOS_ENTHALPY,H,ierr)
 
 
   ! conversion to molar energy
   ! J/kg * kg/Kmol = J/Kmol
-  H = H  * fmw_oil  
+  H = H  * fmw_oil
 
   dH_dT = UNINITIALIZED_DOUBLE
   dH_dP = UNINITIALIZED_DOUBLE
 
   if (deriv) then
     ! not yet implemented
-    ierr = 99 !error 99 points out that deriv are asked but not available yet. 
+    ierr = 99 !error 99 points out that deriv are asked but not available yet.
     print*, "EOSOilEnthalpyEntDBase - H derivatives not supported"
-    stop  
+    stop
   end if
 
 end subroutine EOSOilEnthalpyEntDBase
@@ -1223,7 +1228,7 @@ subroutine EOSOilDensityEnergyTOilIms(T,P,deriv,Rho,dRho_dT,dRho_dP, &
   PetscErrorCode, intent(out) :: ierr
 
   call EOSOilDensityPtr(T,P,deriv,Rho,dRho_dT,dRho_dP,ierr)
-  call EOSOilEnthalpyPtr(T,P,deriv,H,dH_dT,dH_dP,ierr)  
+  call EOSOilEnthalpyPtr(T,P,deriv,H,dH_dT,dH_dP,ierr)
 
   U = H - P/Rho
 
@@ -1232,8 +1237,8 @@ subroutine EOSOilDensityEnergyTOilIms(T,P,deriv,Rho,dRho_dT,dRho_dP, &
 
   if (deriv) then
     print*, "EOSOilDensityEnergyTOilIms - U derivatives not supported"
-    stop  
-  end if   
+    stop
+  end if
 
 
 end subroutine EOSOilDensityEnergyTOilIms
@@ -1252,44 +1257,81 @@ subroutine EOSOilDenEnergyNoDerive(T,P,Rho,H,U,ierr)
   PetscErrorCode, intent(out) :: ierr
 
   PetscReal :: dum1, dum2, dum3, dum4, dum5, dum6
- 
+
   call EOSOilDensityEnergyPtr(T,P,PETSC_FALSE,Rho,dum1,dum2, &
-                              H,dum3,dum4,U,dum5,dum6,ierr) 
- 
+                              H,dum3,dum4,U,dum5,dum6,ierr)
+
 
 end subroutine EOSOilDenEnergyNoDerive
 
 ! **************************************************************************** !
 
+subroutine EOSOilSetPVDO(input,option)
+
+  use Option_module
+  use Input_Aux_module
+
+  implicit none
+
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  pvdo => EOSDatabaseCreate('','PVDO')
+
+  !set up pvdo variable and order - firt column is the pressure
+  !below the order of the data fiels is assigned
+  pvdo%data_to_prop_map(1) = EOS_FVF
+  pvdo%prop_to_data_map(EOS_FVF) = 1
+  pvdo%data_to_prop_map(2) = EOS_VISCOSITY
+  pvdo%prop_to_data_map(EOS_VISCOSITY) = 2
+
+  pvdo%num_data_fields = 2
+
+  !call eos_dbase%Read(option)
+  call pvdo%PVTTableRead(input,option)
+
+  !set property function pointers - for testing
+  !EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
+  !if (.not.associated(EOSOilDensityPtr))  &
+  !          EOSOilDensityPtr => EOSOilDensityEOSDBase
+  !if (.not.associated(EOSOilEnthalpyPtr)) &
+  !  EOSOilEnthalpyPtr => EOSOilEnthalpyEOSDBase
+  !if (.not.associated(EOSOilViscosityPtr)) &
+  !  EOSOilViscosityPtr => EOSOilViscosityEOSDBase
+
+end subroutine EOSOilSetPVDO
+
+! ************************************************************************** !
+
 subroutine EOSOilInputRecord()
-  ! 
+  !
   ! Prints ingested equation of state information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 05/04/2016
-  ! 
-  
+  !
+
   implicit none
-  
+
   PetscInt :: id = INPUT_RECORD_UNIT
 
   write(id,'(a29)',advance='no') '---------------------------: '
   write(id,'(a)') 'OIL'
-  
+
   write(id,'(a)') 'EOSOilInputRecord not implemented: &
                   &Email jmfrede@sandia.gov for more information if using &
                   &OIL modes and EOS information is wanted.'
-  
+
   write(id,'(a)') '---------------------------------------------------------&
                   &-----------------------'
-  
+
 end subroutine EOSOilInputRecord
 
 ! ************************************************************************** !
 subroutine EOSOilDBaseDestroy()
 
   implicit none
-  
+
   call EOSDatabaseDestroy(eos_dbase)
   call EOSDatabaseDestroy(eos_den_dbase)
   call EOSDatabaseDestroy(eos_ent_dbase)

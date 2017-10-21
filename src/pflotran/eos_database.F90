@@ -1,5 +1,5 @@
 module EOSDatabase_module
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
@@ -7,31 +7,45 @@ module EOSDatabase_module
   use Lookup_Table_module
 
   implicit none
-  
+
   private
- 
+
   PetscInt, parameter, public :: EOS_DENSITY = 1
   PetscInt, parameter, public :: EOS_ENTHALPY = 2
   PetscInt, parameter, public :: EOS_VISCOSITY = 3
   PetscInt, parameter, public :: EOS_INTERNAL_ENERGY = 4
+  PetscInt, parameter, public :: EOS_FVF = 5
+  PetscInt, parameter, public :: EOS_RS = 6
+  PetscInt, parameter, public :: EOS_COMPRESSIBILITY = 7
+  PetscInt, parameter, public :: EOS_VISCOSIBILITY = 8
   !add here other properties and derivatives and increase MAX_PROP_NUM
-  PetscInt, parameter, public :: MAX_PROP_NUM = 4
+  PetscInt, parameter, public :: MAX_PROP_NUM = 8
 
-  type, public :: eos_database_type 
+  !PetscInt, parameter, public :: GENERAL_PT_DATA=1
+  !PetscInt, parameter, public :: PVT_TABLE_DATA=2
+
+  type, public :: eos_database_type
     character(len=MAXWORDLENGTH) :: dbase_name
     character(len=MAXWORDLENGTH) :: file_name
-    PetscInt :: num_dp   ! number of pressure intervals
-    PetscInt :: num_dt   ! number of temperature intervals
+    PetscInt :: num_p   ! number of pressure intervals
+    PetscInt :: num_t   ! number of temperature points
     PetscInt :: num_prop ! number of properties in the database
+    !PetscInt :: data_type !type of database
+    PetscInt :: num_data_fields
     PetscReal :: dp      ! uniform pressure interval
-    PetscReal :: dt      ! uniform temperature interval 
-    PetscInt :: data_to_prop_map(MAX_PROP_NUM) !map the data idx to the prop. 
+    PetscReal :: dt      ! uniform temperature interval
+    PetscInt :: data_to_prop_map(MAX_PROP_NUM) !map the data idx to the prop.
     PetscInt :: prop_to_data_map(MAX_PROP_NUM) !map the prop to the dat idx
+    PetscReal :: temperature !temperature value for isothermal data
+    PetscReal :: field_conv_factors(MAX_PROP_NUM)
     PetscReal, pointer :: data(:,:)
-    class(lookup_table_uniform_type), pointer :: lookup_table
+    class(lookup_table_uniform_type), pointer :: lookup_table_uni
+    class(lookup_table_general_type), pointer :: lookup_table_gen
   contains
-    procedure, public :: Read => EOSDatabaseRead 
+    procedure, public :: Read => EOSDatabaseRead
+    procedure, public :: PVTTableRead
     procedure, public :: EOSProp => EOSPropLinearInterp
+    procedure, public :: EOSPropTable
     procedure, public :: EOSPropPresent
   end type
 
@@ -43,10 +57,10 @@ contains
 ! ************************************************************************** !
 
 function EOSDatabaseCreate(filename,dbase_name)
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
-  ! 
+  !
 
   implicit none
 
@@ -55,16 +69,19 @@ function EOSDatabaseCreate(filename,dbase_name)
   character(len=*) :: dbase_name
 
   allocate(EOSDatabaseCreate)
-  EOSDatabaseCreate%dbase_name = dbase_name 
-  EOSDatabaseCreate%file_name = filename
-  EOSDatabaseCreate%num_dp = UNINITIALIZED_INTEGER
-  EOSDatabaseCreate%num_dt = UNINITIALIZED_INTEGER
+  EOSDatabaseCreate%dbase_name = trim(dbase_name)
+  EOSDatabaseCreate%file_name = trim(filename)
+  EOSDatabaseCreate%num_p = UNINITIALIZED_INTEGER
+  EOSDatabaseCreate%num_data_fields = UNINITIALIZED_INTEGER
+  EOSDatabaseCreate%num_t = UNINITIALIZED_INTEGER
   EOSDatabaseCreate%dp = UNINITIALIZED_DOUBLE
-  EOSDatabaseCreate%dt = UNINITIALIZED_DOUBLE 
+  EOSDatabaseCreate%dt = UNINITIALIZED_DOUBLE
   EOSDatabaseCreate%data_to_prop_map(1:MAX_PROP_NUM) = UNINITIALIZED_INTEGER
   EOSDatabaseCreate%prop_to_data_map(1:MAX_PROP_NUM) = UNINITIALIZED_INTEGER
+  EOSDatabaseCreate%field_conv_factors(1:MAX_PROP_NUM) = 1.0d0
 
-  nullify(EOSDatabaseCreate%lookup_table)
+  nullify(EOSDatabaseCreate%lookup_table_uni)
+  nullify(EOSDatabaseCreate%lookup_table_gen)
   nullify(EOSDatabaseCreate%data)
 
 end function EOSDatabaseCreate
@@ -72,33 +89,33 @@ end function EOSDatabaseCreate
 ! ************************************************************************** !
 
 subroutine EOSDatabaseRead(this,option)
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
-  ! 
-  ! Reads the the an EOS database from a text file for one or more 
-  ! phase properties.  
-  ! 
+  !
+  ! Reads the the an EOS database from a text file for one or more
+  ! phase properties.
+  !
   ! Database format (for look up table)
-  ! Header: NUM_DP, NUM_DT and DATA_LIST_ORDER
+  ! Header: NUM_P, NUM_T and DATA_LIST_ORDER
   ! DATA
   ! column 1 = pressure
   ! column 2 = temperature
   ! column 2+1, column 2+n: properties in the order given in DATA_LIST_ORDER
   !
-  ! The dataset must be followed by NUM_DP * NUM_DT lines, not interrupted
-  ! by a commented line. 
+  ! The dataset must be followed by NUM_P * NUM_T lines, not interrupted
+  ! by a commented line.
   ! Each line must include P,T, and all properties listed in DATA_LIST_ORDER
   !
-  ! each property listed depends on P and T, prop(P,T). 
+  ! each property listed depends on P and T, prop(P,T).
   !
-  ! temperature values must be equispaced (same dt in the entire table) 
+  ! temperature values must be equispaced (same dt in the entire table)
   ! pressure values must be equispaced (same dp in the entire table)
   ! The data must be ordered so for growing P and T, with T looping faster.
   !
   ! This format repeates unnecessary P and T values in favours o readibility
   ! and creation of small dataset by hand. Inefficient for for large datasets.
-  ! 
+  !
 
   use Option_module
   use Input_Aux_module
@@ -111,8 +128,8 @@ subroutine EOSDatabaseRead(this,option)
 
   character(len=MAXWORDLENGTH) :: keyword, word, input_unit, internal_units
   character(len=MAXSTRINGLENGTH) :: error_string = 'EOS_DATABASE'
-  character(len=MAXSTRINGLENGTH) :: string 
-  PetscInt :: prop_idx, prop_count, i_idx, j_idx 
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: prop_idx, prop_count, i_idx, j_idx
   PetscInt :: data_size
   PetscReal :: tempreal
   PetscReal :: press_conv_factor, temp_conv_factor
@@ -133,7 +150,7 @@ subroutine EOSDatabaseRead(this,option)
 
   !if ( option%myrank == 0 ) then
     option%io_buffer = 'Reading database = ' // this%file_name
-    call printMsg(option) 
+    call printMsg(option)
   !end if
 
   allocate(prop_unit_conv_factor(MAX_PROP_NUM))
@@ -148,18 +165,18 @@ subroutine EOSDatabaseRead(this,option)
 
     call InputReadWord(input_table,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input_table,option,'keyword',error_string)
-    call StringToUpper(keyword)   
+    call StringToUpper(keyword)
     select case(keyword)
-      case('NUM_DP')
-        call InputReadInt(input_table,option,this%num_dp)
+      case('NUM_P')
+        call InputReadInt(input_table,option,this%num_p)
         call InputErrorMsg(input_table,option,'number of dp',error_string)
-      case('NUM_DT')
-        call InputReadInt(input_table,option,this%num_dt)
-        call InputErrorMsg(input_table,option,'number of dt',error_string)        
-      case('DATA_LIST_ORDER')  
+      case('NUM_T')
+        call InputReadInt(input_table,option,this%num_t)
+        call InputErrorMsg(input_table,option,'number of dt',error_string)
+      case('DATA_LIST_ORDER')
         pres_present = PETSC_FALSE; temp_present = PETSC_FALSE;
         prop_idx = 0
-        do 
+        do
           call InputReadPflotranString(input_table,option)
           if (InputCheckExit(input_table,option)) exit
           call InputReadWord(input_table,option,word,PETSC_TRUE)
@@ -170,14 +187,14 @@ subroutine EOSDatabaseRead(this,option)
               press_conv_factor = UnitReadAndConversionFactor(input_table, &
                                                   internal_units,word,option)
             case('TEMPERATURE')
-              temp_present = PETSC_TRUE 
+              temp_present = PETSC_TRUE
               !only C currently supported
               !internal_units = 'C'
               !temp_conv_factor = UnitReadAndConversionFactor(input_table, &
               !                                    internal_units,word,option)
             case('DENSITY')
               prop_idx = prop_idx + 1
-              this%data_to_prop_map(prop_idx) = EOS_DENSITY 
+              this%data_to_prop_map(prop_idx) = EOS_DENSITY
               this%prop_to_data_map(EOS_DENSITY) = prop_idx
               internal_units = 'kg/m^3'
               prop_unit_conv_factor(prop_idx) = &
@@ -185,8 +202,8 @@ subroutine EOSDatabaseRead(this,option)
                                              internal_units,word,option)
             case('ENTHALPY')
               prop_idx = prop_idx + 1
-              this%data_to_prop_map(prop_idx) = EOS_ENTHALPY 
-              this%prop_to_data_map(EOS_ENTHALPY) = prop_idx 
+              this%data_to_prop_map(prop_idx) = EOS_ENTHALPY
+              this%prop_to_data_map(EOS_ENTHALPY) = prop_idx
               internal_units = 'J/kg'
               prop_unit_conv_factor(prop_idx) = &
                               UnitReadAndConversionFactor(input_table, &
@@ -194,15 +211,15 @@ subroutine EOSDatabaseRead(this,option)
             case('INTERNAL_ENERGY')
               prop_idx = prop_idx + 1
               this%data_to_prop_map(prop_idx) = EOS_INTERNAL_ENERGY
-              this%prop_to_data_map(EOS_INTERNAL_ENERGY) = prop_idx 
+              this%prop_to_data_map(EOS_INTERNAL_ENERGY) = prop_idx
               internal_units = 'J/kg'
               prop_unit_conv_factor(prop_idx) = &
                               UnitReadAndConversionFactor(input_table, &
                                              internal_units,word,option)
             case('VISCOSITY')
               prop_idx = prop_idx + 1
-              this%data_to_prop_map(prop_idx) = EOS_VISCOSITY 
-              this%prop_to_data_map(EOS_VISCOSITY) = prop_idx 
+              this%data_to_prop_map(prop_idx) = EOS_VISCOSITY
+              this%prop_to_data_map(EOS_VISCOSITY) = prop_idx
               internal_units = 'Pa-s'
               prop_unit_conv_factor(prop_idx) = &
                               UnitReadAndConversionFactor(input_table, &
@@ -223,7 +240,7 @@ subroutine EOSDatabaseRead(this,option)
           call printErrMsg(option)
         end if
       case('DATA')
-        exit   
+        exit
       case default
         error_string = trim(error_string) // ': ' // this%file_name
         call InputKeywordUnrecognized(keyword,error_string,option)
@@ -231,48 +248,48 @@ subroutine EOSDatabaseRead(this,option)
 
   end do
 
-  data_size = this%num_dp * this%num_dt
+  data_size = this%num_p * this%num_t
 
   this%num_prop = prop_idx
   allocate(this%data(prop_idx,data_size))
 
-  !create lookup table  
-  this%lookup_table => LookupTableCreateUniform(TWO_INTEGER)
-  this%lookup_table%dims(1) = this%num_dt
-  this%lookup_table%dims(2) = this%num_dp
-  allocate(this%lookup_table%axis1%values(this%num_dt))
-  this%lookup_table%axis1%values(1:this%num_dt) = UNINITIALIZED_DOUBLE
-  allocate(this%lookup_table%axis2%values(this%num_dp))
-  this%lookup_table%axis2%values(1:this%num_dp) = UNINITIALIZED_DOUBLE
+  !create lookup table
+  this%lookup_table_uni => LookupTableCreateUniform(TWO_INTEGER)
+  this%lookup_table_uni%dims(1) = this%num_t
+  this%lookup_table_uni%dims(2) = this%num_p
+  allocate(this%lookup_table_uni%axis1%values(this%num_t))
+  this%lookup_table_uni%axis1%values(1:this%num_t) = UNINITIALIZED_DOUBLE
+  allocate(this%lookup_table_uni%axis2%values(this%num_p))
+  this%lookup_table_uni%axis2%values(1:this%num_p) = UNINITIALIZED_DOUBLE
 
   !TODO
   ! start loading data - at the moment using Input facility, however this file
   ! can be large. TODO. Implement more efficient solutions:
   ! - using read(,) without InputReadDouble filter
-  ! - adding the option of reading a .h5 file where the database is defined  
+  ! - adding the option of reading a .h5 file where the database is defined
 
   ! go to data - first time to load axis1 and 2 values
   string = "DATA"
   call InputFindStringInFile(input_table,option,string)
 
-  do j_idx = 1,this%num_dp 
-       
-    do i_idx = 1, this%num_dt
+  do j_idx = 1,this%num_p
+
+    do i_idx = 1, this%num_t
       call InputReadPflotranString(input_table,option)
 
-      call InputReadDouble(input_table,option,tempreal) 
+      call InputReadDouble(input_table,option,tempreal)
       call InputErrorMsg(input_table,option, &
-                           'VALUE', 'EOS_DATABASE PRESS_VALUE') 
+                           'VALUE', 'EOS_DATABASE PRESS_VALUE')
       ! convert pressure to internal units - Pa
-      this%lookup_table%axis2%values(j_idx) = tempreal * press_conv_factor
-   
-      ! this is repeated this%num_dp times - not efficient
+      this%lookup_table_uni%axis2%values(j_idx) = tempreal * press_conv_factor
+
+      ! this is repeated this%num_p times - not efficient
       call InputReadDouble(input_table,option, &
-                           this%lookup_table%axis1%values(i_idx))
+                           this%lookup_table_uni%axis1%values(i_idx))
       call InputErrorMsg(input_table,option, &
-                         'VALUE', 'EOS_DATABASE TEMP_VALUE') 
-    
-      prop_count = i_idx + (j_idx-1) * this%num_dt
+                         'VALUE', 'EOS_DATABASE TEMP_VALUE')
+
+      prop_count = i_idx + (j_idx-1) * this%num_t
       do prop_idx = 1,this%num_prop
         call InputReadDouble(input_table,option,this%data(prop_idx,prop_count))
         call InputErrorMsg(input_table,option,&
@@ -280,7 +297,7 @@ subroutine EOSDatabaseRead(this,option)
         !convert to intenral units
         this%data(prop_idx,prop_count) = prop_unit_conv_factor(prop_idx) * &
                                          this%data(prop_idx,prop_count)
-      end do      
+      end do
 
     end do
 
@@ -292,11 +309,243 @@ subroutine EOSDatabaseRead(this,option)
 end subroutine EOSDatabaseRead
 
 ! ************************************************************************** !
+subroutine PVTTableRead(this,input,option)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 10/18/17
+  !
+  ! Reads the PVT table data
+  use Option_module
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+
+  implicit none
+
+  class(eos_database_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  !character(len=MAXWORDLENGTH) :: keyword, word, input_unit, internal_units
+  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXSTRINGLENGTH) :: error_string = 'EOS_PVT_TABLE'
+  !type(input_type), pointer :: input_table
+  !type(input_type), pointer :: input_tmp
+  PetscReal, pointer :: press_data_array(:,:)
+  PetscInt :: n_temp_count
+  PetscInt :: i_temp, i_press, i_prop
+  PetscInt :: n_press_count, n_press_count_first, n_press_count_cur
+  PetscInt :: temp_array_size, press_array_size
+  PetscReal, pointer :: temp_array(:)
+
+  n_press_count_first = 0
+  n_temp_count = 0
+  n_press_count = 0
+  n_press_count_cur = 0
+  temp_array_size = 100 !estimate for temperature points
+  allocate(temp_array(temp_array_size))
+  temp_array = UNINITIALIZED_DOUBLE
+  press_array_size = 1000 !estimate of pressure points from all tables
+  ! num_data_fields+1 = + 1 make space for the pressure
+  allocate(press_data_array(this%num_data_fields+1,press_array_size))
+  press_data_array = UNINITIALIZED_DOUBLE
+
+  !reads table either from input deck or external file
+  !Could be replaced with EXTERNAL_FILE capability (i.e. include files)
+  ! if (len_trim(this%file_name) < 1) then
+  !   input_tmp => input
+  !   option%io_buffer = 'Reading PVT table from input deck'
+  !   call printMsg(option)
+  ! else
+  !   input_table => InputCreate(IUNIT_TEMP,this%file_name,option)
+  !   input_table%ierr = 0
+  !   input_table%force_units = PETSC_FALSE
+  !   input_tmp => input_table
+  !   option%io_buffer = 'Reading PVT table from file = ' // this%file_name
+  !   call printMsg(option)
+  ! end if
+  !input_tmp => input
+
+  !reading pvt table
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    if (InputError(input)) then
+      option%io_buffer = 'Error found as reading PVT table'
+      call printErrMsg(option)
+    end if
+    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+    select case(keyword)
+      case('DATA_UNITS')
+        !call here a function for unit conversion - defines conversion factor
+        !in the eos_databse class
+      case('DATA')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit
+          if (InputError(input)) then
+            option%io_buffer = 'Error found as reading PVT table - DATA block'
+            call printErrMsg(option)
+          end if
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'word',error_string)
+          call StringToUpper(keyword)
+          select case(word)
+            case('TEMPERATURE')
+              n_temp_count = n_temp_count + 1
+              if (n_temp_count > temp_array_size) then
+                call reallocateRealArray(temp_array,temp_array_size)
+              end if
+              call InputReadDouble(input,option,temp_array(n_temp_count))
+              call InputErrorMsg(input,option,&
+                                 'VALUE','EOS_PVT_TABLE - TEMPERATURE')
+              !read pvt data for a given temperature
+              !call ReadPressureTable(input,option,this%num_data_fields,&
+              !                       n_press_count_cur,data_array)
+              call ReadPressureTable(input,option,n_press_count, &
+                                     n_press_count_cur,press_data_array)
+              if (n_temp_count == 1) then
+                n_press_count_first = n_press_count_cur
+              else
+                if ( n_press_count_cur /= n_press_count_first ) then
+                  option%io_buffer =  'PVT Table = ' // 'this%dbase_name ' // &
+                                      "PVT tables with pressure points that" // &
+                                      "varies with T not currently supported"
+                  call printErrMsg(option)
+                end if
+              end if
+            case default
+              option%io_buffer = 'PVT Table DATA block must contain ' // &
+                                 'TEMPERATURE blocks'
+              call printErrMsg(option)
+          end select
+        end do
+      case default
+        option%io_buffer = 'PVT Table = ' // 'this%dbase_name'
+    end select
+  end do
+
+  this%num_t = n_temp_count
+  this%num_p = n_press_count
+
+  if (this%num_t ==1) then !isothermal press_data_array
+    this%temperature = temp_array(1)
+    ! create general 1D lookup table
+    this%lookup_table_gen => LookupTableCreateGeneral(ONE_INTEGER)
+    this%lookup_table_gen%dim = 1
+    this%lookup_table_gen%dims(1) = this%num_p
+    allocate(this%lookup_table_gen%axis1%values(this%num_p))
+    do i_press = 1,this%num_p
+      this%lookup_table_gen%axis1%values(i_press) = press_data_array(1,i_press)
+    end do
+  else if (this%num_t > 1) then
+    !creat general 2D lookip table and load the temperature values in axis1
+    this%temperature = UNINITIALIZED_DOUBLE
+    this%lookup_table_gen => LookupTableCreateGeneral(TWO_INTEGER)
+    this%lookup_table_gen%dim = 2
+    this%lookup_table_gen%dims(1) = this%num_t
+    this%lookup_table_gen%dims(2) = n_press_count_first
+    allocate(this%lookup_table_gen%axis1%values(this%num_t))
+    do i_temp = 1,this%num_t
+      this%lookup_table_gen%axis1%values(i_temp) = temp_array(i_temp)
+    end do
+    allocate(this%lookup_table_gen%axis2%values(this%num_p))
+    do i_press = 1,this%num_p
+      this%lookup_table_gen%axis2%values(i_press) = press_data_array(1,i_press)
+    end do
+  end if
+  !allocate general lookup Table
+  !this%lookup_table_gen => LookupTableCreateGeneral(dim)
+  allocate(this%data(this%num_data_fields,n_press_count))
+  do i_press = 1,n_press_count
+    do i_prop=1,this%num_data_fields
+      this%data(i_prop,i_press) = press_data_array(i_prop+1,i_press)
+    end do
+  end do
+
+  call DeallocateArray(press_data_array)
+  call DeallocateArray(temp_array)
+
+  !if (len_trim(this%file_name) >= 1) then
+  !  call InputDestroy(input_table)
+  !end if
+  !nullify(input_tmp)
+
+end subroutine PVTTableRead
+
+! ************************************************************************** !
+subroutine ReadPressureTable(input,option,press_idx,n_press,press_data_array)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 10/18/17
+  !
+  ! Reads the PVT fields vs pressure
+  !
+  ! "*" entries not yet supported
+  !PO TODO: when ecountering "*" as entry in the data field interpolates
+  ! using previous and following data field.
+  ! read the field data in each line using InputReadDouble,
+  ! if getting an error, read as "word" and check if "*"
+  ! compare each word vs "*" using function "StringCompare"
+  ! Wehn finning "*", map location into an array to poste post-process later
+  ! for the interpolation. "*" should not be entered in the first and last
+  ! record
+  !
+
+  use Option_module
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+
+  implicit none
+
+  !class(eos_database_type) :: this
+  !PetscInt, intent(in) :: num_fields
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  PetscInt, intent(inout) :: press_idx
+  PetscInt, intent(out) :: n_press
+  PetscReal, pointer :: press_data_array(:,:)
+
+  PetscInt :: i_data
+  PetscInt :: size_rank2
+  PetscInt :: num_fields !this is size_rank1 - include the pressure field
+
+  num_fields = size(press_data_array,1)
+  size_rank2 = size(press_data_array,2)
+
+  n_press = 0
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    if (InputError(input)) then
+      option%io_buffer = 'Error PVT table - reading Pressure Table'
+      call printErrMsg(option)
+    end if
+    n_press = n_press + 1
+    press_idx = press_idx + 1
+    if ( press_idx > size_rank2 ) then
+      !each time doubles the size of rank 2
+      !tmp_array_size overwritten by new size
+      call reallocateRealArray(press_data_array,size_rank2)
+    end if
+    do i_data = 1, num_fields
+      call InputReadDouble(input,option,press_data_array(i_data,press_idx))
+      call InputErrorMsg(input,option,&
+                         'VALUE','EOS_PVT_TABLE - PRESSURE TABLE VALUE')
+    end do
+  end do
+
+end subroutine ReadPressureTable
+! ************************************************************************** !
+
 function EOSPropPresent(this,prop_iname)
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/18/15
-  ! 
+  !
   ! Checks if a property is defined in the database
 
   implicit none
@@ -304,7 +553,7 @@ function EOSPropPresent(this,prop_iname)
   class(eos_database_type) :: this
   PetscInt, intent(in) :: prop_iname
   PetscBool :: EOSPropPresent
-                                        
+
   EOSPropPresent = Initialized(this%prop_to_data_map(prop_iname))
 
 end function EOSPropPresent
@@ -312,20 +561,20 @@ end function EOSPropPresent
 ! ************************************************************************** !
 
 subroutine EOSPropLinearInterp(this,T,P,prop_iname,prop_value,ierr)
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/12/15
-  ! 
+  !
   ! interpolates a single EOS property from the EOS database
   ! Note: when more properties must be extracted from the same EOS database,
   !       i.e. properties listed for the same values and range of P and T,
-  !       all propoertis should be extracted at the same time to perform  
-  !       only once the look up operations, which are: 
+  !       all propoertis should be extracted at the same time to perform
+  !       only once the look up operations, which are:
   !       (a) LookupTableIndexUniform, i.e. axis look up
   !       (b) P,T location checks within a single 2D domain, (p,p+dp; t,t+dt)
   !           currently done within LookupTableInterpolate2DUniform
   !
-  !       TODO: add a method lookup_table to extract mulitdimensional data 
+  !       TODO: add a method lookup_table_uni to extract mulitdimensional data
   !             at the same time (data plus function)
 
   implicit none
@@ -334,63 +583,174 @@ subroutine EOSPropLinearInterp(this,T,P,prop_iname,prop_value,ierr)
   PetscReal, intent(in) :: T        ! temperature [C]
   PetscReal, intent(in) :: P        ! pressure [Pa]
   PetscInt, intent(in) :: prop_iname
-  PetscReal, intent(out) :: prop_value ! database units (SI) 
+  PetscReal, intent(out) :: prop_value ! database units (SI)
   PetscErrorCode, intent(out) :: ierr
 
   !PetscReal :: EOSEOSProp !property given in units specified in the database
-  
+
   ierr = 0
-  !insert check P and/or T out of range 
+  !insert check P and/or T out of range
   ! T smaller then minimum T in the database
   ! errors here a passed back to the EOSxxxPhase module
   ! and to ModeXXXComputeAuxVar where cells ids are available to check where
-  ! P and T are out of range. 
+  ! P and T are out of range.
   ! TODO: (i) define error id identifiers for each EOSPhase, or for all EOSs.
   !       (ii) define a function that handles errors ids and print error message.
   !       (iii) can then remove the print statment below
-  !       note: need to minimise the number if-checks for efficiency. 
-  if ( T < this%lookup_table%axis1%values(1) ) then 
+  !       note: need to minimise the number if-checks for efficiency.
+  if ( T < this%lookup_table_uni%axis1%values(1) ) then
     ierr = 101
     print*, "EOSEOSProp - T smaller than min val in EOSdatabase"
     print*, "Temp val [°C] = ", T
-    stop  
-  end if 
-  if ( T > this%lookup_table%axis1%values(this%num_dt) ) then
+    stop
+  end if
+  if ( T > this%lookup_table_uni%axis1%values(this%num_t) ) then
     ierr = 102
     print*, "EOSEOSProp - T larger than max val in EOSdatabase"
     print*, "Temp val [°C] = ", T
-    stop  
+    stop
   end if
-  if ( P < this%lookup_table%axis2%values(1) ) then
+  if ( P < this%lookup_table_uni%axis2%values(1) ) then
     ierr = 103
     print*, "EOSEOSProp - P smaller than min val in EOSdatabase"
     print*, "Press val [Mpa] = ", P*1.d-6
-    stop  
+    stop
   end if
-  if ( P > this%lookup_table%axis2%values(this%num_dp) ) then
+  if ( P > this%lookup_table_uni%axis2%values(this%num_p) ) then
     ierr = 104
     print*, "EOSEOSProp - P larger than max val in EOSdatabase"
     print*, "Press val [Mpa] = ", P*1.d-6
-    stop  
+    stop
   end if
 
-  this%lookup_table%data => this%data(this%prop_to_data_map(prop_iname),:)
+  this%lookup_table_uni%data => this%data(this%prop_to_data_map(prop_iname),:)
 
                              !T       P      optional
-  !this%lookup_table%Sample(lookup1,lookup2,lookup3) 
-  prop_value = this%lookup_table%Sample(T,P) 
+  !this%lookup_table_uni%Sample(lookup1,lookup2,lookup3)
+  prop_value = this%lookup_table_uni%Sample(T,P)
 
-  nullify(this%lookup_table%data)
+  nullify(this%lookup_table_uni%data)
 
 end subroutine EOSPropLinearInterp
 
 ! ************************************************************************** !
 
+  subroutine EOSPropTable(this,T,P,prop_iname,prop_value,ierr,iP1,iT,iP2)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 10/20/17
+  !
+  ! interpolates a single EOS property from a PVT Table
+  !
+  ! optional arguments: iP1 always present - optional only to match the
+  !                     number of arguments of EOSPropLinearInterp used for
+  !                     for a general datbase
+  !
+  ! Note: when more properties must be extracted from the same PVT table,
+  !       i.e. properties listed for the same values and range of P and T,
+  !       all propoertis should be extracted at the same time to perform
+  !       only once the look up operations, which are:
+  !       (a) LookupTableIndexGeneral, i.e. axis look up
+  !       (b) P,T location checks within a single 2D domain, (p,p+dp; t,t+dt)
+  !           currently done within LookupTableInterpolate2DGeneral
+  !
+  !       TODO: add a method lookup_table_gen to extract mulitdimensional data
+  !             at the same time (data plus function)
+
+  implicit none
+
+  class(eos_database_type) :: this
+  PetscReal, intent(in) :: T              ! temperature [C]
+  PetscReal, intent(in) :: P              ! pressure [Pa]
+  PetscInt, intent(inout), optional :: iP1   ! pressure looup index1 - left T
+  PetscInt, intent(inout), optional :: iT    ! temperature lookup index
+  PetscInt, intent(inout), optional :: iP2   ! pressure looup index2 - right T
+  PetscInt, intent(in) :: prop_iname
+  PetscReal, intent(out) :: prop_value ! database units (SI)
+  PetscErrorCode, intent(out) :: ierr
+
+  ierr = 0
+  !no errors are assigned if P,T go out of range, since the values
+  !are extrapolated using the edge values - however warnning are printed
+  !on the screen to signal extrapolation
+
+  this%lookup_table_gen%data => this%data(this%prop_to_data_map(prop_iname),:)
+
+  if (this%lookup_table_gen%dim == ONE_INTEGER) then
+    if ( P < this%lookup_table_gen%axis1%values(1) ) then
+      print*, "EOSPropTable - P smaller than min val in table"
+      print*, "table name = ", this%dbase_name
+      print*, "Property extrapolated for Press val [Mpa] = ", P*1.d-6
+    end if
+    if ( P > this%lookup_table_gen%axis1%values(this%num_p) ) then
+      print*, "EOSPropTable - P larger than max val in table"
+      print*, "table name = ", this%dbase_name
+      print*, "Property extrapolated for Press val [Mpa] = ", P*1.d-6
+    end if
+    this%lookup_table_gen%axis1%saved_index = iP1
+    !T       P      optional
+    !this%lookup_table_gen%Sample(lookup1,lookup2,lookup3)
+    prop_value = this%lookup_table_gen%Sample(P)
+    !must copy back iP1 because
+    ! saved_index = iP1 is a copying operation not pointing
+    ! saved_index should be a pointer to save an assigment operation
+    iP1 = this%lookup_table_gen%axis1%saved_index
+  else if (this%lookup_table_gen%dim == TWO_INTEGER) then
+    if ( T < this%lookup_table_gen%axis1%values(1) ) then
+      print*, "EOSPropTable - T smaller than min val in table"
+      print*, "table name = ", this%dbase_name
+      print*, "Property extrapolated for Temp val [°C] = ", T
+    end if
+    if ( T > this%lookup_table_gen%axis1%values(this%num_t) ) then
+      print*, "EOSPropTable - T larger than max val in table"
+      print*, "table name = ", this%dbase_name
+      print*, "Property extrapolated Temp val [°C] = ", T
+    end if
+    ! Due to the possible irregular shape of Pmax(T) and Pmin(T)
+    ! a out of bound check requires the computation of Pmin & Pmax in the table
+    ! the check below is valid if:
+    ! Pmin = axis1%values(1) and Pmax=axis2%values(this%num_p)
+    !if ( P < this%lookup_table_gen%axis1%values(1) ) then
+    !  print*, "EOSEOSProp - P smaller than min val in EOSdatabase"
+    !  print*, "Property extrapolated for Press val [Mpa] = ", P*1.d-6
+    !end if
+    !if ( P > this%lookup_table_gen%axis2%values(this%num_p) ) then
+    !  print*, "EOSEOSProp - P larger than max val in EOSdatabase"
+    !  print*, "Property extrapolated for Press val [Mpa] = ", P*1.d-6
+    !end if
+    this%lookup_table_gen%axis1%saved_index = iT
+    this%lookup_table_gen%axis2%saved_index = iP1
+    if (present(iP2)) then
+      this%lookup_table_gen%axis2%saved_index2 = iP2
+    else
+      this%lookup_table_gen%axis2%saved_index2 = iP1
+    end if
+    !T       P      optional
+    !this%lookup_table_gen%Sample(lookup1,lookup2,lookup3)
+    prop_value = this%lookup_table_gen%Sample(T,P)
+    !must copy back iT, iP1 and iP2 because
+    ! saved_index = iT is a copying operation not a pointer
+    ! saved_index should be a pointer to save an assigment operation
+    iT = this%lookup_table_gen%axis1%saved_index
+    iP1 = this%lookup_table_gen%axis2%saved_index
+    if (present(iP2)) then
+      iP2 = this%lookup_table_gen%axis2%saved_index2
+    else
+      iP2 = iP1
+    end if
+  end if
+
+  nullify(this%lookup_table_gen%data)
+
+end subroutine EOSPropTable
+
+! ************************************************************************** !
+
 subroutine EOSDatabaseDestroy(eos_database)
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/14/15
-  ! 
+  !
   ! destroys EOS database
 
   use Utility_module
@@ -402,10 +762,10 @@ subroutine EOSDatabaseDestroy(eos_database)
   if (.not.associated(eos_database)) return
 
   !deallocate(eos_database%data)
-  !nullify(eos_database%data) 
+  !nullify(eos_database%data)
   call DeallocateArray(eos_database%data)
 
-  call LookupTableDestroy(eos_database%lookup_table) 
+  call LookupTableDestroy(eos_database%lookup_table_uni)
 
   deallocate(eos_database)
   nullify(eos_database)
