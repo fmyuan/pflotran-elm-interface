@@ -6,7 +6,6 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE WIPP_FLOW
       OPTIONS
-        NO_GAS_GENERATION
       /
     /
   /
