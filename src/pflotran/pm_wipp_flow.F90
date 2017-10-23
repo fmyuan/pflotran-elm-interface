@@ -172,15 +172,17 @@ subroutine PMWIPPFloRead(this,input)
         wippflo_use_fracture = PETSC_FALSE
       case('NO_CREEP_CLOSURE')
         wippflo_use_creep_closure = PETSC_FALSE
-      case('NO_GAS_GENERATION')
-        wippflo_use_gas_gen = PETSC_FALSE
       case default
         call InputKeywordUnrecognized(keyword,'WIPP Flow Mode',option)
     end select
     
   enddo  
   
-  if (wippflo_use_gas_gen) then
+  ! look for gas/brine generation block:
+  block_string = 'WIPP_SOURCE_SINK'
+  call InputFindStringInFile(input,option,block_string)
+  ! check manually for error: 
+  if (input%ierr == 0) then
     if (wippflo_analytical_derivatives) then
       option%io_buffer = "Currently, WIPP gas/brine generation process model &
                          &cannot be used with ANALYTICAL DERIVATIVES. Sorry!!"
@@ -188,14 +190,12 @@ subroutine PMWIPPFloRead(this,input)
     endif
     this%pmwss_ptr => PMWSSCreate()
     this%pmwss_ptr%option => this%option
-    block_string = 'WIPP_SOURCE_SINK'
-    call InputFindStringInFile(input,option,block_string)
-    call InputFindStringErrorMsg(input,option,block_string)
     call this%pmwss_ptr%Read(input)
-    block_string = last_keyword
-    call InputFindStringInFile(input,option,block_string)
-    call InputFindStringErrorMsg(input,option,block_string)
   endif
+  ! return to previous location in input deck:
+  block_string = last_keyword
+  call InputFindStringInFile(input,option,block_string)
+  call InputFindStringErrorMsg(input,option,block_string)
   
 end subroutine PMWIPPFloRead
 
@@ -234,7 +234,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   call PMSubsurfaceFlowInitializeRun(this)
   
   ! call setup/initialization of all WIPP process models
-  if (wippflo_use_gas_gen) then
+  if (associated(this%pmwss_ptr)) then
     call PMWSSSetRealization(this%pmwss_ptr,this%realization)
     call this%pmwss_ptr%Setup()
     call this%pmwss_ptr%InitializeRun()
@@ -271,7 +271,7 @@ subroutine PMWIPPFloInitializeTimestep(this)
   call PMSubsurfaceFlowInitializeTimestepB(this)  
   
   ! initialize timestep of all WIPP process models
-  if (wippflo_use_gas_gen) then
+  if (associated(this%pmwss_ptr)) then
     call this%pmwss_ptr%InitializeTimestep()
   endif
   

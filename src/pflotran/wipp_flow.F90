@@ -1005,7 +1005,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   enddo
   
   ! WIPP gas/brine generation process model source/sinks
-  if (wippflo_use_gas_gen) then
+  if (associated(pmwss_ptr)) then
     call pmwss_ptr%Solve(option%time,ierr)
     call PMWSSCalcResidualValues(pmwss_ptr,local_start,local_end, &
                                  r_p,ss_flow_vol_flux)    
@@ -1297,7 +1297,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   
   
   ! WIPP gas/brine generation process model source/sinks
-  if (wippflo_use_gas_gen) then
+  if (associated(pmwss_ptr)) then
     call PMWSSCalcJacobianValues(pmwss_ptr,A,ierr)
   endif
   
