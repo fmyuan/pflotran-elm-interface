@@ -73,6 +73,7 @@ STANDARD_CFG = \
 	toil_ims/toil_ims.cfg \
 	towg/towg.cfg \
 	ufd/ufd.cfg \
+	wipp/wipp_flow/condition/condition.cfg \
 	wipp/nuts/nuts.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg \
 

@@ -1474,12 +1474,9 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
 
   use Option_module
   use Condition_module
-  use Hydrostatic_module
-  use Saturation_module
-  use EOS_Water_module
+  use Utility_module, only : DeallocateArray
   
   use WIPP_Flow_Aux_module
-  use Grid_module
   use Dataset_Common_HDF5_class
   use Dataset_Gridded_HDF5_class
   use Dataset_Ascii_class
@@ -1497,7 +1494,7 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
   type(tran_condition_type), pointer :: tran_condition
   type(flow_general_condition_type), pointer :: general
   PetscBool :: update
-  PetscBool :: dof1, dof2, dof3
+  PetscBool :: dof1, dof2
   PetscReal :: temperature, p_sat, p_air, p_gas, p_cap, s_liq, xmol
   PetscReal :: relative_humidity
   PetscReal :: dummy_real
@@ -1517,20 +1514,25 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
   general => flow_condition%general
   dof1 = PETSC_FALSE
   dof2 = PETSC_FALSE
-  dof3 = PETSC_FALSE
   real_count = 0
   select case(flow_condition%iphase)
     case(TWO_PHASE_STATE)
       coupler%flow_aux_int_var(WIPPFLO_STATE_INDEX,1:num_connections) = &
         TWO_PHASE_STATE
-      real_count = real_count + 1
       select case(general%liquid_pressure%itype)
         case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(WIPPFLO_LIQUID_PRESSURE_INDEX) = real_count
-          coupler%flow_aux_real_var(real_count,1:num_connections) = &
-            general%liquid_pressure%dataset%rarray(1)
+          select type(dataset => general%liquid_pressure%dataset)
+            class is(dataset_ascii_type)
+              real_count = real_count + 1
+              coupler%flow_aux_mapping(WIPPFLO_LIQUID_PRESSURE_INDEX) = &
+                real_count
+              coupler%flow_aux_real_var(real_count,1:num_connections) = &
+                dataset%rarray(1)
+              coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = &
+                DIRICHLET_BC
+            class default
+          end select
           dof1 = PETSC_TRUE
-          coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
         case default
           string = &
             GetSubConditionName(general%liquid_pressure%itype)
@@ -1540,14 +1542,19 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
           call printErrMsg(option)
       end select
       ! in two-phase flow, gas saturation is second dof
-      real_count = real_count + 1
       select case(general%gas_saturation%itype)
         case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(WIPPFLO_GAS_SATURATION_INDEX) = real_count
-          coupler%flow_aux_real_var(real_count,1:num_connections) = &
-            general%gas_saturation%dataset%rarray(1)
+          select type(dataset => general%gas_saturation%dataset)
+            class is(dataset_ascii_type)
+              real_count = real_count + 1
+              coupler%flow_aux_mapping(WIPPFLO_GAS_SATURATION_INDEX) = &
+                real_count
+              coupler%flow_aux_real_var(real_count,1:num_connections) = &
+                dataset%rarray(1)
+              coupler%flow_bc_type(WIPPFLO_GAS_EQUATION_INDEX) = DIRICHLET_BC
+            class default
+          end select
           dof2 = PETSC_TRUE
-          coupler%flow_bc_type(WIPPFLO_GAS_EQUATION_INDEX) = DIRICHLET_BC
         case default
           string = &
             GetSubConditionName(general%gas_saturation%itype)
@@ -1637,9 +1644,17 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
     end select
   endif
 
+  if (real_count == 0) then ! no need for the auxiliary arrays
+    call DeallocateArray(coupler%flow_aux_mapping)
+    call DeallocateArray(coupler%flow_bc_type)
+    call DeallocateArray(coupler%flow_aux_real_var)
+    call DeallocateArray(coupler%flow_aux_int_var)
+  endif
+
   !geh: is this really correct, or should it be .or.
-  if (.not.dof1 .or. .not.dof2 .or. .not.dof3) then
+  if (.not.dof1 .or. .not.dof2) then
     option%io_buffer = 'Error with general phase boundary condition'
+    call printErrMsg(option)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsWF
