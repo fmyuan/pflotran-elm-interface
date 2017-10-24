@@ -679,7 +679,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   !Ptmp = 42.0d0
   !Ttmp = 50.d0
                                  ! EOS_FVF=5
-  !call pvdo%EOSPropTable(Ttmp,Ptmp,5,dummy,ierr,iP1,iT,iP2)
+  !call pvdo%EOSProp(Ttmp,Ptmp,5,dummy,ierr,iP1,iT,iP2)
 
   !compute gas properties (default is air - but methane can be set up)
   call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid), &

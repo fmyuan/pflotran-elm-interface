@@ -7,6 +7,7 @@ module EOS_module
   use EOS_Gas_module
   use EOS_Oil_module
   use co2_span_wagner_module
+  use EOSData_module
 
   implicit none
 
@@ -29,6 +30,8 @@ subroutine EOSInit()
   call EOSWaterInit()
   call EOSGasInit()
   call EOSOilInit()
+
+  call EOSTableInitList()
 
 end subroutine EOSInit
 
@@ -847,7 +850,10 @@ subroutine AllEOSDBaseDestroy()
 
   implicit none
 
+  call EOSTableDestroyList()
+
   call EOSOilDBaseDestroy()
+  call EOSGasDBaseDestroy()
 
 end subroutine AllEOSDBaseDestroy
 

@@ -663,8 +663,8 @@ e4d_mat_inv.o :
 e4d_run.o : e4d_vars.o
 e4d_setup.o : e4d_mat_inv.o e4d_vars.o
 e4d_vars.o :
-eos.o : co2_span_wagner.o eos_gas.o eos_oil.o eos_water.o input_aux.o option.o \
-        pflotran_constants.o string.o
+eos.o : co2_span_wagner.o eos_database.o eos_gas.o eos_oil.o eos_water.o \
+        input_aux.o option.o pflotran_constants.o string.o
 eos_database.o : input_aux.o lookup_table.o option.o pflotran_constants.o \
                  string.o utility.o
 eos_gas.o : eos_database.o eos_water.o option.o pflotran_constants.o
@@ -706,10 +706,10 @@ factory_pflotran.o : checkpoint.o eos.o factory_geomechanics.o \
 factory_subsurface.o : characteristic_curves.o checkpoint.o condition.o \
                        condition_control.o coupler.o data_mediator_dataset.o \
                        dataset.o dataset_base.o dataset_common_hdf5.o debug.o \
-                       discretization.o eos.o eos_water.o field.o fluid.o \
-                       general.o global.o grid.o grid_structured.o \
-                       grid_unstructured_aux.o hdf5_aux.o init_common.o \
-                       init_subsurface.o init_subsurface_flow.o \
+                       discretization.o eos.o eos_database.o eos_water.o \
+                       field.o fluid.o general.o global.o grid.o \
+                       grid_structured.o grid_unstructured_aux.o hdf5_aux.o \
+                       init_common.o init_subsurface.o init_subsurface_flow.o \
                        init_subsurface_transport.o input_aux.o integral_flux.o \
                        logging.o material.o observation.o option.o output.o \
                        output_aux.o output_tecplot.o patch.o \

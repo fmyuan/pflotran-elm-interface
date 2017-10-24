@@ -3,7 +3,7 @@ module EOS_Oil_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
-  use EOSDatabase_module
+  use EOSData_module
 
   implicit none
 
@@ -39,9 +39,9 @@ module EOS_Oil_module
   class(eos_database_type), pointer :: eos_den_dbase
   class(eos_database_type), pointer :: eos_ent_dbase
   class(eos_database_type), pointer :: eos_vis_dbase
-  ! PVT tables - eos_dbase Classes
-  class(eos_database_type), pointer :: pvdo
-  class(eos_database_type), pointer :: pvco
+  ! PVT tables - eos_tables
+  class(eos_table_type), pointer :: pvdo
+  class(eos_table_type), pointer :: pvco
 
   ! when adding a new eos_database, remember to add it to EOSOilDBaseDestroy()
 
@@ -1276,7 +1276,7 @@ subroutine EOSOilSetPVDO(input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  pvdo => EOSDatabaseCreate('','PVDO')
+  pvdo => EOSTableCreate('PVDO')
 
   !set up pvdo variable and order - firt column is the pressure
   !below the order of the data fiels is assigned
@@ -1285,10 +1285,12 @@ subroutine EOSOilSetPVDO(input,option)
   pvdo%data_to_prop_map(2) = EOS_VISCOSITY
   pvdo%prop_to_data_map(EOS_VISCOSITY) = 2
 
-  pvdo%num_data_fields = 2
+  pvdo%num_prop = 2
 
   !call eos_dbase%Read(option)
-  call pvdo%PVTTableRead(input,option)
+  call pvdo%Read(input,option)
+
+  call EOSTableAddToList(pvdo,eos_table_list)
 
   !set property function pointers - for testing
   !EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
@@ -1332,10 +1334,14 @@ subroutine EOSOilDBaseDestroy()
 
   implicit none
 
+  !destroy databases
   call EOSDatabaseDestroy(eos_dbase)
   call EOSDatabaseDestroy(eos_den_dbase)
   call EOSDatabaseDestroy(eos_ent_dbase)
   call EOSDatabaseDestroy(eos_vis_dbase)
+
+  !destroy EOS tables
+  call EOSTableDestroy(pvdo)
 
 end subroutine EOSOilDBaseDestroy
 

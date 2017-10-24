@@ -7,8 +7,8 @@ module AuxVars_Flow_module
   use AuxVars_Base_module
 
   implicit none
-  
-  private 
+
+  private
 
   type, public, extends(auxvar_base_type) :: auxvar_flow_type
     PetscReal, pointer :: pres(:)   ! (iphase)
@@ -18,6 +18,7 @@ module AuxVars_Flow_module
     PetscReal, pointer :: den_kg(:) ! (iphase) kg/m^3 phase
     PetscReal, pointer :: mobility(:) ! relative perm / dynamic viscosity
     PetscReal, pointer :: viscosity(:) ! dynamic viscosity
+    PetscInt, pointer :: eos_table_idx(:)
     !PetscReal, pointer :: dsat_dp(:,:)
     !PetscReal, pointer :: dden_dp(:,:)
     !PetscReal, pointer :: dsat_dt(:)
@@ -33,20 +34,20 @@ contains
 
 ! ************************************************************************** !
 subroutine AuxVarFlowInit(this,option)
-  ! 
+  !
   ! Initialize auxiliary object
-  ! 
+  !
   ! Author: PAolo Orsini
   ! Date: 5/27/16
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(auxvar_flow_type) :: this
   type(option_type) :: option
- 
+
   allocate(this%pres(option%nphase))
   this%pres = 0.d0
   allocate(this%pc(option%nphase - ONE_INTEGER))
@@ -59,6 +60,8 @@ subroutine AuxVarFlowInit(this,option)
   this%den_kg = 0.d0
   allocate(this%mobility(option%nphase))
   this%mobility = 0.d0
+  allocate(this%eos_table_idx(option%neos_table_indices))
+  this%eos_table_idx = 1
 
 
 end subroutine AuxVarFlowInit
@@ -66,28 +69,28 @@ end subroutine AuxVarFlowInit
 ! ************************************************************************** !
 
 subroutine AuxVarFlowStrip(this)
-  ! 
-  ! AuxVarFlowDestroy: Deallocates a toil_ims auxiliary object
-  ! 
+  !
+  ! AuxVarFlowDestroy: Deallocates a flow auxiliary object
+  !
   ! Author: Paolo Orsini
   ! Date: 8/5/16
-  ! 
+  !
   use Utility_module, only : DeallocateArray
 
   implicit none
 
   class(auxvar_flow_type) :: this
 
-  call DeallocateArray(this%pres)  
+  call DeallocateArray(this%pres)
   call DeallocateArray(this%pc)
-  call DeallocateArray(this%sat)  
-  call DeallocateArray(this%den)  
-  call DeallocateArray(this%den_kg)  
-  call DeallocateArray(this%mobility)  
+  call DeallocateArray(this%sat)
+  call DeallocateArray(this%den)
+  call DeallocateArray(this%den_kg)
+  call DeallocateArray(this%mobility)
   call DeallocateArray(this%viscosity)
+  call DeallocateArray(this%eos_table_idx)
 
 end subroutine AuxVarFlowStrip
 ! ************************************************************************** !
 
 end module AuxVars_Flow_module
-
