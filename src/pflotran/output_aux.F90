@@ -102,6 +102,8 @@ module Output_Aux_module
     type(output_variable_type), pointer :: first
     type(output_variable_type), pointer :: last
     PetscInt :: nvars
+    PetscBool :: flow_vars
+    PetscBool :: energy_vars
   end type output_variable_list_type
   
   type, public :: output_variable_type
@@ -517,6 +519,8 @@ function OutputVariableListCreate()
   nullify(output_variable_list%first)
   nullify(output_variable_list%last)
   output_variable_list%nvars = 0
+  output_variable_list%flow_vars = PETSC_TRUE
+  output_variable_list%energy_vars = PETSC_TRUE
   
   OutputVariableListCreate => output_variable_list
   

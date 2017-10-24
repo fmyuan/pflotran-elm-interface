@@ -4912,23 +4912,52 @@ subroutine THSetPlotVariables(realization,list)
   if (associated(list%first)) then
     return
   endif
-
-  name = 'Temperature'
-  units = 'C'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               TEMPERATURE)
   
-  name = 'Liquid Pressure'
-  units = 'Pa'
-  call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
-                               LIQUID_PRESSURE)
+  if (list%flow_vars) then
+  
+    name = 'Liquid Pressure'
+    units = 'Pa'
+    call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
+                                LIQUID_PRESSURE)
 
-  name = 'Liquid Saturation'
-  units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
-                               LIQUID_SATURATION)
+    name = 'Liquid Saturation'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+                                LIQUID_SATURATION)
+                                
+    name = 'Liquid Density'
+    units = 'kg/m^3'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_DENSITY)
+
+    name = 'Liquid Energy'
+    units = 'kJ/mol'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_ENERGY)
+
+    name = 'Liquid Viscosity'
+    units = 'Pa.s'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_VISCOSITY)
+
+    name = 'Liquid Mobility'
+    units = '1/Pa.s'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_MOBILITY)
+  
+  endif
+  
+  if (list%energy_vars) then
+
+    name = 'Temperature'
+    units = 'C'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                TEMPERATURE)
+  
+  endif
 
   if (realization%option%use_th_freezing) then
+  
     if (realization%option%ice_model /= DALL_AMICO) then
       name = 'Gas Saturation'
       units = ''
@@ -4945,33 +4974,16 @@ subroutine THSetPlotVariables(realization,list)
     units = 'kg/m^3'
     call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
         ICE_DENSITY)
+        
   endif
 
-  name = 'Liquid Density'
-  units = 'kg/m^3'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_DENSITY)
-
-  name = 'Liquid Energy'
-  units = 'kJ/mol'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_ENERGY)
-
-  name = 'Liquid Viscosity'
-  units = 'Pa.s'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_VISCOSITY)
-
-  name = 'Liquid Mobility'
-  units = '1/Pa.s'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_MOBILITY)
-
   if (soil_compressibility_index > 0) then
+  
     name = 'Transient Porosity'
     units = ''
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                  EFFECTIVE_POROSITY)
+                                 
   endif
 ! name = 'Phase'
 ! units = ''

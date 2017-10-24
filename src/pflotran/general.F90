@@ -2007,81 +2007,89 @@ subroutine GeneralSetPlotVariables(realization,list)
     return
   endif
   
-  name = 'Temperature'
-  units = 'C'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               TEMPERATURE)
+  if (list%flow_vars) then
+  
+    name = 'Liquid Pressure'
+    units = 'Pa'
+    call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
+                                LIQUID_PRESSURE)
 
-  name = 'Liquid Pressure'
-  units = 'Pa'
-  call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
-                               LIQUID_PRESSURE)
+    name = 'Gas Pressure'
+    units = 'Pa'
+    call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
+                                GAS_PRESSURE)
 
-  name = 'Gas Pressure'
-  units = 'Pa'
-  call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
-                               GAS_PRESSURE)
-
-  name = 'Liquid Saturation'
-  units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
-                               LIQUID_SATURATION)
+    name = 'Liquid Saturation'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+                                LIQUID_SATURATION)
+    
+    name = 'Gas Saturation'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+                                GAS_SATURATION)
+    
+    name = 'Liquid Density'
+    units = 'kg/m^3'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_DENSITY)
+    
+    name = 'Gas Density'
+    units = 'kg/m^3'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                GAS_DENSITY)
+    
+    name = 'X_g^l'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_MOLE_FRACTION, &
+                                realization%option%air_id)
+    
+    name = 'X_l^l'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_MOLE_FRACTION, &
+                                realization%option%water_id)
+    
+    name = 'X_g^g'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                GAS_MOLE_FRACTION, &
+                                realization%option%air_id)
+    
+    name = 'X_l^g'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                GAS_MOLE_FRACTION, &
+                                realization%option%water_id)
   
-  name = 'Gas Saturation'
-  units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
-                               GAS_SATURATION)
+  endif
   
-  name = 'Liquid Density'
-  units = 'kg/m^3'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_DENSITY)
+  if (list%energy_vars) then
   
-  name = 'Gas Density'
-  units = 'kg/m^3'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               GAS_DENSITY)
+    name = 'Temperature'
+    units = 'C'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                TEMPERATURE)
+    
+    name = 'Liquid Energy'
+    units = 'MJ/kmol'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_ENERGY)
+    
+    name = 'Gas Energy'
+    units = 'MJ/kmol'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                GAS_ENERGY)
+    
+    name = 'Thermodynamic State'
+    units = ''
+    output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE,units,STATE)
+    output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
+    output_variable%iformat = 1 ! integer
+    call OutputVariableAddToList(list,output_variable)   
   
-  name = 'X_g^l'
-  units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_MOLE_FRACTION, &
-                               realization%option%air_id)
-  
-  name = 'X_l^l'
-  units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_MOLE_FRACTION, &
-                               realization%option%water_id)
-  
-  name = 'X_g^g'
-  units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               GAS_MOLE_FRACTION, &
-                               realization%option%air_id)
-  
-  name = 'X_l^g'
-  units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               GAS_MOLE_FRACTION, &
-                               realization%option%water_id)
-  
-  name = 'Liquid Energy'
-  units = 'MJ/kmol'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_ENERGY)
-  
-  name = 'Gas Energy'
-  units = 'MJ/kmol'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               GAS_ENERGY)
-  
-  name = 'Thermodynamic State'
-  units = ''
-  output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE,units,STATE)
-  output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
-  output_variable%iformat = 1 ! integer
-  call OutputVariableAddToList(list,output_variable)   
+  endif
   
 end subroutine GeneralSetPlotVariables
 

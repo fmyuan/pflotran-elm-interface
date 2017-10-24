@@ -1050,6 +1050,10 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         output_variable%iformat = 1 ! integer
         call OutputVariableAddToList(output_variable_list,output_variable)
+      case('NO_FLOW_VARIABLES')
+        output_variable_list%flow_vars = PETSC_FALSE
+      case('NO_ENERGY_VARIABLES')
+        output_variable_list%energy_vars = PETSC_FALSE
       case default
         call InputKeywordUnrecognized(word,'VARIABLES',option)
     end select
