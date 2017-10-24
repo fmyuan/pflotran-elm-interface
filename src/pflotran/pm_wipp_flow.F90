@@ -106,12 +106,11 @@ subroutine PMWIPPFloRead(this,input)
   
   type(input_type), pointer :: input
   
-  character(len=MAXWORDLENGTH) :: keyword, last_keyword, word
+  character(len=MAXWORDLENGTH) :: keyword, word
   class(pm_wippflo_type) :: this
   type(option_type), pointer :: option
   PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
-  character(len=MAXSTRINGLENGTH) :: block_string
   PetscBool :: found
 
   option => this%option
@@ -128,7 +127,6 @@ subroutine PMWIPPFloRead(this,input)
     call InputReadWord(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
-    last_keyword = trim(keyword)
     
     found = PETSC_FALSE
     call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found,option)    
@@ -178,39 +176,20 @@ subroutine PMWIPPFloRead(this,input)
     
   enddo  
   
-  ! look for gas/brine generation block:
-  block_string = 'WIPP_SOURCE_SINK'
-  call InputFindStringInFile(input,option,block_string)
-  ! check manually for error: 
-  if (input%ierr == 0) then
-    if (wippflo_analytical_derivatives) then
-      option%io_buffer = "Currently, WIPP gas/brine generation process model &
-                         &cannot be used with ANALYTICAL DERIVATIVES. Sorry!!"
-      call printErrMsg(option)
-    endif
-    this%pmwss_ptr => PMWSSCreate()
-    this%pmwss_ptr%option => this%option
-    call this%pmwss_ptr%Read(input)
-  endif
-  ! return to previous location in input deck:
-  block_string = last_keyword
-  call InputFindStringInFile(input,option,block_string)
-  call InputFindStringErrorMsg(input,option,block_string)
-  
 end subroutine PMWIPPFloRead
 
 ! ************************************************************************** !
 
 recursive subroutine PMWIPPFloInitializeRun(this)
   ! 
-  ! Initializes the time stepping
+  ! Initializes the WIPP_FLOW mode run.
   ! 
   ! Author: Glenn Hammond
   ! Date: 07/11/17
 
   use Realization_Base_class
   use WIPP_Flow_Aux_module
-  use PM_WIPP_SrcSink_class
+  use Input_Aux_module
   
   implicit none
   
@@ -218,6 +197,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   
   PetscInt :: i
   PetscErrorCode :: ierr
+  type(input_type), pointer :: input
+  character(len=MAXSTRINGLENGTH) :: block_string
 
   ! need to allocate vectors for max change
   call VecDuplicateVecsF90(this%realization%field%work,SIX_INTEGER, &
@@ -233,6 +214,15 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   ! call parent implementation
   call PMSubsurfaceFlowInitializeRun(this)
   
+  ! look for WIPP_SOURCE_SINK block 
+  input => InputCreate(IN_UNIT,this%option%input_filename,this%option)
+  block_string = 'WIPP_SOURCE_SINK'
+  call InputFindStringInFile(input,this%option,block_string)
+  if (input%ierr == 0) then
+    this%pmwss_ptr => PMWSSCreate()
+    this%pmwss_ptr%option => this%option
+    call this%pmwss_ptr%Read(input)
+  endif
   ! call setup/initialization of all WIPP process models
   if (associated(this%pmwss_ptr)) then
     call PMWSSSetRealization(this%pmwss_ptr,this%realization)
