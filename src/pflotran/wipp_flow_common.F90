@@ -1517,6 +1517,7 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   PetscReal :: Jdum(option%nflowdof,option%nflowdof)  
 
   option%iflag = -3
+  ! unperturbed wippflo_auxvars value
   call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                       wippflo_auxvars(ZERO_INTEGER),global_auxvar,dummy_real, &
                       scale,res,Jdum,wippflo_analytical_derivatives, &
@@ -1525,7 +1526,7 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   if (wippflo_analytical_derivatives) then
     Jac = Jdum
   else                      
-    ! downgradient derivatives
+    ! perturbed wippflo_auxvars values
     do idof = 1, option%nflowdof
       call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                           wippflo_auxvars(idof),global_auxvar,dummy_real, &

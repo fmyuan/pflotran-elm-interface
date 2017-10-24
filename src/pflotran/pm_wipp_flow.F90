@@ -106,12 +106,11 @@ subroutine PMWIPPFloRead(this,input)
   
   type(input_type), pointer :: input
   
-  character(len=MAXWORDLENGTH) :: keyword, last_keyword, word
+  character(len=MAXWORDLENGTH) :: keyword, word
   class(pm_wippflo_type) :: this
   type(option_type), pointer :: option
   PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
-  character(len=MAXSTRINGLENGTH) :: block_string
   PetscBool :: found
 
   option => this%option
@@ -128,7 +127,6 @@ subroutine PMWIPPFloRead(this,input)
     call InputReadWord(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
-    last_keyword = trim(keyword)
     
     found = PETSC_FALSE
     call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found,option)    
@@ -172,25 +170,11 @@ subroutine PMWIPPFloRead(this,input)
         wippflo_use_fracture = PETSC_FALSE
       case('NO_CREEP_CLOSURE')
         wippflo_use_creep_closure = PETSC_FALSE
-      case('NO_GAS_GENERATION')
-        wippflo_use_gas_gen = PETSC_FALSE
       case default
         call InputKeywordUnrecognized(keyword,'WIPP Flow Mode',option)
     end select
     
   enddo  
-  
-  if (wippflo_use_gas_gen) then
-    this%pmwss_ptr => PMWSSCreate()
-    this%pmwss_ptr%option => this%option
-    block_string = 'WIPP_SOURCE_SINK'
-    call InputFindStringInFile(input,option,block_string)
-    call InputFindStringErrorMsg(input,option,block_string)
-    call this%pmwss_ptr%Read(input)
-    block_string = last_keyword
-    call InputFindStringInFile(input,option,block_string)
-    call InputFindStringErrorMsg(input,option,block_string)
-  endif
   
 end subroutine PMWIPPFloRead
 
@@ -198,14 +182,14 @@ end subroutine PMWIPPFloRead
 
 recursive subroutine PMWIPPFloInitializeRun(this)
   ! 
-  ! Initializes the time stepping
+  ! Initializes the WIPP_FLOW mode run.
   ! 
   ! Author: Glenn Hammond
   ! Date: 07/11/17
 
   use Realization_Base_class
   use WIPP_Flow_Aux_module
-  use PM_WIPP_SrcSink_class
+  use Input_Aux_module
   
   implicit none
   
@@ -213,6 +197,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   
   PetscInt :: i
   PetscErrorCode :: ierr
+  type(input_type), pointer :: input
+  character(len=MAXSTRINGLENGTH) :: block_string
 
   ! need to allocate vectors for max change
   call VecDuplicateVecsF90(this%realization%field%work,SIX_INTEGER, &
@@ -228,8 +214,17 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   ! call parent implementation
   call PMSubsurfaceFlowInitializeRun(this)
   
+  ! look for WIPP_SOURCE_SINK block 
+  input => InputCreate(IN_UNIT,this%option%input_filename,this%option)
+  block_string = 'WIPP_SOURCE_SINK'
+  call InputFindStringInFile(input,this%option,block_string)
+  if (input%ierr == 0) then
+    this%pmwss_ptr => PMWSSCreate()
+    this%pmwss_ptr%option => this%option
+    call this%pmwss_ptr%Read(input)
+  endif
   ! call setup/initialization of all WIPP process models
-  if (wippflo_use_gas_gen) then
+  if (associated(this%pmwss_ptr)) then
     call PMWSSSetRealization(this%pmwss_ptr,this%realization)
     call this%pmwss_ptr%Setup()
     call this%pmwss_ptr%InitializeRun()
@@ -266,7 +261,7 @@ subroutine PMWIPPFloInitializeTimestep(this)
   call PMSubsurfaceFlowInitializeTimestepB(this)  
   
   ! initialize timestep of all WIPP process models
-  if (wippflo_use_gas_gen) then
+  if (associated(this%pmwss_ptr)) then
     call this%pmwss_ptr%InitializeTimestep()
   endif
   
@@ -423,13 +418,9 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   PetscErrorCode :: ierr
   
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
-  ! call all WIPP process models using picard method
-  ! these updates will lag one Newton iteration
-  if (wippflo_use_gas_gen) then
-    call this%pmwss_ptr%Solve(this%option%time,ierr)
-  endif
+
   ! calculate residual
-  call WIPPFloResidual(snes,xx,r,this%realization,ierr)
+  call WIPPFloResidual(snes,xx,r,this%realization,this%pmwss_ptr,ierr)
 
   call this%PostSolve()
 
@@ -453,7 +444,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
   
-  call WIPPFloJacobian(snes,xx,A,B,this%realization,ierr)
+  call WIPPFloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
 
 end subroutine PMWIPPFloJacobian
 
@@ -923,8 +914,6 @@ subroutine PMWIPPFloMaxChange(this)
   PetscReal :: max_change_global(6)
   PetscReal :: max_change
   PetscInt :: i, j
-  PetscInt :: local_id, ghosted_id
-
   
   PetscErrorCode :: ierr
 
