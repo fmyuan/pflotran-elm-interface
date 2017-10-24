@@ -1518,7 +1518,7 @@ wipp.o : input_aux.o lookup_table.o material_aux.o option.o \
 wipp_flow.o : connection.o coupler.o debug.o discretization.o field.o \
               general_aux.o global_aux.o grid.o material.o material_aux.o \
               option.o output_aux.o patch.o pflotran_constants.o \
-              realization_subsurface.o srcsink_sandbox.o \
+              pm_wipp_srcsink.o realization_subsurface.o srcsink_sandbox.o \
               srcsink_sandbox_base.o srcsink_sandbox_wipp_gas.o \
               srcsink_sandbox_wipp_well.o variables.o wipp_flow_aux.o \
               wipp_flow_common.o
@@ -1530,6 +1530,7 @@ wipp_flow_common.o : connection.o eos_gas.o eos_water.o general_aux.o \
                      utility.o wipp_flow_aux.o
 wrapper_hydrogeophysics.o : e4d_run.o e4d_setup.o e4d_vars.o option.o \
                             pflotran_constants.o
+
 
 ###############################################################################
 # End Dependencies

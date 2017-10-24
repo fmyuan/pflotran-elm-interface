@@ -702,7 +702,7 @@ end subroutine WIPPFloUpdateFixedAccum
 
 ! ************************************************************************** !
 
-subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
+subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   ! 
   ! Computes the residual equation
   ! 
@@ -721,6 +721,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
   use Coupler_module  
   use Debug_module
   use Material_Aux_class
+  use PM_WIPP_SrcSink_class
 
   implicit none
 
@@ -728,6 +729,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
   Vec :: xx
   Vec :: r
   type(realization_subsurface_type) :: realization
+  class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   
@@ -765,6 +767,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
   PetscReal, pointer :: vec_p(:)
   
   character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: k
 
   PetscInt :: icap_up, icap_dn
   PetscReal :: Res(realization%option%nflowdof)
@@ -1000,6 +1003,13 @@ subroutine WIPPFloResidual(snes,xx,r,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
+  
+  ! WIPP gas/brine generation process model source/sinks
+  if (associated(pmwss_ptr)) then
+    call pmwss_ptr%Solve(option%time,ierr)
+    call PMWSSCalcResidualValues(pmwss_ptr,local_start,local_end, &
+                                 r_p,ss_flow_vol_flux)    
+  endif
 
   if (patch%aux%WIPPFlo%inactive_cells_exist) then
     do i=1,patch%aux%WIPPFlo%n_inactive_rows
@@ -1040,7 +1050,7 @@ end subroutine WIPPFloResidual
 
 ! ************************************************************************** !
 
-subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
+subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   ! 
   ! Computes the Jacobian
   ! 
@@ -1057,6 +1067,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
   use Field_module
   use Debug_module
   use Material_Aux_class
+  use PM_WIPP_SrcSink_class
 
   implicit none
 
@@ -1064,6 +1075,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
   Vec :: xx
   Mat :: A, B
   type(realization_subsurface_type) :: realization
+  class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   PetscErrorCode :: ierr
 
   Mat :: J
@@ -1101,6 +1113,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
   PetscInt, pointer :: upwind_direction(:,:), upwind_direction_bc(:,:)
   
   character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: k
   
   patch => realization%patch
   grid => patch%grid
@@ -1281,6 +1294,12 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
+  
+  
+  ! WIPP gas/brine generation process model source/sinks
+  if (associated(pmwss_ptr)) then
+    call PMWSSCalcJacobianValues(pmwss_ptr,A,ierr)
+  endif
   
   call WIPPFloSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
                         wippflo_auxvars,option)
