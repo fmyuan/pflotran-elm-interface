@@ -2721,15 +2721,17 @@ subroutine SubsurfaceReadInput(simulation,input)
   ! variable lists to the master variable list, which can be specified within
   ! the OUTPUT block. If no VARIABLES are specified for the master list, the
   ! defaults will be populated.
-          if (.not.associated(output_option%output_snap_variable_list%first)) &
-               then
+          if (.not.associated(output_option%output_snap_variable_list%first) &
+              .and.(output_option%output_snap_variable_list%flow_vars .and. &
+                    output_option%output_snap_variable_list%energy_vars)) then
             call OutputVariableListDestroy( &
                  output_option%output_snap_variable_list)
             output_option%output_snap_variable_list => &
                  output_option%output_variable_list
           endif
-          if (.not.associated(output_option%output_obs_variable_list%first)) &
-               then
+          if (.not.associated(output_option%output_obs_variable_list%first) &
+              .and.(output_option%output_obs_variable_list%flow_vars .and. &
+                    output_option%output_obs_variable_list%energy_vars)) then
             call OutputVariableListDestroy( &
                  output_option%output_obs_variable_list)
             output_option%output_obs_variable_list => &
