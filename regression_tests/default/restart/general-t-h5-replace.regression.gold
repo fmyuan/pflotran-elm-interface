@@ -62,7 +62,7 @@
         3:         1
         5:         1
 -- SOLUTION: Flow --
-   Time (seconds):   3.4298896789551E-03
+   Time (seconds):   3.1590461730957E-03
    Time Steps:           17
    Newton Iterations:           17
    Solver Iterations:           17
@@ -70,7 +70,7 @@
    Solution 2-Norm:   4.5136923613847E+05
    Residual 2-Norm:   9.1141417594103E-07
 -- SOLUTION: Transport --
-   Time (seconds):   2.0794868469238E-03
+   Time (seconds):   1.9741058349609E-03
    Time Steps:           17
    Newton Iterations:           17
    Solver Iterations:           17

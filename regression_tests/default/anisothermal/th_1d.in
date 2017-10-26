@@ -105,7 +105,7 @@ FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9
 END
 #========================= material properties ================================
-MATERIAL_PROPERTY soil
+MATERIAL_PROPERTY soil1
   ID 1
   POROSITY 0.5d0
   TORTUOSITY 1.d0
@@ -113,6 +113,7 @@ MATERIAL_PROPERTY soil
   SPECIFIC_HEAT 1E3
   THERMAL_CONDUCTIVITY_DRY 0.5
   THERMAL_CONDUCTIVITY_WET 0.5
+  !SATURATION_FUNCTION default
   CHARACTERISTIC_CURVES default
   LONGITUDINAL_DISPERSIVITY 3.1536d0
   PERMEABILITY
@@ -123,19 +124,26 @@ MATERIAL_PROPERTY soil
 END
 
 #========================= saturation functions ===============================
+skip
+SATURATION_FUNCTION default
+  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
+  RESIDUAL_SATURATION 0.5d-1
+  LAMBDA 0.75
+  ALPHA 1.d-3
+END
+noskip
+
 CHARACTERISTIC_CURVES default
   SATURATION_FUNCTION VAN_GENUCHTEN
-    LIQUID_RESIDUAL_SATURATION 0.1d0
-    ALPHA 1.d-4
-    M 0.5d0
-    MAX_CAPILLARY_PRESSURE 1.d9
+    LIQUID_RESIDUAL_SATURATION 0.5d-1
+    M 0.75
+    ALPHA 1.d-3
   /
-  PERMEABILITY_FUNCTION MUALEM
-    PHASE LIQUID
-    LIQUID_RESIDUAL_SATURATION 0.1d0
-    M 0.5d0
-  /
-/
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    LIQUID_RESIDUAL_SATURATION 0.5d-1
+    M 0.75
+  /  
+END
 
 #========================= output options =====================================
 OUTPUT
@@ -244,7 +252,7 @@ END
 #===================== stratigraphy couplers ==================================
 STRATA
   REGION all
-  MATERIAL soil
+  MATERIAL soil1
 END
 
 

@@ -56,16 +56,16 @@ MATERIAL_PROPERTY soil1
   CHARACTERISTIC_CURVES sf1
 END
 
-skip
 #========================= saturation functions ===============================
+skip
 SATURATION_FUNCTION sf1
   SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
   RESIDUAL_SATURATION 0.1d0
   LAMBDA 0.5d0
   ALPHA  1.d-4
 END
-
 noskip
+
 #=========================== characteristic curves ============================
 CHARACTERISTIC_CURVES sf1
   SATURATION_FUNCTION VAN_GENUCHTEN
@@ -79,7 +79,6 @@ CHARACTERISTIC_CURVES sf1
     LIQUID_RESIDUAL_SATURATION 0.1d0
   /
 END
-
 
 #=========================== output options ===================================
 OUTPUT
