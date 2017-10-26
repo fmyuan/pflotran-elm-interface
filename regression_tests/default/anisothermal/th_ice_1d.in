@@ -5,6 +5,9 @@ SIMULATION
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE TH
+      OPTIONS
+        FREEZING
+        ICE_MODEL PAINTER_EXPLICIT
       /
     /
   /
