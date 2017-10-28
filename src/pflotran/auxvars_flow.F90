@@ -60,8 +60,10 @@ subroutine AuxVarFlowInit(this,option)
   this%den_kg = 0.d0
   allocate(this%mobility(option%nphase))
   this%mobility = 0.d0
-  allocate(this%eos_table_idx(option%neos_table_indices))
-  this%eos_table_idx = 1
+  if (option%neos_table_indices > 0) then
+    allocate(this%eos_table_idx(option%neos_table_indices))
+    this%eos_table_idx = 1
+  end if
 
 
 end subroutine AuxVarFlowInit

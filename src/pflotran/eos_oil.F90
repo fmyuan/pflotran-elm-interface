@@ -40,8 +40,9 @@ module EOS_Oil_module
   class(eos_database_type), pointer :: eos_ent_dbase
   class(eos_database_type), pointer :: eos_vis_dbase
   ! PVT tables - eos_tables
-  class(eos_table_type), pointer :: pvdo
-  class(eos_table_type), pointer :: pvco
+  !class(eos_table_type), pointer :: pvdo
+  !class(eos_table_type), pointer :: pvco
+  class(eos_table_type), pointer :: pvt_table
 
   ! when adding a new eos_database, remember to add it to EOSOilDBaseDestroy()
 
@@ -63,7 +64,8 @@ module EOS_Oil_module
   ! these should be define as astract interfaces, because there are no
   ! precedures named as xxxDummy that have such interfaces
   interface
-    subroutine EOSOilViscosityDummy(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
+    subroutine EOSOilViscosityDummy(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr, &
+                                    table_idxs)
       implicit none
       PetscReal, intent(in) :: T        ! temperature [C]
       PetscReal, intent(in) :: P        ! oil pressure [Pa]
@@ -73,6 +75,7 @@ module EOS_Oil_module
       PetscReal, intent(out) :: dVis_dT ! derivative oil viscosity wrt temperature
       PetscReal, intent(out) :: dVis_dP ! derivative oil viscosity wrt Pressure
       PetscErrorCode, intent(out) :: ierr
+      PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
     end subroutine EOSOilViscosityDummy
     subroutine EOSOilDensityDummy(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
       implicit none
@@ -710,7 +713,8 @@ end subroutine EOSOilSetEOSDBase
 
 ! ************************************************************************** !
 
-subroutine EOSOilViscosityConstant(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
+subroutine EOSOilViscosityConstant(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr, &
+                                   table_idxs)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
@@ -725,6 +729,7 @@ subroutine EOSOilViscosityConstant(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
   PetscReal, intent(out) :: dVis_dT ! derivative oil viscosity wrt temperature
   PetscReal, intent(out) :: dVis_dP ! derivative oil viscosity wrt Pressure
   PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:) !pvt table indices
 
   Vis = constant_viscosity
 
@@ -735,7 +740,8 @@ end subroutine EOSOilViscosityConstant
 
 ! ************************************************************************** !
 
-subroutine EOSOilQuadViscosity(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
+subroutine EOSOilQuadViscosity(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr, &
+                               table_idxs)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
@@ -750,6 +756,8 @@ subroutine EOSOilQuadViscosity(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
   PetscReal, intent(out) :: dVis_dT ! derivative oil viscosity wrt temperature
   PetscReal, intent(out) :: dVis_dP ! derivative oil viscosity wrt Pressure
   PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:) !pvt table indices
+
 
   Vis = quad_vis0 + &
         quad_vis_pres_coef(1) * ( P - quad_vis_ref_pres(1) ) + &
@@ -768,7 +776,8 @@ end subroutine EOSOilQuadViscosity
 
 ! ************************************************************************** !
 
-subroutine EOSOilViscosityEOSDBase(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
+subroutine EOSOilViscosityEOSDBase(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr, &
+                                   table_idxs)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
@@ -783,7 +792,7 @@ subroutine EOSOilViscosityEOSDBase(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
   PetscReal, intent(out) :: dVis_dT ! derivative oil viscosity wrt temperature
   PetscReal, intent(out) :: dVis_dP ! derivative oil viscosity wrt Pressure
   PetscErrorCode, intent(out) :: ierr
-
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:) !pvt table indices
   !ierr initialised in EOSEOSProp
   call eos_dbase%EOSProp(T,P,EOS_VISCOSITY,Vis,ierr)
 
@@ -801,7 +810,8 @@ end subroutine EOSOilViscosityEOSDBase
 
 ! ************************************************************************** !
 
-subroutine EOSOilViscosityVisDBase(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
+subroutine EOSOilViscosityVisDBase(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr, &
+                                   table_idxs)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
@@ -816,6 +826,7 @@ subroutine EOSOilViscosityVisDBase(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr)
   PetscReal, intent(out) :: dVis_dT ! derivative oil viscosity wrt temperature
   PetscReal, intent(out) :: dVis_dP ! derivative oil viscosity wrt Pressure
   PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   !ierr initialised in EOSEOSProp
   call eos_vis_dbase%EOSProp(T,P,EOS_VISCOSITY,Vis,ierr)
@@ -834,8 +845,45 @@ end subroutine EOSOilViscosityVisDBase
 
 ! ************************************************************************** !
 
-subroutine EOSOilViscosityNoDerive(T,P,Rho,Vis,ierr)
+subroutine EOSOilViscosityTable(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr, &
+                                   table_idxs)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 12/11/15
+  !
+  implicit none
 
+  PetscReal, intent(in) :: T        ! temperature [C]
+  PetscReal, intent(in) :: P        ! oil pressure [Pa]
+  PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]
+  PetscBool, intent(in) :: deriv    ! indicate if derivatives are needed or not
+  PetscReal, intent(out) :: Vis     ! oil viscosity
+  PetscReal, intent(out) :: dVis_dT ! derivative oil viscosity wrt temperature
+  PetscReal, intent(out) :: dVis_dP ! derivative oil viscosity wrt Pressure
+  PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:) !pvt table indices
+
+  !ierr initialised in EOSEOSProp
+  !call eos_dbase%EOSProp(T,P,EOS_VISCOSITY,Vis,ierr)
+
+  call pvt_table%EOSProp(T,P,EOS_VISCOSITY,Vis,table_idxs,ierr)
+
+  dVis_dT = 0.0d0
+  dVis_dP = 0.0d0
+
+  if (deriv) then
+    ! not yet implemented
+    ierr = 99 !error 99 points out that deriv are asked but not available yet.
+    print*, "EOSOilViscosityTable - Viscosity derivatives not supported"
+    stop
+  end if
+
+end subroutine EOSOilViscosityTable
+
+! ************************************************************************** !
+
+
+subroutine EOSOilViscosityNoDerive(T,P,Rho,Vis,ierr,table_idxs)
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
@@ -843,10 +891,11 @@ subroutine EOSOilViscosityNoDerive(T,P,Rho,Vis,ierr)
   PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]
   PetscReal, intent(out) :: Vis     ! oil viscosity
   PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:) !pvt table indices
 
   PetscReal :: dum1, dum2
 
-  call EOSOilViscosityPtr(T,P,Rho,PETSC_FALSE,Vis,dum1,dum2,ierr)
+  call EOSOilViscosityPtr(T,P,Rho,PETSC_FALSE,Vis,dum1,dum2,ierr,table_idxs)
 
 end subroutine EOSOilViscosityNoDerive
 
@@ -1276,22 +1325,23 @@ subroutine EOSOilSetPVDO(input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  pvdo => EOSTableCreate('PVDO')
+  pvt_table => EOSTableCreate('PVDO')
 
   !set up pvdo variable and order - firt column is the pressure
   !below the order of the data fiels is assigned
-  pvdo%data_to_prop_map(1) = EOS_FVF
-  pvdo%prop_to_data_map(EOS_FVF) = 1
-  pvdo%data_to_prop_map(2) = EOS_VISCOSITY
-  pvdo%prop_to_data_map(EOS_VISCOSITY) = 2
+  pvt_table%data_to_prop_map(1) = EOS_FVF
+  pvt_table%prop_to_data_map(EOS_FVF) = 1
+  pvt_table%data_to_prop_map(2) = EOS_VISCOSITY
+  pvt_table%prop_to_data_map(EOS_VISCOSITY) = 2
 
-  pvdo%num_prop = 2
+  pvt_table%num_prop = 2
 
   !call eos_dbase%Read(option)
-  call pvdo%Read(input,option)
+  call pvt_table%Read(input,option)
 
-  call EOSTableAddToList(pvdo,eos_table_list)
+  call EOSTableAddToList(pvt_table,eos_table_list)
 
+  EOSOilViscosityPtr => EOSOilViscosityTable
   !set property function pointers - for testing
   !EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
   !if (.not.associated(EOSOilDensityPtr))  &
@@ -1341,7 +1391,7 @@ subroutine EOSOilDBaseDestroy()
   call EOSDatabaseDestroy(eos_vis_dbase)
 
   !destroy EOS tables
-  call EOSTableDestroy(pvdo)
+  call EOSTableDestroy(pvt_table)
 
 end subroutine EOSOilDBaseDestroy
 

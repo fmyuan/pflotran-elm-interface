@@ -581,9 +581,6 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   !PetscReal :: Uoil_J_kg, Hoil_J_kg
   PetscErrorCode :: ierr
   PetscReal :: krotl=0.0,krgtl=0.0,viscotl=0.0,viscgtl=0.0,denotl=0.0,dengtl=0.0
-  !PO: iT,iP1,iP2, Ttmp, Ptmp tmp vars for testing tables - to be removed
-  PetscInt :: iT,iP1,iP2
-  PetscReal :: Ttmp, Ptmp
 !--Get phase pointers for water,oil and gas-----------------------------------
 
   ! from SubsurfaceSetFlowMode
@@ -673,14 +670,6 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%H(oid) = auxvar%H(oid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(oid) = auxvar%U(oid) * 1.d-6 ! J/kmol -> MJ/kmol
 
-  !iT = 1
-  !iP1 = 1
-  !iP2 = 1
-  !Ptmp = 42.0d0
-  !Ttmp = 50.d0
-                                 ! EOS_FVF=5
-  !call pvdo%EOSProp(Ttmp,Ptmp,5,dummy,ierr,iP1,iT,iP2)
-
   !compute gas properties (default is air - but methane can be set up)
   call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid), &
                            auxvar%H(gid),auxvar%U(gid),ierr)
@@ -712,7 +701,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   ! Oil viscosity
   call EOSOilViscosity(auxvar%temp,auxvar%pres(oid), &
-                       auxvar%den(oid), viso, ierr)
+                       auxvar%den(oid), viso, ierr,auxvar%eos_table_idx)
 
   ! Gas viscosity : currently only viscosity model for air or constant value
   call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &

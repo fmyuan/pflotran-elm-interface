@@ -33,11 +33,14 @@ module EOSData_module
     PetscInt :: num_prop ! number of properties in the database
     PetscInt :: data_to_prop_map(MAX_PROP_NUM) !map the data idx to the prop.
     PetscInt :: prop_to_data_map(MAX_PROP_NUM) !map the prop to the dat idx
-    PetscReal :: field_conv_factors(MAX_PROP_NUM)
+    PetscReal :: press_unit_conv_factor
+    PetscReal :: temp_unit_conv_factor
+    PetscReal :: prop_unit_conv_factors(MAX_PROP_NUM)
     PetscReal, pointer :: data(:,:)
   contains
     procedure :: EOSDataBaseInit
     procedure, public :: EOSPropPresent
+    procedure :: UnitConversionFactors => EOSDataUnitConversionFactors
     procedure :: EOSDataBaseStrip
   end type
 
@@ -100,7 +103,9 @@ subroutine EOSDataBaseInit(this)
   this%num_prop = UNINITIALIZED_INTEGER
   this%data_to_prop_map(MAX_PROP_NUM) = UNINITIALIZED_INTEGER
   this%prop_to_data_map(MAX_PROP_NUM) = UNINITIALIZED_INTEGER
-  this%field_conv_factors(MAX_PROP_NUM) = 1.0d0
+  this%press_unit_conv_factor = 1.0d0
+  this%temp_unit_conv_factor = 1.0d0
+  this%prop_unit_conv_factors(1:MAX_PROP_NUM) = 1.0d0
   nullify(this%data)
 
 end subroutine EOSDataBaseInit
@@ -123,6 +128,89 @@ function EOSPropPresent(this,prop_iname)
   EOSPropPresent = Initialized(this%prop_to_data_map(prop_iname))
 
 end function EOSPropPresent
+
+! ************************************************************************** !
+
+subroutine EOSDataUnitConversionFactors(this,input,option)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 10/28/17
+  !
+  ! Read unit EOS data unit and compute convert them to internal
+
+  use Input_Aux_module
+  use Option_module
+
+  implicit none
+
+  class(eos_data_base_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: keyword, word, internal_units
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscInt :: prop_idx
+  prop_idx = 0
+
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    select case(keyword)
+      case('PRESSURE')
+        internal_units = 'Pa'
+        this%press_unit_conv_factor = UnitReadAndConversionFactor(input, &
+                                              internal_units,keyword,option)
+      case('TEMPERATURE')
+        !only Celsius currently supported - currently unit must be defined
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (input%ierr == 0) then
+          if (trim(word) /= "C") then
+            option%io_buffer = "EOS data only Temperatures in Celcius " // &
+                                "are supported"
+            call printErrMsg(option)
+          end if
+        end if
+        this%temp_unit_conv_factor = 1.0
+        !else !it not temperature unit defined
+        !  string = "EOS data " // trim(keyword) // ' units'
+        !  call InputDefaultMsg(input,option,string)
+        !  this%temp_unit_conv_factor = 1.0
+        !endif
+      case('DENSITY')
+        prop_idx = this%prop_to_data_map(EOS_DENSITY)
+        !prop_idx = prop_idx + 1
+        internal_units = 'kg/m^3'
+        this%prop_unit_conv_factors(prop_idx) = &
+               UnitReadAndConversionFactor(input,internal_units,keyword,option)
+      case('ENTHALPY')
+        prop_idx = this%prop_to_data_map(EOS_ENTHALPY)
+        internal_units = 'J/kg'
+        this%prop_unit_conv_factors(prop_idx) = &
+               UnitReadAndConversionFactor(input,internal_units,keyword,option)
+      case('INTERNAL_ENERGY')
+        prop_idx = this%prop_to_data_map(EOS_INTERNAL_ENERGY)
+        internal_units = 'J/kg'
+        this%prop_unit_conv_factors(prop_idx) = &
+               UnitReadAndConversionFactor(input,internal_units,keyword,option)
+      case('VISCOSITY')
+        prop_idx = this%prop_to_data_map(EOS_VISCOSITY)
+        internal_units = 'Pa-s'
+        this%prop_unit_conv_factors(prop_idx) = &
+               UnitReadAndConversionFactor(input,internal_units,keyword,option)
+      case('FVF')
+        prop_idx = this%prop_to_data_map(EOS_FVF)
+        internal_units = 'm^3/m^3'
+        this%prop_unit_conv_factors(prop_idx) = &
+               UnitReadAndConversionFactor(input,internal_units,keyword,option)
+      case default
+        error_string = trim(error_string) // ': ' // this%name // &
+        ': EOS DATA units'
+        call InputKeywordUnrecognized(keyword,error_string,option)
+    end select
+  end do
+
+end subroutine EOSDataUnitConversionFactors
 
 ! ************************************************************************** !
 
@@ -200,14 +288,14 @@ subroutine EOSDatabaseRead(this,option)
   class(eos_database_type) :: this
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word, input_unit, internal_units
+  character(len=MAXWORDLENGTH) :: keyword, word, internal_units
   character(len=MAXSTRINGLENGTH) :: error_string = 'EOS_DATABASE'
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: prop_idx, prop_count, i_idx, j_idx
   PetscInt :: data_size
   PetscReal :: tempreal
-  PetscReal :: press_conv_factor, temp_conv_factor
-  PetscReal, pointer :: prop_unit_conv_factor(:)
+  !PetscReal :: press_conv_factor, temp_conv_factor
+  !PetscReal, pointer :: prop_unit_conv_factor(:)
   PetscBool :: pres_present, temp_present
 
   type(input_type), pointer :: input_table
@@ -227,8 +315,8 @@ subroutine EOSDatabaseRead(this,option)
     call printMsg(option)
   !end if
 
-  allocate(prop_unit_conv_factor(MAX_PROP_NUM))
-  prop_unit_conv_factor = UNINITIALIZED_DOUBLE
+  !allocate(prop_unit_conv_factor(MAX_PROP_NUM))
+  !prop_unit_conv_factor = UNINITIALIZED_DOUBLE
 
   !reading the database file header
   do
@@ -257,9 +345,9 @@ subroutine EOSDatabaseRead(this,option)
           select case(word)
             case('PRESSURE')
               pres_present = PETSC_TRUE
-              internal_units = 'Pa'
-              press_conv_factor = UnitReadAndConversionFactor(input_table, &
-                                                  internal_units,word,option)
+              !internal_units = 'Pa'
+              !press_conv_factor = UnitReadAndConversionFactor(input_table, &
+              !                                    internal_units,word,option)
             case('TEMPERATURE')
               temp_present = PETSC_TRUE
               !only C currently supported
@@ -270,34 +358,34 @@ subroutine EOSDatabaseRead(this,option)
               prop_idx = prop_idx + 1
               this%data_to_prop_map(prop_idx) = EOS_DENSITY
               this%prop_to_data_map(EOS_DENSITY) = prop_idx
-              internal_units = 'kg/m^3'
-              prop_unit_conv_factor(prop_idx) = &
-                              UnitReadAndConversionFactor(input_table, &
-                                             internal_units,word,option)
+              !internal_units = 'kg/m^3'
+              !prop_unit_conv_factor(prop_idx) = &
+              !                UnitReadAndConversionFactor(input_table, &
+              !                               internal_units,word,option)
             case('ENTHALPY')
               prop_idx = prop_idx + 1
               this%data_to_prop_map(prop_idx) = EOS_ENTHALPY
               this%prop_to_data_map(EOS_ENTHALPY) = prop_idx
-              internal_units = 'J/kg'
-              prop_unit_conv_factor(prop_idx) = &
-                              UnitReadAndConversionFactor(input_table, &
-                                             internal_units,word,option)
+              !internal_units = 'J/kg'
+              !prop_unit_conv_factor(prop_idx) = &
+              !                UnitReadAndConversionFactor(input_table, &
+              !                               internal_units,word,option)
             case('INTERNAL_ENERGY')
               prop_idx = prop_idx + 1
               this%data_to_prop_map(prop_idx) = EOS_INTERNAL_ENERGY
               this%prop_to_data_map(EOS_INTERNAL_ENERGY) = prop_idx
-              internal_units = 'J/kg'
-              prop_unit_conv_factor(prop_idx) = &
-                              UnitReadAndConversionFactor(input_table, &
-                                             internal_units,word,option)
+              !internal_units = 'J/kg'
+              !prop_unit_conv_factor(prop_idx) = &
+              !                UnitReadAndConversionFactor(input_table, &
+              !                               internal_units,word,option)
             case('VISCOSITY')
               prop_idx = prop_idx + 1
               this%data_to_prop_map(prop_idx) = EOS_VISCOSITY
               this%prop_to_data_map(EOS_VISCOSITY) = prop_idx
-              internal_units = 'Pa-s'
-              prop_unit_conv_factor(prop_idx) = &
-                              UnitReadAndConversionFactor(input_table, &
-                                             internal_units,word,option)
+              !internal_units = 'Pa-s'
+              !prop_unit_conv_factor(prop_idx) = &
+              !                UnitReadAndConversionFactor(input_table, &
+              !                               internal_units,word,option)
             case default
               error_string = trim(error_string) // ': ' // this%file_name // &
               ': DATA_LIST_ORDER'
@@ -305,6 +393,12 @@ subroutine EOSDatabaseRead(this,option)
           end select
         end do
         this%num_prop = prop_idx
+        ! go back to DATA_LIST_ORDER - read variable again to comput
+        ! unit covnertion factors
+        string = "DATA_LIST_ORDER"
+        call InputFindStringInFile(input_table,option,string)
+        call this%UnitConversionFactors(input_table,option)
+
         if (.not.pres_present) then
           option%io_buffer = 'PRESSURE must be present in any EOS_DATABASE.'
           call printErrMsg(option)
@@ -355,9 +449,9 @@ subroutine EOSDatabaseRead(this,option)
       call InputErrorMsg(input_table,option, &
                            'VALUE', 'EOS_DATABASE PRESS_VALUE')
       ! convert pressure to internal units - Pa
-      this%lookup_table_uni%axis2%values(j_idx) = tempreal * press_conv_factor
-
-      ! this is repeated this%num_p times - not efficient
+      this%lookup_table_uni%axis2%values(j_idx) = &
+          tempreal * this%press_unit_conv_factor
+      !reads temperature values - repeated this%num_p times - not efficient
       call InputReadDouble(input_table,option, &
                            this%lookup_table_uni%axis1%values(i_idx))
       call InputErrorMsg(input_table,option, &
@@ -369,15 +463,16 @@ subroutine EOSDatabaseRead(this,option)
         call InputErrorMsg(input_table,option,&
                            'VALUE','EOS_DATABASE PROP_VALUE')
         !convert to intenral units
-        this%data(prop_idx,prop_count) = prop_unit_conv_factor(prop_idx) * &
-                                         this%data(prop_idx,prop_count)
+        this%data(prop_idx,prop_count) = this%data(prop_idx,prop_count) * &
+                                         this%prop_unit_conv_factors(prop_idx)
+                                         !prop_unit_conv_factor(prop_idx)
       end do
 
     end do
 
   end do
 
-  deallocate(prop_unit_conv_factor)
+  !deallocate(prop_unit_conv_factor)
   call InputDestroy(input_table)
 
 end subroutine EOSDatabaseRead
@@ -560,8 +655,7 @@ subroutine EOSTableRead(this,input,option)
     call StringToUpper(keyword)
     select case(keyword)
       case('DATA_UNITS')
-        !call here a function for unit conversion - defines conversion factor
-        !in the eos_databse class
+        call this%UnitConversionFactors(input,option)
       case('DATA')
         do
           call InputReadPflotranString(input,option)
@@ -619,7 +713,8 @@ subroutine EOSTableRead(this,input,option)
     this%lookup_table_gen%dims(1) = this%num_p
     allocate(this%lookup_table_gen%axis1%values(this%num_p))
     do i_press = 1,this%num_p
-      this%lookup_table_gen%axis1%values(i_press) = press_data_array(1,i_press)
+      this%lookup_table_gen%axis1%values(i_press) = &
+         press_data_array(1,i_press) * this%press_unit_conv_factor
     end do
     this%n_indices = 1
   else if (this%num_t > 1) then
@@ -631,11 +726,13 @@ subroutine EOSTableRead(this,input,option)
     this%lookup_table_gen%dims(2) = n_press_count_first
     allocate(this%lookup_table_gen%axis1%values(this%num_t))
     do i_temp = 1,this%num_t
-      this%lookup_table_gen%axis1%values(i_temp) = temp_array(i_temp)
+      this%lookup_table_gen%axis1%values(i_temp) = temp_array(i_temp) * &
+                                                   this%temp_unit_conv_factor
     end do
     allocate(this%lookup_table_gen%axis2%values(this%num_p))
     do i_press = 1,this%num_p
-      this%lookup_table_gen%axis2%values(i_press) = press_data_array(1,i_press)
+      this%lookup_table_gen%axis2%values(i_press) = &
+          press_data_array(1,i_press) * this%press_unit_conv_factor
     end do
     this%n_indices = 3
   end if
@@ -644,7 +741,8 @@ subroutine EOSTableRead(this,input,option)
   allocate(this%data(this%num_prop,n_press_count))
   do i_press = 1,n_press_count
     do i_prop=1,this%num_prop
-      this%data(i_prop,i_press) = press_data_array(i_prop+1,i_press)
+      this%data(i_prop,i_press) = press_data_array(i_prop+1,i_press) * &
+                                  this%prop_unit_conv_factors(i_prop)
     end do
   end do
 
@@ -726,16 +824,21 @@ end subroutine ReadPressureTable
 
 ! ************************************************************************** !
 
-subroutine EOSPropTable(this,T,P,prop_iname,prop_value,ierr,iP1,iT,iP2)
+!subroutine EOSPropTable(this,T,P,prop_iname,prop_value,ierr,iP1,iT,iP2)
+subroutine EOSPropTable(this,T,P,prop_iname,prop_value,indices,ierr)
   !
   ! Author: Paolo Orsini
   ! Date: 10/20/17
   !
   ! interpolates a single EOS property from a PVT Table
   !
-  ! optional arguments: iP1 always present - optional only to match the
-  !                     number of arguments of EOSPropLinearInterp used for
-  !                     for a general datbase
+  ! if table%dim == 1, only pressure lookup
+  !  indices(eos_table%first_index) = Pressure index
+  ! else if table%dim == 2, one temperature lookup and two pressure lookups
+  !  indices(eos_table%first_index+1) = iP1, i.e. Pressure_index_1
+  !  indices(eos_table%first_index+2) = iP2, i.e. Pressure_index_2
+  ! the case table%dim == 2, with one temperature lookup and
+  !                       one pressure lookups not supported
   !
   ! Note: when more properties must be extracted from the same PVT table,
   !       i.e. properties listed for the same values and range of P and T,
@@ -745,7 +848,7 @@ subroutine EOSPropTable(this,T,P,prop_iname,prop_value,ierr,iP1,iT,iP2)
   !       (b) P,T location checks within a single 2D domain, (p,p+dp; t,t+dt)
   !           currently done within LookupTableInterpolate2DGeneral
   !
-  !       TODO: add a method lookup_table_gen to extract mulitdimensional data
+  !    PO TODO: add a method lookup_table_gen to extract mulitdimensional data
   !             at the same time (data plus function)
 
   implicit none
@@ -753,12 +856,13 @@ subroutine EOSPropTable(this,T,P,prop_iname,prop_value,ierr,iP1,iT,iP2)
   class(eos_table_type) :: this
   PetscReal, intent(in) :: T              ! temperature [C]
   PetscReal, intent(in) :: P              ! pressure [Pa]
-  PetscInt, intent(inout), optional :: iP1   ! pressure looup index1 - left T
-  PetscInt, intent(inout), optional :: iT    ! temperature lookup index
-  PetscInt, intent(inout), optional :: iP2   ! pressure looup index2 - right T
+  !PetscInt, intent(inout), optional :: iP1   ! pressure looup index1 - left T
+  !PetscInt, intent(inout), optional :: iT    ! temperature lookup index
+  !PetscInt, intent(inout), optional :: iP2   ! pressure looup index2 - right T
   PetscInt, intent(in) :: prop_iname
   PetscReal, intent(out) :: prop_value ! database units (SI)
   PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, intent(inout) :: indices(:)
 
   ierr = 0
   !no errors are assigned if P,T go out of range, since the values
@@ -778,14 +882,14 @@ subroutine EOSPropTable(this,T,P,prop_iname,prop_value,ierr,iP1,iT,iP2)
       print*, "table name = ", this%name
       print*, "Property extrapolated for Press val [Mpa] = ", P*1.d-6
     end if
-    this%lookup_table_gen%axis1%saved_index = iP1
+    this%lookup_table_gen%axis1%saved_index = indices(this%first_index)
     !T       P      optional
     !this%lookup_table_gen%Sample(lookup1,lookup2,lookup3)
     prop_value = this%lookup_table_gen%Sample(P)
     !must copy back iP1 because
-    ! saved_index = iP1 is a copying operation not pointing
+    ! saved_index = indices(eos_table%first_index) is a copying operation not pointing
     ! saved_index should be a pointer to save an assigment operation
-    iP1 = this%lookup_table_gen%axis1%saved_index
+    indices(this%first_index) = this%lookup_table_gen%axis1%saved_index
   else if (this%lookup_table_gen%dim == TWO_INTEGER) then
     if ( T < this%lookup_table_gen%axis1%values(1) ) then
       print*, "EOSPropTable - T smaller than min val in table"
@@ -809,26 +913,32 @@ subroutine EOSPropTable(this,T,P,prop_iname,prop_value,ierr,iP1,iT,iP2)
     !  print*, "EOSEOSProp - P larger than max val in EOSdatabase"
     !  print*, "Property extrapolated for Press val [Mpa] = ", P*1.d-6
     !end if
-    this%lookup_table_gen%axis1%saved_index = iT
-    this%lookup_table_gen%axis2%saved_index = iP1
-    if (present(iP2)) then
-      this%lookup_table_gen%axis2%saved_index2 = iP2
-    else
-      this%lookup_table_gen%axis2%saved_index2 = iP1
-    end if
+    !this%lookup_table_gen%axis1%saved_index = iT
+    !this%lookup_table_gen%axis2%saved_index = iP1
+    this%lookup_table_gen%axis1%saved_index = indices(this%first_index)
+    this%lookup_table_gen%axis2%saved_index = indices(this%first_index+1)
+    this%lookup_table_gen%axis2%saved_index2 = indices(this%first_index+2)
+    !if (present(iP2)) then
+    !  this%lookup_table_gen%axis2%saved_index2 = iP2
+    !else
+    !  this%lookup_table_gen%axis2%saved_index2 = iP1
+    !end if
     !T       P      optional
     !this%lookup_table_gen%Sample(lookup1,lookup2,lookup3)
     prop_value = this%lookup_table_gen%Sample(T,P)
     !must copy back iT, iP1 and iP2 because
     ! saved_index = iT is a copying operation not a pointer
     ! saved_index should be a pointer to save an assigment operation
-    iT = this%lookup_table_gen%axis1%saved_index
-    iP1 = this%lookup_table_gen%axis2%saved_index
-    if (present(iP2)) then
-      iP2 = this%lookup_table_gen%axis2%saved_index2
-    else
-      iP2 = iP1
-    end if
+    !iT = this%lookup_table_gen%axis1%saved_index
+    !iP1 = this%lookup_table_gen%axis2%saved_index
+    !if (present(iP2)) then
+    !  iP2 = this%lookup_table_gen%axis2%saved_index2
+    !else
+    !  iP2 = iP1
+    !end if
+    indices(this%first_index) = this%lookup_table_gen%axis1%saved_index
+    indices(this%first_index+1)= this%lookup_table_gen%axis2%saved_index
+    indices(this%first_index+2) = this%lookup_table_gen%axis2%saved_index2
   end if
 
   nullify(this%lookup_table_gen%data)
