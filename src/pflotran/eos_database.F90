@@ -21,9 +21,6 @@ module EOSData_module
   !add here other properties and derivatives and increase MAX_PROP_NUM
   PetscInt, parameter, public :: MAX_PROP_NUM = 8
 
-  !PetscInt, parameter, public :: GENERAL_PT_DATA=1
-  !PetscInt, parameter, public :: PVT_TABLE_DATA=2
-
   !type, public :: eos_data_base_type
   type, abstract, public :: eos_data_base_type
     character(len=MAXWORDLENGTH) :: name
@@ -41,6 +38,7 @@ module EOSData_module
     procedure :: EOSDataBaseInit
     procedure, public :: EOSPropPresent
     procedure :: UnitConversionFactors => EOSDataUnitConversionFactors
+    procedure :: ConvertFVFtoMolarDensity
     procedure :: EOSDataBaseStrip
   end type
 
@@ -211,6 +209,31 @@ subroutine EOSDataUnitConversionFactors(this,input,option)
   end do
 
 end subroutine EOSDataUnitConversionFactors
+
+! ************************************************************************** !
+
+subroutine ConvertFVFtoMolarDensity(this,FMW,reference_density_kg)
+
+  implicit none
+
+  class(eos_data_base_type) :: this
+  PetscReal, intent(in) :: FMW
+  PetscReal, intent(in) :: reference_density_kg
+
+  PetscInt :: i_data
+
+  do i_data = 1,size(this%data,2)
+    this%data(this%prop_to_data_map(EOS_FVF),i_data) = &
+       reference_density_kg / FMW / &
+       this%data(this%prop_to_data_map(EOS_FVF),i_data)
+  end do
+  !change variable name
+  this%data_to_prop_map(this%prop_to_data_map(EOS_FVF)) = &
+    EOS_DENSITY
+  this%prop_to_data_map(EOS_DENSITY) = &
+    this%prop_to_data_map(EOS_FVF)
+
+end subroutine ConvertFVFtoMolarDensity
 
 ! ************************************************************************** !
 

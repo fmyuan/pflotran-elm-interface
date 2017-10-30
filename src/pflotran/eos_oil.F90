@@ -2,6 +2,7 @@ module EOS_Oil_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
+
   use PFLOTRAN_Constants_module
   use EOSData_module
 
@@ -41,9 +42,8 @@ module EOS_Oil_module
   class(eos_database_type), pointer :: eos_den_dbase
   class(eos_database_type), pointer :: eos_ent_dbase
   class(eos_database_type), pointer :: eos_vis_dbase
+
   ! PVT tables - eos_tables
-  !class(eos_table_type), pointer :: pvdo
-  !class(eos_table_type), pointer :: pvco
   class(eos_table_type), pointer :: pvt_table
 
   ! when adding a new eos_database, remember to add it to EOSOilDBaseDestroy()
@@ -387,13 +387,13 @@ end function EOSOilGetFMW
 
 ! ************************************************************************** !
 
-subroutine EOSOilSetReferenceDensity(ref_density)
+subroutine EOSOilSetReferenceDensity(input_ref_density)
 
   implicit none
 
-  PetscReal :: ref_density
+  PetscReal :: input_ref_density
 
-  reference_density_kg = ref_density
+  reference_density_kg = input_ref_density
 
 end subroutine EOSOilSetReferenceDensity
 
@@ -1456,24 +1456,25 @@ subroutine EOSOilTableProcess(option)
 
   type(option_type) :: option
 
-  PetscInt :: i_data
+  !PetscInt :: i_data
 
   if (.not.associated(pvt_table)) return
 
   select case(pvt_table%name)
     case("PVDO")
+      call pvt_table%ConvertFVFtoMolarDensity(fmw_oil,reference_density_kg)
       !WRAP and move to eos_datbase
       !transferom FVF table into reservoir molar densities tables
-      do i_data = 1,size(pvt_table%data,2)
-        pvt_table%data(pvt_table%prop_to_data_map(EOS_FVF),i_data) = &
-           reference_density_kg / fmw_oil / &
-           pvt_table%data(pvt_table%prop_to_data_map(EOS_FVF),i_data)
-      end do
-      !change variable name
-      pvt_table%data_to_prop_map(pvt_table%prop_to_data_map(EOS_FVF)) = &
-        EOS_DENSITY
-      pvt_table%prop_to_data_map(EOS_DENSITY) = &
-        pvt_table%prop_to_data_map(EOS_FVF)
+      ! do i_data = 1,size(pvt_table%data,2)
+      !   pvt_table%data(pvt_table%prop_to_data_map(EOS_FVF),i_data) = &
+      !      reference_density_kg / fmw_oil / &
+      !      pvt_table%data(pvt_table%prop_to_data_map(EOS_FVF),i_data)
+      ! end do
+      ! !change variable name
+      ! pvt_table%data_to_prop_map(pvt_table%prop_to_data_map(EOS_FVF)) = &
+      !   EOS_DENSITY
+      ! pvt_table%prop_to_data_map(EOS_DENSITY) = &
+      !   pvt_table%prop_to_data_map(EOS_FVF)
       !END WRAP and move to eos_datbase
       !Pointing is done within when setting up the pvt table
       !EOSOilDensityPtr => EOSOilDensityTable

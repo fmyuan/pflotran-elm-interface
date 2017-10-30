@@ -291,6 +291,13 @@ subroutine EOSRead(input,option)
         call InputErrorMsg(input,option,'keyword','EOS,GAS')
         call StringToUpper(keyword)
         select case(trim(keyword))
+          case('REFERENCE_DENSITY','SURFACE_DENSITY','STANDARD_DENSITY')
+            call InputReadDouble(input,option,tempreal)
+            call InputErrorMsg(input,option,'VALUE', &
+                               'EOS,GAS,REFERENCE_DENSITY')
+            call InputReadAndConvertUnits(input,tempreal, &
+                           'kg/m^3','EOS,GAS,REFERENCE_DENSITY',option)
+            call EOSGasSetReferenceDensity(tempreal)
           case('DENSITY')
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'DENSITY','EOS,GAS')
@@ -556,6 +563,8 @@ subroutine EOSRead(input,option)
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'EOS,GAS','DATABASE filename')
             call EOSGasSetEOSDBase(word,option)
+          case('PVDG')
+            call EOSGasSetPVDG(input,option)
           case('CO2_DATABASE')
             call EOSGasSetFMWConstant(FMWCO2)
             call InputReadWord(input,option,word,PETSC_TRUE)
@@ -835,6 +844,7 @@ subroutine EOSProcess(option)
   type(option_type) :: option
 
   call EOSOilTableProcess(option)
+  call EOSGasTableProcess(option)
 
   call EOSTableProcessList(option)
 

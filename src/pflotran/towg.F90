@@ -8,8 +8,8 @@ module TOWG_module
   use PFLOTRAN_Constants_module
 
   implicit none
-  
-  private 
+
+  private
 
 #define CONVECTION
 #define DIFFUSION
@@ -17,7 +17,7 @@ module TOWG_module
 #define CONDUCTION
 
 !#define DEBUG_TOWG_FILEOUTPUT
-!#define DEBUG_TOWG_FLUXES  
+!#define DEBUG_TOWG_FLUXES
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.d-8
@@ -47,7 +47,7 @@ module TOWG_module
   abstract interface
 
     subroutine TOWGUpdateAuxVarsDummy(realization,update_state)
-      use Realization_Subsurface_class  
+      use Realization_Subsurface_class
       implicit none
       type(realization_subsurface_type) :: realization
       PetscBool :: update_state
@@ -66,12 +66,12 @@ module TOWG_module
       class(material_auxvar_type) :: material_auxvar
       PetscReal :: soil_heat_capacity
       type(option_type) :: option
-      PetscReal :: Res(option%nflowdof) 
+      PetscReal :: Res(option%nflowdof)
       PetscBool :: debug_cell
     end subroutine TOWGAccumulationDummy
 
     subroutine TOWGComputeMassBalanceDummy(realization,mass_balance)
-      use Realization_Subsurface_class 
+      use Realization_Subsurface_class
       implicit none
       type(realization_subsurface_type) :: realization
       PetscReal :: mass_balance(realization%option%nflowspec, &
@@ -121,7 +121,7 @@ module TOWG_module
       use PM_TOWG_Aux_module
       use AuxVars_TOWG_module
       use Global_Aux_module
-      use Option_module                              
+      use Option_module
       use Material_Aux_class
       implicit none
       class(auxvar_towg_type) :: auxvar_up, auxvar_dn
@@ -145,14 +145,14 @@ module TOWG_module
       use Option_module
       use AuxVars_TOWG_module
       use Global_Aux_module
-      use Condition_module  
+      use Condition_module
       implicit none
       type(option_type) :: option
       type(flow_towg_condition_type), pointer :: src_sink_condition
       class(auxvar_towg_type) :: auxvar
       type(global_auxvar_type) :: global_auxvar
       PetscReal :: ss_flow_vol_flux(option%nphase)
-      PetscReal :: scale  
+      PetscReal :: scale
       PetscReal :: Res(option%nflowdof)
     end subroutine TOWGSrcSinkDummy
 
@@ -189,7 +189,7 @@ module TOWG_module
       PetscReal :: max_temperature_change
     end subroutine TOWGMaxChangeDummy
 
-  end interface 
+  end interface
 
   public :: TOWGSetup,&
             TOWGUpdateAuxVars, &
@@ -209,12 +209,12 @@ contains
 ! ************************************************************************** !
 
 subroutine TOWGSetup(realization)
-  ! 
+  !
   ! Creates arrays for TOWG auxiliary variables
-  ! 
+  !
   ! Author: Paolo Orsini (OGS)
   ! Date: 11/07/16
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Patch_module
@@ -227,7 +227,7 @@ subroutine TOWGSetup(realization)
   use Output_Aux_module
 
   implicit none
-  
+
   type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
@@ -245,11 +245,11 @@ subroutine TOWGSetup(realization)
 
   class(material_auxvar_type), pointer :: material_auxvars(:)
   !type(fluid_property_type), pointer :: cur_fluid_property
-  
+
   option => realization%option
   patch => realization%patch
   grid => patch%grid
-  
+
   patch%aux%TOWG => TOWGAuxCreate(option)
 
   ! ensure that material properties specific to this module are properly
@@ -272,11 +272,11 @@ subroutine TOWGSetup(realization)
     call printMsg(option)
     error_found = PETSC_TRUE
   endif
-  
+
   material_auxvars => patch%aux%Material%auxvars
   flag = 0
 
-  !TODO(geh): change to looping over ghosted ids once the legacy code is 
+  !TODO(geh): change to looping over ghosted ids once the legacy code is
   !           history and the communicator can be passed down.
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -326,15 +326,15 @@ subroutine TOWGSetup(realization)
   ! diffusione terms
   ! initialize parameters
   !cur_fluid_property => realization%fluid_properties
-  !do 
+  !do
   !  if (.not.associated(cur_fluid_property)) exit
   !  patch%aux%TOWGl%parameter% &
   !    diffusion_coefficient(cur_fluid_property%phase_id) = &
   !      cur_fluid_property%diffusion_coefficient
   !  cur_fluid_property => cur_fluid_property%next
-  !enddo  
+  !enddo
   ! check whether diffusion coefficients are initialized.
-  ! check initialisation of diffusiont coefficient phase by phase as for 
+  ! check initialisation of diffusiont coefficient phase by phase as for
   ! example below
   !if (Uninitialized(patch%aux%TOWG%parameter% &
   !    diffusion_coefficient(option%liquid_phase))) then
@@ -347,9 +347,9 @@ subroutine TOWGSetup(realization)
   list => realization%output_option%output_snap_variable_list
   call TOWGSetPlotVariables(list)
   list => realization%output_option%output_obs_variable_list
-  call TOWGSetPlotVariables(list) 
+  call TOWGSetPlotVariables(list)
 
-  ! covergence creteria to be chosen (can use TOUGH or TOWG type) 
+  ! covergence creteria to be chosen (can use TOUGH or TOWG type)
   ! set up here tough convergnce creteria if needed.
 
   !set up TOWG functions that can vary with the miscibility model
@@ -385,19 +385,19 @@ subroutine TOWGSetup(realization)
        status="unknown")
   write(debug_info_unit,*) 'type timestep cut iteration'
   close(debug_info_unit)
-#endif  
+#endif
 
 end subroutine TOWGSetup
 
 ! ************************************************************************** !
 
 subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
-  ! 
+  !
   ! Updates the auxiliary variables associated with the TOWG_IMS problem
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 11/30/16
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Patch_module
@@ -410,12 +410,12 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
   use Material_Aux_class
   use EOS_Water_module
   use Saturation_Function_module
-  
+
   implicit none
 
   type(realization_subsurface_type) :: realization
   PetscBool :: update_state
-  
+
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -423,7 +423,7 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
   class(pm_towg_aux_type), pointer :: towg
-  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)  
+  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
 
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
@@ -445,7 +445,7 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
 #endif
 
   PetscErrorCode :: ierr
-  
+
   option => realization%option
   patch => realization%patch
   grid => patch%grid
@@ -458,7 +458,7 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
-    
+
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
 
 #ifdef DEBUG_AUXVARS
@@ -469,7 +469,7 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
-     
+
     !geh - Ignore inactive cells with inactive materials
     if (patch%imat(ghosted_id) <= 0) cycle
     ghosted_end = ghosted_id*option%nflowdof
@@ -478,7 +478,7 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
     option%iflag = TOWG_UPDATE_FOR_FIXED_ACCUM
     natural_id = grid%nG2A(ghosted_id)
     if (grid%nG2L(ghosted_id) == 0) natural_id = -natural_id
- 
+
     !to replace with TOWGImsAuxVarCompute (there is no need for pointer here)
     call TOWGAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                         towg%auxvars(ZERO_INTEGER,ghosted_id), &
@@ -491,8 +491,8 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
   enddo
 
   boundary_condition => patch%boundary_condition_list%first
-  sum_connection = 0    
-  do 
+  sum_connection = 0
+  do
     if (.not.associated(boundary_condition)) exit
     cur_connection_set => boundary_condition%connection_set
     do iconn = 1, cur_connection_set%num_connections
@@ -500,7 +500,7 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       !geh: negate to indicate boundary connection, not actual cell
-      natural_id = -grid%nG2A(ghosted_id) 
+      natural_id = -grid%nG2A(ghosted_id)
       offset = (ghosted_id-1)*option%nflowdof
       if (patch%imat(ghosted_id) <= 0) cycle
 
@@ -572,7 +572,7 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
                   option%io_buffer = 'Unknown BC type in TOWGUpdateAuxVars().'
                   call printErrMsg(option)
               end select
-            enddo  
+            enddo
         end select
       else
         ! we do this for all BCs; Neumann bcs will be set later
@@ -588,8 +588,8 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
           endif
         enddo
       endif
-          
-      ! set this based on data given 
+
+      ! set this based on data given
       global_auxvars_bc(sum_connection)%istate = istate
       ! TOWG_UPDATE_FOR_BOUNDARY indicates call from non-perturbation
       option%iflag = TOWG_UPDATE_FOR_BOUNDARY
@@ -613,21 +613,21 @@ end subroutine TOWGImsTLUpdateAuxVars
 ! ************************************************************************** !
 
 subroutine TOWGInitializeTimestep(realization)
-  ! 
+  !
   ! Update data in module prior to time step
-  ! 
+  !
   ! Author: Paolo Orsini
-  ! Date: 12/07/16 
-  ! 
+  ! Date: 12/07/16
+  !
 
   use Realization_Subsurface_class
-  
+
   implicit none
-  
+
   type(realization_subsurface_type) :: realization
 
   call TOWGUpdateFixedAccum(realization)
-  
+
 #ifdef DEBUG_TOWG_FILEOUTPUT
   debug_flag = 0
   if (.true.) then
@@ -642,13 +642,13 @@ end subroutine TOWGInitializeTimestep
 ! ************************************************************************** !
 
 subroutine TOWGUpdateSolution(realization)
-  ! 
+  !
   ! Updates data in module after a successful time
   ! step
-  ! 
+  !
   ! Author: Paolo Orsini
-  ! Date: 12/06/16 
-  ! 
+  ! Date: 12/06/16
+  !
 
   use Realization_Subsurface_class
   use Field_module
@@ -656,9 +656,9 @@ subroutine TOWGUpdateSolution(realization)
   use Discretization_module
   use Option_module
   use Grid_module
-  
+
   implicit none
-  
+
   type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
@@ -666,21 +666,21 @@ subroutine TOWGUpdateSolution(realization)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   class(pm_towg_aux_type), pointer :: towg
-  type(global_auxvar_type), pointer :: global_auxvars(:)  
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: local_id, ghosted_id
   PetscErrorCode :: ierr
-  
+
   option => realization%option
   field => realization%field
   patch => realization%patch
   grid => patch%grid
   towg => patch%aux%TOWG
   global_auxvars => patch%aux%Global%auxvars
-  
+
   if (realization%option%compute_mass_balance_new) then
     call TOWGUpdateMassBalance(realization)
   endif
-  
+
   do ghosted_id = 1, grid%ngmax
     towg%auxvars(ZERO_INTEGER,ghosted_id)%istate_store(TOWG_PREV_TS) = &
       global_auxvars(ghosted_id)%istate
@@ -690,35 +690,35 @@ subroutine TOWGUpdateSolution(realization)
   debug_iteration_count = 0
   debug_timestep_cut_count = 0
   debug_timestep_count = debug_timestep_count + 1
-#endif 
-    
+#endif
+
 end subroutine TOWGUpdateSolution
 
 ! ************************************************************************** !
 
 subroutine TOWGTimeCut(realization)
-  ! 
+  !
   ! Resets arrays for time step cut
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/30/16
-  ! 
+  !
   use Realization_Subsurface_class
   use Option_module
   use Field_module
   use Patch_module
   use Discretization_module
   use Grid_module
- 
+
   implicit none
-  
+
   type(realization_subsurface_type) :: realization
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(pm_towg_aux_type), pointer :: towg
-  
+
   PetscInt :: local_id, ghosted_id
   PetscErrorCode :: ierr
 
@@ -736,31 +736,31 @@ subroutine TOWGTimeCut(realization)
 
 #ifdef DEBUG_TOWG_FILEOUTPUT
   debug_timestep_cut_count = debug_timestep_cut_count + 1
-#endif 
+#endif
 
-  call TOWGInitializeTimestep(realization)  
+  call TOWGInitializeTimestep(realization)
 
 end subroutine TOWGTimeCut
 
 ! ************************************************************************** !
 
 subroutine TOWGZeroMassBalanceDelta(realization)
-  ! 
-  ! Zeros mass balance delta array  
-  ! PO: identical for many flow modes (Genral, Toil_Ims, TOWG), where can it 
+  !
+  ! Zeros mass balance delta array
+  ! PO: identical for many flow modes (Genral, Toil_Ims, TOWG), where can it
   !     be located to be shared?? flow_mode_common.F90 ?
-  ! 
+  !
   ! Author: Paolo Orsini
-  ! Date: 12/08/16 
-  ! 
- 
+  ! Date: 12/08/16
+  !
+
   use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Grid_module
- 
+
   implicit none
-  
+
   type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
@@ -788,27 +788,27 @@ end subroutine TOWGZeroMassBalanceDelta
 ! ************************************************************************** !
 
 subroutine TOWGUpdateMassBalance(realization)
-  ! 
+  !
   ! Updates mass balance
-  ! 
+  !
   ! Author: Paolo Orsini
-  ! Date: 12/06/16 
-  ! 
- 
+  ! Date: 12/06/16
+  !
+
   use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Grid_module
- 
+
   implicit none
-  
+
   type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  
+
   PetscInt :: iconn
   PetscInt :: icomp
 
@@ -840,22 +840,22 @@ end subroutine TOWGUpdateMassBalance
 ! ************************************************************************** !
 
 subroutine TOWGImsTLComputeMassBalance(realization,mass_balance)
-  ! 
+  !
   ! Initializes mass balance
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/21/16
-  ! 
- 
+  !
+
   use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Field_module
   use Grid_module
   use Material_Aux_class
- 
+
   implicit none
-  
+
   type(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nflowspec, &
                             realization%option%nphase)
@@ -894,7 +894,7 @@ subroutine TOWGImsTLComputeMassBalance(realization,mass_balance)
         towg%auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)* &
         towg%auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity* &
         material_auxvars(ghosted_id)%volume
-      ! mass = volume_phase*density 
+      ! mass = volume_phase*density
       mass_balance(iphase,1) = mass_balance(iphase,1) + &
         towg%auxvars(ZERO_INTEGER,ghosted_id)%den(iphase)* &
         towg_fmw_comp(iphase) * vol_phase
@@ -908,12 +908,12 @@ end subroutine TOWGImsTLComputeMassBalance
 subroutine TOWGImsTLMaxChange(realization,max_change_ivar,max_change_isubvar,&
                               max_pressure_change,max_xmol_change, &
                               max_saturation_change,max_temperature_change)
-  ! 
+  !
   ! Compute primary variable max changes
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/30/16
-  ! 
+  !
 
   use Realization_Base_class
   use Realization_Subsurface_class
@@ -926,7 +926,7 @@ subroutine TOWGImsTLMaxChange(realization,max_change_ivar,max_change_isubvar,&
   !                             TEMPERATURE, GAS_PRESSURE, AIR_PRESSURE, &
   !                             GAS_SATURATION
   implicit none
-  
+
   class(realization_subsurface_type), pointer :: realization
   PetscInt :: max_change_ivar(:)
   PetscInt :: max_change_isubvar(:)
@@ -946,14 +946,14 @@ subroutine TOWGImsTLMaxChange(realization,max_change_ivar,max_change_isubvar,&
   PetscInt :: local_id, ghosted_id
 
   PetscErrorCode :: ierr
-  
+
   option => realization%option
   field => realization%field
   grid => realization%patch%grid
 
   max_change_global = 0.d0
   max_change_local = 0.d0
-  
+
   ! 'TOWG_IMMISCIBLE','TODD_LONGOSTAFF'
   ! max change variables = [OIL_PRESSURE, OIL_SATURATION, &
   !                         GAS_SATURATION,TEMPERATURE]
@@ -990,7 +990,7 @@ subroutine TOWGImsTLMaxChange(realization,max_change_ivar,max_change_isubvar,&
       & " dsg= ",1pe12.4,/,15x,"  dt= ",1pe12.4)') &
       max_change_global(1:4)
   endif
- 
+
   ! 'TOWG_IMMISCIBLE','TODD_LONGOSTAFF'
   ! max change variables = [OIL_PRESSURE, OIL_SATURATION, &
   !                         GAS_SATURATION,TEMPERATURE]
@@ -998,7 +998,7 @@ subroutine TOWGImsTLMaxChange(realization,max_change_ivar,max_change_isubvar,&
   max_xmol_change = 0.0d0
   max_saturation_change = maxval(max_change_global(2:3))
   max_temperature_change = max_change_global(4)
-  
+
 end subroutine TOWGImsTLMaxChange
 
 ! ************************************************************************** !
@@ -1006,10 +1006,10 @@ end subroutine TOWGImsTLMaxChange
 subroutine TOWGMapBCAuxVarsToGlobal(realization)
   !
   ! Map BC auxvars for TOWG problem coupled with reactive transport
-  ! 
+  !
   ! Author: Paolo Orsini
-  ! Date: 12/06/16 
-  ! 
+  ! Date: 12/06/16
+  !
 
   use Realization_Subsurface_class
   use Option_module
@@ -1020,27 +1020,27 @@ subroutine TOWGMapBCAuxVarsToGlobal(realization)
   implicit none
 
   type(realization_subsurface_type) :: realization
-  
+
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
   class(pm_towg_aux_type), pointer :: towg
-  type(global_auxvar_type), pointer :: global_auxvars_bc(:)  
+  type(global_auxvar_type), pointer :: global_auxvars_bc(:)
 
   PetscInt :: sum_connection, iconn
-  
+
   option => realization%option
   patch => realization%patch
 
   if (option%ntrandof == 0) return ! no need to update
-  
+
   towg => patch%aux%TOWG
   global_auxvars_bc => patch%aux%Global%auxvars_bc
-  
+
   boundary_condition => patch%boundary_condition_list%first
-  sum_connection = 0    
-  do 
+  sum_connection = 0
+  do
     if (.not.associated(boundary_condition)) exit
     cur_connection_set => boundary_condition%connection_set
     do iconn = 1, cur_connection_set%num_connections
@@ -1054,33 +1054,33 @@ subroutine TOWGMapBCAuxVarsToGlobal(realization)
     enddo
     boundary_condition => boundary_condition%next
   enddo
-  
+
 end subroutine TOWGMapBCAuxVarsToGlobal
 
 ! ************************************************************************** !
 
 subroutine TOWGSetPlotVariables(list)
-  ! 
+  !
   ! Adds variables to be printed to list for TOWG module
-  ! 
+  !
   ! Author: Paolo Orsini (OGS)
   ! Date: 11/29/16
-  ! 
-  
+  !
+
   use Output_Aux_module
   use Variables_module
-    
+
   implicit none
-  
+
   type(output_variable_list_type), pointer :: list
-  
+
   character(len=MAXWORDLENGTH) :: name, units
   type(output_variable_type), pointer :: output_variable
 
   if (associated(list%first)) then
     return
   endif
-  
+
   name = 'Temperature'
   units = 'C'
   call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
@@ -1105,7 +1105,7 @@ subroutine TOWGSetPlotVariables(list)
   units = ''
   call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
                                LIQUID_SATURATION)
-  
+
   name = 'Oil Saturation'
   units = ''
   call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
@@ -1120,7 +1120,7 @@ subroutine TOWGSetPlotVariables(list)
   units = 'kg/m^3'
   call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                LIQUID_DENSITY)
-  
+
   name = 'Oil Density'
   units = 'kg/m^3'
   call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
@@ -1130,7 +1130,7 @@ subroutine TOWGSetPlotVariables(list)
   units = 'kg/m^3'
   call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                GAS_DENSITY)
-  
+
   name = 'Liquid Energy'
   units = 'MJ/kmol'
   call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
@@ -1160,32 +1160,32 @@ subroutine TOWGSetPlotVariables(list)
   end if
 
   if ( towg_miscibility_model == TOWG_SOLVENT_TL ) then
-    ! add solvent saturation 
+    ! add solvent saturation
      write(*,*) "error: TOWGSetPlotVariables: TOWG_SOLVENT_TL " // &
                 "not currently supported"
      stop
   end if
 
- ! to switch on when TOWG_BLACK_OIL is implemented 
+ ! to switch on when TOWG_BLACK_OIL is implemented
  ! name = 'Thermodynamic State'
  ! units = ''
  ! output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE,units,STATE)
  ! output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
  ! output_variable%iformat = 1 ! integer
- ! call OutputVariableAddToList(list,output_variable)   
-  
+ ! call OutputVariableAddToList(list,output_variable)
+
 end subroutine TOWGSetPlotVariables
 
 ! ************************************************************************** !
 
 subroutine TOWGUpdateFixedAccum(realization)
-  ! 
+  !
   ! Updates the fixed portion of the
   ! accumulation term
-  ! 
+  !
   ! Author: Paolo Orsini
-  ! Date: 12/07/16 
-  ! 
+  ! Date: 12/07/16
+  !
 
   use Realization_Subsurface_class
   use Patch_module
@@ -1195,9 +1195,9 @@ subroutine TOWGUpdateFixedAccum(realization)
   use Material_Aux_class
 
   implicit none
-  
+
   type(realization_subsurface_type) :: realization
-  
+
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -1211,9 +1211,9 @@ subroutine TOWGUpdateFixedAccum(realization)
   PetscInt :: imat
   PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
-                          
+
   PetscErrorCode :: ierr
-  
+
   option => realization%option
   field => realization%field
   patch => realization%patch
@@ -1223,17 +1223,17 @@ subroutine TOWGUpdateFixedAccum(realization)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
   material_parameter => patch%aux%Material%material_parameter
-    
+
   call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
-  !IF towg convergence criteria required: 
+  !IF towg convergence criteria required:
   !   initialize dynamic accumulation term for every p iteration step
   !if (towg_tough2_conv_criteria) then
   !  call VecGetArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
   !endif
-  
+
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
@@ -1257,42 +1257,42 @@ subroutine TOWGUpdateFixedAccum(realization)
                           material_auxvars(ghosted_id), &
                           material_parameter%soil_heat_capacity(imat), &
                           option,accum_p(local_start:local_end), &
-                          local_id == towg_debug_cell_id) 
+                          local_id == towg_debug_cell_id)
   enddo
-  
+
   !for tough2 convergence criteria
   !if (towg_tough2_conv_criteria) then
   !  accum_p2 = accum_p
   !endif
-  
+
   call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
 
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  
+
   !tough2 convergence criteria:
   ! initialize dynamic accumulation term for every p iteration step
   !if (towg_tough2_conv_criteria) then
   !  call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
   !endif
-  
+
 end subroutine TOWGUpdateFixedAccum
 
 ! ************************************************************************** !
 
 subroutine TOWGImsTLAccumulation(auxvar,global_auxvar,material_auxvar, &
                                  soil_heat_capacity,option,Res,debug_cell)
-  ! 
+  !
   ! Computes the non-fixed portion of the accumulation
   ! term for the residual - TOWG_IMS and TOWG_TL models
-  ! 
+  !
   ! Author: Paolo Orsini
-  ! Date: 12/07/16 
-  ! 
+  ! Date: 12/07/16
+  !
 
   use Option_module
   use Material_module
   use Material_Aux_class
-  
+
   implicit none
 
   class(auxvar_towg_type) :: auxvar
@@ -1300,35 +1300,35 @@ subroutine TOWGImsTLAccumulation(auxvar,global_auxvar,material_auxvar, &
   class(material_auxvar_type) :: material_auxvar
   PetscReal :: soil_heat_capacity
   type(option_type) :: option
-  PetscReal :: Res(option%nflowdof) 
+  PetscReal :: Res(option%nflowdof)
   PetscBool :: debug_cell
-  
+
   PetscInt :: iphase, energy_id
-  
+
   PetscReal :: porosity
   PetscReal :: volume_over_dt
- 
+
   energy_id = option%energy_id
-  
+
   ! v_over_t[m^3 bulk/sec] = vol[m^3 bulk] / dt[sec]
   volume_over_dt = material_auxvar%volume / option%flow_dt
-  ! must use gen_auxvar%effective porosity here as it enables numerical 
-  ! derivatives to be employed 
+  ! must use gen_auxvar%effective porosity here as it enables numerical
+  ! derivatives to be employed
   porosity = auxvar%effective_porosity
-  
-  ! accumulation term units = kmol/s 
+
+  ! accumulation term units = kmol/s
   ! not for TOWG IMS and TL (kmol phase) = (kmol comp)
   ! and nphase = nflowspec
   Res = 0.d0
   do iphase = 1, option%nphase
-    ! Res[kmol phase/m^3 void] = sat[m^3 phase/m^3 void] * 
-    !                           den[kmol phase/m^3 phase] * 
+    ! Res[kmol phase/m^3 void] = sat[m^3 phase/m^3 void] *
+    !                           den[kmol phase/m^3 phase] *
     Res(iphase) = Res(iphase) + auxvar%sat(iphase) * &
-                                auxvar%den(iphase) 
+                                auxvar%den(iphase)
   enddo
 
   ! scale by porosity * volume / dt
-  ! Res[kmol/sec] = Res[kmol/m^3 void] * por[m^3 void/m^3 bulk] * 
+  ! Res[kmol/sec] = Res[kmol/m^3 void] * por[m^3 void/m^3 bulk] *
   !                 vol[m^3 bulk] / dt[sec]
   Res(1:option%nflowspec) = Res(1:option%nflowspec) * &
                             porosity * volume_over_dt
@@ -1340,20 +1340,20 @@ subroutine TOWGImsTLAccumulation(auxvar,global_auxvar,material_auxvar, &
                                       auxvar%den(iphase) * &
                                       auxvar%U(iphase)
   enddo
-  ! Res[MJ/sec] = (Res[MJ/m^3 void] * por[m^3 void/m^3 bulk] + 
-  !                (1-por)[m^3 rock/m^3 bulk] * 
+  ! Res[MJ/sec] = (Res[MJ/m^3 void] * por[m^3 void/m^3 bulk] +
+  !                (1-por)[m^3 rock/m^3 bulk] *
   !                  dencpr[kg rock/m^3 rock * MJ/kg rock-K] * T[C]) &
   !               vol[m^3 bulk] / dt[sec]
   Res(energy_id) = (Res(energy_id) * porosity + &
                     (1.d0 - porosity) * &
                     material_auxvar%soil_particle_density * &
                     soil_heat_capacity * auxvar%temp) * volume_over_dt
-  
+
 #ifdef DEBUG_TOWG_FILEOUTPUT
   if (debug_flag > 0) then
     write(debug_unit,'(a,7es24.15)') 'accum:', Res
   endif
-#endif                    
+#endif
 
 end subroutine TOWGImsTLAccumulation
 
@@ -1370,20 +1370,20 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
                          area, dist, towg_parameter, &
                          option,v_darcy,Res, &
                          debug_connection)
-  ! 
+  !
   ! Computes the internal flux terms for the residual
-  ! 
+  !
   ! Author: Paolo Orsini
-  ! Date: 12/08/16 
-  ! 
+  ! Date: 12/08/16
+  !
   use Option_module
   use Material_Aux_class
   use Connection_module
   !use Fracture_module
   !use Klinkenberg_module
-  
+
   implicit none
-  
+
   class(auxvar_towg_type) :: auxvar_up, auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
@@ -1404,7 +1404,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
 
   PetscInt :: energy_id
   PetscInt :: iphase
-  
+
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: uH
   PetscReal :: H_ave
@@ -1420,7 +1420,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   !for debugging
   PetscReal :: adv_flux(option%nflowdof)
   PetscReal :: debug_flux(3), debug_dphi(3)
-  
+
   PetscReal :: dummy_dperm_up, dummy_dperm_dn
   PetscReal :: temp_perm_up, temp_perm_dn
   PetscReal :: denup,dendn
@@ -1433,7 +1433,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
                                     dist_gravity,upweight)
   call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
   call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
-  
+
   ! Fracture permeability change only available for structured grid (Heeho)
   !if (associated(material_auxvar_up%fracture)) then
   !  call FracturePermEvaluate(material_auxvar_up,perm_up,temp_perm_up, &
@@ -1445,7 +1445,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   !                            dummy_dperm_dn,dist)
   !  perm_dn = temp_perm_dn
   !endif
-  
+
   !if (associated(klinkenberg)) then
   !  perm_ave_over_dist(1) = (perm_up * perm_dn) / &
   !                          (dist_up*perm_dn + dist_dn*perm_up)
@@ -1459,11 +1459,11 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
     perm_ave_over_dist(:) = (perm_up * perm_dn) / &
                             (dist_up*perm_dn + dist_dn*perm_up)
   !endif
-      
+
   Res = 0.d0
-  
+
   v_darcy = 0.d0
-#ifdef DEBUG_FLUXES  
+#ifdef DEBUG_FLUXES
   adv_flux = 0.d0
 #endif
 #ifdef DEBUG_TOWG_FILEOUTPUT
@@ -1474,7 +1474,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
 #ifdef CONVECTION
 
   do iphase = 1, option%nphase
- 
+
     if (auxvar_up%mobility(iphase) + &
         auxvar_dn%mobility(iphase) < eps) then
       cycle
@@ -1519,7 +1519,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
       mobility = auxvar_dn%mobility(iphase)
       H_ave = auxvar_dn%H(iphase)
       uH = H_ave
-    endif      
+    endif
 
     if (mobility > floweps) then
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
@@ -1530,21 +1530,21 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
                                             auxvar_up%den(iphase), &
                                             auxvar_dn%den(iphase) )
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-      q = v_darcy(iphase) * area  
-      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
-      !                             density_ave[kmol phase/m^3 phase]        
+      q = v_darcy(iphase) * area
+      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+      !                             density_ave[kmol phase/m^3 phase]
       mole_flux = q*density_ave
 
       ! Res[kmol total/sec] = mole_flux[kmol phase/sec]
       Res(iphase) = mole_flux
 
       !do icomp = 1, option%nflowspec
-      !  ! Res[kmol comp/sec] = mole_flux[kmol phase/sec] * 
+      !  ! Res[kmol comp/sec] = mole_flux[kmol phase/sec] *
       !  !                      xmol[kmol comp/kmol phase]
       !  Res(icomp) = Res(icomp) + mole_flux * xmol(icomp)
       !enddo
 
-#ifdef DEBUG_FLUXES  
+#ifdef DEBUG_FLUXES
       adv_flux(iphase) = mole_flux
       !do icomp = 1, option%nflowspec
       !  adv_flux(icomp) = adv_flux(icomp) + mole_flux * xmol(icomp)
@@ -1554,7 +1554,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
       ! Res[MJ/sec] = mole_flux[kmol comp/sec] * H_ave[MJ/kmol comp]
       Res(energy_id) = Res(energy_id) + mole_flux * uH
 
-#ifdef DEBUG_FLUXES  
+#ifdef DEBUG_FLUXES
       adv_flux(energy_id) = adv_flux(energy_id) + mole_flux * uH
 #endif
 
@@ -1562,27 +1562,27 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
       debug_dphi(iphase) = delta_pressure
       debug_flux(iphase) = mole_flux * uH
 #endif
-    endif                   
+    endif
 
   enddo
 ! CONVECTION
 #endif
 
 #ifdef DEBUG_TOWG_FILEOUTPUT
-  if (debug_flag > 0) then  
+  if (debug_flag > 0) then
     write(debug_unit,'(a,7es24.15)') 'delta pressure :', debug_dphi(:)
     write(debug_unit,'(a,7es24.15)') 'adv flux (energy):', debug_flux(:)
   endif
   debug_flux = 0.d0
-#endif                    
+#endif
 
 
 #ifdef CONDUCTION
   ! add heat conduction flux
   ! based on Somerton et al., 1974:
-  ! k_eff = k_dry + sqrt(s_l)*(k_sat-k_dry) 
+  ! k_eff = k_dry + sqrt(s_l)*(k_sat-k_dry)
   ! Assuming that oil and water have same conductivity:
-  ! s_l = S_water + S_oil 
+  ! s_l = S_water + S_oil
   sat_liquid = auxvar_up%sat(option%liquid_phase) + &
                auxvar_up%sat(option%oil_phase)
   k_eff_up = thermal_conductivity_up(1) + &
@@ -1609,9 +1609,9 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   Res(energy_id) = Res(energy_id) + heat_flux
 ! CONDUCTION
 #endif
-  
-#ifdef DEBUG_FLUXES  
-  if (debug_connection) then  
+
+#ifdef DEBUG_FLUXES
+  if (debug_connection) then
 !    write(*,'(a,7es12.4)') 'in: ', adv_flux(:)*dist(1), diff_flux(:)*dist(1)
     write(*,'('' phase: liquid'')')
     write(*,'(''  pressure   :'',2es12.4)') auxvar_up%pres(1), auxvar_dn%pres(1)
@@ -1651,19 +1651,19 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                            thermal_conductivity_dn, &
                            area,dist,towg_parameter, &
                            option,v_darcy,Res,debug_connection)
-  ! 
+  !
   ! Computes the boundary flux terms for the residual
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/22/16
-  ! 
-  use Option_module                              
+  !
+  use Option_module
   use Material_Aux_class
   !use Fracture_module
   !use Klinkenberg_module
-  
+
   implicit none
-  
+
   class(auxvar_towg_type) :: auxvar_up, auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
@@ -1678,7 +1678,7 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   PetscInt :: bc_auxvar_mapping(TOWG_MAX_INDEX)
   PetscReal :: thermal_conductivity_dn(2)
   PetscBool :: debug_connection
-  
+
   PetscInt :: energy_id
   PetscInt :: iphase !, icomp
   PetscInt :: bc_type
@@ -1704,20 +1704,20 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
   PetscInt :: idof
   PetscBool :: neumann_bc_present
-  
+
   PetscReal :: temp_perm_dn
   PetscReal :: dummy_dperm_dn
 
   PetscReal :: denup,dendn
 
   PetscBool :: istl,isoil,isgas
-  
+
   energy_id = option%energy_id
 
   Res = 0.d0
-  v_darcy = 0.d0  
+  v_darcy = 0.d0
 
-#ifdef DEBUG_FLUXES  
+#ifdef DEBUG_FLUXES
   adv_flux = 0.d0
 #endif
 #ifdef DEBUG_TOWG_FILEOUTPUT
@@ -1726,7 +1726,7 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 #endif
 
   neumann_bc_present = PETSC_FALSE
-  
+
   call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
 
   ! Fracture permeability change only available for structured grid (Heeho)
@@ -1734,20 +1734,20 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   !  call FracturePermEvaluate(material_auxvar_dn,perm_dn,temp_perm_dn, &
   !                            dummy_dperm_dn,dist)
   !  perm_dn = temp_perm_dn
-  !endif  
-  
+  !endif
+
   !if (associated(klinkenberg)) then
   !  perm_dn_adj(1) = perm_dn
-  !                                        
+  !
   !  perm_dn_adj(2) = klinkenberg%Evaluate(perm_dn, &
   !                                        gen_auxvar_dn%pres(option%gas_phase))
   !else
     perm_dn_adj(:) = perm_dn
   !endif
-  
-#ifdef CONVECTION  
+
+#ifdef CONVECTION
   do iphase = 1, option%nphase
- 
+
     bc_type = ibndtype(iphase)
     select case(bc_type)
       ! figure out the direction of flow
@@ -1757,32 +1757,32 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
         ! gravity = vector(3)
         ! dist(1:3) = vector(3) - unit vector
         dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
-      
+
         if (bc_type == CONDUCTANCE_BC) then
-          select case(option%phase_map(iphase)) 
+          select case(option%phase_map(iphase))
             case(LIQUID_PHASE)
               idof = bc_auxvar_mapping(TOWG_LIQ_CONDUCTANCE_INDEX)
             case(OIL_PHASE)
               idof = bc_auxvar_mapping(TOWG_OIL_CONDUCTANCE_INDEX)
             case(GAS_PHASE)
               idof = bc_auxvar_mapping(TOWG_GAS_CONDUCTANCE_INDEX)
-          end select        
+          end select
           perm_ave_over_dist = bc_auxvars(idof)
         else
           perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
         endif
-        
-          
+
+
         ! using residual saturation cannot be correct! - geh
         ! reusing sir_dn for bounary auxvar
 #define BAD_MOVE1 ! this works
-#ifndef BAD_MOVE1       
+#ifndef BAD_MOVE1
         if (auxvar_up%sat(iphase) > sir_dn(iphase) .or. &
             auxvar_dn%sat(iphase) > sir_dn(iphase)) then
 #endif
           boundary_pressure = auxvar_up%pres(iphase)
 
-          !PO: no free surfce boundaries considered           
+          !PO: no free surfce boundaries considered
           !if (iphase == LIQUID_PHASE .and. &
           !    global_auxvar_up%istate == GAS_STATE) then
           !  ! the idea here is to accommodate a free surface boundary
@@ -1833,15 +1833,15 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
               delta_pressure = 0.d0
             endif
           endif
-          
-          !upwinding mobility and enthalpy  
+
+          !upwinding mobility and enthalpy
           if (delta_pressure >= 0.D0) then
             mobility = auxvar_up%mobility(iphase)
             uH = auxvar_up%H(iphase)
           else
             mobility = auxvar_dn%mobility(iphase)
             uH = auxvar_dn%H(iphase)
-          endif      
+          endif
 
           if (mobility > floweps) then
             ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
@@ -1853,7 +1853,7 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                                                   auxvar_up%den(iphase), &
                                                   auxvar_dn%den(iphase) )
           endif
-#ifndef BAD_MOVE1        
+#ifndef BAD_MOVE1
         endif ! sat > eps
 #endif
 
@@ -1866,20 +1866,20 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
           case(GAS_PHASE)
             idof = bc_auxvar_mapping(TOWG_GAS_FLUX_INDEX)
         end select
-        
+
         neumann_bc_present = PETSC_TRUE
         !xmol = 0.d0
         !xmol(iphase) = 1.d0
         if (dabs(bc_auxvars(idof)) > floweps) then
           v_darcy(iphase) = bc_auxvars(idof)
           !upwinding based on given BC flux sign
-          if (v_darcy(iphase) > 0.d0) then 
+          if (v_darcy(iphase) > 0.d0) then
             density_ave = auxvar_up%den(iphase)
             uH = auxvar_up%H(iphase)
-          else 
+          else
             density_ave = auxvar_dn%den(iphase)
             uH = auxvar_dn%H(iphase)
-          endif 
+          endif
         endif
       case default
         option%io_buffer = &
@@ -1894,19 +1894,19 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
         option%io_buffer = 'Zero density in TOWGImsTLBCFlux()'
         call printErrMsgByRank(option)
       endif
-      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
+      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
       !                              density_ave[kmol phase/m^3 phase]
       mole_flux = q*density_ave
-      ! Res[kmol phase/sec] 
-      Res(iphase) = mole_flux 
+      ! Res[kmol phase/sec]
+      Res(iphase) = mole_flux
 
       !do icomp = 1, option%nflowspec
-      !  ! Res[kmol comp/sec] = mole_flux[kmol phase/sec] * 
+      !  ! Res[kmol comp/sec] = mole_flux[kmol phase/sec] *
       !  !                      xmol[kmol comp/mol phase]
       !  Res(icomp) = Res(icomp) + mole_flux * xmol(icomp)
       !enddo
-#ifdef DEBUG_FLUXES  
-      adv_flux(iphase) = mole_flux 
+#ifdef DEBUG_FLUXES
+      adv_flux(iphase) = mole_flux
       !do icomp = 1, option%nflowspec
       !  adv_flux(icomp,iphase) = adv_flux(icomp,iphase) + mole_flux * xmol(icomp)
       !enddo
@@ -1919,7 +1919,7 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       ! Res[MJ/sec] = mole_flux[kmol comp/sec] * H_ave[MJ/kmol comp]
       Res(energy_id) = Res(energy_id) + mole_flux * uH ! H_ave
 
-#ifdef DEBUG_FLUXES  
+#ifdef DEBUG_FLUXES
       adv_flux(energy_id) = adv_flux(energy_id) + mole_flux * uH
 #endif
 #ifdef DEBUG_TOWG_FILEOUTPUT
@@ -1931,12 +1931,12 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 #endif
 
 #ifdef DEBUG_TOWG_FILEOUTPUT
-  if (debug_flag > 0) then  
+  if (debug_flag > 0) then
     write(debug_unit,'(a,7es24.15)') 'bc delta pressure :', debug_dphi(:)
     write(debug_unit,'(a,7es24.15)') 'bc adv flux (energy):', debug_flux(:)
   endif
   debug_flux = 0.d0
-#endif                    
+#endif
 
 #ifdef CONDUCTION
   ! add heat conduction flux
@@ -1946,7 +1946,7 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       ! based on Somerton et al., 1974:
       ! k_eff = k_dry + sqrt(s_l)*(k_sat-k_dry)
       ! Assuming that oil and water have same conductivity:
-      ! s_l = S_water + S_oil 
+      ! s_l = S_water + S_oil
       sat_liquid = auxvar_dn%sat(option%liquid_phase) + &
                    auxvar_dn%sat(option%oil_phase)
 
@@ -1975,8 +1975,8 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 #endif
 
 
-#ifdef DEBUG_FLUXES  
-  if (debug_connection) then  
+#ifdef DEBUG_FLUXES
+  if (debug_connection) then
     write(*,'('' bc phase: liquid'')')
     write(*,'(''  pressure   :'',2es12.4)') auxvar_up%pres(1), auxvar_dn%pres(1)
     write(*,'(''  saturation :'',2es12.4)') auxvar_up%sat(1), auxvar_dn%sat(1)
@@ -2002,22 +2002,22 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
   endif
 #endif
-  
+
 end subroutine TOWGImsTLBCFlux
 
 ! ************************************************************************** !
 
 subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
                             global_auxvar,ss_flow_vol_flux,scale,Res)
-  ! 
-  ! Computes the source/sink terms for the residual 
-  ! 
+  !
+  ! Computes the source/sink terms for the residual
+  !
   ! Author: Paolo Orsini
   ! Date: 12/27/16
-  ! 
+  !
 
   use Option_module
-  use Condition_module  
+  use Condition_module
 
   use EOS_Water_module
   use EOS_Oil_module
@@ -2030,15 +2030,15 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
   class(auxvar_towg_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar !keep global_auxvar for salinity
   PetscReal :: ss_flow_vol_flux(option%nphase)
-  PetscReal :: scale  
+  PetscReal :: scale
   PetscReal :: Res(option%nflowdof)
 
   ! local parameter
   PetscInt, parameter :: SRC_TEMPERATURE = 1
-  PetscInt, parameter :: SRC_ENTHALPY = 2 
+  PetscInt, parameter :: SRC_ENTHALPY = 2
   ! local variables
   PetscReal, pointer :: qsrc(:)
-  PetscInt :: flow_src_sink_type    
+  PetscInt :: flow_src_sink_type
   PetscReal :: qsrc_mol
   PetscReal :: den, den_kg, enthalpy, internal_energy_dummy, temperature
   PetscReal :: cell_pressure
@@ -2050,24 +2050,24 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
   if (.not.associated(src_sink_condition%rate) ) then
     option%io_buffer = 'TOWGImsTLSrcSink fow condition rate not defined ' // &
     'rate is needed for a valid src/sink term'
-    call printErrMsg(option)  
+    call printErrMsg(option)
   end if
 
   qsrc => src_sink_condition%rate%dataset%rarray
 
   energy_var = 0
   if ( associated(src_sink_condition%temperature) ) then
-    energy_var = SRC_TEMPERATURE 
+    energy_var = SRC_TEMPERATURE
   else if ( associated(src_sink_condition%enthalpy) ) then
     energy_var = SRC_ENTHALPY
   end if
 
   flow_src_sink_type = src_sink_condition%rate%itype
 
-  ! checks that qsrc(liquid_phase), qsrc(oil_phase), qsrc(gas_phase) 
+  ! checks that qsrc(liquid_phase), qsrc(oil_phase), qsrc(gas_phase)
   ! do not have different signs
   ! if ( (qsrc(option%liquid_phase)>0.0d0 .and. qsrc(option%oil_phase)<0.d0).or.&
-  !     (qsrc(option%liquid_phase)<0.0d0 .and. qsrc(option%oil_phase)>0.d0)  & 
+  !     (qsrc(option%liquid_phase)<0.0d0 .and. qsrc(option%oil_phase)>0.d0)  &
   !   ) then
   !   option%io_buffer = "TOilImsSrcSink error: " // &
   !     "src(wat) and src(oil) with opposite sign"
@@ -2082,39 +2082,41 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
         maxval(auxvar%pres(option%liquid_phase:option%gas_phase))
   end if
 
-  ! if enthalpy is used to define enthalpy or energy rate is used  
+  ! if enthalpy is used to define enthalpy or energy rate is used
   ! approximate bottom hole temperature (BHT) with local temp
   if ( associated(src_sink_condition%temperature) ) then
     temperature = src_sink_condition%temperature%dataset%rarray(1)
-  else   
+  else
     temperature = auxvar%temp
   end if
 
   Res = 0.d0
   do iphase = 1, option%nphase
     qsrc_mol = 0.d0
-    if ( qsrc(iphase) > 0.d0) then 
+    if ( qsrc(iphase) > 0.d0) then
       select case(option%phase_map(iphase))
         case(LIQUID_PHASE)
           call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
         case(OIL_PHASE)
-          call EOSOilDensity(temperature,cell_pressure,den,ierr)
+          call EOSOilDensity(temperature,cell_pressure,den,ierr, &
+                             auxvar%eos_table_idx)
         case(GAS_PHASE)
-          call EOSGasDensity(temperature,cell_pressure,den,ierr)
-      end select 
+          call EOSGasDensity(temperature,cell_pressure,den,ierr, &
+                             auxvar%eos_table_idx)
+      end select
     else
       den = auxvar%den(iphase)
     end if
 
     select case(flow_src_sink_type)
-      ! injection and production 
+      ! injection and production
       case(MASS_RATE_SS)
         qsrc_mol = qsrc(iphase)/towg_fmw_comp(iphase) ! kg/sec -> kmol/sec
       case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
-        qsrc_mol = qsrc(iphase)/towg_fmw_comp(iphase)*scale 
-      case(VOLUMETRIC_RATE_SS)  ! assume local density for now 
-                  ! qsrc(iphase) = m^3/sec  
-        qsrc_mol = qsrc(iphase)*den ! den = kmol/m^3 
+        qsrc_mol = qsrc(iphase)/towg_fmw_comp(iphase)*scale
+      case(VOLUMETRIC_RATE_SS)  ! assume local density for now
+                  ! qsrc(iphase) = m^3/sec
+        qsrc_mol = qsrc(iphase)*den ! den = kmol/m^3
       case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
         ! qsrc1 = m^3/sec             ! den = kmol/m^3
         qsrc_mol = qsrc(iphase)* den * scale
@@ -2123,7 +2125,7 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
     Res(iphase) = qsrc_mol
   enddo
 
-  ! when using scaled src/sinks, the rates (mass or vol) scaling 
+  ! when using scaled src/sinks, the rates (mass or vol) scaling
   ! at this point the scale factor is already included in Res(iphase)
 
   ! Res(option%energy_id), energy units: MJ/sec
@@ -2133,13 +2135,13 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
   !   ) then
   !if the energy rate is not given, use either temperature or enthalpy
   if ( dabs(qsrc(FOUR_INTEGER)) < 1.0d-40 ) then
-    ! water injection 
+    ! water injection
     if (qsrc(option%liquid_phase) > 0.d0) then !implies qsrc(option%oil_phase)>=0
       if ( energy_var == SRC_ENTHALPY ) then
         !input as J/kg
         enthalpy = src_sink_condition%enthalpy% &
                        dataset%rarray(option%liquid_phase)
-                     ! J/kg * kg/kmol = J/kmol  
+                     ! J/kg * kg/kmol = J/kmol
         enthalpy = enthalpy * towg_fmw_comp(option%liquid_phase)
       else !note: temp can either be input or taken as the one of perf. block
       !else if ( energy_var == SRC_TEMPERATURE ) then
@@ -2147,16 +2149,16 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
         ! enthalpy = [J/kmol]
       end if
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
-      ! enthalpy units: MJ/kmol ! water component mass    
+      ! enthalpy units: MJ/kmol ! water component mass
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%liquid_phase) * enthalpy
     end if
-    ! oil injection 
+    ! oil injection
     if (qsrc(option%oil_phase) > 0.d0) then !implies qsrc(option%liquid_phase)>=0
       if ( energy_var == SRC_ENTHALPY ) then
         enthalpy = src_sink_condition%enthalpy% &
                      dataset%rarray(option%oil_phase)
-                      !J/kg * kg/kmol = J/kmol  
+                      !J/kg * kg/kmol = J/kmol
         enthalpy = enthalpy * towg_fmw_comp(option%oil_phase)
       else !note: temp can either be input or taken as the one of perf. block
       !if ( energy_var == SRC_TEMPERATURE ) then
@@ -2168,7 +2170,7 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%oil_phase) * enthalpy
     end if
-    ! gas injection 
+    ! gas injection
     if (qsrc(option%gas_phase) > 0.d0) then
       if ( energy_var == SRC_ENTHALPY ) then
         enthalpy = src_sink_condition%enthalpy% &
@@ -2182,7 +2184,7 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
         ! enthalpy = [J/kmol]
       end if
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
-      ! enthalpy units: MJ/kmol ! oil component mass           
+      ! enthalpy units: MJ/kmol ! oil component mass
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%gas_phase) * enthalpy
     end if
@@ -2207,30 +2209,30 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
                               auxvar%H(option%gas_phase)
     end if
   else !if the energy rate is given, it overwrites both temp and enthalpy
-    ! if energy rate is given, loaded in qsrc(4) in MJ/sec 
+    ! if energy rate is given, loaded in qsrc(4) in MJ/sec
     Res(option%energy_id) = qsrc(FOUR_INTEGER)* scale ! MJ/s
   end if
 
-  nullify(qsrc)      
-  
+  nullify(qsrc)
+
 end subroutine TOWGImsTLSrcSink
 
 ! ************************************************************************** !
 
 subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
                                soil_heat_capacity,option,J)
-  ! 
+  !
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/27/16
-  ! 
+  !
 
   use Option_module
   use Saturation_Function_module
   use Material_Aux_class
-  
+
   implicit none
 
   type(auxvar_towg_type) :: auxvar(0:)
@@ -2239,7 +2241,7 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
   type(option_type) :: option
   PetscReal :: soil_heat_capacity
   PetscReal :: J(option%nflowdof,option%nflowdof)
-     
+
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscReal :: jac(option%nflowdof,option%nflowdof)
   PetscReal :: jac_pert(option%nflowdof,option%nflowdof)
@@ -2270,7 +2272,7 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
     J(TOWG_GAS_EQ_IDX,:) = 0.d0
     J(:,TOWG_GAS_EQ_IDX) = 0.d0
   endif
-  
+
 
 end subroutine TOWGAccumDerivative
 
@@ -2287,18 +2289,18 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
                               area, dist, &
                               towg_parameter, &
                               option,Jup,Jdn)
-  ! 
+  !
   ! Computes the derivatives of the internal flux terms
   ! for the Jacobian
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/27/16
-  ! 
+  !
   use Option_module
   use Material_Aux_class
-  
+
   implicit none
-  
+
   type(auxvar_towg_type) :: auxvar_up(0:), auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
@@ -2318,7 +2320,7 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
 
   Jup = 0.d0
   Jdn = 0.d0
-  
+
   !print *, 'TOWGFluxDerivative'
   option%iflag = -2
   call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
@@ -2329,7 +2331,7 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
                 thermal_conductivity_dn, &
                 area,dist,towg_parameter, &
                 option,v_darcy,res,PETSC_FALSE)
-                           
+
   ! upgradient derivatives
   do idof = 1, option%nflowdof
     call TOWGFlux(auxvar_up(idof),global_auxvar_up, &
@@ -2366,20 +2368,20 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
     Jdn(towg_energy_eq_idx,:) = 0.d0
     Jdn(:,towg_energy_eq_idx) = 0.d0
   endif
-  
+
   if (towg_no_oil) then
     Jup(TOWG_OIL_EQ_IDX,:) = 0.d0
     Jup(:,TOWG_OIL_EQ_IDX) = 0.d0
     Jdn(TOWG_OIL_EQ_IDX,:) = 0.d0
     Jdn(:,TOWG_OIL_EQ_IDX) = 0.d0
-  endif  
+  endif
 
   if (towg_no_gas) then
     Jup(TOWG_GAS_EQ_IDX,:) = 0.d0
     Jup(:,TOWG_GAS_EQ_IDX) = 0.d0
     Jdn(TOWG_GAS_EQ_IDX,:) = 0.d0
     Jdn(:,TOWG_GAS_EQ_IDX) = 0.d0
-  endif  
+  endif
 
 end subroutine TOWGFluxDerivative
 
@@ -2392,17 +2394,17 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                                 thermal_conductivity_dn, &
                                 area,dist,towg_parameter, &
                                 option,Jdn)
-  ! 
+  !
   ! Computes the derivatives of the boundary flux terms
   ! for the Jacobian
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/27/16
-  ! 
+  !
 
-  use Option_module 
+  use Option_module
   use Material_Aux_class
-  
+
   implicit none
 
   PetscReal :: bc_auxvars(:) ! from aux_real_var array
@@ -2434,7 +2436,7 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                   thermal_conductivity_dn, &
                   area,dist,towg_parameter, &
                   option,v_darcy,res,PETSC_FALSE)
-                    
+
   ! downgradient derivatives
   do idof = 1, option%nflowdof
     call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
@@ -2453,29 +2455,29 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
     Jdn(towg_energy_eq_idx,:) = 0.d0
     Jdn(:,towg_energy_eq_idx) = 0.d0
   endif
-  
+
   if (towg_no_oil) then
     Jdn(TOWG_OIL_EQ_IDX,:) = 0.d0
     Jdn(:,TOWG_OIL_EQ_IDX) = 0.d0
-  endif  
+  endif
 
   if (towg_no_gas) then
     Jdn(TOWG_GAS_EQ_IDX,:) = 0.d0
     Jdn(:,TOWG_GAS_EQ_IDX) = 0.d0
-  endif  
-  
+  endif
+
 end subroutine TOWGBCFluxDerivative
 
 ! ************************************************************************** !
 
 subroutine TOWGSrcSinkDerivative(option,src_sink_condition,auxvars, &
                                  global_auxvar,scale,Jac)
-  ! 
+  !
   ! Computes the source/sink terms for the residual
-  ! 
+  !
   ! Author: Paolo Orsini (OGS)
   ! Date: 12/28/16
-  ! 
+  !
 
   use Option_module
   use Condition_module
@@ -2488,7 +2490,7 @@ subroutine TOWGSrcSinkDerivative(option,src_sink_condition,auxvars, &
   type(global_auxvar_type) :: global_auxvar
   PetscReal :: scale
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
-  
+
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscReal :: dummy_real(option%nphase)
   PetscInt :: idof, irow
@@ -2505,33 +2507,33 @@ subroutine TOWGSrcSinkDerivative(option,src_sink_condition,auxvars, &
       Jac(irow,idof) = (res_pert(irow)-res(irow))/auxvars(idof)%pert
     enddo !irow
   enddo ! idof
- 
+
   if (towg_isothermal) then
     Jac(towg_energy_eq_idx,:) = 0.d0
     Jac(:,towg_energy_eq_idx) = 0.d0
   endif
-  
+
   if (towg_no_oil) then
     Jac(TOWG_OIL_EQ_IDX,:) = 0.d0
     Jac(:,TOWG_OIL_EQ_IDX) = 0.d0
-  endif  
+  endif
 
   if (towg_no_gas) then
     Jac(TOWG_GAS_EQ_IDX,:) = 0.d0
     Jac(:,TOWG_GAS_EQ_IDX) = 0.d0
-  endif  
+  endif
 
 end subroutine TOWGSrcSinkDerivative
 
 ! ************************************************************************** !
 
 subroutine TOWGResidual(snes,xx,r,realization,ierr)
-  ! 
+  !
   ! Computes the residual equation
-  ! 
+  !
   ! Author: Paolo Orsini (OGS)
   ! Date: 12/28/16
-  ! 
+  !
 #include "petsc/finclude/petscsnes.h"
 #include "petsc/finclude/petscmat.h"
   use petscsnes
@@ -2544,7 +2546,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
 
   use Connection_module
   use Grid_module
-  use Coupler_module  
+  use Coupler_module
   use Debug_module
   use Material_Aux_class
 
@@ -2556,7 +2558,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   type(realization_subsurface_type) :: realization
   PetscViewer :: viewer
   PetscErrorCode :: ierr
-  
+
   Mat, parameter :: null_mat = PETSC_NULL_MAT
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
@@ -2588,7 +2590,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
-  
+
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
 
@@ -2597,7 +2599,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   !PetscReal :: Jac_dummy(realization%option%nflowdof, &
   !                       realization%option%nflowdof)
   PetscReal :: v_darcy(realization%option%nphase)
-  
+
   discretization => realization%discretization
   option => realization%option
   patch => realization%patch
@@ -2610,7 +2612,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
-  
+
 #ifdef DEBUG_TOWG_FILEOUTPUT
   if (debug_flag > 0) then
     debug_iteration_count = debug_iteration_count + 1
@@ -2632,12 +2634,12 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   ! Communication -----------------------------------------
   ! These 3 must be called before TOWGUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
-  
+
                                      ! do update state
   call TOWGUpdateAuxVars(realization,PETSC_TRUE)
 
   ! override flags since they will soon be out of date
-  towg%auxvars_up_to_date = PETSC_FALSE 
+  towg%auxvars_up_to_date = PETSC_FALSE
 
   ! always assume variables have been swapped; therefore, must copy back
   call VecLockPop(xx,ierr); CHKERRQ(ierr)
@@ -2658,12 +2660,12 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   call VecGetArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
   r_p = -accum_p
 
-  
+
   !Heeho dynamically update p+1 accumulation term
   !if (towg_tough2_conv_criteria) then
   !  call VecGetArrayReadF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
   !endif
-  
+
   ! accumulation at t(k+1)
   do local_id = 1, grid%nlmax  ! For each local node do...
     ghosted_id = grid%nL2G(local_id)
@@ -2680,12 +2682,12 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
 
 
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
-    
+
     !Heeho dynamically update p+1 accumulation term
     !if (towg_tough2_conv_criteria) then
     !  accum_p2(local_start:local_end) = Res(:)
     !endif
-    
+
   enddo
 
   call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
@@ -2697,8 +2699,8 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
-  sum_connection = 0  
-  do 
+  sum_connection = 0
+  do
     if (.not.associated(cur_connection_set)) exit
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
@@ -2707,10 +2709,10 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
 
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
-      local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
+      local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping
 
-      imat_up = patch%imat(ghosted_id_up) 
-      imat_dn = patch%imat(ghosted_id_dn) 
+      imat_up = patch%imat(ghosted_id_up)
+      imat_dn = patch%imat(ghosted_id_dn)
       if (imat_up <= 0 .or. imat_dn <= 0) cycle
 
       icap_up = patch%sat_func_id(ghosted_id_up)
@@ -2718,7 +2720,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
 
       call TOWGFlux(towg%auxvars(ZERO_INTEGER,ghosted_id_up), &
                     global_auxvars(ghosted_id_up), &
-                    material_auxvars(ghosted_id_up), & 
+                    material_auxvars(ghosted_id_up), &
                     material_parameter%soil_residual_saturation(:,icap_up), &
                     material_parameter%soil_thermal_conductivity(:,imat_up), &
                     towg%auxvars(ZERO_INTEGER,ghosted_id_dn), &
@@ -2736,13 +2738,13 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       if (associated(patch%internal_flow_fluxes)) then
         patch%internal_flow_fluxes(:,sum_connection) = Res(:)
       endif
-      
+
       if (local_id_up > 0) then
         local_end = local_id_up * option%nflowdof
         local_start = local_end - option%nflowdof + 1
         r_p(local_start:local_end) = r_p(local_start:local_end) + Res(:)
       endif
-         
+
       if (local_id_dn > 0) then
         local_end = local_id_dn * option%nflowdof
         local_start = local_end - option%nflowdof + 1
@@ -2751,19 +2753,19 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
     enddo
 
     cur_connection_set => cur_connection_set%next
-  enddo    
+  enddo
 
   ! Boundary Flux Terms -----------------------------------
   boundary_condition => patch%boundary_condition_list%first
-  sum_connection = 0    
-  do 
+  sum_connection = 0
+  do
     if (.not.associated(boundary_condition)) exit
-    
+
     cur_connection_set => boundary_condition%connection_set
-    
+
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
-    
+
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
 
@@ -2778,7 +2780,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       icap_dn = patch%sat_func_id(ghosted_id)
 
       call TOWGBCFlux(boundary_condition%flow_bc_type, &
-                    boundary_condition%flow_aux_mapping, & 
+                    boundary_condition%flow_aux_mapping, &
                     boundary_condition%flow_aux_real_var(:,iconn), &
                     towg%auxvars_bc(sum_connection), &
                     global_auxvars_bc(sum_connection), &
@@ -2814,14 +2816,14 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   enddo
 
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sink_list%first 
+  source_sink => patch%source_sink_list%first
   sum_connection = 0
-  do 
+  do
     if (.not.associated(source_sink)) exit
-    
+
     cur_connection_set => source_sink%connection_set
-    
-    do iconn = 1, cur_connection_set%num_connections      
+
+    do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
@@ -2845,10 +2847,10 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
 
       if (associated(patch%ss_flow_vol_fluxes)) then
         patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux
-      endif      
+      endif
       if (associated(patch%ss_flow_fluxes)) then
         patch%ss_flow_fluxes(:,sum_connection) = Res(:)
-      endif      
+      endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
         global_auxvars_ss(sum_connection)% &
@@ -2867,9 +2869,9 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       r_p(towg%inactive_rows_local(i)) = 0.d0
     enddo
   endif
-  
+
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  
+
   if (Initialized(towg_debug_cell_id)) then
     call VecGetArrayReadF90(r, r_p, ierr);CHKERRQ(ierr)
     do local_id = towg_debug_cell_id-1, towg_debug_cell_id+1
@@ -2879,7 +2881,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
     enddo
     call VecRestoreArrayReadF90(r, r_p, ierr);CHKERRQ(ierr)
   endif
-  
+
   if (towg_isothermal) then
     call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
     ! zero energy residual
@@ -2895,7 +2897,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       r_p((local_id-1)*option%nflowdof+TOWG_OIL_EQ_IDX) =  0.d0
     enddo
     call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  endif  
+  endif
   if (towg_no_gas) then
     call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
     ! zero energy residual
@@ -2903,7 +2905,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       r_p((local_id-1)*option%nflowdof+TOWG_GAS_EQ_IDX) =  0.d0
     enddo
     call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  endif  
+  endif
 
 #ifdef DEBUG_TOWG_FILEOUTPUT
   call VecGetArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
@@ -2919,7 +2921,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   enddo
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
 #endif
-  
+
   if (realization%debug%vecview_residual) then
     string = 'TOWGresidual'
     call DebugCreateViewer(realization%debug,string,option,viewer)
@@ -2938,18 +2940,18 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
     close(debug_unit)
   endif
 #endif
-  
+
 end subroutine TOWGResidual
 
 ! ************************************************************************** !
 
 subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
-  ! 
+  !
   ! Computes the Jacobian
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/28/16
-  ! 
+  !
 
 #include "petsc/finclude/petscsnes.h"
 #include "petsc/finclude/petscmat.h"
@@ -2986,31 +2988,31 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   Vec, parameter :: null_vec = PETSC_NULL_VEC
-  
+
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
                Jdn(realization%option%nflowdof,realization%option%nflowdof)
-  
+
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
-  PetscInt :: sum_connection  
+  PetscInt :: sum_connection
   PetscReal :: distance, fraction_upwind
-  PetscReal :: distance_gravity 
+  PetscReal :: distance_gravity
   PetscInt, pointer :: zeros(:)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
-  type(option_type), pointer :: option 
-  type(field_type), pointer :: field 
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
   type(material_parameter_type), pointer :: material_parameter
   class(pm_towg_aux_type), pointer :: towg
   type(towg_parameter_type), pointer :: towg_parameter
-  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
+  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  
+
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
-  
+
   patch => realization%patch
   grid => patch%grid
   option => realization%option
@@ -3073,7 +3075,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
                              material_auxvars(ghosted_id), &
                              material_parameter%soil_heat_capacity(imat), &
                              option, &
-                             Jup) 
+                             Jup)
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
@@ -3088,15 +3090,15 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   endif
 
 
-  ! Interior Flux Terms -----------------------------------  
+  ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
-  sum_connection = 0    
-  do 
+  sum_connection = 0
+  do
     if (.not.associated(cur_connection_set)) exit
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
-    
+
       ghosted_id_up = cur_connection_set%id_up(iconn)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
 
@@ -3105,11 +3107,11 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
       if (imat_up <= 0 .or. imat_dn <= 0) cycle
 
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
-      local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
-   
+      local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping
+
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
-                              
+
       call TOWGFluxDerivative(towg%auxvars(:,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
@@ -3154,15 +3156,15 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
 
   ! Boundary Flux Terms -----------------------------------
   boundary_condition => patch%boundary_condition_list%first
-  sum_connection = 0    
-  do 
+  sum_connection = 0
+  do
     if (.not.associated(boundary_condition)) exit
-    
+
     cur_connection_set => boundary_condition%connection_set
-    
+
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
-    
+
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
 
@@ -3208,13 +3210,13 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   endif
 
   ! Source/sinks
-  source_sink => patch%source_sink_list%first 
-  do 
+  source_sink => patch%source_sink_list%first
+  do
     if (.not.associated(source_sink)) exit
-    
+
     cur_connection_set => source_sink%connection_set
-    
-    do iconn = 1, cur_connection_set%num_connections      
+
+    do iconn = 1, cur_connection_set%num_connections
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
@@ -3224,7 +3226,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
       else
         scale = 1.d0
       endif
-      
+
       Jup = 0.d0
       call TOWGSrcSinkDerivative(option, &
                         source_sink%flow_condition%towg, &
@@ -3238,7 +3240,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
-  
+
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -3247,7 +3249,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
-  
+
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
@@ -3298,7 +3300,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
     call MatZeroRowsLocal(A,grid%nlmax,zeros,qsrc,PETSC_NULL_VEC, &
                           PETSC_NULL_VEC,ierr);CHKERRQ(ierr)
   endif
-  
+
   if (realization%debug%matview_Jacobian) then
     string = 'TOWGjacobian'
     call DebugCreateViewer(realization%debug,string,option,viewer)
@@ -3309,13 +3311,13 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call printMsg(option)
     call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call printMsg(option)
     call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option) 
+    call printMsg(option)
   endif
 
 !  call MatView(J,PETSC_VIEWER_STDOUT_WORLD,ierr)
@@ -3343,10 +3345,10 @@ end subroutine TOWGJacobian
 subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
                                    max_it_before_damping,damping_factor, &
                                    max_pressure_change,ierr)
-  ! 
+  !
   ! Author: Paolo Orsini (OGS)
   ! Date: 12/30/16
-  ! 
+  !
   use Realization_Subsurface_class
   use Grid_module
   use Field_module
@@ -3373,7 +3375,7 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
   type(field_type), pointer :: field
 
   !type(toil_ims_auxvar_type), pointer :: toil_auxvars(:,:)
-  !type(global_auxvar_type), pointer :: global_auxvars(:)  
+  !type(global_auxvar_type), pointer :: global_auxvars(:)
 
   PetscInt :: local_id, ghosted_id
   PetscInt :: offset
@@ -3392,7 +3394,7 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
   SNES :: snes
   PetscInt :: newton_iteration
 
-  
+
   grid => realization%patch%grid
   option => realization%option
   field => realization%field
@@ -3464,7 +3466,7 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
         temp_scale = min(temp_scale,temp_real)
       endif
     endif
-#endif 
+#endif
 !TRUNCATE_PRESSURE
 #ifdef LIMIT_MAX_SATURATION_CHANGE
     !oil saturation
@@ -3485,18 +3487,18 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
        temp_real = dabs(max_saturation_change/del_saturation)
        temp_scale = min(temp_scale,temp_real)
     endif
-#endif 
+#endif
 !LIMIT_MAX_SATURATION_CHANGE
-#ifdef LIMIT_MAX_TEMPERATURE_CHANGE        
+#ifdef LIMIT_MAX_TEMPERATURE_CHANGE
     temperature_index  = offset + towg_energy_dof
     del_temperature = dX_p(temperature_index)
     if (dabs(del_temperature) > max_temperature_change) then
        temp_real = dabs(max_temperature_change/del_temperature)
        temp_scale = min(temp_scale,temp_real)
     endif
-#endif 
+#endif
 !LIMIT_MAX_TEMPERATURE_CHANGE
-    scale = min(scale,temp_scale) 
+    scale = min(scale,temp_scale)
   enddo
 
   temp_scale = scale
@@ -3518,12 +3520,12 @@ end subroutine TOWGImsTLCheckUpdatePre
 ! ************************************************************************** !
 
 function TOWGImsTLAverageDensity(sat_up,sat_dn,density_up,density_dn)
-  ! 
+  !
   ! Averages density, using opposite cell density if phase non-existent
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/18/16
-  ! 
+  !
 
   implicit none
 
@@ -3534,9 +3536,9 @@ function TOWGImsTLAverageDensity(sat_up,sat_dn,density_up,density_dn)
 
   if (sat_up < eps ) then
     TOWGImsTLAverageDensity = density_dn
-  else if (sat_dn < eps ) then 
+  else if (sat_dn < eps ) then
     TOWGImsTLAverageDensity = density_up
-  else ! in here we could use an armonic average, 
+  else ! in here we could use an armonic average,
        ! other idea sat weighted average but it needs truncation
     TOWGImsTLAverageDensity = 0.5d0*(density_up+density_dn)
   end if
@@ -3546,19 +3548,19 @@ end function TOWGImsTLAverageDensity
 ! ************************************************************************** !
 
 subroutine TOWGDestroy(realization)
-  ! 
+  !
   ! Deallocates variables associated with TOWG
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 01/19/17
-  ! 
+  !
 
   use Realization_Subsurface_class
 
   implicit none
 
   type(realization_subsurface_type) :: realization
-  
+
   ! place anything that needs to be freed here.
 
 end subroutine TOWGDestroy

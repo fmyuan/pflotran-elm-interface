@@ -672,7 +672,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   !compute gas properties (default is air - but methane can be set up)
   call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid), &
-                           auxvar%H(gid),auxvar%U(gid),ierr)
+                      auxvar%H(gid),auxvar%U(gid),ierr,auxvar%eos_table_idx)
 
   auxvar%den_kg(gid) = auxvar%den(gid) * EOSGasGetFMW()
   auxvar%H(gid) = auxvar%H(gid) * 1.d-6 ! J/kmol -> MJ/kmol
@@ -704,8 +704,8 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                        auxvar%den(oid), viso, ierr,auxvar%eos_table_idx)
 
   ! Gas viscosity : currently only viscosity model for air or constant value
-  call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
-                       auxvar%pres(gid),auxvar%den(gid),visg,ierr)
+  call EOSGasViscosity(auxvar%temp,auxvar%pres(gid),auxvar%pres(gid), &
+                       auxvar%den(gid),visg,ierr,auxvar%eos_table_idx)
 
 !--Set up the Todd-Longstaff rel perms, viscosities and densities-------------
 
