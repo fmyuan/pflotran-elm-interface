@@ -218,7 +218,6 @@ recursive subroutine PMBragfloInitializeRun(this)
         this%option%io_buffer = 'Unsupported dataset type for BRAGFLO ALPHA.'
         call printErrMsg(this%option)
     end select
-    call DatasetDestroy(dataset)
   else
     this%option%io_buffer = 'ALPHA should have been read from a dataset.'
     call printErrMsg(this%option)
@@ -256,10 +255,6 @@ recursive subroutine PMBragfloInitializeRun(this)
         this%option%io_buffer = 'Unsupported dataset type for BRAGFLO DEPTH.'
         call printErrMsg(this%option)
     end select
-    call DatasetDestroy(dataset)
-  else
-    this%option%io_buffer = 'ALPHA should have been read from a dataset.'
-    call printErrMsg(this%option)
   endif
 
 end subroutine PMBragfloInitializeRun

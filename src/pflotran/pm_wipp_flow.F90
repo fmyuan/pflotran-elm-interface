@@ -739,9 +739,9 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     pressure_index = offset + WIPPFLO_LIQUID_PRESSURE_DOF
     saturation_index = offset + WIPPFLO_GAS_SATURATION_DOF
 
-    pflotran_to_bragflo = fmw_comp * option%flow_dt / &
-                          material_auxvars(ghosted_id)%volume
-    print *, local_id, r_p(1:2) * pflotran_to_bragflo
+!    pflotran_to_bragflo = fmw_comp * option%flow_dt / &
+!                          material_auxvars(ghosted_id)%volume
+!    print *, local_id, r_p(1:2) * pflotran_to_bragflo
     
     ! liquid component equation
     if (accum_p2(liquid_equation_index) > zero_accumulation) then 
@@ -817,7 +817,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       min_gas_pressure_cell = local_id
     endif
   enddo
-stop
+!stop
 
   temp_int = 0
   if (.not.converged_liquid_equation) temp_int(1) = 1
