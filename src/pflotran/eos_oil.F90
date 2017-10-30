@@ -1458,6 +1458,8 @@ subroutine EOSOilTableProcess(option)
 
   PetscInt :: i_data
 
+  if (.not.associated(pvt_table)) return
+
   select case(pvt_table%name)
     case("PVDO")
       !WRAP and move to eos_datbase
