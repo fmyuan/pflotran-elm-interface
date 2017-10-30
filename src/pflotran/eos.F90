@@ -16,6 +16,7 @@ module EOS_module
 
   public :: EOSInit, &
             EOSRead, &
+            EOSProcess, &
             EOSInputRecord, &
             AllEOSDBaseDestroy
 
@@ -599,6 +600,13 @@ subroutine EOSRead(input,option)
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'EOS,OIL','DATABASE filename')
             call EOSOilSetEOSDBase(word,option)
+          case('REFERENCE_DENSITY','SURFACE_DENSITY','STANDARD_DENSITY')
+            call InputReadDouble(input,option,tempreal)
+            call InputErrorMsg(input,option,'VALUE', &
+                               'EOS,OIL,REFERENCE_DENSITY')
+            call InputReadAndConvertUnits(input,tempreal, &
+                             'kg/m^3','EOS,OIL,REFERENCE_DENSITY',option)
+            call EOSOilSetReferenceDensity(tempreal)
           case('DENSITY')
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'DENSITY','EOS,OIL')
@@ -810,6 +818,27 @@ subroutine EOSRead(input,option)
   end select
 
 end subroutine EOSRead
+
+! **************************************************************************** !
+
+subroutine EOSProcess(option)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 10/28/17
+  !
+  ! Process EOS data after all input data have been read
+
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+
+  call EOSOilTableProcess(option)
+
+  call EOSTableProcessList(option)
+
+end subroutine EOSProcess
 
 ! **************************************************************************** !
 

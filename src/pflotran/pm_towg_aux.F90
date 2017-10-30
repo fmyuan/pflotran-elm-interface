@@ -663,7 +663,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   call EOSOilDensityEnergy(auxvar%temp,auxvar%pres(oid),&
                            auxvar%den(oid),auxvar%H(oid), &
-                           auxvar%U(oid),ierr)
+                           auxvar%U(oid),ierr,auxvar%eos_table_idx)
 
   auxvar%den_kg(oid) = auxvar%den(oid) * EOSOilGetFMW()
 

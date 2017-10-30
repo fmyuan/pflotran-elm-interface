@@ -22,6 +22,8 @@ module EOS_Oil_module
   PetscReal :: quad_vis_ref_temp(2)
   PetscReal :: quad_vis_pres_coef(2)
   PetscReal :: quad_vis_temp_coef(2)
+  !Reference Oil Density (e.g. used as surface density)
+  PetscReal :: reference_density_kg
   ! parameters for linear density
   PetscReal :: compress_coeff      ! [kg/m3/Pa]
   PetscReal :: th_expansion_coeff  ! [kg/m3/°C]
@@ -77,7 +79,8 @@ module EOS_Oil_module
       PetscErrorCode, intent(out) :: ierr
       PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
     end subroutine EOSOilViscosityDummy
-    subroutine EOSOilDensityDummy(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
+    subroutine EOSOilDensityDummy(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr, &
+                                  table_idxs)
       implicit none
       PetscReal, intent(in) :: T        ! temperature [C]
       PetscReal, intent(in) :: P        ! pressure [Pa]
@@ -86,6 +89,7 @@ module EOS_Oil_module
       PetscReal, intent(out) :: dRho_dT ! derivative oil density wrt temperature
       PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
       PetscErrorCode, intent(out) :: ierr
+      PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
     end subroutine EOSOilDensityDummy
     subroutine EOSOilEnthalpyDummy(T,P,deriv,H,dH_dT,dH_dP,ierr)
       implicit none
@@ -98,7 +102,8 @@ module EOS_Oil_module
       PetscErrorCode, intent(out) :: ierr
     end subroutine EOSOilEnthalpyDummy
     subroutine EOSOilDensityEnergyDummy(T,P,deriv,Rho,dRho_dT,dRho_dP, &
-                                        H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
+                                        H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr, &
+                                        table_idxs)
       implicit none
       PetscReal, intent(in) :: T        ! temperature [C]
       PetscReal, intent(in) :: P        ! pressure [Pa]
@@ -113,6 +118,7 @@ module EOS_Oil_module
       PetscReal, intent(out) :: dU_dT   ! deriv. internal energy wrt temperature
       PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure
       PetscErrorCode, intent(out) :: ierr
+      PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
     end subroutine EOSOilDensityEnergyDummy
   end interface
 
@@ -146,6 +152,8 @@ module EOS_Oil_module
 
   public :: EOSOilSetFMWConstant, &
             EOSOilGetFMW, &
+            EOSOilSetReferenceDensity, &
+            EOSOilGetReferenceDensity, &
             EOSOilSetViscosityConstant, &
             EOSOilSetViscosityQuad, &
             EOSOilSetVisQuadRefVis, &
@@ -171,6 +179,7 @@ module EOS_Oil_module
             EOSOilSetEntDBase, &
             EOSOilSetEOSDBase, &
             EOSOilSetPVDO, &
+            EOSOilTableProcess, &
             EOSOilDBaseDestroy
 
 contains
@@ -191,6 +200,8 @@ subroutine EOSOilInit()
   quad_vis_pres_coef(1:2) = UNINITIALIZED_DOUBLE
   quad_vis_temp_coef(1:2) = UNINITIALIZED_DOUBLE
 
+  reference_density_kg = UNINITIALIZED_DOUBLE
+
   compress_coeff = UNINITIALIZED_DOUBLE
   th_expansion_coeff = UNINITIALIZED_DOUBLE
   den_linear_den0 = UNINITIALIZED_DOUBLE
@@ -203,7 +214,7 @@ subroutine EOSOilInit()
 
   fmw_oil = FMWOIL !default oil formula weight C10H22 (142 g/mol)
 
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
 
   nullify(EOSOilViscosityPtr)
   nullify(EOSOilDensityPtr)
@@ -376,6 +387,30 @@ end function EOSOilGetFMW
 
 ! ************************************************************************** !
 
+subroutine EOSOilSetReferenceDensity(ref_density)
+
+  implicit none
+
+  PetscReal :: ref_density
+
+  reference_density_kg = ref_density
+
+end subroutine EOSOilSetReferenceDensity
+
+! ************************************************************************** !
+
+function EOSOilGetReferenceDensity()
+
+  implicit none
+
+  PetscReal :: EOSOilGetReferenceDensity
+
+  EOSOilGetReferenceDensity= reference_density_kg
+
+end function EOSOilGetReferenceDensity
+
+! ************************************************************************** !
+
 subroutine EOSOilSetViscosityConstant(viscosity)
 
   implicit none
@@ -489,7 +524,7 @@ subroutine EOSOilSetDensityConstant(density)
   PetscReal :: density
 
   constant_density = density
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
   EOSOilDensityPtr => EOSOilDensityConstant
 
 end subroutine EOSOilSetDensityConstant
@@ -500,7 +535,7 @@ subroutine EOSOilSetDensityLinear()
 
   implicit none
 
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
   EOSOilDensityPtr => EOSOilDensityLinear
 
 end subroutine EOSOilSetDensityLinear
@@ -511,7 +546,7 @@ subroutine EOSOilSetDensityInverseLinear()
 
   implicit none
 
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
   EOSOilDensityPtr => EOSOilDensityInverseLinear
 
 end subroutine EOSOilSetDensityInverseLinear
@@ -592,7 +627,7 @@ subroutine EOSOilSetDenDBase(filename,option)
   call eos_den_dbase%Read(option)
 
   !set property function pointers
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
   EOSOilDensityPtr => EOSOilDensityDenDBase
 
 end subroutine EOSOilSetDenDBase
@@ -606,7 +641,7 @@ subroutine EOSOilSetEnthalpyConstant(enthalpy)
   PetscReal :: enthalpy
 
   constant_enthalpy = enthalpy
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
   EOSOilEnthalpyPtr => EOSOilEnthalpyConstant
 
 end subroutine EOSOilSetEnthalpyConstant
@@ -620,7 +655,7 @@ subroutine EOSOilSetEnthalpyLinearTemp(specific_heat)
   PetscReal :: specific_heat
 
   constant_sp_heat = specific_heat
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
   EOSOilEnthalpyPtr => EOSOilEnthalpyLinearTemp
 
   !write(*,*) "I am in EOS oil linear set up"
@@ -633,7 +668,7 @@ subroutine EOSOilSetEnthalpyQuadraticTemp()
 
   implicit none
 
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
   EOSOilEnthalpyPtr => EOSOilEnthalpyQuadTemp
 
 
@@ -680,7 +715,7 @@ subroutine EOSOilSetEntDBase(filename,option)
   call eos_ent_dbase%Read(option)
 
   !set property function pointers
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
   EOSOilEnthalpyPtr => EOSOilEnthalpyEntDBase
 
 
@@ -701,7 +736,7 @@ subroutine EOSOilSetEOSDBase(filename,option)
   call eos_dbase%Read(option)
 
   !set property function pointers
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
   if (.not.associated(EOSOilDensityPtr))  &
             EOSOilDensityPtr => EOSOilDensityEOSDBase
   if (.not.associated(EOSOilEnthalpyPtr)) &
@@ -901,7 +936,8 @@ end subroutine EOSOilViscosityNoDerive
 
 ! ************************************************************************** !
 
-subroutine EOSOilDensityConstant(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
+subroutine EOSOilDensityConstant(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr, &
+                                 table_idxs)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
@@ -915,6 +951,8 @@ subroutine EOSOilDensityConstant(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
   PetscReal, intent(out) :: dRho_dT ! derivative oil density wrt temperature
   PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
   PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
         ! kg/m3 * kmol/kg  = kmol/m3
   Rho = constant_density / fmw_oil ! kmol/m^3
 
@@ -925,7 +963,8 @@ end subroutine EOSOilDensityConstant
 
 ! ************************************************************************** !
 
-subroutine EOSOilDensityLinear(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
+subroutine EOSOilDensityLinear(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr, &
+                               table_idxs)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
@@ -939,6 +978,7 @@ subroutine EOSOilDensityLinear(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
   PetscReal, intent(out) :: dRho_dT ! derivative oil density wrt temperature
   PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
   PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   Rho = den_linear_den0 + &
         compress_coeff * (P - den_linear_ref_pres ) - & ! compression
@@ -957,7 +997,8 @@ end subroutine EOSOilDensityLinear
 
 ! ************************************************************************** !
 
-subroutine EOSOilDensityInverseLinear(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
+subroutine EOSOilDensityInverseLinear(T,P,deriv,Rho,dRho_dT,dRho_dP,ierr, &
+                                      table_idxs)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
@@ -971,6 +1012,7 @@ subroutine EOSOilDensityInverseLinear(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
   PetscReal, intent(out) :: dRho_dT ! derivative oil density wrt temperature
   PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
   PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   Rho = den_linear_den0 / &
         ( 1.0d0 - compress_coeff * (P - den_linear_ref_pres ) ) / &  ! compression
@@ -995,7 +1037,8 @@ end subroutine EOSOilDensityInverseLinear
 
 ! ************************************************************************** !
 
-subroutine EOSOilDensityEOSDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
+subroutine EOSOilDensityEOSDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr, &
+                                 table_idxs)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
@@ -1009,6 +1052,7 @@ subroutine EOSOilDensityEOSDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
   PetscReal, intent(out) :: dRho_dT ! derivative oil density wrt temperature
   PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
   PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   !ierr initialised in EOSEOSProp
   call eos_dbase%EOSProp(T,P,EOS_DENSITY,Rho,ierr)
@@ -1028,7 +1072,8 @@ end subroutine EOSOilDensityEOSDBase
 
 ! ************************************************************************** !
 
-subroutine EOSOilDensityDenDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
+subroutine EOSOilDensityDenDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr, &
+                                 table_idxs)
   !
   ! Author: Paolo Orsini
   ! Date: 12/11/15
@@ -1042,6 +1087,7 @@ subroutine EOSOilDensityDenDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr)
   PetscReal, intent(out) :: dRho_dT ! derivative oil density wrt temperature
   PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
   PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   !ierr initialised in EOSEOSProp
   call eos_den_dbase%EOSProp(T,P,EOS_DENSITY,Rho,ierr)
@@ -1061,7 +1107,39 @@ end subroutine EOSOilDensityDenDBase
 
 ! ************************************************************************** !
 
-subroutine EOSOilDensityNoDerive(T,P,Rho,ierr)
+subroutine EOSOilDensityTable(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr, &
+                                 table_idxs)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 12/11/15
+  !
+  implicit none
+
+  PetscReal, intent(in) :: T        ! temperature [C]
+  PetscReal, intent(in) :: P        ! pressure [Pa]
+  PetscBool, intent(in) :: deriv    ! indicate if derivatives are needed or not
+  PetscReal, intent(out) :: Rho     ! oil density [kmol/m^3]
+  PetscReal, intent(out) :: dRho_dT ! derivative oil density wrt temperature
+  PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
+  PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  !ierr initialised in EOSProp
+  !Rho from pvt table is already in kmol/m3
+  call pvt_table%EOSProp(T,P,EOS_DENSITY,Rho,table_idxs,ierr)
+
+  if (deriv) then
+    ! not yet implemented
+    ierr = 99 !error 99 points out that deriv are asked but not available yet.
+    print*, "EOSOilDensityTable - Den derivatives not supported"
+    stop
+  end if
+
+end subroutine EOSOilDensityTable
+
+! ************************************************************************** !
+
+subroutine EOSOilDensityNoDerive(T,P,Rho,ierr,table_idxs)
 
   implicit none
 
@@ -1069,6 +1147,7 @@ subroutine EOSOilDensityNoDerive(T,P,Rho,ierr)
   PetscReal, intent(in) :: P        ! pressure [Pa]
   PetscReal, intent(out) :: Rho     ! oil density [kmol/m^3]
   PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   PetscReal :: dum1, dum2
 
@@ -1079,7 +1158,7 @@ end subroutine EOSOilDensityNoDerive
 
 ! ************************************************************************** !
 
-subroutine EOSOilDensityDerive(T,P,Rho,dRho_dT,dRho_dP,ierr)
+subroutine EOSOilDensityDerive(T,P,Rho,dRho_dT,dRho_dP,ierr,table_idxs)
 
   implicit none
 
@@ -1089,6 +1168,7 @@ subroutine EOSOilDensityDerive(T,P,Rho,dRho_dT,dRho_dP,ierr)
   PetscReal, intent(out) :: dRho_dT ! derivative oil density wrt temperature
   PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
   PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   call EOSOilDensityPtr(T,P,PETSC_TRUE,Rho,dRho_dT,dRho_dP,ierr)
 
@@ -1258,8 +1338,8 @@ end subroutine EOSOilEnthalpyNoDerive
 
 ! ************************************************************************** !
 
-subroutine EOSOilDensityEnergyTOilIms(T,P,deriv,Rho,dRho_dT,dRho_dP, &
-                                    H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
+subroutine EOSOilDensityEnergy(T,P,deriv,Rho,dRho_dT,dRho_dP, &
+                               H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr,table_idxs)
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
@@ -1275,8 +1355,9 @@ subroutine EOSOilDensityEnergyTOilIms(T,P,deriv,Rho,dRho_dT,dRho_dP, &
   PetscReal, intent(out) :: dU_dT   ! deriv. internal energy wrt temperature
   PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure
   PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  call EOSOilDensityPtr(T,P,deriv,Rho,dRho_dT,dRho_dP,ierr)
+  call EOSOilDensityPtr(T,P,deriv,Rho,dRho_dT,dRho_dP,ierr,table_idxs)
   call EOSOilEnthalpyPtr(T,P,deriv,H,dH_dT,dH_dP,ierr)
 
   U = H - P/Rho
@@ -1285,16 +1366,16 @@ subroutine EOSOilDensityEnergyTOilIms(T,P,deriv,Rho,dRho_dT,dRho_dP, &
   dU_dP = UNINITIALIZED_DOUBLE
 
   if (deriv) then
-    print*, "EOSOilDensityEnergyTOilIms - U derivatives not supported"
+    print*, "EOSOilDensityEnergy - U derivatives not supported"
     stop
   end if
 
 
-end subroutine EOSOilDensityEnergyTOilIms
+end subroutine EOSOilDensityEnergy
 
 ! ************************************************************************** !
 
-subroutine EOSOilDenEnergyNoDerive(T,P,Rho,H,U,ierr)
+subroutine EOSOilDenEnergyNoDerive(T,P,Rho,H,U,ierr,table_idxs)
 
   implicit none
 
@@ -1304,11 +1385,12 @@ subroutine EOSOilDenEnergyNoDerive(T,P,Rho,H,U,ierr)
   PetscReal, intent(out) :: H       ! enthalpy [J/kmol]
   PetscReal, intent(out) :: U       ! internal energy [J/kmol]
   PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   PetscReal :: dum1, dum2, dum3, dum4, dum5, dum6
 
   call EOSOilDensityEnergyPtr(T,P,PETSC_FALSE,Rho,dum1,dum2, &
-                              H,dum3,dum4,U,dum5,dum6,ierr)
+                              H,dum3,dum4,U,dum5,dum6,ierr,table_idxs)
 
 
 end subroutine EOSOilDenEnergyNoDerive
@@ -1316,6 +1398,11 @@ end subroutine EOSOilDenEnergyNoDerive
 ! **************************************************************************** !
 
 subroutine EOSOilSetPVDO(input,option)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 10/18/17
+  !
+  ! Set up a PVDO table
 
   use Option_module
   use Input_Aux_module
@@ -1342,8 +1429,9 @@ subroutine EOSOilSetPVDO(input,option)
   call EOSTableAddToList(pvt_table,eos_table_list)
 
   EOSOilViscosityPtr => EOSOilViscosityTable
+  EOSOilDensityPtr => EOSOilDensityTable
   !set property function pointers - for testing
-  !EOSOilDensityEnergyPtr => EOSOilDensityEnergyTOilIms
+  !EOSOilDensityEnergyPtr => EOSOilDensityEnergy
   !if (.not.associated(EOSOilDensityPtr))  &
   !          EOSOilDensityPtr => EOSOilDensityEOSDBase
   !if (.not.associated(EOSOilEnthalpyPtr)) &
@@ -1352,6 +1440,44 @@ subroutine EOSOilSetPVDO(input,option)
   !  EOSOilViscosityPtr => EOSOilViscosityEOSDBase
 
 end subroutine EOSOilSetPVDO
+
+! ************************************************************************** !
+
+subroutine EOSOilTableProcess(option)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 10/28/17
+  !
+  ! Processes oil pvt table - once the entire input deck has been read
+
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+
+  PetscInt :: i_data
+
+  select case(pvt_table%name)
+    case("PVDO")
+      !WRAP and move to eos_datbase
+      !transferom FVF table into reservoir molar densities tables
+      do i_data = 1,size(pvt_table%data,2)
+        pvt_table%data(pvt_table%prop_to_data_map(EOS_FVF),i_data) = &
+           reference_density_kg / fmw_oil / &
+           pvt_table%data(pvt_table%prop_to_data_map(EOS_FVF),i_data)
+      end do
+      !change variable name
+      pvt_table%data_to_prop_map(pvt_table%prop_to_data_map(EOS_FVF)) = &
+        EOS_DENSITY
+      pvt_table%prop_to_data_map(EOS_DENSITY) = &
+        pvt_table%prop_to_data_map(EOS_FVF)
+      !END WRAP and move to eos_datbase
+      !Pointing is done within when setting up the pvt table
+      !EOSOilDensityPtr => EOSOilDensityTable
+  end select
+
+end subroutine EOSOilTableProcess
 
 ! ************************************************************************** !
 
@@ -1390,8 +1516,9 @@ subroutine EOSOilDBaseDestroy()
   call EOSDatabaseDestroy(eos_ent_dbase)
   call EOSDatabaseDestroy(eos_vis_dbase)
 
-  !destroy EOS tables
-  call EOSTableDestroy(pvt_table)
+  !nullify EOS table pointer - pvt tables are deallocated when destroying
+  !the table list
+  nullify(pvt_table)
 
 end subroutine EOSOilDBaseDestroy
 

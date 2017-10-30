@@ -1148,7 +1148,7 @@ subroutine SubsurfaceSetupRealization(simulation)
   use EOS_Water_module
   use Dataset_module
   use Patch_module
-  use EOSData_module
+  use EOS_module
 
   implicit none
 
@@ -1173,7 +1173,8 @@ subroutine SubsurfaceSetupRealization(simulation)
   endif
 
   !process eos tables
-  call EOSTableProcessList(option)
+  call EOSProcess(option)
+
 
   ! read reaction database
   if (associated(realization%reaction)) then

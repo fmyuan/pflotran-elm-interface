@@ -706,10 +706,10 @@ factory_pflotran.o : checkpoint.o eos.o factory_geomechanics.o \
 factory_subsurface.o : characteristic_curves.o checkpoint.o condition.o \
                        condition_control.o coupler.o data_mediator_dataset.o \
                        dataset.o dataset_base.o dataset_common_hdf5.o debug.o \
-                       discretization.o eos.o eos_database.o eos_water.o \
-                       field.o fluid.o general.o global.o grid.o \
-                       grid_structured.o grid_unstructured_aux.o hdf5_aux.o \
-                       init_common.o init_subsurface.o init_subsurface_flow.o \
+                       discretization.o eos.o eos_water.o field.o fluid.o \
+                       general.o global.o grid.o grid_structured.o \
+                       grid_unstructured_aux.o hdf5_aux.o init_common.o \
+                       init_subsurface.o init_subsurface_flow.o \
                        init_subsurface_transport.o input_aux.o integral_flux.o \
                        logging.o material.o observation.o option.o output.o \
                        output_aux.o output_tecplot.o patch.o \
