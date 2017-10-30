@@ -122,7 +122,8 @@ end subroutine PMSubsurfaceFlowCreate
 
 ! ************************************************************************** !
 
-subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found,option)
+subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
+                                          error_string,option)
   ! 
   ! Reads input file parameters associated with the subsurface flow process 
   !       model
@@ -138,9 +139,9 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found,option)
   
   class(pm_subsurface_flow_type) :: this
   type(input_type) :: input
-  
   character(len=MAXWORDLENGTH) :: keyword
   PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
 
   found = PETSC_TRUE
@@ -165,27 +166,26 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found,option)
     case('PRESSURE_DAMPENING_FACTOR')
       call InputReadDouble(input,option,this%pressure_dampening_factor)
       call InputErrorMsg(input,option,'PRESSURE_DAMPENING_FACTOR', &
-                         'SUBSURFACE_FLOW OPTIONS')
+                         error_string)
 
     case('SATURATION_CHANGE_LIMIT')
       call InputReadDouble(input,option,this%saturation_change_limit)
       call InputErrorMsg(input,option,'SATURATION_CHANGE_LIMIT', &
-                          'SUBSURFACE_FLOW OPTIONS')
+                         error_string)
                            
     case('PRESSURE_CHANGE_LIMIT')
       call InputReadDouble(input,option,this%pressure_change_limit)
       call InputErrorMsg(input,option,'PRESSURE_CHANGE_LIMIT', &
-                          'SUBSURFACE_FLOW OPTIONS')
+                         error_string)
                            
     case('TEMPERATURE_CHANGE_LIMIT')
       call InputReadDouble(input,option,this%temperature_change_limit)
       call InputErrorMsg(input,option,'TEMPERATURE_CHANGE_LIMIT', &
-                          'SUBSURFACE_FLOW OPTIONS')
+                         error_string)
 
     case('MAX_CFL')
       call InputReadDouble(input,option,this%cfl_governor)
-      call InputErrorMsg(input,option,'MAX_CFL', &
-                          'SUBSURFACE_FLOW OPTIONS')
+      call InputErrorMsg(input,option,'MAX_CFL',error_string)
 
     case('NUMERICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_TRUE

@@ -274,6 +274,7 @@ mode_aux_obj = \
 	${common_src}pm_base_pointer.o \
 	${common_src}pm_general.o \
 	${common_src}pm_wipp_flow.o \
+	${common_src}pm_bragflo.o \
 	${common_src}pm_toil_ims.o \
 	${common_src}pm_towg.o \
 	${common_src}pm_flash2.o \
@@ -301,6 +302,8 @@ mode_obj = \
 	${common_src}general_common.o \
 	${common_src}wipp_flow.o \
 	${common_src}wipp_flow_common.o \
+	${common_src}bragflo.o \
+	${common_src}bragflo_common.o \
 	${common_src}toil_ims.o \
 	${common_src}towg.o \
 	${common_src}global.o \
@@ -583,6 +586,13 @@ auxvars_towg.o : auxvars_base.o auxvars_flow.o auxvars_flow_energy.o option.o \
                  pflotran_constants.o utility.o
 block_solve.o :
 block_tridiag.o : pflotran_constants.o
+bragflo.o : bragflo_common.o connection.o coupler.o debug.o discretization.o \
+            field.o global_aux.o grid.o material_aux.o option.o patch.o \
+            pflotran_constants.o pm_wipp_srcsink.o realization_subsurface.o \
+            wipp_flow.o wipp_flow_aux.o wipp_flow_common.o
+bragflo_common.o : connection.o general_aux.o global_aux.o material_aux.o \
+                   option.o pflotran_constants.o wipp_flow_aux.o \
+                   wipp_flow_common.o
 characteristic_curves.o : input_aux.o material_aux.o option.o \
                           pflotran_constants.o string.o utility.o
 checkpoint.o : discretization.o field.o global.o grid.o hdf5.o input_aux.o \
@@ -714,14 +724,14 @@ factory_subsurface.o : characteristic_curves.o checkpoint.o condition.o \
                        logging.o material.o observation.o option.o output.o \
                        output_aux.o output_tecplot.o patch.o \
                        pflotran_constants.o pm_auxiliary.o pm_base.o \
-                       pm_base_pointer.o pm_flash2.o pm_general.o pm_immis.o \
-                       pm_miscible.o pm_mphase.o pm_richards.o pm_rt.o \
-                       pm_subsurface_flow.o pm_th.o pm_toil_ims.o pm_towg.o \
-                       pm_towg_aux.o pm_ufd_biosphere.o pm_ufd_decay.o \
-                       pm_waste_form.o pm_wipp_flow.o pm_wipp_srcsink.o \
-                       pmc_auxiliary.o pmc_base.o pmc_subsurface.o \
-                       pmc_third_party.o reaction.o reaction_aux.o \
-                       reaction_database.o reaction_mineral.o \
+                       pm_base_pointer.o pm_bragflo.o pm_flash2.o pm_general.o \
+                       pm_immis.o pm_miscible.o pm_mphase.o pm_richards.o \
+                       pm_rt.o pm_subsurface_flow.o pm_th.o pm_toil_ims.o \
+                       pm_towg.o pm_towg_aux.o pm_ufd_biosphere.o \
+                       pm_ufd_decay.o pm_waste_form.o pm_wipp_flow.o \
+                       pm_wipp_srcsink.o pmc_auxiliary.o pmc_base.o \
+                       pmc_subsurface.o pmc_third_party.o reaction.o \
+                       reaction_aux.o reaction_database.o reaction_mineral.o \
                        reaction_solid_solution.o reactive_transport.o \
                        realization_base.o realization_subsurface.o region.o \
                        regression.o saturation_function.o \
@@ -1037,6 +1047,7 @@ pm_base.o : input_aux.o option.o output_aux.o pflotran_constants.o \
 pm_base_aux.o : auxvars_base.o grid.o option.o pflotran_constants.o utility.o
 pm_base_pointer.o : option.o pflotran_constants.o pm_base.o \
                     realization_subsurface.o
+pm_bragflo.o : bragflo.o pflotran_constants.o pm_wipp_flow.o wipp_flow_aux.o
 pm_flash2.o : eos_water.o flash2.o flash2_aux.o input_aux.o option.o \
               pflotran_constants.o pm_base.o pm_subsurface_flow.o \
               realization_subsurface.o string.o utility.o
@@ -1527,10 +1538,9 @@ wipp_flow_aux.o : characteristic_curves.o eos_gas.o eos_water.o global_aux.o \
                   variables.o wipp.o
 wipp_flow_common.o : connection.o eos_gas.o eos_water.o general_aux.o \
                      global_aux.o material_aux.o option.o pflotran_constants.o \
-                     utility.o wipp_flow_aux.o
+                     wipp_flow_aux.o
 wrapper_hydrogeophysics.o : e4d_run.o e4d_setup.o e4d_vars.o option.o \
                             pflotran_constants.o
-
 
 ###############################################################################
 # End Dependencies

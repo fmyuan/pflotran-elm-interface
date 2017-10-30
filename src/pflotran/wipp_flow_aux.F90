@@ -8,15 +8,7 @@ module WIPP_Flow_Aux_module
   
   private 
 
-#if 0
-  PetscInt, public, parameter :: NULL_STATE = 0
-  PetscInt, public, parameter :: LIQUID_STATE = 1
-  PetscInt, public, parameter :: GAS_STATE = 2
-  PetscInt, public, parameter :: TWO_PHASE_STATE = 3
-  PetscInt, public, parameter :: ANY_STATE = 4
-#endif
-  
-  PetscBool, public :: wippflo_analytical_derivatives = PETSC_FALSE
+  PetscBool, public :: wippflo_use_bragflo_flux = PETSC_FALSE
   PetscBool, public :: wippflo_fix_upwind_direction = PETSC_TRUE
   PetscBool, public :: wippflo_update_upwind_direction = PETSC_FALSE
   PetscBool, public :: wippflo_count_upwind_dir_flip = PETSC_FALSE
@@ -27,7 +19,6 @@ module WIPP_Flow_Aux_module
   PetscReal, public :: wippflo_max_pressure_change = 5.d4
   PetscInt, public :: wippflo_max_it_before_damping = UNINITIALIZED_INTEGER
   PetscReal, public :: wippflo_damping_factor = 0.6d0
-  
 
   PetscInt, parameter, public :: WIPPFLO_LIQUID_PRESSURE_DOF = 1
   PetscInt, parameter, public :: WIPPFLO_GAS_SATURATION_DOF = 2
@@ -55,44 +46,23 @@ module WIPP_Flow_Aux_module
   PetscInt, public :: dof_to_primary_variable(2)
   
   type, public :: wippflo_auxvar_type
-    PetscReal, pointer :: pres(:)   ! (iphase)
-    PetscReal, pointer :: sat(:)    ! (iphase)
-    PetscReal, pointer :: den(:)    ! (iphase) kmol/m^3 phase
-    PetscReal, pointer :: den_kg(:) ! (iphase) kg/m^3 phase
+    PetscReal :: pres(6)   ! (iphase)
+    PetscReal :: sat(2)    ! (iphase)
+    PetscReal :: den(2)    ! (iphase) kmol/m^3 phase
+    PetscReal :: den_kg(2) ! (iphase) kg/m^3 phase
     !geh: leave xmol in object until analytical derivatives have been fixed.
     PetscReal :: xmol(2,2)
     PetscReal :: temp
-    PetscReal, pointer :: mobility(:) ! relative perm / kinematic viscosity
+    PetscReal :: mobility(2) ! relative perm / kinematic viscosity
+    PetscReal :: kr(2) ! relative perm
+    PetscReal :: mu(2) ! kinematic viscosity
     PetscReal :: effective_porosity ! factors in compressibility
     PetscReal :: pert
+    PetscReal :: alpha
+    PetscReal :: depth
     PetscReal :: fracture_perm_scaling_factor
     PetscReal :: klinkenberg_scaling_factor(3)
-    type(wippflo_derivative_auxvar_type), pointer :: d
   end type wippflo_auxvar_type
-  
-  type, public :: wippflo_derivative_auxvar_type
-    PetscReal :: pc_satg
-    PetscReal :: por_p
-    PetscReal :: denl_pl
-    PetscReal :: deng_pg
-    PetscReal :: deng_pa
-    PetscReal :: dengkg_pg
-    PetscReal :: denv
-    PetscReal :: dena
-    PetscReal :: denv_pg
-    PetscReal :: dena_pg
-    
-    PetscReal :: psat_p
-    PetscReal :: pv_p
-    PetscReal :: pv_pa
-    PetscReal :: mobilityl_pl
-    PetscReal :: mobilityl_satg
-    PetscReal :: mobilityg_pg
-    PetscReal :: mobilityg_satg
-    PetscReal :: mobilityg_pa
-    PetscReal :: mug
-    PetscReal :: mug_pg
-  end type wippflo_derivative_auxvar_type
   
   type, public :: wippflo_parameter_type
     PetscBool :: check_post_converged
@@ -190,7 +160,7 @@ end function WIPPFloAuxCreate
 
 ! ************************************************************************** !
 
-subroutine WIPPFloAuxVarInit(auxvar,allocate_derivative,option)
+subroutine WIPPFloAuxVarInit(auxvar,option)
   ! 
   ! Initialize auxiliary object
   ! 
@@ -203,54 +173,26 @@ subroutine WIPPFloAuxVarInit(auxvar,allocate_derivative,option)
   implicit none
   
   type(wippflo_auxvar_type) :: auxvar
-  PetscBool :: allocate_derivative
   type(option_type) :: option
 
   auxvar%temp = 0.d0
   auxvar%effective_porosity = 0.d0
   auxvar%pert = 0.d0
+  auxvar%alpha = 1.d0
+  auxvar%depth = 0.d0
   auxvar%fracture_perm_scaling_factor = 1.d0
   auxvar%klinkenberg_scaling_factor = 1.d0
   
   auxvar%xmol = 0.d0
   auxvar%xmol(1,1) = 1.d0
   auxvar%xmol(2,2) = 1.d0
-  allocate(auxvar%pres(option%nphase+FOUR_INTEGER))
   auxvar%pres = 0.d0
-  allocate(auxvar%sat(option%nphase))
   auxvar%sat = 0.d0
-  allocate(auxvar%den(option%nphase))
   auxvar%den = 0.d0
-  allocate(auxvar%den_kg(option%nphase))
   auxvar%den_kg = 0.d0
-  allocate(auxvar%mobility(option%nphase))
   auxvar%mobility = 0.d0
-  if (allocate_derivative) then
-    allocate(auxvar%d)
-    auxvar%d%pc_satg = 0.d0
-    auxvar%d%por_p = 0.d0
-    auxvar%d%denl_pl = 0.d0
-    auxvar%d%deng_pg = 0.d0
-    auxvar%d%deng_pa = 0.d0
-    auxvar%d%dengkg_pg = 0.d0
-    auxvar%d%denv = 0.d0
-    auxvar%d%dena = 0.d0
-    auxvar%d%denv_pg = 0.d0
-    auxvar%d%dena_pg = 0.d0
-        
-    auxvar%d%psat_p = 0.d0
-    auxvar%d%pv_p = 0.d0
-    auxvar%d%pv_pa = 0.d0
-    auxvar%d%mug = 0.d0
-    auxvar%d%mug_pg = 0.d0
-    auxvar%d%mobilityl_pl = 0.d0
-    auxvar%d%mobilityl_satg = 0.d0
-    auxvar%d%mobilityg_pg = 0.d0
-    auxvar%d%mobilityg_satg = 0.d0
-    auxvar%d%mobilityg_pa = 0.d0
-  else
-    nullify(auxvar%d)
-  endif
+  auxvar%kr = 0.d0
+  auxvar%mu = 0.d0
   
 end subroutine WIPPFloAuxVarInit
 
@@ -277,15 +219,20 @@ subroutine WIPPFloAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%den = auxvar%den
   auxvar2%den_kg = auxvar%den_kg
   auxvar2%mobility = auxvar%mobility
+  auxvar2%kr = auxvar%kr
+  auxvar2%mu = auxvar%mu
   auxvar2%effective_porosity = auxvar%effective_porosity
   auxvar2%pert = auxvar%pert
+  auxvar2%depth = auxvar%depth
+  auxvar2%alpha = auxvar%alpha
 
 end subroutine WIPPFloAuxVarCopy
 
 ! ************************************************************************** !
 
-subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar,material_auxvar, &
-                                characteristic_curves,natural_id,option)
+subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
+                                material_auxvar,characteristic_curves, &
+                                natural_id,option)
   ! 
   ! Computes auxiliary variables for each grid cell
   ! 
@@ -320,20 +267,13 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar,material_auxvar, 
   PetscReal :: cell_pressure, water_vapor_pressure
   PetscReal :: den_water_vapor, den_kg_water_vapor
   PetscReal :: den_air
-  PetscReal :: krl, visl, dvis_dp, dvis_dT, dvis_dpa
-  PetscReal :: dkrl_dsatl, dkrl_dsatg
-  PetscReal :: dkrg_dsatl, dkrg_dsatg
+  PetscReal :: krl, visl
   PetscReal :: krg, visg
   PetscReal :: guess, dummy
   PetscInt :: cpid, spid
   PetscReal :: creep_closure_time
   PetscReal :: aux(1)
-  PetscReal :: dpor_dp
   PetscReal :: tempreal
-  PetscReal :: dpair_dpgas
-  PetscReal :: dden_air_dpa, dden_air_dpg
-  PetscReal :: dden_water_vapor_dpv
-  PetscReal :: dpc_dsatl
   PetscReal :: perm_for_cc
   PetscReal :: prev_effective_porosity
   PetscErrorCode :: ierr
@@ -358,9 +298,6 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar,material_auxvar, 
   ! calculate saturation pressure as reference.
   call EOSWaterSaturationPressure(wippflo_auxvar%temp, &
                                   wippflo_auxvar%pres(spid),ierr)
-  if (associated(wippflo_auxvar%d)) then
-    dpair_dpgas = 1.d0
-  endif
   wippflo_auxvar%sat(lid) = 1.d0 - wippflo_auxvar%sat(gid)
 
   cell_pressure = wippflo_auxvar%pres(lid)
@@ -369,7 +306,6 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar,material_auxvar, 
 
   ! calculate effective porosity as a function of pressure
   if (option%iflag /= WIPPFLO_UPDATE_FOR_BOUNDARY) then
-    dpor_dp = 0.d0
     wippflo_auxvar%effective_porosity = material_auxvar%porosity_base
     ! creep_closure, fracture, and soil_compressibility are mutually exclusive
     if (option%flow%creep_closure_on .and. wippflo_use_creep_closure) then
@@ -409,26 +345,23 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar,material_auxvar, 
       else if (associated(material_auxvar%fracture) .and. &
                wippflo_use_fracture) then
           call FracturePoroEvaluate(material_auxvar,cell_pressure, &
-                                    wippflo_auxvar%effective_porosity,dpor_dp)
+                                    wippflo_auxvar%effective_porosity,dummy)
       else if (soil_compressibility_index > 0) then
           call MaterialCompressSoil(material_auxvar,cell_pressure, &
-                                    wippflo_auxvar%effective_porosity,dpor_dp)
+                                    wippflo_auxvar%effective_porosity,dummy)
       endif
     else if (associated(material_auxvar%fracture) .and. &
              wippflo_use_fracture) then
       call FracturePoroEvaluate(material_auxvar,cell_pressure, &
-                                wippflo_auxvar%effective_porosity,dpor_dp)
+                                wippflo_auxvar%effective_porosity,dummy)
     else if (soil_compressibility_index > 0) then
       call MaterialCompressSoil(material_auxvar,cell_pressure, &
-                                wippflo_auxvar%effective_porosity,dpor_dp)
+                                wippflo_auxvar%effective_porosity,dummy)
     endif
     if (option%iflag /= WIPPFLO_UPDATE_FOR_DERIVATIVE) then
       ! this needs to be set for proper output
       material_auxvar%porosity = wippflo_auxvar%effective_porosity
     endif
-  endif
-  if (associated(wippflo_auxvar%d)) then
-    wippflo_auxvar%d%por_p = dpor_dp
   endif
 
   wippflo_auxvar%fracture_perm_scaling_factor = 1.d0
@@ -451,12 +384,10 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar,material_auxvar, 
   end select
   call characteristic_curves%saturation_function% &
           CapillaryPressure(wippflo_auxvar%sat(lid),wippflo_auxvar%pres(cpid), &
-                            dpc_dsatl,option)                             
-  if (associated(wippflo_auxvar%d)) then
-    wippflo_auxvar%d%pc_satg = -1.d0*dpc_dsatl
-  endif
+                            dummy,option)                             
  
-  wippflo_auxvar%pres(gid) = wippflo_auxvar%pres(lid) + wippflo_auxvar%pres(cpid)
+  wippflo_auxvar%pres(gid) = wippflo_auxvar%pres(lid) + &
+                             wippflo_auxvar%pres(cpid)
 
   ! Klinkenberg effect is based on gas pressure. Therefore, it cannot be
   ! updated prior to this location and should be skipped if a fracture cell.
@@ -479,125 +410,50 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar,material_auxvar, 
 
   ! Liquid phase thermodynamic properties
   if (.not.option%flow%density_depends_on_salinity) then
-    if (associated(wippflo_auxvar%d)) then
-      call EOSWaterDensity(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
-                           wippflo_auxvar%den_kg(lid),wippflo_auxvar%den(lid), &
-                           wippflo_auxvar%d%denl_pl,dummy,ierr)
-    else
-      call EOSWaterDensity(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
-                           wippflo_auxvar%den_kg(lid),wippflo_auxvar%den(lid),ierr)
-    endif
+    call EOSWaterDensity(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
+                         wippflo_auxvar%den_kg(lid), &
+                         wippflo_auxvar%den(lid),ierr)
   else
     aux(1) = global_auxvar%m_nacl(1)
-    if (associated(wippflo_auxvar%d)) then
-      call EOSWaterDensityExt(wippflo_auxvar%temp,wippflo_auxvar%pres(lid),aux, &
-                              wippflo_auxvar%den_kg(lid),wippflo_auxvar%den(lid), &
-                              wippflo_auxvar%d%denl_pl,dummy,ierr)
-    else
-      call EOSWaterDensityExt(wippflo_auxvar%temp,wippflo_auxvar%pres(lid),aux, &
-                              wippflo_auxvar%den_kg(lid),wippflo_auxvar%den(lid),ierr)
-    endif
+    call EOSWaterDensityExt(wippflo_auxvar%temp,wippflo_auxvar%pres(lid),aux, &
+                            wippflo_auxvar%den_kg(lid), &
+                            wippflo_auxvar%den(lid),ierr)
   endif
 
   ! Gas phase thermodynamic properties
-  if (associated(wippflo_auxvar%d)) then
-    call EOSGasDensity(wippflo_auxvar%temp,wippflo_auxvar%pres(gid),den_air, &
-                       dummy,dden_air_dpa,ierr)
-    ! add in partial w/respec to pa_T
-    dden_air_dpg = dden_air_dpa*dpair_dpgas
-  else
-    call EOSGasDensity(wippflo_auxvar%temp,wippflo_auxvar%pres(gid),den_air,ierr)
-  endif
+  call EOSGasDensity(wippflo_auxvar%temp,wippflo_auxvar%pres(gid),den_air,ierr)
   den_water_vapor = 0.d0
   den_kg_water_vapor = 0.d0
   wippflo_auxvar%den(gid) = den_water_vapor + den_air
   wippflo_auxvar%den_kg(gid) = den_kg_water_vapor + den_air*fmw_comp(gid)
   den_water_vapor = 0.d0
   
-  if (associated(wippflo_auxvar%d)) then
-    dden_water_vapor_dpv = 0.d0
-    wippflo_auxvar%d%pv_p = 0.d0
-    wippflo_auxvar%d%pv_pa = 0.d0
-    wippflo_auxvar%d%denv = den_water_vapor
-    wippflo_auxvar%d%dena = den_air
-    wippflo_auxvar%d%denv_pg = dden_water_vapor_dpv * wippflo_auxvar%d%pv_p 
-    wippflo_auxvar%d%dena_pg = dden_air_dpa * dpair_dpgas
-      
-    wippflo_auxvar%d%deng_pg = dden_water_vapor_dpv * wippflo_auxvar%d%pv_p + &
-                            dden_air_dpa * dpair_dpgas
-    wippflo_auxvar%d%deng_pa = dden_water_vapor_dpv * wippflo_auxvar%d%pv_pa + &
-                            dden_air_dpa
-    wippflo_auxvar%d%dengkg_pg = dden_water_vapor_dpv * wippflo_auxvar%d%pv_p * FMWH2O + &
-                              dden_air_dpa * dpair_dpgas * fmw_comp(2)
-  endif
-  
   ! Liquid Phase
   call characteristic_curves%liq_rel_perm_function% &
-          RelativePermeability(wippflo_auxvar%sat(lid),krl,dkrl_dsatl,option)
-  ! dkrl_sat is with respect to liquid pressure, but the primary dependent
-  ! variable is gas pressure.  therefore, negate
-  dkrl_dsatg = -1.d0 * dkrl_dsatl
+          RelativePermeability(wippflo_auxvar%sat(lid),krl,dummy,option)
   if (.not.option%flow%density_depends_on_salinity) then
-    if (associated(wippflo_auxvar%d)) then
-      call EOSWaterViscosity(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
-                              wippflo_auxvar%pres(spid), &
-                              0.d0,visl, &
-                              dummy,dvis_dp,ierr)
-    else
-      call EOSWaterViscosity(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
-                              wippflo_auxvar%pres(spid),visl,ierr)
-    endif
+    call EOSWaterViscosity(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
+                           wippflo_auxvar%pres(spid),visl,ierr)
   else
     aux(1) = global_auxvar%m_nacl(1)
-    if (associated(wippflo_auxvar%d)) then
-      call EOSWaterViscosityExt(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
-                                wippflo_auxvar%pres(spid), &
-                                0.d0,aux,visl, &
-                                dummy,dvis_dp,ierr)
-    else
-      call EOSWaterViscosityExt(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
-                                wippflo_auxvar%pres(spid),aux,visl,ierr)
-    endif
+    call EOSWaterViscosityExt(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
+                              wippflo_auxvar%pres(spid),aux,visl,ierr)
   endif
   wippflo_auxvar%mobility(lid) = krl/visl
-  if (associated(wippflo_auxvar%d)) then
-    ! use chainrule for derivative
-    tempreal = -1.d0*krl/(visl*visl)
-    wippflo_auxvar%d%mobilityl_pl = tempreal*dvis_dp
-    wippflo_auxvar%d%mobilityl_satg = dkrl_dsatg/visl
-  endif
+  wippflo_auxvar%kr(lid) = krl
+  wippflo_auxvar%mu(lid) = visl
 
   ! Gas Phase
   call characteristic_curves%gas_rel_perm_function% &
-          RelativePermeability(wippflo_auxvar%sat(lid),krg,dkrg_dsatl,option)                            
-  ! dkrl_sat is with respect to liquid pressure, but the primary dependent
-  ! variable is gas pressure.  therefore, negate
-  dkrg_dsatg = -1.d0 * dkrg_dsatl
+          RelativePermeability(wippflo_auxvar%sat(lid),krg,dummy,option)                            
   ! STOMP uses separate functions for calculating viscosity of vapor and
   ! and air (WATGSV,AIRGSV) and then uses GASVIS to calculate mixture 
   ! viscosity.
-  if (associated(wippflo_auxvar%d)) then
-    call EOSGasViscosity(wippflo_auxvar%temp, wippflo_auxvar%pres(gid), &
-                          wippflo_auxvar%pres(gid), den_air, &
-  ! viscosity routine says it should be derivative of rho_comp wrt pg
-!geh                           dden_air_dT, wippflo_auxvar%d%deng_pg, &
-                          0.d0, dden_air_dpa, dden_air_dpg, &
-                          0.d0, dpair_dpgas, &
-                          visg,dummy,dvis_dpa,dvis_dp,ierr)      
-  else    
-    call EOSGasViscosity(wippflo_auxvar%temp,wippflo_auxvar%pres(gid), &
-                          wippflo_auxvar%pres(gid),den_air,visg,ierr)
-  endif
+  call EOSGasViscosity(wippflo_auxvar%temp,wippflo_auxvar%pres(gid), &
+                        wippflo_auxvar%pres(gid),den_air,visg,ierr)
   wippflo_auxvar%mobility(gid) = krg/visg
-  if (associated(wippflo_auxvar%d)) then
-    ! use chainrule for derivative
-    tempreal = -1.d0*krg/(visg*visg)
-    wippflo_auxvar%d%mobilityg_pg = tempreal*dvis_dp
-    wippflo_auxvar%d%mobilityg_satg = dkrg_dsatg/visg
-    wippflo_auxvar%d%mobilityg_pa = tempreal*dvis_dpa
-    wippflo_auxvar%d%mug = visg
-    wippflo_auxvar%d%mug_pg = dvis_dp
-  endif    
+  wippflo_auxvar%kr(gid) = krg
+  wippflo_auxvar%mu(gid) = visg
 
 end subroutine WIPPFloAuxVarCompute
 
@@ -766,7 +622,11 @@ subroutine WIPPFloPrintAuxVars(wippflo_auxvar,global_auxvar,material_auxvar, &
   print *, '        gas density [kg]: ', wippflo_auxvar%den_kg(gid)
   print *, '         temperature [C]: ', wippflo_auxvar%temp
   print *, '         liquid mobility: ', wippflo_auxvar%mobility(lid)
+  print *, '         liquid rel perm: ', wippflo_auxvar%kr(lid)
+  print *, '        liquid viscosity: ', wippflo_auxvar%mu(lid)
   print *, '            gas mobility: ', wippflo_auxvar%mobility(gid)
+  print *, '            gas rel perm: ', wippflo_auxvar%kr(gid)
+  print *, '        liquid viscosity: ', wippflo_auxvar%mu(gid)
   print *, '      effective porosity: ', wippflo_auxvar%effective_porosity
   print *, '--------------------------------------------------------'
 
@@ -933,8 +793,16 @@ subroutine WIPPFloOutputAuxVars2(wippflo_auxvars,global_auxvars,option)
   write(86,*)
   write(86,100) '      liquid mobility: ', &
     ((wippflo_auxvars(idof,i)%mobility(lid),i=1,n),idof=0,2)
+  write(86,100) '      liquid rel perm: ', &
+    ((wippflo_auxvars(idof,i)%kr(lid),i=1,n),idof=0,2)
+  write(86,100) '     liquid viscosity: ', &
+    ((wippflo_auxvars(idof,i)%mu(lid),i=1,n),idof=0,2)
   write(86,100) '         gas mobility: ', &
     ((wippflo_auxvars(idof,i)%mobility(gid),i=1,n),idof=0,2)
+  write(86,100) '         gas rel perm: ', &
+    ((wippflo_auxvars(idof,i)%kr(gid),i=1,n),idof=0,2)
+  write(86,100) '        gas viscosity: ', &
+    ((wippflo_auxvars(idof,i)%mu(gid),i=1,n),idof=0,2)
   write(86,100) '   effective porosity: ', &
     ((wippflo_auxvars(idof,i)%effective_porosity,i=1,n),idof=0,2)
   
@@ -1032,16 +900,6 @@ subroutine WIPPFloAuxVarStrip(auxvar)
   implicit none
 
   type(wippflo_auxvar_type) :: auxvar
-  
-  call DeallocateArray(auxvar%pres)  
-  call DeallocateArray(auxvar%sat)  
-  call DeallocateArray(auxvar%den)  
-  call DeallocateArray(auxvar%den_kg)  
-  call DeallocateArray(auxvar%mobility)  
-  if (associated(auxvar%d)) then
-    deallocate(auxvar%d)
-    nullify(auxvar%d)
-  endif
   
 end subroutine WIPPFloAuxVarStrip
 

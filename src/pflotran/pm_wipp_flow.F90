@@ -41,7 +41,10 @@ module PM_WIPP_Flow_class
     procedure, public :: Destroy => PMWIPPFloDestroy
   end type pm_wippflo_type
   
-  public :: PMWIPPFloCreate
+  public :: PMWIPPFloCreate, &
+            PMWIPPFloInitObject, &
+            PMWIPPFloReadSelectCase, &
+            PMWIPPFloInitializeRun
   
 contains
 
@@ -63,29 +66,45 @@ function PMWIPPFloCreate()
 
   class(pm_wippflo_type), pointer :: wippflo_pm
   
-#ifdef PM_WIPPFLO_DEBUG  
-  print *, 'PMWIPPFloCreate()'
-#endif  
-
   allocate(wippflo_pm)
-  allocate(wippflo_pm%max_change_ivar(3))
-  wippflo_pm%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
-  nullify(wippflo_pm%pmwss_ptr)
-  
-  call PMSubsurfaceFlowCreate(wippflo_pm)
-  wippflo_pm%name = 'WIPP Immiscible Multiphase Flow'
-
-  wippflo_pm%check_post_convergence = PETSC_TRUE
-
-  ! defaults from BRAGFLO input deck
-  wippflo_pm%liquid_equation_tolerance = 1.d-2
-  wippflo_pm%gas_equation_tolerance = 1.d-2
-  wippflo_pm%liquid_pressure_tolerance = 1.d-2
-  wippflo_pm%gas_saturation_tolerance = 1.d-3
+  call PMWIPPFloInitObject(wippflo_pm)
 
   PMWIPPFloCreate => wippflo_pm
   
 end function PMWIPPFloCreate
+
+! ************************************************************************** !
+
+subroutine PMWIPPFloInitObject(this)
+  ! 
+  ! Creates WIPPFlo process models shell
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/26/17
+  ! 
+  use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
+                               LIQUID_MOLE_FRACTION, TEMPERATURE, &
+                               GAS_SATURATION
+  implicit none
+  
+  class(pm_wippflo_type) :: this
+  
+  allocate(this%max_change_ivar(3))
+  this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
+  nullify(this%pmwss_ptr)
+  
+  call PMSubsurfaceFlowCreate(this)
+  this%name = 'WIPP Immiscible Multiphase Flow'
+
+  this%check_post_convergence = PETSC_TRUE
+
+  ! defaults from BRAGFLO input deck
+  this%liquid_equation_tolerance = 1.d-2
+  this%gas_equation_tolerance = 1.d-2
+  this%liquid_pressure_tolerance = 1.d-2
+  this%gas_saturation_tolerance = 1.d-3
+
+end subroutine PMWIPPFloInitObject
 
 ! ************************************************************************** !
 
@@ -97,7 +116,6 @@ subroutine PMWIPPFloRead(this,input)
   ! Date: 07/11/17
   !
   use WIPP_Flow_module
-  use WIPP_Flow_Aux_module
   use Input_Aux_module
   use String_module
   use Option_module
@@ -129,47 +147,11 @@ subroutine PMWIPPFloRead(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found,option)    
+    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
+                                        error_string,option)    
     if (found) cycle
     
-    select case(trim(keyword))
-      case('LIQUID_EQUATION_TOLERANCE')
-        call InputReadDouble(input,option,this%liquid_equation_tolerance)
-        call InputDefaultMsg(input,option,'LIQUID_EQUATION_TOLERANCE')
-      case('GAS_EQUATION_TOLERANCE')
-        call InputReadDouble(input,option,this%gas_equation_tolerance)
-        call InputDefaultMsg(input,option,'GAS_EQUATION_TOLERANCE')
-      case('LIQUID_PRESSURE_TOLERANCE')
-        call InputReadDouble(input,option,this%liquid_pressure_tolerance)
-        call InputDefaultMsg(input,option,'LIQUID_PRESSURE_TOLERANCE')
-      case('GAS_SATURATION_TOLERANCE')
-        call InputReadDouble(input,option,this%gas_saturation_tolerance)
-        call InputDefaultMsg(input,option,'GAS_SATURATION_TOLERANCE')
-      case('GAS_COMPONENT_FORMULA_WEIGHT')
-        call InputReadDouble(input,option,fmw_comp(2))
-        call InputErrorMsg(input,option,'gas component formula wt.', &
-                           error_string)
-      case('MAXIMUM_PRESSURE_CHANGE')
-        call InputReadDouble(input,option,wippflo_max_pressure_change)
-        call InputErrorMsg(input,option,'maximum pressure change', &
-                           error_string)
-      case('MAX_ITERATION_BEFORE_DAMPING')
-        call InputReadInt(input,option,wippflo_max_it_before_damping)
-        call InputErrorMsg(input,option,'maximum iteration before damping', &
-                           error_string)
-      case('DAMPING_FACTOR')
-        call InputReadDouble(input,option,wippflo_damping_factor)
-        call InputErrorMsg(input,option,'damping factor',error_string)
-      case('FIX_UPWIND_DIRECTION')
-        wippflo_fix_upwind_direction = PETSC_TRUE
-      case('UNFIX_UPWIND_DIRECTION')
-        wippflo_fix_upwind_direction = PETSC_FALSE
-      case('COUNT_UPWIND_DIRECTION_FLIP')
-        wippflo_count_upwind_dir_flip = PETSC_TRUE
-      case('NO_FRACTURE')
-        wippflo_use_fracture = PETSC_FALSE
-      case('NO_CREEP_CLOSURE')
-        wippflo_use_creep_closure = PETSC_FALSE
+    select case(keyword)
       case default
         call InputKeywordUnrecognized(keyword,'WIPP Flow Mode',option)
     end select
@@ -177,6 +159,79 @@ subroutine PMWIPPFloRead(this,input)
   enddo  
   
 end subroutine PMWIPPFloRead
+
+! ************************************************************************** !
+
+subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
+                                   error_string,option)
+  ! 
+  ! Reads input file parameters associated with the subsurface flow process 
+  !       model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/05/16
+  !
+  use WIPP_Flow_Aux_module
+  use Input_Aux_module
+  use String_module
+  use Option_module
+
+  implicit none
+
+  class(pm_wippflo_type) :: this
+  type(input_type) :: input
+
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type) :: option
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('LIQUID_EQUATION_TOLERANCE')
+      call InputReadDouble(input,option,this%liquid_equation_tolerance)
+      call InputDefaultMsg(input,option,'LIQUID_EQUATION_TOLERANCE')
+    case('GAS_EQUATION_TOLERANCE')
+      call InputReadDouble(input,option,this%gas_equation_tolerance)
+      call InputDefaultMsg(input,option,'GAS_EQUATION_TOLERANCE')
+    case('LIQUID_PRESSURE_TOLERANCE')
+      call InputReadDouble(input,option,this%liquid_pressure_tolerance)
+      call InputDefaultMsg(input,option,'LIQUID_PRESSURE_TOLERANCE')
+    case('GAS_SATURATION_TOLERANCE')
+      call InputReadDouble(input,option,this%gas_saturation_tolerance)
+      call InputDefaultMsg(input,option,'GAS_SATURATION_TOLERANCE')
+    case('GAS_COMPONENT_FORMULA_WEIGHT')
+      call InputReadDouble(input,option,fmw_comp(2))
+      call InputErrorMsg(input,option,'gas component formula wt.', &
+                         error_string)
+    case('MAXIMUM_PRESSURE_CHANGE')
+      call InputReadDouble(input,option,wippflo_max_pressure_change)
+      call InputErrorMsg(input,option,'maximum pressure change', &
+                         error_string)
+    case('MAX_ITERATION_BEFORE_DAMPING')
+      call InputReadInt(input,option,wippflo_max_it_before_damping)
+      call InputErrorMsg(input,option,'maximum iteration before damping', &
+                         error_string)
+    case('DAMPING_FACTOR')
+      call InputReadDouble(input,option,wippflo_damping_factor)
+      call InputErrorMsg(input,option,'damping factor',error_string)
+    case('FIX_UPWIND_DIRECTION')
+      wippflo_fix_upwind_direction = PETSC_TRUE
+    case('UNFIX_UPWIND_DIRECTION')
+      wippflo_fix_upwind_direction = PETSC_FALSE
+    case('COUNT_UPWIND_DIRECTION_FLIP')
+      wippflo_count_upwind_dir_flip = PETSC_TRUE
+    case('NO_FRACTURE')
+      wippflo_use_fracture = PETSC_FALSE
+    case('NO_CREEP_CLOSURE')
+      wippflo_use_creep_closure = PETSC_FALSE
+    case('BRAGFLO')
+      wippflo_use_bragflo_flux = PETSC_TRUE
+    case default
+      found = PETSC_FALSE
+  end select
+
+end subroutine PMWIPPFloReadSelectCase
 
 ! ************************************************************************** !
 
@@ -254,7 +309,11 @@ subroutine PMWIPPFloInitializeTimestep(this)
 
   call PMSubsurfaceFlowInitializeTimestepA(this)                                 
   if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," WIPP FLOW MODE ",62("="))')
+    if (wippflo_use_bragflo_flux) then
+      write(*,'(/,2("=")," BRAGFLO MODE ",64("="))')
+    else
+      write(*,'(/,2("=")," WIPP FLOW MODE ",62("="))')
+    endif
   endif
   
   call WIPPFloInitializeTimestep(this%realization)
@@ -407,7 +466,6 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   ! 
 
   use WIPP_Flow_module, only : WIPPFloResidual
-  use WIPP_Flow_Aux_module
 
   implicit none
   
@@ -634,6 +692,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscInt :: min_liq_pressure_cell
   PetscInt :: min_gas_pressure_cell
   PetscReal :: abs_dX_over_absX
+  PetscReal :: pflotran_to_bragflo(2)
   character(len=4) :: reason
   PetscInt :: istart, iend
   
@@ -679,6 +738,10 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     gas_equation_index = offset + WIPPFLO_GAS_EQUATION_INDEX
     pressure_index = offset + WIPPFLO_LIQUID_PRESSURE_DOF
     saturation_index = offset + WIPPFLO_GAS_SATURATION_DOF
+
+    pflotran_to_bragflo = fmw_comp * option%flow_dt / &
+                          material_auxvars(ghosted_id)%volume
+    print *, local_id, r_p(1:2) * pflotran_to_bragflo
     
     ! liquid component equation
     if (accum_p2(liquid_equation_index) > zero_accumulation) then 
@@ -754,6 +817,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       min_gas_pressure_cell = local_id
     endif
   enddo
+stop
 
   temp_int = 0
   if (.not.converged_liquid_equation) temp_int(1) = 1

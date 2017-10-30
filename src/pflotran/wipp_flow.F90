@@ -19,10 +19,12 @@ module WIPP_Flow_module
             WIPPFloUpdateAuxVars, &
             WIPPFloUpdateFixedAccum, &
             WIPPFloComputeMassBalance, &
+            WIPPFloZeroMassBalanceDelta, &
             WIPPFloResidual, &
             WIPPFloJacobian, &
             WIPPFloSetPlotVariables, &
             WIPPFloMapBCAuxVarsToGlobal, &
+            WIPPFloSSSandbox, &
             WIPPFloDestroy
 
 contains
@@ -76,8 +78,6 @@ subroutine WIPPFloSetup(realization)
   
   patch%aux%WIPPFlo => WIPPFloAuxCreate(option)
 
-  wippflo_analytical_derivatives = .not.option%flow%numerical_derivatives
-
   ! ensure that material properties specific to this module are properly
   ! initialized
   material_parameter => patch%aux%Material%material_parameter
@@ -118,18 +118,11 @@ subroutine WIPPFloSetup(realization)
     call printErrMsg(option)
   endif
   
-  ! allocate auxvar data structures for all grid cells  
-  if (wippflo_analytical_derivatives) then
-    ndof = 0
-  else
-    ndof = option%nflowdof
-  endif
+  ndof = option%nflowdof
   allocate(wippflo_auxvars(0:ndof,grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     do idof = 0, ndof
-      call WIPPFloAuxVarInit(wippflo_auxvars(idof,ghosted_id), &
-                         (wippflo_analytical_derivatives .and. idof==0), &
-                          option)
+      call WIPPFloAuxVarInit(wippflo_auxvars(idof,ghosted_id),option)
     enddo
   enddo
   patch%aux%WIPPFlo%auxvars => wippflo_auxvars
@@ -141,7 +134,7 @@ subroutine WIPPFloSetup(realization)
   if (sum_connection > 0) then
     allocate(wippflo_auxvars_bc(sum_connection))
     do iconn = 1, sum_connection
-      call WIPPFloAuxVarInit(wippflo_auxvars_bc(iconn),PETSC_FALSE,option)
+      call WIPPFloAuxVarInit(wippflo_auxvars_bc(iconn),option)
     enddo
     patch%aux%WIPPFlo%auxvars_bc => wippflo_auxvars_bc
   endif
@@ -153,7 +146,7 @@ subroutine WIPPFloSetup(realization)
   if (sum_connection > 0) then
     allocate(wippflo_auxvars_ss(sum_connection))
     do iconn = 1, sum_connection
-      call WIPPFloAuxVarInit(wippflo_auxvars_ss(iconn),PETSC_FALSE,option)
+      call WIPPFloAuxVarInit(wippflo_auxvars_ss(iconn),option)
     enddo
     patch%aux%WIPPFlo%auxvars_ss => wippflo_auxvars_ss
   endif
@@ -691,8 +684,7 @@ subroutine WIPPFloUpdateFixedAccum(realization)
                              material_auxvars(ghosted_id), &
                              material_parameter%soil_heat_capacity(imat), &
                              option,accum_p(local_start:local_end), &
-                             Jac_dummy,PETSC_FALSE, &
-                             PETSC_FALSE)
+                             Jac_dummy,PETSC_FALSE)
   enddo
   
   call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
@@ -827,7 +819,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                              material_auxvars(ghosted_id), &
                              material_parameter%soil_heat_capacity(imat), &
                              option,Res,Jac_dummy, &
-                             wippflo_analytical_derivatives, &
                              PETSC_FALSE)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     accum_p2(local_start:local_end) = Res(:)
@@ -871,7 +862,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                        wippflo_fix_upwind_direction, &
                        wippflo_update_upwind_direction, &
                        wippflo_count_upwind_dir_flip, & 
-                       wippflo_analytical_derivatives, &
                        PETSC_FALSE)
 
       patch%internal_velocities(:,sum_connection) = v_darcy
@@ -931,7 +921,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                      wippflo_fix_upwind_direction, &
                      wippflo_update_upwind_direction, &
                      wippflo_count_upwind_dir_flip, & 
-                     wippflo_analytical_derivatives, &
                      PETSC_FALSE)
       patch%boundary_velocities(:,sum_connection) = v_darcy
       if (associated(patch%boundary_flow_fluxes)) then
@@ -982,7 +971,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                           global_auxvars(ghosted_id), &
                           ss_flow_vol_flux, &
                           scale,Res,Jac_dummy, &
-                          wippflo_analytical_derivatives, &
                           PETSC_FALSE)
 
       r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
@@ -1140,19 +1128,17 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
 
   call MatZeroEntries(J,ierr);CHKERRQ(ierr)
 
-  if (.not.wippflo_analytical_derivatives) then
-    ! Perturb aux vars
-    do ghosted_id = 1, grid%ngmax  ! For each local node do...
-      if (patch%imat(ghosted_id) <= 0) cycle
-      natural_id = grid%nG2A(ghosted_id)
-      call WIPPFloAuxVarPerturb(wippflo_auxvars(:,ghosted_id), &
-                                global_auxvars(ghosted_id), &
-                                material_auxvars(ghosted_id), &
-                                patch%characteristic_curves_array( &
-                                  patch%sat_func_id(ghosted_id))%ptr, &
-                                natural_id,option)
-    enddo
-  endif
+  ! Perturb aux vars
+  do ghosted_id = 1, grid%ngmax  ! For each local node do...
+    if (patch%imat(ghosted_id) <= 0) cycle
+    natural_id = grid%nG2A(ghosted_id)
+    call WIPPFloAuxVarPerturb(wippflo_auxvars(:,ghosted_id), &
+                              global_auxvars(ghosted_id), &
+                              material_auxvars(ghosted_id), &
+                              patch%characteristic_curves_array( &
+                                patch%sat_func_id(ghosted_id))%ptr, &
+                              natural_id,option)
+  enddo
   
   ! Accumulation terms ------------------------------------
   do local_id = 1, grid%nlmax  ! For each local node do...

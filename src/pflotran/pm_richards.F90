@@ -100,7 +100,8 @@ subroutine PMRichardsRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found,option)
+    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
+                                        error_string,option)
     if (found) cycle
     
     select case(trim(word))
