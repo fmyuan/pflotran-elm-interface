@@ -3800,10 +3800,16 @@ function RCO2MoleFraction(rt_auxvar,global_auxvar,reaction,option)
   PetscInt :: ico2
   PetscReal :: sum_co2, sum_mol
   
-  ico2 = reaction%species_idx%co2_aq_id
-
+  if (associated(reaction%species_idx)) then
+    ico2 = reaction%species_idx%co2_aq_id
+  else
+    option%io_buffer = 'reaction%species_idx not set in RCO2MoleFraction(). &
+      &Have you defined CO2(aq) as a species in the input deck?'
+    call printErrMsg(option)
+  endif
   if (ico2 == 0) then
-    option%io_buffer = 'CO2 is not set in RCO2MoleFraction().'
+    option%io_buffer = 'CO2 is not set in RCO2MoleFraction(). Have you &
+      &defined CO2(aq) as a species in the input deck?'
     call printErrMsg(option)
   endif
   
