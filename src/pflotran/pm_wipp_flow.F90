@@ -86,7 +86,7 @@ function PMWIPPFloCreate()
   wippflo_pm%liquid_pressure_tolerance = 1.d-2
   wippflo_pm%gas_saturation_tolerance = 1.d-3
   wippflo_pm%dsatlim = 0.20d0   ! [-]
-  wippflo_pm%dprelim = 1.0d8    ! [Pa]
+  wippflo_pm%dprelim = -1.0d8    ! [Pa]
   wippflo_pm%satlimit = 1.0d-3  ! [-]
 
   PMWIPPFloCreate => wippflo_pm
@@ -194,6 +194,19 @@ subroutine PMWIPPFloRead(this,input)
   ! Check that SATLIMIT is smaller than DSATLIM
   if (this%satlimit > this%dsatlim) then
     option%io_buffer = 'The value of DSATLIM must be larger than SATLIMIT.'
+    call printErrMsg(option)
+  endif
+  ! Check the sign of given variables
+  if (this%dsatlim < 0.d0) then
+    option%io_buffer = 'The value of DSATLIM must be positive.'
+    call printErrMsg(option)
+  endif
+  if (this%dprelim > 0.d0) then
+    option%io_buffer = 'The value of DPRELIM must be negative.'
+    call printErrMsg(option)
+  endif
+  if (this%satlimit < 0.d0) then
+    option%io_buffer = 'The value of SATLIMIT must be positive.'
     call printErrMsg(option)
   endif
   
@@ -571,7 +584,7 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     endif
     ! DPRELIM is designed to catch large negative values in liquid pressure
     ! and cut the timestep if this occurs
-    if (pressure1 <= (-1.d0*this%dprelim)) then  ! DEPLIMIT(2)
+    if (pressure1 <= (this%dprelim)) then  ! DEPLIMIT(2)
       cut_timestep = PETSC_TRUE
     endif
   enddo
