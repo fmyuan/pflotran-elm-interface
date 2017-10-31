@@ -74,6 +74,7 @@ STANDARD_CFG = \
 	towg/towg.cfg \
 	ufd/ufd.cfg \
 	wipp/wipp_flow/condition/condition.cfg \
+	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 	wipp/nuts/nuts.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg \
 
@@ -166,7 +167,8 @@ NOHDF5_CFG = \
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg \
 
 WIPP_CFG = \
-	wipp/nuts/nuts.cfg
+	wipp/nuts/nuts.cfg \
+	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg \
 
 
@@ -293,6 +295,8 @@ clean-tests :
 	-rm -f wipp/bragflo/wipp_flow/gas_generation_2d.h5
 	-rm -f wipp/bragflo/wipp_flow/gas_generation_one_cell.h5
 	-rm -f wipp/bragflo/wipp_flow/*.pnl
+	-rm -f wipp/wipp_flow/gas_generation/*.pnl 
+	-rm -f wipp/wipp_flow/gas_generation/*.h5
 	-rm -f default/multicontinuum/0D_heat_MPH-int.dat
 	-rm -f default/multicontinuum/0D_heat_TH-int.dat
 	-rm -f default/543/543_hanford_srfcplx_base*.h5
