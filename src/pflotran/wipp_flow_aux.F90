@@ -8,6 +8,7 @@ module WIPP_Flow_Aux_module
   
   private 
 
+  PetscBool, public :: wippflo_debug_first_iteration = PETSC_FALSE
   PetscBool, public :: wippflo_use_bragflo_flux = PETSC_FALSE
   PetscBool, public :: wippflo_fix_upwind_direction = PETSC_TRUE
   PetscBool, public :: wippflo_update_upwind_direction = PETSC_FALSE
@@ -59,7 +60,7 @@ module WIPP_Flow_Aux_module
     PetscReal :: effective_porosity ! factors in compressibility
     PetscReal :: pert
     PetscReal :: alpha
-    PetscReal :: depth
+    PetscReal :: elevation
     PetscReal :: fracture_perm_scaling_factor
     PetscReal :: klinkenberg_scaling_factor(3)
   end type wippflo_auxvar_type
@@ -179,7 +180,7 @@ subroutine WIPPFloAuxVarInit(auxvar,option)
   auxvar%effective_porosity = 0.d0
   auxvar%pert = 0.d0
   auxvar%alpha = 1.d0
-  auxvar%depth = 0.d0
+  auxvar%elevation = 0.d0
   auxvar%fracture_perm_scaling_factor = 1.d0
   auxvar%klinkenberg_scaling_factor = 1.d0
   
@@ -223,7 +224,7 @@ subroutine WIPPFloAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%mu = auxvar%mu
   auxvar2%effective_porosity = auxvar%effective_porosity
   auxvar2%pert = auxvar%pert
-  auxvar2%depth = auxvar%depth
+  auxvar2%elevation = auxvar%elevation
   auxvar2%alpha = auxvar%alpha
 
 end subroutine WIPPFloAuxVarCopy

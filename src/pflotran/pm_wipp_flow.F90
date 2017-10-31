@@ -147,8 +147,8 @@ subroutine PMWIPPFloRead(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
-                                        error_string,option)    
+    call PMWIPPFloReadSelectCase(this,input,keyword,found, &
+                                  error_string,option)    
     if (found) cycle
     
     select case(keyword)
@@ -185,6 +185,11 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
   PetscBool :: found
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
+
+  found = PETSC_FALSE
+  call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
+                                      error_string,option)
+  if (found) return
 
   found = PETSC_TRUE
   select case(trim(keyword))
@@ -225,8 +230,8 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       wippflo_use_fracture = PETSC_FALSE
     case('NO_CREEP_CLOSURE')
       wippflo_use_creep_closure = PETSC_FALSE
-    case('BRAGFLO')
-      wippflo_use_bragflo_flux = PETSC_TRUE
+    case('DEBUG_FIRST_ITERATION')
+      wippflo_debug_first_iteration = PETSC_TRUE
     case default
       found = PETSC_FALSE
   end select
@@ -739,9 +744,11 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     pressure_index = offset + WIPPFLO_LIQUID_PRESSURE_DOF
     saturation_index = offset + WIPPFLO_GAS_SATURATION_DOF
 
-!    pflotran_to_bragflo = fmw_comp * option%flow_dt / &
-!                          material_auxvars(ghosted_id)%volume
-!    print *, local_id, r_p(1:2) * pflotran_to_bragflo
+    if (wippflo_debug_first_iteration) then
+      pflotran_to_bragflo = fmw_comp * option%flow_dt / &
+                            material_auxvars(ghosted_id)%volume
+      print *, local_id, r_p(1:2) * pflotran_to_bragflo
+    endif
     
     ! liquid component equation
     if (accum_p2(liquid_equation_index) > zero_accumulation) then 
@@ -817,7 +824,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       min_gas_pressure_cell = local_id
     endif
   enddo
-!stop
+
+  if (wippflo_debug_first_iteration) stop
 
   temp_int = 0
   if (.not.converged_liquid_equation) temp_int(1) = 1

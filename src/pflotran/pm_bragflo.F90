@@ -11,7 +11,7 @@ module PM_Bragflo_class
 
   type, public, extends(pm_wippflo_type) :: pm_bragflo_type
     character(len=MAXWORDLENGTH) :: alpha_dataset_name
-    character(len=MAXWORDLENGTH) :: depth_dataset_name
+    character(len=MAXWORDLENGTH) :: elevation_dataset_name
   contains
     procedure, public :: Read => PMBragfloRead
     procedure, public :: InitializeRun => PMBragfloInitializeRun
@@ -50,7 +50,7 @@ function PMBragfloCreate()
 
   bragflo_pm%name = 'BRAGFLO'
   bragflo_pm%alpha_dataset_name = ''
-  bragflo_pm%depth_dataset_name = ''
+  bragflo_pm%elevation_dataset_name = ''
 
   PMBragfloCreate => bragflo_pm
   
@@ -98,9 +98,6 @@ subroutine PMBragfloRead(this,input)
     call StringToUpper(keyword)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
-                                        error_string,option)
-    if (found) cycle
     call PMWIPPFloReadSelectCase(this,input,keyword,found, &
                                  error_string,option)
     if (found) cycle
@@ -110,12 +107,10 @@ subroutine PMBragfloRead(this,input)
         call InputReadNChars(input,option,this%alpha_dataset_name,&
                              MAXWORDLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'ALPHA DATASET,NAME',error_string)
-      case('DEPTH_DATASET')
-        call InputReadNChars(input,option,this%depth_dataset_name,&
+      case('ELEVATION_DATASET')
+        call InputReadNChars(input,option,this%elevation_dataset_name,&
                              MAXWORDLENGTH,PETSC_TRUE)
-        call InputErrorMsg(input,option,'DEPTH DATASET,NAME',error_string)
-      case('BRAGFLO')
-        wippflo_use_bragflo_flux = PETSC_TRUE
+        call InputErrorMsg(input,option,'ELEVATION DATASET,NAME',error_string)
       case default
         call InputKeywordUnrecognized(keyword,'BRAGFLO Mode',option)
     end select
@@ -223,12 +218,12 @@ recursive subroutine PMBragfloInitializeRun(this)
     call printErrMsg(this%option)
   endif
 
-  ! read in depths
-  if (len_trim(this%depth_dataset_name) > 0) then
+  ! read in elevations
+  if (len_trim(this%elevation_dataset_name) > 0) then
     field => this%realization%field
-    string = 'BRAGFLO Depth Dataset'
+    string = 'BRAGFLO Elevation Dataset'
     dataset => DatasetBaseGetPointer(this%realization%datasets, &
-                                     this%depth_dataset_name, &
+                                     this%elevation_dataset_name, &
                                      string,this%option)
     select type(d => dataset)
       class is(dataset_common_hdf5_type)
@@ -246,13 +241,14 @@ recursive subroutine PMBragfloInitializeRun(this)
                                 ierr);CHKERRQ(ierr)
         do ghosted_id = 1, this%realization%patch%grid%ngmax
           do idof = 0, this%option%nflowdof
-            wippflo_auxvars(idof,ghosted_id)%depth = work_loc_p(ghosted_id)
+            wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
           enddo
         enddo
         call VecRestoreArrayReadF90(this%realization%field%work_loc, &
                                     work_loc_p,ierr);CHKERRQ(ierr)
       class default
-        this%option%io_buffer = 'Unsupported dataset type for BRAGFLO DEPTH.'
+        this%option%io_buffer = 'Unsupported dataset type for BRAGFLO &
+          &Elevation.'
         call printErrMsg(this%option)
     end select
   endif
