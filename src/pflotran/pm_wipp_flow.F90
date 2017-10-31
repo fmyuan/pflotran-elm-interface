@@ -18,6 +18,9 @@ module PM_WIPP_Flow_class
     PetscReal :: gas_equation_tolerance
     PetscReal :: liquid_pressure_tolerance
     PetscReal :: gas_saturation_tolerance
+    PetscReal :: dsatlim
+    PetscReal :: dprelim
+    PetscReal :: satlimit
     class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   contains
     procedure, public :: Read => PMWIPPFloRead
@@ -77,11 +80,14 @@ function PMWIPPFloCreate()
 
   wippflo_pm%check_post_convergence = PETSC_TRUE
 
-  ! defaults from BRAGFLO input deck
+  ! defaults from BRAGFLO input deck or recommended values from user manual
   wippflo_pm%liquid_equation_tolerance = 1.d-2
   wippflo_pm%gas_equation_tolerance = 1.d-2
   wippflo_pm%liquid_pressure_tolerance = 1.d-2
   wippflo_pm%gas_saturation_tolerance = 1.d-3
+  wippflo_pm%dsatlim = 0.20d0   ! [-]
+  wippflo_pm%dprelim = 1.0d8    ! [Pa]
+  wippflo_pm%satlimit = 1.0d-3  ! [-]
 
   PMWIPPFloCreate => wippflo_pm
   
@@ -133,6 +139,15 @@ subroutine PMWIPPFloRead(this,input)
     if (found) cycle
     
     select case(trim(keyword))
+      case('DSATLIM')
+        call InputReadDouble(input,option,this%dsatlim)
+        call InputDefaultMsg(input,option,'DSATLIM')
+      case('DPRELIM')
+        call InputReadDouble(input,option,this%dprelim)
+        call InputDefaultMsg(input,option,'DPRELIM')
+      case('SATLIMIT')
+        call InputReadDouble(input,option,this%satlimit)
+        call InputDefaultMsg(input,option,'SATLIMIT')
       case('LIQUID_EQUATION_TOLERANCE')
         call InputReadDouble(input,option,this%liquid_equation_tolerance)
         call InputDefaultMsg(input,option,'LIQUID_EQUATION_TOLERANCE')
@@ -175,6 +190,12 @@ subroutine PMWIPPFloRead(this,input)
     end select
     
   enddo  
+  
+  ! Check that SATLIMIT is smaller than DSATLIM
+  if (this%satlimit > this%dsatlim) then
+    option%io_buffer = 'The value of DSATLIM must be larger than SATLIMIT.'
+    call printErrMsg(option)
+  endif
   
 end subroutine PMWIPPFloRead
 
@@ -484,11 +505,13 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: offset
-  PetscInt :: saturation_index
+  PetscInt :: saturation_index 
+  PetscInt :: pressure_index
   PetscInt :: temp_int(2)
   PetscBool :: cut_timestep
   PetscBool :: force_another_iteration
   PetscReal :: saturation0, saturation1, del_saturation
+  PetscReal :: pressure0, pressure1, del_pressure
 
   SNES :: snes
   
@@ -514,29 +537,42 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     if (patch%imat(ghosted_id) <= 0) cycle
     offset = (local_id-1)*option%nflowdof
     saturation_index = offset + WIPPFLO_GAS_SATURATION_DOF
+    pressure_index = offset + WIPPFLO_LIQUID_PRESSURE_DOF
     del_saturation = dX_p(saturation_index)
+    del_pressure = dX_p(pressure_index)
     saturation0 = X_p(saturation_index)
+    pressure0 = X_p(pressure_index)
     saturation1 = saturation0 - del_saturation
+    pressure1 = pressure0 - del_pressure
+    ! DSATLIM is designed to catch saturations well outside the range of the 
+    ! physically realistic range (0 - 1) and cut the time step if this occurs
+    ! SATLIMIT is designed to force another newton iteration if the gas 
+    ! saturation is "slightly" outside of the range of realistic values
     if (saturation1 < 0.d0) then
-      if (saturation1 < -0.2d0) then
+      if (saturation1 < (-1.d0*this%dsatlim)) then  ! DEPLIMIT(1)
         cut_timestep = PETSC_TRUE
       else 
-        if (saturation1 < -1.d-3) then
+        if (saturation1 < (-1.d0*this%satlimit)) then  ! SATLIMIT
           force_another_iteration = PETSC_TRUE
         endif
         ! set saturation to zero
         dX_p(saturation_index) = saturation0
       endif
     else if (saturation1 > 1.d0) then
-      if (saturation1 > 1.d0 + 0.2d0) then
+      if (saturation1 > 1.d0 + this%dsatlim) then  ! DEPLIMIT(1)
         cut_timestep = PETSC_TRUE
       else 
-        if (saturation1 > 1.d0 + 1.d-3) then
+        if (saturation1 > 1.d0 + this%satlimit) then  ! SATLIMIT
           force_another_iteration = PETSC_TRUE
         endif
         ! set saturation to one
         dX_p(saturation_index) = saturation0 - 1.d0
       endif
+    endif
+    ! DPRELIM is designed to catch large negative values in liquid pressure
+    ! and cut the timestep if this occurs
+    if (pressure1 <= (-1.d0*this%dprelim)) then  ! DEPLIMIT(2)
+      cut_timestep = PETSC_TRUE
     endif
   enddo
 
