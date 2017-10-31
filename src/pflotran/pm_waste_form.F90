@@ -246,6 +246,7 @@ module PM_Waste_Form_class
   type, public, extends(wf_mechanism_base_type) :: wf_mechanism_custom_type
     PetscReal :: dissolution_rate       
     PetscReal :: frac_dissolution_rate 
+    PetscBool :: frac_diss_vol_init
   contains
     procedure, public :: Dissolution => WFMechCustomDissolution
   end type wf_mechanism_custom_type
@@ -587,6 +588,7 @@ function PMWFMechanismCustomCreate()
   call PMWFMechanismInit(custom)
   custom%dissolution_rate = UNINITIALIZED_DOUBLE      ! kg/m^2/sec
   custom%frac_dissolution_rate = UNINITIALIZED_DOUBLE ! 1/sec
+  custom%frac_diss_vol_init = PETSC_FALSE
   
   PMWFMechanismCustomCreate => custom
 
@@ -1063,6 +1065,23 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 new_mechanism%matrix_density = double
             end select
         !--------------------------
+          case('FRACTIONAL_DISSOLUTION_RATE_VI')
+            call InputReadDouble(input,option,double)
+            call InputErrorMsg(input,option,'fractional dissolution rate vi', &
+                               error_string)
+            call InputReadAndConvertUnits(input,double,'unitless/sec', &
+                   trim(error_string)//',fractional dissolution rate vi',option)
+            select type(new_mechanism)
+              type is(wf_mechanism_custom_type)
+                new_mechanism%frac_dissolution_rate = double
+                new_mechanism%frac_diss_vol_init = PETSC_TRUE
+              class default
+                option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE_VI &
+                           &cannot be specified for ' // trim(error_string)
+                call printMsg(option)
+                num_errors = num_errors + 1
+            end select
+        !--------------------------
           case('FRACTIONAL_DISSOLUTION_RATE')
             call InputReadDouble(input,option,double)
             call InputErrorMsg(input,option,'fractional dissolution rate', &
@@ -1073,7 +1092,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               type is(wf_mechanism_custom_type)
                 new_mechanism%frac_dissolution_rate = double
               class default
-                option%io_buffer = 'ERRORS: FRACTIONAL_DISSOLUTION_RATE cannot &
+                option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE cannot &
                                    &be specified for ' // trim(error_string)
                 call printMsg(option)
                 num_errors = num_errors + 1
@@ -1490,7 +1509,8 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
           if (Uninitialized(new_mechanism%specific_surface_area) .and. &
               Uninitialized(new_mechanism%dissolution_rate) .and. &
               Uninitialized(new_mechanism%frac_dissolution_rate)) then
-            option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE or &
+            option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE, &
+                               &FRACTIONAL_DISSOLUTION_RATE_VI, or &
                                &DISSOLUTION_RATE with SPECIFIC_SURFACE_AREA &
                                &must be specified in ' // trim(error_string) &
                                // ' ' // trim(new_mechanism%name) // ' block.'
@@ -1501,8 +1521,8 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 Initialized(new_mechanism%dissolution_rate)    ) .or. &
                (Uninitialized(new_mechanism%frac_dissolution_rate) .and. &
                 Uninitialized(new_mechanism%dissolution_rate)    ) ) then
-            option%io_buffer = 'ERROR: Either FRACTIONAL_DISSOLUTION_RATE or &
-                               &DISSOLUTION_RATE with SPECIFIC_SURFACE_AREA &
+            option%io_buffer = 'ERROR: Either FRACTIONAL_DISSOLUTION_RATE(_VI) &
+                               &or DISSOLUTION_RATE with SPECIFIC_SURFACE_AREA &
                                &must be specified in ' // trim(error_string) &
                                // ' ' // trim(new_mechanism%name) // ' block. &
                                &Both types of dissolution rates cannot be &
@@ -1514,7 +1534,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 Uninitialized(new_mechanism%dissolution_rate)  ) .or. &
                (Uninitialized(new_mechanism%specific_surface_area) .and. &
                 initialized(new_mechanism%dissolution_rate)      ) ) then
-            option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE or &
+            option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE(_VI) or &
                                &DISSOLUTION_RATE with SPECIFIC_SURFACE_AREA &
                                &must be specified in ' // trim(error_string) &
                                // ' ' // trim(new_mechanism%name) // ' block.'
@@ -3455,6 +3475,13 @@ subroutine WFMechCustomDissolution(this,waste_form,pm,ierr)
        this%matrix_density * &           ! kg-matrix/m^3-matrix
        waste_form%volume * &             ! m^3-matrix
        waste_form%exposure_factor        ! [-]
+  else if (this%frac_diss_vol_init) then
+    ! kg-matrix / sec
+    waste_form%eff_dissolution_rate = &
+       this%frac_dissolution_rate * &     ! [-]/sec
+       this%matrix_density * &            ! kg-matrix/m^3-matrix
+       waste_form%init_volume * &         ! m^3 matrix
+       waste_form%exposure_factor         ! [-]
   else
     ! kg-matrix / sec
     waste_form%eff_dissolution_rate = &
