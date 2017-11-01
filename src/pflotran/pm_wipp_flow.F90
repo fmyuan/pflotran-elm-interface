@@ -232,6 +232,23 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       wippflo_use_creep_closure = PETSC_FALSE
     case('DEBUG_FIRST_ITERATION')
       wippflo_debug_first_iteration = PETSC_TRUE
+    case('PRESSURE_REL_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_pres_rel_pert)
+      call InputErrorMsg(input,option,'pressure relative perturbation', &
+                         error_string)
+    case('PRESSURE_MIN_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_pres_min_pert)
+      call InputErrorMsg(input,option,'pressure minimum perturbation', &
+                         error_string)
+    case('SATURATION_REL_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_sat_rel_pert)
+      call InputErrorMsg(input,option,'saturation relative perturbation', &
+                         error_string)
+    case('SATURATION_MIN_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_sat_min_pert)
+      call InputErrorMsg(input,option,'saturation minimum perturbation', &
+                         error_string)
+      wippflo_debug_first_iteration = PETSC_TRUE
     case default
       found = PETSC_FALSE
   end select

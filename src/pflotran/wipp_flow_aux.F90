@@ -8,6 +8,11 @@ module WIPP_Flow_Aux_module
   
   private 
 
+  PetscReal, public :: wippflo_sat_rel_pert = 1.d-8
+  PetscReal, public :: wippflo_pres_rel_pert = 1.d-8
+  PetscReal, public :: wippflo_sat_min_pert = 1.d-10
+  PetscReal, public :: wippflo_pres_min_pert = 1.d-2
+
   PetscBool, public :: wippflo_debug_first_iteration = PETSC_FALSE
   PetscBool, public :: wippflo_use_bragflo_flux = PETSC_FALSE
   PetscBool, public :: wippflo_fix_upwind_direction = PETSC_TRUE
@@ -492,18 +497,35 @@ subroutine WIPPFloAuxVarPerturb(wippflo_auxvar,global_auxvar, &
   PetscReal, parameter :: perturbation_tolerance = 1.d-8
   PetscReal, parameter :: min_perturbation = 1.d-10
   PetscInt :: idof
+  PetscReal :: liquid_residual_saturation ! SBR in BRAGFLO
+  PetscReal :: liquid_pressure, liquid_pressure_pert
+  PetscReal :: gas_saturation, gas_saturation_pert
 
-  x(WIPPFLO_LIQUID_PRESSURE_DOF) = &
-    wippflo_auxvar(ZERO_INTEGER)%pres(option%liquid_phase)
-  x(WIPPFLO_GAS_SATURATION_DOF) = &
-    wippflo_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
-  pert(WIPPFLO_LIQUID_PRESSURE_DOF) = &
-    perturbation_tolerance*x(WIPPFLO_LIQUID_PRESSURE_DOF)+min_perturbation
-  if (x(WIPPFLO_GAS_SATURATION_DOF) > 0.5d0) then 
-    pert(WIPPFLO_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+  liquid_residual_saturation = characteristic_curves%saturation_function%Sr
+
+  liquid_pressure = wippflo_auxvar(ZERO_INTEGER)%pres(option%liquid_phase)
+  gas_saturation = wippflo_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
+
+
+  gas_saturation_pert = max(wippflo_sat_rel_pert * gas_saturation, &
+                            wippflo_sat_min_pert)
+  if (1.d0 - gas_saturation - liquid_residual_saturation < 0.d0) then
+    if (gas_saturation + gas_saturation_pert > 1.d0) then
+      gas_saturation_pert = -1.d0 * gas_saturation_pert
+    endif
   else
-    pert(WIPPFLO_GAS_SATURATION_DOF) = perturbation_tolerance
+    gas_saturation_pert = -1.d0 * gas_saturation_pert
+    if (gas_saturation + gas_saturation_pert < 0.d0) then
+      gas_saturation_pert = -1.d0 * gas_saturation_pert
+    endif
   endif
+  liquid_pressure_pert = max(wippflo_pres_rel_pert * liquid_pressure, &
+                             wippflo_pres_min_pert)
+
+  x(WIPPFLO_LIQUID_PRESSURE_DOF) = liquid_pressure
+  x(WIPPFLO_GAS_SATURATION_DOF) = gas_saturation
+  pert(WIPPFLO_LIQUID_PRESSURE_DOF) = liquid_pressure_pert
+  pert(WIPPFLO_GAS_SATURATION_DOF) = gas_saturation_pert
   
   ! WIPPFLO_UPDATE_FOR_DERIVATIVE indicates call from perturbation
   option%iflag = WIPPFLO_UPDATE_FOR_DERIVATIVE
