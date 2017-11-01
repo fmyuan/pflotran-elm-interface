@@ -54,7 +54,7 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
   PetscReal :: v_darcy(2)
-  PetscReal :: area
+  PetscReal :: area   ! area here is really area / alpha
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction(2)
   type(wippflo_parameter_type) :: wippflo_parameter
@@ -89,10 +89,6 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
   
   PetscReal :: temp_perm_up, temp_perm_dn
 
-  ! Darcy flux
-  PetscReal :: ddelta_pressure_dpup, ddelta_pressure_dpdn
-  PetscReal :: ddelta_pressure_dpaup, ddelta_pressure_dpadn
-  
   PetscReal :: up_scale, dn_scale
   PetscInt :: prev_upwind_direction
   PetscInt :: new_upwind_direction
@@ -113,7 +109,7 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
   upweight = 1.d0-dist(-1)
   gravity_ = option%gravity(3)
   dist_gravity = gravity_ * &
-                 (wippflo_auxvar_up%elevation - wippflo_auxvar_dn%elevation)
+                 (wippflo_auxvar_dn%elevation - wippflo_auxvar_up%elevation)
 !geh: we do not want to use the dot product with the unit vector, instead
 !     use the principle direction stored in the upwind direction array
 !  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
@@ -174,11 +170,6 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
     
     density_kg_ave = upweight * wippflo_auxvar_up%den_kg(iphase) + &
                      (1.d0-upweight) * wippflo_auxvar_dn%den_kg(iphase)
-!    delta_pressure = &
-!      (wippflo_auxvar_up%pres(iphase) + &
-!       gravity_ * density_kg_ave * wippflo_auxvar_up%elevation) - &
-!      (wippflo_auxvar_dn%pres(iphase) + &
-!       gravity_ * density_kg_ave * wippflo_auxvar_dn%elevation)
     gravity_term = density_kg_ave * dist_gravity
     delta_pressure = wippflo_auxvar_up%pres(iphase) - &
                      wippflo_auxvar_dn%pres(iphase) + &
@@ -246,11 +237,6 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
     
     density_kg_ave = upweight * wippflo_auxvar_up%den_kg(iphase) + &
                      (1.d0-upweight) * wippflo_auxvar_dn%den_kg(iphase)
-!    delta_pressure = &
-!      (wippflo_auxvar_up%pres(iphase) + &
-!       gravity_ * density_kg_ave * wippflo_auxvar_up%elevation) - &
-!      (wippflo_auxvar_dn%pres(iphase) + &
-!       gravity_ * density_kg_ave * wippflo_auxvar_dn%elevation)
     gravity_term = density_kg_ave * dist_gravity
     delta_pressure = wippflo_auxvar_up%pres(iphase) - &
                      wippflo_auxvar_dn%pres(iphase) + &
@@ -349,7 +335,7 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   type(wippflo_auxvar_type) :: wippflo_auxvar_up, wippflo_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
-  PetscReal :: area
+  PetscReal :: area ! this is the actual area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction(2)
   type(wippflo_parameter_type) :: wippflo_parameter
@@ -370,6 +356,7 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: perm_ave_over_dist
   PetscReal :: delta_pressure
   PetscReal :: gravity_term
+  PetscReal :: dist_gravity
   PetscReal :: rel_perm, viscosity, q 
   PetscReal :: tot_mole_flux
   PetscReal :: perm_dn
@@ -424,6 +411,12 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   iphase = LIQUID_PHASE
   rel_perm = 0.d0
   bc_type = ibndtype(iphase)
+
+  ! dist(0) = scalar - magnitude of distance
+  ! gravity = vector(3)
+  ! dist(1:3) = vector(3) - unit vector
+  dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
+
   select case(bc_type)
     ! figure out the direction of flow
     case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
@@ -450,9 +443,9 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
           ! there should be capillary pressure in force.
           boundary_pressure = wippflo_auxvar_up%pres(option%gas_phase)
         endif
-        !geh: we cannot handle the gravity term on the bounary using elevations
-        !     as we do not know the elevations of the boundary face.
-        gravity_term = 0.d0
+        !geh: use density and viscosity at boundary
+        gravity_term = wippflo_auxvar_up%den_kg(iphase) * dist_gravity
+        viscosity = wippflo_auxvar_up%mu(iphase)
         delta_pressure = boundary_pressure - &
                          wippflo_auxvar_dn%pres(iphase) + &
                          gravity_term
@@ -498,24 +491,17 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         endif
         if (upwind) then
           rel_perm = wippflo_auxvar_up%kr(iphase)
-          viscosity = wippflo_auxvar_up%mu(iphase)
         else
           dn_scale = 1.d0        
           rel_perm = wippflo_auxvar_dn%kr(iphase)
-          viscosity = wippflo_auxvar_dn%mu(iphase)
         endif      
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
         v_darcy(iphase) = perm_ave_over_dist * rel_perm / viscosity * &
                           delta_pressure
-        ! only need average density if velocity > 0.
-        density_ave = WIPPFloAverageDensity(iphase, &
-                                            global_auxvar_up%istate, &
-                                            global_auxvar_dn%istate, &
-                                            wippflo_auxvar_up%den, &
-                                            wippflo_auxvar_dn%den, &
-                                            dummy,dummy)
+        ! density at interface
+        density_ave = wippflo_auxvar_up%den(iphase)
       endif
     case(NEUMANN_BC)
       dn_scale = 0.d0
@@ -581,12 +567,12 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
           ! there should be capillary pressure in force.
           boundary_pressure = wippflo_auxvar_up%pres(option%gas_phase)
         endif
-        !geh: we cannot handle the gravity term on the bounary using elevations
-        !     as we do not know the elevations of the boundary face.
-        gravity_term = 0.d0
+        !geh: use density and viscosity at boundary
+        gravity_term = wippflo_auxvar_up%den_kg(iphase) * dist_gravity
+        viscosity = wippflo_auxvar_up%mu(iphase)
         delta_pressure = boundary_pressure - &
-                          wippflo_auxvar_dn%pres(iphase) + &
-                          gravity_term
+                         wippflo_auxvar_dn%pres(iphase) + &
+                         gravity_term
         if (bc_type == SEEPAGE_BC .or. &
             bc_type == CONDUCTANCE_BC) then
               ! flow in         ! boundary cell is <= pref
@@ -637,14 +623,10 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         endif      
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
-        v_darcy(iphase) = perm_ave_over_dist * rel_perm * delta_pressure
-        ! only need average density if velocity > 0.
-        density_ave = WIPPFloAverageDensity(iphase, &
-                                            global_auxvar_up%istate, &
-                                            global_auxvar_dn%istate, &
-                                            wippflo_auxvar_up%den, &
-                                            wippflo_auxvar_dn%den, &
-                                            dummy,dummy)
+        v_darcy(iphase) = perm_ave_over_dist * rel_perm / viscosity * &
+                          delta_pressure
+        ! density at interface
+        density_ave = wippflo_auxvar_up%den(iphase)
       endif
     case(NEUMANN_BC)
       dn_scale = 0.d0

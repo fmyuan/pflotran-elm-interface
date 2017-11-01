@@ -157,17 +157,8 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
   
   PetscReal :: temp_perm_up, temp_perm_dn
 
-  ! Darcy flux
-  PetscReal :: ddelta_pressure_dpup, ddelta_pressure_dpdn
-  PetscReal :: ddelta_pressure_dpaup, ddelta_pressure_dpadn
-  
   PetscReal :: up_scale, dn_scale
-  PetscReal :: tot_mole_flux_ddel_pressure
-  PetscReal :: ddensity_kg_ave_dden_kg_up, ddensity_kg_ave_dden_kg_dn
-  PetscReal :: ddensity_ave_dden_up, ddensity_ave_dden_dn
-  PetscReal :: dtot_mole_flux_dp, dtot_mole_flux_dsatg
-  PetscReal :: dpl_dsatg
-  PetscReal :: ddelta_pressure_pl
+  PetscReal :: dummy
   PetscInt :: prev_upwind_direction
   PetscInt :: new_upwind_direction
   PetscInt :: iabs_upwind_direction1
@@ -237,9 +228,7 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
                                            global_auxvar_dn%istate, &
                                            wippflo_auxvar_up%den_kg, &
                                            wippflo_auxvar_dn%den_kg, &
-                                           ddensity_kg_ave_dden_kg_up, &
-                                           ddensity_kg_ave_dden_kg_dn)
-
+                                           dummy,dummy)
     gravity_term = density_kg_ave * dist_gravity
     delta_pressure = wippflo_auxvar_up%pres(iphase) - &
                      wippflo_auxvar_dn%pres(iphase) + &
@@ -290,15 +279,12 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
                                           global_auxvar_dn%istate, &
                                           wippflo_auxvar_up%den, &
                                           wippflo_auxvar_dn%den, &
-                                          ddensity_ave_dden_up, &
-                                          ddensity_ave_dden_dn)
+                                          dummy,dummy)
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(iphase) * area  
       ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
       !                             density_ave[kmol phase/m^3 phase]        
       tot_mole_flux = q*density_ave
-      tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
-                                       mobility * area * density_ave
       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
       !                                 xmol[kmol comp/kmol phase]
       wat_mole_flux = tot_mole_flux
@@ -316,8 +302,7 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
                                            global_auxvar_dn%istate, &
                                            wippflo_auxvar_up%den_kg, &
                                            wippflo_auxvar_dn%den_kg, &
-                                           ddensity_kg_ave_dden_kg_up, &
-                                           ddensity_kg_ave_dden_kg_dn)
+                                           dummy,dummy)
 
     gravity_term = density_kg_ave * dist_gravity
     delta_pressure = wippflo_auxvar_up%pres(iphase) - &
@@ -371,15 +356,12 @@ subroutine WIPPFloFlux(wippflo_auxvar_up,global_auxvar_up, &
                                           global_auxvar_dn%istate, &
                                           wippflo_auxvar_up%den, &
                                           wippflo_auxvar_dn%den, &
-                                          ddensity_ave_dden_up, &
-                                          ddensity_ave_dden_dn)
+                                          dummy,dummy)
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(iphase) * area  
       ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
       !                             density_ave[kmol phase/m^3 phase]        
       tot_mole_flux = q*density_ave
-      tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
-                                       mobility * area * density_ave      
       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
       !                                 xmol[kmol comp/kmol phase]
       air_mole_flux = tot_mole_flux
@@ -455,19 +437,7 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscInt :: prev_upwind_direction
   PetscInt :: new_upwind_direction
   PetscInt :: iabs_upwind_direction1
-
-  ! Darcy flux
-  PetscReal :: ddelta_pressure_dpup, ddelta_pressure_dpdn
-  PetscReal :: ddelta_pressure_dpadn
-  PetscReal :: dv_darcy_ddelta_pressure
-  PetscReal :: dv_darcy_dmobility
-  
-  PetscReal :: ddensity_kg_ave_dden_kg_up, ddensity_kg_ave_dden_kg_dn
-  PetscReal :: ddensity_ave_dden_up, ddensity_ave_dden_dn
-  PetscReal :: dtot_mole_flux_dp, dtot_mole_flux_dsatg
-  PetscReal :: dpl_dsatg
-  PetscReal :: ddelta_pressure_pl
-  PetscReal :: tot_mole_flux_ddel_pressure, tot_mole_flux_dmobility
+  PetscReal :: dummy
   PetscReal :: dn_scale
 
   PetscReal :: Jl(2,2)
@@ -546,9 +516,7 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                                 global_auxvar_dn%istate, &
                                                 wippflo_auxvar_up%den_kg, &
                                                 wippflo_auxvar_dn%den_kg, &
-                                                ddensity_kg_ave_dden_kg_up, &
-                                                ddensity_kg_ave_dden_kg_dn)
-        ddensity_kg_ave_dden_kg_up = 0.d0 ! always
+                                                dummy,dummy)
         gravity_term = density_kg_ave * dist_gravity
         delta_pressure = boundary_pressure - &
                           wippflo_auxvar_dn%pres(iphase) + &
@@ -602,25 +570,16 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
-        dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
-        v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
+        v_darcy(iphase) = perm_ave_over_dist * mobility * delta_pressure
         ! only need average density if velocity > 0.
         density_ave = WIPPFloAverageDensity(iphase, &
                                             global_auxvar_up%istate, &
                                             global_auxvar_dn%istate, &
                                             wippflo_auxvar_up%den, &
                                             wippflo_auxvar_dn%den, &
-                                            ddensity_ave_dden_up, &
-                                            ddensity_ave_dden_dn)    
-        ddensity_ave_dden_up = 0.d0 ! always
-        dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
+                                            dummy,dummy)
       endif
     case(NEUMANN_BC)
-      dv_darcy_ddelta_pressure = 0.d0
-      dv_darcy_dmobility = 0.d0
-      ddensity_ave_dden_up = 0.d0
-      ddensity_ave_dden_dn = 0.d0
-      ddelta_pressure_dpdn = 0.d0
       dn_scale = 0.d0
       select case(iphase)
         case(LIQUID_PHASE)
@@ -637,7 +596,6 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         else 
           dn_scale = 1.d0
           density_ave = wippflo_auxvar_dn%den(iphase)
-          ddensity_ave_dden_dn = 1.d0
         endif 
       endif
     case default
@@ -651,9 +609,6 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
     ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
     !                             density_ave[kmol phase/m^3 phase]        
     tot_mole_flux = q*density_ave
-    tot_mole_flux_ddel_pressure = dv_darcy_ddelta_pressure * area * &
-                                  density_ave
-    tot_mole_flux_dmobility = dv_darcy_dmobility * area * density_ave
     ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
     !                                 xmol[kmol comp/kmol phase]
     wat_mole_flux = tot_mole_flux
@@ -699,9 +654,7 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                                 global_auxvar_dn%istate, &
                                                 wippflo_auxvar_up%den_kg, &
                                                 wippflo_auxvar_dn%den_kg, &
-                                                ddensity_kg_ave_dden_kg_up, &
-                                                ddensity_kg_ave_dden_kg_dn)
-        ddensity_kg_ave_dden_kg_up = 0.d0 ! always
+                                                dummy,dummy)
         gravity_term = density_kg_ave * dist_gravity
         delta_pressure = boundary_pressure - &
                           wippflo_auxvar_dn%pres(iphase) + &
@@ -756,26 +709,16 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         endif      
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
-        dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
-        v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
+        v_darcy(iphase) = perm_ave_over_dist * mobility * delta_pressure
         ! only need average density if velocity > 0.
         density_ave = WIPPFloAverageDensity(iphase, &
                                             global_auxvar_up%istate, &
                                             global_auxvar_dn%istate, &
                                             wippflo_auxvar_up%den, &
                                             wippflo_auxvar_dn%den, &
-                                            ddensity_ave_dden_up, &
-                                            ddensity_ave_dden_dn)    
-        ddensity_ave_dden_up = 0.d0 ! always
-        dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
+                                            dummy,dummy)    
       endif
     case(NEUMANN_BC)
-      dv_darcy_ddelta_pressure = 0.d0
-      dv_darcy_dmobility = 0.d0
-      ddensity_ave_dden_up = 0.d0 ! always
-      ddensity_ave_dden_dn = 0.d0
-      ddelta_pressure_dpdn = 0.d0
-      ddelta_pressure_dpadn = 0.d0
       dn_scale = 0.d0
       select case(iphase)
         case(LIQUID_PHASE)
@@ -792,7 +735,6 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         else 
           dn_scale = 1.d0
           density_ave = wippflo_auxvar_dn%den(iphase)
-          ddensity_ave_dden_dn = 1.d0
         endif 
       endif
     case default
@@ -807,9 +749,6 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
     ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
     !                             density_ave[kmol phase/m^3 phase]        
     tot_mole_flux = q*density_ave
-    tot_mole_flux_ddel_pressure = dv_darcy_ddelta_pressure * area * &
-                                  density_ave
-    tot_mole_flux_dmobility = dv_darcy_dmobility * area * density_ave
     ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
     !                                 xmol[kmol comp/kmol phase]
     air_mole_flux = tot_mole_flux
