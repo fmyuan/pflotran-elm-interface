@@ -21,6 +21,8 @@ module PM_WIPP_Flow_class
     PetscReal :: dsatlim
     PetscReal :: dprelim
     PetscReal :: satlimit
+    PetscReal :: dsat_max
+    PetscReal :: dpres_max
     class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   contains
     procedure, public :: Read => PMWIPPFloRead
@@ -86,8 +88,10 @@ function PMWIPPFloCreate()
   wippflo_pm%liquid_pressure_tolerance = 1.d-2
   wippflo_pm%gas_saturation_tolerance = 1.d-3
   wippflo_pm%dsatlim = 0.20d0   ! [-]
-  wippflo_pm%dprelim = -1.0d8    ! [Pa]
+  wippflo_pm%dprelim = -1.0d8   ! [Pa]
   wippflo_pm%satlimit = 1.0d-3  ! [-]
+  wippflo_pm%dsat_max = 1.d0    ! [-]
+  wippflo_pm%dpres_max = 1.d7   ! [Pa]
 
   PMWIPPFloCreate => wippflo_pm
   
@@ -148,6 +152,12 @@ subroutine PMWIPPFloRead(this,input)
       case('SATLIMIT')
         call InputReadDouble(input,option,this%satlimit)
         call InputDefaultMsg(input,option,'SATLIMIT')
+      case('DSAT_MAX')
+        call InputReadDouble(input,option,this%dsat_max)
+        call InputDefaultMsg(input,option,'DSAT_MAX')
+      case('DPRES_MAX')
+        call InputReadDouble(input,option,this%dpres_max)
+        call InputDefaultMsg(input,option,'DPRES_MAX')
       case('LIQUID_EQUATION_TOLERANCE')
         call InputReadDouble(input,option,this%liquid_equation_tolerance)
         call InputDefaultMsg(input,option,'LIQUID_EQUATION_TOLERANCE')
@@ -648,6 +658,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscReal, pointer :: dX_p(:)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
+  PetscReal, pointer :: sat_ptr(:)
 
   PetscInt :: local_id, ghosted_id
   PetscInt :: offset , idof
@@ -655,8 +666,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscInt :: gas_equation_index
   PetscInt :: saturation_index
   PetscInt :: pressure_index
-  PetscInt :: temp_int(5)
-  PetscReal :: temp_real(4)
+  PetscInt :: temp_int(6)
+  PetscReal :: temp_real(5)
 
   PetscReal, parameter :: zero_saturation = 1.d-15
   PetscReal, parameter :: zero_accumulation = 1.d-15
@@ -666,6 +677,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscReal :: residual_over_accumulation
   PetscReal :: abs_X
   PetscReal :: abs_dX
+  PetscReal :: abs_dX_TS
   PetscBool :: converged_liquid_equation
   PetscBool :: converged_gas_equation
   PetscBool :: converged_liquid_pressure
@@ -673,13 +685,15 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscReal :: max_liq_eq
   PetscReal :: max_gas_eq
   PetscReal :: max_liq_pres_rel_change
-  PetscReal :: max_gas_sat_change
+  PetscReal :: max_gas_sat_change_NI
+  PetscReal :: max_gas_sat_change_TS
   PetscReal :: min_liq_pressure
   PetscReal :: min_gas_pressure
   PetscInt :: max_liq_eq_cell
   PetscInt :: max_gas_eq_cell
   PetscInt :: max_liq_pres_rel_change_cell
-  PetscInt :: max_gas_sat_change_cell
+  PetscInt :: max_gas_sat_change_NI_cell
+  PetscInt :: max_gas_sat_change_TS_cell
   PetscInt :: min_liq_pressure_cell
   PetscInt :: min_gas_pressure_cell
   PetscReal :: abs_dX_over_absX
@@ -704,6 +718,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_accum2,accum_p2,ierr);CHKERRQ(ierr)
+  ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
+  call VecGetArrayF90(field%max_change_vecs(3),sat_ptr,ierr);CHKERRQ(ierr)
   converged_liquid_equation = PETSC_TRUE
   converged_gas_equation = PETSC_TRUE
   converged_liquid_pressure = PETSC_TRUE
@@ -711,13 +727,15 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   max_liq_eq = 0.d0
   max_gas_eq = 0.d0
   max_liq_pres_rel_change = 0.d0
-  max_gas_sat_change = 0.d0
+  max_gas_sat_change_NI = 0.d0
+  max_gas_sat_change_TS = 0.d0
   min_liq_pressure = 1.d20
   min_gas_pressure = 1.d20
   max_liq_eq_cell = 0
   max_gas_eq_cell = 0
   max_liq_pres_rel_change_cell = 0
-  max_gas_sat_change_cell = 0
+  max_gas_sat_change_NI_cell = 0
+  max_gas_sat_change_TS_cell = 0
   min_liq_pressure_cell = 0
   min_gas_pressure_cell = 0
   do local_id = 1, grid%nlmax
@@ -782,12 +800,21 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     if (abs_dX > 0.d0) then
       ! BRAGFLO uses -log10(abs_dX), why not check if abs_dX > tol?
 !      if (-log10(abs_dX) <= &
-      if (dabs(max_gas_sat_change) < abs_dX) then
-        max_gas_sat_change_cell = local_id
-        max_gas_sat_change = dX_p(saturation_index)
+      if (dabs(max_gas_sat_change_NI) < abs_dX) then
+        max_gas_sat_change_NI_cell = local_id
+        max_gas_sat_change_NI = dX_p(saturation_index)
       endif
       if (abs_dX > this%gas_saturation_tolerance) then
         converged_gas_saturation = PETSC_FALSE
+      endif
+    endif
+    
+    ! DSAT_MAX maximum absolute gas saturation change over time step
+    abs_dX_TS = dabs(sat_ptr(local_id)-X1_p(saturation_index))
+    if (abs_dX_TS > 0.d0) then
+      if (dabs(max_gas_sat_change_TS) < abs_dX_TS) then
+        max_gas_sat_change_TS_cell = local_id
+        max_gas_sat_change_TS = abs_dX_TS
       endif
     endif
 
@@ -803,28 +830,35 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       min_gas_pressure_cell = local_id
     endif
   enddo
-
+  
   temp_int = 0
   if (.not.converged_liquid_equation) temp_int(1) = 1
   if (.not.converged_gas_equation) temp_int(2) = 1
   if (.not.converged_liquid_pressure) temp_int(3) = 1
   if (.not.converged_gas_saturation) temp_int(4) = 1
   if (min_gas_pressure < 0.d0) temp_int(5) = 1
+  if (converged_gas_saturation .and. &
+      (max_gas_sat_change_TS > this%dsat_max)) temp_int(6) = 1
   call MPI_Allreduce(MPI_IN_PLACE,temp_int,FIVE_INTEGER_MPI, &
                      MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
   temp_real(1) = max_liq_eq
   temp_real(2) = max_gas_eq
   temp_real(3) = max_liq_pres_rel_change
-  temp_real(4) = max_gas_sat_change
+  temp_real(4) = max_gas_sat_change_NI
+  temp_real(5) = max_gas_sat_change_TS
   call MPI_Allreduce(MPI_IN_PLACE,temp_real,FOUR_INTEGER_MPI, &
                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
   max_liq_eq = temp_real(1)
   max_gas_eq = temp_real(2)
   max_liq_pres_rel_change = temp_real(3)
-  max_gas_sat_change = temp_real(4)
+  max_gas_sat_change_NI = temp_real(4)
+  max_gas_sat_change_TS = temp_real(5)
 
   if (option%convergence == CONVERGENCE_CUT_TIMESTEP) then
     reason = '!cut'
+  else if (temp_int(6) > 0) then
+    reason = 'SgTS'
+    option%convergence = CONVERGENCE_CUT_TIMESTEP
   else if (temp_int(5) > 0) then
     reason = 'negP'
     option%convergence = CONVERGENCE_CUT_TIMESTEP
@@ -845,13 +879,13 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     if (option%mycommsize > 1) then
       write(*,'(4x,"Reason: ",a4,4es10.2)') reason, &
         max_liq_eq, max_gas_eq, &
-        max_liq_pres_rel_change, max_gas_sat_change
+        max_liq_pres_rel_change, max_gas_sat_change_NI
     else
       write(*,'(4x,"Reason: ",a4,4(i5,es10.2))') reason, &
         max_liq_eq_cell, max_liq_eq, &
         max_gas_eq_cell, max_gas_eq, &
         max_liq_pres_rel_change_cell, max_liq_pres_rel_change, &
-        max_gas_sat_change_cell, max_gas_sat_change
+        max_gas_sat_change_NI_cell, max_gas_sat_change_NI
 ! for debugging
 #if 0
       local_id = min_gas_pressure_cell
@@ -872,6 +906,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_accum2,accum_p2,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%max_change_vecs(3),sat_ptr,ierr);CHKERRQ(ierr)
                                
 end subroutine PMWIPPFloCheckUpdatePost
 
@@ -974,7 +1009,7 @@ subroutine PMWIPPFloMaxChange(this)
   max_change_global = 0.d0
   max_change_local = 0.d0
   
-  ! max change variables: [LIQUID_PRESSURE, GAS_SATURATION]
+  ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
   do i = 1, 3
     call RealizationGetVariable(realization,field%work, &
                                 this%max_change_ivar(i),ZERO_INTEGER)
