@@ -23,6 +23,8 @@ module PM_WIPP_Flow_class
     PetscReal :: satlimit
     PetscReal :: dsat_max
     PetscReal :: dpres_max
+    PetscReal :: satnorm
+    PetscReal :: presnorm
     class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   contains
     procedure, public :: Read => PMWIPPFloRead
@@ -419,8 +421,7 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   endif
   ifac = max(min(num_newton_iterations,size(tfac)),1)
   dtt = fac * dt * (1.d0 + umin)
-  !dt = min(dtt,tfac(ifac)*dt,dt_max)
-  dt = min(tfac(ifac)*dt,dt_max)
+  dt = min(dtt,tfac(ifac)*dt,dt_max)
   dt = max(dt,dt_min)
 
   if (Initialized(this%cfl_governor)) then
