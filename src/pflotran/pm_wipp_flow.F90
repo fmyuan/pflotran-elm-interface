@@ -659,6 +659,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscReal, pointer :: dX_p(:)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
+  PetscReal, pointer :: press_ptr(:)
   PetscReal, pointer :: sat_ptr(:)
 
   PetscInt :: local_id, ghosted_id
@@ -667,8 +668,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscInt :: gas_equation_index
   PetscInt :: saturation_index
   PetscInt :: pressure_index
-  PetscInt :: temp_int(6)
-  PetscReal :: temp_real(5)
+  PetscInt :: temp_int(7)
+  PetscReal :: temp_real(6)
 
   PetscReal, parameter :: zero_saturation = 1.d-15
   PetscReal, parameter :: zero_accumulation = 1.d-15
@@ -688,6 +689,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscReal :: max_liq_pres_rel_change
   PetscReal :: max_gas_sat_change_NI
   PetscReal :: max_gas_sat_change_TS
+  PetscReal :: max_pressure_change_TS
   PetscReal :: min_liq_pressure
   PetscReal :: min_gas_pressure
   PetscInt :: max_liq_eq_cell
@@ -695,6 +697,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscInt :: max_liq_pres_rel_change_cell
   PetscInt :: max_gas_sat_change_NI_cell
   PetscInt :: max_gas_sat_change_TS_cell
+  PetscInt :: max_pressure_change_TS_cell
   PetscInt :: min_liq_pressure_cell
   PetscInt :: min_gas_pressure_cell
   PetscReal :: abs_dX_over_absX
@@ -720,6 +723,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   call VecGetArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_accum2,accum_p2,ierr);CHKERRQ(ierr)
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
+  call VecGetArrayF90(field%max_change_vecs(1),press_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%max_change_vecs(3),sat_ptr,ierr);CHKERRQ(ierr)
   converged_liquid_equation = PETSC_TRUE
   converged_gas_equation = PETSC_TRUE
@@ -730,6 +734,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   max_liq_pres_rel_change = 0.d0
   max_gas_sat_change_NI = 0.d0
   max_gas_sat_change_TS = 0.d0
+  max_pressure_change_TS = 0.d0
   min_liq_pressure = 1.d20
   min_gas_pressure = 1.d20
   max_liq_eq_cell = 0
@@ -737,6 +742,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   max_liq_pres_rel_change_cell = 0
   max_gas_sat_change_NI_cell = 0
   max_gas_sat_change_TS_cell = 0
+  max_pressure_change_TS_cell = 0
   min_liq_pressure_cell = 0
   min_gas_pressure_cell = 0
   do local_id = 1, grid%nlmax
@@ -818,6 +824,15 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
         max_gas_sat_change_TS = abs_dX_TS
       endif
     endif
+    
+    ! DPRE_MAX maximum absolute liquid pressure change over time step
+    abs_dX_TS = dabs(press_ptr(local_id)-X1_p(pressure_index))
+    if (abs_dX_TS > 0.d0) then
+      if (dabs(max_pressure_change_TS) < abs_dX_TS) then
+        max_pressure_change_TS_cell = local_id
+        max_pressure_change_TS = abs_dX_TS
+      endif
+    endif
 
     ! liquid pressure
     if (X1_p(pressure_index) < min_liq_pressure) then
@@ -840,23 +855,30 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   if (min_gas_pressure < 0.d0) temp_int(5) = 1
   if (converged_gas_saturation .and. &
       (max_gas_sat_change_TS > this%dsat_max)) temp_int(6) = 1
-  call MPI_Allreduce(MPI_IN_PLACE,temp_int,FIVE_INTEGER_MPI, &
+  if (converged_liquid_pressure .and. &
+      (max_pressure_change_TS > this%dpres_max)) temp_int(7) = 1
+  call MPI_Allreduce(MPI_IN_PLACE,temp_int,SEVEN_INTEGER_MPI, &
                      MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
   temp_real(1) = max_liq_eq
   temp_real(2) = max_gas_eq
   temp_real(3) = max_liq_pres_rel_change
   temp_real(4) = max_gas_sat_change_NI
   temp_real(5) = max_gas_sat_change_TS
-  call MPI_Allreduce(MPI_IN_PLACE,temp_real,FOUR_INTEGER_MPI, &
+  temp_real(6) = max_pressure_change_TS
+  call MPI_Allreduce(MPI_IN_PLACE,temp_real,SIX_INTEGER_MPI, &
                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
   max_liq_eq = temp_real(1)
   max_gas_eq = temp_real(2)
   max_liq_pres_rel_change = temp_real(3)
   max_gas_sat_change_NI = temp_real(4)
   max_gas_sat_change_TS = temp_real(5)
+  max_pressure_change_TS = temp_real(6)
 
   if (option%convergence == CONVERGENCE_CUT_TIMESTEP) then
     reason = '!cut'
+  else if (temp_int(7) > 0) then
+    reason = 'PlTS'
+    option%convergence = CONVERGENCE_CUT_TIMESTEP
   else if (temp_int(6) > 0) then
     reason = 'SgTS'
     option%convergence = CONVERGENCE_CUT_TIMESTEP
@@ -907,6 +929,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_accum2,accum_p2,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%max_change_vecs(1),sat_ptr,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%max_change_vecs(3),sat_ptr,ierr);CHKERRQ(ierr)
                                
 end subroutine PMWIPPFloCheckUpdatePost
