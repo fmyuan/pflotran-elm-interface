@@ -419,7 +419,8 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   endif
   ifac = max(min(num_newton_iterations,size(tfac)),1)
   dtt = fac * dt * (1.d0 + umin)
-  dt = min(dtt,tfac(ifac)*dt,dt_max)
+  !dt = min(dtt,tfac(ifac)*dt,dt_max)
+  dt = min(tfac(ifac)*dt,dt_max)
   dt = max(dt,dt_min)
 
   if (Initialized(this%cfl_governor)) then
