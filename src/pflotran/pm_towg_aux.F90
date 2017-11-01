@@ -573,18 +573,22 @@ subroutine getRsVolume(bubble_point,rs_volume)
 
 end subroutine getRsVolume
 
-subroutine getBlackOilComposition(bubble_point,xo,xg,pref,tref)
+subroutine getBlackOilComposition(bubble_point,temperature,table_idxs,&
+                                  xo,xg,pref,tref)
 
   use EOS_Oil_module
   use EOS_Gas_module
 
   PetscReal, intent(in ) :: bubble_point
+  PetscReal, intent(in ) :: temperature
+  PetscInt, pointer, intent(inout) :: table_idxs(:)
   PetscReal, intent(out) :: xo
   PetscReal, intent(out) :: xg
   PetscReal              :: pref,tref
   PetscReal              :: rs_volume=0.0d0,rs_molar
   PetscReal              :: mdenrefo,mdenrefg,denrefo,denrefg,mwo,mwg,ideal_gas_molar_density
 
+  PetscInt               :: ierr
 
 !--Get molecular weights of oil and gas----------------------------------------
 
@@ -594,11 +598,32 @@ subroutine getBlackOilComposition(bubble_point,xo,xg,pref,tref)
 !--Get surface mass densities of oil and gas components------------------------
 
   !denrefo=EOSOilGetDenRef()
+  !PO this has been changed to read a reference/surface density indendent
+  !   from the one defined within the InverseLiean model
+  !   In the input deck the user can now enter one of the following
+  !   REFERENCE_DENSITY 1000 kg/m^3
+  !   SURFACE_DENSITY 1000 kg/m^3
+  !   STANDARD_DENSITY 1000 kg/m^3
+  ! EOSOilGetReferenceDensity() return this value
+  ! EOSOilGetDenRef() has been replaced by EOSOilGetReferenceDensity()
+  !... sorry for the long name
   denrefo=EOSOilGetReferenceDensity()
 
   ideal_gas_molar_density=pref/(IDEAL_GAS_CONSTANT*(273.15+tref))*1.d-3
 
   denrefg=mwg*ideal_gas_molar_density !DKPDKP ideal gas form needs work - ie PVTG table
+  !PO Now can get the gas reference value using EOSGasGetReferenceDensity
+  !   this function returns the value defined in the input deck by one of the following:
+  !   REFERENCE_DENSITY 0.678366 kg/m^3
+  !   SURFACE_DENSITY 0.678366 kg/m^3
+  !   STANDARD_DENSITY 0.678366 kg/m^3
+  denrefg = EOSGasGetReferenceDensity()
+  ! PO if instead you need the density defined by the PVDG table,
+  !    then call the EOSGasDensity.
+  !    Note, if a call to gas density is needed here - consider passing
+  !    gas_den to getBlackOilComposition, and call EOSGasDensityEnergy before
+  !    getBlackOilComposition in TOWGBlackOilAuxVarCompute
+  !call EOSGasDensity(temperature,bubble_point,denrefg,ierr,table_idxs)
 
 !--Molar density = (mass density)/MW = (Kg/sm3)/(Kg/KG-mol) = KG-mol/sm3-------
 
@@ -608,6 +633,8 @@ subroutine getBlackOilComposition(bubble_point,xo,xg,pref,tref)
 !--Get GOR as a surface volume ratio Rsv=(vol gas)/(vol oil)-------------------
 
   call getRsVolume(bubble_point,rs_volume)
+  !PO - lookup table now available
+  !call EOSOilRS(temperature,bubble_point,rs_volume,ierr,table_idxs)
 
 !--Convert to molar GOR, Rsm---------------------------------------------------
 !
@@ -650,7 +677,11 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, & !
   use EOS_Gas_module
   use Characteristic_Curves_module
   use Material_Aux_class
-  use General_Aux_module, only : LIQUID_STATE, TWO_PHASE_STATE
+  !PO this must not be used because belonging to the general mode
+  !   when the phase state integer name is needed one can use those specific to
+  !   TOWG: TOWG_LIQ_OIL_STATE, TOWG_LIQ_GAS_STATE, TOWG_THREE_PHASE_STATE, etc
+  !   This what is actually done here, so I commented the line below -to be deleted
+  !use General_Aux_module, only : LIQUID_STATE, TWO_PHASE_STATE
 
   implicit none
 
@@ -771,7 +802,11 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, & !
 
   pref=option%reference_pressure
   tref=option%reference_temperature
-  call getBlackOilComposition(auxvar%bo%bubble_point,auxvar%bo%xo,auxvar%bo%xg,pref,tref)
+  !PO either you pass the entire auxvar, or the you also need to pass:
+  !    the table indices, and the temprature (on which RS might depend on)
+  call getBlackOilComposition(auxvar%bo%bubble_point,auxvar%temp, &
+                              auxvar%eos_table_idx,auxvar%bo%xo,auxvar%bo%xg, &
+                              pref,tref)
 
 !--Get the capillary pressures-------------------------------------------------
 
@@ -838,9 +873,16 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, & !
 
 ! Gas phase thermodynamic properties (also needed for dissolved gas)
 
-  !compute gas properties (default is air - but methane can be set up)
+  !compute gas properties (default is air with an analytical function)
+  !PO: if the PVDG table is defined for EOS GAS the molar density
+  !   is computed from BG (i.e. FVF for the gas) and the SURFACE_DENSITY.
+  !   The transormation in done once after the EOS GAS input has been read.
+  !   Note that auxvar%eos_table_idx for table lookup is passed after ierr
+  !   because it is an optional argument (needed only for table lookup).
+  !   It might be worth calling this before getBlackOilComposition - so that
+  !  the gas density is already avaiable
   call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid), &
-                           auxvar%H(gid),auxvar%U(gid),ierr)
+                          auxvar%H(gid),auxvar%U(gid),ierr,auxvar%eos_table_idx)
 
   auxvar%den_kg(gid) = auxvar%den(gid) * EOSGasGetFMW()
 
@@ -851,9 +893,14 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, & !
 
 !  Note:see comment 'ADD HERE BRINE dependency...' elsewhere
 
+  !PO: if either PVDO or PVCO tables is defined for EOS OIL, the molar density
+  !    is computed from BO (i.e. FVF for the oil) and SURFAACE_DENSITY.
+  !    The transormation in done once after the EOS OIL input has been read.
+  !    Note that auxvar%eos_table_idx for table lookup is passed after ierr
+  !    because it is an optional argument (needed only if table lookup)
   call EOSOilDensityEnergy(auxvar%temp,auxvar%pres(oid),&
                            auxvar%den(oid),auxvar%H(oid), &
-                           auxvar%U(oid),ierr)
+                           auxvar%U(oid),ierr,auxvar%eos_table_idx)
 
 ! Correct oil phase molar density and enthalpy for oil composition----------
 
@@ -895,8 +942,10 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, & !
   call characteristic_curves%oil_rel_perm_function% &
          RelativePermeability(sat_liq_gas,kro,dkro_Se,option)
 
+  !PO - if PVDO or PVCO defined in EOS OIL, the viscosity values are extracted
+  !     via table lookup.
   call EOSOilViscosity(auxvar%temp,auxvar%pres(oid), &
-                       auxvar%den(oid), viso, ierr)
+                       auxvar%den(oid), viso, ierr,auxvar%eos_table_idx)
 
   auxvar%mobility(oid) = kro/viso
 
@@ -905,11 +954,22 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, & !
   call characteristic_curves%gas_rel_perm_function% &
          RelativePermeability(sat_tot_liq,krg,dkrg_Se,option)
 
-  !currently only a viscosity model for air or constant value
+  !currently the only analytical viscosity model available is for air
+  !PO - if PVDG is defined in EOS GAS, the viscosity values are extracted
+  !     via table lookup.
   call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
-                       auxvar%pres(gid),auxvar%den(gid),visg,ierr)
+                       auxvar%pres(gid),auxvar%den(gid),visg,ierr,&
+                       auxvar%eos_table_idx)
 
   auxvar%mobility(gid) = krg/visg
+
+  !PO below example on how to call the fucntion computing the compressibility
+  !   and the viscosibility
+  !call EOSOilCompressibility(auxvar%temp,auxvar%pres(oid), &
+  !                           dummy,ierr,auxvar%eos_table_idx)
+  !
+  !call EOSOilViscosibility(auxvar%temp,auxvar%pres(oid), &
+  !                          dummy,ierr,auxvar%eos_table_idx)
 
 end subroutine TOWGBlackOilAuxVarCompute
 

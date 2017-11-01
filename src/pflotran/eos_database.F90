@@ -201,6 +201,21 @@ subroutine EOSDataUnitConversionFactors(this,input,option)
         internal_units = 'm^3/m^3'
         this%prop_unit_conv_factors(prop_idx) = &
                UnitReadAndConversionFactor(input,internal_units,keyword,option)
+      case('RS')
+         prop_idx = this%prop_to_data_map(EOS_RS)
+         internal_units = 'm^3/m^3'
+         this%prop_unit_conv_factors(prop_idx) = &
+              UnitReadAndConversionFactor(input,internal_units,keyword,option)
+      case('COMPRESSIBILITY')
+         prop_idx = this%prop_to_data_map(EOS_COMPRESSIBILITY)
+         internal_units = '1/Pa'
+         this%prop_unit_conv_factors(prop_idx) = &
+              UnitReadAndConversionFactor(input,internal_units,keyword,option)
+      case('VISCOSIBILITY')
+         prop_idx = this%prop_to_data_map(EOS_VISCOSIBILITY)
+         internal_units = '1/Pa'
+         this%prop_unit_conv_factors(prop_idx) = &
+              UnitReadAndConversionFactor(input,internal_units,keyword,option)          
       case default
         error_string = trim(error_string) // ': ' // this%name // &
         ': EOS DATA units'

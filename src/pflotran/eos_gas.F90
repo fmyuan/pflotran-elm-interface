@@ -183,6 +183,7 @@ module EOS_Gas_module
             EOSGasSetHenryConstant, &
             EOSGasSetEOSDBase, &
             EOSGasSetReferenceDensity, &
+            EOSGasGetReferenceDensity, &
             EOSGasSetPVDG, &
             EOSGasTableProcess, &
             EOSGasDBaseDestroy

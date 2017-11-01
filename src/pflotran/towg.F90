@@ -2941,9 +2941,11 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
         case(LIQUID_PHASE)
           call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
         case(OIL_PHASE)
-          call EOSOilDensity(temperature,cell_pressure,den,ierr)
+          call EOSOilDensity(temperature,cell_pressure,den,ierr, &
+                             auxvar%eos_table_idx)
         case(GAS_PHASE)
-          call EOSGasDensity(temperature,cell_pressure,den,ierr)
+          call EOSGasDensity(temperature,cell_pressure,den,ierr, &
+                             auxvar%eos_table_idx)
       end select
     else
       den = auxvar%den(iphase)
@@ -3156,7 +3158,8 @@ subroutine TOWGBlackOilSrcSink(option,src_sink_condition, auxvar, &
           call EOSOilDensity(temperature,cell_pressure,den,ierr, &
                              auxvar%eos_table_idx)
         case(GAS_PHASE)
-          call EOSGasDensity(temperature,cell_pressure,den,ierr)
+          call EOSGasDensity(temperature,cell_pressure,den,ierr, &
+                             auxvar%eos_table_idx)
       end select
     else
       den = auxvar%den(iphase)
@@ -3532,7 +3535,7 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
     Jdn(TOWG_GAS_EQ_IDX,:) = 0.d0
     Jdn(:,TOWG_GAS_EQ_IDX) = 0.d0
   endif
-  
+
 end subroutine TOWGBCFluxDerivative
 
 ! ************************************************************************** !
