@@ -21,10 +21,11 @@ module PM_WIPP_Flow_class
     PetscReal :: dsatlim
     PetscReal :: dprelim
     PetscReal :: satlimit
-    PetscReal :: dsat_max
-    PetscReal :: dpres_max
+    PetscReal :: dsat_max  ! can this be this%saturation_change_limit?
+    PetscReal :: dpres_max ! can this be this%pressure_change_limit?
     PetscReal :: satnorm
     PetscReal :: presnorm
+    PetscReal :: tswitch
     class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   contains
     procedure, public :: Read => PMWIPPFloRead
@@ -94,6 +95,9 @@ function PMWIPPFloCreate()
   wippflo_pm%satlimit = 1.0d-3  ! [-]
   wippflo_pm%dsat_max = 1.d0    ! [-]
   wippflo_pm%dpres_max = 1.d7   ! [Pa]
+  wippflo_pm%satnorm = 3.d-1    ! [-]
+  wippflo_pm%presnorm = 5.d5    ! [Pa]
+  wippflo_pm%tswitch = 0.01d0   ! [-]
 
   PMWIPPFloCreate => wippflo_pm
   
@@ -160,6 +164,15 @@ subroutine PMWIPPFloRead(this,input)
       case('DPRES_MAX')
         call InputReadDouble(input,option,this%dpres_max)
         call InputDefaultMsg(input,option,'DPRES_MAX')
+      case('SATNORM')
+        call InputReadDouble(input,option,this%satnorm)
+        call InputDefaultMsg(input,option,'SATNORM')
+      case('PRESNORM')
+        call InputReadDouble(input,option,this%presnorm)
+        call InputDefaultMsg(input,option,'PRESNORM')
+      case('TSWITCH')
+        call InputReadDouble(input,option,this%tswitch)
+        call InputDefaultMsg(input,option,'TSWITCH')
       case('LIQUID_EQUATION_TOLERANCE')
         call InputReadDouble(input,option,this%liquid_equation_tolerance)
         call InputDefaultMsg(input,option,'LIQUID_EQUATION_TOLERANCE')
@@ -1047,6 +1060,10 @@ subroutine PMWIPPFloMaxChange(this)
       ! have to weed out cells that changed state
       if (dabs(vec_ptr(j)) > 1.d-40 .and. dabs(vec_ptr2(j)) > 1.d-40) then
         max_change = max(max_change,dabs(vec_ptr(j)-vec_ptr2(j)))
+        ! check if i = 3 (gas saturation variable)
+        ! check what gas saturation is: larger/smaller than TSWITCH?
+        ! if larger than TSWITCH, divide by new gas saturation to get a relative change
+        ! if smaller than TSWITCH, just use the absolute change
       endif
     enddo
     max_change_local(i) = max_change
