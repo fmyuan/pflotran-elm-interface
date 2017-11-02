@@ -162,6 +162,7 @@ recursive subroutine PMBragfloInitializeRun(this)
   use Dataset_module
   use HDF5_module
   use Option_module
+  use Grid_module
 
   implicit none
 
@@ -173,11 +174,13 @@ recursive subroutine PMBragfloInitializeRun(this)
   class(dataset_base_type), pointer :: dataset
   type(field_type), pointer :: field
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
+  type(grid_type), pointer :: grid
   character(len=MAXSTRINGLENGTH) :: block_string
   character(len=MAXSTRINGLENGTH) :: string, string2
   PetscReal, pointer :: work_loc_p(:)
   PetscInt :: idof, ghosted_id
 
+  grid => this%realization%patch%grid
 
   call PMWIPPFloInitializeRun(this)
 
@@ -219,6 +222,7 @@ recursive subroutine PMBragfloInitializeRun(this)
   endif
 
   ! read in elevations
+  wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
   if (len_trim(this%elevation_dataset_name) > 0) then
     field => this%realization%field
     string = 'BRAGFLO Elevation Dataset'
@@ -251,6 +255,10 @@ recursive subroutine PMBragfloInitializeRun(this)
           &Elevation.'
         call printErrMsg(this%option)
     end select
+  else ! or set them baesd on grid cell elevation
+    do ghosted_id = 1, grid%ngmax
+      wippflo_auxvars(idof,ghosted_id)%elevation = grid%z(ghosted_id)
+    enddo
   endif
 
 end subroutine PMBragfloInitializeRun
