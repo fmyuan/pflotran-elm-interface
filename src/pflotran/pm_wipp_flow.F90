@@ -273,6 +273,8 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       wippflo_use_creep_closure = PETSC_FALSE
     case('DEBUG_FIRST_ITERATION')
       wippflo_debug_first_iteration = PETSC_TRUE
+    case('USE_LEGACY_PERTURBATION')
+      wippflo_use_legacy_perturbation = PETSC_TRUE
     case('PRESSURE_REL_PERTURBATION')
       call InputReadDouble(input,option,wippflo_pres_rel_pert)
       call InputErrorMsg(input,option,'pressure relative perturbation', &
