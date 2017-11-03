@@ -1967,11 +1967,11 @@ subroutine InputReadASCIIDbase(filename,option)
       call InputReadWord(input,option,word,PETSC_TRUE)
       call InputErrorMsg(input,option,'value','ASCII Dbase')
       select case(StringIntegerDoubleOrWord(word))
-        case(STRING_IS_INTEGER)
+        case(STRING_IS_AN_INTEGER)
           num_ints = num_ints + 1
-        case(STRING_IS_DOUBLE)
+        case(STRING_IS_A_DOUBLE)
           num_reals = num_reals + 1
-        case(STRING_IS_WORD)
+        case(STRING_IS_A_WORD)
           num_words = num_words + 1
       end select
     endif
@@ -2047,17 +2047,17 @@ subroutine InputReadASCIIDbase(filename,option)
       value_type = StringIntegerDoubleOrWord(string)
       string = words(value_index)
       select case(value_type)
-        case(STRING_IS_INTEGER)
+        case(STRING_IS_AN_INTEGER)
           num_ints = num_ints + 1
           dbase%icard(num_ints) = adjustl(object_name)
           call InputReadInt(string,option,dbase%ivalue(num_ints),input%ierr)
           call InputErrorMsg(input,option,'ivalue','ASCII Dbase '//object_name)
-        case(STRING_IS_DOUBLE)
+        case(STRING_IS_A_DOUBLE)
           num_reals = num_reals + 1
           dbase%rcard(num_reals) = adjustl(object_name)
           call InputReadDouble(string,option,dbase%rvalue(num_reals),input%ierr)
           call InputErrorMsg(input,option,'rvalue','ASCII Dbase '//object_name)
-        case(STRING_IS_WORD)
+        case(STRING_IS_A_WORD)
           num_words = num_words + 1
           dbase%ccard(num_words) = adjustl(object_name)
           dbase%cvalue(num_words) = words(value_index)
