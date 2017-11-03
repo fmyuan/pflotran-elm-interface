@@ -26,6 +26,7 @@ module PM_WIPP_Flow_class
     PetscReal :: satnorm
     PetscReal :: presnorm
     PetscReal :: tswitch
+    PetscReal :: dtimemax
     class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   contains
     procedure, public :: Read => PMWIPPFloRead
@@ -98,6 +99,7 @@ function PMWIPPFloCreate()
   wippflo_pm%satnorm = 3.d-1    ! [-]
   wippflo_pm%presnorm = 5.d5    ! [Pa]
   wippflo_pm%tswitch = 0.01d0   ! [-]
+  wippflo_pm%dtimemax = 1.25    ! [-]
 
   PMWIPPFloCreate => wippflo_pm
   
@@ -173,6 +175,12 @@ subroutine PMWIPPFloRead(this,input)
       case('TSWITCH')
         call InputReadDouble(input,option,this%tswitch)
         call InputDefaultMsg(input,option,'TSWITCH')
+      case('DTIMEMAX')
+        call InputReadDouble(input,option,this%dtimemax)
+        call InputDefaultMsg(input,option,'DTIMEMAX')
+      case('DELTFACTOR')
+        !call InputReadDouble(input,option,this%deltfactor)
+        !call InputDefaultMsg(input,option,'DELTFACTOR')
       case('LIQUID_EQUATION_TOLERANCE')
         call InputReadDouble(input,option,this%liquid_equation_tolerance)
         call InputDefaultMsg(input,option,'LIQUID_EQUATION_TOLERANCE')
@@ -417,24 +425,16 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
   
-  PetscReal :: fac
-  PetscInt :: ifac
-  PetscReal :: up, us, umin
-  PetscReal :: dtt
+  PetscReal :: dtime(2)
   type(field_type), pointer :: field
   
-  fac = 0.5d0
-  if (num_newton_iterations >= iacceleration) then
-    fac = 0.33d0
-    umin = 0.d0
-  else
-    up = this%pressure_change_governor/(this%max_pressure_change+0.1)
-    us = this%saturation_change_governor/(this%max_saturation_change+1.d-5)
-    umin = min(up,us)
-  endif
-  ifac = max(min(num_newton_iterations,size(tfac)),1)
-  dtt = fac * dt * (1.d0 + umin)
-  dt = min(dtt,tfac(ifac)*dt,dt_max)
+  ! calculate the time step ramping factor
+  dtime(1) = (2.d0*this%satnorm)/(this%satnorm+this%max_saturation_change)
+  dtime(2) = (2.d0*this%presnorm)/(this%presnorm+this%max_pressure_change)
+  ! pick minimum time step from calc'd ramping factor or maximum ramping factor
+  dt = min(min(dtime(1),dtime(2))*dt,this%dtimemax*dt)
+  ! make sure time step is within bounds given in the input deck
+  dt = min(dt,dt_max)
   dt = max(dt,dt_min)
 
   if (Initialized(this%cfl_governor)) then
@@ -1093,7 +1093,7 @@ subroutine PMWIPPFloMaxChange(this)
   endif
 
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
-  this%max_pressure_change = maxval(max_change_global(1:2))
+  this%max_pressure_change = max_change_global(1)
   this%max_saturation_change = max_change_global(3)
   
 end subroutine PMWIPPFloMaxChange
