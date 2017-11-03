@@ -576,7 +576,8 @@ end function PMRTAcceptSolution
 ! ************************************************************************** !
 
 subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                              num_newton_iterations,tfac)
+                              num_newton_iterations,tfac, &
+                              time_step_max_growth_factor)
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -590,6 +591,7 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: dtt, uvf, dt_vf, dt_tfac, fac
   PetscInt :: ifac
@@ -634,7 +636,7 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     endif
   endif
 
-  if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   if (dtt > dt_max) dtt = dt_max
   ! geh: see comment above under flow stepper
   dtt = max(dtt,dt_min)

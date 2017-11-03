@@ -549,7 +549,8 @@ end subroutine PMTOWGMaxChange
 ! ************************************************************************** !
 
 subroutine PMTOWGUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                num_newton_iterations,tfac, &
+                                time_step_max_growth_factor)
   ! 
   ! Author: Paolo Orsini
   ! Date: 12/30/16
@@ -569,6 +570,7 @@ subroutine PMTOWGUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: fac
   PetscInt :: ifac
@@ -593,6 +595,7 @@ subroutine PMTOWGUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   endif
   ifac = max(min(num_newton_iterations,size(tfac)),1)
   dtt = fac * dt * (1.d0 + umin)
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   dt = min(dtt,tfac(ifac)*dt,dt_max)
   dt = max(dt,dt_min)
 

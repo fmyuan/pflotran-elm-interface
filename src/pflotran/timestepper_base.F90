@@ -24,10 +24,11 @@ module Timestepper_Base_class
 
     PetscInt :: max_time_step                ! Maximum number of time steps to be taken by the code.
     PetscInt :: max_time_step_cuts           ! Maximum number of timestep cuts within one time step.
-    PetscReal :: time_step_reduction_factor  ! scaling factor by which timestep is reduced.
-    PetscInt :: constant_time_step_threshold        ! Steps needed after cutting to increase time step
+    PetscReal :: time_step_reduction_factor  ! Scaling factor by which timestep is reduced.
+    PetscReal :: time_step_max_growth_factor ! Maximum scaling factor by which timestep is increasd.
+    PetscInt :: constant_time_step_threshold ! Steps needed after cutting to increase time step
 
-    PetscInt :: cumulative_time_step_cuts       ! Total number of cuts in the timestep taken.    
+    PetscInt :: cumulative_time_step_cuts    ! Total number of cuts in the timestep taken.    
     PetscReal :: cumulative_solver_time
     
     PetscReal :: dt
@@ -145,6 +146,7 @@ subroutine TimestepperBaseInit(this)
   this%max_time_step = 999999
   this%max_time_step_cuts = 16
   this%time_step_reduction_factor = 0.5d0
+  this%time_step_max_growth_factor = 2.d0
   this%constant_time_step_threshold = 5
 
   this%cumulative_time_step_cuts = 0    
@@ -257,32 +259,29 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
       call InputReadInt(input,option,this%constant_time_step_threshold)
       call InputErrorMsg(input,option,'num_constant_time_steps_after_ts_cut', &
                          'TIMESTEPPER')
-
     case('MAX_STEPS')
       call InputReadInt(input,option,this%max_time_step)
       call InputErrorMsg(input,option,'max_time_step','TIMESTEPPER')
-  
     case('MAX_TS_CUTS')
       call InputReadInt(input,option,this%max_time_step_cuts)
       call InputErrorMsg(input,option,'max_time_step_cuts','TIMESTEPPER')
-        
     case('TIMESTEP_REDUCTION_FACTOR')
       call InputReadDouble(input,option,this%time_step_reduction_factor)
       call InputErrorMsg(input,option,'timestep reduction factor','TIMESTEPPER')
-        
+    case('TIMESTEP_MAXIMUM_GROWTH_FACTOR')
+      call InputReadDouble(input,option,this%time_step_max_growth_factor)
+      call InputErrorMsg(input,option,'timestep maximum growth factor', &
+                         'TIMESTEPPER')
     case('INITIALIZE_TO_STEADY_STATE')
       this%init_to_steady_state = PETSC_TRUE
       call InputReadDouble(input,option,this%steady_state_rel_tol)
       call InputErrorMsg(input,option,'steady state convergence relative &
                          &tolerance','TIMESTEPPER')
-
     case('RUN_AS_STEADY_STATE')
       this%run_as_steady_state = PETSC_TRUE
-
     case('PRINT_EKG')
       this%print_ekg = PETSC_TRUE
       option%print_ekg = PETSC_TRUE
-
     case('MAX_PRESSURE_CHANGE','MAX_TEMPERATURE_CHANGE', &
          'MAX_CONCENTRATION_CHANGE','MAX_SATURATION_CHANGE', &
          'PRESSURE_DAMPENING_FACTOR','SATURATION_CHANGE_LIMIT', &
@@ -586,6 +585,8 @@ subroutine TimestepperBasePrintInfo(this,option)
     write(*,'("max cuts:",x,a)') trim(adjustl(string))
     write(string,*) this%time_step_reduction_factor
     write(*,'("ts reduction factor:",x,a)') trim(adjustl(string))
+    write(string,*) this%time_step_max_growth_factor
+    write(*,'("ts maximum growth factor:",x,a)') trim(adjustl(string))
   endif
   if (OptionPrintToFile(option)) then
     write(option%fid_out,*) 
@@ -599,6 +600,9 @@ subroutine TimestepperBasePrintInfo(this,option)
     write(option%fid_out,'("max cuts:",x,a)') trim(adjustl(string))
     write(string,*) this%time_step_reduction_factor
     write(option%fid_out,'("ts reduction factor:",x,a)') trim(adjustl(string))
+    write(string,*) this%time_step_max_growth_factor
+    write(option%fid_out,'("ts maximum growth factor:",x,a)') &
+      trim(adjustl(string))
   endif    
 
 end subroutine TimestepperBasePrintInfo

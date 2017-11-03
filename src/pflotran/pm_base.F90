@@ -141,7 +141,8 @@ end subroutine PMBaseJacobian
 ! ************************************************************************** !
 
 subroutine PMBaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                num_newton_iterations,tfac)
+                                num_newton_iterations,tfac, &
+                                time_step_max_growth_factor)
   implicit none
   class(pm_base_type) :: this
   PetscReal :: dt
@@ -149,6 +150,7 @@ subroutine PMBaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   print *, 'Must extend PMBaseUpdateTimestep for: ' // trim(this%name)
   stop
 end subroutine PMBaseUpdateTimestep

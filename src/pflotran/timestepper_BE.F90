@@ -244,7 +244,8 @@ subroutine TimestepperBEUpdateDT(this,process_model)
                                       this%dt_max, &
                                       this%iaccel, &
                                       this%num_newton_iterations, &
-                                      this%tfac)
+                                      this%tfac, &
+                                      this%time_step_max_growth_factor)
     
   endif
 

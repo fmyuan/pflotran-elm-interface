@@ -490,7 +490,8 @@ end subroutine PMWIPPFloPostSolve
 ! ************************************************************************** !
 
 subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                   num_newton_iterations,tfac, &
+                                   time_step_max_growth_factor)
   ! 
   ! Author: Glenn Hammond
   ! Date: 07/11/17
@@ -510,6 +511,7 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: dtime(2)
   type(field_type), pointer :: field
@@ -518,7 +520,8 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   dtime(1) = (2.d0*this%satnorm)/(this%satnorm+this%max_saturation_change)
   dtime(2) = (2.d0*this%presnorm)/(this%presnorm+this%max_pressure_change)
   ! pick minimum time step from calc'd ramping factor or maximum ramping factor
-  dt = min(min(dtime(1),dtime(2))*dt,this%dtimemax*dt)
+  dt = min(min(dtime(1),dtime(2))*dt,this%dtimemax*dt, &
+           time_step_max_growth_factor*dt)
   ! make sure time step is within bounds given in the input deck
   dt = min(dt,dt_max)
   dt = max(dt,dt_min)
