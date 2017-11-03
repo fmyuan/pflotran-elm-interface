@@ -120,7 +120,8 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
       case default
       ! try reading as double precision
       string2 = word
-      if (.not.StringStartsWithAlpha(string2)) then
+      if (.not.StringStartsWithAlpha(string2) .and. &
+          StringIntegerDoubleOrWord(string2) /= STRING_IS_A_WORD) then
         ! the word is the stoichiometry value
       else
         ! check water
@@ -172,7 +173,8 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
       case default
         ! try reading as double precision
         string2 = word
-        if (.not.StringStartsWithAlpha(string2)) then
+        if (.not.StringStartsWithAlpha(string2) .and. &
+            StringIntegerDoubleOrWord(string2) /= STRING_IS_A_WORD) then
           ! negate if a product
           call InputReadDouble(string2,option,value,ierr)
           if (ierr /= 0) then

@@ -10,9 +10,9 @@ module String_module
 
   private
 
-  PetscInt, parameter, public :: STRING_IS_INTEGER = 1
-  PetscInt, parameter, public :: STRING_IS_DOUBLE = 2
-  PetscInt, parameter, public :: STRING_IS_WORD = 3
+  PetscInt, parameter, public :: STRING_IS_AN_INTEGER = 1
+  PetscInt, parameter, public :: STRING_IS_A_DOUBLE = 2
+  PetscInt, parameter, public :: STRING_IS_A_WORD = 3
 
   public :: StringCompare, &
             StringCompareIgnoreCase, &
@@ -599,9 +599,9 @@ end function StringFormatDouble
 
 ! ************************************************************************** !
 
-function StringIntegerDoubleOrWord(string)
+function StringIntegerDoubleOrWord(string_in)
   ! 
-  ! Writes a double or real to a string
+  ! Returns whether a value read from a string is a double, integer, or word
   ! 
   ! Author: Glenn Hammond
   ! Date: 01/13/12
@@ -609,14 +609,17 @@ function StringIntegerDoubleOrWord(string)
 
   implicit none
   
-  character(len=*) :: string
+  character(len=*) :: string_in
 
   PetscInt :: StringIntegerDoubleOrWord
 
+  character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: d
   PetscInt :: i
   PetscBool :: double_syntax_found
   PetscErrorCode :: ierr
+
+  string = trim(string_in)
 
   StringIntegerDoubleOrWord = -999
   ierr = 0
@@ -628,19 +631,19 @@ function StringIntegerDoubleOrWord(string)
     ! the Intel compiler does not alway catch the misread of a double to an 
     ! integer
     if (double_syntax_found) then
-      StringIntegerDoubleOrWord = STRING_IS_DOUBLE
+      StringIntegerDoubleOrWord = STRING_IS_A_DOUBLE
       return
     endif
-    StringIntegerDoubleOrWord = STRING_IS_INTEGER
+    StringIntegerDoubleOrWord = STRING_IS_AN_INTEGER
     return
   endif
   ierr = 0
   read(string,*,iostat=ierr) d
   if (ierr == 0) then
-    StringIntegerDoubleOrWord = STRING_IS_DOUBLE
+    StringIntegerDoubleOrWord = STRING_IS_A_DOUBLE
     return
   endif
-  if (len_trim(string) > 0) StringIntegerDoubleOrWord = STRING_IS_WORD
+  if (len_trim(string) > 0) StringIntegerDoubleOrWord = STRING_IS_A_WORD
   
 end function StringIntegerDoubleOrWord
 
