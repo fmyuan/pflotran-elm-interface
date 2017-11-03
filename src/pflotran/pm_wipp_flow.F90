@@ -18,6 +18,15 @@ module PM_WIPP_Flow_class
     PetscReal :: gas_equation_tolerance
     PetscReal :: liquid_pressure_tolerance
     PetscReal :: gas_saturation_tolerance
+    PetscReal :: dsatlim
+    PetscReal :: dprelim
+    PetscReal :: satlimit
+    PetscReal :: dsat_max  ! can this be this%saturation_change_limit?
+    PetscReal :: dpres_max ! can this be this%pressure_change_limit?
+    PetscReal :: satnorm
+    PetscReal :: presnorm
+    PetscReal :: tswitch
+    PetscReal :: dtimemax
     class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   contains
     procedure, public :: Read => PMWIPPFloRead
@@ -98,11 +107,24 @@ subroutine PMWIPPFloInitObject(this)
 
   this%check_post_convergence = PETSC_TRUE
 
-  ! defaults from BRAGFLO input deck
+  ! defaults from BRAGFLO input deck or recommended values from user manual
   this%liquid_equation_tolerance = 1.d-2
   this%gas_equation_tolerance = 1.d-2
   this%liquid_pressure_tolerance = 1.d-2
   this%gas_saturation_tolerance = 1.d-3
+  this%liquid_equation_tolerance = 1.d-2
+  this%gas_equation_tolerance = 1.d-2
+  this%liquid_pressure_tolerance = 1.d-2
+  this%gas_saturation_tolerance = 1.d-3
+  this%dsatlim = 0.20d0   ! [-]
+  this%dprelim = -1.0d8   ! [Pa]
+  this%satlimit = 1.0d-3  ! [-]
+  this%dsat_max = 1.d0    ! [-]
+  this%dpres_max = 1.d7   ! [Pa]
+  this%satnorm = 3.d-1    ! [-]
+  this%presnorm = 5.d5    ! [Pa]
+  this%tswitch = 0.01d0   ! [-]
+  this%dtimemax = 1.25    ! [-]
 
 end subroutine PMWIPPFloInitObject
 
@@ -157,6 +179,25 @@ subroutine PMWIPPFloRead(this,input)
     end select
     
   enddo  
+  
+  ! Check that SATLIMIT is smaller than DSATLIM
+  if (this%satlimit > this%dsatlim) then
+    option%io_buffer = 'The value of DSATLIM must be larger than SATLIMIT.'
+    call printErrMsg(option)
+  endif
+  ! Check the sign of given variables
+  if (this%dsatlim < 0.d0) then
+    option%io_buffer = 'The value of DSATLIM must be positive.'
+    call printErrMsg(option)
+  endif
+  if (this%dprelim > 0.d0) then
+    option%io_buffer = 'The value of DPRELIM must be negative.'
+    call printErrMsg(option)
+  endif
+  if (this%satlimit < 0.d0) then
+    option%io_buffer = 'The value of SATLIMIT must be positive.'
+    call printErrMsg(option)
+  endif
   
 end subroutine PMWIPPFloRead
 
@@ -249,6 +290,73 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       call InputErrorMsg(input,option,'saturation minimum perturbation', &
                          error_string)
       wippflo_debug_first_iteration = PETSC_TRUE
+    case('DSATLIM')
+      call InputReadDouble(input,option,this%dsatlim)
+      call InputDefaultMsg(input,option,'DSATLIM')
+    case('DPRELIM')
+      call InputReadDouble(input,option,this%dprelim)
+      call InputDefaultMsg(input,option,'DPRELIM')
+    case('SATLIMIT')
+      call InputReadDouble(input,option,this%satlimit)
+      call InputDefaultMsg(input,option,'SATLIMIT')
+    case('DSAT_MAX')
+      call InputReadDouble(input,option,this%dsat_max)
+      call InputDefaultMsg(input,option,'DSAT_MAX')
+    case('DPRES_MAX')
+      call InputReadDouble(input,option,this%dpres_max)
+      call InputDefaultMsg(input,option,'DPRES_MAX')
+    case('SATNORM')
+      call InputReadDouble(input,option,this%satnorm)
+      call InputDefaultMsg(input,option,'SATNORM')
+    case('PRESNORM')
+      call InputReadDouble(input,option,this%presnorm)
+      call InputDefaultMsg(input,option,'PRESNORM')
+    case('TSWITCH')
+      call InputReadDouble(input,option,this%tswitch)
+      call InputDefaultMsg(input,option,'TSWITCH')
+    case('DTIMEMAX')
+      call InputReadDouble(input,option,this%dtimemax)
+      call InputDefaultMsg(input,option,'DTIMEMAX')
+    case('DELTFACTOR')
+      !call InputReadDouble(input,option,this%deltfactor)
+      !call InputDefaultMsg(input,option,'DELTFACTOR')
+    case('LIQUID_EQUATION_TOLERANCE')
+      call InputReadDouble(input,option,this%liquid_equation_tolerance)
+      call InputDefaultMsg(input,option,'LIQUID_EQUATION_TOLERANCE')
+    case('GAS_EQUATION_TOLERANCE')
+      call InputReadDouble(input,option,this%gas_equation_tolerance)
+      call InputDefaultMsg(input,option,'GAS_EQUATION_TOLERANCE')
+    case('LIQUID_PRESSURE_TOLERANCE')
+      call InputReadDouble(input,option,this%liquid_pressure_tolerance)
+      call InputDefaultMsg(input,option,'LIQUID_PRESSURE_TOLERANCE')
+    case('GAS_SATURATION_TOLERANCE')
+      call InputReadDouble(input,option,this%gas_saturation_tolerance)
+      call InputDefaultMsg(input,option,'GAS_SATURATION_TOLERANCE')
+    case('GAS_COMPONENT_FORMULA_WEIGHT')
+      call InputReadDouble(input,option,fmw_comp(2))
+      call InputErrorMsg(input,option,'gas component formula wt.', &
+                         error_string)
+    case('MAXIMUM_PRESSURE_CHANGE')
+      call InputReadDouble(input,option,wippflo_max_pressure_change)
+      call InputErrorMsg(input,option,'maximum pressure change', &
+                         error_string)
+    case('MAX_ITERATION_BEFORE_DAMPING')
+      call InputReadInt(input,option,wippflo_max_it_before_damping)
+      call InputErrorMsg(input,option,'maximum iteration before damping', &
+                         error_string)
+    case('DAMPING_FACTOR')
+      call InputReadDouble(input,option,wippflo_damping_factor)
+      call InputErrorMsg(input,option,'damping factor',error_string)
+    case('FIX_UPWIND_DIRECTION')
+      wippflo_fix_upwind_direction = PETSC_TRUE
+    case('UNFIX_UPWIND_DIRECTION')
+      wippflo_fix_upwind_direction = PETSC_FALSE
+    case('COUNT_UPWIND_DIRECTION_FLIP')
+      wippflo_count_upwind_dir_flip = PETSC_TRUE
+    case('NO_FRACTURE')
+      wippflo_use_fracture = PETSC_FALSE
+    case('NO_CREEP_CLOSURE')
+      wippflo_use_creep_closure = PETSC_FALSE
     case default
       found = PETSC_FALSE
   end select
@@ -439,24 +547,16 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
   
-  PetscReal :: fac
-  PetscInt :: ifac
-  PetscReal :: up, us, umin
-  PetscReal :: dtt
+  PetscReal :: dtime(2)
   type(field_type), pointer :: field
   
-  fac = 0.5d0
-  if (num_newton_iterations >= iacceleration) then
-    fac = 0.33d0
-    umin = 0.d0
-  else
-    up = this%pressure_change_governor/(this%max_pressure_change+0.1)
-    us = this%saturation_change_governor/(this%max_saturation_change+1.d-5)
-    umin = min(up,us)
-  endif
-  ifac = max(min(num_newton_iterations,size(tfac)),1)
-  dtt = fac * dt * (1.d0 + umin)
-  dt = min(dtt,tfac(ifac)*dt,dt_max)
+  ! calculate the time step ramping factor
+  dtime(1) = (2.d0*this%satnorm)/(this%satnorm+this%max_saturation_change)
+  dtime(2) = (2.d0*this%presnorm)/(this%presnorm+this%max_pressure_change)
+  ! pick minimum time step from calc'd ramping factor or maximum ramping factor
+  dt = min(min(dtime(1),dtime(2))*dt,this%dtimemax*dt)
+  ! make sure time step is within bounds given in the input deck
+  dt = min(dt,dt_max)
   dt = max(dt,dt_min)
 
   if (Initialized(this%cfl_governor)) then
@@ -564,11 +664,13 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: offset
-  PetscInt :: saturation_index
+  PetscInt :: saturation_index 
+  PetscInt :: pressure_index
   PetscInt :: temp_int(2)
   PetscBool :: cut_timestep
   PetscBool :: force_another_iteration
   PetscReal :: saturation0, saturation1, del_saturation
+  PetscReal :: pressure0, pressure1, del_pressure
 
   SNES :: snes
   
@@ -594,29 +696,42 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     if (patch%imat(ghosted_id) <= 0) cycle
     offset = (local_id-1)*option%nflowdof
     saturation_index = offset + WIPPFLO_GAS_SATURATION_DOF
+    pressure_index = offset + WIPPFLO_LIQUID_PRESSURE_DOF
     del_saturation = dX_p(saturation_index)
+    del_pressure = dX_p(pressure_index)
     saturation0 = X_p(saturation_index)
+    pressure0 = X_p(pressure_index)
     saturation1 = saturation0 - del_saturation
+    pressure1 = pressure0 - del_pressure
+    ! DSATLIM is designed to catch saturations well outside the range of the 
+    ! physically realistic range (0 - 1) and cut the time step if this occurs
+    ! SATLIMIT is designed to force another newton iteration if the gas 
+    ! saturation is "slightly" outside of the range of realistic values
     if (saturation1 < 0.d0) then
-      if (saturation1 < -0.2d0) then
+      if (saturation1 < (-1.d0*this%dsatlim)) then  ! DEPLIMIT(1)
         cut_timestep = PETSC_TRUE
       else 
-        if (saturation1 < -1.d-3) then
+        if (saturation1 < (-1.d0*this%satlimit)) then  ! SATLIMIT
           force_another_iteration = PETSC_TRUE
         endif
         ! set saturation to zero
         dX_p(saturation_index) = saturation0
       endif
     else if (saturation1 > 1.d0) then
-      if (saturation1 > 1.d0 + 0.2d0) then
+      if (saturation1 > 1.d0 + this%dsatlim) then  ! DEPLIMIT(1)
         cut_timestep = PETSC_TRUE
       else 
-        if (saturation1 > 1.d0 + 1.d-3) then
+        if (saturation1 > 1.d0 + this%satlimit) then  ! SATLIMIT
           force_another_iteration = PETSC_TRUE
         endif
         ! set saturation to one
         dX_p(saturation_index) = saturation0 - 1.d0
       endif
+    endif
+    ! DPRELIM is designed to catch large negative values in liquid pressure
+    ! and cut the timestep if this occurs
+    if (pressure1 <= (this%dprelim)) then  ! DEPLIMIT(2)
+      cut_timestep = PETSC_TRUE
     endif
   enddo
 
@@ -679,6 +794,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscReal, pointer :: dX_p(:)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
+  PetscReal, pointer :: press_ptr(:)
+  PetscReal, pointer :: sat_ptr(:)
 
   PetscInt :: local_id, ghosted_id
   PetscInt :: offset , idof
@@ -686,8 +803,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscInt :: gas_equation_index
   PetscInt :: saturation_index
   PetscInt :: pressure_index
-  PetscInt :: temp_int(5)
-  PetscReal :: temp_real(4)
+  PetscInt :: temp_int(7)
+  PetscReal :: temp_real(6)
 
   PetscReal, parameter :: zero_saturation = 1.d-15
   PetscReal, parameter :: zero_accumulation = 1.d-15
@@ -697,6 +814,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscReal :: residual_over_accumulation
   PetscReal :: abs_X
   PetscReal :: abs_dX
+  PetscReal :: abs_dX_TS
   PetscBool :: converged_liquid_equation
   PetscBool :: converged_gas_equation
   PetscBool :: converged_liquid_pressure
@@ -704,13 +822,17 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscReal :: max_liq_eq
   PetscReal :: max_gas_eq
   PetscReal :: max_liq_pres_rel_change
-  PetscReal :: max_gas_sat_change
+  PetscReal :: max_gas_sat_change_NI
+  PetscReal :: max_gas_sat_change_TS
+  PetscReal :: max_pressure_change_TS
   PetscReal :: min_liq_pressure
   PetscReal :: min_gas_pressure
   PetscInt :: max_liq_eq_cell
   PetscInt :: max_gas_eq_cell
   PetscInt :: max_liq_pres_rel_change_cell
-  PetscInt :: max_gas_sat_change_cell
+  PetscInt :: max_gas_sat_change_NI_cell
+  PetscInt :: max_gas_sat_change_TS_cell
+  PetscInt :: max_pressure_change_TS_cell
   PetscInt :: min_liq_pressure_cell
   PetscInt :: min_gas_pressure_cell
   PetscReal :: abs_dX_over_absX
@@ -736,6 +858,9 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_accum2,accum_p2,ierr);CHKERRQ(ierr)
+  ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
+  call VecGetArrayF90(field%max_change_vecs(1),press_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%max_change_vecs(3),sat_ptr,ierr);CHKERRQ(ierr)
   converged_liquid_equation = PETSC_TRUE
   converged_gas_equation = PETSC_TRUE
   converged_liquid_pressure = PETSC_TRUE
@@ -743,13 +868,17 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   max_liq_eq = 0.d0
   max_gas_eq = 0.d0
   max_liq_pres_rel_change = 0.d0
-  max_gas_sat_change = 0.d0
+  max_gas_sat_change_NI = 0.d0
+  max_gas_sat_change_TS = 0.d0
+  max_pressure_change_TS = 0.d0
   min_liq_pressure = 1.d20
   min_gas_pressure = 1.d20
   max_liq_eq_cell = 0
   max_gas_eq_cell = 0
   max_liq_pres_rel_change_cell = 0
-  max_gas_sat_change_cell = 0
+  max_gas_sat_change_NI_cell = 0
+  max_gas_sat_change_TS_cell = 0
+  max_pressure_change_TS_cell = 0
   min_liq_pressure_cell = 0
   min_gas_pressure_cell = 0
   do local_id = 1, grid%nlmax
@@ -820,12 +949,30 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     if (abs_dX > 0.d0) then
       ! BRAGFLO uses -log10(abs_dX), why not check if abs_dX > tol?
 !      if (-log10(abs_dX) <= &
-      if (dabs(max_gas_sat_change) < abs_dX) then
-        max_gas_sat_change_cell = local_id
-        max_gas_sat_change = dX_p(saturation_index)
+      if (dabs(max_gas_sat_change_NI) < abs_dX) then
+        max_gas_sat_change_NI_cell = local_id
+        max_gas_sat_change_NI = dX_p(saturation_index)
       endif
       if (abs_dX > this%gas_saturation_tolerance) then
         converged_gas_saturation = PETSC_FALSE
+      endif
+    endif
+    
+    ! DSAT_MAX maximum absolute gas saturation change over time step
+    abs_dX_TS = dabs(sat_ptr(local_id)-X1_p(saturation_index))
+    if (abs_dX_TS > 0.d0) then
+      if (dabs(max_gas_sat_change_TS) < abs_dX_TS) then
+        max_gas_sat_change_TS_cell = local_id
+        max_gas_sat_change_TS = abs_dX_TS
+      endif
+    endif
+    
+    ! DPRE_MAX maximum absolute liquid pressure change over time step
+    abs_dX_TS = dabs(press_ptr(local_id)-X1_p(pressure_index))
+    if (abs_dX_TS > 0.d0) then
+      if (dabs(max_pressure_change_TS) < abs_dX_TS) then
+        max_pressure_change_TS_cell = local_id
+        max_pressure_change_TS = abs_dX_TS
       endif
     endif
 
@@ -850,21 +997,35 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   if (.not.converged_liquid_pressure) temp_int(3) = 1
   if (.not.converged_gas_saturation) temp_int(4) = 1
   if (min_gas_pressure < 0.d0) temp_int(5) = 1
-  call MPI_Allreduce(MPI_IN_PLACE,temp_int,FIVE_INTEGER_MPI, &
+  if (converged_gas_saturation .and. &
+      (max_gas_sat_change_TS > this%dsat_max)) temp_int(6) = 1
+  if (converged_liquid_pressure .and. &
+      (max_pressure_change_TS > this%dpres_max)) temp_int(7) = 1
+  call MPI_Allreduce(MPI_IN_PLACE,temp_int,SEVEN_INTEGER_MPI, &
                      MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
   temp_real(1) = max_liq_eq
   temp_real(2) = max_gas_eq
   temp_real(3) = max_liq_pres_rel_change
-  temp_real(4) = max_gas_sat_change
-  call MPI_Allreduce(MPI_IN_PLACE,temp_real,FOUR_INTEGER_MPI, &
+  temp_real(4) = max_gas_sat_change_NI
+  temp_real(5) = max_gas_sat_change_TS
+  temp_real(6) = max_pressure_change_TS
+  call MPI_Allreduce(MPI_IN_PLACE,temp_real,SIX_INTEGER_MPI, &
                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
   max_liq_eq = temp_real(1)
   max_gas_eq = temp_real(2)
   max_liq_pres_rel_change = temp_real(3)
-  max_gas_sat_change = temp_real(4)
+  max_gas_sat_change_NI = temp_real(4)
+  max_gas_sat_change_TS = temp_real(5)
+  max_pressure_change_TS = temp_real(6)
 
   if (option%convergence == CONVERGENCE_CUT_TIMESTEP) then
     reason = '!cut'
+  else if (temp_int(7) > 0) then
+    reason = 'PlTS'
+    option%convergence = CONVERGENCE_CUT_TIMESTEP
+  else if (temp_int(6) > 0) then
+    reason = 'SgTS'
+    option%convergence = CONVERGENCE_CUT_TIMESTEP
   else if (temp_int(5) > 0) then
     reason = 'negP'
     option%convergence = CONVERGENCE_CUT_TIMESTEP
@@ -885,13 +1046,13 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     if (option%mycommsize > 1) then
       write(*,'(4x,"Reason: ",a4,4es10.2)') reason, &
         max_liq_eq, max_gas_eq, &
-        max_liq_pres_rel_change, max_gas_sat_change
+        max_liq_pres_rel_change, max_gas_sat_change_NI
     else
       write(*,'(4x,"Reason: ",a4,4(i5,es10.2))') reason, &
         max_liq_eq_cell, max_liq_eq, &
         max_gas_eq_cell, max_gas_eq, &
         max_liq_pres_rel_change_cell, max_liq_pres_rel_change, &
-        max_gas_sat_change_cell, max_gas_sat_change
+        max_gas_sat_change_NI_cell, max_gas_sat_change_NI
 ! for debugging
 #if 0
       local_id = min_gas_pressure_cell
@@ -912,6 +1073,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_accum2,accum_p2,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%max_change_vecs(1),sat_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%max_change_vecs(3),sat_ptr,ierr);CHKERRQ(ierr)
                                
 end subroutine PMWIPPFloCheckUpdatePost
 
@@ -998,10 +1161,10 @@ subroutine PMWIPPFloMaxChange(this)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
-  PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
+  PetscReal, pointer :: vec_old_ptr(:), vec_new_ptr(:)
   PetscReal :: max_change_local(6)
   PetscReal :: max_change_global(6)
-  PetscReal :: max_change
+  PetscReal :: max_change, change
   PetscInt :: i, j
   
   PetscErrorCode :: ierr
@@ -1014,24 +1177,34 @@ subroutine PMWIPPFloMaxChange(this)
   max_change_global = 0.d0
   max_change_local = 0.d0
   
-  ! max change variables: [LIQUID_PRESSURE, GAS_SATURATION]
+  ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
+  ! these are values from the previous time step
   do i = 1, 3
     call RealizationGetVariable(realization,field%work, &
                                 this%max_change_ivar(i),ZERO_INTEGER)
     ! yes, we could use VecWAXPY and a norm here, but we need the ability
     ! to customize
-    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%max_change_vecs(i),vec_ptr2,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%max_change_vecs(i),vec_old_ptr,ierr);CHKERRQ(ierr)
     max_change = 0.d0
     do j = 1, grid%nlmax
       ! have to weed out cells that changed state
-      if (dabs(vec_ptr(j)) > 1.d-40 .and. dabs(vec_ptr2(j)) > 1.d-40) then
-        max_change = max(max_change,dabs(vec_ptr(j)-vec_ptr2(j)))
+      if (dabs(vec_old_ptr(j)) > 1.d-40 .and. &
+          dabs(vec_new_ptr(j)) > 1.d-40) then
+        ! this is an absolute change over a time step
+        change = dabs(vec_new_ptr(j)-vec_old_ptr(j))
+        if (i == 3) then ! (gas saturation)
+          if (dabs(vec_new_ptr(j)) > this%tswitch) then
+            ! use relative change only if gas saturation is higher than TSWITCH
+            change = dabs(change/vec_new_ptr(j))
+          endif
+        endif
+        max_change = max(max_change,change)  
       endif
     enddo
     max_change_local(i) = max_change
-    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%max_change_vecs(i),vec_ptr2, &
+    call VecRestoreArrayF90(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%max_change_vecs(i),vec_old_ptr, &
                             ierr);CHKERRQ(ierr)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
@@ -1050,7 +1223,7 @@ subroutine PMWIPPFloMaxChange(this)
   endif
 
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
-  this%max_pressure_change = maxval(max_change_global(1:2))
+  this%max_pressure_change = max_change_global(1)
   this%max_saturation_change = max_change_global(3)
   
 end subroutine PMWIPPFloMaxChange
