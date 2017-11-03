@@ -74,6 +74,7 @@ STANDARD_CFG = \
 	towg/towg.cfg \
 	ufd/ufd.cfg \
 	wipp/wipp_flow/condition/condition.cfg \
+	wipp/wipp_flow/input_format/input_format.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 	wipp/nuts/nuts.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg \
