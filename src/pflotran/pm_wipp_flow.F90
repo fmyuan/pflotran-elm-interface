@@ -1031,10 +1031,10 @@ subroutine PMWIPPFloMaxChange(this)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
-  PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
+  PetscReal, pointer :: vec_old_ptr(:), vec_new_ptr(:)
   PetscReal :: max_change_local(6)
   PetscReal :: max_change_global(6)
-  PetscReal :: max_change
+  PetscReal :: max_change, change
   PetscInt :: i, j
   
   PetscErrorCode :: ierr
@@ -1048,27 +1048,33 @@ subroutine PMWIPPFloMaxChange(this)
   max_change_local = 0.d0
   
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
+  ! these are values from the previous time step
   do i = 1, 3
     call RealizationGetVariable(realization,field%work, &
                                 this%max_change_ivar(i),ZERO_INTEGER)
     ! yes, we could use VecWAXPY and a norm here, but we need the ability
     ! to customize
-    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%max_change_vecs(i),vec_ptr2,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%max_change_vecs(i),vec_old_ptr,ierr);CHKERRQ(ierr)
     max_change = 0.d0
     do j = 1, grid%nlmax
       ! have to weed out cells that changed state
-      if (dabs(vec_ptr(j)) > 1.d-40 .and. dabs(vec_ptr2(j)) > 1.d-40) then
-        max_change = max(max_change,dabs(vec_ptr(j)-vec_ptr2(j)))
-        ! check if i = 3 (gas saturation variable)
-        ! check what gas saturation is: larger/smaller than TSWITCH?
-        ! if larger than TSWITCH, divide by new gas saturation to get a relative change
-        ! if smaller than TSWITCH, just use the absolute change
+      if (dabs(vec_old_ptr(j)) > 1.d-40 .and. &
+          dabs(vec_new_ptr(j)) > 1.d-40) then
+        ! this is an absolute change over a time step
+        change = dabs(vec_new_ptr(j)-vec_old_ptr(j))
+        if (i == 3) then ! (gas saturation)
+          if (dabs(vec_new_ptr(j)) > this%tswitch) then
+            ! use relative change only if gas saturation is higher than TSWITCH
+            change = dabs(change/vec_new_ptr(j))
+          endif
+        endif
+        max_change = max(max_change,change)  
       endif
     enddo
     max_change_local(i) = max_change
-    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%max_change_vecs(i),vec_ptr2, &
+    call VecRestoreArrayF90(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%max_change_vecs(i),vec_old_ptr, &
                             ierr);CHKERRQ(ierr)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
