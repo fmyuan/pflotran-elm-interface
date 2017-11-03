@@ -289,7 +289,6 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       call InputReadDouble(input,option,wippflo_sat_min_pert)
       call InputErrorMsg(input,option,'saturation minimum perturbation', &
                          error_string)
-      wippflo_debug_first_iteration = PETSC_TRUE
     case('DSATLIM')
       call InputReadDouble(input,option,this%dsatlim)
       call InputDefaultMsg(input,option,'DSATLIM')
@@ -320,43 +319,6 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
     case('DELTFACTOR')
       !call InputReadDouble(input,option,this%deltfactor)
       !call InputDefaultMsg(input,option,'DELTFACTOR')
-    case('LIQUID_EQUATION_TOLERANCE')
-      call InputReadDouble(input,option,this%liquid_equation_tolerance)
-      call InputDefaultMsg(input,option,'LIQUID_EQUATION_TOLERANCE')
-    case('GAS_EQUATION_TOLERANCE')
-      call InputReadDouble(input,option,this%gas_equation_tolerance)
-      call InputDefaultMsg(input,option,'GAS_EQUATION_TOLERANCE')
-    case('LIQUID_PRESSURE_TOLERANCE')
-      call InputReadDouble(input,option,this%liquid_pressure_tolerance)
-      call InputDefaultMsg(input,option,'LIQUID_PRESSURE_TOLERANCE')
-    case('GAS_SATURATION_TOLERANCE')
-      call InputReadDouble(input,option,this%gas_saturation_tolerance)
-      call InputDefaultMsg(input,option,'GAS_SATURATION_TOLERANCE')
-    case('GAS_COMPONENT_FORMULA_WEIGHT')
-      call InputReadDouble(input,option,fmw_comp(2))
-      call InputErrorMsg(input,option,'gas component formula wt.', &
-                         error_string)
-    case('MAXIMUM_PRESSURE_CHANGE')
-      call InputReadDouble(input,option,wippflo_max_pressure_change)
-      call InputErrorMsg(input,option,'maximum pressure change', &
-                         error_string)
-    case('MAX_ITERATION_BEFORE_DAMPING')
-      call InputReadInt(input,option,wippflo_max_it_before_damping)
-      call InputErrorMsg(input,option,'maximum iteration before damping', &
-                         error_string)
-    case('DAMPING_FACTOR')
-      call InputReadDouble(input,option,wippflo_damping_factor)
-      call InputErrorMsg(input,option,'damping factor',error_string)
-    case('FIX_UPWIND_DIRECTION')
-      wippflo_fix_upwind_direction = PETSC_TRUE
-    case('UNFIX_UPWIND_DIRECTION')
-      wippflo_fix_upwind_direction = PETSC_FALSE
-    case('COUNT_UPWIND_DIRECTION_FLIP')
-      wippflo_count_upwind_dir_flip = PETSC_TRUE
-    case('NO_FRACTURE')
-      wippflo_use_fracture = PETSC_FALSE
-    case('NO_CREEP_CLOSURE')
-      wippflo_use_creep_closure = PETSC_FALSE
     case default
       found = PETSC_FALSE
   end select
