@@ -191,6 +191,7 @@ set(MODE_AUX_SOURCES
 	pm_auxiliary.F90
 	pm_base.F90
 	pm_base_pointer.F90
+	pm_bragflo.F90
 	pm_general.F90
 	pm_toil_ims.F90
 	pm_towg.F90
@@ -217,6 +218,8 @@ set(MODE_AUX_SOURCES
 )
 
 set(MODE_SOURCES
+	bragflo.F90
+	bragflo_common.F90
 	flash2.F90
 	general.F90
 	general_common.F90
