@@ -23,6 +23,7 @@ module PM_WIPP_Flow_class
     PetscReal :: satlimit
     PetscReal :: dsat_max  ! can this be this%saturation_change_limit?
     PetscReal :: dpres_max ! can this be this%pressure_change_limit?
+    PetscReal :: eps_pres
     PetscReal :: satnorm
     PetscReal :: presnorm
     PetscReal :: tswitch
@@ -121,6 +122,7 @@ subroutine PMWIPPFloInitObject(this)
   this%satlimit = 1.0d-3  ! [-]
   this%dsat_max = 1.d0    ! [-]
   this%dpres_max = 1.d7   ! [Pa]
+  this%eps_pres = 1.0d-3  ! [-]
   this%satnorm = 3.d-1    ! [-]
   this%presnorm = 5.d5    ! [Pa]
   this%tswitch = 0.01d0   ! [-]
@@ -306,6 +308,9 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
     case('DPRES_MAX')
       call InputReadDouble(input,option,this%dpres_max)
       call InputDefaultMsg(input,option,'DPRES_MAX')
+    case('EPS_PRES')
+      call InputReadDouble(input,option,this%eps_pres)
+      call InputDefaultMsg(input,option,'EPS_PRES')
     case('SATNORM')
       call InputReadDouble(input,option,this%satnorm)
       call InputDefaultMsg(input,option,'SATNORM')
@@ -767,8 +772,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscInt :: gas_equation_index
   PetscInt :: saturation_index
   PetscInt :: pressure_index
-  PetscInt :: temp_int(7)
-  PetscReal :: temp_real(6)
+  PetscInt :: temp_int(8)
+  PetscReal :: temp_real(7)
 
   PetscReal, parameter :: zero_saturation = 1.d-15
   PetscReal, parameter :: zero_accumulation = 1.d-15
@@ -779,6 +784,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscReal :: abs_X
   PetscReal :: abs_dX
   PetscReal :: abs_dX_TS
+  PetscReal :: rel_dX_TS
   PetscBool :: converged_liquid_equation
   PetscBool :: converged_gas_equation
   PetscBool :: converged_liquid_pressure
@@ -788,7 +794,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscReal :: max_liq_pres_rel_change
   PetscReal :: max_gas_sat_change_NI
   PetscReal :: max_gas_sat_change_TS
-  PetscReal :: max_pressure_change_TS
+  PetscReal :: max_abs_pressure_change_TS
+  PetscReal :: max_rel_pressure_change_TS
   PetscReal :: min_liq_pressure
   PetscReal :: min_gas_pressure
   PetscInt :: max_liq_eq_cell
@@ -796,7 +803,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscInt :: max_liq_pres_rel_change_cell
   PetscInt :: max_gas_sat_change_NI_cell
   PetscInt :: max_gas_sat_change_TS_cell
-  PetscInt :: max_pressure_change_TS_cell
+  PetscInt :: max_abs_pressure_change_TS_cell
+  PetscInt :: max_rel_pressure_change_TS_cell
   PetscInt :: min_liq_pressure_cell
   PetscInt :: min_gas_pressure_cell
   PetscReal :: abs_dX_over_absX
@@ -834,7 +842,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   max_liq_pres_rel_change = 0.d0
   max_gas_sat_change_NI = 0.d0
   max_gas_sat_change_TS = 0.d0
-  max_pressure_change_TS = 0.d0
+  max_abs_pressure_change_TS = 0.d0
+  max_rel_pressure_change_TS = 0.d0
   min_liq_pressure = 1.d20
   min_gas_pressure = 1.d20
   max_liq_eq_cell = 0
@@ -842,7 +851,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   max_liq_pres_rel_change_cell = 0
   max_gas_sat_change_NI_cell = 0
   max_gas_sat_change_TS_cell = 0
-  max_pressure_change_TS_cell = 0
+  max_abs_pressure_change_TS_cell = 0
+  max_rel_pressure_change_TS_cell = 0
   min_liq_pressure_cell = 0
   min_gas_pressure_cell = 0
   do local_id = 1, grid%nlmax
@@ -934,9 +944,19 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     ! DPRE_MAX maximum absolute liquid pressure change over time step
     abs_dX_TS = dabs(press_ptr(local_id)-X1_p(pressure_index))
     if (abs_dX_TS > 0.d0) then
-      if (dabs(max_pressure_change_TS) < abs_dX_TS) then
-        max_pressure_change_TS_cell = local_id
-        max_pressure_change_TS = abs_dX_TS
+      if (dabs(max_abs_pressure_change_TS) < abs_dX_TS) then
+        max_abs_pressure_change_TS_cell = local_id
+        max_abs_pressure_change_TS = abs_dX_TS
+      endif
+    endif
+    
+    ! EPS_PRES maximum relative liquid pressure change over time step
+    rel_dX_TS = dabs((press_ptr(local_id)-X1_p(pressure_index))/ &
+                      press_ptr(local_id))
+    if (rel_dX_TS > 0.d0) then
+      if (dabs(max_rel_pressure_change_TS) < rel_dX_TS) then
+        max_rel_pressure_change_TS_cell = local_id
+        max_rel_pressure_change_TS = rel_dX_TS
       endif
     endif
 
@@ -964,28 +984,35 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   if (converged_gas_saturation .and. &
       (max_gas_sat_change_TS > this%dsat_max)) temp_int(6) = 1
   if (converged_liquid_pressure .and. &
-      (max_pressure_change_TS > this%dpres_max)) temp_int(7) = 1
-  call MPI_Allreduce(MPI_IN_PLACE,temp_int,SEVEN_INTEGER_MPI, &
+      (max_abs_pressure_change_TS > this%dpres_max)) temp_int(7) = 1
+  if (converged_liquid_pressure .and. &
+      (max_rel_pressure_change_TS > this%eps_pres)) temp_int(8) = 1
+  call MPI_Allreduce(MPI_IN_PLACE,temp_int,8, &
                      MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
   temp_real(1) = max_liq_eq
   temp_real(2) = max_gas_eq
   temp_real(3) = max_liq_pres_rel_change
   temp_real(4) = max_gas_sat_change_NI
   temp_real(5) = max_gas_sat_change_TS
-  temp_real(6) = max_pressure_change_TS
-  call MPI_Allreduce(MPI_IN_PLACE,temp_real,SIX_INTEGER_MPI, &
+  temp_real(6) = max_abs_pressure_change_TS
+  temp_real(7) = max_rel_pressure_change_TS
+  call MPI_Allreduce(MPI_IN_PLACE,temp_real,SEVEN_INTEGER_MPI, &
                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
   max_liq_eq = temp_real(1)
   max_gas_eq = temp_real(2)
   max_liq_pres_rel_change = temp_real(3)
   max_gas_sat_change_NI = temp_real(4)
   max_gas_sat_change_TS = temp_real(5)
-  max_pressure_change_TS = temp_real(6)
+  max_abs_pressure_change_TS = temp_real(6)
+  max_rel_pressure_change_TS = temp_real(7)
 
   if (option%convergence == CONVERGENCE_CUT_TIMESTEP) then
     reason = '!cut'
+  else if (temp_int(8) > 0) then
+    reason = 'PrTS'
+    option%convergence = CONVERGENCE_CUT_TIMESTEP
   else if (temp_int(7) > 0) then
-    reason = 'PlTS'
+    reason = 'PaTS'
     option%convergence = CONVERGENCE_CUT_TIMESTEP
   else if (temp_int(6) > 0) then
     reason = 'SgTS'
