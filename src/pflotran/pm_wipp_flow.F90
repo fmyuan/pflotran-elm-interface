@@ -318,9 +318,6 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
     case('DTIMEMAX')
       call InputReadDouble(input,option,this%dtimemax)
       call InputDefaultMsg(input,option,'DTIMEMAX')
-    case('DELTFACTOR')
-      !call InputReadDouble(input,option,this%deltfactor)
-      !call InputDefaultMsg(input,option,'DELTFACTOR')
     case default
       found = PETSC_FALSE
   end select
