@@ -114,10 +114,6 @@ subroutine PMWIPPFloInitObject(this)
   this%gas_equation_tolerance = 1.d-2
   this%liquid_pressure_tolerance = 1.d-2
   this%gas_saturation_tolerance = 1.d-3
-  this%liquid_equation_tolerance = 1.d-2
-  this%gas_equation_tolerance = 1.d-2
-  this%liquid_pressure_tolerance = 1.d-2
-  this%gas_saturation_tolerance = 1.d-3
   this%dsatlim = 0.20d0   ! [-]
   this%dprelim = -1.0d8   ! [Pa]
   this%satlimit = 1.0d-3  ! [-]
