@@ -154,6 +154,7 @@ recursive subroutine PMBragfloInitializeRun(this)
   ! Date: 07/11/17
 
   use Realization_Base_class
+  use PM_WIPP_Flow_class 
   use WIPP_Flow_Aux_module
   use Input_Aux_module
   use Field_module
