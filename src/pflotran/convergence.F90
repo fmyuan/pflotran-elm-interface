@@ -151,6 +151,10 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason,context, &
   option => context%option
   grid => context%grid
 
+  residual_vec = tVec(0)
+  solution_vec = tVec(0)
+  update_vec = tVec(0)
+
   if (option%use_touch_options) then
     string = 'detailed_convergence'
     if (OptionCheckTouch(option,string)) then
