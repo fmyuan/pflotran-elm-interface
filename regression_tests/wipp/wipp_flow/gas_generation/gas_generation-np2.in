@@ -14,7 +14,6 @@ SIMULATION
         LIQUID_EQUATION_TOLERANCE 1.d-6
         GAS_EQUATION_TOLERANCE 1.d-6
         LIQUID_PRESSURE_TOLERANCE 1.d-5
-        GAS_SATURATION_TOLERANCE 1.d-4
         DTIMEMAX   1.25
         SATLIMIT   1.d-3
         DSATLIM    0.20
@@ -22,6 +21,7 @@ SIMULATION
         SATNORM    3.d-1
         TSWITCH    1.d-2
         EPS_PRES   1.d-3
+        EPS_SAT    4
         DPRELIM   -1.d8   ! Pa
         DPRES_MAX  1.d7   ! Pa
         PRESNORM   5.d5   ! Pa
