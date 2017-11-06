@@ -156,7 +156,6 @@ subroutine PMWIPPFloRead(this,input)
   PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
-  PetscReal :: max_eps_sat
 
   option => this%option
 
@@ -206,8 +205,8 @@ subroutine PMWIPPFloRead(this,input)
   ! Assign tightest tolerence to EPS_SAT
   ! This code should be removed when GAS_SATURATION_TOLERANCE is removed because
   ! this%gas_saturation_tolerance will no longer exist
-  max_eps_sat = max(this%eps_sat,(-1.d0*log10(this%gas_saturation_tolerance)))
-  this%eps_sat = max_eps_sat
+  this%eps_sat = max(this%eps_sat,(-1.d0*log10(this%gas_saturation_tolerance)))
+   
   
   
 end subroutine PMWIPPFloRead
