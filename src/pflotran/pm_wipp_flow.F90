@@ -23,6 +23,7 @@ module PM_WIPP_Flow_class
     PetscReal :: satlimit
     PetscReal :: dsat_max  ! can this be this%saturation_change_limit?
     PetscReal :: dpres_max ! can this be this%pressure_change_limit?
+    PetscReal :: eps_sat
     PetscReal :: eps_pres
     PetscReal :: satnorm
     PetscReal :: presnorm
@@ -122,6 +123,7 @@ subroutine PMWIPPFloInitObject(this)
   this%satlimit = 1.0d-3  ! [-]
   this%dsat_max = 1.d0    ! [-]
   this%dpres_max = 1.d7   ! [Pa]
+  this%eps_sat = 3.0d0    ! [-]
   this%eps_pres = 1.0d-3  ! [-]
   this%satnorm = 3.d-1    ! [-]
   this%presnorm = 5.d5    ! [Pa]
@@ -154,6 +156,7 @@ subroutine PMWIPPFloRead(this,input)
   PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
+  PetscReal :: max_eps_sat
 
   option => this%option
 
@@ -200,6 +203,12 @@ subroutine PMWIPPFloRead(this,input)
     option%io_buffer = 'The value of SATLIMIT must be positive.'
     call printErrMsg(option)
   endif
+  ! Assign tightest tolerence to EPS_SAT
+  ! This code should be removed when GAS_SATURATION_TOLERANCE is removed because
+  ! this%gas_saturation_tolerance will no longer exist
+  max_eps_sat = max(this%eps_sat,(-1.d0*log10(this%gas_saturation_tolerance)))
+  this%eps_sat = max_eps_sat
+  
   
 end subroutine PMWIPPFloRead
 
@@ -308,6 +317,9 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
     case('DPRES_MAX')
       call InputReadDouble(input,option,this%dpres_max)
       call InputDefaultMsg(input,option,'DPRES_MAX')
+    case('EPS_SAT')
+      call InputReadDouble(input,option,this%eps_sat)
+      call InputDefaultMsg(input,option,'EPS_SAT')
     case('EPS_PRES')
       call InputReadDouble(input,option,this%eps_pres)
       call InputDefaultMsg(input,option,'EPS_PRES')
@@ -918,17 +930,13 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       endif
     endif
     
-    ! gas saturation
+    ! EPS_SAT maximum relative gas saturation change "digits of accuracy"
     abs_dX = dabs(dX_p(saturation_index))
-    if (abs_dX > 0.d0) then
-      ! BRAGFLO uses -log10(abs_dX), why not check if abs_dX > tol?
-!      if (-log10(abs_dX) <= &
+    if ((-1.d0*log10(abs_dX)) < this%eps_sat) then
+      converged_gas_saturation = PETSC_FALSE
       if (dabs(max_gas_sat_change_NI) < abs_dX) then
         max_gas_sat_change_NI_cell = local_id
         max_gas_sat_change_NI = dX_p(saturation_index)
-      endif
-      if (abs_dX > this%gas_saturation_tolerance) then
-        converged_gas_saturation = PETSC_FALSE
       endif
     endif
     
