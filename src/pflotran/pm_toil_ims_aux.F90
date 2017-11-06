@@ -724,7 +724,7 @@ subroutine  TOilImsAuxVarArray1Strip(auxvars)
   !print *, "den oil bc/ss pass = ", auxvars(1)%den(2)
 
   do iaux = 1, size(auxvars)
-    call auxvars(iaux)%Strip
+    call auxvars(iaux)%Strip()
   enddo
 
 end subroutine TOilImsAuxVarArray1Strip
