@@ -12,6 +12,9 @@ module PM_Bragflo_class
   type, public, extends(pm_wippflo_type) :: pm_bragflo_type
     character(len=MAXWORDLENGTH) :: alpha_dataset_name
     character(len=MAXWORDLENGTH) :: elevation_dataset_name
+    PetscReal :: linear_system_scaling_factor
+    PetscBool :: scale_linear_system
+    Vec :: scaling_vec
   contains
     procedure, public :: Read => PMBragfloRead
     procedure, public :: InitializeRun => PMBragfloInitializeRun
@@ -51,6 +54,9 @@ function PMBragfloCreate()
   bragflo_pm%name = 'BRAGFLO'
   bragflo_pm%alpha_dataset_name = ''
   bragflo_pm%elevation_dataset_name = ''
+  bragflo_pm%linear_system_scaling_factor = 1.d7
+  bragflo_pm%scale_linear_system = PETSC_FALSE
+  bragflo_pm%scaling_vec = PETSC_NULL_VEC
 
   PMBragfloCreate => bragflo_pm
   
@@ -111,6 +117,11 @@ subroutine PMBragfloRead(this,input)
         call InputReadNChars(input,option,this%elevation_dataset_name,&
                              MAXWORDLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'ELEVATION DATASET,NAME',error_string)
+      case('P_SCALE')
+        call InputReadDouble(input,option,this%linear_system_scaling_factor)
+        call InputErrorMsg(input,option,'P_SCALE',error_string)
+      case('LSCALE')
+        this%scale_linear_system = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(keyword,'BRAGFLO Mode',option)
     end select
@@ -161,6 +172,7 @@ recursive subroutine PMBragfloInitializeRun(this)
   use Dataset_Base_class
   use Dataset_Common_HDF5_class
   use Dataset_module
+  use Discretization_module
   use HDF5_module
   use Option_module
   use Grid_module
@@ -262,6 +274,9 @@ recursive subroutine PMBragfloInitializeRun(this)
     enddo
   endif
 
+  call DiscretizationCreateVector(this%realization%discretization,NFLOWDOF, &
+                                  this%scaling_vec,GLOBAL,this%option)
+
 end subroutine PMBragfloInitializeRun
 
 ! ************************************************************************** !
@@ -299,7 +314,6 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
   ! Author: Glenn Hammond
   ! Date: 07/11/17
   ! 
-
   use Bragflo_module, only : BragfloJacobian
 
   implicit none
@@ -310,7 +324,25 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
 
+  Vec :: residual_vec
+
+  residual_vec = tVec(0)
+
   call BragfloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
+
+  if (this%scale_linear_system) then
+    call MatGetRowMaxAbs(A,this%scaling_vec,PETSC_NULL_INTEGER, &
+                         ierr);CHKERRQ(ierr)
+    call VecScale(this%scaling_vec,this%linear_system_scaling_factor, &
+                  ierr);CHKERRQ(ierr)
+    call VecReciprocal(this%scaling_vec,ierr);CHKERRQ(ierr)
+    call MatDiagonalScale(A,this%scaling_vec,PETSC_NULL_VEC, &
+                          ierr);CHKERRQ(ierr)
+    call SNESGetFunction(snes,residual_vec,PETSC_NULL_FUNCTION, &
+                         PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+    call VecPointwiseMult(residual_vec,residual_vec, &
+                          this%scaling_vec,ierr);CHKERRQ(ierr)
+  endif
 
 end subroutine PMBragfloJacobian
 
