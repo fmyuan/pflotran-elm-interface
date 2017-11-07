@@ -55,7 +55,7 @@ function PMBragfloCreate()
   bragflo_pm%alpha_dataset_name = ''
   bragflo_pm%elevation_dataset_name = ''
   bragflo_pm%linear_system_scaling_factor = 1.d7
-  bragflo_pm%scale_linear_system = PETSC_FALSE
+  bragflo_pm%scale_linear_system = PETSC_TRUE
   bragflo_pm%scaling_vec = PETSC_NULL_VEC
 
   PMBragfloCreate => bragflo_pm
@@ -122,6 +122,8 @@ subroutine PMBragfloRead(this,input)
         call InputErrorMsg(input,option,'P_SCALE',error_string)
       case('LSCALE')
         this%scale_linear_system = PETSC_TRUE
+      case('DO_NOT_LSCALE')
+        this%scale_linear_system = PETSC_FALSE
       case default
         call InputKeywordUnrecognized(keyword,'BRAGFLO Mode',option)
     end select
