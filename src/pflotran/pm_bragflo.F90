@@ -21,6 +21,7 @@ module PM_Bragflo_class
     procedure, public :: Residual => PMBragfloResidual
     procedure, public :: Jacobian => PMBragfloJacobian
     procedure, public :: InputRecord => PMBragfloInputRecord
+    procedure, public :: Destroy => PMBragfloDestroy
   end type pm_bragflo_type
   
   public :: PMBragfloCreate
@@ -278,6 +279,8 @@ recursive subroutine PMBragfloInitializeRun(this)
 
   call DiscretizationCreateVector(this%realization%discretization,NFLOWDOF, &
                                   this%scaling_vec,GLOBAL,this%option)
+  call VecDuplicate(this%scaling_vec,this%stored_residual_vec, &
+                    ierr);CHKERRQ(ierr)
 
 end subroutine PMBragfloInitializeRun
 
@@ -332,6 +335,9 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
 
   call BragfloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
 
+  call SNESGetFunction(snes,residual_vec,PETSC_NULL_FUNCTION, &
+                       PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+  call VecCopy(residual_vec,this%stored_residual_vec,ierr);CHKERRQ(ierr)
   if (this%scale_linear_system) then
     call MatGetRowMaxAbs(A,this%scaling_vec,PETSC_NULL_INTEGER, &
                          ierr);CHKERRQ(ierr)
@@ -340,12 +346,32 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
     call VecReciprocal(this%scaling_vec,ierr);CHKERRQ(ierr)
     call MatDiagonalScale(A,this%scaling_vec,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
-    call SNESGetFunction(snes,residual_vec,PETSC_NULL_FUNCTION, &
-                         PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
     call VecPointwiseMult(residual_vec,residual_vec, &
                           this%scaling_vec,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine PMBragfloJacobian
+
+! ************************************************************************** !
+
+subroutine PMBragfloDestroy(this)
+  ! 
+  ! Destroys Bragflo process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/07/17
+  ! 
+  implicit none
+
+  class(pm_bragflo_type) :: this
+
+  PetscErrorCode :: ierr
+
+  if (this%scaling_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(this%scaling_vec,ierr);CHKERRQ(ierr)
+  endif
+  call PMWIPPFloDestroy(this)
+
+end subroutine PMBragfloDestroy
 
 end module PM_Bragflo_class

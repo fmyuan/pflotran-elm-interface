@@ -30,6 +30,7 @@ module PM_WIPP_Flow_class
     PetscReal :: tswitch
     PetscReal :: dtimemax
     class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
+    Vec :: stored_residual_vec
   contains
     procedure, public :: Read => PMWIPPFloRead
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
@@ -55,7 +56,8 @@ module PM_WIPP_Flow_class
   public :: PMWIPPFloCreate, &
             PMWIPPFloInitObject, &
             PMWIPPFloReadSelectCase, &
-            PMWIPPFloInitializeRun
+            PMWIPPFloInitializeRun, &
+            PMWIPPFloDestroy
   
 contains
 
@@ -125,6 +127,7 @@ subroutine PMWIPPFloInitObject(this)
   this%presnorm = 5.d5    ! [Pa]
   this%tswitch = 0.01d0   ! [-]
   this%dtimemax = 1.25    ! [-]
+  this%stored_residual_vec = PETSC_NULL_VEC
 
 end subroutine PMWIPPFloInitObject
 
@@ -834,7 +837,14 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(X1,X1_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+  if (this%stored_residual_vec == PETSC_NULL_VEC) then
+    call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+  else
+    ! this vector is to be used if linear system scaling is employed in 
+    ! BRAGFLO mode as the residual will be altered by that scaling.  This
+    ! vector stores the original residual. 
+    call VecGetArrayReadF90(this%stored_residual_vec,r_p,ierr);CHKERRQ(ierr)
+  endif
   call VecGetArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_accum2,accum_p2,ierr);CHKERRQ(ierr)
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
@@ -1328,6 +1338,8 @@ subroutine PMWIPPFloDestroy(this)
   implicit none
   
   class(pm_wippflo_type) :: this
+
+  PetscErrorCode :: ierr
   
   if (associated(this%next)) then
     call this%next%Destroy()
@@ -1335,6 +1347,9 @@ subroutine PMWIPPFloDestroy(this)
 
   deallocate(this%max_change_ivar)
   nullify(this%max_change_ivar)
+  if (this%stored_residual_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(this%stored_residual_vec,ierr);CHKERRQ(ierr)
+  endif
 
   ! preserve this ordering
   if (associated(this%pmwss_ptr)) then
