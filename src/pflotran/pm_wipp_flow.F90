@@ -926,6 +926,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       endif
     endif
 
+    !TODO(geh): switch to flow_yy as it is cleaner and more precise.
     ! maximum relative change in liquid pressure
     abs_X = dabs(X1_p(pressure_index))
     if (abs_X > 0.d0) then
@@ -941,6 +942,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     
     ! EPS_SAT maximum relative gas saturation change "digits of accuracy"
     abs_dX = dabs(dX_p(saturation_index))
+    !TODO(geh): change '<' to '<=' according to bragflo
     if ((-1.d0*log10(abs_dX)) < this%eps_sat) then
       converged_gas_saturation = PETSC_FALSE
       if (dabs(max_gas_sat_change_NI) < abs_dX) then
@@ -949,6 +951,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       endif
     endif
     
+    !TODO(geh): remove storage of signed max change over time step
     ! DSAT_MAX maximum absolute gas saturation change over time step
     abs_dX_TS = dabs(sat_ptr(local_id)-X1_p(saturation_index))
     if (abs_dX_TS > 0.d0) then
