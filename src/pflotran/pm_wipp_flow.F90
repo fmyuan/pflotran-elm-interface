@@ -276,6 +276,10 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       wippflo_fix_upwind_direction = PETSC_FALSE
     case('COUNT_UPWIND_DIRECTION_FLIP')
       wippflo_count_upwind_dir_flip = PETSC_TRUE
+    case('UPWIND_DIR_UPDATE_FREQUENCY')
+      call InputReadInt(input,option,wippflo_upwind_dir_update_freq)
+      call InputErrorMsg(input,option,'upwind direction update frequency', &
+                         error_string)
     case('NO_FRACTURE')
       wippflo_use_fracture = PETSC_FALSE
     case('NO_CREEP_CLOSURE')
