@@ -29,6 +29,7 @@ module PM_WIPP_Flow_class
     PetscReal :: presnorm
     PetscReal :: tswitch
     PetscReal :: dtimemax
+    PetscReal :: deltmin
     class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
     Vec :: stored_residual_vec
   contains
@@ -127,6 +128,7 @@ subroutine PMWIPPFloInitObject(this)
   this%presnorm = 5.d5    ! [Pa]
   this%tswitch = 0.01d0   ! [-]
   this%dtimemax = 1.25    ! [-]
+  this%deltmin = 864.d0   ! [sec]
   this%stored_residual_vec = PETSC_NULL_VEC
 
 end subroutine PMWIPPFloInitObject
@@ -337,6 +339,9 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
     case('DTIMEMAX')
       call InputReadDouble(input,option,this%dtimemax)
       call InputDefaultMsg(input,option,'DTIMEMAX')
+    case('DELTMIN')
+      call InputReadDouble(input,option,this%deltmin)
+      call InputDefaultMsg(input,option,'DELTMIN')
     case default
       found = PETSC_FALSE
   end select
@@ -523,7 +528,8 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   
   class(pm_wippflo_type) :: this
   PetscReal :: dt
-  PetscReal :: dt_min,dt_max
+  PetscReal :: dt_min ! DO NOT USE
+  PetscReal :: dt_max
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
@@ -536,11 +542,13 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   dtime(1) = (2.d0*this%satnorm)/(this%satnorm+this%max_saturation_change)
   dtime(2) = (2.d0*this%presnorm)/(this%presnorm+this%max_pressure_change)
   ! pick minimum time step from calc'd ramping factor or maximum ramping factor
-  dt = min(min(dtime(1),dtime(2))*dt,this%dtimemax*dt, &
-           time_step_max_growth_factor*dt)
+  !TODO(geh) %dtimemax should be replace by time_step_max_growth_factor
+  dt = min(min(dtime(1),dtime(2))*dt,this%dtimemax*dt)
   ! make sure time step is within bounds given in the input deck
   dt = min(dt,dt_max)
-  dt = max(dt,dt_min)
+  ! do not use the PFLOTRAN dt_min as it will shut down the simulation from
+  ! within timestepper_BE. use %deltmin, which is specific to bragflo.
+  dt = max(dt,this%deltmin)
 
   if (Initialized(this%cfl_governor)) then
     ! Since saturations are not stored in global_auxvar for wipp flow mode, we
@@ -971,8 +979,9 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     endif
     
     ! EPS_PRES maximum relative liquid pressure change over time step
+    !geh: BRAGFLO divides by DEPOUT(L), which is the updated solution (X1_p)
     rel_dX_TS = dabs((press_ptr(local_id)-X1_p(pressure_index))/ &
-                      press_ptr(local_id))
+                     X1_p(pressure_index))
     if (rel_dX_TS > 0.d0) then
       if (dabs(max_rel_pressure_change_TS) < rel_dX_TS) then
         max_rel_pressure_change_TS_cell = local_id
@@ -1001,12 +1010,18 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   if (.not.converged_liquid_pressure) temp_int(3) = 1
   if (.not.converged_gas_saturation) temp_int(4) = 1
   if (min_gas_pressure < 0.d0) temp_int(5) = 1
-  if (converged_gas_saturation .and. &
-      (max_gas_sat_change_TS > this%dsat_max)) temp_int(6) = 1
-  if (converged_liquid_pressure .and. &
-      (max_abs_pressure_change_TS > this%dpres_max)) temp_int(7) = 1
-  if (converged_liquid_pressure .and. &
-      (max_rel_pressure_change_TS > this%eps_pres)) temp_int(8) = 1
+  if (converged_liquid_equation .and. converged_gas_equation .and. &
+      converged_liquid_pressure .and. converged_gas_saturation) then
+    if (max_gas_sat_change_TS > this%dsat_max) temp_int(6) = 1
+    if (max_abs_pressure_change_TS > this%dpres_max) temp_int(7) = 1
+    !geh: in bragflo, the relative change in liquid pressure is used to
+    !     force additional Newton iterations, but not to cut the time step.
+    !     See the comment "Check solution for maximum absolute change".
+    !     The relative change in liquid pressure over the time step is
+    !     used in MEAS_CONV to calculate EPSMAX(2) which is reported in 
+    !     SOLVER
+    !if (max_rel_pressure_change_TS > this%eps_pres) temp_int(8) = 1
+  endif
   call MPI_Allreduce(MPI_IN_PLACE,temp_int,8, &
                      MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
   temp_real(1) = max_liq_eq
