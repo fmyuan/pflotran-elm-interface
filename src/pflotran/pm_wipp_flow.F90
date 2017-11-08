@@ -30,6 +30,7 @@ module PM_WIPP_Flow_class
     PetscReal :: tswitch
     PetscReal :: dtimemax
     PetscReal :: deltmin
+    PetscInt :: iconvtest
     class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
     Vec :: stored_residual_vec
   contains
@@ -130,6 +131,7 @@ subroutine PMWIPPFloInitObject(this)
   this%dtimemax = 1.25    ! [-]
   this%deltmin = 864.d0   ! [sec]
   this%stored_residual_vec = PETSC_NULL_VEC
+  this%iconvtest = 1      ! 0 = either, 1 = both
 
 end subroutine PMWIPPFloInitObject
 
@@ -342,6 +344,9 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
     case('DELTMIN')
       call InputReadDouble(input,option,this%deltmin)
       call InputDefaultMsg(input,option,'DELTMIN')
+    case('ICONVTEST')
+      call InputReadInt(input,option,this%iconvtest)
+      call InputDefaultMsg(input,option,'ICONVTEST')
     case default
       found = PETSC_FALSE
   end select
@@ -811,6 +816,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscBool :: converged_gas_equation
   PetscBool :: converged_liquid_pressure
   PetscBool :: converged_gas_saturation
+  PetscBool :: converged_overall
   PetscReal :: max_liq_eq
   PetscReal :: max_gas_eq
   PetscReal :: max_liq_pres_rel_change
@@ -862,6 +868,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
   call VecGetArrayReadF90(field%max_change_vecs(1),press_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%max_change_vecs(3),sat_ptr,ierr);CHKERRQ(ierr)
+  converged_overall = PETSC_TRUE
   converged_liquid_equation = PETSC_TRUE
   converged_gas_equation = PETSC_TRUE
   converged_liquid_pressure = PETSC_TRUE
@@ -958,6 +965,23 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
         max_gas_sat_change_NI = dX_p(saturation_index)
       endif
     endif
+
+    ! check whether either gas or liquid has failed
+    if (converged_overall) then
+      if (this%iconvtest == 1) then ! both must pass
+        converged_overall = (&
+          (converged_gas_equation .and. &
+           converged_gas_saturation) .and. &
+          (converged_liquid_equation .and. &
+           converged_liquid_pressure))
+      else ! either must pass
+        converged_overall = (&
+          (converged_gas_equation .or. &
+           converged_gas_saturation) .and. &
+          (converged_liquid_equation .or. &
+           converged_liquid_pressure))
+      endif
+    endif
     
     !TODO(geh): remove storage of signed max change over time step
     ! DSAT_MAX maximum absolute gas saturation change over time step
@@ -1010,8 +1034,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   if (.not.converged_liquid_pressure) temp_int(3) = 1
   if (.not.converged_gas_saturation) temp_int(4) = 1
   if (min_gas_pressure < 0.d0) temp_int(5) = 1
-  if (converged_liquid_equation .and. converged_gas_equation .and. &
-      converged_liquid_pressure .and. converged_gas_saturation) then
+  if (converged_overall) then
     if (max_gas_sat_change_TS > this%dsat_max) temp_int(6) = 1
     if (max_abs_pressure_change_TS > this%dpres_max) temp_int(7) = 1
     !geh: in bragflo, the relative change in liquid pressure is used to
@@ -1021,6 +1044,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     !     used in MEAS_CONV to calculate EPSMAX(2) which is reported in 
     !     SOLVER
     !if (max_rel_pressure_change_TS > this%eps_pres) temp_int(8) = 1
+  else
+    temp_int(8) = 1
   endif
   call MPI_Allreduce(MPI_IN_PLACE,temp_int,8, &
                      MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
@@ -1043,21 +1068,15 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
 
   if (option%convergence == CONVERGENCE_CUT_TIMESTEP) then
     reason = '!cut'
-  else if (temp_int(8) > 0) then
-    reason = 'PrTS'
+  else if (maxval(temp_int(5:7)) > 0) then
     option%convergence = CONVERGENCE_CUT_TIMESTEP
-  else if (temp_int(7) > 0) then
-    reason = 'PaTS'
-    option%convergence = CONVERGENCE_CUT_TIMESTEP
-  else if (temp_int(6) > 0) then
-    reason = 'SgTS'
-    option%convergence = CONVERGENCE_CUT_TIMESTEP
-  else if (temp_int(5) > 0) then
-    reason = 'negP'
-    option%convergence = CONVERGENCE_CUT_TIMESTEP
+    reason = '!   '
+    if (temp_int(5) > 0) reason(2:2) = 'P' ! absolute pressure over TS
+    if (temp_int(6) > 0) reason(3:3) = 'S' ! absolute saturation over TS
+    if (temp_int(7) > 0) reason(4:4) = '-' ! negative gas pressure
   else if (option%convergence == CONVERGENCE_FORCE_ITERATION) then
     reason = '!it '
-  else if (maxval(temp_int) > 0) then
+  else if (temp_int(8) > 0) then
     option%convergence = CONVERGENCE_KEEP_ITERATING
     reason = '    '
     if (temp_int(1) > 0) reason(1:1) = 'L'
