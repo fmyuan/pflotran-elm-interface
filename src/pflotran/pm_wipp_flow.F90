@@ -852,8 +852,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   call VecGetArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_accum2,accum_p2,ierr);CHKERRQ(ierr)
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
-  call VecGetArrayF90(field%max_change_vecs(1),press_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%max_change_vecs(3),sat_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%max_change_vecs(1),press_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%max_change_vecs(3),sat_ptr,ierr);CHKERRQ(ierr)
   converged_liquid_equation = PETSC_TRUE
   converged_gas_equation = PETSC_TRUE
   converged_liquid_pressure = PETSC_TRUE
@@ -1081,8 +1081,10 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_accum2,accum_p2,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%max_change_vecs(1),sat_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%max_change_vecs(3),sat_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%max_change_vecs(1),press_ptr, &
+                              ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%max_change_vecs(3),sat_ptr, &
+                              ierr);CHKERRQ(ierr)
                                
 end subroutine PMWIPPFloCheckUpdatePost
 
