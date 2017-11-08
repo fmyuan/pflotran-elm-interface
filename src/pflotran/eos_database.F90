@@ -31,13 +31,20 @@ module EOSData_module
     PetscInt :: data_to_prop_map(MAX_PROP_NUM) !map the data idx to the prop.
     PetscInt :: prop_to_data_map(MAX_PROP_NUM) !map the prop to the dat idx
     PetscReal :: press_unit_conv_factor
+    character(len=MAXWORDLENGTH) :: press_internal_units
+    character(len=MAXWORDLENGTH) :: press_user_units
     PetscReal :: temp_unit_conv_factor
+    character(len=MAXWORDLENGTH) :: temp_internal_units
+    character(len=MAXWORDLENGTH) :: temp_user_units
     PetscReal :: prop_unit_conv_factors(MAX_PROP_NUM)
+    character(len=MAXWORDLENGTH) :: prop_internal_units(MAX_PROP_NUM)
+    character(len=MAXWORDLENGTH) :: prop_user_units(MAX_PROP_NUM)
     PetscReal, pointer :: data(:,:)
   contains
     procedure :: EOSDataBaseInit
     procedure, public :: EOSPropPresent
-    procedure :: UnitConversionFactors => EOSDataUnitConversionFactors
+    procedure :: ReadUserUnits
+    procedure :: UnitConversionFactors
     procedure :: ConvertFVFtoMolarDensity
     procedure :: EOSDataBaseStrip
   end type
@@ -94,16 +101,46 @@ subroutine EOSDataBaseInit(this)
 
   class(eos_data_base_type) :: this
 
+
+  PetscInt :: i_prop
   this%name = ''
   this%id = UNINITIALIZED_INTEGER
   this%num_p = UNINITIALIZED_INTEGER
   this%num_t = UNINITIALIZED_INTEGER
   this%num_prop = UNINITIALIZED_INTEGER
-  this%data_to_prop_map(MAX_PROP_NUM) = UNINITIALIZED_INTEGER
-  this%prop_to_data_map(MAX_PROP_NUM) = UNINITIALIZED_INTEGER
+  this%data_to_prop_map(1:MAX_PROP_NUM) = UNINITIALIZED_INTEGER
+  this%prop_to_data_map(1:MAX_PROP_NUM) = UNINITIALIZED_INTEGER
   this%press_unit_conv_factor = 1.0d0
   this%temp_unit_conv_factor = 1.0d0
   this%prop_unit_conv_factors(1:MAX_PROP_NUM) = 1.0d0
+  !set deafult internal units - they can be changed by internal tranformation
+  this%press_internal_units = 'Pa'
+  this%temp_internal_units = 'C'
+  this%prop_internal_units(EOS_DENSITY) = 'kg/m^3'
+  this%prop_internal_units(EOS_ENTHALPY) = 'J/kg'
+  this%prop_internal_units(EOS_VISCOSITY) = 'Pa-s' !should replace with Pa.s
+  this%prop_internal_units(EOS_INTERNAL_ENERGY) = 'J/kg'
+  this%prop_internal_units(EOS_FVF) = 'm^3/m^3'
+  this%prop_internal_units(EOS_RS) = 'm^3/m^3'
+  this%prop_internal_units(EOS_COMPRESSIBILITY) = '1/Pa'
+  this%prop_internal_units(EOS_VISCOSIBILITY) = '1/Pa'
+  !set deafult user units - identical to internal units
+  this%press_user_units = 'Pa'
+  this%temp_user_units = 'C'
+  this%prop_user_units(EOS_DENSITY) = 'kg/m^3'
+  this%prop_user_units(EOS_ENTHALPY) = 'J/kg'
+  this%prop_user_units(EOS_VISCOSITY) = 'Pa-s' !should replace with Pa.s
+  this%prop_user_units(EOS_INTERNAL_ENERGY) = 'J/kg'
+  this%prop_user_units(EOS_FVF) = 'm^3/m^3'
+  this%prop_user_units(EOS_RS) = 'm^3/m^3'
+  this%prop_user_units(EOS_COMPRESSIBILITY) = '1/Pa'
+  this%prop_user_units(EOS_VISCOSIBILITY) = '1/Pa'
+
+  do i_prop = 1,MAX_PROP_NUM
+    this%prop_internal_units(i_prop) = trim(this%prop_internal_units(i_prop))
+    this%prop_user_units(i_prop) = trim(this%prop_user_units(i_prop))
+  end do
+
   nullify(this%data)
 
 end subroutine EOSDataBaseInit
@@ -129,7 +166,7 @@ end function EOSPropPresent
 
 ! ************************************************************************** !
 
-subroutine EOSDataUnitConversionFactors(this,input,option)
+subroutine ReadUserUnits(this,input,option)
   !
   ! Author: Paolo Orsini
   ! Date: 10/28/17
@@ -145,7 +182,7 @@ subroutine EOSDataUnitConversionFactors(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word, internal_units
+  character(len=MAXWORDLENGTH) :: keyword, word, internal_units, user_units
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscInt :: prop_idx
   prop_idx = 0
@@ -156,9 +193,11 @@ subroutine EOSDataUnitConversionFactors(this,input,option)
     call InputReadWord(input,option,keyword,PETSC_TRUE)
     select case(keyword)
       case('PRESSURE')
-        internal_units = 'Pa'
-        this%press_unit_conv_factor = UnitReadAndConversionFactor(input, &
-                                              internal_units,keyword,option)
+        !internal_units = 'Pa'
+        !this%press_unit_conv_factor = UnitReadAndConversionFactor(input, &
+        !                                      internal_units,keyword,option)
+        call InputReadWord(input,option,user_units,PETSC_TRUE)
+        this%press_user_units = trim(user_units)
       case('TEMPERATURE')
         !only Celsius currently supported - currently unit must be defined
         call InputReadWord(input,option,word,PETSC_TRUE)
@@ -170,52 +209,68 @@ subroutine EOSDataUnitConversionFactors(this,input,option)
           end if
         end if
         this%temp_unit_conv_factor = 1.0
+        this%temp_user_units = 'C'
         !else !it not temperature unit defined
         !  string = "EOS data " // trim(keyword) // ' units'
         !  call InputDefaultMsg(input,option,string)
         !  this%temp_unit_conv_factor = 1.0
         !endif
       case('DENSITY')
-        prop_idx = this%prop_to_data_map(EOS_DENSITY)
-        !prop_idx = prop_idx + 1
-        internal_units = 'kg/m^3'
-        this%prop_unit_conv_factors(prop_idx) = &
-               UnitReadAndConversionFactor(input,internal_units,keyword,option)
+        !prop_idx = this%prop_to_data_map(EOS_DENSITY)
+        !internal_units = 'kg/m^3'
+        !this%prop_unit_conv_factors(prop_idx) = &
+        !       UnitReadAndConversionFactor(input,internal_units,keyword,option)
+        call InputReadWord(input,option,user_units,PETSC_TRUE)
+        this%prop_user_units(EOS_DENSITY) = user_units
       case('ENTHALPY')
-        prop_idx = this%prop_to_data_map(EOS_ENTHALPY)
-        internal_units = 'J/kg'
-        this%prop_unit_conv_factors(prop_idx) = &
-               UnitReadAndConversionFactor(input,internal_units,keyword,option)
+        !prop_idx = this%prop_to_data_map(EOS_ENTHALPY)
+        !internal_units = 'J/kg'
+        !this%prop_unit_conv_factors(prop_idx) = &
+        !       UnitReadAndConversionFactor(input,internal_units,keyword,option)
+        call InputReadWord(input,option,user_units,PETSC_TRUE)
+        this%prop_user_units(EOS_ENTHALPY) = trim(user_units)
       case('INTERNAL_ENERGY')
-        prop_idx = this%prop_to_data_map(EOS_INTERNAL_ENERGY)
-        internal_units = 'J/kg'
-        this%prop_unit_conv_factors(prop_idx) = &
-               UnitReadAndConversionFactor(input,internal_units,keyword,option)
+        !prop_idx = this%prop_to_data_map(EOS_INTERNAL_ENERGY)
+        !internal_units = 'J/kg'
+        !this%prop_unit_conv_factors(prop_idx) = &
+        !       UnitReadAndConversionFactor(input,internal_units,keyword,option)
+        call InputReadWord(input,option,user_units,PETSC_TRUE)
+        this%prop_user_units(EOS_INTERNAL_ENERGY) = trim(user_units)
       case('VISCOSITY')
-        prop_idx = this%prop_to_data_map(EOS_VISCOSITY)
-        internal_units = 'Pa-s'
-        this%prop_unit_conv_factors(prop_idx) = &
-               UnitReadAndConversionFactor(input,internal_units,keyword,option)
+        !prop_idx = this%prop_to_data_map(EOS_VISCOSITY)
+        !internal_units = 'Pa-s'
+        !this%prop_unit_conv_factors(prop_idx) = &
+        !       UnitReadAndConversionFactor(input,internal_units,keyword,option)
+        call InputReadWord(input,option,user_units,PETSC_TRUE)
+        this%prop_user_units(EOS_VISCOSITY) = trim(user_units)
       case('FVF')
-        prop_idx = this%prop_to_data_map(EOS_FVF)
-        internal_units = 'm^3/m^3'
-        this%prop_unit_conv_factors(prop_idx) = &
-               UnitReadAndConversionFactor(input,internal_units,keyword,option)
+        !prop_idx = this%prop_to_data_map(EOS_FVF)
+        !internal_units = 'm^3/m^3'
+        !this%prop_unit_conv_factors(prop_idx) = &
+        !       UnitReadAndConversionFactor(input,internal_units,keyword,option)
+        call InputReadWord(input,option,user_units,PETSC_TRUE)
+        this%prop_user_units(EOS_FVF) = trim(user_units)
       case('RS')
-         prop_idx = this%prop_to_data_map(EOS_RS)
-         internal_units = 'm^3/m^3'
-         this%prop_unit_conv_factors(prop_idx) = &
-              UnitReadAndConversionFactor(input,internal_units,keyword,option)
+         !prop_idx = this%prop_to_data_map(EOS_RS)
+         !internal_units = 'm^3/m^3'
+         !this%prop_unit_conv_factors(prop_idx) = &
+         !     UnitReadAndConversionFactor(input,internal_units,keyword,option)
+         call InputReadWord(input,option,user_units,PETSC_TRUE)
+         this%prop_user_units(EOS_RS) = trim(user_units)
       case('COMPRESSIBILITY')
-         prop_idx = this%prop_to_data_map(EOS_COMPRESSIBILITY)
-         internal_units = '1/Pa'
-         this%prop_unit_conv_factors(prop_idx) = &
-              UnitReadAndConversionFactor(input,internal_units,keyword,option)
+         !prop_idx = this%prop_to_data_map(EOS_COMPRESSIBILITY)
+         !internal_units = '1/Pa'
+         !this%prop_unit_conv_factors(prop_idx) = &
+        !      UnitReadAndConversionFactor(input,internal_units,keyword,option)
+         call InputReadWord(input,option,user_units,PETSC_TRUE)
+         this%prop_user_units(EOS_COMPRESSIBILITY) = trim(user_units)
       case('VISCOSIBILITY')
-         prop_idx = this%prop_to_data_map(EOS_VISCOSIBILITY)
-         internal_units = '1/Pa'
-         this%prop_unit_conv_factors(prop_idx) = &
-              UnitReadAndConversionFactor(input,internal_units,keyword,option)          
+         !prop_idx = this%prop_to_data_map(EOS_VISCOSIBILITY)
+         !internal_units = '1/Pa'
+         !this%prop_unit_conv_factors(prop_idx) = &
+         !     UnitReadAndConversionFactor(input,internal_units,keyword,option)
+         call InputReadWord(input,option,user_units,PETSC_TRUE)
+         this%prop_user_units(EOS_VISCOSIBILITY) = trim(user_units)
       case default
         error_string = trim(error_string) // ': ' // this%name // &
         ': EOS DATA units'
@@ -223,8 +278,40 @@ subroutine EOSDataUnitConversionFactors(this,input,option)
     end select
   end do
 
-end subroutine EOSDataUnitConversionFactors
+  call this%UnitConversionFactors(option)
 
+end subroutine ReadUserUnits
+
+! ************************************************************************** !
+subroutine UnitConversionFactors(this,option)
+
+  use Option_module
+  use Units_module
+
+  implicit none
+
+  class(eos_data_base_type) :: this
+  type(option_type) :: option
+
+  PetscInt :: i_prop, data_idx
+
+  !covert pressure
+  this%press_unit_conv_factor = UnitsConvertToInternal(this%press_user_units, &
+                                  this%press_internal_units, option)
+
+  !no temperature conversion - currently allowed only C
+
+  do i_prop = 1, size(this%prop_user_units(:))
+    if ( Initialized( this%prop_to_data_map(i_prop) ) ) then
+      data_idx = this%prop_to_data_map(i_prop)
+      !prop_idx = this%prop_to_data_map(EOS_DENSITY)
+      this%prop_unit_conv_factors(data_idx) = &
+             UnitsConvertToInternal(this%prop_user_units(i_prop), &
+                                    this%prop_internal_units(i_prop),option)
+    end if
+  end do
+
+end subroutine UnitConversionFactors
 ! ************************************************************************** !
 
 subroutine ConvertFVFtoMolarDensity(this,FMW,reference_density_kg)
@@ -238,15 +325,16 @@ subroutine ConvertFVFtoMolarDensity(this,FMW,reference_density_kg)
   PetscInt :: i_data
 
   do i_data = 1,size(this%data,2)
+    ! kg/sm^3 * kmol/kg * sm^3/rm^3 = kmol/rm^3
     this%data(this%prop_to_data_map(EOS_FVF),i_data) = &
        reference_density_kg / FMW / &
        this%data(this%prop_to_data_map(EOS_FVF),i_data)
   end do
-  !change variable name
-  this%data_to_prop_map(this%prop_to_data_map(EOS_FVF)) = &
-    EOS_DENSITY
-  this%prop_to_data_map(EOS_DENSITY) = &
-    this%prop_to_data_map(EOS_FVF)
+  !change variable name and map
+  this%data_to_prop_map(this%prop_to_data_map(EOS_FVF)) = EOS_DENSITY
+  this%prop_to_data_map(EOS_DENSITY) = this%prop_to_data_map(EOS_FVF)
+  ! change units after conversion
+  this%prop_internal_units(EOS_DENSITY) = 'kmol/m^3'
 
 end subroutine ConvertFVFtoMolarDensity
 
@@ -435,7 +523,7 @@ subroutine EOSDatabaseRead(this,option)
         ! unit covnertion factors
         string = "DATA_LIST_ORDER"
         call InputFindStringInFile(input_table,option,string)
-        call this%UnitConversionFactors(input_table,option)
+        call this%ReadUserUnits(input_table,option)
 
         if (.not.pres_present) then
           option%io_buffer = 'PRESSURE must be present in any EOS_DATABASE.'
@@ -694,7 +782,7 @@ subroutine EOSTableRead(this,input,option)
     call StringToUpper(keyword)
     select case(keyword)
       case('DATA_UNITS')
-        call this%UnitConversionFactors(input,option)
+        call this%ReadUserUnits(input,option)
       case('DATA')
         do
           call InputReadPflotranString(input,option)
@@ -1057,6 +1145,11 @@ end subroutine EOSTableAddToList
 ! ************************************************************************** !
 
 subroutine EOSTableProcessList(option)
+  !
+  ! Loop through EOS table list and build indices
+  !
+  ! Author: Paolo Orsini
+  ! Date: 10/24/17
 
   use Option_module
 
