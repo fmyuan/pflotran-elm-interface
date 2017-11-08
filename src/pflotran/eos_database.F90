@@ -47,6 +47,7 @@ module EOSData_module
     procedure :: UnitConversionFactors
     procedure :: ConvertFVFtoMolarDensity
     procedure :: EOSDataBaseStrip
+    procedure, public :: SetMetricUnits
   end type
 
   type, public, extends(eos_data_base_type) :: eos_database_type
@@ -284,6 +285,11 @@ end subroutine ReadUserUnits
 
 ! ************************************************************************** !
 subroutine UnitConversionFactors(this,option)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 11/08/17
+  !
+  ! Process user input units and compute properties conversion fator
 
   use Option_module
   use Units_module
@@ -312,9 +318,48 @@ subroutine UnitConversionFactors(this,option)
   end do
 
 end subroutine UnitConversionFactors
-! ************************************************************************** !
 
+! ************************************************************************** !
+subroutine SetMetricUnits(this,option)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 11/08/17
+  !
+  ! Set METRIC units - to read pvt tables
+
+  use Option_module
+
+  implicit none
+
+  class(eos_data_base_type) :: this
+  type(option_type) :: option
+
+  this%press_user_units = 'Bar'
+  this%temp_user_units = 'C'
+  this%prop_user_units(EOS_DENSITY) = 'kg/m^3'
+  this%prop_user_units(EOS_ENTHALPY) = 'kJ/kg'
+  this%prop_user_units(EOS_VISCOSITY) = 'cP' !should replace with Pa.s
+  this%prop_user_units(EOS_INTERNAL_ENERGY) = 'kJ/kg'
+  this%prop_user_units(EOS_FVF) = 'm^3/m^3'
+  this%prop_user_units(EOS_RS) = 'm^3/m^3'
+  this%prop_user_units(EOS_COMPRESSIBILITY) = '1/Bar'
+  this%prop_user_units(EOS_VISCOSIBILITY) = '1/Bar'
+
+  !set viscosity internal units to Pa.s - this is needed because not all
+  !internal viscosity units are set to Pa.s
+  this%prop_internal_units(EOS_VISCOSITY) = 'Pa.s'
+
+  call this%UnitConversionFactors(option)
+
+end subroutine SetMetricUnits
+
+! ************************************************************************** !
 subroutine ConvertFVFtoMolarDensity(this,FMW,reference_density_kg)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 10/28/17
+  !
+  ! Replaces FVF with molar density
 
   implicit none
 
@@ -705,16 +750,20 @@ end subroutine EOSDatabaseDestroy
 
 ! ************************************************************************** !
 
-function EOSTableCreate(table_name)
+function EOSTableCreate(table_name,option)
   !
   ! Author: Paolo Orsini
   ! Date: 10/18/17
   !
+  ! Create EOS table
+
+  use Option_module
 
   implicit none
 
   class(eos_table_type), pointer :: EOSTableCreate
   character(len=*) :: table_name
+  type(option_type) :: option
 
   allocate(EOSTableCreate)
   call EOSTableCreate%EOSDataBaseInit()
@@ -722,6 +771,9 @@ function EOSTableCreate(table_name)
   EOSTableCreate%n_indices = 0
   EOSTableCreate%first_index = 0
   nullify(EOSTableCreate%lookup_table_gen)
+
+  !as default set up Metric units
+  !call EOSTableCreate%SetMetricUnits(option)
 
 end function EOSTableCreate
 

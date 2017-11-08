@@ -1918,7 +1918,7 @@ subroutine EOSGasSetPVDG(input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  pvt_table => EOSTableCreate('PVDG')
+  pvt_table => EOSTableCreate('PVDG',option)
 
   !set up PVDG variable and order - firt column is the pressure
   !below the order of the data fiels is assigned
@@ -1929,7 +1929,9 @@ subroutine EOSGasSetPVDG(input,option)
 
   pvt_table%num_prop = 2
 
-  !call eos_dbase%Read(option)
+  !set metric unit as default - must be called before table read
+  call pvt_table%SetMetricUnits(option)
+
   call pvt_table%Read(input,option)
 
   call EOSTableAddToList(pvt_table,eos_table_list)

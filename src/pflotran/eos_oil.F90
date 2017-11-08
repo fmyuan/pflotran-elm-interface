@@ -1665,7 +1665,7 @@ subroutine EOSOilSetPVDO(input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  pvt_table => EOSTableCreate('PVDO')
+  pvt_table => EOSTableCreate('PVDO',option)
 
   !set up pvdo variable and order - firt column is the pressure
   !below the order of the data fiels is assigned
@@ -1675,6 +1675,9 @@ subroutine EOSOilSetPVDO(input,option)
   pvt_table%prop_to_data_map(EOS_VISCOSITY) = 2
 
   pvt_table%num_prop = 2
+
+  !set metric unit as default - must be called before table read
+  call pvt_table%SetMetricUnits(option)
 
   !call eos_dbase%Read(option)
   call pvt_table%Read(input,option)
@@ -1711,7 +1714,7 @@ subroutine EOSOilSetPVCO(input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  pvt_table => EOSTableCreate('PVCO')
+  pvt_table => EOSTableCreate('PVCO',option)
 
   !set up pvdo variable and order - firt column is the pressure
   !below the order of the data fiels is assigned
@@ -1727,6 +1730,9 @@ subroutine EOSOilSetPVCO(input,option)
   pvt_table%prop_to_data_map(EOS_VISCOSIBILITY) = 5
 
   pvt_table%num_prop = 5
+
+  !set metric unit as default - must be called before table read
+  call pvt_table%SetMetricUnits(option)
 
   call pvt_table%Read(input,option)
 
