@@ -361,6 +361,8 @@ subroutine PMBragfloDestroy(this)
   ! Author: Glenn Hammond
   ! Date: 11/07/17
   ! 
+  use PM_WIPP_Flow_class, only : PMWIPPFloDestroy
+
   implicit none
 
   class(pm_bragflo_type) :: this
