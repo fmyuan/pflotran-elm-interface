@@ -598,7 +598,7 @@ subroutine getBlackOilComposition(bubble_point,temperature,table_idxs,&
 !--Get surface mass densities of oil and gas components------------------------
 
   !denrefo=EOSOilGetDenRef()
-  !PO this has been changed to read a reference/surface density indendent
+  !PO this has been changed to read a reference/surface density independently
   !   from the one defined within the InverseLiean model
   !   In the input deck the user can now enter one of the following
   !   REFERENCE_DENSITY 1000 kg/m^3
@@ -633,8 +633,8 @@ subroutine getBlackOilComposition(bubble_point,temperature,table_idxs,&
 !--Get GOR as a surface volume ratio Rsv=(vol gas)/(vol oil)-------------------
 
   call getRsVolume(bubble_point,rs_volume)
-  !PO - lookup table now available
-  !call EOSOilRS(temperature,bubble_point,rs_volume,ierr,table_idxs)
+  !PO - lookup table now available - EOSOilRS returns mol_gas/mol_oil
+  !call EOSOilRS(temperature,bubble_point,rs_molar,ierr,table_idxs)
 
 !--Convert to molar GOR, Rsm---------------------------------------------------
 !

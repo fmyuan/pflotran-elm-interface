@@ -18,7 +18,8 @@ module EOSData_module
   PetscInt, parameter, public :: EOS_RS = 6
   PetscInt, parameter, public :: EOS_COMPRESSIBILITY = 7
   PetscInt, parameter, public :: EOS_VISCOSIBILITY = 8
-  !add here other properties and derivatives and increase MAX_PROP_NUM
+  !add here other properties and derivatives, then increase MAX_PROP_NUM
+  !and add the default user and internal units in EOSDataBaseInit
   PetscInt, parameter, public :: MAX_PROP_NUM = 8
 
   !type, public :: eos_data_base_type

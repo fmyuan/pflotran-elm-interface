@@ -1748,7 +1748,7 @@ end subroutine EOSOilSetPVCO
 
 ! ************************************************************************** !
 
-subroutine EOSOilTableProcess(option)
+subroutine EOSOilTableProcess(option,FMW_gas,ref_den_gas_kg)
   !
   ! Author: Paolo Orsini
   ! Date: 10/28/17
@@ -1760,6 +1760,8 @@ subroutine EOSOilTableProcess(option)
   implicit none
 
   type(option_type) :: option
+  PetscReal, intent(in) :: FMW_gas
+  PetscReal, intent(in) :: ref_den_gas_kg
 
   if (.not.associated(pvt_table)) return
 
@@ -1768,7 +1770,42 @@ subroutine EOSOilTableProcess(option)
       call pvt_table%ConvertFVFtoMolarDensity(fmw_oil,reference_density_kg)
   end select
 
+  select case(pvt_table%name)
+    case("PVCO") !will add PVTO when available
+      call ConvertRSVoltoRSMolar(FMW_gas,ref_den_gas_kg)
+  end select
+
 end subroutine EOSOilTableProcess
+
+! ************************************************************************** !
+
+subroutine ConvertRSVoltoRSMolar(FMW_gas,ref_den_gas_kg)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 11/08/17
+  !
+  ! Convert volumetric RS to molar RS
+
+  implicit none
+
+  PetscReal, intent(in) :: FMW_gas
+  PetscReal, intent(in) :: ref_den_gas_kg
+
+  PetscInt :: i_data
+
+  do i_data = 1,size(pvt_table%data,2)
+    !Rsm=(moles gas)/(moles oil)=(mol den gas)*(vol gas)/((mol den oil)*(vol oil))
+    !                           =Rsv*(mol den gas)/(mol den oil)
+    pvt_table%data(pvt_table%prop_to_data_map(EOS_RS),i_data) = &
+    !mol/mol = (kg/sm3 * kmol/kg)_gas / (kg/sm3 * kmol/kg)_oil * (sm3_g / sm3_o)
+            (ref_den_gas_kg / FMW_gas) / (reference_density_kg / fmw_oil) * &
+            pvt_table%data(pvt_table%prop_to_data_map(EOS_RS),i_data)
+  end do
+
+  ! change units after conversion
+  pvt_table%prop_internal_units(EOS_RS) = 'mol/mol'
+
+end subroutine ConvertRSVoltoRSMolar
 
 ! ************************************************************************** !
 

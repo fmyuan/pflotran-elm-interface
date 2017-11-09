@@ -845,7 +845,7 @@ subroutine EOSProcess(option)
 
   type(option_type) :: option
 
-  call EOSOilTableProcess(option)
+  call EOSOilTableProcess(option,EOSGasGetFMW(),EOSGasGetReferenceDensity())
   call EOSGasTableProcess(option)
 
   call EOSTableProcessList(option)
