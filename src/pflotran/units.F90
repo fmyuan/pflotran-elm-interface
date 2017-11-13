@@ -444,9 +444,9 @@ subroutine UnitsConvertToSI(unit,conversion_factor,error,error_msg)
     case('w','week')
       conversion_factor = 7.d0*24.d0*3600.d0 
     case('mo','month')
-      conversion_factor = 365.d0/12.d0*24.d0*3600.d0 
+      conversion_factor = DAYS_PER_YEAR/12.d0*24.d0*3600.d0 
     case('y','yr','year')
-      conversion_factor = 365.d0*24.d0*3600.d0
+      conversion_factor = DAYS_PER_YEAR*24.d0*3600.d0
   ! ---> ENERGY ---> (Joule)
     case('J')   
       conversion_factor = 1.d0

@@ -295,6 +295,7 @@ subroutine WaypointDeleteFromList(obsolete_waypoint,waypoint_list) !
   ! Author: Gautam Bisht
   ! Date: 01/20/11
   ! 
+  use Utility_module
 
   implicit none
 
@@ -307,7 +308,7 @@ subroutine WaypointDeleteFromList(obsolete_waypoint,waypoint_list) !
   if (associated(waypoint)) then ! list exists
 
     ! Is the waypoint to be deleted is the first waypoint?
-    if (waypoint%time == obsolete_waypoint%time) then
+    if (Equal(waypoint%time,obsolete_waypoint%time)) then
       waypoint_list%first => waypoint%next
       call WaypointDestroy(waypoint)
       waypoint_list%num_waypoints = waypoint_list%num_waypoints - 1

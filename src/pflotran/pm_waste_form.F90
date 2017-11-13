@@ -2124,7 +2124,7 @@ subroutine PMWFSetup(this)
         ! Convert rates from 1/yr to internal units of 1/sec
         cur_waste_form%canister_vitality_rate = &
           cur_waste_form%canister_vitality_rate * &
-          (1.0/365.0/24.0/3600.0)
+          (1.0/DAYS_PER_YEAR/24.0/3600.0)
       endif
     endif
    !----------------------------------------------------------       
@@ -3403,8 +3403,9 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   this%concentration = this%concentration/1.d3
   ! convert this%dissolution_rate from fmdm to pflotran units:
   ! g/m^2/yr => kg/m^2/sec
-  this%dissolution_rate = this%dissolution_rate / (1000.0*24.0*3600.0*365)
-  Usource = Usource / (1000.0*24.0*3600.0*365)
+  this%dissolution_rate = this%dissolution_rate / &
+                          (1000.0*24.0*3600.0*DAYS_PER_YEA)
+  Usource = Usource / (1000.0*24.0*3600.0*DAYS_PER_YEAR)
  !====================================================================
 #else
   ! if no FMDM model, use the burnup as this%dissolution_rate:

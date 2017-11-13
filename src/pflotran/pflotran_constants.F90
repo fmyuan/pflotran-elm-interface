@@ -36,6 +36,7 @@ module PFLOTRAN_Constants_module
   PetscReal, parameter, public :: FMWOIL = 142.D0 ! used as deafault value
 
   ! constants
+  PetscReal, parameter, public :: DAYS_PER_YEAR = 365.d0
   PetscReal, parameter, public :: H2O_CRITICAL_TEMPERATURE = 647.3d0  ! K
 #if defined(MATCH_TOUGH2)
   PetscReal, parameter, public :: H2O_CRITICAL_PRESSURE = 22.12d6 ! Pa
