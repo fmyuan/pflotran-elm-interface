@@ -22,6 +22,7 @@ module WIPP_Flow_Aux_module
   PetscBool, public :: wippflo_count_upwind_dir_flip = PETSC_FALSE
   PetscInt, public :: wippflo_upwind_dir_update_freq = 99
   PetscInt, public :: wippflo_newton_iteration_number = 0
+  PetscBool, public :: wippflo_use_gas_generation = PETSC_TRUE
   PetscBool, public :: wippflo_use_fracture = PETSC_TRUE
   PetscBool, public :: wippflo_use_creep_closure = PETSC_TRUE
   !TODO(geh): hardwire gas to H2

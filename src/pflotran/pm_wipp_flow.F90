@@ -288,6 +288,8 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       wippflo_use_fracture = PETSC_FALSE
     case('NO_CREEP_CLOSURE')
       wippflo_use_creep_closure = PETSC_FALSE
+    case('NO_GAS_GENERATION')
+      wippflo_use_gas_generation = PETSC_FALSE
     case('DEBUG')
       wippflo_debug = PETSC_TRUE
     case('DEBUG_FIRST_ITERATION')
@@ -396,7 +398,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   input => InputCreate(IN_UNIT,this%option%input_filename,this%option)
   block_string = 'WIPP_SOURCE_SINK'
   call InputFindStringInFile(input,this%option,block_string)
-  if (input%ierr == 0) then
+  if (input%ierr == 0 .and. wipp_use_gas_generation) then
     this%pmwss_ptr => PMWSSCreate()
     this%pmwss_ptr%option => this%option
     call this%pmwss_ptr%Read(input)
