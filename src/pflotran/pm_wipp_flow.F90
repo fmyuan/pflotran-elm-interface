@@ -288,7 +288,10 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       wippflo_use_fracture = PETSC_FALSE
     case('NO_CREEP_CLOSURE')
       wippflo_use_creep_closure = PETSC_FALSE
+    case('DEBUG')
+      wippflo_debug = PETSC_TRUE
     case('DEBUG_FIRST_ITERATION')
+      wippflo_debug = PETSC_TRUE
       wippflo_debug_first_iteration = PETSC_TRUE
     case('USE_LEGACY_PERTURBATION')
       wippflo_use_legacy_perturbation = PETSC_TRUE
@@ -900,7 +903,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     pressure_index = offset + WIPPFLO_LIQUID_PRESSURE_DOF
     saturation_index = offset + WIPPFLO_GAS_SATURATION_DOF
 
-    if (wippflo_debug_first_iteration) then
+    if (wippflo_debug) then
       pflotran_to_bragflo = fmw_comp * option%flow_dt / &
                             material_auxvars(ghosted_id)%volume
       print *, local_id, r_p(1:2) * pflotran_to_bragflo
