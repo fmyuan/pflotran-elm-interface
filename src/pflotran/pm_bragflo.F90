@@ -234,7 +234,7 @@ recursive subroutine PMBragfloInitializeRun(this)
     end select
   else
     this%option%io_buffer = 'ALPHA should have been read from a dataset.'
-    call printErrMsg(this%option)
+    !call printErrMsg(this%option)
   endif
 
   ! read in elevations
@@ -273,7 +273,9 @@ recursive subroutine PMBragfloInitializeRun(this)
     end select
   else ! or set them baesd on grid cell elevation
     do ghosted_id = 1, grid%ngmax
-      wippflo_auxvars(idof,ghosted_id)%elevation = grid%z(ghosted_id)
+      do idof = 0, this%option%nflowdof
+        wippflo_auxvars(idof,ghosted_id)%elevation = grid%z(ghosted_id)
+      enddo
     enddo
   endif
 
