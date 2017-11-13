@@ -2822,6 +2822,13 @@ subroutine SubsurfaceReadInput(simulation,input)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'word','TIME') 
           select case(trim(word))
+            case('SCREEN_UNITS')
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'Screen Units','TIME')
+              internal_units = 'sec'
+              temp_real2 = UnitsConvertToInternal(word,internal_units,option)
+              output_option%tunit = trim(word)
+              output_option%tconv = temp_real2
             case('STEADY_STATE')
               option%steady_state = PETSC_TRUE
             case('FINAL_TIME')
