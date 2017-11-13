@@ -129,7 +129,7 @@ subroutine PMWIPPFloInitObject(this)
   this%presnorm = 5.d5    ! [Pa]
   this%tswitch = 0.01d0   ! [-]
   this%dtimemax = 1.25    ! [-]
-  this%deltmin = 864.d0   ! [sec]
+  this%deltmin = 8.64d-4  ! [sec]
   this%stored_residual_vec = PETSC_NULL_VEC
   this%iconvtest = 1      ! 0 = either, 1 = both
 
