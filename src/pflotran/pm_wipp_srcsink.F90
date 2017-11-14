@@ -2736,6 +2736,7 @@ end subroutine PMWSSUpdateChemSpecies
       
         ! CORSAT
         cwp%rxnrate_Fe_corrosion_inund(i) = cwp%inundated_corrosion_rate*s_eff
+        ! smoothing of inundated rate occurs only due to concentration
         call PMWSSSmoothRxnrate(cwp%rxnrate_Fe_corrosion_inund(i),i, &
                                 cwp%inventory%Fe_s,this%alpharxn) 
         call PMWSSTaperRxnrate(cwp%rxnrate_Fe_corrosion_inund(i),i, &
@@ -2743,11 +2744,14 @@ end subroutine PMWSSUpdateChemSpecies
 
         ! CORHUM
         cwp%rxnrate_Fe_corrosion_humid(i) = cwp%humid_corrosion_rate*sg_eff
+        ! smoothing of humid rate occurs first due to concentration, then due 
+        ! to s_eff
         call PMWSSSmoothRxnrate(cwp%rxnrate_Fe_corrosion_humid(i),i, &
                                 cwp%inventory%Fe_s,this%alpharxn) 
+        call PMWSSSmoothHumidRxnrate(cwp%rxnrate_Fe_corrosion_humid(i),s_eff, &
+                                     this%alpharxn)
         call PMWSSTaperRxnrate(cwp%rxnrate_Fe_corrosion_humid(i),i, &
                                cwp%inventory%Fe_s,1.d0,dt)
-        ! the humid rate is also smoothed based on sg_eff; neglected here
 
         ! total corrosion
         cwp%rxnrate_Fe_corrosion(i) = & 
@@ -2760,6 +2764,7 @@ end subroutine PMWSSUpdateChemSpecies
 
         ! BIOSAT
         cwp%rxnrate_cell_biodeg_inund(i) = cwp%inundated_biodeg_rate*s_eff
+        ! smoothing of inundated rate occurs only due to concentration
         call PMWSSSmoothRxnrate(cwp%rxnrate_cell_biodeg_inund(i),i, &
                                 cwp%inventory%BioDegs_s,this%alpharxn) 
         call PMWSSTaperRxnrate(cwp%rxnrate_cell_biodeg_inund(i),i, &
@@ -2767,11 +2772,14 @@ end subroutine PMWSSUpdateChemSpecies
 
         ! BIOHUM
         cwp%rxnrate_cell_biodeg_humid(i) = cwp%humid_biodeg_rate*sg_eff
+        ! smoothing of humid rate occurs first due to concentration, then due
+        ! to s_eff
         call PMWSSSmoothRxnrate(cwp%rxnrate_cell_biodeg_humid(i),i, &
                                 cwp%inventory%BioDegs_s,this%alpharxn) 
+        call PMWSSSmoothHumidRxnrate(cwp%rxnrate_cell_biodeg_humid(i),s_eff, &
+                                     this%alpharxn)
         call PMWSSTaperRxnrate(cwp%rxnrate_cell_biodeg_humid(i),i, &
                                cwp%inventory%BioDegs_s,1.d0,dt)
-        ! the humid rate is also smoothed based on sg_eff; neglected here
       
         ! total microbial gas generation
         cwp%rxnrate_cell_biodeg(i) = & 
@@ -2811,14 +2819,14 @@ end subroutine PMWSSUpdateChemSpecies
         cwp%rxnrate_MgO_hyd_inund(i) = cwp%inundated_brucite_rate*s_eff
         cwp%rxnrate_MgO_hyd_humid(i) = cwp%humid_brucite_rate*sg_eff
         
-        ! smooth the humid reaction rate
+        ! smoothing of humid rate occurs first due to s_eff
         call PMWSSSmoothHumidRxnrate(cwp%rxnrate_MgO_hyd_humid(i),s_eff, &
                                      this%alpharxn)
-        ! unlike for corrorosion and biodegradation, bragflo doesn't
-        ! separately store and report inundated and humid rates for MgO hydration
+        ! total MgO hydration rate
         cwp%rxnrate_MgO_hyd(i) = & 
                   cwp%rxnrate_MgO_hyd_inund(i) + cwp%rxnrate_MgO_hyd_humid(i)
         
+        ! smoothing of total rate occurs due to concentration
         call PMWSSSmoothRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
                                 cwp%inventory%MgO_s,this%alpharxn) 
         call PMWSSTaperRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
