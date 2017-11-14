@@ -2730,14 +2730,7 @@ end subroutine PMWSSUpdateChemSpecies
           sg_eff = (1.d0-s_eff)
         endif
 
-      ! note, bragflo applies a separate smoothing on the humid rates using 
-      ! s_eff 
-      ! bragflo calculates and reports inundated and humid rates separately
-      ! inundated_rate_cons*s_eff and humid_rate_constant*sg_eff
-      ! and sequentially - humid proceeds only if there is remaining solid 
-      ! after inundated
-      
-      
+     
       !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
       !-----(see equation PA.67, PA.77, section PA-4.2.5)-----------------------
       
@@ -2817,8 +2810,10 @@ end subroutine PMWSSUpdateChemSpecies
         ! CORMGO
         cwp%rxnrate_MgO_hyd_inund(i) = cwp%inundated_brucite_rate*s_eff
         cwp%rxnrate_MgO_hyd_humid(i) = cwp%humid_brucite_rate*sg_eff
-        ! the humid rate is also smoothed based on sg_eff; neglected here
         
+        ! smooth the humid reaction rate
+        call PMWSSSmoothHumidRxnrate(cwp%rxnrate_MgO_hyd_humid(i),s_eff, &
+                                     this%alpharxn)
         ! unlike for corrorosion and biodegradation, bragflo doesn't
         ! separately store and report inundated and humid rates for MgO hydration
         cwp%rxnrate_MgO_hyd(i) = & 
@@ -2996,7 +2991,7 @@ subroutine PMWSSSmoothRxnrate(rxnrate,cell_num,limiting_species,alpharxn)
   ! User's Manual.
   !
   ! Author: Jennifer Frederick
-  ! Date: 03/27/3017
+  ! Date: 03/27/2017
   !
   
   implicit none
@@ -3045,7 +3040,7 @@ subroutine PMWSSSmoothRxnrate2(rxnrate,current_conc,initial_conc,alpharxn)
   ! User's Manual.
   !
   ! Author: Jennifer Frederick
-  ! Date: 03/27/3017
+  ! Date: 03/27/2017
   !
   
   implicit none
@@ -3083,6 +3078,34 @@ subroutine PMWSSSmoothRxnrate2(rxnrate,current_conc,initial_conc,alpharxn)
   end if
   
 end subroutine PMWSSSmoothRxnrate2
+
+! ************************************************************************** !
+
+subroutine PMWSSSmoothHumidRxnrate(rxnrate,s_eff,alpharxn)
+  !
+  ! Smooths the humid reaction rate when effective liquid saturation is very 
+  ! low. This is activated by LAXRN boolean in the BRAGFLO input deck.
+  !
+  ! Author: Jennifer Frederick
+  ! Date: 11/14/2017
+  !
+  
+  implicit none
+  
+! INPUT ARGUMENTS:
+! ================
+! rxnrate (input/output): [mol-species/m3-bulk/sec] humid reaction rate constant 
+! s_eff (input): [-] effective liquid saturation
+! alpharxn (input): [-] BRAGFLO parameter ALPHARXN
+! -------------------------------------------
+  PetscReal :: rxnrate
+  PetscReal :: s_eff
+  PetscReal :: alpharxn
+! -------------------------------------------
+  
+  rxnrate = rxnrate * (1.d0 - exp(alpharxn*s_eff))
+ 
+end subroutine PMWSSSmoothHumidRxnrate
 
 
 ! ************************************************************************** !
