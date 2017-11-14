@@ -398,7 +398,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   input => InputCreate(IN_UNIT,this%option%input_filename,this%option)
   block_string = 'WIPP_SOURCE_SINK'
   call InputFindStringInFile(input,this%option,block_string)
-  if (input%ierr == 0 .and. wipp_use_gas_generation) then
+  if (input%ierr == 0 .and. wippflo_use_gas_generation) then
     this%pmwss_ptr => PMWSSCreate()
     this%pmwss_ptr%option => this%option
     call this%pmwss_ptr%Read(input)
