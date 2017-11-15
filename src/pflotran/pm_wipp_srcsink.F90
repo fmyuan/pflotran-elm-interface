@@ -2897,28 +2897,28 @@ end subroutine PMWSSUpdateChemSpecies
       !-----tracked-species-[mol-species/m3-bulk/sec]---------------------------
       !-----note:column-id-is-shifted-by-+1-since-a-0-index-not-possible--------
         
-        cwp%inventory%FeOH2_s%inst_rate(i) = &
+        cwp%inventory%FeOH2_s%inst_rate(i) = & 
                       this%stoic_mat(1,6)*cwp%rxnrate_Fe_corrosion(i) + &
                       this%stoic_mat(3,6)*cwp%rxnrate_FeOH2_sulf(i)
-        cwp%inventory%Fe_s%inst_rate(i) = &
+        cwp%inventory%Fe_s%inst_rate(i) = & 
                       this%stoic_mat(1,4)*cwp%rxnrate_Fe_corrosion(i) + &
-                      this%stoic_mat(4,4)*cwp%rxnrate_Fe_sulf(i) 
-        cwp%inventory%FeS_s%inst_rate(i) = &
+                      this%stoic_mat(4,4)*cwp%rxnrate_Fe_sulf(i)
+        cwp%inventory%FeS_s%inst_rate(i) = & 
                       this%stoic_mat(4,7)*cwp%rxnrate_Fe_sulf(i) + &
                       this%stoic_mat(3,7)*cwp%rxnrate_FeOH2_sulf(i)
-        cwp%inventory%BioDegs_s%inst_rate(i) = &
+        cwp%inventory%BioDegs_s%inst_rate(i) = & ! SFAC=0
                       this%stoic_mat(2,5)*cwp%rxnrate_cell_biodeg(i)
-        cwp%inventory%MgO_s%inst_rate(i) = &
+        cwp%inventory%MgO_s%inst_rate(i) = & 
                       this%stoic_mat(5,8)*cwp%rxnrate_MgO_hyd(i) + &
                       this%stoic_mat(7,8)*cwp%rxnrate_MgO_carb(i)
-        cwp%inventory%MgOH2_s%inst_rate(i) = &
+        cwp%inventory%MgOH2_s%inst_rate(i) = & 
                       this%stoic_mat(5,9)*cwp%rxnrate_MgO_hyd(i) + & 
                       this%stoic_mat(6,9)*cwp%rxnrate_MgOH2_carb(i) + &
                       this%stoic_mat(8,9)*cwp%rxnrate_hydromag_conv(i)
-        !cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i) = &
-        !              this%stoic_mat(6,1)*cwp%rxnrate_MgOH2_carb(i) + &
-        !              this%stoic_mat(8,1)*cwp%rxnrate_hydromag_conv(i) 
-        cwp%inventory%MgCO3_s%inst_rate(i) = &
+        cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i) = &
+                      this%stoic_mat(6,1)*cwp%rxnrate_MgOH2_carb(i) + &
+                      this%stoic_mat(8,1)*cwp%rxnrate_hydromag_conv(i) 
+        cwp%inventory%MgCO3_s%inst_rate(i) = & 
                       this%stoic_mat(7,10)*cwp%rxnrate_MgO_carb(i) + &
                       this%stoic_mat(8,10)*cwp%rxnrate_hydromag_conv(i)
 
@@ -2927,11 +2927,11 @@ end subroutine PMWSSUpdateChemSpecies
       !-----(see equations PA.67-69, PA.77, PA.82-83, PA.86, PA.89, sec PA-4.2.5)
       
         cwp%gas_generation_rate(i) = &
-                      this%stoic_mat(1,2)*cwp%rxnrate_Fe_corrosion(i) + &
-                      this%stoic_mat(3,2)*cwp%rxnrate_FeOH2_sulf(i) + &
-                      this%stoic_mat(4,2)*cwp%rxnrate_Fe_sulf(i) + &
+                      this%stoic_mat(1,2)*cwp%rxnrate_Fe_corrosion(i) + & 
+                      this%stoic_mat(3,2)*cwp%rxnrate_FeOH2_sulf(i) + & 
+                      this%stoic_mat(4,2)*cwp%rxnrate_Fe_sulf(i) + & ! zero
                       this%stoic_mat(2,2)*cwp%rxnrate_cell_biodeg(i) + & ! zero
-                      cwp%RXH2_factor*cwp%rxnrate_cell_biodeg(i)         ! H2
+                          cwp%RXH2_factor*cwp%rxnrate_cell_biodeg(i) ! SFAC     
       
       !-----brine-generation-[mol-H2O/m3-bulk/sec]------------------------------
       !-----(see equations PA.77, PA.78, PA.82, PA.83, PA.90, PA.96, PA.97,)----
@@ -2943,7 +2943,7 @@ end subroutine PMWSSUpdateChemSpecies
                       this%stoic_mat(5,3)*cwp%rxnrate_MgO_hyd(i) + &
                       this%stoic_mat(8,3)*cwp%rxnrate_hydromag_conv(i) + &
                       this%stoic_mat(2,3)*cwp%rxnrate_cell_biodeg(i) + & ! STCO_22=SMIC_H20
-                      cwp%RXH2O_factor*cwp%rxnrate_cell_biodeg(i)        ! zero
+                         cwp%RXH2O_factor*cwp%rxnrate_cell_biodeg(i)     ! SFAC
         ! Convert water weight to brine rate (bragflo BRH2O)
         cwp%brine_generation_rate(i) = cwp%brine_generation_rate(i) / &
                       (1.d0 - 1.d-2*this%salt_wtpercent)
