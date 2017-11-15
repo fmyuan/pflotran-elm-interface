@@ -21,6 +21,7 @@ module PM_Geomechanics_Force_class
     procedure, public :: InitializeRun => PMGeomechForceInitializeRun
     procedure, public :: FinalizeRun => PMGeomechForceFinalizeRun
     procedure, public :: InitializeTimestep => PMGeomechForceInitializeTimestep
+    procedure, public :: CheckConvergence => PMGeomechCheckConvergence
     procedure, public :: Residual => PMGeomechForceResidual
     procedure, public :: Jacobian => PMGeomechForceJacobian
     procedure, public :: PreSolve => PMGeomechForcePreSolve
@@ -297,6 +298,37 @@ subroutine PMGeomechForceUpdateSolution(this)
   call GeomechForceUpdateAuxVars(this%geomech_realization)
 
 end subroutine PMGeomechForceUpdateSolution
+
+! ************************************************************************** !
+
+subroutine PMGeomechCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
+                                     reason,ierr)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/15/17
+  ! 
+  use Convergence_module
+  use Grid_module
+
+  implicit none
+
+  class(pm_geomech_force_type) :: this
+  SNES :: snes
+  PetscInt :: it
+  PetscReal :: xnorm
+  PetscReal :: unorm
+  PetscReal :: fnorm
+  SNESConvergedReason :: reason
+  PetscErrorCode :: ierr
+
+  type(grid_type), pointer :: grid
+
+  nullify(grid)
+
+  call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
+                       grid,this%option,this%solver,ierr)
+
+end subroutine PMGeomechCheckConvergence
 
 ! ************************************************************************** !
 

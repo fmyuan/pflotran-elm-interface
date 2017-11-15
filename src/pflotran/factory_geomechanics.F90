@@ -85,6 +85,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   PetscErrorCode :: ierr
 
   option => simulation%option
+  nullify(timestepper)
   
   nullify(prev_pm)
   cur_pm => simulation%process_model_list
@@ -176,6 +177,9 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     ! initialize geomech realization
     call GeomechInitSetupRealization(simulation)
 
+    if (associated(timestepper)) then
+      call pm_geomech%SetSolver(timestepper%solver)
+    endif
     call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
     call pm_geomech%Setup()
 
@@ -1033,6 +1037,9 @@ subroutine GeomechInitSetupSolvers(geomech_realization,realization, &
   PetscErrorCode :: ierr
   
   option => realization%option
+
+print *, 'GeomechInitSetupSolvers cannot be removed.'
+stop
   
   call printMsg(option,"  Beginning setup of GEOMECH SNES ")
     
@@ -1092,8 +1099,6 @@ subroutine GeomechInitSetupSolvers(geomech_realization,realization, &
   ! is call within this function.
   !TODO(geh): free this convergence context somewhere!
   option%io_buffer = 'DEALLOCATE GEOMECH CONVERGENCE CONTEXT somewhere!!!'
-  convergence_context => ConvergenceContextCreate(solver,option, &
-                                                  realization%patch%grid)
   call SNESSetConvergenceTest(solver%snes,ConvergenceTest, &
                               convergence_context, &
                               PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)                                                  
