@@ -132,7 +132,8 @@ subroutine PMCSubsurfaceSetupSolvers(this)
         call SolverCreateSNES(solver,option%mycomm)
         call SNESGetLineSearch(ts%solver%snes,linesearch, &
                                ierr);CHKERRQ(ierr)
-      
+        ! set solver pointer within pm for convergence purposes
+        call this%pm_ptr%pm%SetSolver(solver)
         select type(pm => this%pm_ptr%pm)
   ! ----- subsurface flow
           class is(pm_subsurface_flow_type)
@@ -230,12 +231,14 @@ subroutine PMCSubsurfaceSetupSolvers(this)
                            ierr);CHKERRQ(ierr)
             endif
 
-            ! shell for custom convergence test.  The default SNES convergence
-            ! test is call within this function.
-            ts%convergence_context => ConvergenceContextCreate(solver,option, &
-                                                   pm%realization%patch%grid)
-            call SNESSetConvergenceTest(solver%snes,ConvergenceTest, &
-                                        ts%convergence_context, &
+            call SNESSetConvergenceTest(solver%snes, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                        PMCheckConvergence, &
+                                        this%pm_ptr%pm, &
+#else
+                                        PMCheckConvergencePtr, &
+                                        this%pm_ptr, &
+#endif
                                         PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
             if (pm%check_post_convergence) then
               call SNESLineSearchSetPostCheck(linesearch, &
@@ -406,13 +409,14 @@ subroutine PMCSubsurfaceSetupSolvers(this)
 
             if (option%transport%reactive_transport_coupling == &
                 GLOBAL_IMPLICIT) then
-              ! shell for custom convergence test.  The default SNES 
-              ! convergence test is call within this function. 
-              ts%convergence_context => &
-                ConvergenceContextCreate(solver,option, &
-                                         pm%realization%patch%grid)
-              call SNESSetConvergenceTest(solver%snes,ConvergenceTest, &
-                                        ts%convergence_context, &
+              call SNESSetConvergenceTest(solver%snes, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                        PMCheckConvergence, &
+                                        this%pm_ptr%pm, &
+#else
+                                        PMCheckConvergencePtr, &
+                                        this%pm_ptr, &
+#endif
                                         PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
             endif
             if (pm%print_EKG .or. option%use_mc .or. &

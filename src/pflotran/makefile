@@ -1042,14 +1042,14 @@ pm_auxiliary.o : communicator_base.o global_aux.o init_subsurface.o \
                  reaction_aux.o reactive_transport_aux.o \
                  realization_subsurface.o string.o
 pm_base.o : input_aux.o option.o output_aux.o pflotran_constants.o \
-            realization_base.o
+            realization_base.o solver.o
 pm_base_aux.o : auxvars_base.o grid.o option.o pflotran_constants.o utility.o
 pm_base_pointer.o : option.o pflotran_constants.o pm_base.o \
                     realization_subsurface.o
 pm_bragflo.o : bragflo.o dataset.o dataset_base.o dataset_common_hdf5.o \
-               field.o grid.o hdf5.o input_aux.o option.o pflotran_constants.o \
-               pm_subsurface_flow.o pm_wipp_flow.o realization_base.o string.o \
-               wipp_flow_aux.o
+               discretization.o field.o grid.o hdf5.o input_aux.o option.o \
+               pflotran_constants.o pm_subsurface_flow.o pm_wipp_flow.o \
+               realization_base.o string.o wipp_flow_aux.o
 pm_flash2.o : eos_water.o flash2.o flash2_aux.o input_aux.o option.o \
               pflotran_constants.o pm_base.o pm_subsurface_flow.o \
               realization_subsurface.o string.o utility.o
@@ -1062,9 +1062,10 @@ pm_general.o : checkpoint.o field.o general.o general_aux.o global.o \
 pm_geomechanics_force.o : checkpoint.o communicator_base.o \
                           communicator_structured.o \
                           communicator_unstructured.o condition.o \
-                          geomechanics_discretization.o geomechanics_force.o \
-                          geomechanics_realization.o global.o grid.o option.o \
-                          pflotran_constants.o pm_base.o
+                          convergence.o geomechanics_discretization.o \
+                          geomechanics_force.o geomechanics_realization.o \
+                          global.o grid.o option.o pflotran_constants.o \
+                          pm_base.o
 pm_immis.o : eos_water.o immis.o immis_aux.o input_aux.o option.o \
              pflotran_constants.o pm_base.o pm_subsurface_flow.o \
              realization_subsurface.o string.o utility.o
@@ -1083,16 +1084,17 @@ pm_richards.o : characteristic_curves.o eos_water.o field.o global_aux.o \
                 richards_common.o string.o utility.o
 pm_rt.o : checkpoint.o communicator_base.o communicator_structured.o \
           communicator_unstructured.o condition.o condition_control.o \
-          data_mediator.o discretization.o field.o global.o grid.o hdf5.o \
-          input_aux.o integral_flux.o material.o material_aux.o option.o \
-          output_ekg.o patch.o pflotran_constants.o pm_base.o reaction_aux.o \
-          reactive_transport.o reactive_transport_aux.o realization_base.o \
-          realization_subsurface.o secondary_continuum.o string.o variables.o
+          convergence.o data_mediator.o discretization.o field.o global.o \
+          grid.o hdf5.o input_aux.o integral_flux.o material.o material_aux.o \
+          option.o output_ekg.o patch.o pflotran_constants.o pm_base.o \
+          reaction_aux.o reactive_transport.o reactive_transport_aux.o \
+          realization_base.o realization_subsurface.o secondary_continuum.o \
+          string.o variables.o
 pm_subsurface_flow.o : characteristic_curves.o checkpoint.o \
                        communicator_base.o communicator_structured.o \
                        communicator_unstructured.o condition.o \
-                       condition_control.o coupler.o data_mediator.o \
-                       dataset_base.o dataset_common_hdf5.o \
+                       condition_control.o convergence.o coupler.o \
+                       data_mediator.o dataset_base.o dataset_common_hdf5.o \
                        dataset_gridded_hdf5.o discretization.o global.o grid.o \
                        hdf5.o input_aux.o integral_flux.o material.o \
                        material_aux.o option.o patch.o pflotran_constants.o \

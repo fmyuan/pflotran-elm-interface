@@ -19,7 +19,6 @@ module Timestepper_Steady_class
  !   PetscInt :: cumulative_linear_iterations     ! Total number of linear iterations
 
  !   type(solver_type), pointer :: solver
- !   type(convergence_context_type), pointer :: convergence_context
   
   contains
 
@@ -134,7 +133,6 @@ subroutine TimestepperSteadyCreateFromBE(timestepper_BE)
   stepper%tfac(13) = timestepper_BE%tfac(13)  
   
   stepper%solver => timestepper_BE%solver
-  stepper%convergence_context => timestepper_BE%convergence_context
 
   timestepper_BE => stepper
 

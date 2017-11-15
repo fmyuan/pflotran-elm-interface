@@ -48,6 +48,7 @@ module PM_RT_class
     procedure, public :: AcceptSolution => PMRTAcceptSolution
     procedure, public :: CheckUpdatePre => PMRTCheckUpdatePre
     procedure, public :: CheckUpdatePost => PMRTCheckUpdatePost
+    procedure, public :: CheckConvergence => PMRTCheckConvergence
     procedure, public :: TimeCut => PMRTTimeCut
     procedure, public :: UpdateSolution => PMRTUpdateSolution1
     procedure, public :: UpdateAuxVars => PMRTUpdateAuxVars
@@ -954,6 +955,32 @@ subroutine PMRTCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   endif
 
 end subroutine PMRTCheckUpdatePost
+
+! ************************************************************************** !
+
+subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/15/17
+  ! 
+  use Convergence_module
+
+  implicit none
+
+  class(pm_rt_type) :: this
+  SNES :: snes
+  PetscInt :: it
+  PetscReal :: xnorm
+  PetscReal :: unorm
+  PetscReal :: fnorm
+  SNESConvergedReason :: reason
+  PetscErrorCode :: ierr
+
+  call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
+                       this%realization%patch%grid, &
+                       this%option,this%solver,ierr)
+
+end subroutine PMRTCheckConvergence
 
 ! ************************************************************************** !
 
