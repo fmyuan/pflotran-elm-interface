@@ -110,6 +110,8 @@ subroutine PMBragfloRead(this,input)
     if (found) cycle
 
     select case(keyword)
+      case('DEFAULT_ALPHA')
+        wippflo_default_alpha = PETSC_TRUE
       case('ALPHA_DATASET')
         call InputReadNChars(input,option,this%alpha_dataset_name,&
                              MAXWORDLENGTH,PETSC_TRUE)
@@ -233,8 +235,10 @@ recursive subroutine PMBragfloInitializeRun(this)
         call printErrMsg(this%option)
     end select
   else
-    this%option%io_buffer = 'ALPHA should have been read from a dataset.'
-    call printErrMsg(this%option)
+    if (.not.wippflo_default_alpha) then
+      this%option%io_buffer = 'ALPHA should have been read from a dataset.'
+      call printErrMsg(this%option)
+    endif
   endif
 
   ! read in elevations
@@ -273,7 +277,9 @@ recursive subroutine PMBragfloInitializeRun(this)
     end select
   else ! or set them baesd on grid cell elevation
     do ghosted_id = 1, grid%ngmax
-      wippflo_auxvars(idof,ghosted_id)%elevation = grid%z(ghosted_id)
+      do idof = 0, this%option%nflowdof
+        wippflo_auxvars(idof,ghosted_id)%elevation = grid%z(ghosted_id)
+      enddo
     enddo
   endif
 

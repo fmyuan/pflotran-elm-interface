@@ -14,7 +14,9 @@ module WIPP_Flow_Aux_module
   PetscReal, public :: wippflo_pres_min_pert = 1.d-2
 
   PetscBool, public :: wippflo_use_legacy_perturbation = PETSC_FALSE
+  PetscBool, public :: wippflo_default_alpha = PETSC_FALSE
   PetscBool, public :: wippflo_debug = PETSC_FALSE
+  PetscBool, public :: wippflo_debug_gas_generation = PETSC_FALSE
   PetscBool, public :: wippflo_debug_first_iteration = PETSC_FALSE
   PetscBool, public :: wippflo_use_bragflo_flux = PETSC_FALSE
   PetscBool, public :: wippflo_fix_upwind_direction = PETSC_TRUE

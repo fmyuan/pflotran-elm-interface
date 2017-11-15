@@ -3695,13 +3695,16 @@ subroutine PMWSSCalcResidualValues(this,local_start,local_end,r_p, &
 ! air_comp_id: [-] air component id number
 ! k: [-] looping index integer
 ! wippflo_auxvars: [-] pointer to the wippflo auxvar object
+! pflotran_to_braglo: [kg-sec/kmol-m^3 bulk]
 ! ----------------------------------------------------------
   PetscReal :: Res(this%option%nflowdof)
   PetscInt :: ghosted_id, local_id
   PetscInt :: wat_comp_id, air_comp_id
   PetscInt :: k
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
+  PetscReal :: pflotran_to_bragflo(2)
 ! ----------------------------------------------------------
+
 
   wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
   wat_comp_id = this%option%water_id
@@ -3728,6 +3731,12 @@ subroutine PMWSSCalcResidualValues(this,local_start,local_end,r_p, &
                      
     ! add Res(:) contribution to r_p vector
     r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)                     
+    if (wippflo_debug_gas_generation) then
+      pflotran_to_bragflo = fmw_comp * this%option%flow_dt / &
+                 this%realization%patch%aux%Material%auxvars(ghosted_id)%volume
+      ! kmol/sec * kg-sec/kmol-m^3 bulk -> kg/m^3 bulk
+      print *, 'gas:', local_id, Res(1:2) * pflotran_to_bragflo
+    endif
                      
   enddo
 

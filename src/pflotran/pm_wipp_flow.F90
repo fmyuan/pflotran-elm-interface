@@ -292,6 +292,8 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       wippflo_use_gas_generation = PETSC_FALSE
     case('DEBUG')
       wippflo_debug = PETSC_TRUE
+    case('DEBUG_GAS_GENERATION')
+      wippflo_debug_gas_generation = PETSC_TRUE
     case('DEBUG_FIRST_ITERATION')
       wippflo_debug = PETSC_TRUE
       wippflo_debug_first_iteration = PETSC_TRUE
@@ -842,6 +844,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscInt :: min_gas_pressure_cell
   PetscReal :: abs_dX_over_absX
   PetscReal :: pflotran_to_bragflo(2)
+  PetscReal :: bragflo_residual(2)
+  PetscReal :: bragflo_accum(2)
   character(len=4) :: reason
   PetscInt :: istart, iend
   
@@ -905,16 +909,25 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     pressure_index = offset + WIPPFLO_LIQUID_PRESSURE_DOF
     saturation_index = offset + WIPPFLO_GAS_SATURATION_DOF
 
+    pflotran_to_bragflo = fmw_comp * option%flow_dt / &
+                          material_auxvars(ghosted_id)%volume
+    bragflo_residual = r_p(liquid_equation_index:gas_equation_index) * &
+                       pflotran_to_bragflo
+    bragflo_accum = accum_p2(liquid_equation_index:gas_equation_index) * &
+                    pflotran_to_bragflo
+
     if (wippflo_debug) then
-      pflotran_to_bragflo = fmw_comp * option%flow_dt / &
-                            material_auxvars(ghosted_id)%volume
-      print *, local_id, r_p(1:2) * pflotran_to_bragflo
+      ! in bragflo gas is first.
+      print *, local_id, bragflo_residual(2), bragflo_residual(1)
     endif
     
     ! liquid component equation
-    if (accum_p2(liquid_equation_index) > zero_accumulation) then 
-      residual = r_p(liquid_equation_index)
-      accumulation = accum_p2(liquid_equation_index)
+!    if (accum_p2(liquid_equation_index) > zero_accumulation) then 
+!      residual = r_p(liquid_equation_index)
+!      accumulation = accum_p2(liquid_equation_index)
+    if (bragflo_accum(WIPPFLO_LIQUID_EQUATION_INDEX) > zero_accumulation) then 
+      residual = bragflo_residual(WIPPFLO_LIQUID_EQUATION_INDEX)
+      accumulation = bragflo_accum(WIPPFLO_LIQUID_EQUATION_INDEX)
       residual_over_accumulation = residual / accumulation
       if (max_liq_eq < dabs(residual_over_accumulation)) then
         max_liq_eq_cell = local_id
@@ -929,10 +942,13 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     endif
 
     ! gas component equation
-    if (accum_p2(gas_equation_index) > zero_accumulation .and. &
+!    if (accum_p2(gas_equation_index) > zero_accumulation .and. &
+    if (bragflo_accum(WIPPFLO_GAS_EQUATION_INDEX) > zero_accumulation .and. &
         X1_p(gas_equation_index) > zero_saturation) then
-      residual = r_p(gas_equation_index)
-      accumulation = accum_p2(gas_equation_index)
+!      residual = r_p(gas_equation_index)
+!      accumulation = accum_p2(gas_equation_index)
+      residual = bragflo_residual(WIPPFLO_GAS_EQUATION_INDEX)
+      accumulation = bragflo_accum(WIPPFLO_GAS_EQUATION_INDEX)
       residual_over_accumulation = residual / accumulation
       if (max_gas_eq < dabs(residual_over_accumulation)) then
         max_gas_eq_cell = local_id
@@ -1163,6 +1179,13 @@ subroutine PMWIPPFloUpdateSolution(this)
   implicit none
   
   class(pm_wippflo_type) :: this
+
+  if (wippflo_debug) then
+    write(*,'("Final: ",10es14.6)') &
+      this%realization%patch%aux%WIPPFlo%auxvars(0,1)%pres(1:2), &
+      this%realization%patch%aux%WIPPFlo%auxvars(0,1)%effective_porosity, &
+      this%realization%patch%aux%WIPPFlo%auxvars(0,1)%sat(1)
+  endif
   
   call PMSubsurfaceFlowUpdateSolution(this)
   call WIPPFloUpdateSolution(this%realization)
