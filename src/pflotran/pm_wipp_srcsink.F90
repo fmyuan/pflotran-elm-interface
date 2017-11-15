@@ -2787,101 +2787,113 @@ end subroutine PMWSSUpdateChemSpecies
           call PMWSSTaperRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
                           cwp%inventory%MgO_s,this%stoic_mat(5,8),dt,temp_conc)
         endif
+        
+      
+      !-----hydromagnesite-conversion-[mol-hydromagnesite/m3-bulk/sec]----------
+      !-----(see equation PA.74, PA.97, section PA-4.2.5)-----------------------
+        
+        if (cwp%inventory%MgCO3_s%current_conc_mol(i) > 0.d0) then
+          ! HYDROCONV
+          cwp%rxnrate_hydromag_conv(i) = this%hymagcon_rate * &
+                                       cwp%inventory%MgCO3_s%current_conc_kg(i)
+          ! smoothing of reaction rate occurs only due to concentration
+          ! for smoothing, the initial and current species are different
+          call PMWSSSmoothRxnrate(cwp%rxnrate_hydromag_conv(i), &
+                                  cwp%inventory%MgCO3_s%current_conc_mol(i), & 
+                                  cwp%inventory%MgO_s%initial_conc_mol(i), &
+                                  this%alpharxn)
+          call PMWSSTaperRxnrate(cwp%rxnrate_hydromag_conv(i),i, &
+                       cwp%inventory%MgCO3_s,this%stoic_mat(8,10),dt,temp_conc)
+        endif
                               
     
       !-----biodegradation-[mol-cell/m3/sec]------------------------------------
       !-----(see equation PA.69, PA.82, PA.83, section PA-4.2.5)----------------
 
-        ! BIOSAT
-        cwp%rxnrate_cell_biodeg_inund(i) = cwp%inundated_biodeg_rate*s_eff
-        ! smoothing of inundated rate occurs only due to concentration
-        call PMWSSSmoothRxnrate(cwp%rxnrate_cell_biodeg_inund(i),i, &
-                                cwp%inventory%BioDegs_s,this%alpharxn) 
-        call PMWSSTaperRxnrate(cwp%rxnrate_cell_biodeg_inund(i),i, &
-                               cwp%inventory%BioDegs_s,1.d0,dt,temp_conc)
+        if (cwp%inventory%BioDegs_s%current_conc_mol(i) > 0.d0) then
+          ! BIOSAT
+          cwp%rxnrate_cell_biodeg_inund(i) = cwp%inundated_biodeg_rate*s_eff
+          ! smoothing of inundated rate occurs only due to concentration
+          call PMWSSSmoothRxnrate(cwp%rxnrate_cell_biodeg_inund(i),i, &
+                                  cwp%inventory%BioDegs_s,this%alpharxn) 
+          call PMWSSTaperRxnrate(cwp%rxnrate_cell_biodeg_inund(i),i, &
+                      cwp%inventory%BioDegs_s,this%stoic_mat(2,5),dt,temp_conc)
 
-        ! BIOHUM
-        cwp%rxnrate_cell_biodeg_humid(i) = cwp%humid_biodeg_rate*sg_eff
-        ! smoothing of humid rate occurs first due to concentration, then due
-        ! to s_eff
-        call PMWSSSmoothRxnrate(cwp%rxnrate_cell_biodeg_humid(i),i, &
-                                cwp%inventory%BioDegs_s,this%alpharxn) 
-        call PMWSSSmoothHumidRxnrate(cwp%rxnrate_cell_biodeg_humid(i),s_eff, &
-                                     this%alpharxn)
-        call PMWSSTaperRxnrate(cwp%rxnrate_cell_biodeg_humid(i),i, &
-                               cwp%inventory%BioDegs_s,1.d0,dt,temp_conc)
-      
+          ! BIOHUM
+          if (temp_conc > 0.d0) then
+            cwp%rxnrate_cell_biodeg_humid(i) = cwp%humid_biodeg_rate*sg_eff
+            ! smoothing of humid rate occurs first due to concentration, then
+            ! due to s_eff
+            call PMWSSSmoothRxnrate(cwp%rxnrate_cell_biodeg_humid(i),i, &
+                                    cwp%inventory%BioDegs_s,this%alpharxn) 
+            call PMWSSSmoothHumidRxnrate(cwp%rxnrate_cell_biodeg_humid(i), &
+                                         s_eff,this%alpharxn)
+            call PMWSSTaperRxnrate(cwp%rxnrate_cell_biodeg_humid(i),i, &
+                      cwp%inventory%BioDegs_s,this%stoic_mat(2,5),dt,temp_conc)
+          endif
+        endif
+        
         ! total microbial gas generation
         cwp%rxnrate_cell_biodeg(i) = & 
           cwp%rxnrate_cell_biodeg_inund(i) + cwp%rxnrate_cell_biodeg_humid(i)
-
+        
 
       !-----iron-sulfidation-[mol-H2S/m3/sec]-----------------------------------
       !-----(see equation PA.68, PA.89, PA.90, section PA-4.2.5)----------------
       
-        ! BIOFES
-        ! FeOH2 sulfidation is assumed to kinetically dominate Fe sulfidation.
-        ! The H2S generation rate is proportioned between FeOH and Fe.
-        ! FeOH2 is sulifidized first, then Fe is sulifidized with remaining H2S
-        cwp%rxnrate_FeOH2_sulf(i) = cwp%rxnrate_cell_biodeg(i)*cwp%RXH2S_factor
-        ! bragflo uses Fe as initial concentration, not FeOH2, so this is right
-
-        ! for smoothing, the initial and current species are different
-        call PMWSSSmoothRxnrate2(cwp%rxnrate_FeOH2_sulf(i), &
-                                 cwp%inventory%FeOH2_s%current_conc_mol(i), & 
-                                 cwp%inventory%Fe_s%initial_conc_mol(i), & 
-                                 this%alpharxn)
-      
-        ! here tapering actually truncates the rate, so this call is important
-        call PMWSSTaperRxnrate(cwp%rxnrate_FeOH2_sulf(i),i, &
-                                cwp%inventory%FeOH2_s,1.d0,dt,temp_conc)
-        
-        ! FeS rate is caculated based on the left over H2S rate
-        cwp%rxnrate_Fe_sulf(i) = cwp%rxnrate_cell_biodeg(i)*cwp%RXH2S_factor - &
-                                  cwp%rxnrate_FeOH2_sulf(i)
-        call PMWSSTaperRxnrate(cwp%rxnrate_Fe_sulf(i),i,cwp%inventory%Fe_s, &
-                                1.d0,dt,temp_conc)
-                                
-                              
+        if (cwp%inventory%BioDegs_s%current_conc_mol(i) > 0.d0) then
+          ! BIOFES
+          ! FeOH2 sulfidation is assumed to kinetically dominate Fe sulfidation.
+          ! The H2S generation rate is proportioned between FeOH and Fe. FeOH2 
+          ! is sulifidized first, then Fe is sulifidized with remaining H2S.
+          cwp%rxnrate_FeOH2_sulf(i) = cwp%rxnrate_cell_biodeg(i) * &
+                                      cwp%RXH2S_factor
+          ! smoothing of reaction rate occurs only due to concentration
+          ! for smoothing, the initial and current species are different
+          call PMWSSSmoothRxnrate2(cwp%rxnrate_FeOH2_sulf(i), &
+                                  cwp%inventory%FeOH2_s%current_conc_mol(i), & 
+                                  cwp%inventory%Fe_s%initial_conc_mol(i), & 
+                                  this%alpharxn)
+          ! taper FeOH2 sulfidation rate first
+          call PMWSSTaperRxnrate(cwp%rxnrate_FeOH2_sulf(i),i, &
+                        cwp%inventory%FeOH2_s,this%stoic_mat(3,6),dt,temp_conc)
+          ! FeS rate is calculated based on the left over H2S rate
+          cwp%rxnrate_Fe_sulf(i) = &
+                             (cwp%rxnrate_cell_biodeg(i)*cwp%RXH2S_factor) - &
+                              cwp%rxnrate_FeOH2_sulf(i)
+          ! taper Fe sulfidation rate second
+          call PMWSSTaperRxnrate(cwp%rxnrate_Fe_sulf(i),i,cwp%inventory%Fe_s, &
+                                 this%stoic_mat(4,4),dt,temp_conc)
+        endif
+           
+           
       !-----hydromagnesite-[mol-hydromagnesite/m3-bulk/sec]---------------------
       !-----(see equation PA.74, PA.96, section PA-4.2.5)-----------------------
         
-        ! BIOMGO
-        cwp%rxnrate_MgOH2_carb(i) = cwp%rxnrate_cell_biodeg(i)*cwp%RXCO2_factor
-        
-        ! for smoothing, the initial and current species are different
-        call PMWSSSmoothRxnrate(cwp%rxnrate_MgOH2_carb(i), &
+        if (cwp%inventory%BioDegs_s%current_conc_mol(i) > 0.d0) then
+          ! BIOMGO
+          cwp%rxnrate_MgOH2_carb(i) = cwp%rxnrate_cell_biodeg(i) * &
+                                      cwp%RXCO2_factor
+          ! smoothing of reaction rate occurs only due to concentration
+          ! for smoothing, the initial and current species are different
+          call PMWSSSmoothRxnrate(cwp%rxnrate_MgOH2_carb(i), &
                                   cwp%inventory%MgOH2_s%current_conc_mol(i), & 
                                   cwp%inventory%MgO_s%initial_conc_mol(i), & 
                                   this%alpharxn)
-        
-        ! here tapering actually truncates the rate, so this call is important
-        call PMWSSTaperRxnrate(cwp%rxnrate_MgOH2_carb(i),i, &
-                                cwp%inventory%MgOH2_s,1.d0,dt,temp_conc)
-        
-        ! the remaining CO2 reacts with MgO
-        cwp%rxnrate_MgO_carb(i) = &
-                    cwp%rxnrate_cell_biodeg(i)*cwp%RXCO2_factor - &
-                    cwp%rxnrate_MgOH2_carb(i)
-        call PMWSSTaperRxnrate(cwp%rxnrate_MgO_carb(i),i,cwp%inventory%MgO_s, &
-                                1.d0,dt,temp_conc)
-      
-      !-----hydromagnesite-conversion-[mol-hydromagnesite/m3-bulk/sec]----------
-      !-----(see equation PA.74, PA.97, section PA-4.2.5)-----------------------
-        
-        ! HYDROCONV
-        ! this is a first-order reaction, not zero-order
-        ! also rate is on /kg basis
-        cwp%rxnrate_hydromag_conv(i) = this%hymagcon_rate* &
-                              cwp%inventory%Mg5CO34OH24H2_s%current_conc_kg(i)
-        ! for smoothing, the initial and current species are different
-        call PMWSSSmoothRxnrate(cwp%rxnrate_hydromag_conv(i), &
-                        cwp%inventory%Mg5CO34OH24H2_s%current_conc_mol(i), & 
-                        cwp%inventory%MgO_s%initial_conc_mol(i),this%alpharxn)
-        call PMWSSTaperRxnrate(cwp%rxnrate_hydromag_conv(i),i, &
-                                cwp%inventory%Mg5CO34OH24H2_s,1.d0,dt,temp_conc)
-                             
-                             
+          ! taper MgOH2 carbonation rate first
+          call PMWSSTaperRxnrate(cwp%rxnrate_MgOH2_carb(i),i, &
+                        cwp%inventory%MgOH2_s,this%stoic_mat(6,9),dt,temp_conc)
+          
+          ! the remaining CO2 reacts with MgO
+          cwp%rxnrate_MgO_carb(i) = &
+                      (cwp%rxnrate_cell_biodeg(i)*cwp%RXCO2_factor) - &
+                       cwp%rxnrate_MgOH2_carb(i)
+          ! taper MgO carbonation rate second
+          call PMWSSTaperRxnrate(cwp%rxnrate_MgO_carb(i),i, &
+                          cwp%inventory%MgO_s,this%stoic_mat(7,8),dt,temp_conc)                            
+        endif                             
+             
+             
       !-----tracked-species-[mol-species/m3-bulk/sec]---------------------------
       !-----note:column-id-is-shifted-by-+1-since-a-0-index-not-possible--------
         
@@ -2903,9 +2915,9 @@ end subroutine PMWSSUpdateChemSpecies
                       this%stoic_mat(5,9)*cwp%rxnrate_MgO_hyd(i) + & 
                       this%stoic_mat(6,9)*cwp%rxnrate_MgOH2_carb(i) + &
                       this%stoic_mat(8,9)*cwp%rxnrate_hydromag_conv(i)
-        cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i) = &
-                      this%stoic_mat(6,1)*cwp%rxnrate_MgOH2_carb(i) + &
-                      this%stoic_mat(8,1)*cwp%rxnrate_hydromag_conv(i) 
+        !cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i) = &
+        !              this%stoic_mat(6,1)*cwp%rxnrate_MgOH2_carb(i) + &
+        !              this%stoic_mat(8,1)*cwp%rxnrate_hydromag_conv(i) 
         cwp%inventory%MgCO3_s%inst_rate(i) = &
                       this%stoic_mat(7,10)*cwp%rxnrate_MgO_carb(i) + &
                       this%stoic_mat(8,10)*cwp%rxnrate_hydromag_conv(i)
