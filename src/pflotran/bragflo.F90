@@ -358,6 +358,7 @@ subroutine BragfloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
     call VecAXPY(r,-1.d0,field%flow_mass_transfer,ierr);CHKERRQ(ierr)
   endif                      
                         
+#if 0
   if (realization%debug%vecview_residual) then
     string = 'BFresidual'
     call DebugCreateViewer(realization%debug,string,option,viewer)
@@ -370,6 +371,7 @@ subroutine BragfloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
     call VecView(xx,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
+#endif
 
   wippflo_update_upwind_direction = PETSC_FALSE
 
@@ -641,6 +643,7 @@ subroutine BragfloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
                           ierr);CHKERRQ(ierr)
   endif
 
+#if 0
   if (realization%debug%matview_Jacobian) then
     string = 'BFjacobian'
     call DebugCreateViewer(realization%debug,string,option,viewer)
@@ -659,6 +662,7 @@ subroutine BragfloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
     call printMsg(option) 
   endif
+#endif
 
 end subroutine BragfloJacobian
 

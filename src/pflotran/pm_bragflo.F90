@@ -300,6 +300,7 @@ subroutine PMBragfloResidual(this,snes,xx,r,ierr)
 
   use PM_Subsurface_Flow_class
   use Bragflo_module, only : BragfloResidual
+  use Debug_module
 
   implicit none
 
@@ -309,10 +310,27 @@ subroutine PMBragfloResidual(this,snes,xx,r,ierr)
   Vec :: r
   PetscErrorCode :: ierr
 
+  PetscViewer :: viewer
+  character(len=MAXSTRINGLENGTH) :: string
+
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
 
   ! calculate residual
   call BragfloResidual(snes,xx,r,this%realization,this%pmwss_ptr,ierr)
+  call VecCopy(r,this%stored_residual_vec,ierr);CHKERRQ(ierr)
+
+  if (this%realization%debug%vecview_residual) then
+    string = 'BFresidual'
+    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+    call VecView(r,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+  if (this%realization%debug%vecview_solution) then
+    string = 'BFxx'
+    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+    call VecView(xx,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
 
   call this%PostSolve()
 
@@ -326,6 +344,7 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
   ! Date: 07/11/17
   ! 
   use Bragflo_module, only : BragfloJacobian
+  use Debug_module
 
   implicit none
 
@@ -336,24 +355,72 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
   PetscErrorCode :: ierr
 
   Vec :: residual_vec
+  PetscViewer :: viewer
+  character(len=MAXSTRINGLENGTH) :: string
 
   residual_vec = tVec(0)
 
   call BragfloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
 
+  if (this%realization%debug%matview_Jacobian) then
+    string = 'BFjacobian'
+    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+    call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+
   call SNESGetFunction(snes,residual_vec,PETSC_NULL_FUNCTION, &
                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
-  call VecCopy(residual_vec,this%stored_residual_vec,ierr);CHKERRQ(ierr)
   if (this%scale_linear_system) then
+    call MatScale(A,this%linear_system_scaling_factor,ierr);CHKERRQ(ierr)
+
     call MatGetRowMaxAbs(A,this%scaling_vec,PETSC_NULL_INTEGER, &
                          ierr);CHKERRQ(ierr)
-    call VecScale(this%scaling_vec,this%linear_system_scaling_factor, &
-                  ierr);CHKERRQ(ierr)
+
+    if (this%realization%debug%matview_Jacobian) then
+      string = 'max_abs'
+      call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+      call VecView(this%scaling_vec,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    endif
+
+!    call VecScale(this%scaling_vec,this%linear_system_scaling_factor, &
+!                  ierr);CHKERRQ(ierr)
+
+    if (this%realization%debug%matview_Jacobian) then
+      string = 'scaled_max_abs'
+      call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+      call VecView(this%scaling_vec,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    endif
+
     call VecReciprocal(this%scaling_vec,ierr);CHKERRQ(ierr)
+
+    if (this%realization%debug%matview_Jacobian) then
+      string = 'scaled_max_abs'
+      string = 'one_over_scaled_max_abs'
+      call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+      call VecView(this%scaling_vec,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    endif
+
     call MatDiagonalScale(A,this%scaling_vec,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
     call VecPointwiseMult(residual_vec,residual_vec, &
                           this%scaling_vec,ierr);CHKERRQ(ierr)
+  endif
+
+  if (this%realization%debug%matview_Jacobian) then
+    string = 'BFjacobian_scaled'
+    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+    call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+  if (this%realization%debug%vecview_residual) then
+    string = 'BFresidual_scaled'
+    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+    call VecView(residual_vec,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine PMBragfloJacobian
