@@ -4,6 +4,7 @@ module WIPP_Flow_module
   use petscsnes
   use WIPP_Flow_Aux_module
   use WIPP_Flow_Common_module
+  use Bragflo_Common_module
   use Global_Aux_module
 
   use PFLOTRAN_Constants_module
@@ -207,6 +208,14 @@ subroutine WIPPFloSetup(realization)
   list => realization%output_option%output_obs_variable_list
   call WIPPFloSetPlotVariables(realization,list)
   
+  if (wippflo_use_bragflo_flux) then
+    XXFlux => BRAGFloFlux
+    XXBCFlux => BRAGFloBCFlux
+  else
+    XXFlux => WIPPFloFlux
+    XXBCFlux => WIPPFloBCFlux
+  endif
+
   ! these counters are used for performance analysis only.  they will not 
   ! affect simulation results.
   liq_upwind_flip_count_by_res = 0
@@ -644,8 +653,6 @@ subroutine WIPPFloUpdateFixedAccum(realization)
   PetscInt :: imat
   PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
   PetscReal, pointer :: accum_p(:)
-  PetscReal :: Jac_dummy(realization%option%nflowdof, &
-                         realization%option%nflowdof)
                           
   PetscErrorCode :: ierr
   
@@ -685,7 +692,9 @@ subroutine WIPPFloUpdateFixedAccum(realization)
                              material_auxvars(ghosted_id), &
                              material_parameter%soil_heat_capacity(imat), &
                              option,accum_p(local_start:local_end), &
-                             Jac_dummy,PETSC_FALSE)
+                             PETSC_FALSE)
+    call WIPPFloConvertUnitsToBRAGFlo(accum_p(local_start:local_end), &
+                                      material_auxvars(ghosted_id),option)
   enddo
   
   call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
@@ -712,7 +721,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   use Connection_module
   use Grid_module
   use Coupler_module  
-  use Debug_module
   use Material_Aux_class
   use PM_WIPP_SrcSink_class
 
@@ -723,7 +731,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   Vec :: r
   type(realization_subsurface_type) :: realization
   class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
-  PetscViewer :: viewer
   PetscErrorCode :: ierr
   
   Mat, parameter :: null_mat = tMat(-1)
@@ -764,8 +771,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
 
   PetscInt :: icap_up, icap_dn
   PetscReal :: Res(realization%option%nflowdof)
-  PetscReal :: Jac_dummy(realization%option%nflowdof, &
-                         realization%option%nflowdof)
+  PetscReal :: temp_Res(realization%option%nflowdof)
   PetscReal :: v_darcy(realization%option%nphase)
   
   discretization => realization%discretization
@@ -830,8 +836,8 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
                              material_parameter%soil_heat_capacity(imat), &
-                             option,Res,Jac_dummy, &
-                             PETSC_FALSE)
+                             option,Res,PETSC_FALSE)
+    call WIPPFloConvertUnitsToBRAGFlo(Res,material_auxvars(ghosted_id),option)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     accum_p2(local_start:local_end) = Res(:)
   enddo
@@ -859,7 +865,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
 
-      call WIPPFloFlux(wippflo_auxvars(ZERO_INTEGER,ghosted_id_up), &
+      call XXFlux(wippflo_auxvars(ZERO_INTEGER,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
                        material_auxvars(ghosted_id_up), &
                        wippflo_auxvars(ZERO_INTEGER,ghosted_id_dn), &
@@ -869,7 +875,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                        cur_connection_set%dist(:,iconn), &
                        upwind_direction(:,sum_connection), &
                        wippflo_parameter,option,v_darcy,Res, &
-                       Jac_dummy,Jac_dummy, &
                        PETSC_FALSE, & ! derivative call
                        wippflo_fix_upwind_direction, &
                        wippflo_update_upwind_direction, &
@@ -884,13 +889,21 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
       if (local_id_up > 0) then
         local_end = local_id_up * option%nflowdof
         local_start = local_end - option%nflowdof + 1
-        r_p(local_start:local_end) = r_p(local_start:local_end) + Res(:)
+        temp_Res = Res
+        call WIPPFloConvertUnitsToBRAGFlo(temp_Res, &
+                                         material_auxvars(ghosted_id_up), &
+                                         option)
+        r_p(local_start:local_end) = r_p(local_start:local_end) + temp_Res(:)
       endif
          
       if (local_id_dn > 0) then
         local_end = local_id_dn * option%nflowdof
         local_start = local_end - option%nflowdof + 1
-        r_p(local_start:local_end) = r_p(local_start:local_end) - Res(:)
+        temp_Res = Res
+        call WIPPFloConvertUnitsToBRAGFlo(temp_Res, &
+                                         material_auxvars(ghosted_id_dn), &
+                                         option)
+        r_p(local_start:local_end) = r_p(local_start:local_end) - temp_Res(:)
       endif
     enddo
 
@@ -916,7 +929,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
 
       icap_dn = patch%sat_func_id(ghosted_id)
 
-      call WIPPFloBCFlux(boundary_condition%flow_bc_type, &
+      call XXBCFlux(boundary_condition%flow_bc_type, &
                      boundary_condition%flow_aux_mapping, &
                      boundary_condition%flow_aux_real_var(:,iconn), &
                      wippflo_auxvars_bc(sum_connection), &
@@ -928,7 +941,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                      cur_connection_set%dist(:,iconn), &
                      upwind_direction_bc(:,sum_connection), &
                      wippflo_parameter,option, &
-                     v_darcy,Res,Jac_dummy, &
+                     v_darcy,Res, &
                      PETSC_FALSE, & ! derivative call
                      wippflo_fix_upwind_direction, &
                      wippflo_update_upwind_direction, &
@@ -947,6 +960,9 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
 
       local_end = local_id * option%nflowdof
       local_start = local_end - option%nflowdof + 1
+      call WIPPFloConvertUnitsToBRAGFlo(Res, &
+                                       material_auxvars(ghosted_id), &
+                                       option)
       r_p(local_start:local_end)= r_p(local_start:local_end) - Res(:)
 
     enddo
@@ -981,11 +997,10 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                           source_sink%flow_condition%general%rate%itype, &
                           wippflo_auxvars(ZERO_INTEGER,ghosted_id), &
                           global_auxvars(ghosted_id), &
+                          material_auxvars(ghosted_id), &
                           ss_flow_vol_flux, &
-                          scale,Res,Jac_dummy, &
+                          scale,Res, &
                           PETSC_FALSE)
-
-      r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
 
       if (associated(patch%ss_flow_vol_fluxes)) then
         patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux
@@ -999,6 +1014,10 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
           global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) - &
           Res(1:2)
       endif
+      call WIPPFloConvertUnitsToBRAGFlo(Res, &
+                                       material_auxvars(ghosted_id), &
+                                       option)
+      r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
 
     enddo
     source_sink => source_sink%next
@@ -1026,24 +1045,24 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   if (field%flow_mass_transfer /= PETSC_NULL_VEC) then
     ! scale by -1.d0 for contribution to residual.  A negative contribution
     ! indicates mass being added to system.
-    !call VecGetArrayF90(field%flow_mass_transfer,vec_p,ierr);CHKERRQ(ierr)
-    !call VecRestoreArrayF90(field%flow_mass_transfer,vec_p,ierr);CHKERRQ(ierr)
-    call VecAXPY(r,-1.d0,field%flow_mass_transfer,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%flow_mass_transfer,vec_p,ierr);CHKERRQ(ierr)
+    do local_id = 1, grid%nlmax  ! For each local node do...
+      ghosted_id = grid%nL2G(local_id)
+      imat = patch%imat(ghosted_id)
+      if (imat <= 0) cycle
+      local_end = local_id * option%nflowdof
+      local_start = local_end - option%nflowdof + 1
+      Res = vec_p(local_start:local_end)
+      call WIPPFloConvertUnitsToBRAGFlo(Res,material_auxvars(ghosted_id),option)
+      r_p(local_start:local_end) = r_p(local_start:local_end) - Res
+    enddo
+    call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%flow_mass_transfer,vec_p,ierr);CHKERRQ(ierr)
+!geh: due to the potential for units conversion, cannot VecAXPY
+!    call VecAXPY(r,-1.d0,field%flow_mass_transfer,ierr);CHKERRQ(ierr)
   endif                      
                         
-  if (realization%debug%vecview_residual) then
-    string = 'WFresidual'
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call VecView(r,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
-  if (realization%debug%vecview_solution) then
-    string = 'WFxx'
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call VecView(xx,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
-
   wippflo_update_upwind_direction = PETSC_FALSE
 
 end subroutine WIPPFloResidual
@@ -1065,7 +1084,6 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   use Connection_module
   use Coupler_module
   use Field_module
-  use Debug_module
   use Material_Aux_class
   use PM_WIPP_SrcSink_class
 
@@ -1081,7 +1099,6 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   Mat :: J
   MatType :: mat_type
   PetscReal :: norm
-  PetscViewer :: viewer
 
   PetscInt :: icap_up,icap_dn
   PetscReal :: qsrc, scale
@@ -1190,7 +1207,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
                               
-      call WIPPFloFluxDerivative(wippflo_auxvars(:,ghosted_id_up), &
+      call XXFluxDerivative(wippflo_auxvars(:,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
                      wippflo_auxvars(:,ghosted_id_dn), &
@@ -1238,7 +1255,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
 
       icap_dn = patch%sat_func_id(ghosted_id)
 
-      call WIPPFloBCFluxDerivative(boundary_condition%flow_bc_type, &
+      call XXBCFluxDerivative(boundary_condition%flow_bc_type, &
                       boundary_condition%flow_aux_mapping, &
                       boundary_condition%flow_aux_real_var(:,iconn), &
                       wippflo_auxvars_bc(sum_connection), &
@@ -1284,6 +1301,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
                         source_sink%flow_condition%general%rate%itype, &
                         wippflo_auxvars(:,ghosted_id), &
                         global_auxvars(ghosted_id), &
+                        material_auxvars(ghosted_id), &
                         scale,Jup)
 
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
@@ -1312,25 +1330,6 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
                           patch%aux%WIPPFlo%inactive_rows_local_ghosted, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
-  endif
-
-  if (realization%debug%matview_Jacobian) then
-    string = 'WFjacobian'
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call MatView(J,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
-  if (realization%debug%norm_Jacobian) then
-    option => realization%option
-    call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
-    write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option) 
-    call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
-    write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option) 
-    call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
-    write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option) 
   endif
 
 end subroutine WIPPFloJacobian

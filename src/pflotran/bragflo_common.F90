@@ -1,7 +1,6 @@
 module Bragflo_Common_module
 
   use WIPP_Flow_Aux_module
-  use WIPP_Flow_Common_module
   use Global_Aux_module
 
   use PFLOTRAN_Constants_module
@@ -18,9 +17,7 @@ module Bragflo_Common_module
   PetscReal, parameter :: floweps   = 1.d-24
 
   public :: BragfloFlux, &
-            BragfloBCFlux, &
-            BragfloFluxDerivative, &
-            BragfloBCFluxDerivative
+            BragfloBCFlux
             
 contains
 
@@ -32,7 +29,7 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
                        material_auxvar_dn, &
                        area, dist, upwind_direction, &
                        wippflo_parameter, &
-                       option,v_darcy,Res,Jup,Jdn, &
+                       option,v_darcy,Res, &
                        derivative_call, &
                        fix_upwind_direction, &
                        update_upwind_direction, &
@@ -53,14 +50,12 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: v_darcy(2)
+  PetscReal :: v_darcy(option%nphase)
   PetscReal :: area   ! area here is really area / alpha
   PetscReal :: dist(-1:3)
-  PetscInt :: upwind_direction(2)
+  PetscInt :: upwind_direction(option%nphase)
   type(wippflo_parameter_type) :: wippflo_parameter
   PetscReal :: Res(option%nflowdof)
-  PetscReal :: Jup(option%nflowdof,option%nflowdof)
-  PetscReal :: Jdn(option%nflowdof,option%nflowdof)
   PetscBool :: derivative_call
   PetscBool :: fix_upwind_direction
   PetscBool :: update_upwind_direction
@@ -96,13 +91,11 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
   PetscReal :: perm_rho_mu_area_up(2), perm_rho_mu_area_dn(2)
   PetscReal :: gravity_
   
-  ! DELETE
-  
-  PetscReal :: Jlup(2,2), Jldn(2,2)
-  PetscReal :: Jgup(2,2), Jgdn(2,2)
-
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
+
+  Res = 0.d0
+  v_darcy = 0.d0
 
   dist_up = dist(0)*dist(-1)
   dist_dn = dist(0)-dist_up
@@ -158,12 +151,6 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
     (perm_rho_mu_area_up * perm_rho_mu_area_dn) / &
     (dist_up*perm_rho_mu_area_dn + dist_dn*perm_rho_mu_area_up)
       
-  Res = 0.d0
-  Jup = 0.d0
-  Jdn = 0.d0  
-  
-  v_darcy = 0.d0
-
   iphase = LIQUID_PHASE
   if (wippflo_auxvar_up%kr(iphase) + &
       wippflo_auxvar_dn%kr(iphase) > eps) then
@@ -218,12 +205,8 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
       !                           mu[Pa-sec] * dP[Pa]]
       wat_mole_flux = perm_rho_mu_area_ave_over_dist(iphase) * &
                       rel_perm * delta_pressure
-      density_ave = WIPPFloAverageDensity(iphase, &
-                                          global_auxvar_up%istate, &
-                                          global_auxvar_dn%istate, &
-                                          wippflo_auxvar_up%den, &
-                                          wippflo_auxvar_dn%den, &
-                                          dummy,dummy)
+      density_ave = 0.5d0*(wippflo_auxvar_up%den(iphase) + &
+                           wippflo_auxvar_dn%den(iphase))
       ! v_darcy[m/sec] = wat_mole_flux[kmol/sec] / rho[kmol/m^3 phase] / 
       !                  area [m^2]
       v_darcy(iphase) = wat_mole_flux / density_ave / area_ave
@@ -287,12 +270,8 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
       !                           mu[Pa-sec] * dP[Pa]]
       air_mole_flux = perm_rho_mu_area_ave_over_dist(iphase) * &
                       rel_perm * delta_pressure
-      density_ave = WIPPFloAverageDensity(iphase, &
-                                          global_auxvar_up%istate, &
-                                          global_auxvar_dn%istate, &
-                                          wippflo_auxvar_up%den, &
-                                          wippflo_auxvar_dn%den, &
-                                          dummy,dummy)
+      density_ave = 0.5d0*(wippflo_auxvar_up%den(iphase) + &
+                           wippflo_auxvar_dn%den(iphase))
       ! v_darcy[m/sec] = air_mole_flux[kmol/sec] / rho[kmol/m^3 phase] / 
       !                  area [m^2]
       v_darcy(iphase) = air_mole_flux / density_ave / area_ave
@@ -310,7 +289,7 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          material_auxvar_dn, &
                          area,dist,upwind_direction, &
                          wippflo_parameter, &
-                         option,v_darcy,Res,J, &
+                         option,v_darcy,Res, &
                          derivative_call, &
                          fix_upwind_direction, &
                          update_upwind_direction, &
@@ -336,11 +315,10 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   class(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: area ! this is the actual area
   PetscReal :: dist(-1:3)
-  PetscInt :: upwind_direction(2)
+  PetscInt :: upwind_direction(option%nphase)
   type(wippflo_parameter_type) :: wippflo_parameter
-  PetscReal :: v_darcy(2)
+  PetscReal :: v_darcy(option%nphase)
   PetscReal :: Res(1:option%nflowdof)
-  PetscReal :: J(2,2)
   PetscBool :: derivative_call
   PetscBool :: fix_upwind_direction
   PetscBool :: update_upwind_direction
@@ -370,16 +348,12 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dn_scale
   PetscReal :: dummy
 
-  PetscReal :: Jl(2,2)
-  PetscReal :: Jg(2,2)
-  
   PetscInt :: idof
   
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
 
   Res = 0.d0
-  J = 0.d0
   v_darcy = 0.d0  
 
 !geh: we do not want to use the dot product with the unit vector, instead
@@ -651,180 +625,5 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   endif                   
 
 end subroutine BRAGFloBCFlux
-
-! ************************************************************************** !
-
-subroutine BRAGFloFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
-                                 material_auxvar_up, &
-                                 wippflo_auxvar_dn,global_auxvar_dn, &
-                                 material_auxvar_dn, &
-                                 area, dist, &
-                                 upwind_direction, &
-                                 wippflo_parameter, &
-                                 option,Jup,Jdn)
-  ! 
-  ! Computes the derivatives of the internal flux terms
-  ! for the Jacobian
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 07/11/17
-  ! 
-  use Option_module
-  use Material_Aux_class
-  
-  implicit none
-  
-  type(wippflo_auxvar_type) :: wippflo_auxvar_up(0:), wippflo_auxvar_dn(0:)
-  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
-  type(option_type) :: option
-  PetscReal :: area
-  PetscReal :: dist(-1:3)
-  PetscInt :: upwind_direction(option%nphase)
-  type(wippflo_parameter_type) :: wippflo_parameter
-  PetscReal :: Jup(option%nflowdof,option%nflowdof)
-  PetscReal :: Jdn(option%nflowdof,option%nflowdof)
-  PetscReal :: Janal_up(option%nflowdof,option%nflowdof)
-  PetscReal :: Janal_dn(option%nflowdof,option%nflowdof)
-  PetscReal :: Jdummy(option%nflowdof,option%nflowdof)
-
-  PetscReal :: v_darcy(option%nphase)
-  PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
-  PetscInt :: idof, irow
-
-  Jup = 0.d0
-  Jdn = 0.d0
-  
-  option%iflag = -2
-  call BRAGFloFlux(wippflo_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                   material_auxvar_up, &
-                   wippflo_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                   material_auxvar_dn, &
-                   area,dist,upwind_direction, &
-                   wippflo_parameter, &
-                   option,v_darcy,res,Janal_up,Janal_dn,&
-                   PETSC_TRUE, & ! derivative call 
-                   wippflo_fix_upwind_direction, &
-                   PETSC_FALSE, & ! update the upwind direction
-                   PETSC_FALSE, & ! count upwind direction flip
-                   PETSC_FALSE)
- 
-  ! upgradient derivatives
-  do idof = 1, option%nflowdof
-    call BRAGFloFlux(wippflo_auxvar_up(idof),global_auxvar_up, &
-                     material_auxvar_up, &
-                     wippflo_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                     material_auxvar_dn, &
-                     area,dist,upwind_direction, &
-                     wippflo_parameter, &
-                     option,v_darcy,res_pert,Jdummy,Jdummy, &
-                     PETSC_TRUE, & ! derivative call
-                     wippflo_fix_upwind_direction, &
-                     PETSC_FALSE, & ! update the upwind direction
-                     wippflo_count_upwind_dir_flip, &
-                     PETSC_FALSE)
-    do irow = 1, option%nflowdof
-      Jup(irow,idof) = (res_pert(irow)-res(irow))/wippflo_auxvar_up(idof)%pert
-    enddo !irow
-  enddo ! idof
-
-  ! downgradient derivatives
-  do idof = 1, option%nflowdof
-    call BRAGFloFlux(wippflo_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                     material_auxvar_up, &
-                     wippflo_auxvar_dn(idof),global_auxvar_dn, &
-                     material_auxvar_dn, &
-                     area,dist,upwind_direction, &
-                     wippflo_parameter, &
-                     option,v_darcy,res_pert,Jdummy,Jdummy, &
-                     PETSC_TRUE, & ! derivative call
-                     wippflo_fix_upwind_direction, &
-                     PETSC_FALSE, & ! update the upwind direction
-                     wippflo_count_upwind_dir_flip, &
-                     PETSC_FALSE)
-    do irow = 1, option%nflowdof
-      Jdn(irow,idof) = (res_pert(irow)-res(irow))/wippflo_auxvar_dn(idof)%pert
-    enddo !irow
-  enddo ! idof
-
-end subroutine BRAGFloFluxDerivative
-
-! ************************************************************************** !
-
-subroutine BRAGFloBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
-                                   wippflo_auxvar_up, &
-                                   global_auxvar_up, &
-                                   wippflo_auxvar_dn,global_auxvar_dn, &
-                                   material_auxvar_dn, &
-                                   area,dist,upwind_direction, &
-                                   wippflo_parameter, &
-                                   option,Jdn)
-  ! 
-  ! Computes the derivatives of the boundary flux terms
-  ! for the Jacobian
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 07/11/17
-  ! 
-
-  use Option_module 
-  use Material_Aux_class
-  
-  implicit none
-
-  type(option_type) :: option
-  PetscInt :: ibndtype(1:option%nflowdof)
-  PetscInt :: auxvar_mapping(WIPPFLO_MAX_INDEX)
-  PetscReal :: auxvars(:) ! from aux_real_var array
-  type(wippflo_auxvar_type) :: wippflo_auxvar_up, wippflo_auxvar_dn(0:)
-  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
-  PetscReal :: area
-  PetscReal :: dist(-1:3)
-  PetscInt :: upwind_direction(option%nphase)
-  type(wippflo_parameter_type) :: wippflo_parameter
-  PetscReal :: Jdn(option%nflowdof,option%nflowdof)
-
-  PetscReal :: v_darcy(option%nphase)
-  PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
-  PetscInt :: idof, irow
-  PetscReal :: Jdum(option%nflowdof,option%nflowdof)
-
-  Jdn = 0.d0
-
-  option%iflag = -2
-  call BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
-                     wippflo_auxvar_up,global_auxvar_up, &
-                     wippflo_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                     material_auxvar_dn, &
-                     area,dist,upwind_direction, &
-                     wippflo_parameter, &
-                     option,v_darcy,res,Jdum, &
-                     PETSC_TRUE, & ! derivative call
-                     wippflo_fix_upwind_direction, &
-                     PETSC_FALSE, & ! update the upwind direction
-                     PETSC_FALSE, & ! count upwind direction flip
-                     PETSC_FALSE)
-
-  ! downgradient derivatives
-  do idof = 1, option%nflowdof
-    call BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
-                       wippflo_auxvar_up,global_auxvar_up, &
-                       wippflo_auxvar_dn(idof),global_auxvar_dn, &
-                       material_auxvar_dn, &
-                       area,dist,upwind_direction, &
-                       wippflo_parameter, &
-                       option,v_darcy,res_pert,Jdum, &
-                       PETSC_TRUE, & ! derivative call
-                       wippflo_fix_upwind_direction, &
-                       PETSC_FALSE, & ! update the upwind direction
-                       wippflo_count_upwind_dir_flip, &
-                       PETSC_FALSE)   
-    do irow = 1, option%nflowdof
-      Jdn(irow,idof) = (res_pert(irow)-res(irow))/wippflo_auxvar_dn(idof)%pert
-    enddo !irow
-  enddo ! idof
-
-end subroutine BRAGFloBCFluxDerivative
 
 end module Bragflo_Common_module

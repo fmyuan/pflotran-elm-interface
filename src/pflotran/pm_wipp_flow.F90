@@ -307,6 +307,8 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       wippflo_use_creep_closure = PETSC_FALSE
     case('NO_GAS_GENERATION')
       wippflo_use_gas_generation = PETSC_FALSE
+    case('BRAGFLO_RESIDUAL_UNITS')
+      wippflow_use_bragflo_units = PETSC_TRUE
     case('DEBUG')
       wippflo_debug = PETSC_TRUE
     case('DEBUG_GAS_GENERATION')
@@ -609,8 +611,8 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   ! Author: Glenn Hammond
   ! Date: 07/11/17
   ! 
-
   use WIPP_Flow_module, only : WIPPFloResidual
+  use Debug_module
 
   implicit none
   
@@ -619,11 +621,27 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   Vec :: xx
   Vec :: r
   PetscErrorCode :: ierr
+
+  PetscViewer :: viewer
+  character(len=MAXSTRINGLENGTH) :: string
   
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
 
   ! calculate residual
   call WIPPFloResidual(snes,xx,r,this%realization,this%pmwss_ptr,ierr)
+
+  if (this%realization%debug%vecview_residual) then
+    string = 'WFresidual'
+    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+    call VecView(r,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+  if (this%realization%debug%vecview_solution) then
+    string = 'WFxx'
+    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+    call VecView(xx,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
 
   call this%PostSolve()
 
@@ -638,6 +656,8 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   ! 
 
   use WIPP_Flow_module, only : WIPPFloJacobian
+  use Debug_module
+  use Option_module
 
   implicit none
   
@@ -646,8 +666,30 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
+
+  PetscViewer :: viewer
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscReal :: norm
   
   call WIPPFloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
+
+  if (this%realization%debug%matview_Jacobian) then
+    string = 'WFjacobian'
+    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+    call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+  if (this%realization%debug%norm_Jacobian) then
+    call MatNorm(A,NORM_1,norm,ierr);CHKERRQ(ierr)
+    write(this%option%io_buffer,'("1 norm: ",es11.4)') norm
+    call printMsg(this%option)
+    call MatNorm(A,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
+    write(this%option%io_buffer,'("2 norm: ",es11.4)') norm
+    call printMsg(this%option)
+    call MatNorm(A,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
+    write(this%option%io_buffer,'("inf norm: ",es11.4)') norm
+    call printMsg(this%option)
+  endif
 
 end subroutine PMWIPPFloJacobian
 
@@ -1064,12 +1106,17 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
     liquid_equation_index = offset + WIPPFLO_LIQUID_EQUATION_INDEX
     gas_equation_index = offset + WIPPFLO_GAS_EQUATION_INDEX
 
-    pflotran_to_bragflo = fmw_comp * option%flow_dt / &
-                          material_auxvars(ghosted_id)%volume
-    bragflo_residual = r_p(liquid_equation_index:gas_equation_index) * &
-                       pflotran_to_bragflo
-    bragflo_accum = accum2_p(liquid_equation_index:gas_equation_index) * &
-                    pflotran_to_bragflo
+    
+    bragflo_residual = r_p(liquid_equation_index:gas_equation_index)
+    bragflo_accum = accum2_p(liquid_equation_index:gas_equation_index)
+    if (.not.wippflow_use_bragflo_units) then
+      pflotran_to_bragflo = fmw_comp * option%flow_dt / &
+                            material_auxvars(ghosted_id)%volume
+      bragflo_residual = bragflo_residual * pflotran_to_bragflo
+      bragflo_accum = bragflo_accum * pflotran_to_bragflo
+    else
+      
+    endif
 
     if (wippflo_debug) then
       ! in bragflo gas is first.

@@ -345,6 +345,7 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
   ! 
   use Bragflo_module, only : BragfloJacobian
   use Debug_module
+  use Option_module
 
   implicit none
 
@@ -357,6 +358,7 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
   Vec :: residual_vec
   PetscViewer :: viewer
   character(len=MAXSTRINGLENGTH) :: string
+  PetscReal :: norm
 
   residual_vec = tVec(0)
 
@@ -421,6 +423,17 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
     call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
     call VecView(residual_vec,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+  if (this%realization%debug%norm_Jacobian) then
+    call MatNorm(A,NORM_1,norm,ierr);CHKERRQ(ierr)
+    write(this%option%io_buffer,'("1 norm: ",es11.4)') norm
+    call printMsg(this%option)
+    call MatNorm(A,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
+    write(this%option%io_buffer,'("2 norm: ",es11.4)') norm
+    call printMsg(this%option)
+    call MatNorm(A,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
+    write(this%option%io_buffer,'("inf norm: ",es11.4)') norm
+    call printMsg(this%option)
   endif
 
 end subroutine PMBragfloJacobian
