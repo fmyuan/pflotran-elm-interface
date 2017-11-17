@@ -36,6 +36,9 @@ module PFLOTRAN_Constants_module
   PetscReal, parameter, public :: FMWOIL = 142.D0 ! used as deafault value
 
   ! constants
+  PetscReal, parameter, public :: DAYS_PER_YEAR = 365.d0
+!geh: for bragflo year
+!  PetscReal, parameter, public :: DAYS_PER_YEAR = 365.24224537d0
   PetscReal, parameter, public :: H2O_CRITICAL_TEMPERATURE = 647.3d0  ! K
 #if defined(MATCH_TOUGH2)
   PetscReal, parameter, public :: H2O_CRITICAL_PRESSURE = 22.12d6 ! Pa
@@ -79,6 +82,7 @@ module PFLOTRAN_Constants_module
   PetscMPIInt, parameter, public :: FIVE_INTEGER_MPI = FIVE_INTEGER
   PetscMPIInt, parameter, public :: SIX_INTEGER_MPI = SIX_INTEGER
   PetscMPIInt, parameter, public :: SEVEN_INTEGER_MPI = SEVEN_INTEGER
+  PetscMPIInt, parameter, public :: TEN_INTEGER_MPI = TEN_INTEGER
   PetscMPIInt, parameter, public :: TWELVE_INTEGER_MPI = TWELVE_INTEGER
   PetscMPIInt, parameter, public :: MAXSTRINGLENGTH_MPI = MAXSTRINGLENGTH
   

@@ -249,7 +249,7 @@ WIPP_SOURCE_SINK
   BIOGENFC  0.725563609600067   ![-]
   PROBDEG   2       ![-]
 
-  OUTPUT_START_TIME 2.6d0 yr
+  OUTPUT_START_TIME 2.97d0 yr
   
   STOICHIOMETRIC_MATRIX
     0.0d0  1.0d0 -2.0d0 -1.0d0  0.0d0  1.0d0  0.0d0  0.0d0  0.0d0  0.0d0 # anoxic iron corrosion reaction
@@ -302,11 +302,11 @@ WIPP_SOURCE_SINK
   #  INVENTORY inv1
   #  SCALE_BY_VOLUME yes
   #/
-  WASTE_PANEL wp2
-    REGION wp2
-    INVENTORY inv1
-    SCALE_BY_VOLUME yes
-  /
+  #WASTE_PANEL wp2
+  #  REGION wp2
+  #  INVENTORY inv1
+  #  SCALE_BY_VOLUME yes
+  #/
   #WASTE_PANEL wp3
   #  REGION wp3
   #  INVENTORY inv1

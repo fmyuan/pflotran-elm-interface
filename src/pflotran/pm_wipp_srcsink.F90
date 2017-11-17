@@ -3672,6 +3672,7 @@ subroutine PMWSSCalcResidualValues(this,local_start,local_end,r_p, &
   ! Date: 10/20/2017
   ! 
   use WIPP_Flow_Aux_module
+  use Material_Aux_class
   
   implicit none
   
@@ -3698,15 +3699,20 @@ subroutine PMWSSCalcResidualValues(this,local_start,local_end,r_p, &
 ! air_comp_id: [-] air component id number
 ! k: [-] looping index integer
 ! wippflo_auxvars: [-] pointer to the wippflo auxvar object
+! pflotran_to_braglo: [kg-sec/kmol-m^3 bulk]
 ! ----------------------------------------------------------
   PetscReal :: Res(this%option%nflowdof)
   PetscInt :: ghosted_id, local_id
   PetscInt :: wat_comp_id, air_comp_id
   PetscInt :: k
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscReal :: pflotran_to_bragflo(2)
 ! ----------------------------------------------------------
 
+
   wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
+  material_auxvars => this%realization%patch%aux%Material%auxvars
   wat_comp_id = this%option%water_id
   air_comp_id = this%option%air_id
   
@@ -3730,7 +3736,14 @@ subroutine PMWSSCalcResidualValues(this,local_start,local_end,r_p, &
                       wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den(air_comp_id)
                      
     ! add Res(:) contribution to r_p vector
-    r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)                     
+    call WIPPFloConvertUnitsToBRAGFlo(Res,material_auxvars(ghosted_id), &
+                                     this%option)
+    r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
+    
+
+    if (wippflo_debug_gas_generation) then
+      print *, 'gas:', local_id, Res(1:2)
+    endif
                      
   enddo
 
@@ -3749,6 +3762,7 @@ subroutine PMWSSCalcJacobianValues(this,A,ierr)
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use WIPP_Flow_Aux_module
+  use Material_Aux_class
   
   implicit none
   
@@ -3781,6 +3795,7 @@ subroutine PMWSSCalcJacobianValues(this,A,ierr)
   PetscInt :: ghosted_id
   PetscInt :: wat_comp_id, air_comp_id
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: J_block(this%option%nflowdof,this%option%nflowdof)
 ! ---------------------------------------------------------------
 
@@ -3788,6 +3803,7 @@ subroutine PMWSSCalcJacobianValues(this,A,ierr)
   air_comp_id = this%option%air_id
  
   wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
+  material_auxvars => this%realization%patch%aux%Material%auxvars
   
   do k = 1,size(this%srcsink2ghosted)
   
@@ -3810,6 +3826,9 @@ subroutine PMWSSCalcJacobianValues(this,A,ierr)
     res_pert = this%srcsink_gas(PERT_WRT_SG,k)
     ! construct non-zero portion of Jacobian block dRes/dSg contribution
     J_block(air_comp_id,WIPPFLO_GAS_SATURATION_DOF) = (res_pert - res)/pert_sg
+
+    call WIPPFloConvertUnitsToBRAGFlo(J_block(:,WIPPFLO_GAS_SATURATION_DOF), &
+                                     material_auxvars(ghosted_id),this%option)
   
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,J_block, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)

@@ -12,6 +12,17 @@ module PM_WIPP_Flow_class
 
   private
 
+  PetscInt, parameter :: FORCE_ITERATION = 1
+  PetscInt, parameter :: OUTSIDE_BOUNDS = 2
+  PetscInt, parameter :: MAX_RES_LIQ = 3
+  PetscInt, parameter :: MAX_RES_GAS = 4
+  PetscInt, parameter :: MAX_REL_CHANGE_LIQ_PRES_NI = 5
+  PetscInt, parameter :: MAX_CHANGE_GAS_SAT_NI = 6
+  PetscInt, parameter :: MAX_CHANGE_GAS_SAT_TS = 7
+  PetscInt, parameter :: MAX_CHANGE_LIQ_PRES_TS = 8
+  PetscInt, parameter :: MAX_REL_CHANGE_LIQ_PRES_TS = 9
+  PetscInt, parameter :: MIN_GAS_PRES = 10
+
   type, public, extends(pm_subsurface_flow_type) :: pm_wippflo_type
     PetscInt, pointer :: max_change_ivar(:)
     PetscReal :: liquid_equation_tolerance
@@ -33,6 +44,9 @@ module PM_WIPP_Flow_class
     PetscInt :: iconvtest
     class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
     Vec :: stored_residual_vec
+    PetscInt :: convergence_flags(10)
+    ! store maximum quantities for the above
+    PetscReal :: convergence_reals(10)
   contains
     procedure, public :: Read => PMWIPPFloRead
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
@@ -44,6 +58,7 @@ module PM_WIPP_Flow_class
     procedure, public :: PostSolve => PMWIPPFloPostSolve
     procedure, public :: CheckUpdatePre => PMWIPPFloCheckUpdatePre
     procedure, public :: CheckUpdatePost => PMWIPPFloCheckUpdatePost
+    procedure, public :: CheckConvergence => PMWIPPFloConvergence
     procedure, public :: TimeCut => PMWIPPFloTimeCut
     procedure, public :: UpdateSolution => PMWIPPFloUpdateSolution
     procedure, public :: UpdateAuxVars => PMWIPPFloUpdateAuxVars
@@ -59,6 +74,7 @@ module PM_WIPP_Flow_class
             PMWIPPFloInitObject, &
             PMWIPPFloReadSelectCase, &
             PMWIPPFloInitializeRun, &
+            PMWIPPFloCheckUpdatePre, &
             PMWIPPFloDestroy
   
 contains
@@ -129,9 +145,11 @@ subroutine PMWIPPFloInitObject(this)
   this%presnorm = 5.d5    ! [Pa]
   this%tswitch = 0.01d0   ! [-]
   this%dtimemax = 1.25    ! [-]
-  this%deltmin = 864.d0   ! [sec]
+  this%deltmin = 8.64d-4  ! [sec]
   this%stored_residual_vec = PETSC_NULL_VEC
   this%iconvtest = 1      ! 0 = either, 1 = both
+  this%convergence_flags = 0
+  this%convergence_reals = 0.d0
 
 end subroutine PMWIPPFloInitObject
 
@@ -288,7 +306,16 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       wippflo_use_fracture = PETSC_FALSE
     case('NO_CREEP_CLOSURE')
       wippflo_use_creep_closure = PETSC_FALSE
+    case('NO_GAS_GENERATION')
+      wippflo_use_gas_generation = PETSC_FALSE
+    case('BRAGFLO_RESIDUAL_UNITS')
+      wippflow_use_bragflo_units = PETSC_TRUE
+    case('DEBUG')
+      wippflo_debug = PETSC_TRUE
+    case('DEBUG_GAS_GENERATION')
+      wippflo_debug_gas_generation = PETSC_TRUE
     case('DEBUG_FIRST_ITERATION')
+      wippflo_debug = PETSC_TRUE
       wippflo_debug_first_iteration = PETSC_TRUE
     case('USE_LEGACY_PERTURBATION')
       wippflo_use_legacy_perturbation = PETSC_TRUE
@@ -393,7 +420,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   input => InputCreate(IN_UNIT,this%option%input_filename,this%option)
   block_string = 'WIPP_SOURCE_SINK'
   call InputFindStringInFile(input,this%option,block_string)
-  if (input%ierr == 0) then
+  if (input%ierr == 0 .and. wippflo_use_gas_generation) then
     this%pmwss_ptr => PMWSSCreate()
     this%pmwss_ptr%option => this%option
     call this%pmwss_ptr%Read(input)
@@ -443,6 +470,9 @@ subroutine PMWIPPFloInitializeTimestep(this)
   if (associated(this%pmwss_ptr)) then
     call this%pmwss_ptr%InitializeTimestep()
   endif
+
+  this%convergence_flags = 0
+  this%convergence_reals = 0.d0
   
 end subroutine PMWIPPFloInitializeTimestep
 
@@ -582,8 +612,8 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   ! Author: Glenn Hammond
   ! Date: 07/11/17
   ! 
-
   use WIPP_Flow_module, only : WIPPFloResidual
+  use Debug_module
 
   implicit none
   
@@ -592,11 +622,27 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   Vec :: xx
   Vec :: r
   PetscErrorCode :: ierr
+
+  PetscViewer :: viewer
+  character(len=MAXSTRINGLENGTH) :: string
   
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
 
   ! calculate residual
   call WIPPFloResidual(snes,xx,r,this%realization,this%pmwss_ptr,ierr)
+
+  if (this%realization%debug%vecview_residual) then
+    string = 'WFresidual'
+    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+    call VecView(r,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+  if (this%realization%debug%vecview_solution) then
+    string = 'WFxx'
+    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+    call VecView(xx,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
 
   call this%PostSolve()
 
@@ -611,6 +657,8 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   ! 
 
   use WIPP_Flow_module, only : WIPPFloJacobian
+  use Debug_module
+  use Option_module
 
   implicit none
   
@@ -619,8 +667,30 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
+
+  PetscViewer :: viewer
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscReal :: norm
   
   call WIPPFloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
+
+  if (this%realization%debug%matview_Jacobian) then
+    string = 'WFjacobian'
+    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+    call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+  if (this%realization%debug%norm_Jacobian) then
+    call MatNorm(A,NORM_1,norm,ierr);CHKERRQ(ierr)
+    write(this%option%io_buffer,'("1 norm: ",es11.4)') norm
+    call printMsg(this%option)
+    call MatNorm(A,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
+    write(this%option%io_buffer,'("2 norm: ",es11.4)') norm
+    call printMsg(this%option)
+    call MatNorm(A,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
+    write(this%option%io_buffer,'("inf norm: ",es11.4)') norm
+    call printMsg(this%option)
+  endif
 
 end subroutine PMWIPPFloJacobian
 
@@ -654,7 +724,6 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
-  type(global_auxvar_type), pointer :: global_auxvars(:)  
   PetscReal, pointer :: X_p(:)
   PetscReal, pointer :: dX_p(:)
   PetscInt :: local_id
@@ -662,19 +731,20 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscInt :: offset
   PetscInt :: saturation_index 
   PetscInt :: pressure_index
-  PetscInt :: temp_int(2)
   PetscBool :: cut_timestep
   PetscBool :: force_another_iteration
   PetscReal :: saturation0, saturation1, del_saturation
   PetscReal :: pressure0, pressure1, del_pressure
 
   SNES :: snes
+
+  this%convergence_flags = 0
+  this%convergence_reals = 0.d0
   
   grid => this%realization%patch%grid
   option => this%realization%option
   field => this%realization%field
   wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
-  global_auxvars => this%realization%patch%aux%Global%auxvars
 
   patch => this%realization%patch
 
@@ -734,14 +804,8 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
 
-  temp_int(:) = 0
-  if (force_another_iteration) temp_int(1) = 1
-  if (cut_timestep) temp_int(2) = 1
-  call MPI_Allreduce(MPI_IN_PLACE,temp_int,TWO_INTEGER_MPI, &
-                     MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
-  option%convergence = CONVERGENCE_KEEP_ITERATING
-  if (temp_int(1) > 0) option%convergence = CONVERGENCE_FORCE_ITERATION
-  if (temp_int(2) > 0) option%convergence = CONVERGENCE_CUT_TIMESTEP
+  if (force_another_iteration) this%convergence_flags(FORCE_ITERATION) = 1
+  if (cut_timestep) this%convergence_flags(OUTSIDE_BOUNDS) = 1
 
 end subroutine PMWIPPFloCheckUpdatePre
 
@@ -753,8 +817,6 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   ! Author: Glenn Hammond
   ! Date: 07/11/17
   ! 
-  use WIPP_Flow_Aux_module
-  use Global_Aux_module
   use Grid_module
   use Option_module
   use Realization_Subsurface_class
@@ -763,7 +825,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   use Patch_module
   use Option_module
   use Material_Aux_class  
-  use Output_EKG_module
+  use WIPP_Flow_Aux_module
   
   implicit none
   
@@ -781,44 +843,24 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
-  type(global_auxvar_type), pointer :: global_auxvars(:)  
-  class(material_auxvar_type), pointer :: material_auxvars(:)  
-  type(material_parameter_type), pointer :: material_parameter
 
   PetscReal, pointer :: X0_p(:)
   PetscReal, pointer :: X1_p(:)
   PetscReal, pointer :: dX_p(:)
-  PetscReal, pointer :: r_p(:)
-  PetscReal, pointer :: accum_p(:), accum_p2(:)
   PetscReal, pointer :: press_ptr(:)
   PetscReal, pointer :: sat_ptr(:)
 
   PetscInt :: local_id, ghosted_id
-  PetscInt :: offset , idof
-  PetscInt :: liquid_equation_index
-  PetscInt :: gas_equation_index
+  PetscInt :: offset
   PetscInt :: saturation_index
   PetscInt :: pressure_index
-  PetscInt :: temp_int(8)
-  PetscReal :: temp_real(7)
 
-  PetscReal, parameter :: zero_saturation = 1.d-15
-  PetscReal, parameter :: zero_accumulation = 1.d-15
-
-  PetscReal :: residual
-  PetscReal :: accumulation
-  PetscReal :: residual_over_accumulation
   PetscReal :: abs_X
   PetscReal :: abs_dX
   PetscReal :: abs_dX_TS
   PetscReal :: rel_dX_TS
-  PetscBool :: converged_liquid_equation
-  PetscBool :: converged_gas_equation
   PetscBool :: converged_liquid_pressure
   PetscBool :: converged_gas_saturation
-  PetscBool :: converged_overall
-  PetscReal :: max_liq_eq
-  PetscReal :: max_gas_eq
   PetscReal :: max_liq_pres_rel_change
   PetscReal :: max_gas_sat_change_NI
   PetscReal :: max_gas_sat_change_TS
@@ -826,8 +868,6 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscReal :: max_rel_pressure_change_TS
   PetscReal :: min_liq_pressure
   PetscReal :: min_gas_pressure
-  PetscInt :: max_liq_eq_cell
-  PetscInt :: max_gas_eq_cell
   PetscInt :: max_liq_pres_rel_change_cell
   PetscInt :: max_gas_sat_change_NI_cell
   PetscInt :: max_gas_sat_change_TS_cell
@@ -836,18 +876,12 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscInt :: min_liq_pressure_cell
   PetscInt :: min_gas_pressure_cell
   PetscReal :: abs_dX_over_absX
-  PetscReal :: pflotran_to_bragflo(2)
-  character(len=4) :: reason
-  PetscInt :: istart, iend
   
   grid => this%realization%patch%grid
   option => this%realization%option
   field => this%realization%field
   patch => this%realization%patch
   wippflo_auxvars => patch%aux%WIPPFlo%auxvars
-  global_auxvars => patch%aux%Global%auxvars
-  material_auxvars => patch%aux%Material%auxvars
-  material_parameter => patch%aux%Material%material_parameter
 
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
@@ -855,26 +889,11 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(X1,X1_p,ierr);CHKERRQ(ierr)
-  if (this%stored_residual_vec == PETSC_NULL_VEC) then
-    call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-  else
-    ! this vector is to be used if linear system scaling is employed in 
-    ! BRAGFLO mode as the residual will be altered by that scaling.  This
-    ! vector stores the original residual. 
-    call VecGetArrayReadF90(this%stored_residual_vec,r_p,ierr);CHKERRQ(ierr)
-  endif
-  call VecGetArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%flow_accum2,accum_p2,ierr);CHKERRQ(ierr)
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
   call VecGetArrayReadF90(field%max_change_vecs(1),press_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%max_change_vecs(3),sat_ptr,ierr);CHKERRQ(ierr)
-  converged_overall = PETSC_TRUE
-  converged_liquid_equation = PETSC_TRUE
-  converged_gas_equation = PETSC_TRUE
   converged_liquid_pressure = PETSC_TRUE
   converged_gas_saturation = PETSC_TRUE
-  max_liq_eq = 0.d0
-  max_gas_eq = 0.d0
   max_liq_pres_rel_change = 0.d0
   max_gas_sat_change_NI = 0.d0
   max_gas_sat_change_TS = 0.d0
@@ -882,8 +901,6 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   max_rel_pressure_change_TS = 0.d0
   min_liq_pressure = 1.d20
   min_gas_pressure = 1.d20
-  max_liq_eq_cell = 0
-  max_gas_eq_cell = 0
   max_liq_pres_rel_change_cell = 0
   max_gas_sat_change_NI_cell = 0
   max_gas_sat_change_TS_cell = 0
@@ -895,60 +912,17 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     offset = (local_id-1)*option%nflowdof
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
-    liquid_equation_index = offset + WIPPFLO_LIQUID_EQUATION_INDEX
-    gas_equation_index = offset + WIPPFLO_GAS_EQUATION_INDEX
     pressure_index = offset + WIPPFLO_LIQUID_PRESSURE_DOF
     saturation_index = offset + WIPPFLO_GAS_SATURATION_DOF
-
-    if (wippflo_debug_first_iteration) then
-      pflotran_to_bragflo = fmw_comp * option%flow_dt / &
-                            material_auxvars(ghosted_id)%volume
-      print *, local_id, r_p(1:2) * pflotran_to_bragflo
-    endif
-    
-    ! liquid component equation
-    if (accum_p2(liquid_equation_index) > zero_accumulation) then 
-      residual = r_p(liquid_equation_index)
-      accumulation = accum_p2(liquid_equation_index)
-      residual_over_accumulation = residual / accumulation
-      if (max_liq_eq < dabs(residual_over_accumulation)) then
-        max_liq_eq_cell = local_id
-        max_liq_eq = residual_over_accumulation
-      endif
-      if (dabs(residual) > this%liquid_equation_tolerance) then
-        if (dabs(residual_over_accumulation) > &
-            this%liquid_equation_tolerance) then
-          converged_liquid_equation = PETSC_FALSE
-        endif
-      endif
-    endif
-
-    ! gas component equation
-    if (accum_p2(gas_equation_index) > zero_accumulation .and. &
-        X1_p(gas_equation_index) > zero_saturation) then
-      residual = r_p(gas_equation_index)
-      accumulation = accum_p2(gas_equation_index)
-      residual_over_accumulation = residual / accumulation
-      if (max_gas_eq < dabs(residual_over_accumulation)) then
-        max_gas_eq_cell = local_id
-        max_gas_eq = residual_over_accumulation
-      endif
-      if (dabs(residual) > this%gas_equation_tolerance) then 
-        if (dabs(residual_over_accumulation) > &
-            this%gas_equation_tolerance) then
-          converged_gas_equation = PETSC_FALSE
-        endif
-      endif
-    endif
 
     !TODO(geh): switch to flow_yy as it is cleaner and more precise.
     ! maximum relative change in liquid pressure
     abs_X = dabs(X1_p(pressure_index))
     if (abs_X > 0.d0) then
       abs_dX_over_absX = dabs(dX_p(pressure_index))/abs_X
-      if (dabs(max_liq_pres_rel_change) < abs_dX_over_absX) then
+      if (max_liq_pres_rel_change < abs_dX_over_absX) then
         max_liq_pres_rel_change_cell = local_id
-        max_liq_pres_rel_change = dX_p(pressure_index)/abs_X
+        max_liq_pres_rel_change = abs_dX_over_absX
       endif
       if (abs_dX_over_absX >= this%liquid_pressure_tolerance) then
         converged_liquid_pressure = PETSC_FALSE
@@ -960,34 +934,17 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     !TODO(geh): change '<' to '<=' according to bragflo
     if ((-1.d0*log10(abs_dX)) < this%eps_sat) then
       converged_gas_saturation = PETSC_FALSE
-      if (dabs(max_gas_sat_change_NI) < abs_dX) then
+      if (max_gas_sat_change_NI < abs_dX) then
         max_gas_sat_change_NI_cell = local_id
-        max_gas_sat_change_NI = dX_p(saturation_index)
+        max_gas_sat_change_NI = abs_dX
       endif
     endif
 
-    ! check whether either gas or liquid has failed
-    if (converged_overall) then
-      if (this%iconvtest == 1) then ! both must pass
-        converged_overall = (&
-          (converged_gas_equation .and. &
-           converged_gas_saturation) .and. &
-          (converged_liquid_equation .and. &
-           converged_liquid_pressure))
-      else ! either must pass
-        converged_overall = (&
-          (converged_gas_equation .or. &
-           converged_gas_saturation) .and. &
-          (converged_liquid_equation .or. &
-           converged_liquid_pressure))
-      endif
-    endif
-    
     !TODO(geh): remove storage of signed max change over time step
     ! DSAT_MAX maximum absolute gas saturation change over time step
     abs_dX_TS = dabs(sat_ptr(local_id)-X1_p(saturation_index))
     if (abs_dX_TS > 0.d0) then
-      if (dabs(max_gas_sat_change_TS) < abs_dX_TS) then
+      if (max_gas_sat_change_TS < abs_dX_TS) then
         max_gas_sat_change_TS_cell = local_id
         max_gas_sat_change_TS = abs_dX_TS
       endif
@@ -996,7 +953,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     ! DPRE_MAX maximum absolute liquid pressure change over time step
     abs_dX_TS = dabs(press_ptr(local_id)-X1_p(pressure_index))
     if (abs_dX_TS > 0.d0) then
-      if (dabs(max_abs_pressure_change_TS) < abs_dX_TS) then
+      if (max_abs_pressure_change_TS < abs_dX_TS) then
         max_abs_pressure_change_TS_cell = local_id
         max_abs_pressure_change_TS = abs_dX_TS
       endif
@@ -1007,7 +964,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     rel_dX_TS = dabs((press_ptr(local_id)-X1_p(pressure_index))/ &
                      X1_p(pressure_index))
     if (rel_dX_TS > 0.d0) then
-      if (dabs(max_rel_pressure_change_TS) < rel_dX_TS) then
+      if (max_rel_pressure_change_TS < rel_dX_TS) then
         max_rel_pressure_change_TS_cell = local_id
         max_rel_pressure_change_TS = rel_dX_TS
       endif
@@ -1028,76 +985,284 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
 
   if (wippflo_debug_first_iteration) stop
 
-  temp_int = 0
-  if (.not.converged_liquid_equation) temp_int(1) = 1
-  if (.not.converged_gas_equation) temp_int(2) = 1
-  if (.not.converged_liquid_pressure) temp_int(3) = 1
-  if (.not.converged_gas_saturation) temp_int(4) = 1
-  if (min_gas_pressure < 0.d0) temp_int(5) = 1
-  if (converged_overall) then
-    if (max_gas_sat_change_TS > this%dsat_max) temp_int(6) = 1
-    if (max_abs_pressure_change_TS > this%dpres_max) temp_int(7) = 1
-    !geh: in bragflo, the relative change in liquid pressure is used to
-    !     force additional Newton iterations, but not to cut the time step.
-    !     See the comment "Check solution for maximum absolute change".
-    !     The relative change in liquid pressure over the time step is
-    !     used in MEAS_CONV to calculate EPSMAX(2) which is reported in 
-    !     SOLVER
-    !if (max_rel_pressure_change_TS > this%eps_pres) temp_int(8) = 1
-  else
-    temp_int(8) = 1
+  if (.not.converged_liquid_pressure) then 
+    this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI) = &
+      max_liq_pres_rel_change_cell
   endif
-  call MPI_Allreduce(MPI_IN_PLACE,temp_int,8, &
-                     MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
-  temp_real(1) = max_liq_eq
-  temp_real(2) = max_gas_eq
-  temp_real(3) = max_liq_pres_rel_change
-  temp_real(4) = max_gas_sat_change_NI
-  temp_real(5) = max_gas_sat_change_TS
-  temp_real(6) = max_abs_pressure_change_TS
-  temp_real(7) = max_rel_pressure_change_TS
-  call MPI_Allreduce(MPI_IN_PLACE,temp_real,SEVEN_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
-  max_liq_eq = temp_real(1)
-  max_gas_eq = temp_real(2)
-  max_liq_pres_rel_change = temp_real(3)
-  max_gas_sat_change_NI = temp_real(4)
-  max_gas_sat_change_TS = temp_real(5)
-  max_abs_pressure_change_TS = temp_real(6)
-  max_rel_pressure_change_TS = temp_real(7)
+  if (.not.converged_gas_saturation) then 
+    this%convergence_flags(MAX_CHANGE_GAS_SAT_NI) = max_gas_sat_change_NI_cell
+  endif
+  if (min_gas_pressure < 0.d0) then
+    this%convergence_flags(MIN_GAS_PRES) = min_gas_pressure_cell
+  endif
+  this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI) = max_liq_pres_rel_change
+  this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_TS) = &
+    max_rel_pressure_change_TS
+  this%convergence_reals(MAX_CHANGE_LIQ_PRES_TS) = max_abs_pressure_change_TS
+  this%convergence_reals(MAX_CHANGE_GAS_SAT_NI) = max_gas_sat_change_NI
+  this%convergence_reals(MAX_CHANGE_GAS_SAT_TS) = max_gas_sat_change_TS
+  this%convergence_reals(MIN_GAS_PRES) = min_gas_pressure
 
-  if (option%convergence == CONVERGENCE_CUT_TIMESTEP) then
-    reason = '!cut'
-  else if (maxval(temp_int(5:7)) > 0) then
-    option%convergence = CONVERGENCE_CUT_TIMESTEP
-    reason = '!   '
-    if (temp_int(5) > 0) reason(2:2) = 'P' ! absolute pressure over TS
-    if (temp_int(6) > 0) reason(3:3) = 'S' ! absolute saturation over TS
-    if (temp_int(7) > 0) reason(4:4) = '-' ! negative gas pressure
-  else if (option%convergence == CONVERGENCE_FORCE_ITERATION) then
-    reason = '!it '
-  else if (temp_int(8) > 0) then
-    option%convergence = CONVERGENCE_KEEP_ITERATING
-    reason = '    '
-    if (temp_int(1) > 0) reason(1:1) = 'L'
-    if (temp_int(2) > 0) reason(2:2) = 'G'
-    if (temp_int(3) > 0) reason(3:3) = 'P'
-    if (temp_int(4) > 0) reason(4:4) = 'S'
+  call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(X1,X1_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%max_change_vecs(1),press_ptr, &
+                              ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%max_change_vecs(3),sat_ptr, &
+                              ierr);CHKERRQ(ierr)
+                               
+end subroutine PMWIPPFloCheckUpdatePost
+
+! ************************************************************************** !
+
+subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
+                                            fnorm,reason,ierr)
+  ! Author: Glenn Hammond
+  ! Date: 11/15/17
+  ! 
+  use Grid_module
+  use Option_module
+  use Realization_Subsurface_class
+  use Grid_module
+  use Field_module
+  use Patch_module
+  use Option_module
+  use Material_Aux_class  
+  use WIPP_Flow_Aux_module
+  use Convergence_module
+
+  implicit none
+
+  class(pm_wippflo_type) :: this
+  SNES :: snes
+  PetscInt :: it
+  PetscReal :: xnorm
+  PetscReal :: unorm
+  PetscReal :: fnorm
+  SNESConvergedReason :: reason
+  PetscErrorCode :: ierr
+
+  Vec :: residual_vec
+  PetscReal, pointer :: r_p(:)
+  PetscReal, pointer :: accum2_p(:)
+  PetscReal, pointer :: X1_p(:)
+  PetscReal :: residual
+  PetscReal :: accumulation
+  PetscReal :: abs_residual_over_accumulation
+  character(len=10) :: reason_string
+
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(patch_type), pointer :: patch
+  type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)  
+
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: offset
+  PetscInt :: liquid_equation_index
+  PetscInt :: gas_equation_index
+  PetscInt :: converged_flag
+
+  PetscReal, parameter :: zero_saturation = 1.d-15
+  PetscReal, parameter :: zero_accumulation = 1.d-15
+
+  PetscBool :: converged_liquid_equation
+  PetscBool :: converged_gas_equation
+  PetscReal :: max_liq_eq
+  PetscReal :: max_gas_eq
+  PetscInt :: max_liq_eq_cell
+  PetscInt :: max_gas_eq_cell
+  PetscReal :: pflotran_to_bragflo(2)
+  PetscReal :: bragflo_residual(2)
+  PetscReal :: bragflo_accum(2)
+  PetscInt :: istart, iend
+  
+  grid => this%realization%patch%grid
+  option => this%realization%option
+  field => this%realization%field
+  patch => this%realization%patch
+  wippflo_auxvars => patch%aux%WIPPFlo%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+
+  residual_vec = tVec(0)
+  ! check residual terms
+  if (this%stored_residual_vec == PETSC_NULL_VEC) then
+    residual_vec = field%flow_r
   else
-    reason = '----'
-    option%convergence = CONVERGENCE_CONVERGED
+    ! this vector is to be used if linear system scaling is employed in 
+    ! BRAGFLO mode as the residual will be altered by that scaling.  This
+    ! vector stores the original residual. 
+    residual_vec = this%stored_residual_vec
+  endif
+  call VecGetArrayReadF90(residual_vec,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
+  converged_liquid_equation = PETSC_TRUE
+  converged_gas_equation = PETSC_TRUE
+  do local_id = 1, grid%nlmax
+    offset = (local_id-1)*option%nflowdof
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    liquid_equation_index = offset + WIPPFLO_LIQUID_EQUATION_INDEX
+    gas_equation_index = offset + WIPPFLO_GAS_EQUATION_INDEX
+
+    
+    bragflo_residual = r_p(liquid_equation_index:gas_equation_index)
+    bragflo_accum = accum2_p(liquid_equation_index:gas_equation_index)
+    if (.not.wippflow_use_bragflo_units) then
+      pflotran_to_bragflo = fmw_comp * option%flow_dt / &
+                            material_auxvars(ghosted_id)%volume
+      bragflo_residual = bragflo_residual * pflotran_to_bragflo
+      bragflo_accum = bragflo_accum * pflotran_to_bragflo
+    else
+      
+    endif
+
+    if (wippflo_debug) then
+      ! in bragflo gas is first.
+      print *, local_id, bragflo_residual(2), bragflo_residual(1)
+    endif
+    
+    ! liquid component equation
+!    if (accum2_p(liquid_equation_index) > zero_accumulation) then 
+!      residual = r_p(liquid_equation_index)
+!      accumulation = accum2_p(liquid_equation_index)
+    if (bragflo_accum(WIPPFLO_LIQUID_EQUATION_INDEX) > zero_accumulation) then 
+      residual = bragflo_residual(WIPPFLO_LIQUID_EQUATION_INDEX)
+      accumulation = bragflo_accum(WIPPFLO_LIQUID_EQUATION_INDEX)
+      abs_residual_over_accumulation = dabs(residual / accumulation)
+      if (max_liq_eq < abs_residual_over_accumulation) then
+        max_liq_eq_cell = local_id
+        max_liq_eq = abs_residual_over_accumulation
+      endif
+      if (dabs(residual) > this%liquid_equation_tolerance) then
+        if (abs_residual_over_accumulation > &
+            this%liquid_equation_tolerance) then
+          converged_liquid_equation = PETSC_FALSE
+        endif
+      endif
+    endif
+
+    ! gas component equation
+!    if (accum2_p(gas_equation_index) > zero_accumulation .and. &
+    if (bragflo_accum(WIPPFLO_GAS_EQUATION_INDEX) > zero_accumulation .and. &
+        X1_p(gas_equation_index) > zero_saturation) then
+!      residual = r_p(gas_equation_index)
+!      accumulation = accum2_p(gas_equation_index)
+      residual = bragflo_residual(WIPPFLO_GAS_EQUATION_INDEX)
+      accumulation = bragflo_accum(WIPPFLO_GAS_EQUATION_INDEX)
+      abs_residual_over_accumulation = abs(residual / accumulation)
+      if (max_gas_eq < abs_residual_over_accumulation) then
+        max_gas_eq_cell = local_id
+        max_gas_eq = abs_residual_over_accumulation
+      endif
+      if (dabs(residual) > this%gas_equation_tolerance) then 
+        if (abs_residual_over_accumulation > &
+            this%gas_equation_tolerance) then
+          converged_gas_equation = PETSC_FALSE
+        endif
+      endif
+    endif
+  enddo
+
+  if (.not.converged_liquid_equation) then
+    this%convergence_flags(MAX_RES_LIQ) = max_liq_eq_cell
+  endif
+  if (.not.converged_gas_equation) then
+    this%convergence_flags(MAX_RES_GAS) = max_gas_eq_cell
+  endif
+  this%convergence_reals(MAX_RES_LIQ) = max_liq_eq
+  this%convergence_reals(MAX_RES_GAS) = max_gas_eq
+
+  call MPI_Allreduce(MPI_IN_PLACE,this%convergence_flags,TEN_INTEGER_MPI, &
+                     MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
+  ! flip sign on min gas pressure in order to use MPI_MAX to get minimum value
+  this%convergence_reals(MIN_GAS_PRES) = &
+    -1.d0 * this%convergence_reals(MIN_GAS_PRES)
+  call MPI_Allreduce(MPI_IN_PLACE,this%convergence_reals,SEVEN_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+  ! flip sign back
+  this%convergence_reals(MIN_GAS_PRES) = &
+    -1.d0 * this%convergence_reals(MIN_GAS_PRES)
+
+  ! these conditionals cannot change order
+  reason_string = '-------|--'
+  converged_flag = CONVERGENCE_CONVERGED
+  if (this%convergence_flags(OUTSIDE_BOUNDS) > 0) then
+    converged_flag = CONVERGENCE_CUT_TIMESTEP
+    reason_string(1:1) = 'B'
+  endif
+  if (this%convergence_flags(MIN_GAS_PRES) > 0) then
+    converged_flag = CONVERGENCE_CUT_TIMESTEP
+    reason_string(2:2) = 'N'
+  endif
+  if (this%convergence_flags(FORCE_ITERATION) > 0) then
+    if (converged_flag == CONVERGENCE_CONVERGED) then
+      converged_flag = CONVERGENCE_FORCE_ITERATION
+    endif
+    reason_string(3:3) = '!'
+  endif
+  converged_liquid_equation = PETSC_TRUE
+  converged_gas_equation = PETSC_TRUE
+  if (this%convergence_flags(MAX_RES_LIQ) > 0) then
+    if (converged_flag /= CONVERGENCE_CUT_TIMESTEP) then
+      converged_flag = CONVERGENCE_KEEP_ITERATING ! cannot override cut
+    endif
+    converged_liquid_equation = PETSC_FALSE
+    reason_string(4:4) = 'L'
+  endif
+  if (this%convergence_flags(MAX_RES_GAS) > 0) then
+    if (converged_flag /= CONVERGENCE_CUT_TIMESTEP) then
+      converged_flag = CONVERGENCE_KEEP_ITERATING ! cannot override cut
+    endif
+    converged_gas_equation = PETSC_FALSE
+    reason_string(5:5) = 'G'
+  endif
+  if (this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI) > 0) then
+    if (this%iconvtest == 1 .or. .not.converged_liquid_equation) then
+      if (converged_flag /= CONVERGENCE_CUT_TIMESTEP) then
+        converged_flag = CONVERGENCE_KEEP_ITERATING ! cannot override cut
+      endif
+      reason_string(6:6) = 'P'
+    endif
+  endif
+  if (this%convergence_flags(MAX_CHANGE_GAS_SAT_NI) > 0) then
+    if (converged_flag /= CONVERGENCE_CUT_TIMESTEP) then
+      if (this%iconvtest == 1 .or. .not.converged_gas_equation) then
+        converged_flag = CONVERGENCE_KEEP_ITERATING ! cannot override cut
+      endif
+      reason_string(7:7) = 'S'
+    endif
+  endif
+  if (converged_flag == CONVERGENCE_CONVERGED) then
+    ! converged based on NI criteria, but need to check TS
+    if (this%convergence_flags(MAX_CHANGE_LIQ_PRES_TS) > 0) then
+      converged_flag = CONVERGENCE_CUT_TIMESTEP
+      reason_string(9:9) = 'P'
+    endif
+    if (this%convergence_flags(MAX_CHANGE_GAS_SAT_TS) > 0) then
+      converged_flag = CONVERGENCE_CUT_TIMESTEP
+      reason_string(10:10) = 'S'
+    endif
   endif
   if (OptionPrintToScreen(option)) then
     if (option%mycommsize > 1) then
-      write(*,'(4x,"Reason: ",a4,4es10.2)') reason, &
-        max_liq_eq, max_gas_eq, &
-        max_liq_pres_rel_change, max_gas_sat_change_NI
+      write(*,'(4x,"Rsn: ",a10,4es10.2)') reason_string, &
+        this%convergence_reals(MAX_RES_LIQ), &
+        this%convergence_reals(MAX_RES_GAS), &
+        this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI), &
+        this%convergence_reals(MAX_CHANGE_GAS_SAT_NI)
     else
-      write(*,'(4x,"Reason: ",a4,4(i5,es10.2))') reason, &
-        max_liq_eq_cell, max_liq_eq, &
-        max_gas_eq_cell, max_gas_eq, &
-        max_liq_pres_rel_change_cell, max_liq_pres_rel_change, &
-        max_gas_sat_change_NI_cell, max_gas_sat_change_NI
+      write(*,'(4x,"Rsn: ",a10,4(i5,es10.2))') reason_string, &
+        this%convergence_flags(MAX_RES_LIQ), &
+        this%convergence_reals(MAX_RES_LIQ), &
+        this%convergence_flags(MAX_RES_GAS), &
+        this%convergence_reals(MAX_RES_GAS), &
+        this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI), &
+        this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI), &
+        this%convergence_flags(MAX_CHANGE_GAS_SAT_NI), &
+        this%convergence_reals(MAX_CHANGE_GAS_SAT_NI)
 ! for debugging
 #if 0
       local_id = min_gas_pressure_cell
@@ -1111,19 +1276,17 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
 #endif
     endif
   endif
+  option%convergence = converged_flag
 
-  call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(X1,X1_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%flow_accum2,accum_p2,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%max_change_vecs(1),press_ptr, &
-                              ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%max_change_vecs(3),sat_ptr, &
-                              ierr);CHKERRQ(ierr)
-                               
-end subroutine PMWIPPFloCheckUpdatePost
+  call VecRestoreArrayReadF90(residual_vec,r_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
+
+  call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
+                       this%realization%patch%grid, &
+                       this%option,this%solver,ierr)
+
+end subroutine PMWIPPFloConvergence
 
 ! ************************************************************************** !
 
@@ -1142,6 +1305,9 @@ subroutine PMWIPPFloTimeCut(this)
   call PMSubsurfaceFlowTimeCut(this)
   call WIPPFloTimeCut(this%realization)
 
+  this%convergence_flags = 0
+  this%convergence_reals = 0.d0
+
 end subroutine PMWIPPFloTimeCut
 
 ! ************************************************************************** !
@@ -1153,11 +1319,19 @@ subroutine PMWIPPFloUpdateSolution(this)
   ! 
 
   use WIPP_Flow_module, only : WIPPFloUpdateSolution, &
-                             WIPPFloMapBCAuxVarsToGlobal
+                               WIPPFloMapBCAuxVarsToGlobal
+  use WIPP_Flow_Aux_module, only : wippflo_debug
 
   implicit none
   
   class(pm_wippflo_type) :: this
+
+  if (wippflo_debug) then
+    write(*,'("Final: ",10es14.6)') &
+      this%realization%patch%aux%WIPPFlo%auxvars(0,1)%pres(1:2), &
+      this%realization%patch%aux%WIPPFlo%auxvars(0,1)%effective_porosity, &
+      this%realization%patch%aux%WIPPFlo%auxvars(0,1)%sat(1)
+  endif
   
   call PMSubsurfaceFlowUpdateSolution(this)
   call WIPPFloUpdateSolution(this%realization)

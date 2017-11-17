@@ -28,7 +28,6 @@ module Timestepper_BE_class
     PetscInt :: ntfac             ! size of tfac
             
     type(solver_type), pointer :: solver
-    type(convergence_context_type), pointer :: convergence_context
   
   contains
     
@@ -135,7 +134,6 @@ subroutine TimestepperBEInit(this)
   this%tfac(13) = 1.0d0
   
   nullify(this%solver)
-  nullify(this%convergence_context)
   
 end subroutine TimestepperBEInit
 
@@ -1071,7 +1069,6 @@ subroutine TimestepperBEStrip(this)
   
   call TimestepperBaseStrip(this)
   call SolverDestroy(this%solver)
-  call ConvergenceContextDestroy(this%convergence_context)
 
   if (associated(this%tfac)) deallocate(this%tfac)
   nullify(this%tfac)

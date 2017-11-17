@@ -165,7 +165,7 @@ subroutine HydrogeophysicsExecuteRun(this)
     final_time = SimulationGetFinalWaypointTime(this)
     ! take hourly steps until final time
     current_time = 0.d0
-    dt = 365.d0*24.d0*3600.d0
+    dt = DAYS_PER_YEAR*24.d0*3600.d0
     do
       current_time = min(current_time + dt,final_time)
       call this%RunToTime(current_time)
