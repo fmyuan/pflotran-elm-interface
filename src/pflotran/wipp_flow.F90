@@ -1314,6 +1314,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   
   ! WIPP gas/brine generation process model source/sinks
   if (associated(pmwss_ptr)) then
+    call pmwss_ptr%Solve(option%time,ierr)
     call PMWSSCalcJacobianValues(pmwss_ptr,A,ierr)
   endif
   
