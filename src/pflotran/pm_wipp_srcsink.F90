@@ -2920,7 +2920,7 @@ end subroutine PMWSSUpdateChemSpecies
                       this%stoic_mat(3,6)*cwp%rxnrate_FeOH2_sulf(i)
         cwp%inventory%Fe_s%inst_rate(i) = & 
                       this%stoic_mat(1,4)*cwp%rxnrate_Fe_corrosion(i) + &
-                      this%stoic_mat(4,4)*cwp%rxnrate_Fe_sulf(i) ! too fast
+                      this%stoic_mat(4,4)*cwp%rxnrate_Fe_sulf(i)
         cwp%inventory%FeS_s%inst_rate(i) = & 
                       this%stoic_mat(4,7)*cwp%rxnrate_Fe_sulf(i) + &
                       this%stoic_mat(3,7)*cwp%rxnrate_FeOH2_sulf(i)
@@ -2932,13 +2932,13 @@ end subroutine PMWSSUpdateChemSpecies
         cwp%inventory%MgOH2_s%inst_rate(i) = & 
                       this%stoic_mat(5,9)*cwp%rxnrate_MgO_hyd(i) + & 
                       this%stoic_mat(6,9)*cwp%rxnrate_MgOH2_carb(i) + &
-                      this%stoic_mat(8,9)*cwp%rxnrate_hydromag_conv(i) ! this is too weak
-        cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i) = &  ! too fast because
+                      this%stoic_mat(8,9)*cwp%rxnrate_hydromag_conv(i) 
+        cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i) = & 
                       this%stoic_mat(6,1)*cwp%rxnrate_MgOH2_carb(i) + &
-                      this%stoic_mat(8,1)*cwp%rxnrate_hydromag_conv(i) ! this is (-) and its too weak 
-        cwp%inventory%MgCO3_s%inst_rate(i) = & ! too slow
+                      this%stoic_mat(8,1)*cwp%rxnrate_hydromag_conv(i) 
+        cwp%inventory%MgCO3_s%inst_rate(i) = &
                       this%stoic_mat(7,10)*cwp%rxnrate_MgO_carb(i) + &
-                      this%stoic_mat(8,10)*cwp%rxnrate_hydromag_conv(i) ! this is too weak
+                      this%stoic_mat(8,10)*cwp%rxnrate_hydromag_conv(i)
 
                     
       !-----gas-generation-[mol-H2/m3-bulk/sec]---------------------------------

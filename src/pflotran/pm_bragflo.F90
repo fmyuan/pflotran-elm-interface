@@ -451,6 +451,8 @@ subroutine PMBragfloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! Author: Glenn Hammond
   ! Date: 07/11/17
   ! 
+  use PM_WIPP_Flow_class
+  
   implicit none
   
   class(pm_bragflo_type) :: this
