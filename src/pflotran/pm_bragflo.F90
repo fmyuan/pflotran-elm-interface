@@ -416,20 +416,25 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
                           ierr);CHKERRQ(ierr)
     call VecPointwiseMult(residual_vec,residual_vec, &
                           this%scaling_vec,ierr);CHKERRQ(ierr)
+
+    if (this%realization%debug%matview_Jacobian) then
+      string = 'BFscale_vec'
+      call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+      call VecView(this%scaling_vec,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+      string = 'BFjacobian_scaled'
+      call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+      call MatView(A,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    endif
+    if (this%realization%debug%vecview_residual) then
+      string = 'BFresidual_scaled'
+      call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+      call VecView(residual_vec,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    endif
   endif
 
-  if (this%realization%debug%matview_Jacobian) then
-    string = 'BFjacobian_scaled'
-    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
-    call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
-  if (this%realization%debug%vecview_residual) then
-    string = 'BFresidual_scaled'
-    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
-    call VecView(residual_vec,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
   if (this%realization%debug%norm_Jacobian) then
     call MatNorm(A,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer,'("1 norm: ",es11.4)') norm
