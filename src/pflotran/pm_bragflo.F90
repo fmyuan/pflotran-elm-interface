@@ -20,6 +20,7 @@ module PM_Bragflo_class
     procedure, public :: InitializeRun => PMBragfloInitializeRun
     procedure, public :: Residual => PMBragfloResidual
     procedure, public :: Jacobian => PMBragfloJacobian
+    procedure, public :: CheckUpdatePre => PMBragfloCheckUpdatePre
     procedure, public :: InputRecord => PMBragfloInputRecord
     procedure, public :: Destroy => PMBragfloDestroy
   end type pm_bragflo_type
@@ -359,6 +360,12 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
   PetscViewer :: viewer
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: norm
+  PetscInt :: matsize
+  PetscInt :: irow, icol, ncol
+  PetscInt :: cols(100) ! accommodates 49 connections max
+  PetscReal :: vals(100)
+  PetscReal :: max_abs_val
+  PetscReal, pointer :: vec_p(:)
 
   residual_vec = tVec(0)
 
@@ -374,37 +381,36 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
   call SNESGetFunction(snes,residual_vec,PETSC_NULL_FUNCTION, &
                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
   if (this%scale_linear_system) then
-    call MatScale(A,this%linear_system_scaling_factor,ierr);CHKERRQ(ierr)
-
-    call MatGetRowMaxAbs(A,this%scaling_vec,PETSC_NULL_INTEGER, &
-                         ierr);CHKERRQ(ierr)
-
-    if (this%realization%debug%matview_Jacobian) then
-      string = 'max_abs'
-      call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
-      call VecView(this%scaling_vec,viewer,ierr);CHKERRQ(ierr)
-      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    if (this%option%mycommsize > 1) then
+      this%option%io_buffer = 'BRAGFLO matrix scaling not allowed in parallel.'
+      call printErrMsg(this%option)
     endif
-
-!    call VecScale(this%scaling_vec,this%linear_system_scaling_factor, &
-!                  ierr);CHKERRQ(ierr)
-
-    if (this%realization%debug%matview_Jacobian) then
-      string = 'scaled_max_abs'
-      call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
-      call VecView(this%scaling_vec,viewer,ierr);CHKERRQ(ierr)
-      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-    endif
-
+    call VecGetLocalSize(this%scaling_vec,matsize,ierr);CHKERRQ(ierr)
+    call VecSet(this%scaling_vec,1.d0,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+    do irow = 1, matsize, 2
+      vec_p(irow) = this%linear_system_scaling_factor
+    enddo
+    call VecRestoreArrayReadF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+    call MatDiagonalScale(A,PETSC_NULL_VEC,this%scaling_vec,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+    do irow = 1, matsize
+      call MatGetRow(A,irow-1,ncol,cols,vals,ierr);CHKERRQ(ierr)
+      if (ncol > 100) then
+        this%option%io_buffer = 'Increase size of cols() and vals() in &
+                                &PMBragfloJacobian.'
+        call printErrMsg(this%option)
+      endif
+      max_abs_val = 0.d0
+      do icol = 1, ncol
+        max_abs_val = max(dabs(vals(icol)),max_abs_val)
+      enddo
+      call MatRestoreRow(A,irow-1,ncol,cols,vals,ierr);CHKERRQ(ierr)
+      vec_p(irow) = max_abs_val
+    enddo
+    call VecRestoreArrayReadF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+    
     call VecReciprocal(this%scaling_vec,ierr);CHKERRQ(ierr)
-
-    if (this%realization%debug%matview_Jacobian) then
-      string = 'scaled_max_abs'
-      string = 'one_over_scaled_max_abs'
-      call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
-      call VecView(this%scaling_vec,viewer,ierr);CHKERRQ(ierr)
-      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-    endif
 
     call MatDiagonalScale(A,this%scaling_vec,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
@@ -437,6 +443,31 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
   endif
 
 end subroutine PMBragfloJacobian
+
+! ************************************************************************** !
+
+subroutine PMBragfloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/11/17
+  ! 
+  implicit none
+  
+  class(pm_bragflo_type) :: this
+  SNESLineSearch :: line_search
+  Vec :: X
+  Vec :: dX
+  PetscBool :: changed
+  PetscErrorCode :: ierr
+  
+  if (this%scale_linear_system) then
+    changed = PETSC_TRUE
+    call VecStrideScale(dX,ZERO_INTEGER,this%linear_system_scaling_factor, &
+                        ierr);CHKERRQ(ierr)
+  endif
+  call PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+
+end subroutine PMBragfloCheckUpdatePre
 
 ! ************************************************************************** !
 
