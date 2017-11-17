@@ -478,7 +478,6 @@ subroutine PMBragfloDestroy(this)
   ! Author: Glenn Hammond
   ! Date: 11/07/17
   ! 
-  use PM_WIPP_Flow_class, only : PMWIPPFloDestroy
 
   implicit none
 
@@ -489,7 +488,7 @@ subroutine PMBragfloDestroy(this)
   if (this%scaling_vec /= PETSC_NULL_VEC) then
     call VecDestroy(this%scaling_vec,ierr);CHKERRQ(ierr)
   endif
-  call PMWIPPFloDestroy(this)
+  call this%pm_wippflo_type%Destroy()
 
 end subroutine PMBragfloDestroy
 

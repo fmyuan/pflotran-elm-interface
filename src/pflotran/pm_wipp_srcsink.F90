@@ -67,6 +67,9 @@ module PM_WIPP_SrcSink_class
 ! initial_conc_mol(:): [mol-species/m3-bulk] initial molar concentration of
 !    a chemical species in the waste panel, and indexed by each cell in the
 !    waste panel region
+! initial_conc_kg(:): [kg-species/m3-bulk] initial mass in kg of
+!    a chemical species in the waste panel, and indexed by each cell in the
+!    waste panel region
 ! inst_rate(:): [mol/m3-bulk/sec] instantaneous reaction rate constant of a
 !    chemical species in the waste panel, and indexed by each cell in the
 !    waste panel region
@@ -82,6 +85,7 @@ module PM_WIPP_SrcSink_class
 ! -------------------------------------------
   type, public :: chem_species_type
     PetscReal, pointer :: initial_conc_mol(:)
+    PetscReal, pointer :: initial_conc_kg(:)
     PetscReal, pointer :: inst_rate(:)  
     PetscReal, pointer :: current_conc_mol(:)
     PetscReal, pointer :: current_conc_kg(:)
@@ -714,6 +718,7 @@ subroutine PMWSSInitChemSpecies(chem_species,molar_mass)
   nullify(chem_species%current_conc_mol)        ! [mol/m3]
   nullify(chem_species%current_conc_kg)         ! [kg/m3]
   nullify(chem_species%initial_conc_mol)        ! [mol/m3]
+  nullify(chem_species%initial_conc_kg)         ! [kg/m3]
   nullify(chem_species%inst_rate)               ! [mol/m3/sec]
   chem_species%molar_mass = molar_mass          ! [kg/mol]
   chem_species%tot_mass_in_panel = 0.d0         ! [kg/panel-volume]
@@ -2273,12 +2278,15 @@ subroutine PMWSSChemSpeciesAllocate(num_cells,chem_species,initial_mass,volume)
 ! ---------------------------------------
   
   allocate(chem_species%initial_conc_mol(num_cells))
+  allocate(chem_species%initial_conc_kg(num_cells))
   allocate(chem_species%current_conc_mol(num_cells))
   allocate(chem_species%current_conc_kg(num_cells))
   allocate(chem_species%inst_rate(num_cells))
   
   !----------------------------------------------------------!-[units]--------
+  chem_species%initial_conc_kg(:) = initial_mass/volume      ! [kg/m3]
   chem_species%current_conc_kg(:) = initial_mass/volume      ! [kg/m3]
+                             
   chem_species%initial_conc_mol(:) = initial_mass/volume/ &  ! [kg/m3]
                                      chem_species%molar_mass ! [kg/mol]
   chem_species%current_conc_mol(:) =  &
@@ -2796,10 +2804,12 @@ end subroutine PMWSSUpdateChemSpecies
                                cwp%inventory%Mg5CO34OH24H2_s%current_conc_kg(i)
           ! smoothing of reaction rate occurs only due to concentration
           ! for smoothing, the initial and current species are different
-          call PMWSSSmoothRxnrate(cwp%rxnrate_hydromag_conv(i), &
-                            cwp%inventory%Mg5CO34OH24H2_s%current_conc_mol(i)*12.d0, & ! why does this kind of work?
-                            cwp%inventory%MgO_s%initial_conc_mol(i), &
-                            this%alpharxn)
+          if (cwp%inventory%MgO_s%initial_conc_mol(i) > 0.d0) then
+            call PMWSSSmoothRxnrate(cwp%rxnrate_hydromag_conv(i), &
+                           cwp%inventory%Mg5CO34OH24H2_s%current_conc_kg(i), &
+                           cwp%inventory%MgO_s%initial_conc_kg(i), & 
+                           this%alpharxn)
+          endif
           call PMWSSTaperRxnrate(cwp%rxnrate_hydromag_conv(i),i, &
                cwp%inventory%Mg5CO34OH24H2_s,this%stoic_mat(8,10),dt,temp_conc)
         endif
@@ -2831,7 +2841,7 @@ end subroutine PMWSSUpdateChemSpecies
           endif
         endif
         
-        ! total microbial gas generation
+        ! total microbial reaction rate
         cwp%rxnrate_cell_biodeg(i) = & 
           cwp%rxnrate_cell_biodeg_inund(i) + cwp%rxnrate_cell_biodeg_humid(i)
         
@@ -2845,13 +2855,18 @@ end subroutine PMWSSUpdateChemSpecies
           ! The H2S generation rate is proportioned between FeOH and Fe. FeOH2 
           ! is sulifidized first, then Fe is sulifidized with remaining H2S.
           cwp%rxnrate_FeOH2_sulf(i) = cwp%rxnrate_cell_biodeg(i) * &
-                                      cwp%RXH2S_factor ! is slightly higher b/c digits aren't cut off
+                                      cwp%RXH2S_factor
           ! smoothing of reaction rate occurs only due to concentration
           ! for smoothing, the initial and current species are different
-          call PMWSSSmoothRxnrate(cwp%rxnrate_FeOH2_sulf(i), &
-                                  cwp%inventory%FeOH2_s%current_conc_mol(i), & 
-                                  cwp%inventory%Fe_s%initial_conc_mol(i), &
-                                  this%alpharxn)
+          if (cwp%inventory%Fe_s%initial_conc_mol(i) > 0.d0) then
+            call PMWSSSmoothRxnrate(cwp%rxnrate_FeOH2_sulf(i), &
+                                    cwp%inventory%FeOH2_s%current_conc_kg(i), & 
+                                    cwp%inventory%Fe_s%initial_conc_kg(i), & 
+                                    this%alpharxn)
+          else if (cwp%inventory%Fe_s%initial_conc_mol(i) == 0.d0) then
+            cwp%rxnrate_FeOH2_sulf(i) = 0.d0
+            cwp%rxnrate_Fe_sulf(i) = 0.d0
+          endif
           ! taper FeOH2 sulfidation rate first
           call PMWSSTaperRxnrate(cwp%rxnrate_FeOH2_sulf(i),i, &
                         cwp%inventory%FeOH2_s,this%stoic_mat(3,6),dt,temp_conc)
@@ -2874,10 +2889,15 @@ end subroutine PMWSSUpdateChemSpecies
                                       cwp%RXCO2_factor
           ! smoothing of reaction rate occurs only due to concentration
           ! for smoothing, the initial and current species are different
-          call PMWSSSmoothRxnrate(cwp%rxnrate_MgOH2_carb(i), &
-                                  cwp%inventory%MgOH2_s%current_conc_mol(i), & 
-                                  cwp%inventory%MgO_s%initial_conc_mol(i), & 
-                                  this%alpharxn)
+          if (cwp%inventory%MgO_s%initial_conc_mol(i) > 0.d0) then
+            call PMWSSSmoothRxnrate(cwp%rxnrate_MgOH2_carb(i), &
+                                    cwp%inventory%MgOH2_s%current_conc_kg(i), & 
+                                    cwp%inventory%MgO_s%initial_conc_kg(i), &
+                                    this%alpharxn)
+          else if (cwp%inventory%MgO_s%initial_conc_mol(i) == 0.d0) then
+            cwp%rxnrate_MgOH2_carb(i) = 0.d0
+            cwp%rxnrate_MgO_carb(i) = 0.d0
+          endif
           ! taper MgOH2 carbonation rate first
           call PMWSSTaperRxnrate(cwp%rxnrate_MgOH2_carb(i),i, &
                         cwp%inventory%MgOH2_s,this%stoic_mat(6,9),dt,temp_conc)
@@ -3045,9 +3065,9 @@ subroutine PMWSSSmoothRxnrate1(rxnrate,cell_num,limiting_species,alpharxn)
 ! -----------------------
   PetscReal :: conc_ratio
 ! -----------------------
-  if ( limiting_species%initial_conc_mol(cell_num) > 0.0d0) then
-    conc_ratio = ( limiting_species%current_conc_mol(cell_num) / &
-                   limiting_species%initial_conc_mol(cell_num) ) 
+  if ( limiting_species%initial_conc_kg(cell_num) > 0.0d0) then
+    conc_ratio = ( limiting_species%current_conc_kg(cell_num) / &
+                   limiting_species%initial_conc_kg(cell_num) ) 
     conc_ratio = min(1.d0,conc_ratio)
     rxnrate = rxnrate * (1.d0 - exp(alpharxn*conc_ratio))
   else
@@ -3075,6 +3095,8 @@ subroutine PMWSSSmoothRxnrate2(rxnrate,current_conc,initial_conc,alpharxn)
 ! INPUT ARGUMENTS:
 ! ================
 ! rxnrate (input/output): [mol-species/m3-bulk/sec] reaction rate constant 
+! current_conc (input) : [kg-species/m3-bulk] current species concentration
+! initial_conc (input) : [kg-species/m3-bulk] initial species concentration
 ! alpharxn (input): [-] BRAGFLO parameter ALPHARXN
 ! -------------------------------------------
   PetscReal :: rxnrate
@@ -3085,8 +3107,8 @@ subroutine PMWSSSmoothRxnrate2(rxnrate,current_conc,initial_conc,alpharxn)
   
 ! LOCAL VARIABLES:
 ! ================
-! conc_ratio: [-] concentratio ratio of current molar concentration to
-!    initial molar concentration of a chemical species
+! conc_ratio: [-] concentratio ratio of current mass concentration to
+!    initial mass concentration of two different chemical species
 ! -----------------------
   PetscReal :: conc_ratio
 ! -----------------------
@@ -3095,9 +3117,7 @@ subroutine PMWSSSmoothRxnrate2(rxnrate,current_conc,initial_conc,alpharxn)
     conc_ratio = current_conc/initial_conc
     conc_ratio = min(1.d0,conc_ratio)
     rxnrate = rxnrate * (1.d0 - exp(alpharxn*conc_ratio))
-  else
-    rxnrate = 0.0d0
-  end if
+  endif
   
 end subroutine PMWSSSmoothRxnrate2
 
