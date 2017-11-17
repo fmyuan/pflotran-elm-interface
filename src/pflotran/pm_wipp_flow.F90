@@ -74,6 +74,7 @@ module PM_WIPP_Flow_class
             PMWIPPFloInitObject, &
             PMWIPPFloReadSelectCase, &
             PMWIPPFloInitializeRun, &
+            PMWIPPFloCheckUpdatePre, &
             PMWIPPFloDestroy
   
 contains
