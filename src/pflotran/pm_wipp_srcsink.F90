@@ -2006,8 +2006,6 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   
   ! algebra/pre-brag/bragflo use the H2 (i.e. total gas) value for H2S
   waste_panel%RXH2S_factor = waste_panel%RXH2_factor   ! [mol-H2S/mol-cell]
-  ! this is the correct, H2S-only, value
-  !waste_panel%RXH2S_factor = waste_panel%F_SO4*(3.0d0/6.0d0) ! [mol-H2S/mol-cell]
   
   ! bragflo apparently sets RXH2O_factor to zero
   ! algebra sets STCO_22 as SMIC_H20, which is RXH2O_factor
@@ -2739,7 +2737,7 @@ end subroutine PMWSSUpdateChemSpecies
         if (cwp%inventory%Fe_s%current_conc_mol(i) > 0.d0) then
         ! CORSAT:
           cwp%rxnrate_Fe_corrosion_inund(i) = &
-              cwp%inundated_corrosion_rate*s_eff
+                                         cwp%inundated_corrosion_rate*s_eff
           ! smoothing of inundated rate occurs only due to concentration
           call PMWSSSmoothRxnrate(cwp%rxnrate_Fe_corrosion_inund(i),i, &
                                   cwp%inventory%Fe_s,this%alpharxn) 
@@ -2748,7 +2746,7 @@ end subroutine PMWSSUpdateChemSpecies
         ! CORHUM:
           if (temp_conc > 0.d0) then
             cwp%rxnrate_Fe_corrosion_humid(i) = &
-                cwp%humid_corrosion_rate*sg_eff
+                                            cwp%humid_corrosion_rate*sg_eff
             ! smoothing of humid rate occurs first due to concentration, then 
             ! due to s_eff
             call PMWSSSmoothRxnrate(cwp%rxnrate_Fe_corrosion_humid(i),i, &
@@ -2792,18 +2790,18 @@ end subroutine PMWSSUpdateChemSpecies
       !-----hydromagnesite-conversion-[mol-hydromagnesite/m3-bulk/sec]----------
       !-----(see equation PA.74, PA.97, section PA-4.2.5)-----------------------
         
-        if (cwp%inventory%MgCO3_s%current_conc_mol(i) > 0.d0) then
+        if (cwp%inventory%Mg5CO34OH24H2_s%current_conc_mol(i) > 0.d0) then
           ! HYDROCONV
           cwp%rxnrate_hydromag_conv(i) = this%hymagcon_rate * &
-                                       cwp%inventory%MgCO3_s%current_conc_kg(i)
+                               cwp%inventory%Mg5CO34OH24H2_s%current_conc_kg(i)
           ! smoothing of reaction rate occurs only due to concentration
           ! for smoothing, the initial and current species are different
           call PMWSSSmoothRxnrate(cwp%rxnrate_hydromag_conv(i), &
-                                  cwp%inventory%MgCO3_s%current_conc_mol(i), & 
-                                  cwp%inventory%MgO_s%initial_conc_mol(i), &
-                                  this%alpharxn)
+                            cwp%inventory%Mg5CO34OH24H2_s%current_conc_mol(i)*12.d0, & ! why does this kind of work?
+                            cwp%inventory%MgO_s%initial_conc_mol(i), &
+                            this%alpharxn)
           call PMWSSTaperRxnrate(cwp%rxnrate_hydromag_conv(i),i, &
-                       cwp%inventory%MgCO3_s,this%stoic_mat(8,10),dt,temp_conc)
+               cwp%inventory%Mg5CO34OH24H2_s,this%stoic_mat(8,10),dt,temp_conc)
         endif
                               
     
@@ -2847,12 +2845,12 @@ end subroutine PMWSSUpdateChemSpecies
           ! The H2S generation rate is proportioned between FeOH and Fe. FeOH2 
           ! is sulifidized first, then Fe is sulifidized with remaining H2S.
           cwp%rxnrate_FeOH2_sulf(i) = cwp%rxnrate_cell_biodeg(i) * &
-                                      cwp%RXH2S_factor
+                                      cwp%RXH2S_factor ! is slightly higher b/c digits aren't cut off
           ! smoothing of reaction rate occurs only due to concentration
           ! for smoothing, the initial and current species are different
-          call PMWSSSmoothRxnrate2(cwp%rxnrate_FeOH2_sulf(i), &
+          call PMWSSSmoothRxnrate(cwp%rxnrate_FeOH2_sulf(i), &
                                   cwp%inventory%FeOH2_s%current_conc_mol(i), & 
-                                  cwp%inventory%Fe_s%initial_conc_mol(i), & 
+                                  cwp%inventory%Fe_s%initial_conc_mol(i), &
                                   this%alpharxn)
           ! taper FeOH2 sulfidation rate first
           call PMWSSTaperRxnrate(cwp%rxnrate_FeOH2_sulf(i),i, &
@@ -2902,7 +2900,7 @@ end subroutine PMWSSUpdateChemSpecies
                       this%stoic_mat(3,6)*cwp%rxnrate_FeOH2_sulf(i)
         cwp%inventory%Fe_s%inst_rate(i) = & 
                       this%stoic_mat(1,4)*cwp%rxnrate_Fe_corrosion(i) + &
-                      this%stoic_mat(4,4)*cwp%rxnrate_Fe_sulf(i)
+                      this%stoic_mat(4,4)*cwp%rxnrate_Fe_sulf(i) ! too fast
         cwp%inventory%FeS_s%inst_rate(i) = & 
                       this%stoic_mat(4,7)*cwp%rxnrate_Fe_sulf(i) + &
                       this%stoic_mat(3,7)*cwp%rxnrate_FeOH2_sulf(i)
@@ -2914,13 +2912,13 @@ end subroutine PMWSSUpdateChemSpecies
         cwp%inventory%MgOH2_s%inst_rate(i) = & 
                       this%stoic_mat(5,9)*cwp%rxnrate_MgO_hyd(i) + & 
                       this%stoic_mat(6,9)*cwp%rxnrate_MgOH2_carb(i) + &
-                      this%stoic_mat(8,9)*cwp%rxnrate_hydromag_conv(i)
-        cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i) = &
+                      this%stoic_mat(8,9)*cwp%rxnrate_hydromag_conv(i) ! this is too weak
+        cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i) = &  ! too fast because
                       this%stoic_mat(6,1)*cwp%rxnrate_MgOH2_carb(i) + &
-                      this%stoic_mat(8,1)*cwp%rxnrate_hydromag_conv(i) 
-        cwp%inventory%MgCO3_s%inst_rate(i) = & 
+                      this%stoic_mat(8,1)*cwp%rxnrate_hydromag_conv(i) ! this is (-) and its too weak 
+        cwp%inventory%MgCO3_s%inst_rate(i) = & ! too slow
                       this%stoic_mat(7,10)*cwp%rxnrate_MgO_carb(i) + &
-                      this%stoic_mat(8,10)*cwp%rxnrate_hydromag_conv(i)
+                      this%stoic_mat(8,10)*cwp%rxnrate_hydromag_conv(i) ! this is too weak
 
                     
       !-----gas-generation-[mol-H2/m3-bulk/sec]---------------------------------
@@ -3077,9 +3075,6 @@ subroutine PMWSSSmoothRxnrate2(rxnrate,current_conc,initial_conc,alpharxn)
 ! INPUT ARGUMENTS:
 ! ================
 ! rxnrate (input/output): [mol-species/m3-bulk/sec] reaction rate constant 
-! cell_num (input): [-] grid cell numbering in waste panel region
-! limiting_species (input): chemical species object that is the limiting
-!    species of the reaction with reaction rate constant "rxnrate"
 ! alpharxn (input): [-] BRAGFLO parameter ALPHARXN
 ! -------------------------------------------
   PetscReal :: rxnrate
