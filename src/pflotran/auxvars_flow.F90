@@ -7,8 +7,8 @@ module AuxVars_Flow_module
   use AuxVars_Base_module
 
   implicit none
-  
-  private 
+
+  private
 
   type, public, extends(auxvar_base_type) :: auxvar_flow_type
     PetscReal, pointer :: pres(:)   ! (iphase)
@@ -33,20 +33,20 @@ contains
 
 ! ************************************************************************** !
 subroutine AuxVarFlowInit(this,option)
-  ! 
+  !
   ! Initialize auxiliary object
-  ! 
+  !
   ! Author: PAolo Orsini
   ! Date: 5/27/16
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(auxvar_flow_type) :: this
   type(option_type) :: option
- 
+
   allocate(this%pres(option%nphase))
   this%pres = 0.d0
   allocate(this%pc(option%nphase - ONE_INTEGER))
@@ -59,35 +59,35 @@ subroutine AuxVarFlowInit(this,option)
   this%den_kg = 0.d0
   allocate(this%mobility(option%nphase))
   this%mobility = 0.d0
-
+  allocate(this%viscosity(option%nphase))
+  this%viscosity = 0.d0
 
 end subroutine AuxVarFlowInit
 
 ! ************************************************************************** !
 
 subroutine AuxVarFlowStrip(this)
-  ! 
+  !
   ! AuxVarFlowDestroy: Deallocates a toil_ims auxiliary object
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 8/5/16
-  ! 
+  !
   use Utility_module, only : DeallocateArray
 
   implicit none
 
   class(auxvar_flow_type) :: this
 
-  call DeallocateArray(this%pres)  
+  call DeallocateArray(this%pres)
   call DeallocateArray(this%pc)
-  call DeallocateArray(this%sat)  
-  call DeallocateArray(this%den)  
-  call DeallocateArray(this%den_kg)  
-  call DeallocateArray(this%mobility)  
+  call DeallocateArray(this%sat)
+  call DeallocateArray(this%den)
+  call DeallocateArray(this%den_kg)
+  call DeallocateArray(this%mobility)
   call DeallocateArray(this%viscosity)
 
 end subroutine AuxVarFlowStrip
 ! ************************************************************************** !
 
 end module AuxVars_Flow_module
-
