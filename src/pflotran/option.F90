@@ -52,6 +52,7 @@ module Option_module
     ! defines the mode (e.g. mph, richards, vadose, etc.
     character(len=MAXWORDLENGTH) :: flowmode
     PetscInt :: iflowmode
+    PetscInt :: iflow_sub_mode
     character(len=MAXWORDLENGTH) :: tranmode
     PetscInt :: itranmode
 
@@ -431,6 +432,7 @@ subroutine OptionInitRealization(option)
 
   option%flowmode = ""
   option%iflowmode = NULL_MODE
+  option%iflow_sub_mode = NULL_MODE
   option%nflowdof = 0
   option%nmechdof = 0
   option%nsec_cells = 0

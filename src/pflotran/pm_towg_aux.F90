@@ -33,15 +33,15 @@ module PM_TOWG_Aux_module
   PetscBool, public :: towg_no_oil = PETSC_FALSE
   PetscInt, public :: towg_miscibility_model = UNINITIALIZED_INTEGER
 
-  !list of TOWG paramters
+  ! list of TOWG paramters
   PetscInt, parameter, public :: TOWG_PREV_TS = 1
   PetscInt, parameter, public :: TOWG_PREV_IT = 2
 
-  !available miscibility models
-  PetscInt, parameter, public :: TOWG_IMMISCIBLE = 1
-  PetscInt, parameter, public :: TOWG_TODD_LONGSTAFF = 2
-  PetscInt, parameter, public :: TOWG_BLACK_OIL = 3
-  PetscInt, parameter, public :: TOWG_SOLVENT_TL = 4
+  ! available miscibility models - now defined in PFLOTRAN_Constants_module
+  ! PetscInt, parameter, public :: TOWG_IMMISCIBLE = 1
+  ! PetscInt, parameter, public :: TOWG_TODD_LONGSTAFF = 2
+  ! PetscInt, parameter, public :: TOWG_BLACK_OIL = 3
+  ! PetscInt, parameter, public :: TOWG_SOLVENT_TL = 4
 
   ! thermodynamic state of fluid ids - for BLACK OIL
   PetscInt, parameter, public :: TOWG_NULL_STATE = 0
@@ -388,12 +388,12 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: kro, viso, dkro_Se
   PetscReal :: krg, visg, dkrg_Se
   PetscReal :: sat_liq_gas, sat_tot_liq
-  PetscReal :: dummy
+  PetscReal :: dummy, dummy2
   !PetscReal :: Uoil_J_kg, Hoil_J_kg
   PetscErrorCode :: ierr
 
   ! from SubsurfaceSetFlowMode
-  ! option%liquid_phase = 1           ! liquid_pressure
+  ! option%liquid_phase = 1           ! liquid_pressure - water pressure
   ! option%oil_phase = 2              ! oil_pressure
   ! option%gas_phase = 3              ! gas_pressure
   lid = option%liquid_phase
@@ -419,34 +419,26 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   auxvar%sat(lid) = 1.d0 - auxvar%sat(oid) - auxvar%sat(gid)
 
-  !below pc_ow /= 0
-  !compute capillary presssure water/oil (pc_ow)
-  !call characteristic_curves%saturation_function% &
-  !     CapillaryPressure(material_auxvar,auxvar%sat(lid),auxvar%pc(lid),option)
-  !auxvar%pres(lid) = auxvar%pres(oid) - auxvar%pc(lid)
+  !PO before characteristic function refactoring - to match TOUGH2-EOS8
+  ! sat_tot_liq = auxvar%sat(lid) + auxvar%sat(oid)
+  ! call characteristic_curves%saturation_function% &
+  !      CapillaryPressure(sat_tot_liq,auxvar%pc(lid),dummy,option)
+  !
+  ! auxvar%pres(lid) = auxvar%pres(oid)
+  ! auxvar%pres(gid) = auxvar%pres(lid) + auxvar%pc(lid)
+  ! auxvar%pc(oid) = 0.0d0
+  !end before refactoring
 
-  !Assumptions below on capillary pressure for comparison with TOUGH2-EOS8:
-  ! pc_ow = 0, only pc_gw /= 0 and computed considering water saturation only
-  ! this results in pc_gw = pc_go
-
-  !assuming no capillary pressure between oil and water: pc_ow = 0
-  ! pc_ow = 0.0d0
-  auxvar%pres(lid) = auxvar%pres(oid)
-
-  !compute capillary pressure gas/water (pc_gw),
-  ! pc_go = pc_gw when pc_ow = 0
-  !call characteristic_curves%saturation_function% &
-  !     CapillaryPressure(material_auxvar,auxvar%sat(lid),auxvar%pc(lid),option)
-  !To match TOUGH-EOS8, consider water plu poil as wetting phase
-  !for capillary press computation
-  sat_tot_liq = auxvar%sat(lid) + auxvar%sat(oid)
-  call characteristic_curves%saturation_function% &
-       CapillaryPressure(sat_tot_liq,auxvar%pc(lid),dummy,option)
-
-  auxvar%pres(gid) = auxvar%pres(lid) + auxvar%pc(lid)
-
-  auxvar%pc(oid) = 0.0d0
-
+  !PO after characteristic function refactoring
+  call characteristic_curves%oil_wat_sat_func% &
+            CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(lid), &
+                              dummy,dummy2,option)
+  call characteristic_curves%oil_gas_sat_func% &
+            CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(oid), &
+                              dummy,dummy2,option)
+  auxvar%pres(lid) = auxvar%pres(oid) - auxvar%pc(lid)
+  auxvar%pres(gid) = auxvar%pres(oid) + auxvar%pc(oid)
+  !end after refactoring
 
   cell_pressure = max(auxvar%pres(lid),auxvar%pres(oid),auxvar%pres(gid))
 
@@ -1011,7 +1003,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: visg
   PetscReal :: visl
   PetscReal :: sat_water
-  PetscReal :: dummy,deno,deng
+  PetscReal :: dummy,dummy2,deno,deng
   !PetscReal :: Uoil_J_kg, Hoil_J_kg
   PetscErrorCode :: ierr
   PetscReal :: krotl=0.0,krgtl=0.0,viscotl=0.0,viscgtl=0.0,denotl=0.0,dengtl=0.0
@@ -1055,8 +1047,15 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   sat_water = auxvar%sat(lid)
 
-  call characteristic_curves%saturation_function% &
-       CapillaryPressure(sat_water,auxvar%pc(lid),dummy,option)
+  ! PO before characteristic_curves refactoring
+  !call characteristic_curves%saturation_function% &
+  !     CapillaryPressure(sat_water,auxvar%pc(lid),dummy,option)
+
+  ! PO after characteristic_curves refactoring
+  !    dummy=dPcdSo,dummy2=dPcdSg
+  call characteristic_curves%oil_wat_sat_func% &
+            CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(lid), &
+                              dummy,dummy2,option)
 
   auxvar%pres(gid) = auxvar%pres(oid)
   auxvar%pres(lid) = auxvar%pres(oid) - auxvar%pc(lid)

@@ -4,7 +4,7 @@ module PM_TOWG_class
   use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -23,11 +23,11 @@ module PM_TOWG_class
     !B) used for convergence criteria within CheckUpdatePost
     PetscReal :: itol_rel_update = UNINITIALIZED_DOUBLE
     PetscReal :: itol_scaled_res = 1.d-5
-    !check might need different dimension 
+    !check might need different dimension
     PetscReal :: tgh2_itol_scld_res_e1(3,3) = 1.d-5
     PetscReal :: tgh2_itol_scld_res_e2 = 1.d0
     PetscBool :: tough2_conv_criteria = PETSC_FALSE
-    !PetscInt :: miscibility_model = UNINITIALIZED_INTEGER 
+    !PetscInt :: miscibility_model = UNINITIALIZED_INTEGER
     !procedure(TOWGMaxChangeDummy), pointer :: MaxChange => null()
     !procedure(MaxChange), pointer :: MaxChange => null()
   contains
@@ -51,38 +51,38 @@ module PM_TOWG_class
     procedure, public :: RestartBinary => PMTOWGRestartBinary
     procedure, public :: Destroy => PMTOWGDestroy
   end type pm_towg_type
-  
+
   public :: PMTOWGCreate
-  
+
 contains
 
 ! ************************************************************************** !
 function PMTOWGCreate(miscibility_model,option)
-  ! 
+  !
   ! Creates TOWG process models shell
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 10/15/16
-  ! 
+  !
   use Option_module
   use Input_Aux_module
   use PM_TOWG_Aux_module
   use Variables_module, only : OIL_PRESSURE, GAS_PRESSURE, &
                                OIL_SATURATION, GAS_SATURATION, &
-                               OIL_MOLE_FRACTION, GAS_MOLE_FRACTION, &  
+                               OIL_MOLE_FRACTION, GAS_MOLE_FRACTION, &
                                TEMPERATURE, SOLVENT_SATURATION
   implicit none
-  
+
   class(pm_towg_type), pointer :: PMTOWGCreate
 
   character(len=MAXWORDLENGTH) :: miscibility_model
   type(option_type), pointer :: option
 
   class(pm_towg_type), pointer :: towg_pm
-  
-#ifdef TOWG_DEBUG  
+
+#ifdef TOWG_DEBUG
   print *, 'PMTOWGCreate()'
-#endif  
+#endif
 
   allocate(towg_pm)
 
@@ -125,56 +125,60 @@ function PMTOWGCreate(miscibility_model,option)
   towg_pm%tgh2_itol_scld_res_e2 = 1.d0
   towg_pm%tough2_conv_criteria = PETSC_FALSE
 
-  select case(trim(miscibility_model)) 
+  select case(trim(miscibility_model))
     case('TOWG_IMMISCIBLE')
       towg_miscibility_model = TOWG_IMMISCIBLE
       towg_energy_dof = TOWG_3CMPS_ENERGY_DOF
       towg_energy_eq_idx = TOWG_3CMPS_ENERGY_EQ_IDX
+      option%iflow_sub_mode = TOWG_IMMISCIBLE
     case('TODD_LONGSTAFF','TOWG_MISCIBLE')
       towg_miscibility_model = TOWG_TODD_LONGSTAFF
       towg_energy_dof = TOWG_3CMPS_ENERGY_DOF
       towg_energy_eq_idx = TOWG_3CMPS_ENERGY_EQ_IDX
+      option%iflow_sub_mode = TOWG_TODD_LONGSTAFF
     case('BLACK_OIL')
       towg_miscibility_model = TOWG_BLACK_OIL
       towg_energy_dof = TOWG_3CMPS_ENERGY_DOF
       towg_energy_eq_idx = TOWG_3CMPS_ENERGY_EQ_IDX
+      option%iflow_sub_mode = TOWG_BLACK_OIL
     case('SOLVENT_TL')
       towg_miscibility_model = TOWG_SOLVENT_TL
       towg_energy_dof = TOWG_SOLV_TL_ENERGY_DOF
       towg_energy_eq_idx = TOWG_SOLV_TL_ENERGY_EQ_IDX
+      option%iflow_sub_mode = TOWG_SOLVENT_TL
     case default
       call InputKeywordUnrecognized(miscibility_model, &
                          'TOWG MISCIBILITY_MODEL',option)
-  end select 
+  end select
 
 
   !towg_pm%miscibility_model = UNINITIALIZED_INTEGER
 
-  if (Uninitialized(towg_energy_dof)) then 
+  if (Uninitialized(towg_energy_dof)) then
     option%io_buffer = 'towg_energy_dof not set up'
     call printErrMsg(option)
-  end if  
+  end if
 
-  if (Uninitialized(towg_energy_eq_idx)) then 
+  if (Uninitialized(towg_energy_eq_idx)) then
     option%io_buffer = 'towg_energy_eq_idx not set up'
     call printErrMsg(option)
-  end if  
+  end if
 
 
   call PMSubsurfaceFlowCreate(towg_pm)
   towg_pm%name = 'TOWG Flow'
 
   PMTOWGCreate => towg_pm
-  
+
 end function PMTOWGCreate
 
 ! ************************************************************************** !
 
 subroutine PMTOWGRead(this,input)
-  ! 
-  ! Read TOWG options and set up miscibility, and functions to be use in 
-  ! the Residual and Jacobian 
-  ! 
+  !
+  ! Read TOWG options and set up miscibility, and functions to be use in
+  ! the Residual and Jacobian
+  !
   ! Author: Paolo Orsini (OGS)
   ! Date: 10/15/16
   !
@@ -185,10 +189,10 @@ subroutine PMTOWGRead(this,input)
   use Option_module
 
   implicit none
-  
+
   type(input_type), pointer :: input
-  
-  character(len=MAXWORDLENGTH) :: keyword 
+
+  character(len=MAXWORDLENGTH) :: keyword
   class(pm_towg_type) :: this
   type(option_type), pointer :: option
   PetscReal :: tempreal
@@ -200,22 +204,22 @@ subroutine PMTOWGRead(this,input)
   error_string = 'TOWG Options'
 
   !this%miscibility_model = UNINITIALIZED_INTEGER
-  
+
   input%ierr = 0
   do
-  
+
     call InputReadPflotranString(input,option)
 
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
 
     call InputReadWord(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
-    
+
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found,option)    
+    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found,option)
     if (found) cycle
-    
+
     select case(trim(keyword))
       case('TL_OMEGA')
         call InputReadDouble(input,option,val_tl_omega)
@@ -227,7 +231,7 @@ subroutine PMTOWGRead(this,input)
       case('ITOL_RELATIVE_UPDATE')
         call InputReadDouble(input,option,this%itol_rel_update)
         call InputDefaultMsg(input,option,'towg itol_rel_update')
-        this%check_post_convergence = PETSC_TRUE        
+        this%check_post_convergence = PETSC_TRUE
       case('TOUGH2_ITOL_SCALED_RESIDUAL')
         ! tgh2_itol_scld_res_e1 is an array: assign same value to all entries
         tempreal = UNINITIALIZED_DOUBLE
@@ -247,7 +251,7 @@ subroutine PMTOWGRead(this,input)
                            'tough_itol_scaled_residual_e1 for temperature', &
                            error_string)
         this%tgh2_itol_scld_res_e1(3,:) = tempreal
-      case('WINDOW_EPSILON') 
+      case('WINDOW_EPSILON')
         call InputReadDouble(input,option,towg_window_epsilon)
         call InputErrorMsg(input,option,'towg window epsilon',error_string)
       ! read this in the gas EOS
@@ -287,20 +291,20 @@ subroutine PMTOWGRead(this,input)
       case default
         call InputKeywordUnrecognized(keyword,'TOWG Mode',option)
     end select
-    
-  enddo  
 
-  !if (Uninitialized(towg_miscibility_model)) then 
+  enddo
+
+  !if (Uninitialized(towg_miscibility_model)) then
   !  option%io_buffer = 'TOWG MISCIBILITY_MODEL not set up'
   !  call printErrMsg(option)
-  !end if  
+  !end if
 
-  !here set up functions in TOWG and pm_TOWG_aux based on miscibility model 
+  !here set up functions in TOWG and pm_TOWG_aux based on miscibility model
   !select case(towg_miscibility_model)
-  !  case(TOWG_IMMISCIBLE) 
-  !    !set up towg and pm_towg_aux functions   
+  !  case(TOWG_IMMISCIBLE)
+  !    !set up towg and pm_towg_aux functions
   !  case default
-  !    option%io_buffer = 'only immiscible TOWG currently implemented' 
+  !    option%io_buffer = 'only immiscible TOWG currently implemented'
   !    call printErrMsg(option)
   !end select
 
@@ -309,18 +313,18 @@ end subroutine PMTOWGRead
 ! ************************************************************************** !
 
 recursive subroutine PMTOWGInitializeRun(this)
-  ! 
+  !
   ! Initializes the time stepping
-  ! 
+  !
   ! Author: Paolo Orsini
-  ! Date: 12/06/16 
+  ! Date: 12/06/16
 
   use Realization_Base_class
-  
+
   implicit none
-  
+
   class(pm_towg_type) :: this
-  
+
   PetscInt :: num_var,i
   PetscErrorCode :: ierr
 
@@ -346,75 +350,75 @@ end subroutine PMTOWGInitializeRun
 ! ************************************************************************** !
 
 subroutine PMTOWGInitializeTimestep(this)
-  ! 
+  !
   ! To be replaced by PreSolve? Which is currently empty...
-  ! 
+  !
   ! Author: Paolo Orsini
-  ! Date: 12/07/16 
-  ! 
+  ! Date: 12/07/16
+  !
 
   use TOWG_module, only : TOWGInitializeTimestep
   use Global_module
   use Variables_module, only : TORTUOSITY
   use Material_module, only : MaterialAuxVarCommunicate
-  
+
   implicit none
-  
+
   class(pm_towg_type) :: this
 
-  call PMSubsurfaceFlowInitializeTimestepA(this)                                 
+  call PMSubsurfaceFlowInitializeTimestepA(this)
 
   !PO: To be removed? And common to all flow modes?
-!geh:remove   everywhere                                
+!geh:remove   everywhere
   call MaterialAuxVarCommunicate(this%comm1, &
                                  this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc,TORTUOSITY, &
                                  ZERO_INTEGER)
-                                 
+
   if (this%option%print_screen_flag) then
     write(*,'(/,2("=")," TOWG FLOW ",64("="))')
   endif
-  
+
   call TOWGInitializeTimestep(this%realization)
-  call PMSubsurfaceFlowInitializeTimestepB(this)                                 
-  
+  call PMSubsurfaceFlowInitializeTimestepB(this)
+
 end subroutine PMTOWGInitializeTimestep
 
 ! ************************************************************************** !
 
 subroutine PMTOWGUpdateAuxVars(this)
-  ! 
+  !
   ! Author: Paolo Orsini
-  ! Date: 12/06/16 
+  ! Date: 12/06/16
 
   use TOWG_module, only : TOWGUpdateAuxVars
 
   implicit none
-  
+
   class(pm_towg_type) :: this
 
   call TOWGUpdateAuxVars(this%realization,PETSC_FALSE)
 
-end subroutine PMTOWGUpdateAuxVars   
+end subroutine PMTOWGUpdateAuxVars
 
 ! ************************************************************************** !
 
 subroutine PMTOWGResidual(this,snes,xx,r,ierr)
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/28/16
-  ! 
+  !
 
   use TOWG_module, only : TOWGResidual
 
   implicit none
-  
+
   class(pm_towg_type) :: this
   SNES :: snes
   Vec :: xx
   Vec :: r
   PetscErrorCode :: ierr
-  
+
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
   call TOWGResidual(snes,xx,r,this%realization,ierr)
 
@@ -423,21 +427,21 @@ end subroutine PMTOWGResidual
 ! ************************************************************************** !
 
 subroutine PMTOWGJacobian(this,snes,xx,A,B,ierr)
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/28/16
-  ! 
+  !
 
-  use TOWG_module, only : TOWGJacobian 
+  use TOWG_module, only : TOWGJacobian
 
   implicit none
-  
+
   class(pm_towg_type) :: this
   SNES :: snes
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
-  
+
   call TOWGJacobian(snes,xx,A,B,this%realization,ierr)
 
 end subroutine PMTOWGJacobian
@@ -445,7 +449,7 @@ end subroutine PMTOWGJacobian
 ! ************************************************************************** !
 
 subroutine PMTOWGPreSolve(this)
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/28/16
 
@@ -458,15 +462,15 @@ end subroutine PMTOWGPreSolve
 ! ************************************************************************** !
 
 subroutine PMTOWGCheckUpdatePre(this,line_search,X,dX,changed,ierr)
-  ! 
+  !
   ! Author: Paolo Orsini (OGS)
   ! Date: 10/22/15
-  ! 
+  !
 
   use TOWG_module, only : TOWGCheckUpdatePre
 
   implicit none
-  
+
   class(pm_towg_type) :: this
   SNESLineSearch :: line_search
   Vec :: X
@@ -484,38 +488,38 @@ end subroutine PMTOWGCheckUpdatePre
 
 
 subroutine PMTOWGUpdateSolution(this)
-  ! 
+  !
   ! Author: Paolo Orsini (OGS)
-  ! Date: 12/06/16 
-  ! 
+  ! Date: 12/06/16
+  !
 
   use TOWG_module, only : TOWGUpdateSolution, &
                           TOWGMapBCAuxVarsToGlobal
 
   implicit none
-  
+
   class(pm_towg_type) :: this
-  
+
   call PMSubsurfaceFlowUpdateSolution(this)
   call TOWGUpdateSolution(this%realization)
   call TOWGMapBCAuxVarsToGlobal(this%realization)
 
-end subroutine PMTOWGUpdateSolution     
+end subroutine PMTOWGUpdateSolution
 
 ! ************************************************************************** !
 
 subroutine PMTOWGTimeCut(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use TOWG_module, only : TOWGTimeCut
 
   implicit none
-  
+
   class(pm_towg_type) :: this
-  
+
   call PMSubsurfaceFlowTimeCut(this)
   call TOWGTimeCut(this%realization)
 
@@ -524,16 +528,16 @@ end subroutine PMTOWGTimeCut
 ! ************************************************************************** !
 
 subroutine PMTOWGMaxChange(this)
-  ! 
+  !
   ! Compute primary variable max changes
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/30/16
-  ! 
+  !
   use TOWG_module, only : TOWGMaxChange
 
   implicit none
-  
+
   class(pm_towg_type) :: this
 
   call TOWGMaxChange(this%realization, this%max_change_ivar, &
@@ -547,10 +551,10 @@ end subroutine PMTOWGMaxChange
 
 subroutine PMTOWGUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                                     num_newton_iterations,tfac)
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/30/16
-  ! 
+  !
 
   use Realization_Base_class, only : RealizationGetVariable
   use Realization_Subsurface_class, only : RealizationLimitDTByCFL
@@ -559,24 +563,24 @@ subroutine PMTOWGUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   use Variables_module, only : LIQUID_SATURATION, GAS_SATURATION
 
   implicit none
-  
+
   class(pm_towg_type) :: this
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
-  
+
   PetscReal :: fac
   PetscInt :: ifac
   PetscReal :: up, ut, ux, us, umin
   PetscReal :: dtt
   type(field_type), pointer :: field
-  
-#ifdef PM_TOWG_DEBUG  
+
+#ifdef PM_TOWG_DEBUG
   call printMsg(this%option,'PMTOWG%UpdateTimestep()')
 #endif
-  
+
   fac = 0.5d0
   if (num_newton_iterations >= iacceleration) then
     fac = 0.33d0
@@ -616,18 +620,18 @@ end subroutine PMTOWGUpdateTimestep
 ! ************************************************************************** !
 
 subroutine PMTOWGComputeMassBalance(this,mass_balance_array)
-  ! 
+  !
   ! Author: Paolo Orsini (OGS)
   ! Date: 12/30/16
-  ! 
+  !
 
   use TOWG_module, only : TOWGComputeMassBalance
 
   implicit none
-  
+
   class(pm_towg_type) :: this
   PetscReal :: mass_balance_array(:)
-  
+
   call TOWGComputeMassBalance(this%realization,mass_balance_array)
 
 end subroutine PMTOWGComputeMassBalance
@@ -635,11 +639,11 @@ end subroutine PMTOWGComputeMassBalance
 ! ************************************************************************** !
 
 subroutine PMTOWGCheckpointBinary(this,viewer)
-  ! 
+  !
   ! Checkpoints data associated with TOWG PM
   ! If saves istate for all TOWG submodels, but required only for black oil
   ! and solvent models
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 01/19/17
 
@@ -648,22 +652,22 @@ subroutine PMTOWGCheckpointBinary(this,viewer)
   use Variables_module, only : STATE
 
   implicit none
-#include "petsc/finclude/petscviewer.h"      
+#include "petsc/finclude/petscviewer.h"
 
   class(pm_towg_type) :: this
   PetscViewer :: viewer
-  
+
   !call GlobalGetAuxVarVecLoc(this%realization, &
   !                           this%realization%field%iphas_loc, &
   !                           STATE,ZERO_INTEGER)
   call PMSubsurfaceFlowCheckpointBinary(this,viewer)
-  
+
 end subroutine PMTOWGCheckpointBinary
 
 ! ************************************************************************** !
 
 subroutine PMTOWGRestartBinary(this,viewer)
-  ! 
+  !
   ! Restarts data associated with TOWG PM
   ! If loads istate for all TOWG submodels, but required only for black oil
   ! and solvent models
@@ -676,34 +680,34 @@ subroutine PMTOWGRestartBinary(this,viewer)
   use Variables_module, only : STATE
 
   implicit none
-#include "petsc/finclude/petscviewer.h"      
+#include "petsc/finclude/petscviewer.h"
 
   class(pm_towg_type) :: this
   PetscViewer :: viewer
-  
+
   call PMSubsurfaceFlowRestartBinary(this,viewer)
   call GlobalSetAuxVarVecLoc(this%realization, &
                              this%realization%field%iphas_loc, &
                              STATE,ZERO_INTEGER)
-  
+
 end subroutine PMTOWGRestartBinary
 
 ! ************************************************************************** !
 
 subroutine PMTOWGDestroy(this)
-  ! 
+  !
   ! Destroys TOWG process model
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 01/19/17
-  ! 
+  !
 
   use TOWG_module, only : TOWGDestroy
 
   implicit none
-  
+
   class(pm_towg_type) :: this
-  
+
   if (associated(this%next)) then
     call this%next%Destroy()
   endif
@@ -716,10 +720,9 @@ subroutine PMTOWGDestroy(this)
   ! preserve this ordering
   call TOWGDestroy(this%realization)
   call PMSubsurfaceFlowDestroy(this)
-  
+
 end subroutine PMTOWGDestroy
 
 ! ************************************************************************** !
 
 end module PM_TOWG_class
-
