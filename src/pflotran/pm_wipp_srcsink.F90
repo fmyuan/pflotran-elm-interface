@@ -67,6 +67,9 @@ module PM_WIPP_SrcSink_class
 ! initial_conc_mol(:): [mol-species/m3-bulk] initial molar concentration of
 !    a chemical species in the waste panel, and indexed by each cell in the
 !    waste panel region
+! initial_conc_kg(:): [kg-species/m3-bulk] initial mass in kg of
+!    a chemical species in the waste panel, and indexed by each cell in the
+!    waste panel region
 ! inst_rate(:): [mol/m3-bulk/sec] instantaneous reaction rate constant of a
 !    chemical species in the waste panel, and indexed by each cell in the
 !    waste panel region
@@ -82,6 +85,7 @@ module PM_WIPP_SrcSink_class
 ! -------------------------------------------
   type, public :: chem_species_type
     PetscReal, pointer :: initial_conc_mol(:)
+    PetscReal, pointer :: initial_conc_kg(:)
     PetscReal, pointer :: inst_rate(:)  
     PetscReal, pointer :: current_conc_mol(:)
     PetscReal, pointer :: current_conc_kg(:)
@@ -426,10 +430,10 @@ module PM_WIPP_SrcSink_class
     procedure, public :: Destroy => PMWSSDestroy
   end type pm_wipp_srcsink_type
 ! --------------------------------------------------------------------
-  
-  interface PMWSSTaperRxnrate
-    module procedure PMWSSTaperRxnrate1
-    module procedure PMWSSTaperRxnrate2
+
+  interface PMWSSSmoothRxnrate
+    module procedure PMWSSSmoothRxnrate1
+    module procedure PMWSSSmoothRxnrate2
   end interface
 
   public :: PMWSSCreate, &
@@ -714,6 +718,7 @@ subroutine PMWSSInitChemSpecies(chem_species,molar_mass)
   nullify(chem_species%current_conc_mol)        ! [mol/m3]
   nullify(chem_species%current_conc_kg)         ! [kg/m3]
   nullify(chem_species%initial_conc_mol)        ! [mol/m3]
+  nullify(chem_species%initial_conc_kg)         ! [kg/m3]
   nullify(chem_species%inst_rate)               ! [mol/m3/sec]
   chem_species%molar_mass = molar_mass          ! [kg/mol]
   chem_species%tot_mass_in_panel = 0.d0         ! [kg/panel-volume]
@@ -2006,8 +2011,6 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   
   ! algebra/pre-brag/bragflo use the H2 (i.e. total gas) value for H2S
   waste_panel%RXH2S_factor = waste_panel%RXH2_factor   ! [mol-H2S/mol-cell]
-  ! this is the correct, H2S-only, value
-  !waste_panel%RXH2S_factor = waste_panel%F_SO4*(3.0d0/6.0d0) ! [mol-H2S/mol-cell]
   
   ! bragflo apparently sets RXH2O_factor to zero
   ! algebra sets STCO_22 as SMIC_H20, which is RXH2O_factor
@@ -2275,12 +2278,15 @@ subroutine PMWSSChemSpeciesAllocate(num_cells,chem_species,initial_mass,volume)
 ! ---------------------------------------
   
   allocate(chem_species%initial_conc_mol(num_cells))
+  allocate(chem_species%initial_conc_kg(num_cells))
   allocate(chem_species%current_conc_mol(num_cells))
   allocate(chem_species%current_conc_kg(num_cells))
   allocate(chem_species%inst_rate(num_cells))
   
   !----------------------------------------------------------!-[units]--------
+  chem_species%initial_conc_kg(:) = initial_mass/volume      ! [kg/m3]
   chem_species%current_conc_kg(:) = initial_mass/volume      ! [kg/m3]
+                             
   chem_species%initial_conc_mol(:) = initial_mass/volume/ &  ! [kg/m3]
                                      chem_species%molar_mass ! [kg/mol]
   chem_species%current_conc_mol(:) =  &
@@ -2630,6 +2636,8 @@ end subroutine PMWSSUpdateChemSpecies
 ! num_cells: number of grid cells in a waste panel region
 ! SOCEXP: exponent value in effective brine saturation equation
 ! dt: [sec] flow process model time step value
+! temp_conc: [mol-species/m3-bulk] what the concentration would be at the 
+!    end of time step given rxnrate and dt
 ! UNPERT: unperturbed array index value in srcsink_brine/gas
 ! PERT_WRT_SG: perturbed array index value in srcsink_brine/gas with 
 !    respect to gas saturation (2nd dof)
@@ -2649,7 +2657,7 @@ end subroutine PMWSSUpdateChemSpecies
   PetscInt :: num_cells
   PetscReal :: SOCEXP
   PetscReal :: dt
-  
+  PetscReal :: temp_conc
   ! brine/gas generation variables
   PetscReal :: water_saturation
   PetscReal :: s_eff
@@ -2730,167 +2738,202 @@ end subroutine PMWSSUpdateChemSpecies
           sg_eff = (1.d0-s_eff)
         endif
 
-      ! note, bragflo applies a separate smoothing on the humid rates using 
-      ! s_eff 
-      ! bragflo calculates and reports inundated and humid rates separately
-      ! inundated_rate_cons*s_eff and humid_rate_constant*sg_eff
-      ! and sequentially - humid proceeds only if there is remaining solid 
-      ! after inundated
-      
-      
+     
       !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
       !-----(see equation PA.67, PA.77, section PA-4.2.5)-----------------------
       
-        ! CORSAT
-        cwp%rxnrate_Fe_corrosion_inund(i) = cwp%inundated_corrosion_rate*s_eff
-        call PMWSSSmoothRxnrate(cwp%rxnrate_Fe_corrosion_inund(i),i, &
-                                cwp%inventory%Fe_s,this%alpharxn) 
-        call PMWSSTaperRxnrate(cwp%rxnrate_Fe_corrosion_inund(i),i, &
-                               cwp%inventory%Fe_s,1.d0,dt)
-
-        ! CORHUM
-        cwp%rxnrate_Fe_corrosion_humid(i) = cwp%humid_corrosion_rate*sg_eff
-        call PMWSSSmoothRxnrate(cwp%rxnrate_Fe_corrosion_humid(i),i, &
-                                cwp%inventory%Fe_s,this%alpharxn) 
-        call PMWSSTaperRxnrate(cwp%rxnrate_Fe_corrosion_humid(i),i, &
-                               cwp%inventory%Fe_s,1.d0,dt)
-        ! the humid rate is also smoothed based on sg_eff; neglected here
+        if (cwp%inventory%Fe_s%current_conc_mol(i) > 0.d0) then
+        ! CORSAT:
+          cwp%rxnrate_Fe_corrosion_inund(i) = &
+                                         cwp%inundated_corrosion_rate*s_eff
+          ! smoothing of inundated rate occurs only due to concentration
+          call PMWSSSmoothRxnrate(cwp%rxnrate_Fe_corrosion_inund(i),i, &
+                                  cwp%inventory%Fe_s,this%alpharxn) 
+          call PMWSSTaperRxnrate(cwp%rxnrate_Fe_corrosion_inund(i),i, &
+                           cwp%inventory%Fe_s,this%stoic_mat(1,4),dt,temp_conc)
+        ! CORHUM:
+          if (temp_conc > 0.d0) then
+            cwp%rxnrate_Fe_corrosion_humid(i) = &
+                                            cwp%humid_corrosion_rate*sg_eff
+            ! smoothing of humid rate occurs first due to concentration, then 
+            ! due to s_eff
+            call PMWSSSmoothRxnrate(cwp%rxnrate_Fe_corrosion_humid(i),i, &
+                                    cwp%inventory%Fe_s,this%alpharxn)
+            call PMWSSSmoothHumidRxnrate(cwp%rxnrate_Fe_corrosion_humid(i), &
+                                         s_eff,this%alpharxn)
+            call PMWSSTaperRxnrate(cwp%rxnrate_Fe_corrosion_humid(i),i, &
+                           cwp%inventory%Fe_s,this%stoic_mat(1,4),dt,temp_conc)
+          endif
+        endif
 
         ! total corrosion
         cwp%rxnrate_Fe_corrosion(i) = & 
              cwp%rxnrate_Fe_corrosion_inund(i) + &
              cwp%rxnrate_Fe_corrosion_humid(i)
   
-    
-      !-----biodegradation-[mol-cell/m3/sec]------------------------------------
-      !-----(see equation PA.69, PA.82, PA.83, section PA-4.2.5)----------------
-
-        ! BIOSAT
-        cwp%rxnrate_cell_biodeg_inund(i) = cwp%inundated_biodeg_rate*s_eff
-        call PMWSSSmoothRxnrate(cwp%rxnrate_cell_biodeg_inund(i),i, &
-                                cwp%inventory%BioDegs_s,this%alpharxn) 
-        call PMWSSTaperRxnrate(cwp%rxnrate_cell_biodeg_inund(i),i, &
-                               cwp%inventory%BioDegs_s,1.d0,dt)
-
-        ! BIOHUM
-        cwp%rxnrate_cell_biodeg_humid(i) = cwp%humid_biodeg_rate*sg_eff
-        call PMWSSSmoothRxnrate(cwp%rxnrate_cell_biodeg_humid(i),i, &
-                                cwp%inventory%BioDegs_s,this%alpharxn) 
-        call PMWSSTaperRxnrate(cwp%rxnrate_cell_biodeg_humid(i),i, &
-                               cwp%inventory%BioDegs_s,1.d0,dt)
-        ! the humid rate is also smoothed based on sg_eff; neglected here
-      
-        ! total microbial gas generation
-        cwp%rxnrate_cell_biodeg(i) = & 
-          cwp%rxnrate_cell_biodeg_inund(i) + cwp%rxnrate_cell_biodeg_humid(i)
-
-
-      !-----iron-sulfidation-[mol-H2S/m3/sec]-----------------------------------
-      !-----(see equation PA.68, PA.89, PA.90, section PA-4.2.5)----------------
-      
-        ! BIOFES
-        ! FeOH2 sulfidation is assumed to kinetically dominate Fe sulfidation.
-        ! The H2S generation rate is proportioned between FeOH and Fe.
-        ! FeOH2 is sulifidized first, then Fe is sulifidized with remaining H2S
-        cwp%rxnrate_FeOH2_sulf(i) = cwp%rxnrate_cell_biodeg(i)*cwp%RXH2S_factor
-        ! bragflo uses Fe as initial concentration, not FeOH2, so this is right
-
-        ! for smoothing, the initial and current species are different
-        call PMWSSSmoothRxnrate2(cwp%rxnrate_FeOH2_sulf(i), &
-        cwp%inventory%FeOH2_s%current_conc_mol(i), & 
-        cwp%inventory%Fe_s%initial_conc_mol(i), & 
-        this%alpharxn)
-      
-        ! here tapering actually truncates the rate, so this call is important
-        call PMWSSTaperRxnrate(cwp%rxnrate_FeOH2_sulf(i),i, &
-                                cwp%inventory%FeOH2_s,1.d0,dt)
-        
-        ! FeS rate is caculated based on the left over H2S rate
-        cwp%rxnrate_Fe_sulf(i) = cwp%rxnrate_cell_biodeg(i)*cwp%RXH2S_factor - &
-                                  cwp%rxnrate_FeOH2_sulf(i)
-        call PMWSSTaperRxnrate(cwp%rxnrate_Fe_sulf(i),i,cwp%inventory%Fe_s, &
-                                1.d0,dt)
-
+  
       !-----MgO-hydration-[mol-MgO/m3/sec]--------------------------------------
       !-----(see equation PA.73, PA.94, section PA-4.2.5)-----------------------
         
-        ! CORMGO
-        cwp%rxnrate_MgO_hyd_inund(i) = cwp%inundated_brucite_rate*s_eff
-        cwp%rxnrate_MgO_hyd_humid(i) = cwp%humid_brucite_rate*sg_eff
-        ! the humid rate is also smoothed based on sg_eff; neglected here
+        if (cwp%inventory%MgO_s%current_conc_mol(i) > 0.d0) then
+          ! CORMGO
+          cwp%rxnrate_MgO_hyd_inund(i) = cwp%inundated_brucite_rate*s_eff
+          cwp%rxnrate_MgO_hyd_humid(i) = cwp%humid_brucite_rate*sg_eff
+          
+          ! smoothing of humid rate occurs first due to s_eff
+          call PMWSSSmoothHumidRxnrate(cwp%rxnrate_MgO_hyd_humid(i),s_eff, &
+                                       this%alpharxn)
+          ! total MgO hydration rate
+          cwp%rxnrate_MgO_hyd(i) = & 
+                    cwp%rxnrate_MgO_hyd_inund(i) + cwp%rxnrate_MgO_hyd_humid(i)
+          
+          ! smoothing of total rate occurs due to concentration
+          call PMWSSSmoothRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
+                                  cwp%inventory%MgO_s,this%alpharxn) 
+          call PMWSSTaperRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
+                          cwp%inventory%MgO_s,this%stoic_mat(5,8),dt,temp_conc)
+        endif
         
-        ! unlike for corrorosion and biodegradation, bragflo doesn't
-        ! separately store and report inundated and humid rates for MgO hydration
-        cwp%rxnrate_MgO_hyd(i) = & 
-                  cwp%rxnrate_MgO_hyd_inund(i) + cwp%rxnrate_MgO_hyd_humid(i)
-        
-        call PMWSSSmoothRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
-                                cwp%inventory%MgO_s,this%alpharxn) 
-        call PMWSSTaperRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
-                                cwp%inventory%MgO_s,1.d0,dt)
-                              
-                              
-      !-----hydromagnesite-[mol-hydromagnesite/m3-bulk/sec]---------------------
-      !-----(see equation PA.74, PA.96, section PA-4.2.5)-----------------------
-        
-        ! BIOMGO
-        cwp%rxnrate_MgOH2_carb(i) = cwp%rxnrate_cell_biodeg(i)*cwp%RXCO2_factor
-        
-        ! for smoothing, the initial and current species are different
-        call PMWSSSmoothRxnrate2(cwp%rxnrate_MgOH2_carb(i), &
-                                  cwp%inventory%MgOH2_s%current_conc_mol(i), & 
-                                  cwp%inventory%MgO_s%initial_conc_mol(i), & 
-                                  this%alpharxn)
-        
-        ! here tapering actually truncates the rate, so this call is important
-        call PMWSSTaperRxnrate(cwp%rxnrate_MgOH2_carb(i),i, &
-                                cwp%inventory%MgOH2_s,1.d0,dt)
-        
-        ! the remaining CO2 reacts with MgO
-        cwp%rxnrate_MgO_carb(i) = &
-                    cwp%rxnrate_cell_biodeg(i)*cwp%RXCO2_factor - &
-                    cwp%rxnrate_MgOH2_carb(i)
-        call PMWSSTaperRxnrate(cwp%rxnrate_MgO_carb(i),i,cwp%inventory%MgO_s, &
-                                1.d0,dt)
       
       !-----hydromagnesite-conversion-[mol-hydromagnesite/m3-bulk/sec]----------
       !-----(see equation PA.74, PA.97, section PA-4.2.5)-----------------------
         
-        ! HYDROCONV
-        ! this is a first-order reaction, not zero-order
-        ! also rate is on /kg basis
-        cwp%rxnrate_hydromag_conv(i) = this%hymagcon_rate* &
-                              cwp%inventory%Mg5CO34OH24H2_s%current_conc_kg(i)
-        ! for smoothing, the initial and current species are different
-        call PMWSSSmoothRxnrate2(cwp%rxnrate_hydromag_conv(i), &
-                        cwp%inventory%Mg5CO34OH24H2_s%current_conc_mol(i), & 
-                        cwp%inventory%MgO_s%initial_conc_mol(i),this%alpharxn)
-        call PMWSSTaperRxnrate(cwp%rxnrate_hydromag_conv(i),i, &
-                                cwp%inventory%Mg5CO34OH24H2_s,1.d0,dt)
-                             
-                             
+        if (cwp%inventory%Mg5CO34OH24H2_s%current_conc_mol(i) > 0.d0) then
+          ! HYDROCONV
+          cwp%rxnrate_hydromag_conv(i) = this%hymagcon_rate * &
+                               cwp%inventory%Mg5CO34OH24H2_s%current_conc_kg(i)
+          ! smoothing of reaction rate occurs only due to concentration
+          ! for smoothing, the initial and current species are different
+          if (cwp%inventory%MgO_s%initial_conc_mol(i) > 0.d0) then
+            call PMWSSSmoothRxnrate(cwp%rxnrate_hydromag_conv(i), &
+                           cwp%inventory%Mg5CO34OH24H2_s%current_conc_kg(i), &
+                           cwp%inventory%MgO_s%initial_conc_kg(i), & 
+                           this%alpharxn)
+          endif
+          call PMWSSTaperRxnrate(cwp%rxnrate_hydromag_conv(i),i, &
+               cwp%inventory%Mg5CO34OH24H2_s,this%stoic_mat(8,10),dt,temp_conc)
+        endif
+                              
+    
+      !-----biodegradation-[mol-cell/m3/sec]------------------------------------
+      !-----(see equation PA.69, PA.82, PA.83, section PA-4.2.5)----------------
+
+        if (cwp%inventory%BioDegs_s%current_conc_mol(i) > 0.d0) then
+          ! BIOSAT
+          cwp%rxnrate_cell_biodeg_inund(i) = cwp%inundated_biodeg_rate*s_eff
+          ! smoothing of inundated rate occurs only due to concentration
+          call PMWSSSmoothRxnrate(cwp%rxnrate_cell_biodeg_inund(i),i, &
+                                  cwp%inventory%BioDegs_s,this%alpharxn) 
+          call PMWSSTaperRxnrate(cwp%rxnrate_cell_biodeg_inund(i),i, &
+                      cwp%inventory%BioDegs_s,this%stoic_mat(2,5),dt,temp_conc)
+
+          ! BIOHUM
+          if (temp_conc > 0.d0) then
+            cwp%rxnrate_cell_biodeg_humid(i) = cwp%humid_biodeg_rate*sg_eff
+            ! smoothing of humid rate occurs first due to concentration, then
+            ! due to s_eff
+            call PMWSSSmoothRxnrate(cwp%rxnrate_cell_biodeg_humid(i),i, &
+                                    cwp%inventory%BioDegs_s,this%alpharxn) 
+            call PMWSSSmoothHumidRxnrate(cwp%rxnrate_cell_biodeg_humid(i), &
+                                         s_eff,this%alpharxn)
+            call PMWSSTaperRxnrate(cwp%rxnrate_cell_biodeg_humid(i),i, &
+                      cwp%inventory%BioDegs_s,this%stoic_mat(2,5),dt,temp_conc)
+          endif
+        endif
+        
+        ! total microbial reaction rate
+        cwp%rxnrate_cell_biodeg(i) = & 
+          cwp%rxnrate_cell_biodeg_inund(i) + cwp%rxnrate_cell_biodeg_humid(i)
+        
+
+      !-----iron-sulfidation-[mol-H2S/m3/sec]-----------------------------------
+      !-----(see equation PA.68, PA.89, PA.90, section PA-4.2.5)----------------
+      
+        if (cwp%inventory%BioDegs_s%current_conc_mol(i) > 0.d0) then
+          ! BIOFES
+          ! FeOH2 sulfidation is assumed to kinetically dominate Fe sulfidation.
+          ! The H2S generation rate is proportioned between FeOH and Fe. FeOH2 
+          ! is sulifidized first, then Fe is sulifidized with remaining H2S.
+          cwp%rxnrate_FeOH2_sulf(i) = cwp%rxnrate_cell_biodeg(i) * &
+                                      cwp%RXH2S_factor
+          ! smoothing of reaction rate occurs only due to concentration
+          ! for smoothing, the initial and current species are different
+          if (cwp%inventory%Fe_s%initial_conc_mol(i) > 0.d0) then
+            call PMWSSSmoothRxnrate(cwp%rxnrate_FeOH2_sulf(i), &
+                                    cwp%inventory%FeOH2_s%current_conc_kg(i), & 
+                                    cwp%inventory%Fe_s%initial_conc_kg(i), & 
+                                    this%alpharxn)
+          else if (cwp%inventory%Fe_s%initial_conc_mol(i) == 0.d0) then
+            cwp%rxnrate_FeOH2_sulf(i) = 0.d0
+            cwp%rxnrate_Fe_sulf(i) = 0.d0
+          endif
+          ! taper FeOH2 sulfidation rate first
+          call PMWSSTaperRxnrate(cwp%rxnrate_FeOH2_sulf(i),i, &
+                        cwp%inventory%FeOH2_s,this%stoic_mat(3,6),dt,temp_conc)
+          ! FeS rate is calculated based on the left over H2S rate
+          cwp%rxnrate_Fe_sulf(i) = &
+                             (cwp%rxnrate_cell_biodeg(i)*cwp%RXH2S_factor) - &
+                              cwp%rxnrate_FeOH2_sulf(i)
+          ! taper Fe sulfidation rate second
+          call PMWSSTaperRxnrate(cwp%rxnrate_Fe_sulf(i),i,cwp%inventory%Fe_s, &
+                                 this%stoic_mat(4,4),dt,temp_conc)
+        endif
+           
+           
+      !-----hydromagnesite-[mol-hydromagnesite/m3-bulk/sec]---------------------
+      !-----(see equation PA.74, PA.96, section PA-4.2.5)-----------------------
+        
+        if (cwp%inventory%BioDegs_s%current_conc_mol(i) > 0.d0) then
+          ! BIOMGO
+          cwp%rxnrate_MgOH2_carb(i) = cwp%rxnrate_cell_biodeg(i) * &
+                                      cwp%RXCO2_factor
+          ! smoothing of reaction rate occurs only due to concentration
+          ! for smoothing, the initial and current species are different
+          if (cwp%inventory%MgO_s%initial_conc_mol(i) > 0.d0) then
+            call PMWSSSmoothRxnrate(cwp%rxnrate_MgOH2_carb(i), &
+                                    cwp%inventory%MgOH2_s%current_conc_kg(i), & 
+                                    cwp%inventory%MgO_s%initial_conc_kg(i), &
+                                    this%alpharxn)
+          else if (cwp%inventory%MgO_s%initial_conc_mol(i) == 0.d0) then
+            cwp%rxnrate_MgOH2_carb(i) = 0.d0
+            cwp%rxnrate_MgO_carb(i) = 0.d0
+          endif
+          ! taper MgOH2 carbonation rate first
+          call PMWSSTaperRxnrate(cwp%rxnrate_MgOH2_carb(i),i, &
+                        cwp%inventory%MgOH2_s,this%stoic_mat(6,9),dt,temp_conc)
+          
+          ! the remaining CO2 reacts with MgO
+          cwp%rxnrate_MgO_carb(i) = &
+                      (cwp%rxnrate_cell_biodeg(i)*cwp%RXCO2_factor) - &
+                       cwp%rxnrate_MgOH2_carb(i)
+          ! taper MgO carbonation rate second
+          call PMWSSTaperRxnrate(cwp%rxnrate_MgO_carb(i),i, &
+                          cwp%inventory%MgO_s,this%stoic_mat(7,8),dt,temp_conc)                            
+        endif                             
+             
+             
       !-----tracked-species-[mol-species/m3-bulk/sec]---------------------------
       !-----note:column-id-is-shifted-by-+1-since-a-0-index-not-possible--------
         
-        cwp%inventory%FeOH2_s%inst_rate(i) = &
+        cwp%inventory%FeOH2_s%inst_rate(i) = & 
                       this%stoic_mat(1,6)*cwp%rxnrate_Fe_corrosion(i) + &
                       this%stoic_mat(3,6)*cwp%rxnrate_FeOH2_sulf(i)
-        cwp%inventory%Fe_s%inst_rate(i) = &
+        cwp%inventory%Fe_s%inst_rate(i) = & 
                       this%stoic_mat(1,4)*cwp%rxnrate_Fe_corrosion(i) + &
-                      this%stoic_mat(4,4)*cwp%rxnrate_Fe_sulf(i) 
-        cwp%inventory%FeS_s%inst_rate(i) = &
+                      this%stoic_mat(4,4)*cwp%rxnrate_Fe_sulf(i)
+        cwp%inventory%FeS_s%inst_rate(i) = & 
                       this%stoic_mat(4,7)*cwp%rxnrate_Fe_sulf(i) + &
                       this%stoic_mat(3,7)*cwp%rxnrate_FeOH2_sulf(i)
-        cwp%inventory%BioDegs_s%inst_rate(i) = &
+        cwp%inventory%BioDegs_s%inst_rate(i) = & ! SFAC=0
                       this%stoic_mat(2,5)*cwp%rxnrate_cell_biodeg(i)
-        cwp%inventory%MgO_s%inst_rate(i) = &
+        cwp%inventory%MgO_s%inst_rate(i) = & 
                       this%stoic_mat(5,8)*cwp%rxnrate_MgO_hyd(i) + &
                       this%stoic_mat(7,8)*cwp%rxnrate_MgO_carb(i)
-        cwp%inventory%MgOH2_s%inst_rate(i) = &
+        cwp%inventory%MgOH2_s%inst_rate(i) = & 
                       this%stoic_mat(5,9)*cwp%rxnrate_MgO_hyd(i) + & 
                       this%stoic_mat(6,9)*cwp%rxnrate_MgOH2_carb(i) + &
-                      this%stoic_mat(8,9)*cwp%rxnrate_hydromag_conv(i)
-        cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i) = &
+                      this%stoic_mat(8,9)*cwp%rxnrate_hydromag_conv(i) 
+        cwp%inventory%Mg5CO34OH24H2_s%inst_rate(i) = & 
                       this%stoic_mat(6,1)*cwp%rxnrate_MgOH2_carb(i) + &
                       this%stoic_mat(8,1)*cwp%rxnrate_hydromag_conv(i) 
         cwp%inventory%MgCO3_s%inst_rate(i) = &
@@ -2902,11 +2945,11 @@ end subroutine PMWSSUpdateChemSpecies
       !-----(see equations PA.67-69, PA.77, PA.82-83, PA.86, PA.89, sec PA-4.2.5)
       
         cwp%gas_generation_rate(i) = &
-                      this%stoic_mat(1,2)*cwp%rxnrate_Fe_corrosion(i) + &
-                      this%stoic_mat(3,2)*cwp%rxnrate_FeOH2_sulf(i) + &
-                      this%stoic_mat(4,2)*cwp%rxnrate_Fe_sulf(i) + &
+                      this%stoic_mat(1,2)*cwp%rxnrate_Fe_corrosion(i) + & 
+                      this%stoic_mat(3,2)*cwp%rxnrate_FeOH2_sulf(i) + & 
+                      this%stoic_mat(4,2)*cwp%rxnrate_Fe_sulf(i) + & ! zero
                       this%stoic_mat(2,2)*cwp%rxnrate_cell_biodeg(i) + & ! zero
-                      cwp%RXH2_factor*cwp%rxnrate_cell_biodeg(i)         ! H2
+                          cwp%RXH2_factor*cwp%rxnrate_cell_biodeg(i) ! SFAC     
       
       !-----brine-generation-[mol-H2O/m3-bulk/sec]------------------------------
       !-----(see equations PA.77, PA.78, PA.82, PA.83, PA.90, PA.96, PA.97,)----
@@ -2918,7 +2961,7 @@ end subroutine PMWSSUpdateChemSpecies
                       this%stoic_mat(5,3)*cwp%rxnrate_MgO_hyd(i) + &
                       this%stoic_mat(8,3)*cwp%rxnrate_hydromag_conv(i) + &
                       this%stoic_mat(2,3)*cwp%rxnrate_cell_biodeg(i) + & ! STCO_22=SMIC_H20
-                      cwp%RXH2O_factor*cwp%rxnrate_cell_biodeg(i)        ! zero
+                         cwp%RXH2O_factor*cwp%rxnrate_cell_biodeg(i)     ! SFAC
         ! Convert water weight to brine rate (bragflo BRH2O)
         cwp%brine_generation_rate(i) = cwp%brine_generation_rate(i) / &
                       (1.d0 - 1.d-2*this%salt_wtpercent)
@@ -2989,14 +3032,14 @@ end subroutine PMWSSSolve
 
 ! ************************************************************************** !
 
-subroutine PMWSSSmoothRxnrate(rxnrate,cell_num,limiting_species,alpharxn)
+subroutine PMWSSSmoothRxnrate1(rxnrate,cell_num,limiting_species,alpharxn)
   !
   ! Smooths the reaction rate near the point where the reaction runs out of a
   ! limiting relevant reactant/species. This implements Eq. 158 in the BRAGFLO
   ! User's Manual.
   !
   ! Author: Jennifer Frederick
-  ! Date: 03/27/3017
+  ! Date: 03/27/2017
   !
   
   implicit none
@@ -3022,18 +3065,16 @@ subroutine PMWSSSmoothRxnrate(rxnrate,cell_num,limiting_species,alpharxn)
 ! -----------------------
   PetscReal :: conc_ratio
 ! -----------------------
-  if ( limiting_species%initial_conc_mol(cell_num) > 0.0d0) then
-    conc_ratio = ( limiting_species%current_conc_mol(cell_num) / &
-                   limiting_species%initial_conc_mol(cell_num) ) 
+  if ( limiting_species%initial_conc_kg(cell_num) > 0.0d0) then
+    conc_ratio = ( limiting_species%current_conc_kg(cell_num) / &
+                   limiting_species%initial_conc_kg(cell_num) ) 
     conc_ratio = min(1.d0,conc_ratio)
-    ! K_smoothed = K * (1.0 - exp(A*C/Ci)  BRAGFLO User's Manual Eq. 158
-    ! However, the above equation is an error. The correct equation is below:
     rxnrate = rxnrate * (1.d0 - exp(alpharxn*conc_ratio))
   else
     rxnrate = 0.0d0
   end if
   
-end subroutine PMWSSSmoothRxnrate
+end subroutine PMWSSSmoothRxnrate1
 
 
 ! ************************************************************************** !
@@ -3041,11 +3082,12 @@ end subroutine PMWSSSmoothRxnrate
 subroutine PMWSSSmoothRxnrate2(rxnrate,current_conc,initial_conc,alpharxn)
   !
   ! Smooths the reaction rate near the point where the reaction runs out of a
-  ! limiting relevant reactant/species. This implements Eq. 158 in the BRAGFLO
+  ! limiting relevant reactant/species, but the initial and current species 
+  ! are different. This implements Eq. 158 in the BRAGFLO
   ! User's Manual.
   !
   ! Author: Jennifer Frederick
-  ! Date: 03/27/3017
+  ! Date: 03/27/2017
   !
   
   implicit none
@@ -3053,9 +3095,8 @@ subroutine PMWSSSmoothRxnrate2(rxnrate,current_conc,initial_conc,alpharxn)
 ! INPUT ARGUMENTS:
 ! ================
 ! rxnrate (input/output): [mol-species/m3-bulk/sec] reaction rate constant 
-! cell_num (input): [-] grid cell numbering in waste panel region
-! limiting_species (input): chemical species object that is the limiting
-!    species of the reaction with reaction rate constant "rxnrate"
+! current_conc (input) : [kg-species/m3-bulk] current species concentration
+! initial_conc (input) : [kg-species/m3-bulk] initial species concentration
 ! alpharxn (input): [-] BRAGFLO parameter ALPHARXN
 ! -------------------------------------------
   PetscReal :: rxnrate
@@ -3066,8 +3107,8 @@ subroutine PMWSSSmoothRxnrate2(rxnrate,current_conc,initial_conc,alpharxn)
   
 ! LOCAL VARIABLES:
 ! ================
-! conc_ratio: [-] concentratio ratio of current molar concentration to
-!    initial molar concentration of a chemical species
+! conc_ratio: [-] concentratio ratio of current mass concentration to
+!    initial mass concentration of two different chemical species
 ! -----------------------
   PetscReal :: conc_ratio
 ! -----------------------
@@ -3075,19 +3116,43 @@ subroutine PMWSSSmoothRxnrate2(rxnrate,current_conc,initial_conc,alpharxn)
   if (initial_conc > 0.0d0) then
     conc_ratio = current_conc/initial_conc
     conc_ratio = min(1.d0,conc_ratio)
-    ! K_smoothed = K * (1.0 - exp(A*C/Ci)  BRAGFLO User's Manual Eq. 158
-    ! However, the above equation is an error. The correct equation is below:
     rxnrate = rxnrate * (1.d0 - exp(alpharxn*conc_ratio))
-  else
-    rxnrate = 0.0d0
-  end if
+  endif
   
 end subroutine PMWSSSmoothRxnrate2
 
+! ************************************************************************** !
+
+subroutine PMWSSSmoothHumidRxnrate(rxnrate,s_eff,alpharxn)
+  !
+  ! Smooths the humid reaction rate when effective liquid saturation is very 
+  ! low. This is activated by LAXRN boolean in the BRAGFLO input deck.
+  !
+  ! Author: Jennifer Frederick
+  ! Date: 11/14/2017
+  !
+  
+  implicit none
+  
+! INPUT ARGUMENTS:
+! ================
+! rxnrate (input/output): [mol-species/m3-bulk/sec] humid reaction rate constant 
+! s_eff (input): [-] effective liquid saturation
+! alpharxn (input): [-] BRAGFLO parameter ALPHARXN
+! -------------------------------------------
+  PetscReal :: rxnrate
+  PetscReal :: s_eff
+  PetscReal :: alpharxn
+! -------------------------------------------
+  
+  rxnrate = rxnrate * (1.d0 - exp(alpharxn*s_eff))
+ 
+end subroutine PMWSSSmoothHumidRxnrate
 
 ! ************************************************************************** !
 
-subroutine PMWSSTaperRxnrate1(rxnrate,cell_num,limiting_species1,stocoef,dt)
+subroutine PMWSSTaperRxnrate(rxnrate,cell_num,limiting_species1,stocoef,dt, &
+                             temp_conc)
   !
   ! Tapers the reaction rate if the reaction runs out of a single
   ! limiting relevant reactant/species. The limiting reactant/species is
@@ -3095,7 +3160,7 @@ subroutine PMWSSTaperRxnrate1(rxnrate,cell_num,limiting_species1,stocoef,dt)
   ! Section 14.13.
   !
   ! Author: Jennifer Frederick
-  ! Date: 03/27/3017
+  ! Date: 03/27/2017; Updated 11/15/2017
   !
   
   implicit none
@@ -3108,83 +3173,41 @@ subroutine PMWSSTaperRxnrate1(rxnrate,cell_num,limiting_species1,stocoef,dt)
 !    species of the reaction with reaction rate constant "rxnrate"
 ! stocoef: [mol/mol] stoichiometric coefficient for limiting reactant
 ! dt: timestep size [sec]
+! temp_conc: [mol-species/m3-bulk] what the concentration would be at the 
+!    end of time step given rxnrate and dt
 ! --------------------------------------------
   PetscReal :: rxnrate
   PetscInt :: cell_num
   type(chem_species_type) :: limiting_species1
   PetscReal :: stocoef
   PetscReal :: dt
+  PetscReal :: temp_conc
+! --------------------------------------------
   
+! LOCAL_VARIABLES:
+! ================
+! available_concentration: [mol-species/m3-bulk] current concentration of 
+!    limiting species
+! reacted_concentration: [mol-species/m3-bulk] concentration of limiting 
+!    species after time step
+! ------------------------------------
   PetscReal :: available_concentration
   PetscReal :: reacted_concentration
-! --------------------------------------------
+! ------------------------------------
+
   available_concentration = limiting_species1%current_conc_mol(cell_num)
   
   if (available_concentration <= 0.d0) then
     rxnrate = 0.d0
   else
     reacted_concentration = dt*stocoef*rxnrate
+    temp_conc = available_concentration - reacted_concentration
     if (reacted_concentration >= available_concentration) then
       rxnrate = available_concentration/(stocoef*dt)
     endif
   endif
   
-end subroutine PMWSSTaperRxnrate1
-
-! ************************************************************************** !
-
-subroutine PMWSSTaperRxnrate2(rxnrate,cell_num,limiting_species1, &
-                              limiting_species2)
-  !
-  ! Tapers the reaction rate if the reaction runs out of one of two possible
-  ! limiting relevant reactants/species. The limiting reactants/species are
-  ! chosen according to the equations in the BRAGFLO User's Manual, 
-  ! Section 14.13.
-  !
-  ! Author: Jennifer Frederick
-  ! Date: 03/27/3017
-  !
-  
-  implicit none
-  
-! INPUT ARGUMENTS:
-! ================
-! rxnrate (input/output): [mol-species/m3-bulk/sec] reaction rate constant
-! cell_num (input): [-] grid cell numbering in waste panel region
-! limiting_species1 (input): first possible chemical species object that 
-!    is the limiting species of the reaction with reaction rate 
-!    constant "rxnrate"
-! limiting_species2 (input): second possible chemical species object that 
-!    is the limiting species of the reaction with reaction rate  
-!    constant "rxnrate"
-! --------------------------------------------
-  PetscReal :: rxnrate
-  PetscInt :: cell_num
-  type(chem_species_type) :: limiting_species1
-  type(chem_species_type) :: limiting_species2
-! --------------------------------------------
-  
-! LOCAL_VARIABLES:
-! ================
-! rxnrate1, rxnrate2: [mol-species/m3-bulk/sec] reaction rate constant
-! ---------------------
-  PetscReal :: rxnrate1
-  PetscReal :: rxnrate2
-! ---------------------
-  
-  if (limiting_species1%current_conc_mol(cell_num) <= 0.d0) then
-    rxnrate1 = 0.d0
-  else
-    rxnrate1 = rxnrate
-  endif
-  if (limiting_species2%current_conc_mol(cell_num) <= 0.d0) then
-    rxnrate2 = 0.d0
-  else
-    rxnrate2 = rxnrate
-  endif
-  rxnrate = min(rxnrate1,rxnrate2)
-  
-end subroutine PMWSSTaperRxnrate2
+end subroutine PMWSSTaperRxnrate
 
 ! ************************************************************************** !
 
