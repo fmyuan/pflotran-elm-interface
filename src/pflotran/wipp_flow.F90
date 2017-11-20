@@ -840,6 +840,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
     call WIPPFloConvertUnitsToBRAGFlo(Res,material_auxvars(ghosted_id),option)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     accum_p2(local_start:local_end) = Res(:)
+!print *, 'A-A0: ', r_p(local_start:local_end)
   enddo
   call VecRestoreArrayReadF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
 
@@ -894,6 +895,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                                          material_auxvars(ghosted_id_up), &
                                          option)
         r_p(local_start:local_end) = r_p(local_start:local_end) + temp_Res(:)
+!print *, 'Fup: ', temp_Res
       endif
          
       if (local_id_dn > 0) then
@@ -904,6 +906,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                                          material_auxvars(ghosted_id_dn), &
                                          option)
         r_p(local_start:local_end) = r_p(local_start:local_end) - temp_Res(:)
+!print *, 'Fdn: ', temp_Res
       endif
     enddo
 
@@ -1110,6 +1113,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
                Jdn(realization%option%nflowdof,realization%option%nflowdof)
+  PetscReal :: Jtmp(realization%option%nflowdof,realization%option%nflowdof)
   
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
@@ -1181,6 +1185,8 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
                               material_parameter%soil_heat_capacity(imat), &
                               option, &
                               Jup) 
+    call WIPPFloConvertUnitsToBRAGFlo(Jup,material_auxvars(ghosted_id), &
+                                      option)
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
@@ -1219,18 +1225,38 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
                      wippflo_parameter,option, &
                      Jup,Jdn)
       if (local_id_up > 0) then
+        Jtmp = Jup
+        call WIPPFloConvertUnitsToBRAGFlo(Jtmp, &
+                                          material_auxvars(ghosted_id_up), &
+                                          option)
+!print *, 'up-up: ',Jtmp
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
-                                      Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
+                                      Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
+        Jtmp = Jdn
+        call WIPPFloConvertUnitsToBRAGFlo(Jtmp, &
+                                          material_auxvars(ghosted_id_up), &
+                                          option)
+!print *, 'up-dn: ',Jtmp
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
-                                      Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+                                      Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
       if (local_id_dn > 0) then
         Jup = -Jup
         Jdn = -Jdn
+        Jtmp = Jdn
+        call WIPPFloConvertUnitsToBRAGFlo(Jtmp, &
+                                          material_auxvars(ghosted_id_dn), &
+                                          option)
+!print *, 'dn-dn: ',Jtmp
         call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
-                                      Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+                                      Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
+        Jtmp = Jup
+        call WIPPFloConvertUnitsToBRAGFlo(Jtmp, &
+                                          material_auxvars(ghosted_id_dn), &
+                                          option)
+!print *, 'dn-up: ',Jtmp
         call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
-                                      Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
+                                      Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
     enddo
     cur_connection_set => cur_connection_set%next
@@ -1270,6 +1296,8 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
                       Jdn)
 
       Jdn = -Jdn
+      call WIPPFloConvertUnitsToBRAGFlo(Jdn,material_auxvars(ghosted_id), &
+                                        option)
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
     enddo
@@ -1304,6 +1332,8 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
                         material_auxvars(ghosted_id), &
                         scale,Jup)
 
+      call WIPPFloConvertUnitsToBRAGFlo(Jup,material_auxvars(ghosted_id), &
+                                        option)
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
 

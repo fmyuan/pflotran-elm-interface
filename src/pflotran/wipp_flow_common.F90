@@ -915,14 +915,12 @@ subroutine WIPPFloAccumDerivative(wippflo_auxvar,global_auxvar, &
                            global_auxvar, &
                            material_auxvar,soil_heat_capacity,option, &
                            res,PETSC_FALSE)
-  call WIPPFloConvertUnitsToBRAGFlo(res,material_auxvar,option)
                            
   do idof = 1, option%nflowdof
     call WIPPFloAccumulation(wippflo_auxvar(idof), &
                              global_auxvar, &
                              material_auxvar,soil_heat_capacity, &
                              option,res_pert,PETSC_FALSE)
-    call WIPPFloConvertUnitsToBRAGFlo(res_pert,material_auxvar,option)
     do irow = 1, option%nflowdof
       J(irow,idof) = (res_pert(irow)-res(irow))/wippflo_auxvar(idof)%pert
     enddo !irow
@@ -970,7 +968,7 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
 
   Jup = 0.d0
   Jdn = 0.d0
-  
+
   option%iflag = -2
   call XXFlux(wippflo_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                    material_auxvar_up, &
@@ -985,8 +983,6 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
                    PETSC_FALSE, & ! count upwind direction flip
                    PETSC_FALSE)
   res_dn = res_up
-  call WIPPFloConvertUnitsToBRAGFlo(res_up,material_auxvar_up,option)
-  call WIPPFloConvertUnitsToBRAGFlo(res_dn,material_auxvar_dn,option)
  
   ! upgradient derivatives
   do idof = 1, option%nflowdof
@@ -1002,7 +998,6 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
                      PETSC_FALSE, & ! update the upwind direction
                      wippflo_count_upwind_dir_flip, &
                      PETSC_FALSE)
-    call WIPPFloConvertUnitsToBRAGFlo(res_pert,material_auxvar_up,option)
     do irow = 1, option%nflowdof
       Jup(irow,idof) = (res_pert(irow)-res_up(irow)) / &
                        wippflo_auxvar_up(idof)%pert
@@ -1023,7 +1018,6 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
                      PETSC_FALSE, & ! update the upwind direction
                      wippflo_count_upwind_dir_flip, &
                      PETSC_FALSE)
-    call WIPPFloConvertUnitsToBRAGFlo(res_pert,material_auxvar_dn,option)
     do irow = 1, option%nflowdof
       Jdn(irow,idof) = (res_pert(irow)-res_dn(irow)) / &
                        wippflo_auxvar_dn(idof)%pert
@@ -1087,7 +1081,6 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                      PETSC_FALSE, & ! update the upwind direction
                      PETSC_FALSE, & ! count upwind direction flip
                      PETSC_FALSE)
-  call WIPPFloConvertUnitsToBRAGFlo(res,material_auxvar_dn,option)
 
   ! downgradient derivatives
   do idof = 1, option%nflowdof
@@ -1103,7 +1096,6 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                        PETSC_FALSE, & ! update the upwind direction
                        wippflo_count_upwind_dir_flip, &
                        PETSC_FALSE)   
-    call WIPPFloConvertUnitsToBRAGFlo(res_pert,material_auxvar_dn,option)
     do irow = 1, option%nflowdof
       Jdn(irow,idof) = (res_pert(irow)-res(irow))/wippflo_auxvar_dn(idof)%pert
     enddo !irow
@@ -1145,7 +1137,6 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                       wippflo_auxvars(ZERO_INTEGER),global_auxvar, &
                       material_auxvar,dummy_real,scale,res,PETSC_FALSE)
-  call WIPPFloConvertUnitsToBRAGFlo(res,material_auxvar,option)
                       
   ! perturbed wippflo_auxvars values
   do idof = 1, option%nflowdof
@@ -1153,7 +1144,6 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
                         wippflo_auxvars(idof),global_auxvar, &
                         material_auxvar,dummy_real, &
                         scale,res_pert,PETSC_FALSE)            
-    call WIPPFloConvertUnitsToBRAGFlo(res_pert,material_auxvar,option)
     do irow = 1, option%nflowdof
       Jac(irow,idof) = (res_pert(irow)-res(irow))/wippflo_auxvars(idof)%pert
     enddo !irow

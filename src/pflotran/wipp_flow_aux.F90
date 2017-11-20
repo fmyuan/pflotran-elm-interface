@@ -120,6 +120,11 @@ module WIPP_Flow_Aux_module
     module procedure WIPPFloOutputAuxVars1
     module procedure WIPPFloOutputAuxVars2
   end interface WIPPFloOutputAuxVars
+
+  interface WIPPFloConvertUnitsToBRAGFlo
+    module procedure WIPPFloConvertUnitsToBRAGFloRes
+    module procedure WIPPFloConvertUnitsToBRAGFloJac
+  end interface WIPPFloConvertUnitsToBRAGFlo
   
   public :: WIPPFloAuxCreate, &
             WIPPFloAuxDestroy, &
@@ -957,10 +962,9 @@ subroutine WIPPFloAuxVarStrip(auxvar)
   
 end subroutine WIPPFloAuxVarStrip
 
-
 ! ************************************************************************** !
 
-subroutine WIPPFloConvertUnitsToBRAGFlo(Res,material_auxvar,option)
+subroutine WIPPFloConvertUnitsToBRAGFloRes(Res,material_auxvar,option)
   ! 
   ! Converts units of residual to kg/m^3 (BRAGFLO units)
   ! 
@@ -980,7 +984,36 @@ subroutine WIPPFloConvertUnitsToBRAGFlo(Res,material_auxvar,option)
     Res = Res * fmw_comp * option%flow_dt / material_auxvar%volume
   endif
 
-end subroutine WIPPFloConvertUnitsToBRAGFlo
+end subroutine WIPPFloConvertUnitsToBRAGFloRes
+
+! ************************************************************************** !
+
+subroutine WIPPFloConvertUnitsToBRAGFloJac(Jac,material_auxvar,option)
+  ! 
+  ! Converts units of residual to kg/m^3 (BRAGFLO units)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/16/17
+  ! 
+  use Option_module
+  use Material_Aux_class
+
+  implicit none
+
+  type(option_type) :: option
+  PetscReal :: Jac(option%nflowdof,option%nflowdof)
+  class(material_auxvar_type) :: material_auxvar
+
+  PetscInt :: irow
+
+  if (wippflow_use_bragflo_units) then
+    do irow = 1, option%nflowdof
+      Jac(irow,:) = Jac(irow,:) * fmw_comp(irow) * option%flow_dt / &
+        material_auxvar%volume
+    enddo
+  endif
+
+end subroutine WIPPFloConvertUnitsToBRAGFloJac
 
 ! ************************************************************************** !
 
