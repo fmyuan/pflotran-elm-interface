@@ -424,7 +424,6 @@ module PM_WIPP_SrcSink_class
     procedure, public :: InitializeRun => PMWSSInitializeRun
     procedure, public :: InitializeTimestep => PMWSSInitializeTimestep
     procedure, public :: FinalizeTimestep => PMWSSFinalizeTimestep
-    procedure, public :: Solve => PMWSSSolve
     procedure, public :: Output => PMWSSOutput
     procedure, public :: InputRecord => PMWSSInputRecord
     procedure, public :: Destroy => PMWSSDestroy
@@ -440,6 +439,7 @@ module PM_WIPP_SrcSink_class
             PMWSSWastePanelCreate, &
             PMWSSPreInventoryCreate, &
             PMWSSSetRealization, &
+            PMWSSUpdateRates, &
             PMWSSCalcResidualValues, &
             PMWSSCalcJacobianValues
 
@@ -2375,7 +2375,7 @@ subroutine PMWSSInitializeRun(this)
   call PMWSSOutput(this)
 
   ! solve for initial process model state
-  call PMWSSSolve(this,0.d0,ierr)
+  call PMWSSUpdateRates(this,PETSC_FALSE,ierr)
   
 end subroutine PMWSSInitializeRun
 
@@ -2587,7 +2587,7 @@ end subroutine PMWSSUpdateChemSpecies
 
 ! *************************************************************************** !
 
- subroutine PMWSSSolve(this,time,ierr)
+ subroutine PMWSSUpdateRates(this,residual_calculation,ierr)
   ! 
   ! Calculates reaction rates, gas generation rate, and brine generation rate.
   ! Sets the fluid and energy source terms.
@@ -2598,7 +2598,6 @@ end subroutine PMWSSUpdateChemSpecies
   
   use Option_module
   use Grid_module
-  use General_Aux_module
   use WIPP_Flow_Aux_module
   use Material_Aux_class
   use Global_Aux_module
@@ -2614,7 +2613,7 @@ end subroutine PMWSSUpdateChemSpecies
 ! ierr (input/output): PETSc error integer
 ! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
-  PetscReal :: time
+  PetscBool :: residual_calculation
   PetscErrorCode :: ierr
 ! -----------------------------------
   
@@ -2724,11 +2723,21 @@ end subroutine PMWSSUpdateChemSpecies
               wippflo_auxvars(ZERO_INTEGER,ghosted_id)%sat(option%gas_phase)
         end select
 
-        SOCEXP = 200.d0*(max((water_saturation-this%smin),0.d0))**2.d0
+!geh: Begin change
+!geh: BRAGFLO's implementation differs near line 21393
+!        SOCEXP = 200.d0*(max((water_saturation-this%smin),0.d0))**2.d0
+!        s_eff = water_saturation-this%smin+(this%satwick * &
+!                                           (1.d0-exp(this%alpharxn*SOCEXP)))
+!        if (water_saturation <= this%smin) s_eff = 0.d0
+!        if (water_saturation > (1.d0-this%satwick+this%smin)) s_eff = 1.d0
+        if (this%smin > 0.d0) then
+          SOCEXP = 200.d0*(max((water_saturation-this%smin),0.d0))**2.d0
+        else
+          SOCEXP = water_saturation
+        endif
         s_eff = water_saturation-this%smin+(this%satwick * &
                                            (1.d0-exp(this%alpharxn*SOCEXP)))
-        if (water_saturation <= this%smin) s_eff = 0.d0
-        if (water_saturation > (1.d0-this%satwick+this%smin)) s_eff = 1.d0
+!geh: End change
 
         s_eff = min(s_eff,1.d0)
         s_eff = max(s_eff,0.d0)
@@ -2737,7 +2746,6 @@ end subroutine PMWSSUpdateChemSpecies
         if (s_eff > 1.d-16) then
           sg_eff = (1.d0-s_eff)
         endif
-
      
       !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
       !-----(see equation PA.67, PA.77, section PA-4.2.5)-----------------------
@@ -2979,6 +2987,32 @@ end subroutine PMWSSUpdateChemSpecies
                   cwp%gas_generation_rate(i) * &                ! [mol/m3/sec]
                   material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                   1.d3                                          ! [mol -> kmol]
+
+        if (wippflo_debug_gas_generation .and. k == 0 .and. &
+            residual_calculation) then
+          print *, '     SOEFC:', s_eff
+          print *, '    RXCORS:', cwp%rxnrate_Fe_corrosion_inund(i)
+          print *, '    RXCORH:', cwp%rxnrate_Fe_corrosion_humid(i)
+          print *, '     RXCOR:', cwp%rxnrate_Fe_corrosion(i)
+          print *, '    RXBIOS:', cwp%rxnrate_cell_biodeg_inund(i)
+          print *, '    RXBIOH:', cwp%rxnrate_cell_biodeg_humid(i)
+          print *, '     RXBIO:', cwp%rxnrate_cell_biodeg(i)
+          print *, ' RXFEOHH2S:', cwp%rxnrate_FeOH2_sulf(i)
+          print *, '   RXFEH2S:', cwp%rxnrate_Fe_sulf(i)
+                                  ! note that MGOH2O is split in I + H
+          print *, '  RXMGOH2O:', cwp%rxnrate_MgO_hyd(i)
+          print *, ' RXMGOHCO2:', cwp%rxnrate_MgOH2_carb(i)
+          print *, '  RXMGOCO2:', cwp%rxnrate_MgO_carb(i)
+          print *, '   RXHYMAG:', cwp%rxnrate_hydromag_conv(i)
+          print *, '  SALTCONV:', 1.d0/(1.d0 - 1.d-2*this%salt_wtpercent)
+          print *, '     QR(B):', this%srcsink_brine(k,p), ' [kmol/sec]'
+          print *, '     QR(G):', this%srcsink_gas(k,p), ' [kmol/sec]'
+          print *, '     QR(B):', this%srcsink_brine(k,p)*fmw_comp(1) / &
+                   material_auxvars(ghosted_id)%volume, ' [kg/m^3-sec]'
+          print *, '     QR(G):', this%srcsink_gas(k,p)*fmw_comp(2) / &
+                   material_auxvars(ghosted_id)%volume, ' [kg/m^3-sec]'
+          print *
+        endif
                   
         !---energy-source-term-[MJ/sec];-H-from-EOS-[J/kmol]--------------------
         !jmf: keep in the case WIPP_FLOW mode will solve for temperature
@@ -3028,7 +3062,7 @@ end subroutine PMWSSUpdateChemSpecies
     
   enddo  ! loop over perturbations
     
-end subroutine PMWSSSolve
+end subroutine PMWSSUpdateRates
 
 ! ************************************************************************** !
 
@@ -3847,8 +3881,8 @@ subroutine PMWSSCalcJacobianValues(this,A,ierr)
     ! construct non-zero portion of Jacobian block dRes/dSg contribution
     J_block(air_comp_id,WIPPFLO_GAS_SATURATION_DOF) = (res_pert - res)/pert_sg
 
-    call WIPPFloConvertUnitsToBRAGFlo(J_block(:,WIPPFLO_GAS_SATURATION_DOF), &
-                                     material_auxvars(ghosted_id),this%option)
+    call WIPPFloConvertUnitsToBRAGFlo(J_block,material_auxvars(ghosted_id), &
+                                      this%option)
   
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,J_block, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
