@@ -1028,9 +1028,11 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   
   ! WIPP gas/brine generation process model source/sinks
   if (associated(pmwss_ptr)) then
-    call PMWSSUpdateRates(pmwss_ptr,PETSC_TRUE,ierr)
-    call PMWSSCalcResidualValues(pmwss_ptr,local_start,local_end, &
-                                 r_p,ss_flow_vol_flux)    
+    if (pmwss_ptr%rate_update_frequency == LAG_NEWTON_ITERATION .or. & 
+        pmwss_ptr%rate_update_frequency == NO_LAG) then
+      call PMWSSUpdateRates(pmwss_ptr,PETSC_FALSE,ierr)
+    endif
+    call PMWSSCalcResidualValues(pmwss_ptr,r_p,ss_flow_vol_flux)    
   endif
 
   if (patch%aux%WIPPFlo%inactive_cells_exist) then
@@ -1344,8 +1346,10 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   
   ! WIPP gas/brine generation process model source/sinks
   if (associated(pmwss_ptr)) then
-    call PMWSSUpdateRates(pmwss_ptr,PETSC_FALSE,ierr)
-    call PMWSSCalcJacobianValues(pmwss_ptr,A,ierr)
+    if (pmwss_ptr%rate_update_frequency == NO_LAG) then
+      call PMWSSUpdateRates(pmwss_ptr,PETSC_TRUE,ierr)
+      call PMWSSCalcJacobianValues(pmwss_ptr,A,ierr)
+    endif
   endif
   
   call WIPPFloSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &

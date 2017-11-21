@@ -56,6 +56,11 @@ module PM_WIPP_SrcSink_class
   PetscInt, parameter :: PERT_WRT_SG = 1
   PetscInt, parameter :: UNPERT = 0
 
+  ! rate update frequency
+  PetscInt, public, parameter :: LAG_TIMESTEP = 1
+  PetscInt, public, parameter :: LAG_NEWTON_ITERATION = 2
+  PetscInt, public, parameter :: NO_LAG = 3
+
 ! OBJECT chem_species_type:
 ! =========================
 ! ---------------------------------------------------------------------------
@@ -389,6 +394,7 @@ module PM_WIPP_SrcSink_class
 !    repository setting
 ! pre_inventory_list: linked list of pre-inventory objects
 ! realization: pointer to the realization object
+! rate_update_frequency: rate at which rates are updated
 ! --------------------------------------------------------------------
   type, public, extends(pm_base_type) :: pm_wipp_srcsink_type
     PetscReal :: alpharxn        
@@ -409,6 +415,7 @@ module PM_WIPP_SrcSink_class
     PetscInt :: plasidx             
     PetscReal :: output_start_time
     PetscReal :: stoic_mat(8,10)
+    PetscInt :: rate_update_frequency
     PetscReal, pointer :: srcsink_brine(:,:)
     PetscReal, pointer :: srcsink_gas(:,:)
     PetscInt, pointer :: srcsink2ghosted(:)
@@ -490,6 +497,7 @@ function PMWSSCreate()
   pm%plasidx = UNINITIALIZED_INTEGER
   pm%output_start_time = 0.d0  ! [sec] default value
   pm%stoic_mat = UNINITIALIZED_DOUBLE
+  pm%rate_update_frequency = NO_LAG
   
   call PMBaseInit(pm)
   
@@ -1102,6 +1110,21 @@ subroutine PMWSSRead(this,input)
         call InputReadAndConvertUnits(input,double,'sec',trim(error_string) &
                                       // ',OUTPUT_START_TIME units',option)
         this%output_start_time = double
+      case('RATE_UPDATE_FREQUENCY')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+        !-----------------------------------
+          case('LAG_TIMESTEP')
+            this%rate_update_frequency = LAG_TIMESTEP
+          case('LAG_NEWTON_ITERATION')
+            this%rate_update_frequency = LAG_NEWTON_ITERATION
+          case('NO_LAG')
+            this%rate_update_frequency = NO_LAG
+          case default
+            call InputKeywordUnrecognized(word,error_string,option)
+        end select
     !-----------------------------------------
     !-----------------------------------------
       case('WASTE_PANEL')
@@ -2396,6 +2419,11 @@ subroutine PMWSSInitializeTimestep(this)
 ! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
 ! -----------------------------------
+  PetscErrorCode :: ierr
+
+  if (this%rate_update_frequency == LAG_TIMESTEP) then
+    call PMWSSUpdateRates(this,PETSC_FALSE,ierr)
+  endif
   
 end subroutine PMWSSInitializeTimestep
 
@@ -2547,7 +2575,7 @@ end subroutine PMWSSUpdateChemSpecies
 
 ! *************************************************************************** !
 
- subroutine PMWSSUpdateRates(this,residual_calculation,ierr)
+ subroutine PMWSSUpdateRates(this,calculate_jacobian,ierr)
   ! 
   ! Calculates reaction rates, gas generation rate, and brine generation rate.
   ! Sets the fluid and energy source terms.
@@ -2573,7 +2601,7 @@ end subroutine PMWSSUpdateChemSpecies
 ! ierr (input/output): PETSc error integer
 ! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
-  PetscBool :: residual_calculation
+  PetscBool :: calculate_jacobian
   PetscErrorCode :: ierr
 ! -----------------------------------
   
@@ -2621,6 +2649,7 @@ end subroutine PMWSSUpdateChemSpecies
   PetscReal :: water_saturation
   PetscReal :: s_eff
   PetscReal :: sg_eff
+  PetscInt :: max_index
   ! enthalpy calculation variables  (not used currently)
   !PetscReal :: temperature
   !PetscReal :: pressure_liq
@@ -2640,7 +2669,12 @@ end subroutine PMWSSUpdateChemSpecies
   global_auxvars => this%realization%patch%aux%Global%auxvars
   dt = option%flow_dt  ! [sec]
 
-  do k = 0,1  ! loops over perturbations: k = 0,1
+  max_index = 0
+  if (calculate_jacobian) then
+    max_index = 1
+  endif
+
+  do k = 0,max_index  ! loops over perturbations if max_index == 1
   
     p = 0  ! (p indexes the srcsink_vec)
     cwp => this%waste_panel_list
@@ -2949,7 +2983,7 @@ end subroutine PMWSSUpdateChemSpecies
                   1.d3                                          ! [mol -> kmol]
 
         if (wippflo_debug_gas_generation .and. k == 0 .and. &
-            residual_calculation) then
+            .not.calculate_jacobian) then
           print *, '     SOEFC:', s_eff
           print *, '    RXCORS:', cwp%rxnrate_Fe_corrosion_inund(i)
           print *, '    RXCORH:', cwp%rxnrate_Fe_corrosion_humid(i)
@@ -3704,8 +3738,7 @@ end subroutine PMWSSOutputHeader
 
 ! *************************************************************************** !
 
-subroutine PMWSSCalcResidualValues(this,local_start,local_end,r_p, &
-                                   ss_flow_vol_flux)
+subroutine PMWSSCalcResidualValues(this,r_p,ss_flow_vol_flux)
   ! 
   ! Constructs a Residual array for a given ghosted cell id and adds it to
   ! the PETSc residual Vec pointer r_p.
@@ -3721,13 +3754,10 @@ subroutine PMWSSCalcResidualValues(this,local_start,local_end,r_p, &
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): wipp-srcsink process model object
-! local_start (input/output): [-] starting local grid cell id
-! local_end (input/output): [-] ending local grid cell id
 ! r_p (input/output): [kmol/sec] pointer to residual vector
 ! ss_flow_vol_flux (input/output): [m3/sec] volume flux of source or sink
 ! --------------------------------------------------
   class(pm_wipp_srcsink_type) :: this
-  PetscInt :: local_start, local_end
   PetscReal, pointer :: r_p(:)
   PetscReal :: ss_flow_vol_flux(this%option%nphase)
 ! --------------------------------------------------
@@ -3742,6 +3772,8 @@ subroutine PMWSSCalcResidualValues(this,local_start,local_end,r_p, &
 ! k: [-] looping index integer
 ! wippflo_auxvars: [-] pointer to the wippflo auxvar object
 ! pflotran_to_braglo: [kg-sec/kmol-m^3 bulk]
+! local_start: [-] starting local grid cell id
+! local_end: [-] ending local grid cell id
 ! ----------------------------------------------------------
   PetscReal :: Res(this%option%nflowdof)
   PetscInt :: ghosted_id, local_id
@@ -3750,6 +3782,7 @@ subroutine PMWSSCalcResidualValues(this,local_start,local_end,r_p, &
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: pflotran_to_bragflo(2)
+  PetscInt :: local_start, local_end
 ! ----------------------------------------------------------
 
 
