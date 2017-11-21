@@ -54,6 +54,7 @@ module PM_WIPP_Flow_class
     procedure, public :: Residual => PMWIPPFloResidual
     procedure, public :: Jacobian => PMWIPPFloJacobian
     procedure, public :: UpdateTimestep => PMWIPPFloUpdateTimestep
+    procedure, public :: FinalizeTimestep => PMWIPPFloFinalizeTimestep
     procedure, public :: PreSolve => PMWIPPFloPreSolve
     procedure, public :: PostSolve => PMWIPPFloPostSolve
     procedure, public :: CheckUpdatePre => PMWIPPFloCheckUpdatePre
@@ -74,6 +75,7 @@ module PM_WIPP_Flow_class
             PMWIPPFloInitObject, &
             PMWIPPFloReadSelectCase, &
             PMWIPPFloInitializeRun, &
+            PMWIPPFloFinalizeTimestep, &
             PMWIPPFloCheckUpdatePre, &
             PMWIPPFloDestroy
   
@@ -438,8 +440,6 @@ end subroutine PMWIPPFloInitializeRun
 
 subroutine PMWIPPFloInitializeTimestep(this)
   ! 
-  ! Should not need this as it is called in PreSolve.
-  ! 
   ! Author: Glenn Hammond
   ! Date: 07/11/17
   ! 
@@ -475,6 +475,24 @@ subroutine PMWIPPFloInitializeTimestep(this)
   this%convergence_reals = 0.d0
   
 end subroutine PMWIPPFloInitializeTimestep
+
+! ************************************************************************** !
+
+subroutine PMWIPPFloFinalizeTimestep(this)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/21/17
+  ! 
+  implicit none
+  
+  class(pm_wippflo_type) :: this
+
+  if (associated(this%pmwss_ptr)) then
+    call this%pmwss_ptr%FinalizeTimestep()
+  endif
+  call PMSubsurfaceFlowFinalizeTimestep(this)
+
+end subroutine PMWIPPFloFinalizeTimestep
 
 ! ************************************************************************** !
 
@@ -984,7 +1002,6 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   enddo
 
   if (wippflo_debug_first_iteration) stop
-  print *, 'soln:', x1_p(1:4)
 
   if (.not.converged_liquid_pressure) then 
     this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI) = &

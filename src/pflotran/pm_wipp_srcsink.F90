@@ -286,7 +286,6 @@ module PM_WIPP_SrcSink_class
 ! RXH2O_factor: [-] mol H2O / mol Carbon (cellulose) consumed by biodegradation
 ! volume: [m3] waste panel volume
 ! scale_by_volume: Boolean flag to scale given inventory to waste panel volume
-! prev_dt: [sec] value of the previous time step
 ! id: [-] waste panel id number
 ! myMPIcomm: [-] MPI communicator number object
 ! myMPIgroup: [-] MPI group number object
@@ -336,7 +335,6 @@ module PM_WIPP_SrcSink_class
     PetscReal :: RXH2O_factor       
     PetscReal :: volume           
     PetscBool :: scale_by_volume  
-    PetscReal :: prev_dt
     PetscInt :: id
     PetscMPIInt :: myMPIcomm
     PetscMPIInt :: myMPIgroup
@@ -562,7 +560,6 @@ function PMWSSWastePanelCreate()
   panel%RXCO2_factor = UNINITIALIZED_DOUBLE
   panel%RXH2_factor = UNINITIALIZED_DOUBLE
   panel%RXH2O_factor = UNINITIALIZED_DOUBLE
-  panel%prev_dt = 0.d0
   panel%id = 0
   panel%myMPIgroup = 0
   panel%myMPIcomm = 0
@@ -2391,8 +2388,6 @@ subroutine PMWSSInitializeTimestep(this)
   ! Date: 01/31/2017
   !
   
-  use Option_module
-  
   implicit none
 
 ! INPUT ARGUMENTS:
@@ -2402,44 +2397,11 @@ subroutine PMWSSInitializeTimestep(this)
   class(pm_wipp_srcsink_type) :: this
 ! -----------------------------------
   
-! LOCAL VARIABLES:
-! ================
-! cur_waste_panel: pointer to current waste panel object
-! option: pointer to option object
-! dt: [sec] flow time step value
-! ----------------------------------------------------
-  type(srcsink_panel_type), pointer :: cur_waste_panel
-  type(option_type), pointer :: option
-  PetscReal :: dt
-! ----------------------------------------------------
-
-  option => this%option
-  dt = option%flow_dt  ! [sec]
-  
-  if (option%print_screen_flag) then
-    write(*,'(/,2("=")," WIPP SRC/SINK PANEL MODEL ",51("="))')
-  endif
-  
-  ! update the waste panel inventory
-  cur_waste_panel => this%waste_panel_list
-  do
-    if (.not.associated(cur_waste_panel)) exit
-    call PMWSSUpdateInventory(cur_waste_panel,option)
-    ! set current dt after using the previous in the update above
-    cur_waste_panel%prev_dt = dt
-    cur_waste_panel => cur_waste_panel%next
-  enddo
-  
-  ! write data to *.pnl output files from previous time step
-  if (option%time >= this%output_start_time) then
-    call PMWSSOutput(this)
-  endif
-  
 end subroutine PMWSSInitializeTimestep
 
 ! *************************************************************************** !
 
-subroutine PMWSSUpdateInventory(waste_panel,option)
+subroutine PMWSSUpdateInventory(waste_panel,dt,option)
   !
   ! Updates the waste panel tracked species inventory concentrations.
   !
@@ -2454,20 +2416,18 @@ subroutine PMWSSUpdateInventory(waste_panel,option)
 ! INPUT ARGUMENTS:
 ! ================
 ! waste_panel (input/output): waste panel object
+! dt: [sec] flow time step value (flow_dt)
 ! option (input/output): pointer to option object
 ! ---------------------------------------
   type(srcsink_panel_type) :: waste_panel
+  PetscReal :: dt
   type(option_type), pointer :: option
 ! ---------------------------------------
 
 ! LOCAL VARIABLES:
 ! ================
-! dt: [sec] flow time step value (flow_dt)
 ! ---------------
-  PetscReal :: dt
 ! ---------------
-
-  dt =  waste_panel%prev_dt
  
   call PMWSSUpdateChemSpecies(waste_panel%inventory%Fe_s,waste_panel,dt,option)
   call PMWSSUpdateChemSpecies(waste_panel%inventory%FeOH2_s,waste_panel,dt, &
@@ -3250,6 +3210,7 @@ subroutine PMWSSFinalizeTimestep(this)
   ! Author: Jenn Frederick
   ! Date: 02/22/2017
   !
+  use Option_module
 
   implicit none
   
@@ -3259,6 +3220,33 @@ subroutine PMWSSFinalizeTimestep(this)
 ! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
 ! -----------------------------------
+! LOCAL VARIABLES:
+! ================
+! cur_waste_panel: pointer to current waste panel object
+! option: pointer to option object
+! dt: [sec] flow time step value
+! ----------------------------------------------------
+  type(srcsink_panel_type), pointer :: cur_waste_panel
+  type(option_type), pointer :: option
+  PetscReal :: dt
+! ----------------------------------------------------
+
+  option => this%option
+  
+  ! update the waste panel inventory
+  cur_waste_panel => this%waste_panel_list
+  do
+    if (.not.associated(cur_waste_panel)) exit
+    call PMWSSUpdateInventory(cur_waste_panel,option%flow_dt,option)
+    ! set current dt after using the previous in the update above
+    cur_waste_panel => cur_waste_panel%next
+  enddo
+  
+  ! write data to *.pnl output files from previous time step
+  if (option%time >= this%output_start_time) then
+    call PMWSSOutput(this)
+  endif
+  
   
 end subroutine PMWSSFinalizeTimestep
 
