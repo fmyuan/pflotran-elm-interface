@@ -428,9 +428,6 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
             call InputErrorMsg(input,option,'dataset name', &
                                trim(block_string) // ' VOL FRAC')
             mineral_constraint%external_voL_frac_dataset(imnrl) = PETSC_TRUE
-            ! set vol frac to NaN to catch bugs
-            tempreal = -1.d0
-            mineral_constraint%constraint_vol_frac(imnrl) = sqrt(tempreal)
           else
             call InputReadDouble(input,option, &
                                  mineral_constraint%constraint_vol_frac(imnrl))
@@ -447,9 +444,6 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
             call InputErrorMsg(input,option,'dataset name', &
                                trim(block_string) // ' SURF AREA')
             mineral_constraint%external_area_dataset(imnrl) = PETSC_TRUE
-            ! set surface area to NaN to catch bugs
-            tempreal = -1.d0
-            mineral_constraint%constraint_area(imnrl) = sqrt(tempreal)
           else
             ! specific surface area
             call InputReadDouble(input,option, &

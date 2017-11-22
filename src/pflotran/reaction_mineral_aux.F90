@@ -72,6 +72,7 @@ module Reaction_Mineral_Aux_module
     character(len=MAXWORDLENGTH), pointer :: constraint_area_string(:)
     character(len=MAXWORDLENGTH), pointer :: constraint_area_units(:)
     PetscReal, pointer :: constraint_area_conv_factor(:)
+    PetscBool, pointer :: area_per_unit_mass(:)
     PetscBool, pointer :: external_vol_frac_dataset(:)
     PetscBool, pointer :: external_area_dataset(:)
   end type mineral_constraint_type
@@ -374,9 +375,9 @@ function MineralConstraintCreate(mineral,option)
   allocate(constraint%names(mineral%nkinmnrl))
   constraint%names = ''
   allocate(constraint%constraint_vol_frac(mineral%nkinmnrl))
-  constraint%constraint_vol_frac = 0.d0
+  constraint%constraint_vol_frac = UNINITIALIZED_DOUBLE
   allocate(constraint%constraint_area(mineral%nkinmnrl))
-  constraint%constraint_area = 0.d0
+  constraint%constraint_area = UNINITIALIZED_DOUBLE
   allocate(constraint%constraint_vol_frac_string(mineral%nkinmnrl))
   constraint%constraint_vol_frac_string = ''
   allocate(constraint%constraint_area_string(mineral%nkinmnrl))
@@ -384,7 +385,9 @@ function MineralConstraintCreate(mineral,option)
   allocate(constraint%constraint_area_units(mineral%nkinmnrl))
   constraint%constraint_area_units = ''
   allocate(constraint%constraint_area_conv_factor(mineral%nkinmnrl))
-  constraint%constraint_area_conv_factor = 1.d0
+  constraint%constraint_area_conv_factor = UNINITIALIZED_DOUBLE
+  allocate(constraint%area_per_unit_mass(mineral%nkinmnrl))
+  constraint%area_per_unit_mass = PETSC_FALSE
   allocate(constraint%external_vol_frac_dataset(mineral%nkinmnrl))
   constraint%external_vol_frac_dataset = PETSC_FALSE
   allocate(constraint%external_area_dataset(mineral%nkinmnrl))
@@ -716,6 +719,7 @@ subroutine MineralConstraintDestroy(constraint)
   call DeallocateArray(constraint%constraint_area_string)
   call DeallocateArray(constraint%constraint_area_units)
   call DeallocateArray(constraint%constraint_area_conv_factor)
+  call DeallocateArray(constraint%area_per_unit_mass)
   call DeallocateArray(constraint%external_area_dataset)
   call DeallocateArray(constraint%external_vol_frac_dataset)
   

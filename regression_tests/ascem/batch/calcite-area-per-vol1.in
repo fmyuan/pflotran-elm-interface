@@ -65,6 +65,12 @@ GRID
   /
 END
 
+#=========================== datasets =========================================
+DATASET initial_Calcite_area
+  HDF5_DATASET_NAME Calcite_area
+  FILENAME calcite_vol_datasets.h5
+END
+
 #=========================== fluid properties =================================
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9
@@ -89,7 +95,7 @@ OUTPUT
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 250.d0 s
+  FINAL_TIME 25.d0 s
   INITIAL_TIMESTEP_SIZE 0.5d0 s
   MAXIMUM_TIMESTEP_SIZE 0.5d0 s
 /
@@ -119,9 +125,7 @@ CONSTRAINT initial
     Ca++    1.d-5      T
   /
   MINERALS
-    ! based on database values, this specific surface area should be 
-    ! equivalent to 1 cm^2/cm^3
-    Calcite  0.2 0.3690182161155472d0 cm^2/g
+    Calcite  0.2d0 DATASET initial_Calcite_area cm^2/cm^3
   /
 END
 

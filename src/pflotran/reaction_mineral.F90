@@ -578,10 +578,16 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
       ! m^2/m^3 = m^2/kg * 1.d-3 kg/g * g/mol / m^3/mol
       tempreal = tempreal * 1.d-3 * mineral_rxn%molar_weight / &
                  mineral_rxn%molar_volume
+      constraint%area_per_unit_mass(imnrl) = PETSC_TRUE
     endif
     constraint%constraint_area_conv_factor(imnrl) = tempreal
     constraint%constraint_area_units(imnrl) = internal_units
-    if (.not.isnan(constraint%constraint_area(imnrl))) then
+    if (Initialized(constraint%constraint_vol_frac(imnrl))) then
+      if (per_unit_mass) then
+        tempreal = tempreal * constraint%constraint_vol_frac(imnrl)
+      endif
+    endif  
+    if (Initialized(constraint%constraint_area(imnrl))) then
       constraint%constraint_area(imnrl) = tempreal * &
         constraint%constraint_area(imnrl)
     endif
