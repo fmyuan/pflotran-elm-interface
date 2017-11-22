@@ -883,6 +883,9 @@ subroutine CondControlAssignTranInitCond(realization)
             idof = ONE_INTEGER
             call ConditionControlMapDatasetToVec(realization,dataset,idof, &
                                                   field%work_loc,LOCAL)
+            call VecScale(field%work_loc,constraint_coupler%minerals% &
+                            constraint_area_conv_factor(imnrl), &
+                          ierr);CHKERRQ(ierr)
             call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
             do icell=1,initial_condition%region%num_cells
               local_id = initial_condition%region%cell_ids(icell)
@@ -1214,6 +1217,7 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
   field => realization%field
   option => realization%option
   
+  call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
   if (associated(dataset)) then
     select type(dataset)
       class is (dataset_common_hdf5_type)
