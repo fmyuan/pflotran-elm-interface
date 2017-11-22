@@ -2993,7 +2993,7 @@ end subroutine PMWSSUpdateChemSpecies
           if (calculate_jacobian .and. k > 0) then
             print *, 'Jacobian --'
           endif
-          print *, 'sat(water):', water_saturation
+          print *, '        SO:', water_saturation
           print *, '     SOEFC:', s_eff
           print *, '    RXCORS:', cwp%rxnrate_Fe_corrosion_inund(i)
           print *, '    RXCORH:', cwp%rxnrate_Fe_corrosion_humid(i)
