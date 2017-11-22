@@ -577,6 +577,128 @@ end type sat_func_og_VG_SL_type
   end type rpf_mK_gas_type
   !---------------------------------------------------------------------------
 
+  !-----------------------------------------------------------------------------
+  !-- OWG Relative Permeability Functions --------------------------------------
+  !-----------------------------------------------------------------------------
+
+  type :: rel_perm_func_owg_base_type
+    type(polynomial_type), pointer :: poly
+    PetscReal :: Swco !connate water saturation
+    PetscReal :: Swcr !critical (residual) water saturation
+    PetscReal :: Soco !connate oil saturation
+    PetscReal :: Socr !critical (residual) oil saturation
+    PetscReal :: Sgco !connate gas saturation
+    PetscReal :: Sgcr !critical (residual) gas saturation
+    PetscReal :: Slcr !critical (residual) saturation of liqui (oil + water)
+    PetscBool :: function_of_liquid_sat
+    PetscBool :: So_is_Sh
+    !lookup_table_general_type :: lookup_table
+    class(rel_perm_func_base_type), pointer :: rel_perm_func_sl
+    PetscBool :: analytical_derivative_available
+  contains
+    procedure, public :: Init => RPFOWGBaseInit
+    procedure, public :: Verify => RPFOWGBaseVerify
+    !procedure, public :: Test => SFOWGBaseTest RPFOWGBaseTest
+    procedure, public :: SetupPolynomials => RPFOWGBaseSetupPolynomials
+    procedure, public :: RelativePermeability => RPFOWGBaseRelPerm
+  end type rel_perm_func_owg_base_type
+
+  type, public, extends(rel_perm_func_owg_base_type) :: RPF_OWG_MBC_type
+    PetscReal :: m   !exponential coeff.
+    PetscReal :: kr_max
+  contains
+    procedure, public :: Init => RPF_OWG_MBC_Init
+    procedure, public :: Verify => RPF_OWG_MBC_Verify
+    !procedure, public :: Test => SFOWGBaseTest RPFOWGBaseTest
+    procedure, public :: SetupPolynomials => RPF_OWG_MBC_SetupPolynomials
+    procedure  :: RPF_OWG_MBC_RelPerm_dkr_dSe
+  end type RPF_OWG_MBC_type
+
+  type, public, extends(RPF_OWG_MBC_type) :: RPF_OWG_MBC_wat_type
+  contains
+    procedure, public :: RelativePermeability => RPF_OWG_MBC_wat_RelPerm
+  end type RPF_OWG_MBC_wat_type
+
+  type, public, extends(RPF_OWG_MBC_type) :: RPF_OWG_MBC_oil_type
+  contains
+    procedure, public :: RelativePermeability => RPF_OWG_MBC_oil_RelPerm
+  end type RPF_OWG_MBC_oil_type
+
+  type, public, extends(RPF_OWG_MBC_type) :: RPF_OWG_MBC_gas_type
+  contains
+    procedure, public :: RelativePermeability => RPF_OWG_MBC_gas_RelPerm
+  end type RPF_OWG_MBC_gas_type
+
+  type, public, extends(rel_perm_func_owg_base_type) :: RPF_oil_ecl_type
+    class(rel_perm_func_owg_base_type), pointer :: rel_perm_ow
+    class(rel_perm_func_owg_base_type), pointer :: rel_perm_og
+    PetscReal :: kr_max
+  contains
+    procedure, public :: Init => RPF_oil_ecl_Init
+    procedure, public :: Verify => RPF_oil_ecl_Verify
+    procedure, public :: RelativePermeability => RPF_oil_ecl_RelPerm
+  end type RPF_oil_ecl_type
+
+  type, public, extends(rel_perm_func_owg_base_type) :: RPF_OWG_func_sl_type
+    PetscReal :: kr_max
+  contains
+    procedure, public :: Init => RPF_OWG_func_sl_Init
+    procedure, public :: Verify => RPF_OWG_func_sl_Verify
+    procedure, public :: RelativePermeability => RPF_OWG_func_sl_RelPerm
+  end type RPF_OWG_func_sl_type
+
+  type, public, extends(RPF_OWG_func_sl_type) :: RPF_OWG_func_sl_VG_type
+    PetscReal :: m
+  contains
+    procedure, public :: Init => RPF_OWG_func_sl_VG_Init
+    procedure, public :: Verify => RPF_OWG_func_sl_VG_Verify
+  end type RPF_OWG_func_sl_VG_type
+
+  type, public, extends(RPF_OWG_func_sl_VG_type) :: RPF_OWG_Mualem_VG_wat_type
+  contains
+    procedure, public :: Verify => RPF_OWG_Mualem_VG_wat_Verify
+  end type RPF_OWG_Mualem_VG_wat_type
+
+  type, public, extends(RPF_OWG_func_sl_VG_type) :: RPF_OWG_Mualem_VG_gas_type
+  contains
+    procedure, public :: Verify => RPF_OWG_Mualem_VG_gas_Verify
+  end type RPF_OWG_Mualem_VG_gas_type
+
+  type, public, extends(RPF_OWG_func_sl_VG_type) :: &
+                                                RPF_OWG_TOUGH2_IRP7_gas_type
+  contains
+    procedure, public :: Verify => RPF_OWG_TOUGH2_IRP7_gas_Verify
+  end type RPF_OWG_TOUGH2_IRP7_gas_type
+
+  type, public, extends(RPF_OWG_func_sl_VG_type) :: RPF_OWG_Burdine_VG_wat_type
+  contains
+    procedure, public :: Verify => RPF_OWG_Burdine_VG_wat_Verify
+  end type RPF_OWG_Burdine_VG_wat_type
+
+  type, public, extends(RPF_OWG_func_sl_VG_type) :: RPF_OWG_Burdine_VG_gas_type
+  contains
+    procedure, public :: Verify => RPF_OWG_Burdine_VG_gas_Verify
+  end type RPF_OWG_Burdine_VG_gas_type
+
+  type, public, extends(RPF_OWG_func_sl_type) :: RPF_OWG_func_sl_BC_type
+    PetscReal :: lambda
+  contains
+    procedure, public :: Init => RPF_OWG_func_sl_BC_Init
+    procedure, public :: Verify => RPF_OWG_func_sl_BC_Verify
+  end type RPF_OWG_func_sl_BC_type
+
+  type, public, extends(RPF_OWG_func_sl_BC_type) :: RPF_OWG_Burdine_BC_wat_type
+  contains
+    procedure, public :: Verify => RPF_OWG_Burdine_BC_wat_Verify
+  end type RPF_OWG_Burdine_BC_wat_type
+
+  type, public, extends(RPF_OWG_func_sl_BC_type) :: RPF_OWG_Burdine_BC_gas_type
+  contains
+    procedure, public :: Verify => RPF_OWG_Burdine_BC_gas_Verify
+  end type RPF_OWG_Burdine_BC_gas_type
+
+!---------------------------------------------------------------------------
+
   type, public :: characteristic_curves_type
     character(len=MAXWORDLENGTH) :: name
     PetscBool :: print_me
@@ -587,6 +709,9 @@ end type sat_func_og_VG_SL_type
     class(rel_perm_func_base_type), pointer :: liq_rel_perm_function
     class(rel_perm_func_base_type), pointer :: gas_rel_perm_function
     class(rel_perm_func_base_type), pointer :: oil_rel_perm_function
+    class(rel_perm_func_owg_base_type), pointer :: wat_rel_perm_func_owg
+    class(rel_perm_func_owg_base_type), pointer :: oil_rel_perm_func_owg
+    class(rel_perm_func_owg_base_type), pointer :: gas_rel_perm_func_owg
     class(characteristic_curves_type), pointer :: next
   end type characteristic_curves_type
 
@@ -690,6 +815,9 @@ function CharacteristicCurvesCreate()
   nullify(characteristic_curves%liq_rel_perm_function)
   nullify(characteristic_curves%gas_rel_perm_function)
   nullify(characteristic_curves%oil_rel_perm_function)
+  nullify(characteristic_curves%wat_rel_perm_func_owg)
+  nullify(characteristic_curves%oil_rel_perm_func_owg)
+  nullify(characteristic_curves%gas_rel_perm_func_owg)
   nullify(characteristic_curves%next)
 
   CharacteristicCurvesCreate => characteristic_curves
@@ -721,6 +849,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
   character(len=MAXSTRINGLENGTH) :: error_string
   class(rel_perm_func_base_type), pointer :: rel_perm_function_ptr
   class(sat_func_owg_base_type), pointer :: sat_func_owg_ptr
+  class(rel_perm_func_owg_base_type), pointer :: rel_perm_func_owg_ptr
 
   input%ierr = 0
   error_string = 'CHARACTERISTIC_CURVES'
@@ -778,6 +907,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
         call InputReadWordDbaseCompatible(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'SATURATION_FUNCTION_OWG',error_string)
         call StringToUpper(word)
+        nullify(sat_func_owg_ptr)
+        interface_keyword = 'NONE'
         select case(word)
           case('VAN_GENUCHTEN_OW')
             sat_func_owg_ptr => SF_OW_VG_Create()
@@ -948,12 +1079,78 @@ subroutine CharacteristicCurvesRead(this,input,option)
             call InputKeywordUnrecognized(word, &
               'PERMEABILITY_FUNCTION,PHASE',option)
         end select
+      case('PERMEABILITY_FUNCTION_OWG')
+        nullify(rel_perm_func_owg_ptr)
+        phase_keyword = 'NONE'
+        call InputReadWordDbaseCompatible(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'PERMEABILITY_FUNCTION_OWG', &
+                           error_string)
+        call StringToUpper(word)
+        select case(word)
+        case('MOD_BROOKS_COREY_WATER')
+            rel_perm_func_owg_ptr => RPF_wat_MBC_Create()
+            phase_keyword = 'WATER'
+          case('MOD_BROOKS_COREY_OIL')
+            rel_perm_func_owg_ptr => RPF_oil_MBC_Create()
+            phase_keyword = 'OIL'
+          case('MOD_BROOKS_COREY_HYDROCARBON')
+            rel_perm_func_owg_ptr => RPF_oil_MBC_Create()
+            rel_perm_func_owg_ptr%So_is_Sh = PETSC_TRUE
+            phase_keyword = 'OIL'
+          case('MOD_BROOKS_COREY_GAS')
+            rel_perm_func_owg_ptr => RPF_gas_MBC_Create()
+            phase_keyword = 'GAS'
+          case('ECLIPSE_OIL')
+            rel_perm_func_owg_ptr => RPF_oil_ecl_Create()
+            phase_keyword = 'OIL'
+          case('MUALEM_VG_WAT')
+            rel_perm_func_owg_ptr => RPF_OWG_Mualem_VG_wat_Create()
+            phase_keyword = 'WATER'
+          case('MUALEM_VG_GAS')
+            rel_perm_func_owg_ptr => RPF_OWG_Mualem_VG_gas_Create()
+            phase_keyword = 'GAS'
+          case('TOUGH2_IRP7_GAS')
+            rel_perm_func_owg_ptr => RPF_OWG_TOUGH2_IRP7_gas_Create()
+            phase_keyword = 'GAS'
+          case('TOUGH2_IRP7_GAS_SL')
+            rel_perm_func_owg_ptr => RPF_OWG_TOUGH2_IRP7_gas_Create()
+            rel_perm_func_owg_ptr%function_of_liquid_sat = PETSC_TRUE
+            phase_keyword = 'GAS'
+          case('BURDINE_VG_WAT')
+            rel_perm_func_owg_ptr => RPF_OWG_Burdine_VG_wat_Create()
+            phase_keyword = 'WATER'
+          case('BURDINE_VG_GAS')
+            rel_perm_func_owg_ptr => RPF_OWG_Burdine_VG_gas_Create()
+            phase_keyword = 'GAS'
+          case('BURDINE_BC_WAT')
+            rel_perm_func_owg_ptr => RPF_OWG_Burdine_BC_wat_Create()
+            phase_keyword = 'WATER'
+          case('BURDINE_BC_GAS')
+            rel_perm_func_owg_ptr => RPF_OWG_Burdine_BC_gas_Create()
+            phase_keyword = 'GAS'
+          case default
+            call InputKeywordUnrecognized(word,'PERMEABILITY_FUNCTION_OWG', &
+                                                option)
+        end select
+        call PermeabilityFunctionOWGRead(rel_perm_func_owg_ptr,phase_keyword, &
+                                         input,option)
+        ! align to correct pointer
+        phase_keyword = trim(phase_keyword)
+        select case(phase_keyword)
+          case('WATER')
+            this%wat_rel_perm_func_owg => rel_perm_func_owg_ptr
+          case('OIL')
+            this%oil_rel_perm_func_owg => rel_perm_func_owg_ptr
+          case('GAS')
+            this%gas_rel_perm_func_owg => rel_perm_func_owg_ptr
+        end select
       case('TEST')
         this%test = PETSC_TRUE
       case('DEFAULT')
         this%saturation_function => SF_Default_Create()
         this%liq_rel_perm_function => RPF_Default_Create()
         this%gas_rel_perm_function => this%liq_rel_perm_function
+        ! PO TODO: adds default for OWG functions
       case default
         call InputKeywordUnrecognized(keyword,'CHARACTERISTIC_CURVES',option)
     end select
@@ -2192,6 +2389,236 @@ end subroutine PermeabilityFunctionRead
 
 ! ************************************************************************** !
 
+recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
+                                                 phase_keyword,input,option)
+  !
+  ! Reads in contents of a PERMEABILITY_FUNCTION_OWG block
+  !
+  use Option_module
+  use Input_Aux_module
+  use String_module
+
+  implicit none
+
+  class(rel_perm_func_owg_base_type) :: permeability_function
+  character(len=MAXWORDLENGTH) :: phase_keyword
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  class(rel_perm_func_owg_base_type), pointer :: perm_func_ptr => null()
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXWORDLENGTH) :: perm_interface, perm_func_ch_type
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
+  PetscBool :: smooth
+
+  input%ierr = 0
+  smooth = PETSC_FALSE
+  error_string = 'CHARACTERISTIC_CURVES_OWG,PERMEABILITY_FUNCTION,'
+  select type(rpf => permeability_function)
+    class is(RPF_OWG_MBC_wat_type)
+      error_string = trim(error_string) // 'MOD_BROOKS_COREY_WAT'
+    class is(RPF_OWG_MBC_oil_type)
+      if (rpf%So_is_Sh) then
+        error_string = trim(error_string) // 'MOD_BROOKS_COREY_HYDROCARBON'
+      else
+        error_string = trim(error_string) // 'MOD_BROOKS_COREY_OIL'
+      end if
+    class is(RPF_OWG_MBC_gas_type)
+      error_string = trim(error_string) // 'MOD_BROOKS_COREY_GAS'
+    class is(RPF_oil_ecl_type)
+      error_string = trim(error_string) // 'ECLIPSE_OIL'
+    class is(RPF_OWG_Mualem_VG_wat_type)
+      error_string = trim(error_string) // 'MUALEM_VG_WAT'
+    class is(RPF_OWG_Mualem_VG_gas_type)
+      error_string = trim(error_string) // 'MUALEM_VG_GAS'
+    class is(RPF_OWG_TOUGH2_IRP7_gas_type)
+      if (rpf%function_of_liquid_sat) then
+        error_string = trim(error_string) // 'TOUGH2_IRP7_GAS_SL'
+      else
+        error_string = trim(error_string) // 'TOUGH2_IRP7_GAS'
+      end if
+    class is(RPF_OWG_Burdine_VG_wat_type)
+      error_string = trim(error_string) // 'BURDINE_VG_WAT'
+    class is(RPF_OWG_Burdine_VG_gas_type)
+      error_string = trim(error_string) // 'BURDINE_VG_GAS'
+    class is(RPF_OWG_Burdine_BC_wat_type)
+      error_string = trim(error_string) // 'BURDINE_BC_WAT'
+    class is(RPF_OWG_Burdine_BC_gas_type)
+      error_string = trim(error_string) // 'BURDINE_BC_GAS'
+  end select
+
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    ! base
+    found = PETSC_TRUE
+    select case(keyword)
+      case('WATER_CONNATE_SATURATION')
+        call InputReadDouble(input,option,permeability_function%Swco)
+        call InputErrorMsg(input,option,'WATER_CONNATE_SATURATION', &
+                           error_string)
+      case('WATER_RESIDUAL_SATURATION')
+        call InputReadDouble(input,option,permeability_function%Swcr)
+        call InputErrorMsg(input,option,'WATER_RESIDUAL_SATURATION', &
+                           error_string)
+        if(associated(permeability_function%rel_perm_func_sl) ) then
+          permeability_function%rel_perm_func_sl%Sr = &
+                                                    permeability_function%Swcr
+        end if
+      case('OIL_CONNATE_SATURATION')
+        call InputReadDouble(input,option,permeability_function%Soco)
+        call InputErrorMsg(input,option,'OIL_CONNATE_SATURATION', &
+                          error_string)
+      case('OIL_RESIDUAL_SATURATION')
+        call InputReadDouble(input,option,permeability_function%Socr)
+        call InputErrorMsg(input,option,'OIL_RESIDUAL_SATURATION', &
+                           error_string)
+      case('HYDROCARBON_RESIDUAL_SATURATION')
+        call InputReadDouble(input,option,permeability_function%Socr)
+        call InputErrorMsg(input,option,'HYDROCARBON_RESIDUAL_SATURATION', &
+                          error_string)
+        permeability_function%Sgcr = 0.0
+      case('GAS_CONNATE_SATURATION')
+        call InputReadDouble(input,option,permeability_function%Sgco)
+        call InputErrorMsg(input,option,'GAS_CONNATE_SATURATION', &
+                          error_string)
+      case('GAS_RESIDUAL_SATURATION')
+        call InputReadDouble(input,option,permeability_function%Sgcr)
+        call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
+                           error_string)
+        if(associated(permeability_function%rel_perm_func_sl) ) then
+          select type(rpf_sl => permeability_function%rel_perm_func_sl)
+            class is(RPF_Mualem_VG_gas_type)
+              rpf_sl%Srg = permeability_function%Sgcr
+            class is(RPF_TOUGH2_IRP7_gas_type)
+              rpf_sl%Srg = permeability_function%Sgcr
+            class is(RPF_Burdine_VG_gas_type)
+              rpf_sl%Srg = permeability_function%Sgcr
+            class is(RPF_Burdine_BC_gas_type)
+              rpf_sl%Srg = permeability_function%Sgcr
+          end select
+        end if
+      case('LIQUID_RESIDUAL_SATURATION')
+        call InputReadDouble(input,option,permeability_function%Slcr)
+        call InputErrorMsg(input,option,'LIQUID_RESIDUAL_SATURATION', &
+                           error_string)
+        if(associated(permeability_function%rel_perm_func_sl) ) then
+          permeability_function%rel_perm_func_sl%Sr = &
+                                                    permeability_function%Slcr
+        end if
+      case('SMOOTH')
+        smooth = PETSC_TRUE
+      case default
+        found = PETSC_FALSE
+    end select
+    if (found) cycle
+
+    select type(rpf => permeability_function)
+    !------------------------------------------
+      class is(RPF_OWG_MBC_type)
+        select case(keyword)
+          case('M')
+            call InputReadDouble(input,option,rpf%m)
+            call InputErrorMsg(input,option,'M',error_string)
+          case('MAX_RELATIVE_PERMEABILITY','MAX_REL_PERM')
+            call InputReadDouble(input,option,rpf%kr_max)
+            call InputErrorMsg(input,option,'MAX_RELATIVE_PERMEABILITY', &
+                               error_string)
+          case default
+            call InputKeywordUnrecognized(keyword, &
+              'Mualem van Genuchten liquid relative permeability function', &
+              option)
+        end select
+      class is(RPF_oil_ecl_type)
+        perm_interface = 'NONE'
+        select case(keyword)
+          case('PERMEABILITY_FUNCTION_OW')
+            perm_interface = 'OIL_WATER'
+            call InputReadWord(input,option,perm_func_ch_type,PETSC_TRUE)
+            call InputErrorMsg(input,option,'perm_func_ch_type',error_string)
+          case('PERMEABILITY_FUNCTION_OG')
+            perm_interface = 'OIL_GAS'
+            call InputReadWord(input,option,perm_func_ch_type,PETSC_TRUE)
+            call InputErrorMsg(input,option,'perm_func_ch_type',error_string)
+          case default
+            call InputKeywordUnrecognized(keyword, &
+                      'ECLIPSE_OIL relative permeability function',option)
+          end select
+          call StringToUpper(perm_func_ch_type)
+          perm_func_ch_type = trim(perm_func_ch_type)
+        select case(perm_func_ch_type)
+          case('MOD_BROOKS_COREY_OIL')
+            perm_func_ptr => RPF_oil_MBC_Create()
+          case default
+            call InputKeywordUnrecognized(perm_func_ch_type, &
+                                          'PERMEABILITY_FUNCTION_OW/OG',option)
+        end select
+        call PermeabilityFunctionOWGRead(perm_func_ptr,'OIL',input,option)
+        select case(perm_func_ch_type)
+          case('OIL_WATER')
+            rpf%rel_perm_ow => perm_func_ptr
+          case('OIL_GAS')
+            rpf%rel_perm_og => perm_func_ptr
+        end select
+        nullify(perm_func_ptr)
+      class is(RPF_OWG_func_sl_VG_type)
+        select case(keyword)
+          case('M')
+            call InputReadDouble(input,option,rpf%m)
+            call InputErrorMsg(input,option,'M', &
+                               error_string)
+            select type(rpf_sl => rpf%rel_perm_func_sl)
+              class is(RPF_Mualem_VG_liq_type)
+                rpf_sl%m = rpf%m
+              class is(RPF_Mualem_VG_gas_type)
+                rpf_sl%m = rpf%m
+              class is(RPF_TOUGH2_IRP7_gas_type)
+                rpf_sl%m = rpf%m
+              class is(RPF_Burdine_VG_liq_type)
+                rpf_sl%m = rpf%m
+              class is(RPF_Burdine_VG_gas_type)
+                rpf_sl%m = rpf%m
+            end select
+        end select
+      class is(RPF_OWG_func_sl_BC_type)
+        select case(keyword)
+          case('LAMBDA')
+            call InputReadDouble(input,option,rpf%lambda)
+            call InputErrorMsg(input,option,'LAMBDA', &
+                               error_string)
+             select type(rpf_sl => rpf%rel_perm_func_sl)
+               class is(RPF_Burdine_BC_liq_type)
+                 rpf_sl%lambda = rpf%lambda
+               class is(RPF_Burdine_BC_gas_type)
+                 rpf_sl%lambda = rpf%lambda
+             end select
+          end select
+    end select
+  end do
+
+  !When a smoother for the sl function exists the OWG rel per smoother
+  ! is not defined
+  if ( associated(permeability_function%rel_perm_func_sl) ) then
+    if (smooth) then
+      call permeability_function%rel_perm_func_sl% &
+                                 SetupPolynomials(option,error_string)
+    end if
+  else
+    if (smooth) then
+      call permeability_function%SetupPolynomials(option,error_string)
+    endif
+  end if
+
+end subroutine PermeabilityFunctionOWGRead
+
+! ************************************************************************** !
+
 subroutine CharacteristicCurvesAddToList(new_characteristic_curves,list)
   !
   ! Adds a characteristic curves object to linked list
@@ -2288,108 +2715,124 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
 
   PetscReal :: CharCurvesGetGetResidualSats(option%nphase)
 
-  CharCurvesGetGetResidualSats(1) = &
-    characteristic_curves%liq_rel_perm_function%Sr
-  !if (option%nphase > 1) then
-  if ( (option%nphase > 1) .and. &
-       associated(characteristic_curves%gas_rel_perm_function) ) then
-    select type(rpf=>characteristic_curves%gas_rel_perm_function)
-      class is(rpf_Mualem_VG_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_Mualem_VG_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_Burdine_BC_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_Burdine_BC_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_Mualem_BC_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_Mualem_BC_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_Burdine_VG_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_Burdine_VG_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_TOUGH2_IRP7_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_Mualem_Linear_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_Mualem_Linear_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_Burdine_Linear_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_Burdine_Linear_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_KRP1_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP1_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_KRP2_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP2_gas_type)
-        ! KRP2 does not use a Srg, so return 0.d0
-        CharCurvesGetGetResidualSats(option%gas_phase) = 0.d0
-      class is(rpf_KRP3_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP3_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_KRP4_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP4_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_KRP5_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP5_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_KRP8_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP8_gas_type)
-        ! KRP8 does not use a Srg, so return 0.d0
-        CharCurvesGetGetResidualSats(option%gas_phase) = 0.d0
-      class is(rpf_KRP9_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP9_gas_type)
-        ! KRP9 does not use a Srg, so return 0.d0
-        CharCurvesGetGetResidualSats(option%gas_phase) = 0.d0
-      class is(rpf_KRP11_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP11_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_KRP12_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP12_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_mK_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_mK_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_mod_BC_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rel_perm_func_constant_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rel_perm_func_default_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class default
-        option%io_buffer = 'Relative permeability class not supported in &
-          &CharCurvesGetGetResidualSats. Contact pflotran-dev@googlegroups.com'
-        call printErrMsg(option)
-    end select
+  select case(option%iflowmode)
+    case(TOWG_MODE)
+      CharCurvesGetGetResidualSats(option%liquid_phase) = &
+        characteristic_curves%wat_rel_perm_func_owg%Swcr
+      CharCurvesGetGetResidualSats(option%oil_phase) = &
+        characteristic_curves%oil_rel_perm_func_owg%Socr
+      if (option%iflow_sub_mode == TOWG_TODD_LONGSTAFF) then
+        CharCurvesGetGetResidualSats(option%gas_phase) = 0.0d0
+      else
+        CharCurvesGetGetResidualSats(option%gas_phase) = &
+          characteristic_curves%gas_rel_perm_func_owg%Sgcr
+      end if
+    case default
+      CharCurvesGetGetResidualSats(1) = &
+        characteristic_curves%liq_rel_perm_function%Sr
+      !if (option%nphase > 1) then
+      if ( (option%nphase > 1) .and. &
+           associated(characteristic_curves%gas_rel_perm_function) ) then
+        select type(rpf=>characteristic_curves%gas_rel_perm_function)
+          class is(rpf_Mualem_VG_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_Mualem_VG_gas_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+          class is(rpf_Burdine_BC_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_Burdine_BC_gas_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+          class is(rpf_Mualem_BC_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_Mualem_BC_gas_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+          class is(rpf_Burdine_VG_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_Burdine_VG_gas_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+          class is(rpf_TOUGH2_IRP7_gas_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+          class is(rpf_Mualem_Linear_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_Mualem_Linear_gas_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+          class is(rpf_Burdine_Linear_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_Burdine_Linear_gas_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+          class is(rpf_KRP1_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_KRP1_gas_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+          class is(rpf_KRP2_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_KRP2_gas_type)
+            ! KRP2 does not use a Srg, so return 0.d0
+            CharCurvesGetGetResidualSats(option%gas_phase) = 0.d0
+          class is(rpf_KRP3_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_KRP3_gas_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+          class is(rpf_KRP4_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_KRP4_gas_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+          class is(rpf_KRP5_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_KRP5_gas_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+          class is(rpf_KRP8_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_KRP8_gas_type)
+            ! KRP8 does not use a Srg, so return 0.d0
+            CharCurvesGetGetResidualSats(option%gas_phase) = 0.d0
+          class is(rpf_KRP9_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_KRP9_gas_type)
+            ! KRP9 does not use a Srg, so return 0.d0
+            CharCurvesGetGetResidualSats(option%gas_phase) = 0.d0
+          class is(rpf_KRP11_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_KRP11_gas_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+          class is(rpf_KRP12_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_KRP12_gas_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+          class is(rpf_mK_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rpf_mK_gas_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
+          class is(rpf_mod_BC_liq_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rel_perm_func_constant_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class is(rel_perm_func_default_type)
+            CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+          class default
+            option%io_buffer = 'Relative permeability class not supported in &
+              &CharCurvesGetGetResidualSats. &
+              &Contact pflotran-dev@googlegroups.com'
+            call printErrMsg(option)
+        end select
 
-  end if
+      end if
 
-  if ( (option%nphase > 1) .and. &
-       associated(characteristic_curves%oil_rel_perm_function) ) then
-    select type(rpf=>characteristic_curves%oil_rel_perm_function)
-      class is(rpf_TOUGH2_Linear_oil_type)
-        CharCurvesGetGetResidualSats(option%oil_phase) = rpf%Sro
-      class is(rpf_mod_BC_oil_type)
-        CharCurvesGetGetResidualSats(option%oil_phase) = rpf%Sro
-      class default
-        option%io_buffer = 'Oil Relative permeability class ' // &
-          'not supported in CharCurvesGetGetResidualSats.'
-        call printErrMsg(option)
-    end select
-  endif
+      if ( (option%nphase > 1) .and. &
+           associated(characteristic_curves%oil_rel_perm_function) ) then
+        select type(rpf=>characteristic_curves%oil_rel_perm_function)
+          class is(rpf_TOUGH2_Linear_oil_type)
+            CharCurvesGetGetResidualSats(option%oil_phase) = rpf%Sro
+          class is(rpf_mod_BC_oil_type)
+            CharCurvesGetGetResidualSats(option%oil_phase) = rpf%Sro
+          class default
+            option%io_buffer = 'Oil Relative permeability class ' // &
+              'not supported in CharCurvesGetGetResidualSats.'
+            call printErrMsg(option)
+        end select
+      endif
+
+  end select ! end flow mode select
 
 end function CharCurvesGetGetResidualSats
 
@@ -2567,8 +3010,19 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
     case default
       call characteristic_curves%oil_gas_sat_func%verify(string,option)
   end select
-  !add here relative permeabilities
 
+  ! Verify relative permeabilities
+  call characteristic_curves%wat_rel_perm_func_owg%verify(string,option)
+  call characteristic_curves%oil_rel_perm_func_owg%verify(string,option)
+
+  select case(option%iflowmode)
+    case(TOIL_IMS_MODE)
+      ! do nothing - gas phase no defined in TOIL_IMS
+    case(TOWG_MODE)
+      if ( option%iflow_sub_mode /= TOWG_TODD_LONGSTAFF ) then
+        call characteristic_curves%gas_rel_perm_func_owg%verify(string,option)
+      end if
+  end select
 
 end subroutine CharacteristicCurvesOWGVerify
 
@@ -10914,6 +11368,1135 @@ end subroutine SF_OG_VG_SL_CapillaryPressure
 ! *********** END OWG Saturation functions    ****************************** !
 ! ************************************************************************** !
 
+! ************************************************************************** !
+! *********** OWG Relative Permeability functions  ************************* !
+! ************************************************************************** !
+
+! ************************************************************************** !
+
+subroutine RPFOWGBaseInit(this)
+
+  implicit none
+
+  class(rel_perm_func_owg_base_type) :: this
+
+  nullify(this%poly)
+
+  this%Swco = 0.0d0
+  this%Swcr = UNINITIALIZED_DOUBLE
+  this%Soco = 0.0d0
+  this%Socr = UNINITIALIZED_DOUBLE
+  this%Sgco = 0.0d0
+  this%Sgcr = UNINITIALIZED_DOUBLE
+  this%Slcr = UNINITIALIZED_DOUBLE
+
+  this%analytical_derivative_available = PETSC_FALSE
+  this%function_of_liquid_sat = PETSC_FALSE
+  this%So_is_Sh = PETSC_FALSE
+
+  nullify(this%rel_perm_func_sl)
+
+end subroutine RPFOWGBaseInit
+
+! ************************************************************************** !
+
+subroutine RPFOWGBaseVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(rel_perm_func_owg_base_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  if ((.not.this%analytical_derivative_available) .and. &
+      (.not.option%flow%numerical_derivatives)) then
+    option%io_buffer = 'Analytical derivatives are not available for the &
+      &relative permeability function chosen: ' // trim(name)
+    call printErrMsg(option)
+  endif
+
+end subroutine RPFOWGBaseVerify
+
+! ************************************************************************** !
+
+subroutine RPFOWGBaseSetupPolynomials(this,option,error_string)
+
+  ! Sets up polynomials for smoothing OWG relative permeability functions
+
+  use Option_module
+
+  implicit none
+
+  class(rel_perm_func_owg_base_type) :: this
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  option%io_buffer = 'RPF Smoothing not supported for ' // trim(error_string)
+  call printErrMsg(option)
+
+end subroutine RPFOWGBaseSetupPolynomials
+
+! ************************************************************************** !
+
+subroutine RPFOWGBaseRelPerm(this,oil_sat,gas_sat,rel_perm, &
+                             dkr_sato,dkr_satg,option,table_idxs)
+  use Option_module
+
+  implicit none
+
+  class(rel_perm_func_owg_base_type) :: this
+  PetscReal, intent(in) :: oil_sat
+  PetscReal, intent(in) :: gas_sat
+  PetscReal, intent(out) :: rel_perm
+  PetscReal, intent(out) :: dkr_sato
+  PetscReal, intent(out) :: dkr_satg
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  option%io_buffer = 'RPFOWGBaseRelPerm must be extended.'
+  call printErrMsg(option)
+
+end subroutine RPFOWGBaseRelPerm
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_MBC_Init(this)
+
+  implicit none
+
+  class(RPF_OWG_MBC_type) :: this
+
+  call RPFOWGBaseInit(this)
+
+  this%analytical_derivative_available = PETSC_TRUE
+
+  this%m = UNINITIALIZED_DOUBLE
+  this%kr_max = 1.0d0
+
+end subroutine RPF_OWG_MBC_Init
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_MBC_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(RPF_OWG_MBC_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION_OWG') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION_OWG,RPF_OWG_MBC'
+  endif
+
+  call RPFOWGBaseVerify(this,string,option)
+
+  if (Uninitialized(this%Swcr)) then
+    option%io_buffer = UninitializedMessage('WATER_RESIDUAL_SATURATION',string)
+    call printErrMsg(option)
+  endif
+
+  if (this%So_is_Sh) then
+    if (Uninitialized(this%Socr)) then
+      option%io_buffer = &
+            UninitializedMessage('HYDROCARBON_RESIDUAL_SATURATION',string)
+      call printErrMsg(option)
+    endif
+  else
+    if (Uninitialized(this%Socr)) then
+      option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
+      call printErrMsg(option)
+    endif
+    if (Uninitialized(this%Sgcr)) then
+      option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+      call printErrMsg(option)
+    endif
+  end if
+
+  ! by default kr_max = 1.0 - if entered the value must be bound beween 0 and 1
+  if ( this%kr_max < 0.0 .or. this%kr_max > 1.0 ) then
+    option%io_buffer = string &
+      // ' MAX_REL_PERM entered not valid, must be 0 <= Kr_max <= 1'
+    call printErrMsg(option)
+  end if
+  !if (Uninitialized(this%kr_max)) then
+  !  option%io_buffer = UninitializedMessage('M',string)
+  !  call printErrMsg(option)
+  !endif
+
+end subroutine RPF_OWG_MBC_Verify
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_MBC_SetupPolynomials(this,option,error_string)
+
+  ! Sets up polynomials for smoothing Modified BC permeability function
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(RPF_OWG_MBC_type) :: this
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  PetscReal :: b(4)
+
+  PetscReal :: Se_ph_low
+
+  this%poly => PolynomialCreate()
+  ! fill matix with values
+  this%poly%low = 0.99d0  ! just below saturated
+  !this%poly%low = 0.95d0  ! just below saturated
+  this%poly%high = 1.d0   ! saturated
+  Se_ph_low = this%poly%low
+
+  b(1) = this%kr_max
+  b(2) = this%kr_max * (Se_ph_low ** this%m)
+  b(3) = 0.d0
+  b(4) = this%m * this%kr_max * Se_ph_low ** (this%m - 1.0 )
+
+  call CubicPolynomialSetup(this%poly%high,this%poly%low,b)
+
+  this%poly%coefficients(1:4) = b(1:4)
+
+end subroutine RPF_OWG_MBC_SetupPolynomials
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_MBC_RelPerm_dkr_dSe(this,effective_sat,rel_perm,&
+                                       dkr_Se,option)
+ !
+ ! Computes the relative permeability and its derivative WRT Se
+ ! for the MBC RPF given the Se value
+ !
+ ! Author: Paolo Orsini (OGS)
+ ! Date: 11/18/2017
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(RPF_OWG_MBC_type) :: this
+  PetscReal, intent(in) :: effective_sat
+  PetscReal, intent(out) :: rel_perm
+  PetscReal, intent(out) :: dkr_Se
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: Se
+
+  Se = effective_sat
+
+  if (Se >= 1.d0) then
+    rel_perm = this%kr_max
+    return
+  else if (Se <=  0.d0) then
+    rel_perm = 0.d0
+    return
+  endif
+
+  if (associated(this%poly)) then
+    if (Se > this%poly%low) then
+      call CubicPolynomialEvaluate(this%poly%coefficients, &
+                                   Se,rel_perm,dkr_Se)
+      return
+    endif
+  endif
+
+  rel_perm = this%kr_max * (Se ** this%m)
+
+  dkr_Se = this%kr_max * this%m * (Se ** (this%m-1.0))
+
+
+end subroutine RPF_OWG_MBC_RelPerm_dkr_dSe
+
+! ************************************************************************** !
+
+function RPF_wat_MBC_Create()
+
+  implicit none
+
+  class(RPF_OWG_MBC_wat_type), pointer :: RPF_wat_MBC_Create
+
+  allocate(RPF_wat_MBC_Create)
+
+  call RPF_wat_MBC_Create%Init()
+
+end function RPF_wat_MBC_Create
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_MBC_wat_RelPerm(this,oil_sat,gas_sat,rel_perm, &
+                             dkr_sato,dkr_satg,option,table_idxs)
+ !
+ ! Computes the relative permeability (and associated derivatives) as a
+ ! function of water saturation
+ !
+ ! Author: Paolo Orsini (OGS)
+ ! Date: 11/18/2017
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(RPF_OWG_MBC_wat_type) :: this
+  PetscReal, intent(in) :: oil_sat
+  PetscReal, intent(in) :: gas_sat
+  PetscReal, intent(out) :: rel_perm
+  PetscReal, intent(out) :: dkr_sato
+  PetscReal, intent(out) :: dkr_satg
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  PetscReal :: wat_sat, Se, dSe_dSw, dkr_dSe
+
+
+  wat_sat = 1.0 - oil_sat - gas_sat
+
+  Se = (wat_sat - this%Swcr) / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
+
+  dSe_dSw = 1.0 / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
+
+  call this%RPF_OWG_MBC_RelPerm_dkr_dSe(Se,rel_perm,dkr_dSe,option)
+
+  ! dkr_sato = dkr_dSe * dSe_dSw * dSw_dSo , with dSw_dSo = -1
+  dkr_sato = - dkr_dSe * dSe_dSw
+
+  ! dkr_satg = dkr_dSe * dSe_dSw * dSw_dSg , with dSw_dSg = -1
+  dkr_satg = - dkr_dSe * dSe_dSw
+
+  ! ****************************************************
+  ! dSe_dSw = 1.0 / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
+  !
+  ! if (Se >= 1.d0) then
+  !   rel_perm = this%kr_max
+  !   return
+  ! else if (Se <=  0.d0) then
+  !   rel_perm = 0.d0
+  !   return
+  ! endif
+  !
+  ! if (associated(this%poly)) then
+  !   if (Se > this%poly%low) then
+  !     call CubicPolynomialEvaluate(this%poly%coefficients, &
+  !                                  Se,rel_perm,dkr_Se)
+  !     dkr_sato = - dkr_dSe * dSe_dSw ! dSw_dSo = -1
+  !     dkr_satg = - dkr_dSe * dSe_dSw ! dSw_dSg = -1
+  !     return
+  !   endif
+  ! endif
+  !
+  ! rel_perm = this%kr_max * (Se ** this%m)
+  !
+  ! dkr_dSe = this%kr_max * this%m * (Se ** (this%m-1.0))
+  !
+  ! dkr_sato = - dkr_dSe * dSe_dSw
+  ! dkr_satg = - dkr_dSe * dSe_dSw
+
+end subroutine RPF_OWG_MBC_wat_RelPerm
+
+! ************************************************************************** !
+
+function RPF_oil_MBC_Create()
+
+  implicit none
+
+  class(RPF_OWG_MBC_oil_type), pointer :: RPF_oil_MBC_Create
+
+  allocate(RPF_oil_MBC_Create)
+
+  call RPF_oil_MBC_Create%Init()
+
+end function RPF_oil_MBC_Create
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_MBC_oil_RelPerm(this,oil_sat,gas_sat,rel_perm, &
+                             dkr_sato,dkr_satg,option,table_idxs)
+ !
+ ! Computes the relative permeability (and associated derivatives) as a
+ ! function of water saturation
+ !
+ ! Author: Paolo Orsini (OGS)
+ ! Date: 11/18/2017
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(RPF_OWG_MBC_oil_type) :: this
+  PetscReal, intent(in) :: oil_sat
+  PetscReal, intent(in) :: gas_sat
+  PetscReal, intent(out) :: rel_perm
+  PetscReal, intent(out) :: dkr_sato
+  PetscReal, intent(out) :: dkr_satg
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  PetscReal :: Se, dkr_dSe, dSe_dSo
+
+  Se = (oil_sat - this%Socr) / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
+
+  dSe_dSo = 1.0 / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
+
+  call this%RPF_OWG_MBC_RelPerm_dkr_dSe(Se,rel_perm,dkr_dSe,option)
+
+  ! dkr_sato = dkr_dSe * dSe_dSo
+  dkr_sato = dkr_dSe * dSe_dSo
+
+  ! dkr_satg = dkr_dSe * dSe_dSo * dSodSg, with dSodSg = 1
+  dkr_satg = - dkr_dSe * dSe_dSo
+
+end subroutine RPF_OWG_MBC_oil_RelPerm
+
+! ************************************************************************** !
+
+function RPF_gas_MBC_Create()
+
+  implicit none
+
+  class(RPF_OWG_MBC_gas_type), pointer :: RPF_gas_MBC_Create
+
+  allocate(RPF_gas_MBC_Create)
+
+  call RPF_gas_MBC_Create%Init()
+
+end function RPF_gas_MBC_Create
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_MBC_gas_RelPerm(this,oil_sat,gas_sat,rel_perm, &
+                               dkr_sato,dkr_satg,option,table_idxs)
+ !
+ ! Computes the relative permeability with a modified Brooks and Cory law
+ ! (and associated derivatives) as function of water saturation
+ !
+ ! Author: Paolo Orsini (OGS)
+ ! Date: 11/18/2017
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(RPF_OWG_MBC_gas_type) :: this
+  PetscReal, intent(in) :: oil_sat
+  PetscReal, intent(in) :: gas_sat
+  PetscReal, intent(out) :: rel_perm
+  PetscReal, intent(out) :: dkr_sato
+  PetscReal, intent(out) :: dkr_satg
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  PetscReal :: Se, dkr_dSe, dSe_dSg
+
+
+  Se = (oil_sat - this%Socr) / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
+
+  dSe_dSg = 1.0 / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
+
+  call this%RPF_OWG_MBC_RelPerm_dkr_dSe(Se,rel_perm,dkr_dSe,option)
+
+  ! dkr_sato = dkr_dSe * dSe_dSg * dSgdSo, with dSgdSo = -1
+  dkr_sato = - dkr_dSe * dSe_dSg
+
+  ! dkr_satg = dkr_dSe * dSe_dSg
+  dkr_satg = dkr_dSe * dSe_dSg
+
+end subroutine RPF_OWG_MBC_gas_RelPerm
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_func_sl_Init(this)
+
+  implicit none
+
+  class(RPF_OWG_func_sl_type) :: this
+
+  call RPFOWGBaseInit(this)
+
+  this%analytical_derivative_available = PETSC_TRUE
+
+  this%kr_max = 1.0d0
+
+end subroutine RPF_OWG_func_sl_Init
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_func_sl_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(RPF_OWG_func_sl_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  call RPFOWGBaseVerify(this,string,option)
+
+  if ( this%kr_max < 0.0 .or. this%kr_max > 1.0 ) then
+    option%io_buffer = name &
+      // ' MAX_REL_PERM entered not valid, must be 0 <= Kr_max <= 1'
+    call printErrMsg(option)
+  end if
+
+  if (.not.associated(this%rel_perm_func_sl) ) then
+    option%io_buffer = name &
+      // ' Sub SL analytical model not defined'
+    call printErrMsg(option)
+  else
+    call this%rel_perm_func_sl%verify(name,option)
+  end if
+
+end subroutine RPF_OWG_func_sl_Verify
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_func_sl_RelPerm(this,oil_sat,gas_sat,rel_perm, &
+                                         dkr_sato,dkr_satg,option,table_idxs)
+!
+! Computes the relative permeability (and associated derivatives) using
+! analytical models implemented as function of sl
+!
+! Author: Paolo Orsini (OGS)
+! Date: 11/20/2017
+
+ use Option_module
+ use Utility_module
+
+ implicit none
+
+ class(RPF_OWG_func_sl_type) :: this
+ PetscReal, intent(in) :: oil_sat
+ PetscReal, intent(in) :: gas_sat
+ PetscReal, intent(out) :: rel_perm
+ PetscReal, intent(out) :: dkr_sato
+ PetscReal, intent(out) :: dkr_satg
+ type(option_type), intent(inout) :: option
+ PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+ PetscReal :: func_sat, dkr_func_sat
+
+ if ( this%function_of_liquid_sat ) then
+   func_sat = 1.0 - gas_sat
+ else
+   func_sat = 1.0 - oil_sat - gas_sat
+ end if
+
+ call this%rel_perm_func_sl%RelativePermeability(func_sat,rel_perm, &
+                                                 dkr_func_sat,option)
+
+ rel_perm = this%kr_max * rel_perm
+
+ dkr_satg = - this%kr_max *dkr_func_sat
+
+ if ( this%function_of_liquid_sat ) then
+   dkr_sato = this%kr_max * dkr_func_sat
+ else
+   dkr_sato = - this%kr_max * dkr_func_sat
+ end if
+
+end subroutine RPF_OWG_func_sl_relPerm
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_func_sl_VG_Init(this)
+
+  implicit none
+
+  class(RPF_OWG_func_sl_VG_type) :: this
+
+  call RPF_OWG_func_sl_Init(this)
+
+  this%m = UNINITIALIZED_DOUBLE
+
+end subroutine RPF_OWG_func_sl_VG_Init
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_func_sl_VG_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(RPF_OWG_func_sl_VG_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  call RPF_OWG_func_sl_Verify(this,name,option)
+
+  if (this%function_of_liquid_sat) then
+    if (Uninitialized(this%Slcr)) then
+      option%io_buffer = UninitializedMessage('LIQUID_RESIDUAL_SATURATION', &
+                                               name)
+      call printErrMsg(option)
+    endif
+  else
+    if (Uninitialized(this%Swcr)) then
+      option%io_buffer = UninitializedMessage('WATER_RESIDUAL_SATURATION',name)
+      call printErrMsg(option)
+    endif
+  end if
+
+  if (Uninitialized(this%m)) then
+    option%io_buffer = UninitializedMessage('M',name)
+    call printErrMsg(option)
+  endif
+
+end subroutine RPF_OWG_func_sl_VG_Verify
+
+! ************************************************************************** !
+
+function RPF_OWG_Mualem_VG_wat_Create()
+
+  implicit none
+
+  class(RPF_OWG_Mualem_VG_wat_type), pointer :: RPF_OWG_Mualem_VG_wat_Create
+
+  allocate(RPF_OWG_Mualem_VG_wat_Create)
+
+  call RPF_OWG_Mualem_VG_wat_Create%Init()
+
+  RPF_OWG_Mualem_VG_wat_Create%rel_perm_func_sl => RPF_Mualem_VG_liq_create()
+
+end function RPF_OWG_Mualem_VG_wat_Create
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_Mualem_VG_wat_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(RPF_OWG_Mualem_VG_wat_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION_OWG') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION_OWG,RPF_OWG_Mualem_VG_wat'
+  endif
+
+  call RPF_OWG_func_sl_VG_Verify(this,string,option)
+
+end subroutine RPF_OWG_Mualem_VG_wat_Verify
+
+! ************************************************************************** !
+
+function RPF_OWG_Mualem_VG_gas_Create()
+
+  implicit none
+
+  class(RPF_OWG_Mualem_VG_gas_type), pointer :: RPF_OWG_Mualem_VG_gas_Create
+
+  allocate(RPF_OWG_Mualem_VG_gas_Create)
+
+  call RPF_OWG_Mualem_VG_gas_Create%Init()
+
+  RPF_OWG_Mualem_VG_gas_Create%rel_perm_func_sl => RPF_Mualem_VG_gas_create()
+
+end function RPF_OWG_Mualem_VG_gas_Create
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_Mualem_VG_gas_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(RPF_OWG_Mualem_VG_gas_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION_OWG') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION_OWG,RPF_OWG_Mualem_VG_gas'
+  endif
+
+  call RPF_OWG_func_sl_VG_Verify(this,string,option)
+
+  if (Uninitialized(this%Sgcr)) then
+    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+    call printErrMsg(option)
+  endif
+
+end subroutine RPF_OWG_Mualem_VG_gas_Verify
+
+! ************************************************************************** !
+
+function RPF_OWG_TOUGH2_IRP7_gas_Create()
+
+  implicit none
+
+  class(RPF_OWG_TOUGH2_IRP7_gas_type), pointer :: &
+                                            RPF_OWG_TOUGH2_IRP7_gas_Create
+
+  allocate(RPF_OWG_TOUGH2_IRP7_gas_Create)
+
+  call RPF_OWG_TOUGH2_IRP7_gas_Create%Init()
+
+  RPF_OWG_TOUGH2_IRP7_gas_Create%rel_perm_func_sl => &
+                                      RPF_TOUGH2_IRP7_gas_create()
+
+end function RPF_OWG_TOUGH2_IRP7_gas_Create
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_TOUGH2_IRP7_gas_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(RPF_OWG_TOUGH2_IRP7_gas_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION_OWG') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION_OWG,RPF_OWG_TOUGH2_IRP7_gas'
+  endif
+
+  call RPF_OWG_func_sl_VG_Verify(this,string,option)
+
+  if (Uninitialized(this%Sgcr)) then
+    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+    call printErrMsg(option)
+  endif
+
+end subroutine RPF_OWG_TOUGH2_IRP7_gas_Verify
+
+! ************************************************************************** !
+
+function RPF_OWG_Burdine_VG_wat_Create()
+
+  implicit none
+
+  class(RPF_OWG_Burdine_VG_wat_type), pointer :: RPF_OWG_Burdine_VG_wat_Create
+
+  allocate(RPF_OWG_Burdine_VG_wat_Create)
+
+  call RPF_OWG_Burdine_VG_wat_Create%Init()
+
+  RPF_OWG_Burdine_VG_wat_Create%rel_perm_func_sl => RPF_Burdine_VG_liq_create()
+
+end function RPF_OWG_Burdine_VG_wat_Create
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_Burdine_VG_wat_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(RPF_OWG_Burdine_VG_wat_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION_OWG') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION_OWG,RPF_OWG_Burdine_VG_wat'
+  endif
+
+  call RPF_OWG_func_sl_VG_Verify(this,string,option)
+
+end subroutine RPF_OWG_Burdine_VG_wat_Verify
+
+! ************************************************************************** !
+
+function RPF_OWG_Burdine_VG_gas_Create()
+
+  implicit none
+
+  class(RPF_OWG_Burdine_VG_gas_type), pointer :: RPF_OWG_Burdine_VG_gas_Create
+
+  allocate(RPF_OWG_Burdine_VG_gas_Create)
+
+  call RPF_OWG_Burdine_VG_gas_Create%Init()
+
+  RPF_OWG_Burdine_VG_gas_Create%rel_perm_func_sl => RPF_Burdine_VG_gas_create()
+
+end function RPF_OWG_Burdine_VG_gas_Create
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_Burdine_VG_gas_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(RPF_OWG_Burdine_VG_gas_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION_OWG') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION_OWG,RPF_OWG_Burdine_VG_gas'
+  endif
+
+  call RPF_OWG_func_sl_VG_Verify(this,string,option)
+
+  if (Uninitialized(this%Sgcr)) then
+    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+    call printErrMsg(option)
+  endif
+
+end subroutine RPF_OWG_Burdine_VG_gas_Verify
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_func_sl_BC_Init(this)
+
+  implicit none
+
+  class(RPF_OWG_func_sl_BC_type) :: this
+
+  call RPF_OWG_func_sl_Init(this)
+
+  this%lambda = UNINITIALIZED_DOUBLE
+
+end subroutine RPF_OWG_func_sl_BC_Init
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_func_sl_BC_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(RPF_OWG_func_sl_BC_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  call RPF_OWG_func_sl_Verify(this,name,option)
+
+  if (Uninitialized(this%lambda)) then
+    option%io_buffer = UninitializedMessage('LAMBDA',name)
+    call printErrMsg(option)
+  endif
+
+  if (Uninitialized(this%Swcr)) then
+    option%io_buffer = UninitializedMessage('WATER_RESIDUAL_SATURATION',name)
+    call printErrMsg(option)
+  endif
+
+end subroutine RPF_OWG_func_sl_BC_Verify
+
+! ************************************************************************** !
+
+function RPF_OWG_Burdine_BC_wat_Create()
+
+  implicit none
+
+  class(RPF_OWG_Burdine_BC_wat_type), pointer :: RPF_OWG_Burdine_BC_wat_Create
+
+  allocate(RPF_OWG_Burdine_BC_wat_Create)
+
+  call RPF_OWG_Burdine_BC_wat_Create%Init()
+
+  RPF_OWG_Burdine_BC_wat_Create%rel_perm_func_sl => RPF_Burdine_BC_liq_create()
+
+end function RPF_OWG_Burdine_BC_wat_Create
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_Burdine_BC_wat_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(RPF_OWG_Burdine_BC_wat_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION_OWG') > 0) then
+    string = name
+  else
+    string = trim(name) // &
+         'PERMEABILITY_FUNCTION_OWG,RPF_OWG_Burdine_BC_wat_Verify'
+  endif
+
+  call RPF_OWG_func_sl_BC_Verify(this,string,option)
+
+end subroutine RPF_OWG_Burdine_BC_wat_Verify
+
+! ************************************************************************** !
+
+function RPF_OWG_Burdine_BC_gas_Create()
+
+  implicit none
+
+  class(RPF_OWG_Burdine_BC_gas_type), pointer :: RPF_OWG_Burdine_BC_gas_Create
+
+  allocate(RPF_OWG_Burdine_BC_gas_Create)
+
+  call RPF_OWG_Burdine_BC_gas_Create%Init()
+
+  RPF_OWG_Burdine_BC_gas_Create%rel_perm_func_sl => RPF_Burdine_BC_gas_create()
+
+end function RPF_OWG_Burdine_BC_gas_Create
+
+! ************************************************************************** !
+
+subroutine RPF_OWG_Burdine_BC_gas_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(RPF_OWG_Burdine_BC_gas_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION_OWG') > 0) then
+    string = name
+  else
+    string = trim(name) // &
+         'PERMEABILITY_FUNCTION_OWG,RPF_OWG_Burdine_BC_wat_Verify'
+  endif
+
+  call RPF_OWG_func_sl_BC_Verify(this,string,option)
+
+  if (Uninitialized(this%Sgcr)) then
+    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+    call printErrMsg(option)
+  endif
+
+end subroutine RPF_OWG_Burdine_BC_gas_Verify
+
+! ************************************************************************** !
+
+function RPF_oil_ecl_Create()
+
+  implicit none
+
+  class(RPF_oil_ecl_type), pointer :: RPF_oil_ecl_Create
+
+  allocate(RPF_oil_ecl_Create)
+
+  call RPF_oil_ecl_Create%Init()
+
+end function RPF_oil_ecl_Create
+
+! ************************************************************************** !
+
+subroutine RPF_oil_ecl_Init(this)
+
+  implicit none
+
+  class(RPF_oil_ecl_type) :: this
+
+  call RPFOWGBaseInit(this)
+
+  nullify(this%rel_perm_ow)
+  nullify(this%rel_perm_og)
+  this%kr_max = 1.0
+
+end subroutine RPF_oil_ecl_Init
+
+! ************************************************************************** !
+
+subroutine RPF_oil_ecl_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(RPF_oil_ecl_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string, string_ow, string_og
+
+  if (index(name,'PERMEABILITY_FUNCTION_OWG') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION_OWG,RPF_OIL_ECL'
+  endif
+
+  call RPFOWGBaseVerify(this,string,option)
+
+  if ( .not.associated(this%rel_perm_ow) ) then
+    string_ow = string // ' ,RPF_OIL_WATER not defined'
+    option%io_buffer = string_ow
+    call printErrMsg(option)
+  end if
+
+  if ( .not.associated(this%rel_perm_og) ) then
+    string_og = string // ' ,RPF_OIL_GAS not defined'
+    option%io_buffer = string_og
+    call printErrMsg(option)
+  end if
+
+  ! PO: TODO if ow and/or og function crtitical saturation not defined
+  ! take the values defined in the ECLIPSE oil rpf
+  ! if (Uninitialized(this%Swcr)) then
+  !   option%io_buffer = UninitializedMessage('WATER_RESIDUAL_SATURATION',string)
+  !   call printErrMsg(option)
+  ! else
+  !   !PO might consider comparison instead - what happes with tables?
+  !   this%rel_perm_ow%Swcr = this%Swcr
+  !   this%rel_perm_og%Swcr = this%Swcr
+  ! end if
+  !
+  ! if (Uninitialized(this%Socr)) then
+  !   option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
+  !   call printErrMsg(option)
+  ! else
+  !   !PO might consider comparison instead - what happes with tables?
+  !   this%rel_perm_ow%Socr = this%Socr
+  !   this%rel_perm_og%Socr = this%Socr
+  ! end if
+  !
+  ! if (Uninitialized(this%Sgcr)) then
+  !   option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+  !   call printErrMsg(option)
+  ! else
+  !   !PO might consider comparison instead - what happes with tables?
+  !   this%rel_perm_ow%Sgcr = this%Sgcr
+  !   this%rel_perm_og%Sgcr = this%Sgcr
+  ! end if
+
+  string_ow = string //'RPF_OIL_WATER, choose a kr function that supports krmax'
+  string_og = string //'RPF_OIL_GAS, choose a kr function that supports krmax'
+
+  if ( this%kr_max < 0.0 .or. this%kr_max > 1.0 ) then
+    option%io_buffer = string &
+      // ' MAX_REL_PERM entered not valid, must be 0 <= Kr_max <= 1'
+    call printErrMsg(option)
+  else
+    select type(rel_perm_ow => this%rel_perm_ow)
+      class is(RPF_OWG_MBC_oil_type)
+        rel_perm_ow%kr_max = this%kr_max
+      class default
+        option%io_buffer = string_ow
+        call printErrMsg(option)
+    end select
+    select type(rel_perm_og => this%rel_perm_og)
+      class is(RPF_OWG_MBC_oil_type)
+        rel_perm_og%kr_max = this%kr_max
+      class default
+        option%io_buffer = string_og
+        call printErrMsg(option)
+    end select
+  end if
+
+  ! pass connate water, gas and oil to ow and og functions
+  this%rel_perm_ow%Swco = this%Swco
+  this%rel_perm_ow%Soco = this%Soco
+  this%rel_perm_ow%Sgco = this%Sgco
+  this%rel_perm_og%Swco = this%Swco
+  this%rel_perm_og%Soco = this%Soco
+  this%rel_perm_og%Sgco = this%Sgco
+
+  string_ow = string // ',RPF_OIL_WATER'
+
+  call this%rel_perm_ow%Verify(string_ow,option)
+
+  string_og = string // ',RPF_OIL_GAS'
+
+  call this%rel_perm_og%Verify(string_og,option)
+
+end subroutine RPF_oil_ecl_Verify
+
+! ************************************************************************** !
+
+subroutine RPF_oil_ecl_RelPerm(this,oil_sat,gas_sat,rel_perm, &
+                               dkr_sato,dkr_satg,option,table_idxs)
+ !
+ ! Computes the oil relative permeability and associated derivatives
+ ! using the eclipse default model
+ !
+ ! Author: Paolo Orsini (OGS)
+ ! Date: 11/18/2017
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(RPF_oil_ecl_type) :: this
+  PetscReal, intent(in) :: oil_sat
+  PetscReal, intent(in) :: gas_sat
+  PetscReal, intent(out) :: rel_perm
+  PetscReal, intent(out) :: dkr_sato
+  PetscReal, intent(out) :: dkr_satg
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  PetscReal :: Krow, Krog
+  PetscReal :: dKrow_sato, dKrow_satg
+  PetscReal :: dKrog_sato, dKrog_satg
+  PetscReal :: wat_sat
+  PetscReal :: sg_plus_sw_minus_swco
+  !PetscReal :: den_eps = 1.0d-8
+
+  wat_sat = 1.0 - oil_sat - gas_sat
+
+  call this%rel_perm_ow%RelativePermeability(oil_sat,gas_sat,Krow,dKrow_sato, &
+                                             dKrow_satg,option,table_idxs)
+
+  call this%rel_perm_og%RelativePermeability(oil_sat,gas_sat,Krog,dKrog_sato, &
+                                             dKrog_satg,option,table_idxs)
+
+  sg_plus_sw_minus_swco = gas_sat + wat_sat - this%Swco
+
+  if ( sg_plus_sw_minus_swco > 0.0 ) then
+    rel_perm = (gas_sat * Krog +  (wat_sat - this%Swco) * Krow ) / &
+               sg_plus_sw_minus_swco
+  else
+    rel_perm = this%kr_max
+  end if
+
+end subroutine RPF_oil_ecl_RelPerm
+
+! ************************************************************************** !
+
+! ************************************************************************** !
+! *********** END OWG Relative Permeability functions  ********************* !
+! ************************************************************************** !
+
 subroutine PolynomialDestroy(poly)
   !
   ! Destroys a polynomial smoother
@@ -11003,6 +12586,37 @@ end subroutine PermeabilityFunctionDestroy
 
 ! ************************************************************************** !
 
+recursive subroutine PermeabilityFunctionOWGDestroy(rpf)
+  !
+  ! Destroys an OWG permeability function
+  !
+  ! Author: Paolo Orsini
+  ! Date: 11/18/17
+  !
+
+  implicit none
+
+  class(rel_perm_func_owg_base_type), pointer :: rpf
+
+  if (.not.associated(rpf)) return
+
+  call PolynomialDestroy(rpf%poly)
+
+  call PermeabilityFunctionDestroy(rpf%rel_perm_func_sl)
+
+  select type(rpf)
+    class is(RPF_oil_ecl_type)
+      call PermeabilityFunctionOWGDestroy(rpf%rel_perm_ow)
+      call PermeabilityFunctionOWGDestroy(rpf%rel_perm_og)
+  end select
+
+  deallocate(rpf)
+  nullify(rpf)
+
+end subroutine PermeabilityFunctionOWGDestroy
+
+! ************************************************************************** !
+
 recursive subroutine CharacteristicCurvesDestroy(cc)
   !
   ! Destroys a characteristic curve
@@ -11039,6 +12653,10 @@ recursive subroutine CharacteristicCurvesDestroy(cc)
     call PermeabilityFunctionDestroy(cc%gas_rel_perm_function)
     !call PermeabilityFunctionDestroy(cc%oil_rel_perm_function)
   endif
+
+  call PermeabilityFunctionOWGDestroy(cc%wat_rel_perm_func_owg)
+  call PermeabilityFunctionOWGDestroy(cc%oil_rel_perm_func_owg)
+  call PermeabilityFunctionOWGDestroy(cc%gas_rel_perm_func_owg)
 
   deallocate(cc)
   nullify(cc)
