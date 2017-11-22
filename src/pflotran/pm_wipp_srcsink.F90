@@ -2732,14 +2732,17 @@ end subroutine PMWSSUpdateChemSpecies
         s_eff = water_saturation-this%smin+(this%satwick * &
                                            (1.d0-exp(this%alpharxn*SOCEXP)))
 !geh: End change
+        if (s_eff < 1.d-16) then
+          print *, 'soefc zero', water_saturation, s_eff
+        endif
 
         s_eff = min(s_eff,1.d0)
         s_eff = max(s_eff,0.d0)
         ! sg_eff is set to zero if sw_eff is also zero
-        sg_eff = 0.d0
-        if (s_eff > 1.d-16) then
+!        sg_eff = 0.d0
+!        if (s_eff > 1.d-16) then
           sg_eff = (1.d0-s_eff)
-        endif
+!        endif
      
       !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
       !-----(see equation PA.67, PA.77, section PA-4.2.5)-----------------------
@@ -2982,8 +2985,15 @@ end subroutine PMWSSUpdateChemSpecies
                   material_auxvars(ghosted_id)%volume / &       ! [m3-bulk]
                   1.d3                                          ! [mol -> kmol]
 
-        if (wippflo_debug_gas_generation .and. k == 0 .and. &
-            .not.calculate_jacobian) then
+!        if (wippflo_debug_gas_generation .and. k == 0 .and. &
+!            .not.calculate_jacobian) then
+        if (wippflo_debug_gas_generation .and. (&
+!             (calculate_jacobian .and. k > 0) .or. &
+             (.not.calculate_jacobian .and. k == 0))) then
+          if (calculate_jacobian .and. k > 0) then
+            print *, 'Jacobian --'
+          endif
+          print *, 'sat(water):', water_saturation
           print *, '     SOEFC:', s_eff
           print *, '    RXCORS:', cwp%rxnrate_Fe_corrosion_inund(i)
           print *, '    RXCORH:', cwp%rxnrate_Fe_corrosion_humid(i)
