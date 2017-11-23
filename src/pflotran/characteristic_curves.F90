@@ -2532,7 +2532,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
                                error_string)
           case default
             call InputKeywordUnrecognized(keyword, &
-              'Mualem van Genuchten liquid relative permeability function', &
+              'Modified Brooks-Corey relative permeability function', &
               option)
         end select
       class is(RPF_oil_ecl_type)
@@ -2560,7 +2560,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
                                           'PERMEABILITY_FUNCTION_OW/OG',option)
         end select
         call PermeabilityFunctionOWGRead(perm_func_ptr,'OIL',input,option)
-        select case(perm_func_ch_type)
+        select case(perm_interface)
           case('OIL_WATER')
             rpf%rel_perm_ow => perm_func_ptr
           case('OIL_GAS')
@@ -3003,12 +3003,31 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
   string = 'CHARACTERISTIC_CURVES(' // trim(characteristic_curves%name) // &
            '),'
 
-  call characteristic_curves%oil_wat_sat_func%verify(string,option)
+  if (.not.(associated(characteristic_curves%oil_wat_sat_func))) then
+    option%io_buffer = "A water/oil saturation function has  &
+                        &not been set under CHARACTERISTIC_CURVES " // &
+                        trim(characteristic_curves%name) // '". A &
+                        &SATURATION_FUNCTION_OWG block must be &
+                        &specified for the water/oil phase interface.'
+    call printErrMsg(option)
+  else
+    call characteristic_curves%oil_wat_sat_func%verify(string,option)
+  end if
+
   select case(option%iflow_sub_mode)
-  case(TOWG_TODD_LONGSTAFF)
+    case(TOWG_TODD_LONGSTAFF)
       !do nothing - for TL only one saturation function is required
     case default
-      call characteristic_curves%oil_gas_sat_func%verify(string,option)
+      if (.not.(associated(characteristic_curves%oil_gas_sat_func))) then
+        option%io_buffer = "An oil/gas saturation function has  &
+                            &not been set under CHARACTERISTIC_CURVES " // &
+                            trim(characteristic_curves%name) // '". A &
+                            &SATURATION_FUNCTION_OWG block must be &
+                            &specified for the oil/gas phase interface.'
+        call printErrMsg(option)
+      else
+        call characteristic_curves%oil_gas_sat_func%verify(string,option)
+      end if
   end select
 
   ! Verify relative permeabilities
@@ -11597,6 +11616,8 @@ subroutine RPF_OWG_MBC_RelPerm_dkr_dSe(this,effective_sat,rel_perm,&
 
   Se = effective_sat
 
+  dkr_Se = 0.0d0
+
   if (Se >= 1.d0) then
     rel_perm = this%kr_max
     return
@@ -11668,6 +11689,7 @@ subroutine RPF_OWG_MBC_wat_RelPerm(this,oil_sat,gas_sat,rel_perm, &
 
   dSe_dSw = 1.0 / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
 
+  ! scaling WRT Kr_max occurs within RPF_OWG_MBC_RelPerm_dkr_dSe
   call this%RPF_OWG_MBC_RelPerm_dkr_dSe(Se,rel_perm,dkr_dSe,option)
 
   ! dkr_sato = dkr_dSe * dSe_dSw * dSw_dSo , with dSw_dSo = -1
@@ -11675,34 +11697,6 @@ subroutine RPF_OWG_MBC_wat_RelPerm(this,oil_sat,gas_sat,rel_perm, &
 
   ! dkr_satg = dkr_dSe * dSe_dSw * dSw_dSg , with dSw_dSg = -1
   dkr_satg = - dkr_dSe * dSe_dSw
-
-  ! ****************************************************
-  ! dSe_dSw = 1.0 / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
-  !
-  ! if (Se >= 1.d0) then
-  !   rel_perm = this%kr_max
-  !   return
-  ! else if (Se <=  0.d0) then
-  !   rel_perm = 0.d0
-  !   return
-  ! endif
-  !
-  ! if (associated(this%poly)) then
-  !   if (Se > this%poly%low) then
-  !     call CubicPolynomialEvaluate(this%poly%coefficients, &
-  !                                  Se,rel_perm,dkr_Se)
-  !     dkr_sato = - dkr_dSe * dSe_dSw ! dSw_dSo = -1
-  !     dkr_satg = - dkr_dSe * dSe_dSw ! dSw_dSg = -1
-  !     return
-  !   endif
-  ! endif
-  !
-  ! rel_perm = this%kr_max * (Se ** this%m)
-  !
-  ! dkr_dSe = this%kr_max * this%m * (Se ** (this%m-1.0))
-  !
-  ! dkr_sato = - dkr_dSe * dSe_dSw
-  ! dkr_satg = - dkr_dSe * dSe_dSw
 
 end subroutine RPF_OWG_MBC_wat_RelPerm
 
@@ -11751,6 +11745,7 @@ subroutine RPF_OWG_MBC_oil_RelPerm(this,oil_sat,gas_sat,rel_perm, &
 
   dSe_dSo = 1.0 / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
 
+  ! scaling WRT Kr_max occurs within RPF_OWG_MBC_RelPerm_dkr_dSe
   call this%RPF_OWG_MBC_RelPerm_dkr_dSe(Se,rel_perm,dkr_dSe,option)
 
   ! dkr_sato = dkr_dSe * dSe_dSo
@@ -11802,11 +11797,11 @@ subroutine RPF_OWG_MBC_gas_RelPerm(this,oil_sat,gas_sat,rel_perm, &
 
   PetscReal :: Se, dkr_dSe, dSe_dSg
 
-
-  Se = (oil_sat - this%Socr) / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
+  Se = (gas_sat - this%Sgcr) / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
 
   dSe_dSg = 1.0 / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
 
+  ! scaling WRT Kr_max occurs within RPF_OWG_MBC_RelPerm_dkr_dSe
   call this%RPF_OWG_MBC_RelPerm_dkr_dSe(Se,rel_perm,dkr_dSe,option)
 
   ! dkr_sato = dkr_dSe * dSe_dSg * dSgdSo, with dSgdSo = -1
@@ -12371,32 +12366,44 @@ subroutine RPF_oil_ecl_Verify(this,name,option)
 
   ! PO: TODO if ow and/or og function crtitical saturation not defined
   ! take the values defined in the ECLIPSE oil rpf
-  ! if (Uninitialized(this%Swcr)) then
-  !   option%io_buffer = UninitializedMessage('WATER_RESIDUAL_SATURATION',string)
-  !   call printErrMsg(option)
-  ! else
-  !   !PO might consider comparison instead - what happes with tables?
-  !   this%rel_perm_ow%Swcr = this%Swcr
-  !   this%rel_perm_og%Swcr = this%Swcr
-  ! end if
-  !
-  ! if (Uninitialized(this%Socr)) then
-  !   option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
-  !   call printErrMsg(option)
-  ! else
-  !   !PO might consider comparison instead - what happes with tables?
-  !   this%rel_perm_ow%Socr = this%Socr
-  !   this%rel_perm_og%Socr = this%Socr
-  ! end if
-  !
-  ! if (Uninitialized(this%Sgcr)) then
-  !   option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-  !   call printErrMsg(option)
-  ! else
-  !   !PO might consider comparison instead - what happes with tables?
-  !   this%rel_perm_ow%Sgcr = this%Sgcr
-  !   this%rel_perm_og%Sgcr = this%Sgcr
-  ! end if
+  if (Uninitialized(this%Swcr)) then
+    this%Swcr=0.0
+    !option%io_buffer = UninitializedMessage('WATER_RESIDUAL_SATURATION',string)
+    !call printErrMsg(option)
+  else
+    if (Uninitialized(this%rel_perm_ow%Swcr)) then
+       this%rel_perm_ow%Swcr = this%Swcr
+    end if
+    if (Uninitialized(this%rel_perm_og%Swcr)) then
+      this%rel_perm_og%Swcr = this%Swcr
+    end if
+  end if
+
+  if (Uninitialized(this%Socr)) then
+    this%Socr = 0.0
+    !option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
+    !call printErrMsg(option)
+  else
+    if (Uninitialized(this%rel_perm_ow%Socr)) then
+       this%rel_perm_ow%Socr = this%Socr
+    end if
+    if (Uninitialized(this%rel_perm_og%Socr)) then
+      this%rel_perm_og%Socr = this%Socr
+    end if
+  end if
+
+  if (Uninitialized(this%Sgcr)) then
+    this%Sgcr = 0.0
+    !option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+    !call printErrMsg(option)
+  else
+    if (Uninitialized(this%rel_perm_ow%Sgcr)) then
+       this%rel_perm_ow%Sgcr = this%Sgcr
+    end if
+    if (Uninitialized(this%rel_perm_og%Sgcr)) then
+      this%rel_perm_og%Sgcr = this%Sgcr
+    end if
+  end if
 
   string_ow = string //'RPF_OIL_WATER, choose a kr function that supports krmax'
   string_og = string //'RPF_OIL_GAS, choose a kr function that supports krmax'
