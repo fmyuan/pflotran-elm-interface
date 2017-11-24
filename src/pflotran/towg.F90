@@ -4779,13 +4779,20 @@ function TOWGImsTLAverageDensity(sat_up,sat_dn,density_up,density_dn)
 
   PetscReal :: TOWGImsTLAverageDensity
 
-  if (sat_up < eps ) then
-    TOWGImsTLAverageDensity = density_dn
-  else if (sat_dn < eps ) then
-    TOWGImsTLAverageDensity = density_up
-  else ! in here we could use an armonic average,
-       ! other idea sat weighted average but it needs truncation
+!  if ( (towg_miscibility_model == TOWG_IMMISCIBLE) .or. &
+!       (towg_miscibility_model == TOWG_TODD_LONGSTAFF) &
+!     ) then
+  if ( towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
     TOWGImsTLAverageDensity = 0.5d0*(density_up+density_dn)
+  else
+    if (sat_up < eps ) then
+      TOWGImsTLAverageDensity = density_dn
+    else if (sat_dn < eps ) then
+      TOWGImsTLAverageDensity = density_up
+    else ! in here we could use an armonic average,
+         ! other idea sat weighted average but it needs truncation
+      TOWGImsTLAverageDensity = 0.5d0*(density_up+density_dn)
+    end if
   end if
 
 end function TOWGImsTLAverageDensity
