@@ -210,7 +210,7 @@ type :: sat_func_owg_base_type
 contains
   procedure, public :: Init => SFOWGBaseInit
   procedure, public :: Verify => SFOWGBaseVerify
-  !procedure, public :: Test => SFOWGBaseTest
+  procedure, public :: Test => SFOWGBaseTest
   procedure, public :: SetupPolynomials => SFOWGBaseSetupPolynomials
   procedure, public :: CapillaryPressure => SFOWGBaseCapillaryPressure
   !procedure, public :: Saturation => SFOWGBaseSaturation
@@ -1106,11 +1106,9 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('MUALEM_VG_WAT')
             rel_perm_func_owg_ptr => RPF_OWG_Mualem_VG_wat_Create()
             phase_keyword = 'WATER'
-          case('MUALEM_VG_GAS')
+          case('MUALEM_VG_GAS_SL')
             rel_perm_func_owg_ptr => RPF_OWG_Mualem_VG_gas_Create()
-            phase_keyword = 'GAS'
-          case('TOUGH2_IRP7_GAS')
-            rel_perm_func_owg_ptr => RPF_OWG_TOUGH2_IRP7_gas_Create()
+            rel_perm_func_owg_ptr%function_of_liquid_sat = PETSC_TRUE
             phase_keyword = 'GAS'
           case('TOUGH2_IRP7_GAS_SL')
             rel_perm_func_owg_ptr => RPF_OWG_TOUGH2_IRP7_gas_Create()
@@ -1119,14 +1117,16 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('BURDINE_VG_WAT')
             rel_perm_func_owg_ptr => RPF_OWG_Burdine_VG_wat_Create()
             phase_keyword = 'WATER'
-          case('BURDINE_VG_GAS')
+          case('BURDINE_VG_GAS_SL')
             rel_perm_func_owg_ptr => RPF_OWG_Burdine_VG_gas_Create()
+            rel_perm_func_owg_ptr%function_of_liquid_sat = PETSC_TRUE
             phase_keyword = 'GAS'
           case('BURDINE_BC_WAT')
             rel_perm_func_owg_ptr => RPF_OWG_Burdine_BC_wat_Create()
             phase_keyword = 'WATER'
-          case('BURDINE_BC_GAS')
+          case('BURDINE_BC_GAS_SL')
             rel_perm_func_owg_ptr => RPF_OWG_Burdine_BC_gas_Create()
+            rel_perm_func_owg_ptr%function_of_liquid_sat = PETSC_TRUE
             phase_keyword = 'GAS'
           case default
             call InputKeywordUnrecognized(word,'PERMEABILITY_FUNCTION_OWG', &
@@ -2431,21 +2431,17 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
     class is(RPF_OWG_Mualem_VG_wat_type)
       error_string = trim(error_string) // 'MUALEM_VG_WAT'
     class is(RPF_OWG_Mualem_VG_gas_type)
-      error_string = trim(error_string) // 'MUALEM_VG_GAS'
+      error_string = trim(error_string) // 'MUALEM_VG_GAS_SL'
     class is(RPF_OWG_TOUGH2_IRP7_gas_type)
-      if (rpf%function_of_liquid_sat) then
         error_string = trim(error_string) // 'TOUGH2_IRP7_GAS_SL'
-      else
-        error_string = trim(error_string) // 'TOUGH2_IRP7_GAS'
-      end if
     class is(RPF_OWG_Burdine_VG_wat_type)
       error_string = trim(error_string) // 'BURDINE_VG_WAT'
     class is(RPF_OWG_Burdine_VG_gas_type)
-      error_string = trim(error_string) // 'BURDINE_VG_GAS'
+        error_string = trim(error_string) // 'BURDINE_VG_GAS_SL'
     class is(RPF_OWG_Burdine_BC_wat_type)
       error_string = trim(error_string) // 'BURDINE_BC_WAT'
     class is(RPF_OWG_Burdine_BC_gas_type)
-      error_string = trim(error_string) // 'BURDINE_BC_GAS'
+        error_string = trim(error_string) // 'BURDINE_BC_GAS_SL'
   end select
 
   do
@@ -2895,13 +2891,30 @@ subroutine CharacteristicCurvesTest(characteristic_curves,option)
 
   character(len=MAXWORDLENGTH) :: phase
 
-  call characteristic_curves%saturation_function%Test( &
+  if (associated(characteristic_curves%saturation_function)) then
+    call characteristic_curves%saturation_function%Test( &
                                                  characteristic_curves%name, &
                                                  option)
-  phase = 'liquid'
-  call characteristic_curves%liq_rel_perm_function%Test( &
+  end if
+
+  if (associated(characteristic_curves%oil_wat_sat_func)) then
+    call characteristic_curves%oil_wat_sat_func%Test( &
+                                                 characteristic_curves%name, &
+                                                 option)
+  end if
+
+  if (associated(characteristic_curves%oil_gas_sat_func)) then
+    call characteristic_curves%oil_gas_sat_func%Test( &
+                                                 characteristic_curves%name, &
+                                                 option)
+  end if
+
+  if (associated(characteristic_curves%liq_rel_perm_function)) then
+      phase = 'liquid'
+    call characteristic_curves%liq_rel_perm_function%Test( &
                                                  characteristic_curves%name, &
                                                  phase,option)
+  end if
 
   if ( associated(characteristic_curves%gas_rel_perm_function) ) then
     phase = 'gas'
@@ -3031,15 +3044,45 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
   end select
 
   ! Verify relative permeabilities
-  call characteristic_curves%wat_rel_perm_func_owg%verify(string,option)
-  call characteristic_curves%oil_rel_perm_func_owg%verify(string,option)
+  if (.not.(associated(characteristic_curves%wat_rel_perm_func_owg))) then
+    option%io_buffer = "A water relative permeability function has &
+                        &not been set under CHARACTERISTIC_CURVES " // &
+                        trim(characteristic_curves%name) // '". A &
+                        &PERMEABILITY_FUNCTION_OWG block must be &
+                        &specified for the water phase.'
+    call printErrMsg(option)
+  else
+    call characteristic_curves%wat_rel_perm_func_owg%verify(string,option)
+  end if
+
+  if (.not.(associated(characteristic_curves%oil_rel_perm_func_owg))) then
+    option%io_buffer = "An oil relative permeability function has &
+                        &not been set under CHARACTERISTIC_CURVES " // &
+                        trim(characteristic_curves%name) // '". A &
+                        &PERMEABILITY_FUNCTION_OWG block must be &
+                        &specified for the oil phase.'
+    call printErrMsg(option)
+  else
+    call characteristic_curves%oil_rel_perm_func_owg%verify(string,option)
+  end if
 
   select case(option%iflowmode)
     case(TOIL_IMS_MODE)
       ! do nothing - gas phase no defined in TOIL_IMS
     case(TOWG_MODE)
       if ( option%iflow_sub_mode /= TOWG_TODD_LONGSTAFF ) then
-        call characteristic_curves%gas_rel_perm_func_owg%verify(string,option)
+        if (.not.(associated(characteristic_curves%gas_rel_perm_func_owg)) &
+           ) then
+          option%io_buffer = "A gas relative permeability function has &
+                              &not been set under CHARACTERISTIC_CURVES " // &
+                              trim(characteristic_curves%name) // '". A &
+                              &PERMEABILITY_FUNCTION_OWG block must be &
+                              &specified for the gas phase.'
+          call printErrMsg(option)
+        else
+          call characteristic_curves%gas_rel_perm_func_owg% &
+                                                        verify(string,option)
+        end if
       end if
   end select
 
@@ -10983,6 +11026,116 @@ end subroutine SFOWGBaseVerify
 
 ! ************************************************************************** !
 
+subroutine SFOWGBaseTest(this,cc_name,option)
+
+  use Option_module
+  use Material_Aux_class
+
+  implicit none
+
+  class(sat_func_owg_base_type) :: this
+  character(len=MAXWORDLENGTH) :: cc_name
+  type(option_type), intent(inout) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string, sat_name
+  PetscInt, parameter :: num_values = 101
+  PetscReal :: capillary_pressure(num_values)
+  PetscReal :: wat_saturation(num_values)
+  PetscReal :: oil_saturation(num_values)
+  PetscReal :: gas_saturation(num_values)
+  PetscReal :: saturation(num_values)
+  PetscReal :: dpc_dsato(num_values),dpc_dsatg(num_values)
+  PetscInt :: i
+
+  ! PetscReal :: dpc_dsatl(num_values)
+  ! PetscReal :: dpc_dsatl_numerical(num_values)
+  ! PetscReal :: dsat_dpres(num_values)
+  ! PetscReal :: dsat_dpres_numerical(num_values)
+  ! PetscReal :: capillary_pressure_pert
+  ! PetscReal :: liquid_saturation_pert
+  ! PetscReal :: perturbation
+  ! PetscReal :: pert
+  ! PetscReal :: dummy_real
+  !PetscInt :: count, i
+
+  ! calculate saturation as a function of capillary pressure
+  ! start at 1 Pa up to maximum capillary pressure
+  !pc = 1.d0
+  !perturbation = 1.d-6
+  !count = 0
+
+ ! calculate capillary pressure as a function of saturation
+  do i = 1, num_values
+    wat_saturation(i) = dble(i-1)*0.01d0
+    if (wat_saturation(i) < 1.d-7) then
+      wat_saturation(i) = 1.d-7
+    else if (wat_saturation(i) > (1.d0-1.d-7)) then
+      wat_saturation(i) = 1.d0-1.d-7
+    endif
+  end do
+
+  ! select type(sf => this)
+  !   class is(sat_func_ow_VG_type)
+  !     oil_saturation(i) = 1.0 - wat_saturation(i)
+  !     gas_saturation(i) = 0.0
+  !   class is(sat_func_og_BC_type)
+  !     oil_saturation(i) = wat_saturation(i)
+  !     gas_saturation(i) = 0.0
+  !     wat_saturation(i) = 0.0
+  !   class is(sat_func_og_VG_SL_type)
+  !     gas_saturation(i) = 1 - wat_saturation(i)
+  !     oil_saturation(i) = 0.0
+  ! end select
+
+  write(string,*) cc_name
+  select type(sf => this)
+    class is(sat_func_ow_VG_type)
+      oil_saturation = 1.0 - wat_saturation
+      gas_saturation = 0.0
+      saturation = wat_saturation
+      string = trim(cc_name) // '_pc_OW_wat_sat.dat'
+      sat_name = 'wat_sat'
+    class is(sat_func_og_BC_type)
+      oil_saturation = wat_saturation
+      gas_saturation = 0.0
+      wat_saturation = 0.0
+      saturation = oil_saturation
+      string = trim(cc_name) // '_pc_OG_oil_sat.dat'
+      sat_name = 'oil_sat'
+    class is(sat_func_og_VG_SL_type)
+      gas_saturation = 1 - wat_saturation
+      oil_saturation = 0.0
+      saturation = wat_saturation
+      string = trim(cc_name) // '_pc_OG_liq_sat.dat'
+      sat_name = 'liq_sat'
+  end select
+  !sat_name = trim(sat_name)
+
+  do i = 1, num_values
+   call this%CapillaryPressure(oil_saturation(i), gas_saturation(i), &
+                               capillary_pressure(i),dpc_dsato(i), &
+                               dpc_dsatg(i),option)
+    ! calculate numerical derivatives?
+  enddo
+  !count = num_values
+
+  !write(string,*) cc_name
+  !string = trim(cc_name) // '_pc_from_sat.dat'
+  open(unit=86,file=string)
+  !write(86,*) '"saturation", "capillary pressure", "dpc/dsat", &
+  !            &dpc_dsat_numerical"'
+  write(86,*) '"',trim(sat_name), '"', ', "capillary pressure", "dpc/dsat0", &
+              &dpc/dsatg"'
+  do i = 1, num_values
+    write(86,'(4es14.6)') saturation(i), capillary_pressure(i), &
+                          dpc_dsato(i), dpc_dsatg(i)
+  enddo
+  close(86)
+
+end subroutine SFOWGBaseTest
+
+! ************************************************************************** !
+
 subroutine SFOWGBaseSetupPolynomials(this,option,error_string)
 
   ! Sets up polynomials for smoothing saturation functions
@@ -12032,6 +12185,10 @@ subroutine RPF_OWG_Mualem_VG_gas_Verify(this,name,option)
     string = trim(name) // 'PERMEABILITY_FUNCTION_OWG,RPF_OWG_Mualem_VG_gas'
   endif
 
+  if ( .not. this%function_of_liquid_sat) then
+    option%io_buffer = string // ' only supported as function of Liquid Sat'
+  end if
+
   call RPF_OWG_func_sl_VG_Verify(this,string,option)
 
   if (Uninitialized(this%Sgcr)) then
@@ -12078,6 +12235,10 @@ subroutine RPF_OWG_TOUGH2_IRP7_gas_Verify(this,name,option)
   else
     string = trim(name) // 'PERMEABILITY_FUNCTION_OWG,RPF_OWG_TOUGH2_IRP7_gas'
   endif
+
+  if ( .not. this%function_of_liquid_sat) then
+    option%io_buffer = string // ' only supported as function of Liquid Sat'
+  end if
 
   call RPF_OWG_func_sl_VG_Verify(this,string,option)
 
@@ -12164,6 +12325,10 @@ subroutine RPF_OWG_Burdine_VG_gas_Verify(this,name,option)
     string = trim(name) // 'PERMEABILITY_FUNCTION_OWG,RPF_OWG_Burdine_VG_gas'
   endif
 
+  if ( .not. this%function_of_liquid_sat) then
+    option%io_buffer = string // ' only supported as function of Liquid Sat'
+  end if
+
   call RPF_OWG_func_sl_VG_Verify(this,string,option)
 
   if (Uninitialized(this%Sgcr)) then
@@ -12206,10 +12371,18 @@ subroutine RPF_OWG_func_sl_BC_Verify(this,name,option)
     call printErrMsg(option)
   endif
 
-  if (Uninitialized(this%Swcr)) then
-    option%io_buffer = UninitializedMessage('WATER_RESIDUAL_SATURATION',name)
-    call printErrMsg(option)
-  endif
+  if (this%function_of_liquid_sat) then
+    if (Uninitialized(this%Slcr)) then
+      option%io_buffer = UninitializedMessage('LIQUID_RESIDUAL_SATURATION', &
+                                               name)
+      call printErrMsg(option)
+    endif
+  else
+    if (Uninitialized(this%Swcr)) then
+      option%io_buffer = UninitializedMessage('WATER_RESIDUAL_SATURATION',name)
+      call printErrMsg(option)
+    endif
+  end if
 
 end subroutine RPF_OWG_func_sl_BC_Verify
 
@@ -12288,8 +12461,12 @@ subroutine RPF_OWG_Burdine_BC_gas_Verify(this,name,option)
     string = name
   else
     string = trim(name) // &
-         'PERMEABILITY_FUNCTION_OWG,RPF_OWG_Burdine_BC_wat_Verify'
+         'PERMEABILITY_FUNCTION_OWG,RPF_OWG_Burdine_BC_gas_Verify'
   endif
+
+  if ( .not. this%function_of_liquid_sat) then
+    option%io_buffer = string // ' only supported as function of Liquid Sat'
+  end if
 
   call RPF_OWG_func_sl_BC_Verify(this,string,option)
 
