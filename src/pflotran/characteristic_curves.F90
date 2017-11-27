@@ -598,7 +598,7 @@ end type sat_func_og_VG_SL_type
   contains
     procedure, public :: Init => RPFOWGBaseInit
     procedure, public :: Verify => RPFOWGBaseVerify
-    !procedure, public :: Test => SFOWGBaseTest RPFOWGBaseTest
+    procedure, public :: Test => RPFOWGBaseTest
     procedure, public :: SetupPolynomials => RPFOWGBaseSetupPolynomials
     procedure, public :: RelativePermeability => RPFOWGBaseRelPerm
   end type rel_perm_func_owg_base_type
@@ -609,7 +609,6 @@ end type sat_func_og_VG_SL_type
   contains
     procedure, public :: Init => RPF_OWG_MBC_Init
     procedure, public :: Verify => RPF_OWG_MBC_Verify
-    !procedure, public :: Test => SFOWGBaseTest RPFOWGBaseTest
     procedure, public :: SetupPolynomials => RPF_OWG_MBC_SetupPolynomials
     procedure  :: RPF_OWG_MBC_RelPerm_dkr_dSe
   end type RPF_OWG_MBC_type
@@ -2926,6 +2925,27 @@ subroutine CharacteristicCurvesTest(characteristic_curves,option)
   if ( associated(characteristic_curves%oil_rel_perm_function) ) then
     phase = 'oil'
     call characteristic_curves%oil_rel_perm_function%Test( &
+                                                 characteristic_curves%name, &
+                                                 phase,option)
+  end if
+
+  if ( associated(characteristic_curves%wat_rel_perm_func_owg) ) then
+    phase = 'water'
+    call characteristic_curves%wat_rel_perm_func_owg%Test( &
+                                                 characteristic_curves%name, &
+                                                 phase,option)
+  end if
+
+  if ( associated(characteristic_curves%oil_rel_perm_func_owg) ) then
+    phase = 'oil'
+    call characteristic_curves%oil_rel_perm_func_owg%Test( &
+                                                 characteristic_curves%name, &
+                                                 phase,option)
+  end if
+
+  if ( associated(characteristic_curves%gas_rel_perm_func_owg) ) then
+    phase = 'gas'
+    call characteristic_curves%gas_rel_perm_func_owg%Test( &
                                                  characteristic_curves%name, &
                                                  phase,option)
   end if
@@ -11047,22 +11067,6 @@ subroutine SFOWGBaseTest(this,cc_name,option)
   PetscReal :: dpc_dsato(num_values),dpc_dsatg(num_values)
   PetscInt :: i
 
-  ! PetscReal :: dpc_dsatl(num_values)
-  ! PetscReal :: dpc_dsatl_numerical(num_values)
-  ! PetscReal :: dsat_dpres(num_values)
-  ! PetscReal :: dsat_dpres_numerical(num_values)
-  ! PetscReal :: capillary_pressure_pert
-  ! PetscReal :: liquid_saturation_pert
-  ! PetscReal :: perturbation
-  ! PetscReal :: pert
-  ! PetscReal :: dummy_real
-  !PetscInt :: count, i
-
-  ! calculate saturation as a function of capillary pressure
-  ! start at 1 Pa up to maximum capillary pressure
-  !pc = 1.d0
-  !perturbation = 1.d-6
-  !count = 0
 
  ! calculate capillary pressure as a function of saturation
   do i = 1, num_values
@@ -11073,19 +11077,6 @@ subroutine SFOWGBaseTest(this,cc_name,option)
       wat_saturation(i) = 1.d0-1.d-7
     endif
   end do
-
-  ! select type(sf => this)
-  !   class is(sat_func_ow_VG_type)
-  !     oil_saturation(i) = 1.0 - wat_saturation(i)
-  !     gas_saturation(i) = 0.0
-  !   class is(sat_func_og_BC_type)
-  !     oil_saturation(i) = wat_saturation(i)
-  !     gas_saturation(i) = 0.0
-  !     wat_saturation(i) = 0.0
-  !   class is(sat_func_og_VG_SL_type)
-  !     gas_saturation(i) = 1 - wat_saturation(i)
-  !     oil_saturation(i) = 0.0
-  ! end select
 
   write(string,*) cc_name
   select type(sf => this)
@@ -11117,13 +11108,8 @@ subroutine SFOWGBaseTest(this,cc_name,option)
                                dpc_dsatg(i),option)
     ! calculate numerical derivatives?
   enddo
-  !count = num_values
 
-  !write(string,*) cc_name
-  !string = trim(cc_name) // '_pc_from_sat.dat'
   open(unit=86,file=string)
-  !write(86,*) '"saturation", "capillary pressure", "dpc/dsat", &
-  !            &dpc_dsat_numerical"'
   write(86,*) '"',trim(sat_name), '"', ', "capillary pressure", "dpc/dsat0", &
               &dpc/dsatg"'
   do i = 1, num_values
@@ -11590,6 +11576,123 @@ subroutine RPFOWGBaseVerify(this,name,option)
   endif
 
 end subroutine RPFOWGBaseVerify
+
+! ************************************************************************** !
+
+subroutine RPFOWGBaseTest(this,cc_name,phase,option)
+
+  use Option_module
+
+  implicit none
+
+  class(rel_perm_func_owg_base_type) :: this
+  character(len=MAXWORDLENGTH) :: cc_name
+  character(len=MAXWORDLENGTH) :: phase
+  type(option_type), intent(inout) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: i
+  PetscInt, parameter :: num_values = 101
+  PetscReal :: saturation(num_values)
+  PetscReal :: wat_saturation(num_values)
+  PetscReal :: oil_saturation(num_values)
+  PetscReal :: gas_saturation(num_values)
+  PetscReal :: kr(num_values), dkr_sato(num_values), dkr_satg(num_values)
+  PetscReal :: krow(num_values), dkrow_sato(num_values),dkrow_satg(num_values)
+  PetscReal :: krog(num_values), dkrog_sato(num_values),dkrog_satg(num_values)
+
+  saturation = 0.0
+  wat_saturation = 0.0
+  gas_saturation = 0.0
+  oil_saturation = 0.0
+  kr = 0.0
+  dkr_sato = 0.0
+  dkr_satg = 0.0
+  krow = 0.0
+  dkrow_sato = 0.0
+  dkrow_satg = 0.0
+  krog = 0.0
+  dkrog_sato = 0.0
+  dkrog_satg = 0.0
+
+  do i = 1, num_values
+    saturation(i) = dble(i-1)*0.01d0
+  enddo
+
+  select type(this)
+    class is(RPF_OWG_MBC_wat_type)
+      oil_saturation = 1.0 - saturation
+      gas_saturation = 0.0
+    class is(RPF_OWG_MBC_oil_type)
+      oil_saturation = saturation
+      gas_saturation = 0.0
+    class is(RPF_oil_ecl_type)
+      oil_saturation = saturation
+      gas_saturation = 0.0
+    class is(RPF_OWG_MBC_gas_type)
+      gas_saturation = saturation
+      oil_saturation = 0.0
+    class is(RPF_OWG_func_sl_type)
+      if (phase == 'water') then
+        gas_saturation = 1.0 - saturation
+        oil_saturation = 0.0
+      else if (phase == 'gas') then
+        gas_saturation = saturation
+        oil_saturation = 0.0
+      end if
+  end select
+
+  write(string,*) cc_name
+  select type(this)
+    class is(RPF_oil_ecl_type)
+      do i = 1, num_values
+        call this%rel_perm_ow%RelativePermeability(oil_saturation(i), &
+                                   gas_saturation(i),krow(i),dkrow_sato(i), &
+                                   dkrow_satg(i),option)
+        call this%rel_perm_og%RelativePermeability(oil_saturation(i), &
+                                   gas_saturation(i),krog(i),dkrog_sato(i), &
+                                   dkrog_satg(i),option)
+      end do
+      !print ow rel perm
+      string = trim(cc_name) // '_' // trim(phase) // '_ow_rel_perm.dat'
+      open(unit=86,file=string)
+      write(86,*) '"oil_saturation", "' // trim(phase) // '_ow_rel_perm", &
+                  &"dkrow/dsato", " dkrow/dsatg"'
+      do i = 1, size(saturation)
+        write(86,'(4es14.6)') oil_saturation(i), krow(i), dkrow_sato(i), &
+                              dkrow_satg(i)
+      enddo
+      close(86)
+      !print og rel perm
+      string = trim(cc_name) // '_' // trim(phase) // '_og_rel_perm.dat'
+      open(unit=86,file=string)
+      write(86,*) '"oil_saturation", "' // trim(phase) // '_og_rel_perm", &
+                  &"dkrog/dsato", " dkrog/dsatg"'
+      do i = 1, size(saturation)
+        write(86,'(4es14.6)') oil_saturation(i), krog(i), dkrog_sato(i), &
+                              dkrog_satg(i)
+      enddo
+      close(86)
+    class default
+      do i = 1, num_values
+        call this%RelativePermeability(oil_saturation(i),gas_saturation(i), &
+                                       kr(i),dkr_sato(i),dkr_satg(i),option)
+      enddo
+      !print any other owg rel perms
+      string = trim(cc_name) // '_' // trim(phase) // '_rel_perm.dat'
+      open(unit=86,file=string)
+      write(86,*) '"saturation", "' // trim(phase) // '_rel_perm", &
+                  &"dkr/dsato", " dkr/dsatg"'
+      do i = 1, size(saturation)
+        write(86,'(4es14.6)') saturation(i), kr(i), dkr_sato(i), &
+                              dkr_satg(i)
+      enddo
+      close(86)
+  end select
+
+end subroutine RPFOWGBaseTest
+
+! ************************************************************************** !
 
 ! ************************************************************************** !
 
