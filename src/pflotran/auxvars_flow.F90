@@ -18,7 +18,7 @@ module AuxVars_Flow_module
     PetscReal, pointer :: den_kg(:) ! (iphase) kg/m^3 phase
     PetscReal, pointer :: mobility(:) ! relative perm / dynamic viscosity
     PetscReal, pointer :: viscosity(:) ! dynamic viscosity
-    PetscInt, pointer :: eos_table_idx(:)
+    PetscInt, pointer :: table_idx(:)
     !PetscReal, pointer :: dsat_dp(:,:)
     !PetscReal, pointer :: dden_dp(:,:)
     !PetscReal, pointer :: dsat_dt(:)
@@ -61,8 +61,8 @@ subroutine AuxVarFlowInit(this,option)
   allocate(this%mobility(option%nphase))
   this%mobility = 0.d0
   if (option%neos_table_indices > 0) then
-    allocate(this%eos_table_idx(option%neos_table_indices))
-    this%eos_table_idx = 1
+    allocate(this%table_idx(option%neos_table_indices))
+    this%table_idx = 1
   end if
 
 
@@ -90,7 +90,7 @@ subroutine AuxVarFlowStrip(this)
   call DeallocateArray(this%den_kg)
   call DeallocateArray(this%mobility)
   call DeallocateArray(this%viscosity)
-  call DeallocateArray(this%eos_table_idx)
+  call DeallocateArray(this%table_idx)
 
 end subroutine AuxVarFlowStrip
 ! ************************************************************************** !

@@ -2942,10 +2942,10 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
           call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
         case(OIL_PHASE)
           call EOSOilDensity(temperature,cell_pressure,den,ierr, &
-                             auxvar%eos_table_idx)
+                             auxvar%table_idx)
         case(GAS_PHASE)
           call EOSGasDensity(temperature,cell_pressure,den,ierr, &
-                             auxvar%eos_table_idx)
+                             auxvar%table_idx)
       end select
     else
       den = auxvar%den(iphase)
@@ -3156,10 +3156,10 @@ subroutine TOWGBlackOilSrcSink(option,src_sink_condition, auxvar, &
           call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
         case(OIL_PHASE)
           call EOSOilDensity(temperature,cell_pressure,den,ierr, &
-                             auxvar%eos_table_idx)
+                             auxvar%table_idx)
         case(GAS_PHASE)
           call EOSGasDensity(temperature,cell_pressure,den,ierr, &
-                             auxvar%eos_table_idx)
+                             auxvar%table_idx)
       end select
     else
       den = auxvar%den(iphase)
