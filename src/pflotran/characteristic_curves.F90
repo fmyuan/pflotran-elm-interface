@@ -590,6 +590,7 @@ end type sat_func_og_VG_SL_type
     PetscReal :: Sgco !connate gas saturation
     PetscReal :: Sgcr !critical (residual) gas saturation
     PetscReal :: Slcr !critical (residual) saturation of liqui (oil + water)
+    PetscReal :: kr_max
     PetscBool :: function_of_liquid_sat
     PetscBool :: So_is_Sh
     !lookup_table_general_type :: lookup_table
@@ -605,7 +606,7 @@ end type sat_func_og_VG_SL_type
 
   type, public, extends(rel_perm_func_owg_base_type) :: RPF_OWG_MBC_type
     PetscReal :: m   !exponential coeff.
-    PetscReal :: kr_max
+    !PetscReal :: kr_max
   contains
     procedure, public :: Init => RPF_OWG_MBC_Init
     procedure, public :: Verify => RPF_OWG_MBC_Verify
@@ -631,7 +632,7 @@ end type sat_func_og_VG_SL_type
   type, public, extends(rel_perm_func_owg_base_type) :: RPF_oil_ecl_type
     class(rel_perm_func_owg_base_type), pointer :: rel_perm_ow
     class(rel_perm_func_owg_base_type), pointer :: rel_perm_og
-    PetscReal :: kr_max
+    !PetscReal :: kr_max
   contains
     procedure, public :: Init => RPF_oil_ecl_Init
     procedure, public :: Verify => RPF_oil_ecl_Verify
@@ -639,7 +640,7 @@ end type sat_func_og_VG_SL_type
   end type RPF_oil_ecl_type
 
   type, public, extends(rel_perm_func_owg_base_type) :: RPF_OWG_func_sl_type
-    PetscReal :: kr_max
+    !PetscReal :: kr_max
   contains
     procedure, public :: Init => RPF_OWG_func_sl_Init
     procedure, public :: Verify => RPF_OWG_func_sl_Verify
@@ -2507,6 +2508,10 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
           permeability_function%rel_perm_func_sl%Sr = &
                                                     permeability_function%Slcr
         end if
+      case('MAX_RELATIVE_PERMEABILITY','MAX_REL_PERM')
+        call InputReadDouble(input,option,permeability_function%kr_max)
+        call InputErrorMsg(input,option,'MAX_RELATIVE_PERMEABILITY', &
+                           error_string)
       case('SMOOTH')
         smooth = PETSC_TRUE
       case default
@@ -2521,10 +2526,6 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
           case('M')
             call InputReadDouble(input,option,rpf%m)
             call InputErrorMsg(input,option,'M',error_string)
-          case('MAX_RELATIVE_PERMEABILITY','MAX_REL_PERM')
-            call InputReadDouble(input,option,rpf%kr_max)
-            call InputErrorMsg(input,option,'MAX_RELATIVE_PERMEABILITY', &
-                               error_string)
           case default
             call InputKeywordUnrecognized(keyword, &
               'Modified Brooks-Corey relative permeability function', &
@@ -3086,6 +3087,20 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
     call characteristic_curves%oil_rel_perm_func_owg%verify(string,option)
   end if
 
+  !check if end points in wat_rel_perm and oil_rel_perm are consistent
+  !PO todo: add consistency checks for all functions in a seperate routine.
+  !         Check Swcr vs Slcr: In some functions/tables only Slcr might
+  !         be defined, thuse check Slcr == Socr + Swcr
+  ! if (characteristic_curves%wat_rel_perm_func_owg%Swcr /= &
+  !     characteristic_curves%oil_rel_perm_func_owg%Swcr
+  !    ) then
+  !    option%io_buffer = "Water critical saturation in the water and oil &
+  !                       &relative permeability functions are different &
+  !                        &for the CHARACTERISTIC_CURVES " // &
+  !                        trim(characteristic_curves%name) // '". Please &
+  !                        &ensure these to sse same values'
+  ! end if
+
   select case(option%iflowmode)
     case(TOIL_IMS_MODE)
       ! do nothing - gas phase no defined in TOIL_IMS
@@ -3102,6 +3117,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
         else
           call characteristic_curves%gas_rel_perm_func_owg% &
                                                         verify(string,option)
+
         end if
       end if
   end select
@@ -11547,6 +11563,7 @@ subroutine RPFOWGBaseInit(this)
   this%Sgco = 0.0d0
   this%Sgcr = UNINITIALIZED_DOUBLE
   this%Slcr = UNINITIALIZED_DOUBLE
+  this%kr_max = 1.0d0
 
   this%analytical_derivative_available = PETSC_FALSE
   this%function_of_liquid_sat = PETSC_FALSE
@@ -11567,6 +11584,13 @@ subroutine RPFOWGBaseVerify(this,name,option)
   class(rel_perm_func_owg_base_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
+
+  ! by default kr_max = 1.0 - if entered the value must be bound beween 0 and 1
+  if ( this%kr_max < 0.0 .or. this%kr_max > 1.0 ) then
+    option%io_buffer = adjustl(trim(name)) // ' MAX_REL_PERM entered &
+                                   &not valid, must be 0 <= Kr_max <= 1'
+    call printErrMsg(option)
+  end if
 
   if ((.not.this%analytical_derivative_available) .and. &
       (.not.option%flow%numerical_derivatives)) then
@@ -11748,7 +11772,7 @@ subroutine RPF_OWG_MBC_Init(this)
   this%analytical_derivative_available = PETSC_TRUE
 
   this%m = UNINITIALIZED_DOUBLE
-  this%kr_max = 1.0d0
+  !this%kr_max = 1.0d0
 
 end subroutine RPF_OWG_MBC_Init
 
@@ -11797,11 +11821,11 @@ subroutine RPF_OWG_MBC_Verify(this,name,option)
   end if
 
   ! by default kr_max = 1.0 - if entered the value must be bound beween 0 and 1
-  if ( this%kr_max < 0.0 .or. this%kr_max > 1.0 ) then
-    option%io_buffer = string &
-      // ' MAX_REL_PERM entered not valid, must be 0 <= Kr_max <= 1'
-    call printErrMsg(option)
-  end if
+  !if ( this%kr_max < 0.0 .or. this%kr_max > 1.0 ) then
+  !  option%io_buffer = string &
+  !    // ' MAX_REL_PERM entered not valid, must be 0 <= Kr_max <= 1'
+  !  call printErrMsg(option)
+  !end if
   !if (Uninitialized(this%kr_max)) then
   !  option%io_buffer = UninitializedMessage('M',string)
   !  call printErrMsg(option)
@@ -12080,7 +12104,7 @@ subroutine RPF_OWG_func_sl_Init(this)
 
   this%analytical_derivative_available = PETSC_TRUE
 
-  this%kr_max = 1.0d0
+  !this%kr_max = 1.0d0
 
 end subroutine RPF_OWG_func_sl_Init
 
@@ -12100,11 +12124,11 @@ subroutine RPF_OWG_func_sl_Verify(this,name,option)
 
   call RPFOWGBaseVerify(this,string,option)
 
-  if ( this%kr_max < 0.0 .or. this%kr_max > 1.0 ) then
-    option%io_buffer = name &
-      // ' MAX_REL_PERM entered not valid, must be 0 <= Kr_max <= 1'
-    call printErrMsg(option)
-  end if
+  !if ( this%kr_max < 0.0 .or. this%kr_max > 1.0 ) then
+  !  option%io_buffer = name &
+  !    // ' MAX_REL_PERM entered not valid, must be 0 <= Kr_max <= 1'
+  !  call printErrMsg(option)
+  !end if
 
   if (.not.associated(this%rel_perm_func_sl) ) then
     option%io_buffer = name &
@@ -12606,7 +12630,7 @@ subroutine RPF_oil_ecl_Init(this)
 
   nullify(this%rel_perm_ow)
   nullify(this%rel_perm_og)
-  this%kr_max = 1.0
+  !this%kr_max = 1.0
 
 end subroutine RPF_oil_ecl_Init
 
@@ -12685,29 +12709,31 @@ subroutine RPF_oil_ecl_Verify(this,name,option)
     end if
   end if
 
-  string_ow = string //'RPF_OIL_WATER, choose a kr function that supports krmax'
-  string_og = string //'RPF_OIL_GAS, choose a kr function that supports krmax'
+  !string_ow = string //'RPF_OIL_WATER, choose a kr function that supports krmax'
+  !string_og = string //'RPF_OIL_GAS, choose a kr function that supports krmax'
 
-  if ( this%kr_max < 0.0 .or. this%kr_max > 1.0 ) then
-    option%io_buffer = string &
-      // ' MAX_REL_PERM entered not valid, must be 0 <= Kr_max <= 1'
-    call printErrMsg(option)
-  else
-    select type(rel_perm_ow => this%rel_perm_ow)
-      class is(RPF_OWG_MBC_oil_type)
-        rel_perm_ow%kr_max = this%kr_max
-      class default
-        option%io_buffer = string_ow
-        call printErrMsg(option)
-    end select
-    select type(rel_perm_og => this%rel_perm_og)
-      class is(RPF_OWG_MBC_oil_type)
-        rel_perm_og%kr_max = this%kr_max
-      class default
-        option%io_buffer = string_og
-        call printErrMsg(option)
-    end select
-  end if
+  !if ( this%kr_max < 0.0 .or. this%kr_max > 1.0 ) then
+  !  option%io_buffer = string &
+  !    // ' MAX_REL_PERM entered not valid, must be 0 <= Kr_max <= 1'
+  !  call printErrMsg(option)
+  !else
+  !  this%rel_perm_ow%kr_max = this%kr_max
+  !  this%rel_perm_og%kr_max = this%kr_max
+    ! select type(rel_perm_ow => this%rel_perm_ow)
+    !   class is(RPF_OWG_MBC_oil_type)
+    !     rel_perm_ow%kr_max = this%kr_max
+    !   class default
+    !     option%io_buffer = string_ow
+    !     call printErrMsg(option)
+    ! end select
+    ! select type(rel_perm_og => this%rel_perm_og)
+    !   class is(RPF_OWG_MBC_oil_type)
+    !     rel_perm_og%kr_max = this%kr_max
+    !   class default
+    !     option%io_buffer = string_og
+    !     call printErrMsg(option)
+    ! end select
+  !end if
 
   ! pass connate water, gas and oil to ow and og functions
   this%rel_perm_ow%Swco = this%Swco
@@ -12724,6 +12750,12 @@ subroutine RPF_oil_ecl_Verify(this,name,option)
   string_og = string // ',RPF_OIL_GAS'
 
   call this%rel_perm_og%Verify(string_og,option)
+
+  if (this%rel_perm_ow%kr_max /= this%rel_perm_og%kr_max) then
+    option%io_buffer = trim(string) &
+      // ' MAX_REL_PERM different in Krow and krog'
+    call printErrMsg(option)
+  end if
 
 end subroutine RPF_oil_ecl_Verify
 
