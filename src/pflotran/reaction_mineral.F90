@@ -575,6 +575,20 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
     tempreal = UnitsConvertToInternal(units,internal_units,option)
     if (per_unit_mass) then
       mineral_rxn => GetMineralFromName(constraint%names(imnrl),mineral)
+      if (mineral_rxn%molar_weight < 1.d-16) then
+        option%io_buffer = 'Zero molar weight for mineral "' // & 
+          trim(mineral_rxn%name) // '" prevents specifying mineral specific &
+          &surface area per mass mineral in constraint "' // &
+          trim(constraint_name) // '".'
+        call printErrMsg(option)
+      endif
+      if (mineral_rxn%molar_volume < 1.d-16) then
+        option%io_buffer = 'Zero molar volume for mineral "' // & 
+          trim(mineral_rxn%name) // '" prevents specifying mineral specific &
+          &surface area per mass mineral in constraint "' // &
+          trim(constraint_name) // '".'
+        call printErrMsg(option)
+      endif
       ! m^2/m^3 = m^2/kg * 1.d-3 kg/g * g/mol / m^3/mol
       tempreal = tempreal * 1.d-3 * mineral_rxn%molar_weight / &
                  mineral_rxn%molar_volume
