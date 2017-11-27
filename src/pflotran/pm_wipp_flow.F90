@@ -753,6 +753,8 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscBool :: force_another_iteration
   PetscReal :: saturation0, saturation1, del_saturation
   PetscReal :: pressure0, pressure1, del_pressure
+  PetscReal :: max_gas_sat_outside_lim
+  PetscInt :: max_gas_sat_outside_lim_cell
 
   SNES :: snes
 
@@ -774,6 +776,8 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   changed = PETSC_TRUE
   cut_timestep = PETSC_FALSE
   force_another_iteration = PETSC_FALSE
+  max_gas_sat_outside_lim = 0.d0
+  max_gas_sat_outside_lim_cell = 0
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -792,6 +796,10 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     ! SATLIMIT is designed to force another newton iteration if the gas 
     ! saturation is "slightly" outside of the range of realistic values
     if (saturation1 < 0.d0) then
+      if (dabs(max_gas_sat_outside_lim) < dabs(saturation1)) then
+        max_gas_sat_outside_lim = saturation1
+        max_gas_sat_outside_lim_cell = local_id
+      endif
       if (saturation1 < (-1.d0*this%dsatlim)) then  ! DEPLIMIT(1)
         cut_timestep = PETSC_TRUE
       else 
@@ -802,6 +810,10 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
         dX_p(saturation_index) = saturation0
       endif
     else if (saturation1 > 1.d0) then
+      if (abs(max_gas_sat_outside_lim) < saturation1 - 1.d0) then
+        max_gas_sat_outside_lim = saturation1 - 1.d0
+        max_gas_sat_outside_lim_cell = local_id
+      endif
       if (saturation1 > 1.d0 + this%dsatlim) then  ! DEPLIMIT(1)
         cut_timestep = PETSC_TRUE
       else 
@@ -822,7 +834,9 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
 
-  if (force_another_iteration) this%convergence_flags(FORCE_ITERATION) = 1
+  this%convergence_reals(FORCE_ITERATION) = max_gas_sat_outside_lim
+  if (force_another_iteration) this%convergence_flags(FORCE_ITERATION) = &
+    max_gas_sat_outside_lim_cell
   if (cut_timestep) this%convergence_flags(OUTSIDE_BOUNDS) = 1
 
 end subroutine PMWIPPFloCheckUpdatePre
@@ -1002,7 +1016,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   enddo
 
   if (wippflo_debug_first_iteration) stop
-  print *, 'soln:', x1_p(13:14)
+!  print *, 'soln:', x1_p(13:14)
 
   if (.not.converged_liquid_pressure) then 
     this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI) = &
@@ -1096,6 +1110,8 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
   PetscReal :: bragflo_residual(2)
   PetscReal :: bragflo_accum(2)
   PetscInt :: istart, iend
+  PetscReal :: tempreal
+  PetscInt :: tempint
   
   grid => this%realization%patch%grid
   option => this%realization%option
@@ -1119,6 +1135,10 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
   call VecGetArrayReadF90(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
   converged_liquid_equation = PETSC_TRUE
   converged_gas_equation = PETSC_TRUE
+  max_liq_eq = 0.d0
+  max_gas_eq = 0.d0
+  max_liq_eq_cell = 0
+  max_gas_eq_cell = 0
   do local_id = 1, grid%nlmax
     offset = (local_id-1)*option%nflowdof
     ghosted_id = grid%nL2G(local_id)
@@ -1144,42 +1164,36 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
     endif
     
     ! liquid component equation
-!    if (accum2_p(liquid_equation_index) > zero_accumulation) then 
-!      residual = r_p(liquid_equation_index)
-!      accumulation = accum2_p(liquid_equation_index)
-    if (bragflo_accum(WIPPFLO_LIQUID_EQUATION_INDEX) > zero_accumulation) then 
-      residual = bragflo_residual(WIPPFLO_LIQUID_EQUATION_INDEX)
-      accumulation = bragflo_accum(WIPPFLO_LIQUID_EQUATION_INDEX)
+    residual = bragflo_residual(WIPPFLO_LIQUID_EQUATION_INDEX)
+    accumulation = bragflo_accum(WIPPFLO_LIQUID_EQUATION_INDEX)
+    if (dabs(accumulation) > zero_accumulation) then 
       abs_residual_over_accumulation = dabs(residual / accumulation)
-      if (max_liq_eq < abs_residual_over_accumulation) then
-        max_liq_eq_cell = local_id
-        max_liq_eq = abs_residual_over_accumulation
-      endif
       if (dabs(residual) > this%liquid_equation_tolerance) then
         if (abs_residual_over_accumulation > &
             this%liquid_equation_tolerance) then
           converged_liquid_equation = PETSC_FALSE
+          if (dabs(max_liq_eq) < dabs(residual)) then
+            max_liq_eq_cell = local_id
+            max_liq_eq = residual
+          endif
         endif
       endif
     endif
 
     ! gas component equation
-!    if (accum2_p(gas_equation_index) > zero_accumulation .and. &
-    if (bragflo_accum(WIPPFLO_GAS_EQUATION_INDEX) > zero_accumulation .and. &
+    residual = bragflo_residual(WIPPFLO_GAS_EQUATION_INDEX)
+    accumulation = bragflo_accum(WIPPFLO_GAS_EQUATION_INDEX)
+    if (dabs(accumulation) > zero_accumulation .and. &
         X1_p(gas_equation_index) > zero_saturation) then
-!      residual = r_p(gas_equation_index)
-!      accumulation = accum2_p(gas_equation_index)
-      residual = bragflo_residual(WIPPFLO_GAS_EQUATION_INDEX)
-      accumulation = bragflo_accum(WIPPFLO_GAS_EQUATION_INDEX)
       abs_residual_over_accumulation = abs(residual / accumulation)
-      if (max_gas_eq < abs_residual_over_accumulation) then
-        max_gas_eq_cell = local_id
-        max_gas_eq = abs_residual_over_accumulation
-      endif
       if (dabs(residual) > this%gas_equation_tolerance) then 
         if (abs_residual_over_accumulation > &
             this%gas_equation_tolerance) then
           converged_gas_equation = PETSC_FALSE
+          if (dabs(max_gas_eq) < dabs(residual)) then
+            max_gas_eq_cell = local_id
+            max_gas_eq = residual
+          endif
         endif
       endif
     endif
@@ -1266,12 +1280,18 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
     endif
   endif
   if (OptionPrintToScreen(option)) then
+    tempreal = this%convergence_reals(MAX_CHANGE_GAS_SAT_NI)
+    tempint = this%convergence_flags(MAX_CHANGE_GAS_SAT_NI)
+    if (this%convergence_flags(FORCE_ITERATION) > 0) then
+      tempreal = this%convergence_reals(FORCE_ITERATION)
+      tempint = this%convergence_flags(FORCE_ITERATION)
+    endif
     if (option%mycommsize > 1) then
       write(*,'(4x,"Rsn: ",a10,4es10.2)') reason_string, &
         this%convergence_reals(MAX_RES_LIQ), &
         this%convergence_reals(MAX_RES_GAS), &
         this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI), &
-        this%convergence_reals(MAX_CHANGE_GAS_SAT_NI)
+        tempreal
     else
       write(*,'(4x,"Rsn: ",a10,4(i5,es10.2))') reason_string, &
         this%convergence_flags(MAX_RES_LIQ), &
@@ -1280,8 +1300,7 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
         this%convergence_reals(MAX_RES_GAS), &
         this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI), &
         this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI), &
-        this%convergence_flags(MAX_CHANGE_GAS_SAT_NI), &
-        this%convergence_reals(MAX_CHANGE_GAS_SAT_NI)
+        tempint, tempreal
 ! for debugging
 #if 0
       local_id = min_gas_pressure_cell
