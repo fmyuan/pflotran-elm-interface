@@ -21,12 +21,17 @@ except:
   print(string)
   exit(2)
 
-file1.readline()
-file1.readline()
-file2.readline()
-file2.readline()
+try:
+  tol = float(sys.argv[3])
+except:
+  string = 'File "%s" not found.\n' % filename2
+  print('Using default tolerance of 1.e-2.')
+  tol = 1.e-2
 
-tol = 1.e-2
+file1.readline()
+file1.readline()
+file2.readline()
+file2.readline()
 
 row_count = 0
 for line1 in file1:
