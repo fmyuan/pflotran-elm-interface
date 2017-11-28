@@ -2120,11 +2120,11 @@ subroutine PMWFSetup(this)
         endif
         ! Given rates are in units of log-10/yr, so convert to 1/yr:
         cur_waste_form%canister_vitality_rate = &
-          10.0**(cur_waste_form%canister_vitality_rate)
+          10.d0**(cur_waste_form%canister_vitality_rate)
         ! Convert rates from 1/yr to internal units of 1/sec
         cur_waste_form%canister_vitality_rate = &
           cur_waste_form%canister_vitality_rate * &
-          (1.0/DAYS_PER_YEAR/24.0/3600.0)
+          (1.d0/DAYS_PER_YEAR/24.d0/3600.d0)
       endif
     endif
    !----------------------------------------------------------       
@@ -3184,7 +3184,7 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
   ! kg-glass/m^2/sec
   this%dissolution_rate = this%k0 * (10.d0**(this%nu*this%pH)) * &
                           exp(-this%Ea/(8.314d0*avg_temp_global)) * &
-                          (1.d0 - (this%Q/this%K)**(1/this%v)) + this%k_long
+                          (1.d0 - (this%Q/this%K)**(1.d0/this%v)) + this%k_long
 
   ! kg-glass/sec
   waste_form%eff_dissolution_rate = &
@@ -3404,8 +3404,8 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   ! convert this%dissolution_rate from fmdm to pflotran units:
   ! g/m^2/yr => kg/m^2/sec
   this%dissolution_rate = this%dissolution_rate / &
-                          (1000.0*24.0*3600.0*DAYS_PER_YEA)
-  Usource = Usource / (1000.0*24.0*3600.0*DAYS_PER_YEAR)
+                          (1000.d0*24.d0*3600.d0*DAYS_PER_YEA)
+  Usource = Usource / (1000.d0*24.d0*3600.d0*DAYS_PER_YEAR)
  !====================================================================
 #else
   ! if no FMDM model, use the burnup as this%dissolution_rate:
@@ -3627,7 +3627,7 @@ subroutine PMWFOutput(this)
     write(fid,100,advance="no") cur_waste_form%eff_dissolution_rate, &
                                 cur_waste_form%volume, &
                                 cur_waste_form%eff_canister_vit_rate, &
-                                cur_waste_form%canister_vitality*100.0
+                                cur_waste_form%canister_vitality*100.d0
     cur_waste_form => cur_waste_form%next
   enddo
   close(fid)
