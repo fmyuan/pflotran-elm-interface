@@ -2747,7 +2747,7 @@ end subroutine PMWSSUpdateChemSpecies
       !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
       !-----(see equation PA.67, PA.77, section PA-4.2.5)-----------------------
       
-        if (cwp%inventory%Fe_s%current_conc_mol(i) > 0.d0) then
+        if (cwp%inventory%Fe_s%current_conc_kg(i) > 0.d0) then
         ! CORSAT:
           cwp%rxnrate_Fe_corrosion_inund(i) = &
                                          cwp%inundated_corrosion_rate*s_eff
@@ -2780,7 +2780,7 @@ end subroutine PMWSSUpdateChemSpecies
       !-----MgO-hydration-[mol-MgO/m3/sec]--------------------------------------
       !-----(see equation PA.73, PA.94, section PA-4.2.5)-----------------------
         
-        if (cwp%inventory%MgO_s%current_conc_mol(i) > 0.d0) then
+        if (cwp%inventory%MgO_s%current_conc_kg(i) > 0.d0) then
           ! CORMGO
           cwp%rxnrate_MgO_hyd_inund(i) = cwp%inundated_brucite_rate*s_eff
           cwp%rxnrate_MgO_hyd_humid(i) = cwp%humid_brucite_rate*sg_eff
@@ -2803,7 +2803,7 @@ end subroutine PMWSSUpdateChemSpecies
       !-----hydromagnesite-conversion-[mol-hydromagnesite/m3-bulk/sec]----------
       !-----(see equation PA.74, PA.97, section PA-4.2.5)-----------------------
         
-        if (cwp%inventory%Mg5CO34OH24H2_s%current_conc_mol(i) > 0.d0) then
+        if (cwp%inventory%Mg5CO34OH24H2_s%current_conc_kg(i) > 0.d0) then
           ! HYDROCONV
           cwp%rxnrate_hydromag_conv(i) = this%hymagcon_rate * &
                                cwp%inventory%Mg5CO34OH24H2_s%current_conc_kg(i)
@@ -2823,7 +2823,7 @@ end subroutine PMWSSUpdateChemSpecies
       !-----biodegradation-[mol-cell/m3/sec]------------------------------------
       !-----(see equation PA.69, PA.82, PA.83, section PA-4.2.5)----------------
 
-        if (cwp%inventory%BioDegs_s%current_conc_mol(i) > 0.d0) then
+        if (cwp%inventory%BioDegs_s%current_conc_kg(i) > 0.d0) then
           ! BIOSAT
           cwp%rxnrate_cell_biodeg_inund(i) = cwp%inundated_biodeg_rate*s_eff
           ! smoothing of inundated rate occurs only due to concentration
@@ -2854,7 +2854,7 @@ end subroutine PMWSSUpdateChemSpecies
       !-----iron-sulfidation-[mol-H2S/m3/sec]-----------------------------------
       !-----(see equation PA.68, PA.89, PA.90, section PA-4.2.5)----------------
       
-        if (cwp%inventory%BioDegs_s%current_conc_mol(i) > 0.d0) then
+        if (cwp%inventory%BioDegs_s%current_conc_kg(i) > 0.d0) then
           ! BIOFES
           ! FeOH2 sulfidation is assumed to kinetically dominate Fe sulfidation.
           ! The H2S generation rate is proportioned between FeOH and Fe. FeOH2 
@@ -2888,7 +2888,7 @@ end subroutine PMWSSUpdateChemSpecies
       !-----hydromagnesite-[mol-hydromagnesite/m3-bulk/sec]---------------------
       !-----(see equation PA.74, PA.96, section PA-4.2.5)-----------------------
         
-        if (cwp%inventory%BioDegs_s%current_conc_mol(i) > 0.d0) then
+        if (cwp%inventory%BioDegs_s%current_conc_kg(i) > 0.d0) then
           ! BIOMGO
           cwp%rxnrate_MgOH2_carb(i) = cwp%rxnrate_cell_biodeg(i) * &
                                       cwp%RXCO2_factor
@@ -3282,7 +3282,6 @@ subroutine PMWSSFinalizeTimestep(this)
   do
     if (.not.associated(cur_waste_panel)) exit
     call PMWSSUpdateInventory(cur_waste_panel,option%flow_dt,option)
-    ! set current dt after using the previous in the update above
     cur_waste_panel => cur_waste_panel%next
   enddo
   
