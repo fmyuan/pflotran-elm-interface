@@ -1026,7 +1026,6 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   enddo
 
   if (wippflo_debug_first_iteration) stop
-!  print *, 'soln:', x1_p(13:14)
 
   if (.not.converged_liquid_pressure) then 
     this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI) = &

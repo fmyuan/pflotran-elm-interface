@@ -2732,7 +2732,7 @@ end subroutine PMWSSUpdateChemSpecies
         s_eff = water_saturation-this%smin+(this%satwick * &
                                            (1.d0-exp(this%alpharxn*SOCEXP)))
 !geh: End change
-        if (s_eff < 1.d-16) then
+        if (s_eff < 1.d-16 .and. wippflo_debug_gas_generation) then
           print *, 'soefc zero', water_saturation, s_eff
         endif
 
