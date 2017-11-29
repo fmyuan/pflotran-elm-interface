@@ -57,7 +57,11 @@ for line1 in file1:
         i2 = int(w2[0])
       else:
         i2 = 999
-    if i1 < i2:
+    if i1 == 999 and i2 == 999:
+      icount1 = 999
+      icount2 = 999
+      # skip line
+    elif i1 < i2:
       increment1 = True
       increment2 = False
       icount1 += 1
