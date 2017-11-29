@@ -368,13 +368,21 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
     
       if (option%transport%reactive_transport_coupling == &
           GLOBAL_IMPLICIT) then
-              if (Uninitialized(solver%Jpre_mat_type)) then
-          if (solver%J_mat_type /= MATMFFD) then
-            solver%Jpre_mat_type = solver%J_mat_type
-          else
-            solver%Jpre_mat_type = MATBAIJ
+              if (Uninitialized(solver%Jpre_mat_type) .and. &
+                  Uninitialized(solver%J_mat_type)) then
+                ! Matrix types not specified, so set to default.
+                solver%Jpre_mat_type = MATBAIJ
+                solver%J_mat_type = solver%Jpre_mat_type
+              else if (Uninitialized(solver%Jpre_mat_type)) then
+                if (solver%J_mat_type == MATMFFD) then
+                  solver%Jpre_mat_type = MATBAIJ
+                else
+                  solver%Jpre_mat_type = solver%J_mat_type
           endif
+              else if (Uninitialized(solver%J_mat_type)) then
+                solver%J_mat_type = solver%Jpre_mat_type
         endif
+
         call DiscretizationCreateJacobian(pm%realization%discretization, &
                                           NTRANDOF, &
                                           solver%Jpre_mat_type, &
@@ -389,12 +397,20 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                                           solver%Jpre,option)
       endif
 
-      if (solver%J_mat_type /= MATMFFD) then
+            call MatSetOptionsPrefix(solver%Jpre,"tran_",ierr);CHKERRQ(ierr)
+
+            if (solver%Jpre_mat_type == solver%J_mat_type) then
         solver%J = solver%Jpre
-      endif
-    
-      call MatSetOptionsPrefix(solver%Jpre,"tran_",ierr);CHKERRQ(ierr)
-    
+            else
+              call DiscretizationCreateJacobian(pm%realization%discretization, &
+                                                NTRANDOF, &
+                                                solver%J_mat_type, &
+                                                solver%J, &
+                                                option)
+
+              call MatSetOptionsPrefix(solver%J,"tran_",ierr);CHKERRQ(ierr)
+            endif
+
       if (solver%use_galerkin_mg) then
         call DiscretizationCreateInterpolation( &
                        pm%realization%discretization,NTRANDOF, &
