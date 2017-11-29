@@ -13,6 +13,13 @@ module WIPP_Flow_Aux_module
   PetscReal, public :: wippflo_sat_min_pert = 1.d-10
   PetscReal, public :: wippflo_pres_min_pert = 1.d-2
 
+  PetscBool, public :: wippflow_jacobian_test = PETSC_FALSE
+  PetscBool, public :: wippflow_jacobian_test_active = PETSC_FALSE
+  PetscBool, public :: wippflow_calc_accum = PETSC_TRUE
+  PetscBool, public :: wippflow_calc_flux = PETSC_TRUE
+  PetscBool, public :: wippflow_calc_bcflux = PETSC_TRUE
+  PetscBool, public :: wippflow_calc_chem = PETSC_TRUE
+
   PetscBool, public :: wippflow_use_bragflo_units = PETSC_FALSE
   PetscBool, public :: wippflo_use_legacy_perturbation = PETSC_FALSE
   PetscBool, public :: wippflo_default_alpha = PETSC_FALSE

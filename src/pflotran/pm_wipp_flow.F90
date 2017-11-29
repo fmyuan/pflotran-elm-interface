@@ -376,6 +376,16 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
     case('ICONVTEST')
       call InputReadInt(input,option,this%iconvtest)
       call InputDefaultMsg(input,option,'ICONVTEST')
+    case('JACOBIAN_TEST')
+      wippflow_jacobian_test = PETSC_TRUE
+    case('NO_ACCUMULATION')
+      wippflow_calc_accum = PETSC_FALSE
+    case('NO_FLUX')
+      wippflow_calc_flux = PETSC_FALSE
+    case('NO_BCFLUX')
+      wippflow_calc_bcflux = PETSC_FALSE
+    case('NO_CHEMISTRY')
+      wippflow_calc_chem = PETSC_FALSE
     case default
       found = PETSC_FALSE
   end select

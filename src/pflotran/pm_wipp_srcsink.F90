@@ -3912,6 +3912,7 @@ subroutine PMWSSCalcJacobianValues(this,A,ierr)
     ! construct non-zero portion of Jacobian block dRes/dSg contribution
     J_block(air_comp_id,WIPPFLO_GAS_SATURATION_DOF) = (res_pert - res)/pert_sg
 
+    J_block = -1.d0*J_block
     call WIPPFloConvertUnitsToBRAGFlo(J_block,material_auxvars(ghosted_id), &
                                       this%option)
   
