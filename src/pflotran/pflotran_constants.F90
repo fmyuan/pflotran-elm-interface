@@ -2,13 +2,21 @@ module PFLOTRAN_Constants_module
 
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+  
   use, intrinsic :: iso_fortran_env, only : stdout=>Output_Unit
  
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   implicit none
 
   private
 
-#include "petsc/finclude/petscsys.h"
+!#include "petsc/finclude/petscsys.h"
 #define VMAJOR 3
 #define VMINOR 10
 #define VSUBMINOR 2
@@ -342,11 +350,13 @@ module PFLOTRAN_Constants_module
   interface Uninitialized
     module procedure UninitializedInteger
     module procedure UninitializedDouble
+    module procedure UninitializedMatType
   end interface
   
   interface Initialized
     module procedure InitializedInteger
     module procedure InitializedDouble
+    module procedure InitializedMatType
   end interface
   
   public :: Initialized, &
@@ -431,6 +441,39 @@ function UninitializedDouble(value)
   UninitializedDouble = (dabs(value-UNINITIALIZED_DOUBLE) < 1.d-20)
   
 end function UninitializedDouble
+
+! ************************************************************************** !
+
+function InitializedMatType(value)
+  ! 
+  ! Tests whether a variable is initialized based orginally being set to
+  ! the value PETSC_NULL_CHARACTER.
+  ! 
+  implicit none
+  
+  MatType :: value
+  PetscBool :: InitializedMatType
+
+  InitializedMatType = .not.Uninitialized(value)
+  
+end function InitializedMatType
+
+! ************************************************************************** !
+
+function UninitializedMatType(value)
+  ! 
+  ! Tests whether a variable is uninitialized based orginally being set to
+  ! the value PETSC_NULL_CHARACTER.
+  ! 
+  implicit none
+  
+  MatType :: value
+  PetscBool :: UninitializedMatType
+
+  UninitializedMatType = (value == PETSC_NULL_CHARACTER)
+  
+end function UninitializedMatType
+
 
 ! ************************************************************************** !
 
