@@ -46,11 +46,17 @@ for line1 in file1:
   increment2 = True
   while icount1 < len(row1) and icount2 < len(row2):
     if increment1:
-      w1 = row1[icount1].split(',')
-      i1 = int(w1[0])
+      if (len(row1[icount1]) > 1):
+        w1 = row1[icount1].split(',')
+        i1 = int(w1[0])
+      else:
+        i1 = 999
     if increment2:
-      w2 = row2[icount2].split(',')
-      i2 = int(w2[0])
+      if (len(row2[icount2]) > 1):
+        w2 = row2[icount2].split(',')
+        i2 = int(w2[0])
+      else:
+        i2 = 999
     if i1 < i2:
       increment1 = True
       increment2 = False
