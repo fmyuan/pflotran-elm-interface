@@ -2746,8 +2746,8 @@ end subroutine PMWSSUpdateChemSpecies
 
 
 
-      write(*,*) cwp%inventory%MgO_s%current_conc_kg(i)
-      write(*,*) cwp%inventory%MgO_s%current_conc_mol(i)
+!      write(*,*) cwp%inventory%MgO_s%current_conc_kg(i)
+!      write(*,*) cwp%inventory%MgO_s%current_conc_mol(i)
  
      
       !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
@@ -2806,13 +2806,13 @@ end subroutine PMWSSUpdateChemSpecies
           ! smoothing of total rate occurs due to concentration
           call PMWSSSmoothRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
                                   cwp%inventory%MgO_s,this%alpharxn) 
-          write(*,*) cwp%rxnrate_MgO_hyd(i)
+!          write(*,*) cwp%rxnrate_MgO_hyd(i)
           call PMWSSTaperRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
                           cwp%inventory%MgO_s,this%stoic_mat(5,8),dt,temp_conc)      
-          write(*,*) cwp%rxnrate_MgO_hyd(i)
-          write(*,*) cwp%inventory%MgO_s%current_conc_kg(i)
-          write(*,*) cwp%inventory%MgO_s%current_conc_mol(i)
-          write(*,*) temp_conc
+!          write(*,*) cwp%rxnrate_MgO_hyd(i)
+!          write(*,*) cwp%inventory%MgO_s%current_conc_kg(i)
+!          write(*,*) cwp%inventory%MgO_s%current_conc_mol(i)
+!          write(*,*) temp_conc
         endif
         
       
