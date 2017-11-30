@@ -2781,13 +2781,18 @@ end subroutine PMWSSUpdateChemSpecies
       !-----(see equation PA.73, PA.94, section PA-4.2.5)-----------------------
         
         if (cwp%inventory%MgO_s%current_conc_kg(i) > 0.d0) then
-          ! CORMGO
-          cwp%rxnrate_MgO_hyd_inund(i) = cwp%inundated_brucite_rate*s_eff
-          cwp%rxnrate_MgO_hyd_humid(i) = cwp%humid_brucite_rate*sg_eff
+          if (s_eff > 0.d0) then
+            ! CORMGO
+            cwp%rxnrate_MgO_hyd_inund(i) = cwp%inundated_brucite_rate*s_eff
+            cwp%rxnrate_MgO_hyd_humid(i) = cwp%humid_brucite_rate*sg_eff
+            ! smoothing of humid rate occurs first due to s_eff
+            call PMWSSSmoothHumidRxnrate(cwp%rxnrate_MgO_hyd_humid(i),s_eff, &
+                                         this%alpharxn)
+          else 
+            cwp%rxnrate_MgO_hyd_inund(i) = 0.d0
+            cwp%rxnrate_MgO_hyd_humid(i) = 0.d0
+          endif
           
-          ! smoothing of humid rate occurs first due to s_eff
-          call PMWSSSmoothHumidRxnrate(cwp%rxnrate_MgO_hyd_humid(i),s_eff, &
-                                       this%alpharxn)
           ! total MgO hydration rate
           cwp%rxnrate_MgO_hyd(i) = & 
                     cwp%rxnrate_MgO_hyd_inund(i) + cwp%rxnrate_MgO_hyd_humid(i)
