@@ -2743,6 +2743,12 @@ end subroutine PMWSSUpdateChemSpecies
 !        if (s_eff > 1.d-16) then
           sg_eff = (1.d0-s_eff)
 !        endif
+
+
+
+      write(*,*) cwp%inventory%MgO_s%current_conc_kg(i)
+      write(*,*) cwp%inventory%MgO_s%current_conc_mol(i)
+ 
      
       !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
       !-----(see equation PA.67, PA.77, section PA-4.2.5)-----------------------
@@ -2800,8 +2806,13 @@ end subroutine PMWSSUpdateChemSpecies
           ! smoothing of total rate occurs due to concentration
           call PMWSSSmoothRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
                                   cwp%inventory%MgO_s,this%alpharxn) 
+          write(*,*) cwp%rxnrate_MgO_hyd(i)
           call PMWSSTaperRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
-                          cwp%inventory%MgO_s,this%stoic_mat(5,8),dt,temp_conc)
+                          cwp%inventory%MgO_s,this%stoic_mat(5,8),dt,temp_conc)      
+          write(*,*) cwp%rxnrate_MgO_hyd(i)
+          write(*,*) cwp%inventory%MgO_s%current_conc_kg(i)
+          write(*,*) cwp%inventory%MgO_s%current_conc_mol(i)
+          write(*,*) temp_conc
         endif
         
       
@@ -3238,15 +3249,11 @@ subroutine PMWSSTaperRxnrate(rxnrate,cell_num,limiting_species1,stocoef,dt, &
 
   temp_conc = 0.d0
   available_concentration = limiting_species1%current_conc_mol(cell_num)
+  reacted_concentration = -dt*stocoef*rxnrate
+  temp_conc = available_concentration - reacted_concentration
   
-  if (available_concentration <= 0.d0) then
-    rxnrate = 0.d0
-  else
-    reacted_concentration = dt*stocoef*rxnrate
-    temp_conc = available_concentration - reacted_concentration
-    if (reacted_concentration >= available_concentration) then
-      rxnrate = available_concentration/(stocoef*dt)
-    endif
+  if (temp_conc < 0.d0) then
+      rxnrate = available_concentration/(-1.d0*stocoef*dt)
   endif
   
 end subroutine PMWSSTaperRxnrate
