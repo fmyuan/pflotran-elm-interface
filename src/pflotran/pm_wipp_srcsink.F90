@@ -3236,6 +3236,7 @@ subroutine PMWSSTaperRxnrate(rxnrate,cell_num,limiting_species1,stocoef,dt, &
   PetscReal :: reacted_concentration
 ! ------------------------------------
 
+  temp_conc = 0.d0
   available_concentration = limiting_species1%current_conc_mol(cell_num)
   
   if (available_concentration <= 0.d0) then
