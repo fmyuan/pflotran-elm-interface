@@ -2625,6 +2625,7 @@ end subroutine PMWSSUpdateChemSpecies
 ! dt: [sec] flow process model time step value
 ! temp_conc: [mol-species/m3-bulk] what the concentration would be at the 
 !    end of time step given rxnrate and dt
+! TERM2, FECONS: BRAGFLO terms for tapering
 ! UNPERT: unperturbed array index value in srcsink_brine/gas
 ! PERT_WRT_SG: perturbed array index value in srcsink_brine/gas with 
 !    respect to gas saturation (2nd dof)
@@ -2645,6 +2646,7 @@ end subroutine PMWSSUpdateChemSpecies
   PetscReal :: SOCEXP
   PetscReal :: dt
   PetscReal :: temp_conc
+  PetscReal :: TERM2, FECONS
   ! brine/gas generation variables
   PetscReal :: water_saturation
   PetscReal :: s_eff
@@ -2875,9 +2877,15 @@ end subroutine PMWSSUpdateChemSpecies
           cwp%rxnrate_Fe_sulf(i) = &
                              (cwp%rxnrate_cell_biodeg(i)*cwp%RXH2S_factor) - &
                               cwp%rxnrate_FeOH2_sulf(i)
-          ! taper Fe sulfidation rate second
-          call PMWSSTaperRxnrate(cwp%rxnrate_Fe_sulf(i),i,cwp%inventory%Fe_s, &
-                                 this%stoic_mat(4,4),dt,temp_conc)
+          ! taper Fe sulfidation rate second, but tapering routine is different
+          TERM2 = (-1.d0)*dt*this%stoic_mat(4,4)
+          FECONS = cwp%rxnrate_Fe_sulf(i)*TERM2
+          if (FECONS > cwp%inventory%Fe_s%current_conc_mol(i)) then
+            cwp%rxnrate_Fe_sulf(i) = &
+                                   cwp%inventory%Fe_s%current_conc_mol(i)/TERM2
+          endif
+          !call PMWSSTaperRxnrate(cwp%rxnrate_Fe_sulf(i),i,cwp%inventory%Fe_s, &
+          !                       this%stoic_mat(4,4),dt,temp_conc)
         endif
            
            
