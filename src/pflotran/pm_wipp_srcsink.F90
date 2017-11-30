@@ -2743,6 +2743,12 @@ end subroutine PMWSSUpdateChemSpecies
 !        if (s_eff > 1.d-16) then
           sg_eff = (1.d0-s_eff)
 !        endif
+
+
+
+      write(*,*) cwp%inventory%MgO_s%current_conc_kg(i)
+      write(*,*) cwp%inventory%MgO_s%current_conc_mol(i)
+ 
      
       !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
       !-----(see equation PA.67, PA.77, section PA-4.2.5)-----------------------
@@ -2781,13 +2787,18 @@ end subroutine PMWSSUpdateChemSpecies
       !-----(see equation PA.73, PA.94, section PA-4.2.5)-----------------------
         
         if (cwp%inventory%MgO_s%current_conc_kg(i) > 0.d0) then
-          ! CORMGO
-          cwp%rxnrate_MgO_hyd_inund(i) = cwp%inundated_brucite_rate*s_eff
-          cwp%rxnrate_MgO_hyd_humid(i) = cwp%humid_brucite_rate*sg_eff
+          if (s_eff > 0.d0) then
+            ! CORMGO
+            cwp%rxnrate_MgO_hyd_inund(i) = cwp%inundated_brucite_rate*s_eff
+            cwp%rxnrate_MgO_hyd_humid(i) = cwp%humid_brucite_rate*sg_eff
+            ! smoothing of humid rate occurs first due to s_eff
+            call PMWSSSmoothHumidRxnrate(cwp%rxnrate_MgO_hyd_humid(i),s_eff, &
+                                         this%alpharxn)
+          else 
+            cwp%rxnrate_MgO_hyd_inund(i) = 0.d0
+            cwp%rxnrate_MgO_hyd_humid(i) = 0.d0
+          endif
           
-          ! smoothing of humid rate occurs first due to s_eff
-          call PMWSSSmoothHumidRxnrate(cwp%rxnrate_MgO_hyd_humid(i),s_eff, &
-                                       this%alpharxn)
           ! total MgO hydration rate
           cwp%rxnrate_MgO_hyd(i) = & 
                     cwp%rxnrate_MgO_hyd_inund(i) + cwp%rxnrate_MgO_hyd_humid(i)
@@ -2795,8 +2806,13 @@ end subroutine PMWSSUpdateChemSpecies
           ! smoothing of total rate occurs due to concentration
           call PMWSSSmoothRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
                                   cwp%inventory%MgO_s,this%alpharxn) 
+          write(*,*) cwp%rxnrate_MgO_hyd(i)
           call PMWSSTaperRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
-                          cwp%inventory%MgO_s,this%stoic_mat(5,8),dt,temp_conc)
+                          cwp%inventory%MgO_s,this%stoic_mat(5,8),dt,temp_conc)      
+          write(*,*) cwp%rxnrate_MgO_hyd(i)
+          write(*,*) cwp%inventory%MgO_s%current_conc_kg(i)
+          write(*,*) cwp%inventory%MgO_s%current_conc_mol(i)
+          write(*,*) temp_conc
         endif
         
       
@@ -3108,9 +3124,7 @@ subroutine PMWSSSmoothRxnrate1(rxnrate,cell_num,limiting_species,alpharxn)
                    limiting_species%initial_conc_kg(cell_num) ) 
     conc_ratio = min(1.d0,conc_ratio)
     rxnrate = rxnrate * (1.d0 - exp(alpharxn*conc_ratio))
-  else
-    rxnrate = 0.0d0
-  end if
+  endif
   
 end subroutine PMWSSSmoothRxnrate1
 
@@ -3233,16 +3247,13 @@ subroutine PMWSSTaperRxnrate(rxnrate,cell_num,limiting_species1,stocoef,dt, &
   PetscReal :: reacted_concentration
 ! ------------------------------------
 
+  temp_conc = 0.d0
   available_concentration = limiting_species1%current_conc_mol(cell_num)
+  reacted_concentration = -dt*stocoef*rxnrate
+  temp_conc = available_concentration - reacted_concentration
   
-  if (available_concentration <= 0.d0) then
-    rxnrate = 0.d0
-  else
-    reacted_concentration = dt*stocoef*rxnrate
-    temp_conc = available_concentration - reacted_concentration
-    if (reacted_concentration >= available_concentration) then
-      rxnrate = available_concentration/(stocoef*dt)
-    endif
+  if (temp_conc < 0.d0) then
+      rxnrate = available_concentration/(-1.d0*stocoef*dt)
   endif
   
 end subroutine PMWSSTaperRxnrate
