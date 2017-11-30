@@ -2743,12 +2743,6 @@ end subroutine PMWSSUpdateChemSpecies
 !        if (s_eff > 1.d-16) then
           sg_eff = (1.d0-s_eff)
 !        endif
-
-
-
-!      write(*,*) cwp%inventory%MgO_s%current_conc_kg(i)
-!      write(*,*) cwp%inventory%MgO_s%current_conc_mol(i)
- 
      
       !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
       !-----(see equation PA.67, PA.77, section PA-4.2.5)-----------------------
@@ -2806,13 +2800,8 @@ end subroutine PMWSSUpdateChemSpecies
           ! smoothing of total rate occurs due to concentration
           call PMWSSSmoothRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
                                   cwp%inventory%MgO_s,this%alpharxn) 
-!          write(*,*) cwp%rxnrate_MgO_hyd(i)
           call PMWSSTaperRxnrate(cwp%rxnrate_MgO_hyd(i),i, &
                           cwp%inventory%MgO_s,this%stoic_mat(5,8),dt,temp_conc)      
-!          write(*,*) cwp%rxnrate_MgO_hyd(i)
-!          write(*,*) cwp%inventory%MgO_s%current_conc_kg(i)
-!          write(*,*) cwp%inventory%MgO_s%current_conc_mol(i)
-!          write(*,*) temp_conc
         endif
         
       
