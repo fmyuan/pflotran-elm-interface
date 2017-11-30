@@ -805,6 +805,9 @@ subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
       call VecRestoreArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
 
       call VecZeroEntries(res_pert,ierr);CHKERRQ(ierr)
+!      write(*,'("icell: ",i4," idof: ",i2," overall dof: ",i4,&
+!                &" pert: ",1pe12.5)') &
+!        icell,2-mod(idof,option%nflowdof),idof,perturbation
       call WIPPFloResidual(PETSC_NULL_SNES,xx_pert,res_pert,realization, &
                            pmwss_ptr,ierr)
 #if 0
@@ -817,7 +820,7 @@ subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
       call VecGetArrayF90(res_pert,vec_p,ierr);CHKERRQ(ierr)
       do idof2 = 1, grid%nlmax*option%nflowdof
         derivative = (vec_p(idof2)-vec2_p(idof2))/perturbation
-        if (dabs(derivative) > 1.d-30) then
+        if (dabs(derivative) > 1.d-40) then
           call MatSetValue(A,idof2-1,idof-1,derivative,INSERT_VALUES, &
                            ierr);CHKERRQ(ierr)
         endif
@@ -989,7 +992,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
     call WIPPFloConvertUnitsToBRAGFlo(Res,material_auxvars(ghosted_id),option)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     accum_p2(local_start:local_end) = Res(:)
-!print *, 'A-A0: ', r_p(local_start:local_end)
   enddo
   call VecRestoreArrayReadF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
   else
@@ -1048,7 +1050,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                                          material_auxvars(ghosted_id_up), &
                                          option)
         r_p(local_start:local_end) = r_p(local_start:local_end) + temp_Res(:)
-!print *, 'Fup: ', temp_Res
+!print *, 'Fup: ', temp_Res, local_id_up
       endif
          
       if (local_id_dn > 0) then
@@ -1059,7 +1061,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                                          material_auxvars(ghosted_id_dn), &
                                          option)
         r_p(local_start:local_end) = r_p(local_start:local_end) - temp_Res(:)
-!print *, 'Fdn: ', temp_Res
+!print *, 'Fdn: ', -1.d0*temp_Res, local_id_dn
       endif
     enddo
 
@@ -1392,14 +1394,14 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
         call WIPPFloConvertUnitsToBRAGFlo(Jtmp, &
                                           material_auxvars(ghosted_id_up), &
                                           option)
-!print *, 'up-up: ',Jtmp
+!print *, 'up-up: ',Jtmp, local_id_up
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                       Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
         Jtmp = Jdn
         call WIPPFloConvertUnitsToBRAGFlo(Jtmp, &
                                           material_auxvars(ghosted_id_up), &
                                           option)
-!print *, 'up-dn: ',Jtmp
+!print *, 'up-dn: ',Jtmp, local_id_up
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
                                       Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
@@ -1410,14 +1412,14 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
         call WIPPFloConvertUnitsToBRAGFlo(Jtmp, &
                                           material_auxvars(ghosted_id_dn), &
                                           option)
-!print *, 'dn-dn: ',Jtmp
+!print *, 'dn-dn: ',Jtmp, local_id_dn
         call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                                       Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
         Jtmp = Jup
         call WIPPFloConvertUnitsToBRAGFlo(Jtmp, &
                                           material_auxvars(ghosted_id_dn), &
                                           option)
-!print *, 'dn-up: ',Jtmp
+!print *, 'dn-up: ',Jtmp, local_id_dn
         call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                       Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
