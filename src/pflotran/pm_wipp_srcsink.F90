@@ -3113,9 +3113,7 @@ subroutine PMWSSSmoothRxnrate1(rxnrate,cell_num,limiting_species,alpharxn)
                    limiting_species%initial_conc_kg(cell_num) ) 
     conc_ratio = min(1.d0,conc_ratio)
     rxnrate = rxnrate * (1.d0 - exp(alpharxn*conc_ratio))
-  else
-    rxnrate = 0.0d0
-  end if
+  endif
   
 end subroutine PMWSSSmoothRxnrate1
 
