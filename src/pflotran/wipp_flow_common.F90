@@ -983,6 +983,11 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
                    PETSC_FALSE, & ! count upwind direction flip
                    PETSC_FALSE)
   res_dn = res_up
+
+  if (wippflo_jacobian_test) then
+    print *, 'res_dn: ', res_dn
+    print *, 'res_up: ', res_up
+  endif
  
   ! upgradient derivatives
   do idof = 1, option%nflowdof
@@ -998,6 +1003,11 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
                      PETSC_FALSE, & ! update the upwind direction
                      wippflo_count_upwind_dir_flip, &
                      PETSC_FALSE)
+    if (wippflo_jacobian_test) then
+      if (idof == 2-mod(wippflo_jacobian_test_xdof,2)) then
+        print *, 'res_pert_up: ', res_pert
+      endif
+    endif
     do irow = 1, option%nflowdof
       Jup(irow,idof) = (res_pert(irow)-res_up(irow)) / &
                        wippflo_auxvar_up(idof)%pert
@@ -1018,6 +1028,11 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
                      PETSC_FALSE, & ! update the upwind direction
                      wippflo_count_upwind_dir_flip, &
                      PETSC_FALSE)
+    if (wippflo_jacobian_test) then
+      if (idof == 2-mod(wippflo_jacobian_test_xdof,2)) then
+        print *, 'res_pert_dn: ', res_pert
+      endif
+    endif
     do irow = 1, option%nflowdof
       Jdn(irow,idof) = (res_pert(irow)-res_dn(irow)) / &
                        wippflo_auxvar_dn(idof)%pert

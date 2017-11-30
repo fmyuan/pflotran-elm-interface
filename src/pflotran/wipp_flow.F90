@@ -767,6 +767,7 @@ subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
                     ierr);CHKERRQ(ierr)
 
   call VecZeroEntries(res,ierr);CHKERRQ(ierr)
+  print *, 'Unperturbed Residual'
   call WIPPFloResidual(PETSC_NULL_SNES,xx,res,realization,pmwss_ptr,ierr)
 #if 0
   word  = 'num_0.dat'
@@ -775,6 +776,7 @@ subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
   call VecGetArrayF90(res,vec2_p,ierr);CHKERRQ(ierr)
+  print *, 'Perturbed Residual'
   do icell = 1,grid%nlmax
     if (patch%imat(grid%nL2G(icell)) <= 0) cycle
     do idof = (icell-1)*option%nflowdof+1,icell*option%nflowdof 
@@ -805,9 +807,9 @@ subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
       call VecRestoreArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
 
       call VecZeroEntries(res_pert,ierr);CHKERRQ(ierr)
-!      write(*,'("icell: ",i4," idof: ",i2," overall dof: ",i4,&
-!                &" pert: ",1pe12.5)') &
-!        icell,2-mod(idof,option%nflowdof),idof,perturbation
+      write(*,'("icell: ",i4," idof: ",i2," overall dof: ",i4,&
+                &" pert: ",1pe12.5)') &
+        icell,2-mod(idof,option%nflowdof),idof,perturbation
       call WIPPFloResidual(PETSC_NULL_SNES,xx_pert,res_pert,realization, &
                            pmwss_ptr,ierr)
 #if 0
@@ -821,6 +823,10 @@ subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
       do idof2 = 1, grid%nlmax*option%nflowdof
         derivative = (vec_p(idof2)-vec2_p(idof2))/perturbation
         if (dabs(derivative) > 1.d-40) then
+          if (idof2 == wippflo_jacobian_test_rdof) then
+            print *, 'dof: ', idof2, idof, '| cell: ', (idof2+1)/2, (idof+1)/2
+            print *, vec_p(idof2), vec2_p(idof2), perturbation
+          endif
           call MatSetValue(A,idof2-1,idof-1,derivative,INSERT_VALUES, &
                            ierr);CHKERRQ(ierr)
         endif
@@ -939,7 +945,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   upwind_direction => patch%aux%WIPPFlo%upwind_direction
   upwind_direction_bc => patch%aux%WIPPFlo%upwind_direction_bc
 
-  if (.not.wippflow_jacobian_test_active) then
+  if (.not.wippflo_jacobian_test_active) then
   wippflo_newton_iteration_number = wippflo_newton_iteration_number + 1
   ! bragflo uses the following logic, update when
   !   it == 1, before entering iteration loop
@@ -970,7 +976,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
 
   ! Accumulation terms ------------------------------------
   ! accumulation at t(k) (doesn't change during Newton iteration)
-  if (wippflow_calc_accum) then
+  if (wippflo_calc_accum) then
   call VecGetArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
   r_p = -accum_p
   call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
@@ -998,7 +1004,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
     r_p = 0.d0
   endif
 
-  if (wippflow_calc_flux) then
+  if (wippflo_calc_flux) then
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
@@ -1021,6 +1027,16 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
 
+      if (wippflo_jacobian_test) then
+        !if (.not.(ghosted_id_up == &
+        !          int((wippflo_jacobian_test_rdof+1)/2) .and. &
+        !          ghosted_id_dn == &
+        !          int((wippflo_jacobian_test_rdof+1)/2))) cycle
+        if (.not.(ghosted_id_up == &
+                  int((wippflo_jacobian_test_rdof+1)/2) .or. &
+                  ghosted_id_dn == &
+                  int((wippflo_jacobian_test_rdof+1)/2))) cycle
+      endif
       call XXFlux(wippflo_auxvars(ZERO_INTEGER,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
                        material_auxvars(ghosted_id_up), &
@@ -1050,7 +1066,9 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                                          material_auxvars(ghosted_id_up), &
                                          option)
         r_p(local_start:local_end) = r_p(local_start:local_end) + temp_Res(:)
-!print *, 'Fup: ', temp_Res, local_id_up
+        if (wippflo_jacobian_test .and. wippflo_jacobian_test_rdof > 0) then
+          print *, 'Fup: ', temp_Res, local_id_up
+        endif
       endif
          
       if (local_id_dn > 0) then
@@ -1061,7 +1079,9 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                                          material_auxvars(ghosted_id_dn), &
                                          option)
         r_p(local_start:local_end) = r_p(local_start:local_end) - temp_Res(:)
-!print *, 'Fdn: ', -1.d0*temp_Res, local_id_dn
+        if (wippflo_jacobian_test .and. wippflo_jacobian_test_rdof > 0) then
+          print *, 'Fdn: ', -1.d0*temp_Res, local_id_dn
+        endif
       endif
     enddo
 
@@ -1069,7 +1089,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   enddo    
   endif
 
-  if (wippflow_calc_bcflux) then
+  if (wippflo_calc_bcflux) then
   ! Boundary Flux Terms -----------------------------------
   boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
@@ -1184,7 +1204,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
     source_sink => source_sink%next
   enddo
   
-  if (wippflow_calc_chem) then
+  if (wippflo_calc_chem) then
   ! WIPP gas/brine generation process model source/sinks
   if (associated(pmwss_ptr)) then
     if (pmwss_ptr%rate_update_frequency == LAG_NEWTON_ITERATION .or. & 
@@ -1335,7 +1355,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
                               natural_id,option)
   enddo
   
-  if (wippflow_calc_accum) then
+  if (wippflo_calc_accum) then
   ! Accumulation terms ------------------------------------
   do local_id = 1, grid%nlmax  ! For each local node do...
     ghosted_id = grid%nL2G(local_id)
@@ -1355,7 +1375,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   enddo
   endif
 
-  if (wippflow_calc_flux) then
+  if (wippflo_calc_flux) then
   ! Interior Flux Terms -----------------------------------  
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
@@ -1378,6 +1398,16 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
                               
+      if (wippflo_jacobian_test) then
+        !if (.not.(ghosted_id_up == &
+        !          int((wippflo_jacobian_test_rdof+1)/2) .and. &
+        !          ghosted_id_dn == &
+        !          int((wippflo_jacobian_test_rdof+1)/2))) cycle
+        if (.not.(ghosted_id_up == &
+                  int((wippflo_jacobian_test_rdof+1)/2) .or. &
+                  ghosted_id_dn == &
+                  int((wippflo_jacobian_test_rdof+1)/2))) cycle
+      endif
       call XXFluxDerivative(wippflo_auxvars(:,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
@@ -1394,14 +1424,18 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
         call WIPPFloConvertUnitsToBRAGFlo(Jtmp, &
                                           material_auxvars(ghosted_id_up), &
                                           option)
-!print *, 'up-up: ',Jtmp, local_id_up
+        if (wippflo_jacobian_test .and. wippflo_jacobian_test_rdof > 0) then
+          print *, 'up-up: ',Jtmp, local_id_up
+        endif
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                       Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
         Jtmp = Jdn
         call WIPPFloConvertUnitsToBRAGFlo(Jtmp, &
                                           material_auxvars(ghosted_id_up), &
                                           option)
-!print *, 'up-dn: ',Jtmp, local_id_up
+        if (wippflo_jacobian_test .and. wippflo_jacobian_test_rdof > 0) then
+          print *, 'up-dn: ',Jtmp, local_id_up
+        endif
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
                                       Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
@@ -1412,14 +1446,18 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
         call WIPPFloConvertUnitsToBRAGFlo(Jtmp, &
                                           material_auxvars(ghosted_id_dn), &
                                           option)
-!print *, 'dn-dn: ',Jtmp, local_id_dn
+        if (wippflo_jacobian_test) then
+          print *, 'dn-dn: ',Jtmp, local_id_dn
+        endif
         call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                                       Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
         Jtmp = Jup
         call WIPPFloConvertUnitsToBRAGFlo(Jtmp, &
                                           material_auxvars(ghosted_id_dn), &
                                           option)
-!print *, 'dn-up: ',Jtmp, local_id_dn
+        if (wippflo_jacobian_test) then
+          print *, 'dn-up: ',Jtmp, local_id_dn
+        endif
         call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                       Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
@@ -1428,7 +1466,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   enddo
   endif
 
-  if (wippflow_calc_bcflux) then
+  if (wippflo_calc_bcflux) then
   ! Boundary Flux Terms -----------------------------------
   boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
@@ -1510,7 +1548,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   enddo
   
   
-  if (wippflow_calc_chem) then
+  if (wippflo_calc_chem) then
   ! WIPP gas/brine generation process model source/sinks
   if (associated(pmwss_ptr)) then
     if (pmwss_ptr%rate_update_frequency == NO_LAG) then
@@ -1535,10 +1573,10 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
                           ierr);CHKERRQ(ierr)
   endif
 
-  if (wippflow_jacobian_test) then
-    wippflow_jacobian_test_active = PETSC_TRUE
+  if (wippflo_jacobian_test) then
+    wippflo_jacobian_test_active = PETSC_TRUE
     call WIPPFloNumericalJacobianTest(xx,A,realization,pmwss_ptr)
-    wippflow_jacobian_test_active = PETSC_FALSE
+    wippflo_jacobian_test_active = PETSC_FALSE
   endif
 
 end subroutine WIPPFloJacobian

@@ -311,7 +311,7 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
     case('NO_GAS_GENERATION')
       wippflo_use_gas_generation = PETSC_FALSE
     case('BRAGFLO_RESIDUAL_UNITS')
-      wippflow_use_bragflo_units = PETSC_TRUE
+      wippflo_use_bragflo_units = PETSC_TRUE
     case('DEBUG')
       wippflo_debug = PETSC_TRUE
     case('DEBUG_GAS_GENERATION')
@@ -377,15 +377,21 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       call InputReadInt(input,option,this%iconvtest)
       call InputDefaultMsg(input,option,'ICONVTEST')
     case('JACOBIAN_TEST')
-      wippflow_jacobian_test = PETSC_TRUE
+      wippflo_jacobian_test = PETSC_TRUE
+    case('JACOBIAN_TEST_RDOF')
+      call InputReadInt(input,option,wippflo_jacobian_test_rdof)
+      call InputErrorMsg(input,option,'jacobian test rdof', error_string)
+    case('JACOBIAN_TEST_XDOF')
+      call InputReadInt(input,option,wippflo_jacobian_test_xdof)
+      call InputErrorMsg(input,option,'jacobian test xdof', error_string)
     case('NO_ACCUMULATION')
-      wippflow_calc_accum = PETSC_FALSE
+      wippflo_calc_accum = PETSC_FALSE
     case('NO_FLUX')
-      wippflow_calc_flux = PETSC_FALSE
+      wippflo_calc_flux = PETSC_FALSE
     case('NO_BCFLUX')
-      wippflow_calc_bcflux = PETSC_FALSE
+      wippflo_calc_bcflux = PETSC_FALSE
     case('NO_CHEMISTRY')
-      wippflow_calc_chem = PETSC_FALSE
+      wippflo_calc_chem = PETSC_FALSE
     case default
       found = PETSC_FALSE
   end select
@@ -1158,7 +1164,7 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
     
     bragflo_residual = r_p(liquid_equation_index:gas_equation_index)
     bragflo_accum = accum2_p(liquid_equation_index:gas_equation_index)
-    if (.not.wippflow_use_bragflo_units) then
+    if (.not.wippflo_use_bragflo_units) then
       pflotran_to_bragflo = fmw_comp * option%flow_dt / &
                             material_auxvars(ghosted_id)%volume
       bragflo_residual = bragflo_residual * pflotran_to_bragflo
