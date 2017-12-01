@@ -83,6 +83,7 @@ module PFLOTRAN_Constants_module
   PetscMPIInt, parameter, public :: SIX_INTEGER_MPI = SIX_INTEGER
   PetscMPIInt, parameter, public :: SEVEN_INTEGER_MPI = SEVEN_INTEGER
   PetscMPIInt, parameter, public :: TEN_INTEGER_MPI = TEN_INTEGER
+  PetscMPIInt, parameter, public :: ELEVEN_INTEGER_MPI = ELEVEN_INTEGER
   PetscMPIInt, parameter, public :: TWELVE_INTEGER_MPI = TWELVE_INTEGER
   PetscMPIInt, parameter, public :: MAXSTRINGLENGTH_MPI = MAXSTRINGLENGTH
   

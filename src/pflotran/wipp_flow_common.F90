@@ -1188,6 +1188,7 @@ function WIPPFloAverageDensity(iphase,istate_up,istate_dn, &
 
   dden_up = 0.d0
   dden_dn = 0.d0
+  WIPPFloAverageDensity = 0.d0
   if (iphase == LIQUID_PHASE) then
     WIPPFloAverageDensity = 0.5d0*(density_up(iphase)+density_dn(iphase))
     dden_up = 0.5d0

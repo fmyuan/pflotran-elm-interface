@@ -21,7 +21,9 @@ module PM_WIPP_Flow_class
   PetscInt, parameter :: MAX_CHANGE_GAS_SAT_TS = 7
   PetscInt, parameter :: MAX_CHANGE_LIQ_PRES_TS = 8
   PetscInt, parameter :: MAX_REL_CHANGE_LIQ_PRES_TS = 9
-  PetscInt, parameter :: MIN_GAS_PRES = 10
+  ! these must be the last two due to the need to calculate the minimum
+  PetscInt, parameter :: MIN_LIQ_PRES = 10
+  PetscInt, parameter :: MIN_GAS_PRES = 11
 
   type, public, extends(pm_subsurface_flow_type) :: pm_wippflo_type
     PetscInt, pointer :: max_change_ivar(:)
@@ -44,9 +46,9 @@ module PM_WIPP_Flow_class
     PetscInt :: iconvtest
     class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
     Vec :: stored_residual_vec
-    PetscInt :: convergence_flags(10)
+    PetscInt :: convergence_flags(11)
     ! store maximum quantities for the above
-    PetscReal :: convergence_reals(10)
+    PetscReal :: convergence_reals(11)
   contains
     procedure, public :: Read => PMWIPPFloRead
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
@@ -319,6 +321,8 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
     case('DEBUG_FIRST_ITERATION')
       wippflo_debug = PETSC_TRUE
       wippflo_debug_first_iteration = PETSC_TRUE
+    case('DEBUG_OSCILLATORY_BEHAVIOR')
+      wippflo_check_oscillatory_behavior = PETSC_TRUE
     case('USE_LEGACY_PERTURBATION')
       wippflo_use_legacy_perturbation = PETSC_TRUE
     case('PRESSURE_REL_PERTURBATION')
@@ -489,6 +493,8 @@ subroutine PMWIPPFloInitializeTimestep(this)
 
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
+  wippflo_prev_liq_res_cell = 0
+  wippflo_print_oscillatory_behavior = PETSC_FALSE
   
 end subroutine PMWIPPFloInitializeTimestep
 
@@ -906,7 +912,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscReal :: abs_X
   PetscReal :: abs_dX
   PetscReal :: abs_dX_TS
-  PetscReal :: rel_dX_TS
+  PetscReal :: abs_rel_dX_TS
   PetscBool :: converged_liquid_pressure
   PetscBool :: converged_gas_saturation
   PetscReal :: max_liq_pres_rel_change
@@ -963,14 +969,17 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     pressure_index = offset + WIPPFLO_LIQUID_PRESSURE_DOF
     saturation_index = offset + WIPPFLO_GAS_SATURATION_DOF
 
+    !NOTE: store the actual value, not the absolute value, better enabling the 
+    !      pinpointing of oscillatory behavior.
+
     !TODO(geh): switch to flow_yy as it is cleaner and more precise.
     ! maximum relative change in liquid pressure
     abs_X = dabs(X1_p(pressure_index))
     if (abs_X > 0.d0) then
       abs_dX_over_absX = dabs(dX_p(pressure_index))/abs_X
-      if (max_liq_pres_rel_change < abs_dX_over_absX) then
+      if (dabs(max_liq_pres_rel_change) < abs_dX_over_absX) then
         max_liq_pres_rel_change_cell = local_id
-        max_liq_pres_rel_change = abs_dX_over_absX
+        max_liq_pres_rel_change = dX_p(pressure_index)/abs_X
       endif
       if (abs_dX_over_absX >= this%liquid_pressure_tolerance) then
         converged_liquid_pressure = PETSC_FALSE
@@ -979,12 +988,14 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     
     ! EPS_SAT maximum relative gas saturation change "digits of accuracy"
     abs_dX = dabs(dX_p(saturation_index))
-    !TODO(geh): change '<' to '<=' according to bragflo
-    if ((-1.d0*log10(abs_dX)) < this%eps_sat) then
-      converged_gas_saturation = PETSC_FALSE
-      if (max_gas_sat_change_NI < abs_dX) then
+    if (abs_dX > 0.d0) then
+      if (dabs(max_gas_sat_change_NI) < abs_dX) then
         max_gas_sat_change_NI_cell = local_id
-        max_gas_sat_change_NI = abs_dX
+        max_gas_sat_change_NI = dX_p(saturation_index)
+      endif
+      !TODO(geh): change '<' to '<=' according to bragflo
+      if ((-1.d0*log10(abs_dX)) < this%eps_sat) then
+        converged_gas_saturation = PETSC_FALSE
       endif
     endif
 
@@ -992,29 +1003,30 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     ! DSAT_MAX maximum absolute gas saturation change over time step
     abs_dX_TS = dabs(sat_ptr(local_id)-X1_p(saturation_index))
     if (abs_dX_TS > 0.d0) then
-      if (max_gas_sat_change_TS < abs_dX_TS) then
+      if (dabs(max_gas_sat_change_TS) < abs_dX_TS) then
         max_gas_sat_change_TS_cell = local_id
-        max_gas_sat_change_TS = abs_dX_TS
+        max_gas_sat_change_TS = sat_ptr(local_id)-X1_p(saturation_index)
       endif
     endif
     
     ! DPRE_MAX maximum absolute liquid pressure change over time step
     abs_dX_TS = dabs(press_ptr(local_id)-X1_p(pressure_index))
     if (abs_dX_TS > 0.d0) then
-      if (max_abs_pressure_change_TS < abs_dX_TS) then
+      if (dabs(max_abs_pressure_change_TS) < abs_dX_TS) then
         max_abs_pressure_change_TS_cell = local_id
-        max_abs_pressure_change_TS = abs_dX_TS
+        max_abs_pressure_change_TS = press_ptr(local_id)-X1_p(pressure_index)
       endif
     endif
     
     ! EPS_PRES maximum relative liquid pressure change over time step
     !geh: BRAGFLO divides by DEPOUT(L), which is the updated solution (X1_p)
-    rel_dX_TS = dabs((press_ptr(local_id)-X1_p(pressure_index))/ &
-                     X1_p(pressure_index))
-    if (rel_dX_TS > 0.d0) then
-      if (max_rel_pressure_change_TS < rel_dX_TS) then
+    abs_rel_dX_TS = dabs((press_ptr(local_id)-X1_p(pressure_index))/ &
+                         X1_p(pressure_index))
+    if (abs_rel_dX_TS > 0.d0) then
+      if (dabs(max_rel_pressure_change_TS) < abs_rel_dX_TS) then
         max_rel_pressure_change_TS_cell = local_id
-        max_rel_pressure_change_TS = rel_dX_TS
+        max_rel_pressure_change_TS = &
+          (press_ptr(local_id)-X1_p(pressure_index))/X1_p(pressure_index)
       endif
     endif
 
@@ -1040,6 +1052,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   if (.not.converged_gas_saturation) then 
     this%convergence_flags(MAX_CHANGE_GAS_SAT_NI) = max_gas_sat_change_NI_cell
   endif
+  this%convergence_flags(MIN_LIQ_PRES) = min_liq_pressure_cell
   if (min_gas_pressure < 0.d0) then
     this%convergence_flags(MIN_GAS_PRES) = min_gas_pressure_cell
   endif
@@ -1049,6 +1062,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   this%convergence_reals(MAX_CHANGE_LIQ_PRES_TS) = max_abs_pressure_change_TS
   this%convergence_reals(MAX_CHANGE_GAS_SAT_NI) = max_gas_sat_change_NI
   this%convergence_reals(MAX_CHANGE_GAS_SAT_TS) = max_gas_sat_change_TS
+  this%convergence_reals(MIN_LIQ_PRES) = min_liq_pressure
   this%convergence_reals(MIN_GAS_PRES) = min_gas_pressure
 
   call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
@@ -1127,6 +1141,8 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
   PetscInt :: istart, iend
   PetscReal :: tempreal
   PetscInt :: tempint
+  PetscInt :: i
+  PetscBool :: cell_id_match
   
   grid => this%realization%patch%grid
   option => this%realization%option
@@ -1189,10 +1205,13 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
           converged_liquid_equation = PETSC_FALSE
           if (dabs(max_liq_eq) < dabs(residual)) then
             max_liq_eq_cell = local_id
-            max_liq_eq = residual
           endif
         endif
       endif
+    endif
+    ! update outside to always record the maximum residual
+    if (dabs(max_liq_eq) < dabs(residual)) then
+      max_liq_eq = residual
     endif
 
     ! gas component equation
@@ -1212,6 +1231,11 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
         endif
       endif
     endif
+    ! update outside to always record the maximum residual
+    if (dabs(max_gas_eq) < dabs(residual)) then
+      max_gas_eq_cell = local_id
+      max_gas_eq = residual
+    endif
   enddo
 
   if (.not.converged_liquid_equation) then
@@ -1223,16 +1247,45 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
   this%convergence_reals(MAX_RES_LIQ) = max_liq_eq
   this%convergence_reals(MAX_RES_GAS) = max_gas_eq
 
-  call MPI_Allreduce(MPI_IN_PLACE,this%convergence_flags,TEN_INTEGER_MPI, &
+  call MPI_Allreduce(MPI_IN_PLACE,this%convergence_flags,ELEVEN_INTEGER_MPI, &
                      MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
-  ! flip sign on min gas pressure in order to use MPI_MAX to get minimum value
+  ! if running in parallel, we can no longer report the sign on the maximum
+  ! change variables as the sign may differ across processes.
+  if (option%mycommsize > 1) then
+    this%convergence_reals(1:MIN_LIQ_PRES-1) = &
+      dabs(this%convergence_reals(1:MIN_LIQ_PRES-1))
+  endif
+  ! flip sign on min pressure in order to use MPI_MAX to get minimum value
+  this%convergence_reals(MIN_LIQ_PRES) = &
+    -1.d0 * this%convergence_reals(MIN_LIQ_PRES)
   this%convergence_reals(MIN_GAS_PRES) = &
     -1.d0 * this%convergence_reals(MIN_GAS_PRES)
-  call MPI_Allreduce(MPI_IN_PLACE,this%convergence_reals,SEVEN_INTEGER_MPI, &
+  call MPI_Allreduce(MPI_IN_PLACE,this%convergence_reals,ELEVEN_INTEGER_MPI, &
                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
   ! flip sign back
+  this%convergence_reals(MIN_LIQ_PRES) = &
+    -1.d0 * this%convergence_reals(MIN_LIQ_PRES)
   this%convergence_reals(MIN_GAS_PRES) = &
     -1.d0 * this%convergence_reals(MIN_GAS_PRES)
+
+  ! to catch oscillatory behavior
+  if (wippflo_check_oscillatory_behavior) then
+    do i = size(wippflo_prev_liq_res_cell), 2, -1
+      wippflo_prev_liq_res_cell(i) = wippflo_prev_liq_res_cell(i-1)
+    enddo
+    wippflo_prev_liq_res_cell(1) = this%convergence_flags(MAX_RES_LIQ)
+    if (wippflo_prev_liq_res_cell(size(wippflo_prev_liq_res_cell)) > 0) then
+      cell_id_match = PETSC_TRUE
+      do i = 1, size(wippflo_prev_liq_res_cell)-2
+        if (wippflo_prev_liq_res_cell(i) /= wippflo_prev_liq_res_cell(i+2)) then
+          cell_id_match = PETSC_FALSE
+        endif
+      enddo
+      if (cell_id_match) then
+        wippflo_print_oscillatory_behavior = PETSC_TRUE
+      endif
+    endif
+  endif
 
   ! these conditionals cannot change order
   reason_string = '-------|--'
@@ -1295,6 +1348,8 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
     endif
   endif
   if (OptionPrintToScreen(option)) then
+    !TODO(geh): add the option to report only violated tolerances, zeroing
+    !           the others.
     tempreal = this%convergence_reals(MAX_CHANGE_GAS_SAT_NI)
     tempint = this%convergence_flags(MAX_CHANGE_GAS_SAT_NI)
     if (this%convergence_flags(FORCE_ITERATION) > 0) then
@@ -1350,6 +1405,8 @@ subroutine PMWIPPFloTimeCut(this)
   ! 
 
   use WIPP_Flow_module, only : WIPPFloTimeCut
+  use WIPP_Flow_Aux_module, only : wippflo_prev_liq_res_cell, &
+                                   wippflo_print_oscillatory_behavior
 
   implicit none
   
@@ -1360,6 +1417,8 @@ subroutine PMWIPPFloTimeCut(this)
 
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
+  wippflo_prev_liq_res_cell = 0
+  wippflo_print_oscillatory_behavior = PETSC_FALSE
 
 end subroutine PMWIPPFloTimeCut
 

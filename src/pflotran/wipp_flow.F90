@@ -920,6 +920,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
   PetscReal, pointer :: vec_p(:)
+  PetscBool :: debug_connection
   
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: k
@@ -1037,6 +1038,20 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                   ghosted_id_dn == &
                   int((wippflo_jacobian_test_rdof+1)/2))) cycle
       endif
+      debug_connection = PETSC_FALSE
+      if (wippflo_print_oscillatory_behavior) then
+        if (((wippflo_prev_liq_res_cell(1) == local_id_up .and. &
+              wippflo_prev_liq_res_cell(2) == local_id_dn) .or. &
+             (wippflo_prev_liq_res_cell(2) == local_id_up .and. &
+              wippflo_prev_liq_res_cell(1) == local_id_dn)) .or. &
+            (wippflo_prev_liq_res_cell(1) == &
+             wippflo_prev_liq_res_cell(2) .and. &
+             (wippflo_prev_liq_res_cell(1) == local_id_up .or. &
+              wippflo_prev_liq_res_cell(1) == local_id_dn))) then
+          write(*,'("debug flux: ",2i5)') local_id_up, local_id_dn
+          debug_connection = PETSC_TRUE
+        endif
+      endif
       call XXFlux(wippflo_auxvars(ZERO_INTEGER,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
                        material_auxvars(ghosted_id_up), &
@@ -1051,7 +1066,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                        wippflo_fix_upwind_direction, &
                        wippflo_update_upwind_direction, &
                        wippflo_count_upwind_dir_flip, & 
-                       PETSC_FALSE)
+                       debug_connection)
 
       patch%internal_velocities(:,sum_connection) = v_darcy
       if (associated(patch%internal_flow_fluxes)) then
