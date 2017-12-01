@@ -2625,6 +2625,7 @@ end subroutine PMWSSUpdateChemSpecies
 ! dt: [sec] flow process model time step value
 ! temp_conc: [mol-species/m3-bulk] what the concentration would be at the 
 !    end of time step given rxnrate and dt
+! TERM2, FECONS: BRAGFLO terms for tapering
 ! UNPERT: unperturbed array index value in srcsink_brine/gas
 ! PERT_WRT_SG: perturbed array index value in srcsink_brine/gas with 
 !    respect to gas saturation (2nd dof)
@@ -2645,6 +2646,7 @@ end subroutine PMWSSUpdateChemSpecies
   PetscReal :: SOCEXP
   PetscReal :: dt
   PetscReal :: temp_conc
+  PetscReal :: TERM2, FECONS
   ! brine/gas generation variables
   PetscReal :: water_saturation
   PetscReal :: s_eff
@@ -2717,13 +2719,6 @@ end subroutine PMWSSUpdateChemSpecies
               wippflo_auxvars(ZERO_INTEGER,ghosted_id)%sat(option%gas_phase)
         end select
 
-!geh: Begin change
-!geh: BRAGFLO's implementation differs near line 21393
-!        SOCEXP = 200.d0*(max((water_saturation-this%smin),0.d0))**2.d0
-!        s_eff = water_saturation-this%smin+(this%satwick * &
-!                                           (1.d0-exp(this%alpharxn*SOCEXP)))
-!        if (water_saturation <= this%smin) s_eff = 0.d0
-!        if (water_saturation > (1.d0-this%satwick+this%smin)) s_eff = 1.d0
         if (this%smin > 0.d0) then
           SOCEXP = 200.d0*(max((water_saturation-this%smin),0.d0))**2.d0
         else
@@ -2731,19 +2726,17 @@ end subroutine PMWSSUpdateChemSpecies
         endif
         s_eff = water_saturation-this%smin+(this%satwick * &
                                            (1.d0-exp(this%alpharxn*SOCEXP)))
-!geh: End change
+
         if (s_eff < 1.d-16 .and. wippflo_debug_gas_generation) then
           print *, 'soefc zero', water_saturation, s_eff
         endif
 
         s_eff = min(s_eff,1.d0)
         s_eff = max(s_eff,0.d0)
-        ! sg_eff is set to zero if sw_eff is also zero
-!        sg_eff = 0.d0
-!        if (s_eff > 1.d-16) then
-          sg_eff = (1.d0-s_eff)
-!        endif
-     
+        sg_eff = (1.d0-s_eff)
+
+ 
+    
       !-----anoxic-iron-corrosion-[mol-Fe/m3/sec]-------------------------------
       !-----(see equation PA.67, PA.77, section PA-4.2.5)-----------------------
       
@@ -2884,9 +2877,15 @@ end subroutine PMWSSUpdateChemSpecies
           cwp%rxnrate_Fe_sulf(i) = &
                              (cwp%rxnrate_cell_biodeg(i)*cwp%RXH2S_factor) - &
                               cwp%rxnrate_FeOH2_sulf(i)
-          ! taper Fe sulfidation rate second
-          call PMWSSTaperRxnrate(cwp%rxnrate_Fe_sulf(i),i,cwp%inventory%Fe_s, &
-                                 this%stoic_mat(4,4),dt,temp_conc)
+          ! taper Fe sulfidation rate second, but tapering routine is different
+          TERM2 = (-1.d0)*dt*this%stoic_mat(4,4)
+          FECONS = cwp%rxnrate_Fe_sulf(i)*TERM2
+          if (FECONS > cwp%inventory%Fe_s%current_conc_mol(i)) then
+            cwp%rxnrate_Fe_sulf(i) = &
+                                   cwp%inventory%Fe_s%current_conc_mol(i)/TERM2
+          endif
+          !call PMWSSTaperRxnrate(cwp%rxnrate_Fe_sulf(i),i,cwp%inventory%Fe_s, &
+          !                       this%stoic_mat(4,4),dt,temp_conc)
         endif
            
            
