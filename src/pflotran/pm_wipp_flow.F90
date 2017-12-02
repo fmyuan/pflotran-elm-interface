@@ -323,6 +323,8 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       wippflo_debug_first_iteration = PETSC_TRUE
     case('DEBUG_OSCILLATORY_BEHAVIOR')
       wippflo_check_oscillatory_behavior = PETSC_TRUE
+    case('MATCH_BRAGFLO_OUTPUT')
+      wippflo_match_bragflo_output = PETSC_TRUE
     case('USE_LEGACY_PERTURBATION')
       wippflo_use_legacy_perturbation = PETSC_TRUE
     case('PRESSURE_REL_PERTURBATION')
@@ -773,6 +775,7 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscInt :: pressure_index
   PetscBool :: cut_timestep
   PetscBool :: force_another_iteration
+  PetscBool :: outside_limits
   PetscReal :: saturation0, saturation1, del_saturation
   PetscReal :: pressure0, pressure1, del_pressure
   PetscReal :: max_gas_sat_outside_lim
@@ -783,6 +786,7 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
   
+#if 0
   grid => this%realization%patch%grid
   option => this%realization%option
   field => this%realization%field
@@ -804,6 +808,7 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
+    outside_limits = PETSC_FALSE
     offset = (local_id-1)*option%nflowdof
     saturation_index = offset + WIPPFLO_GAS_SATURATION_DOF
     pressure_index = offset + WIPPFLO_LIQUID_PRESSURE_DOF
@@ -823,7 +828,7 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
         max_gas_sat_outside_lim_cell = local_id
       endif
       if (saturation1 < (-1.d0*this%dsatlim)) then  ! DEPLIMIT(1)
-        cut_timestep = PETSC_TRUE
+        outside_limits = PETSC_TRUE
       else 
         if (saturation1 < (-1.d0*this%satlimit)) then  ! SATLIMIT
           force_another_iteration = PETSC_TRUE
@@ -837,7 +842,7 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
         max_gas_sat_outside_lim_cell = local_id
       endif
       if (saturation1 > 1.d0 + this%dsatlim) then  ! DEPLIMIT(1)
-        cut_timestep = PETSC_TRUE
+        outside_limits = PETSC_TRUE
       else 
         if (saturation1 > 1.d0 + this%satlimit) then  ! SATLIMIT
           force_another_iteration = PETSC_TRUE
@@ -849,7 +854,13 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     ! DPRELIM is designed to catch large negative values in liquid pressure
     ! and cut the timestep if this occurs
     if (pressure1 <= (this%dprelim)) then  ! DEPLIMIT(2)
+      outside_limits = PETSC_TRUE
+    endif
+
+    if (outside_limits) then
       cut_timestep = PETSC_TRUE
+      write(*,'(4x,"Outside Limits (PL,SG): ",i8,2es10.2)') local_id, &
+        pressure1, saturation1
     endif
   enddo
 
@@ -860,6 +871,7 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   if (force_another_iteration) this%convergence_flags(FORCE_ITERATION) = &
     max_gas_sat_outside_lim_cell
   if (cut_timestep) this%convergence_flags(OUTSIDE_BOUNDS) = 1
+#endif
 
 end subroutine PMWIPPFloCheckUpdatePre
 
@@ -896,7 +908,6 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
 
   PetscReal, pointer :: X0_p(:)
   PetscReal, pointer :: X1_p(:)
@@ -921,21 +932,25 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscReal :: max_abs_pressure_change_TS
   PetscReal :: max_rel_pressure_change_TS
   PetscReal :: min_liq_pressure
-  PetscReal :: min_gas_pressure
   PetscInt :: max_liq_pres_rel_change_cell
   PetscInt :: max_gas_sat_change_NI_cell
   PetscInt :: max_gas_sat_change_TS_cell
   PetscInt :: max_abs_pressure_change_TS_cell
   PetscInt :: max_rel_pressure_change_TS_cell
   PetscInt :: min_liq_pressure_cell
-  PetscInt :: min_gas_pressure_cell
   PetscReal :: abs_dX_over_absX
+
+  PetscBool :: cut_timestep
+  PetscBool :: force_another_iteration
+  PetscReal :: pressure_outside_limits
+  PetscReal :: saturation_outside_limits
+  PetscReal :: max_gas_sat_outside_lim
+  PetscInt :: max_gas_sat_outside_lim_cell
   
   grid => this%realization%patch%grid
   option => this%realization%option
   field => this%realization%field
   patch => this%realization%patch
-  wippflo_auxvars => patch%aux%WIPPFlo%auxvars
 
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
@@ -948,20 +963,22 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   call VecGetArrayReadF90(field%max_change_vecs(3),sat_ptr,ierr);CHKERRQ(ierr)
   converged_liquid_pressure = PETSC_TRUE
   converged_gas_saturation = PETSC_TRUE
+  cut_timestep = PETSC_FALSE
+  force_another_iteration = PETSC_FALSE
   max_liq_pres_rel_change = 0.d0
   max_gas_sat_change_NI = 0.d0
   max_gas_sat_change_TS = 0.d0
   max_abs_pressure_change_TS = 0.d0
   max_rel_pressure_change_TS = 0.d0
   min_liq_pressure = 1.d20
-  min_gas_pressure = 1.d20
   max_liq_pres_rel_change_cell = 0
   max_gas_sat_change_NI_cell = 0
   max_gas_sat_change_TS_cell = 0
   max_abs_pressure_change_TS_cell = 0
   max_rel_pressure_change_TS_cell = 0
   min_liq_pressure_cell = 0
-  min_gas_pressure_cell = 0
+  max_gas_sat_outside_lim = 0.d0
+  max_gas_sat_outside_lim_cell = 0
   do local_id = 1, grid%nlmax
     offset = (local_id-1)*option%nflowdof
     ghosted_id = grid%nL2G(local_id)
@@ -1036,11 +1053,57 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       min_liq_pressure_cell = local_id
     endif
 
-    ! gas pressure
-    if (wippflo_auxvars(0,ghosted_id)%pres(2) < min_gas_pressure) then
-      min_gas_pressure = wippflo_auxvars(0,ghosted_id)%pres(2)
-      min_gas_pressure_cell = local_id
+    ! limits are checked after the calculations above since they can truncate
+    pressure_outside_limits = 0.d0
+    saturation_outside_limits = 0.d0
+    if (X1_p(saturation_index) < 0.d0) then
+      if (dabs(max_gas_sat_outside_lim) < dabs(X1_p(saturation_index))) then
+        max_gas_sat_outside_lim = X1_p(saturation_index)
+        max_gas_sat_outside_lim_cell = local_id
+      endif
+      if (X1_p(saturation_index) < (-1.d0*this%dsatlim)) then  ! DEPLIMIT(1)
+        saturation_outside_limits = X1_p(saturation_index)
+      else 
+        if (X1_p(saturation_index) < (-1.d0*this%satlimit)) then  ! SATLIMIT
+          force_another_iteration = PETSC_TRUE
+        endif
+        ! set saturation to zero
+        X1_p(saturation_index) = 0.d0
+        dX_p(saturation_index) = X0_p(saturation_index)
+        dX_changed = PETSC_TRUE
+        X1_changed = PETSC_TRUE
+      endif
+    else if (X1_p(saturation_index) > 1.d0) then
+      if (abs(max_gas_sat_outside_lim) < X1_p(saturation_index) - 1.d0) then
+        max_gas_sat_outside_lim = X1_p(saturation_index) - 1.d0
+        max_gas_sat_outside_lim_cell = local_id
+      endif
+      if (X1_p(saturation_index) > 1.d0 + this%dsatlim) then  ! DEPLIMIT(1)
+        saturation_outside_limits = X1_p(saturation_index)
+      else 
+        if (X1_p(saturation_index) > 1.d0 + this%satlimit) then  ! SATLIMIT
+          force_another_iteration = PETSC_TRUE
+        endif
+        ! set saturation to one
+        X1_p(saturation_index) = 1.d0
+        dX_p(saturation_index) = X0_p(saturation_index) - 1.d0
+        dX_changed = PETSC_TRUE
+        X1_changed = PETSC_TRUE
+      endif
     endif
+    ! DPRELIM is designed to catch large negative values in liquid pressure
+    ! and cut the timestep if this occurs
+    if (X1_p(pressure_index) <= (this%dprelim)) then  ! DEPLIMIT(2)
+      pressure_outside_limits = X1_p(pressure_index)
+    endif
+
+    if (dabs(pressure_outside_limits) > 0.d0 .or. &
+        dabs(saturation_outside_limits) > 0.d0) then
+      cut_timestep = PETSC_TRUE
+      write(*,'(4x,"Outside Limits (PL,SG): ",i8,2es10.2)') local_id, &
+        pressure_outside_limits, saturation_outside_limits
+    endif
+
   enddo
 
   if (wippflo_debug_first_iteration) stop
@@ -1053,9 +1116,6 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     this%convergence_flags(MAX_CHANGE_GAS_SAT_NI) = max_gas_sat_change_NI_cell
   endif
   this%convergence_flags(MIN_LIQ_PRES) = min_liq_pressure_cell
-  if (min_gas_pressure < 0.d0) then
-    this%convergence_flags(MIN_GAS_PRES) = min_gas_pressure_cell
-  endif
   this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI) = max_liq_pres_rel_change
   this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_TS) = &
     max_rel_pressure_change_TS
@@ -1063,7 +1123,10 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   this%convergence_reals(MAX_CHANGE_GAS_SAT_NI) = max_gas_sat_change_NI
   this%convergence_reals(MAX_CHANGE_GAS_SAT_TS) = max_gas_sat_change_TS
   this%convergence_reals(MIN_LIQ_PRES) = min_liq_pressure
-  this%convergence_reals(MIN_GAS_PRES) = min_gas_pressure
+  this%convergence_reals(FORCE_ITERATION) = max_gas_sat_outside_lim
+  if (force_another_iteration) this%convergence_flags(FORCE_ITERATION) = &
+    max_gas_sat_outside_lim_cell
+  if (cut_timestep) this%convergence_flags(OUTSIDE_BOUNDS) = 1
 
   call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
@@ -1133,14 +1196,18 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
   PetscBool :: converged_gas_equation
   PetscReal :: max_liq_eq
   PetscReal :: max_gas_eq
+  PetscReal :: min_gas_pressure
   PetscInt :: max_liq_eq_cell
   PetscInt :: max_gas_eq_cell
+  PetscInt :: min_gas_pressure_cell
   PetscReal :: pflotran_to_bragflo(2)
   PetscReal :: bragflo_residual(2)
   PetscReal :: bragflo_accum(2)
   PetscInt :: istart, iend
-  PetscReal :: tempreal
-  PetscInt :: tempint
+  PetscReal :: tempreal3
+  PetscInt :: tempint3
+  PetscReal :: tempreal4
+  PetscInt :: tempint4
   PetscInt :: i
   PetscBool :: cell_id_match
   
@@ -1168,8 +1235,10 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
   converged_gas_equation = PETSC_TRUE
   max_liq_eq = 0.d0
   max_gas_eq = 0.d0
+  min_gas_pressure = 1.d20
   max_liq_eq_cell = 0
   max_gas_eq_cell = 0
+  min_gas_pressure_cell = 0
   do local_id = 1, grid%nlmax
     offset = (local_id-1)*option%nflowdof
     ghosted_id = grid%nL2G(local_id)
@@ -1208,10 +1277,18 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
           endif
         endif
       endif
-    endif
-    ! update outside to always record the maximum residual
-    if (dabs(max_liq_eq) < dabs(residual)) then
-      max_liq_eq = residual
+      ! update outside to always record the maximum residual
+      if (dabs(max_liq_eq) < dabs(residual)) then
+        if (wippflo_match_bragflo_output) then
+          if (dabs(residual) > this%liquid_equation_tolerance) then
+            max_liq_eq = abs_residual_over_accumulation
+          else
+            max_liq_eq = residual
+          endif
+        else
+          max_liq_eq = residual
+        endif
+      endif
     endif
 
     ! gas component equation
@@ -1226,15 +1303,27 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
           converged_gas_equation = PETSC_FALSE
           if (dabs(max_gas_eq) < dabs(residual)) then
             max_gas_eq_cell = local_id
-            max_gas_eq = residual
           endif
         endif
       endif
+      ! update outside to always record the maximum residual
+      if (dabs(max_gas_eq) < dabs(residual)) then
+        if (wippflo_match_bragflo_output) then
+          if (dabs(residual) > this%gas_equation_tolerance) then
+            max_gas_eq = abs_residual_over_accumulation
+          else
+            max_gas_eq = residual
+          endif
+        else
+          max_gas_eq = residual
+        endif
+      endif
     endif
-    ! update outside to always record the maximum residual
-    if (dabs(max_gas_eq) < dabs(residual)) then
-      max_gas_eq_cell = local_id
-      max_gas_eq = residual
+
+    ! gas pressure
+    if (wippflo_auxvars(0,ghosted_id)%pres(2) < min_gas_pressure) then
+      min_gas_pressure = wippflo_auxvars(0,ghosted_id)%pres(2)
+      min_gas_pressure_cell = local_id
     endif
   enddo
 
@@ -1244,8 +1333,12 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
   if (.not.converged_gas_equation) then
     this%convergence_flags(MAX_RES_GAS) = max_gas_eq_cell
   endif
+  if (min_gas_pressure < 0.d0) then
+    this%convergence_flags(MIN_GAS_PRES) = min_gas_pressure_cell
+  endif
   this%convergence_reals(MAX_RES_LIQ) = max_liq_eq
   this%convergence_reals(MAX_RES_GAS) = max_gas_eq
+  this%convergence_reals(MIN_GAS_PRES) = min_gas_pressure
 
   call MPI_Allreduce(MPI_IN_PLACE,this%convergence_flags,ELEVEN_INTEGER_MPI, &
                      MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
@@ -1350,27 +1443,37 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
   if (OptionPrintToScreen(option)) then
     !TODO(geh): add the option to report only violated tolerances, zeroing
     !           the others.
-    tempreal = this%convergence_reals(MAX_CHANGE_GAS_SAT_NI)
-    tempint = this%convergence_flags(MAX_CHANGE_GAS_SAT_NI)
+    tempreal3 = this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI)
+    tempint3 = this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI)
+    tempreal4 = this%convergence_reals(MAX_CHANGE_GAS_SAT_NI)
+    tempint4 = this%convergence_flags(MAX_CHANGE_GAS_SAT_NI)
+    if (this%convergence_flags(MIN_GAS_PRES) > 0) then
+      tempreal3 = this%convergence_reals(MIN_GAS_PRES)
+      tempint3 = this%convergence_flags(MIN_GAS_PRES)
+      reason_string(6:6) = 'N'
+    endif
     if (this%convergence_flags(FORCE_ITERATION) > 0) then
-      tempreal = this%convergence_reals(FORCE_ITERATION)
-      tempint = this%convergence_flags(FORCE_ITERATION)
+      tempreal4 = this%convergence_reals(FORCE_ITERATION)
+      tempint4 = this%convergence_flags(FORCE_ITERATION)
+      reason_string(7:7) = '!'
+    endif
+    if (this%convergence_flags(OUTSIDE_BOUNDS) > 0) then
+      ! just overwrite the character, the flag/real matches FORCE_ITERATION
+      reason_string(7:7) = 'B'
     endif
     if (option%mycommsize > 1) then
       write(*,'(4x,"Rsn: ",a10,4es10.2)') reason_string, &
         this%convergence_reals(MAX_RES_LIQ), &
         this%convergence_reals(MAX_RES_GAS), &
-        this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI), &
-        tempreal
+        tempreal3, tempreal4
     else
       write(*,'(4x,"Rsn: ",a10,4(i5,es10.2))') reason_string, &
         this%convergence_flags(MAX_RES_LIQ), &
         this%convergence_reals(MAX_RES_LIQ), &
         this%convergence_flags(MAX_RES_GAS), &
         this%convergence_reals(MAX_RES_GAS), &
-        this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI), &
-        this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI), &
-        tempint, tempreal
+        tempint3, tempreal3, &
+        tempint4, tempreal4
 ! for debugging
 #if 0
       local_id = min_gas_pressure_cell
@@ -1406,11 +1509,27 @@ subroutine PMWIPPFloTimeCut(this)
 
   use WIPP_Flow_module, only : WIPPFloTimeCut
   use WIPP_Flow_Aux_module, only : wippflo_prev_liq_res_cell, &
-                                   wippflo_print_oscillatory_behavior
+                                   wippflo_print_oscillatory_behavior, &
+                                   wippflo_match_bragflo_output
 
   implicit none
   
   class(pm_wippflo_type) :: this
+
+  if (wippflo_match_bragflo_output) then
+    write(*,'(5x,"SPGL: ",4(i5,es11.3))') &
+      this%convergence_flags(MAX_CHANGE_GAS_SAT_NI), &
+      dabs(this%convergence_reals(MAX_CHANGE_GAS_SAT_NI)*10.d0**this%eps_sat), &
+      this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI), &
+      dabs(this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI)/ &
+           this%liquid_pressure_tolerance), &
+      this%convergence_flags(MAX_RES_GAS), &
+      dabs(this%convergence_reals(MAX_RES_GAS)/ &
+           this%gas_equation_tolerance), &
+      this%convergence_flags(MAX_RES_LIQ), &
+      dabs(this%convergence_reals(MAX_RES_LIQ)/ &
+           this%liquid_equation_tolerance)
+  endif
   
   call PMSubsurfaceFlowTimeCut(this)
   call WIPPFloTimeCut(this%realization)

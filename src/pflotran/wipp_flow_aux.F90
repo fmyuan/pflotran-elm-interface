@@ -22,6 +22,8 @@ module WIPP_Flow_Aux_module
   PetscBool, public :: wippflo_calc_bcflux = PETSC_TRUE
   PetscBool, public :: wippflo_calc_chem = PETSC_TRUE
 
+  PetscBool, public :: wippflo_match_bragflo_output = PETSC_FALSE
+
   PetscInt, public :: wippflo_prev_liq_res_cell(4) = 0
   PetscBool, public :: wippflo_check_oscillatory_behavior = PETSC_FALSE
   PetscBool, public :: wippflo_print_oscillatory_behavior = PETSC_FALSE
