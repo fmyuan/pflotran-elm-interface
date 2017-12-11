@@ -1004,7 +1004,8 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
                      wippflo_count_upwind_dir_flip, &
                      PETSC_FALSE)
     if (wippflo_jacobian_test) then
-      if (idof == 2-mod(wippflo_jacobian_test_xdof,2)) then
+      if (wippflo_jacobian_test_xdof > 0 .and. &
+          idof == 2-mod(wippflo_jacobian_test_xdof,2)) then
         print *, 'res_pert_up: ', res_pert
       endif
     endif
@@ -1029,7 +1030,8 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
                      wippflo_count_upwind_dir_flip, &
                      PETSC_FALSE)
     if (wippflo_jacobian_test) then
-      if (idof == 2-mod(wippflo_jacobian_test_xdof,2)) then
+      if (wippflo_jacobian_test_xdof > 0 .and. &
+          idof == 2-mod(wippflo_jacobian_test_xdof,2)) then
         print *, 'res_pert_dn: ', res_pert
       endif
     endif

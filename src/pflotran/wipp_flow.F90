@@ -1029,11 +1029,13 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
 
       if (wippflo_jacobian_test) then
-        !if (.not.(ghosted_id_up == &
+        !if (wippflo_jacobian_test_rdof > 0 .and. &
+        !    .not.(ghosted_id_up == &
         !          int((wippflo_jacobian_test_rdof+1)/2) .and. &
         !          ghosted_id_dn == &
         !          int((wippflo_jacobian_test_rdof+1)/2))) cycle
-        if (.not.(ghosted_id_up == &
+        if (wippflo_jacobian_test_rdof > 0 .and. &
+            .not.(ghosted_id_up == &
                   int((wippflo_jacobian_test_rdof+1)/2) .or. &
                   ghosted_id_dn == &
                   int((wippflo_jacobian_test_rdof+1)/2))) cycle
@@ -1414,11 +1416,13 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
                               
       if (wippflo_jacobian_test) then
-        !if (.not.(ghosted_id_up == &
+        !if (wippflo_jacobian_test_rdof > 0 .and. &
+        !   .not.(ghosted_id_up == &
         !          int((wippflo_jacobian_test_rdof+1)/2) .and. &
         !          ghosted_id_dn == &
         !          int((wippflo_jacobian_test_rdof+1)/2))) cycle
-        if (.not.(ghosted_id_up == &
+        if (wippflo_jacobian_test_rdof > 0 .and. &
+            .not.(ghosted_id_up == &
                   int((wippflo_jacobian_test_rdof+1)/2) .or. &
                   ghosted_id_dn == &
                   int((wippflo_jacobian_test_rdof+1)/2))) cycle
