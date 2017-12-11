@@ -247,6 +247,8 @@ module PM_WIPP_SrcSink_class
 ! inventory_name: name string of the waste panel's inventory object
 ! scaling_factor(:): [-] array of volume scaling factors for each grid cell
 !    in the waste panel region
+! calculate_chemistry(:): [-] array of logicals indicating whether 
+!    to calculate chemistry for a grid cell in the waste panel region
 ! gas_generation_rate(:): [mol-H2/m3-bulk/sec] array of the current gas 
 !    generation rate for each grid cell in the waste panel region
 ! brine_generation_rate(:): [mol-H2O/m3-bulk/sec] array of the current brine 
@@ -304,6 +306,7 @@ module PM_WIPP_SrcSink_class
     type(inventory_type) :: inventory
     character(len=MAXWORDLENGTH) :: inventory_name
     PetscReal, pointer :: scaling_factor(:)        
+    PetscBool, pointer :: calculate_chemistry(:)        
 
     PetscReal, pointer :: solids_production(:)  
     PetscReal, pointer :: gas_generation_rate(:) 
@@ -390,6 +393,8 @@ module PM_WIPP_SrcSink_class
 !    is contained in stoic_mat(3,5)
 ! output_start_time: [sec] the time when output *.pnl files are generated,
 !    with the default value set at 0.d0 sec
+! bh_material_names: names of borehole materials
+! bh_material_ids: [-] ids of borehole materials
 ! waste_panel_list: linked list of waste panel objects that make up a
 !    repository setting
 ! pre_inventory_list: linked list of pre-inventory objects
@@ -419,6 +424,8 @@ module PM_WIPP_SrcSink_class
     PetscReal, pointer :: srcsink_brine(:,:)
     PetscReal, pointer :: srcsink_gas(:,:)
     PetscInt, pointer :: srcsink2ghosted(:)
+    character(len=MAXWORDLENGTH), pointer :: bh_material_names(:)
+    PetscInt, pointer :: bh_material_ids(:)
     type(srcsink_panel_type), pointer :: waste_panel_list
     type(pre_inventory_type), pointer :: pre_inventory_list
     class(realization_subsurface_type), pointer :: realization
@@ -531,6 +538,7 @@ function PMWSSWastePanelCreate()
   nullify(panel%next)
   nullify(panel%region)
   nullify(panel%scaling_factor)
+  nullify(panel%calculate_chemistry)
   nullify(panel%solids_production)
   nullify(panel%gas_generation_rate)
   nullify(panel%brine_generation_rate)
@@ -812,6 +820,9 @@ subroutine PMWSSAssociateRegion(this,region_list)
                            trim(cur_waste_panel%region_name) // ' not found.'
         call printErrMsg(option)
       endif
+      allocate(cur_waste_panel%calculate_chemistry(cur_waste_panel%region% &
+                                                     num_cells))
+      cur_waste_panel%calculate_chemistry = PETSC_TRUE
     cur_waste_panel => cur_waste_panel%next
   enddo
   
@@ -1030,9 +1041,11 @@ subroutine PMWSSRead(this,input)
   PetscInt :: num_errors
   PetscInt :: rxn_num, spec_num
   PetscBool :: added
+  character(len=MAXWORDLENGTH) :: bh_materials(100)
 ! ----------------------------------------------------------------------------
   
   option => this%option
+  bh_materials = ''
   input%ierr = 0
   option%io_buffer = 'pflotran card:: WIPP_SOURCE_SINK'
   call printMsg(option)
@@ -1728,6 +1741,21 @@ subroutine PMWSSRead(this,input)
         endif
         nullify(new_inventory)
     !-----------------------------------------
+      case('BOREHOLE_MATERIALS')
+        error_string = trim(error_string) // ',BOREHOLE_MATERIALS'
+        spec_num = 0
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+          spec_num = spec_num + 1
+          call InputReadWord(input,option,bh_materials(spec_num),PETSC_TRUE)
+          call InputErrorMsg(input,option,'name',error_string)
+        enddo
+        allocate(this%bh_material_names(spec_num))
+        do spec_num = 1, size(this%bh_material_names)
+          this%bh_material_names(spec_num) = bh_materials(spec_num)
+        enddo
       case default
         call InputKeywordUnrecognized(word,'WIPP_SOURCE_SINK',option)
     !-----------------------------------------
@@ -2330,6 +2358,8 @@ subroutine PMWSSInitializeRun(this)
   use petscis
   use Data_Mediator_Vec_class
   use Realization_Base_class
+  use Material_module
+  use Option_module
   
   implicit none
   
@@ -2352,6 +2382,7 @@ subroutine PMWSSInitializeRun(this)
   PetscInt :: size_of_vec
   PetscInt :: local_id, ghosted_id
   type(srcsink_panel_type), pointer :: cur_waste_panel
+  type(material_property_type), pointer :: material_property
   PetscErrorCode :: ierr
 ! ----------------------------------------------------
 
@@ -2390,6 +2421,25 @@ subroutine PMWSSInitializeRun(this)
     cur_waste_panel => cur_waste_panel%next
   enddo
 
+  ! set borehole material ids
+  if (associated(this%bh_material_names)) then
+    allocate(this%bh_material_ids(size(this%bh_material_names)))
+    this%bh_material_ids = UNINITIALIZED_INTEGER
+    do p = 1, size(this%bh_material_names)
+      material_property => &
+        MaterialPropGetPtrFromList(this%bh_material_names(p), &
+                                   this%realization%patch%material_properties)
+      if (.not.associated(material_property)) then
+        this%option%io_buffer = 'Borehole material "' // &
+          trim(this%bh_material_names(p)) // &
+          '" not found among material properties.'
+        call printErrMsg(this%option)
+      endif
+      this%bh_material_ids(p) = material_property%internal_id
+      print *, this%bh_material_names(p), this%bh_material_ids(p)
+    enddo
+  endif
+
   ! write header in the *.pnl files
   call PMWSSOutputHeader(this)
   call PMWSSOutput(this)
@@ -2410,6 +2460,8 @@ subroutine PMWSSInitializeTimestep(this)
   ! Author: Jenn Frederick
   ! Date: 01/31/2017
   !
+  use Option_module
+  use Patch_module
   
   implicit none
 
@@ -2419,11 +2471,69 @@ subroutine PMWSSInitializeTimestep(this)
 ! -----------------------------------
   class(pm_wipp_srcsink_type) :: this
 ! -----------------------------------
+! LOCAL VARIABLES:
+! ================
+! cur_waste_panel: pointer to current waste panel object
+! bh_materials: list of borehole material ids
+! i: [-] looping index integer
+! k: [-] looping index integer
+! local_id: [-] non-ghosted id of cell
+! ghosted_id: [-] ghosted id of cell
+! patch: pointer to patch object
+! ----------------------------------------------------
+  type(srcsink_panel_type), pointer :: cur_waste_panel
+  PetscInt :: bh_materials(3) = [26,27,28]
+  PetscInt :: i
+  PetscInt :: k
+  PetscInt :: local_id
+  PetscInt :: ghosted_id
+  type(patch_type), pointer :: patch
+! ----------------------------------------------------
   PetscErrorCode :: ierr
 
   if (this%rate_update_frequency == LAG_TIMESTEP) then
     call PMWSSUpdateRates(this,PETSC_FALSE,ierr)
   endif
+
+  ! if materials have become borehole materials, reset concentrations to
+  ! zero
+  patch => this%realization%patch
+  cur_waste_panel => this%waste_panel_list
+  do
+    if (.not.associated(cur_waste_panel)) exit
+    do k = 1, cur_waste_panel%region%num_cells
+      if (.not.cur_waste_panel%calculate_chemistry(k)) cycle
+      local_id = cur_waste_panel%region%cell_ids(k)
+      ghosted_id = patch%grid%nL2G(local_id)
+      do i = 1, size(bh_materials)
+        if (patch%imat(ghosted_id) == bh_materials(i)) then
+          write(this%option%io_buffer,*) local_id
+          this%option%io_buffer = 'Chemistry zeroed at cell ' // &
+            trim(this%option%io_buffer) // ' due to borehole material.'
+          call printMsg(this%option)
+          cur_waste_panel%calculate_chemistry(k) = PETSC_FALSE
+          cur_waste_panel%inventory%Fe_s%current_conc_mol(k) = 0.d0
+          cur_waste_panel%inventory%Fe_s%current_conc_kg(k) = 0.d0
+          cur_waste_panel%inventory%FeOH2_s%current_conc_mol(k) = 0.d0
+          cur_waste_panel%inventory%FeOH2_s%current_conc_kg(k) = 0.d0
+          cur_waste_panel%inventory%BioDegs_s%current_conc_mol(k) = 0.d0
+          cur_waste_panel%inventory%BioDegs_s%current_conc_kg(k) = 0.d0
+          cur_waste_panel%inventory%FeS_s%current_conc_mol(k) = 0.d0
+          cur_waste_panel%inventory%FeS_s%current_conc_kg(k) = 0.d0
+          cur_waste_panel%inventory%MgO_s%current_conc_mol(k) = 0.d0
+          cur_waste_panel%inventory%MgO_s%current_conc_kg(k) = 0.d0
+          cur_waste_panel%inventory%MgOH2_s%current_conc_mol(k) = 0.d0
+          cur_waste_panel%inventory%MgOH2_s%current_conc_kg(k) = 0.d0
+          cur_waste_panel%inventory%Mg5CO34OH24H2_s%current_conc_mol(k) = 0.d0
+          cur_waste_panel%inventory%Mg5CO34OH24H2_s%current_conc_kg(k) = 0.d0
+          cur_waste_panel%inventory%MgCO3_s%current_conc_mol(k) = 0.d0
+          cur_waste_panel%inventory%MgCO3_s%current_conc_kg(k) = 0.d0
+          exit
+        endif
+      enddo
+    enddo
+    cur_waste_panel => cur_waste_panel%next
+  enddo
   
 end subroutine PMWSSInitializeTimestep
 
@@ -4029,6 +4139,8 @@ subroutine PMWSSStrip(this)
   
   call DeallocateArray(this%srcsink_brine)
   call DeallocateArray(this%srcsink_gas)
+  call DeallocateArray(this%bh_material_names)
+  call DeallocateArray(this%bh_material_ids)
 
 end subroutine PMWSSStrip
 
@@ -4055,6 +4167,7 @@ subroutine PMWSSDestroyPanel(waste_panel)
   if (.not.associated(waste_panel)) return
   call PMWSSInventoryDestroy(waste_panel%inventory)
   call DeallocateArray(waste_panel%scaling_factor)
+  call DeallocateArray(waste_panel%calculate_chemistry)
   call DeallocateArray(waste_panel%solids_production)
   call DeallocateArray(waste_panel%gas_generation_rate)
   call DeallocateArray(waste_panel%brine_generation_rate)
