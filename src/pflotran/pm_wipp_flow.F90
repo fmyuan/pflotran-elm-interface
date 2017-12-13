@@ -1439,15 +1439,15 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
         this%convergence_reals(MAX_NORMAL_RES_GAS), &
         tempint3, tempreal3, &
         tempint4, tempreal4
-! for debugging
-      local_id = min_gas_pressure_cell
-      offset = (local_id-1)*option%nflowdof
-      istart = offset + 1
-      iend = offset + option%nflowdof
-      ghosted_id = grid%nL2G(local_id)
-      write(*,'(4x,i5,3es11.3)') local_id, &
-        wippflo_auxvars(0,ghosted_id)%pres(1:2), &
-        wippflo_auxvars(0,ghosted_id)%pres(option%capillary_pressure_id)
+! for debugging minumum gas pressure cell
+!      local_id = min_gas_pressure_cell
+!      offset = (local_id-1)*option%nflowdof
+!      istart = offset + 1
+!      iend = offset + option%nflowdof
+!      ghosted_id = grid%nL2G(local_id)
+!      write(*,'(4x,i5,3es11.3)') local_id, &
+!        wippflo_auxvars(0,ghosted_id)%pres(1:2), &
+!        wippflo_auxvars(0,ghosted_id)%pres(option%capillary_pressure_id)
     endif
     if (wippflo_match_bragflo_output) then
       write(*,'(x,"GEHMAX(SPGL): ",4(i4,es11.3))') &

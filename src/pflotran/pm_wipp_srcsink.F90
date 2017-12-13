@@ -2509,7 +2509,8 @@ subroutine PMWSSInitializeTimestep(this)
         if (patch%imat(ghosted_id) == bh_materials(i)) then
           write(this%option%io_buffer,*) local_id
           this%option%io_buffer = 'Chemistry zeroed at cell ' // &
-            trim(this%option%io_buffer) // ' due to borehole material.'
+            trim(adjustl(this%option%io_buffer)) // &
+            ' due to borehole material.'
           call printMsg(this%option)
           cur_waste_panel%calculate_chemistry(k) = PETSC_FALSE
           cur_waste_panel%inventory%Fe_s%current_conc_mol(k) = 0.d0
