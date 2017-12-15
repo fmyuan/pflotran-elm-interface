@@ -38,6 +38,7 @@ module Timestepper_Base_class
     PetscReal :: dt_max
     PetscBool :: revert_dt
     PetscInt :: num_contig_revert_due_to_sync
+    PetscInt :: max_num_contig_revert
     
     PetscBool :: init_to_steady_state
     PetscBool :: run_as_steady_state
@@ -173,6 +174,7 @@ subroutine TimestepperBaseInit(this)
   nullify(this%prev_waypoint)
   this%revert_dt = PETSC_FALSE
   this%num_contig_revert_due_to_sync = 0
+  this%max_num_contig_revert = 2
   this%print_ekg = PETSC_FALSE
   
 end subroutine TimestepperBaseInit
@@ -265,6 +267,9 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
     case('MAX_TS_CUTS')
       call InputReadInt(input,option,this%max_time_step_cuts)
       call InputErrorMsg(input,option,'max_time_step_cuts','TIMESTEPPER')
+    case('MAX_NUM_CONTIGUOUS_REVERTS')
+      call InputReadInt(input,option,this%max_num_contig_revert)
+      call InputErrorMsg(input,option,'max_num_contig_reverts','TIMESTEPPER')
     case('TIMESTEP_REDUCTION_FACTOR')
       call InputReadDouble(input,option,this%time_step_reduction_factor)
       call InputErrorMsg(input,option,'timestep reduction factor','TIMESTEPPER')
@@ -380,11 +385,12 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   else
     ! If the maximum time step size decreased in the past step, need to set
     ! the time step size to the minimum of the this%prev_dt and 
-    ! this%dt_max.  However, if we have to revert twice in a row, throw 
-    ! away the old time step and move on.
-    if (this%revert_dt .and. &
-        this%num_contig_revert_due_to_sync < 2) then
-      this%dt = min(this%prev_dt,this%dt_max)
+    ! this%dt_max.  However, if we have to revert "max_num_contig_revert" 
+    ! times in a row, throw away the old time step and move on.
+    if (this%revert_dt) then
+      if (this%num_contig_revert_due_to_sync < this%max_num_contig_revert) then
+        this%dt = min(this%prev_dt,this%dt_max)
+      endif
     endif
   endif
   this%revert_dt = PETSC_FALSE ! reset back to false
