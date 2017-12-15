@@ -386,6 +386,11 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
     case('ICONVTEST')
       call InputReadInt(input,option,this%iconvtest)
       call InputDefaultMsg(input,option,'ICONVTEST')
+    case('RESIDUAL_TEST')
+      wippflo_residual_test = PETSC_TRUE
+    case('RESIDUAL_TEST_CELL')
+      call InputReadInt(input,option,wippflo_residual_test_cell)
+      call InputErrorMsg(input,option,'residual test dof', error_string)
     case('JACOBIAN_TEST')
       wippflo_jacobian_test = PETSC_TRUE
     case('JACOBIAN_TEST_RDOF')
@@ -402,6 +407,12 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       wippflo_calc_bcflux = PETSC_FALSE
     case('NO_CHEMISTRY')
       wippflo_calc_chem = PETSC_FALSE
+    case('PRINT_RESIDUAL')
+      wippflo_print_residual = PETSC_TRUE
+    case('PRINT_SOLUTION')
+      wippflo_print_solution = PETSC_TRUE
+    case('PRINT_UPDATE')
+      wippflo_print_update = PETSC_TRUE
     case default
       found = PETSC_FALSE
   end select
@@ -866,6 +877,10 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscReal :: saturation_outside_limits
   PetscReal :: max_gas_sat_outside_lim
   PetscInt :: max_gas_sat_outside_lim_cell
+  PetscInt :: i
+  ! dX_p is subtracted to update the solution.  The max values need to be 
+  ! scaled by this delta_scale for proper screen output.
+  PetscReal, parameter :: delta_scale = -1.d0
   
   grid => this%realization%patch%grid
   option => this%realization%option
@@ -876,7 +891,21 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   X1_changed = PETSC_FALSE
   
   call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  if (wippflo_print_update) then
+    open(IUNIT_TEMP,file='pf_update.txt')
+    do i = 1, grid%nlmax*2
+      write(IUNIT_TEMP,'(1i5,es16.8)') i, dX_p(i)
+    enddo
+    close(IUNIT_TEMP)
+  endif
   call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
+  if (wippflo_print_solution) then
+    open(IUNIT_TEMP,file='pf_solution.txt')
+    do i = 1, grid%nlmax*2
+      write(IUNIT_TEMP,'(1i5,es16.8)') i, X0_p(i)
+    enddo
+    close(IUNIT_TEMP)
+  endif
   call VecGetArrayReadF90(X1,X1_p,ierr);CHKERRQ(ierr)
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
   call VecGetArrayReadF90(field%max_change_vecs(1),press_ptr,ierr);CHKERRQ(ierr)
@@ -918,7 +947,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       abs_dX_over_absX = dabs(dX_p(pressure_index))/abs_X
       if (dabs(max_liq_pres_rel_change) < abs_dX_over_absX) then
         max_liq_pres_rel_change_cell = local_id
-        max_liq_pres_rel_change = dX_p(pressure_index)/abs_X
+        max_liq_pres_rel_change = delta_scale*dX_p(pressure_index)/abs_X
       endif
       if (abs_dX_over_absX >= this%liquid_pressure_tolerance) then
         converged_liquid_pressure = PETSC_FALSE
@@ -928,15 +957,15 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     ! maximum absolute change in liquid pressure
     if (dabs(dX_p(pressure_index)) > dabs(max_abs_pressure_change_NI)) then
       max_abs_pressure_change_NI_cell = local_id
-      max_abs_pressure_change_NI = dX_p(pressure_index)
+      max_abs_pressure_change_NI = delta_scale*dX_p(pressure_index)
     endif
     
-    ! EPS_SAT maximum relative gas saturation change "digits of accuracy"
+    ! EPS_SAT maximum gas saturation change "digits of accuracy"
     abs_dX = dabs(dX_p(saturation_index))
     if (abs_dX > 0.d0) then
       if (dabs(max_gas_sat_change_NI) < abs_dX) then
         max_gas_sat_change_NI_cell = local_id
-        max_gas_sat_change_NI = dX_p(saturation_index)
+        max_gas_sat_change_NI = delta_scale*dX_p(saturation_index)
       endif
       !TODO(geh): change '<' to '<=' according to bragflo
       if ((-1.d0*log10(abs_dX)) < this%eps_sat) then
@@ -950,7 +979,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     if (abs_dX_TS > 0.d0) then
       if (dabs(max_gas_sat_change_TS) < abs_dX_TS) then
         max_gas_sat_change_TS_cell = local_id
-        max_gas_sat_change_TS = sat_ptr(local_id)-X1_p(saturation_index)
+        max_gas_sat_change_TS = delta_scale * & 
+          (sat_ptr(local_id)-X1_p(saturation_index))
       endif
     endif
     
@@ -959,7 +989,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     if (abs_dX_TS > 0.d0) then
       if (dabs(max_abs_pressure_change_TS) < abs_dX_TS) then
         max_abs_pressure_change_TS_cell = local_id
-        max_abs_pressure_change_TS = press_ptr(local_id)-X1_p(pressure_index)
+        max_abs_pressure_change_TS = delta_scale * &
+          (press_ptr(local_id)-X1_p(pressure_index))
       endif
     endif
     
@@ -970,7 +1001,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     if (abs_rel_dX_TS > 0.d0) then
       if (dabs(max_rel_pressure_change_TS) < abs_rel_dX_TS) then
         max_rel_pressure_change_TS_cell = local_id
-        max_rel_pressure_change_TS = &
+        max_rel_pressure_change_TS = delta_scale * &
           (press_ptr(local_id)-X1_p(pressure_index))/X1_p(pressure_index)
       endif
     endif
@@ -1169,6 +1200,13 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
     residual_vec = this%stored_residual_vec
   endif
   call VecGetArrayReadF90(residual_vec,r_p,ierr);CHKERRQ(ierr)
+  if (wippflo_print_residual) then
+    open(IUNIT_TEMP,file='pf_residual.txt')
+    do i = 1, grid%nlmax*2
+      write(IUNIT_TEMP,'(1i5,es16.8)') i, r_p(i)
+    enddo
+    close(IUNIT_TEMP)
+  endif
   call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
   converged_liquid_equation = PETSC_TRUE
@@ -1448,6 +1486,16 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
 !      write(*,'(4x,i5,3es11.3)') local_id, &
 !        wippflo_auxvars(0,ghosted_id)%pres(1:2), &
 !        wippflo_auxvars(0,ghosted_id)%pres(option%capillary_pressure_id)
+! for monitoring block
+!      local_id = wippflo_residual_test_cell
+!      offset = (local_id-1)*option%nflowdof
+!      istart = offset + 1
+!      iend = offset + option%nflowdof
+!      ghosted_id = grid%nL2G(local_id)
+!      write(*,'(2x,"MB: ",i5,3es12.4,1es15.7)') local_id, &
+!        wippflo_auxvars(0,ghosted_id)%pres(1:2), &
+!        wippflo_auxvars(0,ghosted_id)%pres(option%capillary_pressure_id), &
+!        wippflo_auxvars(0,ghosted_id)%sat(1)
     endif
     if (wippflo_match_bragflo_output) then
       write(*,'(x,"GEHMAX(SPGL): ",4(i4,es11.3))') &

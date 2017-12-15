@@ -13,6 +13,8 @@ module WIPP_Flow_Aux_module
   PetscReal, public :: wippflo_sat_min_pert = 1.d-10
   PetscReal, public :: wippflo_pres_min_pert = 1.d-2
 
+  PetscBool, public :: wippflo_residual_test = PETSC_FALSE
+  PetscInt, public :: wippflo_residual_test_cell = 0
   PetscBool, public :: wippflo_jacobian_test = PETSC_FALSE
   PetscInt, public :: wippflo_jacobian_test_xdof = 0
   PetscInt, public :: wippflo_jacobian_test_rdof = 0
@@ -27,6 +29,9 @@ module WIPP_Flow_Aux_module
   PetscInt, public :: wippflo_prev_liq_res_cell(4) = 0
   PetscBool, public :: wippflo_check_oscillatory_behavior = PETSC_FALSE
   PetscBool, public :: wippflo_print_oscillatory_behavior = PETSC_FALSE
+  PetscBool, public :: wippflo_print_residual = PETSC_FALSE
+  PetscBool, public :: wippflo_print_solution = PETSC_FALSE
+  PetscBool, public :: wippflo_print_update = PETSC_FALSE
 
   PetscBool, public :: wippflo_use_bragflo_units = PETSC_FALSE
   PetscBool, public :: wippflo_use_legacy_perturbation = PETSC_FALSE

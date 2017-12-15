@@ -139,6 +139,7 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
     endif
   endif
   
+  ! this scale by area
   area_up = wippflo_auxvar_up%alpha * area
   area_dn = wippflo_auxvar_dn%alpha * area
   area_ave = 0.5*(area_up+area_dn)
@@ -213,7 +214,20 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
   v_darcy(iphase) = wat_mole_flux / density_ave / area_ave
   Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
   if (debug_connection) then
-    write(*,'("liq-upwind,delta: ",l1,x,2es17.9)') upwind, delta_pressure, &
+!    write(*,'("liq-t1X: ",9es12.4)') &
+!      perm_rho_mu_area_ave_over_dist(iphase)*fmw_comp(iphase)* &
+!      (dist_up+dist_dn)/area!, &
+!      wippflo_auxvar_up%den(iphase)*fmw_comp(iphase), &
+!      wippflo_auxvar_up%mu(iphase), perm_up, &
+!      wippflo_auxvar_up%alpha, &
+!      wippflo_auxvar_dn%den(iphase)*fmw_comp(iphase), &
+!      wippflo_auxvar_dn%mu(iphase), perm_dn, &
+!      wippflo_auxvar_dn%alpha
+    write(*,'("liq-up,a1l,t1l,dp,t2l: ",l1,x,8es12.4)') upwind, &
+      1.d0/((dist_up+dist_dn)/area), &
+      perm_rho_mu_area_ave_over_dist(iphase)*fmw_comp(iphase)* &
+      (dist_up+dist_dn)/area, &
+      delta_pressure, &
       rel_perm
   endif
 
@@ -276,7 +290,11 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
   v_darcy(iphase) = air_mole_flux / density_ave / area_ave
   Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
   if (debug_connection) then
-    write(*,'("gas-upwind,delta: ",l1,x,2es17.9)') upwind, delta_pressure, &
+    write(*,'("gas-up,a1l,t1l,dp,t2l: ",l1,x,8es12.4)') upwind, &
+      1.d0/((dist_up+dist_dn)/area), &
+      perm_rho_mu_area_ave_over_dist(iphase)*fmw_comp(iphase)* &
+      (dist_up+dist_dn)/area, &
+      delta_pressure, &
       rel_perm
   endif
 

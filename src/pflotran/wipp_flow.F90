@@ -980,6 +980,14 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   if (wippflo_calc_accum) then
   call VecGetArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
   r_p = -accum_p
+  if (wippflo_residual_test .and. &
+      wippflo_residual_test_cell  > 0) then
+    local_end = wippflo_residual_test_cell * option%nflowdof
+    local_start = local_end - option%nflowdof + 1
+    write(*,'(" Aold: ",2es12.4,i4)') &
+      -1.d0*r_p(local_start:local_end)/option%flow_dt, &
+      wippflo_residual_test_cell
+  endif
   call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
   
   ! accumulation at t(k+1)
@@ -999,6 +1007,19 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
     call WIPPFloConvertUnitsToBRAGFlo(Res,material_auxvars(ghosted_id),option)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     accum_p2(local_start:local_end) = Res(:)
+    if (wippflo_residual_test .and. &
+        wippflo_residual_test_cell == local_id) then
+      write(*,'(" DT[y]: ",es12.4)') option%flow_dt/3600.d0/24.d0/365.d0
+      write(*,'(" A(calc): ",i4,8es12.4)') &
+        wippflo_residual_test_cell, &
+        wippflo_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity, &
+        wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(1), &
+        wippflo_auxvars(ZERO_INTEGER,ghosted_id)%sat(1), &
+        wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(2), &
+        wippflo_auxvars(ZERO_INTEGER,ghosted_id)%sat(2)
+      write(*,'(" A: ",2es12.4,i4)') &
+        Res(:)/option%flow_dt, wippflo_residual_test_cell
+    endif
   enddo
   call VecRestoreArrayReadF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
   else
@@ -1041,6 +1062,11 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                   int((wippflo_jacobian_test_rdof+1)/2))) cycle
       endif
       debug_connection = PETSC_FALSE
+      if (wippflo_residual_test .and. &
+          (wippflo_residual_test_cell == local_id_up .or. &
+           wippflo_residual_test_cell == local_id_dn)) then
+!        debug_connection = PETSC_TRUE
+      endif
       if (wippflo_print_oscillatory_behavior) then
         if (((wippflo_prev_liq_res_cell(1) == local_id_up .and. &
               wippflo_prev_liq_res_cell(2) == local_id_dn) .or. &
@@ -1083,8 +1109,16 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                                          material_auxvars(ghosted_id_up), &
                                          option)
         r_p(local_start:local_end) = r_p(local_start:local_end) + temp_Res(:)
-        if (wippflo_jacobian_test .and. wippflo_jacobian_test_rdof > 0) then
-          print *, 'Fup: ', temp_Res, local_id_up
+        if ((wippflo_jacobian_test .and. wippflo_jacobian_test_rdof > 0) .or. &
+            (wippflo_residual_test .and. &
+             wippflo_residual_test_cell  == local_id_up)) then
+          write(*,'(" Fup: ",2es12.4,2i4)') -1.d0*temp_Res/option%flow_dt, &
+            local_id_up, local_id_dn 
+!          write(*,'("      ",8es12.4)') cur_connection_set%area(iconn), &
+!            2.d0*(cur_connection_set%dist(0,iconn)* &
+!                  cur_connection_set%dist(-1,iconn)), &
+!            wippflo_auxvars(ZERO_INTEGER,ghosted_id_up)%alpha, &
+!            material_auxvars(ghosted_id_up)%volume
         endif
       endif
          
@@ -1096,8 +1130,16 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                                          material_auxvars(ghosted_id_dn), &
                                          option)
         r_p(local_start:local_end) = r_p(local_start:local_end) - temp_Res(:)
-        if (wippflo_jacobian_test .and. wippflo_jacobian_test_rdof > 0) then
-          print *, 'Fdn: ', -1.d0*temp_Res, local_id_dn
+        if ((wippflo_jacobian_test .and. wippflo_jacobian_test_rdof > 0) .or. &
+            (wippflo_residual_test .and. &
+             wippflo_residual_test_cell  == local_id_dn)) then
+          write(*,'(" Fdn: ",2es12.4,2i4)') temp_Res/option%flow_dt, &
+            local_id_up, local_id_dn
+!          write(*,'("      ",8es12.4)') cur_connection_set%area(iconn), &
+!            2.d0*(cur_connection_set%dist(0,iconn)* &
+!                  (1.d0-cur_connection_set%dist(-1,iconn))), &
+!            wippflo_auxvars(ZERO_INTEGER,ghosted_id_dn)%alpha, &
+!            material_auxvars(ghosted_id_dn)%volume
         endif
       endif
     enddo
@@ -1161,6 +1203,11 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                                        material_auxvars(ghosted_id), &
                                        option)
       r_p(local_start:local_end)= r_p(local_start:local_end) - Res(:)
+      if ((wippflo_jacobian_test .and. wippflo_jacobian_test_rdof > 0) .or. &
+          (wippflo_residual_test .and. &
+           wippflo_residual_test_cell  == local_id)) then
+        write(*,'(" BCF: ",2es12.4,i4 )') Res/option%flow_dt, local_id
+      endif
 
     enddo
     boundary_condition => boundary_condition%next
