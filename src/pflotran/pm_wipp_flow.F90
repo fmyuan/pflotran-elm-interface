@@ -1487,15 +1487,17 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
 !        wippflo_auxvars(0,ghosted_id)%pres(1:2), &
 !        wippflo_auxvars(0,ghosted_id)%pres(option%capillary_pressure_id)
 ! for monitoring block
-!      local_id = wippflo_residual_test_cell
-!      offset = (local_id-1)*option%nflowdof
-!      istart = offset + 1
-!      iend = offset + option%nflowdof
-!      ghosted_id = grid%nL2G(local_id)
-!      write(*,'(2x,"MB: ",i5,3es12.4,1es15.7)') local_id, &
-!        wippflo_auxvars(0,ghosted_id)%pres(1:2), &
-!        wippflo_auxvars(0,ghosted_id)%pres(option%capillary_pressure_id), &
-!        wippflo_auxvars(0,ghosted_id)%sat(1)
+      if (wippflo_residual_test_cell > 0) then
+        local_id = wippflo_residual_test_cell
+        offset = (local_id-1)*option%nflowdof
+        istart = offset + 1
+        iend = offset + option%nflowdof
+        ghosted_id = grid%nL2G(local_id)
+        write(*,'(2x,"MB: ",i5,3es12.4,1es15.7)') local_id, &
+          wippflo_auxvars(0,ghosted_id)%pres(1:2), &
+          wippflo_auxvars(0,ghosted_id)%pres(option%capillary_pressure_id), &
+          wippflo_auxvars(0,ghosted_id)%sat(1)
+      endif
     endif
     if (wippflo_match_bragflo_output) then
       write(*,'(x,"GEHMAX(SPGL): ",4(i4,es11.3))') &
