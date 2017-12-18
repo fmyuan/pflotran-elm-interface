@@ -1493,7 +1493,7 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
         istart = offset + 1
         iend = offset + option%nflowdof
         ghosted_id = grid%nL2G(local_id)
-        write(*,'(2x,"MB: ",i5,3es12.4,1es15.7)') local_id, &
+        write(*,'(2x,"GEH: ",i5,3es12.4,1es15.7)') local_id, &
           wippflo_auxvars(0,ghosted_id)%pres(1:2), &
           wippflo_auxvars(0,ghosted_id)%pres(option%capillary_pressure_id), &
           wippflo_auxvars(0,ghosted_id)%sat(1)

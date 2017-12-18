@@ -1065,7 +1065,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
       if (wippflo_residual_test .and. &
           (wippflo_residual_test_cell == local_id_up .or. &
            wippflo_residual_test_cell == local_id_dn)) then
-!        debug_connection = PETSC_TRUE
+        debug_connection = PETSC_TRUE
       endif
       if (wippflo_print_oscillatory_behavior) then
         if (((wippflo_prev_liq_res_cell(1) == local_id_up .and. &
