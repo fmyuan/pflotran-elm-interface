@@ -531,6 +531,9 @@ module Characteristic_Curves_module
   type, public :: characteristic_curves_ptr_type
     class(characteristic_curves_type), pointer :: ptr
   end type characteristic_curves_ptr_type 
+
+  public :: sat_func_base_type, &
+            rel_perm_func_base_type
   
   public :: CharacteristicCurvesCreate, &
             CharacteristicCurvesRead, &

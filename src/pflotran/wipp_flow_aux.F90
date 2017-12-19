@@ -23,6 +23,7 @@ module WIPP_Flow_Aux_module
   PetscInt, public :: wippflo_newton_iteration_number = 0
   PetscBool, public :: wippflo_use_fracture = PETSC_TRUE
   PetscBool, public :: wippflo_use_creep_closure = PETSC_TRUE
+  PetscBool, public :: wippflo_use_bragflo_cc = PETSC_FALSE
   !TODO(geh): hardwire gas to H2
   PetscReal, public :: fmw_comp(2) = [FMWH2O,2.01588d0]
   PetscReal, public :: wippflo_max_pressure_change = 5.d4
@@ -260,7 +261,8 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   use Klinkenberg_module
   use WIPP_module
   use Variables_module, only : SOIL_REFERENCE_PRESSURE
-  
+  use WIPP_Characteristic_Curve_module
+
   implicit none
 
   type(option_type) :: option
@@ -384,6 +386,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   ! in PROPS1 in BRAGFLO, fracture has no impact on PTHRESH perm. Thus, the
   ! permeability used in characteristic curves is unmodified.
   perm_for_cc = material_auxvar%permeability(perm_xx_index)
+  if (.not.wippflo_use_bragflo_cc) then
   select type(sf => characteristic_curves%saturation_function)
     class is(sat_func_WIPP_type)
       sf%pct = sf%pct_a * perm_for_cc ** sf%pct_exp
@@ -394,6 +397,13 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   call characteristic_curves%saturation_function% &
           CapillaryPressure(wippflo_auxvar%sat(lid),wippflo_auxvar%pres(cpid), &
                             dummy,option)                             
+  else
+  call WIPPCharacteristicCurves(wippflo_auxvar%sat,perm_for_cc, &
+                                characteristic_curves%saturation_function, &
+                                characteristic_curves%liq_rel_perm_function, &
+                                characteristic_curves%gas_rel_perm_function, &
+                                wippflo_auxvar%pres(cpid),krl,krg,option)
+  endif                                
  
   wippflo_auxvar%pres(gid) = wippflo_auxvar%pres(lid) + &
                              wippflo_auxvar%pres(cpid)
@@ -438,8 +448,10 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   den_water_vapor = 0.d0
   
   ! Liquid Phase
+  if (.not.wippflo_use_bragflo_cc) then
   call characteristic_curves%liq_rel_perm_function% &
           RelativePermeability(wippflo_auxvar%sat(lid),krl,dummy,option)
+  endif
   if (.not.option%flow%density_depends_on_salinity) then
     call EOSWaterViscosity(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
                            wippflo_auxvar%pres(spid),visl,ierr)
@@ -453,8 +465,10 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   wippflo_auxvar%mu(lid) = visl
 
   ! Gas Phase
+  if (.not.wippflo_use_bragflo_cc) then
   call characteristic_curves%gas_rel_perm_function% &
-          RelativePermeability(wippflo_auxvar%sat(lid),krg,dummy,option)                            
+          RelativePermeability(wippflo_auxvar%sat(lid),krg,dummy,option)
+  endif
   ! STOMP uses separate functions for calculating viscosity of vapor and
   ! and air (WATGSV,AIRGSV) and then uses GASVIS to calculate mixture 
   ! viscosity.

@@ -47,6 +47,8 @@ subroutine WIPPFloSetup(realization)
   use Grid_module
   use Material_Aux_class
   use Output_Aux_module
+  use Characteristic_Curves_module
+  use WIPP_Characteristic_Curve_module
  
   implicit none
   
@@ -71,6 +73,7 @@ subroutine WIPPFloSetup(realization)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
+  class(characteristic_curves_type), pointer :: cc
   
   option => realization%option
   patch => realization%patch
@@ -217,6 +220,16 @@ subroutine WIPPFloSetup(realization)
   gas_upwind_flip_count_by_jac = 0
   liq_bc_upwind_flip_count_by_jac = 0
   gas_bc_upwind_flip_count_by_jac = 0
+
+  if (wippflo_use_bragflo_cc) then
+    do i = 1, size(realization%patch%characteristic_curves_array)
+      cc => realization%patch%characteristic_curves_array(i)%ptr
+      call WIPPCCVerify(cc%saturation_function, &
+                        cc%liq_rel_perm_function, &
+                        cc%gas_rel_perm_function, &
+                        option)
+    enddo
+  endif
 
 end subroutine WIPPFloSetup
 
