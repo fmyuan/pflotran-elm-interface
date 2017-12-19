@@ -1314,6 +1314,10 @@ subroutine WIPPCCVerify(saturation_func, &
   PetscReal :: llamda
   PetscReal :: glamda
 
+  character(len=MAXWORDLENGTH) :: stype
+  character(len=MAXWORDLENGTH) :: ltype
+  character(len=MAXWORDLENGTH) :: gtype
+
   sswr = UNINITIALIZED_DOUBLE
   lswr = UNINITIALIZED_DOUBLE
   gswr = UNINITIALIZED_DOUBLE
@@ -1329,30 +1333,45 @@ subroutine WIPPCCVerify(saturation_func, &
       sswr = sat_func%Sr
       ssgr = sat_func%Srg
       slamda = sat_func%m
+      stype = ' sat_func_KRP1_type'
     class is (sat_func_KRP4_type)
       sswr = sat_func%Sr
       ssgr = sat_func%Srg
       slamda = sat_func%lambda
+      stype = ' sat_func_KRP4_type'
     class is (sat_func_KRP11_type)
       sswr = sat_func%Sr
+!      ssgr = sat_func%Srg
+!      slamda = sat_func%lambda
+      stype = ' sat_func_KRP11_type'
     class is (sat_func_KRP12_type)
       sswr = sat_func%Sr
+!      ssgr = sat_func%Srg
       slamda = sat_func%lambda
+      stype = ' sat_func_KRP12_type'
   end select
 
   select type(liq_rpf => liq_rel_perm_func)
     class is(rpf_KRP1_liq_type)
       lswr = liq_rpf%Sr
+      lsgr = liq_rpf%Srg
       llamda = liq_rpf%m
+      ltype = ' rpf_KRP1_liq_type'
     class is(rpf_KRP4_liq_type)
       lswr = liq_rpf%Sr
+      lsgr = liq_rpf%Srg
       llamda = liq_rpf%lambda
+      ltype = ' rpf_KRP4_liq_type'
     class is(rpf_KRP11_liq_type)
       lswr = liq_rpf%Sr
-      llamda = 0.d0
+      lsgr = liq_rpf%Srg
+!      llamda = liq_rpf%lambda
+      ltype = ' rpf_KRP11_liq_type'
     class is(rpf_KRP12_liq_type)
       lswr = liq_rpf%Sr
+      lsgr = liq_rpf%Srg
       llamda = liq_rpf%lambda
+      ltype = ' rpf_KRP12_liq_type'
   end select
 
   select type(gas_rpf => gas_rel_perm_func)
@@ -1360,32 +1379,46 @@ subroutine WIPPCCVerify(saturation_func, &
       gswr = gas_rpf%Sr
       gsgr = gas_rpf%Srg
       glamda = gas_rpf%m
+      gtype = ' rpf_KRP1_gas_type'
     class is(rpf_KRP4_gas_type)
       gswr = gas_rpf%Sr
       gsgr = gas_rpf%Srg
       glamda = gas_rpf%lambda
+      gtype = ' rpf_KRP4_gas_type'
     class is(rpf_KRP11_gas_type)
       gswr = gas_rpf%Sr
       gsgr = gas_rpf%Srg
+!      glamda = gas_rpf%lambda
+      gtype = ' rpf_KRP11_gas_type'
     class is(rpf_KRP12_gas_type)
       gswr = gas_rpf%Sr
       gsgr = gas_rpf%Srg
       glamda = gas_rpf%lambda
+      gtype = ' rpf_KRP12_gas_type'
   end select
 
   if (.not.Equal(sswr,lswr) .or. .not.Equal(lswr,gswr)) then
+    print *, 'sswr: ', sswr, stype
+    print *, 'lswr: ', lswr, ltype
+    print *, 'gswr: ', gswr, gtype
     option%io_buffer = 'Unequal liquid residual saturations.'
     call printErrMsg(option)
   endif
  
   if ((Initialized(ssgr) .and. .not.Equal(ssgr,lsgr)) .or. &
       .not.Equal(lsgr,gsgr)) then
+    print *, 'ssgr: ', ssgr, stype
+    print *, 'lsgr: ', lsgr, ltype
+    print *, 'gsgr: ', gsgr, gtype
     option%io_buffer = 'Unequal gas residual saturations.'
     call printErrMsg(option)
   endif
  
   if ((Initialized(slamda) .and. .not.Equal(slamda,llamda)) .or. &
       .not.Equal(llamda,glamda)) then
+    print *, 'slamda: ', slamda, stype
+    print *, 'llamda: ', llamda, ltype
+    print *, 'glamda: ', glamda, gtype
     option%io_buffer = 'Unequal lambdas.'
     call printErrMsg(option)
   endif
@@ -1424,7 +1457,7 @@ subroutine WIPPCharacteristicCurves(saturation, &
   PetscReal, parameter :: tolc = 1.d-2 ! read from input file below perms
   PetscReal, parameter :: soceffmin = 1.d-3 ! read from input file below perms
   PetscReal, parameter :: socmin = 1.5d-2 ! read from input file chemistry
-  PetscReal, parameter :: check_tolerance = 1.d-12
+  PetscReal, parameter :: check_tolerance = 1.d-4
   PetscReal :: sw
   PetscReal :: swr
   PetscReal :: sg
@@ -1462,7 +1495,13 @@ subroutine WIPPCharacteristicCurves(saturation, &
   PetscReal :: pc_check
   PetscReal :: krl_check
   PetscReal :: krg_check
-  PetscReal :: dummy
+  PetscReal :: tempreal
+
+  character(len=MAXWORDLENGTH) :: stype
+  character(len=MAXWORDLENGTH) :: ltype
+  character(len=MAXWORDLENGTH) :: gtype
+
+  PetscBool :: error
 
   PetscInt :: kpc
   PetscInt :: krp
@@ -1472,6 +1511,9 @@ subroutine WIPPCharacteristicCurves(saturation, &
 
   kpc = 0
   krp = 0
+  pcta = 0.d0
+  pctexp = 0.d0
+  pcmax = 0.d0
   select type(sat_func => saturation_func)
     class is (sat_func_WIPP_type)
       kpc = sat_func%kpc
@@ -1809,35 +1851,58 @@ subroutine WIPPCharacteristicCurves(saturation, &
       option%pct_updated = PETSC_FALSE
   end select
   call saturation_func%CapillaryPressure(saturation(LIQUID_PHASE),&
-                                             pc_check,dummy,option)
+                                             pc_check,tempreal,option)
   call liq_rel_perm_func% &
-          RelativePermeability(saturation(LIQUID_PHASE),krl_check,dummy,option)
+          RelativePermeability(saturation(LIQUID_PHASE),krl_check,tempreal, &
+                               option)
   call gas_rel_perm_func% &
-          RelativePermeability(saturation(LIQUID_PHASE),krg_check,dummy,option)
+          RelativePermeability(saturation(LIQUID_PHASE),krg_check,tempreal, &
+                               option)
 
+  error = PETSC_FALSE
   if (capillary_pressure > 0.d0) then
-    if (dabs((capillary_pressure-pc_check)/capillary_pressure) > &
-        check_tolerance) then
-      print *, capillary_pressure, pc_check
-      option%io_buffer = 'Outside bounds capillary pressure.' 
-      call printErrMsg(option)
+    tempreal = (capillary_pressure-pc_check)/capillary_pressure
+    if (dabs(tempreal) > check_tolerance .and. dabs(tempreal) < 1.d0) then
+      write(*,'("Outside(pc) : ",3es19.10e3)') &
+               capillary_pressure, pc_check, &
+               (capillary_pressure-pc_check)/capillary_pressure
+      if (pc_check > 1.d-99) then
+        error = PETSC_TRUE
+        print *, 'Outside bounds capillary pressure.'
+      endif
     endif 
   endif
   if (liq_rel_perm > 0.d0) then
-    if (dabs((krl_check-liq_rel_perm)/liq_rel_perm) > &
-        check_tolerance) then
-      print *, krl_check, liq_rel_perm
-      option%io_buffer = 'Outside bounds liquid relative permeability.'
-      call printErrMsg(option)
+    tempreal = (liq_rel_perm-krl_check)/liq_rel_perm
+    if (dabs(tempreal) > check_tolerance .and. dabs(tempreal) < 1.d0) then
+      write(*,'("Outside(krl): ",3es19.10e3)') &
+               liq_rel_perm, krl_check, &
+               (liq_rel_perm-krl_check)/liq_rel_perm
+      if (krl_check > 1.d-99) then
+        error = PETSC_TRUE
+        print *, 'Outside bounds liquid relative permeability.'
+      endif
     endif 
   endif
   if (gas_rel_perm > 0.d0) then
-    if (dabs((krg_check-gas_rel_perm)/gas_rel_perm) > &
-        check_tolerance) then
-      print *, krg_check, gas_rel_perm
-      option%io_buffer = 'Outside bounds gas relative permeability.'
-      call printErrMsg(option)
+    tempreal = (gas_rel_perm-krg_check)/gas_rel_perm
+    if (dabs(tempreal) > check_tolerance .and. dabs(tempreal) < 1.d0) then
+      write(*,'("Outside(krg): ",3es19.10e3)') &
+               gas_rel_perm, krg_check, &
+               (gas_rel_perm-krg_check)/gas_rel_perm
+      if (krg_check > 1.d-99) then
+        error = PETSC_TRUE
+        print *, 'Outside bounds gas relative permeability.'
+      endif
     endif 
+  endif
+
+  if (error) then
+    write(*,'(" kpc, krp: ",i4,i4)') kpc, krp
+    write(*,'(" lambda,swr,sgr,pcmax: ",8es13.5e3)') xlamda, swr, sgr, pcmax 
+    write(*,'(" satl,satg,perm: ",2es23.15e3,es13.5)') saturation(:), &
+      permeability
+!    stop
   endif
 
 end subroutine WIPPCharacteristicCurves

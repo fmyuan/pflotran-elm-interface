@@ -1152,9 +1152,9 @@ pm_wipp_flow.o : checkpoint.o convergence.o debug.o field.o global.o \
                  pm_subsurface_flow.o pm_wipp_srcsink.o realization_base.o \
                  realization_subsurface.o saturation_function.o string.o \
                  variables.o wipp_flow.o wipp_flow_aux.o wipp_flow_common.o
-pm_wipp_srcsink.o : data_mediator_vec.o eos_gas.o eos_water.o general_aux.o \
-                    global_aux.o grid.o input_aux.o material_aux.o option.o \
-                    output_aux.o pflotran_constants.o pm_base.o \
+pm_wipp_srcsink.o : data_mediator_vec.o eos_gas.o eos_water.o global_aux.o \
+                    grid.o input_aux.o material.o material_aux.o option.o \
+                    output_aux.o patch.o pflotran_constants.o pm_base.o \
                     realization_base.o realization_subsurface.o region.o \
                     string.o utility.o wipp_flow_aux.o
 pmc_auxiliary.o : option.o pflotran_constants.o pm_auxiliary.o pmc_base.o \
@@ -1525,15 +1525,15 @@ well_toil_ims.o : eos_oil.o eos_water.o option.o output_aux.o \
 well_water_injector.o : eos_water.o grid.o hydrostatic_common.o option.o \
                         output_aux.o pflotran_constants.o well_base.o \
                         well_flow.o well_flow_energy.o well_spec_base.o
-wipp.o : input_aux.o lookup_table.o material_aux.o option.o \
-         pflotran_constants.o string.o units.o utility.o
-wipp_flow.o : bragflo_common.o connection.o coupler.o discretization.o field.o \
-              general_aux.o global_aux.o grid.o material.o material_aux.o \
-              option.o output_aux.o patch.o pflotran_constants.o \
-              pm_wipp_srcsink.o realization_subsurface.o srcsink_sandbox.o \
-              srcsink_sandbox_base.o srcsink_sandbox_wipp_gas.o \
-              srcsink_sandbox_wipp_well.o variables.o wipp_flow_aux.o \
-              wipp_flow_common.o
+wipp.o : characteristic_curves.o input_aux.o lookup_table.o material_aux.o \
+         option.o pflotran_constants.o string.o units.o utility.o
+wipp_flow.o : bragflo_common.o characteristic_curves.o connection.o coupler.o \
+              discretization.o field.o general_aux.o global_aux.o grid.o \
+              material.o material_aux.o option.o output_aux.o patch.o \
+              pflotran_constants.o pm_wipp_srcsink.o realization_subsurface.o \
+              srcsink_sandbox.o srcsink_sandbox_base.o \
+              srcsink_sandbox_wipp_gas.o srcsink_sandbox_wipp_well.o \
+              variables.o wipp.o wipp_flow_aux.o wipp_flow_common.o
 wipp_flow_aux.o : characteristic_curves.o eos_gas.o eos_water.o global_aux.o \
                   material_aux.o option.o pflotran_constants.o utility.o \
                   variables.o wipp.o

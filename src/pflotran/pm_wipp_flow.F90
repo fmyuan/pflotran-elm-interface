@@ -327,6 +327,8 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       wippflo_debug_first_iteration = PETSC_TRUE
     case('DEBUG_OSCILLATORY_BEHAVIOR')
       wippflo_check_oscillatory_behavior = PETSC_TRUE
+    case('DEBUG_TS_UPDATE')
+      wippflo_debug_ts_update = PETSC_TRUE
     case('MATCH_BRAGFLO_OUTPUT')
       wippflo_match_bragflo_output = PETSC_TRUE
     case('USE_LEGACY_PERTURBATION')
@@ -631,6 +633,10 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   
   PetscReal :: dtime(2)
   type(field_type), pointer :: field
+
+  PetscReal :: dt_prev
+
+  dt_prev = dt
   
   ! calculate the time step ramping factor
   dtime(1) = (2.d0*this%satnorm)/(this%satnorm+this%max_saturation_change)
@@ -643,6 +649,12 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   ! do not use the PFLOTRAN dt_min as it will shut down the simulation from
   ! within timestepper_BE. use %deltmin, which is specific to bragflo.
   dt = max(dt,this%deltmin)
+
+  if (wippflo_debug_ts_update) then
+    if (minval(dtime(:)) < this%dtimemax .and. dt < dt_max) then
+      write(*,'(" scaled dt: ",2es13.5)') dtime(:)
+    endif
+  endif
 
   if (Initialized(this%cfl_governor)) then
     ! Since saturations are not stored in global_auxvar for wipp flow mode, we
@@ -1495,10 +1507,10 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
         istart = offset + 1
         iend = offset + option%nflowdof
         ghosted_id = grid%nL2G(local_id)
-        write(*,'(2x,"GEH: ",i5,3es12.4,1es15.7)') local_id, &
+        write(*,'(2x,"GEH: ",i5,3es12.4,2es12.4)') local_id, &
           wippflo_auxvars(0,ghosted_id)%pres(1:2), &
           wippflo_auxvars(0,ghosted_id)%pres(option%capillary_pressure_id), &
-          wippflo_auxvars(0,ghosted_id)%sat(1)
+          wippflo_auxvars(0,ghosted_id)%sat(:)
       endif
     endif
     if (wippflo_match_bragflo_output) then
