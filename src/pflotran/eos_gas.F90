@@ -1938,25 +1938,29 @@ subroutine EOSGasTest(temp_low,temp_high,pres_low,pres_high, &
 
   if (uniform_pres) then
     do ipres = 1, npres
-      pres(ipres) = (pres_high-pres_low)/dble(npres-1) * (ipres-1) + pres_low
+      pres(ipres) = &
+        (pres_high-pres_low)/max(dble(npres-1),1.d0) * (ipres-1) + pres_low
     enddo
   else
     ln_high = log(pres_high)
     ln_low = log(pres_low)
     do ipres = 1, npres
-      pres(ipres) = exp((ln_high-ln_low)/dble(npres-1) * (ipres-1) + ln_low)
+      pres(ipres) = &
+        exp((ln_high-ln_low)/max(dble(npres-1),1.d0) * (ipres-1) + ln_low)
     enddo
   endif
 
   if (uniform_temp) then
     do itemp = 1, ntemp
-      temp(itemp) = (temp_high-temp_low)/dble(ntemp-1) * (itemp-1) + temp_low
+      temp(itemp) = &
+        (temp_high-temp_low)/max(dble(ntemp-1),1.d0) * (itemp-1) + temp_low
     enddo
   else
     ln_high = log(temp_high)
     ln_low = log(temp_low)
     do itemp = 1, ntemp
-      temp(itemp) = exp((ln_high-ln_low)/dble(ntemp-1) * (itemp-1) + ln_low)
+      temp(itemp) = &
+        exp((ln_high-ln_low)/max(dble(ntemp-1),1.d0) * (itemp-1) + ln_low)
     enddo
   endif
 
