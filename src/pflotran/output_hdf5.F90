@@ -1314,8 +1314,13 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   endif
 
   ! create a group for the data set
-  write(string,'(''Time'',es13.5,x,a1)') &
-        option%time/output_option%tconv,output_option%tunit
+  if (output_option%extend_hdf5_time_format) then
+    write(string,'(''Time'',es20.12,x,a1)') &
+          option%time/output_option%tconv,output_option%tunit
+  else
+    write(string,'(''Time'',es13.5,x,a1)') &
+          option%time/output_option%tconv,output_option%tunit
+  endif
   if (len_trim(output_option%plot_name) > 2) then
     string = trim(string) // ' ' // output_option%plot_name
   endif
