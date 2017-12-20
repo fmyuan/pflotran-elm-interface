@@ -619,6 +619,7 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   use Field_module
   use Global_module, only : GlobalSetAuxVarVecLoc
   use Variables_module, only : LIQUID_SATURATION, GAS_SATURATION
+  use WIPP_Flow_Aux_module, only : wippflo_debug_ts_update
 
   implicit none
   
