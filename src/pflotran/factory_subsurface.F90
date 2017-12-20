@@ -2713,7 +2713,10 @@ subroutine SubsurfaceReadInput(simulation,input)
               aveg_energy_flowrate = PETSC_TRUE
             case ('HDF5_WRITE_GROUP_SIZE')
               call InputReadInt(input,option,option%hdf5_write_group_size)
-              call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
+              call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE', &
+                                 'Group size')
+            case('EXTEND_HDF5_TIME_FORMAT')
+              output_option%extend_hdf5_time_format = PETSC_TRUE
             case default
               call InputKeywordUnrecognized(word,'OUTPUT',option)
           end select
