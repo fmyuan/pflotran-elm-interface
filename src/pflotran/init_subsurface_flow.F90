@@ -27,14 +27,8 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   use Init_Common_module
   use Material_module
   
-  use Flash2_module
-  use Mphase_module
-  use Immis_module
-  use Miscible_module
   use Richards_module
   use TH_module
-  use General_module
-  use TOilIms_module
   use Condition_Control_module
   use co2_sw_module, only : init_span_wagner
   
@@ -61,29 +55,6 @@ subroutine InitSubsurfFlowSetupRealization(realization)
                            patch%characteristic_curves_array, &
                            realization%option)
         call RichardsSetup(realization)
-      case(MPH_MODE)
-        call init_span_wagner(option)      
-        call MphaseSetup(realization)
-      case(IMS_MODE)
-        call init_span_wagner(option)      
-        call ImmisSetup(realization)
-      case(MIS_MODE)
-        call MiscibleSetup(realization)
-      case(FLASH2_MODE)
-        call init_span_wagner(option)      
-        call Flash2Setup(realization)
-      case(G_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           patch%material_property_array, &
-                           patch%characteristic_curves_array, &
-                           realization%option)
-        call GeneralSetup(realization)
-      case(TOIL_IMS_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           patch%material_property_array, &
-                           patch%characteristic_curves_array, &
-                           realization%option)
-        call TOilImsSetup(realization)
     end select
   
     ! assign initial conditionsRealizAssignFlowInitCond
@@ -100,21 +71,6 @@ subroutine InitSubsurfFlowSetupRealization(realization)
         call THUpdateAuxVars(realization)
       case(RICHARDS_MODE)
         call RichardsUpdateAuxVars(realization)
-      case(MPH_MODE)
-        call MphaseUpdateAuxVars(realization)
-      case(IMS_MODE)
-        call ImmisUpdateAuxVars(realization)
-      case(MIS_MODE)
-        call MiscibleUpdateAuxVars(realization)
-      case(FLASH2_MODE)
-        call Flash2UpdateAuxVars(realization)
-      case(G_MODE)
-        !geh: cannot update state during initialization as the guess will be
-        !     assigned as the initial conditin if the state changes. therefore,
-        !     pass in PETSC_FALSE
-        call GeneralUpdateAuxVars(realization,PETSC_FALSE)
-      case(TOIL_IMS_MODE)
-        call TOilImsUpdateAuxVars(realization)
     end select
   else ! no flow mode specified
     if (len_trim(realization%nonuniform_velocity_filename) > 0) then
@@ -127,53 +83,8 @@ subroutine InitSubsurfFlowSetupRealization(realization)
 #endif
     endif
   endif  
-#ifdef WELL_CLASS
-  call AllWellsSetup(realization)
-#endif
   
 end subroutine InitSubsurfFlowSetupRealization
-
-! ************************************************************************** !
-#ifdef WELL_CLASS
-subroutine AllWellsSetup(realization)
-  ! 
-  ! Point well auxvars to the domain auxvars te wells belong to
-  ! does nothing if well are not defined
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 06/03/16
-  ! 
-  use Realization_Subsurface_class
-  use Coupler_module
-  use Well_module
-
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-  type(coupler_type), pointer :: source_sink
-  PetscInt :: cpl_idx_start
-
-  source_sink => realization%patch%source_sink_list%first
-
-  cpl_idx_start = 1
-  do
-    if (.not.associated(source_sink)) exit
-    if( associated(source_sink%well) ) then
-      !exclude empty wells - not included in well comms
-      if(source_sink%connection_set%num_connections > 0) then
-        source_sink%well%name = source_sink%name    
-        call WellAuxVarSetUp(source_sink%well,source_sink%connection_set, &
-                         source_sink%flow_condition,realization%patch%aux, &
-                         cpl_idx_start,realization%patch%ss_flow_vol_fluxes, &
-                         realization%option)
-      end if
-    end if
-    cpl_idx_start = cpl_idx_start + source_sink%connection_set%num_connections
-    source_sink => source_sink%next
-  end do
-
-end subroutine AllWellsSetup
-#endif
 
 ! ************************************************************************** !
 

@@ -8,13 +8,6 @@ module Hydrostatic_Common_module
 
 #include "petsc/finclude/petscsys.h"
 
-  ! commented out, use those defined in pflotran_constants
-  !LIQ = water to be consistent with the remainder fo the code
-  !PetscInt, parameter, public :: HYDRO_LIQ_PHASE = 1  
-  !PetscInt, parameter, public :: HYDRO_GAS_PHASE = 2
-  !PetscInt, parameter, public :: HYDRO_OIL_PHASE = 3 
-
-
   type, public :: one_dim_grid_type
     PetscReal :: delta_z
     PetscReal :: min_z
@@ -206,7 +199,6 @@ function PhaseDensity(iphase,p,t,xm_nacl)
   ! Date: 12/21/15
   ! 
 
-  use EOS_Oil_module
   use EOS_Water_module
   use EOS_Gas_module ! when gas is considered
 
@@ -231,9 +223,6 @@ function PhaseDensity(iphase,p,t,xm_nacl)
       !call EOSGasDensityNoDerive(t,p,PhaseDensity,ierr)
       ! rho_kg = rho * GAS_FMW (to get gas FMW currenlty mode specific)
       ! gas_fmw should be defined in gas_eos 
-    case(OIL_PHASE)
-      call EOSOilDensity(t,p,PhaseDensity,ierr)
-      PhaseDensity = PhaseDensity * EOSOilGetFMW() 
   end select
 
 end function PhaseDensity 

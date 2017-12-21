@@ -147,10 +147,11 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
     surf_realization%input => InputCreate(IN_UNIT,option%input_filename,option)
     surf_realization%subsurf_filename = &
       subsurf_realization%discretization%filename
+
     call SurfaceInitReadRequiredCards(simulation%surf_realization)
   
     call setSurfaceFlowMode(option)
-  
+
     if (associated(pm_surface_flow)) then
       pm_surface_flow%output_option => simulation%output_option
       pmc_surface => PMCSurfaceCreate()

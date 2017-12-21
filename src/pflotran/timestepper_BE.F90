@@ -43,7 +43,6 @@ module Timestepper_BE_class
 #endif
     procedure, public :: Reset => TimestepperBEReset
     procedure, public :: PrintInfo => TimestepperBEPrintInfo
-    procedure, public :: InputRecord => TimestepperBEInputRecord
     procedure, public :: FinalizeRun => TimestepperBEFinalizeRun
     procedure, public :: Strip => TimestepperBEStrip
     procedure, public :: Destroy => TimestepperBEDestroy
@@ -1168,35 +1167,6 @@ subroutine TimestepperBEPrintInfo(this,option)
   call SolverPrintLinearInfo(this%solver,this%name,option)
   
 end subroutine TimestepperBEPrintInfo
-
-! ************************************************************************** !
-
-subroutine TimestepperBEInputRecord(this)
-  ! 
-  ! Prints information about the time stepper to the input record.
-  ! To get a## format, must match that in simulation types.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 03/17/2016
-  ! 
-  
-  implicit none
-  
-  class(timestepper_BE_type) :: this
-
-  PetscInt :: id
-  character(len=MAXWORDLENGTH) :: word
-   
-  id = INPUT_RECORD_UNIT
-  
-  write(id,'(a29)',advance='no') 'pmc timestepper: '
-  write(id,'(a)') this%name
-
-  write(id,'(a29)',advance='no') 'initial timestep size: '
-  write(word,*) this%dt_init
-  write(id,'(a)') trim(adjustl(word)) // ' sec'
-
-end subroutine TimestepperBEInputRecord
 
 ! ************************************************************************** !
 

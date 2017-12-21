@@ -79,7 +79,6 @@ module Discretization_module
             DiscretizationGetDMPtrFromIndex, &
             DiscretizationUpdateTVDGhosts, &
             DiscretAOApplicationToPetsc, &
-            DiscretizationInputRecord, &
             DiscretizationPrintInfo
   
 contains
@@ -631,7 +630,7 @@ end subroutine DiscretizationRead
 ! ************************************************************************** !
 
 subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
-                                    o_nphase, o_ngeomechdof, o_n_stress_strain_dof, option)
+                                    o_nphase, o_n_stress_strain_dof, option)
 
   ! 
   ! creates distributed, parallel meshes/grids
@@ -652,7 +651,6 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
   PetscInt, intent(in) :: o_nflowdof
   PetscInt, intent(in) :: o_ntrandof
   PetscInt, intent(in) :: o_nphase
-  PetscInt, intent(in) :: o_ngeomechdof
   PetscInt, intent(in) :: o_n_stress_strain_dof
   type(option_type) :: option
       
@@ -719,13 +717,6 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
   if (o_ntrandof > 0) then
     ndof = o_ntrandof
     call DiscretizationCreateDM(discretization,discretization%dm_ntrandof, &
-                                ndof,discretization%stencil_width, &
-                                discretization%stencil_type,option)
-  endif
-
-  if (o_ngeomechdof > 0) then
-    ndof = o_n_stress_strain_dof
-    call DiscretizationCreateDM(discretization,discretization%dm_n_stress_strain_dof, &
                                 ndof,discretization%stencil_width, &
                                 discretization%stencil_type,option)
   endif
@@ -1547,86 +1538,6 @@ subroutine DiscretAOApplicationToPetsc(discretization,int_array)
   call AOApplicationToPetsc(ao,size(int_array),int_array,ierr);CHKERRQ(ierr)
   
 end subroutine DiscretAOApplicationToPetsc
-
-! **************************************************************************** !
-
-subroutine DiscretizationInputRecord(discretization)
-  ! 
-  ! Prints ingested grid/discretization information
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 03/30/2016
-  ! 
-
-  implicit none
-
-  type(discretization_type), pointer :: discretization
-
-  type(grid_type), pointer :: grid
-  character(len=MAXWORDLENGTH) :: word, word1, word2
-  PetscInt :: id = INPUT_RECORD_UNIT
-  character(len=10) :: Format, iFormat
-  
-  Format = '(ES14.7)'
-  iFormat = '(I10)'
-
-  grid => discretization%grid
-
-  write(id,'(a)') ' '
-  write(id,'(a)') ' '
-  write(id,'(a)') '---------------------------------------------------------&
-       &-----------------------'
-  write(id,'(a29)',advance='no') '---------------------------: '
-  write(id,'(a)') 'GRID'
-  write(id,'(a29)',advance='no') 'grid type: '
-  select case(grid%itype)
-    case(STRUCTURED_GRID)
-      write(id,'(a)') trim(grid%ctype)
-      write(id,'(a29)',advance='no') ': '
-      write(id,'(a)') trim(grid%structured_grid%ctype)
-      write(id,'(a29)',advance='no') 'number grid cells X: '
-      write(word,iFormat) grid%structured_grid%nx
-      write(id,'(a)') adjustl(trim(word)) 
-      write(id,'(a29)',advance='no') 'number grid cells Y: '
-      write(word,iFormat) grid%structured_grid%ny
-      write(id,'(a)') adjustl(trim(word)) 
-      write(id,'(a29)',advance='no') 'number grid cells Z: '
-      write(word,iFormat) grid%structured_grid%nz
-      write(id,'(a)') adjustl(trim(word)) 
-      write(id,'(a29)',advance='no') 'delta-X (m): '
-      write(id,'(1p10e12.4)') grid%structured_grid%dx_global
-      write(id,'(a29)',advance='no') 'delta-Y (m): '
-      write(id,'(1p10e12.4)') grid%structured_grid%dy_global
-      write(id,'(a29)',advance='no') 'delta-Z (m): '
-      write(id,'(1p10e12.4)') grid%structured_grid%dz_global
-      write(id,'(a29)',advance='no') 'bounds X: '
-      write(word1,Format) grid%structured_grid%bounds(X_DIRECTION,LOWER)
-      write(word2,Format) grid%structured_grid%bounds(X_DIRECTION,UPPER)
-      write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
-      write(id,'(a29)',advance='no') 'bounds Y: '
-      write(word1,Format) grid%structured_grid%bounds(Y_DIRECTION,LOWER)
-      write(word2,Format) grid%structured_grid%bounds(Y_DIRECTION,UPPER)
-      write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
-      write(id,'(a29)',advance='no') 'bounds Z: '
-      write(word1,Format) grid%structured_grid%bounds(Z_DIRECTION,LOWER)
-      write(word2,Format) grid%structured_grid%bounds(Z_DIRECTION,UPPER)
-      write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
-    case(EXPLICIT_UNSTRUCTURED_GRID,IMPLICIT_UNSTRUCTURED_GRID, &
-         POLYHEDRA_UNSTRUCTURED_GRID)
-      write(id,'(a)') trim(grid%ctype)
-  end select
-
-  write(id,'(a29)',advance='no') 'global origin: '
-  write(word,Format) discretization%origin_global(X_DIRECTION)
-  write(id,'(a)') '(x) ' // adjustl(trim(word)) // ' m'
-  write(id,'(a29)',advance='no') ': '
-  write(word,Format) discretization%origin_global(Y_DIRECTION)
-  write(id,'(a)') '(y) ' // adjustl(trim(word)) // ' m'
-  write(id,'(a29)',advance='no') ': '
-  write(word,Format) discretization%origin_global(Z_DIRECTION)
-  write(id,'(a)') '(z) ' // adjustl(trim(word)) // ' m'
-
-end subroutine DiscretizationInputRecord
 
 ! ************************************************************************** !
 

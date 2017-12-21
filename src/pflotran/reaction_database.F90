@@ -1768,15 +1768,6 @@ subroutine BasisInit(reaction,option)
                                   reaction%gas%acteqh2ostoich, &
                                   reaction%gas%acteqlogK, &
                                   reaction%gas%acteqlogKcoef)
-  if (option%nphase > 1 .and. reaction%gas%nactive_gas == 0 .and. &
-      (option%iflowmode == MPH_MODE .or. &
-       option%iflowmode == IMS_MODE .or. &
-       option%iflowmode == FLASH2_MODE)) then
-    option%io_buffer = 'An ACTIVE_GAS block must be specified in CHEMISTRY &
-      &to run a CO2 flow mode coupled with reactive transport.'
-    call printErrMsg(option)
-  endif
-  
   
   ! immobile species
   immobile%nimmobile = ImmobileGetCount(immobile)
@@ -3660,7 +3651,7 @@ subroutine BasisInit(reaction,option)
       endif
       
       do i = 1,reaction%eqcplxspecid(0,icplx)
-        temp_tin = reaction%eqcplxspecid(i,icplx)
+        temp_int = reaction%eqcplxspecid(i,icplx)
         write(86,'(f6.2,x,a,x)',advance='no') reaction%eqcplxstoich(i,icplx), &
                                    trim(reaction%primary_species_names(temp_int))
       enddo
@@ -3717,7 +3708,7 @@ subroutine BasisInit(reaction,option)
         write(86,'(f6.2," H2O ")',advance='no') mineral%kinmnrlh2ostoich(imnrl)
       endif
       do i = 1, mineral%kinmnrlspecid(0,imnrl)
-        temp_tin = mineral%kinmnrlspecid(i,imnrl)
+        temp_int = mineral%kinmnrlspecid(i,imnrl)
         write(86,'(f6.2,x,a,x)',advance='no') mineral%kinmnrlstoich(i,imnrl), &
                                    trim(reaction%primary_species_names(temp_int))
       enddo

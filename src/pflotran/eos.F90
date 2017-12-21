@@ -3,7 +3,6 @@ module EOS_module
   use PFLOTRAN_Constants_module
   use EOS_Water_module
   use EOS_Gas_module
-  use EOS_Oil_module 
   
   implicit none
 
@@ -12,9 +11,7 @@ module EOS_module
 #include "petsc/finclude/petscsys.h"
  
   public :: EOSInit, &
-            EOSRead, &
-            EOSInputRecord, &
-            AllEOSDBaseDestroy
+            EOSRead
 
 contains
 
@@ -26,7 +23,6 @@ subroutine EOSInit()
   
   call EOSWaterInit()
   call EOSGasInit()
-  call EOSOilInit()
   
 end subroutine EOSInit
 
@@ -436,272 +432,12 @@ subroutine EOSRead(input,option)
         endif
         call printErrMsg(option)
       endif
-    case('OIL')
-      do
-        call InputReadPflotranString(input,option)
-        if (InputCheckExit(input,option)) exit  
-        call InputReadWord(input,option,keyword,PETSC_TRUE)
-        call InputErrorMsg(input,option,'keyword','EOS,OIL')
-        call StringToUpper(keyword)   
-        select case(trim(keyword))
-          case('DATABASE') 
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'EOS,OIL','DATABASE filename')
-            call EOSOilSetEOSDBase(word,option)  
-          case('DENSITY') 
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'DENSITY','EOS,OIL')
-            call StringToUpper(word)   
-            select case(trim(word))
-              case('CONSTANT')
-                call InputReadDouble(input,option,tempreal)
-                call InputErrorMsg(input,option,'VALUE', &
-                                   'EOS,OIL,DENSITY,CONSTANT')
-                call InputReadAndConvertUnits(input,tempreal, &
-                                 'kg/m^3','EOS,OIL,DENSITY,CONSTANT',option)
-                call EOSOilSetDensityConstant(tempreal)
-              case('LINEAR','INVERSE_LINEAR')
-                select case(trim(word))
-                  case('LINEAR')
-                    call EOSOilSetDensityLinear()
-                  case('INVERSE_LINEAR')
-                    call EOSOilSetDensityInverseLinear()
-                end select
-                do
-                  call InputReadPflotranString(input,option)
-                  if (InputCheckExit(input,option)) exit  
-                  call InputReadWord(input,option,subkeyword,PETSC_TRUE)
-                  call InputErrorMsg(input,option,'subkeyword','EOS,OIL,VIS')
-                  call StringToUpper(subkeyword)   
-                  select case(subkeyword)
-                    case('REFERENCE_VALUE')
-                      call InputReadDouble(input,option,tempreal)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,DENSITY_LINEAR,REFERENCE_VALUE') 
-                      call EOSOilSetDenLinearRefDen(tempreal)
-                    case('PRES_REF_VALUE')
-                      call InputReadDouble(input,option,tempreal)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,DENSITY_LINEAR,PRES_REF_VALUE') 
-                      call EOSOilSetDenLinearRefPres(tempreal)
-                    case('TEMP_REF_VALUE')
-                      call InputReadDouble(input,option,tempreal)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,DENSITY_LINEAR,TEMP_REF_VALUE') 
-                      call EOSOilSetDenLinearRefTemp(tempreal)
-                    case('COMPRESS_COEFF')
-                      call InputReadDouble(input,option,tempreal)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,DENSITY_LINEAR,COMPRESS_COEFF') 
-                      call EOSOilSetDenLinearComprCoef(tempreal)
-                    case('THERMAL_EXPANSION_COEFF')
-                      call InputReadDouble(input,option,tempreal)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,DENSITY_LINEAR,THERMAL_EXPANSION_COEFF')
-                      call EOSOilSetDenLinearExpanCoef(tempreal)
-                    case default
-                      call InputKeywordUnrecognized(subkeyword, &
-                           'EOS,OIL,DENSITY_LINEAR',option)
-                  end select
-                end do
-              case('DATABASE')
-                call InputReadWord(input,option,word,PETSC_TRUE)
-                call InputErrorMsg(input,option,'EOS,OIL','DEN DBASE filename')
-                call EOSOilSetDenDBase(word,option)
-              case default
-                call InputKeywordUnrecognized(word,'EOS,OIL,DENSITY',option)
-            end select
-          case('ENTHALPY') 
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'ENTHALPY','EOS,OIL')
-            call StringToUpper(word)   
-            select case(trim(word))
-              case('CONSTANT')
-                call InputReadDouble(input,option,tempreal)
-                call InputErrorMsg(input,option,'VALUE', &
-                                   'EOS,OIL,ENTHALPY,CONSTANT')
-                call InputReadAndConvertUnits(input,tempreal, &
-                                  'J/kmol','EOS,OIL,ENTHALPY,CONSTANT',option)
-                call EOSOilSetEnthalpyConstant(tempreal)
-              case('LINEAR_TEMP')
-                call InputReadDouble(input,option,tempreal)
-                call InputErrorMsg(input,option,'VALUE', &
-                                   'EOS,OIL,ENTHALPY,LINEAR_TEMP')
-                call EOSOilSetEnthalpyLinearTemp(tempreal) 
-              case('QUADRATIC_TEMP')
-                call EOSOilSetEnthalpyQuadraticTemp()
-                do
-                  call InputReadPflotranString(input,option)
-                  if (InputCheckExit(input,option)) exit  
-                  call InputReadWord(input,option,subkeyword,PETSC_TRUE)
-                  call InputErrorMsg(input,option,'subkeyword',&
-                                     'EOS,OIL,ENTHALPY')
-                  call StringToUpper(subkeyword)   
-                  select case(subkeyword)
-                    case('TEMP_REF_VALUES')
-                      call InputReadDouble(input,option,tempreal)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,ENTHALPY_QUAD,TEMP_REF_VALUES_1') 
-                      call InputReadDouble(input,option,tempreal2)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,ENTHALPY_QUAD,TEMP_REF_VALUES_2') 
-                      call EOSOilSetEntQuadRefTemp(tempreal,tempreal2)
-                    case('TEMP_COEFFICIENTS')
-                      call InputReadDouble(input,option,tempreal)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,ENTHALPY_QUAD,TEMP_COEFF_1') 
-                      call InputReadDouble(input,option,tempreal2)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,ENTHALPY_QUAD,TEMP_COEFF_2') 
-                      call EOSOilSetEntQuadTempCoef(tempreal,tempreal2)
-                  end select
-                end do  
-              case('DATABASE')
-                call InputReadWord(input,option,word,PETSC_TRUE)
-                call InputErrorMsg(input,option,'EOS,OIL','ENT DBASE filename')
-                call EOSOilSetEntDBase(word,option)
-              case default
-                call InputKeywordUnrecognized(word,'EOS,OIL,ENTHALPY',option)
-            end select
-          case('VISCOSITY') 
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'VISCOSITY','EOS,OIL')
-            call StringToUpper(word)   
-            select case(trim(word))
-              case('CONSTANT')
-                call InputReadDouble(input,option,tempreal)
-                call InputErrorMsg(input,option,'VALUE', &
-                                   'EOS,OIL,VISCOSITY,CONSTANT')
-                call InputReadAndConvertUnits(input,tempreal, &
-                                 'Pa-s','EOS,OIL,VISCOSITY,CONSTANT',option)
-                call EOSOilSetViscosityConstant(tempreal)
-              case('QUADRATIC')
-                call EOSOilSetViscosityQuad()
-                do
-                  call InputReadPflotranString(input,option)
-                  if (InputCheckExit(input,option)) exit  
-                  call InputReadWord(input,option,subkeyword,PETSC_TRUE)
-                  call InputErrorMsg(input,option,'subkeyword','EOS,OIL,VIS')
-                  call StringToUpper(subkeyword)   
-                  select case(subkeyword)
-                    case('REFERENCE_VALUE')
-                      call InputReadDouble(input,option,tempreal)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,VISCOSITY_QUAD,REFERENCE_VALUE') 
-                      call EOSOilSetVisQuadRefVis(tempreal)
-                    case('PRES_REF_VALUES')
-                      call InputReadDouble(input,option,tempreal)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,VISCOSITY_QUAD,PRES_REF_VALUES_1') 
-                      call InputReadDouble(input,option,tempreal2)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,VISCOSITY_QUAD,PRES_REF_VALUES_2') 
-                      call EOSOilSetVisQuadRefPres(tempreal,tempreal2)
-                    case('TEMP_REF_VALUES')
-                      call InputReadDouble(input,option,tempreal)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,VISCOSITY_QUAD,TEMP_REF_VALUES_1') 
-                      call InputReadDouble(input,option,tempreal2)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,VISCOSITY_QUAD,TEMP_REF_VALUES_2') 
-                      call EOSOilSetVisQuadRefTemp(tempreal,tempreal2)
-                    case('PRES_COEFFICIENTS')
-                      call InputReadDouble(input,option,tempreal)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,VISCOSITY_QUAD,PRES_COEFF_1') 
-                      call InputReadDouble(input,option,tempreal2)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,VISCOSITY_QUAD,PRES_COEFF_2') 
-                      call EOSOilSetVisQuadPresCoef(tempreal,tempreal2)
-                    case('TEMP_COEFFICIENTS')
-                      call InputReadDouble(input,option,tempreal)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,VISCOSITY_QUAD,TEMP_COEFF_1') 
-                      call InputReadDouble(input,option,tempreal2)
-                      call InputErrorMsg(input,option,'VALUE', &
-                            'EOS,OIL,VISCOSITY_QUAD,TEMP_COEFF_2') 
-                      call EOSOilSetVisQuadTempCoef(tempreal,tempreal2)
-                    case default
-                      call InputKeywordUnrecognized(subkeyword, &
-                           'EOS,OIL, VISCOSITY_QUAD',option)
-                  end select
-                end do
-              case('DATABASE')
-                call InputReadWord(input,option,word,PETSC_TRUE)
-                call InputErrorMsg(input,option,'EOS,OIL','VIS DBASE filename')
-                call EOSOilSetVisDBase(word,option)
-              case default
-                call InputKeywordUnrecognized(word,'EOS,OIL,VISCOSITY',option)
-            end select
-          case('FORMULA_WEIGHT') 
-            call InputReadDouble(input,option,tempreal)
-            !call InputReadDouble(input,option,fmw_oil)
-            call InputErrorMsg(input,option,'VALUE','EOS,OIL,FORMULA_WEIGHT')
-            call InputReadAndConvertUnits(input,tempreal, &
-                             'g/mol','EOS,OIL,FORMULA_WEIGHT',option)
-            call EOSOilSetFMWConstant(tempreal)
-          case default
-            call InputKeywordUnrecognized(keyword,'EOS,OIL',option)
-        end select
-      enddo
-      ! need to add verifying function - follow EOSgas template 
-      string = ''
-      call EOSOilVerify(ierr,string)
-      if (ierr /= 0) then
-        option%io_buffer = 'Error in Oil EOS'    
-        if (len_trim(string) > 1) then
-          option%io_buffer = trim(option%io_buffer) // ': ' // trim(string)
-        endif
-        call printErrMsg(option)
-      endif
+
     case default
       call InputKeywordUnrecognized(keyword,'EOS',option)
   end select
   
 end subroutine EOSRead
-
-! **************************************************************************** !
-
-subroutine EOSInputRecord()
-  ! 
-  ! Prints ingested equation of state information to the input record file.
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 05/04/2016
-  ! 
-  use EOS_Water_module
-  use EOS_Gas_module
-  use EOS_Oil_module 
-  
-  implicit none
-  
-  PetscInt :: id = INPUT_RECORD_UNIT
-  
-  write(id,'(a)') ' '
-  write(id,'(a)') '---------------------------------------------------------&
-                  &-----------------------'
-  write(id,'(a29)',advance='no') '---------------------------: '
-  write(id,'(a)') 'EQUATIONS OF STATE (EOS)'
-
-  call EOSWaterInputRecord()
-  call EOSGasInputRecord()
-  call EOSOilInputRecord()
-  
-end subroutine EOSInputRecord
-
-! ************************************************************************** !
-
-subroutine AllEOSDBaseDestroy()
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 12/14/15
-  ! 
-
-  implicit none
-
-  call EOSOilDBaseDestroy()
-
-end subroutine AllEOSDBaseDestroy
 
 ! ************************************************************************** !
 

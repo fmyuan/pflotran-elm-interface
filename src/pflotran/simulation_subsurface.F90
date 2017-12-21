@@ -29,9 +29,6 @@ module Simulation_Subsurface_class
   contains
     procedure, public :: Init => SubsurfaceSimulationInit
     procedure, public :: JumpStart => SubsurfaceSimulationJumpStart
-    procedure, public :: InputRecord => SubsurfaceSimInputRecord
-!    procedure, public :: ExecuteRun
-!    procedure, public :: RunToTime
     procedure, public :: FinalizeRun => SubsurfaceFinalizeRun
     procedure, public :: Strip => SubsurfaceSimulationStrip
   end type simulation_subsurface_type
@@ -96,102 +93,6 @@ subroutine SubsurfaceSimulationInit(this,option)
   this%waypoint_list_subsurface => WaypointListCreate()
   
 end subroutine SubsurfaceSimulationInit
-
-! ************************************************************************** !
-
-subroutine SubsurfaceSimInputRecord(this)
-  ! 
-  ! Writes ingested information to the input record file.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 03/17/2016
-  ! 
-  use Option_module
-  use Output_module
-  use Discretization_module
-  use Reaction_Aux_module
-  use Region_module
-  use Strata_module
-  use Material_module
-  use Characteristic_Curves_module
-  use Patch_module
-  use Condition_module
-  use EOS_module
-  use Waypoint_module
-  
-  implicit none
-  
-  class(simulation_subsurface_type) :: this
-
-  character(len=MAXWORDLENGTH) :: word
-  PetscInt :: id = INPUT_RECORD_UNIT
-  
-  if (OptionPrintToScreen(this%option)) then
-    write (*,*) 'Printing input record file.'
-  endif
-  
-  write(id,'(a)') ' '
-  write(id,'(a)') '---------------------------------------------------------&
-                  &-----------------------'
-  write(id,'(a29)',advance='no') 'simulation type: '
-  write(id,'(a)') 'subsurface'
-  write(id,'(a29)',advance='no') 'flow mode: '
-  select case(this%realization%option%iflowmode)
-    case(MPH_MODE)
-      write(id,'(a)') 'multi-phase'
-    case(RICHARDS_MODE)
-      write(id,'(a)') 'richards'
-    case(IMS_MODE)
-      write(id,'(a)') 'immiscible'
-    case(FLASH2_MODE)
-      write(id,'(a)') 'flash2'
-    case(G_MODE)
-      write(id,'(a)') 'general'
-    case(MIS_MODE)
-      write(id,'(a)') 'miscible'
-    case(TH_MODE)
-      write(id,'(a)') 'thermo-hydro'
-    case(TOIL_IMS_MODE)
-      write(id,'(a)') 'thermal-oil-immiscible'
-  end select
-  
-  ! print time information
-  call WaypointInputRecord(this%output_option,this%waypoint_list_subsurface)
-
-  ! print output file information
-  call OutputInputRecord(this%output_option,this%waypoint_list_subsurface)
-
-  ! print grid/discretization information
-  call DiscretizationInputRecord(this%realization%discretization)
-
-  ! print region information
-  call RegionInputRecord(this%realization%patch%region_list)
-  
-  ! print strata information
-  call StrataInputRecord(this%realization%patch%strata_list)
-  
-  ! print material property information
-  call MaterialPropInputRecord(this%realization%material_properties)
-  
-  ! print characteristic curves information
-  call CharCurvesInputRecord(this%realization%patch%characteristic_curves)
-
-  ! print chemistry and reactive transport information
-  call ReactionInputRecord(this%realization%reaction)
-  
-  ! print coupler information (ICs, BCs, SSs)
-  call PatchCouplerInputRecord(this%realization%patch)
-  
-  ! print flow and trans condition information
-  call FlowCondInputRecord(this%realization%flow_conditions, &
-                           this%realization%option)
-  call TranCondInputRecord(this%realization%transport_conditions, &
-                           this%realization%option)
-                       
-  ! print equation of state (eos) information
-  call EOSInputRecord()
-
-end subroutine SubsurfaceSimInputRecord
 
 ! ************************************************************************** !
 
@@ -313,14 +214,6 @@ subroutine SubsurfaceSimulationJumpStart(this)
   if (associated(tran_timestepper)) &
     tran_timestepper%start_time_step = tran_timestepper%steps + 1
   
-  if (this%realization%debug%print_regions) then
-    call OutputPrintRegions(this%realization)
-  endif  
-
-  if (this%realization%debug%print_couplers) then
-    call OutputPrintCouplers(this%realization,ZERO_INTEGER)
-  endif  
-
 end subroutine SubsurfaceSimulationJumpStart
 
 ! ************************************************************************** !
@@ -336,8 +229,6 @@ subroutine SubsurfaceFinalizeRun(this)
   use Timestepper_BE_class
   use Reaction_Sandbox_module, only : RSandboxDestroy
   use SrcSink_Sandbox_module, only : SSSandboxDestroyList
-  use WIPP_module, only : WIPPDestroy
-  use Klinkenberg_module, only : KlinkenbergDestroy
   use CLM_Rxn_module, only : RCLMRxnDestroy
 
   implicit none
@@ -363,8 +254,6 @@ subroutine SubsurfaceFinalizeRun(this)
         flow_timestepper => ts
     end select
     call SSSandboxDestroyList()
-    call WIPPDestroy()
-    call KlinkenbergDestroy()
   endif
   if (associated(this%rt_process_model_coupler)) then
     select type(ts => this%rt_process_model_coupler%timestepper)

@@ -21,8 +21,7 @@ module PM_Auxiliary_class
   contains
     procedure, public :: Setup => PMAuxiliarySetup
     procedure, public :: InitializeRun => PMAuxiliaryInitializeRun
-    procedure, public :: InputRecord => PMAuxiliaryInputRecord
-    procedure, public :: Destroy => PMAuxiliaryDestroy
+     procedure, public :: Destroy => PMAuxiliaryDestroy
   end type pm_auxiliary_type
 
   type :: pm_auxiliary_salinity_type
@@ -47,7 +46,6 @@ module PM_Auxiliary_class
             PMAuxiliaryInit, &
             PMAuxiliaryCast, &
             PMAuxiliaryRead, &
-            PMAuxiliaryInputRecord, &
             PMAuxiliarySetFunctionPointer
   
 contains
@@ -367,31 +365,6 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
   enddo
   
 end subroutine PMAuxiliarySalinity
-
-! ************************************************************************** !
-
-subroutine PMAuxiliaryInputRecord(this)
-  ! 
-  ! Writes ingested information to the input record file.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 04/21/2016
-  ! 
-  
-  implicit none
-  
-  class(pm_auxiliary_type) :: this
-
-  character(len=MAXWORDLENGTH) :: word
-  PetscInt :: id
-
-  id = INPUT_RECORD_UNIT
-
-  write(id,'(a29)',advance='no') 'pm: '
-  write(id,'(a)') this%name
-
-end subroutine PMAuxiliaryInputRecord
-
 
 ! ************************************************************************** !
 

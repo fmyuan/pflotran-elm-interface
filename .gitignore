@@ -269,3 +269,4 @@ pflotran_provenance.F90
 libpflotran.a
 *.mod
 *.o
+pflotran

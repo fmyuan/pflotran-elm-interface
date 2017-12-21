@@ -44,18 +44,13 @@ module PM_Subsurface_Flow_class
     PetscReal :: pressure_change_limit
     PetscReal :: temperature_change_limit
   contains
-!geh: commented out subroutines can only be called externally
     procedure, public :: Setup => PMSubsurfaceFlowSetup
     procedure, public :: PMSubsurfaceFlowSetRealization
     procedure, public :: InitializeRun => PMSubsurfaceFlowInitializeRun
-!    procedure, public :: FinalizeRun => PMSubsurfaceFlowFinalizeRun
-!    procedure, public :: InitializeTimestep => PMSubsurfaceFlowInitializeTimestep
     procedure, public :: FinalizeTimestep => PMSubsurfaceFlowFinalizeTimestep
     procedure, public :: PreSolve => PMSubsurfaceFlowPreSolve
     procedure, public :: PostSolve => PMSubsurfaceFlowPostSolve
     procedure, public :: AcceptSolution => PMSubsurfaceFlowAcceptSolution
-!    procedure, public :: TimeCut => PMSubsurfaceFlowTimeCut
-!    procedure, public :: UpdateSolution => PMSubsurfaceFlowUpdateSolution
     procedure, public :: UpdateAuxVars => PMSubsurfaceFlowUpdateAuxVars
     procedure, public :: CheckpointBinary => PMSubsurfaceFlowCheckpointBinary
     procedure, public :: RestartBinary => PMSubsurfaceFlowRestartBinary
@@ -63,12 +58,6 @@ module PM_Subsurface_Flow_class
     procedure, public :: CheckpointHDF5 => PMSubsurfaceFlowCheckpointHDF5
     procedure, public :: RestartHDF5 => PMSubsurfaceFlowRestartHDF5
 #endif
-    procedure, public :: InputRecord => PMSubsurfaceFlowInputRecord
-#ifdef WELL_CLASS
-    procedure  :: AllWellsInit
-    procedure :: AllWellsUpdate
-#endif
-!    procedure, public :: Destroy => PMSubsurfaceFlowDestroy
   end type pm_subsurface_flow_type
   
   public :: PMSubsurfaceFlowCreate, &
@@ -331,52 +320,8 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   call this%PreSolve()
   call this%UpdateAuxVars()
   call this%UpdateSolution() 
-#ifdef WELL_CLASS
-  call this%AllWellsInit() !does nothing if no well exist
-#endif    
 end subroutine PMSubsurfaceFlowInitializeRun
 
-! ************************************************************************** !
-#ifdef WELL_CLASS
-subroutine AllWellsInit(this)
-  !
-  ! Initialise all wells - does nothing if no well exist
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 05/25/16
-
-  !use Well_Base_class
-  use Coupler_module
-  implicit none
-
-  class(pm_subsurface_flow_type) :: this
-
-  type(coupler_type), pointer :: source_sink
-
-  PetscMPIInt :: cur_w_myrank
-  character(len=MAXSTRINGLENGTH) :: wfile_name
-  PetscInt :: ierr 
-
-  source_sink => this%realization%patch%source_sink_list%first
-
-  do
-    if (.not.associated(source_sink)) exit
-    if (associated(source_sink%well) ) then
-      !exlude empty wells - not included in well comms
-      if (source_sink%connection_set%num_connections > 0) then
-
-        call source_sink%well%InitRun(this%realization%patch%grid, &
-                                this%realization%patch%aux%Material%auxvars, &
-                                this%realization%output_option, &
-                                this%realization%option)
-
-      end if
-    end if
-    source_sink => source_sink%next 
-  end do 
-
-end subroutine AllWellsInit
-#endif
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowInitializeTimestepA(this)
@@ -445,52 +390,8 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
       call RealizationUpdatePropertiesTS(this%realization)
     endif
   endif
-#ifdef WELL_CLASS
-  call this%AllWellsUpdate()
-#endif  
 end subroutine PMSubsurfaceFlowInitializeTimestepB
 
-! ************************************************************************** !
-#ifdef WELL_CLASS
-subroutine AllWellsUpdate(this)
-  !
-  ! Update all wells at the beginning of each time step
-  !  - is permeability changes updates well factor 
-  !  - update hydrostatic corrections
-  !  - 
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 06/06/16
-
-  use Coupler_module
-  implicit none
-
-  class(pm_subsurface_flow_type) :: this
-
-  type(coupler_type), pointer :: source_sink
-
-  PetscInt :: beg_cpl_conns, end_cpl_conns
-
-  source_sink => this%realization%patch%source_sink_list%first
-
-  beg_cpl_conns = 1
-  do
-    if (.not.associated(source_sink)) exit
-    if (associated(source_sink%well) ) then
-      !exlude empty wells - not included in well comms
-      if (source_sink%connection_set%num_connections > 0) then
-
-        call source_sink%well%InitTimeStep(this%realization%patch%grid, &
-                                this%realization%patch%aux%Material%auxvars, &
-                                this%realization%option)
-
-      end if
-    end if
-    source_sink => source_sink%next 
-  end do 
-
-end subroutine AllWellsUpdate
-#endif
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowPreSolve(this)
@@ -804,30 +705,6 @@ recursive subroutine PMSubsurfaceFlowFinalizeRun(this)
   endif  
   
 end subroutine PMSubsurfaceFlowFinalizeRun
-
-! ************************************************************************** !
-
-subroutine PMSubsurfaceFlowInputRecord(this)
-  ! 
-  ! Writes ingested information to the input record file.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 03/21/2016
-  ! 
-  
-  implicit none
-  
-  class(pm_subsurface_flow_type) :: this
-
-  character(len=MAXWORDLENGTH) :: word
-  PetscInt :: id
-
-  id = INPUT_RECORD_UNIT
-
-  write(id,'(a29)',advance='no') 'pm: '
-  write(id,'(a)') this%name
-
-end subroutine PMSubsurfaceFlowInputRecord
 
 ! ************************************************************************** !
 

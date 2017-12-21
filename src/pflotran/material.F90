@@ -4,7 +4,6 @@ module Material_module
 
   use PFLOTRAN_Constants_module
   use Material_Aux_class
-  use Fracture_module
 
   implicit none
 
@@ -38,8 +37,6 @@ module Material_module
     PetscReal :: thermal_conductivity_wet
     PetscReal :: alpha    ! conductivity saturation relation exponent
 
-    class(fracture_type), pointer :: fracture
-    
     character(len=MAXWORDLENGTH) :: soil_compressibility_function
     PetscReal :: soil_compressibility
     PetscReal :: soil_reference_pressure
@@ -110,8 +107,7 @@ module Material_module
             MaterialGetMaxExternalID, &
             MaterialCreateIntToExtMapping, &
             MaterialCreateExtToIntMapping, &
-            MaterialApplyMapping, &
-            MaterialPropInputRecord
+            MaterialApplyMapping
   
 contains
 
@@ -163,8 +159,6 @@ function MaterialPropertyCreate()
   material_property%thermal_conductivity_wet = UNINITIALIZED_DOUBLE
   material_property%alpha = 0.45d0
 
-  nullify(material_property%fracture)
-  
   material_property%soil_compressibility_function = ''
   material_property%soil_compressibility = UNINITIALIZED_DOUBLE
   material_property%soil_reference_pressure = UNINITIALIZED_DOUBLE
@@ -216,7 +210,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
-  use Fracture_module
   use Dataset_module
   
   implicit none
@@ -385,14 +378,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call DatasetReadDoubleOrDataset(input,material_property%tortuosity, &
                                         material_property%tortuosity_dataset, &
                                         'tortuosity','MATERIAL_PROPERTY',option)
-      case('WIPP-FRACTURE')
-        ! Calculates permeability and porosity induced by fracture,
-        ! which is described by pressure within certain range of pressure
-        ! BRAGFLO_6.02_UM Eq. (136)
-        ! 4.10 Pressure-Induced Fracture Treatment
-        material_property%fracture => FractureCreate()
-        call material_property%fracture%Read(input,option)
-        option%flow%transient_porosity = PETSC_TRUE
       case('PERMEABILITY')
         do
           call InputReadPflotranString(input,option)
@@ -726,7 +711,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   if (len_trim(material_property%soil_compressibility_function) > 0) then
     word = material_property%soil_compressibility_function
     select case(word)
-      case('BRAGFLO','WIPP')
+      case('BRAGFLO')
         if (soil_or_bulk_compressibility /= TMP_BULK_COMPRESSIBILITY) then
           option%io_buffer = 'A BULK_COMPRESSIBILITY should be entered &
             &instead of a SOIL_COMPRESSIBILITY in MATERIAL_PROPERTY "' // &
@@ -1290,7 +1275,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       call StringToUpper(material_property_ptrs(i)%ptr% &
                            soil_compressibility_function)
       select case(material_property_ptrs(i)%ptr%soil_compressibility_function)
-        case('BRAGFLO','WIPP')
+        case('BRAGFLO')
           MaterialCompressSoilPtrTmp => MaterialCompressSoilBRAGFLO
         case('LEIJNSE','DEFAULT')
           MaterialCompressSoilPtrTmp => MaterialCompressSoilLeijnse
@@ -1385,8 +1370,7 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
   !
   use Material_Aux_class
   use Option_module
-  use Fracture_module 
-  
+
   implicit none
   
   class(material_auxvar_type) :: material_auxvar
@@ -1397,11 +1381,7 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
     material_auxvar%soil_particle_density = &
       material_property%rock_density
   endif
-  
-  if (associated(material_property%fracture)) then
-    call FracturePropertytoAux(material_auxvar, material_property%fracture)
-  endif
-  
+
   if (soil_compressibility_index > 0) then
     material_auxvar%soil_properties(soil_compressibility_index) = &
       material_property%soil_compressibility
@@ -1882,187 +1862,6 @@ subroutine MaterialUpdatePorosity(Material,global_auxvars,porosity_loc)
   
 end subroutine MaterialUpdatePorosity
 
-! **************************************************************************** !
-
-subroutine MaterialPropInputRecord(material_property_list)
-  ! 
-  ! Prints ingested material property information to the input record file
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 04/08/2016
-  ! 
-
-  implicit none
-
-  type(material_property_type), pointer :: material_property_list
-  
-  type(material_property_type), pointer :: cur_matprop
-  character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: id = INPUT_RECORD_UNIT
-
-  write(id,'(a)') ' '
-  write(id,'(a)') '---------------------------------------------------------&
-                  &-----------------------'
-  write(id,'(a29)',advance='no') '---------------------------: '
-  write(id,'(a)') 'MATERIAL PROPERTIES'
-  
-  cur_matprop => material_property_list
-  do
-    if (.not.associated(cur_matprop)) exit
-    
-    write(id,'(a29)',advance='no') 'material property name: '
-    write(id,'(a)') adjustl(trim(cur_matprop%name))
-    
-    if (Initialized(cur_matprop%external_id)) then
-      write(id,'(a29)',advance='no') 'material id: '
-      write(word1,*) cur_matprop%external_id
-      write(id,'(a)') adjustl(trim(word1))
-    endif
-    
-    write(id,'(a29)',advance='no') 'material property is: '
-    if (cur_matprop%active) then
-      write(id,'(a)') 'active'
-    else
-      write(id,'(a)') 'inactive'
-    endif
-    
-    write(id,'(a29)',advance='no') 'permeability: '
-    if (associated(cur_matprop%permeability_dataset)) then
-      write(id,'(a)') cur_matprop%permeability_dataset%name
-      write(id,'(a29)',advance='no') 'from file: '
-      write(id,'(a)') cur_matprop%permeability_dataset%filename
-    else
-      if (cur_matprop%isotropic_permeability) then
-        write(id,'(a)') 'isotropic'
-      else      
-        write(id,'(a)') 'anisotropic'
-        if (Initialized(cur_matprop%vertical_anisotropy_ratio)) then
-          write(id,'(a29)',advance='no') 'vertical anisotropy ratio: '
-          write(word1,*) cur_matprop%vertical_anisotropy_ratio
-          write(id,'(a)') adjustl(trim(word1)) 
-        endif
-      endif
-      write(id,'(a29)',advance='no') 'k_xx: '
-      write(word1,*) cur_matprop%permeability(1,1)
-      write(id,'(a)') adjustl(trim(word1)) // ' m^2'
-      write(id,'(a29)',advance='no') 'k_yy: '
-      write(word1,*) cur_matprop%permeability(2,2)
-      write(id,'(a)') adjustl(trim(word1)) // ' m^2'
-      write(id,'(a29)',advance='no') 'k_zz: '
-      write(word1,*) cur_matprop%permeability(3,3)
-      write(id,'(a)') adjustl(trim(word1)) // ' m^2'
-    endif
-    if (cur_matprop%permeability_scaling_factor > 0.d0) then
-      write(id,'(a29)',advance='no') 'permeability scaling factor: '
-      write(word1,*) cur_matprop%permeability_scaling_factor
-      write(id,'(a)') adjustl(trim(word1)) 
-    endif
-    if (cur_matprop%permeability_pwr /= 1.d0) then
-      write(id,'(a29)',advance='no') 'permeability power: '
-      write(word1,*) cur_matprop%permeability_pwr
-      write(id,'(a)') adjustl(trim(word1))
-    endif
-    if (cur_matprop%permeability_crit_por > 0.d0) then
-      write(id,'(a29)',advance='no') 'permeability critical por.: '
-      write(word1,*) cur_matprop%permeability_crit_por
-      write(id,'(a)') adjustl(trim(word1))
-    endif
-    
-    write(id,'(a29)',advance='no') 'tortuosity: '
-    write(word1,*) cur_matprop%tortuosity
-    write(id,'(a)') adjustl(trim(word1))
-    
-    if (Initialized(cur_matprop%rock_density)) then
-      write(id,'(a29)',advance='no') 'rock density: '
-      write(word1,*) cur_matprop%rock_density
-      write(id,'(a)') adjustl(trim(word1)) // ' kg/m^3'
-    endif
-    
-    write(id,'(a29)',advance='no') 'porosity: '
-    if (associated(cur_matprop%porosity_dataset)) then
-      write(id,'(a)') adjustl(trim(cur_matprop%porosity_dataset%name))
-      write(id,'(a29)',advance='no') 'from file: '
-      write(id,'(a)') adjustl(trim(cur_matprop%porosity_dataset%filename))
-    else
-      write(word1,*) cur_matprop%porosity
-      write(id,'(a)') adjustl(trim(word1))
-    endif
-    
-    write(id,'(a29)',advance='no') 'tortuosity: '
-    if (associated(cur_matprop%tortuosity_dataset)) then
-      write(id,'(a)') adjustl(trim(cur_matprop%tortuosity_dataset%name))
-      write(id,'(a29)',advance='no') 'from file: '
-      write(id,'(a)') adjustl(trim(cur_matprop%tortuosity_dataset%filename))
-    else
-      write(word1,*) cur_matprop%tortuosity
-      write(id,'(a)') adjustl(trim(word1))
-    endif
-
-    if (Initialized(cur_matprop%specific_heat)) then
-      write(id,'(a29)',advance='no') 'specific heat capacity: '
-      write(word1,*) cur_matprop%specific_heat
-      write(id,'(a)') adjustl(trim(word1)) // ' J/kg-C'
-    endif
-    
-    if (Initialized(cur_matprop%thermal_conductivity_dry)) then
-      write(id,'(a29)',advance='no') 'dry th. conductivity: '
-      write(word1,*) cur_matprop%thermal_conductivity_dry
-      write(id,'(a)') adjustl(trim(word1)) // ' W/m-C'
-    endif
-    if (Initialized(cur_matprop%thermal_conductivity_wet)) then
-      write(id,'(a29)',advance='no') 'wet th. conductivity: '
-      write(word1,*) cur_matprop%thermal_conductivity_wet
-      write(id,'(a)') adjustl(trim(word1)) // ' W/m-C'
-    endif
-    if (cur_matprop%thermal_conductivity_frozen > 0.d0) then
-      write(id,'(a29)',advance='no') 'frozen th. conductivity: '
-      write(word1,*) cur_matprop%thermal_conductivity_frozen
-      write(id,'(a)') adjustl(trim(word1)) // ' W/m-C'
-    endif
-    
-    if (len_trim(cur_matprop%soil_compressibility_function) > 0) then
-      write(id,'(a29)',advance='no') 'soil compressibility func.: '
-      write(id,'(a)') adjustl(trim(cur_matprop%soil_compressibility_function)) 
-    endif
-    if (Initialized(cur_matprop%soil_compressibility)) then
-      write(id,'(a29)',advance='no') 'soil compressibility: '
-      write(word1,*) cur_matprop%soil_compressibility
-      write(id,'(a)') adjustl(trim(word1)) 
-    endif
-    if (Initialized(cur_matprop%soil_reference_pressure)) then
-      write(id,'(a29)',advance='no') 'soil reference pressure: '
-      write(word1,*) cur_matprop%soil_reference_pressure
-      write(id,'(a)') adjustl(trim(word1)) // ' Pa'
-    endif
-    if (cur_matprop%soil_reference_pressure_initial) then
-      write(id,'(a29)',advance='no') 'soil reference pressure: '
-      write(id,'(a)') 'initial cell pressure'
-    endif
-    
-    if (cur_matprop%dispersivity(1) > 0.d0 .or. &
-        cur_matprop%dispersivity(2) > 0.d0 .or. &
-        cur_matprop%dispersivity(3) > 0.d0) then
-      write(id,'(a29)',advance='no') 'longitudinal dispersivity: '
-      write(word1,*) cur_matprop%dispersivity(1)
-      write(id,'(a)') adjustl(trim(word1)) // ' m'
-      write(id,'(a29)',advance='no') 'transverse h dispersivity: '
-      write(word1,*) cur_matprop%dispersivity(2)
-      write(id,'(a)') adjustl(trim(word1)) // ' m'
-      write(id,'(a29)',advance='no') 'transverse v dispersivity: '
-      write(word1,*) cur_matprop%dispersivity(2)
-      write(id,'(a)') adjustl(trim(word1)) // ' m'
-    endif
-    
-    write(id,'(a29)',advance='no') 'cc / saturation function: '
-    write(id,'(a)') adjustl(trim(cur_matprop%saturation_function_name))
-    
-    write(id,'(a29)') '---------------------------: '
-    cur_matprop => cur_matprop%next
-  enddo
-  
-end subroutine MaterialPropInputRecord
-  
 ! ************************************************************************** !
 
 recursive subroutine MaterialPropertyDestroy(material_property)
@@ -2080,8 +1879,7 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   if (.not.associated(material_property)) return
   
   call MaterialPropertyDestroy(material_property%next)
-  call FractureDestroy(material_property%fracture)
-  
+
   ! simply nullify since the datasets reside in a list within realization
   nullify(material_property%permeability_dataset)
   nullify(material_property%permeability_dataset_y)

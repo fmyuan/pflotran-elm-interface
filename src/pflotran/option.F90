@@ -62,9 +62,7 @@ module Option_module
     PetscInt :: phase_map(3)
     PetscInt :: nflowdof
     PetscInt :: nflowspec
-    PetscInt :: nmechdof
     PetscInt :: nsec_cells
-    PetscInt :: nwells
     PetscBool :: use_th_freezing
 
     PetscBool :: surf_flow_on
@@ -79,13 +77,7 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: surf_initialize_flow_filename
     character(len=MAXSTRINGLENGTH) :: surf_restart_filename
 
-    PetscBool :: geomech_on
-    PetscBool :: geomech_initial
-    PetscInt :: ngeomechdof
     PetscInt :: n_stress_strain_dof
-    PetscReal :: geomech_time
-    PetscInt :: geomech_subsurf_coupling
-    PetscReal :: geomech_gravity(3)
     PetscBool :: sec_vars_update
     PetscInt :: air_pressure_id
     PetscInt :: capillary_pressure_id
@@ -93,7 +85,6 @@ module Option_module
     PetscInt :: saturation_pressure_id 
     PetscInt :: water_id  ! index of water component dof
     PetscInt :: air_id  ! index of air component dof
-    PetscInt :: oil_id  ! index of oil component dof
     PetscInt :: energy_id  ! index of energy dof
 
     PetscInt :: ntrandof
@@ -101,8 +92,6 @@ module Option_module
     PetscInt :: iflag
     PetscInt :: status
     PetscBool :: input_record
-    !geh: remove once legacy code is gone.
-!    PetscBool :: init_stage
     ! these flags are for printing outside of time step loop
     PetscBool :: print_to_screen
     PetscBool :: print_to_file
@@ -429,9 +418,7 @@ subroutine OptionInitRealization(option)
   option%flowmode = ""
   option%iflowmode = NULL_MODE
   option%nflowdof = 0
-  option%nmechdof = 0
   option%nsec_cells = 0
-  option%nwells = 0
   option%use_th_freezing = PETSC_FALSE
 
   option%nsurfflowdof = 0
@@ -447,14 +434,7 @@ subroutine OptionInitRealization(option)
   option%surf_restart_flag = PETSC_FALSE
   option%surf_restart_time = UNINITIALIZED_DOUBLE
 
-  option%geomech_on = PETSC_FALSE
-  option%geomech_initial = PETSC_FALSE
-  option%ngeomechdof = 0
   option%n_stress_strain_dof = 0
-  option%geomech_time = 0.d0
-  option%geomech_subsurf_coupling = 0 
-  option%geomech_gravity(:) = 0.d0
-  option%geomech_gravity(3) = -1.d0*EARTH_GRAVITY    ! m/s^2
 
   option%tranmode = ""
   option%itranmode = NULL_MODE

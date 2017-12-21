@@ -40,7 +40,6 @@ module PM_TH_class
     procedure, public :: UpdateAuxVars => PMTHUpdateAuxVars
     procedure, public :: MaxChange => PMTHMaxChange
     procedure, public :: ComputeMassBalance => PMTHComputeMassBalance
-    procedure, public :: InputRecord => PMTHInputRecord
     procedure, public :: Destroy => PMTHDestroy
   end type pm_th_type
   
@@ -406,7 +405,6 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   use Grid_module
   use Field_module
   use Option_module
-  use Saturation_Function_module
   use Patch_module
   use TH_Aux_module
   use Global_Aux_module
@@ -766,32 +764,6 @@ subroutine PMTHComputeMassBalance(this,mass_balance_array)
   call THComputeMassBalance(this%realization,mass_balance_array)
 
 end subroutine PMTHComputeMassBalance
-
-! ************************************************************************** !
-
-subroutine PMTHInputRecord(this)
-  ! 
-  ! Writes ingested information to the input record file.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 03/21/2016
-  ! 
-  
-  implicit none
-  
-  class(pm_th_type) :: this
-
-  character(len=MAXWORDLENGTH) :: word
-  PetscInt :: id
-
-  id = INPUT_RECORD_UNIT
-
-  write(id,'(a29)',advance='no') 'pm: '
-  write(id,'(a)') this%name
-  write(id,'(a29)',advance='no') 'mode: '
-  write(id,'(a)') 'thermo-hydro'
-
-end subroutine PMTHInputRecord
 
 ! ************************************************************************** !
 

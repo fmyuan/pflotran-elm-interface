@@ -27,7 +27,6 @@ module PM_Surface_Flow_class
     procedure, public :: Destroy => PMSurfaceFlowDestroy
     procedure, public :: RHSFunction => PMSurfaceFlowRHSFunction
     procedure, public :: UpdateAuxVars => PMSurfaceFlowUpdateAuxVars
-    procedure, public :: InputRecord => PMSurfaceFlowInputRecord
   end type pm_surface_flow_type
 
   public :: PMSurfaceFlowCreate, &
@@ -302,30 +301,6 @@ end subroutine PMSurfaceFlowUpdateAuxVars
 
 ! ************************************************************************** !
 
-subroutine PMSurfaceFlowInputRecord(this)
-  ! 
-  ! Writes ingested information to the input record file.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 03/21/2016
-  ! 
-  
-  implicit none
-  
-  class(pm_surface_flow_type) :: this
-
-  character(len=MAXWORDLENGTH) :: word
-  PetscInt :: id
-
-  id = INPUT_RECORD_UNIT
-
-  write(id,'(a29)',advance='no') 'pm: '
-  write(id,'(a)') this%name
-
-end subroutine PMSurfaceFlowInputRecord
-
-! ************************************************************************** !
-
 subroutine PMSurfaceFlowDestroy(this)
   ! 
   ! This routine
@@ -346,9 +321,6 @@ subroutine PMSurfaceFlowDestroy(this)
   call printMsg(this%option,'PMSurfaceFlowDestroy()')
 #endif
 
-#ifndef SIMPLIFY
-!  call SurfaceFlowDestroy(this%surf_realization)
-#endif
   call this%comm1%Destroy()
 
 end subroutine PMSurfaceFlowDestroy

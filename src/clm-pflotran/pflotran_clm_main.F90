@@ -103,7 +103,6 @@ contains
     use Multi_Simulation_module
     use Factory_PFLOTRAN_module
     use Factory_Subsurface_module
-    use Factory_Hydrogeophysics_module
     use PFLOTRAN_Constants_module
     use Output_Aux_module, only : INSTANTANEOUS_VARS
     use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
@@ -601,14 +600,11 @@ contains
     use Material_module
     use Material_Aux_class
 
-    !use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : simulation_subsurface_type
-    !use Realization_Base_class, only : realization_base_type
     use Realization_Subsurface_class, only : realization_subsurface_type
 
     use clm_pflotran_interface_data
     use Mapping_module
-    use Saturation_Function_module
 
     use Variables_module, only : VOLUME
 

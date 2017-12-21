@@ -32,7 +32,6 @@ module PM_Base_class
     procedure, public :: Setup => PMBaseSetup
     procedure, public :: Read => PMBaseRead
     procedure, public :: InitializeRun => PMBaseThisOnly
-    procedure, public :: InputRecord => PMBaseInputRecord
     procedure, public :: FinalizeRun => PMBaseThisOnly
     procedure, public :: Residual => PMBaseResidual
     procedure, public :: Jacobian => PMBaseJacobian
@@ -63,7 +62,6 @@ module PM_Base_class
   end type pm_base_header_type
     
   public :: PMBaseInit, &
-            PMBaseInputRecord, &
             PMBaseResidual, &
             PMBaseJacobian, &
             PMBaseRHSFunction
@@ -109,15 +107,6 @@ subroutine PMBaseSetup(this)
   print *, 'Must extend PMBaseSetup for: ' // trim(this%name)
   stop
 end subroutine PMBaseSetup
-
-! ************************************************************************** !
-
-subroutine PMBaseInputRecord(this)
-  implicit none
-  class(pm_base_type) :: this
-  print *, 'Must extend PMBaseInputRecord for: ' // trim(this%name)
-  stop
-end subroutine PMBaseInputRecord
 
 ! ************************************************************************** !
 

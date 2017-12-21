@@ -1321,44 +1321,6 @@ subroutine RTCalculateRHS_t1(realization)
     source_sink => source_sink%next
   enddo
 
-  ! CO2-specific
-  select case(option%iflowmode)
-    case(MPH_MODE,IMS_MODE,FLASH2_MODE)
-      source_sink => patch%source_sink_list%first 
-      do 
-        if (.not.associated(source_sink)) exit
-
-!geh begin change
-!geh        msrc(:) = source_sink%flow_condition%pressure%dataset%rarray(:)
-        msrc(:) = source_sink%flow_condition%rate%dataset%rarray(:)
-!geh end change
-        msrc(1) =  msrc(1) / FMWH2O*1D3
-        msrc(2) =  msrc(2) / FMWCO2*1D3
-        ! print *,'RT SC source'
-        do iconn = 1, cur_connection_set%num_connections      
-          local_id = cur_connection_set%id_dn(iconn)
-          ghosted_id = grid%nL2G(local_id)
-          Res=0D0
-          
-          if (patch%imat(ghosted_id) <= 0) cycle
-          
-          select case(source_sink%flow_condition%itype(1))
-            case(MASS_RATE_SS)
-              do ieqgas = 1, reaction%gas%npassive_gas
-                if (abs(reaction%species_idx%co2_gas_id) == ieqgas) then
-                  icomp = reaction%gas%paseqspecid(1,ieqgas)
-                  iendall = local_id*reaction%ncomp
-                  istartall = iendall-reaction%ncomp
-                  Res(icomp) = -msrc(2)
-                  rhs_p(istartall+icomp) = rhs_p(istartall+icomp) - Res(icomp)
-!                 print *,'RT SC source', ieqgas,icomp, res(icomp)  
-                endif 
-              enddo
-          end select 
-        enddo
-        source_sink => source_sink%next
-      enddo
-  end select
 #endif
 
   ! Restore vectors
@@ -2116,13 +2078,6 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   ! pass #2 for everything else
   call RTResidualNonFlux(snes,xx,r,realization,ierr)
 
-!#if 0
-  select case(realization%option%iflowmode)
-    case(MPH_MODE,FLASH2_MODE,IMS_MODE)
-      call RTResidualEquilibrateCO2(r,realization)
-  end select
-!#endif
-
   if (realization%debug%vecview_residual) then
     string = 'RTresidual'
     call DebugCreateViewer(realization%debug,string,option,viewer)
@@ -2557,12 +2512,6 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   endif
   
   max_phase = 1
-  if (reaction%gas%nactive_gas > 0 .and. &
-      .not.(option%iflowmode == MPH_MODE .or. &
-            option%iflowmode == IMS_MODE .or. &
-            option%iflowmode == FLASH2_MODE)) then
-    max_phase = 2
-  endif
   
   ! Get pointer to Vector data
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
@@ -2716,47 +2665,6 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
     source_sink => source_sink%next
   enddo
 
-  ! CO2-specific
-  select case(option%iflowmode)
-    case(MPH_MODE,IMS_MODE,FLASH2_MODE)
-      source_sink => patch%source_sink_list%first 
-      do 
-        if (.not.associated(source_sink)) exit
-
-        select case(source_sink%flow_condition%itype(1))
-          case(MASS_RATE_SS)
-            msrc(:) = source_sink%flow_condition%rate%dataset%rarray(:)
-          case default
-            msrc(:) = 0.d0
-        end select
-
-        msrc(1) =  msrc(1) / FMWH2O*1D3
-        msrc(2) =  msrc(2) / FMWCO2*1D3
-        ! print *,'RT SC source'
-        do iconn = 1, cur_connection_set%num_connections      
-          local_id = cur_connection_set%id_dn(iconn)
-          ghosted_id = grid%nL2G(local_id)
-          Res=0D0
-          
-          if (patch%imat(ghosted_id) <= 0) cycle
-          
-          select case(source_sink%flow_condition%itype(1))
-            case(MASS_RATE_SS)
-              do ieqgas = 1, reaction%gas%npassive_gas
-                if (abs(reaction%species_idx%co2_gas_id) == ieqgas) then
-                  icomp = reaction%gas%paseqspecid(1,ieqgas)
-                  iendall = local_id*reaction%ncomp
-                  istartall = iendall-reaction%ncomp
-                  Res(icomp) = -msrc(2)
-                  r_p(istartall+icomp) = r_p(istartall+icomp) + Res(icomp)
-!                 print *,'RT SC source', ieqgas,icomp, res(icomp)
-                endif 
-              enddo
-          end select 
-        enddo
-        source_sink => source_sink%next
-      enddo
-  end select
 #endif
 
 #if 1  
@@ -3007,13 +2915,6 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
   
   ! pass #2 for everything else
   call RTJacobianNonFlux(snes,xx,J,J,realization,ierr)
-
-!#if 0
-  select case(realization%option%iflowmode)
-    case(MPH_MODE,FLASH2_MODE,IMS_MODE)
-    call RTJacobianEquilibrateCO2(J,realization)
-  end select
-!#endif
 
   call PetscLogEventEnd(logging%event_rt_jacobian2,ierr);CHKERRQ(ierr)
     
@@ -3393,12 +3294,6 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   endif
 
   max_phase = 1
-  if (reaction%gas%nactive_gas > 0 .and. &
-      .not.(option%iflowmode == MPH_MODE .or. &
-            option%iflowmode == IMS_MODE .or. &
-            option%iflowmode == FLASH2_MODE)) then
-    max_phase = 2
-  endif
   vol_frac_prim = 1.d0
   
   if (.not.option%steady_state) then
@@ -3740,12 +3635,6 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
       call RActivityCoefficients(patch%aux%RT%auxvars(ghosted_id), &
                                  patch%aux%Global%auxvars(ghosted_id), &
                                  reaction,option)
-      if (option%iflowmode == MPH_MODE .or. &
-          option%iflowmode == FLASH2_MODE) then
-        call CO2AqActCoeff(patch%aux%RT%auxvars(ghosted_id), &
-                                 patch%aux%Global%auxvars(ghosted_id), &
-                                 reaction,option)
-      endif                           
     enddo
   endif
 
@@ -3766,12 +3655,6 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
                                    patch%aux%Global% &
                                      auxvars_bc(sum_connection), &
                                    reaction,option)
-        if (option%iflowmode == MPH_MODE .or. &
-            option%iflowmode == FLASH2_MODE) then
-          call CO2AqActCoeff(patch%aux%RT%auxvars_bc(sum_connection), &
-                             patch%aux%Global%auxvars_bc(sum_connection), &
-                             reaction,option) 
-        endif                           
       enddo ! iconn
       boundary_condition => boundary_condition%next
     enddo
@@ -3899,12 +3782,6 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
         call RActivityCoefficients(patch%aux%RT%auxvars(ghosted_id), &
                                    patch%aux%Global%auxvars(ghosted_id), &
                                    reaction,option)
-        if (option%iflowmode == MPH_MODE .or. &
-            option%iflowmode == FLASH2_MODE) then
-          call CO2AqActCoeff(patch%aux%RT%auxvars(ghosted_id), &
-                                   patch%aux%Global%auxvars(ghosted_id), &
-                                   reaction,option)
-        endif                           
       endif
       call RTAuxVarCompute(patch%aux%RT%auxvars(ghosted_id), &
                            patch%aux%Global%auxvars(ghosted_id), &
@@ -3986,8 +3863,8 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
         endif
 
 #ifdef XINGYUAN_BC
-  if (idof_aq_dataset > 0) then
-    call DatasetInterpolateReal(dataset, &
+        if (idof_aq_dataset > 0) then
+          call DatasetInterpolateReal(dataset, &
             grid%x(ghosted_id)- &
               boundary_condition%connection_set%dist(0,iconn)* &
               boundary_condition%connection_set%dist(1,iconn), &
@@ -3996,113 +3873,33 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
               boundary_condition%connection_set%dist(2,iconn), &
             0.d0, &  ! z
             option%tran_time,temp_real,option)
-!geh    work_p(local_id) = temp_real
-    boundary_condition%tran_condition%cur_constraint_coupler% &
-      aqueous_species%constraint_conc(idof_aq_dataset) = temp_real
-    if (first) patch%aux%RT%auxvars_bc(sum_connection)%pri_molal = basis_molarity_p
-    call ReactionEquilibrateConstraint( &
-        patch%aux%RT%auxvars_bc(sum_connection), &
-        patch%aux%Global%auxvars_bc(sum_connection),reaction, &
-        boundary_condition%tran_condition%cur_constraint_coupler%constraint_name, &
-        boundary_condition%tran_condition%cur_constraint_coupler%aqueous_species, &
-        boundary_condition%tran_condition%cur_constraint_coupler%free_ion_guess, &
-        boundary_condition%tran_condition%cur_constraint_coupler%minerals, &
-        boundary_condition%tran_condition%cur_constraint_coupler%surface_complexes, &
-        boundary_condition%tran_condition%cur_constraint_coupler%colloids, &
-        boundary_condition%tran_condition%cur_constraint_coupler%immobile_species, &
-        patch%aux%Material%auxvars(ghosted_id)%porosity, &
-        boundary_condition%tran_condition%cur_constraint_coupler%num_iterations, &
-        PETSC_TRUE,option)
-    basis_molarity_p => boundary_condition%tran_condition% &
-      cur_constraint_coupler%aqueous_species%basis_molarity 
-  endif
+!geh      work_p(local_id) = temp_real
+          boundary_condition%tran_condition%cur_constraint_coupler% &
+            aqueous_species%constraint_conc(idof_aq_dataset) = temp_real
+          if (first) patch%aux%RT%auxvars_bc(sum_connection)%pri_molal = basis_molarity_p
+          call ReactionEquilibrateConstraint( &
+            patch%aux%RT%auxvars_bc(sum_connection), &
+            patch%aux%Global%auxvars_bc(sum_connection),reaction, &
+            boundary_condition%tran_condition%cur_constraint_coupler%constraint_name, &
+            boundary_condition%tran_condition%cur_constraint_coupler%aqueous_species, &
+            boundary_condition%tran_condition%cur_constraint_coupler%free_ion_guess, &
+            boundary_condition%tran_condition%cur_constraint_coupler%minerals, &
+            boundary_condition%tran_condition%cur_constraint_coupler%surface_complexes, &
+            boundary_condition%tran_condition%cur_constraint_coupler%colloids, &
+            boundary_condition%tran_condition%cur_constraint_coupler%immobile_species, &
+            patch%aux%Material%auxvars(ghosted_id)%porosity, &
+            boundary_condition%tran_condition%cur_constraint_coupler%num_iterations, &
+            PETSC_TRUE,option)
+
+          basis_molarity_p => boundary_condition%tran_condition% &
+            cur_constraint_coupler%aqueous_species%basis_molarity
+        endif
 #endif        
 
-!       if (option%iflowmode /= MPH_MODE .or. icall>1) then
-        if (option%iflowmode /= MPH_MODE .and. option%iflowmode /= FLASH2_MODE) then
-  !       Note: the  DIRICHLET_BC is not time dependent in this case (icall)    
-          select case(boundary_condition%tran_condition%itype)
-            case(CONCENTRATION_SS,DIRICHLET_BC,NEUMANN_BC)
-              ! since basis_molarity is in molarity, must convert to molality
-                ! by dividing by density of water (mol/L -> mol/kg)
-              xxbc(istartaq_loc:iendaq_loc) = &
-                basis_molarity_p(1:reaction%naqcomp) / &
-                patch%aux%Global%auxvars_bc(sum_connection)%den_kg(iphase) * &
-                1000.d0
-              if (reaction%ncoll > 0) then
-                xxbc(istartcoll_loc:iendcoll_loc) = &
-                  basis_coll_conc_p(1:reaction%ncoll) / &
-                  patch%aux%Global%auxvars_bc(sum_connection)%den_kg(iphase) * &
-                  1000.d0
-              endif
-            case(DIRICHLET_ZERO_GRADIENT_BC)
-  !geh            do iphase = 1, option%nphase
-                if (patch%boundary_velocities(iphase,sum_connection) >= 0.d0) then
-                  ! same as dirichlet above
-                  xxbc(istartaq_loc:iendaq_loc) = &
-                    basis_molarity_p(1:reaction%naqcomp) / &
-                    patch%aux%Global%auxvars_bc(sum_connection)%den_kg(iphase) * &
-                  & 1000.d0
-                  if (reaction%ncoll > 0) then
-                    xxbc(istartcoll_loc:iendcoll_loc) = &
-                      basis_coll_conc_p(1:reaction%ncoll) / &
-                      patch%aux%Global%auxvars_bc(sum_connection)%den_kg(iphase) * &
-                      1000.d0
-                  endif
-                else
-                  ! same as zero_gradient below
-                  xxbc(istartaq_loc:iendaq_loc) = xx_loc_p(istartaq:iendaq)
-                  if (reaction%ncoll > 0) then
-                    xxbc(istartcoll_loc:iendcoll_loc) = &
-                      basis_coll_conc_p(1:reaction%ncoll) / &
-                      patch%aux%Global%auxvars_bc(sum_connection)%den_kg(iphase) * &
-                      1000.d0
-                  endif
-                endif
-  !geh          enddo
-            case(ZERO_GRADIENT_BC)
-              xxbc(istartaq_loc:iendaq_loc) = xx_loc_p(istartaq:iendaq)
-              if (reaction%ncoll > 0) then
-                xxbc(istartcoll_loc:iendcoll_loc) = &
-                  basis_coll_conc_p(1:reaction%ncoll) / &
-                  patch%aux%Global%auxvars_bc(sum_connection)%den_kg(iphase) * &
-                  1000.d0
-              endif
-          end select
-          ! no need to update boundary fluid density since it is already set
-          patch%aux%RT%auxvars_bc(sum_connection)%pri_molal = &
-            xxbc(istartaq_loc:iendaq_loc)
-          if (reaction%ncoll > 0) then
-            patch%aux%RT%auxvars_bc(sum_connection)%colloid%conc_mob = &
-              xxbc(istartcoll_loc:iendcoll_loc)* &
-              patch%aux%Global%auxvars_bc(sum_connection)%den_kg(1)*1.d-3
-          endif
-          if (.not.option%use_isothermal) then
-            call RUpdateTempDependentCoefs(patch%aux%Global% &
-                                             auxvars_bc(sum_connection), &
-                                           reaction,PETSC_FALSE, &
-                                           option)
-          endif          
-          if (update_activity_coefs) then
-            call RActivityCoefficients( &
-                        patch%aux%RT%auxvars_bc(sum_connection), &
-                        patch%aux%Global%auxvars_bc(sum_connection), &
-                        reaction,option)
-            if (option%iflowmode == MPH_MODE .or. &
-                option%iflowmode == FLASH2_MODE) then
-              call CO2AqActCoeff(patch%aux%RT%auxvars_bc(sum_connection), &
-                                  patch%aux%Global%auxvars_bc(sum_connection), &
-                                  reaction,option) 
-              endif                           
-          endif
-          call RTAuxVarCompute(patch%aux%RT%auxvars_bc(sum_connection), &
-                               patch%aux%Global%auxvars_bc(sum_connection), &
-                               patch%aux%Material%auxvars(ghosted_id), &
-                               reaction,option)
-        else
-          skip_equilibrate_constraint = PETSC_FALSE
+
+        skip_equilibrate_constraint = PETSC_FALSE
         ! Chuan needs to fill this in.
-          select case(boundary_condition%tran_condition%itype)
+        select case(boundary_condition%tran_condition%itype)
             case(CONCENTRATION_SS,DIRICHLET_BC,NEUMANN_BC)
               ! don't need to do anything as the constraint below provides all
               ! the concentrations, etc.
@@ -4150,9 +3947,10 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                   xx_loc_p(istartcoll:iendcoll)* &
                   patch%aux%Global%auxvars_bc(sum_connection)%den_kg(1)*1.d-3
               endif                
-          end select
-          ! no need to update boundary fluid density since it is already set
-          if (.not.skip_equilibrate_constraint) then
+        end select
+
+        ! no need to update boundary fluid density since it is already set
+        if (.not.skip_equilibrate_constraint) then
             ! print *,'RT redo constrain on BCs: 1: ', sum_connection
             call ReactionEquilibrateConstraint( &
               patch%aux%RT%auxvars_bc(sum_connection), &
@@ -4176,8 +3974,8 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                 num_iterations, &
               PETSC_TRUE,option)
             ! print *,'RT redo constrain on BCs: 2: ', sum_connection  
-          endif         
         endif
+
 #if 0
         if (associated(reaction%species_idx) .and. &
             associated(patch%aux%Global%auxvars_bc(sum_connection)%m_nacl)) then
@@ -4199,10 +3997,6 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
 
 #ifdef XINGYUAN_BC
     first = PETSC_FALSE
-    !call VecRestoreArrayReadF90(field%work,work_p,ierr)
-    !string = 'xingyuan_bc.tec'
-    !name = 'xingyuan_bc'
-    !call OutputVectorTecplot(string,name,realization,field%work)
 #endif
 
   endif 

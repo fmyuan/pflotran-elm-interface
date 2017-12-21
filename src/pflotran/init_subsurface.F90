@@ -237,8 +237,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
   use Material_Aux_class
   use Material_module
   use Option_module
-  use Creep_Closure_module
-  use Fracture_module
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, PERMEABILITY_XY, &
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
@@ -307,17 +305,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
   ! errors in gfortran
   Material => patch%aux%Material
 
-  !if material is associated with fracture, then allocate memory.  
-  do ghosted_id = 1, grid%ngmax
-    material_id = patch%imat(ghosted_id)
-    if (material_id > 0) then
-      material_property => &
-        patch%material_property_array(material_id)%ptr
-      call FractureAuxVarInit(material_property%fracture, &
-        patch%aux%Material%auxvars(ghosted_id))
-    endif
-  enddo
-  
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     material_id = patch%imat(ghosted_id)
@@ -488,20 +475,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
     enddo
     call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
   enddo
-  
-  if (associated(creep_closure)) then
-    material_property => &
-      MaterialPropGetPtrFromArray(creep_closure%material_name, &
-                                  patch%material_property_array)
-    if (.not.associated(material_property)) then
-      option%io_buffer = 'Creep material "' // &
-                        trim(creep_closure%material_name) // &
-                        '" not found in material list'
-      call printErrMsg(option)
-    endif
-    creep_closure%imat = material_property%internal_id
-  endif
-  
+
 end subroutine InitSubsurfAssignMatProperties
 
 ! ************************************************************************** !
@@ -971,9 +945,6 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
       case(TH_MODE)
         ! second equation is energy
         dof_is_active(TWO_INTEGER) = PETSC_FALSE
-      case(MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE)
-        ! third equation is energy
-        dof_is_active(THREE_INTEGER) = PETSC_FALSE
     end select
 #endif
     select case(option%iflowmode)
@@ -990,48 +961,6 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
                       realization%patch%aux%TH%zero_rows_local_ghosted, &
                       realization%patch%aux%TH%n_zero_rows, &
                       realization%patch%aux%TH%inactive_cells_exist, &
-                      option)
-      case(MPH_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Mphase%zero_rows_local, &
-                      realization%patch%aux%Mphase%zero_rows_local_ghosted, &
-                      realization%patch%aux%Mphase%n_zero_rows, &
-                      realization%patch%aux%Mphase%inactive_cells_exist, &
-                      option)
-      case(G_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%General%inactive_rows_local, &
-                    realization%patch%aux%General%inactive_rows_local_ghosted, &
-                      realization%patch%aux%General%n_inactive_rows, &
-                      realization%patch%aux%General%inactive_cells_exist, &
-                      option)
-      case(TOIL_IMS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%TOil_ims%inactive_rows_local, &
-                   realization%patch%aux%TOil_ims%inactive_rows_local_ghosted, &
-                      realization%patch%aux%TOil_ims%n_inactive_rows, &
-                      realization%patch%aux%TOil_ims%inactive_cells_exist, &
-                      option)
-      case(IMS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Immis%zero_rows_local, &
-                      realization%patch%aux%Immis%zero_rows_local_ghosted, &
-                      realization%patch%aux%Immis%n_zero_rows, &
-                      realization%patch%aux%Immis%inactive_cells_exist, &
-                      option)
-      case(MIS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Miscible%zero_rows_local, &
-                      realization%patch%aux%Miscible%zero_rows_local_ghosted, &
-                      realization%patch%aux%Miscible%n_zero_rows, &
-                      realization%patch%aux%Miscible%inactive_cells_exist, &
-                      option)
-      case(FLASH2_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Flash2%zero_rows_local, &
-                      realization%patch%aux%Flash2%zero_rows_local_ghosted, &
-                      realization%patch%aux%Flash2%n_zero_rows, &
-                      realization%patch%aux%Flash2%inactive_cells_exist, &
                       option)
     end select
     deallocate(dof_is_active)
