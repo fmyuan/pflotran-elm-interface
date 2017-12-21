@@ -1,5 +1,5 @@
 ###############################################################################
-# PFLOTRAN makefile for coupling with CLM
+# PFLOTRAN makefile, when coupled with CLM
 #
 # Before building make sure that the environmental variables
 #   PETSC_DIR and PETSC_ARCH are defined.
@@ -72,22 +72,6 @@ ifdef internal_mass_flux
   MYFLAGS += ${FC_DEFINE_FLAG}COMPUTE_INTERNAL_MASS_FLUX
 endif
 
-ifdef fmdm
-  MYFLAGS += ${FC_DEFINE_FLAG}FMDM_MODEL
-endif
-
-ifdef ye_flux
-  MYFLAGS += ${FC_DEFINE_FLAG}YE_FLUX
-endif
-
-ifdef solid_solution
-  MYFLAGS += ${FC_DEFINE_FLAG}SOLID_SOLUTION
-endif
-
-ifdef dbl
-  MYFLAGS += ${FC_DEFINE_FLAG}DOUBLE_LAYER
-endif
-
 ifdef condnr
   MYFLAGS += ${FC_DEFINE_FLAG}CONDNR
 endif
@@ -96,21 +80,12 @@ ifdef temp
   MYFLAGS += ${FC_DEFINE_FLAG}TEMP_DEPENDENT_LOGK
 endif
 
-
-ifdef coll
-  MYFLAGS += ${FC_DEFINE_FLAG}COLL
-endif
-
 ifdef have_hdf5
   MYFLAGS += -I$(HDF5_INCLUDE) -I$(HDF5_LIB) ${FC_DEFINE_FLAG}PETSC_HAVE_HDF5
 endif
 
 ifdef ugrid_debug
   MYFLAGS += ${FC_DEFINE_FLAG}UGRID_DEBUG
-endif
-
-ifdef amanzi_bgd
-  MYFLAGS += ${FC_DEFINE_FLAG}AMANZI_BGD
 endif
 
 ifdef surface_th_debug
@@ -127,35 +102,6 @@ endif
 
 ifdef smoothing2
   MYFLAGS += ${FC_DEFINE_FLAG}SMOOTHING2
-endif
-
-ifdef use_matseqaij_fix
-  MYFLAGS += ${FC_DEFINE_FLAG}USE_MATSEQAIJ_FIX
-endif
-
-ifdef debug_geomech_regression
-  MYFLAGS += ${FC_DEFINE_FLAG}GEOMECHANICS_REGRESSION_DEBUG
-endif
-
-ifdef geomech_debug
-  MYFLAGS += ${FC_DEFINE_FLAG}GEOMECH_DEBUG
-endif
-
-UPDATE_PROVENANCE=0
-ifdef provenance
-  UPDATE_PROVENANCE=1
-endif
-
-ifdef well_debug
-  MYFLAGS += ${FC_DEFINE_FLAG}WELL_DEBUG
-endif
-
-ifdef towg_debug
-  MYFLAGS += ${FC_DEFINE_FLAG}TOWG_DEBUG
-endif
-
-ifdef well_class
-  MYFLAGS += ${FC_DEFINE_FLAG}WELL_CLASS
 endif
 
 ifdef have_hdf5
@@ -227,13 +173,9 @@ include pflotran_object_files.txt
 
 # Concatentate dependency groups 
 common_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
-	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(well_obj) \
+	$(shared_mode_aux_obj) $(chem_obj) \
 	$(grid_obj) $(relations_obj) $(properties_obj) $(dataset_obj) \
 	$(srcsink_obj) $(io_obj) $(misc_obj) $(surface_obj) $(solver_obj) \
-
-# PFLOTRAN executable
-pflotran : $(pflotran_obj)
-	${FLINKER} -o pflotran $(common_obj) ${PETSC_LIB} ${LIBS} 
 
 # PFLOTRAN as a library for coupling with CLM
 # source files to be copied from $(pflotran_src) to $SRC_DIR
