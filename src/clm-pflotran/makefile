@@ -97,17 +97,6 @@ ifdef temp
 endif
 
 
-ifdef no_vapor_diffusion
-  MYFLAGS += ${FC_DEFINE_FLAG}NO_VAPOR_DIFFUSION
-endif
-
-ifdef debug_gen
-  MYFLAGS += ${FC_DEFINE_FLAG}DEBUG_GENERAL
-  ifeq ($(debug_gen),2)
-    MYFLAGS += ${FC_DEFINE_FLAG}DEBUG_GENERAL_INFO
-  endif
-endif 
-
 ifdef coll
   MYFLAGS += ${FC_DEFINE_FLAG}COLL
 endif
@@ -136,43 +125,12 @@ ifdef debug
   MYFLAGS += ${FC_DEFINE_FLAG}DEBUG
 endif
 
-# flag to use CC curves for TH mode
-ifdef th_characteristic_curves
-  MYFLAGS += ${FC_DEFINE_FLAG}TH_CHARACTERISTIC_CURVES
-endif
-
-# flag to use both wet/dry end smoothing of CC curves
 ifdef smoothing2
   MYFLAGS += ${FC_DEFINE_FLAG}SMOOTHING2
 endif
 
 ifdef use_matseqaij_fix
   MYFLAGS += ${FC_DEFINE_FLAG}USE_MATSEQAIJ_FIX
-endif
-
-ifdef debug_geomech_regression
-  MYFLAGS += ${FC_DEFINE_FLAG}GEOMECHANICS_REGRESSION_DEBUG
-endif
-
-ifdef geomech_debug
-  MYFLAGS += ${FC_DEFINE_FLAG}GEOMECH_DEBUG
-endif
-
-UPDATE_PROVENANCE=0
-ifdef provenance
-  UPDATE_PROVENANCE=1
-endif
-
-ifdef well_debug
-  MYFLAGS += ${FC_DEFINE_FLAG}WELL_DEBUG
-endif
-
-ifdef towg_debug
-  MYFLAGS += ${FC_DEFINE_FLAG}TOWG_DEBUG
-endif
-
-ifdef well_class
-  MYFLAGS += ${FC_DEFINE_FLAG}WELL_CLASS
 endif
 
 ifdef have_hdf5
@@ -216,7 +174,7 @@ FPPFLAGS = ${MYFLAGS}
 # FC_FLAGS is defined in ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables
 
 # List of files to remove when running "make clean-pflotran"
-CLEANFILES       = pflotran make.log pflotran_provenance.F90 \
+CLEANFILES       = pflotran make.log \
                    libpflotran.a
 
 ###############################################################################
@@ -232,7 +190,6 @@ CLEANFILES       = pflotran make.log pflotran_provenance.F90 \
 # Begin Source Block -- these keywords must remain immediately before .o files.
 
 util_obj  = \
-	${common_src}appleyard.o \
 	${common_src}generic.o \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
@@ -246,7 +203,6 @@ util_obj  = \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
-	${common_src}toil_ims_derivs.o \
 	${common_src}variables.o
 
 eos_obj = \
@@ -263,29 +219,10 @@ mode_aux_obj = \
 	${common_src}auxvars_base.o \
 	${common_src}auxvars_flow.o \
 	${common_src}auxvars_flow_energy.o \
-	${common_src}auxvars_toil_ims.o \
-	${common_src}auxvars_towg.o \
-	${common_src}flash2_aux.o \
-	${common_src}general_aux.o \
-	${common_src}wipp_flow_aux.o \
 	${common_src}pm_base_aux.o \
-	${common_src}pm_toil_ims_aux.o \
-	${common_src}pm_towg_aux.o \
-	${common_src}immis_aux.o \
-	${common_src}miscible_aux.o \
-	${common_src}mphase_aux.o \
 	${common_src}pm_auxiliary.o \
 	${common_src}pm_base.o \
 	${common_src}pm_base_pointer.o \
-	${common_src}pm_general.o \
-	${common_src}pm_wipp_flow.o \
-	${common_src}pm_bragflo.o \
-	${common_src}pm_toil_ims.o \
-	${common_src}pm_towg.o \
-	${common_src}pm_flash2.o \
-	${common_src}pm_immis.o \
-	${common_src}pm_mphase.o \
-	${common_src}pm_miscible.o \
 	${common_src}pm_richards.o \
 	${common_src}pm_rt.o \
 	${common_src}pm_subsurface_flow.o \
@@ -293,28 +230,12 @@ mode_aux_obj = \
 	${common_src}pm_surface_th.o \
 	${common_src}pm_surface.o \
 	${common_src}pm_th.o \
-	${common_src}pm_ufd_decay.o \
-	${common_src}pm_waste_form.o \
-	${common_src}pm_wipp_srcsink.o \
-	${common_src}pm_ufd_biosphere.o \
 	${common_src}richards_aux.o \
 	${common_src}th_aux.o \
 	${common_src}inlinesurface_aux.o
 
 mode_obj = \
-	${common_src}flash2.o \
-	${common_src}general.o \
-	${common_src}general_common.o \
-	${common_src}wipp_flow.o \
-	${common_src}wipp_flow_common.o \
-	${common_src}bragflo.o \
-	${common_src}bragflo_common.o \
-	${common_src}toil_ims.o \
-	${common_src}towg.o \
 	${common_src}global.o \
-	${common_src}immis.o \
-	${common_src}miscible.o \
-	${common_src}mphase.o \
 	${common_src}reactive_transport.o \
 	${common_src}richards.o \
 	${common_src}richards_common.o \
@@ -350,10 +271,6 @@ chem_obj = \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
 	${common_src}reaction_sandbox_clm_cn.o \
-	${common_src}reaction_sandbox_example.o \
-	${common_src}reaction_sandbox_pnnl_cyber.o \
-	${common_src}reaction_sandbox_simple.o \
-	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}reaction_sandbox_degas.o \
 	${common_src}reaction_sandbox_denitr.o \
 	${common_src}reaction_sandbox_langmu.o \
@@ -384,13 +301,9 @@ grid_obj = \
 
 relations_obj = \
 	${common_src}saturation.o \
-	${common_src}saturation_function.o \
 	${common_src}characteristic_curves.o \
 	${common_src}characteristic_curves_base.o \
-	${common_src}characteristic_curves_common.o \
-	${common_src}characteristic_curves_owg.o \
-	${common_src}characteristic_curves_wipp.o \
-	${common_src}mphase_pckr_mod.o
+	${common_src}characteristic_curves_common.o
 
 properties_obj = \
 	${common_src}fluid.o \
@@ -410,9 +323,7 @@ srcsink_obj = \
 	${common_src}srcsink_sandbox.o \
 	${common_src}srcsink_sandbox_base.o \
 	${common_src}srcsink_sandbox_mass_rate.o \
-	${common_src}srcsink_sandbox_downreg.o \
-	${common_src}srcsink_sandbox_wipp_gas.o \
-	${common_src}srcsink_sandbox_wipp_well.o
+	${common_src}srcsink_sandbox_downreg.o
 
 io_obj = \
 	${common_src}hdf5.o \
@@ -422,9 +333,7 @@ io_obj = \
 	${common_src}output_ekg.o \
 	${common_src}output_hdf5.o \
 	${common_src}output_observation.o \
-	${common_src}output_surface.o \
-	${common_src}output_tecplot.o \
-	${common_src}output_vtk.o
+	${common_src}output_surface.o
 
 misc_obj = \
 	${common_src}block_solve.o \
@@ -443,13 +352,10 @@ misc_obj = \
 	${common_src}e4d_run.o \
 	${common_src}e4d_setup.o \
 	${common_src}e4d_vars.o \
-	${common_src}factory_hydrogeophysics.o \
 	${common_src}factory_pflotran.o \
 	${common_src}factory_subsurface.o \
 	${common_src}field.o \
 	${common_src}hydrostatic.o \
-	${common_src}hydrostatic_common.o \
-	${common_src}hydrostatic_multi_phase.o \
 	${common_src}init_common.o \
 	${common_src}init_subsurface.o \
 	${common_src}init_subsurface_flow.o \
@@ -462,7 +368,6 @@ misc_obj = \
 	${common_src}patch.o \
 	${common_src}pmc_auxiliary.o \
 	${common_src}pmc_base.o \
-	${common_src}pmc_hydrogeophysics.o \
 	${common_src}pmc_subsurface.o \
 	${common_src}pmc_third_party.o \
 	${common_src}realization_base.o \
@@ -473,27 +378,16 @@ misc_obj = \
 	${common_src}secondary_continuum.o \
 	${common_src}simulation_aux.o \
 	${common_src}simulation_base.o \
-	${common_src}simulation_hydrogeophysics.o \
 	${common_src}simulation_subsurface.o \
 	${common_src}spline.o \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \
 	${common_src}timestepper_BE.o \
+	${common_src}timestepper_steady.o \
 	${common_src}transport.o \
-	${common_src}waypoint.o \
-	${common_src}wipp.o \
-	${common_src}wrapper_hydrogeophysics.o
-
-well_obj = \
-	${common_src}well_spec_base.o \
-	${common_src}well_base.o \
-	${common_src}well_flow.o \
-	${common_src}well_flow_energy.o \
-	${common_src}well_water_injector.o \
-	${common_src}well_oil_producer.o \
-	${common_src}well_toil_ims.o \
-	${common_src}well.o
-
+	${common_src}uniform_velocity.o \
+	${common_src}waypoint.o
+	
 surface_obj = \
 	${common_src}checkpoint_surface.o \
 	${common_src}factory_surface.o \
@@ -512,34 +406,6 @@ surface_obj = \
 	${common_src}surface_th_aux.o \
 	${common_src}surface_th.o \
 	${common_src}timestepper_surface.o
-
-geomech_obj = \
-	${common_src}factory_geomechanics.o \
-	${common_src}gauss.o \
-	${common_src}geomechanics_auxiliary.o \
-	${common_src}geomechanics_realization.o \
-	${common_src}geomechanics_discretization.o \
-	${common_src}geomech_grid.o \
-	${common_src}geomech_grid_aux.o \
-	${common_src}geomechanics_condition.o \
-	${common_src}geomechanics_coupler.o \
-	${common_src}geomechanics_debug.o \
-	${common_src}geomechanics_field.o \
-	${common_src}geomechanics_force.o \
-	${common_src}geomechanics_global.o \
-	${common_src}geomechanics_global_aux.o\
-	${common_src}geomechanics_material.o \
-	${common_src}geomechanics_patch.o \
-	${common_src}geomechanics_region.o \
-	${common_src}geomechanics_regression.o \
-	${common_src}geomechanics_strata.o \
-	${common_src}geomechanics_subsurface_properties.o \
-	${common_src}output_geomechanics.o \
-	${common_src}pm_geomechanics_force.o \
-	${common_src}pmc_geomechanics.o \
-	${common_src}simulation_geomechanics.o \
-	${common_src}shape_function.o \
-	${common_src}timestepper_steady.o
 
 solver_obj = \
 	${common_src}preconditioner_cpr.o \
@@ -561,14 +427,9 @@ clmpf_interface_obj = \
 
 # Concatentate dependency groups 
 common_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
-	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(well_obj) \
+	$(shared_mode_aux_obj) $(chem_obj) \
 	$(grid_obj) $(relations_obj) $(properties_obj) $(dataset_obj) \
 	$(srcsink_obj) $(io_obj) $(misc_obj) $(surface_obj) $(solver_obj) \
-
-pflotran_obj = $(common_obj) ${pflotran_src}pflotran.o
-
-pflotran : $(pflotran_obj)
-	${FLINKER} -o pflotran $(pflotran_obj) ${PETSC_LIB} ${LIBS} 
 
 # PFLOTRAN as a library for coupling with CLM
 # source files to be copied from $(pflotran_src) to $SRC_DIR
@@ -578,17 +439,6 @@ lib_pflotran_obj := $(common_obj) $(clmpf_interface_obj)
 
 libpflotran.a : $(lib_pflotran_obj)
 	$(AR) $(ARFLAGS) $@ $(lib_pflotran_obj)
-
-
-pflotran_provenance.F90 : FORCE
-ifeq ($(UPDATE_PROVENANCE),1)
-	@-rm pflotran_provenance.o pflotran_provenance_module.mod $(SRC_DIR)/pflotran_provenance.F90; \
-	$(PYTHON) $(SRC_DIR)/pflotran-provenance.py \
-		--pflotran-fflags "${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS}" \
-		--petsc-config "${CONFIGURE_OPTIONS}";
-else
-	@if test ! -f $(SRC_DIR)/pflotran_provenance.F90; then cp $(pflotran_src)/pflotran_no_provenance.F90 $(SRC_DIR)/pflotran_provenance.F90; fi;
-endif
 
 ###############################################################################
 # Dependencies
