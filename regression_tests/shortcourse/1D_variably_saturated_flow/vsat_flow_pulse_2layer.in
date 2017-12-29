@@ -85,7 +85,7 @@ END
 OUTPUT
   PERIODIC TIME 0.1 y
   PERIODIC_OBSERVATION TIMESTEP 1
-  FORMAT TECPLOT POINT
+  FORMAT HDF5
 END
 
 #=========================== times ============================================

@@ -101,7 +101,7 @@ OBSERVATION obs
 #=========================== output options ===================================
 OUTPUT
 #  TIMES y 0.01 0.1 1.0
-#  FORMAT TECPLOT POINT
+#  FORMAT HDF5
 #  PERIODIC_OBSERVATION TIMESTEP 1
 END
 

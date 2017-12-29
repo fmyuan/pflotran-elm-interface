@@ -130,7 +130,7 @@ END
 #=========================== output options ===================================
 OUTPUT
 #  TIMES y 5. 10. 15. 20.
-#  FORMAT TECPLOT POINT
+#  FORMAT HDF5
 #  VELOCITY_AT_CENTER
   VARIABLES
     LIQUID_PRESSURE

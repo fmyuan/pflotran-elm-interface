@@ -136,14 +136,9 @@ CHARACTERISTIC_CURVES default
   /
 END
 
-#=========================== saturation functions =============================
-SATURATION_FUNCTION default
-END
-
 #=========================== output options ===================================
 OUTPUT
   TIMES y 0.01 0.1 1. 10. 25. 50. 100.
-  FORMAT TECPLOT POINT
   FORMAT HDF5
 # VELOCITIES
   MASS_BALANCE

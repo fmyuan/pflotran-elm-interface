@@ -90,7 +90,7 @@ TORTUOSITY 1.d0
 #=========================== output options ===================================
 OUTPUT
 PERIODIC TIME 1.d0 y
-FORMAT TECPLOT BLOCK
+FORMAT HDF5
 /
 
 #=========================== times ============================================
