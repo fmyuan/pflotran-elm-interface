@@ -72,8 +72,7 @@ MATERIAL_PROPERTY soil1
   POROSITY 0.25d0
   TORTUOSITY 1.d0
   PERMEABILITY
-    ISOTROPIC
-    DATASET Permeability
+    PERM_ISO 1.d-12
   /
   CHARACTERISTIC_CURVES default
 END
@@ -85,6 +84,13 @@ END
 
 #=========================== output options ===================================
 EXTERNAL_FILE output.txt
+skip
+OUTPUT
+  TIMES y 5. 10. 15. 20.
+#  FORMAT HDF5
+  VELOCITY_AT_CENTER
+END
+noskip
 
 #=========================== times ============================================
 TIME
@@ -95,12 +101,104 @@ END
 
 #=========================== regions ==========================================
 EXTERNAL_FILE regions.txt
+skip
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    100.d0 1.d0 1.d0
+  /
+END
 
-EXTERNAL_FILE ./lower_directory/conditions_redirect.txt
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 1.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    100.d0 0.d0 0.d0
+    100.d0 1.d0 1.d0
+  /
+END
+noskip
+
 #=========================== flow conditions ==================================
+EXTERNAL_FILE ./lower_directory/conditions_redirect.txt
+skip
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE DIRICHLET
+  /
+  PRESSURE 201325.d0
+END
+
+FLOW_CONDITION inlet
+  TYPE
+    FLUX NEUMANN
+  /
+  FLUX 1.d0 m/y
+END
+
 #=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+TRANSPORT_CONDITION inlet
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 inlet
+  /
+END
+
 #=========================== constraints ======================================
+CONSTRAINT initial
+  CONCENTRATIONS
+    H+     1.d-8      F
+    HCO3-  1.d-3      G  CO2(g)
+    Ca++   5.d-4      M  Calcite
+  /
+  MINERALS
+    Calcite 1.d-5 1.d0
+  /
+END
+
+CONSTRAINT inlet
+  CONCENTRATIONS
+    H+     5.         P
+    HCO3-  1.d-3      T
+    Ca++   1.d-6      Z
+  /
+END
+
 #=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION outlet
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION east
+END
+
+BOUNDARY_CONDITION inlet
+  FLOW_CONDITION inlet
+  TRANSPORT_CONDITION inlet
+  REGION west
+END
+noskip
+
 #=========================== stratigraphy couplers ============================
 STRATA
   REGION all
