@@ -74,7 +74,7 @@ END
 
 #=========================== output options ===================================
 OUTPUT
-  FORMAT TECPLOT POINT
+  FORMAT HDF5
 #  FORMAT HDF5
 #  VELOCITY_AT_CENTER
 END

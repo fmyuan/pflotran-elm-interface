@@ -76,7 +76,7 @@ END
 #=========================== output options ===================================
 OUTPUT
 #  TIMES y 5. 10. 15. 20.
-#  FORMAT TECPLOT POINT
+#  FORMAT HDF5
    PERIODIC_OBSERVATION TIMESTEP 1
 END
 

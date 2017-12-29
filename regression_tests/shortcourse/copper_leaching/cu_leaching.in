@@ -200,7 +200,7 @@ END
 #=========================== output options ===================================
 OUTPUT
   PERIODIC_OBSERVATION TIMESTEP 1
-  FORMAT TECPLOT BLOCK
+  FORMAT HDF5
   VELOCITY_AT_CENTER
   PRINT_COLUMN_IDS
   SCREEN PERIODIC 10

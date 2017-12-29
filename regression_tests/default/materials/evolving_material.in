@@ -83,7 +83,7 @@ END
 #=========================== output options ===================================
 OUTPUT
   TIMES y 10. 20. 25. 30. 40.
-  FORMAT TECPLOT POINT
+  FORMAT HDF5
   VELOCITY_AT_CENTER
 END
 

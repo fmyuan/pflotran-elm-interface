@@ -79,7 +79,7 @@ END
 #=========================== output options ===================================
 OUTPUT
 #  PERIODIC TIME 0.25d0 y
-#  FORMAT TECPLOT POINT
+#  FORMAT HDF5
 END
 
 #=========================== times ============================================

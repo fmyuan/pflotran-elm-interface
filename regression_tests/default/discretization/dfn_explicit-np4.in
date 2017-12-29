@@ -72,7 +72,7 @@ END
 
 #=========================== output options ===================================
 OUTPUT
-  FORMAT TECPLOT BLOCK
+  FORMAT HDF5
   HDF5_WRITE_GROUP_SIZE 1
   PRINT_PRIMAL_GRID
 END

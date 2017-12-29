@@ -6,8 +6,6 @@ module Test_Characteristic_Curves_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Base_module
   use Characteristic_Curves_Common_module
-  use Characteristic_Curves_OWG_module
-  use Characteristic_Curves_WIPP_module
   use Option_module
 
   implicit none
@@ -174,18 +172,6 @@ contains
         sf%Srg = 0.01d0
       class default
         print *, 'not Burdine VG Gas type'
-    end select
-
-  ! Setting up the characteristic curve for van Genuchten TOUGH2 IRP7
-    this%cc_vgt => CharacteristicCurvesCreate()
-    ! do not set up saturation function as it is tested with cc_vgm
-    this%cc_vgt%gas_rel_perm_function => RPF_TOUGH2_IRP7_Gas_Create()
-    this%cc_vgt%gas_rel_perm_function%Sr = 0.143d0
-    select type(sf=>this%cc_vgt%gas_rel_perm_function)
-      class is(rpf_TOUGH2_IRP7_gas_type)
-        sf%Srg = 0.01d0
-      class default
-        print *, 'not TOUGH2 IRP7 Gas type'
     end select
 
   ! Setting up the characteristic curve for Linear Mualem
@@ -839,39 +825,6 @@ contains
     @assertEqual(value, dkr_sat, dabs(value)*tolerance, string)
 
   end subroutine testrpf_van_Genuchten_Burdine
-
-! ************************************************************************** !
-
-  @Test
-  subroutine testrpf_TOUGH2_IRP7_gas(this)
-
-    implicit none
-
-    class(Test_Characteristic_Curves), intent(inout) :: this
-
-    PetscReal :: liquid_saturation
-    PetscReal :: relative_permeability
-    PetscReal :: dkr_sat
-    PetscReal :: value
-    PetscReal, parameter :: tolerance = 1.d-8
-    character(len=128) :: string
-
-    ! liquid relative permeability = f(saturation)
-    liquid_saturation = 0.5d0
-
-    ! gas relative permeability = f(saturation)
-    call this%cc_vgt%gas_rel_perm_function% &
-         RelativePermeability(liquid_saturation, relative_permeability, & 
-                              dkr_sat, this%option)
-    string = 'TOUGH2 IRP7 gas relative permeability as a &
-             &function of liquid saturation'
-    value = 0.27522069402853439d0
-    @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
-    string = 'TOUGH2 IRP7 derivative of gas relative permeability as a &
-             &function of liquid saturation'
-    value = -1.4564360410147879d0
-    @assertEqual(value, dkr_sat, dabs(value)*tolerance, string)
-  end subroutine testrpf_TOUGH2_IRP7_gas
 
 ! ************************************************************************** !
 
