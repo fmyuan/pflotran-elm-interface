@@ -83,8 +83,6 @@ module Condition_module
     ! any new sub conditions must be added to FlowConditionIsTransient
   end type flow_toil_ims_condition_type
 
-! DKP bubble point added to initial condition for towg case--------------------
-
   ! data structure for towg
   ! some of these variables depend on primary variable choice
   type, public :: flow_towg_condition_type
@@ -2892,7 +2890,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   !
   ! Reads a condition from the input file for TOWG mode
   !
-  ! Note: consider refactoring to avoid repating code. Modulirise common
+  ! Note: consider refactoring to avoid repeating code. Modularise common
   !       contents of: FlowConditionGeneralRead, FlowConditionTOilImsRead
   !                    and FlowConditionTOWGRead
   !       And refactor to use these modules within FlowConditionPMRead
@@ -2927,6 +2925,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   class(dataset_base_type), pointer :: default_gradient
   PetscInt :: idof, i
   PetscBool :: default_is_cyclic
+  PetscBool :: phase_state_found
   type(time_storage_type), pointer :: default_time_storage
   class(dataset_ascii_type), pointer :: dataset_ascii
   PetscErrorCode :: ierr
@@ -3192,19 +3191,45 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           ) then
     condition%iphase = TOWG_ANY_STATE
   !initialise to TOWG_ANY_STATE if hydrostatic condition
-  !for hydrostatic the phase state will change cell by cell and assinged in
+  !for hydrostatic the phase state will change cell by cell and assigned in
   !the hydrostatic coupler
   else
-    !two phase state
-    if ( associated(towg%oil_pressure) .and. &
-         associated(towg%oil_saturation) .and. &
-         associated(towg%gas_saturation) &
-       ) then
-      condition%iphase = TOWG_THREE_PHASE_STATE
-    else
-      option%io_buffer = 'TOWG consdition - phase state  &
-        &Currently only THREE_PHASE_STATE implemented'
+    !check oil/gas phase state
+    phase_state_found=PETSC_FALSE
+    if ( associated(towg%oil_pressure  ) .and. &
+         associated(towg%oil_saturation) ) then
+
+      if( towg_miscibility_model == TOWG_BLACK_OIL ) then
+! Setup for black oil case - needs gas saturation and/or bubble point
+        if(      associated(towg%gas_saturation) &
+           .and. associated(towg%bubble_point  ) ) then
+! Both found - can be saturated or undersaturated - i.e. any state
+          condition%iphase  = TOWG_ANY_STATE
+          phase_state_found = PETSC_TRUE
+        else if( associated(towg%gas_saturation) ) then
+! Only gas saturation only - is saturated three-phase
+          condition%iphase  = TOWG_THREE_PHASE_STATE
+          phase_state_found = PETSC_TRUE
+        else if( associated(towg%bubble_point  ) ) then
+! Only bubble point found - is undersaturated water-oil
+          condition%iphase  = TOWG_LIQ_OIL_STATE
+          phase_state_found = PETSC_TRUE
+        end if
+      else
+! Setup for all but black oil case - just needs gas saturation
+        if( associated(towg%gas_saturation) ) then
+          condition%iphase  = TOWG_THREE_PHASE_STATE
+          phase_state_found = PETSC_TRUE
+        end if
+      end if
     end if
+
+    !check that a valid phase state has been found
+    if( .not.phase_state_found ) then
+      option%io_buffer = 'TOWG condition - phase state  &
+        &Currently only THREE_PHASE_STATE, LIQ_OIL_STATE and ANY_STATE implemented'
+    endif
+
     !check if conditions are compatible with miscibility model
     if ( (towg_miscibility_model == TOWG_IMMISCIBLE .or. &
           towg_miscibility_model == TOWG_TODD_LONGSTAFF) .and. &
@@ -3214,6 +3239,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
          &TOWG_TODD_LONGSTAFF only three phase state conditions &
          &are supported other than rate and flux conditions '
     end if
+
   end if
 
   ! control that enthalpy is used for src/sink only

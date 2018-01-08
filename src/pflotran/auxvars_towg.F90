@@ -14,7 +14,6 @@ module AuxVars_TOWG_module
 
   type, public, extends(auxvar_flow_energy_type) :: auxvar_towg_type
     PetscInt :: istate_store(2) ! 1 = previous timestep; 2 = previous iteration
-! DKP Initialising these pointers prevents a crash on botest1 (attempted to de-allocate tl)
     type(tl_auxvar_type), pointer :: tl=>null()
     type(bo_auxvar_type), pointer :: bo=>null()
   contains
@@ -93,7 +92,7 @@ subroutine InitTL(this,option)
 
 end subroutine InitTL
 
-! DKP New routine to initialise the bo substructure----------------------------
+!--Routine to initialise the black oil substructure----------------------------
 
 subroutine InitBO(this,option)
 
@@ -120,7 +119,7 @@ subroutine InitBO(this,option)
 
 end subroutine InitBO
 
-! DKP--------------------------------------------------------------------------
+!--Routine to initialise the TOWG substructure-------------------------------
 
 subroutine AuxVarTOWGStrip(this)
   ! 
@@ -164,7 +163,7 @@ subroutine StripTL(this)
 
 end subroutine StripTL
 
-! DKP New routine to strip bo substructure-------------------------------------
+!--Routine to strip the black oil substructure---------------------------------
 
 subroutine StripBO(this)
 
@@ -184,8 +183,6 @@ subroutine StripBO(this)
   deallocate(this%bo)
 
 end subroutine StripBO
-
-! DKP--------------------------------------------------------------------------
 
 end module AuxVars_TOWG_module
 

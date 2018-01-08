@@ -269,7 +269,7 @@ subroutine EOSOilInit()
 
   fmw_oil = FMWOIL !default oil formula weight C10H22 (142 g/mol)
 
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergyS
 
   nullify(EOSOilViscosityPtr)
   nullify(EOSOilDensityPtr)
@@ -588,7 +588,7 @@ subroutine EOSOilSetDensityConstant(density)
   PetscReal :: density
 
   constant_density = density
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergyS
   EOSOilDensityPtr => EOSOilDensityConstant
 
 end subroutine EOSOilSetDensityConstant
@@ -599,7 +599,7 @@ subroutine EOSOilSetDensityLinear()
 
   implicit none
 
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergyS
   EOSOilDensityPtr => EOSOilDensityLinear
 
 end subroutine EOSOilSetDensityLinear
@@ -610,7 +610,7 @@ subroutine EOSOilSetDensityInverseLinear()
 
   implicit none
 
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergyS
   EOSOilDensityPtr => EOSOilDensityInverseLinear
 
 end subroutine EOSOilSetDensityInverseLinear
@@ -627,20 +627,6 @@ subroutine EOSOilSetDenLinearRefDen(den0)
   den_linear_den0 = den0
 
 end subroutine EOSOilSetDenLinearRefDen
-
-! DKP New function to get reference (surface) density for black oil model------
-!
-!function EOSOilGetDenRef()
-!
-!  implicit none
-!
-!  PetscReal :: EOSOilGetDenRef
-!
-!  EOSOilGetDenRef=den_linear_den0
-!
-!end function EOSOilGetDenRef
-
-! DKP-------------------------------------------------------------------------
 
 subroutine EOSOilSetDenLinearRefPres(ref_pres)
 
@@ -703,7 +689,7 @@ subroutine EOSOilSetDenDBase(filename,option)
   call eos_den_dbase%Read(option)
 
   !set property function pointers
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergyS
   EOSOilDensityPtr => EOSOilDensityDenDBase
 
 end subroutine EOSOilSetDenDBase
@@ -717,7 +703,7 @@ subroutine EOSOilSetEnthalpyConstant(enthalpy)
   PetscReal :: enthalpy
 
   constant_enthalpy = enthalpy
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergyS
   EOSOilEnthalpyPtr => EOSOilEnthalpyConstant
 
 end subroutine EOSOilSetEnthalpyConstant
@@ -731,7 +717,7 @@ subroutine EOSOilSetEnthalpyLinearTemp(specific_heat)
   PetscReal :: specific_heat
 
   constant_sp_heat = specific_heat
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergyS
   EOSOilEnthalpyPtr => EOSOilEnthalpyLinearTemp
 
   !write(*,*) "I am in EOS oil linear set up"
@@ -744,7 +730,7 @@ subroutine EOSOilSetEnthalpyQuadraticTemp()
 
   implicit none
 
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergyS
   EOSOilEnthalpyPtr => EOSOilEnthalpyQuadTemp
 
 
@@ -791,7 +777,7 @@ subroutine EOSOilSetEntDBase(filename,option)
   call eos_ent_dbase%Read(option)
 
   !set property function pointers
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergyS
   EOSOilEnthalpyPtr => EOSOilEnthalpyEntDBase
 
 
@@ -812,7 +798,7 @@ subroutine EOSOilSetEOSDBase(filename,option)
   call eos_dbase%Read(option)
 
   !set property function pointers
-  EOSOilDensityEnergyPtr => EOSOilDensityEnergy
+  EOSOilDensityEnergyPtr => EOSOilDensityEnergyS
   if (.not.associated(EOSOilDensityPtr))  &
             EOSOilDensityPtr => EOSOilDensityEOSDBase
   if (.not.associated(EOSOilEnthalpyPtr)) &
@@ -1241,7 +1227,7 @@ subroutine EOSOilDensityNoDerive(T,P,Rho,ierr,table_idxs)
   PetscReal :: dum1, dum2
 
   ! derivatives are so cheap, just compute them
-  call EOSOilDensityPtr(T, P, PETSC_FALSE, Rho, dum1, dum2, ierr)
+  call EOSOilDensityPtr(T, P, PETSC_FALSE, Rho, dum1, dum2,ierr,table_idxs)
 
 end subroutine EOSOilDensityNoDerive
 
@@ -1259,7 +1245,7 @@ subroutine EOSOilDensityDerive(T,P,Rho,dRho_dT,dRho_dP,ierr,table_idxs)
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  call EOSOilDensityPtr(T,P,PETSC_TRUE,Rho,dRho_dT,dRho_dP,ierr)
+  call EOSOilDensityPtr(T,P,PETSC_TRUE,Rho,dRho_dT,dRho_dP,ierr,table_idxs)
 
 end subroutine EOSOilDensityDerive
 
@@ -1428,8 +1414,8 @@ end subroutine EOSOilEnthalpyNoDerive
 
 ! ************************************************************************** !
 
-subroutine EOSOilDensityEnergy(T,P,deriv,Rho,dRho_dT,dRho_dP, &
-                               H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr,table_idxs)
+subroutine EOSOilDensityEnergyS(T,P,deriv,Rho,dRho_dT,dRho_dP, &
+                                H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr,table_idxs)
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
@@ -1457,12 +1443,12 @@ subroutine EOSOilDensityEnergy(T,P,deriv,Rho,dRho_dT,dRho_dP, &
   dU_dP = InitToNan()
 
   if (deriv) then
-    print*, "EOSOilDensityEnergy - U derivatives not supported"
+    print*, "EOSOilDensityEnergyS - U derivatives not supported"
     stop
   end if
 
 
-end subroutine EOSOilDensityEnergy
+end subroutine EOSOilDensityEnergyS
 
 ! ************************************************************************** !
 
@@ -1514,7 +1500,6 @@ subroutine EOSOilRSTable(T,P,deriv,RS,dRS_dT,dRS_dP,ierr,table_idxs)
     print*, "EOSOilRSTable - RS derivatives not supported"
     stop
   end if
-
 
 end subroutine EOSOilRSTable
 
@@ -1687,7 +1672,7 @@ subroutine EOSOilSetPVDO(input,option)
   EOSOilViscosityPtr => EOSOilViscosityTable
   EOSOilDensityPtr => EOSOilDensityTable
   !set property function pointers - for testing
-  !EOSOilDensityEnergyPtr => EOSOilDensityEnergy
+  !EOSOilDensityEnergyPtr => EOSOilDensityEnergyS
   !if (.not.associated(EOSOilDensityPtr))  &
   !          EOSOilDensityPtr => EOSOilDensityEOSDBase
   !if (.not.associated(EOSOilEnthalpyPtr)) &

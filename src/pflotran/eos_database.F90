@@ -66,7 +66,7 @@ module EOSData_module
     PetscInt :: n_indices !number of indices to be saved for lookup
     PetscInt :: first_index !location of first index in auxvars
     class(lookup_table_general_type), pointer :: lookup_table_gen
-    class(eos_table_type), pointer :: next
+    class(eos_table_type), pointer :: next => null()
   contains
     procedure, public :: Read => EOSTableRead
     procedure, public :: EOSProp => EOSPropTable
@@ -1221,11 +1221,13 @@ subroutine EOSTableProcessList(option)
   !loop over  EOS tables and create a map to store save indices in auxvars
   eos_table => list%first
   do
-    if (.not.associated(eos_table)) exit
+    if (.not.(associated(eos_table))) exit
     eos_table%first_index = option%neos_table_indices + 1
     option%neos_table_indices = option%neos_table_indices + eos_table%n_indices
+    ! add here other operation that must be performed on all eos tables
+    ! move to next table if it is associated
+    if( .not.(associated(eos_table%next))) exit
     eos_table => eos_table%next
-    !add here other operation that must be performed on all eos tables
   enddo
 
 end subroutine EOSTableProcessList

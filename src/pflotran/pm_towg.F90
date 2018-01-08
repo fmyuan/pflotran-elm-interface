@@ -70,7 +70,7 @@ function PMTOWGCreate(miscibility_model,option)
   use Variables_module, only : OIL_PRESSURE, GAS_PRESSURE, &
                                OIL_SATURATION, GAS_SATURATION, &
                                OIL_MOLE_FRACTION, GAS_MOLE_FRACTION, &
-                               TEMPERATURE, SOLVENT_SATURATION
+                               TEMPERATURE, SOLVENT_SATURATION,BUBBLE_POINT
   implicit none
 
   class(pm_towg_type), pointer :: PMTOWGCreate
@@ -94,13 +94,11 @@ function PMTOWGCreate(miscibility_model,option)
       allocate(towg_pm%max_change_isubvar(4))
       towg_pm%max_change_isubvar = [0,0,0,0]
     case('BLACK_OIL')
-! DKP Variable setup for black oil matches case above, could be combined
-      allocate(towg_pm%max_change_ivar(4))
-      towg_pm%max_change_ivar = [OIL_PRESSURE, &
-                                 OIL_SATURATION, GAS_SATURATION, &
-                                 TEMPERATURE]
-      allocate(towg_pm%max_change_isubvar(4))
-      towg_pm%max_change_isubvar = [0,0,0,0]
+      allocate(towg_pm%max_change_ivar(5))
+      towg_pm%max_change_ivar = [OIL_PRESSURE, OIL_SATURATION, &
+                                 GAS_SATURATION,TEMPERATURE,BUBBLE_POINT]
+      allocate(towg_pm%max_change_isubvar(5))
+      towg_pm%max_change_isubvar = [0,0,0,0,0]
     case('SOLVENT_TL')
       allocate(towg_pm%max_change_ivar(8))
       towg_pm%max_change_ivar = [OIL_PRESSURE, GAS_PRESSURE, &
@@ -559,7 +557,6 @@ subroutine PMTOWGUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   use Realization_Base_class, only : RealizationGetVariable
   use Realization_Subsurface_class, only : RealizationLimitDTByCFL
   use Field_module
-  use Global_module, only : GlobalSetAuxVarVecLoc
   use Variables_module, only : LIQUID_SATURATION, GAS_SATURATION
 
   implicit none
@@ -657,9 +654,6 @@ subroutine PMTOWGCheckpointBinary(this,viewer)
   class(pm_towg_type) :: this
   PetscViewer :: viewer
 
-  !call GlobalGetAuxVarVecLoc(this%realization, &
-  !                           this%realization%field%iphas_loc, &
-  !                           STATE,ZERO_INTEGER)
   call PMSubsurfaceFlowCheckpointBinary(this,viewer)
 
 end subroutine PMTOWGCheckpointBinary
@@ -686,9 +680,6 @@ subroutine PMTOWGRestartBinary(this,viewer)
   PetscViewer :: viewer
 
   call PMSubsurfaceFlowRestartBinary(this,viewer)
-  call GlobalSetAuxVarVecLoc(this%realization, &
-                             this%realization%field%iphas_loc, &
-                             STATE,ZERO_INTEGER)
 
 end subroutine PMTOWGRestartBinary
 

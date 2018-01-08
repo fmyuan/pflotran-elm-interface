@@ -2411,6 +2411,9 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
   PetscBool :: smooth
+  character(len=MAXWORDLENGTH) :: oilstring
+
+  oilstring='OIL'
 
   input%ierr = 0
   smooth = PETSC_FALSE
@@ -2555,7 +2558,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
             call InputKeywordUnrecognized(perm_func_ch_type, &
                                           'PERMEABILITY_FUNCTION_OW/OG',option)
         end select
-        call PermeabilityFunctionOWGRead(perm_func_ptr,'OIL',input,option)
+        call PermeabilityFunctionOWGRead(perm_func_ptr,oilstring,input,option)
         select case(perm_interface)
           case('OIL_WATER')
             rpf%rel_perm_ow => perm_func_ptr

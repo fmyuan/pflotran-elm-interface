@@ -2056,7 +2056,6 @@ subroutine OutputMassBalance(realization_base)
           call OutputWriteToHeader(fid,'Global Water Mass', &
                                     'kg','',icol)
           select case(towg_miscibility_model)
-! DKP TOWG_BLACK_OIL output now supported
             case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
               call OutputWriteToHeader(fid,'Global Oil Mass', &
                                        'kg','',icol)
@@ -2387,7 +2386,6 @@ subroutine OutputMassBalance(realization_base)
           enddo
         case(TOWG_MODE)
           select case(towg_miscibility_model)
-! DKP TOWG_BLACK_OIL output now supported
             case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
               do iphase = 1, option%nphase
                 write(fid,110,advance="no") sum_kg_global(iphase,1)
