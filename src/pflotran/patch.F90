@@ -1474,6 +1474,7 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
 
   use Option_module
   use Condition_module
+  use Hydrostatic_module
   use Utility_module, only : DeallocateArray
 
   use WIPP_Flow_Aux_module
@@ -1533,6 +1534,9 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
             class default
           end select
           dof1 = PETSC_TRUE
+        case(HYDROSTATIC_BC)
+          call HydrostaticUpdateCoupler(coupler,option,patch%grid)
+          coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = HYDROSTATIC_BC
         case default
           string = &
             GetSubConditionName(general%liquid_pressure%itype)
