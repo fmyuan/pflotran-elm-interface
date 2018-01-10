@@ -1535,8 +1535,11 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
           end select
           dof1 = PETSC_TRUE
         case(HYDROSTATIC_BC)
+          ! have to increment so that saturation is correct.
+          real_count = real_count + 1
           call HydrostaticUpdateCoupler(coupler,option,patch%grid)
           coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = HYDROSTATIC_BC
+          dof1 = PETSC_TRUE
         case default
           string = &
             GetSubConditionName(general%liquid_pressure%itype)
