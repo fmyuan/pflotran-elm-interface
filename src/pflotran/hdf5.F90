@@ -1240,7 +1240,7 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   character(len=MAXSTRINGLENGTH) :: string2
 
 #if defined(PETSC_HAVE_HDF5)
-  integer(HID_T) :: ndims
+  integer :: ndims
   integer(HID_T) :: file_id
   integer(HID_T) :: prop_id
   integer(HID_T) :: data_set_id

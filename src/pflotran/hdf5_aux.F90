@@ -79,7 +79,7 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
-  integer(HID_T) :: ndims_hdf5
+  integer :: ndims_hdf5
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(1), length(1), stride(1)
   PetscMPIInt :: rank_mpi
@@ -550,12 +550,12 @@ subroutine HDF5ReadDbase(filename,option)
   character(len=MAXWORDLENGTH) :: word
 #if defined(PETSC_HAVE_HDF5)  
   integer(HID_T) :: file_id
-  integer(HID_T) :: num_objects
-  integer(HID_T) :: i_object
-  integer(HID_T) :: object_type
+  integer :: num_objects
+  integer :: i_object
+  integer :: object_type
   integer(HID_T) :: prop_id
   integer(HID_T) :: dataset_id
-  integer(HID_T) :: class_id
+  integer :: class_id
   integer(HID_T) :: datatype_id
   integer(HID_T) :: datatype_id2
   integer(HID_T) :: file_space_id

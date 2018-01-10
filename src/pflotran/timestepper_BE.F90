@@ -886,7 +886,8 @@ subroutine TimestepperBECheckpointHDF5(this, chk_grp_id, option)
   PetscMPIInt :: hdf5_err
 
   string = "Timestepper"
-  call h5gcreate_f(chk_grp_id, string, timestepper_grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+  h5_chk_grp_id = chk_grp_id
+  call h5gcreate_f(h5_chk_grp_id, string, timestepper_grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
 
   allocate(start(1))
   allocate(dims(1))

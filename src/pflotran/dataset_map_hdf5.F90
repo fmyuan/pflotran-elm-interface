@@ -230,7 +230,7 @@ subroutine DatasetMapHDF5ReadData(this,option)
   integer(HID_T) :: prop_id
   integer(HID_T) :: grp_id
   integer(HID_T) :: attribute_id
-  integer(HID_T) :: ndims_h5
+  integer :: ndims_h5
   integer(HID_T) :: atype_id
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: attribute_dim(3)
@@ -435,7 +435,7 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   integer(HID_T) :: dataset_id
   integer(HID_T) :: prop_id
   integer(HID_T) :: grp_id
-  integer(HID_T) :: ndims_hdf5
+  integer :: ndims_hdf5
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(2), length(2)
   PetscInt :: i

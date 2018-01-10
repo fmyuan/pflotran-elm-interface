@@ -618,7 +618,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
 
 #if defined(PETSC_HAVE_HDF5)
   integer(HID_T) :: file_id
-  integer(HID_T) :: ndims
+  integer :: ndims
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
   integer(HID_T) :: data_set_id
@@ -901,7 +901,7 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
 
 #if defined(PETSC_HAVE_HDF5)
   integer(HID_T) :: file_id
-  integer(HID_T) :: ndims
+  integer :: ndims
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
   integer(HID_T) :: data_set_id

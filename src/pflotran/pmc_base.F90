@@ -1028,16 +1028,17 @@ recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
     call CheckPointWriteCompatibilityHDF5(h5_chk_grp_id, &
                                           this%option)
     call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
-                     pmc_grp_id,hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
-    call PMCBaseSetHeaderHDF5(this, pmc_grp_id, this%option)
+                     h5_pmc_grp_id,hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+    call PMCBaseSetHeaderHDF5(this, h5_pmc_grp_id, this%option)
     chk_grp_id = h5_chk_grp_id
   else
     h5_chk_grp_id = chk_grp_id
     call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
-                     pmc_grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+                     h5_pmc_grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
   endif
 
   if (associated(this%timestepper)) then
+    pmc_grp_id = h5_pmc_grp_id
     call this%timestepper%CheckpointHDF5(pmc_grp_id, this%option)
   endif
 
@@ -1045,15 +1046,15 @@ recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
   do
     if (.not.associated(cur_pm)) exit
 
-    call h5gcreate_f(pmc_grp_id, trim(cur_pm%name), pm_grp_id, &
+    call h5gcreate_f(h5_pmc_grp_id, trim(cur_pm%name), h5_pm_grp_id, &
          hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
-    call cur_pm%CheckpointHDF5(pm_grp_id)
-    call h5gclose_f(pm_grp_id, hdf5_err)
+    call cur_pm%CheckpointHDF5(h5_pm_grp_id)
+    call h5gclose_f(h5_pm_grp_id, hdf5_err)
 
     cur_pm => cur_pm%next
   enddo
 
-  call h5gclose_f(pmc_grp_id, hdf5_err)
+  call h5gclose_f(h5_pmc_grp_id, hdf5_err)
 
   if (associated(this%child)) then
     call this%child%CheckpointHDF5(chk_grp_id,append_name)
@@ -1113,9 +1114,11 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
 #else
   integer(HID_T) :: h5_chk_grp_id
   integer(HID_T) :: h5_file_id
-  integer(HID_T) :: pmc_grp_id
-  integer(HID_T) :: pm_grp_id
+  integer(HID_T) :: h5_pmc_grp_id
+  integer(HID_T) :: h5_pm_grp_id
 #endif
+  PetscInt :: pmc_grp_id
+  PetscInt :: pm_grp_id
 
   ! if the top PMC
   if (this%is_master) then
@@ -1135,10 +1138,10 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
                                          this%option)
 
     call h5gopen_f(h5_chk_grp_id, trim(this%name), &
-                   pmc_grp_id, hdf5_err)
+                   h5_pmc_grp_id, hdf5_err)
 
     ! read pmc header
-    call PMCBaseGetHeaderHDF5(this, pmc_grp_id, this%option)
+    call PMCBaseGetHeaderHDF5(this, h5_pmc_grp_id, this%option)
 
     if (Initialized(this%option%restart_time)) then
       this%pm_list%realization_base%output_option%plot_number = 0
@@ -1147,11 +1150,12 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
   else
     h5_chk_grp_id = chk_grp_id
     call h5gopen_f(h5_chk_grp_id, trim(this%name), &
-                   pmc_grp_id, hdf5_err)
+                   h5_pmc_grp_id, hdf5_err)
 
   endif
 
   if (associated(this%timestepper)) then
+    pmc_grp_id = h5_pmc_grp_id
     call this%timestepper%RestartHDF5(pmc_grp_id, this%option)
 
     if (Initialized(this%option%restart_time)) then
@@ -1187,14 +1191,14 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
   cur_pm => this%pm_list
   do
     if (.not.associated(cur_pm)) exit
-    call h5gopen_f(pmc_grp_id, trim(cur_pm%name), pm_grp_id, &
+    call h5gopen_f(h5_pmc_grp_id, trim(cur_pm%name), h5_pm_grp_id, &
                    hdf5_err)
-    call cur_pm%RestartHDF5(pm_grp_id)
-    call h5gclose_f(pm_grp_id, hdf5_err)
+    call cur_pm%RestartHDF5(h5_pm_grp_id)
+    call h5gclose_f(h5_pm_grp_id, hdf5_err)
     cur_pm => cur_pm%next
   enddo
 
-  call h5gclose_f(pmc_grp_id, hdf5_err)
+  call h5gclose_f(h5_pmc_grp_id, hdf5_err)
 
   if (associated(this%child)) then
     call this%child%RestartHDF5(chk_grp_id)
