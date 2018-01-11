@@ -1,0 +1,361 @@
+! Example 1D subsurface TH mode using freezing-thawing smoothing
+! ICE_MODEL PAINTER_KARRA_EXPLICIT_SMOOTH
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE TH
+      OPTIONS
+        FREEZING
+        ! adding half-width for smoothing freezing-thawing zone when PKE model only 
+        ! (<1.d-50 implies no-smoothing by default, ideally ranging 0.001 ~ 0.01)
+        ICE_MODEL PAINTER_KARRA_EXPLICIT_SMOOTH 1.0d-2
+
+      /
+    /
+  /
+END
+
+!=========================== I. SUBSURFACE Simulation =============================
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 25
+  END
+
+  NEWTON_SOLVER
+    ATOL 1D-20
+    RTOL 1D-10
+    STOL 1D-10      ! changing down to 1D-10 or so (but not less anymore) will reduce time-step BUT cause accuracy issue when smoothing FT zone
+    !ITOL 1D-06      ! this option doesn't work well like before (2017-01-30)
+
+    MAXIMUM_NUMBER_OF_ITERATIONS 30
+    MAXF 100
+  /
+
+  LINEAR_SOLVER
+    !PC_TYPE LU
+    !KSP_TYPE PREONLY
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+    11
+    21
+    31
+    41
+    51
+    61
+    81
+    101
+    121
+  /
+END
+
+!=========================== II. discretization ===================================
+GRID
+  TYPE structured
+  ORIGIN 0.d0 0.d0 -45.d0
+  NXYZ 1 1 131
+  DXYZ  
+    0.6666d1
+    0.6666d1
+    2.00 2.00 2.00 2.00 2.00 2.00 2.00 2.00 2.00 2.00 \
+    2.00 2.00 2.00 2.00 2.00 \
+    1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 \
+    0.40 0.40 0.40 0.40 0.40 0.40 0.40 0.40 0.40 0.40 \
+    0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 \
+    0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 \
+    0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 \
+    0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 \
+    0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 0.10 \
+    0.025 0.025 0.025 0.025 0.025 0.025 0.025 0.025 0.025 0.025 \
+    0.025 0.025 0.025 0.025 0.025 0.025 0.025 0.025 0.025 0.025 \
+    0.020 0.020 0.020 0.020 0.020 0.020 0.020 0.020 0.020 0.020 \
+    0.020 0.020 0.020 0.020 0.020 \
+    0.020 0.020 0.020 0.020 0.020 \
+    0.020 0.020 0.020 0.020 \
+    0.010 0.010     
+  /
+END
+
+REGION all
+  COORDINATES
+    0.0d0 0.d0 -45.0d0
+    0.6666d1 0.6666d1 5.00d0
+  /
+END
+
+REGION top 
+  COORDINATES
+    0.0d0 0.0d0 5.00d0
+    0.6666d1 0.6666d1 5.00d0
+  /
+  FACE TOP
+END
+
+REGION horizonA
+  COORDINATES
+    0.0d0 0.0d0 4.80d0
+    0.6666d1 0.6666d1 5.00d0
+  /
+END
+
+REGION horizonBC
+  COORDINATES
+    0.0d0 0.0d0 -45.0d0
+    0.6666d1 0.6666d1 4.80d0
+  /
+END
+
+REGION outlet 
+  COORDINATES
+    0.0d0 0.0d0 5.00d0
+    0.6666d1 0.6666d1 5.00d0
+  /
+  FACE TOP
+END
+
+REGION bottom
+  COORDINATES
+    0.0d0 0.0d0 -45.0d0
+    0.6666d1 0.6666d1 -45.0d0
+  /
+  FACE BOTTOM
+END
+
+!=========================== III.(1) stratigraphy couplers ========================
+
+STRATA
+  REGION horizonA
+  MATERIAL peat1 
+END
+
+STRATA
+  REGION horizonBC
+  MATERIAL soil1 
+END
+
+!=========================== III.(2) condition couplers ===========================
+
+INITIAL_CONDITION initial_coupler
+  FLOW_CONDITION initial
+  REGION all
+END
+
+INITIALIZE_FLOW_FROM_FILE ./ats_soil_ICs.h5     ! replace the values in 'INITIAL_CONDITION' (initial_coupler)
+
+BOUNDARY_CONDITION daily_bcs
+  FLOW_CONDITION surface_bc
+  REGION top
+END
+
+BOUNDARY_CONDITION overflow
+  FLOW_CONDITION surface_overflow
+  REGION outlet
+END
+
+BOUNDARY_CONDITION leaky_bottom
+  FLOW_CONDITION leaky
+  REGION bottom
+END
+
+!=========================== IV. timer =======================================
+TIME
+  FINAL_TIME 365.d0 d 
+  INITIAL_TIMESTEP_SIZE 900.0d0 s
+  MINIMUM_TIMESTEP_SIZE 1.d-1 s
+  MAXIMUM_TIMESTEP_SIZE 86400.0d0 s
+END
+
+
+!=========================== V. output ==========================================
+OUTPUT
+  SCREEN PERIODIC 48
+  !PERIODIC TIMESTEP 1
+  PERIODIC TIME 1.d0 d
+  FORMAT HDF5
+END
+
+!=============================================================================================
+! The following blocks are for fluid/porous media properties, and initial/boundary conditions
+! which are GOING to be used for ‘couplers’ defined above (note: can be more than ‘used’ above )
+!
+!=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+REFERENCE_PRESSURE 101325.d0
+REFERENCE_TEMPERATURE 25.d0
+
+!=========================== material properties ==============================
+MATERIAL_PROPERTY peat1
+  ID 1
+  POROSITY 0.850d0
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT !BRAGFLO
+  ! 1d-7~1d-8 equivalent to ice expansion of volume, upon 'default' or 'BRAGFLO'
+  ! beyond this range may cause tiny-time stepping
+  SOIL_COMPRESSIBILITY 1.d-07       
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 700.0d0
+  SPECIFIC_HEAT 830.0d0
+  THERMAL_CONDUCTIVITY_DRY 0.070d+00
+  THERMAL_CONDUCTIVITY_WET 0.670d+00
+  THERMAL_COND_EXPONENT 4.50d-01
+  THERMAL_CONDUCTIVITY_FROZEN 2.3588d+00
+  THERMAL_COND_EXPONENT_FROZEN 0.95d0
+  CHARACTERISTIC_CURVES sf1
+  PERMEABILITY
+    PERM_X 5.0d-12
+    PERM_Y 5.0d-12
+    PERM_Z 5.0d-12
+  /
+END
+
+MATERIAL_PROPERTY soil1
+  ID 2
+  POROSITY 0.50d0
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT !BRAGFLO
+  ! 1d-7~1d-8 equivalent to ice expansion of volume, upon 'default' or 'BRAGFLO'
+  ! beyond this range may cause tiny-time stepping
+  SOIL_COMPRESSIBILITY 1.d-07
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 2170.0d0
+  SPECIFIC_HEAT 830.0d0
+  THERMAL_CONDUCTIVITY_DRY 0.290d+00
+  THERMAL_CONDUCTIVITY_WET 1.000d+00
+  THERMAL_COND_EXPONENT 4.50d-01
+  THERMAL_CONDUCTIVITY_FROZEN 2.3588d+00
+  THERMAL_COND_EXPONENT_FROZEN 0.95d0
+  CHARACTERISTIC_CURVES sf2
+  PERMEABILITY
+    PERM_X 2.0d-13
+    PERM_Y 2.0d-13
+    PERM_Z 2.0d-13
+  /
+END
+
+!========================== saturation  functions =============================
+! parameters for saturation functions called in ‘material properties’ above 
+
+skip
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION BROOKS_COREY    
+    SMOOTH
+    LIQUID_RESIDUAL_SATURATION 0.0d0
+    MAX_CAPILLARY_PRESSURE 1.d8
+    ALPHA 2.93d-04
+    LAMBDA 0.2120d0
+  /
+  PERMEABILITY_FUNCTION BURDINE_BC_LIQ
+    LIQUID_RESIDUAL_SATURATION 0.0d0
+    LAMBDA 0.2120d0
+  /
+END
+
+CHARACTERISTIC_CURVES sf2
+  SATURATION_FUNCTION BROOKS_COREY
+    SMOOTH
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    MAX_CAPILLARY_PRESSURE 1.d8
+    ALPHA 5.45d-03
+    LAMBDA 0.1909d0
+  /
+  PERMEABILITY_FUNCTION BURDINE_BC_LIQ
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    LAMBDA 0.1909d0
+  / 
+END
+noskip
+
+!skip
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION VAN_GENUCHTEN    
+    LIQUID_RESIDUAL_SATURATION 0.0d0
+    MAX_CAPILLARY_PRESSURE 1.d8
+    ALPHA 2.93d-04
+    M 0.2120d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    SMOOTH      
+    LIQUID_RESIDUAL_SATURATION 0.0d0
+    M 0.2120d0
+  /
+END
+
+CHARACTERISTIC_CURVES sf2
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    MAX_CAPILLARY_PRESSURE 1.d8
+    ALPHA 5.45d-03
+    M 0.1909d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    SMOOTH      
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    M 0.1909d0
+  / 
+END
+!noskip
+
+!=========================== flow conditions ==================================
+
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE dirichlet
+    TEMPERATURE dirichlet
+  / 
+  PRESSURE -802819.836d0 
+  
+  TEMPERATURE -5.0d0
+     
+END
+
+FLOW_CONDITION surface_bc
+  TYPE
+    FLUX neumann                      ! 'FLUX' actually is only for water ('PRESSURE' keyword shall be same)
+    !PRESSURE dirichlet 
+    TEMPERATURE dirichlet
+  /
+  
+  FLUX FILE ./ats_soil_topbc_flux.txt
+  !FLUX 0.0d-8                          ! for testing
+  !PRESSURE 10.3325d4                   ! only standing water pressure works when freezing (i.e. >= atm pressure)
+  
+  TEMPERATURE FILE ./ats_soil_topbc_temperature.txt
+  !TEMPERATURE -0.1d0                   ! for testing 
+  
+END
+
+FLOW_CONDITION surface_overflow
+  TYPE
+    PRESSURE seepage                 ! 'FLUX' actually is only for water ('PRESSURE' keyword shall be same)
+    TEMPERATURE dirichlet
+  /
+  
+  PRESSURE 10.1325d4                 ! about 0.0 cm water head
+  TEMPERATURE 5.d0                   ! currently this BC is actually not used (i.e., no heat conduction)
+  
+END
+
+FLOW_CONDITION leaky
+  TYPE
+    PRESSURE neumann
+    TEMPERATURE dirichlet
+  /
+  FLUX 0.d0
+  TEMPERATURE 0.d0 
+END
+
+!
+END_SUBSURFACE
+!=========================== End of SUBSURFACE Simulation =============================
+
