@@ -329,9 +329,13 @@ subroutine DatabaseRead(reaction,option)
         cur_gas_spec%dbaserxn%logK = 0.d0
         ! read in species and stoichiometries
         do ispec = 1, cur_gas_spec%dbaserxn%nspec
-          call InputReadDouble(input,option,cur_gas_spec%dbaserxn%stoich(ispec))
-          call InputErrorMsg(input,option,'GAS species stoichiometry','DATABASE')            
-          call InputReadQuotedWord(input,option,cur_gas_spec%dbaserxn%spec_name(ispec),PETSC_TRUE)
+          call InputReadDouble(input,option, &
+                               cur_gas_spec%dbaserxn%stoich(ispec))
+          call InputErrorMsg(input,option,'GAS species stoichiometry', &
+                             'DATABASE')            
+          call InputReadQuotedWord(input,option, &
+                                   cur_gas_spec%dbaserxn%spec_name(ispec), &
+                                   PETSC_TRUE)
           call InputErrorMsg(input,option,'GAS species name','DATABASE')            
         enddo
         do itemp = 1, num_logKs
@@ -384,8 +388,9 @@ subroutine DatabaseRead(reaction,option)
             
         ! read the number of aqueous species in surface complexation rxn
         call InputReadInt(input,option,cur_srfcplx%dbaserxn%nspec)
-        call InputErrorMsg(input,option,'Number of species in surface complexation reaction', &
-                        'DATABASE')  
+        call InputErrorMsg(input,option, &
+                     'Number of species in surface complexation reaction', &
+                     'DATABASE')  
         ! decrement number of species since free site will not be included
         cur_srfcplx%dbaserxn%nspec = cur_srfcplx%dbaserxn%nspec - 1
         ! allocate arrays for rxn
@@ -397,12 +402,14 @@ subroutine DatabaseRead(reaction,option)
         cur_srfcplx%dbaserxn%logK = 0.d0
         ! read in species and stoichiometries
         ispec = 0
-        do i = 1, cur_srfcplx%dbaserxn%nspec+1 ! recall that nspec was decremented above
+                                      ! recall that nspec was decremented above
+        do i = 1, cur_srfcplx%dbaserxn%nspec+1 
           call InputReadDouble(input,option,stoich)
-          call InputErrorMsg(input,option,'SURFACE COMPLEX species stoichiometry','DATABASE')            
+          call InputErrorMsg(input,option, &
+                         'SURFACE COMPLEX species stoichiometry','DATABASE')
           call InputReadQuotedWord(input,option,name,PETSC_TRUE)
-          call InputErrorMsg(input,option,'SURFACE COMPLEX species name','DATABASE')            
-!          if (StringCompare(name,cur_srfcplx_rxn%free_site_name,MAXWORDLENGTH)) then
+          call InputErrorMsg(input,option,'SURFACE COMPLEX species name', &
+                             'DATABASE')            
           if (StringStartsWith(name,'>')) then
             cur_srfcplx%free_site_name = name
             cur_srfcplx%free_site_stoich = stoich
