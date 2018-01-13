@@ -1614,6 +1614,8 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscBool :: aveg_mass_flowrate
   PetscBool :: aveg_energy_flowrate
 
+  PetscInt :: flag1, flag2
+
   type(region_type), pointer :: region
   type(flow_condition_type), pointer :: flow_condition
 #ifdef WELL_CLASS
@@ -1642,7 +1644,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(patch_type), pointer :: patch
   type(reaction_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
-  type(uniform_velocity_dataset_type), pointer :: uniform_velocity_dataset
   class(dataset_base_type), pointer :: dataset
   class(data_mediator_dataset_type), pointer :: flow_data_mediator
   class(data_mediator_dataset_type), pointer :: rt_data_mediator
@@ -1704,40 +1705,54 @@ subroutine SubsurfaceReadInput(simulation,input)
         call ReactionReadPass2(reaction,input,option)
 
 !....................
+      case ('SPECIFIED_VELOCITY')
+        flag1 = UNINITIALIZED_INTEGER ! uniform?
+        do
+          call InputReadPflotranString(input,option)
+          call InputReadStringErrorMsg(input,option,card)
+          if (InputCheckExit(input,option)) exit
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword','OUTPUT')
+          call StringToUpper(word)
+          select case(trim(word))
+            case('UNIFORM?')
+              flag1 = StringYesNoOther(input%buf)
+            case('DATASET')
+              if (flag1 == STRING_OTHER) then
+                option%io_buffer = 'SPECIFIED_VELOCITY card "UNIFORM?" &
+                  &must be answered with "YES"/"NO" before velocity data &
+                  &can can be read.'
+                call printErrMsg(option)
+              endif
+              if (flag1 == STRING_YES) then
+!TODO(geh)
+! Add dataset_ascii support for velocities to reused all the support routines
+! Add interface for non-uniform dataset
+!                realization%uniform_velocity_dataset => &
+!                  UniformVelocityDatasetCreate()
+!                call UniformVelocityDatasetRead( &
+!                       realization%uniform_velocity_dataset,input,option)
+              else
+                call InputReadNChars(input,option, &
+                                 realization%nonuniform_velocity_filename, &
+                                 MAXSTRINGLENGTH,PETSC_TRUE)
+                call InputErrorMsg(input,option,'filename', &
+                                   'SPECIFIED_VELOCITY,NONUNIFORM,DATASET')
+              endif
+          end select
+        enddo
       case ('NONUNIFORM_VELOCITY')
-        call InputReadNChars(input,option, &
-                             realization%nonuniform_velocity_filename, &
-                             MAXSTRINGLENGTH,PETSC_TRUE)
-        call InputErrorMsg(input,option,'filename','NONUNIFORM_VELOCITY')
-
+        option%io_buffer = 'The NONUNIFORM_VELOCITY card within SUBSURFACE &
+          &block has been deprecated. Use the SPECIFIED_VELOCITY block.'
+        call printErrMsg(option)
       case ('UNIFORM_VELOCITY')
-        uniform_velocity_dataset => UniformVelocityDatasetCreate()
-        uniform_velocity_dataset%rank = 3
-        uniform_velocity_dataset%interpolation_method = 1 ! 1 = STEP
-        uniform_velocity_dataset%is_cyclic = PETSC_FALSE
-        allocate(uniform_velocity_dataset%times(1))
-        uniform_velocity_dataset%times = 0.d0
-        allocate(uniform_velocity_dataset%values(3,1))
-        uniform_velocity_dataset%values = 0.d0
-        call InputReadDouble(input,option,uniform_velocity_dataset%values(1,1))
-        call InputErrorMsg(input,option,'velx','UNIFORM_VELOCITY')
-        call InputReadDouble(input,option,uniform_velocity_dataset%values(2,1))
-        call InputErrorMsg(input,option,'vely','UNIFORM_VELOCITY')
-        call InputReadDouble(input,option,uniform_velocity_dataset%values(3,1))
-        call InputErrorMsg(input,option,'velz','UNIFORM_VELOCITY')
-        ! read units, if present
-        temp_real = 1.d0
-        call InputReadAndConvertUnits(input,temp_real, &
-                                    'meter/sec','UNIFORM_VELOCITY,units',option)
-        uniform_velocity_dataset%values(:,1) = &
-          uniform_velocity_dataset%values(:,1) * temp_real
-        call UniformVelocityDatasetVerify(option,uniform_velocity_dataset)
-        realization%uniform_velocity_dataset => uniform_velocity_dataset
-
+        option%io_buffer = 'The UNIFORM_VELOCITY card within SUBSURFACE &
+          &block has been deprecated. Use the SPECIFIED_VELOCITY block.'
+        call printErrMsg(option)
       case ('VELOCITY_DATASET')
-        uniform_velocity_dataset => UniformVelocityDatasetCreate()
-        call UniformVelocityDatasetRead(uniform_velocity_dataset,input,option)
-        realization%uniform_velocity_dataset => uniform_velocity_dataset
+        option%io_buffer = 'The VELOCITY_DATASET card within SUBSURFACE &
+          &block has been deprecated. Use the SPECIFIED_VELOCITY block.'
+        call printErrMsg(option)
 
 !....................
       case ('DEBUG')

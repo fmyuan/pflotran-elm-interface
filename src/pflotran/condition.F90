@@ -3699,7 +3699,8 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base,units, &
   call StringToLower(word)
   length = len_trim(word)
   if (StringStartsWithAlpha(word)) then
-    if (length == FOUR_INTEGER .and. StringCompare(word,'file',FOUR_INTEGER)) then 
+    if (length == FOUR_INTEGER .and. &
+        StringCompare(word,'file',FOUR_INTEGER)) then 
       input%err_buf2 = trim(keyword) // ', FILE'
       input%err_buf = 'keyword'
       call InputReadNChars(input,option,string2,MAXSTRINGLENGTH,PETSC_TRUE)
@@ -3758,7 +3759,8 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base,units, &
           ! the appropriate arrays
           allocate(flow_dataset%time_series%times(dims(2)))
           flow_dataset%time_series%times = UNINITIALIZED_DOUBLE
-          allocate(flow_dataset%time_series%values(flow_dataset%time_series%rank,dims(2))) 
+          allocate(flow_dataset%time_series%values(flow_dataset% &
+                                                     time_series%rank,dims(2))) 
           flow_dataset%time_series%values = UNINITIALIZED_DOUBLE
           icount = 1
           do i = 1, dims(2)
