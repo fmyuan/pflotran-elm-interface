@@ -1186,8 +1186,11 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
 
   if (rks_use_cubic_root_solution) then ! analtyical cubic root soltion
 
-    A_cubic = rks_coeff_a*alpha*(P/Pc_eff)/(T_kelvin/Tc_eff)**2
-    B_cubic = rks_coeff_b*(P/Pc_eff)/(T_kelvin/Tc_eff)
+!    Pg = P
+    Pg = max(PMIN,P)
+  
+    A_cubic = rks_coeff_a*alpha*(Pg/Pc_eff)/(T_kelvin/Tc_eff)**2
+    B_cubic = rks_coeff_b*(Pg/Pc_eff)/(T_kelvin/Tc_eff)
 
     ! Solve the cubic eos for compressibility z = pv/(RT)
     ! z^3 - z^2 + (A_cubic-B_cubic-B_cubic^2)*z - (A_cubic*B_cubic) = 0
@@ -1214,16 +1217,16 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
     ! z3 = xn + 2.0d0*del1*cos(theta + 2.0d0/3.0d0*pi)
 
 
-    Rho_gas = p/(z1*RT) * 1.0d-3 ! mol/m^3 -> kmol/m^3
+    Rho_gas = Pg/(z1*RT) * 1.0d-3 ! mol/m^3 -> kmol/m^3
     ! BRAGFLO: if pressure is less than zero, 
     ! the density is set to 1/10 the density at 1e4 Pa
     Rho_gas = max(Rho_gas, 1.d0/RT) ! kmol/m^3
 
-    if (p < 0.d0) then
+    if (Pg < 0.d0) then
       print *
-      print *, 'EOSGasDensityRKS received a bad pressure: ', p
+      print *, 'EOSGasDensityRKS received a bad pressure: ', Pg
       print *, 'EOSGasDensityRKS temperature: ', T
-      print *, 'EOSGasDensityRKS calculated a density: ', p/(z1*RT)*1.0d-3
+      print *, 'EOSGasDensityRKS calculated a density: ', Pg/(z1*RT)*1.0d-3
       print *, 'EOSGasDensityRKS reset density to: ', Rho_gas
       print *
     endif
@@ -1231,7 +1234,7 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
   else ! Newton's method
 
     Pg = max(PMIN,P)
-  
+
     a_Newton = rks_coeff_a * alpha * (IDEAL_GAS_CONSTANT * Tc_eff)**2.d0 / &
                Pc_eff
     b_Newton = rks_coeff_b * IDEAL_GAS_CONSTANT * Tc_eff / Pc_eff
