@@ -1525,7 +1525,7 @@ subroutine WIPPCharacteristicCurves(saturation, &
   select type(liq_rpf => liq_rel_perm_func)
     class is(rpf_KRP1_liq_type)
       krp = 1
-      xlamda = liq_rpf%m
+      xlamda = liq_rpf%m / (1.d0-liq_rpf%m)
     class is(rpf_KRP4_liq_type)
       krp = 4
       xlamda = liq_rpf%lambda
