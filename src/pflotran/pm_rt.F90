@@ -1050,8 +1050,7 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
   
   ! begin from RealizationUpdate()
   call TranConditionUpdate(this%realization%transport_conditions, &
-                           this%realization%option, &
-                           this%realization%option%time)
+                           this%realization%option)
   if (associated(this%realization%uniform_velocity_dataset)) then
     call RealizUpdateUniformVelocity(this%realization)
   endif  

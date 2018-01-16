@@ -1543,6 +1543,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Characteristic_Curves_module
   use Creep_Closure_module
   use Dataset_Base_class
+  use Dataset_Ascii_class
   use Dataset_module
   use Dataset_Common_HDF5_class
   use Fluid_module
@@ -1564,7 +1565,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Input_Aux_module
   use String_module
   use Units_module
-  use Uniform_Velocity_module
   use Reaction_Mineral_module
   use Regression_module
   use Output_Aux_module
@@ -1599,6 +1599,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   character(len=MAXWORDLENGTH) :: card
   character(len=MAXSTRINGLENGTH) :: string, temp_string
   character(len=MAXWORDLENGTH) :: internal_units
+  character(len=MAXSTRINGLENGTH) :: error_string
 
   character(len=1) :: backslash
   PetscReal :: temp_real, temp_real2
@@ -1645,6 +1646,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(reaction_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   class(dataset_base_type), pointer :: dataset
+  class(dataset_ascii_type), pointer :: dataset_ascii
   class(data_mediator_dataset_type), pointer :: flow_data_mediator
   class(data_mediator_dataset_type), pointer :: rt_data_mediator
   type(waypoint_list_type), pointer :: waypoint_list
@@ -1706,6 +1708,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
       case ('SPECIFIED_VELOCITY')
+        internal_units = 'm/sec'
         flag1 = UNINITIALIZED_INTEGER ! uniform?
         do
           call InputReadPflotranString(input,option)
@@ -1725,14 +1728,48 @@ subroutine SubsurfaceReadInput(simulation,input)
                 call printErrMsg(option)
               endif
               if (flag1 == STRING_YES) then
+                dataset_ascii => DatasetAsciiCreate()
+                dataset_ascii%array_width = 3 * option%nphase
+                realization%uniform_velocity_dataset => dataset_ascii
+
+                string = input%buf
+                call InputReadDouble(input,option,temp_real)
+                if (.not.InputError(input)) then
+                  error_string = trim(error_string) // ',SINGLE'
+                  input%buf = string
+                  call DatasetAsciiReadSingle(dataset_ascii,input, &
+                                              temp_string,internal_units, &
+                                              error_string,option)
+                else
+                  call StringToUpper(word)
+                  error_string = 'SPECIFIED_VELOCITY,UNIFORM,DATASET'
+                  select case(word)
+                    case('FILE')
+                      error_string = trim(error_string) // ',FILE'
+                      call InputReadNChars(input,option,string, &
+                                           MAXSTRINGLENGTH,PETSC_TRUE)
+                      call InputErrorMsg(input,option,'filename',error_string)
+                      call DatasetAsciiReadFile(dataset_ascii,string, &
+                                                temp_string,internal_units, &
+                                                error_string,option)
+                    case('LIST')
+                      error_string = trim(error_string) // ',LIST'
+                      call DatasetAsciiReadList(dataset_ascii,input, &
+                                                temp_string,internal_units, &
+                                                error_string,option)
+                    case default
+                      call InputKeywordUnrecognized(word,error_string,option)
+                  end select
+                endif
 !TODO(geh)
 ! Add dataset_ascii support for velocities to reused all the support routines
-! Add interface for non-uniform dataset
 !                realization%uniform_velocity_dataset => &
 !                  UniformVelocityDatasetCreate()
 !                call UniformVelocityDatasetRead( &
 !                       realization%uniform_velocity_dataset,input,option)
+                  
               else
+! Add interface for non-uniform dataset
                 call InputReadNChars(input,option, &
                                  realization%nonuniform_velocity_filename, &
                                  MAXSTRINGLENGTH,PETSC_TRUE)

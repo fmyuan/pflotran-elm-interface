@@ -3620,8 +3620,8 @@ end subroutine TranConditionRead
 
 ! ************************************************************************** !
 
-subroutine ConditionReadValues(input,option,keyword,dataset_base,units, &
-                               data_internal_units)
+subroutine ConditionReadValues(input,option,keyword,dataset_base, &
+                               data_external_units,data_internal_units)
   ! 
   ! Read the value(s) of a condition variable
   ! 
@@ -3648,10 +3648,10 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base,units, &
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: keyword
   class(dataset_base_type), pointer :: dataset_base
-  character(len=MAXWORDLENGTH) :: units
-  character(len=MAXSTRINGLENGTH), pointer :: internal_unit_strings(:)
+  character(len=MAXWORDLENGTH) :: data_external_units
   character(len=MAXWORDLENGTH) :: data_internal_units
   
+  character(len=MAXSTRINGLENGTH), pointer :: internal_unit_strings(:)
   class(dataset_ascii_type), pointer :: dataset_ascii
   character(len=MAXSTRINGLENGTH) :: string2, filename, hdf5_path
   character(len=MAXWORDLENGTH) :: word, realization_word
@@ -3661,7 +3661,6 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base,units, &
   PetscInt :: ndims
   PetscInt, pointer :: dims(:)
   PetscReal, pointer :: real_buffer(:)
-  type(input_type), pointer :: input2
   PetscErrorCode :: ierr
 
 #if defined(PETSC_HAVE_HDF5)  
@@ -3685,7 +3684,6 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base,units, &
     call printErrMsg(option)
   endif
 
-  nullify(input2)
   filename = ''
   realization_word = ''
   hdf5_path = ''
@@ -3790,11 +3788,10 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base,units, &
         else
           filename = trim(filename) // trim(realization_word)
         endif
-        input2 => InputCreate(IUNIT_TEMP,filename,option)
-        input2%force_units = input%force_units
-        call DatasetAsciiRead(dataset_ascii,input2,data_internal_units,option)
+        error_string = 'CONDITION,' // trim(keyword) // ',FILE'
+        call DatasetAsciiReadFile(dataset_ascii,filename,data_external_units, &
+                                  data_internal_units,error_string,option)
         dataset_ascii%filename = filename
-        call InputDestroy(input2)
       endif
     else if (StringCompare(word,'dataset')) then
       call InputReadWord(input,option,word,PETSC_TRUE)    
@@ -3805,7 +3802,9 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base,units, &
       dataset_base => DatasetBaseCreate()
       dataset_base%name = word
     else if (length==FOUR_INTEGER .and. StringCompare(word,'list',length)) then 
-      call DatasetAsciiRead(dataset_ascii,input,data_internal_units,option)
+      error_string = 'CONDITION,' // trim(keyword) // ',LIST'
+      call DatasetAsciiReadList(dataset_ascii,input,data_external_units, &
+                                data_internal_units,error_string,option)
     else
       option%io_buffer = 'Keyword "' // trim(word) // &
         '" not recognized in when reading condition values for "' // &
@@ -3814,6 +3813,10 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base,units, &
     endif
   else
     input%buf = trim(string2)
+    error_string = 'CONDITION,' // trim(keyword) // ',SINGLE'
+    call DatasetAsciiReadSingle(dataset_ascii,input,data_external_units, &
+                                data_internal_units,error_string,option)
+#if 0
     allocate(dataset_ascii%rarray(dataset_ascii%array_width))
     do icol=1,dataset_ascii%array_width
       call InputReadDouble(input,option,dataset_ascii%rarray(icol))
@@ -3840,10 +3843,13 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base,units, &
         units = trim(units) // ' ' // trim(word)
       enddo
     endif
+#endif
   endif
   
+#if 0
   deallocate(internal_unit_strings)
   nullify(internal_unit_strings)  
+#endif
 
   call PetscLogEventEnd(logging%event_flow_condition_read_values, &
                         ierr);CHKERRQ(ierr)
@@ -4036,7 +4042,7 @@ end function GetSubConditionName
 
 ! ************************************************************************** !
 
-subroutine FlowConditionUpdate(condition_list,option,time)
+subroutine FlowConditionUpdate(condition_list,option)
   ! 
   ! Updates a transient condition
   ! 
@@ -4051,7 +4057,6 @@ subroutine FlowConditionUpdate(condition_list,option,time)
   
   type(condition_list_type) :: condition_list
   type(option_type) :: option
-  PetscReal :: time
   
   type(flow_condition_type), pointer :: condition
   type(flow_sub_condition_type), pointer :: sub_condition
@@ -4061,14 +4066,14 @@ subroutine FlowConditionUpdate(condition_list,option,time)
   do
     if (.not.associated(condition)) exit
     
-    call DatasetUpdate(condition%datum,time,option)
+    call DatasetUpdate(condition%datum,option)
     do isub_condition = 1, condition%num_sub_conditions
 
       sub_condition => condition%sub_condition_ptr(isub_condition)%ptr
       
       if (associated(sub_condition)) then
-        call DatasetUpdate(sub_condition%dataset,time,option)
-        call DatasetUpdate(sub_condition%gradient,time,option)
+        call DatasetUpdate(sub_condition%dataset,option)
+        call DatasetUpdate(sub_condition%gradient,option)
       endif
       
     enddo
@@ -4081,7 +4086,7 @@ end subroutine FlowConditionUpdate
 
 ! ************************************************************************** !
 
-subroutine TranConditionUpdate(condition_list,option,time)
+subroutine TranConditionUpdate(condition_list,option)
   ! 
   ! Updates a transient transport condition
   ! 
@@ -4105,7 +4110,7 @@ subroutine TranConditionUpdate(condition_list,option,time)
     
     do
       if (associated(condition%cur_constraint_coupler%next)) then
-        if (time >= condition%cur_constraint_coupler%next%time) then
+        if (option%time >= condition%cur_constraint_coupler%next%time) then
           condition%cur_constraint_coupler => &
             condition%cur_constraint_coupler%next
         else

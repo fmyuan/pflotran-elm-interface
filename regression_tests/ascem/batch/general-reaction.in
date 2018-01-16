@@ -23,9 +23,6 @@ DEBUG
 #VECVIEW_SOLUTION
 /
 
-# == mode =====================================================================
-UNIFORM_VELOCITY 0.d0 0.d0 0.d0
-
 # == chemistry ================================================================
 CHEMISTRY
   PRIMARY_SPECIES

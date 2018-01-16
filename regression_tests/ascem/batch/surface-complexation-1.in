@@ -16,12 +16,6 @@ REGRESSION
   CELLS_PER_PROCESS 1
 END
 
-#=========================== flow mode ========================================
-# Uniform velocity (see below). No flow mode specified.
-
-#=========================== useful tranport parameters ==================
-UNIFORM_VELOCITY 0.0 0.d0 0.d0 ! 1. meter/yr
-
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES

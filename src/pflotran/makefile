@@ -464,7 +464,6 @@ misc_obj = \
 	${common_src}timestepper_base.o \
 	${common_src}timestepper_BE.o \
 	${common_src}transport.o \
-	${common_src}uniform_velocity.o \
 	${common_src}waypoint.o \
 	${common_src}wipp.o \
 	${common_src}wrapper_hydrogeophysics.o
@@ -737,7 +736,7 @@ factory_subsurface.o : characteristic_curves.o checkpoint.o condition.o \
                        simulation_subsurface.o solver.o srcsink_sandbox.o \
                        strata.o string.o timestepper_BE.o timestepper_base.o \
                        timestepper_steady.o transport_constraint.o \
-                       uniform_velocity.o units.o utility.o waypoint.o \
+                       units.o utility.o waypoint.o \
                        well_spec_base.o wipp.o
 factory_surface.o : checkpoint.o checkpoint_surface.o condition.o \
                     condition_control.o coupler.o dataset.o dataset_base.o \
@@ -1334,8 +1333,7 @@ realization_subsurface.o : characteristic_curves.o communicator_structured.o \
                            reactive_transport_aux.o realization_base.o \
                            region.o saturation_function.o strata.o string.o \
                            time_storage.o transport_constraint.o \
-                           uniform_velocity.o variables.o waypoint.o \
-                           well_spec_base.o
+                           variables.o waypoint.o well_spec_base.o
 realization_surface.o : condition.o coupler.o dataset.o dataset_base.o debug.o \
                         discretization.o dm_kludge.o field.o grid.o \
                         grid_unstructured.o grid_unstructured_aux.o \
@@ -1499,8 +1497,6 @@ transport_constraint.o : global_aux.o input_aux.o logging.o option.o \
                          reaction_immobile_aux.o reaction_mineral_aux.o \
                          reaction_surf_complex_aux.o reactive_transport_aux.o \
                          string.o units.o
-uniform_velocity.o : input_aux.o logging.o option.o pflotran_constants.o \
-                     string.o units.o utility.o
 units.o : option.o pflotran_constants.o
 utility.o : input_aux.o option.o pflotran_constants.o string.o
 variables.o :

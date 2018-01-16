@@ -3990,16 +3990,21 @@ subroutine PatchUpdateUniformVelocity(patch,velocity,option)
   implicit none
 
   type(patch_type), pointer :: patch
-  PetscReal :: velocity(3)
+  PetscReal :: velocity(:)
   type(option_type), pointer :: option
 
   type(grid_type), pointer :: grid
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
-  PetscInt :: iconn, sum_connection
+  PetscInt :: iconn, sum_connection, iphase
+  PetscReal :: phase_velocity(3,option%nphase)
   PetscReal :: vdarcy
 
   grid => patch%grid
+
+  do iphase = 0, option%nphase-1
+    phase_velocity(1:3,iphase+1) = velocity(1+iphase*3:3+iphase*3)
+  enddo
 
   ! Internal Flux Terms -----------------------------------
   cur_connection_set => grid%internal_connection_set_list%first
@@ -4008,9 +4013,11 @@ subroutine PatchUpdateUniformVelocity(patch,velocity,option)
     if (.not.associated(cur_connection_set)) exit
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
-      vdarcy = dot_product(velocity, &
-                           cur_connection_set%dist(1:3,iconn))
-      patch%internal_velocities(1,sum_connection) = vdarcy
+      do iphase = 1, option%nphase
+        vdarcy = dot_product(phase_velocity(:,iphase), &
+                             cur_connection_set%dist(1:3,iconn))
+        patch%internal_velocities(iphase,sum_connection) = vdarcy
+      enddo
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
@@ -4023,9 +4030,11 @@ subroutine PatchUpdateUniformVelocity(patch,velocity,option)
     cur_connection_set => boundary_condition%connection_set
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
-      vdarcy = dot_product(velocity, &
-                           cur_connection_set%dist(1:3,iconn))
-      patch%boundary_velocities(1,sum_connection) = vdarcy
+      do iphase = 1, option%nphase
+        vdarcy = dot_product(phase_velocity(:,iphase), &
+                             cur_connection_set%dist(1:3,iconn))
+        patch%boundary_velocities(1,sum_connection) = vdarcy
+      enddo
     enddo
     boundary_condition => boundary_condition%next
   enddo

@@ -21,7 +21,6 @@ module Realization_Subsurface_class
   use Discretization_module
   use Field_module
   use Debug_module
-  use Uniform_Velocity_module
   use Output_Aux_module
   
   use Reaction_Aux_module
@@ -52,7 +51,7 @@ private
     class(characteristic_curves_type), pointer :: characteristic_curves
     class(dataset_base_type), pointer :: datasets
     
-    type(uniform_velocity_dataset_type), pointer :: uniform_velocity_dataset
+    class(dataset_base_type), pointer :: uniform_velocity_dataset
     character(len=MAXSTRINGLENGTH) :: nonuniform_velocity_filename
     
   end type realization_subsurface_type
@@ -1328,11 +1327,9 @@ subroutine RealizationInitAllCouplerAuxVars(realization)
   !geh: Must update conditions prior to initializing the aux vars.  
   !     Otherwise, datasets will not have been read for routines such as
   !     hydrostatic and auxvars will be initialized to garbage.
-  call FlowConditionUpdate(realization%flow_conditions,realization%option, &
-                           realization%option%time)
+  call FlowConditionUpdate(realization%flow_conditions,realization%option)
   call TranConditionUpdate(realization%transport_conditions, &
-                           realization%option, &
-                           realization%option%time)  
+                           realization%option)
   call PatchInitAllCouplerAuxVars(realization%patch,realization%option)
    
 end subroutine RealizationInitAllCouplerAuxVars
@@ -1427,16 +1424,16 @@ subroutine RealizUpdateUniformVelocity(realization)
   ! 
 
   use Option_module
+  use Dataset_module
 
   implicit none
   
   class(realization_subsurface_type) :: realization
   
-  call UniformVelocityDatasetUpdate(realization%option, &
-                                    realization%option%time, &
-                                    realization%uniform_velocity_dataset)
+  call DatasetUpdate(realization%uniform_velocity_dataset, &
+                     realization%option)
   call PatchUpdateUniformVelocity(realization%patch, &
-                            realization%uniform_velocity_dataset%cur_value, &
+                            realization%uniform_velocity_dataset%rarray, &
                             realization%option)
  
 end subroutine RealizUpdateUniformVelocity
@@ -1472,6 +1469,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
   type(waypoint_type), pointer :: waypoint, cur_waypoint
   type(option_type), pointer :: option
   type(strata_type), pointer :: cur_strata
+  type(time_storage_type), pointer :: time_storage_ptr
   PetscInt :: itime, isub_condition
   PetscReal :: temp_real, final_time
   PetscReal, pointer :: times(:)
@@ -1554,14 +1552,17 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
 
   ! add update of velocity fields
   if (associated(realization%uniform_velocity_dataset)) then
-    if (realization%uniform_velocity_dataset%times(1) > 1.d-40 .or. &
-        size(realization%uniform_velocity_dataset%times) > 1) then
-      do itime = 1, size(realization%uniform_velocity_dataset%times)
-        waypoint => WaypointCreate()
-        waypoint%time = realization%uniform_velocity_dataset%times(itime)
-        waypoint%update_conditions = PETSC_TRUE
-        call WaypointInsertInList(waypoint,waypoint_list)
-      enddo
+    time_storage_ptr => realization%uniform_velocity_dataset%time_storage
+    if (associated(time_storage_ptr)) then
+      if (time_storage_ptr%times(1) > 1.d-40 .or. &
+          time_storage_ptr%max_time_index > 1) then
+        do itime = 1, size(time_storage_ptr%times)
+          waypoint => WaypointCreate()
+          waypoint%time = time_storage_ptr%times(itime)
+          waypoint%update_conditions = PETSC_TRUE
+          call WaypointInsertInList(waypoint,waypoint_list)
+        enddo
+      endif
     endif
   endif
   
@@ -1572,11 +1573,11 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
       if (.not.associated(cur_data_mediator)) exit
       select type(cur_data_mediator)
         class is(data_mediator_dataset_type)
-          if (associated(cur_data_mediator%dataset%time_storage)) then
-            do itime = 1, cur_data_mediator%dataset%time_storage%max_time_index
+          time_storage_ptr => cur_data_mediator%dataset%time_storage
+          if (associated(time_storage_ptr)) then
+            do itime = 1, time_storage_ptr%max_time_index
               waypoint => WaypointCreate()
-              waypoint%time = &
-                cur_data_mediator%dataset%time_storage%times(itime)
+              waypoint%time = time_storage_ptr%times(itime)
               waypoint%update_conditions = PETSC_TRUE
               call WaypointInsertInList(waypoint,waypoint_list)
             enddo
@@ -1594,11 +1595,11 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
       if (.not.associated(cur_data_mediator)) exit
       select type(cur_data_mediator)
         class is(data_mediator_dataset_type)
-          if (associated(cur_data_mediator%dataset%time_storage)) then
-            do itime = 1, cur_data_mediator%dataset%time_storage%max_time_index
+          time_storage_ptr => cur_data_mediator%dataset%time_storage
+          if (associated(time_storage_ptr)) then
+            do itime = 1, time_storage_ptr%max_time_index
               waypoint => WaypointCreate()
-              waypoint%time = &
-                cur_data_mediator%dataset%time_storage%times(itime)
+              waypoint%time = time_storage_ptr%times(itime)
               waypoint%update_conditions = PETSC_TRUE
               call WaypointInsertInList(waypoint,waypoint_list)
             enddo
@@ -2572,7 +2573,7 @@ subroutine RealizationDestroyLegacy(realization)
 
   call DatasetDestroy(realization%datasets)
   
-  call UniformVelocityDatasetDestroy(realization%uniform_velocity_dataset)
+  call DatasetDestroy(realization%uniform_velocity_dataset)
   
   call DiscretizationDestroy(realization%discretization)
   
@@ -2623,7 +2624,7 @@ subroutine RealizationStrip(this)
 
   call DatasetDestroy(this%datasets)
   
-  call UniformVelocityDatasetDestroy(this%uniform_velocity_dataset)
+  call DatasetDestroy(this%uniform_velocity_dataset)
   
   call ReactionDestroy(this%reaction,this%option)
   
