@@ -23,7 +23,7 @@ module WIPP_Flow_Aux_module
   PetscBool, public :: wippflo_calc_flux = PETSC_TRUE
   PetscBool, public :: wippflo_calc_bcflux = PETSC_TRUE
   PetscBool, public :: wippflo_calc_chem = PETSC_TRUE
-  PetscBool, public :: wippflo_allow_neg_gas_pressure = PETSC_TRUE
+  PetscBool, public :: wippflo_allow_neg_gas_pressure = PETSC_FALSE
 
   PetscBool, public :: wippflo_match_bragflo_output = PETSC_FALSE
 

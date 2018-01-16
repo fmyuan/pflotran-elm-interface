@@ -417,8 +417,8 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       wippflo_print_solution = PETSC_TRUE
     case('PRINT_UPDATE')
       wippflo_print_update = PETSC_TRUE
-    case('DISALLOW_NEGATIVE_GAS_PRESSURE')
-      wippflo_allow_neg_gas_pressure = PETSC_FALSE
+    case('ALLOW_NEGATIVE_GAS_PRESSURE')
+      wippflo_allow_neg_gas_pressure = PETSC_TRUE
     case default
       found = PETSC_FALSE
   end select
