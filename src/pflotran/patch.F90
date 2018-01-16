@@ -5772,6 +5772,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
                                  GAS_STATE, LIQUID_STATE
   use WIPP_Flow_Aux_module, only : WIPPFloScalePerm
   use Material_Aux_class
+  use PM_TOWG_Aux_module, only: towg_miscibility_model
 
   implicit none
 
@@ -5824,7 +5825,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE, &
          LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
          OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
-         OIL_MOBILITY,OIL_VISCOSITY)
+         OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT)
          
      if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -6391,11 +6392,19 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(EFFECTIVE_POROSITY)
             value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
                     effective_porosity
+          case(BUBBLE_POINT)
+            if(    ( towg_miscibility_model == TOWG_SOLVENT_TL )   &
+               .or.( towg_miscibility_model == TOWG_BLACK_OIL  ) ) then
+              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      bo%bubble_point
+            else
+              value=0.0
+            endif
           !need to add:
           ! - gas and oil mole fraction for the black oil model
           ! - solvent_saturation for SOLVENT model
         end select 
-        
+
       endif
       
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
