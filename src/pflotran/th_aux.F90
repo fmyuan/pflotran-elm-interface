@@ -1029,11 +1029,12 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
               /(1.0d0 - characteristic_curves%saturation_function%Sr)
           dse_dpc = (-dslx_dx)/(1.0d0 - characteristic_curves%saturation_function%Sr)
 
-          function_A = 1.d0/se
-          ! dfunc_A_dt = dfuncA_dslx * dslx_dx * dxplice_dt   (note: dslx_dx = dslx_dxplice)
-          dfunc_A_dt = 1.d0/(se*se)* dse_dpc
-          dfunc_A_dt = dfunc_A_dt * (-dxplice_dt)
-
+          if (se>0.d0) then
+            function_A = 1.d0/se
+            ! dfunc_A_dt = dfuncA_dslx * dslx_dx * dxplice_dt   (note: dslx_dx = dslx_dxplice)
+            dfunc_A_dt = 1.d0/(se*se)* dse_dpc
+            dfunc_A_dt = dfunc_A_dt * (-dxplice_dt)
+          endif
         endif
 
         sl = 1.d0/(function_A + function_B - 1.d0)
@@ -1057,12 +1058,7 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
         ice_presl    = (pres_l - pc) - xplice
         ice_presl_dpl= dxplice_dpl
         ice_presl_dt = dxplice_dt
-#else
-        ice_presl    = pres_l   ! this implies that actually not use ice-adjusted pressure
-        ice_presl_dpl= 1.d0
-        ice_presl_dt = 0.d0
 #endif
-
         call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
 
         ! liq. saturation and its derivatives, with ice-adjusted capillary pressure
@@ -1071,9 +1067,15 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
         dsl_dpl = dslx_dx*dxplice_dpl
 
         ! ice satuation and its derivatives
-        si     = 1.d0 - sl/sli             ! P.-K. Eq.(19)
-        dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
-        dsi_dpl= (sl*dsli_dpl-sli*dsl_dpl)/(sli**2)
+        if (sli>0.d0) then
+          si     = 1.d0 - sl/sli             ! P.-K. Eq.(19)
+          dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
+          dsi_dpl= (sl*dsli_dpl-sli*dsl_dpl)/(sli**2)
+        else
+          si     = 0.d0
+          dsi_dt = 0.d0
+          dsi_dpl= 0.d0
+        endif
 
         ! gas component (as difference)
         sg      = 1.d0 - sl - si
@@ -1085,12 +1087,16 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
         ! Model from Dall'Amico (2010) and Dall' Amico et al. (2011)
         ! rewritten following 'saturation_function.F90:SatFuncComputeIceDallAmico()'
         ! NOTE: here calculate 'saturations and its derivatives'
-#if 0
-        ice_presl    = pres_l   ! this implies that actually not use ice-adjusted pressure
-        ice_presl_dpl= 1.d0
-        ice_presl_dt = 0.d0
-#endif
+
         call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)   ! Pc1 ---> S1, but '_dx' is w.r.t. '_dpres'
+
+#if 0
+        ! (TODO-checking) when coupled with CLM, the following not works well
+        ! although it's theoretically better (because it's used for calculating 'dphi' for water Darcy flux)
+        ice_presl    = (pres_l - pc) - xplice
+        ice_presl_dpl= dxplice_dpl
+        ice_presl_dt = dxplice_dt
+#endif
 
         !
         ! liq. saturation and its derivatives, with ice-adjusted capillary pressure
