@@ -1697,7 +1697,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
 
   PetscReal :: dummy_dperm_up, dummy_dperm_dn
   PetscReal :: temp_perm_up, temp_perm_dn
-  PetscReal :: denup,dendn,xmf
+  PetscReal :: denup,dendn,xmf,sat_liquid_pos
 
   PetscBool :: is_black_oil,istl,isoil,isgas
   PetscBool :: componentInPhase,is_oil_in_oil,is_gas_in_oil
@@ -1878,13 +1878,15 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
   ! s_l = S_water + S_oil
   sat_liquid = auxvar_up%sat(option%liquid_phase) + &
                auxvar_up%sat(option%oil_phase)
+  sat_liquid_pos=max(sat_liquid,0.0d0)
+
   k_eff_up = thermal_conductivity_up(1) + &
-             sqrt(sat_liquid) * &
+             sqrt(sat_liquid_pos) * &
              (thermal_conductivity_up(2) - thermal_conductivity_up(1))
   sat_liquid = auxvar_dn%sat(option%liquid_phase) + &
                auxvar_dn%sat(option%oil_phase)
   k_eff_dn = thermal_conductivity_dn(1) + &
-             sqrt(sat_liquid) * &
+             sqrt(sat_liquid_pos) * &
              (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
   if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
     k_eff_ave = (k_eff_up*k_eff_dn)/(k_eff_up*dist_dn+k_eff_dn*dist_up)
