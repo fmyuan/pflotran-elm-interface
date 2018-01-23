@@ -937,8 +937,8 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
       end select
       string = 'Liquid ' // trim(word) // '-Velocity [m_per_' // &
                trim(output_option%tunit) // ']'
-      call DiscretizationGlobalToNatural(discretization,global_vec_vx, &
-                                       natural_vec,ONEDOF)
+      call DiscretizationGlobalToNatural(discretization,ivec, &
+                                         natural_vec,ONEDOF)
       call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
                                    H5T_NATIVE_DOUBLE)
       att_datasetname = trim(filename_header) // ":/" // &
@@ -967,7 +967,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
         end select
         string = 'Gas ' // trim(word) // '-Velocity [m_per_' // &
                  trim(output_option%tunit) // ']'
-        call DiscretizationGlobalToNatural(discretization,global_vec_vx, &
+        call DiscretizationGlobalToNatural(discretization,ivec, &
                                          natural_vec,ONEDOF)
         call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
                                      H5T_NATIVE_DOUBLE)
@@ -1314,8 +1314,13 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   endif
 
   ! create a group for the data set
-  write(string,'(''Time'',es13.5,x,a1)') &
-        option%time/output_option%tconv,output_option%tunit
+  if (output_option%extend_hdf5_time_format) then
+    write(string,'(''Time'',es20.12,x,a1)') &
+          option%time/output_option%tconv,output_option%tunit
+  else
+    write(string,'(''Time'',es13.5,x,a1)') &
+          option%time/output_option%tconv,output_option%tunit
+  endif
   if (len_trim(output_option%plot_name) > 2) then
     string = trim(string) // ' ' // output_option%plot_name
   endif

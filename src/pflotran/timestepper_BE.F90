@@ -28,7 +28,6 @@ module Timestepper_BE_class
     PetscInt :: ntfac             ! size of tfac
             
     type(solver_type), pointer :: solver
-    type(convergence_context_type), pointer :: convergence_context
   
   contains
     
@@ -135,7 +134,6 @@ subroutine TimestepperBEInit(this)
   this%tfac(13) = 1.0d0
   
   nullify(this%solver)
-  nullify(this%convergence_context)
   
 end subroutine TimestepperBEInit
 
@@ -294,6 +292,10 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   Vec :: residual_vec
   PetscErrorCode :: ierr
+
+  ! GNU -O3 can fail below in SNESGetFunction() as the compiler can set the
+  ! initial value to -1, which CHKFORTRANNULLOBJECT() interprets as NULL.
+  residual_vec = tVec(0) 
   
   solver => this%solver
   option => process_model%option
@@ -1067,7 +1069,6 @@ subroutine TimestepperBEStrip(this)
   
   call TimestepperBaseStrip(this)
   call SolverDestroy(this%solver)
-  call ConvergenceContextDestroy(this%convergence_context)
 
   if (associated(this%tfac)) deallocate(this%tfac)
   nullify(this%tfac)

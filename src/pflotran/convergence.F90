@@ -55,8 +55,8 @@ end function ConvergenceContextCreate
 
 ! ************************************************************************** !
 
-subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason,context, &
-                           ierr)
+subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
+                           grid,option,solver,ierr)
   ! 
   ! User defined convergence test
   ! 
@@ -72,11 +72,10 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason,context, &
   PetscReal :: unorm ! 2-norm of update. PETSc refers to this as snorm
   PetscReal :: fnorm ! 2-norm of updated residual
   SNESConvergedReason :: reason
-  type(convergence_context_type) :: context
   PetscErrorCode :: ierr
-  
-  type(solver_type), pointer :: solver
-  type(option_type), pointer :: option
+  type(solver_type) :: solver
+  type(option_type) :: option
+  !TODO(geh): remove calculations based on grid to something for pm specific
   type(grid_type), pointer :: grid
   
   Vec :: solution_vec
@@ -147,9 +146,9 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason,context, &
 !              SNES_DIVERGED_LOCAL_MIN           = -8, /* || J^T b || is small, implies converged to local minimum of F() */
 !              SNES_CONVERGED_ITERATING          =  0} SNESConvergedReason;
 
-  solver => context%solver
-  option => context%option
-  grid => context%grid
+  residual_vec = tVec(0)
+  solution_vec = tVec(0)
+  update_vec = tVec(0)
 
   if (option%use_touch_options) then
     string = 'detailed_convergence'
@@ -359,7 +358,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason,context, &
     endif
   endif    
 
-  if (solver%print_detailed_convergence) then
+  if (solver%print_detailed_convergence .and. associated(grid)) then
 
     call SNESGetSolution(snes_,solution_vec,ierr);CHKERRQ(ierr)
     ! the ctx object should really be PETSC_NULL_OBJECT.  A bug in petsc

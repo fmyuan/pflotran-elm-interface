@@ -5,6 +5,7 @@ module PM_Base_class
   use Option_module
   use Output_Aux_module
   use Realization_Base_class
+  use Solver_module
 
   use PFLOTRAN_Constants_module
 
@@ -19,6 +20,8 @@ module PM_Base_class
     Vec :: solution_vec
     Vec :: residual_vec
     PetscBool :: print_ekg
+    !TODO(geh): remove solver and place required convergence settings elsewhere
+    type(solver_type), pointer :: solver
     class(realization_base_type), pointer :: realization_base
     class(pm_base_type), pointer :: next
   contains
@@ -26,6 +29,7 @@ module PM_Base_class
     procedure, public :: Read => PMBaseRead
     procedure, public :: InitializeRun => PMBaseThisOnly
     procedure, public :: InputRecord => PMBaseInputRecord
+    procedure, public :: SetSolver => PMBaseSetSolver
     procedure, public :: FinalizeRun => PMBaseThisOnly
     procedure, public :: Residual => PMBaseResidual
     procedure, public :: Jacobian => PMBaseJacobian
@@ -38,6 +42,7 @@ module PM_Base_class
     procedure, public :: AcceptSolution => PMBaseFunctionThisOnly
     procedure, public :: CheckUpdatePre => PMBaseCheckUpdatePre
     procedure, public :: CheckUpdatePost => PMBaseCheckUpdatePost
+    procedure, public :: CheckConvergence => PMBaseCheckConvergence
     procedure, public :: TimeCut => PMBaseThisOnly
     procedure, public :: UpdateSolution => PMBaseThisOnly
     procedure, public :: UpdateAuxVars => PMBaseThisOnly
@@ -76,6 +81,7 @@ subroutine PMBaseInit(this)
   nullify(this%option)
   nullify(this%output_option)
   nullify(this%realization_base)
+  nullify(this%solver)
   this%solution_vec = PETSC_NULL_VEC
   this%residual_vec = PETSC_NULL_VEC
   this%print_ekg = PETSC_FALSE
@@ -188,6 +194,22 @@ end subroutine PMBaseCheckUpdatePost
 
 ! ************************************************************************** !
 
+subroutine PMBaseCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
+  implicit none
+  class(pm_base_type) :: this
+  SNES :: snes
+  PetscInt :: it
+  PetscReal :: xnorm
+  PetscReal :: unorm
+  PetscReal :: fnorm
+  SNESConvergedReason :: reason
+  PetscErrorCode :: ierr
+  print *, 'Must extend PMBaseCheckConvergence for: ' // trim(this%name)
+  stop
+end subroutine PMBaseCheckConvergence
+
+! ************************************************************************** !
+
 subroutine PMBaseThisOnly(this)
   implicit none
   class(pm_base_type) :: this
@@ -236,6 +258,25 @@ subroutine PMBaseComputeMassBalance(this,mass_balance_array)
   print *, 'Must extend PMBaseComputeMassBalance for: ' // trim(this%name)
   stop
 end subroutine PMBaseComputeMassBalance
+
+
+! ************************************************************************** !
+
+subroutine PMBaseSetSolver(this,solver)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/15/17
+
+  use Solver_module
+
+  implicit none
+
+  class(pm_base_type) :: this
+  type(solver_type), pointer :: solver
+
+  this%solver => solver
+
+end subroutine PMBaseSetSolver
 
 ! ************************************************************************** !
 

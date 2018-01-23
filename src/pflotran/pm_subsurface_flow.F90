@@ -47,6 +47,7 @@ module PM_Subsurface_Flow_class
     procedure, public :: FinalizeTimestep => PMSubsurfaceFlowFinalizeTimestep
     procedure, public :: PreSolve => PMSubsurfaceFlowPreSolve
     procedure, public :: PostSolve => PMSubsurfaceFlowPostSolve
+    procedure, public :: CheckConvergence => PMSubsurfaceFlowCheckConvergence
     procedure, public :: AcceptSolution => PMSubsurfaceFlowAcceptSolution
 !    procedure, public :: TimeCut => PMSubsurfaceFlowTimeCut
 !    procedure, public :: UpdateSolution => PMSubsurfaceFlowUpdateSolution
@@ -723,9 +724,6 @@ subroutine PMSubsurfaceFlowPostSolve(this)
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   ! 
-
-  use Global_module
-
   implicit none
   
   class(pm_subsurface_flow_type) :: this
@@ -734,6 +732,32 @@ subroutine PMSubsurfaceFlowPostSolve(this)
   call printErrMsg(this%option)  
   
 end subroutine PMSubsurfaceFlowPostSolve
+
+! ************************************************************************** !
+
+subroutine PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm, &
+                                            fnorm,reason,ierr)
+  ! Author: Glenn Hammond
+  ! Date: 11/15/17
+  ! 
+  use Convergence_module
+
+  implicit none
+
+  class(pm_subsurface_flow_type) :: this
+  SNES :: snes
+  PetscInt :: it
+  PetscReal :: xnorm
+  PetscReal :: unorm
+  PetscReal :: fnorm
+  SNESConvergedReason :: reason
+  PetscErrorCode :: ierr
+
+  call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
+                       this%realization%patch%grid, &
+                       this%option,this%solver,ierr)
+  
+end subroutine PMSubsurfaceFlowCheckConvergence
 
 ! ************************************************************************** !
 

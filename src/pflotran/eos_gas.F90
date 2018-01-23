@@ -1139,6 +1139,9 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
   PetscReal :: coef(4)
   PetscInt, parameter :: maxit = 50
 
+  PetscReal, parameter :: PMIN = 0.1d0  ! from BRAGFLO line 6580
+  PetscReal :: Pg
+
   ! analytical cubic root approach
   PetscReal :: A_cubic, B_cubic
   PetscReal :: c1, c0, xn, yn, del2, del1, h, theta, z1
@@ -1226,18 +1229,20 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
     endif
 
   else ! Newton's method
+
+    Pg = max(PMIN,P)
   
     a_Newton = rks_coeff_a * alpha * (IDEAL_GAS_CONSTANT * Tc_eff)**2.d0 / &
                Pc_eff
     b_Newton = rks_coeff_b * IDEAL_GAS_CONSTANT * Tc_eff / Pc_eff
   
     a_RT = a_Newton / RT
-    P_RT = P / RT
-    coef(4) = P / RT
+    P_RT = Pg / RT
+    coef(4) = Pg / RT
     coef(3) = 1.0d0
     coef(2) = a_RT - b_Newton - P_RT*b_Newton**2.d0
     coef(1) = a_RT*b_Newton
-    V = RT/P  ! initial guess
+    V = RT/Pg  ! initial guess
   
     !Newton iteration to find a Volume of gas
     do i = 1, maxit

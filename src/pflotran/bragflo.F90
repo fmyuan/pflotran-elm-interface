@@ -79,6 +79,7 @@ subroutine BragfloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
   PetscInt :: i, imat, imat_up, imat_dn
+  PetscInt :: iteration_number
   PetscInt, pointer :: upwind_direction(:,:), upwind_direction_bc(:,:)
 
   PetscReal, pointer :: r_p(:)
@@ -109,7 +110,18 @@ subroutine BragfloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   material_auxvars => patch%aux%Material%auxvars
   upwind_direction => patch%aux%WIPPFlo%upwind_direction
   upwind_direction_bc => patch%aux%WIPPFlo%upwind_direction_bc
-  
+
+  wippflo_newton_iteration_number = wippflo_newton_iteration_number + 1
+  ! bragflo uses the following logic, update when
+  !   it == 1, before entering iteration loop
+  !   it > 1 and mod(it-1,frequency) == 0
+  ! the first is set in WIPPFloInitializeTimestep, the second is set here
+  if (wippflo_newton_iteration_number > 1 .and. &
+      mod(wippflo_newton_iteration_number-1, &
+          wippflo_upwind_dir_update_freq) == 0) then
+    wippflo_update_upwind_direction = PETSC_TRUE
+  endif
+
   ! Communication -----------------------------------------
   ! must be called before WIPPFloUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)

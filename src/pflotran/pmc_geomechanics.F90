@@ -165,14 +165,15 @@ subroutine PMCGeomechanicsSetupSolvers(this)
   option%io_buffer = 'Preconditioner: ' // trim(solver%pc_type)
   call printMsg(option)
 
-  ! shell for custom convergence test.  The default SNES convergence test
-  ! is call within this function.
-  ts_steady%convergence_context => &
-             ConvergenceContextCreate(solver,option, &
-                                      this%subsurf_realization%patch%grid)
-  call SNESSetConvergenceTest(solver%snes,ConvergenceTest, &
-                              ts_steady%convergence_context, &
-                              PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)            
+  call SNESSetConvergenceTest(solver%snes, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                              PMCheckConvergence, &
+                              this%pm_ptr%pm, &
+#else
+                              PMCheckConvergencePtr, &
+                              this%pm_ptr, &
+#endif
+                              PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
   call SNESSetFunction(solver%snes, &
                        this%pm_ptr%pm%residual_vec, &
 #if defined(USE_PM_AS_PETSC_CONTEXT)

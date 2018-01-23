@@ -37,6 +37,7 @@ module Output_Aux_module
     PetscBool :: print_final_massbal
   
     PetscBool :: print_hdf5
+    PetscBool :: extend_hdf5_time_format
     PetscBool :: print_hdf5_vel_cent
     PetscBool :: print_hdf5_vel_face
     PetscBool :: print_single_h5_file
@@ -193,6 +194,7 @@ function OutputOptionCreate()
   
   allocate(output_option)
   output_option%print_hdf5 = PETSC_FALSE
+  output_option%extend_hdf5_time_format = PETSC_FALSE
   output_option%print_hdf5_vel_cent = PETSC_FALSE
   output_option%print_hdf5_vel_face = PETSC_FALSE
   output_option%print_single_h5_file = PETSC_TRUE
@@ -277,15 +279,22 @@ function OutputOptionDuplicate(output_option)
   allocate(output_option2)
 
   output_option2%print_hdf5 = output_option%print_hdf5
+  output_option2%extend_hdf5_time_format = &
+    output_option%extend_hdf5_time_format
   output_option2%print_hdf5_vel_cent = output_option%print_hdf5_vel_cent
   output_option2%print_hdf5_vel_face = output_option%print_hdf5_vel_face
   output_option2%print_single_h5_file = output_option%print_single_h5_file
   output_option2%times_per_h5_file = output_option%times_per_h5_file
-  output_option2%print_hdf5_mass_flowrate = output_option%print_hdf5_mass_flowrate
-  output_option2%print_hdf5_energy_flowrate = output_option%print_hdf5_energy_flowrate
-  output_option2%print_hdf5_aveg_mass_flowrate = output_option%print_hdf5_aveg_mass_flowrate
-  output_option2%print_hdf5_aveg_energy_flowrate = output_option%print_hdf5_aveg_energy_flowrate
-  output_option2%print_explicit_flowrate = output_option%print_explicit_flowrate
+  output_option2%print_hdf5_mass_flowrate = &
+    output_option%print_hdf5_mass_flowrate
+  output_option2%print_hdf5_energy_flowrate = &
+    output_option%print_hdf5_energy_flowrate
+  output_option2%print_hdf5_aveg_mass_flowrate = &
+    output_option%print_hdf5_aveg_mass_flowrate
+  output_option2%print_hdf5_aveg_energy_flowrate = &
+    output_option%print_hdf5_aveg_energy_flowrate
+  output_option2%print_explicit_flowrate = &
+    output_option%print_explicit_flowrate
   output_option2%print_tecplot = output_option%print_tecplot
   output_option2%tecplot_format = output_option%tecplot_format
   output_option2%print_tecplot_vel_cent = output_option%print_tecplot_vel_cent
@@ -305,17 +314,24 @@ function OutputOptionDuplicate(output_option)
   output_option2%plot_number = output_option%plot_number
   output_option2%screen_imod = output_option%screen_imod
   output_option2%output_file_imod = output_option%output_file_imod
-  output_option2%periodic_snap_output_ts_imod = output_option%periodic_snap_output_ts_imod
-  output_option2%periodic_obs_output_ts_imod = output_option%periodic_obs_output_ts_imod
-  output_option2%periodic_msbl_output_ts_imod = output_option%periodic_msbl_output_ts_imod
-  output_option2%periodic_snap_output_time_incr = output_option%periodic_snap_output_time_incr
-  output_option2%periodic_obs_output_time_incr = output_option%periodic_obs_output_time_incr
-  output_option2%periodic_msbl_output_time_incr = output_option%periodic_msbl_output_time_incr
+  output_option2%periodic_snap_output_ts_imod = &
+    output_option%periodic_snap_output_ts_imod
+  output_option2%periodic_obs_output_ts_imod = &
+    output_option%periodic_obs_output_ts_imod
+  output_option2%periodic_msbl_output_ts_imod = &
+    output_option%periodic_msbl_output_ts_imod
+  output_option2%periodic_snap_output_time_incr = &
+    output_option%periodic_snap_output_time_incr
+  output_option2%periodic_obs_output_time_incr = &
+    output_option%periodic_obs_output_time_incr
+  output_option2%periodic_msbl_output_time_incr = &
+    output_option%periodic_msbl_output_time_incr
   output_option2%plot_name = output_option%plot_name
   output_option2%aveg_var_time = output_option%aveg_var_time
   output_option2%aveg_var_dtime = output_option%aveg_var_dtime
   output_option2%xmf_vert_len = output_option%xmf_vert_len
-  output_option2%filter_non_state_variables = output_option%filter_non_state_variables
+  output_option2%filter_non_state_variables = &
+    output_option%filter_non_state_variables
 
   nullify(output_option2%output_variable_list)
   nullify(output_option2%output_snap_variable_list)

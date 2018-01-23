@@ -394,7 +394,6 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! 
   use Option_module                              
   use Material_Aux_class
-  use General_Aux_module, only : GAS_STATE
   
   implicit none
   
@@ -504,13 +503,6 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         endif
         
         boundary_pressure = wippflo_auxvar_up%pres(iphase)
-        if (iphase == LIQUID_PHASE .and. &
-            global_auxvar_up%istate == GAS_STATE) then
-          ! the idea here is to accommodate a free surface boundary
-          ! face.  this will not work for an interior grid cell as
-          ! there should be capillary pressure in force.
-          boundary_pressure = wippflo_auxvar_up%pres(option%gas_phase)
-        endif
         density_kg_ave = WIPPFloAverageDensity(iphase, &
                                                 global_auxvar_up%istate, &
                                                 global_auxvar_dn%istate, &
@@ -642,13 +634,6 @@ subroutine WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
         endif
         
         boundary_pressure = wippflo_auxvar_up%pres(iphase)
-        if (iphase == LIQUID_PHASE .and. &
-            global_auxvar_up%istate == GAS_STATE) then
-          ! the idea here is to accommodate a free surface boundary
-          ! face.  this will not work for an interior grid cell as
-          ! there should be capillary pressure in force.
-          boundary_pressure = wippflo_auxvar_up%pres(option%gas_phase)
-        endif
         density_kg_ave = WIPPFloAverageDensity(iphase, &
                                                 global_auxvar_up%istate, &
                                                 global_auxvar_dn%istate, &

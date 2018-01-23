@@ -1408,7 +1408,7 @@ end subroutine PMUFDBInitializeTimestep
       cur_ERB%annual_dose_supp_rad(k) = &                     ! [Sv/yr]
           cur_ERB%aqueous_conc_supported_rad(k) * &           ! [Bq/L]
           cur_ERB%indv_consumption_rate * &                   ! [L/day]
-          (365.d0/1.d0) * &                                   ! [day/L]
+          (DAYS_PER_YEAR/1.d0) * &                            ! [day/L]
           cur_supp_rad%dcf                                    ! [Sv/Bq]
       !-----Initialize-dose-from-supp'd-+-unsupp'd-rads--------------------
       cur_ERB%annual_dose_supp_w_unsupp_rads(k) = &
@@ -1458,7 +1458,7 @@ end subroutine PMUFDBInitializeTimestep
         cur_ERB%annual_dose_unsupp_rad(k) = &                   ! [Sv/yr]
           cur_ERB%aqueous_conc_unsupported_rad(k) * &           ! [Bq/L]
           cur_ERB%indv_consumption_rate * &                     ! [L/day]
-          (365.d0/1.d0) * &                                     ! [day/L]
+          (DAYS_PER_YEAR/1.d0) * &                              ! [day/L]
           cur_unsupp_rad%dcf                                    ! [Sv/Bq]
     !-----Calculate-dose-from-supp'd-rads-with-their-unsupp'd-desc's-------
         cur_ERB%annual_dose_supp_w_unsupp_rads(position) = &    ! [Sv/yr]

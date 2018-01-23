@@ -21,6 +21,7 @@ module String_module
             StringReadQuotedWord, &
             StringStartsWithAlpha, &
             StringStartsWith, &
+            StringEndsWith, &
             StringAdjustl, &
             StringNull, &
             StringFindEntryInList, &
@@ -359,6 +360,44 @@ function StringStartsWith(string,string2)
   StringStartsWith = PETSC_TRUE
 
 end function StringStartsWith
+
+! ************************************************************************** !
+
+function StringEndsWith(string,string2)
+  ! 
+  ! Determines whether a string ends with characters identical to another 
+  ! string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/16/12
+  ! 
+      
+  implicit none
+
+  character(len=*) :: string
+  character(len=*) :: string2
+
+  PetscBool :: StringEndsWith
+  
+  PetscInt :: search_length, i, i1, i2, len1, len2
+
+  len1 = len_trim(string)
+  len2 = len_trim(string2)
+  search_length = min(len1,len2)
+  
+  do i = 1, search_length
+    ! search backward
+    i1 = len1+1-i
+    i2 = len2+1-i
+    if (string(i1:i1) /= string2(i2:i2)) then
+      StringEndsWith = PETSC_FALSE
+      return
+    endif
+  enddo
+  
+  StringEndsWith = PETSC_TRUE
+
+end function StringEndsWith
 
 ! ************************************************************************** !
 
