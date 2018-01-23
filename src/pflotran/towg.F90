@@ -1414,7 +1414,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   PetscReal :: pressure_ave
   PetscReal :: gravity_term
   PetscReal :: mobility, mole_flux, q
-  PetscReal :: sat_liquid
+  PetscReal :: sat_liquid,sat_liquid_pos
   PetscReal :: sat_up, sat_dn, den_up, den_dn
   PetscReal :: k_eff_up, k_eff_dn, k_eff_ave, heat_flux
   !for debugging
@@ -1585,13 +1585,15 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   ! s_l = S_water + S_oil 
   sat_liquid = auxvar_up%sat(option%liquid_phase) + &
                auxvar_up%sat(option%oil_phase)
+  sat_liquid_pos=max(sat_liquid,0.0d0)
   k_eff_up = thermal_conductivity_up(1) + &
-             sqrt(sat_liquid) * &
+             sqrt(sat_liquid_pos) * &
              (thermal_conductivity_up(2) - thermal_conductivity_up(1))
   sat_liquid = auxvar_dn%sat(option%liquid_phase) + &
                auxvar_dn%sat(option%oil_phase)
+  sat_liquid_pos=max(sat_liquid,0.0d0)
   k_eff_dn = thermal_conductivity_dn(1) + &
-             sqrt(sat_liquid) * &
+             sqrt(sat_liquid_pos) * &
              (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
   if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
     k_eff_ave = (k_eff_up*k_eff_dn)/(k_eff_up*dist_dn+k_eff_dn*dist_up)
@@ -1698,7 +1700,7 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   PetscReal :: debug_flux(3), debug_dphi(3)
 
   PetscReal :: boundary_pressure
-  PetscReal :: sat_liquid
+  PetscReal :: sat_liquid,sat_liquid_pos
 
   PetscReal :: dden_dn, dden_up
 
@@ -1949,9 +1951,10 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       ! s_l = S_water + S_oil 
       sat_liquid = auxvar_dn%sat(option%liquid_phase) + &
                    auxvar_dn%sat(option%oil_phase)
+      sat_liquid_pos=max(sat_liquid,0.0d0)
 
       k_eff_dn = thermal_conductivity_dn(1) + &
-                 sqrt(sat_liquid) * &
+                 sqrt(sat_liquid_pos) * &
                  (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
       ! units:
       ! k_eff = W/K/m/m = J/s/K/m/m
