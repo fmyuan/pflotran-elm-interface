@@ -1688,7 +1688,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
   PetscReal :: pressure_ave
   PetscReal :: gravity_term
   PetscReal :: mobility, mole_flux, q
-  PetscReal :: sat_liquid
+  PetscReal :: sat_liquid,sat_liquid_pos
   PetscReal :: sat_up, sat_dn, den_up, den_dn
   PetscReal :: k_eff_up, k_eff_dn, k_eff_ave, heat_flux
   !for debugging
@@ -1697,7 +1697,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
 
   PetscReal :: dummy_dperm_up, dummy_dperm_dn
   PetscReal :: temp_perm_up, temp_perm_dn
-  PetscReal :: denup,dendn,xmf,sat_liquid_pos
+  PetscReal :: denup,dendn,xmf
 
   PetscBool :: is_black_oil,istl,isoil,isgas
   PetscBool :: componentInPhase,is_oil_in_oil,is_gas_in_oil
@@ -1885,6 +1885,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
              (thermal_conductivity_up(2) - thermal_conductivity_up(1))
   sat_liquid = auxvar_dn%sat(option%liquid_phase) + &
                auxvar_dn%sat(option%oil_phase)
+  sat_liquid_pos=max(sat_liquid,0.0d0)
   k_eff_dn = thermal_conductivity_dn(1) + &
              sqrt(sat_liquid_pos) * &
              (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
@@ -1993,7 +1994,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   PetscReal :: debug_flux(3), debug_dphi(3)
 
   PetscReal :: boundary_pressure
-  PetscReal :: sat_liquid
+  PetscReal :: sat_liquid,sat_liquid_pos
 
   PetscReal :: dden_dn, dden_up
 
@@ -2261,9 +2262,10 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       ! s_l = S_water + S_oil
       sat_liquid = auxvar_dn%sat(option%liquid_phase) + &
                    auxvar_dn%sat(option%oil_phase)
+      sat_liquid_pos=max(sat_liquid,0.0d0)
 
       k_eff_dn = thermal_conductivity_dn(1) + &
-                 sqrt(sat_liquid) * &
+                 sqrt(sat_liquid_pos) * &
                  (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
       ! units:
       ! k_eff = W/K/m/m = J/s/K/m/m
