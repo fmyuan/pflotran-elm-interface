@@ -27,7 +27,10 @@ REGRESSION
 END
 
 #=========================== flow =============================================
-UNIFORM_VELOCITY 1.d-7 0.d0 0.d0 ! m/s
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 1.d-7 0.d0 0.d0 m/s
+END
 
 #=========================== chemistry ========================================
 CHEMISTRY

@@ -69,7 +69,6 @@ GRID
 END
 
 #=========================== flow =============================================
-#UNIFORM_VELOCITY 7.9274479960d-9 0.d0 0.d0
 SPECIFIED_VELOCITY
   UNIFORM? YES
   DATASET 7.9274479960d-9 0.d0 0.d0

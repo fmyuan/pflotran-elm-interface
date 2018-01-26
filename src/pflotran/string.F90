@@ -544,7 +544,9 @@ function StringSplit(string,chars)
   
   ! determine how many delimiting block in string
   length = len_trim(string)
-  length_chars = len_trim(chars)
+  ! do not use len_trim for chars.  All characters including the blank and 
+  ! trailing blanks (spaces) should be accounted for.
+  length_chars = len(chars)
   icount = 0
   last_index = 1
   iend = length-length_chars+1

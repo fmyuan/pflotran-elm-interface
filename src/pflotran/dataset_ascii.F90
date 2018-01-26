@@ -388,7 +388,10 @@ subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word, internal_units
   character(len=MAXSTRINGLENGTH), pointer :: internal_data_units_strings(:) 
+  character(len=MAXSTRINGLENGTH), pointer :: external_data_units_strings(:) 
   PetscInt :: icol
+
+  nullify(external_data_units_strings)
 
   data_external_units = ''
   internal_data_units_strings => StringSplit(data_internal_units,',')
@@ -402,18 +405,20 @@ subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
     input%err_buf2 = error_string
     call InputErrorMsg(input,option)
   enddo
+
   ! read units
-  string = input%buf
-  call InputReadWord(input,option,word,PETSC_TRUE)
-  if (InputError(input)) then
+  if (len_trim(input%buf) == 0) then
     call InputCheckMandatoryUnits(input,option)
     word = trim(error_string) // ' UNITS'
     call InputDefaultMsg(input,option,word)
   else
-    input%buf = string
+    string = adjustl(input%buf) ! remove leading blanks
+    external_data_units_strings => StringSplit(string,' ')
     do icol=1,this%array_width
-      call InputReadWord(input,option,word,PETSC_TRUE)
-      call InputErrorMsg(input,option,'units',error_string)
+      if (icol == 1 .or. size(external_data_units_strings) > 1) then
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'units',error_string)
+      endif
       internal_units = trim(internal_data_units_strings( &
                             min(icol,size(internal_data_units_strings))))
       this%rarray(icol) = &
@@ -432,6 +437,9 @@ subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
 
   deallocate(internal_data_units_strings)
   nullify(internal_data_units_strings)
+  if (associated(external_data_units_strings)) &
+    deallocate(external_data_units_strings)
+  nullify(external_data_units_strings)
 
 end subroutine DatasetAsciiReadSingle
 

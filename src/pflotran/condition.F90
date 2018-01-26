@@ -989,8 +989,8 @@ subroutine FlowConditionRead(condition,input,option)
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: rate_string
-  character(len=MAXWORDLENGTH) :: energy_rate_string
+  character(len=MAXWORDLENGTH) :: rate_unit_string
+  character(len=MAXWORDLENGTH) :: energy_rate_unit_string
   character(len=MAXWORDLENGTH) :: internal_units
   type(flow_sub_condition_type), pointer :: pressure, flux, temperature, &
                                        concentration, enthalpy, rate, well,&
@@ -1014,8 +1014,8 @@ subroutine FlowConditionRead(condition,input,option)
   default_time_storage%is_cyclic = PETSC_FALSE
   default_time_storage%time_interpolation_method = INTERPOLATION_STEP
 
-  rate_string = 'not_assigned'
-  energy_rate_string = 'not_assigned'
+  rate_unit_string = 'not_assigned'
+  energy_rate_unit_string = 'not_assigned'
   internal_units = 'not_assigned'
   
   pressure => FlowSubConditionCreate(option%nphase)
@@ -1054,6 +1054,8 @@ subroutine FlowConditionRead(condition,input,option)
   input%ierr = 0
   do
   
+    internal_units = 'not_assigned'
+
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,'CONDITION')
           
@@ -1127,34 +1129,24 @@ subroutine FlowConditionRead(condition,input,option)
           select case(trim(word))
             case('PRESSURE')
               sub_condition_ptr => pressure
-              internal_units = 'Pa'
             case('RATE')
               sub_condition_ptr => rate
-              internal_units = 'unitless/sec'
             case('ENERGY_RATE')
               sub_condition_ptr => energy_rate
-              internal_units = 'MJ/sec|MW'
             case('WELL')
               sub_condition_ptr => well
-              internal_units = 'Pa'
             case('FLUX')
               sub_condition_ptr => flux
-              internal_units = 'meter/sec'
             case('ENERGY_FLUX')
               sub_condition_ptr => energy_flux
-              internal_units = 'MW/m^2|MJ/sec-m^2'
             case('SATURATION')
               sub_condition_ptr => saturation
-              internal_units = 'unitless'
             case('TEMPERATURE')
               sub_condition_ptr => temperature
-              internal_units = 'C'
             case('CONCENTRATION')
               sub_condition_ptr => concentration
-              internal_units = 'unitless'
             case('ENTHALPY')
               sub_condition_ptr => enthalpy
-              internal_units = 'MJ/mol'
             case default
               call InputKeywordUnrecognized(word,'condition,type',option)
           end select
@@ -1169,25 +1161,25 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr%itype = NEUMANN_BC
             case('mass_rate')
               sub_condition_ptr%itype = MASS_RATE_SS
-              rate_string = 'kg/sec'
+              rate_unit_string = 'kg/sec'
             case('energy_rate')
               sub_condition_ptr%itype = ENERGY_RATE_SS
-              energy_rate_string = 'MJ/sec|MW'
+              energy_rate_unit_string = 'MJ/sec|MW'
             case('heterogeneous_energy_rate')
               sub_condition_ptr%itype = HET_ENERGY_RATE_SS
-              energy_rate_string = 'MJ/sec|MW'
+              energy_rate_unit_string = 'MJ/sec|MW'
             case('scaled_mass_rate','scaled_volumetric_rate', &
                  'scaled_energy_rate')
               select case(word)
                 case('scaled_mass_rate')
                   sub_condition_ptr%itype = SCALED_MASS_RATE_SS
-                  rate_string = 'kg/sec'
+                  rate_unit_string = 'kg/sec'
                 case('scaled_volumetric_rate')
                   sub_condition_ptr%itype = SCALED_VOLUMETRIC_RATE_SS
-                  rate_string = 'm^3/sec'
+                  rate_unit_string = 'm^3/sec'
                 case('scaled_energy_rate')
                   sub_condition_ptr%itype = SCALED_ENERGY_RATE_SS
-                  energy_rate_string = 'MW|MJ/sec'
+                  energy_rate_unit_string = 'MW|MJ/sec'
               end select
               ! store name of type for error messaging below.
               string = word
@@ -1225,7 +1217,7 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr%itype = SEEPAGE_BC
             case('volumetric_rate')
               sub_condition_ptr%itype = VOLUMETRIC_RATE_SS
-              rate_string = 'm^3/sec'
+              rate_unit_string = 'm^3/sec'
             case('equilibrium')
               sub_condition_ptr%itype = EQUILIBRIUM_SS
             case('unit_gradient')
@@ -1237,10 +1229,10 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr%itype = UNIT_GRADIENT_BC 
             case('heterogeneous_volumetric_rate')
               sub_condition_ptr%itype = HET_VOL_RATE_SS
-              rate_string = 'm^3/sec'
+              rate_unit_string = 'm^3/sec'
             case('heterogeneous_mass_rate')
               sub_condition_ptr%itype = HET_MASS_RATE_SS
-              rate_string = 'kg/sec'
+              rate_unit_string = 'kg/sec'
             case('heterogeneous_dirichlet')
               sub_condition_ptr%itype = HET_DIRICHLET_BC
             case('heterogeneous_seepage')
@@ -1279,6 +1271,7 @@ subroutine FlowConditionRead(condition,input,option)
                                  condition%datum,word,internal_units)
       case('GRADIENT','GRAD')
         do
+          internal_units = 'not_assigned'
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
           
@@ -1346,7 +1339,7 @@ subroutine FlowConditionRead(condition,input,option)
                                  pressure%dataset, &
                                  pressure%units,internal_units)
       case('RATE')
-        internal_units = rate_string
+        internal_units = rate_unit_string
         call ConditionReadValues(input,option,word, &
                                  rate%dataset, &
                                  rate%units,internal_units)
@@ -1359,7 +1352,7 @@ subroutine FlowConditionRead(condition,input,option)
         input%force_units = PETSC_FALSE
       case('ENERGY_RATE')
         input%force_units = PETSC_TRUE
-        internal_units = energy_rate_string
+        internal_units = energy_rate_unit_string
         input%err_buf = word
         call ConditionReadValues(input,option,word, &
                                  energy_rate%dataset, &
@@ -1829,6 +1822,8 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   input%ierr = 0
   do
   
+    internal_units = 'not_assigned'
+
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,'CONDITION')
           
@@ -2014,6 +2009,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
             sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
                                                             option)
         end select
+        internal_units = 'not_assigned'
         select case(trim(word))
           case('LIQUID_PRESSURE','GAS_PRESSURE')
             internal_units = 'Pa'
@@ -2338,6 +2334,8 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
   input%ierr = 0
   do
   
+    internal_units = 'not_assigned'
+
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,'CONDITION')
           
@@ -2587,6 +2585,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
             sub_condition_ptr%ctype = 'dirichlet'
         end select
 
+        internal_units = 'not_assigned'
         select case(trim(word))
           case('PRESSURE','OIL_PRESSURE','WATER_PRESSURE')
             internal_units = 'Pa'
@@ -2939,6 +2938,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   input%ierr = 0
   do
   
+    internal_units = 'not_assigned'
+
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,'CONDITION')
           
@@ -3110,6 +3111,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
            'GAS_IN_GAS_MOLE_FRACTION','RATE','BHP_PRESSURE', 'LIQUID_FLUX', &
            'OIL_FLUX','GAS_FLUX','SOLVENT_FLUX','ENERGY_FLUX','ENTHALPY')
         sub_condition_ptr => FlowTOWGSubConditionPtr(word,towg,option)
+        internal_units = 'not_assigned'
         select case(trim(word))
           case('OIL_PRESSURE','GAS_PRESSURE','BHP_PRESSURE')
             internal_units = 'Pa'
