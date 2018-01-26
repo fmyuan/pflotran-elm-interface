@@ -62,6 +62,7 @@ STANDARD_CFG = \
 	default/regions/cell_mapping/cell_mapping.cfg \
 	default/salinity/salinity.cfg \
 	default/timestepping/timestepping.cfg \
+	default/velocity/velocity.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	general/general.cfg \
 	hydrogeophysics/hydrogeophysics.cfg \
@@ -135,6 +136,7 @@ TRANSPORT_CFG = \
 	default/column/column.cfg \
 	default/dispersion/dispersion.cfg \
 	default/multicontinuum/multicontinuum.cfg \
+	default/velocity/velocity.cfg
 
 MESH_CFG = \
 	default/discretization/discretization.cfg
