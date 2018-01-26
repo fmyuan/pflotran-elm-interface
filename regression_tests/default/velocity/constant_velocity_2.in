@@ -26,19 +26,13 @@ END
 # Uniform velocity (see below). No flow mode specified.
 
 #=========================== useful tranport parameters ==================
-#SPECIFIED_VELOCITY
-#  UNIFORM? YES
-#  DATASET 
-#    TIME_UNITS yr
-!    DATA_UNITS m/yr
-#    0.d0 1.d0 0.d0 0.d0
-#  /
-#END
-
-# scenario 1
-VELOCITY_DATASET
-  UNITS m/yr
-  VELOCITY 1.d0 0.d0 0.d0
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET LIST
+    TIME_UNITS yr
+    DATA_UNITS m/yr
+    0.d0 1.d0 0.d0 0.d0
+  /
 END
 
 #=========================== chemistry ========================================

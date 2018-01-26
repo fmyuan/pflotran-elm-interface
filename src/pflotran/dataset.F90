@@ -184,7 +184,6 @@ subroutine DatasetVerify(dataset,default_time_storage,header,option)
   type(option_type) :: option
 
   PetscBool :: dataset_error 
-  type(time_storage_type), pointer :: default
 
   if (.not.associated(dataset)) return
 

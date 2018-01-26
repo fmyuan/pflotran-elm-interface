@@ -1614,6 +1614,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscBool :: energy_flowrate
   PetscBool :: aveg_mass_flowrate
   PetscBool :: aveg_energy_flowrate
+  PetscBool :: bool_flag
 
   PetscInt :: flag1, flag2
 
@@ -1715,7 +1716,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
           call InputReadWord(input,option,word,PETSC_TRUE)
-          call InputErrorMsg(input,option,'keyword','OUTPUT')
+          call InputErrorMsg(input,option,'keyword','SPECIFIED_VELOCITY')
           call StringToUpper(word)
           select case(trim(word))
             case('UNIFORM?')
@@ -1728,6 +1729,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                 call printErrMsg(option)
               endif
               if (flag1 == STRING_YES) then
+                error_string = 'SPECIFIED_VELOCITY,UNIFORM,DATASET'
                 dataset_ascii => DatasetAsciiCreate()
                 dataset_ascii%array_width = 3 * option%nphase
                 realization%uniform_velocity_dataset => dataset_ascii
@@ -1741,8 +1743,11 @@ subroutine SubsurfaceReadInput(simulation,input)
                                               temp_string,internal_units, &
                                               error_string,option)
                 else
+                  input%buf = string
+                  input%ierr = 0
+                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputErrorMsg(input,option,'keyword',error_string)
                   call StringToUpper(word)
-                  error_string = 'SPECIFIED_VELOCITY,UNIFORM,DATASET'
                   select case(word)
                     case('FILE')
                       error_string = trim(error_string) // ',FILE'
@@ -1760,6 +1765,13 @@ subroutine SubsurfaceReadInput(simulation,input)
                     case default
                       call InputKeywordUnrecognized(word,error_string,option)
                   end select
+                endif
+                bool_flag = PETSC_FALSE
+                call DatasetAsciiVerify(dataset_ascii,bool_flag,option)
+                if (bool_flag) then
+                  option%io_buffer = 'Error reading ' // trim(error_string) // &
+                    '.'
+                  call printErrMsg(option)
                 endif
 !TODO(geh)
 ! Add dataset_ascii support for velocities to reused all the support routines

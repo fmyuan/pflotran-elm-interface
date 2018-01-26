@@ -267,6 +267,8 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
   if (row_count == 0) then
     option%io_buffer = 'No values provided in Ascii Dataset.'
     call printErrMsg(option)
+  else if (row_count == 1) then
+    default_interpolation_method = INTERPOLATION_STEP
   endif
   
   this%data_type = DATASET_REAL
@@ -356,6 +358,12 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
   
   if (default_interpolation_method /= INTERPOLATION_NULL) then
     this%time_storage%time_interpolation_method = default_interpolation_method
+  endif
+
+  if (this%time_storage%time_interpolation_method == INTERPOLATION_NULL) then
+    option%io_buffer = 'An INTERPOLATION method (LINEAR or STEP) must be &
+      &specified for: ' // trim(error_string)
+    call printErrMsg(option)
   endif
   
 end subroutine DatasetAsciiReadList
