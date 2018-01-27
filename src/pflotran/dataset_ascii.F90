@@ -360,12 +360,6 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
     this%time_storage%time_interpolation_method = default_interpolation_method
   endif
 
-  if (this%time_storage%time_interpolation_method == INTERPOLATION_NULL) then
-    option%io_buffer = 'An INTERPOLATION method (LINEAR or STEP) must be &
-      &specified for: ' // trim(error_string)
-    call printErrMsg(option)
-  endif
-  
 end subroutine DatasetAsciiReadList
 
 ! ************************************************************************** !

@@ -1731,6 +1731,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               if (flag1 == STRING_YES) then
                 error_string = 'SPECIFIED_VELOCITY,UNIFORM,DATASET'
                 dataset_ascii => DatasetAsciiCreate()
+                dataset_ascii%data_type = DATASET_REAL
                 dataset_ascii%array_width = 3 * option%nphase
                 realization%uniform_velocity_dataset => dataset_ascii
 
@@ -1765,21 +1766,20 @@ subroutine SubsurfaceReadInput(simulation,input)
                     case default
                       call InputKeywordUnrecognized(word,error_string,option)
                   end select
+                  if (dataset_ascii%time_storage%time_interpolation_method == &
+                      INTERPOLATION_NULL) then
+                    option%io_buffer = 'An INTERPOLATION method (LINEAR or &
+                      &STEP) must be specified for: ' // trim(error_string)
+                    call printErrMsg(option)
+                  endif
                 endif
                 bool_flag = PETSC_FALSE
                 call DatasetAsciiVerify(dataset_ascii,bool_flag,option)
                 if (bool_flag) then
-                  option%io_buffer = 'Error reading ' // trim(error_string) // &
-                    '.'
+                  option%io_buffer = 'Error verifying ' // &
+                    trim(error_string) // '.'
                   call printErrMsg(option)
                 endif
-!TODO(geh)
-! Add dataset_ascii support for velocities to reused all the support routines
-!                realization%uniform_velocity_dataset => &
-!                  UniformVelocityDatasetCreate()
-!                call UniformVelocityDatasetRead( &
-!                       realization%uniform_velocity_dataset,input,option)
-                  
               else
 ! Add interface for non-uniform dataset
                 call InputReadNChars(input,option, &
