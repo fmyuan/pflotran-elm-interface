@@ -13,7 +13,32 @@ module WIPP_Flow_Aux_module
   PetscReal, public :: wippflo_sat_min_pert = 1.d-10
   PetscReal, public :: wippflo_pres_min_pert = 1.d-2
 
+  PetscBool, public :: wippflo_residual_test = PETSC_FALSE
+  PetscInt, public :: wippflo_residual_test_cell = 0
+  PetscBool, public :: wippflo_jacobian_test = PETSC_FALSE
+  PetscInt, public :: wippflo_jacobian_test_xdof = 0
+  PetscInt, public :: wippflo_jacobian_test_rdof = 0
+  PetscBool, public :: wippflo_jacobian_test_active = PETSC_FALSE
+  PetscBool, public :: wippflo_calc_accum = PETSC_TRUE
+  PetscBool, public :: wippflo_calc_flux = PETSC_TRUE
+  PetscBool, public :: wippflo_calc_bcflux = PETSC_TRUE
+  PetscBool, public :: wippflo_calc_chem = PETSC_TRUE
+
+  PetscBool, public :: wippflo_match_bragflo_output = PETSC_FALSE
+
+  PetscInt, public :: wippflo_prev_liq_res_cell(4) = 0
+  PetscBool, public :: wippflo_check_oscillatory_behavior = PETSC_FALSE
+  PetscBool, public :: wippflo_print_oscillatory_behavior = PETSC_FALSE
+  PetscBool, public :: wippflo_print_residual = PETSC_FALSE
+  PetscBool, public :: wippflo_print_solution = PETSC_FALSE
+  PetscBool, public :: wippflo_print_update = PETSC_FALSE
+
+  PetscBool, public :: wippflo_use_bragflo_units = PETSC_FALSE
   PetscBool, public :: wippflo_use_legacy_perturbation = PETSC_FALSE
+  PetscBool, public :: wippflo_default_alpha = PETSC_FALSE
+  PetscBool, public :: wippflo_debug = PETSC_FALSE
+  PetscBool, public :: wippflo_debug_ts_update = PETSC_FALSE
+  PetscBool, public :: wippflo_debug_gas_generation = PETSC_FALSE
   PetscBool, public :: wippflo_debug_first_iteration = PETSC_FALSE
   PetscBool, public :: wippflo_use_bragflo_flux = PETSC_FALSE
   PetscBool, public :: wippflo_fix_upwind_direction = PETSC_TRUE
@@ -21,8 +46,10 @@ module WIPP_Flow_Aux_module
   PetscBool, public :: wippflo_count_upwind_dir_flip = PETSC_FALSE
   PetscInt, public :: wippflo_upwind_dir_update_freq = 99
   PetscInt, public :: wippflo_newton_iteration_number = 0
+  PetscBool, public :: wippflo_use_gas_generation = PETSC_TRUE
   PetscBool, public :: wippflo_use_fracture = PETSC_TRUE
   PetscBool, public :: wippflo_use_creep_closure = PETSC_TRUE
+  PetscBool, public :: wippflo_use_bragflo_cc = PETSC_FALSE
   !TODO(geh): hardwire gas to H2
   PetscReal, public :: fmw_comp(2) = [FMWH2O,2.01588d0]
   PetscReal, public :: wippflo_max_pressure_change = 5.d4
@@ -50,6 +77,17 @@ module WIPP_Flow_Aux_module
   PetscInt, parameter, public :: WIPPFLO_UPDATE_FOR_BOUNDARY = 2
   
   PetscReal, parameter, public :: WIPPFLO_PRESSURE_SCALE = 1.d0
+
+  ! variables that track the number of times the upwind direction changes
+  ! during the residual and Jacobian calculations.
+  PetscInt, public :: liq_upwind_flip_count_by_res
+  PetscInt, public :: gas_upwind_flip_count_by_res
+  PetscInt, public :: liq_bc_upwind_flip_count_by_res
+  PetscInt, public :: gas_bc_upwind_flip_count_by_res
+  PetscInt, public :: liq_upwind_flip_count_by_jac
+  PetscInt, public :: gas_upwind_flip_count_by_jac
+  PetscInt, public :: liq_bc_upwind_flip_count_by_jac
+  PetscInt, public :: gas_bc_upwind_flip_count_by_jac
 
   ! these variables, which are global to general, can be modified
   PetscInt, public :: dof_to_primary_variable(2)
@@ -104,6 +142,11 @@ module WIPP_Flow_Aux_module
     module procedure WIPPFloOutputAuxVars1
     module procedure WIPPFloOutputAuxVars2
   end interface WIPPFloOutputAuxVars
+
+  interface WIPPFloConvertUnitsToBRAGFlo
+    module procedure WIPPFloConvertUnitsToBRAGFloRes
+    module procedure WIPPFloConvertUnitsToBRAGFloJac
+  end interface WIPPFloConvertUnitsToBRAGFlo
   
   public :: WIPPFloAuxCreate, &
             WIPPFloAuxDestroy, &
@@ -115,7 +158,8 @@ module WIPP_Flow_Aux_module
             WIPPFloAuxVarStrip, &
             WIPPFloAuxVarPerturb, &
             WIPPFloPrintAuxVars, &
-            WIPPFloOutputAuxVars
+            WIPPFloOutputAuxVars, &
+            WIPPFloConvertUnitsToBRAGFlo
 
 contains
 
@@ -260,7 +304,8 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   use Klinkenberg_module
   use WIPP_module
   use Variables_module, only : SOIL_REFERENCE_PRESSURE
-  
+  use WIPP_Characteristic_Curve_module
+
   implicit none
 
   type(option_type) :: option
@@ -384,6 +429,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   ! in PROPS1 in BRAGFLO, fracture has no impact on PTHRESH perm. Thus, the
   ! permeability used in characteristic curves is unmodified.
   perm_for_cc = material_auxvar%permeability(perm_xx_index)
+  if (.not.wippflo_use_bragflo_cc) then
   select type(sf => characteristic_curves%saturation_function)
     class is(sat_func_WIPP_type)
       sf%pct = sf%pct_a * perm_for_cc ** sf%pct_exp
@@ -394,6 +440,13 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   call characteristic_curves%saturation_function% &
           CapillaryPressure(wippflo_auxvar%sat(lid),wippflo_auxvar%pres(cpid), &
                             dummy,option)                             
+  else
+  call WIPPCharacteristicCurves(wippflo_auxvar%sat,perm_for_cc, &
+                                characteristic_curves%saturation_function, &
+                                characteristic_curves%liq_rel_perm_function, &
+                                characteristic_curves%gas_rel_perm_function, &
+                                wippflo_auxvar%pres(cpid),krl,krg,option)
+  endif                                
  
   wippflo_auxvar%pres(gid) = wippflo_auxvar%pres(lid) + &
                              wippflo_auxvar%pres(cpid)
@@ -438,8 +491,10 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   den_water_vapor = 0.d0
   
   ! Liquid Phase
+  if (.not.wippflo_use_bragflo_cc) then
   call characteristic_curves%liq_rel_perm_function% &
           RelativePermeability(wippflo_auxvar%sat(lid),krl,dummy,option)
+  endif
   if (.not.option%flow%density_depends_on_salinity) then
     call EOSWaterViscosity(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
                            wippflo_auxvar%pres(spid),visl,ierr)
@@ -453,8 +508,10 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   wippflo_auxvar%mu(lid) = visl
 
   ! Gas Phase
+  if (.not.wippflo_use_bragflo_cc) then
   call characteristic_curves%gas_rel_perm_function% &
-          RelativePermeability(wippflo_auxvar%sat(lid),krg,dummy,option)                            
+          RelativePermeability(wippflo_auxvar%sat(lid),krg,dummy,option)
+  endif
   ! STOMP uses separate functions for calculating viscosity of vapor and
   ! and air (WATGSV,AIRGSV) and then uses GASVIS to calculate mixture 
   ! viscosity.
@@ -939,6 +996,59 @@ subroutine WIPPFloAuxVarStrip(auxvar)
   type(wippflo_auxvar_type) :: auxvar
   
 end subroutine WIPPFloAuxVarStrip
+
+! ************************************************************************** !
+
+subroutine WIPPFloConvertUnitsToBRAGFloRes(Res,material_auxvar,option)
+  ! 
+  ! Converts units of residual to kg/m^3 (BRAGFLO units)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/16/17
+  ! 
+  use Option_module
+  use Material_Aux_class
+
+  implicit none
+
+  type(option_type) :: option
+  PetscReal :: Res(option%nflowdof)
+  class(material_auxvar_type) :: material_auxvar
+
+  if (wippflo_use_bragflo_units) then
+    Res = Res * fmw_comp * option%flow_dt / material_auxvar%volume
+  endif
+
+end subroutine WIPPFloConvertUnitsToBRAGFloRes
+
+! ************************************************************************** !
+
+subroutine WIPPFloConvertUnitsToBRAGFloJac(Jac,material_auxvar,option)
+  ! 
+  ! Converts units of residual to kg/m^3 (BRAGFLO units)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/16/17
+  ! 
+  use Option_module
+  use Material_Aux_class
+
+  implicit none
+
+  type(option_type) :: option
+  PetscReal :: Jac(option%nflowdof,option%nflowdof)
+  class(material_auxvar_type) :: material_auxvar
+
+  PetscInt :: irow
+
+  if (wippflo_use_bragflo_units) then
+    do irow = 1, option%nflowdof
+      Jac(irow,:) = Jac(irow,:) * fmw_comp(irow) * option%flow_dt / &
+        material_auxvar%volume
+    enddo
+  endif
+
+end subroutine WIPPFloConvertUnitsToBRAGFloJac
 
 ! ************************************************************************** !
 

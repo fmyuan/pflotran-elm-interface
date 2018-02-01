@@ -531,6 +531,9 @@ module Characteristic_Curves_module
   type, public :: characteristic_curves_ptr_type
     class(characteristic_curves_type), pointer :: ptr
   end type characteristic_curves_ptr_type 
+
+  public :: sat_func_base_type, &
+            rel_perm_func_base_type
   
   public :: CharacteristicCurvesCreate, &
             CharacteristicCurvesRead, &
@@ -4366,7 +4369,7 @@ subroutine SF_KRP1_CapillaryPressure(this,liquid_saturation, &
   
   if ((liquid_saturation > this%Sr) .or. &
       ((1.d0 - liquid_saturation) <= this%Srg)) then
-    capillary_pressure = P0*(Se2**(-1/this%m)-1)**(1-this%m)
+    capillary_pressure = P0*(Se2**(-1.d0/this%m)-1.d0)**(1.d0-this%m)
   else
     capillary_pressure = 0.d0
   endif
