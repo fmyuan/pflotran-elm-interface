@@ -174,11 +174,15 @@ module clm_pflotran_interface_data
   Vec :: soilpsi_clmp                   ! soil matric potential (Pa)
   Vec :: soillsat_clmp                  ! soil liq. water saturation (0 - 1)
   Vec :: soilisat_clmp                  ! soil ice water saturation (0 - 1)
+  Vec :: soilliq_clmp                   ! soil liq. water mass (kg/m3 bulk soil)
+  Vec :: soilice_clmp                   ! soil ice water mass (kg/m3 bulk soil)
   Vec :: soilt_clmp                     ! soil temperature (degC)
   Vec :: press_pfs
   Vec :: soilpsi_pfs
   Vec :: soillsat_pfs
   Vec :: soilisat_pfs
+  Vec :: soilliq_pfs
+  Vec :: soilice_pfs
   Vec :: soilt_pfs
 
   ! TH state vecs from PF (mpi) to CLM (seq)
@@ -187,11 +191,15 @@ module clm_pflotran_interface_data
   Vec :: soilpsi_pfp                   ! soil matric potential (Pa)
   Vec :: soillsat_pfp                  ! soil liq. water saturation (0 - 1)
   Vec :: soilisat_pfp                  ! soil ice water saturation (0 - 1)
+  Vec :: soilliq_pfp                   ! soil liq. water mass (kg/m3 bulk soil)
+  Vec :: soilice_pfp                   ! soil ice water mass (kg/m3 bulk soil)
   Vec :: soilt_pfp                     ! soil temperature (degC)
   Vec :: press_clms
   Vec :: soilpsi_clms
   Vec :: soillsat_clms
   Vec :: soilisat_clms
+  Vec :: soilliq_clms
+  Vec :: soilice_clms
   Vec :: soilt_clms
  
   !------------------------------- Soil BGC ----------------------------------------------
@@ -621,22 +629,30 @@ contains
     clm_pf_idata%soilpsi_clmp  = PETSC_NULL_VEC
     clm_pf_idata%soillsat_clmp = PETSC_NULL_VEC
     clm_pf_idata%soilisat_clmp = PETSC_NULL_VEC
+    clm_pf_idata%soilliq_clmp  = PETSC_NULL_VEC
+    clm_pf_idata%soilice_clmp  = PETSC_NULL_VEC
     clm_pf_idata%soilt_clmp    = PETSC_NULL_VEC
     clm_pf_idata%press_pfs      = PETSC_NULL_VEC
     clm_pf_idata%soilpsi_pfs    = PETSC_NULL_VEC
     clm_pf_idata%soillsat_pfs   = PETSC_NULL_VEC
     clm_pf_idata%soilisat_pfs   = PETSC_NULL_VEC
+    clm_pf_idata%soilliq_pfs    = PETSC_NULL_VEC
+    clm_pf_idata%soilice_pfs    = PETSC_NULL_VEC
     clm_pf_idata%soilt_pfs      = PETSC_NULL_VEC
     !
     clm_pf_idata%press_pfp    = PETSC_NULL_VEC
     clm_pf_idata%soilpsi_pfp  = PETSC_NULL_VEC
     clm_pf_idata%soillsat_pfp = PETSC_NULL_VEC
     clm_pf_idata%soilisat_pfp = PETSC_NULL_VEC
+    clm_pf_idata%soilliq_pfp  = PETSC_NULL_VEC
+    clm_pf_idata%soilice_pfp  = PETSC_NULL_VEC
     clm_pf_idata%soilt_pfp    = PETSC_NULL_VEC
     clm_pf_idata%press_clms      = PETSC_NULL_VEC
     clm_pf_idata%soilpsi_clms    = PETSC_NULL_VEC
     clm_pf_idata%soillsat_clms   = PETSC_NULL_VEC
     clm_pf_idata%soilisat_clms   = PETSC_NULL_VEC
+    clm_pf_idata%soilliq_clms    = PETSC_NULL_VEC
+    clm_pf_idata%soilice_clms    = PETSC_NULL_VEC
     clm_pf_idata%soilt_clms      = PETSC_NULL_VEC
 
     !------------------------------------------------------------------
@@ -945,6 +961,8 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%soilpsi_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%soillsat_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%soilisat_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%soilliq_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%soilice_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%soilt_clmp,ierr)
 
     ! (by copying) Create Seq. Vectors for PFLOTRAN  ----------------------
@@ -981,6 +999,8 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%soilpsi_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%soillsat_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%soilisat_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%soilliq_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%soilice_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%soilt_pfs,ierr)
 
     !-----------------------------PFLOTRAN ==> CLM
@@ -999,6 +1019,8 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%soilpsi_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%soillsat_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%soilisat_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%soilliq_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%soilice_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%soilt_pfp,ierr)
 
     ! (by copying) create Seq. Vectors for CLM ---------
@@ -1015,6 +1037,8 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%soilpsi_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%soillsat_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%soilisat_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%soilliq_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%soilice_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%soilt_clms,ierr)
 
     !--------------------------------------------------------------------------------------------------------------------------
@@ -1415,6 +1439,10 @@ contains
        call VecDestroy(clm_pf_idata%soillsat_clmp,ierr)
     if(clm_pf_idata%soilisat_clmp /= PETSC_NULL_VEC) &
        call VecDestroy(clm_pf_idata%soilisat_clmp,ierr)
+    if(clm_pf_idata%soilliq_clmp /= PETSC_NULL_VEC) &
+       call VecDestroy(clm_pf_idata%soilliq_clmp,ierr)
+    if(clm_pf_idata%soilice_clmp /= PETSC_NULL_VEC) &
+       call VecDestroy(clm_pf_idata%soilice_clmp,ierr)
     if(clm_pf_idata%soilt_clmp /= PETSC_NULL_VEC) &
        call VecDestroy(clm_pf_idata%soilt_clmp,ierr)
     
@@ -1428,6 +1456,10 @@ contains
       call VecDestroy(clm_pf_idata%soillsat_pfs,ierr)
     if(clm_pf_idata%soilisat_pfs /= PETSC_NULL_VEC) &
       call VecDestroy(clm_pf_idata%soilisat_pfs,ierr)
+    if(clm_pf_idata%soilliq_pfs /= PETSC_NULL_VEC) &
+      call VecDestroy(clm_pf_idata%soilliq_pfs,ierr)
+    if(clm_pf_idata%soilice_pfs /= PETSC_NULL_VEC) &
+      call VecDestroy(clm_pf_idata%soilice_pfs,ierr)
     if(clm_pf_idata%soilt_pfs /= PETSC_NULL_VEC) &
       call VecDestroy(clm_pf_idata%soilt_pfs,ierr)
 
@@ -1440,6 +1472,10 @@ contains
        call VecDestroy(clm_pf_idata%soillsat_pfp,ierr)
     if(clm_pf_idata%soilisat_pfp /= PETSC_NULL_VEC) &
        call VecDestroy(clm_pf_idata%soilisat_pfp,ierr)
+    if(clm_pf_idata%soilliq_pfp /= PETSC_NULL_VEC) &
+       call VecDestroy(clm_pf_idata%soilliq_pfp,ierr)
+    if(clm_pf_idata%soilice_pfp /= PETSC_NULL_VEC) &
+       call VecDestroy(clm_pf_idata%soilice_pfp,ierr)
     if(clm_pf_idata%soilt_pfp /= PETSC_NULL_VEC) &
        call VecDestroy(clm_pf_idata%soilt_pfp,ierr)
 
@@ -1451,6 +1487,10 @@ contains
       call VecDestroy(clm_pf_idata%soillsat_clms,ierr)
     if(clm_pf_idata%soilisat_clms /= PETSC_NULL_VEC) &
       call VecDestroy(clm_pf_idata%soilisat_clms,ierr)
+    if(clm_pf_idata%soilliq_clms /= PETSC_NULL_VEC) &
+      call VecDestroy(clm_pf_idata%soilliq_clms,ierr)
+    if(clm_pf_idata%soilice_clms /= PETSC_NULL_VEC) &
+      call VecDestroy(clm_pf_idata%soilice_clms,ierr)
     if(clm_pf_idata%soilt_clms /= PETSC_NULL_VEC) &
       call VecDestroy(clm_pf_idata%soilt_clms,ierr)
 
