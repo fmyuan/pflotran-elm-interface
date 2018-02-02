@@ -1,6 +1,8 @@
 module Geomechanics_Condition_module
  
 !  use Global_Aux_module
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Dataset_Base_class
   use Dataset_Ascii_class
   use Time_Storage_module
@@ -11,8 +13,6 @@ module Geomechanics_Condition_module
 
   private
   
-#include "petsc/finclude/petscsys.h"
-
 #if 0
 !geh: no longer needed
   PetscInt, parameter :: NULL = 0
@@ -186,6 +186,8 @@ subroutine GeomechSubConditionVerify(option, condition, sub_condition_name, &
   type(geomech_sub_condition_type), pointer :: sub_condition
   type(time_storage_type), pointer :: default_time_storage
   PetscBool :: destroy_if_null
+
+  character(len=MAXSTRINGLENGTH) :: header
   
   if (.not.associated(sub_condition)) return
   
@@ -204,7 +206,11 @@ subroutine GeomechSubConditionVerify(option, condition, sub_condition_name, &
     call printErrMsg(option)
   endif
   
-  call DatasetVerify(sub_condition%dataset,default_time_storage,option)
+  header = 'GEOMECHANICS_CONDITION' // '/' // &
+           trim(condition%name) // '/' // &
+           trim(sub_condition_name) // '/Value(s)'
+  call DatasetVerify(sub_condition%dataset,default_time_storage, &
+                     header,option)
 
 end subroutine GeomechSubConditionVerify
 

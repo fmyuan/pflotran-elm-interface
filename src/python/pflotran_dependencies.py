@@ -116,7 +116,9 @@ for root in source_file_roots:
     for line in open(get_filename(root,'F90')):
       if line.lstrip().startswith('use '):
         w = line.split()
-        module_list.append(w[1].strip(','))
+        # skip hdf5, h5lt, and petscXXX modules
+        if not w[1].startswith(('hdf5','htlt','petsc')):
+          module_list.append(w[1].strip(','))
     # remove duplicate modules
     module_list = set(module_list)
     file_list = []
@@ -125,7 +127,7 @@ for root in source_file_roots:
         key = module_dictionary[module]
       except KeyError:
         # need to skip hdf5
-        if not module.startswith('hdf5') and not module.startswith('h5lt'):
+        if not module.startswith(('hdf5','h5lt','petsc')):
           print('Module "%s" not found in dictionary.\n' % module)
           print(root, module)
           sys.exit()

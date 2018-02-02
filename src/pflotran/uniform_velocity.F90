@@ -43,7 +43,8 @@ function UniformVelocityDatasetCreate()
   ! Author: Glenn Hammond
   ! Date: 06/02/09
   ! 
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   implicit none
   
   type(uniform_velocity_dataset_type), pointer :: UniformVelocityDatasetCreate
@@ -75,7 +76,8 @@ subroutine UniformVelocityDatasetRead(dataset,input,option)
   ! Author: Glenn Hammond
   ! Date: 06/02/09
   ! 
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -166,7 +168,8 @@ subroutine UniVelocityDatasetReadValues(input,option,keyword,string,dataset, &
   ! Author: Glenn Hammond
   ! Date: 06/02/09
   ! 
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Input_Aux_module
   use String_module
   use Option_module
@@ -357,6 +360,8 @@ subroutine UniformVelocityDatasetVerify(option, dataset)
   ! Author: Glenn Hammond
   ! Date: 02/04/08
   ! 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
 
   implicit none
@@ -386,7 +391,7 @@ subroutine UniformVelocityDatasetVerify(option, dataset)
       write(size1,*) size(dataset%times,1)
       write(size2,*) size(dataset%values,2)
       option%io_buffer = 'times/values ('//trim(size1)//'/'//trim(size2) // &
-                         ') array size mismatch in velocity dataaset'
+                         ') array size mismatch in velocity dataset'
       call printErrMsg(option) 
     endif
     dataset%is_transient = PETSC_TRUE

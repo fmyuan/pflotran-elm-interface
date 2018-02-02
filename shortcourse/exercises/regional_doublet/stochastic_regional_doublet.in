@@ -20,10 +20,14 @@ CHEMISTRY
     Tracer
     Tracer2
   /
+  OUTPUT
+    TOTAL
+    all
+  /
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER
+TIMESTEPPER FLOW
 END
 
 NEWTON_SOLVER FLOW
@@ -58,6 +62,7 @@ END
 #=========================== data sets ========================================
 DATASET perm_field
   FILENAME ./perm_fields.h5
+  HDF5_DATASET_NAME Permeability
   REALIZATION_DEPENDENT
 /
 
@@ -126,12 +131,22 @@ END
 
 #=========================== output options ===================================
 OUTPUT
-  TIMES y 1.25 1.5 1.75
-  PERIODIC TIME 1. y
-  PERIODIC_OBSERVATION TIMESTEP 1
-  FORMAT TECPLOT BLOCK
-  FORMAT HDF5
-  PRINT_COLUMN_IDS
+  SNAPSHOT_FILE
+    PERIODIC TIME 0.25 y between 0. y and 2. y
+    PERIODIC TIME 1. y between 0. y and 10. y
+    FORMAT TECPLOT BLOCK
+    FORMAT HDF5
+    PRINT_COLUMN_IDS
+    VARIABLES
+      PERMEABILITY
+      LIQUID_PRESSURE
+      LIQUID_SATURATION
+      MATERIAL_ID_KLUDGE_FOR_VISIT
+    /
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+  /
   VELOCITY_AT_CENTER
 END
 
@@ -318,14 +333,14 @@ END
 
 FLOW_CONDITION injection
   TYPE
-    RATE SCALED_VOLUMETRIC_RATE
+    RATE SCALED_VOLUMETRIC_RATE NEIGHBOR_PERM
   /
   RATE 1.d5 m^3/day
 END
 
 FLOW_CONDITION extraction
   TYPE
-    RATE SCALED_VOLUMETRIC_RATE
+    RATE SCALED_VOLUMETRIC_RATE NEIGHBOR_PERM
   /
   RATE -1.d5 m^3/day
 END

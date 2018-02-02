@@ -1,5 +1,7 @@
 module Geomechanics_Realization_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Realization_Base_class
   use Geomechanics_Discretization_module
   use Geomechanics_Patch_module
@@ -17,8 +19,6 @@ module Geomechanics_Realization_class
   implicit none
 
 private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public, extends(realization_base_type) :: realization_geomech_type
 
@@ -82,7 +82,6 @@ function GeomechRealizCreate(option)
     geomech_realization%option => OptionCreate()
   endif
   
-  nullify(geomech_realization%input)
   geomech_realization%geomech_discretization => GeomechDiscretizationCreate()
   
   geomech_realization%geomech_field => GeomechFieldCreate()
@@ -214,13 +213,11 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Geomechanics_Grid_Aux_module
   
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(realization_geomech_type) :: geomech_realization
   type(geomech_discretization_type), pointer :: geomech_discretization
@@ -343,20 +340,14 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   ! Date: 09/09/13
   ! 
 
+#include "petsc/finclude/petscdm.h"
+  use petscdm
   use Option_module
   use Geomechanics_Grid_Aux_module
   use Realization_Subsurface_class
   use Grid_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscdm.h"  
-#include "petsc/finclude/petscdm.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petscviewer.h"
 
   class(realization_subsurface_type), pointer :: realization
   class(realization_geomech_type), pointer :: geomech_realization
@@ -371,6 +362,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   AO :: ao_geomech_to_subsurf_natural
+  AO :: ao_subsurf_natual_to_petsc
   PetscInt, allocatable :: int_array(:)
   PetscInt :: local_id
   VecScatter :: scatter
@@ -378,11 +370,13 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   PetscInt, pointer :: int_ptr(:)
   IS :: is_geomech_petsc_block
   IS :: is_subsurf_petsc_block
+  PetscInt :: size_int_ptr
 
   geomech_grid => geomech_realization%geomech_discretization%grid
   grid => realization%discretization%grid
     
   ! Convert from 1-based to 0-based  
+  ! Create IS for flow side cell ids
   call ISCreateGeneral(option%mycomm,geomech_grid%mapping_num_cells, &
                        geomech_grid%mapping_cell_ids_flow-1, &
                        PETSC_COPY_VALUES,is_subsurf,ierr);CHKERRQ(ierr)
@@ -394,7 +388,9 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   call ISView(is_subsurf,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif   
- 
+
+  ! Convert from 1-based to 0-based
+  ! Create IS for geomech side vertex ids
   call ISCreateGeneral(option%mycomm,geomech_grid%mapping_num_cells, &
                        geomech_grid%mapping_vertex_ids_geomech-1, &
                        PETSC_COPY_VALUES,is_geomech,ierr);CHKERRQ(ierr)
@@ -407,10 +403,9 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif   
 
+  ! Create an application ordering between flow cell ids and geomech vertex ids
   call AOCreateMappingIS(is_geomech,is_subsurf,ao_geomech_to_subsurf_natural, &
                          ierr);CHKERRQ(ierr)
-  call ISDestroy(is_geomech,ierr);CHKERRQ(ierr)
-  call ISDestroy(is_subsurf,ierr);CHKERRQ(ierr)
 
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm, &
@@ -425,6 +420,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
     int_array(local_id) = grid%nG2A(grid%nL2G(local_id)) - 1
   enddo
 
+  ! Flow natural numbering IS
   call ISCreateGeneral(option%mycomm,grid%nlmax, &
                        int_array,PETSC_COPY_VALUES,is_subsurf_natural, &
                        ierr);CHKERRQ(ierr)
@@ -442,6 +438,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
     int_array(local_id) = (local_id-1) + grid%global_offset
   enddo
 
+  ! Flow petsc numbering IS
   call ISCreateGeneral(option%mycomm,grid%nlmax, &
                        int_array,PETSC_COPY_VALUES,is_subsurf_petsc, &
                        ierr);CHKERRQ(ierr)
@@ -453,21 +450,37 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   call ISView(is_subsurf_natural,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif  
-  
-  call ISDuplicate(is_subsurf_natural,is_geomech_petsc,ierr);CHKERRQ(ierr)
-  call ISCopy(is_subsurf_natural,is_geomech_petsc,ierr);CHKERRQ(ierr)
-  
-  call AOPetscToApplicationIS(ao_geomech_to_subsurf_natural,is_geomech_petsc, &
-                              ierr);CHKERRQ(ierr)
- 
+
+  ! AO for flow natural to petsc numbering
+  call AOCreateMappingIS(is_subsurf_natural,is_subsurf_petsc, &
+                         ao_subsurf_natual_to_petsc, &
+                         ierr);CHKERRQ(ierr)
+
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm, &
-                            'geomech_is_subsurf_petsc_geomech_natural.out', &
+                            'geomech_ao_subsurf_natural_to_petsc.out', &
+                            viewer,ierr);CHKERRQ(ierr)
+  call AOView(ao_subsurf_natual_to_petsc,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+
+  call AOApplicationToPetscIS(ao_subsurf_natual_to_petsc, &
+                              is_subsurf,ierr);CHKERRQ(ierr)
+
+
+  call ISDuplicate(is_geomech,is_geomech_petsc,ierr);CHKERRQ(ierr)
+  call ISCopy(is_geomech,is_geomech_petsc,ierr);CHKERRQ(ierr)
+
+  ! natural ordering of the geomech nodes
+#if GEOMECH_DEBUG
+  call PetscViewerASCIIOpen(option%mycomm,'geomech_is_geomech_petsc.out', &
                             viewer,ierr);CHKERRQ(ierr)
   call ISView(is_geomech_petsc,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-#endif   
+#endif
 
+  ! Now calculate the petsc ordering of the mapped geomech nodes
+  ! from natural ordering
   call AOApplicationToPetscIS(geomech_grid%ao_natural_to_petsc_nodes, &
                               is_geomech_petsc,ierr);CHKERRQ(ierr)
                               
@@ -479,7 +492,8 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif                              
 
-  call VecScatterCreate(realization%field%porosity0,is_subsurf_petsc, &
+  ! Create scatter context between flow and geomech
+  call VecScatterCreate(realization%field%porosity0,is_subsurf, &
                         geomech_realization%geomech_field%press, &
                         is_geomech_petsc,scatter,ierr);CHKERRQ(ierr)
                         
@@ -509,13 +523,14 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   
   ! Geomech to subsurf scatter
   
-  allocate(int_array(grid%nlmax))
   call ISGetIndicesF90(is_geomech_petsc,int_ptr,ierr);CHKERRQ(ierr)
-  do local_id = 1, grid%nlmax
+  size_int_ptr = size(int_ptr)
+  allocate(int_array(size_int_ptr))
+  do local_id = 1, size_int_ptr
     int_array(local_id) = int_ptr(local_id)
   enddo  
   call ISRestoreIndicesF90(is_geomech_petsc,int_ptr,ierr);CHKERRQ(ierr)
-  call ISCreateBlock(option%mycomm,SIX_INTEGER,grid%nlmax, &
+  call ISCreateBlock(option%mycomm,SIX_INTEGER,size_int_ptr, &
                      int_array,PETSC_COPY_VALUES,is_geomech_petsc_block, &
                      ierr);CHKERRQ(ierr)
   deallocate(int_array)
@@ -528,13 +543,14 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif 
 
-  allocate(int_array(grid%nlmax))
-  call ISGetIndicesF90(is_subsurf_petsc,int_ptr,ierr);CHKERRQ(ierr)
-  do local_id = 1, grid%nlmax
+  call ISGetIndicesF90(is_subsurf,int_ptr,ierr);CHKERRQ(ierr)
+  size_int_ptr = size(int_ptr)
+  allocate(int_array(size_int_ptr))
+  do local_id = 1, size_int_ptr
     int_array(local_id) = int_ptr(local_id)
   enddo  
-  call ISRestoreIndicesF90(is_subsurf_petsc,int_ptr,ierr);CHKERRQ(ierr)
-  call ISCreateBlock(option%mycomm,SIX_INTEGER,grid%nlmax, &
+  call ISRestoreIndicesF90(is_subsurf,int_ptr,ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,SIX_INTEGER,size_int_ptr, &
                      int_array,PETSC_COPY_VALUES,is_subsurf_petsc_block, &
                      ierr);CHKERRQ(ierr)
   deallocate(int_array)
@@ -581,6 +597,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   call ISDestroy(is_geomech_petsc,ierr);CHKERRQ(ierr)
   call ISDestroy(is_subsurf_petsc,ierr);CHKERRQ(ierr)
   call AODestroy(ao_geomech_to_subsurf_natural,ierr);CHKERRQ(ierr)
+  call AODestroy(ao_subsurf_natual_to_petsc,ierr);CHKERRQ(ierr)
   call ISDestroy(is_subsurf_petsc_block,ierr);CHKERRQ(ierr)
   call ISDestroy(is_geomech_petsc_block,ierr);CHKERRQ(ierr)
 
@@ -588,7 +605,7 @@ end subroutine GeomechRealizMapSubsurfGeomechGrid
 
 ! ************************************************************************** !
 
-subroutine GeomechGridElemSharedByNodes(geomech_realization)
+subroutine GeomechGridElemSharedByNodes(geomech_realization,option)
   ! 
   ! GeomechGridElemsSharedByNodes: Calculates the number of elements common
   ! to a node (vertex)
@@ -597,43 +614,45 @@ subroutine GeomechGridElemSharedByNodes(geomech_realization)
   ! Date: 09/17/13
   ! 
   
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Option_module
   use Geomechanics_Grid_Aux_module
 
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(realization_geomech_type) :: geomech_realization
   type(geomech_grid_type), pointer :: grid
+  type(option_type) :: option
   
   PetscInt :: ielem
   PetscInt :: ivertex
   PetscInt :: ghosted_id
-!  PetscInt, allocatable :: elenodes(:)
   PetscInt :: elenodes(10)
   PetscReal, pointer :: elem_sharing_node_loc_p(:)
   PetscErrorCode :: ierr
+  PetscViewer :: viewer
+  character(len=MAXSTRINGLENGTH) :: string
   
   grid => geomech_realization%geomech_discretization%grid
   
   call VecGetArrayF90(grid%no_elems_sharing_node_loc,elem_sharing_node_loc_p, &
                       ierr);CHKERRQ(ierr)
   
+  ! Calculate the common elements to a node on a process
   do ielem = 1, grid%nlmax_elem
     elenodes(1:grid%elem_nodes(0,ielem)) = &
       grid%elem_nodes(1:grid%elem_nodes(0,ielem),ielem)
     do ivertex = 1, grid%elem_nodes(0,ielem)
-      ghosted_id = elenodes(ivertex) 
+      ghosted_id = elenodes(ivertex)
       elem_sharing_node_loc_p(ghosted_id) = &
         elem_sharing_node_loc_p(ghosted_id) + 1
     enddo
   enddo
-  
+    
   call VecRestoreArrayF90(grid%no_elems_sharing_node_loc, &
-                         elem_sharing_node_loc_p,ierr);CHKERRQ(ierr)
-
-  
+                          elem_sharing_node_loc_p,ierr);CHKERRQ(ierr)
+                          
   ! Local to global scatter
   call GeomechDiscretizationLocalToGlobalAdd(&
                                 geomech_realization%geomech_discretization, &
@@ -641,6 +660,20 @@ subroutine GeomechGridElemSharedByNodes(geomech_realization)
                                 grid%no_elems_sharing_node, &
                                 ONEDOF)  
                                              
+#if GEOMECH_DEBUG
+  write(string,*) option%myrank
+  string = 'no_elems_sharing_node_loc_' // trim(adjustl(string)) // '.out'
+
+  call PetscViewerASCIIOpen(PETSC_COMM_SELF,trim(string), &
+                            viewer,ierr);CHKERRQ(ierr)
+  call VecView(grid%no_elems_sharing_node_loc,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerASCIIOpen(option%mycomm,'no_elems_sharing_node.out', &
+                            viewer,ierr);CHKERRQ(ierr)
+  call VecView(grid%no_elems_sharing_node,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+
 end subroutine GeomechGridElemSharedByNodes
 
 ! ************************************************************************** !
@@ -918,7 +951,8 @@ subroutine GeomechRealizGetDataset(geomech_realization,vec,ivar,isubvar, &
   ! Author: Satish Karra, LANL
   ! Date: 07/03/13
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   implicit none
 
   class(realization_geomech_type) :: geomech_realization

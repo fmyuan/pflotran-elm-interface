@@ -1,5 +1,6 @@
 module PM_Immis_class
-
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
   
@@ -8,14 +9,6 @@ module PM_Immis_class
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscsnes.h"
 
   type, public, extends(pm_subsurface_flow_type) :: pm_immis_type
   contains
@@ -62,7 +55,7 @@ function PMImmisCreate()
   allocate(immis_pm)
 
   call PMSubsurfaceFlowCreate(immis_pm)
-  immis_pm%name = 'PMImmis'
+  immis_pm%name = 'Immisible Flow'
 
   PMImmisCreate => immis_pm
   
@@ -109,7 +102,8 @@ subroutine PMImmisRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found,option)
+    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
+                                        error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -158,6 +152,8 @@ subroutine PMImmisPreSolve(this)
   implicit none
   
   class(pm_immis_type) :: this
+
+  call PMSubsurfaceFlowPreSolve(this)
   
 end subroutine PMImmisPreSolve
 
@@ -180,11 +176,13 @@ end subroutine PMImmisPostSolve
 ! ************************************************************************** !
 
 subroutine PMImmisUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                 num_newton_iterations,tfac, &
+                                 time_step_max_growth_factor)
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/27/13
   ! 
+  use Realization_Subsurface_class, only : RealizationLimitDTByCFL
 
   implicit none
   
@@ -194,6 +192,7 @@ subroutine PMImmisUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: fac
   PetscReal :: ut
@@ -228,14 +227,14 @@ subroutine PMImmisUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     dtt = min(dt_tfac,dt_p)
   endif
   
-  if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   if (dtt > dt_max) dtt = dt_max
   ! geh: There used to be code here that cut the time step if it is too
   !      large relative to the simulation time.  This has been removed.
   dtt = max(dtt,dt_min)
   dt = dtt
 
-  call PMSubsurfaceFlowLimitDTByCFL(this,dt)
+  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
   
 end subroutine PMImmisUpdateTimestep
 

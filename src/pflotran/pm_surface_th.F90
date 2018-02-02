@@ -1,5 +1,7 @@
 module PM_Surface_TH_class
 
+#include "petsc/finclude/petscts.h"
+  use petscts
   use PM_Base_class
   use PM_Surface_class
   use Realization_Surface_class
@@ -12,15 +14,6 @@ module PM_Surface_TH_class
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscsnes.h"
-#include "petsc/finclude/petscts.h"
 
   type, public, extends(pm_surface_type) :: pm_surface_th_type
   contains
@@ -58,7 +51,7 @@ function PMSurfaceTHCreate()
 
   allocate(surface_th_pm)
   call PMSurfaceCreate(surface_th_pm)
-  surface_th_pm%name = 'PMSurfaceTH'
+  surface_th_pm%name = 'Surface+TH Flow'
 
   PMSurfaceTHCreate => surface_th_pm
 
@@ -189,7 +182,8 @@ end subroutine PMSurfaceTHRHSFunction
 ! ************************************************************************** !
 
 subroutine PMSurfaceTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                     num_newton_iterations,tfac, &
+                                     time_step_max_growth_factor)
   ! 
   ! This routine
   ! 
@@ -207,6 +201,7 @@ subroutine PMSurfaceTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
 
   PetscReal :: dt_max_glb
   PetscErrorCode :: ierr
@@ -215,7 +210,8 @@ subroutine PMSurfaceTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   call SurfaceTHComputeMaxDt(this%surf_realization,dt_max_loc)
   call MPI_Allreduce(dt_max_loc,dt_max_glb,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
                      MPI_MIN,this%option%mycomm,ierr)
-  dt = min(0.9d0*dt_max_glb,this%surf_realization%dt_max)
+  dt = min(0.9d0*dt_max_glb,this%surf_realization%dt_max, &
+           time_step_max_growth_factor*dt)
 
 end subroutine PMSurfaceTHUpdateTimestep
 
@@ -257,15 +253,14 @@ subroutine PMSurfaceTHPostSolve(this)
   ! Date: 07/23/13
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Grid_module
   use Discretization_module
   use Surface_Field_module
   use Surface_TH_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(pm_surface_th_type) :: this
 

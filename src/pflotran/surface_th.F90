@@ -1,5 +1,9 @@
 module Surface_TH_module
 
+
+
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use Surface_Global_Aux_module
   use Surface_TH_Aux_module
   
@@ -8,17 +12,6 @@ module Surface_TH_module
   implicit none
   
   private
-  
-#include "petsc/finclude/petscsys.h"
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscsnes.h"
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscts.h"
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.D-12
@@ -179,6 +172,8 @@ subroutine SurfaceTHRHSFunction(ts,t,xx,ff,surf_realization,ierr)
   ! Author: Gautam Bisht, LBNL
   ! 
 
+#include <petsc/finclude/petscts.h>
+  use petscts
   use EOS_Water_module
   use Connection_module
   use Realization_Surface_class
@@ -465,6 +460,8 @@ subroutine SurfaceTHIFunction(ts,t,xx,xxdot,ff,surf_realization,ierr)
   ! Author: Nathan Collier, ORNL
   ! 
 
+#include "petsc/finclude/petscts.h"
+  use petscts
   use EOS_Water_module
   use Connection_module
   use Realization_Surface_class
@@ -1101,7 +1098,8 @@ subroutine SurfaceTHUpdateAuxVars(surf_realization)
 
       do idof=1,option%nflowdof
         select case(boundary_condition%flow_condition%itype(idof))
-          case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,HET_DIRICHLET,NEUMANN_BC)
+          case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,NEUMANN_BC, &
+               HET_DIRICHLET_BC)
             xxbc(idof) = boundary_condition%flow_aux_real_var(idof,iconn)
           case(ZERO_GRADIENT_BC)
             xxbc(idof) = xx_loc_p((ghosted_id-1)*option%nflowdof+idof)
@@ -1135,7 +1133,8 @@ subroutine SurfaceTHUpdateAuxVars(surf_realization)
       istart = iend-option%nflowdof+1
 
       if (associated(source_sink%flow_condition%temperature)) then
-        if (source_sink%flow_condition%temperature%itype/=HET_DIRICHLET) then
+        if (source_sink%flow_condition%temperature%itype /= &
+            HET_DIRICHLET_BC) then
           tsrc1 = source_sink%flow_condition%temperature%dataset%rarray(1)
         else
           tsrc1 = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
@@ -1346,6 +1345,8 @@ subroutine SurfaceTHUpdateSurfState(surf_realization)
   ! Date: 06/25/13
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Connection_module
   use Coupler_module
   use Discretization_module
@@ -1361,11 +1362,6 @@ subroutine SurfaceTHUpdateSurfState(surf_realization)
   use EOS_Water_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   class(realization_surface_type) :: surf_realization
 
@@ -1602,7 +1598,8 @@ subroutine SurfaceTHImplicitAtmForcing(surf_realization)
 
     if (StringCompare(source_sink%name,'atm_energy_ss')) then
 
-      if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == HET_DIRICHLET) then
+      if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == &
+          HET_DIRICHLET_BC) then
 
         do iconn = 1, cur_connection_set%num_connections
 

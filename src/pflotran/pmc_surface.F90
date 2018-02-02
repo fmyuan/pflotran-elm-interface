@@ -87,6 +87,8 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
   ! Date: 06/27/13
   ! 
 
+#include "petsc/finclude/petscviewer.h"
+  use petscsys
   use Timestepper_Base_class
   use Output_Aux_module
   use Output_module, only : Output
@@ -100,7 +102,6 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
   use Checkpoint_module
   
   implicit none
-#include "petsc/finclude/petscviewer.h"
   
   class(pmc_surface_type), target :: this
   PetscReal :: sync_time
@@ -114,11 +115,14 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
   PetscBool :: massbal_plot_flag
   PetscBool :: checkpoint_at_this_time_flag
   PetscBool :: checkpoint_at_this_timestep_flag
+  PetscBool :: peer_already_run_to_time
   class(pm_base_type), pointer :: cur_pm
   PetscReal :: dt_max_loc
   PetscReal :: dt_max_glb
   PetscViewer :: viewer
   PetscErrorCode :: ierr
+
+  if (stop_flag == TS_STOP_FAILURE) return
   
   this%option%io_buffer = trim(this%name) // ':' // trim(this%pm_list%name)
   call printVerboseMsg(this%option)
@@ -230,6 +234,7 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
       endif
     endif
 
+    peer_already_run_to_time = PETSC_FALSE
     if (checkpoint_at_this_time_flag .or. &
         checkpoint_at_this_timestep_flag) then
       ! if checkpointing, need to sync all other PMCs.  Those "below" are
@@ -239,6 +244,7 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
       ! Run neighboring process model couplers
       if (associated(this%peer)) then
         call this%peer%RunToTime(this%timestepper%target_time,local_stop_flag)
+        peer_already_run_to_time = PETSC_TRUE
       endif
       call this%GetAuxData()
       ! it is possible that two identical checkpoint files will be created,
@@ -267,7 +273,7 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
   call this%SetAuxData()
 
   ! Run neighboring process model couplers
-  if (associated(this%peer)) then
+  if (associated(this%peer) .and. .not.peer_already_run_to_time) then
     call this%peer%RunToTime(sync_time,local_stop_flag)
   endif
 
@@ -285,15 +291,14 @@ subroutine PMCSurfaceGetAuxData(this)
   ! Date: 08/21/13
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Surface_Flow_module
   use Surface_TH_module
   use Surface_TH_module
   use Option_module
 
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(pmc_surface_type) :: this
 
@@ -358,6 +363,8 @@ subroutine PMCSurfaceSetAuxData(this)
   ! Date: 08/21/13
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Connection_module
   use Coupler_module
   use Grid_module
@@ -371,9 +378,6 @@ subroutine PMCSurfaceSetAuxData(this)
   use String_module
 
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(pmc_surface_type) :: this
 
@@ -457,19 +461,23 @@ subroutine PMCSurfaceSetAuxData(this)
                   do iconn = 1, cur_connection_set%num_connections
 
                     local_id = cur_connection_set%id_dn(iconn)
-                    select case(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF))
+                    select case(source_sink%flow_condition% &
+                                  itype(TH_TEMPERATURE_DOF))
                       case (ENERGY_RATE_SS)
-                        esrc = source_sink%flow_condition%energy_rate%dataset%rarray(1)
+                        esrc = source_sink%flow_condition%energy_rate% &
+                                  dataset%rarray(1)
                       case (HET_ENERGY_RATE_SS)
                         esrc = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
                       case (DIRICHLET_BC)
-                        esrc = source_sink%flow_condition%temperature%dataset%rarray(1)
-                      case (HET_DIRICHLET)
+                        esrc = source_sink%flow_condition%temperature% &
+                                  dataset%rarray(1)
+                      case (HET_DIRICHLET_BC)
                         esrc = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
                       case default
-                        this%option%io_buffer = 'atm_energy_ss does not have '// &
-                          'a temperature condition that is either a ' // &
-                          ' ENERGY_RATE_SS/HET_ENERGY_RATE_SSDIRICHLET_BC/HET_DIRICHLET'
+                        this%option%io_buffer = 'atm_energy_ss does not have &
+                          &a temperature condition that is either a &
+                          &ENERGY_RATE_SS/HET_ENERGY_RATE_SS/DIRICHLET_BC/ &
+                          &HET_DIRICHLET_BC'
                         call printErrMsg(this%option)
                     end select
 
@@ -521,7 +529,8 @@ subroutine PMCSurfaceGetAuxDataAfterRestart(this)
   ! Author: Gautam Bisht, LBNL
   ! Date: 09/23/13
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Surface_Flow_module
   use Surface_TH_Aux_module
   use Surface_TH_module
@@ -529,9 +538,6 @@ subroutine PMCSurfaceGetAuxDataAfterRestart(this)
   use EOS_Water_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(pmc_surface_type) :: this
 

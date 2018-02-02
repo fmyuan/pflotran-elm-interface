@@ -1,0 +1,294 @@
+#Description: Test UFD_BIOSPHERE process model 
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+    UFD_DECAY ufd_decay
+    /
+    UFD_BIOSPHERE ufd_biosphere
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Ra-226
+    I-129
+    Daugh    ! Collects all undefined daughter products
+  /
+  MINERALS
+    Ra-226(s)
+    I-129(s)
+    Daugh(s)
+  /
+  MINERAL_KINETICS
+    Ra-226(s)
+      RATE_CONSTANT 0.d0
+    /
+    I-129(s)
+      RATE_CONSTANT 0.d0
+    /
+    Daugh(s)
+      RATE_CONSTANT 0.d0
+    /
+  /
+  DATABASE ./ufd-decay.dat
+  
+  OUTPUT
+    ALL 
+    TOTAL
+  /
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0  0.d0  0.d0
+    1.d0 1.d0 1.d0
+  END
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY 
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY domain
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2700 # kg/m3
+  CHARACTERISTIC_CURVES sf1
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.286
+    ALPHA  1.9401d-4
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.286
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+END
+
+#=========================== output options ===================================
+#OUTPUT
+#  PERIODIC_OBSERVATION TIMESTEP 1
+#  VELOCITY_AT_CENTER
+#END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d2 y
+  INITIAL_TIMESTEP_SIZE 1.d-6 day
+  MAXIMUM_TIMESTEP_SIZE 1.d3 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  BLOCK 1 1 1 1 1 1
+END
+
+REGION well
+  BLOCK 1 1 1 1 1 1
+END
+
+REGION ERB1B_tester1
+  BLOCK 1 1 1 1 1 1
+END
+
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION all
+END
+
+#=========================== flow conditions ==================================
+
+FLOW_CONDITION well
+  TYPE
+    RATE VOLUMETRIC_RATE
+  /
+  RATE -1.d-15 m^3/day
+END
+
+#=========================== source/sinks =====================================
+SOURCE_SINK well
+  REGION well
+  FLOW_CONDITION well
+  TRANSPORT_CONDITION sink
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION groundwater
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT_LIST
+    0.d0 groundwater
+  /
+END
+
+TRANSPORT_CONDITION sink
+  TYPE DIRICHLET # dummy concentration assigned for outflow
+  CONSTRAINT_LIST
+    0.d0 groundwater
+  /
+END
+
+#=========================== transport constraints ============================
+CONSTRAINT groundwater
+  CONCENTRATIONS
+    Ra-226   1.213d-16     T   ! total aqueous in mol/Lw confirmed
+    I-129    1.d-12        T  
+    Daugh    1.d-50        T
+  /
+  MINERALS
+    Ra-226(s)  0.d0 1.d0
+    I-129(s)   0.d0 1.d0
+    Daugh(s)   0.d0 1.d0
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION groundwater
+  REGION all
+END
+
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL domain
+  REGION all
+END
+
+
+END_SUBSURFACE
+
+
+#=========================== ufd decay ========================================
+UFD_DECAY
+  ELEMENT Ra
+    SOLUBILITY 1.d4
+    KD 
+      domain 0.25d3  # kg-water/m^3-bulk = Kd[m^3-water/kg-solid]*dry_bulk_density[kg-solid/m^3-bulk]*water_density[kg-water/m^3-water]
+    /
+  /
+  ELEMENT I 
+    SOLUBILITY 1.d8
+    KD 
+      domain 0.d0 
+    /
+  /
+  ELEMENT Da 
+    SOLUBILITY 1.d4
+    KD 
+      domain 0.d0 
+    /
+  /
+  ISOTOPE Ra-226
+    ELEMENT Ra
+    DECAY_RATE 1.37d-11
+    DAUGHTER Daugh 1.d0   ! not Rn-222 here b/c not a SUPPORTED daughter
+  /
+  ISOTOPE I-129
+    ELEMENT I 
+    DECAY_RATE 1.40d-15
+  /
+  ISOTOPE Daugh 
+    ELEMENT Da 
+    DECAY_RATE 0.      
+  /
+
+END
+
+#========================== ufd biosphere =====================================
+UFD_BIOSPHERE
+  
+  ERB_1A A_model1
+    REGION well
+    INDIVIDUAL_CONSUMPTION_RATE 2.d0 L/day
+    INCLUDE_UNSUPPORTED_RADS
+  /
+  ERB_1B B_model1
+    REGION ERB1B_tester1
+    DILUTION_FACTOR 1.0
+    INDIVIDUAL_CONSUMPTION_RATE 2.d0 L/day
+    INCLUDE_UNSUPPORTED_RADS
+  /
+  
+  SUPPORTED_RADIONUCLIDES
+    RADIONUCLIDE Ra-226
+      ELEMENT_KD 5.d2  # L-water/kg-solid average in vicinity of well screen
+      DECAY_RATE 1.37d-11 1/sec
+      INGESTION_DOSE_COEF 2.8d-7 Sv/Bq
+    /
+    RADIONUCLIDE I-129 
+      ELEMENT_KD 0.d0  # L-water/kg-solid average in vicinity of well screen
+      DECAY_RATE 1.40d-15 1/sec
+      INGESTION_DOSE_COEF 1.1d-7 Sv/Bq
+    /
+  /
+  
+  UNSUPPORTED_RADIONUCLIDES
+    RADIONUCLIDE Rn-222
+      ELEMENT_KD 0.d0  # L-water/kg-solid average in vicinity of well screen
+      DECAY_RATE 2.1d-6 1/sec
+      SUPPORTED_PARENT Ra-226
+      INGESTION_DOSE_COEF 3.5d-9 Sv/Bq
+      EMANATION_FACTOR 4.d-1  ! Olszewska-Wasiolek and Arnold 2011
+    /
+    RADIONUCLIDE Pb-214
+      ELEMENT_KD 2.7d2  # L-water/kg-solid average in vicinity of well screen
+      DECAY_RATE 4.039d-4 1/sec
+      SUPPORTED_PARENT Ra-226
+      INGESTION_DOSE_COEF 1.4d-10 Sv/Bq
+    /
+    RADIONUCLIDE Bi-214
+      ELEMENT_KD 1.0d2  # L-water/kg-solid average in vicinity of well screen
+      DECAY_RATE 5.805d-4 1/sec
+      SUPPORTED_PARENT Ra-226
+      INGESTION_DOSE_COEF 1.1d-10 Sv/Bq
+    /
+    RADIONUCLIDE Pb-210
+      ELEMENT_KD 2.7d2  # L-water/kg-solid average in vicinity of well screen
+      DECAY_RATE 9.85d-10 1/sec
+      SUPPORTED_PARENT Ra-226
+      INGESTION_DOSE_COEF 6.9d-7  Sv/Bq
+    /
+    RADIONUCLIDE Bi-210
+      ELEMENT_KD 1.0d2  # L-water/kg-solid average in vicinity of well screen
+      DECAY_RATE 1.601d-6 1/sec
+      SUPPORTED_PARENT Ra-226
+      INGESTION_DOSE_COEF 1.3d-9  Sv/Bq
+    /
+    RADIONUCLIDE Po-210
+      ELEMENT_KD 1.5d2  # L-water/kg-solid average in vicinity of well screen
+      DECAY_RATE 5.797d-8 1/sec
+      SUPPORTED_PARENT Ra-226
+      INGESTION_DOSE_COEF 1.2d-6 Sv/Bq
+    /
+  /
+  
+  OUTPUT_START_TIME 1.d0 yr
+  
+END
+
+

@@ -1,12 +1,12 @@
 module Factory_PFLOTRAN_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   public :: PFLOTRANInitializePrePetsc, &
             PFLOTRANInitializePostPetsc, &
@@ -77,8 +77,6 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   character(len=MAXSTRINGLENGTH) :: filename
   PetscErrorCode :: ierr
 
-  ! must come after logging is created
-  call LoggingSetupComplete()
   call MultiSimulationIncrement(multisimulation,option)
   call OptionBeginTiming(option)
 
@@ -94,6 +92,10 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   endif
   
   call PFLOTRANReadSimulation(simulation,option)
+  ! Must come after simulation is initialized so that proper stages are setup
+  ! for process models.  This call sets flag that disables the creation of
+  ! new stages, which is necessary for multisimulation
+  call LoggingSetupComplete()
 
 end subroutine PFLOTRANInitializePostPetsc
 
@@ -139,7 +141,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: name
+  character(len=MAXWORDLENGTH) :: pm_name
   character(len=MAXWORDLENGTH) :: simulation_type
   character(len=MAXWORDLENGTH) :: internal_units  
   
@@ -188,34 +190,51 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'process_model', &
                              'SIMULATION,PROCESS_MODELS')
-          call InputReadWord(input,option,name,PETSC_TRUE)
-          call InputErrorMsg(input,option,'name','SIMULATION,PROCESS_MODEL')
+          call InputReadWord(input,option,pm_name,PETSC_TRUE)
+          if (InputError(input)) then
+            input%err_buf = 'Process Model Name'
+            call InputDefaultMsg(input,option)
+            pm_name = ''
+          endif
           call StringToUpper(word)
           select case(trim(word))
             case('SUBSURFACE_FLOW')
-              call SubsurfaceReadFlowPM(input, option, new_pm)
+              call SubsurfaceReadFlowPM(input,option,new_pm)
             case('SUBSURFACE_TRANSPORT')
-              call SubsurfaceReadRTPM(input, option, new_pm)
+              call SubsurfaceReadRTPM(input,option,new_pm)
             case('WASTE_FORM')
-              call SubsurfaceReadWasteFormPM(input, option,new_pm)
+              call SubsurfaceReadWasteFormPM(input,option,new_pm)
             case('UFD_DECAY')
-              call SubsurfaceReadUFDDecayPM(input, option,new_pm)
+              call SubsurfaceReadUFDDecayPM(input,option,new_pm)
+            case('UFD_BIOSPHERE')
+              call SubsurfaceReadUFDBiospherePM(input,option,new_pm)
+            case('WIPP_SOURCE_SINK')
+              option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
+                &unless you are running in WIPP_FLOW mode and intend to &
+                &include gas generation.'
+              call printErrMsg(option)
             case('HYDROGEOPHYSICS')
             case('SURFACE_SUBSURFACE')
-              call SurfSubsurfaceReadFlowPM(input, option, new_pm)
+              call SurfSubsurfaceReadFlowPM(input,option,new_pm)
             case('GEOMECHANICS_SUBSURFACE')
               option%geomech_on = PETSC_TRUE
               new_pm => PMGeomechForceCreate()
             case('AUXILIARY')
+              if (len_trim(pm_name) < 1) then
+                option%io_buffer = 'AUXILIARY process models must have a name.'
+                call printErrMsg(option)
+              endif
               new_pm => PMAuxiliaryCreate()
-              input%buf = name
+              input%buf = pm_name
               call PMAuxiliaryRead(input,option,PMAuxiliaryCast(new_pm))
             case default
               call InputKeywordUnrecognized(word, &
                      'SIMULATION,PROCESS_MODELS',option)            
           end select
           if (.not.associated(new_pm%option)) new_pm%option => option
-          new_pm%name = name
+          if (len_trim(pm_name) > 0) then
+            new_pm%name = pm_name
+          endif
           if (associated(cur_pm)) then
             cur_pm%next => new_pm
           else
@@ -237,22 +256,14 @@ subroutine PFLOTRANReadSimulation(simulation,option)
         call CheckpointRead(input,option,checkpoint_option, &
                             checkpoint_waypoint_list)
       case ('RESTART')
-        option%io_buffer = 'The RESTART card within SUBSURFACE block has &
-                           &been deprecated.'
         option%restart_flag = PETSC_TRUE
         call InputReadNChars(input,option,option%restart_filename, &
                              MAXSTRINGLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'RESTART','Restart file name') 
         call InputReadDouble(input,option,option%restart_time)
         if (input%ierr == 0) then
-          call InputReadWord(input,option,word,PETSC_TRUE)
-          if (input%ierr == 0) then
-            internal_units = 'sec'
-            option%restart_time = option%restart_time* &
-              UnitsConvertToInternal(word,internal_units,option)
-          else
-            call InputDefaultMsg(input,option,'RESTART, time units')
-          endif
+          call InputReadAndConvertUnits(input,option%restart_time, &
+                                        'sec','RESTART,time units',option)
         endif    
       case('INPUT_RECORD_FILE')
         option%input_record = PETSC_TRUE
@@ -442,6 +453,8 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   PetscBool :: bool_flag
   PetscBool :: pflotranin_option_found
   PetscBool :: input_prefix_option_found
+  PetscBool :: output_dir_found
+  PetscBool :: output_file_prefix_found
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscInt :: i
   PetscErrorCode :: ierr
@@ -467,10 +480,18 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   else if (input_prefix_option_found) then
     option%input_filename = trim(option%input_prefix) // '.in'
   endif
-  
+
   string = '-output_prefix'
   call InputGetCommandLineString(string,option%global_prefix,option_found,option)
-  if (.not.option_found) option%global_prefix = option%input_prefix  
+
+  if (.not.option_found) then
+    option%global_prefix = option%input_prefix
+    option%output_file_name_prefix = option%input_prefix
+  else
+    call InputReadFileDirNamePrefix(option%global_prefix, &
+                                    option%output_file_name_prefix, &
+                                    option%output_dir)
+  end if
   
   string = '-screen_output'
   call InputGetCommandLineTruth(string,option%print_to_screen,option_found,option)

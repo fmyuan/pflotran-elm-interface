@@ -1,13 +1,12 @@
 module Connection_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
 
   implicit none
 
-#include "petsc/finclude/petscsys.h"
-
   private
-
   type, public :: connection_set_type
     PetscInt :: id
     PetscInt :: itype                  ! connection type (boundary, internal, source sink
@@ -66,7 +65,6 @@ function ConnectionCreate(num_connections,connection_itype)
   implicit none
   
   PetscInt :: num_connections
-  PetscInt :: num_dof
   PetscInt :: connection_itype
   
   type(connection_set_type), pointer :: ConnectionCreate
@@ -210,7 +208,6 @@ subroutine ConnectionConvertListToArray(list)
   
   type(connection_set_list_type) :: list
     
-  PetscInt :: count
   type(connection_set_type), pointer :: cur_connection_set
   
   

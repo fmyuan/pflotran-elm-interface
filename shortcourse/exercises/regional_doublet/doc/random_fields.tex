@@ -120,6 +120,23 @@
 %\frame{\titlepage}
 
 %-----------------------------------------------------------------------------
+\section{Location of Example}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{LOCATION}
+
+Location of this example problem:
+
+\begin{semiverbatim}
+\$PFLOTRAN_DIR/shortcourse/exercises/regional_doublet
+
+stochastic_regional_doublet.in
+perm_fields.h5
+river_stage.txt
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \section{Random Fields}
 
 \begin{frame}[fragile,containsverbatim]\frametitle{Random Fields}
@@ -201,7 +218,7 @@ END
 
 \begin{semiverbatim}
 mpirun -n 8 pflotran
-  -pflotranin stochastic_regional_model.in
+  -input_prefix stochastic_regional_doublet
   -stochastic
   -num_realizations 10
   -num_groups 2
@@ -212,7 +229,7 @@ or to run a single realization (e.g. \#5)
 
 \begin{semiverbatim}
 mpirun -n 8 pflotran
-  -pflotranin stochastic_regional_model.in
+  -input_prefix stochastic_regional_doublet
   -realization_id 5
 \end{semiverbatim}
 

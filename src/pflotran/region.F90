@@ -10,9 +10,6 @@ module Region_module
 
 #include "petsc/finclude/petscsys.h"
 
-  PetscInt, parameter, public :: STRUCTURED_GRID_REGION = 1
-  PetscInt, parameter, public :: UNSTRUCTURED_GRID_REGION = 2
-
   PetscInt, parameter, public :: DEFINED_BY_BLOCK = 1
   PetscInt, parameter, public :: DEFINED_BY_COORD = 2
   PetscInt, parameter, public :: DEFINED_BY_CELL_IDS = 3
@@ -32,7 +29,6 @@ module Region_module
   type, public :: region_type
     PetscInt :: id
     PetscInt :: def_type
-    PetscBool :: hdf5_ugrid_kludge  !TODO(geh) tear this out!!!!!
     character(len=MAXWORDLENGTH) :: name
     character(len=MAXSTRINGLENGTH) :: filename
     PetscInt :: i1,i2,j1,j2,k1,k2
@@ -45,7 +41,6 @@ module Region_module
     !           than cell id ane face id out of region.
     PetscInt, pointer :: vertex_ids(:,:) ! For Unstructured mesh
     PetscInt :: num_verts              ! For Unstructured mesh
-    PetscInt :: grid_type  ! To identify whether region is applicable to a Structured or Unstructred mesh
     type(region_sideset_type), pointer :: sideset
     type(region_explicit_face_type), pointer :: explicit_faceset
     type(polygonal_volume_type), pointer :: polygonal_volume
@@ -87,10 +82,17 @@ module Region_module
     module procedure RegionReadExplicitFaceSet
   end interface RegionReadFromFile
   
-  public :: RegionCreate, RegionDestroy, RegionAddToList, RegionReadFromFile, &
-            RegionInitList, RegionDestroyList, RegionGetPtrFromList, & 
-            RegionRead, RegionReadSideSet, RegionCreateSideset, &
-            RegionInputRecord
+  public :: RegionCreate, &
+            RegionRead, &
+            RegionReadFromFile, &
+            RegionInitList, &
+            RegionAddToList, &
+            RegionGetPtrFromList, & 
+            RegionDestroyList, &
+            RegionReadSideSet, &
+            RegionCreateSideset, &
+            RegionInputRecord, &
+            RegionDestroy
   
 contains
 
@@ -113,7 +115,6 @@ function RegionCreateWithNothing()
   allocate(region)
   region%id = 0
   region%def_type = 0
-  region%hdf5_ugrid_kludge = PETSC_FALSE
   region%name = ""
   region%filename = ""
   region%i1 = 0
@@ -126,7 +127,6 @@ function RegionCreateWithNothing()
   region%num_cells = 0
   ! By default it is assumed that the region is applicable to strucutred grid,
   ! unless explicitly stated in pflotran input file
-  region%grid_type = STRUCTURED_GRID_REGION
   region%num_verts = 0
   nullify(region%coordinates)
   nullify(region%cell_ids)
@@ -272,7 +272,6 @@ function RegionCreateWithRegion(region)
   
   new_region%id = region%id
   new_region%def_type = region%def_type
-  new_region%hdf5_ugrid_kludge = region%hdf5_ugrid_kludge
   new_region%name = region%name
   new_region%filename = region%filename
   new_region%i1 = region%i1
@@ -284,7 +283,6 @@ function RegionCreateWithRegion(region)
   new_region%iface = region%iface
   new_region%num_cells = region%num_cells
   new_region%num_verts = region%num_verts
-  new_region%grid_type = region%grid_type
   if (associated(region%coordinates)) then
     call GeometryCopyCoordinates(region%coordinates, &
                                  new_region%coordinates)
@@ -404,7 +402,8 @@ subroutine RegionRead(region,input,option)
   ! Author: Glenn Hammond
   ! Date: 02/20/08
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Input_Aux_module
   use String_module
   use Option_module
@@ -534,14 +533,9 @@ subroutine RegionRead(region,input,option)
           end select
         enddo
       case('FILE')
-        call InputReadNChars(input,option,region%filename,MAXSTRINGLENGTH,PETSC_TRUE)
+        call InputReadNChars(input,option,region%filename, &
+                             MAXSTRINGLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'filename','REGION')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        if (input%ierr == 0) then
-          if (StringCompareIgnoreCase(word,'OLD_FORMAT')) then
-            region%hdf5_ugrid_kludge = PETSC_TRUE
-          endif
-        endif
       case('LIST')
         option%io_buffer = 'REGION LIST currently not implemented'
         call printErrMsg(option)
@@ -566,19 +560,6 @@ subroutine RegionRead(region,input,option)
             option%io_buffer = 'FACE "' // trim(word) // &
               '" not recognized.'
             call printErrMsg(option)
-        end select
-      case('GRID','SURF_GRID')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'GRID','REGION')
-        call StringToUpper(word)
-        select case(trim(word))
-          case('STRUCTURED')
-            region%grid_type = STRUCTURED_GRID_REGION
-          case('UNSTRUCTURED')
-            region%grid_type = UNSTRUCTURED_GRID_REGION
-          case default
-            option%io_buffer = 'REGION keyword: GRID = '//trim(word)//'not supported yet'
-          call printErrMsg(option)
         end select
       case default
         call InputKeywordUnrecognized(keyword,'REGION',option)
@@ -624,6 +605,8 @@ subroutine RegionReadFromFileId(region,input,option)
   ! Date: 10/29/07
   ! 
 
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Input_Aux_module
   use Option_module
   use Utility_module
@@ -916,6 +899,8 @@ subroutine RegionReadSideSet(sideset,filename,option)
   ! Date: 12/19/11
   ! 
 
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Input_Aux_module
   use Option_module
   use String_module
@@ -1070,7 +1055,8 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
   ! Author: Glenn Hammond
   ! Date: 05/18/12
   ! 
-
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Input_Aux_module
   use Option_module
   use String_module
@@ -1123,7 +1109,8 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
   
     select case(word)
       case('CONNECTIONS')
-        hint = 'Explicit Unstructured Grid CONNECTIONS'
+        hint = 'Explicit Unstructured Grid CONNECTIONS in file: ' // &
+          trim(adjustl(filename))
         call InputReadInt(input,option,num_connections)
         call InputErrorMsg(input,option,'number of connections',hint)
         

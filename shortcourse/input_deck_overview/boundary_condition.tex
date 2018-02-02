@@ -1,0 +1,45 @@
+\subsection{BOUNDARY\_CONDITION}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{BOUNDARY\_CONDITION}
+
+\begin{itemize}
+\item[] \textbf{Purpose:} Ties a flow and/or transport condition state variables to a region of the physical domain as boundary conditions.
+\item[] \textbf{Example uses:}
+\begin{itemize}
+  \item Define boundary hydrostatic pressure
+  \item Define boundary concentrations
+\end{itemize}
+\item[] \textbf{Key sub-cards:}
+\begin{itemize}
+  \item[] \verb|FLOW_CONDITION|
+  \item[] \verb|TRANSPORT_CONDITION|
+  \item[] \verb|REGION|
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{BOUNDARY\_CONDITION Example: Simple}
+
+\begin{semiverbatim}
+BOUNDARY_CONDITION west
+  FLOW_CONDITION initial
+  REGION west
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{BOUNDARY\_CONDITION Example: River Boundary Condition}
+
+\begin{semiverbatim}
+BOUNDARY_CONDITION east
+  FLOW_CONDITION river
+  TRANSPORT_CONDITION initial
+  REGION east
+END
+\end{semiverbatim}
+
+\end{frame}

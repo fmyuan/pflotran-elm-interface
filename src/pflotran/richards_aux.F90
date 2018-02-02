@@ -18,17 +18,8 @@ module Richards_Aux_module
   type, public :: richards_auxvar_type
   
     PetscReal :: pc
-#ifdef USE_ANISOTROPIC_MOBILITY
-    PetscReal :: kvr_x
-    PetscReal :: kvr_y
-    PetscReal :: kvr_z
-    PetscReal :: dkvr_x_dp
-    PetscReal :: dkvr_y_dp
-    PetscReal :: dkvr_z_dp
-#else
     PetscReal :: kvr
     PetscReal :: dkvr_dp
-#endif
     PetscReal :: dsat_dp
     PetscReal :: dden_dp
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
@@ -78,6 +69,8 @@ function RichardsAuxCreate()
   ! Author: Glenn Hammond
   ! Date: 02/14/08
   ! 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
 
   use Option_module
 
@@ -127,17 +120,8 @@ subroutine RichardsAuxVarInit(auxvar,option)
   
   auxvar%pc = 0.d0
 
-#ifdef USE_ANISOTROPIC_MOBILITY
-  auxvar%kvr_x = 0.d0
-  auxvar%kvr_y = 0.d0
-  auxvar%kvr_z = 0.d0
-  auxvar%dkvr_x_dp = 0.d0
-  auxvar%dkvr_y_dp = 0.d0
-  auxvar%dkvr_z_dp = 0.d0
-#else
   auxvar%kvr = 0.d0
   auxvar%dkvr_dp = 0.d0
-#endif
 
   auxvar%dsat_dp = 0.d0
   auxvar%dden_dp = 0.d0
@@ -175,17 +159,8 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
 
   auxvar2%pc = auxvar%pc
 
-#ifdef USE_ANISOTROPIC_MOBILITY
-  auxvar2%kvr_x = auxvar%kvr_x 
-  auxvar2%kvr_y = auxvar%kvr_y 
-  auxvar2%kvr_z = auxvar%kvr_z 
-  auxvar2%dkvr_x_dp = auxvar%dkvr_x_dp 
-  auxvar2%dkvr_y_dp = auxvar%dkvr_y_dp 
-  auxvar2%dkvr_z_dp = auxvar%dkvr_z_dp 
-#else
   auxvar2%kvr = auxvar%kvr
   auxvar2%dkvr_dp = auxvar%dkvr_dp
-#endif
 
   auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dden_dp = auxvar%dden_dp
@@ -211,6 +186,8 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! Date: 02/22/08
   ! 
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   use Global_Aux_module
   
@@ -244,13 +221,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   global_auxvar%den = 0.d0
   global_auxvar%den_kg = 0.d0
   
-#ifdef USE_ANISOTROPIC_MOBILITY
-  auxvar%kvr_x = 0.d0
-  auxvar%kvr_y = 0.d0
-  auxvar%kvr_z = 0.d0
-#else
   auxvar%kvr = 0.d0
-#endif
 
   kr = 0.d0
  
@@ -297,8 +268,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 #endif
     saturated = PETSC_FALSE
     call characteristic_curves%saturation_function% &
-                               Saturation(auxvar%pc, &
-                                          global_auxvar%sat(1), &
+                               Saturation(auxvar%pc,global_auxvar%sat(1), &
                                           ds_dp,option)
     ! if ds_dp is 0, we consider the cell saturated.
     if (ds_dp < 1.d-40) then
@@ -351,7 +321,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%dden_dp = dw_dp
   auxvar%kvr = kr/visl
   auxvar%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp
-
+  
 end subroutine RichardsAuxVarCompute
 
 ! ************************************************************************** !

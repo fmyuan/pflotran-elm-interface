@@ -801,6 +801,9 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
   ! Date: 02/19/08, 03/11/13
   ! 
 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
+
   use Flash2_module, only : Flash2MaxChange, Flash2InitializeTimestep, &
                            Flash2TimeCut, Flash2UpdateReason
   use Mphase_module, only : MphaseMaxChange, MphaseInitializeTimestep, &
@@ -825,12 +828,6 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
   use Field_module
   
   implicit none
-
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscsnes.h"
 
   class(realization_type) :: realization
   type(timestepper_type) :: stepper
@@ -934,10 +931,10 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
 
     select case(option%iflowmode)
       case(MPH_MODE,TH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
-        call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%flow_xx,  &
+        call SNESSolve(solver%snes, PETSC_NULL_VEC, field%flow_xx,  &
                        ierr);CHKERRQ(ierr)
       case(RICHARDS_MODE)
-        call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%flow_xx,  &
+        call SNESSolve(solver%snes, PETSC_NULL_VEC, field%flow_xx,  &
                        ierr);CHKERRQ(ierr)
     end select
     call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
@@ -1139,6 +1136,8 @@ subroutine FlowStepperStepToSteadyState(realization,stepper,failure)
   ! Date: 03/12/13
   ! 
 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use Global_module
   use Output_module, only : Output
   
@@ -1149,12 +1148,6 @@ subroutine FlowStepperStepToSteadyState(realization,stepper,failure)
   use Field_module
   
   implicit none
-
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscsnes.h"
 
   class(realization_type) :: realization
   type(timestepper_type) :: stepper
@@ -1292,6 +1285,8 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
   ! Date: 02/19/08
   ! 
 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use Flash2_module, only : Flash2MaxChange, Flash2InitializeTimestep, &
                            Flash2TimeCut, Flash2UpdateReason
   use Mphase_module, only : MphaseMaxChange, MphaseInitializeTimestep, &
@@ -1317,13 +1312,6 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
   use Field_module
   
   implicit none
-
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscsnes.h"
 
   class(realization_type) :: realization
   type(timestepper_type) :: stepper
@@ -1444,10 +1432,10 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
 
       select case(option%iflowmode)
         case(MPH_MODE,TH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
-          call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%flow_xx,  &
+          call SNESSolve(solver%snes, PETSC_NULL_VEC, field%flow_xx,  &
                          ierr);CHKERRQ(ierr)
         case(RICHARDS_MODE)
-          call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%flow_xx,  &
+          call SNESSolve(solver%snes, PETSC_NULL_VEC, field%flow_xx,  &
                          ierr);CHKERRQ(ierr)
       end select
       call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
@@ -1741,6 +1729,8 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
   ! Date: 02/19/08
   ! 
   
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use Reactive_Transport_module
   use Output_module, only : Output
   
@@ -1755,13 +1745,6 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   
   implicit none
-
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscsnes.h"
 
   class(realization_type) :: realization
   type(timestepper_type) :: stepper
@@ -1865,7 +1848,7 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
       call VecLog(field%tran_log_xx,ierr);CHKERRQ(ierr)
 
       call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
-      call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_log_xx,  &
+      call SNESSolve(solver%snes, PETSC_NULL_VEC, field%tran_log_xx,  &
                      ierr);CHKERRQ(ierr)
       call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
       stepper%cumulative_solver_time = stepper%cumulative_solver_time + &
@@ -1875,7 +1858,7 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
       call VecExp(field%tran_xx,ierr);CHKERRQ(ierr)
     else
       call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
-      call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_xx,  &
+      call SNESSolve(solver%snes, PETSC_NULL_VEC, field%tran_xx,  &
                      ierr);CHKERRQ(ierr)
       call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
       stepper%cumulative_solver_time = stepper%cumulative_solver_time + &
@@ -2037,6 +2020,8 @@ subroutine StepperStepTransportDT_OS(realization,stepper, &
   ! Date: 02/19/08
   ! 
 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use Reactive_Transport_module, only : RTUpdateRHSCoefs, RTUpdateAuxVars, &
         RTCalculateRHS_t0, RTUpdateTransportCoefs, RTCalculateRHS_t1, &
         RTCalculateTransportMatrix, RTReact, RTMaxChange, RTExplicitAdvection
@@ -2052,13 +2037,6 @@ subroutine StepperStepTransportDT_OS(realization,stepper, &
   use Global_module  
 
   implicit none
-
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscsnes.h"
 
   class(realization_type) :: realization
   type(timestepper_type) :: stepper
@@ -2454,6 +2432,8 @@ subroutine StepperSolveFlowSteadyState(realization,stepper,failure)
   ! Date: 03/10/09
   ! 
 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use Global_module, only : GlobalUpdateAuxVars
   
   use Realization_class
@@ -2464,12 +2444,6 @@ subroutine StepperSolveFlowSteadyState(realization,stepper,failure)
   use Richards_module, only : RichardsInitializeTimestep
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscsnes.h"
 
   class(realization_type) :: realization
   type(timestepper_type) :: stepper
@@ -2539,10 +2513,10 @@ subroutine StepperSolveFlowSteadyState(realization,stepper,failure)
 
   select case(option%iflowmode)
     case(MPH_MODE,TH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
-      call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%flow_xx,  &
+      call SNESSolve(solver%snes, PETSC_NULL_VEC, field%flow_xx,  &
                      ierr);CHKERRQ(ierr)
     case(RICHARDS_MODE)
-      call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%flow_xx,  &
+      call SNESSolve(solver%snes, PETSC_NULL_VEC, field%flow_xx,  &
                      ierr);CHKERRQ(ierr)
   end select
 
@@ -2597,6 +2571,8 @@ subroutine StepperSolveTranSteadyState(realization,stepper,failure)
   ! Date: 02/19/08
   ! 
   
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use Realization_class
   use Discretization_module
   use Option_module
@@ -2611,12 +2587,6 @@ subroutine StepperSolveTranSteadyState(realization,stepper,failure)
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscsnes.h"
 
   class(realization_type) :: realization
   type(timestepper_type) :: stepper
@@ -2681,12 +2651,12 @@ subroutine StepperSolveTranSteadyState(realization,stepper,failure)
   if (realization%reaction%use_log_formulation) then
     call VecCopy(field%tran_xx,field%tran_log_xx,ierr);CHKERRQ(ierr)
     call VecLog(field%tran_log_xx,ierr);CHKERRQ(ierr)
-    call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_log_xx,  &
+    call SNESSolve(solver%snes, PETSC_NULL_VEC, field%tran_log_xx,  &
                    ierr);CHKERRQ(ierr)
     call VecCopy(field%tran_log_xx,field%tran_xx,ierr);CHKERRQ(ierr)
     call VecExp(field%tran_xx,ierr);CHKERRQ(ierr)
   else
-    call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_xx,  &
+    call SNESSolve(solver%snes, PETSC_NULL_VEC, field%tran_xx,  &
                    ierr);CHKERRQ(ierr)
   endif
 

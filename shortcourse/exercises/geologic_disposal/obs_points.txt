@@ -1,0 +1,82 @@
+# This file is part of the following SAND report described in gdsa.in:
+# SAND2017-9343 O
+#
+# Title: Geologic Disposal Safety Assessment PFLOTRAN Short Course Example
+# Author: Emily Stein (Sandia National Laboratories) ergiamb@sandia.gov
+#
+# Sandia National Laboratories is a multi-mission laboratory managed and
+# operated by National Technology and Engineering Solutions of Sandia, LLC,
+# a wholly owned subsidiary of Honeywell International Inc. for the U.S.
+# Department of Energy's National Nuclear Security Administration under
+# contract DE-NA0003525.
+
+OBSERVATION
+  REGION shale_obs1
+  VELOCITY
+END
+
+OBSERVATION
+  REGION shale_obs2
+  VELOCITY
+END
+
+OBSERVATION
+  REGION sand_obs1
+  VELOCITY
+END
+
+OBSERVATION
+  REGION sand_obs2
+  VELOCITY
+END
+
+OBSERVATION
+  REGION lime_obs1
+  VELOCITY
+END
+
+OBSERVATION
+  REGION lime_obs2
+  VELOCITY
+END
+
+OBSERVATION
+  REGION hlw_obs1
+  VELOCITY
+END
+
+OBSERVATION
+  REGION hlw_buf1
+  VELOCITY
+END
+
+OBSERVATION
+  REGION hlw_drz1
+  VELOCITY
+END
+
+OBSERVATION
+  REGION oxi_obs1
+  VELOCITY
+END
+
+OBSERVATION
+  REGION oxi_buf1
+  VELOCITY
+END
+
+OBSERVATION
+  REGION oxi_drz1
+  VELOCITY
+END
+
+OBSERVATION
+  REGION met_obs1
+  VELOCITY
+END
+
+OBSERVATION
+  REGION met_drz1
+  VELOCITY
+END
+

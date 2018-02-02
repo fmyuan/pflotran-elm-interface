@@ -1,6 +1,8 @@
 ! Process Model Coupler Base class
 module PMC_Base_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys  
   use PM_Base_class
   use Timestepper_Base_class
   use Option_module
@@ -14,9 +16,12 @@ module PMC_Base_class
 
   implicit none
 
-#include "petsc/finclude/petscsys.h"
-  
   private
+  
+  PetscInt, parameter, public :: PM_CHILD = 0
+  PetscInt, parameter, public :: PM_PEER = 1
+  PetscInt, parameter, public :: PM_APPEND = 0
+  PetscInt, parameter, public :: PM_INSERT = 1
   
   ! process model coupler type
   type, public :: pmc_base_type
@@ -56,6 +61,7 @@ module PMC_Base_class
     procedure, public :: GetAuxData
     procedure, public :: SetAuxData
     procedure, public :: CheckNullPM => PMCBaseCheckNullPM
+    !procedure, public :: SetChildPeerPtr => PMCBaseSetChildPeerPtr
   end type pmc_base_type
   
   abstract interface
@@ -74,9 +80,10 @@ module PMC_Base_class
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
+#include "petsc/finclude/petscsys.h"
+      use petscsys
       import :: pmc_base_header_type
       implicit none
-#include "petsc/finclude/petscbag.h"      
       PetscBag :: bag
       class(pmc_base_header_type), pointer :: header
       PetscErrorCode :: ierr
@@ -86,8 +93,10 @@ module PMC_Base_class
   public :: PMCBaseCreate, &
             PMCBaseInit, &
             PMCBaseInputRecord, &
+            PMCBaseSetChildPeerPtr, &
             PMCBaseStrip, &
-            SetOutputFlags
+            SetOutputFlags, &
+            PMCCastToBase
   
 contains
 
@@ -169,8 +178,8 @@ recursive subroutine PMCBaseInputRecord(this)
   implicit none
   
   class(pmc_base_type) :: this
+  
   class(pm_base_type), pointer :: cur_pm
-
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
@@ -202,6 +211,100 @@ recursive subroutine PMCBaseInputRecord(this)
   endif
   
 end subroutine PMCBaseInputRecord
+
+! ************************************************************************** !
+
+recursive subroutine PMCBaseSetChildPeerPtr(pmcA,relationship_to,pmcB, &
+                                            pmcB_parent,position_instruction)
+  ! 
+  ! Orders pmcA under pmcB relative to the specified relationship (child or 
+  ! peer) and insert/append instruction. If pmcB's parent is not relevant, a
+  ! null dummy pointer of pmc_base_type should be passed in.
+  ! 
+  ! Author: Jenn Frederick, SNL
+  ! Date: 02/15/2017
+  ! 
+
+  use PM_Base_class
+  use Option_module
+  
+  implicit none
+  
+  class(pmc_base_type), pointer :: pmcA
+  PetscInt :: relationship_to
+  class(pmc_base_type), pointer :: pmcB
+  class(pmc_base_type), pointer :: pmcB_parent
+  class(pmc_base_type), pointer :: pmcB_dummy
+  PetscInt :: position_instruction
+  
+  PetscInt :: new_relationship
+
+  nullify(pmcB_dummy)
+  
+  if (.not.associated(pmcB)) then
+    pmcA%option%io_buffer = 'pmcB passed PMCBaseSetChildPeerPtr is not &
+                            &associated.'
+    call printErrMsg(pmcA%option)
+  endif
+
+  select case(relationship_to)
+  !--------------------------------------------------------
+    case(PM_CHILD)
+      if (associated(pmcB%child)) then
+        new_relationship = PM_PEER
+        call PMCBaseSetChildPeerPtr(pmcA,new_relationship,pmcB%child,pmcB, &
+                                    position_instruction)
+      else
+        pmcB%child => pmcA
+#ifdef DEBUG
+        pmcA%option%io_buffer = trim(pmcA%name)// ' assigned as first child&
+                                & of ' // trim(pmcB%name) // '.'
+        call printMsg(pmcA%option)
+#endif
+      endif
+  !--------------------------------------------------------
+    case(PM_PEER)
+      select case(position_instruction)
+      !----------------------------------------------------
+        case(PM_APPEND)
+          if (associated(pmcB%peer)) then
+            new_relationship = PM_PEER
+            call PMCBaseSetChildPeerPtr(pmcA,new_relationship,pmcB%peer, &
+                                        pmcB_dummy,position_instruction)
+          else
+            pmcB%peer => pmcA
+#ifdef DEBUG
+        pmcA%option%io_buffer = trim(pmcA%name) // ' assigned as peer of ' // &
+                                trim(pmcB%name) // ' via "append".'
+        call printMsg(option)
+#endif
+          endif
+      !----------------------------------------------------
+        case(PM_INSERT)
+          pmcA%peer => pmcB
+          if (associated(pmcB_parent)) then
+            pmcB_parent%child => pmcA
+#ifdef DEBUG
+        pmcA%option%io_buffer = trim(pmcA%name)// ' assigned as first child&
+                                & of ' // trim(pmcB%name) // ' via "insert".'
+        call printMsg(option)
+#endif
+          else
+            pmcA%option%io_buffer = 'Null pointer for pmcB_parent passed into &
+                                     &PMCBaseSetChildPeerPtr.'
+            call printErrMsg(pmcA%option)
+          endif
+      !----------------------------------------------------
+      end select
+  !--------------------------------------------------------
+    case default
+      pmcA%option%io_buffer = 'PMC relationship_to not understood in &
+                              &PMCBaseSetChildPeerPtr.'
+      call printErrMsg(pmcA%option)
+  !--------------------------------------------------------
+  end select
+  
+end subroutine PMCBaseSetChildPeerPtr
 
 ! ************************************************************************** !
 
@@ -318,13 +421,12 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
   ! Author: Glenn Hammond
   ! Date: 03/18/13
   ! 
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Timestepper_Base_class
   use Checkpoint_module
 
   implicit none
-  
-#include "petsc/finclude/petscsys.h"  
   
   class(pmc_base_type), target :: this
   character(len=MAXSTRINGLENGTH) :: filename_append
@@ -333,13 +435,19 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
   
   PetscInt :: local_stop_flag
   PetscBool :: failure
-  PetscBool :: snapshot_plot_flag
-  PetscBool :: observation_plot_flag
-  PetscBool :: massbal_plot_flag
   PetscBool :: checkpoint_at_this_time_flag
+  PetscBool :: snapshot_plot_at_this_time_flag
+  PetscBool :: observation_plot_at_this_time_flag
+  PetscBool :: massbal_plot_at_this_time_flag
   PetscBool :: checkpoint_at_this_timestep_flag
+  PetscBool :: snapshot_plot_at_this_timestep_flag
+  PetscBool :: observation_plot_at_this_timestep_flag
+  PetscBool :: massbal_plot_at_this_timestep_flag
+  PetscBool :: peer_already_run_to_time
   class(pm_base_type), pointer :: cur_pm
   PetscErrorCode :: ierr
+
+  if (stop_flag == TS_STOP_FAILURE) return
 
   if (this%stage /= 0) then
     call PetscLogStagePush(this%stage,ierr);CHKERRQ(ierr)
@@ -356,19 +464,31 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
     if (this%timestepper%target_time >= sync_time) exit
     
     call SetOutputFlags(this)
-    snapshot_plot_flag = PETSC_FALSE
-    observation_plot_flag = PETSC_FALSE
-    massbal_plot_flag = PETSC_FALSE
     checkpoint_at_this_time_flag = PETSC_FALSE
+    snapshot_plot_at_this_time_flag = PETSC_FALSE
+    observation_plot_at_this_time_flag = PETSC_FALSE
+    massbal_plot_at_this_time_flag = PETSC_FALSE
     checkpoint_at_this_timestep_flag = PETSC_FALSE
+    snapshot_plot_at_this_timestep_flag = PETSC_FALSE
+    observation_plot_at_this_timestep_flag = PETSC_FALSE
+    massbal_plot_at_this_timestep_flag = PETSC_FALSE
     
     call this%timestepper%SetTargetTime(sync_time,this%option, &
-                                        local_stop_flag,snapshot_plot_flag, &
-                                        observation_plot_flag, &
-                                        massbal_plot_flag, &
+                                        local_stop_flag, &
+                                        snapshot_plot_at_this_time_flag, &
+                                        observation_plot_at_this_time_flag, &
+                                        massbal_plot_at_this_time_flag, &
                                         checkpoint_at_this_time_flag)
     call this%timestepper%StepDT(this%pm_list,local_stop_flag)
-
+    if (this%timestepper%time_step_cut_flag) then
+      ! if timestep has been cut, all the I/O flags set above in 
+      ! %SetTargetTime, which are based on waypoints times, not time step,
+      ! should be turned off
+      snapshot_plot_at_this_time_flag = PETSC_FALSE
+      observation_plot_at_this_time_flag = PETSC_FALSE
+      massbal_plot_at_this_time_flag = PETSC_FALSE
+      checkpoint_at_this_time_flag = PETSC_FALSE
+    endif
     if (local_stop_flag == TS_STOP_FAILURE) exit ! failure
     ! Have to loop over all process models coupled in this object and update
     ! the time step size.  Still need code to force all process models to
@@ -394,35 +514,31 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
       ! Get data from other process-models
       call this%GetAuxData()
     endif
-    
-    ! if time step is cut, we will not print the checkpoint file prescribed at
-    ! the specified time since it will be met in a later time step.
-    if (this%timestepper%time_step_cut_flag) then
-      checkpoint_at_this_time_flag = PETSC_FALSE
-      snapshot_plot_flag = PETSC_FALSE
-    endif
 
     ! only print output for process models of depth 0
     if (associated(this%Output)) then
       ! however, if we are using the modulus of the output_option%imod, we may
       ! still print
-      if (mod(this%timestepper%steps,this%pm_list% &
-              output_option%periodic_snap_output_ts_imod) == 0) then
-        snapshot_plot_flag = PETSC_TRUE
-      endif
-      if (mod(this%timestepper%steps,this%pm_list%output_option% &
-              periodic_obs_output_ts_imod) == 0) then
-        observation_plot_flag = PETSC_TRUE
-      endif
-      if (mod(this%timestepper%steps,this%pm_list%output_option% &
-              periodic_msbl_output_ts_imod) == 0) then
-        massbal_plot_flag = PETSC_TRUE
-      endif
+      snapshot_plot_at_this_timestep_flag = &
+        (mod(this%timestepper%steps,this%pm_list% &
+             output_option%periodic_snap_output_ts_imod) == 0)
+      observation_plot_at_this_timestep_flag = &
+        (mod(this%timestepper%steps,this%pm_list% &
+             output_option%periodic_obs_output_ts_imod) == 0)
+      massbal_plot_at_this_timestep_flag = &
+        (mod(this%timestepper%steps,this%pm_list% &
+             output_option%periodic_msbl_output_ts_imod) == 0)
       
-      if (this%option%steady_state) snapshot_plot_flag = PETSC_TRUE
+      if (this%option%steady_state) &
+        snapshot_plot_at_this_timestep_flag = PETSC_TRUE
       
-      call this%Output(this%pm_list%realization_base,snapshot_plot_flag, &
-                       observation_plot_flag,massbal_plot_flag)
+      call this%Output(this%pm_list%realization_base, &
+                       (snapshot_plot_at_this_time_flag .or. &
+                        snapshot_plot_at_this_timestep_flag), &
+                       (observation_plot_at_this_time_flag .or. &
+                        observation_plot_at_this_timestep_flag), &
+                       (massbal_plot_at_this_time_flag .or. &
+                        massbal_plot_at_this_timestep_flag))
     endif
     
     if (this%is_master .and. associated(this%checkpoint_option)) then
@@ -433,6 +549,9 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
       endif
     endif
 
+    ! Checkpointing forces peers to be executed prior to the checkpoing.  If
+    ! so, we need to skip the peer RunToTime outside the loop
+    peer_already_run_to_time = PETSC_FALSE
     if (this%is_master .and. &
         (checkpoint_at_this_time_flag .or. &
          checkpoint_at_this_timestep_flag)) then
@@ -443,6 +562,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
       ! Run neighboring process model couplers
       if (associated(this%peer)) then
         call this%peer%RunToTime(this%timestepper%target_time,local_stop_flag)
+        peer_already_run_to_time = PETSC_TRUE
       endif
       call this%GetAuxData()
       ! it is possible that two identical checkpoint files will be created,
@@ -474,7 +594,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
   call this%SetAuxData()
 
   ! Run neighboring process model couplers
-  if (associated(this%peer)) then
+  if (associated(this%peer) .and. .not.peer_already_run_to_time) then
     call this%peer%RunToTime(sync_time,local_stop_flag)
   endif
   
@@ -627,11 +747,11 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
   ! Author: Glenn Hammond
   ! Date: 2/2/16
   ! 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
 
   class(pmc_base_type) :: this
   character(len=MAXSTRINGLENGTH) :: filename_append
@@ -666,13 +786,13 @@ recursive subroutine PMCBaseCheckpointBinary(this,viewer,append_name)
   ! Date: 07/26/13
   ! 
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Logging_module
   use Checkpoint_module, only : CheckpointOpenFileForWriteBinary, &
                                 CheckPointWriteCompatibilityBinary
 
   implicit none
-  
-#include "petsc/finclude/petscviewer.h"
 
   class(pmc_base_type) :: this
   PetscViewer :: viewer
@@ -726,7 +846,7 @@ recursive subroutine PMCBaseCheckpointBinary(this,viewer,append_name)
   
   if (this%is_master) then
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-    viewer = 0
+    viewer = PETSC_NULL_VIEWER
     call PetscTime(tend,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer, &
           '("      Seconds to write to checkpoint file: ", f10.2)') &
@@ -748,12 +868,11 @@ subroutine PMCBaseRegisterHeader(this,bag,header)
   ! Date: 12/02/13
   ! 
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscbag.h"
 
   class(pmc_base_type) :: this
   class(pmc_base_header_type) :: header
@@ -779,12 +898,11 @@ subroutine PMCBaseSetHeader(this,bag,header)
   ! Date: 12/02/13
   ! 
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscbag.h"
 
   class(pmc_base_type) :: this
   class(pmc_base_header_type) :: header
@@ -809,13 +927,13 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Logging_module
   use Checkpoint_module, only : CheckPointReadCompatibilityBinary
 
   implicit none
   
-#include "petsc/finclude/petscviewer.h"
 
   class(pmc_base_type) :: this
   PetscViewer :: viewer
@@ -874,6 +992,17 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
     !geh: this is a bit of a kludge.  Need to use the timestepper target time
     !     directly.  Time is needed to update boundary conditions within 
     !     this%UpdateSolution
+    ! check to ensure that simulation is not restarted beyond the end of the
+    ! prescribed final simulation time.
+    if (.not.associated(this%timestepper%cur_waypoint)) then
+      write(this%option%io_buffer,*) this%timestepper%target_time* &
+        this%pm_list%realization_base%output_option%tconv
+      this%option%io_buffer = 'Simulation is being restarted at a time that &
+        &is at or beyond the end of checkpointed simulation (' // &
+        trim(adjustl(this%option%io_buffer)) // &
+        trim(this%pm_list%realization_base%output_option%tunit) // ').'
+      call printErrMsg(this%option)
+    endif
     this%option%time = this%timestepper%target_time
   endif
   
@@ -914,12 +1043,11 @@ subroutine PMCBaseGetHeader(this,header)
   ! Date: 12/02/13
   ! 
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscbag.h"
 
   class(pmc_base_type) :: this
   class(pmc_base_header_type) :: header
@@ -974,6 +1102,7 @@ recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
   integer :: h5_file_id
   integer :: pmc_grp_id
   integer :: pm_grp_id
+  integer :: temp_id
 #else
   integer(HID_T) :: h5_chk_grp_id
   integer(HID_T) :: h5_file_id
@@ -985,13 +1114,11 @@ recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
   class(pmc_base_header_type), pointer :: header
   type(pmc_base_header_type) :: dummy_header
   character(len=1),pointer :: dummy_char(:)
-  PetscBag :: bag
+  PetscInt :: pmc_grp_id
   PetscSizeT :: bagsize
   PetscLogDouble :: tstart, tend
   PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
-  PetscInt :: pmc_grp_id
-  PetscInt :: pm_grp_id
 
   bagsize = size(transfer(dummy_header,dummy_char))
 
@@ -1006,16 +1133,17 @@ recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
     call CheckPointWriteCompatibilityHDF5(h5_chk_grp_id, &
                                           this%option)
     call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
-                     pmc_grp_id,hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
-    call PMCBaseSetHeaderHDF5(this, pmc_grp_id, this%option)
+                     h5_pmc_grp_id,hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+    call PMCBaseSetHeaderHDF5(this, h5_pmc_grp_id, this%option)
     chk_grp_id = h5_chk_grp_id
   else
     h5_chk_grp_id = chk_grp_id
     call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
-                     pmc_grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+                     h5_pmc_grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
   endif
 
   if (associated(this%timestepper)) then
+    pmc_grp_id = h5_pmc_grp_id
     call this%timestepper%CheckpointHDF5(pmc_grp_id, this%option)
   endif
 
@@ -1023,15 +1151,15 @@ recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
   do
     if (.not.associated(cur_pm)) exit
 
-    call h5gcreate_f(pmc_grp_id, trim(cur_pm%name), pm_grp_id, &
+    call h5gcreate_f(h5_pmc_grp_id, trim(cur_pm%name), h5_pm_grp_id, &
          hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
-    call cur_pm%CheckpointHDF5(pm_grp_id)
-    call h5gclose_f(pm_grp_id, hdf5_err)
+    call cur_pm%CheckpointHDF5(h5_pm_grp_id)
+    call h5gclose_f(h5_pm_grp_id, hdf5_err)
 
     cur_pm => cur_pm%next
   enddo
 
-  call h5gclose_f(pmc_grp_id, hdf5_err)
+  call h5gclose_f(h5_pmc_grp_id, hdf5_err)
 
   if (associated(this%child)) then
     call this%child%CheckpointHDF5(chk_grp_id,append_name)
@@ -1076,9 +1204,6 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
   PetscInt :: chk_grp_id
 
   class(pm_base_type), pointer :: cur_pm
-  class(pmc_base_header_type), pointer :: header
-  type(pmc_base_header_type) :: dummy_header
-  character(len=1),pointer :: dummy_char(:)
   PetscLogDouble :: tstart, tend
   PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
@@ -1086,14 +1211,15 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
 #if defined(SCORPIO_WRITE)
   integer :: h5_chk_grp_id
   integer :: h5_file_id
-  integer :: pmc_grp_id
-  integer :: pm_grp_id
+  integer :: h5_pmc_grp_id
+  integer :: h5_pm_grp_id
 #else
   integer(HID_T) :: h5_chk_grp_id
   integer(HID_T) :: h5_file_id
-  integer(HID_T) :: pmc_grp_id
-  integer(HID_T) :: pm_grp_id
+  integer(HID_T) :: h5_pmc_grp_id
+  integer(HID_T) :: h5_pm_grp_id
 #endif
+  PetscInt :: pmc_grp_id
 
   ! if the top PMC
   if (this%is_master) then
@@ -1113,10 +1239,10 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
                                          this%option)
 
     call h5gopen_f(h5_chk_grp_id, trim(this%name), &
-                   pmc_grp_id, hdf5_err)
+                   h5_pmc_grp_id, hdf5_err)
 
     ! read pmc header
-    call PMCBaseGetHeaderHDF5(this, pmc_grp_id, this%option)
+    call PMCBaseGetHeaderHDF5(this, h5_pmc_grp_id, this%option)
 
     if (Initialized(this%option%restart_time)) then
       this%pm_list%realization_base%output_option%plot_number = 0
@@ -1125,11 +1251,12 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
   else
     h5_chk_grp_id = chk_grp_id
     call h5gopen_f(h5_chk_grp_id, trim(this%name), &
-                   pmc_grp_id, hdf5_err)
+                   h5_pmc_grp_id, hdf5_err)
 
   endif
 
   if (associated(this%timestepper)) then
+    pmc_grp_id = h5_pmc_grp_id
     call this%timestepper%RestartHDF5(pmc_grp_id, this%option)
 
     if (Initialized(this%option%restart_time)) then
@@ -1148,20 +1275,31 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
     !geh: this is a bit of a kludge.  Need to use the timestepper target time
     !     directly.  Time is needed to update boundary conditions within
     !     this%UpdateSolution
+    ! check to ensure that simulation is not restarted beyond the end of the
+    ! prescribed final simulation time.
+    if (.not.associated(this%timestepper%cur_waypoint)) then
+      write(this%option%io_buffer,*) this%timestepper%target_time/ &
+        this%pm_list%realization_base%output_option%tconv
+      this%option%io_buffer = 'Simulation is being restarted at a time that &
+        &is at or beyond the end of checkpointed simulation (' // &
+        trim(adjustl(this%option%io_buffer)) // &
+        trim(this%pm_list%realization_base%output_option%tunit) // ').'
+      call printErrMsg(this%option)
+    endif
     this%option%time = this%timestepper%target_time
   endif
 
   cur_pm => this%pm_list
   do
     if (.not.associated(cur_pm)) exit
-    call h5gopen_f(pmc_grp_id, trim(cur_pm%name), pm_grp_id, &
+    call h5gopen_f(h5_pmc_grp_id, trim(cur_pm%name), h5_pm_grp_id, &
                    hdf5_err)
-    call cur_pm%RestartHDF5(pm_grp_id)
-    call h5gclose_f(pm_grp_id, hdf5_err)
+    call cur_pm%RestartHDF5(h5_pm_grp_id)
+    call h5gclose_f(h5_pm_grp_id, hdf5_err)
     cur_pm => cur_pm%next
   enddo
 
-  call h5gclose_f(pmc_grp_id, hdf5_err)
+  call h5gclose_f(h5_pmc_grp_id, hdf5_err)
 
   if (associated(this%child)) then
     call this%child%RestartHDF5(chk_grp_id)
@@ -1224,7 +1362,9 @@ subroutine PMCBaseSetHeaderHDF5(this, chk_grp_id, option)
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  PetscInt, pointer :: int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_array(:)
 
   allocate(start(1))
   allocate(dims(1))
@@ -1242,13 +1382,15 @@ subroutine PMCBaseSetHeaderHDF5(this, chk_grp_id, option)
   int_array(1) = this%pm_list%realization_base%output_option%plot_number
   call CheckPointWriteIntDatasetHDF5(chk_grp_id, &
                                      dataset_name, dataset_rank, &
-                                     dims, start, length, stride, int_array, option)
+                                     dims, start, length, stride, &
+                                     int_array, option)
 
   dataset_name = "Output_times_per_h5_file" // CHAR(0)
   int_array(1) = this%pm_list%realization_base%output_option%times_per_h5_file
   call CheckPointWriteIntDatasetHDF5(chk_grp_id, &
                                      dataset_name, dataset_rank, &
-                                     dims, start, length, stride, int_array, option)
+                                     dims, start, length, stride, &
+                                     int_array, option)
 
   deallocate(start)
   deallocate(dims)
@@ -1297,7 +1439,9 @@ subroutine PMCBaseGetHeaderHDF5(this, chk_grp_id, option)
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  PetscInt, pointer :: int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_array(:)
 
   allocate(start(1))
   allocate(dims(1))
@@ -1313,12 +1457,14 @@ subroutine PMCBaseGetHeaderHDF5(this, chk_grp_id, option)
 
   dataset_name = "Output_plot_number" // CHAR(0)
   call CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, &
-                                     dims, start, length, stride, int_array, option)
+                                    dims, start, length, stride, &
+                                    int_array, option)
   this%pm_list%realization_base%output_option%plot_number = int_array(1)
 
   dataset_name = "Output_times_per_h5_file" // CHAR(0)
   call CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, &
-                                     dims, start, length, stride, int_array, option)
+                                    dims, start, length, stride, &
+                                    int_array, option)
   this%pm_list%realization_base%output_option%times_per_h5_file = int_array(1)
 
   deallocate(start)

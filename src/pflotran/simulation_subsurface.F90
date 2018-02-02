@@ -1,5 +1,7 @@
 module Simulation_Subsurface_class
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys  
   use Simulation_Base_class
   use Regression_module
   use Option_module
@@ -12,8 +14,6 @@ module Simulation_Subsurface_class
 
   implicit none
 
-#include "petsc/finclude/petscsys.h"
-  
   private
 
   type, public, extends(simulation_base_type) :: simulation_subsurface_type
@@ -147,6 +147,8 @@ subroutine SubsurfaceSimInputRecord(this)
       write(id,'(a)') 'flash2'
     case(G_MODE)
       write(id,'(a)') 'general'
+    case(WF_MODE)
+      write(id,'(a)') 'wipp flow'
     case(MIS_MODE)
       write(id,'(a)') 'miscible'
     case(TH_MODE)
@@ -313,6 +315,10 @@ subroutine SubsurfaceSimulationJumpStart(this)
   if (associated(tran_timestepper)) &
     tran_timestepper%start_time_step = tran_timestepper%steps + 1
   
+  if (this%realization%debug%print_regions) then
+    call OutputPrintRegions(this%realization)
+  endif  
+
   if (this%realization%debug%print_couplers) then
     call OutputPrintCouplers(this%realization,ZERO_INTEGER)
   endif  

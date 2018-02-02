@@ -1,0 +1,412 @@
+\documentclass{beamer}
+
+\usepackage{comment}
+\usepackage{color}
+\usepackage{listings}
+\usepackage{verbatim}
+\usepackage{multicol}
+\usepackage{booktabs}
+\definecolor{green}{RGB}{0,128,0}
+
+\newcommand\gehcomment[1]{{{\color{orange} #1}}}
+\newcommand\add[1]{{{\color{blue} #1}}}
+\newcommand\remove[1]{\sout{{\color{red} #1}}}
+\newcommand\codecomment[1]{{{\color{green} #1}}}
+\newcommand\redcomment[1]{{{\color{red} #1}}}
+\newcommand\bluecomment[1]{{{\color{blue} #1}}}
+\newcommand\greencomment[1]{{{\color{green} #1}}}
+\newcommand\magentacomment[1]{{{\color{magenta} #1}}}
+
+\begin{comment}
+\tiny
+\scriptsize
+\footnotesize
+\small
+\normalsize
+\large
+\Large
+\LARGE
+\huge
+\Huge
+\end{comment}
+
+\begin{document}
+\title{Error Messages}
+\author{Emily Stein}
+\date{\today}
+
+%\frame{\titlepage}
+
+%-----------------------------------------------------------------------------
+\section{Description of Common Errors}
+
+\subsection{Common Errors}
+
+\begin{frame}\frametitle{Common Errors}
+The examples in ``error\_messages'' demonstrate some common input deck errors, the error messages you'll see, and how to fix them.  Examples include:
+\begin{itemize}
+  \item Missing parameter
+  \item Can't find a file
+  \item More than one aqueous species constrained against a mineral
+  \item Missing \greencomment{END} or \greencomment{/} statement
+  \item PETSc errors
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\section{Description of Input Decks: Errors only }
+
+%-----------------------------------------------------------------------------
+\subsection{parameter}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Missing Parameter}
+Most input errors result in tidy error messages, such as:
+\begin{semiverbatim}
+
+\$ pflotran -input_prefix calcite_missing_parameter
+... \gehcomment{returns screen output that ends with:}
+  ERROR: Non-initialized porosity.
+
+  ERROR: Material property errors found in RichardsSetup.
+
+  Stopping!
+\$
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Missing Parameter}
+\redcomment{What's the fix?}
+\begin{semiverbatim}
+
+MATERIAL_PROPERTY soil1
+  ID 1
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  CHARACTERISTIC_CURVES default
+END
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Missing Parameter}
+\redcomment{Fixed.}
+\begin{semiverbatim}
+
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0 \bluecomment{! must be specified by user}
+  TORTUOSITY 1.d0 \bluecomment{! is set to 1 by default}
+  PERMEABILITY    \bluecomment{! must be specified by user}
+    PERM_ISO 1.d-12
+  /
+  CHARACTERISTIC_CURVES default
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{File}
+\begin{frame}[fragile,containsverbatim]\frametitle{File not found}
+Another tidy error message.
+\begin{semiverbatim}
+
+\$ pflotran -input_prefix calcite_file_not_found
+... \gehcomment{returns screen output that ends with:}
+  ERROR: File: "../../../database/hanord.dat" not found.
+
+  Stopping!
+\$
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{File not found}
+\redcomment{What's the fix?}
+\begin{semiverbatim}
+DATABASE ../../../database/hanord.dat
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{File not found}
+\redcomment{Fixed.}
+\begin{semiverbatim}
+DATABASE ../../../database/han\redcomment{f}ord.dat \bluecomment{! had a typo!}
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{CONSTRAINT}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Mineral Constraint ${2x}$}
+One last example of a very tidy error message:
+\begin{semiverbatim}
+
+\$ pflotran -input_prefix calcite_mineral_constraint
+... \gehcomment{returns screen output ending with:}
+  ERROR: Two aqueous species (HCO3- and Ca++) are
+  constrained by the same mineral (Calcite) in 
+  CONSTRAINT "initial".
+
+  Stopping!
+\$
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Mineral Constraint ${2x}$}
+\redcomment{What's the fix?}
+\begin{semiverbatim}
+
+CONSTRAINT initial
+  CONCENTRATIONS
+    H+     1.d-8      F
+    HCO3-  1.d-3      M  Calcite
+    Ca++   5.d-4      M  Calcite
+  /
+  MINERALS
+    Calcite 1.d-5 1.d0
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Mineral Constraint ${2x}$}
+
+\redcomment{Fixed.}
+\begin{semiverbatim}
+
+CONSTRAINT initial
+  CONCENTRATIONS
+    H+     1.d-8      F
+    HCO3-  1.d-3      G  CO2(g) \bluecomment{! Here is a fix.}
+    Ca++   5.d-4      M  Calcite
+  /
+  MINERALS
+    Calcite 1.d-5 1.d0
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{END}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Missing \greencomment{END} or \greencomment{/}}
+\begin{itemize}
+\item Missing \greencomment{END} statements are trickier to diagnose.
+\item \greencomment{END} and \greencomment{/} are interchangeable.
+\item This is the most common type of ERROR when a block isn't closed with \greencomment{END} or \greencomment{/}.
+\end{itemize}
+\begin{semiverbatim}
+
+\$ pflotran -input_prefix calcite_missing_end
+... \gehcomment{returns screen output that ends with:}
+  ERROR:  Keyword "TIME" not recognized in OUTPUT.
+
+  Stopping!
+\$
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Missing \greencomment{END} or \greencomment{/}}
+\redcomment{What's the fix?}
+\begin{semiverbatim}
+
+OUTPUT
+  TIMES y 5. 10. 15. 20.
+  FORMAT TECPLOT POINT
+  VELOCITY_AT_CENTER
+
+TIME
+  FINAL_TIME 25.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 2.5d-1 y
+END
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Missing \greencomment{END} or \greencomment{/}}
+\redcomment{Fixed.}
+\begin{semiverbatim}
+
+OUTPUT
+  TIMES y 5. 10. 15. 20.
+  FORMAT TECPLOT POINT
+  VELOCITY_AT_CENTER
+END \bluecomment{! this \greencomment{END} was missing}
+
+TIME
+  FINAL_TIME 25.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 2.5d-1 y
+END
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Missing \greencomment{END} or \greencomment{/}}
+\redcomment{You fix that and run it again:}
+\begin{semiverbatim}
+
+\$ pflotran -input_prefix calcite_missing_end
+... \gehcomment{returns screen output that ends with:}
+  ERROR: Number of concentration constraints exceeds 
+  number of primary chemical components in constraint:
+  initial
+
+  Stopping!
+\$
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Missing \greencomment{END} or \greencomment{/}}
+\redcomment{What's the fix?}
+\begin{semiverbatim}
+
+CONSTRAINT initial
+  CONCENTRATIONS
+    H+     1.d-8      F
+    HCO3-  1.d-3      G  CO2(g)
+    Ca++   5.d-4      M  Calcite
+
+  MINERALS
+    Calcite 1.d-5 1.d0
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Missing \greencomment{END} or \greencomment{/}}
+\redcomment{Fixed.}
+\begin{semiverbatim}
+
+CONSTRAINT initial
+  CONCENTRATIONS
+    H+     1.d-8      F
+    HCO3-  1.d-3      G  CO2(g)
+    Ca++   5.d-4      M  Calcite
+  / \bluecomment{! this \greencomment{/} was missing}
+  MINERALS
+    Calcite 1.d-5 1.d0
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Missing \greencomment{END} or \greencomment{/}}
+\redcomment{This file requires one last fix:}
+\begin{semiverbatim}
+
+\$ pflotran -input_prefix calcite_missing_end
+... \gehcomment{returns screen output that ends with:}
+  ERROR: Species not found in database.
+
+  Stopping!
+\$
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Missing \greencomment{END} or \greencomment{/}}
+\redcomment{What's the fix?}
+\begin{semiverbatim}
+CHEMISTRY
+  PRIMARY_SPECIES
+    H+
+    HCO3-
+    Ca++
+  /
+  SECONDARY_SPECIES
+    OH-
+    CO3--
+    CO2(aq)
+    CaCO3(aq)
+    CaHCO3+
+    CaOH+
+
+  GAS_SPECIES
+    CO2(g)
+  /
+  MINERALS
+    Calcite
+  /
+...
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Missing \greencomment{END} or \greencomment{/}}
+\redcomment{Fixed.}
+\begin{semiverbatim}
+CHEMISTRY
+  PRIMARY_SPECIES
+    H+
+    HCO3-
+    Ca++
+  /
+  SECONDARY_SPECIES
+    OH-
+    CO3--
+    CO2(aq)
+    CaCO3(aq)
+    CaHCO3+
+    CaOH+
+  / \bluecomment{! this \greencomment{/} was missing}
+  GAS_SPECIES
+    CO2(g)
+  /
+  MINERALS
+    Calcite
+  /
+...
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{PETSc}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{PETSc Errors}
+For best effect run with many cores, and one little error will give you lots and lots of PETSc output. (This is only one core.)
+\begin{semiverbatim}
+\$ mpirun -n 1 pflotran -input_prefix calcite_petsc
+... \gehcomment{returns screen output ending with:} \small
+{[}0{]}PETSC ERROR: --------------------- Error Message --------------------------------------------------------------
+{[}0{]}PETSC ERROR: Argument out of range
+{[}0{]}PETSC ERROR: Negative index -1 at 0 location
+{[}0{]}PETSC ERROR: See http://www.mcs.anl.gov/petsc/documentation/faq.html for trouble shooting.
+{[}0{]}PETSC ERROR: Petsc Development GIT revision: v3.7.5-3166-g8f6b994  GIT Date: 2017-02-21 14:33:01 -0600
+{[}0{]}PETSC ERROR: pflotran on a gnu-c-debug named cameo by ergiamb Thu May  4 16:03:13 2017
+{[}0{]}PETSC ERROR: Configure options --PETSC_ARCH=gnu-c-debug --with-cc=gcc --with-fc=gfortran --with-cxx=g++ --with-clanguage=c --with-shared-libraries=0 --with-debugging=yes --download-hdf5=yes --with-valgrind=1 --download-parmetis=yes --download-metis=yes --with-c2html=0 --download-mpich=yes --download-fblaslapack=yes
+{[}0{]}PETSC ERROR: #1 VecScatterCheckIndices_Private() line 36 in /home/ergiamb/software/petsc/src/vec/vec/utils/vscat.c
+{[}0{]}PETSC ERROR: #2 VecScatterCreate() line 1177 in /home/ergiamb/software/petsc/src/vec/vec/utils/vscat.c
+application called MPI_Abort(MPI_COMM_WORLD, 63) - process 0 \normalsize
+\$
+\end{semiverbatim}
+
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{PETSc Errors}
+\redcomment{What's the fix?}
+\Large
+\begin{center}
+Whether you can debug your PETSc error or not, please send your input deck to \bluecomment{pflotran-dev@googlegroups.com}
+\end{center}
+\normalsize
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\end{document}

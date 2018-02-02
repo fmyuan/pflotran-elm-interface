@@ -44,6 +44,8 @@ subroutine SSSandboxInit(option)
   ! Author: Glenn Hammond
   ! Date: 04/11/14
   ! 
+#include <petsc/finclude/petscsys.h>
+  use petscsys
   use Option_module
   implicit none
   type(option_type) :: option
@@ -90,6 +92,8 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
   ! Date: 04/11/14
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use String_module
   use Input_Aux_module
@@ -105,6 +109,15 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
   character(len=MAXWORDLENGTH) :: word
   class(srcsink_sandbox_base_type), pointer :: new_sandbox, cur_sandbox
   
+  ! Ensure that transport is not being simulated as we have no way for 
+  ! introducting solutes.
+  if (option%ntrandof > 0) then
+    option%io_buffer = 'Reactive transport may not be simulated when a &
+      &SOURCE_SINK_SANDBOX exists in the input file since no source/sink &
+      &capability exists in the source/sink sandbox for solute mass.'
+    call printErrMsg(option)
+  endif
+
   nullify(new_sandbox)
   do 
     call InputReadPflotranString(input,option)
@@ -220,16 +233,13 @@ subroutine SSSandbox(residual,Jacobian,compute_derivative, &
   ! Date: 04/11/14
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
   use Grid_module
   use Material_Aux_class, only: material_auxvar_type
   
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   PetscBool :: compute_derivative
   Vec :: residual
@@ -396,7 +406,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
              ' ' // trim(adjustl(y_string)) // &
              ' ' // trim(adjustl(z_string)) // ')'
     select case(option%iflowmode)
-      case(RICHARDS_MODE,G_MODE)
+      case(RICHARDS_MODE,G_MODE,WF_MODE)
         variable_string = ' Water'
         ! cumulative
         units_string = 'kg'
@@ -408,7 +418,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
                                  cell_string,icolumn)
     end select
     select case(option%iflowmode)
-      case(G_MODE)
+      case(G_MODE,WF_MODE)
         variable_string = ' Gas Component'
         ! cumulative
         units_string = 'kg'
@@ -446,7 +456,8 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
 
   use Option_module
   use Output_Aux_module
-  use General_Aux_module, only : fmw_comp
+  use General_Aux_module, only : general_fmw => fmw_comp
+  use WIPP_Flow_Aux_module, only : wipp_flow_fmw => fmw_comp
 
   implicit none
   
@@ -471,8 +482,9 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
       flow_dof_scale(1) = FMWH2O
       flow_dof_scale(2) = FMWGLYC
     case(G_MODE)
-      flow_dof_scale(1) = fmw_comp(1)
-      flow_dof_scale(2) = fmw_comp(2)
+      flow_dof_scale(1:2) = general_fmw(1:2)
+    case(WF_MODE)
+      flow_dof_scale(1:2) = wipp_flow_fmw(1:2)
     case(MPH_MODE,FLASH2_MODE,IMS_MODE)
       flow_dof_scale(1) = FMWH2O
       flow_dof_scale(2) = FMWCO2

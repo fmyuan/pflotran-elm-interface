@@ -1,13 +1,14 @@
 module Geomechanics_Auxiliary_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Geomechanics_Global_Aux_module
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public :: geomech_auxiliary_type
     type(geomech_global_type), pointer :: GeomechGlobal
@@ -86,6 +87,11 @@ subroutine GeomechAuxDestroy(geomech_aux)
       deallocate(geomech_aux%GeomechParam%density)
     nullify(geomech_aux%GeomechParam%density)
   endif
+  
+  if (associated(geomech_aux%GeomechParam)) then
+    deallocate(geomech_aux%GeomechParam)
+  endif
+  nullify(geomech_aux%GeomechParam)
     
 end subroutine GeomechAuxDestroy
 

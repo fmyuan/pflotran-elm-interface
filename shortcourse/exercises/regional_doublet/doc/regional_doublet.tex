@@ -120,6 +120,39 @@
 %\frame{\titlepage}
 
 %-----------------------------------------------------------------------------
+\section{Running regional_doublet.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+This problem takes a while to run, so lets get it started first.
+Homogeneous permeability field version:
+
+\begin{semiverbatim}
+
+ > cd \$PFLOTRAN_DIR
+ > cd shortcourse/exercises/regional_doublet/
+ > pflotran -input_prefix regional_doublet
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+This problem takes a while to run, so lets get it started first.
+Stoichastic permeability field version:
+
+\begin{semiverbatim}
+ > cd \$PFLOTRAN_DIR
+ > cd shortcourse/exercises/regional_doublet/
+ > pflotran -input_prefix stochastic_regional_doublet
+  -realization_id 5
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \section{Description of 3D Regional Flow and Transport Model}
 
 \subsection{3D Regional Flow and Transport Model}
@@ -163,14 +196,14 @@ The ``3D Regional Flow and Transport Scenario'' simulates groundwater flow and s
 \begin{itemize}
 \item $\varphi \eq $ porosity
 \item $s \eq $ saturation
-\item $\rho \eq $ water density
+\item $\rho \eq $ liquid density
 \item $\bk \eq $ intrinsic permeability tensor
 \item $k_r \eq $ relative permeability
 \end{itemize}
 \column{0.5\linewidth}
 \begin{itemize}
 \item $\mu \eq $ viscosity
-\item $\pressure \eq $ water pressure
+\item $\pressure \eq $ liquid pressure
 \item $g \eq $ gravity
 \item $z \eq $ distance in direction of gravity
 \item $Q \eq $ source/sink
@@ -393,6 +426,21 @@ S_j &\eq \text{source/sink term for aqueous species } j\\
 \section{Description of Input Deck}
 
 \subsection{SIMULATION}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{SIMULATION}
+
+Location of this example problem:
+
+\begin{semiverbatim}
+\$PFLOTRAN_DIR/shortcourse/exercises/regional_doublet
+
+regional_doublet.in
+river_stage.txt
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \begin{frame}[fragile,containsverbatim]\frametitle{SIMULATION}
 
 \begin{itemize}
@@ -460,7 +508,7 @@ END
 \begin{semiverbatim}
 REGION all
   COORDINATES
-    0.d0 0.d0 0.d0
+    0.d0    0.d0    0.d0
     5000.d0 2500.d0 100.d0
   /
 END
@@ -468,14 +516,14 @@ END
 \newpage
 REGION layer2        \bluecomment{! layer of domain}
   COORDINATES
-    0.d0 0.d0 30.d0
+    0.d0    0.d0    30.d0
     5000.d0 2500.d0 50.d0
   /
 END
 
 REGION Top           \bluecomment{! top surface}
   COORDINATES
-    0.d0 0.d0 100.d0
+    0.d0    0.d0    100.d0
     5000.d0 2500.d0 100.d0
   /
   FACE TOP
@@ -652,14 +700,14 @@ FLOW_CONDITION injection
   TYPE                           \bluecomment{! volumetric flow}
     RATE SCALED_VOLUMETRIC_RATE  \bluecomment{!   rate scaled by}
   /                              \bluecomment{!   f(permeability)}
-  RATE 1.d5 m^3/day  \bluecomment{! flow rate 10,000 [m^3/day]}
+  RATE 1.d5 m^3/day  \bluecomment{! flow rate 100,000 [m^3/day]}
 END
 
 FLOW_CONDITION extraction
   TYPE
     RATE SCALED_VOLUMETRIC_RATE
   /
-  RATE -1.d5 m^3/day  \bluecomment{! flow rate -10,000 [m^3/day]}
+  RATE -1.d5 m^3/day  \bluecomment{! flow rate -100,000 [m^3/day]}
 END                   \bluecomment{! negative rate = extraction}
 
 \end{semiverbatim}
@@ -810,7 +858,7 @@ END
 \begin{frame}[fragile]\frametitle{INITIAL\_CONDITION}
 
 \begin{itemize}
-\item Couple the greencomment{initial} flow and transport conditions with region \greencomment{all} for the initial condition
+\item Couple the \greencomment{initial} flow and transport conditions with region \greencomment{all} for the initial condition
 \end{itemize}
 
 \begin{semiverbatim}
@@ -903,23 +951,39 @@ END
 \begin{frame}[fragile]\frametitle{OUTPUT}
 
 \begin{itemize}
-\item Print entire solution every year in Tecplot block datapacking and PFLOTRAN HDF5 format compatible with Visit
-\item Print entire solution at 1.25, 1.5 and 1.75 years to see fluctuation in river stage
+\item Print entire solution in Tecplot block datapacking and PFLOTRAN HDF5 format compatible with Visit
 \item Print solution at observation points every time step
 \item Include velocities when entire solution is printed
+\item Make a snapshot file every 0.25 years between 0 and 2 years to see fluctuation in river stage
+\item Make a snapshot file every year of the simulation
+\item Specifically, we want to see the liquid pressure, saturation, and material IDs
 \end{itemize}
 
-\begin{semiverbatim}
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{OUTPUT}
+
+\begin{semiverbatim}\small
 
 OUTPUT
-  TIMES y 1.25 1.5 1.75  \bluecomment{! specific times}
-  PERIODIC TIME 1. y     \bluecomment{! solution every year}
-  PERIODIC_OBSERVATION TIMESTEP 1  \bluecomment{! observ. every step}
-  FORMAT TECPLOT BLOCK   \bluecomment{! Tecplot BLOCK format}
-  FORMAT HDF5            \bluecomment{! PFLOTRAN HDF5 Visit format}
-  PRINT_COLUMN_IDS       \bluecomment{! Adds column ids to obs. header}
-  VELOCITIES             \bluecomment{! include velocities}
+  SNAPSHOT_FILE
+    PERIODIC TIME 0.25 y between 0. y and 2. y \bluecomment{! specific times}
+    PERIODIC TIME 1. y between 0. y and 10. y  \bluecomment{! specific times}
+    FORMAT TECPLOT BLOCK  \bluecomment{! Tecplot BLOCK format}
+    FORMAT HDF5           \bluecomment{! PFLOTRAN HDF5 Visit format}
+    PRINT_COLUMN_IDS      \bluecomment{! Adds column ids to obs. header}
+    VARIABLES
+      LIQUID_PRESSURE
+      LIQUID_SATURATION
+      MATERIAL_ID_KLUDGE_FOR_VISIT
+    /
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1  \bluecomment{! observ. every step}
+  /
+  VELOCITY_AT_CENTER     \bluecomment{! include velocities}
 END
+
 \end{semiverbatim}
 
 \end{frame}
@@ -927,29 +991,65 @@ END
 %-----------------------------------------------------------------------------
 \section{CHECKPOINT/RESTART}
 
-\begin{frame}[fragile]\frametitle{CHECKPOINT/RESTART}
+\begin{frame}[fragile]\frametitle{CHECKPOINT/RESTART I}
 
 \begin{itemize}
 \item Checkpointing: saving the ``state'' of the simulation at a point in time, from which the entire solution can be reconstructed.
   \begin{itemize}
     \item Fault tolerance
     \item Restarting from a saved initial condition
-    \item Checkpoint files named ``pflotran.chk\#'' where \# is the time step number (e.g. pflotran.chk100)
-    \item Restart file named ``restart.chk''
+    \item Checkpoint files named ``pflotran-ts\#.chk'' where \# is the time step number (e.g. pflotran-ts100.chk)
+    \item Checkpoint files named ``pflotran-\#unit.chk`` where \# is the time and unit is the unit of time (e.g. pflotran-2yr.chk)
+    \item Restart file named ``pflotran-restart.chk''
   \end{itemize}
 \item Restart: resetting a simulation to a ``state''
 \end{itemize}
 
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{CHECKPOINT/RESTART II}
 
 \begin{semiverbatim}
 
-CHECKPOINT 100          \bluecomment{! write a checkpoint file every}
-                        \bluecomment{!   100 time steps}
-RESTART pflotran.chk100 \bluecomment{! restart simulation using file}
-                        \bluecomment{!   \redcomment{restart.chk}}
-RESTART restart.chk \redcomment{0.d0}  \bluecomment{! reset time to 0.}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    ...
+  /
+  CHECKPOINT               \bluecomment{! write a checkpoint file}
+    PERIODIC TIMESTEP 50   \bluecomment{! write it every 50 timesteps}
+    PERIODIC TIME 2 yr     \bluecomment{! write it every 2 years}
+  /
+  RESTART restart.chk \redcomment{0.d0}  \bluecomment{! restart simulation using}
+END                         \bluecomment{! file \redcomment{restart.chk}}
+                            \bluecomment{! and reset time to 0.}
+
+\end{semiverbatim}
+
+\end{frame}
+
+
+%-----------------------------------------------------------------------------
+\section{How To Run the Python Script}
+
+\begin{frame}[fragile]\frametitle{How To Run the Python Script to Plot}
+
+When the simulation is finished running, you can plot the results using
+the python script called regional\_doublet\_center\_obs.py
+
+To run the python script:
+
+\begin{semiverbatim}
+
+ > python regional_doublet_center_obs.py
+
 \end{semiverbatim}
 
 \end{frame}
 
 \end{document}
+
+

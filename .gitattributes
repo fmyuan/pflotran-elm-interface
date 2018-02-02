@@ -1,0 +1,15 @@
+# Set the default behavior, in case people don't have core.autocrlf set.
+# geh - do not set '* text=auto' as line endings may be changed on the local
+# machine and show up as modified through 'git status'
+#* text=auto
+# Denote all files that are truly text
+*.F90 text eol=lf
+*.h text eol=lf
+*.py text eol=lf
+# Denote all files that are truly binary and should not be modified.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.h5 binary
+*.chk binary

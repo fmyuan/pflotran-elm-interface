@@ -1,0 +1,323 @@
+#Description: 3D test problem for unstructured richards equation with mixed
+#             elements in explicit format
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        ANALYTICAL_DERIVATIVES
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== discretization ===================================
+GRID
+  TYPE unstructured ./heater_usg.h5
+END
+
+#=========================== newton solver ====================================
+NEWTON_SOLVER FLOW
+  RTOL 1.d-5
+  STOL 1.d-9
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+FLUID_PROPERTY 
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 2.1d-5
+END
+
+#=========================== output options ===================================
+OUTPUT
+  SNAPSHOT_FILE
+    FORMAT HDF5
+    PERIODIC TIME 1. d between 0. d and 10. d
+    PERIODIC TIME 10. d between 0. d and 300. d
+    PERIODIC TIME 1. y between 0. y and 10. y
+    PERIODIC TIME 10. y between 0. y and 100. y
+  /
+  OBSERVATION_FILE
+    PRINT_COLUMN_IDS
+    PERIODIC TIMESTEP 1
+  /
+  MASS_BALANCE_FILE
+    PERIODIC TIMESTEP 1
+  /
+  VELOCITY_AT_CENTER
+  VARIABLES
+    NATURAL_ID
+    MATERIAL_ID
+    TEMPERATURE
+    LIQUID_PRESSURE
+    LIQUID_DENSITY
+    LIQUID_SATURATION
+    LIQUID_MOBILITY
+    LIQUID_ENERGY
+    LIQUID_MOLE_FRACTIONS
+    MAXIMUM_PRESSURE
+    CAPILLARY_PRESSURE
+    VAPOR_PRESSURE
+    SATURATION_PRESSURE
+    THERMODYNAMIC_STATE
+    GAS_PRESSURE
+    GAS_SATURATION
+    GAS_DENSITY
+    GAS_MOBILITY
+    GAS_ENERGY
+    GAS_MOLE_FRACTIONS
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 100. y #1.d3 d
+  MAXIMUM_TIMESTEP_SIZE 0.1 d at 0. d
+  MAXIMUM_TIMESTEP_SIZE 1. d at 1. d
+  MAXIMUM_TIMESTEP_SIZE 10. d at 10. d
+  MAXIMUM_TIMESTEP_SIZE 1. y at 1. y
+  MAXIMUM_TIMESTEP_SIZE 10. y at 10. y
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY shale
+  ID 4
+  CHARACTERISTIC_CURVES default #shale
+  POROSITY 0.15
+  TORTUOSITY 0.11
+  ROCK_DENSITY 2700.
+  THERMAL_CONDUCTIVITY_DRY 1.0d0
+  THERMAL_CONDUCTIVITY_WET 1.7d0
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO 1.d-19
+  /
+/
+
+MATERIAL_PROPERTY drz
+  ID 3
+  CHARACTERISTIC_CURVES default #shale
+  POROSITY 0.20
+  TORTUOSITY 0.11
+  ROCK_DENSITY 2700.
+  THERMAL_CONDUCTIVITY_DRY 1.0d0
+  THERMAL_CONDUCTIVITY_WET 1.7d0
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO 1.d-18
+  /
+/
+
+MATERIAL_PROPERTY buffer
+  ID 2
+  CHARACTERISTIC_CURVES default #buffer
+  POROSITY 0.35
+  TORTUOSITY 0.23
+  ROCK_DENSITY 2700.
+  THERMAL_CONDUCTIVITY_DRY 0.6d0
+  THERMAL_CONDUCTIVITY_WET 1.2d0
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO 1.d-20
+  /                  
+/
+
+MATERIAL_PROPERTY heater
+  ID 1
+  CHARACTERISTIC_CURVES default
+  POROSITY 0.01 ! a small value
+  TORTUOSITY 1.0
+  ROCK_DENSITY 5000.d0
+  THERMAL_CONDUCTIVITY_DRY 16.7d0
+  THERMAL_CONDUCTIVITY_WET 16.7d0
+  HEAT_CAPACITY 466.
+  PERMEABILITY
+    PERM_ISO 1.d-20 ! same as buffer
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 1.d-4
+    M 0.5
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    M 0.5
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    GAS_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+CHARACTERISTIC_CURVES shale
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 7.d-7
+    M 0.333
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.333
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    M 0.333
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    GAS_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+CHARACTERISTIC_CURVES buffer
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 6.d-8
+    M 0.375
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.375
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    M 0.375
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    GAS_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+     1.d20  1.d20  1.d20
+  /
+END
+
+REGION Region1 ! heater
+  FILE ./heater_usg.h5
+END
+
+REGION Region2 ! buffer in drift
+  FILE ./heater_usg.h5
+END
+
+REGION outer_face
+  FILE ./sideset_0.ss
+END
+
+#=========================== observation points ===============================
+REGION buffer_obs1
+  COORDINATE .4d0 0.5d0 0.1d0
+END
+
+REGION buffer_obs2
+  COORDINATE .6d0 0.5d0 0.1d0
+END
+
+REGION buffer_obs3
+  COORDINATE .8d0 0.5d0 0.1d0
+END
+
+OBSERVATION
+  REGION buffer_obs1
+END
+
+OBSERVATION
+  REGION buffer_obs2
+END
+
+OBSERVATION
+  REGION buffer_obs3
+END
+
+#=========================== flow conditions ==================================
+#single phase liquid
+FLOW_CONDITION initial_shale #and outer boundary
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  DATUM 0.d0 0.d0 0.d0 ! center of drift
+  LIQUID_PRESSURE 2.0d6 ! Pa
+  MOLE_FRACTION 1.d-8
+  TEMPERATURE 25.d0
+END
+
+#two-phase
+FLOW_CONDITION initial_buffer
+  TYPE
+    GAS_PRESSURE DIRICHLET
+    GAS_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  GAS_PRESSURE 101325.d0 ! Pa
+  GAS_SATURATION 0.80
+  TEMPERATURE 25.d0
+END
+
+
+FLOW_CONDITION heatsource
+  TYPE
+    RATE SCALED_MASS_RATE VOLUME ! volume averaged
+  /
+  SYNC_TIMESTEP_WITH_UPDATE
+  #INTERPOLATION LINEAR
+  RATE LIST
+    TIME_UNITS d
+    DATA_UNITS kg/s kg/s W
+  ! time liq gas energy
+    0.d0 0.d0 0.d0 0.d0
+    .1d0 0.d0 0.d0 150.d0
+    365.d0 0.d0 0.d0 0.d0
+  / 
+END
+
+#=========================== condition couplers ===============================
+#initial conditions
+INITIAL_CONDITION shale 
+  FLOW_CONDITION initial_shale
+  REGION all
+END
+
+INITIAL_CONDITION heater
+  FLOW_CONDITION initial_buffer
+  REGION Region1
+END
+
+INITIAL_CONDITION buffer
+  FLOW_CONDITION initial_buffer
+  REGION Region2
+END
+
+#boundary conditions
+BOUNDARY_CONDITION open
+  FLOW_CONDITION initial_shale
+  REGION outer_face
+END
+
+# source_sink
+SOURCE_SINK heat
+  FLOW_CONDITION heatsource
+  REGION Region1
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL  ./heater_usg.h5
+END
+
+END_SUBSURFACE
+

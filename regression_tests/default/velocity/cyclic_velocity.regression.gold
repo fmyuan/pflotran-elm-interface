@@ -1,0 +1,24 @@
+-- CONCENTRATION: Total Tracer --
+      Max:   6.3629745533883E-05
+      Min:   1.0000292359476E-07
+     Mean:   2.0003740332409E-05
+       25:   8.0665499634018E-06
+       50:   6.3623748995171E-05
+       75:   9.6433666598482E-06
+      100:   1.4308371094943E-07
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+       25:         1
+       50:         1
+       75:         1
+      100:         1
+-- SOLUTION: Transport --
+   Time (seconds):   7.6792001724243E-02
+   Time Steps:           91
+   Newton Iterations:           91
+   Solver Iterations:           91
+   Time Step Cuts:            0
+   Solution 2-Norm:   3.0048288236745E-04
+   Residual 2-Norm:   2.3409911924681E-24

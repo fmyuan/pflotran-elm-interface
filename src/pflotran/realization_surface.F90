@@ -3,6 +3,9 @@ module Realization_Surface_class
   use Realization_Base_class
   
   use Condition_module
+#ifdef WELL_CLASS
+  use WellSpec_Base_class
+#endif
   use Debug_module
   use Discretization_module
   use Input_Aux_module
@@ -31,6 +34,9 @@ private
     type(surface_field_type), pointer :: surf_field
     type(region_list_type), pointer :: surf_regions
     type(condition_list_type),pointer :: surf_flow_conditions
+#ifdef WELL_CLASS
+    type(well_spec_list_type), pointer :: surf_well_specs
+#endif
     type(tran_condition_list_type),pointer :: surf_transport_conditions
     type(surface_material_property_type), pointer :: surf_material_properties
     type(surface_material_property_ptr_type), pointer :: surf_material_property_array(:)
@@ -92,7 +98,8 @@ function RealizSurfCreate(option)
   ! Author: Gautam Bisht, ORNL
   ! Date: 02/16/12
   ! 
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   implicit none
 
   type(option_type), pointer :: option
@@ -102,7 +109,6 @@ function RealizSurfCreate(option)
   allocate(surf_realization)
   call RealizationBaseInit(surf_realization,option)
   surf_realization%option => option
-  nullify(surf_realization%input)
 
   surf_realization%surf_field => SurfaceFieldCreate()
   !geh: debug, output_option, patch_list already allocated in 
@@ -119,6 +125,10 @@ function RealizSurfCreate(option)
   
   allocate(surf_realization%surf_flow_conditions)
   call FlowConditionInitList(surf_realization%surf_flow_conditions)
+#ifdef WELL_CLASS
+  allocate(surf_realization%surf_well_specs)
+  call WellSpecInitList(surf_realization%surf_well_specs)
+#endif
   allocate(surf_realization%surf_transport_conditions)
   call TranConditionInitList(surf_realization%surf_transport_conditions)
   
@@ -199,6 +209,9 @@ subroutine RealizSurfProcessCouplers(surf_realization)
     if (.not.associated(cur_patch)) exit
     call PatchProcessCouplers(cur_patch,surf_realization%surf_flow_conditions, &
                               surf_realization%surf_transport_conditions, &
+#ifdef WELL_CLASS
+                              surf_realization%surf_well_specs, & 
+#endif
                               surf_realization%option)
     cur_patch => cur_patch%next
   enddo
@@ -334,7 +347,8 @@ subroutine RealizSurfCreateDiscretization(surf_realization)
   ! Author: Gautam Bisht, ORNL
   ! Date: 02/17/12
   ! 
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Grid_module
   use Grid_Unstructured_Aux_module, only : UGridMapIndices
   use Grid_Unstructured_module, only     : UGridEnsureRightHandRule
@@ -673,6 +687,8 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
   ! Date: 01/17/12
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Grid_module
   use String_module
   use Grid_Unstructured_module
@@ -685,11 +701,6 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
   use DM_Kludge_module, only : dm_ptr_type
 
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   class(realization_subsurface_type), pointer :: realization
   class(realization_surface_type), pointer :: surf_realization
@@ -718,7 +729,7 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
   PetscInt,pointer ::int_array(:)
   PetscInt :: offset
   PetscInt :: int_array4(4)
-  PetscInt :: int_array4_0(4,1)
+  PetscInt :: int_array4_0(4)
   PetscInt :: nvertices
   PetscInt :: iface
   PetscInt :: local_id, ii, jj
@@ -818,7 +829,7 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
     do ivertex = 1, nvertices
       vertex_id_local = &
         subsurf_grid%cell_vertices(int_array4(ivertex),local_id)
-      int_array4_0(ivertex,1) = &
+      int_array4_0(ivertex) = &
         subsurf_grid%vertex_ids_natural(vertex_id_local)-1
     enddo
     call MatSetValues(Mat_vert_to_face_subsurf, &
@@ -914,7 +925,7 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
     nvertices = surf_grid%cell_vertices(0,local_id)
     do ivertex = 1, nvertices
       vertex_id_local = surf_grid%cell_vertices(ivertex,local_id)
-      int_array4_0(ivertex,1) = &
+      int_array4_0(ivertex) = &
         surf_grid%vertex_ids_natural(vertex_id_local)-1
     enddo    
    call MatSetValues(Mat_vert_to_face_surf,1,local_id-1+offset, &
@@ -1049,6 +1060,8 @@ subroutine RealizSurfMapSurfSubsurfGrid( &
   ! Date: 01/18/12
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Grid_module
   use String_module
   use Grid_Unstructured_module
@@ -1063,11 +1076,6 @@ subroutine RealizSurfMapSurfSubsurfGrid( &
   use DM_Kludge_module
 
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   class(realization_subsurface_type), pointer :: realization
   class(realization_surface_type), pointer :: surf_realization
@@ -1097,7 +1105,7 @@ subroutine RealizSurfMapSurfSubsurfGrid( &
   PetscInt,pointer ::int_array(:)
   PetscInt :: offset
   PetscInt :: int_array4(4)
-  PetscInt :: int_array4_0(4,1)
+  PetscInt :: int_array4_0(4)
   PetscReal :: real_array4(4)
   PetscInt :: ii, jj
   PetscReal, pointer :: vec_ptr(:)
@@ -1296,7 +1304,9 @@ subroutine RealizSurfDestroy(surf_realization)
   call RegionDestroyList(surf_realization%surf_regions)
   
   call FlowConditionDestroyList(surf_realization%surf_flow_conditions)
-
+#ifdef WELL_CLASS
+  call WellSpecDestroyList(surf_realization%surf_well_specs)
+#endif
   call TranConditionDestroyList(surf_realization%surf_transport_conditions)
   
   call PatchDestroyList(surf_realization%patch_list)
@@ -1343,7 +1353,9 @@ subroutine RealizSurfStrip(surf_realization)
   call RegionDestroyList(surf_realization%surf_regions)
   
   call FlowConditionDestroyList(surf_realization%surf_flow_conditions)
-
+#ifdef WELL_CLASS
+  call WellSpecDestroyList(surf_realization%surf_well_specs)
+#endif
   call TranConditionDestroyList(surf_realization%surf_transport_conditions)
   
   call PatchDestroyList(surf_realization%patch_list)
@@ -1371,7 +1383,8 @@ subroutine RealizSurfUpdate(surf_realization)
   ! Author: Gautam Bisht, ORNL
   ! Date: 05/22/12
   ! 
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   implicit none
   
   class(realization_surface_type) :: surf_realization
@@ -1398,6 +1411,8 @@ subroutine RealizSurfGetVariable(surf_realization,vec,ivar,isubvar,isubvar1)
   ! Date: 05/22/12
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Surface_Field_module
 
@@ -1428,7 +1443,8 @@ subroutine RealizSurfAddWaypointsToList(surf_realization,waypoint_list)
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/15/13
   ! 
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   use Waypoint_module
   use Time_Storage_module  

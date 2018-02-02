@@ -2,6 +2,9 @@ module Option_module
 
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
  
+
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
   use Option_Flow_module
   use Option_Transport_module
@@ -9,9 +12,6 @@ module Option_module
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-
 
   type, public :: option_type 
   
@@ -59,10 +59,12 @@ module Option_module
     PetscInt :: liquid_phase
     PetscInt :: gas_phase
     PetscInt :: oil_phase
+    PetscInt, pointer :: phase_map(:)
     PetscInt :: nflowdof
     PetscInt :: nflowspec
     PetscInt :: nmechdof
     PetscInt :: nsec_cells
+    PetscInt :: nwells
     PetscBool :: use_th_freezing
 
     PetscBool :: surf_flow_on
@@ -78,6 +80,7 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: surf_restart_filename
 
     PetscBool :: geomech_on
+    PetscBool :: geomech_initial
     PetscInt :: ngeomechdof
     PetscInt :: n_stress_strain_dof
     PetscReal :: geomech_time
@@ -145,6 +148,7 @@ module Option_module
     PetscReal :: reference_saturation
     
     PetscBool :: converged
+    PetscInt :: convergence
     
     PetscReal :: infnorm_res_sec  ! inf. norm of secondary continuum rt residual
     
@@ -181,6 +185,10 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: input_prefix
     character(len=MAXSTRINGLENGTH) :: global_prefix
     character(len=MAXWORDLENGTH) :: group_prefix
+    !PO
+    character(len=MAXSTRINGLENGTH) :: output_file_name_prefix
+    character(len=MAXSTRINGLENGTH) :: output_dir
+    !PO end
     
     PetscBool :: steady_state
     PetscBool :: use_matrix_buffer
@@ -189,11 +197,12 @@ module Option_module
     PetscBool :: out_of_table
 
     ! Specify secondary continuum solver
-    PetscBool :: print_explicit_primal_grid    ! prints primal grid if true
-    PetscBool :: print_explicit_dual_grid      ! prints voronoi (dual) grid if true
     PetscInt :: secondary_continuum_solver     ! Specify secondary continuum solver
     
     PetscInt :: subsurface_simulation_type
+    
+    ! For WIPP_type pc-sat characteristic curves that use Pct
+    PetscBool :: pct_updated
 
     ! Type of averaging scheme for relative permeability
     PetscInt :: rel_perm_aveg
@@ -208,6 +217,11 @@ module Option_module
 
     PetscBool :: print_ekg
 
+    ! flag to use inline surface flow in Richards mode
+    PetscBool :: inline_surface_flow
+    PetscReal :: inline_surface_Mannings_coeff
+    character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
+    
   end type option_type
   
   PetscInt, parameter, public :: SUBSURFACE_SIM_TYPE = 1
@@ -348,6 +362,8 @@ subroutine OptionInitAll(option)
   option%input_prefix = 'pflotran'
   option%group_prefix = ''
   option%global_prefix = ''
+  option%output_file_name_prefix = ''
+  option%output_dir = ''
     
   option%broadcast_read = PETSC_FALSE
   option%io_rank = 0
@@ -417,6 +433,7 @@ subroutine OptionInitRealization(option)
   option%nflowdof = 0
   option%nmechdof = 0
   option%nsec_cells = 0
+  option%nwells = 0
   option%use_th_freezing = PETSC_FALSE
 
   option%nsurfflowdof = 0
@@ -433,19 +450,22 @@ subroutine OptionInitRealization(option)
   option%surf_restart_time = UNINITIALIZED_DOUBLE
 
   option%geomech_on = PETSC_FALSE
+  option%geomech_initial = PETSC_FALSE
   option%ngeomechdof = 0
   option%n_stress_strain_dof = 0
   option%geomech_time = 0.d0
   option%geomech_subsurf_coupling = 0 
   option%geomech_gravity(:) = 0.d0
-  option%geomech_gravity(3) = -9.8068d0    ! m/s^2
+  option%geomech_gravity(3) = -1.d0*EARTH_GRAVITY    ! m/s^2
 
   option%tranmode = ""
   option%itranmode = NULL_MODE
   option%ntrandof = 0
-  
+ 
+  nullify(option%phase_map)
   option%nphase = 0
   option%liquid_phase = 0
+  option%oil_phase = 0
   option%gas_phase = 0
   
   option%air_pressure_id = 0
@@ -472,6 +492,7 @@ subroutine OptionInitRealization(option)
   option%reference_saturation = 1.d0
   
   option%converged = PETSC_FALSE
+  option%convergence = CONVERGENCE_OFF
   
   option%infnorm_res_sec = 0.d0
   
@@ -483,7 +504,7 @@ subroutine OptionInitRealization(option)
   option%ideriv = 1
 
   option%gravity(:) = 0.d0
-  option%gravity(3) = -9.8068d0    ! m/s^2
+  option%gravity(3) = -1.d0*EARTH_GRAVITY ! m/s^2
 
   !physical constants and defult variables
 !  option%difaq = 1.d-9 ! m^2/s read from input file
@@ -539,8 +560,8 @@ subroutine OptionInitRealization(option)
   option%use_matrix_buffer = PETSC_FALSE
   option%status = PROCEED 
   option%force_newton_iteration = PETSC_FALSE
-  option%print_explicit_primal_grid = PETSC_FALSE
-  option%print_explicit_dual_grid = PETSC_FALSE  
+  !option%print_explicit_primal_grid = PETSC_FALSE
+  !option%print_explicit_dual_grid = PETSC_FALSE  
   option%secondary_continuum_solver = 1
 
   ! initially set to a large value to effectively disable
@@ -551,6 +572,12 @@ subroutine OptionInitRealization(option)
   option%min_allowable_scale = 1.0d-10
 
   option%print_ekg = PETSC_FALSE
+  
+  option%pct_updated = PETSC_FALSE
+  
+  option%inline_surface_flow           = PETSC_FALSE
+  option%inline_surface_Mannings_coeff = 0.02d0
+  option%inline_surface_region_name    = ""
   
 end subroutine OptionInitRealization
 
@@ -573,40 +600,40 @@ subroutine OptionCheckCommandLine(option)
   PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: string
   
-  call PetscOptionsHasName(PETSC_NULL_OBJECT, &
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
                            PETSC_NULL_CHARACTER, "-buffer_matrix", & 
                            option%use_matrix_buffer, ierr);CHKERRQ(ierr)
-  call PetscOptionsHasName(PETSC_NULL_OBJECT, &
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
                            PETSC_NULL_CHARACTER, "-snes_mf", & 
                            option%use_matrix_free, ierr);CHKERRQ(ierr)
-  call PetscOptionsHasName(PETSC_NULL_OBJECT, &
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
                            PETSC_NULL_CHARACTER, "-use_isothermal", &
                            option%use_isothermal, ierr);CHKERRQ(ierr)
-  call PetscOptionsHasName(PETSC_NULL_OBJECT, &
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
                            PETSC_NULL_CHARACTER, "-use_mc", &
                            option%use_mc, ierr);CHKERRQ(ierr)
                            
-  call PetscOptionsGetString(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER, &
+  call PetscOptionsGetString(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
                              '-restart', option%restart_filename, &
                              option%restart_flag, ierr);CHKERRQ(ierr)
   ! check on possible modes                                                     
   option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OBJECT, &
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
                            PETSC_NULL_CHARACTER, "-use_richards", &
                            option_found, ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "richards"                           
   option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OBJECT, &
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
                            PETSC_NULL_CHARACTER, "-use_thc", &
                            option_found, ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "thc"     
   option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OBJECT, &
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
                            PETSC_NULL_CHARACTER, "-use_mph", &
                            option_found, ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "mph"                           
   option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OBJECT, &
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
                            PETSC_NULL_CHARACTER, "-use_flash2", &
                            option_found, ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "flash2"                           
@@ -844,7 +871,7 @@ subroutine printMsgAnyRank1(option)
   
   type(option_type) :: option
   
-  call printMsgAnyRank2(option%io_buffer)
+  if (OptionPrintToScreen(option)) call printMsgAnyRank2(option%io_buffer)
   
 end subroutine printMsgAnyRank1
 
@@ -901,8 +928,10 @@ subroutine printMsgByRank2(option,string)
   
   character(len=MAXWORDLENGTH) :: word
   
-  write(word,*) option%myrank
-  print *, '(' // trim(adjustl(word)) // '): ' // trim(string)
+  if (OptionPrintToScreen(option)) then
+    write(word,*) option%myrank
+    print *, '(' // trim(adjustl(word)) // '): ' // trim(string)
+  endif
   
 end subroutine printMsgByRank2
 
@@ -1156,8 +1185,8 @@ subroutine OptionInitPetsc(option)
   
   if (option%verbosity > 0) then 
     call PetscLogDefaultBegin(ierr);CHKERRQ(ierr)
-    string = '-log_summary'
-    call PetscOptionsInsertString(PETSC_NULL_OBJECT, &
+    string = '-log_view'
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
                                   string, ierr);CHKERRQ(ierr)
   endif 
 
@@ -1330,10 +1359,10 @@ subroutine OptionFinalize(option)
   PetscErrorCode :: ierr
   
   call LoggingDestroy()
-  call PetscOptionsSetValue(PETSC_NULL_OBJECT, &
+  call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                             '-options_left','no',ierr);CHKERRQ(ierr)
   ! list any PETSc objects that have not been freed - for debugging
-  call PetscOptionsSetValue(PETSC_NULL_OBJECT, &
+  call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                             '-objects_left','yes',ierr);CHKERRQ(ierr)
   call MPI_Barrier(option%global_comm,ierr)
   iflag = option%successful_exit_code
@@ -1361,7 +1390,10 @@ subroutine OptionDestroy(option)
   call OptionFlowDestroy(option%flow)
   call OptionTransportDestroy(option%transport)
   ! all kinds of stuff needs to be added here.
-
+  if (associated(option%phase_map) ) then
+    deallocate(option%phase_map)
+    nullify(option%phase_map)
+  end if
   ! all the below should be placed somewhere other than option.F90
   
   deallocate(option)

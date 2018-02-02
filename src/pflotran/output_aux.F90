@@ -1,13 +1,13 @@
 module Output_Aux_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-!#include "petsc/finclude/petscviewer.h"  
 
   PetscInt, parameter, public :: INSTANTANEOUS_VARS = 1
   PetscInt, parameter, public :: AVERAGED_VARS = 2
@@ -37,6 +37,7 @@ module Output_Aux_module
     PetscBool :: print_final_massbal
   
     PetscBool :: print_hdf5
+    PetscBool :: extend_hdf5_time_format
     PetscBool :: print_hdf5_vel_cent
     PetscBool :: print_hdf5_vel_face
     PetscBool :: print_single_h5_file
@@ -60,6 +61,9 @@ module Output_Aux_module
     PetscBool :: print_column_ids
 
     PetscBool :: print_mad 
+
+    PetscBool :: print_explicit_primal_grid    ! prints primal grid if true
+    PetscBool :: print_explicit_dual_grid      ! prints voronoi (dual) grid if true
 
     PetscInt :: screen_imod
     PetscInt :: output_file_imod
@@ -99,6 +103,8 @@ module Output_Aux_module
     type(output_variable_type), pointer :: first
     type(output_variable_type), pointer :: last
     PetscInt :: nvars
+    PetscBool :: flow_vars
+    PetscBool :: energy_vars
   end type output_variable_list_type
   
   type, public :: output_variable_type
@@ -145,10 +151,14 @@ module Output_Aux_module
   PetscInt, parameter, public :: OUTPUT_RATE = 4
   PetscInt, parameter, public :: OUTPUT_VOLUME_FRACTION = 5
   PetscInt, parameter, public :: OUTPUT_DISCRETE = 6
-  
+  PetscInt, parameter, public :: OUTPUT_DISPLACEMENT = 7
+  PetscInt, parameter, public :: OUTPUT_STRESS = 8
+  PetscInt, parameter, public :: OUTPUT_STRAIN = 9
+
   public :: OutputOptionCreate, &
             OutputOptionDuplicate, &
             OutputVariableCreate, &
+            OutputVariableInit, &
             OutputMassBalRegionCreate, &
             OutputVariableListCreate, &
             OutputVariableListDuplicate, &
@@ -184,6 +194,7 @@ function OutputOptionCreate()
   
   allocate(output_option)
   output_option%print_hdf5 = PETSC_FALSE
+  output_option%extend_hdf5_time_format = PETSC_FALSE
   output_option%print_hdf5_vel_cent = PETSC_FALSE
   output_option%print_hdf5_vel_face = PETSC_FALSE
   output_option%print_single_h5_file = PETSC_TRUE
@@ -203,6 +214,8 @@ function OutputOptionCreate()
   output_option%print_observation = PETSC_FALSE
   output_option%print_column_ids = PETSC_FALSE
   output_option%print_mad = PETSC_FALSE
+  output_option%print_explicit_primal_grid = PETSC_FALSE
+  output_option%print_explicit_dual_grid = PETSC_FALSE
   output_option%print_initial_obs = PETSC_TRUE
   output_option%print_final_obs = PETSC_TRUE
   output_option%print_initial_snap = PETSC_TRUE
@@ -266,15 +279,22 @@ function OutputOptionDuplicate(output_option)
   allocate(output_option2)
 
   output_option2%print_hdf5 = output_option%print_hdf5
+  output_option2%extend_hdf5_time_format = &
+    output_option%extend_hdf5_time_format
   output_option2%print_hdf5_vel_cent = output_option%print_hdf5_vel_cent
   output_option2%print_hdf5_vel_face = output_option%print_hdf5_vel_face
   output_option2%print_single_h5_file = output_option%print_single_h5_file
   output_option2%times_per_h5_file = output_option%times_per_h5_file
-  output_option2%print_hdf5_mass_flowrate = output_option%print_hdf5_mass_flowrate
-  output_option2%print_hdf5_energy_flowrate = output_option%print_hdf5_energy_flowrate
-  output_option2%print_hdf5_aveg_mass_flowrate = output_option%print_hdf5_aveg_mass_flowrate
-  output_option2%print_hdf5_aveg_energy_flowrate = output_option%print_hdf5_aveg_energy_flowrate
-  output_option2%print_explicit_flowrate = output_option%print_explicit_flowrate
+  output_option2%print_hdf5_mass_flowrate = &
+    output_option%print_hdf5_mass_flowrate
+  output_option2%print_hdf5_energy_flowrate = &
+    output_option%print_hdf5_energy_flowrate
+  output_option2%print_hdf5_aveg_mass_flowrate = &
+    output_option%print_hdf5_aveg_mass_flowrate
+  output_option2%print_hdf5_aveg_energy_flowrate = &
+    output_option%print_hdf5_aveg_energy_flowrate
+  output_option2%print_explicit_flowrate = &
+    output_option%print_explicit_flowrate
   output_option2%print_tecplot = output_option%print_tecplot
   output_option2%tecplot_format = output_option%tecplot_format
   output_option2%print_tecplot_vel_cent = output_option%print_tecplot_vel_cent
@@ -294,17 +314,24 @@ function OutputOptionDuplicate(output_option)
   output_option2%plot_number = output_option%plot_number
   output_option2%screen_imod = output_option%screen_imod
   output_option2%output_file_imod = output_option%output_file_imod
-  output_option2%periodic_snap_output_ts_imod = output_option%periodic_snap_output_ts_imod
-  output_option2%periodic_obs_output_ts_imod = output_option%periodic_obs_output_ts_imod
-  output_option2%periodic_msbl_output_ts_imod = output_option%periodic_msbl_output_ts_imod
-  output_option2%periodic_snap_output_time_incr = output_option%periodic_snap_output_time_incr
-  output_option2%periodic_obs_output_time_incr = output_option%periodic_obs_output_time_incr
-  output_option2%periodic_msbl_output_time_incr = output_option%periodic_msbl_output_time_incr
+  output_option2%periodic_snap_output_ts_imod = &
+    output_option%periodic_snap_output_ts_imod
+  output_option2%periodic_obs_output_ts_imod = &
+    output_option%periodic_obs_output_ts_imod
+  output_option2%periodic_msbl_output_ts_imod = &
+    output_option%periodic_msbl_output_ts_imod
+  output_option2%periodic_snap_output_time_incr = &
+    output_option%periodic_snap_output_time_incr
+  output_option2%periodic_obs_output_time_incr = &
+    output_option%periodic_obs_output_time_incr
+  output_option2%periodic_msbl_output_time_incr = &
+    output_option%periodic_msbl_output_time_incr
   output_option2%plot_name = output_option%plot_name
   output_option2%aveg_var_time = output_option%aveg_var_time
   output_option2%aveg_var_dtime = output_option%aveg_var_dtime
   output_option2%xmf_vert_len = output_option%xmf_vert_len
-  output_option2%filter_non_state_variables = output_option%filter_non_state_variables
+  output_option2%filter_non_state_variables = &
+    output_option%filter_non_state_variables
 
   nullify(output_option2%output_variable_list)
   nullify(output_option2%output_snap_variable_list)
@@ -382,15 +409,7 @@ function OutputVariableCreate1()
   type(output_variable_type), pointer :: output_variable
   
   allocate(output_variable)
-  output_variable%name = ''
-  output_variable%units = ''
-  output_variable%plot_only = PETSC_FALSE
-  output_variable%iformat = 0
-  output_variable%icategory = OUTPUT_GENERIC
-  output_variable%ivar = 0
-  output_variable%isubvar = 0
-  output_variable%isubsubvar = 0
-  nullify(output_variable%next)
+  call OutputVariableInit(output_variable)
   
   OutputVariableCreate1 => output_variable
   
@@ -456,7 +475,7 @@ function OutputVariableCreate3(output_variable)
   
   type(output_variable_type), pointer :: new_output_variable
   
-  allocate(new_output_variable)
+  new_output_variable => OutputVariableCreate()
   new_output_variable%name = output_variable%name
   new_output_variable%units = output_variable%units
   new_output_variable%plot_only = output_variable%plot_only
@@ -470,6 +489,31 @@ function OutputVariableCreate3(output_variable)
   OutputVariableCreate3 => new_output_variable
   
 end function OutputVariableCreate3
+
+! ************************************************************************** !
+
+subroutine OutputVariableInit(output_variable)
+  ! 
+  ! initializes output variable object
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/02/17
+  ! 
+  implicit none
+  
+  type(output_variable_type) :: output_variable
+  
+  output_variable%name = ''
+  output_variable%units = ''
+  output_variable%plot_only = PETSC_FALSE
+  output_variable%iformat = 0
+  output_variable%icategory = OUTPUT_GENERIC
+  output_variable%ivar = 0
+  output_variable%isubvar = 0
+  output_variable%isubsubvar = 0
+  nullify(output_variable%next)
+  
+end subroutine OutputVariableInit
 
 ! ************************************************************************** !
 
@@ -491,6 +535,8 @@ function OutputVariableListCreate()
   nullify(output_variable_list%first)
   nullify(output_variable_list%last)
   output_variable_list%nvars = 0
+  output_variable_list%flow_vars = PETSC_TRUE
+  output_variable_list%energy_vars = PETSC_TRUE
   
   OutputVariableListCreate => output_variable_list
   
@@ -808,6 +854,12 @@ function OutputVariableToCategoryString(icategory)
       string = 'VOLUME_FRACTION'
     case(OUTPUT_DISCRETE)
       string = 'DISCRETE'
+    case(OUTPUT_DISPLACEMENT)
+      string = 'DISPLACEMENT'
+    case(OUTPUT_STRESS)
+      string = 'STRESS'
+    case(OUTPUT_STRAIN)
+      string = 'STRAIN'
     case default
       string = 'GENERIC'
   end select
@@ -866,20 +918,28 @@ subroutine OpenAndWriteInputRecord(option)
   type(option_type), pointer :: option
 
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: filename
+  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=8) :: date_word
+  character(len=10) :: time_word
+  character(len=5) :: zone_word
   PetscInt :: id
 
   id = option%fid_inputrecord
-  filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-             '-input-record.tec'
+  ! the input record file has a .rec extension:
+  filename = trim(option%global_prefix) // trim(option%group_prefix) // '.rec'
   open(unit=id,file=filename,action="write",status="replace")
-  call fdate(word)
+!geh: this call does not work with IBM
+!  call fdate(word)
+  call date_and_time(date_word,time_word,zone_word)
   if (OptionPrintToFile(option)) then
     write(id,'(a)') '---------------------------------------------------------&
                     &-----------------------'
     write(id,'(a)') '---------------------------------------------------------&
                     &-----------------------'
-    write(id,'(a)') ' PFLOTRAN INPUT RECORD    ' // trim(word)
+    write(id,'(a)') ' PFLOTRAN INPUT RECORD    ' // date_word(5:6) // '/' //  &
+                    date_word(7:8) // '/' // date_word(1:4) // ' ' //         &
+                    time_word(1:2) // ':' // time_word(3:4) // ' (' //        &
+                    zone_word(1:3) // ':' // zone_word(4:5) // ' UTC)'
     write(id,'(a)') '---------------------------------------------------------&
                     &-----------------------'
     write(id,'(a)') '---------------------------------------------------------&

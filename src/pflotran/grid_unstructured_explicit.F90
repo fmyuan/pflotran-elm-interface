@@ -1,5 +1,7 @@
 module Grid_Unstructured_Explicit_module
   
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Geometry_module
   use Grid_Unstructured_Aux_module
   
@@ -8,12 +10,7 @@ module Grid_Unstructured_Explicit_module
   implicit none
 
   private 
-  
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
+
 #if defined(SCORPIO)
   include "scorpiof.h"
 #endif
@@ -63,7 +60,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   PetscErrorCode :: ierr
   PetscReal, allocatable :: temp_real_array(:,:)
   PetscInt, allocatable :: temp_int_array(:,:)
-  PetscInt :: ivertex, num_vertices 
+  PetscInt :: ivertex, num_vertices, num_grid_vertices 
 
   explicit_grid => unstructured_grid%explicit_grid 
 ! Format of explicit unstructured grid file
@@ -353,7 +350,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
     call InputErrorMsg(input,option,'number of elements',card)
         explicit_grid%num_elems = num_elems
     unstructured_grid%max_nvert_per_cell = 8 ! Initial guess
-    allocate(explicit_grid%cell_connectivity(0:unstructured_grid% &
+    allocate(explicit_grid%cell_vertices(0:unstructured_grid% &
                                   max_nvert_per_cell,num_elems)) 
     do iconn = 1, num_elems
       call InputReadPflotranString(input,option)
@@ -375,9 +372,9 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
         case('TRI')
           num_vertices = 3
       end select
-      explicit_grid%cell_connectivity(0,iconn) = num_vertices
+      explicit_grid%cell_vertices(0,iconn) = num_vertices
       do ivertex = 1, num_vertices
-        call InputReadInt(input,option,explicit_grid%cell_connectivity(ivertex,iconn))
+        call InputReadInt(input,option,explicit_grid%cell_vertices(ivertex,iconn))
         call InputErrorMsg(input,option,'vertex id',hint)
       enddo
     enddo
@@ -391,13 +388,25 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
         '" in explicit grid file.'
       call printErrMsgByRank(option)
     endif
-    allocate(explicit_grid%vertex_coordinates(explicit_grid%num_cells_global))
-    do icell = 1, explicit_grid%num_cells_global
+
+    !at this point, as we read the grid, the output_mesh_type is not known yet 
+    call InputReadInt(input,option,num_grid_vertices)
+
+    if (InputError(input)) then
+      input%ierr = 0
+      !if num_grid_vertices not entered assumes vertex_centered based - default
+      explicit_grid%num_vertices = explicit_grid%num_cells_global
+    else   
+      explicit_grid%num_vertices = num_grid_vertices
+    end if
+
+    allocate(explicit_grid%vertex_coordinates(explicit_grid%num_vertices))
+    do icell = 1, explicit_grid%num_vertices
       explicit_grid%vertex_coordinates(icell)%x = 0.d0
       explicit_grid%vertex_coordinates(icell)%y = 0.d0
       explicit_grid%vertex_coordinates(icell)%z = 0.d0
     enddo
-    do icell = 1, explicit_grid%num_cells_global
+    do icell = 1, explicit_grid%num_vertices
       call InputReadPflotranString(input,option)
       call InputReadStringErrorMsg(input,option,card)  
       call InputReadDouble(input,option, &
@@ -428,22 +437,13 @@ subroutine UGridExplicitDecompose(ugrid,option)
   ! Author: Glenn Hammond
   ! Date: 05/17/12
   ! 
-
+#include "petsc/finclude/petscdm.h"
+  use petscdm
   use Option_module
   use Utility_module, only: reallocateIntArray, SearchOrderedArray
   
   implicit none
 
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscdm.h" 
-#include "petsc/finclude/petscdm.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petscviewer.h"
-  
   type(grid_unstructured_type) :: ugrid
   type(option_type) :: option
 

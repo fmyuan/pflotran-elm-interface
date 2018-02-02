@@ -1,21 +1,11 @@
 module Checkpoint_module
-
+#include "petsc/finclude/petscdm.h"
+  use petscdm
   use PFLOTRAN_Constants_module
 
   implicit none
   
   private
-
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscdm.h"
-#include "petsc/finclude/petscdm.h90"
-#include "petsc/finclude/petscdef.h"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscviewer.h"
 
   type :: checkpoint_header_type
     PetscInt :: version
@@ -40,9 +30,10 @@ module Checkpoint_module
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
+#include "petsc/finclude/petscsys.h"
+      use petscsys
       import :: checkpoint_header_type
       implicit none
-#include "petsc/finclude/petscbag.h"
       PetscBag :: bag
       type(checkpoint_header_type), pointer :: header
       PetscErrorCode :: ierr
@@ -172,12 +163,11 @@ subroutine CheckpointOpenFileForWriteBinary(viewer,append_name,option)
   ! Date: 07/26/13
   ! 
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscbag.h"
 
   PetscViewer :: viewer
   character(len=MAXSTRINGLENGTH) :: append_name
@@ -230,12 +220,11 @@ subroutine CheckPointWriteCompatibilityBinary(viewer,option)
   ! Author: Glenn Hammond
   ! Date: 003/26/15
   ! 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscbag.h"
 
   PetscViewer :: viewer
   type(option_type) :: option
@@ -286,12 +275,11 @@ subroutine CheckPointReadCompatibilityBinary(viewer,option)
   ! Author: Glenn Hammond
   ! Date: 003/26/15
   ! 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscbag.h"
 
   PetscViewer :: viewer
   type(option_type) :: option
@@ -351,21 +339,19 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module
   use Discretization_module
   use Grid_module
+  use Global_module
   use Material_module
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
-                               PERMEABILITY_Z
+                               PERMEABILITY_Z, STATE
   
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   PetscViewer :: viewer
   class(realization_subsurface_type) :: realization
@@ -382,7 +368,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   discretization => realization%discretization
   grid => realization%patch%grid
   
-  global_vec = 0
+  global_vec = PETSC_NULL_VEC
   
   if (option%nflowdof > 0) then
     call DiscretizationCreateVector(realization%discretization,ONEDOF, &
@@ -397,11 +383,17 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
       case(MPH_MODE,TH_MODE,RICHARDS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,G_MODE,TOIL_IMS_MODE)
+           FLASH2_MODE,TOIL_IMS_MODE)
         call DiscretizationLocalToGlobal(realization%discretization, &
                                          field%iphas_loc,global_vec,ONEDOF)
         call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
-       case default
+      case(G_MODE,TOWG_MODE)
+        call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
+                                   STATE,ZERO_INTEGER)
+        call DiscretizationLocalToGlobal(discretization,field%work_loc, &
+                                         global_vec,ONEDOF)
+        call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
+      case default
     end select 
 
     ! Porosity and permeability.
@@ -430,7 +422,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   
   endif
   
-  if (global_vec /= 0) then
+  if (global_vec /= PETSC_NULL_VEC) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif  
   
@@ -445,7 +437,9 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+      
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -457,10 +451,6 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
                                PERMEABILITY_Z, STATE
   
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   PetscViewer :: viewer
   class(realization_subsurface_type) :: realization
@@ -477,7 +467,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   discretization => realization%discretization
   grid => realization%patch%grid
   
-  global_vec = 0
+  global_vec = PETSC_NULL_VEC
   
   if (option%nflowdof > 0) then
     call DiscretizationCreateVector(realization%discretization,ONEDOF, &
@@ -490,18 +480,13 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
 
     select case(option%iflowmode)
       case(MPH_MODE,TH_MODE,RICHARDS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,G_MODE,TOIL_IMS_MODE)
+           FLASH2_MODE,TOIL_IMS_MODE)
         call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
         call DiscretizationGlobalToLocal(discretization,global_vec, &
                                          field%iphas_loc,ONEDOF)
         call VecCopy(field%iphas_loc,field%iphas_old_loc,ierr);CHKERRQ(ierr)
         call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
                                         field%iphas_old_loc,ONEDOF)
-        if (option%iflowmode == G_MODE) then
-          ! need to copy iphase into global_auxvar%istate
-          call GlobalSetAuxVarVecLoc(realization,field%iphas_loc,STATE, &
-                                     ZERO_INTEGER)
-        endif
         if (option%iflowmode == TOIL_IMS_MODE) then
           !iphase value not needed - leave it as initialised
           ! consider to remove iphase for all ims modes
@@ -515,7 +500,12 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
         if (option%iflowmode == FLASH2_MODE) then
         ! set vardof vec in mphase
         endif
- 
+      case(G_MODE,TOWG_MODE) 
+        call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
+        call DiscretizationGlobalToLocal(discretization,global_vec, &
+                                         field%work_loc,ONEDOF)
+        call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE, &
+                                   ZERO_INTEGER)
       case default
     end select
     
@@ -541,7 +531,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
                                   field%work_loc,PERMEABILITY_Z,ZERO_INTEGER)
   endif
   
-  if (global_vec /= 0) then
+  if (global_vec /= PETSC_NULL_VEC) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif  
   
@@ -708,7 +698,9 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   PetscErrorCode :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 
-  PetscInt, pointer :: data_int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: data_int_array(:)
 
   call h5screate_simple_f(dataset_rank, dims, memory_space_id, hdf5_err, dims)
 
@@ -765,14 +757,13 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   ! Author: Gautam Bisht
   ! Date: 07/30/15
   ! 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
   
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscbag.h"
 
 #if defined(SCORPIO_WRITE)
   integer :: chk_grp_id
@@ -889,7 +880,9 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   PetscErrorCode :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 
-  PetscInt, pointer :: data_int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: data_int_array(:)
 
   call h5screate_simple_f(dataset_rank, dims, memory_space_id, hdf5_err, dims)
 
@@ -1041,7 +1034,9 @@ subroutine CheckPointWriteCompatibilityHDF5(chk_grp_id, option)
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  PetscInt, pointer :: int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_array(:)
 
   dataset_name = "Revision Number" // CHAR(0)
 
@@ -1103,7 +1098,9 @@ subroutine CheckPointReadCompatibilityHDF5(chk_grp_id, option)
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  PetscInt, pointer :: int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_array(:)
   character(len=MAXWORDLENGTH) :: word, word2
 
   dataset_name = "Revision Number" // CHAR(0)
@@ -1149,20 +1146,20 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   !
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module
   use Discretization_module
   use Grid_module
+  use Global_module
   use Material_module
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
-                               PERMEABILITY_Z
+                               PERMEABILITY_Z, STATE
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
 #if defined(SCORPIO_WRITE)
   integer :: pm_grp_id
@@ -1185,7 +1182,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   discretization => realization%discretization
   grid => realization%patch%grid
 
-  global_vec = 0
+  global_vec = PETSC_NULL_VEC
 
   if (option%nflowdof > 0) then
      call DiscretizationCreateVector(realization%discretization, NFLOWDOF, &
@@ -1194,7 +1191,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     call DiscretizationGlobalToNatural(discretization, field%flow_xx, &
                                        natural_vec, NFLOWDOF)
 
-    dataset_name = "Primary_Variable" // CHAR(0)
+    dataset_name = "Primary_Variables" // CHAR(0)
     call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
          pm_grp_id, H5T_NATIVE_DOUBLE)
     call VecDestroy(natural_vec, ierr);CHKERRQ(ierr)
@@ -1209,15 +1206,23 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
       case(MPH_MODE,TH_MODE,RICHARDS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,G_MODE)
-
+           FLASH2_MODE,TOIL_IMS_MODE)
         call DiscretizationLocalToGlobal(realization%discretization, &
                                          field%iphas_loc,global_vec,ONEDOF)
 
         call DiscretizationGlobalToNatural(discretization, global_vec, &
                                            natural_vec, ONEDOF)
-
-        dataset_name = "Secondary_Variable" // CHAR(0)
+        dataset_name = "State" // CHAR(0)
+        call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
+            pm_grp_id, H5T_NATIVE_DOUBLE)
+      case(G_MODE,TOWG_MODE)
+        call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
+                                   STATE,ZERO_INTEGER)
+        call DiscretizationLocalToGlobal(discretization,field%work_loc, &
+                                         global_vec,ONEDOF)
+        call DiscretizationGlobalToNatural(discretization, global_vec, &
+                                           natural_vec, ONEDOF)
+        dataset_name = "State" // CHAR(0)
         call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
             pm_grp_id, H5T_NATIVE_DOUBLE)
        case default
@@ -1281,6 +1286,8 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   ! Author: Gautam Bisht, LBNL
   ! Date: 08/16/2015
   !
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -1293,9 +1300,6 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   use hdf5
   use HDF5_module, only : HDF5ReadDataSetInVec
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
 #if defined(SCORPIO_WRITE)
   integer :: pm_grp_id
@@ -1318,13 +1322,13 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   discretization => realization%discretization
   grid => realization%patch%grid
 
-  global_vec = 0
+  global_vec = PETSC_NULL_VEC
 
   if (option%nflowdof > 0) then
     call DiscretizationCreateVector(realization%discretization, NFLOWDOF, &
                                     natural_vec, NATURAL, option)
 
-    dataset_name = "Primary_Variable" // CHAR(0)
+    dataset_name = "Primary_Variables" // CHAR(0)
     call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
          pm_grp_id, H5T_NATIVE_DOUBLE)
 
@@ -1344,29 +1348,19 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
     ! If we are running with multiple phases, we need to dump the vector
     ! that indicates what phases are present, as well as the 'var' vector
     ! that holds variables derived from the primary ones via the translator.
+    dataset_name = "State" // CHAR(0)
     select case(option%iflowmode)
       case(MPH_MODE,TH_MODE,RICHARDS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,G_MODE)
-
-        dataset_name = "Secondary_Variable" // CHAR(0)
+           FLASH2_MODE,TOIL_IMS_MODE)
         call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
              pm_grp_id, H5T_NATIVE_DOUBLE)
-
-        call DiscretizationNaturalToGlobal(discretization, natural_vec, global_vec, &
-                                           ONEDOF)
-
+        call DiscretizationNaturalToGlobal(discretization, natural_vec, &
+                                           global_vec, ONEDOF)
         call DiscretizationGlobalToLocal(realization%discretization, &
                                          global_vec, field%iphas_loc, ONEDOF)
-
         call VecCopy(field%iphas_loc,field%iphas_old_loc,ierr);CHKERRQ(ierr)
         call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
                                         field%iphas_old_loc,ONEDOF)
-
-        if (option%iflowmode == G_MODE) then
-          ! need to copy iphase into global_auxvar%istate
-          call GlobalSetAuxVarVecLoc(realization,field%iphas_loc,STATE, &
-                                     ZERO_INTEGER)
-        endif
         if (option%iflowmode == MPH_MODE) then
         ! set vardof vec in mphase
         endif
@@ -1376,7 +1370,15 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
         if (option%iflowmode == FLASH2_MODE) then
         ! set vardof vec in mphase
         endif
-
+      case(G_MODE,TOWG_MODE)
+        call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
+             pm_grp_id, H5T_NATIVE_DOUBLE)
+        call DiscretizationNaturalToGlobal(discretization, natural_vec, &
+                                           global_vec, ONEDOF)
+        call DiscretizationGlobalToLocal(realization%discretization, &
+                                         global_vec, field%work_loc, ONEDOF)
+        call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE, &
+                                   ZERO_INTEGER)
      case default
     end select
 
@@ -1643,7 +1645,7 @@ subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list)
         call WaypointInsertInList(waypoint,waypoint_list)
         if ((num_waypoints > warning_num_waypoints) .and. &
             OptionPrintToScreen(option)) then
-          call PrintProgressBarInt(floor(num_waypoints),10,k)
+          call PrintProgressBarInt(num_waypoints,TEN_INTEGER,k)
         endif
       enddo
     endif

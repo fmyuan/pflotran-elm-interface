@@ -1,0 +1,31 @@
+#!/bin/bash
+
+while [[ $# -gt 0 ]]
+do
+  key=`echo "$1"| cut -d "=" -f 1 `
+  value=`echo "$1"| cut -d "=" -f 2 `
+  case "${key}" in
+    --prefix)
+      PREFIX="${value}"
+    ;;
+    --with-petsc-dir)
+      PETSC_DIR="${value}"
+    ;;
+    --with-petsc-arch)
+      PETSC_ARCH="${value}"
+    ;;
+  esac
+shift
+done
+
+# check to ensure that PETSC_DIR and PETSC_ARCH are set
+if [ -z "$PETSC_DIR" ]; then
+  echo "Need to set PETSC_DIR"
+  exit 1
+fi
+
+echo PETSC_DIR_LOC=${PETSC_DIR}  > makefile.inc
+echo PETSC_ARCH_LOC=${PETSC_ARCH}  >> makefile.inc
+echo PFLOTRAN_DIR_LOC=${PWD} >> makefile.inc
+echo PREFIX_LOC=${PREFIX} >> makefile.inc
+

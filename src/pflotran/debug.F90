@@ -1,12 +1,13 @@
 module Debug_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
 
   implicit none
   
   private
   
-#include "petsc/finclude/petscsys.h"
 
   type, public :: debug_type
     PetscBool :: vecview_residual
@@ -20,6 +21,7 @@ module Debug_module
     PetscBool :: print_numerical_derivatives
 
     PetscBool :: print_couplers
+    PetscBool :: print_regions
     character(len=MAXSTRINGLENGTH) :: coupler_string
     PetscBool :: print_waypoints
   end type debug_type
@@ -57,6 +59,7 @@ function DebugCreate()
   debug%print_numerical_derivatives = PETSC_FALSE
   
   debug%print_couplers = PETSC_FALSE
+  debug%print_regions = PETSC_FALSE
   debug%coupler_string = ''
   debug%print_waypoints = PETSC_FALSE
 
@@ -105,10 +108,13 @@ subroutine DebugRead(debug,input,option)
         debug%matview_Jacobian = PETSC_TRUE
       case('PRINT_JACOBIAN_NORM','NORM_JACOBIAN')
         debug%norm_Jacobian = PETSC_TRUE
+      case('PRINT_REGIONS')
+        debug%print_regions = PETSC_TRUE
       case('PRINT_COUPLERS','PRINT_COUPLER')
         debug%print_couplers = PETSC_TRUE
         debug%coupler_string = trim(adjustl(input%buf))
-      case('PRINT_JACOBIAN_DETAILED','MATVIEW_JACOBIAN_DETAILED','VIEW_JACOBIAN_DETAILED')
+      case('PRINT_JACOBIAN_DETAILED','MATVIEW_JACOBIAN_DETAILED', &
+           'VIEW_JACOBIAN_DETAILED')
         debug%matview_Jacobian_detailed = PETSC_TRUE
       case('PRINT_NUMERICAL_DERIVATIVES','VIEW_NUMERICAL_DERIVATIVES')
         debug%print_numerical_derivatives = PETSC_TRUE
@@ -136,10 +142,9 @@ subroutine DebugCreateViewer(debug,viewer_name_prefix,option,viewer)
   !
 
   use Option_module
-  implicit none
-
 #include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscviewer.h"
+  use petscsys
+  implicit none
 
   type(debug_type), pointer :: debug
   character(len=MAXSTRINGLENGTH), intent(in) :: viewer_name_prefix

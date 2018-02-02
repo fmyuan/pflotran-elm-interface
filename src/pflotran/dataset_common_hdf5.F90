@@ -1,5 +1,8 @@
 module Dataset_Common_HDF5_class
  
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Dataset_Base_class
   
   use PFLOTRAN_Constants_module
@@ -7,8 +10,6 @@ module Dataset_Common_HDF5_class
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public, extends(dataset_base_type) :: dataset_common_hdf5_type
     character(len=MAXWORDLENGTH) :: hdf5_dataset_name
@@ -150,6 +151,12 @@ subroutine DatasetCommonHDF5Read(this,input,option)
   
   character(len=MAXWORDLENGTH) :: keyword
   PetscBool :: found
+
+#if !defined(PETSC_HAVE_HDF5)
+  option%io_buffer = 'HDF5 formatted datasets not supported &
+    &unless PFLOTRAN is compiled with HDF5 libraries enabled.'
+  call printErrMsg(option)
+#endif
 
   input%ierr = 0
   do
@@ -329,7 +336,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
         call h5dopen_f(grp_id,string,dataset_id,hdf5_err)
         call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
         call h5sget_simple_extent_npoints_f(file_space_id,num_times,hdf5_err)
-        num_times_read_by_iorank = num_times
+        num_times_read_by_iorank = int(num_times)
       else
         num_times_read_by_iorank = -1
       endif
@@ -358,7 +365,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   endif
   
   time_storage => TimeStorageCreate()
-  time_storage%max_time_index = num_times
+  time_storage%max_time_index = int(num_times)
   allocate(time_storage%times(num_times))
   time_storage%times = 0.d0
   
@@ -390,7 +397,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
       UnitsConvertToInternal(time_units,internal_units,option)
   endif
 
-  int_mpi = num_times
+  int_mpi = int(num_times)
   call MPI_Bcast(time_storage%times,int_mpi,MPI_DOUBLE_PRECISION, &
                  option%io_rank,option%mycomm,ierr)
 

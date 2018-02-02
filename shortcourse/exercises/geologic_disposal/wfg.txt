@@ -1,0 +1,71 @@
+# This file is part of the following SAND report described in gdsa.in:
+# SAND2017-9343 O
+#
+# Title: Geologic Disposal Safety Assessment PFLOTRAN Short Course Example
+# Author: Emily Stein (Sandia National Laboratories) ergiamb@sandia.gov
+#
+# Sandia National Laboratories is a multi-mission laboratory managed and
+# operated by National Technology and Engineering Solutions of Sandia, LLC,
+# a wholly owned subsidiary of Honeywell International Inc. for the U.S.
+# Department of Energy's National Nuclear Security Administration under
+# contract DE-NA0003525.
+
+  WASTE_FORM
+     REGION hlw0
+     EXPOSURE_FACTOR 5.416057
+     VOLUME 9.500000
+     MECHANISM_NAME hlw
+  /
+  
+  WASTE_FORM
+     REGION hlw1
+     EXPOSURE_FACTOR 12.555098
+     VOLUME 9.500000
+     MECHANISM_NAME hlw
+  /
+  
+  WASTE_FORM
+     REGION hlw2
+     EXPOSURE_FACTOR 6.188057
+     VOLUME 9.500000
+     MECHANISM_NAME hlw
+  /
+
+  WASTE_FORM
+    REGION oxide0
+    EXPOSURE_FACTOR 1.d0
+    VOLUME 1.68d-3 m^3
+    MECHANISM_NAME oxide
+  /
+
+  WASTE_FORM
+    REGION oxide1
+    EXPOSURE_FACTOR 1.d0
+    VOLUME 1.68d-3 m^3
+    MECHANISM_NAME oxide
+  /
+
+  WASTE_FORM
+    REGION oxide2
+    EXPOSURE_FACTOR 1.d0
+    VOLUME 1.68d-3 m^3
+    MECHANISM_NAME oxide
+  /
+
+  WASTE_FORM
+    REGION metallic0
+    VOLUME 1 cm^3 #not a real number
+    MECHANISM_NAME metallic
+  /
+
+  WASTE_FORM
+    REGION metallic1
+    VOLUME 1 cm^3 #not a real number
+    MECHANISM_NAME metallic
+  /
+
+  WASTE_FORM
+    REGION metallic2
+    VOLUME 1 cm^3 #not a real number
+    MECHANISM_NAME metallic
+  /

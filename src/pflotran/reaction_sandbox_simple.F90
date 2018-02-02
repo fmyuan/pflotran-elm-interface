@@ -139,11 +139,11 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   
   PetscReal :: Aaq, Baq, Caq, Daq, Eaq, Faq  ! mol/L
   PetscReal :: Xim, Yim  ! mol/m^3
-  PetscReal :: Rate
+  PetscReal :: Rate,Rate1,Rate2
   PetscReal :: RateA, RateB, RateC, RateD, RateE, RateF, RateX, RateY  ! mol/sec
   PetscReal :: stoichA, stoichB, stoichC, stoichD, stoichE, stoichF
   PetscReal :: stoichX, stoichY
-  PetscReal :: k, kr  ! units are problem specific
+  PetscReal :: k, kr, k1, k2  ! units are problem specific
   PetscReal :: K_Aaq, K_Baq ! [mol/L]
   
   porosity = material_auxvar%porosity
@@ -192,6 +192,25 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   ! Monod half-saturation constants
   K_Aaq = 0.d0
   K_Baq = 0.d0
+
+! PCL: A -> B -> C
+! kinetic rate constants
+! non-stationary state
+! k1 = 1.d-1
+! k2 = 5.d-2
+
+! stationary state
+! k1 = 1.d-1
+! k2 = 1.d-0
+
+! Rate1 = k1 * Aaq * L_water
+! Rate2 = k2 * Baq * L_water
+
+! RateA = -Rate1
+! RateB =  Rate1 - Rate2
+! RateC =  Rate2
+
+! END PCL
 
   ! zero-order (A -> C)
   !k = 0.d0 ! WARNING: Too high a rate can result in negative concentrations
@@ -250,6 +269,23 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   !Rate = (k * Aaq - kr * Caq) * L_water
   !RateA = stoichA * Rate
   !RateC = stoichC * Rate
+
+  ! mass transfer between aqueous and immobile phases
+  ! k [1/sec]
+  ! kr [1/sec]
+  ! Baq [mol/L]
+  ! Yim [mol/m^3 bulk]
+  ! volume [m^3]
+  ! L_water [L]
+  ! Rate [mole/sec]
+  ! uncomment from here down
+  !k = 1.d-8
+  !kr = 1.d-10
+  !stoichB = -1.d0
+  !stoichY = 1.d0
+  !Rate = k * Baq * L_water - kr * Yim * volume
+  !RateB = stoichB * Rate
+  !RateY = stoichY * Rate
   
   ! NOTES
   ! 1. Always subtract contribution from residual
@@ -260,8 +296,10 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   Residual(this%species_Daq_id) = Residual(this%species_Daq_id) - RateD
   Residual(this%species_Eaq_id) = Residual(this%species_Eaq_id) - RateE
   Residual(this%species_Faq_id) = Residual(this%species_Faq_id) - RateF
-  Residual(this%species_Xim_id) = Residual(this%species_Xim_id) - RateX
-  Residual(this%species_Yim_id) = Residual(this%species_Yim_id) - RateY
+  Residual(this%species_Xim_id + reaction%offset_immobile) = &
+    Residual(this%species_Xim_id + reaction%offset_immobile) - RateX
+  Residual(this%species_Yim_id + reaction%offset_immobile) = &
+    Residual(this%species_Yim_id + reaction%offset_immobile) - RateY
   
 end subroutine SimpleReact
 

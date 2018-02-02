@@ -7,7 +7,6 @@ module PFLOTRAN_Constants_module
   private
 
 #include "petsc/finclude/petscsys.h"
-
   ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS MODIFIED TO PREVENT
   ! COMPATIBILITY ISSUES - geh.
   PetscInt, parameter, public :: CHECKPOINT_REVISION_NUMBER = 1
@@ -37,6 +36,9 @@ module PFLOTRAN_Constants_module
   PetscReal, parameter, public :: FMWOIL = 142.D0 ! used as deafault value
 
   ! constants
+  PetscReal, parameter, public :: DAYS_PER_YEAR = 365.d0
+!geh: for bragflo year
+!  PetscReal, parameter, public :: DAYS_PER_YEAR = 365.24224537d0
   PetscReal, parameter, public :: H2O_CRITICAL_TEMPERATURE = 647.3d0  ! K
 #if defined(MATCH_TOUGH2)
   PetscReal, parameter, public :: H2O_CRITICAL_PRESSURE = 22.12d6 ! Pa
@@ -51,9 +53,11 @@ module PFLOTRAN_Constants_module
   ! constants
                              ! from http://physics.nist.gov/cgi-bin/cuu/Value?r
   PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31446d0 ! J/mol-K
+!to match BRAGFLO  PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31451 ! J/mol-K
   PetscReal, parameter, public :: HEAT_OF_FUSION = 3.34d5  ! J/kg
   PetscReal, parameter, public :: PI = 3.14159265359d0
-  PetscReal, parameter, public :: Faraday = 96485.3365d0 ! C/mol
+  PetscReal, parameter, public :: FARADAY = 96485.3365d0 ! C/mol
+  PetscReal, parameter, public :: EARTH_GRAVITY = 9.8068d0 ! m/s^2
   
   PetscInt, parameter, public :: ZERO_INTEGER = 0
   PetscInt, parameter, public :: ONE_INTEGER = 1
@@ -75,8 +79,11 @@ module PFLOTRAN_Constants_module
   PetscMPIInt, parameter, public :: TWO_INTEGER_MPI = TWO_INTEGER
   PetscMPIInt, parameter, public :: THREE_INTEGER_MPI = THREE_INTEGER
   PetscMPIInt, parameter, public :: FOUR_INTEGER_MPI = FOUR_INTEGER
+  PetscMPIInt, parameter, public :: FIVE_INTEGER_MPI = FIVE_INTEGER
   PetscMPIInt, parameter, public :: SIX_INTEGER_MPI = SIX_INTEGER
   PetscMPIInt, parameter, public :: SEVEN_INTEGER_MPI = SEVEN_INTEGER
+  PetscMPIInt, parameter, public :: TEN_INTEGER_MPI = TEN_INTEGER
+  PetscMPIInt, parameter, public :: ELEVEN_INTEGER_MPI = ELEVEN_INTEGER
   PetscMPIInt, parameter, public :: TWELVE_INTEGER_MPI = TWELVE_INTEGER
   PetscMPIInt, parameter, public :: MAXSTRINGLENGTH_MPI = MAXSTRINGLENGTH
   
@@ -123,6 +130,8 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: MIS_MODE = 6
   PetscInt, parameter, public :: TH_MODE = 7
   PetscInt, parameter, public :: TOIL_IMS_MODE = 8
+  PetscInt, parameter, public :: TOWG_MODE = 9
+  PetscInt, parameter, public :: WF_MODE = 10
   
   ! transport modes
   PetscInt, parameter, public :: EXPLICIT_ADVECTION = 1
@@ -146,13 +155,28 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SATURATION_BC = 15
   PetscInt, parameter, public :: HET_VOL_RATE_SS = 16
   PetscInt, parameter, public :: HET_MASS_RATE_SS = 17
-  PetscInt, parameter, public :: HET_DIRICHLET = 18
+  PetscInt, parameter, public :: HET_DIRICHLET_BC = 18
   PetscInt, parameter, public :: ENERGY_RATE_SS = 19
   PetscInt, parameter, public :: SCALED_ENERGY_RATE_SS = 20
   PetscInt, parameter, public :: HET_ENERGY_RATE_SS = 21
   PetscInt, parameter, public :: HET_SURF_SEEPAGE_BC = 22
-  PetscInt, parameter, public :: WELL_SS = 100
   PetscInt, parameter, public :: SPILLOVER_BC = 23
+  PetscInt, parameter, public :: WELL_MASS_RATE_TARGET = 24
+  PetscInt, parameter, public :: WELL_MASS_RATE_MAX = 25
+  PetscInt, parameter, public :: WELL_MASS_RATE_MIN = 26
+  PetscInt, parameter, public :: WELL_VOL_RATE_TARGET = 27
+  PetscInt, parameter, public :: WELL_VOL_RATE_MAX = 28
+  PetscInt, parameter, public :: WELL_VOL_RATE_MIN = 29
+  PetscInt, parameter, public :: WELL_BHP = 30
+  PetscInt, parameter, public :: WELL_BHP_MIN = 31
+  PetscInt, parameter, public :: WELL_BHP_MAX = 32
+  PetscInt, parameter, public :: SURFACE_DIRICHLET = 33
+  PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
+  PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
+  PetscInt, parameter, public :: HET_SEEPAGE_BC = 36
+  PetscInt, parameter, public :: HET_CONDUCTANCE_BC = 37
+  
+  PetscInt, parameter, public :: WELL_SS = 100
   
   ! source/sink scaling options
   PetscInt, parameter, public :: SCALE_BY_PERM = 1
@@ -174,6 +198,7 @@ module PFLOTRAN_Constants_module
   
   PetscInt, parameter, public :: TH_PRESSURE_DOF = 1
   PetscInt, parameter, public :: TH_TEMPERATURE_DOF = 2
+  PetscInt, parameter, public :: TH_CONDUCTANCE_DOF = 3
 
   PetscInt, parameter, public :: MPH_PRESSURE_DOF = 1
   PetscInt, parameter, public :: MPH_TEMPERATURE_DOF = 2
@@ -192,6 +217,7 @@ module PFLOTRAN_Constants_module
   ! phase ids
   PetscInt, parameter, public :: LIQUID_PHASE = 1
   PetscInt, parameter, public :: GAS_PHASE = 2
+  PetscInt, parameter, public :: OIL_PHASE = 3
   
   ! approaches to coupling reactive transport
   PetscInt, parameter, public :: GLOBAL_IMPLICIT = 0
@@ -240,6 +266,8 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: ONE_DIM_GRID = 1
   PetscInt, parameter, public :: TWO_DIM_GRID = 2
   PetscInt, parameter, public :: THREE_DIM_GRID = 3
+  PetscInt, parameter, public :: VERTEX_CENTERED_OUTPUT_MESH = 1
+  PetscInt, parameter, public :: CELL_CENTERED_OUTPUT_MESH = 2
 
   ! Geomechanics
   PetscInt, parameter, public :: GEOMECH_DISP_X_DOF = 1
@@ -270,6 +298,13 @@ module PFLOTRAN_Constants_module
   ! uninitialized values
   PetscInt, parameter, public :: UNINITIALIZED_INTEGER = -999
   PetscReal, parameter, public :: UNINITIALIZED_DOUBLE = -999.d0
+
+  ! global solver convergence criteria
+  PetscInt, parameter, public :: CONVERGENCE_OFF = -999
+  PetscInt, parameter, public :: CONVERGENCE_CUT_TIMESTEP = -1
+  PetscInt, parameter, public :: CONVERGENCE_KEEP_ITERATING = 0
+  PetscInt, parameter, public :: CONVERGENCE_FORCE_ITERATION = 1
+  PetscInt, parameter, public :: CONVERGENCE_CONVERGED = 2
   
   ! Dummy value
   PetscReal, parameter, public :: DUMMY_VALUE = UNINITIALIZED_DOUBLE

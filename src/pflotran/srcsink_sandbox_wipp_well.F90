@@ -66,7 +66,8 @@ subroutine WIPPWellRead(this,input,option)
   ! Author: Glenn Hammond
   ! Date: 04/11/14
   ! 
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -192,9 +193,9 @@ subroutine WIPPWellSrcSink(this,Residual,Jacobian,compute_derivative, &
   endif
                             
   if (compute_derivative) then
-    
-    ! jacobian something
-
+    option%io_buffer = 'WIPPWellSrcSink is not configured for &
+      &analytical derivatives.'
+    call printErrMsg(option)
   endif
   
 end subroutine WIPPWellSrcSink

@@ -125,7 +125,11 @@
 \subsection{1D Calcite Conceptual Model}
 
 \frame{\frametitle{Description of 1D Calcite Scenario}
-The ``1D Calcite Scenario'' simulates solute transport (without flow) along a horizontal, 1D domain measuring 100 meters in length with unit cross sectional area.  Assumptions with regard to transport include:
+
+\includegraphics[width=\linewidth]{./calcite_fig}
+
+The ``1D Calcite Scenario'' simulates solute transport along a horizontal, 1D domain measuring 100 meters in length with unit cross sectional area.  Assumptions with regard to transport include:
+
 \begin{itemize}
   \item Problem domain: $100 \times 1 \times 1$ m (x $\times$ y $\times$ z)
   \item Grid resolution $1 \times 1 \times 1$ m
@@ -134,6 +138,7 @@ The ``1D Calcite Scenario'' simulates solute transport (without flow) along a ho
   \item Maximum time step size: 0.25 y (CFL = 1.)
   \item Total simulation time: 25 y
 \end{itemize}
+
 }
 
 %-----------------------------------------------------------------------------
@@ -393,14 +398,14 @@ CHEMISTRY
 \begin{semiverbatim}
 
 
-  DATABASE ./hanford.dat  \bluecomment{! path to database file}
+  DATABASE ../../../hanford.dat  \bluecomment{! path to database file}
   LOG_FORMULATION         \bluecomment{! logarithmic derivatives}
-:  OPERATOR_SPLITTING     \bluecomment{! operator splitting flag}
+#  OPERATOR_SPLITTING     \bluecomment{! operator splitting flag}
   ACTIVITY_COEFFICIENTS TIMESTEP  \bluecomment{! time step lagged}
   OUTPUT                          \bluecomment{!   activity}
     PH                            \bluecomment{!   coefficients}
     TOTAL     \bluecomment{! total component concentrations}
-    all       \bluecomment{! print primary species}
+    ALL       \bluecomment{! print primary species}
   /
 END
 
@@ -422,7 +427,7 @@ END
 CONSTRAINT initial_constraint \bluecomment{! named: \greencomment{initial_constraint}}
   CONCENTRATIONS           \bluecomment{! concentration block}
     H+     1.d-8      F    \bluecomment{! \redcomment{F} = free ion}
-    HCO3-  1.d-3      G  CO2(g) \bluecomment{! \redcomment{G} = equil. w/ gas}
+    HCO3-  1.d-3      G  CO2(g) \bluecomment{! \redcomment{G} = equil. w/ gas [bar]}
     Ca++   5.d-4      M  Calcite \bluecomment{! \redcomment{M} = equil. w/ mineral}
   /  \bluecomment{    ! ^^^^^ \redcomment{5.e-4} is a guess}
   MINERALS               \bluecomment{! mineral block}
@@ -629,6 +634,23 @@ UNIFORM_VELOCITY 1.d0 0.d0 0.d0 m/yr  \bluecomment{! 1 m/yr Darcy}
 \end{frame}
 
 %-----------------------------------------------------------------------------
+\subsection{Running calcite_tran_only.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_Calcite
+> pflotran -input_prefix calcite_tran_only
+> python conc_at_25y_tran_only.py
+> python pH_tran_only.py
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \section{Description of Input Deck: Adding a Flow Solution}
 
 \subsection{Input File Modifications}
@@ -671,9 +693,9 @@ UNIFORM_VELOCITY 1.d0 0.d0 0.d0 m/yr  \bluecomment{! 1 m/yr Darcy}
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
-    SUBSURFACE_FLOW flow  \bluecomment{! flow process model}
-      MODE RICHARDS       \bluecomment{! single phase variably-}
-    /                     \bluecomment{!   saturated flow}
+    \magentacomment{SUBSURFACE_FLOW flow}  \bluecomment{! flow process model}
+      \magentacomment{MODE RICHARDS}       \bluecomment{! single phase variably-}
+    \magentacomment{/}                     \bluecomment{!   saturated flow}
     SUBSURFACE_TRANSPORT transport
       GLOBAL_IMPLICIT
     /
@@ -795,9 +817,9 @@ END
 
 \begin{semiverbatim}
 
-CHARACTERISTIC_CURVES default
+\magentacomment{CHARACTERISTIC_CURVES default
   DEFAULT
-END
+END}
 \end{semiverbatim}
 
 \end{frame}
@@ -813,19 +835,35 @@ END
 \end{itemize}
 
 \begin{semiverbatim}
-FLOW_CONDITION initial_pressure \bluecomment{! named \greencomment{initial_pressure}}
-  TYPE
-    PRESSURE DIRICHLET   \bluecomment{! type is \redcomment{dirichlet} for pressure}
-  /                      \bluecomment{!   (constant pressure [Pa])}
-  PRESSURE 201325.d0     \bluecomment{! greater than atmospheric}
-END                      \bluecomment{!   to ensure saturation}
+\magentacomment{FLOW_CONDITION initial_pressure} \bluecomment{! named \greencomment{initial_pressure}}
+  \magentacomment{TYPE
+    PRESSURE DIRICHLET}   \bluecomment{! type is \redcomment{dirichlet} for pressure}
+  \magentacomment{/}                      \bluecomment{!   (constant pressure [Pa])}
+  \magentacomment{PRESSURE 201325.d0}     \bluecomment{! greater than atmospheric}
+\magentacomment{END}                      \bluecomment{!   to ensure saturation}
 
-FLOW_CONDITION inlet_flux \bluecomment{! named \greencomment{inlet_flux}}
-  TYPE
-    FLUX NEUMANN          \bluecomment{! type is \redcomment{neumann} for a flux}
-  /
-  FLUX 1.d0 m/yr          \bluecomment{! Darcy velocity of 1 m/y}
-END
+\magentacomment{FLOW_CONDITION inlet_flux} \bluecomment{! named \greencomment{inlet_flux}}
+  \magentacomment{TYPE
+    FLUX NEUMANN}          \bluecomment{! type is \redcomment{neumann} for a flux}
+  \magentacomment{/
+  FLUX 1.d0 m/yr}          \bluecomment{! Darcy velocity of 1 m/y}
+\magentacomment{END}
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Running calcite_flow_and_tran.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_Calcite
+> pflotran -input_prefix calcite_flow_and_tran
+> python conc_at_25y_flow_and_tran.py
+> python pH_flow_and_tran.py
 \end{semiverbatim}
 
 \end{frame}
@@ -910,17 +948,17 @@ END
 \end{itemize}
 
 \begin{semiverbatim}
-CHARACTERISTIC_CURVES cc1
+CHARACTERISTIC_CURVES \magentacomment{cc1
   SATURATION_FUNCTION VAN_GENUCHTEN
-    ALPHA  1.d-4    \bluecomment{! [Pa^-1]}
-    M 0.5d0         \bluecomment{! van Genuchten m in n = 1/(1-m)}
-    LIQUID_RESIDUAL_SATURATION 0.1d0
+    ALPHA  1.d-4}    \bluecomment{! [Pa^-1]}
+    \magentacomment{M 0.5d0}         \bluecomment{! van Genuchten m in n = 1/(1-m)}
+    \magentacomment{LIQUID_RESIDUAL_SATURATION 0.1d0
     MAX_CAPILLARY_PRESSURE 1.d8
   /
   PERMEABILITY_FUNCTION MUALEM_VG_LIQ
     M 0.5d0
     LIQUID_RESIDUAL_SATURATION 0.1d0
-  /
+  /}
 END
 \end{semiverbatim}
 
@@ -941,7 +979,7 @@ END
 REGION all
   COORDINATES
     0.d0 0.d0 0.d0
-    \magentacomment{1.d0} 1.d0 \magentacomment{100.d0}
+    \magentacomment{1.d0} 1.d0 \magentacomment{10.d0}
   /
 END
 
@@ -1019,6 +1057,22 @@ BOUNDARY_CONDITION inlet
   TRANSPORT_CONDITION inlet_conc
   REGION \magentacomment{top}
 END
+\end{semiverbatim}
+
+\end{frame}
+
+
+%-----------------------------------------------------------------------------
+\subsection{Running calcite_vsat_flow_and_tran.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_Calcite
+> pflotran -input_prefix calcite_vsat_flow_and_tran
+> python pH_vsat.py
 \end{semiverbatim}
 
 \end{frame}

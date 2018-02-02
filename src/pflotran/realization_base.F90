@@ -29,7 +29,6 @@ module Realization_Base_class
     type(patch_type), pointer :: patch
 
     type(option_type), pointer :: option
-    type(input_type), pointer :: input
     type(field_type), pointer :: field
     type(debug_type), pointer :: debug
     type(output_option_type), pointer :: output_option
@@ -71,7 +70,6 @@ subroutine RealizationBaseInit(realization_base,option)
   else
     realization_base%option => OptionCreate()
   endif
-  nullify(realization_base%input)
   realization_base%discretization => DiscretizationCreate()
   nullify(realization_base%comm1)  
   realization_base%field => FieldCreate()
@@ -90,7 +88,8 @@ end subroutine RealizationBaseInit
 
 ! ************************************************************************** !
 
-subroutine RealizationGetVariable(realization_base,vec,ivar,isubvar,isubvar1)
+subroutine RealizationGetVariable(realization_base,vec,ivar,isubvar, &
+                                  isubsubvar)
   ! 
   ! Extracts variables indexed by ivar and isubvar from a
   ! realization
@@ -99,29 +98,34 @@ subroutine RealizationGetVariable(realization_base,vec,ivar,isubvar,isubvar1)
   ! Date: 09/12/08
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(realization_base_type) :: realization_base
   Vec :: vec
   PetscInt :: ivar
   PetscInt :: isubvar
-  PetscInt, optional :: isubvar1
+  PetscInt, optional :: isubsubvar
+  
+  PetscInt :: isubsubvar_temp
+  
+  isubsubvar_temp = 0
+  if (present(isubsubvar)) isubsubvar_temp = isubsubvar
   
   call PatchGetVariable(realization_base%patch,realization_base%field, &
                        realization_base%reaction,realization_base%option, &
-                       realization_base%output_option,vec,ivar,isubvar,isubvar1)
+                       realization_base%output_option,vec,ivar,isubvar, &
+                       isubsubvar_temp)
 
 end subroutine RealizationGetVariable
 
 ! ************************************************************************** !
 
-function RealizGetVariableValueAtCell(realization_base,ivar,isubvar,ghosted_id, &
-                                     isubvar1)
+function RealizGetVariableValueAtCell(realization_base,ghosted_id, &
+                                      ivar,isubvar,isubsubvar)
   ! 
   ! Extracts variables indexed by ivar and isubvar
   ! from a realization
@@ -136,18 +140,23 @@ function RealizGetVariableValueAtCell(realization_base,ivar,isubvar,ghosted_id, 
   
   PetscReal :: RealizGetVariableValueAtCell
   class(realization_base_type) :: realization_base
+  PetscInt :: ghosted_id
   PetscInt :: ivar
   PetscInt :: isubvar
-  PetscInt, optional :: isubvar1
-  PetscInt :: ghosted_id
+  PetscInt, optional :: isubsubvar
   
   PetscReal :: value
+  PetscInt :: isubsubvar_temp
   
-  value = PatchGetVariableValueAtCell(realization_base%patch,realization_base%field, &
-                                     realization_base%reaction, &
-                                     realization_base%option, &
-                                     realization_base%output_option, &
-                                     ivar,isubvar,ghosted_id,isubvar1)
+  isubsubvar_temp = 0
+  if (present(isubsubvar)) isubsubvar_temp = isubsubvar
+  
+  value = PatchGetVariableValueAtCell(realization_base%patch, &
+                                      realization_base%field, &
+                                      realization_base%reaction, &
+                                      realization_base%option, &
+                                      realization_base%output_option, &
+                                      ghosted_id,ivar,isubvar,isubsubvar_temp)
   RealizGetVariableValueAtCell = value
 
 end function RealizGetVariableValueAtCell
@@ -163,12 +172,11 @@ subroutine RealizationSetVariable(realization_base,vec,vec_format,ivar,isubvar)
   ! Date: 09/12/08
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(realization_base_type) :: realization_base
   Vec :: vec
@@ -191,14 +199,16 @@ subroutine RealizCreateFlowMassTransferVec(this)
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/20/15
-  ! 
+  !
+#include <petsc/finclude/petscvec.h>
+  use petscvec
   implicit none
   
   class(realization_base_type) :: this
   
   PetscInt :: ierr
   
-  if (this%field%flow_mass_transfer == 0) then
+  if (this%field%flow_mass_transfer == PETSC_NULL_VEC) then
     call VecDuplicate(this%field%flow_xx,this%field%flow_mass_transfer, &
                       ierr);CHKERRQ(ierr)
   endif
@@ -215,13 +225,15 @@ subroutine RealizCreateTranMassTransferVec(this)
   ! Author: Glenn Hammond
   ! Date: 03/20/15
   ! 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   implicit none
   
   class(realization_base_type) :: this
   
   PetscInt :: ierr
   
-  if (this%field%tran_mass_transfer == 0) then
+  if (this%field%tran_mass_transfer == PETSC_NULL_VEC) then
     call VecDuplicate(this%field%tran_xx,this%field%tran_mass_transfer, &
                       ierr);CHKERRQ(ierr)
   endif

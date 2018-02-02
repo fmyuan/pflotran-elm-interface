@@ -1,5 +1,6 @@
 module PM_Surface_Flow_class
-
+#include "petsc/finclude/petscts.h"
+  use petscts
   use PM_Base_class
   use PM_Surface_class
   use PFLOTRAN_Constants_module
@@ -7,15 +8,6 @@ module PM_Surface_Flow_class
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscsnes.h"
-#include "petsc/finclude/petscts.h"
 
   type, public, extends(pm_surface_type) :: pm_surface_flow_type
   contains
@@ -53,7 +45,7 @@ function PMSurfaceFlowCreate()
 
   allocate(surface_flow_pm)
   call PMSurfaceCreate(surface_flow_pm)
-  surface_flow_pm%name = 'PMSurfaceFlow'
+  surface_flow_pm%name = 'Surface Flow'
 
   PMSurfaceFlowCreate => surface_flow_pm
 
@@ -182,7 +174,8 @@ end subroutine PMSurfaceFlowRHSFunction
 ! ************************************************************************** !
 
 subroutine PMSurfaceFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                       num_newton_iterations,tfac, &
+                                       time_step_max_growth_factor)
   ! 
   ! This routine
   ! 
@@ -200,6 +193,7 @@ subroutine PMSurfaceFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
 
   PetscReal :: dt_max_glb
   PetscErrorCode :: ierr
@@ -208,7 +202,8 @@ subroutine PMSurfaceFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   call SurfaceFlowComputeMaxDt(this%surf_realization,dt_max_loc)
   call MPI_Allreduce(dt_max_loc,dt_max_glb,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
                      MPI_MIN,this%option%mycomm,ierr)
-  dt = min(0.9d0*dt_max_glb,this%surf_realization%dt_max)
+  dt = min(0.9d0*dt_max_glb,this%surf_realization%dt_max, &
+           time_step_max_growth_factor*dt)
 
 end subroutine PMSurfaceFlowUpdateTimestep
 
@@ -248,16 +243,14 @@ subroutine PMSurfaceFlowPostSolve(this)
   ! 
   ! Author: Gautam Bisht, LBNL
   ! Date: 04/11/13
-  ! 
-
+  !
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Discretization_module
   use Surface_Field_module
   use Surface_Flow_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(pm_surface_flow_type) :: this
 

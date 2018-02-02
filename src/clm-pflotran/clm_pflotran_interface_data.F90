@@ -1,10 +1,12 @@
 module clm_pflotran_interface_data
 
-  implicit none
-
 #include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
+  use petscsys
+  use petscvec
+  
+  implicit none
+
   private
 
   type, public :: clm_pflotran_idata_type
@@ -151,62 +153,62 @@ contains
     clm_pf_idata%nlpf_srf = 0
     clm_pf_idata%ngpf_srf = 0
 
-    clm_pf_idata%hksat_x_clm = 0
-    clm_pf_idata%hksat_y_clm = 0
-    clm_pf_idata%hksat_z_clm = 0
-    clm_pf_idata%sucsat_clm = 0
-    clm_pf_idata%watsat_clm = 0
-    clm_pf_idata%bsw_clm = 0
-    clm_pf_idata%hksat_x2_clm = 0
-    clm_pf_idata%hksat_y2_clm = 0
-    clm_pf_idata%hksat_z2_clm = 0
-    clm_pf_idata%sucsat2_clm = 0
-    clm_pf_idata%watsat2_clm = 0
-    clm_pf_idata%bsw2_clm = 0
-    clm_pf_idata%thetares2_clm = 0
-    clm_pf_idata%press_clm = 0
+    clm_pf_idata%hksat_x_clm = PETSC_NULL_VEC
+    clm_pf_idata%hksat_y_clm = PETSC_NULL_VEC
+    clm_pf_idata%hksat_z_clm = PETSC_NULL_VEC
+    clm_pf_idata%sucsat_clm = PETSC_NULL_VEC
+    clm_pf_idata%watsat_clm = PETSC_NULL_VEC
+    clm_pf_idata%bsw_clm = PETSC_NULL_VEC
+    clm_pf_idata%hksat_x2_clm = PETSC_NULL_VEC
+    clm_pf_idata%hksat_y2_clm = PETSC_NULL_VEC
+    clm_pf_idata%hksat_z2_clm = PETSC_NULL_VEC
+    clm_pf_idata%sucsat2_clm = PETSC_NULL_VEC
+    clm_pf_idata%watsat2_clm = PETSC_NULL_VEC
+    clm_pf_idata%bsw2_clm = PETSC_NULL_VEC
+    clm_pf_idata%thetares2_clm = PETSC_NULL_VEC
+    clm_pf_idata%press_clm = PETSC_NULL_VEC
 
-    clm_pf_idata%hksat_x_pf = 0
-    clm_pf_idata%hksat_y_pf = 0
-    clm_pf_idata%hksat_z_pf = 0
-    clm_pf_idata%sucsat_pf = 0
-    clm_pf_idata%watsat_pf = 0
-    clm_pf_idata%bsw_pf = 0
-    clm_pf_idata%hksat_x2_pf = 0
-    clm_pf_idata%hksat_y2_pf = 0
-    clm_pf_idata%hksat_z2_pf = 0
-    clm_pf_idata%sucsat2_pf = 0
-    clm_pf_idata%watsat2_pf = 0
-    clm_pf_idata%bsw2_pf = 0
-    clm_pf_idata%thetares2_pf = 0
-    clm_pf_idata%press_pf = 0
+    clm_pf_idata%hksat_x_pf = PETSC_NULL_VEC
+    clm_pf_idata%hksat_y_pf = PETSC_NULL_VEC
+    clm_pf_idata%hksat_z_pf = PETSC_NULL_VEC
+    clm_pf_idata%sucsat_pf = PETSC_NULL_VEC
+    clm_pf_idata%watsat_pf = PETSC_NULL_VEC
+    clm_pf_idata%bsw_pf = PETSC_NULL_VEC
+    clm_pf_idata%hksat_x2_pf = PETSC_NULL_VEC
+    clm_pf_idata%hksat_y2_pf = PETSC_NULL_VEC
+    clm_pf_idata%hksat_z2_pf = PETSC_NULL_VEC
+    clm_pf_idata%sucsat2_pf = PETSC_NULL_VEC
+    clm_pf_idata%watsat2_pf = PETSC_NULL_VEC
+    clm_pf_idata%bsw2_pf = PETSC_NULL_VEC
+    clm_pf_idata%thetares2_pf = PETSC_NULL_VEC
+    clm_pf_idata%press_pf = PETSC_NULL_VEC
 
-    clm_pf_idata%qflx_clm = 0
-    clm_pf_idata%qflx_pf = 0
+    clm_pf_idata%qflx_clm = PETSC_NULL_VEC
+    clm_pf_idata%qflx_pf = PETSC_NULL_VEC
     
-    clm_pf_idata%rain_clm = 0
-    clm_pf_idata%rain_pf = 0
-    clm_pf_idata%rain_temp_clm = 0
-    clm_pf_idata%rain_temp_pf = 0
+    clm_pf_idata%rain_clm = PETSC_NULL_VEC
+    clm_pf_idata%rain_pf = PETSC_NULL_VEC
+    clm_pf_idata%rain_temp_clm = PETSC_NULL_VEC
+    clm_pf_idata%rain_temp_pf = PETSC_NULL_VEC
     
-    clm_pf_idata%gflux_subsurf_clm = 0
-    clm_pf_idata%gflux_subsurf_pf = 0
-    clm_pf_idata%gflux_surf_pf = 0
+    clm_pf_idata%gflux_subsurf_clm = PETSC_NULL_VEC
+    clm_pf_idata%gflux_subsurf_pf = PETSC_NULL_VEC
+    clm_pf_idata%gflux_surf_pf = PETSC_NULL_VEC
 
-    clm_pf_idata%sat_clm = 0
-    clm_pf_idata%sat_pf = 0
+    clm_pf_idata%sat_clm = PETSC_NULL_VEC
+    clm_pf_idata%sat_pf = PETSC_NULL_VEC
 
-    clm_pf_idata%temp_clm = 0
-    clm_pf_idata%temp_pf = 0
+    clm_pf_idata%temp_clm = PETSC_NULL_VEC
+    clm_pf_idata%temp_pf = PETSC_NULL_VEC
 
-    clm_pf_idata%sat_ice_clm = 0
-    clm_pf_idata%sat_ice_pf = 0
+    clm_pf_idata%sat_ice_clm = PETSC_NULL_VEC
+    clm_pf_idata%sat_ice_pf = PETSC_NULL_VEC
 
-    clm_pf_idata%h2osfc_clm = 0
-    clm_pf_idata%h2osfc_pf = 0
+    clm_pf_idata%h2osfc_clm = PETSC_NULL_VEC
+    clm_pf_idata%h2osfc_pf = PETSC_NULL_VEC
 
-    clm_pf_idata%eff_therm_cond_clm = 0
-    clm_pf_idata%eff_therm_cond_pf = 0
+    clm_pf_idata%eff_therm_cond_clm = PETSC_NULL_VEC
+    clm_pf_idata%eff_therm_cond_pf = PETSC_NULL_VEC
 
     clm_pf_idata%nzclm_mapped = 0
 
@@ -338,67 +340,67 @@ contains
     
     PetscErrorCode :: ierr
 
-    if(clm_pf_idata%hksat_x_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_x_clm,ierr)
-    if(clm_pf_idata%hksat_y_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_y_clm,ierr)
-    if(clm_pf_idata%hksat_z_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_z_clm,ierr)
-    if(clm_pf_idata%sucsat_clm  /= 0) call VecDestroy(clm_pf_idata%sucsat_clm,ierr)
-    if(clm_pf_idata%watsat_clm  /= 0) call VecDestroy(clm_pf_idata%watsat_clm,ierr)
-    if(clm_pf_idata%bsw_clm  /= 0) call VecDestroy(clm_pf_idata%bsw_clm,ierr)
-    if(clm_pf_idata%hksat_x2_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_x2_clm,ierr)
-    if(clm_pf_idata%hksat_y2_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_y2_clm,ierr)
-    if(clm_pf_idata%hksat_z2_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_z2_clm,ierr)
-    if(clm_pf_idata%sucsat2_clm  /= 0) call VecDestroy(clm_pf_idata%sucsat2_clm,ierr)
-    if(clm_pf_idata%watsat2_clm  /= 0) call VecDestroy(clm_pf_idata%watsat2_clm,ierr)
-    if(clm_pf_idata%bsw2_clm  /= 0) call VecDestroy(clm_pf_idata%bsw2_clm,ierr)
-    if(clm_pf_idata%thetares2_clm  /= 0) call VecDestroy(clm_pf_idata%thetares2_clm,ierr)
-    if(clm_pf_idata%press_clm  /= 0) call VecDestroy(clm_pf_idata%press_clm,ierr)
+    if(clm_pf_idata%hksat_x_clm       /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%hksat_x_clm,ierr)
+    if(clm_pf_idata%hksat_y_clm       /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%hksat_y_clm,ierr)
+    if(clm_pf_idata%hksat_z_clm       /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%hksat_z_clm,ierr)
+    if(clm_pf_idata%sucsat_clm        /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%sucsat_clm,ierr)
+    if(clm_pf_idata%watsat_clm        /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%watsat_clm,ierr)
+    if(clm_pf_idata%bsw_clm           /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%bsw_clm,ierr)
+    if(clm_pf_idata%hksat_x2_clm      /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%hksat_x2_clm,ierr)
+    if(clm_pf_idata%hksat_y2_clm      /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%hksat_y2_clm,ierr)
+    if(clm_pf_idata%hksat_z2_clm      /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%hksat_z2_clm,ierr)
+    if(clm_pf_idata%sucsat2_clm       /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%sucsat2_clm,ierr)
+    if(clm_pf_idata%watsat2_clm       /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%watsat2_clm,ierr)
+    if(clm_pf_idata%bsw2_clm          /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%bsw2_clm,ierr)
+    if(clm_pf_idata%thetares2_clm     /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%thetares2_clm,ierr)
+    if(clm_pf_idata%press_clm         /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%press_clm,ierr)
 
-    if(clm_pf_idata%hksat_x_pf  /= 0) call VecDestroy(clm_pf_idata%hksat_x_pf,ierr)
-    if(clm_pf_idata%hksat_y_pf  /= 0) call VecDestroy(clm_pf_idata%hksat_y_pf,ierr)
-    if(clm_pf_idata%hksat_z_pf  /= 0) call VecDestroy(clm_pf_idata%hksat_z_pf,ierr)
-    if(clm_pf_idata%sucsat_pf  /= 0) call VecDestroy(clm_pf_idata%sucsat_pf,ierr)
-    if(clm_pf_idata%watsat_pf  /= 0) call VecDestroy(clm_pf_idata%watsat_pf,ierr)
-    if(clm_pf_idata%bsw_pf  /= 0) call VecDestroy(clm_pf_idata%bsw_pf,ierr)
-    if(clm_pf_idata%hksat_x2_pf  /= 0) call VecDestroy(clm_pf_idata%hksat_x2_pf,ierr)
-    if(clm_pf_idata%hksat_y2_pf  /= 0) call VecDestroy(clm_pf_idata%hksat_y2_pf,ierr)
-    if(clm_pf_idata%hksat_z2_pf  /= 0) call VecDestroy(clm_pf_idata%hksat_z2_pf,ierr)
-    if(clm_pf_idata%sucsat2_pf  /= 0) call VecDestroy(clm_pf_idata%sucsat2_pf,ierr)
-    if(clm_pf_idata%watsat2_pf  /= 0) call VecDestroy(clm_pf_idata%watsat2_pf,ierr)
-    if(clm_pf_idata%bsw2_pf  /= 0) call VecDestroy(clm_pf_idata%bsw2_pf,ierr)
-    if(clm_pf_idata%thetares2_pf  /= 0) call VecDestroy(clm_pf_idata%thetares2_pf,ierr)
-    if(clm_pf_idata%press_pf  /= 0) call VecDestroy(clm_pf_idata%press_pf,ierr)
+    if(clm_pf_idata%hksat_x_pf        /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%hksat_x_pf,ierr)
+    if(clm_pf_idata%hksat_y_pf        /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%hksat_y_pf,ierr)
+    if(clm_pf_idata%hksat_z_pf        /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%hksat_z_pf,ierr)
+    if(clm_pf_idata%sucsat_pf         /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%sucsat_pf,ierr)
+    if(clm_pf_idata%watsat_pf         /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%watsat_pf,ierr)
+    if(clm_pf_idata%bsw_pf            /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%bsw_pf,ierr)
+    if(clm_pf_idata%hksat_x2_pf       /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%hksat_x2_pf,ierr)
+    if(clm_pf_idata%hksat_y2_pf       /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%hksat_y2_pf,ierr)
+    if(clm_pf_idata%hksat_z2_pf       /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%hksat_z2_pf,ierr)
+    if(clm_pf_idata%sucsat2_pf        /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%sucsat2_pf,ierr)
+    if(clm_pf_idata%watsat2_pf        /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%watsat2_pf,ierr)
+    if(clm_pf_idata%bsw2_pf           /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%bsw2_pf,ierr)
+    if(clm_pf_idata%thetares2_pf      /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%thetares2_pf,ierr)
+    if(clm_pf_idata%press_pf          /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%press_pf,ierr)
 
-    if(clm_pf_idata%qflx_clm  /= 0) call VecDestroy(clm_pf_idata%qflx_clm,ierr)
-    if(clm_pf_idata%qflx_pf  /= 0) call VecDestroy(clm_pf_idata%qflx_pf,ierr)
+    if(clm_pf_idata%qflx_clm          /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%qflx_clm,ierr)
+    if(clm_pf_idata%qflx_pf           /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%qflx_pf,ierr)
     
-    if(clm_pf_idata%rain_clm  /= 0) call VecDestroy(clm_pf_idata%rain_clm,ierr)
-    if(clm_pf_idata%rain_pf  /= 0) call VecDestroy(clm_pf_idata%rain_pf,ierr)
-    if(clm_pf_idata%rain_temp_clm  /= 0) call VecDestroy(clm_pf_idata%rain_temp_clm,ierr)
-    if(clm_pf_idata%rain_temp_pf  /= 0) call VecDestroy(clm_pf_idata%rain_temp_pf,ierr)
+    if(clm_pf_idata%rain_clm          /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%rain_clm,ierr)
+    if(clm_pf_idata%rain_pf           /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%rain_pf,ierr)
+    if(clm_pf_idata%rain_temp_clm     /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%rain_temp_clm,ierr)
+    if(clm_pf_idata%rain_temp_pf      /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%rain_temp_pf,ierr)
     
-    if(clm_pf_idata%gflux_subsurf_clm  /= 0) call VecDestroy(clm_pf_idata%gflux_subsurf_clm,ierr)
-    if(clm_pf_idata%gflux_subsurf_pf  /= 0) call VecDestroy(clm_pf_idata%gflux_subsurf_pf,ierr)
-    if(clm_pf_idata%gflux_surf_pf  /= 0) call VecDestroy(clm_pf_idata%gflux_surf_pf,ierr)
+    if(clm_pf_idata%gflux_subsurf_clm /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%gflux_subsurf_clm,ierr)
+    if(clm_pf_idata%gflux_subsurf_pf  /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%gflux_subsurf_pf,ierr)
+    if(clm_pf_idata%gflux_surf_pf     /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%gflux_surf_pf,ierr)
 
-    if(clm_pf_idata%sat_clm  /= 0) call VecDestroy(clm_pf_idata%sat_clm,ierr)
-    if(clm_pf_idata%sat_pf  /= 0) call VecDestroy(clm_pf_idata%sat_pf,ierr)
+    if(clm_pf_idata%sat_clm           /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%sat_clm,ierr)
+    if(clm_pf_idata%sat_pf            /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%sat_pf,ierr)
 
-    if(clm_pf_idata%temp_clm  /= 0) call VecDestroy(clm_pf_idata%temp_clm,ierr)
-    if(clm_pf_idata%temp_pf  /= 0) call VecDestroy(clm_pf_idata%temp_pf,ierr)
+    if(clm_pf_idata%temp_clm          /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%temp_clm,ierr)
+    if(clm_pf_idata%temp_pf           /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%temp_pf,ierr)
 
-    if(clm_pf_idata%sat_ice_clm  /= 0) call VecDestroy(clm_pf_idata%sat_ice_clm,ierr)
-    if(clm_pf_idata%sat_ice_pf  /= 0) call VecDestroy(clm_pf_idata%sat_ice_pf,ierr)
+    if(clm_pf_idata%sat_ice_clm       /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%sat_ice_clm,ierr)
+    if(clm_pf_idata%sat_ice_pf        /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%sat_ice_pf,ierr)
 
-    if(clm_pf_idata%h2osfc_clm  /= 0) call VecDestroy(clm_pf_idata%h2osfc_clm,ierr)
-    if(clm_pf_idata%h2osfc_pf  /= 0) call VecDestroy(clm_pf_idata%h2osfc_pf,ierr)
+    if(clm_pf_idata%h2osfc_clm        /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%h2osfc_clm,ierr)
+    if(clm_pf_idata%h2osfc_pf         /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%h2osfc_pf,ierr)
 
-    if(clm_pf_idata%area_top_face_clm  /= 0) &
+    if(clm_pf_idata%area_top_face_clm  /= PETSC_NULL_VEC) &
       call VecDestroy(clm_pf_idata%area_top_face_clm,ierr)
-    if(clm_pf_idata%area_top_face_pf  /= 0) &
+    if(clm_pf_idata%area_top_face_pf  /= PETSC_NULL_VEC) &
       call VecDestroy(clm_pf_idata%area_top_face_pf,ierr)
 
-    if(clm_pf_idata%eff_therm_cond_clm  /= 0) call VecDestroy(clm_pf_idata%eff_therm_cond_clm,ierr)
-    if(clm_pf_idata%eff_therm_cond_pf  /= 0) call VecDestroy(clm_pf_idata%eff_therm_cond_pf,ierr)
+    if(clm_pf_idata%eff_therm_cond_clm  /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%eff_therm_cond_clm,ierr)
+    if(clm_pf_idata%eff_therm_cond_pf  /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%eff_therm_cond_pf,ierr)
 
   end subroutine CLMPFLOTRANIDataDestroy
 

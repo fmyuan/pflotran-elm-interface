@@ -1,5 +1,6 @@
 module Discretization_module
-
+#include "petsc/finclude/petscdmda.h"
+  use petscdmda
   use Grid_module
   use Grid_Structured_module
   use Grid_Unstructured_module
@@ -13,17 +14,6 @@ module Discretization_module
   implicit none
 
   private
- 
-#include "petsc/finclude/petscsys.h"
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscdm.h"
-#include "petsc/finclude/petscdm.h90"
-#include "petsc/finclude/petscdmda.h"
-#include "petsc/finclude/petscdmshell.h90"
 
   type, public :: discretization_type
     PetscInt :: itype  ! type of discretization (e.g. structured, unstructured, etc.)
@@ -109,10 +99,10 @@ function DiscretizationCreate()
   allocate(discretization%dm_nflowdof)
   allocate(discretization%dm_ntrandof)
   allocate(discretization%dm_n_stress_strain_dof)
-  discretization%dm_1dof%dm = 0
-  discretization%dm_nflowdof%dm = 0
-  discretization%dm_ntrandof%dm = 0
-  discretization%dm_n_stress_strain_dof%dm = 0
+  discretization%dm_1dof%dm = PETSC_NULL_DM
+  discretization%dm_nflowdof%dm = PETSC_NULL_DM
+  discretization%dm_ntrandof%dm = PETSC_NULL_DM
+  discretization%dm_n_stress_strain_dof%dm = PETSC_NULL_DM
   nullify(discretization%dm_1dof%ugdm)
   nullify(discretization%dm_nflowdof%ugdm)
   nullify(discretization%dm_ntrandof%ugdm)
@@ -123,7 +113,7 @@ function DiscretizationCreate()
   discretization%stencil_width = 1
   discretization%stencil_type = DMDA_STENCIL_STAR
 
-  discretization%tvd_ghost_scatter = 0
+  discretization%tvd_ghost_scatter = PETSC_NULL_VECSCATTER
   
   DiscretizationCreate => discretization
 
@@ -246,7 +236,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
                              discretization%origin_global(Z_DIRECTION))
         call InputErrorMsg(input,option,'Z direction','Origin')        
       case('FILE','GRAVITY','INVERT_Z','MAX_CELLS_SHARING_A_VERTEX',&
-           'STENCIL_WIDTH','STENCIL_TYPE','FLUX_METHOD')
+           'STENCIL_WIDTH','STENCIL_TYPE','FLUX_METHOD','DOMAIN_FILENAME')
       case('DXYZ','BOUNDS')
         call InputSkipToEND(input,option,word) 
       case default
@@ -500,7 +490,7 @@ subroutine DiscretizationRead(discretization,input,option)
                            'GRID')
       case ('STENCIL_TYPE')
         call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'keyword','GRID')
+        call InputErrorMsg(input,option,'stencil type','GRID')
         call StringToUpper(word)
         select case(trim(word))
           case ('BOX')
@@ -510,6 +500,18 @@ subroutine DiscretizationRead(discretization,input,option)
           case default
             call InputKeywordUnrecognized(word, &
                    'DISCRETIZATION,stencil type',option)
+        end select
+      case('DOMAIN_FILENAME')
+        select case(discretization%grid%itype)
+          case(EXPLICIT_UNSTRUCTURED_GRID)
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'DOMAIN_FILENAME','GRID')  
+            discretization%grid%unstructured_grid% &
+              explicit_grid%domain_filename = word
+          case default
+            option%io_buffer = 'DOMAIN_FILENAME only supported for explicit &
+                               &unstructured grids.'
+            call printErrMsg(option)
         end select
       case default
         call InputKeywordUnrecognized(word,'GRID',option)
@@ -807,13 +809,11 @@ subroutine DiscretizationCreateJacobian(discretization,dm_index,mat_type,Jacobia
   ! Author: Glenn Hammond
   ! Date: 10/24/07
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   
   implicit none
-  
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
 
   type(discretization_type) :: discretization
   PetscInt :: dm_index
@@ -889,14 +889,14 @@ subroutine DiscretizationCreateInterpolation(discretization,dm_index, &
     case(NFLOWDOF)
       allocate(discretization%dmc_nflowdof(mg_levels))
       do i=1, mg_levels
-        discretization%dmc_nflowdof(i)%dm = 0
+        discretization%dmc_nflowdof(i)%dm = PETSC_NULL_DM
         nullify(discretization%dmc_nflowdof(i)%ugdm)
       enddo
       dmc_ptr => discretization%dmc_nflowdof
     case(NTRANDOF)
       allocate(discretization%dmc_ntrandof(mg_levels))
       do i=1, mg_levels
-        discretization%dmc_ntrandof(i)%dm = 0
+        discretization%dmc_ntrandof(i)%dm = PETSC_NULL_DM
         nullify(discretization%dmc_ntrandof(i)%ugdm)
       enddo
       dmc_ptr => discretization%dmc_ntrandof
@@ -920,15 +920,9 @@ subroutine DiscretizationCreateInterpolation(discretization,dm_index, &
                                       ierr);CHKERRQ(ierr)
         call DMCoarsen(dm_fine_ptr%dm, option%mycomm, dmc_ptr(i)%dm,  &
                        ierr);CHKERRQ(ierr)
-#ifndef DMGET
         call DMCreateInterpolation(dmc_ptr(i)%dm, dm_fine_ptr%dm, &
-                                   interpolation(i), PETSC_NULL_OBJECT,  &
+                                   interpolation(i), PETSC_NULL_VEC,  &
                                    ierr);CHKERRQ(ierr)
-#else
-        call DMGetInterpolation(dmc_ptr(i)%dm, dm_fine_ptr%dm, &
-                                interpolation(i), PETSC_NULL_OBJECT,  &
-                                ierr);CHKERRQ(ierr)
-#endif
         dm_fine_ptr => dmc_ptr(i)
       enddo
     case(UNSTRUCTURED_GRID)
@@ -945,13 +939,11 @@ subroutine DiscretizationCreateColoring(discretization,dm_index,option,coloring)
   ! Author: Glenn Hammond
   ! Date: 10/24/07
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   
   implicit none
-
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
   
   type(discretization_type) :: discretization
   PetscInt :: dm_index
@@ -965,13 +957,9 @@ subroutine DiscretizationCreateColoring(discretization,dm_index,option,coloring)
     
   select case(discretization%itype)
     case(STRUCTURED_GRID)
-#ifndef DMGET
-      call DMCreateColoring(dm_ptr%dm,IS_COLORING_GLOBAL,MATBAIJ,coloring,&
+      call DMSetMatType(dm_ptr%dm,MATBAIJ,ierr);CHKERRQ(ierr)
+      call DMCreateColoring(dm_ptr%dm,IS_COLORING_GLOBAL,coloring,&
                             ierr);CHKERRQ(ierr)
-#else
-      call DMGetColoring(dm_ptr%dm,IS_COLORING_GLOBAL,MATBAIJ,coloring, &
-                         ierr);CHKERRQ(ierr)
-#endif
       ! I have set the above to use matrix type MATBAIJ, as that is what we 
       ! usually want (note: for DAs with 1 degree of freedom per grid cell, 
       ! the MATAIJ and MATBAIJ colorings should be equivalent).  What we should 
@@ -1424,10 +1412,11 @@ subroutine DiscretAOApplicationToPetsc(discretization,int_array)
   ! Author: Glenn Hammond
   ! Date: 10/12/12
   ! 
-
+#include "petsc/finclude/petscdmda.h"
+  use petscdmda
   implicit none
   
-#include "petsc/finclude/petscao.h"  
+
   
   type(discretization_type) :: discretization
   PetscInt :: int_array(:)
@@ -1437,7 +1426,7 @@ subroutine DiscretAOApplicationToPetsc(discretization,int_array)
   
   select case(discretization%itype)
     case(STRUCTURED_GRID)
-      call DMDAGetAO(discretization%dm_1dof,ao,ierr);CHKERRQ(ierr)
+      call DMDAGetAO(discretization%dm_1dof%dm,ao,ierr);CHKERRQ(ierr)
     case(UNSTRUCTURED_GRID)
       ao = discretization%grid%unstructured_grid%ao_natural_to_petsc
   end select
@@ -1496,23 +1485,22 @@ subroutine DiscretizationInputRecord(discretization)
       write(id,'(1p10e12.4)') grid%structured_grid%dy_global
       write(id,'(a29)',advance='no') 'delta-Z (m): '
       write(id,'(1p10e12.4)') grid%structured_grid%dz_global
+      write(id,'(a29)',advance='no') 'bounds X: '
+      write(word1,Format) grid%structured_grid%bounds(X_DIRECTION,LOWER)
+      write(word2,Format) grid%structured_grid%bounds(X_DIRECTION,UPPER)
+      write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
+      write(id,'(a29)',advance='no') 'bounds Y: '
+      write(word1,Format) grid%structured_grid%bounds(Y_DIRECTION,LOWER)
+      write(word2,Format) grid%structured_grid%bounds(Y_DIRECTION,UPPER)
+      write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
+      write(id,'(a29)',advance='no') 'bounds Z: '
+      write(word1,Format) grid%structured_grid%bounds(Z_DIRECTION,LOWER)
+      write(word2,Format) grid%structured_grid%bounds(Z_DIRECTION,UPPER)
+      write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
     case(EXPLICIT_UNSTRUCTURED_GRID,IMPLICIT_UNSTRUCTURED_GRID, &
          POLYHEDRA_UNSTRUCTURED_GRID)
       write(id,'(a)') trim(grid%ctype)
   end select
-
-  write(id,'(a29)',advance='no') 'bounds X: '
-  write(word1,Format) grid%structured_grid%bounds(X_DIRECTION,LOWER)
-  write(word2,Format) grid%structured_grid%bounds(X_DIRECTION,UPPER)
-  write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
-  write(id,'(a29)',advance='no') 'bounds Y: '
-  write(word1,Format) grid%structured_grid%bounds(Y_DIRECTION,LOWER)
-  write(word2,Format) grid%structured_grid%bounds(Y_DIRECTION,UPPER)
-  write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
-  write(id,'(a29)',advance='no') 'bounds Z: '
-  write(word1,Format) grid%structured_grid%bounds(Z_DIRECTION,LOWER)
-  write(word2,Format) grid%structured_grid%bounds(Z_DIRECTION,UPPER)
-  write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
 
   write(id,'(a29)',advance='no') 'global origin: '
   write(word,Format) discretization%origin_global(X_DIRECTION)
@@ -1558,7 +1546,7 @@ subroutine DiscretizationPrintInfo(discretization,grid,option)
             grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
             grid%structured_grid%npz_final
       endif
-      if (OptionPrintToScreen(option)) then
+      if (OptionPrintToFile(option)) then
         write(option%fid_out,'(/," Requested processors and decomposition = ", &
                              & i5,", npx,y,z= ",3i4)') &
             option%mycommsize,grid%structured_grid%npx,grid%structured_grid%npy, &
@@ -1566,6 +1554,14 @@ subroutine DiscretizationPrintInfo(discretization,grid,option)
         write(option%fid_out,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
             grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
             grid%structured_grid%npz_final
+      endif
+    case default
+      if (OptionPrintToScreen(option)) then
+        write(*,'(/," Requested processors = ",i5)') option%mycommsize
+      endif
+      if (OptionPrintToFile(option)) then
+        write(option%fid_out,'(/," Requested processors = ",i5)') &
+          option%mycommsize
       endif
   end select
   
@@ -1592,23 +1588,23 @@ subroutine DiscretizationDestroy(discretization)
       
   select case(discretization%itype)
     case(STRUCTURED_GRID)
-      if (discretization%dm_1dof%dm /= 0) then
+      if (discretization%dm_1dof%dm /= PETSC_NULL_DM) then
         call DMDestroy(discretization%dm_1dof%dm,ierr);CHKERRQ(ierr)
       endif
-      discretization%dm_1dof%dm = 0
-      if (discretization%dm_nflowdof%dm /= 0) then
+      discretization%dm_1dof%dm = PETSC_NULL_DM
+      if (discretization%dm_nflowdof%dm /= PETSC_NULL_DM) then
         call DMDestroy(discretization%dm_nflowdof%dm,ierr);CHKERRQ(ierr)
       endif
-      discretization%dm_nflowdof%dm = 0
-      if (discretization%dm_ntrandof%dm /= 0) then
+      discretization%dm_nflowdof%dm = PETSC_NULL_DM
+      if (discretization%dm_ntrandof%dm /= PETSC_NULL_DM) then
         call DMDestroy(discretization%dm_ntrandof%dm,ierr);CHKERRQ(ierr)
       endif
-      discretization%dm_n_stress_strain_dof%dm = 0
-      if (discretization%dm_nflowdof%dm /= 0) then
+      discretization%dm_n_stress_strain_dof%dm = PETSC_NULL_DM
+      if (discretization%dm_nflowdof%dm /= PETSC_NULL_DM) then
         call DMDestroy(discretization%dm_n_stress_strain_dof%dm, &
                        ierr);CHKERRQ(ierr)
       endif
-      discretization%dm_n_stress_strain_dof%dm = 0
+      discretization%dm_n_stress_strain_dof%dm = PETSC_NULL_DM
       if (associated(discretization%dmc_nflowdof)) then
         do i=1,size(discretization%dmc_nflowdof)
           call DMDestroy(discretization%dmc_nflowdof(i)%dm,ierr);CHKERRQ(ierr)
@@ -1648,7 +1644,7 @@ subroutine DiscretizationDestroy(discretization)
   nullify(discretization%dm_n_stress_strain_dof)
 
 
-  if (discretization%tvd_ghost_scatter /= 0) &
+  if (discretization%tvd_ghost_scatter /= PETSC_NULL_VECSCATTER) &
     call VecScatterDestroy(discretization%tvd_ghost_scatter)
   
   call GridDestroy(discretization%grid)

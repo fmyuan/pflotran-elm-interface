@@ -1,0 +1,86 @@
+\subsection{FLOW\_CONDITION}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{FLOW\_CONDITION}
+
+\begin{itemize}
+\item[] \textbf{Purpose:} Defines parameters/conditions to be associated with flow boundary and initial conditions
+\item[] \textbf{Example uses:}
+\begin{itemize}
+  \item Specify a constant pressures on cell faces
+  \item Specify a transient fluxes through cell faces
+  \item Define a hydrostatic column of water
+\end{itemize}
+\item[] \textbf{Key sub-cards:}
+\begin{itemize}
+  \item[] \verb|TYPE|
+  \item[] \verb|  DIRICHLET|
+  \item[] \verb|  NEUMANN|
+  \item[] \verb|  RATE|
+  \item[] \verb|DATUM|
+  \item[] \verb|GRADIENT|
+  \item[] \verb|PRESSURE|
+  \item[] \verb|FLUX|
+  \item[] \verb|RATE|
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{FLOW\_CONDITION Example: Undulating River}
+
+\begin{semiverbatim}
+FLOW_CONDITION river
+  TYPE
+    PRESSURE HYDROSTATIC
+  /
+  INTERPOLATION LINEAR
+  DATUM LIST
+    TIME_UNITS d
+    0.d0 0.d0 0.d0 34.d0
+    10.d0 0.d0 0.d0 39.d0
+    50.d0 0.d0 0.d0 33.d0
+    100.d0 0.d0 0.d0 34.d0
+  /
+  PRESSURE 101325 ! Pa
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{FLOW\_CONDITION Example: Transient Rainfall}
+
+\begin{semiverbatim}
+FLOW_CONDITION recharge
+  TYPE
+    FLUX NEUMANN
+  /
+  FLUX LIST
+    TIME_UNITS yr
+    DATA_UNITS cm/yr
+    0.d0 25.d0
+    1.d0 23.d0
+    2.d0 27.d0
+    3.d0 22.d0
+    4.d0 24.d0
+    5.d0 29.d0
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{FLOW\_CONDITION Example: Permeability-Weighted Injection Well}
+
+\begin{semiverbatim}
+FLOW_CONDITION injection_well
+  TYPE
+    RATE SCALED_VOLUMETRIC_RATE NEIGHBOR_PERM
+  /
+  RATE 1 m^3/hr
+END
+\end{semiverbatim}
+
+\end{frame}

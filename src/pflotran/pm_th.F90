@@ -1,5 +1,7 @@
 module PM_TH_class
 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
 !geh: using TH_module here fails with gfortran (internal compiler error)
@@ -13,14 +15,6 @@ module PM_TH_class
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscsnes.h"
 
   type, public, extends(pm_subsurface_flow_type) :: pm_th_type
     class(communicator_type), pointer :: commN
@@ -73,7 +67,7 @@ function PMTHCreate()
   nullify(th_pm%commN)
 
   call PMSubsurfaceFlowCreate(th_pm)
-  th_pm%name = 'PMTH'
+  th_pm%name = 'TH Flow'
 
   PMTHCreate => th_pm
   
@@ -120,7 +114,8 @@ subroutine PMTHRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found,option)
+    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
+                                        error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -250,6 +245,8 @@ subroutine PMTHPreSolve(this)
   
   class(pm_th_type) :: this
 
+  call PMSubsurfaceFlowPreSolve(this)
+
 end subroutine PMTHPreSolve
 
 ! ************************************************************************** !
@@ -270,13 +267,15 @@ end subroutine PMTHPostSolve
 ! ************************************************************************** !
 
 subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                              num_newton_iterations,tfac)
+                              num_newton_iterations,tfac, &
+                              time_step_max_growth_factor)
   ! 
   ! This routine
   ! 
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
   ! 
+  use Realization_Subsurface_class, only : RealizationLimitDTByCFL
 
   implicit none
   
@@ -286,6 +285,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: fac
   PetscReal :: ut
@@ -326,14 +326,14 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     dtt = min(dt_tfac,dt_u)
   endif
 
-  if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   if (dtt > dt_max) dtt = dt_max
   ! geh: There used to be code here that cut the time step if it is too
   !      large relative to the simulation time.  This has been removed.
   dtt = max(dtt,dt_min)
   dt = dtt
 
-  call PMSubsurfaceFlowLimitDTByCFL(this,dt)
+  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
   
 end subroutine PMTHUpdateTimestep
 

@@ -1,5 +1,7 @@
 module Auxiliary_module
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Global_Aux_module
   use TH_Aux_module
   use Richards_Aux_module
@@ -9,17 +11,20 @@ module Auxiliary_module
   use Miscible_Aux_module
   use Flash2_Aux_module
   use General_Aux_module
-  use TOilIms_Aux_module
+  use WIPP_Flow_Aux_module
+  !use TOilIms_Aux_module
   use Material_Aux_class
   use Secondary_Continuum_Aux_module
+  use InlineSurface_Aux_module
   
+  use PM_TOWG_Aux_module  !new auxvar data structure
+  use PM_TOilIms_Aux_module  !new auxvar data structure  
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public :: auxiliary_type 
     type(global_type), pointer :: Global
@@ -31,10 +36,13 @@ module Auxiliary_module
     type(miscible_type), pointer :: Miscible
     type(flash2_type), pointer :: Flash2
     type(general_type), pointer :: General
-    type(toil_ims_type), pointer :: TOil_ims
+    type(wippflo_type), pointer :: WIPPFlo
     type(material_type), pointer :: Material
     type(sc_heat_type), pointer :: SC_heat
     type(sc_rt_type), pointer :: SC_RT
+    class(pm_towg_aux_type), pointer :: TOWG
+    class(pm_toil_ims_aux_type), pointer :: TOil_ims
+    type(inlinesurface_type), pointer :: InlineSurface
   end type auxiliary_type
   
   public :: AuxInit, &
@@ -66,11 +74,14 @@ subroutine AuxInit(aux)
   nullify(aux%Flash2)
   nullify(aux%Miscible)
   nullify(aux%General)
+  nullify(aux%WIPPFlo)
+  nullify(aux%TOWG)
   nullify(aux%TOil_ims)
   nullify(aux%Material)
   nullify(aux%SC_heat)
   nullify(aux%SC_RT)
-  
+  nullify(aux%InlineSurface)
+
 end subroutine AuxInit
 
 ! ************************************************************************** !
@@ -94,10 +105,14 @@ subroutine AuxDestroy(aux)
   call MphaseAuxDestroy(aux%Mphase)
   call MiscibleAuxDestroy(aux%Miscible)
   call GeneralAuxDestroy(aux%General)
-  call TOilImsAuxDestroy(aux%TOil_ims)
+  call WIPPFloAuxDestroy(aux%WIPPFlo)
+  call TOWGAuxDestroy(aux%TOWG)
+  call TOilImsAuxDestroy(aux%TOil_ims) 
   call MaterialAuxDestroy(aux%Material)
   call SecondaryAuxHeatDestroy(aux%SC_heat)
   call SecondaryAuxRTDestroy(aux%SC_RT)
+  call InlineSurfaceAuxDestroy(aux%InlineSurface)
+  
   nullify(aux%Global)
   nullify(aux%RT)
   nullify(aux%Richards)
@@ -105,10 +120,13 @@ subroutine AuxDestroy(aux)
   nullify(aux%Immis)
   nullify(aux%Miscible)
   nullify(aux%General)
-  nullify(aux%TOil_ims)
+  nullify(aux%WIPPFlo)
+  nullify(aux%TOWG)
+  nullify(aux%TOil_ims) 
   nullify(aux%Material)
   nullify(aux%SC_Heat)
   nullify(aux%SC_RT)
+  nullify(aux%InlineSurface)
 
 end subroutine AuxDestroy
 

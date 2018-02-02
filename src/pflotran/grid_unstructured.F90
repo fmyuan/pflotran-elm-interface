@@ -1,5 +1,7 @@
 module Grid_Unstructured_module
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Connection_module
   use Grid_Unstructured_Aux_module
   use Grid_Unstructured_Cell_module
@@ -9,12 +11,7 @@ module Grid_Unstructured_module
   implicit none
 
   private 
-  
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
+
 #if defined(SCORPIO)
   include "scorpiof.h"
 #endif
@@ -49,6 +46,7 @@ module Grid_Unstructured_module
             UGridGetCellsInRectangle, &
             UGridEnsureRightHandRule, &
             UGridMapSideSet, &
+            UGridMapSideSet2, &
             UGridGrowStencilSupport, &
             UGridMapBoundFacesInPolVol
 
@@ -611,14 +609,15 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   PetscInt :: num_vertices_local
   PetscInt :: num_vertices_local_save
   PetscInt :: remainder
-  PetscInt, pointer :: int_buffer(:,:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_buffer(:,:)
   PetscReal, pointer :: double_buffer(:,:)
   PetscInt, parameter :: max_nvert_per_cell = 8  
   PetscErrorCode :: ierr
 
 #if defined(PETSC_HAVE_HDF5)
   integer(HID_T) :: file_id
-  integer(HID_T) :: ndims
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
   integer(HID_T) :: data_set_id
@@ -629,6 +628,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(2), length(2), stride(2), block(2), dims(2)
 #endif
+  integer :: ndims_h5
 
   ! Initialize FORTRAN predefined datatypes
   call h5open_f(hdf5_err)
@@ -660,16 +660,16 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
   
   ! Get number of dimensions and check
-  call h5sget_simple_extent_ndims_f(data_space_id, ndims, hdf5_err)
-  if (ndims /= 2) then
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
+  if (ndims_h5 /= 2) then
     option%io_buffer='Dimension of Domain/Cells dataset in ' // trim(filename) // &
           ' is not equal to 2.'
     call printErrMsg(option)
   endif
   
   ! Allocate memory
-  allocate(dims_h5(ndims))
-  allocate(max_dims_h5(ndims))
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
   
   ! Get dimensions of dataset
   call h5sget_simple_extent_dims_f(data_space_id, dims_h5, max_dims_h5, &
@@ -754,16 +754,16 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
   
   ! Get number of dimensions and check
-  call h5sget_simple_extent_ndims_f(data_space_id, ndims, hdf5_err)
-  if (ndims /= 2) then
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
+  if (ndims_h5 /= 2) then
     option%io_buffer='Dimension of Domain/Vertices dataset in ' // trim(filename) // &
           ' is not equal to 2.'
     call printErrMsg(option)
   endif
   
   ! Allocate memory
-  allocate(dims_h5(ndims))
-  allocate(max_dims_h5(ndims))
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
   
   ! Get dimensions of dataset
   call h5sget_simple_extent_dims_f(data_space_id, dims_h5, max_dims_h5, &
@@ -893,7 +893,9 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   PetscInt :: num_vertices_local
   PetscInt :: num_vertices_local_save
   PetscInt :: remainder
-  PetscInt, pointer :: int_buffer(:,:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_buffer(:,:)
   PetscReal, pointer :: double_buffer(:,:)
   PetscInt, parameter :: max_nvert_per_cell = 8  
   PetscInt :: error_count
@@ -901,7 +903,6 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
 
 #if defined(PETSC_HAVE_HDF5)
   integer(HID_T) :: file_id
-  integer(HID_T) :: ndims
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
   integer(HID_T) :: data_set_id
@@ -912,6 +913,7 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(2), length(2), stride(2), block(2), dims(2)
 #endif
+  integer :: ndims_h5
 
   ! Initialize FORTRAN predefined datatypes
   call h5open_f(hdf5_err)
@@ -943,16 +945,16 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
   
   ! Get number of dimensions and check
-  call h5sget_simple_extent_ndims_f(data_space_id, ndims, hdf5_err)
-  if (ndims /= 2) then
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
+  if (ndims_h5 /= 2) then
     option%io_buffer='Dimension of Domain/Cells dataset in ' // trim(filename) // &
           ' is not equal to 2.'
     call printErrMsg(option)
   endif
   
   ! Allocate memory
-  allocate(dims_h5(ndims))
-  allocate(max_dims_h5(ndims))
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
   
   ! Get dimensions of dataset
   call h5sget_simple_extent_dims_f(data_space_id, dims_h5, max_dims_h5, &
@@ -1057,16 +1059,16 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
   
   ! Get number of dimensions and check
-  call h5sget_simple_extent_ndims_f(data_space_id, ndims, hdf5_err)
-  if (ndims /= 2) then
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
+  if (ndims_h5 /= 2) then
     option%io_buffer='Dimension of Domain/Vertices dataset in ' // trim(filename) // &
           ' is not equal to 2.'
     call printErrMsg(option)
   endif
   
   ! Allocate memory
-  allocate(dims_h5(ndims))
-  allocate(max_dims_h5(ndims))
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
   
   ! Get dimensions of dataset
   call h5sget_simple_extent_dims_f(data_space_id, dims_h5, max_dims_h5, &
@@ -1264,20 +1266,12 @@ subroutine UGridDecompose(unstructured_grid,option)
   ! Date: 09/30/09
   ! 
   
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
   use Utility_module, only: reallocateIntArray, SearchOrderedArray
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscdm.h" 
-#include "petsc/finclude/petscdm.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petscviewer.h"
   
   type(grid_unstructured_type) :: unstructured_grid
   type(option_type) :: option
@@ -1923,6 +1917,7 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
   use Connection_module
   use Option_module
   use Utility_module, only : DotProduct, CrossProduct
+  use Geometry_module  
 
   implicit none
 
@@ -1968,9 +1963,9 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
   PetscInt :: ivert
   
   type(plane_type) :: plane1, plane2
-  type(point_type) :: point1, point2, point3, point4
-  type(point_type) :: point_up, point_dn
-  type(point_type) :: intercept1, intercept2, intercept
+  type(point3d_type) :: point1, point2, point3, point4
+  type(point3d_type) :: point_up, point_dn
+  type(point3d_type) :: intercept1, intercept2, intercept
 
   character(len=MAXSTRINGLENGTH) :: string  
   
@@ -2147,13 +2142,15 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
       if (.not.face_found) then
         write(string,*) option%myrank
         string = '(' // trim(adjustl(string)) // ')'
-        write(*,'(a,'' local_id = '',i3,'' natural_id = '',i3,''  vertices: '',8i3)') &
+        write(*,'(a,'' local_id = '',i6,'' natural_id = '',i6,&
+                  &''  vertices: '',8i6)') &
                    trim(string), &
                    cell_id,unstructured_grid%cell_ids_natural(cell_id), &
                    (unstructured_grid%vertex_ids_natural( &
                      unstructured_grid%cell_vertices(ivertex,cell_id)), &
                      ivertex=1,unstructured_grid%cell_vertices(0,cell_id))
-        write(*,'(a,'' local_id2 = '',i3,'' natural_id2 = '',i3,''  vertices2: '',8i3)') &
+        write(*,'(a,'' local_id2 = '',i6,'' natural_id2 = '',i6,&
+                  &''  vertices2: '',8i6)') &
                    trim(string), &
                    cell_id2,unstructured_grid%cell_ids_natural(cell_id2), &
                    (unstructured_grid%vertex_ids_natural( &
@@ -2357,7 +2354,7 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
             point4 = unstructured_grid%vertices(unstructured_grid%face_to_vertex(4,face_id))
           endif
           
-          call UCellComputePlane(plane1,point1,point2,point3)
+          call GeometryComputePlaneWithPoints(plane1,point1,point2,point3)
          
           point_up%x = grid_x(local_id)
           point_up%y = grid_y(local_id)
@@ -2369,7 +2366,7 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
           v1(2) = point_dn%y-point_up%y
           v1(3) = point_dn%z-point_up%z
           n_up_dn = v1 / sqrt(DotProduct(v1,v1))
-          call UCellGetPlaneIntercept(plane1,point_up,point_dn,intercept1)
+          call GeometryGetPlaneIntercept(plane1,point_up,point_dn,intercept1)
           
           v1(1) = point3%x-point2%x
           v1(2) = point3%y-point2%y
@@ -2389,8 +2386,8 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
           !gehbug area1 = 0.5d0*sqrt(DotProduct(n1,n1))
           
           if (face_type == QUAD_FACE_TYPE) then
-            call UCellComputePlane(plane2,point3,point4,point1)
-            call UCellGetPlaneIntercept(plane2,point_up,point_dn,intercept2)
+            call GeometryComputePlaneWithPoints(plane2,point3,point4,point1)
+            call GeometryGetPlaneIntercept(plane2,point_up,point_dn,intercept2)
             v1(1) = point1%x-point4%x
             v1(2) = point1%y-point4%y
             v1(3) = point1%z-point4%z
@@ -2564,6 +2561,7 @@ subroutine UGridPopulateConnection(unstructured_grid, connection, iface_cell, &
   use Utility_module, only : DotProduct
   use Option_module
   use Grid_Unstructured_Cell_module
+  use Geometry_module
   
   implicit none
   
@@ -2580,9 +2578,9 @@ subroutine UGridPopulateConnection(unstructured_grid, connection, iface_cell, &
   PetscInt :: ivert,vert_id
   PetscInt :: face_type
   PetscReal :: v1(3),v2(3),n_dist(3), dist
-  type(point_type) :: vertex_8(8)
+  type(point3d_type) :: vertex_8(8)
   type(plane_type) :: plane
-  type(point_type) :: point, vertex1, vertex2, vertex3, intercept
+  type(point3d_type) :: point, vertex1, vertex2, vertex3, intercept
   character(len=MAXWORDLENGTH) :: word
   
   
@@ -2629,8 +2627,8 @@ subroutine UGridPopulateConnection(unstructured_grid, connection, iface_cell, &
         call UCellGetLineIntercept(vertex1,vertex2,point,intercept)
       else
         vertex3 = unstructured_grid%vertices(unstructured_grid%face_to_vertex(3,face_id))
-        call UCellComputePlane(plane,vertex1,vertex2,vertex3)
-        call UCellProjectPointOntoPlane(plane,point,intercept)
+        call GeometryComputePlaneWithPoints(plane,vertex1,vertex2,vertex3)
+        call GeometryProjectPointOntoPlane(plane,point,intercept)
       endif
       
       ! Compute distance vector: cell_center - face_centroid
@@ -2668,6 +2666,7 @@ subroutine UGridComputeCoord(unstructured_grid,option, &
   ! 
 
   use Option_module
+  use Geometry_module  
   
   implicit none
 
@@ -2679,7 +2678,7 @@ subroutine UGridComputeCoord(unstructured_grid,option, &
   PetscInt :: ghosted_id
   PetscInt :: ivertex
   PetscInt :: vertex_id
-  type(point_type) :: vertex_8(8)
+  type(point3d_type) :: vertex_8(8)
   PetscReal :: centroid(3)
   PetscErrorCode :: ierr 
 
@@ -2728,6 +2727,7 @@ subroutine UGridComputeVolumes(unstructured_grid,option,volume)
   ! 
 
   use Option_module
+  use Geometry_module  
   
   implicit none
 
@@ -2740,7 +2740,7 @@ subroutine UGridComputeVolumes(unstructured_grid,option,volume)
   PetscInt :: ghosted_id
   PetscInt :: ivertex
   PetscInt :: vertex_id
-  type(point_type) :: vertex_8(8)
+  type(point3d_type) :: vertex_8(8)
   PetscReal, pointer :: volume_p(:)
   PetscErrorCode :: ierr
 
@@ -2777,6 +2777,7 @@ subroutine UGridComputeAreas(unstructured_grid,option,area)
   ! 
 
   use Option_module
+  use Geometry_module  
   
   implicit none
 
@@ -2784,12 +2785,11 @@ subroutine UGridComputeAreas(unstructured_grid,option,area)
   type(option_type) :: option
   Vec :: area
   
-
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: ivertex
   PetscInt :: vertex_id
-  type(point_type) :: vertex_4(4)
+  type(point3d_type) :: vertex_4(4)
   PetscReal, pointer :: area_p(:)
   PetscErrorCode :: ierr
 
@@ -2834,6 +2834,7 @@ subroutine UGridComputeQuality(unstructured_grid,option)
   ! 
 
   use Option_module
+  use Geometry_module  
   
   implicit none
 
@@ -2844,7 +2845,7 @@ subroutine UGridComputeQuality(unstructured_grid,option)
   PetscInt :: ghosted_id
   PetscInt :: ivertex
   PetscInt :: vertex_id
-  type(point_type) :: vertex_8(8)
+  type(point3d_type) :: vertex_8(8)
   PetscReal :: quality, mean_quality, max_quality, min_quality
   PetscErrorCode :: ierr
 
@@ -2906,6 +2907,7 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
 
   use Option_module
   use Utility_module, only : DotProduct, CrossProduct
+  use Geometry_module  
   
   implicit none
 
@@ -2917,13 +2919,13 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
 
   PetscInt :: local_id
   PetscInt :: ghosted_id
-  type(point_type) :: point, point1, point2, point3
+  type(point3d_type) :: point, point1, point2, point3
   type(plane_type) :: plane1
   PetscReal :: v1(3),v2(3),vcross(3),magnitude
   PetscReal :: distance
   PetscInt :: cell_vertex_ids_before(8), cell_vertex_ids_after(8)
   PetscInt :: face_vertex_ids(4)
-  type(point_type) :: vertex_8(8)
+  type(point3d_type) :: vertex_8(8)
   PetscInt :: ivertex, vertex_id
   PetscInt :: num_vertices, iface, cell_type, num_faces, face_type, i
   PetscInt :: num_face_vertices
@@ -2962,8 +2964,8 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
           unstructured_grid%vertices(cell_vertex_ids_before(face_vertex_ids(3)))
       endif
 
-      call UCellComputePlane(plane1,point1,point2,point3)
-      distance = UCellComputeDistanceFromPlane(plane1,point)
+      call GeometryComputePlaneWithPoints(plane1,point1,point2,point3)
+      distance = GeomComputeDistanceFromPlane(plane1,point)
 
       if (distance > 0.d0) then
         ! need to swap so that distance is negative (point lies below plane)
@@ -3064,6 +3066,7 @@ subroutine UGridGetCellFromPoint(x,y,z,unstructured_grid,option,icell)
   ! 
 
   use Option_module
+  use Geometry_module  
 
   implicit none
   
@@ -3075,7 +3078,7 @@ subroutine UGridGetCellFromPoint(x,y,z,unstructured_grid,option,icell)
   PetscInt :: cell_type, num_faces, iface, face_type
   PetscInt :: vertex_ids(4)
   type(plane_type) :: plane1, plane2
-  type(point_type) :: point, point1, point2, point3, point4
+  type(point3d_type) :: point, point1, point2, point3, point4
   PetscInt :: local_id, ghosted_id
   PetscReal :: distance
   PetscBool :: inside
@@ -3103,16 +3106,16 @@ subroutine UGridGetCellFromPoint(x,y,z,unstructured_grid,option,icell)
       point1 = unstructured_grid%vertices(unstructured_grid%cell_vertices(vertex_ids(1),ghosted_id))
       point2 = unstructured_grid%vertices(unstructured_grid%cell_vertices(vertex_ids(2),ghosted_id))
       point3 = unstructured_grid%vertices(unstructured_grid%cell_vertices(vertex_ids(3),ghosted_id))
-      call UCellComputePlane(plane1,point1,point2,point3)
-      distance = UCellComputeDistanceFromPlane(plane1,point)
+      call GeometryComputePlaneWithPoints(plane1,point1,point2,point3)
+      distance = GeomComputeDistanceFromPlane(plane1,point)
       if (distance > 0.d0) then
         inside = PETSC_FALSE
         exit
       endif
       if (face_type == QUAD_FACE_TYPE) then
         point4 = unstructured_grid%vertices(unstructured_grid%cell_vertices(vertex_ids(4),ghosted_id))
-        call UCellComputePlane(plane2,point3,point4,point1)
-        distance = UCellComputeDistanceFromPlane(plane2,point)
+        call GeometryComputePlaneWithPoints(plane2,point3,point4,point1)
+        distance = GeomComputeDistanceFromPlane(plane2,point)
         if (distance > 0.d0) then
           inside = PETSC_FALSE
           exit
@@ -3142,6 +3145,7 @@ subroutine UGridGetCellsInRectangle(x_min,x_max,y_min,y_max,z_min,z_max, &
   ! 
   use Option_module
   use Utility_module, only : reallocateIntArray
+  use Geometry_module  
   
   implicit none
                   
@@ -3156,7 +3160,7 @@ subroutine UGridGetCellsInRectangle(x_min,x_max,y_min,y_max,z_min,z_max, &
   PetscInt :: vertex_ids(4)
   PetscInt :: num_vertices, ivertex
   PetscInt :: local_id, ghosted_id
-  type(point_type) :: point
+  type(point3d_type) :: point
   
   PetscReal :: x_min_adj, x_max_adj, y_min_adj, y_max_adj, z_min_adj, z_max_adj
   PetscReal :: pert
@@ -3241,14 +3245,11 @@ subroutine UGridMapSideSet(unstructured_grid,face_vertices,n_ss_faces, &
   ! Date: 12/16/11
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   type(grid_unstructured_type) :: unstructured_grid
   PetscInt :: face_vertices(:,:)
@@ -3258,12 +3259,12 @@ subroutine UGridMapSideSet(unstructured_grid,face_vertices,n_ss_faces, &
   PetscInt, pointer :: cell_ids(:)
   PetscInt, pointer :: face_ids(:)
   
-  Mat :: Mat_vert_to_face 
+  Mat :: Mat_vert_to_face
   Vec :: Vertex_vec, Face_vec
   PetscViewer :: viewer
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: int_array4(4)
-  PetscInt :: int_array4_0(4,1)
+  PetscInt :: int_array4_0(4)
   PetscReal :: real_array4(4)
   PetscInt, allocatable :: boundary_faces(:)
   PetscInt, allocatable :: temp_int(:,:)
@@ -3332,14 +3333,14 @@ subroutine UGridMapSideSet(unstructured_grid,face_vertices,n_ss_faces, &
         boundary_faces(boundary_face_count) = face_id
         call UCellGetNFaceVertsandVerts(option,cell_type,iface,nvertices, &
                                         int_array4)
-        
+
         ! For this matrix:
         !   irow = local face id
         !   icol = natural (global) vertex id
         do ivertex = 1, nvertices
           vertex_id_local = &
             unstructured_grid%cell_vertices(int_array4(ivertex),local_id)
-          int_array4_0(ivertex,1) = &
+          int_array4_0(ivertex) = &
             unstructured_grid%vertex_ids_natural(vertex_id_local)-1
         enddo
         call MatSetValues(Mat_vert_to_face,1,boundary_face_count-1+offset, &
@@ -3366,7 +3367,7 @@ subroutine UGridMapSideSet(unstructured_grid,face_vertices,n_ss_faces, &
   call PetscViewerASCIIOpen(option%mycomm,string,viewer,ierr);CHKERRQ(ierr)
   call MatView(Mat_vert_to_face,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-#endif  
+#endif
 
   call VecCreateMPI(option%mycomm,PETSC_DETERMINE, &
                     unstructured_grid%num_vertices_global, &
@@ -3409,7 +3410,7 @@ subroutine UGridMapSideSet(unstructured_grid,face_vertices,n_ss_faces, &
   call ISView(is_tmp1,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
-  
+
   nvertices = 0
   do iface = 1, n_ss_faces
     do ivertex = 1, size(face_vertices,1)
@@ -3552,6 +3553,313 @@ end subroutine UGridMapSideSet
 
 ! ************************************************************************** !
 
+subroutine UGridMapSideSet2(unstructured_grid,face_vertices,n_ss_faces, &
+                           region_name,option,cell_ids,face_ids)
+  ! 
+  ! Maps a global boundary side set to the faces of local
+  ! ghosted cells
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 03/21/17
+  ! 
+
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+  use Option_module
+
+  implicit none
+
+  type(grid_unstructured_type) :: unstructured_grid
+  PetscInt :: face_vertices(:,:)
+  PetscInt :: n_ss_faces
+  character(len=MAXWORDLENGTH) :: region_name
+  type(option_type) :: option
+  PetscInt, pointer :: cell_ids(:)
+  PetscInt, pointer :: face_ids(:)
+
+  Mat :: Mat_vert_to_face
+  Mat :: Mat_region_vert_to_face
+  Mat :: Mat_region_face_to_vert
+  Mat :: Mat_face
+  Mat :: Mat_face_loc
+  PetscViewer :: viewer
+  character(len=MAXSTRINGLENGTH) :: string
+
+  PetscInt :: int_array4(4)
+  PetscInt :: int_array4_0(4)
+  PetscInt, allocatable :: boundary_faces(:)
+  PetscInt, allocatable :: temp_int(:,:)
+  PetscInt :: boundary_face_count
+  PetscInt :: mapped_face_count
+  PetscInt :: nfaces, nvertices
+  PetscInt :: iface, iface2
+  PetscInt :: face_id, face_id2
+  PetscInt :: local_id
+  PetscInt :: cell_type
+  PetscInt :: ivertex, cell_id, vertex_id_local
+  PetscInt :: largest_vert_id, v_id_n
+  PetscInt :: offset
+  PetscInt, pointer :: cell_ids_for_all_boundary_faces(:)
+  PetscInt, pointer :: face_ids_for_all_boundary_faces(:)
+  PetscInt, pointer :: ia_p(:),ja_p(:)
+  PetscInt :: nrow
+  PetscInt :: row, col
+  PetscInt :: min_nverts
+  PetscInt :: ii, jj
+
+  PetscReal :: max_value
+  PetscReal :: real_array4(4)
+  PetscReal :: min_verts_req
+
+  PetscErrorCode :: ierr
+
+  PetscBool :: done
+  PetscScalar, pointer :: aa_v(:)
+
+  ! fill matrix with boundary faces of local cells
+  ! count up the number of boundary faces
+  boundary_face_count = 0
+  do local_id = 1, unstructured_grid%nlmax
+    nfaces = UCellGetNFaces(unstructured_grid%cell_type(local_id),option)
+    do iface = 1, nfaces
+      face_id = unstructured_grid%cell_to_face_ghosted(iface,local_id)
+      if (unstructured_grid%face_to_cell_ghosted(2,face_id) < 1) then
+        ! boundary face, since not connected to 2 cells
+        boundary_face_count = boundary_face_count + 1
+      endif
+    enddo
+  enddo
+
+  call MatCreateAIJ(option%mycomm, &
+                       boundary_face_count, &
+                       PETSC_DETERMINE, &
+                       PETSC_DETERMINE, &
+                       unstructured_grid%num_vertices_global, &
+                       4, &
+                       PETSC_NULL_INTEGER, &
+                       4, &
+                       PETSC_NULL_INTEGER, &
+                       Mat_vert_to_face, &
+                       ierr);CHKERRQ(ierr)
+  call MatZeroEntries(Mat_vert_to_face,ierr);CHKERRQ(ierr)
+  real_array4 = 1.d0
+
+  offset=0
+  call MPI_Exscan(boundary_face_count,offset, &
+                  ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+
+  allocate(face_ids_for_all_boundary_faces(boundary_face_count))
+  allocate(cell_ids_for_all_boundary_faces(boundary_face_count))
+  face_ids_for_all_boundary_faces = 0
+  boundary_face_count = 0
+  do local_id = 1, unstructured_grid%nlmax
+    cell_type = unstructured_grid%cell_type(local_id)
+    nfaces = UCellGetNFaces(cell_type,option)
+    do iface = 1, nfaces
+      face_id = unstructured_grid%cell_to_face_ghosted(iface,local_id)
+      if (unstructured_grid%face_to_cell_ghosted(2,face_id) < 1) then
+        ! boundary face, since not connected to 2 cells
+        boundary_face_count = boundary_face_count + 1
+        face_ids_for_all_boundary_faces(boundary_face_count) = iface
+        cell_ids_for_all_boundary_faces(boundary_face_count) = local_id
+        call UCellGetNFaceVertsandVerts(option,cell_type,iface,nvertices, &
+                                        int_array4)
+
+        ! For this matrix:
+        !   irow = local face id
+        !   icol = natural (global) vertex id
+        do ivertex = 1, nvertices
+          vertex_id_local = &
+            unstructured_grid%cell_vertices(int_array4(ivertex),local_id)
+          int_array4_0(ivertex) = &
+            unstructured_grid%vertex_ids_natural(vertex_id_local)-1
+        enddo
+        call MatSetValues(Mat_vert_to_face,1,boundary_face_count-1+offset, &
+                          nvertices,int_array4_0,real_array4, &
+                          INSERT_VALUES,ierr);CHKERRQ(ierr)
+      endif
+    enddo
+  enddo
+
+  call MatAssemblyBegin(Mat_vert_to_face,MAT_FINAL_ASSEMBLY, &
+                        ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(Mat_vert_to_face,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+
+#if UGRID_DEBUG
+  write(string,*) option%myrank
+  string = adjustl(string)
+  if (unstructured_grid%grid_type == THREE_DIM_GRID) then
+    string = 'Mat_vert_to_face_' // trim(region_name) // '_global' // &
+            '_subsurf.out'
+  else
+    string = 'Mat_vert_to_face_' // trim(region_name) // '_global' // &
+            '_surf.out'
+  endif
+  call PetscViewerASCIIOpen(option%mycomm,string,viewer,ierr);CHKERRQ(ierr)
+  call MatView(Mat_vert_to_face,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+
+  call MatCreateAIJ(option%mycomm, &
+                       n_ss_faces, &
+                       PETSC_DETERMINE, &
+                       PETSC_DETERMINE, &
+                       unstructured_grid%num_vertices_global, &
+                       4, &
+                       PETSC_NULL_INTEGER, &
+                       4, &
+                       PETSC_NULL_INTEGER, &
+                       Mat_region_vert_to_face, &
+                       ierr);CHKERRQ(ierr)
+  call MatZeroEntries(Mat_region_vert_to_face,ierr);CHKERRQ(ierr)
+
+  offset=0
+  call MPI_Exscan(n_ss_faces,offset, &
+                  ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+
+  do iface = 1, n_ss_faces
+    do ivertex = 1, size(face_vertices,1)
+      if (face_vertices(ivertex,iface) > 0) then
+        call MatSetValue(Mat_region_vert_to_face, &
+                         iface-1+offset, &
+                         face_vertices(ivertex,iface)-1, &
+                         1.d0, &
+                         INSERT_VALUES,ierr);CHKERRQ(ierr)
+
+      endif
+    enddo
+  enddo
+
+  call MatAssemblyBegin(Mat_region_vert_to_face,MAT_FINAL_ASSEMBLY, &
+                        ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(Mat_region_vert_to_face,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+
+#if UGRID_DEBUG
+  write(string,*) option%myrank
+  string = adjustl(string)
+  if (unstructured_grid%grid_type == THREE_DIM_GRID) then
+    string = 'Mat_region_vert_to_face_' // trim(region_name) // '_global' // &
+            '_subsurf.out'
+  else
+    string = 'Mat_region_vert_to_face_' // trim(region_name) // '_global' // &
+            '_surf.out'
+  endif
+  call PetscViewerASCIIOpen(option%mycomm,string,viewer,ierr);CHKERRQ(ierr)
+  call MatView(Mat_region_vert_to_face,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+
+  call MatTranspose(Mat_region_vert_to_face, MAT_INITIAL_MATRIX, &
+                    Mat_region_face_to_vert, ierr); CHKERRQ(ierr)
+
+#if UGRID_DEBUG
+  write(string,*) option%myrank
+  string = adjustl(string)
+  if (unstructured_grid%grid_type == THREE_DIM_GRID) then
+    string = 'Mat_region_face_to_vert_' // trim(region_name) // '_global' // &
+            '_subsurf.out'
+  else
+    string = 'Mat_region_face_to_vert_' // trim(region_name) // '_global' // &
+            '_surf.out'
+  endif
+  call PetscViewerASCIIOpen(option%mycomm,string,viewer,ierr);CHKERRQ(ierr)
+  call MatView(Mat_region_face_to_vert,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+
+  call MatMatMult(Mat_vert_to_face, Mat_region_face_to_vert, MAT_INITIAL_MATRIX, PETSC_DEFAULT_REAL, &
+                           Mat_face, ierr); CHKERRQ(ierr)
+
+#if UGRID_DEBUG
+  write(string,*) option%myrank
+  string = adjustl(string)
+  if (unstructured_grid%grid_type == THREE_DIM_GRID) then
+    string = 'Mat_face_' // trim(region_name) // '_global' // &
+            '_subsurf.out'
+  else
+    string = 'Mat_face_' // trim(region_name) // '_global' // &
+            '_surf.out'
+  endif
+  call PetscViewerASCIIOpen(option%mycomm,string,viewer,ierr);CHKERRQ(ierr)
+  call MatView(Mat_face,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+
+  if (option%mycommsize > 1) then
+    ! From the MPI-Matrix get the local-matrix
+    call MatMPIAIJGetLocalMat(Mat_face,MAT_INITIAL_MATRIX,Mat_face_loc, &
+                              ierr);CHKERRQ(ierr)
+    ! Get i and j indices of the local-matrix
+    call MatGetRowIJF90(Mat_face_loc,ONE_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                        nrow,ia_p,ja_p,done,ierr);CHKERRQ(ierr)
+    ! Get values stored in the local-matrix
+    call MatSeqAIJGetArrayF90(Mat_face_loc,aa_v,ierr);CHKERRQ(ierr)
+  else
+    ! Get i and j indices of the local-matrix
+    call MatGetRowIJF90(Mat_face,ONE_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                        nrow,ia_p,ja_p,done,ierr);CHKERRQ(ierr)
+    ! Get values stored in the local-matrix
+    call MatSeqAIJGetArrayF90(Mat_face,aa_v,ierr);CHKERRQ(ierr)
+  endif
+
+  min_nverts = 3
+  if (unstructured_grid%grid_type == THREE_DIM_GRID) min_nverts = 3
+  if (unstructured_grid%grid_type == TWO_DIM_GRID  ) min_nverts = 2
+
+  ! Determine the total number of faces mapped
+  mapped_face_count = 0
+  row = 1
+  col = 0
+  do ii = 1,nrow
+    max_value = 0.d0
+    do jj = ia_p(ii),ia_p(ii + 1) - 1
+      if (aa_v(jj) > max_value) then
+        max_value = aa_v(jj)
+      endif
+    enddo
+    if (max_value >= min_nverts) then
+      mapped_face_count = mapped_face_count + 1
+    endif
+  enddo
+
+  allocate(cell_ids(mapped_face_count))
+  allocate(face_ids(mapped_face_count))
+
+  ! Determine the total number of faces mapped
+  mapped_face_count = 0
+  row = 1
+  col = 0
+  do ii = 1,nrow
+    max_value = 0.d0
+    do jj = ia_p(ii),ia_p(ii + 1) - 1
+      if (aa_v(jj) > max_value) then
+        max_value = aa_v(jj)
+      endif
+    enddo
+    if (max_value >= min_nverts) then
+      mapped_face_count = mapped_face_count + 1
+      cell_ids(mapped_face_count) = cell_ids_for_all_boundary_faces(ii)
+      face_ids(mapped_face_count) = face_ids_for_all_boundary_faces(ii)
+    endif
+  enddo
+
+  if (option%mycommsize>1) then
+    call MatSeqAIJRestoreArrayF90(Mat_face_loc,aa_v,ierr);CHKERRQ(ierr)
+    call MatDestroy(Mat_face_loc,ierr);CHKERRQ(ierr)
+  else
+    call MatSeqAIJRestoreArrayF90(Mat_face,aa_v,ierr);CHKERRQ(ierr)
+  endif
+
+  call MatDestroy(Mat_vert_to_face,ierr);CHKERRQ(ierr)
+  call MatDestroy(Mat_region_vert_to_face,ierr);CHKERRQ(ierr)
+  call MatDestroy(Mat_region_face_to_vert,ierr);CHKERRQ(ierr)
+  deallocate(face_ids_for_all_boundary_faces)
+  deallocate(cell_ids_for_all_boundary_faces)
+
+end subroutine UGridMapSideSet2
+
+! ************************************************************************** !
+
 subroutine UGridMapBoundFacesInPolVol(unstructured_grid,polygonal_volume, &
                                       region_name,option, &
                                       cell_ids,face_ids)
@@ -3580,7 +3888,7 @@ subroutine UGridMapBoundFacesInPolVol(unstructured_grid,polygonal_volume, &
   PetscInt :: nfaces
   PetscInt :: cell_id, cell_type
   PetscInt :: vertex_id
-  type(point_type) :: vertex
+  type(point3d_type) :: vertex
   PetscInt :: mapped_face_count
   PetscBool :: found
   PetscInt :: boundary_face_count
@@ -3656,14 +3964,11 @@ subroutine UGridGetBoundaryFaces(unstructured_grid,option,boundary_faces)
   ! Date: 01/12/12
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   type(grid_unstructured_type) :: unstructured_grid
   PetscInt, pointer :: boundary_faces(:)
@@ -3727,14 +4032,11 @@ subroutine UGridGrowStencilSupport(unstructured_grid,stencil_width, &
   ! Date: 09/17/12
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   type(grid_unstructured_type) :: unstructured_grid
   type(option_type) :: option
@@ -3986,14 +4288,11 @@ subroutine UGridFindCellIDsAfterGrowingStencilWidthByOne(Mat_vert_to_cell, &
   ! Date: 09/17/12
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   type(option_type) :: option
   Mat :: Mat_vert_to_cell
@@ -4150,15 +4449,11 @@ subroutine UGridFindNewGhostCellIDsAfterGrowingStencilWidth(unstructured_grid, &
   ! Author: Gautam Bisht, LBNL
   ! Date: 09/17/12
   ! 
-              
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   type(grid_unstructured_type) :: unstructured_grid
   PetscInt :: cids_new(:)
@@ -4399,14 +4694,11 @@ subroutine UGridUpdateMeshAfterGrowingStencilWidth(unstructured_grid, &
   ! 
 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   type(grid_unstructured_type) :: unstructured_grid
   type(option_type) :: option

@@ -1,5 +1,6 @@
 module PM_Richards_class
-
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
   
@@ -8,14 +9,6 @@ module PM_Richards_class
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscsnes.h"
 
   type, public, extends(pm_subsurface_flow_type) :: pm_richards_type
   contains
@@ -59,7 +52,7 @@ function PMRichardsCreate()
   
   allocate(richards_pm)
   call PMSubsurfaceFlowCreate(richards_pm)
-  richards_pm%name = 'PMRichards'
+  richards_pm%name = 'Richards Flow'
 
   PMRichardsCreate => richards_pm
   
@@ -88,6 +81,7 @@ subroutine PMRichardsRead(this,input)
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
+  PetscReal :: Mannings_coeff
   PetscBool :: found
 
   option => this%option
@@ -106,7 +100,8 @@ subroutine PMRichardsRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found,option)
+    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
+                                        error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -118,6 +113,13 @@ subroutine PMRichardsRead(this,input)
         call InputReadDouble(input,option,richards_itol_rel_update)
         call InputDefaultMsg(input,option,'richards_itol_rel_update')
         this%check_post_convergence = PETSC_TRUE
+      case('INLINE_SURFACE_REGION')
+        option%inline_surface_flow = PETSC_TRUE
+        call InputReadWord(input,option,word,PETSC_FALSE)
+        option%inline_surface_region_name = word
+      case('INLINE_SURFACE_MANNINGS_COEFF')
+        call InputReadDouble(input,option,Mannings_coeff)
+        option%inline_surface_Mannings_coeff = Mannings_coeff
       case default
         call InputKeywordUnrecognized(word,error_string,option)
     end select
@@ -163,6 +165,8 @@ subroutine PMRichardsPreSolve(this)
   
   class(pm_richards_type) :: this
 
+  call PMSubsurfaceFlowPreSolve(this)
+
 end subroutine PMRichardsPreSolve
 
 ! ************************************************************************** !
@@ -181,11 +185,13 @@ end subroutine PMRichardsPostSolve
 ! ************************************************************************** !
 
 subroutine PMRichardsUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                    num_newton_iterations,tfac, &
+                                    time_step_max_growth_factor)
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   ! 
+  use Realization_Subsurface_class, only : RealizationLimitDTByCFL
 
   implicit none
   
@@ -195,6 +201,7 @@ subroutine PMRichardsUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: fac
   PetscReal :: ut
@@ -225,14 +232,14 @@ subroutine PMRichardsUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     dtt = min(dt_tfac,dt_p)
   endif
   
-  if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   if (dtt > dt_max) dtt = dt_max
   ! geh: There used to be code here that cut the time step if it is too
   !      large relative to the simulation time.  This has been removed.
   dtt = max(dtt,dt_min)
   dt = dtt
 
-  call PMSubsurfaceFlowLimitDTByCFL(this,dt)
+  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
   
 end subroutine PMRichardsUpdateTimestep
 
@@ -320,6 +327,7 @@ subroutine PMRichardsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscInt :: local_id, ghosted_id
   PetscReal :: P_R, P0, P1, delP
   PetscReal :: scale, sat, sat_pert, pert, pc_pert, press_pert, delP_pert
+  PetscReal :: dpc_dsatl
   
   patch => this%realization%patch
   grid => patch%grid
@@ -341,8 +349,8 @@ subroutine PMRichardsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       sat = global_auxvars(ghosted_id)%sat(1)
       sat_pert = sat - sign(1.d0,sat-0.5d0)*pert
       call patch%characteristic_curves_array( &
-             patch%sat_func_id(ghosted_id))%ptr% &
-             saturation_function%CapillaryPressure(sat_pert,pc_pert,option)
+        patch%sat_func_id(ghosted_id))%ptr%saturation_function% &
+        CapillaryPressure(sat_pert,pc_pert,dpc_dsatl,option)
       press_pert = option%reference_pressure - pc_pert
       P0 = X_p(local_id)
       delP = dX_p(local_id)
@@ -513,6 +521,7 @@ subroutine PMRichardsTimeCut(this)
   
   call PMSubsurfaceFlowTimeCut(this)
   call RichardsTimeCut(this%realization)
+  call PMSubsurfaceFlowTimeCutPostInit(this)
 
 end subroutine PMRichardsTimeCut
 

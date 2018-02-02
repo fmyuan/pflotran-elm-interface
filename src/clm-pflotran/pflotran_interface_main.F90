@@ -1,4 +1,5 @@
 program pflotran_interface_main
+#include "finclude/petscsys.h"
 
   use pflotran_model_module, only : pflotran_model_type, pflotranModelCreate, &
        pflotranModelInitMapping, pflotranModelStepperRunInit, &

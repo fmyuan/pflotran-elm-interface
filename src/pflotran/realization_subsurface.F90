@@ -1,5 +1,7 @@
 module Realization_Subsurface_class
   
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Base_class
 
   use Option_module
@@ -7,6 +9,9 @@ module Realization_Subsurface_class
   use Input_Aux_module
   use Region_module
   use Condition_module
+#ifdef WELL_CLASS
+  use WellSpec_Base_class
+#endif
   use Transport_Constraint_module
   use Material_module
   use Saturation_Function_module
@@ -29,13 +34,13 @@ module Realization_Subsurface_class
 
 private
 
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
   type, public, extends(realization_base_type) :: realization_subsurface_type
 
     type(region_list_type), pointer :: region_list
     type(condition_list_type), pointer :: flow_conditions
+#ifdef WELL_CLASS
+    type(well_spec_list_type), pointer :: well_specs
+#endif
     type(tran_condition_list_type), pointer :: transport_conditions
     type(tran_constraint_list_type), pointer :: transport_constraints
     
@@ -89,7 +94,7 @@ private
             RealizUpdateAllCouplerAuxVars, &
             RealizUnInitializedVarsFlow, &
             RealizUnInitializedVarsTran, &
-            RealizSetSoilReferencePressure
+            RealizationLimitDTByCFL
 
   !TODO(intel)
   ! public from Realization_Base_class
@@ -145,6 +150,10 @@ function RealizationCreate2(option)
 
   allocate(realization%flow_conditions)
   call FlowConditionInitList(realization%flow_conditions)
+#ifdef WELL_CLASS
+  allocate(realization%well_specs)
+  call WellSpecInitList(realization%well_specs)
+#endif
   allocate(realization%transport_conditions)
   call TranConditionInitList(realization%transport_conditions)
   allocate(realization%transport_constraints)
@@ -174,6 +183,8 @@ subroutine RealizationCreateDiscretization(realization)
   ! Date: 02/22/08
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Grid_module
   use Grid_Unstructured_Aux_module
   use Grid_Unstructured_module, only : UGridEnsureRightHandRule
@@ -187,9 +198,6 @@ subroutine RealizationCreateDiscretization(realization)
   use Communicator_Unstructured_class, only : UnstructuredCommunicatorCreate
   
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(realization_subsurface_type) :: realization
   
@@ -231,6 +239,13 @@ subroutine RealizationCreateDiscretization(realization)
                                        field%porosity_t)
     call DiscretizationDuplicateVector(discretization,field%work, &
                                        field%porosity_tpdt)
+  endif
+
+  if (option%geomech_on) then
+    call DiscretizationDuplicateVector(discretization,field%work, &
+                                       field%porosity_base_store)
+    call DiscretizationDuplicateVector(discretization,field%work, &
+                                       field%porosity_geomech_store)
   endif
 
   ! 1 degree of freedom, local
@@ -461,6 +476,7 @@ subroutine RealizationLocalizeRegions(realization)
   
   type (region_type), pointer :: cur_region, cur_region2
   type(option_type), pointer :: option
+  type(region_type), pointer :: region
 
   option => realization%option
 
@@ -482,7 +498,24 @@ subroutine RealizationLocalizeRegions(realization)
 
   call PatchLocalizeRegions(realization%patch,realization%region_list, &
                             realization%option)
+  ! destroy realization's copy of region list as it can be confused with the
+  ! localized patch regions later in teh simulation.
+  call RegionDestroyList(realization%region_list)
 
+  ! compute regional connections for inline surface flow
+  if (option%inline_surface_flow) then
+     region => RegionGetPtrFromList(option%inline_surface_region_name, &
+          realization%patch%region_list)
+     if (.not.associated(region)) then
+        option%io_buffer = 'realization_subsurface.F90:RealizationLocalize&
+             &Regions() --> Could not find a required region named "' // &
+             trim(option%inline_surface_region_name) // &
+             '" from the list of regions.'
+        call printErrMsg(option)
+     endif
+     call GridRestrictRegionalConnect(realization%patch%grid,region)
+   endif
+   
 end subroutine RealizationLocalizeRegions
 
 ! ************************************************************************** !
@@ -592,6 +625,9 @@ subroutine RealizationProcessCouplers(realization)
   
   call PatchProcessCouplers( realization%patch,realization%flow_conditions, &
                              realization%transport_conditions, &
+#ifdef WELL_CLASS
+                             realization%well_specs, &
+#endif
                              realization%option)
   
 end subroutine RealizationProcessCouplers
@@ -838,6 +874,23 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           option%io_buffer = 'Incorrect dataset type for permeability Z.'
           call printErrMsg(option)
       end select      
+    endif
+    if (associated(cur_material_property%soil_reference_pressure_dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),SOIL_REFERENCE_PRESSURE'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                 cur_material_property%soil_reference_pressure_dataset%name, &
+                 string,option)
+      call DatasetDestroy(cur_material_property%soil_reference_pressure_dataset)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%soil_reference_pressure_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for soil reference &
+                              &pressure.'
+          call printErrMsg(option)
+      end select
     endif
     if (associated(cur_material_property%compressibility_dataset)) then
       string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
@@ -2428,66 +2481,46 @@ end subroutine RealizUnInitializedVar1
 
 ! ************************************************************************** !
 
-subroutine RealizSetSoilReferencePressure(realization)
-  ! 
-  ! Deallocates a realization
+subroutine RealizationLimitDTByCFL(realization,cfl_governor,dt)
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/06/16
-  ! 
-  use Patch_module
-  use Grid_module
-  use Material_Aux_class
-  use Fracture_module
-  use Variables_module, only : MAXIMUM_PRESSURE, SOIL_REFERENCE_PRESSURE
+  ! Date: 05/09/16 
+  !
+  use Option_module
+  use Output_Aux_module
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
+  PetscReal :: cfl_governor
+  PetscReal :: dt
 
-  type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
-  class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(material_type), pointer :: Material
-  type(material_property_ptr_type), pointer :: material_property_array(:)
-  PetscReal, pointer :: vec_loc_p(:)
+  PetscReal :: max_dt_cfl_1
+  PetscReal :: prev_dt
+  type(output_option_type), pointer :: output_option
 
-  PetscInt :: ghosted_id
-  PetscInt :: imat
-  PetscErrorCode :: ierr
-
-  patch => realization%patch
-  grid => patch%grid
-  material_property_array => patch%material_property_array
-  material_auxvars => patch%aux%Material%auxvars
-
-  call RealizationGetVariable(realization,realization%field%work, &
-                              MAXIMUM_PRESSURE,ZERO_INTEGER)
-  call DiscretizationGlobalToLocal(realization%discretization, &
-                                   realization%field%work, &
-                                   realization%field%work_loc, &
-                                   ONEDOF)
-  call VecGetArrayReadF90(realization%field%work_loc,vec_loc_p, &
-                          ierr); CHKERRQ(ierr)
-
-  do ghosted_id = 1, grid%ngmax
-    imat = patch%imat(ghosted_id)
-    if (imat <= 0) cycle
-    if (associated(material_auxvars(ghosted_id)%fracture)) then
-      call FractureSetInitialPressure(material_auxvars(ghosted_id)%fracture, &
-                                      vec_loc_p(ghosted_id))
+  if (Initialized(cfl_governor)) then
+    call RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1)
+    if (dt/cfl_governor > max_dt_cfl_1) then
+      prev_dt = dt
+      dt = max_dt_cfl_1*cfl_governor
+      output_option => realization%output_option
+      if (OptionPrintToScreen(realization%option)) then
+        write(*, &
+          '(" CFL Limiting (",f4.1,"): ",1pe12.4," -> ",1pe12.4," [",a,"]")') &
+              cfl_governor,prev_dt/output_option%tconv, &
+              dt/output_option%tconv,trim(output_option%tunit)
+      endif
+      if (OptionPrintToFile(realization%option)) then
+        write(realization%option%fid_out, &
+          '(" CFL Limiting (",f4.1,"): ",1pe12.4," -> ",1pe12.4," [",a,"]")') &
+              cfl_governor,prev_dt/output_option%tconv, &
+              dt/output_option%tconv,trim(output_option%tunit)
+      endif
     endif
-    if (material_property_array(imat)%ptr%soil_reference_pressure_initial) then
-      call MaterialAuxVarSetValue(material_auxvars(ghosted_id), &
-                                  SOIL_REFERENCE_PRESSURE, &
-                                  vec_loc_p(ghosted_id))
-    endif
-  enddo
+  endif
 
-  call VecRestoreArrayReadF90(realization%field%work_loc,vec_loc_p, &
-                              ierr); CHKERRQ(ierr)
-
-end subroutine RealizSetSoilReferencePressure
+end subroutine RealizationLimitDTByCFL
 
 ! ************************************************************************** !
 
@@ -2514,6 +2547,9 @@ subroutine RealizationDestroyLegacy(realization)
   call RegionDestroyList(realization%region_list)
   
   call FlowConditionDestroyList(realization%flow_conditions)
+#ifdef WELL_CLASS
+  call WellSpecDestroyList(realization%well_specs)
+#endif
   call TranConditionDestroyList(realization%transport_conditions)
   call TranConstraintDestroyList(realization%transport_constraints)
 
@@ -2569,6 +2605,9 @@ subroutine RealizationStrip(this)
   call RegionDestroyList(this%region_list)
   
   call FlowConditionDestroyList(this%flow_conditions)
+#ifdef WELL_CLASS
+  call WellSpecDestroyList(this%well_specs)
+#endif
   call TranConditionDestroyList(this%transport_conditions)
   call TranConstraintDestroyList(this%transport_constraints)
 

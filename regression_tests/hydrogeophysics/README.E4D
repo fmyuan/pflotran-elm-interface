@@ -3,21 +3,21 @@ Tim Johnson
 Feb. 9, 2016 
 
 Overview
-This manuscript document the basic operation and usage of the E4D module 
+This manuscript documents the basic operation and usage of the E4D module 
 for PFLOTRAN. Users should be familiar with both PFLOTRAN and mode 1 and 
 mode 2 of E4D before attempting to use the E4D module. 
 
 The E4D module for PFLOTRAN enables user to simulate a time-lapse sequence 
 of electrical resistivity tomography (ERT) surveys, given a time varying 
-subsurface simulated by PFLOTRAN. In it's current implementation, E4D is 
-allocated a dedicated set of process  that run in parallel with the PFLOTRAN
+subsurface simulated by PFLOTRAN. In its current implementation, E4D is 
+allocated a dedicated set of processes that run in parallel with the PFLOTRAN
 cores/processes. PFLOTRAN passess information to E4D through a single E4D 
 master process, which communicates with and orchestrates operations among 
 the E4D slave processes. At the completion of each time-step, PFLOTRAN 
 informs E4D that a time-step has been completed. E4D then checks a user 
 supplied database of survey times. If a survey time is specified for the 
 current time step, then PFLOTRAN sends E4D the current state of the system.
-In it's current implementation, that state includes saturation and tracer 
+In its current implementation, that state includes saturation and tracer 
 concentration only, but the basic framework is in place for users to modify
 the code to pass E4D any state variables computed by PFLOTRAN. Once E4D 
 receives the current state, the state variables are transformed into bulk 
@@ -26,7 +26,7 @@ to the E4D mesh. E4D then simulates a user specified ERT survey, while
 PFLOTRAN computes the next time step. This process repeats until the end of
 the simulation. 
 
-The petrophyscal transform currently implemented is a simple differential
+The petrophysical transform currently implemented is a simple differential
 form of Archie's Law, which computes the change in bulk conductivity from
 the change in saturation and tracer concentration from some baseline
 condition. The code is written to enable users to modify the transform for
@@ -50,10 +50,10 @@ to identify the remaining files necessary to run E4D.  The e4d.inp file must
 have 4 lines, as follows (note the e4d.inp file for the pflotran module has a 
 different format than the e4d.inp file for the standalone, full version of E4D),
 
-mesh_node_filename	this is the name of the mesh node file
+mesh_node_filename      this is the name of the mesh node file
 base_survey_file        this is the name of the baseline e4d survey file
 conductivity_file       this is the name of the baseline conductivity file
-list_file     	        this is the name of the survey listing file
+list_file               this is the name of the survey listing file
 
 mesh node file
 The mesh node file is the first file listed in e4d.inp. It is the node file 
@@ -79,27 +79,27 @@ format of the conductivity file is given in the E4D user guide.
 
 list file
 The list file name is specified on the fourth line of e4d.inp. The list file 
-tells the E4D module which times E4D survey should be simulated. For each time 
+tells the E4D module at which times ERT surveys should be simulated. For each time 
 specified, it lists a conductivity file and a survey file. The conductivity file
 specified for a given time is used to tell E4D what bulk conductivity values 
 should be used for regions that are outside of the PFLOTRAN domain, and 
 therefore have no interpolated values from PFLOTRAN. The survey file specified 
-at each time is used to provide measurements values, which are repeated in the 
+at each time is used to provide observed measurements values, which are repeated in the 
 output files, primarily as an aid for joint inversions. Each survey file must 
 have the same format and measurement sequence as the baseline survey file. The 
-only value that is allowed to be different is the observed V/I and standard 
+only value that is allowed to be different is the observed measurement V/I and standard 
 deviation. 
 
 The list file also specifies parameters used in the petrophysical transform. 
 The format of the list file is as follows:
 
-NT	FF	FC_sw		FC_gw
-t1	surv_1	cond_1
-t2	surv_2	cond_2
+NT      FF      FC_sw           FC_gw
+t1      surv_1  cond_1
+t2      surv_2  cond_2
 .
 .
 .
-tNT	surv_NT	cond_NT
+tNT     surv_NT cond_NT
 
 
 where:
@@ -112,10 +112,10 @@ surv_x = survey file for time x.
 cond_x = conductivity file for time x. 
 
 Regions of the ERT domain that are outside of the PFLOTRAN domain will assume 
-the values specified in this file at time x. 
+the values specified in file cond_x file at time x. 
 
-Note the the conductivity and survey files specified in the list file need not 
-be unique. The same file(s) may be specified for more than one, or all, times. 
+The the conductivity and survey files specified in the list file need not 
+be unique. The same file(s) may be specified for more than once. 
 This is the most common use. 
 
 pf_mesh.txt
@@ -126,13 +126,14 @@ where the PFLOTRAN mesh dimensions are provided is pf_mesh.txt. The format of
 pf_mesh is as follows:
 
 ncx
-nx_1	nx_2	‘¡­ nx_ncx+1
+nx_1    nx_2  ...  nx_ncx+1
 
 ncy
-ny_1	ny_2 ‘¡­ ny_ncy+1
+ny_1    ny_2  ...  ny_ncy+1
 
 ncz
-nz_1	nz_2 ‘¡­ nz_ncz+1
+nz_1    nz_2  ...  nz_ncz+1
+
 
 
 where:
@@ -153,12 +154,10 @@ x is the realization number, and  * is the time stamp specified in the list
 file. 
 
 simulated and observed data file
-E4D writes to the simulated and observed ERT measurements to file for each 
+E4D writes the simulated and observed ERT measurements to a file for each 
 time step specified in the list file. For each time step, the file name is 
 E4D_x*.txt, where x is the realization number and * is the time stamp specified
 in the list file. 
-
-
 
 CALLING SEQUENCE
 The plflotran input file have the SIMULATION_TYPE HYDROGEOPHYSICS flag. See 
@@ -166,7 +165,7 @@ pflotran documentation for details. The command line sequence to run PFLOTRAN
 with the E4D module is:
 
 mpirun -n TP pflotran -pflotranin PFIN < -stochastic > < -num_realizations NR >
-< -num_groups NG> -num_slave NS
+< -num_groups NG> -num_slaves NS
 
 where:
 TP = total number of process (i.e. compute cores) to use
@@ -181,7 +180,6 @@ file, or else E4D will terminate.
 0ptions in <> are only used in stochastic mode.  If stochastic mode is used, 
 the number of processes allocated to E4D is NG*(NS+1). The remainder of the 
 processes are allocated to PFLOTRAN, with (TP-NG(NS+1))/NG processes per group. 
-
 
 PETROPHYSICAL AND MESH INTERPOLATION SUBROUTINE
 The petrophysical transformation and mesh interpolation routine is found in 
@@ -216,7 +214,7 @@ end;
 !set elements not mapped to baseline conductivity
 for i=1,nelem
      if(sigma(i)==0) then
- 	sigma(i) = base_sigma(i)
+       sigma(i) = base_sigma(i)
      end if
 end;
 
@@ -224,3 +222,4 @@ end;
 The mapping vectors can be used implement other petrophysical transforms as 
 desired by the users.
 
+ 

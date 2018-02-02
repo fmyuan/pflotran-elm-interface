@@ -1,5 +1,7 @@
 module PM_Flash2_class
 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
   
@@ -8,14 +10,6 @@ module PM_Flash2_class
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscsnes.h"
 
   type, public, extends(pm_subsurface_flow_type) :: pm_flash2_type
   contains
@@ -61,7 +55,7 @@ function PMFlash2Create()
   
   allocate(flash2_pm)
   call PMSubsurfaceFlowCreate(flash2_pm)
-  flash2_pm%name = 'PMFlash2'
+  flash2_pm%name = 'Flash2 Flow'
 
   PMFlash2Create => flash2_pm
   
@@ -108,7 +102,8 @@ subroutine PMFlash2Read(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found,option)
+    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
+                                        error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -156,6 +151,8 @@ subroutine PMFlash2PreSolve(this)
   implicit none
   
   class(pm_flash2_type) :: this
+
+  call PMSubsurfaceFlowPreSolve(this)
   
 end subroutine PMFlash2PreSolve
 
@@ -178,11 +175,13 @@ end subroutine PMFlash2PostSolve
 ! ************************************************************************** !
 
 subroutine PMFlash2UpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                  num_newton_iterations,tfac, &
+                                  time_step_max_growth_factor)
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/27/13
   ! 
+  use Realization_Subsurface_class, only : RealizationLimitDTByCFL
 
   implicit none
   
@@ -192,6 +191,7 @@ subroutine PMFlash2UpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: fac
   PetscReal :: ut
@@ -228,7 +228,7 @@ subroutine PMFlash2UpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     dtt = min(dt_tfac,dt_p)
   endif
   
-  if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   if (dtt > dt_max) dtt = dt_max
   dtt = max(dtt,dt_min)
 
@@ -237,7 +237,7 @@ subroutine PMFlash2UpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
       
   dt = dtt
 
-  call PMSubsurfaceFlowLimitDTByCFL(this,dt)
+  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
   
 end subroutine PMFlash2UpdateTimestep
 

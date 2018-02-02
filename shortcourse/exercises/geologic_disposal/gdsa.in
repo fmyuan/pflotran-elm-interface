@@ -1,0 +1,975 @@
+# Geologic Disposal Safety Assessment (GDSA) features:
+# Unstructured grid
+# Initial and boundary conditions from gridded datasets
+# EXTERNAL files
+# Waste package and waste form degradation
+# Waste package heat sources
+# Radioactive decay and ingrowth
+# Biosphere
+# SUBSURFACE_FLOW MODE TH (thermal/hydro - no gas flow)
+#
+# To run quickly on one core, only 2 radionuclides are included in simulation.
+# If you have more cores or more time, you can remove the skip/noskip
+# statements that bracket the other radionuclides.
+#
+# This input deck and associate files:
+# reggrad0013.h5
+# gdsa_usg.h5
+# obs_points.txt
+# obs_regions.txt
+# regions.txt
+# source_sink.txt
+# strata.txt
+# wfg.txt
+# oxide_heat.txt
+# metallic_heat.txt
+# hlw_heat.txt
+
+# constitute:
+# SAND2017-9343 O
+# 
+# Title: Geologic Disposal Safety Assessment PFLOTRAN Short Course Example
+# Author: Emily Stein (Sandia National Laboratories) ergiamb@sandia.gov
+#
+# Sandia National Laboratories is a multi-mission laboratory managed and
+# operated by National Technology and Engineering Solutions of Sandia, LLC,
+# a wholly owned subsidiary of Honeywell International Inc. for the U.S.
+# Department of Energy's National Nuclear Security Administration under
+# contract DE-NA0003525.
+#=========================== flow mode ========================================
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE TH
+      OPTIONS
+        MAX_PRESSURE_CHANGE 1.d8 #Pa
+      /
+    /
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+    UFD_DECAY ufd_decay ! in aqueous, solid, and sorbed phases
+    /
+    WASTE_FORM wf_general ! waste package and waste form degradation
+      TYPE GENERAL
+    /
+    UFD_BIOSPHERE bio ! dose calculation at a drinking well
+    /
+  /
+END
+
+SUBSURFACE
+#=========================== datasets =========================================
+#these are used for initial and boundary conditions
+DATASET 1d_temperature 
+  FILENAME ./initcond/reggrad0013.h5
+  HDF5_DATASET_NAME hydrostatic_boundary_T
+/
+DATASET 1d_pressure 
+  FILENAME ./initcond/reggrad0013.h5
+  HDF5_DATASET_NAME hydrostatic_boundary_P
+/
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+skip
+    Am241
+    Am243
+    Pu238
+    Pu239
+    Pu240
+    Pu242
+    Np237
+    U233
+    U234
+    U236
+    U238
+    Th229
+    Th230
+    Tc99 
+noskip
+    I129
+    Cs135
+  /
+  MINERALS
+skip
+    Am241(s)
+    Am243(s)
+    Pu238(s)
+    Pu239(s)
+    Pu240(s)
+    Pu242(s)
+    Np237(s)
+    U233(s)
+    U234(s)
+    U236(s)
+    U238(s)
+    Th229(s)
+    Th230(s)
+    Tc99(s)
+noskip
+    I129(s)
+    Cs135(s)
+  /
+  MINERAL_KINETICS
+skip
+    Am241(s)
+      RATE_CONSTANT 0.0d0
+    /
+    Am243(s)
+      RATE_CONSTANT 0.0d0
+    /
+    Pu238(s)
+      RATE_CONSTANT 0.0d0
+    /
+    Pu239(s)
+      RATE_CONSTANT 0.0d0
+    /
+    Pu240(s)
+      RATE_CONSTANT 0.0d0
+    /
+    Pu242(s)
+      RATE_CONSTANT 0.0d0
+    /
+    Np237(s)
+      RATE_CONSTANT 0.0d0
+    /
+    U233(s)
+      RATE_CONSTANT 0.0d0
+    /
+    U234(s)
+      RATE_CONSTANT 0.0d0
+    /
+    U236(s)
+      RATE_CONSTANT 0.0d0
+    /
+    U238(s)
+      RATE_CONSTANT 0.0d0
+    /
+    Th229(s)
+      RATE_CONSTANT 0.0d0
+    /
+    Th230(s)
+      RATE_CONSTANT 0.0d0
+    /
+    Tc99(s)
+      RATE_CONSTANT 0.0d0
+    /
+noskip
+    I129(s)
+      RATE_CONSTANT 0.d0
+    /
+    Cs135(s)
+      RATE_CONSTANT 0.d0
+    /
+  /
+
+  #LOG_FORMULATION
+  TRUNCATE_CONCENTRATION 1.d-21 
+  DATABASE ./ufd-decay.dat
+
+  OUTPUT
+    TOTAL
+    TOTAL_SORBED
+    all
+  /
+
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE unstructured ./gdsa_usg.h5
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 5.d5 y
+  INITIAL_TIMESTEP_SIZE 1.d-6 y
+  MAXIMUM_TIMESTEP_SIZE 1. y at 1. y
+  MAXIMUM_TIMESTEP_SIZE 5. y at 10. y
+  MAXIMUM_TIMESTEP_SIZE 50. y at 100. y
+  MAXIMUM_TIMESTEP_SIZE 500. y at 1000. y
+  MAXIMUM_TIMESTEP_SIZE 5000. y at 10000. y
+END
+
+#=========================== output options ===================================
+OUTPUT
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+  /
+  MASS_BALANCE_FILE
+    PERIODIC TIMESTEP 1
+  /
+  SNAPSHOT_FILE
+    FORMAT HDF5
+    PRINT_COLUMN_IDS
+    PERIODIC TIME 1. y between 0. y and 10. y
+    PERIODIC TIME 10. y between 0. y and 100. y
+    PERIODIC TIME 100. y between 0. y and 1000. y
+    PERIODIC TIME 1000. y between 0. y and 10000. y
+    PERIODIC TIME 10000. y between 0. y and 100000. y
+    PERIODIC TIME 100000. y between 0. y and 500000. y
+  /
+  VELOCITY_AT_CENTER
+  VARIABLES
+    MATERIAL_ID
+    TEMPERATURE
+    LIQUID_PRESSURE
+    LIQUID_DENSITY
+  /
+END
+#=========================== observation points ===============================
+EXTERNAL_FILE ./obs_points.txt
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY shale
+  ID 1
+  SATURATION_FUNCTION default
+  POROSITY 0.20
+  TORTUOSITY_FUNCTION_OF_POROSITY 1.4
+  SOIL_COMPRESSIBILITY 1.6d-8 #1/Pa
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 2700.
+  THERMAL_CONDUCTIVITY_DRY 1.2d0 ! not used
+  THERMAL_CONDUCTIVITY_WET 1.2d0
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO 1.d-19
+  /
+/
+
+MATERIAL_PROPERTY drz
+  ID 3
+  SATURATION_FUNCTION default
+  POROSITY 0.20
+  TORTUOSITY_FUNCTION_OF_POROSITY 1.4
+  SOIL_COMPRESSIBILITY 1.6d-8 #1/Pa
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 2700.
+  THERMAL_CONDUCTIVITY_DRY 1.2d0 ! not used
+  THERMAL_CONDUCTIVITY_WET 1.2d0
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO 1.d-18
+  /
+/
+
+MATERIAL_PROPERTY lower_shale
+  ID 2
+  SATURATION_FUNCTION default
+  POROSITY 0.10
+  TORTUOSITY_FUNCTION_OF_POROSITY 1.4
+  SOIL_COMPRESSIBILITY 1.6d-8 #1/Pa
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 2700.
+  THERMAL_CONDUCTIVITY_DRY 1.2d0 ! not used
+  THERMAL_CONDUCTIVITY_WET 1.2d0
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO 1.d-20
+  /
+/
+
+MATERIAL_PROPERTY siltstone
+  ID 4
+  SATURATION_FUNCTION default
+  POROSITY 0.20
+  TORTUOSITY_FUNCTION_OF_POROSITY 1.4
+  SOIL_COMPRESSIBILITY 1.6d-8 #1/Pa
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 2700.
+  THERMAL_CONDUCTIVITY_DRY 1.4d0 ! not used
+  THERMAL_CONDUCTIVITY_WET 1.4d0
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO 1.d-17
+  /
+/
+
+MATERIAL_PROPERTY overburden
+  ID 5
+  SATURATION_FUNCTION default
+  POROSITY 0.20
+  TORTUOSITY_FUNCTION_OF_POROSITY 1.4
+  SOIL_COMPRESSIBILITY 1.6d-8 #1/Pa
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 2700.
+  THERMAL_CONDUCTIVITY_DRY 1.7d0 ! not used
+  THERMAL_CONDUCTIVITY_WET 1.7d0
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO 1.d-15
+  /
+/
+
+MATERIAL_PROPERTY sandstone
+  ID 7
+  SATURATION_FUNCTION default
+  POROSITY 0.20
+  TORTUOSITY_FUNCTION_OF_POROSITY 0.333
+  SOIL_COMPRESSIBILITY 3.2d-9 #1/Pa
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 2700.
+  THERMAL_CONDUCTIVITY_DRY 3.1d0 ! not used
+  THERMAL_CONDUCTIVITY_WET 3.1d0
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO 1.d-13
+  /
+/
+
+MATERIAL_PROPERTY limestone
+  ID 6
+  SATURATION_FUNCTION default
+  POROSITY 0.10
+  TORTUOSITY_FUNCTION_OF_POROSITY 1.4
+  SOIL_COMPRESSIBILITY 3.2d-9 #1/Pa
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 2700. 
+  THERMAL_CONDUCTIVITY_DRY 2.6d0 ! not used
+  THERMAL_CONDUCTIVITY_WET 2.6d0
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO 1.d-14
+  /
+/
+
+MATERIAL_PROPERTY lower_sandstone
+  ID 8
+  SATURATION_FUNCTION default
+  POROSITY 0.20
+  TORTUOSITY_FUNCTION_OF_POROSITY 0.333
+  SOIL_COMPRESSIBILITY 3.2d-9 #1/Pa
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 2700.
+  THERMAL_CONDUCTIVITY_DRY 3.1d0 ! not used
+  THERMAL_CONDUCTIVITY_WET 3.1d0
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO 1.d-13
+  /
+/
+
+MATERIAL_PROPERTY buffer
+  ID 9
+  SATURATION_FUNCTION default
+  POROSITY 0.35
+  TORTUOSITY_FUNCTION_OF_POROSITY 1.4
+  SOIL_COMPRESSIBILITY 1.6d-8 #1/Pa
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 2700.
+  THERMAL_CONDUCTIVITY_DRY 1.5d0 ! not used
+  THERMAL_CONDUCTIVITY_WET 1.5d0 
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO  1.d-20
+  /                 
+/
+
+MATERIAL_PROPERTY metallic
+  ID 10
+  SATURATION_FUNCTION default
+  POROSITY 0.50
+  TORTUOSITY 1.0 ! don't scale diffusion
+  SOIL_COMPRESSIBILITY 0.
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 5000.d0
+  THERMAL_CONDUCTIVITY_DRY 16.7d0
+  THERMAL_CONDUCTIVITY_WET 16.7d0
+  HEAT_CAPACITY 466.
+  PERMEABILITY  
+    PERM_ISO 1.d-16 ! little resistance to flow
+  /
+/
+
+MATERIAL_PROPERTY hlw
+  ID 11
+  SATURATION_FUNCTION default
+  POROSITY 0.10
+  TORTUOSITY 1.0 ! don't scale diffusion
+  SOIL_COMPRESSIBILITY 0.
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 5000.d0
+  THERMAL_CONDUCTIVITY_DRY 16.7d0
+  THERMAL_CONDUCTIVITY_WET 16.7d0
+  HEAT_CAPACITY 466.
+  PERMEABILITY  
+    PERM_ISO 1.d-16 ! little resistance to flow
+  /
+/
+
+MATERIAL_PROPERTY oxide
+  ID 12
+  SATURATION_FUNCTION default
+  POROSITY 0.50
+  TORTUOSITY 1.0 ! don't scale diffusion
+  SOIL_COMPRESSIBILITY 0.
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 5000.d0
+  THERMAL_CONDUCTIVITY_DRY 16.7d0
+  THERMAL_CONDUCTIVITY_WET 16.7d0
+  HEAT_CAPACITY 466.
+  PERMEABILITY  
+    PERM_ISO 1.d-16 ! little resistance to flow
+  /
+/
+
+#=========================== saturation functions =============================
+#this never gets used because fully saturated
+SATURATION_FUNCTION default
+  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
+  RESIDUAL_SATURATION 0.1d0
+  LAMBDA 0.5
+  ALPHA 1.d-4
+END
+
+#=========================== flow conditions ==================================
+#hydrostatic pressure gradient and geothermal gradient for initial conditions
+FLOW_CONDITION initial #also BC for top, bottom, west, east; north and south no flow
+  TYPE
+    PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  PRESSURE DATASET 1d_pressure
+  TEMPERATURE DATASET 1d_temperature
+END
+
+#heat source for each waste type
+
+FLOW_CONDITION hlw
+  TYPE
+    RATE MASS_RATE
+    ENERGY_RATE SCALED_ENERGY_RATE VOLUME #distribute heat source over all cells in region
+  /
+  !SYNC_TIMESTEP_WITH_UPDATE
+  INTERPOLATION LINEAR
+  RATE 0.d0 
+  ENERGY_RATE FILE ./hlw_heat.txt
+END
+
+FLOW_CONDITION oxide
+  TYPE
+    RATE MASS_RATE
+    ENERGY_RATE SCALED_ENERGY_RATE VOLUME #distribute heat source over all cells in region
+  /
+  !SYNC_TIMESTEP_WITH_UPDATE
+  INTERPOLATION LINEAR
+  RATE 0.d0 
+  ENERGY_RATE FILE ./oxide_heat.txt
+END
+
+FLOW_CONDITION metallic
+  TYPE 
+    RATE MASS_RATE
+    ENERGY_RATE SCALED_ENERGY_RATE VOLUME #distribute heat source over all cells in region
+  /
+  INTERPOLATION LINEAR
+  RATE 0.d0 
+  ENERGY_RATE FILE ./metallic_heat.txt
+END
+
+#=========================== transport conditions and constraints =============================
+TRANSPORT_CONDITION bottom 
+  TYPE zero_gradient
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+TRANSPORT_CONDITION initial
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+CONSTRAINT initial
+  CONCENTRATIONS    
+skip
+    Am241 1.d-21 T
+    Am243 1.d-21 T
+    Pu238 1.d-21 T
+    Pu239 1.d-21 T
+    Pu240 1.d-21 T
+    Pu242 1.d-21 T
+    Np237 1.d-21 T
+    U233  1.d-21 T
+    U234  1.d-21 T
+    U236  1.d-21 T
+    U238  1.d-21 T
+    Th229 1.d-21 T
+    Th230 1.d-21 T
+    Tc99  1.d-21 T 
+noskip
+    I129  1.d-21 T
+    Cs135 1.d-21 T
+  /
+  MINERALS
+skip
+    Am241(s) 0.d0  1.d0
+    Am243(s) 0.d0  1.d0
+    Pu238(s) 0.d0  1.d0
+    Pu239(s) 0.d0  1.d0
+    Pu240(s) 0.d0  1.d0
+    Pu242(s) 0.d0  1.d0
+    Np237(s) 0.d0  1.d0
+    U233(s) 0.d0  1.d0
+    U234(s) 0.d0  1.d0
+    U236(s) 0.d0  1.d0
+    U238(s) 0.d0  1.d0
+    Th229(s) 0.d0  1.d0
+    Th230(s) 0.d0  1.d0
+    Tc99(s) 0.d0  1.d0
+noskip
+    I129(s)  0.d0  1.d0
+    Cs135(s) 0.d0  1.d0
+  /
+END
+#=========================== regions ==========================================
+#REGION all, faces, and everything else are in:
+EXTERNAL_FILE ./regions.txt
+
+#Observation points are in:
+EXTERNAL_FILE ./obs_regions.txt
+
+#======================= boundary condition couplers ===================================
+BOUNDARY_CONDITION top
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION top
+END
+
+BOUNDARY_CONDITION bottom
+  FLOW_CONDITION initial 
+  TRANSPORT_CONDITION bottom 
+  REGION bottom
+END
+
+BOUNDARY_CONDITION west
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION west
+END
+
+BOUNDARY_CONDITION east
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION east
+END
+
+#============================= initial condition couplers ==================================
+INITIAL_CONDITION all
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+#============================= source_sink couplers ========================================
+#heat source couplers in here:
+EXTERNAL_FILE ./source_sink.txt
+
+#============================= strata ======================================================
+#strata in here:
+EXTERNAL_FILE ./strata.txt
+
+END_SUBSURFACE
+
+#============================= waste form ==================================================
+WASTE_FORM_GENERAL 
+  #individual waste package regions are in:
+  EXTERNAL_FILE ./wfg.txt
+  PRINT_MASS_BALANCE
+
+
+  MECHANISM GLASS
+    KIENZLER_DISSOLUTION
+    NAME hlw
+    SPECIFIC_SURFACE_AREA 2.8d-3 m^2/kg
+    MATRIX_DENSITY 2750. kg/m^3
+    SPECIES
+    !isotope, atomic wt (g/mol), 1/s, g/g glass, instant release fraction, daughter
+skip
+      Am241  241.06d0  5.08d-11  3.179d-7  0.0d0  Np237
+      Am243  243.06d0  2.98d-12  6.348d-10 0.0d0  Pu239
+      Pu238  238.05d0  2.56d-10  4.628d-7  0.0d0   U243
+      Pu239  239.05d0  9.01d-13  4.615d-6  0.0d0  #U235 (not tracking)
+      Pu240  240.05d0  3.34d-12  8.484d-7  0.0d0   U236
+      Pu242  242.06d0  5.80d-14  1.219d-7  0.0d0   U238
+      Np237  237.05d0  1.03d-14  1.234d-5  0.0d0   U233
+       U233  233.04d0  1.38d-13  2.214d-10 0.0d0  Th229
+       U234  234.04d0  8.90d-14  5.362d-7  0.0d0  Th230
+       U236  236.05d0  9.20d-16  1.252d-6  0.0d0  #Th232 (not tracking)
+       U238  238.05d0  4.87d-18  4.234d-5  0.0d0  #Th234 (not tracking)
+      Th229  229.03d0  2.78d-12  0.d-10    0.0d0
+      Th230  230.03d0  2.75d-13  1.992d-9  0.0d0  #Ra226 (not tracking)
+       Tc99   98.91d0  1.04d-13  2.498d-5  0.0d0
+noskip
+       I129  128.90d0  1.29d-15  3.944d-8  0.0d0
+      Cs135  134.91d0  9.55d-15  1.517d-5  0.0d0
+    /
+    CANISTER_DEGRADATION_MODEL
+      VITALITY_LOG10_MEAN -4.5
+      VITALITY_LOG10_STDEV 0.5
+      VITALITY_UPPER_TRUNCATION -3.0
+      CANISTER_MATERIAL_CONSTANT 1500.
+    /
+  END #MECHANISM GLASS
+
+  MECHANISM CUSTOM
+    NAME oxide
+    FRACTIONAL_DISSOLUTION_RATE 1.d-6 1/day
+    MATRIX_DENSITY 10970.
+    SPECIES
+    !isotope, atomic wt (g/mol), 1/s, g/g waste, instant release fraction, daughter
+skip
+      Am241  241.06d0  5.08d-11  1.676d-4  0.0d0  Np237
+      Am243  243.06d0  2.98d-12  1.256d-5  0.0d0  Pu239
+      Pu238  238.05d0  2.56d-10  1.226d-3  0.0d0   U243
+      Pu239  239.05d0  9.01d-13  8.579d-4  0.0d0  #U235 (not tracking)
+      Pu240  240.05d0  3.34d-12  2.477d-4  0.0d0   U236
+      Pu242  242.06d0  5.80d-14  8.015d-5  0.0d0   U238
+      Np237  237.05d0  1.03d-14  9.014d-3  0.0d0   U233
+       U233  233.04d0  1.38d-13  3.671d-5  0.0d0  Th229
+       U234  234.04d0  8.90d-14  1.734d-2  0.0d0  Th230
+       U236  236.05d0  9.20d-16  1.540d-1  0.0d0  #Th232 (not tracking)
+       U238  238.05d0  4.87d-18  1.482d-2  0.0d0  #Th234 (not tracking)
+      Th229  229.03d0  2.78d-12  1.441d-8  0.0d0
+      Th230  230.03d0  2.75d-13  5.008d-6  0.0d0  #Ra226 (not tracking)
+       Tc99   98.91d0  1.04d-13  1.632d-2  0.07d0
+noskip
+      I129   128.90d0  1.29d-15  2.464d-3  0.10d0
+      Cs135  134.91d0  9.550d-15 1.731d-2  0.10d0
+      !Cl36   35.97d0  7.297d-14 0.000d-7  0.16d0
+    /
+    CANISTER_DEGRADATION_MODEL
+      VITALITY_LOG10_MEAN -4.5
+      VITALITY_LOG10_STDEV 0.5
+      VITALITY_UPPER_TRUNCATION -3.0
+      CANISTER_MATERIAL_CONSTANT 1500.
+    /
+  END #MECHANISM CUSTOM
+
+  MECHANISM DSNF
+    NAME metallic
+    MATRIX_DENSITY 1.d0 g/cm^3 #virtual number
+    SPECIES
+    !mass fractions are actually total g per canister
+    !isotope, atomic wt (g/mol), 1/s, g/g waste, instant release fraction, daughter
+skip
+      Am241  241.06d0  5.08d-11  1.14d+3  0.0d0  Np237
+      Am243  243.06d0  2.98d-12  3.98d+1  0.0d0  Pu239
+      Pu238  238.05d0  2.56d-10  5.58d+1  0.0d0   U243
+      Pu239  239.05d0  9.01d-13  1.98d+4  0.0d0  #U235 (not tracking)
+      Pu240  240.05d0  3.34d-12  5.03d+3  0.0d0   U236
+      Pu242  242.06d0  5.80d-14  1.33d+2  0.0d0   U238
+      Np237  237.05d0  1.03d-14  3.51d+2  0.0d0   U233
+       U233  233.04d0  1.38d-13  3.02d-2  0.0d0  Th229
+       U234  234.04d0  8.90d-14  5.19d+2  0.0d0  Th230
+       U236  236.05d0  9.20d-16  5.53d+3  0.0d0  #Th232 (not tracking)
+       U238  238.05d0  4.87d-18  3.03d+5  0.0d0  #Th234 (not tracking)
+      Th229  229.03d0  2.78d-12  6.01d-6  0.0d0
+      Th230  230.03d0  2.75d-13  4.79d-2  0.0d0  #Ra226 (not tracking)
+       Tc99   98.91d0  1.04d-13  4.84d+2  0.0d0
+noskip
+       I129  128.90d0  1.29d-15  1.09d+2  0.0d0
+      Cs135  134.91d0  9.55d-15  1.93d+2 0.0d0
+    /
+    CANISTER_DEGRADATION_MODEL
+      VITALITY_LOG10_MEAN -4.5
+      VITALITY_LOG10_STDEV 0.5
+      VITALITY_UPPER_TRUNCATION -3.0
+      CANISTER_MATERIAL_CONSTANT 1500.
+    /
+  END #MECHANISM DSNF
+
+END_WASTE_FORM_GENERAL
+
+UFD_DECAY
+
+  ELEMENT I
+    SOLUBILITY 1.d4
+    KD ! kg water / m^3 bulk
+      metallic 0.d0
+      hlw 0.d0
+      oxide 0.d0
+      buffer 0.d0
+      shale 0.d0
+      drz 0.d0 
+      siltstone 0.d0 
+      sandstone 0.d0
+      limestone 0.d0
+      lower_shale 0.d0
+      overburden 0.d0
+      lower_sandstone 0.d0
+    /
+  /
+  ISOTOPE I129
+    ELEMENT I
+    DECAY_RATE 1.29d-15
+    !DAUGHTER Xe129 1.d0
+  /
+
+skip
+  ELEMENT Am
+    SOLUBILITY 4.d-7
+    KD ! kg water / m^3 bulk
+      metallic 0.d0
+      hlw 0.d0
+      oxide 0.d0
+      buffer 2.11d7 
+      shale 1.08d8
+      drz 1.08d8
+      siltstone 1.08d8
+      sandstone 2.17d5
+      limestone 2.17d5
+      lower_shale 1.08d8
+      overburden 1.08d8
+      lower_sandstone 2.17d5
+    /
+  /
+  ISOTOPE Am241
+    ELEMENT Am
+    DECAY_RATE 5.08d-11
+    DAUGHTER Np237 1.d0
+  /
+  ISOTOPE Am243
+    ELEMENT Am
+    DECAY_RATE 2.98d-12
+    !DAUGHTER Pu239 1.d0
+  /
+  ELEMENT Pu
+    SOLUBILITY 2.d-7 
+    KD ! kg water / m^3 bulk
+      metallic 0.d0
+      hlw 0.d0
+      oxide 0.d0
+      buffer 1.76d6 
+      shale 1.94d6
+      drz 1.94d6
+      siltstone 1.94d6
+      sandstone 1.09d6
+      limestone 1.09d6
+      lower_shale 1.94d6
+      overburden 1.94d6
+      lower_sandstone 1.09d6
+    /
+  /
+  ISOTOPE Pu238
+    ELEMENT Pu
+    DECAY_RATE 2.56d-10
+    DAUGHTER U234 1.d0
+  /
+  ISOTOPE Pu239
+    ELEMENT Pu
+    DECAY_RATE 9.01d-13
+    !DAUGHTER U235 1.d0
+  /
+  ISOTOPE Pu240
+    ELEMENT Pu
+    DECAY_RATE 3.34d-12
+    DAUGHTER U236 1.d0
+  /
+  ISOTOPE Pu242
+    ELEMENT Pu
+    DECAY_RATE 5.80d-14
+    DAUGHTER U238 1.d0
+  /
+
+  ELEMENT Np
+    SOLUBILITY 4.d-9
+    KD ! kg water / m^3 bulk
+      metallic 0.d0
+      hlw 0.d0
+      oxide 0.d0
+      buffer 1.76d6 
+      shale 1.94d6
+      drz 1.94d6
+      siltstone 1.94d6
+      sandstone 3.44d4
+      limestone 3.44d4
+      lower_shale 1.94d6
+      overburden 1.94d6
+      lower_sandstone 3.44d4
+    /
+  /
+  ISOTOPE Np237
+    ELEMENT Np
+    DECAY_RATE 1.03d-14
+    !DAUGHTER U233 1.d0
+  /
+
+  ELEMENT U
+    SOLUBILITY 7.d-7 
+    KD ! kg water / m^3 bulk
+      metallic 0.d0
+      hlw 0.d0
+      oxide 0.d0
+      buffer 1.76d8 
+      shale 1.73d7
+      drz 1.73d7
+      siltstone 1.73d7
+      sandstone 1.88d3
+      limestone 1.88d3
+      lower_shale 1.73d7
+      overburden 1.73d7
+      lower_sandstone 1.88d3
+    /
+  /
+  ISOTOPE U233
+    ELEMENT U
+    DECAY_RATE 1.38d-13
+    DAUGHTER Th229 1.d0
+  /
+  ISOTOPE U234
+    ELEMENT U
+    DECAY_RATE 8.90d-14
+    DAUGHTER Th230 1.d0
+  /
+  ISOTOPE U236
+    ELEMENT U
+    DECAY_RATE 9.20d-16
+    !DAUGHTER Th232 1.d0
+  /
+  ISOTOPE U238
+    ELEMENT U
+    DECAY_RATE 4.87d-18
+    !DAUGHTER Th234 1.d0
+  /
+
+  ELEMENT Th
+    SOLUBILITY 6.d-7 
+    KD ! kg water / m^3 bulk
+      metallic 0.d0
+      hlw 0.d0
+      oxide 0.d0
+      buffer 5.27d6 
+      shale 1.73d7
+      drz 1.73d7
+      siltstone 1.73d7
+      sandstone 6.43d6
+      limestone 6.43d6
+      lower_shale 1.73d7
+      overburden 1.73d7
+      lower_sandstone 6.43d6
+    /
+  /
+  ISOTOPE Th229
+    ELEMENT Th
+    DECAY_RATE 2.78d-12
+    !DAUGHTER Ra225 1.d0
+  /
+  ISOTOPE Th230
+    ELEMENT Th
+    DECAY_RATE 2.75d-13
+    !DAUGHTER Ra226 1.d0
+  /
+
+  ELEMENT Tc
+    SOLUBILITY 4.d-9 
+    KD ! kg water / m^3 bulk
+      metallic 0.d0
+      hlw 0.d0
+      oxide 0.d0
+      buffer 2.00d8
+      shale 2.48d6
+      drz 2.48d6
+      siltstone 2.48d6
+      sandstone 1.22d5
+      limestone 1.22d5
+      lower_shale 2.48d6
+      overburden 2.48d6
+      lower_sandstone 1.22d5
+    /
+  /
+  ISOTOPE Tc99
+    ELEMENT Tc
+    DECAY_RATE 1.04d-13
+    !DAUGHTER Ru99 1.d0
+  /
+noskip
+
+  ELEMENT Cs
+    SOLUBILITY 1.d4
+    KD ! kg water / m^3 bulk
+      metallic 0.d0
+      hlw 0.d0
+      oxide 0.d0
+      buffer 6.67d5 
+      shale 8.64d5
+      drz 8.64d5
+      siltstone 8.64d5
+      sandstone 1.22d6
+      limestone 1.22d6
+      lower_shale 8.64d5
+      overburden 8.64d5
+      lower_sandstone 1.22d6
+    /
+  /
+  ISOTOPE Cs135
+    ELEMENT Cs
+    DECAY_RATE 9.550d-15
+  /
+noskip
+
+END #UFD-DECAY
+
+#==================== ufd biosphere =============
+UFD_BIOSPHERE
+
+skip
+  ERB_1A A_model1 ! use this model with a sink
+    REGION well
+    INDIVIDUAL_CONSUMPTION_RATE 2.d0 L/day
+    #INCLUDE_UNSUPPORTED_RADS
+  /
+noskip
+
+  ERB_1B B_model1 ! use this model without a sink
+    REGION fake_well ! does not pump
+    DILUTION_FACTOR 1.0 ! use dilution factor instead
+    INDIVIDUAL_CONSUMPTION_RATE 2.d0 L/day
+    #INCLUDE_UNSUPPORTED_RADS
+  /
+
+  SUPPORTED_RADIONUCLIDES
+    RADIONUCLIDE I129
+      ELEMENT_KD 0.d0  # L-water/kg-solid average in vicinity of well screen
+      DECAY_RATE 1.40d-15 1/sec
+      INGESTION_DOSE_COEF 1.1d-7 Sv/Bq
+    /
+skip
+    RADIONUCLIDE Tc99
+      ELEMENT_KD 1.d-1  # L-water/kg-solid average in vicinity of well screen
+      DECAY_RATE 1.04d-13 1/sec
+      INGESTION_DOSE_COEF 6.4d-10 Sv/Bq
+    /
+noskip
+    RADIONUCLIDE Cs135
+      ELEMENT_KD 2.8d2  # L-water/kg-solid average in vicinity of well screen
+      DECAY_RATE 9.55d-15 1/sec
+      INGESTION_DOSE_COEF 2.0d-09 Sv/Bq
+    /
+  /
+
+  OUTPUT_START_TIME 1.d4 yr
+
+END #UFD_BIOSPHERE
+

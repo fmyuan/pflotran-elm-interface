@@ -1,13 +1,13 @@
 module Fluid_module
  
+#include "petsc/finclude/petscsys.h"
+  use petscsys 
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
 
-#include "petsc/finclude/petscsys.h"
- 
   type, public :: fluid_property_type
     PetscReal :: tort_bin_diff
     PetscReal :: vap_air_diff_coef
@@ -56,6 +56,7 @@ function FluidPropertyCreate()
   fluid_property%phase_id = 0
   fluid_property%diffusion_coefficient = 1.d-9
   fluid_property%gas_diffusion_coefficient = 2.13D-5
+  ! for liquid, one can use 12.6 kJ/mol as an activation energy
   fluid_property%diffusion_activation_energy = 0.d0
   fluid_property%nacl_concentration = 0.d0
   nullify(fluid_property%next)
@@ -107,18 +108,17 @@ subroutine FluidPropertyRead(fluid_property,input,option)
         call InputReadDouble(input,option,fluid_property%diffusion_coefficient)
         call InputErrorMsg(input,option,'diffusion coefficient', &
                            'FLUID_PROPERTY')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        if (input%ierr == 0) then
-          internal_units = 'm^2/sec'
-          fluid_property%diffusion_coefficient = &
-            fluid_property%diffusion_coefficient * &
-            UnitsConvertToInternal(word,internal_units,option)
-        endif
+        call InputReadAndConvertUnits(input, &
+                                      fluid_property%diffusion_coefficient, &
+                         'm^2/sec','FLUID_PROPERTY,diffusion_coeffient',option)
       case('DIFFUSION_ACTIVATION_ENERGY') 
         call InputReadDouble(input,option, &
                              fluid_property%diffusion_activation_energy)
         call InputErrorMsg(input,option,'diffusion activation energy', &
                            'FLUID_PROPERTY')
+        call InputReadAndConvertUnits(input, &
+                fluid_property%diffusion_activation_energy, &
+                'J/mol','FLUID_PROPERTY,diffusion activation energy',option)
       case('GAS_DIFFUSION_COEFFICIENT') 
         call InputReadDouble(input,option, &
                              fluid_property%gas_diffusion_coefficient)

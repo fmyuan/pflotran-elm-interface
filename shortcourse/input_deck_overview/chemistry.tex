@@ -1,0 +1,87 @@
+\subsection{CHEMISTRY}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{CHEMISTRY}
+
+\begin{itemize}
+\item[] \textbf{Purpose:} Define aqueous chemistry for problem
+\item[] \textbf{Example uses:}
+\begin{itemize}
+  \item Conservative solute transport
+  \item Multicomponet biogeochemical transport
+\end{itemize}
+\item[] \textbf{Key sub-cards:}
+\begin{itemize}
+  \item[] \verb|PRIMARY_SPECIES|
+  \item[] \verb|SECONDARY_SPECIES|
+  \item[] \verb|IMMOBILE_SPECIES|
+  \item[] \verb|MINERALS|
+  \item[] \verb|MINERAL_KINETICS|
+  \item[] \verb|SORPTION|
+  \item[] \verb|ACTIVITY_COEFFICIENTS|
+  \item[] \verb|RADIOACTIVE_DECAY_REACTION|
+  
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{CHEMISTRY Example: Solute Transport}
+
+\begin{semiverbatim}
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer
+    Tracer2
+  /
+  OUTPUT
+    TOTAL
+    ALL
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{CHEMISTRY Example: Carbonate Chemistry}
+
+\tiny
+\begin{semiverbatim}
+CHEMISTRY
+  PRIMARY_SPECIES
+    H+
+    HCO3-
+    Ca++
+  /
+  SECONDARY_SPECIES
+    OH-
+    CO3--
+    CO2(aq)
+    CaCO3(aq)
+    CaHCO3+
+    CaOH+
+  /
+  GAS_SPECIES
+    CO2(g)
+  /
+  MINERALS
+    Calcite
+  /
+  MINERAL_KINETICS
+    Calcite
+      RATE_CONSTANT 1.d-6 mol/m^2-sec
+    /
+  /
+  DATABASE ../../../database/hanford.dat
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS TIMESTEP
+  OUTPUT
+    PH
+    TOTAL
+    ALL
+  /
+END
+\end{semiverbatim}
+
+\end{frame}

@@ -1,0 +1,177 @@
+# This file is part of the following SAND report described in gdsa.in:
+# SAND2017-9343 O
+#
+# Title: Geologic Disposal Safety Assessment PFLOTRAN Short Course Example
+# Author: Emily Stein (Sandia National Laboratories) ergiamb@sandia.gov
+#
+# Sandia National Laboratories is a multi-mission laboratory managed and
+# operated by National Technology and Engineering Solutions of Sandia, LLC,
+# a wholly owned subsidiary of Honeywell International Inc. for the U.S.
+# Department of Energy's National Nuclear Security Administration under
+# contract DE-NA0003525.
+
+STRATA
+  REGION all
+  MATERIAL shale
+END
+
+STRATA
+  REGION overburden
+  MATERIAL overburden
+END
+
+STRATA
+  REGION sand1
+  MATERIAL sandstone
+END
+
+STRATA
+  REGION silt
+  MATERIAL siltstone
+END
+
+STRATA
+  REGION lime
+  MATERIAL limestone
+END
+
+STRATA
+  REGION shale1
+  MATERIAL lower_shale
+END
+
+STRATA
+  REGION sand0
+  MATERIAL lower_sandstone
+END
+
+STRATA
+  REGION shale0
+  MATERIAL lower_shale
+END
+
+STRATA
+  REGION drz_drift0
+  MATERIAL drz
+END
+
+STRATA
+  REGION drz_drift1
+  MATERIAL drz
+END
+
+STRATA
+  REGION drz_drift2
+  MATERIAL drz
+END
+
+STRATA
+  REGION drz_drift3
+  MATERIAL drz
+END
+
+STRATA
+  REGION drz_drift4
+  MATERIAL drz
+END
+
+STRATA
+  REGION drz_drift5
+  MATERIAL drz
+END
+
+STRATA
+  REGION drz_drift6
+  MATERIAL drz
+END
+
+STRATA
+  REGION drz_hbh
+  MATERIAL drz
+END
+
+STRATA
+  REGION bf_drift0
+  MATERIAL buffer
+END
+
+STRATA
+  REGION bf_drift1
+  MATERIAL buffer
+END
+
+STRATA
+  REGION bf_drift2
+  MATERIAL buffer
+END
+
+STRATA
+  REGION bf_drift3
+  MATERIAL buffer
+END
+
+STRATA
+  REGION bf_drift4
+  MATERIAL buffer
+END
+
+STRATA
+  REGION bf_drift5
+  MATERIAL buffer
+END
+
+STRATA
+  REGION bf_drift6
+  MATERIAL buffer
+END
+
+STRATA
+  REGION bf_hbh6
+  MATERIAL buffer
+END
+
+STRATA
+  REGION hlw0
+  MATERIAL hlw
+END
+
+STRATA
+  REGION hlw1
+  MATERIAL hlw
+END
+
+STRATA
+  REGION hlw2
+  MATERIAL hlw
+END
+
+STRATA
+  REGION oxide0
+  MATERIAL oxide
+END
+
+STRATA
+  REGION oxide1
+  MATERIAL oxide
+END
+
+STRATA
+  REGION oxide2
+  MATERIAL oxide
+END
+
+STRATA
+  REGION metallic0
+  MATERIAL metallic
+END
+
+STRATA
+  REGION metallic1
+  MATERIAL metallic
+END
+
+STRATA
+  REGION metallic2
+  MATERIAL metallic
+END
+

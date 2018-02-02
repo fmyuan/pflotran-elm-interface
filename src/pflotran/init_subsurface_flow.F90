@@ -1,15 +1,15 @@
 module Init_Subsurface_Flow_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
 
-#include "petsc/finclude/petscsys.h"
-
-  public :: InitSubsurfFlowSetupRealization, &
-            InitSubsurfFlowSetupSolvers
+  public :: InitSubsurfFlowSetupRealization
   
 contains
 
@@ -35,7 +35,9 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   use Richards_module
   use TH_module
   use General_module
+  use WIPP_Flow_module
   use TOilIms_module
+  use TOWG_module
   use Condition_Control_module
   use co2_sw_module, only : init_span_wagner
   
@@ -54,13 +56,16 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(TH_MODE)
-        call THSetup(realization)
-      case(RICHARDS_MODE)
+      case(RICHARDS_MODE,WF_MODE,G_MODE,TOIL_IMS_MODE,TOWG_MODE)
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
                            patch%characteristic_curves_array, &
                            realization%option)
+    end select
+    select case(option%iflowmode)
+      case(TH_MODE)
+        call THSetup(realization)
+      case(RICHARDS_MODE)
         call RichardsSetup(realization)
       case(MPH_MODE)
         call init_span_wagner(option)      
@@ -73,18 +78,14 @@ subroutine InitSubsurfFlowSetupRealization(realization)
       case(FLASH2_MODE)
         call init_span_wagner(option)      
         call Flash2Setup(realization)
+      case(WF_MODE)
+        call WIPPFloSetup(realization)
       case(G_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           patch%material_property_array, &
-                           patch%characteristic_curves_array, &
-                           realization%option)
         call GeneralSetup(realization)
       case(TOIL_IMS_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           patch%material_property_array, &
-                           patch%characteristic_curves_array, &
-                           realization%option)
         call TOilImsSetup(realization)
+      case(TOWG_MODE)
+        call TOWGSetup(realization)
     end select
   
     ! assign initial conditionsRealizAssignFlowInitCond
@@ -114,8 +115,12 @@ subroutine InitSubsurfFlowSetupRealization(realization)
         !     assigned as the initial conditin if the state changes. therefore,
         !     pass in PETSC_FALSE
         call GeneralUpdateAuxVars(realization,PETSC_FALSE)
+      case(WF_MODE)
+        call WIPPFloUpdateAuxVars(realization)
       case(TOIL_IMS_MODE)
         call TOilImsUpdateAuxVars(realization)
+      case(TOWG_MODE)
+        call TOWGUpdateAuxVars(realization,PETSC_FALSE)
     end select
   else ! no flow mode specified
     if (len_trim(realization%nonuniform_velocity_filename) > 0) then
@@ -128,161 +133,53 @@ subroutine InitSubsurfFlowSetupRealization(realization)
 #endif
     endif
   endif  
+#ifdef WELL_CLASS
+  call AllWellsSetup(realization)
+#endif
   
 end subroutine InitSubsurfFlowSetupRealization
 
 ! ************************************************************************** !
-
-subroutine InitSubsurfFlowSetupSolvers(realization,convergence_context,solver)
+#ifdef WELL_CLASS
+subroutine AllWellsSetup(realization)
   ! 
-  ! Initializes material property data structres and assign them to the domain.
+  ! Point well auxvars to the domain auxvars te wells belong to
+  ! does nothing if well are not defined
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 12/04/14
+  ! Author: Paolo Orsini
+  ! Date: 06/03/16
   ! 
   use Realization_Subsurface_class
-  use Option_module
-  use Init_Common_module
-  
-  use Flash2_module
-  use Mphase_module
-  use Immis_module
-  use Miscible_module
-  use Richards_module
-  use TH_module
-  use General_module
-  use Solver_module
-  use Convergence_module
-  use Discretization_module
-  
+  use Coupler_module
+  use Well_module
+
   implicit none
 
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscsnes.h"
-#include "petsc/finclude/petscpc.h"
-  
   class(realization_subsurface_type) :: realization
-  type(convergence_context_type), pointer :: convergence_context
-  type(solver_type), pointer :: solver
-  
-  type(option_type), pointer :: option
-  SNESLineSearch :: linesearch
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscErrorCode :: ierr
-  
-  option => realization%option
-  
-  call printMsg(option,"  Beginning setup of FLOW SNES ")
+  type(coupler_type), pointer :: source_sink
+  PetscInt :: cpl_idx_start
 
-  if (solver%J_mat_type == MATAIJ) then
-    select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,IMS_MODE, FLASH2_MODE, G_MODE, MIS_MODE)
-        option%io_buffer = 'AIJ matrix not supported for current mode: '// &
-                            option%flowmode
-        call printErrMsg(option)
-    end select
-  endif
+  source_sink => realization%patch%source_sink_list%first
 
-  if (OptionPrintToScreen(option)) then
-    write(*,'(" number of dofs = ",i3,", number of phases = ",i3,i2)') &
-      option%nflowdof,option%nphase
-    select case(option%iflowmode)
-      case(FLASH2_MODE)
-        write(*,'(" mode = FLASH2: p, T, s/X")')
-      case(MPH_MODE)
-        write(*,'(" mode = MPH: p, T, s/X")')
-      case(IMS_MODE)
-        write(*,'(" mode = IMS: p, T, s")')
-      case(MIS_MODE)
-        write(*,'(" mode = MIS: p, Xs")')
-      case(TH_MODE)
-        write(*,'(" mode = TH: p, T")')
-      case(RICHARDS_MODE)
-        write(*,'(" mode = Richards: p")')  
-      case(G_MODE) 
-      case(TOIL_IMS_MODE)   
-    end select
-  endif
+  cpl_idx_start = 1
+  do
+    if (.not.associated(source_sink)) exit
+    if( associated(source_sink%well) ) then
+      !exclude empty wells - not included in well comms
+      if(source_sink%connection_set%num_connections > 0) then
+        source_sink%well%name = source_sink%name    
+        call WellAuxVarSetUp(source_sink%well,source_sink%connection_set, &
+                         source_sink%flow_condition,realization%patch%aux, &
+                         cpl_idx_start,realization%patch%ss_flow_vol_fluxes, &
+                         realization%option)
+      end if
+    end if
+    cpl_idx_start = cpl_idx_start + source_sink%connection_set%num_connections
+    source_sink => source_sink%next
+  end do
 
-  call SolverCreateSNES(solver,option%mycomm)  
-  call SNESSetOptionsPrefix(solver%snes, "flow_",ierr);CHKERRQ(ierr)
-  call SolverCheckCommandLine(solver)
-
-  if (solver%Jpre_mat_type == '') then
-    if (solver%J_mat_type /= MATMFFD) then
-      solver%Jpre_mat_type = solver%J_mat_type
-    else
-      solver%Jpre_mat_type = MATBAIJ
-    endif
-  endif
-
-  call DiscretizationCreateJacobian(realization%discretization,NFLOWDOF, &
-                                    solver%Jpre_mat_type, &
-                                    solver%Jpre, &
-                                    option)
-
-  call MatSetOptionsPrefix(solver%Jpre,"flow_",ierr);CHKERRQ(ierr)
-
-  if (solver%J_mat_type /= MATMFFD) then
-    solver%J = solver%Jpre
-  endif
-
-  if (solver%use_galerkin_mg) then
-    call DiscretizationCreateInterpolation(realization%discretization,NFLOWDOF, &
-                                           solver%interpolation, &
-                                           solver%galerkin_mg_levels_x, &
-                                           solver%galerkin_mg_levels_y, &
-                                           solver%galerkin_mg_levels_z, &
-                                           option)
-  endif
-    
-  if (solver%J_mat_type == MATMFFD) then
-    call MatCreateSNESMF(solver%snes,solver%J,ierr);CHKERRQ(ierr)
-  endif
-
-  ! by default turn off line search
-  call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
-  call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
-                              ierr);CHKERRQ(ierr)
-  ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
-  if (option%verbosity >= 2) then
-    string = '-flow_snes_view'
-    call PetscOptionsInsertString(PETSC_NULL_OBJECT,string, ierr);CHKERRQ(ierr)
-  endif
-
-  call SolverSetSNESOptions(solver)
-
-  ! If we are using a structured grid, set the corresponding flow DA 
-  ! as the DA for the PCEXOTIC preconditioner, in case we choose to use it.
-  ! The PCSetDA() call is ignored if the PCEXOTIC preconditioner is 
-  ! no used.  We need to put this call after SolverCreateSNES() so that 
-  ! KSPSetFromOptions() will already have been called.
-  ! I also note that this preconditioner is intended only for the flow 
-  ! solver.  --RTM
-  if (realization%discretization%itype == STRUCTURED_GRID) then
-    call PCSetDM(solver%pc, &
-                 realization%discretization%dm_nflowdof,ierr);CHKERRQ(ierr)
-  endif
-
-  option%io_buffer = 'Solver: ' // trim(solver%ksp_type)
-  call printMsg(option)
-  option%io_buffer = 'Preconditioner: ' // trim(solver%pc_type)
-  call printMsg(option)
-
-  ! shell for custom convergence test.  The default SNES convergence test  
-  ! is call within this function.
-  convergence_context => ConvergenceContextCreate(solver,option, &
-                                                  realization%patch%grid)
-  call SNESSetConvergenceTest(solver%snes,ConvergenceTest, &
-                              convergence_context, &
-                              PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
- 
-  call printMsg(option,"  Finished setting up FLOW SNES ")
- 
-end subroutine InitSubsurfFlowSetupSolvers
+end subroutine AllWellsSetup
+#endif
 
 ! ************************************************************************** !
 
@@ -294,6 +191,8 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   ! Date: 03/05/10, 12/04/14
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Subsurface_class
   use Option_module
   use Field_module
@@ -303,9 +202,6 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   use HDF5_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
   
   class(realization_subsurface_type) :: realization
   character(len=MAXSTRINGLENGTH) :: filename

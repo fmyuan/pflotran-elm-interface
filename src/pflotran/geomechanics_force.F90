@@ -1,22 +1,13 @@
 module Geomechanics_Force_module
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Geomechanics_Global_Aux_module
   use PFLOTRAN_Constants_module
   
   implicit none
   
   private
-  
-#include "petsc/finclude/petscsys.h"
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-!#include "petsc/finclude/petscsnes.h"
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscts.h"
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.d-12
@@ -35,7 +26,6 @@ module Geomechanics_Force_module
             GeomechStoreInitialPressTemp, &
             GeomechStoreInitialDisp, &
             GeomechStoreInitialPorosity, &
-            GeomechUpdateSubsurfPorosity, &
             GeomechForceJacobianLinearPart
  
 contains
@@ -145,19 +135,19 @@ subroutine GeomechForceSetPlotVariables(list)
     return
   endif
 
-  name = 'disp_x'
+  name = 'displacement_x'
   units = 'm'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_DISPLACEMENT,units, &
                                GEOMECH_DISP_X)
                                
-  name = 'disp_y'
+  name = 'displacement_y'
   units = 'm'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_DISPLACEMENT,units, &
                                GEOMECH_DISP_Y)
                                
-  name = 'disp_z'
+  name = 'displacement_z'
   units = 'm'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_DISPLACEMENT,units, &
                                GEOMECH_DISP_Z)
 
   units = ''
@@ -169,76 +159,76 @@ subroutine GeomechForceSetPlotVariables(list)
                              
   name = 'strain_xx'
   units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_STRAIN,units, &
                                STRAIN_XX)
                                
   name = 'strain_yy'
   units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_STRAIN,units, &
                                STRAIN_YY)
                                
   name = 'strain_zz'
   units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_STRAIN,units, &
                                STRAIN_ZZ)
                                
   name = 'strain_xy'
   units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_STRAIN,units, &
                                STRAIN_XY)
                                
   name = 'strain_yz'
   units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_STRAIN,units, &
                                STRAIN_YZ)
                                
   name = 'strain_zx'
   units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_STRAIN,units, &
                                STRAIN_ZX)
                                                                               
   name = 'stress_xx'
   units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_XX)
                                
   name = 'stress_yy'
   units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_YY)
                                
   name = 'stress_zz'
   units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_ZZ)
                                
   name = 'stress_xy'
   units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_XY)
                                
   name = 'stress_yz'
   units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_YZ)
                                
   name = 'stress_zx'
   units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_ZX)
-  name = 'rel_disp_x'
+  name = 'relative_displacement_x'
   units = 'm'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_DISPLACEMENT,units, &
                                GEOMECH_REL_DISP_X)
                                
-  name = 'rel_disp_y'
+  name = 'relative_displacement_y'
   units = 'm'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_DISPLACEMENT,units, &
                                GEOMECH_REL_DISP_Y)
                                
-  name = 'rel_disp_z'
+  name = 'relative_displacement_z'
   units = 'm'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+  call OutputVariableAddToList(list,name,OUTPUT_DISPLACEMENT,units, &
                                GEOMECH_REL_DISP_Z)
 
 
@@ -430,6 +420,8 @@ subroutine GeomechForceResidual(snes,xx,r,geomech_realization,ierr)
   ! Date: 06/21/13
   ! 
 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use Geomechanics_Realization_class
   use Geomechanics_Field_module
   use Geomechanics_Discretization_module
@@ -487,6 +479,8 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
   ! Date: 06/24/13
   ! 
 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use Geomechanics_Realization_class
   use Geomechanics_Field_module
   use Geomechanics_Discretization_module
@@ -1301,7 +1295,8 @@ subroutine GeomechForceJacobian(snes,xx,A,B,geomech_realization,ierr)
   ! Author: Satish Karra
   ! Date: 06/21/13
   ! 
-
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use Geomechanics_Realization_class
   use Geomechanics_Patch_module
   use Geomechanics_Grid_module
@@ -1369,6 +1364,8 @@ subroutine GeomechForceJacobianPatch(snes,xx,A,B,geomech_realization,ierr)
   ! Date: 06/21/13
   ! Modified: 07/12/16
        
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use Geomechanics_Realization_class
       
   implicit none
@@ -1597,7 +1594,7 @@ subroutine GeomechForceJacobianLinearPart(A,geomech_realization)
   enddo
     
   call MatZeroRowsLocal(A,count,rows,1.d0, &
-                        PETSC_NULL_OBJECT,PETSC_NULL_OBJECT, &
+                        PETSC_NULL_VEC,PETSC_NULL_VEC, &
                         ierr);CHKERRQ(ierr)
   call MatSetOption(A,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
                     ierr);CHKERRQ(ierr)
@@ -1806,6 +1803,8 @@ subroutine GeomechCreateGeomechSubsurfVec(realization,geomech_realization)
   ! Date: 09/10/13
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Grid_module
   use Geomechanics_Discretization_module
   use Geomechanics_Realization_class
@@ -1817,11 +1816,6 @@ subroutine GeomechCreateGeomechSubsurfVec(realization,geomech_realization)
   use Option_module
 
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   class(realization_subsurface_type) :: realization
   class(realization_geomech_type) :: geomech_realization
@@ -1856,6 +1850,8 @@ subroutine GeomechCreateSubsurfStressStrainVec(realization,geomech_realization)
   ! Date: 10/10/13
   ! 
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Grid_module
   use Geomechanics_Discretization_module
   use Geomechanics_Realization_class
@@ -1867,11 +1863,6 @@ subroutine GeomechCreateSubsurfStressStrainVec(realization,geomech_realization)
   use Option_module
 
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
 
   class(realization_subsurface_type) :: realization
   class(realization_geomech_type) :: geomech_realization
@@ -2036,7 +2027,7 @@ subroutine GeomechForceStressStrain(geomech_realization)
     call GeomechForceLocalElemStressStrain(size_elenodes,local_coordinates, &
        local_disp,youngs_vec,poissons_vec, &
        eletype,grid%gauss_node(ielem)%dim,strain,stress,option)
-
+ 
     do ivertex = 1, grid%elem_nodes(0,ielem)
       ghosted_id = elenodes(ivertex)
       do idof = 1, SIX_INTEGER
@@ -2077,12 +2068,11 @@ subroutine GeomechForceStressStrain(geomech_realization)
   call VecGetArrayF90(field%strain,strain_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%stress,stress_p,ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax_node
-    ghosted_id = grid%nL2G(local_id)
     do idof = 1, SIX_INTEGER
-      strain_p(idof + (ghosted_id-1)*SIX_INTEGER) = &
-        strain_p(idof + (ghosted_id-1)*SIX_INTEGER)/int(no_elems_p(ghosted_id))
-      stress_p(idof + (ghosted_id-1)*SIX_INTEGER) = &
-        stress_p(idof + (ghosted_id-1)*SIX_INTEGER)/int(no_elems_p(ghosted_id))
+      strain_p(idof + (local_id-1)*SIX_INTEGER) = &
+        strain_p(idof + (local_id-1)*SIX_INTEGER)/int(no_elems_p(local_id))
+      stress_p(idof + (local_id-1)*SIX_INTEGER) = &
+        stress_p(idof + (local_id-1)*SIX_INTEGER)/int(no_elems_p(local_id))
     enddo
   enddo
   call VecRestoreArrayF90(field%stress,stress_p,ierr);CHKERRQ(ierr)
@@ -2268,7 +2258,7 @@ end subroutine GeomechUpdateSolution
 
 ! ************************************************************************** !
 
-subroutine geomechupdatesolutionpatch(geomech_realization)
+subroutine GeomechUpdateSolutionPatch(geomech_realization)
   ! 
   ! updates data in module after a successful time
   ! step
@@ -2283,9 +2273,9 @@ subroutine geomechupdatesolutionpatch(geomech_realization)
   
   class(realization_geomech_type) :: geomech_realization
 
-  call geomechforcestressstrain(geomech_realization)
+  call GeomechForceStressStrain(geomech_realization)
 
-end subroutine geomechupdatesolutionpatch
+end subroutine GeomechUpdateSolutionPatch
 
 ! ************************************************************************** !
 
@@ -2370,84 +2360,5 @@ subroutine GeomechStoreInitialDisp(geomech_realization)
                ierr);CHKERRQ(ierr)
    
 end subroutine GeomechStoreInitialDisp
-
-! ************************************************************************** !
-
-subroutine GeomechUpdateSubsurfPorosity(realization,geomech_realization)
-  ! 
-  ! Updates the porosity in the subsurface based
-  ! on the deformation in geomechanics
-  ! 
-  ! Author: Satish Karra, LANL
-  ! Date: 10/08/13
-  ! 
-
-  use Realization_Subsurface_class
-  use Option_module
-  use Patch_module
-  use Field_module
-  use Grid_module
-  use Discretization_module
-  use Geomechanics_Field_module
-  use Material_Aux_class
-  use Material_module
-  use Variables_module, only : POROSITY
-  use Geomechanics_Realization_class
-
-  implicit none
-  
-  class(realization_subsurface_type) :: realization
-  class(realization_geomech_type) :: geomech_realization
-  type(field_type), pointer :: field
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  type(geomech_field_type), pointer :: geomech_field
-  type(grid_type), pointer :: grid
-  class(material_auxvar_type), pointer :: material_auxvars(:)
-
-  PetscReal :: trace_epsilon
-  PetscReal, pointer :: por0_loc_p(:), strain_loc_p(:)
-  PetscInt :: ghosted_id
-  PetscErrorCode :: ierr
-
-  option => realization%option
-  field => realization%field
-  patch => realization%patch
-  grid => patch%grid
-  geomech_field => geomech_realization%geomech_field
-  material_auxvars => realization%patch%aux%Material%auxvars
-
-  if (.not.associated(patch%imat)) then
-    option%io_buffer = 'Materials IDs not present in run.  Material ' // &
-      ' properties cannot be updated without material ids'
-    call printErrMsg(option)
-  endif
-  
-  call VecGetArrayF90(geomech_field%porosity_init_loc,por0_loc_p, &
-                      ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(geomech_field%strain_subsurf_loc,strain_loc_p, &
-                      ierr);CHKERRQ(ierr)
-  
-  do ghosted_id = 1, grid%ngmax
-    trace_epsilon = strain_loc_p((ghosted_id-1)*SIX_INTEGER+ONE_INTEGER) + &
-                    strain_loc_p((ghosted_id-1)*SIX_INTEGER+TWO_INTEGER) + &
-                    strain_loc_p((ghosted_id-1)*SIX_INTEGER+THREE_INTEGER)
-    material_auxvars(ghosted_id)%tortuosity = por0_loc_p(ghosted_id)/ &
-      (1.d0 + (1.d0 - por0_loc_p(ghosted_id))*trace_epsilon)
-  enddo
-  
-  call VecRestoreArrayF90(geomech_field%porosity_init_loc,por0_loc_p, &
-                          ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(geomech_field%strain_subsurf_loc,strain_loc_p, &
-                          ierr);CHKERRQ(ierr)
-
-  call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,ZERO_INTEGER)
-  call DiscretizationLocalToLocal(realization%discretization,field%work_loc, &
-                                  field%work_loc,ONEDOF)
-  call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,ZERO_INTEGER)
-
-end subroutine GeomechUpdateSubsurfPorosity
 
 end module Geomechanics_Force_module

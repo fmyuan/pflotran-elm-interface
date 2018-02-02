@@ -1,5 +1,7 @@
 module Output_HDF5_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Logging_module 
   use Output_Aux_module
   use Output_Common_module
@@ -9,8 +11,6 @@ module Output_HDF5_module
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   PetscMPIInt, private, parameter :: ON=1, OFF=0
 
@@ -100,15 +100,13 @@ subroutine OutputHDF5(realization_base,var_list_type)
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use HDF5_module
   use HDF5_Aux_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   class(realization_base_type) :: realization_base
   PetscInt :: var_list_type
@@ -265,9 +263,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
       cur_variable => output_option%output_snap_variable_list%first
       do
         if (.not.associated(cur_variable)) exit
-        call OutputGetVarFromArray(realization_base,global_vec, &
-                                   cur_variable%ivar, &
-                                   cur_variable%isubvar)
+        call OutputGetVariableArray(realization_base,global_vec,cur_variable)
         string = cur_variable%name
         call StringSwapChar(string," ","_")
         if (len_trim(cur_variable%units) > 0) then
@@ -419,8 +415,8 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   !
   use Option_module, only : option_type, printMsg, printErrMsg
 
-#include "petsc/finclude/petscsysdef.h"
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
 #if  !defined(PETSC_HAVE_HDF5)
   implicit none
 
@@ -630,15 +626,13 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
   use HDF5_Aux_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   class(realization_base_type) :: realization_base
   PetscInt :: var_list_type
@@ -684,7 +678,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   Vec :: natural_vec
   PetscReal, pointer :: v_ptr
 
-  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXSTRINGLENGTH) :: filename_path, filename_header
   character(len=MAXSTRINGLENGTH) :: xmf_filename, att_datasetname, group_name
   character(len=MAXSTRINGLENGTH) :: string, string2,string3
   character(len=MAXWORDLENGTH) :: word
@@ -699,6 +693,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   PetscBool :: first
   PetscInt :: ivar, isubvar, var_type
   PetscInt :: vert_count
+  Vec :: ivec
   PetscErrorCode :: ierr
 
   discretization => realization_base%discretization
@@ -721,8 +716,12 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 
   if (output_option%print_single_h5_file) then
     first = hdf5_first
-    filename = trim(option%global_prefix) // trim(string2) // &
+    !filename = trim(option%global_prefix) // trim(string2) // &
+    !           trim(option%group_prefix) // '.h5'
+    filename_path = trim(option%global_prefix) // trim(string2) // &
                trim(option%group_prefix) // '.h5'
+    filename_header = trim(option%output_file_name_prefix) //  &
+                      trim(string2) // trim(option%group_prefix) // '.h5'
   else
     string = OutputHDF5FilenameID(output_option,option,var_list_type)
     select case (var_list_type)
@@ -743,8 +742,14 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
         endif
     end select
 
-    filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-               trim(string2) // '-' // trim(string) // '.h5'
+    !filename = trim(option%global_prefix) // trim(option%group_prefix) // &
+    !           trim(string2) // '-' // trim(string) // '.h5'
+    filename_path = trim(option%global_prefix) // & 
+                    trim(option%group_prefix) // &
+                    trim(string2) // '-' // trim(string) // '.h5'
+    filename_header = trim(option%output_file_name_prefix) // & 
+                    trim(option%group_prefix) // &
+                    trim(string2) // '-' // trim(string) // '.h5'
   endif
 
   grid => patch%grid
@@ -764,12 +769,12 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 
   if (.not.first) then
     call h5eset_auto_f(OFF,hdf5_err)
-    call h5fopen_f(filename,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
+    call h5fopen_f(filename_path,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
     if (hdf5_err /= 0) first = PETSC_TRUE
     call h5eset_auto_f(ON,hdf5_err)
   endif
   if (first) then
-    call h5fcreate_f(filename,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
+    call h5fcreate_f(filename_path,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
                      H5P_DEFAULT_F,prop_id)
   else if (Uninitialized(realization_base%output_option%xmf_vert_len)) then
     call DetermineNumVertices(realization_base,option)
@@ -777,9 +782,9 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   call h5pclose_f(prop_id,hdf5_err)
 
   if (first) then
-    option%io_buffer = '--> creating hdf5 output file: ' // trim(filename)
+    option%io_buffer = '--> creating hdf5 output file: ' // trim(filename_path)
   else
-    option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
+    option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename_path)
   endif
   call printMsg(option)
 
@@ -792,15 +797,15 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   endif
 
   if (option%myrank == option%io_rank) then
-    option%io_buffer = '--> write xmf output file: ' // trim(filename)
+    option%io_buffer = '--> write xmf output file: ' // trim(filename_path)
     call printMsg(option)
     open(unit=OUTPUT_UNIT,file=xmf_filename,action="write")
-    !call OutputXMFHeader(OUTPUT_UNIT,realization_base,filename)
     call OutputXMFHeader(OUTPUT_UNIT, &
                          option%time/output_option%tconv, &
                          grid%nmax, &
                          realization_base%output_option%xmf_vert_len, &
-                         grid%unstructured_grid%num_vertices_global,filename)
+                         grid%unstructured_grid%num_vertices_global,&
+                         filename_header,PETSC_TRUE)
   endif
 
   ! create a group for the data set
@@ -835,9 +840,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
       cur_variable => output_option%output_snap_variable_list%first
       do
         if (.not.associated(cur_variable)) exit
-        call OutputGetVarFromArray(realization_base,global_vec, &
-                                   cur_variable%ivar, &
-                                   cur_variable%isubvar)
+        call OutputGetVariableArray(realization_base,global_vec,cur_variable)
         call DiscretizationGlobalToNatural(discretization,global_vec, &
                                            natural_vec,ONEDOF)
         string = cur_variable%name
@@ -853,10 +856,11 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
           call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
                                        H5T_NATIVE_INTEGER)
         endif
-        att_datasetname = trim(filename) // ":/" // trim(group_name) // &
+        att_datasetname = trim(filename_header) // ":/" // trim(group_name) // &
                           "/" // trim(string)
         if (option%myrank == option%io_rank) then
-          call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,att_datasetname)
+          call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                  att_datasetname,CELL_CENTERED_OUTPUT_MESH)
         endif
         cur_variable => cur_variable%next
       enddo
@@ -877,11 +881,11 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
                                              natural_vec,ONEDOF)
           call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
                                        H5T_NATIVE_DOUBLE)
-          att_datasetname = trim(filename) // ":/" // trim(group_name) // &
+          att_datasetname = trim(filename_header) // ":/" // trim(group_name) // &
                             "/" // trim(string)
           if (option%myrank == option%io_rank) then
             call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
-                                    att_datasetname)
+                                    att_datasetname,CELL_CENTERED_OUTPUT_MESH)
           endif
           cur_variable => cur_variable%next
         enddo
@@ -919,77 +923,61 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
     call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                          global_vec_vy,global_vec_vz, &
                                          LIQUID_PHASE)
-
-    string = "Liquid X-Velocity [m_per_" // trim(output_option%tunit) // "]"
-    call DiscretizationGlobalToNatural(discretization,global_vec_vx, &
-                                       natural_vec,ONEDOF)
-    call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
-                                 H5T_NATIVE_DOUBLE)
-    att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" &
-                      // trim(string)
-    if (option%myrank == option%io_rank) then
-      call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,att_datasetname)
-    endif
-
-    string = "Liquid Y-Velocity [m_per_" // trim(output_option%tunit) // "]"
-    call DiscretizationGlobalToNatural(discretization,global_vec_vy, &
-                                       natural_vec,ONEDOF)
-    call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
-                                             H5T_NATIVE_DOUBLE)
-    att_datasetname = trim(filename) // ":/" // trim(group_name) // &
-                      "/" // trim(string)
-    if (option%myrank == option%io_rank) then
-      call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,att_datasetname)
-    endif
-
-    string = "Liquid Z-Velocity [m_per_" // trim(output_option%tunit) // "]"
-    call DiscretizationGlobalToNatural(discretization,global_vec_vz, &
-                                       natural_vec,ONEDOF)
-    call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
-                                             H5T_NATIVE_DOUBLE)
-    att_datasetname = trim(filename) // ":/" // trim(group_name) // &
-                      "/" // trim(string)
-    if (option%myrank == option%io_rank) then
-      call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,att_datasetname)
-    endif
+    do i = 1, 3
+      select case(i)
+        case(1)
+          word = 'X'
+          ivec = global_vec_vx
+        case(2)
+          word = 'Y'
+          ivec = global_vec_vy
+        case(3)
+          word = 'Z'
+          ivec = global_vec_vz
+      end select
+      string = 'Liquid ' // trim(word) // '-Velocity [m_per_' // &
+               trim(output_option%tunit) // ']'
+      call DiscretizationGlobalToNatural(discretization,ivec, &
+                                         natural_vec,ONEDOF)
+      call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                                   H5T_NATIVE_DOUBLE)
+      att_datasetname = trim(filename_header) // ":/" // &
+                        trim(group_name) // "/" // trim(string)
+      if (option%myrank == option%io_rank) then
+      call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,att_datasetname, &
+                              CELL_CENTERED_OUTPUT_MESH)
+      endif
+    enddo
 
     if (option%nphase > 1) then
         call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                              global_vec_vy,global_vec_vz, &
                                              GAS_PHASE)
-
-        string = "Gas X-Velocity [m_per_" // trim(output_option%tunit) // "]"
-        call DiscretizationGlobalToNatural(discretization,global_vec_vx, &
-                                           natural_vec,ONEDOF)
+      do i = 1, 3
+        select case(i)
+          case(1)
+            word = 'X'
+            ivec = global_vec_vx
+          case(2)
+            word = 'Y'
+            ivec = global_vec_vy
+          case(3)
+            word = 'Z'
+            ivec = global_vec_vz
+        end select
+        string = 'Gas ' // trim(word) // '-Velocity [m_per_' // &
+                 trim(output_option%tunit) // ']'
+        call DiscretizationGlobalToNatural(discretization,ivec, &
+                                         natural_vec,ONEDOF)
         call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
-                                                 H5T_NATIVE_DOUBLE)
-        att_datasetname = trim(filename) // ":/" // trim(group_name) // &
-                          "/" // trim(string)
+                                     H5T_NATIVE_DOUBLE)
+        att_datasetname = trim(filename_header) // ":/" // &
+                          trim(group_name) // "/" // trim(string)
         if (option%myrank == option%io_rank) then
-          call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,att_datasetname)
+          call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                  att_datasetname,CELL_CENTERED_OUTPUT_MESH)
         endif
-
-        string = "Gas Y-Velocity [m_per_" // trim(output_option%tunit) // "]"
-        call DiscretizationGlobalToNatural(discretization,global_vec_vy, &
-                                           natural_vec,ONEDOF)
-        call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
-                                                 H5T_NATIVE_DOUBLE)
-        att_datasetname = trim(filename) // ":/" // trim(group_name) // &
-                          "/" // trim(string)
-        if (option%myrank == option%io_rank) then
-          call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,att_datasetname)
-        endif
-
-        string = "Gas Z-Velocity [m_per_" // trim(output_option%tunit) // "]"
-        call DiscretizationGlobalToNatural(discretization,global_vec_vz, &
-                                           natural_vec,ONEDOF)
-        call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
-                                                 H5T_NATIVE_DOUBLE)
-        att_datasetname = trim(filename) // ":/" // trim(group_name) // &
-                          "/" // trim(string)
-        if (option%myrank == option%io_rank) then
-          call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,att_datasetname)
-        endif
+      enddo
     endif
   endif
 
@@ -1072,23 +1060,21 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
   use HDF5_Aux_module
   
   implicit none
 
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
-
   class(realization_base_type) :: realization_base
   PetscInt :: var_list_type
 
 #if defined(SCORPIO_WRITE)
-  integer :: file_id, new_file_id
+  integer :: file_id, new_file_id, file_id2
   integer :: data_type
-  integer :: grp_id, new_grp_id
+  integer :: grp_id, new_grp_id, grp_id2
   integer :: file_space_id
   integer :: memory_space_id
   integer :: data_set_id
@@ -1096,12 +1082,12 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   integer :: prop_id, new_prop_id
   PetscMPIInt :: rank
   integer :: rank_mpi,file_space_rank_mpi
-  integer :: dims(3)
+  integer :: dims(3), max_dims(3)
   integer :: start(3), length(3), stride(3)
 #else
-  integer(HID_T) :: file_id, new_file_id
+  integer(HID_T) :: file_id, new_file_id, file_id2
   integer(HID_T) :: data_type
-  integer(HID_T) :: grp_id, new_grp_id
+  integer(HID_T) :: grp_id, new_grp_id, grp_id2
   integer(HID_T) :: file_space_id
   integer(HID_T) :: realization_set_id
   integer(HID_T) :: memory_space_id
@@ -1109,7 +1095,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   integer(HID_T) :: prop_id, new_prop_id
   PetscMPIInt :: rank
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
-  integer(HSIZE_T) :: dims(3)
+  integer(HSIZE_T) :: dims(3), max_dims(3)
   integer(HSIZE_T) :: start(3), length(3), stride(3)
 #endif
 
@@ -1125,9 +1111,9 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   Vec :: natural_vec
   PetscReal, pointer :: v_ptr
 
-  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXSTRINGLENGTH) :: filename_path, filename_header
   character(len=MAXSTRINGLENGTH) :: xmf_filename, att_datasetname, group_name
-  character(len=MAXSTRINGLENGTH) :: new_filename
+  character(len=MAXSTRINGLENGTH) :: domain_filename_path, domain_filename_header
   character(len=MAXSTRINGLENGTH) :: string, string2,string3
   character(len=MAXWORDLENGTH) :: word
   character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
@@ -1142,6 +1128,10 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   PetscInt :: ivar, isubvar, var_type
   PetscInt :: istart
   PetscInt :: vert_count
+  PetscBool :: write_xdmf
+  PetscBool :: include_cell_centers
+  PetscInt :: num_vertices, num_cells
+  PetscInt :: mesh_type
   PetscErrorCode :: ierr
 
   discretization => realization_base%discretization
@@ -1164,8 +1154,12 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 
   if (output_option%print_single_h5_file) then
     first = hdf5_first
-    filename = trim(option%global_prefix) // trim(string2) // &
+    !filename = trim(option%global_prefix) // trim(string2) // &
+    !           trim(option%group_prefix) // '.h5'
+    filename_path = trim(option%global_prefix) // trim(string2) // &
                trim(option%group_prefix) // '.h5'
+    filename_header = trim(option%output_file_name_prefix) & 
+               // trim(string2) // trim(option%group_prefix) // '.h5'
   else
     string = OutputHDF5FilenameID(output_option,option,var_list_type)
     select case (var_list_type)
@@ -1186,8 +1180,14 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
         endif
     end select
 
-    filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-               trim(string2) // '-' // trim(string) // '.h5'
+    !filename = trim(option%global_prefix) // trim(option%group_prefix) // &
+    !           trim(string2) // '-' // trim(string) // '.h5'
+    filename_path = trim(option%global_prefix) // &
+                    trim(option%group_prefix) // &
+                    trim(string2) // '-' // trim(string) // '.h5'
+    filename_header = trim(option%output_file_name_prefix) // &
+                    trim(option%group_prefix) // &
+                    trim(string2) // '-' // trim(string) // '.h5'
   endif
 
   grid => patch%grid
@@ -1207,59 +1207,120 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 
   if (.not.first) then
     call h5eset_auto_f(OFF,hdf5_err)
-    call h5fopen_f(filename,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
+    call h5fopen_f(filename_path,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
     if (hdf5_err /= 0) first = PETSC_TRUE
     call h5eset_auto_f(ON,hdf5_err)
   endif
   if (first) then
-    call h5fcreate_f(filename,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
+    call h5fcreate_f(filename_path,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
                      H5P_DEFAULT_F,prop_id)
   endif
   call h5pclose_f(prop_id,hdf5_err)
 
   if (first) then
-    option%io_buffer = '--> creating hdf5 output file: ' // trim(filename)
+    option%io_buffer = '--> creating hdf5 output file: ' // trim(filename_path)
   else
-    option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
+    option%io_buffer = '--> appending to hdf5 output file: ' // &
+                       trim(filename_path)
   endif
   call printMsg(option)
   
-  new_filename = trim(option%global_prefix) // '-domain.h5'
-  
-  
-  if (first .and. option%print_explicit_primal_grid) then
-    if (option%myrank == option%io_rank) then
-      call h5pcreate_f(H5P_FILE_ACCESS_F,new_prop_id,hdf5_err)
-      call h5fcreate_f(new_filename,H5F_ACC_TRUNC_F,new_file_id,hdf5_err, &
-                     H5P_DEFAULT_F,new_prop_id)
-      call h5pclose_f(new_prop_id,hdf5_err)
-      ! create a group for the coordinates data set
-      string = "Domain"
-      call h5gcreate_f(new_file_id,string,new_grp_id,hdf5_err, &
-                       OBJECT_NAMELEN_DEFAULT_F)
-      call WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
-                                                 new_grp_id)
-      call h5gclose_f(new_grp_id,hdf5_err)
-      call h5fclose_f(new_file_id,hdf5_err)    
+  domain_filename_path = trim(option%global_prefix) // '-domain.h5'
+  domain_filename_header = trim(option%output_file_name_prefix) // '-domain.h5'
+  write_xdmf = PETSC_FALSE
+  include_cell_centers = PETSC_FALSE
+  mesh_type = grid%unstructured_grid%explicit_grid%output_mesh_type
+  if (option%myrank == option%io_rank .and. &
+      (output_option%print_explicit_primal_grid .or. &
+       len_trim(grid%unstructured_grid%explicit_grid% &
+                  domain_filename) > 0)) then
+    if (.not.output_option%print_explicit_primal_grid) then
+      ! have to open up domain file read the size of the vertex array
+      domain_filename_path = & 
+        grid%unstructured_grid%explicit_grid%domain_filename
+      domain_filename_header = domain_filename_path
+        ! initialize fortran hdf5 interface 
+      option%io_buffer = 'Opening hdf5 file: ' // trim(domain_filename_path)
+!      call printMsg(option)
+      call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
+      call HDF5OpenFileReadOnly(domain_filename_path,file_id2,prop_id,option)
+      call h5pclose_f(prop_id,hdf5_err)
+      string = 'Domain/Cells'      
+      call h5dopen_f(file_id2,string,data_set_id,hdf5_err)
+      if (hdf5_err /= 0) then
+        option%io_buffer = 'HDF5 dataset "' // trim(string) // '" not found &
+          &in file "' // trim(domain_filename_path) // '".'
+        call printErrMsg(option)
+      endif
+      call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
+      ! should be a rank=2 data space
+      call h5sget_simple_extent_dims_f(file_space_id,dims, &
+                                       max_dims,hdf5_err) 
+      num_cells = int(dims(1))
+      call h5sclose_f(file_space_id,hdf5_err)
+      call h5dclose_f(data_set_id,hdf5_err)  
+      string = 'Domain/Vertices'      
+      call h5dopen_f(file_id2,string,data_set_id,hdf5_err)
+      if (hdf5_err /= 0) then
+        option%io_buffer = 'HDF5 dataset "' // trim(string) // '" not found &
+          &in file "' // trim(domain_filename_path) // '".'
+        call printErrMsg(option)
+      endif
+      call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
+      ! should be a rank=2 data space
+      call h5sget_simple_extent_dims_f(file_space_id,dims, &
+                                       max_dims,hdf5_err) 
+      num_vertices = int(dims(2))
+      call h5sclose_f(file_space_id,hdf5_err)
+      call h5dclose_f(data_set_id,hdf5_err)  
+      call h5fclose_f(file_id2,hdf5_err)
+      include_cell_centers = PETSC_TRUE
+    else
+      ! for primal grid output, num_cells is set in the call to  
+      ! WriteHDF5CoordinatesUGridXDMFExplicit() below.  Therefore, this value
+      ! for num_cells will be overwritten the first time called.
+      num_cells = realization_base%output_option%xmf_vert_len
+      num_vertices = grid%unstructured_grid%explicit_grid%num_vertices
     endif
+    write_xdmf = PETSC_TRUE
+  endif
+  
+  if (first .and. output_option%print_explicit_primal_grid) then
+    call h5pcreate_f(H5P_FILE_ACCESS_F,new_prop_id,hdf5_err)
+    call h5fcreate_f(domain_filename_path,H5F_ACC_TRUNC_F,new_file_id, &
+                     hdf5_err,H5P_DEFAULT_F,new_prop_id)
+    call h5pclose_f(new_prop_id,hdf5_err)
+    ! create a group for the coordinates data set
+    string = "Domain"
+    call h5gcreate_f(new_file_id,string,new_grp_id,hdf5_err, &
+                     OBJECT_NAMELEN_DEFAULT_F)
+    call WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
+                                               new_grp_id)
+    num_cells = realization_base%output_option%xmf_vert_len
+    call h5gclose_f(new_grp_id,hdf5_err)
+    call h5fclose_f(new_file_id,hdf5_err)    
   endif   
   
-  if (option%myrank == option%io_rank .and. &
-      option%print_explicit_primal_grid) then
-    option%io_buffer = '--> write xmf output file: ' // trim(filename)
+  if (write_xdmf) then
+    option%io_buffer = '--> write xmf output file: ' // trim(xmf_filename)
     call printMsg(option)
     open(unit=OUTPUT_UNIT,file=xmf_filename,action="write")
-    call OutputXMFHeaderExplicit(OUTPUT_UNIT, &
+    call OutputXMFHeader(OUTPUT_UNIT, &
                        option%time/output_option%tconv, &
                        grid%unstructured_grid%explicit_grid%num_elems, &
-                       realization_base%output_option%xmf_vert_len, &
-                       grid%unstructured_grid%explicit_grid%num_cells_global, &
-                       new_filename)
+                       num_cells, &
+                       num_vertices, &
+                       domain_filename_header,include_cell_centers)
   endif
 
   ! create a group for the data set
-  write(string,'(''Time'',es13.5,x,a1)') &
-        option%time/output_option%tconv,output_option%tunit
+  if (output_option%extend_hdf5_time_format) then
+    write(string,'(''Time'',es20.12,x,a1)') &
+          option%time/output_option%tconv,output_option%tunit
+  else
+    write(string,'(''Time'',es13.5,x,a1)') &
+          option%time/output_option%tconv,output_option%tunit
+  endif
   if (len_trim(output_option%plot_name) > 2) then
     string = trim(string) // ' ' // output_option%plot_name
   endif
@@ -1286,9 +1347,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
       cur_variable => output_option%output_snap_variable_list%first
       do
         if (.not.associated(cur_variable)) exit
-        call OutputGetVarFromArray(realization_base,global_vec, &
-                                   cur_variable%ivar, &
-                                   cur_variable%isubvar)
+        call OutputGetVariableArray(realization_base,global_vec,cur_variable)
         call DiscretizationGlobalToNatural(discretization,global_vec, &
                                            natural_vec,ONEDOF)
         string = cur_variable%name
@@ -1304,12 +1363,13 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
           call HDF5WriteDataSetFromVec(string,option,natural_vec, &
                                        grp_id,H5T_NATIVE_INTEGER)
         endif
-        att_datasetname = trim(filename) // ":/" // trim(group_name) // &
-                          "/" // trim(string)
-        if (option%myrank == option%io_rank .and. &
-            option%print_explicit_primal_grid) then
-          call OutputXMFAttributeExplicit(OUTPUT_UNIT,grid%nmax,string, &
-                                          att_datasetname)
+        att_datasetname = trim(filename_header) // ":/" // &
+                          trim(group_name) // "/" // trim(string)
+        if (write_xdmf) then
+          !call OutputXMFAttributeExplicit(OUTPUT_UNIT,grid%nmax,string, &
+          !                                att_datasetname)
+          call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                  att_datasetname,mesh_type)
         endif
         cur_variable => cur_variable%next
       enddo
@@ -1330,12 +1390,11 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
                                              natural_vec,ONEDOF)
           call HDF5WriteDataSetFromVec(string,option,natural_vec, &
                                        grp_id,H5T_NATIVE_DOUBLE)
-          att_datasetname = trim(filename) // ":/" // trim(group_name) // &
-                            "/" // trim(string)
-          if (option%myrank == option%io_rank .and. &
-              option%print_explicit_primal_grid) then
-            call OutputXMFAttributeExplicit(OUTPUT_UNIT,grid%nmax,string, &
-                                            att_datasetname)
+          att_datasetname = trim(filename_header) // ":/" // &
+                            trim(group_name) // "/" // trim(string)
+          if (write_xdmf) then
+            call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                    att_datasetname,mesh_type)
           endif
           cur_variable => cur_variable%next
         enddo
@@ -1350,8 +1409,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   call h5fclose_f(file_id,hdf5_err)    
   call h5close_f(hdf5_err)
 
-
-  if (option%myrank == option%io_rank) then
+  if (write_xdmf) then
     call OutputXMFFooter(OUTPUT_UNIT)
     close(OUTPUT_UNIT)
   endif
@@ -1405,6 +1463,12 @@ function OutputHDF5FilenameID(output_option,option,var_list_type)
     write(OutputHDF5FilenameID,'(i3)') file_number  
   else if (output_option%plot_number < 10000) then
     write(OutputHDF5FilenameID,'(i4)') file_number
+  else if (output_option%plot_number < 100000) then
+    write(OutputHDF5FilenameID,'(i5)') file_number
+  else
+    option%io_buffer = 'Plot number exceeds current maximum of 10^5. &
+      &Email pflotran-dev@googlegroups.com and ask for a higher maximum.'
+    call printErrMsg(option)
   endif 
   
   OutputHDF5FilenameID = adjustl(OutputHDF5FilenameID)
@@ -1424,6 +1488,8 @@ subroutine WriteHDF5FluxVelocities(name,realization_base,iphase,direction, &
   ! Date: 10/25/07
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
   use Grid_module
@@ -1435,10 +1501,6 @@ subroutine WriteHDF5FluxVelocities(name,realization_base,iphase,direction, &
   use HDF5_module, only : HDF5WriteStructuredDataSet, trick_hdf5
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   character(len=32) :: name
   class(realization_base_type) :: realization_base
@@ -1630,14 +1692,14 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
   integer(HID_T) :: file_id
   
   integer(HID_T) :: file_space_id
+  integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3)
   PetscMPIInt :: rank
 #endif
-
+  integer :: hdf5_err
   PetscMPIInt :: hdf5_flag
-  PetscMPIInt :: hdf5_err
   PetscErrorCode :: ierr
   
   call PetscLogEventBegin(logging%event_output_coordinates_hdf5, &
@@ -1686,8 +1748,11 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
 #endif
   if (option%myrank == option%io_rank) then
      call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
+     ! this is due to a bug in hdf5-1.8.18 hwere H5S_ALL_F is an INTEGER.  It
+     ! should be INTEGER(HID_T)
+     memory_space_id = H5S_ALL_F
      call h5dwrite_f(data_set_id,H5T_NATIVE_DOUBLE,array,dims, &
-                    hdf5_err,H5S_ALL_F,H5S_ALL_F,prop_id)
+                     hdf5_err,memory_space_id,file_space_id,prop_id)
      call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
   endif
   call h5pclose_f(prop_id,hdf5_err)
@@ -1712,6 +1777,8 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   ! Date: 05/31/12
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use Grid_module
   use Option_module
@@ -1720,10 +1787,6 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   use Variables_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -1770,7 +1833,9 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
 
   PetscReal, pointer :: vec_ptr(:)
   Vec :: global_vec, natural_vec
-  PetscInt, pointer :: int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_array(:)
   type(ugdm_type),pointer :: ugdm_element
   PetscErrorCode :: ierr
 
@@ -1788,9 +1853,9 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   call VecGetLocalSize(global_y_vertex_vec,local_size,ierr);CHKERRQ(ierr)
   call VecGetLocalSize(global_z_vertex_vec,local_size,ierr);CHKERRQ(ierr)
 
-  call GetVertexCoordinates(grid, global_x_vertex_vec,X_COORDINATE,option)
-  call GetVertexCoordinates(grid, global_y_vertex_vec,Y_COORDINATE,option)
-  call GetVertexCoordinates(grid, global_z_vertex_vec,Z_COORDINATE,option)
+  call OutputGetVertexCoordinates(grid, global_x_vertex_vec,X_COORDINATE,option)
+  call OutputGetVertexCoordinates(grid, global_y_vertex_vec,Y_COORDINATE,option)
+  call OutputGetVertexCoordinates(grid, global_z_vertex_vec,Z_COORDINATE,option)
 
   call VecGetArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
@@ -1902,7 +1967,7 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
                            GLOBAL,option)
   call UGridDMCreateVector(grid%unstructured_grid,ugdm_element,natural_vec, &
                            NATURAL,option)
-  call GetCellConnections(grid,global_vec)
+  call OutputGetCellVertices(grid,global_vec)
   call VecScatterBegin(ugdm_element%scatter_gton,global_vec,natural_vec, &
                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm_element%scatter_gton,global_vec,natural_vec, &
@@ -2023,6 +2088,8 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   ! Date: 10/29/2012
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use Realization_Base_class, only : realization_base_type
   use Grid_module
@@ -2031,10 +2098,6 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   use Variables_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
@@ -2084,7 +2147,9 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
 
   PetscReal, pointer :: vec_ptr(:)
   Vec :: global_vec, natural_vec
-  PetscInt, pointer :: int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_array(:)
   type(ugdm_type),pointer :: ugdm_element, ugdm_cell
   PetscErrorCode :: ierr
 
@@ -2109,9 +2174,9 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   call VecGetLocalSize(global_y_vertex_vec,local_size,ierr);CHKERRQ(ierr)
   call VecGetLocalSize(global_z_vertex_vec,local_size,ierr);CHKERRQ(ierr)
 
-  call GetVertexCoordinates(grid, global_x_vertex_vec,X_COORDINATE,option)
-  call GetVertexCoordinates(grid, global_y_vertex_vec,Y_COORDINATE,option)
-  call GetVertexCoordinates(grid, global_z_vertex_vec,Z_COORDINATE,option)
+  call OutputGetVertexCoordinates(grid, global_x_vertex_vec,X_COORDINATE,option)
+  call OutputGetVertexCoordinates(grid, global_y_vertex_vec,Y_COORDINATE,option)
+  call OutputGetVertexCoordinates(grid, global_z_vertex_vec,Z_COORDINATE,option)
 
   call VecGetArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
@@ -2213,7 +2278,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
                            GLOBAL,option)
   call UGridDMCreateVector(grid%unstructured_grid,ugdm_element,natural_vec, &
                            NATURAL,option)
-  call GetCellConnections(grid,global_vec)
+  call OutputGetCellVertices(grid,global_vec)
   call VecScatterBegin(ugdm_element%scatter_gton,global_vec,natural_vec, &
                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm_element%scatter_gton,global_vec,natural_vec, &
@@ -2332,9 +2397,9 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
                     PETSC_DETERMINE, &
                     global_z_cell_vec,ierr);CHKERRQ(ierr)
 
-  call GetCellCoordinates(grid, global_x_cell_vec,X_COORDINATE)
-  call GetCellCoordinates(grid, global_y_cell_vec,Y_COORDINATE)
-  call GetCellCoordinates(grid, global_z_cell_vec,Z_COORDINATE)
+  call OutputGetCellCoordinates(grid, global_x_cell_vec,X_COORDINATE)
+  call OutputGetCellCoordinates(grid, global_y_cell_vec,Y_COORDINATE)
+  call OutputGetCellCoordinates(grid, global_z_cell_vec,Z_COORDINATE)
 
 
   call UGridCreateUGDM(grid%unstructured_grid,ugdm_cell,ONE_INTEGER,option)
@@ -2565,6 +2630,8 @@ subroutine DetermineNumVertices(realization_base,option)
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/13/2015
   ! 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Grid_module
   use Option_module
@@ -2572,10 +2639,6 @@ subroutine DetermineNumVertices(realization_base,option)
   use Variables_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
@@ -2598,7 +2661,7 @@ subroutine DetermineNumVertices(realization_base,option)
                            GLOBAL,option)
   call UGridDMCreateVector(grid%unstructured_grid,ugdm_element,natural_vec, &
                            NATURAL,option)
-  call GetCellConnections(grid,global_vec)
+  call OutputGetCellVertices(grid,global_vec)
   call VecScatterBegin(ugdm_element%scatter_gton,global_vec,natural_vec, &
                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm_element%scatter_gton,global_vec,natural_vec, &
@@ -2636,6 +2699,8 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   ! Date: 07/17/2013
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use Realization_Base_class, only : realization_base_type
   use Grid_module
@@ -2644,10 +2709,6 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   use Variables_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
@@ -2694,7 +2755,9 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
 
   PetscReal, pointer :: vec_ptr(:)
   Vec :: natural_vec
-  PetscInt, pointer :: int_array(:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_array(:)
   PetscErrorCode :: ierr
 
   PetscInt :: TRI_ID_XDMF = 4
@@ -2706,11 +2769,11 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
 
   grid => realization_base%patch%grid
 
-  allocate(vec_x_ptr(grid%unstructured_grid%explicit_grid%num_cells_global))
-  allocate(vec_y_ptr(grid%unstructured_grid%explicit_grid%num_cells_global))
-  allocate(vec_z_ptr(grid%unstructured_grid%explicit_grid%num_cells_global))
+  allocate(vec_x_ptr(grid%unstructured_grid%explicit_grid%num_vertices))
+  allocate(vec_y_ptr(grid%unstructured_grid%explicit_grid%num_vertices))
+  allocate(vec_z_ptr(grid%unstructured_grid%explicit_grid%num_vertices))
 
-  do i = 1, grid%unstructured_grid%explicit_grid%num_cells_global 
+  do i = 1, grid%unstructured_grid%explicit_grid%num_vertices 
     vec_x_ptr(i) = grid%unstructured_grid%explicit_grid%vertex_coordinates(i)%x
     vec_y_ptr(i) = grid%unstructured_grid%explicit_grid%vertex_coordinates(i)%y
     vec_z_ptr(i) = grid%unstructured_grid%explicit_grid%vertex_coordinates(i)%z
@@ -2727,7 +2790,8 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   !        not(SCORPIO_WRITE)
   !
   
-  local_size = grid%unstructured_grid%explicit_grid%num_cells_global
+  !local_size = grid%unstructured_grid%explicit_grid%num_cells_global
+  local_size = grid%unstructured_grid%explicit_grid%num_vertices
   ! memory space which is a 1D vector
   rank_mpi = 1
   dims = 0
@@ -2737,7 +2801,9 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   ! file space which is a 2D block
   rank_mpi = 2
   dims = 0
-  dims(2) = grid%unstructured_grid%explicit_grid%num_cells_global
+  !POc
+  !dims(2) = grid%unstructured_grid%explicit_grid%num_cells_global
+  dims(2) = grid%unstructured_grid%explicit_grid%num_vertices
   dims(1) = 3
   call h5pcreate_f(H5P_DATASET_CREATE_F,prop_id,hdf5_err)
 
@@ -2804,7 +2870,7 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   call VecSetBlockSize(natural_vec,EIGHT_INTEGER,ierr);CHKERRQ(ierr)
   call VecSetFromOptions(natural_vec,ierr);CHKERRQ(ierr)
 
-  call GetCellConnectionsExplicit(grid,natural_vec)
+  call OutputGetCellVerticesExplicit(grid,natural_vec)
   call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   vert_count=0
@@ -2917,6 +2983,8 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   ! Date: 03/19/2013
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use Realization_Base_class, only : realization_base_type
   use Patch_module
@@ -2932,11 +3000,6 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   use Field_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscsys.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
@@ -3190,6 +3253,8 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   ! Date: 05/25/2014
   !
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use hdf5
   use Realization_Base_class, only : realization_base_type
   use Patch_module
@@ -3205,11 +3270,6 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   use Field_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscsys.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
@@ -3447,8 +3507,8 @@ subroutine OutputHDF5Provenance(option, output_option, file_id)
   use Output_Aux_module, only : output_option_type
   use PFLOTRAN_Provenance_module, only : provenance_max_str_len
 
-#include "petsc/finclude/petscsysdef.h"
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use hdf5
 
   implicit none
@@ -3585,9 +3645,9 @@ subroutine OutputHDF5Provenance_input(option, pflotran_id)
   integer(SIZE_T) :: size_t_int
 
   input => InputCreate(IN_UNIT, option%input_filename, option)
-  input_line_count = InputGetLineCount(input)
+  input_line_count = InputGetLineCount(input,option)
   allocate(input_buffer(input_line_count))
-  call InputReadToBuffer(input, input_buffer)
+  call InputReadToBuffer(input, input_buffer, option)
   call h5tcopy_f(H5T_FORTRAN_S1, input_string_type, hdf5_err)
   size_t_int = MAXWORDLENGTH
   call h5tset_size_f(input_string_type, size_t_int, hdf5_err)

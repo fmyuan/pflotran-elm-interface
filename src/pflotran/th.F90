@@ -1,5 +1,7 @@
 module TH_module
 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use TH_Aux_module
   use Global_Aux_module
   use Material_Aux_class
@@ -8,16 +10,6 @@ module TH_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscsnes.h"
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petsclog.h"
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.D-8
@@ -170,14 +162,14 @@ subroutine THSetupPatch(realization)
   do i = 1, size(patch%material_property_array)
     word = patch%material_property_array(i)%ptr%name 
     if (Uninitialized(patch%material_property_array(i)%ptr%specific_heat)) then
-      option%io_buffer = 'Non-initialized HEAT_CAPACITY in material ' // &
-                         trim(word)
+      option%io_buffer = 'ERROR: Non-initialized HEAT_CAPACITY in material ' &
+                         // trim(word)
       call printMsg(option)
       error_found = PETSC_TRUE
     endif
     if (Uninitialized(patch%material_property_array(i)%ptr% &
                       thermal_conductivity_wet)) then
-      option%io_buffer = 'Non-initialized THERMAL_CONDUCTIVITY_WET in &
+      option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_WET in &
                          &material ' // &
                          trim(word)
       call printMsg(option)
@@ -185,7 +177,7 @@ subroutine THSetupPatch(realization)
     endif
     if (Uninitialized(patch%material_property_array(i)%ptr% &
                       thermal_conductivity_dry)) then
-      option%io_buffer = 'Non-initialized THERMAL_CONDUCTIVITY_DRY in &
+      option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_DRY in &
                          &material ' // &
                          trim(word)
       call printMsg(option)
@@ -194,22 +186,20 @@ subroutine THSetupPatch(realization)
     if (option%use_th_freezing) then
       if (Uninitialized(patch%material_property_array(i)%ptr% &
                         thermal_conductivity_frozen)) then
-        option%io_buffer = 'Non-initialized THERMAL_CONDUCTIVITY_FROZEN in &
-                           &material ' // &
-                           trim(word)
+        option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_&
+                           &FROZEN in material ' // trim(word)
         call printMsg(option)
         error_found = PETSC_TRUE
       endif
       if (Uninitialized(patch%material_property_array(i)%ptr% &
                         alpha_fr)) then
-        option%io_buffer = 'Non-initialized THERMAL_COND_EXPONENT_FROZEN in &
-                           &material ' // &
-                           trim(word)
+        option%io_buffer = 'ERROR: Non-initialized THERMAL_COND_EXPONENT&
+                           &_FROZEN in material ' // trim(word)
         call printMsg(option)
         error_found = PETSC_TRUE
       endif
     endif
-    material_id = iabs(patch%material_property_array(i)%ptr%internal_id)
+    material_id = abs(patch%material_property_array(i)%ptr%internal_id)
     ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J = MJ/m^3-K
     patch%aux%TH%TH_parameter%dencpr(material_id) = &
       patch%material_property_array(i)%ptr%rock_density*option%scale* &
@@ -741,7 +731,9 @@ subroutine THUpdateAuxVarsPatch(realization)
 
       do idof=1,option%nflowdof
         select case(boundary_condition%flow_condition%itype(idof))
-          case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,HET_DIRICHLET,HET_SURF_SEEPAGE_BC)
+          case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC, &
+               HET_SURF_SEEPAGE_BC, &
+               HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
             xxbc(idof) = boundary_condition%flow_aux_real_var(idof,iconn)
           case(NEUMANN_BC,ZERO_GRADIENT_BC)
             xxbc(idof) = xx_loc_p((ghosted_id-1)*option%nflowdof+idof)
@@ -749,7 +741,8 @@ subroutine THUpdateAuxVarsPatch(realization)
       enddo
       
       select case(boundary_condition%flow_condition%itype(TH_PRESSURE_DOF))
-        case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
+        case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC, &
+             HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
           iphasebc = boundary_condition%flow_aux_int_var(1,iconn)
         case(NEUMANN_BC,ZERO_GRADIENT_BC)
           iphasebc=int(iphase_loc_p(ghosted_id))                               
@@ -795,7 +788,7 @@ subroutine THUpdateAuxVarsPatch(realization)
       iphase = int(iphase_loc_p(ghosted_id))
 
       select case(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF))
-        case (HET_DIRICHLET)
+        case (HET_DIRICHLET_BC)
           tsrc1 = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
         case (DIRICHLET_BC)
           tsrc1 = source_sink%flow_condition%temperature%dataset%rarray(1)
@@ -1175,7 +1168,7 @@ subroutine THNumericalJacobianTest(xx,realization)
   call MatSetType(A,MATAIJ,ierr);CHKERRQ(ierr)
   call MatSetFromOptions(A,ierr);CHKERRQ(ierr)
     
-  call THResidual(PETSC_NULL_OBJECT,xx,res,realization,ierr)
+  call THResidual(PETSC_NULL_SNES,xx,res,realization,ierr)
   call VecGetArrayF90(res,vec2_p,ierr);CHKERRQ(ierr)
   do icell = 1,grid%nlmax
     if (patch%imat(icell) <= 0) cycle
@@ -1185,7 +1178,7 @@ subroutine THNumericalJacobianTest(xx,realization)
       perturbation = vec_p(idof)*perturbation_tolerance
       vec_p(idof) = vec_p(idof)+perturbation
       call VecRestoreArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
-      call THResidual(PETSC_NULL_OBJECT,xx_pert,res_pert,realization,ierr)
+      call THResidual(PETSC_NULL_SNES,xx_pert,res_pert,realization,ierr)
       call VecGetArrayF90(res_pert,vec_p,ierr);CHKERRQ(ierr)
       do idof2 = 1, grid%nlmax*option%nflowdof
         derivative = (vec_p(idof2)-vec2_p(idof2))/perturbation
@@ -1706,13 +1699,15 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   endif
 
   ! Flow term
-  if (global_auxvar_up%sat(1) > sir_up .or. global_auxvar_dn%sat(1) > sir_dn) then
+  if (global_auxvar_up%sat(1) > sir_up .or.  &
+      global_auxvar_dn%sat(1) > sir_dn) then
     if (global_auxvar_up%sat(1) <eps) then
       upweight=0.d0
     else if (global_auxvar_dn%sat(1) <eps) then 
       upweight=1.d0
     endif
-    density_ave = upweight*global_auxvar_up%den(1)+(1.D0-upweight)*global_auxvar_dn%den(1)
+    density_ave = upweight*global_auxvar_up%den(1)+ &
+                  (1.D0-upweight)*global_auxvar_dn%den(1)
     dden_ave_dp_up = upweight*auxvar_up%dden_dp
     dden_ave_dp_dn = (1.D0-upweight)*auxvar_dn%dden_dp
     dden_ave_dt_up = upweight*auxvar_up%dden_dt
@@ -1732,10 +1727,14 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
     else
       dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
-      dphi_dp_up =  auxvar_up%ice%dpres_fh2o_dp + dgravity_dden_up*auxvar_up%dden_dp
-      dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + dgravity_dden_dn*auxvar_dn%dden_dp
-      dphi_dt_up =  auxvar_up%ice%dpres_fh2o_dt + dgravity_dden_up*auxvar_up%dden_dt
-      dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + dgravity_dden_dn*auxvar_dn%dden_dt
+      dphi_dp_up =  auxvar_up%ice%dpres_fh2o_dp + &
+                    dgravity_dden_up*auxvar_up%dden_dp
+      dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + &
+                    dgravity_dden_dn*auxvar_dn%dden_dp
+      dphi_dt_up =  auxvar_up%ice%dpres_fh2o_dt + &
+                    dgravity_dden_up*auxvar_up%dden_dt
+      dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + &
+                    dgravity_dden_dn*auxvar_dn%dden_dt
     endif
 
     if (dphi>=0.D0) then
@@ -1805,11 +1804,14 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       Jdn(1,2) = (dq_dt_dn*density_ave+q*dden_ave_dt_dn)
 
       ! based on flux = q*density_ave*uh
-      Jup(option%nflowdof,1) = (dq_dp_up*density_ave+q*dden_ave_dp_up)*uh+q*density_ave*duh_dp_up
-      Jup(option%nflowdof,2) = (dq_dt_up*density_ave+q*dden_ave_dt_up)*uh+q*density_ave*duh_dt_up
-
-      Jdn(option%nflowdof,1) = (dq_dp_dn*density_ave+q*dden_ave_dp_dn)*uh+q*density_ave*duh_dp_dn
-      Jdn(option%nflowdof,2) = (dq_dt_dn*density_ave+q*dden_ave_dt_dn)*uh+q*density_ave*duh_dt_dn
+      Jup(option%nflowdof,1) = (dq_dp_up*density_ave+q*dden_ave_dp_up)*uh+ &
+                               q*density_ave*duh_dp_up
+      Jup(option%nflowdof,2) = (dq_dt_up*density_ave+q*dden_ave_dt_up)*uh+ &
+                               q*density_ave*duh_dt_up
+      Jdn(option%nflowdof,1) = (dq_dp_dn*density_ave+q*dden_ave_dp_dn)*uh+ &
+                               q*density_ave*duh_dp_dn
+      Jdn(option%nflowdof,2) = (dq_dt_dn*density_ave+q*dden_ave_dt_dn)*uh+ &
+                               q*density_ave*duh_dt_dn
 
     endif
   endif 
@@ -2468,7 +2470,9 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: rho
   PetscReal :: dq_lin,dP_lin
   PetscReal :: q_approx,dq_approx
+  PetscBool :: skip_thermal_conduction
 
+  skip_thermal_conduction = PETSC_FALSE
   T_th  = 0.5d0
 
   fluxm = 0.d0
@@ -2509,10 +2513,17 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   diffdp = por_dn*tor_dn/dd_dn*area
   select case(ibndtype(TH_PRESSURE_DOF))
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
-      Dq = perm_dn / dd_dn
+    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC, &
+         HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+      if (ibndtype(TH_PRESSURE_DOF) == CONDUCTANCE_BC .or. &
+          ibndtype(TH_PRESSURE_DOF) == HET_CONDUCTANCE_BC) then
+        Dq = auxvars(TH_CONDUCTANCE_DOF)
+      else
+        Dq = perm_dn / dd_dn
+      endif
       ! Flow term
-      if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn) then
+      if (global_auxvar_up%sat(1) > sir_dn .or. &
+          global_auxvar_dn%sat(1) > sir_dn) then
         upweight=1.D0
         if (global_auxvar_up%sat(1) < eps) then
           upweight=0.d0
@@ -2520,7 +2531,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           upweight=1.d0
         endif
         
-        density_ave = upweight*global_auxvar_up%den(1)+(1.D0-upweight)*global_auxvar_dn%den(1)
+        density_ave = upweight*global_auxvar_up%den(1)+ &
+                      (1.D0-upweight)*global_auxvar_dn%den(1)
         dden_ave_dp_dn = (1.D0-upweight)*auxvar_dn%dden_dp
         dden_ave_dt_dn = (1.D0-upweight)*auxvar_dn%dden_dt
 
@@ -2539,18 +2551,26 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
-          dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + dgravity_dden_dn*auxvar_dn%dden_dp
-          dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + dgravity_dden_dn*auxvar_dn%dden_dt
+          dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + &
+                        dgravity_dden_dn*auxvar_dn%dden_dp
+          dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + &
+                        dgravity_dden_dn*auxvar_dn%dden_dt
         endif
 
-        if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
-              ! flow in         ! boundary cell is <= pref
-          if (dphi > 0.d0 .and. global_auxvar_up%pres(1)-option%reference_pressure < eps) then
-            dphi = 0.d0
-            dphi_dp_dn = 0.d0
-            dphi_dt_dn = 0.d0
-          endif
-        endif
+        select case(ibndtype(TH_PRESSURE_DOF))
+          case(SEEPAGE_BC,CONDUCTANCE_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+            ! boundary cell is <= pref 
+            if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+              ! skip thermal conduction whenever water table is lower than cell
+              skip_thermal_conduction = PETSC_TRUE
+              ! flow inward
+              if (dphi > 0.d0) then
+                dphi = 0.d0
+                dphi_dp_dn = 0.d0
+                dphi_dt_dn = 0.d0
+              endif
+            endif
+        end select
 
         if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
                                    !( dgravity_dden_up                   ) (dden_dt_up)
@@ -2819,35 +2839,43 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
   ! Conduction term
   select case(ibndtype(TH_TEMPERATURE_DOF))
-    case(DIRICHLET_BC,HET_DIRICHLET)
+    case(DIRICHLET_BC,HET_DIRICHLET_BC)
       Dk =  auxvar_dn%Dk_eff / dd_dn
       !cond = Dk*area*(global_auxvar_up%temp-global_auxvar_dn%temp)
 
-      if (option%use_th_freezing) then
-        Dk_eff_dn    = auxvar_dn%Dk_eff
-        dKe_dp_dn    = auxvar_dn%dKe_dp
-        dKe_dt_dn    = auxvar_dn%dKe_dt
-        dKe_fr_dt_dn = auxvar_dn%ice%dKe_fr_dt
-        dKe_fr_dp_dn = auxvar_dn%ice%dKe_fr_dp
-        Dk           = Dk_eff_dn/dd_dn
-
-        dDk_dt_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dt_dn + &
-            Dk_ice_dn*dKe_fr_dt_dn + (- dKe_dt_dn - dKe_fr_dt_dn)* &
-            Dk_dry_dn)
-        dDk_dp_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dp_dn + &
-            Dk_ice_dn*dKe_fr_dp_dn + (- dKe_dp_dn - dKe_fr_dp_dn)* &
-            Dk_dry_dn)
-
+      if (skip_thermal_conduction) then
+        ! skip thermal conducton when the boundary pressure is below the
+        ! reference pressure (e.g. river stage is below cell center).
+        dDk_dt_dn = 0.d0
+        dDk_dp_dn = 0.d0
+        Dk = 0.d0
       else
+        if (option%use_th_freezing) then
+          Dk_eff_dn    = auxvar_dn%Dk_eff
+          dKe_dp_dn    = auxvar_dn%dKe_dp
+          dKe_dt_dn    = auxvar_dn%dKe_dt
+          dKe_fr_dt_dn = auxvar_dn%ice%dKe_fr_dt
+          dKe_fr_dp_dn = auxvar_dn%ice%dKe_fr_dp
+          Dk           = Dk_eff_dn/dd_dn
 
-        Dk_eff_dn = auxvar_dn%Dk_eff
-        dKe_dp_dn = auxvar_dn%dKe_dp
-        dKe_dt_dn = auxvar_dn%dKe_dt
-        Dk        = Dk_eff_dn/dd_dn
+          dDk_dt_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dt_dn + &
+              Dk_ice_dn*dKe_fr_dt_dn + (- dKe_dt_dn - dKe_fr_dt_dn)* &
+              Dk_dry_dn)
+          dDk_dp_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dp_dn + &
+              Dk_ice_dn*dKe_fr_dp_dn + (- dKe_dp_dn - dKe_fr_dp_dn)* &
+              Dk_dry_dn)
+  
+        else
+  
+          Dk_eff_dn = auxvar_dn%Dk_eff
+          dKe_dp_dn = auxvar_dn%dKe_dp
+          dKe_dt_dn = auxvar_dn%dKe_dt
+          Dk        = Dk_eff_dn/dd_dn
+  
+          dDk_dt_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn - Dk_dry_dn)*dKe_dt_dn
+          dDk_dp_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn - Dk_dry_dn)*dKe_dp_dn
 
-        dDk_dt_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn - Dk_dry_dn)*dKe_dt_dn
-        dDk_dp_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn - Dk_dry_dn)*dKe_dp_dn
-
+        endif
       endif
 
       if (.not. option%surf_flow_on) then
@@ -3152,6 +3180,9 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   PetscReal :: rho,dum1
   PetscReal :: q_approx, dq_approx
   PetscReal :: T_th,fctT,fct
+  PetscBool :: skip_thermal_conduction
+
+  skip_thermal_conduction = PETSC_FALSE
   T_th  = 0.5d0
 
   fluxm = 0.d0
@@ -3178,10 +3209,17 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   ! Flow
   diffdp = por_dn*tor_dn/dd_dn*area
   select case(ibndtype(TH_PRESSURE_DOF))
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
-      Dq = perm_dn / dd_dn
+    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC, &
+         HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+      if (ibndtype(TH_PRESSURE_DOF) == CONDUCTANCE_BC) then
+        Dq = auxvars(TH_CONDUCTANCE_DOF)
+      else
+        Dq = perm_dn / dd_dn
+      endif
+
       ! Flow term
-      if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn) then
+      if (global_auxvar_up%sat(1) > sir_dn .or. &
+          global_auxvar_dn%sat(1) > sir_dn) then
         upweight=1.D0
         if (global_auxvar_up%sat(1) < eps) then 
           upweight=0.d0
@@ -3200,12 +3238,18 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
         endif
 
-        if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
-          ! flow in         ! boundary cell is <= pref
-          if (dphi > 0.d0 .and. global_auxvar_up%pres(1) - option%reference_pressure < eps) then
-            dphi = 0.d0
-          endif
-        endif
+        select case(ibndtype(TH_PRESSURE_DOF))
+          case(SEEPAGE_BC,CONDUCTANCE_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+            ! boundary cell is <= pref 
+            if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+              ! skip thermal conduction whenever water table is lower than cell
+              skip_thermal_conduction = PETSC_TRUE
+              ! flow inward
+              if (dphi > 0.d0) then
+                dphi = 0.d0
+              endif
+            endif
+        end select
         
         if (dphi>=0.D0) then
           ukvr = auxvar_up%kvr
@@ -3341,7 +3385,8 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       ! do nothing needed to bypass default case
 
     case default
-      option%io_buffer = 'BC type "' // trim(GetSubConditionName(ibndtype(TH_PRESSURE_DOF))) // &
+      option%io_buffer = 'BC type "' // &
+        trim(GetSubConditionName(ibndtype(TH_PRESSURE_DOF))) // &
         '" not implemented in TH mode.'
       call printErrMsg(option)
 
@@ -3366,9 +3411,15 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
   ! Conduction term
   select case(ibndtype(TH_TEMPERATURE_DOF))
-    case(DIRICHLET_BC,HET_DIRICHLET)
+    case(DIRICHLET_BC,HET_DIRICHLET_BC)
       Dk =  auxvar_dn%Dk_eff / dd_dn
       cond = Dk*area*(global_auxvar_up%temp-global_auxvar_dn%temp)
+
+      if (skip_thermal_conduction) then
+        ! skip thermal conducton when the boundary pressure is below the
+        ! reference pressure (e.g. river stage is below cell center).
+        cond = 0.d0
+      endif
 
       if (option%surf_flow_on) then
 
@@ -4574,7 +4625,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
 #ifdef ISOTHERMAL_MODE_DOES_NOT_WORK
   zero = 0.d0
   call MatZeroRowsLocal(A,n_zero_rows,zero_rows_local_ghosted,zero, &
-                        PETSC_NULL_OBJECT,PETSC_NULL_OBJECT, &
+                        PETSC_NULL_VEC,PETSC_NULL_VEC, &
                         ierr);CHKERRQ(ierr)
   do i=1, n_zero_rows
     ii = mod(zero_rows_local(i),option%nflowdof)
@@ -4597,7 +4648,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
     f_up = 1.d0
     call MatZeroRowsLocal(A,patch%aux%TH%n_zero_rows, &
                           patch%aux%TH%zero_rows_local_ghosted,f_up, &
-                          PETSC_NULL_OBJECT,PETSC_NULL_OBJECT, &
+                          PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
 #endif
@@ -4862,23 +4913,52 @@ subroutine THSetPlotVariables(realization,list)
   if (associated(list%first)) then
     return
   endif
-
-  name = 'Temperature'
-  units = 'C'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               TEMPERATURE)
   
-  name = 'Liquid Pressure'
-  units = 'Pa'
-  call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
-                               LIQUID_PRESSURE)
+  if (list%flow_vars) then
+  
+    name = 'Liquid Pressure'
+    units = 'Pa'
+    call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
+                                LIQUID_PRESSURE)
 
-  name = 'Liquid Saturation'
-  units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
-                               LIQUID_SATURATION)
+    name = 'Liquid Saturation'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+                                LIQUID_SATURATION)
+                                
+    name = 'Liquid Density'
+    units = 'kg/m^3'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_DENSITY)
+
+    name = 'Liquid Energy'
+    units = 'kJ/mol'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_ENERGY)
+
+    name = 'Liquid Viscosity'
+    units = 'Pa.s'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_VISCOSITY)
+
+    name = 'Liquid Mobility'
+    units = '1/Pa.s'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_MOBILITY)
+  
+  endif
+  
+  if (list%energy_vars) then
+
+    name = 'Temperature'
+    units = 'C'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                TEMPERATURE)
+  
+  endif
 
   if (realization%option%use_th_freezing) then
+  
     if (realization%option%ice_model /= DALL_AMICO) then
       name = 'Gas Saturation'
       units = ''
@@ -4895,33 +4975,16 @@ subroutine THSetPlotVariables(realization,list)
     units = 'kg/m^3'
     call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
         ICE_DENSITY)
+        
   endif
 
-  name = 'Liquid Density'
-  units = 'kg/m^3'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_DENSITY)
-
-  name = 'Liquid Energy'
-  units = 'kJ/mol'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_ENERGY)
-
-  name = 'Liquid Viscosity'
-  units = 'Pa.s'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_VISCOSITY)
-
-  name = 'Liquid Mobility'
-  units = '1/Pa.s'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_MOBILITY)
-
   if (soil_compressibility_index > 0) then
+  
     name = 'Transient Porosity'
     units = ''
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                  EFFECTIVE_POROSITY)
+                                 
   endif
 ! name = 'Phase'
 ! units = ''
@@ -4945,14 +5008,14 @@ subroutine THComputeGradient(grid, global_auxvars, ghosted_id, gradient, &
   ! Date: 2/20/12
   ! 
 
-
+#include "petsc/finclude/petscdmda.h"
+  use petscdmda
   use Grid_module
   use Global_Aux_module
   use Option_module
   use Utility_module
 
   implicit none
-#include "petsc/finclude/petscdmda.h"
 
   type(option_type) :: option
   type(grid_type), pointer :: grid

@@ -1,5 +1,7 @@
 module PM_General_class
 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
   
@@ -8,14 +10,6 @@ module PM_General_class
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscsnes.h"
 
   type, public, extends(pm_subsurface_flow_type) :: pm_general_type
     PetscInt, pointer :: max_change_ivar(:)
@@ -80,7 +74,7 @@ function PMGeneralCreate()
   general_pm%max_change_isubvar = [0,0,0,2,0,0]
   
   call PMSubsurfaceFlowCreate(general_pm)
-  general_pm%name = 'PMGeneral'
+  general_pm%name = 'General Multiphase Flow'
 
   PMGeneralCreate => general_pm
   
@@ -128,7 +122,8 @@ subroutine PMGeneralRead(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found,option)    
+    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
+                                        error_string,option)    
     if (found) cycle
     
     select case(trim(keyword))
@@ -218,8 +213,8 @@ subroutine PMGeneralRead(this,input)
         general_harmonic_diff_density = PETSC_TRUE
       case('ARITHMETIC_GAS_DIFFUSIVE_DENSITY')
         general_harmonic_diff_density = PETSC_FALSE
-      case('ANALYTICAL_DERIVATIVES')
-        general_analytical_derivatives = PETSC_TRUE
+      case('IMMISCIBLE')
+        general_immiscible = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(keyword,'GENERAL Mode',option)
     end select
@@ -316,6 +311,8 @@ subroutine PMGeneralPreSolve(this)
 
   class(pm_general_type) :: this
 
+  call PMSubsurfaceFlowPreSolve(this)
+
 end subroutine PMGeneralPreSolve
 
 ! ************************************************************************** !
@@ -334,13 +331,15 @@ end subroutine PMGeneralPostSolve
 ! ************************************************************************** !
 
 subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                   num_newton_iterations,tfac, &
+                                   time_step_max_growth_factor)
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   ! 
 
   use Realization_Base_class, only : RealizationGetVariable
+  use Realization_Subsurface_class, only : RealizationLimitDTByCFL
   use Field_module
   use Global_module, only : GlobalSetAuxVarVecLoc
   use Variables_module, only : LIQUID_SATURATION, GAS_SATURATION
@@ -353,6 +352,7 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: fac
   PetscInt :: ifac
@@ -377,6 +377,7 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   endif
   ifac = max(min(num_newton_iterations,size(tfac)),1)
   dtt = fac * dt * (1.d0 + umin)
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   dt = min(dtt,tfac(ifac)*dt,dt_max)
   dt = max(dt,dt_min)
 
@@ -395,7 +396,7 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
     call GlobalSetAuxVarVecLoc(this%realization,field%work_loc, &
                                GAS_SATURATION,TIME_NULL)
-    call PMSubsurfaceFlowLimitDTByCFL(this,dt)
+    call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
   endif
 
 end subroutine PMGeneralUpdateTimestep
@@ -504,6 +505,8 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscReal :: scale, temp_scale, temp_real
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
+  PetscReal, parameter :: ALMOST_ZERO = 1.d-10
+  PetscReal, parameter :: ALMOST_ONE = 1.d0-ALMOST_ZERO
   SNES :: snes
   PetscInt :: newton_iteration
   
@@ -549,6 +552,16 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
             gen_auxvars(ZERO_INTEGER,ghosted_id)% &
               pres(option%saturation_pressure_id)
         endif
+        if (general_immiscible) then
+          ! ensure that gas saturation is bounded between 0. - 1.
+          saturation_index = offset + GENERAL_GAS_SATURATION_DOF
+          temp_real = X_p(saturation_index) - dX_p(saturation_index)
+          if (temp_real > ALMOST_ONE) then
+            dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          else if (temp_real < ALMOST_ZERO) then
+            dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          endif
+        endif
     end select
   enddo
 
@@ -586,7 +599,7 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
         liquid_pressure_index  = offset + GENERAL_LIQUID_PRESSURE_DOF
         temperature_index  = offset + GENERAL_ENERGY_DOF
         dX_p(liquid_pressure_index) = dX_p(liquid_pressure_index) * &
-                                      general_pressure_scale
+                                      GENERAL_PRESSURE_SCALE
         temp_scale = 1.d0
         del_liquid_pressure = dX_p(liquid_pressure_index)
         liquid_pressure0 = X_p(liquid_pressure_index)
@@ -697,11 +710,11 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
         saturation_index = offset + GENERAL_GAS_SATURATION_DOF
         temperature_index  = offset + GENERAL_ENERGY_DOF
         dX_p(gas_pressure_index) = dX_p(gas_pressure_index) * &
-                                   general_pressure_scale
+                                   GENERAL_PRESSURE_SCALE
         if (general_2ph_energy_dof == GENERAL_AIR_PRESSURE_INDEX) then                                   
           air_pressure_index = offset + GENERAL_ENERGY_DOF
           dX_p(air_pressure_index) = dX_p(air_pressure_index) * &
-                                     general_pressure_scale
+                                     GENERAL_PRESSURE_SCALE
           del_air_pressure = dX_p(air_pressure_index)
           air_pressure0 = X_p(air_pressure_index)
           air_pressure1 = air_pressure0 - del_air_pressure
@@ -890,9 +903,9 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
         gas_pressure_index = offset + GENERAL_GAS_PRESSURE_DOF
         air_pressure_index = offset + GENERAL_GAS_STATE_AIR_PRESSURE_DOF
         dX_p(gas_pressure_index) = dX_p(gas_pressure_index) * &
-                                   general_pressure_scale
+                                   GENERAL_PRESSURE_SCALE
         dX_p(air_pressure_index) = dX_p(air_pressure_index) * &
-                                   general_pressure_scale
+                                   GENERAL_PRESSURE_SCALE
     end select
     scale = min(scale,temp_scale) 
   enddo
@@ -1468,9 +1481,6 @@ subroutine PMGeneralCheckpointBinary(this,viewer)
   class(pm_general_type) :: this
   PetscViewer :: viewer
   
-  call GlobalGetAuxVarVecLoc(this%realization, &
-                             this%realization%field%iphas_loc, &
-                             STATE,ZERO_INTEGER)
   call PMSubsurfaceFlowCheckpointBinary(this,viewer)
   
 end subroutine PMGeneralCheckpointBinary
@@ -1495,9 +1505,6 @@ subroutine PMGeneralRestartBinary(this,viewer)
   PetscViewer :: viewer
   
   call PMSubsurfaceFlowRestartBinary(this,viewer)
-  call GlobalSetAuxVarVecLoc(this%realization, &
-                             this%realization%field%iphas_loc, &
-                             STATE,ZERO_INTEGER)
   
 end subroutine PMGeneralRestartBinary
 ! ************************************************************************** !

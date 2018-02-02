@@ -6,16 +6,14 @@ module Condition_Control_module
   ! and below.  Routines in this module will loop over realization, levels,
   ! and patches without calling underlying level/patch versions of the
   ! subroutines, which is common in realization.F90 - GEH
- 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   public :: CondControlAssignFlowInitCond, &
             CondControlAssignTranInitCond, &
@@ -33,7 +31,8 @@ subroutine CondControlAssignFlowInitCond(realization)
   ! Author: Glenn Hammond
   ! Date: 11/02/07, 10/18/11
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Subsurface_class
   use Discretization_module
   use Region_module
@@ -50,13 +49,12 @@ subroutine CondControlAssignFlowInitCond(realization)
 
   use Global_module
   use Global_Aux_module
-  use General_Aux_module
-  use TOilIms_Aux_module
-  
-  implicit none
+  use General_Aux_module, gen_dof_to_primary_variable => dof_to_primary_variable
+  use WIPP_Flow_Aux_module, wf_dof_to_primary_variable => dof_to_primary_variable
+  use PM_TOilIms_Aux_module 
+  use PM_TOWG_Aux_module
 
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
+  implicit none
   
   class(realization_subsurface_type) :: realization
   
@@ -76,9 +74,9 @@ subroutine CondControlAssignFlowInitCond(realization)
   type(patch_type), pointer :: cur_patch
   type(flow_general_condition_type), pointer :: general
   type(flow_toil_ims_condition_type), pointer :: toil_ims
+  type(flow_towg_condition_type), pointer :: towg
   class(dataset_base_type), pointer :: dataset
   type(global_auxvar_type) :: global_aux
-  type(general_auxvar_type) :: general_aux
   PetscBool :: use_dataset
   PetscBool :: dataset_flag(realization%option%nflowdof)
   PetscInt :: num_connections
@@ -98,11 +96,6 @@ subroutine CondControlAssignFlowInitCond(realization)
   iphase_loc_p = UNINITIALIZED_DOUBLE
   call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
 
-  if (option%iflowmode == G_MODE) then
-    call GlobalAuxVarInit(global_aux,option)
-    call GeneralAuxVarInit(general_aux,PETSC_FALSE,option)
-  endif
-  
   cur_patch => realization%patch_list%first
   do
     if (.not.associated(cur_patch)) exit
@@ -110,6 +103,119 @@ subroutine CondControlAssignFlowInitCond(realization)
     grid => cur_patch%grid
 
     select case(option%iflowmode)
+
+      case(WF_MODE)
+
+        call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
+
+        xx_p = UNINITIALIZED_DOUBLE
+
+        initial_condition => cur_patch%initial_condition_list%first
+        do
+
+          if (.not.associated(initial_condition)) exit
+
+          use_dataset = PETSC_FALSE
+          dataset_flag = PETSC_FALSE
+          do idof = 1, option%nflowdof
+            dataset =>  initial_condition%flow_condition% &
+                              sub_condition_ptr(idof)%ptr%dataset
+            select type(dataset_ptr => dataset)
+              class is(dataset_gridded_hdf5_type)
+                ! already mapped to flow_aux_real_var
+              class is(dataset_common_hdf5_type)
+                use_dataset = PETSC_TRUE
+                dataset_flag(idof) = PETSC_TRUE
+                call ConditionControlMapDatasetToVec(realization, &
+                        initial_condition%flow_condition% &
+                          sub_condition_ptr(idof)%ptr%dataset,idof, &
+                        field%flow_xx,GLOBAL)
+              class default
+            end select
+          enddo            
+
+          if (.not.associated(initial_condition%flow_aux_real_var)) then
+            if (.not.associated(initial_condition%flow_condition)) then
+              option%io_buffer = 'Flow condition is NULL in initial condition'
+              call printErrMsg(option)
+            endif
+
+            general => initial_condition%flow_condition%general
+
+            string = 'in flow condition "' // &
+              trim(initial_condition%flow_condition%name) // &
+              '" within initial condition "' // &
+              trim(initial_condition%flow_condition%name) // &
+              '" must be of type Dirichlet or Hydrostatic'
+            ! error checking.  the data must match the state
+            if (.not. &
+                (general%liquid_pressure%itype == DIRICHLET_BC .or. &
+                  general%liquid_pressure%itype == HYDROSTATIC_BC)) then
+              option%io_buffer = 'Liquid pressure ' // trim(string)
+              call printErrMsg(option)
+            endif
+            if (.not. &
+                (general%gas_saturation%itype == DIRICHLET_BC .or. &
+                  general%gas_saturation%itype == HYDROSTATIC_BC)) then
+              option%io_buffer = 'Gas saturation ' // trim(string)
+              call printErrMsg(option)
+            endif
+
+            do icell=1,initial_condition%region%num_cells
+              local_id = initial_condition%region%cell_ids(icell)
+              ghosted_id = grid%nL2G(local_id)
+              iend = local_id*option%nflowdof
+              ibegin = iend-option%nflowdof+1
+              if (cur_patch%imat(ghosted_id) <= 0) then
+                xx_p(ibegin:iend) = 0.d0
+                iphase_loc_p(ghosted_id) = 0
+                cycle
+              endif
+              ! decrement ibegin to give a local offset of 0
+              ibegin = ibegin - 1
+              if (.not.dataset_flag(WIPPFLO_LIQUID_PRESSURE_DOF)) then
+                xx_p(ibegin+WIPPFLO_LIQUID_PRESSURE_DOF) = &
+                  general%gas_pressure%dataset%rarray(1)
+              endif
+              if (.not.dataset_flag(WIPPFLO_GAS_SATURATION_DOF)) then
+                xx_p(ibegin+WIPPFLO_GAS_SATURATION_DOF) = &
+                  general%gas_saturation%dataset%rarray(1)
+              endif
+              iphase_loc_p(ghosted_id) = initial_condition%flow_condition%iphase
+              cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
+                initial_condition%flow_condition%iphase
+            enddo
+          else
+            do iconn=1,initial_condition%connection_set%num_connections
+              local_id = initial_condition%connection_set%id_dn(iconn)
+              ghosted_id = grid%nL2G(local_id)
+              if (cur_patch%imat(ghosted_id) <= 0) then
+                iend = local_id*option%nflowdof
+                ibegin = iend-option%nflowdof+1
+                xx_p(ibegin:iend) = 0.d0
+                iphase_loc_p(ghosted_id) = 0
+                cycle
+              endif
+              offset = (local_id-1)*option%nflowdof
+              istate = initial_condition%flow_aux_int_var(1,iconn)
+              do idof = 1, option%nflowdof
+                if (dataset_flag(idof)) cycle
+                xx_p(offset+idof) = &
+                  initial_condition%flow_aux_real_var( &
+                    initial_condition%flow_aux_mapping( &
+                      wf_dof_to_primary_variable(idof)),iconn)
+              enddo
+              iphase_loc_p(ghosted_id) = istate
+              cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
+            enddo
+          endif
+          initial_condition => initial_condition%next
+        enddo
+
+        call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p, &
+                                ierr);CHKERRQ(ierr)
       
       case(G_MODE) ! general phase mode
 
@@ -251,7 +357,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                 xx_p(offset+idof) = &
                   initial_condition%flow_aux_real_var( &
                     initial_condition%flow_aux_mapping( &
-                      dof_to_primary_variable(idof,istate)),iconn)
+                      gen_dof_to_primary_variable(idof,istate)),iconn)
               enddo
               iphase_loc_p(ghosted_id) = istate
               cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
@@ -374,7 +480,135 @@ subroutine CondControlAssignFlowInitCond(realization)
         call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
         call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p, &
                                 ierr);CHKERRQ(ierr)
-              
+
+      case(TOWG_MODE)
+
+        call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
+      
+        xx_p = UNINITIALIZED_DOUBLE
+      
+        initial_condition => cur_patch%initial_condition_list%first
+
+        do
+
+          if (.not.associated(initial_condition)) exit
+
+          if (.not.associated(initial_condition%flow_aux_real_var)) then
+            if (.not.associated(initial_condition%flow_condition)) then
+              option%io_buffer = 'Flow condition is NULL in initial condition'
+              call printErrMsg(option)
+            endif
+
+            towg => initial_condition%flow_condition%towg
+
+            string = 'in flow condition "' // &
+              trim(initial_condition%flow_condition%name) // &
+              '" within initial condition "' // &
+              trim(initial_condition%flow_condition%name) // &
+              '" must be of type Dirichlet or Hydrostatic'
+
+            select case(initial_condition%flow_condition%iphase)
+              case(TOWG_THREE_PHASE_STATE)  
+                if (.not. &
+                    (towg%oil_pressure%itype == DIRICHLET_BC .or. &
+                      towg%oil_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Oil pressure ' // trim(string)
+                  call printErrMsg(option)
+                endif
+                if (.not. &
+                    (towg%oil_saturation%itype == DIRICHLET_BC .or. &
+                      towg%oil_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Oil saturation ' // trim(string)
+                  call printErrMsg(option)
+                endif
+                if (.not. &
+                    (towg%gas_saturation%itype == DIRICHLET_BC .or. &
+                      towg%gas_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas saturation ' // trim(string)
+                  call printErrMsg(option)
+                endif
+              case(TOWG_LIQ_OIL_STATE)
+                !to be implemented 
+                option%io_buffer = 'CondControlAssignFlowInitCond in ' // &
+                   'TOWG_LIQ_OIL_STATE, only TOWG_THREE_PHASE_STATE supported'
+              case(TOWG_LIQ_GAS_STATE)
+                !to be implemented 
+                option%io_buffer = 'CondControlAssignFlowInitCond in ' // &
+                   'TOWG_LIQ_GAS_STATE, only TOWG_THREE_PHASE_STATE supported'
+            end select 
+
+            do icell=1,initial_condition%region%num_cells
+              local_id = initial_condition%region%cell_ids(icell)
+              ghosted_id = grid%nL2G(local_id)
+              iend = local_id*option%nflowdof
+              ibegin = iend-option%nflowdof+1
+              if (cur_patch%imat(ghosted_id) <= 0) then
+                xx_p(ibegin:iend) = 0.d0
+                iphase_loc_p(ghosted_id) = 0
+                cycle
+              endif
+              ! decrement ibegin to give a local offset of 0
+              ibegin = ibegin - 1
+              select case(initial_condition%flow_condition%iphase)
+                case(TOWG_THREE_PHASE_STATE)
+                  xx_p(ibegin+TOWG_OIL_PRESSURE_DOF) = &
+                    towg%oil_pressure%dataset%rarray(1)
+                  xx_p(ibegin+TOWG_OIL_SATURATION_DOF) = &
+                    towg%oil_saturation%dataset%rarray(1)
+                  xx_p(ibegin+TOWG_GAS_SATURATION_3PH_DOF) = &
+                    towg%gas_saturation%dataset%rarray(1)
+                case(TOWG_LIQ_OIL_STATE)
+                  !to be implemented
+                  option%io_buffer = 'CondControlAssignFlowInitCond-2 in ' // &
+                   'TOWG_LIQ_OIL_STATE, only TOWG_THREE_PHASE_STATE supported'
+                case(TOWG_LIQ_GAS_STATE)
+                  !to be implemented
+                  option%io_buffer = 'CondControlAssignFlowInitCond-2 in ' // &
+                   'TOWG_LIQ_GAS_STATE, only TOWG_THREE_PHASE_STATE supported'
+              end select
+              xx_p(ibegin+towg_energy_dof) = &
+                  towg%temperature%dataset%rarray(1)
+              if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+                xx_p(ibegin+TOWG_SOLV_SATURATION) = &
+                   towg%solvent_saturation%dataset%rarray(1)
+              endif
+              iphase_loc_p(ghosted_id) = initial_condition%flow_condition%iphase
+              cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
+                initial_condition%flow_condition%iphase
+            enddo
+          else
+            !implement loading from flow_aux_real_var
+            do iconn=1,initial_condition%connection_set%num_connections
+              local_id = initial_condition%connection_set%id_dn(iconn)
+              ghosted_id = grid%nL2G(local_id)
+              if (cur_patch%imat(ghosted_id) <= 0) then
+                iend = local_id*option%nflowdof
+                ibegin = iend-option%nflowdof+1
+                xx_p(ibegin:iend) = 0.d0
+                iphase_loc_p(ghosted_id) = 0
+                cycle
+              endif
+              offset = (local_id-1)*option%nflowdof
+              istate = initial_condition%flow_aux_int_var(1,iconn)
+              do idof = 1, option%nflowdof
+                xx_p(offset+idof) = &
+                  initial_condition%flow_aux_real_var( &
+                    initial_condition%flow_aux_mapping( &
+                      towg_dof_to_primary_variable(idof,istate)),iconn)
+              enddo
+              iphase_loc_p(ghosted_id) = istate
+              cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
+            enddo
+          endif
+          initial_condition => initial_condition%next
+
+        enddo
+     
+        call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p, &
+                                ierr);CHKERRQ(ierr)
+
       case default
         ! assign initial conditions values to domain
         call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
@@ -460,13 +694,11 @@ subroutine CondControlAssignFlowInitCond(realization)
    
     cur_patch => cur_patch%next
   enddo
-  
+
   if (option%iflowmode == G_MODE) then
     call GlobalUpdateState(realization)
-    call GlobalAuxVarStrip(global_aux)
-    call GeneralAuxVarStrip(general_aux)
   endif  
-   
+  
   ! update dependent vectors
   call DiscretizationGlobalToLocal(discretization,field%flow_xx, &
                                    field%flow_xx_loc,NFLOWDOF)  
@@ -499,6 +731,8 @@ subroutine CondControlAssignTranInitCond(realization)
   ! Author: Glenn Hammond
   ! Date: 11/02/07, 10/18/11
   ! 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
 
   use Realization_Subsurface_class
   use Discretization_module
@@ -511,7 +745,8 @@ subroutine CondControlAssignTranInitCond(realization)
   use Grid_module
   use Dataset_Base_class
   use Patch_module
-  use Reactive_Transport_module, only : RTUpdateAuxVars
+  use Reactive_Transport_module, only : RTUpdateAuxVars, &
+                                        RTUpdateActivityCoefficients
   use Reactive_Transport_Aux_module
   use Reaction_Aux_module
   use Global_Aux_module
@@ -520,16 +755,15 @@ subroutine CondControlAssignTranInitCond(realization)
   use HDF5_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
   
   class(realization_subsurface_type) :: realization
   
   PetscInt :: icell, iconn, idof, isub_condition, temp_int, iimmobile
   PetscInt :: local_id, ghosted_id, iend, ibegin
   PetscInt :: irxn, isite, imnrl, ikinrxn
-  PetscReal, pointer :: xx_p(:), xx_loc_p(:), vec_p(:)
+  PetscReal, pointer :: xx_p(:), xx_loc_p(:), vec_p(:), vec_p2(:)
+  Vec :: vec1_loc
+  Vec :: vec2_loc
   PetscErrorCode :: ierr
   
   type(option_type), pointer :: option
@@ -567,6 +801,8 @@ subroutine CondControlAssignTranInitCond(realization)
   reaction => realization%reaction
   
   iphase = 1
+  vec1_loc = PETSC_NULL_VEC
+  vec2_loc = PETSC_NULL_VEC
   
   cur_patch => realization%patch_list%first
   do
@@ -623,17 +859,22 @@ subroutine CondControlAssignTranInitCond(realization)
                           constraint_coupler%minerals% &
                             constraint_vol_frac_string(imnrl), &
                           string,option)
+            if (vec1_loc == PETSC_NULL_VEC) then
+              ! cannot use field%work_loc as it is used within ConditionCo...
+              call VecDuplicate(field%work_loc,vec1_loc, &
+                                ierr);CHKERRQ(ierr)
+            endif 
             idof = ONE_INTEGER
             call ConditionControlMapDatasetToVec(realization,dataset,idof, &
-                                                  field%work_loc,LOCAL)
-            call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+                                                 vec1_loc,LOCAL)
+            call VecGetArrayF90(vec1_loc,vec_p,ierr);CHKERRQ(ierr)
             do icell=1,initial_condition%region%num_cells
               local_id = initial_condition%region%cell_ids(icell)
               ghosted_id = grid%nL2G(local_id)
               rt_auxvars(ghosted_id)%mnrl_volfrac0(imnrl) = vec_p(ghosted_id)
               rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl) = vec_p(ghosted_id)
             enddo
-            call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+            call VecRestoreArrayF90(vec1_loc,vec_p,ierr);CHKERRQ(ierr)
           endif
         enddo
       endif
@@ -648,17 +889,48 @@ subroutine CondControlAssignTranInitCond(realization)
                           constraint_coupler%minerals% &
                           constraint_area_string(imnrl), &
                           string,option)
+            if (vec1_loc == PETSC_NULL_VEC) then
+              ! cannot use field%work_loc as it is used within ConditionCo...
+              call VecDuplicate(field%work_loc,vec1_loc, &
+                                ierr);CHKERRQ(ierr)
+            endif 
             idof = ONE_INTEGER
             call ConditionControlMapDatasetToVec(realization,dataset,idof, &
-                                                  field%work_loc,LOCAL)
-            call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+                                                 vec1_loc,LOCAL)
+            call VecScale(vec1_loc,constraint_coupler%minerals% &
+                            constraint_area_conv_factor(imnrl), &
+                          ierr);CHKERRQ(ierr)
+            if (constraint_coupler%minerals%area_per_unit_mass(imnrl)) then
+              if (constraint_coupler%minerals% &
+                    external_vol_frac_dataset(imnrl)) then
+                dataset => DatasetBaseGetPointer(realization%datasets, &
+                              constraint_coupler%minerals% &
+                                constraint_vol_frac_string(imnrl), &
+                              string,option)
+                if (vec2_loc == PETSC_NULL_VEC) then
+                  call VecDuplicate(vec1_loc,vec2_loc, &
+                                    ierr);CHKERRQ(ierr)
+                endif 
+                idof = ONE_INTEGER
+                call ConditionControlMapDatasetToVec(realization,dataset, &
+                                                     idof,vec2_loc,LOCAL)
+                call VecPointwiseMult(vec1_loc,vec1_loc, &
+                                      vec2_loc,ierr);CHKERRQ(ierr)
+              else
+                call VecScale(vec1_loc, &
+                              constraint_coupler%minerals% &
+                                constraint_vol_frac(imnrl), &
+                              ierr);CHKERRQ(ierr)
+              endif
+            endif
+            call VecGetArrayF90(vec1_loc,vec_p,ierr);CHKERRQ(ierr)
             do icell=1,initial_condition%region%num_cells
               local_id = initial_condition%region%cell_ids(icell)
               ghosted_id = grid%nL2G(local_id)
               rt_auxvars(ghosted_id)%mnrl_area0(imnrl) = vec_p(ghosted_id)
               rt_auxvars(ghosted_id)%mnrl_area(imnrl) = vec_p(ghosted_id)
             enddo
-            call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+            call VecRestoreArrayF90(vec1_loc,vec_p,ierr);CHKERRQ(ierr)
           endif
         enddo
       endif
@@ -672,16 +944,21 @@ subroutine CondControlAssignTranInitCond(realization)
             dataset => DatasetBaseGetPointer(realization%datasets, &
                 constraint_coupler%immobile_species%constraint_aux_string(iimmobile), &
                 string,option)
+            if (vec1_loc == PETSC_NULL_VEC) then
+              ! cannot use field%work_loc as it is used within ConditionCo...
+              call VecDuplicate(field%work_loc,vec1_loc, &
+                                ierr);CHKERRQ(ierr)
+            endif 
             idof = ONE_INTEGER
             call ConditionControlMapDatasetToVec(realization,dataset,idof, &
-                                                  field%work_loc,LOCAL)
-            call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+                                                 vec1_loc,LOCAL)
+            call VecGetArrayF90(vec1_loc,vec_p,ierr);CHKERRQ(ierr)
             do icell=1,initial_condition%region%num_cells
               local_id = initial_condition%region%cell_ids(icell)
               ghosted_id = grid%nL2G(local_id)
               rt_auxvars(ghosted_id)%immobile(iimmobile) = vec_p(ghosted_id)
             enddo
-            call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+            call VecRestoreArrayF90(vec1_loc,vec_p,ierr);CHKERRQ(ierr)
           endif
         enddo
       endif
@@ -928,7 +1205,6 @@ subroutine CondControlAssignTranInitCond(realization)
     call CondControlReadTransportIC(realization, &
                                     option%initialize_transport_filename)
   endif
-  ! PETSC_FALSE = no activity coefficients
   call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
   ! at this point the auxvars have been computed with activity coef = 1.d0
   ! to use intitial condition with activity coefs /= 1.d0, must update
@@ -941,6 +1217,13 @@ subroutine CondControlAssignTranInitCond(realization)
     !     Otherwise, the total component concentrations can be quite
     !     different from what is defined in the input file.
     call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_FALSE,PETSC_TRUE)
+  endif
+
+  if (vec1_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(vec1_loc,ierr);CHKERRQ(ierr)
+  endif
+  if (vec2_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(vec2_loc,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine CondControlAssignTranInitCond
@@ -956,6 +1239,8 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
   ! Author: Glenn Hammond
   ! Date: 03/23/12
   ! 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Subsurface_class
   use Option_module
   use Field_module
@@ -966,9 +1251,7 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
 
   implicit none
   
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"  
-  
+
   class(realization_subsurface_type) :: realization
   class(dataset_base_type), pointer :: dataset
   PetscInt :: idof
@@ -983,6 +1266,7 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
   field => realization%field
   option => realization%option
   
+  call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
   if (associated(dataset)) then
     select type(dataset)
       class is (dataset_common_hdf5_type)
@@ -1021,7 +1305,9 @@ subroutine CondControlScaleSourceSink(realization)
   ! Author: Glenn Hammond
   ! Date: 09/03/08, 10/18/11
   ! 
-
+#include "petsc/finclude/petscdmda.h"
+  use petscdmda
+      
   use Realization_Subsurface_class
   use Discretization_module
   use Region_module
@@ -1036,11 +1322,6 @@ subroutine CondControlScaleSourceSink(realization)
   use Variables_module, only : PERMEABILITY_X
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscdmda.h"
-
   
   class(realization_subsurface_type) :: realization
   
@@ -1097,7 +1378,7 @@ subroutine CondControlScaleSourceSink(realization)
         ghosted_id = grid%nL2G(local_id)
 
         select case(option%iflowmode)
-          case(RICHARDS_MODE,G_MODE)
+          case(RICHARDS_MODE,G_MODE,WF_MODE)
               call GridGetGhostedNeighbors(grid,ghosted_id,DMDA_STENCIL_STAR, &
                                           x_width,y_width,z_width, &
                                           x_count,y_count,z_count, &
@@ -1153,7 +1434,7 @@ subroutine CondControlScaleSourceSink(realization)
       do iconn = 1, cur_connection_set%num_connections      
         local_id = cur_connection_set%id_dn(iconn)
         select case(option%iflowmode)
-          case(RICHARDS_MODE,G_MODE)
+          case(RICHARDS_MODE,G_MODE,WF_MODE)
             cur_source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
               vec_ptr(local_id)
           case(TH_MODE)
@@ -1184,6 +1465,8 @@ subroutine CondControlReadTransportIC(realization,filename)
   ! Date: 03/05/10
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Subsurface_class
   use Option_module
   use Field_module
@@ -1195,9 +1478,6 @@ subroutine CondControlReadTransportIC(realization,filename)
   use HDF5_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
   
   class(realization_subsurface_type) :: realization
   character(len=MAXSTRINGLENGTH) :: filename
@@ -1270,6 +1550,8 @@ end subroutine CondControlReadTransportIC
 
 subroutine CondControlAssignFlowInitCondSurface(surf_realization)
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Surface_class
   use Discretization_module
   use Region_module
@@ -1284,9 +1566,6 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
   use Surface_Global_Aux_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
   
   class(realization_surface_type) :: surf_realization
   
@@ -1330,8 +1609,6 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
 
     select case(option%iflowmode)
       
-      case(G_MODE) ! general phase mode
-
       case (RICHARDS_MODE,TH_MODE)
         ! assign initial conditions values to domain
         call VecGetArrayF90(surf_field%flow_xx,xx_p, ierr);CHKERRQ(ierr)

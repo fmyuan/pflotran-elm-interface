@@ -1,5 +1,7 @@
 module Factory_Surface_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Simulation_Surface_class
 
   use PFLOTRAN_Constants_module
@@ -7,8 +9,6 @@ module Factory_Surface_module
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   public :: SurfaceInitialize, &
             SurfaceInitializePostPETSc, &
@@ -118,7 +118,7 @@ subroutine SurfaceJumpStart(simulation)
   
   option => surf_realization%option
 
-  call PetscOptionsHasName(PETSC_NULL_OBJECT, &
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
                            PETSC_NULL_CHARACTER, "-vecload_block_size", & 
                            failure, ierr);CHKERRQ(ierr)
                              
@@ -381,7 +381,8 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
         call InputReadWord(input,option,flow_condition%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'SURF_FLOW_CONDITION','name')
         call printMsg(option,flow_condition%name)
-        if (option%iflowmode == G_MODE) then
+        if (option%iflowmode == G_MODE .or. &
+            option%iflowmode == WF_MODE) then
           call FlowConditionGeneralRead(flow_condition,input,option)
         else
           call FlowConditionRead(flow_condition,input,option)
@@ -572,6 +573,8 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                       call InputReadWord(input,option,word,PETSC_TRUE)
                       call InputErrorMsg(input,option,'end time units', &
                                          'SURF_OUTPUT,PERIODIC,TIME')
+                      units_conversion = UnitsConvertToInternal(word, &
+                                         internal_units,option)
                       temp_real2 = temp_real2 * units_conversion
                       do
                         waypoint => WaypointCreate()

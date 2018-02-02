@@ -2,17 +2,17 @@ module String_module
 
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
  
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
 
-#include "petsc/finclude/petscsys.h"
-
-  PetscInt, parameter, public :: STRING_IS_INTEGER = 1
-  PetscInt, parameter, public :: STRING_IS_DOUBLE = 2
-  PetscInt, parameter, public :: STRING_IS_WORD = 3
+  PetscInt, parameter, public :: STRING_IS_AN_INTEGER = 1
+  PetscInt, parameter, public :: STRING_IS_A_DOUBLE = 2
+  PetscInt, parameter, public :: STRING_IS_A_WORD = 3
 
   public :: StringCompare, &
             StringCompareIgnoreCase, &
@@ -21,6 +21,7 @@ module String_module
             StringReadQuotedWord, &
             StringStartsWithAlpha, &
             StringStartsWith, &
+            StringEndsWith, &
             StringAdjustl, &
             StringNull, &
             StringFindEntryInList, &
@@ -362,6 +363,44 @@ end function StringStartsWith
 
 ! ************************************************************************** !
 
+function StringEndsWith(string,string2)
+  ! 
+  ! Determines whether a string ends with characters identical to another 
+  ! string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/16/12
+  ! 
+      
+  implicit none
+
+  character(len=*) :: string
+  character(len=*) :: string2
+
+  PetscBool :: StringEndsWith
+  
+  PetscInt :: search_length, i, i1, i2, len1, len2
+
+  len1 = len_trim(string)
+  len2 = len_trim(string2)
+  search_length = min(len1,len2)
+  
+  do i = 1, search_length
+    ! search backward
+    i1 = len1+1-i
+    i2 = len2+1-i
+    if (string(i1:i1) /= string2(i2:i2)) then
+      StringEndsWith = PETSC_FALSE
+      return
+    endif
+  enddo
+  
+  StringEndsWith = PETSC_TRUE
+
+end function StringEndsWith
+
+! ************************************************************************** !
+
 subroutine StringAdjustl(string)
   ! 
   ! Left adjusts a string by removing leading spaces and tabs.
@@ -492,7 +531,7 @@ function StringSplit(string,chars)
 
   character(len=MAXSTRINGLENGTH), pointer :: strings(:), StringSplit(:)
   
-  character(len=MAXSTRINGLENGTH) :: string1, string2
+  character(len=MAXSTRINGLENGTH) :: string1
   PetscInt :: i, icount, istart, iend, length, length_chars
   PetscInt :: last_index
   
@@ -599,9 +638,9 @@ end function StringFormatDouble
 
 ! ************************************************************************** !
 
-function StringIntegerDoubleOrWord(string)
+function StringIntegerDoubleOrWord(string_in)
   ! 
-  ! Writes a double or real to a string
+  ! Returns whether a value read from a string is a double, integer, or word
   ! 
   ! Author: Glenn Hammond
   ! Date: 01/13/12
@@ -609,15 +648,17 @@ function StringIntegerDoubleOrWord(string)
 
   implicit none
   
-  character(len=*) :: string
+  character(len=*) :: string_in
 
   PetscInt :: StringIntegerDoubleOrWord
 
+  character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: d
   PetscInt :: i
   PetscBool :: double_syntax_found
-  character(len=MAXWORDLENGTH) :: word
   PetscErrorCode :: ierr
+
+  string = trim(string_in)
 
   StringIntegerDoubleOrWord = -999
   ierr = 0
@@ -629,19 +670,19 @@ function StringIntegerDoubleOrWord(string)
     ! the Intel compiler does not alway catch the misread of a double to an 
     ! integer
     if (double_syntax_found) then
-      StringIntegerDoubleOrWord = STRING_IS_DOUBLE
+      StringIntegerDoubleOrWord = STRING_IS_A_DOUBLE
       return
     endif
-    StringIntegerDoubleOrWord = STRING_IS_INTEGER
+    StringIntegerDoubleOrWord = STRING_IS_AN_INTEGER
     return
   endif
   ierr = 0
   read(string,*,iostat=ierr) d
   if (ierr == 0) then
-    StringIntegerDoubleOrWord = STRING_IS_DOUBLE
+    StringIntegerDoubleOrWord = STRING_IS_A_DOUBLE
     return
   endif
-  if (len_trim(string) > 0) StringIntegerDoubleOrWord = STRING_IS_WORD
+  if (len_trim(string) > 0) StringIntegerDoubleOrWord = STRING_IS_A_WORD
   
 end function StringIntegerDoubleOrWord
 

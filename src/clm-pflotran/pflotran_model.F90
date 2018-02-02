@@ -1,23 +1,32 @@
 module pflotran_model_module
-
-  use Option_module, only : option_type
-  use Simulation_Base_class, only : simulation_base_type
-  use Multi_Simulation_module, only : multi_simulation_type
-  use Realization_Base_class, only : realization_base_type
-  use Mapping_module, only : mapping_type
-
+  use petscsys
+  use Simulation_Base_class
+  use Realization_Base_class
+  use Timestepper_Base_class
+  use Option_module
+  !use Input_module
+  !use Init_module
+  use Logging_module
+  !use Stochastic_module
+  !use Stochastic_Aux_module
+  use Waypoint_module
+  use Units_module
   use PFLOTRAN_Constants_module
+  use Multi_Simulation_module
+  use Mapping_module
 
-  implicit none
-
-  private
-
+!#include "definitions.h"
 #include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petsclog.h"
-#include "petsc/finclude/petscsysdef.h"
-#include "petsc/finclude/petscviewer.h"
 #include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscviewer.h"
 !#include "finclude/petscvec.h90"
+ 
+  use petscsys
+  use petscvec
+  
+  implicit none
+
 
   ! Note:
   !
@@ -422,9 +431,6 @@ subroutine pflotranModelSetICs(pflotran_model)
 
     implicit none
 
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_subsurface_type), pointer           :: realization
     type(patch_type), pointer                 :: patch
@@ -529,9 +535,6 @@ end subroutine pflotranModelSetICs
                                PERMEABILITY_Z
 
     implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_subsurface_type), pointer           :: realization
@@ -727,9 +730,6 @@ end subroutine pflotranModelSetICs
     use Characteristic_Curves_module
 
     implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_subsurface_type), pointer          :: realization
@@ -1177,10 +1177,6 @@ end subroutine pflotranModelSetICs
 
     implicit none
 
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscviewer.h"
-
     type(pflotran_model_type), intent(inout), pointer :: pflotran_model
     PetscInt, intent(in), pointer                     :: grid_clm_cell_ids_nindex(:)
     PetscInt, intent(in)                              :: grid_clm_npts_local
@@ -1624,10 +1620,6 @@ end subroutine pflotranModelSetICs
 
     implicit none
 
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscviewer.h"
-
     type(pflotran_model_type), intent(inout), pointer :: pflotran_model
     PetscInt, intent(in), pointer                     :: grid_clm_cell_ids_nindex(:)
     PetscInt, intent(in)                              :: grid_clm_npts_local
@@ -1996,9 +1988,6 @@ end subroutine pflotranModelSetICs
 
     implicit none
 
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h90"
-
     type(pflotran_model_type), pointer :: model
     PetscReal, intent(in) :: pause_time
 
@@ -2183,8 +2172,6 @@ end subroutine pflotranModelSetICs
     use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     implicit none
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
 
@@ -2327,8 +2314,6 @@ end subroutine pflotranModelSetICs
     use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     implicit none
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
 
@@ -2422,8 +2407,6 @@ end subroutine pflotranModelSetICs
     use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     implicit none
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
 
@@ -2510,8 +2493,6 @@ end subroutine pflotranModelSetICs
     use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     implicit none
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
 
@@ -2601,7 +2582,7 @@ end subroutine pflotranModelSetICs
       if(StringCompare(source_sink%name,'clm_rain_srf_ss')) then
 
         found = PETSC_TRUE
-        if (source_sink%flow_condition%temperature%itype /= HET_DIRICHLET) then
+        if (source_sink%flow_condition%temperature%itype /= HET_DIRICHLET_BC) then
           call printErrMsg(pflotran_model%option,'clm_rain_srf_ss is not of ' // &
                            'HET_DIRICHLET')
         endif
@@ -2646,8 +2627,6 @@ end subroutine pflotranModelSetICs
 
     implicit none
 
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
 
@@ -2788,9 +2767,6 @@ end subroutine pflotranModelSetICs
 
     implicit none
 
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_subsurface_type), pointer          :: realization
     type(patch_type), pointer                 :: patch
@@ -2874,9 +2850,6 @@ end subroutine pflotranModelSetICs
 
     implicit none
 
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-
     type(pflotran_model_type), pointer        :: pflotran_model
 
     class(realization_surface_type), pointer  :: surf_realization
@@ -2940,9 +2913,6 @@ end subroutine pflotranModelSetICs
     use Mapping_module
 
     implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_subsurface_type), pointer           :: realization
@@ -3020,9 +2990,6 @@ end subroutine pflotranModelSetICs
     use Mapping_module
 
     implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_subsurface_type), pointer          :: realization
@@ -3184,8 +3151,6 @@ end subroutine pflotranModelSetICs
     use Mapping_module
 
     implicit none
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer :: pflotran_model
 
@@ -3194,7 +3159,7 @@ end subroutine pflotranModelSetICs
     type(discretization_type), pointer :: discretization
     type(patch_type), pointer :: patch
     type(grid_type), pointer :: grid
-    type(point_type) :: point1, point2, point3, point4
+    !type(point_type) :: point1, point2, point3, point4
 
     PetscInt :: local_id
     PetscInt :: ghosted_id

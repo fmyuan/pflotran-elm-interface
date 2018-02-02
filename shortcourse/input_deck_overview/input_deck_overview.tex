@@ -1,0 +1,82 @@
+\documentclass{beamer}
+
+\usepackage{comment}
+\usepackage{color}
+
+\title{An Overview of the PFLOTRAN Input Deck}
+\author{Glenn Hammond}
+\date{\today}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}
+%Freaking manual table of contents since beamer is stupid!!!!
+\footnotesize
+\begin{itemize}
+\item[] {\color{blue}Syntax}
+\item[] {\color{blue}Control Cards}
+\begin{itemize}
+\item[] SIMULATION
+\end{itemize}
+\item[] {\color{blue}Required Cards}
+\begin{itemize}
+\item[] GRID
+\item[] REGION
+\item[] MATERIAL\_PROPERTY
+\item[] STRATA
+\item[] TIME
+\item[] INITIAL\_CONDITION
+\end{itemize}
+\item[] {\color{blue}Required Cards for Flow}
+\begin{itemize}
+\item[] FLOW\_CONDITION
+\end{itemize}
+\item[] {\color{blue}Required Cards for Reactive Transport}
+\begin{itemize}
+\item[] CHEMISTRY
+\item[] TRANSPORT\_CONDITION
+\item[] CONSTRAINT
+\end{itemize}
+\item[] {\color{blue}Optional Cards}
+\begin{itemize}
+\item[] OUTPUT
+\item[] FLUID\_PROPERTY
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\section{Syntax}
+\include{syntax}
+
+%-----------------------------------------------------------------------------
+\section{Control Cards}
+
+\include{simulation}
+
+%-----------------------------------------------------------------------------
+\section{Required Cards}
+
+\include{grid}
+\include{region}
+\include{material_property}
+\include{strata}
+\include{time}
+\include{initial_condition}
+
+\section{Required Cards for Flow}
+\include{flow_condition}
+
+\section{Required Cards for Reactive Transport}
+\include{chemistry}
+\include{transport_condition}
+\include{constraint}
+
+%-----------------------------------------------------------------------------
+\section{Optional Cards}
+\include{boundary_condition}
+\include{output}
+\include{fluid_property}
+
+\end{document}

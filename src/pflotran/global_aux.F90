@@ -1,12 +1,12 @@
 module Global_Aux_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
 
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   type, public :: global_auxvar_type
     PetscInt :: istate
@@ -198,6 +198,11 @@ subroutine GlobalAuxVarInit(auxvar,option)
 !geh        allocate(auxvar%den_kg_store(option%nphase,TWO_INTEGER))
 !geh        auxvar%den_kg_store = 0.d0
       endif
+    case (WF_MODE)
+      if (option%ntrandof > 0) then
+        allocate(auxvar%pres_store(option%nphase,TWO_INTEGER))
+        auxvar%pres_store = 0.d0
+      endif
     case default
   end select
   
@@ -383,7 +388,6 @@ subroutine GlobalAuxDestroy(aux)
   implicit none
 
   type(global_type), pointer :: aux
-  PetscInt :: iaux
   
   if (.not.associated(aux)) return
   

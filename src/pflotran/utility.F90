@@ -1,12 +1,13 @@
 module Utility_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
 
-#include "petsc/finclude/petscsys.h"
 
   interface DotProduct
     module procedure DotProduct1
@@ -47,6 +48,11 @@ module Utility_module
     module procedure InterfaceApproxWithDeriv
     module procedure InterfaceApproxWithoutDeriv
   end interface
+  
+  interface CalcParallelSUM
+    module procedure CalcParallelSUM1
+    module procedure CalcParallelSUM2
+  end interface
 
   public :: GetRndNumFromNormalDist, &
             DotProduct, &
@@ -74,7 +80,11 @@ module Utility_module
             Determinant, &
             InterfaceApproxWithDeriv, &
             InterfaceApproxWithoutDeriv, &
-            PrintProgressBarInt
+            PrintProgressBarInt, &
+            InverseNorm, &
+            Erf_, &
+            DigitsOfAccuracy, &
+            CalcParallelSum
             
 contains
 
@@ -861,9 +871,12 @@ end function Erf_
 
 ! ************************************************************************** !
 
-function InverseErf(p)
-  ! 
-  ! Erf: Computes an approximate to erf(x)
+subroutine InverseNorm(p,invnormdist,calculate_derivative,dinvnormdist_dp)
+  ! This function returns the scaled inverse normal distribution
+  ! which can be related to the inverse complementary error function.
+  ! input range: 0 < x < 2
+  ! erfc^{-1}(x) = -InverseNorm(x/2)/sqrt(2.0)
+  !
   ! adapted from
   ! #
   ! # Lower tail quantile for standard normal distribution function.
@@ -888,9 +901,16 @@ function InverseErf(p)
 
   implicit none
   
-  PetscReal :: p
-  
-  PetscReal :: InverseErf
+  PetscReal, intent(in) :: p
+  PetscReal, intent(out) :: invnormdist
+  PetscBool, intent(in) :: calculate_derivative
+  PetscReal, intent(out) :: dinvnormdist_dp
+
+  PetscReal :: X, Z
+  PetscReal :: dX_dq, dZ_dq
+  PetscReal :: dX_dr, dZ_dr
+  PetscReal :: dr_dq
+  PetscReal :: dq_dp
   
  ! Coefficients in rational approximations.
   PetscReal, parameter :: A(6) = (/-3.969683028665376d+1,2.209460984245205d+2, &
@@ -915,22 +935,46 @@ function InverseErf(p)
   ! Rational approximation for lower region:
   if (p < PLOW) then
     q = sqrt(-2.d0*log(p))
-    InverseErf = (((((C(1)*q+C(2))*q+C(3))*q+C(4))*q+C(5))*q+C(6)) / &
-                  ((((D(1)*q+D(2))*q+D(3))*q+D(4))*q+1.d0)
+    X = (((((C(1)*q+C(2))*q+C(3))*q+C(4))*q+C(5))*q+C(6))
+    Z = ((((D(1)*q+D(2))*q+D(3))*q+D(4))*q+1.d0)
+    invnormdist = X/Z
+    if (calculate_derivative) then
+      dq_dp = -1.d0/(q*p)
+      dX_dq = (((5.d0*C(1)*q+4.d0*C(2))*q+3.d0*C(3))*q+2.d0*C(4))*q+C(5)
+      dZ_dq = ((4.d0*D(1)*q+3.d0*D(2))*q+2.d0*D(3))*q+D(4)
+      dinvnormdist_dp = (dX_dq/Z-invnormdist/Z*dZ_dq)*dq_dp
+    endif
   ! Rational approximation for upper region:
   elseif (PHIGH < p) then
     q = sqrt(-2.d0*log(1.d0-p))
-    InverseErf = -(((((C(1)*q+C(2))*q+C(3))*q+C(4))*q+C(5))*q+C(6)) / &
-                   ((((D(1)*q+D(2))*q+D(3))*q+D(4))*q+1.d0)
+    X = (((((C(1)*q+C(2))*q+C(3))*q+C(4))*q+C(5))*q+C(6))
+    Z = ((((D(1)*q+D(2))*q+D(3))*q+D(4))*q+1.d0)
+    invnormdist = -1.d0*X/Z
+    if (calculate_derivative) then
+      dq_dp = 1.d0/(q*(1.d0-p))
+      dX_dq = (((5.d0*C(1)*q+4.d0*C(2))*q+3.d0*C(3))*q+2.d0*C(4))*q+C(5)
+      dZ_dq = ((4.d0*D(1)*q+3.d0*D(2))*q+2.d0*D(3))*q+D(4)
+      dinvnormdist_dp = -1.d0*(dX_dq/Z+invnormdist/Z*dZ_dq)*dq_dp
+    endif
   ! Rational approximation for central region:
   else
     q = p - 0.5d0;
     r = q*q;
-    InverseErf = (((((A(1)*r+A(2))*r+A(3))*r+A(4))*r+A(5))*r+A(6))*q / &
-                 (((((B(1)*r+B(2))*r+B(3))*r+B(4))*r+B(5))*r+1.d0)
+    X = (((((A(1)*r+A(2))*r+A(3))*r+A(4))*r+A(5))*r+A(6))
+    Z = (((((B(1)*r+B(2))*r+B(3))*r+B(4))*r+B(5))*r+1.d0)
+    invnormdist = X*q/Z
+    if (calculate_derivative) then
+      dq_dp = 1.d0
+      dr_dq = 2.d0*q
+      dX_dr = (((5.d0*A(1)*r+4.d0*A(2))*r+3.d0*A(3))*r+2.d0*A(4))*r+A(5)
+      dZ_dr = (((5.d0*B(1)*r+4.d0*B(2))*r+3.d0*B(3))*r+2.d0*B(4))*r+B(5)
+      dinvnormdist_dp = (invnormdist/q+ &
+                         (dX_dr*q/Z-invnormdist/Z*dZ_dr)*dr_dq)* &
+                        dq_dp
+    endif
   endif
 
-end function InverseErf
+end subroutine InverseNorm
 
 ! ************************************************************************** !
 
@@ -949,14 +993,14 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
   implicit none
   
   type(option_type) :: option
-  type(input_type), target :: input
+  type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: comment
   PetscInt :: array_size
   PetscInt, pointer :: array(:)
   
   PetscInt :: i, num_values, icount
   type(input_type), pointer :: input2
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  character(len=MAXSTRINGLENGTH) :: string2
   character(len=MAXWORDLENGTH) :: word, word2, word3
   character(len=1) :: backslash
   character(len=MAXSTRINGLENGTH) :: err_string
@@ -964,7 +1008,6 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
   PetscInt :: value
   PetscInt, pointer :: temp_array(:)
   PetscInt :: temp_array_size
-  PetscErrorCode :: ierr
 
   err_string = trim(comment) // ',UtilityReadIntArray'
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
@@ -988,7 +1031,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
       input%err_buf = 'filename'
       input%err_buf2 = comment
       call InputErrorMsg(input,option)
-      input2 => InputCreate(input%fid + 1,string2,option)
+      input2 => InputCreate(input,string2,option)
     else
       input2 => input
       input%buf = string2
@@ -1113,14 +1156,14 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
   implicit none
   
   type(option_type) :: option
-  type(input_type), target :: input
+  type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: comment
   PetscInt :: array_size
   PetscReal, pointer :: array(:)
   
   PetscInt :: i, num_values, icount
   type(input_type), pointer :: input2
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  character(len=MAXSTRINGLENGTH) :: string2
   character(len=MAXWORDLENGTH) :: word, word2, word3
   character(len=1) :: backslash
   character(len=MAXSTRINGLENGTH) :: err_string
@@ -1128,7 +1171,6 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
   PetscReal :: value
   PetscReal, pointer :: temp_array(:)
   PetscInt :: temp_array_size
-  PetscErrorCode :: ierr
 
   err_string = trim(comment) // ',UtilityReadRealArray'
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
@@ -1152,7 +1194,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
       input%err_buf = 'filename'
       input%err_buf2 = comment
       call InputErrorMsg(input,option)
-      input2 => InputCreate(input%fid + 1,string2,option)
+      input2 => InputCreate(input,string2,option)
     else
       input2 => input
       input%buf = string2
@@ -1778,7 +1820,7 @@ subroutine ConvertMatrixToVector(A,vecA)
 
   PetscReal :: A(:,:)
   PetscReal, allocatable :: vecA(:,:)
-  PetscInt :: m, n, i, j
+  PetscInt :: m, n
   
   m = size(A,1)
   n = size(A,2)
@@ -1973,7 +2015,7 @@ end subroutine InterfaceApproxWithoutDeriv
 
 ! ************************************************************************** !
 
-subroutine PrintProgressBarInt(max,increment,current)
+subroutine PrintProgressBarInt(max_value,increment,current)
   ! 
   ! Prints a piece of a progress bar to the screen based on the maximum
   ! value, the increment of progress (must be given in percent), and the
@@ -1985,19 +2027,21 @@ subroutine PrintProgressBarInt(max,increment,current)
 
   implicit none
   
-  PetscInt :: max
+  PetscReal :: max_value
   PetscInt :: increment
   PetscInt :: current
 
+  PetscInt :: max_value_int
   PetscInt :: g, j, chunk
   character(len=MAXWORDLENGTH) :: percent_num
 
-  if (max < increment) then
-    max = max*(increment/max)
-    current = current*(increment/max)
+  max_value_int = floor(max_value)
+  if (max_value_int < increment) then
+    max_value_int = max_value_int*(increment/max_value_int)
+    current = current*(increment/max_value_int)
   endif
 
-  chunk = floor(max*(increment/100.0))
+  chunk = floor(max_value_int*(increment/100.0))
 
   if (mod(current,chunk) == 0) then
     j = current/chunk
@@ -2013,5 +2057,153 @@ subroutine PrintProgressBarInt(max,increment,current)
   endif
 
 end subroutine PrintProgressBarInt
+
+! ************************************************************************** !
+
+function DigitsOfAccuracy(num1,num2)
+
+  implicit none
+  
+  PetscReal :: num1
+  PetscReal :: num2
+  
+  character(len=2) :: DigitsOfAccuracy
+  
+  PetscReal :: tempreal
+  PetscReal :: relative_difference
+  PetscInt :: tempint
+  
+  DigitsOfAccuracy = ' 0'
+  if (dabs(num1) > 0.d0 .and. dabs(num2) > 0.d0) then
+    relative_difference = dabs((num1-num2)/num2)
+    if (relative_difference < 1.d-17) then
+      ! accuracy is beyond double precision
+      DigitsOfAccuracy = '99'
+    else
+      tempreal = 1.d0 / relative_difference
+      tempint = 0
+      do
+        if (tempreal < 10.d0) exit
+        tempreal = tempreal / 10.d0
+        tempint = tempint + 1
+      enddo
+      write(DigitsOfAccuracy,'(i2)') tempint
+    endif
+  else if (dabs(num1) > 0.d0 .or. dabs(num2) > 0.d0) then
+    ! change this value if you want to report something difference for
+    ! either one being zero.
+  else
+    ! change this value if you want to report something difference for
+    ! double zeros.
+    DigitsOfAccuracy = '  '
+  endif
+    
+end function DigitsOfAccuracy
+
+! ************************************************************************** !
+
+subroutine CalcParallelSUM1(option,rank_list,local_val,global_sum)
+  ! 
+  ! Calculates global sum for a MPI_DOUBLE_PRECISION number (local_val).
+  ! This function uses only MPI_Send and MPI_Recv functions and does not need 
+  ! a communicator object other than option%mycomm. It reduces communication 
+  ! to the processes that are included in the rank_list array rather than using
+  ! a call to MPI_Allreduce.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 07/05/2017
+  
+  use Option_module
+  
+  implicit none
+  
+  type(option_type), pointer :: option
+  PetscInt :: rank_list(:)
+  PetscReal :: local_val
+  PetscReal :: global_sum
+  
+  PetscReal :: passed_local_val(1)
+  PetscReal :: passed_global_val(1)
+  
+  passed_local_val(1) = local_val
+  passed_global_val(1) = 0.d0
+  
+  call CalcParallelSUM2(option,rank_list,passed_local_val,passed_global_val)
+  
+  global_sum = passed_global_val(1)
+
+end subroutine CalcParallelSUM1
+
+! ************************************************************************** !
+
+subroutine CalcParallelSUM2(option,rank_list,local_val,global_sum)
+  ! 
+  ! Calculates global sum for a MPI_DOUBLE_PRECISION number (local_val).
+  ! This function uses only MPI_Send and MPI_Recv functions and does not need 
+  ! a communicator object other than option%mycomm. It reduces communication 
+  ! to the processes that are included in the rank_list array rather than using
+  ! a call to MPI_Allreduce.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/23/17, 07/05/2017
+  
+  use Option_module
+  
+  implicit none
+  
+  type(option_type), pointer :: option
+  PetscInt :: rank_list(:)
+  PetscReal :: local_val(:)
+  PetscReal :: global_sum(:)
+
+  PetscReal, pointer :: temp_array(:)
+  PetscInt :: num_ranks, val_size
+  PetscInt :: m, j
+  PetscInt :: TAG
+  PetscErrorCode :: ierr
+  
+  num_ranks = size(rank_list)
+  val_size = size(local_val)
+  allocate(temp_array(num_ranks))
+  TAG = 0
+  
+  if (num_ranks > 1) then
+  !------------------------------------------
+    temp_array = 0.d0
+    do j = 1,val_size
+  
+      if (option%myrank .ne. rank_list(1)) then
+        call MPI_Send(local_val(j),ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                      rank_list(1),TAG,option%mycomm,ierr)
+      else
+        temp_array(1) = local_val(j)
+        do m = 2,num_ranks
+          call MPI_Recv(local_val(j),ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                        rank_list(m),TAG,option%mycomm,MPI_STATUS_IGNORE,ierr)
+          temp_array(m) = local_val(j)
+        enddo
+        global_sum(j) = sum(temp_array)
+      endif
+      if (option%myrank == rank_list(1)) then
+        do m = 2,num_ranks
+          call MPI_Send(global_sum(j),ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                        rank_list(m),TAG,option%mycomm,ierr)
+        enddo
+      else
+        call MPI_Recv(global_sum(j),ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                      rank_list(1),TAG,option%mycomm,MPI_STATUS_IGNORE,ierr)
+      endif             
+    
+    enddo
+  !------------------------------------------        
+  else 
+    global_sum = local_val
+  endif
+  
+  deallocate(temp_array)
+
+end subroutine CalcParallelSUM2
+
+! ************************************************************************** !
 
 end module Utility_module

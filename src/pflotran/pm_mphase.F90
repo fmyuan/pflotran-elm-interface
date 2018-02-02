@@ -1,5 +1,6 @@
 module PM_Mphase_class
-
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
   
@@ -8,14 +9,6 @@ module PM_Mphase_class
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscsnes.h"
 
   type, public, extends(pm_subsurface_flow_type) :: pm_mphase_type
   contains
@@ -62,7 +55,7 @@ function PMMphaseCreate()
   allocate(mphase_pm)
 
   call PMSubsurfaceFlowCreate(mphase_pm)
-  mphase_pm%name = 'PMMphase'
+  mphase_pm%name = 'Mphase CO2 Flow'
 
   PMMphaseCreate => mphase_pm
   
@@ -109,7 +102,8 @@ subroutine PMMphaseRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found,option)
+    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
+                                        error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -182,6 +176,9 @@ subroutine PMMphasePreSolve(this)
   
   reaction => this%realization%reaction
   option => this%realization%option
+
+  call PMSubsurfaceFlowPreSolve(this)
+
 #if 1
   if (associated(reaction)) then
     if (associated(reaction%species_idx)) then
@@ -269,11 +266,13 @@ end subroutine PMMphasePostSolve
 ! ************************************************************************** !
 
 subroutine PMMphaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                  num_newton_iterations,tfac, &
+                                  time_step_max_growth_factor)
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   ! 
+  use Realization_Subsurface_class, only : RealizationLimitDTByCFL
 
   implicit none
   
@@ -283,6 +282,7 @@ subroutine PMMphaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: fac
   PetscReal :: ut
@@ -319,14 +319,14 @@ subroutine PMMphaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     dtt = min(dt_tfac,dt_p)
   endif
   
-  if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   if (dtt > dt_max) dtt = dt_max
   ! geh: There used to be code here that cut the time step if it is too
   !      large relative to the simulation time.  This has been removed.
   dtt = max(dtt,dt_min)
   dt = dtt
 
-  call PMSubsurfaceFlowLimitDTByCFL(this,dt)
+  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
   
 end subroutine PMMphaseUpdateTimestep
 

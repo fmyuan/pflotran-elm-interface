@@ -1,5 +1,7 @@
 module Regression_module
  
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Output_Aux_module
   
   use PFLOTRAN_Constants_module
@@ -7,16 +9,13 @@ module Regression_module
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
  
   type, public :: regression_type
     type(regression_variable_type), pointer :: variable_list
     PetscInt, pointer :: natural_cell_ids(:)
     PetscInt :: num_cells_per_process
     PetscInt, pointer :: cells_per_process_natural_ids(:)
+    PetscBool :: all_cells
     Vec :: natural_cell_id_vec
     Vec :: cells_per_process_vec
     VecScatter :: scatter_natural_cell_id_gtos
@@ -56,11 +55,12 @@ function RegressionCreate()
   nullify(regression%variable_list)
   nullify(regression%natural_cell_ids)
   regression%num_cells_per_process = 0
+  regression%all_cells = PETSC_FALSE
   nullify(regression%cells_per_process_natural_ids)
-  regression%natural_cell_id_vec = 0
-  regression%cells_per_process_vec = 0
-  regression%scatter_natural_cell_id_gtos = 0
-  regression%scatter_cells_per_process_gtos = 0
+  regression%natural_cell_id_vec = PETSC_NULL_VEC
+  regression%cells_per_process_vec =  PETSC_NULL_VEC
+  regression%scatter_natural_cell_id_gtos = PETSC_NULL_VECSCATTER
+  regression%scatter_cells_per_process_gtos = PETSC_NULL_VECSCATTER
   nullify(regression%next)
   RegressionCreate => regression
 
@@ -156,7 +156,6 @@ subroutine RegressionRead(regression,input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
-
           count = count + 1
           if (count > max_cells) then
             call reallocateIntArray(int_array,max_cells)
@@ -172,6 +171,8 @@ subroutine RegressionRead(regression,input,option)
       case('CELLS_PER_PROCESS')
         call InputReadInt(input,option,regression%num_cells_per_process)
         call InputErrorMsg(input,option,'num cells per process','REGRESSION')
+      case('ALL_CELLS')
+         regression%all_cells = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(keyword,'REGRESSION',option)
     end select
@@ -190,17 +191,15 @@ subroutine RegressionCreateMapping(regression,realization)
   ! Author: Glenn Hammond
   ! Date: 10/12/12
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Grid_module
   use Discretization_module
+  use Utility_module
   
   implicit none
-  
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petscviewer.h"
 
   type(regression_type), pointer :: regression
   class(realization_subsurface_type) :: realization
@@ -210,6 +209,7 @@ subroutine RegressionCreateMapping(regression,realization)
   PetscInt :: i, upper_bound, lower_bound, count, temp_int
   PetscInt :: local_id
   PetscReal, pointer :: vec_ptr(:)
+  character(len=MAXWORDLENGTH) :: word
   Vec :: temp_vec
   VecScatter :: temp_scatter
   IS :: temp_is
@@ -223,6 +223,21 @@ subroutine RegressionCreateMapping(regression,realization)
   
   grid => realization%patch%grid
   option => realization%option
+
+  if (regression%all_cells) then
+    ! override regression%num_cells_per_process since cells will be duplicated
+    regression%num_cells_per_process = 0 
+    if (grid%nmax > 100) then
+      option%io_buffer = 'Printing regression info for ALL_CELLS not &
+        &supported for problem sizes greater than 100 cells.'
+      call printErrMsg(option)
+    endif
+    call DeallocateArray(regression%natural_cell_ids)
+    allocate(regression%natural_cell_ids(grid%nmax))
+    do i = 1, grid%nmax
+      regression%natural_cell_ids(i) = i
+    enddo
+  endif
   
   ! natural cell ids
   if (associated(regression%natural_cell_ids)) then
@@ -289,7 +304,7 @@ subroutine RegressionCreateMapping(regression,realization)
 
     ! create scatter context
     call VecScatterCreate(realization%field%work,is_petsc, &
-                          regression%natural_cell_id_vec,PETSC_NULL_OBJECT, &
+                          regression%natural_cell_id_vec,PETSC_NULL_IS, &
                           regression%scatter_natural_cell_id_gtos, &
                           ierr);CHKERRQ(ierr)
 
@@ -312,8 +327,10 @@ subroutine RegressionCreateMapping(regression,realization)
     call MPI_Allreduce(i,count,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MIN, &
                        option%mycomm,ierr)
     if (count < regression%num_cells_per_process) then
-      option%io_buffer = 'Number of cells per process for Regression ' // &
-        'exceeds minimum number of cells per process.  Truncating.'
+      write(word,*) count
+      option%io_buffer = 'Number of cells per process for regression file&
+        &exceeds minimum number of cells per process.  Truncating to ' // &
+        trim(adjustl(word)) // '.'
       call printMsg(option)
       regression%num_cells_per_process = count
     endif
@@ -366,7 +383,7 @@ subroutine RegressionCreateMapping(regression,realization)
                          ierr);CHKERRQ(ierr)
 
     call VecScatterCreate(temp_vec,temp_is, &
-                          regression%cells_per_process_vec,PETSC_NULL_OBJECT, &
+                          regression%cells_per_process_vec,PETSC_NULL_IS, &
                           temp_scatter,ierr);CHKERRQ(ierr)
     call ISDestroy(temp_is,ierr);CHKERRQ(ierr)
  
@@ -409,7 +426,7 @@ subroutine RegressionCreateMapping(regression,realization)
 
     call VecScatterCreate(realization%field%work,is_petsc, &
                           regression%cells_per_process_vec, &
-                          PETSC_NULL_OBJECT, &
+                          PETSC_NULL_IS, &
                           regression%scatter_cells_per_process_gtos, &
                           ierr);CHKERRQ(ierr)
     call ISDestroy(is_petsc,ierr);CHKERRQ(ierr)
@@ -474,7 +491,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   use Output_module
   use Output_Aux_module
   use Output_Common_module, only : OutputGetCellCenteredVelocities, &
-                                   OutputGetVarFromArray
+                                   OutputGetVariableArray
   
   implicit none
   
@@ -489,7 +506,6 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   Vec :: global_vec_vx,global_vec_vy,global_vec_vz
   Vec :: x_vel_natural, y_vel_natural, z_vel_natural
   Vec :: x_vel_process, y_vel_process, z_vel_process
-  PetscInt :: ivar, isubvar
   type(option_type), pointer :: option
   type(output_variable_type), pointer :: cur_variable
   PetscReal, pointer :: vec_ptr(:), y_ptr(:), z_ptr(:)
@@ -522,10 +538,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   do 
     if (.not.associated(cur_variable)) exit
     
-    ivar = cur_variable%ivar
-    isubvar = cur_variable%isubvar
-  
-    call OutputGetVarFromArray(realization,global_vec,ivar,isubvar)
+    call OutputGetVariableArray(realization,global_vec,cur_variable)
     
     call VecMax(global_vec,PETSC_NULL_INTEGER,max,ierr);CHKERRQ(ierr)
     call VecMin(global_vec,PETSC_NULL_INTEGER,min,ierr);CHKERRQ(ierr)
@@ -769,9 +782,6 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   call VecDestroy(global_vec_vy,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec_vz,ierr);CHKERRQ(ierr)
 
-102 format(i12)    
-103 format(es21.13)
-
   ! timestep, newton iteration, solver iteration output
   if (associated(flow_timestepper)) then
     call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
@@ -865,17 +875,17 @@ subroutine RegressionDestroy(regression)
   call DeallocateArray(regression%natural_cell_ids)
   regression%num_cells_per_process = 0
   call DeallocateArray(regression%cells_per_process_natural_ids)
-  if (regression%natural_cell_id_vec /= 0) then
+  if (regression%natural_cell_id_vec /= PETSC_NULL_VEC) then
     call VecDestroy(regression%natural_cell_id_vec,ierr);CHKERRQ(ierr)
   endif
-  if (regression%cells_per_process_vec /= 0) then
+  if (regression%cells_per_process_vec /= PETSC_NULL_VEC) then
     call VecDestroy(regression%cells_per_process_vec,ierr);CHKERRQ(ierr)
   endif
-  if (regression%scatter_natural_cell_id_gtos /= 0) then
+  if (regression%scatter_natural_cell_id_gtos /= PETSC_NULL_VECSCATTER) then
     call VecScatterDestroy(regression%scatter_natural_cell_id_gtos, &
                            ierr);CHKERRQ(ierr)
   endif
-  if (regression%scatter_cells_per_process_gtos /= 0) then
+  if (regression%scatter_cells_per_process_gtos /= PETSC_NULL_VECSCATTER) then
     call VecScatterDestroy(regression%scatter_cells_per_process_gtos, &
                            ierr);CHKERRQ(ierr)
   endif

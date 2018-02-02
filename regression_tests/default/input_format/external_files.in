@@ -152,7 +152,7 @@ END
 noskip
 
 #=========================== flow conditions ==================================
-EXTERNAL_FILE conditions.txt
+EXTERNAL_FILE ./lower_directory/conditions_redirect.txt
 skip
 FLOW_CONDITION initial
   TYPE

@@ -77,7 +77,8 @@ subroutine DownregRead(this,input,option)
   ! 
   ! Author: Guoping Tang
   ! Date: 06/03/14
-
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -173,7 +174,9 @@ subroutine DownregRead(this,input,option)
     ! for now, forcing to step, which makes sense for src/sinks.
     this%dataset%time_storage%time_interpolation_method = INTERPOLATION_STEP
   endif
-  call DatasetVerify(this%dataset,null_time_storage,option)
+  
+  string = 'Down Regulation Dataset'
+  call DatasetVerify(this%dataset,null_time_storage,string,option)
   
 end subroutine DownregRead
 

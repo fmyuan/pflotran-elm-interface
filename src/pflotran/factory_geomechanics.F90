@@ -1,14 +1,14 @@
 
 module Factory_Geomechanics_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Simulation_Geomechanics_class
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   public :: GeomechanicsInitialize
 
@@ -42,7 +42,8 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   ! Author: Gautam Bisht, LBNL and Satish Karra, LANL
   ! Date: 01/01/14, 02/10/15
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Simulation_Geomechanics_class
   use Simulation_Subsurface_class
   use Factory_Subsurface_module
@@ -66,8 +67,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   use Output_Aux_module
 
   implicit none
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(simulation_geomechanics_type) :: simulation
 
@@ -86,6 +85,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   PetscErrorCode :: ierr
 
   option => simulation%option
+  nullify(timestepper)
   
   nullify(prev_pm)
   cur_pm => simulation%process_model_list
@@ -114,8 +114,8 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     geomech_realization => simulation%geomech_realization
     subsurf_realization => simulation%realization
     subsurf_realization%output_option => OutputOptionDuplicate(simulation%output_option)
-    geomech_realization%input => InputCreate(IN_UNIT,option%input_filename,option)
-    call GeomechicsInitReadRequiredCards(geomech_realization)
+    input => InputCreate(IN_UNIT,option%input_filename,option)
+    call GeomechicsInitReadRequiredCards(geomech_realization,input)
     pmc_geomech => PMCGeomechanicsCreate()
     pmc_geomech%name = 'PMCGeomech'
     simulation%geomech_process_model_coupler => pmc_geomech
@@ -132,15 +132,17 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     string = trim(pmc_geomech%name) // 'Geomechanics'
     call LoggingCreateStage(string,pmc_geomech%stage)
 
-    input => InputCreate(IN_UNIT,option%input_filename,option)    
     string = 'GEOMECHANICS'
     call InputFindStringInFile(input,option,string)
     call InputFindStringErrorMsg(input,option,string)  
-    geomech_realization%output_option => OutputOptionDuplicate(simulation%output_option)
+    geomech_realization%output_option => &
+      OutputOptionDuplicate(simulation%output_option)
     nullify(geomech_realization%output_option%output_snap_variable_list)
     nullify(geomech_realization%output_option%output_obs_variable_list)    
-    geomech_realization%output_option%output_snap_variable_list => OutputVariableListCreate()
-    geomech_realization%output_option%output_obs_variable_list => OutputVariableListCreate()
+    geomech_realization%output_option%output_snap_variable_list => &
+      OutputVariableListCreate()
+    geomech_realization%output_option%output_obs_variable_list => &
+      OutputVariableListCreate()
     call GeomechanicsInitReadInput(simulation,timestepper%solver,input)
     pm_geomech%output_option => geomech_realization%output_option
 
@@ -175,34 +177,22 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     ! initialize geomech realization
     call GeomechInitSetupRealization(simulation)
 
-    ! Solver set up
-    call GeomechInitSetupSolvers(geomech_realization,subsurf_realization, &
-                                 timestepper%convergence_context, &
-                                 timestepper%solver)
-
-
+    if (associated(timestepper)) then
+      call pm_geomech%SetSolver(timestepper%solver)
+    endif
     call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
     call pm_geomech%Setup()
+
+    call pmc_geomech%SetupSolvers()
+
     ! Here I first calculate the linear part of the jacobian and store it
     ! since the jacobian is always linear with geomech (even when coupled with
     ! flow since we are performing sequential coupling). Although
     ! SNESSetJacobian is called, nothing is done there and PETSc just 
     ! re-uses the linear Jacobian at all iterations and times
     call GeomechForceJacobianLinearPart(timestepper%solver%J,geomech_realization)
-    call SNESSetFunction(timestepper%solver%snes, &
-                         pm_geomech%residual_vec, &
-                         PMResidual, &
-                         pmc_geomech%pm_ptr, &
-                         ierr);CHKERRQ(ierr)
-    call SNESSetJacobian(timestepper%solver%snes, &
-                         timestepper%solver%J, &
-                         timestepper%solver%Jpre, &
-                         PMJacobian, &
-                         pmc_geomech%pm_ptr, &
-                         ierr);CHKERRQ(ierr)
-                                  
-     nullify(simulation%process_model_coupler_list)                             
-   endif
+    nullify(simulation%process_model_coupler_list)                             
+  endif
   ! sim_aux: Create PETSc Vectors and VectorScatters
   if (option%ngeomechdof > 0) then
 
@@ -265,6 +255,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   endif    
 
   call GeomechanicsJumpStart(simulation)
+  call InputDestroy(input)
   
 end subroutine GeomechanicsInitializePostPETSc
 
@@ -313,7 +304,7 @@ subroutine GeomechanicsJumpStart(simulation)
 
   option => geomch_realization%option
 
-  call PetscOptionsHasName(PETSC_NULL_OBJECT, &
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
                            PETSC_NULL_CHARACTER, "-vecload_block_size", &
                            failure, ierr);CHKERRQ(ierr)
                              
@@ -346,7 +337,7 @@ end subroutine GeomechanicsJumpStart
 
 ! ************************************************************************** !
 
-subroutine GeomechicsInitReadRequiredCards(geomech_realization)
+subroutine GeomechicsInitReadRequiredCards(geomech_realization,input)
   ! 
   ! Reads the required input file cards
   ! related to geomechanics
@@ -367,15 +358,13 @@ subroutine GeomechicsInitReadRequiredCards(geomech_realization)
   implicit none
   
   class(realization_geomech_type) :: geomech_realization
-  type(geomech_discretization_type), pointer :: geomech_discretization
-  
-  character(len=MAXSTRINGLENGTH) :: string
-  
-  type(option_type), pointer :: option
   type(input_type), pointer :: input
+
+  type(geomech_discretization_type), pointer :: geomech_discretization
+  character(len=MAXSTRINGLENGTH) :: string
+  type(option_type), pointer :: option
   
   option         => geomech_realization%option  
-  input          => geomech_realization%input
   
 ! Read in select required cards
 !.........................................................................
@@ -460,7 +449,8 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
             call UGridRead(ugrid,geomech_discretization%filename,option)
             call UGridDecompose(ugrid,option)
             call CopySubsurfaceGridtoGeomechGrid(ugrid, &
-                                                 geomech_discretization%grid,option)
+                                                 geomech_discretization%grid, &
+                                                 option)
             patch => GeomechanicsPatchCreate()
             patch%geomech_grid => geomech_discretization%grid
             geomech_realization%geomech_patch => patch
@@ -807,7 +797,8 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
   ! 
-
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Geomechanics_Realization_class
   use Geomechanics_Discretization_module
   use Geomechanics_Strata_module
@@ -820,8 +811,6 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
   use Option_module
 
   implicit none
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
   
   class(realization_geomech_type) :: geomech_realization
   
@@ -1002,7 +991,7 @@ subroutine GeomechInitSetupRealization(simulation)
   call GeomechInitMatPropToGeomechRegions(geomech_realization)
   call GeomechRealizInitAllCouplerAuxVars(geomech_realization)  
   call GeomechRealizPrintCouplers(geomech_realization)  
-  call GeomechGridElemSharedByNodes(geomech_realization)
+  call GeomechGridElemSharedByNodes(geomech_realization,option)
   call GeomechForceSetup(geomech_realization)
   call GeomechGlobalSetup(geomech_realization)
     
@@ -1023,6 +1012,8 @@ subroutine GeomechInitSetupSolvers(geomech_realization,realization, &
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use Realization_Subsurface_class
   use Geomechanics_Realization_class
   use Option_module
@@ -1034,13 +1025,6 @@ subroutine GeomechInitSetupSolvers(geomech_realization,realization, &
   use Geomechanics_Discretization_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscsnes.h"
-#include "petsc/finclude/petscpc.h"
   
   class(realization_geomech_type), pointer :: geomech_realization
   class(realization_subsurface_type), pointer :: realization
@@ -1053,6 +1037,9 @@ subroutine GeomechInitSetupSolvers(geomech_realization,realization, &
   PetscErrorCode :: ierr
   
   option => realization%option
+
+print *, 'GeomechInitSetupSolvers cannot be removed.'
+stop
   
   call printMsg(option,"  Beginning setup of GEOMECH SNES ")
     
@@ -1078,7 +1065,7 @@ subroutine GeomechInitSetupSolvers(geomech_realization,realization, &
   call MatSetOptionsPrefix(solver%Jpre,"geomech_", &
                             ierr);CHKERRQ(ierr)
     
-#if 0
+#if 1
   call SNESSetFunction(solver%snes,geomech_realization%geomech_field%disp_r, &
                        GeomechForceResidual, &
                        geomech_realization,ierr);CHKERRQ(ierr)
@@ -1097,11 +1084,11 @@ subroutine GeomechInitSetupSolvers(geomech_realization,realization, &
   ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
   if (option%verbosity >= 1) then
     string = '-geomech_snes_view'
-    call PetscOptionsInsertString(PETSC_NULL_OBJECT, &
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
                                    string, ierr);CHKERRQ(ierr)
   endif
 
-  call SolverSetSNESOptions(solver)
+  call SolverSetSNESOptions(solver,option)
 
   option%io_buffer = 'Solver: ' // trim(solver%ksp_type)
   call printMsg(option)
@@ -1112,8 +1099,6 @@ subroutine GeomechInitSetupSolvers(geomech_realization,realization, &
   ! is call within this function.
   !TODO(geh): free this convergence context somewhere!
   option%io_buffer = 'DEALLOCATE GEOMECH CONVERGENCE CONTEXT somewhere!!!'
-  convergence_context => ConvergenceContextCreate(solver,option, &
-                                                  realization%patch%grid)
   call SNESSetConvergenceTest(solver%snes,ConvergenceTest, &
                               convergence_context, &
                               PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)                                                  

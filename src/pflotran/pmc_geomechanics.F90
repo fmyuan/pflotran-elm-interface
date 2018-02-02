@@ -1,5 +1,7 @@
 module PMC_Geomechanics_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PMC_Base_class
   use Realization_Subsurface_class
   use Geomechanics_Realization_class
@@ -7,7 +9,6 @@ module PMC_Geomechanics_class
 
   implicit none
 
-#include "petsc/finclude/petscsys.h"
 
   private
 
@@ -16,6 +17,7 @@ module PMC_Geomechanics_class
     class(realization_geomech_type), pointer :: geomech_realization
   contains
     procedure, public :: Init => PMCGeomechanicsInit
+    procedure, public :: SetupSolvers => PMCGeomechanicsSetupSolvers
     procedure, public :: RunToTime => PMCGeomechanicsRunToTime
     procedure, public :: GetAuxData => PMCGeomechanicsGetAuxData
     procedure, public :: SetAuxData => PMCGeomechanicsSetAuxData
@@ -79,6 +81,130 @@ end subroutine PMCGeomechanicsInit
 
 ! ************************************************************************** !
 
+subroutine PMCGeomechanicsSetupSolvers(this)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/18/13
+  ! 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
+  use Convergence_module
+  use Geomechanics_Discretization_module
+  use Timestepper_Base_class
+  use Timestepper_Steady_class
+  use PM_Base_class
+  use PM_Base_Pointer_module
+  use Option_module
+  use Solver_module
+
+  implicit none
+
+  class(pmc_geomechanics_type) :: this
+
+  class(realization_geomech_type), pointer :: geomech_realization
+  class(geomech_discretization_type), pointer :: geomech_discretization
+  class(timestepper_steady_type), pointer :: ts_steady
+  type(solver_type), pointer :: solver
+  type(option_type), pointer :: option
+  SNESLineSearch :: linesearch
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscErrorCode :: ierr
+
+#ifdef DEBUG
+  call printMsg(this%option,'PMCGeomechanicsSetupSolvers')
+#endif
+
+  option => this%option
+  geomech_realization => this%geomech_realization
+  geomech_discretization => geomech_realization%geomech_discretization
+  select type(ts => this%timestepper)
+    class is (timestepper_steady_type)
+      ts_steady => ts
+      solver => ts%solver
+  end select 
+
+  call printMsg(option,"  Beginning setup of GEOMECH SNES ")
+
+  if (solver%J_mat_type == MATAIJ) then
+    option%io_buffer = 'AIJ matrix not supported for geomechanics.'
+    call printErrMsg(option)
+  endif
+
+  call SolverCreateSNES(solver,option%mycomm)
+  call SNESSetOptionsPrefix(solver%snes, "geomech_", &
+                            ierr);CHKERRQ(ierr)
+  call SolverCheckCommandLine(solver)
+
+  if (solver%Jpre_mat_type == '') then
+    solver%Jpre_mat_type = solver%J_mat_type
+  endif
+  call GeomechDiscretizationCreateJacobian(geomech_realization% &
+                                           geomech_discretization,NGEODOF, &
+                                           solver%Jpre_mat_type, &
+                                           solver%Jpre,option)
+
+  solver%J = solver%Jpre
+  call MatSetOptionsPrefix(solver%Jpre,"geomech_", &
+                            ierr);CHKERRQ(ierr)
+
+  ! by default turn off line search
+  call SNESGetLineSearch(solver%snes,linesearch, ierr);CHKERRQ(ierr)
+  call SNESLineSearchSetType(linesearch,SNESLINESEARCHBASIC, &
+                              ierr);CHKERRQ(ierr)
+
+
+  ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
+  if (option%verbosity >= 1) then
+    string = '-geomech_snes_view'
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
+                                   string, ierr);CHKERRQ(ierr)
+  endif
+
+  option%io_buffer = 'Solver: ' // trim(solver%ksp_type)
+  call printMsg(option)
+  option%io_buffer = 'Preconditioner: ' // trim(solver%pc_type)
+  call printMsg(option)
+
+  call SNESSetConvergenceTest(solver%snes, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                              PMCheckConvergence, &
+                              this%pm_ptr%pm, &
+#else
+                              PMCheckConvergencePtr, &
+                              this%pm_ptr, &
+#endif
+                              PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
+  call SNESSetFunction(solver%snes, &
+                       this%pm_ptr%pm%residual_vec, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                       PMResidual, &
+                       this%pm_ptr%pm, &
+#else
+                       PMResidualPtr, &
+                       this%pm_ptr, &
+#endif
+                       ierr);CHKERRQ(ierr)
+  call SNESSetJacobian(solver%snes, &
+                       solver%J, &
+                       solver%Jpre, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                       PMJacobian, &
+                       this%pm_ptr%pm, &
+#else
+                       PMJacobianPtr, &
+                       this%pm_ptr, &
+#endif
+                       ierr);CHKERRQ(ierr)
+
+  call SolverSetSNESOptions(solver,option)
+
+  call printMsg(option,"  Finished setting up GEOMECH SNES ")
+
+
+end subroutine PMCGeomechanicsSetupSolvers
+
+! ************************************************************************** !
+
 recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
   ! 
   ! This routine runs the geomechanics simulation.
@@ -105,6 +231,8 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
     
   class(pm_base_type), pointer :: cur_pm
 
+  if (stop_flag == TS_STOP_FAILURE) return
+
   this%option%io_buffer = trim(this%name) // ':' // trim(this%pm_list%name)
   call printVerboseMsg(this%option)
   
@@ -123,6 +251,11 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
                                       observation_plot_flag, &
                                       massbal_plot_flag,checkpoint_flag)
   call this%timestepper%StepDT(this%pm_list,local_stop_flag)
+  
+  ! Check if it is initial solve
+  if (this%timestepper%steps == 1) then
+    this%option%geomech_initial = PETSC_TRUE
+  endif
 
   ! Have to loop over all process models coupled in this object and update
   ! the time step size.  Still need code to force all process models to
@@ -183,18 +316,18 @@ subroutine PMCGeomechanicsSetAuxData(this)
   ! 
   ! This routine updates data in simulation_aux that is required by other
   ! process models.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Grid_module
+  use Geomechanics_Subsurface_Properties_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(pmc_geomechanics_type) :: this
 
@@ -203,13 +336,29 @@ subroutine PMCGeomechanicsSetAuxData(this)
   PetscInt :: local_id
   PetscScalar, pointer :: por0_p(:)
   PetscScalar, pointer :: por_p(:)
+  PetscScalar, pointer :: perm0_p(:)
+  PetscScalar, pointer :: perm_p(:)
   PetscScalar, pointer :: strain_p(:)
+  PetscScalar, pointer :: stress_p(:)
+  PetscScalar, pointer :: press_p(:)
+  PetscReal :: local_stress(6), local_strain(6), local_pressure
   PetscErrorCode :: ierr
   PetscReal :: trace_epsilon
   PetscReal :: por_new
+  PetscReal :: perm_new
+  PetscInt :: i
+  Vec :: geomech_vec
+  Vec :: subsurf_vec
+  PetscScalar, pointer :: subsurf_vec_p(:)
+  PetscViewer :: viewer
+
+#if GEOMECH_DEBUG
+print *, 'PMCGeomechSetAuxData'
+#endif
+
 
   ! If at initialization stage, do nothing
-  if (this%timestepper%steps == 0) return
+!  if (this%timestepper%steps == 0) return
 
   select type(pmc => this)
     class is(pmc_geomechanics_type)
@@ -217,50 +366,147 @@ subroutine PMCGeomechanicsSetAuxData(this)
 
         grid => pmc%subsurf_realization%patch%grid
 
-        ! Save strain dataset in sim_aux%subsurf_strain
+        ! Find the number of geomech grid nodes for each flow cell
+        call VecDuplicate(pmc%geomech_realization%geomech_field%strain, &
+                          geomech_vec,ierr);CHKERRQ(ierr)
+        call VecSet(geomech_vec,1.d0,ierr);CHKERRQ(ierr)
+
+        call VecDuplicate(pmc%sim_aux%subsurf_strain, &
+                          subsurf_vec,ierr);CHKERRQ(ierr)
+        call VecSet(subsurf_vec,0.d0,ierr);CHKERRQ(ierr)
+
+        call VecScatterBegin(pmc%sim_aux%geomechanics_to_subsurf, &
+                             geomech_vec,subsurf_vec, &
+                             ADD_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+        call VecScatterEnd(pmc%sim_aux%geomechanics_to_subsurf, &
+                             geomech_vec,subsurf_vec, &
+                             ADD_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+
+
+#if GEOMECH_DEBUG
+  call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_vec_adjacency_count.out',viewer,ierr);CHKERRQ(ierr)
+  call VecView(subsurf_vec,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+#endif
+
+       ! Save strain dataset in sim_aux%subsurf_strain
+        call VecSet(pmc%sim_aux%subsurf_strain,0.d0,ierr);CHKERRQ(ierr)
         call VecScatterBegin(pmc%sim_aux%geomechanics_to_subsurf, &
                              pmc%geomech_realization%geomech_field%strain, &
                              pmc%sim_aux%subsurf_strain, &
-                             INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                             ADD_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
         call VecScatterEnd(pmc%sim_aux%geomechanics_to_subsurf, &
                            pmc%geomech_realization%geomech_field%strain, &
                            pmc%sim_aux%subsurf_strain, &
-                           INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-                             
+                           ADD_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+
+#if GEOMECH_DEBUG
+  call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_strain_vector_before_averaging.out',viewer,ierr);CHKERRQ(ierr)
+  call VecView(pmc%sim_aux%subsurf_strain,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+#endif
+                            
         ! Save stress dataset in sim_aux%subsurf_stress
+        call VecSet(pmc%sim_aux%subsurf_stress,0.d0,ierr);CHKERRQ(ierr)
         call VecScatterBegin(pmc%sim_aux%geomechanics_to_subsurf, &
                              pmc%geomech_realization%geomech_field%stress, &
                              pmc%sim_aux%subsurf_stress, &
-                             INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                             ADD_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
         call VecScatterEnd(pmc%sim_aux%geomechanics_to_subsurf, &
                            pmc%geomech_realization%geomech_field%stress, &
                            pmc%sim_aux%subsurf_stress, &
-                           INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                           ADD_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+
+#if GEOMECH_DEBUG
+  call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_stress_vector_before_averaging.out',viewer,ierr);CHKERRQ(ierr)
+  call VecView(pmc%sim_aux%subsurf_stress,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+#endif
+
+        ! Calculate the average stress and strain
+        call VecPointwiseDivide(pmc%sim_aux%subsurf_strain, &
+                                pmc%sim_aux%subsurf_strain, &
+                                subsurf_vec,ierr);CHKERRQ(ierr)
+
+#if GEOMECH_DEBUG
+  call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_strain_vector_after_averaging.out',viewer,ierr);CHKERRQ(ierr)
+  call VecView(pmc%sim_aux%subsurf_strain,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+#endif
+ 
+        call VecPointwiseDivide(pmc%sim_aux%subsurf_stress, &
+                                pmc%sim_aux%subsurf_stress, &
+                                subsurf_vec,ierr);CHKERRQ(ierr)
+
+#if GEOMECH_DEBUG
+  call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_stress_vector_after_averaging.out',viewer,ierr);CHKERRQ(ierr)
+  call VecView(pmc%sim_aux%subsurf_stress,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+#endif
+ 
 
         ! Update porosity dataset in sim_aux%subsurf_por
-        call VecGetArrayF90(pmc%sim_aux%subsurf_por0, por0_p,  &
+        call VecGetArrayF90(pmc%sim_aux%subsurf_por0,por0_p,  &
                             ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_por, por_p,  &
+        call VecGetArrayF90(pmc%sim_aux%subsurf_por,por_p,  &
                             ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_strain, strain_p,  &
+        ! Perm
+        call VecGetArrayF90(pmc%sim_aux%subsurf_perm0,perm0_p,  &
                             ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(pmc%sim_aux%subsurf_perm,perm_p,  &
+                            ierr);CHKERRQ(ierr)   
+        ! Strain
+        call VecGetArrayF90(pmc%sim_aux%subsurf_strain,strain_p,  &
+                            ierr);CHKERRQ(ierr)
+        ! Stress
+        call VecGetArrayF90(pmc%sim_aux%subsurf_stress,stress_p, &
+                            ierr);CHKERRQ(ierr)
+        ! Flow
+        call VecGetArrayF90(pmc%subsurf_realization%field%flow_xx, &
+                            press_p,ierr);CHKERRQ(ierr)
 
         do local_id = 1, grid%nlmax
-          trace_epsilon = strain_p((local_id - 1)*SIX_INTEGER + ONE_INTEGER) + &
-                          strain_p((local_id - 1)*SIX_INTEGER + TWO_INTEGER) + &
-                          strain_p((local_id - 1)*SIX_INTEGER + THREE_INTEGER)
-          por_new = por0_p(local_id)/(1.d0 + (1.d0 - por0_p(local_id))*trace_epsilon)
+          do i = 1, SIX_INTEGER                
+            local_stress(i) = stress_p((local_id - 1)*SIX_INTEGER + i)
+            local_strain(i) = strain_p((local_id - 1)*SIX_INTEGER + i)
+          enddo
+            local_pressure = press_p(local_id)
+          ! Update porosity based on stress/strain
+          call GeomechanicsSubsurfacePropsPoroEvaluate( &
+                 grid, &
+                 pmc%subsurf_realization%patch%aux%Material%auxvars(local_id), &
+                 por0_p(local_id),local_stress,local_strain,local_pressure, &
+                 por_new)
           por_p(local_id) = por_new
+          ! Update permeability based on stress/strain
+          call GeomechanicsSubsurfacePropsPermEvaluate( &
+                 grid, &
+                 pmc%subsurf_realization%patch%aux%Material%auxvars(local_id), &
+                 perm0_p(local_id),local_stress,local_strain,local_pressure, &
+                 perm_new)
+          perm_p(local_id) = perm_new
         enddo
 
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0, por0_p,  &
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0,por0_p,  &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_strain, strain_p,  &
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_strain,strain_p,  &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por, por_p,  &
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,por_p,  &
+                                ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_stress,stress_p, &
+                                ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%subsurf_realization%field%flow_xx, &
+                                press_p,ierr);CHKERRQ(ierr)
+
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm0,perm0_p,  &
+                                ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm,perm_p,  &
                                 ierr);CHKERRQ(ierr)
 
-      endif
+        call VecDestroy(geomech_vec,ierr);CHKERRQ(ierr)
+        call VecDestroy(subsurf_vec,ierr);CHKERRQ(ierr)
+
+    endif
 
   end select
 
@@ -277,18 +523,21 @@ subroutine PMCGeomechanicsGetAuxData(this)
   ! Date: 01/01/14
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Geomechanics_Discretization_module
   use Geomechanics_Force_module
 
   implicit none
 
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-
   class(pmc_geomechanics_type) :: this
 
   PetscErrorCode :: ierr
+
+#if GEOMECH_DEBUG
+print *, 'PMCGeomechanicsGetAuxData'
+#endif
 
   select type(pmc => this)
     class is(pmc_geomechanics_type)

@@ -1,5 +1,7 @@
 module Grid_Unstructured_Polyhedra_module
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Geometry_module
   use Grid_Unstructured_Aux_module
   use Grid_Unstructured_Cell_module
@@ -9,11 +11,6 @@ module Grid_Unstructured_Polyhedra_module
 
   private
 
-#include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
 #if defined(SCORPIO)
   include "scorpiof.h"
 #endif
@@ -484,6 +481,8 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   ! Date: 09/29/13
   ! 
 
+#include "petsc/finclude/petscdm.h"
+  use petscdm
   use Input_Aux_module
   use Option_module
   use String_module
@@ -491,16 +490,6 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   use Utility_module, only: reallocateIntArray, SearchOrderedArray
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscmat.h90"
-#include "petsc/finclude/petscdm.h" 
-#include "petsc/finclude/petscdm.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petscviewer.h"
 
   type(grid_unstructured_type) :: ugrid
   type(option_type) :: option
@@ -1441,6 +1430,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
   use Option_module
   use Grid_Unstructured_module
   use Utility_module, only : DotProduct, CrossProduct
+  use Geometry_module
 
   implicit none
 
@@ -1503,9 +1493,9 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
   PetscReal :: dist_up, dist_dn
 
   type(plane_type) :: plane1
-  type(point_type) :: point1, point2, point3
-  type(point_type) :: point_up, point_dn
-  type(point_type) :: intercept1, intercept2, intercept
+  type(point3d_type) :: point1, point2, point3
+  type(point3d_type) :: point_up, point_dn
+  type(point3d_type) :: intercept1, intercept2, intercept
 
   PetscErrorCode :: ierr
 
@@ -1887,8 +1877,8 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
           idx = ugrid%face_to_vertex(3 + iintercp,face_id)
           point3 = ugrid%vertices(idx)
 
-          call UCellComputePlane(plane1,point1,point2,point3)
-          call UCellGetPlaneIntercept(plane1,point_up,point_dn,intercept1)
+          call GeometryComputePlaneWithPoints(plane1,point1,point2,point3)
+          call GeometryGetPlaneIntercept(plane1,point_up,point_dn,intercept1)
 
           intercept%x = intercept%x + intercept1%x
           intercept%y = intercept%y + intercept1%y
@@ -2074,6 +2064,7 @@ subroutine UGridPolyhedraPopulateConnection(ugrid, connection, iface_cell, &
   use Utility_module, only : DotProduct
   use Option_module
   use Grid_Unstructured_Cell_module
+  use Geometry_module  
   
   implicit none
   
@@ -2088,9 +2079,9 @@ subroutine UGridPolyhedraPopulateConnection(ugrid, connection, iface_cell, &
   PetscInt :: ivert,vert_id
   PetscInt :: face_type
   PetscReal :: v1(3),v2(3),n_dist(3), dist
-  type(point_type) :: vertex_8(8)
+  type(point3d_type) :: vertex_8(8)
   type(plane_type) :: plane
-  type(point_type) :: point, vertex1, vertex2, vertex3, intercept
+  type(point3d_type) :: point, vertex1, vertex2, vertex3, intercept
   type(unstructured_polyhedra_type), pointer :: pgrid
   character(len=MAXWORDLENGTH) :: word
   PetscErrorCode :: ierr
@@ -2158,6 +2149,7 @@ subroutine UGridPolyhedraGetCellsInRectangle(x_min, x_max, y_min, y_max, z_min, 
   ! 
   use Option_module
   use Utility_module, only : reallocateIntArray
+  use Geometry_module
   
   implicit none
                   
@@ -2173,7 +2165,7 @@ subroutine UGridPolyhedraGetCellsInRectangle(x_min, x_max, y_min, y_max, z_min, 
   PetscInt :: vertex_id
   PetscInt :: num_vertices, ivertex
   PetscInt :: local_id, ghosted_id
-  type(point_type) :: point
+  type(point3d_type) :: point
   
   PetscReal :: x_min_adj, x_max_adj, y_min_adj, y_max_adj, z_min_adj, z_max_adj
   PetscReal :: pert
@@ -2259,15 +2251,11 @@ subroutine UGridPolyhedraComputeOutputInfo(ugrid, nL2G, nG2L, nG2A, option)
   ! Date: 12/29/13
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
-#include "petsc/finclude/petscis.h"
-#include "petsc/finclude/petscis.h90"
-#include "petsc/finclude/petscviewer.h"
 
   type(grid_unstructured_type) :: ugrid
   type(option_type) :: option

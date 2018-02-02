@@ -1,12 +1,13 @@
 module Units_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
 
   implicit none
   
   private
   
-#include "petsc/finclude/petscsys.h"
   
   public :: UnitsConvertToInternal, UnitsConvertToExternal
   
@@ -36,7 +37,7 @@ function UnitsConvertToInternal(units,internal_units,option)
   character(len=MAXSTRINGLENGTH) :: internal_units_buff2
   character(len=MAXSTRINGLENGTH) :: error_msg
   PetscBool :: multi_option, successful, error
-  PetscInt :: length, ind_or, ind_dash, num_options
+  PetscInt :: length, ind_or, num_options
   PetscReal :: conversion_factor, UnitsConvertToInternal
 
   units_buff = trim(units)
@@ -44,8 +45,8 @@ function UnitsConvertToInternal(units,internal_units,option)
   internal_units_buff2 = trim(internal_units)
   multi_option = PETSC_FALSE
   successful = PETSC_FALSE
-  conversion_factor = 1d0
-  UnitsConvertToInternal = 1d0
+  conversion_factor = 1.d0
+  UnitsConvertToInternal = 1.d0
   num_options = 0
   ind_or = 1
   length = 0
@@ -208,7 +209,7 @@ subroutine UnitsConvert(units_user,units_internal,units_conversion, &
   character(len=MAXSTRINGLENGTH) :: unit_internal_buff
 
   PetscInt :: length, ind_dash
-  PetscInt :: k, j
+  PetscInt :: k
   PetscInt :: num_user_units, num_internal_units
   PetscReal :: conv_user_to_SI, conv_internal_to_SI
   PetscReal :: conversion_user, conversion_internal
@@ -350,7 +351,9 @@ subroutine UnitsCategory(unit,unit_category,error,error_msg)
         unit_category(k) = 'energy'
       case('W','kW','MW')
         unit_category(k) = 'power'
-      case('mol','mole','moles','ug','mg','g','kg')
+      case('mol','mole','moles','kmol')
+        unit_category(k) = 'molar_mass'
+      case('ug','mg','g','kg')
         unit_category(k) = 'mass'
       case('C','Celcius')
         unit_category(k) = 'temperature'
@@ -441,9 +444,9 @@ subroutine UnitsConvertToSI(unit,conversion_factor,error,error_msg)
     case('w','week')
       conversion_factor = 7.d0*24.d0*3600.d0 
     case('mo','month')
-      conversion_factor = 365.d0/12.d0*24.d0*3600.d0 
+      conversion_factor = DAYS_PER_YEAR/12.d0*24.d0*3600.d0 
     case('y','yr','year')
-      conversion_factor = 365.d0*24.d0*3600.d0
+      conversion_factor = DAYS_PER_YEAR*24.d0*3600.d0
   ! ---> ENERGY ---> (Joule)
     case('J')   
       conversion_factor = 1.d0
@@ -458,9 +461,12 @@ subroutine UnitsConvertToSI(unit,conversion_factor,error,error_msg)
       conversion_factor = 1.d3
     case('MW')   
       conversion_factor = 1.d6
-  ! ---> MASS ---> (kilogram, mole)
+  ! ---> MOLAR MASS ---> (kilogram, mole)
     case('mol','mole','moles')
       conversion_factor = 1.d0
+    case('kmol')
+      conversion_factor = 1.d3
+  ! ---> MASS ---> (kilogram, mole)
     case('ug')
       conversion_factor = 1.d-9
     case('mg')

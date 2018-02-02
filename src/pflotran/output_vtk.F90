@@ -1,5 +1,7 @@
 module Output_VTK_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Logging_module 
   use Output_Aux_module
   use Output_Common_module
@@ -9,8 +11,6 @@ module Output_VTK_module
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter :: VTK_INTEGER = 0
   PetscInt, parameter :: VTK_REAL = 1
@@ -23,6 +23,8 @@ contains
 
 subroutine OutputVTK(realization_base)
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
   use Grid_module
@@ -36,9 +38,6 @@ subroutine OutputVTK(realization_base)
   use Variables_module
  
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(realization_base_type) :: realization_base
   
@@ -99,8 +98,7 @@ subroutine OutputVTK(realization_base)
   cur_variable => output_option%output_snap_variable_list%first
   do
     if (.not.associated(cur_variable)) exit
-    call OutputGetVarFromArray(realization_base,global_vec,cur_variable%ivar, &
-                                cur_variable%isubvar)
+    call OutputGetVariableArray(realization_base,global_vec,cur_variable)
     call DiscretizationGlobalToNatural(discretization,global_vec, &
                                         natural_vec,ONEDOF)
     word=trim(cur_variable%name)
@@ -132,7 +130,7 @@ subroutine OutputVTK(realization_base)
       call OutputFluxVelocitiesVTK(realization_base,LIQUID_PHASE, &
                                           X_DIRECTION)
       select case(option%iflowmode)
-        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
+        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
           call OutputFluxVelocitiesVTK(realization_base,GAS_PHASE, &
                                               X_DIRECTION)
       end select
@@ -141,7 +139,7 @@ subroutine OutputVTK(realization_base)
       call OutputFluxVelocitiesVTK(realization_base,LIQUID_PHASE, &
                                           Y_DIRECTION)
       select case(option%iflowmode)
-        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
+        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
           call OutputFluxVelocitiesVTK(realization_base,GAS_PHASE, &
                                               Y_DIRECTION)
       end select
@@ -150,7 +148,7 @@ subroutine OutputVTK(realization_base)
       call OutputFluxVelocitiesVTK(realization_base,LIQUID_PHASE, &
                                           Z_DIRECTION)
       select case(option%iflowmode)
-        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
+        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
           call OutputFluxVelocitiesVTK(realization_base,GAS_PHASE, &
                                               Z_DIRECTION)
       end select
@@ -168,8 +166,10 @@ subroutine OutputVelocitiesVTK(realization_base)
   ! 
   ! Print velocities to Tecplot file in BLOCK format
   ! 
- 
-  use Realization_Base_class, only : realization_base_type
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Realization_Base_class, only : realization_base_type, &
+                                     RealizationGetVariable
   use Discretization_module
   use Grid_module
   use Option_module
@@ -178,9 +178,6 @@ subroutine OutputVelocitiesVTK(realization_base)
   use Variables_module
   
   implicit none
-
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   class(realization_base_type) :: realization_base
   
@@ -275,7 +272,7 @@ subroutine OutputVelocitiesVTK(realization_base)
 
   ! material id
   word = 'Material_ID'
-  call OutputGetVarFromArray(realization_base,global_vec,MATERIAL_ID,ZERO_INTEGER)
+  call RealizationGetVariable(realization_base,global_vec,MATERIAL_ID,ZERO_INTEGER)
   call DiscretizationGlobalToNatural(discretization,global_vec,natural_vec,ONEDOF)
   call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word,natural_vec,VTK_INTEGER)
   
@@ -297,6 +294,8 @@ subroutine WriteVTKGrid(fid,realization_base)
   ! Writes a grid in VTK format
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
   use Grid_module
@@ -304,9 +303,6 @@ subroutine WriteVTKGrid(fid,realization_base)
   use Patch_module
 
   implicit none
-  
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
 
   PetscInt :: fid
   class(realization_base_type) :: realization_base
@@ -408,10 +404,9 @@ subroutine WriteVTKDataSetFromVec(fid,realization_base,dataset_name,vec,datatype
   ! 
 
   use Realization_Base_class, only : realization_base_type
-  
-  implicit none
 #include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
+  use petscvec
+  implicit none
 
   PetscInt :: fid
   class(realization_base_type) :: realization_base

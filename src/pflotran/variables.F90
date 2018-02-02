@@ -136,4 +136,19 @@ module Variables_module
   PetscInt, parameter, public :: OIL_ENERGY              = 112
   PetscInt, parameter, public :: OIL_MOBILITY            = 113
 
+  PetscInt, parameter, public :: NATURAL_ID              = 114
+  PetscInt, parameter, public :: REACTION_AUXILIARY      = 115
+
+  PetscInt, parameter, public :: OIL_VISCOSITY           = 116
+
+  PetscInt, parameter, public :: OIL_MOLE_FRACTION       = 115
+  PetscInt, parameter, public :: SOLVENT_SATURATION      = 116
+  PetscInt, parameter, public :: CAPILLARY_PRESSURE_OGC  = 117
+  PetscInt, parameter, public :: FRACTURE                = 118
+
+  PetscInt, parameter, public :: GAS_PERMEABILITY        = 119
+  PetscInt, parameter, public :: GAS_PERMEABILITY_X      = 120
+  PetscInt, parameter, public :: GAS_PERMEABILITY_Y      = 121
+  PetscInt, parameter, public :: GAS_PERMEABILITY_Z      = 122
+
 end module Variables_module

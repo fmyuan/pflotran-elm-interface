@@ -1,5 +1,7 @@
 module Output_Observation_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Logging_module 
   use Output_Aux_module
   use Output_Common_module
@@ -9,8 +11,6 @@ module Output_Observation_module
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   ! flags signifying the first time a routine is called during a given
   ! simulation
@@ -868,8 +868,8 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
   PetscInt :: fid, i
   class(realization_base_type) :: realization_base
   PetscInt :: local_id
-  PetscInt :: ghosted_id
   PetscReal :: temp_real
+  PetscInt :: ghosted_id
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
@@ -884,8 +884,6 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
   field => realization_base%field
   output_option => realization_base%output_option
 
-100 format(es14.6)
-101 format(i2)
 110 format(es14.6)
 111 format(i2)
 
@@ -899,9 +897,8 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
       cur_variable => cur_variable%next
       cycle
     endif     
-    temp_real = RealizGetVariableValueAtCell(realization_base, &
-                                            cur_variable%ivar, &
-                                            cur_variable%isubvar,ghosted_id)
+    temp_real = OutputGetVariableAtCell(realization_base,ghosted_id, &
+                                        cur_variable)
     if (cur_variable%iformat == 0) then ! real
       write(fid,110,advance="no") temp_real
     else ! integer
@@ -961,8 +958,6 @@ subroutine WriteObservationDataForCoord(fid,realization_base,region)
   field => realization_base%field
   output_option => realization_base%output_option
 
-100 format(es14.6)
-101 format(i2)
 110 format(es14.6)
 111 format(i2)
 
@@ -1023,13 +1018,12 @@ subroutine WriteObservationDataForCoord(fid,realization_base,region)
       cur_variable => cur_variable%next
       cycle
     endif    
-    temp_real = OutputGetVarFromArrayAtCoord(realization_base, &
-                                           cur_variable%ivar, &
-                                           cur_variable%isubvar, &
-                                           region%coordinates(ONE_INTEGER)%x, &
-                                           region%coordinates(ONE_INTEGER)%y, &
-                                           region%coordinates(ONE_INTEGER)%z, &
-                                           count,ghosted_ids)
+    temp_real = OutputGetVariableAtCoord(realization_base, &
+                                         cur_variable, &
+                                         region%coordinates(ONE_INTEGER)%x, &
+                                         region%coordinates(ONE_INTEGER)%y, &
+                                         region%coordinates(ONE_INTEGER)%z, &
+                                         count,ghosted_ids)
     if (cur_variable%iformat == 0) then ! real
       write(fid,110,advance="no") temp_real
     else ! integer
@@ -1079,12 +1073,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
   option => realization_base%option
   reaction => realization_base%reaction
 
-100 format(es14.6)
-!100 format(es16.9)
-101 format(i2)
 110 format(es14.6)
-!110 format(',',es16.9)
-111 format(i2)
  
   iphase = 1
 
@@ -1093,6 +1082,10 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
     offset = connection_set%offset
     select case(option%iflowmode)
       case(MPH_MODE,TH_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
+      case(WF_MODE)
+        option%io_buffer = 'WriteObservationDataForBC() needs to be set up &
+          & for WIPP Flow, and perhaps the other multiphase flow modes.'
+        call printErrMsg(option)
       case(MIS_MODE)
       case(RICHARDS_MODE)
         sum_volumetric_flux = 0.d0
@@ -1554,10 +1547,7 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
   field => realization_base%field
   output_option => realization_base%output_option
 
-100 format(es14.6)
-101 format(i2)
 110 format(es14.6)
-111 format(i2)
 
   ghosted_id = grid%nL2G(local_id)
 
@@ -1567,8 +1557,8 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
         case(MPH_MODE,TH_MODE)
           do i = 1, option%nsec_cells 
             write(fid,110,advance="no") &
-              RealizGetVariableValueAtCell(realization_base,SECONDARY_TEMPERATURE,i, &
-                                          ghosted_id)
+              RealizGetVariableValueAtCell(realization_base,ghosted_id, &
+                                           SECONDARY_TEMPERATURE,i)
           enddo
         end select
      endif
@@ -1578,8 +1568,8 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
         do naqcomp = 1, reaction%naqcomp
           do i = 1, option%nsec_cells 
             write(fid,110,advance="no") &
-              RealizGetVariableValueAtCell(realization_base,SECONDARY_CONCENTRATION,i, &
-                                          ghosted_id,naqcomp)
+              RealizGetVariableValueAtCell(realization_base,ghosted_id, &
+                                           SECONDARY_CONCENTRATION,i,naqcomp)
           enddo
         enddo 
       endif
@@ -1587,8 +1577,8 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
         do nkinmnrl = 1, reaction%mineral%nkinmnrl
           do i = 1, option%nsec_cells 
             write(fid,110,advance="no") &
-              RealizGetVariableValueAtCell(realization_base,SEC_MIN_VOLFRAC,i, &
-                                          ghosted_id,nkinmnrl)
+              RealizGetVariableValueAtCell(realization_base,ghosted_id, &
+                                           SEC_MIN_VOLFRAC,i,nkinmnrl)
           enddo
         enddo
       endif
@@ -1596,8 +1586,8 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
         do nkinmnrl = 1, reaction%mineral%nkinmnrl
           do i = 1, option%nsec_cells 
             write(fid,110,advance="no") &
-              RealizGetVariableValueAtCell(realization_base,SEC_MIN_RATE,i, &
-                                          ghosted_id,nkinmnrl)
+              RealizGetVariableValueAtCell(realization_base,ghosted_id, &
+                                           SEC_MIN_RATE,i,nkinmnrl)
           enddo
         enddo
       endif
@@ -1605,8 +1595,8 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
         do nkinmnrl = 1, reaction%mineral%nkinmnrl
           do i = 1, option%nsec_cells 
             write(fid,110,advance="no") &
-              RealizGetVariableValueAtCell(realization_base,SEC_MIN_SI,i, &
-                                          ghosted_id,nkinmnrl)
+              RealizGetVariableValueAtCell(realization_base,ghosted_id, &
+                                           SEC_MIN_SI,i,nkinmnrl)
           enddo
         enddo
       endif           
@@ -1634,6 +1624,8 @@ subroutine OutputIntegralFlux(realization_base)
   use Reaction_Aux_module
   use Integral_Flux_module
   use Utility_module
+  use General_Aux_module, only : general_fmw => fmw_comp
+  use WIPP_Flow_Aux_module, only : wipp_flow_fmw => fmw_comp
 
   implicit none
 
@@ -1680,7 +1672,10 @@ subroutine OutputIntegralFlux(realization_base)
       flow_dof_scale(2) = FMWGLYC
     case(G_MODE)
       flow_dof_scale(1) = FMWH2O
-      flow_dof_scale(2) = FMWAIR
+      flow_dof_scale(2) = general_fmw(2)
+    case(WF_MODE)
+      flow_dof_scale(1) = FMWH2O
+      flow_dof_scale(2) = wipp_flow_fmw(2)
     case(MPH_MODE,FLASH2_MODE,IMS_MODE)
       flow_dof_scale(1) = FMWH2O
       flow_dof_scale(2) = FMWCO2
@@ -1725,7 +1720,7 @@ subroutine OutputIntegralFlux(realization_base)
         if (.not.associated(integral_flux)) exit
         select case(option%iflowmode)
           case(RICHARDS_MODE,TH_MODE,MIS_MODE,G_MODE,MPH_MODE,FLASH2_MODE, &
-               IMS_MODE)
+               IMS_MODE,WF_MODE)
             string = trim(integral_flux%name) // ' Water'
             call OutputWriteToHeader(fid,string,'kg','',icol)
             units = 'kg/' // trim(output_option%tunit) // ''
@@ -1744,6 +1739,12 @@ subroutine OutputIntegralFlux(realization_base)
             call OutputWriteToHeader(fid,string,'kg','',icol)
             units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(integral_flux%name) // ' Air'
+            call OutputWriteToHeader(fid,string,units,'',icol)
+          case(WF_MODE)
+            string = trim(integral_flux%name) // ' Gas Component'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            units = 'kg/' // trim(output_option%tunit) // ''
+            string = trim(integral_flux%name) // ' Gas Component'
             call OutputWriteToHeader(fid,string,units,'',icol)
           case(MPH_MODE,FLASH2_MODE,IMS_MODE)
             string = trim(integral_flux%name) // ' CO2'
@@ -1913,13 +1914,18 @@ subroutine OutputMassBalance(realization_base)
   use TH_module, only : THComputeMassBalance
   use Reactive_Transport_module, only : RTComputeMassBalance
   use General_module, only : GeneralComputeMassBalance
+  use WIPP_Flow_module, only : WIPPFloComputeMassBalance
   use TOilIms_module, only : TOilImsComputeMassBalance
-  use TOilIms_Aux_module ! for formula weights
+  use TOWG_module, only : TOWGComputeMassBalance
+  use PM_TOilIms_Aux_module
+  use PM_TOWG_Aux_module
 
   use Global_Aux_module
   use Reactive_Transport_Aux_module
   use Reaction_Aux_module
   use Material_Aux_class
+  use General_Aux_module, only : general_fmw => fmw_comp
+  use WIPP_Flow_Aux_module, only : wipp_flow_fmw => fmw_comp
 
   implicit none
 
@@ -1965,7 +1971,7 @@ subroutine OutputMassBalance(realization_base)
   PetscReal, allocatable :: sum_mol_mnrl(:)
   PetscReal, allocatable :: sum_mol_mnrl_global(:)
   
-  PetscReal :: global_total_mass
+  PetscReal :: global_total_mass, global_water_mass
 
   PetscReal :: sum_trapped(realization_base%option%nphase)
   PetscReal :: sum_trapped_global(realization_base%option%nphase)
@@ -2036,11 +2042,33 @@ subroutine OutputMassBalance(realization_base)
                                     'kg','',icol)
           call OutputWriteToHeader(fid,'Global Air Mass in Gas Phase', &
                                     'kg','',icol)
+        case(WF_MODE)
+          call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
+                                    'kg','',icol)
+          call OutputWriteToHeader(fid,'Global Gas Component Mass in Gas &
+                                   &Phase', 'kg','',icol)
         case(TOIL_IMS_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass', &
                                     'kg','',icol)
           call OutputWriteToHeader(fid,'Global Oil Mass', &
                                     'kg','',icol)
+        case(TOWG_MODE)
+          call OutputWriteToHeader(fid,'Global Water Mass', &
+                                    'kg','',icol)
+          select case(towg_miscibility_model)
+            case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+              call OutputWriteToHeader(fid,'Global Oil Mass', &
+                                       'kg','',icol)
+              call OutputWriteToHeader(fid,'Global Gas Mass', &
+                                       'kg','',icol)
+            case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+              option%io_buffer = 'OutputMassBalance not yet ' // &
+                'implemented for: TOWG_BLACK_OIL and TOWG_SOLVENT_TL '
+              call printErrMsg(option)
+              !must add: oil in oil_phase, diss. gas in oil_phase, 
+              !          oil vap. in gas_phase, gas in gas_phase
+              !if TOWG_SOLVENT_TL, add also solvent mass
+          end select
         case(MPH_MODE,FLASH2_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Water Phase', &
                                     'kmol','',icol)
@@ -2074,7 +2102,7 @@ subroutine OutputMassBalance(realization_base)
           endif
         enddo
 
-        do i=1,reaction%nimcomp
+        do i=1,reaction%immobile%nimmobile
           if (reaction%immobile%print_me(i)) then
             string = 'Global ' // trim(reaction%immobile%names(i))
             call OutputWriteToHeader(fid,string,'mol','',icol)
@@ -2145,6 +2173,17 @@ subroutine OutputMassBalance(realization_base)
             call OutputWriteToHeader(fid,string,units,'',icol)
             string = trim(coupler%name) // ' Air Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
+          case(WF_MODE)
+            string = trim(coupler%name) // ' Water Mass'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            string = trim(coupler%name) // ' Gas Component Mass'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+
+            units = 'kg/' // trim(output_option%tunit) // ''
+            string = trim(coupler%name) // ' Water Mass'
+            call OutputWriteToHeader(fid,string,units,'',icol)
+            string = trim(coupler%name) // ' Gas Component Mass'
+            call OutputWriteToHeader(fid,string,units,'',icol)
           case(TOIL_IMS_MODE)
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,'kg','',icol)
@@ -2156,6 +2195,29 @@ subroutine OutputMassBalance(realization_base)
             call OutputWriteToHeader(fid,string,units,'',icol)
             string = trim(coupler%name) // ' Oil Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
+          case(TOWG_MODE)
+            string = trim(coupler%name) // ' Water Mass'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            string = trim(coupler%name) // ' Oil Mass'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            string = trim(coupler%name) // ' Gas Mass'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+              string = trim(coupler%name) // ' Solvent Mass'
+              call OutputWriteToHeader(fid,string,'kg','',icol)          
+            end if
+
+            units = 'kg/' // trim(output_option%tunit) // ''
+            string = trim(coupler%name) // ' Water Mass'
+            call OutputWriteToHeader(fid,string,units,'',icol)
+            string = trim(coupler%name) // ' Oil Mass'
+            call OutputWriteToHeader(fid,string,units,'',icol)
+            string = trim(coupler%name) // ' Gas Mass'
+            call OutputWriteToHeader(fid,string,units,'',icol)
+            if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+              string = trim(coupler%name) // ' Solvent Mass'
+              call OutputWriteToHeader(fid,string,units,'',icol)
+            end if
           case(MPH_MODE,FLASH2_MODE,IMS_MODE)
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,'kmol','',icol)
@@ -2194,13 +2256,17 @@ subroutine OutputMassBalance(realization_base)
       
       enddo
       
-      ! Print the mass [mol] in the specified regions (header)
+      ! Print the water mass [kg] and species mass [mol] in the specified regions (header)
       if (associated(output_option%mass_balance_region_list)) then
         cur_mbr => output_option%mass_balance_region_list
         do
           if (.not.associated(cur_mbr)) exit
-          string = 'Region ' // trim(cur_mbr%region_name) // ' Total Mass'
-          call OutputWriteToHeader(fid,string,'mol','',icol)
+          string = 'Region ' // trim(cur_mbr%region_name) // ' Water Mass'
+          call OutputWriteToHeader(fid,string,'kg','',icol)
+          if (option%ntrandof > 0) then
+            string = 'Region ' // trim(cur_mbr%region_name) // ' Total Mass'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+          endif
           cur_mbr => cur_mbr%next
         enddo
       endif
@@ -2278,8 +2344,12 @@ subroutine OutputMassBalance(realization_base)
             call ImmisComputeMassBalance(realization_base,sum_kg(:,1))
           case(G_MODE)
             call GeneralComputeMassBalance(realization_base,sum_kg(:,:))
+          case(WF_MODE)
+            call WIPPFloComputeMassBalance(realization_base,sum_kg(:,1))
           case(TOIL_IMS_MODE)
             call TOilImsComputeMassBalance(realization_base,sum_kg(:,:))
+          case(TOWG_MODE)
+            call TOWGComputeMassBalance(realization_base,sum_kg(:,:))
         end select
       class default
         option%io_buffer = 'Unrecognized realization class in MassBalance().'
@@ -2308,10 +2378,30 @@ subroutine OutputMassBalance(realization_base)
               write(fid,110,advance="no") sum_kg_global(ispec,iphase)
             enddo
           enddo
+        case(WF_MODE)
+          do iphase = 1, option%nphase
+            write(fid,110,advance="no") sum_kg_global(iphase,1)
+          enddo
         case(TOIL_IMS_MODE)
           do iphase = 1, option%nphase
               write(fid,110,advance="no") sum_kg_global(iphase,1)
           enddo
+        case(TOWG_MODE)
+          select case(towg_miscibility_model)
+            case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+              do iphase = 1, option%nphase
+                write(fid,110,advance="no") sum_kg_global(iphase,1)
+              enddo
+            case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+              option%io_buffer = 'OutputMassBalance not yet ' // &
+                'implemented for: TOWG_BLACK_OIL and TOWG_SOLVENT_TL '
+              call printErrMsg(option)
+              !do iphase = 1, option%nphase
+              !  do ispec = 1, option%nflowspec
+              !    write(fid,110,advance="no") sum_kg_global(ispec,iphase)
+              !  enddo
+              !enddo
+          end select
         case(MPH_MODE,FLASH2_MODE)
           do iphase = 1, option%nphase
             do ispec = 1, option%nflowspec
@@ -2347,7 +2437,7 @@ subroutine OutputMassBalance(realization_base)
         enddo
 !      enddo
         ! immobile species
-        do icomp = 1, reaction%nimcomp
+        do icomp = 1, reaction%immobile%nimmobile
           if (reaction%immobile%print_me(icomp)) then
             write(fid,110,advance="no") &
               sum_mol_global(reaction%offset_immobile+icomp,iphase)
@@ -2595,7 +2685,8 @@ subroutine OutputMassBalance(realization_base)
               sum_kg(icomp,1) = sum_kg(icomp,1) + &
                 global_auxvars_bc_or_ss(offset+iconn)%mass_balance(icomp,1)
             enddo
-            int_mpi = option%nphase
+!geh            int_mpi = option%nphase
+            int_mpi = 1
             call MPI_Reduce(sum_kg(icomp,1),sum_kg_global(icomp,1), &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
                           option%io_rank,option%mycomm,ierr)
@@ -2617,7 +2708,8 @@ subroutine OutputMassBalance(realization_base)
           ! mass_balance_delta units = delta kmol h2o; must convert to delta kg h2o
 !           sum_kg(icomp,1) = sum_kg(icomp,1)*FMWH2O ! <<---fix for multiphase!
 
-            int_mpi = option%nphase
+!geh            int_mpi = option%nphase
+            int_mpi = 1
             call MPI_Reduce(sum_kg(icomp,1),sum_kg_global(icomp,1), &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
                           option%io_rank,option%mycomm,ierr)
@@ -2636,7 +2728,8 @@ subroutine OutputMassBalance(realization_base)
               sum_kg(icomp,1) = sum_kg(icomp,1) + &
                 global_auxvars_bc_or_ss(offset+iconn)%mass_balance(icomp,1)
             enddo
-            int_mpi = option%nphase
+!geh            int_mpi = option%nphase
+            int_mpi = 1
             call MPI_Reduce(sum_kg(icomp,1),sum_kg_global(icomp,1), &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
                           option%io_rank,option%mycomm,ierr)
@@ -2658,7 +2751,8 @@ subroutine OutputMassBalance(realization_base)
           ! mass_balance_delta units = delta kmol h2o; must convert to delta kg h2o
 !           sum_kg(icomp,1) = sum_kg(icomp,1)*FMWH2O ! <<---fix for multiphase!
 
-            int_mpi = option%nphase
+!geh            int_mpi = option%nphase
+            int_mpi = 1
             call MPI_Reduce(sum_kg(icomp,1),sum_kg_global(icomp,1), &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
                           option%io_rank,option%mycomm,ierr)
@@ -2676,7 +2770,7 @@ subroutine OutputMassBalance(realization_base)
           enddo
 
           int_mpi = option%nphase
-          call MPI_Reduce(sum_kg,sum_kg_global, &
+          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
                           option%io_rank,option%mycomm,ierr)
                               
@@ -2692,10 +2786,45 @@ subroutine OutputMassBalance(realization_base)
               global_auxvars_bc_or_ss(offset+iconn)%mass_balance_delta(:,1)
           enddo
           sum_kg(1,1) = sum_kg(1,1)*FMWH2O
-          sum_kg(2,1) = sum_kg(2,1)*FMWAIR
+          sum_kg(2,1) = sum_kg(2,1)*general_fmw(2)
           
           int_mpi = option%nphase
-          call MPI_Reduce(sum_kg,sum_kg_global, &
+          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
+                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                          option%io_rank,option%mycomm,ierr)
+                              
+          if (option%myrank == option%io_rank) then
+            ! change sign for positive in / negative out
+            write(fid,110,advance="no") -sum_kg_global(:,1)*output_option%tconv
+          endif
+        case(WF_MODE)
+          ! print out cumulative H2O flux
+          sum_kg = 0.d0
+          do iconn = 1, coupler%connection_set%num_connections
+            sum_kg = sum_kg + global_auxvars_bc_or_ss(offset+iconn)%mass_balance
+          enddo
+
+          int_mpi = option%nphase
+          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
+                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                          option%io_rank,option%mycomm,ierr)
+                              
+          if (option%myrank == option%io_rank) then
+            ! change sign for positive in / negative out
+            write(fid,110,advance="no") -sum_kg_global(:,1)
+          endif
+
+          ! print out H2O flux
+          sum_kg = 0.d0
+          do iconn = 1, coupler%connection_set%num_connections
+            sum_kg(:,1) = sum_kg(:,1) + &
+              global_auxvars_bc_or_ss(offset+iconn)%mass_balance_delta(:,1)
+          enddo
+          sum_kg(1,1) = sum_kg(1,1)*FMWH2O
+          sum_kg(2,1) = sum_kg(2,1)*wipp_flow_fmw(2)
+          
+          int_mpi = option%nphase
+          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
                           option%io_rank,option%mycomm,ierr)
                               
@@ -2711,7 +2840,7 @@ subroutine OutputMassBalance(realization_base)
           enddo
 
           int_mpi = option%nphase
-          call MPI_Reduce(sum_kg,sum_kg_global, &
+          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
                           option%io_rank,option%mycomm,ierr)
                               
@@ -2730,10 +2859,46 @@ subroutine OutputMassBalance(realization_base)
           sum_kg(2,1) = sum_kg(2,1)*toil_ims_fmw_comp(2)
           
           int_mpi = option%nphase
-          call MPI_Reduce(sum_kg,sum_kg_global, &
+          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
                           option%io_rank,option%mycomm,ierr)
                               
+          if (option%myrank == option%io_rank) then
+            ! change sign for positive in / negative out
+            write(fid,110,advance="no") -sum_kg_global(:,1)*output_option%tconv
+          endif
+        case(TOWG_MODE)
+          ! print out cumulative H2O, Oil and Gas fluxes
+          sum_kg = 0.d0
+          do iconn = 1, coupler%connection_set%num_connections
+            sum_kg = sum_kg + global_auxvars_bc_or_ss(offset+iconn)%mass_balance
+          enddo
+
+          int_mpi = option%nphase
+          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
+                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                          option%io_rank,option%mycomm,ierr)
+                              
+          if (option%myrank == option%io_rank) then
+            ! change sign for positive in / negative out
+            write(fid,110,advance="no") -sum_kg_global(:,1)
+          endif
+
+          ! print out H2O, oil and gas fluxes
+          sum_kg = 0.d0
+          do iconn = 1, coupler%connection_set%num_connections
+            sum_kg(:,1) = sum_kg(:,1) + &
+              global_auxvars_bc_or_ss(offset+iconn)%mass_balance_delta(:,1)
+          enddo
+          sum_kg(1,1) = sum_kg(1,1)*towg_fmw_comp(1) 
+          sum_kg(2,1) = sum_kg(2,1)*towg_fmw_comp(2)
+          sum_kg(3,1) = sum_kg(3,1)*towg_fmw_comp(3)
+
+          int_mpi = option%nphase
+          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
+                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                          option%io_rank,option%mycomm,ierr)
+
           if (option%myrank == option%io_rank) then
             ! change sign for positive in / negative out
             write(fid,110,advance="no") -sum_kg_global(:,1)*output_option%tconv
@@ -2788,14 +2953,20 @@ subroutine OutputMassBalance(realization_base)
     coupler => coupler%next 
   enddo
   
-  ! Print the total mass in the specified regions (data)
+  ! Print the total water and component mass in the specified regions (data)
   if (associated(output_option%mass_balance_region_list)) then
     cur_mbr => output_option%mass_balance_region_list
     do
       if (.not.associated(cur_mbr)) exit
-      call PatchGetCompMassInRegion(cur_mbr%region_cell_ids, &
-           cur_mbr%num_cells,patch,option,global_total_mass)
-      write(fid,110,advance="no") global_total_mass
+      call PatchGetWaterMassInRegion(cur_mbr%region_cell_ids, &
+                                     cur_mbr%num_cells,patch,option, &
+                                     global_water_mass)
+      write(fid,110,advance="no") global_water_mass
+      if (option%ntrandof > 0) then
+        call PatchGetCompMassInRegion(cur_mbr%region_cell_ids, &
+             cur_mbr%num_cells,patch,option,global_total_mass)
+        write(fid,110,advance="no") global_total_mass
+      endif
       cur_mbr => cur_mbr%next
     enddo
   endif
