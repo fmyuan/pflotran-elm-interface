@@ -1421,7 +1421,7 @@ subroutine MiscibleResidualPatch1(snes,xx,r,realization,ierr)
   type (flux_ptrs), dimension(0:2) :: fluxes
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
-  Vec, intent(out) :: r
+  Vec, intent(inout) :: r
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
@@ -1710,7 +1710,7 @@ subroutine MiscibleResidualPatch0(snes,xx,r,realization,ierr)
 
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
-  Vec, intent(out) :: r
+  Vec, intent(inout) :: r
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
@@ -1880,7 +1880,7 @@ subroutine MiscibleResidualPatch2(snes,xx,r,realization,ierr)
 
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
-  Vec, intent(out) :: r
+  Vec, intent(inout) :: r
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr

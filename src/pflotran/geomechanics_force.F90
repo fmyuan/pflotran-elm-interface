@@ -1373,7 +1373,7 @@ subroutine GeomechForceJacobianPatch(snes,xx,A,B,geomech_realization,ierr)
   SNES, intent(in) :: snes
   Vec, intent(in) :: xx
   Mat, intent(inout) :: A
-  Mat, intent(out) :: B
+  Mat, intent(inout) :: B
   PetscViewer :: viewer
 
   PetscErrorCode :: ierr
