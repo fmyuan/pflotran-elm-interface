@@ -1,9 +1,7 @@
 module Timestepper_module
  
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Solver_module
-  use Waypoint_module
+  use Waypoint_module 
   use Convergence_module 
   use Material_module
   use Material_Aux_class
@@ -15,6 +13,8 @@ module Timestepper_module
 
   private
   
+#include "petsc/finclude/petscsys.h"
+
   PetscInt, parameter, public :: TIMESTEPPER_INIT_PROCEED = 0
   PetscInt, parameter, public :: TIMESTEPPER_INIT_DONE = 1
   PetscInt, parameter, public :: TIMESTEPPER_INIT_FAIL = 2
@@ -90,6 +90,7 @@ module Timestepper_module
             TimestepperRestart, &
 #endif
             TimestepperRead, TimestepperPrintInfo, TimestepperReset
+        
 
 contains
 
@@ -799,9 +800,11 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
   ! 
   ! Author: Glenn Hammond
   ! Date: 02/19/08, 03/11/13
-!
+  ! 
+
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
+
   use Flash2_module, only : Flash2MaxChange, Flash2InitializeTimestep, &
                            Flash2TimeCut, Flash2UpdateReason
   use Mphase_module, only : MphaseMaxChange, MphaseInitializeTimestep, &
@@ -1025,7 +1028,7 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
     endif
   enddo
   
-  stepper%steps = stepper%steps + 1
+  stepper%steps = stepper%steps + 1      
   stepper%cumulative_newton_iterations = &
     stepper%cumulative_newton_iterations + sum_newton_iterations
   stepper%cumulative_linear_iterations = &
@@ -1064,7 +1067,6 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
              num_linear_iterations,' / ',num_newton_iterations
     write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
   endif
-
   if (option%print_file_flag) then
     write(option%fid_out, '(" FLOW ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
       & " [",a,"]"," snes_conv_reason: ",i4,/,"  newton = ",i3," [",i8,"]", &
@@ -1133,6 +1135,7 @@ subroutine FlowStepperStepToSteadyState(realization,stepper,failure)
   ! Author: Glenn Hammond
   ! Date: 03/12/13
   ! 
+
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Global_module
@@ -1281,6 +1284,7 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
   ! Author: Glenn Hammond
   ! Date: 02/19/08
   ! 
+
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Flash2_module, only : Flash2MaxChange, Flash2InitializeTimestep, &
@@ -1724,9 +1728,9 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
   ! Author: Glenn Hammond
   ! Date: 02/19/08
   ! 
+  
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
-
   use Reactive_Transport_module
   use Output_module, only : Output
   
@@ -1895,12 +1899,13 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
       endif
 
       option%tran_dt = 0.5d0 * option%tran_dt
-
+    
       if (option%print_screen_flag) write(*,'('' -> Cut time step: snes='',i3, &
         &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
         &   1pe12.5)')  snes_reason,icut,stepper%cumulative_time_step_cuts, &
             option%tran_time/realization%output_option%tconv, &
             option%tran_dt/realization%output_option%tconv
+
 
       ! recompute weights
       if (option%nflowdof > 0 .and. .not.steady_flow) then
@@ -2015,6 +2020,7 @@ subroutine StepperStepTransportDT_OS(realization,stepper, &
   ! Author: Glenn Hammond
   ! Date: 02/19/08
   ! 
+
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Reactive_Transport_module, only : RTUpdateRHSCoefs, RTUpdateAuxVars, &
@@ -2426,6 +2432,7 @@ subroutine StepperSolveFlowSteadyState(realization,stepper,failure)
   ! Author: Glenn Hammond
   ! Date: 03/10/09
   ! 
+
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Global_module, only : GlobalUpdateAuxVars
@@ -2564,6 +2571,7 @@ subroutine StepperSolveTranSteadyState(realization,stepper,failure)
   ! Author: Glenn Hammond
   ! Date: 02/19/08
   ! 
+  
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Realization_class

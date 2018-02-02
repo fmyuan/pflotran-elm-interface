@@ -681,7 +681,7 @@ subroutine printErrMsg2(option,string)
     print *, 'ERROR: ' // trim(string)
     print *
     print *, 'Stopping!'
-  endif
+  endif    
   call MPI_Barrier(option%mycomm,ierr)
   call PetscInitialized(petsc_initialized, ierr);CHKERRQ(ierr)
   if (petsc_initialized) then
@@ -1204,6 +1204,8 @@ subroutine OptionBeginTiming(option)
   ! Date: 06/07/13
   ! 
 
+  use Logging_module
+  
   implicit none
   
 #include "petsc/finclude/petsclog.h"
@@ -1228,6 +1230,8 @@ subroutine OptionEndTiming(option)
   ! Date: 06/07/13
   ! 
 
+  use Logging_module
+  
   implicit none
   
 #include "petsc/finclude/petsclog.h"
