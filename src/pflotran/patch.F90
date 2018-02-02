@@ -1474,6 +1474,7 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
 
   use Option_module
   use Condition_module
+  use Hydrostatic_module
   use Utility_module, only : DeallocateArray
 
   use WIPP_Flow_Aux_module
@@ -1532,6 +1533,12 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
                 DIRICHLET_BC
             class default
           end select
+          dof1 = PETSC_TRUE
+        case(HYDROSTATIC_BC)
+          ! have to increment so that saturation is correct.
+          real_count = real_count + 1
+          call HydrostaticUpdateCoupler(coupler,option,patch%grid)
+          coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = HYDROSTATIC_BC
           dof1 = PETSC_TRUE
         case default
           string = &
@@ -1805,7 +1812,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
             !     factors into the hydrostatic condition
             option%io_buffer = 'Need to fix PatchUpdateCouplerAuxVarsG() ' // &
               'for a variable saturated hydrostatic condition.'
-            call printErrMsg(option)
+            call printErrMsgByRank(option)
 
             ! we have to remap the capillary pressure to saturation and
             ! temperature to air pressure

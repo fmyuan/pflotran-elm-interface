@@ -20,6 +20,7 @@ module PM_Bragflo_class
     procedure, public :: InitializeRun => PMBragfloInitializeRun
     procedure, public :: Residual => PMBragfloResidual
     procedure, public :: Jacobian => PMBragfloJacobian
+    procedure, public :: CheckUpdatePre => PMBragfloCheckUpdatePre
     procedure, public :: InputRecord => PMBragfloInputRecord
     procedure, public :: Destroy => PMBragfloDestroy
   end type pm_bragflo_type
@@ -110,6 +111,8 @@ subroutine PMBragfloRead(this,input)
     if (found) cycle
 
     select case(keyword)
+      case('DEFAULT_ALPHA')
+        wippflo_default_alpha = PETSC_TRUE
       case('ALPHA_DATASET')
         call InputReadNChars(input,option,this%alpha_dataset_name,&
                              MAXWORDLENGTH,PETSC_TRUE)
@@ -233,8 +236,10 @@ recursive subroutine PMBragfloInitializeRun(this)
         call printErrMsg(this%option)
     end select
   else
-    this%option%io_buffer = 'ALPHA should have been read from a dataset.'
-    call printErrMsg(this%option)
+    if (.not.wippflo_default_alpha) then
+      this%option%io_buffer = 'ALPHA should have been read from a dataset.'
+      call printErrMsg(this%option)
+    endif
   endif
 
   ! read in elevations
@@ -273,7 +278,9 @@ recursive subroutine PMBragfloInitializeRun(this)
     end select
   else ! or set them baesd on grid cell elevation
     do ghosted_id = 1, grid%ngmax
-      wippflo_auxvars(idof,ghosted_id)%elevation = grid%z(ghosted_id)
+      do idof = 0, this%option%nflowdof
+        wippflo_auxvars(idof,ghosted_id)%elevation = grid%z(ghosted_id)
+      enddo
     enddo
   endif
 
@@ -294,6 +301,7 @@ subroutine PMBragfloResidual(this,snes,xx,r,ierr)
 
   use PM_Subsurface_Flow_class
   use Bragflo_module, only : BragfloResidual
+  use Debug_module
 
   implicit none
 
@@ -303,10 +311,27 @@ subroutine PMBragfloResidual(this,snes,xx,r,ierr)
   Vec :: r
   PetscErrorCode :: ierr
 
+  PetscViewer :: viewer
+  character(len=MAXSTRINGLENGTH) :: string
+
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
 
   ! calculate residual
   call BragfloResidual(snes,xx,r,this%realization,this%pmwss_ptr,ierr)
+  call VecCopy(r,this%stored_residual_vec,ierr);CHKERRQ(ierr)
+
+  if (this%realization%debug%vecview_residual) then
+    string = 'BFresidual'
+    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+    call VecView(r,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+  if (this%realization%debug%vecview_solution) then
+    string = 'BFxx'
+    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+    call VecView(xx,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
 
   call this%PostSolve()
 
@@ -320,6 +345,8 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
   ! Date: 07/11/17
   ! 
   use Bragflo_module, only : BragfloJacobian
+  use Debug_module
+  use Option_module
 
   implicit none
 
@@ -330,27 +357,124 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
   PetscErrorCode :: ierr
 
   Vec :: residual_vec
+  PetscViewer :: viewer
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscReal :: norm
+  PetscInt :: matsize
+  PetscInt :: irow, icol, ncol
+  PetscInt :: cols(100) ! accommodates 49 connections max
+  PetscReal :: vals(100)
+  PetscReal :: max_abs_val
+  PetscReal, pointer :: vec_p(:)
 
   residual_vec = tVec(0)
 
   call BragfloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
 
+  if (this%realization%debug%matview_Jacobian) then
+    string = 'BFjacobian'
+    call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+    call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+
   call SNESGetFunction(snes,residual_vec,PETSC_NULL_FUNCTION, &
                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
-  call VecCopy(residual_vec,this%stored_residual_vec,ierr);CHKERRQ(ierr)
   if (this%scale_linear_system) then
-    call MatGetRowMaxAbs(A,this%scaling_vec,PETSC_NULL_INTEGER, &
-                         ierr);CHKERRQ(ierr)
-    call VecScale(this%scaling_vec,this%linear_system_scaling_factor, &
-                  ierr);CHKERRQ(ierr)
+    if (this%option%mycommsize > 1) then
+      this%option%io_buffer = 'BRAGFLO matrix scaling not allowed in parallel.'
+      call printErrMsg(this%option)
+    endif
+    call VecGetLocalSize(this%scaling_vec,matsize,ierr);CHKERRQ(ierr)
+    call VecSet(this%scaling_vec,1.d0,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+    do irow = 1, matsize, 2
+      vec_p(irow) = this%linear_system_scaling_factor
+    enddo
+    call VecRestoreArrayReadF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+    call MatDiagonalScale(A,PETSC_NULL_VEC,this%scaling_vec,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+    do irow = 1, matsize
+      call MatGetRow(A,irow-1,ncol,cols,vals,ierr);CHKERRQ(ierr)
+      if (ncol > 100) then
+        this%option%io_buffer = 'Increase size of cols() and vals() in &
+                                &PMBragfloJacobian.'
+        call printErrMsg(this%option)
+      endif
+      max_abs_val = 0.d0
+      do icol = 1, ncol
+        max_abs_val = max(dabs(vals(icol)),max_abs_val)
+      enddo
+      call MatRestoreRow(A,irow-1,ncol,cols,vals,ierr);CHKERRQ(ierr)
+      vec_p(irow) = max_abs_val
+    enddo
+    call VecRestoreArrayReadF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+    
     call VecReciprocal(this%scaling_vec,ierr);CHKERRQ(ierr)
+
     call MatDiagonalScale(A,this%scaling_vec,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
     call VecPointwiseMult(residual_vec,residual_vec, &
                           this%scaling_vec,ierr);CHKERRQ(ierr)
+
+    if (this%realization%debug%matview_Jacobian) then
+      string = 'BFscale_vec'
+      call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+      call VecView(this%scaling_vec,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+      string = 'BFjacobian_scaled'
+      call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+      call MatView(A,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    endif
+    if (this%realization%debug%vecview_residual) then
+      string = 'BFresidual_scaled'
+      call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
+      call VecView(residual_vec,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    endif
+  endif
+
+  if (this%realization%debug%norm_Jacobian) then
+    call MatNorm(A,NORM_1,norm,ierr);CHKERRQ(ierr)
+    write(this%option%io_buffer,'("1 norm: ",es11.4)') norm
+    call printMsg(this%option)
+    call MatNorm(A,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
+    write(this%option%io_buffer,'("2 norm: ",es11.4)') norm
+    call printMsg(this%option)
+    call MatNorm(A,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
+    write(this%option%io_buffer,'("inf norm: ",es11.4)') norm
+    call printMsg(this%option)
   endif
 
 end subroutine PMBragfloJacobian
+
+! ************************************************************************** !
+
+subroutine PMBragfloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/11/17
+  ! 
+  use PM_WIPP_Flow_class, only : PMWIPPFloCheckUpdatePre
+  
+  implicit none
+  
+  class(pm_bragflo_type) :: this
+  SNESLineSearch :: line_search
+  Vec :: X
+  Vec :: dX
+  PetscBool :: changed
+  PetscErrorCode :: ierr
+  
+  if (this%scale_linear_system) then
+    changed = PETSC_TRUE
+    call VecStrideScale(dX,ZERO_INTEGER,this%linear_system_scaling_factor, &
+                        ierr);CHKERRQ(ierr)
+  endif
+  call PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+
+end subroutine PMBragfloCheckUpdatePre
 
 ! ************************************************************************** !
 
@@ -361,7 +485,8 @@ subroutine PMBragfloDestroy(this)
   ! Author: Glenn Hammond
   ! Date: 11/07/17
   ! 
-  
+  use PM_WIPP_Flow_class, only : PMWIPPFloDestroy
+
   implicit none
 
   class(pm_bragflo_type) :: this
@@ -371,7 +496,7 @@ subroutine PMBragfloDestroy(this)
   if (this%scaling_vec /= PETSC_NULL_VEC) then
     call VecDestroy(this%scaling_vec,ierr);CHKERRQ(ierr)
   endif
-  call this%pm_wippflo_type%Destroy()
+  call PMWIPPFloDestroy(this)
 
 end subroutine PMBragfloDestroy
 
