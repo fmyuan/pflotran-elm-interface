@@ -1,5 +1,7 @@
 module Timestepper_module
  
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Solver_module
   use Waypoint_module 
   use Convergence_module 
@@ -13,8 +15,6 @@ module Timestepper_module
 
   private
   
-#include "petsc/finclude/petscsys.h"
-
   PetscInt, parameter, public :: TIMESTEPPER_INIT_PROCEED = 0
   PetscInt, parameter, public :: TIMESTEPPER_INIT_DONE = 1
   PetscInt, parameter, public :: TIMESTEPPER_INIT_FAIL = 2
@@ -800,11 +800,9 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
   ! 
   ! Author: Glenn Hammond
   ! Date: 02/19/08, 03/11/13
-  ! 
-
+!
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
-
   use Flash2_module, only : Flash2MaxChange, Flash2InitializeTimestep, &
                            Flash2TimeCut, Flash2UpdateReason
   use Mphase_module, only : MphaseMaxChange, MphaseInitializeTimestep, &
@@ -1135,7 +1133,6 @@ subroutine FlowStepperStepToSteadyState(realization,stepper,failure)
   ! Author: Glenn Hammond
   ! Date: 03/12/13
   ! 
-
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Global_module
@@ -1284,7 +1281,6 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
   ! Author: Glenn Hammond
   ! Date: 02/19/08
   ! 
-
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Flash2_module, only : Flash2MaxChange, Flash2InitializeTimestep, &
@@ -1728,9 +1724,9 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
   ! Author: Glenn Hammond
   ! Date: 02/19/08
   ! 
-  
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
+
   use Reactive_Transport_module
   use Output_module, only : Output
   
@@ -2020,7 +2016,6 @@ subroutine StepperStepTransportDT_OS(realization,stepper, &
   ! Author: Glenn Hammond
   ! Date: 02/19/08
   ! 
-
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Reactive_Transport_module, only : RTUpdateRHSCoefs, RTUpdateAuxVars, &
@@ -2432,7 +2427,6 @@ subroutine StepperSolveFlowSteadyState(realization,stepper,failure)
   ! Author: Glenn Hammond
   ! Date: 03/10/09
   ! 
-
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Global_module, only : GlobalUpdateAuxVars
@@ -2571,7 +2565,6 @@ subroutine StepperSolveTranSteadyState(realization,stepper,failure)
   ! Author: Glenn Hammond
   ! Date: 02/19/08
   ! 
-  
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Realization_class

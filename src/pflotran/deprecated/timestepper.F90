@@ -1,7 +1,7 @@
 module Timestepper_module
  
   use Solver_module
-  use Waypoint_module
+  use Waypoint_module 
   use Convergence_module 
   use Material_module
   use Material_Aux_class
@@ -90,6 +90,7 @@ module Timestepper_module
             TimestepperRestart, &
 #endif
             TimestepperRead, TimestepperPrintInfo, TimestepperReset
+        
 
 contains
 
@@ -1027,7 +1028,7 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
     endif
   enddo
   
-  stepper%steps = stepper%steps + 1
+  stepper%steps = stepper%steps + 1      
   stepper%cumulative_newton_iterations = &
     stepper%cumulative_newton_iterations + sum_newton_iterations
   stepper%cumulative_linear_iterations = &
@@ -1066,7 +1067,6 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
              num_linear_iterations,' / ',num_newton_iterations
     write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
   endif
-
   if (option%print_file_flag) then
     write(option%fid_out, '(" FLOW ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
       & " [",a,"]"," snes_conv_reason: ",i4,/,"  newton = ",i3," [",i8,"]", &
@@ -1899,12 +1899,13 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
       endif
 
       option%tran_dt = 0.5d0 * option%tran_dt
-
+    
       if (option%print_screen_flag) write(*,'('' -> Cut time step: snes='',i3, &
         &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
         &   1pe12.5)')  snes_reason,icut,stepper%cumulative_time_step_cuts, &
             option%tran_time/realization%output_option%tconv, &
             option%tran_dt/realization%output_option%tconv
+
 
       ! recompute weights
       if (option%nflowdof > 0 .and. .not.steady_flow) then
