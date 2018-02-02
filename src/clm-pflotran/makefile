@@ -1,6 +1,7 @@
 # Makefile for PFLOTRAN coupled with CLM
 
-pflotran_src = ./
+SRC_DIR = .
+pflotran_src = ../pflotran
 common_src   = ./
 regression_test_dir = ../../regression_tests
 unit_test_dir = ./unittests
@@ -188,7 +189,7 @@ eos_obj = \
 	${common_src}co2_sw.o \
 	${common_src}co2_span_wagner_spline.o \
 	${common_src}eos.o \
-        ${common_src}eos_database.o \
+    ${common_src}eos_database.o \
 	${common_src}eos_gas.o \
 	${common_src}eos_oil.o \
 	${common_src}gas_eos_mod.o 
@@ -398,6 +399,7 @@ misc_obj = \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \
 	${common_src}timestepper_BE.o \
+	${common_src}timestepper_steady.o \
 	${common_src}transport.o \
 	${common_src}uniform_velocity.o \
 	${common_src}waypoint.o \
@@ -1504,6 +1506,40 @@ check : FORCE
 	@if [ -d $(regression_test_dir) ]; then \
 		$(MAKE) --directory=$(regression_test_dir) $(MAKECMDGOALS); \
 	fi
+
+clean-pflotran :
+	-rm -f $(CLEANFILES) *.o *.mod *.a;
+
+
+# Flags
+echo-flags :
+	@echo ; \
+	echo "PFLOTRAN source"; \
+	echo "SRC_DIR = $(SRC_DIR)"; \
+	echo ; \
+	echo "PETSc environment"; \
+	echo "PETSC_DIR = $(PETSC_DIR)"; \
+	echo "PETSC_ARCH = $(PETSC_ARCH)"; \
+	echo ; \
+	echo "Flags defined in this makefile"; \
+	echo "CFLAGS = $(CFLAGS)"; \
+	echo "FFLAGS = $(FFLAGS)"; \
+	echo ; \
+	echo "MYFLAGS = $(MYFLAGS)"; \
+	echo "CPPFLAGS = $(CPPFLAGS)"; \
+	echo "FPPFLAGS = $(FPPFLAGS)"; \
+	echo ; \
+	echo "Flags invoked when compiling fortran source"; \
+	echo "FC_FLAGS = $(FC_FLAGS)"; \
+	echo "FFLAGS = $(FFLAGS)"; \
+	echo "FCPPFLAGS =  $(FCPPFLAGS)"; \
+	echo ; \
+	echo "Included Libraries" ;\
+	echo "LIBS = $(LIBS)"; \
+	echo ; \
+	echo "PETSC_LIB = $(PETSC_LIB)"; \
+	echo ; \
+
 
 # null rule to force things to happen
 FORCE :
