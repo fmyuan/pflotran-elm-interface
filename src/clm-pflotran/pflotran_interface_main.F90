@@ -1,6 +1,10 @@
 program pflotran_interface_main
-#include "finclude/petscsys.h"
 
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+
+  use petscsys
+  use petscvec
   use pflotran_model_module, only : pflotran_model_type, pflotranModelCreate, &
        pflotranModelInitMapping, pflotranModelStepperRunInit, &
        pflotranModelStepperRunTillPauseTime, pflotranModelDestroy, &
@@ -11,22 +15,20 @@ program pflotran_interface_main
   use Option_module
   
   use Simulation_Base_class, only : simulation_base_type
-  use Simulation_Subsurface_class, only : subsurface_simulation_type
-  use Simulation_Surface_class, only : surface_simulation_type
-  use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+  use Simulation_Subsurface_class, only : simulation_subsurface_type
+  use Simulation_Surface_class, only : simulation_surface_type
+  use Simulation_Surf_Subsurf_class, only : simulation_surfsubsurface_type
   use Realization_Base_class, only : realization_base_type
-  use Surface_Realization_class, only : surface_realization_type
+  use Realization_surface_class, only : realization_surface_type
 
   use PFLOTRAN_Constants_module
 
   implicit none
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
 
   type(pflotran_model_type), pointer  :: pflotran_m
   class(realization_base_type), pointer :: realization
-  class(surface_realization_type), pointer :: surf_realization
+  class(realization_surface_type), pointer :: surf_realization
 
   
   PetscErrorCode :: ierr
@@ -54,13 +56,13 @@ program pflotran_interface_main
   pflotran_m => pflotranModelCreate(MPI_COMM_WORLD, filename)
 
   select type (simulation => pflotran_m%simulation)
-    class is (subsurface_simulation_type)
+    class is (simulation_subsurface_type)
        realization => simulation%realization
        nullify(surf_realization)
-    class is (surfsubsurface_simulation_type)
+    class is (simulation_surfsubsurface_type)
        realization => simulation%realization
        surf_realization => simulation%surf_realization
-    class is (surface_simulation_type)
+    class is (simulation_surface_type)
        nullify(realization)
        surf_realization => simulation%surf_realization
     class default
