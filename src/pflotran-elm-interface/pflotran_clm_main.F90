@@ -805,7 +805,7 @@ contains
         lats(4) = lat_n
         lons(4) = lon_w
 
-        ! mid-longitudal length of trapezoid (x-axis) -
+        ! mid-longitudal meteric length of trapezoid (x-axis) -
         lat1 = lat_c
         lon1 = lon_w
         lat2 = lat_c
@@ -814,7 +814,7 @@ contains
           dummy1, dummy2, dummy3, dummy4 , dummy5)
         grid%structured_grid%dx(ghosted_id) = s12
 
-        ! mid-latitudal height of trapezoid (y-axis) -
+        ! mid-latitudal meteric height of trapezoid (y-axis) -
         lat1 = lat_s
         lon1 = lon_c
         lat2 = lat_n
@@ -824,12 +824,12 @@ contains
         grid%structured_grid%dy(ghosted_id) = s12
 
         ! some checking
-        ! areas of grid (x,y)
+        ! areas of grid (x,y) in meters
         call area(a, f, lats, lons, 4, dummy1, dummy2)
         tempreal = grid%structured_grid%dx(ghosted_id)*grid%structured_grid%dy(ghosted_id)/dummy1
         if (abs(tempreal-1.d0)>1.e-5 .and. option%mapping_files) then
           option%io_buffer = "Warning: remarkably large gaps in grid areas btw two approaches FOR cell: "
-          !call printMsg(option)
+          call printMsg(option)
         end if
 
         ! bottom/top segment line length
@@ -851,7 +851,7 @@ contains
         tempreal = 0.5d0*tempreal/grid%structured_grid%dx(ghosted_id)
         if (abs(tempreal-1.d0)>1.e-5) then   ! mathematically, dx = 0.5*(a+b)
           option%io_buffer = "Warning: remarkably large gaps in longitudal-length FOR a cell: "
-          !call printMsg(option)
+          call printMsg(option)
         end if
 
         ! isoscele side line length
@@ -872,7 +872,7 @@ contains
         tempreal = tempreal/s12
         if (abs(tempreal-1.d0)>1.e-5) then   ! mathematically, c=d
           option%io_buffer = "Warning: remarkably large gaps in isoscele latitudal-length FOR a cell: "
-          !call printMsg(option)
+          call printMsg(option)
         end if
 
       end if ! if (clm_pf_idata%nxclm_mapped >= 1 .and. clm_pf_idata%nyclm_mapped >= 1 .and. .not.mapping_files)
@@ -1190,6 +1190,11 @@ contains
                                     option, &
                                     clm_pf_idata%bulkdensity_dry_clmp, &
                                     clm_pf_idata%bulkdensity_dry_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    option, &
+                                    clm_pf_idata%effporosity_clmp, &
+                                    clm_pf_idata%effporosity_pfs)
 
     !
     !---------------------
@@ -1915,6 +1920,7 @@ contains
     subname = 'pflotranModelUpdateTHfromCLM'
 
 !-------------------------------------------------------------------------
+    option => pflotran_model%option
     select type (modelsim => pflotran_model%simulation)
       class is (simulation_subsurface_type)
         simulation  => modelsim
@@ -1946,6 +1952,11 @@ contains
                                     option, &
                                     clm_pf_idata%press_clmp, &
                                     clm_pf_idata%press_pfs)
+
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    option, &
+                                    clm_pf_idata%soilliq_clmp, &
+                                    clm_pf_idata%soilliq_pfs)
 
         call VecGetArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
         CHKERRQ(ierr)
@@ -1994,6 +2005,12 @@ contains
                                     option, &
                                     clm_pf_idata%soilt_clmp, &
                                     clm_pf_idata%soilt_pfs)
+
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    option, &
+                                    clm_pf_idata%soilice_clmp, &
+                                    clm_pf_idata%soilice_pfs)
+
         call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
         CHKERRQ(ierr)
 
@@ -2062,16 +2079,19 @@ contains
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    PetscReal, pointer :: soillsat_pf_p(:)
-    PetscReal, pointer :: soilisat_pf_p(:)
+    PetscReal, pointer :: soillsat_pf_p(:)       ! 0 - 1 of porosity
+    PetscReal, pointer :: soilisat_pf_p(:)       !
+    PetscReal, pointer :: soilliq_pf_p(:)        ! kg/m^3 bulk soil
+    PetscReal, pointer :: soilice_pf_p(:)
     PetscReal, pointer :: press_pf_p(:)
     PetscReal, pointer :: soilpsi_pf_p(:)
     PetscReal, pointer :: porosity0_loc_p(:)     ! soil porosity in field%porosity0
     PetscScalar, pointer :: porosity_loc_pfp(:)  ! soil porosity saved in clm-pf-idata
+    PetscReal          :: liq_kgm3, ice_kgm3
 
-    PetscInt :: i
-    PetscReal, pointer :: vec_loc(:)
-    PetscViewer :: viewer
+    !PetscInt :: i
+    !PetscReal, pointer :: vec_loc(:)
+    !PetscViewer :: viewer
 
     subname = 'pflotranModelSetSoilDimension'
 !-------------------------------------------------------------------------
@@ -2116,6 +2136,8 @@ contains
     ! Save the saturation/pc/pressure values
     call VecGetArrayF90(clm_pf_idata%soillsat_pfp, soillsat_pf_p, ierr)
     CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%soilliq_pfp, soilliq_pf_p, ierr)
+    CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
@@ -2137,6 +2159,11 @@ contains
       ! PF's field porosity pass to clm-pf-idata and saved
       porosity_loc_pfp(local_id) = porosity0_loc_p(local_id)
 
+      ! calculate water mass and pass to clm-pf-idata
+      liq_kgm3 = global_auxvars(ghosted_id)%den_kg(1) ! water den = kg/m^3
+      soilliq_pf_p(local_id) = global_auxvars(ghosted_id)%sat(1)* &
+                               porosity0_loc_p(local_id)*liq_kgm3
+
 #ifdef CLM_PF_DEBUG
 ! F.-M. Yuan: the following check proves DATA-passing from PF to CLM MUST BE done by ghosted_id --> local_id
 ! if passing from 'global_auxvars'
@@ -2157,6 +2184,8 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     enddo
     call VecRestoreArrayF90(clm_pf_idata%soillsat_pfp, soillsat_pf_p, ierr)
     CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%soilliq_pfp, soilliq_pf_p, ierr)
+    CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
@@ -2171,6 +2200,11 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
                                     option, &
                                     clm_pf_idata%soillsat_pfp, &
                                     clm_pf_idata%soillsat_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    option, &
+                                    clm_pf_idata%soilliq_pfp,  &
+                                    clm_pf_idata%soilliq_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     option, &
@@ -2194,18 +2228,34 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
       call VecGetArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
       CHKERRQ(ierr)
+      call VecGetArrayF90(clm_pf_idata%soilice_pfp, soilice_pf_p, ierr)
+      CHKERRQ(ierr)
+      call VecGetArrayF90(field%porosity0,porosity0_loc_p,ierr)
       do local_id = 1, grid%nlmax
         ghosted_id = grid%nL2G(local_id)
         if (ghosted_id <=0 ) cycle
         soilisat_pf_p(local_id) = TH_auxvars(ghosted_id)%ice%sat_ice
+
+        ice_kgm3 = TH_auxvars(ghosted_id)%ice%den_ice        ! ice den = kg/m^3
+        soilice_pf_p(local_id) = TH_auxvars(ghosted_id)%ice%sat_ice* &
+                                 porosity0_loc_p(local_id)*ice_kgm3
+
       enddo
       call VecRestoreArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
       CHKERRQ(ierr)
+      call VecRestoreArrayF90(clm_pf_idata%soilice_pfp, soilice_pf_p, ierr)
+      CHKERRQ(ierr)
+      call VecRestoreArrayF90(field%porosity0,porosity0_loc_p,ierr)
 
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                       option, &
                                       clm_pf_idata%soilisat_pfp, &
                                       clm_pf_idata%soilisat_clms)
+
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                      option, &
+                                      clm_pf_idata%soilice_pfp, &
+                                      clm_pf_idata%soilice_clms)
     endif
 
   end subroutine pflotranModelGetSaturationFromPF
@@ -3810,6 +3860,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
   subroutine pflotranModelGetBgcVariablesFromPF(pflotran_model)
 
     use Global_Aux_module
+    use Material_Aux_class
     use Realization_Base_class
     use Patch_module
     use Grid_module
@@ -3839,7 +3890,8 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     type(grid_type), pointer                  :: grid
 
     type(reaction_type), pointer              :: reaction
-    type(global_auxvar_type), pointer             :: global_auxvar
+    type(global_auxvar_type), pointer         :: global_auxvar
+    type(material_auxvar_type), pointer       :: material_auxvar
     type(reactive_transport_auxvar_type), pointer :: rt_auxvar
 
     PetscErrorCode     :: ierr
@@ -3993,14 +4045,16 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
         global_auxvar    => patch%aux%Global%auxvars(ghosted_id)
         rt_auxvar        => patch%aux%RT%auxvars(ghosted_id)
+        material_auxvar  => patch%aux%Material%auxvars(ghosted_id)
 
         ! for convertion btw liq. water mass and volume
         xmass = 1.d0
         if (associated(global_auxvar%xmass)) xmass = global_auxvar%xmass(1)
-        den_kg_per_L = global_auxvar%den_kg(1)*xmass*1.d-3      ! kg/L
+        den_kg_per_L = global_auxvar%den_kg(1)*xmass*1.d-3      ! kg/L: kg/m3 *scaler* m3/L
 
         saturation = global_auxvar%sat(1)
-        porosity = porosity_loc_p(local_id)
+        !porosity = porosity_loc_p(local_id)
+        porosity = material_auxvar%porosity
         theta = saturation * porosity
 
         offset = (local_id - 1)*realization%reaction%ncomp
@@ -4854,12 +4908,14 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id, istart, iend
     PetscInt           :: cur_sat_func_id
-    PetscReal          :: liquid_saturation, capillary_pressure, dx, porosity, volume, den_kgm3
+    PetscReal          :: liquid_saturation, capillary_pressure, dx, porosity
+    PetscReal          :: liq_kgm3
     PetscReal, pointer :: xx_loc_p(:)
 
     PetscScalar, pointer :: soilt_pf_loc(:)      ! temperature [oC]
     PetscScalar, pointer :: soilpress_pf_loc(:)  ! water pressure (Pa)
-    PetscScalar, pointer :: soillsat_pf_loc(:)   ! liq. water saturation (-)
+    PetscScalar, pointer :: soilliq_pf_loc(:)    ! liq. water mass (kg/m3)
+    PetscScalar, pointer :: soilice_pf_loc(:)    ! ice water mass (kg/m3)
 
     subname = 'ModelSetInternalTHStatesFromCLM'
 
@@ -4867,17 +4923,17 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     option => pflotran_model%option
 
     select case(option%iflowmode)
-      case (RICHARDS_MODE)
+      case (RICHARDS_MODE, TH_MODE)
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
                                     clm_pf_idata%soillsat_clmp, &
                                     clm_pf_idata%soillsat_pfs)
+
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
-                                    clm_pf_idata%press_clmp, &
-                                    clm_pf_idata%press_pfs)
+                                    clm_pf_idata%soilisat_clmp, &
+                                    clm_pf_idata%soilisat_pfs)
 
-      case (TH_MODE)
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
                                     clm_pf_idata%soilt_clmp, &
@@ -4885,12 +4941,13 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
         !
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
-                                    clm_pf_idata%soillsat_clmp, &
-                                    clm_pf_idata%soillsat_pfs)
+                                    clm_pf_idata%soilliq_clmp, &
+                                    clm_pf_idata%soilliq_pfs)
+
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
-                                    clm_pf_idata%press_clmp, &
-                                    clm_pf_idata%press_pfs)
+                                    clm_pf_idata%soilice_clmp, &
+                                    clm_pf_idata%soilice_pfs)
       case default
         if(option%ntrandof.le.0) then
             option%io_buffer='pflotranModelSetInitialTHStatesfromCLM ' // &
@@ -4924,7 +4981,9 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%soilice_pfs, soilice_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
     CHKERRQ(ierr)
@@ -4940,8 +4999,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
        istart = iend-option%nflowdof+1
 
        porosity = material_auxvars(ghosted_id)%porosity
-       volume   = material_auxvars(ghosted_id)%volume
-       den_kgm3 = global_auxvars(ghosted_id)%den(1)*FMWH2O ! water den = kg/m^3
+       liq_kgm3 = global_auxvars(ghosted_id)%den_kg(1) ! water den = kg/m^3
 
        ! soil hydraulic properties ID for current cell
        cur_sat_func_id = patch%sat_func_id(ghosted_id)
@@ -4952,11 +5010,11 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
          xx_loc_p(istart)  = soilpress_pf_loc(ghosted_id)
 
          ! may need to recalculate 'saturation' from pressure
+         capillary_pressure = option%reference_pressure - xx_loc_p(istart)
          select type(sf => characteristic_curves%saturation_function)
            !class is(sat_func_VG_type)
              ! not-yet (TODO)
            class is(sat_func_BC_type)
-             capillary_pressure = option%reference_pressure - xx_loc_p(istart)
              call sf%Saturation(capillary_pressure, liquid_saturation, dx, option)
 
            class default
@@ -4967,11 +5025,11 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
 
        else
          ! need to recalculate 'pressure' from saturation/water-mass
+         liquid_saturation = soilliq_pf_loc(ghosted_id)/liq_kgm3/porosity
          select type(sf => characteristic_curves%saturation_function)
            !class is(sat_func_VG_type)
              ! not-yet (TODO)
            class is(sat_func_BC_type)
-             liquid_saturation = soillsat_pf_loc(ghosted_id)
              call sf%CapillaryPressure(liquid_saturation, capillary_pressure, dx, option)
 
              xx_loc_p(istart) = option%reference_pressure - capillary_pressure
@@ -4995,7 +5053,9 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%soilice_pfs, soilice_pf_loc, ierr)
     CHKERRQ(ierr)
 
     call DiscretizationGlobalToLocal(realization%discretization, field%flow_xx, &
