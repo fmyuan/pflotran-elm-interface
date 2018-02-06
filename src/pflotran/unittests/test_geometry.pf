@@ -196,7 +196,7 @@ contains
     @assertEqual(point4%y, intercept%y, 1.0d-14)
     @assertEqual(point4%z, intercept%z, 1.0d-14)
 
-    ! intercept of line between point4 and point5 should be 0.
+    ! intercept of line between point4 and point5 should be point4
     call GeometryGetPlaneIntercept(plane,point4,point5,intercept)
     @assertEqual(point4%x, intercept%x, 1.0d-14)
     @assertEqual(point4%y, intercept%y, 1.0d-14)
@@ -308,7 +308,6 @@ contains
     point2%z = z2
 
     call GeometryComputePlaneWithPoints(plane,pointa,pointb,pointc)
-
     @assertEqual(3.d0, plane%A, 1.0d-16)
     @assertEqual(4.d0, plane%B, 1.0d-16)
     @assertEqual(5.d0, plane%C, 1.0d-16)
