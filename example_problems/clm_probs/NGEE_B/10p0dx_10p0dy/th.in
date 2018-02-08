@@ -10,6 +10,12 @@ END
 
 SUBSURFACE
 
+!=========================== regression =======================================
+
+REGRESSION
+  CELLS_PER_PROCESS 5
+END
+
 !===================== Discretization =========================
 GRID
   TYPE unstructured B_10p0dx_10p0dy_10nz_clm_depths.h5
