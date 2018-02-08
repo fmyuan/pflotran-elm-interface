@@ -105,6 +105,7 @@ subroutine ReactionInit(reaction,input,option)
   option%ntrandof = option%ntrandof + GetColloidCount(reaction)
   option%ntrandof = option%ntrandof + GetImmobileCount(reaction)
   reaction%ncomp = option%ntrandof  
+  reaction%nphase = option%transport%nphase
 
 end subroutine ReactionInit
 
@@ -2124,16 +2125,14 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   select case(option%iflowmode)
     case(FLASH2_MODE,MPH_MODE,IMS_MODE,MIS_MODE)
     case(NULL_MODE)
-      global_auxvar%den_kg(iphase) = option%reference_water_density
+      global_auxvar%den_kg(iphase) = &
+        option%reference_density(option%liquid_phase)
       global_auxvar%temp = option%reference_temperature
       global_auxvar%sat(iphase) = option%reference_saturation
     case(RICHARDS_MODE)
       global_auxvar%temp = option%reference_temperature
   end select
         
-!  global_auxvar%den_kg(iphase) = option%reference_water_density
-!  global_auxvar%temp = option%reference_temperature
-!  global_auxvar%sat(iphase) = option%reference_saturation
   bulk_vol_to_fluid_vol = option%reference_porosity* &
                           global_auxvar%sat(iphase)*1000.d0
 

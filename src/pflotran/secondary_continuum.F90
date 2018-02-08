@@ -632,9 +632,19 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
     else
       global_auxvar%pres = option%reference_pressure
       global_auxvar%temp = option%reference_temperature
-      global_auxvar%den_kg = option%reference_water_density
+      global_auxvar%den_kg(option%liquid_phase) = &
+        option%reference_density(option%liquid_phase)
+
     endif
     global_auxvar%sat = option%reference_saturation
+
+    if (option%transport%nphase > option%nphase) then
+      ! gas phase not considered explicitly on flow side
+      global_auxvar%den_kg(option%gas_phase) = &
+        option%reference_density(option%gas_phase)
+      global_auxvar%sat(option%gas_phase) = &
+        1.d0 - global_auxvar%sat(option%liquid_phase)
+    endif
                       
     call ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                           material_auxvar, &

@@ -143,7 +143,7 @@ module Option_module
     PetscInt :: idt_switch
     PetscReal :: reference_temperature
     PetscReal :: reference_pressure
-    PetscReal :: reference_water_density
+    PetscReal :: reference_density(2)
     PetscReal :: reference_porosity
     PetscReal :: reference_saturation
     
@@ -485,9 +485,10 @@ subroutine OptionInitRealization(option)
       ! seems good practice to set them to sensible values when a pflowGrid
       ! is created.
 !-----------------------------------------------------------------------
+  !TODO(geh): move to option%flow.F90
   option%reference_pressure = 101325.d0
   option%reference_temperature = 25.d0
-  option%reference_water_density = 0.d0
+  option%reference_density = 0.d0
   option%reference_porosity = 0.25d0
   option%reference_saturation = 1.d0
   

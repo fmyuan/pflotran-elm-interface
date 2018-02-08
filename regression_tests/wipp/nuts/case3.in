@@ -18,7 +18,7 @@ REGRESSION
 END
 
 #=========================== useful tranport parameters ==================
-REFERENCE_DENSITY  997.d0   ! water density kg/m^3
+REFERENCE_LIQUID_DENSITY  997.d0   ! water density kg/m^3
 
 #=========================== chemistry ========================================
 CHEMISTRY

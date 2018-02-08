@@ -203,6 +203,9 @@ module Reaction_Aux_module
     type(solid_solution_type), pointer :: solid_solution_list
 #endif    
     
+    ! phases
+    PetscInt :: nphase
+
     ! compressed arrays for efficient computation
     ! primary aqueous complexes
     PetscInt :: ncomp

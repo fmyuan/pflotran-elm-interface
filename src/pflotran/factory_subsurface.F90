@@ -434,6 +434,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   if (.not.associated(pm_flow)) then
     option%nphase = 1
     option%liquid_phase = 1
+    option%gas_phase = 2 ! still set gas phase to 2 for transport
     ! assume default isothermal when only transport
     option%use_isothermal = PETSC_TRUE
     return
@@ -1148,7 +1149,7 @@ subroutine SubsurfaceSetupRealization(simulation)
   use Init_Common_module
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Reaction_Database_module
-  use EOS_Water_module
+  use EOS_module
   use Dataset_module
   use Patch_module
 
@@ -1158,7 +1159,6 @@ subroutine SubsurfaceSetupRealization(simulation)
 
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
-  PetscReal :: dum1
   PetscErrorCode :: ierr
 
   realization => simulation%realization
@@ -1166,13 +1166,8 @@ subroutine SubsurfaceSetupRealization(simulation)
 
   call PetscLogEventBegin(logging%event_setup,ierr);CHKERRQ(ierr)
 
-  ! initialize reference density
-  if (option%reference_water_density < 1.d-40) then
-    call EOSWaterDensity(option%reference_temperature, &
-                         option%reference_pressure, &
-                         option%reference_water_density, &
-                         dum1,ierr)
-  endif
+  ! set reference densities if not specified in input file.
+  call EOSReferenceDensity(option)
 
   ! read reaction database
   if (associated(realization%reaction)) then
@@ -1709,6 +1704,11 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
       case ('SPECIFIED_VELOCITY')
+        if (option%nflowdof > 0) then
+          option%io_buffer = 'SPECIFIED_VELOCITY fields may not be used &
+            &with a SUBSURFACE_FLOW mode.'
+          call printErrMsg(option)
+        endif
         internal_units = 'm/sec'
         flag1 = UNINITIALIZED_INTEGER ! uniform?
         do
@@ -1732,7 +1732,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                 error_string = 'SPECIFIED_VELOCITY,UNIFORM,DATASET'
                 dataset_ascii => DatasetAsciiCreate()
                 dataset_ascii%data_type = DATASET_REAL
-                dataset_ascii%array_width = 3 * option%nphase
+                dataset_ascii%array_width = 3 * &
+                  max(option%nphase,option%transport%nphase)
                 realization%uniform_velocity_dataset => dataset_ascii
 
                 string = input%buf
@@ -1972,12 +1973,24 @@ subroutine SubsurfaceReadInput(simulation,input)
                                       'Pa','Reference Pressure',option)
 !....................
 
-      case('REFERENCE_DENSITY')
+      case('REFERENCE_LIQUID_DENSITY')
         call InputReadStringErrorMsg(input,option,card)
-        call InputReadDouble(input,option,option%reference_water_density)
-        call InputErrorMsg(input,option,'Reference Density','value')
-        call InputReadAndConvertUnits(input,option%reference_water_density, &
-                                      'kg/m^3','Reference Density',option)
+        call InputReadDouble(input,option, &
+                             option%reference_density(option%liquid_phase))
+        call InputErrorMsg(input,option,'Reference Liquid Density','value')
+        call InputReadAndConvertUnits(input, &
+                              option%reference_density(option%liquid_phase), &
+                              'kg/m^3','Reference Density',option)
+!....................
+
+      case('REFERENCE_GAS_DENSITY')
+        call InputReadStringErrorMsg(input,option,card)
+        call InputReadDouble(input,option, &
+                             option%reference_density(option%gas_phase))
+        call InputErrorMsg(input,option,'Reference Gas Density','value')
+        call InputReadAndConvertUnits(input, &
+                              option%reference_density(option%gas_phase), &
+                              'kg/m^3','Reference Density',option)
 !....................
 
       case('MINIMUM_HYDROSTATIC_PRESSURE')

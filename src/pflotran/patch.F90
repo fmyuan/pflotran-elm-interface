@@ -370,6 +370,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
 #endif
 
   PetscInt :: temp_int, isub
+  PetscInt :: nphase
   PetscErrorCode :: ierr
 
   ! boundary conditions
@@ -731,9 +732,10 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
 
   temp_int = ConnectionGetNumberInList(patch%grid%internal_connection_set_list)
   temp_int = max(temp_int,1)
+  nphase = max(option%nphase,option%transport%nphase)
 
   ! all simulations
-  allocate(patch%internal_velocities(option%nphase,temp_int))
+  allocate(patch%internal_velocities(nphase,temp_int))
   patch%internal_velocities = 0.d0
 
   ! flow
@@ -747,7 +749,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
 
   ! transport
   if (option%ntrandof > 0) then
-    allocate(patch%internal_tran_coefs(option%ntrandof,option%nphase,temp_int))
+    allocate(patch%internal_tran_coefs(option%ntrandof,nphase,temp_int))
     patch%internal_tran_coefs = 0.d0
     if (option%transport%store_fluxes) then
       allocate(patch%internal_tran_fluxes(option%ntrandof,temp_int))
@@ -759,7 +761,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
 
   if (temp_int > 0) then
     ! all simulations
-    allocate(patch%boundary_velocities(option%nphase,temp_int))
+    allocate(patch%boundary_velocities(nphase,temp_int))
     patch%boundary_velocities = 0.d0
     ! flow
     if (option%nflowdof > 0) then
@@ -776,7 +778,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     endif
     ! transport
     if (option%ntrandof > 0) then
-      allocate(patch%boundary_tran_coefs(option%ntrandof,option%nphase, &
+      allocate(patch%boundary_tran_coefs(option%ntrandof,nphase, &
                                          temp_int))
       patch%boundary_tran_coefs = 0.d0
       if (option%transport%store_fluxes) then
@@ -794,7 +796,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
       patch%ss_flow_fluxes = 0.d0
       if (option%nwells > 0) then
         ! needed by wells
-        allocate(patch%ss_flow_vol_fluxes(option%nphase,temp_int))
+        allocate(patch%ss_flow_vol_fluxes(nphase,temp_int))
         patch%ss_flow_vol_fluxes = 0.d0
       end if
     endif
@@ -803,7 +805,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
       allocate(patch%ss_tran_fluxes(option%ntrandof,temp_int))
       patch%ss_tran_fluxes = 0.d0
       ! only needed by transport
-      allocate(patch%ss_flow_vol_fluxes(option%nphase,temp_int))
+      allocate(patch%ss_flow_vol_fluxes(nphase,temp_int))
       patch%ss_flow_vol_fluxes = 0.d0
     endif
   endif
@@ -3935,9 +3937,18 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
       else
         global_auxvar%pres = option%reference_pressure
         global_auxvar%temp = option%reference_temperature
-        global_auxvar%den_kg = option%reference_water_density
+        global_auxvar%den_kg(option%liquid_phase) = &
+          option%reference_density(option%liquid_phase)
       endif
       global_auxvar%sat = option%reference_saturation
+
+      if (option%transport%nphase > 1) then
+        ! gas phase not considered explicitly on flow side
+        global_auxvar%den_kg(option%gas_phase) = &
+          option%reference_density(option%gas_phase)
+        global_auxvar%sat(option%gas_phase) = &
+          1.d0 - global_auxvar%sat(option%liquid_phase)
+      endif
 
       call ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                             material_auxvar, &
@@ -3997,12 +4008,12 @@ subroutine PatchUpdateUniformVelocity(patch,velocity,option)
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn, sum_connection, iphase
-  PetscReal :: phase_velocity(3,option%nphase)
+  PetscReal :: phase_velocity(3,option%transport%nphase)
   PetscReal :: vdarcy
 
   grid => patch%grid
 
-  do iphase = 0, option%nphase-1
+  do iphase = 0, option%transport%nphase-1
     phase_velocity(1:3,iphase+1) = velocity(1+iphase*3:3+iphase*3)
   enddo
 
@@ -4013,7 +4024,7 @@ subroutine PatchUpdateUniformVelocity(patch,velocity,option)
     if (.not.associated(cur_connection_set)) exit
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
-      do iphase = 1, option%nphase
+      do iphase = 1, option%transport%nphase
         vdarcy = dot_product(phase_velocity(:,iphase), &
                              cur_connection_set%dist(1:3,iconn))
         patch%internal_velocities(iphase,sum_connection) = vdarcy
@@ -4030,7 +4041,7 @@ subroutine PatchUpdateUniformVelocity(patch,velocity,option)
     cur_connection_set => boundary_condition%connection_set
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
-      do iphase = 1, option%nphase
+      do iphase = 1, option%transport%nphase
         vdarcy = dot_product(phase_velocity(:,iphase), &
                              cur_connection_set%dist(1:3,iconn))
         patch%boundary_velocities(1,sum_connection) = vdarcy
