@@ -1257,7 +1257,7 @@ subroutine RichardsResidualPreliminaries(xx,r,realization,ierr)
   implicit none
 
   Vec, intent(inout) :: xx
-  Vec, intent(out) :: r
+  Vec, intent(inout) :: r
   type(realization_subsurface_type) :: realization
 
   type(patch_type), pointer :: patch
@@ -2089,7 +2089,7 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
   
   implicit none
 
-  Mat, intent(out) :: A
+  Mat, intent(inout) :: A
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
@@ -2326,7 +2326,7 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
   
   implicit none
 
-  Mat, intent(out) :: A
+  Mat, intent(inout) :: A
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
@@ -2504,7 +2504,7 @@ subroutine RichardsJacobianAccumulation(A,realization,ierr)
   
   implicit none
 
-  Mat, intent(out) :: A
+  Mat, intent(inout) :: A
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
@@ -2615,7 +2615,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
     
   implicit none
 
-  Mat, intent(out) :: A
+  Mat, intent(inout) :: A
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
