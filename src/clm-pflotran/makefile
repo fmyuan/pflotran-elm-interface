@@ -536,7 +536,7 @@ libpflotranchem.a : $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
 	$(AR) $(ARFLAGS) $@ $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
 
 pflotran_interface : libpflotran.a $(pflotran_interface_test_obj)
-	${FLINKER} -o $@ libpflotran.a $(pflotran_interface_test_obj) ${PETSC_LIB} ${LIBS} 
+	${FLINKER} -o $@ $(pflotran_interface_test_obj) libpflotran.a ${PETSC_LIB} ${LIBS} 
 
 pflotran_rxn : remove_linked_files link_files libpflotranchem.a $(pflotran_rxn_obj)
 	${FLINKER} -o $@ $(pflotran_rxn_obj) -L. -lpflotranchem ${PETSC_LIB} ${LIBS} 
