@@ -72,7 +72,7 @@ program pflotran_interface_main
     deallocate(strings)
     nullify(strings)
   else if (input_prefix_option_found) then
-    filename = trim(option%input_prefix) // '.in'
+    filename = trim(option%input_prefix)
  endif
 
  call OptionDestroy(option)
