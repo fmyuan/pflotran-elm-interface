@@ -5009,7 +5009,7 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   PetscReal :: dtotal(reaction%naqcomp,reaction%naqcomp,2)
   PetscReal :: dtotalsorb(reaction%naqcomp,reaction%naqcomp)
   PetscReal :: pert
-  PetscInt :: max_phase
+  PetscInt :: nphase
   type(reactive_transport_auxvar_type) :: rt_auxvar_pert
 #endif
 
@@ -5024,8 +5024,7 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
 
 #if 0
 ! numerical check
-  max_phase = 1
-  if (reaction%gas%nactive_gas > 0) max_phase = 2
+  nphase = reaction%nphase
   Res_orig = 0.d0
   dtotal = 0.d0
   dtotalsorb = 0.d0
@@ -5065,7 +5064,7 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
                            rt_auxvar%total(:,2))/pert
     endif    
   enddo
-  do iphase = 1, max_phase
+  do iphase = 1, nphase
     do icomp = 1, reaction%naqcomp
       do jcomp = 1, reaction%naqcomp
         if (dabs(dtotal(icomp,jcomp,iphase)) < 1.d-16) &

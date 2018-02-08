@@ -87,7 +87,7 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   PetscReal :: harmonic_dispersion_over_dist(rt_parameter%naqcomp, &
                                              rt_parameter%nphase)
   
-  PetscInt :: iphase, max_phase
+  PetscInt :: iphase, nphase
   PetscReal :: dist_up, dist_dn
   PetscReal :: sat_up, sat_dn
   PetscReal :: velocity_dn(3), velocity_up(3)
@@ -106,15 +106,14 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   PetscReal :: hydrodynamic_dispersion_dn(rt_parameter%naqcomp)
   PetscReal :: t_ref_inv
 
-  max_phase = 1
-  if (rt_parameter%ngas > 0) max_phase = 2
+  nphase = reaction%nphase
   
   harmonic_dispersion_over_dist(:,:) = 0.d0    
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up, &
                                     dist_dn,distance_gravity, &
                                     upwind_weight)
-  do iphase = 1, max_phase
+  do iphase = 1, nphase
     sat_up = global_auxvar_up%sat(iphase)
     sat_dn = global_auxvar_dn%sat(iphase)
     ! skip phase if it does not exist on either side of the connection
@@ -259,7 +258,7 @@ subroutine TDispersionBC(ibndtype, &
   PetscReal :: harmonic_dispersion_over_dist(rt_parameter%naqcomp, &
                                              rt_parameter%nphase)
   
-  PetscInt :: iphase, max_phase
+  PetscInt :: iphase, nphase
   PetscReal :: spD
   PetscReal :: sat_up, sat_dn
   PetscReal :: velocity_dn(3)
@@ -274,12 +273,11 @@ subroutine TDispersionBC(ibndtype, &
   PetscReal :: hydrodynamic_dispersion(rt_parameter%naqcomp)
   PetscReal :: t_ref_inv
 
-  max_phase = 1
-  if (rt_parameter%ngas > 0) max_phase = 2
+  nphase = rt_parameter%nphase
   
   harmonic_dispersion_over_dist(:,:) = 0.d0    
 
-  do iphase = 1, max_phase
+  do iphase = 1, nphase
     ! we use upwind saturation as that is the saturation at the boundary face
     sat_up = global_auxvar_up%sat(iphase)
     sat_dn = global_auxvar_dn%sat(iphase)
@@ -548,12 +546,11 @@ subroutine TFluxDerivative(rt_parameter, &
   PetscInt :: idof
   PetscInt :: istart
   PetscInt :: iendaq
-  PetscInt :: max_phase
+  PetscInt :: nphase
   PetscInt :: irow
   PetscInt :: neg999
  
-  max_phase = 1
-  if (rt_parameter%ngas > 0) max_phase = 2
+  nphase = rt_parameter%nphase
   
   ! units = (m^3 water/sec)*(kg water/L water)*(1000L water/m^3 water)
   !       = kg water/sec
@@ -561,7 +558,7 @@ subroutine TFluxDerivative(rt_parameter, &
   iendaq = rt_parameter%naqcomp
   J_up = 0.d0
   J_dn = 0.d0
-  do iphase = 1, max_phase
+  do iphase = 1, nphase
     if (associated(rt_auxvar_dn%aqueous%dtotal)) then
       do irow = istart, iendaq
         J_up(irow,istart:iendaq) = &
@@ -649,13 +646,12 @@ subroutine TFluxDerivative_CD(rt_parameter, &
   PetscInt :: idof
   PetscInt :: istart
   PetscInt :: iendaq
-  PetscInt :: max_phase
+  PetscInt :: nphase
   PetscInt :: irow
   PetscInt :: icomp
   PetscInt :: neg999
   
-  max_phase = 1
-  if (rt_parameter%ngas > 0) max_phase = 2
+  nphase = rt_parameter%nphase
   
   ! units = (m^3 water/sec)*(kg water/L water)*(1000L water/m^3 water) = kg water/sec
   istart = 1
@@ -664,7 +660,7 @@ subroutine TFluxDerivative_CD(rt_parameter, &
   J_12 = 0.d0
   J_21 = 0.d0
   J_22 = 0.d0
-  do iphase = 1, max_phase
+  do iphase = 1, nphase
     if (associated(rt_auxvar_dn%aqueous%dtotal)) then
       do irow = istart, iendaq
         J_11(irow,istart:iendaq) = &
@@ -771,15 +767,14 @@ subroutine TFluxCoef(rt_parameter,option,area,velocity, &
   PetscReal :: T_up(rt_parameter%naqcomp,rt_parameter%nphase)
   PetscReal :: T_dn(rt_parameter%naqcomp,rt_parameter%nphase)
 
-  PetscInt :: iphase, max_phase
+  PetscInt :: iphase, nphase
   PetscReal :: coef_up(rt_parameter%naqcomp)
   PetscReal :: coef_dn(rt_parameter%naqcomp)
   PetscReal :: q
   
-  max_phase = 1
-  if (rt_parameter%ngas > 0) max_phase = 2
+  nphase = rt_parameter%nphase
   
-  do iphase = 1, max_phase
+  do iphase = 1, nphase
     q = velocity(iphase)
 
     if (option%use_upwinding) then
