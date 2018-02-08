@@ -5,7 +5,7 @@ program pflotran_interface_main
 
   use petscsys
   use petscvec
-  use pflotran_model_module, only : pflotran_model_type, pflotranModelCreate, &
+  use pflotran_model_module         , only : pflotran_model_type, pflotranModelCreate, &
        pflotranModelInitMapping, pflotranModelStepperRunInit, &
        pflotranModelStepperRunTillPauseTime, pflotranModelDestroy, &
        CLM_SRF_TO_PF_SRF, PF_SRF_TO_CLM_SRF
@@ -13,46 +13,71 @@ program pflotran_interface_main
   use Mapping_module
   use Input_Aux_module
   use Option_module
+  use Input_Aux_module
+  use String_module
   
-  use Simulation_Base_class, only : simulation_base_type
-  use Simulation_Subsurface_class, only : simulation_subsurface_type
-  use Simulation_Surface_class, only : simulation_surface_type
-  use Simulation_Surf_Subsurf_class, only : simulation_surfsubsurface_type
-  use Realization_Base_class, only : realization_base_type
-  use Realization_surface_class, only : realization_surface_type
+  use Simulation_Base_class         , only : simulation_base_type
+  use Simulation_Subsurface_class   , only : simulation_subsurface_type
+  use Simulation_Surface_class      , only : simulation_surface_type
+  use Simulation_Surf_Subsurf_class , only : simulation_surfsubsurface_type
+  use Realization_Base_class        , only : realization_base_type
+  use Realization_surface_class     , only : realization_surface_type
 
   use PFLOTRAN_Constants_module
 
   implicit none
 
 
-  type(pflotran_model_type), pointer  :: pflotran_m
-  class(realization_base_type), pointer :: realization
-  class(realization_surface_type), pointer :: surf_realization
+  type(pflotran_model_type)       , pointer :: pflotran_m
+  class(realization_base_type)    , pointer :: realization
+  class(realization_surface_type) , pointer :: surf_realization
 
   
-  PetscErrorCode :: ierr
-  PetscInt :: time
+  PetscErrorCode                            :: ierr
+  PetscInt                                  :: time
 
-  PetscInt, pointer                  :: clm_cell_ids(:), clm_surf_cell_ids(:)
-  PetscInt                           :: clm_npts, clm_surf_npts, ii, fileid, num_u_a, jj
-  PetscInt                           :: npts
-  PetscInt           :: ntimes
-  Vec :: myvec
+  PetscInt                        , pointer :: clm_cell_ids(:), clm_surf_cell_ids(:)
+  PetscInt                                  :: clm_npts, clm_surf_npts, ii
+  PetscInt                                  :: ntimes
 
   ! To read HDF5 soil properties  
-  character(len=MAXSTRINGLENGTH)     :: filename
-  character(len=MAXSTRINGLENGTH)     :: group_name
-  character(len=MAXSTRINGLENGTH)     :: dataset_name
-  character(len=MAXWORDLENGTH)       :: card
+  character(len=MAXSTRINGLENGTH)            :: filename
+  character(len=MAXSTRINGLENGTH)            :: string
+  PetscBool                                 :: pflotranin_option_found
+  PetscBool                                 :: input_prefix_option_found
+  character(len=MAXSTRINGLENGTH)  , pointer :: strings(:)
+  type(option_type)               , pointer :: option
 
-  PetscInt :: PRINT_RANK    
+  PetscInt                                  :: PRINT_RANK    
   PRINT_RANK = 0
 
   call MPI_Init(ierr)
+ 
+  ! Determine the pflotran inputdeck
+  option => OptionCreate()
+  string = '-pflotranin'
+  call InputGetCommandLineString(string,option%input_filename, &
+                                 pflotranin_option_found,option)
+  string = '-input_prefix'
+  call InputGetCommandLineString(string,option%input_prefix, &
+                                 input_prefix_option_found,option)
+  
+  if (pflotranin_option_found .and. input_prefix_option_found) then
+    option%io_buffer = 'Cannot specify both "-pflotranin" and ' // &
+      '"-input_prefix" on the command lines.'
+    call printErrMsg(option)
+  else if (pflotranin_option_found) then
+    strings => StringSplit(option%input_filename,'.')
+    filename = strings(1)
+    deallocate(strings)
+    nullify(strings)
+  else if (input_prefix_option_found) then
+    filename = trim(option%input_prefix) // '.in'
+ endif
+
+ call OptionDestroy(option)
 
   ! Create the model
-  filename = 'pflotran'
   pflotran_m => pflotranModelCreate(MPI_COMM_WORLD, filename)
 
   select type (simulation => pflotran_m%simulation)

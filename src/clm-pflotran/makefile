@@ -498,16 +498,22 @@ pflotran_interface_test_obj = ${pflotran_src}pflotran_interface_main.o
 
 pflotran_rxn_obj = ${pflotran_src}pflotran_rxn.o
 
-libpflotran.a : $(lib_pflotran_obj)
+remove_linked_files :
+	./remove_linked_files.sh
+
+link_files :
+	./link_files.sh
+
+libpflotran.a : remove_linked_files link_files $(lib_pflotran_obj)
 	$(AR) $(ARFLAGS) $@ $(lib_pflotran_obj)
 
-libpflotranchem.a : $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
+libpflotranchem.a : remove_linked_files link_files $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
 	$(AR) $(ARFLAGS) $@ $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
 
-pflotran_interface : libpflotran.a $(pflotran_interface_test_obj)
+pflotran_interface : remove_linked_files link_files libpflotran.a $(pflotran_interface_test_obj)
 	${FLINKER} -o $@ libpflotran.a $(pflotran_interface_test_obj) ${PETSC_LIB} ${LIBS} 
 
-pflotran_rxn : libpflotranchem.a $(pflotran_rxn_obj)
+pflotran_rxn : remove_linked_files link_files libpflotranchem.a $(pflotran_rxn_obj)
 	${FLINKER} -o $@ $(pflotran_rxn_obj) -L. -lpflotranchem ${PETSC_LIB} ${LIBS} 
 
 pflotran_provenance.F90 : FORCE

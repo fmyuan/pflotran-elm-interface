@@ -8,6 +8,6 @@ done
 #    rm -f ${file##*/}
 #done
 
-for file in `ls ../pflotran/*.h`; do
-    rm -f ${file##*/}
-done
+#for file in `ls ../pflotran/*.h`; do
+#    rm -f ${file##*/}
+#done
