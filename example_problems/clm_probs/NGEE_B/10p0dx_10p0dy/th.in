@@ -1,6 +1,14 @@
 !Description! 1D test problem for THC mode
-!===================== THC mode ===============================
-MODE TH NO_FREEZING
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE TH NO_FREEZING
+    /
+  /
+END
+
+SUBSURFACE
 
 !===================== Discretization =========================
 GRID
@@ -37,6 +45,7 @@ SATURATION_FUNCTION default
 /
 
 !========================= output options =========================
+skip
 OUTPUT
   !TIMES y 0.25d0 0.5d0 0.75d0 2.d0
   !SCREEN PERIODIC 10
@@ -45,6 +54,7 @@ OUTPUT
   FORMAT HDF5
   !VELOCITIES
 /
+noskip
 
 !======================== times ====================================
 TIME
@@ -56,12 +66,10 @@ TIME
 !=========================== regions ===============================
 REGION all
   FILE B_10p0dx_10p0dy_10nz_clm_depths.h5
-  GRID unstructured
 END
 
 REGION top
   FILE B_10p0dx_10p0dy_10nz_clm_depths.h5
-  GRID unstructured
 END
 
 !======================= flow conditions ===============================
@@ -88,10 +96,10 @@ END
 FLOW_CONDITION gflux
   TYPE
    PRESSURE neumann
-   TEMPERATURE neumann
+   ENERGY_FLUX neumann
   /
   FLUX  0.D0
-  TEMPERATURE 0.d0
+  ENERGY_FLUX 0.d0 MW/m^2
 END
 
 !========================== initial and boundary conditions =================
@@ -116,6 +124,8 @@ STRATA
   REGION all
   MATERIAL soil1
 END
+
+END_SUBSURFACE
 
 !===================== mapping files ==============================
 MAPPING_FILES
