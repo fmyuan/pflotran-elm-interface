@@ -7,6 +7,31 @@ pflotran_test_dir = ../../regression_tests
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
 
+TEST_MANAGER = ../../regression_tests/regression_tests.py
+PFLOTRAN = pflotran_interface
+
+TEST_OPTIONS =
+
+# make PERFORMANCE=true check
+ifdef PERFORMANCE
+	TEST_OPTIONS += --check-performance
+endif
+
+ifdef BACKTRACE
+	TEST_OPTIONS += --backtrace
+endif
+
+ifdef TIMEOUT
+	TEST_OPTIONS += --timeout $(TIMEOUT)
+endif
+
+ifneq ($(strip $(MPIEXEC)),)
+	TEST_OPTIONS += --mpiexec $(MPIEXEC)
+endif
+
+STANDARD_CFG = \
+	regression_tests/clm_pflotran.cfg
+
 MYFLAGS = -I.
 MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL
 MYFLAGS += ${FC_DEFINE_FLAG}CHUAN_CO2
@@ -526,9 +551,30 @@ else
 	@if test ! -f pflotran_provenance.F90; then cp pflotran_no_provenance.F90 pflotran_provenance.F90; fi
 endif
 
-# do these files exist anymore?
-#test: functions.o test.o
-#	${FLINKER} -o test test.o functions.o $(LIBS) $(PETSC_LIB)
+# developer level regression testing
+test : standard
+
+standard :
+	$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--suite standard standard_parallel \
+		--config-files $(STANDARD_CFG)
+
+clean-tests :
+	-find . -type f -name '*.testlog'    -print0 | xargs -0 rm
+	-find . -type f -name '*.out'        -print0 | xargs -0 rm
+	-find . -type f -name '*.tec'        -print0 | xargs -0 rm
+	-find . -type f -name '*.regression' -print0 | xargs -0 rm
+	-find . -type f -name '*.stdout'     -print0 | xargs -0 rm
+	-find . -type f -name '*.old'        -print0 | xargs -0 rm
+
+# user lever tests to verify pflotran is built correctly
+check : FORCE
+	@if [ -d $(pflotran_test_dir) ]; then \
+		$(MAKE) --directory=$(pflotran_test_dir) $(MAKECMDGOALS); \
+	fi
+
+# null rule to force things to happen
+FORCE :
 
 # Should add this to default PETSc targets as well?
 %.mod : %.F90
@@ -1525,24 +1571,4 @@ wipp_flow_common.o : bragflo_common.o connection.o eos_gas.o eos_water.o \
                      wipp_flow_aux.o
 wrapper_hydrogeophysics.o : e4d_run.o e4d_setup.o e4d_vars.o option.o \
                             pflotran_constants.o
-
-# developer level regression testing
-test : FORCE
-	@if [ -d $(pflotran_test_dir) ]; then \
-		$(MAKE) --directory=$(pflotran_test_dir) $(MAKECMDGOALS); \
-	fi
-
-clean-tests : FORCE
-	@if [ -d $(pflotran_test_dir) ]; then \
-		$(MAKE) --directory=$(pflotran_test_dir) $(MAKECMDGOALS); \
-	fi
-
-# user lever tests to verify pflotran is built correctly
-check : FORCE
-	@if [ -d $(pflotran_test_dir) ]; then \
-		$(MAKE) --directory=$(pflotran_test_dir) $(MAKECMDGOALS); \
-	fi
-
-# null rule to force things to happen
-FORCE :
 

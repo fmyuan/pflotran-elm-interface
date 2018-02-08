@@ -354,4 +354,7 @@ src/clm-pflotran/wipp_flow_aux.F90
 src/clm-pflotran/wipp_flow_common.F90
 src/clm-pflotran/wipp_flow_derivative.F90
 src/clm-pflotran/wrapper_hydrogeophysics.F90
+src/clm-pflotran/pflotran_provenance.F90
+src/clm-pflotran/libpflotran.a
+src/clm-pflotran/pflotran_interface
 
