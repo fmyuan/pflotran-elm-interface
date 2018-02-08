@@ -106,7 +106,7 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   PetscReal :: hydrodynamic_dispersion_dn(rt_parameter%naqcomp)
   PetscReal :: t_ref_inv
 
-  nphase = reaction%nphase
+  nphase = rt_parameter%nphase
   
   harmonic_dispersion_over_dist(:,:) = 0.d0    
 
