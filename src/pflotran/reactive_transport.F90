@@ -114,6 +114,8 @@ subroutine RTSetup(realization)
                                              SecondaryAuxRTCreate
   use Secondary_Continuum_module, only : SecondaryRTAuxVarInit
   use Output_Aux_module
+  use Generic_module
+  use String_module
  
   implicit none
 
@@ -133,7 +135,9 @@ subroutine RTSetup(realization)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_property_type), pointer :: cur_material_property
   type(reactive_transport_param_type), pointer :: rt_parameter
+  type(generic_parameter_type), pointer :: cur_generic_parameter
 
+  character(len=MAXWORDLENGTH) :: word
   PetscInt :: ghosted_id, iconn, sum_connection
   PetscInt :: iphase, local_id, i
   PetscBool :: error_found
@@ -299,17 +303,81 @@ subroutine RTSetup(realization)
   patch%aux%RT%num_aux_ss = sum_connection
   option%iflag = 0
 
+  ! ensure that active gas species only have one aqueous counterpart
+  do i = 1, reaction%gas%nactive_gas
+    if (reaction%gas%acteqspecid(0,i) > 1) then
+      write(word,*) reaction%gas%acteqspecid(0,i)
+      option%io_buffer = 'Acdtive gas species "' // &
+        trim(reaction%gas%active_names(i)) // '" is associated with ' // &
+        trim(adjustl(word)) // ' aqueous species when it may only be &
+        &associated with 1.'
+    endif
+  enddo
+
   ! initialize parameters
   cur_fluid_property => realization%fluid_properties
   do 
     if (.not.associated(cur_fluid_property)) exit
     iphase = cur_fluid_property%phase_id
+    ! setting of phase diffusion coefficients must come before individual
+    ! species below
     rt_parameter%diffusion_coefficient(:,iphase) = &
       cur_fluid_property%diffusion_coefficient
     rt_parameter%diffusion_activation_energy(:) = &
       cur_fluid_property%diffusion_activation_energy
     cur_fluid_property => cur_fluid_property%next
   enddo
+
+  ! overwrite diffusion coefficients with species specific values
+  ! aqueous diffusion
+  iphase = option%liquid_phase
+  cur_generic_parameter => reaction%aq_diffusion_coefficients
+  do
+    if (.not.associated(cur_generic_parameter)) exit
+    i = GetPrimarySpeciesIDFromName(cur_generic_parameter%name, &
+                                    reaction,PETSC_FALSE,option)
+    if (Uninitialized(i)) then
+      option%io_buffer = 'Species "' // trim(cur_generic_parameter%name) // &
+        '" listed in aqueous diffusion coefficient list not found among &
+        &aqueous species.'
+      call printErrMsg(option)
+    endif
+    rt_parameter%diffusion_coefficient(i,iphase) = &
+        cur_generic_parameter%rvalue
+    cur_generic_parameter => cur_generic_parameter%next
+  enddo
+  if (associated(reaction%gas_diffusion_coefficients)) then
+    if (rt_parameter%nphase <= 1) then
+      option%io_buffer = 'GAS_DIFFUSION_COEFFICIENTS may not be set when &
+        &INCLUDE_GAS_PHASE is not included in the SIMULATION,&
+        &SUBSURFACE_TRANSPORT block.'
+      call printErrMsg(option)
+    endif
+    ! gas diffusion
+    iphase = option%gas_phase
+    cur_generic_parameter => reaction%gas_diffusion_coefficients
+    do
+      if (.not.associated(cur_generic_parameter)) exit
+      do i = 1, reaction%gas%nactive_gas
+        if (StringCompare(cur_generic_parameter%name, &
+                          reaction%gas%active_names(i))) then
+          ! maps gas to aqueous primary species, for which there should only
+          ! be one per gas
+          rt_parameter%diffusion_coefficient(reaction%gas%acteqspecid(1,i), &
+                                             iphase) = &
+            cur_generic_parameter%rvalue
+          exit
+        endif
+      enddo
+      if (i > reaction%gas%nactive_gas) then
+        option%io_buffer = 'Species "' // trim(cur_generic_parameter%name) // &
+          '" listed in gas diffusion coefficient list has no aqueous &
+          &counterpart'
+        call printErrMsg(option)
+      endif
+      cur_generic_parameter => cur_generic_parameter%next
+    enddo
+  endif
  
   list => realization%output_option%output_snap_variable_list
   call RTSetPlotVariables(list,reaction,option, &

@@ -129,6 +129,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                                TOTAL_MOLALITY, TOTAL_MOLARITY, &
                                SECONDARY_MOLALITY, SECONDARY_MOLARITY
   use CLM_Rxn_module, only : RCLMRxnRead
+  use Generic_module
   
   implicit none
   
@@ -137,6 +138,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   type(option_type) :: option
   
   character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: error_string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name
   character(len=MAXWORDLENGTH) :: card
@@ -154,6 +156,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   type(radioactive_decay_rxn_type), pointer :: prev_radioactive_decay_rxn
   type(kd_rxn_type), pointer :: kd_rxn, prev_kd_rxn
   type(kd_rxn_type), pointer :: sec_cont_kd_rxn, sec_cont_prev_kd_rxn
+  type(generic_parameter_type), pointer :: generic_list
   PetscInt :: i, temp_int
   PetscReal :: temp_real
   PetscInt :: srfcplx_count
@@ -242,6 +245,34 @@ subroutine ReactionReadPass1(reaction,input,option)
           prev_species => species
           nullify(species)
         enddo
+      case('AQUEOUS_DIFFUSION_COEFFICIENTS','GAS_DIFFUSION_COEFFICIENTS')
+        card = word
+        select case(card)
+          case('AQUEOUS_DIFFUSION_COEFFICIENTS')
+            error_string = 'CHEMISTRY,AQUEOUS_DIFFUSION_COEFFICIENTS'
+          case('GAS_DIFFUSION_COEFFICIENTS')
+            error_string = 'CHEMISTRY,GAS_DIFFUSION_COEFFICIENTS'
+        end select
+        nullify(generic_list)
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit
+          call InputReadWord(input,option,word,PETSC_TRUE)  
+          call InputErrorMsg(input,option,'name',error_string)
+          call InputReadDouble(input,option,temp_real)
+          call InputErrorMsg(input,option, &
+                             trim(word)//' coefficient',error_string)
+          call InputReadAndConvertUnits(input,temp_real,'m^2/sec', &
+                                        error_string//','//trim(name),option)
+          call GenericParameterAddToList(generic_list, &
+                 GenericParameterCreate(word,UNINITIALIZED_INTEGER,temp_real))
+        enddo
+        select case(card)
+          case('AQUEOUS_DIFFUSION_COEFFICIENTS')
+            reaction%aq_diffusion_coefficients => generic_list
+          case('GAS_DIFFUSION_COEFFICIENTS')
+            reaction%gas_diffusion_coefficients => generic_list
+        end select
       case('ACTIVE_GAS_SPECIES')
         string = 'CHEMISTRY,ACTIVE_GAS_SPECIES'
         call RGasRead(reaction%gas%list,ACTIVE_GAS,string,input,option)
@@ -961,8 +992,9 @@ subroutine ReactionReadPass2(reaction,input,option)
       case('PRIMARY_SPECIES','SECONDARY_SPECIES','GAS_SPECIES', &
             'MINERALS','COLLOIDS','GENERAL_REACTION', &
             'IMMOBILE_SPECIES','RADIOACTIVE_DECAY_REACTION', &
-            'IMMOBILE_DECAY_REACTION','ACTIVE_GAS_SPECIES', &
-            'PASSIVE_GAS_SPECIES')
+            'IMMOBILE_DECAY_REACTION', &
+            'ACTIVE_GAS_SPECIES','PASSIVE_GAS_SPECIES', &
+            'AQUEOUS_DIFFUSION_COEFFICIENTS','GAS_DIFFUSION_COEFFICIENTS')
         call InputSkipToEND(input,option,card)
       case('REDOX_SPECIES')
         call ReactionReadRedoxSpecies(reaction,input,option)
