@@ -1035,10 +1035,14 @@ subroutine KlinkenbergScale(this,liquid_permeability,gas_pressure, &
   
   PetscInt :: i
   
-  do i = 1, 3
-    permeability_scale(i) = (1.d0 + &
+  if (gas_pressure > 0.d0) then
+    do i = 1, 3
+      permeability_scale(i) = (1.d0 + &
                     this%b * (liquid_permeability(i)**this%a) / gas_pressure)
-  enddo
+    enddo
+  else
+    permeability_scale = 1.d0
+  endif
   
 end subroutine KlinkenbergScale
 
