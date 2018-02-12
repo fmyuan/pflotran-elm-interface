@@ -90,7 +90,7 @@ module Material_Aux_class
   public :: MaterialCompressSoilDummy, &
             MaterialCompressSoilPtr, &
             MaterialCompressSoil, &
-            MaterialCompressSoilBragflo, &
+            MaterialCompressSoilBRAGFLO, &
             MaterialCompressSoilPoroExp, &
             MaterialCompressSoilLeijnse, &
             MaterialCompressSoilLinear, &
