@@ -997,7 +997,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
       wippflo_residual_test_cell  > 0) then
     local_end = wippflo_residual_test_cell * option%nflowdof
     local_start = local_end - option%nflowdof + 1
-    write(*,'(" Aold: ",2es12.4,i4)') &
+    write(*,'(" Aold: ",2es12.4,i5)') &
       -1.d0*r_p(local_start:local_end)/option%flow_dt, &
       wippflo_residual_test_cell
   endif
@@ -1023,14 +1023,14 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
     if (wippflo_residual_test .and. &
         wippflo_residual_test_cell == local_id) then
       write(*,'(" DT[y]: ",es12.4)') option%flow_dt/3600.d0/24.d0/365.d0
-      write(*,'(" A(calc): ",i4,8es12.4)') &
+      write(*,'(" A(calc): ",i5,8es12.4)') &
         wippflo_residual_test_cell, &
         wippflo_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity, &
         wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(1), &
         wippflo_auxvars(ZERO_INTEGER,ghosted_id)%sat(1), &
         wippflo_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(2), &
         wippflo_auxvars(ZERO_INTEGER,ghosted_id)%sat(2)
-      write(*,'(" A: ",2es12.4,i4)') &
+      write(*,'(" A: ",2es12.4,i5)') &
         Res(:)/option%flow_dt, wippflo_residual_test_cell
     endif
   enddo
@@ -1125,7 +1125,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
         if ((wippflo_jacobian_test .and. wippflo_jacobian_test_rdof > 0) .or. &
             (wippflo_residual_test .and. &
              wippflo_residual_test_cell  == local_id_up)) then
-          write(*,'(" Fup: ",2es12.4,2i4)') -1.d0*temp_Res/option%flow_dt, &
+          write(*,'(" Fup: ",2es12.4,2i5)') -1.d0*temp_Res/option%flow_dt, &
             local_id_up, local_id_dn 
 !          write(*,'("      ",8es12.4)') cur_connection_set%area(iconn), &
 !            2.d0*(cur_connection_set%dist(0,iconn)* &
@@ -1146,7 +1146,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
         if ((wippflo_jacobian_test .and. wippflo_jacobian_test_rdof > 0) .or. &
             (wippflo_residual_test .and. &
              wippflo_residual_test_cell  == local_id_dn)) then
-          write(*,'(" Fdn: ",2es12.4,2i4)') temp_Res/option%flow_dt, &
+          write(*,'(" Fdn: ",2es12.4,2i5)') temp_Res/option%flow_dt, &
             local_id_up, local_id_dn
 !          write(*,'("      ",8es12.4)') cur_connection_set%area(iconn), &
 !            2.d0*(cur_connection_set%dist(0,iconn)* &
@@ -1219,7 +1219,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
       if ((wippflo_jacobian_test .and. wippflo_jacobian_test_rdof > 0) .or. &
           (wippflo_residual_test .and. &
            wippflo_residual_test_cell  == local_id)) then
-        write(*,'(" BCF: ",2es12.4,i4 )') Res/option%flow_dt, local_id
+        write(*,'(" BCF: ",2es12.4,i5 )') Res/option%flow_dt, local_id
       endif
 
     enddo
