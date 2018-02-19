@@ -71,7 +71,9 @@ STANDARD_CFG = \
 	shortcourse/regional_doublet/regional_doublet.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
 	toil_ims/toil_ims.cfg \
-	towg/towg.cfg \
+	towg/ims/towg_ims.cfg \
+	towg/tl/towg_tl.cfg \
+	towg/bo/towg_bo.cfg \
 	ufd/ufd.cfg \
 	wipp/nuts/nuts.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg \
@@ -121,8 +123,10 @@ FLOW_CFG = \
 	default/scco2/mphase/mphase.cfg \
 	default/scco2/flash2/flash2.cfg \
 	general/general.cfg \
-        toil_ims/toil_ims.cfg \
-	towg/towg.cfg \
+	toil_ims/toil_ims.cfg \
+	towg/ims/towg_ims.cfg \
+	towg/tl/towg_tl.cfg \
+	towg/bo/towg_bo.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg
@@ -188,19 +192,19 @@ standard_parallel :
 		--suite standard_parallel \
 		--config-files $(STANDARD_CFG)
 
-check : 
+check :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--suite standard standard_parallel \
 		--config-files $(CHECK_CFG)
 
 geochemistry :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
-		--config-files $(GEOCHEMISTRY_CFG) --suite geochemistry 
+		--config-files $(GEOCHEMISTRY_CFG) --suite geochemistry
 
 geomechanics :
 ifneq ($(strip $(PARMETIS_LIB)),)
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
-		--config-files $(GEOMECHANICS_CFG) --suite geomechanics 
+		--config-files $(GEOMECHANICS_CFG) --suite geomechanics
 else
 	@echo "********************************************************"
 	@echo "  PFLOTRAN does not appear to be compiled with Parmetis."
@@ -227,9 +231,9 @@ else
 	@echo "********************************************************"
 endif
 
-ngee-biogeochemistry : 
+ngee-biogeochemistry :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
-		-r ngee --suite biogeochemistry 
+		-r ngee --suite biogeochemistry
 
 test_mimetic :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
@@ -263,7 +267,7 @@ clean-tests :
 	-find . -type f -name 'tmp-restart-*' -print0 | xargs -0 rm
 	-find . -type f -name '*.chk' -print0 | xargs -0 rm
 	-find . -type f -name '*.pyc' -print0 | xargs -0 rm
-	-find . -type f -name 'sigma*.txt' -print0 | xargs -0 rm 
+	-find . -type f -name 'sigma*.txt' -print0 | xargs -0 rm
 	-find . -type f -name '*.dpd' -print0 | xargs -0 rm
 	-find . -type f -name 'e4d*.log' -print0 | xargs -0 rm
 	-find . -type d -name '__pycache__' -print0 | xargs -0 rm -r
@@ -274,8 +278,8 @@ clean-tests :
 	-rm -f default/discretization/mixed_implicit-np4.h5
 	-rm -f default/discretization/mixed_implicit.h5
 	-rm -f general/calcite_flow_and_tran_general.h5
-	-rm -f ngee/sink-mas.dat 
-	-rm -f ngee/sink.h5 
+	-rm -f ngee/sink-mas.dat
+	-rm -f ngee/sink.h5
 	-rm -f ngee/source-mas.dat
 	-rm -f ngee/source.h5
 	-rm -f default/543/543_flow_and_tracer_dbase.h5
@@ -336,4 +340,3 @@ clean-tests :
 	-rm -f ufd/wf_doubles-*.vtk
 	-rm -f ufd/wf_region-*.vtk
 	-rm -f ufd/glass_full_geochem_np4-*.vtk
-
