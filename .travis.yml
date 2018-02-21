@@ -47,3 +47,6 @@ script:
   - ./.travis/pflotran-build.sh
   - ./.travis/pflotran-test.sh
   - cat regression_tests/*.testlog
+  - ./.travis/pflotran-interface-build.sh
+  - ./.travis/pflotran-interface-test.sh
+  - cat src/clm-pflotran/*.testlog
