@@ -429,6 +429,7 @@ subroutine RealizSurfCreateDiscretization(surf_realization)
   ! set up internal connectivity, distance, etc.
   call GridComputeInternalConnect(grid,option,discretization%dm_1dof%ugdm) 
   call GridComputeAreas(grid,surf_field%area,option)
+  call GridPrintExtents(grid,option)
 
   ! Allocate vectors to hold flowrate quantities
   if (surf_realization%output_option%print_hdf5_mass_flowrate.or. &

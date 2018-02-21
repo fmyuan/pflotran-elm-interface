@@ -26,6 +26,7 @@ module Dataset_Common_HDF5_class
             DatasetCommonHDF5ReadSelectCase, &
             DatasetCommonHDF5Load, &
             DatasetCommonHDF5IsCellIndexed, &
+            DatasetCommonHDF5GetNameInfo, & 
             DatasetCommonHDF5Print, &
             DatasetCommonHDF5Strip, &
             DatasetCommonHDF5Destroy
@@ -549,6 +550,32 @@ function DatasetCommonHDF5GetPointer(dataset_list, dataset_name, &
   end select
 
 end function DatasetCommonHDF5GetPointer
+
+! ************************************************************************** !
+
+function DatasetCommonHDF5GetNameInfo(this)
+  ! 
+  ! Returns naming information for dataset
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/20/18
+  ! 
+  implicit none
+
+  class(dataset_common_hdf5_type) :: this
+
+  character(len=MAXSTRINGLENGTH) :: DatasetCommonHDF5GetNameInfo
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  string = DatasetBaseGetNameInfo(this)
+  if (len_trim(this%hdf5_dataset_name) > 0) then
+    string = trim(string) // ' HDF5_DATASET_NAME: "' // &
+             trim(this%hdf5_dataset_name) // '"'
+  endif
+  DatasetCommonHDF5GetNameInfo = string
+
+end function DatasetCommonHDF5GetNameInfo
 
 ! ************************************************************************** !
 
