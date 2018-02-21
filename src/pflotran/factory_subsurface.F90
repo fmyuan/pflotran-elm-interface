@@ -781,6 +781,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
     option%gas_phase = 2 ! still set gas phase to 2 for transport
     ! assume default isothermal when only transport
     option%use_isothermal = PETSC_TRUE
+    option%nflowspec = 1
     return
   endif
 
