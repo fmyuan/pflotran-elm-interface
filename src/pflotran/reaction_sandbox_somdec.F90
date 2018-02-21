@@ -960,6 +960,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 #ifdef CLM_PFLOTRAN
   PetscScalar, pointer :: zsoi_pf_loc(:)
   PetscScalar, pointer :: kd_scalar_pf_loc(:)
+  PetscScalar, pointer :: xfactor_pf_loc(:)
 #endif
 
   PetscReal :: temp_real
@@ -1044,10 +1045,27 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   ! moisture response function
 #ifdef CLM_PFLOTRAN
-  if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_CLMCN) then
-     f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
-  elseif(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_DLEM) then
-     f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
+  if(option%nflowspec>0) then
+    if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_CLMCN) then
+      f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
+    elseif(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_DLEM) then
+      f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
+    endif
+
+  else
+    ! if NO flow-mode, i.e. BGC only coupled with CLM, directly read-in factors from CLM
+    call VecGetArrayReadF90(clm_pf_idata%w_scalar_pfs, xfactor_pf_loc, ierr)
+    CHKERRQ(ierr)
+    f_w = xfactor_pf_loc(ghosted_id)
+    call VecRestoreArrayReadF90(clm_pf_idata%w_scalar_pfs, xfactor_pf_loc, ierr)
+    CHKERRQ(ierr)
+    !multiplying O-Scalar as well
+    call VecGetArrayReadF90(clm_pf_idata%o_scalar_pfs, xfactor_pf_loc, ierr)
+    CHKERRQ(ierr)
+    f_w = f_w * xfactor_pf_loc(ghosted_id)
+    call VecRestoreArrayReadF90(clm_pf_idata%o_scalar_pfs, xfactor_pf_loc, ierr)
+    CHKERRQ(ierr)
+
   endif
 #else
   f_w = 1.0d0
@@ -1058,7 +1076,18 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   tc = global_auxvar%temp
 
 #ifdef CLM_PFLOTRAN
-  f_t = GetTemperatureResponse(tc,this%temperature_response_function, this%Q10)
+  if (option%nflowspec>0) then
+    f_t = GetTemperatureResponse(tc,this%temperature_response_function, this%Q10)
+
+  else
+    ! if NO flow-mode, i.e. BGC only coupled with CLM, directly read-in factors from CLM
+    call VecGetArrayReadF90(clm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
+    CHKERRQ(ierr)
+    f_t = xfactor_pf_loc(ghosted_id)
+    call VecRestoreArrayReadF90(clm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
+    CHKERRQ(ierr)
+  endif
+
 #else
   f_t = 1.0d0
 #endif
