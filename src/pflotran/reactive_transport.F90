@@ -2560,6 +2560,12 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
         istart = iend-reaction%ncomp+1
         r_p(istart:iend) = r_p(istart:iend) - Res(1:reaction%ncomp)
       endif
+
+      if (associated(patch%internal_tran_fluxes)) then
+        patch%internal_tran_fluxes(1:reaction%ncomp,iconn) = &
+            Res(1:reaction%ncomp)
+      endif
+
 #else
       call TFluxCoef_CD(rt_parameter,option, &
                  global_auxvars(ghosted_id_up), &
@@ -2587,11 +2593,15 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
         istart = iend-reaction%ncomp+1
         r_p(istart:iend) = r_p(istart:iend) + Res_2(1:reaction%ncomp)
       endif
-#endif
+
       if (associated(patch%internal_tran_fluxes)) then
         patch%internal_tran_fluxes(1:reaction%ncomp,iconn) = &
-            Res(1:reaction%ncomp)
+            Res_1(1:reaction%ncomp) + Res_2(1:reaction%ncomp)
       endif
+
+#endif
+
+
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
@@ -2676,11 +2686,13 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 !          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) + Res
         endif  
       
-#endif                   
       if (associated(patch%boundary_tran_fluxes)) then
         patch%boundary_tran_fluxes(1:reaction%ncomp,sum_connection) = &
-            Res(1:reaction%ncomp)
+            -Res_2(1:reaction%ncomp)
       endif
+
+#endif
+
     enddo
     boundary_condition => boundary_condition%next
   enddo
