@@ -70,7 +70,7 @@ function PMTOWGCreate(miscibility_model,option)
   use Variables_module, only : OIL_PRESSURE, GAS_PRESSURE, &
                                OIL_SATURATION, GAS_SATURATION, &
                                OIL_MOLE_FRACTION, GAS_MOLE_FRACTION, &  
-                               TEMPERATURE, SOLVENT_SATURATION
+                               TEMPERATURE, SOLVENT_SATURATION,BUBBLE_POINT
   implicit none
   
   class(pm_towg_type), pointer :: PMTOWGCreate
@@ -94,15 +94,11 @@ function PMTOWGCreate(miscibility_model,option)
       allocate(towg_pm%max_change_isubvar(4))
       towg_pm%max_change_isubvar = [0,0,0,0]
     case('BLACK_OIL')
-      allocate(towg_pm%max_change_ivar(7))
-      towg_pm%max_change_ivar = [OIL_PRESSURE, GAS_PRESSURE, &
-                                 OIL_SATURATION, GAS_SATURATION, &
-                                 OIL_MOLE_FRACTION, GAS_MOLE_FRACTION, &
-                                 TEMPERATURE]
-      allocate(towg_pm%max_change_isubvar(8))
-                                           !2 = gas in xmol(gas_c,oil_phase)
-      towg_pm%max_change_isubvar = [0,0,0,0,2,1,0]
-                                             !1 = gas in xmol(gas_c,gas_phase)
+      allocate(towg_pm%max_change_ivar(5))
+      towg_pm%max_change_ivar = [OIL_PRESSURE, OIL_SATURATION, &
+                                 GAS_SATURATION,TEMPERATURE,BUBBLE_POINT]
+      allocate(towg_pm%max_change_isubvar(5))
+      towg_pm%max_change_isubvar = [0,0,0,0,0]
     case('SOLVENT_TL')
       allocate(towg_pm%max_change_ivar(8))
       towg_pm%max_change_ivar = [OIL_PRESSURE, GAS_PRESSURE, &
@@ -132,18 +128,22 @@ function PMTOWGCreate(miscibility_model,option)
       towg_miscibility_model = TOWG_IMMISCIBLE
       towg_energy_dof = TOWG_3CMPS_ENERGY_DOF
       towg_energy_eq_idx = TOWG_3CMPS_ENERGY_EQ_IDX
+      option%iflow_sub_mode = TOWG_IMMISCIBLE
     case('TODD_LONGSTAFF','TOWG_MISCIBLE')
       towg_miscibility_model = TOWG_TODD_LONGSTAFF
       towg_energy_dof = TOWG_3CMPS_ENERGY_DOF
       towg_energy_eq_idx = TOWG_3CMPS_ENERGY_EQ_IDX
+      option%iflow_sub_mode = TOWG_TODD_LONGSTAFF
     case('BLACK_OIL')
       towg_miscibility_model = TOWG_BLACK_OIL
       towg_energy_dof = TOWG_3CMPS_ENERGY_DOF
       towg_energy_eq_idx = TOWG_3CMPS_ENERGY_EQ_IDX
+      option%iflow_sub_mode = TOWG_BLACK_OIL
     case('SOLVENT_TL')
       towg_miscibility_model = TOWG_SOLVENT_TL
       towg_energy_dof = TOWG_SOLV_TL_ENERGY_DOF
       towg_energy_eq_idx = TOWG_SOLV_TL_ENERGY_EQ_IDX
+      option%iflow_sub_mode = TOWG_SOLVENT_TL
     case default
       call InputKeywordUnrecognized(miscibility_model, &
                          'TOWG MISCIBILITY_MODEL',option)
@@ -559,7 +559,6 @@ subroutine PMTOWGUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   use Realization_Base_class, only : RealizationGetVariable
   use Realization_Subsurface_class, only : RealizationLimitDTByCFL
   use Field_module
-  use Global_module, only : GlobalSetAuxVarVecLoc
   use Variables_module, only : LIQUID_SATURATION, GAS_SATURATION
 
   implicit none
@@ -659,9 +658,6 @@ subroutine PMTOWGCheckpointBinary(this,viewer)
   class(pm_towg_type) :: this
   PetscViewer :: viewer
   
-  !call GlobalGetAuxVarVecLoc(this%realization, &
-  !                           this%realization%field%iphas_loc, &
-  !                           STATE,ZERO_INTEGER)
   call PMSubsurfaceFlowCheckpointBinary(this,viewer)
   
 end subroutine PMTOWGCheckpointBinary
@@ -688,9 +684,6 @@ subroutine PMTOWGRestartBinary(this,viewer)
   PetscViewer :: viewer
   
   call PMSubsurfaceFlowRestartBinary(this,viewer)
-  call GlobalSetAuxVarVecLoc(this%realization, &
-                             this%realization%field%iphas_loc, &
-                             STATE,ZERO_INTEGER)
   
 end subroutine PMTOWGRestartBinary
 
@@ -728,4 +721,3 @@ end subroutine PMTOWGDestroy
 ! ************************************************************************** !
 
 end module PM_TOWG_class
-
