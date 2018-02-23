@@ -479,6 +479,21 @@ contains
     deallocate(grid_pf_local_nindex)
     deallocate(grid_clm_local_nindex)
 
+    !setting the number of cells constituting the 3D
+    !subsurface domain for each model
+    !NOTE: no need for CLM's cell numbers, which have already set in clm_interface
+    select case (map_id)
+      case(CLM_3DSUB_TO_PF_3DSUB)
+        ! none
+      case(PF_3DSUB_TO_CLM_3DSUB)
+        clm_pf_idata%nlpf_sub = grid_pf_npts_local
+        clm_pf_idata%ngpf_sub = grid_pf_npts_ghost+grid_pf_npts_local
+      case default
+        option%io_buffer = 'map_id NOT yet supported'
+        call printErrMsg(option)
+
+    end select
+
   end subroutine pflotranModelInitMappingSub2Sub
 
 ! ************************************************************************** !
@@ -1157,6 +1172,24 @@ contains
         option%io_buffer = 'map_id argument NOT yet supported in ' // &
                         'pflotranModelInitMappingFaceToFace'
         call printErrMsg(option)
+    end select
+
+    !setting the number of cells constituting the 2-D FACE of 3D
+    !subsurface domain for each model
+    !NOTE: no need for CLM's cell numbers, which have already set in clm_interface
+    select case (map_id)
+      case(CLM_2DTOP_TO_PF_2DTOP, CLM_2DBOT_TO_PF_2DBOT)
+        ! none
+      case(PF_2DTOP_TO_CLM_2DTOP)
+        clm_pf_idata%nlpf_2dtop = grid_pf_npts_local
+        clm_pf_idata%ngpf_2dtop = grid_pf_npts_ghost+grid_pf_npts_local
+      case(PF_2DBOT_TO_CLM_2DBOT)
+        clm_pf_idata%nlpf_2dbot = grid_pf_npts_local
+        clm_pf_idata%ngpf_2dbot = grid_pf_npts_ghost+grid_pf_npts_local
+      case default
+        option%io_buffer = 'map_id NOT yet supported'
+        call printErrMsg(option)
+
     end select
 
   end subroutine pflotranModelInitMapFaceToFace
