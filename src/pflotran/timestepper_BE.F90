@@ -357,6 +357,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
       print *, ' <-- SNES Solver ERROR @TimeStepperBEStepDT --> '
       print *, ' Time (s): ', option%time, ' log_start_time: ', log_start_time
+      print *, ' dT (s): ', option%dt
       print *, ' Linear Iterations: ', sum_linear_iterations
       print *, ' Newton Iterations: ', sum_newton_iterations
       print *, 'PETSC error id: ', ierr
@@ -415,19 +416,21 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
             !
           end select
 
-          write(fileid_info, *) ' <--- cell offset ---- cell index --- vec. no. -- solution_vec with max. res ----> '
+          write(fileid_info, *) ' <--- cell offset ---- cell index --- vec. no. --elem. no. -- solution_vec with max. res ----> '
           do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
                 cell_index*(option%nflowdof+option%ntrandof)
             write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
-                cell_index, '(',cell_i,cell_j,cell_k, ')', i, solution_p(i)
+                cell_index, '(',cell_i,cell_j,cell_k, ')', &
+                i, i-(cell_index-1)*(option%nflowdof+option%ntrandof), solution_p(i)
           enddo
 
           write(fileid_info, *) '  '
-          write(fileid_info, *) ' <--- cell offset ---- cell index --- vec no. -- max. residual_vec ----> '
+          write(fileid_info, *) ' <--- cell offset ---- cell index --- vec no. --elem. no. -- max. residual_vec ----> '
           do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
                 cell_index*(option%nflowdof+option%ntrandof)
             write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
-                cell_index, '(',cell_i,cell_j,cell_k, ')', i, residual_p(i)
+                cell_index, '(',cell_i,cell_j,cell_k, ')', &
+                i, i-(cell_index-1)*(option%nflowdof+option%ntrandof), residual_p(i)
           enddo
 
         endif
@@ -546,19 +549,21 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
                 end select
             end select
 
-            write(fileid_info, *) ' <--- cell offset ---- cell index --- vec. no. -- solution_vec with max. res ----> '
+            write(fileid_info, *) ' <--- cell offset ---- cell index --- vec. no. --elem. no. -- solution_vec with max. res ----> '
             do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
                  cell_index*(option%nflowdof+option%ntrandof)
               write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
-                cell_index, '(',cell_i,cell_j,cell_k, ')', i, solution_p(i)
+                cell_index, '(',cell_i,cell_j,cell_k, ')', &
+                i, i-(cell_index-1)*(option%nflowdof+option%ntrandof), solution_p(i)
             enddo
 
             write(fileid_info, *) '  '
-            write(fileid_info, *) ' <--- cell offset ---- cell index --- vec no. -- max. residual_vec ----> '
+            write(fileid_info, *) ' <--- cell offset ---- cell index --- vec no. --elem. no. -- max. residual_vec ----> '
             do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
                   cell_index*(option%nflowdof+option%ntrandof)
               write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
-                cell_index, '(',cell_i,cell_j,cell_k, ')', i, residual_p(i)
+                cell_index, '(',cell_i,cell_j,cell_k, ')', &
+                i, i-(cell_index-1)*(option%nflowdof+option%ntrandof), residual_p(i)
             enddo
           endif
 
