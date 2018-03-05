@@ -1758,9 +1758,6 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   PetscInt :: istart
   PetscInt :: iconn
   PetscInt :: sum_connection
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  PetscReal, pointer :: qflx_pf_p(:)
-#endif
   PetscReal :: qsrc, qsrc_mol
   PetscReal :: Res(realization%option%nflowdof)
   PetscReal, pointer :: r_p(:), accum_p(:)
@@ -1790,9 +1787,6 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
 
   ! now assign access pointer to local variables
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  call VecGetArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr); CHKERRQ(ierr)
-#endif
 
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first
@@ -1808,9 +1802,6 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-      qsrc = qflx_pf_p(local_id)
-#endif
       if (source_sink%flow_condition%itype(1)/=HET_VOL_RATE_SS .and. &
           source_sink%flow_condition%itype(1)/=HET_MASS_RATE_SS .and. &
           source_sink%flow_condition%itype(1)/=WELL_SS) &
@@ -1907,9 +1898,6 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   endif
 
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  call VecRestoreArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr); CHKERRQ(ierr)
-#endif
 
   ! Mass Transfer
   if (field%flow_mass_transfer /= PETSC_NULL_VEC) then
