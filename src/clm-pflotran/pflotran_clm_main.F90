@@ -1001,6 +1001,8 @@ contains
     use TH_Aux_module
     use Richards_Aux_module
     use Characteristic_Curves_module   ! this is used by Richards_module and TH_module
+    use Characteristic_Curves_Base_module
+    use Characteristic_Curves_Common_module
 
     use clm_pflotran_interface_data
 
@@ -1745,6 +1747,9 @@ contains
     use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use Characteristic_Curves_module
+    use Characteristic_Curves_Base_module
+    use Characteristic_Curves_Common_module
+
     use Richards_Aux_module
     use TH_Aux_module
 
