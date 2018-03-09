@@ -133,6 +133,12 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: TOWG_MODE = 9
   PetscInt, parameter, public :: WF_MODE = 10
   
+  ! flow sub-modes
+  PetscInt, parameter, public :: TOWG_IMMISCIBLE = 1
+  PetscInt, parameter, public :: TOWG_TODD_LONGSTAFF = 2
+  PetscInt, parameter, public :: TOWG_BLACK_OIL = 3
+  PetscInt, parameter, public :: TOWG_SOLVENT_TL = 4
+
   ! transport modes
   PetscInt, parameter, public :: EXPLICIT_ADVECTION = 1
   

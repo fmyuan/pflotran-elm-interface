@@ -84,7 +84,11 @@ subroutine CondControlAssignFlowInitCond(realization)
   PetscInt :: offset, istate
   PetscReal :: x(realization%option%nflowdof)
   PetscReal :: temperature, p_sat
-  PetscReal :: tempreal
+  PetscReal :: tempreal,pru,sou,sgu,pbu
+  PetscInt :: saturated_state
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  PetscReal, parameter :: eps_oil   = 1.0d-6
+  PetscReal, parameter :: eps_gas   = 1.0d-6
 
   option => realization%option
   discretization => realization%discretization
@@ -509,61 +513,139 @@ subroutine CondControlAssignFlowInitCond(realization)
               '" must be of type Dirichlet or Hydrostatic'
 
             select case(initial_condition%flow_condition%iphase)
+              case(TOWG_ANY_STATE)
+! This condition needs pressure, oil saturation, gas saturation and bubble point
+                if (.not.( towg%oil_pressure%itype == DIRICHLET_BC .or. &
+                           towg%oil_pressure%itype == HYDROSTATIC_BC) ) then
+                  option%io_buffer = 'Oil pressure ' // trim(string)
+                  call printErrMsg(option)
+                endif
+
+                if (.not.( towg%oil_saturation%itype == DIRICHLET_BC .or. &
+                           towg%oil_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Oil saturation ' // trim(string)
+                  call printErrMsg(option)
+                endif
+
+                if (.not.( towg%gas_saturation%itype == DIRICHLET_BC .or. &
+                           towg%gas_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas saturation ' // trim(string)
+                  call printErrMsg(option)
+                endif
+
+                if (.not.( towg%bubble_point%itype == DIRICHLET_BC .or. &
+                           towg%bubble_point%itype == HYDROSTATIC_BC)) then
+                 option%io_buffer = 'Bubble point ' // trim(string)
+                 call printErrMsg(option)
+                endif
+
               case(TOWG_THREE_PHASE_STATE)  
-                if (.not. &
-                    (towg%oil_pressure%itype == DIRICHLET_BC .or. &
+! This condition needs pressure, oil saturation and gas saturation
+                if (.not.( towg%oil_pressure%itype == DIRICHLET_BC .or. &
                       towg%oil_pressure%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Oil pressure ' // trim(string)
                   call printErrMsg(option)
                 endif
-                if (.not. &
-                    (towg%oil_saturation%itype == DIRICHLET_BC .or. &
+
+                if (.not.( towg%oil_saturation%itype == DIRICHLET_BC .or. &
                       towg%oil_saturation%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Oil saturation ' // trim(string)
                   call printErrMsg(option)
                 endif
-                if (.not. &
-                    (towg%gas_saturation%itype == DIRICHLET_BC .or. &
+
+                if (.not.(towg%gas_saturation%itype == DIRICHLET_BC .or. &
                       towg%gas_saturation%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Gas saturation ' // trim(string)
                   call printErrMsg(option)
                 endif
+
               case(TOWG_LIQ_OIL_STATE)
-                !to be implemented 
-                option%io_buffer = 'CondControlAssignFlowInitCond in ' // &
-                   'TOWG_LIQ_OIL_STATE, only TOWG_THREE_PHASE_STATE supported'
+! This condition needs pressure, oil saturation and bubble point
+                if (.not.(towg%oil_pressure%itype == DIRICHLET_BC .or. &
+                          towg%oil_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Oil pressure ' // trim(string)
+                  call printErrMsg(option)
+                endif
+
+                if (.not.(towg%oil_saturation%itype == DIRICHLET_BC .or. &
+                          towg%oil_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Oil saturation ' // trim(string)
+                  call printErrMsg(option)
+                endif
+
+                if (.not.(towg%bubble_point%itype == DIRICHLET_BC .or. &
+                          towg%bubble_point%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Bubble point ' // trim(string)
+                  call printErrMsg(option)
+                endif
+
               case(TOWG_LIQ_GAS_STATE)
-                !to be implemented 
+!  Water-gas state (for condensates) not yet implemented
                 option%io_buffer = 'CondControlAssignFlowInitCond in ' // &
                    'TOWG_LIQ_GAS_STATE, only TOWG_THREE_PHASE_STATE supported'
             end select 
 
+!--Set up saturated state values for the cells in this initial condition
+
             do icell=1,initial_condition%region%num_cells
               local_id = initial_condition%region%cell_ids(icell)
               ghosted_id = grid%nL2G(local_id)
+              iphase_loc_p(ghosted_id) = 0 ! Set to pass validity check at end of routine
               iend = local_id*option%nflowdof
               ibegin = iend-option%nflowdof+1
               if (cur_patch%imat(ghosted_id) <= 0) then
                 xx_p(ibegin:iend) = 0.d0
-                iphase_loc_p(ghosted_id) = 0
                 cycle
               endif
               ! decrement ibegin to give a local offset of 0
               ibegin = ibegin - 1
               select case(initial_condition%flow_condition%iphase)
+                case(TOWG_ANY_STATE)
+! Get (P,So,Sg,Pb) and set up saturated/unsaturated state
+                  pru=towg%oil_pressure%dataset%rarray  (1)
+                  sou=towg%oil_saturation%dataset%rarray(1)
+                  sgu=towg%gas_saturation%dataset%rarray(1)
+                  pbu=towg%bubble_point%dataset%rarray  (1)
+
+                  if( (sgu<eps_gas) .and. (pbu<pru) .and. (sou>eps_oil) ) then
+                    saturated_state=TOWG_LIQ_OIL_STATE
+                    sgu            =0.0
+                  else
+                    saturated_state=TOWG_THREE_PHASE_STATE
+                    pbu            =pru
+                  endif
+
+                  cur_patch%aux%Global%auxvars(ghosted_id)%istate=saturated_state
+                  xx_p(ibegin+TOWG_OIL_PRESSURE_DOF      ) = pru
+                  xx_p(ibegin+TOWG_OIL_SATURATION_DOF    ) = sou
+                  xx_p(ibegin+TOWG_GAS_SATURATION_3PH_DOF) = sgu
+                  xx_p(ibegin+TOWG_BUBBLE_POINT_3PH_DOF  ) = pbu
+
                 case(TOWG_THREE_PHASE_STATE)
-                  xx_p(ibegin+TOWG_OIL_PRESSURE_DOF) = &
-                    towg%oil_pressure%dataset%rarray(1)
-                  xx_p(ibegin+TOWG_OIL_SATURATION_DOF) = &
-                    towg%oil_saturation%dataset%rarray(1)
-                  xx_p(ibegin+TOWG_GAS_SATURATION_3PH_DOF) = &
-                    towg%gas_saturation%dataset%rarray(1)
+! Get (P,So,Sg) and set up saturated state
+                  pru=towg%oil_pressure%dataset%rarray  (1)
+                  sou=towg%oil_saturation%dataset%rarray(1)
+                  sgu=towg%gas_saturation%dataset%rarray(1)
+
+                  cur_patch%aux%Global%auxvars(ghosted_id)%istate=TOWG_THREE_PHASE_STATE
+                  xx_p(ibegin+TOWG_OIL_PRESSURE_DOF      ) = pru
+                  xx_p(ibegin+TOWG_OIL_SATURATION_DOF    ) = sou
+                  xx_p(ibegin+TOWG_GAS_SATURATION_3PH_DOF) = sgu
+                  xx_p(ibegin+TOWG_BUBBLE_POINT_3PH_DOF  ) = pru
+
                 case(TOWG_LIQ_OIL_STATE)
-                  !to be implemented
-                  option%io_buffer = 'CondControlAssignFlowInitCond-2 in ' // &
-                   'TOWG_LIQ_OIL_STATE, only TOWG_THREE_PHASE_STATE supported'
+! Get (P,So,Pb) and set up undersaturated state
+                  pru=towg%oil_pressure%dataset%rarray  (1)
+                  sou=towg%oil_saturation%dataset%rarray(1)
+                  pbu=towg%bubble_point%dataset%rarray  (1)
+
+                  cur_patch%aux%Global%auxvars(ghosted_id)%istate=TOWG_LIQ_OIL_STATE
+                  xx_p(ibegin+TOWG_OIL_PRESSURE_DOF      ) = pru
+                  xx_p(ibegin+TOWG_OIL_SATURATION_DOF    ) = sou
+                  xx_p(ibegin+TOWG_GAS_SATURATION_3PH_DOF) = 0.0
+                  xx_p(ibegin+TOWG_BUBBLE_POINT_3PH_DOF  ) = pbu
                 case(TOWG_LIQ_GAS_STATE)
-                  !to be implemented
+                  !to be implemented for gas condensates
                   option%io_buffer = 'CondControlAssignFlowInitCond-2 in ' // &
                    'TOWG_LIQ_GAS_STATE, only TOWG_THREE_PHASE_STATE supported'
               end select
@@ -573,7 +655,6 @@ subroutine CondControlAssignFlowInitCond(realization)
                 xx_p(ibegin+TOWG_SOLV_SATURATION) = &
                    towg%solvent_saturation%dataset%rarray(1)
               endif
-              iphase_loc_p(ghosted_id) = initial_condition%flow_condition%iphase
               cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
                 initial_condition%flow_condition%iphase
             enddo
@@ -582,11 +663,11 @@ subroutine CondControlAssignFlowInitCond(realization)
             do iconn=1,initial_condition%connection_set%num_connections
               local_id = initial_condition%connection_set%id_dn(iconn)
               ghosted_id = grid%nL2G(local_id)
+              iphase_loc_p(ghosted_id) = 0 ! Set to pass validity check at end of routine
               if (cur_patch%imat(ghosted_id) <= 0) then
                 iend = local_id*option%nflowdof
                 ibegin = iend-option%nflowdof+1
                 xx_p(ibegin:iend) = 0.d0
-                iphase_loc_p(ghosted_id) = 0
                 cycle
               endif
               offset = (local_id-1)*option%nflowdof
@@ -597,7 +678,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                     initial_condition%flow_aux_mapping( &
                       towg_dof_to_primary_variable(idof,istate)),iconn)
               enddo
-              iphase_loc_p(ghosted_id) = istate
+
               cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
             enddo
           endif
@@ -695,7 +776,10 @@ subroutine CondControlAssignFlowInitCond(realization)
     cur_patch => cur_patch%next
   enddo
 
-  if (option%iflowmode == G_MODE) then
+!--Share the state index in general and OWG modes------------------------------
+
+  if( option%iflowmode == G_MODE   .or. &
+      option%iflowmode == TOWG_MODE ) then 
     call GlobalUpdateState(realization)
   endif  
   

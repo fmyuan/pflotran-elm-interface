@@ -669,12 +669,13 @@ e4d_mat_inv.o :
 e4d_run.o : e4d_vars.o
 e4d_setup.o : e4d_mat_inv.o e4d_vars.o
 e4d_vars.o :
-eos.o : co2_span_wagner.o eos_gas.o eos_oil.o eos_water.o input_aux.o option.o \
-        pflotran_constants.o string.o
+eos.o : co2_span_wagner.o eos_database.o eos_gas.o eos_oil.o eos_water.o \
+        input_aux.o option.o pflotran_constants.o string.o
 eos_database.o : input_aux.o lookup_table.o option.o pflotran_constants.o \
-                 string.o utility.o
-eos_gas.o : eos_database.o eos_water.o option.o pflotran_constants.o
-eos_oil.o : eos_database.o option.o pflotran_constants.o
+                 string.o units.o utility.o
+eos_gas.o : eos_database.o eos_water.o input_aux.o option.o \
+            pflotran_constants.o
+eos_oil.o : eos_database.o input_aux.o option.o pflotran_constants.o
 eos_water.o : geometry.o pflotran_constants.o
 factory_geomechanics.o : condition_control.o convergence.o discretization.o \
                          factory_subsurface.o geomech_grid.o \
@@ -1614,4 +1615,3 @@ echo-flags :
 
 # null rule to force things to happen
 FORCE :
-

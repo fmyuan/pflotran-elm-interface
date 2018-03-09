@@ -517,12 +517,9 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%phase_map(3) = GAS_PHASE
       option%energy_id = towg_energy_eq_idx
       select case (towg_miscibility_model)
-        case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+        case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
           option%nflowdof = 4
           option%nflowspec = 3 !H20, Oil, Gas
-        !case(TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
-        !  option%nflowdof = 4
-        !  option%nflowspec = 3 !H20, Oil, Gas
         !case(TOWG_SOLVENT_TL)
         !  option%nphase = 4
         !  option%nflowdof = 5
@@ -1151,6 +1148,7 @@ subroutine SubsurfaceSetupRealization(simulation)
   use EOS_Water_module
   use Dataset_module
   use Patch_module
+  use EOS_module
 
   implicit none
 
@@ -1173,6 +1171,10 @@ subroutine SubsurfaceSetupRealization(simulation)
                          option%reference_water_density, &
                          dum1,ierr)
   endif
+
+  !process eos tables
+  call EOSProcess(option)
+
 
   ! read reaction database
   if (associated(realization%reaction)) then
