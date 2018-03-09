@@ -1812,7 +1812,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
             !     factors into the hydrostatic condition
             option%io_buffer = 'Need to fix PatchUpdateCouplerAuxVarsG() ' // &
               'for a variable saturated hydrostatic condition.'
-            call printErrMsg(option)
+            call printErrMsgByRank(option)
 
             ! we have to remap the capillary pressure to saturation and
             ! temperature to air pressure

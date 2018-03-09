@@ -340,9 +340,9 @@ subroutine RealizationCreateDiscretization(realization)
     
   endif
 
+  grid => discretization%grid
   select case(discretization%itype)
     case(STRUCTURED_GRID)
-      grid => discretization%grid
       ! set up nG2L, nL2G, etc.
       call GridMapIndices(grid, &
                           discretization%dm_1dof, &
@@ -363,7 +363,6 @@ subroutine RealizationCreateDiscretization(realization)
       ! set up internal connectivity, distance, etc.
       call GridComputeInternalConnect(grid,option)
     case(UNSTRUCTURED_GRID)
-      grid => discretization%grid
       ! set up nG2L, NL2G, etc.
       call GridMapIndices(grid, &
                           discretization%dm_1dof, &
@@ -381,6 +380,7 @@ subroutine RealizationCreateDiscretization(realization)
                                       discretization%dm_1dof%ugdm) 
       call GridComputeVolumes(grid,field%volume0,option)
   end select
+  call GridPrintExtents(grid,option)
  
   ! initialize to UNINITIALIZED_DOUBLE for check later that verifies all values 
   ! have been set

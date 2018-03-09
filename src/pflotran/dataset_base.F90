@@ -40,6 +40,7 @@ module Dataset_Base_class
             DatasetBaseReorder, &
             DatasetBaseGetPointer, &
             DatasetBaseAddToList, &
+            DatasetBaseGetNameInfo, &
             DatasetBasePrint, &
             DatasetBaseStrip, &
             DatasetBaseDestroy
@@ -479,6 +480,34 @@ function DatasetBaseGetPointer(dataset_list, dataset_name, debug_string, &
   endif
 
 end function DatasetBaseGetPointer
+
+! ************************************************************************** !
+
+function DatasetBaseGetNameInfo(this)
+  ! 
+  ! Returns naming information for dataset
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/20/18
+  ! 
+  implicit none
+
+  class(dataset_base_type) :: this
+
+  character(len=MAXSTRINGLENGTH) :: DatasetBaseGetNameInfo
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  string = ''
+  if (len_trim(this%name) > 0) then
+    string = 'NAME: "' // trim(this%name) // '"'
+  endif
+  if (len_trim(this%filename) > 0) then
+    string = trim(string) // ' FILENAME: "' // trim(this%filename) // '"'
+  endif
+  DatasetBaseGetNameInfo = string
+
+end function DatasetBaseGetNameInfo
 
 ! ************************************************************************** !
 

@@ -40,6 +40,11 @@ module TH_Aux_module
     type(th_ice_type), pointer :: ice
     ! For surface-flow
     type(th_surface_flow_type), pointer :: surface
+
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
+    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
+#endif
   end type TH_auxvar_type
 
   type, public :: th_ice_type
@@ -79,7 +84,7 @@ module TH_Aux_module
     PetscReal :: range_for_linear_approx(4)
     PetscReal :: dlinear_slope_dT
     PetscBool :: bcflux_default_scheme
-  end type th_surface_flow_type
+ end type th_surface_flow_type
 
   type, public :: TH_parameter_type
     PetscReal, pointer :: dencpr(:)
@@ -217,7 +222,7 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%Ke        = uninit_value
   auxvar%dKe_dp    = uninit_value
   auxvar%dKe_dt    = uninit_value
-  if (option%use_th_freezing) then
+ if (option%use_th_freezing) then
     allocate(auxvar%ice)
     auxvar%ice%Ke_fr     = uninit_value
     auxvar%ice%dKe_fr_dp = uninit_value
@@ -260,6 +265,11 @@ subroutine THAuxVarInit(auxvar,option)
     nullify(auxvar%surface)
   endif
   
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  auxvar%bc_alpha      = uninit_value
+  auxvar%bc_lambda     = uninit_value
+#endif
+
 end subroutine THAuxVarInit
 
 ! ************************************************************************** !
@@ -333,6 +343,7 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
     auxvar2%ice%mol_gas = auxvar%ice%mol_gas
     auxvar2%ice%dmol_gas_dt = auxvar%ice%dmol_gas_dt
   endif
+
   if (associated(auxvar%surface)) then
     auxvar2%surface%surf_wat = auxvar%surface%surf_wat
     auxvar2%surface%P_min = auxvar%surface%P_min
@@ -347,6 +358,11 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
     auxvar2%surface%bcflux_default_scheme = &
       auxvar%surface%bcflux_default_scheme
   endif
+
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  auxvar2%bc_alpha  = auxvar%bc_alpha
+  auxvar2%bc_lambda = auxvar%bc_lambda
+#endif
 
 end subroutine THAuxVarCopy
 
@@ -425,6 +441,13 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 !  if (auxvar%pc > 0.d0) then
   if (auxvar%pc > 1.d0) then
     iphase = 3
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    if(auxvar%bc_alpha > 0.d0) then
+       saturation_function%alpha  = auxvar%bc_alpha
+       saturation_function%lambda = auxvar%bc_lambda
+       saturation_function%m      = auxvar%bc_lambda
+    endif
+#endif
     call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
                                    kr,ds_dp,dkr_dp, &
                                    saturation_function, &
@@ -631,6 +654,13 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   endif  
   
   call CapillaryPressureThreshold(saturation_function,p_th,option)
+
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    if(auxvar%bc_alpha > 0.d0) then
+       saturation_function%alpha  = auxvar%bc_alpha
+       saturation_function%lambda = auxvar%bc_lambda
+    endif
+#endif
 
   select case (option%ice_model)
     case (PAINTER_EXPLICIT)
