@@ -376,6 +376,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
           material_auxvar%creep_closure_id = 1 
           nullify(creep_closure)
         else if (cell_pressure > creep_closure%shutdown_pressure) then
+          print *, 'Creep closure shut down: ', natural_id, cell_pressure
           ! fix to shutdown pressure and porosity at shutdown pressure
           wippflo_auxvar%effective_porosity = &
            creep_closure%Evaluate(option%time,creep_closure%shutdown_pressure)
