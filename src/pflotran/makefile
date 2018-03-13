@@ -242,7 +242,8 @@ util_obj  = \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
-	${common_src}variables.o
+	${common_src}variables.o \
+	${common_src}CPR_PC.o 
 
 eos_obj = \
 	${common_src}co2_sw.o \
@@ -632,6 +633,7 @@ coupler.o : condition.o connection.o dataset_base.o dataset_gridded_hdf5.o \
             grid.o grid_unstructured_aux.o grid_unstructured_explicit.o \
             input_aux.o option.o pflotran_constants.o region.o string.o \
             utility.o well.o well_base.o
+#CPR_PC.o : option.o
 data_mediator.o : data_mediator_base.o option.o
 data_mediator_base.o : dataset_global_hdf5.o option.o pflotran_constants.o
 data_mediator_dataset.o : data_mediator_base.o dataset_base.o \
@@ -1410,7 +1412,7 @@ simulation_surfsubsurface.o : checkpoint.o logging.o option.o output.o \
                               simulation_aux.o simulation_base.o \
                               simulation_subsurface.o simulation_surface.o \
                               timestepper_base.o waypoint.o
-solver.o : input_aux.o option.o pflotran_constants.o string.o
+solver.o : CPR_PC.o input_aux.o option.o pflotran_constants.o string.o
 spline.o : pflotran_constants.o
 srcsink_sandbox.o : general_aux.o grid.o input_aux.o material_aux.o option.o \
                     output_aux.o pflotran_constants.o srcsink_sandbox_base.o \
@@ -1543,6 +1545,7 @@ wipp_flow_common.o : bragflo_common.o connection.o eos_gas.o eos_water.o \
                      wipp_flow_aux.o
 wrapper_hydrogeophysics.o : e4d_run.o e4d_setup.o e4d_vars.o option.o \
                             pflotran_constants.o
+CPR_PC.o : option.o
 
 ###############################################################################
 # End Dependencies

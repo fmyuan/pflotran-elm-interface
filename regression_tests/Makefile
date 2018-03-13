@@ -79,7 +79,8 @@ STANDARD_CFG = \
 	wipp/wipp_flow/condition/condition.cfg \
 	wipp/wipp_flow/input_format/input_format.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
-	wipp/nuts/nuts.cfg
+	wipp/nuts/nuts.cfg \
+        CPR_preconditioner/CPR_preconditioner.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg \
 
 ifneq ($(strip $(PARMETIS_LIB)),)
