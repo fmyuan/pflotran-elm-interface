@@ -417,6 +417,8 @@ subroutine PMWIPPFloReadSelectCase(this,input,keyword,found, &
       wippflo_print_solution = PETSC_TRUE
     case('PRINT_UPDATE')
       wippflo_print_update = PETSC_TRUE
+    case('ALLOW_NEGATIVE_GAS_PRESSURE')
+      wippflo_allow_neg_gas_pressure = PETSC_TRUE
     case default
       found = PETSC_FALSE
   end select
@@ -1342,7 +1344,7 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
   if (.not.converged_gas_equation) then
     this%convergence_flags(MAX_NORMAL_RES_GAS) = max_normal_res_gas_cell
   endif
-  if (min_gas_pressure < 0.d0) then
+  if (min_gas_pressure < 0.d0 .and. .not.wippflo_allow_neg_gas_pressure) then
     this%convergence_flags(MIN_GAS_PRES) = min_gas_pressure_cell
   endif
   ! the following flags are not used for convergence purposes, and thus can

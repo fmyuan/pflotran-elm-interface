@@ -3941,9 +3941,9 @@ subroutine PMWSSCalcResidualValues(this,r_p,ss_flow_vol_flux)
 
     if (wippflo_residual_test .and. &
         wippflo_residual_test_cell == local_id) then
-      write(*,'(" Q: ",2es12.4,i4)') &
-        -1.d0*Res(:)/this%option%flow_dt, &
-        wippflo_residual_test_cell
+      write(*,'(" Q: ",i4,2es12.4)') &
+        wippflo_residual_test_cell, &
+        Res(:)/this%option%flow_dt
     endif
                      
   enddo

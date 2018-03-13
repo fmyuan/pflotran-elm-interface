@@ -60,6 +60,7 @@ module Grid_Unstructured_Aux_module
     type(point3d_type), pointer :: vertices(:)
     type(point3d_type), pointer :: face_centroid(:)
     PetscReal, pointer :: face_area(:)
+    PetscInt, pointer :: nat_ids_of_other_grid(:)
   end type grid_unstructured_type
   
   type, public :: unstructured_explicit_type
@@ -265,7 +266,8 @@ function UGridCreate()
   nullify(unstructured_grid%connection_to_face)
   nullify(unstructured_grid%face_centroid)
   nullify(unstructured_grid%face_area)
-  
+  nullify(unstructured_grid%nat_ids_of_other_grid)
+
   UGridCreate => unstructured_grid
   
 end function UGridCreate
@@ -1703,7 +1705,8 @@ subroutine UGridDestroy(unstructured_grid)
     deallocate(unstructured_grid%face_centroid)
   nullify(unstructured_grid%face_centroid)  
   call DeallocateArray(unstructured_grid%face_area)
-  
+  call DeallocateArray(unstructured_grid%nat_ids_of_other_grid)
+
   deallocate(unstructured_grid)
   nullify(unstructured_grid)
 

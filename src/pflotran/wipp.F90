@@ -1035,10 +1035,14 @@ subroutine KlinkenbergScale(this,liquid_permeability,gas_pressure, &
   
   PetscInt :: i
   
-  do i = 1, 3
-    permeability_scale(i) = (1.d0 + &
+  if (gas_pressure > 0.d0) then
+    do i = 1, 3
+      permeability_scale(i) = (1.d0 + &
                     this%b * (liquid_permeability(i)**this%a) / gas_pressure)
-  enddo
+    enddo
+  else
+    permeability_scale = 1.d0
+  endif
   
 end subroutine KlinkenbergScale
 
@@ -1525,7 +1529,7 @@ subroutine WIPPCharacteristicCurves(saturation, &
   select type(liq_rpf => liq_rel_perm_func)
     class is(rpf_KRP1_liq_type)
       krp = 1
-      xlamda = liq_rpf%m
+      xlamda = liq_rpf%m / (1.d0-liq_rpf%m)
     class is(rpf_KRP4_liq_type)
       krp = 4
       xlamda = liq_rpf%lambda

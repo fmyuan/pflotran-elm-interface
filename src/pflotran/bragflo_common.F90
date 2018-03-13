@@ -232,7 +232,10 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
       perm_rho_mu_area_ave_over_dist(iphase)*fmw_comp(iphase)* &
       (dist_up+dist_dn)/area, &
       delta_pressure, &
-      rel_perm
+      rel_perm!, &
+!      gravity_term,
+!      wippflo_auxvar_up%pres(iphase), &
+!      wippflo_auxvar_dn%pres(iphase)
   endif
 
   iphase = GAS_PHASE
@@ -298,7 +301,10 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
       perm_rho_mu_area_ave_over_dist(iphase)*fmw_comp(iphase)* &
       (dist_up+dist_dn)/area, &
       delta_pressure, &
-      rel_perm
+      rel_perm!, &
+!      gravity_term,
+!      wippflo_auxvar_up%pres(iphase), &
+!      wippflo_auxvar_dn%pres(iphase)
   endif
 
 end subroutine BRAGFloFlux

@@ -821,6 +821,13 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      OUTPUT_GENERIC,units, &
                                      OIL_ENERGY,temp_int)
 
+      case ('BUBBLE_POINT')
+        name = 'Bubble Point'
+        units = 'Pa'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_PRESSURE,units, &
+                                     BUBBLE_POINT)
+
       case ('ICE_SATURATION')
         name = 'Ice Saturation'
         units = ''

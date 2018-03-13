@@ -251,6 +251,7 @@ subroutine PMSubsurfaceFlowSetup(this)
     cur_cc => this%realization%characteristic_curves
     do
       if (.not.associated(cur_cc)) exit
+      if (     associated(cur_cc%saturation_function) ) then
       select type(sf => cur_cc%saturation_function)
         class is(sat_func_WIPP_type)
           if (.not.sf%ignore_permeability .and. &
@@ -266,6 +267,7 @@ subroutine PMSubsurfaceFlowSetup(this)
             call printErrMsg(this%option)
           endif
       end select
+      endif
       cur_cc => cur_cc%next
     enddo
   endif

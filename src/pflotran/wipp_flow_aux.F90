@@ -23,6 +23,7 @@ module WIPP_Flow_Aux_module
   PetscBool, public :: wippflo_calc_flux = PETSC_TRUE
   PetscBool, public :: wippflo_calc_bcflux = PETSC_TRUE
   PetscBool, public :: wippflo_calc_chem = PETSC_TRUE
+  PetscBool, public :: wippflo_allow_neg_gas_pressure = PETSC_FALSE
 
   PetscBool, public :: wippflo_match_bragflo_output = PETSC_FALSE
 
@@ -375,6 +376,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
           material_auxvar%creep_closure_id = 1 
           nullify(creep_closure)
         else if (cell_pressure > creep_closure%shutdown_pressure) then
+          print *, 'Creep closure shut down: ', natural_id, cell_pressure
           ! fix to shutdown pressure and porosity at shutdown pressure
           wippflo_auxvar%effective_porosity = &
            creep_closure%Evaluate(option%time,creep_closure%shutdown_pressure)

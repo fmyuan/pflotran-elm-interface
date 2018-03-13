@@ -14,20 +14,27 @@ module AuxVars_TOWG_module
 
   type, public, extends(auxvar_flow_energy_type) :: auxvar_towg_type
     PetscInt :: istate_store(2) ! 1 = previous timestep; 2 = previous iteration
-    type(tl_auxvar_type), pointer :: tl
+    type(tl_auxvar_type), pointer :: tl=>null()
+    type(bo_auxvar_type), pointer :: bo=>null()
   contains
     procedure, public :: Init => AuxVarTOWGInit
     procedure, public :: Strip => AuxVarTOWGStrip
     procedure, public :: InitTL
     procedure, public :: StripTL
+    procedure, public :: InitBO
+    procedure, public :: StripBO
   end type auxvar_towg_type
 
   type, public ::  tl_auxvar_type
     PetscReal :: den_oil_eff_kg
     PetscReal :: den_gas_eff_kg
-    !other data specific to TL.
-    !when adding new variables modify allocation/initialisation and strip
   end type tl_auxvar_type
+
+  type, public ::  bo_auxvar_type
+    PetscReal :: bubble_point
+    PetscReal :: xo
+    PetscReal :: xg
+  end type bo_auxvar_type
 
   public :: AuxVarTOWGStrip
 
@@ -85,7 +92,34 @@ subroutine InitTL(this,option)
 
 end subroutine InitTL
 
-! ************************************************************************** !
+!--Routine to initialise the black oil substructure----------------------------
+
+subroutine InitBO(this,option)
+
+!------------------------------------------------------------------------------
+! Used in TOWG_BLACK_OIL, initialises the bo sub-structure of auxvars
+! Contains the bubble point, the oil mole fractions and the saturated oil flag
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Sep 2017
+!------------------------------------------------------------------------------
+
+  use Option_module
+
+  implicit none
+
+  class(auxvar_towg_type) :: this
+  type(option_type) :: option
+
+  allocate(this%bo)
+
+  this%bo%bubble_point   = 0.0
+  this%bo%xg             = 0.0
+  this%bo%xo             = 0.0
+
+end subroutine InitBO
+
+!--Routine to initialise the TOWG substructure-------------------------------
 
 subroutine AuxVarTOWGStrip(this)
   ! 
@@ -105,8 +139,10 @@ subroutine AuxVarTOWGStrip(this)
   call AuxVarFlowEnergyStrip(this)
 
   if (associated(this%tl)) call this%StripTL()
+  if (associated(this%bo)) call this%StripBO()
 
 end subroutine AuxVarTOWGStrip
+
 ! ************************************************************************** !
 
 subroutine StripTL(this)
@@ -127,8 +163,26 @@ subroutine StripTL(this)
 
 end subroutine StripTL
 
-! ************************************************************************** !
+!--Routine to strip the black oil substructure---------------------------------
 
+subroutine StripBO(this)
+
+!------------------------------------------------------------------------------
+! Used in TOWG_BLACK_OIL, de-allocate the bo sub-structure of auxvars
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Sep 2017
+!------------------------------------------------------------------------------
+
+  use Utility_module, only : DeallocateArray
+
+  implicit none
+
+  class(auxvar_towg_type) :: this
+
+  deallocate(this%bo)
+
+end subroutine StripBO
 
 end module AuxVars_TOWG_module
 
