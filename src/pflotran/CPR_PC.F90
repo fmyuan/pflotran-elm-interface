@@ -44,25 +44,25 @@ module CPR_Precondititioner_module
 
   !! interfaces need to make the set and get context routines
   !! work
-  INTERFACE
-    SUBROUTINE PCShellSetContext (P_in, ctx_in, ierr_in)
+  interface
+    subroutine PCShellSetContext (P_in, ctx_in, ierr_in)
       use petscksp
       Import :: cpr_pc_type 
       PC :: P_in
       type(cpr_pc_type) :: ctx_in
       PetscErrorCode :: ierr_in
-    END SUBROUTINE PCShellSetContext
-  END INTERFACE
+    end subroutine PCShellSetContext
+  end interface
 
-  INTERFACE
-    SUBROUTINE PCShellGetContext (P_in, ctx_in, ierr_in)
+  interface
+    subroutine PCShellGetContext (P_in, ctx_in, ierr_in)
       use petscksp
       Import :: cpr_pc_type 
       PC :: P_in
       type(cpr_pc_type), pointer :: ctx_in
       PetscErrorCode :: ierr_in
-    END SUBROUTINE PCShellGetContext
-  END INTERFACE
+    end subroutine PCShellGetContext
+  end interface
 
 public :: CPRStoreInitialize, &
           DeallocateWorkersInCPRStash, &
@@ -70,7 +70,7 @@ public :: CPRStoreInitialize, &
 
 contains
 
-!*******************************************************
+! ************************************************************************** !
 !  CPR Apply routines
 
 subroutine CPRApply(p, r, y,ierr)
@@ -115,6 +115,8 @@ subroutine CPRApply(p, r, y,ierr)
   call VecAYPX(y,one,t1r,ierr); CHKERRQ(ierr)
 
 end subroutine CPRApply
+
+! ************************************************************************** !
 
 subroutine CPRT1Apply(p, x, y,ierr)
   !! To be used as a PCSHELL apply routine
@@ -165,9 +167,9 @@ subroutine CPRT1Apply(p, x, y,ierr)
 end subroutine CPRT1Apply
 
 !  end of CPR apply routines
-!*******************************************************
+! ************************************************************************** !
 
-!*******************************************************
+! ************************************************************************** !
 !  CPR Setup Routines (every time Jaocobian updates) 
 
 subroutine CPRSetup(p,ierr)
@@ -189,6 +191,8 @@ subroutine CPRSetup(p,ierr)
   call CPRSetupT2(ctx, ierr)
 
 end subroutine CPRSetup
+
+! ************************************************************************** !
 
 subroutine CPRSetupT1(ctx,  ierr)
   !! set up the T1 part of the CPR preconditioner,
@@ -242,6 +246,8 @@ subroutine CPRSetupT1(ctx,  ierr)
   end select
 
 end subroutine CPRSetupT1
+
+! ************************************************************************** !
 
 subroutine CPRSetupT2(ctx, ierr)
  !! set up the T2 part of the CPR preconditioner,
@@ -339,9 +345,9 @@ subroutine CPRSetupT2(ctx, ierr)
 end subroutine CPRSetupT2
 
 !  end of CPR Setup Routines 
-!*******************************************************
+! ************************************************************************** !
 
-!*******************************************************
+! ************************************************************************** !
 !  CPR Creation Routines  
 
 subroutine CPRMake(p, ctx, c, ierr, option)
@@ -368,6 +374,8 @@ subroutine CPRMake(p, ctx, c, ierr, option)
   call CPRCreateT1(c, ctx,  ierr); CHKERRQ(ierr)
   call CPRCreateT2(c, ctx,  ierr); CHKERRQ(ierr)
 end subroutine CPRMake
+
+! ************************************************************************** !
 
 subroutine CPRCreateT1(c,  ctx,   ierr)
   !! This will perform bare minimum
@@ -427,6 +435,8 @@ subroutine CPRCreateT1(c,  ctx,   ierr)
 
 end subroutine CPRCreateT1
 
+! ************************************************************************** !
+
 subroutine CPRCreateT2(c, ctx, ierr)
   !! create the T2 preconditioner for the CPR PC
   implicit none
@@ -469,9 +479,9 @@ subroutine CPRCreateT2(c, ctx, ierr)
 end subroutine CPRCreateT2
 
 !  end of CPR Creation Routines  
-!*******************************************************
+! ************************************************************************** !
 
-!*******************************************************
+! ************************************************************************** !
 ! suplementary setup/init/deinit/routines  
 
 subroutine CPRStoreInitialize(ctx)
@@ -512,6 +522,8 @@ subroutine CPRStoreInitialize(ctx)
 
 
 end subroutine CPRStoreInitialize
+
+! ************************************************************************** !
 
 subroutine SetCPRDefaults(ierr)
   !! set in Petsc's options tables some good
@@ -556,6 +568,8 @@ subroutine SetCPRDefaults(ierr)
                             ierr);CHKERRQ(ierr)
 
 end subroutine SetCPRDefaults
+
+! ************************************************************************** !
 
 subroutine AllocateWorkersInCPRStash(ctx, n, b)
   implicit none
@@ -607,6 +621,8 @@ subroutine AllocateWorkersInCPRStash(ctx, n, b)
 
 end subroutine AllocateWorkersInCPRStash
 
+! ************************************************************************** !
+
 subroutine DeallocateWorkersInCPRStash(ctx)
 
   !! DEallocate the various arrays that are used to hold data 
@@ -624,10 +640,10 @@ subroutine DeallocateWorkersInCPRStash(ctx)
 end subroutine DeallocateWorkersInCPRStash
 
 ! end of suplementary setup/init/deinit/routines  
-!*******************************************************
+! ************************************************************************** !
 
 
-!*******************************************************
+! ************************************************************************** !
 !        pressure system extraction routines  
 
 subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
@@ -774,6 +790,8 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
   call VecAssemblyEnd(factors1vec, ierr);CHKERRQ(ierr)
 
 end subroutine MatGetSubQIMPES
+
+! ************************************************************************** !
 
 subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
                               b, ctx)
@@ -935,6 +953,8 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
 
 end subroutine MatGetSubQIMPES_var
 
+! ************************************************************************** !
+
 subroutine QIRHS(factors, worker, r, rhat, ierr)
   !! extract the RHS of the pressure system for the CPR
   !! preconditioner, given pivoting factors (factors)
@@ -958,9 +978,9 @@ subroutine QIRHS(factors, worker, r, rhat, ierr)
 end subroutine QIRHS
 
 ! end of pressure system extraction routines  
-!*******************************************************
+! ************************************************************************** !
 
-!*******************************************************
+! ************************************************************************** !
 !       misc routines  
 
 subroutine MatGetMaxRowCount(a, mx, ierr)
@@ -995,6 +1015,6 @@ subroutine MatGetMaxRowCount(a, mx, ierr)
 end subroutine MatGetMaxRowCount
 
 ! end of misc routines  
-!****************************************************
+! ************************************************************************** !
 
 end module CPR_Precondititioner_module 

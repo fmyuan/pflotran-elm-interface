@@ -1137,6 +1137,56 @@ end subroutine PMCSubsurfaceFinalizeRun
 
 ! ************************************************************************** !
 
+subroutine CPRWorkersCreate(pm, solver, option)
+!! create all the worker/storage matrices/vectors that will be needed for the
+!! cpr preconditioner
+
+
+  use PM_Subsurface_Flow_class
+  use Solver_module
+  use Option_module
+  use Discretization_module
+  
+  implicit none
+
+  class(pm_subsurface_flow_type) :: pm
+  class(solver_type) :: solver
+  class(option_type) :: option
+  MatType :: cpr_ap_mat_type
+
+
+
+  cpr_ap_mat_type =  MATAIJ
+  call DiscretizationCreateJacobian(pm%realization%discretization, &
+                                    ONEDOF, &
+                                    cpr_ap_mat_type, &
+                                    solver%cprstash%Ap, &
+                                    option)
+
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  NFLOWDOF, solver%cprstash%T1r, &
+                                  GLOBAL, option)
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  NFLOWDOF, solver%cprstash%r2, &
+                                  GLOBAL, option)
+
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  ONEDOF, solver%cprstash%s,  &
+                                  GLOBAL, option)
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  ONEDOF, solver%cprstash%z, &
+                                  GLOBAL, option)
+
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  NFLOWDOF, solver%cprstash%factors1vec, &
+                                  GLOBAL, option)
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  NFLOWDOF, solver%cprstash%factors2vec, &
+                                  GLOBAL, option)
+end subroutine CPRWorkersCreate
+
+! ************************************************************************** !
+
 subroutine PMCSubsurfaceStrip(this)
   !
   ! Deallocates members of PMC Subsurface.
@@ -1192,53 +1242,5 @@ recursive subroutine PMCSubsurfaceDestroy(this)
 end subroutine PMCSubsurfaceDestroy
 
 ! ************************************************************************** !
-
-subroutine CPRWorkersCreate(pm, solver, option)
-!! create all the worker/storage matrices/vectors that will be needed for the
-!! cpr preconditioner
-
-
-  use PM_Subsurface_Flow_class
-  use Solver_module
-  use Option_module
-  use Discretization_module
-  
-  implicit none
-
-  class(pm_subsurface_flow_type) :: pm
-  class(solver_type) :: solver
-  class(option_type) :: option
-  MatType :: cpr_ap_mat_type
-
-
-
-  cpr_ap_mat_type =  MATAIJ
-  call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                    ONEDOF, &
-                                    cpr_ap_mat_type, &
-                                    solver%cprstash%Ap, &
-                                    option)
-
-  call DiscretizationCreateVector(pm%realization%discretization, &
-                                  NFLOWDOF, solver%cprstash%T1r, &
-                                  GLOBAL, option)
-  call DiscretizationCreateVector(pm%realization%discretization, &
-                                  NFLOWDOF, solver%cprstash%r2, &
-                                  GLOBAL, option)
-
-  call DiscretizationCreateVector(pm%realization%discretization, &
-                                  ONEDOF, solver%cprstash%s,  &
-                                  GLOBAL, option)
-  call DiscretizationCreateVector(pm%realization%discretization, &
-                                  ONEDOF, solver%cprstash%z, &
-                                  GLOBAL, option)
-
-  call DiscretizationCreateVector(pm%realization%discretization, &
-                                  NFLOWDOF, solver%cprstash%factors1vec, &
-                                  GLOBAL, option)
-  call DiscretizationCreateVector(pm%realization%discretization, &
-                                  NFLOWDOF, solver%cprstash%factors2vec, &
-                                  GLOBAL, option)
-end subroutine CPRWorkersCreate
   
 end module PMC_Subsurface_class
