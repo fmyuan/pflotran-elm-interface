@@ -73,6 +73,8 @@ subroutine WellFlowEnergyInit(this,option)
   nullify(this%flow_energy_auxvars);
   nullify(this%well_conn_temp);
 
+  nullify(this%well_fine_grid_temp);
+
 end subroutine WellFlowEnergyInit
 
 ! ************************************************************************** !
