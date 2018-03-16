@@ -1172,7 +1172,6 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
           if (associated(coupler%flow_condition%pressure) .or. &
               associated(coupler%flow_condition%concentration) .or. &
               associated(coupler%flow_condition%saturation) .or. &
-              associated(coupler%flow_condition%rate) .or. &
               associated(coupler%flow_condition%temperature) .or. &
               associated(coupler%flow_condition%toil_ims) .or. &
               associated(coupler%flow_condition%towg) .or. &
@@ -1254,6 +1253,11 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
               case default
             end select
 
+          else if (associated(coupler%flow_condition%rate)) then
+            option%io_buffer = 'Flow condition "' // &
+              trim(coupler%flow_condition%name) // '" can only be used in a &
+              &SOURCE_SINK since a rate is prescribed.'
+            call printErrMsg(option)
           endif ! associated(coupler%flow_condition%pressure)
 
         else if (coupler%itype == SRC_SINK_COUPLER_TYPE) then
@@ -3638,6 +3642,14 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
                                     x_width,y_width,z_width, &
                                     x_count,y_count,z_count, &
                                     ghosted_neighbors,option)
+        if (x_count + y_count + z_count == 0) then
+          write(option%io_buffer,*) grid%nG2A(ghosted_id)
+          option%io_buffer = 'Cell ' // trim(adjustl(option%io_buffer)) // &
+            ' in FLOW_CONDITION "' // trim(source_sink%flow_condition%name) // &
+            '" in SOURCE_SINK "' // trim(source_sink%name) // &
+            '" has no neighbors, and therefore, NEIGHBOR_PERM cannot be used.'
+          call printErrMsgByRank(option)
+        endif
         ! ghosted neighbors is ordered first in x, then, y, then z
         icount = 0
         sum = 0.d0
@@ -3839,7 +3851,7 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   PetscInt :: ii,count
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
-  PetscInt :: nloc,nglo
+  PetscInt :: max_id_loc, max_id_global
   PetscInt :: istart
 
   IS :: is_from, is_to
@@ -3848,12 +3860,12 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   PetscViewer :: viewer
 
   ! Step-1: Rearrange map dataset
-  nloc = maxval(dataset_map_hdf5%mapping(2,:))
-  call MPI_Allreduce(nloc,nglo,ONE_INTEGER,MPIU_INTEGER,MPI_Max, &
-                     option%mycomm,ierr)
+  max_id_loc = maxval(dataset_map_hdf5%mapping(2,:))
+  call MPI_Allreduce(max_id_loc,max_id_global,ONE_INTEGER,MPIU_INTEGER, &
+                     MPI_MAX,option%mycomm,ierr)
   call VecCreateMPI(option%mycomm,dataset_map_hdf5%map_dims_local(2),&
                     PETSC_DETERMINE,map_ids_1,ierr);CHKERRQ(ierr)
-  call VecCreateMPI(option%mycomm,PETSC_DECIDE,nglo,map_ids_2, &
+  call VecCreateMPI(option%mycomm,PETSC_DECIDE,max_id_global,map_ids_2, &
                     ierr);CHKERRQ(ierr)
   call VecSet(map_ids_2,0.d0,ierr);CHKERRQ(ierr)
 
