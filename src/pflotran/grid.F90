@@ -213,7 +213,9 @@ subroutine GridComputeInternalConnect(grid,option,ugdm)
     case(EXPLICIT_UNSTRUCTURED_GRID)
       connection_set => &
         UGridExplicitSetInternConnect(grid%unstructured_grid%explicit_grid, &
-                                        option)
+                                      grid%unstructured_grid% &
+                                        upwind_fraction_method, &
+                                      option)
     case(POLYHEDRA_UNSTRUCTURED_GRID)
       connection_set => &
         UGridPolyhedraComputeInternConnect(grid%unstructured_grid, &

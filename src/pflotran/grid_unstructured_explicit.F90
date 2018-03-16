@@ -1237,7 +1237,8 @@ end subroutine UGridExplicitSetCellCentroids
 
 ! ************************************************************************** !
 
-function UGridExplicitSetInternConnect(explicit_grid,option)
+function UGridExplicitSetInternConnect(explicit_grid,upwind_fraction_method, &
+                                       option)
   ! 
   ! Sets up the internal connectivity within
   ! the connectivity object
@@ -1255,12 +1256,14 @@ function UGridExplicitSetInternConnect(explicit_grid,option)
   type(connection_set_type), pointer :: UGridExplicitSetInternConnect
   
   type(unstructured_explicit_type) :: explicit_grid
+  PetscInt :: upwind_fraction_method
   type(option_type) :: option
   
   type(connection_set_type), pointer :: connections
   PetscInt :: num_connections
   PetscInt :: iconn
   PetscInt :: id_up, id_dn
+  PetscReal :: pt_up(3), pt_dn(3), pt_center(3)
   PetscReal :: v(3), v_up(3), unit_vector(3), v_up_projected(3)
   PetscReal :: distance
   PetscReal :: upwind_fraction
@@ -1277,6 +1280,18 @@ function UGridExplicitSetInternConnect(explicit_grid,option)
     connections%id_up(iconn) = id_up
     connections%id_dn(iconn) = id_dn
     
+    pt_up(1) = explicit_grid%cell_centroids(id_up)%x
+    pt_up(2) = explicit_grid%cell_centroids(id_up)%y
+    pt_up(3) = explicit_grid%cell_centroids(id_up)%z
+
+    pt_dn(1) = explicit_grid%cell_centroids(id_dn)%x
+    pt_dn(2) = explicit_grid%cell_centroids(id_dn)%y
+    pt_dn(3) = explicit_grid%cell_centroids(id_dn)%z
+
+    pt_center(1) = explicit_grid%face_centroids(iconn)%x
+    pt_center(2) = explicit_grid%face_centroids(iconn)%y
+    pt_center(3) = explicit_grid%face_centroids(iconn)%z
+#if 0
     v(1) = explicit_grid%cell_centroids(id_dn)%x - &
            explicit_grid%cell_centroids(id_up)%x
     v(2) = explicit_grid%cell_centroids(id_dn)%y - &
@@ -1333,6 +1348,13 @@ function UGridExplicitSetInternConnect(explicit_grid,option)
     connections%dist(-1,iconn) = upwind_fraction
     connections%dist(0,iconn) = distance
     connections%dist(1:3,iconn) = unit_vector
+#else
+    call UGridCalculateDist(pt_up,pt_dn,pt_center, &
+                            explicit_grid%cell_volumes(id_up), &
+                            explicit_grid%cell_volumes(id_dn), &
+                            upwind_fraction_method, &
+                            connections%dist(:,iconn),error,option)
+#endif
     connections%area(iconn) = explicit_grid%face_areas(iconn)
   enddo
   if (error) then
