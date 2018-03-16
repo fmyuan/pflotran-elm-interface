@@ -17,7 +17,7 @@ module CPR_Precondititioner_module
 
   private
 
-  type, public :: CPRPC
+  type, public :: cpr_pc_type 
     Mat :: A, Ap
     !! The two stage CPR preconditioner calls two other preconditioners:
     PC :: T1        !! T1 will be a SHELL pc that extracts the pressure system residual from the
@@ -40,16 +40,16 @@ module CPR_Precondititioner_module
     PetscReal, dimension(:,:), allocatable :: all_vals
     !! point at the option object, needed for error outputs
     type(option_type) :: option
-  end type CPRPC
+  end type cpr_pc_type 
 
   !! interfaces need to make the set and get context routines
   !! work
   INTERFACE
     SUBROUTINE PCShellSetContext (P_in, ctx_in, ierr_in)
       use petscksp
-      Import :: CPRPC
+      Import :: cpr_pc_type 
       PC :: P_in
-      type(CPRPC) :: ctx_in
+      type(cpr_pc_type) :: ctx_in
       PetscErrorCode :: ierr_in
     END SUBROUTINE PCShellSetContext
   END INTERFACE
@@ -57,9 +57,9 @@ module CPR_Precondititioner_module
   INTERFACE
     SUBROUTINE PCShellGetContext (P_in, ctx_in, ierr_in)
       use petscksp
-      Import :: CPRPC
+      Import :: cpr_pc_type 
       PC :: P_in
-      type(CPRPC), pointer :: ctx_in
+      type(cpr_pc_type), pointer :: ctx_in
       PetscErrorCode :: ierr_in
     END SUBROUTINE PCShellGetContext
   END INTERFACE
@@ -90,7 +90,7 @@ subroutine CPRApply(p, r, y,ierr)
   !! worker vectors:
   Vec :: t1r, r2
   !! PC context holds workers:
-  type(CPRPC), pointer :: ctx
+  type(cpr_pc_type), pointer :: ctx
   !! misc variables and parms:
   PetscReal:: one
   Mat :: a 
@@ -131,7 +131,7 @@ subroutine CPRT1Apply(p, x, y,ierr)
   PetscErrorCode :: ierr
 
   !! PC context holds workers:
-  type(CPRPC), pointer :: ctx
+  type(cpr_pc_type), pointer :: ctx
   !! some other solvers and PCs we'll use:
   KSP :: solver
   PC :: amgsolver
@@ -182,7 +182,7 @@ subroutine CPRSetup(p,ierr)
   PetscErrorCode :: ierr
 
   !! PC context holds workers:
-  type(CPRPC), pointer ::ctx
+  type(cpr_pc_type), pointer ::ctx
 
   call PCShellGetContext(p, ctx, ierr); CHKERRQ(ierr)
   call CPRSetupT1(ctx, ierr)
@@ -195,7 +195,7 @@ subroutine CPRSetupT1(ctx,  ierr)
   !! mostly by extracting the new pressure system
   implicit none
 
-  type(CPRPC) :: ctx
+  type(cpr_pc_type) :: ctx
   PetscErrorCode :: ierr
 
   PetscInt :: b, mx
@@ -248,7 +248,7 @@ subroutine CPRSetupT2(ctx, ierr)
  !! if anything needs to be done
   implicit none
 
-  type(CPRPC) :: ctx
+  type(cpr_pc_type) :: ctx
   PetscErrorCode :: ierr
 
   PC :: T2, pc_inner
@@ -353,7 +353,7 @@ subroutine CPRMake(p, ctx, c, ierr, option)
 
   PC :: p
   PetscErrorCode :: ierr
-  type(CPRPC) :: ctx
+  type(cpr_pc_type) :: ctx
   MPI_Comm :: c
   type(option_type) :: option
 
@@ -378,7 +378,7 @@ subroutine CPRCreateT1(c,  ctx,   ierr)
   implicit none
 
   MPI_Comm :: c
-  type(CPRPC) :: ctx
+  type(cpr_pc_type) :: ctx
   PetscErrorCode :: ierr
 
   KSP :: solver
@@ -432,7 +432,7 @@ subroutine CPRCreateT2(c, ctx, ierr)
   implicit none
 
   MPI_Comm :: c
-  type(CPRPC) :: ctx
+  type(cpr_pc_type) :: ctx
   PetscErrorCode :: ierr
 
   PC :: t2
@@ -478,10 +478,10 @@ subroutine CPRStoreInitialize(ctx)
   !! MUST CALL THIS before doing anything with the module
 
   !! initialize all the noncomplicated members of an
-  !! CPRPC object
+  !! cpr_pc_type object
   implicit none
 
-  type(CPRPC) :: ctx
+  type(cpr_pc_type) :: ctx
 
   !! ensure that first run flags are set correctly
   ctx%firstT1Call = PETSC_TRUE
@@ -563,7 +563,7 @@ subroutine AllocateWorkersInCPRStash(ctx, n, b)
   !! allocate the various arrays that are used to hold data 
   !! during the pressure extraction phase of the CPR pc.
 
-  type(CPRPC) :: ctx
+  type(cpr_pc_type) :: ctx
   PetscInt :: entriesInARow, entriesInAReducedRow
 
   PetscInt :: n, b
@@ -612,7 +612,7 @@ subroutine DeallocateWorkersInCPRStash(ctx)
   !! DEallocate the various arrays that are used to hold data 
   !! during the pressure extraction phase of the CPR pc.
 
-  type(CPRPC) :: ctx
+  type(cpr_pc_type) :: ctx
 
   deallocate(ctx%vals)
   deallocate(ctx%insert_vals)
@@ -641,7 +641,7 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
   Mat :: a, ap
   Vec :: factors1Vec
   PetscErrorCode :: ierr
-  type(CPRPC) :: ctx
+  type(cpr_pc_type) :: ctx
 
   PetscInt, dimension(0:0) :: insert_rows
   !! the elements of the diagonal block:
@@ -787,7 +787,7 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
   Vec :: factors1vec
   PetscErrorCode :: ierr
   PetscInt :: b
-  type(CPRPC) :: ctx
+  type(cpr_pc_type) :: ctx
 
   PetscInt, dimension(0:0) :: insert_rows
   PetscReal, dimension(0:b-1,0:b-1) :: diag_block

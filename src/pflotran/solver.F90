@@ -69,7 +69,7 @@ module Solver_module
     PetscBool :: print_ekg
 
     ! added for CPR option:
-    type(CPRPC) :: cprstash
+    type(cpr_pc_type) :: cprstash
             
   end type solver_type
   
@@ -1825,7 +1825,7 @@ subroutine PFSolverCPRInit(solver, stash, pcin, ierr, option)
   use Option_module
   implicit none
   type(solver_type) :: solver
-  type(CPRPC) :: stash
+  type(cpr_pc_type) :: stash
   PC :: pcin
   MPI_Comm :: C
   PetscErrorCode :: ierr
