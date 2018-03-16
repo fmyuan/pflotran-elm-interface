@@ -3,7 +3,7 @@ module Solver_module
 #include "petsc/finclude/petscts.h"
   use petscts
   use PFLOTRAN_Constants_module
-  use CPR_PC_module
+  use CPR_Precondititioner_module 
 
   implicit none
 
