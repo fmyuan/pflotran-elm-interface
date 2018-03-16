@@ -460,6 +460,7 @@ misc_obj = \
 	${common_src}simulation_hydrogeophysics.o \
 	${common_src}simulation_subsurface.o \
 	${common_src}solver.o \
+	${common_src}solver_cpr.o \
 	${common_src}spline.o \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \
@@ -572,6 +573,7 @@ endif
 # The source file (i.e. file.F90) is intentionally omitted; 
 # it is picked up by the default/implicit build rule (defined by PETSc)
 ###############################################################################
+CPR_PC.o : option.o pflotran_constants.o string.o
 auxiliary.o : flash2_aux.o general_aux.o global_aux.o immis_aux.o \
               inlinesurface_aux.o material_aux.o miscible_aux.o mphase_aux.o \
               pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
@@ -633,7 +635,6 @@ coupler.o : condition.o connection.o dataset_base.o dataset_gridded_hdf5.o \
             grid.o grid_unstructured_aux.o grid_unstructured_explicit.o \
             input_aux.o option.o pflotran_constants.o region.o string.o \
             utility.o well.o well_base.o
-#CPR_PC.o : option.o
 data_mediator.o : data_mediator_base.o option.o
 data_mediator_base.o : dataset_global_hdf5.o option.o pflotran_constants.o
 data_mediator_dataset.o : data_mediator_base.o dataset_base.o \
@@ -1412,7 +1413,9 @@ simulation_surfsubsurface.o : checkpoint.o logging.o option.o output.o \
                               simulation_aux.o simulation_base.o \
                               simulation_subsurface.o simulation_surface.o \
                               timestepper_base.o waypoint.o
-solver.o : CPR_PC.o input_aux.o option.o pflotran_constants.o string.o
+solver.o : CPR_PC.o input_aux.o option.o pflotran_constants.o solver_cpr.o \
+           string.o
+solver_cpr.o : CPR_PC.o option.o
 spline.o : pflotran_constants.o
 srcsink_sandbox.o : general_aux.o grid.o input_aux.o material_aux.o option.o \
                     output_aux.o pflotran_constants.o srcsink_sandbox_base.o \
@@ -1545,8 +1548,6 @@ wipp_flow_common.o : bragflo_common.o connection.o eos_gas.o eos_water.o \
                      wipp_flow_aux.o
 wrapper_hydrogeophysics.o : e4d_run.o e4d_setup.o e4d_vars.o option.o \
                             pflotran_constants.o
-CPR_PC.o : option.o
-
 ###############################################################################
 # End Dependencies
 ###############################################################################

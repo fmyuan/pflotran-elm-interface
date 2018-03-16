@@ -4,6 +4,7 @@ module Solver_module
   use petscts
   use PFLOTRAN_Constants_module
   use CPR_Precondititioner_module 
+  use Solver_cpr_module
 
   implicit none
 
@@ -223,7 +224,8 @@ subroutine SolverSetSNESOptions(solver, option)
   endif
   if (len_trim(solver%pc_type) > 1) then
     if (solver%using_cpr) then
-      call PFSolverCPRInit(solver, solver%cprstash, solver%pc, ierr, option)
+      !call PFSolverCPRInit(solver, solver%cprstash, solver%pc, ierr, option)
+      call SolverCPRInit(solver%J, solver%cprstash, solver%pc, ierr, option)
     else
       call PCSetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
     endif
@@ -1824,24 +1826,5 @@ subroutine SolverDestroy(solver)
   nullify(solver)
   
 end subroutine SolverDestroy
-
-subroutine PFSolverCPRInit(solver, stash, pcin, ierr, option)
-  use Option_module
-  implicit none
-  type(solver_type) :: solver
-  type(cpr_pc_type) :: stash
-  PC :: pcin
-  MPI_Comm :: C
-  PetscErrorCode :: ierr
-  type(option_type) :: option
-
-  call PetscObjectGetComm(pcin, C, ierr); CHKERRQ(ierr)
-
-  call CPRmake(pcin, stash, C, ierr, option)
-
-  !! set the A matrix in the stash to J:
-  stash%A = solver%J
-
-end subroutine PFSolverCPRInit
   
 end module Solver_module
