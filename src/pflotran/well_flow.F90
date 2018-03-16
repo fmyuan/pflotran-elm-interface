@@ -106,6 +106,10 @@ subroutine WellFlowInit(this,option)
   nullify(this%flow_auxvars) 
   nullify(this%well_fine_grid_pres) 
 
+  nullify(this%well_conn_den_kg) 
+  nullify(this%well_conn_h_sorted)
+  nullify(this%well_fine_grid_den_kg)
+
 end subroutine WellFlowInit
 
 ! ************************************************************************** !
