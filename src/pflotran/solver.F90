@@ -70,6 +70,7 @@ module Solver_module
 
     ! added for CPR option:
     type(cpr_pc_type) :: cprstash
+    PetscBool :: using_cpr
             
   end type solver_type
   
@@ -162,6 +163,7 @@ function SolverCreate()
   SolverCreate => solver
 
   call CPRStoreInitialize(solver%cprstash)
+  solver%using_cpr = PETSC_FALSE
   
 end function SolverCreate
 
@@ -220,7 +222,7 @@ subroutine SolverSetSNESOptions(solver, option)
     call KSPSetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
   endif
   if (len_trim(solver%pc_type) > 1) then
-    if (solver%pc_type == "CPR") then
+    if (solver%using_cpr) then
       call PFSolverCPRInit(solver, solver%cprstash, solver%pc, ierr, option)
     else
       call PCSetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
@@ -480,7 +482,8 @@ subroutine SolverReadLinear(solver,input,option)
           case('SHELL')
             solver%pc_type = PCSHELL
           case('CPR')
-            solver%pc_type = "CPR"
+            solver%pc_type = PCSHELL
+            solver%using_cpr = PETSC_TRUE
           case default
             option%io_buffer  = 'Preconditioner type: ' // trim(word) // &
                                 ' unknown.'
@@ -1740,7 +1743,9 @@ subroutine SolverDestroy(solver)
   ! Author: Glenn Hammond
   ! Date: 11/01/07
   ! 
-
+  
+  use String_module
+   
   implicit none
   
   type(solver_type), pointer :: solver
@@ -1778,8 +1783,7 @@ subroutine SolverDestroy(solver)
   solver%ksp = PETSC_NULL_KSP
   solver%pc = PETSC_NULL_PC
 
-  !! for CPR solver: deallocate the extra workers
-  if (solver%pc_type .EQ. "CPR") then
+  if (solver%using_cpr) then
 
       call DeallocateWorkersInCPRStash(solver%cprstash)
 

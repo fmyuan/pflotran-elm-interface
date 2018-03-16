@@ -252,6 +252,9 @@ end subroutine CPRSetupT1
 subroutine CPRSetupT2(ctx, ierr)
  !! set up the T2 part of the CPR preconditioner,
  !! if anything needs to be done
+
+  use String_module
+
   implicit none
 
   type(cpr_pc_type) :: ctx
@@ -274,8 +277,7 @@ subroutine CPRSetupT2(ctx, ierr)
 
   T2 = ctx%T2
 
-    !if (ctx%T2_type .EQ. PCASM) then
-    if (trim(ctx%T2_type) .EQ. 'PCASM') then
+    if (StringCompare(ctx%T2_type, 'PCASM')) then
       call PCASMSetOverlap(T2, ctx%asmoverlap, ierr);CHKERRQ(ierr)
     endif
 
@@ -284,8 +286,7 @@ subroutine CPRSetupT2(ctx, ierr)
     call PCSetFromOptions(T2, ierr);CHKERRQ(ierr)
     call PCSetUp(T2, ierr); CHKERRQ(ierr)
 
-    !if (ctx%T2_type .EQ. PCASM) then
-    if (trim(ctx%T2_type) .EQ. 'PCASM') then
+    if (StringCompare(ctx%T2_type, 'PCASM')) then
 
       !! default should be preonly
       call PCASMGetSubKSP(T2,   nsub_ksp, first_sub_ksp, &
@@ -310,8 +311,7 @@ subroutine CPRSetupT2(ctx, ierr)
       deallocate(sub_ksps)
       nullify(sub_ksps)
     !! specifically for block jacobi:
-    !elseif (ctx%T2_type .EQ. PCBJACOBI) then
-    elseif (trim(ctx%T2_type) .EQ. 'PCBJACOBI') then
+    elseif (StringCompare(ctx%T2_type, 'PCBJACOBI')) then
 
       !! default should be preonly
       call PCBJacobiGetSubKSP(T2,   nsub_ksp, first_sub_ksp, &
@@ -856,7 +856,7 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
     !! get index of diagonal block
     firstrowdex = -1
     do loopdex = 0,numcols-1,b
-      if (ctx%colIdx(loopdex) .EQ. firstrow) then
+      if (ctx%colIdx(loopdex) == firstrow) then
         firstrowdex = loopdex
       endif
     enddo
@@ -923,7 +923,7 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
         ctx%insert_vals(j) = ctx%insert_vals(j) + local_factors(k)*ctx%all_vals(k, cur_coldex)
       enddo
 
-      if (ctx%insert_colIdx(j) .EQ. insert_rows(0)) then
+      if (ctx%insert_colIdx(j) == insert_rows(0)) then
         diagpart = abs(ctx%insert_vals(j))
       else
         offdiagsum = offdiagsum + abs(ctx%insert_vals(j))
