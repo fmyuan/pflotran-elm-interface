@@ -746,8 +746,8 @@ end subroutine pflotranModelSetICs
 
     PetscErrorCode     :: ierr
     PetscInt           :: ghosted_id, local_id
-    PetscInt           :: iphase
-    PetscReal          :: den, vis, grav
+    PetscInt , parameter :: liq_iphase = 1
+    PetscReal          :: den, vis, grav, Sr
     PetscReal, pointer :: porosity_loc_p(:), vol_ovlap_arr(:)
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
     PetscReal          :: bc_lambda, bc_alpha
@@ -829,26 +829,28 @@ end subroutine pflotranModelSetICs
 
       if (patch%sat_func_id(ghosted_id) < 1) cycle
 
-      saturation_function = patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
-      characteristic_curve => patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr
-
       local_id = grid%nG2L(ghosted_id)
 
       select case(pflotran_model%option%iflowmode)
       case(RICHARDS_MODE)
+         characteristic_curve => patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr
+
          select type(sf => characteristic_curve%saturation_function)
          class is(sat_func_VG_type)
             bc_lambda = sf%m
             bc_alpha  = sf%alpha
+            Sr        = sf%Sr
          class is(sat_func_BC_type)
             bc_lambda = sf%lambda
             bc_alpha  = sf%alpha
+            Sr        = sf%Sr
          class default
             pflotran_model%option%io_buffer = 'CLM-PFLOTRAN only supports ' // &
                  'sat_func_VG_type and sat_func_BC_type'
             call printErrMsg(pflotran_model%option)
          end select
       case(TH_MODE)
+         saturation_function = patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
          th_aux_var => th_aux_vars(ghosted_id)
          bc_alpha  = saturation_function%alpha
          select case(saturation_function%saturation_function_itype)
@@ -857,6 +859,7 @@ end subroutine pflotranModelSetICs
          case(BROOKS_COREY)
             bc_lambda = saturation_function%lambda
          end select
+         Sr = saturation_function%Sr(liq_iphase)
       end select
 
       ! bc_alpha [1/Pa]; while sucsat [mm of H20]
@@ -875,8 +878,7 @@ end subroutine pflotranModelSetICs
       watsat2_pf_loc(local_id) = porosity_loc_p(ghosted_id)
 
 
-      iphase = 1
-      thetares2_pf_loc(local_id) = porosity_loc_p(ghosted_id)*saturation_function%Sr(iphase)
+      thetares2_pf_loc(local_id) = porosity_loc_p(ghosted_id)*Sr
 
    enddo
 
