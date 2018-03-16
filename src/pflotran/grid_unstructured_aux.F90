@@ -274,6 +274,8 @@ function UGridCreate()
   nullify(unstructured_grid%face_area)
   nullify(unstructured_grid%nat_ids_of_other_grid)
 
+  unstructured_grid%upwind_fraction_method = UGRID_UPWIND_FRACTION_PT_PROJ
+
   UGridCreate => unstructured_grid
   
 end function UGridCreate
