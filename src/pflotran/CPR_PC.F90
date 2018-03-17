@@ -1,7 +1,7 @@
 module CPR_Precondititioner_module
-!! Implements a CPR preconditioner using the PCSHELL
-!! funcitonality of PETSC.
-!! Daniel Stone and Sebastien Loisel
+! Implements a CPR preconditioner using the PCSHELL
+! funcitonality of PETSC.
+! Daniel Stone and Sebastien Loisel
 #include <petsc/finclude/petscsys.h>
 #include "petsc/finclude/petscts.h"
 #include "petsc/finclude/petscmat.h"
@@ -19,31 +19,31 @@ module CPR_Precondititioner_module
 
   type, public :: cpr_pc_type 
     Mat :: A, Ap
-    !! The two stage CPR preconditioner calls two other preconditioners:
-    PC :: T1        !! T1 will be a SHELL pc that extracts the pressure system residual from the
-                    !! input residual, then approximates the inverse of Ap acting on that residual
-                    !! using AMG.
-    KSP :: T1solver !! Usually PCONLY, the PC for this KSP is hypre/boomeramg. This is called
-                    !! by T1 (above) as the AMG part.
-    PC :: T2        !! A regular PC, usually BJACOBI
+    ! The two stage CPR preconditioner calls two other preconditioners:
+    PC :: T1        ! T1 will be a SHELL pc that extracts the pressure system residual from the
+                    ! input residual, then approximates the inverse of Ap acting on that residual
+                    ! using AMG.
+    KSP :: T1solver ! Usually PCONLY, the PC for this KSP is hypre/boomeramg. This is called
+                    ! by T1 (above) as the AMG part.
+    PC :: T2        ! A regular PC, usually BJACOBI
     Vec :: T1r,r2, s, z, factors1vec, factors2vec
     PetscInt ::  t2fillin, timescalled, asmoverlap, exrow_offset
     PetscBool :: firstT1Call, firstT2call, asmfactorinplace, &
                  t2shiftinblocks, zeroing, useGAMG, mv_output, t2_zeroing, &
                  skip_T1, amg_report, amg_manual
     character(len=MAXWORDLENGTH) :: T1_type, T2_type, extract_type
-    !! following are buffers/workers for the pressure system extraction.
-    !! 1d arrays:
+    ! following are buffers/workers for the pressure system extraction.
+    ! 1d arrays:
     PetscReal, dimension(:), allocatable :: vals, insert_vals
     PetscInt, dimension(:), allocatable :: colIdx, colIdx_keep, insert_colIdx
-    !! 2d arrays:
+    ! 2d arrays:
     PetscReal, dimension(:,:), allocatable :: all_vals
-    !! point at the option object, needed for error outputs
+    ! point at the option object, needed for error outputs
     type(option_type) :: option
   end type cpr_pc_type 
 
-  !! interfaces need to make the set and get context routines
-  !! work
+  ! interfaces need to make the set and get context routines
+  ! work
   interface
     subroutine PCShellSetContext (P_in, ctx_in, ierr_in)
       use petscksp
@@ -74,24 +74,30 @@ contains
 !  CPR Apply routines
 
 subroutine CPRApply(p, r, y,ierr)
-  !! To be used as a PCSHELL apply routine
+  ! To be used as a PCSHELL apply routine
 
-  !! Applies the CPR preconditioner to r
-  !! (output y)
+  ! 
+  ! Applies the CPR preconditioner to r
+  ! (output y)
+  !
+  ! Author: Sebastien Loisel, Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
+
   implicit none
 
-  !! fixed signature: will approximate
-  !! y = inv(A)r using shell preconditioner P:
+  ! fixed signature: will approximate
+  ! y = inv(A)r using shell preconditioner P:
   PC :: P
   Vec :: r
   Vec :: y
   PetscErrorCode :: ierr
 
-  !! worker vectors:
+  ! worker vectors:
   Vec :: t1r, r2
-  !! PC context holds workers:
+  ! PC context holds workers:
   type(cpr_pc_type), pointer :: ctx
-  !! misc variables and parms:
+  ! misc variables and parms:
   PetscReal:: one
   Mat :: a 
 
@@ -108,7 +114,7 @@ subroutine CPRApply(p, r, y,ierr)
   endif
 
   call MatMult(a,t1r,r2,ierr); CHKERRQ(ierr)
-  call VecAYPX(r2,-one,r,ierr); CHKERRQ(ierr) !! r1 <- r-r2
+  call VecAYPX(r2,-one,r,ierr); CHKERRQ(ierr) ! r1 <- r-r2
 
   call PCApply(ctx%T2,r2,y,ierr); CHKERRQ(ierr)
 
@@ -119,25 +125,31 @@ end subroutine CPRApply
 ! ************************************************************************** !
 
 subroutine CPRT1Apply(p, x, y,ierr)
-  !! To be used as a PCSHELL apply routine
+  ! To be used as a PCSHELL apply routine
+
+  ! 
+  ! Applies the T1 part of the CPR preconditioner
+  ! to r (ourput y)
+  !
+  ! Author: Sebastien Loisel, Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
   
-  !! Applies the T1 part of the CPR preconditioner
-  !! to r (ourput y)
   implicit none
 
-  !! fixed signature: will approximate
-  !! y = inv(A)r using shell preconditioner P:
+  ! fixed signature: will approximate
+  ! y = inv(A)r using shell preconditioner P:
   PC :: p
   Vec :: x
   Vec :: y
   PetscErrorCode :: ierr
 
-  !! PC context holds workers:
+  ! PC context holds workers:
   type(cpr_pc_type), pointer :: ctx
-  !! some other solvers and PCs we'll use:
+  ! some other solvers and PCs we'll use:
   KSP :: solver
   PC :: amgsolver
-  !! misc workers, etc:
+  ! misc workers, etc:
   PetscInt :: b,start,end,k,its
   Vec :: s, z
 
@@ -173,17 +185,23 @@ end subroutine CPRT1Apply
 !  CPR Setup Routines (every time Jaocobian updates) 
 
 subroutine CPRSetup(p,ierr)
-  !! to be used as a PCSHELL setup routine
+  ! to be used as a PCSHELL setup routine
 
-  !! sets up the CPR preconditioner, is called
-  !! every time the matrix updates
+  ! 
+  ! sets up the CPR preconditioner, is called
+  ! every time the matrix updates
+  !
+  ! Author:  Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
+
   implicit none
 
-  !! fixed signature:
+  ! fixed signature:
   PC :: p
   PetscErrorCode :: ierr
 
-  !! PC context holds workers:
+  ! PC context holds workers:
   type(cpr_pc_type), pointer ::ctx
 
   call PCShellGetContext(p, ctx, ierr); CHKERRQ(ierr)
@@ -195,8 +213,14 @@ end subroutine CPRSetup
 ! ************************************************************************** !
 
 subroutine CPRSetupT1(ctx,  ierr)
-  !! set up the T1 part of the CPR preconditioner,
-  !! mostly by extracting the new pressure system
+  ! 
+  ! set up the T1 part of the CPR preconditioner,
+  ! mostly by extracting the new pressure system
+  !
+  ! Author:  Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
+
   implicit none
 
   type(cpr_pc_type) :: ctx
@@ -210,17 +234,17 @@ subroutine CPRSetupT1(ctx,  ierr)
 
   call MatGetBlockSize(A,b,ierr); CHKERRQ(ierr)
 
-  if (ctx%firstT1Call) then !! some final initializations that need knowlege
-                            !! of the fully assembled Jacobian
-    !! let T1 and it's inner solver know what their inner operators are
+  if (ctx%firstT1Call) then ! some final initializations that need knowlege
+                            ! of the fully assembled Jacobian
+    ! let T1 and it's inner solver know what their inner operators are
     solver = ctx%T1solver
     call PCSetOperators(ctx%T1,A,A,ierr); CHKERRQ(ierr)
     call KSPSetOperators(solver,ctx%Ap,ctx%Ap,ierr); CHKERRQ(ierr)
 
 
-    !! now sparsity pattern of the Jacobian is defined, 
-    !! allocate worker arrays that are big enough to 
-    !! be used in the extraction routines coming up.
+    ! now sparsity pattern of the Jacobian is defined, 
+    ! allocate worker arrays that are big enough to 
+    ! be used in the extraction routines coming up.
     call MatGetMaxRowCount(A, mx, ierr)
     call AllocateWorkersInCPRStash(ctx, mx, b)
 
@@ -232,13 +256,13 @@ subroutine CPRSetupT1(ctx,  ierr)
   select case(ctx%extract_type)
     case('QIMPES_VARIABLE')
        if (b == 3) then
-        !! we have a more efficient version for 3x3 blocks so do that if we can instead
+        ! we have a more efficient version for 3x3 blocks so do that if we can instead
         call MatGetSubQIMPES(A, ctx%Ap, ctx%factors1vec,  ierr, ctx)
       else
         call MatGetSubQIMPES_var(A, ctx%Ap, ctx%factors1vec,  ierr,  b, ctx)
       endif
     case('QIMPES_VARIABLE_FORCE')
-      !! force to use the variables block size implementation even for 3x3 blocks
+      ! force to use the variables block size implementation even for 3x3 blocks
       call MatGetSubQIMPES_var(A, ctx%Ap, ctx%factors1vec,  ierr,   b,  ctx)
     case default
       ctx%option%io_buffer = 'CPRSetupT1, extraction type not defined'
@@ -250,8 +274,13 @@ end subroutine CPRSetupT1
 ! ************************************************************************** !
 
 subroutine CPRSetupT2(ctx, ierr)
- !! set up the T2 part of the CPR preconditioner,
- !! if anything needs to be done
+  ! 
+  ! set up the T2 part of the CPR preconditioner,
+  ! if anything needs to be done
+  !
+  ! Author:  Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
 
   use String_module
 
@@ -265,14 +294,13 @@ subroutine CPRSetupT2(ctx, ierr)
   PetscInt :: nsub_ksp, first_sub_ksp, i
   KSP, pointer :: sub_ksps(:)
 
-  !! set operator on first call.
+  ! set operator on first call.
 
-  !! also if first call then time is right
-  !! to adjust things like fill in, etc. 
+  ! also if first call then time is right
+  ! to adjust things like fill in, etc. 
 
-
-  !! if BJACOBI, this is the best place to try
-  !! modifying sub-ksps
+  ! if BJACOBI, this is the best place to try
+  ! modifying sub-ksps
   if (ctx%firstT2Call) then
 
   T2 = ctx%T2
@@ -288,7 +316,7 @@ subroutine CPRSetupT2(ctx, ierr)
 
     if (StringCompare(ctx%T2_type, 'PCASM')) then
 
-      !! default should be preonly
+      ! default should be preonly
       call PCASMGetSubKSP(T2,   nsub_ksp, first_sub_ksp, &
                                PETSC_NULL_KSP, ierr); CHKERRQ(ierr)
       !                         ksp array
@@ -310,10 +338,10 @@ subroutine CPRSetupT2(ctx, ierr)
       enddo
       deallocate(sub_ksps)
       nullify(sub_ksps)
-    !! specifically for block jacobi:
+    ! specifically for block jacobi:
     elseif (StringCompare(ctx%T2_type, 'PCBJACOBI')) then
 
-      !! default should be preonly
+      ! default should be preonly
       call PCBJacobiGetSubKSP(T2,   nsub_ksp, first_sub_ksp, &
                                PETSC_NULL_KSP, ierr); CHKERRQ(ierr)
       !                         ksp array
@@ -324,11 +352,11 @@ subroutine CPRSetupT2(ctx, ierr)
                                sub_ksps, ierr); CHKERRQ(ierr)
 
       do i = 1,nsub_ksp
-        !! default should be ilu with 0 fill
+        ! default should be ilu with 0 fill
         call KSPGetPC(sub_ksps(i), pc_inner, ierr); CHKERRQ(ierr)
 
-        !! MUST DO THIS: the pc is otherwise not setup by this
-        !! point and will not accept changes like factor levels.
+        ! MUST DO THIS: the pc is otherwise not setup by this
+        ! point and will not accept changes like factor levels.
         call PCSetType(pc_inner, PCILU, ierr); CHKERRQ(ierr)
         call PCSetUp(PC_inner, ierr); CHKERRQ(ierr)
 
@@ -351,10 +379,16 @@ end subroutine CPRSetupT2
 !  CPR Creation Routines  
 
 subroutine CPRMake(p, ctx, c, ierr, option)
-  !! make the CPR preconditioner
-  !! create all necessary sub PC/KSP objects
-  !! and set up as much as can be done at this
-  !! point 
+  ! 
+  ! make the CPR preconditioner
+  ! create all necessary sub PC/KSP objects
+  ! and set up as much as can be done at this
+  ! point 
+  !
+  ! Author: Sebastien Loisel,  Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
+
   implicit none
 
   PC :: p
@@ -378,11 +412,17 @@ end subroutine CPRMake
 ! ************************************************************************** !
 
 subroutine CPRCreateT1(c,  ctx,   ierr)
-  !! This will perform bare minimum
-  !! creation of objects for T1 that do not
-  !! need an existing system (i.e. matrix A).
-  !! The system dependent setup must be repeated
-  !! every step and therefore is seperated out.
+  ! 
+  ! This will perform bare minimum
+  ! creation of objects for T1 that do not
+  ! need an existing system (i.e. matrix A).
+  ! The system dependent setup must be repeated
+  ! every step and therefore is seperated out.
+  !
+  ! Author: Sebastien Loisel,  Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
+
   implicit none
 
   MPI_Comm :: c
@@ -392,7 +432,7 @@ subroutine CPRCreateT1(c,  ctx,   ierr)
   KSP :: solver
   PC :: prec
 
-  !! nice default options for boomeramg:
+  ! nice default options for boomeramg:
   if (.NOT. ctx%amg_manual) then 
     call SetCPRDefaults(ierr)
   endif
@@ -409,8 +449,8 @@ subroutine CPRCreateT1(c,  ctx,   ierr)
     case('GMRES')
       call KSPSetType(solver,KSPGMRES,ierr); CHKERRQ(ierr)
     case default
-      !! really we will just skip over the ksp entirely
-      !! in this case, but for completeness..
+      ! really we will just skip over the ksp entirely
+      ! in this case, but for completeness..
       call KSPSetType(solver,KSPPREONLY,ierr); CHKERRQ(ierr)
   end select
 
@@ -438,7 +478,13 @@ end subroutine CPRCreateT1
 ! ************************************************************************** !
 
 subroutine CPRCreateT2(c, ctx, ierr)
-  !! create the T2 preconditioner for the CPR PC
+  ! 
+  ! create the T2 preconditioner for the CPR PC
+  !
+  ! Author: Sebastien Loisel,  Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
+
   implicit none
 
   MPI_Comm :: c
@@ -485,15 +531,21 @@ end subroutine CPRCreateT2
 ! suplementary setup/init/deinit/routines  
 
 subroutine CPRStoreInitialize(ctx)
-  !! MUST CALL THIS before doing anything with the module
+  ! MUST CALL THIS before doing anything with the module
 
-  !! initialize all the noncomplicated members of an
-  !! cpr_pc_type object
+  ! 
+  ! initialize all the noncomplicated members of an
+  ! cpr_pc_type object
+  !
+  ! Author:  Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
+
   implicit none
 
   type(cpr_pc_type) :: ctx
 
-  !! ensure that first run flags are set correctly
+  ! ensure that first run flags are set correctly
   ctx%firstT1Call = PETSC_TRUE
   ctx%firstT2Call = PETSC_TRUE
 
@@ -526,41 +578,47 @@ end subroutine CPRStoreInitialize
 ! ************************************************************************** !
 
 subroutine SetCPRDefaults(ierr)
-  !! set in Petsc's options tables some good
-  !! default options for th HYPRE BOOMERAMG
-  !! AMG preconditioner.
+  ! 
+  ! set in Petsc's options tables some good
+  ! default options for th HYPRE BOOMERAMG
+  ! AMG preconditioner.
+  !
+  ! Author:  Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
+
   implicit none
 
   PetscErrorCode :: ierr
 
   character(len=MAXSTRINGLENGTH) :: string, word
 
-  !! set sensible defualts for the boomeramg solver here,
-  !! the defaults it comes with are rarely preferable to
-  !! us.
+  ! set sensible defualts for the boomeramg solver here,
+  ! the defaults it comes with are rarely preferable to
+  ! us.
 
-  !! strong threshold, 0.5 is ok for 3D
+  ! strong threshold, 0.5 is ok for 3D
   string =  '-pc_hypre_boomeramg_strong_threshold'
   word   =  '0.5'
   call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                             trim(string),trim(word), &
                             ierr);CHKERRQ(ierr)
 
-  !! coarsen type, PMIS is generally more efficient 
+  ! coarsen type, PMIS is generally more efficient 
   string =  '-pc_hypre_boomeramg_coarsen_type'
   word   =  'PMIS'
   call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                             trim(string),trim(word), &
                             ierr);CHKERRQ(ierr)
 
-  !! interpolation type, ext+i is reccomended 
+  ! interpolation type, ext+i is reccomended 
   string =  '-pc_hypre_boomeramg_interp_type'
   word   =  'ext+i'
   call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                             trim(string),trim(word), &
                             ierr);CHKERRQ(ierr)
 
-  !! relaxer, Jacobi should be super weak but cheap 
+  ! relaxer, Jacobi should be super weak but cheap 
   string =  '-pc_hypre_boomeramg_relax_type_all'
   word   =  'Jacobi'
   call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
@@ -572,51 +630,57 @@ end subroutine SetCPRDefaults
 ! ************************************************************************** !
 
 subroutine AllocateWorkersInCPRStash(ctx, n, b)
+  ! 
+  ! allocate the various arrays that are used to hold data 
+  ! during the pressure extraction phase of the CPR pc.
+  !
+  ! Author:  Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
+
   implicit none
 
-  !! allocate the various arrays that are used to hold data 
-  !! during the pressure extraction phase of the CPR pc.
 
   type(cpr_pc_type) :: ctx
   PetscInt :: entriesInARow, entriesInAReducedRow
 
   PetscInt :: n, b
 
-  !! n: the maxiumum number of nonzero columns in any row
-  !!    of the matrix we will work with
-  !! b: the block size of the matrix we will work with
+  ! n: the maxiumum number of nonzero columns in any row
+  !    of the matrix we will work with
+  ! b: the block size of the matrix we will work with
 
-  !! entriesInARow: the maximum number of entries in a row in
-  !!               the matrix we will work with, plus a
-  !!               safety buffer in case it was wrong
+  ! entriesInARow: the maximum number of entries in a row in
+  !               the matrix we will work with, plus a
+  !               safety buffer in case it was wrong
   entriesInARow = n + 10
 
-  !! entriesInAReducedRow: the maximum number of entries in a row
-  !!                       of the extracted matrix we will work with.
-  !!
+  ! entriesInAReducedRow: the maximum number of entries in a row
+  !                       of the extracted matrix we will work with.
+  !
   entriesInAReducedRow = n/b
-  !!                       plus a safety buffer in case it was wrong
+  !                       plus a safety buffer in case it was wrong
   entriesInAReducedRow = entriesInAReducedRow + 10
 
-  !! vals: a real buffer to hold the matrix values output from
-  !!       matgetrows
+  ! vals: a real buffer to hold the matrix values output from
+  !       matgetrows
   allocate(ctx%vals (0:entriesInARow))
-  !! insert_vals: a real buffer to hold the values we will
-  !!               insert to the reduced matrix
+  ! insert_vals: a real buffer to hold the values we will
+  !               insert to the reduced matrix
   allocate(ctx%insert_vals (0:entriesInAReducedRow))
-  !! colIdx: an integer buffer to hold the column indexes
-  !!         output from matgetvals
+  ! colIdx: an integer buffer to hold the column indexes
+  !         output from matgetvals
   allocate(ctx%colIdx (0:entriesInARow))
-  !! colIdx_keep: will copy colIdx into here, since matrestorerows
-  !!              resets colIdx
+  ! colIdx_keep: will copy colIdx into here, since matrestorerows
+  !              resets colIdx
   allocate(ctx%colIdx_keep (0:entriesInARow))
-  !! insert_colIdx: an integer buffer of the column indexes
-  !!                to be input to the reduced matrix we will
-  !!                work with
+  ! insert_colIdx: an integer buffer of the column indexes
+  !                to be input to the reduced matrix we will
+  !                work with
   allocate(ctx%insert_colIdx (0:entriesInAReducedRow))
-  !! all_vals: will just copy every value from the current row block
-  !!           (i.e. set of b rows) into here to work on more
-  !!           easilly. Can very much be improved.
+  ! all_vals: will just copy every value from the current row block
+  !           (i.e. set of b rows) into here to work on more
+  !           easilly. Can very much be improved.
   allocate(ctx%all_vals (0:b-1, 0:entriesInARow))
 
 end subroutine AllocateWorkersInCPRStash
@@ -624,9 +688,16 @@ end subroutine AllocateWorkersInCPRStash
 ! ************************************************************************** !
 
 subroutine DeallocateWorkersInCPRStash(ctx)
+  ! 
+  ! DEallocate the various arrays that are used to hold data 
+  ! during the pressure extraction phase of the CPR pc.
+  !
+  ! Author:  Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
 
-  !! DEallocate the various arrays that are used to hold data 
-  !! during the pressure extraction phase of the CPR pc.
+  implicit none
+
 
   type(cpr_pc_type) :: ctx
 
@@ -647,10 +718,16 @@ end subroutine DeallocateWorkersInCPRStash
 !        pressure system extraction routines  
 
 subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
-  !! extraction of the pressure system matrix of for the 
-  !! CPR preconditioner, and store the pivoting factors
+  ! 
+  ! extraction of the pressure system matrix of for the 
+  ! CPR preconditioner, and store the pivoting factors
+  !
+  ! Author:  Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
 
-  !! 3x3 blocks ONLY
+  ! 3x3 blocks ONLY
+
   implicit none
 
 
@@ -660,9 +737,9 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
   type(cpr_pc_type) :: ctx
 
   PetscInt, dimension(0:0) :: insert_rows
-  !! the elements of the diagonal block:
+  ! the elements of the diagonal block:
   PetscReal :: aa,bb,cc,dd,ee,ff,gg,hh,ii
-  !! misc workers:
+  ! misc workers:
   PetscReal :: det, fac0, fac1, fac2, sm
   PetscInt :: b, rws, cls, nblks, nblks_l, firstRow, cur_coldex, ncolblks, &
               firstrowdex, loopdex, i, j, numcols, numcols_keep
@@ -691,20 +768,20 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
 
   sm = 0.d0
 
-  !! loop over the row blocks
+  ! loop over the row blocks
   do i = 0,nblks_l-1
 
     firstRow = i*b + r_st
 
-    !! a) extract first row
+    ! a) extract first row
     call MatGetRow(a, firstRow, numcols, ctx%colIdx, ctx%vals, ierr); CHKERRQ(ierr)
-    !! store vals since we have to put them back
-    !! store colIdx this time as well
+    ! store vals since we have to put them back
+    ! store colIdx this time as well
     do j = 0,numcols-1
       ctx%all_vals(1, j) = ctx%vals(j)
       ctx%colIdx_keep(j) = ctx%colIdx(j)
     end do
-    !! b) we can get index of diagonal block here
+    ! b) we can get index of diagonal block here
     firstrowdex = -1
     do loopdex = 0,numcols-1,3
       if (ctx%colIdx(loopdex) == firstrow) then
@@ -718,11 +795,11 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
     aa = ctx%vals(firstrowdex)
     bb = ctx%vals(firstrowdex+1)
     cc = ctx%vals(firstrowdex+2)
-    !! restore
+    ! restore
     call MatRestoreRow(a, firstRow, numcols, ctx%colIdx, ctx%vals, ierr)
     CHKERRQ(ierr)
 
-    !! c) second row
+    ! c) second row
     call MatGetRow(a, firstRow+1, numcols, PETSC_NULL_INTEGER, ctx%vals, &
                   ierr); CHKERRQ(ierr)
     do j = 0,numcols-1
@@ -734,7 +811,7 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
     call MatRestoreRow(a, firstRow+1, numcols, PETSC_NULL_INTEGER, &
                        ctx%vals, ierr); CHKERRQ(ierr)
 
-    !! d) third row
+    ! d) third row
     call MatGetRow(a, firstRow+2, numcols, PETSC_NULL_INTEGER, ctx%vals, &
                  ierr); CHKERRQ(ierr)
     do j = 0,numcols-1
@@ -747,14 +824,14 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
     call MatRestoreRow(a, firstRow+2, numcols, PETSC_NULL_INTEGER, &
                        ctx%vals, ierr); CHKERRQ(ierr)
 
-    !! e) factors
+    ! e) factors
     sm = abs(aa)+abs(dd)+abs(gg)
     det = aa*(ee*ii - ff*hh) - bb*(dd*ii-ff*gg) + cc*(dd*hh-ee*gg)
     fac0 = sm*(ee*ii-ff*hh)/det
     fac1 = sm*(cc*hh-bb*ii)/det
     fac2 = sm*(bb*ff-cc*ee)/det
 
-    !! f) store vectors
+    ! f) store vectors
     call VecSetValue(factors1Vec, firstRow, fac0, INSERT_VALUES, ierr)
     CHKERRQ(ierr)
     call VecSetValue(factors1Vec, firstRow+1, fac1, INSERT_VALUES, ierr)
@@ -762,7 +839,7 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
     call VecSetValue(factors1Vec, firstRow+2, fac2, INSERT_VALUES, ierr)
     CHKERRQ(ierr)
 
-    !! g) prepare to set values
+    ! g) prepare to set values
     insert_rows(0) = i + r_st/b
     ncolblks = numcols_keep/b
     do j = 0,ncolblks-1
@@ -775,7 +852,7 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
       ctx%insert_vals(j) = ctx%insert_vals(j) + fac2*ctx%all_vals(3,cur_coldex)
     end do
 
-    !! h) set values
+    ! h) set values
     call MatSetValues(ap, 1, insert_rows, ncolblks, &
                       ctx%insert_colIdx(0:ncolblks-1), &
                       ctx%insert_vals(0:ncolblks-1), INSERT_VALUES, ierr)
@@ -794,11 +871,17 @@ end subroutine MatGetSubQIMPES
 ! ************************************************************************** !
 
 subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
-                              b, ctx)
-  !! extraction of the pressure system matrix of for the 
-  !! CPR preconditioner, and store the pivoting factors
+                              b, ctx                       )
+  ! 
+  ! extraction of the pressure system matrix of for the 
+  ! CPR preconditioner, and store the pivoting factors
+  !
+  ! Author:  Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
 
-  !! for arbitrary block size b
+  ! for arbitrary block size b
+
   implicit none
 
   Mat :: a, ap
@@ -814,7 +897,7 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
   PetscInt :: rws, cls, nblks, nblks_l, firstRow, cur_coldex, ncolblks, &
               firstrowdex, loopdex, i, j, k, numcols, numcols_keep
   PetscReal :: sm, offdiagsum, diagpart
-  !! stuff for lapack inversion routine:
+  ! for lapack inversion routine:
   integer, dimension(1:b) :: ipiv
   PetscReal, dimension(1:b) :: work
   PetscInt :: lwork, invinfo, luinfo
@@ -840,20 +923,20 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
   nblks = rws/b
   nblks_l = (r_nd-r_st)/b
 
-  !! loop over the row blocks
+  ! loop over the row blocks
   do i = 0,nblks_l-1
 
     firstRow = i*b + r_st
 
-    !! first row special treatment
+    ! first row special treatment
     call MatGetRow(a, firstRow, numcols, ctx%colIdx, ctx%vals, ierr); CHKERRQ(ierr)
 
-    !! store both values of row and the col indexs
+    ! store both values of row and the col indexs
     do k = 0,numcols-1
       ctx%all_vals(0, k) = ctx% vals(k)
       ctx%colIdx_keep(k) = ctx%colIdx(k)
     end do
-    !! get index of diagonal block
+    ! get index of diagonal block
     firstrowdex = -1
     do loopdex = 0,numcols-1,b
       if (ctx%colIdx(loopdex) == firstrow) then
@@ -865,15 +948,15 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
       call printErrMsg(ctx%option)
     endif
     numcols_keep = numcols
-    !! restore first row
+    ! restore first row
     call MatRestoreRow(a, firstRow, numcols, ctx%colIdx, ctx%vals, ierr)
     CHKERRQ(ierr)
 
-    !! loop over remaining rows
+    ! loop over remaining rows
     do j = 1,b-1
       call MatGetRow(a, firstRow+j, numcols, PETSC_NULL_INTEGER, ctx%vals, &
                      ierr); CHKERRQ(ierr)
-      !! harvest values
+      ! harvest values
       do k = 0,numcols-1
         ctx%all_vals(j, k) = ctx%vals(k)
       end do
@@ -881,36 +964,36 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
                          ctx%vals, ierr); CHKERRQ(ierr)
     enddo
 
-    !! get inverse of block
+    ! get inverse of block
     diag_block = ctx%all_vals(0:b-1, firstrowdex:firstrowdex+b-1)
-    !! invert
-    !! NOTE: this can fail and seemingly just return permutation
-    call DGETRF(b, b, diag_block, b, IPIV, luinfo ) !! factorize first
+    ! invert
+    ! NOTE: this can fail and seemingly just return permutation
+    call DGETRF(b, b, diag_block, b, IPIV, luinfo ) ! factorize first
     call DGETRI(b,   diag_block,       b,   IPIV,   WORK,     LWORK, invinfo)
 
     if (invinfo > 0) then
       ctx%option%io_buffer = 'MatGetSubQIMPES_var, singular diagonal block'
       call printErrMsg(ctx%option)
     endif
-    !! scaling factor: the sum of abs of the first column of
-    !! diagonal
+    ! scaling factor: the sum of abs of the first column of
+    ! diagonal
     sm = 0.d0
     do j = 0,b-1
       !sm = sm + abs(ctx%all_vals(j, firstrowdex))
       sm = sm + abs(ctx%all_vals(j, firstrowdex+ctx%exrow_offset))
     end do
-    !! factors: take the top row of the inverse block
-    !! and scale
+    ! factors: take the top row of the inverse block
+    ! and scale
     do j = 0,b-1
-        local_factors(j) =  sm*diag_block(0, j) !! diag block has been
-                                                !! replaced with inverse by this point
+        local_factors(j) =  sm*diag_block(0, j) ! diag block has been
+                                                ! replaced with inverse by this point
 
     end do
 
     offdiagsum = 0.d0
     diagpart   = 0.d0
 
-    !! prepare to set values
+    ! prepare to set values
     insert_rows(0) = i + r_st/b
     ncolblks = numcols_keep/b
 
@@ -938,7 +1021,7 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
     end do
 
 
-    !! set values
+    ! set values
     call MatSetValues(ap, 1, insert_rows, ncolblks, &
                       ctx%insert_colIdx(0:ncolblks-1), &
                       ctx%insert_vals(0:ncolblks-1), INSERT_VALUES, ierr)
@@ -956,10 +1039,16 @@ end subroutine MatGetSubQIMPES_var
 ! ************************************************************************** !
 
 subroutine QIRHS(factors, worker, r, rhat, ierr)
-  !! extract the RHS of the pressure system for the CPR
-  !! preconditioner, given pivoting factors (factors)
-  !! and full system rhs (r).
-  !! output is rhat.
+  ! 
+  ! extract the RHS of the pressure system for the CPR
+  ! preconditioner, given pivoting factors (factors)
+  ! and full system rhs (r).
+  ! output is rhat.
+  !
+  ! Author:  Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
+
   implicit none
 
   Vec :: factors, worker, r, rhat
@@ -984,8 +1073,14 @@ end subroutine QIRHS
 !       misc routines  
 
 subroutine MatGetMaxRowCount(a, mx, ierr)
-  !! loop over rows of matrix, return the greatest number
-  !! of nonzeros in a row
+  ! 
+  ! loop over rows of matrix, return the greatest number
+  ! of nonzeros in a row
+  !
+  ! Author:  Daniel Stone 
+  ! Date: Oct 2017 - March 2018
+  ! 
+
   implicit none
 
   Mat :: a

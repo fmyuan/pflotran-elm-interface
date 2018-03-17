@@ -18,6 +18,12 @@ module Solver_cpr_module
 contains
 
 subroutine SolverCPRRead(stash, input, option, ierr)
+  ! 
+  ! Reads the CPR_OPTIONS card
+  !
+  ! Author: Daniel Stone
+  ! Date: March 2018
+  ! 
   use Input_Aux_module
   use String_module
 
@@ -405,6 +411,13 @@ subroutine SolverCPRRead(stash, input, option, ierr)
 end subroutine SolverCPRRead
 
 subroutine SolverCPRInit(J, stash, pcin, ierr, option)
+  ! 
+  ! Do needed set up and call routine to build a CPR 
+  ! preconditioner.
+  !
+  ! Author: Daniel Stone
+  ! Date: Oct 2017 - March 2018
+  ! 
   implicit none
   !type(solver_type) :: solver
   Mat :: J
@@ -418,7 +431,7 @@ subroutine SolverCPRInit(J, stash, pcin, ierr, option)
 
   call CPRmake(pcin, stash, C, ierr, option)
 
-  !! set the A matrix in the stash to J:
+  ! set the A matrix in the stash to J:
   stash%A = J
 
 end subroutine SolverCPRInit

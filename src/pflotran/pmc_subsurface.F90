@@ -1138,9 +1138,13 @@ end subroutine PMCSubsurfaceFinalizeRun
 ! ************************************************************************** !
 
 subroutine CPRWorkersCreate(pm, solver, option)
-!! create all the worker/storage matrices/vectors that will be needed for the
-!! cpr preconditioner
-
+  ! 
+  ! create all the worker/storage matrices/vectors that will be needed for the
+  ! cpr preconditioner
+  !
+  ! Author: Daniel Stone
+  ! Date: Oct 2017 - March 2018
+  ! 
 
   use PM_Subsurface_Flow_class
   use Solver_module
