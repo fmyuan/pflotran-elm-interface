@@ -1415,7 +1415,7 @@ simulation_surfsubsurface.o : checkpoint.o logging.o option.o output.o \
                               timestepper_base.o waypoint.o
 solver.o : CPR_PC.o input_aux.o option.o pflotran_constants.o solver_cpr.o \
            string.o
-solver_cpr.o : CPR_PC.o option.o
+solver_cpr.o : CPR_PC.o input_aux.o option.o pflotran_constants.o string.o
 spline.o : pflotran_constants.o
 srcsink_sandbox.o : general_aux.o grid.o input_aux.o material_aux.o option.o \
                     output_aux.o pflotran_constants.o srcsink_sandbox_base.o \
