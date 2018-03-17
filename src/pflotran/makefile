@@ -243,7 +243,7 @@ util_obj  = \
 	${common_src}units.o \
 	${common_src}utility.o \
 	${common_src}variables.o \
-	${common_src}CPR_PC.o 
+	${common_src}preconditioner_cpr.o 
 
 eos_obj = \
 	${common_src}co2_sw.o \
@@ -573,7 +573,6 @@ endif
 # The source file (i.e. file.F90) is intentionally omitted; 
 # it is picked up by the default/implicit build rule (defined by PETSc)
 ###############################################################################
-CPR_PC.o : option.o pflotran_constants.o string.o
 auxiliary.o : flash2_aux.o general_aux.o global_aux.o immis_aux.o \
               inlinesurface_aux.o material_aux.o miscible_aux.o mphase_aux.o \
               pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
@@ -1193,6 +1192,7 @@ pmc_surface.o : checkpoint.o connection.o coupler.o eos_water.o grid.o \
                 surface_th_aux.o timestepper_base.o timestepper_surface.o
 pmc_third_party.o : option.o pflotran_constants.o pmc_base.o \
                     realization_subsurface.o timestepper_base.o utility.o
+preconditioner_cpr.o : option.o pflotran_constants.o string.o
 ifdef PFLOTRAN_RXN_FLAG
 reaction.o : global_aux.o input_aux.o material_aux.o option.o output_aux.o \
              pflotran_constants.o reaction_aux.o reaction_clm.o reaction_gas.o \
@@ -1413,9 +1413,10 @@ simulation_surfsubsurface.o : checkpoint.o logging.o option.o output.o \
                               simulation_aux.o simulation_base.o \
                               simulation_subsurface.o simulation_surface.o \
                               timestepper_base.o waypoint.o
-solver.o : CPR_PC.o input_aux.o option.o pflotran_constants.o solver_cpr.o \
-           string.o
-solver_cpr.o : CPR_PC.o input_aux.o option.o pflotran_constants.o string.o
+solver.o : input_aux.o option.o pflotran_constants.o preconditioner_cpr.o \
+           solver_cpr.o string.o
+solver_cpr.o : input_aux.o option.o pflotran_constants.o preconditioner_cpr.o \
+               string.o
 spline.o : pflotran_constants.o
 srcsink_sandbox.o : general_aux.o grid.o input_aux.o material_aux.o option.o \
                     output_aux.o pflotran_constants.o srcsink_sandbox_base.o \
