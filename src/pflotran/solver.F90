@@ -163,7 +163,7 @@ function SolverCreate()
     
   SolverCreate => solver
 
-  call CPRStoreInitialize(solver%cprstash)
+  call SolverCPRInitializeStorage(solver%cprstash)
   solver%using_cpr = PETSC_FALSE
   
 end function SolverCreate

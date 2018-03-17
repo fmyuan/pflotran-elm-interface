@@ -64,8 +64,7 @@ module CPR_Precondititioner_module
     end subroutine PCShellGetContext
   end interface
 
-public :: CPRStoreInitialize, &
-          DeallocateWorkersInCPRStash, &
+public :: DeallocateWorkersInCPRStash, &
           CPRMake
 
 contains
@@ -529,53 +528,6 @@ end subroutine CPRCreateT2
 
 ! ************************************************************************** !
 ! suplementary setup/init/deinit/routines  
-
-subroutine CPRStoreInitialize(ctx)
-  ! MUST CALL THIS before doing anything with the module
-
-  ! 
-  ! initialize all the noncomplicated members of an
-  ! cpr_pc_type object
-  !
-  ! Author:  Daniel Stone 
-  ! Date: Oct 2017 - March 2018
-  ! 
-
-  implicit none
-
-  type(cpr_pc_type) :: ctx
-
-  ! ensure that first run flags are set correctly
-  ctx%firstT1Call = PETSC_TRUE
-  ctx%firstT2Call = PETSC_TRUE
-
-  ctx%T1_type = "NONE"
-  ctx%T2_type = "Jacobi"
-  ctx%extract_type = "QIMPES_VARIABLE"
-
-  ctx%asmfactorinplace = PETSC_FALSE
-  ctx%t2shiftinblocks = PETSC_FALSE
-  ctx%mv_output= PETSC_FALSE
-  ctx%t2_zeroing= PETSC_FALSE
-  ctx%skip_T1= PETSC_FALSE
-  ctx%amg_report = PETSC_FALSE
-  ctx%amg_manual = PETSC_FALSE
-
-  ctx%zeroing = PETSC_FALSE
-  ctx%useGAMG= PETSC_FALSE
-
-
-  ctx%t2fillin = 0
-  ctx%timescalled = 0
-
-  ctx%asmoverlap = 0
-
-  ctx%exrow_offset = 0
-
-
-end subroutine CPRStoreInitialize
-
-! ************************************************************************** !
 
 subroutine SetCPRDefaults(ierr)
   ! 
