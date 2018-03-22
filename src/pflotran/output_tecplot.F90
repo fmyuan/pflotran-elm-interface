@@ -560,10 +560,13 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
   use Grid_module
+  use Grid_Structured_module
   use Option_module
   use Field_module
   use Connection_module
+  use Coupler_module
   use Patch_module
+  use DM_Kludge_module
   
   implicit none
 
@@ -573,11 +576,13 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   PetscBool :: output_flux
   
   type(grid_type), pointer :: grid
+  type(grid_structured_type), pointer :: structured_grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(discretization_type), pointer :: discretization  
   type(output_option_type), pointer :: output_option
+  type(dm_ptr_type), pointer :: dm_ptr
   
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
@@ -592,13 +597,21 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: array(:)
   PetscInt, allocatable :: indices(:)
-  Vec :: global_vec, global_vec2
+  Vec :: local_vec
+  Vec :: global_vec
   PetscReal :: sum, average, max, min , std_dev
+  PetscReal :: scale, value, dist(-1:3)
+  PetscReal :: face_location_pert
+  PetscReal :: max_global
+  PetscReal :: min_global
+  PetscReal, pointer :: coord_ptr(:)
+  PetscReal, parameter :: perturbation = 1.d-6
   PetscInt :: max_loc, min_loc
   PetscErrorCode :: ierr
 
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
+  type(coupler_type), pointer :: boundary_condition
     
   nullify(array)
 
@@ -608,6 +621,7 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   discretization => realization_base%discretization
   patch => realization_base%patch
   grid => patch%grid
+  structured_grid => grid%structured_grid
   option => realization_base%option
   field => realization_base%field
   output_option => realization_base%output_option
@@ -708,15 +722,18 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
       case(X_DIRECTION)
         write(string,'(''ZONE T= "'',1es13.5,''",'','' I='',i4,'', J='',i4, &
                      &'', K='',i4)') &
-                     option%time/output_option%tconv,grid%structured_grid%nx-1,grid%structured_grid%ny,grid%structured_grid%nz 
+                     option%time/output_option%tconv,structured_grid%nx-1, &
+                     structured_grid%ny,structured_grid%nz 
       case(Y_DIRECTION)
         write(string,'(''ZONE T= "'',1es13.5,''",'','' I='',i4,'', J='',i4, &
                      &'', K='',i4)') &
-                     option%time/output_option%tconv,grid%structured_grid%nx,grid%structured_grid%ny-1,grid%structured_grid%nz 
+                     option%time/output_option%tconv,structured_grid%nx, &
+                     structured_grid%ny-1,structured_grid%nz 
       case(Z_DIRECTION)
         write(string,'(''ZONE T= "'',1es13.5,''",'','' I='',i4,'', J='',i4, &
                      &'', K='',i4)') &
-                     option%time/output_option%tconv,grid%structured_grid%nx,grid%structured_grid%ny,grid%structured_grid%nz-1
+                     option%time/output_option%tconv,structured_grid%nx, &
+                     structured_grid%ny,structured_grid%nz-1
     end select 
     string = trim(string) // ', DATAPACKING=BLOCK'
     write(OUTPUT_UNIT,'(a)') trim(string)
@@ -729,33 +746,33 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   local_size = grid%nlmax
   global_size = grid%nmax
 !GEH - Structured Grid Dependence - Begin
-  nx_local = grid%structured_grid%nlx
-  ny_local = grid%structured_grid%nly
-  nz_local = grid%structured_grid%nlz
-  nx_global = grid%structured_grid%nx
-  ny_global = grid%structured_grid%ny
-  nz_global = grid%structured_grid%nz
+  nx_local = structured_grid%nlx
+  ny_local = structured_grid%nly
+  nz_local = structured_grid%nlz
+  nx_global = structured_grid%nx
+  ny_global = structured_grid%ny
+  nz_global = structured_grid%nz
   select case(direction)
     case(X_DIRECTION)
-      global_size = grid%nmax-grid%structured_grid%ny*grid%structured_grid%nz
-      nx_global = grid%structured_grid%nx-1
-      if (grid%structured_grid%gxe-grid%structured_grid%lxe == 0) then
-        local_size = grid%nlmax-grid%structured_grid%nlyz
-        nx_local = grid%structured_grid%nlx-1
+      global_size = grid%nmax-structured_grid%ny*structured_grid%nz
+      nx_global = structured_grid%nx-1
+      if (structured_grid%gxe-structured_grid%lxe == 0) then
+        local_size = grid%nlmax-structured_grid%nlyz
+        nx_local = structured_grid%nlx-1
       endif
     case(Y_DIRECTION)
-      global_size = grid%nmax-grid%structured_grid%nx*grid%structured_grid%nz
-      ny_global = grid%structured_grid%ny-1
-      if (grid%structured_grid%gye-grid%structured_grid%lye == 0) then
-        local_size = grid%nlmax-grid%structured_grid%nlxz
-        ny_local = grid%structured_grid%nly-1
+      global_size = grid%nmax-structured_grid%nx*structured_grid%nz
+      ny_global = structured_grid%ny-1
+      if (structured_grid%gye-structured_grid%lye == 0) then
+        local_size = grid%nlmax-structured_grid%nlxz
+        ny_local = structured_grid%nly-1
       endif
     case(Z_DIRECTION)
-      global_size = grid%nmax-grid%structured_grid%nxy
-      nz_global = grid%structured_grid%nz-1
-      if (grid%structured_grid%gze-grid%structured_grid%lze == 0) then
-        local_size = grid%nlmax-grid%structured_grid%nlxy
-        nz_local = grid%structured_grid%nlz-1
+      global_size = grid%nmax-structured_grid%nxy
+      nz_global = structured_grid%nz-1
+      if (structured_grid%gze-structured_grid%lze == 0) then
+        local_size = grid%nlmax-structured_grid%nlxy
+        nz_local = structured_grid%nlz-1
       endif
   end select  
   allocate(indices(local_size))
@@ -766,9 +783,9 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
     do j=1,ny_local
       do i=1,nx_local
         count = count + 1
-        indices(count) = i+grid%structured_grid%lxs+ &
-                         (j-1+grid%structured_grid%lys)*nx_global+ &
-                         (k-1+grid%structured_grid%lzs)*nx_global*ny_global
+        indices(count) = i+structured_grid%lxs+ &
+                         (j-1+structured_grid%lys)*nx_global+ &
+                         (k-1+structured_grid%lzs)*nx_global*ny_global
       enddo
     enddo
   enddo
@@ -780,20 +797,21 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
     do j=1,ny_local
       do i=1,nx_local
         count = count + 1
-        local_id = i+(j-1)*grid%structured_grid%nlx+ &
-                   (k-1)*grid%structured_grid%nlxy
+        local_id = i+(j-1)*structured_grid%nlx+ &
+                   (k-1)*structured_grid%nlxy
         ghosted_id = grid%nL2G(local_id)
         array(count) = grid%x(ghosted_id)
         if (direction == X_DIRECTION) &
           array(count) = array(count) + &
-                         0.5d0*grid%structured_grid%dx(ghosted_id)
+                         0.5d0*structured_grid%dx(ghosted_id)
       enddo
     enddo
   enddo
   ! warning: adjusted size will be changed in OutputConvertArrayToNatural
   ! thus, you cannot pass in local_size, since it is needed later
   adjusted_size = local_size
-  call OutputConvertArrayToNatural(indices,array,adjusted_size,global_size,option)
+  call OutputConvertArrayToNatural(indices,array,adjusted_size, &
+                                   global_size,option)
   call WriteTecplotDataSet(OUTPUT_UNIT,realization_base,array,TECPLOT_REAL, &
                            adjusted_size)
   ! since the array has potentially been resized, must reallocate
@@ -807,18 +825,19 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
     do j=1,ny_local
       do i=1,nx_local
         count = count + 1
-        local_id = i+(j-1)*grid%structured_grid%nlx+ &
-                   (k-1)*grid%structured_grid%nlxy
+        local_id = i+(j-1)*structured_grid%nlx+ &
+                   (k-1)*structured_grid%nlxy
         ghosted_id = grid%nL2G(local_id)        
         array(count) = grid%y(ghosted_id)
         if (direction == Y_DIRECTION) &
           array(count) = array(count) + &
-                         0.5d0*grid%structured_grid%dy(ghosted_id)
+                         0.5d0*structured_grid%dy(ghosted_id)
       enddo
     enddo
   enddo
   adjusted_size = local_size
-  call OutputConvertArrayToNatural(indices,array,adjusted_size,global_size,option)
+  call OutputConvertArrayToNatural(indices,array,adjusted_size, &
+                                   global_size,option)
   call WriteTecplotDataSet(OUTPUT_UNIT,realization_base,array,TECPLOT_REAL, &
                            adjusted_size)
   deallocate(array)
@@ -831,27 +850,30 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
     do j=1,ny_local
       do i=1,nx_local
         count = count + 1
-        local_id = i+(j-1)*grid%structured_grid%nlx+ &
-                   (k-1)*grid%structured_grid%nlxy
+        local_id = i+(j-1)*structured_grid%nlx+ &
+                   (k-1)*structured_grid%nlxy
         ghosted_id = grid%nL2G(local_id)        
         array(count) = grid%z(ghosted_id)
         if (direction == Z_DIRECTION) &
           array(count) = array(count) + &
-                         0.5d0*grid%structured_grid%dz(ghosted_id)
+                         0.5d0*structured_grid%dz(ghosted_id)
       enddo
     enddo
   enddo
   adjusted_size = local_size
-  call OutputConvertArrayToNatural(indices,array,adjusted_size,global_size,option)
+  call OutputConvertArrayToNatural(indices,array,adjusted_size, &
+                                   global_size,option)
   call WriteTecplotDataSet(OUTPUT_UNIT,realization_base,array,TECPLOT_REAL, &
                            adjusted_size)
   deallocate(array)
   nullify(array)
 
-  call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
+  ! must use a local vec so that potential boundary values can be 
+  ! accumulated across ghosted cells
+  call DiscretizationCreateVector(discretization,ONEDOF,local_vec,LOCAL, &
                                   option) 
-  call VecZeroEntries(global_vec,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecZeroEntries(local_vec,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(local_vec,vec_ptr,ierr);CHKERRQ(ierr)
   
   ! place interior velocities in a vector
   connection_set_list => grid%internal_connection_set_list
@@ -867,15 +889,97 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
       if (local_id <= 0 .or. &
           dabs(cur_connection_set%dist(direction,iconn)) < 0.99d0) cycle
       if (output_flux) then
-        ! iphase here is really teh dof
-        vec_ptr(local_id) = patch%internal_flow_fluxes(iphase,sum_connection)
+        ! iphase here is really the dof
+        vec_ptr(ghosted_id) = patch%internal_flow_fluxes(iphase,sum_connection)
       else
-        vec_ptr(local_id) = patch%internal_velocities(iphase,sum_connection)
+        vec_ptr(ghosted_id) = patch%internal_velocities(iphase,sum_connection)
       endif
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
 
+  ! add contribution of boundary velocities
+  select case(direction)
+    case(X_DIRECTION)
+      coord_ptr => grid%x
+      max_global = grid%x_max_global
+      min_global = grid%x_min_global
+    case(Y_DIRECTION)
+      coord_ptr => grid%y
+      max_global = grid%y_max_global
+      min_global = grid%y_min_global
+    case(Z_DIRECTION)
+      coord_ptr => grid%z
+      max_global = grid%z_max_global
+      min_global = grid%z_min_global
+  end select
+  boundary_condition => patch%boundary_condition_list%first 
+  sum_connection = 0
+  do
+    if (.not.associated(boundary_condition)) exit
+    cur_connection_set => boundary_condition%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      dist = cur_connection_set%dist(:,iconn)
+      if (dabs(dist(direction)) < 0.99d0) cycle
+      scale = 1.d0
+      if (dist(direction) < 0.d0) scale = -1.d0
+      ! if the connection is on the domain boundary, we need to skip it.
+      ! use a small perturbation to determine 
+      face_location_pert = coord_ptr(ghosted_id) - &
+                         (1.d0+perturbation)*dist(0)*dist(direction)
+      if (face_location_pert >= max_global .or. &
+          face_location_pert <= min_global) then
+        cycle
+      endif
+      ! velocities are stored as the downwind face of the upwind cell.
+      ! if the direction is positive, then the value needs to be assigned
+      ! to the downwind face of the next cell upwind in the specified 
+      ! direction.
+      select case(direction)
+        case(X_DIRECTION)
+          if (scale > 0.d0) ghosted_id = ghosted_id - 1
+        case(Y_DIRECTION)
+          if (scale > 0.d0) ghosted_id = ghosted_id - structured_grid%ngx
+        case(Z_DIRECTION)
+          if (scale > 0.d0) ghosted_id = ghosted_id - structured_grid%ngxy
+      end select
+      if (ghosted_id <= 0) then
+        option%io_buffer = 'Negative ghosted id in OutputFluxVelocities&
+          &TecplotBlk while adding boundary values. Please contact &
+          &pflotran-dev@googlegroups.com with this message.'
+        call printErrMsgByRank(option)
+      endif
+      ! I don't know why one would do this, but it is possible that a 
+      ! boundary condition could be applied to an interior face shared
+      ! by two active cells. Thus, we must sum.
+      if (output_flux) then
+        value = patch%boundary_flow_fluxes(iphase,sum_connection)
+      else
+        value = patch%boundary_velocities(iphase,sum_connection)
+      endif
+      vec_ptr(ghosted_id) = vec_ptr(ghosted_id) + scale*value
+    enddo
+    boundary_condition => boundary_condition%next 
+  enddo
+  call VecRestoreArrayF90(local_vec,vec_ptr,ierr);CHKERRQ(ierr)
+
+  ! sum values across processes
+  dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,ONEDOF)
+  ! for a given cell, ghosted values for that cell may only be summed
+  ! using DMLocalToGlobalBegin/End with ADD_VALUES. LocalToLocal does not
+  ! work
+  call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
+                                  option) 
+  call VecZeroEntries(global_vec,ierr);CHKERRQ(ierr)
+  call DMLocalToGlobalBegin(dm_ptr%dm,local_vec,ADD_VALUES,global_vec, &
+                            ierr);CHKERRQ(ierr)
+  call DMLocalToGlobalEnd(dm_ptr%dm,local_vec,ADD_VALUES,global_vec, &
+                          ierr);CHKERRQ(ierr)
+
+  call VecGetArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
   ! write out data set 
   count = 0 
   allocate(array(local_size)) 
@@ -883,14 +987,15 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
     do j=1,ny_local 
       do i=1,nx_local 
         count = count + 1 
-        local_id = i+(j-1)*grid%structured_grid%nlx+ &
-                   (k-1)*grid%structured_grid%nlxy 
-        array(count) = vec_ptr(local_id) 
+        local_id = i+(j-1)*structured_grid%nlx+ &
+                   (k-1)*structured_grid%nlxy 
+        array(count) = vec_ptr(local_id)
       enddo 
     enddo 
   enddo 
   call VecRestoreArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
    
+  call VecDestroy(local_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
 
 !GEH - Structured Grid Dependence - End
@@ -899,7 +1004,8 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   array(1:local_size) = array(1:local_size)*output_option%tconv 
   
   adjusted_size = local_size
-  call OutputConvertArrayToNatural(indices,array,adjusted_size,global_size,option)
+  call OutputConvertArrayToNatural(indices,array,adjusted_size, &
+                                   global_size,option)
   call WriteTecplotDataSet(OUTPUT_UNIT,realization_base,array,TECPLOT_REAL, &
                            adjusted_size)
   deallocate(array)
