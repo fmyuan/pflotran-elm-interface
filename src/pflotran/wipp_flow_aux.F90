@@ -299,6 +299,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   use EOS_Water_module
   use EOS_Gas_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_WIPP_module
   use Material_Aux_class
   use Creep_Closure_module
   use Fracture_module

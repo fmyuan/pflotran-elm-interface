@@ -214,6 +214,7 @@ subroutine GeneralDerivativeSetup(general_parameter, &
                                   characteristic_curves, &
                                   material_parameter,option)
   use Characteristic_Curves_module
+  use Characteristic_Curves_Common_module
   use Material_Aux_class
   use Option_module
   

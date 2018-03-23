@@ -1294,7 +1294,8 @@ subroutine WIPPCCVerify(saturation_func, &
   ! Date: 12/18/17
 
   use Option_module
-  use Characteristic_Curves_module
+  use Characteristic_Curves_Base_module
+  use Characteristic_Curves_WIPP_module
   use Utility_module
 
   implicit none
@@ -1444,7 +1445,8 @@ subroutine WIPPCharacteristicCurves(saturation, &
   ! Date: 12/18/17
 
   use Option_module
-  use Characteristic_Curves_module
+  use Characteristic_Curves_Base_module
+  use Characteristic_Curves_WIPP_module
 
   implicit none
 
