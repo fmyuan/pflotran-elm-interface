@@ -352,6 +352,10 @@ relations_obj = \
 	${common_src}saturation.o \
 	${common_src}saturation_function.o \
 	${common_src}characteristic_curves.o \
+	${common_src}characteristic_curves_base.o \
+	${common_src}characteristic_curves_common.o \
+	${common_src}characteristic_curves_owg.o \
+	${common_src}characteristic_curves_wipp.o \
 	${common_src}mphase_pckr_mod.o
 
 properties_obj = \
@@ -618,8 +622,22 @@ block_tridiag.o : pflotran_constants.o
 bragflo.o : pm_wipp_srcsink.o realization_subsurface.o wipp_flow.o
 bragflo_common.o : global_aux.o material_aux.o option.o pflotran_constants.o \
                    wipp_flow_aux.o
-characteristic_curves.o : input_aux.o material_aux.o option.o \
-                          pflotran_constants.o string.o utility.o
+characteristic_curves.o : characteristic_curves_base.o \
+                          characteristic_curves_common.o \
+                          characteristic_curves_owg.o \
+                          characteristic_curves_wipp.o input_aux.o option.o \
+                          pflotran_constants.o string.o
+characteristic_curves_base.o : material_aux.o option.o pflotran_constants.o
+characteristic_curves_common.o : characteristic_curves_base.o material_aux.o \
+                                 option.o pflotran_constants.o utility.o
+characteristic_curves_owg.o : characteristic_curves_base.o \
+                              characteristic_curves_common.o \
+                              characteristic_curves_wipp.o input_aux.o \
+                              material_aux.o option.o pflotran_constants.o \
+                              string.o utility.o
+characteristic_curves_wipp.o : characteristic_curves_base.o \
+                               characteristic_curves_common.o option.o \
+                               pflotran_constants.o
 checkpoint.o : discretization.o field.o global.o grid.o hdf5.o input_aux.o \
                material.o option.o output_aux.o pflotran_constants.o \
                realization_subsurface.o string.o units.o utility.o variables.o \
@@ -698,12 +716,13 @@ e4d_mat_inv.o :
 e4d_run.o : e4d_vars.o
 e4d_setup.o : e4d_mat_inv.o e4d_vars.o
 e4d_vars.o :
-eos.o : co2_span_wagner.o eos_gas.o eos_oil.o eos_water.o input_aux.o option.o \
-        pflotran_constants.o string.o
+eos.o : co2_span_wagner.o eos_database.o eos_gas.o eos_oil.o eos_water.o \
+        input_aux.o option.o pflotran_constants.o string.o
 eos_database.o : input_aux.o lookup_table.o option.o pflotran_constants.o \
-                 string.o utility.o
-eos_gas.o : eos_database.o eos_water.o option.o pflotran_constants.o
-eos_oil.o : eos_database.o option.o pflotran_constants.o
+                 string.o units.o utility.o
+eos_gas.o : eos_database.o eos_water.o input_aux.o option.o \
+            pflotran_constants.o
+eos_oil.o : eos_database.o input_aux.o option.o pflotran_constants.o
 eos_water.o : geometry.o pflotran_constants.o
 factory_geomechanics.o : condition_control.o convergence.o discretization.o \
                          factory_subsurface.o geomech_grid.o \
@@ -1035,8 +1054,8 @@ output_surface.o : connection.o coupler.o discretization.o field.o grid.o \
                    pflotran_constants.o reaction_aux.o \
                    realization_subsurface.o realization_surface.o string.o \
                    surface_field.o utility.o variables.o
-output_tecplot.o : connection.o discretization.o field.o grid.o \
-                   grid_structured.o grid_unstructured_aux.o \
+output_tecplot.o : connection.o coupler.o discretization.o dm_kludge.o field.o \
+                   grid.o grid_structured.o grid_unstructured_aux.o \
                    grid_unstructured_cell.o logging.o observation.o option.o \
                    output_aux.o output_common.o patch.o pflotran_constants.o \
                    reaction_aux.o realization_base.o region.o \
@@ -1116,10 +1135,10 @@ pm_rt.o : checkpoint.o communicator_base.o communicator_structured.o \
           reaction_aux.o reactive_transport.o reactive_transport_aux.o \
           realization_base.o realization_subsurface.o secondary_continuum.o \
           string.o variables.o
-pm_subsurface_flow.o : characteristic_curves.o checkpoint.o \
-                       communicator_base.o communicator_structured.o \
-                       communicator_unstructured.o condition.o \
-                       condition_control.o convergence.o coupler.o \
+pm_subsurface_flow.o : characteristic_curves.o characteristic_curves_wipp.o \
+                       checkpoint.o communicator_base.o \
+                       communicator_structured.o communicator_unstructured.o \
+                       condition.o condition_control.o convergence.o coupler.o \
                        data_mediator.o dataset_base.o dataset_common_hdf5.o \
                        dataset_gridded_hdf5.o discretization.o global.o grid.o \
                        hdf5.o input_aux.o integral_flux.o material.o \
@@ -1554,8 +1573,9 @@ well_toil_ims.o : eos_oil.o eos_water.o option.o output_aux.o \
 well_water_injector.o : eos_water.o grid.o hydrostatic_common.o option.o \
                         output_aux.o pflotran_constants.o well_base.o \
                         well_flow.o well_flow_energy.o well_spec_base.o
-wipp.o : characteristic_curves.o input_aux.o lookup_table.o material_aux.o \
-         option.o pflotran_constants.o string.o units.o utility.o
+wipp.o : characteristic_curves_base.o characteristic_curves_wipp.o input_aux.o \
+         lookup_table.o material_aux.o option.o pflotran_constants.o string.o \
+         units.o utility.o
 wipp_flow.o : bragflo_common.o characteristic_curves.o connection.o coupler.o \
               discretization.o field.o general_aux.o global_aux.o grid.o \
               material.o material_aux.o option.o output_aux.o patch.o \
@@ -1563,9 +1583,9 @@ wipp_flow.o : bragflo_common.o characteristic_curves.o connection.o coupler.o \
               srcsink_sandbox.o srcsink_sandbox_base.o \
               srcsink_sandbox_wipp_gas.o srcsink_sandbox_wipp_well.o \
               variables.o wipp.o wipp_flow_aux.o wipp_flow_common.o
-wipp_flow_aux.o : characteristic_curves.o eos_gas.o eos_water.o global_aux.o \
-                  material_aux.o option.o pflotran_constants.o utility.o \
-                  variables.o wipp.o
+wipp_flow_aux.o : characteristic_curves.o characteristic_curves_wipp.o \
+                  eos_gas.o eos_water.o global_aux.o material_aux.o option.o \
+                  pflotran_constants.o utility.o variables.o wipp.o
 wipp_flow_common.o : bragflo_common.o connection.o eos_gas.o eos_water.o \
                      global_aux.o material_aux.o option.o pflotran_constants.o \
                      wipp_flow_aux.o
