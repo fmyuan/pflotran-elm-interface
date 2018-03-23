@@ -294,10 +294,14 @@ set(GRID_SOURCES
 	grid_unstructured_polyhedra.F90
 )
 
-set(REALATIONS_SOURCES
+set(RELATIONS_SOURCES
 	saturation.F90
 	saturation_function.F90
 	characteristic_curves.F90
+	characteristic_curves_base.F90
+	characteristic_curves_common.F90
+	characteristic_curves_owg.F90
+	characteristic_curves_wipp.F90
 	mphase_pckr_mod.F90
 )
 
@@ -468,7 +472,7 @@ set (PFLOTRAN_SOURCES
     ${SHARD_MODE_AUX_SOURCES}
     ${CHEM_SOURCES}
     ${GRID_SOURCES}
-    ${REALATIONS_SOURCES}
+    ${RELATIONS_SOURCES}
     ${PROPERTIES_SOURCES}
     ${DATASET_SOURCES}
     ${SRCSINK_SOURCES}
