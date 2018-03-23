@@ -727,7 +727,8 @@ end subroutine pflotranModelSetICs
     use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z
     use Saturation_Function_module
-    use Characteristic_Curves_Base_module
+    use Characteristic_Curves_module
+    use Characteristic_Curves_Common_module
 
     implicit none
 

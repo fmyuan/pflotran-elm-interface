@@ -587,15 +587,23 @@ FORCE :
 # NOTE(bja, 2013-07) dependencies for clm interface. Keep these separate so that
 # the long list below is easier to update from the main makefile.
 clm_pflotran_interface_data.o :
-mapping.o : option.o pflotran_constants.o input_aux.o
-pflotran_model.o : clm_pflotran_interface_data.o discretization.o factory_geomechanics.o \
-                   factory_hydrogeophysics.o factory_pflotran.o factory_subsurface.o \
-                   factory_surface.o factory_surfsubsurface.o field.o global_aux.o \
-                   grid.o input_aux.o mapping.o option.o patch.o pflotran_constants.o \
-                   realization_base.o realization_subsurface.o richards_aux.o richards.o \
-                   simulation_base.o simulation_subsurface.o simulation_surface.o \
-                   simulation_surfsubsurface.o realization_surface.o timestepper_base.o \
-                   th.o th_aux.o
+mapping.o : input_aux.o option.o pflotran_constants.o string.o
+pflotran_model.o : characteristic_curves.o characteristic_curves_common.o \
+                   clm_pflotran_interface_data.o connection.o coupler.o \
+                   discretization.o factory_geomechanics.o \
+                   factory_hydrogeophysics.o factory_pflotran.o \
+                   factory_subsurface.o factory_surface.o \
+                   factory_surfsubsurface.o field.o global_aux.o grid.o \
+                   grid_unstructured.o grid_unstructured_aux.o \
+                   grid_unstructured_cell.o input_aux.o logging.o mapping.o \
+                   material.o multisimulation.o option.o patch.o \
+                   pflotran_constants.o realization_base.o \
+                   realization_subsurface.o realization_surface.o richards.o \
+                   richards_aux.o saturation_function.o simulation_base.o \
+                   simulation_subsurface.o simulation_surface.o \
+                   simulation_surfsubsurface.o string.o surface_global_aux.o \
+                   th.o th_aux.o timestepper_base.o units.o utility.o \
+                   variables.o waypoint.o
 
 ###############################################################################
 # Dependencies
