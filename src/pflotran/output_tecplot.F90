@@ -593,20 +593,9 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   PetscInt :: i, j, k
   PetscInt :: local_id, ghosted_id
   PetscInt :: adjusted_size
-  PetscInt :: count, iconn, sum_connection
-  PetscReal, pointer :: vec_ptr(:)
+  PetscInt :: count
   PetscReal, pointer :: array(:)
   PetscInt, allocatable :: indices(:)
-  Vec :: local_vec
-  Vec :: global_vec
-  PetscReal :: sum, average, max, min , std_dev
-  PetscReal :: scale, value, dist(-1:3)
-  PetscReal :: face_location_pert
-  PetscReal :: max_global
-  PetscReal :: min_global
-  PetscReal, pointer :: coord_ptr(:)
-  PetscReal, parameter :: perturbation = 1.d-6
-  PetscInt :: max_loc, min_loc
   PetscErrorCode :: ierr
 
   type(connection_set_list_type), pointer :: connection_set_list
@@ -868,135 +857,9 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   deallocate(array)
   nullify(array)
 
-  ! must use a local vec so that potential boundary values can be 
-  ! accumulated across ghosted cells
-  call DiscretizationCreateVector(discretization,ONEDOF,local_vec,LOCAL, &
-                                  option) 
-  call VecZeroEntries(local_vec,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(local_vec,vec_ptr,ierr);CHKERRQ(ierr)
-  
-  ! place interior velocities in a vector
-  connection_set_list => grid%internal_connection_set_list
-  cur_connection_set => connection_set_list%first
-  sum_connection = 0
-  do 
-    if (.not.associated(cur_connection_set)) exit
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-      ghosted_id = cur_connection_set%id_up(iconn)
-      local_id = grid%nG2L(ghosted_id) ! = zero for ghost nodes
-      ! velocities are stored as the downwind face of the upwind cell
-      if (local_id <= 0 .or. &
-          dabs(cur_connection_set%dist(direction,iconn)) < 0.99d0) cycle
-      if (output_flux) then
-        ! iphase here is really the dof
-        vec_ptr(ghosted_id) = patch%internal_flow_fluxes(iphase,sum_connection)
-      else
-        vec_ptr(ghosted_id) = patch%internal_velocities(iphase,sum_connection)
-      endif
-    enddo
-    cur_connection_set => cur_connection_set%next
-  enddo
-
-  ! add contribution of boundary velocities
-  select case(direction)
-    case(X_DIRECTION)
-      coord_ptr => grid%x
-      max_global = grid%x_max_global
-      min_global = grid%x_min_global
-    case(Y_DIRECTION)
-      coord_ptr => grid%y
-      max_global = grid%y_max_global
-      min_global = grid%y_min_global
-    case(Z_DIRECTION)
-      coord_ptr => grid%z
-      max_global = grid%z_max_global
-      min_global = grid%z_min_global
-  end select
-  boundary_condition => patch%boundary_condition_list%first 
-  sum_connection = 0
-  do
-    if (.not.associated(boundary_condition)) exit
-    cur_connection_set => boundary_condition%connection_set
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-      local_id = cur_connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
-      dist = cur_connection_set%dist(:,iconn)
-      if (dabs(dist(direction)) < 0.99d0) cycle
-      scale = 1.d0
-      if (dist(direction) < 0.d0) scale = -1.d0
-      ! if the connection is on the domain boundary, we need to skip it.
-      ! use a small perturbation to determine 
-      face_location_pert = coord_ptr(ghosted_id) - &
-                         (1.d0+perturbation)*dist(0)*dist(direction)
-      if (face_location_pert >= max_global .or. &
-          face_location_pert <= min_global) then
-        cycle
-      endif
-      ! velocities are stored as the downwind face of the upwind cell.
-      ! if the direction is positive, then the value needs to be assigned
-      ! to the downwind face of the next cell upwind in the specified 
-      ! direction.
-      select case(direction)
-        case(X_DIRECTION)
-          if (scale > 0.d0) ghosted_id = ghosted_id - 1
-        case(Y_DIRECTION)
-          if (scale > 0.d0) ghosted_id = ghosted_id - structured_grid%ngx
-        case(Z_DIRECTION)
-          if (scale > 0.d0) ghosted_id = ghosted_id - structured_grid%ngxy
-      end select
-      if (ghosted_id <= 0) then
-        option%io_buffer = 'Negative ghosted id in OutputFluxVelocities&
-          &TecplotBlk while adding boundary values. Please contact &
-          &pflotran-dev@googlegroups.com with this message.'
-        call printErrMsgByRank(option)
-      endif
-      ! I don't know why one would do this, but it is possible that a 
-      ! boundary condition could be applied to an interior face shared
-      ! by two active cells. Thus, we must sum.
-      if (output_flux) then
-        value = patch%boundary_flow_fluxes(iphase,sum_connection)
-      else
-        value = patch%boundary_velocities(iphase,sum_connection)
-      endif
-      vec_ptr(ghosted_id) = vec_ptr(ghosted_id) + scale*value
-    enddo
-    boundary_condition => boundary_condition%next 
-  enddo
-  call VecRestoreArrayF90(local_vec,vec_ptr,ierr);CHKERRQ(ierr)
-
-  ! sum values across processes
-  dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,ONEDOF)
-  ! for a given cell, ghosted values for that cell may only be summed
-  ! using DMLocalToGlobalBegin/End with ADD_VALUES. LocalToLocal does not
-  ! work
-  call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
-                                  option) 
-  call VecZeroEntries(global_vec,ierr);CHKERRQ(ierr)
-  call DMLocalToGlobalBegin(dm_ptr%dm,local_vec,ADD_VALUES,global_vec, &
-                            ierr);CHKERRQ(ierr)
-  call DMLocalToGlobalEnd(dm_ptr%dm,local_vec,ADD_VALUES,global_vec, &
-                          ierr);CHKERRQ(ierr)
-
-  call VecGetArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
-  ! write out data set 
-  count = 0 
-  allocate(array(local_size)) 
-  do k=1,nz_local 
-    do j=1,ny_local 
-      do i=1,nx_local 
-        count = count + 1 
-        local_id = i+(j-1)*structured_grid%nlx+ &
-                   (k-1)*structured_grid%nlxy 
-        array(count) = vec_ptr(local_id)
-      enddo 
-    enddo 
-  enddo 
-  call VecRestoreArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
-   
-  call VecDestroy(local_vec,ierr);CHKERRQ(ierr)
-  call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+  allocate(array(local_size))
+  call OutputCollectVelocityOrFlux(realization_base, iphase, direction, &
+                                   output_flux, array)
 
 !GEH - Structured Grid Dependence - End
   
@@ -1009,8 +872,6 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   call WriteTecplotDataSet(OUTPUT_UNIT,realization_base,array,TECPLOT_REAL, &
                            adjusted_size)
   deallocate(array)
-  nullify(array)
-  
   deallocate(indices)
 
   if (option%myrank == option%io_rank) close(OUTPUT_UNIT)
