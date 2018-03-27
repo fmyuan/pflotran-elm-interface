@@ -715,11 +715,23 @@ subroutine RPF_TOUGH2_Linear_Oil_RelPerm(this,liquid_saturation, &
 
   Seo = (So - this%Sro) / (1.d0 - this%Sro)
 
+  !!! DS added
+  !Seo = (So - this%Sro) / (1.d0 - this%Sro)
+  !dSeo_so = 1.d0 / (1 - this%Sro)
+  !dkr_Seo = 1.d0
+  !! return dkr_sat is derivative of relperm wrt liquid saturation to 
+  !! be consistent 
+  !dkr_sat = -1.d0*dSeo_so*dkr_Seo !! -1 is dso/dsl
+  !! just hard code it:
+  dkr_sat = -1.d0 / (1 - this%Sro)
+
   if (Seo >= 1.d0) then
     relative_permeability = 1.d0
+    dkr_sat = 0.d0
     return
   else if (Seo <=  0.d0) then
     relative_permeability = 0.d0
+    dkr_sat = 0.d0
     return
   endif
 

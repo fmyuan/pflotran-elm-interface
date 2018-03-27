@@ -242,7 +242,8 @@ util_obj  = \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
-	${common_src}variables.o
+	${common_src}variables.o \
+        ${common_src}toil_ims_derivs.o
 
 eos_obj = \
 	${common_src}co2_sw.o \
@@ -988,7 +989,8 @@ output.o : connection.o coupler.o debug.o discretization.o field.o \
            realization_subsurface.o region.o string.o units.o utility.o \
            variables.o waypoint.o well.o wipp_flow_aux.o
 output_aux.o : option.o pflotran_constants.o variables.o
-output_common.o : connection.o coupler.o field.o global_aux.o grid.o \
+output_common.o : connection.o coupler.o discretization.o dm_kludge.o field.o \
+                  global_aux.o grid.o grid_structured.o \
                   grid_unstructured_aux.o grid_unstructured_cell.o hdf5.o \
                   hdf5_aux.o logging.o material_aux.o option.o output_aux.o \
                   patch.o pflotran_constants.o realization_base.o \
@@ -1373,9 +1375,9 @@ richards.o : connection.o coupler.o debug.o discretization.o eos_water.o \
              realization_subsurface.o region.o richards_aux.o \
              richards_common.o srcsink_sandbox.o srcsink_sandbox_base.o \
              srcsink_sandbox_downreg.o string.o utility.o variables.o
-richards_aux.o : characteristic_curves.o eos_water.o global_aux.o \
-                 material_aux.o matrix_buffer.o option.o pflotran_constants.o \
-                 utility.o
+richards_aux.o : characteristic_curves.o characteristic_curves_common.o \
+                 eos_water.o global_aux.o material_aux.o matrix_buffer.o \
+                 option.o pflotran_constants.o utility.o
 richards_common.o : characteristic_curves.o connection.o eos_water.o \
                     global_aux.o material_aux.o option.o pflotran_constants.o \
                     richards_aux.o utility.o
@@ -1502,7 +1504,10 @@ toil_ims.o : auxvars_flow.o auxvars_toil_ims.o condition.o connection.o \
              global_aux.o grid.o material.o material_aux.o option.o \
              output_aux.o output_tecplot.o patch.o pflotran_constants.o \
              pm_toil_ims_aux.o realization_subsurface.o saturation_function.o \
-             variables.o
+             toil_ims_derivs.o variables.o
+toil_ims_derivs.o : auxvars_toil_ims.o condition.o connection.o eos_oil.o \
+                    eos_water.o global_aux.o material_aux.o option.o \
+                    pflotran_constants.o pm_toil_ims_aux.o
 towg.o : auxvars_towg.o condition.o connection.o coupler.o debug.o \
          discretization.o eos_gas.o eos_oil.o eos_water.o field.o global_aux.o \
          grid.o material.o material_aux.o option.o output_aux.o patch.o \
@@ -1562,7 +1567,6 @@ wipp_flow_common.o : bragflo_common.o connection.o eos_gas.o eos_water.o \
                      wipp_flow_aux.o
 wrapper_hydrogeophysics.o : e4d_run.o e4d_setup.o e4d_vars.o option.o \
                             pflotran_constants.o
-
 ###############################################################################
 # End Dependencies
 ###############################################################################
