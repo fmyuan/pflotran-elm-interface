@@ -927,8 +927,10 @@ subroutine RPF_Mod_BC_Liq_RelPerm(this,liquid_saturation, &
 
   if (Se >= 1.d0) then
     relative_permeability = this%kr_max
+    dkr_sat = 0.d0
     return
   else if (Se <=  0.d0) then
+    dkr_sat = 0.d0
     relative_permeability = 0.d0
     return
   endif
@@ -987,9 +989,11 @@ subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
 
   if (Seo >= 1.d0) then
     relative_permeability = this%kr_max
+    dkr_sat = 0.d0
     return
   else if (Seo <=  0.d0) then
     relative_permeability = 0.d0
+    dkr_sat = 0.d0
     return
   endif
 
