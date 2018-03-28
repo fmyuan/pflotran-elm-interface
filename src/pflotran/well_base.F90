@@ -908,7 +908,7 @@ subroutine BaseExplResAD(this,iconn,ss_flow_vol_flux,isothermal, &
   PetscReal :: Jac(:,:)
 
 
-  write(*,*) "PrintOutputHeaderWellBase must be extended"
+  write(*,*) "BaseExplResAD must be extended"
   stop
 
 end subroutine BaseExplResAD

@@ -323,9 +323,11 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
 
   cell_pressure = max(toil_auxvar%pres(lid),toil_auxvar%pres(oid))
 
+#if 0
   if (toil_auxvar%pres(lid) >= toil_auxvar%pres(oid)) then
     print *, "using liquid pressure as cell pressure"
   endif
+#endif
 
 
   ! calculate effective porosity as a function of pressure

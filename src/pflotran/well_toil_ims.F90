@@ -776,9 +776,10 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
 
                 call DerivsB(d_B, d_A, d_pe_dp, d_pe_dT, &
                             phase_ent(i_ph), phase_mol_den(i_ph), &
-                            Res(TOIL_IMS_ENERGY_EQUATION_INDEX))
+                            vol_flux)
 
-                Jac(TOIL_IMS_ENERGY_EQUATION_INDEX, :) = d_B(:)
+                Jac(TOIL_IMS_ENERGY_EQUATION_INDEX, :) = &
+                Jac(TOIL_IMS_ENERGY_EQUATION_INDEX, :) + d_B(:)
 
           !!! another contribution to jacobian here; note that we already 
           !!! have vol_flux * phase_mol_den so it's just another two term
@@ -889,12 +890,12 @@ subroutine DerivsB(d_B, d_A, d_pe_dp, d_pe_dT, phase_ent, phase_mol_den, vol_flu
                 !Res(TOIL_IMS_ENERGY_EQUATION_INDEX) - &
                 !vol_flux * phase_mol_den(i_ph) * phase_ent(i_ph)   
 
-  !! A = vol_vlux * phase_mol_den
+  !! A = - vol_vlux * phase_mol_den
   !! B = A * phase_ent
   !! dB/dx = 
   !!        dA/dx * phase_ent + A * dphase_ent/dx
 
-  A = vol_flux * phase_mol_den
+  A = -1.d0 * vol_flux * phase_mol_den
 
   d_B = 0.d0
 
@@ -909,7 +910,7 @@ subroutine DerivsB(d_B, d_A, d_pe_dp, d_pe_dT, phase_ent, phase_mol_den, vol_flu
   d_B(3) = d_A(3) * phase_ent + A * d_pe_dT
 
 
-  d_B = -1.d0 * d_B
+  !d_B = -1.d0 * d_B
 
 end subroutine DerivsB
 

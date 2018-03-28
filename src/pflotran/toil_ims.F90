@@ -2991,6 +2991,9 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
 
   use AuxVars_Flow_module
 
+  use Well_TOilIms_class
+  use Well_Base_class
+
   implicit none
 
   SNES :: snes
@@ -3040,6 +3043,9 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   character(len=MAXWORDLENGTH) :: word
 
   PetscReal :: J_alt(realization%option%nflowdof,realization%option%nflowdof)
+  PetscBool :: can_do_analytical 
+
+  class(well_base_type), pointer :: well
   
   patch => realization%patch
   grid => patch%grid
@@ -3285,9 +3291,22 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
       if (associated(source_sink%well) ) then
         !Jdn = 0.0d0
 
+        well => source_sink%well
+        can_do_analytical = PETSC_FALSE
+        if (toil_analytical_derivatives) then
+          select type(well)
+            class is(well_toil_ims_wat_inj_type)
+              print *, "water injector"
+            class is(well_toil_ims_oil_prod_type)
+              print *, "oil producer"
+              can_do_analytical = PETSC_TRUE
+          end select 
+        endif
+
+
         call source_sink%well%ExplJDerivative(iconn,ghosted_id, &
                         toil_ims_isothermal,TOIL_IMS_ENERGY_EQUATION_INDEX, &
-                         option,Jdn, toil_analytical_derivatives, &
+                         option,Jdn, can_do_analytical, &
                          toil_analytical_derivatives_compare, toil_dcomp_tol)
         Jdn = -Jdn  
 

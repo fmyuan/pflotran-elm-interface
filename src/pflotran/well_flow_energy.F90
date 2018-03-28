@@ -223,6 +223,7 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
   PetscBool :: analytical, analytical_compare
   PetscReal :: comptol
 
+
   !type(flow_toil_ims_condition_type), pointer :: src_sink_condition
   !type(toil_ims_auxvar_type) :: toil_auxvar(0:)
   !class(auxvar_toil_ims_type) :: toil_auxvar(0:)
@@ -280,6 +281,19 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
     !Jac =  0.0d0
 
   endif
+
+#if 0
+  can_do_analytical = PETSC_FALSE
+  if (analytical) then
+    select type(well)
+      class is(well_toil_ims_wat_inj_type)
+        print *, "water injector"
+      class is(well_toil_ims_oil_prod_type)
+        print *, "oil producer"
+        can_do_analytical = PETSC_TRUE
+    end select 
+  endif
+#endif
 
   if (analytical) then
     call this%ExplResAD(iconn,dummy_real,isothermal,ghosted_id,ZERO_INTEGER,&
