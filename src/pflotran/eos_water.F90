@@ -1634,8 +1634,8 @@ subroutine EOSWaterDensityTrangenstein(t,p,calculate_derivatives, &
     dwp = dw * d_p_exponent_dp 
 
     !PO TODO add derivatives
-    print *, 'Derivatives not set up in EOSWaterDensityTrangenstein.'
-    stop
+    !print *, 'Derivatives not set up in EOSWaterDensityTrangenstein.'
+    !stop
   else
     dwp = UNINITIALIZED_DOUBLE
     dwt = UNINITIALIZED_DOUBLE
