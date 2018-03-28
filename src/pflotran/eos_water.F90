@@ -1606,6 +1606,8 @@ subroutine EOSWaterDensityTrangenstein(t,p,calculate_derivatives, &
   PetscReal, parameter :: cpw = 4.00d-005  !1/atm
   ! conversion 1/atm -> 1/Pa         
   ! cpw_Pa = cpw * 1.01325*1.0d-1
+
+  PetscReal :: t_numer, d_t_numer_dt, t_denom, d_t_denom_dt,  p_exponent, d_p_exponent_dp
   
   dw = (a0 + a1*t + a2 * t**2.0 + a3 * t**3.0 + a4 * t**4.0 + a5 * t**5.0 ) / &
        ( 1.0 + a6 * t ) * &           !Pa -> MPa
@@ -1615,6 +1617,22 @@ subroutine EOSWaterDensityTrangenstein(t,p,calculate_derivatives, &
   dwmol = dw/FMWH2O ! kmol/m^3
   
   if (calculate_derivatives) then
+
+    !!! DS - FIRST ATTEMPT at these derivatives
+    t_numer = (a0 + a1*t + a2 * t**2.0 + a3 * t**3.0 + a4 * t**4.0 + a5 * t**5.0 ) 
+    d_t_numer_dt = (a1 + 2.0* a2 * t +  3.0 * a3 * t**2.0 + 4.0 * a4 * t**3.0 + 5.0 * a5 * t**4.0 ) 
+
+    t_denom = ( 1.0 + a6 * t )
+    d_t_denom_dt = a6 
+
+    p_exponent = cpw / (1.01325*1.0d-1) * (p * 1.0d-6 - a7 )
+    d_p_exponent_dp = cpw / (1.01325*1.0d-1) * 1.0d-6 
+    
+    dwt = (d_t_numer_dt / t_denom) - (t_numer * d_t_denom_dt / t_denom / t_denom  )
+    dwt = dwt * dexp(p_exponent)
+
+    dwp = dw * d_p_exponent_dp 
+
     !PO TODO add derivatives
     print *, 'Derivatives not set up in EOSWaterDensityTrangenstein.'
     stop
