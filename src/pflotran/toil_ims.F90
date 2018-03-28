@@ -2063,6 +2063,7 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
   use Option_module
   use Saturation_Function_module
   use Material_Aux_class
+  use Utility_module
   
   implicit none
 
@@ -2178,6 +2179,7 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
   ! 
   use Option_module
   use Material_Aux_class
+  use Utility_module
   
   implicit none
   
@@ -2337,6 +2339,7 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 
   use Option_module 
   use Material_Aux_class
+  use Utility_module
   
   implicit none
 
@@ -2460,6 +2463,7 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
 
   use Option_module
   use Condition_module
+  use Utility_module
 
   implicit none
 
@@ -3034,6 +3038,8 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
+
+  PetscReal :: J_alt(realization%option%nflowdof,realization%option%nflowdof)
   
   patch => realization%patch
   grid => patch%grid
@@ -3278,10 +3284,13 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
 #ifdef WELL_CLASS      
       if (associated(source_sink%well) ) then
         !Jdn = 0.0d0
+
         call source_sink%well%ExplJDerivative(iconn,ghosted_id, &
                         toil_ims_isothermal,TOIL_IMS_ENERGY_EQUATION_INDEX, &
-                         option,Jdn)
+                         option,Jdn, toil_analytical_derivatives, &
+                         toil_analytical_derivatives_compare, toil_dcomp_tol)
         Jdn = -Jdn  
+
         call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
 
@@ -3438,33 +3447,8 @@ function TOilImsAverageDensity(sat_up,sat_dn,density_up,density_dn)
 
 end function TOilImsAverageDensity
 
+
 ! ************************************************************************** !
-
-subroutine MatCompare(a1, a2, n, m, tol)
-
-  implicit none
-  PetscInt :: n, m
-  PetscReal, dimension(1:n, 1:m) :: a1, a2
-  PetscReal :: tol
-
-  PetscInt :: i, j
-  PetscReal :: dff
-
-  do i = 1,n
-    do j = 1,m
-      dff = abs(a1(i,j) - a2(i,j)) 
-      dff = dff/abs(a1(i,j))
-      if (dff > tol) then
-        print *, "difference in matrices at ", i, ", ", j, ", value ", dff
-        print *, a1(i,j), " compare to ", a2(i,j)
-        print *, "..."
-      endif
-    end do
-  end do 
-
-end subroutine MatCompare
-
-
 
 end module TOilIms_module
 
