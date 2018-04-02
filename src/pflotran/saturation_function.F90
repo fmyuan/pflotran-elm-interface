@@ -2,7 +2,8 @@ module Saturation_Function_module
  
 
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -1184,7 +1185,7 @@ implicit none
 
   select case(saturation_function%permeability_function_itype)
     case(MUALEM)
-      if (liquid_saturation == 1.d0) then
+      if (Equal(liquid_saturation,1.d0)) then
         liquid_relative_perm = 1.d0
         dkr_ds_liq = 0.d0
       else
@@ -1256,7 +1257,7 @@ subroutine ComputeInvVGAndDerivative(alpha,lambda,sat,Sinv,dSinv_dsat)
   PetscReal :: sat, Sinv, dSinv_dsat
   
   gamma = 1.d0/(1.d0 - lambda)
-  if (sat == 1.d0) then
+  if (Equal(sat,1.d0)) then
     Sinv = 0.d0
     dSinv_dsat = 0.d0
   else
@@ -1486,7 +1487,7 @@ subroutine CalcPhasePartitionIceDeriv(alpha,lambda,Pcgl,T,s_g,s_i,s_l, &
   call ComputeVGAndDerivative(alpha,lambda,Pcgl,sat,dsat)
   G = dsat_dpc*dsat_inv
   dS_dpl = dsat*(-1.d0)
-  if (G == 1.d0) then
+  if (Equal(G,1.d0)) then
     dsi_dpl = 0.d0
     dsl_dpl = (1.d0 - s_i)*dS_dpl
   else
@@ -1624,7 +1625,7 @@ implicit none
   ! Calculate relative permeability
   select case(saturation_function%permeability_function_itype)
     case(MUALEM)
-      if (s_l == 1.d0) then
+      if (Equal(s_l,1.d0)) then
         kr = 1.d0
         dkr_dsl = 0.d0
       else
@@ -1755,7 +1756,7 @@ implicit none
   ! Calculate relative permeability
   select case(saturation_function%permeability_function_itype)
     case(MUALEM)
-      if (s_l == 1.d0) then
+      if (Equal(s_l,1.d0)) then
         kr = 1.d0
         dkr_dsl = 0.d0
       else
@@ -1889,7 +1890,7 @@ implicit none
   ! Calculate relative permeability
   select case(saturation_function%permeability_function_itype)
     case(MUALEM)
-      if (s_l == 1.d0) then
+      if (Equal(s_l,1.d0)) then
         kr = 1.d0
         dkr_dsl = 0.d0
       else

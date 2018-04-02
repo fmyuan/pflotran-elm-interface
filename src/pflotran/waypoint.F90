@@ -2,7 +2,8 @@ module Waypoint_module
  
   use Option_module
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
   
   private
@@ -892,7 +893,7 @@ subroutine WaypointInputRecord(output_option,waypoint_list)
     if (cur_waypoint%final .or. cur_waypoint%time > final_time) then
       final_time = cur_waypoint%time
     endif
-    if (cur_waypoint%dt_max /= max_dt) then
+    if (.not. Equal(cur_waypoint%dt_max,max_dt)) then
       write(id,'(a29)',advance='no') 'max. timestep: '
       write(word1,Format) cur_waypoint%dt_max/output_option%tconv
       write(word2,Format) prev_time/output_option%tconv

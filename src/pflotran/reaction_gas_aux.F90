@@ -3,7 +3,8 @@ module Reaction_Gas_Aux_module
   use Reaction_Database_Aux_module
 
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
   
   private 
@@ -280,7 +281,7 @@ subroutine GasSpeciesListMergeDuplicates(gas_species_list)
       if (.not.associated(cur_species2)) exit
       if (StringCompare(cur_species%name,cur_species2%name, &
                         MAXWORDLENGTH)) then
-        if (cur_species%itype /= cur_species2%itype) then
+        if (.not. Equal(cur_species%itype,cur_species2%itype)) then
           cur_species%itype = ACTIVE_AND_PASSIVE_GAS
         endif
         prev_species%next => cur_species2%next

@@ -7,6 +7,7 @@ module Output_Geomechanics_module
   use Output_Common_module
   use Output_HDF5_module
   use PFLOTRAN_Constants_module
+  use Utility_module, only : Equal
   
   implicit none
 
@@ -1318,9 +1319,9 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod((option%time-output_option%periodic_snap_output_time_incr)/ &
-                output_option%periodic_snap_output_time_incr, &
-                dble(output_option%times_per_h5_file))==0) then
+        if (Equal(mod((option%time-output_option%periodic_snap_output_time_incr)/ &
+             output_option%periodic_snap_output_time_incr, &
+             dble(output_option%times_per_h5_file)),0.d0)) then
           first = PETSC_TRUE
         else
           first = PETSC_FALSE

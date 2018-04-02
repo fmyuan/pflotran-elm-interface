@@ -14,7 +14,8 @@ module Simulation_Surf_Subsurf_class
   use Waypoint_module
 
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -204,7 +205,7 @@ subroutine SurfSubsurfaceExecuteRun(this)
 
     ! If simulation is decoupled surface-subsurface simulation, set
     ! dt_coupling to be dt_max
-    if (this%surf_realization%dt_coupling == 0.d0) &
+    if (Equal(this%surf_realization%dt_coupling,0.d0)) &
       this%surf_realization%dt_coupling = this%surf_realization%dt_max
 
     do

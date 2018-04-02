@@ -3,7 +3,8 @@ module Grid_Structured_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
  
   private
@@ -674,7 +675,7 @@ subroutine StructGridGetIJKFromCoordinate(structured_grid,x,y,z,i,j,k)
       ! if first cell in x-dir on proc
       if (i_ghosted == structured_grid%istart) then
         ! located on upwind boundary and ghosted
-          if (x == x_upper_face .and. &
+          if (Equal(x,x_upper_face) .and. &
             structured_grid%lxs /= structured_grid%gxs) exit
       endif
       i = i_local 
@@ -693,7 +694,7 @@ subroutine StructGridGetIJKFromCoordinate(structured_grid,x,y,z,i,j,k)
       ! if first cell in y-dir on proc
       if (j_ghosted == structured_grid%jstart) then
         ! located on upwind boundary and ghosted
-        if (y == y_upper_face .and. &
+        if (Equal(y,y_upper_face) .and. &
             structured_grid%lys /= structured_grid%gys) exit
       endif
       j = j_local
@@ -712,7 +713,7 @@ subroutine StructGridGetIJKFromCoordinate(structured_grid,x,y,z,i,j,k)
       ! if first cell in z-dir on proc
       if (k_ghosted == structured_grid%kstart) then
         ! if located on upwind boundary and ghosted, skip
-        if (z == z_upper_face .and. &
+        if (Equal(z,z_upper_face) .and. &
           structured_grid%lzs /= structured_grid%gzs) exit
       endif          
       k = k_local

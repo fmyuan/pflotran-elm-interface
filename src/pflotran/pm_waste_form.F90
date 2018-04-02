@@ -21,7 +21,8 @@ module PM_Waste_Form_class
   use Region_module
  
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -3377,7 +3378,7 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   ! convert total component concentration from mol/L to mol/m3 (*1.d3)
   this%concentration = this%concentration*1.d3
   
-  if (waste_form%volume /= waste_form%init_volume) then
+  if (.not. Equal(waste_form%volume,waste_form%init_volume)) then
     initialRun = PETSC_FALSE
   else
     initialRun = PETSC_TRUE
