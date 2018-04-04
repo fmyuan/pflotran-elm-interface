@@ -108,7 +108,10 @@ subroutine WellFlowInit(this,option)
   nullify(this%ss_flow_vol_fluxes)
   nullify(this%flow_auxvars) 
   nullify(this%well_fine_grid_pres) 
-  nullify(this%well_fine_grid_den_kg);
+
+  nullify(this%well_conn_den_kg) 
+  nullify(this%well_conn_h_sorted)
+  nullify(this%well_fine_grid_den_kg)
 
   nullify(this%flow_condition)
 
@@ -142,6 +145,7 @@ subroutine WellFlowConnInit(this,num_connections,option)
   allocate( this%conn_den_kg(num_connections) )  
   this%conn_den_kg =0.0d0
 
+#if 0
   nullify(this%well_conn_den_kg);
   allocate( this%well_conn_den_kg(num_connections) )  
   this%well_conn_den_kg=0.0d0
@@ -149,6 +153,7 @@ subroutine WellFlowConnInit(this,num_connections,option)
   nullify(this%well_conn_h_sorted);
   allocate( this%well_conn_h_sorted(num_connections) )  
   this%well_conn_h_sorted=0.0d0
+#endif
 
 end subroutine wellFlowConnInit
 
