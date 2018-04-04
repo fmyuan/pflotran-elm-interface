@@ -139,6 +139,21 @@ subroutine WellFlowConnInit(this,num_connections,option)
   allocate( this%conn_den_kg(num_connections) )  
   this%conn_den_kg =0.0d0
 
+  !!! DS - maybe need to do same for well_conn_den_kg
+  !!! here to avoid crashes when calling strip routines
+  nullify(this%well_conn_den_kg);
+  allocate( this%well_conn_den_kg(num_connections) )  
+  this%well_conn_den_kg=0.0d0
+
+  !!! DS - and this one too
+  nullify(this%well_conn_h_sorted);
+  allocate( this%well_conn_h_sorted(num_connections) )  
+  this%well_conn_h_sorted=0.0d0
+
+  !!! DS - and this one too
+  nullify(this%well_fine_grid_den_kg);
+
+
 end subroutine wellFlowConnInit
 
 ! ************************************************************************** !
