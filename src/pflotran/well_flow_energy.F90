@@ -312,6 +312,8 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
 
     endif
 
+    Jac = Jac_alt
+
   endif
 
 end subroutine WellFlowEnergyExplJDerivative
