@@ -2144,7 +2144,7 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
         J_dff = J - J_alt
 
        tol = toil_dcomp_tol
-       call MatCompare(J, J_alt, 3, 3, tol)
+       call MatCompare(J, J_alt, 3, 3, tol, option%matcompare_reldiff)
 
        call toil_accum_derivs_alyt(toil_auxvar(0),material_auxvar, option, j_alt, soil_heat_capacity)
        j_alt = j_alt/option%flow_dt
@@ -2294,8 +2294,8 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
       Jdn_dff = Jdn - Jdn_alt
 
        tol = toil_dcomp_tol
-       call MatCompare(Jup, Jup_alt, 3, 3, tol)
-       call MatCompare(Jdn, Jdn_alt, 3, 3, tol)
+       call MatCompare(Jup, Jup_alt, 3, 3, tol, option%matcompare_reldiff)
+       call MatCompare(Jdn, Jdn_alt, 3, 3, tol, option%matcompare_reldiff)
 
       call TOilImsFluxPFL_derivs(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                            material_auxvar_up, &
@@ -2430,7 +2430,7 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
        J_dff = Jdn -  Jdn_alt
 
        tol = toil_dcomp_tol
-       call MatCompare(Jdn, Jdn_alt, 3, 3, tol)
+       call MatCompare(Jdn, Jdn_alt, 3, 3, tol, option%matcompare_reldiff)
 
       call ToilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
                          toil_auxvar_up,global_auxvar_up, &
@@ -2529,7 +2529,7 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
         J_dff = Jac - J_alt
 
        tol = toil_dcomp_tol
-       call MatCompare(Jac, J_alt, 3, 3, tol)
+       call MatCompare(Jac, J_alt, 3, 3, tol, option%matcompare_reldiff)
 
        call TOilImsSrcSink_derivs(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
                                global_auxvar,dummy_real,scale,Res, j_alt)

@@ -202,6 +202,9 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('ANALYTICAL_JACOBIAN_COMPARE')
       option%flow%numerical_derivatives_compare = PETSC_TRUE
 
+    case('COMPARE_RELATIVE_DIFFERENCE')
+      option%matcompare_reldiff = PETSC_TRUE
+
     case('DEBUG_TOL')
       call InputReadDouble(input,option,option%debug_tol)
       call InputErrorMsg(input,option,'DEBUG_TOL',error_string)

@@ -1453,16 +1453,21 @@ subroutine toil_accum_derivs_alyt(toil_auxvar,material_auxvar, option, j, soil_h
   !! 
   !! w.r.t pressure
   j(energy_id, 1) = j(energy_id, 1) + & 
+                    porosity * &
                     toil_auxvar%sat(lid)* ( &
                     toil_auxvar%d%dden_dp(lid,1)*toil_auxvar%U(lid) + &
                     toil_auxvar%den(lid)*toil_auxvar%d%dU_dp(lid) )
+  !! and density w.r.t. pressure:
+  j(energy_id, 1) = j(energy_id, 1) + & 
+                    toil_auxvar%d%dpor_dp*toil_auxvar%den(lid)*toil_auxvar%u(lid)
 
   !! w.r.t oil sat:
   j(energy_id, 2) = j(energy_id, 2) - & !! note negative, next term is scaled by dsl/dso 
-                    toil_auxvar%den(lid)*toil_auxvar%U(lid)
+                    porosity*toil_auxvar%den(lid)*toil_auxvar%U(lid)
 
   !! w.r.t. temp
   j(energy_id,3) = j(energy_id,3) + &
+                   porosity * &
                    toil_auxvar%sat(lid)* ( &
                    toil_auxvar%d%dden_dt(lid)*toil_auxvar%U(lid) + &
                    toil_auxvar%den(lid)*toil_auxvar%d%dU_dT(lid)  )
@@ -1471,25 +1476,32 @@ subroutine toil_accum_derivs_alyt(toil_auxvar,material_auxvar, option, j, soil_h
   !!
   !! w.r.t pressure
   j(energy_id, 1) = j(energy_id, 1) + & 
+                    porosity * &
                     toil_auxvar%sat(oid)* ( &
                     toil_auxvar%d%dden_dp(oid,1)*toil_auxvar%U(oid) + &
                     toil_auxvar%den(oid)*toil_auxvar%d%dU_dp(oid) )
+  !! and density w.r.t. pressure:
+  j(energy_id, 1) = j(energy_id, 1) + & 
+                    toil_auxvar%d%dpor_dp*toil_auxvar%den(oid)*toil_auxvar%u(oid)
 
   !! w.r.t oil sat:
   j(energy_id, 2) = j(energy_id, 2) + & 
-                    toil_auxvar%den(oid)*toil_auxvar%U(oid)
+                    porosity*toil_auxvar%den(oid)*toil_auxvar%U(oid)
 
   !! w.r.t. temp
   j(energy_id,3) = j(energy_id,3) + &
+                   porosity * &
                    toil_auxvar%sat(oid)* ( &
                    toil_auxvar%d%dden_dt(oid)*toil_auxvar%U(oid) + &
                    toil_auxvar%den(oid)*toil_auxvar%d%dU_dT(oid)  )
 
 
+#if 0
   !! all should be scaled by poro:
   j(energy_id,1)  = porosity*j(energy_id,1)
   j(energy_id,2)  = porosity*j(energy_id,2)
   j(energy_id,3)  = porosity*j(energy_id,3)
+#endif
                     
   !! also the (1-por) ... term
   j(energy_id,1) = j(energy_id,1) - toil_auxvar%d%dpor_dp*material_auxvar%soil_particle_density*soil_heat_capacity*toil_auxvar%temp

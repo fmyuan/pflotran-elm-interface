@@ -225,6 +225,7 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
 
     PetscReal :: debug_tol
+    PetscBool :: matcompare_reldiff
 
   end type option_type
 
@@ -586,6 +587,7 @@ subroutine OptionInitRealization(option)
   option%inline_surface_region_name    = ""
 
   option%debug_tol = 1.d0
+  option%matcompare_reldiff = PETSC_FALSE
 
 end subroutine OptionInitRealization
 

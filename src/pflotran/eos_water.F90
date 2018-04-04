@@ -1633,6 +1633,10 @@ subroutine EOSWaterDensityTrangenstein(t,p,calculate_derivatives, &
 
     dwp = dw * d_p_exponent_dp 
 
+    !! derivatives are undestood to be in mol units so
+    dwt = dwt/FMWH2O
+    dwp = dwp/FMWH2O
+
     !PO TODO add derivatives
     !print *, 'Derivatives not set up in EOSWaterDensityTrangenstein.'
     !stop
