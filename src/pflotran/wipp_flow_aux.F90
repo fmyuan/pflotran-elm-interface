@@ -1004,7 +1004,7 @@ end subroutine WIPPFloAuxVarStrip
 
 subroutine WIPPFloConvertUnitsToBRAGFloRes(Res,material_auxvar,option)
   ! 
-  ! Converts units of residual to kg/m^3 (BRAGFLO units)
+  ! Converts units of residual from kmol/sec to kg/m^3 bulk (BRAGFLO units)
   ! 
   ! Author: Glenn Hammond
   ! Date: 11/16/17
@@ -1028,7 +1028,8 @@ end subroutine WIPPFloConvertUnitsToBRAGFloRes
 
 subroutine WIPPFloConvertUnitsToBRAGFloJac(Jac,material_auxvar,option)
   ! 
-  ! Converts units of residual to kg/m^3 (BRAGFLO units)
+  ! Converts units of residual from kmol/sec/(dof units) to
+  ! kg/m^3 bulk/(dof units) (BRAGFLO units)
   ! 
   ! Author: Glenn Hammond
   ! Date: 11/16/17
