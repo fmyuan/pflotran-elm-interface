@@ -2046,7 +2046,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
        (31556930.d0) * 10000.d0                         ! [sec/year]*[year]
   MAX_C = min(A1,A2)                                    ! [mol]
   F_NO3 = MOL_NO3 * (6.d0/4.8d0) / MAX_C                ! [-]
-  F_NO3 = min(F_NO3,1.0)                                ! [-]
+  F_NO3 = min(F_NO3,1.0d0)                              ! [-]
   waste_panel%F_NO3 = F_NO3                             ! [-]
   waste_panel%F_SO4 = 1.d0 - F_NO3                      ! [-]
   
