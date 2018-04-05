@@ -2148,6 +2148,10 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
 
        call toil_accum_derivs_alyt(toil_auxvar(0),material_auxvar, option, j_alt, soil_heat_capacity)
        j_alt = j_alt/option%flow_dt
+      if (toil_ims_isothermal) then
+        J_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+        J_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+      endif
 
 
     endif
@@ -2308,6 +2312,12 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
                            area, dist, &
                            option,v_darcy,Res, &
                            jup_alt, jdn_alt)
+      if (toil_ims_isothermal) then
+        Jup_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+        Jup_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+        Jdn_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+        Jdn_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+      endif
 
     endif
 
@@ -2440,6 +2450,10 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                          thermal_conductivity_dn, &
                          area,dist,toil_parameter, &
                          option,v_darcy,res, jdn_alt)
+        if (toil_ims_isothermal) then
+          Jdn_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+          Jdn_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+        endif
     endif
 
      Jdn = Jdn_alt
@@ -2533,6 +2547,10 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
 
        call TOilImsSrcSink_derivs(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
                                global_auxvar,dummy_real,scale,Res, j_alt)
+        if (toil_ims_isothermal) then
+          j_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+          j_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+        endif
 
     endif
 
@@ -3296,9 +3314,9 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
         if (toil_analytical_derivatives) then
           select type(well)
             class is(well_toil_ims_wat_inj_type)
-              print *, "water injector"
+              !print *, "water injector"
             class is(well_toil_ims_oil_prod_type)
-              print *, "oil producer"
+              !print *, "oil producer"
               can_do_analytical = PETSC_TRUE
           end select 
         endif

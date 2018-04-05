@@ -925,6 +925,9 @@ subroutine RPF_Mod_BC_Liq_RelPerm(this,liquid_saturation, &
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sro - this%Sr - this%Srg )
   dSe_Sl = 1.d0 / (1.d0 - this%Sro - this%Sr - this%Srg )
 
+  dkr_Se = this%m * this%kr_max * (Se ** (this%m - 1))
+  dkr_sat = dSe_Sl * dkr_Se
+
   if (Se >= 1.d0) then
     relative_permeability = this%kr_max
     dkr_sat = 0.d0
@@ -945,9 +948,6 @@ subroutine RPF_Mod_BC_Liq_RelPerm(this,liquid_saturation, &
   endif
 
   relative_permeability = this%kr_max * (Se ** this%m)
-  dkr_Se = this%m * this%kr_max * (Se ** (this%m - 1))
-
-  dkr_sat = dSe_Sl * dkr_Se
 
 end subroutine RPF_Mod_BC_Liq_RelPerm
 
@@ -987,6 +987,10 @@ subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
   Seo = (So - this%Sro) / (1.d0 - this%Sro - this%Sr - this%Srg ) 
   dSe_So = 1.d0 / (1.d0 - this%Sro - this%Sr - this%Srg )
 
+  dkr_Se = this%m * this%kr_max * (Seo ** (this%m - 1))
+
+  dkr_sat = -1.d0 * dSe_So * dkr_Se ! -1 factor makes derivative w.r.t. Sl
+
   if (Seo >= 1.d0) then
     relative_permeability = this%kr_max
     dkr_sat = 0.d0
@@ -1007,9 +1011,6 @@ subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
   endif
 
   relative_permeability = this%kr_max * (Seo ** this%m)
-  dkr_Se = this%m * this%kr_max * (Seo ** (this%m - 1))
-
-  dkr_sat = -1.d0 * dSe_So * dkr_Se ! -1 factor makes derivative w.r.t. Sl
 
 end subroutine RPF_Mod_BC_Oil_RelPerm
 

@@ -736,7 +736,8 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
     !  ghosted_id, dphi
      
     !if(cfact * mob > wfloweps) then
-    if( mob > wfloweps) then
+    !!! DS - maybe don't need this for derivatives
+    !if( mob > wfloweps) then
       !!         m^3 * 1/(Pa.s) * Pa = m^3/s 
       vol_flux = cfact * mob * dphi
 
@@ -747,7 +748,11 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
         ghosted_id, dphi
    
       !stopping reversing flows to occur - they cannot be handled with this model
-      if ( vol_flux < wfloweps ) cycle
+
+      !!! this too
+      !if ( vol_flux < wfloweps ) cycle
+      if (vol_flux < 0.d0) cycle
+
       !if( dabs(vol_flux) > 1.d-10 ) then !try to cut som noise
       !if( dabs(dphi/this%pw_ref) > 1.d-7 ) then !try to cut som noise
         ! the minus sign indicate component fluxes out the reservoir
@@ -786,7 +791,7 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
           !!! product with pase_ent
         end if
       !end if
-    end if  
+    !end if  
 
 #ifdef WELL_DEBUG
   if ( dof==ZERO_INTEGER ) then

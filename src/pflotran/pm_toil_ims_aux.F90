@@ -578,7 +578,8 @@ subroutine MobilityDerivs_TOIL_IMS(dmob, kr, vis, dkr_s, dv_dt, dv_dp)
   dmob(1) =  -1.d0*kr*dv_dp/denom
 
   !! w.r.t. oil saturation
-  dmob(2) = vis*dkr_s/denom
+  !dmob(2) = vis*dkr_s/denom
+  dmob(2) = dkr_s/vis
 
   !! w.r.t. oil temp
   dmob(3) =  -1.d0*kr*dv_dt/denom

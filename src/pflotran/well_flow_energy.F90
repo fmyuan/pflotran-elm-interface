@@ -238,6 +238,8 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
 
   PetscReal :: Jac_alt(1:3,1:3) !!! tofix: hardcoded size
 
+  PetscReal :: pert
+
   option%iflag = -3
 
   if (.not. analytical .or. analytical_compare) then
@@ -266,6 +268,7 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
 
       do irow = 1, option%nflowdof
         !Jac(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar(idof)%pert
+        pert = this%flow_energy_auxvars(idof, ghosted_id)%pert
         Jac(irow,idof) = (res_pert(irow)-res(irow)) / &
                            this%flow_energy_auxvars(idof,ghosted_id)%pert
       enddo !irow
@@ -282,18 +285,6 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
 
   endif
 
-#if 0
-  can_do_analytical = PETSC_FALSE
-  if (analytical) then
-    select type(well)
-      class is(well_toil_ims_wat_inj_type)
-        print *, "water injector"
-      class is(well_toil_ims_oil_prod_type)
-        print *, "oil producer"
-        can_do_analytical = PETSC_TRUE
-    end select 
-  endif
-#endif
 
   if (analytical) then
     call this%ExplResAD(iconn,dummy_real,isothermal,ghosted_id,ZERO_INTEGER,&
@@ -306,11 +297,22 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
       Jac_alt(:,energy_equation_index) = 0.d0
     endif   
 
+#if 0
     if (analytical_compare) then
 
-       call MatCompare(Jac, Jac_alt, 3, 3, comptol, option%matcompare_reldiff)
+      call MatCompare(Jac, Jac_alt, 3, 3, comptol, option%matcompare_reldiff)
+
+      call this%ExplResAD(iconn,dummy_real,isothermal,ghosted_id,ZERO_INTEGER,&
+                        option,res, Jac_alt)
+      if (isothermal) then
+        !Jac(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+        !Jac(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+        Jac_alt(energy_equation_index,:) = 0.d0
+        Jac_alt(:,energy_equation_index) = 0.d0
+      endif   
 
     endif
+#endif
 
     Jac = Jac_alt
 
