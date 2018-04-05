@@ -3,7 +3,7 @@ module Reaction_Gas_Aux_module
   use Reaction_Database_Aux_module
 
   use PFLOTRAN_Constants_module
-  
+
   implicit none
   
   private 
