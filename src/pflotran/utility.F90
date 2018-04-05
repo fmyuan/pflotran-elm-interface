@@ -839,8 +839,8 @@ function Erf_(x)
   
   PetscReal :: Erf_
 
-  PetscReal, parameter :: EPS = epsilon(1.0d0)
-  PetscReal, parameter :: PI=4.0d0*atan(1.0d0)
+  PetscReal, parameter :: EPS = 1.d-15
+  PetscReal, parameter :: PI=3.141592653589793d0
   PetscReal :: x2, er, r, co
   PetscInt :: k
   
