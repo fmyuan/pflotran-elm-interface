@@ -239,11 +239,11 @@ util_obj  = \
 	${common_src}output_aux.o \
 	${common_src}pflotran_constants.o \
 	${common_src}pflotran_provenance.o \
+	${common_src}preconditioner_cpr.o \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
-	${common_src}variables.o \
-	${common_src}preconditioner_cpr.o 
+	${common_src}variables.o
 
 eos_obj = \
 	${common_src}co2_sw.o \
