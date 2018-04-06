@@ -239,6 +239,7 @@ util_obj  = \
 	${common_src}output_aux.o \
 	${common_src}pflotran_constants.o \
 	${common_src}pflotran_provenance.o \
+	${common_src}preconditioner_cpr.o \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
@@ -463,6 +464,7 @@ misc_obj = \
 	${common_src}simulation_hydrogeophysics.o \
 	${common_src}simulation_subsurface.o \
 	${common_src}solver.o \
+	${common_src}solver_cpr.o \
 	${common_src}spline.o \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \
@@ -1208,6 +1210,7 @@ pmc_surface.o : checkpoint.o connection.o coupler.o eos_water.o grid.o \
                 surface_th_aux.o timestepper_base.o timestepper_surface.o
 pmc_third_party.o : option.o pflotran_constants.o pmc_base.o \
                     realization_subsurface.o timestepper_base.o utility.o
+preconditioner_cpr.o : option.o pflotran_constants.o string.o
 ifdef PFLOTRAN_RXN_FLAG
 reaction.o : global_aux.o input_aux.o material_aux.o option.o output_aux.o \
              pflotran_constants.o reaction_aux.o reaction_clm.o reaction_gas.o \
@@ -1428,7 +1431,10 @@ simulation_surfsubsurface.o : checkpoint.o logging.o option.o output.o \
                               simulation_aux.o simulation_base.o \
                               simulation_subsurface.o simulation_surface.o \
                               timestepper_base.o waypoint.o
-solver.o : input_aux.o option.o pflotran_constants.o string.o
+solver.o : input_aux.o option.o pflotran_constants.o preconditioner_cpr.o \
+           solver_cpr.o string.o
+solver_cpr.o : input_aux.o option.o pflotran_constants.o preconditioner_cpr.o \
+               string.o
 spline.o : pflotran_constants.o
 srcsink_sandbox.o : general_aux.o grid.o input_aux.o material_aux.o option.o \
                     output_aux.o pflotran_constants.o srcsink_sandbox_base.o \
@@ -1562,7 +1568,6 @@ wipp_flow_common.o : bragflo_common.o connection.o eos_gas.o eos_water.o \
                      wipp_flow_aux.o
 wrapper_hydrogeophysics.o : e4d_run.o e4d_setup.o e4d_vars.o option.o \
                             pflotran_constants.o
-
 ###############################################################################
 # End Dependencies
 ###############################################################################
