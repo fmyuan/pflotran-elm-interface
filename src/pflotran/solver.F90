@@ -4,7 +4,7 @@ module Solver_module
   use petscts
   use PFLOTRAN_Constants_module
   use CPR_Precondititioner_module 
-  use Solver_cpr_module
+  use Solver_CPR_module
 
   implicit none
 

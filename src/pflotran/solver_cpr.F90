@@ -1,4 +1,4 @@
-module Solver_cpr_module
+module Solver_CPR_module
 
 #include "petsc/finclude/petscts.h"
   use petscts
@@ -486,4 +486,4 @@ end subroutine SolverCPRInitializeStorage
 
 ! ************************************************************************** !
 
-end module Solver_cpr_module
+end module Solver_CPR_module
