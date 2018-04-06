@@ -441,7 +441,6 @@ misc_obj = \
 	${common_src}simulation_base.o \
 	${common_src}simulation_hydrogeophysics.o \
 	${common_src}simulation_subsurface.o \
-	${common_src}solver.o \
 	${common_src}spline.o \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \
@@ -509,6 +508,11 @@ geomech_obj = \
 	${common_src}shape_function.o \
 	${common_src}timestepper_steady.o
 
+solver_obj = \
+        ${common_src}preconditioner_cpr.o \
+        ${common_src}solver.o \
+        ${common_src}solver_cpr.o
+
 clm_interface_obj = \
 	${common_src}pflotran_model.o \
 	${common_src}clm_pflotran_interface_data.o \
@@ -521,7 +525,7 @@ lib_pflotran_obj = \
 	$(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
 	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(grid_obj) \
 	$(relations_obj) $(properties_obj) $(dataset_obj) $(srcsink_obj) \
-	$(io_obj) $(misc_obj) $(surface_obj)
+	$(io_obj) $(misc_obj) $(surface_obj) $(solver_obj)
 
 pflotran_interface_test_obj = ${pflotran_src}pflotran_interface_main.o
 
@@ -1025,7 +1029,8 @@ output.o : connection.o coupler.o debug.o discretization.o field.o \
            realization_subsurface.o region.o string.o units.o utility.o \
            variables.o waypoint.o well.o wipp_flow_aux.o
 output_aux.o : option.o pflotran_constants.o variables.o
-output_common.o : connection.o coupler.o field.o global_aux.o grid.o \
+output_common.o : connection.o coupler.o discretization.o dm_kludge.o field.o \
+                  global_aux.o grid.o grid_structured.o \
                   grid_unstructured_aux.o grid_unstructured_cell.o hdf5.o \
                   hdf5_aux.o logging.o material_aux.o option.o output_aux.o \
                   patch.o pflotran_constants.o realization_base.o \
@@ -1245,6 +1250,7 @@ pmc_surface.o : checkpoint.o connection.o coupler.o eos_water.o grid.o \
                 surface_th_aux.o timestepper_base.o timestepper_surface.o
 pmc_third_party.o : option.o pflotran_constants.o pmc_base.o \
                     realization_subsurface.o timestepper_base.o utility.o
+preconditioner_cpr.o : option.o pflotran_constants.o string.o
 ifdef PFLOTRAN_RXN_FLAG
 reaction.o : global_aux.o input_aux.o material_aux.o option.o output_aux.o \
              pflotran_constants.o reaction_aux.o reaction_clm.o reaction_gas.o \
@@ -1410,9 +1416,9 @@ richards.o : connection.o coupler.o debug.o discretization.o eos_water.o \
              realization_subsurface.o region.o richards_aux.o \
              richards_common.o srcsink_sandbox.o srcsink_sandbox_base.o \
              srcsink_sandbox_downreg.o string.o utility.o variables.o
-richards_aux.o : characteristic_curves.o eos_water.o global_aux.o \
-                 material_aux.o matrix_buffer.o option.o pflotran_constants.o \
-                 utility.o
+richards_aux.o : characteristic_curves.o characteristic_curves_common.o \
+                 eos_water.o global_aux.o material_aux.o matrix_buffer.o \
+                 option.o pflotran_constants.o utility.o
 richards_common.o : characteristic_curves.o connection.o eos_water.o \
                     global_aux.o material_aux.o option.o pflotran_constants.o \
                     richards_aux.o utility.o
@@ -1465,7 +1471,10 @@ simulation_surfsubsurface.o : checkpoint.o logging.o option.o output.o \
                               simulation_aux.o simulation_base.o \
                               simulation_subsurface.o simulation_surface.o \
                               timestepper_base.o waypoint.o
-solver.o : input_aux.o option.o pflotran_constants.o string.o
+solver.o : input_aux.o option.o pflotran_constants.o preconditioner_cpr.o \
+           solver_cpr.o string.o
+solver_cpr.o : input_aux.o option.o pflotran_constants.o preconditioner_cpr.o \
+               string.o
 spline.o : pflotran_constants.o
 srcsink_sandbox.o : general_aux.o grid.o input_aux.o material_aux.o option.o \
                     output_aux.o pflotran_constants.o srcsink_sandbox_base.o \
@@ -1599,4 +1608,3 @@ wipp_flow_common.o : bragflo_common.o connection.o eos_gas.o eos_water.o \
                      wipp_flow_aux.o
 wrapper_hydrogeophysics.o : e4d_run.o e4d_setup.o e4d_vars.o option.o \
                             pflotran_constants.o
-

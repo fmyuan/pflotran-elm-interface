@@ -239,7 +239,6 @@ util_obj  = \
 	${common_src}output_aux.o \
 	${common_src}pflotran_constants.o \
 	${common_src}pflotran_provenance.o \
-	${common_src}preconditioner_cpr.o \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
@@ -463,8 +462,6 @@ misc_obj = \
 	${common_src}simulation_base.o \
 	${common_src}simulation_hydrogeophysics.o \
 	${common_src}simulation_subsurface.o \
-	${common_src}solver.o \
-	${common_src}solver_cpr.o \
 	${common_src}spline.o \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \
@@ -532,6 +529,11 @@ geomech_obj = \
 	${common_src}shape_function.o \
 	${common_src}timestepper_steady.o
 
+solver_obj = \
+	${common_src}preconditioner_cpr.o \
+	${common_src}solver.o \
+	${common_src}solver_cpr.o
+
 # End Source Block -- these keywords must remain immediately after .o files.
 
 ###############################################################################
@@ -540,9 +542,10 @@ geomech_obj = \
 
 # Concatentate dependency groups 
 pflotran_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
-	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(well_obj) $(grid_obj) \
-	$(relations_obj) $(properties_obj) $(dataset_obj) $(srcsink_obj) \
-	$(io_obj) $(misc_obj) $(surface_obj) ${pflotran_src}pflotran.o
+	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(well_obj) \
+	$(grid_obj) $(relations_obj) $(properties_obj) $(dataset_obj) \
+	$(srcsink_obj) $(io_obj) $(misc_obj) $(surface_obj) $(solver_obj) \
+	${pflotran_src}pflotran.o
 
 pflotran_rxn_obj = ${pflotran_src}pflotran_rxn.o
 
@@ -990,7 +993,8 @@ output.o : connection.o coupler.o debug.o discretization.o field.o \
            realization_subsurface.o region.o string.o units.o utility.o \
            variables.o waypoint.o well.o wipp_flow_aux.o
 output_aux.o : option.o pflotran_constants.o variables.o
-output_common.o : connection.o coupler.o field.o global_aux.o grid.o \
+output_common.o : connection.o coupler.o discretization.o dm_kludge.o field.o \
+                  global_aux.o grid.o grid_structured.o \
                   grid_unstructured_aux.o grid_unstructured_cell.o hdf5.o \
                   hdf5_aux.o logging.o material_aux.o option.o output_aux.o \
                   patch.o pflotran_constants.o realization_base.o \
@@ -1376,9 +1380,9 @@ richards.o : connection.o coupler.o debug.o discretization.o eos_water.o \
              realization_subsurface.o region.o richards_aux.o \
              richards_common.o srcsink_sandbox.o srcsink_sandbox_base.o \
              srcsink_sandbox_downreg.o string.o utility.o variables.o
-richards_aux.o : characteristic_curves.o eos_water.o global_aux.o \
-                 material_aux.o matrix_buffer.o option.o pflotran_constants.o \
-                 utility.o
+richards_aux.o : characteristic_curves.o characteristic_curves_common.o \
+                 eos_water.o global_aux.o material_aux.o matrix_buffer.o \
+                 option.o pflotran_constants.o utility.o
 richards_common.o : characteristic_curves.o connection.o eos_water.o \
                     global_aux.o material_aux.o option.o pflotran_constants.o \
                     richards_aux.o utility.o
@@ -1568,6 +1572,7 @@ wipp_flow_common.o : bragflo_common.o connection.o eos_gas.o eos_water.o \
                      wipp_flow_aux.o
 wrapper_hydrogeophysics.o : e4d_run.o e4d_setup.o e4d_vars.o option.o \
                             pflotran_constants.o
+
 ###############################################################################
 # End Dependencies
 ###############################################################################
