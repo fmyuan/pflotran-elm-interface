@@ -70,8 +70,7 @@ module Solver_module
     PetscBool :: print_ekg
 
     ! added for CPR option:
-    type(cpr_pc_type) :: cprstash
-    PetscBool :: using_cpr
+    type(cpr_pc_type), pointer :: cprstash
             
   end type solver_type
   
@@ -160,12 +159,11 @@ function SolverCreate()
   solver%print_linear_iterations = PETSC_FALSE
   solver%check_infinity_norm = PETSC_TRUE
   solver%print_ekg = PETSC_FALSE
+
+  nullify(solver%cprstash)
     
   SolverCreate => solver
-
-  call SolverCPRInitializeStorage(solver%cprstash)
-  solver%using_cpr = PETSC_FALSE
-  
+   
 end function SolverCreate
 
 ! ************************************************************************** !
@@ -223,7 +221,7 @@ subroutine SolverSetSNESOptions(solver, option)
     call KSPSetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
   endif
   if (len_trim(solver%pc_type) > 1) then
-    if (solver%using_cpr) then
+    if (associated(solver%cprstash)) then
       !call PFSolverCPRInit(solver, solver%cprstash, solver%pc, ierr, option)
       call SolverCPRInit(solver%J, solver%cprstash, solver%pc, ierr, option)
     else
@@ -485,7 +483,8 @@ subroutine SolverReadLinear(solver,input,option)
             solver%pc_type = PCSHELL
           case('CPR')
             solver%pc_type = PCSHELL
-            solver%using_cpr = PETSC_TRUE
+            allocate(solver%cprstash)
+            call SolverCPRInitializeStorage(solver%cprstash)
           case default
             option%io_buffer  = 'Preconditioner type: ' // trim(word) // &
                                 ' unknown.'
@@ -1412,7 +1411,7 @@ subroutine SolverDestroy(solver)
   solver%ksp = PETSC_NULL_KSP
   solver%pc = PETSC_NULL_PC
 
-  if (solver%using_cpr) then
+  if (associated(solver%cprstash)) then
 
       call DeallocateWorkersInCPRStash(solver%cprstash)
 
@@ -1443,10 +1442,11 @@ subroutine SolverDestroy(solver)
       endif
       if (solver%cprstash%factors1vec /= PETSC_NULL_VEC) then
         call VecDestroy(solver%cprstash%factors1vec, ierr);CHKERRQ(ierr)
+      endif
       if (solver%cprstash%factors2vec /= PETSC_NULL_VEC) then
         call VecDestroy(solver%cprstash%factors2vec, ierr);CHKERRQ(ierr)
       endif
-      endif
+      nullify(solver%cprstash)
     endif
     
   deallocate(solver)

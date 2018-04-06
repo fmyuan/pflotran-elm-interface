@@ -179,7 +179,7 @@ subroutine PMCSubsurfaceSetupSolvers(this)
               endif
             endif
 
-            if (solver%using_cpr) then
+           if (associated(solver%cprstash)) then
               call CPRWorkersCreate(pm, solver, option)
             endif
 
