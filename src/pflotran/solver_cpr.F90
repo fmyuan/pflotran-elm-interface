@@ -481,6 +481,8 @@ subroutine SolverCPRInitializeStorage(ctx)
 
   ctx%exrow_offset = 0
 
+  nullify(ctx%option)
+
 
 end subroutine SolverCPRInitializeStorage 
 
