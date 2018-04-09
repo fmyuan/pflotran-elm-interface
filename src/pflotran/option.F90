@@ -226,6 +226,7 @@ module Option_module
 
     PetscReal :: debug_tol
     PetscBool :: matcompare_reldiff
+    PetscBool :: use_appleyard
 
   end type option_type
 
@@ -588,6 +589,7 @@ subroutine OptionInitRealization(option)
 
   option%debug_tol = 1.d0
   option%matcompare_reldiff = PETSC_FALSE
+  option%use_appleyard = PETSC_FALSE
 
 end subroutine OptionInitRealization
 

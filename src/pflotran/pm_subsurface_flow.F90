@@ -209,6 +209,9 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       call InputReadDouble(input,option,option%debug_tol)
       call InputErrorMsg(input,option,'DEBUG_TOL',error_string)
 
+    case('APPLEYARD_CHOP')
+      option%use_appleyard = PETSC_TRUE
+
     case default
       found = PETSC_FALSE
   end select  
