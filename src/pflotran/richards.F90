@@ -13,7 +13,8 @@ module Richards_module
 #endif
   
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   use clm_pflotran_interface_data
 #endif
@@ -3225,7 +3226,7 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
 
             ! Step-4: Save values for linear approximation
             rich_auxvar_dn%vars_for_sflow(7) = 0.01d0*q_allowable/slope + P_min
-            if (q_allowable == 0.d0) then
+            if (Equal(q_allowable,0.d0)) then
               rich_auxvar_dn%vars_for_sflow(7) = 0.d0
             else
               rich_auxvar_dn%vars_for_sflow(7) = P_min + 0.01d0*q_allowable/slope

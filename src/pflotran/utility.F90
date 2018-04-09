@@ -472,7 +472,7 @@ subroutine ludcmp(A,N,INDX,D)
       VV(imax)=VV(j)
     endif
     INDX(j)=imax
-    if (A(j,j).eq.0.) A(j,j)=tiny
+    if (A(j,j).eq.0.d0)) A(j,j)=tiny
     if (j.ne.N) then
       dum=1.d0/A(j,j)
       do i=j+1,N
@@ -513,7 +513,7 @@ subroutine lubksb(A,N,INDX,B)
       do j=ii,i-1
         sum=sum-A(i,j)*B(j)
       enddo
-    else if (sum.ne.0) then
+    else if (sum.ne.0.d0) then
       ii=i
     endif
     B(i)=sum
@@ -570,7 +570,7 @@ subroutine ludcmp_chunk(A,N,INDX,D,chunk_size,ithread,num_threads)
     do j=1,N
       if (abs(A(ichunk,ithread,i,j)).gt.aamax) aamax=abs(A(ichunk,ithread,i,j))
     enddo
-    if (aamax.eq.0) then
+    if (aamax.eq.0.d0) then
       call MPI_Comm_rank(MPI_COMM_WORLD,rank,ierr)
       print *, "ERROR: Singular value encountered in ludcmp() on processor", rank, ichunk,ithread
       call MPI_Abort(MPI_COMM_WORLD,ONE_INTEGER_MPI,ierr)
@@ -610,7 +610,7 @@ subroutine ludcmp_chunk(A,N,INDX,D,chunk_size,ithread,num_threads)
       VV(ichunk,ithread,imax)=VV(ichunk,ithread,j)
     endif
     INDX(ichunk,ithread,j)=imax
-    if (A(ichunk,ithread,j,j).eq.0.) A(ichunk,ithread,j,j)=tiny
+    if (A(ichunk,ithread,j,j).eq.0.d0) A(ichunk,ithread,j,j)=tiny
     if (j.ne.N) then
       dum=1./A(ichunk,ithread,j,j)
       do i=j+1,N
@@ -660,7 +660,7 @@ subroutine lubksb_chunk(A,N,INDX,B,chunk_size,ithread,num_threads)
       do j=ii,i-1
         sum=sum-A(ichunk,ithread,i,j)*B(ichunk,ithread,j)
       enddo
-    else if (sum.ne.0) then
+    else if (sum.ne.0.d0) then
       ii=i
     endif
     B(ichunk,ithread,i)=sum
@@ -1389,7 +1389,10 @@ function Equal(value1, value2)
   PetscReal :: value1, value2
 
   Equal = PETSC_FALSE
-  if (dabs(value1 - value2) <= 1.d-14 * dabs(value1))  Equal = PETSC_TRUE
+  ! using "abs(x) < spacing(y)/2.0" consistently gives same response as "x == y" for reals
+  ! using both gfortran and intel compilers for y around 0.0 and 1.0
+  ! this is setup assuming the "correct value" is on the RHS (second arg)
+  if (dabs(value1 - value2) < spacing(value2)/2.0)  Equal = PETSC_TRUE
   
 end function Equal
 

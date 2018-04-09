@@ -8,7 +8,8 @@ module Material_module
   use Material_Aux_class
   use Fracture_module
   use Geomechanics_Subsurface_Properties_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -2030,7 +2031,7 @@ subroutine MaterialPropInputRecord(material_property_list)
       write(word1,*) cur_matprop%permeability_scaling_factor
       write(id,'(a)') adjustl(trim(word1)) 
     endif
-    if (cur_matprop%permeability_pwr /= 1.d0) then
+    if (.not. Equal(cur_matprop%permeability_pwr,1.d0)) then
       write(id,'(a29)',advance='no') 'permeability power: '
       write(word1,*) cur_matprop%permeability_pwr
       write(id,'(a)') adjustl(trim(word1))

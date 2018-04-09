@@ -5,7 +5,8 @@ module Factory_Surface_module
   use Simulation_Surface_class
 
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -756,7 +757,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
             output_option%print_hdf5_aveg_mass_flowrate = aveg_mass_flowrate
             output_option%print_hdf5_aveg_energy_flowrate = aveg_energy_flowrate
             if (aveg_mass_flowrate.or.aveg_energy_flowrate) then
-              if (output_option%periodic_snap_output_time_incr==0.d0) then
+              if (Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
                 option%io_buffer = 'Keyword: AVEGRAGE_FLOWRATES/ ' // &
                   'AVEGRAGE_MASS_FLOWRATE/ENERGY_FLOWRATE defined without' // &
                   ' PERIODIC TIME being set.'
