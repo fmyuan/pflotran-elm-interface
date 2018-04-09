@@ -1392,7 +1392,7 @@ function Equal(value1, value2)
   ! using "abs(x) < spacing(y)/2.0" consistently gives same response as "x == y" for reals
   ! using both gfortran and intel compilers for y around 0.0 and 1.0
   ! this is setup assuming the "correct value" is on the RHS (second arg)
-  if (abs(value1 - value2) < spacing(value2)/2.0)  Equal = PETSC_TRUE
+  if (dabs(value1 - value2) < spacing(value2)/2.0)  Equal = PETSC_TRUE
   
 end function Equal
 
