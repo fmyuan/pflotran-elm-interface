@@ -599,18 +599,26 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       call AppleyardChop(saturation0_oil, del_saturation_oil, soc, ds_out_o)
 
       !! 3) update the saturation change if it needs to be changed:
-      if (del_saturation /= ds_out_l .AND. del_saturation /= ds_out_o) then
-      print *, "Appleyard chop has trucated both oil and liquid saturation. How?"
+      if (del_saturation /= ds_out_l .AND. del_saturation_oil /= ds_out_o) then
+        print *, "Appleyard chop has trucated both oil and liquid saturation. How?"
       endif
       !! check liquid:
       if (del_saturation /= ds_out_l) then
-      dX_p(saturation_index) = ds_out_l
-      del_saturation = dX_p(saturation_index)
+        print *, "liquid appleyard"
+
+      call AppleyardChop(saturation0, del_saturation, slc, ds_out_l)
+
+        dX_p(saturation_index) = ds_out_l
+        del_saturation = dX_p(saturation_index)
       endif
       !! check oil:
       if (del_saturation_oil /= ds_out_o) then
-      dX_p(saturation_index) = -1.d0*ds_out_o
-      del_saturation = dX_p(saturation_index)
+        print *, "oil appleyard"
+
+      call AppleyardChop(saturation0_oil, del_saturation_oil, soc, ds_out_o)
+
+        dX_p(saturation_index) = -1.d0*ds_out_o
+        del_saturation = dX_p(saturation_index)
       endif
       !!! /end of Applyard chop
     endif
@@ -692,6 +700,8 @@ end subroutine GetCriticalSaturation
 
 subroutine AppleyardChop(s, ds, sc, ds_out)
 
+!!! note based on assumption that ds is NEGATIVE increment
+
   implicit none
   PetscReal :: s, ds, sc
   PetscReal :: ds_out
@@ -699,7 +709,7 @@ subroutine AppleyardChop(s, ds, sc, ds_out)
   PetscReal :: s_new
   PetscReal :: margin, scl, scu
 
-  s_new = s + ds
+  s_new = s - ds
 
   margin = 1.d-6
 
@@ -713,8 +723,9 @@ subroutine AppleyardChop(s, ds, sc, ds_out)
     !! override such that:
     ! s_new = sc + margin/2.0
     ! i.e.,
-    ! ds = sc + margin/2.0 - s
-    ds_out = sc + margin/2.0 - s
+    ! s - ds = sc + margin/2.0
+    ! ds = s - sc - margin/2.0
+    ds_out = s - sc - margin/2.0
   endif
 
   if (s > scu .AND. s_new < scl) then
@@ -722,8 +733,9 @@ subroutine AppleyardChop(s, ds, sc, ds_out)
     !! override such that:
     ! s_new = sc - margin/2.0
     ! i.e.,
-    ! ds = sc - margin/2.0 - s
-    ds_out = sc - margin/2.0 - s
+    ! s - ds = sc - margin/2.0
+    ! ds = s - sc + margin/2.0
+    ds_out = s - sc + margin/2.0
   endif
 
 end subroutine AppleyardChop
