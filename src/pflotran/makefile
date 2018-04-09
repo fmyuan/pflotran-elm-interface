@@ -242,7 +242,8 @@ util_obj  = \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
-	${common_src}variables.o
+	${common_src}variables.o \
+        ${common_src}toil_ims_derivs.o
 
 eos_obj = \
 	${common_src}co2_sw.o \
@@ -1512,7 +1513,10 @@ toil_ims.o : auxvars_flow.o auxvars_toil_ims.o condition.o connection.o \
              global_aux.o grid.o material.o material_aux.o option.o \
              output_aux.o output_tecplot.o patch.o pflotran_constants.o \
              pm_toil_ims_aux.o realization_subsurface.o saturation_function.o \
-             variables.o
+             toil_ims_derivs.o variables.o
+toil_ims_derivs.o : auxvars_toil_ims.o condition.o connection.o eos_oil.o \
+                    eos_water.o global_aux.o material_aux.o option.o \
+                    pflotran_constants.o pm_toil_ims_aux.o
 towg.o : auxvars_towg.o condition.o connection.o coupler.o debug.o \
          discretization.o eos_gas.o eos_oil.o eos_water.o field.o global_aux.o \
          grid.o material.o material_aux.o option.o output_aux.o patch.o \
@@ -1572,7 +1576,6 @@ wipp_flow_common.o : bragflo_common.o connection.o eos_gas.o eos_water.o \
                      wipp_flow_aux.o
 wrapper_hydrogeophysics.o : e4d_run.o e4d_setup.o e4d_vars.o option.o \
                             pflotran_constants.o
-
 ###############################################################################
 # End Dependencies
 ###############################################################################

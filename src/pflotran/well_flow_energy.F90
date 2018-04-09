@@ -196,7 +196,8 @@ end subroutine WellFlowEnergy1DGridVarsSetup
 ! ************************************************************************** !
 
 subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
-                                         energy_equation_index,option,Jac)
+                                         energy_equation_index,option,Jac, &
+                                         analytical, analytical_compare, comptol   )
   ! 
   ! Computes the well derivatives terms for the jacobian
   ! 
@@ -206,6 +207,7 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
 
   use Option_module
   !use Condition_module
+  use Utility_module
 
   implicit none
 
@@ -217,6 +219,10 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
   type(option_type) :: option
   !PetscReal :: Jac(option%nflowdof,option%nflowdof)
   PetscReal :: Jac(:,:)
+
+  PetscBool :: analytical, analytical_compare
+  PetscReal :: comptol
+
 
   !type(flow_toil_ims_condition_type), pointer :: src_sink_condition
   !type(toil_ims_auxvar_type) :: toil_auxvar(0:)
@@ -230,45 +236,87 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
   PetscReal :: dummy_real(option%nphase)
   PetscInt :: idof, irow
 
+  PetscReal :: Jac_alt(1:3,1:3) !!! tofix: hardcoded size
+
+  PetscReal :: pert
+
   option%iflag = -3
 
-  !call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
-  !                        global_auxvar,dummy_real,scale,Res)
+  if (.not. analytical .or. analytical_compare) then
+
+    !call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
+    !                        global_auxvar,dummy_real,scale,Res)
 
 #ifdef WELL_DEBUG
-  write(*,"('ExplJDerivative p011 = ',e16.10)") this%flow_energy_auxvars(0,1)%pres(1)
-  write(*,"('ExplJDerivative p111 = ',e16.10)") this%flow_energy_auxvars(1,1)%pres(1)
-  write(*,"('ExplJDerivative p211 = ',e16.10)") this%flow_energy_auxvars(2,1)%pres(1)
-  write(*,"('ExplJDerivative p311 = ',e16.10)") this%flow_energy_auxvars(3,1)%pres(1) 
+    write(*,"('ExplJDerivative p011 = ',e16.10)") this%flow_energy_auxvars(0,1)%pres(1)
+    write(*,"('ExplJDerivative p111 = ',e16.10)") this%flow_energy_auxvars(1,1)%pres(1)
+    write(*,"('ExplJDerivative p211 = ',e16.10)") this%flow_energy_auxvars(2,1)%pres(1)
+    write(*,"('ExplJDerivative p311 = ',e16.10)") this%flow_energy_auxvars(3,1)%pres(1) 
 #endif
 
 
-  call this%ExplRes(iconn,dummy_real,isothermal,ghosted_id,ZERO_INTEGER,&
-                    option,res)
+    call this%ExplRes(iconn,dummy_real,isothermal,ghosted_id,ZERO_INTEGER,&
+                      option,res)
 
-  ! downgradient derivatives
-  do idof = 1, option%nflowdof
+    ! downgradient derivatives
+    do idof = 1, option%nflowdof
 
-    !call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(idof), &
-    !                    global_auxvar,dummy_real,scale,res_pert)
-    call this%ExplRes(iconn,dummy_real,isothermal,ghosted_id,idof, &
-                      option,res_pert)
+      !call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(idof), &
+      !                    global_auxvar,dummy_real,scale,res_pert)
+      call this%ExplRes(iconn,dummy_real,isothermal,ghosted_id,idof, &
+                        option,res_pert)
 
-    do irow = 1, option%nflowdof
-      !Jac(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar(idof)%pert
-      Jac(irow,idof) = (res_pert(irow)-res(irow)) / &
-                         this%flow_energy_auxvars(idof,ghosted_id)%pert
-    enddo !irow
-  enddo ! idof
-  
-  if (isothermal) then
-    !Jac(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
-    !Jac(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
-    Jac(energy_equation_index,:) = 0.d0
-    Jac(:,energy_equation_index) = 0.d0
-  endif   
+      do irow = 1, option%nflowdof
+        !Jac(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar(idof)%pert
+        pert = this%flow_energy_auxvars(idof, ghosted_id)%pert
+        Jac(irow,idof) = (res_pert(irow)-res(irow)) / &
+                           this%flow_energy_auxvars(idof,ghosted_id)%pert
+      enddo !irow
+    enddo ! idof
+    
+    if (isothermal) then
+      !Jac(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+      !Jac(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+      Jac(energy_equation_index,:) = 0.d0
+      Jac(:,energy_equation_index) = 0.d0
+    endif   
 
     !Jac =  0.0d0
+
+  endif
+
+
+  if (analytical) then
+    call this%ExplResAD(iconn,dummy_real,isothermal,ghosted_id,ZERO_INTEGER,&
+                      option,res, Jac_alt)
+
+    if (isothermal) then
+      !Jac(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+      !Jac(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+      Jac_alt(energy_equation_index,:) = 0.d0
+      Jac_alt(:,energy_equation_index) = 0.d0
+    endif   
+
+#if 0
+    if (analytical_compare) then
+
+      call MatCompare(Jac, Jac_alt, 3, 3, comptol, option%matcompare_reldiff)
+
+      call this%ExplResAD(iconn,dummy_real,isothermal,ghosted_id,ZERO_INTEGER,&
+                        option,res, Jac_alt)
+      if (isothermal) then
+        !Jac(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+        !Jac(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+        Jac_alt(energy_equation_index,:) = 0.d0
+        Jac_alt(:,energy_equation_index) = 0.d0
+      endif   
+
+    endif
+#endif
+
+    Jac = Jac_alt
+
+  endif
 
 end subroutine WellFlowEnergyExplJDerivative
 

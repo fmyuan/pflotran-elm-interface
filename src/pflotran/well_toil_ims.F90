@@ -8,6 +8,7 @@ module Well_TOilIms_class
   use Well_FlowEnergy_class
   use Well_WaterInjector_class
   use Well_OilProducer_class
+  use AuxVars_TOilIms_module
 
   implicit none
 
@@ -17,6 +18,7 @@ module Well_TOilIms_class
 
   type, public, extends(well_water_injector_type) :: well_toil_ims_wat_inj_type
     ! ......................
+    class(auxvar_toil_ims_type), pointer :: toil_auxvars(:,:) !pointer to toil auxvars
   contains
     procedure, public :: PrintMsg => PrintTOilImsWatInj
     procedure, public :: ExplRes => TOilImsWatInjExplRes
@@ -26,10 +28,12 @@ module Well_TOilIms_class
 
   type, public, extends(well_oil_producer_type) :: well_toil_ims_oil_prod_type
     ! ......................
+    class(auxvar_toil_ims_type), pointer :: toil_auxvars(:,:) !pointer to toil auxvars
   contains
     procedure, public :: ExplRes => TOilImsOilProdExplRes
     procedure, public  :: PrintOutputHeader => TOilImsOilProdOutputHeader
     procedure, public :: Output => TOilImsOilProdOutput
+    procedure, public :: ExplResAD => TOilImsOilProdExplResAD
   end type well_toil_ims_oil_prod_type
 
   !Below another data structure considered for the well
@@ -258,9 +262,15 @@ function CreateTOilImsWell(well_spec,option)
   select case(well_spec%itype)
     case( WATER_INJ_WELL_TYPE )
       allocate(well_toil_ims_wat_inj);
+
+      nullify(well_toil_ims_wat_inj%toil_auxvars)
+
       CreateTOilImsWell => well_toil_ims_wat_inj;
     case( OIL_PROD_WELL_TYPE )
       allocate(well_toil_ims_oil_prod);
+
+      nullify(well_toil_ims_oil_prod%toil_auxvars)
+
       CreateTOilImsWell => well_toil_ims_oil_prod
 
     ! need to add water producer and oil injector
@@ -555,6 +565,360 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
 end subroutine TOilImsProducerExplRes
 
 ! ************************************************************************** !
+
+subroutine TOilImsOilProdExplResAD(this,iconn,ss_flow_vol_flux,isothermal, &
+                                ghosted_id, dof,option,res, Jac)
+  ! 
+  ! 
+  use PM_TOilIms_Aux_module
+  use Option_module
+  
+  implicit none
+
+  class(well_toil_ims_oil_prod_type) :: this
+  PetscInt :: iconn
+  PetscBool :: isothermal
+  PetscInt :: ghosted_id, dof
+  type(option_type) :: option
+  !PetscReal :: Res(1:option%nflowdof)
+  !PetscReal :: ss_flow_vol_flux(1:option%nphase)
+  PetscReal :: Res(:)
+  PetscReal :: ss_flow_vol_flux(:)
+  PetscReal :: Jac(:,:)
+
+
+  call TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isothermal, &
+                               ghosted_id, dof,option,res, Jac)
+
+end subroutine TOilImsOilProdExplResAD
+
+! ************************************************************************** !
+
+subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isothermal, &
+                                  ghosted_id,dof,option,res, Jac)
+
+  ! 
+  ! 
+
+  use PM_TOilIms_Aux_module
+  use Option_module
+  use EOS_Oil_module
+  use EOS_Water_module
+
+  implicit none
+
+  !using well_flow_energy_type to pass whaterver type of producer 
+  class(well_toil_ims_oil_prod_type) :: this
+  PetscInt :: iconn
+  PetscBool :: isothermal
+  PetscInt :: ghosted_id, dof, ierr
+  type(option_type) :: option
+  !PetscReal :: Res(1:option%nflowdof)
+  !PetscReal :: ss_flow_vol_flux(1:option%nphase)
+  PetscReal :: Res(:)
+  PetscReal :: ss_flow_vol_flux(:)
+  PetscReal :: Jac(:,:)
+
+
+
+  PetscInt :: i_ph
+  PetscReal :: dphi, vol_flux, cfact, mob, hc, temp
+  PetscReal :: well_oil_mol_den, mol_den_av, dw_kg
+  PetscReal :: phase_mol_den(1:option%nphase)
+  PetscReal :: phase_ent(1:option%nphase)
+
+
+  PetscReal, dimension(1:3) :: d_A, d_B, d_mob, d_vol_flux
+  PetscReal :: d_pmd_dp, d_pmd_dT, d_pe_dp, d_pe_dT
+  PetscReal ::  d_dphi_dp
+
+  hc = this%conn_h(iconn)
+  temp = this%conn_temp(iconn)
+  cfact = this%conn_factors(iconn)
+  
+  Res = 0.d0
+  vol_flux = 0.0d0 
+  ss_flow_vol_flux = 0.0d0
+  phase_mol_den = 0.0d0 
+  phase_ent = 0.0d0 
+  dw_kg = 0.d0
+
+
+  Jac = 0.d0
+
+  do i_ph = 1, option%nphase
+    !pressure gradient positive for flow entering the well
+
+    dphi = this%flow_auxvars(dof,ghosted_id)%pres(i_ph) - &
+           this%pw_ref - hc 
+
+    !!! so dphi_dp is just 1?
+    d_dphi_dp = 1.d0
+
+    !upwind for den_mol 
+    if (dphi >= 0.0d0) then
+      phase_mol_den(i_ph) = this%flow_auxvars(dof,ghosted_id)%den(i_ph)
+
+      !!! so grab derivatives from corresponding toil_auxvar
+      d_pmd_dp = this%toil_auxvars(dof, ghosted_id)%d%dden_dp(i_ph,1)
+      d_pmd_dT = this%toil_auxvars(dof, ghosted_id)%d%dden_dT(i_ph)
+
+
+    else if (dphi < 0.0d0 ) then
+      if (i_ph == option%liquid_phase) then
+         call EOSWaterDensity(temp,this%pw_ref+hc, &
+                              dw_kg,phase_mol_den(i_ph),ierr) 
+
+       !!! so grab derivatives from this, convert to in terms of oil
+       !!! DANGER: assume they're zero since input temp and den seem
+       !!! to be constant
+       d_pmd_dp = 0.d0
+       d_pmd_dT = 0.d0
+
+      else if (i_ph == option%oil_phase) then 
+        call EOSOilDensity(temp,this%pw_ref+hc,phase_mol_den(i_ph),ierr)
+
+       !!! so grab derivatives from this
+       !!! DANGER: assume they're zero since input temp and den seem
+       !!! to be constant
+       d_pmd_dp = 0.d0
+       d_pmd_dT = 0.d0
+
+      end if
+    end if
+
+    !upwind for enthalpy
+    if (.not.isothermal) then
+      if (dphi >= 0.0d0) then
+        phase_ent(i_ph) = this%flow_energy_auxvars(dof,ghosted_id)%H(i_ph)
+
+        !!! grab H derivtives as d_phase_ent
+        d_pe_dp = this%toil_auxvars(dof, ghosted_id)%d%dH_dp(i_ph)
+        d_pe_dT = this%toil_auxvars(dof, ghosted_id)%d%dH_dT(i_ph)
+
+      else if (dphi < 0.0d0) then 
+        if (i_ph == option%liquid_phase) then  
+          call EOSWaterEnthalpy(temp,this%pw_ref+hc,phase_ent(i_ph),ierr)
+        
+        !!! grab H derivtives as d_phase_ent
+        !!! DANGER: assume they're zero since input temp and den seem
+        !!! to be constant
+        d_pe_dp = 0.d0
+        d_pe_dT = 0.d0
+
+        else if (i_ph == option%oil_phase) then
+          call EOSOilEnthalpy(temp,this%pw_ref+hc,phase_ent(i_ph),ierr)
+
+        !!! grab H derivtives as d_phase_ent
+        !!! DANGER: assume they're zero since input temp and den seem
+        !!! to be constant
+        d_pe_dp = 0.d0
+        d_pe_dT = 0.d0
+
+        end if
+        phase_ent = phase_ent * 1.d-6 ! J/kmol -> whatever units
+
+        !!! scale phase_ent
+        d_pe_dp = d_pe_dp * 1.d-6
+        d_pe_dT = d_pe_dT * 1.d-6
+
+
+      end if 
+    end if
+    
+    mob = this%ConnMob_derivs(this%flow_auxvars(dof,ghosted_id)%mobility,i_ph, &
+                       dof,ghosted_id, d_mob,  &
+                       this%toil_auxvars(dof,ghosted_id)%d%dmobility)
+
+    !if ( dabs(dphi) < 1.d-5 ) dphi = 0.0d0 !cut off noise (Pa)
+    !if ( dphi < 0.0d0 ) &
+    !  write(*,"('TOilImsWellProd reverse flow at gh = ',I5,' dp = ',e10.4)") &
+    !  ghosted_id, dphi
+     
+    !if(cfact * mob > wfloweps) then
+    !!! DS - maybe don't need this for derivatives
+    !if( mob > wfloweps) then
+      !!         m^3 * 1/(Pa.s) * Pa = m^3/s 
+      vol_flux = cfact * mob * dphi
+
+     call Derivs_vol_flux(d_vol_flux, d_mob, d_dphi_dp, mob, dphi, cfact)
+
+      if ( vol_flux < 0.0d0 .and. dof==ZERO_INTEGER ) &
+       write(*,"('TOilImsWellProd reverse flow at gh = ',I5,' dp = ',e10.4)") &
+        ghosted_id, dphi
+   
+      !stopping reversing flows to occur - they cannot be handled with this model
+
+      !!! this too
+      !if ( vol_flux < wfloweps ) cycle
+      if (vol_flux < 0.d0) cycle
+
+      !if( dabs(vol_flux) > 1.d-10 ) then !try to cut som noise
+      !if( dabs(dphi/this%pw_ref) > 1.d-7 ) then !try to cut som noise
+        ! the minus sign indicate component fluxes out the reservoir
+        ss_flow_vol_flux(i_ph) = -1.d0 * vol_flux
+
+        !call EOSOilDensity(temp,this%pw_ref+hc,well_oil_mol_den,ierr)  
+        !mol_den_av = ( this%flow_auxvars(dof,ghosted_id)%den(i_ph) + &
+        !               well_oil_mol_den ) * 0.5d0 
+        !obs: can use Res(i_ph) here because i_ph conicide with equation indices
+        !the minus sign indicate component fluxes out the reservoir
+        Res(i_ph) = - vol_flux * phase_mol_den(i_ph)
+
+        call DerivsA(d_A, d_vol_flux, d_pmd_dp, d_pmd_dT, vol_flux, phase_mol_den(i_ph))
+
+        !!! add d_A to Jacobian here
+        Jac(i_ph,:) = d_A(:)
+
+
+        !Res(i_ph) = 0.d0
+        if (.not.isothermal) then
+          Res(TOIL_IMS_ENERGY_EQUATION_INDEX) = &
+                Res(TOIL_IMS_ENERGY_EQUATION_INDEX) - &
+                vol_flux * phase_mol_den(i_ph) * phase_ent(i_ph)   
+                !vol_flux * this%flow_auxvars(dof,ghosted_id)%den(i_ph) * &
+                !this%flow_energy_auxvars(dof,ghosted_id)%H(i_ph)          
+
+                call DerivsB(d_B, d_A, d_pe_dp, d_pe_dT, &
+                            phase_ent(i_ph), phase_mol_den(i_ph), &
+                            vol_flux)
+
+                Jac(TOIL_IMS_ENERGY_EQUATION_INDEX, :) = &
+                Jac(TOIL_IMS_ENERGY_EQUATION_INDEX, :) + d_B(:)
+
+          !!! another contribution to jacobian here; note that we already 
+          !!! have vol_flux * phase_mol_den so it's just another two term
+          !!! product with pase_ent
+        end if
+      !end if
+    !end if  
+
+#ifdef WELL_DEBUG
+  if ( dof==ZERO_INTEGER ) then
+    write(*,*) 'ExplRes dof = ', dof
+    write(*,*) 'ExplRes gh = ', ghosted_id
+    write(*,*) 'ExplRes i_ph = ', i_ph
+    write(*,"('ExplRes cell press = ',e26.20)") &
+        this%flow_auxvars(dof,ghosted_id)%pres(i_ph)
+    write(*,"('ExplRes mob = ',e46.40)") mob
+    write(*,"('ExplRes sat_i_ph = ',e46.40)") &
+       this%flow_auxvars(dof,ghosted_id)%sat(i_ph)
+    write(*,"('ExplRes dphi = ',e46.40)") dphi
+    write(*,"('ExplRes dp/Pw = ',e46.40)") dphi/this%pw_ref
+    write(*,"('ExplRes hc = ',e26.20)") hc
+    write(*,"('ExplRes pw_ref = ',e16.10)") this%pw_ref 
+    write(*,"('ExplRes vol_flux = ',e26.20)") vol_flux
+    write(*,"('ExplRes Res(i_ph) = ',e46.40)") Res(i_ph)
+  end if
+#endif
+
+  end do
+
+
+end subroutine TOilImsProducerExplResAD_OIL_PROD
+
+
+
+subroutine Derivs_vol_flux(d_vol_flux, d_mob, d_dphi_dp, mob, dphi, cfact)
+
+  implicit none
+
+  PetscReal, dimension(1:3) :: d_vol_flux
+  PetscReal, dimension(1:3) :: d_mob
+  PetscReal :: d_dphi_dp
+  PetscReal :: mob, dphi, cfact
+
+
+
+      !vol_flux = cfact * mob * dphi
+
+  d_vol_flux = 0.d0
+
+  !! w.r.t. oil pres
+  d_vol_flux(1) = mob * d_dphi_dp + d_mob(1) * dphi
+
+  !! w.r.t. oil saturation
+  d_vol_flux(2) = d_mob(2) * dphi
+
+  !! w.r.t. temperature
+  d_vol_flux(3) = d_mob(3) * dphi
+
+
+  d_vol_flux = cfact * d_vol_flux
+
+
+end subroutine Derivs_vol_flux
+
+subroutine DerivsA(d_A, d_vol_flux, d_pmd_dp, d_pmd_dT, vol_flux, phase_mol_den)
+        
+  implicit none
+
+  PetscReal, dimension(1:3) :: d_A
+  PetscReal, dimension(1:3) :: d_vol_flux
+  PetscReal :: d_pmd_dp, d_pmd_dT
+  PetscReal :: vol_flux, phase_mol_den
+        
+        
+        !Res(i_ph) = - vol_flux * phase_mol_den(i_ph)
+
+  d_A = 0.d0
+
+  !! w.r.t. oil pres
+  d_A(1) = vol_flux * d_pmd_dp + d_vol_flux(1) * phase_mol_den
+
+  !! w.r.t. oil saturation
+  d_A(2) = d_vol_flux(2) * phase_mol_den
+
+  !! w.r.t. temperature
+  d_A(3) = vol_flux * d_pmd_dT + d_vol_flux(3) * phase_mol_den
+
+
+  d_A = -1.d0 * d_A
+
+
+end subroutine DerivsA
+
+subroutine DerivsB(d_B, d_A, d_pe_dp, d_pe_dT, phase_ent, phase_mol_den, vol_flux)
+
+
+  implicit none
+
+  PetscReal, dimension(1:3) :: d_B
+  PetscReal, dimension(1:3) :: d_A
+  PetscReal :: d_pe_dp, d_pe_dT
+  PetscReal :: vol_flux, phase_mol_den, phase_ent
+
+  PetscReal :: a
+        
+
+          !Res(TOIL_IMS_ENERGY_EQUATION_INDEX) = &
+                !Res(TOIL_IMS_ENERGY_EQUATION_INDEX) - &
+                !vol_flux * phase_mol_den(i_ph) * phase_ent(i_ph)   
+
+  !! A = - vol_vlux * phase_mol_den
+  !! B = A * phase_ent
+  !! dB/dx = 
+  !!        dA/dx * phase_ent + A * dphase_ent/dx
+
+  A = -1.d0 * vol_flux * phase_mol_den
+
+  d_B = 0.d0
+
+  !! w.r.t. oil pressure
+  d_B(1) = d_A(1) * phase_ent + A * d_pe_dp
+
+
+  !! w.r.t. oil saturation
+  d_B(2) = d_A(2) * phase_ent
+
+  !! w.r.t. temperature
+  d_B(3) = d_A(3) * phase_ent + A * d_pe_dT
+
+
+  !d_B = -1.d0 * d_B
+
+end subroutine DerivsB
+
 
 #endif  
 end module Well_TOilIms_class

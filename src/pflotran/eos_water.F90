@@ -1606,6 +1606,8 @@ subroutine EOSWaterDensityTrangenstein(t,p,calculate_derivatives, &
   PetscReal, parameter :: cpw = 4.00d-005  !1/atm
   ! conversion 1/atm -> 1/Pa         
   ! cpw_Pa = cpw * 1.01325*1.0d-1
+
+  PetscReal :: t_numer, d_t_numer_dt, t_denom, d_t_denom_dt,  p_exponent, d_p_exponent_dp
   
   dw = (a0 + a1*t + a2 * t**2.0 + a3 * t**3.0 + a4 * t**4.0 + a5 * t**5.0 ) / &
        ( 1.0 + a6 * t ) * &           !Pa -> MPa
@@ -1615,9 +1617,29 @@ subroutine EOSWaterDensityTrangenstein(t,p,calculate_derivatives, &
   dwmol = dw/FMWH2O ! kmol/m^3
   
   if (calculate_derivatives) then
+
+    !!! DS - FIRST ATTEMPT at these derivatives
+    t_numer = (a0 + a1*t + a2 * t**2.0 + a3 * t**3.0 + a4 * t**4.0 + a5 * t**5.0 ) 
+    d_t_numer_dt = (a1 + 2.0* a2 * t +  3.0 * a3 * t**2.0 + 4.0 * a4 * t**3.0 + 5.0 * a5 * t**4.0 ) 
+
+    t_denom = ( 1.0 + a6 * t )
+    d_t_denom_dt = a6 
+
+    p_exponent = cpw / (1.01325*1.0d-1) * (p * 1.0d-6 - a7 )
+    d_p_exponent_dp = cpw / (1.01325*1.0d-1) * 1.0d-6 
+    
+    dwt = (d_t_numer_dt / t_denom) - (t_numer * d_t_denom_dt / t_denom / t_denom  )
+    dwt = dwt * dexp(p_exponent)
+
+    dwp = dw * d_p_exponent_dp 
+
+    !! derivatives are undestood to be in mol units so
+    dwt = dwt/FMWH2O
+    dwp = dwp/FMWH2O
+
     !PO TODO add derivatives
-    print *, 'Derivatives not set up in EOSWaterDensityTrangenstein.'
-    stop
+    !print *, 'Derivatives not set up in EOSWaterDensityTrangenstein.'
+    !stop
   else
     dwp = UNINITIALIZED_DOUBLE
     dwt = UNINITIALIZED_DOUBLE
@@ -1655,6 +1677,7 @@ subroutine EOSWaterViscosityGrabowski(T, P, PS, dPS_dT, &
   PetscReal, parameter :: c = 5.1547d-6
 
   PetscReal :: t_F ! temperature in F
+  PetscReal :: denom, d_denom_d_t_F, d_VW_d_t_F, d_t_F_d_T
   
   t_F = T*(9.0/5.0)+32.0
 
@@ -1662,10 +1685,26 @@ subroutine EOSWaterViscosityGrabowski(T, P, PS, dPS_dT, &
   VW = VW * centipoise_to_Pa_s
        
   if (calculate_derivatives) then
+
+    !!! DS - FIRST ATTEMPT at these derivatives
+    denom = (-1.0  + b * t_F + c * t_F**2.0 )
+    d_denom_d_t_F = ( b + 2.0 * c * t_F )
+    !! simple chain rule for this:
+    d_VW_d_t_F = -1.0 * a * d_denom_d_t_F / denom / denom
+
+    d_t_F_d_T = 9.0/5.0
+    !! and again simple chain rule:
+    dVW_dT = d_t_F_d_T * d_VW_d_t_F
+    !! scaling needed:
+    dVW_dT = dVW_dT * centipoise_to_Pa_s
+
+
+    
     dVW_dP = 0.d0
+
     !PO TODO add derivatives
-    print *, 'Derivatives not set up in EOSWaterViscosityGrabowski'
-    stop
+    !print *, 'Derivatives not set up in EOSWaterViscosityGrabowski'
+    !stop
     !dVW_dT =
   else
     dVW_dP = UNINITIALIZED_DOUBLE

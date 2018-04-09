@@ -84,7 +84,8 @@ module Utility_module
             InverseNorm, &
             Erf_, &
             DigitsOfAccuracy, &
-            CalcParallelSum
+            CalcParallelSum, &
+            MatCompare
             
 contains
 
@@ -2203,6 +2204,41 @@ subroutine CalcParallelSUM2(option,rank_list,local_val,global_sum)
   deallocate(temp_array)
 
 end subroutine CalcParallelSUM2
+
+! ************************************************************************** !
+
+subroutine MatCompare(a1, a2, n, m, tol, do_rel_err)
+
+  !! Daniel Stone, March 2018
+  !! Just output warnings and provide place
+  !! for breakpoints.
+  !! Used in testing analytical derivatives
+  !! and comparing with numerical.
+
+  implicit none
+  PetscInt :: n, m
+  PetscReal, dimension(1:n, 1:m) :: a1, a2
+  PetscReal :: tol
+  PetscBool :: do_rel_err 
+
+  PetscInt :: i, j
+  PetscReal :: dff
+
+  do i = 1,n
+    do j = 1,m
+      dff = abs(a1(i,j) - a2(i,j)) 
+      if (do_rel_err) then
+        dff = dff/abs(a1(i,j))
+      endif
+      if (dff > tol) then
+        print *, "difference in matrices at ", i, ", ", j, ", value ", dff
+        print *, a1(i,j), " compare to ", a2(i,j)
+        print *, "..."
+      endif
+    end do
+  end do 
+
+end subroutine MatCompare
 
 ! ************************************************************************** !
 

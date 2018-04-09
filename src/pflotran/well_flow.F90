@@ -52,6 +52,9 @@ module Well_Flow_class
     procedure, public :: HydrostaticUpdate => FlowHydrostaticUpdate
     procedure, public :: OneDimGridVarsSetup => WellFlow1DGridVarsSetup
     procedure, public :: DataOutput => FlowDataOutput
+
+    procedure, public :: ConnMob_Derivs => WellFlowConnMob_Derivs
+
   end type  well_flow_type
 
   public :: WellFlowInit, FlowWellStrip, WellFlow1DGridVarsSetup, &
@@ -110,6 +113,8 @@ subroutine WellFlowInit(this,option)
   nullify(this%well_conn_h_sorted)
   nullify(this%well_fine_grid_den_kg)
 
+  nullify(this%flow_condition)
+
 end subroutine WellFlowInit
 
 ! ************************************************************************** !
@@ -139,6 +144,16 @@ subroutine WellFlowConnInit(this,num_connections,option)
   nullify(this%conn_den_kg);
   allocate( this%conn_den_kg(num_connections) )  
   this%conn_den_kg =0.0d0
+
+#if 0
+  nullify(this%well_conn_den_kg);
+  allocate( this%well_conn_den_kg(num_connections) )  
+  this%well_conn_den_kg=0.0d0
+
+  nullify(this%well_conn_h_sorted);
+  allocate( this%well_conn_h_sorted(num_connections) )  
+  this%well_conn_h_sorted=0.0d0
+#endif
 
 end subroutine wellFlowConnInit
 
@@ -1069,6 +1084,45 @@ function WellFlowConnMob(this,mobility,iphase,dof,ghosted_id)
   !stop
 
 end function WellFlowConnMob
+
+!*****************************************************************************!
+
+function WellFlowConnMob_Derivs(this,mobility,iphase,dof,ghosted_id, d_conn_mob, &
+                                d_mob_in)
+                               
+
+    !mob = this%ConnMob_derivs(this%flow_auxvars(dof,ghosted_id)%mobility,i_ph, &
+                       !dof,ghosted_id, d_mob,  &
+                       !this%toil_auxvars(dof,ghosted_id)%dmobility)
+
+  ! mobilty computation for producers
+  ! to be overwritten (or replaced) for injectors
+  !
+  ! Author: Paolo Orsini (OpenGoSim)  
+  ! Date : 1/07/2015
+  !
+
+  implicit none
+
+  class(well_flow_type) :: this 
+  PetscInt :: iphase
+  PetscReal :: mobility(:)
+  PetscInt :: ghosted_id !not used in this function
+  PetscInt :: dof        !not used in this function 
+
+  PetscReal ::  d_conn_mob(:)
+  PetscReal ::  d_mob_in(:,:)
+
+  PetscReal :: WellFlowConnMob_Derivs
+
+  d_conn_mob(:) = d_mob_in(iphase,:)
+
+  WellFlowConnMob_Derivs = mobility(iphase)
+
+  !print *, "WellFlowConnMob must be extended"
+  !stop
+
+end function WellFlowConnMob_Derivs
 
 !*****************************************************************************!
 subroutine FlowDataOutput(this,grid,src_name,option)
