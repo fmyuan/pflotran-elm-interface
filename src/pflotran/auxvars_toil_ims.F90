@@ -12,6 +12,8 @@ module AuxVars_TOilIms_module
 
   private
 
+  PetscBool, public :: toil_appleyard = PETSC_FALSE
+
   type, public, extends(auxvar_flow_energy_type) :: auxvar_toil_ims_type
     ! no data at the moment
   contains

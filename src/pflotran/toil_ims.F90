@@ -123,6 +123,8 @@ subroutine TOilImsSetup(realization)
   
   patch%aux%TOil_ims => TOilImsAuxCreate(option)
 
+  toil_appleyard = option%use_appleyard
+
   ! ensure that material properties specific to this module are properly
   ! initialized
   material_parameter => patch%aux%Material%material_parameter

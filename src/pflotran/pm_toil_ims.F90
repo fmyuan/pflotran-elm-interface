@@ -477,6 +477,7 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   use Field_module
   use Option_module
   use Patch_module
+  use AuxVars_TOilIms_module
 
   implicit none
   
@@ -513,6 +514,13 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscReal, parameter :: initial_scale = 1.d0
   SNES :: snes
   PetscInt :: newton_iteration
+
+  PetscReal :: slc, soc, ds_out_l, ds_out_o
+  PetscReal :: saturation0_oil, del_saturation_oil
+  PetscInt :: lid, oid
+
+  lid = LIQUID_PHASE
+  oid = TOIL_IMS_OIL_PHASE
 
   
   grid => this%realization%patch%grid
@@ -575,6 +583,38 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     del_saturation = dX_p(saturation_index)
     saturation0 = X_p(saturation_index)
     saturation1 = saturation0 - del_saturation
+
+    if (toil_appleyard) then
+      !!! Appleyard chop
+      !! 1) get residual (critical) saturations
+      call GetCriticalSaturation(slc, lid, this%realization, ghosted_id)
+      call GetCriticalSaturation(soc, oid, this%realization, ghosted_id)
+
+      !! 2) perform the chop on each phase
+      !!    liquid:
+      call AppleyardChop(saturation0, del_saturation, slc, ds_out_l)
+      !!    oil:
+      saturation0_oil = 1.d0 - saturation0
+      del_saturation_oil = -1.d0 * del_saturation
+      call AppleyardChop(saturation0_oil, del_saturation_oil, soc, ds_out_o)
+
+      !! 3) update the saturation change if it needs to be changed:
+      if (del_saturation /= ds_out_l .AND. del_saturation /= ds_out_o) then
+      print *, "Appleyard chop has trucated both oil and liquid saturation. How?"
+      endif
+      !! check liquid:
+      if (del_saturation /= ds_out_l) then
+      dX_p(saturation_index) = ds_out_l
+      del_saturation = dX_p(saturation_index)
+      endif
+      !! check oil:
+      if (del_saturation_oil /= ds_out_o) then
+      dX_p(saturation_index) = -1.d0*ds_out_o
+      del_saturation = dX_p(saturation_index)
+      endif
+      !!! /end of Applyard chop
+    endif
+
 #ifdef LIMIT_MAX_PRESSURE_CHANGE
     if (dabs(del_pressure) > toil_ims_max_pressure_change) then
       temp_real = dabs(toil_ims_max_pressure_change/del_pressure)
@@ -619,6 +659,74 @@ end subroutine PMTOilImsCheckUpdatePre
 
 ! ************************************************************************** !
 
+subroutine GetCriticalSaturation(sc, phase_id, realization, cell_id)
+
+! pull out the residual situation for phase phase_id from the realization
+! object.
+!
+! Dan Stone April 2018
+
+  use Realization_Subsurface_class
+
+  implicit none
+  PetscReal :: sc
+  PetscInt :: phase_id, cell_id
+  class(realization_subsurface_type), pointer :: realization
+
+
+  ! we're only doing three things here:
+  ! 1) drill down into:
+  !    realization%patch%aux%Material%material_parameter%soil_residual_saturation(:,:)
+  !    which is a 2d array: phase x (saturation function id)
+  ! 2) To get the sat func id, drill down into:
+  !    realization%patch%sat_func_id(cell_id)
+  ! 3) address the correct entry of the soil residual saturation:
+  !    soil_residual_saturation(phase_id, (soil_residual_saturation)) 
+
+  sc = realization%patch%aux%Material%material_parameter%soil_residual_saturation( &
+                                     phase_id, realization%patch%sat_func_id(cell_id))
+
+end subroutine GetCriticalSaturation
+
+! ************************************************************************** !
+
+subroutine AppleyardChop(s, ds, sc, ds_out)
+
+  implicit none
+  PetscReal :: s, ds, sc
+  PetscReal :: ds_out
+
+  PetscReal :: s_new
+  PetscReal :: margin, scl, scu
+
+  s_new = s + ds
+
+  margin = 1.d-6
+
+  scl = sc - margin
+  scu = sc + margin
+
+  ds_out = ds
+
+  if (s < scl .AND. s_new > scu) then
+    !! crossed envelope going UP, now we want to 
+    !! override such that:
+    ! s_new = sc + margin/2.0
+    ! i.e.,
+    ! ds = sc + margin/2.0 - s
+    ds_out = sc + margin/2.0 - s
+  endif
+
+  if (s > scu .AND. s_new < scl) then
+    !! crossed envelope going DOWN, now we want to 
+    !! override such that:
+    ! s_new = sc - margin/2.0
+    ! i.e.,
+    ! ds = sc - margin/2.0 - s
+    ds_out = sc - margin/2.0 - s
+  endif
+
+end subroutine AppleyardChop
 ! ************************************************************************** !
 
 !subroutine PMTOilImsCheckUpdatePost(this,line_search,P0,dP,P1,dP_changed, &

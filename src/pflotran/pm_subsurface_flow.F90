@@ -199,6 +199,10 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  Please &
         &use ANALYTICAL_JACOBIAN instead.'
 
+
+    case('APPLEYARD_CHOP')
+      option%use_appleyard = PETSC_TRUE
+
     case default
       found = PETSC_FALSE
   end select  
