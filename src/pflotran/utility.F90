@@ -472,7 +472,7 @@ subroutine ludcmp(A,N,INDX,D)
       VV(imax)=VV(j)
     endif
     INDX(j)=imax
-    if (A(j,j).eq.0.d0)) A(j,j)=tiny
+    if (A(j,j).eq.0.d0) A(j,j)=tiny
     if (j.ne.N) then
       dum=1.d0/A(j,j)
       do i=j+1,N
