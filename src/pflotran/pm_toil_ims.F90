@@ -584,6 +584,8 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     saturation0 = X_p(saturation_index)
     saturation1 = saturation0 - del_saturation
 
+    !!! TODO: should find a way for this to cope with the max saturation
+    !!! scaling - ideally do chop after the scaling instead
     if (toil_appleyard) then
       !!! Appleyard chop
       !! 1) get residual (critical) saturations
@@ -601,21 +603,25 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       !! 3) update the saturation change if it needs to be changed:
       if (del_saturation /= ds_out_l .AND. del_saturation_oil /= ds_out_o) then
         print *, "Appleyard chop has trucated both oil and liquid saturation. How?"
-      endif
+        !! do the biggest one:
+        if (abs(ds_out_l) > abs(ds_out_o)) then
+          dX_p(saturation_index) = ds_out_l
+          del_saturation = dX_p(saturation_index)
+        else
+          dX_p(saturation_index) = -1.d0*ds_out_o
+          del_saturation = dX_p(saturation_index)
+        endif
       !! check liquid:
-      if (del_saturation /= ds_out_l) then
-        print *, "liquid appleyard"
-
-      call AppleyardChop(saturation0, del_saturation, slc, ds_out_l)
+      elseif (del_saturation /= ds_out_l) then
+        !print *, "liquid appleyard"
+      !call AppleyardChop(saturation0, del_saturation, slc, ds_out_l)
 
         dX_p(saturation_index) = ds_out_l
         del_saturation = dX_p(saturation_index)
-      endif
       !! check oil:
-      if (del_saturation_oil /= ds_out_o) then
-        print *, "oil appleyard"
-
-      call AppleyardChop(saturation0_oil, del_saturation_oil, soc, ds_out_o)
+      elseif (del_saturation_oil /= ds_out_o) then
+        !print *, "oil appleyard"
+      !call AppleyardChop(saturation0_oil, del_saturation_oil, soc, ds_out_o)
 
         dX_p(saturation_index) = -1.d0*ds_out_o
         del_saturation = dX_p(saturation_index)
