@@ -2139,7 +2139,6 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
       J_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
       J_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
     endif
-
     if (toil_analytical_derivatives_compare) then
 
         J_dff = J - J_alt
@@ -2291,7 +2290,6 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
       Jdn_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
       Jdn_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
     endif
-
     if (toil_analytical_derivatives_compare) then
       Jup_dff = Jup - Jup_alt
       Jdn_dff = Jdn - Jdn_alt

@@ -516,7 +516,7 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscInt :: newton_iteration
 
   PetscReal :: slc, soc, ds_out_l, ds_out_o
-  PetscReal :: saturation0_oil, del_saturation_oil
+  PetscReal :: saturation0_oil, del_saturation_oil, saturation0_liq, del_saturation_liq
   PetscInt :: lid, oid
 
   lid = LIQUID_PHASE
@@ -594,36 +594,38 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
 
       !! 2) perform the chop on each phase
       !!    liquid:
-      call AppleyardChop(saturation0, del_saturation, slc, ds_out_l)
+      saturation0_liq = 1.d0 - saturation0
+      del_saturation_liq = -1.d0 * del_saturation
+      call AppleyardChop(saturation0_liq, del_saturation_liq, slc, ds_out_l)
       !!    oil:
-      saturation0_oil = 1.d0 - saturation0
-      del_saturation_oil = -1.d0 * del_saturation
+      saturation0_oil = saturation0
+      del_saturation_oil = del_saturation
       call AppleyardChop(saturation0_oil, del_saturation_oil, soc, ds_out_o)
 
       !! 3) update the saturation change if it needs to be changed:
-      if (del_saturation /= ds_out_l .AND. del_saturation_oil /= ds_out_o) then
+      if (del_saturation_liq /= ds_out_l .AND. del_saturation_oil /= ds_out_o) then
         print *, "Appleyard chop has trucated both oil and liquid saturation. How?"
         !! do the biggest one:
         if (abs(ds_out_l) > abs(ds_out_o)) then
-          dX_p(saturation_index) = ds_out_l
+          dX_p(saturation_index) = -1.d0*ds_out_l
           del_saturation = dX_p(saturation_index)
         else
-          dX_p(saturation_index) = -1.d0*ds_out_o
+          dX_p(saturation_index) = ds_out_o
           del_saturation = dX_p(saturation_index)
         endif
       !! check liquid:
-      elseif (del_saturation /= ds_out_l) then
-        !print *, "liquid appleyard"
+      elseif (del_saturation_liq /= ds_out_l) then
+        print *, "liquid appleyard ", del_saturation_liq, " ", ds_out_l
       !call AppleyardChop(saturation0, del_saturation, slc, ds_out_l)
 
-        dX_p(saturation_index) = ds_out_l
+        dX_p(saturation_index) = -1.d0*ds_out_l
         del_saturation = dX_p(saturation_index)
       !! check oil:
       elseif (del_saturation_oil /= ds_out_o) then
-        !print *, "oil appleyard"
+        print *, "oil appleyard ", del_saturation_oil, " ", ds_out_o
       !call AppleyardChop(saturation0_oil, del_saturation_oil, soc, ds_out_o)
 
-        dX_p(saturation_index) = -1.d0*ds_out_o
+        dX_p(saturation_index) = ds_out_o
         del_saturation = dX_p(saturation_index)
       endif
       !!! /end of Applyard chop
@@ -663,6 +665,7 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! it performs an homogenous scaling using the smallest scaling factor
   ! over all subdomains domains
   if (scale < 0.9999d0) then
+    print *, "scaling whole thing ", scale
     dX_p = scale*dX_p
   endif
 
@@ -717,7 +720,8 @@ subroutine AppleyardChop(s, ds, sc, ds_out)
 
   s_new = s - ds
 
-  margin = 1.d-6
+  margin = 1.d-15
+  !margin = 0.d0 !! terrible idea
 
   scl = sc - margin
   scu = sc + margin
