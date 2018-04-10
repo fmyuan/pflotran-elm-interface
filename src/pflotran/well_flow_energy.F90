@@ -297,7 +297,6 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
       Jac_alt(:,energy_equation_index) = 0.d0
     endif   
 
-#if 0
     if (analytical_compare) then
 
       call MatCompare(Jac, Jac_alt, 3, 3, comptol, option%matcompare_reldiff)
@@ -312,7 +311,6 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
       endif   
 
     endif
-#endif
 
     Jac = Jac_alt
 
