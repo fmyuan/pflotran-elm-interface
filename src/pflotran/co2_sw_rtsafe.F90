@@ -3,7 +3,7 @@
 #include "petsc/finclude/petscsys.h"
       use petscsys
       use PFLOTRAN_Constants_module
-
+      use Utility_module, only : Equal
   implicit none
 
 
@@ -36,10 +36,10 @@
   if ((fl > 0.0 .and. fh > 0.0) .or. &
     (fl < 0.0 .and. fh < 0.0)) &
     print *, 'root must be bracketed in rtsafe'
-  if (fl == 0.0) then
+  if (Equal(fl,0.d0)) then
     rtsafe=x1
     RETURN
-  else if (fh == 0.0) then
+  else if (Equal(fh,0.d0)) then
     rtsafe=x2
     RETURN
   else if (fl < 0.0) then
@@ -59,13 +59,13 @@
       dxold=dx
       dx=0.5*(xh-xl)
       rtsafe=xl+dx
-      if (xl == rtsafe) RETURN
+      if (Equal(xl,rtsafe)) RETURN
     else
       dxold=dx
       dx=f/df
       temp=rtsafe
       rtsafe=rtsafe-dx
-      if (temp == rtsafe) RETURN
+      if (Equal(temp,rtsafe)) RETURN
     end if
     if (dabs(dx) < xacc) RETURN
     call funcd(rtsafe,f,df)

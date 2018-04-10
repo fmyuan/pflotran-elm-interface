@@ -464,6 +464,12 @@ set(GEOMECH_SOURCES
 	timestepper_steady.F90
 )
 
+set(SOLVER_SOURCES
+	solver.F90
+	solver_cpr.F90
+	preconditioner_cpr.F90
+)
+
 set (PFLOTRAN_SOURCES
     ${UTIL_SOURCES}
     ${EOS_SOURCES}
@@ -481,6 +487,7 @@ set (PFLOTRAN_SOURCES
     ${WELL_SOURCES}
     ${SURFACE_SOURCES}
     ${GEOMECH_SOURCES}
+    ${SOLVER_SOURCES}
     pflotran.F90
 )
 
