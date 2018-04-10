@@ -1447,7 +1447,7 @@ subroutine toil_accum_derivs_alyt(toil_auxvar,material_auxvar, option, j, soil_h
 
   !! first a sum over the two phases, with the term being
   !! 
-  !!    (poro) (den) (U)
+  !!    (poro) (sat) (den) (U)
 
   !!  liquid phase
   !! 
@@ -1459,7 +1459,7 @@ subroutine toil_accum_derivs_alyt(toil_auxvar,material_auxvar, option, j, soil_h
                     toil_auxvar%den(lid)*toil_auxvar%d%dU_dp(lid) )
   !! and density w.r.t. pressure:
   j(energy_id, 1) = j(energy_id, 1) + & 
-                    toil_auxvar%d%dpor_dp*toil_auxvar%den(lid)*toil_auxvar%u(lid)
+                    toil_auxvar%d%dpor_dp*toil_auxvar%sat(lid)*toil_auxvar%den(lid)*toil_auxvar%u(lid)
 
   !! w.r.t oil sat:
   j(energy_id, 2) = j(energy_id, 2) - & !! note negative, next term is scaled by dsl/dso 
@@ -1482,7 +1482,7 @@ subroutine toil_accum_derivs_alyt(toil_auxvar,material_auxvar, option, j, soil_h
                     toil_auxvar%den(oid)*toil_auxvar%d%dU_dp(oid) )
   !! and density w.r.t. pressure:
   j(energy_id, 1) = j(energy_id, 1) + & 
-                    toil_auxvar%d%dpor_dp*toil_auxvar%den(oid)*toil_auxvar%u(oid)
+                    toil_auxvar%d%dpor_dp*toil_auxvar%sat(oid)*toil_auxvar%den(oid)*toil_auxvar%u(oid)
 
   !! w.r.t oil sat:
   j(energy_id, 2) = j(energy_id, 2) + & 
