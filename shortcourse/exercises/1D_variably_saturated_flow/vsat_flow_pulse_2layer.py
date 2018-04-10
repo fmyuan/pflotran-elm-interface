@@ -15,7 +15,7 @@ import pflotran as pft
 path = []
 path.append('.')
 
-files = pft.get_tec_filenames('infinity',range(0,6,1))
+files = pft.get_tec_filenames('vsat_flow_pulse_2layer',range(0,6,1))
 filenames = pft.get_full_paths(path,files)
 
 f = plt.figure(figsize=(6,6))
