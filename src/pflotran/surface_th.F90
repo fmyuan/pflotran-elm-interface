@@ -8,7 +8,8 @@ module Surface_TH_module
   use Surface_TH_Aux_module
   
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
   
   private
@@ -794,7 +795,7 @@ subroutine SurfaceTHFlux(surf_auxvar_up, &
 
   ! We clip to avoid problems later evaluating at negative water height
   hw_half     = max(hw_half,MIN_SURFACE_WATER_HEIGHT)
-  if (hw_half == MIN_SURFACE_WATER_HEIGHT) then
+  if (Equal(hw_half,MIN_SURFACE_WATER_HEIGHT)) then
     temp_half = 0.d0
     hw_half   = 0.d0
   endif

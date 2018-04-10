@@ -22,6 +22,7 @@ module Patch_module
   use Auxiliary_module
 
   use PFLOTRAN_Constants_module
+  use General_Aux_module, only : TWO_PHASE_STATE,LIQUID_STATE,GENERAL_STATE_INDEX
 
   implicit none
 
@@ -1173,7 +1174,6 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
           if (associated(coupler%flow_condition%pressure) .or. &
               associated(coupler%flow_condition%concentration) .or. &
               associated(coupler%flow_condition%saturation) .or. &
-              associated(coupler%flow_condition%rate) .or. &
               associated(coupler%flow_condition%temperature) .or. &
               associated(coupler%flow_condition%toil_ims) .or. &
               associated(coupler%flow_condition%towg) .or. &
@@ -1246,7 +1246,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                 allocate(coupler%flow_bc_type(option%nflowdof))
                 allocate(coupler%flow_aux_real_var(option%nflowdof, &
                                                    num_connections))
-                allocate(coupler%flow_aux_int_var(ONE_INTEGER,num_connections))
+                allocate(coupler%flow_aux_int_var(1,num_connections))
                 coupler%flow_aux_mapping = 0
                 coupler%flow_bc_type = 0
                 coupler%flow_aux_real_var = 0.d0
@@ -1255,6 +1255,11 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
               case default
             end select
 
+          else if (associated(coupler%flow_condition%rate)) then
+            option%io_buffer = 'Flow condition "' // &
+              trim(coupler%flow_condition%name) // '" can only be used in a &
+              &SOURCE_SINK since a rate is prescribed.'
+            call printErrMsg(option)
           endif ! associated(coupler%flow_condition%pressure)
 
         else if (coupler%itype == SRC_SINK_COUPLER_TYPE) then
@@ -1476,6 +1481,7 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
 
   use Option_module
   use Condition_module
+  use Hydrostatic_module
   use Utility_module, only : DeallocateArray
 
   use WIPP_Flow_Aux_module
@@ -1534,6 +1540,12 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
                 DIRICHLET_BC
             class default
           end select
+          dof1 = PETSC_TRUE
+        case(HYDROSTATIC_BC)
+          ! have to increment so that saturation is correct.
+          real_count = real_count + 1
+          call HydrostaticUpdateCoupler(coupler,option,patch%grid)
+          coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = HYDROSTATIC_BC
           dof1 = PETSC_TRUE
         case default
           string = &
@@ -1807,7 +1819,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
             !     factors into the hydrostatic condition
             option%io_buffer = 'Need to fix PatchUpdateCouplerAuxVarsG() ' // &
               'for a variable saturated hydrostatic condition.'
-            call printErrMsg(option)
+            call printErrMsgByRank(option)
 
             ! we have to remap the capillary pressure to saturation and
             ! temperature to air pressure
@@ -2412,16 +2424,18 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
   type(flow_towg_condition_type), pointer :: towg
   PetscBool :: update
   PetscBool :: dof1, dof2, dof3, dof_solv, dof_temp
-  PetscReal :: temperature
+  PetscReal :: temperature,bubble_point,soil,sgas,pressure
   PetscReal :: dummy_real
   PetscReal :: x(option%nflowdof)
   character(len=MAXSTRINGLENGTH) :: string, string2
   PetscErrorCode :: ierr
 
   PetscInt :: idof, num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id
+  PetscInt :: iconn, local_id, ghosted_id,state
   ! use to map flow_aux_map to the flow_aux_real_var array
   PetscInt :: real_count
+  PetscReal, parameter :: eps_oil   = 1.0d-6
+  PetscReal, parameter :: eps_gas   = 1.0d-6
 
   num_connections = coupler%connection_set%num_connections
 
@@ -2436,6 +2450,78 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
 
   real_count = 0
   select case(flow_condition%iphase)
+
+    case(TOWG_ANY_STATE)
+      !includes: rate, hydrostatic and flux conditions
+      if (associated(coupler%flow_aux_int_var)) then ! not used with rate
+        coupler%flow_aux_int_var(TOWG_STATE_INDEX,1:num_connections) = TOWG_ANY_STATE
+        real_count = real_count + 1
+        select case(towg%oil_pressure%itype)
+          case(DIRICHLET_BC)
+            coupler%flow_aux_mapping(TOWG_OIL_PRESSURE_INDEX) = real_count
+            coupler%flow_aux_real_var(real_count,1:num_connections) = &
+              towg%oil_pressure%dataset%rarray(1)
+            dof1 = PETSC_TRUE
+            coupler%flow_bc_type(TOWG_LIQ_EQ_IDX) = DIRICHLET_BC
+          case default
+            string = GetSubConditionName(towg%oil_pressure%itype)
+            option%io_buffer = &
+              FlowConditionUnknownItype(coupler%flow_condition, &
+                'TOWG three phase state oil pressure',string)
+            call printErrMsg(option)
+        end select
+      !in three-phase flow, oil saturation is the second dof
+        real_count = real_count + 1
+        select case(towg%oil_saturation%itype)
+          case(DIRICHLET_BC)
+            coupler%flow_aux_mapping(TOWG_OIL_SATURATION_INDEX) = real_count
+            coupler%flow_aux_real_var(real_count,1:num_connections) = &
+               towg%oil_saturation%dataset%rarray(1)
+            dof2 = PETSC_TRUE
+            coupler%flow_bc_type(TOWG_OIL_EQ_IDX) = DIRICHLET_BC
+          case default
+            string = GetSubConditionName(towg%oil_saturation%itype)
+            option%io_buffer = &
+              FlowConditionUnknownItype(coupler%flow_condition, &
+                'TOWG three phase state oil saturation',string)
+            call printErrMsg(option)
+        end select
+      !in three-phase flow, gas saturation or bubble point is the third dof
+        real_count = real_count + 1
+        select case(towg%gas_saturation%itype)
+          case(DIRICHLET_BC)
+! Extract gas and bubble point for this dof (and set bubble point and state if required)
+            coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = real_count
+            soil=towg%oil_saturation%dataset%rarray(1)
+            sgas=towg%gas_saturation%dataset%rarray(1)
+            if(    ( towg_miscibility_model == TOWG_SOLVENT_TL )   &
+               .or.( towg_miscibility_model == TOWG_BLACK_OIL  ) ) then
+              pressure    =towg%oil_pressure%dataset%rarray(1)
+              bubble_point=towg%bubble_point%dataset%rarray(1)
+! Put cells into saturated or undersaturated state (one or other in this case)
+              state       =TOWG_THREE_PHASE_STATE
+              if( (sgas<eps_gas) .and. (bubble_point<pressure) .and. (soil>eps_oil) ) state=TOWG_LIQ_OIL_STATE
+              if( state==TOWG_THREE_PHASE_STATE ) then
+                coupler%flow_aux_real_var(real_count,1:num_connections) = sgas
+              else
+                coupler%flow_aux_real_var(real_count,1:num_connections) = bubble_point
+              endif
+              coupler%flow_aux_int_var(TOWG_STATE_INDEX,1:num_connections) = state
+            else
+              coupler%flow_aux_real_var(real_count,1:num_connections) = sgas
+            endif
+            dof3 = PETSC_TRUE
+            coupler%flow_bc_type(TOWG_GAS_EQ_IDX) = DIRICHLET_BC
+          case default
+            string = &
+              GetSubConditionName(towg%gas_saturation%itype)
+            option%io_buffer = &
+              FlowConditionUnknownItype(coupler%flow_condition, &
+                'TOWG three phase state gas saturation',string)
+            call printErrMsg(option)
+        end select
+     endif
+
     case(TOWG_THREE_PHASE_STATE)
       coupler%flow_aux_int_var(TOWG_STATE_INDEX,1:num_connections) = TOWG_THREE_PHASE_STATE
       real_count = real_count + 1
@@ -2471,13 +2557,14 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
               'TOWG three phase state oil saturation',string)
           call printErrMsg(option)
       end select
-      !in three-phase flow, gas saturation is the third dof
+      !in three-phase flow, gas saturation or bubble point is the third dof
       real_count = real_count + 1
       select case(towg%gas_saturation%itype)
         case(DIRICHLET_BC)
           coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = real_count
-          coupler%flow_aux_real_var(real_count,1:num_connections) = &
-             towg%gas_saturation%dataset%rarray(1)
+! Extract gas saturation
+          sgas=towg%gas_saturation%dataset%rarray(1)
+          coupler%flow_aux_real_var(real_count,1:num_connections) = sgas
           dof3 = PETSC_TRUE
           coupler%flow_bc_type(TOWG_GAS_EQ_IDX) = DIRICHLET_BC
         case default
@@ -2490,19 +2577,68 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
       end select
 
     case(TOWG_LIQ_OIL_STATE)
-     !not yet implemented
+      coupler%flow_aux_int_var(TOWG_STATE_INDEX,1:num_connections) = TOWG_LIQ_OIL_STATE
+      real_count = real_count + 1
+      select case(towg%oil_pressure%itype)
+        case(DIRICHLET_BC)
+          coupler%flow_aux_mapping(TOWG_OIL_PRESSURE_INDEX) = real_count
+          coupler%flow_aux_real_var(real_count,1:num_connections) = &
+            towg%oil_pressure%dataset%rarray(1)
+          dof1 = PETSC_TRUE
+          coupler%flow_bc_type(TOWG_LIQ_EQ_IDX) = DIRICHLET_BC
+        case default
+          string = &
+            GetSubConditionName(towg%oil_pressure%itype)
+          option%io_buffer = &
+            FlowConditionUnknownItype(coupler%flow_condition, &
+              'TOWG three phase state oil pressure',string)
+          call printErrMsg(option)
+      end select
+      !in three-phase flow, oil saturation is the second dof
+      real_count = real_count + 1
+      select case(towg%oil_saturation%itype)
+        case(DIRICHLET_BC)
+          coupler%flow_aux_mapping(TOWG_OIL_SATURATION_INDEX) = real_count
+          coupler%flow_aux_real_var(real_count,1:num_connections) = &
+             towg%oil_saturation%dataset%rarray(1)
+          dof2 = PETSC_TRUE
+          coupler%flow_bc_type(TOWG_OIL_EQ_IDX) = DIRICHLET_BC
+        case default
+          string = &
+            GetSubConditionName(towg%oil_saturation%itype)
+          option%io_buffer = &
+            FlowConditionUnknownItype(coupler%flow_condition, &
+              'TOWG three phase state oil saturation',string)
+          call printErrMsg(option)
+      end select 
+      !in three-phase flow, gas saturation or bubble point is the third dof
+      real_count = real_count + 1
+      select case(towg%bubble_point%itype)
+        case(DIRICHLET_BC)
+          coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = real_count
+! Extract bubble point
+          if(    ( towg_miscibility_model == TOWG_SOLVENT_TL )   &
+             .or.( towg_miscibility_model == TOWG_BLACK_OIL  ) ) then
+            bubble_point=towg%bubble_point%dataset%rarray(1)
+            coupler%flow_aux_real_var(real_count,1:num_connections) = bubble_point
+          else
+            option%io_buffer = 'Bubble point input only for BLACK OIL and SOLVENT mode'
+            call printErrMsg(option)
+          endif
+          dof3 = PETSC_TRUE
+          coupler%flow_bc_type(TOWG_GAS_EQ_IDX) = DIRICHLET_BC
+        case default
+          string = &
+            GetSubConditionName(towg%gas_saturation%itype)
+          option%io_buffer = &
+            FlowConditionUnknownItype(coupler%flow_condition, &
+              'TOWG three phase state bubble point',string)
+          call printErrMsg(option)
+      end select 
 
     case(TOWG_LIQ_GAS_STATE)
      !not yet implemented
 
-    case(TOWG_ANY_STATE)
-      !includes: rate, hydrostatic and flux conditions
-      if (associated(coupler%flow_aux_int_var)) then ! not used with rate
-        coupler%flow_aux_int_var(TOWG_STATE_INDEX,1:num_connections) = &
-          TOWG_ANY_STATE
-      endif
-      ! call here hydrostatic coupler which will determin the phase state
-      ! cell-by-cell
 
   end select !end select phase state
 
@@ -3508,6 +3644,14 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
                                     x_width,y_width,z_width, &
                                     x_count,y_count,z_count, &
                                     ghosted_neighbors,option)
+        if (x_count + y_count + z_count == 0) then
+          write(option%io_buffer,*) grid%nG2A(ghosted_id)
+          option%io_buffer = 'Cell ' // trim(adjustl(option%io_buffer)) // &
+            ' in FLOW_CONDITION "' // trim(source_sink%flow_condition%name) // &
+            '" in SOURCE_SINK "' // trim(source_sink%name) // &
+            '" has no neighbors, and therefore, NEIGHBOR_PERM cannot be used.'
+          call printErrMsgByRank(option)
+        endif
         ! ghosted neighbors is ordered first in x, then, y, then z
         icount = 0
         sum = 0.d0
@@ -3709,7 +3853,7 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   PetscInt :: ii,count
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
-  PetscInt :: nloc,nglo
+  PetscInt :: max_id_loc, max_id_global
   PetscInt :: istart
 
   IS :: is_from, is_to
@@ -3718,12 +3862,12 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   PetscViewer :: viewer
 
   ! Step-1: Rearrange map dataset
-  nloc = maxval(dataset_map_hdf5%mapping(2,:))
-  call MPI_Allreduce(nloc,nglo,ONE_INTEGER,MPIU_INTEGER,MPI_Max, &
-                     option%mycomm,ierr)
+  max_id_loc = maxval(dataset_map_hdf5%mapping(2,:))
+  call MPI_Allreduce(max_id_loc,max_id_global,ONE_INTEGER,MPIU_INTEGER, &
+                     MPI_MAX,option%mycomm,ierr)
   call VecCreateMPI(option%mycomm,dataset_map_hdf5%map_dims_local(2),&
                     PETSC_DETERMINE,map_ids_1,ierr);CHKERRQ(ierr)
-  call VecCreateMPI(option%mycomm,PETSC_DECIDE,nglo,map_ids_2, &
+  call VecCreateMPI(option%mycomm,PETSC_DECIDE,max_id_global,map_ids_2, &
                     ierr);CHKERRQ(ierr)
   call VecSet(map_ids_2,0.d0,ierr);CHKERRQ(ierr)
 
@@ -4126,7 +4270,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
          EFFECTIVE_POROSITY,LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
          MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
          OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
-         OIL_MOBILITY,OIL_VISCOSITY)
+         OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -5148,8 +5292,17 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%effective_porosity
             enddo
+          case(BUBBLE_POINT)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                  grid%nL2G(local_id))%bo%bubble_point
+            enddo
+          case(STATE)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
+                patch%aux%Global%auxvars(grid%nL2G(local_id))%istate
+            enddo
           !need to add:
-          ! - gas and oil mole fraction for the black oil model
           ! - solvent_saturation for SOLVENT model
         end select
 
@@ -5669,6 +5822,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
                                  GAS_STATE, LIQUID_STATE
   use WIPP_Flow_Aux_module, only : WIPPFloScalePerm
   use Material_Aux_class
+  use PM_TOWG_Aux_module, only: towg_miscibility_model
 
   implicit none
 
@@ -5721,7 +5875,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE, &
          LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
          OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
-         OIL_MOBILITY,OIL_VISCOSITY)
+         OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT)
 
      if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -6288,6 +6442,14 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(EFFECTIVE_POROSITY)
             value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
                     effective_porosity
+          case(BUBBLE_POINT)
+            if(    ( towg_miscibility_model == TOWG_SOLVENT_TL )   &
+               .or.( towg_miscibility_model == TOWG_BLACK_OIL  ) ) then
+              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      bo%bubble_point
+            else
+              value=0.0
+            endif
           !need to add:
           ! - gas and oil mole fraction for the black oil model
           ! - solvent_saturation for SOLVENT model

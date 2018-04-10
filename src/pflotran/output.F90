@@ -12,7 +12,8 @@ module Output_module
   use Output_Observation_module
   
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -557,7 +558,7 @@ subroutine OutputFileRead(input,realization,output_option, &
   endif
 
   if(output_option%aveg_output_variable_list%nvars>0) then
-    if(output_option%periodic_snap_output_time_incr==0.d0) then
+    if(Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
       option%io_buffer = 'Keyword: AVERAGE_VARIABLES defined without &
                          &PERIODIC TIME being set.'
       call printErrMsg(option)
@@ -577,7 +578,7 @@ subroutine OutputFileRead(input,realization,output_option, &
       output_option%print_hdf5_aveg_mass_flowrate = aveg_mass_flowrate
       output_option%print_hdf5_aveg_energy_flowrate = aveg_energy_flowrate
       if(aveg_mass_flowrate.or.aveg_energy_flowrate) then
-        if(output_option%periodic_snap_output_time_incr==0.d0) then
+        if(Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
           option%io_buffer = 'Keyword: AVEGRAGE_FLOWRATES/&
                              &AVEGRAGE_MASS_FLOWRATE/ENERGY_FLOWRATE &
                              &defined without PERIODIC TIME being set.'
@@ -820,6 +821,13 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      OIL_ENERGY,temp_int)
+
+      case ('BUBBLE_POINT')
+        name = 'Bubble Point'
+        units = 'Pa'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_PRESSURE,units, &
+                                     BUBBLE_POINT)
 
       case ('ICE_SATURATION')
         name = 'Ice Saturation'

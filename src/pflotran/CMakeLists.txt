@@ -294,10 +294,14 @@ set(GRID_SOURCES
 	grid_unstructured_polyhedra.F90
 )
 
-set(REALATIONS_SOURCES
+set(RELATIONS_SOURCES
 	saturation.F90
 	saturation_function.F90
 	characteristic_curves.F90
+	characteristic_curves_base.F90
+	characteristic_curves_common.F90
+	characteristic_curves_owg.F90
+	characteristic_curves_wipp.F90
 	mphase_pckr_mod.F90
 )
 
@@ -460,6 +464,12 @@ set(GEOMECH_SOURCES
 	timestepper_steady.F90
 )
 
+set(SOLVER_SOURCES
+	solver.F90
+	solver_cpr.F90
+	preconditioner_cpr.F90
+)
+
 set (PFLOTRAN_SOURCES
     ${UTIL_SOURCES}
     ${EOS_SOURCES}
@@ -468,7 +478,7 @@ set (PFLOTRAN_SOURCES
     ${SHARD_MODE_AUX_SOURCES}
     ${CHEM_SOURCES}
     ${GRID_SOURCES}
-    ${REALATIONS_SOURCES}
+    ${RELATIONS_SOURCES}
     ${PROPERTIES_SOURCES}
     ${DATASET_SOURCES}
     ${SRCSINK_SOURCES}
@@ -477,6 +487,7 @@ set (PFLOTRAN_SOURCES
     ${WELL_SOURCES}
     ${SURFACE_SOURCES}
     ${GEOMECH_SOURCES}
+    ${SOLVER_SOURCES}
     pflotran.F90
 )
 

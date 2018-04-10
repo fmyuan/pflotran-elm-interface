@@ -7,7 +7,8 @@ module Timestepper_Surface_class
   use Waypoint_module
 
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -160,7 +161,7 @@ subroutine TimestepperSurfaceSetTargetTime(this,sync_time,option,stop_flag, &
     dt = max_time - target_time
     target_time = target_time + dt
 
-    if (max_time == cur_waypoint%time) then
+    if (Equal(max_time,cur_waypoint%time)) then
       if (cur_waypoint%print_snap_output) snapshot_plot_flag = PETSC_TRUE
       if (cur_waypoint%print_checkpoint) checkpoint_flag = PETSC_TRUE
     endif

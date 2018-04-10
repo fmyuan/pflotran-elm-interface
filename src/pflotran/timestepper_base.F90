@@ -277,6 +277,10 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
       call InputReadDouble(input,option,this%time_step_max_growth_factor)
       call InputErrorMsg(input,option,'timestep maximum growth factor', &
                          'TIMESTEPPER')
+    case('TIMESTEP_OVERSTEP_TOLERANCE')
+      call InputReadDouble(input,option,this%time_step_tolerance)
+      call InputErrorMsg(input,option,'timestep overstep tolerance', &
+                         'TIMESTEPPER')
     case('INITIALIZE_TO_STEADY_STATE')
       this%init_to_steady_state = PETSC_TRUE
       call InputReadDouble(input,option,this%steady_state_rel_tol)

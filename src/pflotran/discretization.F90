@@ -236,7 +236,8 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
                              discretization%origin_global(Z_DIRECTION))
         call InputErrorMsg(input,option,'Z direction','Origin')        
       case('FILE','GRAVITY','INVERT_Z','MAX_CELLS_SHARING_A_VERTEX',&
-           'STENCIL_WIDTH','STENCIL_TYPE','FLUX_METHOD','DOMAIN_FILENAME')
+           'STENCIL_WIDTH','STENCIL_TYPE','FLUX_METHOD','DOMAIN_FILENAME', &
+           'UPWIND_FRACTION_METHOD')
       case('DXYZ','BOUNDS')
         call InputSkipToEND(input,option,word) 
       case default
@@ -512,6 +513,29 @@ subroutine DiscretizationRead(discretization,input,option)
             option%io_buffer = 'DOMAIN_FILENAME only supported for explicit &
                                &unstructured grids.'
             call printErrMsg(option)
+        end select
+      case('UPWIND_FRACTION_METHOD')
+        if (discretization%itype == STRUCTURED_GRID) then
+          option%io_buffer = 'UPWIND_FRACTION_METHOD not supported for &
+            &structured grids.'
+          call printErrMsg(option)
+        endif
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'UPWIND_FRACTION_METHOD','GRID')
+        call StringToUpper(word)
+        select case(word)
+          case('FACE_CENTER_PROJECTION')
+            discretization%grid%unstructured_grid%upwind_fraction_method = &
+              UGRID_UPWIND_FRACTION_PT_PROJ
+          case('CELL_VOLUME')
+            discretization%grid%unstructured_grid%upwind_fraction_method = &
+              UGRID_UPWIND_FRACTION_CELL_VOL
+          case('ABSOLUTE_DISTANCE')
+            discretization%grid%unstructured_grid%upwind_fraction_method = &
+              UGRID_UPWIND_FRACTION_ABS_DIST
+          case default
+            call InputKeywordUnrecognized(word,'GRID,UPWIND_FRACTION_METHOD', &
+                                          option)
         end select
       case default
         call InputKeywordUnrecognized(word,'GRID',option)

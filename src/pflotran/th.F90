@@ -6,7 +6,8 @@ module TH_module
   use Global_Aux_module
   use Material_Aux_class
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
   
   private 
@@ -3613,7 +3614,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
-  Vec, intent(out) :: r
+  Vec, intent(inout) :: r
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
@@ -6174,7 +6175,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                 coeff_for_cubic_approx)
 
       ! Step-4: Save values for linear approximation
-      if (q_allowable == 0.d0) then
+      if (Equal(q_allowable,0.d0)) then
         range_for_linear_approx(1) = 0.d0
       else
         range_for_linear_approx(1) = P_min + 0.01d0*q_allowable/slope ! - option%reference_pressure

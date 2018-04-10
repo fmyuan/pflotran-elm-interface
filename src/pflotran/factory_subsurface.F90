@@ -5,7 +5,8 @@ module Factory_Subsurface_module
   use Simulation_Subsurface_class
 
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -518,12 +519,9 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%phase_map(3) = GAS_PHASE
       option%energy_id = towg_energy_eq_idx
       select case (towg_miscibility_model)
-        case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+        case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
           option%nflowdof = 4
           option%nflowspec = 3 !H20, Oil, Gas
-        !case(TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
-        !  option%nflowdof = 4
-        !  option%nflowspec = 3 !H20, Oil, Gas
         !case(TOWG_SOLVENT_TL)
         !  option%nphase = 4
         !  option%nflowdof = 5
@@ -1152,6 +1150,7 @@ subroutine SubsurfaceSetupRealization(simulation)
   use EOS_module
   use Dataset_module
   use Patch_module
+  use EOS_module
 
   implicit none
 
@@ -1168,6 +1167,10 @@ subroutine SubsurfaceSetupRealization(simulation)
 
   ! set reference densities if not specified in input file.
   call EOSReferenceDensity(option)
+
+  !process eos tables
+  call EOSProcess(option)
+
 
   ! read reaction database
   if (associated(realization%reaction)) then
@@ -2839,7 +2842,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           output_option%print_fluxes = PETSC_TRUE
         endif
         if(output_option%aveg_output_variable_list%nvars>0) then
-          if(output_option%periodic_snap_output_time_incr==0.d0) then
+          if(Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
             option%io_buffer = 'Keyword: AVERAGE_VARIABLES defined without' // &
                                ' PERIODIC TIME being set.'
             call printErrMsg(option)
@@ -2857,7 +2860,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             output_option%print_hdf5_aveg_mass_flowrate = aveg_mass_flowrate
             output_option%print_hdf5_aveg_energy_flowrate = aveg_energy_flowrate
             if(aveg_mass_flowrate.or.aveg_energy_flowrate) then
-              if(output_option%periodic_snap_output_time_incr==0.d0) then
+              if(Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
                 option%io_buffer = 'Keyword: AVEGRAGE_FLOWRATES/ ' // &
                   'AVEGRAGE_MASS_FLOWRATE/ENERGY_FLOWRATE defined without' // &
                   ' PERIODIC TIME being set.'
@@ -2902,6 +2905,13 @@ subroutine SubsurfaceReadInput(simulation,input)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'word','TIME')
           select case(trim(word))
+            case('SCREEN_UNITS')
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'Screen Units','TIME')
+              internal_units = 'sec'
+              temp_real2 = UnitsConvertToInternal(word,internal_units,option)
+              output_option%tunit = trim(word)
+              output_option%tconv = temp_real2
             case('STEADY_STATE')
               option%steady_state = PETSC_TRUE
             case('FINAL_TIME')

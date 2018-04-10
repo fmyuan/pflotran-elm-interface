@@ -381,7 +381,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
       this%dt = this%time_step_reduction_factor * this%dt  
       
-      write(option%io_buffer,'('' -> Cut time step: snes='',i3, &
+      write(option%io_buffer,'(''-> Cut time step: snes='',i3, &
            &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
            &   1pe12.5)')  snes_reason,icut,this%cumulative_time_step_cuts, &
            option%time/tconv, &

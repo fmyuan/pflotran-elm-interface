@@ -6,7 +6,8 @@ module Flash2_module
   use Global_Aux_module
 
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
   
   private 
@@ -1164,7 +1165,7 @@ subroutine Flash2SourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
     case(MASS_RATE_SS)
       msrc(1) =  msrc(1) / FMWH2O
       msrc(2) =  msrc(2) / FMWCO2
-      if (msrc(1) /= 0.d0) then ! H2O injection
+      if (.not. Equal(msrc(1),0.d0)) then ! H2O injection
         call EOSWaterDensity(tsrc,auxvar%pres,dw_kg,dw_mol,ierr) 
         call EOSWaterEnthalpy(tsrc,auxvar%pres,enth_src_h2o,ierr) 
         enth_src_h2o = enth_src_h2o*option%scale ! J/kmol -> whatever units
@@ -2090,7 +2091,7 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
 
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
-  Vec, intent(out) :: r
+  Vec, intent(inout) :: r
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
@@ -2616,7 +2617,7 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
   type (flux_ptrs), dimension(0:2) :: fluxes
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
-  Vec, intent(out) :: r
+  Vec, intent(inout) :: r
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
@@ -2897,7 +2898,7 @@ subroutine Flash2ResidualPatch0(snes,xx,r,realization,ierr)
 
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
-  Vec, intent(out) :: r
+  Vec, intent(inout) :: r
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
@@ -3055,7 +3056,7 @@ subroutine Flash2ResidualPatch2(snes,xx,r,realization,ierr)
 
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
-  Vec, intent(out) :: r
+  Vec, intent(inout) :: r
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr

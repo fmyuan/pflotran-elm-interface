@@ -70,6 +70,7 @@ module PM_Subsurface_Flow_class
             PMSubsurfaceFlowSetup, &
             PMSubsurfaceFlowInitializeTimestepA, &
             PMSubsurfaceFlowInitializeTimestepB, &
+            PMSubsurfaceFlowFinalizeTimestep, &
             PMSubsurfaceFlowPreSolve, &
             PMSubsurfaceFlowInitializeRun, &
             PMSubsurfaceFlowUpdateSolution, &
@@ -218,6 +219,7 @@ subroutine PMSubsurfaceFlowSetup(this)
   use Communicator_Unstructured_class
   use Grid_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_WIPP_module
   use Option_module
 
   implicit none
@@ -246,10 +248,12 @@ subroutine PMSubsurfaceFlowSetup(this)
   endif
   
   ! check on WIPP_type characteristic curves against simulation mode
-  if (this%option%iflowmode /= 10) then   ! 10 = twophase_mode
+  !TODO(geh): move this code into a lower wipp-specific module
+  if (this%option%iflowmode /= WF_MODE) then   ! 10 = twophase_mode
     cur_cc => this%realization%characteristic_curves
     do
       if (.not.associated(cur_cc)) exit
+      if (     associated(cur_cc%saturation_function) ) then
       select type(sf => cur_cc%saturation_function)
         class is(sat_func_WIPP_type)
           if (.not.sf%ignore_permeability .and. &
@@ -265,6 +269,7 @@ subroutine PMSubsurfaceFlowSetup(this)
             call printErrMsg(this%option)
           endif
       end select
+      endif
       cur_cc => cur_cc%next
     enddo
   endif

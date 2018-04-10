@@ -144,6 +144,14 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = 3
       coupler%flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) = 3
     case(WF_MODE)
+      pressure_at_datum = &
+        condition%general%liquid_pressure%dataset%rarray(1)    
+      ! gradient is in m/m; needs conversion to Pa/m
+      if (associated(condition%general%liquid_pressure%gradient)) then
+        piezometric_head_gradient(1:3) = &
+          condition%general%liquid_pressure%gradient%rarray(1:3)
+      endif
+      coupler%flow_aux_mapping(WIPPFLO_LIQUID_PRESSURE_INDEX) = 1
     case(TOIL_IMS_MODE)
       temperature_at_datum = &
         condition%toil_ims%temperature%dataset%rarray(1)
@@ -464,7 +472,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         coupler%flow_aux_real_var(3,iconn) = concentration_at_datum
 
         coupler%flow_aux_int_var(1,iconn) = condition%iphase
-
       case(TH_MODE)
         temperature = temperature_at_datum + &
                     ! gradient in K/m
@@ -473,7 +480,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                     temperature_gradient(Z_DIRECTION)*dist_z
         coupler%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = temperature
         coupler%flow_aux_int_var(TH_PRESSURE_DOF,iconn) = condition%iphase
-
       case(MIS_MODE)
         temperature = temperature_at_datum + &
                     ! gradient in K/m
@@ -485,6 +491,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
         coupler%flow_aux_int_var(1,iconn) = condition%iphase
 
+      case(WF_MODE)
       case(G_MODE)
         temperature = temperature_at_datum + &
                     ! gradient in K/m

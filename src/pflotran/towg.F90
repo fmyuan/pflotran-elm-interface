@@ -208,11 +208,52 @@ contains
 
 ! ************************************************************************** !
 
+function checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
+
+!------------------------------------------------------------------------------
+! Used in black oil, returns .true. if phase iphase contains component icomp
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Oct 2017
+!------------------------------------------------------------------------------
+
+  use Option_module, only : option_type
+
+  PetscBool                    :: checkBlackOilCIP
+  PetscInt,  intent(in )       :: iphase
+  PetscInt,  intent(in )       :: icomp
+  PetscBool, intent(out)       :: is_oil_in_oil,is_gas_in_oil
+  type(option_type),intent(in) :: option
+  PetscBool                    :: componentInPhase
+
+!  Default return values
+
+  componentInPhase=PETSC_FALSE
+  is_oil_in_oil   =PETSC_FALSE
+  is_gas_in_oil   =PETSC_FALSE
+
+! disgas is special case
+
+  if( iphase==option%oil_phase ) then
+    if( icomp==option%oil_phase ) is_oil_in_oil=PETSC_TRUE
+    if( icomp==option%gas_phase ) is_gas_in_oil=PETSC_TRUE
+  endif
+
+! OK if phase and component match or dissolved gas
+
+  if( iphase==icomp .or. is_gas_in_oil )  componentInPhase=PETSC_TRUE
+
+  checkBlackOilCIP=componentInPhase
+
+end function checkBlackOilCIP
+
+! ************************************************************************** !
+
 subroutine TOWGSetup(realization)
   ! 
   ! Creates arrays for TOWG auxiliary variables
   ! 
-  ! Author: Paolo Orsini (OGS)
+  ! Author: Paolo Orsini and Dave Ponting (OGS)
   ! Date: 11/07/16
   ! 
 
@@ -322,6 +363,7 @@ subroutine TOWGSetup(realization)
 
   call patch%aux%TOWG%Init(grid,num_bc_connection,num_ss_connection,option)
 
+
   !initialise here diffusion coefficient when supporting the oil and gas
   ! diffusione terms
   ! initialize parameters
@@ -349,29 +391,51 @@ subroutine TOWGSetup(realization)
   list => realization%output_option%output_obs_variable_list
   call TOWGSetPlotVariables(list) 
 
-  ! covergence creteria to be chosen (can use TOUGH or TOWG type) 
-  ! set up here tough convergnce creteria if needed.
+  ! convergence criteria to be chosen (can use TOUGH or TOWG type)
+  ! set up here tough convergence creteria if needed.
 
-  !set up TOWG functions that can vary with the miscibility model
+!------------------------------------------------------------------------------
+!  TOWG functions that can vary with the miscibility model
+!------------------------------------------------------------------------------
+
   select case(towg_miscibility_model)
     case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
-      TOWGUpdateAuxVars => TOWGImsTLUpdateAuxVars
-      TOWGAccumulation => TOWGImsTLAccumulation
-      TOWGComputeMassBalance => TOWGImsTLComputeMassBalance
-      TOWGFlux => TOWGImsTLFlux
-      TOWGBCFlux => TOWGImsTLBCFlux
-      TOWGSrcSink => TOWGImsTLSrcSink
       TOWGCheckUpdatePre => TOWGImsTLCheckUpdatePre
       TOWGMaxChange => TOWGImsTLMaxChange
+      TOWGSrcSink   => TOWGImsTLSrcSink
       select case(towg_miscibility_model)
         case(TOWG_IMMISCIBLE)
           call TOWGImsAuxVarComputeSetup()
         case(TOWG_TODD_LONGSTAFF)
           call TOWGTLAuxVarComputeSetup()
       end select
-    !case(TOWG_BLACK_OIL)
+    case(TOWG_BLACK_OIL)
+! No trap on neg Sg, avoid dampling Pb as Sg, so special black oil version
+       TOWGCheckUpdatePre => TOWGBlackOilCheckUpdatePre
+! Must convert Pbub changes to eff. satn. change, so special black oil version
+       TOWGMaxChange => TOWGBOMaxChange
+! Detailed lookup needed for the oil source case, so special black oil version
+       TOWGSrcSink => TOWGBOSrcSink
+       call TOWGBlackOilAuxVarComputeSetup()
     case default
-      option%io_buffer = 'TOWGSetup: only TOWG_IMMISCIBLE is supported.'
+      option%io_buffer = 'TOWGSetup: mode not supported.'
+      call printErrMsg(option)
+  end select
+
+!------------------------------------------------------------------------------
+! TOWG functions that do not vary with the miscibility model
+! (may be different for solvent)
+!------------------------------------------------------------------------------
+
+  select case(towg_miscibility_model)
+    case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
+       TOWGAccumulation => TOWGImsTLBOAccumulation
+       TOWGUpdateAuxVars => TOWGImsTLBOUpdateAuxVars
+       TOWGComputeMassBalance => TOWGImsTLBOComputeMassBalance
+       TOWGFlux => TOWGImsTLBOFlux
+       TOWGBCFlux => TOWGImsTLBOBCFlux
+    case default
+      option%io_buffer = 'TOWGSetup: mode not supported.'
       call printErrMsg(option)
   end select
 
@@ -391,7 +455,7 @@ end subroutine TOWGSetup
 
 ! ************************************************************************** !
 
-subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
+subroutine TOWGImsTLBOUpdateAuxVars(realization,update_state)
   ! 
   ! Updates the auxiliary variables associated with the TOWG_IMS problem
   ! 
@@ -459,6 +523,10 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
     
+!------------------------------------------------------------------------------
+! Extract solution
+!------------------------------------------------------------------------------
+
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
 
 #ifdef DEBUG_AUXVARS
@@ -466,6 +534,10 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
   write(word,*) icall
   word = 'towgaux' // trim(adjustl(word))
 #endif
+
+!------------------------------------------------------------------------------
+! Loop over cells
+!------------------------------------------------------------------------------
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -490,6 +562,10 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
                        option)
   enddo
 
+!------------------------------------------------------------------------------
+! Now boundary conditions
+!------------------------------------------------------------------------------
+
   boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
@@ -509,8 +585,8 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
       if (istate == TOWG_NULL_STATE) then !this is applied to flux (Neumann) conditions
         istate = global_auxvars(ghosted_id)%istate !look into the state of down cell
         select case(istate)
-          !only two states are possible for TOWGIms: TOWG_THREE_PHASE_STATE, TOWG_NULL_STATE
-          case(TOWG_THREE_PHASE_STATE)
+! Two states possible: TOWG_THREE_PHASE_STATE,TOWG_LIQ_OIL_STATE
+          case(TOWG_THREE_PHASE_STATE,TOWG_LIQ_OIL_STATE)
             do idof = 1, option%nflowdof
               select case(boundary_condition%flow_bc_type(idof))
                 case(HYDROSTATIC_BC)
@@ -589,6 +665,8 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
         enddo
       endif
           
+!--Now do the auxvar setup for the boundary condition--------------------------
+
       ! set this based on data given 
       global_auxvars_bc(sum_connection)%istate = istate
       ! TOWG_UPDATE_FOR_BOUNDARY indicates call from non-perturbation
@@ -604,11 +682,15 @@ subroutine TOWGImsTLUpdateAuxVars(realization,update_state)
     boundary_condition => boundary_condition%next
   enddo
 
+!------------------------------------------------------------------------------
+! Restore state and solution
+!------------------------------------------------------------------------------
+
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
 
   patch%aux%TOWG%auxvars_up_to_date = PETSC_TRUE
 
-end subroutine TOWGImsTLUpdateAuxVars
+end subroutine TOWGImsTLBOUpdateAuxVars
 
 ! ************************************************************************** !
 
@@ -839,7 +921,7 @@ end subroutine TOWGUpdateMassBalance
 
 ! ************************************************************************** !
 
-subroutine TOWGImsTLComputeMassBalance(realization,mass_balance)
+subroutine TOWGImsTLBOComputeMassBalance(realization,mass_balance)
   ! 
   ! Initializes mass balance
   ! 
@@ -871,7 +953,15 @@ subroutine TOWGImsTLComputeMassBalance(realization,mass_balance)
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: iphase, icomp
-  PetscReal :: vol_phase
+  PetscReal :: vol_phase,xmf,molar_density,mole_wt
+
+  PetscBool :: is_black_oil
+  PetscBool :: componentInPhase,is_oil_in_oil,is_gas_in_oil
+
+! Set flag indicating a black oil run
+
+  is_black_oil=PETSC_FALSE
+  if( towg_miscibility_model == TOWG_BLACK_OIL ) is_black_oil=PETSC_TRUE
 
   option => realization%option
   patch => realization%patch
@@ -895,13 +985,29 @@ subroutine TOWGImsTLComputeMassBalance(realization,mass_balance)
         towg%auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity* &
         material_auxvars(ghosted_id)%volume
       ! mass = volume_phase*density 
+      if( is_black_oil ) then
+        do icomp=1,option%nphase
+          componentInPhase=checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
+          if( componentInPhase ) then
+            ! mole fraction of component in phase
+            xmf=1.0
+            if( is_oil_in_oil ) xmf=towg%auxvars(ZERO_INTEGER,ghosted_id)%bo%xo
+            if( is_gas_in_oil ) xmf=towg%auxvars(ZERO_INTEGER,ghosted_id)%bo%xg
+          ! mass = xmf*volume_phase*density
+            molar_density=towg%auxvars(ZERO_INTEGER,ghosted_id)%den(iphase)
+            mole_wt      =towg_fmw_comp(icomp)
+            mass_balance(icomp,1) = mass_balance(icomp,1)+molar_density*mole_wt*vol_phase*xmf
+          endif
+        enddo
+      else
       mass_balance(iphase,1) = mass_balance(iphase,1) + &
         towg%auxvars(ZERO_INTEGER,ghosted_id)%den(iphase)* &
         towg_fmw_comp(iphase) * vol_phase
+      endif
     enddo
   enddo
 
-end subroutine TOWGImsTLComputeMassBalance
+end subroutine TOWGImsTLBOComputeMassBalance
 
 ! ************************************************************************** !
 
@@ -1000,6 +1106,148 @@ subroutine TOWGImsTLMaxChange(realization,max_change_ivar,max_change_isubvar,&
   max_temperature_change = max_change_global(4)
   
 end subroutine TOWGImsTLMaxChange
+
+! ************************************************************************** !
+
+subroutine TOWGBOMaxChange(realization,max_change_ivar,max_change_isubvar,&
+                           max_pressure_change,max_xmol_change, &
+                           max_saturation_change,max_temperature_change)
+
+!------------------------------------------------------------------------------
+! Used in TOWG_BLACK_OIL, to compute primary variable max changes
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Dec 2017
+!------------------------------------------------------------------------------
+
+  use Realization_Base_class
+  use Realization_Subsurface_class
+  use Option_module
+  use Field_module
+  use Grid_module
+  use Variables_module, only : OIL_PRESSURE
+
+  implicit none
+
+  class(realization_subsurface_type), pointer :: realization
+  PetscInt :: max_change_ivar(:)
+  PetscInt :: max_change_isubvar(:)
+  PetscReal :: max_pressure_change
+  PetscReal :: max_xmol_change
+  PetscReal :: max_saturation_change
+  PetscReal :: max_temperature_change
+
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(grid_type), pointer :: grid
+  PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
+  PetscReal :: max_change_local(5)
+  PetscReal :: max_change_global(5)
+  PetscReal :: sum_values_local (2)
+  PetscReal :: sum_values_global(2)
+  PetscReal :: max_change,sum_pressure,normed_max_pb_change,average_pressure
+  PetscInt :: i, j
+  PetscInt :: local_id, ghosted_id
+
+  PetscErrorCode :: ierr
+
+  option => realization%option
+  field => realization%field
+  grid => realization%patch%grid
+
+  max_change_global   = 0.d0
+  max_change_local    = 0.d0
+  sum_pressure        = 0.d0
+  normed_max_pb_change= 0.d0
+  average_pressure    = 0.d0
+
+!------------------------------------------------------------------------------
+! Look at the black oil variables:
+! {OIL_PRESSURE,OIL_SATURATION,GAS_SATURATION,TEMPERATURE,BUBBLE_POINT}
+!------------------------------------------------------------------------------
+
+  do i = 1, 5
+
+!--Get values------------------------------------------------------------------
+
+    call RealizationGetVariable(realization,field%work, &
+                                max_change_ivar(i),max_change_isubvar(i))
+    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%max_change_vecs(i),vec_ptr2,ierr);CHKERRQ(ierr)
+    max_change = 0.d0
+    do j = 1, grid%nlmax
+      ! have to weed out cells that changed state
+      if (dabs(vec_ptr(j)) > 1.d-40 .and. dabs(vec_ptr2(j)) > 1.d-40) then
+        max_change = max(max_change,dabs(vec_ptr(j)-vec_ptr2(j)))
+      endif
+    enddo
+    max_change_local(i) = max_change
+
+!--Case of pressure to provide norm for bubble point change--------------------
+
+    if( max_change_ivar(i)==OIL_PRESSURE ) then
+      do j = 1, grid%nlmax
+        sum_values_local(1)=sum_pressure
+        sum_values_local(2)=real(grid%nlmax)
+      enddo
+    endif
+
+!--Restore values--------------------------------------------------------------
+
+    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%max_change_vecs(i),vec_ptr2, &
+                            ierr);CHKERRQ(ierr)
+
+    call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
+
+  enddo
+
+!------------------------------------------------------------------------------
+! Do global reductions
+!------------------------------------------------------------------------------
+
+  call MPI_Allreduce(max_change_local,max_change_global,FIVE_INTEGER, &
+                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+  call MPI_Allreduce(sum_values_local,sum_values_global,TWO_INTEGER, &
+                      MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+
+  if( sum_values_global(2)>0.0 ) then
+    average_pressure=sum_values_global(1)/sum_values_global(2)
+  endif
+
+  if( average_pressure>0.0 ) then
+   normed_max_pb_change=max_change_global(5)/average_pressure
+  endif
+
+!------------------------------------------------------------------------------
+! Report the changes
+!------------------------------------------------------------------------------
+
+  if (OptionPrintToScreen(option)) then
+    write(*,'("  --> max chng: dpo= ",1pe12.4, " dso= ",1pe12.4, &
+      & " dsg= ",1pe12.4," dt= ",1pe12.4," dpb= ",1pe12.4)') &
+      max_change_global(1:5)
+  endif
+  if (OptionPrintToFile(option)) then
+    write(option%fid_out,'("  --> max chng: dpo= ",1pe12.4, " dso= ",1pe12.4,&
+      & " dsg= ",1pe12.4,/,15x,"  dt= ",1pe12.4,"  dpb= ",1pe12.4)') &
+      max_change_global(1:5)
+  endif
+
+!------------------------------------------------------------------------------
+! Assemble the changes that control the simulation step
+! Black oil model should be independent of mole weights,
+! so do not set mole fraction max change
+! Include normed maximum bubble point as an effective saturation change
+!------------------------------------------------------------------------------
+
+  max_pressure_change    = max_change_global(1)
+  max_xmol_change        = 0.0d0
+  max_saturation_change  = maxval(max_change_global(2:3))
+  max_saturation_change  = max(max_saturation_change,normed_max_pb_change)
+  max_temperature_change = max_change_global(4)
+
+end subroutine TOWGBOMaxChange
 
 ! ************************************************************************** !
 
@@ -1146,19 +1394,16 @@ subroutine TOWGSetPlotVariables(list)
   call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                GAS_ENERGY)
 
-  !to be added later for BLACK oil model and solvent model
+! Bubble point output option for black oil and full solvent
   if ( towg_miscibility_model == TOWG_BLACK_OIL .or. &
        towg_miscibility_model == TOWG_SOLVENT_TL ) then
-     write(*,*) "error: TOWGSetPlotVariables: TOWG_BLACK_OIL and " // &
-                "TOWG_SOLVENT_TL not currently supported"
-     stop
-     ! add the following output variables to print:
-     ! - gas mol fraction in oil (dissolved gas)
-     ! - oil mol fraction in oil
-     ! - gas mol fraction in gas
-     ! - oil mol fraction in gas (oil vaour)
+    name = 'Bubble Point'
+    units = 'Pa'
+    call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
+                               BUBBLE_POINT)
   end if
 
+  !to be added later for solvent model
   if ( towg_miscibility_model == TOWG_SOLVENT_TL ) then
     ! add solvent saturation 
      write(*,*) "error: TOWGSetPlotVariables: TOWG_SOLVENT_TL " // &
@@ -1279,11 +1524,11 @@ end subroutine TOWGUpdateFixedAccum
 
 ! ************************************************************************** !
 
-subroutine TOWGImsTLAccumulation(auxvar,global_auxvar,material_auxvar, &
+subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
                                  soil_heat_capacity,option,Res,debug_cell)
   ! 
-  ! Computes the non-fixed portion of the accumulation
-  ! term for the residual - TOWG_IMS and TOWG_TL models
+  ! Computes the non-fixed portion of the accumulation term for the residual
+  ! Used for TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF and TOWG_BLACK_OIL models
   ! 
   ! Author: Paolo Orsini
   ! Date: 12/07/16 
@@ -1303,10 +1548,18 @@ subroutine TOWGImsTLAccumulation(auxvar,global_auxvar,material_auxvar, &
   PetscReal :: Res(option%nflowdof) 
   PetscBool :: debug_cell
   
-  PetscInt :: iphase, energy_id
+  PetscInt :: iphase,icomp, energy_id
   
   PetscReal :: porosity
-  PetscReal :: volume_over_dt
+  PetscReal :: volume_over_dt,xmf
+
+  PetscBool :: is_black_oil
+  PetscBool :: componentInPhase,is_oil_in_oil,is_gas_in_oil
+
+! Set flag indicating a black oil run
+
+  is_black_oil=PETSC_FALSE
+  if( towg_miscibility_model == TOWG_BLACK_OIL ) is_black_oil=PETSC_TRUE
  
   energy_id = option%energy_id
   
@@ -1320,12 +1573,33 @@ subroutine TOWGImsTLAccumulation(auxvar,global_auxvar,material_auxvar, &
   ! not for TOWG IMS and TL (kmol phase) = (kmol comp)
   ! and nphase = nflowspec
   Res = 0.d0
+
+  if( is_black_oil ) then
+    do iphase = 1, option%nphase
+      do icomp = 1, option%nphase ! In black oil, same number of components as phases
+        ! Res[kmol comp/m^3 void] =  moleFraction
+        !                           *sat[m^3 phase /m^3 void ]
+        !                           *den[kmol phase/m^3 phase]
+        componentInPhase=checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
+
+        if( componentInPhase ) then
+          xmf=1.0d0
+          if( is_oil_in_oil ) xmf=auxvar%bo%xo
+          if( is_gas_in_oil ) xmf=auxvar%bo%xg
+
+          Res(icomp)=Res(icomp)+xmf*auxvar%sat(iphase)*auxvar%den(iphase)
+        endif
+
+      enddo
+    enddo
+  else
   do iphase = 1, option%nphase
     ! Res[kmol phase/m^3 void] = sat[m^3 phase/m^3 void] * 
     !                           den[kmol phase/m^3 phase] * 
     Res(iphase) = Res(iphase) + auxvar%sat(iphase) * &
                                 auxvar%den(iphase) 
   enddo
+  endif
 
   ! scale by porosity * volume / dt
   ! Res[kmol/sec] = Res[kmol/m^3 void] * por[m^3 void/m^3 bulk] * 
@@ -1355,11 +1629,11 @@ subroutine TOWGImsTLAccumulation(auxvar,global_auxvar,material_auxvar, &
   endif
 #endif                    
 
-end subroutine TOWGImsTLAccumulation
+end subroutine TOWGImsTLBOAccumulation
 
 ! ************************************************************************** !
 
-subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
+subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
                          material_auxvar_up, &
                          sir_up, &
                          thermal_conductivity_up, &
@@ -1403,7 +1677,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   PetscReal :: upweight
 
   PetscInt :: energy_id
-  PetscInt :: iphase
+  PetscInt :: iphase,icomp
   
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: uH
@@ -1414,7 +1688,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   PetscReal :: pressure_ave
   PetscReal :: gravity_term
   PetscReal :: mobility, mole_flux, q
-  PetscReal :: sat_liquid
+  PetscReal :: sat_liquid,sat_liquid_pos
   PetscReal :: sat_up, sat_dn, den_up, den_dn
   PetscReal :: k_eff_up, k_eff_dn, k_eff_ave, heat_flux
   !for debugging
@@ -1423,9 +1697,15 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   
   PetscReal :: dummy_dperm_up, dummy_dperm_dn
   PetscReal :: temp_perm_up, temp_perm_dn
-  PetscReal :: denup,dendn
+  PetscReal :: denup,dendn,xmf
 
-  PetscBool :: istl,isoil,isgas
+  PetscBool :: is_black_oil,istl,isoil,isgas
+  PetscBool :: componentInPhase,is_oil_in_oil,is_gas_in_oil
+
+! Set flag indicating a black oil run
+
+  is_black_oil=PETSC_FALSE
+  if( towg_miscibility_model == TOWG_BLACK_OIL ) is_black_oil=PETSC_TRUE
 
   energy_id = option%energy_id
 
@@ -1536,19 +1816,32 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
       mole_flux = q*density_ave
 
       ! Res[kmol total/sec] = mole_flux[kmol phase/sec]
-      Res(iphase) = mole_flux
 
-      !do icomp = 1, option%nflowspec
-      !  ! Res[kmol comp/sec] = mole_flux[kmol phase/sec] * 
-      !  !                      xmol[kmol comp/kmol phase]
-      !  Res(icomp) = Res(icomp) + mole_flux * xmol(icomp)
-      !enddo
+      if( is_black_oil ) then
+! Loop over components in phase
+        do icomp = 1, option%nphase
+          componentInPhase=checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
+          if( componentInPhase ) then
+
+            xmf=1.0d0
+            if (delta_pressure >= 0.D0) then
+              if( is_oil_in_oil ) xmf=auxvar_up%bo%xo
+              if( is_gas_in_oil ) xmf=auxvar_up%bo%xg
+            else
+              if( is_oil_in_oil ) xmf=auxvar_dn%bo%xo
+              if( is_gas_in_oil ) xmf=auxvar_dn%bo%xg
+            endif
+
+            Res(icomp)=Res(icomp)+xmf*mole_flux
+          endif
+        enddo
+      else
+! One component in phase
+        Res(iphase) = mole_flux
+      endif
 
 #ifdef DEBUG_FLUXES  
       adv_flux(iphase) = mole_flux
-      !do icomp = 1, option%nflowspec
-      !  adv_flux(icomp) = adv_flux(icomp) + mole_flux * xmol(icomp)
-      !enddo      ! Res[MJ/sec] = mole_flux[kmol comp/sec] * H_ave[MJ/kmol comp]
 #endif
 
       ! Res[MJ/sec] = mole_flux[kmol comp/sec] * H_ave[MJ/kmol comp]
@@ -1585,13 +1878,15 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   ! s_l = S_water + S_oil 
   sat_liquid = auxvar_up%sat(option%liquid_phase) + &
                auxvar_up%sat(option%oil_phase)
+  sat_liquid_pos=max(sat_liquid,0.0d0)
   k_eff_up = thermal_conductivity_up(1) + &
-             sqrt(sat_liquid) * &
+             sqrt(sat_liquid_pos) * &
              (thermal_conductivity_up(2) - thermal_conductivity_up(1))
   sat_liquid = auxvar_dn%sat(option%liquid_phase) + &
                auxvar_dn%sat(option%oil_phase)
+  sat_liquid_pos=max(sat_liquid,0.0d0)
   k_eff_dn = thermal_conductivity_dn(1) + &
-             sqrt(sat_liquid) * &
+             sqrt(sat_liquid_pos) * &
              (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
   if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
     k_eff_ave = (k_eff_up*k_eff_dn)/(k_eff_up*dist_dn+k_eff_dn*dist_up)
@@ -1639,11 +1934,11 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   endif
 #endif
 
-end subroutine TOWGImsTLFlux
+end subroutine TOWGImsTLBOFlux
 
 ! ************************************************************************** !
 
-subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
+subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                            auxvar_up,global_auxvar_up, &
                            auxvar_dn,global_auxvar_dn, &
                            material_auxvar_dn, &
@@ -1680,7 +1975,7 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   PetscBool :: debug_connection
   
   PetscInt :: energy_id
-  PetscInt :: iphase !, icomp
+  PetscInt :: iphase,icomp
   PetscInt :: bc_type
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: H_ave, uH
@@ -1698,19 +1993,24 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   PetscReal :: debug_flux(3), debug_dphi(3)
 
   PetscReal :: boundary_pressure
-  PetscReal :: sat_liquid
+  PetscReal :: sat_liquid,sat_liquid_pos
 
   PetscReal :: dden_dn, dden_up
 
   PetscInt :: idof
-  PetscBool :: neumann_bc_present
+  PetscBool :: neumann_bc_present,is_black_oil
   
   PetscReal :: temp_perm_dn
   PetscReal :: dummy_dperm_dn
 
-  PetscReal :: denup,dendn
+  PetscReal :: denup,dendn,xmf
 
-  PetscBool :: istl,isoil,isgas
+  PetscBool :: istl,isoil,isgas,is_oil_in_oil,is_gas_in_oil,componentInPhase
+
+! Set flag indicating a black oil run
+
+  is_black_oil=PETSC_FALSE
+  if( towg_miscibility_model == TOWG_BLACK_OIL ) is_black_oil=PETSC_TRUE
   
   energy_id = option%energy_id
 
@@ -1883,7 +2183,7 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
         endif
       case default
         option%io_buffer = &
-         'Boundary condition type not recognized in TOWGImsTLBCFlux phase loop'
+         'Boundary condition type not recognized in TOWGImsTLBOBCFlux phase loop'
         call printErrMsg(option)
     end select
 
@@ -1891,31 +2191,43 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(iphase) * area
       if (density_ave < 1.d-40) then
-        option%io_buffer = 'Zero density in TOWGImsTLBCFlux()'
+        option%io_buffer = 'Zero density in TOWGImsTLBOBCFlux()'
         call printErrMsgByRank(option)
       endif
       ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
       !                              density_ave[kmol phase/m^3 phase]
       mole_flux = q*density_ave
       ! Res[kmol phase/sec] 
-      Res(iphase) = mole_flux 
 
-      !do icomp = 1, option%nflowspec
-      !  ! Res[kmol comp/sec] = mole_flux[kmol phase/sec] * 
-      !  !                      xmol[kmol comp/mol phase]
-      !  Res(icomp) = Res(icomp) + mole_flux * xmol(icomp)
-      !enddo
+      if( is_black_oil ) then
+
+! Loop over components in this phase
+
+        do icomp = 1, option%nphase
+          componentInPhase=checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
+          if( componentInPhase ) then
+            xmf=1.0d0
+            if (v_darcy(iphase) > 0.d0) then
+              if( is_oil_in_oil ) xmf=auxvar_up%bo%xo
+              if( is_gas_in_oil ) xmf=auxvar_up%bo%xg
+            else
+              if( is_oil_in_oil ) xmf=auxvar_dn%bo%xo
+              if( is_gas_in_oil ) xmf=auxvar_dn%bo%xg
+            endif
+            Res(icomp)=Res(icomp)+xmf*mole_flux
+          endif
+        enddo
+
+      else
+
+! Just one component in this phase
+
+      Res(iphase) = mole_flux 
+      endif
+
 #ifdef DEBUG_FLUXES  
       adv_flux(iphase) = mole_flux 
-      !do icomp = 1, option%nflowspec
-      !  adv_flux(icomp,iphase) = adv_flux(icomp,iphase) + mole_flux * xmol(icomp)
-      !enddo
 #endif
-!#ifdef DEBUG_TOWG_FILEOUTPUT
-!      do icomp = 1, option%nflowspec
-!        debug_flux(icomp,iphase) = debug_flux(icomp,iphase) + mole_flux * xmol(icomp)
-!      enddo
-!#endif
       ! Res[MJ/sec] = mole_flux[kmol comp/sec] * H_ave[MJ/kmol comp]
       Res(energy_id) = Res(energy_id) + mole_flux * uH ! H_ave
 
@@ -1949,9 +2261,10 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       ! s_l = S_water + S_oil 
       sat_liquid = auxvar_dn%sat(option%liquid_phase) + &
                    auxvar_dn%sat(option%oil_phase)
+      sat_liquid_pos=max(sat_liquid,0.0d0)
 
       k_eff_dn = thermal_conductivity_dn(1) + &
-                 sqrt(sat_liquid) * &
+                 sqrt(sat_liquid_pos) * &
                  (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
       ! units:
       ! k_eff = W/K/m/m = J/s/K/m/m
@@ -1967,7 +2280,7 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
     case default
       option%io_buffer = 'Boundary condition type not recognized in ' // &
-        'TOWGImsTLBCFlux heat conduction loop.'
+        'TOWGImsTLBOBCFlux heat conduction loop.'
       call printErrMsg(option)
   end select
   Res(energy_id) = Res(energy_id) + heat_flux ! MW
@@ -2003,7 +2316,7 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   endif
 #endif
   
-end subroutine TOWGImsTLBCFlux
+end subroutine TOWGImsTLBOBCFlux
 
 ! ************************************************************************** !
 
@@ -2098,9 +2411,11 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
         case(LIQUID_PHASE)
           call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
         case(OIL_PHASE)
-          call EOSOilDensity(temperature,cell_pressure,den,ierr)
+          call EOSOilDensity(temperature,cell_pressure,den,ierr, &
+                             auxvar%table_idx)
         case(GAS_PHASE)
-          call EOSGasDensity(temperature,cell_pressure,den,ierr)
+          call EOSGasDensity(temperature,cell_pressure,den,ierr, &
+                             auxvar%table_idx)
       end select 
     else
       den = auxvar%den(iphase)
@@ -2217,20 +2532,260 @@ end subroutine TOWGImsTLSrcSink
 
 ! ************************************************************************** !
 
+subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
+                         global_auxvar,ss_flow_vol_flux,scale,Res)
+  ! 
+  ! Computes the source/sink terms for the residual in the black oil case
+  ! 
+  ! Author: Dave Ponting
+  ! Date: Dec 2017
+  ! 
+
+  use Option_module
+  use Condition_module
+
+  use EOS_Water_module
+  use EOS_Oil_module
+  use EOS_Gas_module
+  
+  implicit none
+
+  type(option_type) :: option
+  type(flow_towg_condition_type), pointer :: src_sink_condition
+  class(auxvar_towg_type) :: auxvar
+  type(global_auxvar_type) :: global_auxvar !keep global_auxvar for salinity
+  PetscReal :: ss_flow_vol_flux(option%nphase)
+  PetscReal :: scale
+  PetscReal :: Res(option%nflowdof)
+
+  ! local parameter
+  PetscInt, parameter :: SRC_TEMPERATURE = 1
+  PetscInt, parameter :: SRC_ENTHALPY = 2
+  ! local variables
+  PetscReal, pointer :: qsrc(:)
+  PetscInt :: flow_src_sink_type
+  PetscReal :: qsrc_mol,mole_wt,ref_pressure
+  PetscReal :: den, den_kg, enthalpy, internal_energy_dummy, temperature &
+              ,xmf,xmfo,xmfg,po,pb,cr,crusp
+  PetscReal :: cell_pressure
+  PetscInt :: iphase,icomp
+  PetscInt :: energy_var
+  PetscBool :: componentInPhase,is_oil_in_oil,is_gas_in_oil
+  PetscErrorCode :: ierr
+
+  ref_pressure=option%reference_pressure
+
+  ! this can be removed if extending to pressure condition
+  if (.not.associated(src_sink_condition%rate) ) then
+    option%io_buffer = 'TOWGBOSrcSink flow condition rate not defined ' // &
+    'rate is needed for a valid src/sink term'
+    call printErrMsg(option)
+  endif
+
+  qsrc => src_sink_condition%rate%dataset%rarray
+
+  energy_var = 0
+  if ( associated(src_sink_condition%temperature) ) then
+    energy_var = SRC_TEMPERATURE
+  else if ( associated(src_sink_condition%enthalpy) ) then
+    energy_var = SRC_ENTHALPY
+  endif
+  
+  flow_src_sink_type = src_sink_condition%rate%itype
+
+  ! if not given, approximates BHP with pressure of perforated cell
+  if ( associated(src_sink_condition%bhp_pressure) ) then
+    cell_pressure = src_sink_condition%bhp_pressure%dataset%rarray(1)
+  else
+    cell_pressure = &
+        maxval(auxvar%pres(option%liquid_phase:option%gas_phase))
+  end if
+
+  ! if enthalpy is used to define enthalpy or energy rate is used
+  ! approximate bottom hole temperature (BHT) with local temp
+  if ( associated(src_sink_condition%temperature) ) then
+    temperature = src_sink_condition%temperature%dataset%rarray(1)
+  else
+    temperature = auxvar%temp
+  end if
+
+  Res = 0.d0
+  do iphase = 1, option%nphase
+    qsrc_mol = 0.d0
+    mole_wt  = towg_fmw_comp(iphase)
+    xmfo=auxvar%bo%xo
+    xmfg=auxvar%bo%xg
+    if ( qsrc(iphase) > 0.d0) then
+      select case(option%phase_map(iphase))
+        case(LIQUID_PHASE)
+! Case of water
+          call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
+        case(OIL_PHASE)
+! Note this is dead oil, so take bubble point as reference pressure
+          po=cell_pressure
+          pb=ref_pressure
+! Density and compressibility lookup
+          call EOSOilDensity        (temperature,pb,den,ierr,auxvar%table_idx)
+          call EOSOilCompressibility(temperature,pb,cr ,ierr,auxvar%table_idx)
+! Correct for undersaturation: correction not yet available for energy
+          crusp=cr*(po-pb)
+          den=den*(1.0+crusp*(1.0+0.5*crusp))
+! Set to pure dead oil composition and molecular weight
+          xmfo=1.0D0
+          xmfg=0.0D0
+          mole_wt=EOSOilGetFMW()
+        case(GAS_PHASE)
+          call EOSGasDensity(temperature,cell_pressure,den,ierr, &
+                             auxvar%table_idx)
+      end select
+    else
+      den = auxvar%den(iphase)
+      select case(option%phase_map(iphase))
+        case(OIL_PHASE)
+          mole_wt= xmfo*EOSOilGetFMW() &
+                  +xmfg*EOSGasGetFMW()
+      end select
+    end if
+
+    select case(flow_src_sink_type)
+      ! injection and production
+      case(MASS_RATE_SS)
+        qsrc_mol = qsrc(iphase)/mole_wt          ! kg/sec -> kmol/sec
+      case(SCALED_MASS_RATE_SS)                  ! kg/sec -> kmol/sec
+        qsrc_mol = qsrc(iphase)/mole_wt*scale
+      case(VOLUMETRIC_RATE_SS)  ! assume local density for now
+                                ! qsrc(iphase) = m^3/sec
+        qsrc_mol = qsrc(iphase)*den ! den = kmol/m^3
+      case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
+        ! qsrc1 = m^3/sec              ! den = kmol/m^3
+        qsrc_mol = qsrc(iphase)* den * scale
+    end select
+
+    ss_flow_vol_flux(iphase) = qsrc_mol/ den
+
+! Loop over components (note number of comps=number of phases in black oil)
+! Increment as given icomp value can occur more than once
+
+    do icomp=1, option%nphase
+      componentInPhase=checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
+      if( componentInPhase ) then
+        xmf=1.0d0
+        if( is_oil_in_oil ) xmf=xmfo
+        if( is_gas_in_oil ) xmf=xmfg
+        Res(icomp) = Res(icomp)+xmf*qsrc_mol
+      endif
+    enddo
+
+  enddo
+
+  ! when using scaled src/sinks, the rates (mass or vol) scaling
+  ! at this point the scale factor is already included in Res(iphase)
+
+  ! Res(option%energy_id), energy units: MJ/sec
+
+  !if ( associated(src_sink_condition%temperature) .or. &
+  !    associated(src_sink_condition%enthalpy) &
+  !   ) then
+  !if the energy rate is not given, use either temperature or enthalpy
+  if ( dabs(qsrc(FOUR_INTEGER)) < 1.0d-40 ) then
+    ! water injection
+    if (qsrc(option%liquid_phase) > 0.d0) then !implies qsrc(option%oil_phase)>=0
+      if ( energy_var == SRC_ENTHALPY ) then
+        !input as J/kg
+        enthalpy = src_sink_condition%enthalpy% &
+                       dataset%rarray(option%liquid_phase)
+                     ! J/kg * kg/kmol = J/kmol
+        enthalpy = enthalpy * towg_fmw_comp(option%liquid_phase)
+      else !note: temp can either be input or taken as the one of perf. block
+      !else if ( energy_var == SRC_TEMPERATURE ) then
+        call EOSWaterEnthalpy(temperature, cell_pressure,enthalpy,ierr)
+        ! enthalpy = [J/kmol]
+      end if
+      enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
+      ! enthalpy units: MJ/kmol ! water component mass
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%liquid_phase) * enthalpy
+    end if
+    ! oil injection (is assumed dead oil, so can use simple oil molecular weight)
+    if (qsrc(option%oil_phase) > 0.d0) then !implies qsrc(option%liquid_phase)>=0
+      if ( energy_var == SRC_ENTHALPY ) then
+        enthalpy = src_sink_condition%enthalpy% &
+                     dataset%rarray(option%oil_phase)
+                      !J/kg * kg/kmol = J/kmol
+        enthalpy = enthalpy * towg_fmw_comp(option%oil_phase)
+      else !note: temp can either be input or taken as the one of perf. block
+      !if ( energy_var == SRC_TEMPERATURE ) then
+        call EOSOilEnthalpy(temperature,cell_pressure,enthalpy,ierr)
+        ! enthalpy = [J/kmol]
+      end if
+      enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
+      ! enthalpy units: MJ/kmol ! oil component mass
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%oil_phase) * enthalpy
+    end if
+    ! gas injection
+    if (qsrc(option%gas_phase) > 0.d0) then
+      if ( energy_var == SRC_ENTHALPY ) then
+        enthalpy = src_sink_condition%enthalpy% &
+                     dataset%rarray(option%gas_phase)
+                      !J/kg * kg/kmol = J/kmol
+        enthalpy = enthalpy * towg_fmw_comp(option%gas_phase)
+      else !note: temp can either be input or taken as the one of perf. block
+      !if ( energy_var == SRC_TEMPERATURE ) then
+        call EOSGasEnergy(temperature,cell_pressure,enthalpy, &
+                              internal_energy_dummy,ierr)
+        ! enthalpy = [J/kmol]
+      end if
+      enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
+      ! enthalpy units: MJ/kmol ! oil component mass
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%gas_phase) * enthalpy
+    end if
+    ! water energy extraction due to water production
+    if (qsrc(option%liquid_phase) < 0.d0) then !implies qsrc(option%oil_phase)<=0
+      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%liquid_phase) * &
+                              auxvar%H(option%liquid_phase)
+    end if
+    !oil energy extraction due to oil production
+    if (qsrc(option%oil_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
+      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%oil_phase) * &
+                              auxvar%H(option%oil_phase)
+    end if
+    if (qsrc(option%gas_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
+      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%gas_phase) * &
+                              auxvar%H(option%gas_phase)
+    end if
+  else !if the energy rate is given, it overwrites both temp and enthalpy
+    ! if energy rate is given, loaded in qsrc(4) in MJ/sec
+    Res(option%energy_id) = qsrc(FOUR_INTEGER)* scale ! MJ/s
+  end if
+
+  nullify(qsrc)
+
+end subroutine TOWGBOSrcSink
+
+! ************************************************************************** !
+
 subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
                                soil_heat_capacity,option,J)
-  ! 
+  !
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/27/16
-  ! 
+  !
 
   use Option_module
   use Saturation_Function_module
   use Material_Aux_class
-  
+
   implicit none
 
   type(auxvar_towg_type) :: auxvar(0:)
@@ -2239,7 +2794,7 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
   type(option_type) :: option
   PetscReal :: soil_heat_capacity
   PetscReal :: J(option%nflowdof,option%nflowdof)
-     
+
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscReal :: jac(option%nflowdof,option%nflowdof)
   PetscReal :: jac_pert(option%nflowdof,option%nflowdof)
@@ -2270,7 +2825,7 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
     J(TOWG_GAS_EQ_IDX,:) = 0.d0
     J(:,TOWG_GAS_EQ_IDX) = 0.d0
   endif
-  
+
 
 end subroutine TOWGAccumDerivative
 
@@ -3517,6 +4072,192 @@ end subroutine TOWGImsTLCheckUpdatePre
 
 ! ************************************************************************** !
 
+subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
+                                      max_it_before_damping,damping_factor, &
+                                      max_pressure_change,ierr)
+!------------------------------------------------------------------------------
+! Used in TOWG_BLACK_OIL, prepares update for solver
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Oct 2017
+!------------------------------------------------------------------------------
+
+  use Realization_Subsurface_class
+  use Grid_module
+  use Field_module
+  use Option_module
+  use Patch_module
+
+  implicit none
+
+  SNESLineSearch :: line_search
+  Vec :: X
+  Vec :: dX
+  PetscBool :: changed
+  PetscErrorCode :: ierr
+  type(realization_subsurface_type) :: realization
+  PetscInt :: max_it_before_damping
+  PetscReal :: damping_factor
+  PetscReal :: max_pressure_change
+
+  PetscReal, pointer :: X_p(:), dX_p(:)
+
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(field_type), pointer :: field
+
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: offset
+
+  PetscInt :: pressure_index, saturation_index, temperature_index
+
+  PetscReal :: pressure0, pressure1, del_pressure
+  PetscReal :: temperature0, temperature1, del_temperature
+  PetscReal :: saturation0, saturation1, del_saturation
+
+  PetscReal :: max_saturation_change = 0.125d0
+  PetscReal :: max_temperature_change = 10.d0
+  PetscReal :: max_pb_change
+  PetscReal :: scale, temp_scale, temp_real
+  PetscReal, parameter :: tolerance = 0.99d0
+  PetscReal, parameter :: initial_scale = 1.d0
+  SNES :: snes
+  PetscInt :: newton_iteration,istate
+
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+
+  grid => realization%patch%grid
+  option => realization%option
+  field => realization%field
+  patch => realization%patch
+
+  global_auxvars => patch%aux%Global%auxvars
+
+  call SNESLineSearchGetSNES(line_search,snes,ierr)
+  call SNESGetIterationNumber(snes,newton_iteration,ierr)
+
+  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+
+  changed = PETSC_TRUE
+
+  max_pb_change=2.0*max_pressure_change
+
+  ! truncation
+  ! Oil saturation must be truncated.  We do not use scaling
+  ! here because of the very small values.  just truncation.
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    offset = (local_id-1)*option%nflowdof
+! Stop oil saturation going negative, not gas - need Sg<0 to get back to Pbub
+    saturation_index = offset + TOWG_OIL_SATURATION_DOF
+    if ( (X_p(saturation_index) - dX_p(saturation_index)) < 0.d0 ) then
+      dX_p(saturation_index) = X_p(saturation_index)
+    end if
+  enddo
+
+  scale = initial_scale
+  if (max_it_before_damping > 0 .and. &
+      newton_iteration > max_it_before_damping) then
+    scale = damping_factor
+  endif
+
+#define LIMIT_MAX_PRESSURE_CHANGE
+#define LIMIT_MAX_SATURATION_CHANGE
+!!#define LIMIT_MAX_TEMPERATURE_CHANGE
+!! TRUNCATE_PRESSURE is needed for times when the solve wants
+!! to pull them negative.
+!#define TRUNCATE_PRESSURE
+
+  ! scaling
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    offset = (local_id-1)*option%nflowdof
+
+    istate=global_auxvars(ghosted_id)%istate
+
+    temp_scale = 1.d0
+    pressure_index = offset + TOWG_OIL_PRESSURE_DOF
+    dX_p(pressure_index) = dX_p(pressure_index) * towg_pressure_scale
+    del_pressure = dX_p(pressure_index)
+    pressure0 = X_p(pressure_index)
+    pressure1 = pressure0 - del_pressure
+#ifdef LIMIT_MAX_PRESSURE_CHANGE
+    if (dabs(del_pressure) > max_pressure_change) then
+      temp_real = dabs(max_pressure_change/del_pressure)
+      temp_scale = min(temp_scale,temp_real)
+     endif
+#endif
+#ifdef TRUNCATE_PRESSURE
+    if (pressure1 <= 0.d0) then
+      if (dabs(del_pressure) > 1.d-40) then
+        temp_real = tolerance * dabs(pressure0 / del_pressure)
+        temp_scale = min(temp_scale,temp_real)
+      endif
+    endif
+#endif
+!TRUNCATE_PRESSURE
+#ifdef LIMIT_MAX_SATURATION_CHANGE
+    !oil saturation
+    saturation_index = offset + TOWG_OIL_SATURATION_DOF
+    del_saturation = dX_p(saturation_index)
+    !saturation0 = X_p(saturation_index)
+    !saturation1 = saturation0 - del_saturation
+    if (dabs(del_saturation) > max_saturation_change) then
+       temp_real = dabs(max_saturation_change/del_saturation)
+       temp_scale = min(temp_scale,temp_real)
+    endif
+    !gas saturation location
+    saturation_index = offset + TOWG_GAS_SATURATION_3PH_DOF
+    del_saturation = dX_p(saturation_index)
+    !saturation0 = X_p(saturation_index)
+    !saturation1 = saturation0 - del_saturation
+    if( istate==TOWG_THREE_PHASE_STATE ) then ! Is gas saturation variable
+      if (dabs(del_saturation) > max_saturation_change) then
+         temp_real = dabs(max_saturation_change/del_saturation)
+         temp_scale = min(temp_scale,temp_real)
+      endif
+    else if( istate==TOWG_LIQ_OIL_STATE ) then ! Is bubble point variable
+      if (dabs(del_saturation) > max_pb_change) then
+         temp_real = dabs(max_pb_change/del_saturation)
+         temp_scale = min(temp_scale,temp_real)
+      endif
+    endif
+#endif
+!LIMIT_MAX_SATURATION_CHANGE
+#ifdef LIMIT_MAX_TEMPERATURE_CHANGE
+    temperature_index  = offset + towg_energy_dof
+    del_temperature = dX_p(temperature_index)
+    if (dabs(del_temperature) > max_temperature_change) then
+       temp_real = dabs(max_temperature_change/del_temperature)
+       temp_scale = min(temp_scale,temp_real)
+    endif
+#endif
+!LIMIT_MAX_TEMPERATURE_CHANGE
+    scale = min(scale,temp_scale)
+  enddo
+
+  temp_scale = scale
+  call MPI_Allreduce(temp_scale,scale,ONE_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION, &
+                     MPI_MIN,option%mycomm,ierr)
+
+  ! it performs an homogenous scaling using the smallest scaling factor
+  ! over all subdomains domains
+  if (scale < 0.9999d0) then
+    dX_p = scale*dX_p
+  endif
+
+  call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+
+end subroutine TOWGBlackOilCheckUpdatePre
+
+! ************************************************************************** !
+
 function TOWGImsTLAverageDensity(sat_up,sat_dn,density_up,density_dn)
   ! 
   ! Averages density, using opposite cell density if phase non-existent
@@ -3532,6 +4273,12 @@ function TOWGImsTLAverageDensity(sat_up,sat_dn,density_up,density_dn)
 
   PetscReal :: TOWGImsTLAverageDensity
 
+!  if ( (towg_miscibility_model == TOWG_IMMISCIBLE) .or. &
+!       (towg_miscibility_model == TOWG_TODD_LONGSTAFF) &
+!     ) then
+  if ( towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
+    TOWGImsTLAverageDensity = 0.5d0*(density_up+density_dn)
+  else
   if (sat_up < eps ) then
     TOWGImsTLAverageDensity = density_dn
   else if (sat_dn < eps ) then 
@@ -3539,6 +4286,7 @@ function TOWGImsTLAverageDensity(sat_up,sat_dn,density_up,density_dn)
   else ! in here we could use an armonic average, 
        ! other idea sat weighted average but it needs truncation
     TOWGImsTLAverageDensity = 0.5d0*(density_up+density_dn)
+  end if
   end if
 
 end function TOWGImsTLAverageDensity

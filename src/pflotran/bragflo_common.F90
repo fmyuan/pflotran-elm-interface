@@ -1,7 +1,6 @@
 module Bragflo_Common_module
 
   use WIPP_Flow_Aux_module
-  use WIPP_Flow_Common_module
   use Global_Aux_module
 
   use PFLOTRAN_Constants_module
@@ -18,9 +17,7 @@ module Bragflo_Common_module
   PetscReal, parameter :: floweps   = 1.d-24
 
   public :: BragfloFlux, &
-            BragfloBCFlux, &
-            BragfloFluxDerivative, &
-            BragfloBCFluxDerivative
+            BragfloBCFlux
             
 contains
 
@@ -32,7 +29,7 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
                        material_auxvar_dn, &
                        area, dist, upwind_direction, &
                        wippflo_parameter, &
-                       option,v_darcy,Res,Jup,Jdn, &
+                       option,v_darcy,Res, &
                        derivative_call, &
                        fix_upwind_direction, &
                        update_upwind_direction, &
@@ -53,14 +50,12 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: v_darcy(2)
+  PetscReal :: v_darcy(option%nphase)
   PetscReal :: area   ! area here is really area / alpha
   PetscReal :: dist(-1:3)
-  PetscInt :: upwind_direction(2)
+  PetscInt :: upwind_direction(option%nphase)
   type(wippflo_parameter_type) :: wippflo_parameter
   PetscReal :: Res(option%nflowdof)
-  PetscReal :: Jup(option%nflowdof,option%nflowdof)
-  PetscReal :: Jdn(option%nflowdof,option%nflowdof)
   PetscBool :: derivative_call
   PetscBool :: fix_upwind_direction
   PetscBool :: update_upwind_direction
@@ -96,13 +91,16 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
   PetscReal :: perm_rho_mu_area_up(2), perm_rho_mu_area_dn(2)
   PetscReal :: gravity_
   
-  ! DELETE
-  
-  PetscReal :: Jlup(2,2), Jldn(2,2)
-  PetscReal :: Jgup(2,2), Jgdn(2,2)
-
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
+
+  Res = 0.d0
+  v_darcy = 0.d0
+  ! to ensure that test values are set.
+  perm_dn = 0.d0
+  perm_dn = 1.d0/perm_dn
+  perm_dn = 0.d0*perm_dn
+  perm_up = perm_dn
 
   dist_up = dist(0)*dist(-1)
   dist_dn = dist(0)-dist_up
@@ -141,6 +139,7 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
     endif
   endif
   
+  ! this scale by area
   area_up = wippflo_auxvar_up%alpha * area
   area_dn = wippflo_auxvar_dn%alpha * area
   area_ave = 0.5*(area_up+area_dn)
@@ -158,146 +157,154 @@ subroutine BRAGFloFlux(wippflo_auxvar_up,global_auxvar_up, &
     (perm_rho_mu_area_up * perm_rho_mu_area_dn) / &
     (dist_up*perm_rho_mu_area_dn + dist_dn*perm_rho_mu_area_up)
       
-  Res = 0.d0
-  Jup = 0.d0
-  Jdn = 0.d0  
-  
-  v_darcy = 0.d0
-
   iphase = LIQUID_PHASE
-  if (wippflo_auxvar_up%kr(iphase) + &
-      wippflo_auxvar_dn%kr(iphase) > eps) then
-    
-    density_kg_ave = upweight * wippflo_auxvar_up%den_kg(iphase) + &
-                     (1.d0-upweight) * wippflo_auxvar_dn%den_kg(iphase)
-    gravity_term = density_kg_ave * dist_gravity
-    delta_pressure = wippflo_auxvar_up%pres(iphase) - &
-                     wippflo_auxvar_dn%pres(iphase) + &
-                     gravity_term
+  density_kg_ave = upweight * wippflo_auxvar_up%den_kg(iphase) + &
+                   (1.d0-upweight) * wippflo_auxvar_dn%den_kg(iphase)
+  gravity_term = density_kg_ave * dist_gravity
+  delta_pressure = wippflo_auxvar_up%pres(iphase) - &
+                   wippflo_auxvar_dn%pres(iphase) + &
+                   gravity_term
 
-    up_scale = 0.d0
-    dn_scale = 0.d0
-    if (fix_upwind_direction) then
-      if (update_upwind_direction .or. count_upwind_direction_flip) then
-        prev_upwind_direction = upwind_direction(iphase)
-        if (delta_pressure >= 0.d0) then
-          ! positive means upstream
-          new_upwind_direction = iabs(prev_upwind_direction)
-        else
-          ! negative means downstream
-          new_upwind_direction = -iabs(prev_upwind_direction)
-        endif 
-        if (count_upwind_direction_flip) then
-          if (new_upwind_direction /= prev_upwind_direction) then
-            if (derivative_call) then
-              liq_upwind_flip_count_by_jac = liq_upwind_flip_count_by_jac + 1
-            else
-              liq_upwind_flip_count_by_res = liq_upwind_flip_count_by_res + 1
-            endif
+  up_scale = 0.d0
+  dn_scale = 0.d0
+  if (fix_upwind_direction) then
+    if (update_upwind_direction .or. count_upwind_direction_flip) then
+      prev_upwind_direction = upwind_direction(iphase)
+      if (delta_pressure >= 0.d0) then
+        ! positive means upstream
+        new_upwind_direction = iabs(prev_upwind_direction)
+      else
+        ! negative means downstream
+        new_upwind_direction = -iabs(prev_upwind_direction)
+      endif 
+      if (count_upwind_direction_flip) then
+        if (new_upwind_direction /= prev_upwind_direction) then
+          if (derivative_call) then
+            liq_upwind_flip_count_by_jac = liq_upwind_flip_count_by_jac + 1
+          else
+            liq_upwind_flip_count_by_res = liq_upwind_flip_count_by_res + 1
           endif
         endif
-        if (update_upwind_direction) then
-          upwind_direction(iphase) = new_upwind_direction
-        endif
       endif
-      upwind = (upwind_direction(iphase) > 0)
-    else
-      upwind = (delta_pressure >= 0.d0)
+      if (update_upwind_direction) then
+        upwind_direction(iphase) = new_upwind_direction
+      endif
     endif
-    if (upwind) then
-      up_scale = 1.d0
-      rel_perm = wippflo_auxvar_up%kr(iphase)
-    else
-      dn_scale = 1.d0
-      rel_perm = wippflo_auxvar_dn%kr(iphase)
-    endif      
+    upwind = (upwind_direction(iphase) > 0)
+  else
+    upwind = (delta_pressure >= 0.d0)
+  endif
+  if (upwind) then
+    up_scale = 1.d0
+    rel_perm = wippflo_auxvar_up%kr(iphase)
+  else
+    dn_scale = 1.d0
+    rel_perm = wippflo_auxvar_dn%kr(iphase)
+  endif      
 
-    if (rel_perm > floweps ) then
-      ! wat_mole_flux[kmol/sec] = rho[kmol/m^3 phase] *
-      !                           perm_area[m^4] / dist[m] * kr[-] / 
-      !                           mu[Pa-sec] * dP[Pa]]
-      wat_mole_flux = perm_rho_mu_area_ave_over_dist(iphase) * &
-                      rel_perm * delta_pressure
-      density_ave = WIPPFloAverageDensity(iphase, &
-                                          global_auxvar_up%istate, &
-                                          global_auxvar_dn%istate, &
-                                          wippflo_auxvar_up%den, &
-                                          wippflo_auxvar_dn%den, &
-                                          dummy,dummy)
-      ! v_darcy[m/sec] = wat_mole_flux[kmol/sec] / rho[kmol/m^3 phase] / 
-      !                  area [m^2]
-      v_darcy(iphase) = wat_mole_flux / density_ave / area_ave
-      Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
-    endif                   
+  ! wat_mole_flux[kmol/sec] = rho[kmol/m^3 phase] *
+  !                           perm_area[m^4] / dist[m] * kr[-] / 
+  !                           mu[Pa-sec] * dP[Pa]]
+  wat_mole_flux = perm_rho_mu_area_ave_over_dist(iphase) * &
+                  rel_perm * delta_pressure
+  density_ave = 0.5d0*(wippflo_auxvar_up%den(iphase) + &
+                       wippflo_auxvar_dn%den(iphase))
+  ! v_darcy[m/sec] = wat_mole_flux[kmol/sec] / rho[kmol/m^3 phase] / 
+  !                  area [m^2]
+  v_darcy(iphase) = wat_mole_flux / density_ave / area_ave
+  Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+  if (debug_connection) then
+!    write(*,'("liq-t1X: ",9es12.4)') &
+!      perm_rho_mu_area_ave_over_dist(iphase)*fmw_comp(iphase)* &
+!      (dist_up+dist_dn)/area!, &
+!      wippflo_auxvar_up%den(iphase)*fmw_comp(iphase), &
+!      wippflo_auxvar_up%mu(iphase), perm_up, &
+!      wippflo_auxvar_up%alpha, &
+!      wippflo_auxvar_dn%den(iphase)*fmw_comp(iphase), &
+!      wippflo_auxvar_dn%mu(iphase), perm_dn, &
+!      wippflo_auxvar_dn%alpha
+    write(*,'(9x,"a1l-up/dn: ",8es12.4)') &
+      ! delta L = volume / (area*alpha)
+      ! 1/(distL * deltaL * alpha)
+      1.d0/(dist(0)*material_auxvar_up%volume/area), &
+      1.d0/(dist(0)*material_auxvar_dn%volume/area)
+    write(*,'(9x,"liq-up,t1l,dp,t2l: ",l1,x,8es12.4)') upwind, &
+      perm_rho_mu_area_ave_over_dist(iphase)*fmw_comp(iphase)* &
+      (dist_up+dist_dn)/area, &
+      delta_pressure, &
+      rel_perm!, &
+!      gravity_term,
+!      wippflo_auxvar_up%pres(iphase), &
+!      wippflo_auxvar_dn%pres(iphase)
   endif
 
   iphase = GAS_PHASE
-  if (wippflo_auxvar_up%kr(iphase) + &
-      wippflo_auxvar_dn%kr(iphase) > eps) then
-    
-    density_kg_ave = upweight * wippflo_auxvar_up%den_kg(iphase) + &
-                     (1.d0-upweight) * wippflo_auxvar_dn%den_kg(iphase)
-    gravity_term = density_kg_ave * dist_gravity
-    delta_pressure = wippflo_auxvar_up%pres(iphase) - &
-                     wippflo_auxvar_dn%pres(iphase) + &
-                     gravity_term
+  density_kg_ave = upweight * wippflo_auxvar_up%den_kg(iphase) + &
+                   (1.d0-upweight) * wippflo_auxvar_dn%den_kg(iphase)
+  gravity_term = density_kg_ave * dist_gravity
+  delta_pressure = wippflo_auxvar_up%pres(iphase) - &
+                   wippflo_auxvar_dn%pres(iphase) + &
+                   gravity_term
 
-    ! if a gas phase does not exist on either side of the connection, the gas
-    ! phase properties from the opposite side are used.
-    up_scale = 0.d0
-    dn_scale = 0.d0
-    if (fix_upwind_direction) then
-      if (update_upwind_direction .or. count_upwind_direction_flip) then
-        prev_upwind_direction = upwind_direction(iphase)
-        if (delta_pressure >= 0.d0) then
-          ! positive means upstream
-          new_upwind_direction = iabs(prev_upwind_direction)
-        else
-          ! negative means downstream
-          new_upwind_direction = -iabs(prev_upwind_direction)
-        endif 
-        if (count_upwind_direction_flip) then
-          if (new_upwind_direction /= prev_upwind_direction) then
-            if (derivative_call) then
-              gas_upwind_flip_count_by_jac = gas_upwind_flip_count_by_jac + 1
-            else
-              gas_upwind_flip_count_by_res = gas_upwind_flip_count_by_res + 1
-            endif
+  ! if a gas phase does not exist on either side of the connection, the gas
+  ! phase properties from the opposite side are used.
+  up_scale = 0.d0
+  dn_scale = 0.d0
+  if (fix_upwind_direction) then
+    if (update_upwind_direction .or. count_upwind_direction_flip) then
+      prev_upwind_direction = upwind_direction(iphase)
+      if (delta_pressure >= 0.d0) then
+        ! positive means upstream
+        new_upwind_direction = iabs(prev_upwind_direction)
+      else
+        ! negative means downstream
+        new_upwind_direction = -iabs(prev_upwind_direction)
+      endif 
+      if (count_upwind_direction_flip) then
+        if (new_upwind_direction /= prev_upwind_direction) then
+          if (derivative_call) then
+            gas_upwind_flip_count_by_jac = gas_upwind_flip_count_by_jac + 1
+          else
+            gas_upwind_flip_count_by_res = gas_upwind_flip_count_by_res + 1
           endif
         endif
-        if (update_upwind_direction) then
-          upwind_direction(iphase) = new_upwind_direction
-        endif
       endif
-      upwind = (upwind_direction(iphase) > 0)
-    else
-      upwind = (delta_pressure >= 0.d0)
+      if (update_upwind_direction) then
+        upwind_direction(iphase) = new_upwind_direction
+      endif
     endif
-    if (upwind) then
-      up_scale = 1.d0
-      rel_perm = wippflo_auxvar_up%kr(iphase)
-    else
-      dn_scale = 1.d0
-      rel_perm = wippflo_auxvar_dn%kr(iphase)
-    endif      
+    upwind = (upwind_direction(iphase) > 0)
+  else
+    upwind = (delta_pressure >= 0.d0)
+  endif
+  if (upwind) then
+    up_scale = 1.d0
+    rel_perm = wippflo_auxvar_up%kr(iphase)
+  else
+    dn_scale = 1.d0
+    rel_perm = wippflo_auxvar_dn%kr(iphase)
+  endif      
 
-    if (rel_perm > floweps) then
-      ! air_mole_flux[kmol/sec] = rho[kmol/m^3 phase] *
-      !                           perm_area[m^4] / dist[m] * kr[-] / 
-      !                           mu[Pa-sec] * dP[Pa]]
-      air_mole_flux = perm_rho_mu_area_ave_over_dist(iphase) * &
-                      rel_perm * delta_pressure
-      density_ave = WIPPFloAverageDensity(iphase, &
-                                          global_auxvar_up%istate, &
-                                          global_auxvar_dn%istate, &
-                                          wippflo_auxvar_up%den, &
-                                          wippflo_auxvar_dn%den, &
-                                          dummy,dummy)
-      ! v_darcy[m/sec] = air_mole_flux[kmol/sec] / rho[kmol/m^3 phase] / 
-      !                  area [m^2]
-      v_darcy(iphase) = air_mole_flux / density_ave / area_ave
-      Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
-    endif               
+  ! air_mole_flux[kmol/sec] = rho[kmol/m^3 phase] *
+  !                           perm_area[m^4] / dist[m] * kr[-] / 
+  !                           mu[Pa-sec] * dP[Pa]]
+  air_mole_flux = perm_rho_mu_area_ave_over_dist(iphase) * &
+                  rel_perm * delta_pressure
+  density_ave = 0.5d0*(wippflo_auxvar_up%den(iphase) + &
+                       wippflo_auxvar_dn%den(iphase))
+  ! v_darcy[m/sec] = air_mole_flux[kmol/sec] / rho[kmol/m^3 phase] / 
+  !                  area [m^2]
+  v_darcy(iphase) = air_mole_flux / density_ave / area_ave
+  Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+  if (debug_connection) then
+    write(*,'(9x,"gas-up,t1l,dp,t2l: ",l1,x,8es12.4)') upwind, &
+      perm_rho_mu_area_ave_over_dist(iphase)*fmw_comp(iphase)* &
+      (dist_up+dist_dn)/area, &
+      delta_pressure, &
+      rel_perm!, &
+!      gravity_term,
+!      wippflo_auxvar_up%pres(iphase), &
+!      wippflo_auxvar_dn%pres(iphase)
   endif
 
 end subroutine BRAGFloFlux
@@ -310,7 +317,7 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          material_auxvar_dn, &
                          area,dist,upwind_direction, &
                          wippflo_parameter, &
-                         option,v_darcy,Res,J, &
+                         option,v_darcy,Res, &
                          derivative_call, &
                          fix_upwind_direction, &
                          update_upwind_direction, &
@@ -336,11 +343,10 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   class(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: area ! this is the actual area
   PetscReal :: dist(-1:3)
-  PetscInt :: upwind_direction(2)
+  PetscInt :: upwind_direction(option%nphase)
   type(wippflo_parameter_type) :: wippflo_parameter
-  PetscReal :: v_darcy(2)
+  PetscReal :: v_darcy(option%nphase)
   PetscReal :: Res(1:option%nflowdof)
-  PetscReal :: J(2,2)
   PetscBool :: derivative_call
   PetscBool :: fix_upwind_direction
   PetscBool :: update_upwind_direction
@@ -370,17 +376,18 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dn_scale
   PetscReal :: dummy
 
-  PetscReal :: Jl(2,2)
-  PetscReal :: Jg(2,2)
-  
   PetscInt :: idof
   
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
 
   Res = 0.d0
-  J = 0.d0
   v_darcy = 0.d0  
+  ! to ensure that test values are set.
+  perm_dn = 0.d0
+  perm_dn = 1.d0/perm_dn
+  perm_dn = 0.d0*perm_dn
+  density_ave = perm_dn
 
 !geh: we do not want to use the dot product with the unit vector, instead
 !     use the principle direction stored in the upwind direction array
@@ -419,82 +426,79 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   select case(bc_type)
     ! figure out the direction of flow
     case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
-      if (wippflo_auxvar_up%kr(iphase) + &
-          wippflo_auxvar_dn%kr(iphase) > eps) then
-
-        if (bc_type == CONDUCTANCE_BC) then
-          select case(iphase)
-            case(LIQUID_PHASE)
-              idof = auxvar_mapping(WIPPFLO_LIQUID_CONDUCTANCE_INDEX)
-            case(GAS_PHASE)
-              idof = auxvar_mapping(WIPPFLO_GAS_CONDUCTANCE_INDEX)
-          end select        
-          perm_ave_over_dist = auxvars(idof)
-        else
-          perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
+      if (bc_type == CONDUCTANCE_BC) then
+        select case(iphase)
+          case(LIQUID_PHASE)
+            idof = auxvar_mapping(WIPPFLO_LIQUID_CONDUCTANCE_INDEX)
+          case(GAS_PHASE)
+            idof = auxvar_mapping(WIPPFLO_GAS_CONDUCTANCE_INDEX)
+        end select        
+        perm_ave_over_dist = auxvars(idof)
+      else
+        perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
+      endif
+      
+      boundary_pressure = wippflo_auxvar_up%pres(iphase)
+      !geh: use density and viscosity at boundary
+      gravity_term = wippflo_auxvar_up%den_kg(iphase) * dist_gravity
+      viscosity = wippflo_auxvar_up%mu(iphase)
+      delta_pressure = boundary_pressure - &
+                       wippflo_auxvar_dn%pres(iphase) + &
+                       gravity_term
+      if (bc_type == SEEPAGE_BC .or. &
+          bc_type == CONDUCTANCE_BC) then
+            ! flow in         ! boundary cell is <= pref
+        if (delta_pressure > 0.d0 .and. &
+            wippflo_auxvar_up%pres(iphase) - &
+              option%reference_pressure < eps) then
+          delta_pressure = 0.d0
         endif
-        
-        boundary_pressure = wippflo_auxvar_up%pres(iphase)
-        !geh: use density and viscosity at boundary
-        gravity_term = wippflo_auxvar_up%den_kg(iphase) * dist_gravity
-        viscosity = wippflo_auxvar_up%mu(iphase)
-        delta_pressure = boundary_pressure - &
-                         wippflo_auxvar_dn%pres(iphase) + &
-                         gravity_term
-        if (bc_type == SEEPAGE_BC .or. &
-            bc_type == CONDUCTANCE_BC) then
-              ! flow in         ! boundary cell is <= pref
-          if (delta_pressure > 0.d0 .and. &
-              wippflo_auxvar_up%pres(iphase) - &
-                option%reference_pressure < eps) then
-            delta_pressure = 0.d0
-          endif
-        endif
-        dn_scale = 0.d0
+      endif
+      dn_scale = 0.d0
 
-        if (fix_upwind_direction) then
-          if (update_upwind_direction .or. count_upwind_direction_flip) then
-            prev_upwind_direction = upwind_direction(iphase)
-            if (delta_pressure >= 0.d0) then
-              ! positive means upstream
-              new_upwind_direction = iabs(prev_upwind_direction)
-            else
-              ! negative means downstream
-              new_upwind_direction = -iabs(prev_upwind_direction)
-            endif 
-            if (count_upwind_direction_flip) then
-              if (new_upwind_direction /= prev_upwind_direction) then
-                if (derivative_call) then
-                  liq_bc_upwind_flip_count_by_jac = &
-                    liq_bc_upwind_flip_count_by_jac + 1
-                else
-                  liq_bc_upwind_flip_count_by_res = &
-                    liq_bc_upwind_flip_count_by_res + 1
-                endif
+      if (fix_upwind_direction) then
+        if (update_upwind_direction .or. count_upwind_direction_flip) then
+          prev_upwind_direction = upwind_direction(iphase)
+          if (delta_pressure >= 0.d0) then
+            ! positive means upstream
+            new_upwind_direction = iabs(prev_upwind_direction)
+          else
+            ! negative means downstream
+            new_upwind_direction = -iabs(prev_upwind_direction)
+          endif 
+          if (count_upwind_direction_flip) then
+            if (new_upwind_direction /= prev_upwind_direction) then
+              if (derivative_call) then
+                liq_bc_upwind_flip_count_by_jac = &
+                  liq_bc_upwind_flip_count_by_jac + 1
+              else
+                liq_bc_upwind_flip_count_by_res = &
+                  liq_bc_upwind_flip_count_by_res + 1
               endif
             endif
-            if (update_upwind_direction) then
-              upwind_direction(iphase) = new_upwind_direction
-            endif
           endif
-          upwind = (upwind_direction(iphase) > 0)
-        else
-          upwind = (delta_pressure >= 0.d0)
+          if (update_upwind_direction) then
+            upwind_direction(iphase) = new_upwind_direction
+          endif
         endif
-        if (upwind) then
-          rel_perm = wippflo_auxvar_up%kr(iphase)
-        else
-          dn_scale = 1.d0        
-          rel_perm = wippflo_auxvar_dn%kr(iphase)
-        endif      
-
-        ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
-        !                    dP[Pa]]
-        v_darcy(iphase) = perm_ave_over_dist * rel_perm / viscosity * &
-                          delta_pressure
-        ! density at interface
-        density_ave = wippflo_auxvar_up%den(iphase)
+        upwind = (upwind_direction(iphase) > 0)
+      else
+        upwind = (delta_pressure >= 0.d0)
       endif
+      if (upwind) then
+        rel_perm = wippflo_auxvar_up%kr(iphase)
+      else
+        dn_scale = 1.d0        
+        rel_perm = wippflo_auxvar_dn%kr(iphase)
+      endif      
+
+      ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
+      !                    dP[Pa]]
+      v_darcy(iphase) = perm_ave_over_dist * rel_perm / viscosity * &
+                        delta_pressure
+      ! density at interface
+      density_ave = wippflo_auxvar_up%den(iphase)
+
     case(NEUMANN_BC)
       dn_scale = 0.d0
       select case(iphase)
@@ -536,83 +540,80 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   bc_type = ibndtype(iphase)
   select case(bc_type)
     case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
-      if (wippflo_auxvar_up%kr(iphase) + &
-          wippflo_auxvar_dn%kr(iphase) > eps) then
-
-        if (bc_type == CONDUCTANCE_BC) then
-          select case(iphase)
-            case(LIQUID_PHASE)
-              idof = auxvar_mapping(WIPPFLO_LIQUID_CONDUCTANCE_INDEX)
-            case(GAS_PHASE)
-              idof = auxvar_mapping(WIPPFLO_GAS_CONDUCTANCE_INDEX)
-          end select        
-          perm_ave_over_dist = auxvars(idof)
-        else
-          perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
+      if (bc_type == CONDUCTANCE_BC) then
+        select case(iphase)
+          case(LIQUID_PHASE)
+            idof = auxvar_mapping(WIPPFLO_LIQUID_CONDUCTANCE_INDEX)
+          case(GAS_PHASE)
+            idof = auxvar_mapping(WIPPFLO_GAS_CONDUCTANCE_INDEX)
+        end select        
+        perm_ave_over_dist = auxvars(idof)
+      else
+        perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
+      endif
+      
+      boundary_pressure = wippflo_auxvar_up%pres(iphase)
+      !geh: use density and viscosity at boundary
+      gravity_term = wippflo_auxvar_up%den_kg(iphase) * dist_gravity
+      viscosity = wippflo_auxvar_up%mu(iphase)
+      delta_pressure = boundary_pressure - &
+                       wippflo_auxvar_dn%pres(iphase) + &
+                       gravity_term
+      if (bc_type == SEEPAGE_BC .or. &
+          bc_type == CONDUCTANCE_BC) then
+            ! flow in         ! boundary cell is <= pref
+        if (delta_pressure > 0.d0 .and. &
+            wippflo_auxvar_up%pres(iphase) - &
+              option%reference_pressure < eps) then
+          delta_pressure = 0.d0
         endif
-        
-        boundary_pressure = wippflo_auxvar_up%pres(iphase)
-        !geh: use density and viscosity at boundary
-        gravity_term = wippflo_auxvar_up%den_kg(iphase) * dist_gravity
-        viscosity = wippflo_auxvar_up%mu(iphase)
-        delta_pressure = boundary_pressure - &
-                         wippflo_auxvar_dn%pres(iphase) + &
-                         gravity_term
-        if (bc_type == SEEPAGE_BC .or. &
-            bc_type == CONDUCTANCE_BC) then
-              ! flow in         ! boundary cell is <= pref
-          if (delta_pressure > 0.d0 .and. &
-              wippflo_auxvar_up%pres(iphase) - &
-                option%reference_pressure < eps) then
-            delta_pressure = 0.d0
-          endif
-        endif
-        dn_scale = 0.d0
-        ! don't expect the derivative to match precisely at delta_pressure = 0
-        ! due to potential switch in direction for numerically perturbed
-        ! residual
-        if (fix_upwind_direction) then
-          if (update_upwind_direction .or. count_upwind_direction_flip) then
-            prev_upwind_direction = upwind_direction(iphase)
-            if (delta_pressure >= 0.d0) then
-              ! positive means upstream
-              new_upwind_direction = iabs(prev_upwind_direction)
-            else
-              ! negative means downstream
-              new_upwind_direction = -iabs(prev_upwind_direction)
-            endif 
-            if (count_upwind_direction_flip) then
-              if (new_upwind_direction /= prev_upwind_direction) then
-                if (derivative_call) then
-                 gas_bc_upwind_flip_count_by_jac = &
-                   gas_bc_upwind_flip_count_by_jac + 1
-                else
-                 gas_bc_upwind_flip_count_by_res = &
-                   gas_bc_upwind_flip_count_by_res + 1
-                endif
+      endif
+      dn_scale = 0.d0
+      ! don't expect the derivative to match precisely at delta_pressure = 0
+      ! due to potential switch in direction for numerically perturbed
+      ! residual
+      if (fix_upwind_direction) then
+        if (update_upwind_direction .or. count_upwind_direction_flip) then
+          prev_upwind_direction = upwind_direction(iphase)
+          if (delta_pressure >= 0.d0) then
+            ! positive means upstream
+            new_upwind_direction = iabs(prev_upwind_direction)
+          else
+            ! negative means downstream
+            new_upwind_direction = -iabs(prev_upwind_direction)
+          endif 
+          if (count_upwind_direction_flip) then
+            if (new_upwind_direction /= prev_upwind_direction) then
+              if (derivative_call) then
+               gas_bc_upwind_flip_count_by_jac = &
+                 gas_bc_upwind_flip_count_by_jac + 1
+              else
+               gas_bc_upwind_flip_count_by_res = &
+                 gas_bc_upwind_flip_count_by_res + 1
               endif
             endif
-            if (update_upwind_direction) then
-              upwind_direction(iphase) = new_upwind_direction
-            endif
           endif
-          upwind = (upwind_direction(iphase) > 0)
-        else
-          upwind = (delta_pressure >= 0.d0)
+          if (update_upwind_direction) then
+            upwind_direction(iphase) = new_upwind_direction
+          endif
         endif
-        if (upwind) then
-          rel_perm = wippflo_auxvar_up%kr(iphase)
-        else
-          dn_scale = 1.d0        
-          rel_perm = wippflo_auxvar_dn%kr(iphase)
-        endif      
-        ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
-        !                    dP[Pa]]
-        v_darcy(iphase) = perm_ave_over_dist * rel_perm / viscosity * &
-                          delta_pressure
-        ! density at interface
-        density_ave = wippflo_auxvar_up%den(iphase)
+        upwind = (upwind_direction(iphase) > 0)
+      else
+        upwind = (delta_pressure >= 0.d0)
       endif
+      if (upwind) then
+        rel_perm = wippflo_auxvar_up%kr(iphase)
+      else
+        dn_scale = 1.d0        
+        rel_perm = wippflo_auxvar_dn%kr(iphase)
+      endif      
+      ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
+      !                    dP[Pa]]
+      v_darcy(iphase) = perm_ave_over_dist * rel_perm / viscosity * &
+                        delta_pressure
+      ! density at interface
+      density_ave = wippflo_auxvar_up%den(iphase)
+
     case(NEUMANN_BC)
       dn_scale = 0.d0
       select case(iphase)
@@ -651,180 +652,5 @@ subroutine BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
   endif                   
 
 end subroutine BRAGFloBCFlux
-
-! ************************************************************************** !
-
-subroutine BRAGFloFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
-                                 material_auxvar_up, &
-                                 wippflo_auxvar_dn,global_auxvar_dn, &
-                                 material_auxvar_dn, &
-                                 area, dist, &
-                                 upwind_direction, &
-                                 wippflo_parameter, &
-                                 option,Jup,Jdn)
-  ! 
-  ! Computes the derivatives of the internal flux terms
-  ! for the Jacobian
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 07/11/17
-  ! 
-  use Option_module
-  use Material_Aux_class
-  
-  implicit none
-  
-  type(wippflo_auxvar_type) :: wippflo_auxvar_up(0:), wippflo_auxvar_dn(0:)
-  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
-  type(option_type) :: option
-  PetscReal :: area
-  PetscReal :: dist(-1:3)
-  PetscInt :: upwind_direction(option%nphase)
-  type(wippflo_parameter_type) :: wippflo_parameter
-  PetscReal :: Jup(option%nflowdof,option%nflowdof)
-  PetscReal :: Jdn(option%nflowdof,option%nflowdof)
-  PetscReal :: Janal_up(option%nflowdof,option%nflowdof)
-  PetscReal :: Janal_dn(option%nflowdof,option%nflowdof)
-  PetscReal :: Jdummy(option%nflowdof,option%nflowdof)
-
-  PetscReal :: v_darcy(option%nphase)
-  PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
-  PetscInt :: idof, irow
-
-  Jup = 0.d0
-  Jdn = 0.d0
-  
-  option%iflag = -2
-  call BRAGFloFlux(wippflo_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                   material_auxvar_up, &
-                   wippflo_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                   material_auxvar_dn, &
-                   area,dist,upwind_direction, &
-                   wippflo_parameter, &
-                   option,v_darcy,res,Janal_up,Janal_dn,&
-                   PETSC_TRUE, & ! derivative call 
-                   wippflo_fix_upwind_direction, &
-                   PETSC_FALSE, & ! update the upwind direction
-                   PETSC_FALSE, & ! count upwind direction flip
-                   PETSC_FALSE)
- 
-  ! upgradient derivatives
-  do idof = 1, option%nflowdof
-    call BRAGFloFlux(wippflo_auxvar_up(idof),global_auxvar_up, &
-                     material_auxvar_up, &
-                     wippflo_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                     material_auxvar_dn, &
-                     area,dist,upwind_direction, &
-                     wippflo_parameter, &
-                     option,v_darcy,res_pert,Jdummy,Jdummy, &
-                     PETSC_TRUE, & ! derivative call
-                     wippflo_fix_upwind_direction, &
-                     PETSC_FALSE, & ! update the upwind direction
-                     wippflo_count_upwind_dir_flip, &
-                     PETSC_FALSE)
-    do irow = 1, option%nflowdof
-      Jup(irow,idof) = (res_pert(irow)-res(irow))/wippflo_auxvar_up(idof)%pert
-    enddo !irow
-  enddo ! idof
-
-  ! downgradient derivatives
-  do idof = 1, option%nflowdof
-    call BRAGFloFlux(wippflo_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                     material_auxvar_up, &
-                     wippflo_auxvar_dn(idof),global_auxvar_dn, &
-                     material_auxvar_dn, &
-                     area,dist,upwind_direction, &
-                     wippflo_parameter, &
-                     option,v_darcy,res_pert,Jdummy,Jdummy, &
-                     PETSC_TRUE, & ! derivative call
-                     wippflo_fix_upwind_direction, &
-                     PETSC_FALSE, & ! update the upwind direction
-                     wippflo_count_upwind_dir_flip, &
-                     PETSC_FALSE)
-    do irow = 1, option%nflowdof
-      Jdn(irow,idof) = (res_pert(irow)-res(irow))/wippflo_auxvar_dn(idof)%pert
-    enddo !irow
-  enddo ! idof
-
-end subroutine BRAGFloFluxDerivative
-
-! ************************************************************************** !
-
-subroutine BRAGFloBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
-                                   wippflo_auxvar_up, &
-                                   global_auxvar_up, &
-                                   wippflo_auxvar_dn,global_auxvar_dn, &
-                                   material_auxvar_dn, &
-                                   area,dist,upwind_direction, &
-                                   wippflo_parameter, &
-                                   option,Jdn)
-  ! 
-  ! Computes the derivatives of the boundary flux terms
-  ! for the Jacobian
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 07/11/17
-  ! 
-
-  use Option_module 
-  use Material_Aux_class
-  
-  implicit none
-
-  type(option_type) :: option
-  PetscInt :: ibndtype(1:option%nflowdof)
-  PetscInt :: auxvar_mapping(WIPPFLO_MAX_INDEX)
-  PetscReal :: auxvars(:) ! from aux_real_var array
-  type(wippflo_auxvar_type) :: wippflo_auxvar_up, wippflo_auxvar_dn(0:)
-  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
-  PetscReal :: area
-  PetscReal :: dist(-1:3)
-  PetscInt :: upwind_direction(option%nphase)
-  type(wippflo_parameter_type) :: wippflo_parameter
-  PetscReal :: Jdn(option%nflowdof,option%nflowdof)
-
-  PetscReal :: v_darcy(option%nphase)
-  PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
-  PetscInt :: idof, irow
-  PetscReal :: Jdum(option%nflowdof,option%nflowdof)
-
-  Jdn = 0.d0
-
-  option%iflag = -2
-  call BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
-                     wippflo_auxvar_up,global_auxvar_up, &
-                     wippflo_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                     material_auxvar_dn, &
-                     area,dist,upwind_direction, &
-                     wippflo_parameter, &
-                     option,v_darcy,res,Jdum, &
-                     PETSC_TRUE, & ! derivative call
-                     wippflo_fix_upwind_direction, &
-                     PETSC_FALSE, & ! update the upwind direction
-                     PETSC_FALSE, & ! count upwind direction flip
-                     PETSC_FALSE)
-
-  ! downgradient derivatives
-  do idof = 1, option%nflowdof
-    call BRAGFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
-                       wippflo_auxvar_up,global_auxvar_up, &
-                       wippflo_auxvar_dn(idof),global_auxvar_dn, &
-                       material_auxvar_dn, &
-                       area,dist,upwind_direction, &
-                       wippflo_parameter, &
-                       option,v_darcy,res_pert,Jdum, &
-                       PETSC_TRUE, & ! derivative call
-                       wippflo_fix_upwind_direction, &
-                       PETSC_FALSE, & ! update the upwind direction
-                       wippflo_count_upwind_dir_flip, &
-                       PETSC_FALSE)   
-    do irow = 1, option%nflowdof
-      Jdn(irow,idof) = (res_pert(irow)-res(irow))/wippflo_auxvar_dn(idof)%pert
-    enddo !irow
-  enddo ! idof
-
-end subroutine BRAGFloBCFluxDerivative
 
 end module Bragflo_Common_module

@@ -26,7 +26,8 @@ module Reaction_module
   use CLM_Rxn_module
 
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
  
   private
@@ -2588,7 +2589,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
             do jj = 1, ncomp
               jcomp = surface_complexation%srfcplxspecid(jj,icplx)
               if (j == jcomp) then
-                if (rt_auxvar%total(j,iphase) /= 0.d0) &
+                if (.not. Equal(rt_auxvar%total(j,iphase),0.d0)) &
                 retardation = retardation + &
                               surface_complexation%srfcplxstoich(jj,icplx)* &
                               rt_auxvar%eqsrfcplx_conc(icplx)/ &

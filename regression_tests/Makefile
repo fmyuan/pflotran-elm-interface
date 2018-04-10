@@ -72,13 +72,20 @@ STANDARD_CFG = \
 	shortcourse/regional_doublet/regional_doublet.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
 	toil_ims/toil_ims.cfg \
-	towg/towg.cfg \
+	towg/ims/towg_ims.cfg \
+	towg/tl/towg_tl.cfg \
+	towg/bo/towg_bo.cfg \
 	ufd/ufd.cfg \
 	wipp/wipp_flow/condition/condition.cfg \
 	wipp/wipp_flow/input_format/input_format.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
-	wipp/nuts/nuts.cfg
+	wipp/nuts/nuts.cfg \
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg \
+
+ifneq ($(strip $(HYPRE_LIB)),)
+	STANDARD_CFG += \
+		CPR_preconditioner/CPR_preconditioner.cfg
+endif
 
 ifneq ($(strip $(PARMETIS_LIB)),)
 	STANDARD_CFG += \
@@ -126,7 +133,9 @@ FLOW_CFG = \
 	default/scco2/flash2/flash2.cfg \
 	general/general.cfg \
         toil_ims/toil_ims.cfg \
-	towg/towg.cfg \
+	towg/ims/towg_ims.cfg \
+	towg/tl/towg_tl.cfg \
+	towg/bo/towg_bo.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg
@@ -344,4 +353,3 @@ clean-tests :
 	-rm -f ufd/wf_doubles-*.vtk
 	-rm -f ufd/wf_region-*.vtk
 	-rm -f ufd/glass_full_geochem_np4-*.vtk
-
