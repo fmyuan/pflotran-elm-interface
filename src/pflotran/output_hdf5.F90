@@ -7,7 +7,8 @@ module Output_HDF5_module
   use Output_Common_module
   
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -482,9 +483,9 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod((option%time-output_option%periodic_snap_output_time_incr)/ &
-                output_option%periodic_snap_output_time_incr, &
-                dble(output_option%times_per_h5_file))==0) then
+        if (Equal(mod((option%time-output_option%periodic_snap_output_time_incr)/ &
+             output_option%periodic_snap_output_time_incr, &
+             dble(output_option%times_per_h5_file)),0.d0)) then
           first = PETSC_TRUE
         else
           first = PETSC_FALSE
@@ -733,9 +734,9 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod((option%time-output_option%periodic_snap_output_time_incr)/ &
-                output_option%periodic_snap_output_time_incr, &
-                dble(output_option%times_per_h5_file))==0) then
+        if (Equal(mod((option%time-output_option%periodic_snap_output_time_incr)/ &
+             output_option%periodic_snap_output_time_incr, &
+             dble(output_option%times_per_h5_file)),0.d0)) then
           first = PETSC_TRUE
         else
           first = PETSC_FALSE
@@ -1171,9 +1172,9 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod((option%time-output_option%periodic_snap_output_time_incr)/ &
-                output_option%periodic_snap_output_time_incr, &
-                dble(output_option%times_per_h5_file))==0) then
+        if (Equal(mod((option%time-output_option%periodic_snap_output_time_incr)/ &
+             output_option%periodic_snap_output_time_incr, &
+             dble(output_option%times_per_h5_file)),0.d0)) then
           first = PETSC_TRUE
         else
           first = PETSC_FALSE

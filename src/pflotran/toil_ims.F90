@@ -2153,8 +2153,6 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
         J_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
         J_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
       endif
-
-
     endif
 
     j = j_alt
@@ -3311,6 +3309,8 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
         !Jdn = 0.0d0
 
         well => source_sink%well
+
+#if 0
         can_do_analytical = PETSC_FALSE
         if (toil_analytical_derivatives) then
           select type(well)
@@ -3321,6 +3321,8 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
               can_do_analytical = PETSC_TRUE
           end select 
         endif
+#endif
+        can_do_analytical = PETSC_TRUE
 
 
         call source_sink%well%ExplJDerivative(iconn,ghosted_id, &

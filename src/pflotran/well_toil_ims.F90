@@ -24,6 +24,7 @@ module Well_TOilIms_class
     procedure, public :: ExplRes => TOilImsWatInjExplRes
     procedure, public  :: PrintOutputHeader => TOilImsWatInjOutputHeader
     procedure, public :: Output => TOilImsWatInjOutput
+    procedure, public :: ExplResAD => TOilImsWatInjExplResAD
   end type well_toil_ims_wat_inj_type
 
   type, public, extends(well_oil_producer_type) :: well_toil_ims_oil_prod_type
@@ -817,7 +818,7 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
 
 end subroutine TOilImsProducerExplResAD_OIL_PROD
 
-
+! ************************************************************************** !
 
 subroutine Derivs_vol_flux(d_vol_flux, d_mob, d_dphi_dp, mob, dphi, cfact)
 
@@ -849,6 +850,8 @@ subroutine Derivs_vol_flux(d_vol_flux, d_mob, d_dphi_dp, mob, dphi, cfact)
 
 end subroutine Derivs_vol_flux
 
+! ************************************************************************** !
+
 subroutine DerivsA(d_A, d_vol_flux, d_pmd_dp, d_pmd_dT, vol_flux, phase_mol_den)
         
   implicit none
@@ -877,6 +880,8 @@ subroutine DerivsA(d_A, d_vol_flux, d_pmd_dp, d_pmd_dT, vol_flux, phase_mol_den)
 
 
 end subroutine DerivsA
+
+! ************************************************************************** !
 
 subroutine DerivsB(d_B, d_A, d_pe_dp, d_pe_dT, phase_ent, phase_mol_den, vol_flux)
 
@@ -919,6 +924,137 @@ subroutine DerivsB(d_B, d_A, d_pe_dp, d_pe_dT, phase_ent, phase_mol_den, vol_flu
 
 end subroutine DerivsB
 
+! ************************************************************************** !
+
+subroutine TOilImsWatInjExplResAD(this,iconn,ss_flow_vol_flux,isothermal, &
+                                ghosted_id, dof,option,res, Jac)
+  ! 
+  ! 
+  use PM_TOilIms_Aux_module
+  use EOS_Water_module
+  use Option_module
+  
+  implicit none
+
+  class(well_toil_ims_wat_inj_type) :: this
+  PetscInt :: iconn
+  PetscBool :: isothermal
+  PetscInt :: ghosted_id, dof
+  type(option_type) :: option
+  !PetscReal :: Res(1:option%nflowdof)
+  !PetscReal :: ss_flow_vol_flux(1:option%nphase)
+  PetscReal :: Res(:)
+  PetscReal :: ss_flow_vol_flux(:)
+
+  PetscReal :: Jac(:,:)
+
+
+  !why not using a pointer to avoid the copy?
+  PetscReal :: dw_kg, dw_h2o_mol
+  PetscReal :: dphi, vol_flux, cfact, mob, hc 
+  PetscReal :: enth_src_h2o
+  PetscInt :: ierr
+
+  PetscReal, dimension(1:3) :: d_mob, d_vol_flux
+  PetscReal :: d_pmd_dp, d_pmd_dT, d_pe_dp, d_pe_dT
+  PetscReal ::  d_dphi_dp
+
+  Res = 0.0d0
+  vol_flux = 0.0d0
+
+  Jac = 0.d0
+
+  hc = this%conn_h(iconn)
+  cfact = this%conn_factors(iconn)
+ 
+#if 0
+  mob = this%ConnMob(this%flow_auxvars(dof,ghosted_id)%mobility, &
+                                       option%liquid_phase,dof,ghosted_id)
+#endif
+
+  mob = this%ConnMob_derivs(this%flow_auxvars(dof,ghosted_id)%mobility,option%liquid_phase, &
+                     dof,ghosted_id, d_mob,  &
+                     this%toil_auxvars(dof,ghosted_id)%d%dmobility)
+  !mob = 1754.0d0
+  dphi = this%pw_ref + hc - & 
+            this%flow_auxvars(dof,ghosted_id)%pres(option%liquid_phase)
+
+  !!! so dphi_dp is just -1?
+  d_dphi_dp = -1.d0
+  !!! TOTO: also add cap pressure based saturation derivatives here
+
+  ! it is assumed that the temperature is uniform throughout the well
+  call EOSWaterDensity(this%tw_ref,this%pw_ref+hc, &
+                       dw_kg,dw_h2o_mol,ierr) 
+  !!! 0 because the inputs are constant
+  !d_pmd_dp = 0.d0
+  !d_pmd_dT = 0.d0
+
+  if (.not.isothermal) then  
+    call EOSWaterEnthalpy(this%tw_ref,this%pw_ref+hc,enth_src_h2o,ierr)     
+    !enth_src_h2o = enth_src_h2o * option%scale
+    enth_src_h2o = enth_src_h2o * 1.d-6 ! J/kmol -> MJ/kmol 
+
+     !!! 0 because the inputs are constants
+     !d_pe_dp = 0.d0
+     !d_pe_dT = 0.d0
+     !!! should scale but why bother since 0
+   end if
+
+  !if(cfact * mob > wfloweps) then
+
+    if ( dphi < 0.0d0 .and. dof==ZERO_INTEGER ) &
+      write(*,"('TOilImsWatInj reverse flow at gh = ',I5,' dp = ',e10.4)") &
+            ghosted_id, dphi
+
+    !         m^3 * 1/(Pa.s) * Pa = m^3/s
+    vol_flux = cfact * mob * dphi
+
+    call Derivs_vol_flux(d_vol_flux, d_mob, d_dphi_dp, mob, dphi, cfact)
+
+    !vol_flux = 0.00015
+    ss_flow_vol_flux(option%liquid_phase) = vol_flux
+    !no cross-flow allowed with this model
+    ss_flow_vol_flux(option%oil_phase) = 0.0d0
+    ! H2O equation       !m^3/s * kmol/m^3 = Kmol/sec 
+    Res(option%water_id) = vol_flux* dw_h2o_mol 
+
+    Jac(option%water_id, :) = d_vol_flux*dw_h2o_mol
+
+    ! energy equation             !m^3/s * kmol/m^3 * MJ/Kmol = MJ/s
+    if (.not.isothermal) then 
+      Res(3) = vol_flux*dw_h2o_mol * enth_src_h2o
+
+      Jac(3 , :) = d_vol_flux*dw_h2o_mol*enth_src_h2o
+    endif
+   !end if
+
+#ifdef WELL_DEBUG
+  if ( dof==ZERO_INTEGER ) then
+    write(*,*) 'ExplRes dof = ', dof
+    write(*,*) 'ExplRes gh = ', ghosted_id
+    write(*,"('ExplRes gh press = ',e46.40)") &
+        this%flow_auxvars(dof,ghosted_id)%pres(option%liquid_phase)
+    write(*,"('ExplRes sat_wat = ',e46.40)") &
+       this%flow_auxvars(dof,ghosted_id)%sat(option%liquid_phase)
+    write(*,"('ExplRes sat_oil = ',e46.40)") &
+       this%flow_auxvars(dof,ghosted_id)%sat(option%oil_phase)
+    write(*,"('ExplRes mob_wat = ',e46.40)") &
+       this%flow_auxvars(dof,ghosted_id)%mobility(option%liquid_phase)
+    write(*,"('ExplRes mob_oil = ',e46.40)") &
+       this%flow_auxvars(dof,ghosted_id)%mobility(option%oil_phase)
+    write(*,"('ExplRes mob = ',e16.10)") mob
+    write(*,"('ExplRes dphi = ',e16.10)") dphi
+    write(*,"('ExplRes hc = ',e46.40)") hc
+    write(*,"('ExplRes conn_den_kg = ',e46.40)") this%conn_den_kg(iconn)
+    write(*,"('ExplRes pw_ref = ',e46.40)") this%pw_ref 
+    write(*,"('ExplRes vol_flux = ',e10.4)") vol_flux
+    write(*,"('ExplRes dw_h2o_mol = ',e10.4)") dw_h2o_mol
+    write(*,"('ExplRes Res(water_id) = ',e10.4)") Res(option%water_id)
+  end if
+#endif
+
+end subroutine TOilImsWatInjExplResAD
 
 #endif  
 end module Well_TOilIms_class

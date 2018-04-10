@@ -7,7 +7,8 @@ module Secondary_Continuum_module
   use Secondary_Continuum_Aux_module
 
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -347,7 +348,7 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
     case("SLAB")
       sec_continuum%itype = SLAB
       sec_continuum%slab%length = sec_continuum_length
-      if (sec_continuum_area == 0.d0) then
+      if (Equal(sec_continuum_area,0.d0)) then
         option%io_buffer = 'Keyword "AREA" not specified for SLAB type ' // &
                            'under SECONDARY_CONTINUUM'
         call printErrMsg(option)
