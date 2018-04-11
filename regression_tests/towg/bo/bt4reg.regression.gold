@@ -40,10 +40,10 @@
        25:   6.6634856776963E-01
 -- SATURATION: Oil Saturation --
       Max:   1.8693568857487E-01
-      Min:   6.5551384893522E-02
+      Min:   6.5551384893521E-02
      Mean:   1.4167493439261E-01
-        1:   6.5551384893522E-02
-        2:   8.5668741878884E-02
+        1:   6.5551384893521E-02
+        2:   8.5668741878883E-02
        11:   1.3812573666433E-01
        25:   1.8693568857487E-01
 -- SATURATION: Gas Saturation --
@@ -119,10 +119,10 @@
        11:         1
        25:         1
 -- SOLUTION: Flow --
-   Time (seconds):   1.0325553417206E+00
+   Time (seconds):   6.0017466545105E-01
    Time Steps:          203
    Newton Iterations:          844
    Solver Iterations:          844
    Time Step Cuts:            0
    Solution 2-Norm:   1.0686338266749E+08
-   Residual 2-Norm:   3.5818545922592E-09
+   Residual 2-Norm:   3.5818621700839E-09

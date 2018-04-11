@@ -17,11 +17,11 @@
         1:   9.7474068787408E+02
         1:   9.7474068787408E+02
 -- GENERIC: Liquid Energy --
-      Max:   5.6404610395871E+00
-      Min:   5.6404610395871E+00
-     Mean:   5.6404610395871E+00
-        1:   5.6404610395871E+00
-        1:   5.6404610395871E+00
+      Max:   5.6404610395837E+00
+      Min:   5.6404610395837E+00
+     Mean:   5.6404610395837E+00
+        1:   5.6404610395837E+00
+        1:   5.6404610395837E+00
 -- GENERIC: Liquid Viscosity --
       Max:   3.7430961583009E-04
       Min:   3.7430961583009E-04
@@ -47,10 +47,10 @@
         1:         1
         1:         1
 -- SOLUTION: Flow --
-   Time (seconds):   4.6406030654907E-02
+   Time (seconds):   5.1694869995117E-02
    Time Steps:         1040
    Newton Iterations:         1049
-   Solver Iterations:           52
+   Solver Iterations:           53
    Time Step Cuts:            0
    Solution 2-Norm:   1.0056230386151E+05
    Residual 2-Norm:   0.0000000000000E+00
