@@ -97,8 +97,8 @@ module Utility_module
             MatCompare, &
             ArrayIsSMonotonicInc
 
-  public :: HFunctionSmooth             ! F.-M. Yuan (2017-03-09)
-
+  public :: HFunctionSmooth, &             ! F.-M. Yuan (2017-03-09)
+            where_checkerr                 ! F.-M. Yuan (2018-04-11)
 contains
 
 ! ************************************************************************** !
@@ -2509,6 +2509,42 @@ Subroutine HfunctionSmooth(x, x_1, x_0, H, dH)
   endif
 
 end subroutine HfunctionSmooth
+
+  !-----------------------------------------------------------------------------
+  !BOP
+  !
+  ! !SUBROUTINE: where_checkerr(ierr)
+  !
+  ! !INTERFACE:
+  subroutine where_checkerr(ierr, subname, filename, line)
+  !
+  ! !DESCRIPTION:
+  ! When using PETSc functions, it usually throws an error code for checking.
+  ! BUT it won't show where the error occurs in the first place, therefore it's hardly useful.
+  !
+  ! !USES:
+
+    implicit none
+
+  ! !ARGUMENTS:
+    character(len=*), intent(IN) :: subname  ! subroutine name called this
+    character(len=*), intent(IN) :: filename ! filename called this
+    integer, intent(IN) :: line              ! line number triggered this
+    PetscErrorCode, intent(IN) :: ierr       ! petsc error code
+
+  !EOP
+  !-----------------------------------------------------------------------
+
+    if (ierr /= 0) then
+       print *, ' PETSc ERROR: @Subroutine - ' // trim(subname)
+       print *, ' PETSc ERROR: @File - ' // trim(filename)
+       print *, ' PETSc ERROR: @Line -', line
+    end if
+    CHKERRQ(ierr)
+
+  end subroutine where_checkerr
+
+!--------------------------------------------------------------------------------------
 
 ! ************************************************************************** !
 
