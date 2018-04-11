@@ -403,10 +403,11 @@ subroutine TOilImsUpdateAuxVars(realization)
   use Material_Aux_class
   !use EOS_Water_module 
   !use Saturation_Function_module
+  use appleyard_module
   
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  type(realization_subsurface_type), target :: realization
   PetscBool :: update_state
   
   type(option_type), pointer :: option
@@ -438,6 +439,13 @@ subroutine TOilImsUpdateAuxVars(realization)
   PetscReal :: xxbc(realization%option%nflowdof)
 
   PetscErrorCode :: ierr
+
+  PetscReal :: sat0, sat1, del_sat
+  PetscInt :: saturation_index
+
+  class(realization_subsurface_type), pointer :: realization_p
+
+  realization_p => realization
   
   option => realization%option
   patch => realization%patch
@@ -480,6 +488,25 @@ subroutine TOilImsUpdateAuxVars(realization)
     ! TOIL_IMS_UPDATE_FOR_ACCUM indicates call from non-perturbation
     option%iflag = TOIL_IMS_UPDATE_FOR_ACCUM
     natural_id = grid%nG2A(ghosted_id)
+
+    if(toil_appleyard) then
+      saturation_index = ghosted_start - 1 + TOIL_IMS_SATURATION_DOF
+      !print *, "sat index ", saturation_index
+      sat0 = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, ghosted_id)%sat(option%oil_phase)
+      !print *, "sat0 ", sat0
+      if (sat0 > 0.d0) then
+        sat1 = xx_loc_p(saturation_index)
+        !print *, "sat1 ", sat1
+        del_sat = sat0 - sat1 !! decrement assumed in appleyard code
+        !print *, "del sat ", del_sat
+        call TOilAppleyard(sat0, del_sat, ghosted_id, realization_p, &
+                           option%liquid_phase, option%oil_phase)
+        !print *, "del sat after ", del_sat
+        xx_loc_p(saturation_index) = sat0 - del_sat
+      endif
+    endif
+
+
     call TOilImsAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                        patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id), & 
                        !toil_auxvars(ZERO_INTEGER,ghosted_id), &
@@ -3187,6 +3214,11 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
       ! if issues in passing auxvars, pass the entire TOil_ims and 
       ! ghosted_id_up, ghosted_id_dn
+
+if (iconn == 19214) then
+  print *, "break here"
+endif
+
       call TOilImsFluxDerivative(patch%aux%TOil_ims%auxvars(:,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
                        material_auxvars(ghosted_id_up), &

@@ -243,7 +243,8 @@ util_obj  = \
 	${common_src}units.o \
 	${common_src}utility.o \
 	${common_src}variables.o \
-        ${common_src}toil_ims_derivs.o
+        ${common_src}toil_ims_derivs.o \
+        ${common_src}appleyard.o
 
 eos_obj = \
 	${common_src}co2_sw.o \
@@ -581,6 +582,7 @@ endif
 # The source file (i.e. file.F90) is intentionally omitted; 
 # it is picked up by the default/implicit build rule (defined by PETSc)
 ###############################################################################
+appleyard.o : realization_subsurface.o
 auxiliary.o : flash2_aux.o general_aux.o global_aux.o immis_aux.o \
               inlinesurface_aux.o material_aux.o miscible_aux.o mphase_aux.o \
               pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
@@ -1145,7 +1147,7 @@ pm_toil_ims.o : checkpoint.o field.o global.o global_aux.o grid.o input_aux.o \
                 material.o material_aux.o option.o patch.o \
                 pflotran_constants.o pm_base.o pm_subsurface_flow.o \
                 pm_toil_ims_aux.o realization_base.o realization_subsurface.o \
-                string.o toil_ims.o variables.o
+                string.o toil_ims.o variables.o appleyard.o
 pm_toil_ims_aux.o : auxvars_toil_ims.o characteristic_curves.o eos_oil.o \
                     eos_water.o global_aux.o grid.o material_aux.o option.o \
                     pflotran_constants.o pm_base_aux.o utility.o

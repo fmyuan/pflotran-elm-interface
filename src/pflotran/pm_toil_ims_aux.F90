@@ -469,7 +469,11 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     call CheckDerivNotNAN(dkrl_Se, option, "dkrl_Se")
   endif
 
-  call EOSWaterSaturationPressure(toil_auxvar%temp, wat_sat_pres,ierr)
+  if (getDerivs) then
+    call EOSWaterSaturationPressure(toil_auxvar%temp, wat_sat_pres,dps_dt,ierr)
+  else
+    call EOSWaterSaturationPressure(toil_auxvar%temp, wat_sat_pres,ierr)
+  endif
 
   ! use cell_pressure; cell_pressure - psat calculated internally
   if (getDerivs) then

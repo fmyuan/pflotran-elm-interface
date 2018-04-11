@@ -478,6 +478,7 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   use Option_module
   use Patch_module
   use AuxVars_TOilIms_module
+  use appleyard_module
 
   implicit none
   
@@ -584,52 +585,6 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     saturation0 = X_p(saturation_index)
     saturation1 = saturation0 - del_saturation
 
-    !!! TODO: should find a way for this to cope with the max saturation
-    !!! scaling - ideally do chop after the scaling instead
-    if (toil_appleyard) then
-      !!! Appleyard chop
-      !! 1) get residual (critical) saturations
-      call GetCriticalSaturation(slc, lid, this%realization, ghosted_id)
-      call GetCriticalSaturation(soc, oid, this%realization, ghosted_id)
-
-      !! 2) perform the chop on each phase
-      !!    liquid:
-      saturation0_liq = 1.d0 - saturation0
-      del_saturation_liq = -1.d0 * del_saturation
-      call AppleyardChop(saturation0_liq, del_saturation_liq, slc, ds_out_l)
-      !!    oil:
-      saturation0_oil = saturation0
-      del_saturation_oil = del_saturation
-      call AppleyardChop(saturation0_oil, del_saturation_oil, soc, ds_out_o)
-
-      !! 3) update the saturation change if it needs to be changed:
-      if (del_saturation_liq /= ds_out_l .AND. del_saturation_oil /= ds_out_o) then
-        print *, "Appleyard chop has trucated both oil and liquid saturation. How?"
-        !! do the biggest one:
-        if (abs(ds_out_l) > abs(ds_out_o)) then
-          dX_p(saturation_index) = -1.d0*ds_out_l
-          del_saturation = dX_p(saturation_index)
-        else
-          dX_p(saturation_index) = ds_out_o
-          del_saturation = dX_p(saturation_index)
-        endif
-      !! check liquid:
-      elseif (del_saturation_liq /= ds_out_l) then
-        print *, "liquid appleyard ", del_saturation_liq, " ", ds_out_l
-      !call AppleyardChop(saturation0, del_saturation, slc, ds_out_l)
-
-        dX_p(saturation_index) = -1.d0*ds_out_l
-        del_saturation = dX_p(saturation_index)
-      !! check oil:
-      elseif (del_saturation_oil /= ds_out_o) then
-        print *, "oil appleyard ", del_saturation_oil, " ", ds_out_o
-      !call AppleyardChop(saturation0_oil, del_saturation_oil, soc, ds_out_o)
-
-        dX_p(saturation_index) = ds_out_o
-        del_saturation = dX_p(saturation_index)
-      endif
-      !!! /end of Applyard chop
-    endif
 
 #ifdef LIMIT_MAX_PRESSURE_CHANGE
     if (dabs(del_pressure) > toil_ims_max_pressure_change) then
@@ -669,91 +624,29 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     dX_p = scale*dX_p
   endif
 
+#if 0
+  ! post scaling appleyard chopping
+  if (toil_appleyard) then
+    do local_id = 1, grid%nlmax
+
+      ghosted_id = grid%nL2G(local_id)
+      offset = (local_id-1)*option%nflowdof
+      saturation_index = offset + TOIL_IMS_SATURATION_DOF
+      del_saturation = dX_p(saturation_index)
+      saturation0 = X_p(saturation_index)
+
+      call TOilAppleyard(saturation0, dX_p(saturation_index), ghosted_id, this%realization, lid, oid)
+
+    enddo
+  endif
+#endif
+
   call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMTOilImsCheckUpdatePre
 
 ! ************************************************************************** !
-
-subroutine GetCriticalSaturation(sc, phase_id, realization, cell_id)
-
-! pull out the residual situation for phase phase_id from the realization
-! object.
-!
-! Dan Stone April 2018
-
-  use Realization_Subsurface_class
-
-  implicit none
-  PetscReal :: sc
-  PetscInt :: phase_id, cell_id
-  class(realization_subsurface_type), pointer :: realization
-
-
-  ! we're only doing three things here:
-  ! 1) drill down into:
-  !    realization%patch%aux%Material%material_parameter%soil_residual_saturation(:,:)
-  !    which is a 2d array: phase x (saturation function id)
-  ! 2) To get the sat func id, drill down into:
-  !    realization%patch%sat_func_id(cell_id)
-  ! 3) address the correct entry of the soil residual saturation:
-  !    soil_residual_saturation(phase_id, (soil_residual_saturation)) 
-
-  sc = realization%patch%aux%Material%material_parameter%soil_residual_saturation( &
-                                     phase_id, realization%patch%sat_func_id(cell_id))
-
-end subroutine GetCriticalSaturation
-
-! ************************************************************************** !
-
-subroutine AppleyardChop(s, ds, sc, ds_out)
-
-!!! note based on assumption that ds is NEGATIVE increment
-
-  implicit none
-  PetscReal :: s, ds, sc
-  PetscReal :: ds_out
-
-  PetscReal :: s_new
-  PetscReal :: margin, scl, scu
-
-  s_new = s - ds
-
-  margin = 1.d-6
-  !margin = 0.d0 !! terrible idea
-
-  scl = sc - margin
-  scu = sc + margin
-
-  ds_out = ds
-
-  if (abs(ds) <= 2.d0*margin)  then
-    !print *, "not doing tiny appleyard"
-    return
-  endif
-
-  if (s < scl .AND. s_new > scu) then
-    !! crossed envelope going UP, now we want to 
-    !! override such that:
-    ! s_new = sc + margin/2.0
-    ! i.e.,
-    ! s - ds = sc + margin/2.0
-    ! ds = s - sc - margin/2.0
-    ds_out = s - sc - margin/2.0
-  endif
-
-  if (s > scu .AND. s_new < scl) then
-    !! crossed envelope going DOWN, now we want to 
-    !! override such that:
-    ! s_new = sc - margin/2.0
-    ! i.e.,
-    ! s - ds = sc - margin/2.0
-    ! ds = s - sc + margin/2.0
-    ds_out = s - sc + margin/2.0
-  endif
-
-end subroutine AppleyardChop
 ! ************************************************************************** !
 
 !subroutine PMTOilImsCheckUpdatePost(this,line_search,P0,dP,P1,dP_changed, &
