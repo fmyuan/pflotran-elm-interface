@@ -720,13 +720,18 @@ subroutine AppleyardChop(s, ds, sc, ds_out)
 
   s_new = s - ds
 
-  margin = 1.d-15
+  margin = 1.d-6
   !margin = 0.d0 !! terrible idea
 
   scl = sc - margin
   scu = sc + margin
 
   ds_out = ds
+
+  if (abs(ds) <= 2.d0*margin)  then
+    !print *, "not doing tiny appleyard"
+    return
+  endif
 
   if (s < scl .AND. s_new > scu) then
     !! crossed envelope going UP, now we want to 

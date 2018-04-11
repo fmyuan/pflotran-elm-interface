@@ -1460,6 +1460,10 @@ subroutine toil_accum_derivs_alyt(toil_auxvar,material_auxvar, option, j, soil_h
   !! and density w.r.t. pressure:
   j(energy_id, 1) = j(energy_id, 1) + & 
                     toil_auxvar%d%dpor_dp*toil_auxvar%sat(lid)*toil_auxvar%den(lid)*toil_auxvar%u(lid)
+#if 0
+  j(energy_id, 1) = j(energy_id, 1) + & 
+                    toil_auxvar%d%dpor_dp*toil_auxvar%den(lid)*toil_auxvar%u(lid)
+#endif
 
   !! w.r.t oil sat:
   j(energy_id, 2) = j(energy_id, 2) - & !! note negative, next term is scaled by dsl/dso 
@@ -1483,6 +1487,10 @@ subroutine toil_accum_derivs_alyt(toil_auxvar,material_auxvar, option, j, soil_h
   !! and density w.r.t. pressure:
   j(energy_id, 1) = j(energy_id, 1) + & 
                     toil_auxvar%d%dpor_dp*toil_auxvar%sat(oid)*toil_auxvar%den(oid)*toil_auxvar%u(oid)
+#if 0
+  j(energy_id, 1) = j(energy_id, 1) + & 
+                    toil_auxvar%d%dpor_dp*toil_auxvar%den(oid)*toil_auxvar%u(oid)
+#endif
 
   !! w.r.t oil sat:
   j(energy_id, 2) = j(energy_id, 2) + & 
