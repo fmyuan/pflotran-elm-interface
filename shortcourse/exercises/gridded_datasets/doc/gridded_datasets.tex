@@ -127,7 +127,9 @@
 Location of this example problem:
 
 \begin{semiverbatim}
-\$PFLOTRAN_DIR/shortcourse/exercises/gridded_datasets
+> cd \$PFLOTRAN_DIR
+> cd shortcourse/exercises/gridded_datasets
+> ls
 
 2D_steady_pressure_BC_1st_2nd_kind.in
 create_dataset.py
@@ -140,16 +142,19 @@ create_dataset.py
 
 \begin{frame}[fragile,containsverbatim]\frametitle{PROBLEM DESCRIPTION}
 
-This is one of PFLOTRAN's QA tests (2D Steady Flow, BCs of 1st 2nd kind).
+This is one of PFLOTRAN's QA tests (2D Steady Flow, BCs of 1st (Dirichlet) and 2nd (Neumann) kind).
   \begin{itemize}
     \item Domain: 2x1x1 m rectangular slab
     \item Grid cells: 20x10x1 hexahedral cells; dimensions 0.1x0.1x1 m
-    \item Singular material composition of:
+    \item Single material:
     \begin{itemize}
-      \item k = 1 $\times$ 10$^{-14}$ m2
-      \item $\rho_{f}$ = 1000 kg/m3
-      \item $\mu$ = 1 mPa-s
+      \item k = 1 $\times$ 10$^{-14}$ m$^{2}$
       \item $\phi$ = 0.50
+    \end{itemize}
+    \item Constant fluid properties:
+    \begin{itemize}
+      \item $\rho_{f}$ = 1000 kg/m$^{3}$
+      \item $\mu_{f}$ = 1 mPa-s
     \end{itemize}
     \item Initial Conditions:
     \begin{itemize}
@@ -213,16 +218,12 @@ With a gridded dataset!
 
 To apply the boundary conditions, we use a gridded dataset.
 
-\begin{semiverbatim}
-\$PFLOTRAN_DIR/shortcourse/exercises/gridded_datasets
-
-create_dataset.py
-\end{semiverbatim}
-
 The datasets are HDF5 files, and they can be created with a python script.
 To create the dataset, run the python script:
 
 \begin{semiverbatim}
+> cd \$PFLOTRAN_DIR
+> cd shortcourse/exercises/gridded_datasets
 > python create_dataset.py
 \end{semiverbatim}
 
@@ -258,8 +259,9 @@ Open up the dataset.h5 file:
 > hdfview dataset.h5
 \end{semiverbatim}
 
-The values are applied at the cell face nodes (not at cell face centers).
+The values are calculated at the cell face nodes (not at cell face centers).
 Therefore, there are $nx + 1$ and $ny + 1$ values.
+PFLOTRAN interpolates to find the values at the face centers.
 
 \end{frame}
 
@@ -279,7 +281,7 @@ how do you use the gridded dataset in the simulation?
 \begin{semiverbatim}
 DATASET pressure_bc_north
   HDF5_DATASET_NAME x_line_node_centered_north
-  FILENAME ../dataset.h5
+  FILENAME ./dataset.h5
 END
 \end{semiverbatim}
 
