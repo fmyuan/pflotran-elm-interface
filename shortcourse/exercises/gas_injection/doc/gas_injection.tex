@@ -40,7 +40,7 @@
 %-----------------------------------------------------------------------------
 \section{Location of Example}
 
-\begin{frame}[fragile,containsverbatim]\frametitle{LOCATION}
+\begin{frame}[fragile,containsverbatim]\frametitle{Location}
 
 Location of this example problem:
 
@@ -250,13 +250,13 @@ END
   \item Energy equations require:
   \begin{itemize}
     \item \redcomment{mineral density}
-    \item \redcomment{thermal conductivity} (wet and dry)
+    \item \redcomment{thermal conductivity} (bulk wet and dry)
     \item \redcomment{mineral heat capacity}
   \end{itemize}
 \end{itemize}
 
 \begin{semiverbatim}
-MATERIAL_PROPERTY sand
+MATERIAL_PROPERTY sand \bluecomment{! define material} \greencomment{sand}
   ID 1
   CHARACTERISTIC_CURVES default
   POROSITY 0.20
@@ -276,7 +276,7 @@ END
 \begin{frame}[fragile]\frametitle{MATERIAL\_PROPERTY}
 
 \begin{semiverbatim}
-MATERIAL_PROPERTY clay
+MATERIAL_PROPERTY clay \bluecomment{! define material} \greencomment{clay}
   ID 2
   CHARACTERISTIC_CURVES clay
   POROSITY 0.35
@@ -303,7 +303,7 @@ END
 \end{itemize}
 
 \begin{semiverbatim}\small
-CHARACTERISTIC_CURVES default \bluecomment{! for sand}
+CHARACTERISTIC_CURVES default \bluecomment{! used with} \greencomment{sand}
   SATURATION_FUNCTION VAN_GENUCHTEN
     ALPHA 1.d-4
     M 0.5
@@ -333,7 +333,7 @@ END
 \end{itemize}
 
 \begin{semiverbatim}\small
-CHARACTERISTIC_CURVES clay \bluecomment{! for clay}
+CHARACTERISTIC_CURVES clay \bluecomment{! used with} \greencomment{clay}
   SATURATION_FUNCTION VAN_GENUCHTEN
     ALPHA 7.d-7
     M 0.375
@@ -360,7 +360,7 @@ END
 \begin{frame}[fragile]\frametitle{REGION}
 Regions will be used for:
 \begin{itemize}
-  \item{definition of \redcomment{boundary condition}}
+  \item{assignment of \redcomment{BC} and \redcomment{IC}}
   \item{location of \redcomment{gas injection}}
   \item{assignment of \redcomment{material properties}}
 \end{itemize}
