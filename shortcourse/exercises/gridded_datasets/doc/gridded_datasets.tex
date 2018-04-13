@@ -122,7 +122,7 @@
 %-----------------------------------------------------------------------------
 \section{Location of Example}
 
-\begin{frame}[fragile,containsverbatim]\frametitle{LOCATION}
+\begin{frame}[fragile,containsverbatim]\frametitle{Location}
 
 Location of this example problem:
 
@@ -140,7 +140,7 @@ create_dataset.py
 %-----------------------------------------------------------------------------
 \section{The Test Problem Description}
 
-\begin{frame}[fragile,containsverbatim]\frametitle{PROBLEM DESCRIPTION}
+\begin{frame}[fragile,containsverbatim]\frametitle{Problem Description}
 
 This is one of PFLOTRAN's QA tests (2D Steady Flow, BCs of 1st (Dirichlet) and 2nd (Neumann) kind).
   \begin{itemize}
@@ -166,7 +166,7 @@ This is one of PFLOTRAN's QA tests (2D Steady Flow, BCs of 1st (Dirichlet) and 2
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{PROBLEM DESCRIPTION}
+\begin{frame}[fragile,containsverbatim]\frametitle{Problem Description}
 
 This is one of PFLOTRAN's QA tests (2D Steady Flow, BCs of 1st 2nd kind).
 
@@ -177,7 +177,7 @@ L = 1 m
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{PROBLEM DESCRIPTION}
+\begin{frame}[fragile,containsverbatim]\frametitle{Problem Description}
 
 The steady-state solution is governed by the LaPlace equation:
 \Large 
@@ -194,14 +194,14 @@ $p(x,y) = {p_0 \over L} (x+2y)$
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{PROBLEM DESCRIPTION}
+\begin{frame}[fragile,containsverbatim]\frametitle{Problem Description}
 
 \includegraphics[width=0.75\textheight]{./visit_figure.png}
 
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{PROBLEM DESCRIPTION}
+\begin{frame}[fragile,containsverbatim]\frametitle{Problem Description}
 
 \includegraphics[width=1.2\textheight]{./BC_schematic.png}
 
@@ -214,7 +214,7 @@ With a gridded dataset!
 %-----------------------------------------------------------------------------
 \subsection{GRIDDED DATASET}
 
-\begin{frame}[fragile,containsverbatim]\frametitle{GRIDDED DATASET}
+\begin{frame}[fragile,containsverbatim]\frametitle{Creating and Using a Gridded Dataset}
 
 To apply the boundary conditions, we use a gridded dataset.
 
@@ -230,7 +230,7 @@ To create the dataset, run the python script:
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{GRIDDED DATASET}
+\begin{frame}[fragile,containsverbatim]\frametitle{Creating and Using a Gridded Dataset}
 
 The script will create a file called:
 
@@ -251,7 +251,7 @@ gridded dataset.
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{GRIDDED DATASET}
+\begin{frame}[fragile,containsverbatim]\frametitle{Creating and Using a Gridded Dataset}
 
 Open up the dataset.h5 file:
 
@@ -266,14 +266,14 @@ PFLOTRAN interpolates to find the values at the face centers.
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{GRIDDED DATASET}
+\begin{frame}[fragile,containsverbatim]\frametitle{Creating and Using a Gridded Dataset}
 
 Open up the create\_dataset.py file:
 
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{INPUT FILE}
+\begin{frame}[fragile,containsverbatim]\frametitle{DATASET}
 
 After you've created the gridded dataset,
 how do you use the gridded dataset in the simulation? 
@@ -290,10 +290,10 @@ There should be a DATASET block for each dataset group.
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{INPUT FILE}
+\begin{frame}[fragile,containsverbatim]\frametitle{FLOW\_CONDITION}
 
-After declaring the dataset using the DATASET block, you can use it to
-define a boundary condition:
+After declaring the dataset using the DATASET block, you can use it in
+the FLOW\_CONDITION block.
 
 \begin{semiverbatim}
 FLOW_CONDITION north_face
@@ -312,18 +312,21 @@ END
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile]\frametitle{How To Run the Problem}
+\begin{frame}[fragile]\frametitle{Command Line}
 
 \begin{semiverbatim}
 
  > cd \$PFLOTRAN_DIR
  > cd shortcourse/exercises/gridded_datasets/
- 
  > pflotran -input_prefix 2D_steady_pressure_BC_1st_2nd_kind
 
 \end{semiverbatim}
 
 The output is in VTK format. You can use Paraview to visualize it.
+
+\begin{semiverbatim}
+> paraview
+\end{semiverbatim}
 
 \end{frame}
 
