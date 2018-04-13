@@ -38,22 +38,42 @@
 %\frame{\titlepage}
 
 %-----------------------------------------------------------------------------
+\section{Location of Example}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Location}
+
+Location of the challenge problem:
+
+\begin{semiverbatim}
+> cd \$PFLOTRAN_DIR
+> cd shortcourse/exercises/challenge_problem
+> ls
+
+kryptonite_conc.py \bluecomment{! to plot concentrations when done}
+kryptonite.dat     \bluecomment{! chemistry database for you to use}
+kryptonite.in      \bluecomment{! the answer - DO NOT USE THIS!!!!}
+kryptonite_vf.py   \bluecomment{! to plot mineral volume fractions}
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \section{Description of Challenge Problem}
 
 \subsection{Kryptonite Conceptual Model}
 
 \begin{frame}\frametitle{Description of Kryptonite Scenario}
-Challenge yourself by setting up the input deck for the ``Kryptonite Scenario.'' It features:
+Challenge yourself by setting up an input deck to simulate the ``\gehcomment{Kryptonite Scenario}.'' It features:
 \begin{itemize}
   \item Problem domain: $2000 \times 1 \times 800$ m (x $\times$ y $\times$ z)
-  \item Structured grid with your choice of discretization
-  \item SUBSURFACE\_FLOW MODE RICHARDS
-  \item Hydrostatic initial conditions
-  \item Regional pressure gradient (Dirichlet boundary conditions)
-  \item Extraction well
-  \item Recharge (Neumann boundary condition)
+  \item \redcomment{Structured grid} with your choice of discretization
+  \item SUBSURFACE\_FLOW MODE \redcomment{RICHARDS}
+  \item \redcomment{Hydrostatic} initial conditions
+  \item Regional pressure gradient (\redcomment{Dirichlet} boundary conditions)
+  \item Extraction well (a \redcomment{sink})
+  \item Recharge (\redcomment{Neumann} boundary condition)
   \item SUBSURFACE\_TRANSPORT
-  \item Aqueous, solid, sorbed phases
+  \item Aqueous, solid, sorbed phases, radioactive decay
 \end{itemize}
 
 \end{frame}
@@ -73,14 +93,14 @@ Challenge yourself by setting up the input deck for the ``Kryptonite Scenario.''
 Superman drinks from a well downgradient of a kryptonite deposit. The kryptonite dissolves into three components:
 
 \begin{itemize}
-  \item At 1e-3 M, KrA(aq) will make Superman weak
-  \item At 1e-3 M, KrB(aq) will make Superman very weak
-  \item At 1e-3 M, KrC(aq) will bring Superman to the brink of death
+  \item At 1e-3 M, \greencomment{KrA(aq)} will make Superman weak
+  \item At 1e-3 M, \greencomment{KrB(aq)} will make Superman very weak
+  \item At 1e-3 M, \greencomment{KrC(aq)} will bring Superman to the brink of death
 \end{itemize}
 
 \begin{itemize}
   \item Will kryptonite contaminate the well at levels Superman should avoid? 
-  \item When should Superman avoid drinking water from the well if he wants to avoid damage from KrA(aq), KrB(aq), and KrC(aq)?
+  \item When should Superman avoid drinking water from the well if he wants to avoid damage from \greencomment{KrA(aq)}, \greencomment{KrB(aq)}, and \greencomment{KrC(aq)}?
 \end{itemize}
 
 \end{frame}
@@ -92,9 +112,9 @@ Superman drinks from a well downgradient of a kryptonite deposit. The kryptonite
 After the kryptonite deposit dissolves completely, Superman will no longer have to worry about his well water.
 
 \begin{itemize}
-  \item At what time does kryptonite(s) completely dissolve?
-  \item When does the concentration of KrA(aq) at the well drop below 1e-3 M?
-  \item Why does KrB(aq) remain at 1e-3 M for a longer time?
+  \item At what time does \greencomment{kryptonite(s)} completely dissolve?
+  \item When does the concentration of \greencomment{KrA(aq)} at the well drop below 1e-3 M?
+  \item Why does \greencomment{KrB(aq)} remain at 1e-3 M for a longer time?
 \end{itemize}
 
 \end{frame}
@@ -103,7 +123,7 @@ After the kryptonite deposit dissolves completely, Superman will no longer have 
 \subsection{For Mere Humans}
 
 \begin{frame}[fragile]\frametitle{For Mere Humans}
-Superman isn't affected by I129(aq), but the rest of us should avoid drinking water with concentrations greater than about 1e-9 M.
+Superman isn't affected by \greencomment{Cs137(aq)}, but humans have set an effluent limit of approximately 8.4e-14 M. Assuming water is okay to drink if the concentration of \greencomment{Cs137(aq)} $<$ 8.4e-14 M:
 
 \begin{itemize}
   \item When is it okay for a mere human to drink water from Superman's well?
@@ -112,27 +132,111 @@ Superman isn't affected by I129(aq), but the rest of us should avoid drinking wa
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\subsection{General Hints}
+\subsection{Getting Started}
 
-\begin{frame}[fragile]\frametitle{General Hints}
+\begin{frame}[fragile]\frametitle{Getting Started}
 Copy 1D\_Calcite/flow\_and\_tran.in to mykryptonite.in and begin editing.
-\begin{itemize}
-  \item \$ cp ../1D\_Calcite/flow\_and\_tran.in mykryptonite.in
-  \item \$ vi mykryptonite.in \bluecomment{(or use text editor of choice)}
-\end{itemize}
+\begin{semiverbatim}
+  > cp ../1D\_Calcite/flow\_and\_tran.in mykryptonite.in
+  > vi mykryptonite.in \bluecomment{(or use text editor of choice)}
+\end{semiverbatim}
 Avoid having to debug multiple changes at once. Make one set of changes at a time and try out your simulation.
-\begin{itemize}
-  \item \$ pflotran -input\_prefix mykryptonite
-\end{itemize}
+\begin{semiverbatim}
+  > pflotran -input\_prefix mykryptonite
+\end{semiverbatim}
+Use documentation at \bluecomment{documentation.pflotran.org}
+-
 Put an observation point in the well and one in the kryptonite deposit. Copy kryptonite.py to mykryptonite.py and edit file paths and column numbers to plot concentrations.
-\begin{itemize}
-  \item \$ cp kryptonite.py mykryptonite.py
-  \item \$ vi mykryptonite.py \bluecomment{(or use text editor of choice)}
-  \item \$ python mykryptonite.py
-\end{itemize}
+\begin{semiverbatim}
+  > cp kryptonite.py mykryptonite.py
+  > vi mykryptonite.py \bluecomment{(or use text editor of choice)}
+  > python mykryptonite.py
+\end{semiverbatim}
 
 \end{frame}
 
+%-----------------------------------------------------------------------------
+\subsection{If You Get Stuck}
+
+\begin{frame}[fragile]\frametitle{If You Get Stuck}
+Create a clean copy of mykryptonite.in
+\begin{semiverbatim}
+  > cp ../1D\_Calcite/flow\_and\_tran.in mykryptonite.in
+\end{semiverbatim}
+1. Grab a real characteristic curve first
+\begin{itemize}\small
+  \item{CHARACTERISTIC\_CURVES (copy from regional\_doublet.in)}
+\end{itemize}
+2. Change the grid discretization and corresponding regions
+\begin{itemize}\small
+  \item{GRID, REGION all, REGION west, REGION east}
+\end{itemize}
+Make sure your input deck runs after each edit
+\begin{semiverbatim}
+  > pflotran -input\_prefix mykryptonite
+\end{semiverbatim}
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{If You Get Stuck, continued}
+3. Set up the new flow problem
+\begin{itemize}\small
+  \item{FLOW\_CONDITION initial\_pressure, BOUNDARY\_CONDITION inlet}
+  \item{FLOW\_CONDITION inlet\_flux becomes FLOW\_CONDITION recharge}
+  \item{create REGION top, BOUNDARY\_CONDITION top}
+  \item{create FLOW\_CONDITION extraction, REGION well, SOURCE\_SINK}
+\end{itemize}
+Make sure your input deck runs after each edit
+\begin{semiverbatim}
+  > pflotran -input\_prefix mykryptonite
+\end{semiverbatim}
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{If You Get Stuck, continued}
+4. Set up the new chemistry problem - make sure species names match those in \greencomment{kryptonite.dat}
+\begin{itemize}\small
+  \item{PRIMARY\_SPECIES, MINERALS, MINERAL\_KINETICS, CONSTRAINTs}
+  \item{REGION kryptonite\_deposit, TRANSPORT\_CONDITION, INITIAL\_CONDITION}
+  \item{CONSTRAINT rain, TRANSPORT\_CONDITION, BOUNDARY\_CONDITION top}
+\end{itemize}
+5. Add sorption and radioactive decay (\bluecomment{documentation.pflotran.org})
+\begin{itemize}\small
+  \item{SORPTION (ISOTHERM\_REACTIONS),ROCK\_DENSITY}
+  \item{RADIOACTIVE\_DECAY\_REACTION}
+\end{itemize}
+Make sure your input deck runs after each edit
+\begin{semiverbatim}
+  > pflotran -input\_prefix mykryptonite
+\end{semiverbatim}
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{If You Get Stuck, continued}
+6. Split into two strata (overburden and aquifer materials)
+\begin{itemize}\small
+  \item{REGION, MATERIAL\_PROPERTY, STRATA blocks for each}
+\end{itemize}
+7. Add observation points
+\begin{itemize}\small
+  \item{REGIONs, OBSERVATIONs, OUTPUT}
+\end{itemize}
+8. Adjust final time and time stepping
+\begin{itemize}\small
+  \item{TIME}
+\end{itemize}
+9. Add a convergence check on pressure update
+\begin{itemize}\small
+  \item{NEWTON\_SOLVER ITOL\_UPDATE 1.d0 END}
+\end{itemize}
+Make sure your input deck runs after each edit
+\begin{semiverbatim}
+  > pflotran -input\_prefix mykryptonite
+\end{semiverbatim}
+\redcomment{THAT SHOULD DO IT!} Try plotting
+\begin{semiverbatim}
+  > python kryptonite_conc.py
+  > python kryptontite_vf.py
+\end{semiverbatim}
+
+\end{frame}
 %-----------------------------------------------------------------------------
 \subsection{BONUS 1}
 
