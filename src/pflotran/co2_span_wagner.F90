@@ -11,7 +11,8 @@
   !     rho [kg/m^3] Energy [MJ/kg] Enthalpy [MJ/kg] Vis [Pa s]
 
 #include "petsc/finclude/petscsys.h"
-      use petscsys
+    use petscsys
+    use Utility_module, only : Equal
   use PFLOTRAN_Constants_module
 
       implicit none
@@ -1657,19 +1658,19 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
   !   in a datafile
 
   !set default ranges and steps
-  if (press_min == UNINITIALIZED_DOUBLE ) then
+  if (Equal(press_min,UNINITIALIZED_DOUBLE) ) then
     press_min = 0.01d0
   else
     press_min = press_min * 1.0d-6 !convert to MPa
   end if
 
-  if (press_max == UNINITIALIZED_DOUBLE ) then
+  if (Equal(press_max,UNINITIALIZED_DOUBLE) ) then
     press_max = 250.01d0
   else
     press_max = press_max * 1.0d-6 !MPa
   end if
 
-  if (press_delta == UNINITIALIZED_DOUBLE ) then
+  if (Equal(press_delta,UNINITIALIZED_DOUBLE) ) then
     press_delta = 0.5d0 !MPa
   else
     press_delta = press_delta * 1.0d-6 !MPa
@@ -1679,19 +1680,19 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
 
   n_tab_press = int( (press_max - press_min ) / press_delta ) + 1
 
-  if (temp_min == UNINITIALIZED_DOUBLE ) then
+  if (Equal(temp_min,UNINITIALIZED_DOUBLE) ) then
     temp_min = 0.0d0 + 273.15D0 !temp in Kelvin
   else
     temp_min = temp_min + 273.15D0 !convert to K
   end if
 
-  if (temp_max == UNINITIALIZED_DOUBLE ) then
+  if (Equal(temp_max,UNINITIALIZED_DOUBLE) ) then
     temp_max = 375.0d0 + 273.15D0 !Kelvin
   else
     temp_max = temp_max + 273.15D0 !convert to K
   end if
 
-  if (temp_delta == UNINITIALIZED_DOUBLE ) then
+  if (Equal(temp_delta,UNINITIALIZED_DOUBLE) ) then
     temp_delta = 2.5d0 !k
   else
     n_sub_tab = int(temp_delta/0.01d0)
