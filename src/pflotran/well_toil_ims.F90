@@ -633,6 +633,8 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
   PetscReal :: d_pmd_dp, d_pmd_dT, d_pe_dp, d_pe_dT
   PetscReal ::  d_dphi_dp
 
+  class(auxvar_toil_ims_type), pointer :: avar
+
   hc = this%conn_h(iconn)
   temp = this%conn_temp(iconn)
   cfact = this%conn_factors(iconn)
@@ -646,6 +648,8 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
 
 
   Jac = 0.d0
+
+  avar => this%toil_auxvars(dof, ghosted_id)
 
   do i_ph = 1, option%nphase
     !pressure gradient positive for flow entering the well

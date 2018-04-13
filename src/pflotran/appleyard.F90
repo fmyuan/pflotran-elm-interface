@@ -48,13 +48,15 @@ subroutine  TOilAppleyard(saturation0, del_saturation, ghosted_id, realization, 
         endif
       !! check liquid:
       elseif (del_saturation_liq /= ds_out_l) then
-        print *, "liquid appleyard ", del_saturation_liq, " ", ds_out_l
+        print *, "liquid appleyard ", del_saturation_liq, " ", ds_out_l, " ", &
+                 saturation0_liq - ds_out_l
       !call AppleyardChop(saturation0, del_saturation, slc, ds_out_l)
 
         del_saturation = -1.d0*ds_out_l
       !! check oil:
       elseif (del_saturation_oil /= ds_out_o) then
-        print *, "oil appleyard ", del_saturation_oil, " ", ds_out_o
+        print *, "oil appleyard ", del_saturation_oil, " ", ds_out_o, " ", &
+                 saturation0_oil - ds_out_o
       !call AppleyardChop(saturation0_oil, del_saturation_oil, soc, ds_out_o)
 
         del_saturation = ds_out_o
@@ -73,12 +75,13 @@ subroutine AppleyardChopSuggest(s, ds, sc, ds_out)
   PetscReal :: ds_out
 
   PetscReal :: s_new
-  PetscReal :: margin, scl, scu
+  PetscReal :: margin, scl, scu, passby
 
   !! increment is a subtraction:
   s_new = s - ds
 
-  margin = 1.d-6
+  !margin = 2.5d-2
+  margin = 2.0d-3
   !margin = 0.d0 !! terrible idea
 
   scl = sc - margin
@@ -86,10 +89,15 @@ subroutine AppleyardChopSuggest(s, ds, sc, ds_out)
 
   ds_out = ds
 
+  !passby = 0.5d0 * margin
+  passby = 1.1d0*margin
+
+#if 0
   if (abs(ds) <= 2.d0*margin)  then
     !print *, "not doing tiny appleyard"
     return
   endif
+#endif
 
   if (s < scl .AND. s_new > scu) then
     !! crossed envelope going UP, now we want to 
@@ -98,7 +106,8 @@ subroutine AppleyardChopSuggest(s, ds, sc, ds_out)
     ! i.e.,
     ! s - ds = sc + margin/2.0
     ! ds = s - sc - margin/2.0
-    ds_out = s - sc - margin/2.0
+    !ds_out = s - sc - margin/2.0
+    ds_out = s - sc - passby
   endif
 
   if (s > scu .AND. s_new < scl) then
@@ -108,7 +117,8 @@ subroutine AppleyardChopSuggest(s, ds, sc, ds_out)
     ! i.e.,
     ! s - ds = sc - margin/2.0
     ! ds = s - sc + margin/2.0
-    ds_out = s - sc + margin/2.0
+    !ds_out = s - sc + margin/2.0
+    ds_out = s - sc + passby
   endif
 
 end subroutine AppleyardChopSuggest

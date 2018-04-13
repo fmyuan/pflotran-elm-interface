@@ -624,7 +624,6 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     dX_p = scale*dX_p
   endif
 
-#if 0
   ! post scaling appleyard chopping
   if (toil_appleyard) then
     do local_id = 1, grid%nlmax
@@ -639,7 +638,6 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
 
     enddo
   endif
-#endif
 
   call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)

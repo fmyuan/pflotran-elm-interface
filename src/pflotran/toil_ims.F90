@@ -489,6 +489,7 @@ subroutine TOilImsUpdateAuxVars(realization)
     option%iflag = TOIL_IMS_UPDATE_FOR_ACCUM
     natural_id = grid%nG2A(ghosted_id)
 
+#if 0
     if(toil_appleyard) then
       saturation_index = ghosted_start - 1 + TOIL_IMS_SATURATION_DOF
       !print *, "sat index ", saturation_index
@@ -505,6 +506,7 @@ subroutine TOilImsUpdateAuxVars(realization)
         xx_loc_p(saturation_index) = sat0 - del_sat
       endif
     endif
+#endif
 
 
     call TOilImsAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
@@ -3215,9 +3217,11 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
       ! if issues in passing auxvars, pass the entire TOil_ims and 
       ! ghosted_id_up, ghosted_id_dn
 
+#if 0
 if (iconn == 19214) then
   print *, "break here"
 endif
+#endif
 
       call TOilImsFluxDerivative(patch%aux%TOil_ims%auxvars(:,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
@@ -3352,7 +3356,7 @@ endif
           end select 
         endif
 #endif
-        can_do_analytical = PETSC_TRUE
+        can_do_analytical = toil_analytical_derivatives
 
 
         call source_sink%well%ExplJDerivative(iconn,ghosted_id, &
