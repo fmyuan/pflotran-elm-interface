@@ -1,4 +1,4 @@
-module CPR_Precondititioner_module
+module CPR_Preconditioner_module
 ! Implements a CPR preconditioner using the PCSHELL
 ! funcitonality of PETSC.
 ! Daniel Stone and Sebastien Loisel
@@ -1088,4 +1088,4 @@ end subroutine MatGetMaxRowCount
 ! end of misc routines  
 ! ************************************************************************** !
 
-end module CPR_Precondititioner_module 
+end module CPR_Preconditioner_module

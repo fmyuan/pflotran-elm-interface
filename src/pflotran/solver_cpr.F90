@@ -2,7 +2,7 @@ module Solver_CPR_module
 
 #include "petsc/finclude/petscts.h"
   use petscts
-  use CPR_Precondititioner_module 
+  use CPR_Preconditioner_module
   use Option_module
   use PFLOTRAN_Constants_module
 
