@@ -119,7 +119,7 @@ subroutine DatasetAsciiOpenandLoad(this,filename,data_units_category,option)
   
   class(dataset_ascii_type) :: this
   character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXSTRINGLENGTH) :: data_units_category
+  character(len=*) :: data_units_category
   type(option_type) :: option
   
   type(input_type), pointer :: input
