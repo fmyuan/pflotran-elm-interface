@@ -516,9 +516,14 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   SNES :: snes
   PetscInt :: newton_iteration
 
-  PetscReal :: slc, soc, ds_out_l, ds_out_o, del_sat_cand
+  PetscReal :: slc, soc, ds_out_l, ds_out_o, del_sat_cand, sat_fac, &
+               geo_pen_limit, gp_high, gp_low
   PetscReal :: saturation0_oil, del_saturation_oil, saturation0_liq, del_saturation_liq
   PetscInt :: lid, oid
+
+  geo_pen_limit = 0.2d0 !! 20%
+  gp_high = 1.d0 + geo_pen_limit
+  gp_low = 1.d0 - geo_pen_limit
 
   lid = LIQUID_PHASE
   oid = TOIL_IMS_OIL_PHASE
@@ -556,6 +561,40 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       dX_p(saturation_index) = X_p(saturation_index) - 1.d0
     end if
   enddo
+  
+  !! seperate appleyard loop
+  if (toil_appleyard) then
+    do local_id = 1, grid%nlmax
+
+      ghosted_id = grid%nL2G(local_id)
+      offset = (local_id-1)*option%nflowdof
+      saturation_index = offset + TOIL_IMS_SATURATION_DOF
+      saturation0 = X_p(saturation_index)
+
+      !! I just can't get this to work. Geometric penalty is great though
+      !call TOilAppleyard(saturation0, dX_p(saturation_index), ghosted_id, this%realization, lid, oid)
+
+      del_saturation = dX_p(saturation_index)
+      saturation1 = saturation0 - del_saturation
+      if (saturation1 < 0.d0) then
+        print *, "appleyard caused -ve sat"
+      endif
+      if (saturation1 > 1.d0) then
+        print *, "appleyard caused > 1 sat"
+      endif
+      !! geometric penalty:
+      !sat_fac = saturation1/saturation0
+      sat_fac = abs(del_saturation/saturation0)
+      if (sat_fac > geo_pen_limit) then
+         dX_p(saturation_index) =&
+                      geo_pen_limit*saturation0*abs(del_saturation)/del_saturation
+         !print *, "GP scl, ", sat_fac, " ", del_saturation, " ", dX_p(saturation_index)
+      endif
+      
+
+    enddo
+  endif
+  
 
   scale = initial_scale
   if (toil_ims_max_it_before_damping > 0 .and. &
@@ -633,10 +672,10 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! it performs an homogenous scaling using the smallest scaling factor
   ! over all subdomains domains
   if (scale < 0.9999d0) then
-    print *, "scaling whole thing ", scale
     dX_p = scale*dX_p
   endif
 
+#if 0
   ! post scaling appleyard chopping
   if (toil_appleyard) then
     do local_id = 1, grid%nlmax
@@ -651,6 +690,7 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
 
     enddo
   endif
+#endif
 
   call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)

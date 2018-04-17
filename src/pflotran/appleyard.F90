@@ -48,15 +48,15 @@ subroutine  TOilAppleyard(saturation0, del_saturation, ghosted_id, realization, 
         endif
       !! check liquid:
       elseif (del_saturation_liq /= ds_out_l) then
-        print *, "liquid appleyard ", del_saturation_liq, " ", ds_out_l, " ", &
-                 saturation0_liq - ds_out_l
+        !print *, "liquid appleyard ", del_saturation_liq, " ", ds_out_l, " ", &
+                 !saturation0_liq - ds_out_l
       !call AppleyardChop(saturation0, del_saturation, slc, ds_out_l)
 
         del_saturation = -1.d0*ds_out_l
       !! check oil:
       elseif (del_saturation_oil /= ds_out_o) then
-        print *, "oil appleyard ", del_saturation_oil, " ", ds_out_o, " ", &
-                 saturation0_oil - ds_out_o
+        !print *, "oil appleyard ", del_saturation_oil, " ", ds_out_o, " ", &
+                 !saturation0_oil - ds_out_o
       !call AppleyardChop(saturation0_oil, del_saturation_oil, soc, ds_out_o)
 
         del_saturation = ds_out_o
