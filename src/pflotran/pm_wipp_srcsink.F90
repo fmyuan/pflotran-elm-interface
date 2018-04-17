@@ -18,7 +18,8 @@ module PM_WIPP_SrcSink_class
   use Region_module
   use PFLOTRAN_Constants_module
   use Realization_Subsurface_class
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -2046,7 +2047,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
        (31556930.d0) * 10000.d0                         ! [sec/year]*[year]
   MAX_C = min(A1,A2)                                    ! [mol]
   F_NO3 = MOL_NO3 * (6.d0/4.8d0) / MAX_C                ! [-]
-  F_NO3 = min(F_NO3,1.0)                                ! [-]
+  F_NO3 = min(F_NO3,1.d0)                               ! [-]
   waste_panel%F_NO3 = F_NO3                             ! [-]
   waste_panel%F_SO4 = 1.d0 - F_NO3                      ! [-]
   
@@ -2977,7 +2978,7 @@ end subroutine PMWSSUpdateChemSpecies
                                     cwp%inventory%FeOH2_s%current_conc_kg(i), & 
                                     cwp%inventory%Fe_s%initial_conc_kg(i), & 
                                     this%alpharxn)
-          else if (cwp%inventory%Fe_s%initial_conc_mol(i) == 0.d0) then
+          else if (Equal(cwp%inventory%Fe_s%initial_conc_mol(i),0.d0)) then
             cwp%rxnrate_FeOH2_sulf(i) = 0.d0
             cwp%rxnrate_Fe_sulf(i) = 0.d0
           endif
@@ -3014,7 +3015,7 @@ end subroutine PMWSSUpdateChemSpecies
                                     cwp%inventory%MgOH2_s%current_conc_kg(i), & 
                                     cwp%inventory%MgO_s%initial_conc_kg(i), &
                                     this%alpharxn)
-          else if (cwp%inventory%MgO_s%initial_conc_mol(i) == 0.d0) then
+          else if (Equal(cwp%inventory%MgO_s%initial_conc_mol(i),0.d0)) then
             cwp%rxnrate_MgOH2_carb(i) = 0.d0
             cwp%rxnrate_MgO_carb(i) = 0.d0
           endif

@@ -193,6 +193,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   
   use EOS_Water_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Common_module
   use Material_Aux_class
   
   implicit none

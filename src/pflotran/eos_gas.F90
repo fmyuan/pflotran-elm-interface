@@ -5,7 +5,8 @@ module EOS_Gas_module
 
   use PFLOTRAN_Constants_module
   use EOSData_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -1356,10 +1357,10 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr,table_idxs)
     do i = 1, maxit
       f = V*(V*(coef(4)*V - coef(3)) + coef(2)) - coef(1)
       dfdV = V*(3.0d0*coef(4)*V - 2.0d0*coef(3)) + coef(2)
-      if (dfdV .ne. 0.d0) then
+      if (.not. Equal(dfdV,0.d0)) then
         dVd = F/dfdV
         V = V - dVd
-        if (V .ne. 0.d0) then
+        if (.not. Equal(V,0.d0)) then
           if (abs(dVd/V) .lt. 1.d-10) then
             Rho_gas = 1.d0/V * 1.d-3 ! mol/m^3 -> kmol/m^3
             exit
@@ -1445,10 +1446,10 @@ subroutine EOSGasDensityPRMethane(T,P,Rho_gas,dRho_dT,dRho_dP,ierr,table_idxs)
   do i = 1, maxit
     f = coef(1) * Z**3 + coef(2) * Z**2 + coef(3) * Z + coef(4)
     dfdZ = coef(1) * 3 * Z**2  + coef(2) * 2 * Z + coef(3)
-    if (dfdZ .ne. 0.d0) then
+    if (.not. Equal(dfdZ,0.d0)) then
       dZd = f/dfdZ
       Z = Z - dZd
-      if (Z .ne. 0.d0) then
+      if (.not. Equal(Z,0.d0)) then
         if (abs(dZd/Z) .lt. 1.d-10) then
           Rho_gas = 1.d0/Z * P/RT * 1d-3 ! mol/m^3 -> kmol/m^3
           exit

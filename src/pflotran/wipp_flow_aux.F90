@@ -299,6 +299,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   use EOS_Water_module
   use EOS_Gas_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_WIPP_module
   use Material_Aux_class
   use Creep_Closure_module
   use Fracture_module
@@ -1003,7 +1004,7 @@ end subroutine WIPPFloAuxVarStrip
 
 subroutine WIPPFloConvertUnitsToBRAGFloRes(Res,material_auxvar,option)
   ! 
-  ! Converts units of residual to kg/m^3 (BRAGFLO units)
+  ! Converts units of residual from kmol/sec to kg/m^3 bulk (BRAGFLO units)
   ! 
   ! Author: Glenn Hammond
   ! Date: 11/16/17
@@ -1027,7 +1028,8 @@ end subroutine WIPPFloConvertUnitsToBRAGFloRes
 
 subroutine WIPPFloConvertUnitsToBRAGFloJac(Jac,material_auxvar,option)
   ! 
-  ! Converts units of residual to kg/m^3 (BRAGFLO units)
+  ! Converts units of residual from kmol/sec/(dof units) to
+  ! kg/m^3 bulk/(dof units) (BRAGFLO units)
   ! 
   ! Author: Glenn Hammond
   ! Date: 11/16/17

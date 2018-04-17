@@ -907,7 +907,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
   
-  call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   if (wippflo_print_update) then
     open(IUNIT_TEMP,file='pf_update.txt')
     do i = 1, grid%nlmax*2
@@ -923,7 +923,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     enddo
     close(IUNIT_TEMP)
   endif
-  call VecGetArrayReadF90(X1,X1_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
   call VecGetArrayReadF90(field%max_change_vecs(1),press_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%max_change_vecs(3),sat_ptr,ierr);CHKERRQ(ierr)
@@ -1111,9 +1111,9 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     max_gas_sat_outside_lim_cell
   if (cut_timestep) this%convergence_flags(OUTSIDE_BOUNDS) = 1
 
-  call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(X1,X1_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%max_change_vecs(1),press_ptr, &
                               ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%max_change_vecs(3),sat_ptr, &
