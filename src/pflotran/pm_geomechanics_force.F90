@@ -277,7 +277,10 @@ subroutine PMGeomechForceUpdateSolution(this)
   use Geomechanics_Force_module, only : GeomechUpdateSolution, &
                                         GeomechStoreInitialDisp, &
                                         GeomechForceUpdateAuxVars
-  use Condition_module
+  use Geomechanics_Condition_module
+  use Geomechanics_Realization_class, only : &
+                                 GeomechRealizUpdateAllCouplerAuxVars
+
 
   implicit none
 
@@ -290,7 +293,13 @@ subroutine PMGeomechForceUpdateSolution(this)
 #endif
 
   ! begin from RealizationUpdate()
+  call GeomechConditionUpdate(this%geomech_realization%geomech_conditions, &
+                              this%geomech_realization%option, &
+                              this%geomech_realization%option%time)
+
   call GeomechUpdateSolution(this%geomech_realization)
+  call GeomechRealizUpdateAllCouplerAuxVars(this%geomech_realization, &
+                                            force_update_flag)
   if (this%option%geomech_initial) then
     call GeomechStoreInitialDisp(this%geomech_realization)
     this%option%geomech_initial = PETSC_FALSE
@@ -430,7 +439,7 @@ subroutine PMGeomechForceDestroy(this)
   ! Date: 12/31/13
   ! 
 
-  use Geomechanics_Realization_class, only : GeomechRealizDestroy
+  use geomechanics_realization_class, only : geomechrealizdestroy
 
   implicit none
   
