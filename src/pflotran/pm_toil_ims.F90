@@ -516,7 +516,7 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   SNES :: snes
   PetscInt :: newton_iteration
 
-  PetscReal :: slc, soc, ds_out_l, ds_out_o
+  PetscReal :: slc, soc, ds_out_l, ds_out_o, del_sat_cand
   PetscReal :: saturation0_oil, del_saturation_oil, saturation0_liq, del_saturation_liq
   PetscInt :: lid, oid
 
@@ -552,6 +552,8 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       ! we use 1.d-6 since cancelation can occur with smaller values
       ! this threshold is imposed in the initial condition
       dX_p(saturation_index) = X_p(saturation_index)
+    elseif ( (X_p(saturation_index) - dX_p(saturation_index)) > 1.d0 ) then
+      dX_p(saturation_index) = X_p(saturation_index) - 1.d0
     end if
   enddo
 
@@ -584,6 +586,17 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     del_saturation = dX_p(saturation_index)
     saturation0 = X_p(saturation_index)
     saturation1 = saturation0 - del_saturation
+
+
+#if 0
+    !! appleyard for scaling
+    del_sat_cand = del_saturation
+    call TOilAppleyard(saturation0, del_sat_cand, ghosted_id, this%realization, lid, oid)
+    if (del_saturation /= del_sat_cand) then
+       temp_real = dabs(del_sat_cand/del_saturation)
+       temp_scale = min(temp_scale,temp_real)
+    endif
+#endif
 
 
 #ifdef LIMIT_MAX_PRESSURE_CHANGE

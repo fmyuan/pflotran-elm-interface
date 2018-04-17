@@ -81,7 +81,8 @@ subroutine AppleyardChopSuggest(s, ds, sc, ds_out)
   s_new = s - ds
 
   !margin = 2.5d-2
-  margin = 2.0d-3
+  !margin = 2.0d-3
+  margin = 1.0d-6
   !margin = 0.d0 !! terrible idea
 
   scl = sc - margin
@@ -89,15 +90,14 @@ subroutine AppleyardChopSuggest(s, ds, sc, ds_out)
 
   ds_out = ds
 
-  !passby = 0.5d0 * margin
-  passby = 1.1d0*margin
+  !passby = 0.d0
+  passby = 0.5d0 * margin
+  !passby = 1.1d0*margin
 
-#if 0
   if (abs(ds) <= 2.d0*margin)  then
     !print *, "not doing tiny appleyard"
     return
   endif
-#endif
 
   if (s < scl .AND. s_new > scu) then
     !! crossed envelope going UP, now we want to 
