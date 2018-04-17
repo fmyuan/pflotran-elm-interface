@@ -124,7 +124,7 @@
 
 \begin{frame}[fragile]\frametitle{Running PFLOTRAN}
 
-This problem takes a while to run, so lets get it started first.
+This problem takes a while to run, so let's get it started first.
 Homogeneous permeability field version:
 
 \begin{semiverbatim}
@@ -140,8 +140,8 @@ Homogeneous permeability field version:
 %-----------------------------------------------------------------------------
 \begin{frame}[fragile]\frametitle{Running PFLOTRAN}
 
-This problem takes a while to run, so lets get it started first.
-Stoichastic permeability field version:
+This problem takes a while to run, so let's get it started first.
+Stochastic permeability field version:
 
 \begin{semiverbatim}
  > cd \$PFLOTRAN_DIR
@@ -951,12 +951,11 @@ END
 \begin{frame}[fragile]\frametitle{OUTPUT}
 
 \begin{itemize}
-\item Print entire solution in Tecplot block datapacking and PFLOTRAN HDF5 format compatible with Visit
-\item Print solution at observation points every time step
-\item Include velocities when entire solution is printed
-\item Make a snapshot file every 0.25 years between 0 and 2 years to see fluctuation in river stage
-\item Make a snapshot file every year of the simulation
-\item Specifically, we want to see the liquid pressure, saturation, and material IDs
+\item Print entire solution (a snapshot) in ASCII Tecplot block formatted datapacking and binary PFLOTRAN HDF5 format compatible with ParaView and VisIt
+\item Specifically, we want to see the liquid pressure, saturation, material IDs, and liquid phase velocities
+\item Print a snapshot every 0.25 years between 0 and 2 years to see fluctuation in river stage
+\item Print a snapshot every year of the simulation
+\item Print the solution at observation points for every time step
 \end{itemize}
 
 \end{frame}

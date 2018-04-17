@@ -92,9 +92,9 @@ END
 MATERIAL_PROPERTY shale
   ID 4
   CHARACTERISTIC_CURVES default #shale
-  POROSITY 0.15
-  TORTUOSITY 0.11
-  ROCK_DENSITY 2700.
+  POROSITY 0.15                 #this problem is quite a bit slower
+  TORTUOSITY 0.11               #if you use the shale and buffer
+  ROCK_DENSITY 2700.            #characteristic curves
   THERMAL_CONDUCTIVITY_DRY 1.0d0
   THERMAL_CONDUCTIVITY_WET 1.7d0
   HEAT_CAPACITY 830.
