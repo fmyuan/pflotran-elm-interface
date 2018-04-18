@@ -38,7 +38,7 @@ module General_Aux_module
   PetscInt, parameter, public :: GAS_STATE = 2
   PetscInt, parameter, public :: TWO_PHASE_STATE = 3
   PetscInt, parameter, public :: ANY_STATE = 4
-  PetscInt, parameter, public :: MULTI_STATE = 4
+  PetscInt, parameter, public :: MULTI_STATE = 5
   
   PetscInt, parameter, public :: PREV_TS = 1
   PetscInt, parameter, public :: PREV_IT = 2
