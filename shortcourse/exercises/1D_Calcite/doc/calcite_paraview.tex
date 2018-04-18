@@ -38,6 +38,20 @@
 %\frame{\titlepage}
 
 %-----------------------------------------------------------------------------
+\section{Location of Example}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{LOCATION}
+
+Location of example problem:
+
+\begin{semiverbatim}
+> cd \$PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_Calcite
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \section{Paraview Instructions}
 
 \subsection{Overview}
@@ -64,13 +78,15 @@
 \subsection{OUTPUT block}
 
 \begin{frame}[fragile]\frametitle{OUTPUT block}
-Add HDF5 output to calcite\_flow\_and\_tran.in
+Edit calcite\_flow\_and\_tran.in
+\begin{itemize}
+\item HDF5 output
+\item Periodic output times
+\end{itemize}
 \begin{semiverbatim}
 OUTPUT
-  SNAPSHOT_FILE
-    FORMAT HDF5
-    PERIODIC TIME 1. y between 0. y and 25. y
-  /
+  \magentacomment{PERIODIC TIME 1. y between 0. y and 25. y}
+  FORMAT \magentacomment{HDF5}
   VELOCITY_AT_CENTER
 END
 \end{semiverbatim}
@@ -85,13 +101,13 @@ END
   \item{Run the simulation}
 \end{itemize}
 \begin{semiverbatim}
-\$ pflotran -input_prefix calcite_flow_and_tran
+> pflotran -input_prefix calcite_flow_and_tran
 \end{semiverbatim}
 \begin{itemize}
   \item{Start Paraview}
 \end{itemize}
 \begin{semiverbatim}
-\$ paraview
+> paraview
 \end{semiverbatim}
 \end{frame}
 
@@ -127,9 +143,7 @@ In Properties pane:
 \begin{frame}[fragile]\frametitle{Orient and Scale}
 
 \begin{itemize}
-  \item Click on the +Y icon
-  \item (Now Z is pointing up)
-  \item Right mouse button to drag and scale
+  \item Right mouse button to scale
   \item Left mouse button to rotate
   \item Shift plus right mouse to pan
 \end{itemize}

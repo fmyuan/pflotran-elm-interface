@@ -128,7 +128,7 @@
 \subsection{1D Variably Saturated Flow Conceptual Model}
 
 \frame{\frametitle{Description of 1D Variably Saturated Flow Scenario}
-The ``1D Variably Saturated Flow Scenario'' simulates single phase groundwater flow within the vadose and saturated zones in a vertical column measuring 10 meters in height with unit cross sectional area.  Assumptions with regard to transport include:
+The ``1D Variably Saturated Flow Scenario'' simulates single phase groundwater flow within the vadose and saturated zones in a vertical column measuring 10 meters in height with unit cross sectional area.  Assumptions with regard to flow include:
 \begin{itemize}
   \small
   \item Problem domain: $1 \times 1 \times 10$ m (x $\times$ y $\times$ z)
@@ -579,8 +579,10 @@ END                       \bluecomment{!   converted to SI}
 
 \subsection{Input File Modifications}
 
-\begin{frame}[fragile]\frametitle{Input File Modifications}
+\begin{frame}[fragile]\frametitle{Adding pulsed recharge over first 0.2 years}
 
+
+Input File Modifications
 \begin{itemize}
 \item Modify cards:
   \begin{itemize}
@@ -657,12 +659,13 @@ END
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\section{Description of Input Deck: Split into two soil layers and add observation point}
+\section{Description of Input Deck: Split into two soil layers and add an observation point}
 
 \subsection{Input File Modifications}
 
-\begin{frame}[fragile]\frametitle{Input File Modifications}
+\begin{frame}[fragile]\frametitle{Split into two soil layers and add an observation point}
 
+Input File Modifications
 \begin{itemize}
 \item Add cards:
   \begin{itemize}
@@ -679,7 +682,7 @@ END
     \item TIME
    \end{itemize}
 \end{itemize}
-\begin{textblock}{.5}[1,1](8,3)
+\begin{textblock}{.5}[1,1](8,2)
 \includegraphics[height=2.5in]{./vsat_flow_layered}
 \end{textblock} 
 \end{frame}
