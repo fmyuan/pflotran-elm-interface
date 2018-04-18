@@ -439,7 +439,7 @@ subroutine PMGeomechForceDestroy(this)
   ! Date: 12/31/13
   ! 
 
-  use geomechanics_realization_class, only : geomechrealizdestroy
+  use Geomechanics_Realization_class, only : GeomechRealizDestroy
 
   implicit none
   
