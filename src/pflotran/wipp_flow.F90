@@ -25,6 +25,7 @@ module WIPP_Flow_module
             WIPPFloJacobian, &
             WIPPFloSetPlotVariables, &
             WIPPFloMapBCAuxVarsToGlobal, &
+            WIPPFloCreepShutDown, &
             WIPPFloSSSandbox, &
             WIPPFloDestroy
 
@@ -284,6 +285,8 @@ subroutine WIPPFloUpdateSolution(realization)
   if (realization%option%compute_mass_balance_new) then
     call WIPPFloUpdateMassBalance(realization)
   endif
+  
+  call WIPPFloCreepShutDown(realization)
   
 end subroutine WIPPFloUpdateSolution
 
@@ -1721,6 +1724,38 @@ subroutine WIPPFloSetPlotVariables(realization,list)
   endif
   
 end subroutine WIPPFloSetPlotVariables
+
+! ************************************************************************** !
+
+subroutine WIPPFloCreepShutDown(realization)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 04/18/2018
+  ! 
+  use Realization_Subsurface_class
+  use Grid_module
+  !use Material_Aux_class, only: material_auxvar_type
+  
+  implicit none
+  
+  class(realization_subsurface_type) :: realization
+  
+  PetscBool :: shutdown_creep
+  PetscInt :: ghosted_id
+  type(grid_type), pointer :: grid
+  
+  grid => realization%patch%grid
+  
+  do ghosted_id = 1, grid%ngmax
+    shutdown_creep = &
+      realization%patch%aux%Material%auxvars(ghosted_id)%shutdown_creep_closure
+    if (shutdown_creep) then
+      ! index 1 of wipp%creep_closure_tables_array is a null pointer
+      realization%patch%aux%Material%auxvars(ghosted_id)%creep_closure_id = 1
+    endif
+  enddo
+  
+end subroutine WIPPFloCreepShutDown
 
 ! ************************************************************************** !
 

@@ -372,27 +372,31 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
           material_auxvar%porosity_base = prev_effective_porosity
           call MaterialAuxVarSetValue(material_auxvar,SOIL_REFERENCE_PRESSURE, &
                                       cell_pressure)
+          if (option%iflag /= WIPPFLO_UPDATE_FOR_DERIVATIVE) then
+            material_auxvar%shutdown_creep_closure = PETSC_TRUE
+          endif
           ! index 1 of wipp%creep_closure_tables_array is a null pointer
           material_auxvar%creep_closure_id = 1 
           nullify(creep_closure)
         else if (cell_pressure > creep_closure%shutdown_pressure) then
-          print *, 'Creep closure shut down: ', natural_id, cell_pressure
-          ! fix to shutdown pressure and porosity at shutdown pressure
           wippflo_auxvar%effective_porosity = &
-           creep_closure%Evaluate(option%time,creep_closure%shutdown_pressure)
+            creep_closure%Evaluate(option%time,creep_closure%shutdown_pressure)
+          ! fix to shutdown pressure and porosity at shutdown pressure
           material_auxvar%porosity_base = wippflo_auxvar%effective_porosity
           call MaterialAuxVarSetValue(material_auxvar,SOIL_REFERENCE_PRESSURE, &
                                       creep_closure%shutdown_pressure)
-          ! index 1 of wipp%creep_closure_tables_array is a null pointer
-          material_auxvar%creep_closure_id = 1 
-          nullify(creep_closure)
+          if (option%iflag /= WIPPFLO_UPDATE_FOR_DERIVATIVE) then
+            material_auxvar%shutdown_creep_closure = PETSC_TRUE
+          endif
         else
           ! option%time here is the t time, not t + dt time.
           creep_closure_time = option%time
           if (option%iflag /= WIPPFLO_UPDATE_FOR_FIXED_ACCUM) then
             creep_closure_time = creep_closure_time + option%flow_dt
           endif
-          
+          if (option%iflag /= WIPPFLO_UPDATE_FOR_DERIVATIVE) then
+            material_auxvar%shutdown_creep_closure = PETSC_FALSE
+          endif
           wippflo_auxvar%effective_porosity = &
             creep_closure%Evaluate(creep_closure_time,cell_pressure)
           wippflo_auxvar%effective_porosity = & 

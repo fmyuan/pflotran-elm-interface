@@ -39,6 +39,7 @@ module Material_Aux_class
     type(fracture_auxvar_type), pointer :: fracture
     PetscReal, pointer :: geomechanics_subsurface_prop(:)
     PetscInt :: creep_closure_id
+    PetscBool :: shutdown_creep_closure
 
 !    procedure(SaturationFunction), nopass, pointer :: SaturationFunction
   contains
@@ -173,6 +174,7 @@ subroutine MaterialAuxVarInit(auxvar,option)
   nullify(auxvar%sat_func_prop)
   nullify(auxvar%fracture)
   auxvar%creep_closure_id = 1
+  auxvar%shutdown_creep_closure = PETSC_FALSE
   
   if (max_material_index > 0) then
     allocate(auxvar%soil_properties(max_material_index))
@@ -216,6 +218,8 @@ subroutine MaterialAuxVarCopy(auxvar,auxvar2,option)
     auxvar2%soil_properties = auxvar%soil_properties
   endif
   auxvar2%creep_closure_id = auxvar%creep_closure_id
+  auxvar2%shutdown_creep_closure = auxvar%shutdown_creep_closure
+  
 end subroutine MaterialAuxVarCopy
 
 ! ************************************************************************** !
