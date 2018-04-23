@@ -1734,24 +1734,56 @@ subroutine WIPPFloCreepShutDown(realization)
   ! 
   use Realization_Subsurface_class
   use Grid_module
-  !use Material_Aux_class, only: material_auxvar_type
+  use Option_module
+  use WIPP_module
+  use Creep_Closure_module
+  use Material_Aux_class, only: material_auxvar_type, MaterialAuxVarSetValue
+  use Variables_module, only : SOIL_REFERENCE_PRESSURE
   
   implicit none
   
   class(realization_subsurface_type) :: realization
-  
-  PetscBool :: shutdown_creep
-  PetscInt :: ghosted_id
+
+  type(option_type), pointer :: option
   type(grid_type), pointer :: grid
+  type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  class(creep_closure_type), pointer :: creep_closure
+  PetscInt :: ghosted_id
+  PetscInt :: creep_closure_id
+  PetscReal :: cell_pressure
   
+  option => realization%option
   grid => realization%patch%grid
+  material_auxvars => realization%patch%aux%Material%auxvars
+  wippflo_auxvars => realization%patch%aux%WIPPFlo%auxvars
   
   do ghosted_id = 1, grid%ngmax
-    shutdown_creep = &
-      realization%patch%aux%Material%auxvars(ghosted_id)%shutdown_creep_closure
-    if (shutdown_creep) then
-      ! index 1 of wipp%creep_closure_tables_array is a null pointer
-      realization%patch%aux%Material%auxvars(ghosted_id)%creep_closure_id = 1
+    creep_closure_id = material_auxvars(ghosted_id)%creep_closure_id
+    creep_closure => wipp%creep_closure_tables_array(creep_closure_id)%ptr
+    if (associated(creep_closure)) then
+      cell_pressure = wippflo_auxvars(ZERO_INTEGER,ghosted_id)%&
+                                                   pres(option%liquid_phase)
+      if (option%time > creep_closure%time_datamax .or. &
+          option%time > creep_closure%time_closeoff) then
+        material_auxvars(ghosted_id)%porosity_base = &
+          wippflo_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity
+        call MaterialAuxVarSetValue(material_auxvars(ghosted_id), &
+                                    SOIL_REFERENCE_PRESSURE,cell_pressure)
+        ! index 1 of wipp%creep_closure_tables_array is a null pointer
+        material_auxvars(ghosted_id)%creep_closure_id = 1
+      else if (cell_pressure > creep_closure%shutdown_pressure) then
+        material_auxvars(ghosted_id)%porosity_base = &
+          creep_closure%Evaluate(option%time,creep_closure%shutdown_pressure)
+        ! fix to shutdown pressure and porosity at shutdown pressure
+        material_auxvars(ghosted_id)%porosity_base = &
+          wippflo_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity
+        call MaterialAuxVarSetValue(material_auxvars(ghosted_id), &
+                                    SOIL_REFERENCE_PRESSURE, &
+                                    creep_closure%shutdown_pressure)
+        ! index 1 of wipp%creep_closure_tables_array is a null pointer
+        material_auxvars(ghosted_id)%creep_closure_id = 1
+      endif
     endif
   enddo
   
