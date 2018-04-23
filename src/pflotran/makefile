@@ -1083,8 +1083,9 @@ pm_general.o : checkpoint.o field.o general.o general_aux.o global.o \
                variables.o
 pm_geomechanics_force.o : checkpoint.o communicator_base.o \
                           communicator_structured.o \
-                          communicator_unstructured.o condition.o \
+                          communicator_unstructured.o \
                           convergence.o geomechanics_discretization.o \
+                          geomechanics_condition.o \
                           geomechanics_force.o geomechanics_realization.o \
                           global.o grid.o option.o pflotran_constants.o \
                           pm_base.o
