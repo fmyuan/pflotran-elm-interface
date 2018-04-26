@@ -376,18 +376,24 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
           creep_closure_time = creep_closure_time + option%flow_dt
         endif
         if (cell_pressure > creep_closure%shutdown_pressure) then
-          ! temporary shutdown of creep closure: 
-          ! In BRAGFLO, it defaults to doing soil compressibility, but the
-          ! values for reference porosity = current porosity, and 
-          ! reference pressure = current pressure, thus negating the effect of
-          ! soil compressibility, keeping the porosity from the previous NI.
+          ! Temporary shutdown of creep closure: 
+          ! In BRAGFLO, it defaults to doing soil compressibility.
+          ! Load in the old eff. porosity as reference porosity from last NI:
           material_auxvar%porosity_base = prev_effective_porosity
-          wippflo_auxvar%effective_porosity = prev_effective_porosity
+          ! In material_auxvar, the soil reference pressure should already be 
+          ! loaded with the old pressure from last NI.
+          call MaterialCompressSoil(material_auxvar,cell_pressure, &
+                                    wippflo_auxvar%effective_porosity,dummy)
         else
           wippflo_auxvar%effective_porosity = &
                        creep_closure%Evaluate(creep_closure_time,cell_pressure)
           wippflo_auxvar%effective_porosity = max( &
               wippflo_auxvar%effective_porosity,creep_closure%porosity_minimum)
+          ! Use current cell pressure to update the soil reference pressure so
+          ! that if creep temporarily shuts down at the next NI, it already
+          ! has the old pressure saved and loaded.
+          call MaterialAuxVarSetValue(material_auxvar, &
+                                      SOIL_REFERENCE_PRESSURE,cell_pressure)
         endif
                   
       else if (associated(material_auxvar%fracture) .and. &
