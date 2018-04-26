@@ -256,7 +256,21 @@ subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
     return
   endif
 #endif
+#if 0
   scalar_permeability = kx*dabs(dist(1))+ky*dabs(dist(2))+kz*dabs(dist(3))
+#endif
+
+  select case(option%perm_tens_to_scal_model)
+    case(TENSOR_TO_SCALAR_LINEAR)
+      scalar_permeability = kx*dabs(dist(1))+ky*dabs(dist(2))+kz*dabs(dist(3))
+    case(TENSOR_TO_SCALAR_QUADRATIC)
+      scalar_permeability = kx * dabs(dist(1))**2.0 + ky * dabs(dist(2))**2.0 + &
+                            kz * dabs(dist(3))**2.0
+    case(TENSOR_TO_SCALAR_ELLIPTIC)
+      print *, "NOT DONE"
+    case default
+      !...
+  end select
 
 end subroutine MaterialDiagPermTensorToScalar
 

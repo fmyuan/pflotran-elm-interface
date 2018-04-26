@@ -224,6 +224,10 @@ module Option_module
     PetscReal :: inline_surface_Mannings_coeff
     character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
 
+    ! flag to determine which model to use for tensor to scalar conversion 
+    ! of permeability
+    PetscInt :: perm_tens_to_scal_model
+
   end type option_type
 
   PetscInt, parameter, public :: SUBSURFACE_SIM_TYPE = 1
@@ -389,6 +393,8 @@ subroutine OptionInitAll(option)
 
   option%rel_perm_aveg = UPWIND
   option%first_step_after_restart = PETSC_FALSE
+
+  option%perm_tens_to_scal_model = TENSOR_TO_SCALAR_LINEAR
 
   call OptionInitRealization(option)
 

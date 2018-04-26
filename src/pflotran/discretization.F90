@@ -537,6 +537,21 @@ subroutine DiscretizationRead(discretization,input,option)
             call InputKeywordUnrecognized(word,'GRID,UPWIND_FRACTION_METHOD', &
                                           option)
         end select
+
+      case('PERM_TENSOR_TO_SCALAR_MODEL')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'PERM_TENSOR_TO_SCALAR_MODEL','GRID')
+        call StringToUpper(word)
+        select case(word)
+          case('LINEAR')
+            option%perm_tens_to_scal_model = TENSOR_TO_SCALAR_LINEAR
+          case('QUADRATIC')
+            option%perm_tens_to_scal_model = TENSOR_TO_SCALAR_QUADRATIC
+          case default
+            call InputKeywordUnrecognized(word,'GRID, PERM_TENSOR_TO_SCALAR_MODEL', &
+                                          option)
+        end select
+
       case default
         call InputKeywordUnrecognized(word,'GRID',option)
     end select 

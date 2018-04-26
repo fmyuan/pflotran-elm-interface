@@ -311,6 +311,11 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: CONVERGENCE_KEEP_ITERATING = 0
   PetscInt, parameter, public :: CONVERGENCE_FORCE_ITERATION = 1
   PetscInt, parameter, public :: CONVERGENCE_CONVERGED = 2
+
+  ! Tensor to scalar conversion models
+  PetscInt, parameter, public :: TENSOR_TO_SCALAR_LINEAR = 1
+  PetscInt, parameter, public :: TENSOR_TO_SCALAR_QUADRATIC = 2
+  PetscInt, parameter, public :: TENSOR_TO_SCALAR_ELLIPTIC = 3
   
   ! Dummy value
   PetscReal, parameter, public :: DUMMY_VALUE = UNINITIALIZED_DOUBLE
