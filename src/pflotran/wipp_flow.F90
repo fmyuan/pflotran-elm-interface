@@ -1765,21 +1765,16 @@ subroutine WIPPFloCreepShutDown(realization)
       cell_pressure = wippflo_auxvars(ZERO_INTEGER,ghosted_id)%&
                                                    pres(option%liquid_phase)
       if (option%time > creep_closure%time_datamax .or. &
-          option%time > creep_closure%time_closeoff) then
+          option%time > creep_closure%time_closeoff .or. &
+          cell_pressure > creep_closure%shutdown_pressure) then
         material_auxvars(ghosted_id)%porosity_base = &
           wippflo_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity
         call MaterialAuxVarSetValue(material_auxvars(ghosted_id), &
                                     SOIL_REFERENCE_PRESSURE,cell_pressure)
         ! index 1 of wipp%creep_closure_tables_array is a null pointer
-        material_auxvars(ghosted_id)%creep_closure_id = 1
-      else if (cell_pressure > creep_closure%shutdown_pressure) then
-        material_auxvars(ghosted_id)%porosity_base = &
-          creep_closure%Evaluate(option%time,creep_closure%shutdown_pressure)
-        ! fix to shutdown pressure and porosity at shutdown pressure
-        call MaterialAuxVarSetValue(material_auxvars(ghosted_id), &
-                                    SOIL_REFERENCE_PRESSURE, &
-                                    creep_closure%shutdown_pressure)
-        ! index 1 of wipp%creep_closure_tables_array is a null pointer
+        ! which will shut down creep closure permanently since the pointer
+        ! creep_closure => wipp%creep_closure_tables_array(creep_closure_id)%ptr
+        ! will no longer be associated in future conditionals
         material_auxvars(ghosted_id)%creep_closure_id = 1
       endif
     endif
