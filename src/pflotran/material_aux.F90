@@ -216,6 +216,7 @@ subroutine MaterialAuxVarCopy(auxvar,auxvar2,option)
     auxvar2%soil_properties = auxvar%soil_properties
   endif
   auxvar2%creep_closure_id = auxvar%creep_closure_id
+  
 end subroutine MaterialAuxVarCopy
 
 ! ************************************************************************** !

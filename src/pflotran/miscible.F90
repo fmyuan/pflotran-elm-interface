@@ -6,7 +6,8 @@ module Miscible_module
   use Global_Aux_module
 
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
   
   private 
@@ -968,7 +969,7 @@ subroutine MiscibleSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype
     case(MASS_RATE_SS)
       msrc(1) = msrc(1) / FMWH2O
       msrc(2) = msrc(2) / FMWGLYC
-      if (msrc(1) /= 0.d0 .or. msrc(2) /= 0.d0) then ! H2O injection
+      if (.not. Equal(msrc(1),0.d0) .or. .not. Equal(msrc(2),0.d0)) then ! H2O injection
 !        call EOSWaterDensityEnthalpy(tsrc,auxvar%pres,dw_kg,dw_mol,enth_src_h2o,ierr)
         ! J/kmol -> whatever units
         !enth_src_h2o = enth_src_h2o * option%scale

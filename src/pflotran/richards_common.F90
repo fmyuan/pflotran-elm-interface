@@ -6,7 +6,8 @@ module Richards_Common_module
   use Global_Aux_module
   
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
   
   private 
@@ -597,7 +598,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
           ! If running with surface-flow model, ensure (darcy_velocity*dt) does
           ! not exceed depth of standing water.
           if (option%surf_flow_on) then
-          if (rich_auxvar_dn%vars_for_sflow(11) == 0.d0) then
+          if (Equal(rich_auxvar_dn%vars_for_sflow(11),0.d0)) then
             if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. &
                 option%surf_flow_on) then
               call EOSWaterdensity(option%reference_temperature, &
@@ -869,10 +870,10 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
           call EOSWaterdensity(option%reference_temperature, &
                                option%reference_pressure,rho,dum1,ierr)
 
-          if (rich_auxvar_dn%vars_for_sflow(11) == 0.d0) then
+          if (Equal(rich_auxvar_dn%vars_for_sflow(11),0.d0)) then
             if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(1)) then
 
-              if (rich_auxvar_dn%vars_for_sflow(7) == -99999.d0) then
+              if (Equal(rich_auxvar_dn%vars_for_sflow(7),-99999.d0)) then
                 call printErrMsg(option,'Coeffs for linear approx for darcy flux not set')
               endif
 
@@ -887,7 +888,7 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
 
             else if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(2)) then
 
-              if (rich_auxvar_dn%vars_for_sflow(3) == -99999.d0) then
+              if (Equal(rich_auxvar_dn%vars_for_sflow(3),-99999.d0)) then
                 call printErrMsg(option,'Coeffs for cubic approx for darcy flux not set')
               endif
 

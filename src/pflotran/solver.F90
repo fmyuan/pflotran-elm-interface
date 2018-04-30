@@ -3,6 +3,8 @@ module Solver_module
 #include "petsc/finclude/petscts.h"
   use petscts
   use PFLOTRAN_Constants_module
+  use CPR_Preconditioner_module
+  use Solver_CPR_module
 
   implicit none
 
@@ -66,6 +68,9 @@ module Solver_module
     PetscBool :: print_linear_iterations
     PetscBool :: check_infinity_norm
     PetscBool :: print_ekg
+
+    ! added for CPR option:
+    type(cpr_pc_type), pointer :: cprstash
             
   end type solver_type
   
@@ -154,9 +159,11 @@ function SolverCreate()
   solver%print_linear_iterations = PETSC_FALSE
   solver%check_infinity_norm = PETSC_TRUE
   solver%print_ekg = PETSC_FALSE
+
+  nullify(solver%cprstash)
     
   SolverCreate => solver
-  
+   
 end function SolverCreate
 
 ! ************************************************************************** !
@@ -214,7 +221,11 @@ subroutine SolverSetSNESOptions(solver, option)
     call KSPSetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
   endif
   if (len_trim(solver%pc_type) > 1) then
-    call PCSetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
+    if (associated(solver%cprstash)) then
+      call SolverCPRInit(solver%J, solver%cprstash, solver%pc, ierr, option)
+    else
+      call PCSetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
+    endif
   endif
 
   call KSPSetTolerances(solver%ksp,solver%linear_rtol,solver%linear_atol, &
@@ -469,6 +480,10 @@ subroutine SolverReadLinear(solver,input,option)
             solver%pc_type = PCHYPRE
           case('SHELL')
             solver%pc_type = PCSHELL
+          case('CPR')
+            solver%pc_type = PCSHELL
+            allocate(solver%cprstash)
+            call SolverCPRInitializeStorage(solver%cprstash)
           case default
             option%io_buffer  = 'Preconditioner type: ' // trim(word) // &
                                 ' unknown.'
@@ -775,7 +790,11 @@ subroutine SolverReadLinear(solver,input,option)
         word = 'mumps'
         call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                                   trim(string),trim(word),ierr);CHKERRQ(ierr)
-   
+
+      case ('CPR_OPTIONS')
+          print *, "here should go into cpr read"
+          call SolverCPRRead(solver%cprstash, input,option, ierr)
+
       case default
         call InputKeywordUnrecognized(keyword,'LINEAR_SOLVER',option)
     end select 
@@ -1351,7 +1370,9 @@ subroutine SolverDestroy(solver)
   ! Author: Glenn Hammond
   ! Date: 11/01/07
   ! 
-
+  
+  use String_module
+   
   implicit none
   
   type(solver_type), pointer :: solver
@@ -1388,6 +1409,44 @@ subroutine SolverDestroy(solver)
 
   solver%ksp = PETSC_NULL_KSP
   solver%pc = PETSC_NULL_PC
+
+  if (associated(solver%cprstash)) then
+
+      call DeallocateWorkersInCPRStash(solver%cprstash)
+
+      if (solver%cprstash%T1_KSP /= PETSC_NULL_KSP) then
+        call KSPDestroy(solver%cprstash%T1_KSP, ierr);CHKERRQ(ierr)
+      endif
+      if (solver%cprstash%T1_PC /= PETSC_NULL_PC) then
+        call PCDestroy(solver%cprstash%T1_PC, ierr);CHKERRQ(ierr)
+      endif
+      if (solver%cprstash%T2_PC /= PETSC_NULL_PC) then
+        call PCDestroy(solver%cprstash%T2_PC, ierr);CHKERRQ(ierr)
+      endif
+
+      if (solver%cprstash%Ap /= PETSC_NULL_MAT) then
+        call MatDestroy(solver%cprstash%Ap, ierr);CHKERRQ(ierr)
+      endif
+      if (solver%cprstash%T1r /= PETSC_NULL_VEC) then
+        call VecDestroy(solver%cprstash%T1r, ierr);CHKERRQ(ierr)
+      endif
+      if (solver%cprstash%r2 /= PETSC_NULL_VEC) then
+        call VecDestroy(solver%cprstash%r2, ierr);CHKERRQ(ierr)
+      endif
+      if (solver%cprstash%s /= PETSC_NULL_VEC) then
+        call VecDestroy(solver%cprstash%s, ierr);CHKERRQ(ierr)
+      endif
+      if (solver%cprstash%z /= PETSC_NULL_VEC) then
+        call VecDestroy(solver%cprstash%z, ierr);CHKERRQ(ierr)
+      endif
+      if (solver%cprstash%factors1vec /= PETSC_NULL_VEC) then
+        call VecDestroy(solver%cprstash%factors1vec, ierr);CHKERRQ(ierr)
+      endif
+      if (solver%cprstash%factors2vec /= PETSC_NULL_VEC) then
+        call VecDestroy(solver%cprstash%factors2vec, ierr);CHKERRQ(ierr)
+      endif
+      nullify(solver%cprstash)
+    endif
     
   deallocate(solver)
   nullify(solver)

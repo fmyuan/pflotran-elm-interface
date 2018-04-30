@@ -7,7 +7,8 @@ module Output_HDF5_module
   use Output_Common_module
   
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -482,9 +483,9 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod((option%time-output_option%periodic_snap_output_time_incr)/ &
-                output_option%periodic_snap_output_time_incr, &
-                dble(output_option%times_per_h5_file))==0) then
+        if (Equal(mod((option%time-output_option%periodic_snap_output_time_incr)/ &
+             output_option%periodic_snap_output_time_incr, &
+             dble(output_option%times_per_h5_file)),0.d0)) then
           first = PETSC_TRUE
         else
           first = PETSC_FALSE
@@ -733,9 +734,9 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod((option%time-output_option%periodic_snap_output_time_incr)/ &
-                output_option%periodic_snap_output_time_incr, &
-                dble(output_option%times_per_h5_file))==0) then
+        if (Equal(mod((option%time-output_option%periodic_snap_output_time_incr)/ &
+             output_option%periodic_snap_output_time_incr, &
+             dble(output_option%times_per_h5_file)),0.d0)) then
           first = PETSC_TRUE
         else
           first = PETSC_FALSE
@@ -1171,9 +1172,9 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod((option%time-output_option%periodic_snap_output_time_incr)/ &
-                output_option%periodic_snap_output_time_incr, &
-                dble(output_option%times_per_h5_file))==0) then
+        if (Equal(mod((option%time-output_option%periodic_snap_output_time_incr)/ &
+             output_option%periodic_snap_output_time_incr, &
+             dble(output_option%times_per_h5_file)),0.d0)) then
           first = PETSC_TRUE
         else
           first = PETSC_FALSE
@@ -1523,17 +1524,11 @@ subroutine WriteHDF5FluxVelocities(name,realization_base,iphase,direction, &
   type(output_option_type), pointer :: output_option
     
   PetscReal, allocatable :: array(:)
-  PetscReal, pointer :: vec_ptr(:)
 
   PetscBool, save :: trick_flux_vel_x = PETSC_FALSE
   PetscBool, save :: trick_flux_vel_y = PETSC_FALSE
   PetscBool, save :: trick_flux_vel_z = PETSC_FALSE
 
-  Vec :: global_vec
-
-  type(connection_set_list_type), pointer :: connection_set_list
-  type(connection_set_type), pointer :: cur_connection_set
-    
   discretization => realization_base%discretization
   patch => realization_base%patch
   grid => patch%grid
@@ -1601,44 +1596,10 @@ subroutine WriteHDF5FluxVelocities(name,realization_base,iphase,direction, &
       endif
       if (trick_flux_vel_z) trick_hdf5 = PETSC_TRUE
   end select  
+
   allocate(array(nx_local*ny_local*nz_local))
-
-
-  call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
-                                  option) 
-  call VecZeroEntries(global_vec,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
-  
-  ! place interior velocities in a vector
-  connection_set_list => grid%internal_connection_set_list
-  cur_connection_set => connection_set_list%first
-  do 
-    if (.not.associated(cur_connection_set)) exit
-    do iconn = 1, cur_connection_set%num_connections
-      ghosted_id = cur_connection_set%id_up(iconn)
-      local_id = grid%nG2L(ghosted_id) ! = zero for ghost nodes
-      ! velocities are stored as the downwind face of the upwind cell
-      if (local_id <= 0 .or. &
-          dabs(cur_connection_set%dist(direction,iconn)) < 0.99d0) cycle
-      vec_ptr(local_id) = patch%internal_velocities(iphase,iconn)
-    enddo
-    cur_connection_set => cur_connection_set%next
-  enddo
-
-  count = 0
-  do k=1,nz_local
-    do j=1,ny_local
-      do i=1,nx_local
-        count = count + 1
-        local_id = i + (j-1)*grid%structured_grid%nlx + &
-                   (k-1)*grid%structured_grid%nlxy
-        array(count) = vec_ptr(local_id) 
-      enddo
-    enddo
-  enddo
-  call VecRestoreArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
-  
-  call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+  call OutputCollectVelocityOrFlux(realization_base, iphase, direction, &
+                                   PETSC_FALSE, array)
   
   array(1:nx_local*ny_local*nz_local) = &  ! convert time units
     array(1:nx_local*ny_local*nz_local) * output_option%tconv

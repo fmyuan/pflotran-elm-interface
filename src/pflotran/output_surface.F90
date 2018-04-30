@@ -9,7 +9,8 @@ module Output_Surface_module
   use Output_Tecplot_module
   
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -822,9 +823,9 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod((option%time-output_option%periodic_snap_output_time_incr)/ &
-                output_option%periodic_snap_output_time_incr, &
-                dble(output_option%times_per_h5_file))==0) then
+        if (Equal(mod((option%time-output_option%periodic_snap_output_time_incr)/ &
+             output_option%periodic_snap_output_time_incr, &
+             dble(output_option%times_per_h5_file)),0.d0)) then
           first = PETSC_TRUE
         else
           first = PETSC_FALSE

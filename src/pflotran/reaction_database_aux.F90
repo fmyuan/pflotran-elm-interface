@@ -116,7 +116,7 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
     select case(word)
       case('+')
       case('-')
-      case('=','<=>','<->')
+      case('=','<=>','<->','->','=>')
       case default
       ! try reading as double precision
       string2 = word
@@ -168,7 +168,7 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
         else
           negative_flag = PETSC_TRUE
         endif
-      case('=','<=>','<->')
+      case('=','<=>','<->','->','=>')
         midpoint = icount
       case default
         ! try reading as double precision
