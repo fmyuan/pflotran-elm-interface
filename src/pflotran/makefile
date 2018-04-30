@@ -62,22 +62,6 @@ ifdef internal_mass_flux
   MYFLAGS += ${FC_DEFINE_FLAG}COMPUTE_INTERNAL_MASS_FLUX
 endif
 
-ifdef fmdm
-  MYFLAGS += ${FC_DEFINE_FLAG}FMDM_MODEL
-endif
-
-ifdef ye_flux
-  MYFLAGS += ${FC_DEFINE_FLAG}YE_FLUX
-endif
-
-ifdef solid_solution
-  MYFLAGS += ${FC_DEFINE_FLAG}SOLID_SOLUTION
-endif
-
-ifdef dbl
-  MYFLAGS += ${FC_DEFINE_FLAG}DOUBLE_LAYER
-endif
-
 ifdef condnr
   MYFLAGS += ${FC_DEFINE_FLAG}CONDNR
 endif
@@ -90,20 +74,12 @@ ifdef no_vapor_diffusion
   MYFLAGS += ${FC_DEFINE_FLAG}NO_VAPOR_DIFFUSION
 endif
 
-ifdef coll
-  MYFLAGS += ${FC_DEFINE_FLAG}COLL
-endif
-
 ifdef have_hdf5
   MYFLAGS += -I$(HDF5_INCLUDE) -I$(HDF5_LIB) ${FC_DEFINE_FLAG}PETSC_HAVE_HDF5
 endif
 
 ifdef ugrid_debug
   MYFLAGS += ${FC_DEFINE_FLAG}UGRID_DEBUG
-endif
-
-ifdef amanzi_bgd
-  MYFLAGS += ${FC_DEFINE_FLAG}AMANZI_BGD
 endif
 
 ifdef surface_th_debug
@@ -120,15 +96,6 @@ endif
 
 ifdef smoothing2
   MYFLAGS += ${FC_DEFINE_FLAG}SMOOTHING2
-endif
-
-ifdef use_matseqaij_fix
-  MYFLAGS += ${FC_DEFINE_FLAG}USE_MATSEQAIJ_FIX
-endif
-
-UPDATE_PROVENANCE=0
-ifdef provenance
-  UPDATE_PROVENANCE=1
 endif
 
 ifdef have_hdf5
@@ -172,7 +139,7 @@ FPPFLAGS = ${MYFLAGS}
 # FC_FLAGS is defined in ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables
 
 # List of files to remove when running "make clean-pflotran"
-CLEANFILES       = pflotran make.log $(SRC_DIR)/pflotran_provenance.F90
+CLEANFILES       = pflotran make.log
 
 ###############################################################################
 # Lists all files that PFLOTRAN (and other targets) depends on 
@@ -203,8 +170,6 @@ util_obj  = \
 	${common_src}variables.o
 
 eos_obj = \
-	${common_src}co2_sw.o \
-	${common_src}co2_span_wagner_spline.o \
 	${common_src}eos.o \
 	${common_src}eos_database.o \
 	${common_src}eos_gas.o \
@@ -220,29 +185,22 @@ mode_aux_obj = \
 	${common_src}pm_auxiliary.o \
 	${common_src}pm_base.o \
 	${common_src}pm_base_pointer.o \
-	${common_src}pm_richards.o \
 	${common_src}pm_rt.o \
 	${common_src}pm_subsurface_flow.o \
 	${common_src}pm_surface_flow.o \
 	${common_src}pm_surface_th.o \
 	${common_src}pm_surface.o \
 	${common_src}pm_th.o \
-	${common_src}richards_aux.o \
 	${common_src}th_aux.o \
 	${common_src}inlinesurface_aux.o
 
 mode_obj = \
 	${common_src}global.o \
 	${common_src}reactive_transport.o \
-	${common_src}richards.o \
-	${common_src}richards_common.o \
 	${common_src}th.o \
 	${common_src}inlinesurface.o
 
 shared_mode_aux_obj = \
-	${common_src}co2eos.o \
-	${common_src}co2_span_wagner.o \
-	${common_src}co2_sw_rtsafe.o \
 	${common_src}eos_water.o \
 	${common_src}geometry.o \
 	${common_src}global_aux.o \
@@ -258,28 +216,20 @@ chem_obj = \
 	${common_src}reaction_gas_aux.o \
 	${common_src}reaction_immobile.o \
 	${common_src}reaction_immobile_aux.o \
-	${common_src}reaction_microbial.o \
-	${common_src}reaction_microbial_aux.o \
 	${common_src}reaction_mineral.o \
 	${common_src}reaction_mineral_aux.o \
 	${common_src}reaction.o \
 	${common_src}reaction_aux.o \
-	${common_src}reaction_clm.o \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
-	${common_src}reaction_sandbox_clm_cn.o \
-	${common_src}reaction_sandbox_degas.o \
 	${common_src}reaction_sandbox_denitr.o \
+	${common_src}reaction_sandbox_degas.o \
 	${common_src}reaction_sandbox_langmu.o \
-	${common_src}reaction_sandbox_microbial.o \
+    ${common_src}reaction_sandbox_microbial.o \
 	${common_src}reaction_sandbox_nitrif.o \
 	${common_src}reaction_sandbox_plantn.o \
 	${common_src}reaction_sandbox_somdec.o \
-	${common_src}clm_rspfuncs.o \
-	${common_src}reaction_solid_solution.o \
-	${common_src}reaction_solid_solution_aux.o \
-	${common_src}reaction_surf_complex.o \
-	${common_src}reaction_surf_complex_aux.o 
+	${common_src}clm_rspfuncs.o
 
 grid_obj = \
 	${common_src}connection.o \
@@ -345,10 +295,6 @@ misc_obj = \
 	${common_src}data_mediator_vec.o \
 	${common_src}data_mediator_base.o \
 	${common_src}debug.o \
-	${common_src}e4d_mat_inv.o \
-	${common_src}e4d_run.o \
-	${common_src}e4d_setup.o \
-	${common_src}e4d_vars.o \
 	${common_src}factory_pflotran.o \
 	${common_src}factory_subsurface.o \
 	${common_src}field.o \
@@ -382,7 +328,6 @@ misc_obj = \
 	${common_src}timestepper_BE.o \
 	${common_src}timestepper_steady.o \
 	${common_src}transport.o \
-	${common_src}uniform_velocity.o \
 	${common_src}waypoint.o
 	
 surface_obj = \
@@ -429,16 +374,6 @@ pflotran : $(pflotran_obj)
 # PFLOTRAN as a library
 libpflotran.a : $(pflotran_obj)
 	$(AR) $(ARFLAGS) $@ $(pflotran_obj)
-
-$(SRC_DIR)/pflotran_provenance.F90 : FORCE
-ifeq ($(UPDATE_PROVENANCE),1)
-	@-rm pflotran_provenance.o pflotran_provenance_module.mod $(SRC_DIR)/pflotran_provenance.F90; \
-	$(PYTHON) $(SRC_DIR)/pflotran-provenance.py \
-		--pflotran-fflags "${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS}" \
-		--petsc-config "${CONFIGURE_OPTIONS}";
-else
-	@if test ! -f $(SRC_DIR)/pflotran_provenance.F90; then cp $(SRC_DIR)/pflotran_no_provenance.F90 $(SRC_DIR)/pflotran_provenance.F90; fi;
-endif
 
 ###############################################################################
 # Dependencies

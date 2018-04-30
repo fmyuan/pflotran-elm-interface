@@ -289,8 +289,7 @@ recursive subroutine PMRTInitializeRun(this)
   ! Date: 03/18/13
   ! 
 
-  use Reactive_Transport_module, only : RTUpdateEquilibriumState, &
-                                        RTJumpStartKineticSorption
+  use Reactive_Transport_module, only : RTUpdateEquilibriumState
   use Condition_Control_module
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Reactive_Transport_module, only : RTUpdateAuxVars, &
@@ -348,9 +347,7 @@ recursive subroutine PMRTInitializeRun(this)
         '(non-restarted) simulation.'
       call printErrMsg(this%option)
     endif
-    call RTJumpStartKineticSorption(this%realization)
   endif
-  ! check on MAX_STEPS < 0 to quit after initialization.
 #endif  
     
 end subroutine PMRTInitializeRun
@@ -1201,7 +1198,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
   use Field_module
   use Discretization_module
   use Grid_module
-  use Reactive_Transport_module, only : RTCheckpointKineticSorptionBinary  
+
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
@@ -1306,12 +1303,6 @@ subroutine PMRTCheckpointBinary(this,viewer)
         call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
       enddo
     endif
-    ! sorbed concentrations for multirate kinetic sorption
-    if (realization%reaction%surface_complexation%nkinmrsrfcplxrxn > 0 .and. &
-        .not.option%transport%no_checkpoint_kinetic_sorption) then
-      ! PETSC_TRUE flag indicates write to file
-      call RTCheckpointKineticSorptionBinary(realization,viewer,PETSC_TRUE)
-    endif
     ! auxiliary data for reactions (e.g. cumulative mass)
     if (realization%reaction%nauxiliary> 0) then
       do i = 1, realization%reaction%nauxiliary
@@ -1345,8 +1336,7 @@ subroutine PMRTRestartBinary(this,viewer)
   use Field_module
   use Discretization_module
   use Grid_module
-  use Reactive_Transport_module, only : RTCheckpointKineticSorptionBinary, &
-                                        RTUpdateAuxVars
+  use Reactive_Transport_module, only : RTUpdateAuxVars
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
@@ -1446,16 +1436,6 @@ subroutine PMRTRestartBinary(this,viewer)
       endif
     enddo
   endif
-  ! sorbed concentrations for multirate kinetic sorption
-  if (realization%reaction%surface_complexation%nkinmrsrfcplxrxn > 0 .and. &
-      .not.option%transport%no_checkpoint_kinetic_sorption .and. &
-      ! we need to fix this.  We need something to skip over the reading
-      ! of sorbed concentrations altogether if they do not exist in the
-      ! checkpoint file
-      .not.option%transport%no_restart_kinetic_sorption) then
-    ! PETSC_FALSE flag indicates read from file
-    call RTCheckpointKineticSorptionBinary(realization,viewer,PETSC_FALSE)
-  endif
   ! auxiliary data for reactions (e.g. cumulative mass)
   if (realization%reaction%nauxiliary> 0) then
     do i = 1, realization%reaction%nauxiliary
@@ -1512,7 +1492,7 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
   use Field_module
   use Discretization_module
   use Grid_module
-  use Reactive_Transport_module, only : RTCheckpointKineticSorptionHDF5
+
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
@@ -1662,12 +1642,6 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
       enddo
     endif
 
-    if (realization%reaction%surface_complexation%nkinmrsrfcplxrxn > 0 .and. &
-        .not.option%transport%no_checkpoint_kinetic_sorption) then
-      ! PETSC_TRUE flag indicates write to file
-      call RTCheckpointKineticSorptionHDF5(realization, pm_grp_id, PETSC_TRUE)
-    endif
-
     ! auxiliary data for reactions (e.g. cumulative mass)
     if (realization%reaction%nauxiliary> 0) then
       do i = 1, realization%reaction%nauxiliary
@@ -1717,8 +1691,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   use Field_module
   use Discretization_module
   use Grid_module
-  use Reactive_Transport_module, only : RTCheckpointKineticSorptionHDF5, &
-                                        RTUpdateAuxVars
+  use Reactive_Transport_module, only : RTUpdateAuxVars
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
@@ -1870,12 +1843,6 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
         call RealizationSetVariable(realization, local_vec, LOCAL, &
                                    MINERAL_VOLUME_FRACTION,i)
       enddo
-    endif
-
-    if (realization%reaction%surface_complexation%nkinmrsrfcplxrxn > 0 .and. &
-        .not.option%transport%no_checkpoint_kinetic_sorption) then
-      ! PETSC_TRUE flag indicates write to file
-      call RTCheckpointKineticSorptionHDF5(realization, pm_grp_id, PETSC_TRUE)
     endif
 
     ! auxiliary data for reactions (e.g. cumulative mass)

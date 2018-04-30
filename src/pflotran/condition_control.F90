@@ -479,7 +479,6 @@ subroutine CondControlAssignTranInitCond(realization)
               constraint_coupler%aqueous_species, &
               constraint_coupler%free_ion_guess, &
               constraint_coupler%minerals, &
-              constraint_coupler%surface_complexes, &
               constraint_coupler%colloids, &
               constraint_coupler%immobile_species, &
               constraint_coupler%num_iterations, &
@@ -495,7 +494,6 @@ subroutine CondControlAssignTranInitCond(realization)
               constraint_coupler%aqueous_species, &
               constraint_coupler%free_ion_guess, &
               constraint_coupler%minerals, &
-              constraint_coupler%surface_complexes, &
               constraint_coupler%colloids, &
               constraint_coupler%immobile_species, &
               constraint_coupler%num_iterations, &
@@ -537,31 +535,6 @@ subroutine CondControlAssignTranInitCond(realization)
                 constraint_coupler%minerals%constraint_area(imnrl)
             endif
           enddo
-        endif
-        ! kinetic surface complexes
-        if (associated(constraint_coupler%surface_complexes)) then
-          do idof = 1, reaction%surface_complexation%nkinsrfcplx
-            rt_auxvars(ghosted_id)%kinsrfcplx_conc(idof,-1) = & !geh: to catch bug
-              constraint_coupler%surface_complexes%constraint_conc(idof)
-          enddo
-          do ikinrxn = 1, reaction%surface_complexation%nkinsrfcplxrxn
-            irxn = reaction%surface_complexation%kinsrfcplxrxn_to_srfcplxrxn(ikinrxn)
-            isite = reaction%surface_complexation%srfcplxrxn_to_surf(irxn)
-            rt_auxvars(ghosted_id)%kinsrfcplx_free_site_conc(isite) = &
-              constraint_coupler%surface_complexes%basis_free_site_conc(isite)
-          enddo
-        endif
-        ! this is for the multi-rate surface complexation model
-        if (reaction%surface_complexation%nkinmrsrfcplxrxn > 0 .and. &
-          ! geh: if we re-equilibrate at each grid cell, we do not want to
-          ! overwrite the reequilibrated values with those from the constraint
-            .not. re_equilibrate_at_each_cell) then
-          ! copy over total sorbed concentration
-          rt_auxvars(ghosted_id)%kinmr_total_sorb = &
-            constraint_coupler%rt_auxvar%kinmr_total_sorb
-          ! copy over free site concentration
-          rt_auxvars(ghosted_id)%srfcplxrxn_free_site_conc = &
-            constraint_coupler%rt_auxvar%srfcplxrxn_free_site_conc
         endif
         ! colloids fractions
         if (associated(constraint_coupler%colloids)) then
@@ -835,7 +808,7 @@ subroutine CondControlScaleSourceSink(realization)
         ghosted_id = grid%nL2G(local_id)
 
         select case(option%iflowmode)
-          case(RICHARDS_MODE)
+          case(TH_MODE)
               call GridGetGhostedNeighbors(grid,ghosted_id,DMDA_STENCIL_STAR, &
                                           x_width,y_width,z_width, &
                                           x_count,y_count,z_count, &
@@ -873,8 +846,7 @@ subroutine CondControlScaleSourceSink(realization)
                             grid%structured_grid%dy(neighbor_ghosted_id)
               enddo
               vec_ptr(local_id) = vec_ptr(local_id) + sum
-          case(TH_MODE)
-        end select
+         end select
 
       enddo
         
@@ -887,10 +859,9 @@ subroutine CondControlScaleSourceSink(realization)
       do iconn = 1, cur_connection_set%num_connections      
         local_id = cur_connection_set%id_dn(iconn)
         select case(option%iflowmode)
-          case(RICHARDS_MODE)
+          case(TH_MODE)
             cur_source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
               vec_ptr(local_id)
-          case(TH_MODE)
         end select
 
       enddo
@@ -1057,7 +1028,7 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
 
     select case(option%iflowmode)
       
-      case (RICHARDS_MODE,TH_MODE)
+      case (TH_MODE)
         ! assign initial conditions values to domain
         call VecGetArrayF90(surf_field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
     

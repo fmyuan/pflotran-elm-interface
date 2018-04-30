@@ -898,50 +898,6 @@ subroutine FlowConditionRead(condition,input,option)
       if (associated(energy_flux)) condition%itype(TWO_INTEGER) = energy_flux%itype
       if (associated(energy_rate)) condition%itype(TWO_INTEGER) = energy_rate%itype
     
-    case(RICHARDS_MODE)
-      if (.not.associated(pressure) .and. .not.associated(rate) .and. &
-          .not.associated(saturation) .and. .not.associated(well)) then
-        option%io_buffer = 'pressure, rate and saturation condition null in &
-                           &condition: ' // trim(condition%name)
-        call printErrMsg(option)
-      endif
-
-      if (associated(saturation)) then
-        condition%saturation => saturation
-      endif
-      if (associated(pressure)) then
-        condition%pressure => pressure
-      endif
-      if (associated(rate)) then
-        condition%rate => rate
-      endif
-            
-      condition%num_sub_conditions = 1
-      allocate(condition%sub_condition_ptr(condition%num_sub_conditions))
-      if (associated(pressure)) then
-        condition%sub_condition_ptr(ONE_INTEGER)%ptr => pressure
-      elseif (associated(saturation)) then
-        condition%sub_condition_ptr(ONE_INTEGER)%ptr => saturation
-      elseif (associated(rate)) then
-        condition%sub_condition_ptr(ONE_INTEGER)%ptr => rate
-      elseif (associated(well)) then
-        condition%sub_condition_ptr(ONE_INTEGER)%ptr => well
-      endif
-
-      allocate(condition%itype(ONE_INTEGER))
-      if (associated(pressure)) then
-        condition%itype(ONE_INTEGER) = pressure%itype
-      else if (associated(saturation)) then
-        condition%itype(ONE_INTEGER) = saturation%itype
-      else if (associated(rate)) then
-        condition%itype(ONE_INTEGER) = rate%itype
-      else if (associated(well)) then
-        condition%itype(ONE_INTEGER) = well%itype
-      endif
-
-      ! these are not used with richards
-      if (associated(temperature)) call FlowSubConditionDestroy(temperature)
-      if (associated(enthalpy)) call FlowSubConditionDestroy(enthalpy)
 
   end select
 
@@ -1099,7 +1055,7 @@ subroutine TranConditionRead(condition,constraint_list,reaction,input,option)
         call TranConstraintAddToList(constraint,constraint_list)
         constraint_coupler%aqueous_species => constraint%aqueous_species
         constraint_coupler%minerals => constraint%minerals
-        constraint_coupler%surface_complexes => constraint%surface_complexes
+
         constraint_coupler%colloids => constraint%colloids
         constraint_coupler%immobile_species => constraint%immobile_species
         constraint_coupler%time = default_time
@@ -2025,8 +1981,6 @@ subroutine TranCondInputRecord(tran_condition_list,option)
               string = trim(string) // ', mineral'
             case(CONSTRAINT_GAS)
               string = trim(string) // ', gas'
-            case(CONSTRAINT_SUPERCRIT_CO2)
-              string = trim(string) // ', super critical CO2'
             case(CONSTRAINT_CHARGE_BAL)
               string = trim(string) // ', charge balance'
           end select
@@ -2063,16 +2017,6 @@ subroutine TranCondInputRecord(tran_condition_list,option)
         enddo
       endif
 
-      ! surface complexes constraint
-      if (associated(cur_tcon_coupler%surface_complexes)) then
-        do k = 1,size(cur_tcon_coupler%surface_complexes%names)
-          write(id,'(a29)',advance='no') 'surface complex constraint: '
-          write(string,*) trim(cur_tcon_coupler%surface_complexes%names(k))
-          write(word1,*) cur_tcon_coupler%surface_complexes%constraint_conc(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' mol/m^3'
-        enddo
-      endif
 
       ! colloids constraint
       if (associated(cur_tcon_coupler%colloids)) then

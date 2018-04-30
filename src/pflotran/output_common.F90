@@ -1665,7 +1665,6 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   use Field_module
   use Connection_module
   use Global_Aux_module
-  use Richards_Aux_module
   use Material_Aux_class
 
   implicit none

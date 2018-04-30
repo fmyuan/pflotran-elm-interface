@@ -244,7 +244,7 @@ subroutine OutputHydrograph(surf_realization)
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
       !patch%boundary_velocities(1,sum_connection)
-      sum_flux = sum_flux + patch%boundary_flow_fluxes(RICHARDS_PRESSURE_DOF,sum_connection)
+      sum_flux = sum_flux + patch%boundary_flow_fluxes(TH_PRESSURE_DOF,sum_connection)
     enddo
     
     call MPI_Reduce(sum_flux,sum_flux_global, &
@@ -1746,8 +1746,6 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
   call printErrMsg(option)
 #else
   select case(option%iflowmode)
-    case (RICHARDS_MODE)
-      ndof=1
     case (TH_MODE)
       ndof=1
       if (output_option%print_hdf5_mass_flowrate.and.output_option%print_hdf5_energy_flowrate) ndof = 2
@@ -1786,8 +1784,6 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
     if (dof==2 .and. (.not.energy_flowrate)) exit
 
     select case(option%iflowmode)
-      case(RICHARDS_MODE)
-        string = "Mass_Flowrate [kg_s]" // CHAR(0)
       case(TH_MODE)
         if (dof==1) then
           string = "Mass_Flowrate [kg_s]" // CHAR(0)

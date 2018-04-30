@@ -771,7 +771,7 @@ subroutine SurfaceFlowBCFlux(ibndtype, &
   end select
   
   flux = head*vel
-  Res(RICHARDS_PRESSURE_DOF) = flux*length
+  Res(TH_PRESSURE_DOF) = flux*length
 
 end subroutine SurfaceFlowBCFlux
 
@@ -855,9 +855,9 @@ subroutine SurfaceFlowUpdateAuxVars(surf_realization)
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
 
-        select case(boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF))
+        select case(boundary_condition%flow_condition%itype(TH_PRESSURE_DOF))
           case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,HET_DIRICHLET_BC)
-            xxbc(1) = boundary_condition%flow_aux_real_var(RICHARDS_PRESSURE_DOF,iconn)
+            xxbc(1) = boundary_condition%flow_aux_real_var(TH_PRESSURE_DOF,iconn)
           case(NEUMANN_BC,ZERO_GRADIENT_BC)
             xxbc(1) = xx_loc_p(ghosted_id)
         end select

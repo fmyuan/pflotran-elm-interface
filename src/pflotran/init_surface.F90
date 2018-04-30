@@ -214,9 +214,9 @@ subroutine InitSurfaceSetupRealization(surf_realization,subsurf_realization, &
 
   ! Check if surface-flow is compatible with the given flowmode
   select case(option%iflowmode)
-    case(RICHARDS_MODE,TH_MODE)
+    case(TH_MODE)
     case default
-      option%io_buffer = 'For surface-flow only RICHARDS and TH mode implemented'
+      option%io_buffer = 'For surface-flow only TH mode implemented'
       call printErrMsgByRank(option)
   end select
 
@@ -236,9 +236,6 @@ subroutine InitSurfaceSetupRealization(surf_realization,subsurf_realization, &
   call RealizSurfAddWaypointsToList(surf_realization,waypoint_list)
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
-      call SurfaceFlowSetup(surf_realization)
-    case default
     case(TH_MODE)
       call SurfaceTHSetup(surf_realization)
   end select
@@ -257,8 +254,6 @@ subroutine InitSurfaceSetupRealization(surf_realization,subsurf_realization, &
   endif
   
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
-      call SurfaceFlowUpdateAuxVars(surf_realization)
     case(TH_MODE)
       call SurfaceTHUpdateAuxVars(surf_realization)
     case default

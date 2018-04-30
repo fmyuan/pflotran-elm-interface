@@ -158,7 +158,6 @@ set(UTIL_SOURCES
 	option_transport.F90
 	output_aux.F90
 	pflotran_constants.F90
-	pflotran_no_provenance.F90
 	string.F90
 	units.F90
 	utility.F90
@@ -167,8 +166,6 @@ set(UTIL_SOURCES
 )
 
 set(EOS_SOURCES
-	co2_sw.F90
-	co2_span_wagner_spline.F90
 	eos.F90
 	eos_database.F90
 	eos_gas.F90
@@ -243,7 +240,6 @@ set(MODE_SOURCES
 
 set(SHARD_MODE_AUX_SOURCES
 	co2eos.F90
-	co2_span_wagner.F90
 	co2_sw_rtsafe.F90
 	eos_water.F90
 	geometry.F90
@@ -261,24 +257,12 @@ set(CHEM_SOURCES
 	reaction_gas_aux.F90
 	reaction_immobile.F90
 	reaction_immobile_aux.F90
-	reaction_microbial.F90
-	reaction_microbial_aux.F90
 	reaction_mineral.F90
 	reaction_mineral_aux.F90
 	reaction.F90
 	reaction_aux.F90
-	reaction_clm.F90
 	reaction_sandbox.F90
 	reaction_sandbox_base.F90
-	reaction_sandbox_clm_cn.F90
-	reaction_sandbox_example.F90
-	reaction_sandbox_pnnl_cyber.F90
-	reaction_sandbox_simple.F90
-	reaction_sandbox_ufd_wp.F90
-	reaction_solid_solution.F90
-	reaction_solid_solution_aux.F90
-	reaction_surf_complex.F90
-	reaction_surf_complex_aux.F90 
 )
 
 set(GRID_SOURCES

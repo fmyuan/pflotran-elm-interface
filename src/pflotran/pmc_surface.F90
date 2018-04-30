@@ -149,8 +149,6 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
     cur_pm => this%pm_list
 
     select case(this%option%iflowmode)
-      case (RICHARDS_MODE)
-        call SurfaceFlowComputeMaxDt(this%surf_realization,dt_max_loc)
       case (TH_MODE)
         call SurfaceTHComputeMaxDt(this%surf_realization,dt_max_loc)
     end select
@@ -312,18 +310,6 @@ subroutine PMCSurfaceGetAuxData(this)
     select type(pmc => this)
       class is(pmc_surface_type)
         select case(this%option%iflowmode)
-          case (RICHARDS_MODE)
-            call VecScatterBegin(pmc%sim_aux%subsurf_to_surf, &
-                                 pmc%sim_aux%subsurf_pres_top_bc, &
-                                 pmc%surf_realization%surf_field%press_subsurf, &
-                                 INSERT_VALUES,SCATTER_FORWARD, &
-                                 ierr);CHKERRQ(ierr)
-            call VecScatterEnd(pmc%sim_aux%subsurf_to_surf, &
-                               pmc%sim_aux%subsurf_pres_top_bc, &
-                               pmc%surf_realization%surf_field%press_subsurf, &
-                               INSERT_VALUES,SCATTER_FORWARD, &
-                               ierr);CHKERRQ(ierr)
-            call SurfaceFlowUpdateSurfState(pmc%surf_realization)
           case (TH_MODE)
             call VecScatterBegin(pmc%sim_aux%subsurf_to_surf, &
                                  pmc%sim_aux%subsurf_pres_top_bc, &
@@ -413,9 +399,6 @@ subroutine PMCSurfaceSetAuxData(this)
 
         select case(this%option%iflowmode)
 
-          case (RICHARDS_MODE)
-            call VecCopy(pmc%surf_realization%surf_field%flow_xx, &
-                         pmc%sim_aux%surf_head, ierr);CHKERRQ(ierr)
           case (TH_MODE)
 
             surf_realization => pmc%surf_realization
@@ -559,40 +542,6 @@ subroutine PMCSurfaceGetAuxDataAfterRestart(this)
     select type(pmc => this)
       class is(pmc_surface_type)
         select case(this%option%iflowmode)
-          case (RICHARDS_MODE)
-
-            call EOSWaterdensity(this%option%reference_temperature, &
-                                 this%option%reference_pressure,den,dum1,ierr)
-
-            call VecGetArrayF90(pmc%surf_realization%surf_field%flow_xx, xx_p,  &
-                                ierr);CHKERRQ(ierr)
-            call VecGetArrayF90(pmc%surf_realization%surf_field%press_subsurf, surfpress_p,  &
-                                ierr);CHKERRQ(ierr)
-            count = 0
-            do ghosted_id = 1, pmc%surf_realization%discretization%grid%ngmax
-
-              local_id = pmc%surf_realization%discretization%grid%nG2L(ghosted_id)
-              if (local_id <= 0) cycle
-
-              count = count + 1
-              surfpress_p(count) = xx_p(ghosted_id)*den*abs(this%option%gravity(3)) + &
-                                   this%option%reference_pressure
-            enddo
-            call VecRestoreArrayF90(pmc%surf_realization%surf_field%flow_xx, xx_p,  &
-                                    ierr);CHKERRQ(ierr)
-            call VecRestoreArrayF90(pmc%surf_realization%surf_field%press_subsurf, surfpress_p,  &
-                                    ierr);CHKERRQ(ierr)
-
-            call VecScatterBegin(pmc%sim_aux%subsurf_to_surf, &
-                                 pmc%surf_realization%surf_field%press_subsurf, &
-                                 pmc%sim_aux%subsurf_pres_top_bc, &
-                                 INSERT_VALUES,SCATTER_REVERSE, &
-                                 ierr);CHKERRQ(ierr)
-            call VecScatterEnd(pmc%sim_aux%subsurf_to_surf, &
-                               pmc%surf_realization%surf_field%press_subsurf, &
-                               pmc%sim_aux%subsurf_pres_top_bc, &
-                               INSERT_VALUES,SCATTER_REVERSE, &
-                               ierr);CHKERRQ(ierr)
 
           case (TH_MODE)
 

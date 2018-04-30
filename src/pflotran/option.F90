@@ -580,17 +580,12 @@ subroutine OptionInitRealization(option)
   option%steady_state = PETSC_FALSE
 
   option%itable = 0
-  option%co2eos = EOS_SPAN_WAGNER
-  option%co2_database_filename = ''
 
-! option%idt_switch = 1
   option%idt_switch = -1
 
   option%use_matrix_buffer = PETSC_FALSE
   option%status = PROCEED
   option%force_newton_iteration = PETSC_FALSE
-  !option%print_explicit_primal_grid = PETSC_FALSE
-  !option%print_explicit_dual_grid = PETSC_FALSE
   option%secondary_continuum_solver = 1
 
   ! initially set to a large value to effectively disable

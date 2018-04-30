@@ -1142,7 +1142,7 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
     endif
   enddo
 
-  if (option%iflowmode /= RICHARDS_MODE) then
+  if (option%iflowmode == TH_MODE) then
     allocate(material_parameter%soil_heat_capacity(num_mat_prop))
     allocate(material_parameter%soil_thermal_conductivity(2,num_mat_prop))
     material_parameter%soil_heat_capacity = UNINITIALIZED_DOUBLE

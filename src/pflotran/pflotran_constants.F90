@@ -32,19 +32,12 @@ module PFLOTRAN_Constants_module
   PetscReal, parameter, public :: FMWH2O = 18.01534d0  ! kg/kmol h2o
   PetscReal, parameter, public :: FMWCO2 = 44.0098d0
   PetscReal, parameter, public :: FMWAIR = 28.96d0
-  PetscReal, parameter, public :: FMWGLYC = 76.09d0 ! propylene glycol (C3H8O2)
   PetscReal, parameter, public :: FMWOIL = 142.D0 ! used as deafault value
 
   ! constants
   PetscReal, parameter, public :: DAYS_PER_YEAR = 365.d0
-!geh: for bragflo year
-!  PetscReal, parameter, public :: DAYS_PER_YEAR = 365.24224537d0
   PetscReal, parameter, public :: H2O_CRITICAL_TEMPERATURE = 647.3d0  ! K
-#if defined(MATCH_TOUGH2)
-  PetscReal, parameter, public :: H2O_CRITICAL_PRESSURE = 22.12d6 ! Pa
-#else
   PetscReal, parameter, public :: H2O_CRITICAL_PRESSURE = 22.064d6 ! Pa
-#endif
 
   ! conversion factors
   PetscReal, parameter, public :: LOG_TO_LN = 2.30258509299d0
@@ -112,7 +105,6 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: NFLOWDOF = 4
   PetscInt, parameter, public :: NTRANDOF = 5
   PetscInt, parameter, public :: SURF_ONEDOF = 6
-  PetscInt, parameter, public :: NGEODOF = 7
   
   PetscInt, parameter, public :: GLOBAL = 1
   PetscInt, parameter, public :: LOCAL = 2
@@ -121,15 +113,8 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: NULL_MODE = 0
   
   ! flow modes
-  PetscInt, parameter, public :: RICHARDS_MODE = 1
   PetscInt, parameter, public :: TH_MODE = 2
   
-  ! flow sub-modes
-  PetscInt, parameter, public :: TOWG_IMMISCIBLE = 1
-  PetscInt, parameter, public :: TOWG_TODD_LONGSTAFF = 2
-  PetscInt, parameter, public :: TOWG_BLACK_OIL = 3
-  PetscInt, parameter, public :: TOWG_SOLVENT_TL = 4
-
   ! transport modes
   PetscInt, parameter, public :: EXPLICIT_ADVECTION = 1
   
@@ -164,8 +149,6 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: HET_SEEPAGE_BC = 36
   PetscInt, parameter, public :: HET_CONDUCTANCE_BC = 37
   
-  PetscInt, parameter, public :: WELL_SS = 100
-  
   ! source/sink scaling options
   PetscInt, parameter, public :: SCALE_BY_PERM = 1
   PetscInt, parameter, public :: SCALE_BY_NEIGHBOR_PERM = 2
@@ -178,27 +161,14 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SRC_SINK_CONNECTION_TYPE = 4
   
   ! dofs for each mode
-  PetscInt, parameter, public :: THC_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: THC_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: THC_CONCENTRATION_DOF = 3
-  PetscInt, parameter, public :: THC_MASS_RATE_DOF = 4
-  PetscInt, parameter, public :: THC_ENTHALPY_DOF = 5
-  
   PetscInt, parameter, public :: TH_PRESSURE_DOF = 1
   PetscInt, parameter, public :: TH_TEMPERATURE_DOF = 2
   PetscInt, parameter, public :: TH_CONDUCTANCE_DOF = 3
-  
-  PetscInt, parameter, public :: RICHARDS_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: RICHARDS_CONDUCTANCE_DOF = 2
 
-  ! mphase equation of state
-  PetscInt, parameter, public :: EOS_SPAN_WAGNER = 1
-  PetscInt, parameter, public :: EOS_MRK = 2
-  
   ! phase ids
   PetscInt, parameter, public :: LIQUID_PHASE = 1
   PetscInt, parameter, public :: GAS_PHASE = 2
-  PetscInt, parameter, public :: OIL_PHASE = 3
+  PetscInt, parameter, public :: SOLID_PHASE = 3
   
   ! approaches to coupling reactive transport
   PetscInt, parameter, public :: GLOBAL_IMPLICIT = 0

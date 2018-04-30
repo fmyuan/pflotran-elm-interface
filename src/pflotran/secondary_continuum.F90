@@ -652,7 +652,6 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
                           constraint%aqueous_species, &
                           constraint%free_ion_guess, &
                           constraint%minerals, &
-                          constraint%surface_complexes, &
                           constraint%colloids, &
                           constraint%immobile_species, &
                           num_iterations, &

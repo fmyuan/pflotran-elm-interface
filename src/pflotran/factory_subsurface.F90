@@ -286,7 +286,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use Option_module
   use PM_Subsurface_Flow_class
   use PM_Base_class
-  use PM_Richards_class
+
   use PM_TH_class
 
   implicit none
@@ -305,13 +305,6 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   endif
 
   select type(pm_flow)
-    class is (pm_richards_type)
-      option%iflowmode = RICHARDS_MODE
-      option%nphase = 1
-      option%liquid_phase = 1
-      option%nflowdof = 1
-      option%nflowspec = 1
-      option%use_isothermal = PETSC_TRUE
     class is (pm_th_type)
       option%iflowmode = TH_MODE
       option%nphase = 1
@@ -338,9 +331,7 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
   use String_module
 
   use PMC_Base_class
-
   use PM_Base_class
-  use PM_Richards_class
   use PM_TH_class
   use Init_Common_module
 
@@ -368,8 +359,6 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
-          case('RICHARDS')
-            pm => PMRichardsCreate()
           case('TH')
             pm => PMTHCreate()
           case default
@@ -585,7 +574,7 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
   use PM_Base_Pointer_module
   use PM_Base_class
   use PM_Subsurface_Flow_class
-  use PM_Richards_class
+
   use PM_TH_class
   use PM_RT_class
   use Option_module
@@ -784,7 +773,6 @@ subroutine SubsurfaceJumpStart(simulation)
   use Output_Aux_module
   use Output_module, only : Output, OutputInit, OutputPrintCouplers
   use Condition_Control_module
-  use Reactive_Transport_module, only : RTJumpStartKineticSorption
 
   implicit none
 
@@ -875,7 +863,6 @@ subroutine SubsurfaceJumpStart(simulation)
         '(non-restarted) simulation.'
       call printErrMsg(option)
     endif
-    call RTJumpStartKineticSorption(realization)
   endif
 
 end subroutine SubsurfaceJumpStart
@@ -1127,10 +1114,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Timestepper_BE_class
   use Timestepper_Steady_class
   
-#ifdef SOLID_SOLUTION
-  use Reaction_Solid_Solution_module, only : SolidSolutionReadFromInputFile
-#endif
-
   implicit none
 
   class(simulation_subsurface_type) :: simulation
@@ -1775,11 +1758,9 @@ subroutine SubsurfaceReadInput(simulation,input)
       case ('CHARACTERISTIC_CURVES')
 
         if (.not.(option%iflowmode == NULL_MODE .or. &
-                  option%iflowmode == RICHARDS_MODE .or. &
                   option%iflowmode == TH_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow ' // &
-            'modes other than RICHARDS, TH, TOIL_IMS,  or GENERAL.  Use ' // &
-            'SATURATION_FUNCTION.'
+            'modes other than TH '
           call printErrMsg(option)
         endif
         characteristic_curves => CharacteristicCurvesCreate()
@@ -2470,9 +2451,8 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
       case ('ONLY_VERTICAL_FLOW')
         option%flow%only_vertical_flow = PETSC_TRUE
-        if (option%iflowmode /= TH_MODE .and. &
-            option%iflowmode /= RICHARDS_MODE) then
-          option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in RICHARDS and TH mode.'
+        if (option%iflowmode /= TH_MODE) then
+          option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in TH mode.'
           call printErrMsg(option)
         endif
 
@@ -2480,8 +2460,8 @@ subroutine SubsurfaceReadInput(simulation,input)
       case ('QUASI_3D')
         option%flow%quasi_3d = PETSC_TRUE
         option%flow%only_vertical_flow = PETSC_TRUE
-        if (option%iflowmode /= RICHARDS_MODE) then
-          option%io_buffer = 'QUASI_3D implemented in RICHARDS mode.'
+        if (option%iflowmode /= TH_MODE) then
+          option%io_buffer = 'QUASI_3D implemented in TH mode.'
           call printErrMsg(option)
         endif
 

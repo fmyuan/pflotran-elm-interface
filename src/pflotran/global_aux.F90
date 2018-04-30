@@ -147,8 +147,6 @@ subroutine GlobalAuxVarInit(auxvar,option)
   endif
  
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
-      !
     case(TH_MODE)
       allocate(auxvar%pres_store(nphase,TWO_INTEGER))
       auxvar%pres_store = 0.d0

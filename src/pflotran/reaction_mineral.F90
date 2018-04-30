@@ -626,9 +626,6 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
 
   use Option_module
   use Material_Aux_class
-#ifdef SOLID_SOLUTION
-  use Reaction_Solid_Soln_Aux_module
-#endif
   
   implicit none
   
@@ -665,13 +662,6 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
   PetscInt ::  icplx
   PetscReal :: ln_gam_m_beta
   
-#ifdef SOLID_SOLUTION
-  PetscBool :: cycle_
-  PetscReal :: rate_scale(reaction%mineral%nkinmnrl)
-  type(solid_solution_type), pointer :: cur_solid_soln
-  PetscInt :: istoich_solid
-#endif  
-
   type(mineral_type), pointer :: mineral
 
   PetscInt, parameter :: needs_to_be_fixed = 1
@@ -689,51 +679,11 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
     ln_sec_act = ln_sec+log(rt_auxvar%sec_act_coef)
   endif
 
-#ifdef SOLID_SOLUTION
-  rate_scale = 1.d0
-  if (associated(reaction%solid_solution_list)) then
-    do imnrl = 1, mineral%nkinmnrl ! for each mineral
-      call RMineralRate(imnrl,ln_act,ln_sec_act,rt_auxvar,global_auxvar, &
-                        QK,Im,Im_const,sum_prefactor_rate,affinity_factor, &
-                        prefactor,ln_prefactor_spec,cycle_, &
-                        reaction,mineral,option)
-    enddo
-  
-    cur_solid_soln => reaction%solid_solution_list
-    do
-      if (.not.associated(cur_solid_soln)) exit
-      tempreal = 0.d0
-      do istoich_solid = 1, cur_solid_soln%num_stoich_solid
-        imnrl = cur_solid_soln%stoich_solid_ids(istoich_solid)
-        ! do something with mineral ikinmnrl rate, e.g. 
-        tempreal = tempreal + rt_auxvar%mnrl_rate(imnrl)
-        !tempreal = max(tempreal,dabs(rt_auxvar%mnrl_rate(ikinmnrl))
-      enddo
-      tempreal = tempreal / dble(cur_solid_soln%num_stoich_solid)
-      do istoich_solid = 1, cur_solid_soln%num_stoich_solid
-        imnrl = cur_solid_soln%stoich_solid_ids(istoich_solid)
-        rate_scale(imnrl) = tempreal
-      enddo
-      cur_solid_soln => cur_solid_soln%next
-    enddo
-  endif
-#endif
-
   ! Zero all rates as default 
   rt_auxvar%mnrl_rate(:) = 0.d0
 
   do imnrl = 1, mineral%nkinmnrl ! for each mineral
 
-#ifdef SOLID_SOLUTION
-    call RMineralRate(imnrl,ln_act,ln_sec_act,rt_auxvar,global_auxvar, &
-                      QK,Im,Im_const,sum_prefactor_rate,affinity_factor, &
-                      prefactor,ln_prefactor_spec,cycle_, &
-                      reaction,mineral,option)
-    if (cycle_) cycle
-    
-    Im = rate_scale(imnrl)*Im
-    Im_const = rate_scale(imnrl)*Im_const
-#else
     ! compute ion activity product
     lnQK = -mineral%kinmnrl_logK(imnrl)*LOG_TO_LN
 
@@ -871,7 +821,7 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
     else ! rate is already zero by default; move on to next mineral
       cycle
     endif
-#endif
+
 
     ! scale Im_const by volume for calculating derivatives below
     ! units: m^2 mnrl

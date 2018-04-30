@@ -1939,10 +1939,6 @@ subroutine OutputPrintCouplers(realization_base,istep)
   endif
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
-      allocate(iauxvars(1),auxvar_names(1))
-      iauxvars(1) = RICHARDS_PRESSURE_DOF
-      auxvar_names(1) = 'pressure'
     case(TH_MODE)
       allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = TH_PRESSURE_DOF

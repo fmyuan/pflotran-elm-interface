@@ -1036,7 +1036,6 @@ subroutine RealProcessTranConditions(realization)
                                    cur_constraint%aqueous_species, &
                                    cur_constraint%free_ion_guess, &
                                    cur_constraint%minerals, &
-                                   cur_constraint%surface_complexes, &
                                    cur_constraint%colloids, &
                                    cur_constraint%immobile_species, &
                                    realization%option)
@@ -1049,7 +1048,6 @@ subroutine RealProcessTranConditions(realization)
                                    realization%sec_transport_constraint%aqueous_species, &
                                    realization%sec_transport_constraint%free_ion_guess, &
                                    realization%sec_transport_constraint%minerals, &
-                                   realization%sec_transport_constraint%surface_complexes, &
                                    realization%sec_transport_constraint%colloids, &
                                    realization%sec_transport_constraint%immobile_species, &
                                    realization%option)
@@ -1073,7 +1071,7 @@ subroutine RealProcessTranConditions(realization)
             cur_constraint_coupler%aqueous_species => cur_constraint%aqueous_species
             cur_constraint_coupler%free_ion_guess => cur_constraint%free_ion_guess
             cur_constraint_coupler%minerals => cur_constraint%minerals
-            cur_constraint_coupler%surface_complexes => cur_constraint%surface_complexes
+
             cur_constraint_coupler%colloids => cur_constraint%colloids
             cur_constraint_coupler%immobile_species => cur_constraint%immobile_species
             exit

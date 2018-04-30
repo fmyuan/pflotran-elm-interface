@@ -28,10 +28,8 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   use Init_Common_module
   use Material_module
   
-  use Richards_module
   use TH_module
   use Condition_Control_module
-  use co2_sw_module, only : init_span_wagner
   
   implicit none
   
@@ -48,7 +46,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(RICHARDS_MODE)
+      case(TH_MODE)
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
                            patch%characteristic_curves_array, &
@@ -57,8 +55,6 @@ subroutine InitSubsurfFlowSetupRealization(realization)
     select case(option%iflowmode)
       case(TH_MODE)
         call THSetup(realization)
-      case(RICHARDS_MODE)
-        call RichardsSetup(realization)
     end select
   
     ! assign initial conditionsRealizAssignFlowInitCond
@@ -73,8 +69,6 @@ subroutine InitSubsurfFlowSetupRealization(realization)
     select case(option%iflowmode)
       case(TH_MODE)
         call THUpdateAuxVars(realization)
-      case(RICHARDS_MODE)
-        call RichardsUpdateAuxVars(realization)
     end select
   else ! no flow mode specified
     if (len_trim(realization%nonuniform_velocity_filename) > 0) then
@@ -134,7 +128,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   field => realization%field
   patch => realization%patch
 
-  if (option%iflowmode /= RICHARDS_MODE .or. option%iflowmode /= TH_MODE) then
+  if (option%iflowmode /= TH_MODE) then
     option%io_buffer = 'Reading of flow initial conditions from HDF5 ' // &
                        'file (' // trim(filename) // &
                        'not currently not supported for mode: ' // &
@@ -151,9 +145,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
     call VecGetArrayF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
 
     ! Pressure for all modes 
-    if (option%iflowmode == RICHARDS_MODE) then
-      offset = RICHARDS_PRESSURE_DOF
-    elseif (option%iflowmode == TH_MODE) then
+    if (option%iflowmode == TH_MODE) then
       offset = TH_PRESSURE_DOF
     endif
     !offset = 1

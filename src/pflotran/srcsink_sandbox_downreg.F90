@@ -253,7 +253,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
   PetscInt :: idof
   
   do idof = 1, option%nflowdof
-    if (option%iflowmode == RICHARDS_MODE .and. idof == ONE_INTEGER) then
+    if (option%iflowmode == TH_MODE .and. idof == ONE_INTEGER) then
       ! regulate liquid pressure in Richards mode
       pressure = aux_real(3)
       rate = this%dataset%rarray(1)
@@ -298,7 +298,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
       endif
     else
       option%io_buffer = 'srcsink_sandbox_downreg is implemented ' // &
-                         'only for RICHARDS mode.'
+                         'only for TH mode.'
       call printErrMsg(option)
     endif
   enddo
@@ -306,7 +306,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
   if (compute_derivative) then
     
     do idof = 1, option%nflowdof
-      if (option%iflowmode == RICHARDS_MODE .and. idof == ONE_INTEGER) then
+      if (option%iflowmode == TH_MODE .and. idof == ONE_INTEGER) then
         ! regulate liquid pressure in Richards mode
         Jacobian(idof,idof) = -1.0d0 * rate * drate_regulator
       else

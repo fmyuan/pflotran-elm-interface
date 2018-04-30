@@ -224,18 +224,13 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
 
   use Option_module
   use Reaction_Aux_module
-  use Reaction_Surface_Complexation_Aux_module
 
   implicit none
   
   type(reactive_transport_auxvar_type) :: auxvar
   type(reaction_type) :: reaction
   type(option_type) :: option
-  
-  type(surface_complexation_type), pointer :: surface_complexation
-  
-  surface_complexation => reaction%surface_complexation
-  
+
   allocate(auxvar%pri_molal(reaction%naqcomp))
   auxvar%pri_molal = 0.d0
 
@@ -276,33 +271,7 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
   nullify(auxvar%kinsrfcplx_conc_kp1)
   nullify(auxvar%kinsrfcplx_free_site_conc)
   nullify(auxvar%kinmr_total_sorb)
-  if (surface_complexation%nsrfcplxrxn > 0) then
-    allocate(auxvar%srfcplxrxn_free_site_conc(surface_complexation%nsrfcplxrxn))
-    auxvar%srfcplxrxn_free_site_conc = 1.d-9 ! initialize to guess
-    if (surface_complexation%neqsrfcplxrxn > 0) then
-      allocate(auxvar%eqsrfcplx_conc(surface_complexation%nsrfcplx))
-      auxvar%eqsrfcplx_conc = 0.d0
-    endif
-    if (surface_complexation%nkinsrfcplxrxn > 0) then
-      !geh: currently hardwired to only 1 reaction
-      allocate(auxvar%kinsrfcplx_conc(surface_complexation%nkinsrfcplx,1))
-      auxvar%kinsrfcplx_conc = 0.d0
 
-      allocate(auxvar%kinsrfcplx_conc_kp1(surface_complexation%nkinsrfcplx,1))
-      auxvar%kinsrfcplx_conc_kp1 = 0.d0
-    endif
-    if (surface_complexation%nkinmrsrfcplxrxn > 0) then
-      ! the zeroth entry here stores the equilibrium concentration used in the 
-      ! update
-      ! the zeroth entry of kinmr_nrate holds the maximum number of rates
-      ! prescribed in a multirate reaction...required for appropriate sizing
-      allocate(auxvar%kinmr_total_sorb(reaction%naqcomp, &
-                                        0:surface_complexation%kinmr_nrate(0), &
-                                        surface_complexation%nkinmrsrfcplxrxn))
-      auxvar%kinmr_total_sorb = 0.d0
-    endif
-  endif
-  
   if (reaction%neqionxrxn > 0) then
     allocate(auxvar%eqionx_ref_cation_sorbed_conc(reaction%neqionxrxn))
     auxvar%eqionx_ref_cation_sorbed_conc = 1.d-9 ! initialize to guess

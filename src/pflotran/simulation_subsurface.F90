@@ -135,8 +135,6 @@ subroutine SubsurfaceSimInputRecord(this)
   write(id,'(a)') 'subsurface'
   write(id,'(a29)',advance='no') 'flow mode: '
   select case(this%realization%option%iflowmode)
-    case(RICHARDS_MODE)
-      write(id,'(a)') 'richards'
     case(TH_MODE)
       write(id,'(a)') 'thermo-hydro'
   end select
@@ -322,7 +320,6 @@ subroutine SubsurfaceFinalizeRun(this)
   use Timestepper_BE_class
   use Reaction_Sandbox_module, only : RSandboxDestroy
   use SrcSink_Sandbox_module, only : SSSandboxDestroyList
-  use CLM_Rxn_module, only : RCLMRxnDestroy
 
   implicit none
   
@@ -354,7 +351,6 @@ subroutine SubsurfaceFinalizeRun(this)
         tran_timestepper => ts
     end select
     call RSandboxDestroy()
-    call RCLMRxnDestroy()
   endif
   
   call RegressionOutput(this%regression,this%realization, &

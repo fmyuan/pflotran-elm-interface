@@ -6,7 +6,6 @@ module EOS_module
   use EOS_Water_module
   use EOS_Gas_module
   use EOS_Oil_module
-  use co2_span_wagner_module
   use EOSData_module
 
   implicit none
@@ -555,9 +554,6 @@ subroutine EOSRead(input,option)
                                      'EOS,GAS,CO2_SPAN_WAGNER_DB',option)
               end select
             end do
-            if (option%myrank == option%io_rank) then
-              call co2_span_wagner_db_write(temparray,subkeyword,option)
-            end if
             call MPI_Barrier(option%mycomm,ierr)
             call EOSGasSetEOSDBase(subkeyword,option)
           case('DATABASE')

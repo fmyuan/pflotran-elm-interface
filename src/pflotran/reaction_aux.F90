@@ -2,15 +2,9 @@ module Reaction_Aux_module
   
   use Reaction_Database_Aux_module
   use Reaction_Mineral_Aux_module
-  use Reaction_Microbial_Aux_module
   use Reaction_Immobile_Aux_module
-  use Reaction_Surface_Complexation_Aux_module
   use Reaction_Gas_Aux_module
   
-#ifdef SOLID_SOLUTION  
-  use Reaction_Solid_Soln_Aux_module
-#endif
-
   use PFLOTRAN_Constants_module
   use Generic_module
   use petscsys
@@ -193,18 +187,12 @@ module Reaction_Aux_module
     PetscBool :: calculate_tracer_age
     
     ! new reaction objects
-    type(surface_complexation_type), pointer :: surface_complexation
     type(mineral_type), pointer :: mineral
-    type(microbial_type), pointer :: microbial
     type(immobile_type), pointer :: immobile
     type(gas_type), pointer :: gas
     
     ! secondary continuum reaction objects
     type(kd_rxn_type), pointer :: sec_cont_kd_rxn_list
-    
-#ifdef SOLID_SOLUTION    
-    type(solid_solution_type), pointer :: solid_solution_list
-#endif    
     
     ! phases
     PetscInt :: nphase
@@ -471,14 +459,10 @@ function ReactionCreate()
   nullify(reaction%sec_cont_kd_rxn_list)
   
   ! new reaction objects
-  reaction%surface_complexation => SurfaceComplexationCreate()
   reaction%mineral => MineralCreate()
-  reaction%microbial => MicrobialCreate()
+
   reaction%immobile => ImmobileCreate()
   reaction%gas => GasCreate()
-#ifdef SOLID_SOLUTION  
-  nullify(reaction%solid_solution_list)
-#endif
   
   nullify(reaction%primary_species_names)
   nullify(reaction%secondary_species_names)
@@ -2066,8 +2050,8 @@ subroutine ReactionDestroy(reaction,option)
   type(mineral_rxn_type), pointer :: mineral, prev_mineral
   type(colloid_type), pointer :: colloid, prev_colloid
   type(ion_exchange_rxn_type), pointer :: ionxrxn, prev_ionxrxn
-  type(surface_complexation_rxn_type), pointer :: srfcplxrxn, prev_srfcplxrxn
   type(general_rxn_type), pointer :: general_rxn, prev_general_rxn
+
   type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn, &
                                                prev_radioactive_decay_rxn
   type(kd_rxn_type), pointer :: kd_rxn, prev_kd_rxn
@@ -2150,14 +2134,9 @@ subroutine ReactionDestroy(reaction,option)
     nullify(reaction%sec_cont_kd_rxn_list)
   endif
 
-  call SurfaceComplexationDestroy(reaction%surface_complexation)
   call MineralDestroy(reaction%mineral)
-  call MicrobialDestroy(reaction%microbial)
   call ImmobileDestroy(reaction%immobile)
   call GasDestroy(reaction%gas)
-#ifdef SOLID_SOLUTION  
-  call SolidSolutionDestroy(reaction%solid_solution_list)
-#endif  
 
   if (associated(reaction%dbase_temperatures)) &
     deallocate(reaction%dbase_temperatures)
