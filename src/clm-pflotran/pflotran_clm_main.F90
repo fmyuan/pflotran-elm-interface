@@ -1026,8 +1026,7 @@ contains
     use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use TH_Aux_module
-    use Richards_Aux_module
-    use Characteristic_Curves_module   ! this is used by Richards_module and TH_module
+    use Characteristic_Curves_module   ! this is used by TH_module
     use Characteristic_Curves_Base_module
     use Characteristic_Curves_Common_module
 
@@ -1043,8 +1042,6 @@ contains
     type(field_type), pointer                 :: field
 
     class(characteristic_curves_type), pointer:: characteristic_curves
-    type(richards_auxvar_type), pointer       :: rich_auxvars(:), rich_auxvars_bc(:), rich_auxvars_ss(:)
-    type(richards_auxvar_type), pointer       :: rich_auxvar
     type(th_auxvar_type), pointer             :: th_auxvars(:), th_auxvars_bc(:), th_auxvars_ss(:)
     type(th_auxvar_type), pointer             :: th_auxvar
     type(TH_parameter_type), pointer          :: TH_parameter
@@ -1113,10 +1110,6 @@ contains
     material_auxvars=> patch%aux%Material%auxvars
 
     select case(option%iflowmode)
-      case(RICHARDS_MODE)
-        rich_auxvars    => patch%aux%Richards%auxvars
-        rich_auxvars_bc => patch%aux%Richards%auxvars_bc
-        rich_auxvars_ss => patch%aux%Richards%auxvars_ss
       case(TH_MODE)
         th_auxvars      => patch%aux%TH%auxvars
         th_auxvars_bc   => patch%aux%TH%auxvars_bc
@@ -1230,8 +1223,7 @@ contains
     call VecGetArrayF90(field%porosity0, porosity_loc_p, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
-    if(option%iflowmode==RICHARDS_MODE .or. &
-       option%iflowmode==TH_MODE) then
+    if(option%iflowmode==TH_MODE) then
       ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
       call VecGetArrayF90(field%perm0_xx,  perm_xx_loc_p,  ierr)
       call where_checkerr(ierr, subname, __FILE__, __LINE__)
@@ -1262,10 +1254,9 @@ contains
 
       !F.-M. Yuan: (1) the following IS to pass CLM soil hydraulic data into 'saturation_function';
       !            (2) data-passing IS by from 'ghosted_id' to PF's 'local_id'.
-      if(option%iflowmode == RICHARDS_MODE .or. &
-         option%iflowmode == TH_MODE) then
+      if(option%iflowmode == TH_MODE) then
 
-        ! Richards_MODE/TH_MODE now are using 'charateristic_curves' module
+        ! TH_MODE now are using 'charateristic_curves' module
         characteristic_curves => patch%  &
             characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr  ! MUST be in 'ghosted_id' for 'sat_func_id(:)'.
 
@@ -1338,9 +1329,6 @@ contains
 
         !
         select case(option%iflowmode)
-          case(RICHARDS_MODE)
-            rich_auxvar => rich_auxvars(ghosted_id)
-
           case(TH_MODE)
             th_auxvar   => th_auxvars(ghosted_id)
 
@@ -1363,8 +1351,7 @@ contains
       ! hydraulic conductivity => permissivity IS going to 'field%'
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
       ! [m^2]          [mm/sec]
-      if(option%iflowmode==RICHARDS_MODE .or. &
-         option%iflowmode==TH_MODE) then
+      if(option%iflowmode==TH_MODE) then
            ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
            perm_xx_loc_p(local_id) = hksat_x_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
            perm_yy_loc_p(local_id) = hksat_y_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
@@ -1443,8 +1430,7 @@ contains
     call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
-    if(option%iflowmode==RICHARDS_MODE .or. &
-      option%iflowmode==TH_MODE) then
+    if(option%iflowmode==TH_MODE) then
       ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
       call VecRestoreArrayF90(field%perm0_xx,  perm_xx_loc_p,  ierr)
       call where_checkerr(ierr, subname, __FILE__, __LINE__)
@@ -1486,9 +1472,6 @@ contains
           if (patch%imat(ghosted_id) < 0) cycle
 
           select case(option%iflowmode)
-            case(RICHARDS_MODE)
-              call RichardsAuxVarCopy(rich_auxvars(ghosted_id),       &   ! 'rich_auxvars' have already updated above
-                                rich_auxvars_bc(sum_connection), option)
             case(TH_MODE)
               call THAuxVarCopy(th_auxvars(ghosted_id),               &   ! 'th_auxvars' have already updated above
                                 th_auxvars_bc(sum_connection), option)
@@ -1519,9 +1502,6 @@ contains
         if (patch%imat(ghosted_id) < 0) cycle
 
         select case(option%iflowmode)
-          case(RICHARDS_MODE)
-            call RichardsAuxVarCopy(rich_auxvars(ghosted_id),       &   ! 'rich_auxvars' have already updated above
-                                    rich_auxvars_ss(sum_connection), option)
           case(TH_MODE)
             call THAuxVarCopy(th_auxvars(ghosted_id),               &   ! 'th_auxvars' have already updated above
                               th_auxvars_ss(sum_connection), option)
@@ -1611,8 +1591,7 @@ contains
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! for adjusting permissivity
-    if(option%iflowmode==RICHARDS_MODE .or. &
-       option%iflowmode==TH_MODE) then
+    if(option%iflowmode==TH_MODE) then
 
         unitconv  = 0.001002d0/(998.2d0*EARTH_GRAVITY)/1000.d0    ! from hydraulic conductivity (mmH2O/sec) to permissivity (kg/sec)
         perm_adj  = 1.0d0
@@ -1654,8 +1633,7 @@ contains
 
       porosity0_loc_p(local_id) = porosity_pfs_loc(ghosted_id)
 
-      if(option%iflowmode==RICHARDS_MODE .or. &
-         option%iflowmode==TH_MODE) then
+      if(option%iflowmode==TH_MODE) then
            ! Ksat is based on actaul porosity, so when porosity is using the effective one, Ksat should be effective as well
            ! This will prevent large hydraulic conductivity in PFLOTRAN when shrinking pore size
            ! because PFLOTRAN uses pressure (saturation) in its rel. perm calculation.
@@ -1675,8 +1653,7 @@ contains
     call VecRestoreArrayF90(field%porosity0, porosity0_loc_p, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
     !
-    if(option%iflowmode==RICHARDS_MODE .or. &
-       option%iflowmode==TH_MODE) then
+    if(option%iflowmode==TH_MODE) then
         call VecRestoreArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
         call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecRestoreArrayF90(clm_pf_idata%hksat_y_pfs, hksat_y_pf_loc, ierr)
@@ -1702,8 +1679,7 @@ contains
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                POROSITY,ZERO_INTEGER)
 
-    if(option%iflowmode==RICHARDS_MODE .or. &
-       option%iflowmode==TH_MODE) then
+    if(option%iflowmode==TH_MODE) then
         call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
                                      field%work_loc,ONEDOF)
         call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
@@ -1744,7 +1720,6 @@ contains
     use Characteristic_Curves_Base_module
     use Characteristic_Curves_Common_module
 
-    use Richards_Aux_module
     use TH_Aux_module
 
     implicit none
@@ -1759,7 +1734,7 @@ contains
     class(realization_subsurface_type), pointer :: realization
 
     class(characteristic_curves_type), pointer :: characteristic_curves
-    type(richards_auxvar_type), pointer :: rich_auxvar
+
     type(th_auxvar_type), pointer :: th_auxvar
 
     PetscErrorCode     :: ierr
@@ -1820,16 +1795,11 @@ contains
       cur_sat_func_id = patch%sat_func_id(ghosted_id)
 
       !
-      if (option%iflowmode==RICHARDS_MODE) then
-        rich_auxvar => patch%aux%Richards%auxvars(ghosted_id)
-
-      elseif(option%iflowmode==TH_MODE) then
+      if(option%iflowmode==TH_MODE) then
         th_auxvar => patch%aux%TH%auxvars(ghosted_id)
-
       endif
 
-      ! Richards_MODE/TH_MODE now are using 'charateristic_curves' module
-
+      ! TH_MODE now are using 'charateristic_curves' module
       characteristic_curves => patch% &
           characteristic_curves_array(cur_sat_func_id)%ptr
 
@@ -1883,7 +1853,7 @@ contains
   end subroutine pflotranModelGetSoilPropFromPF
 
 ! ************************************************************************************* !
-  ! This routine Updates T/H drivers (PF global vars) for PFLOTRAN BGC/Richards-mode,
+  ! This routine Updates T/H drivers (PF global vars) for PFLOTRAN BGC/Flow (TH)-mode,
   ! that is to say, CLM passes soil temperature or moisture (liq. pressure) or both to PF global auxvars,
   ! if either T ('pf_tmode') or H ('pf_hmode') or both NOT invoked in PFLOTRAN.
   !
@@ -2055,13 +2025,11 @@ contains
     use Grid_module
     use Field_module
     use Global_Aux_module
-    use Richards_Aux_module
     use TH_Aux_module
 
     use Realization_Subsurface_class, only : realization_subsurface_type
     use Simulation_Subsurface_class, only : simulation_subsurface_type
     use TH_module, only : THUpdateAuxVars
-    use Richards_module, Only : RichardsUpdateAuxVars
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -2074,7 +2042,7 @@ contains
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
     type(global_auxvar_type), pointer         :: global_auxvars(:)
-    type(richards_auxvar_type), pointer       :: rich_auxvars(:)
+
     type(TH_auxvar_type), pointer             :: th_auxvars(:)
 
     class(simulation_subsurface_type), pointer  :: simulation
@@ -2113,9 +2081,6 @@ contains
     global_auxvars  => patch%aux%Global%auxvars
 
     select case(option%iflowmode)
-      case (RICHARDS_MODE)
-         call RichardsUpdateAuxVars(realization)
-         rich_auxvars => patch%aux%Richards%auxvars
       case (TH_MODE)
          call THUpdateAuxVars(realization)
          th_auxvars => patch%aux%TH%auxvars
@@ -2172,13 +2137,8 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         'idata%sat_pfp(local_id)=',soillsat_pf_p(local_id)
 #endif
 
-
-      if (option%iflowmode == RICHARDS_MODE) then
-        soilpsi_pf_p(local_id) = -rich_auxvars(ghosted_id)%pc
-
-      else if (option%iflowmode == TH_MODE) then
+      if (option%iflowmode == TH_MODE) then
         soilpsi_pf_p(local_id) = -th_auxvars(ghosted_id)%pc
-
       endif
     enddo
     call VecRestoreArrayF90(clm_pf_idata%soillsat_pfp, soillsat_pf_p, ierr)
@@ -4977,7 +4937,6 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     use Field_module
     use Discretization_module
     use TH_Aux_module
-    use Richards_Aux_module
     use Material_Aux_class
     use Global_Aux_module
 
@@ -4989,7 +4948,6 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     use Characteristic_Curves_Base_module
     use Characteristic_Curves_Common_module
     use TH_module, only : THUpdateAuxVars
-    use Richards_module, Only : RichardsUpdateAuxVars
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -5027,7 +4985,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     option => pflotran_model%option
 
     select case(option%iflowmode)
-      case (RICHARDS_MODE, TH_MODE)
+      case (TH_MODE)
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
                                     clm_pf_idata%soillsat_clmp, &
@@ -5168,8 +5126,6 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     select case(option%iflowmode)
-      case (RICHARDS_MODE)
-        call RichardsUpdateAuxVars(realization)
       case (TH_MODE)
         call THUpdateAuxVars(realization)
       case default
@@ -5199,14 +5155,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Connection_module
 
     use TH_Aux_module
-    use Richards_Aux_module
 
     use String_module
 
     use Realization_Subsurface_class, only : realization_subsurface_type
     use Simulation_Subsurface_class, only : simulation_subsurface_type
     use TH_module, only : THUpdateAuxVars
-    use Richards_module, Only : RichardsUpdateAuxVars
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -5306,8 +5260,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     ! passing from interface to internal
     select case(option%iflowmode)
-      case (RICHARDS_MODE)
-        press_dof = RICHARDS_PRESSURE_DOF
       case (TH_MODE)
         press_dof = TH_PRESSURE_DOF
       case default
@@ -5475,8 +5427,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     select case(option%iflowmode)
-      case (RICHARDS_MODE)
-        call RichardsUpdateAuxVars(realization)
       case (TH_MODE)
         call THUpdateAuxVars(realization)
       case default
@@ -5563,9 +5513,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     ! Find value of pressure-dof depending on flow mode
     select case (option%iflowmode)
-      case (RICHARDS_MODE)
-        press_dof       = RICHARDS_PRESSURE_DOF
-        temperature_dof = UNINITIALIZED_INTEGER
       case (TH_MODE)
         press_dof       = TH_PRESSURE_DOF
         temperature_dof = TH_TEMPERATURE_DOF

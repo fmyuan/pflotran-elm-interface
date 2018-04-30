@@ -211,9 +211,9 @@ contains
 
     endif
     
-    if(model%option%iflowmode==TH_MODE .or. model%option%iflowmode==RICHARDS_MODE) then
+    if(model%option%iflowmode==TH_MODE) then
       if(.not.clm2pf_bctop_file .and. .not.pf2clm_bctop_file) then
-         model%option%io_buffer='Running in TH_MODE/Richards_MODE ' // &
+         model%option%io_buffer='Running in TH_MODE ' // &
           ' without pair of top-cell mesh mapping files - SO, ' // &
           ' CLM grids conversion to PF structured-cartesian grid USED!'
         call printMsg(model%option)
