@@ -237,7 +237,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
         call InputErrorMsg(input,option,'Z direction','Origin')        
       case('FILE','GRAVITY','INVERT_Z','MAX_CELLS_SHARING_A_VERTEX',&
            'STENCIL_WIDTH','STENCIL_TYPE','FLUX_METHOD','DOMAIN_FILENAME', &
-           'UPWIND_FRACTION_METHOD')
+           'UPWIND_FRACTION_METHOD','PERM_TENSOR_TO_SCALAR_MODEL')
       case('DXYZ','BOUNDS')
         call InputSkipToEND(input,option,word) 
       case default

@@ -222,7 +222,7 @@ end subroutine MaterialAuxVarCopy
 ! ************************************************************************** !
 
 subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
-                                      scalar_permeability)
+                                      scalar_permeability, option)
   ! 
   ! Transforms a diagonal permeability tensor to a scalar through a dot 
   ! product.
@@ -243,6 +243,7 @@ subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
   ! 2 = unit y-dir
   ! 3 = unit z-dir
   PetscReal, intent(in) :: dist(-1:3)
+  type(option_type) :: option
   PetscReal, intent(out) :: scalar_permeability
 
   PetscReal :: kx, ky, kz
@@ -268,6 +269,9 @@ subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
                             kz * dabs(dist(3))**2.0
     case(TENSOR_TO_SCALAR_ELLIPTIC)
       print *, "NOT DONE"
+            !option%io_buffer  = 'Krylov solver type: ' // trim(word) // &
+                                !' unknown.'
+            !call printErrMsg(option)
     case default
       !...
   end select

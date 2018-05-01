@@ -2874,7 +2874,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 
       ! for now, just assume diagonal tensor
       call material_auxvars(ghosted_id)%PermeabilityTensorToScalar( &
-                            cur_connection_set%dist(:,iconn),perm_dn)
+                            cur_connection_set%dist(:,iconn),perm_dn,option)
       ! dist(0,iconn) = scalar - magnitude of distance
       ! gravity = vector(3)
       ! dist(1:3,iconn) = vector(3) - unit vector
@@ -3007,9 +3007,9 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
         
       ! for now, just assume diagonal tensor
       call material_auxvars(ghosted_id_up)%PermeabilityTensorToScalar( &
-                            cur_connection_set%dist(:,iconn),perm_up)
+                            cur_connection_set%dist(:,iconn),perm_up,option)
       call material_auxvars(ghosted_id_dn)%PermeabilityTensorToScalar( &
-                            cur_connection_set%dist(:,iconn),perm_dn)
+                            cur_connection_set%dist(:,iconn),perm_dn,option)
 
       ithrm_up = int(ithrm_loc_p(ghosted_id_up))
       ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
@@ -3468,7 +3468,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
  
       ! for now, just assume diagonal tensor
       call material_auxvars(ghosted_id)%PermeabilityTensorToScalar( &
-                            cur_connection_set%dist(:,iconn),perm_dn)
+                            cur_connection_set%dist(:,iconn),perm_dn,option)
       ! dist(0,iconn) = scalar - magnitude of distance
       ! gravity = vector(3)
       ! dist(1:3,iconn) = vector(3) - unit vector
@@ -3638,9 +3638,9 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
     
       ! for now, just assume diagonal tensor
       call material_auxvars(ghosted_id_up)%PermeabilityTensorToScalar( &
-                            cur_connection_set%dist(:,iconn),perm_up)
+                            cur_connection_set%dist(:,iconn),perm_up,option)
       call material_auxvars(ghosted_id_dn)%PermeabilityTensorToScalar( &
-                            cur_connection_set%dist(:,iconn),perm_dn)
+                            cur_connection_set%dist(:,iconn),perm_dn,option)
     
       iphas_up = int(iphase_loc_p(ghosted_id_up))
       iphas_dn = int(iphase_loc_p(ghosted_id_dn))
