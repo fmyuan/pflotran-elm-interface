@@ -269,11 +269,12 @@ subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
                             kz * dabs(dist(3))**2.0
     case(TENSOR_TO_SCALAR_ELLIPTIC)
       print *, "NOT DONE"
-            !option%io_buffer  = 'Krylov solver type: ' // trim(word) // &
-                                !' unknown.'
-            !call printErrMsg(option)
+      option%io_buffer  = 'Sorry, elliptic tensor to scalar model not yet available.'
+      call printErrMsg(option)
     case default
-      !...
+      option%io_buffer  = 'MaterialDiagPermTensorToScalar: tensor to scalar model type&
+                          & is not recognized.'
+      call printErrMsg(option)
   end select
 
 end subroutine MaterialDiagPermTensorToScalar
