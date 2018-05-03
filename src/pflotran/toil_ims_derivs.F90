@@ -18,10 +18,116 @@ module TOilIms_derivs_module
             DeltaPressureDerivs_up_and_down, &
             V_Darcy_Derivs, &
             InjectionEnergyPartDerivs, &
-            Qsrc_mol_derivs
+            Qsrc_mol_derivs, &
+            DerivsForWellVolFlux, &
+            DerivsForWellFlow, &
+            DerivsForWellEnergy
 
 contains
 
+! ************************************************************************** !
+
+subroutine DerivsForWellVolFlux(d_vol_flux, d_mob, d_dphi_dp, mob, dphi, cfact)
+
+  implicit none
+
+  PetscReal, dimension(1:3) :: d_vol_flux
+  PetscReal, dimension(1:3) :: d_mob
+  PetscReal :: d_dphi_dp
+  PetscReal :: mob, dphi, cfact
+
+      !vol_flux = cfact * mob * dphi
+
+  d_vol_flux = 0.d0
+
+  !! w.r.t. oil pres
+  d_vol_flux(1) = mob * d_dphi_dp + d_mob(1) * dphi
+
+  !! w.r.t. oil saturation
+  d_vol_flux(2) = d_mob(2) * dphi
+
+  !! w.r.t. temperature
+  d_vol_flux(3) = d_mob(3) * dphi
+
+
+  d_vol_flux = cfact * d_vol_flux
+
+
+end subroutine DerivsForWellVolFlux 
+
+! ************************************************************************** !
+
+subroutine DerivsForWellFlow(d_A, d_vol_flux, d_pmd_dp, d_pmd_dT, vol_flux, phase_mol_den)
+        
+  implicit none
+
+  PetscReal, dimension(1:3) :: d_A
+  PetscReal, dimension(1:3) :: d_vol_flux
+  PetscReal :: d_pmd_dp, d_pmd_dT
+  PetscReal :: vol_flux, phase_mol_den
+        
+        
+        !Res(i_ph) = - vol_flux * phase_mol_den(i_ph)
+
+  d_A = 0.d0
+
+  !! w.r.t. oil pres
+  d_A(1) = vol_flux * d_pmd_dp + d_vol_flux(1) * phase_mol_den
+
+  !! w.r.t. oil saturation
+  d_A(2) = d_vol_flux(2) * phase_mol_den
+
+  !! w.r.t. temperature
+  d_A(3) = vol_flux * d_pmd_dT + d_vol_flux(3) * phase_mol_den
+
+
+  d_A = -1.d0 * d_A
+
+
+end subroutine DerivsForWellFlow
+
+! ************************************************************************** !
+
+subroutine DerivsForWellEnergy(d_B, d_A, d_pe_dp, d_pe_dT, phase_ent, phase_mol_den, vol_flux)
+
+
+  implicit none
+
+  PetscReal, dimension(1:3) :: d_B
+  PetscReal, dimension(1:3) :: d_A
+  PetscReal :: d_pe_dp, d_pe_dT
+  PetscReal :: vol_flux, phase_mol_den, phase_ent
+
+  PetscReal :: a
+        
+
+          !Res(TOIL_IMS_ENERGY_EQUATION_INDEX) = &
+                !Res(TOIL_IMS_ENERGY_EQUATION_INDEX) - &
+                !vol_flux * phase_mol_den(i_ph) * phase_ent(i_ph)   
+
+  !! A = - vol_vlux * phase_mol_den
+  !! B = A * phase_ent
+  !! dB/dx = 
+  !!        dA/dx * phase_ent + A * dphase_ent/dx
+
+  A = -1.d0 * vol_flux * phase_mol_den
+
+  d_B = 0.d0
+
+  !! w.r.t. oil pressure
+  d_B(1) = d_A(1) * phase_ent + A * d_pe_dp
+
+
+  !! w.r.t. oil saturation
+  d_B(2) = d_A(2) * phase_ent
+
+  !! w.r.t. temperature
+  d_B(3) = d_A(3) * phase_ent + A * d_pe_dT
+
+
+  !d_B = -1.d0 * d_B
+
+end subroutine DerivsForWellEnergy
 
 ! ************************************************************************** !
 

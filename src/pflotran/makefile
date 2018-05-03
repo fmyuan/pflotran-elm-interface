@@ -1558,7 +1558,7 @@ well_spec_base.o : input_aux.o option.o pflotran_constants.o string.o units.o \
 well_toil_ims.o : eos_oil.o eos_water.o option.o output_aux.o \
                   pflotran_constants.o pm_toil_ims_aux.o well_base.o \
                   well_flow.o well_flow_energy.o well_oil_producer.o \
-                  well_spec_base.o well_water_injector.o
+                  well_spec_base.o well_water_injector.o toil_ims_derivs.o
 well_water_injector.o : eos_water.o grid.o hydrostatic_common.o option.o \
                         output_aux.o pflotran_constants.o well_base.o \
                         well_flow.o well_flow_energy.o well_spec_base.o
