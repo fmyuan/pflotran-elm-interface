@@ -2,7 +2,7 @@ module Solver_CPR_module
 
 #include "petsc/finclude/petscts.h"
   use petscts
-  use CPR_Precondititioner_module 
+  use CPR_Preconditioner_module
   use Option_module
   use PFLOTRAN_Constants_module
 
@@ -480,6 +480,8 @@ subroutine SolverCPRInitializeStorage(ctx)
   ctx%asmoverlap = 0
 
   ctx%exrow_offset = 0
+
+  nullify(ctx%option)
 
 
 end subroutine SolverCPRInitializeStorage 
