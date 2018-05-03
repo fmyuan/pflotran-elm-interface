@@ -24,7 +24,7 @@ module Well_TOilIms_class
     procedure, public :: ExplRes => TOilImsWatInjExplRes
     procedure, public  :: PrintOutputHeader => TOilImsWatInjOutputHeader
     procedure, public :: Output => TOilImsWatInjOutput
-    procedure, public :: ExplResAD => TOilImsWatInjExplResAD
+    !procedure, public :: ExplResAD => TOilImsWatInjExplResAD
   end type well_toil_ims_wat_inj_type
 
   type, public, extends(well_oil_producer_type) :: well_toil_ims_oil_prod_type
@@ -34,7 +34,7 @@ module Well_TOilIms_class
     procedure, public :: ExplRes => TOilImsOilProdExplRes
     procedure, public  :: PrintOutputHeader => TOilImsOilProdOutputHeader
     procedure, public :: Output => TOilImsOilProdOutput
-    procedure, public :: ExplResAD => TOilImsOilProdExplResAD
+    !procedure, public :: ExplResAD => TOilImsOilProdExplResAD
   end type well_toil_ims_oil_prod_type
 
   !Below another data structure considered for the well
@@ -290,8 +290,9 @@ function CreateTOilImsWell(well_spec,option)
 end function CreateTOilImsWell
 
 ! ************************************************************************** !
+#if 0
 subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
-                                ghosted_id, dof,option,res)
+                                ghosted_id, dof,option,res,Jac,analytical_derivatives)
   ! 
   ! Compute residual term for a TOilIms Water injector
   ! 
@@ -320,6 +321,9 @@ subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
   PetscReal :: dphi, vol_flux, cfact, mob, hc 
   PetscReal :: enth_src_h2o
   PetscInt :: ierr
+
+  PetscReal, dimension(option%nflowdof,option%nflowdof) :: Jac
+  PetscBool :: analytical_derivatives
 
   Res = 0.0d0
   vol_flux = 0.0d0
@@ -387,11 +391,12 @@ subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
 #endif
 
 end subroutine TOilImsWatInjExplRes
+#endif
 
 ! ************************************************************************** !
 
 subroutine TOilImsOilProdExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
-                                ghosted_id, dof,option,res)
+                                ghosted_id, dof,option,res,Jac,analytical_derivatives)
   ! 
   ! Compute residual term for a TOilIms Oil Producer
   ! 
@@ -412,15 +417,18 @@ subroutine TOilImsOilProdExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
   !PetscReal :: ss_flow_vol_flux(1:option%nphase)
   PetscReal :: Res(:)
   PetscReal :: ss_flow_vol_flux(:)
+  PetscReal :: Jac(:,:)
+  PetscBool :: analytical_derivatives
 
 
   call TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
-                               ghosted_id, dof,option,res)
+                               ghosted_id, dof,option,res,Jac,analytical_derivatives)
 
 end subroutine TOilImsOilProdExplRes
 
 ! ************************************************************************** !
 
+#if 0
 subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
                                   ghosted_id,dof,option,res)
 
@@ -565,8 +573,11 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
 
 end subroutine TOilImsProducerExplRes
 
+#endif
+
 ! ************************************************************************** !
 
+#if 0
 subroutine TOilImsOilProdExplResAD(this,iconn,ss_flow_vol_flux,isothermal, &
                                 ghosted_id, dof,option,res, Jac)
   ! 
@@ -592,11 +603,14 @@ subroutine TOilImsOilProdExplResAD(this,iconn,ss_flow_vol_flux,isothermal, &
                                ghosted_id, dof,option,res, Jac)
 
 end subroutine TOilImsOilProdExplResAD
+#endif
 
 ! ************************************************************************** !
 
-subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isothermal, &
-                                  ghosted_id,dof,option,res, Jac)
+!subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isothermal, &
+                                  !ghosted_id,dof,option,res,Jac,analytical_derivatives)
+subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
+                                  ghosted_id,dof,option,res,Jac,analytical_derivatives)
 
   ! 
   ! 
@@ -635,6 +649,8 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
 
   class(auxvar_toil_ims_type), pointer :: avar
 
+  PetscBool :: analytical_derivatives
+
   hc = this%conn_h(iconn)
   temp = this%conn_temp(iconn)
   cfact = this%conn_factors(iconn)
@@ -657,16 +673,20 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
     dphi = this%flow_auxvars(dof,ghosted_id)%pres(i_ph) - &
            this%pw_ref - hc 
 
-    !!! so dphi_dp is just 1?
-    d_dphi_dp = 1.d0
+    if (analytical_derivatives) then 
+      !!! so dphi_dp is just 1 - unless cap pres derivatives are involved
+      d_dphi_dp = 1.d0
+    endif
 
     !upwind for den_mol 
     if (dphi >= 0.0d0) then
       phase_mol_den(i_ph) = this%flow_auxvars(dof,ghosted_id)%den(i_ph)
 
-      !!! so grab derivatives from corresponding toil_auxvar
-      d_pmd_dp = this%toil_auxvars(dof, ghosted_id)%d%dden_dp(i_ph,1)
-      d_pmd_dT = this%toil_auxvars(dof, ghosted_id)%d%dden_dT(i_ph)
+      if (analytical_derivatives) then 
+        !!! so grab derivatives from corresponding toil_auxvar
+        d_pmd_dp = this%toil_auxvars(dof, ghosted_id)%d%dden_dp(i_ph,1)
+        d_pmd_dT = this%toil_auxvars(dof, ghosted_id)%d%dden_dT(i_ph)
+      endif
 
 
     else if (dphi < 0.0d0 ) then
@@ -674,20 +694,25 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
          call EOSWaterDensity(temp,this%pw_ref+hc, &
                               dw_kg,phase_mol_den(i_ph),ierr) 
 
-       !!! so grab derivatives from this, convert to in terms of oil
-       !!! DANGER: assume they're zero since input temp and den seem
-       !!! to be constant
-       d_pmd_dp = 0.d0
-       d_pmd_dT = 0.d0
+       
+       if (analytical_derivatives) then 
+         !!! so grab derivatives from this, convert to in terms of oil
+         !!! DANGER: assume they're zero since input temp and den seem
+         !!! to be constant
+         d_pmd_dp = 0.d0
+         d_pmd_dT = 0.d0
+       endif
 
       else if (i_ph == option%oil_phase) then 
         call EOSOilDensity(temp,this%pw_ref+hc,phase_mol_den(i_ph),ierr)
 
-       !!! so grab derivatives from this
-       !!! DANGER: assume they're zero since input temp and den seem
-       !!! to be constant
-       d_pmd_dp = 0.d0
-       d_pmd_dT = 0.d0
+       if (analytical_derivatives) then 
+         !!! so grab derivatives from this, convert to in terms of oil
+         !!! DANGER: assume they're zero since input temp and den seem
+         !!! to be constant
+         d_pmd_dp = 0.d0
+         d_pmd_dT = 0.d0
+       endif
 
       end if
     end if
@@ -697,43 +722,54 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
       if (dphi >= 0.0d0) then
         phase_ent(i_ph) = this%flow_energy_auxvars(dof,ghosted_id)%H(i_ph)
 
-        !!! grab H derivtives as d_phase_ent
-        d_pe_dp = this%toil_auxvars(dof, ghosted_id)%d%dH_dp(i_ph)
-        d_pe_dT = this%toil_auxvars(dof, ghosted_id)%d%dH_dT(i_ph)
+        if (analytical_derivatives) then
+          !!! grab H derivtives as d_phase_ent
+          d_pe_dp = this%toil_auxvars(dof, ghosted_id)%d%dH_dp(i_ph)
+          d_pe_dT = this%toil_auxvars(dof, ghosted_id)%d%dH_dT(i_ph)
+        endif
 
       else if (dphi < 0.0d0) then 
         if (i_ph == option%liquid_phase) then  
           call EOSWaterEnthalpy(temp,this%pw_ref+hc,phase_ent(i_ph),ierr)
         
-        !!! grab H derivtives as d_phase_ent
-        !!! DANGER: assume they're zero since input temp and den seem
-        !!! to be constant
-        d_pe_dp = 0.d0
-        d_pe_dT = 0.d0
+        if (analytical_derivatives) then
+          !!! grab H derivtives as d_phase_ent
+          !!! DANGER: assume they're zero since input temp and den seem
+          !!! to be constant
+          d_pe_dp = 0.d0
+          d_pe_dT = 0.d0
+        endif
 
         else if (i_ph == option%oil_phase) then
           call EOSOilEnthalpy(temp,this%pw_ref+hc,phase_ent(i_ph),ierr)
 
-        !!! grab H derivtives as d_phase_ent
-        !!! DANGER: assume they're zero since input temp and den seem
-        !!! to be constant
-        d_pe_dp = 0.d0
-        d_pe_dT = 0.d0
+        if (analytical_derivatives) then
+          !!! grab H derivtives as d_phase_ent
+          !!! DANGER: assume they're zero since input temp and den seem
+          !!! to be constant
+          d_pe_dp = 0.d0
+          d_pe_dT = 0.d0
+        endif
 
         end if
         phase_ent = phase_ent * 1.d-6 ! J/kmol -> whatever units
 
-        !!! scale phase_ent
-        d_pe_dp = d_pe_dp * 1.d-6
-        d_pe_dT = d_pe_dT * 1.d-6
-
-
+        if (analytical_derivatives) then
+          !!! scale phase_ent
+          d_pe_dp = d_pe_dp * 1.d-6
+          d_pe_dT = d_pe_dT * 1.d-6
+        endif
       end if 
     end if
     
-    mob = this%ConnMob_derivs(this%flow_auxvars(dof,ghosted_id)%mobility,i_ph, &
-                       dof,ghosted_id, d_mob,  &
-                       this%toil_auxvars(dof,ghosted_id)%d%dmobility)
+    if (analytical_derivatives) then 
+      mob = this%ConnMob_derivs(this%flow_auxvars(dof,ghosted_id)%mobility,i_ph, &
+                         dof,ghosted_id, d_mob,  &
+                         this%toil_auxvars(dof,ghosted_id)%d%dmobility)
+    else
+      mob = this%ConnMob(this%flow_auxvars(dof,ghosted_id)%mobility,i_ph, &
+                         dof,ghosted_id)
+    endif
 
     !if ( dabs(dphi) < 1.d-5 ) dphi = 0.0d0 !cut off noise (Pa)
     !if ( dphi < 0.0d0 ) &
@@ -741,12 +777,10 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
     !  ghosted_id, dphi
      
     !if(cfact * mob > wfloweps) then
-    !!! DS - maybe don't need this for derivatives
-    !if( mob > wfloweps) then
+    if( mob > wfloweps) then
       !!         m^3 * 1/(Pa.s) * Pa = m^3/s 
       vol_flux = cfact * mob * dphi
 
-     call Derivs_vol_flux(d_vol_flux, d_mob, d_dphi_dp, mob, dphi, cfact)
 
       if ( vol_flux < 0.0d0 .and. dof==ZERO_INTEGER ) &
        write(*,"('TOilImsWellProd reverse flow at gh = ',I5,' dp = ',e10.4)") &
@@ -770,10 +804,6 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
         !the minus sign indicate component fluxes out the reservoir
         Res(i_ph) = - vol_flux * phase_mol_den(i_ph)
 
-        call DerivsA(d_A, d_vol_flux, d_pmd_dp, d_pmd_dT, vol_flux, phase_mol_den(i_ph))
-
-        !!! add d_A to Jacobian here
-        Jac(i_ph,:) = d_A(:)
 
 
         !Res(i_ph) = 0.d0
@@ -784,7 +814,7 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
                 !vol_flux * this%flow_auxvars(dof,ghosted_id)%den(i_ph) * &
                 !this%flow_energy_auxvars(dof,ghosted_id)%H(i_ph)          
 
-                call DerivsB(d_B, d_A, d_pe_dp, d_pe_dT, &
+                call DerivsForWellEnergy(d_B, d_A, d_pe_dp, d_pe_dT, &
                             phase_ent(i_ph), phase_mol_den(i_ph), &
                             vol_flux)
 
@@ -795,8 +825,24 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
           !!! have vol_flux * phase_mol_den so it's just another two term
           !!! product with pase_ent
         end if
-      !end if
+      end if
     !end if  
+    if (analytical_derivatives) then 
+      !! need to do derivatives even if previous if statment was skipped due to no
+      !! current flow
+      call Derivs_vol_flux(d_vol_flux, d_mob, d_dphi_dp, mob, dphi, cfact)
+      !! vol_vlux * phase_mol_den contribution
+      call DerivsForWellFlow(d_A, d_vol_flux, d_pmd_dp, d_pmd_dT, vol_flux, phase_mol_den(i_ph))
+      Jac(i_ph,:) = d_A(:)
+      !! energy contribution
+      if (.not.isothermal) then
+        call DerivsForWellEnergy(d_B, d_A, d_pe_dp, d_pe_dT, &
+                    phase_ent(i_ph), phase_mol_den(i_ph), &
+                    vol_flux)
+        Jac(TOIL_IMS_ENERGY_EQUATION_INDEX, :) = &
+        Jac(TOIL_IMS_ENERGY_EQUATION_INDEX, :) + d_B(:)
+      end if
+    endif
 
 #ifdef WELL_DEBUG
   if ( dof==ZERO_INTEGER ) then
@@ -820,7 +866,8 @@ subroutine TOilImsProducerExplResAD_OIL_PROD(this,iconn,ss_flow_vol_flux,isother
   end do
 
 
-end subroutine TOilImsProducerExplResAD_OIL_PROD
+!end subroutine TOilImsProducerExplResAD_OIL_PROD
+end subroutine TOilImsProducerExplRes
 
 ! ************************************************************************** !
 
@@ -856,7 +903,7 @@ end subroutine Derivs_vol_flux
 
 ! ************************************************************************** !
 
-subroutine DerivsA(d_A, d_vol_flux, d_pmd_dp, d_pmd_dT, vol_flux, phase_mol_den)
+subroutine DerivsForWellFlow(d_A, d_vol_flux, d_pmd_dp, d_pmd_dT, vol_flux, phase_mol_den)
         
   implicit none
 
@@ -883,11 +930,11 @@ subroutine DerivsA(d_A, d_vol_flux, d_pmd_dp, d_pmd_dT, vol_flux, phase_mol_den)
   d_A = -1.d0 * d_A
 
 
-end subroutine DerivsA
+end subroutine DerivsForWellFlow
 
 ! ************************************************************************** !
 
-subroutine DerivsB(d_B, d_A, d_pe_dp, d_pe_dT, phase_ent, phase_mol_den, vol_flux)
+subroutine DerivsForWellEnergy(d_B, d_A, d_pe_dp, d_pe_dT, phase_ent, phase_mol_den, vol_flux)
 
 
   implicit none
@@ -926,12 +973,14 @@ subroutine DerivsB(d_B, d_A, d_pe_dp, d_pe_dT, phase_ent, phase_mol_den, vol_flu
 
   !d_B = -1.d0 * d_B
 
-end subroutine DerivsB
+end subroutine DerivsForWellEnergy
 
 ! ************************************************************************** !
 
-subroutine TOilImsWatInjExplResAD(this,iconn,ss_flow_vol_flux,isothermal, &
-                                ghosted_id, dof,option,res, Jac)
+!subroutine TOilImsWatInjExplResAD(this,iconn,ss_flow_vol_flux,isothermal, &
+                                !ghosted_id, dof,option,res, Jac,analytical_derivatives)
+subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
+                                ghosted_id, dof,option,res, Jac,analytical_derivatives)
   ! 
   ! 
   use PM_TOilIms_Aux_module
@@ -963,6 +1012,8 @@ subroutine TOilImsWatInjExplResAD(this,iconn,ss_flow_vol_flux,isothermal, &
   PetscReal :: d_pmd_dp, d_pmd_dT, d_pe_dp, d_pe_dT
   PetscReal ::  d_dphi_dp
 
+  PetscBool :: analytical_derivatives
+
   Res = 0.0d0
   vol_flux = 0.0d0
 
@@ -976,21 +1027,29 @@ subroutine TOilImsWatInjExplResAD(this,iconn,ss_flow_vol_flux,isothermal, &
                                        option%liquid_phase,dof,ghosted_id)
 #endif
 
-  mob = this%ConnMob_derivs(this%flow_auxvars(dof,ghosted_id)%mobility,option%liquid_phase, &
-                     dof,ghosted_id, d_mob,  &
-                     this%toil_auxvars(dof,ghosted_id)%d%dmobility)
+  if (analytical_derivatives) then 
+    mob = this%ConnMob_derivs(this%flow_auxvars(dof,ghosted_id)%mobility,option%liquid_phase, &
+                       dof,ghosted_id, d_mob,  &
+                       this%toil_auxvars(dof,ghosted_id)%d%dmobility)
+  else
+    mob = this%ConnMob(this%flow_auxvars(dof,ghosted_id)%mobility, &
+                                         option%liquid_phase,dof,ghosted_id)
+  endif
   !mob = 1754.0d0
+
   dphi = this%pw_ref + hc - & 
             this%flow_auxvars(dof,ghosted_id)%pres(option%liquid_phase)
 
-  !!! so dphi_dp is just -1?
-  d_dphi_dp = -1.d0
-  !!! TOTO: also add cap pressure based saturation derivatives here
+  if (analytical_derivatives) then
+    !!! so dphi_dp is just -1?
+    d_dphi_dp = -1.d0
+    !!! TOTO: also add cap pressure based saturation derivatives here
+  endif
 
   ! it is assumed that the temperature is uniform throughout the well
   call EOSWaterDensity(this%tw_ref,this%pw_ref+hc, &
                        dw_kg,dw_h2o_mol,ierr) 
-  !!! 0 because the inputs are constant
+  !!! derivatives are just 0 because the inputs are constant
   !d_pmd_dp = 0.d0
   !d_pmd_dT = 0.d0
 
@@ -999,7 +1058,7 @@ subroutine TOilImsWatInjExplResAD(this,iconn,ss_flow_vol_flux,isothermal, &
     !enth_src_h2o = enth_src_h2o * option%scale
     enth_src_h2o = enth_src_h2o * 1.d-6 ! J/kmol -> MJ/kmol 
 
-     !!! 0 because the inputs are constants
+     !!! derivatives 0 because the inputs are constants
      !d_pe_dp = 0.d0
      !d_pe_dT = 0.d0
      !!! should scale but why bother since 0
@@ -1014,7 +1073,9 @@ subroutine TOilImsWatInjExplResAD(this,iconn,ss_flow_vol_flux,isothermal, &
     !         m^3 * 1/(Pa.s) * Pa = m^3/s
     vol_flux = cfact * mob * dphi
 
-    call Derivs_vol_flux(d_vol_flux, d_mob, d_dphi_dp, mob, dphi, cfact)
+    if (analytical_derivatives) then 
+      call Derivs_vol_flux(d_vol_flux, d_mob, d_dphi_dp, mob, dphi, cfact)
+    endif
 
     !vol_flux = 0.00015
     ss_flow_vol_flux(option%liquid_phase) = vol_flux
@@ -1023,13 +1084,17 @@ subroutine TOilImsWatInjExplResAD(this,iconn,ss_flow_vol_flux,isothermal, &
     ! H2O equation       !m^3/s * kmol/m^3 = Kmol/sec 
     Res(option%water_id) = vol_flux* dw_h2o_mol 
 
-    Jac(option%water_id, :) = d_vol_flux*dw_h2o_mol
+    if (analytical_derivatives) then
+      Jac(option%water_id, :) = d_vol_flux*dw_h2o_mol
+    endif
 
     ! energy equation             !m^3/s * kmol/m^3 * MJ/Kmol = MJ/s
     if (.not.isothermal) then 
       Res(3) = vol_flux*dw_h2o_mol * enth_src_h2o
 
-      Jac(3 , :) = d_vol_flux*dw_h2o_mol*enth_src_h2o
+      if (analytical_derivatives) then
+        Jac(3 , :) = d_vol_flux*dw_h2o_mol*enth_src_h2o
+      endif
     endif
    !end if
 
@@ -1058,7 +1123,8 @@ subroutine TOilImsWatInjExplResAD(this,iconn,ss_flow_vol_flux,isothermal, &
   end if
 #endif
 
-end subroutine TOilImsWatInjExplResAD
+!end subroutine TOilImsWatInjExplResAD
+end subroutine TOilImsWatInjExplRes
 
 #endif  
 end module Well_TOilIms_class

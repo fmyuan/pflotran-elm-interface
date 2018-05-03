@@ -237,6 +237,7 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
   PetscInt :: idof, irow
 
   PetscReal :: Jac_alt(1:3,1:3) !!! tofix: hardcoded size
+  PetscReal :: Jdum(1:3,1:3) !!! tofix: hardcoded size
 
   PetscReal :: pert
 
@@ -256,7 +257,7 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
 
 
     call this%ExplRes(iconn,dummy_real,isothermal,ghosted_id,ZERO_INTEGER,&
-                      option,res)
+                      option,res,Jdum,PETSC_FALSE)
 
     ! downgradient derivatives
     do idof = 1, option%nflowdof
@@ -264,7 +265,7 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
       !call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(idof), &
       !                    global_auxvar,dummy_real,scale,res_pert)
       call this%ExplRes(iconn,dummy_real,isothermal,ghosted_id,idof, &
-                        option,res_pert)
+                        option,res_pert,Jdum,PETSC_FALSE)
 
       do irow = 1, option%nflowdof
         !Jac(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar(idof)%pert
@@ -287,8 +288,14 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
 
 
   if (analytical) then
+#if 0
     call this%ExplResAD(iconn,dummy_real,isothermal,ghosted_id,ZERO_INTEGER,&
                       option,res, Jac_alt)
+#endif
+
+    call this%ExplRes(iconn,dummy_real,isothermal,ghosted_id,ZERO_INTEGER, &
+                      option,res_pert,Jac_alt,PETSC_TRUE)
+
 
     if (isothermal) then
       !Jac(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
@@ -301,8 +308,12 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
 
       call MatCompare(Jac, Jac_alt, 3, 3, comptol, option%matcompare_reldiff)
 
+#if 0
       call this%ExplResAD(iconn,dummy_real,isothermal,ghosted_id,ZERO_INTEGER,&
                         option,res, Jac_alt)
+#endif
+      call this%ExplRes(iconn,dummy_real,isothermal,ghosted_id,ZERO_INTEGER, &
+                        option,res_pert,Jac_alt,PETSC_TRUE)
       if (isothermal) then
         !Jac(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
         !Jac(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0

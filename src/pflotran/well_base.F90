@@ -776,7 +776,7 @@ end subroutine WellBaseInitTimeStep
 ! ************************************************************************** !
 
 subroutine WellBaseExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
-                                ghosted_id, dof,option,res)
+                                ghosted_id, dof,option,res,Jac,analytical_derivatives)
   ! 
   ! Compute residual term for a TOilIms Water injector
   ! 
@@ -796,6 +796,9 @@ subroutine WellBaseExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
   !PetscReal :: ss_flow_vol_flux(1:option%nphase)
   PetscReal :: Res(:)
   PetscReal :: ss_flow_vol_flux(:)
+  !PetscReal, dimension(option%nflowdof,option%nflowdof) :: Jac
+  PetscReal, dimension(:,:) :: Jac
+  PetscBool :: analytical_derivatives
 
 
   print *, "WellBaseExplRes must be extended"

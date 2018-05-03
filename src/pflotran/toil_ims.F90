@@ -3339,7 +3339,8 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
 #ifdef WELL_CLASS
       if ( associated(source_sink%well) ) then
         call source_sink%well%ExplRes(iconn,ss_flow_vol_flux, &
-                       toil_ims_isothermal,ghosted_id,ZERO_INTEGER,option,Res)
+                       toil_ims_isothermal,ghosted_id,ZERO_INTEGER,option,Res,&
+                       Jac_dummy,PETSC_FALSE)
       else
 #endif
         call TOilImsSrcSink(option,source_sink%flow_condition%toil_ims, &
