@@ -50,6 +50,7 @@ private
             GeomechRealizCreateDiscretization, &
             GeomechRealizProcessGeomechConditions, &
             GeomechRealizInitAllCouplerAuxVars, &
+            GeomechRealizUpdateAllCouplerAuxVars, &
             GeomechRealizPrintCouplers, &
             GeomechRealizAddWaypointsToList, &
             GeomechRealizGetDataset, &
@@ -696,10 +697,38 @@ subroutine GeomechRealizInitAllCouplerAuxVars(geomech_realization)
   type(geomech_patch_type), pointer :: patch
   
   patch => geomech_realization%geomech_patch
-
-  call GeomechPatchInitAllCouplerAuxVars(patch,geomech_realization%option)
+  
+call GeomechPatchInitAllCouplerAuxVars(patch,geomech_realization%option)
 
 end subroutine GeomechRealizInitAllCouplerAuxVars
+
+! ************************************************************************** !
+
+subroutine GeomechRealizUpdateAllCouplerAuxVars(geomech_realization, &
+                                                force_update_flag)
+  ! 
+  ! This routine updates coupler
+  ! auxillary variables
+  ! 
+  ! Author: Satish Karra, LANL
+  ! Date: 03/21/18
+  ! 
+
+  use Option_module
+
+  implicit none
+  
+  class(realization_geomech_type) :: geomech_realization
+  PetscBool :: force_update_flag
+ 
+  type(geomech_patch_type), pointer :: patch
+  
+  patch => geomech_realization%geomech_patch
+
+  call GeomechPatchUpdateAllCouplerAuxVars(patch,force_update_flag, &
+                                           geomech_realization%option)
+
+end subroutine GeomechRealizUpdateAllCouplerAuxVars
 
 ! ************************************************************************** !
 
