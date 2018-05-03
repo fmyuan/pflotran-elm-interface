@@ -2916,7 +2916,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
 
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: rate_string
-  character(len=2*MAXWORDLENGTH) :: internal_units_string
+  character(len=MAXSTRINGLENGTH) :: internal_units_string
   character(len=MAXWORDLENGTH) :: word
   type(flow_towg_condition_type), pointer :: towg
   type(flow_sub_condition_type), pointer :: sub_condition_ptr
