@@ -1548,7 +1548,8 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          sir_dn, &
                          thermal_conductivity_dn, &
                          area,dist,toil_parameter, &
-                         option,v_darcy,Res)
+                         option,v_darcy,Res, jdn,  &
+                         analytical_derivatives)
   ! 
   ! Computes the boundary flux terms for the residual
   ! 
@@ -1603,12 +1604,31 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: neumann_bc_present
   
   PetscReal :: dummy_perm_dn
+
+  PetscBool :: analytical_derivatives
+
+  PetscReal :: jdn(1:option%nflowdof, 1:option%nflowdof)
+
+  PetscReal :: up_scale, dn_scale
+
+  PetscReal :: ddensity_kg_ave_dden_kg_up, ddensity_kg_ave_dden_kg_dn
+  PetscReal :: d_delta_pres_dp_up, d_delta_pres_dp_dn
+  PetscReal :: d_delta_pres_dT_up, d_delta_pres_dT_dn
+
+  PetscReal :: ddensity_ave_dden_up, ddensity_ave_dden_dn
+  PetscReal :: d_delta_temp_dt_up, d_delta_temp_dt_dn, dheat_flux_ddelta_temp
+  PetscReal :: d_delta_pres_ds_up, d_delta_pres_ds_dn     
+
+  PetscReal, dimension(1:3) :: d_v_darcy_up, d_v_darcy_dn
+  PetscReal, dimension(1:3) :: d_q_up, d_q_dn
+  PetscReal, dimension(1:3) :: d_mole_flux_up, d_mole_flux_dn
+  PetscReal, dimension(1:3) :: d_energy_flux_up, d_energy_flux_dn
   
   energy_id = option%energy_id
 
   Res = 0.d0
   v_darcy = 0.d0 
- 
+
 !#ifdef DEBUG_FLUXES    
 !  adv_flux = 0.d0
 !  diff_flux = 0.d0
@@ -1617,6 +1637,18 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
 !  debug_flux = 0.d0
 !  debug_dphi = 0.d0
 !#endif
+
+  if (analytical_derivatives) then
+    jdn = 0.d0
+    d_v_darcy_up = 0.d0
+    d_v_darcy_dn = 0.d0
+    d_q_up = 0.d0
+    d_q_dn = 0.d0
+    d_mole_flux_up = 0.d0
+    d_mole_flux_dn = 0.d0
+    d_energy_flux_up = 0.d0
+    d_energy_flux_dn = 0.d0
+  endif
 
   neumann_bc_present = PETSC_FALSE
   
@@ -1640,7 +1672,16 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
   
 #ifdef TOIL_CONVECTION  
   do iphase = 1, option%nphase
- 
+    if (analytical_derivatives) then
+      d_v_darcy_up = 0.d0
+      d_v_darcy_dn = 0.d0
+      d_q_up = 0.d0
+      d_q_dn = 0.d0
+      d_mole_flux_up = 0.d0
+      d_mole_flux_dn = 0.d0
+      d_energy_flux_up = 0.d0
+      d_energy_flux_dn = 0.d0
+    endif
     bc_type = ibndtype(iphase) ! loop over equations 1.Liq and 2.Oil
     select case(bc_type)
       ! figure out the direction of flow
@@ -1685,16 +1726,24 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
           !density_kg_ave = 0.5d0 * (toil_auxvar_up%den_kg(iphase) + &
           !                          toil_auxvar_dn%den_kg(iphase) )
 
-          density_kg_ave = TOilImsAverageDensity(toil_auxvar_up%sat(iphase), &
-                           toil_auxvar_dn%sat(iphase), &
-                           toil_auxvar_up%den_kg(iphase), &
-                           toil_auxvar_dn%den_kg(iphase))
+          if (analytical_derivatives) then
+            density_kg_ave = TOilImsAverageDensity_derivs(toil_auxvar_up%sat(iphase), &
+                             toil_auxvar_dn%sat(iphase), &
+                             toil_auxvar_up%den_kg(iphase), &
+                             toil_auxvar_dn%den_kg(iphase), &
+                             ddensity_kg_ave_dden_kg_up, &
+                             ddensity_kg_ave_dden_kg_dn)
+          else
+            density_kg_ave = TOilImsAverageDensity(toil_auxvar_up%sat(iphase), &
+                             toil_auxvar_dn%sat(iphase), &
+                             toil_auxvar_up%den_kg(iphase), &
+                             toil_auxvar_dn%den_kg(iphase))
+          endif
 
           gravity_term = density_kg_ave * dist_gravity
           delta_pressure = boundary_pressure - &
                            toil_auxvar_dn%pres(iphase) + &
                            gravity_term
-          
 
 !#ifdef DEBUG_GENERAL_FILEOUTPUT
 !          debug_dphi(iphase) = delta_pressure
@@ -1711,13 +1760,17 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
           endif
           
           !upwinding mobilities and enthalpies   
+          up_scale = 0.d0
+          dn_scale = 0.d0
           if (delta_pressure >= 0.D0) then
+            up_scale = 1.d0
             mobility = toil_auxvar_up%mobility(iphase)
             uH = toil_auxvar_up%H(iphase)
 #ifdef TOIL_DEN_UPWIND
             density_ave = toil_auxvar_up%den(iphase)
 #endif
           else
+            dn_scale = 1.d0
             mobility = toil_auxvar_dn%mobility(iphase)
             uH = toil_auxvar_dn%H(iphase)
 #ifdef TOIL_DEN_UPWIND
@@ -1735,10 +1788,40 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
             !density_ave = 0.5d0 * (toil_auxvar_up%den(iphase) + &
             !                       toil_auxvar_dn%den(iphase) )
 #ifndef TOIL_DEN_UPWIND
-            density_ave = TOilImsAverageDensity(toil_auxvar_up%sat(iphase), &
-                           toil_auxvar_dn%sat(iphase), &
-                           toil_auxvar_up%den(iphase), &
-                           toil_auxvar_dn%den(iphase))
+            if (.NOT.analytical_derivatives) then
+              density_ave = TOilImsAverageDensity(toil_auxvar_up%sat(iphase), &
+                             toil_auxvar_dn%sat(iphase), &
+                             toil_auxvar_up%den(iphase), &
+                             toil_auxvar_dn%den(iphase))
+            else
+              density_ave = TOilImsAverageDensity_derivs(toil_auxvar_up%sat(iphase), &
+                                   toil_auxvar_dn%sat(iphase), &
+                                   toil_auxvar_up%den(iphase), &
+                                   toil_auxvar_dn%den(iphase), &
+                                   ddensity_ave_dden_up, &
+                                   ddensity_ave_dden_dn)
+              
+
+              !! the upwind values computed by this are wrong but will not be used
+              call  DeltaPressureDerivs_up_and_down(d_delta_pres_dp_up, d_delta_pres_dp_dn,     &
+                                                    d_delta_pres_dT_up, d_delta_pres_dT_dn,     &
+                                                    dist_gravity,                               &
+                                                    ddensity_ave_dden_up, ddensity_ave_dden_dn, &
+                                                    toil_auxvar_up%d%dden_dp(iphase,1),                &
+                                                    toil_auxvar_dn%d%dden_dp(iphase,1),                &
+                                                    toil_auxvar_up%d%dden_dt(iphase),                 &
+                                                    toil_auxvar_dn%d%dden_dt(iphase),                 &
+                                                    toil_auxvar_up%d%dp_dsat(iphase),                 &
+                                                    toil_auxvar_dn%d%dp_dsat(iphase),                 &
+                                                    d_delta_pres_ds_up, d_delta_pres_ds_dn,           &
+                                                    toil_ims_fmw_comp(iphase) )
+
+
+              call v_darcy_derivs(d_v_darcy_dn, toil_auxvar_dn%d%dmobility(iphase, 1:3),     &
+                                  dn_scale, delta_pressure, mobility, perm_ave_over_dist,    &
+                                  d_delta_pres_dp_dn, d_delta_pres_dt_dn,                    &
+                                  d_delta_pres_ds_dn)
+            endif
 #endif
           endif
 !#ifndef BAD_MOVE1        
@@ -1755,11 +1838,18 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
         
         neumann_bc_present = PETSC_TRUE
         if (dabs(auxvars(idof)) > floweps) then
+          up_scale = 0.d0
+          dn_scale = 0.d0
+
           v_darcy(iphase) = auxvars(idof)
+          ! so d_v_darcy is 0 here
+
           if (v_darcy(iphase) > 0.d0) then 
+            up_scale = 1.d0
             density_ave = toil_auxvar_up%den(iphase)
             uH = toil_auxvar_up%H(iphase)
           else 
+            dn_scale = 1.d0
             density_ave = toil_auxvar_dn%den(iphase)
             uH = toil_auxvar_dn%H(iphase)
           endif 
@@ -1770,7 +1860,7 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
         call printErrMsg(option)
     end select
 
-    if (dabs(v_darcy(iphase)) > 0.d0) then
+    if (dabs(v_darcy(iphase)) > 0.d0) then ! note need derivs even if this is case
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(iphase) * area
       ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
@@ -1805,6 +1895,22 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
 !      debug_flux(energy_id,iphase) = debug_flux(energy_id,iphase) + mole_flux * uH
 !#endif
     endif
+    if (analytical_derivatives) then
+      !! analytical derivatives of everything that happened in previous if statment
+      ! q derivatives:
+      d_q_up = d_v_darcy_up * area
+      d_q_dn = d_v_darcy_dn * area
+      ! mole flux derivatives:
+      call MoleFluxDerivs(d_mole_flux_dn, d_q_dn, q, density_ave, ddensity_ave_dden_dn, &
+                          toil_auxvar_dn%d%dden_dp(iphase,1), toil_auxvar_dn%d%dden_dt(iphase))
+      ! add into jacobian:
+      jdn(iphase, 1:3) = jdn(iphase, 1:3) + d_mole_flux_dn
+      ! the energy part:
+      !! by `energy driven flux' mean the term moleFlux * uH
+      call EnergyDrivenFluxDerivs(d_energy_flux_dn, d_mole_flux_dn, uH, dn_scale, mole_flux, &
+                            toil_auxvar_dn%d%dH_dp(iphase), toil_auxvar_dn%d%dH_dt(iphase))
+      jdn(energy_id, 1:3) = jdn(energy_id, 1:3) + d_energy_flux_dn
+    endif
   enddo
 #endif 
 ! end of TOIL_CONVECTION
@@ -1838,18 +1944,29 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
       ! heat_flux = J/s
       k_eff_ave = k_eff_dn / dist(0)
       delta_temp = toil_auxvar_up%temp - toil_auxvar_dn%temp
+
+      d_delta_temp_dt_dn = - 1.d0
+
       heat_flux = k_eff_ave * delta_temp * area * 1.d-6 ! convert W -> MW
+
+      dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
     case(NEUMANN_BC)
                   ! flux prescribed as MW/m^2
       heat_flux = auxvars(auxvar_mapping(TOIL_IMS_ENERGY_FLUX_INDEX)) * area
+      dheat_flux_ddelta_temp = 0.d0 ! constant
     case(ZERO_GRADIENT_BC)
       ! No contribution to heat_flux
+      dheat_flux_ddelta_temp = 0.d0 ! constant
     case default
       option%io_buffer = 'Boundary condition type not recognized in ' // &
         'TOilImsBCFlux heat conduction loop.'
       call printErrMsg(option)
   end select
   Res(energy_id) = Res(energy_id) + heat_flux ! MW
+
+  if (analytical_derivatives) then
+    jdn(energy_id, 3) = jdn(energy_id, 3) + d_delta_temp_dt_dn*dheat_flux_ddelta_temp
+  endif
 #endif 
 ! end of TOIL_CONDUCTION
 
@@ -2399,6 +2516,8 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscInt :: idof, irow
 
+  PetscReal :: Jdum(option%nflowdof,option%nflowdof)  
+
   PetscReal :: Jdn_alt(option%nflowdof,option%nflowdof)
   PetscReal :: J_dff(option%nflowdof,option%nflowdof)
   PetscReal :: tol
@@ -2416,7 +2535,7 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                        sir_dn, &
                        thermal_conductivity_dn, &
                        area,dist,toil_parameter, &
-                       option,v_darcy,res)                     
+                       option,v_darcy,res,Jdum,PETSC_FALSE)
     ! downgradient derivatives
     do idof = 1, option%nflowdof
       call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
@@ -2426,7 +2545,7 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                          sir_dn, &
                          thermal_conductivity_dn, &
                          area,dist,toil_parameter, &
-                         option,v_darcy,res_pert)   
+                         option,v_darcy,res_pert,Jdum,PETSC_FALSE)   
       do irow = 1, option%nflowdof
         Jdn(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar_dn(idof)%pert
   !print *, 'bc: ', irow, idof, Jdn(irow,idof), gen_auxvar_dn(idof)%pert
@@ -2447,14 +2566,14 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   endif
 
   if (toil_analytical_derivatives) then 
-    call ToilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
+    call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                        toil_auxvar_up,global_auxvar_up, &
                        toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                        material_auxvar_dn, &
                        sir_dn, &
                        thermal_conductivity_dn, &
                        area,dist,toil_parameter, &
-                       option,v_darcy,res, jdn_alt)
+                       option,v_darcy,res,jdn_alt,PETSC_TRUE)
 
     if (toil_ims_isothermal) then
       Jdn_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
@@ -2468,14 +2587,14 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
        tol = toil_dcomp_tol
        call MatCompare(Jdn, Jdn_alt, 3, 3, tol, option%matcompare_reldiff)
 
-      call ToilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
+      call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          toil_auxvar_up,global_auxvar_up, &
                          toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                          material_auxvar_dn, &
                          sir_dn, &
                          thermal_conductivity_dn, &
                          area,dist,toil_parameter, &
-                         option,v_darcy,res, jdn_alt)
+                         option,v_darcy,res, jdn_alt,PETSC_TRUE)
         if (toil_ims_isothermal) then
           Jdn_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
           Jdn_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
@@ -2659,6 +2778,9 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
+
+  PetscReal :: Jac_dummy(realization%option%nflowdof, &
+                         realization%option%nflowdof)
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
@@ -2854,7 +2976,7 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      toil_parameter,option, &
-                     v_darcy,Res)
+                     v_darcy,Res,Jac_dummy,PETSC_FALSE)
 
       patch%boundary_velocities(:,sum_connection) = v_darcy
       if (associated(patch%boundary_flow_fluxes)) then

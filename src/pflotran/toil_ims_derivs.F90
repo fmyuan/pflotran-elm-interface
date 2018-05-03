@@ -22,11 +22,16 @@ module TOilIms_derivs_module
   public :: toil_accum_derivs_alyt, &
             TOilImsFluxPFL_derivs, &
             TOilImsSrcSink_derivs, &
-            TOilImsBCFlux_derivs
+            !TOilImsBCFlux_derivs, &
+            TOilImsAverageDensity_derivs, &
+            MoleFluxDerivs, &
+            EnergyDrivenFluxDerivs, &
+            DeltaPressureDerivs_up_and_down, &
+            V_Darcy_Derivs
 
 contains
 
-
+#if 0
 subroutine TOilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
                          toil_auxvar_up,global_auxvar_up, &
                          toil_auxvar_dn,global_auxvar_dn, &
@@ -36,16 +41,19 @@ subroutine TOilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
                          area,dist,toil_parameter, &
                          option,v_darcy,Res, jdn)
   ! 
-  ! Modification of TOilImsBCFlux that computes derivatives
-  ! analytically
-  !
-  ! Daniel Stone March-April 2018
+  ! Computes the boundary flux terms for the residual
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 10/27/15
   ! 
   use Option_module                              
   use Material_Aux_class
+  !use Fracture_module
+  !use Klinkenberg_module
   
   implicit none
   
+  !type(toil_ims_auxvar_type) :: toil_auxvar_up, toil_auxvar_dn
   class(auxvar_toil_ims_type) :: toil_auxvar_up, toil_auxvar_dn 
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
@@ -59,6 +67,7 @@ subroutine TOilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
   PetscInt :: ibndtype(1:option%nflowdof)
   PetscInt :: auxvar_mapping(TOIL_IMS_MAX_INDEX)
   PetscReal :: thermal_conductivity_dn(2)
+  !PetscBool :: debug_connection
   
   PetscInt :: energy_id
   PetscInt :: iphase
@@ -108,17 +117,26 @@ subroutine TOilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
   Res = 0.d0
   v_darcy = 0.d0 
 
-  jdn = 0.d0
-  d_v_darcy_up = 0.d0
-  d_v_darcy_dn = 0.d0
-  d_q_up = 0.d0
-  d_q_dn = 0.d0
-  d_mole_flux_up = 0.d0
-  d_mole_flux_dn = 0.d0
-  d_energy_flux_up = 0.d0
-  d_energy_flux_dn = 0.d0
+!#ifdef DEBUG_FLUXES    
+!  adv_flux = 0.d0
+!  diff_flux = 0.d0
+!#endif
+!#ifdef DEBUG_GENERAL_FILEOUTPUT
+!  debug_flux = 0.d0
+!  debug_dphi = 0.d0
+!#endif
 
- 
+  if (toil_analytical_derivatives) then
+    jdn = 0.d0
+    d_v_darcy_up = 0.d0
+    d_v_darcy_dn = 0.d0
+    d_q_up = 0.d0
+    d_q_dn = 0.d0
+    d_mole_flux_up = 0.d0
+    d_mole_flux_dn = 0.d0
+    d_energy_flux_up = 0.d0
+    d_energy_flux_dn = 0.d0
+  endif
 
   neumann_bc_present = PETSC_FALSE
   
@@ -142,15 +160,16 @@ subroutine TOilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
   
 #ifdef TOIL_CONVECTION  
   do iphase = 1, option%nphase
-    d_v_darcy_up = 0.d0
-    d_v_darcy_dn = 0.d0
-    d_q_up = 0.d0
-    d_q_dn = 0.d0
-    d_mole_flux_up = 0.d0
-    d_mole_flux_dn = 0.d0
-    d_energy_flux_up = 0.d0
-    d_energy_flux_dn = 0.d0
-   
+    if (toil_analytical_derivatives) then
+      d_v_darcy_up = 0.d0
+      d_v_darcy_dn = 0.d0
+      d_q_up = 0.d0
+      d_q_dn = 0.d0
+      d_mole_flux_up = 0.d0
+      d_mole_flux_dn = 0.d0
+      d_energy_flux_up = 0.d0
+      d_energy_flux_dn = 0.d0
+    endif
     bc_type = ibndtype(iphase) ! loop over equations 1.Liq and 2.Oil
     select case(bc_type)
       ! figure out the direction of flow
@@ -195,19 +214,28 @@ subroutine TOilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
           !density_kg_ave = 0.5d0 * (toil_auxvar_up%den_kg(iphase) + &
           !                          toil_auxvar_dn%den_kg(iphase) )
 
-          density_kg_ave = TOilImsAverageDensity_derivs(toil_auxvar_up%sat(iphase), &
-                           toil_auxvar_dn%sat(iphase), &
-                           toil_auxvar_up%den_kg(iphase), &
-                           toil_auxvar_dn%den_kg(iphase), &
-                           ddensity_kg_ave_dden_kg_up, &
-                           ddensity_kg_ave_dden_kg_dn)
+          if (toil_analytical_derivatives) then
+            density_kg_ave = TOilImsAverageDensity_derivs(toil_auxvar_up%sat(iphase), &
+                             toil_auxvar_dn%sat(iphase), &
+                             toil_auxvar_up%den_kg(iphase), &
+                             toil_auxvar_dn%den_kg(iphase), &
+                             ddensity_kg_ave_dden_kg_up, &
+                             ddensity_kg_ave_dden_kg_dn)
+          else
+            density_kg_ave = TOilImsAverageDensity(toil_auxvar_up%sat(iphase), &
+                             toil_auxvar_dn%sat(iphase), &
+                             toil_auxvar_up%den_kg(iphase), &
+                             toil_auxvar_dn%den_kg(iphase))
+          endif
 
           gravity_term = density_kg_ave * dist_gravity
           delta_pressure = boundary_pressure - &
                            toil_auxvar_dn%pres(iphase) + &
                            gravity_term
-          
 
+!#ifdef DEBUG_GENERAL_FILEOUTPUT
+!          debug_dphi(iphase) = delta_pressure
+!#endif
           ! PO CONDUCTANCE_BC and SEEPAGE_BC not implemented
           if (bc_type == SEEPAGE_BC .or. &
               bc_type == CONDUCTANCE_BC) then
@@ -220,8 +248,8 @@ subroutine TOilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
           endif
           
           !upwinding mobilities and enthalpies   
-          up_scale = 0.d0 
-          dn_scale = 0.d0 
+          up_scale = 0.d0
+          dn_scale = 0.d0
           if (delta_pressure >= 0.D0) then
             up_scale = 1.d0
             mobility = toil_auxvar_up%mobility(iphase)
@@ -248,36 +276,40 @@ subroutine TOilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
             !density_ave = 0.5d0 * (toil_auxvar_up%den(iphase) + &
             !                       toil_auxvar_dn%den(iphase) )
 #ifndef TOIL_DEN_UPWIND
+            if (.NOT.toil_analytical_derivatives) then
+              density_ave = TOilImsAverageDensity(toil_auxvar_up%sat(iphase), &
+                             toil_auxvar_dn%sat(iphase), &
+                             toil_auxvar_up%den(iphase), &
+                             toil_auxvar_dn%den(iphase))
+            else
+              density_ave = TOilImsAverageDensity_derivs(toil_auxvar_up%sat(iphase), &
+                                   toil_auxvar_dn%sat(iphase), &
+                                   toil_auxvar_up%den(iphase), &
+                                   toil_auxvar_dn%den(iphase), &
+                                   ddensity_ave_dden_up, &
+                                   ddensity_ave_dden_dn)
+              
 
-            density_ave = TOilImsAverageDensity_derivs(toil_auxvar_up%sat(iphase), &
-                                 toil_auxvar_dn%sat(iphase), &
-                                 toil_auxvar_up%den(iphase), &
-                                 toil_auxvar_dn%den(iphase), &
-                                 ddensity_ave_dden_up, &
-                                 ddensity_ave_dden_dn)
-            
-
-      !! the upwind values computed by this are wrong but will not be used
-      call  DeltaPressureDerivs_up_and_down(d_delta_pres_dp_up, d_delta_pres_dp_dn,     &
-                                            d_delta_pres_dT_up, d_delta_pres_dT_dn,     &
-                                            dist_gravity,                               &
-                                            ddensity_ave_dden_up, ddensity_ave_dden_dn, &
-                                            toil_auxvar_up%d%dden_dp(iphase,1),                &
-                                            toil_auxvar_dn%d%dden_dp(iphase,1),                &
-                                            toil_auxvar_up%d%dden_dt(iphase),                 &
-                                            toil_auxvar_dn%d%dden_dt(iphase),                 &
-                                            toil_auxvar_up%d%dp_dsat(iphase),                 &
-                                            toil_auxvar_dn%d%dp_dsat(iphase),                &
-                                            d_delta_pres_ds_up, d_delta_pres_ds_dn,    &
-                                            toil_ims_fmw_comp(iphase) )
+              !! the upwind values computed by this are wrong but will not be used
+              call  DeltaPressureDerivs_up_and_down(d_delta_pres_dp_up, d_delta_pres_dp_dn,     &
+                                                    d_delta_pres_dT_up, d_delta_pres_dT_dn,     &
+                                                    dist_gravity,                               &
+                                                    ddensity_ave_dden_up, ddensity_ave_dden_dn, &
+                                                    toil_auxvar_up%d%dden_dp(iphase,1),                &
+                                                    toil_auxvar_dn%d%dden_dp(iphase,1),                &
+                                                    toil_auxvar_up%d%dden_dt(iphase),                 &
+                                                    toil_auxvar_dn%d%dden_dt(iphase),                 &
+                                                    toil_auxvar_up%d%dp_dsat(iphase),                 &
+                                                    toil_auxvar_dn%d%dp_dsat(iphase),                 &
+                                                    d_delta_pres_ds_up, d_delta_pres_ds_dn,           &
+                                                    toil_ims_fmw_comp(iphase) )
 
 
-      call v_darcy_derivs(d_v_darcy_dn, toil_auxvar_dn%d%dmobility(iphase, 1:3),     &
-                          dn_scale, delta_pressure, mobility, perm_ave_over_dist,  &
-                          d_delta_pres_dp_dn, d_delta_pres_dt_dn,            &
-                          d_delta_pres_ds_dn)
-                          
-
+              call v_darcy_derivs(d_v_darcy_dn, toil_auxvar_dn%d%dmobility(iphase, 1:3),     &
+                                  dn_scale, delta_pressure, mobility, perm_ave_over_dist,    &
+                                  d_delta_pres_dp_dn, d_delta_pres_dt_dn,                    &
+                                  d_delta_pres_ds_dn)
+            endif
 #endif
           endif
 !#ifndef BAD_MOVE1        
@@ -294,8 +326,8 @@ subroutine TOilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
         
         neumann_bc_present = PETSC_TRUE
         if (dabs(auxvars(idof)) > floweps) then
-          up_scale = 0.d0 
-          dn_scale = 0.d0 
+          up_scale = 0.d0
+          dn_scale = 0.d0
 
           v_darcy(iphase) = auxvars(idof)
           ! so d_v_darcy is 0 here
@@ -316,27 +348,14 @@ subroutine TOilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
         call printErrMsg(option)
     end select
 
-    !if (dabs(v_darcy(iphase)) > 0.d0) then ! need derivs even if this is case
-
+    if (dabs(v_darcy(iphase)) > 0.d0) then ! note need derivs even if this is case
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(iphase) * area
-
-      d_q_up = d_v_darcy_up * area
-      d_q_dn = d_v_darcy_dn * area
-
       ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
       !                              density_ave[kmol phase/m^3 phase]
       mole_flux = q*density_ave       
-
-      call MoleFluxDerivs(d_mole_flux_dn, d_q_dn, q, density_ave, ddensity_ave_dden_dn, &
-                          toil_auxvar_dn%d%dden_dp(iphase,1), toil_auxvar_dn%d%dden_dt(iphase))
-
-      jdn(iphase, 1:3) = jdn(iphase, 1:3) + d_mole_flux_dn
-
-  
       ! Res[kmol total/sec]
       Res(iphase) = Res(iphase) + mole_flux
- 
       ! Res[kmol total/sec]
       !do icomp = 1, option%nflowspec
       !  ! Res[kmol comp/sec] = mole_flux[kmol phase/sec] * 
@@ -355,19 +374,29 @@ subroutine TOilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
 !#endif
       ! Res[MJ/sec] = mole_flux[kmol comp/sec] * H_ave[MJ/kmol comp]
       Res(energy_id) = Res(energy_id) + mole_flux * uH ! H_ave
-
-      !! by `energy driven flux' mean the term moleFlux * uH
-      call EnergyDrivenFluxDerivs(d_energy_flux_dn, d_mole_flux_dn, uH, dn_scale, mole_flux, &
-                            toil_auxvar_dn%d%dH_dp(iphase), toil_auxvar_dn%d%dH_dt(iphase))
-      jdn(energy_id, 1:3) = jdn(energy_id, 1:3) + d_energy_flux_dn
-
 !#ifdef DEBUG_FLUXES  
 !      adv_flux(energy_id,iphase) = adv_flux(energy_id,iphase) + mole_flux * uH
 !#endif
 !#ifdef DEBUG_GENERAL_FILEOUTPUT
 !      debug_flux(energy_id,iphase) = debug_flux(energy_id,iphase) + mole_flux * uH
 !#endif
-    !endif
+    endif
+    if (toil_analytical_derivatives) then
+      !! analytical derivatives of everything that happened in previous if statment
+      ! q derivatives:
+      d_q_up = d_v_darcy_up * area
+      d_q_dn = d_v_darcy_dn * area
+      ! mole flux derivatives:
+      call MoleFluxDerivs(d_mole_flux_dn, d_q_dn, q, density_ave, ddensity_ave_dden_dn, &
+                          toil_auxvar_dn%d%dden_dp(iphase,1), toil_auxvar_dn%d%dden_dt(iphase))
+      ! add into jacobian:
+      jdn(iphase, 1:3) = jdn(iphase, 1:3) + d_mole_flux_dn
+      ! the energy part:
+      !! by `energy driven flux' mean the term moleFlux * uH
+      call EnergyDrivenFluxDerivs(d_energy_flux_dn, d_mole_flux_dn, uH, dn_scale, mole_flux, &
+                            toil_auxvar_dn%d%dH_dp(iphase), toil_auxvar_dn%d%dH_dt(iphase))
+      jdn(energy_id, 1:3) = jdn(energy_id, 1:3) + d_energy_flux_dn
+    endif
   enddo
 #endif 
 ! end of TOIL_CONVECTION
@@ -431,6 +460,7 @@ subroutine TOilImsBCFlux_derivs(ibndtype,auxvar_mapping,auxvars, &
 
 
 end subroutine TOilImsBCFlux_derivs
+#endif
 
 ! ************************************************************************** !
 
