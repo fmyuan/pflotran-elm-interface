@@ -12,16 +12,8 @@ module TOilIms_derivs_module
   implicit none
   
   private 
-#define TOIL_CONVECTION
-#define TOIL_CONDUCTION
 
-! Cutoff parameters - no public
-  PetscReal, parameter :: eps       = 1.d-8
-  PetscReal, parameter :: floweps   = 1.d-24
-
-  public :: toil_accum_derivs_alyt, &
-            TOilImsAverageDensity_derivs, &
-            MoleFluxDerivs, &
+  public :: MoleFluxDerivs, &
             EnergyDrivenFluxDerivs, &
             DeltaPressureDerivs_up_and_down, &
             V_Darcy_Derivs, &
@@ -32,10 +24,6 @@ contains
 
 
 ! ************************************************************************** !
-
-!subroutine InjectionEnergyPartDerivs(d_inj_en_part, denth_bool, &
-                               !r, enthalpy, &
-                               !hw_dp, hw_dT)
 
 subroutine InjectionEnergyPartDerivs(d_inj_en_part, denth_bool, r, &
                                       enthalpy, hw_dp, hw_dT)
@@ -89,38 +77,6 @@ end subroutine Qsrc_mol_derivs
 
 ! ************************************************************************** !
 
-function TOilImsAverageDensity_derivs(sat_up,sat_dn,density_up,density_dn, dden_up, dden_dn)
-  ! 
-  ! Modification of TOilImsAverageDensity which computes derivatives
-  ! Daniel Stone, March-May 2018
-  ! 
-
-  implicit none
-
-  PetscReal :: sat_up, sat_dn
-  PetscReal :: density_up, density_dn, dden_up, dden_dn
-
-  PetscReal :: TOilImsAverageDensity_derivs
-
-  dden_up = 0.d0
-  dden_dn = 0.d0
-
-  if (sat_up < eps ) then
-    TOilImsAverageDensity_derivs = density_dn
-    dden_dn = 1.d0
-  else if (sat_dn < eps ) then 
-    TOilImsAverageDensity_derivs = density_up
-    dden_up = 1.d0
-  else ! in here we could use an armonic average, 
-       ! other idea sat weighted average but it needs truncation
-    TOilImsAverageDensity_derivs = 0.5d0*(density_up+density_dn)
-    dden_up = 0.5d0
-    dden_dn = 0.5d0
-  end if
-
-end function TOilImsAverageDensity_derivs
-
-! ************************************************************************** !
 
 subroutine DeltaPressureDerivs_up_and_down(ddelta_pressure_dpup, ddelta_pressure_dpdn, &
                                            ddelta_pressure_dTup, ddelta_pressure_dTdn, &
@@ -283,130 +239,6 @@ subroutine MoleFluxDerivs(d_mole_flux, d_q, q, density_ave, ddensity_ave_dden, &
   !                                       (  d (ave den) / d (t)    )
 
 end subroutine MoleFluxDerivs
-
-! ************************************************************************** !
-
-subroutine toil_accum_derivs_alyt(toil_auxvar,material_auxvar, option, j, soil_heat_capacity)
-
-  use Material_Aux_class
-  use Option_module
-
-  implicit none
-
-  !! Inputs:
-  type(auxvar_toil_ims_type) :: toil_auxvar
-  class(material_auxvar_type) :: material_auxvar
-  type(option_type) :: option
-  PetscReal :: soil_heat_capacity
-  !! Outputs:
-  PetscReal, dimension(1:3,1:3) :: j !! entry j is partial accum(j) / partial v_j
-  !! workers:
-  PetscReal :: porosity, volume
-  PetscInt :: oid, lid, energy_id, iphase
-
-  oid = option%oil_phase
-  lid = option%liquid_phase
-  energy_id = option%energy_id
-  volume = material_auxvar%volume
-  porosity = toil_auxvar%effective_porosity
-
-
-  j = 0.d0
-
-
-  !!    OIL EQUATION:
-
-  !! w.r.t. pressure
-  !print *, "ddendp: ", toil_auxvar%d%dden_dp(oid,1)
-  j(oid, 1) = porosity*toil_auxvar%sat(oid)*toil_auxvar%d%dden_dp(oid,1) + &
-              toil_auxvar%d%dpor_dp*(toil_auxvar%sat(oid)*toil_auxvar%den(oid))
-
-  !! w.r.t. sat:
-  j(oid, 2)  = porosity*toil_auxvar%den(oid)
-
-  !! w.r.t. temp:
-  j(oid,3) = porosity*toil_auxvar%sat(oid)*toil_auxvar%d%dden_dT(oid)
-
-
-  !! END OIL EQUATION
-
-
-  !!     LIQUID EQUATION
-
-  !! w.r.t. pressure:
-  !print *, "ddendp: ", toil_auxvar%d%dden_dp(lid,1)
-  j(lid,1)  = porosity*toil_auxvar%sat(lid)*toil_auxvar%d%dden_dp(lid,1) + &
-              toil_auxvar%d%dpor_dp*(toil_auxvar%sat(lid)*toil_auxvar%den(lid))
-
-  !! w.r.t. sat:
-  j(lid,2)  = -1.d0*toil_auxvar%den(lid)*porosity
-
-  !! w.r.t. temp
-  j(lid,3) =  porosity*toil_auxvar%sat(lid)*toil_auxvar%d%dden_dT(lid)
-
-  !! END LIQUID EQUATION
-
-  !! first a sum over the two phases, with the term being
-  !! 
-  !!    (poro) (sat) (den) (U)
-
-  !!  liquid phase
-  !! 
-  !! w.r.t pressure
-  j(energy_id, 1) = j(energy_id, 1) + & 
-                    porosity * &
-                    toil_auxvar%sat(lid)* ( &
-                    toil_auxvar%d%dden_dp(lid,1)*toil_auxvar%U(lid) + &
-                    toil_auxvar%den(lid)*toil_auxvar%d%dU_dp(lid) )
-  !! and density w.r.t. pressure:
-  j(energy_id, 1) = j(energy_id, 1) + & 
-                    toil_auxvar%d%dpor_dp*toil_auxvar%sat(lid)*toil_auxvar%den(lid)*toil_auxvar%u(lid)
-
-  !! w.r.t oil sat:
-  j(energy_id, 2) = j(energy_id, 2) - & !! note negative, next term is scaled by dsl/dso 
-                    porosity*toil_auxvar%den(lid)*toil_auxvar%U(lid)
-
-  !! w.r.t. temp
-  j(energy_id,3) = j(energy_id,3) + &
-                   porosity * &
-                   toil_auxvar%sat(lid)* ( &
-                   toil_auxvar%d%dden_dt(lid)*toil_auxvar%U(lid) + &
-                   toil_auxvar%den(lid)*toil_auxvar%d%dU_dT(lid)  )
-
-  !!  oil phase
-  !!
-  !! w.r.t pressure
-  j(energy_id, 1) = j(energy_id, 1) + & 
-                    porosity * &
-                    toil_auxvar%sat(oid)* ( &
-                    toil_auxvar%d%dden_dp(oid,1)*toil_auxvar%U(oid) + &
-                    toil_auxvar%den(oid)*toil_auxvar%d%dU_dp(oid) )
-  !! and density w.r.t. pressure:
-  j(energy_id, 1) = j(energy_id, 1) + & 
-                    toil_auxvar%d%dpor_dp*toil_auxvar%sat(oid)*toil_auxvar%den(oid)*toil_auxvar%u(oid)
-
-  !! w.r.t oil sat:
-  j(energy_id, 2) = j(energy_id, 2) + & 
-                    porosity*toil_auxvar%den(oid)*toil_auxvar%U(oid)
-
-  !! w.r.t. temp
-  j(energy_id,3) = j(energy_id,3) + &
-                   porosity * &
-                   toil_auxvar%sat(oid)* ( &
-                   toil_auxvar%d%dden_dt(oid)*toil_auxvar%U(oid) + &
-                   toil_auxvar%den(oid)*toil_auxvar%d%dU_dT(oid)  )
-
-  !! also the (1-por) ... term
-  j(energy_id,1) = j(energy_id,1) - toil_auxvar%d%dpor_dp*material_auxvar%soil_particle_density*soil_heat_capacity*toil_auxvar%temp
-  j(energy_id,3) = j(energy_id,3) + (1.d0 - porosity)*material_auxvar%soil_particle_density * &
-                                                             soil_heat_capacity
-
-  !! END ENERGY EQUATION
-
-
-j = j*volume
-
-end subroutine toil_accum_derivs_alyt
 
 ! ************************************************************************** !
 end module TOilIms_derivs_module

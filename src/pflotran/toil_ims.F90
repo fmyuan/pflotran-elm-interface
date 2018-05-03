@@ -2568,11 +2568,6 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
     call TOilImsAccumulation(toil_auxvar(ZERO_INTEGER), &
                              material_auxvar,soil_heat_capacity,option,Res,&
                              J_alt,PETSC_TRUE)
-    !call toil_accum_derivs_alyt(toil_auxvar(0),material_auxvar, option, j_alt, soil_heat_capacity)
-    !! also needs to be multiplied by dt:
-    !j_alt = j_alt/option%flow_dt
-    call toil_accum_derivs_alyt(toil_auxvar(0),material_auxvar, option, Jdum, soil_heat_capacity)
-    Jdum = Jdum/option%flow_dt
     if (toil_ims_isothermal) then
       J_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
       J_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
@@ -2587,10 +2582,6 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
       call TOilImsAccumulation(toil_auxvar(ZERO_INTEGER), &
                                material_auxvar,soil_heat_capacity,option,Res,&
                                J_alt,PETSC_TRUE)
-#if 0
-       call toil_accum_derivs_alyt(toil_auxvar(0),material_auxvar, option, j_alt, soil_heat_capacity)
-       j_alt = j_alt/option%flow_dt
-#endif
       if (toil_ims_isothermal) then
         J_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
         J_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
@@ -3918,7 +3909,6 @@ end subroutine TOilImsDestroy
 
 ! ************************************************************************** !
 
-! ************************************************************************** !
 
 function TOilImsAverageDensity(sat_up,sat_dn,density_up,density_dn)
   ! 
@@ -3945,6 +3935,37 @@ function TOilImsAverageDensity(sat_up,sat_dn,density_up,density_dn)
   end if
 
 end function TOilImsAverageDensity
+
+! ************************************************************************** !
+
+function TOilImsAverageDensity_derivs(sat_up,sat_dn,density_up,density_dn, dden_up, dden_dn)
+  ! 
+  ! Modification of TOilImsAverageDensity which computes derivatives
+
+  implicit none
+
+  PetscReal :: sat_up, sat_dn
+  PetscReal :: density_up, density_dn, dden_up, dden_dn
+
+  PetscReal :: TOilImsAverageDensity_derivs
+
+  dden_up = 0.d0
+  dden_dn = 0.d0
+
+  if (sat_up < eps ) then
+    TOilImsAverageDensity_derivs = density_dn
+    dden_dn = 1.d0
+  else if (sat_dn < eps ) then 
+    TOilImsAverageDensity_derivs = density_up
+    dden_up = 1.d0
+  else ! in here we could use an armonic average, 
+       ! other idea sat weighted average but it needs truncation
+    TOilImsAverageDensity_derivs = 0.5d0*(density_up+density_dn)
+    dden_up = 0.5d0
+    dden_dn = 0.5d0
+  end if
+
+end function TOilImsAverageDensity_derivs
 
 
 ! ************************************************************************** !
