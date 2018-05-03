@@ -1973,6 +1973,295 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
 end subroutine TOilImsBCFlux
 
 ! ************************************************************************** !
+subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
+                          global_auxvar,ss_flow_vol_flux,scale,Res, j, analytical_derivatives)
+  ! 
+  ! Computes the source/sink terms for the residual
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 11/04/15
+  ! 
+
+  use Option_module
+  use Condition_module  
+
+  use EOS_Water_module
+  use EOS_Oil_module
+
+  implicit none
+
+  type(option_type) :: option
+  type(flow_toil_ims_condition_type), pointer :: src_sink_condition
+  !type(toil_ims_auxvar_type) :: toil_auxvar
+  class(auxvar_toil_ims_type) :: toil_auxvar
+  type(global_auxvar_type) :: global_auxvar !keep global_auxvar for salinity
+  PetscReal :: ss_flow_vol_flux(option%nphase)
+  PetscReal :: scale  
+  PetscReal :: Res(option%nflowdof)
+
+  ! local parameter
+  PetscInt, parameter :: SRC_TEMPERATURE = 1
+  PetscInt, parameter :: SRC_ENTHALPY = 2 
+  ! local variables
+  PetscReal, pointer :: qsrc(:)
+  PetscInt :: flow_src_sink_type    
+  PetscReal :: qsrc_mol
+  PetscReal :: den, den_kg, enthalpy, internal_energy, temperature
+  PetscReal :: cell_pressure, dummy_pressure
+  PetscInt :: iphase
+  PetscInt :: energy_var
+  PetscErrorCode :: ierr
+
+  PetscReal :: dden_bool, denth_bool
+  PetscReal :: hw_dp, hw_dT, ho_dp, ho_dT
+  PetscReal, dimension(1:3,1:3) :: j
+  PetscReal, dimension(1:3) :: d_qsrc_mol, d_inj_en_part
+  PetscReal :: scale_use
+  PetscBool :: analytical_derivatives
+
+  j = 0.d0
+
+  cell_pressure = 0.d0
+
+  ! this can be removed when etxending to pressure condition
+  if (.not.associated(src_sink_condition%rate) ) then
+    option%io_buffer = 'TOilImsSrcSink fow condition rate not defined ' // &
+    'rate is needed for a valid src/sink term'
+    call printErrMsg(option)  
+  end if
+
+  !qsrc => src_sink_condition%rate%dataset%rarray(:)
+  qsrc => src_sink_condition%rate%dataset%rarray
+
+  energy_var = 0
+  if ( associated(src_sink_condition%temperature) ) then
+    energy_var = SRC_TEMPERATURE 
+  else if ( associated(src_sink_condition%enthalpy) ) then
+    energy_var = SRC_ENTHALPY
+  end if
+
+  flow_src_sink_type = src_sink_condition%rate%itype
+
+ ! checks that qsrc(liquid_phase) and qsrc(oil_phase) 
+ ! do not have different signs
+  if ( (qsrc(option%liquid_phase)>0.0d0 .and. qsrc(option%oil_phase)<0.d0).or.&
+      (qsrc(option%liquid_phase)<0.0d0 .and. qsrc(option%oil_phase)>0.d0)  & 
+    ) then
+    option%io_buffer = "TOilImsSrcSink error: " // &
+      "src(wat) and src(oil) with opposite sign"
+    call printErrMsg(option)
+  end if
+
+  ! approximates BHP with local pressure
+  ! to compute BHP we need to solve an IPR equation
+    cell_pressure = &
+        maxval(toil_auxvar%pres(option%liquid_phase:option%oil_phase))
+
+  ! if enthalpy is used to define enthelpy or energy rate is used  
+  ! approximate bottom hole temperature (BHT) with local temp
+  if ( energy_var == SRC_TEMPERATURE) then
+    temperature = src_sink_condition%temperature%dataset%rarray(1)
+  else   
+    temperature = toil_auxvar%temp
+  end if
+
+
+  Res = 0.d0
+  dden_bool = 0.d0
+  do iphase = 1, option%nphase
+    qsrc_mol = 0.d0
+    if ( qsrc(iphase) > 0.d0) then 
+      select case(iphase)
+        case(LIQUID_PHASE)
+          call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
+        case(TOIL_IMS_OIL_PHASE)
+            call EOSOilDensity(temperature,cell_pressure,den,ierr)
+      end select 
+    else
+      den = toil_auxvar%den(iphase)
+    end if
+
+    scale_use = 0.d0
+    select case(flow_src_sink_type)
+      ! injection and production 
+      case(MASS_RATE_SS)
+        qsrc_mol = qsrc(iphase)/toil_ims_fmw_comp(iphase) ! kg/sec -> kmol/sec
+      case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
+        qsrc_mol = qsrc(iphase)/toil_ims_fmw_comp(iphase)*scale 
+        scale_use = scale
+      case(VOLUMETRIC_RATE_SS)  ! assume local density for now 
+                  ! qsrc(iphase) = m^3/sec  
+        qsrc_mol = qsrc(iphase)*den ! den = kmol/m^3 
+        dden_bool = 1.d0
+      case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
+        ! qsrc1 = m^3/sec             ! den = kmol/m^3
+        qsrc_mol = qsrc(iphase)* den * scale
+        dden_bool = 1.d0
+        !qsrc_mol = qsrc(iphase)*gen_auxvar%den(iphase)*scale 
+        scale_use = scale
+    end select
+    ss_flow_vol_flux(iphase) = qsrc_mol/ den
+    Res(iphase) = qsrc_mol
+    if (analytical_derivatives) then
+      call Qsrc_mol_derivs(d_qsrc_mol,dden_bool, qsrc(iphase), toil_auxvar%d%dden_dp(iphase,1), &
+                           toil_auxvar%d%dden_dt(iphase), scale_use)
+      j(iphase, 1:3) = j(iphase, 1:3) + d_qsrc_mol(1:3)
+    endif
+  enddo
+
+  ! when using scaled src/sinks, the rates (marr or vol) scaling 
+  ! at this point the scale factor is already included in Res(iphase)
+
+  ! Res(option%energy_id), energy units: MJ/sec
+
+  if ( associated(src_sink_condition%temperature) .or. &
+      associated(src_sink_condition%enthalpy) &
+     ) then
+    ! if injection compute local pressure that will be used as BHP
+    ! approximation used to overcome the solution of an IPR
+    !if ( qsrc(option%liquid_phase)>0.d0 .or. 
+    !    qsrc(option%oil_phase)>0.d0 ) then
+    !  cell_pressure = &
+    !      maxval(toil_auxvar%pres(option%liquid_phase:option%oil_phase))
+    !end if
+    ! water injection 
+    if (qsrc(option%liquid_phase) > 0.d0) then !implies qsrc(option%oil_phase)>=0
+      denth_bool = 0.d0
+      if ( energy_var == SRC_TEMPERATURE ) then
+        if (analytical_derivatives) then 
+          call EOSWaterDensity(src_sink_condition%temperature% &
+                               dataset%rarray(1), cell_pressure, &
+                               den_kg,den,ierr)
+          call EOSWaterEnthalpy(src_sink_condition%temperature% &
+                                dataset%rarray(1), cell_pressure, &
+                                enthalpy, hw_dp, hw_dT,ierr)
+          hw_dp = hw_dp * 1.d-6
+          hw_dT = 0.d0 !! because input temp is constant here
+          denth_bool = 1.d0
+        else
+          call EOSWaterDensity(src_sink_condition%temperature% &
+                               dataset%rarray(1), cell_pressure, &
+                               den_kg,den,ierr)
+          call EOSWaterEnthalpy(src_sink_condition%temperature% &
+                                dataset%rarray(1), cell_pressure, &
+                                enthalpy,ierr)
+        endif
+
+        !call EOSWaterEnthalpy(gen_auxvar%temp,cell_pressure,enthalpy, &
+                              !hw_dp,hw_dT,ierr)
+        ! enthalpy = [J/kmol]
+      else if ( energy_var == SRC_ENTHALPY ) then
+        !input as J/kg
+        enthalpy = src_sink_condition%enthalpy% &
+                       dataset%rarray(option%liquid_phase)
+                     ! J/kg * kg/kmol = J/kmol  
+        enthalpy = enthalpy * toil_ims_fmw_comp(option%liquid_phase) 
+      end if
+      enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
+      ! enthalpy units: MJ/kmol ! water component mass                     
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%liquid_phase) * enthalpy
+
+      if (analytical_derivatives) then
+        call InjectionEnergyPartDerivs(d_inj_en_part, denth_bool, &
+                                       Res(option%liquid_phase), enthalpy, &
+                                       hw_dp, hw_dT)
+        j(option%energy_id, :) = j(option%energy_id, :) +  d_inj_en_part
+      endif
+
+    end if
+    ! oil injection 
+    if (qsrc(option%oil_phase) > 0.d0) then !implies qsrc(option%liquid_phase)>=0
+      denth_bool = 0.d0
+      if ( energy_var == SRC_TEMPERATURE ) then
+        if (analytical_derivatives) then
+          call EOSOilEnthalpy(src_sink_condition%temperature%dataset%rarray(1), &
+                              cell_pressure, enthalpy, hw_dp, hw_dT,  ierr)
+          ho_dp = ho_dp * 1.d-6
+          ho_dT = 0.d0 !! because input temp is constant here
+          denth_bool = 1.d0
+        else
+          call EOSOilEnthalpy(src_sink_condition%temperature%dataset%rarray(1), &
+                              cell_pressure, enthalpy, ierr)
+        endif
+        ! enthalpy = [J/kmol] 
+      else if ( energy_var == SRC_ENTHALPY ) then
+        enthalpy = src_sink_condition%enthalpy% &
+                     dataset%rarray(option%oil_phase)
+                      !J/kg * kg/kmol = J/kmol  
+        enthalpy = enthalpy * toil_ims_fmw_comp(option%oil_phase)        
+      end if
+      enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
+      ! enthalpy units: MJ/kmol ! oil component mass                     
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%oil_phase) * enthalpy
+
+      if (analytical_derivatives) then
+        call InjectionEnergyPartDerivs(d_inj_en_part, denth_bool, &
+                                       Res(option%oil_phase), enthalpy, &
+                                       ho_dp, ho_dT)
+        j(option%energy_id, :) = j(option%energy_id, :) +  d_inj_en_part
+      endif
+
+    end if
+    ! water energy extraction due to water production
+    if (qsrc(option%liquid_phase) < 0.d0) then !implies qsrc(option%oil_phase)<=0
+      ! auxvar enthalpy units: MJ/kmol ! water component mass                     
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%liquid_phase) * &
+                              toil_auxvar%H(option%liquid_phase)
+
+      if (analytical_derivatives) then
+        !! bit of a misuse here since commenting in this routine says it's
+        !! for r * enthalpy
+        !! here use it for 
+        !! r * H
+        !! but it's fine if the arguments are changed appropriately.
+        !! Really this is a general purpose simple derivative routine
+        !! for const * x 
+        !! where only dx_dp and dx_dT are nonzero
+        !! and switched on or off by an upstreaming-like flag
+        call InjectionEnergyPartDerivs(d_inj_en_part, denth_bool, &
+                                       Res(option%liquid_phase), &
+                                       toil_auxvar%H(option%liquid_phase) , &
+                                       toil_auxvar%d%dH_dp(option%liquid_phase), &
+                                       toil_auxvar%d%dH_dT(option%liquid_phase))
+        j(option%energy_id, :) = j(option%energy_id, :) +  d_inj_en_part
+      endif
+
+    end if
+    !oil energy extraction due to oil production 
+    if (qsrc(option%oil_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
+      ! auxvar enthalpy units: MJ/kmol ! water component mass                     
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%oil_phase) * &
+                              toil_auxvar%H(option%oil_phase)
+
+      if (analytical_derivatives) then
+        call InjectionEnergyPartDerivs(d_inj_en_part, denth_bool, &
+                                       Res(option%oil_phase), &
+                                       toil_auxvar%H(option%oil_phase) , &
+                                       toil_auxvar%d%dH_dp(option%oil_phase), &
+                                       toil_auxvar%d%dH_dT(option%oil_phase))
+        j(option%energy_id, :) = j(option%energy_id, :) +  d_inj_en_part
+      endif
+
+    end if
+
+  else !if not temp or enthalpy are given
+    ! if energy rate is given, loaded in qsrc(3) in MJ/sec 
+    Res(option%energy_id) = qsrc(THREE_INTEGER)* scale ! MJ/s
+
+    !! no derivatives for this!
+  end if
+
+
+  nullify(qsrc)      
+  
+end subroutine TOilImsSrcSink
+! ************************************************************************** !
+
+#if 0
 
 subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
                           global_auxvar,ss_flow_vol_flux,scale,Res)
@@ -2174,6 +2463,7 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
   nullify(qsrc)      
   
 end subroutine TOilImsSrcSink
+#endif
 
 ! ************************************************************************** !
 subroutine TOilImsDerivativePassTest(toil_auxvar,option)
@@ -2639,6 +2929,8 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
   PetscReal :: dummy_real(option%nphase)
   PetscInt :: idof, irow
 
+  PetscReal :: Jdum(option%nflowdof,option%nflowdof)  
+
   PetscReal :: J_alt(option%nflowdof,option%nflowdof)
   PetscReal :: J_dff(option%nflowdof,option%nflowdof)
   PetscReal :: tol
@@ -2648,13 +2940,13 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
 
  if (.NOT. toil_analytical_derivatives .OR. toil_analytical_derivatives_compare) then
     call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
-                            global_auxvar,dummy_real,scale,Res)
+                            global_auxvar,dummy_real,scale,Res,Jdum,PETSC_FALSE)
 
     ! downgradient derivatives
     do idof = 1, option%nflowdof
 
       call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(idof), &
-                          global_auxvar,dummy_real,scale,res_pert)
+                          global_auxvar,dummy_real,scale,res_pert,Jdum,PETSC_FALSE)
     
       do irow = 1, option%nflowdof
         Jac(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar(idof)%pert
@@ -2675,8 +2967,8 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
 
   if (toil_analytical_derivatives) then
 
-    call TOilImsSrcSink_derivs(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
-                            global_auxvar,dummy_real,scale,Res, j_alt)
+    call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
+                            global_auxvar,dummy_real,scale,Res,j_alt,PETSC_TRUE)
 
 
     if (toil_ims_isothermal) then
@@ -2690,8 +2982,8 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
        tol = toil_dcomp_tol
        call MatCompare(Jac, J_alt, 3, 3, tol, option%matcompare_reldiff)
 
-       call TOilImsSrcSink_derivs(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
-                               global_auxvar,dummy_real,scale,Res, j_alt)
+       call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
+                               global_auxvar,dummy_real,scale,Res,j_alt,PETSC_TRUE)
         if (toil_ims_isothermal) then
           j_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
           j_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
@@ -3051,7 +3343,7 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
         call TOilImsSrcSink(option,source_sink%flow_condition%toil_ims, &
                            patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id), &
                            global_auxvars(ghosted_id),ss_flow_vol_flux, &
-                           scale,Res)
+                           scale,Res,Jac_dummy,PETSC_FALSE)
 #ifdef WELL_CLASS
       end if
 #endif
