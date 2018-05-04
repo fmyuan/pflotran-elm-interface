@@ -15,7 +15,7 @@ module AuxVars_TOilIms_module
   PetscBool, public :: toil_analytical_derivatives = PETSC_FALSE
   PetscBool, public :: toil_analytical_derivatives_compare = PETSC_FALSE
   PetscReal, public :: toil_dcomp_tol = 1.d0
-  PetscBool, public :: toil_appleyard = PETSC_FALSE
+  PetscBool, public :: toil_GP = PETSC_FALSE
 
   type, public :: toil_derivative_auxvar_type
     PetscReal, pointer :: dp_dsat(:) !! pressure w.r.t. saturation, will take into account 

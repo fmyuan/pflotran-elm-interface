@@ -131,7 +131,7 @@ subroutine TOilImsSetup(realization)
   toil_analytical_derivatives_compare = option%flow%numerical_derivatives_compare
 
   toil_dcomp_tol = option%debug_tol
-  toil_appleyard = option%use_appleyard
+  toil_GP = option%use_GP
 
   ! ensure that material properties specific to this module are properly
   ! initialized

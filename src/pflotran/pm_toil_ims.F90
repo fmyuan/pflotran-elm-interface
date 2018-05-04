@@ -562,8 +562,8 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     end if
   enddo
   
-  !! seperate appleyard loop
-  if (toil_appleyard) then
+  !! loop for geometric penalty
+  if (toil_GP) then
     do local_id = 1, grid%nlmax
 
       ghosted_id = grid%nL2G(local_id)
@@ -571,24 +571,13 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       saturation_index = offset + TOIL_IMS_SATURATION_DOF
       saturation0 = X_p(saturation_index)
 
-      !! I just can't get this to work. Geometric penalty is great though
-      !call TOilAppleyard(saturation0, dX_p(saturation_index), ghosted_id, this%realization, lid, oid)
-
       del_saturation = dX_p(saturation_index)
       saturation1 = saturation0 - del_saturation
-      if (saturation1 < 0.d0) then
-        print *, "appleyard caused -ve sat"
-      endif
-      if (saturation1 > 1.d0) then
-        print *, "appleyard caused > 1 sat"
-      endif
       !! geometric penalty:
-      !sat_fac = saturation1/saturation0
       sat_fac = abs(del_saturation/saturation0)
       if (sat_fac > geo_pen_limit) then
          dX_p(saturation_index) =&
                       geo_pen_limit*saturation0*abs(del_saturation)/del_saturation
-         !print *, "GP scl, ", sat_fac, " ", del_saturation, " ", dX_p(saturation_index)
       endif
       
 
