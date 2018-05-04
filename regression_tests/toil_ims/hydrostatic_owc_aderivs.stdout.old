@@ -141,4 +141,4 @@ FLOW TS BE Wasted Linear Iterations = 0
 FLOW TS BE SNES time = 0.0 seconds
  --> write regression output file: hydrostatic_owc_aderivs.regression
 
- Wall Clock Time:  5.2478E-03 [sec]   8.7464E-05 [min]   1.4577E-06 [hr]
+ Wall Clock Time:  5.5926E-03 [sec]   9.3210E-05 [min]   1.5535E-06 [hr]

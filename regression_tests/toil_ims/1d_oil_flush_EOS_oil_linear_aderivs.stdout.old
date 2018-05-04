@@ -1742,4 +1742,4 @@ FLOW TS BE Wasted Linear Iterations = 0
 FLOW TS BE SNES time = 0.1 seconds
  --> write regression output file: 1d_oil_flush_EOS_oil_linear_aderivs.regression
 
- Wall Clock Time:  7.9450E-02 [sec]   1.3242E-03 [min]   2.2069E-05 [hr]
+ Wall Clock Time:  8.4859E-02 [sec]   1.4143E-03 [min]   2.3572E-05 [hr]

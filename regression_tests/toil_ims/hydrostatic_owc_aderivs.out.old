@@ -113,4 +113,4 @@ FLOW Linear Solver
   newton =   1 [       4] linear =     1 [         4] cuts =  0 [   0]
   --> max chng: dpl=   1.7140E+00 dpo=   1.7140E+00  dso=   1.0844E-09 dt=   1.1934E-07
 
- Wall Clock Time:  5.2478E-03 [sec]   8.7464E-05 [min]   1.4577E-06 [hr]
+ Wall Clock Time:  5.5926E-03 [sec]   9.3210E-05 [min]   1.5535E-06 [hr]

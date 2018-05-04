@@ -167,4 +167,4 @@ FLOW TS BE Wasted Linear Iterations = 0
 FLOW TS BE SNES time = 0.0 seconds
  --> write regression output file: 1d_thermal_water_flood_aderivs.regression
 
- Wall Clock Time:  7.3662E-03 [sec]   1.2277E-04 [min]   2.0462E-06 [hr]
+ Wall Clock Time:  6.7244E-03 [sec]   1.1207E-04 [min]   1.8679E-06 [hr]
