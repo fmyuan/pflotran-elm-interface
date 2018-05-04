@@ -3535,12 +3535,14 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   do ghosted_id = 1, grid%ngmax  ! For each local node do...
     if (patch%imat(ghosted_id) <= 0) cycle
 
-    call TOilImsAuxVarPerturb(patch%aux%TOil_ims%auxvars(:,ghosted_id), &
-                              global_auxvars(ghosted_id), &
-                              material_auxvars(ghosted_id), &
-                              patch%characteristic_curves_array( &
-                               patch%sat_func_id(ghosted_id))%ptr, &
-                              ghosted_id,option)
+    if (.NOT. toil_analytical_derivatives .OR. toil_analytical_derivatives_compare) then
+      call TOilImsAuxVarPerturb(patch%aux%TOil_ims%auxvars(:,ghosted_id), &
+                                global_auxvars(ghosted_id), &
+                                material_auxvars(ghosted_id), &
+                                patch%characteristic_curves_array( &
+                                patch%sat_func_id(ghosted_id))%ptr, &
+                                ghosted_id,option)
+    endif
 !#ifdef WELL_DEBUG    
 !  write(*,"('after perturb = ',(4(e10.4,1x)))"), patch%aux%TOil_ims%auxvars(0:3,ghosted_id)%pert
 !#endif 
