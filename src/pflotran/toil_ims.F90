@@ -1815,7 +1815,7 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: d_delta_pres_dT_up, d_delta_pres_dT_dn
 
   PetscReal :: ddensity_ave_dden_up, ddensity_ave_dden_dn
-  PetscReal :: d_delta_temp_dt_up, d_delta_temp_dt_dn, dheat_flux_ddelta_temp
+  PetscReal :: d_delta_temp_dt_dn, dheat_flux_ddelta_temp
   PetscReal :: d_delta_pres_ds_up, d_delta_pres_ds_dn     
 
   PetscReal, dimension(1:3) :: d_v_darcy_up, d_v_darcy_dn
@@ -2362,8 +2362,8 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
                               Res(option%liquid_phase) * enthalpy
 
       if (analytical_derivatives) then
-        call InjectionEnergyPartDerivs(d_inj_en_part, denth_bool, &
-                                       Res(option%liquid_phase), enthalpy, &
+        call SrcSinkEnergyPartDerivs(d_inj_en_part, denth_bool, &
+                                       Res(option%liquid_phase),  &
                                        hw_dp, hw_dT)
         j(option%energy_id, :) = j(option%energy_id, :) +  d_inj_en_part
       endif
@@ -2396,8 +2396,8 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
                               Res(option%oil_phase) * enthalpy
 
       if (analytical_derivatives) then
-        call InjectionEnergyPartDerivs(d_inj_en_part, denth_bool, &
-                                       Res(option%oil_phase), enthalpy, &
+        call SrcSinkEnergyPartDerivs(d_inj_en_part, denth_bool, &
+                                       Res(option%oil_phase),  &
                                        ho_dp, ho_dT)
         j(option%energy_id, :) = j(option%energy_id, :) +  d_inj_en_part
       endif
@@ -2420,9 +2420,8 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
         !! for const * x 
         !! where only dx_dp and dx_dT are nonzero
         !! and switched on or off by an upstreaming-like flag
-        call InjectionEnergyPartDerivs(d_inj_en_part, denth_bool, &
+        call SrcSinkEnergyPartDerivs(d_inj_en_part, denth_bool, &
                                        Res(option%liquid_phase), &
-                                       toil_auxvar%H(option%liquid_phase) , &
                                        toil_auxvar%d%dH_dp(option%liquid_phase), &
                                        toil_auxvar%d%dH_dT(option%liquid_phase))
         j(option%energy_id, :) = j(option%energy_id, :) +  d_inj_en_part
@@ -2437,9 +2436,8 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
                               toil_auxvar%H(option%oil_phase)
 
       if (analytical_derivatives) then
-        call InjectionEnergyPartDerivs(d_inj_en_part, denth_bool, &
+        call SrcSinkEnergyPartDerivs(d_inj_en_part, denth_bool, &
                                        Res(option%oil_phase), &
-                                       toil_auxvar%H(option%oil_phase) , &
                                        toil_auxvar%d%dH_dp(option%oil_phase), &
                                        toil_auxvar%d%dH_dT(option%oil_phase))
         j(option%energy_id, :) = j(option%energy_id, :) +  d_inj_en_part

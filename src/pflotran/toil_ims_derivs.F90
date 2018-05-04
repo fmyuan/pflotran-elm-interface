@@ -17,7 +17,7 @@ module TOilIms_derivs_module
             EnergyDrivenFluxDerivs, &
             DeltaPressureDerivs_up_and_down, &
             V_Darcy_Derivs, &
-            InjectionEnergyPartDerivs, &
+            SrcSinkEnergyPartDerivs, &
             Qsrc_mol_derivs, &
             DerivsForWellVolFlux, &
             DerivsForWellFlow, &
@@ -131,12 +131,12 @@ end subroutine DerivsForWellEnergy
 
 ! ************************************************************************** !
 
-subroutine InjectionEnergyPartDerivs(d_inj_en_part, denth_bool, r, &
-                                      enthalpy, hw_dp, hw_dT)
+subroutine SrcSinkEnergyPartDerivs(d_inj_en_part, denth_bool, r, &
+                                   hw_dp, hw_dT)
 
   implicit none
   PetscReal, dimension(1:3) :: d_inj_en_part
-  PetscReal :: denth_bool, r, enthalpy, hw_dp, hw_dT
+  PetscReal :: denth_bool, r, hw_dp, hw_dT
      
   !r *  enthalpy
 
@@ -151,7 +151,7 @@ subroutine InjectionEnergyPartDerivs(d_inj_en_part, denth_bool, r, &
 
  
 
-end subroutine InjectionEnergyPartDerivs
+end subroutine SrcSinkEnergyPartDerivs 
 
 ! ************************************************************************** !
 
@@ -222,9 +222,14 @@ subroutine DeltaPressureDerivs_up_and_down(ddelta_pressure_dpup, ddelta_pressure
   ddelta_pressure_dpup = 1.d0 + dist_gravity * &
                          ddensity_ave_dden_up * &
                          dden_dp_up * fmw_use
+#if 0
   ddelta_pressure_dpdn = -1.d0 + dist_gravity * &
                          ddensity_ave_dden_dn * &
                          dden_dp_up * fmw_use
+#endif
+  ddelta_pressure_dpdn = -1.d0 + dist_gravity * &
+                         ddensity_ave_dden_dn * &
+                         dden_dp_dn * fmw_use
 
   ! w.r.t. saturation:
   ddelta_pressure_dsatup = dp_ds_up
