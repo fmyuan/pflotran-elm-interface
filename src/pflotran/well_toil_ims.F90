@@ -321,7 +321,7 @@ subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
 
   PetscReal, dimension(1:3) :: d_mob, d_vol_flux
   PetscReal :: d_pmd_dp, d_pmd_dT, d_pe_dp, d_pe_dT
-  PetscReal ::  d_dphi_dp
+  PetscReal ::  d_dphi_dp, d_dphi_ds
 
   PetscBool :: analytical_derivatives
 
@@ -350,6 +350,11 @@ subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
     !!! so dphi_dp is just -1?
     d_dphi_dp = -1.d0
     !!! TOTO: also add cap pressure based saturation derivatives here
+    !d_dphi_ds = -1.d0*this%toil_auxvars%dp_dsat(option%liquid_phase)
+    d_dphi_ds = -1.d0*this%toil_auxvars(dof, ghosted_id)%d%dp_dsat(option%liquid_phase)
+    !! recall that the value in the auxvar is already w.r.t. OIL
+    !! sat so don't be tempted to throw in an extra -1 here - 
+    !! just the -1 from the eq for dphi
   endif
 
   ! it is assumed that the temperature is uniform throughout the well
@@ -380,7 +385,7 @@ subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
     vol_flux = cfact * mob * dphi
 
     if (analytical_derivatives) then 
-      call DerivsForWellVolFlux(d_vol_flux, d_mob, d_dphi_dp, mob, dphi, cfact)
+      call DerivsForWellVolFlux(d_vol_flux, d_mob, d_dphi_dp, d_dphi_ds, mob, dphi, cfact)
     endif
 
     !vol_flux = 0.00015
@@ -502,7 +507,7 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
 
   PetscReal, dimension(1:3) :: d_A, d_B, d_mob, d_vol_flux
   PetscReal :: d_pmd_dp, d_pmd_dT, d_pe_dp, d_pe_dT
-  PetscReal ::  d_dphi_dp
+  PetscReal ::  d_dphi_dp, d_dphi_ds
 
   class(auxvar_toil_ims_type), pointer :: avar
 
@@ -533,6 +538,7 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
     if (analytical_derivatives) then 
       !!! so dphi_dp is just 1 - unless cap pres derivatives are involved
       d_dphi_dp = 1.d0
+      d_dphi_ds = this%toil_auxvars(dof, ghosted_id)%d%dp_dsat(i_ph)
     endif
 
     !upwind for den_mol 
@@ -676,7 +682,7 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
     if (analytical_derivatives) then 
       !! need to do derivatives even if previous if statment was skipped due to no
       !! current flow
-      call DerivsForWellVolFlux(d_vol_flux, d_mob, d_dphi_dp, mob, dphi, cfact)
+      call DerivsForWellVolFlux(d_vol_flux, d_mob, d_dphi_dp, d_dphi_ds, mob, dphi, cfact)
       !! vol_vlux * phase_mol_den contribution
       call DerivsForWellFlow(d_A, d_vol_flux, d_pmd_dp, d_pmd_dT, vol_flux, phase_mol_den(i_ph))
       Jac(i_ph,:) = d_A(:)

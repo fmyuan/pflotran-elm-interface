@@ -27,13 +27,13 @@ contains
 
 ! ************************************************************************** !
 
-subroutine DerivsForWellVolFlux(d_vol_flux, d_mob, d_dphi_dp, mob, dphi, cfact)
+subroutine DerivsForWellVolFlux(d_vol_flux, d_mob, d_dphi_dp, d_dphi_ds, mob, dphi, cfact)
 
   implicit none
 
   PetscReal, dimension(1:3) :: d_vol_flux
   PetscReal, dimension(1:3) :: d_mob
-  PetscReal :: d_dphi_dp
+  PetscReal :: d_dphi_dp, d_dphi_ds
   PetscReal :: mob, dphi, cfact
 
       !vol_flux = cfact * mob * dphi
@@ -44,7 +44,8 @@ subroutine DerivsForWellVolFlux(d_vol_flux, d_mob, d_dphi_dp, mob, dphi, cfact)
   d_vol_flux(1) = mob * d_dphi_dp + d_mob(1) * dphi
 
   !! w.r.t. oil saturation
-  d_vol_flux(2) = d_mob(2) * dphi
+  !d_vol_flux(2) = d_mob(2) * dphi
+  d_vol_flux(2) = mob * d_dphi_ds + d_mob(2) * dphi
 
   !! w.r.t. temperature
   d_vol_flux(3) = d_mob(3) * dphi
