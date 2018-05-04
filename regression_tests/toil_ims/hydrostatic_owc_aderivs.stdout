@@ -1,0 +1,144 @@
+------------------------------ Provenance --------------------------------------
+pflotran_compile_date_time = unknown
+pflotran_compile_user = unknown
+pflotran_compile_hostname = unknown
+pflotran_changeset = unknown
+pflotran_status = unknown
+petsc_changeset = unknown
+petsc_status = unknown
+--------------------------------------------------------------------------------
+ PMTOilImsCreate()
+ "grid_structured_type" set to default value.
+ pflotran card:: REGRESSION
+ pflotran card:: GRID
+ pflotran card:: TIMESTEPPER
+ pflotran card:: NEWTON_SOLVER
+ pflotran card:: TIME
+ pflotran card:: MATERIAL_PROPERTY
+   Name :: formation
+ "MATERIAL_PROPERTY,rock density units" set to default value.
+ "MATERIAL_PROPERTY,specific heat units" set to default value.
+ "MATERIAL_PROPERTY,dry thermal conductivity units" set to default value.
+ "MATERIAL_PROPERTY,wet thermal conductivity units" set to default value.
+ pflotran card:: CHARACTERISTIC_CURVES
+   Name :: ch1
+ pflotran card:: EOS
+ "EOS,OIL,VISCOSITY,CONSTANT units" set to default value.
+ pflotran card:: REGION
+ all
+ pflotran card:: FLOW_CONDITION
+ initial_water
+ "PRESSURE UNITS" set to default value.
+ "OIL_SATURATION UNITS" set to default value.
+ "DATUM UNITS" set to default value.
+ "OWC UNITS" set to default value.
+ pflotran card:: INITIAL_CONDITION
+ pflotran card:: STRATA
+ pflotran card:: END_SUBSURFACE
+ Domain Bounds (x y z):
+     0.0000000000E+00  0.0000000000E+00  0.0000000000E+00
+     5.0000000000E+01  5.0000000000E+01  1.2000000000E+02
+ Extent of Gridded Domain
+  X: 0.0000000000000000 - 50.000000000000000
+  Y: 0.0000000000000000 - 50.000000000000000
+  Z: 0.0000000000000000 - 120.00000000000000
+
+ Default HDF5 method is used in Initialization
+
+ Requested processors and decomposition =     1, npx,y,z=   -1  -1  -1
+ Actual decomposition: npx,y,z=    1   1   1
+
+   Beginning setup of FLOW SNES
+ number of dofs =   3, number of phases =   2
+   Finished setting up FLOW SNES
+ Solver: bcgs
+ Preconditioner: ilu
+
+FLOW Time Stepper
+max steps: 999999
+max constant cumulative time steps: 5
+max cuts: 16
+ts reduction factor: 0.50000000000000000
+ts maximum growth factor: 2.0000000000000000
+
+FLOW Newton Solver
+        atol:  1.0000E-08
+        rtol:  1.0000E-08
+        stol:  1.0000E-30
+        dtol:  1.0000E+15
+     maxnorm:  1.0000E+20
+   inftolres:  1.0000E-07
+   inftolupd:  1.0000E+00
+inftolrelupd: -9.9900E+02
+inftolsclres: -9.9900E+02
+    max iter:     8
+    min iter:     1
+        maxf: 10000
+
+matrix type:baij                
+precond. matrix type:baij                
+inexact newton: off
+print convergence: on
+print detailed convergence: off
+check infinity norm: on
+
+FLOW Linear Solver
+   solver:  bcgs
+  precond:  ilu
+     atol:  1.0000E-50
+     rtol:  1.0000E-05
+     dtol:  1.0000E+04
+ max iter:  10000
+ 
+   Finished Initialization
+
+== TOIL_IMS FLOW ================================================================
+  0 2r: 7.86E-05 2x: 0.00E+00 2u: 0.00E+00 ir: 5.40E-05 iu: 0.00E+00 rsn:   0
+  1 2r: 3.10E-08 2x: 4.54E+07 2u: 1.88E+01 ir: 1.66E-08 iu: 1.13E+01 rsn: itol_res
+
+ Step      1 Time=  1.00000E-02 Dt=  1.00000E-02 [d] snes_conv_reason:   10
+  newton =   1 [       1] linear =     1 [         1] cuts =  0 [   0]
+  --> SNES Linear/Non-Linear Iterations =            1  /            1
+  --> SNES Residual:   3.099367E-08  1.291403E-09  1.658606E-08
+  --> max chng: dpl=   1.1270E+01 dpo=   1.1269E+01  dso=   2.3547E-09 dt=   2.9887E-07
+ 
+
+== TOIL_IMS FLOW ================================================================
+  0 2r: 8.78E-06 2x: 0.00E+00 2u: 0.00E+00 ir: 5.19E-06 iu: 0.00E+00 rsn:   0
+  1 2r: 1.51E-09 2x: 4.54E+07 2u: 9.87E+00 ir: 6.98E-10 iu: 4.12E+00 rsn: itol_res
+
+ Step      2 Time=  3.00000E-02 Dt=  2.00000E-02 [d] snes_conv_reason:   10
+  newton =   1 [       2] linear =     1 [         2] cuts =  0 [   0]
+  --> SNES Linear/Non-Linear Iterations =            1  /            1
+  --> SNES Residual:   1.508691E-09  6.286212E-11  6.979267E-10
+  --> max chng: dpl=   4.1159E+00 dpo=   4.1157E+00  dso=   1.9051E-09 dt=   2.3976E-07
+ 
+
+== TOIL_IMS FLOW ================================================================
+  0 2r: 2.63E-06 2x: 0.00E+00 2u: 0.00E+00 ir: 1.35E-06 iu: 0.00E+00 rsn:   0
+  1 2r: 9.78E-10 2x: 4.54E+07 2u: 1.00E+01 ir: 5.60E-10 iu: 3.19E+00 rsn: itol_res
+
+ Step      3 Time=  7.00000E-02 Dt=  4.00000E-02 [d] snes_conv_reason:   10
+  newton =   1 [       3] linear =     1 [         3] cuts =  0 [   0]
+  --> SNES Linear/Non-Linear Iterations =            1  /            1
+  --> SNES Residual:   9.782946E-10  4.076227E-11  5.595108E-10
+  --> max chng: dpl=   3.1862E+00 dpo=   3.1858E+00  dso=   2.1204E-09 dt=   2.3236E-07
+ 
+
+== TOIL_IMS FLOW ================================================================
+  0 2r: 1.35E-06 2x: 0.00E+00 2u: 0.00E+00 ir: 6.24E-07 iu: 0.00E+00 rsn:   0
+  1 2r: 9.81E-10 2x: 4.54E+07 2u: 5.61E+00 ir: 5.42E-10 iu: 1.71E+00 rsn: itol_res
+
+ Step      4 Time=  1.00000E-01 Dt=  3.00000E-02 [d] snes_conv_reason:   10
+  newton =   1 [       4] linear =     1 [         4] cuts =  0 [   0]
+  --> SNES Linear/Non-Linear Iterations =            1  /            1
+  --> SNES Residual:   9.812703E-10  4.088626E-11  5.422330E-10
+  --> max chng: dpl=   1.7140E+00 dpo=   1.7140E+00  dso=   1.0844E-09 dt=   1.1934E-07
+ 
+
+FLOW TS BE steps =      4 newton =        4 linear =          4 cuts =      0
+FLOW TS BE Wasted Linear Iterations = 0
+FLOW TS BE SNES time = 0.0 seconds
+ --> write regression output file: hydrostatic_owc_aderivs.regression
+
+ Wall Clock Time:  5.5926E-03 [sec]   9.3210E-05 [min]   1.5535E-06 [hr]
