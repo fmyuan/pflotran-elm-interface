@@ -1921,24 +1921,55 @@ subroutine EOSGasSetPVDG(input,option)
 
   use Option_module
   use Input_Aux_module
+  use Lookup_Table_module
 
   implicit none
 
   type(input_type), pointer :: input
   type(option_type) :: option
 
+  type(lookup_table_var_type), pointer :: db_var => null()
+  character(len=MAXWORDLENGTH) :: internal_units, user_units
+  PetscInt :: data_idx
+
   pvt_table => EOSTableCreate('PVDG',option)
+
+  pvt_table%num_prop = 2
+  
+  ! units initially assing default values - overwritten by units specified 
+  ! in the table input 
+  internal_units = '' !assign default value by SetDefaultInternalUnits
+  user_units = ''     !assign default value by SetMetricUnits
+  
+  !adding FVF 
+  data_idx = 1 !position of FVF in the table (after pressure)
+  db_var => CreateLookupTableVar(internal_units,user_units, &
+                                                 data_idx)
+  db_var%iname = EOS_FVF
+  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
+  !this%lookup_table_uni%var_array(EOS_FVF)%ptr => db_var
+  call pvt_table%AddEOSProp(db_var,option)
+  nullify(db_var)
+
+  !adding VISCOSITY 
+  data_idx = 2 !position of FVF in the table (after pressure)
+  db_var => CreateLookupTableVar(internal_units,user_units, &
+                                                 data_idx)
+  db_var%iname = EOS_VISCOSITY
+  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
+  !this%lookup_table_uni%var_array(EOS_VISCOSITY)%ptr => db_var
+  call pvt_table%AddEOSProp(db_var,option)
+  nullify(db_var)
 
   !set up PVDG variable and order - firt column is the pressure
   !below the order of the data fiels is assigned
-  pvt_table%data_to_prop_map(1) = EOS_FVF
-  pvt_table%prop_to_data_map(EOS_FVF) = 1
-  pvt_table%data_to_prop_map(2) = EOS_VISCOSITY
-  pvt_table%prop_to_data_map(EOS_VISCOSITY) = 2
+  !pvt_table%data_to_prop_map(1) = EOS_FVF
+  !pvt_table%prop_to_data_map(EOS_FVF) = 1
+  !pvt_table%data_to_prop_map(2) = EOS_VISCOSITY
+  !pvt_table%prop_to_data_map(EOS_VISCOSITY) = 2
 
-  pvt_table%num_prop = 2
-
-  !set metric unit as default - must be called before table read
+  !set Default internal must be called before Set Metric
+  call pvt_table%SetDefaultInternalUnits(option)
   call pvt_table%SetMetricUnits(option)
 
   call pvt_table%Read(input,option)

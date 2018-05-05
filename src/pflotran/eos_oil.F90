@@ -1754,41 +1754,65 @@ subroutine EOSOilSetPVDO(input,option)
 
   use Option_module
   use Input_Aux_module
+  use Lookup_Table_module
 
   implicit none
 
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  pvt_table => EOSTableCreate('PVDO',option)
+  type(lookup_table_var_type), pointer :: db_var => null()
+  character(len=MAXWORDLENGTH) :: internal_units, user_units
+  PetscInt :: data_idx
 
+  pvt_table => EOSTableCreate('PVDO',option)
+  
+  pvt_table%num_prop = 2
+  
+  ! units initially assing default values - overwritten by units specified 
+  ! in the table input 
+  internal_units = '' !assign default value by SetDefaultInternalUnits
+  user_units = ''     !assign default value by SetMetricUnits
+  
+  !adding FVF 
+  data_idx = 1 !position of FVF in the table (after pressure)
+  db_var => CreateLookupTableVar(internal_units,user_units, &
+                                                 data_idx)
+  db_var%iname = EOS_FVF
+  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
+  !this%lookup_table_uni%var_array(EOS_FVF)%ptr => db_var
+  call pvt_table%AddEOSProp(db_var,option)
+  nullify(db_var)
+
+  !adding VISCOSITY 
+  data_idx = 2 !position of FVF in the table (after pressure)
+  db_var => CreateLookupTableVar(internal_units,user_units, &
+                                                 data_idx)
+  db_var%iname = EOS_VISCOSITY
+  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
+  !this%lookup_table_uni%var_array(EOS_VISCOSITY)%ptr => db_var
+  call pvt_table%AddEOSProp(db_var,option)
+  nullify(db_var)
+
+  !PO old lookup table format
   !set up pvdo variable and order - firt column is the pressure
   !below the order of the data fiels is assigned
-  pvt_table%data_to_prop_map(1) = EOS_FVF
-  pvt_table%prop_to_data_map(EOS_FVF) = 1
-  pvt_table%data_to_prop_map(2) = EOS_VISCOSITY
-  pvt_table%prop_to_data_map(EOS_VISCOSITY) = 2
+  !pvt_table%data_to_prop_map(1) = EOS_FVF
+  !pvt_table%prop_to_data_map(EOS_FVF) = 1
+  !pvt_table%data_to_prop_map(2) = EOS_VISCOSITY
+  !pvt_table%prop_to_data_map(EOS_VISCOSITY) = 2
+  ! PO old lookup table format
 
-  pvt_table%num_prop = 2
-
-  !set metric unit as default - must be called before table read
+  !set Default internal must be called before Set Metric
+  call pvt_table%SetDefaultInternalUnits(option)
   call pvt_table%SetMetricUnits(option)
 
-  !call eos_dbase%Read(option)
   call pvt_table%Read(input,option)
 
   call EOSTableAddToList(pvt_table,eos_table_list)
 
   EOSOilViscosityPtr => EOSOilViscosityTable
   EOSOilDensityPtr => EOSOilDensityTable
-  !set property function pointers - for testing
-  !EOSOilDensityEnergyPtr => EOSOilDensityEnergyS
-  !if (.not.associated(EOSOilDensityPtr))  &
-  !          EOSOilDensityPtr => EOSOilDensityEOSDBase
-  !if (.not.associated(EOSOilEnthalpyPtr)) &
-  !  EOSOilEnthalpyPtr => EOSOilEnthalpyEOSDBase
-  !if (.not.associated(EOSOilViscosityPtr)) &
-  !  EOSOilViscosityPtr => EOSOilViscosityEOSDBase
 
 end subroutine EOSOilSetPVDO
 
@@ -1803,31 +1827,93 @@ subroutine EOSOilSetPVCO(input,option)
 
   use Option_module
   use Input_Aux_module
+  use Lookup_Table_module
 
   implicit none
 
   type(input_type), pointer :: input
   type(option_type) :: option
 
+  type(lookup_table_var_type), pointer :: db_var => null()
+  character(len=MAXWORDLENGTH) :: internal_units, user_units
+  PetscInt :: data_idx
+
   pvt_table => EOSTableCreate('PVCO',option)
+
+
+  pvt_table%num_prop = 5
+  
+  ! units initially assing default values - overwritten by units specified 
+  ! in the table input 
+  internal_units = '' !assign default value by SetDefaultInternalUnits
+  user_units = ''     !assign default value by SetMetricUnits
+  
+  !adding RS 
+  data_idx = 1 !position in the table after pressure
+  db_var => CreateLookupTableVar(internal_units,user_units, &
+                                                 data_idx)
+  db_var%iname = EOS_RS
+  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
+  ! this%lookup_table_uni%var_array(EOS_RS)%ptr => db_var
+  call pvt_table%AddEOSProp(db_var,option)
+  nullify(db_var)
+
+  !adding FVF
+  data_idx = 2 !position in the table after pressure
+  db_var => CreateLookupTableVar(internal_units,user_units, &
+                                                 data_idx)
+  db_var%iname = EOS_FVF
+  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
+  !this%lookup_table_uni%var_array(EOS_FVF)%ptr => db_var
+  call pvt_table%AddEOSProp(db_var,option)
+  nullify(db_var)
+
+  !adding VISCOSITY
+  data_idx = 3 !position in the table after pressure
+  db_var => CreateLookupTableVar(internal_units,user_units, &
+                                                 data_idx)
+  db_var%iname = EOS_VISCOSITY
+  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
+  !this%lookup_table_uni%var_array(EOS_VISCOSITY)%ptr => db_var
+  call pvt_table%AddEOSProp(db_var,option)
+  nullify(db_var)
+
+  !adding COMPRESSIBILITY
+  data_idx = 4 !position in the table after pressure
+  db_var => CreateLookupTableVar(internal_units,user_units, &
+                                                 data_idx)
+  db_var%iname = EOS_COMPRESSIBILITY
+  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
+  !this%lookup_table_uni%var_array(EOS_COMPRESSIBILITY)%ptr => db_var
+  call pvt_table%AddEOSProp(db_var,option)
+  nullify(db_var)
+
+  !adding VISCOSIBILITY
+  data_idx = 5 !position in the table after pressure
+  db_var => CreateLookupTableVar(internal_units,user_units, &
+                                                 data_idx)
+  db_var%iname = EOS_VISCOSIBILITY
+  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
+  !this%lookup_table_uni%var_array(EOS_VISCOSIBILITY)%ptr => db_var
+  call pvt_table%AddEOSProp(db_var,option)
+  nullify(db_var)
+
+  !set Default internal must be called before Set Metric
+  call pvt_table%SetDefaultInternalUnits(option)
+  call pvt_table%SetMetricUnits(option)
 
   !set up pvdo variable and order - firt column is the pressure
   !below the order of the data fiels is assigned
-  pvt_table%data_to_prop_map(1) = EOS_RS
-  pvt_table%prop_to_data_map(EOS_RS) = 1
-  pvt_table%data_to_prop_map(2) = EOS_FVF
-  pvt_table%prop_to_data_map(EOS_FVF) = 2
-  pvt_table%data_to_prop_map(3) = EOS_VISCOSITY
-  pvt_table%prop_to_data_map(EOS_VISCOSITY) = 3
-  pvt_table%data_to_prop_map(4) = EOS_COMPRESSIBILITY
-  pvt_table%prop_to_data_map(EOS_COMPRESSIBILITY) = 4
-  pvt_table%data_to_prop_map(5) = EOS_VISCOSIBILITY
-  pvt_table%prop_to_data_map(EOS_VISCOSIBILITY) = 5
-
-  pvt_table%num_prop = 5
-
-  !set metric unit as default - must be called before table read
-  call pvt_table%SetMetricUnits(option)
+  !pvt_table%data_to_prop_map(1) = EOS_RS
+  !pvt_table%prop_to_data_map(EOS_RS) = 1
+  !pvt_table%data_to_prop_map(2) = EOS_FVF
+  !pvt_table%prop_to_data_map(EOS_FVF) = 2
+  !pvt_table%data_to_prop_map(3) = EOS_VISCOSITY
+  !pvt_table%prop_to_data_map(EOS_VISCOSITY) = 3
+  !pvt_table%data_to_prop_map(4) = EOS_COMPRESSIBILITY
+  !pvt_table%prop_to_data_map(EOS_COMPRESSIBILITY) = 4
+  !pvt_table%data_to_prop_map(5) = EOS_VISCOSIBILITY
+  !pvt_table%prop_to_data_map(EOS_VISCOSIBILITY) = 5
 
   call pvt_table%Read(input,option)
 
@@ -1881,24 +1967,51 @@ subroutine ConvertRSVoltoRSMolar(FMW_gas,ref_den_gas_kg)
   !
   ! Convert volumetric RS to molar RS
 
+  use Lookup_Table_module
+
   implicit none
 
   PetscReal, intent(in) :: FMW_gas
   PetscReal, intent(in) :: ref_den_gas_kg
 
-  PetscInt :: i_data
+  PetscInt :: data_idx
+  PetscReal, pointer :: var_data(:,:) => null()
+  type(lookup_table_var_ptr_type), pointer :: var_array(:) => null()  
 
-  do i_data = 1,size(pvt_table%data,2)
-    !Rsm=(moles gas)/(moles oil)=(mol den gas)*(vol gas)/((mol den oil)*(vol oil))
-    !                           =Rsv*(mol den gas)/(mol den oil)
-    pvt_table%data(pvt_table%prop_to_data_map(EOS_RS),i_data) = &
-    !mol/mol = (kg/sm3 * kmol/kg)_gas / (kg/sm3 * kmol/kg)_oil * (sm3_g / sm3_o)
-            (ref_den_gas_kg / FMW_gas) / (reference_density_kg / fmw_oil) * &
-            pvt_table%data(pvt_table%prop_to_data_map(EOS_RS),i_data)
-  end do
-
+  !do i_data = 1,size(pvt_table%data,2)
+  !  !Rsm=(moles gas)/(moles oil)=(mol den gas)*(vol gas)/((mol den oil)*(vol oil))
+  !  !                           =Rsv*(mol den gas)/(mol den oil)
+  !  pvt_table%data(pvt_table%prop_to_data_map(EOS_RS),i_data) = &
+  !  !mol/mol = (kg/sm3 * kmol/kg)_gas / (kg/sm3 * kmol/kg)_oil * (sm3_g / sm3_o)
+  !          (ref_den_gas_kg / FMW_gas) / (reference_density_kg / fmw_oil) * &
+  !          pvt_table%data(pvt_table%prop_to_data_map(EOS_RS),i_data)
+  !end do
+  !
   ! change units after conversion
-  pvt_table%prop_internal_units(EOS_RS) = 'mol/mol'
+  !pvt_table%prop_internal_units(EOS_RS) = 'mol/mol'
+  
+  !if regular 
+    !var_array => this%lookup_table_non_uni%var_array
+    !var_data => this%lookup_table_non_uni%var_data
+  !else if no-regular
+    var_array => pvt_table%lookup_table_gen%var_array
+    var_data => pvt_table%lookup_table_gen%var_data
+  !end if
+
+  data_idx = var_array(EOS_RS)%ptr%data_idx
+  !mol/mol = (kg/sm3 * kmol/kg)_gas / (kg/sm3 * kmol/kg)_oil * (sm3_g / sm3_o)
+  var_data(data_idx,:) = &
+           (ref_den_gas_kg / FMW_gas) / (reference_density_kg / fmw_oil) * &
+            var_data(data_idx,:)
+  
+  !from this point on in the data_idx there is not FVF but EOS_DENSITY
+  !modify variable pointig this
+  var_array(EOS_RS)%ptr%internal_units = 'mol/mol'
+  var_array(EOS_RS)%ptr%user_units = 'mol/mol'
+  var_array(EOS_RS)%ptr%conversion_factor = 1.0
+
+  nullify(var_array)
+  nullify(var_data)
 
 end subroutine ConvertRSVoltoRSMolar
 

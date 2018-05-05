@@ -18,9 +18,9 @@ module EOSData_module
   PetscInt, parameter, public :: EOS_RS = 6
   PetscInt, parameter, public :: EOS_COMPRESSIBILITY = 7
   PetscInt, parameter, public :: EOS_VISCOSIBILITY = 8
-  !add here other properties and derivatives, then increase MAX_PROP_NUM
+  !add here other properties and derivatives, then increase EOS_MAX_PROP_NUM
   !and add the default user and internal units in EOSDataBaseInit
-  PetscInt, parameter, public :: MAX_PROP_NUM = 8
+  PetscInt, parameter, public :: EOS_MAX_PROP_NUM = 8
 
   !type, public :: eos_data_base_type
   type, abstract, public :: eos_data_base_type
@@ -29,18 +29,18 @@ module EOSData_module
     PetscInt :: num_p   ! number of pressure intervals
     PetscInt :: num_t   ! number of temperature points
     PetscInt :: num_prop ! number of properties in the database
-    PetscInt :: data_to_prop_map(MAX_PROP_NUM) !map the data idx to the prop.
-    PetscInt :: prop_to_data_map(MAX_PROP_NUM) !map the prop to the dat idx
+    !PetscInt :: data_to_prop_map(EOS_MAX_PROP_NUM) !map the data idx to the prop.
+    !PetscInt :: prop_to_data_map(EOS_MAX_PROP_NUM) !map the prop to the dat idx
     PetscReal :: press_unit_conv_factor
     character(len=MAXWORDLENGTH) :: press_internal_units
     character(len=MAXWORDLENGTH) :: press_user_units
     PetscReal :: temp_unit_conv_factor
     character(len=MAXWORDLENGTH) :: temp_internal_units
     character(len=MAXWORDLENGTH) :: temp_user_units
-    PetscReal :: prop_unit_conv_factors(MAX_PROP_NUM)
-    character(len=MAXWORDLENGTH) :: prop_internal_units(MAX_PROP_NUM)
-    character(len=MAXWORDLENGTH) :: prop_user_units(MAX_PROP_NUM)
-    PetscReal, pointer :: data(:,:)
+    !PetscReal :: prop_unit_conv_factors(EOS_MAX_PROP_NUM)
+    !character(len=MAXWORDLENGTH) :: prop_internal_units(EOS_MAX_PROP_NUM)
+    !character(len=MAXWORDLENGTH) :: prop_user_units(EOS_MAX_PROP_NUM)
+    !PetscReal, pointer :: data(:,:)
   contains
     procedure :: EOSDataBaseInit
     procedure, public :: EOSPropPresent
@@ -48,7 +48,9 @@ module EOSData_module
     procedure :: UnitConversionFactors
     procedure :: ConvertFVFtoMolarDensity
     procedure :: EOSDataBaseStrip
+    procedure, public :: SetDefaultInternalUnits
     procedure, public :: SetMetricUnits
+    procedure, public :: AddEOSProp
   end type
 
   type, public, extends(eos_data_base_type) :: eos_database_type
@@ -66,6 +68,7 @@ module EOSData_module
     PetscInt :: n_indices !number of indices to be saved for lookup
     PetscInt :: first_index !location of first index in auxvars
     class(lookup_table_general_type), pointer :: lookup_table_gen
+    !class(lookup_table_non_uni_type), pointer :: lookup_table_non_uni
     class(eos_table_type), pointer :: next => null()
   contains
     procedure, public :: Read => EOSTableRead
@@ -110,40 +113,45 @@ subroutine EOSDataBaseInit(this)
   this%num_p = UNINITIALIZED_INTEGER
   this%num_t = UNINITIALIZED_INTEGER
   this%num_prop = UNINITIALIZED_INTEGER
-  this%data_to_prop_map(1:MAX_PROP_NUM) = UNINITIALIZED_INTEGER
-  this%prop_to_data_map(1:MAX_PROP_NUM) = UNINITIALIZED_INTEGER
+  !this%data_to_prop_map(1:EOS_MAX_PROP_NUM) = UNINITIALIZED_INTEGER
+  !this%prop_to_data_map(1:EOS_MAX_PROP_NUM) = UNINITIALIZED_INTEGER
   this%press_unit_conv_factor = 1.0d0
   this%temp_unit_conv_factor = 1.0d0
-  this%prop_unit_conv_factors(1:MAX_PROP_NUM) = 1.0d0
+  !PO old lookup format
+  !this%prop_unit_conv_factors(1:EOS_MAX_PROP_NUM) = 1.0d0
+  !PO end old lookup format
   !set deafult internal units - they can be changed by internal tranformation
   this%press_internal_units = 'Pa'
   this%temp_internal_units = 'C'
-  this%prop_internal_units(EOS_DENSITY) = 'kg/m^3'
-  this%prop_internal_units(EOS_ENTHALPY) = 'J/kg'
-  this%prop_internal_units(EOS_VISCOSITY) = 'Pa-s' !should replace with Pa.s
-  this%prop_internal_units(EOS_INTERNAL_ENERGY) = 'J/kg'
-  this%prop_internal_units(EOS_FVF) = 'm^3/m^3'
-  this%prop_internal_units(EOS_RS) = 'm^3/m^3'
-  this%prop_internal_units(EOS_COMPRESSIBILITY) = '1/Pa'
-  this%prop_internal_units(EOS_VISCOSIBILITY) = '1/Pa'
+  !PO old lookup format
+  !this%prop_internal_units(EOS_DENSITY) = 'kg/m^3'
+  !this%prop_internal_units(EOS_ENTHALPY) = 'J/kg'
+  !this%prop_internal_units(EOS_VISCOSITY) = 'Pa-s' !should replace with Pa.s
+  !this%prop_internal_units(EOS_INTERNAL_ENERGY) = 'J/kg'
+  !this%prop_internal_units(EOS_FVF) = 'm^3/m^3'
+  !this%prop_internal_units(EOS_RS) = 'm^3/m^3'
+  !this%prop_internal_units(EOS_COMPRESSIBILITY) = '1/Pa'
+  !this%prop_internal_units(EOS_VISCOSIBILITY) = '1/Pa'
+  !PO end old lookup format
   !set deafult user units - identical to internal units
   this%press_user_units = 'Pa'
   this%temp_user_units = 'C'
-  this%prop_user_units(EOS_DENSITY) = 'kg/m^3'
-  this%prop_user_units(EOS_ENTHALPY) = 'J/kg'
-  this%prop_user_units(EOS_VISCOSITY) = 'Pa-s' !should replace with Pa.s
-  this%prop_user_units(EOS_INTERNAL_ENERGY) = 'J/kg'
-  this%prop_user_units(EOS_FVF) = 'm^3/m^3'
-  this%prop_user_units(EOS_RS) = 'm^3/m^3'
-  this%prop_user_units(EOS_COMPRESSIBILITY) = '1/Pa'
-  this%prop_user_units(EOS_VISCOSIBILITY) = '1/Pa'
-
-  do i_prop = 1,MAX_PROP_NUM
-    this%prop_internal_units(i_prop) = trim(this%prop_internal_units(i_prop))
-    this%prop_user_units(i_prop) = trim(this%prop_user_units(i_prop))
-  end do
-
-  nullify(this%data)
+  !PO old lookup format
+  !this%prop_user_units(EOS_DENSITY) = 'kg/m^3'
+  !this%prop_user_units(EOS_ENTHALPY) = 'J/kg'
+  !this%prop_user_units(EOS_VISCOSITY) = 'Pa-s' !should replace with Pa.s
+  !this%prop_user_units(EOS_INTERNAL_ENERGY) = 'J/kg'
+  !this%prop_user_units(EOS_FVF) = 'm^3/m^3'
+  !this%prop_user_units(EOS_RS) = 'm^3/m^3'
+  !this%prop_user_units(EOS_COMPRESSIBILITY) = '1/Pa'
+  !this%prop_user_units(EOS_VISCOSIBILITY) = '1/Pa'
+  !do i_prop = 1,EOS_MAX_PROP_NUM
+  !  this%prop_internal_units(i_prop) = trim(this%prop_internal_units(i_prop))
+  !  this%prop_user_units(i_prop) = trim(this%prop_user_units(i_prop))
+  !end do
+  !
+  !nullify(this%data)
+  !PO end old lookup format
 
 end subroutine EOSDataBaseInit
 
@@ -162,7 +170,21 @@ function EOSPropPresent(this,prop_iname)
   PetscInt, intent(in) :: prop_iname
   PetscBool :: EOSPropPresent
 
-  EOSPropPresent = Initialized(this%prop_to_data_map(prop_iname))
+  select type(this)
+    class is(eos_database_type)
+      EOSPropPresent = &
+              associated(this%lookup_table_uni%var_array(prop_iname)%ptr)
+    class is(eos_table_type)
+      !if this%regular
+        !EOSPropPresent = &
+        !      associated(this%lookup_table_non_uni%var_array(prop_iname)%ptr)
+      !esle if .not.this%regular
+        EOSPropPresent = &
+              associated(this%lookup_table_gen%var_array(prop_iname)%ptr) 
+        !EOSPropPresent = Initialized(this%prop_to_data_map(prop_iname))
+      !end if  
+  end select
+
 
 end function EOSPropPresent
 
@@ -186,18 +208,29 @@ subroutine ReadUserUnits(this,input,option)
 
   character(len=MAXWORDLENGTH) :: keyword, word, internal_units, user_units
   character(len=MAXSTRINGLENGTH) :: error_string
+  type(lookup_table_var_ptr_type), pointer :: prop_array(:)
   PetscInt :: prop_idx
   prop_idx = 0
+  
+  select type(this)
+    class is(eos_database_type)
+      prop_array =>  this%lookup_table_uni%var_array
+    class is(eos_table_type)
+      !if regular
+        ! prop_array =>  this%lookup_table_non_uni%var_array
+      !else if no-regular
+        prop_array =>  this%lookup_table_gen%var_array
+      !end if  
+  end select
 
+  !PO todo: "select type"  nested in select case to go once table refactor
+  !         complete
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
     call InputReadWord(input,option,keyword,PETSC_TRUE)
     select case(keyword)
       case('PRESSURE')
-        !internal_units = 'Pa'
-        !this%press_unit_conv_factor = UnitReadAndConversionFactor(input, &
-        !                                      internal_units,keyword,option)
         call InputReadWord(input,option,user_units,PETSC_TRUE)
         this%press_user_units = trim(user_units)
       case('TEMPERATURE')
@@ -218,61 +251,85 @@ subroutine ReadUserUnits(this,input,option)
         !  this%temp_unit_conv_factor = 1.0
         !endif
       case('DENSITY')
-        !prop_idx = this%prop_to_data_map(EOS_DENSITY)
-        !internal_units = 'kg/m^3'
-        !this%prop_unit_conv_factors(prop_idx) = &
-        !       UnitReadAndConversionFactor(input,internal_units,keyword,option)
         call InputReadWord(input,option,user_units,PETSC_TRUE)
-        this%prop_user_units(EOS_DENSITY) = user_units
+        prop_array(EOS_DENSITY)%ptr%user_units = trim(user_units)
+        !PO old lookup format
+        !select type(this)
+        !  class is(eos_database_type)
+        !    prop_array(EOS_DENSITY)%ptr%user_units = trim(user_units)
+        !  class is(eos_table_type)
+        !    this%prop_user_units(EOS_DENSITY) = trim(user_units)
+        !end select
       case('ENTHALPY')
-        !prop_idx = this%prop_to_data_map(EOS_ENTHALPY)
-        !internal_units = 'J/kg'
-        !this%prop_unit_conv_factors(prop_idx) = &
-        !       UnitReadAndConversionFactor(input,internal_units,keyword,option)
         call InputReadWord(input,option,user_units,PETSC_TRUE)
-        this%prop_user_units(EOS_ENTHALPY) = trim(user_units)
+        prop_array(EOS_ENTHALPY)%ptr%user_units = trim(user_units)
+        !PO old lookup format
+        !select type(this)
+        !  class is(eos_database_type)
+        !    prop_array(EOS_ENTHALPY)%ptr%user_units = trim(user_units)
+        !  class is(eos_table_type)
+        !    this%prop_user_units(EOS_ENTHALPY) = trim(user_units)
+        !end select        
       case('INTERNAL_ENERGY')
-        !prop_idx = this%prop_to_data_map(EOS_INTERNAL_ENERGY)
-        !internal_units = 'J/kg'
-        !this%prop_unit_conv_factors(prop_idx) = &
-        !       UnitReadAndConversionFactor(input,internal_units,keyword,option)
         call InputReadWord(input,option,user_units,PETSC_TRUE)
-        this%prop_user_units(EOS_INTERNAL_ENERGY) = trim(user_units)
+        prop_array(EOS_INTERNAL_ENERGY)%ptr%user_units = trim(user_units)
+        !PO old lookup format
+        !select type(this)
+        !  class is(eos_database_type)
+        !    prop_array(EOS_INTERNAL_ENERGY)%ptr%user_units = trim(user_units)
+        !  class is(eos_table_type)
+        !    this%prop_user_units(EOS_INTERNAL_ENERGY) = trim(user_units)
+        !end select
       case('VISCOSITY')
-        !prop_idx = this%prop_to_data_map(EOS_VISCOSITY)
-        !internal_units = 'Pa-s'
-        !this%prop_unit_conv_factors(prop_idx) = &
-        !       UnitReadAndConversionFactor(input,internal_units,keyword,option)
         call InputReadWord(input,option,user_units,PETSC_TRUE)
-        this%prop_user_units(EOS_VISCOSITY) = trim(user_units)
+        prop_array(EOS_VISCOSITY)%ptr%user_units = trim(user_units)
+        !PO old lookup format
+        !select type(this)
+        !  class is(eos_database_type)
+        !    prop_array(EOS_VISCOSITY)%ptr%user_units = trim(user_units)
+        !  class is(eos_table_type)
+        !    this%prop_user_units(EOS_VISCOSITY) = trim(user_units)
+        !end select      
       case('FVF')
-        !prop_idx = this%prop_to_data_map(EOS_FVF)
-        !internal_units = 'm^3/m^3'
-        !this%prop_unit_conv_factors(prop_idx) = &
-        !       UnitReadAndConversionFactor(input,internal_units,keyword,option)
         call InputReadWord(input,option,user_units,PETSC_TRUE)
-        this%prop_user_units(EOS_FVF) = trim(user_units)
+        prop_array(EOS_FVF)%ptr%user_units = trim(user_units)
+        !PO old lookup format
+        !select type(this)
+        !  class is(eos_database_type)
+        !    prop_array(EOS_FVF)%ptr%user_units = trim(user_units)
+        !  class is(eos_table_type)
+        !    this%prop_user_units(EOS_FVF) = trim(user_units)
+        !end select        
       case('RS')
-         !prop_idx = this%prop_to_data_map(EOS_RS)
-         !internal_units = 'm^3/m^3'
-         !this%prop_unit_conv_factors(prop_idx) = &
-         !     UnitReadAndConversionFactor(input,internal_units,keyword,option)
          call InputReadWord(input,option,user_units,PETSC_TRUE)
-         this%prop_user_units(EOS_RS) = trim(user_units)
+         prop_array(EOS_RS)%ptr%user_units = trim(user_units)
+         !PO old lookup format
+         !select type(this)
+         ! class is(eos_database_type)
+         !   prop_array(EOS_RS)%ptr%user_units = trim(user_units)
+         !  class is(eos_table_type)
+         !    this%prop_user_units(EOS_RS) = trim(user_units)
+         !end select
       case('COMPRESSIBILITY')
-         !prop_idx = this%prop_to_data_map(EOS_COMPRESSIBILITY)
-         !internal_units = '1/Pa'
-         !this%prop_unit_conv_factors(prop_idx) = &
-        !      UnitReadAndConversionFactor(input,internal_units,keyword,option)
          call InputReadWord(input,option,user_units,PETSC_TRUE)
-         this%prop_user_units(EOS_COMPRESSIBILITY) = trim(user_units)
+         prop_array(EOS_COMPRESSIBILITY)%ptr%user_units = trim(user_units)
+         !PO old lookup format
+         !select type(this)
+         ! class is(eos_database_type)
+         !   prop_array(EOS_COMPRESSIBILITY)%ptr%user_units = trim(user_units)
+         !    class is(eos_table_type)
+         !      this%prop_user_units(EOS_COMPRESSIBILITY) = trim(user_units)
+         !end select
       case('VISCOSIBILITY')
-         !prop_idx = this%prop_to_data_map(EOS_VISCOSIBILITY)
-         !internal_units = '1/Pa'
-         !this%prop_unit_conv_factors(prop_idx) = &
-         !     UnitReadAndConversionFactor(input,internal_units,keyword,option)
          call InputReadWord(input,option,user_units,PETSC_TRUE)
-         this%prop_user_units(EOS_VISCOSIBILITY) = trim(user_units)
+         prop_array(EOS_VISCOSIBILITY)%ptr%user_units = trim(user_units)
+         !PO old lookup format
+         !select type(this)
+         ! class is(eos_database_type)
+         !     prop_array(EOS_VISCOSIBILITY)%ptr%user_units = trim(user_units)
+         !   class is(eos_table_type)
+         !     this%prop_user_units(EOS_VISCOSIBILITY) = trim(user_units)
+         ! end select
       case default
         error_string = trim(error_string) // ': ' // this%name // &
         ': EOS DATA units'
@@ -281,6 +338,7 @@ subroutine ReadUserUnits(this,input,option)
   end do
 
   call this%UnitConversionFactors(option)
+  nullify(prop_array)
 
 end subroutine ReadUserUnits
 
@@ -288,7 +346,7 @@ end subroutine ReadUserUnits
 subroutine UnitConversionFactors(this,option)
   !
   ! Author: Paolo Orsini
-  ! Date: 11/08/17
+  ! Date: 11/08/17 - modified 04/18/2018
   !
   ! Process user input units and compute properties conversion fator
 
@@ -307,26 +365,29 @@ subroutine UnitConversionFactors(this,option)
                                   this%press_internal_units, option)
 
   !no temperature conversion - currently allowed only C
-
-  do i_prop = 1, size(this%prop_user_units(:))
-    if ( Initialized( this%prop_to_data_map(i_prop) ) ) then
-      data_idx = this%prop_to_data_map(i_prop)
-      !prop_idx = this%prop_to_data_map(EOS_DENSITY)
-      this%prop_unit_conv_factors(data_idx) = &
-             UnitsConvertToInternal(this%prop_user_units(i_prop), &
-                                    this%prop_internal_units(i_prop),option)
-    end if
-  end do
+  
+  !EOS properties conversion factors 
+  select type(this)
+    class is(eos_database_type)
+      call this%lookup_table_uni%LookupTableVarConvFactors(option)
+    class is(eos_table_type)
+      !if regular 
+        !call this%lookup_table_non_uni%LookupTableVarConvFactors(option)
+      !else if no-regular
+        call this%lookup_table_gen%LookupTableVarConvFactors(option)
+      !endif
+  end select    
 
 end subroutine UnitConversionFactors
 
 ! ************************************************************************** !
-subroutine SetMetricUnits(this,option)
+
+subroutine SetDefaultInternalUnits(this,option)
   !
   ! Author: Paolo Orsini
   ! Date: 11/08/17
   !
-  ! Set METRIC units - to read pvt tables
+  ! Set default internal units - to read pvt tables
 
   use Option_module
 
@@ -335,24 +396,213 @@ subroutine SetMetricUnits(this,option)
   class(eos_data_base_type) :: this
   type(option_type) :: option
 
+  type(lookup_table_var_ptr_type), pointer :: prop_array(:) => null()
+  PetscInt :: prop_idx
+
+  this%press_internal_units = 'Pa'
+  this%temp_internal_units = 'C'
+ 
+  nullify(prop_array)
+
+  !EOS properties conversion factors 
+  select type(this)
+    class is(eos_database_type)
+      prop_array => this%lookup_table_uni%var_array
+    class is(eos_table_type)
+      !if regular 
+        !prop_array => this%lookup_table_non_uni%var_array
+      !else if no-regular
+        prop_array => this%lookup_table_gen%var_array
+      !endif
+  end select
+ 
+  do prop_idx = 1,size(prop_array(:))
+    if ( associated(prop_array(prop_idx)%ptr) ) then
+      select case (prop_array(prop_idx)%ptr%iname)
+        case(EOS_DENSITY)
+          prop_array(prop_idx)%ptr%internal_units = 'kg/m^3'
+        case(EOS_ENTHALPY)
+          prop_array(prop_idx)%ptr%internal_units = 'J/kg'
+        case(EOS_VISCOSITY)
+          prop_array(prop_idx)%ptr%internal_units = 'Pa.s'
+        case(EOS_INTERNAL_ENERGY)
+          prop_array(prop_idx)%ptr%internal_units = 'J/kg'
+        case(EOS_FVF)
+          prop_array(prop_idx)%ptr%internal_units = 'm^3/m^3'
+        case(EOS_RS)
+          prop_array(prop_idx)%ptr%internal_units = 'm^3/m^3'
+        case(EOS_COMPRESSIBILITY)
+          prop_array(prop_idx)%ptr%internal_units = '1/Pa'
+        case(EOS_VISCOSIBILITY)
+          prop_array(prop_idx)%ptr%internal_units = '1/Pa'
+      end select
+    end if
+  end do
+
+  nullify(prop_array)
+
+end subroutine SetDefaultInternalUnits
+
+! ************************************************************************** !
+
+subroutine SetMetricUnits(this,option)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 11/08/17
+  !
+  ! Set METRIC user units of a pvt tables
+
+  use Option_module
+
+  implicit none
+
+  class(eos_data_base_type) :: this
+  type(option_type) :: option
+
+  type(lookup_table_var_ptr_type), pointer :: prop_array(:) => null()
+  PetscInt :: prop_idx
+
   this%press_user_units = 'Bar'
   this%temp_user_units = 'C'
-  this%prop_user_units(EOS_DENSITY) = 'kg/m^3'
-  this%prop_user_units(EOS_ENTHALPY) = 'kJ/kg'
-  this%prop_user_units(EOS_VISCOSITY) = 'cP' !should replace with Pa.s
-  this%prop_user_units(EOS_INTERNAL_ENERGY) = 'kJ/kg'
-  this%prop_user_units(EOS_FVF) = 'm^3/m^3'
-  this%prop_user_units(EOS_RS) = 'm^3/m^3'
-  this%prop_user_units(EOS_COMPRESSIBILITY) = '1/Bar'
-  this%prop_user_units(EOS_VISCOSIBILITY) = '1/Bar'
 
-  !set viscosity internal units to Pa.s - this is needed because not all
-  !internal viscosity units are set to Pa.s
-  this%prop_internal_units(EOS_VISCOSITY) = 'Pa.s'
+  nullify(prop_array)
+  
+  !EOS properties conversion factors 
+  select type(this)
+    class is(eos_database_type)
+      prop_array => this%lookup_table_uni%var_array
+    class is(eos_table_type)
+      !if regular 
+        !prop_array => this%lookup_table_non_uni%var_array
+      !else if no-regular
+        prop_array => this%lookup_table_gen%var_array
+      !endif
+  end select
+  
+  do prop_idx = 1,size(prop_array(:))
+    if ( associated(prop_array(prop_idx)%ptr) ) then
+      select case (prop_array(prop_idx)%ptr%iname)
+        case(EOS_DENSITY)
+          prop_array(prop_idx)%ptr%user_units = 'kg/m^3'
+        case(EOS_ENTHALPY)
+          prop_array(prop_idx)%ptr%user_units = 'kJ/kg'
+        case(EOS_VISCOSITY)
+          prop_array(prop_idx)%ptr%user_units = 'cP'
+        case(EOS_INTERNAL_ENERGY)
+          prop_array(prop_idx)%ptr%user_units = 'kJ/kg'
+        case(EOS_FVF)
+          prop_array(prop_idx)%ptr%user_units = 'm^3/m^3'
+        case(EOS_RS)
+          prop_array(prop_idx)%ptr%user_units = 'm^3/m^3'
+        case(EOS_COMPRESSIBILITY)
+          prop_array(prop_idx)%ptr%user_units = '1/Bar'
+        case(EOS_VISCOSIBILITY)
+          prop_array(prop_idx)%ptr%user_units = '1/Bar'
+      end select
+    end if
+  end do  
+
+  nullify(prop_array)
 
   call this%UnitConversionFactors(option)
 
 end subroutine SetMetricUnits
+
+! ************************************************************************** !
+
+subroutine AddEOSProp(this,new_var,option)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 05/04/18
+  !
+  ! Add new var eos properties to eos data (to variable list) 
+
+  use Option_module
+
+  implicit none
+
+  class(eos_data_base_type) :: this
+  type(lookup_table_var_type), pointer :: new_var
+  type(option_type) :: option
+
+  type(lookup_table_var_ptr_type), pointer :: var_array(:) => null()
+  type(lookup_table_var_list_type), pointer :: vars => null()
+  character(len=MAXSTRINGLENGTH) :: string 
+  character(len=MAXWORDLENGTH) :: word_error
+
+  !EOS properties conversion factors 
+  select type(this)
+    class is(eos_database_type)
+      vars => this%lookup_table_uni%vars
+      var_array => this%lookup_table_uni%var_array
+    class is(eos_table_type)
+      !if regular 
+        !prop_array => this%lookup_table_non_uni%var_array
+      !else if no-regular
+        vars => this%lookup_table_gen%vars
+        var_array => this%lookup_table_gen%var_array
+      !endif
+  end select
+
+  call LookupTableVarAddToList(new_var,vars)
+
+  string = 'Adding Property to eos database or table'
+
+  if( Uninitialized(new_var%iname) ) then
+    option%io_buffer = UninitializedMessage('EOS property iname',string)
+    call printErrMsg(option)
+  end if
+
+  if (.not.EOSPropExistInDictionary(new_var%iname)) then
+    write(word_error,*) new_var%iname
+    option%io_buffer = 'EOS property with iname = ' // word_error
+    call printErrMsg(option)
+  end if
+    
+  var_array(new_var%iname)%ptr => new_var
+  
+  nullify(vars)
+  nullify(var_array)
+
+end subroutine AddEOSProp
+
+! ************************************************************************** !
+
+function EOSPropExistInDictionary(property_iname)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 05/05/18
+  !
+  ! Check if the EOS property integer name exist in the dictionary
+  ! defined at the beginning of the module 
+
+  implicit none
+
+  PetscBool :: EOSPropExistInDictionary
+  PetscInt, intent(in) :: property_iname
+  
+  EOSPropExistInDictionary = .false.
+  
+  select case(property_iname)
+    case(EOS_DENSITY)
+      EOSPropExistInDictionary = .true.
+    case(EOS_ENTHALPY)
+      EOSPropExistInDictionary = .true.
+    case(EOS_VISCOSITY)
+      EOSPropExistInDictionary = .true.
+    case(EOS_INTERNAL_ENERGY)
+      EOSPropExistInDictionary = .true.
+    case(EOS_FVF)
+      EOSPropExistInDictionary = .true.
+    case(EOS_RS)
+      EOSPropExistInDictionary = .true.      
+    case(EOS_COMPRESSIBILITY)
+      EOSPropExistInDictionary = .true.
+    case(EOS_VISCOSIBILITY)
+      EOSPropExistInDictionary = .true.      
+  end select
+
+end function EOSPropExistInDictionary
 
 ! ************************************************************************** !
 subroutine ConvertFVFtoMolarDensity(this,FMW,reference_density_kg)
@@ -367,20 +617,57 @@ subroutine ConvertFVFtoMolarDensity(this,FMW,reference_density_kg)
   class(eos_data_base_type) :: this
   PetscReal, intent(in) :: FMW
   PetscReal, intent(in) :: reference_density_kg
+ 
+  PetscInt :: data_idx
+  PetscReal, pointer :: var_data(:,:) => null()
+  type(lookup_table_var_ptr_type), pointer :: var_array(:) => null()
 
-  PetscInt :: i_data
+  !PetscInt :: i_data
 
-  do i_data = 1,size(this%data,2)
-    ! kg/sm^3 * kmol/kg * sm^3/rm^3 = kmol/rm^3
-    this%data(this%prop_to_data_map(EOS_FVF),i_data) = &
-       reference_density_kg / FMW / &
-       this%data(this%prop_to_data_map(EOS_FVF),i_data)
-  end do
+  !PO old lookup var format
+  !do i_data = 1,size(this%data,2)
+  !  ! kg/sm^3 * kmol/kg * sm^3/rm^3 = kmol/rm^3
+  !  this%data(this%prop_to_data_map(EOS_FVF),i_data) = &
+  !     reference_density_kg / FMW / &
+  !     this%data(this%prop_to_data_map(EOS_FVF),i_data)
+  !end do
   !change variable name and map
-  this%data_to_prop_map(this%prop_to_data_map(EOS_FVF)) = EOS_DENSITY
-  this%prop_to_data_map(EOS_DENSITY) = this%prop_to_data_map(EOS_FVF)
+  !this%data_to_prop_map(this%prop_to_data_map(EOS_FVF)) = EOS_DENSITY
+  !this%prop_to_data_map(EOS_DENSITY) = this%prop_to_data_map(EOS_FVF)
   ! change units after conversion
-  this%prop_internal_units(EOS_DENSITY) = 'kmol/m^3'
+  !this%prop_internal_units(EOS_DENSITY) = 'kmol/m^3'
+  !------------------------------------------------------!
+  !EOS properties conversion factors 
+  select type(this)
+    class is(eos_database_type)
+      var_array => this%lookup_table_uni%var_array
+      var_data => this%lookup_table_uni%var_data
+    class is(eos_table_type)
+      !if regular 
+        !var_array => this%lookup_table_non_uni%var_array
+        !var_data => this%lookup_table_non_uni%var_data
+      !else if no-regular
+        var_array => this%lookup_table_gen%var_array
+        var_data => this%lookup_table_gen%var_data
+      !endif
+  end select  
+ 
+  data_idx = var_array(EOS_FVF)%ptr%data_idx
+  !          kmol/rm^3 = kg/sm^3 * kmol/kg * sm^3/rm^3
+  var_data(data_idx,:) = reference_density_kg / FMW / var_data(data_idx,:)
+  !from this point on in the data_idx there is not FVF but EOS_DENSITY
+  !modify variable pointig this
+  var_array(EOS_FVF)%ptr%iname = EOS_DENSITY
+  var_array(EOS_FVF)%ptr%internal_units = 'kmol/m^3'
+  var_array(EOS_FVF)%ptr%user_units = 'kmol/m^3'
+  var_array(EOS_FVF)%ptr%conversion_factor = 1.0
+  !change pointer
+  var_array(EOS_DENSITY)%ptr => var_array(EOS_FVF)%ptr
+  !FVF not available any longer
+  nullify(var_array(EOS_FVF)%ptr)
+  
+  nullify(var_array)
+  nullify(var_data)
 
 end subroutine ConvertFVFtoMolarDensity
 
@@ -393,8 +680,6 @@ subroutine EOSDataBaseStrip(this)
   implicit none
 
   class(eos_data_base_type) :: this
-
-  call DeallocateArray(this%data)
 
 end subroutine EOSDataBaseStrip
 
@@ -411,12 +696,19 @@ function EOSDatabaseCreate(filename,dbase_name)
   class(eos_database_type), pointer :: EOSDatabaseCreate
   character(len=MAXWORDLENGTH) :: filename
   character(len=*) :: dbase_name
+  
+  PetscInt :: i_var
 
   allocate(EOSDatabaseCreate)
   call EOSDatabaseCreate%EOSDataBaseInit()
   EOSDatabaseCreate%name = trim(dbase_name)
   EOSDatabaseCreate%file_name = trim(filename)
   nullify(EOSDatabaseCreate%lookup_table_uni)
+
+  !initialize new data structure
+  EOSDatabaseCreate%lookup_table_uni => LookupTableCreateUniform(TWO_INTEGER)
+  call EOSDatabaseCreate%lookup_table_uni%LookupTableVarsInit(EOS_MAX_PROP_NUM)
+  
 
 end function EOSDatabaseCreate
 
@@ -425,7 +717,7 @@ end function EOSDatabaseCreate
 subroutine EOSDatabaseRead(this,option)
   !
   ! Author: Paolo Orsini
-  ! Date: 12/11/15
+  ! Date: 12/11/15 - modified 04/18/2018
   !
   ! Reads the the an EOS database from a text file for one or more
   ! phase properties.
@@ -460,15 +752,15 @@ subroutine EOSDatabaseRead(this,option)
   class(eos_database_type) :: this
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word, internal_units
+  character(len=MAXWORDLENGTH) :: keyword, word, internal_units, user_units
   character(len=MAXSTRINGLENGTH) :: error_string = 'EOS_DATABASE'
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: prop_idx, prop_count, i_idx, j_idx
   PetscInt :: data_size
+  PetscInt :: data_idx
   PetscReal :: tempreal
-  !PetscReal :: press_conv_factor, temp_conv_factor
-  !PetscReal, pointer :: prop_unit_conv_factor(:)
   PetscBool :: pres_present, temp_present
+  type(lookup_table_var_type), pointer :: db_var => null()
 
   type(input_type), pointer :: input_table
 
@@ -487,8 +779,19 @@ subroutine EOSDatabaseRead(this,option)
     call printMsg(option)
   !end if
 
-  !allocate(prop_unit_conv_factor(MAX_PROP_NUM))
-  !prop_unit_conv_factor = UNINITIALIZED_DOUBLE
+  !set deafult user units - identical to internal units
+  this%press_user_units = 'Pa'
+  this%temp_user_units = 'C'  
+  !this units insitialisation should noe be needed with new lookup_vars
+  !this%prop_internal_units(EOS_FVF) = 'm^3/m^3'
+  !this%prop_internal_units(EOS_RS) = 'm^3/m^3'
+  !this%prop_internal_units(EOS_COMPRESSIBILITY) = '1/Pa'
+  !this%prop_internal_units(EOS_VISCOSIBILITY) = '1/Pa'
+  !this%prop_user_units(EOS_FVF) = 'm^3/m^3'
+  !this%prop_user_units(EOS_RS) = 'm^3/m^3'
+  !this%prop_user_units(EOS_COMPRESSIBILITY) = '1/Pa'
+  !this%prop_user_units(EOS_VISCOSIBILITY) = '1/Pa'
+
 
   !reading the database file header
   do
@@ -508,8 +811,9 @@ subroutine EOSDatabaseRead(this,option)
         call InputReadInt(input_table,option,this%num_t)
         call InputErrorMsg(input_table,option,'number of dt',error_string)
       case('DATA_LIST_ORDER')
-        pres_present = PETSC_FALSE; temp_present = PETSC_FALSE;
-        prop_idx = 0
+        pres_present = PETSC_FALSE; 
+        temp_present = PETSC_FALSE;
+        prop_count = 0
         do
           call InputReadPflotranString(input_table,option)
           if (InputCheckExit(input_table,option)) exit
@@ -517,54 +821,53 @@ subroutine EOSDatabaseRead(this,option)
           select case(word)
             case('PRESSURE')
               pres_present = PETSC_TRUE
-              !internal_units = 'Pa'
-              !press_conv_factor = UnitReadAndConversionFactor(input_table, &
-              !                                    internal_units,word,option)
             case('TEMPERATURE')
               temp_present = PETSC_TRUE
-              !only C currently supported
-              !internal_units = 'C'
-              !temp_conv_factor = UnitReadAndConversionFactor(input_table, &
-              !                                    internal_units,word,option)
             case('DENSITY')
-              prop_idx = prop_idx + 1
-              this%data_to_prop_map(prop_idx) = EOS_DENSITY
-              this%prop_to_data_map(EOS_DENSITY) = prop_idx
-              !internal_units = 'kg/m^3'
-              !prop_unit_conv_factor(prop_idx) = &
-              !                UnitReadAndConversionFactor(input_table, &
-              !                               internal_units,word,option)
+              prop_count = prop_count + 1
+              internal_units = 'kg/m^3'
+              user_units = 'kg/m^3'
+              db_var => CreateLookupTableVar(internal_units,user_units, &
+                                                             prop_count)
+              db_var%iname = EOS_DENSITY
+              call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
+              this%lookup_table_uni%var_array(EOS_DENSITY)%ptr => db_var              
             case('ENTHALPY')
-              prop_idx = prop_idx + 1
-              this%data_to_prop_map(prop_idx) = EOS_ENTHALPY
-              this%prop_to_data_map(EOS_ENTHALPY) = prop_idx
-              !internal_units = 'J/kg'
-              !prop_unit_conv_factor(prop_idx) = &
-              !                UnitReadAndConversionFactor(input_table, &
-              !                               internal_units,word,option)
+              prop_count = prop_count + 1
+              internal_units = 'J/kg'
+              user_units = 'J/kg'
+              db_var => CreateLookupTableVar(internal_units,user_units, &
+                                                              prop_count)
+              db_var%data_idx = prop_count
+              db_var%iname = EOS_ENTHALPY
+              call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
+              this%lookup_table_uni%var_array(EOS_ENTHALPY)%ptr => db_var
             case('INTERNAL_ENERGY')
-              prop_idx = prop_idx + 1
-              this%data_to_prop_map(prop_idx) = EOS_INTERNAL_ENERGY
-              this%prop_to_data_map(EOS_INTERNAL_ENERGY) = prop_idx
-              !internal_units = 'J/kg'
-              !prop_unit_conv_factor(prop_idx) = &
-              !                UnitReadAndConversionFactor(input_table, &
-              !                               internal_units,word,option)
+              prop_count = prop_count + 1
+              internal_units = 'J/kg'
+              user_units = 'J/kg'
+              db_var => CreateLookupTableVar(internal_units,user_units, &
+                                                               prop_count)
+              db_var%iname = EOS_INTERNAL_ENERGY
+              call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
+              this%lookup_table_uni%var_array(EOS_INTERNAL_ENERGY)%ptr => &
+                                                                   db_var
             case('VISCOSITY')
-              prop_idx = prop_idx + 1
-              this%data_to_prop_map(prop_idx) = EOS_VISCOSITY
-              this%prop_to_data_map(EOS_VISCOSITY) = prop_idx
-              !internal_units = 'Pa-s'
-              !prop_unit_conv_factor(prop_idx) = &
-              !                UnitReadAndConversionFactor(input_table, &
-              !                               internal_units,word,option)
+              prop_count = prop_count + 1
+              internal_units = 'Pa-s'
+              user_units = 'Pa-s'
+              db_var => CreateLookupTableVar(internal_units,user_units, &
+                                                               prop_count)
+              db_var%iname = EOS_VISCOSITY
+              call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
+              this%lookup_table_uni%var_array(EOS_VISCOSITY)%ptr => db_var
             case default
               error_string = trim(error_string) // ': ' // this%file_name // &
               ': DATA_LIST_ORDER'
               call InputKeywordUnrecognized(keyword,error_string,option)
           end select
         end do
-        this%num_prop = prop_idx
+        this%num_prop = prop_count
         ! go back to DATA_LIST_ORDER - read variable again to comput
         ! unit covnertion factors
         string = "DATA_LIST_ORDER"
@@ -588,13 +891,14 @@ subroutine EOSDatabaseRead(this,option)
 
   end do
 
+  nullify(db_var)
+
   data_size = this%num_p * this%num_t
 
-  this%num_prop = prop_idx
-  allocate(this%data(prop_idx,data_size))
+  this%num_prop = prop_count
+  allocate(this%lookup_table_uni%var_data(prop_count,data_size))
 
-  !create lookup table
-  this%lookup_table_uni => LookupTableCreateUniform(TWO_INTEGER)
+  !two-dims lookup table created in EOSDatabaseCreate
   this%lookup_table_uni%dims(1) = this%num_t
   this%lookup_table_uni%dims(2) = this%num_p
   allocate(this%lookup_table_uni%axis1%values(this%num_t))
@@ -631,20 +935,29 @@ subroutine EOSDatabaseRead(this,option)
 
       prop_count = i_idx + (j_idx-1) * this%num_t
       do prop_idx = 1,this%num_prop
-        call InputReadDouble(input_table,option,this%data(prop_idx,prop_count))
+        call InputReadDouble(input_table,option, &
+                        this%lookup_table_uni%var_data(prop_idx,prop_count))        
         call InputErrorMsg(input_table,option,&
                            'VALUE','EOS_DATABASE PROP_VALUE')
-        !convert to intenral units
-        this%data(prop_idx,prop_count) = this%data(prop_idx,prop_count) * &
-                                         this%prop_unit_conv_factors(prop_idx)
-                                         !prop_unit_conv_factor(prop_idx)
       end do
 
     end do
 
   end do
 
-  !deallocate(prop_unit_conv_factor)
+  call this%lookup_table_uni%VarPointAndUnitConv(option)
+
+  !do prop_idx = 1,size(this%lookup_table_uni%var_array(:))
+  !  if ( associated(this%lookup_table_uni%var_array(prop_idx)%ptr) ) then
+  !    data_idx = this%lookup_table_uni%var_array(prop_idx)%ptr%data_idx
+  !    this%lookup_table_uni%var_array(prop_idx)%ptr%data => &
+  !                           this%lookup_table_uni%var_data(data_idx,:)
+  !    this%lookup_table_uni%var_data(data_idx,:) = &
+  !         this%lookup_table_uni%var_data(data_idx,:) * &
+  !         this%lookup_table_uni%var_array(prop_idx)%ptr%conversion_factor
+  !  end if
+  !end do
+
   call InputDestroy(input_table)
 
 end subroutine EOSDatabaseRead
@@ -714,8 +1027,8 @@ subroutine EOSPropLinearInterp(this,T,P,prop_iname,prop_value,ierr)
     stop
   end if
 
-  this%lookup_table_uni%data => this%data(this%prop_to_data_map(prop_iname),:)
-
+  this%lookup_table_uni%data => &
+                    this%lookup_table_uni%var_array(prop_iname)%ptr%data
                              !T       P      optional
   !this%lookup_table_uni%Sample(lookup1,lookup2,lookup3)
   prop_value = this%lookup_table_uni%Sample(T,P)
@@ -773,8 +1086,16 @@ function EOSTableCreate(table_name,option)
   EOSTableCreate%first_index = 0
   nullify(EOSTableCreate%lookup_table_gen)
 
-  !as default set up Metric units
-  !call EOSTableCreate%SetMetricUnits(option)
+  !create table without dimensions 
+  !add here switch between regular and non-regular tables 
+  !if (EOSTableCreate%regular) then
+    !EOSTableCreate%lookup_table_non_uni => LookupTableCreateNonUni()
+    !call EOSTableCreate%lookup_table_non_uni%LookupTableVarsInit(EOS_MAX_PROP_NUM)
+  !else
+    !create without table dimmensions to be define when table is loaded
+    EOSTableCreate%lookup_table_gen => LookupTableCreateGeneral()
+    call EOSTableCreate%lookup_table_gen%LookupTableVarsInit(EOS_MAX_PROP_NUM)
+  !end if  
 
 end function EOSTableCreate
 
@@ -798,11 +1119,10 @@ subroutine EOSTableRead(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  !character(len=MAXWORDLENGTH) :: keyword, word, input_unit, internal_units
   character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: error_string = 'EOS_PVT_TABLE'
-  !type(input_type), pointer :: input_table
-  !type(input_type), pointer :: input_tmp
+  class(lookup_table_axis_type), pointer :: axis1
+  PetscReal, pointer :: var_data(:,:)
   PetscReal, pointer :: press_data_array(:,:)
   PetscInt :: n_temp_count
   PetscInt :: i_temp, i_press, i_prop
@@ -865,7 +1185,7 @@ subroutine EOSTableRead(this,input,option)
                 n_press_count_first = n_press_count_cur
               else
                 if ( n_press_count_cur /= n_press_count_first ) then
-                  option%io_buffer =  'PVT Table = ' // 'this%name ' // &
+                  option%io_buffer =  'PVT Table = ' // this%name // &
                                       "PVT tables with pressure points that" // &
                                       "varies with T not currently supported"
                   call printErrMsg(option)
@@ -885,54 +1205,105 @@ subroutine EOSTableRead(this,input,option)
   this%num_t = n_temp_count
   this%num_p = n_press_count
 
+  !if ( associated(this%lookup_table_non_uni) ) then
+  ! lookup_table_base => this%lookup_table_non_uni
+  !else if ( associated(this%lookup_table_gen) ) then
+  !  lookup_table_base => this%lookup_table_gen
+  !end if
+
+
   if (this%num_t ==1) then !isothermal press_data_array
     this%temperature = temp_array(1)
     ! create general 1D lookup table
-    this%lookup_table_gen => LookupTableCreateGeneral(ONE_INTEGER)
-    this%lookup_table_gen%dim = 1
-    this%lookup_table_gen%dims(1) = this%num_p
-    allocate(this%lookup_table_gen%axis1%values(this%num_p))
+    !this%lookup_table_gen => LookupTableCreateGeneral(ONE_INTEGER) 
+    allocate(axis1)   
+    allocate(axis1%values(this%num_p))  
     do i_press = 1,this%num_p
-      this%lookup_table_gen%axis1%values(i_press) = &
-         press_data_array(1,i_press) * this%press_unit_conv_factor
+       axis1%values(i_press) = press_data_array(1,i_press) * &
+                               this%press_unit_conv_factor
     end do
+    !if this%regular
+      !this%lookup_table_non_uni%dim = 1
+      !this%lookup_table_non_uni%dims(1) = this%num_p 
+      !this%lookup_table_non_uni%axis1 => axis1    
+    !else if .not.this%regular
+      this%lookup_table_gen%dim = 1
+      this%lookup_table_gen%dims(1) = this%num_p 
+      this%lookup_table_gen%axis1 => axis1
+    !end if    
+    nullify(axis1)
     this%n_indices = 1
+
+    !allocate(lookup_table_base%axis1%values(this%num_p))
+    !do i_press = 1,this%num_p
+    !  lookup_table_base%axis1%values(i_press) = &
+    !     press_data_array(1,i_press) * this%press_unit_conv_factor
+    !end do
+    !this%n_indices = 1
   else if (this%num_t > 1) then
     !creat general 2D lookip table and load the temperature values in axis1
     this%temperature = UNINITIALIZED_DOUBLE
-    this%lookup_table_gen => LookupTableCreateGeneral(TWO_INTEGER)
-    this%lookup_table_gen%dim = 2
-    this%lookup_table_gen%dims(1) = this%num_t
-    this%lookup_table_gen%dims(2) = n_press_count_first
-    allocate(this%lookup_table_gen%axis1%values(this%num_t))
+    !this%lookup_table_gen => LookupTableCreateGeneral(TWO_INTEGER)
+    allocate(axis1)
+    allocate(axis1%values(this%num_t))
     do i_temp = 1,this%num_t
-      this%lookup_table_gen%axis1%values(i_temp) = temp_array(i_temp) * &
-                                                   this%temp_unit_conv_factor
+      axis1%values(i_temp) = temp_array(i_temp) * this%temp_unit_conv_factor
     end do
-    allocate(this%lookup_table_gen%axis2%values(this%num_p))
-    do i_press = 1,this%num_p
-      this%lookup_table_gen%axis2%values(i_press) = &
-          press_data_array(1,i_press) * this%press_unit_conv_factor
-    end do
-    this%n_indices = 3
+    !if lookup regular
+      !allocate(this%lookup_table_non_uni%axis2%values(this%num_p))
+      !do i_press = 1,this%num_p
+      !  this%lookup_table_non_uni%axis2%values(i_press) = &
+      !     press_data_array(1,i_press) * this%press_unit_conv_factor
+      !end do
+      !this%lookup_table_non_uni%axis1 => axis1
+      !this%lookup_table_non_uni%dim = 2
+      !this%lookup_table_non_uni%dims(1) = this%num_t
+      !this%lookup_table_non_uni%dims(2) = n_press_count_first      
+      !this%n_indices = 2
+    !else if lookup no regular
+      allocate(this%lookup_table_gen%axis2)
+      call LookupTableAxisInit(this%lookup_table_gen%axis2)
+      this%lookup_table_gen%axis2%saved_index2 = 1    
+      allocate(this%lookup_table_gen%axis2%values(this%num_p))      
+      do i_press = 1,this%num_p
+        this%lookup_table_gen%axis2%values(i_press) = &
+            press_data_array(1,i_press) * this%press_unit_conv_factor
+      end do
+      this%lookup_table_gen%axis1 => axis1
+      this%lookup_table_gen%dim = 2
+      this%lookup_table_gen%dims(1) = this%num_t
+      this%lookup_table_gen%dims(2) = n_press_count_first      
+      this%n_indices = 3
+    !end if
+    nullify(axis1) 
   end if
   !allocate general lookup Table
   !this%lookup_table_gen => LookupTableCreateGeneral(dim)
-  allocate(this%data(this%num_prop,n_press_count))
+  nullify(var_data)
+  allocate(var_data(this%num_prop,n_press_count))
   do i_press = 1,n_press_count
-    do i_prop=1,this%num_prop
-      this%data(i_prop,i_press) = press_data_array(i_prop+1,i_press) * &
-                                  this%prop_unit_conv_factors(i_prop)
+    do i_prop=1,this%num_prop      
+      !the conversion is done later - 
+      var_data(i_prop,i_press) = press_data_array(i_prop+1,i_press) 
+      !PO old lookup format                            
+      !this%data(i_prop,i_press) = press_data_array(i_prop+1,i_press) * &
+      !                            this%prop_unit_conv_factors(i_prop)                                  
     end do
   end do
+  
+  !if this%regular
+    !this%lookup_table_non_uni%var_data => var_data
+    !call this%lookup_table_non_uni%VarPointAndUnitConv()  
+  !else if .not.this%regular
+    this%lookup_table_gen%var_data => var_data
+    call this%lookup_table_gen%VarPointAndUnitConv(option)
+  !end if
+
+  nullify(var_data)
 
   call DeallocateArray(press_data_array)
-  call DeallocateArray(temp_array)
+  call DeallocateArray(temp_array) 
 
-  !if (len_trim(this%file_name) >= 1) then
-  !  call InputDestroy(input_table)
-  !end if
-  !nullify(input_tmp)
 
 end subroutine EOSTableRead
 
@@ -1049,7 +1420,10 @@ subroutine EOSPropTable(this,T,P,prop_iname,prop_value,indices,ierr)
   !are extrapolated using the edge values - however warnning are printed
   !on the screen to signal extrapolation
 
-  this%lookup_table_gen%data => this%data(this%prop_to_data_map(prop_iname),:)
+  this%lookup_table_gen%data => &
+                    this%lookup_table_gen%var_array(prop_iname)%ptr%data
+
+  !this%lookup_table_gen%data => this%data(this%prop_to_data_map(prop_iname),:)
 
   if (this%lookup_table_gen%dim == ONE_INTEGER) then
     if ( P < this%lookup_table_gen%axis1%values(1) ) then

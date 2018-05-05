@@ -12,10 +12,16 @@ module Lookup_Table_module
   type, abstract, public :: lookup_table_base_type
     PetscInt :: dim
     PetscInt :: dims(3)
-    PetscReal, pointer :: data(:)    
+    PetscReal, pointer :: data(:)
+    PetscReal, pointer :: var_data(:,:)
+    type(lookup_table_var_ptr_type), pointer :: var_array(:)
+    type(lookup_table_var_list_type), pointer :: vars    
     class(lookup_table_axis_type), pointer :: axis1
   contains
-    procedure(LookupTableEvaluateDummy), deferred, public :: Sample 
+    procedure(LookupTableEvaluateDummy), deferred, public :: Sample
+    procedure, public :: LookupTableVarConvFactors  
+    procedure, public :: LookupTableVarsInit
+    procedure, public :: VarPointAndUnitConv
   end type lookup_table_base_type
   
   type, public, extends(lookup_table_base_type) :: lookup_table_uniform_type
@@ -40,6 +46,30 @@ module Lookup_Table_module
   type, public, extends(lookup_table_axis_type) :: lookup_table_axis2_general_type
     PetscInt :: saved_index2
   end type lookup_table_axis2_general_type
+
+  type, public :: lookup_table_var_type
+    PetscInt :: id
+    PetscInt :: iname
+    PetscInt :: data_idx
+    character(len=MAXWORDLENGTH) :: internal_units
+    character(len=MAXWORDLENGTH) :: user_units
+    PetscReal :: conversion_factor
+    PetscReal, pointer :: data(:)
+    PetscReal :: sample
+    PetscReal, pointer :: sample_deriv(:)
+    type(lookup_table_var_type), pointer :: next
+  end type  lookup_table_var_type
+
+  type, public :: lookup_table_var_ptr_type
+    type(lookup_table_var_type), pointer :: ptr
+  end type lookup_table_var_ptr_type
+
+  type, public :: lookup_table_var_list_type
+    PetscInt :: num_lookup_table_vars
+    type(lookup_table_var_type), pointer :: first
+    type(lookup_table_var_type), pointer :: last
+    !type(lookup_table_var_type), pointer :: array(:)
+  end type lookup_table_var_list_type
   
   abstract interface
     function LookupTableEvaluateDummy(this,lookup1,lookup2,lookup3)
@@ -62,11 +92,21 @@ module Lookup_Table_module
     module procedure LookupTableUniformDestroy
     module procedure LookupTableGeneralDestroy
   end interface
+  
+  interface LookupTableCreateGeneral
+    module procedure LookupTableCreateGeneralDim
+    module procedure LookupTableCreateGeneralNoDim  
+  end interface
 
   public :: LookupTableCreateUniform, &
             LookupTableCreateGeneral, &
+            LookupTableAxisInit, &
             LookupTableDestroy, &
-            LookupTableTest
+            LookupTableTest, &
+            LookupTableVarInitList, &
+            CreateLookupTableVar, &
+            LookupTableVarAddToList, &
+            LookupTableVarListDestroy            
   
 contains
 
@@ -85,6 +125,9 @@ subroutine LookupTableBaseInit(lookup_table)
   lookup_table%dim = 0
   lookup_table%dims = 0
   nullify(lookup_table%data)
+  nullify(lookup_table%var_data)
+  nullify(lookup_table%var_array)
+  nullify(lookup_table%vars)
   nullify(lookup_table%axis1)
 
 end subroutine LookupTableBaseInit
@@ -127,17 +170,19 @@ end function LookupTableCreateUniform
 
 ! ************************************************************************** !
 
-function LookupTableCreateGeneral(dim)
+function LookupTableCreateGeneralDim(dim)
   ! 
   ! Author: Glenn Hammond
-  ! Date: 10/15/14
+  ! Date: 10/15/14 - 
+  ! Modified by Paolo Orsini: change of function name to add new constructor
+  ! Date: 05/02/18
   ! 
 
   implicit none
   
   PetscInt :: dim
   
-  class(lookup_table_general_type), pointer :: LookupTableCreateGeneral
+  class(lookup_table_general_type), pointer :: LookupTableCreateGeneralDim
 
   class(lookup_table_general_type), pointer :: lookup_table
   
@@ -153,9 +198,32 @@ function LookupTableCreateGeneral(dim)
     lookup_table%axis2%saved_index2 = 1
   endif
   
-  LookupTableCreateGeneral => lookup_table
+  LookupTableCreateGeneralDim => lookup_table
 
-end function LookupTableCreateGeneral
+end function LookupTableCreateGeneralDim
+
+! ************************************************************************** !
+
+function LookupTableCreateGeneralNoDim()
+  ! 
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 05/02/18
+  ! 
+  ! contructor before knowing the lookup table dims
+
+  implicit none
+  
+  class(lookup_table_general_type), pointer :: LookupTableCreateGeneralNoDim
+
+  class(lookup_table_general_type), pointer :: lookup_table
+  
+  allocate(lookup_table)
+  call LookupTableBaseInit(lookup_table)
+  nullify(lookup_table%axis2)
+  
+  LookupTableCreateGeneralNoDim => lookup_table
+
+end function LookupTableCreateGeneralNoDim
 
 ! ************************************************************************** !
 
@@ -673,12 +741,45 @@ end subroutine LookupTableAxisDestroy
 
 ! ************************************************************************** !
 
+subroutine LookupTableBaseDestroy(lookup_table)
+  !
+  ! Deallocates any allocated pointers in lookup table base type
+  !
+  ! Author: Paolo Orsini
+  ! Date: 12/01/17
+  !
+  use Utility_module
+
+  implicit none
+
+  PetscInt :: i
+
+  class(lookup_table_base_type) :: lookup_table
+
+  call DeallocateArray(lookup_table%data)
+  call DeallocateArray(lookup_table%var_data)
+  call LookupTableAxisDestroy(lookup_table%axis1)
+
+  if (associated(lookup_table%var_array)) then
+    do i =1,size(lookup_table%var_array(:))
+      nullify(lookup_table%var_array(i)%ptr)
+    end do
+    deallocate(lookup_table%var_array)
+    nullify(lookup_table%var_array)
+  end if
+
+  call LookupTableVarListDestroy(lookup_table%vars)
+
+end subroutine LookupTableBaseDestroy
+
+! ************************************************************************** !
+
 subroutine LookupTableUniformDestroy(lookup_table)
   ! 
   ! Deallocates any allocated pointers in lookup table
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 10/15/14
+  ! Author: Glenn Hammond, Paolo Orsini
+  ! Date: 10/15/14, 04/18/2018
   ! 
   use Utility_module
   
@@ -686,10 +787,9 @@ subroutine LookupTableUniformDestroy(lookup_table)
   
   class(lookup_table_uniform_type), pointer :: lookup_table
   
-  call LookupTableAxisDestroy(lookup_table%axis1)
+  call LookupTableBaseDestroy(lookup_table)
   call LookupTableAxisDestroy(lookup_table%axis2)
   call LookupTableAxisDestroy(lookup_table%axis3)
-  call DeallocateArray(lookup_table%data)
   deallocate(lookup_table)
   nullify(lookup_table)
 
@@ -712,17 +812,245 @@ subroutine LookupTableGeneralDestroy(lookup_table)
   
   if (.not.associated(lookup_table)) return
 
-  call LookupTableAxisDestroy(lookup_table%axis1)
+  call LookupTableBaseDestroy(lookup_table)
   ! axis2 is different type
   if (associated(lookup_table%axis2)) then
     call DeallocateArray(lookup_table%axis2%values)
     deallocate(lookup_table%axis2)
     nullify(lookup_table%axis2)
   endif
-  call DeallocateArray(lookup_table%data)
   deallocate(lookup_table)
   nullify(lookup_table)
 
 end subroutine LookupTableGeneralDestroy
+
+! ************************************************************************** !
+! ** lookup table variable procedures
+! ************************************************************************** !
+
+subroutine LookupTableVarsInit(this,n_var_max)
+  !
+  ! Initializes a lookup table variables
+  !
+  ! Author: Paolo Orsini
+  ! Date: 05/04/18
+  !
+
+  implicit none
+
+  class(lookup_table_base_type) :: this
+  PetscInt :: n_var_max
+  
+  PetscInt :: i_var
+  
+  allocate(this%vars)
+  call LookupTableVarInitList(this%vars)
+  allocate(this%var_array(n_var_max))
+  do i_var = 1, n_var_max
+    nullify(this%var_array(i_var)%ptr)
+  end do
+
+end subroutine LookupTableVarsInit
+
+! ************************************************************************** !
+
+subroutine LookupTableVarInitList(list)
+  !
+  ! Initializes a lookup table var list
+  !
+  ! Author: Paolo Orsini
+  ! Date: 12/01/17
+  !
+
+  implicit none
+
+  type(lookup_table_var_list_type) :: list
+
+  nullify(list%first)
+  nullify(list%last)
+  list%num_lookup_table_vars = 0
+
+end subroutine LookupTableVarInitList
+
+! ************************************************************************** !
+
+subroutine LookupTableVarAddToList(new_var,list)
+  !
+  ! Adds a new lookup table var to a lookup table vars list
+  !
+  ! Author: Paolo Orsini
+  ! Date: 12/01/2017
+  !
+
+  implicit none
+
+  type(lookup_table_var_type), pointer :: new_var
+  type(lookup_table_var_list_type) :: list
+
+  list%num_lookup_table_vars = list%num_lookup_table_vars + 1
+  new_var%id = list%num_lookup_table_vars
+  if (.not.associated(list%first)) list%first => new_var
+  if (associated(list%last)) list%last%next => new_var
+  list%last => new_var
+
+end subroutine LookupTableVarAddToList
+
+! ************************************************************************** !
+
+function CreateLookupTableVar(internal_units,user_units,data_idx)
+  !
+  ! Creates a new lookup table var
+  !
+  ! Author: Paolo Orsini
+  ! Date: 12/01/2017 - modfied 04/17/2018
+  !
+
+  implicit none
+
+  type(lookup_table_var_type), pointer :: CreateLookupTableVar
+  character(len=MAXWORDLENGTH), intent(in) :: internal_units
+  character(len=MAXWORDLENGTH), intent(in) :: user_units
+  PetscInt, intent(in) :: data_idx
+
+  allocate(CreateLookupTableVar)
+
+  CreateLookupTableVar%id = UNINITIALIZED_INTEGER
+  CreateLookupTableVar%iname = UNINITIALIZED_INTEGER
+  CreateLookupTableVar%data_idx = data_idx
+  CreateLookupTableVar%internal_units = trim(internal_units)
+  CreateLookupTableVar%user_units = trim(user_units)
+  CreateLookupTableVar%conversion_factor = UNINITIALIZED_DOUBLE
+  nullify(CreateLookupTableVar%data)
+  CreateLookupTableVar%sample = UNINITIALIZED_DOUBLE
+  nullify(CreateLookupTableVar%sample_deriv)
+  nullify(CreateLookupTableVar%next)
+
+end function CreateLookupTableVar
+
+! ************************************************************************** !
+
+subroutine LookupTableVarConvFactors(this,option)
+  !
+  ! Compute conversion varctors for all lookup table variables
+  !
+  ! Author: Paolo Orsini
+  ! Date: 12/01/2017
+  !
+
+  use Option_module
+  use Units_module
+
+  implicit none
+
+  class(lookup_table_base_type) :: this
+  type(option_type) :: option
+
+  type(lookup_table_var_type), pointer :: var
+
+  var => this%vars%first
+
+  do
+    if (.not.associated(var)) exit
+      var%conversion_factor = &
+          UnitsConvertToInternal(var%user_units,var%internal_units,option)
+      var => var%next
+  enddo
+
+end subroutine LookupTableVarConvFactors
+
+! ************************************************************************** !
+
+subroutine VarPointAndUnitConv(this,option)
+  !
+  ! Points variable data arrays to their table columns given the locations
+  ! Convert variable data units given the convrsion factors 
+  ! previously computed
+  !
+  ! Author: Paolo Orsini
+  ! Date: 05/04/2018
+  !
+
+  use Option_module
+  use Units_module
+
+  implicit none
+
+  class(lookup_table_base_type) :: this
+  type(option_type) :: option
+
+  PetscInt :: prop_idx, data_idx
+
+  do prop_idx = 1,size(this%var_array(:))
+    if ( associated(this%var_array(prop_idx)%ptr) ) then
+      data_idx = this%var_array(prop_idx)%ptr%data_idx
+      this%var_array(prop_idx)%ptr%data => this%var_data(data_idx,:)
+      this%var_data(data_idx,:) = this%var_data(data_idx,:) * &
+                              this%var_array(prop_idx)%ptr%conversion_factor
+    end if
+  end do
+
+end subroutine VarPointAndUnitConv
+
+! ************************************************************************** !
+
+subroutine LookupTableVarListDestroy(lookup_table_vars_list)
+  !
+  ! Deallocates a list of lookup table vars
+  !
+  ! Author: Paolo Orsini
+  ! Date: 12/01/2017
+  !
+
+  implicit none
+
+  type(lookup_table_var_list_type), pointer :: lookup_table_vars_list
+
+  type(lookup_table_var_type), pointer :: var, prev_var
+
+  if (.not.associated(lookup_table_vars_list)) return
+
+  var => lookup_table_vars_list%first
+  do
+    if (.not.associated(var)) exit
+    prev_var => var
+    var => var%next
+    call LookupTableVarDestroy(prev_var)
+  enddo
+
+  lookup_table_vars_list%num_lookup_table_vars = 0
+  nullify(lookup_table_vars_list%first)
+  nullify(lookup_table_vars_list%last)
+
+  deallocate(lookup_table_vars_list)
+  nullify(lookup_table_vars_list)
+
+end subroutine LookupTableVarListDestroy
+
+! ************************************************************************** !
+
+subroutine LookupTableVarDestroy(lookup_table_var)
+  !
+  ! Deallocates all members of a lookup table var
+  !
+  ! Author: Paolo Orsini
+  ! Date: 12/01/2017 - mod 04/17/2018
+  !
+  use Utility_module
+
+  implicit none
+
+  type(lookup_table_var_type) :: lookup_table_var
+
+  if (associated(lookup_table_var%data)) then
+    !data is only a pointer to a slice of var_data
+    nullify(lookup_table_var%data)
+  end if
+  call DeallocateArray(lookup_table_var%sample_deriv)
+  nullify(lookup_table_var%next)
+
+end subroutine LookupTableVarDestroy
+
+! ************************************************************************** !
+
 
 end module Lookup_Table_module
