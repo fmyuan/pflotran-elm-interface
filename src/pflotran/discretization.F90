@@ -329,6 +329,7 @@ subroutine DiscretizationRead(discretization,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
+  use Material_Aux_class
 
   implicit none
 
@@ -544,9 +545,11 @@ subroutine DiscretizationRead(discretization,input,option)
         call StringToUpper(word)
         select case(word)
           case('LINEAR')
-            option%perm_tens_to_scal_model = TENSOR_TO_SCALAR_LINEAR
+            !option%perm_tens_to_scal_model = TENSOR_TO_SCALAR_LINEAR
+            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_LINEAR,option)
           case('QUADRATIC')
-            option%perm_tens_to_scal_model = TENSOR_TO_SCALAR_QUADRATIC
+            !option%perm_tens_to_scal_model = TENSOR_TO_SCALAR_QUADRATIC
+            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_QUADRATIC,option)
           case default
             call InputKeywordUnrecognized(word,'GRID, PERM_TENSOR_TO_SCALAR_MODEL', &
                                           option)
