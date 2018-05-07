@@ -2220,7 +2220,7 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
 
   j = 0.d0
 
-  cell_pressure = 0.d0
+  cell_pressure = 0.d0 !! ensure initialised
 
   ! this can be removed when etxending to pressure condition
   if (.not.associated(src_sink_condition%rate) ) then
@@ -2250,6 +2250,7 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
       "src(wat) and src(oil) with opposite sign"
     call printErrMsg(option)
   end if
+
 
   ! approximates BHP with local pressure
   ! to compute BHP we need to solve an IPR equation

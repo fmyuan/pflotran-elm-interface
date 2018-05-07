@@ -754,7 +754,7 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
     ! store vals since we have to put them back
     ! store colIdx this time as well
     do j = 0,numcols-1
-      ctx%all_vals(1, j) = ctx%vals(j)
+      ctx%all_vals(0, j) = ctx%vals(j)
       ctx%colIdx_keep(j) = ctx%colIdx(j)
     end do
     ! b) we can get index of diagonal block here
@@ -779,7 +779,7 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
     call MatGetRow(a, firstRow+1, numcols, PETSC_NULL_INTEGER, ctx%vals, &
                   ierr); CHKERRQ(ierr)
     do j = 0,numcols-1
-      ctx%all_vals(2, j) = ctx%vals(j)
+      ctx%all_vals(1, j) = ctx%vals(j)
     end do
     dd = ctx%vals(firstrowdex)
     ee = ctx%vals(firstrowdex+1)
@@ -791,7 +791,7 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
     call MatGetRow(a, firstRow+2, numcols, PETSC_NULL_INTEGER, ctx%vals, &
                  ierr); CHKERRQ(ierr)
     do j = 0,numcols-1
-      ctx%all_vals(3, j) =ctx%vals(j)
+      ctx%all_vals(2, j) =ctx%vals(j)
     end do
     gg = ctx%vals(firstrowdex)
     hh = ctx%vals(firstrowdex+1)
@@ -823,9 +823,9 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
       ctx%insert_colIdx(j) = ctx%colIdx_keep(cur_coldex)/b
 
 
-      ctx%insert_vals(j) = fac0*ctx%all_vals(1, cur_coldex)
-      ctx%insert_vals(j) = ctx%insert_vals(j) + fac1*ctx%all_vals(2,cur_coldex)
-      ctx%insert_vals(j) = ctx%insert_vals(j) + fac2*ctx%all_vals(3,cur_coldex)
+      ctx%insert_vals(j) = fac0*ctx%all_vals(0, cur_coldex)
+      ctx%insert_vals(j) = ctx%insert_vals(j) + fac1*ctx%all_vals(1,cur_coldex)
+      ctx%insert_vals(j) = ctx%insert_vals(j) + fac2*ctx%all_vals(2,cur_coldex)
     end do
 
     ! h) set values
