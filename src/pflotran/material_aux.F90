@@ -293,33 +293,15 @@ subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
     return
   endif
 #endif
-#if 0
-  scalar_permeability = kx*dabs(dist(1))+ky*dabs(dist(2))+kz*dabs(dist(3))
-#endif
 
-  !select case(option%perm_tens_to_scal_model)
   select case(perm_tens_to_scal_model)
     case(TENSOR_TO_SCALAR_LINEAR)
-      !scalar_permeability = kx*dabs(dist(1))+ky*dabs(dist(2))+kz*dabs(dist(3))
       scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
     case(TENSOR_TO_SCALAR_QUADRATIC)
-      !scalar_permeability = kx * dabs(dist(1))**2.0 + ky * dabs(dist(2))**2.0 + &
-                            !kz * dabs(dist(3))**2.0
       scalar_permeability = DiagPermTensorToScalar_Quadratic(kx,ky,kz,dist)
-#if 0
-    case(TENSOR_TO_SCALAR_ELLIPTIC)
-      print *, "NOT DONE"
-      option%io_buffer  = 'Sorry, elliptic tensor to scalar model not yet available.&
-                           & It should be coming soon.'
-      call printErrMsg(option)
-#endif
     case default
+      ! as default, just do linear 
       scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
-#if 0
-      option%io_buffer  = 'MaterialDiagPermTensorToScalar: tensor to scalar model type&
-                          & is not recognized.'
-      call printErrMsg(option)
-#endif
   end select
 
 end subroutine MaterialDiagPermTensorToScalar
