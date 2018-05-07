@@ -1,4 +1,4 @@
-module appleyard_module
+module Appleyard_module
 
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
@@ -155,4 +155,4 @@ subroutine GetCriticalSaturation(sc, phase_id, realization, cell_id)
 end subroutine GetCriticalSaturation
 ! ************************************************************************** !
 
-end module appleyard_module
+end module Appleyard_module

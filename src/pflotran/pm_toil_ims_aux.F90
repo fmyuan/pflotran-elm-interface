@@ -287,9 +287,9 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     toil_auxvar%d%dU_dp  = 0.d0
     toil_auxvar%d%dU_dt  = 0.d0
     toil_auxvar%d%dmobility = 0.d0
-    getDerivs = .true.
+    getDerivs = PETSC_TRUE
   else 
-    getDerivs = .false.
+    getDerivs = PETSC_FALSE
   endif
 
   ! passing auxvars given by the solution variables

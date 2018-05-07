@@ -478,7 +478,7 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   use Option_module
   use Patch_module
   use AuxVars_TOilIms_module
-  use appleyard_module
+  use Appleyard_module
 
   implicit none
   
