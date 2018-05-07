@@ -220,7 +220,7 @@ FLOW_CONDITION gas_injector_cond
     RATE volumetric_rate
     TEMPERATURE dirichlet
   /
-  RATE 0.0000000 0.000000 50 0 m^3/day m^3/day m^3/day M
+  RATE 0.0000000 0.000000 50 0 m^3/day m^3/day m^3/day MW
   TEMPERATURE 15.0 C
 /
 
@@ -229,7 +229,7 @@ FLOW_CONDITION water_injector_cond
     RATE volumetric_rate
     TEMPERATURE dirichlet
   /
-  RATE 50 0.0 0 0 m^3/day m^3/day m^3/day M
+  RATE 50 0.0 0 0 m^3/day m^3/day m^3/day MW
   TEMPERATURE 15.0 C
 /
 
