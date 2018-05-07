@@ -242,7 +242,9 @@ util_obj  = \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
-	${common_src}variables.o
+	${common_src}variables.o \
+        ${common_src}toil_ims_derivs.o \
+        ${common_src}appleyard.o
 
 eos_obj = \
 	${common_src}co2_sw.o \
@@ -580,6 +582,7 @@ endif
 # The source file (i.e. file.F90) is intentionally omitted; 
 # it is picked up by the default/implicit build rule (defined by PETSc)
 ###############################################################################
+appleyard.o : realization_subsurface.o
 auxiliary.o : flash2_aux.o general_aux.o global_aux.o immis_aux.o \
               inlinesurface_aux.o material_aux.o miscible_aux.o mphase_aux.o \
               pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
@@ -1145,7 +1148,7 @@ pm_toil_ims.o : checkpoint.o field.o global.o global_aux.o grid.o input_aux.o \
                 material.o material_aux.o option.o patch.o \
                 pflotran_constants.o pm_base.o pm_subsurface_flow.o \
                 pm_toil_ims_aux.o realization_base.o realization_subsurface.o \
-                string.o toil_ims.o variables.o
+                string.o toil_ims.o variables.o appleyard.o
 pm_toil_ims_aux.o : auxvars_toil_ims.o characteristic_curves.o eos_oil.o \
                     eos_water.o global_aux.o grid.o material_aux.o option.o \
                     pflotran_constants.o pm_base_aux.o utility.o
@@ -1514,7 +1517,10 @@ toil_ims.o : auxvars_flow.o auxvars_toil_ims.o condition.o connection.o \
              global_aux.o grid.o material.o material_aux.o option.o \
              output_aux.o output_tecplot.o patch.o pflotran_constants.o \
              pm_toil_ims_aux.o realization_subsurface.o saturation_function.o \
-             variables.o
+             toil_ims_derivs.o variables.o
+toil_ims_derivs.o : auxvars_toil_ims.o condition.o connection.o eos_oil.o \
+                    eos_water.o global_aux.o material_aux.o option.o \
+                    pflotran_constants.o pm_toil_ims_aux.o
 towg.o : auxvars_towg.o condition.o connection.o coupler.o debug.o \
          discretization.o eos_gas.o eos_oil.o eos_water.o field.o global_aux.o \
          grid.o material.o material_aux.o option.o output_aux.o patch.o \
@@ -1552,7 +1558,7 @@ well_spec_base.o : input_aux.o option.o pflotran_constants.o string.o units.o \
 well_toil_ims.o : eos_oil.o eos_water.o option.o output_aux.o \
                   pflotran_constants.o pm_toil_ims_aux.o well_base.o \
                   well_flow.o well_flow_energy.o well_oil_producer.o \
-                  well_spec_base.o well_water_injector.o
+                  well_spec_base.o well_water_injector.o toil_ims_derivs.o
 well_water_injector.o : eos_water.o grid.o hydrostatic_common.o option.o \
                         output_aux.o pflotran_constants.o well_base.o \
                         well_flow.o well_flow_energy.o well_spec_base.o
@@ -1574,7 +1580,6 @@ wipp_flow_common.o : bragflo_common.o connection.o eos_gas.o eos_water.o \
                      wipp_flow_aux.o
 wrapper_hydrogeophysics.o : e4d_run.o e4d_setup.o e4d_vars.o option.o \
                             pflotran_constants.o
-
 ###############################################################################
 # End Dependencies
 ###############################################################################

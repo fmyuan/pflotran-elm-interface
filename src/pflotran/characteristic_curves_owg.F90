@@ -715,11 +715,23 @@ subroutine RPF_TOUGH2_Linear_Oil_RelPerm(this,liquid_saturation, &
 
   Seo = (So - this%Sro) / (1.d0 - this%Sro)
 
+  !!! DS added
+  !Seo = (So - this%Sro) / (1.d0 - this%Sro)
+  !dSeo_so = 1.d0 / (1.d0 - this%Sro)
+  !dkr_Seo = 1.d0
+  !! return dkr_sat is derivative of relperm wrt liquid saturation to 
+  !! be consistent 
+  !dkr_sat = -1.d0*dSeo_so*dkr_Seo !! -1.d0 is dso/dsl
+  !! just hard code it:
+  dkr_sat = -1.d0 / (1.d0 - this%Sro)
+
   if (Seo >= 1.d0) then
     relative_permeability = 1.d0
+    dkr_sat = 0.d0
     return
   else if (Seo <=  0.d0) then
     relative_permeability = 0.d0
+    dkr_sat = 0.d0
     return
   endif
 
@@ -903,7 +915,7 @@ subroutine RPF_Mod_BC_Liq_RelPerm(this,liquid_saturation, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
-  PetscReal :: dkr_Se
+  PetscReal :: dSe_Sl, dkr_Se
   
   ! initialize to derivative to NaN so that not mistakenly used.
   dkr_sat = 0.d0
@@ -911,11 +923,17 @@ subroutine RPF_Mod_BC_Liq_RelPerm(this,liquid_saturation, &
   dkr_sat = dkr_sat * 0.d0
 
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sro - this%Sr - this%Srg )
+  dSe_Sl = 1.d0 / (1.d0 - this%Sro - this%Sr - this%Srg )
+
+  dkr_Se = this%m * this%kr_max * (Se ** (this%m - 1))
+  dkr_sat = dSe_Sl * dkr_Se
 
   if (Se >= 1.d0) then
     relative_permeability = this%kr_max
+    dkr_sat = 0.d0
     return
   else if (Se <=  0.d0) then
+    dkr_sat = 0.d0
     relative_permeability = 0.d0
     return
   endif
@@ -924,6 +942,7 @@ subroutine RPF_Mod_BC_Liq_RelPerm(this,liquid_saturation, &
     if (Se > this%poly%low) then
       call CubicPolynomialEvaluate(this%poly%coefficients, &
                                    Se,relative_permeability,dkr_Se)
+      dkr_sat = dSe_Sl * dkr_Se
       return
     endif
   endif
@@ -956,7 +975,7 @@ subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
   
   PetscReal :: So
   PetscReal :: Seo
-  PetscReal :: dkr_Se
+  PetscReal :: dSe_So, dkr_Se
   
   ! initialize to derivative to NaN so that not mistakenly used.
   dkr_sat = 0.d0
@@ -966,12 +985,19 @@ subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
   So = 1.d0 - liquid_saturation
 
   Seo = (So - this%Sro) / (1.d0 - this%Sro - this%Sr - this%Srg ) 
+  dSe_So = 1.d0 / (1.d0 - this%Sro - this%Sr - this%Srg )
+
+  dkr_Se = this%m * this%kr_max * (Seo ** (this%m - 1))
+
+  dkr_sat = -1.d0 * dSe_So * dkr_Se ! -1.d0 factor makes derivative w.r.t. Sl
 
   if (Seo >= 1.d0) then
     relative_permeability = this%kr_max
+    dkr_sat = 0.d0
     return
   else if (Seo <=  0.d0) then
     relative_permeability = 0.d0
+    dkr_sat = 0.d0
     return
   endif
 
@@ -979,6 +1005,7 @@ subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
     if (Seo > this%poly%low) then
       call CubicPolynomialEvaluate(this%poly%coefficients, &
                                    Seo,relative_permeability,dkr_Se)
+      dkr_sat = -1.d0 * dSe_So * dkr_Se ! -1.d0 factor makes derivative w.r.t. Sl
       return
     endif
   endif
@@ -1083,7 +1110,7 @@ subroutine SFOWGBaseTest(this,cc_name,option)
       string = trim(cc_name) // '_pc_OG_oil_sat.dat'
       sat_name = 'oil_sat'
     class is(sat_func_og_VG_SL_type)
-      gas_saturation = 1 - wat_saturation
+      gas_saturation = 1.d0 - wat_saturation
       oil_saturation = 0.0
       saturation = wat_saturation
       string = trim(cc_name) // '_pc_OG_liq_sat.dat'

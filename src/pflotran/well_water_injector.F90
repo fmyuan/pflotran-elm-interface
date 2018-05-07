@@ -26,6 +26,8 @@ module Well_WaterInjector_class
     procedure, public :: HydrostaticUpdate => WatInjHydrostaticUpdate
     procedure, public :: ConnMob => WellWatInjConnMob
     procedure, public :: InitDensity => WatInjInitDensity
+
+    procedure, public :: ConnMob_Derivs => WellWatInjConnMob_derivs
   end type  well_water_injector_type
 
   !public :: CreateTOilImsWell
@@ -445,6 +447,57 @@ function WellWatInjConnMob(this,mobility,iphase,dof,ghosted_id)
 #endif
 
 end function WellWatInjConnMob
+!*****************************************************************************!
+    !mob = this%ConnMob_derivs(this%flow_auxvars(dof,ghosted_id)%mobility,i_ph, &
+                       !!dof,ghosted_id, d_mob,  &
+                       !this%toil_auxvars(dof,ghosted_id)%d%dmobility)
+
+function WellWatInjConnMob_derivs(this,mobility,iphase,dof,ghosted_id, &
+                                    d_conn_mob, d_mob_in)
+
+  use EOS_Water_module
+
+  implicit none
+
+  class(well_water_injector_type) :: this
+  PetscInt :: iphase  !not required for this WellWatInjConnMob extension
+  PetscInt :: ghosted_id
+  PetscInt :: dof
+  PetscReal :: mobility(:)
+
+  PetscReal :: WellWatInjConnMob_derivs
+
+  PetscReal :: wat_sat_pres, visl
+  PetscInt :: iph
+  PetscInt :: ierr
+
+  PetscReal ::  d_conn_mob(:)
+  PetscReal ::  d_mob_in(:,:)
+
+  
+  WellWatInjConnMob_derivs = 0.0d0
+  d_conn_mob = 0.d0
+
+
+  !if standard mobility method
+  do iph=1,size(mobility)
+    WellWatInjConnMob_derivs = WellWatInjConnMob_derivs + mobility(iph)
+    d_conn_mob(:) = d_conn_mob(:) + d_mob_in(iph, :)
+  end do
+
+#if 0
+  !imposing krl=1 - as if the grid block would be entirely floded
+  !if the method works input the nominator from input deck
+  call EOSWaterSaturationPressure( &
+                     this%flow_energy_auxvars(dof,ghosted_id)%temp, &
+                     wat_sat_pres,ierr)
+  call EOSWaterViscosity(this%flow_energy_auxvars(dof,ghosted_id)%temp, &
+                  this%flow_auxvars(dof,ghosted_id)%pres(LIQUID_PHASE), &
+                  wat_sat_pres,visl,ierr)
+  WellWatInjConnMob = 1.0 / visl
+#endif
+
+end function WellWatInjConnMob_derivs
 !*****************************************************************************!
 
 #endif 

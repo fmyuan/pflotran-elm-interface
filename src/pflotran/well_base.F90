@@ -50,6 +50,7 @@ module Well_Base_class
     procedure, public :: WellFactorUpdate
     procedure, public :: OneDimGridVarsSetup => WellBase1DGridVarsSetup
     procedure, public :: DataOutput => BaseDataOutput
+    procedure, public :: ExplResAD => BaseExplResAD 
     procedure  :: InitWellZRefCntrlConn
     procedure  :: WellConnSort
   end type  well_base_type
@@ -669,7 +670,8 @@ end subroutine BaseExplUpdate
 ! ************************************************************************** !
 
 subroutine WellBaseExplJDerivative(this,iconn,ghosted_id,isothermal, &
-                                   energy_equation_index,option,Jac)
+                                   energy_equation_index,option,Jac, &
+                                   analytical, analytical_compare, comptol    )
   ! 
   ! Computes the well derivatives terms for the jacobian
   ! 
@@ -689,6 +691,8 @@ subroutine WellBaseExplJDerivative(this,iconn,ghosted_id,isothermal, &
   type(option_type) :: option
   !PetscReal :: Jac(option%nflowdof,option%nflowdof)
   PetscReal :: Jac(:,:)
+  PetscBool :: analytical, analytical_compare
+  PetscReal :: comptol
 
   print *, "WellFlowEnergyExplJDerivative must be extended"
   stop  
@@ -772,7 +776,7 @@ end subroutine WellBaseInitTimeStep
 ! ************************************************************************** !
 
 subroutine WellBaseExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
-                                ghosted_id, dof,option,res)
+                                ghosted_id, dof,option,res,Jac,analytical_derivatives)
   ! 
   ! Compute residual term for a TOilIms Water injector
   ! 
@@ -792,6 +796,9 @@ subroutine WellBaseExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
   !PetscReal :: ss_flow_vol_flux(1:option%nphase)
   PetscReal :: Res(:)
   PetscReal :: ss_flow_vol_flux(:)
+  !PetscReal, dimension(option%nflowdof,option%nflowdof) :: Jac
+  PetscReal, dimension(:,:) :: Jac
+  PetscBool :: analytical_derivatives
 
 
   print *, "WellBaseExplRes must be extended"
@@ -883,6 +890,31 @@ subroutine BaseWellStrip(well)
 end subroutine BaseWellStrip
 
 !*****************************************************************************!
+
+subroutine BaseExplResAD(this,iconn,ss_flow_vol_flux,isothermal, &
+                                ghosted_id, dof,option,res, Jac)
+  ! 
+  ! 
+  use Option_module
+  
+  implicit none
+
+  class(well_base_type) :: this
+  PetscInt :: iconn
+  PetscBool :: isothermal
+  PetscInt :: ghosted_id, dof
+  type(option_type) :: option
+  !PetscReal :: Res(1:option%nflowdof)
+  !PetscReal :: ss_flow_vol_flux(1:option%nphase)
+  PetscReal :: Res(:)
+  PetscReal :: ss_flow_vol_flux(:)
+  PetscReal :: Jac(:,:)
+
+
+  write(*,*) "BaseExplResAD must be extended"
+  stop
+
+end subroutine BaseExplResAD
 
 #endif   
 end module Well_Base_class
