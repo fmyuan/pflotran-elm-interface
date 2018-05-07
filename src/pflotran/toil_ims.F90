@@ -1859,6 +1859,8 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
   PetscInt :: energy_var
   PetscErrorCode :: ierr
 
+  cell_pressure = 0.d0 !! ensure initialised
+
   ! this can be removed when etxending to pressure condition
   if (.not.associated(src_sink_condition%rate) ) then
     option%io_buffer = 'TOilImsSrcSink fow condition rate not defined ' // &
@@ -1888,18 +1890,11 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
     call printErrMsg(option)
   end if
 
+
   ! approximates BHP with local pressure
   ! to compute BHP we need to solve an IPR equation
-  if ( ( (flow_src_sink_type == VOLUMETRIC_RATE_SS) .or. &
-         ( associated(src_sink_condition%temperature) ) &
-       ) .and. &
-       (  (qsrc(option%liquid_phase) > 0.d0).or. &
-         (qsrc(option%oil_phase) > 0.d0) &
-       ) & 
-     ) then  
     cell_pressure = &
         maxval(toil_auxvar%pres(option%liquid_phase:option%oil_phase))
-  end if
 
   ! if enthalpy is used to define enthelpy or energy rate is used  
   ! approximate bottom hole temperature (BHT) with local temp
