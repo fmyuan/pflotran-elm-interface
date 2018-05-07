@@ -531,8 +531,8 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up,option)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn,option)
+  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
+  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
   
 #if 0
 !TODO(geh): remove for now
@@ -2532,7 +2532,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   J = 0.d0
   v_darcy = 0.d0  
 
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn, option)
+  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
 
 #if 0
   ! Fracture permeability change only available for structured grid (Heeho)

@@ -244,8 +244,8 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
   
   call ConnectionCalculateDistances(dist,option%gravity,dd_up,dd_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up,option)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn,option)
+  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
+  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
   
   Dq = (perm_up * perm_dn)/(dd_up*perm_dn + dd_dn*perm_up)
   
@@ -399,8 +399,8 @@ subroutine RichardsFlux(rich_auxvar_up,global_auxvar_up, &
   
   call ConnectionCalculateDistances(dist,option%gravity,dd_up,dd_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up,option)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn,option)
+  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
+  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
 
   Dq = (perm_up * perm_dn)/(dd_up*perm_dn + dd_dn*perm_up)
   
@@ -528,7 +528,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
   dukvr_dp_dn = 0.d0
   dq_dp_dn = 0.d0
 
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn,option)
+  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
   
   ! Flow
   pressure_bc_type = ibndtype(RICHARDS_PRESSURE_DOF)
@@ -806,7 +806,7 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
   q = 0.d0
   ukvr = 0.d0
 
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn,option)  
+  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)  
 
   ! Flow  
   pressure_bc_type = ibndtype(RICHARDS_PRESSURE_DOF)

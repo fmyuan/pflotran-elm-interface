@@ -1063,8 +1063,8 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up,option)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn,option)
+  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
+  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
   
   ! Fracture permeability change only available for structured grid (Heeho)
   ! PO no fractures considered for now
@@ -1341,8 +1341,8 @@ subroutine TOilImsFluxDipc(toil_auxvar_up,global_auxvar_up, &
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up,option)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn,option)
+  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
+  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
 
   !determine if the connection is horixontal or not - 
   !TODO - PO: should this method work move this operation to pre-processing
@@ -1583,7 +1583,7 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
 
   neumann_bc_present = PETSC_FALSE
   
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn,option)
+  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
 
   ! currently no fractures considered 
   ! Fracture permeability change only available for structured grid (Heeho)

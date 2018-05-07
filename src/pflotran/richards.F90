@@ -3124,7 +3124,7 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
 
         dist = cur_connection_set%dist(:,iconn)
 
-        call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn,option)
+        call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
 
         dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
         Dq = perm_dn / dist(0)

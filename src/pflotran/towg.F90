@@ -1711,8 +1711,8 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up,option)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn,option)
+  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
+  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
   
   ! Fracture permeability change only available for structured grid (Heeho)
   !if (associated(material_auxvar_up%fracture)) then
@@ -2027,7 +2027,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
   neumann_bc_present = PETSC_FALSE
   
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn,option)
+  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
 
   ! Fracture permeability change only available for structured grid (Heeho)
   !if (associated(material_auxvar_dn%fracture)) then

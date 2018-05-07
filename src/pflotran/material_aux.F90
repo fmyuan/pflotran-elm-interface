@@ -260,7 +260,7 @@ end subroutine MaterialAuxSetPermTensorModel
 ! ************************************************************************** !
 
 subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
-                                      scalar_permeability, option)
+                                      scalar_permeability)
   ! 
   ! Transforms a diagonal permeability tensor to a scalar through a dot 
   ! product.
@@ -269,7 +269,6 @@ subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
   ! Date: 01/09/14
   ! 
 
-  use Option_module
   use Utility_module, only : Equal
 
   implicit none
@@ -281,7 +280,6 @@ subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
   ! 2 = unit y-dir
   ! 3 = unit z-dir
   PetscReal, intent(in) :: dist(-1:3)
-  type(option_type) :: option
   PetscReal, intent(out) :: scalar_permeability
 
   PetscReal :: kx, ky, kz
@@ -308,11 +306,13 @@ subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
       !scalar_permeability = kx * dabs(dist(1))**2.0 + ky * dabs(dist(2))**2.0 + &
                             !kz * dabs(dist(3))**2.0
       scalar_permeability = DiagPermTensorToScalar_Quadratic(kx,ky,kz,dist)
+#if 0
     case(TENSOR_TO_SCALAR_ELLIPTIC)
       print *, "NOT DONE"
       option%io_buffer  = 'Sorry, elliptic tensor to scalar model not yet available.&
                            & It should be coming soon.'
       call printErrMsg(option)
+#endif
     case default
       scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
 #if 0
