@@ -405,7 +405,7 @@ subroutine TOilImsUpdateAuxVars(realization)
   use Material_Aux_class
   !use EOS_Water_module 
   !use Saturation_Function_module
-  use appleyard_module
+  use Appleyard_module
   
   implicit none
 
@@ -3451,8 +3451,10 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
 
   use AuxVars_Flow_module
 
+#ifdef WELL_CLASS      
   use Well_TOilIms_class
   use Well_Base_class
+#endif
 
   implicit none
 
@@ -3505,7 +3507,9 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   PetscReal :: J_alt(realization%option%nflowdof,realization%option%nflowdof)
   PetscBool :: can_do_analytical 
 
+#ifdef WELL_CLASS      
   class(well_base_type), pointer :: well
+#endif
   
   patch => realization%patch
   grid => patch%grid
