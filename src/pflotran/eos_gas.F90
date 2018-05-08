@@ -1946,8 +1946,6 @@ subroutine EOSGasSetPVDG(input,option)
   db_var => CreateLookupTableVar(internal_units,user_units, &
                                                  data_idx)
   db_var%iname = EOS_FVF
-  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
-  !this%lookup_table_uni%var_array(EOS_FVF)%ptr => db_var
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 
@@ -1956,17 +1954,8 @@ subroutine EOSGasSetPVDG(input,option)
   db_var => CreateLookupTableVar(internal_units,user_units, &
                                                  data_idx)
   db_var%iname = EOS_VISCOSITY
-  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
-  !this%lookup_table_uni%var_array(EOS_VISCOSITY)%ptr => db_var
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
-
-  !set up PVDG variable and order - firt column is the pressure
-  !below the order of the data fiels is assigned
-  !pvt_table%data_to_prop_map(1) = EOS_FVF
-  !pvt_table%prop_to_data_map(EOS_FVF) = 1
-  !pvt_table%data_to_prop_map(2) = EOS_VISCOSITY
-  !pvt_table%prop_to_data_map(EOS_VISCOSITY) = 2
 
   !set Default internal must be called before Set Metric
   call pvt_table%SetDefaultInternalUnits(option)

@@ -29,18 +29,12 @@ module EOSData_module
     PetscInt :: num_p   ! number of pressure intervals
     PetscInt :: num_t   ! number of temperature points
     PetscInt :: num_prop ! number of properties in the database
-    !PetscInt :: data_to_prop_map(EOS_MAX_PROP_NUM) !map the data idx to the prop.
-    !PetscInt :: prop_to_data_map(EOS_MAX_PROP_NUM) !map the prop to the dat idx
     PetscReal :: press_unit_conv_factor
     character(len=MAXWORDLENGTH) :: press_internal_units
     character(len=MAXWORDLENGTH) :: press_user_units
     PetscReal :: temp_unit_conv_factor
     character(len=MAXWORDLENGTH) :: temp_internal_units
     character(len=MAXWORDLENGTH) :: temp_user_units
-    !PetscReal :: prop_unit_conv_factors(EOS_MAX_PROP_NUM)
-    !character(len=MAXWORDLENGTH) :: prop_internal_units(EOS_MAX_PROP_NUM)
-    !character(len=MAXWORDLENGTH) :: prop_user_units(EOS_MAX_PROP_NUM)
-    !PetscReal, pointer :: data(:,:)
   contains
     procedure :: EOSDataBaseInit
     procedure, public :: EOSPropPresent
@@ -83,7 +77,6 @@ module EOSData_module
   end type eos_table_list_type
 
   type(eos_table_list_type), pointer, public :: eos_table_list => null()
-  !type(eos_table_list_type), publict :: eos_table_list
 
   public :: EOSDatabaseCreate, &
             EOSDatabaseDestroy, &
@@ -117,41 +110,10 @@ subroutine EOSDataBaseInit(this)
   !this%prop_to_data_map(1:EOS_MAX_PROP_NUM) = UNINITIALIZED_INTEGER
   this%press_unit_conv_factor = 1.0d0
   this%temp_unit_conv_factor = 1.0d0
-  !PO old lookup format
-  !this%prop_unit_conv_factors(1:EOS_MAX_PROP_NUM) = 1.0d0
-  !PO end old lookup format
-  !set deafult internal units - they can be changed by internal tranformation
   this%press_internal_units = 'Pa'
   this%temp_internal_units = 'C'
-  !PO old lookup format
-  !this%prop_internal_units(EOS_DENSITY) = 'kg/m^3'
-  !this%prop_internal_units(EOS_ENTHALPY) = 'J/kg'
-  !this%prop_internal_units(EOS_VISCOSITY) = 'Pa-s' !should replace with Pa.s
-  !this%prop_internal_units(EOS_INTERNAL_ENERGY) = 'J/kg'
-  !this%prop_internal_units(EOS_FVF) = 'm^3/m^3'
-  !this%prop_internal_units(EOS_RS) = 'm^3/m^3'
-  !this%prop_internal_units(EOS_COMPRESSIBILITY) = '1/Pa'
-  !this%prop_internal_units(EOS_VISCOSIBILITY) = '1/Pa'
-  !PO end old lookup format
-  !set deafult user units - identical to internal units
   this%press_user_units = 'Pa'
   this%temp_user_units = 'C'
-  !PO old lookup format
-  !this%prop_user_units(EOS_DENSITY) = 'kg/m^3'
-  !this%prop_user_units(EOS_ENTHALPY) = 'J/kg'
-  !this%prop_user_units(EOS_VISCOSITY) = 'Pa-s' !should replace with Pa.s
-  !this%prop_user_units(EOS_INTERNAL_ENERGY) = 'J/kg'
-  !this%prop_user_units(EOS_FVF) = 'm^3/m^3'
-  !this%prop_user_units(EOS_RS) = 'm^3/m^3'
-  !this%prop_user_units(EOS_COMPRESSIBILITY) = '1/Pa'
-  !this%prop_user_units(EOS_VISCOSIBILITY) = '1/Pa'
-  !do i_prop = 1,EOS_MAX_PROP_NUM
-  !  this%prop_internal_units(i_prop) = trim(this%prop_internal_units(i_prop))
-  !  this%prop_user_units(i_prop) = trim(this%prop_user_units(i_prop))
-  !end do
-  !
-  !nullify(this%data)
-  !PO end old lookup format
 
 end subroutine EOSDataBaseInit
 
@@ -245,91 +207,30 @@ subroutine ReadUserUnits(this,input,option)
         end if
         this%temp_unit_conv_factor = 1.0
         this%temp_user_units = 'C'
-        !else !it not temperature unit defined
-        !  string = "EOS data " // trim(keyword) // ' units'
-        !  call InputDefaultMsg(input,option,string)
-        !  this%temp_unit_conv_factor = 1.0
-        !endif
       case('DENSITY')
         call InputReadWord(input,option,user_units,PETSC_TRUE)
         prop_array(EOS_DENSITY)%ptr%user_units = trim(user_units)
-        !PO old lookup format
-        !select type(this)
-        !  class is(eos_database_type)
-        !    prop_array(EOS_DENSITY)%ptr%user_units = trim(user_units)
-        !  class is(eos_table_type)
-        !    this%prop_user_units(EOS_DENSITY) = trim(user_units)
-        !end select
       case('ENTHALPY')
         call InputReadWord(input,option,user_units,PETSC_TRUE)
-        prop_array(EOS_ENTHALPY)%ptr%user_units = trim(user_units)
-        !PO old lookup format
-        !select type(this)
-        !  class is(eos_database_type)
-        !    prop_array(EOS_ENTHALPY)%ptr%user_units = trim(user_units)
-        !  class is(eos_table_type)
-        !    this%prop_user_units(EOS_ENTHALPY) = trim(user_units)
-        !end select        
+        prop_array(EOS_ENTHALPY)%ptr%user_units = trim(user_units)        
       case('INTERNAL_ENERGY')
         call InputReadWord(input,option,user_units,PETSC_TRUE)
         prop_array(EOS_INTERNAL_ENERGY)%ptr%user_units = trim(user_units)
-        !PO old lookup format
-        !select type(this)
-        !  class is(eos_database_type)
-        !    prop_array(EOS_INTERNAL_ENERGY)%ptr%user_units = trim(user_units)
-        !  class is(eos_table_type)
-        !    this%prop_user_units(EOS_INTERNAL_ENERGY) = trim(user_units)
-        !end select
       case('VISCOSITY')
         call InputReadWord(input,option,user_units,PETSC_TRUE)
         prop_array(EOS_VISCOSITY)%ptr%user_units = trim(user_units)
-        !PO old lookup format
-        !select type(this)
-        !  class is(eos_database_type)
-        !    prop_array(EOS_VISCOSITY)%ptr%user_units = trim(user_units)
-        !  class is(eos_table_type)
-        !    this%prop_user_units(EOS_VISCOSITY) = trim(user_units)
-        !end select      
       case('FVF')
         call InputReadWord(input,option,user_units,PETSC_TRUE)
         prop_array(EOS_FVF)%ptr%user_units = trim(user_units)
-        !PO old lookup format
-        !select type(this)
-        !  class is(eos_database_type)
-        !    prop_array(EOS_FVF)%ptr%user_units = trim(user_units)
-        !  class is(eos_table_type)
-        !    this%prop_user_units(EOS_FVF) = trim(user_units)
-        !end select        
       case('RS')
          call InputReadWord(input,option,user_units,PETSC_TRUE)
          prop_array(EOS_RS)%ptr%user_units = trim(user_units)
-         !PO old lookup format
-         !select type(this)
-         ! class is(eos_database_type)
-         !   prop_array(EOS_RS)%ptr%user_units = trim(user_units)
-         !  class is(eos_table_type)
-         !    this%prop_user_units(EOS_RS) = trim(user_units)
-         !end select
       case('COMPRESSIBILITY')
          call InputReadWord(input,option,user_units,PETSC_TRUE)
          prop_array(EOS_COMPRESSIBILITY)%ptr%user_units = trim(user_units)
-         !PO old lookup format
-         !select type(this)
-         ! class is(eos_database_type)
-         !   prop_array(EOS_COMPRESSIBILITY)%ptr%user_units = trim(user_units)
-         !    class is(eos_table_type)
-         !      this%prop_user_units(EOS_COMPRESSIBILITY) = trim(user_units)
-         !end select
       case('VISCOSIBILITY')
          call InputReadWord(input,option,user_units,PETSC_TRUE)
          prop_array(EOS_VISCOSIBILITY)%ptr%user_units = trim(user_units)
-         !PO old lookup format
-         !select type(this)
-         ! class is(eos_database_type)
-         !     prop_array(EOS_VISCOSIBILITY)%ptr%user_units = trim(user_units)
-         !   class is(eos_table_type)
-         !     this%prop_user_units(EOS_VISCOSIBILITY) = trim(user_units)
-         ! end select
       case default
         error_string = trim(error_string) // ': ' // this%name // &
         ': EOS DATA units'
@@ -1422,8 +1323,6 @@ subroutine EOSPropTable(this,T,P,prop_iname,prop_value,indices,ierr)
 
   this%lookup_table_gen%data => &
                     this%lookup_table_gen%var_array(prop_iname)%ptr%data
-
-  !this%lookup_table_gen%data => this%data(this%prop_to_data_map(prop_iname),:)
 
   if (this%lookup_table_gen%dim == ONE_INTEGER) then
     if ( P < this%lookup_table_gen%axis1%values(1) ) then

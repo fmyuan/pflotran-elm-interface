@@ -1779,8 +1779,6 @@ subroutine EOSOilSetPVDO(input,option)
   db_var => CreateLookupTableVar(internal_units,user_units, &
                                                  data_idx)
   db_var%iname = EOS_FVF
-  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
-  !this%lookup_table_uni%var_array(EOS_FVF)%ptr => db_var
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 
@@ -1789,19 +1787,8 @@ subroutine EOSOilSetPVDO(input,option)
   db_var => CreateLookupTableVar(internal_units,user_units, &
                                                  data_idx)
   db_var%iname = EOS_VISCOSITY
-  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
-  !this%lookup_table_uni%var_array(EOS_VISCOSITY)%ptr => db_var
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
-
-  !PO old lookup table format
-  !set up pvdo variable and order - firt column is the pressure
-  !below the order of the data fiels is assigned
-  !pvt_table%data_to_prop_map(1) = EOS_FVF
-  !pvt_table%prop_to_data_map(EOS_FVF) = 1
-  !pvt_table%data_to_prop_map(2) = EOS_VISCOSITY
-  !pvt_table%prop_to_data_map(EOS_VISCOSITY) = 2
-  ! PO old lookup table format
 
   !set Default internal must be called before Set Metric
   call pvt_table%SetDefaultInternalUnits(option)
@@ -1853,8 +1840,6 @@ subroutine EOSOilSetPVCO(input,option)
   db_var => CreateLookupTableVar(internal_units,user_units, &
                                                  data_idx)
   db_var%iname = EOS_RS
-  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
-  ! this%lookup_table_uni%var_array(EOS_RS)%ptr => db_var
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 
@@ -1863,8 +1848,6 @@ subroutine EOSOilSetPVCO(input,option)
   db_var => CreateLookupTableVar(internal_units,user_units, &
                                                  data_idx)
   db_var%iname = EOS_FVF
-  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
-  !this%lookup_table_uni%var_array(EOS_FVF)%ptr => db_var
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 
@@ -1873,8 +1856,6 @@ subroutine EOSOilSetPVCO(input,option)
   db_var => CreateLookupTableVar(internal_units,user_units, &
                                                  data_idx)
   db_var%iname = EOS_VISCOSITY
-  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
-  !this%lookup_table_uni%var_array(EOS_VISCOSITY)%ptr => db_var
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 
@@ -1883,8 +1864,6 @@ subroutine EOSOilSetPVCO(input,option)
   db_var => CreateLookupTableVar(internal_units,user_units, &
                                                  data_idx)
   db_var%iname = EOS_COMPRESSIBILITY
-  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
-  !this%lookup_table_uni%var_array(EOS_COMPRESSIBILITY)%ptr => db_var
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 
@@ -1893,27 +1872,12 @@ subroutine EOSOilSetPVCO(input,option)
   db_var => CreateLookupTableVar(internal_units,user_units, &
                                                  data_idx)
   db_var%iname = EOS_VISCOSIBILITY
-  !call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
-  !this%lookup_table_uni%var_array(EOS_VISCOSIBILITY)%ptr => db_var
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 
   !set Default internal must be called before Set Metric
   call pvt_table%SetDefaultInternalUnits(option)
   call pvt_table%SetMetricUnits(option)
-
-  !set up pvdo variable and order - firt column is the pressure
-  !below the order of the data fiels is assigned
-  !pvt_table%data_to_prop_map(1) = EOS_RS
-  !pvt_table%prop_to_data_map(EOS_RS) = 1
-  !pvt_table%data_to_prop_map(2) = EOS_FVF
-  !pvt_table%prop_to_data_map(EOS_FVF) = 2
-  !pvt_table%data_to_prop_map(3) = EOS_VISCOSITY
-  !pvt_table%prop_to_data_map(EOS_VISCOSITY) = 3
-  !pvt_table%data_to_prop_map(4) = EOS_COMPRESSIBILITY
-  !pvt_table%prop_to_data_map(EOS_COMPRESSIBILITY) = 4
-  !pvt_table%data_to_prop_map(5) = EOS_VISCOSIBILITY
-  !pvt_table%prop_to_data_map(EOS_VISCOSIBILITY) = 5
 
   call pvt_table%Read(input,option)
 
