@@ -2093,7 +2093,25 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
 !#ifdef DEBUG_GENERAL_FILEOUTPUT
 !      debug_flux(energy_id,iphase) = debug_flux(energy_id,iphase) + mole_flux * uH
 !#endif
+
+      if (analytical_derivatives) then
+        ! q derivatives:
+        d_q_up = d_v_darcy_up * area
+        d_q_dn = d_v_darcy_dn * area
+        ! mole flux derivatives:
+        call MoleFluxDerivs(d_mole_flux_dn, d_q_dn, q, density_ave, ddensity_ave_dden_dn, &
+                            toil_auxvar_dn%d%dden_dp(iphase,1), toil_auxvar_dn%d%dden_dt(iphase))
+        ! add into jacobian:
+        jdn(iphase, 1:3) = jdn(iphase, 1:3) + d_mole_flux_dn
+        ! the energy part:
+        !! by `energy driven flux' mean the term moleFlux * uH
+        call EnergyDrivenFluxDerivs(d_energy_flux_dn, d_mole_flux_dn, uH, dn_scale, mole_flux, &
+                              toil_auxvar_dn%d%dH_dp(iphase), toil_auxvar_dn%d%dH_dt(iphase))
+        jdn(energy_id, 1:3) = jdn(energy_id, 1:3) + d_energy_flux_dn
+      endif
+
     endif
+#if 0
     if (analytical_derivatives) then
       !! analytical derivatives of everything that happened in previous if statment
       ! q derivatives:
@@ -2110,6 +2128,7 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                             toil_auxvar_dn%d%dH_dp(iphase), toil_auxvar_dn%d%dH_dt(iphase))
       jdn(energy_id, 1:3) = jdn(energy_id, 1:3) + d_energy_flux_dn
     endif
+#endif
   enddo
 #endif 
 ! end of TOIL_CONVECTION
@@ -3451,11 +3470,6 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
 
   use AuxVars_Flow_module
 
-#ifdef WELL_CLASS      
-  use Well_TOilIms_class
-  use Well_Base_class
-#endif
-
   implicit none
 
   SNES :: snes
@@ -3505,12 +3519,7 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   character(len=MAXWORDLENGTH) :: word
 
   PetscReal :: J_alt(realization%option%nflowdof,realization%option%nflowdof)
-  PetscBool :: can_do_analytical 
 
-#ifdef WELL_CLASS      
-  class(well_base_type), pointer :: well
-#endif
-  
   patch => realization%patch
   grid => patch%grid
   option => realization%option
@@ -3639,12 +3648,6 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
       ! if issues in passing auxvars, pass the entire TOil_ims and 
       ! ghosted_id_up, ghosted_id_dn
 
-#if 0
-if (iconn == 19214) then
-  print *, "break here"
-endif
-#endif
-
       call TOilImsFluxDerivative(patch%aux%TOil_ims%auxvars(:,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
                        material_auxvars(ghosted_id_up), &
@@ -3764,26 +3767,9 @@ endif
       if (associated(source_sink%well) ) then
         !Jdn = 0.0d0
 
-        well => source_sink%well
-
-#if 0
-        can_do_analytical = PETSC_FALSE
-        if (toil_analytical_derivatives) then
-          select type(well)
-            class is(well_toil_ims_wat_inj_type)
-              !print *, "water injector"
-            class is(well_toil_ims_oil_prod_type)
-              !print *, "oil producer"
-              can_do_analytical = PETSC_TRUE
-          end select 
-        endif
-#endif
-        can_do_analytical = toil_analytical_derivatives
-
-
         call source_sink%well%ExplJDerivative(iconn,ghosted_id, &
                         toil_ims_isothermal,TOIL_IMS_ENERGY_EQUATION_INDEX, &
-                         option,Jdn, can_do_analytical, &
+                         option,Jdn, toil_analytical_derivatives, &
                          toil_analytical_derivatives_compare, toil_dcomp_tol)
         Jdn = -Jdn  
 
