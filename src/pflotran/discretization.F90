@@ -237,7 +237,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
         call InputErrorMsg(input,option,'Z direction','Origin')        
       case('FILE','GRAVITY','INVERT_Z','MAX_CELLS_SHARING_A_VERTEX',&
            'STENCIL_WIDTH','STENCIL_TYPE','FLUX_METHOD','DOMAIN_FILENAME', &
-           'UPWIND_FRACTION_METHOD')
+           'UPWIND_FRACTION_METHOD','PERM_TENSOR_TO_SCALAR_MODEL')
       case('DXYZ','BOUNDS')
         call InputSkipToEND(input,option,word) 
       case default
@@ -329,6 +329,7 @@ subroutine DiscretizationRead(discretization,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
+  use Material_Aux_class
 
   implicit none
 
@@ -537,6 +538,22 @@ subroutine DiscretizationRead(discretization,input,option)
             call InputKeywordUnrecognized(word,'GRID,UPWIND_FRACTION_METHOD', &
                                           option)
         end select
+
+      case('PERM_TENSOR_TO_SCALAR_MODEL')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'PERM_TENSOR_TO_SCALAR_MODEL','GRID')
+        call StringToUpper(word)
+        select case(word)
+          case('LINEAR')
+            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_LINEAR,option)
+          case('QUADRATIC')
+            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_QUADRATIC,&
+                                              option)
+          case default
+            call InputKeywordUnrecognized(word,'GRID, PERM_TENSOR_TO_SCALAR_MODEL', &
+                                          option)
+        end select
+
       case default
         call InputKeywordUnrecognized(word,'GRID',option)
     end select 
