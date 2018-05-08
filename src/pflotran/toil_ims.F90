@@ -2093,7 +2093,25 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
 !#ifdef DEBUG_GENERAL_FILEOUTPUT
 !      debug_flux(energy_id,iphase) = debug_flux(energy_id,iphase) + mole_flux * uH
 !#endif
+
+      if (analytical_derivatives) then
+        ! q derivatives:
+        d_q_up = d_v_darcy_up * area
+        d_q_dn = d_v_darcy_dn * area
+        ! mole flux derivatives:
+        call MoleFluxDerivs(d_mole_flux_dn, d_q_dn, q, density_ave, ddensity_ave_dden_dn, &
+                            toil_auxvar_dn%d%dden_dp(iphase,1), toil_auxvar_dn%d%dden_dt(iphase))
+        ! add into jacobian:
+        jdn(iphase, 1:3) = jdn(iphase, 1:3) + d_mole_flux_dn
+        ! the energy part:
+        !! by `energy driven flux' mean the term moleFlux * uH
+        call EnergyDrivenFluxDerivs(d_energy_flux_dn, d_mole_flux_dn, uH, dn_scale, mole_flux, &
+                              toil_auxvar_dn%d%dH_dp(iphase), toil_auxvar_dn%d%dH_dt(iphase))
+        jdn(energy_id, 1:3) = jdn(energy_id, 1:3) + d_energy_flux_dn
+      endif
+
     endif
+#if 0
     if (analytical_derivatives) then
       !! analytical derivatives of everything that happened in previous if statment
       ! q derivatives:
@@ -2110,6 +2128,7 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                             toil_auxvar_dn%d%dH_dp(iphase), toil_auxvar_dn%d%dH_dt(iphase))
       jdn(energy_id, 1:3) = jdn(energy_id, 1:3) + d_energy_flux_dn
     endif
+#endif
   enddo
 #endif 
 ! end of TOIL_CONVECTION
