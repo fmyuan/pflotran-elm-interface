@@ -250,8 +250,8 @@ subroutine MaterialAuxSetPermTensorModel(model,option)
       model == TENSOR_TO_SCALAR_QUADRATIC) then
     perm_tens_to_scal_model = model
   else
-    option%io_buffer  = 'MaterialDiagPermTensorToScalar: tensor to scalar model type&
-                        & is not recognized.'
+    option%io_buffer  = 'MaterialDiagPermTensorToScalar: tensor to scalar &
+                         model type is not recognized.'
     call printErrMsg(option)
   endif
 
@@ -314,7 +314,8 @@ function DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
   PetscReal, intent(in) :: dist(-1:3)
   PetscReal :: kx,ky,kz
 
-  DiagPermTensorToScalar_Linear = kx*dabs(dist(1))+ky*dabs(dist(2))+kz*dabs(dist(3))
+  DiagPermTensorToScalar_Linear = kx*dabs(dist(1))+ky*dabs(dist(2))+&
+                                  kz*dabs(dist(3))
 
 end function DiagPermTensorToScalar_Linear
 
@@ -326,8 +327,9 @@ function DiagPermTensorToScalar_Quadratic(kx,ky,kz,dist)
   PetscReal, intent(in) :: dist(-1:3)
   PetscReal :: kx,ky,kz
 
-  DiagPermTensorToScalar_Quadratic = kx * dabs(dist(1))**2.0 + ky * dabs(dist(2))**2.0 + &
-                                     kz * dabs(dist(3))**2.0
+  DiagPermTensorToScalar_Quadratic = kx*dabs(dist(1))**2.0 + &
+                                     ky*dabs(dist(2))**2.0 + &
+                                     kz*dabs(dist(3))**2.0
 
 end function DiagPermTensorToScalar_Quadratic
 

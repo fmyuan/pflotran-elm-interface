@@ -547,7 +547,8 @@ subroutine DiscretizationRead(discretization,input,option)
           case('LINEAR')
             call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_LINEAR,option)
           case('QUADRATIC')
-            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_QUADRATIC,option)
+            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_QUADRATIC,&
+                                              option)
           case default
             call InputKeywordUnrecognized(word,'GRID, PERM_TENSOR_TO_SCALAR_MODEL', &
                                           option)
