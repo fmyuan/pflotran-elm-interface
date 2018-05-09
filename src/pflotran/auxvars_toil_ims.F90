@@ -188,6 +188,12 @@ subroutine AuxVarTOilImsStrip(this)
 
   class(auxvar_toil_ims_type) :: this
 
+  if (this%hasDerivatives) then 
+    call this%d%Strip()
+    deallocate(this%d)
+    nullify(this%d)
+  endif
+
   call AuxVarFlowStrip(this)
 
   call AuxVarFlowEnergyStrip(this)

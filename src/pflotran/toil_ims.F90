@@ -2238,6 +2238,15 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
   PetscBool :: analytical_derivatives
 
   j = 0.d0
+  dden_bool = 0.d0
+  denth_bool = 0.d0
+  hw_dp = 0.d0
+  hw_dT = 0.d0
+  ho_dp = 0.d0
+  ho_dT = 0.d0
+  d_qsrc_mol = 0.d0
+  d_inj_en_part = 0.d0
+  scale_use = 0.d0
 
   cell_pressure = 0.d0 !! ensure initialised
 
@@ -2375,6 +2384,10 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
                        dataset%rarray(option%liquid_phase)
                      ! J/kg * kg/kmol = J/kmol  
         enthalpy = enthalpy * toil_ims_fmw_comp(option%liquid_phase) 
+        if (analytical_derivatives) then 
+          hw_dp = 0.d0
+          hw_dp = 0.d0
+        endif
       end if
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
       ! enthalpy units: MJ/kmol ! water component mass                     
