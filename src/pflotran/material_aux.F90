@@ -704,6 +704,7 @@ subroutine MaterialAuxDestroy(aux)
     call DeallocateArray(aux%material_parameter%soil_heat_capacity)
     call DeallocateArray(aux%material_parameter%soil_thermal_conductivity)
   endif
+  deallocate(aux%material_parameter)
   nullify(aux%material_parameter)
   
   deallocate(aux)
