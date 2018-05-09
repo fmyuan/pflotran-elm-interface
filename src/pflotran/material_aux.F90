@@ -191,6 +191,8 @@ subroutine MaterialAuxVarInit(auxvar,option)
   else
     nullify(auxvar%soil_properties)
   endif
+
+  nullify(auxvar%geomechanics_subsurface_prop)
   
 end subroutine MaterialAuxVarInit
 
@@ -664,6 +666,9 @@ subroutine MaterialAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%sat_func_prop)
   call DeallocateArray(auxvar%soil_properties)
   call MaterialAuxVarFractureStrip(auxvar%fracture)
+  if (associated(auxvar%geomechanics_subsurface_prop)) then
+    call DeallocateArray(auxvar%geomechanics_subsurface_prop)
+  endif
   
 end subroutine MaterialAuxVarStrip
 

@@ -1445,6 +1445,7 @@ subroutine SolverDestroy(solver)
       if (solver%cprstash%factors2vec /= PETSC_NULL_VEC) then
         call VecDestroy(solver%cprstash%factors2vec, ierr);CHKERRQ(ierr)
       endif
+      deallocate(solver%cprstash)
       nullify(solver%cprstash)
     endif
     
