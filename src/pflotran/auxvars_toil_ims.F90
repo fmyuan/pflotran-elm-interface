@@ -152,6 +152,7 @@ subroutine AuxVarDerivsTOilImsInit(this,option)
   this%dH_dP = 0.d0
   allocate(this%dmobility(option%nphase, 3))
   this%dmobility = 0.d0
+  this%dpor_dp = 0.d0
 
 end subroutine AuxVarDerivsTOilImsInit
 
