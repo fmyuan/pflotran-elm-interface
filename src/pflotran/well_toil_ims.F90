@@ -293,6 +293,8 @@ end function CreateTOilImsWell
 subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
                                 ghosted_id, dof,option,res, Jac,analytical_derivatives)
   ! 
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 06/06/16
   ! 
   use PM_TOilIms_Aux_module
   use EOS_Water_module
@@ -386,7 +388,7 @@ subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
      !!! should scale but why bother since 0
    end if
 
-  !if(cfact * mob > wfloweps) then
+  if(cfact * mob > wfloweps) then
 
     if ( dphi < 0.0d0 .and. dof==ZERO_INTEGER ) &
       write(*,"('TOilImsWatInj reverse flow at gh = ',I5,' dp = ',e10.4)") &
@@ -418,7 +420,7 @@ subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
         Jac(3 , :) = d_vol_flux*dw_h2o_mol*enth_src_h2o
       endif
     endif
-   !end if
+   end if
 
 #ifdef WELL_DEBUG
   if ( dof==ZERO_INTEGER ) then
@@ -486,6 +488,10 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
                                   ghosted_id,dof,option,res,Jac,analytical_derivatives)
 
   ! 
+  ! Compute residual term for a TOilIms Producers
+  ! 
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 06/12/16
   ! 
 
   use PM_TOilIms_Aux_module
