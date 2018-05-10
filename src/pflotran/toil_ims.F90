@@ -1231,6 +1231,16 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
 #ifdef TOIL_CONVECTION
   do iphase = 1, option%nphase
     if (analytical_derivatives) then
+      up_scale = 0.d0
+      dn_scale =0.d0
+      ddensity_kg_ave_dden_kg_up = 0.d0
+      ddensity_kg_ave_dden_kg_dn = 0.d0
+      d_delta_pres_dp_up = 0.d0
+      d_delta_pres_dp_dn = 0.d0
+      d_delta_pres_dT_up = 0.d0
+      d_delta_pres_dT_dn = 0.d0
+      d_delta_pres_ds_up = 0.d0
+      d_delta_pres_ds_dn = 0.d0
       d_v_darcy_up = 0.d0
       d_v_darcy_dn = 0.d0
       d_q_up = 0.d0
@@ -1818,13 +1828,14 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: d_delta_temp_dt_dn, dheat_flux_ddelta_temp
   PetscReal :: d_delta_pres_ds_up, d_delta_pres_ds_dn     
 
-  PetscReal, dimension(1:3) :: d_v_darcy_up, d_v_darcy_dn
-  PetscReal, dimension(1:3) :: d_q_up, d_q_dn
-  PetscReal, dimension(1:3) :: d_mole_flux_up, d_mole_flux_dn
-  PetscReal, dimension(1:3) :: d_energy_flux_up, d_energy_flux_dn
+  PetscReal, dimension(1:3) :: d_v_darcy_dn
+  PetscReal, dimension(1:3) :: d_q_dn
+  PetscReal, dimension(1:3) :: d_mole_flux_dn
+  PetscReal, dimension(1:3) :: d_energy_flux_dn
   
   energy_id = option%energy_id
 
+  jdn = 0.d0  
   Res = 0.d0
   v_darcy = 0.d0 
 
@@ -1836,18 +1847,6 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
 !  debug_flux = 0.d0
 !  debug_dphi = 0.d0
 !#endif
-
-  if (analytical_derivatives) then
-    jdn = 0.d0
-    d_v_darcy_up = 0.d0
-    d_v_darcy_dn = 0.d0
-    d_q_up = 0.d0
-    d_q_dn = 0.d0
-    d_mole_flux_up = 0.d0
-    d_mole_flux_dn = 0.d0
-    d_energy_flux_up = 0.d0
-    d_energy_flux_dn = 0.d0
-  endif
 
   neumann_bc_present = PETSC_FALSE
   
@@ -1872,13 +1871,19 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
 #ifdef TOIL_CONVECTION  
   do iphase = 1, option%nphase
     if (analytical_derivatives) then
-      d_v_darcy_up = 0.d0
+      up_scale = 0.d0
+      dn_scale =0.d0
+      ddensity_kg_ave_dden_kg_up = 0.d0
+      ddensity_kg_ave_dden_kg_dn = 0.d0
+      d_delta_pres_dp_up = 0.d0
+      d_delta_pres_dp_dn = 0.d0
+      d_delta_pres_dT_up = 0.d0
+      d_delta_pres_dT_dn = 0.d0
+      d_delta_pres_ds_up = 0.d0
+      d_delta_pres_ds_dn = 0.d0
       d_v_darcy_dn = 0.d0
-      d_q_up = 0.d0
       d_q_dn = 0.d0
-      d_mole_flux_up = 0.d0
       d_mole_flux_dn = 0.d0
-      d_energy_flux_up = 0.d0
       d_energy_flux_dn = 0.d0
     endif
     bc_type = ibndtype(iphase) ! loop over equations 1.Liq and 2.Oil
@@ -2096,7 +2101,6 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
 
       if (analytical_derivatives) then
         ! q derivatives:
-        d_q_up = d_v_darcy_up * area
         d_q_dn = d_v_darcy_dn * area
         ! mole flux derivatives:
         call MoleFluxDerivs(d_mole_flux_dn, d_q_dn, q, density_ave, ddensity_ave_dden_dn, &
@@ -2109,26 +2113,7 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                               toil_auxvar_dn%d%dH_dp(iphase), toil_auxvar_dn%d%dH_dt(iphase))
         jdn(energy_id, 1:3) = jdn(energy_id, 1:3) + d_energy_flux_dn
       endif
-
     endif
-#if 0
-    if (analytical_derivatives) then
-      !! analytical derivatives of everything that happened in previous if statment
-      ! q derivatives:
-      d_q_up = d_v_darcy_up * area
-      d_q_dn = d_v_darcy_dn * area
-      ! mole flux derivatives:
-      call MoleFluxDerivs(d_mole_flux_dn, d_q_dn, q, density_ave, ddensity_ave_dden_dn, &
-                          toil_auxvar_dn%d%dden_dp(iphase,1), toil_auxvar_dn%d%dden_dt(iphase))
-      ! add into jacobian:
-      jdn(iphase, 1:3) = jdn(iphase, 1:3) + d_mole_flux_dn
-      ! the energy part:
-      !! by `energy driven flux' mean the term moleFlux * uH
-      call EnergyDrivenFluxDerivs(d_energy_flux_dn, d_mole_flux_dn, uH, dn_scale, mole_flux, &
-                            toil_auxvar_dn%d%dH_dp(iphase), toil_auxvar_dn%d%dH_dt(iphase))
-      jdn(energy_id, 1:3) = jdn(energy_id, 1:3) + d_energy_flux_dn
-    endif
-#endif
   enddo
 #endif 
 ! end of TOIL_CONVECTION
@@ -2216,6 +2201,7 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
   PetscReal :: ss_flow_vol_flux(option%nphase)
   PetscReal :: scale  
   PetscReal :: Res(option%nflowdof)
+  PetscBool :: analytical_derivatives
 
   ! local parameter
   PetscInt, parameter :: SRC_TEMPERATURE = 1
@@ -2235,18 +2221,19 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
   PetscReal, dimension(1:3,1:3) :: j
   PetscReal, dimension(1:3) :: d_qsrc_mol, d_inj_en_part
   PetscReal :: scale_use
-  PetscBool :: analytical_derivatives
 
-  j = 0.d0
-  dden_bool = 0.d0
-  denth_bool = 0.d0
-  hw_dp = 0.d0
-  hw_dT = 0.d0
-  ho_dp = 0.d0
-  ho_dT = 0.d0
-  d_qsrc_mol = 0.d0
-  d_inj_en_part = 0.d0
-  scale_use = 0.d0
+  if (analytical_derivatives) then
+    j = 0.d0
+    dden_bool = 0.d0
+    denth_bool = 0.d0
+    hw_dp = 0.d0
+    hw_dT = 0.d0
+    ho_dp = 0.d0
+    ho_dT = 0.d0
+    d_qsrc_mol = 0.d0
+    d_inj_en_part = 0.d0
+    scale_use = 0.d0
+  endif !! ensure initialised
 
   cell_pressure = 0.d0 !! ensure initialised
 
@@ -2544,6 +2531,8 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
   PetscReal :: J_dff(option%nflowdof,option%nflowdof)
   PetscReal :: tol
   PetscReal :: Jdum(option%nflowdof,option%nflowdof)  
+
+  J_alt = 0.d0
 
   if (.NOT. toil_analytical_derivatives .OR. toil_analytical_derivatives_compare) then
 
@@ -2846,6 +2835,7 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: tol
 
   Jdn = 0.d0
+  !Jdn_alt = 0.d0
 !geh:print *, 'GeneralBCFluxDerivative'
 
   if (.NOT. toil_analytical_derivatives .OR. toil_analytical_derivatives_compare) then
@@ -2889,6 +2879,7 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   endif
 
   if (toil_analytical_derivatives) then 
+
     call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                        toil_auxvar_up,global_auxvar_up, &
                        toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
@@ -2970,6 +2961,7 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
 
   option%iflag = -3
 
+ J_alt = 0.d0
 
  if (.NOT. toil_analytical_derivatives .OR. toil_analytical_derivatives_compare) then
     call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
@@ -3532,6 +3524,8 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   character(len=MAXWORDLENGTH) :: word
 
   PetscReal :: J_alt(realization%option%nflowdof,realization%option%nflowdof)
+
+  J_alt = 0.d0
 
   patch => realization%patch
   grid => patch%grid

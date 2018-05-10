@@ -34,7 +34,7 @@ module AuxVars_TOilIms_module
                                          !! square matrix treatment
                                          !! (2x3 here)
 
-    PetscReal, pointer :: dpor_dp
+    PetscReal :: dpor_dp
 
   contains
     procedure, public :: Init => AuxVarDerivsTOilImsInit
@@ -167,9 +167,6 @@ subroutine AuxVarDerivsTOilImsInit(this,option)
 
   allocate(this%dmobility(option%nphase, 3))
   this%dmobility = 0.d0
-
-  allocate(this%dpor_dp)
-  this%dpor_dp = 0.d0
 
 end subroutine AuxVarDerivsTOilImsInit
 
