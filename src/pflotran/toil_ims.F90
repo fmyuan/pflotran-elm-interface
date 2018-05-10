@@ -1041,7 +1041,7 @@ subroutine TOilImsAccumulation(toil_auxvar,material_auxvar, &
 
     !!    OIL EQUATION:
     !! w.r.t. pressure
-    j(oid, 1) = porosity*toil_auxvar%sat(oid)*toil_auxvar%d%dden_dp(oid,1) + &
+    j(oid, 1) = porosity*toil_auxvar%sat(oid)*toil_auxvar%d%dden_dp(oid) + &
                 toil_auxvar%d%dpor_dp*(toil_auxvar%sat(oid)*toil_auxvar%den(oid))
     !! w.r.t. sat:
     j(oid, 2)  = porosity*toil_auxvar%den(oid)
@@ -1051,7 +1051,7 @@ subroutine TOilImsAccumulation(toil_auxvar,material_auxvar, &
 
     !!     LIQUID EQUATION
     !! w.r.t. pressure:
-    j(lid,1)  = porosity*toil_auxvar%sat(lid)*toil_auxvar%d%dden_dp(lid,1) + &
+    j(lid,1)  = porosity*toil_auxvar%sat(lid)*toil_auxvar%d%dden_dp(lid) + &
                 toil_auxvar%d%dpor_dp*(toil_auxvar%sat(lid)*toil_auxvar%den(lid))
     !! w.r.t. sat:
     j(lid,2)  = -1.d0*toil_auxvar%den(lid)*porosity
@@ -1070,7 +1070,7 @@ subroutine TOilImsAccumulation(toil_auxvar,material_auxvar, &
     j(energy_id, 1) = j(energy_id, 1) + & 
                       porosity * &
                       toil_auxvar%sat(lid)* ( &
-                      toil_auxvar%d%dden_dp(lid,1)*toil_auxvar%U(lid) + &
+                      toil_auxvar%d%dden_dp(lid)*toil_auxvar%U(lid) + &
                       toil_auxvar%den(lid)*toil_auxvar%d%dU_dp(lid) )
     !! and density w.r.t. pressure:
     j(energy_id, 1) = j(energy_id, 1) + & 
@@ -1090,7 +1090,7 @@ subroutine TOilImsAccumulation(toil_auxvar,material_auxvar, &
     j(energy_id, 1) = j(energy_id, 1) + & 
                       porosity * &
                       toil_auxvar%sat(oid)* ( &
-                      toil_auxvar%d%dden_dp(oid,1)*toil_auxvar%U(oid) + &
+                      toil_auxvar%d%dden_dp(oid)*toil_auxvar%U(oid) + &
                       toil_auxvar%den(oid)*toil_auxvar%d%dU_dp(oid) )
     !! and density w.r.t. pressure:
     j(energy_id, 1) = j(energy_id, 1) + & 
@@ -1337,8 +1337,8 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
                                               d_delta_pres_dT_up, d_delta_pres_dT_dn,     &
                                               dist_gravity,                               &
                                               ddensity_ave_dden_up, ddensity_ave_dden_dn, &
-                                              toil_auxvar_up%d%dden_dp(iphase,1),                &
-                                              toil_auxvar_dn%d%dden_dp(iphase,1),                &
+                                              toil_auxvar_up%d%dden_dp(iphase),                &
+                                              toil_auxvar_dn%d%dden_dp(iphase),                &
                                               toil_auxvar_up%d%dden_dt(iphase),                 &
                                               toil_auxvar_dn%d%dden_dt(iphase),                 &
                                               toil_auxvar_up%d%dp_dsat(iphase),                 &
@@ -1372,9 +1372,9 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
 
       if (analytical_derivatives) then
         call MoleFluxDerivs(d_mole_flux_up, d_q_up, q, density_ave, ddensity_ave_dden_up, &
-                            toil_auxvar_up%d%dden_dp(iphase,1), toil_auxvar_up%d%dden_dt(iphase))
+                            toil_auxvar_up%d%dden_dp(iphase), toil_auxvar_up%d%dden_dt(iphase))
         call MoleFluxDerivs(d_mole_flux_dn, d_q_dn, q, density_ave, ddensity_ave_dden_dn, &
-                            toil_auxvar_dn%d%dden_dp(iphase,1), toil_auxvar_dn%d%dden_dt(iphase))
+                            toil_auxvar_dn%d%dden_dp(iphase), toil_auxvar_dn%d%dden_dt(iphase))
         jup(iphase,1:3) = jup(iphase, 1:3) + d_mole_flux_up
         jdn(iphase, 1:3) = jdn(iphase, 1:3) + d_mole_flux_dn
       endif
@@ -2011,8 +2011,8 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                                     d_delta_pres_dT_up, d_delta_pres_dT_dn,     &
                                                     dist_gravity,                               &
                                                     ddensity_ave_dden_up, ddensity_ave_dden_dn, &
-                                                    toil_auxvar_up%d%dden_dp(iphase,1),                &
-                                                    toil_auxvar_dn%d%dden_dp(iphase,1),                &
+                                                    toil_auxvar_up%d%dden_dp(iphase),                &
+                                                    toil_auxvar_dn%d%dden_dp(iphase),                &
                                                     toil_auxvar_up%d%dden_dt(iphase),                 &
                                                     toil_auxvar_dn%d%dden_dt(iphase),                 &
                                                     toil_auxvar_up%d%dp_dsat(iphase),                 &
@@ -2104,7 +2104,7 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
         d_q_dn = d_v_darcy_dn * area
         ! mole flux derivatives:
         call MoleFluxDerivs(d_mole_flux_dn, d_q_dn, q, density_ave, ddensity_ave_dden_dn, &
-                            toil_auxvar_dn%d%dden_dp(iphase,1), toil_auxvar_dn%d%dden_dt(iphase))
+                            toil_auxvar_dn%d%dden_dp(iphase), toil_auxvar_dn%d%dden_dt(iphase))
         ! add into jacobian:
         jdn(iphase, 1:3) = jdn(iphase, 1:3) + d_mole_flux_dn
         ! the energy part:
@@ -2318,7 +2318,7 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
     ss_flow_vol_flux(iphase) = qsrc_mol/ den
     Res(iphase) = qsrc_mol
     if (analytical_derivatives) then
-      call Qsrc_mol_derivs(d_qsrc_mol,dden_bool, qsrc(iphase), toil_auxvar%d%dden_dp(iphase,1), &
+      call Qsrc_mol_derivs(d_qsrc_mol,dden_bool, qsrc(iphase), toil_auxvar%d%dden_dp(iphase), &
                            toil_auxvar%d%dden_dt(iphase), scale_use)
       j(iphase, 1:3) = j(iphase, 1:3) + d_qsrc_mol(1:3)
     endif

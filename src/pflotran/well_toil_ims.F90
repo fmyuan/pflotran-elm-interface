@@ -330,6 +330,17 @@ subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
 
   Jac = 0.d0
 
+  if (analytical_derivatives) then
+    d_mob = 0.d0
+    d_vol_flux = 0.d0
+    d_pmd_dp = 0.d0
+    d_pmd_dT = 0.d0
+    d_pe_dp  = 0.d0
+    d_pe_dT = 0.d0
+    d_dphi_dp = 0.d0
+    d_dphi_ds = 0.d0
+  endif 
+
   hc = this%conn_h(iconn)
   cfact = this%conn_factors(iconn)
 
@@ -524,8 +535,19 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
   phase_ent = 0.0d0 
   dw_kg = 0.d0
 
-
-  Jac = 0.d0
+  if (analytical_derivatives) then
+    Jac = 0.d0
+    d_A = 0.d0
+    d_B = 0.d0
+    d_mob = 0.d0
+    d_vol_flux = 0.d0
+    d_pmd_dp = 0.d0
+    d_pmd_dT = 0.d0
+    d_pe_dp = 0.d0
+    d_pe_dT = 0.d0
+    d_dphi_dp = 0.d0
+    d_dphi_ds = 0.d0
+  endif
 
   avar => this%toil_auxvars(dof, ghosted_id)
 
@@ -547,7 +569,7 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
 
       if (analytical_derivatives) then 
         !!! so grab derivatives from corresponding toil_auxvar
-        d_pmd_dp = this%toil_auxvars(dof, ghosted_id)%d%dden_dp(i_ph,1)
+        d_pmd_dp = this%toil_auxvars(dof, ghosted_id)%d%dden_dp(i_ph)
         d_pmd_dT = this%toil_auxvars(dof, ghosted_id)%d%dden_dT(i_ph)
       endif
 
@@ -651,9 +673,8 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
    
       !stopping reversing flows to occur - they cannot be handled with this model
 
-      !!! this too
-      !if ( vol_flux < wfloweps ) cycle
-      if (vol_flux < 0.d0) cycle
+      if ( vol_flux < wfloweps ) cycle
+      !if (vol_flux < 0.d0) cycle
 
       !if( dabs(vol_flux) > 1.d-10 ) then !try to cut som noise
       !if( dabs(dphi/this%pw_ref) > 1.d-7 ) then !try to cut som noise

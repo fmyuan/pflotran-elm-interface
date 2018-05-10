@@ -20,11 +20,10 @@ module AuxVars_TOilIms_module
   type, public :: toil_derivative_auxvar_type
     PetscReal, pointer :: dp_dsat(:) !! pressure w.r.t. saturation, will take into account 
                                      !! dependence of liquid pressure on saturation
-    PetscReal, pointer :: dsat_dp(:,:) !! saturation w.r.t. pressure !! USED?
-    PetscReal, pointer :: dden_dp(:,:) !! density w.r.t. pressure
+    PetscReal, pointer :: dden_dp(:) !! density w.r.t. pressure
     PetscReal, pointer :: dden_dt(:)   !! density w.r.t. temperature
     PetscReal, pointer :: dsat_dt(:)   !! saturattion w.r.t. temperature
-    PetscReal, pointer :: dU_dp(:)     !! internal energy w.r.t. pressure !! USED?
+    PetscReal, pointer :: dU_dp(:)     !! internal energy w.r.t. pressure
     PetscReal, pointer :: dU_dt(:)
     PetscReal, pointer :: dH_dp(:)
     PetscReal, pointer :: dH_dt(:)
@@ -42,7 +41,6 @@ module AuxVars_TOilIms_module
   end type toil_derivative_auxvar_type
 
   type, public, extends(auxvar_flow_energy_type) :: auxvar_toil_ims_type
-    ! no data at the moment
     PetscBool :: hasDerivatives
     type(toil_derivative_auxvar_type), pointer :: d
   contains
@@ -76,13 +74,6 @@ subroutine AuxVarTOilImsInit(this,option)
 
   if (toil_analytical_derivatives) then
     this%hasDerivatives = PETSC_TRUE
-
-#if 0
-    allocate(this%df) 
-    allocate(this%de) 
-    call this%df%Init(option)
-    call this%de%Init(option)
-#endif
     allocate(this%d)
     call this%d%Init(option)
   else
@@ -145,26 +136,20 @@ subroutine AuxVarDerivsTOilImsInit(this,option)
 
   allocate(this%dp_dsat(option%nphase))
   this%dp_dsat= 0.d0
-
-  allocate(this%dsat_dp(option%nphase, 1))
-  this%dsat_dp = 0.d0
-  allocate(this%dden_dp(option%nphase, 1))
+  allocate(this%dden_dp(option%nphase))
   this%dden_dp = 0.d0
   allocate(this%dsat_dt(option%nphase))
   this%dsat_dt = 0.d0
   allocate(this%dden_dt(option%nphase))
   this%dden_dt = 0.d0
-
   allocate(this%dU_dt(option%nphase))
   this%dU_dt = 0.d0
   allocate(this%dU_dp(option%nphase))
   this%dU_dP = 0.d0
-
   allocate(this%dH_dt(option%nphase))
   this%dH_dt = 0.d0
   allocate(this%dH_dp(option%nphase))
   this%dH_dP = 0.d0
-
   allocate(this%dmobility(option%nphase, 3))
   this%dmobility = 0.d0
 
@@ -208,16 +193,13 @@ subroutine AuxVarDerivsTOilImsStrip(this)
   class(toil_derivative_auxvar_type) :: this
 
   call DeallocateArray(this%dp_dsat)
-
-  call DeallocateArray(this%dsat_dp)
   call DeallocateArray(this%dden_dp)
   call DeallocateArray(this%dsat_dt)
   call DeallocateArray(this%dden_dt)
-
   call DeallocateArray(this%dU_dt)
-  call DeallocateArray(this%dU_dP)
+  call DeallocateArray(this%dU_dp)
   call DeallocateArray(this%dH_dt)
-  call DeallocateArray(this%dH_dP)
+  call DeallocateArray(this%dH_dp)
 
   call deallocatearray(this%dmobility)
 
@@ -238,7 +220,6 @@ subroutine AuxVarDerivsTOilIMSCopy(auxvar,auxvar2,option)
   type(option_type) :: option
 
   auxvar2%dp_dsat= auxvar%dp_dsat
-  auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dden_dp = auxvar%dden_dp
   auxvar2%dden_dt = auxvar%dden_dt
   auxvar2%dsat_dt = auxvar%dsat_dt
