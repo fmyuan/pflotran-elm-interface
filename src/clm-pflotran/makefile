@@ -18,7 +18,7 @@
 #
 # Targets:
 # pflotran -- the complete PFLOTRAN executable
-# libpflotranchem.a -- PFLOTRAN reaction library
+# libpflotran.a -- PFLOTRAN library for coupling with CLM
 # pflotran_rxn -- PFLOTRAN batch reactor executable (wraps libpflotranchem.a)
 # test -- run unit (utest) and regression (rtest) tests
 # check -- verify that PFLOTRAN was built correctly and runs
@@ -51,9 +51,8 @@ include ${PETSC_DIR}/lib/petsc/conf/rules
 
 MYFLAGS = -I. 
 
-MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL
 MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN
-MYFLAGS += ${FC_DEFINE_FLAG}STORE_FLOWRATES
+
 ###############################################################################
 # Preprocessor flags for special PFLOTRAN features/hacks
 ###############################################################################
@@ -226,7 +225,7 @@ FPPFLAGS = ${MYFLAGS}
 # FC_FLAGS is defined in ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables
 
 # List of files to remove when running "make clean-pflotran"
-CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log $(SRC_DIR)/pflotran_provenance.F90
+CLEANFILES       = pflotran pflotran_rxn libpflotran.a make.log $(SRC_DIR)/pflotran_provenance.F90
 
 ###############################################################################
 # Lists all files that PFLOTRAN (and other targets) depends on 
@@ -241,8 +240,8 @@ CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log $(SRC_DIR)/p
 # Begin Source Block -- these keywords must remain immediately before .o files.
 
 util_obj  = \
-        ${common_src}appleyard.o \
-        ${common_src}generic.o \
+	${common_src}appleyard.o \
+	${common_src}generic.o \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
 	${common_src}matrix_block_aux.o \
@@ -255,7 +254,7 @@ util_obj  = \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
-        ${common_src}toil_ims_derivs.o \
+	${common_src}toil_ims_derivs.o \
 	${common_src}variables.o
 
 eos_obj = \
@@ -579,15 +578,9 @@ pflotran_rxn_obj = ${pflotran_src}pflotran_rxn.o
 pflotran : $(pflotran_obj)
 	${FLINKER} -o pflotran $(pflotran_obj) ${PETSC_LIB} ${LIBS} 
 
-# PFLOTRAN as a library
-libpflotran.a : $(pflotran_obj)
-	$(AR) $(ARFLAGS) $@ $(pflotran_obj)
-
-libpflotranchem.a : $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
-	$(AR) $(ARFLAGS) $@ $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
-
-pflotran_rxn : libpflotranchem.a $(pflotran_rxn_obj)
-	${FLINKER} -o $@ $(pflotran_rxn_obj) -L. -lpflotranchem ${PETSC_LIB} ${LIBS} 
+# PFLOTRAN as a library for coupling with CLM
+libpflotran.a : $(lib_pflotran_obj)
+	$(AR) $(ARFLAGS) $@ $(lib_pflotran_obj)
 
 $(SRC_DIR)/pflotran_provenance.F90 : FORCE
 ifeq ($(UPDATE_PROVENANCE),1)
@@ -612,7 +605,9 @@ link_files :
 # The source file (i.e. file.F90) is intentionally omitted; 
 # it is picked up by the default/implicit build rule (defined by PETSc)
 ###############################################################################
-include pflotran_dependencies.txt
+ifndef fast
+  include pflotran_dependencies.txt
+endif
 ###############################################################################
 # End Dependencies
 ###############################################################################
