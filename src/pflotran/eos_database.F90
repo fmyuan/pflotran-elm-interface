@@ -1521,9 +1521,9 @@ subroutine EOSTableDestroyList()
 
   class(eos_table_type), pointer :: eos_table, prev_eos_table
 
-  if (.not.associated(list)) return
-
   list => eos_table_list
+  
+  if (.not.associated(list)) return
 
   eos_table => list%first
   do
