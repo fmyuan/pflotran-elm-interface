@@ -376,3 +376,7 @@ src/clm-pflotran/solver_cpr.F90
 src/clm-pflotran/appleyard.F90
 src/clm-pflotran/toil_ims_derivs.F90
 generic.F90
+src/clm-pflotran/characteristic_curves_table.F90
+src/clm-pflotran/derivative_tests.F90
+src/clm-pflotran/eos_slv.F90
+reaction_sandbox_gas.F90
