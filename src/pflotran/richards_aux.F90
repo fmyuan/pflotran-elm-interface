@@ -229,7 +229,8 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   global_auxvar%pres = x(1)
   global_auxvar%temp = option%reference_temperature
  
-  auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
+  auxvar%pc = min(option%reference_pressure - global_auxvar%pres(1), &
+                  characteristic_curves%saturation_function%pcmax)
   
 !***************  Liquid phase properties **************************
   pw = option%reference_pressure
