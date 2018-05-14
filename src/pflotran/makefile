@@ -230,7 +230,7 @@ CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log $(SRC_DIR)/p
 # Begin Source Block -- these keywords must remain immediately before .o files.
 
 util_obj  = \
-        ${common_src}appleyard.o \
+	${common_src}appleyard.o \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
 	${common_src}matrix_block_aux.o \
@@ -243,7 +243,7 @@ util_obj  = \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
-        ${common_src}toil_ims_derivs.o \
+	${common_src}toil_ims_derivs.o \
 	${common_src}variables.o
 
 eos_obj = \
