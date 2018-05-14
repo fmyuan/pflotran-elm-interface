@@ -181,13 +181,20 @@ subroutine InitTOilImsAuxVars(this,grid,num_bc_connection, &
   PetscInt :: ghosted_id, iconn, local_id
   PetscInt :: idof
 
-  allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
-  do ghosted_id = 1, grid%ngmax
-    do idof = 0, option%nflowdof
-      !call TOilImsAuxVarInit(toil_auxvars(idof,ghosted_id),option)
-      call this%auxvars(idof,ghosted_id)%Init(option)
+  if (option%flow%numerical_derivatives .OR. option%flow%numerical_derivatives_compare) then
+    allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
+    do ghosted_id = 1, grid%ngmax
+      do idof = 0, option%nflowdof
+        !call toilimsauxvarinit(toil_auxvars(idof,ghosted_id),option)
+        call this%auxvars(idof,ghosted_id)%init(option)
+      enddo
     enddo
-  enddo
+  else
+    allocate(this%auxvars(0:0,grid%ngmax))
+    do ghosted_id = 1, grid%ngmax
+    call this%auxvars(0,ghosted_id)%init(option)
+    enddo
+  endif
 
   this%num_aux = grid%ngmax
 
