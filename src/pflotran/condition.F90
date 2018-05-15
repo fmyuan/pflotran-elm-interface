@@ -3698,9 +3698,9 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base,units, &
   character(len=MAXWORDLENGTH) :: keyword
   class(dataset_base_type), pointer :: dataset_base
   character(len=MAXWORDLENGTH) :: units
-  character(len=MAXSTRINGLENGTH), pointer :: internal_unit_strings(:)
   character(len=*) :: data_internal_units
 
+  character(len=MAXSTRINGLENGTH), pointer :: internal_unit_strings(:)
   class(dataset_ascii_type), pointer :: dataset_ascii
   character(len=MAXSTRINGLENGTH) :: string2, filename, hdf5_path
   character(len=MAXWORDLENGTH) :: word, realization_word
