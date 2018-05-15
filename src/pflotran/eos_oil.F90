@@ -166,7 +166,7 @@ module EOS_Oil_module
   ! the module.
   interface EOSOilViscosity
     procedure EOSOilViscosityNoDerive
-  ! procedure EOSOilViscosityDerive
+    procedure EOSOilViscosityDerive
   end interface
   interface EOSOilDensity
     procedure EOSOilDensityNoDerive
@@ -174,11 +174,13 @@ module EOS_Oil_module
   end interface
   interface EOSOilEnthalpy
     procedure EOSOilEnthalpyNoDerive
-   ! procedure EOSOilEnthalpyDerive
+   procedure EOSOilEnthalpyDerive !!! danger! seems to be just dbase 
+                                  !!! routines that don't do derivatives right now
+                                  !!! though.
   end interface
   interface EOSOilDensityEnergy
-    procedure EOSOilDenEnergyNoDerive
-   ! procedure EOSOilDenEnergyDerive
+   procedure EOSOilDenEnergyNoDerive
+   procedure EOSOilDenEnergyDerive
   end interface
   interface EOSOilRS
     procedure EOSOilRSNoDerive
@@ -999,6 +1001,46 @@ end subroutine EOSOilViscosityNoDerive
 
 ! ************************************************************************** !
 
+subroutine EOSOilViscosityDerive(T,P,Rho,Vis, dVis_dT, dVis_dP, ierr,table_idxs)
+  implicit none
+
+  PetscReal, intent(in) :: T        ! temperature [C]
+  PetscReal, intent(in) :: P        ! oil pressure [Pa]
+  PetscReal, intent(in) :: Rho      ! oil density [kmol/m3]
+  PetscReal, intent(out) :: Vis     ! oil viscosity
+  PetscReal, intent(out) :: dVis_dT ! derivative oil viscosity wrt temperature
+  PetscReal, intent(out) :: dVis_dP ! derivative oil viscosity wrt Pressure
+  PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:) !pvt table indices
+
+!!                                 !!!!!!!!!
+  !call EOSOilViscosityPtr(T,P,Rho,PETSC_FALSE,Vis,dVis_dT,dVis_dP,ierr,table_idxs)
+!!                                 !!!!!!!!!
+  call EOSOilViscosityPtr(T,P,Rho,PETSC_TRUE,Vis,dVis_dT,dVis_dP,ierr,table_idxs)
+
+  !! some visc models don't have derivatives implemented yet and will return
+  !! nan:  
+  if (ISNAN(dVis_dT)) then
+    ierr = 99 !error 99 points out that deriv are asked but not available yet.
+    print*, "EOSOilViscosityDerive - Viscosity derivatives not supported for your &
+             choice of viscocity model. Please turn off analytical derivatives or &
+             choose a simpler model"
+             
+    stop
+  end if
+  if (ISNAN(dVis_dP)) then
+    ierr = 99 !error 99 points out that deriv are asked but not available yet.
+    print*, "EOSOilViscosityDerive - Viscosity derivatives not supported for your &
+             choice of viscocity model. Please turn off analytical derivatives or &
+             choose a simpler model"
+    stop
+  end if
+
+
+end subroutine EOSOilViscosityDerive
+
+! ************************************************************************** !
+
 subroutine EOSOilDensityConstant(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr, &
                                  table_idxs)
   !
@@ -1052,8 +1094,12 @@ subroutine EOSOilDensityLinear(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr, &
   Rho = Rho / fmw_oil ! kmol/m^3
 
   if (deriv) then
+#if 0
     dRho_dT = compress_coeff / fmw_oil
     dRho_dP = - th_expansion_coeff / fmw_oil
+#endif
+    dRho_dP = compress_coeff / fmw_oil
+    dRho_dT = - th_expansion_coeff / fmw_oil
   end if
 
 end subroutine EOSOilDensityLinear
@@ -1414,6 +1460,23 @@ end subroutine EOSOilEnthalpyNoDerive
 
 ! ************************************************************************** !
 
+subroutine EOSOilEnthalpyDerive(T,P,H, dH_dp, dH_dT, ierr)
+  implicit none
+  PetscReal, intent(in) :: T        ! temperature [C]
+  PetscReal, intent(in) :: P        ! pressure [Pa]
+  PetscReal, intent(out) :: H       ! enthalpy [J/kmol]
+  PetscReal, intent(out) :: dH_dp, dH_dT       ! derivatives
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: dum1, dum2
+
+  call EOSOilEnthalpyPtr(T,P,PETSC_TRUE, H, dH_dT, dH_dp, ierr)
+
+end subroutine EOSOilEnthalpyDerive
+
+
+! ************************************************************************** !
+
 subroutine EOSOilDensityEnergyS(T,P,deriv,Rho,dRho_dT,dRho_dP, &
                                 H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr,table_idxs)
   implicit none
@@ -1433,11 +1496,14 @@ subroutine EOSOilDensityEnergyS(T,P,deriv,Rho,dRho_dT,dRho_dP, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
+  PetscReal :: Rho2
+
   call EOSOilDensityPtr(T,P,deriv,Rho,dRho_dT,dRho_dP,ierr,table_idxs)
   call EOSOilEnthalpyPtr(T,P,deriv,H,dH_dT,dH_dP,ierr)
 
   U = H - P/Rho
 
+#if 0
   ! initialize derivative to NaN so that not mistakenly used.
   dU_dT = InitToNan()
   dU_dP = InitToNan()
@@ -1446,6 +1512,23 @@ subroutine EOSOilDensityEnergyS(T,P,deriv,Rho,dRho_dT,dRho_dP, &
     print*, "EOSOilDensityEnergyS - U derivatives not supported"
     stop
   end if
+#endif
+
+  if (deriv) then
+    Rho2 = Rho*Rho
+    dU_dP = dH_dP - 1.d0/Rho + dRho_dP*P/Rho2 !! maybe add checks if dRho_dP or P tiny so as to avoid rounding errors
+    dU_dT = dH_dT + dRho_dT*P/Rho2 !!dP_dT = 0 because P and T independent.
+
+    !! down the line will need 2nd order derivs:
+    !! ddU_dPP = ddH_dPP + dRho_dP/Rho2 + dRho_dP/Rho2 + ddRho_dPP*P/Rho2 - 2.d0*dRho_dP*dRho_dP*P/Rho2/Rho
+    !! ddU_dTT = ddH_dTT + ddRho_dTT*P/Rho2 - 2.d0*dRho_dT*dRho_dT*P/Rho2/Rho
+
+    !print*, "EOSOilDensityEnergyTOilIms - U derivatives not supported"
+    !stop  
+  else
+    dU_dT = InitToNan()
+    dU_dP = InitToNan()
+  end if   
 
 
 end subroutine EOSOilDensityEnergyS
@@ -1471,6 +1554,33 @@ subroutine EOSOilDenEnergyNoDerive(T,P,Rho,H,U,ierr,table_idxs)
 
 
 end subroutine EOSOilDenEnergyNoDerive
+
+! **************************************************************************** !
+
+subroutine EOSOilDenEnergyDerive(T,P,Rho,dRho_dT,dRho_dP, & !! note signature is idenitical to DensityEnergyPtr but missing deriv since the interface already switches on that.
+                                    H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
+
+  implicit none
+
+  PetscReal, intent(in) :: T        ! temperature [C]
+  PetscReal, intent(in) :: P        ! pressure [Pa]
+  PetscReal, intent(out) :: Rho     ! oil density [kmol/m^3]
+  PetscReal, intent(out) :: H       ! enthalpy [J/kmol]
+  PetscReal, intent(out) :: U       ! internal energy [J/kmol]
+  PetscReal, intent(out) :: dRho_dT ! derivative oil density wrt temperature
+  PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
+  PetscReal, intent(out) :: dH_dT   ! derivative enthalpy wrt temperature
+  PetscReal, intent(out) :: dH_dP   ! derivative enthalpy wrt pressure
+  PetscReal, intent(out) :: dU_dT   ! deriv. internal energy wrt temperature
+  PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure
+  PetscErrorCode, intent(out) :: ierr
+
+
+  call EOSOilDensityEnergyPtr(T,P,PETSC_TRUE,Rho,dRho_dT,dRho_dP, &
+                              H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr) 
+ 
+
+end subroutine EOSOilDenEnergyDerive
 
 ! **************************************************************************** !
 

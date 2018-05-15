@@ -106,7 +106,7 @@ END
 
 #=========================== output options ===================================
 OUTPUT
-  SNAPSHOT_FILE
+  SNAPSHOT_FILE !this will print only the final time step
     #NO_PRINT_FINAL
     NO_PRINT_INITIAL
     FORMAT VTK
@@ -123,17 +123,17 @@ END
 #=========================== datasets =========================================
 DATASET pressure_bc_north
   HDF5_DATASET_NAME x_line_node_centered_north
-  FILENAME ../dataset.h5
+  FILENAME ./dataset.h5
 END
 
 DATASET pressure_bc_south
   HDF5_DATASET_NAME x_line_node_centered_south
-  FILENAME ../dataset.h5
+  FILENAME ./dataset.h5
 END
 
 DATASET pressure_bc_east
   HDF5_DATASET_NAME y_line_node_centered_east
-  FILENAME ../dataset.h5
+  FILENAME ./dataset.h5
 END
 
 #======================= flow conditions ======================================

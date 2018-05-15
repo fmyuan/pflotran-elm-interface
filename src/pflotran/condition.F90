@@ -2914,7 +2914,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: rate_string, internal_units
+  character(len=MAXWORDLENGTH) :: rate_string
+  character(len=MAXSTRINGLENGTH) :: internal_units_string
   character(len=MAXWORDLENGTH) :: word
   type(flow_towg_condition_type), pointer :: towg
   type(flow_sub_condition_type), pointer :: sub_condition_ptr
@@ -2932,9 +2933,6 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   call PetscLogEventBegin(logging%event_flow_condition_read, &
                           ierr);CHKERRQ(ierr)
 
-  rate_string = 'not_assigned'
-  internal_units = 'not_assigned'
-
   default_time = 0.d0
   default_iphase = 0
 
@@ -2945,11 +2943,13 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   towg => FlowTOWGConditionCreate(option)
   condition%towg => towg
 
+  rate_string = 'not_assigned'
+
   ! read the condition
   input%ierr = 0
   do
   
-    internal_units = 'not_assigned'
+    internal_units_string = 'not_assigned'
 
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -3084,9 +3084,9 @@ subroutine FlowConditionTOWGRead(condition,input,option)
         dataset_ascii%data_type = DATASET_REAL
         condition%datum => dataset_ascii
         nullify(dataset_ascii)
-        internal_units = 'meter'
+        internal_units_string = 'meter'
         call ConditionReadValues(input,option,word,condition%datum, &
-                                 word,internal_units)
+                                 word,internal_units_string)
       case('GRADIENT')
         do
           call InputReadPflotranString(input,option)
@@ -3105,10 +3105,10 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           dataset_ascii%data_type = DATASET_REAL
           sub_condition_ptr%gradient => dataset_ascii
           nullify(dataset_ascii)
-          internal_units = 'unitless/meter'
+          internal_units_string = 'unitless/meter'
           call ConditionReadValues(input,option,word, &
                                    sub_condition_ptr%gradient, &
-                                   word,internal_units)
+                                   word,internal_units_string)
           nullify(sub_condition_ptr)
         enddo
       case('CONDUCTANCE')
@@ -3122,37 +3122,37 @@ subroutine FlowConditionTOWGRead(condition,input,option)
            'GAS_IN_GAS_MOLE_FRACTION','RATE','BHP_PRESSURE', 'LIQUID_FLUX', &
            'OIL_FLUX','GAS_FLUX','SOLVENT_FLUX','ENERGY_FLUX','ENTHALPY')
         sub_condition_ptr => FlowTOWGSubConditionPtr(word,towg,option)
-        internal_units = 'not_assigned'
         select case(trim(word))
           case('OIL_PRESSURE','GAS_PRESSURE','BHP_PRESSURE','BUBBLE_POINT')
-            internal_units = 'Pa'
+            internal_units_string = 'Pa'
           case('OIL_SATURATION','GAS_SATURATION','SOLVENT_SATURATION', &
                'GAS_IN_OIL_MOLE_FRACTION', 'GAS_IN_GAS_MOLE_FRACTION')
-            internal_units = 'unitless'
+            internal_units_string = 'unitless'
           case('TEMPERATURE')
-            internal_units = 'C'
+            internal_units_string = 'C'
           case('RATE')
             input%force_units = PETSC_TRUE
             input%err_buf = word
             if (towg_miscibility_model == TOWG_SOLVENT_TL) then
-              internal_units = trim(rate_string) // ',' // trim(rate_string) &
-                 // ',' // trim(rate_string) // ',' // trim(rate_string) // &
-                             ',MJ/sec|MW'
+              internal_units_string= trim(rate_string) // ',' // &
+                                     trim(rate_string) // ',' // &
+                                     trim(rate_string) // ',' // &
+                                     trim(rate_string) // ',MJ/sec|MW'
             else
-              internal_units = trim(rate_string) // ',' // trim(rate_string) &
-                 // ',' // trim(rate_string) // &
-                             ',MJ/sec|MW'
+              internal_units_string = trim(rate_string) // ',' // &
+                                      trim(rate_string) // ',' // &
+                                      trim(rate_string) // ',MJ/sec|MW'
             end if
           case('LIQUID_FLUX','OIL_FLUX','GAS_FLUX')
-            internal_units = 'meter/sec'
+            internal_units_string = 'meter/sec'
           case('ENERGY_FLUX')
             input%force_units = PETSC_TRUE
             input%err_buf = word
-            internal_units = 'MW/m^2|MJ/m^2-sec'
+            internal_units_string = 'MW/m^2|MJ/m^2-sec'
         end select
         call ConditionReadValues(input,option,word, &
                                  sub_condition_ptr%dataset, &
-                                 sub_condition_ptr%units,internal_units)
+                                 sub_condition_ptr%units,internal_units_string)
         input%force_units = PETSC_FALSE
       case default
         call InputKeywordUnrecognized(word,'flow condition',option)
@@ -3698,9 +3698,9 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: keyword
   class(dataset_base_type), pointer :: dataset_base
-  character(len=MAXWORDLENGTH) :: data_external_units
-  character(len=MAXWORDLENGTH) :: data_internal_units
-  
+  character(len=*) :: data_external_units
+  character(len=*) :: data_internal_units
+
   character(len=MAXSTRINGLENGTH), pointer :: internal_unit_strings(:)
   class(dataset_ascii_type), pointer :: dataset_ascii
   character(len=MAXSTRINGLENGTH) :: string2, filename, hdf5_path

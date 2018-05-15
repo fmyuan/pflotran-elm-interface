@@ -112,9 +112,11 @@ subroutine WellAuxVarSetUp(well,connection_set,flow_condition,aux, &
   select type(well)
     !if only auxvar_flow_energy needed can use class is(well_flow_energy_type)
     class is(well_toil_ims_wat_inj_type)
+      well%toil_auxvars => aux%TOil_ims%auxvars   
       well%flow_energy_auxvars => aux%TOil_ims%auxvars   
       well%flow_auxvars => aux%TOil_ims%auxvars
     class is(well_toil_ims_oil_prod_type)
+      well%toil_auxvars => aux%TOil_ims%auxvars   
       well%flow_energy_auxvars => aux%TOil_ims%auxvars   
       well%flow_auxvars => aux%TOil_ims%auxvars
     !when well implmented for other flow modes - add below

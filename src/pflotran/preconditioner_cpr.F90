@@ -1,4 +1,4 @@
-module CPR_Precondititioner_module
+module CPR_Preconditioner_module
 ! Implements a CPR preconditioner using the PCSHELL
 ! funcitonality of PETSC.
 ! Daniel Stone and Sebastien Loisel
@@ -20,12 +20,12 @@ module CPR_Precondititioner_module
   type, public :: cpr_pc_type 
     Mat :: A, Ap
     ! The two stage CPR preconditioner calls two other preconditioners:
-    PC :: T1        ! T1 will be a SHELL pc that extracts the pressure system residual from the
+    PC :: T1_PC        ! T1 will be a SHELL pc that extracts the pressure system residual from the
                     ! input residual, then approximates the inverse of Ap acting on that residual
                     ! using AMG.
-    KSP :: T1solver ! Usually PCONLY, the PC for this KSP is hypre/boomeramg. This is called
+    KSP :: T1_KSP   ! Usually PCONLY, the PC for this KSP is hypre/boomeramg. This is called
                     ! by T1 (above) as the AMG part.
-    PC :: T2        ! A regular PC, usually BJACOBI
+    PC :: T2_PC        ! A regular PC, usually BJACOBI
     Vec :: T1r,r2, s, z, factors1vec, factors2vec
     PetscInt ::  t2fillin, timescalled, asmoverlap, exrow_offset
     PetscBool :: firstT1Call, firstT2call, asmfactorinplace, &
@@ -39,7 +39,7 @@ module CPR_Precondititioner_module
     ! 2d arrays:
     PetscReal, dimension(:,:), allocatable :: all_vals
     ! point at the option object, needed for error outputs
-    type(option_type) :: option
+    type(option_type), pointer :: option
   end type cpr_pc_type 
 
   ! interfaces need to make the set and get context routines
@@ -109,13 +109,13 @@ subroutine CPRApply(p, r, y,ierr)
   if (ctx%skip_T1) then
     call VecZeroEntries(t1r,ierr); CHKERRQ(ierr)
   else
-    call PCApply(ctx%T1,r,t1r,ierr); CHKERRQ(ierr)
+    call PCApply(ctx%T1_PC,r,t1r,ierr); CHKERRQ(ierr)
   endif
 
   call MatMult(a,t1r,r2,ierr); CHKERRQ(ierr)
   call VecAYPX(r2,-one,r,ierr); CHKERRQ(ierr) ! r1 <- r-r2
 
-  call PCApply(ctx%T2,r2,y,ierr); CHKERRQ(ierr)
+  call PCApply(ctx%T2_PC,r2,y,ierr); CHKERRQ(ierr)
 
   call VecAYPX(y,one,t1r,ierr); CHKERRQ(ierr)
 
@@ -145,9 +145,9 @@ subroutine CPRT1Apply(p, x, y,ierr)
 
   ! PC context holds workers:
   type(cpr_pc_type), pointer :: ctx
-  ! some other solvers and PCs we'll use:
-  KSP :: solver
-  PC :: amgsolver
+  ! some other KSPs and PCs we'll use:
+  KSP :: ksp
+  PC :: amg_pc
   ! misc workers, etc:
   PetscInt :: b,start,end,k,its
   Vec :: s, z
@@ -158,17 +158,17 @@ subroutine CPRT1Apply(p, x, y,ierr)
 
   call QIRHS(ctx%factors1Vec, ctx%factors2vec, x, s, ierr)
 
-  solver = ctx%T1solver
+  ksp = ctx%T1_KSP
 
   if (ctx%T1_type /= "NONE") then
-    call KSPSolve(solver,s,z,ierr); CHKERRQ(ierr)
-    call KSPGetIterationNumber(solver, its, ierr); CHKERRQ(ierr)
+    call KSPSolve(ksp,s,z,ierr); CHKERRQ(ierr)
+    call KSPGetIterationNumber(ksp, its, ierr); CHKERRQ(ierr)
   else
-    call KSPGetPC(solver, amgsolver, ierr);CHKERRQ(ierr)
-    call PCApply(amgsolver,s,z,ierr); CHKERRQ(ierr)
+    call KSPGetPC(ksp, amg_pc, ierr);CHKERRQ(ierr)
+    call PCApply(amg_pc,s,z,ierr); CHKERRQ(ierr)
 
     if (ctx%amg_report) then
-      call PCView(amgsolver, PETSC_VIEWER_STDOUT_SELF, ierr);CHKERRQ(ierr)
+      call PCView(amg_pc, PETSC_VIEWER_STDOUT_SELF, ierr);CHKERRQ(ierr)
     endif
   endif
 
@@ -227,7 +227,7 @@ subroutine CPRSetupT1(ctx,  ierr)
 
   PetscInt :: b, mx
   Mat :: A
-  KSP :: solver
+  KSP :: ksp
   
   A = ctx%A
 
@@ -235,10 +235,10 @@ subroutine CPRSetupT1(ctx,  ierr)
 
   if (ctx%firstT1Call) then ! some final initializations that need knowlege
                             ! of the fully assembled Jacobian
-    ! let T1 and it's inner solver know what their inner operators are
-    solver = ctx%T1solver
-    call PCSetOperators(ctx%T1,A,A,ierr); CHKERRQ(ierr)
-    call KSPSetOperators(solver,ctx%Ap,ctx%Ap,ierr); CHKERRQ(ierr)
+    ! let T1 and its inner ksp solver know what their inner operators are
+    ksp = ctx%T1_KSP
+    call PCSetOperators(ctx%T1_PC,A,A,ierr); CHKERRQ(ierr)
+    call KSPSetOperators(ksp,ctx%Ap,ctx%Ap,ierr); CHKERRQ(ierr)
 
 
     ! now sparsity pattern of the Jacobian is defined, 
@@ -302,7 +302,7 @@ subroutine CPRSetupT2(ctx, ierr)
   ! modifying sub-ksps
   if (ctx%firstT2Call) then
 
-  T2 = ctx%T2
+  T2 = ctx%T2_PC
 
     if (StringCompare(ctx%T2_type, 'PCASM')) then
       call PCASMSetOverlap(T2, ctx%asmoverlap, ierr);CHKERRQ(ierr)
@@ -395,9 +395,9 @@ subroutine CPRMake(p, ctx, c, ierr, option)
   PetscErrorCode :: ierr
   type(cpr_pc_type) :: ctx
   MPI_Comm :: c
-  type(option_type) :: option
+  type(option_type), target :: option
 
-  ctx%option = option
+  ctx%option => option
 
   call PCSetType(p,PCSHELL,ierr); CHKERRQ(ierr)
   call PCShellSetApply(p,CPRapply,ierr); CHKERRQ(ierr)
@@ -441,7 +441,7 @@ subroutine CPRCreateT1(c,  ctx,   ierr)
   type(cpr_pc_type) :: ctx
   PetscErrorCode :: ierr
 
-  KSP :: solver
+  KSP :: ksp
   PC :: prec
 
   ! nice default options for boomeramg:
@@ -449,24 +449,24 @@ subroutine CPRCreateT1(c,  ctx,   ierr)
     call SetCPRDefaults(ierr)
   endif
 
-  call KSPCreate(c,solver,ierr); CHKERRQ(ierr)
+  call KSPCreate(c,ksp,ierr); CHKERRQ(ierr)
 
   select case(ctx%T1_type)
     case('RICHARDSON')
-      call KSPSetType(solver,KSPRICHARDSON,ierr); CHKERRQ(ierr)
+      call KSPSetType(ksp,KSPRICHARDSON,ierr); CHKERRQ(ierr)
     case('FGMRES')
-      call KSPSetType(solver,KSPFGMRES,ierr); CHKERRQ(ierr)
-      call KSPSetTolerances(solver, 1.0d-3, 1.d0-3, PETSC_DEFAULT_REAL, &
+      call KSPSetType(ksp,KSPFGMRES,ierr); CHKERRQ(ierr)
+      call KSPSetTolerances(ksp, 1.0d-3, 1.d0-3, PETSC_DEFAULT_REAL, &
                             PETSC_DEFAULT_INTEGER, ierr);CHKERRQ(ierr) 
     case('GMRES')
-      call KSPSetType(solver,KSPGMRES,ierr); CHKERRQ(ierr)
+      call KSPSetType(ksp,KSPGMRES,ierr); CHKERRQ(ierr)
     case default
       ! really we will just skip over the ksp entirely
       ! in this case, but for completeness..
-      call KSPSetType(solver,KSPPREONLY,ierr); CHKERRQ(ierr)
+      call KSPSetType(ksp,KSPPREONLY,ierr); CHKERRQ(ierr)
   end select
 
-  call KSPGetPC(solver,prec,ierr); CHKERRQ(ierr)
+  call KSPGetPC(ksp,prec,ierr); CHKERRQ(ierr)
 
   if (ctx%useGAMG) then
     call PCSetType(prec,PCGAMG,ierr); CHKERRQ(ierr)
@@ -477,15 +477,15 @@ subroutine CPRCreateT1(c,  ctx,   ierr)
 #endif
   endif
 
-  call KSPSetFromOptions(solver,ierr); CHKERRQ(ierr)
-  call PetscObjectSetName(solver,"T1",ierr); CHKERRQ(ierr)
+  call KSPSetFromOptions(ksp,ierr); CHKERRQ(ierr)
+  call PetscObjectSetName(ksp,"T1",ierr); CHKERRQ(ierr)
 
-  ctx%T1solver = solver
-  call PCCreate(C,ctx%T1,ierr); CHKERRQ(ierr)
-  call PCSetType(ctx%T1,PCSHELL,ierr); CHKERRQ(ierr)
-  call PCShellSetApply(ctx%T1,CPRT1apply,ierr); CHKERRQ(ierr)
+  ctx%T1_KSP = ksp
+  call PCCreate(C,ctx%T1_PC,ierr); CHKERRQ(ierr)
+  call PCSetType(ctx%T1_PC,PCSHELL,ierr); CHKERRQ(ierr)
+  call PCShellSetApply(ctx%T1_PC,CPRT1apply,ierr); CHKERRQ(ierr)
 
-  call PCShellSetContext(ctx%T1, ctx, ierr); CHKERRQ(ierr)
+  call PCShellSetContext(ctx%T1_PC, ctx, ierr); CHKERRQ(ierr)
 
 end subroutine CPRCreateT1
 
@@ -540,7 +540,7 @@ subroutine CPRCreateT2(c, ctx, ierr)
       call PCSetType(t2,PCBJACOBI,ierr); CHKERRQ(ierr)
   end select
 
-  ctx%T2 = t2
+  ctx%T2_PC = t2
 
 end subroutine CPRCreateT2
 
@@ -566,7 +566,7 @@ subroutine SetCPRDefaults(ierr)
 
   character(len=MAXSTRINGLENGTH) :: string, word
 
-  ! set sensible defualts for the boomeramg solver here,
+  ! set sensible defualts for the boomeramg pc here,
   ! the defaults it comes with are rarely preferable to
   ! us.
 
@@ -681,6 +681,9 @@ subroutine DeallocateWorkersInCPRStash(ctx)
   deallocate(ctx%insert_colIdx)
   deallocate(ctx%all_vals)
 
+  !! also the pointers:
+  nullify(ctx%option)
+
 end subroutine DeallocateWorkersInCPRStash
 
 ! end of suplementary setup/init/deinit/routines  
@@ -751,7 +754,7 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
     ! store vals since we have to put them back
     ! store colIdx this time as well
     do j = 0,numcols-1
-      ctx%all_vals(1, j) = ctx%vals(j)
+      ctx%all_vals(0, j) = ctx%vals(j)
       ctx%colIdx_keep(j) = ctx%colIdx(j)
     end do
     ! b) we can get index of diagonal block here
@@ -776,7 +779,7 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
     call MatGetRow(a, firstRow+1, numcols, PETSC_NULL_INTEGER, ctx%vals, &
                   ierr); CHKERRQ(ierr)
     do j = 0,numcols-1
-      ctx%all_vals(2, j) = ctx%vals(j)
+      ctx%all_vals(1, j) = ctx%vals(j)
     end do
     dd = ctx%vals(firstrowdex)
     ee = ctx%vals(firstrowdex+1)
@@ -788,7 +791,7 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
     call MatGetRow(a, firstRow+2, numcols, PETSC_NULL_INTEGER, ctx%vals, &
                  ierr); CHKERRQ(ierr)
     do j = 0,numcols-1
-      ctx%all_vals(3, j) =ctx%vals(j)
+      ctx%all_vals(2, j) =ctx%vals(j)
     end do
     gg = ctx%vals(firstrowdex)
     hh = ctx%vals(firstrowdex+1)
@@ -820,9 +823,9 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
       ctx%insert_colIdx(j) = ctx%colIdx_keep(cur_coldex)/b
 
 
-      ctx%insert_vals(j) = fac0*ctx%all_vals(1, cur_coldex)
-      ctx%insert_vals(j) = ctx%insert_vals(j) + fac1*ctx%all_vals(2,cur_coldex)
-      ctx%insert_vals(j) = ctx%insert_vals(j) + fac2*ctx%all_vals(3,cur_coldex)
+      ctx%insert_vals(j) = fac0*ctx%all_vals(0, cur_coldex)
+      ctx%insert_vals(j) = ctx%insert_vals(j) + fac1*ctx%all_vals(1,cur_coldex)
+      ctx%insert_vals(j) = ctx%insert_vals(j) + fac2*ctx%all_vals(2,cur_coldex)
     end do
 
     ! h) set values
@@ -1085,4 +1088,4 @@ end subroutine MatGetMaxRowCount
 ! end of misc routines  
 ! ************************************************************************** !
 
-end module CPR_Precondititioner_module 
+end module CPR_Preconditioner_module

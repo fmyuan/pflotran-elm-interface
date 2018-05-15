@@ -3,7 +3,7 @@ module Solver_module
 #include "petsc/finclude/petscts.h"
   use petscts
   use PFLOTRAN_Constants_module
-  use CPR_Precondititioner_module 
+  use CPR_Preconditioner_module
   use Solver_CPR_module
 
   implicit none
@@ -222,7 +222,6 @@ subroutine SolverSetSNESOptions(solver, option)
   endif
   if (len_trim(solver%pc_type) > 1) then
     if (associated(solver%cprstash)) then
-      !call PFSolverCPRInit(solver, solver%cprstash, solver%pc, ierr, option)
       call SolverCPRInit(solver%J, solver%cprstash, solver%pc, ierr, option)
     else
       call PCSetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
@@ -1415,14 +1414,14 @@ subroutine SolverDestroy(solver)
 
       call DeallocateWorkersInCPRStash(solver%cprstash)
 
-      if (solver%cprstash%T1solver /= PETSC_NULL_KSP) then
-        call KSPDestroy(solver%cprstash%T1solver, ierr);CHKERRQ(ierr)
+      if (solver%cprstash%T1_KSP /= PETSC_NULL_KSP) then
+        call KSPDestroy(solver%cprstash%T1_KSP, ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%T1 /= PETSC_NULL_PC) then
-        call PCDestroy(solver%cprstash%T1, ierr);CHKERRQ(ierr)
+      if (solver%cprstash%T1_PC /= PETSC_NULL_PC) then
+        call PCDestroy(solver%cprstash%T1_PC, ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%T2 /= PETSC_NULL_PC) then
-        call PCDestroy(solver%cprstash%T2, ierr);CHKERRQ(ierr)
+      if (solver%cprstash%T2_PC /= PETSC_NULL_PC) then
+        call PCDestroy(solver%cprstash%T2_PC, ierr);CHKERRQ(ierr)
       endif
 
       if (solver%cprstash%Ap /= PETSC_NULL_MAT) then

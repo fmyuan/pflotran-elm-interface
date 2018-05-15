@@ -38,12 +38,47 @@
 %\frame{\titlepage}
 
 %-----------------------------------------------------------------------------
+\section{Location of Example}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Location}
+
+Location of this example problem:
+
+\begin{semiverbatim}
+> cd \$PFLOTRAN_DIR
+> cd shortcourse/exercises/gas_injection
+> ls
+
+gas_injection.in
+gas_injection.py
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Command Line}
+\begin{frame}[fragile]\frametitle{Command Line}
+This problem takes a few minutes, so let's begin the simulation now.
+
+\begin{itemize}
+  \item Run the simulation
+\end{itemize}
+
+\begin{semiverbatim}
+> cd \$PFLOTRAN_DIR
+> cd shortcourse/exercises/gas_injection
+> pflotran -input_prefix gas_injection
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \section{Description of Gas Injection}
 
 \subsection{Gas Injection Conceptual Model}
 
 \begin{frame}\frametitle{Description of Gas Injection Scenario}
-The ``Gas Injection Scenario'' demonstrates how to set up a multiphase flow simulation using GENERAL MODE. It simulates gas injection into a 2D liquid saturated domain. Assumptions include:
+The ``Gas Injection Scenario'' demonstrates how to set up a multiphase flow simulation using \redcomment{GENERAL MODE}. It simulates gas injection into a 2D liquid-saturated domain. Assumptions include:
 \begin{itemize}
   \item Problem domain: $100 \times 1 \times 100$ m (x $\times$ y $\times$ z)
   \item Grid resolution: $5 \times 1 \times 5$ m 
@@ -74,8 +109,8 @@ The ``Gas Injection Scenario'' demonstrates how to set up a multiphase flow simu
 \begin{frame}[fragile]\frametitle{SIMULATION}
 
 \begin{itemize}
-  \item Multiphase flow (General mode)
-  \item with options
+  \item Multiphase flow (\redcomment{General mode})
+  \item with \redcomment{options}
 \end{itemize}
 
 \begin{semiverbatim}\small
@@ -112,9 +147,9 @@ END_SUBSURFACE
 \begin{semiverbatim}
 GRID
   TYPE STRUCTURED
-  NXYZ 20 1 20
+  NXYZ 20 1 20         \bluecomment{! number of cells in x y z}
   BOUNDS
-    0.d0 0.d0 0.d0 \bluecomment{! xmin ymin zmin}
+    0.d0 0.d0 0.d0     \bluecomment{! xmin ymin zmin}
     100.d0 1.d0 100.d0 \bluecomment{! xmax ymax zmax}
   /
 END
@@ -127,8 +162,8 @@ END
 
 \begin{frame}[fragile]\frametitle{FLUID\_PROPERTY}
 \begin{itemize}
-  \item Diffusion of dissolved gas in water
-  \item Diffusion of water vapor in gas
+  \item Diffusion of dissolved gas in \redcomment{liquid phase}
+  \item Diffusion of water vapor in \redcomment{gas phase}
 \end{itemize}
 
 \begin{semiverbatim}
@@ -151,10 +186,10 @@ END
 
 \begin{frame}[fragile]\frametitle{OUTPUT}
 \begin{itemize}
-  \item Print a snapshot of entire solution periodically
-  \item Print the solution at observation points every time step
-  \item Print mass balance file every time step
-  \item Choose output variables
+  \item Print a \redcomment{snapshot} of entire solution periodically
+  \item Print the solution at \redcomment{observation points} every time step
+  \item Print \redcomment{mass balance} file every time step
+  \item Choose output \redcomment{variables}
 \end{itemize}
 
 \end{frame}
@@ -191,8 +226,8 @@ END
 
 \begin{frame}[fragile]\frametitle{TIME}
 \begin{itemize}
-  \item Final simulation time = 100 y
-  \item Maximum time step size = 5 y
+  \item \redcomment{Final} simulation \redcomment{time} = 100 y
+  \item \redcomment{Maximum time step size} = 5 y
 \end{itemize}
 
 \begin{semiverbatim}
@@ -214,14 +249,14 @@ END
 \begin{itemize}
   \item Energy equations require:
   \begin{itemize}
-    \item mineral density
-    \item thermal conductivity
-    \item mineral heat capacity
+    \item \redcomment{mineral density}
+    \item \redcomment{thermal conductivity} (bulk wet and dry)
+    \item \redcomment{mineral heat capacity}
   \end{itemize}
 \end{itemize}
 
 \begin{semiverbatim}
-MATERIAL_PROPERTY sand
+MATERIAL_PROPERTY sand \bluecomment{! define material} \greencomment{sand}
   ID 1
   CHARACTERISTIC_CURVES default
   POROSITY 0.20
@@ -241,15 +276,15 @@ END
 \begin{frame}[fragile]\frametitle{MATERIAL\_PROPERTY}
 
 \begin{semiverbatim}
-MATERIAL_PROPERTY clay
+MATERIAL_PROPERTY clay \bluecomment{! define material} \greencomment{clay}
   ID 2
   CHARACTERISTIC_CURVES clay
   POROSITY 0.35
   TORTUOSITY 0.23
-  ROCK_DENSITY 2700. \bluecomment{! density of the solid phase}
-  THERMAL_CONDUCTIVITY_DRY 0.7d0 \bluecomment{! dry bulk medium}
-  THERMAL_CONDUCTIVITY_WET 1.4d0 \bluecomment{! wet bulk medium}
-  HEAT_CAPACITY 830. \bluecomment{! heat capacity of the solid phase}
+  ROCK_DENSITY 2700. \bluecomment{! kg/m3}
+  THERMAL_CONDUCTIVITY_DRY 0.7d0 \bluecomment{! W/(m-K)}
+  THERMAL_CONDUCTIVITY_WET 1.4d0 \bluecomment{! W/(m-K)}
+  HEAT_CAPACITY 830. \bluecomment{! J/(kg-K)}
   PERMEABILITY
     PERM_ISO 1.d-19
   /
@@ -262,12 +297,13 @@ END
 
 \begin{frame}[fragile,containsverbatim]\frametitle{CHARACTERISTIC\_CURVES}
 
-\begin{itemize}
-  \item Van Genuchten/Mualem
+\begin{itemize}\small
+  \item Van Genuchten \redcomment{saturation function}
+  \item Mualem \redcomment{relative permeability} for liquid and gas phases
 \end{itemize}
 
 \begin{semiverbatim}\small
-CHARACTERISTIC_CURVES default
+CHARACTERISTIC_CURVES default \bluecomment{! used with} \greencomment{sand}
   SATURATION_FUNCTION VAN_GENUCHTEN
     ALPHA 1.d-4
     M 0.5
@@ -291,12 +327,13 @@ END
 
 \begin{frame}[fragile,containsverbatim]\frametitle{CHARACTERISTIC\_CURVES}
 
-\begin{itemize}
-  \item Van Genuchten/Mualem
+\begin{itemize}\small
+  \item Van Genuchten \redcomment{saturation function}
+  \item Mualem \redcomment{relative permeability} for liquid and gas phases
 \end{itemize}
 
 \begin{semiverbatim}\small
-CHARACTERISTIC_CURVES clay
+CHARACTERISTIC_CURVES clay \bluecomment{! used with} \greencomment{clay}
   SATURATION_FUNCTION VAN_GENUCHTEN
     ALPHA 7.d-7
     M 0.375
@@ -321,23 +358,23 @@ END
 \subsection{REGION}
 
 \begin{frame}[fragile]\frametitle{REGION}
+Regions will be used for:
 \begin{itemize}
-  \item{Entire domain}
-  \item{Regions for boundary condition}
-  \item{Region for gas source}
-  \item{Regions for materials}
+  \item{assignment of \redcomment{BC} and \redcomment{IC}}
+  \item{location of \redcomment{gas injection}}
+  \item{assignment of \redcomment{material properties}}
 \end{itemize}
 
 \begin{semiverbatim}\small
-REGION all
+REGION all               \bluecomment{! define region:} \greencomment{all}
   COORDINATES
     -1.d20 -1.d20 -1.d20 \bluecomment{! very large volume}
      1.d20  1.d20  1.d20 \bluecomment{! nothing will be left out}
   /
 END
 
-REGION upper_right
-  FACE top \bluecomment{! face for boundary condition}
+REGION upper_right       \bluecomment{! define region:} \greencomment{upper_right}
+  FACE top               \bluecomment{! face for use in BC}
   COORDINATES
     90.d0 0.d0 100.d0
     100.d0 1.d0 100.d0
@@ -349,33 +386,22 @@ END
 \begin{frame}[fragile]\frametitle{REGION}
 
 \begin{semiverbatim}\small
-REGION lower_left \bluecomment{! for source}
-  COORDINATES
+REGION lower_left        \bluecomment{! define region:} \greencomment{lower_left}
+  COORDINATES            \bluecomment{! for gas injection}
     0.d0 0.d0 0.d0
     10.d0 1.d0 5.d0
   /
 END
 
-REGION clay1 \bluecomment{! for material}
-  COORDINATES
+REGION clay1             \bluecomment{! define region:} \greencomment{clay1}
+  COORDINATES            \bluecomment{! one of three clay regions}
     00.d0 0.d0 20.d0
     60.d0 1.d0 30.d0
   /
 END
 
-REGION clay2 \bluecomment{! for material}
-  COORDINATES
-    30.d0 0.d0 50.d0
-    70.d0 1.d0 60.d0
-  /
-END
+...
 
-REGION clay3 \bluecomment{! for material}
-  COORDINATES
-    40.d0 0.d0 80.d0
-    80.d0 1.d0 90.d0
-  /
-END
 \end{semiverbatim}
   
 \end{frame}
@@ -384,19 +410,19 @@ END
 
 \begin{frame}[fragile]\frametitle{OBSERVATION}
 \begin{itemize}
-  \item{Define three more regions for output}
+  \item{Define three more regions for \redcomment{output}}
 \end{itemize}
 
 \begin{semiverbatim}\small
-REGION lower
-  COORDINATE 52.5 0.5 17.5
+REGION lower \bluecomment{! define region:} \greencomment{lower}
+  COORDINATE 52.5 0.5 17.5 \bluecomment{! note single coordinate}
 /
 
-REGION middle
+REGION middle \bluecomment{! define region:} \greencomment{middle}
   COORDINATE 52.5 0.5 47.5
 /
 
-REGION upper
+REGION upper \bluecomment{! define region:} \greencomment{upper}
   COORDINATE 52.5 0.5 77.5
 /
 \end{semiverbatim}
@@ -404,20 +430,20 @@ REGION upper
 
 \begin{frame}[fragile]\frametitle{OBSERVATION}
 \begin{itemize}
-  \item{Use them as observation points}
+  \item{Use them as \redcomment{observation points}}
 \end{itemize}
 
 \begin{semiverbatim}\small
 OBSERVATION
-  REGION lower
+  REGION lower \bluecomment{! use} \greencomment{lower} \bluecomment{as obs pt}
 /
 
 OBSERVATION
-  REGION middle
+  REGION middle \bluecomment{! use} \greencomment{middle} \bluecomment{as obs pt}
 /
 
 OBSERVATION
-  REGION upper
+  REGION upper \bluecomment{! use} \greencomment{upper} \bluecomment{as obs pt}
 /
 \end{semiverbatim}
 \end{frame}
@@ -428,30 +454,32 @@ OBSERVATION
 \begin{frame}[fragile]\frametitle{FLOW\_CONDITION}
 \begin{itemize}
   \item{Single phase liquid, hydrostatic}
+  \item{Use for \redcomment{IC} and \redcomment{BC}}
 \end{itemize}
 
 \begin{semiverbatim}
-FLOW_CONDITION saturated \bluecomment{! single phase liquid}
-  TYPE
+FLOW_CONDITION saturated \bluecomment{! define }\greencomment{saturated} 
+  TYPE                   \bluecomment{! single phase liquid}
     LIQUID_PRESSURE HYDROSTATIC
     MOLE_FRACTION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  DATUM 0.d0 0.d0 100.d0 \bluecomment{! top of domain}
-  LIQUID_PRESSURE 101325. \bluecomment{! Pa}
-  MOLE_FRACTION 1.d-8 \bluecomment{! dissolved gas}
-  TEMPERATURE 25.d0 \bluecomment{! degrees C}
+  DATUM 0.d0 0.d0 100.d0  \bluecomment{! top of domain}
+  LIQUID_PRESSURE 101325. \bluecomment{! Pa (atmospheric)}
+  MOLE_FRACTION 1.d-8     \bluecomment{! dissolved gas}
+  TEMPERATURE 25.d0       \bluecomment{! degrees C}
 END
 \end{semiverbatim}
 \end{frame}
 
 \begin{frame}[fragile]\frametitle{FLOW\_CONDITION}
 \begin{itemize}
-  \item{Source term}
+  \item{\redcomment{Source} term}
+  \item{Use for gas injection}
 \end{itemize}
 
 \begin{semiverbatim}
-FLOW_CONDITION gas_injection
+FLOW_CONDITION gas_injection \bluecomment{! define }\greencomment{gas_injection} 
   TYPE
     RATE SCALED_MASS_RATE VOLUME \bluecomment{! volume averaged}
   /
@@ -467,9 +495,9 @@ END
 \begin{frame}[fragile]\frametitle{Couplers}
 
 \begin{itemize}
-  \item Initial condition with region
-  \item Boundary condition with region
-  \item Source (or sink) with region
+  \item \redcomment{Initial condition}: flow condition \greencomment{saturated} with region \greencomment{all}
+  \item \redcomment{Boundary condition}: flow condition \greencomment{saturated} with region \greencomment{upper\_right}
+  \item \redcomment{Source}: flow condition \greencomment{gas\_injection} with region \greencomment{lower\_left}
 \end{itemize}
 
 \begin{semiverbatim}\small
@@ -483,7 +511,7 @@ BOUNDARY_CONDITION open \bluecomment{! optional name}
   FLOW_CONDITION saturated
   REGION upper_right
 END
-\bluecomment{! source_sink }
+\bluecomment{! source or sink }
 SOURCE_SINK gas \bluecomment{! optional name}
   FLOW_CONDITION gas_injection
   REGION lower_left
@@ -494,7 +522,9 @@ END
 \begin{frame}[fragile]\frametitle{Couplers}
 
 \begin{itemize}
-  \item{Material with region}
+  \item{Material \greencomment{sand} with region \greencomment{all}}
+  \item{Material \greencomment{clay} with region \greencomment{clay1}}
+  \item{etc. for regions \greencomment{clay2} and \greencomment{clay3}}
 \end{itemize}
 
 \begin{semiverbatim}\small
@@ -503,20 +533,12 @@ STRATA
   MATERIAL sand
 END
 
-STRATA \bluecomment{! Overwrite previous}
-  REGION clay1
+STRATA         \bluecomment{! Overwrite previous}
+  REGION clay1 \bluecomment{! one of three clay regions}
   MATERIAL clay
 END
 
-STRATA
-  REGION clay2
-  MATERIAL clay
-END
-
-STRATA
-  REGION clay3
-  MATERIAL clay
-END
+...
 \end{semiverbatim}
 \end{frame}
 
@@ -533,19 +555,7 @@ END_SUBSURFACE \bluecomment{That's all!}
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\subsection{Command Line}
-\begin{frame}[fragile]\frametitle{Command Line}
-
-\begin{itemize}
-  \item Run the simulation
-\end{itemize}
-
-\begin{semiverbatim}
-\$ pflotran -input_prefix gas_injection
-\end{semiverbatim}
-
-\end{frame}
-
+\subsection{Command Line 2}
 \begin{frame}[fragile]\frametitle{Command Line}
 
 \begin{itemize}
@@ -553,7 +563,7 @@ END_SUBSURFACE \bluecomment{That's all!}
 \end{itemize}
 
 \begin{semiverbatim}
-\$ python gas_injection.py
+> python gas_injection.py
 \end{semiverbatim}
 
 \end{frame}

@@ -2212,21 +2212,24 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
     enddo
   else
 
+    if (.not.option%use_isothermal) then
+      call RUpdateTempDependentCoefs(global_auxvar,reaction,PETSC_TRUE,option)
+    endif
+  
     ! CO2-specific
     if (.not.option%use_isothermal .and. &
         (option%iflowmode == MPH_MODE .or. &
          option%iflowmode == FLASH2_MODE)) then
-      call RUpdateTempDependentCoefs(global_auxvar,reaction,PETSC_TRUE,option)
       if (associated(reaction%gas%paseqlogKcoef)) then
         do i = 1, reaction%naqcomp
           if (aq_species_constraint%constraint_type(i) == &
               CONSTRAINT_SUPERCRIT_CO2) then
             igas = aq_species_constraint%constraint_spec_id(i)
             if (abs(reaction%species_idx%co2_gas_id) == igas) then
-              option%io_buffer = 'Adding "scco2_eq_logK" to ' // &
-                'global_auxvar_type solely so you can set reaction%' // &
-                '%gas%paseqlogK(igas) within ReactionPrintConstraint is not ' // &
-                'acceptable.  Find another way! - Regards, Glenn'
+              option%io_buffer = 'Adding "scco2_eq_logK" to &
+                &global_auxvar_type solely so you can set reaction%&
+                &%gas%paseqlogK(igas) within ReactionPrintConstraint&
+                & is not acceptable.  Find another way! - Regards, Glenn'
               call printErrMsg(option)
 !geh              reaction%gas%paseqlogK(igas) = global_auxvar%scco2_eq_logK
             endif

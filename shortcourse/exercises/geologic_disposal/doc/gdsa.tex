@@ -43,21 +43,67 @@
 \begin{frame}\frametitle{Geologic Disposal Safety Assessment}
 These slides are part of PFLOTRAN primer - SAND2017-9449 TR
 \end{frame}
+
+%-----------------------------------------------------------------------------
+\section{Location of Example}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{Location}
+
+Location of this example problem:
+
+\begin{semiverbatim}
+> cd \$PFLOTRAN_DIR
+> cd shortcourse/exercises/geologic_disposal
+> ls
+gdsa.in
+gdsa.py
+gdsa_usg.h5
+hlw_heat.txt
+metallic_heat.txt
+obs_points.txt
+obs_regions.txt
+oxide_heat.txt
+regions.txt
+source_sink.txt
+strata.txt
+ufd-decay.dat
+wfg.txt
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Command Line}
+\begin{frame}[fragile]\frametitle{Command Line}
+This problem might take a few minutes, so let's begin the simulation now.
+
+\begin{itemize}
+  \item Run the simulation
+\end{itemize}
+
+\begin{semiverbatim}
+> cd \$PFLOTRAN_DIR
+> cd shortcourse/exercises/geologic_disposal
+> pflotran -input_prefix gdsa
+\end{semiverbatim}
+
+\end{frame}
+
 %-----------------------------------------------------------------------------
 \section{Description of GDSA}
 
 \subsection{GDSA Conceptual Model}
 
 \begin{frame}\frametitle{Description of Geologic Disposal Scenario}
-The ``Geologic Disposal Scenario'' demonstrates how to use the process models developed specifically for performance assessment simulations of deep geologic nuclear waste repositories, including WASTE\_FORM, UFD\_DECAY, and UFD\_BIOSPHERE.
+The ``Geologic Disposal Scenario'' demonstrates how to use the process models developed specifically for performance assessment simulations of deep geologic nuclear waste repositories, including \redcomment{WASTE\_FORM}, \redcomment{UFD\_DECAY}, and \redcomment{UFD\_BIOSPHERE}.
 \begin{itemize}
   \item Problem domain: $3000 \times 5 \times 1005$ m (x $\times$ y $\times$ z)
-  \item Grid resolution: 5/9 m to 15 m
-  \item Flow mode: TH (thermal/hydro)
+  \item Grid resolution: 5/9 m to 15 m (unstructured grid)
+  \item Flow mode: \redcomment{TH} (thermal/hydro)
   \item Heat Source: Function of time
-  \item Radionuclide Sources: Defined with WASTE\_FORM
-  \item Radionuclide Behavior: Controlled by UFD\_DECAY
-  \item Dose: Calculated with UFD\_BIOSPHERE
+  \item Radionuclide Sources: Defined with \redcomment{WASTE\_FORM}
+  \item Radionuclide Behavior: Controlled by \redcomment{UFD\_DECAY}
+  \item Dose: Calculated with \redcomment{UFD\_BIOSPHERE}
   \item Total simulation time: 500,000 y
 \end{itemize}
 
@@ -87,9 +133,6 @@ SIMULATION
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE TH \bluecomment{! thermal/hydro}
-      OPTIONS
-        MAX_PRESSURE_CHANGE 1.d8 \bluecomment{! Pa}
-      /   
     /   
     SUBSURFACE_TRANSPORT transport
       GLOBAL_IMPLICIT
@@ -112,6 +155,7 @@ END
 \begin{frame}[fragile]\frametitle{DATASET}
 
 \begin{itemize}
+  \item Gridded datasets
   \item Used for initial and boundary conditions
 \end{itemize}
 
@@ -177,9 +221,8 @@ CHEMISTRY
   TRUNCATE_CONCENTRATION 1.d-21
   DATABASE ./ufd-decay.dat
   OUTPUT
-    TOTAL
-    TOTAL_SORBED
-    ALL
+    TOTAL \bluecomment{! aqueous concentration}
+    ALL   \bluecomment{! all species}
   /
 END
 \end{semiverbatim}
@@ -192,7 +235,7 @@ END
 \begin{frame}[fragile]\frametitle{GRID}
 
 \begin{itemize}
-  \item Implicit unstructured grid 
+  \item Implicit \redcomment{unstructured} grid 
 \end{itemize}
 
 \begin{semiverbatim}
@@ -234,7 +277,7 @@ EXTERNAL_FILE ./wfg.txt \bluecomment{! WASTE_FORM blocks}
 
 \begin{frame}[fragile]\frametitle{FLOW\_CONDITION}
 \begin{itemize}
-  \item{Using datasets}
+  \item{Using \redcomment{datasets}}
 \end{itemize}
 
 \begin{semiverbatim}
@@ -252,8 +295,8 @@ END
 
 \begin{frame}[fragile]\frametitle{FLOW\_CONDITION}
 \begin{itemize}
-  \item{3 heat sources from files}
-  \item{one shown for example}
+  \item{1 of 3 heat \redcomment{sources} that change with time}
+  \item{rates are specified in \greencomment{hlw\_heat.txt}}
 \end{itemize}
 
 \begin{semiverbatim}
@@ -273,7 +316,7 @@ END
 
 \begin{frame}[fragile]\frametitle{FLOW\_CONDITION}
 \begin{itemize}
-  \item{hlw\_heat.xt}
+  \item{\greencomment{hlw\_heat.txt}}
 \end{itemize}
 
 \begin{semiverbatim}\small
@@ -318,24 +361,24 @@ END_SUBSURFACE
 \begin{frame}[fragile]\frametitle{WASTE\_FORM GENERAL}
 
 \begin{itemize}
-  \item WASTE\_FORM block for each waste package
-  \item MECHANISM block for each type of waste (next slide)
+  \item \redcomment{WASTE\_FORM} block for each waste package
+  \item \redcomment{MECHANISM} block for each type of waste (next slide)
 \end{itemize}
 
 \begin{semiverbatim}\small
 WASTE_FORM_GENERAL
-  \bluecomment{! individual waste package regions are in:}
+  \bluecomment{! WASTE_FORM blocks are in} \greencomment{wfg.txt}
   EXTERNAL_FILE ./wfg.txt
   PRINT_MASS_BALANCE \bluecomment{! optional}
 \end{semiverbatim}
 
 \begin{itemize}\small
-  \item Example WASTE\_FORM block in wfg.txt
+  \item Example \redcomment{WASTE\_FORM} block in \greencomment{wfg.txt}
 \end{itemize}
 
 \begin{semiverbatim}
   WASTE_FORM
-     REGION hlw0 \bluecomment{! a waste package}
+     REGION hlw0              \bluecomment{! couple to a region}
      EXPOSURE_FACTOR 5.416057 \bluecomment{! adjust surface area}
      VOLUME 9.500000 \bluecomment{! m^3}
      MECHANISM_NAME hlw \bluecomment{! dissolution mech. & inventory}
@@ -376,7 +419,7 @@ WASTE_FORM_GENERAL
 \begin{frame}[fragile]\frametitle{UFD\_DECAY}
 
 \begin{itemize}
-  \item Solubility limits and sorption coefficients for each element
+  \item \redcomment{Solubility} limits and \redcomment{sorption} coefficients for each element
 \end{itemize}
 
 \begin{semiverbatim}\small
@@ -404,7 +447,7 @@ UFD_DECAY
 \begin{frame}[fragile]\frametitle{UFD\_DECAY}
 
 \begin{itemize}
-  \item Decay rates and daughters for each isotope
+  \item \redcomment{Decay rates} and \redcomment{daughters} for each isotope
 \end{itemize}
 
 \begin{semiverbatim}\small
@@ -443,7 +486,7 @@ skip \bluecomment{! not using this right now}
   /
 noskip \bluecomment{! end the skip statement}
 
-  ERB_1B B_model1 \bluecomment{! use this model without a sink}
+  ERB_1B B_model1 \bluecomment{! use this model without extraction}
     REGION fake_well \bluecomment{! does not extract}
     DILUTION_FACTOR 1.0 \bluecomment{! use dilution factor instead}
     INDIVIDUAL_CONSUMPTION_RATE 2.d0 L/day
@@ -478,22 +521,11 @@ END \bluecomment{! UFD_BIOSPHERE}
 \begin{frame}[fragile]\frametitle{Command Line}
 
 \begin{itemize}
-  \item Run the simulation
-\end{itemize}
-\begin{semiverbatim}
-\$ pflotran -input_prefix gdsa
-\end{semiverbatim}
-
-\end{frame}
-
-\begin{frame}[fragile]\frametitle{Command Line}
-
-\begin{itemize}
   \item Plot the results
 \end{itemize}
 
 \begin{semiverbatim}
-\$ python gdsa.py
+> python gdsa.py
 \end{semiverbatim}
 
 \end{frame}
