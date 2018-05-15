@@ -582,7 +582,9 @@ endif
 # The source file (i.e. file.F90) is intentionally omitted; 
 # it is picked up by the default/implicit build rule (defined by PETSc)
 ###############################################################################
-include pflotran_dependencies.txt
+ifndef fast
+  include pflotran_dependencies.txt
+endif
 ###############################################################################
 # End Dependencies
 ###############################################################################
