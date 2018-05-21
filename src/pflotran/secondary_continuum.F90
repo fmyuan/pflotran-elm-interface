@@ -835,7 +835,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   do i = 1, ngcells
     call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i),option)
     rt_auxvar%pri_molal = conc_upd(:,i)
-    call RTotal(rt_auxvar,global_auxvar,reaction,option)
+    call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     if (reaction%neqsorb > 0) then
       call SecondaryRTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     endif
@@ -989,7 +989,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
     call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i), &
                       option)
     rt_auxvar%pri_molal = conc_upd(:,i) ! in mol/kg
-    call RTotal(rt_auxvar,global_auxvar,reaction,option)
+    call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     material_auxvar%porosity = porosity
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_TRUE, &
@@ -1147,7 +1147,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(ngcells), &
                     option)
   rt_auxvar%pri_molal = conc_current_M ! in mol/kg
-  call RTotal(rt_auxvar,global_auxvar,reaction,option)
+  call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
   total_current_M = rt_auxvar%total(:,1)
   if (reaction%neqcplx > 0) sec_sec_molal_M = rt_auxvar%sec_molal
   call RTAuxVarStrip(rt_auxvar)
@@ -1263,7 +1263,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
 
       call RTAuxVarCopy(rt_auxvar,auxvar,option)
       rt_auxvar%pri_molal = conc_prim_pert ! in mol/kg
-      call RTotal(rt_auxvar,global_auxvar,reaction,option)
+      call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
       total_primary_node_pert = rt_auxvar%total(:,1)
                           
 !================ Calculate the secondary residual =============================        
@@ -1364,7 +1364,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(ngcells), &
                         option)
       rt_auxvar%pri_molal = conc_current_M_pert ! in mol/kg
-      call RTotal(rt_auxvar,global_auxvar,reaction,option)
+      call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
       total_current_M_pert = rt_auxvar%total(:,1)
              
       ! Calculate the coupling term
@@ -1518,7 +1518,7 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
   enddo
     
   do i = 1, ngcells
-    call RTotal(sec_transport_vars%sec_rt_auxvar(i),global_auxvars, &
+    call RTotalAqueous(sec_transport_vars%sec_rt_auxvar(i),global_auxvars, &
                 reaction,option)
   enddo
   
@@ -1682,7 +1682,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   do i = 1, ngcells
     call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i),option)
     rt_auxvar%pri_molal = conc_upd(:,i)
-    call RTotal(rt_auxvar,global_auxvar,reaction,option)
+    call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     if (reaction%neqsorb > 0) then
       call SecondaryRTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     endif
@@ -1745,7 +1745,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
     call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i), &
                       option)
     rt_auxvar%pri_molal = conc_upd(:,i) ! in mol/kg
-    call RTotal(rt_auxvar,global_auxvar,reaction,option)
+    call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     material_auxvar%porosity = porosity
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_FALSE, &

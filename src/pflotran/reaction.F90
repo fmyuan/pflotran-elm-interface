@@ -42,7 +42,7 @@ module Reaction_module
             ReactionReadOutput, &
             ReactionReadRedoxSpecies, &
             RTotal, &
-            RTotalSorb, &
+            RTotalAqueous, &
             CO2AqActCoeff, &
             RActivityCoefficients, &
             RReaction, &
@@ -1591,8 +1591,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   do
 
     ! there are cases (e.g. in a linear update) where components constrained by
-    ! a free ion concentration can change a bit.  This reset hopefullly eliminates
-    ! this issue.
+    ! a free ion concentration can change a bit.  This reset hopefullly 
+    ! eliminates this issue.
     do icomp = 1, reaction%naqcomp
       select case(constraint_type(icomp))
         case(CONSTRAINT_FREE,CONSTRAINT_LOG)
@@ -1603,23 +1603,12 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF .and. &
         compute_activity_coefs) then
       call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
-      if (option%iflowmode == MPH_MODE .or. option%iflowmode == FLASH2_MODE) then
+      if (option%iflowmode == MPH_MODE .or. &
+          option%iflowmode == FLASH2_MODE) then
         call CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)  
       endif
     endif
-    call RTotal(rt_auxvar,global_auxvar,reaction,option)
-    if (reaction%nsorb > 0) then
-      if (reaction%neqsorb > 0) then
-        call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
-      endif
-      if (reaction%surface_complexation%nkinmrsrfcplx > 0) then
-        call RTotalSorbMultiRateAsEQ(rt_auxvar,global_auxvar,material_auxvar, &
-                                     reaction,option)
-      endif
-    endif
-    if (reaction%gas%nactive_gas > 0) then
-      call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
-    endif
+    call RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     
     ! geh - for debugging
     !call RTPrintAuxVar(rt_auxvar,reaction,option)
@@ -2018,9 +2007,6 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                                    reaction,option)
     endif
   endif
-  if (reaction%gas%nactive_gas > 0) then
-    call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
-  endif  
   
   ! WARNING: below assumes site concentration multiplicative factor
   if (surface_complexation%nsrfcplxrxn > 0) then
@@ -3686,14 +3672,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
       pert = rt_auxvar_pert%pri_molal(jcomp)*perturbation_tolerance
       rt_auxvar_pert%pri_molal(jcomp) = rt_auxvar_pert%pri_molal(jcomp) + pert
       
-      call RTotal(rt_auxvar_pert,global_auxvar,reaction,option)
-      if (reaction%neqsorb > 0) then
-        call RTotalSorb(rt_auxvar_pert,global_auxvar,material_auxvar, &
-                        reaction,option)
-      endif
-      if (reaction%gas%nactive_gas > 0) then
-        call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
-      endif
+      call RTotal(rt_auxvar_pert,global_auxvar,material_auxvar,reaction,option)
       call RReaction(Res_pert,Jac_dummy,compute_derivative,rt_auxvar_pert, &
                      global_auxvar,material_auxvar,reaction,option)    
 
@@ -4106,10 +4085,48 @@ end subroutine RActivityCoefficients
 
 ! ************************************************************************** !
 
-subroutine RTotal(rt_auxvar,global_auxvar,reaction,option)
+subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   ! 
   ! Computes the total component concentrations and derivative with
-  ! respect to free-ion
+  ! respect to free-ion for all phases (aqueous, sorbed, gas, etc.)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 05/21/18
+  ! 
+
+  use Option_module
+
+  implicit none
+  
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  type(reaction_type) :: reaction
+  type(option_type) :: option
+  
+  call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
+  if (reaction%neqsorb > 0) then
+    call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar, &
+                    reaction,option)
+  endif
+  if (option%iflowmode == MPH_MODE .or. &
+      option%iflowmode == IMS_MODE .or. &
+      option%iflowmode == FLASH2_MODE) then
+    call RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
+  else if (reaction%gas%nactive_gas > 0) then
+    call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
+  endif
+
+
+
+end subroutine RTotal
+
+! ************************************************************************** !
+
+subroutine RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
+  ! 
+  ! Computes the total component concentrations and derivative with
+  ! respect to free-ion for the aqueous phase
   ! 
   ! Author: Glenn Hammond
   ! Date: 08/28/08
@@ -4201,13 +4218,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,reaction,option)
   ! units of dtotal = kg water/L water
   rt_auxvar%aqueous%dtotal = rt_auxvar%aqueous%dtotal*den_kg_per_L
 
-  if (option%iflowmode == MPH_MODE .or. &
-      option%iflowmode == IMS_MODE .or. &
-      option%iflowmode == FLASH2_MODE) then
-    call RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
-  endif
-
-end subroutine RTotal
+end subroutine RTotalAqueous
 
 ! ************************************************************************** !
 
@@ -5050,13 +5061,7 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
 #endif
 
   !already set  rt_auxvar%pri_molal = x
-  call RTotal(rt_auxvar,global_auxvar,reaction,option)
-  if (reaction%neqsorb > 0) then
-    call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
-  endif
-  if (reaction%gas%nactive_gas > 0) then
-    call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
-  endif  
+  call RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
 
 #if 0
 ! numerical check
@@ -5085,17 +5090,17 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
     pert = rt_auxvar_pert%pri_molal(jcomp)*perturbation_tolerance
     rt_auxvar_pert%pri_molal(jcomp) = rt_auxvar_pert%pri_molal(jcomp) + pert
     
-    call RTotal(rt_auxvar_pert,global_auxvar,reaction,option)
+    call RTotal(rt_auxvar_pert,global_auxvar,material_auxvar,reaction,option)
     dtotal(:,jcomp,1) = (rt_auxvar_pert%total(:,1) - &
                          rt_auxvar%total(:,1))/pert
     if (reaction%neqsorb > 0) then
-      call RTotalSorb(rt_auxvar_pert,global_auxvar,material_auxvar, &
-                      reaction,option)
       dtotalsorb(:,jcomp) = (rt_auxvar_pert%total_sorb_eq(:) - &
                              rt_auxvar%total_sorb_eq(:))/pert
     endif
-    if (reaction%gas%nactive_gas > 0) then
-      call RTotalGas(rt_auxvar_pert,global_auxvar,reaction,option)
+    if (option%iflowmode == MPH_MODE .or. &
+        option%iflowmode == IMS_MODE .or. &
+        option%iflowmode == FLASH2_MODE .or. 
+        reaction%gas%nactive_gas > 0) then
       dtotal(:,jcomp,2) = (rt_auxvar_pert%total(:,2) - &
                            rt_auxvar%total(:,2))/pert
     endif    
