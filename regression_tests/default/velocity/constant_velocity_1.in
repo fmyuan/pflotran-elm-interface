@@ -28,11 +28,7 @@ END
 #=========================== useful tranport parameters =======================
 SPECIFIED_VELOCITY
   UNIFORM? YES
-  DATASET LIST
-    TIME_UNITS yr
-    DATA_UNITS m/yr
-    0.d0 1.d0 0.d0 0.d0
-  /
+  DATASET 1.d0 0.d0 0.d0 m/yr
 END
 
 #=========================== chemistry ========================================

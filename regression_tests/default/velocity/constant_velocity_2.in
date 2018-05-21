@@ -25,7 +25,7 @@ END
 #=========================== flow mode ========================================
 # Uniform velocity (see below). No flow mode specified.
 
-#=========================== useful tranport parameters ==================
+#=========================== useful tranport parameters =======================
 SPECIFIED_VELOCITY
   UNIFORM? YES
   DATASET LIST
