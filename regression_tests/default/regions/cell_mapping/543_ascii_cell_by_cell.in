@@ -18,7 +18,10 @@ REGRESSION
 END
 
 #=========================== flow mode ========================================
-UNIFORM_VELOCITY 0.d0 0.d0 0.d0
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0
+END
 
 #=========================== chemistry ========================================
 CHEMISTRY

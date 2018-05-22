@@ -127,8 +127,8 @@ subroutine InitSubsurfFlowSetupRealization(realization)
 #if defined(PETSC_HAVE_HDF5)
       call InitCommonReadVelocityField(realization)
 #else
-      write(option%io_buffer,'("PFLOTRAN must be compiled with HDF5 to ", &
-                               &"read HDF5 formatted fluxes in for transport with no flow.")')
+      option%io_buffer = 'PFLOTRAN must be compiled with HDF5 to read HDF5 &
+        &formatted fluxes in for transport with no flow.'
       call printErrMsg(option)
 #endif
     endif

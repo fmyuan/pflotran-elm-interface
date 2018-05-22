@@ -294,8 +294,7 @@ subroutine PMGeomechForceUpdateSolution(this)
 
   ! begin from RealizationUpdate()
   call GeomechConditionUpdate(this%geomech_realization%geomech_conditions, &
-                              this%geomech_realization%option, &
-                              this%geomech_realization%option%time)
+                              this%geomech_realization%option)
 
   call GeomechUpdateSolution(this%geomech_realization)
   call GeomechRealizUpdateAllCouplerAuxVars(this%geomech_realization, &

@@ -463,6 +463,7 @@ subroutine MineralReadFromDatabase(mineral,num_dbase_temperatures,input, &
                               spec_name(ispec),PETSC_TRUE)
     call InputErrorMsg(input,option,'MINERAL species name','DATABASE')            
   enddo
+  !note: logKs read are pK so that K is in the denominator (i.e. Q/K)
   do itemp = 1, num_dbase_temperatures
     call InputReadDouble(input,option,mineral%dbaserxn%logK(itemp))
     call InputErrorMsg(input,option,'MINERAL logKs','DATABASE')   

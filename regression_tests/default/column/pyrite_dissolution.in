@@ -194,7 +194,10 @@ OBSERVATION
 /
 
 #=========================== flow conditions ==================================
-UNIFORM_VELOCITY 0.d0 0.d0 -0.1 m/y
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 -0.1d0 m/yr
+END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial

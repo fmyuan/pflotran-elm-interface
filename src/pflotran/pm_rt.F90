@@ -32,6 +32,7 @@ module PM_RT_class
     PetscBool :: temperature_dependent_diffusion
     ! for transport only
     PetscBool :: transient_porosity
+    PetscBool :: include_gas_phase
   contains
     procedure, public :: Setup => PMRTSetup
     procedure, public :: Read => PMRTRead
@@ -110,6 +111,7 @@ function PMRTCreate()
   rt_pm%temperature_dependent_diffusion = PETSC_FALSE
   ! these flags can only be true for transport only
   rt_pm%transient_porosity = PETSC_FALSE
+  rt_pm%include_gas_phase = PETSC_FALSE
 
   call PMBaseInit(rt_pm)
   rt_pm%name = 'Reactive Transport'
@@ -168,12 +170,15 @@ subroutine PMRTRead(this,input)
         this%check_post_convergence = PETSC_TRUE
       case('NUMERICAL_JACOBIAN')
         option%transport%numerical_derivatives = PETSC_TRUE
+      case('INCLUDE_GAS_PHASE')
+        this%include_gas_phase = PETSC_TRUE
+        option%transport%nphase = 2
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
-    case('MAX_CFL')
-      call InputReadDouble(input,option,this%cfl_governor)
-      call InputErrorMsg(input,option,'MAX_CFL', &
-                         'SUBSURFACE_TRANSPORT OPTIONS')
+      case('MAX_CFL')
+        call InputReadDouble(input,option,this%cfl_governor)
+        call InputErrorMsg(input,option,'MAX_CFL', &
+                           'SUBSURFACE_TRANSPORT OPTIONS')
       case default
         call InputKeywordUnrecognized(word,error_string,option)
     end select
@@ -1050,8 +1055,7 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
   
   ! begin from RealizationUpdate()
   call TranConditionUpdate(this%realization%transport_conditions, &
-                           this%realization%option, &
-                           this%realization%option%time)
+                           this%realization%option)
   if (associated(this%realization%uniform_velocity_dataset)) then
     call RealizUpdateUniformVelocity(this%realization)
   endif  

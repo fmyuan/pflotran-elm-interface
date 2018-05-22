@@ -194,7 +194,7 @@ subroutine InitSurfaceSetupRealization(surf_realization,subsurf_realization, &
   use Option_module
   use Waypoint_module
   use Condition_Control_module
-  use EOS_Water_module
+  use EOS_module
   
   implicit none
   
@@ -203,19 +203,13 @@ subroutine InitSurfaceSetupRealization(surf_realization,subsurf_realization, &
   type(waypoint_list_type) :: waypoint_list
   
   type(option_type), pointer :: option
-  PetscReal :: dum1
   PetscErrorCode :: ierr
   
   option => surf_realization%option
 
-  ! initialize reference density
-  if (option%reference_water_density < 1.d-40) then
-    call EOSWaterDensity(option%reference_temperature, &
-                         option%reference_pressure, &
-                         option%reference_water_density, &
-                         dum1,ierr)    
-  endif  
-  
+  ! set reference densities if not specified in input file.
+  call EOSReferenceDensity(option)
+
   call RealizSurfCreateDiscretization(surf_realization)
 
   ! Check if surface-flow is compatible with the given flowmode
