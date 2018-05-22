@@ -293,6 +293,8 @@ end function CreateTOilImsWell
 subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
                                 ghosted_id, dof,option,res, Jac,analytical_derivatives)
   ! 
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 06/06/16
   ! 
   use PM_TOilIms_Aux_module
   use EOS_Water_module
@@ -329,6 +331,17 @@ subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
   vol_flux = 0.0d0
 
   Jac = 0.d0
+
+  if (analytical_derivatives) then
+    d_mob = 0.d0
+    d_vol_flux = 0.d0
+    d_pmd_dp = 0.d0
+    d_pmd_dT = 0.d0
+    d_pe_dp  = 0.d0
+    d_pe_dT = 0.d0
+    d_dphi_dp = 0.d0
+    d_dphi_ds = 0.d0
+  endif 
 
   hc = this%conn_h(iconn)
   cfact = this%conn_factors(iconn)
@@ -375,7 +388,7 @@ subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
      !!! should scale but why bother since 0
    end if
 
-  !if(cfact * mob > wfloweps) then
+  if(cfact * mob > wfloweps) then
 
     if ( dphi < 0.0d0 .and. dof==ZERO_INTEGER ) &
       write(*,"('TOilImsWatInj reverse flow at gh = ',I5,' dp = ',e10.4)") &
@@ -407,7 +420,7 @@ subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
         Jac(3 , :) = d_vol_flux*dw_h2o_mol*enth_src_h2o
       endif
     endif
-   !end if
+   end if
 
 #ifdef WELL_DEBUG
   if ( dof==ZERO_INTEGER ) then
@@ -475,6 +488,10 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
                                   ghosted_id,dof,option,res,Jac,analytical_derivatives)
 
   ! 
+  ! Compute residual term for a TOilIms Producers
+  ! 
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 06/12/16
   ! 
 
   use PM_TOilIms_Aux_module
@@ -524,8 +541,19 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
   phase_ent = 0.0d0 
   dw_kg = 0.d0
 
-
-  Jac = 0.d0
+  if (analytical_derivatives) then
+    Jac = 0.d0
+    d_A = 0.d0
+    d_B = 0.d0
+    d_mob = 0.d0
+    d_vol_flux = 0.d0
+    d_pmd_dp = 0.d0
+    d_pmd_dT = 0.d0
+    d_pe_dp = 0.d0
+    d_pe_dT = 0.d0
+    d_dphi_dp = 0.d0
+    d_dphi_ds = 0.d0
+  endif
 
   avar => this%toil_auxvars(dof, ghosted_id)
 
@@ -547,7 +575,7 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
 
       if (analytical_derivatives) then 
         !!! so grab derivatives from corresponding toil_auxvar
-        d_pmd_dp = this%toil_auxvars(dof, ghosted_id)%d%dden_dp(i_ph,1)
+        d_pmd_dp = this%toil_auxvars(dof, ghosted_id)%d%dden_dp(i_ph)
         d_pmd_dT = this%toil_auxvars(dof, ghosted_id)%d%dden_dT(i_ph)
       endif
 
@@ -651,9 +679,8 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
    
       !stopping reversing flows to occur - they cannot be handled with this model
 
-      !!! this too
-      !if ( vol_flux < wfloweps ) cycle
-      if (vol_flux < 0.d0) cycle
+      if ( vol_flux < wfloweps ) cycle
+      !if (vol_flux < 0.d0) cycle
 
       !if( dabs(vol_flux) > 1.d-10 ) then !try to cut som noise
       !if( dabs(dphi/this%pw_ref) > 1.d-7 ) then !try to cut som noise

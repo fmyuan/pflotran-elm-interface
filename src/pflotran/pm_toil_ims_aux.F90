@@ -181,13 +181,20 @@ subroutine InitTOilImsAuxVars(this,grid,num_bc_connection, &
   PetscInt :: ghosted_id, iconn, local_id
   PetscInt :: idof
 
-  allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
-  do ghosted_id = 1, grid%ngmax
-    do idof = 0, option%nflowdof
-      !call TOilImsAuxVarInit(toil_auxvars(idof,ghosted_id),option)
-      call this%auxvars(idof,ghosted_id)%Init(option)
+  if (option%flow%numerical_derivatives .OR. option%flow%numerical_derivatives_compare) then
+    allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
+    do ghosted_id = 1, grid%ngmax
+      do idof = 0, option%nflowdof
+        !call toilimsauxvarinit(toil_auxvars(idof,ghosted_id),option)
+        call this%auxvars(idof,ghosted_id)%init(option)
+      enddo
     enddo
-  enddo
+  else
+    allocate(this%auxvars(0:0,grid%ngmax))
+    do ghosted_id = 1, grid%ngmax
+    call this%auxvars(0,ghosted_id)%init(option)
+    enddo
+  endif
 
   this%num_aux = grid%ngmax
 
@@ -280,11 +287,11 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
 
   if (toil_analytical_derivatives) then
     !! EI and/or analytical derivatves will need this:
-    toil_auxvar%d%dsat_dp  = 0.d0
+    !toil_auxvar%d%dsat_dp  = 0.d0
     toil_auxvar%d%dden_dp  = 0.d0
     toil_auxvar%d%dsat_dt  = 0.d0
     toil_auxvar%d%dden_dt  = 0.d0
-    toil_auxvar%d%dU_dp  = 0.d0
+    !toil_auxvar%d%dU_dp  = 0.d0
     toil_auxvar%d%dU_dt  = 0.d0
     toil_auxvar%d%dmobility = 0.d0
     getDerivs = PETSC_TRUE
@@ -359,10 +366,10 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   if (getDerivs) then
     call EOSWaterDensity( toil_auxvar%temp,cell_pressure, &
                          toil_auxvar%den_kg(lid),toil_auxvar%den(lid), &
-                         toil_auxvar%d%dden_dp(lid, 1), &
+                         toil_auxvar%d%dden_dp(lid), &
                          toil_auxvar%d%dden_dT(lid), ierr)
 
-    call CheckDerivNotNAN(toil_auxvar%d%dden_dP(lid,1), option, "dden_dP (liquid)")
+    call CheckDerivNotNAN(toil_auxvar%d%dden_dP(lid), option, "dden_dP (liquid)")
     call CheckDerivNotNAN(toil_auxvar%d%dden_dT(lid), option, "dden_dT (liquid)")
   else
     call EOSWaterDensity(toil_auxvar%temp,cell_pressure, &
@@ -398,7 +405,7 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   if (getDerivs) then
     toil_auxvar%d%dU_dp(lid) = toil_auxvar%d%dH_dp(lid) - &
                                          1.d-6 / toil_auxvar%den(lid) +  &
-                                         1.d-6 * cell_pressure*toil_auxvar%d%dden_dp(lid,1) / &
+                                         1.d-6 * cell_pressure*toil_auxvar%d%dden_dp(lid) / &
                                          toil_auxvar%den(lid)/toil_auxvar%den(lid) 
 
     toil_auxvar%d%dU_dT(lid) = toil_auxvar%d%dH_dT(lid) + &
@@ -432,13 +439,13 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
 
   if (getDerivs) then
       call EOSOilDensityEnergy(toil_auxvar%temp,toil_auxvar%pres(oid),toil_auxvar%den(oid), &
-                               toil_auxvar%d%dden_dT(oid),toil_auxvar%d%dden_dp(oid,1), &
+                               toil_auxvar%d%dden_dT(oid),toil_auxvar%d%dden_dp(oid), &
                                toil_auxvar%H(oid),toil_auxvar%d%dH_dT(oid),toil_auxvar%d%dH_dP(oid), &
                                toil_auxvar%U(oid),toil_auxvar%d%dU_dT(oid),toil_auxvar%d%dU_dP(oid), &
                                ierr) !! look out for conversion between kg/molar density in derivs
 
     call CheckDerivNotNAN(toil_auxvar%d%dden_dT(oid), option, "dden_dT (oil)")
-    call CheckDerivNotNAN(toil_auxvar%d%dden_dp(oid,1), option, "dden_dp (oil)")
+    call CheckDerivNotNAN(toil_auxvar%d%dden_dp(oid), option, "dden_dp (oil)")
     call CheckDerivNotNAN(toil_auxvar%d%dH_dT(oid), option, "dH_dT (oil)")
     call CheckDerivNotNAN(toil_auxvar%d%dH_dp(oid), option, "dH_dp (oil)")
     call CheckDerivNotNAN(toil_auxvar%d%dU_dT(oid), option, "dU_dT (oil)")
