@@ -210,6 +210,7 @@ endif
 
 util_obj  = \
         ${common_src}appleyard.o \
+        ${common_src}generic.o \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
 	${common_src}matrix_block_aux.o \
@@ -448,7 +449,6 @@ misc_obj = \
 	${common_src}timestepper_base.o \
 	${common_src}timestepper_BE.o \
 	${common_src}transport.o \
-	${common_src}uniform_velocity.o \
 	${common_src}waypoint.o \
 	${common_src}wipp.o \
 	${common_src}wrapper_hydrogeophysics.o

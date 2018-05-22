@@ -149,6 +149,7 @@ include_directories("${PROJECT_BINARY_DIR}")
 
 set(UTIL_SOURCES
 	appleyard.F90
+	generic.F90
 	input_aux.F90
 	logging.F90
 	matrix_block_aux.F90
