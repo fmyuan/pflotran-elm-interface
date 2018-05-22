@@ -792,7 +792,6 @@ subroutine SolverReadLinear(solver,input,option)
                                   trim(string),trim(word),ierr);CHKERRQ(ierr)
 
       case ('CPR_OPTIONS')
-          print *, "here should go into cpr read"
           call SolverCPRRead(solver%cprstash, input,option, ierr)
 
       case default
