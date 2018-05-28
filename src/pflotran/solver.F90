@@ -794,6 +794,27 @@ subroutine SolverReadLinear(solver,input,option)
       case ('CPR_OPTIONS')
           call SolverCPRRead(solver%cprstash, input,option, ierr)
 
+      case('GMRES_RESTART')
+        ! Equivalent to 
+        ! -[prefix]_ksp_gmres_restart x
+        ! on command line
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option, &
+                           'GMRES restart','LINEAR SOLVER')  
+        string = trim(prefix) // 'ksp_gmres_restart'
+        call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                  trim(string),trim(word), &
+                                  ierr);CHKERRQ(ierr)
+
+      case('GMRES_MODIFIED_GS')
+        ! Equivalent to 
+        ! -[prefix]_ksp_gmres_modifiedgramschmidt
+        ! on command line
+        string = trim(prefix) // 'ksp_gmres_modifiedgramschmidt'
+        word = ''
+        call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                  trim(string),trim(word),ierr);CHKERRQ(ierr)
+
       case default
         call InputKeywordUnrecognized(keyword,'LINEAR_SOLVER',option)
     end select 
