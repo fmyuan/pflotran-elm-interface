@@ -242,39 +242,49 @@ subroutine OutputVelocitiesVTK(realization_base)
   word = 'Vlx'
   call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                        global_vec_vy,global_vec_vz,LIQUID_PHASE)
-
-  call DiscretizationGlobalToNatural(discretization,global_vec_vx,natural_vec,ONEDOF)
-  call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word,natural_vec,VTK_REAL)
-
+  call DiscretizationGlobalToNatural(discretization,global_vec_vx, &
+                                     natural_vec,ONEDOF)
+  call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word, &
+                              natural_vec,VTK_REAL)
   word = 'Vly'
-  call DiscretizationGlobalToNatural(discretization,global_vec_vy,natural_vec,ONEDOF)
-  call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word,natural_vec,VTK_REAL)
-
+  call DiscretizationGlobalToNatural(discretization,global_vec_vy, &
+                                     natural_vec,ONEDOF)
+  call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word, &
+                              natural_vec,VTK_REAL)
   word = 'Vlz'
-  call DiscretizationGlobalToNatural(discretization,global_vec_vz,natural_vec,ONEDOF)
-  call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word,natural_vec,VTK_REAL)
+  call DiscretizationGlobalToNatural(discretization,global_vec_vz, &
+                                     natural_vec,ONEDOF)
+  call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word, &
+                              natural_vec,VTK_REAL)
 
-  if (option%nphase > 1) then
+  if (option%nphase > 1 .or. option%transport%nphase > 1) then
     word = 'Vgx'
     call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                          global_vec_vy,global_vec_vz,GAS_PHASE)
-    call DiscretizationGlobalToNatural(discretization,global_vec_vx,natural_vec,ONEDOF)
-    call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word,natural_vec,VTK_REAL)
-
+    call DiscretizationGlobalToNatural(discretization,global_vec_vx, &
+                                       natural_vec,ONEDOF)
+    call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word, &
+                                natural_vec,VTK_REAL)
     word = 'Vgy'
-    call DiscretizationGlobalToNatural(discretization,global_vec_vy,natural_vec,ONEDOF)
-    call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word,natural_vec,VTK_REAL)
-
+    call DiscretizationGlobalToNatural(discretization,global_vec_vy, &
+                                       natural_vec,ONEDOF)
+    call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word, &
+                                natural_vec,VTK_REAL)
     word = 'Vgz'
-    call DiscretizationGlobalToNatural(discretization,global_vec_vz,natural_vec,ONEDOF)
-    call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word,natural_vec,VTK_REAL)
+    call DiscretizationGlobalToNatural(discretization,global_vec_vz, &
+                                       natural_vec,ONEDOF)
+    call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word, &
+                                natural_vec,VTK_REAL)
   endif
 
   ! material id
   word = 'Material_ID'
-  call RealizationGetVariable(realization_base,global_vec,MATERIAL_ID,ZERO_INTEGER)
-  call DiscretizationGlobalToNatural(discretization,global_vec,natural_vec,ONEDOF)
-  call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word,natural_vec,VTK_INTEGER)
+  call RealizationGetVariable(realization_base,global_vec, &
+                              MATERIAL_ID,ZERO_INTEGER)
+  call DiscretizationGlobalToNatural(discretization,global_vec, &
+                                     natural_vec,ONEDOF)
+  call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word, &
+                              natural_vec,VTK_INTEGER)
   
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)

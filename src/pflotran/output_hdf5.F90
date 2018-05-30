@@ -158,6 +158,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
   PetscMPIInt :: hdf5_err
   PetscBool :: first
   PetscInt :: ivar, isubvar, var_type
+  PetscBool :: include_gas_phase
   PetscErrorCode :: ierr
 
   discretization => realization_base%discretization
@@ -303,6 +304,10 @@ subroutine OutputHDF5(realization_base,var_list_type)
 
   end select
 
+  include_gas_phase = PETSC_FALSE
+  if (option%nphase > 1 .or. option%transport%nphase > 1) then
+    include_gas_phase = PETSC_TRUE
+  endif
   if (output_option%print_hdf5_vel_cent .and. &
       (var_list_type==INSTANTANEOUS_VARS)) then
 
@@ -323,7 +328,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
     call HDF5WriteStructDataSetFromVec(string,realization_base, &
                                        global_vec_vz,grp_id,H5T_NATIVE_DOUBLE)
 
-    if (option%nphase > 1) then
+    if (include_gas_phase) then
         call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                              global_vec_vy,global_vec_vz, &
                                              GAS_PHASE)
@@ -352,7 +357,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
         string = "Liquid X-Flux Velocities"
         call WriteHDF5FluxVelocities(string,realization_base,LIQUID_PHASE, &
                                      X_DIRECTION,grp_id)
-        if (option%nphase > 1) then
+        if (include_gas_phase) then
           string = "Gas X-Flux Velocities"
           call WriteHDF5FluxVelocities(string,realization_base,GAS_PHASE, &
                                        X_DIRECTION,grp_id)
@@ -363,7 +368,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
         string = "Liquid Y-Flux Velocities"
         call WriteHDF5FluxVelocities(string,realization_base,LIQUID_PHASE, &
                                      Y_DIRECTION,grp_id)
-        if (option%nphase > 1) then
+        if (include_gas_phase) then
           string = "Gas Y-Flux Velocities"
           call WriteHDF5FluxVelocities(string,realization_base,GAS_PHASE, &
                                        Y_DIRECTION,grp_id)
@@ -374,7 +379,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
         string = "Liquid Z-Flux Velocities"
         call WriteHDF5FluxVelocities(string,realization_base,LIQUID_PHASE, &
                                      Z_DIRECTION,grp_id)
-        if (option%nphase > 1) then
+        if (include_gas_phase) then
           string = "Gas Z-Flux Velocities"
           call WriteHDF5FluxVelocities(string,realization_base,GAS_PHASE, &
                                        Z_DIRECTION,grp_id)
@@ -3324,6 +3329,11 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   call printErrMsg(option)
 #else
 
+  if (option%nphase == 1 .and. option%transport%nphase > 1) then
+    option%io_buffer = 'WriteHDF5FaceVelUGrid not supported for gas &
+      &transport without flow in the gas phase.'
+    call printErrMsg(option)
+  endif
   call VecGetLocalSize(field%vx_face_inst,local_size,ierr);CHKERRQ(ierr)
   local_size = local_size/(option%nphase*MAX_FACE_PER_CELL + 1)
 

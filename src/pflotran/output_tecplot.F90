@@ -248,6 +248,7 @@ subroutine OutputTecplotBlock(realization_base)
   Vec :: global_vec
   Vec :: natural_vec
   PetscInt :: ivar, isubvar, var_type
+  PetscBool :: include_gas_phase
   PetscErrorCode :: ierr
   
   discretization => realization_base%discretization
@@ -288,11 +289,11 @@ subroutine OutputTecplotBlock(realization_base)
     call DiscretizationGlobalToNatural(discretization,global_vec, &
                                         natural_vec,ONEDOF)
     if (cur_variable%iformat == 0) then
-      call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base,natural_vec, &
-                                      TECPLOT_REAL)
+      call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base, &
+                                      natural_vec,TECPLOT_REAL)
     else
-      call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base,natural_vec, &
-                                      TECPLOT_INTEGER)
+      call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base, &
+                                      natural_vec,TECPLOT_INTEGER)
     endif
     cur_variable => cur_variable%next
   enddo
@@ -311,7 +312,8 @@ subroutine OutputTecplotBlock(realization_base)
     call WriteTecplotExpGridElements(OUTPUT_UNIT,realization_base)
   endif
 
-  if (realization_base%discretization%grid%itype == POLYHEDRA_UNSTRUCTURED_GRID) then
+  if (realization_base%discretization%grid%itype == &
+      POLYHEDRA_UNSTRUCTURED_GRID) then
     call WriteTecplotPolyUGridElements(OUTPUT_UNIT,realization_base)
   endif
 
@@ -321,34 +323,40 @@ subroutine OutputTecplotBlock(realization_base)
     call OutputVelocitiesTecplotBlock(realization_base)
   endif
   
+  include_gas_phase = PETSC_FALSE
   if (output_option%print_tecplot_vel_face .and. &
       realization_base%discretization%itype == STRUCTURED_GRID) then
+    select case(option%iflowmode)
+      case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
+        call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
+                                            X_DIRECTION,PETSC_FALSE)
+        include_gas_phase = PETSC_TRUE
+      case(NULL_MODE)
+        if (option%transport%nphase > 1) include_gas_phase = PETSC_TRUE
+    end select
     if (grid%structured_grid%nx > 1) then
       call OutputFluxVelocitiesTecplotBlk(realization_base,LIQUID_PHASE, &
                                           X_DIRECTION,PETSC_FALSE)
-      select case(option%iflowmode)
-        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
-          call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
-                                              X_DIRECTION,PETSC_FALSE)
-      end select
+      if (include_gas_phase) then
+        call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
+                                            X_DIRECTION,PETSC_FALSE)
+      endif
     endif
     if (grid%structured_grid%ny > 1) then
       call OutputFluxVelocitiesTecplotBlk(realization_base,LIQUID_PHASE, &
                                           Y_DIRECTION,PETSC_FALSE)
-      select case(option%iflowmode)
-        case(MPH_MODE, IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
-          call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
-                                              Y_DIRECTION,PETSC_FALSE)
-      end select
+      if (include_gas_phase) then
+        call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
+                                            Y_DIRECTION,PETSC_FALSE)
+      endif
     endif
     if (grid%structured_grid%nz > 1) then
       call OutputFluxVelocitiesTecplotBlk(realization_base,LIQUID_PHASE, &
                                           Z_DIRECTION,PETSC_FALSE)
-      select case(option%iflowmode)
-        case(MPH_MODE, IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
-          call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
-                                              Z_DIRECTION,PETSC_FALSE)
-      end select
+      if (include_gas_phase) then
+        call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
+                                            Z_DIRECTION,PETSC_FALSE)
+      endif
     endif
   endif
   if (output_option%print_fluxes .and. &
@@ -451,6 +459,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
     write(OUTPUT_UNIT,'(''TITLE = "'',1es13.5," [",a1,'']"'')') &
                  option%time/output_option%tconv,output_option%tunit
     ! write variables
+    variable_count = SEVEN_INTEGER
     string = 'VARIABLES=' // &
              '"X [m]",' // &
              '"Y [m]",' // &
@@ -458,7 +467,8 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
              '"qlx [m/' // trim(output_option%tunit) // ']",' // &
              '"qly [m/' // trim(output_option%tunit) // ']",' // &
              '"qlz [m/' // trim(output_option%tunit) // ']"'
-    if (option%nphase > 1) then
+    if (option%nphase > 1 .or. option%transport%nphase > 1) then
+      variable_count = TEN_INTEGER
       string = trim(string) // &
                ',"qgx [m/' // trim(output_option%tunit) // ']",' // &
                '"qgy [m/' // trim(output_option%tunit) // ']",' // &
@@ -468,8 +478,6 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
     string = trim(string) // ',"Material_ID"'
     write(OUTPUT_UNIT,'(a)') trim(string)
   
-    variable_count = SEVEN_INTEGER
-    if (option%nphase > 1) variable_count = TEN_INTEGER
     call OutputWriteTecplotZoneHeader(OUTPUT_UNIT,realization_base, &
                                       variable_count,TECPLOT_BLOCK_FORMAT)
   endif
@@ -492,35 +500,51 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
   endif
   
   call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
-                                       global_vec_vy,global_vec_vz,LIQUID_PHASE)
+                                       global_vec_vy,global_vec_vz, &
+                                       LIQUID_PHASE)
 
-  call DiscretizationGlobalToNatural(discretization,global_vec_vx,natural_vec,ONEDOF)
-  call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base,natural_vec,TECPLOT_REAL)
+  call DiscretizationGlobalToNatural(discretization,global_vec_vx, &
+                                     natural_vec,ONEDOF)
+  call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base, &
+                                  natural_vec,TECPLOT_REAL)
 
-  call DiscretizationGlobalToNatural(discretization,global_vec_vy,natural_vec,ONEDOF)
-  call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base,natural_vec,TECPLOT_REAL)
+  call DiscretizationGlobalToNatural(discretization,global_vec_vy, &
+                                     natural_vec,ONEDOF)
+  call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base, &
+                                  natural_vec,TECPLOT_REAL)
 
-  call DiscretizationGlobalToNatural(discretization,global_vec_vz,natural_vec,ONEDOF)
-  call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base,natural_vec,TECPLOT_REAL)
+  call DiscretizationGlobalToNatural(discretization,global_vec_vz, &
+                                     natural_vec,ONEDOF)
+  call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base, &
+                                  natural_vec,TECPLOT_REAL)
 
-  if (option%nphase > 1) then
+  if (option%nphase > 1 .or. option%transport%nphase > 1) then
     call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                          global_vec_vy,global_vec_vz,GAS_PHASE)
 
-    call DiscretizationGlobalToNatural(discretization,global_vec_vx,natural_vec,ONEDOF)
-    call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base,natural_vec,TECPLOT_REAL)
+    call DiscretizationGlobalToNatural(discretization,global_vec_vx, &
+                                       natural_vec,ONEDOF)
+    call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base, &
+                                    natural_vec,TECPLOT_REAL)
 
-    call DiscretizationGlobalToNatural(discretization,global_vec_vy,natural_vec,ONEDOF)
-    call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base,natural_vec,TECPLOT_REAL)
+    call DiscretizationGlobalToNatural(discretization,global_vec_vy, &
+                                       natural_vec,ONEDOF)
+    call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base, &
+                                    natural_vec,TECPLOT_REAL)
 
-    call DiscretizationGlobalToNatural(discretization,global_vec_vz,natural_vec,ONEDOF)
-    call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base,natural_vec,TECPLOT_REAL)
+    call DiscretizationGlobalToNatural(discretization,global_vec_vz, &
+                                       natural_vec,ONEDOF)
+    call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base, &
+                                    natural_vec,TECPLOT_REAL)
   endif
 
   ! material id
-  call RealizationGetVariable(realization_base,global_vec,MATERIAL_ID,ZERO_INTEGER)
-  call DiscretizationGlobalToNatural(discretization,global_vec,natural_vec,ONEDOF)
-  call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base,natural_vec,TECPLOT_INTEGER)
+  call RealizationGetVariable(realization_base,global_vec, &
+                              MATERIAL_ID,ZERO_INTEGER)
+  call DiscretizationGlobalToNatural(discretization,global_vec, &
+                                     natural_vec,ONEDOF)
+  call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base, &
+                                     natural_vec,TECPLOT_INTEGER)
   
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
@@ -1055,7 +1079,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
              '"qlx [m/' // trim(output_option%tunit) // ']",' // &
              '"qly [m/' // trim(output_option%tunit) // ']",' // &
              '"qlz [m/' // trim(output_option%tunit) // ']"'
-    if (option%nphase > 1) then
+    if (option%nphase > 1 .or. option%transport%nphase > 1) then
       string = trim(string) // &
                ',"qgx [m/' // trim(output_option%tunit) // ']",' // &
                '"qgy [m/' // trim(output_option%tunit) // ']",' // &
@@ -1069,22 +1093,23 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
     write(string,'(''ZONE T= "'',1es13.5,''",'','' I='',i5,'', J='',i5, &
                  &'', K='',i5)') &
                  option%time/output_option%tconv, &
-                 grid%structured_grid%nx,grid%structured_grid%ny,grid%structured_grid%nz 
+                 grid%structured_grid%nx,grid%structured_grid%ny, &
+                 grid%structured_grid%nz 
     string = trim(string) // ', DATAPACKING=POINT'
     write(OUTPUT_UNIT,'(a)') trim(string)
 
   endif
   
-  ! currently supported for only liquid phase'
-  call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vlx,GLOBAL, &
-                                  option)  
-  call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vly,GLOBAL, &
-                                  option)  
-  call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vlz,GLOBAL, &
-                                  option)  
+  call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vlx, &
+                                  GLOBAL,option)  
+  call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vly, &
+                                  GLOBAL,option)  
+  call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vlz, &
+                                  GLOBAL,option)  
   
   call OutputGetCellCenteredVelocities(realization_base,global_vec_vlx, &
-                                       global_vec_vly,global_vec_vlz,LIQUID_PHASE)
+                                       global_vec_vly,global_vec_vlz, &
+                                       LIQUID_PHASE)
 
   call VecGetArrayF90(global_vec_vlx,vec_ptr_vlx,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(global_vec_vly,vec_ptr_vly,ierr);CHKERRQ(ierr)
@@ -1095,16 +1120,17 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
 1001 format(i4,1x)
 1009 format('')
 
-  if (option%nphase > 1) then
-    call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgx,GLOBAL, &
-                                  option)  
-    call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgy,GLOBAL, &
-                                  option)  
-    call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgz,GLOBAL, &
-                                  option)  
+  if (option%nphase > 1 .or. option%transport%nphase > 1) then
+    call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgx, &
+                                    GLOBAL,option)  
+    call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgy, &
+                                    GLOBAL,option)  
+    call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgz, &
+                                    GLOBAL,option)  
   
     call OutputGetCellCenteredVelocities(realization_base,global_vec_vgx, &
-                                         global_vec_vgy,global_vec_vgz,GAS_PHASE)
+                                         global_vec_vgy,global_vec_vgz, &
+                                         GAS_PHASE)
 
     call VecGetArrayF90(global_vec_vgx,vec_ptr_vgx,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(global_vec_vgy,vec_ptr_vgy,ierr);CHKERRQ(ierr)
@@ -1112,7 +1138,8 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
   endif
 
   do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)  ! local and ghosted are same for non-parallel
+    ghosted_id = grid%nL2G(local_id)  
+    ! local and ghosted are same for non-parallel
     write(OUTPUT_UNIT,1000,advance='no') grid%x(ghosted_id)
     write(OUTPUT_UNIT,1000,advance='no') grid%y(ghosted_id)
     write(OUTPUT_UNIT,1000,advance='no') grid%z(ghosted_id)
@@ -1121,7 +1148,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
     write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vly(ghosted_id)
     write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vlz(ghosted_id)
 
-    if (option%nphase > 1) then
+    if (option%nphase > 1 .or. option%transport%nphase > 1) then
       write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgx(ghosted_id)
       write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgy(ghosted_id)
       write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgz(ghosted_id)
@@ -1143,7 +1170,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
   call VecDestroy(global_vec_vly,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec_vlz,ierr);CHKERRQ(ierr)
 
-  if (option%nphase > 1) then
+  if (option%nphase > 1 .or. option%transport%nphase > 1) then
     call VecRestoreArrayF90(global_vec_vgx,vec_ptr_vgx,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(global_vec_vgy,vec_ptr_vgy,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(global_vec_vgz,vec_ptr_vgz,ierr);CHKERRQ(ierr)
