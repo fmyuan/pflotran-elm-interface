@@ -1058,6 +1058,12 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
   option => realization_base%option
   output_option => realization_base%output_option
   discretization => realization_base%discretization
+
+  if (.not.associated(grid%structured_grid)) then
+    option%io_buffer = 'Tecplot Point output format only supported on &
+      &structured grids.'
+    call printErrMsg(option)
+  endif
   
   filename = OutputFilename(output_option,option,'tec','vel')
   
