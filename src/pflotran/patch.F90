@@ -4188,7 +4188,7 @@ subroutine PatchUpdateUniformVelocity(patch,velocity,option)
       do iphase = 1, option%transport%nphase
         vdarcy = dot_product(phase_velocity(:,iphase), &
                              cur_connection_set%dist(1:3,iconn))
-        patch%boundary_velocities(1,sum_connection) = vdarcy
+        patch%boundary_velocities(iphase,sum_connection) = vdarcy
       enddo
     enddo
     boundary_condition => boundary_condition%next
