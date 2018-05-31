@@ -1927,6 +1927,25 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
         endif
     ! ----------------------------------------------------------------------- !
       case(GAS_STATE)
+        gas_pressure = UNINITIALIZED_DOUBLE
+        temperature = UNINITIALIZED_DOUBLE
+        ! gas pressure; 1st dof ------------------------ !
+        real_count = real_count + 1
+        select case(general%gas_pressure%itype)
+          case(DIRICHLET_BC)
+            coupler%flow_aux_mapping(GENERAL_GAS_PRESSURE_INDEX) = real_count
+            call PatchGetCouplerValueFromDataset(coupler,option, &
+                 patch%grid,general%liquid_pressure%dataset,iconn,gas_pressure)
+            coupler%flow_aux_real_var(real_count,iconn) = gas_pressure
+            dof1 = PETSC_TRUE
+            coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = DIRICHLET_BC
+          case default
+            string = GetSubConditionName(general%gas_pressure%itype)
+            option%io_buffer = &
+              FlowConditionUnknownItype(coupler%flow_condition, &
+              'GENERAL_MODE gas state gas pressure',string)
+            call printErrMsg(option)
+        end select
     ! ----------------------------------------------------------------------- !
       case(ANY_STATE)
         ! temperature; 1st dof ------------------------- !
@@ -1957,6 +1976,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     case(MULTI_STATE)
     case(TWO_PHASE_STATE)
     case(LIQUID_STATE)
+    ! ---> this code just prints an error, I think:
       if (general%liquid_pressure%itype == HYDROSTATIC_BC) then
         do iconn=1,coupler%connection_set%num_connections
           if (coupler%flow_aux_int_var(ONE_INTEGER,iconn) == TWO_PHASE_STATE) then
@@ -2013,26 +2033,26 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
       else
       endif
     case(GAS_STATE)
-      p_gas = UNINITIALIZED_DOUBLE ! set to uninitialized
-      temperature = UNINITIALIZED_DOUBLE
-      real_count = real_count + 1
+      !p_gas = UNINITIALIZED_DOUBLE ! set to uninitialized
+      !temperature = UNINITIALIZED_DOUBLE
+      !real_count = real_count + 1
       !coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
       !  GAS_STATE
-      select case(general%gas_pressure%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(GENERAL_GAS_PRESSURE_INDEX) = real_count
-          p_gas = general%gas_pressure%dataset%rarray(1)
-          coupler%flow_aux_real_var(real_count,1:num_connections) = p_gas
-          dof1 = PETSC_TRUE
-          coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(general%gas_pressure%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'general gas state gas pressure',string)
-          call printErrMsg(option)
-      end select
+      !select case(general%gas_pressure%itype)
+      !  case(DIRICHLET_BC)
+      !    coupler%flow_aux_mapping(GENERAL_GAS_PRESSURE_INDEX) = real_count
+      !    p_gas = general%gas_pressure%dataset%rarray(1)
+      !    coupler%flow_aux_real_var(real_count,1:num_connections) = p_gas
+      !    dof1 = PETSC_TRUE
+      !    coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = DIRICHLET_BC
+      !  case default
+      !    string = &
+      !      GetSubConditionName(general%gas_pressure%itype)
+      !    option%io_buffer = &
+      !      FlowConditionUnknownItype(coupler%flow_condition, &
+      !        'general gas state gas pressure',string)
+      !    call printErrMsg(option)
+      !end select
       real_count = real_count + 1
       select case(general%temperature%itype)
         case(DIRICHLET_BC)
@@ -2121,40 +2141,6 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
         end select
       endif
     case(ANY_STATE)
-      !if (associated(coupler%flow_aux_int_var)) then ! not used with rate
-      !  coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
-      !    ANY_STATE
-      !endif
-      !if (associated(general%temperature)) then
-      !  real_count = real_count + 1
-      !  select case(general%temperature%itype)
-      !    case(DIRICHLET_BC)
-      !      coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = real_count
-      !      select type(selector =>general%temperature%dataset)
-      !        class is(dataset_ascii_type)
-      !          coupler%flow_aux_real_var(real_count,1:num_connections) = &
-      !            selector%rarray(1)
-      !          dof3 = PETSC_TRUE
-      !        class is(dataset_gridded_hdf5_type)
-      !          call PatchUpdateCouplerFromDataset(coupler,option, &
-      !                                             patch%grid,selector, &
-      !                                             real_count)
-      !          dof3 = PETSC_TRUE
-      !        class default
-      !          option%io_buffer = 'Unknown dataset class (general%' // &
-      !            'temperature%itype,LIQUID_STATE,DIRICHLET_BC)'
-      !          call printErrMsg(option)
-      !      end select
-      !      coupler%flow_bc_type(GENERAL_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
-      !    case default
-      !      string = &
-      !        GetSubConditionName(general%temperature%itype)
-      !      option%io_buffer = &
-      !        FlowConditionUnknownItype(coupler%flow_condition, &
-      !          'general gas state temperature',string)
-      !      call printErrMsg(option)
-      !  end select
-      !endif
   end select
 
   if (associated(general%liquid_flux)) then
