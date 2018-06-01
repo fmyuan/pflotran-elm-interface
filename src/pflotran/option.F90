@@ -282,6 +282,7 @@ module Option_module
             printMsg, &
             printMsgAnyRank, &
             printMsgByRank, &
+            printMsgByCell, &
             printErrMsgNoStopByRank, &
             printVerboseMsg, &
             OptionCheckTouch, &
@@ -947,6 +948,31 @@ subroutine printMsgByRank2(option,string)
   endif
 
 end subroutine printMsgByRank2
+
+! ************************************************************************** !
+
+subroutine printMsgByCell(option,cell_id,string)
+  !
+  ! Prints the message from p0
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/14/07
+  !
+
+  implicit none
+
+  type(option_type) :: option
+  PetscInt :: cell_id
+  character(len=*) :: string
+
+  character(len=MAXWORDLENGTH) :: word
+
+  write(word,*) cell_id
+  word = adjustl(word)
+  option%io_buffer = trim(string) // ' for cell ' // trim(word) // '.'
+  call printMsgByRank(option)
+
+end subroutine printMsgByCell
 
 ! ************************************************************************** !
 

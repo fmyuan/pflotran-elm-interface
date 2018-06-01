@@ -178,7 +178,7 @@ end subroutine RichardsAuxVarCopy
 ! ************************************************************************** !
 
 subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
-                                 characteristic_curves,option)
+                                 characteristic_curves,natural_id,option)
   ! 
   ! Computes auxiliary variables for each grid cell
   ! 
@@ -204,6 +204,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   type(richards_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
+  PetscInt :: natural_id
   
   PetscInt :: i
   PetscBool :: saturated
@@ -304,6 +305,10 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (.not.option%flow%density_depends_on_salinity) then
     call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol, &
                          dw_dp,dw_dt,ierr)
+    if (ierr /= 0) then
+      call printMsgByCell(option,natural_id, &
+                          'Error in RichardsAuxVarCompute->EOSWaterDensity')
+    endif
     ! may need to compute dpsat_dt to pass to VISW
     call EOSWaterSaturationPressure(global_auxvar%temp,sat_pressure,ierr)
     !geh: 0.d0 passed in for derivative of pressure w/respect to temp
@@ -313,6 +318,10 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     aux(1) = global_auxvar%m_nacl(1)
     call EOSWaterDensityExt(global_auxvar%temp,pw,aux, &
                             dw_kg,dw_mol,dw_dp,dw_dt,ierr)
+    if (ierr /= 0) then
+      call printMsgByCell(option,natural_id, &
+                          'Error in RichardsAuxVarCompute->EOSWaterDensityExt')
+    endif
     call EOSWaterViscosityExt(global_auxvar%temp,pw,sat_pressure,0.d0,aux, &
                               visl,dvis_dt,dvis_dp,ierr) 
   endif

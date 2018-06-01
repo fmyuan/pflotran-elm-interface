@@ -247,6 +247,10 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       
   call EOSWaterDensityExt(temperature_at_datum,pressure_at_datum, &
                           aux,rho_kg,dummy,ierr)
+  if (ierr /= 0) then
+    call printMsgByCell(option,-1, &
+                        'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
+  endif
   
   gravity_magnitude = sqrt(DotProduct(option%gravity,option%gravity))
   
@@ -290,6 +294,10 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     pressure_array(idatum) = pressure_at_datum
     call EOSWaterDensityExt(temperature_at_datum,pressure_at_datum, &
                             aux,rho_kg,dummy,ierr)
+    if (ierr /= 0) then
+      call printMsgByCell(option,-2, &
+                        'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
+    endif
     temperature = temperature_at_datum
     pressure0 = pressure_at_datum
     density_array(idatum) = rho_kg
@@ -306,11 +314,19 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       end select
       call EOSWaterDensityExt(temperature,pressure0, &
                               aux,rho_kg,dummy,ierr)
+      if (ierr /= 0) then
+        call printMsgByCell(option,-3, &
+                      'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
+      endif
       num_iteration = 0
       do 
         pressure = pressure0 + 0.5d0*(rho_kg+rho_zero) * &
                    option%gravity(Z_DIRECTION) * delta_z
         call EOSWaterDensityExt(temperature,pressure,aux,rho_one,dummy,ierr)
+        if (ierr /= 0) then
+          call printMsgByCell(option,-4, &
+                        'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
+        endif
 !geh        call EOSWaterDensityNaCl(temperature,pressure,xm_nacl,rho_one) 
         if (dabs(rho_kg-rho_one) < 1.d-10) exit
         rho_kg = rho_one
@@ -346,11 +362,19 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           temperature = temperature - temperature_gradient(Z_DIRECTION)*delta_z
       end select
       call EOSWaterDensityExt(temperature,pressure0,aux,rho_kg,dummy,ierr)
+      if (ierr /= 0) then
+        call printMsgByCell(option,-5, &
+                      'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
+      endif
       num_iteration = 0
       do                   ! notice the negative sign (-) here
         pressure = pressure0 - 0.5d0*(rho_kg+rho_zero) * &
                    option%gravity(Z_DIRECTION) * delta_z
         call EOSWaterDensityExt(temperature,pressure,aux,rho_one,dummy,ierr)
+        if (ierr /= 0) then
+          call printMsgByCell(option,-6, &
+                        'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
+        endif
         if (dabs(rho_kg-rho_one) < 1.d-10) exit
         rho_kg = rho_one
         num_iteration = num_iteration + 1
