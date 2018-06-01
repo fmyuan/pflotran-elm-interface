@@ -272,6 +272,7 @@ subroutine EOSWaterVerify(ierr,error_string)
   PetscErrorCode, intent(out) :: ierr
   character(len=MAXSTRINGLENGTH), intent(out) :: error_string
   
+  ierr = 0
   error_string = ''
   if ((associated(EOSWaterDensityPtr,EOSWaterDensityIFC67) .and. &
         Initialized(constant_density)) .or. &
