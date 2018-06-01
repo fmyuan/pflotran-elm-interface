@@ -15,6 +15,7 @@ module PM_Bragflo_class
     PetscReal :: linear_system_scaling_factor
     PetscBool :: scale_linear_system
     Vec :: scaling_vec
+    PetscInt, pointer :: dirichlet_dofs(:) ! this array is zero-based indexing
   contains
     procedure, public :: Read => PMBragfloRead
     procedure, public :: InitializeRun => PMBragfloInitializeRun
@@ -59,6 +60,7 @@ function PMBragfloCreate()
   bragflo_pm%linear_system_scaling_factor = 1.d7
   bragflo_pm%scale_linear_system = PETSC_TRUE
   bragflo_pm%scaling_vec = PETSC_NULL_VEC
+  nullify(bragflo_pm%dirichlet_dofs)
 
   PMBragfloCreate => bragflo_pm
   
@@ -89,8 +91,17 @@ subroutine PMBragfloRead(this,input)
   PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
+  PetscInt, parameter :: max_dirichlet_bc = 1000
+  PetscInt :: int_array(max_dirichlet_bc)
+  PetscInt :: icount
+  PetscInt :: temp_int
 
   option => this%option
+
+  if (option%mycommsize > 1) then
+    option%io_buffer = 'BRAGFLO mode may not be run in parallel.'
+    call printErrMsg(option)
+  endif
 
   error_string = 'BRAGFLO Options'
 
@@ -128,6 +139,37 @@ subroutine PMBragfloRead(this,input)
         this%scale_linear_system = PETSC_TRUE
       case('DO_NOT_LSCALE')
         this%scale_linear_system = PETSC_FALSE
+      case('2D_FLARED_DIRICHLET_BCS')
+        int_array = 0.d0
+        do
+          call InputReadPflotranString(input,option)
+          call InputReadStringErrorMsg(input,option,keyword)
+          if (InputCheckExit(input,option)) exit
+          if (icount+1 > max_dirichlet_bc) then
+            option%io_buffer = 'Must increase size of "max_dirichlet_bc" & 
+              &in PMBragfloRead'
+            call printErrMsg(option)
+          endif
+          call InputReadInt(input,option,temp_int)
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'pressure', &
+                             '2D_FLARED_DIRICHLET_BCS')
+          if (StringYesNoOther(word) == STRING_YES) then
+            icount = icount + 1
+            int_array(icount) = (temp_int-1)*2+1
+          endif
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'saturation', &
+                             '2D_FLARED_DIRICHLET_BCS')
+          if (StringYesNoOther(word) == STRING_YES) then
+            icount = icount + 1
+            int_array(icount) = (temp_int-1)*2+2
+          endif
+        enddo
+        if (icount > 0) then
+          allocate(this%dirichlet_dofs(icount))       ! convert to zero-based
+          this%dirichlet_dofs = int_array(1:icount) - 1 
+        endif
       case default
         call InputKeywordUnrecognized(keyword,'BRAGFLO Mode',option)
     end select
@@ -289,6 +331,12 @@ recursive subroutine PMBragfloInitializeRun(this)
   call VecDuplicate(this%scaling_vec,this%stored_residual_vec, &
                     ierr);CHKERRQ(ierr)
 
+  ! if using Dirichlet cell-centered BC, set option for matrix
+  if (associated(this%dirichlet_dofs)) then
+    call MatSetOption(this%solver%J,MAT_NEW_NONZERO_ALLOCATION_ERR, &
+                      PETSC_FALSE,ierr);CHKERRQ(ierr)
+  endif
+
 end subroutine PMBragfloInitializeRun
 
 ! ************************************************************************** !
@@ -311,6 +359,8 @@ subroutine PMBragfloResidual(this,snes,xx,r,ierr)
   Vec :: r
   PetscErrorCode :: ierr
 
+  PetscReal, pointer :: r_p(:)
+  PetscInt :: i, idof
   PetscViewer :: viewer
   character(len=MAXSTRINGLENGTH) :: string
 
@@ -318,6 +368,14 @@ subroutine PMBragfloResidual(this,snes,xx,r,ierr)
 
   ! calculate residual
   call BragfloResidual(snes,xx,r,this%realization,this%pmwss_ptr,ierr)
+  if (associated(this%dirichlet_dofs)) then
+    call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+    do i = 1, size(this%dirichlet_dofs)
+                         ! add 1 as dirichlet_dofs is zero-based indexing
+      r_p(this%dirichlet_dofs(i)+1) = 0.d0
+    enddo
+    call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  endif
   call VecCopy(r,this%stored_residual_vec,ierr);CHKERRQ(ierr)
 
   if (this%realization%debug%vecview_residual) then
@@ -357,11 +415,12 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
   PetscErrorCode :: ierr
 
   Vec :: residual_vec
+  Vec :: diagonal_vec
   PetscViewer :: viewer
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: norm
   PetscInt :: matsize
-  PetscInt :: irow, icol, ncol
+  PetscInt :: i, irow, icol, ncol
   PetscInt :: cols(100) ! accommodates 49 connections max
   PetscReal :: vals(100)
   PetscReal :: max_abs_val
@@ -370,6 +429,20 @@ subroutine PMBragfloJacobian(this,snes,xx,A,B,ierr)
   residual_vec = tVec(0)
 
   call BragfloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
+  if (associated(this%dirichlet_dofs)) then
+    call VecDuplicate(this%stored_residual_vec,diagonal_vec,ierr);CHKERRQ(ierr)
+    call MatGetDiagonal(A,diagonal_vec,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(diagonal_vec,vec_p,ierr);CHKERRQ(ierr)
+    do i = 1, size(this%dirichlet_dofs)
+      irow = this%dirichlet_dofs(i) 
+               ! increment irow due to zero-based indexing in dirichlet_dofs
+      norm = vec_p(irow+1) * 1.d8 + 1.d8
+      call MatZeroRowsLocal(A,1,irow,norm,PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                            ierr);CHKERRQ(ierr)
+    enddo
+    call VecRestoreArrayReadF90(diagonal_vec,vec_p,ierr);CHKERRQ(ierr)
+    call VecDestroy(diagonal_vec,ierr);CHKERRQ(ierr)
+  endif
 
   if (this%realization%debug%matview_Jacobian) then
     string = 'BFjacobian'
@@ -495,6 +568,10 @@ subroutine PMBragfloDestroy(this)
 
   if (this%scaling_vec /= PETSC_NULL_VEC) then
     call VecDestroy(this%scaling_vec,ierr);CHKERRQ(ierr)
+  endif
+  if (associated(this%dirichlet_dofs)) then
+    deallocate(this%dirichlet_dofs)
+    nullify(this%dirichlet_dofs)
   endif
   call PMWIPPFloDestroy(this)
 

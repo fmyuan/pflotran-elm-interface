@@ -165,7 +165,7 @@ end subroutine PMWIPPFloInitObject
 
 subroutine PMWIPPFloRead(this,input)
   ! 
-  ! Sets up SNES solvers.
+  ! Read WIPP FLOW input block
   ! 
   ! Author: Glenn Hammond
   ! Date: 07/11/17
