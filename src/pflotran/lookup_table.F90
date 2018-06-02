@@ -30,6 +30,7 @@ module Lookup_Table_module
     procedure, public :: LookupTableVarConvFactors  
     procedure, public :: LookupTableVarsInit
     procedure, public :: VarPointAndUnitConv
+    procedure, public :: SetupConstGradExtrap
   end type lookup_table_base_type
   
   type, public, extends(lookup_table_base_type) :: lookup_table_uniform_type
@@ -2336,8 +2337,7 @@ end subroutine LookupTableVarAddToList
 
 ! ************************************************************************** !
 
-function CreateLookupTableVar(var_iname,internal_units,user_units,data_idx, &
-                              extrapolation_itype)
+function CreateLookupTableVar(var_iname,internal_units,user_units,data_idx)
   !
   ! Creates a new lookup table var
   !
@@ -2352,14 +2352,13 @@ function CreateLookupTableVar(var_iname,internal_units,user_units,data_idx, &
   character(len=MAXWORDLENGTH), intent(in) :: internal_units
   character(len=MAXWORDLENGTH), intent(in) :: user_units
   PetscInt, intent(in) :: data_idx
-  PetscInt, intent(in) :: extrapolation_itype
 
   allocate(CreateLookupTableVar)
 
   CreateLookupTableVar%id = UNINITIALIZED_INTEGER
   CreateLookupTableVar%iname = var_iname
   CreateLookupTableVar%data_idx = data_idx
-  CreateLookupTableVar%extrapolation_itype = extrapolation_itype
+  CreateLookupTableVar%extrapolation_itype = UNINITIALIZED_INTEGER
   CreateLookupTableVar%interp_type = VAR_INTERP_LINEAR
   CreateLookupTableVar%internal_units = trim(internal_units)
   CreateLookupTableVar%user_units = trim(user_units)
@@ -2436,6 +2435,35 @@ subroutine VarPointAndUnitConv(this,option)
 end subroutine VarPointAndUnitConv
 
 ! ************************************************************************** !
+
+subroutine SetupConstGradExtrap(this,option)
+  !
+  ! Points variable data arrays to their table columns given the locations
+  ! Convert variable data units given the convrsion factors 
+  ! previously computed
+  !
+  ! Author: Paolo Orsini
+  ! Date: 05/04/2018
+  !
+
+  use Option_module
+
+  implicit none
+
+  class(lookup_table_base_type) :: this
+  type(option_type) :: option
+
+  PetscInt :: prop_idx
+  
+  do prop_idx = 1,size(this%var_array(:))
+    if ( associated(this%var_array(prop_idx)%ptr) ) then
+      this%var_array(prop_idx)%ptr%extrapolation_itype = VAR_EXTRAP_CONST_GRAD
+    end if
+  end do  
+  
+end subroutine SetupConstGradExtrap
+    
+! ************************************************************************** !    
 
 subroutine LookupTableVarListDestroy(lookup_table_vars_list)
   !
