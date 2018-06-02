@@ -8,6 +8,13 @@ module Lookup_Table_module
   implicit none
   
   private
+
+  ! Variable extrapolation types
+  PetscInt, parameter, public :: VAR_EXTRAP_CONST_VAL = 1
+  PetscInt, parameter, public :: VAR_EXTRAP_CONST_GRAD = 2
+  ! Variable interpolation types
+  PetscInt, parameter :: VAR_INTERP_LINEAR = 1
+  PetscInt, parameter :: VAR_INTERP_X_LINLOG = 2
   
   type, abstract, public :: lookup_table_base_type
     PetscInt :: dim
@@ -19,6 +26,7 @@ module Lookup_Table_module
     class(lookup_table_axis_type), pointer :: axis1
   contains
     procedure(LookupTableEvaluateDummy), deferred, public :: Sample
+    procedure(LookupTableValAndGradDummy),deferred,public :: SampleAndGradient
     procedure, public :: LookupTableVarConvFactors  
     procedure, public :: LookupTableVarsInit
     procedure, public :: VarPointAndUnitConv
@@ -29,12 +37,21 @@ module Lookup_Table_module
     class(lookup_table_axis_type), pointer :: axis3
   contains
     procedure, public :: Sample => LookupTableEvaluateUniform
+    procedure, public :: SampleAndGradient => ValAndGradUniform
   end type lookup_table_uniform_type
+  
+  ! type, public, extends(lookup_table_base_type) :: lookup_table_non_uni_type
+  !   class(lookup_table_axis_type), pointer :: axis2
+  !   class(lookup_table_axis_type), pointer :: axis3
+  ! contains
+  !   procedure, public :: SampleAndGradient => LinearValAndGradNonUni
+  ! end type lookup_table_non_uni_type
   
   type, public, extends(lookup_table_base_type) :: lookup_table_general_type
     class(lookup_table_axis2_general_type), pointer :: axis2
   contains
     procedure, public :: Sample => LookupTableEvaluateGeneral
+    procedure, public :: SampleAndGradient => ValAndGradGeneral
   end type lookup_table_general_type
   
   type, public :: lookup_table_axis_type
@@ -51,12 +68,14 @@ module Lookup_Table_module
     PetscInt :: id
     PetscInt :: iname
     PetscInt :: data_idx
+    PetscInt :: extrapolation_itype
+    PetscInt :: interp_type
     character(len=MAXWORDLENGTH) :: internal_units
     character(len=MAXWORDLENGTH) :: user_units
     PetscReal :: conversion_factor
     PetscReal, pointer :: data(:)
     PetscReal :: sample
-    PetscReal, pointer :: sample_deriv(:)
+    PetscReal, pointer :: sample_grad(:)
     type(lookup_table_var_type), pointer :: next
   end type  lookup_table_var_type
 
@@ -81,6 +100,17 @@ module Lookup_Table_module
       PetscReal, optional :: lookup3
       PetscReal :: LookupTableEvaluateDummy
     end function LookupTableEvaluateDummy
+    
+    subroutine LookupTableValAndGradDummy(this,var_iname,lookup1,lookup2,lookup3)
+      import lookup_table_base_type
+      implicit none
+      class(lookup_table_base_type) :: this
+      PetscInt, intent(in) :: var_iname
+      PetscReal :: lookup1
+      PetscReal, optional :: lookup2
+      PetscReal, optional :: lookup3
+    end subroutine LookupTableValAndGradDummy
+    
   end interface
   
   interface LookupTableTest
@@ -88,14 +118,20 @@ module Lookup_Table_module
     module procedure LookupTableTest2D
   end interface
 
-  interface LookupTableDestroy
-    module procedure LookupTableUniformDestroy
-    module procedure LookupTableGeneralDestroy
-  end interface
-  
+  ! interface LookupTableCreateNonUni
+  !   module procedure LookupTableCreateNonUniDim
+  !   module procedure LookupTableCreateNonUniNoDim
+  ! end interface
+
   interface LookupTableCreateGeneral
     module procedure LookupTableCreateGeneralDim
     module procedure LookupTableCreateGeneralNoDim  
+  end interface
+
+  interface LookupTableDestroy
+    module procedure LookupTableUniformDestroy
+!    module procedure LookupTableNonUniDestroy
+    module procedure LookupTableGeneralDestroy
   end interface
 
   public :: LookupTableCreateUniform, &
@@ -153,6 +189,7 @@ function LookupTableCreateUniform(dim)
   lookup_table%dim = dim
   nullify(lookup_table%axis2)
   nullify(lookup_table%axis3)
+
   allocate(lookup_table%axis1)
   call LookupTableAxisInit(lookup_table%axis1)
   if (dim > 1) then
@@ -167,6 +204,67 @@ function LookupTableCreateUniform(dim)
   LookupTableCreateUniform => lookup_table
 
 end function LookupTableCreateUniform
+
+! ************************************************************************** !
+
+! function LookupTableCreateNonUniDim(dim)
+!   ! 
+!   ! Author: Paolo Orsini
+!   ! Date: 10/15/18
+!   ! 
+! 
+!   implicit none
+! 
+!   PetscInt :: dim
+! 
+!   class(lookup_table_non_uni_type), pointer :: LookupTableCreateNonUniDim
+! 
+!   class(lookup_table_non_uni_type), pointer :: lookup_table
+! 
+!   allocate(lookup_table)
+!   call LookupTableBaseInit(lookup_table)
+!   lookup_table%dim = dim
+!   nullify(lookup_table%axis2)
+!   nullify(lookup_table%axis3)
+! 
+!   allocate(lookup_table%axis1)
+!   call LookupTableAxisInit(lookup_table%axis1)
+!   if (dim > 1) then
+!     allocate(lookup_table%axis2)
+!     call LookupTableAxisInit(lookup_table%axis2)
+!   endif
+!   if (dim > 2) then
+!     allocate(lookup_table%axis3)
+!     call LookupTableAxisInit(lookup_table%axis3)
+!   endif
+! 
+!   LookupTableCreateNonUniDim => lookup_table
+! 
+! end function LookupTableCreateNonUniDim
+
+! ************************************************************************** !
+
+! function LookupTableCreateNonUniNoDim()
+!   ! 
+!   ! Author: Paolo Orsini
+!   ! Date: 10/15/18
+!   ! 
+! 
+!   implicit none
+! 
+!   class(lookup_table_non_uni_type), pointer :: LookupTableCreateNonUniNoDim
+! 
+!   class(lookup_table_non_uni_type), pointer :: lookup_table
+! 
+!   allocate(lookup_table)
+!   call LookupTableBaseInit(lookup_table)
+!   nullify(lookup_table%axis1)
+!   nullify(lookup_table%axis2)
+!   nullify(lookup_table%axis3)
+! 
+!   LookupTableCreateNonUniNoDim => lookup_table
+! 
+! end function LookupTableCreateNonUniNoDim
 
 ! ************************************************************************** !
 
@@ -270,6 +368,64 @@ function LookupTableEvaluateUniform(this,lookup1,lookup2,lookup3)
   
 end function LookupTableEvaluateUniform
 
+! ************************************************************************** !
+
+subroutine ValAndGradUniform(this,var_iname,lookup1,lookup2,lookup3)
+  ! 
+  ! Computes value and gradient for given coordinates
+  !
+  ! Author: Paolo Orsini
+  ! Date: 05/11/18
+  ! 
+  implicit none
+  
+  class(lookup_table_uniform_type) :: this
+  PetscInt, intent(in) :: var_iname
+  PetscReal :: lookup1
+  PetscReal, optional :: lookup2
+  PetscReal, optional :: lookup3
+
+  call LookupTableIndexUniform(this,lookup1,lookup2,lookup3)
+  if (present(lookup3)) then
+    !3D interpolation and gradient computation not yet supported
+  else if (present(lookup2)) then
+    call InterpExtrapGrad2DUniform(this,var_iname,lookup1,lookup2)
+  else
+    call InterpExtrapGrad1D(this,var_iname,lookup1)
+  endif
+  
+end subroutine ValAndGradUniform
+
+! ************************************************************************** !
+
+! subroutine LinearValAndGradNonUni(this,var_iname,lookup1,lookup2,lookup3)
+!   ! 
+!   ! Computes value and gradient for given coordinates up to 5 dimensions
+!   ! for non uniform (but regular) table grids
+!   !
+!   ! Author: Paolo Orsini
+!   ! Date: 05/15/18
+!   ! 
+!   implicit none
+! 
+!   class(lookup_table_non_uni_type) :: this
+!   PetscInt, intent(in) :: var_iname
+!   PetscReal :: lookup1
+!   PetscReal, optional :: lookup2
+!   PetscReal, optional :: lookup3
+! 
+!   call LookupTableIndexNonUni(this,lookup1,lookup2,lookup3)
+!   if (present(lookup3)) then
+!     !3D interpolation and gradient computation not yet supported
+!   else if (present(lookup2)) then
+!     !    LinInterpExtrapGrad2D
+!     call LinInterpExtrapGrad2D(this,var_iname,lookup1,lookup2)
+!   else
+!     !call LinInterpExtrapGrad1D
+!     call LinInterpExtrapGrad1D(this,var_iname,lookup1)   
+!   endif
+! 
+! end subroutine LinearValAndGradNonUni
 
 ! ************************************************************************** !
 
@@ -300,6 +456,34 @@ end function LookupTableEvaluateGeneral
 
 ! ************************************************************************** !
 
+subroutine ValAndGradGeneral(this,var_iname,lookup1,lookup2,lookup3)
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 05/21/18
+  ! 
+  implicit none
+  
+  class(lookup_table_general_type) :: this
+  PetscInt, intent(in) :: var_iname
+  PetscReal :: lookup1
+  PetscReal, optional :: lookup2
+  PetscReal, optional :: lookup3  
+  
+  call LookupTableIndexGeneral(this,lookup1,lookup2,lookup3)
+  
+  if (present(lookup3)) then
+    ! 3D general lookup table not supported
+  else if (present(lookup2)) then
+    call InterpExtrapGradGeneral2D(this,var_iname,lookup1,lookup2)
+  else
+    call InterpExtrapGrad1D(this,var_iname,lookup1)
+  end if    
+  
+  
+end subroutine ValAndGradGeneral
+
+! ************************************************************************** !
+
 subroutine LookupTableIndexUniform(this,lookup1,lookup2,lookup3)
   ! 
   ! Author: Glenn Hammond
@@ -323,6 +507,33 @@ subroutine LookupTableIndexUniform(this,lookup1,lookup2,lookup3)
 end subroutine LookupTableIndexUniform
 
 ! ************************************************************************** !
+
+! subroutine LookupTableIndexNonUni(this,lookup1,lookup2,lookup3)
+!   ! 
+!   ! Author: Paolo Orsini
+!   ! Date: 05/15/18
+!   ! 
+!   implicit none
+! 
+!   class(lookup_table_non_uni_type) :: this
+!   PetscReal :: lookup1
+!   PetscReal, optional :: lookup2
+!   PetscReal, optional :: lookup3
+! 
+!   call LookupTableAxisIndexGeneral(lookup1,this%axis1%values, &
+!                                    this%axis1%saved_index)
+!   if (associated(this%axis2)) then
+!     call LookupTableAxisIndexGeneral(lookup2,this%axis2%values, &
+!                                      this%axis2%saved_index)    
+!   endif
+!   if (associated(this%axis3)) then
+!     call LookupTableAxisIndexGeneral(lookup3,this%axis3%values, &
+!                                      this%axis3%saved_index)
+!   endif
+! 
+! end subroutine LookupTableIndexNonUni
+! 
+! ! ************************************************************************** !
 
 subroutine LookupTableIndexGeneral(this,lookup1,lookup2,lookup3)
   ! 
@@ -477,6 +688,143 @@ end subroutine LookupTableInterpolate1D
 
 ! ************************************************************************** !
 
+subroutine InterpExtrapGrad1D(this,var_iname,lookup1)
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 05/12/18
+  ! 
+  use Utility_module, only : Interpolate, GradientLinear
+  
+  implicit none
+  
+  class(lookup_table_base_type) :: this
+  PetscInt, intent(in) :: var_iname
+  PetscReal, intent(in) :: lookup1
+  
+  PetscReal :: x1, x2, x1_grad, x2_grad
+  PetscInt :: i1, i2, i1_grad, i2_grad
+  PetscInt :: var_idx, sizei
+  
+  i1 = this%axis1%saved_index
+  sizei = this%dims(1)
+  
+  if (i1 > 0) then
+    i2 = max(min(i1+1,this%dims(1)),1)
+  else
+    i1=1
+    i2=1
+  end if    
+  
+  if (i1 == i2) then !end points
+    if (i1 == 1) then
+      i1_grad = 1
+      i2_grad = 2
+    else if (i1 == sizei) then
+      i1_grad = sizei - 1
+      i2_grad = sizei
+    end if
+    !x1 = this%axis1%values(i1)
+    x1_grad = this%axis1%values(i1_grad)
+    x2_grad = this%axis1%values(i2_grad)
+    !x_fract_grad = (lookup1 - x1_grad) / ( x2_grad - x1_grad )
+    if (var_iname == -1 ) then
+      do var_idx = 1,size(this%var_array(:))
+        if ( associated(this%var_array(var_idx)%ptr) ) then
+          call Var1DExtrapolate(this,var_idx,i1,i1_grad,i2_grad, &
+                                      x1_grad,x2_grad,lookup1)
+        end if     
+      end do
+    else 
+      call Var1DExtrapolate(this,var_iname,i1,i1_grad,i2_grad, &
+                                  x1_grad,x2_grad,lookup1)
+    end if
+  else ! away from end points
+    x1 = this%axis1%values(i1)
+    x2 = this%axis1%values(i2)
+    if (var_iname == -1 ) then
+      do var_idx = 1,size(this%var_array(:))
+        if ( associated(this%var_array(var_idx)%ptr) ) then
+          call Var1DInterpolate(this,var_idx,i1,i2,x1,x2,lookup1)
+        end if     
+      end do
+    else
+      call Var1DInterpolate(this,var_iname,i1,i2,x1,x2,lookup1)
+    end if    
+  end if  
+  
+end subroutine InterpExtrapGrad1D
+
+! ************************************************************************** !
+
+subroutine Var1DExtrapolate(this,var_iname,i1,i1_grad,i2_grad, &
+                            x1_grad,x2_grad,lookup)
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 02/06/18
+  !   
+  implicit none
+
+  class(lookup_table_base_type) :: this
+  PetscInt, intent(in) :: var_iname
+  PetscInt, intent(in) :: i1,i1_grad,i2_grad
+  PetscReal, intent(in) :: x1_grad,x2_grad
+  PetscReal, intent(in) :: lookup
+          
+  if ( this%var_array(var_iname)%ptr%extrapolation_itype == &          
+       VAR_EXTRAP_CONST_GRAD ) then
+    call Var1DInterpolate(this,var_iname,i1_grad,i2_grad, &
+                                   x1_grad,x2_grad,lookup)
+  else if( this%var_array(var_iname)%ptr%extrapolation_itype == &
+         VAR_EXTRAP_CONST_VAL) then
+    this%var_array(var_iname)%ptr%sample = &
+                         this%var_array(var_iname)%ptr%data(i1)
+    this%var_array(var_iname)%ptr%sample_grad(1) = 0.0d0
+      
+  end if
+
+end subroutine Var1DExtrapolate
+
+! ************************************************************************** !
+
+subroutine Var1DInterpolate(this,var_iname,i1,i2,x1,x2,lookup)
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 02/06/18
+  ! 
+  use Utility_module, only : Interpolate, GradientLinear
+  
+  implicit none
+    
+  class(lookup_table_base_type) :: this
+  PetscInt, intent(in) :: var_iname
+  PetscInt, intent(in) :: i1,i2
+  PetscReal, intent(in) :: x1,x2
+  PetscReal, intent(in) :: lookup
+
+  PetscReal :: val1, val2
+
+  val1 = this%var_array(var_iname)%ptr%data(i1)
+  val2 = this%var_array(var_iname)%ptr%data(i2)
+  if (this%var_array(var_iname)%ptr%interp_type  == VAR_INTERP_X_LINLOG) then
+     val1 = dlog(val1)
+     val2 = dlog(val2)
+  end if   
+  call GradientLinear(x2,x1,val2,val1, &
+                      this%var_array(var_iname)%ptr%sample_grad(1))
+  call Interpolate(x2,x1,lookup,val2,val1, &
+                   this%var_array(var_iname)%ptr%sample)
+  if (this%var_array(var_iname)%ptr%interp_type  == VAR_INTERP_X_LINLOG) then
+    this%var_array(var_iname)%ptr%sample = &
+        dexp(this%var_array(var_iname)%ptr%sample)
+    this%var_array(var_iname)%ptr%sample_grad(1) = &
+        this%var_array(var_iname)%ptr%sample_grad(1) * &
+        this%var_array(var_iname)%ptr%sample
+  end if                 
+  
+end subroutine Var1DInterpolate
+
+! ************************************************************************** !
+
 subroutine LookupTableInterpolate2DUniform(this,lookup1,lookup2,result)
   ! 
   ! Author: Glenn Hammond
@@ -550,6 +898,590 @@ subroutine LookupTableInterpolate2DUniform(this,lookup1,lookup2,result)
   endif
                    
 end subroutine LookupTableInterpolate2DUniform
+
+! ************************************************************************** !
+! 
+! subroutine LinInterpExtrapGrad2D(this,var_iname,lookup1,lookup2)
+!   ! 
+!   ! Author: Paolo Orsini
+!   ! Date: 05/11/18
+!   ! 
+!   ! currenlty used for testing only
+!   ! to be used for uniform table only
+!   use Utility_module, only : Interpolate,InterpolateBilinear,GradientBilinear
+! 
+!   implicit none
+! 
+!   class(lookup_table_base_type) :: this
+!   PetscInt, intent(in) :: var_iname
+!   PetscReal :: lookup1
+!   PetscReal :: lookup2
+!   class(lookup_table_axis_type), pointer :: axis1 => null()
+!   class(lookup_table_axis_type), pointer :: axis2 => null()
+! 
+!   PetscInt :: i1, i2, j1, j2
+!   PetscInt :: i1_grad, i2_grad, j1_grad, j2_grad
+!   PetscReal :: x1, x2, y1, y2, z1, z2, z3, z4
+!   PetscReal :: x1_grad, x2_grad, y1_grad, y2_grad
+!   PetscReal :: z1_grad, z2_grad, z3_grad, z4_grad
+!   PetscReal :: dz_dx, dz_dy
+!   PetscInt :: sizei, sizej
+!   PetscInt :: var_idx
+! 
+!   !  x1,y2,z3 ------ x2,y2,z4
+!   !     |               |
+!   !     |               |
+!   !     |   x,y         |
+!   !     |               |
+!   !  x1,y1,z1 ------ x2,y1,z2
+! 
+!   !need the select case to see the axis2 member
+!   axis1 => this%axis1
+!    select type(this)
+!      class is(lookup_table_uniform_type)
+!        axis2 => this%axis2
+!   !   class is(lookup_table_non_uni_type)
+!   !     axis2 => this%axis2
+!    end select
+! 
+!   sizei = this%dims(1)
+!   sizej = this%dims(2)
+!   i1 = axis1%saved_index
+!   j1 = axis2%saved_index
+!   ! index axes
+!   if (i1 > 0) then
+!     i2 = max(min(i1+1,sizei),1)
+!   else
+!     i1 = 1
+!     i2 = 1
+!   endif
+!   if (j1 > 0) then
+!     j2 = max(min(j1+1,sizej),1)
+!   else
+!     j1 = 1
+!     j2 = 1
+!   endif
+!   if (i2 == i1) then
+!     if (j2 == j1) then
+!       ! corner of domain
+!       if (i1 == 1 .and. j1 == 1 ) then !bottom-left corner
+!         i1_grad = 1
+!         i2_grad = 1 + 1
+!         j1_grad = 1
+!         j2_grad = 1 + 1
+!       else if (i1 == sizei .and. j1 == 1 ) then !bottom-right corner
+!         i1_grad = sizei - 1
+!         i2_grad = sizei
+!         j1_grad = 1
+!         j2_grad = 1 + 1
+!       else if (i1 == 1 .and. j1 == sizej ) then !top-left corner
+!         i1_grad = 1
+!         i2_grad = 1 + 1
+!         j1_grad = sizej -1
+!         j2_grad = sizej
+!       else if (i1 == sizei .and. j1 == sizej ) then !top-righ corner
+!         i1_grad = sizei - 1
+!         i2_grad = sizei
+!         j1_grad = sizej - 1
+!         j2_grad = sizej
+!       end if
+!       x1 = axis1%values(i1)
+!       y1 = axis2%values(j1)
+!       x1_grad = axis1%values(i1_grad)
+!       x2_grad = axis1%values(i2_grad)
+!       y1_grad = axis2%values(j1_grad)
+!       y2_grad = axis2%values(j2_grad)
+!       if (var_iname == -1 ) then
+!         do var_idx = 1,size(this%var_array(:))
+!           if ( associated(this%var_array(var_idx)%ptr) ) then
+!             this%var_array(var_idx)%ptr%sample = &
+!                           this%var_array(var_idx)%ptr%data(i1+(j1-1)*sizei)
+!             if ( this%var_array(var_idx)%ptr%extrapolation_itype == &
+!                  VAR_EXTRAP_CONST_GRAD) then
+!               !gradient computation            
+!               z1_grad = &
+!                  this%var_array(var_idx)%ptr%data(i1_grad+(j1_grad-1)*sizei)
+!               z2_grad = &
+!                  this%var_array(var_idx)%ptr%data(i2_grad+(j1_grad-1)*sizei)
+!               z3_grad = &
+!                  this%var_array(var_idx)%ptr%data(i1_grad+(j2_grad-1)*sizei)
+!               z4_grad = &
+!                  this%var_array(var_idx)%ptr%data(i2_grad+(j2_grad-1)*sizei)        
+!               call GradientBilinear(lookup1,lookup2,x1_grad,x2_grad, &
+!                                     y1_grad,y2_grad,z1_grad,z2_grad, &
+!                                     z3_grad,z4_grad,dz_dx,dz_dy)  
+!               this%var_array(var_idx)%ptr%sample_grad(1) = dz_dx
+!               this%var_array(var_idx)%ptr%sample_grad(2) = dz_dy
+!               call ExtrapolateBiLinear(this%var_array(var_idx)%ptr%sample, &
+!                                        x1,y1,dz_dx,dz_dy)
+!             else if (this%var_array(var_idx)%ptr%extrapolation_itype == &
+!                  VAR_EXTRAP_CONST_VAL) then
+!               this%var_array(var_idx)%ptr%sample_grad(1) = 0.0d0
+!               this%var_array(var_idx)%ptr%sample_grad(2) = 0.0d0                 
+!             end if     
+!           end if  
+!         end do  
+!       else
+!         this%var_array(var_iname)%ptr%sample = &
+!                       this%var_array(var_iname)%ptr%data(i1+(j1-1)*sizei)
+!         if ( this%var_array(var_iname)%ptr%extrapolation_itype == &
+!                                               VAR_EXTRAP_CONST_GRAD) then
+!           !gradient computation
+!           z1_grad = this%var_array(var_iname)%ptr%data(i1_grad+(j1_grad-1)*sizei)
+!           z2_grad = this%var_array(var_iname)%ptr%data(i2_grad+(j1_grad-1)*sizei)
+!           z3_grad = this%var_array(var_iname)%ptr%data(i1_grad+(j2_grad-1)*sizei)
+!           z4_grad = this%var_array(var_iname)%ptr%data(i2_grad+(j2_grad-1)*sizei)        
+!           call GradientBilinear(lookup1,lookup2,x1_grad,x2_grad, &
+!                                  y1_grad,y2_grad,z1_grad,z2_grad, &
+!                                  z3_grad,z4_grad,dz_dx,dz_dy)
+!           this%var_array(var_iname)%ptr%sample_grad(1) = dz_dx
+!           this%var_array(var_iname)%ptr%sample_grad(2) = dz_dy
+!           call ExtrapolateBiLinear(this%var_array(var_iname)%ptr%sample, &
+!                                    x1,y1,dz_dx,dz_dy)          
+!         else if (this%var_array(var_iname)%ptr%extrapolation_itype == &
+!                                               VAR_EXTRAP_CONST_VAL) then
+!           this%var_array(var_iname)%ptr%sample_grad(1) = 0.0d0
+!           this%var_array(var_iname)%ptr%sample_grad(2) = 0.0d0                                              
+!         end if                                       
+!       end if    
+!     else ! edge of the domain at constant x
+!       y1 = axis2%values(j1)
+!       y2 = axis2%values(j2)
+!       x1 = axis1%values(i1) ! to extrapolate
+!       !for the gradient computation
+!       if ( i1 == 1 ) then !left edge
+!         i1_grad = 1
+!         i2_grad = 1 + 1
+!       else if (i1 == sizei) then
+!         i1_grad = sizei - 1
+!         i2_grad = sizei
+!       end if
+!       x1_grad = axis1%values(i1_grad)
+!       x2_grad = axis1%values(i2_grad)
+!       if (var_iname == -1 ) then
+!         do var_idx = 1,size(this%var_array(:))
+!           if ( associated(this%var_array(var_idx)%ptr) ) then
+!             z1 = this%var_array(var_idx)%ptr%data(i1+(j1-1)*sizei)
+!             z3 = this%var_array(var_idx)%ptr%data(i1+(j2-1)*sizei)
+!             call Interpolate(y2,y1,lookup2,z3,z1, &
+!                              this%var_array(var_idx)%ptr%sample)
+!             !gradient computation
+!             z1_grad = this%var_array(var_idx)%ptr%data(i1_grad+(j1-1)*sizei)
+!             z2_grad = this%var_array(var_idx)%ptr%data(i2_grad+(j1-1)*sizei)
+!             z3_grad = this%var_array(var_idx)%ptr%data(i1_grad+(j2-1)*sizei)
+!             z4_grad = this%var_array(var_idx)%ptr%data(i2_grad+(j2-1)*sizei)
+!             call GradientBilinear(lookup1,lookup2,x1_grad,x2_grad,y1,y2, &
+!                                   z1_grad,z2_grad,z3_grad,z4_grad,dz_dx,dz_dy)
+!             this%var_array(var_idx)%ptr%sample_grad(2) = dz_dy                      
+!             if ( this%var_array(var_idx)%ptr%extrapolation_itype == &
+!                   VAR_EXTRAP_CONST_GRAD ) then
+!               this%var_array(var_idx)%ptr%sample_grad(1) = dz_dx
+!               call ExtrapolateLinear(this%var_array(var_idx)%ptr%sample, &
+!                                      x1,lookup1,dz_dx)
+!             else if ( this%var_array(var_idx)%ptr%extrapolation_itype == &
+!                       VAR_EXTRAP_CONST_VAL ) then
+!               this%var_array(var_idx)%ptr%sample_grad(1) = 0.0d0
+!             end if  
+!           end if
+!         end do            
+!       else
+!         z1 = this%var_array(var_iname)%ptr%data(i1+(j1-1)*sizei)
+!         z3 = this%var_array(var_iname)%ptr%data(i1+(j2-1)*sizei)
+!         call Interpolate(y2,y1,lookup2,z3,z1, &
+!                          this%var_array(var_iname)%ptr%sample)
+!         !gradient computation
+!         z1_grad = this%var_array(var_iname)%ptr%data(i1_grad+(j1-1)*sizei)
+!         z2_grad = this%var_array(var_iname)%ptr%data(i2_grad+(j1-1)*sizei)
+!         z3_grad = this%var_array(var_iname)%ptr%data(i1_grad+(j2-1)*sizei)
+!         z4_grad = this%var_array(var_iname)%ptr%data(i2_grad+(j2-1)*sizei)
+!         call GradientBilinear(lookup1,lookup2,x1_grad,x2_grad,y1,y2, &
+!                               z1_grad,z2_grad,z3_grad,z4_grad,dz_dx,dz_dy)
+!         this%var_array(var_iname)%ptr%sample_grad(2) = dz_dy
+!         if (this%var_array(var_iname)%ptr%extrapolation_itype == &
+!               VAR_EXTRAP_CONST_GRAD ) then
+!           this%var_array(var_iname)%ptr%sample_grad(1) = dz_dx
+!           call ExtrapolateLinear(this%var_array(var_iname)%ptr%sample, &
+!                                  x1,lookup1,dz_dx)
+!         else if ( this%var_array(var_iname)%ptr%extrapolation_itype == &
+!                   VAR_EXTRAP_CONST_VAL ) then
+!           this%var_array(var_iname)%ptr%sample_grad(1) = 0.0d0
+!         end if
+!       end if    
+!     endif
+!   else if (j2 == j1) then ! edge of the domain at constant y
+!     x1 = axis1%values(i1)
+!     x2 = axis1%values(i2)
+!     y1 = axis2%values(j1) ! to extrapolate
+!     if (j1==1) then
+!       j1_grad = 1
+!       j2_grad = 1 + 1
+!     else if (j2==sizej) then
+!       j1_grad = sizej - 1
+!       j2_grad = sizej
+!     end if
+!     y1_grad = axis2%values(j1_grad)
+!     y2_grad = axis2%values(j2_grad)
+!     if (var_iname == -1 ) then
+!       do var_idx = 1,size(this%var_array(:))
+!         if ( associated(this%var_array(var_idx)%ptr) ) then
+!           z1 = this%var_array(var_idx)%ptr%data(i1+(j1-1)*sizei)
+!           z2 = this%var_array(var_idx)%ptr%data(i2+(j1-1)*sizei)
+!           call Interpolate(x2,x1,lookup1,z2,z1, &
+!                            this%var_array(var_idx)%ptr%sample)
+!           !compute gradient
+!           z1_grad = this%var_array(var_idx)%ptr%data(i1+(j1_grad-1)*sizei)
+!           z2_grad = this%var_array(var_idx)%ptr%data(i2+(j1_grad-1)*sizei)
+!           z3_grad = this%var_array(var_idx)%ptr%data(i1+(j2_grad-1)*sizei)
+!           z4_grad = this%var_array(var_idx)%ptr%data(i2+(j2_grad-1)*sizei)
+!           call GradientBilinear(lookup1,lookup2,x1,x2,y1_grad,y2_grad, &
+!                                 z1_grad,z2_grad,z3_grad,z4_grad,dz_dx,dz_dy)
+!           this%var_array(var_idx)%ptr%sample_grad(1) = dz_dx                      
+!           if (this%var_array(var_idx)%ptr%extrapolation_itype == & 
+!               VAR_EXTRAP_CONST_GRAD ) then                       
+!             this%var_array(var_idx)%ptr%sample_grad(2) = dz_dy
+!             call ExtrapolateLinear(this%var_array(var_idx)%ptr%sample, &
+!                                    y1,lookup2,dz_dy)            
+!           else if (this%var_array(var_idx)%ptr%extrapolation_itype == & 
+!                    VAR_EXTRAP_CONST_VAL ) then
+!             this%var_array(var_idx)%ptr%sample_grad(2) = 0.0d0  
+!           end if                   
+!         end if
+!       end do
+!     else
+!       z1 = this%var_array(var_iname)%ptr%data(i1+(j1-1)*sizei)
+!       z2 = this%var_array(var_iname)%ptr%data(i2+(j1-1)*sizei)
+!       call Interpolate(x2,x1,lookup1,z2,z1, &
+!                        this%var_array(var_iname)%ptr%sample)
+!       !compute gradient
+!       z1_grad = this%var_array(var_iname)%ptr%data(i1+(j1_grad-1)*sizei)
+!       z2_grad = this%var_array(var_iname)%ptr%data(i2+(j1_grad-1)*sizei)
+!       z3_grad = this%var_array(var_iname)%ptr%data(i1+(j2_grad-1)*sizei)
+!       z4_grad = this%var_array(var_iname)%ptr%data(i2+(j2_grad-1)*sizei)
+!       call GradientBilinear(lookup1,lookup2,x1,x2,y1_grad,y2_grad, &
+!                             z1_grad,z2_grad,z3_grad,z4_grad,dz_dx,dz_dy)
+!       this%var_array(var_iname)%ptr%sample_grad(1) = dz_dx
+!       if (this%var_array(var_iname)%ptr%extrapolation_itype == & 
+!           VAR_EXTRAP_CONST_GRAD ) then                       
+!         this%var_array(var_iname)%ptr%sample_grad(2) = dz_dy
+!         call ExtrapolateLinear(this%var_array(var_iname)%ptr%sample, &
+!                                y1,lookup2,dz_dy)            
+!       else if (this%var_array(var_iname)%ptr%extrapolation_itype == & 
+!                VAR_EXTRAP_CONST_VAL ) then
+!         this%var_array(var_idx)%ptr%sample_grad(2) = 0.0d0  
+!       end if      
+!     end if  
+!   else
+!     x1 = axis1%values(i1)
+!     x2 = axis1%values(i2)
+!     y1 = axis2%values(j1)
+!     y2 = axis2%values(j2)
+!     if (var_iname == -1 ) then
+!       do var_idx = 1,size(this%var_array(:))
+!         if ( associated(this%var_array(var_idx)%ptr) ) then
+!           z1 = this%var_array(var_idx)%ptr%data(i1+(j1-1)*sizei)
+!           z2 = this%var_array(var_idx)%ptr%data(i2+(j1-1)*sizei)
+!           z3 = this%var_array(var_idx)%ptr%data(i1+(j2-1)*sizei)
+!           z4 = this%var_array(var_idx)%ptr%data(i2+(j2-1)*sizei)
+!           this%var_array(var_idx)%ptr%sample = &
+!                  InterpolateBilinear(lookup1,lookup2,x1,x2,y1,y2,z1,z2,z3,z4)
+!           !compute gradient
+!           call GradientBilinear(lookup1,lookup2,x1,x2,y1,y2,z1,z2,z3,z4, &
+!                                 dz_dx,dz_dy)
+!           this%var_array(var_idx)%ptr%sample_grad(1) = dz_dx                       
+!           this%var_array(var_idx)%ptr%sample_grad(2) = dz_dy
+!         end if
+!       end do
+!     else
+!       z1 = this%var_array(var_iname)%ptr%data(i1+(j1-1)*sizei)
+!       z2 = this%var_array(var_iname)%ptr%data(i2+(j1-1)*sizei)
+!       z3 = this%var_array(var_iname)%ptr%data(i1+(j2-1)*sizei)
+!       z4 = this%var_array(var_iname)%ptr%data(i2+(j2-1)*sizei)
+!       this%var_array(var_iname)%ptr%sample = &
+!              InterpolateBilinear(lookup1,lookup2,x1,x2,y1,y2,z1,z2,z3,z4)       
+!       !compute gradient
+!       call GradientBilinear(lookup1,lookup2,x1,x2,y1,y2,z1,z2,z3,z4, &
+!                             dz_dx,dz_dy)      
+!       this%var_array(var_iname)%ptr%sample_grad(1) = dz_dx
+!       this%var_array(var_iname)%ptr%sample_grad(2) = dz_dy
+!     end if              
+!   endif
+! 
+!   nullify(axis1)
+!   nullify(axis2)
+! 
+! end subroutine LinInterpExtrapGrad2D
+
+! ************************************************************************** !
+
+subroutine InterpExtrapGrad2DUniform(this,var_iname,lookup1,lookup2)
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 05/25/18
+  ! 
+
+  implicit none
+  
+  class(lookup_table_uniform_type) :: this
+  PetscInt, intent(in) :: var_iname
+  PetscReal :: lookup1
+  PetscReal :: lookup2
+  class(lookup_table_axis_type), pointer :: axis1 => null()
+  class(lookup_table_axis_type), pointer :: axis2 => null()
+
+  PetscInt :: i1, i2, j1, j2
+  PetscInt :: i1_grad, i2_grad, j1_grad, j2_grad
+  PetscReal :: x1, x2
+  PetscReal :: x1_grad, x2_grad
+  PetscReal :: x_frac
+  PetscInt :: sizei, sizej
+  PetscInt :: var_idx
+
+  !  x1,y2,z3 ------ x2,y2,z4
+  !     |               |
+  !     |               |
+  !     |   x,y         |
+  !     |               |
+  !  x1,y1,z1 ------ x2,y1,z2
+
+
+  axis1 => this%axis1
+  axis2 => this%axis2
+  
+  sizei = this%dims(1)
+  sizej = this%dims(2)
+  i1 = axis1%saved_index
+  j1 = axis2%saved_index
+  ! index axes
+  if (i1 > 0) then
+    i2 = max(min(i1+1,sizei),1)
+  else
+    i1 = 1
+    i2 = 1
+  endif
+  if (j1 > 0) then
+    j2 = max(min(j1+1,sizej),1)
+  else
+    j1 = 1
+    j2 = 1
+  endif
+  
+  if (j2 == j1) then
+    if ( j1 == 1 ) then
+      j1_grad = 1
+      j2_grad = 2
+    else if ( j1 == sizej ) then
+      j1_grad = sizej -1
+      j2_grad = sizej
+    end if
+  end if
+
+  !compute i indices for interpolation/extrapolation
+  if (i2 == i1) then
+    !perform extrapolation in the x-direction
+    if ( i1 == 1) then
+      i1_grad = 1
+      i2_grad = 1 + 1
+    else if ( i1 == sizei ) then
+      i1_grad = sizei - 1
+      i2_grad = sizei
+    end if
+    !extrapolation in the x-direction
+    x1_grad = axis1%values(i1_grad)
+    x2_grad = axis1%values(i2_grad)
+    x_frac = (lookup1 - x1_grad) / ( x2_grad - x1_grad )    
+    if (var_iname == -1 ) then
+      do var_idx = 1,size(this%var_array(:))
+        if ( associated(this%var_array(var_idx)%ptr) ) then
+          call VarUniformXExtrapolate(this,var_idx,i1,i1_grad,i2_grad,sizei, &
+                                      j1,j1_grad,j2,j2_grad,&
+                                      x1_grad,x2_grad,x_frac,lookup1,lookup2)        
+        end if  
+      end do
+    else
+      call VarUniformXExtrapolate(this,var_iname,i1,i1_grad,i2_grad,sizei, &
+                                  j1,j1_grad,j2,j2_grad,&
+                                  x1_grad,x2_grad,x_frac,lookup1,lookup2)      
+    end if    
+  else !away from end point in the x-direction
+    !inteprolation in the x-direction
+    x1 = axis1%values(i1)
+    x2 = axis1%values(i2)
+    x_frac = (lookup1 - x1) / ( x2 - x1 )    
+    if (var_iname == -1 ) then
+      do var_idx = 1,size(this%var_array(:))
+        if ( associated(this%var_array(var_idx)%ptr) ) then    
+          call VarUniformXInterpolate(this,var_idx,j1,j1_grad,j2,j2_grad, &
+                                     i1,i2,sizei,x1,x2,x_frac,lookup1,lookup2)
+        end if
+      end do
+    else
+      call VarUniformXInterpolate(this,var_iname,j1,j1_grad,j2,j2_grad, &
+                                 i1,i2,sizei,x1,x2,x_frac,lookup1,lookup2)      
+    end if                                   
+  end if
+  
+  nullify(axis1)
+  nullify(axis2)
+                   
+end subroutine InterpExtrapGrad2DUniform
+
+! ************************************************************************** !
+
+subroutine VarUniformXExtrapolate(this,var_iname,i_col,i1_grad,i2_grad,sizei, &
+                                  j1,j1_grad,j2,j2_grad,&
+                                  x1_grad,x2_grad,x_frac_grad,lookup1,lookup2)
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 05/25/18
+  !     
+
+  implicit none
+  
+  class(lookup_table_uniform_type) :: this
+  PetscInt, intent(in) :: var_iname
+  PetscInt, intent(in) :: i_col,i1_grad,i2_grad,sizei
+  PetscInt, intent(in) :: j1,j1_grad,j2,j2_grad
+  PetscReal, intent(in) :: x1_grad,x2_grad,x_frac_grad,lookup1,lookup2
+  
+                           
+  if (this%var_array(var_iname)%ptr%extrapolation_itype == &
+      VAR_EXTRAP_CONST_GRAD ) then
+    ! extrapolate  
+    call VarUniformXInterpolate(this,var_iname,j1,j1_grad,j2,j2_grad, &
+                                i1_grad,i2_grad,sizei,x1_grad,x2_grad, &
+                                x_frac_grad,lookup1,lookup2)
+  else if ( this%var_array(var_iname)%ptr%extrapolation_itype == & 
+            VAR_EXTRAP_CONST_VAL ) then
+    !value and gradient in the edge at x = const
+    call UniformYValAndGrad(this,var_iname,j1,j2,j1_grad,j2_grad,i_col,sizei, &
+                            lookup2,this%var_array(var_iname)%ptr%sample, &              
+                            this%var_array(var_iname)%ptr%sample_grad(2))
+    this%var_array(var_iname)%ptr%sample_grad(1) = 0.0d0        
+    if (this%var_array(var_iname)%ptr%interp_type == &
+                                 VAR_INTERP_X_LINLOG ) then
+      this%var_array(var_iname)%ptr%sample = &
+           dexp(this%var_array(var_iname)%ptr%sample)
+      this%var_array(var_iname)%ptr%sample_grad(2) = &
+            this%var_array(var_iname)%ptr%sample_grad(2) * &
+            this%var_array(var_iname)%ptr%sample
+    end if        
+  end if
+
+end subroutine VarUniformXExtrapolate
+
+! ************************************************************************** !
+
+subroutine VarUniformXInterpolate(this,var_iname,j1,j1_grad,j2,j2_grad, &
+                                 i1,i2,sizei,x1,x2,x_frac,lookup1,lookup2)
+! 
+! Author: Paolo Orsini
+! Date: 05/17/18
+!     
+  use Utility_module, only : Interpolate, GradientLinear
+
+  implicit none
+
+  class(lookup_table_uniform_type) :: this
+  PetscInt, intent(in) :: var_iname
+  PetscInt, intent(in) :: j1,j1_grad
+  PetscInt, intent(in) :: j2,j2_grad
+  PetscInt, intent(in) :: i1,i2,sizei
+  PetscReal, intent(in) :: x1,x2,x_frac,lookup1,lookup2
+
+  PetscReal :: val_i1,grad_i1,val_i2,grad_i2
+
+  !left
+  call UniformYValAndGrad(this,var_iname,j1,j2,j1_grad,j2_grad,i1, &
+                                        sizei,lookup2,val_i1,grad_i1)
+  !right
+  call UniformYValAndGrad(this,var_iname,j1,j2,j1_grad,j2_grad,i2, &
+                                          sizei,lookup2,val_i2,grad_i2)
+  call GradientLinear(x2,x1,val_i2,val_i1, &
+                      this%var_array(var_iname)%ptr%sample_grad(1))
+  call Interpolate(x2,x1,lookup1,val_i2,val_i1, &
+                   this%var_array(var_iname)%ptr%sample)
+  this%var_array(var_iname)%ptr%sample_grad(2) = &
+                       grad_i1 * (1.0 - x_frac) + grad_i2 * x_frac
+  if (this%var_array(var_iname)%ptr%interp_type == &
+                                      VAR_INTERP_X_LINLOG ) then
+    this%var_array(var_iname)%ptr%sample = &
+       dexp(this%var_array(var_iname)%ptr%sample)
+    this%var_array(var_iname)%ptr%sample_grad(1:2) =  &
+       this%var_array(var_iname)%ptr%sample_grad(1:2) * &
+       this%var_array(var_iname)%ptr%sample
+  end if
+
+end subroutine VarUniformXInterpolate
+
+! ************************************************************************** !
+
+subroutine UniformYValAndGrad(this,var_iname,j1,j2,j1_grad,j2_grad,i_col, &
+                              sizei,lookup2,val,grad_val)
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 05/25/18
+  !   
+  ! Given a data set of point in y this routine computes either:
+  ! 1) z and dz_dy
+  !    OR
+  ! 2) ln(z) and d(ln(z))/dy
+  !
+  ! depending on the interpolation method chosen for the variable
+  !
+  use Utility_module, only : Interpolate, GradientLinear
+
+  implicit none
+  
+  class(lookup_table_uniform_type) :: this
+  PetscInt, intent(in) :: var_iname
+  PetscInt, intent(in) :: j1,j2
+  PetscInt, intent(in) :: j1_grad,j2_grad
+  PetscInt, intent(in) :: i_col, sizei
+  PetscReal,intent(in) :: lookup2
+  PetscReal, intent(out) :: val, grad_val
+  
+  PetscReal :: y1, y2, z1, z2
+  PetscReal :: y1_grad, y2_grad
+  
+  
+  if (j2 == j1) then
+    if ( this%var_array(var_iname)%ptr%extrapolation_itype == &
+         VAR_EXTRAP_CONST_GRAD ) then
+      y1_grad = this%axis2%values(j1_grad)
+      y2_grad = this%axis2%values(j2_grad)
+      z1 = this%var_array(var_iname)%ptr%data(i_col+(j1_grad-1)*sizei)
+      z2 = this%var_array(var_iname)%ptr%data(i_col+(j2_grad-1)*sizei)
+      if ( this%var_array(var_iname)%ptr%interp_type == &
+           VAR_INTERP_X_LINLOG ) then
+        z1 = dlog(z1)
+        z2 = dlog(z2)
+      end if     
+      call GradientLinear(y2_grad,y1_grad,z2,z1,grad_val)
+      call Interpolate(y2_grad,y1_grad,lookup2,z2,z1,val)
+    else if ( this%var_array(var_iname)%ptr%extrapolation_itype == &
+              VAR_EXTRAP_CONST_VAL ) then
+      val = this%var_array(var_iname)%ptr%data(i_col+(j1-1)*sizei)
+      if ( this%var_array(var_iname)%ptr%interp_type == &
+           VAR_INTERP_X_LINLOG ) then
+        val = dlog(val)
+      end if              
+      grad_val = 0.0
+    end if  
+  else !away from end points
+    y1 = this%axis2%values(j1)
+    y2 = this%axis2%values(j2)
+    z1 = this%var_array(var_iname)%ptr%data(i_col+(j1-1)*sizei)
+    z1 = this%var_array(var_iname)%ptr%data(i_col+(j2-1)*sizei)
+    if ( this%var_array(var_iname)%ptr%interp_type == &
+         VAR_INTERP_X_LINLOG ) then
+      z1 = dlog(z1)
+      z2 = dlog(z2)
+    end if         
+    call Interpolate(y2,y1,lookup2,z2,z1,val)
+    call GradientLinear(y2,y1,z2,z1,grad_val)          
+  endif
+  
+end subroutine UniformYValAndGrad
 
 ! ************************************************************************** !
 
@@ -661,6 +1593,490 @@ subroutine LookupTableInterpolate2DGeneral(this,lookup1,lookup2,result)
   endif
                    
 end subroutine LookupTableInterpolate2DGeneral
+
+! ************************************************************************** !
+
+subroutine InterpExtrapGradGeneral2D(this,var_iname,lookup1,lookup2)
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 05/17/18
+  ! 
+  use Utility_module, only : Interpolate, GradientLinear
+
+  implicit none
+  
+  class(lookup_table_general_type) :: this
+  PetscInt, intent(in) :: var_iname
+  PetscReal, intent(in) :: lookup1
+  PetscReal, intent(in) :: lookup2
+  
+  PetscInt :: var_idx
+  PetscInt :: ja
+  PetscInt :: i1a, i1b
+  PetscInt :: jb
+  PetscInt :: i2a, i2b
+  PetscReal :: xa, xb
+  PetscInt :: sizei, sizej
+  PetscInt :: ja_grad, jb_grad
+  PetscInt :: i1a_grad, i2a_grad, i1b_grad, i2b_grad
+  PetscReal :: xa_grad, xb_grad, x_frac
+
+  
+  !         x2,y2,z4
+  !           /|
+  !          / |
+  !         /  |
+  !        /   |
+  !       /    |
+  !      /     |
+  !  x1,y2,z3  |
+  !     |      |
+  !     |  x,y |
+  !     |      |
+  !  x1,y1,z1 -x2,y1,z2   
+  !
+  !    ja     jb
+  ! note that j refer to x
+ 
+  ! x used for both i and j to indicate all operations are 1D
+  sizei = this%dims(2)  ! i referes to y 
+  sizej = this%dims(1)  ! j refers to x
+  x_frac = 0.0
+  ! index axes
+  ja = this%axis1%saved_index
+  i1a = this%axis2%saved_index
+  i1b = this%axis2%saved_index2
+  if (ja > 0) then
+    jb = max(min(ja+1,sizej),1)
+  else
+    ja = 1
+    jb = 1
+  endif
+  if (i1a > 0) then
+    i2a = max(min(i1a+1,sizei),1)
+  else
+    i1a = 1
+    i2a = 1
+  endif
+  if (i1b > 0) then
+    i2b = max(min(i1b+1,sizei),1)
+  else
+    i1b = 1
+    i2b = 1
+  endif
+  
+  if ( i1a == i2a ) then
+    if ( i1a == 1 ) then
+      i1a_grad = 1
+      i2a_grad = 2
+    else if (i1a == sizei) then
+      i1a_grad = sizei - 1
+      i2a_grad = sizei
+    end if  
+  end if  
+
+  if ( i1b == i2b ) then
+    if ( i1b == 1 ) then
+      i1b_grad = 1
+      i2b_grad = 2
+    else if (i1b == sizei) then
+      i1b_grad = sizei - 1
+      i2b_grad = sizei
+    end if  
+  end if
+  
+  if (jb == ja) then
+  !xa = this%axis1%values(i1a+(ja-1)*sizei)
+  !left and right table edges (included the corners that are extrapolated)
+    if ( ja == 1 ) then
+      ja_grad = 1
+      jb_grad = 2
+      !i1a_grad = i1a
+      !i2a_grad = i2a
+      !new look up to find i1b_grad, i2b_grad 
+      call GeneralFindIndicesAxis2(this,jb_grad,lookup2,i1b,i2b, &
+                                   i1b_grad,i2b_grad)
+    else if ( ja == sizej ) then
+      ja_grad = sizej - 1
+      jb_grad = sizej
+      !i1b_grad = i1b
+      !i2b_grad = i2b
+      !new look up to find i1a_grad, i2a_grad 
+      call GeneralFindIndicesAxis2(this,ja_grad,lookup2,i1b,i2b, &
+                                   i1a_grad,i2a_grad)
+    end if
+    xa_grad = this%axis1%values(ja_grad)
+    xb_grad = this%axis1%values(jb_grad)
+    x_frac = (lookup1 - xa_grad) / (xb_grad - xa_grad)
+    !interpolation/extrapolation left and right columns             
+    if (var_iname == -1 ) then
+      do var_idx = 1,size(this%var_array(:))
+        if ( associated(this%var_array(var_idx)%ptr) ) then
+          call VarGeneralXExtrapolate(this,var_idx,ja,i1a,i2a,sizei, &
+                                      ja_grad,i1a_grad,i2a_grad, &
+                                      jb_grad,i1b_grad,i2b_grad, &
+                                      xa_grad,xb_grad,x_frac,lookup1,lookup2)
+          ! call GeneralYValAndGrad(this,var_idx,ja,i1a,i2a,sizei,lookup2, &
+          !                          this%var_array(var_idx)%ptr%sample, &
+          !                          this%var_array(var_idx)%ptr%sample_grad(2))
+          ! if (this%var_array(var_idx)%ptr%interp_type == &
+          !                              VAR_INTERP_X_LINLOG ) then
+          !   this%var_array(var_idx)%ptr%sample = &
+          !        dexp(this%var_array(var_idx)%ptr%sample)
+          !   this%var_array(var_idx)%ptr%sample_grad(2) = &
+          !         this%var_array(var_idx)%ptr%sample_grad(2) * &
+          !         this%var_array(var_idx)%ptr%sample
+          ! end if                             
+          ! if (this%var_array(var_idx)%ptr%extrapolation_itype == &
+          !     VAR_EXTRAP_CONST_GRAD ) then              
+          !   call GeneralYValAndGrad(this,var_idx,ja_grad,i1a_grad, &
+          !                         i2a_grad,sizei,lookup2,val_a,grad_a)
+          !   call GeneralYValAndGrad(this,var_idx,jb_grad,i1b_grad, & 
+          !                         i2b_grad,sizei,lookup2,val_b,grad_b)
+          !   call GradientLinear(xb_grad,xa_grad,val_b,val_a, &
+          !                   this%var_array(var_idx)%ptr%sample_grad(1))
+          !   call Interpolate(xb_grad,xa_grad,lookup1,val_b,val_a, &
+          !                    this%var_array(var_idx)%ptr%sample)
+          !   this%var_array(var_idx)%ptr%sample_grad(2) = &
+          !                        val_a * (1.0 - x_frac) + val_b * x_frac
+          !   !call ExtrapolateLinear(this%var_array(var_idx)%ptr%sample,xa, &
+          !   !                lookup1,this%var_array(var_idx)%ptr%sample_grad(1))
+          !   if (this%var_array(var_idx)%ptr%interp_type == &
+          !                                       VAR_INTERP_X_LINLOG ) then
+          !     this%var_array(var_idx)%ptr%sample = &
+          !        dexp(this%var_array(var_idx)%ptr%sample)
+          !     this%var_array(var_idx)%ptr%sample_grad(1:2) =  &
+          !        this%var_array(var_idx)%ptr%sample_grad(1:2) * &
+          !        this%var_array(var_idx)%ptr%sample  
+          !   end if                                    
+          ! else if ( this%var_array(var_idx)%ptr%extrapolation_itype == & 
+          !           VAR_EXTRAP_CONST_VAL ) then
+          !   this%var_array(var_idx)%ptr%sample_grad(1) = 0.0d0
+          ! end if          
+        end if
+      end do                             
+    else
+      ! to call function var_extrapolate function
+      call VarGeneralXExtrapolate(this,var_iname,ja,i1a,i2a,sizei, &
+                                        ja_grad,i1a_grad,i2a_grad, &
+                                        jb_grad,i1b_grad,i2b_grad, &
+                                        xa_grad,xb_grad,x_frac,lookup1,lookup2) 
+      !x_frac = 
+      !call GeneralColumnValAndGrad(this,var_iname,ja,i1a,i2a,sizei,lookup2,&
+      !                         this%var_array(var_iname)%ptr%sample, &
+      !                         this%var_array(var_iname)%ptr%sample_grad(2))
+      !if (this%var_array(var_iname)%ptr%extrapolation_itype == &
+      !    VAR_EXTRAP_CONST_GRAD ) then
+      !    call GeneralColumnValAndGrad(this,var_iname,ja_grad,i1a_grad, &
+      !                                i2a_grad,sizei,lookup2,interp_a,grad_a)
+      !    call GeneralColumnValAndGrad(this,var_iname,jb_grad,i1b_grad, &
+      !                                i2b_grad,sizei,lookup2,interp_b,grad_b)     
+      !    call GradientLinear(xb_grad,xa_grad,interp_b,interp_a, &
+      !                        this%var_array(var_iname)%ptr%sample_grad(1))
+      !    call ExtrapolateLinear(this%var_array(var_iname)%ptr%sample,xa, &
+      !                lookup1,this%var_array(var_iname)%ptr%sample_grad(1))
+      !else if ( this%var_array(var_idx)%ptr%extrapolation_itype == & 
+      !          VAR_EXTRAP_CONST_VAL ) then
+      !  this%var_array(var_iname)%ptr%sample_grad(1) = 0.0d0        
+      !end if
+    end if
+  else !away from left/right table edges - no extrapolation in x directions
+    xa = this%axis1%values(ja)
+    xb = this%axis1%values(jb)
+    x_frac = ( lookup1 - xa ) / ( xb - xa )
+    if (var_iname == -1 ) then
+      do var_idx = 1,size(this%var_array(:))
+        if ( associated(this%var_array(var_idx)%ptr) ) then
+          call VarGeneralXInterpolate(this,var_idx,ja,i1a,i2a, &
+                     i1a_grad,i2a_grad,sizei,jb,i1b,i2b,i1b_grad,i2b_grad, &
+                     xa,xb,x_frac,lookup1,lookup2) 
+          ! !left
+          ! call GeneralYValAndGrad(this,var_idx,ja,i1a, &
+          !                       i2a,sizei,lookup2,val_a,grad_a)
+          ! !right                      
+          ! call GeneralYValAndGrad(this,var_idx,jb,i1b, & 
+          !                       i2b,sizei,lookup2,val_b,grad_b)
+          ! call GradientLinear(xb,xa,val_b,val_a, &
+          !                     this%var_array(var_idx)%ptr%sample_grad(1))
+          ! call Interpolate(xb,xa,lookup1,val_b,val_a, &
+          !                  this%var_array(var_idx)%ptr%sample)
+          ! this%var_array(var_idx)%ptr%sample_grad(2) = &
+          !                      val_a * (1.0 - x_frac) + val_b * x_frac
+          ! if (this%var_array(var_idx)%ptr%interp_type == &
+          !                                     VAR_INTERP_X_LINLOG ) then
+          !   this%var_array(var_idx)%ptr%sample = &
+          !      dexp(this%var_array(var_idx)%ptr%sample)
+          !   this%var_array(var_idx)%ptr%sample_grad(1:2) =  &
+          !      this%var_array(var_idx)%ptr%sample_grad(1:2) * &
+          !      this%var_array(var_idx)%ptr%sample
+          ! end if          
+        end if
+      end do          
+    else
+      call VarGeneralXInterpolate(this,var_iname,ja,i1a,i2a, &
+                 i1a_grad,i2a_grad,sizei,jb,i1b,i2b,i1b_grad,i2b_grad, &
+                 xa,xb,x_frac,lookup1,lookup2)
+      !replace with var_interpolation
+      !left column
+      !call GeneralColumnValAndGrad(this,var_iname,ja,i1a,i2a,sizei,lookup2, &
+      !                             interp_a,grad_a)
+      !right column
+      !call GeneralColumnValAndGrad(this,var_iname,jb,i1b,i2b,sizei,lookup2, &
+      !                             interp_b,grad_b)
+      !interpolate left and right                             
+      !call Interpolate(xb,xa,lookup1,interp_b,interp_a, &
+      !                 this%var_array(var_iname)%ptr%sample)
+      !call Interpolate(xb,xa,lookup1,grad_b,grad_a, &
+      !                 this%var_array(var_iname)%ptr%sample_grad(2))
+      !call GradientLinear(xb,xa,interp_b,interp_a, &
+      !                    this%var_array(var_iname)%ptr%sample_grad(1))
+    end if
+  end if        
+                   
+end subroutine InterpExtrapGradGeneral2D
+
+! ************************************************************************** !
+
+subroutine VarGeneralXExtrapolate(this,var_iname,ja,i1a,i2a,sizei, &
+                                  ja_grad,i1a_grad,i2a_grad, &
+                                  jb_grad,i1b_grad,i2b_grad, &
+                                  xa_grad,xb_grad,x_frac,lookup1,lookup2)
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 05/17/18
+  !     
+  use Utility_module, only : Interpolate, GradientLinear
+
+  implicit none
+  
+  class(lookup_table_general_type) :: this
+  PetscInt, intent(in) :: var_iname
+  PetscInt, intent(in) :: ja,i1a,i2a,sizei
+  PetscInt, intent(in) :: ja_grad,i1a_grad,i2a_grad
+  PetscInt, intent(in) :: jb_grad,i1b_grad,i2b_grad
+  PetscReal, intent(in) :: xa_grad,xb_grad,x_frac,lookup1,lookup2
+  
+  !PetsReal :: val_a,val_b,grad_a,grad_b
+                           
+  if (this%var_array(var_iname)%ptr%extrapolation_itype == &
+      VAR_EXTRAP_CONST_GRAD ) then
+
+    call VarGeneralXInterpolate(this,var_iname,ja_grad,i1a,i2a,&
+                  i1a_grad,i2a_grad,sizei,jb_grad,i1a,i2a,i1b_grad,i2b_grad, &
+                              xa_grad,xb_grad,x_frac,lookup1,lookup2)
+    ! !value and gradient for x = x1 (right) selected for grad computation
+    ! call GeneralYValAndGrad(this,var_iname,ja_grad,i1a_grad, &
+    !                       i2a_grad,sizei,lookup2,val_a,grad_a)
+    ! !value and gradient for x = x2 (right) selected for grad computation
+    ! call GeneralYValAndGrad(this,var_iname,jb_grad,i1b_grad, &
+    !                       i2b_grad,sizei,lookup2,val_b,grad_b)
+    ! call GradientLinear(xb_grad,xa_grad,val_b,val_a, &
+    !                 this%var_array(var_iname)%ptr%sample_grad(1))
+    ! !extrapolation
+    ! call Interpolate(xb_grad,xa_grad,lookup1,val_b,val_a, &
+    !                  this%var_array(var_iname)%ptr%sample)
+    ! this%var_array(var_iname)%ptr%sample_grad(2) = &
+    !                      val_a * (1.0 - x_frac) + val_b * x_frac
+    ! if (this%var_array(var_iname)%ptr%interp_type == &
+    !                                     VAR_INTERP_X_LINLOG ) then
+    !   this%var_array(var_iname)%ptr%sample = &
+    !      dexp(this%var_array(var_iname)%ptr%sample)
+    !   this%var_array(var_iname)%ptr%sample_grad(1:2) =  &
+    !      this%var_array(var_iname)%ptr%sample_grad(1:2) * &
+    !      this%var_array(var_iname)%ptr%sample  
+    ! end if
+  else if ( this%var_array(var_iname)%ptr%extrapolation_itype == & 
+            VAR_EXTRAP_CONST_VAL ) then
+    !value and gradient in the edge at x = const
+    call GeneralYValAndGrad(this,var_iname,ja,i1a,i2a,i1a_grad,i2a_grad, &
+                             sizei,lookup2, &
+                             this%var_array(var_iname)%ptr%sample, &
+                             this%var_array(var_iname)%ptr%sample_grad(2))
+    this%var_array(var_iname)%ptr%sample_grad(1) = 0.0d0                         
+    if (this%var_array(var_iname)%ptr%interp_type == &
+                                 VAR_INTERP_X_LINLOG ) then
+      this%var_array(var_iname)%ptr%sample = &
+           dexp(this%var_array(var_iname)%ptr%sample)
+      this%var_array(var_iname)%ptr%sample_grad(2) = &
+            this%var_array(var_iname)%ptr%sample_grad(2) * &
+            this%var_array(var_iname)%ptr%sample
+    end if        
+  end if
+
+end subroutine VarGeneralXExtrapolate
+
+! ************************************************************************** !
+
+subroutine VarGeneralXInterpolate(this,var_iname,ja,i1a,i2a,i1a_grad,i2a_grad, &
+                                 sizei,jb,i1b,i2b,i1b_grad,i2b_grad,&
+                                 xa,xb,x_frac,lookup1,lookup2)
+! 
+! Author: Paolo Orsini
+! Date: 05/17/18
+!     
+  use Utility_module, only : Interpolate, GradientLinear
+
+  implicit none
+
+  class(lookup_table_general_type) :: this
+  PetscInt, intent(in) :: var_iname
+  PetscInt, intent(in) :: ja,i1a,i2a,i1a_grad,i2a_grad,sizei
+  PetscInt, intent(in) :: jb,i1b,i2b,i1b_grad,i2b_grad
+  PetscReal, intent(in) :: xa,xb,x_frac,lookup1,lookup2
+
+  PetscReal :: val_a,grad_a,val_b,grad_b
+
+  !left
+  call GeneralYValAndGrad(this,var_iname,ja,i1a,i1a_grad,i2a_grad, &
+                          i2a,sizei,lookup2,val_a,grad_a)
+  !right                      
+  call GeneralYValAndGrad(this,var_iname,jb,i1b,i1b_grad,i2b_grad, & 
+                          i2b,sizei,lookup2,val_b,grad_b)
+  call GradientLinear(xb,xa,val_b,val_a, &
+                      this%var_array(var_iname)%ptr%sample_grad(1))
+  call Interpolate(xb,xa,lookup1,val_b,val_a, &
+                   this%var_array(var_iname)%ptr%sample)
+  this%var_array(var_iname)%ptr%sample_grad(2) = &
+                       grad_a * (1.0 - x_frac) + grad_b * x_frac
+  if (this%var_array(var_iname)%ptr%interp_type == &
+                                      VAR_INTERP_X_LINLOG ) then
+    this%var_array(var_iname)%ptr%sample = &
+       dexp(this%var_array(var_iname)%ptr%sample)
+    this%var_array(var_iname)%ptr%sample_grad(1:2) =  &
+       this%var_array(var_iname)%ptr%sample_grad(1:2) * &
+       this%var_array(var_iname)%ptr%sample
+  end if
+
+end subroutine VarGeneralXInterpolate
+
+! ************************************************************************** !
+
+subroutine GeneralYValAndGrad(this,var_iname,j_col,i1,i2,i1_grad,i2_grad, &
+                              sizei,lookup,val,grad_val)
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 05/17/18
+  !   
+  ! Given a data set of point in y this routine computes either:
+  ! 1) z and dz_dy
+  !    OR
+  ! 2) ln(z) and d(ln(z))/dy
+  !
+  ! depending on the interpolation method chosen for the variable
+  !
+  use Utility_module, only : Interpolate, GradientLinear
+
+  implicit none
+  
+  class(lookup_table_general_type) :: this
+  PetscInt, intent(in) :: var_iname
+  PetscInt, intent(in) :: j_col
+  PetscInt, intent(in) :: i1,i2
+  PetscInt, intent(in) :: i1_grad, i2_grad
+  PetscInt, intent(in) :: sizei
+  PetscReal,intent(in) :: lookup
+  PetscReal, intent(out) :: val, grad_val
+  
+  !PetscInt :: i1_grad, i2_grad
+  PetscInt :: iia, iib
+  PetscReal :: x1, x2, z1, z2
+  PetscReal :: x1_grad, x2_grad
+
+  
+  if (i2 == i1) then
+    if ( this%var_array(var_iname)%ptr%extrapolation_itype == &
+         VAR_EXTRAP_CONST_GRAD ) then
+      iia = i1+(j_col-1)*sizei
+      x1 = this%axis2%values(iia)
+      ! if ( i1 == 1 ) then 
+      !   i1_grad = 1
+      !   i2_grad = 2
+      ! else if ( i1 == sizei ) then
+      !   i1_grad = sizei - 1
+      !   i2_grad = sizei
+      ! end if         
+      iia = i1_grad+(j_col-1)*sizei
+      iib = i2_grad+(j_col-1)*sizei
+      x1_grad = this%axis2%values(iia)
+      x2_grad = this%axis2%values(iib)
+      z1 = this%var_array(var_iname)%ptr%data(iia)
+      z2 = this%var_array(var_iname)%ptr%data(iib)
+      if ( this%var_array(var_iname)%ptr%interp_type == &
+           VAR_INTERP_X_LINLOG ) then
+        z1 = dlog(z1)
+        z2 = dlog(z2)
+      end if     
+      call GradientLinear(x2_grad,x1_grad,z2,z1,grad_val)
+      call Interpolate(x2_grad,x1_grad,lookup,z2,z1,val)
+      !call ExtrapolateLinear(val,x1,lookup,grad_val)
+    else if ( this%var_array(var_iname)%ptr%extrapolation_itype == &
+              VAR_EXTRAP_CONST_VAL ) then
+      val = this%var_array(var_iname)%ptr%data(i1+(j_col-1)*sizei)
+      if ( this%var_array(var_iname)%ptr%interp_type == &
+           VAR_INTERP_X_LINLOG ) then
+        val = dlog(val)   
+      end if           
+      grad_val = 0.0
+    end if  
+  else !away from end points
+    iia = i1+(j_col-1)*sizei
+    iib = i2+(j_col-1)*sizei
+    x1 = this%axis2%values(iia)
+    x2 = this%axis2%values(iib)
+    z1 = this%var_array(var_iname)%ptr%data(iia)
+    z1 = this%var_array(var_iname)%ptr%data(iib)
+    if ( this%var_array(var_iname)%ptr%interp_type == &
+         VAR_INTERP_X_LINLOG ) then
+      z1 = dlog(z1)
+      z2 = dlog(z2)
+    end if         
+    call Interpolate(x2,x1,lookup,z2,z1,val)
+    call GradientLinear(x2,x1,z2,z1,grad_val)          
+  endif
+  
+end subroutine GeneralYValAndGrad
+
+! ************************************************************************** !
+
+subroutine GeneralFindIndicesAxis2(this,j_col,lookup,i1,i2,i1_grad,i2_grad)
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 05/21/18
+  !   
+  implicit none  
+  
+  class(lookup_table_general_type) :: this
+  PetscInt, intent(in)  :: j_col
+  PetscReal, intent(in)  :: lookup
+  PetscInt, intent(out) :: i1
+  PetscInt, intent(out) :: i2
+  PetscInt, intent(out) :: i1_grad
+  PetscInt, intent(out) :: i2_grad
+
+  PetscInt :: iend, istart, sizei
+  
+  sizei = this%dims(2)
+  iend = j_col*this%dims(2)
+  istart = iend - this%dims(2) + 1
+  call LookupTableAxisIndexGeneral(lookup,this%axis2%values(istart:iend),i1)
+  if (i1 > 0) then
+    i2 = max(min(i1+1,sizei),1)
+  else
+    i1 = 1
+    i2 = 1
+  end if
+  
+  if ( i1 == i2 ) then
+    if ( i1 == 1 ) then
+      i1_grad = 1
+      i2_grad = 2
+    else if ( i1 == sizei) then
+      i1_grad = sizei - 1
+      i2_grad = sizei
+    end if    
+  end if  
+  
+end subroutine GeneralFindIndicesAxis2
 
 ! ************************************************************************** !
 
@@ -796,6 +2212,29 @@ subroutine LookupTableUniformDestroy(lookup_table)
 end subroutine LookupTableUniformDestroy
 
 ! ************************************************************************** !
+! 
+! subroutine LookupTableNonUniDestroy(lookup_table)
+!   ! 
+!   ! Deallocates any allocated pointers in non uniform lookup table
+!   ! 
+!   ! Author:  Paolo Orsini
+!   ! Date: 05/11/2018
+!   ! 
+!   use Utility_module
+! 
+!   implicit none
+! 
+!   class(lookup_table_non_uni_type), pointer :: lookup_table
+! 
+!   call LookupTableBaseDestroy(lookup_table)
+!   call LookupTableAxisDestroy(lookup_table%axis2)
+!   call LookupTableAxisDestroy(lookup_table%axis3)
+!   deallocate(lookup_table)
+!   nullify(lookup_table)
+! 
+! end subroutine LookupTableNonUniDestroy
+!
+! ************************************************************************** !
 
 subroutine LookupTableGeneralDestroy(lookup_table)
   ! 
@@ -897,7 +2336,8 @@ end subroutine LookupTableVarAddToList
 
 ! ************************************************************************** !
 
-function CreateLookupTableVar(internal_units,user_units,data_idx)
+function CreateLookupTableVar(var_iname,internal_units,user_units,data_idx, &
+                              extrapolation_itype)
   !
   ! Creates a new lookup table var
   !
@@ -908,21 +2348,25 @@ function CreateLookupTableVar(internal_units,user_units,data_idx)
   implicit none
 
   type(lookup_table_var_type), pointer :: CreateLookupTableVar
+  PetscInt, intent(in) :: var_iname
   character(len=MAXWORDLENGTH), intent(in) :: internal_units
   character(len=MAXWORDLENGTH), intent(in) :: user_units
   PetscInt, intent(in) :: data_idx
+  PetscInt, intent(in) :: extrapolation_itype
 
   allocate(CreateLookupTableVar)
 
   CreateLookupTableVar%id = UNINITIALIZED_INTEGER
-  CreateLookupTableVar%iname = UNINITIALIZED_INTEGER
+  CreateLookupTableVar%iname = var_iname
   CreateLookupTableVar%data_idx = data_idx
+  CreateLookupTableVar%extrapolation_itype = extrapolation_itype
+  CreateLookupTableVar%interp_type = VAR_INTERP_LINEAR
   CreateLookupTableVar%internal_units = trim(internal_units)
   CreateLookupTableVar%user_units = trim(user_units)
   CreateLookupTableVar%conversion_factor = UNINITIALIZED_DOUBLE
   nullify(CreateLookupTableVar%data)
   CreateLookupTableVar%sample = UNINITIALIZED_DOUBLE
-  nullify(CreateLookupTableVar%sample_deriv)
+  nullify(CreateLookupTableVar%sample_grad)
   nullify(CreateLookupTableVar%next)
 
 end function CreateLookupTableVar
@@ -1045,7 +2489,7 @@ subroutine LookupTableVarDestroy(lookup_table_var)
     !data is only a pointer to a slice of var_data
     nullify(lookup_table_var%data)
   end if
-  call DeallocateArray(lookup_table_var%sample_deriv)
+  call DeallocateArray(lookup_table_var%sample_grad)
   nullify(lookup_table_var%next)
 
 end subroutine LookupTableVarDestroy

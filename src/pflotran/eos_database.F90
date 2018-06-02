@@ -445,9 +445,12 @@ subroutine AddEOSProp(this,new_var,option)
       !endif
   end select
 
-  call LookupTableVarAddToList(new_var,vars)
-
   string = 'Adding Property to eos database or table'
+
+  if( Uninitialized(new_var%extrapolation_itype) ) then
+    option%io_buffer = UninitializedMessage('Extrapolation type',string)
+    call printErrMsg(option)
+  end if
 
   if( Uninitialized(new_var%iname) ) then
     option%io_buffer = UninitializedMessage('EOS property iname',string)
@@ -459,6 +462,8 @@ subroutine AddEOSProp(this,new_var,option)
     option%io_buffer = 'EOS property with iname = ' // word_error
     call printErrMsg(option)
   end if
+
+  call LookupTableVarAddToList(new_var,vars)
     
   var_array(new_var%iname)%ptr => new_var
   
@@ -728,28 +733,24 @@ subroutine EOSDatabaseRead(this,option)
               prop_count = prop_count + 1
               internal_units = 'kg/m^3'
               user_units = 'kg/m^3'
-              db_var => CreateLookupTableVar(internal_units,user_units, &
-                                                             prop_count)
-              db_var%iname = EOS_DENSITY
+              db_var => CreateLookupTableVar(EOS_DENSITY,internal_units, &
+                                  user_units,prop_count,VAR_EXTRAP_CONST_GRAD)
               call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
               this%lookup_table_uni%var_array(EOS_DENSITY)%ptr => db_var              
             case('ENTHALPY')
               prop_count = prop_count + 1
               internal_units = 'J/kg'
               user_units = 'J/kg'
-              db_var => CreateLookupTableVar(internal_units,user_units, &
-                                                              prop_count)
-              db_var%data_idx = prop_count
-              db_var%iname = EOS_ENTHALPY
+              db_var => CreateLookupTableVar(EOS_ENTHALPY,internal_units, &
+                                  user_units,prop_count,VAR_EXTRAP_CONST_GRAD)
               call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
               this%lookup_table_uni%var_array(EOS_ENTHALPY)%ptr => db_var
             case('INTERNAL_ENERGY')
               prop_count = prop_count + 1
               internal_units = 'J/kg'
               user_units = 'J/kg'
-              db_var => CreateLookupTableVar(internal_units,user_units, &
-                                                               prop_count)
-              db_var%iname = EOS_INTERNAL_ENERGY
+              db_var => CreateLookupTableVar(EOS_INTERNAL_ENERGY, & 
+                  internal_units,user_units,prop_count,VAR_EXTRAP_CONST_GRAD)
               call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
               this%lookup_table_uni%var_array(EOS_INTERNAL_ENERGY)%ptr => &
                                                                    db_var
@@ -757,9 +758,8 @@ subroutine EOSDatabaseRead(this,option)
               prop_count = prop_count + 1
               internal_units = 'Pa-s'
               user_units = 'Pa-s'
-              db_var => CreateLookupTableVar(internal_units,user_units, &
-                                                               prop_count)
-              db_var%iname = EOS_VISCOSITY
+              db_var => CreateLookupTableVar(EOS_VISCOSITY,internal_units, &
+                              user_units,prop_count,VAR_EXTRAP_CONST_GRAD)
               call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
               this%lookup_table_uni%var_array(EOS_VISCOSITY)%ptr => db_var
             case default

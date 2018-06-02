@@ -1776,17 +1776,15 @@ subroutine EOSOilSetPVDO(input,option)
   
   !adding FVF 
   data_idx = 1 !position of FVF in the table (after pressure)
-  db_var => CreateLookupTableVar(internal_units,user_units, &
-                                                 data_idx)
-  db_var%iname = EOS_FVF
+  db_var => CreateLookupTableVar(EOS_FVF,internal_units,user_units, &
+                                 data_idx,VAR_EXTRAP_CONST_GRAD)
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 
   !adding VISCOSITY 
   data_idx = 2 !position of FVF in the table (after pressure)
-  db_var => CreateLookupTableVar(internal_units,user_units, &
-                                                 data_idx)
-  db_var%iname = EOS_VISCOSITY
+  db_var => CreateLookupTableVar(EOS_VISCOSITY,internal_units,user_units, &
+                                 data_idx,VAR_EXTRAP_CONST_GRAD)
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 
@@ -1837,41 +1835,36 @@ subroutine EOSOilSetPVCO(input,option)
   
   !adding RS 
   data_idx = 1 !position in the table after pressure
-  db_var => CreateLookupTableVar(internal_units,user_units, &
-                                                 data_idx)
-  db_var%iname = EOS_RS
+  db_var => CreateLookupTableVar(EOS_RS,internal_units,user_units, &
+                                 data_idx,VAR_EXTRAP_CONST_GRAD)
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 
   !adding FVF
   data_idx = 2 !position in the table after pressure
-  db_var => CreateLookupTableVar(internal_units,user_units, &
-                                                 data_idx)
-  db_var%iname = EOS_FVF
+  db_var => CreateLookupTableVar(EOS_FVF,internal_units,user_units, &
+                                 data_idx,VAR_EXTRAP_CONST_GRAD)
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 
   !adding VISCOSITY
   data_idx = 3 !position in the table after pressure
-  db_var => CreateLookupTableVar(internal_units,user_units, &
-                                                 data_idx)
-  db_var%iname = EOS_VISCOSITY
+  db_var => CreateLookupTableVar(EOS_VISCOSITY,internal_units,user_units, &
+                                 data_idx,VAR_EXTRAP_CONST_GRAD)
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 
   !adding COMPRESSIBILITY
   data_idx = 4 !position in the table after pressure
-  db_var => CreateLookupTableVar(internal_units,user_units, &
-                                                 data_idx)
-  db_var%iname = EOS_COMPRESSIBILITY
+  db_var => CreateLookupTableVar(EOS_COMPRESSIBILITY,internal_units,user_units, &
+                                 data_idx,VAR_EXTRAP_CONST_GRAD)
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 
   !adding VISCOSIBILITY
   data_idx = 5 !position in the table after pressure
-  db_var => CreateLookupTableVar(internal_units,user_units, &
-                                                 data_idx)
-  db_var%iname = EOS_VISCOSIBILITY
+  db_var => CreateLookupTableVar(EOS_VISCOSIBILITY,internal_units,user_units, &
+                                 data_idx,VAR_EXTRAP_CONST_GRAD)
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 

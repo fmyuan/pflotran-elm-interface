@@ -63,6 +63,7 @@ module Utility_module
             DeallocateArray, &
             InterfaceApprox, &
             Interpolate, &
+            GradientLinear, &
             InterpolateBilinear, &
             SearchOrderedArray, &
             ludcmp, &
@@ -712,6 +713,152 @@ end subroutine Interpolate
 
 ! ************************************************************************** !
 
+subroutine GradientLinear(x_high,x_low,y_high,y_low,dy_dx)
+  ! 
+  ! Computes linear gradient given two reference values
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 05/12/18
+  ! 
+
+  implicit none
+
+  PetscReal, intent(in) :: x_high, x_low
+  PetscReal, intent(in) :: y_high, y_low
+  PetscReal, intent(out) :: dy_dx
+  
+  PetscReal :: x_diff
+  
+  x_diff = x_high-x_low
+  if (dabs(x_diff) < 1.d-10) then
+    dy_dx = 0.0
+  else
+    dy_dx = (y_high - y_low) / x_diff
+  endif
+
+end subroutine GradientLinear
+
+! ************************************************************************** !
+! 
+! subroutine ExtrapolateLinear(func_val,x_bound,x,df_dx)
+!   ! 
+!   ! Extrapolates linearly using a given gradient 
+!   ! func_val input is assumed to have the value of the function from 
+!   ! which the extrapolation takes place
+!   ! 
+!   ! Author: Paolo Orsini
+!   ! Date: 05/21/18
+!   ! 
+! 
+!   implicit none
+! 
+!   PetscReal, intent(inout) :: func_val
+!   PetscReal, intent(in) :: x_bound
+!   PetscReal, intent(in) :: x
+!   PetscReal, intent(in) :: df_dx
+! 
+!   PetscReal :: x_diff
+! 
+!   x_diff = x - x_bound
+! 
+!   func_val = func_val + df_dx * x_diff
+! 
+! end subroutine ExtrapolateLinear
+! 
+! ************************************************************************** !
+! 
+! subroutine InterpolateLinLog(x_high,x_low,x,y_high,y_low,y)
+!   ! 
+!   ! Interpolates values between two reference values
+!   ! assuming log behavior between the twu reference values
+!   ! 
+!   ! Author: Paolo Orsini
+!   ! Date: 05/22/18
+!   ! 
+! 
+!   implicit none
+! 
+!   PetscReal :: x_high, x_low, x
+!   PetscReal :: y_high, y_low, y
+! 
+!   PetscReal :: log_y
+!   PetscReal :: x_diff
+! 
+!   x_diff = x_high-x_low
+!   if (dabs(x_diff) < 1.d-10) then
+!     y = y_low
+!   else
+!     call Interpolate(x_high,x_low,x,dlog10(y_high),dlog10(y_low),log_y)
+!     y = 10.0 ** log_y
+!   endif
+! 
+! end subroutine InterpolateLinLog
+
+! ! ************************************************************************** !
+! 
+! subroutine GradientLinLog(x_high,x_low,y_high,y_low,y,dlogy_dx,dy_dx)
+!   ! 
+!   ! Computes linear gradient given two reference values and the value 
+!   ! of the function for the x where the gradient is required
+!   ! 
+!   ! Author: Paolo Orsini
+!   ! Date: 05/22/18
+!   ! 
+! 
+!   implicit none
+! 
+!   PetscReal, intent(in)  :: x_high, x_low
+!   PetscReal, intent(in)  :: y_high, y_low
+!   PetscReal, intent(in)  :: y
+!   PetscReal, intent(out) :: dlogy_dx
+!   PetscReal, intent(out) :: dy_dx
+! 
+!   PetscReal :: x_diff
+! 
+!   x_diff = x_high-x_low
+!   if (dabs(x_diff) < 1.d-10) then
+!     dy_dx = 0.0
+!   else
+!     call GradientLinear(x_high,x_low,dlog10(y_high),dlog10(y_low),dlogy_dx)
+!     dy_dx = 10.0**y * dlog(10) * dlogy_dx
+!   endif
+! 
+! end subroutine GradientLinLog
+! 
+! ! ************************************************************************** !
+! 
+! subroutine ExtrapolateLinLog(func_val,x_bound,x,dlogf_dx)
+!   ! 
+!   ! Extrapolates assuming log behaviour given:
+!   ! - base value of the function to extrapolate from
+!   ! - x_bound, value of x for which the base value is provided
+!   ! - dlogf_dx gradient at x = x_bound
+!   ! - the x value for which the extrapolation is required
+!   ! 
+!   ! Author: Paolo Orsini
+!   ! Date: 05/22/18
+!   ! 
+! 
+!   implicit none
+! 
+!   PetscReal, intent(inout) :: func_val
+!   PetscReal, intent(in) :: x_bound
+!   PetscReal, intent(in) :: x
+!   PetscReal, intent(in) :: dlogf_dx
+! 
+!   PetscReal :: x_diff, logf
+! 
+!   x_diff = x - x_bound
+! 
+!   logf = dlog10(func_val)
+!   call ExtrapolateLinear(logf,x_bound,x,dlogf_dx)
+! 
+!   func_val = 10.0**logf
+! 
+! end subroutine ExtrapolateLinLog
+! 
+! ************************************************************************** !
+
 function InterpolateBilinear(x,y,x1,x2,y1,y2,z1,z2,z3,z4)
   ! 
   ! Interpolates values between four reference values in 2D
@@ -740,6 +887,69 @@ function InterpolateBilinear(x,y,x1,x2,y1,y2,z1,z2,z3,z4)
 
 end function InterpolateBilinear
 
+! ************************************************************************** !
+! 
+! subroutine GradientBilinear(x,y,x1,x2,y1,y2,z1,z2,z3,z4,dz_dx,dz_dy)
+!   ! 
+!   ! Comnputes gradient given four reference values in a regular 2D grid block
+!   ! 
+!   ! Author: Paolo Orsini
+!   ! Date: 05/12/18
+!   ! 
+! 
+!   implicit none
+! 
+!   PetscReal, intent(in) :: x,y,x1,x2,y1,y2,z1,z2,z3,z4
+!   PetscReal, intent(out) :: dz_dx,dz_dy
+! 
+! 
+!   !  x1,y2,z3 ------ x2,y2,z4
+!   !     |               |
+!   !     |               |
+!   !     |   x,y         |
+!   !     |               |
+!   !  x1,y1,z1 ------ x2,y1,z2
+! 
+! 
+!   dz_dx = ( z1*(y-y2)  + z2*(y2-y) + z3*(y1-y) + z4*(y-y1) ) / &
+!           ((x2-x1)*(y2-y1))
+! 
+!   dz_dy = ( z1*(x-x2)  + z2*(x1-x) + z3*(x2-x) + z4*(x-x1) ) / &
+!           ((x2-x1)*(y2-y1))              
+! 
+! end subroutine GradientBilinear
+! 
+! ! ************************************************************************** !
+! 
+! subroutine ExtrapolateBiLinear(func_val,x_bound,y_bound,x,y,df_dx,df_dy)
+!   ! 
+!   ! Extrapolates with a bilinear formula using a given gradient.
+!   ! Func_val input is assumed to have the value of the function from 
+!   ! which the extrapolation takes place
+!   ! 
+!   ! Author: Paolo Orsini
+!   ! Date: 05/21/18
+!   ! 
+! 
+!   implicit none
+! 
+!   PetscReal, intent(inout) :: func_val
+!   PetscReal, intent(in) :: x_bound
+!   PetscReal, intent(in) :: y_bound
+!   PetscReal, intent(in) :: x
+!   PetscReal, intent(in) :: y
+!   PetscReal, intent(in) :: df_dx
+!   PetscReal, intent(in) :: df_dy
+! 
+!   PetscReal :: x_diff, y_diff
+! 
+!   x_diff = x - x_bound
+!   y_diff = y - y_bound
+! 
+!   func_val = func_val + df_dx * x_diff + df_dy * y_diff
+! 
+! end subroutine ExtrapolateBiLinear
+! 
 ! ************************************************************************** !
 
 function DotProduct1(v1,v2)
