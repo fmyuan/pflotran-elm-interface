@@ -875,7 +875,8 @@ subroutine EOSDatabaseRead(this,option)
   call this%lookup_table_uni%VarPointAndUnitConv(option)
   !setup constant gradient extrapolation
   call this%EOSSetConstGradExtrap(option)
-
+  !allocate lookup var gradients 
+  call this%lookup_table_uni%LookupTableVarInitGradients(option)
   !do prop_idx = 1,size(this%lookup_table_uni%var_array(:))
   !  if ( associated(this%lookup_table_uni%var_array(prop_idx)%ptr) ) then
   !    data_idx = this%lookup_table_uni%var_array(prop_idx)%ptr%data_idx
@@ -1229,6 +1230,8 @@ subroutine EOSTableRead(this,input,option)
     call this%lookup_table_gen%VarPointAndUnitConv(option)
     !setup constant gradient extrapolation method
     call this%EOSSetConstGradExtrap(option)
+    !allocate lookup var gradients 
+    call this%lookup_table_gen%LookupTableVarInitGradients(option)
   !end if
 
   nullify(var_data)

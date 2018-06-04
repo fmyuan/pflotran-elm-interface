@@ -31,6 +31,7 @@ module Lookup_Table_module
     procedure, public :: LookupTableVarsInit
     procedure, public :: VarPointAndUnitConv
     procedure, public :: SetupConstGradExtrap
+    procedure, public :: LookupTableVarInitGradients
   end type lookup_table_base_type
   
   type, public, extends(lookup_table_base_type) :: lookup_table_uniform_type
@@ -2369,6 +2370,40 @@ function CreateLookupTableVar(var_iname,internal_units,user_units,data_idx)
   nullify(CreateLookupTableVar%next)
 
 end function CreateLookupTableVar
+
+! ************************************************************************** !
+
+subroutine LookupTableVarInitGradients(this,option)
+  !
+  ! allocate lookup variable gradients
+  !
+  ! Author: Paolo Orsini
+  ! Date: 06/04/2018
+  !
+  
+  use Option_module
+
+  implicit none
+  
+  class(lookup_table_base_type) :: this
+  type(option_type) :: option
+
+  PetscInt :: prop_idx
+
+  if ( this%dim > 0 ) then
+    do prop_idx = 1,size(this%var_array(:))
+      if ( associated(this%var_array(prop_idx)%ptr) ) then
+        allocate(this%var_array(prop_idx)%ptr%sample_grad(this%dim))
+        this%var_array(prop_idx)%ptr%sample_grad = UNINITIALIZED_DOUBLE
+      end if  
+    end do
+  else
+    option%io_buffer = "LookupTableVarInitGradients: cannot initialise " // &
+                        "var gradient before defining table dims"
+    call printErrMsg(option)    
+  end if  
+
+end subroutine LookupTableVarInitGradients
 
 ! ************************************************************************** !
 
