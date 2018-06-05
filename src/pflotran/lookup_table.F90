@@ -1473,7 +1473,7 @@ subroutine UniformYValAndGrad(this,var_iname,j1,j2,j1_grad,j2_grad,i_col, &
     y1 = this%axis2%values(j1)
     y2 = this%axis2%values(j2)
     z1 = this%var_array(var_iname)%ptr%data(i_col+(j1-1)*sizei)
-    z1 = this%var_array(var_iname)%ptr%data(i_col+(j2-1)*sizei)
+    z2 = this%var_array(var_iname)%ptr%data(i_col+(j2-1)*sizei)
     if ( this%var_array(var_iname)%ptr%interp_type == &
          VAR_INTERP_X_LINLOG ) then
       z1 = dlog(z1)
@@ -1929,11 +1929,11 @@ subroutine VarGeneralXInterpolate(this,var_iname,ja,i1a,i2a,i1a_grad,i2a_grad, &
   PetscReal :: val_a,grad_a,val_b,grad_b
 
   !left
-  call GeneralYValAndGrad(this,var_iname,ja,i1a,i1a_grad,i2a_grad, &
-                          i2a,sizei,lookup2,val_a,grad_a)
-  !right                      
-  call GeneralYValAndGrad(this,var_iname,jb,i1b,i1b_grad,i2b_grad, & 
-                          i2b,sizei,lookup2,val_b,grad_b)
+  call GeneralYValAndGrad(this,var_iname,ja,i1a,i2a,i1a_grad,i2a_grad, &
+                          sizei,lookup2,val_a,grad_a)
+  !right  
+  call GeneralYValAndGrad(this,var_iname,jb,i1b,i2b,i1b_grad,i2b_grad, &
+                          sizei,lookup2,val_b,grad_b)
   call GradientLinear(xb,xa,val_b,val_a, &
                       this%var_array(var_iname)%ptr%sample_grad(1))
   call Interpolate(xb,xa,lookup1,val_b,val_a, &
@@ -2026,7 +2026,7 @@ subroutine GeneralYValAndGrad(this,var_iname,j_col,i1,i2,i1_grad,i2_grad, &
     x1 = this%axis2%values(iia)
     x2 = this%axis2%values(iib)
     z1 = this%var_array(var_iname)%ptr%data(iia)
-    z1 = this%var_array(var_iname)%ptr%data(iib)
+    z2 = this%var_array(var_iname)%ptr%data(iib)
     if ( this%var_array(var_iname)%ptr%interp_type == &
          VAR_INTERP_X_LINLOG ) then
       z1 = dlog(z1)

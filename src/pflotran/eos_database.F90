@@ -56,6 +56,7 @@ module EOSData_module
   contains
     procedure, public :: Read => EOSDatabaseRead
     procedure, public :: EOSProp => EOSPropLinearInterp
+    procedure, public :: EOSPropGrad => EOSPropGradDatabase
   end type
 
   type, public, extends(eos_data_base_type) :: eos_table_type
@@ -68,6 +69,7 @@ module EOSData_module
   contains
     procedure, public :: Read => EOSTableRead
     procedure, public :: EOSProp => EOSPropTable
+    procedure, public :: EOSPropGrad => EOSPropGradTable
   end type
 
   type, public :: eos_table_list_type
@@ -969,6 +971,43 @@ end subroutine EOSPropLinearInterp
 
 ! ************************************************************************** !
 
+subroutine EOSPropGradDatabase(this,T,P,prop_iname,sample,dSampledT, &
+                               dSampledP,ierr)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 06/04/18
+  !
+  ! interpolates a single EOS property from the EOS database 
+  ! and compute its gradient with respect to the P and T of the database 
+  ! (i.e. raw table gradients)
+
+  implicit none
+
+  class(eos_database_type) :: this
+  PetscReal, intent(in) :: T        ! temperature [C]
+  PetscReal, intent(in) :: P        ! pressure [Pa]
+  PetscInt, intent(in) :: prop_iname
+  PetscReal, intent(out) :: sample ! PFLOTRAN intenral units (SI)
+  PetscReal, intent(out) :: dSampledT ! internal PFLOTRAN units ([Sample]/[C])
+  PetscReal, intent(out) :: dSampledP ! internal PFLOTRAN units ([Sample]/[Pa])  
+  PetscErrorCode, intent(out) :: ierr
+
+  ierr = 0
+
+  !bound checks to be included later as part of reporting
+  !go trgough the table list and save the outbound in a report data strucutre?
+  !could be done in auxvra compute using a reusable table list specific func
+
+  call this%lookup_table_uni%SampleAndGradient(prop_iname,T,P)
+  
+  sample = this%lookup_table_uni%var_array(prop_iname)%ptr%sample
+  dSampledT = this%lookup_table_uni%var_array(prop_iname)%ptr%sample_grad(1)
+  dSampledP = this%lookup_table_uni%var_array(prop_iname)%ptr%sample_grad(2)
+
+end subroutine EOSPropGradDatabase
+
+! ************************************************************************** !
+
 subroutine EOSDatabaseDestroy(eos_database)
   !
   ! Author: Paolo Orsini
@@ -1431,6 +1470,74 @@ subroutine EOSPropTable(this,T,P,prop_iname,prop_value,indices,ierr)
   nullify(this%lookup_table_gen%data)
 
 end subroutine EOSPropTable
+
+! ************************************************************************** !
+
+subroutine EOSPropGradTable(this,T,P,prop_iname,sample,dSampledT,dSampledP, &
+                            indices,ierr)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 10/20/17
+  !
+  ! interpolates a single EOS property from a PVT Table and computes its 
+  ! gradient with respect to T and P as given in the PVT table
+  !
+  ! if table%dim == 1, only pressure lookup
+  !  indices(eos_table%first_index) = Pressure index
+  ! else if table%dim == 2, one temperature lookup and two pressure lookups
+  !  indices(eos_table%first_index+1) = iP1, i.e. Pressure_index_1
+  !  indices(eos_table%first_index+2) = iP2, i.e. Pressure_index_2
+  ! the case table%dim == 2, with one temperature lookup and
+  !                       one pressure lookups not supported
+  !
+
+  implicit none
+
+  class(eos_table_type) :: this
+  PetscReal, intent(in) :: T              ! temperature [C]
+  PetscReal, intent(in) :: P              ! pressure [Pa]
+  PetscInt, intent(in) :: prop_iname
+  PetscReal, intent(out) :: sample ! PFLOTRAN intenral units (SI)
+  PetscReal, intent(out) :: dSampledT ! internal PFLOTRAN units ([Sample]/[C])
+  PetscReal, intent(out) :: dSampledP ! internal PFLOTRAN units ([Sample]/[Pa])
+  PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, intent(inout) :: indices(:)
+
+  ierr = 0
+
+  !bound checks to be included later as part of reporting
+  !go trgough the table list and save the outbound in a report data strucutre?
+  !could be done in auxvar compute using a reusable table list specific func
+
+  if (this%lookup_table_gen%dim == ONE_INTEGER) then
+
+    this%lookup_table_gen%axis1%saved_index = indices(this%first_index)
+
+    call this%lookup_table_gen%SampleAndGradient(prop_iname,P)
+    sample = this%lookup_table_gen%var_array(prop_iname)%ptr%sample
+    dSampledP = this%lookup_table_gen%var_array(prop_iname)%ptr%sample_grad(1)
+    dSampledT = 0.0d0
+    !must copy back the index because
+    ! saved_index = indices(eos_table%first_index) is a copying operation not pointing
+    ! saved_index should be a pointer to save two assigment operations (in/out)
+    indices(this%first_index) = this%lookup_table_gen%axis1%saved_index
+  else if (this%lookup_table_gen%dim == TWO_INTEGER) then
+
+    this%lookup_table_gen%axis1%saved_index = indices(this%first_index)
+    this%lookup_table_gen%axis2%saved_index = indices(this%first_index+1)
+    this%lookup_table_gen%axis2%saved_index2 = indices(this%first_index+2)
+    
+    call this%lookup_table_gen%SampleAndGradient(prop_iname,T,P)
+    sample = this%lookup_table_gen%var_array(prop_iname)%ptr%sample
+    dSampledT = this%lookup_table_gen%var_array(prop_iname)%ptr%sample_grad(1)
+    dSampledP = this%lookup_table_gen%var_array(prop_iname)%ptr%sample_grad(2)
+
+    indices(this%first_index) = this%lookup_table_gen%axis1%saved_index
+    indices(this%first_index+1)= this%lookup_table_gen%axis2%saved_index
+    indices(this%first_index+2) = this%lookup_table_gen%axis2%saved_index2
+  end if
+
+end subroutine EOSPropGradTable
 
 ! ************************************************************************** !
 

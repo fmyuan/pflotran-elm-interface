@@ -962,36 +962,40 @@ subroutine EOSGasViscosityEOSDBase(T, P_comp, P_gas, Rho_comp, V_mix, &
   PetscReal, intent(in) :: P_comp   ! air pressure [Pa]
   PetscReal, intent(in) :: P_gas    ! gas pressure [Pa]
   PetscReal, intent(in) :: Rho_comp ! air density [C]
-  PetscReal, intent(out) :: V_mix   ! mixture viscosity
+  PetscReal, intent(out) :: V_mix   ! mixture viscosity [Pa-s]
   PetscBool, intent(in) :: calculate_derivative
-  PetscReal, intent(out) :: dV_dT       ! derivative wrt temperature
-  PetscReal, intent(out) :: dV_dPcomp   ! derivative wrt component pressure
-  PetscReal, intent(out) :: dV_dPgas    ! derivative wrt gas pressure
-  PetscReal, intent(out) :: dV_dRhocomp ! derivative wrt component density    
+  PetscReal, intent(out) :: dV_dT       ! derivative wrt db temperature [Pa-s/C]
+  PetscReal, intent(out) :: dV_dPcomp   ! derivative wrt component pressure [Pa-s/Pa]
+  PetscReal, intent(out) :: dV_dPgas    ! derivative wrt gas pressure [Pa-s/Pa]
+  PetscReal, intent(out) :: dV_dRhocomp ! derivative wrt component density [Pa-s/kmol/m3]
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   PetscReal :: NaN
 
   !ierr initialised in EOSEOSProp 
-  call eos_dbase%EOSProp(T,P_gas,EOS_VISCOSITY,V_mix,ierr)
+  !call eos_dbase%EOSProp(T,P_gas,EOS_VISCOSITY,V_mix,ierr)
+  call eos_dbase%EOSPropGrad(T,P_gas,EOS_VISCOSITY,V_mix,dV_dT,dV_dPgas,ierr)
+
+  dV_dPcomp = 0.0d0
+  dV_dRhocomp = 0.0d0
 
   ! initialize to derivative to NaN so that not mistakenly used.
-  NaN = 0.0
-  NaN = 1.0/NaN
-  NaN = 0.0d0*NaN
-
-  dV_dT = NaN
-  dV_dPcomp = NaN
-  dV_dPgas = NaN
-  dV_dRhocomp = NaN
-
-  if (calculate_derivative) then
-    ! not yet implemented
-    ierr = 99 !error 99 points out that deriv are asked but not available yet. 
-    print*, "EOSGasViscosityEOSDBase - Viscosity derivatives not supported"
-    stop
-  end if
+  ! NaN = 0.0
+  ! NaN = 1.0/NaN
+  ! NaN = 0.0d0*NaN
+  ! 
+  ! dV_dT = NaN
+  ! dV_dPcomp = NaN
+  ! dV_dPgas = NaN
+  ! dV_dRhocomp = NaN
+  ! 
+  ! if (calculate_derivative) then
+  !   ! not yet implemented
+  !   ierr = 99 !error 99 points out that deriv are asked but not available yet. 
+  !   print*, "EOSGasViscosityEOSDBase - Viscosity derivatives not supported"
+  !   stop
+  ! end if
   
 end subroutine EOSGasViscosityEOSDBase
 
@@ -1006,35 +1010,40 @@ subroutine EOSGasViscosityTable(T, P_comp, P_gas, Rho_comp, V_mix, &
   PetscReal, intent(in) :: P_comp   ! air pressure [Pa]
   PetscReal, intent(in) :: P_gas    ! gas pressure [Pa]
   PetscReal, intent(in) :: Rho_comp ! air density [C]
-  PetscReal, intent(out) :: V_mix   ! mixture viscosity
+  PetscReal, intent(out) :: V_mix   ! mixture viscosity [Pa-s]
   PetscBool, intent(in) :: calculate_derivative
-  PetscReal, intent(out) :: dV_dT       ! derivative wrt temperature
-  PetscReal, intent(out) :: dV_dPcomp   ! derivative wrt component pressure
-  PetscReal, intent(out) :: dV_dPgas    ! derivative wrt gas pressure
-  PetscReal, intent(out) :: dV_dRhocomp ! derivative wrt component density
+  PetscReal, intent(out) :: dV_dT       ! derivative wrt db temperature [Pa-s/C]
+  PetscReal, intent(out) :: dV_dPcomp   ! derivative wrt component pressure [Pa-s/Pa]
+  PetscReal, intent(out) :: dV_dPgas    ! derivative wrt gas pressure [Pa-s/Pa]
+  PetscReal, intent(out) :: dV_dRhocomp ! derivative wrt component density [Pa-s/kmol/m3]
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   PetscReal :: NaN
 
-  call pvt_table%EOSProp(T,P_gas,EOS_VISCOSITY,V_mix,table_idxs,ierr)
+  !call pvt_table%EOSProp(T,P_gas,EOS_VISCOSITY,V_mix,table_idxs,ierr)
+  
+  call pvt_table%EOSPropGrad(T,P_gas,EOS_VISCOSITY,V_mix,dV_dT,dV_dPgas, &
+                             table_idxs,ierr)
 
+  dV_dPcomp = 0.0d0
+  dV_dRhocomp = 0.0d0
   ! initialize to derivative to NaN so that not mistakenly used.
-  NaN = 0.0
-  NaN = 1.0/NaN
-  NaN = 0.0d0*NaN
-
-  dV_dT = NaN
-  dV_dPcomp = NaN
-  dV_dPgas = NaN
-  dV_dRhocomp = NaN
-
-  if (calculate_derivative) then
-    ! not yet implemented
-    ierr = 99 !error 99 points out that deriv are asked but not available yet.
-    print*, "EOSGasViscosityTable - Viscosity derivatives not supported"
-    stop
-  end if
+  ! NaN = 0.0
+  ! NaN = 1.0/NaN
+  ! NaN = 0.0d0*NaN
+  ! 
+  ! dV_dT = NaN
+  ! dV_dPcomp = NaN
+  ! dV_dPgas = NaN
+  ! dV_dRhocomp = NaN
+  ! 
+  ! if (calculate_derivative) then
+  !   ! not yet implemented
+  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
+  !   print*, "EOSGasViscosityTable - Viscosity derivatives not supported"
+  !   stop
+  ! end if
 
 end subroutine EOSGasViscosityTable
 
@@ -1476,27 +1485,31 @@ subroutine EOSGasDensityEOSDBase(T, P, Rho_gas, dRho_dT, dRho_dP, ierr, &
 
   PetscReal, intent(in) :: T        ! temperature [C]
   PetscReal, intent(in) :: P        ! pressure [Pa]
-  PetscReal, intent(out) :: Rho_gas ! oil density [kmol/m^3]
-  PetscReal, intent(out) :: dRho_dT ! derivative oil density wrt temperature
-  PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
+  PetscReal, intent(out) :: Rho_gas ! gas density [kmol/m^3]
+  PetscReal, intent(out) :: dRho_dT ! derivative gas density wrt table temperature [kmol/m^3/Pa]
+  PetscReal, intent(out) :: dRho_dP ! derivative gas density wrt table pressure [kmol/m^3/C]
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   PetscReal :: NaN
 
   !ierr initialised in EOSEOSProp 
-  call eos_dbase%EOSProp(T,P,EOS_DENSITY,Rho_gas,ierr)
+  !call eos_dbase%EOSProp(T,P,EOS_DENSITY,Rho_gas,ierr)
+  call eos_dbase%EOSPropGrad(T,P,EOS_DENSITY,Rho_gas,dRho_dT,dRho_dP,ierr)
 
+  !PO todo: conversion when loaidng database to do this operation only once
            ! conversion to molar density
            ! kg/m3 * kmol/kg  = kmol/m3
   Rho_gas = Rho_gas / fmw_gas ! kmol/m^3
+  dRho_dT = dRho_dT / fmw_gas
+  dRho_dP = dRho_dP / fmw_gas
 
-  ! initialize to derivative to NaN so that not mistakenly used.
-  NaN = 0.0
-  NaN = 1.0/NaN
-  NaN = 0.0d0*NaN
-  dRho_dT = NaN
-  dRho_dP = NaN
+  ! ! initialize to derivative to NaN so that not mistakenly used.
+  ! NaN = 0.0
+  ! NaN = 1.0/NaN
+  ! NaN = 0.0d0*NaN
+  ! dRho_dT = NaN
+  ! dRho_dP = NaN
 
 end subroutine EOSGasDensityEOSDBase
 
@@ -1514,22 +1527,25 @@ subroutine EOSGasDensityTable(T, P, Rho_gas, dRho_dT, dRho_dP, ierr, &
   PetscReal, intent(in) :: T        ! temperature [C]
   PetscReal, intent(in) :: P        ! pressure [Pa]
   PetscReal, intent(out) :: Rho_gas ! oil density [kmol/m^3]
-  PetscReal, intent(out) :: dRho_dT ! derivative oil density wrt temperature
-  PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt pressure
+  PetscReal, intent(out) :: dRho_dT ! derivative oil density wrt table temperature [kmol/m^3/C]
+  PetscReal, intent(out) :: dRho_dP ! derivative oil density wrt table pressure [kmol/m^3/Pa]
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   PetscReal :: NaN
 
   !Rho from pvt table is in kmol/m3
-  call pvt_table%EOSProp(T,P,EOS_DENSITY,Rho_gas,table_idxs,ierr)
+  !call pvt_table%EOSProp(T,P,EOS_DENSITY,Rho_gas,table_idxs,ierr)
+
+  call pvt_table%EOSPropGrad(T,P,EOS_DENSITY,Rho_gas,dRho_dT,dRho_dP, &
+                             table_idxs,ierr)
 
   ! initialize to derivative to NaN so that not mistakenly used.
-  NaN = 0.0
-  NaN = 1.0/NaN
-  NaN = 0.0d0*NaN
-  dRho_dT = NaN
-  dRho_dP = NaN
+  ! NaN = 0.0
+  ! NaN = 1.0/NaN
+  ! NaN = 0.0d0*NaN
+  ! dRho_dT = NaN
+  ! dRho_dP = NaN
 
 end subroutine EOSGasDensityTable
 
@@ -1654,32 +1670,41 @@ subroutine EOSGasEnergyEOSDBase(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
   PetscReal, intent(in) :: T        ! temperature [C]
   PetscReal, intent(in) :: P        ! pressure [Pa]
   PetscReal, intent(out) :: H       ! enthalpy [J/kmol]
-  PetscReal, intent(out) :: dH_dT   ! derivative enthalpy wrt temperature
-  PetscReal, intent(out) :: dH_dP   ! derivative enthalpy wrt pressure
+  PetscReal, intent(out) :: dH_dT   ! derivative enthalpy wrt temperature [J/kmol/C]
+  PetscReal, intent(out) :: dH_dP   ! derivative enthalpy wrt pressure [J/kmol/Pa]
   PetscReal, intent(out) :: U       ! internal energy [J/kmol]
-  PetscReal, intent(out) :: dU_dT   ! deriv. internal energy wrt temperature
-  PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure
+  PetscReal, intent(out) :: dU_dT   ! deriv. internal energy wrt temperature [J/kmol/C]
+  PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure [J/kmol/Pa]
   PetscErrorCode, intent(out) :: ierr
 
   PetscReal :: NaN
 
-  !ierr initialised in EOSEOSProp - PO: should do only one lookup here
-  call eos_dbase%EOSProp(T,P,EOS_ENTHALPY,H,ierr)
-  call eos_dbase%EOSProp(T,P,EOS_INTERNAL_ENERGY,U,ierr)
+  !ierr initialised in EOSProp - PO: should do only one lookup here
+  !call eos_dbase%EOSProp(T,P,EOS_ENTHALPY,H,ierr)
+  !call eos_dbase%EOSProp(T,P,EOS_INTERNAL_ENERGY,U,ierr)
 
+  call eos_dbase%EOSPropGrad(T,P,EOS_ENTHALPY,H,dH_dT,dH_dP,ierr)
+  call eos_dbase%EOSPropGrad(T,P,EOS_INTERNAL_ENERGY,U,dU_dT,dU_dP,ierr)
+  
+  !PO todo: conversion when loaidng database to do this operation only once
   ! conversion to molar energy
   ! J/kg * kg/Kmol = J/Kmol
   H = H  * fmw_gas
+  dH_dT = dH_dT * fmw_gas
+  dH_dP = dH_dP * fmw_gas
+  
   U = U  * fmw_gas
+  dU_dT = dU_dT * fmw_gas
+  dU_dP = dU_dP * fmw_gas
 
-  NaN = 0.0
-  NaN = 1.0/NaN
-  NaN = 0.0d0*NaN
-
-  dU_dP = NaN
-  dU_dT = NaN
-  dH_dP = NaN
-  dH_dT = NaN
+  ! NaN = 0.0
+  ! NaN = 1.0/NaN
+  ! NaN = 0.0d0*NaN
+  ! 
+  ! dU_dP = NaN
+  ! dU_dT = NaN
+  ! dH_dP = NaN
+  ! dH_dT = NaN
     
 end subroutine EOSGasEnergyEOSDBase
 
