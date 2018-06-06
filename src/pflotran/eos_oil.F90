@@ -1529,19 +1529,7 @@ subroutine EOSOilDensityEnergyS(T,P,deriv,Rho,dRho_dT,dRho_dP, &
 
   call EOSOilDensityPtr(T,P,deriv,Rho,dRho_dT,dRho_dP,ierr,table_idxs)
   call EOSOilEnthalpyPtr(T,P,deriv,H,dH_dT,dH_dP,ierr)
-
   U = H - P/Rho
-
-#if 0
-  ! initialize derivative to NaN so that not mistakenly used.
-  dU_dT = InitToNan()
-  dU_dP = InitToNan()
-
-  if (deriv) then
-    print*, "EOSOilDensityEnergyS - U derivatives not supported"
-    stop
-  end if
-#endif
 
   if (deriv) then
     Rho2 = Rho*Rho
@@ -1551,15 +1539,10 @@ subroutine EOSOilDensityEnergyS(T,P,deriv,Rho,dRho_dT,dRho_dP, &
     !! down the line will need 2nd order derivs:
     !! ddU_dPP = ddH_dPP + dRho_dP/Rho2 + dRho_dP/Rho2 + ddRho_dPP*P/Rho2 - 2.d0*dRho_dP*dRho_dP*P/Rho2/Rho
     !! ddU_dTT = ddH_dTT + ddRho_dTT*P/Rho2 - 2.d0*dRho_dT*dRho_dT*P/Rho2/Rho
-
-    !print*, "EOSOilDensityEnergyTOilIms - U derivatives not supported"
-    !stop  
   else
     dU_dT = InitToNan()
     dU_dP = InitToNan()
   end if   
-
-
 end subroutine EOSOilDensityEnergyS
 
 ! ************************************************************************** !
