@@ -1369,19 +1369,19 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
             'process model without a corresponding CHEMISTRY block.'
           call printErrMsg(option)
         endif
-        call cur_pm%PMRTSetRealization(realization)
+        call cur_pm%SetRealization(realization)
     !-----------------------------------
       class is(pm_subsurface_flow_type)
-        call cur_pm%PMSubsurfaceFlowSetRealization(realization)
+        call cur_pm%SetRealization(realization)
     !-----------------------------------
       class is(pm_waste_form_type)
-        call cur_pm%PMWFSetRealization(realization)
+        call cur_pm%SetRealization(realization)
     !-----------------------------------
       class is(pm_ufd_decay_type)
-        call cur_pm%PMUFDDecaySetRealization(realization)
+        call cur_pm%SetRealization(realization)
     !-----------------------------------
       class is(pm_ufd_biosphere_type)
-        call cur_pm%PMUFDBSetRealization(realization)
+        call cur_pm%SetRealization(realization)
     !-----------------------------------
     end select
     ! set time stepper
