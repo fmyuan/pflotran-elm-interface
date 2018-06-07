@@ -32,6 +32,7 @@ module Lookup_Table_module
     procedure, public :: VarPointAndUnitConv
     procedure, public :: SetupConstGradExtrap
     procedure, public :: LookupTableVarInitGradients
+    procedure, public :: SetupVarLinLogInterp
   end type lookup_table_base_type
   
   type, public, extends(lookup_table_base_type) :: lookup_table_uniform_type
@@ -1418,7 +1419,7 @@ end subroutine VarUniformXInterpolate
 ! ************************************************************************** !
 
 subroutine UniformYValAndGrad(this,var_iname,j1,j2,j1_grad,j2_grad,i_col, &
-                              sizei,lookup2,val,grad_val)
+                              sizei,lookup2,val,grad_val)                              
   ! 
   ! Author: Paolo Orsini
   ! Date: 05/25/18
@@ -1453,13 +1454,18 @@ subroutine UniformYValAndGrad(this,var_iname,j1,j2,j1_grad,j2_grad,i_col, &
       y2_grad = this%axis2%values(j2_grad)
       z1 = this%var_array(var_iname)%ptr%data(i_col+(j1_grad-1)*sizei)
       z2 = this%var_array(var_iname)%ptr%data(i_col+(j2_grad-1)*sizei)
-      if ( this%var_array(var_iname)%ptr%interp_type == &
-           VAR_INTERP_X_LINLOG ) then
-        z1 = dlog(z1)
-        z2 = dlog(z2)
-      end if     
+      ! if ( this%var_array(var_iname)%ptr%interp_type == &
+      !      VAR_INTERP_X_LINLOG ) then
+      !   z1 = dlog(z1)
+      !   z2 = dlog(z2)
+      ! end if     
       call GradientLinear(y2_grad,y1_grad,z2,z1,grad_val)
       call Interpolate(y2_grad,y1_grad,lookup2,z2,z1,val)
+       if ( this%var_array(var_iname)%ptr%interp_type == &
+            VAR_INTERP_X_LINLOG ) then
+          grad_val = ( 1.0 / val ) * grad_val
+          val = dlog(val)
+       end if    
     else if ( this%var_array(var_iname)%ptr%extrapolation_itype == &
               VAR_EXTRAP_CONST_VAL ) then
       val = this%var_array(var_iname)%ptr%data(i_col+(j1-1)*sizei)
@@ -1474,13 +1480,18 @@ subroutine UniformYValAndGrad(this,var_iname,j1,j2,j1_grad,j2_grad,i_col, &
     y2 = this%axis2%values(j2)
     z1 = this%var_array(var_iname)%ptr%data(i_col+(j1-1)*sizei)
     z2 = this%var_array(var_iname)%ptr%data(i_col+(j2-1)*sizei)
-    if ( this%var_array(var_iname)%ptr%interp_type == &
-         VAR_INTERP_X_LINLOG ) then
-      z1 = dlog(z1)
-      z2 = dlog(z2)
-    end if         
+    ! if ( this%var_array(var_iname)%ptr%interp_type == &
+    !      VAR_INTERP_X_LINLOG ) then
+    !   z1 = dlog(z1)
+    !   z2 = dlog(z2)
+    ! end if         
     call Interpolate(y2,y1,lookup2,z2,z1,val)
-    call GradientLinear(y2,y1,z2,z1,grad_val)          
+    call GradientLinear(y2,y1,z2,z1,grad_val)
+     if ( this%var_array(var_iname)%ptr%interp_type == &
+          VAR_INTERP_X_LINLOG ) then
+       grad_val = 1.0 / val * grad_val
+       val = dlog(val)
+     end if    
   endif
   
 end subroutine UniformYValAndGrad
@@ -2003,14 +2014,20 @@ subroutine GeneralYValAndGrad(this,var_iname,j_col,i1,i2,i1_grad,i2_grad, &
       x2_grad = this%axis2%values(iib)
       z1 = this%var_array(var_iname)%ptr%data(iia)
       z2 = this%var_array(var_iname)%ptr%data(iib)
-      if ( this%var_array(var_iname)%ptr%interp_type == &
-           VAR_INTERP_X_LINLOG ) then
-        z1 = dlog(z1)
-        z2 = dlog(z2)
-      end if     
+      !log numerical derivatives
+      ! if ( this%var_array(var_iname)%ptr%interp_type == &
+      !      VAR_INTERP_X_LINLOG ) then
+      !   z1 = dlog(z1)
+      !   z2 = dlog(z2)
+      ! end if     
       call GradientLinear(x2_grad,x1_grad,z2,z1,grad_val)
       call Interpolate(x2_grad,x1_grad,lookup,z2,z1,val)
-      !call ExtrapolateLinear(val,x1,lookup,grad_val)
+      !log analytical derivatives
+      if ( this%var_array(var_iname)%ptr%interp_type == &
+           VAR_INTERP_X_LINLOG ) then
+        grad_val = ( 1.0 / val) * grad_val
+        val = dlog(val)
+      end if           
     else if ( this%var_array(var_iname)%ptr%extrapolation_itype == &
               VAR_EXTRAP_CONST_VAL ) then
       val = this%var_array(var_iname)%ptr%data(i1+(j_col-1)*sizei)
@@ -2027,13 +2044,18 @@ subroutine GeneralYValAndGrad(this,var_iname,j_col,i1,i2,i1_grad,i2_grad, &
     x2 = this%axis2%values(iib)
     z1 = this%var_array(var_iname)%ptr%data(iia)
     z2 = this%var_array(var_iname)%ptr%data(iib)
-    if ( this%var_array(var_iname)%ptr%interp_type == &
-         VAR_INTERP_X_LINLOG ) then
-      z1 = dlog(z1)
-      z2 = dlog(z2)
-    end if         
+    ! if ( this%var_array(var_iname)%ptr%interp_type == &
+    !      VAR_INTERP_X_LINLOG ) then
+    !   z1 = dlog(z1)
+    !   z2 = dlog(z2)
+    ! end if         
     call Interpolate(x2,x1,lookup,z2,z1,val)
-    call GradientLinear(x2,x1,z2,z1,grad_val)          
+    call GradientLinear(x2,x1,z2,z1,grad_val)
+    if ( this%var_array(var_iname)%ptr%interp_type == &
+          VAR_INTERP_X_LINLOG ) then
+      grad_val = 1.0 / val * grad_val 
+      val = dlog(val)
+    end if      
   endif
   
 end subroutine GeneralYValAndGrad
@@ -2499,6 +2521,34 @@ subroutine SetupConstGradExtrap(this,option)
 end subroutine SetupConstGradExtrap
     
 ! ************************************************************************** !    
+
+subroutine SetupVarLinLogInterp(this,var_iname,option)
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 06/06/18
+  ! 
+  
+  use Option_module
+  
+  implicit none
+  
+  class(lookup_table_base_type) :: this
+  PetscInt, intent(in) :: var_iname
+  type(option_type) :: option
+  
+  if ( associated(this%var_array) ) then
+    if ( associated(this%var_array(var_iname)%ptr) ) then
+      this%var_array(var_iname)%ptr%interp_type = VAR_INTERP_X_LINLOG
+    else
+      option%io_buffer = "SetupVarLinLogInterp: cannot setup " // &
+            "LinLog inteprolation method for a var not defined as lookupvar"
+      call printErrMsg(option)      
+    end if  
+  end if
+
+end subroutine SetupVarLinLogInterp
+
+! ************************************************************************** !
 
 subroutine LookupTableVarListDestroy(lookup_table_vars_list)
   !

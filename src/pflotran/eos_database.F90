@@ -46,6 +46,7 @@ module EOSData_module
     procedure, public :: SetDefaultInternalUnits
     procedure, public :: SetMetricUnits
     procedure, public :: AddEOSProp
+    procedure, public :: SetupVarLinLogInterp
   end type
 
   type, public, extends(eos_data_base_type) :: eos_database_type
@@ -489,7 +490,7 @@ subroutine EOSSetConstGradExtrap(this,option)
   implicit none
 
   class(eos_data_base_type) :: this
-  type(option_type) :: option  
+  type(option_type) :: option
   !EOS properties conversion factors 
   select type(this)
     class is(eos_database_type)
@@ -500,6 +501,7 @@ subroutine EOSSetConstGradExtrap(this,option)
 
 end subroutine EOSSetConstGradExtrap
 
+! ************************************************************************** !
 
 function EOSPropExistInDictionary(property_iname)
   !
@@ -538,6 +540,33 @@ function EOSPropExistInDictionary(property_iname)
 end function EOSPropExistInDictionary
 
 ! ************************************************************************** !
+
+subroutine SetupVarLinLogInterp(this,var_iname,option)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 05/04/18
+  !
+  ! Add new var eos properties to eos data (to variable list) 
+
+  use Option_module
+
+  implicit none
+
+  class(eos_data_base_type) :: this
+  type(option_type) :: option
+  PetscInt, intent(in) :: var_iname
+
+select type(this)
+  class is(eos_database_type)
+    call this%lookup_table_uni%SetupVarLinLogInterp(var_iname,option)
+  class is(eos_table_type)
+    call this%lookup_table_gen%SetupVarLinLogInterp(var_iname,option)
+end select
+
+end subroutine SetupVarLinLogInterp
+
+! ************************************************************************** !
+
 subroutine ConvertFVFtoMolarDensity(this,FMW,reference_density_kg)
   !
   ! Author: Paolo Orsini
