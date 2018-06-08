@@ -65,7 +65,6 @@ module EOSData_module
     PetscInt :: n_indices !number of indices to be saved for lookup
     PetscInt :: first_index !location of first index in auxvars
     class(lookup_table_general_type), pointer :: lookup_table_gen
-    !class(lookup_table_non_uni_type), pointer :: lookup_table_non_uni
     class(eos_table_type), pointer :: next => null()
   contains
     procedure, public :: Read => EOSTableRead
@@ -110,8 +109,6 @@ subroutine EOSDataBaseInit(this)
   this%num_p = UNINITIALIZED_INTEGER
   this%num_t = UNINITIALIZED_INTEGER
   this%num_prop = UNINITIALIZED_INTEGER
-  !this%data_to_prop_map(1:EOS_MAX_PROP_NUM) = UNINITIALIZED_INTEGER
-  !this%prop_to_data_map(1:EOS_MAX_PROP_NUM) = UNINITIALIZED_INTEGER
   this%press_unit_conv_factor = 1.0d0
   this%temp_unit_conv_factor = 1.0d0
   this%press_internal_units = 'Pa'
@@ -141,14 +138,8 @@ function EOSPropPresent(this,prop_iname)
       EOSPropPresent = &
               associated(this%lookup_table_uni%var_array(prop_iname)%ptr)
     class is(eos_table_type)
-      !if this%regular
-        !EOSPropPresent = &
-        !      associated(this%lookup_table_non_uni%var_array(prop_iname)%ptr)
-      !esle if .not.this%regular
-        EOSPropPresent = &
-              associated(this%lookup_table_gen%var_array(prop_iname)%ptr) 
-        !EOSPropPresent = Initialized(this%prop_to_data_map(prop_iname))
-      !end if  
+      EOSPropPresent = &
+            associated(this%lookup_table_gen%var_array(prop_iname)%ptr) 
   end select
 
 
@@ -182,15 +173,9 @@ subroutine ReadUserUnits(this,input,option)
     class is(eos_database_type)
       prop_array =>  this%lookup_table_uni%var_array
     class is(eos_table_type)
-      !if regular
-        ! prop_array =>  this%lookup_table_non_uni%var_array
-      !else if no-regular
-        prop_array =>  this%lookup_table_gen%var_array
-      !end if  
+      prop_array =>  this%lookup_table_gen%var_array
   end select
 
-  !PO todo: "select type"  nested in select case to go once table refactor
-  !         complete
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -276,11 +261,7 @@ subroutine UnitConversionFactors(this,option)
     class is(eos_database_type)
       call this%lookup_table_uni%LookupTableVarConvFactors(option)
     class is(eos_table_type)
-      !if regular 
-        !call this%lookup_table_non_uni%LookupTableVarConvFactors(option)
-      !else if no-regular
-        call this%lookup_table_gen%LookupTableVarConvFactors(option)
-      !endif
+      call this%lookup_table_gen%LookupTableVarConvFactors(option)
   end select    
 
 end subroutine UnitConversionFactors
@@ -314,11 +295,7 @@ subroutine SetDefaultInternalUnits(this,option)
     class is(eos_database_type)
       prop_array => this%lookup_table_uni%var_array
     class is(eos_table_type)
-      !if regular 
-        !prop_array => this%lookup_table_non_uni%var_array
-      !else if no-regular
-        prop_array => this%lookup_table_gen%var_array
-      !endif
+      prop_array => this%lookup_table_gen%var_array
   end select
  
   do prop_idx = 1,size(prop_array(:))
@@ -377,11 +354,7 @@ subroutine SetMetricUnits(this,option)
     class is(eos_database_type)
       prop_array => this%lookup_table_uni%var_array
     class is(eos_table_type)
-      !if regular 
-        !prop_array => this%lookup_table_non_uni%var_array
-      !else if no-regular
-        prop_array => this%lookup_table_gen%var_array
-      !endif
+      prop_array => this%lookup_table_gen%var_array
   end select
   
   do prop_idx = 1,size(prop_array(:))
@@ -441,12 +414,8 @@ subroutine AddEOSProp(this,new_var,option)
       vars => this%lookup_table_uni%vars
       var_array => this%lookup_table_uni%var_array
     class is(eos_table_type)
-      !if regular 
-        !prop_array => this%lookup_table_non_uni%var_array
-      !else if no-regular
-        vars => this%lookup_table_gen%vars
-        var_array => this%lookup_table_gen%var_array
-      !endif
+      vars => this%lookup_table_gen%vars
+      var_array => this%lookup_table_gen%var_array
   end select
 
   string = 'Adding Property to eos database or table'
@@ -584,34 +553,14 @@ subroutine ConvertFVFtoMolarDensity(this,FMW,reference_density_kg)
   PetscReal, pointer :: var_data(:,:) => null()
   type(lookup_table_var_ptr_type), pointer :: var_array(:) => null()
 
-  !PetscInt :: i_data
-
-  !PO old lookup var format
-  !do i_data = 1,size(this%data,2)
-  !  ! kg/sm^3 * kmol/kg * sm^3/rm^3 = kmol/rm^3
-  !  this%data(this%prop_to_data_map(EOS_FVF),i_data) = &
-  !     reference_density_kg / FMW / &
-  !     this%data(this%prop_to_data_map(EOS_FVF),i_data)
-  !end do
-  !change variable name and map
-  !this%data_to_prop_map(this%prop_to_data_map(EOS_FVF)) = EOS_DENSITY
-  !this%prop_to_data_map(EOS_DENSITY) = this%prop_to_data_map(EOS_FVF)
-  ! change units after conversion
-  !this%prop_internal_units(EOS_DENSITY) = 'kmol/m^3'
-  !------------------------------------------------------!
   !EOS properties conversion factors 
   select type(this)
     class is(eos_database_type)
       var_array => this%lookup_table_uni%var_array
       var_data => this%lookup_table_uni%var_data
     class is(eos_table_type)
-      !if regular 
-        !var_array => this%lookup_table_non_uni%var_array
-        !var_data => this%lookup_table_non_uni%var_data
-      !else if no-regular
-        var_array => this%lookup_table_gen%var_array
-        var_data => this%lookup_table_gen%var_data
-      !endif
+      var_array => this%lookup_table_gen%var_array
+      var_data => this%lookup_table_gen%var_data
   end select  
  
   data_idx = var_array(EOS_FVF)%ptr%data_idx
@@ -744,16 +693,6 @@ subroutine EOSDatabaseRead(this,option)
   !set deafult user units - identical to internal units
   this%press_user_units = 'Pa'
   this%temp_user_units = 'C'  
-  !this units insitialisation should noe be needed with new lookup_vars
-  !this%prop_internal_units(EOS_FVF) = 'm^3/m^3'
-  !this%prop_internal_units(EOS_RS) = 'm^3/m^3'
-  !this%prop_internal_units(EOS_COMPRESSIBILITY) = '1/Pa'
-  !this%prop_internal_units(EOS_VISCOSIBILITY) = '1/Pa'
-  !this%prop_user_units(EOS_FVF) = 'm^3/m^3'
-  !this%prop_user_units(EOS_RS) = 'm^3/m^3'
-  !this%prop_user_units(EOS_COMPRESSIBILITY) = '1/Pa'
-  !this%prop_user_units(EOS_VISCOSIBILITY) = '1/Pa'
-
 
   !reading the database file header
   do
@@ -908,16 +847,6 @@ subroutine EOSDatabaseRead(this,option)
   call this%EOSSetConstGradExtrap(option)
   !allocate lookup var gradients 
   call this%lookup_table_uni%LookupTableVarInitGradients(option)
-  !do prop_idx = 1,size(this%lookup_table_uni%var_array(:))
-  !  if ( associated(this%lookup_table_uni%var_array(prop_idx)%ptr) ) then
-  !    data_idx = this%lookup_table_uni%var_array(prop_idx)%ptr%data_idx
-  !    this%lookup_table_uni%var_array(prop_idx)%ptr%data => &
-  !                           this%lookup_table_uni%var_data(data_idx,:)
-  !    this%lookup_table_uni%var_data(data_idx,:) = &
-  !         this%lookup_table_uni%var_data(data_idx,:) * &
-  !         this%lookup_table_uni%var_array(prop_idx)%ptr%conversion_factor
-  !  end if
-  !end do
 
   call InputDestroy(input_table)
 
@@ -1085,15 +1014,8 @@ function EOSTableCreate(table_name,option)
   nullify(EOSTableCreate%lookup_table_gen)
 
   !create table without dimensions 
-  !add here switch between regular and non-regular tables 
-  !if (EOSTableCreate%regular) then
-    !EOSTableCreate%lookup_table_non_uni => LookupTableCreateNonUni()
-    !call EOSTableCreate%lookup_table_non_uni%LookupTableVarsInit(EOS_MAX_PROP_NUM)
-  !else
-    !create without table dimmensions to be define when table is loaded
-    EOSTableCreate%lookup_table_gen => LookupTableCreateGeneral()
-    call EOSTableCreate%lookup_table_gen%LookupTableVarsInit(EOS_MAX_PROP_NUM)
-  !end if  
+  EOSTableCreate%lookup_table_gen => LookupTableCreateGeneral()
+  call EOSTableCreate%lookup_table_gen%LookupTableVarsInit(EOS_MAX_PROP_NUM)
 
 end function EOSTableCreate
 
@@ -1203,13 +1125,6 @@ subroutine EOSTableRead(this,input,option)
   this%num_t = n_temp_count
   this%num_p = n_press_count
 
-  !if ( associated(this%lookup_table_non_uni) ) then
-  ! lookup_table_base => this%lookup_table_non_uni
-  !else if ( associated(this%lookup_table_gen) ) then
-  !  lookup_table_base => this%lookup_table_gen
-  !end if
-
-
   if (this%num_t ==1) then !isothermal press_data_array
     this%temperature = temp_array(1)
     ! create general 1D lookup table
@@ -1220,87 +1135,52 @@ subroutine EOSTableRead(this,input,option)
        axis1%values(i_press) = press_data_array(1,i_press) * &
                                this%press_unit_conv_factor
     end do
-    !if this%regular
-      !this%lookup_table_non_uni%dim = 1
-      !this%lookup_table_non_uni%dims(1) = this%num_p 
-      !this%lookup_table_non_uni%axis1 => axis1    
-    !else if .not.this%regular
       this%lookup_table_gen%dim = 1
       this%lookup_table_gen%dims(1) = this%num_p 
-      this%lookup_table_gen%axis1 => axis1
-    !end if    
+      this%lookup_table_gen%axis1 => axis1  
     nullify(axis1)
     this%n_indices = 1
 
-    !allocate(lookup_table_base%axis1%values(this%num_p))
-    !do i_press = 1,this%num_p
-    !  lookup_table_base%axis1%values(i_press) = &
-    !     press_data_array(1,i_press) * this%press_unit_conv_factor
-    !end do
-    !this%n_indices = 1
   else if (this%num_t > 1) then
     !creat general 2D lookip table and load the temperature values in axis1
     this%temperature = UNINITIALIZED_DOUBLE
-    !this%lookup_table_gen => LookupTableCreateGeneral(TWO_INTEGER)
     allocate(axis1)
     allocate(axis1%values(this%num_t))
     do i_temp = 1,this%num_t
       axis1%values(i_temp) = temp_array(i_temp) * this%temp_unit_conv_factor
     end do
-    !if lookup regular
-      !allocate(this%lookup_table_non_uni%axis2%values(this%num_p))
-      !do i_press = 1,this%num_p
-      !  this%lookup_table_non_uni%axis2%values(i_press) = &
-      !     press_data_array(1,i_press) * this%press_unit_conv_factor
-      !end do
-      !this%lookup_table_non_uni%axis1 => axis1
-      !this%lookup_table_non_uni%dim = 2
-      !this%lookup_table_non_uni%dims(1) = this%num_t
-      !this%lookup_table_non_uni%dims(2) = n_press_count_first      
-      !this%n_indices = 2
-    !else if lookup no regular
-      allocate(this%lookup_table_gen%axis2)
-      call LookupTableAxisInit(this%lookup_table_gen%axis2)
-      this%lookup_table_gen%axis2%saved_index2 = 1    
-      allocate(this%lookup_table_gen%axis2%values(this%num_p))      
-      do i_press = 1,this%num_p
-        this%lookup_table_gen%axis2%values(i_press) = &
-            press_data_array(1,i_press) * this%press_unit_conv_factor
-      end do
-      this%lookup_table_gen%axis1 => axis1
-      this%lookup_table_gen%dim = 2
-      this%lookup_table_gen%dims(1) = this%num_t
-      this%lookup_table_gen%dims(2) = n_press_count_first      
-      this%n_indices = 3
-    !end if
+    allocate(this%lookup_table_gen%axis2)
+    call LookupTableAxisInit(this%lookup_table_gen%axis2)
+    this%lookup_table_gen%axis2%saved_index2 = 1    
+    allocate(this%lookup_table_gen%axis2%values(this%num_p))      
+    do i_press = 1,this%num_p
+      this%lookup_table_gen%axis2%values(i_press) = &
+          press_data_array(1,i_press) * this%press_unit_conv_factor
+    end do
+    this%lookup_table_gen%axis1 => axis1
+    this%lookup_table_gen%dim = 2
+    this%lookup_table_gen%dims(1) = this%num_t
+    this%lookup_table_gen%dims(2) = n_press_count_first      
+    this%n_indices = 3
     nullify(axis1) 
   end if
-  !allocate general lookup Table
-  !this%lookup_table_gen => LookupTableCreateGeneral(dim)
+
   nullify(var_data)
   allocate(var_data(this%num_prop,n_press_count))
   do i_press = 1,n_press_count
     do i_prop=1,this%num_prop      
       !the conversion is done later - 
-      var_data(i_prop,i_press) = press_data_array(i_prop+1,i_press) 
-      !PO old lookup format                            
-      !this%data(i_prop,i_press) = press_data_array(i_prop+1,i_press) * &
-      !                            this%prop_unit_conv_factors(i_prop)                                  
+      var_data(i_prop,i_press) = press_data_array(i_prop+1,i_press)  
     end do
   end do
   
-  !if this%regular
-    !this%lookup_table_non_uni%var_data => var_data
-    !call this%lookup_table_non_uni%VarPointAndUnitConv()  
-  !else if .not.this%regular
-    this%lookup_table_gen%var_data => var_data
-    !convert units
-    call this%lookup_table_gen%VarPointAndUnitConv(option)
-    !setup constant gradient extrapolation method
-    call this%EOSSetConstGradExtrap(option)
-    !allocate lookup var gradients 
-    call this%lookup_table_gen%LookupTableVarInitGradients(option)
-  !end if
+  this%lookup_table_gen%var_data => var_data
+  !convert units
+  call this%lookup_table_gen%VarPointAndUnitConv(option)
+  !setup constant gradient extrapolation method
+  call this%EOSSetConstGradExtrap(option)
+  !allocate lookup var gradients 
+  call this%lookup_table_gen%LookupTableVarInitGradients(option)
 
   nullify(var_data)
 
@@ -1410,9 +1290,6 @@ subroutine EOSPropTable(this,T,P,prop_iname,prop_value,indices,ierr)
   class(eos_table_type) :: this
   PetscReal, intent(in) :: T              ! temperature [C]
   PetscReal, intent(in) :: P              ! pressure [Pa]
-  !PetscInt, intent(inout), optional :: iP1   ! pressure looup index1 - left T
-  !PetscInt, intent(inout), optional :: iT    ! temperature lookup index
-  !PetscInt, intent(inout), optional :: iP2   ! pressure looup index2 - right T
   PetscInt, intent(in) :: prop_iname
   PetscReal, intent(out) :: prop_value ! database units (SI)
   PetscErrorCode, intent(out) :: ierr
@@ -1718,6 +1595,5 @@ subroutine EOSTableDestroyList()
 end subroutine EOSTableDestroyList
 
 ! ************************************************************************** !
-
 
 end module EOSData_module

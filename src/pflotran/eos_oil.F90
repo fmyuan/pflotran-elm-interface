@@ -2015,25 +2015,9 @@ subroutine ConvertRSVoltoRSMolar(FMW_gas,ref_den_gas_kg)
   PetscReal, pointer :: var_data(:,:) => null()
   type(lookup_table_var_ptr_type), pointer :: var_array(:) => null()  
 
-  !do i_data = 1,size(pvt_table%data,2)
-  !  !Rsm=(moles gas)/(moles oil)=(mol den gas)*(vol gas)/((mol den oil)*(vol oil))
-  !  !                           =Rsv*(mol den gas)/(mol den oil)
-  !  pvt_table%data(pvt_table%prop_to_data_map(EOS_RS),i_data) = &
-  !  !mol/mol = (kg/sm3 * kmol/kg)_gas / (kg/sm3 * kmol/kg)_oil * (sm3_g / sm3_o)
-  !          (ref_den_gas_kg / FMW_gas) / (reference_density_kg / fmw_oil) * &
-  !          pvt_table%data(pvt_table%prop_to_data_map(EOS_RS),i_data)
-  !end do
-  !
-  ! change units after conversion
-  !pvt_table%prop_internal_units(EOS_RS) = 'mol/mol'
-  
-  !if regular 
-    !var_array => this%lookup_table_non_uni%var_array
-    !var_data => this%lookup_table_non_uni%var_data
-  !else if no-regular
-    var_array => pvt_table%lookup_table_gen%var_array
-    var_data => pvt_table%lookup_table_gen%var_data
-  !end if
+  var_array => pvt_table%lookup_table_gen%var_array
+  var_data => pvt_table%lookup_table_gen%var_data
+
 
   data_idx = var_array(EOS_RS)%ptr%data_idx
   !mol/mol = (kg/sm3 * kmol/kg)_gas / (kg/sm3 * kmol/kg)_oil * (sm3_g / sm3_o)
