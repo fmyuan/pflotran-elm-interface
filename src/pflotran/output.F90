@@ -2442,7 +2442,8 @@ subroutine OutputFindNaNOrInfInVec(vec,grid,option)
   ! 
   use Grid_module
   use Option_module
-  use ieee_arithmetic
+!geh: ieee_arithmetic is not yet supported by gfortran 4.x or lower
+!  use ieee_arithmetic
 
   implicit none
 
@@ -2463,12 +2464,13 @@ subroutine OutputFindNaNOrInfInVec(vec,grid,option)
   call VecGetArrayReadF90(vec,vec_p,ierr);CHKERRQ(ierr)
   local_count = 0
   do i = 1, local_size
-    if (ieee_is_nan(vec_p(i)) .or. .not.ieee_is_finite(vec_p(i))) then
+     if (PetscIsInfOrNanReal(vec_p(i))) then
+!    if (ieee_is_nan(vec_p(i)) .or. .not.ieee_is_finite(vec_p(i))) then
       local_count = local_count + 1
       icell = int(float(i-1)/float(block_size))+1
       iarray(1,local_count) = grid%nG2A(grid%nL2G(icell))
       idof = i-(icell-1)*block_size
-      if (ieee_is_nan(vec_p(i))) idof = -idof
+!      if (ieee_is_nan(vec_p(i))) idof = -idof
       iarray(2,local_count) = idof
     endif
   enddo
@@ -2479,7 +2481,7 @@ subroutine OutputFindNaNOrInfInVec(vec,grid,option)
                 MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
   do i = 1, min(max_number_to_print-exscan_count,local_count)
     idof = iarray(2,i)
-    if (idof < 0) then
+    if (idof > 0) then
       option%io_buffer = 'NaN'
     else
       option%io_buffer = 'Inf'
