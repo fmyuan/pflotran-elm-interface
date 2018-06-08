@@ -63,6 +63,7 @@ module Utility_module
             DeallocateArray, &
             InterfaceApprox, &
             Interpolate, &
+            GradientLinear, &
             InterpolateBilinear, &
             SearchOrderedArray, &
             ludcmp, &
@@ -709,6 +710,33 @@ subroutine Interpolate(x_high,x_low,x,y_high,y_low,y)
   endif
 
 end subroutine Interpolate
+
+! ************************************************************************** !
+
+subroutine GradientLinear(x_high,x_low,y_high,y_low,dy_dx)
+  ! 
+  ! Computes linear gradient given two reference values
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 05/12/18
+  ! 
+
+  implicit none
+
+  PetscReal, intent(in) :: x_high, x_low
+  PetscReal, intent(in) :: y_high, y_low
+  PetscReal, intent(out) :: dy_dx
+  
+  PetscReal :: x_diff
+  
+  x_diff = x_high-x_low
+  if (dabs(x_diff) < 1.d-10) then
+    dy_dx = 0.0
+  else
+    dy_dx = (y_high - y_low) / x_diff
+  endif
+
+end subroutine GradientLinear
 
 ! ************************************************************************** !
 
