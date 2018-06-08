@@ -68,9 +68,7 @@ module EOS_Oil_module
   procedure(EOSOilViscosibilityDummy), pointer :: &
     EOSOilViscosibilityPtr => null()
 
-  ! these should be define as astract interfaces, because there are no
-  ! precedures named as xxxDummy that have such interfaces
-  interface
+  abstract interface
     subroutine EOSOilViscosityDummy(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr, &
                                     table_idxs)
       implicit none
