@@ -294,10 +294,10 @@ subroutine AddPMCSubsurfaceFlow(simulation, pm_flow, pmc_name, &
   character(len=MAXSTRINGLENGTH) :: string
 
   pmc_subsurface => PMCSubsurfaceCreate()
-  pmc_subsurface%name = pmc_name
-  pmc_subsurface%option => option
-  pmc_subsurface%checkpoint_option => simulation%checkpoint_option
-  pmc_subsurface%waypoint_list => simulation%waypoint_list_subsurface
+  call pmc_subsurface%SetName(pmc_name)
+  call pmc_subsurface%SetOption(option)
+  call pmc_subsurface%SetCheckpointOption(simulation%checkpoint_option)
+  call pmc_subsurface%SetWaypointList(simulation%waypoint_list_subsurface)
   pmc_subsurface%pm_list => pm_flow
   pmc_subsurface%pm_ptr%pm => pm_flow
   pmc_subsurface%realization => realization
@@ -345,10 +345,10 @@ subroutine AddPMCSubsurfaceRT(simulation, pm_rt, pmc_name, &
   nullify(pmc_dummy)
 
   pmc_subsurface => PMCSubsurfaceCreate()
-  pmc_subsurface%name = pmc_name
-  pmc_subsurface%option => option
-  pmc_subsurface%checkpoint_option => simulation%checkpoint_option
-  pmc_subsurface%waypoint_list => simulation%waypoint_list_subsurface
+  call pmc_subsurface%SetName(pmc_name)
+  call pmc_subsurface%SetOption(option)
+  call pmc_subsurface%SetCheckpointOption(simulation%checkpoint_option)
+  call pmc_subsurface%SetWaypointList(simulation%waypoint_list_subsurface)
   pmc_subsurface%pm_list => pm_rt
   pmc_subsurface%pm_ptr%pm => pm_rt
   pmc_subsurface%realization => realization
@@ -431,9 +431,9 @@ subroutine AddPMCWasteForm(simulation, pm_waste_form, pmc_name, &
   enddo
 
   pmc_waste_form => PMCThirdPartyCreate()
-  pmc_waste_form%name = pmc_name
-  pmc_waste_form%option => option
-  pmc_waste_form%checkpoint_option => simulation%checkpoint_option
+  call pmc_waste_form%SetName(pmc_name)
+  call pmc_waste_form%SetOption(option)
+  call pmc_waste_form%SetCheckpointOption(simulation%checkpoint_option)
   pmc_waste_form%pm_list => pm_waste_form
   pmc_waste_form%pm_ptr%pm => pm_waste_form
   pmc_waste_form%realization => realization
@@ -495,10 +495,10 @@ subroutine AddPMCUDFDecay(simulation, pm_ufd_decay, pmc_name, &
   endif
 
   pmc_ufd_decay => PMCThirdPartyCreate()
-  pmc_ufd_decay%name = pmc_name
-  pmc_ufd_decay%option => option
-  pmc_ufd_decay%checkpoint_option => simulation%checkpoint_option
-  pmc_ufd_decay%waypoint_list => simulation%waypoint_list_subsurface
+  call pmc_ufd_decay%SetName(pmc_name)
+  call pmc_ufd_decay%SetOption(option)
+  call pmc_ufd_decay%SetCheckpointOption(simulation%checkpoint_option)
+  call pmc_ufd_decay%SetWaypointList(simulation%waypoint_list_subsurface)
   pmc_ufd_decay%pm_list => pm_ufd_decay
   pmc_ufd_decay%pm_ptr%pm => pm_ufd_decay
   pmc_ufd_decay%realization => realization
@@ -565,10 +565,10 @@ subroutine AddPMCUDFBiosphere(simulation, pm_ufd_biosphere, pmc_name, &
   endif
 
   pmc_ufd_biosphere => PMCThirdPartyCreate()
-  pmc_ufd_biosphere%name = pmc_name
-  pmc_ufd_biosphere%option => option
-  pmc_ufd_biosphere%checkpoint_option => simulation%checkpoint_option
-  pmc_ufd_biosphere%waypoint_list => simulation%waypoint_list_subsurface
+  call pmc_ufd_biosphere%SetName(pmc_name)
+  call pmc_ufd_biosphere%SetOption(option)
+  call pmc_ufd_biosphere%SetCheckpointOption(simulation%checkpoint_option)
+  call pmc_ufd_biosphere%SetWaypointList(simulation%waypoint_list_subsurface)
   pmc_ufd_biosphere%pm_list => pm_ufd_biosphere
   pmc_ufd_biosphere%pm_ptr%pm => pm_ufd_biosphere
   pmc_ufd_biosphere%realization => realization
@@ -622,13 +622,14 @@ subroutine AddPMCAuxiliary(simulation, pm_auxiliary, pmc_name, &
   if (StringCompareIgnoreCase(pm_auxiliary%ctype,string)) then
     if (associated(simulation%rt_process_model_coupler)) then
       pmc_auxiliary => PMCAuxiliaryCreate()
-      call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_PEER, &
-           PMCCastToBase(simulation%rt_process_model_coupler), &
-           pmc_dummy,PM_APPEND)
+      call pmc_auxiliary%SetName(pmc_name)
+      call pmc_auxiliary%SetOption(option)
       pm_auxiliary%realization => realization
       pmc_auxiliary%pm_list => pm_auxiliary
       pmc_auxiliary%pm_aux => pm_auxiliary
-      pmc_auxiliary%option => option
+      call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_PEER, &
+           PMCCastToBase(simulation%rt_process_model_coupler), &
+           pmc_dummy,PM_APPEND)
     else
       option%io_buffer = 'Reactive transport must be included in the &
            &SIMULATION block in order to use the SALINITY process model.'
