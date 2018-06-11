@@ -45,7 +45,7 @@ CHEMISTRY
   DATABASE ../../../database/hanford.dat
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT
-    all
+    ALL
     TOTAL
   /
 END

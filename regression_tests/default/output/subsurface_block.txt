@@ -14,7 +14,7 @@ CHEMISTRY
   /
   OUTPUT
     FREE_ION
-    all
+    ALL
   /
 END
 

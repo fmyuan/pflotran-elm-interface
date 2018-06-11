@@ -38,7 +38,7 @@ CHEMISTRY
 #  OPERATOR_SPLIT
 #  LOG_FORMULATION
   OUTPUT
-    All
+    ALL
     TOTAL
   /
 /

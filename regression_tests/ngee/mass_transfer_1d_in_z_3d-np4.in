@@ -44,7 +44,7 @@ CHEMISTRY
   DATABASE ./ABC_database.dat
   ACTIVITY_COEFFICIENTS TIMESTEP
   OUTPUT
-    all
+    ALL
     TOTAL
   /
 END

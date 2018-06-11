@@ -73,7 +73,7 @@ CHEMISTRY
   DATABASE ../../../database/hanford.dat
   LOG_FORMULATION
   OUTPUT
-    all
+    ALL
     TOTAL
     TOTAL_SORBED
   /
