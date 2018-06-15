@@ -1001,7 +1001,7 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
         &is at or beyond the end of checkpointed simulation (' // &
         trim(adjustl(this%option%io_buffer)) // &
         trim(this%pm_list%realization_base%output_option%tunit) // ').'
-      call printErrMsg(this%option)
+      call printMsg(this%option)
     endif
     this%option%time = this%timestepper%target_time
   endif

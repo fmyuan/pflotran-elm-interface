@@ -293,12 +293,19 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           end select
         enddo
         if (realization_dependent_restart) then
-          ! append the realization id
-          i = max(index(option%restart_filename,'.chk'), &
-                  index(option%restart_filename,'.h5'))
-          write(word,*) option%id
-          string = option%restart_filename(1:i-1) // trim(adjustl(word)) // &
-                   option%restart_filename(i:i+3) ! i+3 captures .chk
+          ! insert realization id
+          i = index(option%restart_filename,'-restart')
+          if (i > 0) then
+            string = option%restart_filename(1:i-1) // &
+                     trim(option%group_prefix) // &
+                   option%restart_filename(i:len_trim(option%restart_filename))
+          else
+            option%io_buffer = 'Realization-dependent restart requires that &
+              &"-restart" be present in the restart file name so that the &
+              &realization id can be inserted prior to -restart.  E.g. &
+              &pflotran-restart.h5 -> pflotranR1-restart.h5'
+            call printErrMsg(option)
+          endif
           option%restart_filename = trim(string)
         endif
       case('INPUT_RECORD_FILE')

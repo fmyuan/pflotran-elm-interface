@@ -177,33 +177,14 @@ subroutine MultiSimulationIncrement(multisimulation,option)
   
   if (.not.associated(multisimulation)) return
   
-!#define RESTART_MULTISIMULATION  
-#if defined(RESTART_MULTISIMULATION)
-  ! code for restarting multisimulation runs; may no longer need this.
-  do
-#endif
+  call OptionInitRealization(option)
 
-    call OptionInitRealization(option)
-
-    multisimulation%cur_realization = multisimulation%cur_realization + 1
-    ! Set group prefix based on id
-    option%id = &
-      multisimulation%realization_ids(multisimulation%cur_realization)
-    write(string,'(i6)') option%id
-    option%group_prefix = 'R' // trim(adjustl(string))  
-
-#if defined(RESTART_MULTISIMULATION)
-    string = 'restart' // trim(adjustl(option%group_prefix)) // '.chk.info'
-    open(unit=86,file=string,status="old",iostat=status)
-    ! if file found, cycle
-    if (status == 0) then
-      close(86)
-      cycle
-    else
-      exit
-    endif
-  enddo
-#endif
+  multisimulation%cur_realization = multisimulation%cur_realization + 1
+  ! Set group prefix based on id
+  option%id = &
+    multisimulation%realization_ids(multisimulation%cur_realization)
+  write(string,'(i6)') option%id
+  option%group_prefix = 'R' // trim(adjustl(string))  
 
 end subroutine MultiSimulationIncrement
 
