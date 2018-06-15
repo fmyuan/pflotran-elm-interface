@@ -126,6 +126,15 @@ subroutine MultiSimulationInitialize(multisimulation,option)
     call printWrnMsg(option)
     multisimulation%num_realizations = 1
   endif
+  if (multisimulation%num_groups > multisimulation%num_realizations) then
+    write(string,*) multisimulation%num_realizations
+    option%io_buffer = 'Number of stochastic realizations (' // adjustl(string)
+    write(string,*) multisimulation%num_groups
+    option%io_buffer = trim(option%io_buffer) // ') must be equal to &
+         &or greater than number of processor groups (' // adjustl(string)
+    option%io_buffer = trim(option%io_buffer) // ').'
+    call printErrMsg(option)
+  endif
   
   call OptionCreateProcessorGroups(option,multisimulation%num_groups)
   
@@ -146,6 +155,8 @@ subroutine MultiSimulationInitialize(multisimulation,option)
                                      multisimulation%num_local_realizations + 1
   allocate(multisimulation%realization_ids( &
                                   multisimulation%num_local_realizations))
+print *, 'here'
+  print *, size(multisimulation%realization_ids)
   multisimulation%realization_ids = 0
   do i = 1, multisimulation%num_local_realizations
     multisimulation%realization_ids(i) = offset + i

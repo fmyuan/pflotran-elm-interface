@@ -1363,8 +1363,19 @@ subroutine OptionCreateProcessorGroups(option,num_groups)
   PetscInt :: offset, delta, remainder
   PetscInt :: igroup
   PetscMPIInt :: mycolor_mpi, mykey_mpi
+  character(len=MAXWORDLENGTH) :: word
   PetscErrorCode :: ierr
 
+  if (num_groups > option%global_commsize) then
+    write(word,*) num_groups
+    option%io_buffer = 'The number of process groups (' // adjustl(word)
+    write(word,*) option%global_commsize
+    option%io_buffer = trim(option%io_buffer) // &
+      ') must be equal to or less than the number of processes (' // &
+      adjustl(word)
+    option%io_buffer = trim(option%io_buffer) // ').'
+    call printErrMsg(option)
+  endif
   local_commsize = option%global_commsize / num_groups
   remainder = option%global_commsize - num_groups * local_commsize
   offset = 0
