@@ -995,7 +995,7 @@ subroutine EOSOilViscosityTable(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr, &
   !call pvt_table%EOSProp(T,P,EOS_VISCOSITY,Vis,table_idxs,ierr)
   
   call pvt_table%EOSPropGrad(T,P,EOS_VISCOSITY,Vis,dVis_dT,dVis_dP, &
-                             table_idxs,ierr)
+                             ierr,table_idxs)
 
   ! initialize to derivative to NaN so that not mistakenly used.
   ! dVis_dT = InitToNan()
@@ -1267,7 +1267,7 @@ subroutine EOSOilDensityTable(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr, &
   
   !Rho from pvt table is already in kmol/m3
   call pvt_table%EOSPropGrad(T,P,EOS_DENSITY,Rho,dRho_dT,dRho_dP, &
-                             table_idxs,ierr)
+                             ierr,table_idxs)
 
   ! initialize derivative to NaN so that not mistakenly used.
   ! dRho_dT = InitToNan()
@@ -1614,7 +1614,7 @@ subroutine EOSOilRSTable(T,P,deriv,RS,dRS_dT,dRS_dP,ierr,table_idxs)
   !ierr initialised in EOSProp
   !call pvt_table%EOSProp(T,P,EOS_RS,Rs,table_idxs,ierr)
   
-  call pvt_table%EOSPropGrad(T,P,EOS_RS,Rs,dRS_dT,dRS_dP,table_idxs,ierr)
+  call pvt_table%EOSPropGrad(T,P,EOS_RS,Rs,dRS_dT,dRS_dP,ierr,table_idxs)
 
   ! initialize derivative to NaN so that not mistakenly used.
   ! dRS_dT = InitToNan()
@@ -1684,7 +1684,7 @@ subroutine EOSOilCompressibilityTable(T,P,deriv,Co,dCo_dT,dCo_dP,ierr, &
   !call pvt_table%EOSProp(T,P,EOS_COMPRESSIBILITY,Co,table_idxs,ierr)
 
   call pvt_table%EOSPropGrad(T,P,EOS_COMPRESSIBILITY,Co,dCo_dT,dCo_dP, &
-                             table_idxs,ierr) 
+                             ierr,table_idxs)
    
   ! ! initialize derivative to NaN so that not mistakenly used.
   ! dCo_dT = InitToNan()
@@ -1754,7 +1754,7 @@ subroutine EOSOilViscosibilityTable(T,P,deriv,Cvis,dCvis_dT,dCvis_dP,ierr, &
   !call pvt_table%EOSProp(T,P,EOS_VISCOSIBILITY,Cvis,table_idxs,ierr)
  
   call pvt_table%EOSPropGrad(T,P,EOS_VISCOSIBILITY,Cvis,dCvis_dT,dCvis_dP, &
-                        table_idxs,ierr)
+                             ierr,table_idxs)
 
   ! ! initialize derivative to NaN so that not mistakenly used.
   ! dCvis_dT = InitToNan()
