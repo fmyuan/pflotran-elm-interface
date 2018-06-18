@@ -63,7 +63,7 @@ REGION all
 END
 
 REGION bottom
-  FACE bottom
+  FACE BOTTOM
   COORDINATES
     0.0 0.0 0.0 
     1.0 1.0 0.0 
@@ -71,7 +71,7 @@ REGION bottom
 END
 
 REGION top
-  FACE top
+  FACE TOP
   COORDINATES
     0.0 0.0 10.0 
     1.0 1.0 0.0 

@@ -46,7 +46,7 @@ CHEMISTRY
  DATABASE ../../../database/hanford.dat
   MOLAL
   OUTPUT
-    All
+    ALL
     TOTAL
   /
 /

@@ -169,7 +169,7 @@ REGION rightFace
     1.5d1 0.d0 0.d0
     1.5d1 1.d0 1.d0
   /
-  FACE east
+  FACE EAST
 END
 
 REGION leftFace
@@ -177,7 +177,7 @@ REGION leftFace
     0.d0 0.d0 0.d0
     0.d0 1.d0 1.d0
   /
-  FACE west
+  FACE WEST
 END
 
 REGION injection

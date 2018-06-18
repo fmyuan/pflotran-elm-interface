@@ -742,11 +742,13 @@ subroutine printErrMsgByRank2(option,string)
 
   character(len=MAXWORDLENGTH) :: word
 
-  write(word,*) option%myrank
-  print *
-  print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(string)
-  print *
-  print *, 'Stopping!'
+  if (option%print_to_screen) then
+    write(word,*) option%myrank
+    print *
+    print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(string)
+    print *
+    print *, 'Stopping!'
+  endif
   stop
 
 end subroutine printErrMsgByRank2
@@ -790,10 +792,12 @@ subroutine printErrMsgNoStopByRank2(option,string)
 
   character(len=MAXWORDLENGTH) :: word
 
-  write(word,*) option%myrank
-  print *
-  print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(string)
-  print *
+  if (option%print_to_screen) then
+    write(word,*) option%myrank
+    print *
+    print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(string)
+    print *
+  endif
 
 end subroutine printErrMsgNoStopByRank2
 
@@ -885,7 +889,7 @@ subroutine printMsgAnyRank1(option)
 
   type(option_type) :: option
 
-  if (OptionPrintToScreen(option)) call printMsgAnyRank2(option%io_buffer)
+  if (option%print_to_screen) call printMsgAnyRank2(option%io_buffer)
 
 end subroutine printMsgAnyRank1
 
@@ -902,7 +906,7 @@ subroutine printMsgAnyRank2(string)
   implicit none
 
   character(len=*) :: string
-
+  
   print *, trim(string)
 
 end subroutine printMsgAnyRank2
@@ -942,7 +946,7 @@ subroutine printMsgByRank2(option,string)
 
   character(len=MAXWORDLENGTH) :: word
 
-  if (OptionPrintToScreen(option)) then
+  if (option%print_to_screen) then
     write(word,*) option%myrank
     print *, '(' // trim(adjustl(word)) // '): ' // trim(string)
   endif
@@ -1359,8 +1363,19 @@ subroutine OptionCreateProcessorGroups(option,num_groups)
   PetscInt :: offset, delta, remainder
   PetscInt :: igroup
   PetscMPIInt :: mycolor_mpi, mykey_mpi
+  character(len=MAXWORDLENGTH) :: word
   PetscErrorCode :: ierr
 
+  if (num_groups > option%global_commsize) then
+    write(word,*) num_groups
+    option%io_buffer = 'The number of process groups (' // adjustl(word)
+    write(word,*) option%global_commsize
+    option%io_buffer = trim(option%io_buffer) // &
+      ') must be equal to or less than the number of processes (' // &
+      adjustl(word)
+    option%io_buffer = trim(option%io_buffer) // ').'
+    call printErrMsg(option)
+  endif
   local_commsize = option%global_commsize / num_groups
   remainder = option%global_commsize - num_groups * local_commsize
   offset = 0

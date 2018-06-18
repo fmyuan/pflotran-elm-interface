@@ -149,8 +149,8 @@ CHEMISTRY
   MOLAL
   UPDATE_MINERAL_SURFACE_AREA
   OUTPUT
-    all
-    pH
+    ALL
+    PH
     FREE_ION
     TOTAL
   /

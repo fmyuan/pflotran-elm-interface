@@ -398,7 +398,8 @@ subroutine HDF5ReadDatasetReal1D(filename,dataset_name,read_option,option, &
 
 end subroutine HDF5ReadDatasetReal1D
 
-#endif ! PARALLELIO_LIB
+#endif 
+! PARALLELIO_LIB
 
 ! ************************************************************************** !
 

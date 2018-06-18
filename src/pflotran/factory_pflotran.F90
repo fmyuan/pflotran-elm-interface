@@ -154,6 +154,8 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   class(pmc_base_type), pointer :: pmc_master
   
   PetscBool :: print_ekg
+  PetscBool :: realization_dependent_restart
+  PetscInt :: i
   
   nullify(pm_master)
   nullify(cur_pm)
@@ -257,14 +259,55 @@ subroutine PFLOTRANReadSimulation(simulation,option)
                             checkpoint_waypoint_list)
       case ('RESTART')
         option%restart_flag = PETSC_TRUE
+        realization_dependent_restart = PETSC_FALSE
+        ! this section preserves the legacy implementation
         call InputReadNChars(input,option,option%restart_filename, &
                              MAXSTRINGLENGTH,PETSC_TRUE)
-        call InputErrorMsg(input,option,'RESTART','Restart file name') 
-        call InputReadDouble(input,option,option%restart_time)
         if (input%ierr == 0) then
-          call InputReadAndConvertUnits(input,option%restart_time, &
+          call InputReadDouble(input,option,option%restart_time)
+          if (input%ierr == 0) then
+            call InputReadAndConvertUnits(input,option%restart_time, &
                                         'sec','RESTART,time units',option)
-        endif    
+          endif 
+          cycle
+          ! end legacy implementation
+        endif 
+        input%ierr = 0
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call StringToUpper(word)
+          select case(word)
+            case('FILENAME')
+              call InputReadNChars(input,option,option%restart_filename, &
+                                   MAXSTRINGLENGTH,PETSC_TRUE)
+              call InputErrorMsg(input,option,'RESTART','filename') 
+            case('RESET_TO_TIME_ZERO')
+              ! any value but UNINITIALIZED_DOUBLE will set back to zero.
+              option%restart_time = 0.d0 
+            case('REALIZATION_DEPENDENT')
+              realization_dependent_restart = PETSC_TRUE
+            case default
+              call InputKeywordUnrecognized(word,'SIMULATION,RESTART',option)
+          end select
+        enddo
+        if (realization_dependent_restart) then
+          ! insert realization id
+          i = index(option%restart_filename,'-restart')
+          if (i > 0) then
+            string = option%restart_filename(1:i-1) // &
+                     trim(option%group_prefix) // &
+                   option%restart_filename(i:len_trim(option%restart_filename))
+          else
+            option%io_buffer = 'Realization-dependent restart requires that &
+              &"-restart" be present in the restart file name so that the &
+              &realization id can be inserted prior to -restart.  E.g. &
+              &pflotran-restart.h5 -> pflotranR1-restart.h5'
+            call printErrMsg(option)
+          endif
+          option%restart_filename = trim(string)
+        endif
       case('INPUT_RECORD_FILE')
         option%input_record = PETSC_TRUE
         call OpenAndWriteInputRecord(option)

@@ -199,11 +199,15 @@ subroutine TimestepperBaseInitializeRun(this,option)
   
   call this%PrintInfo(option)
   option%time = this%target_time
-  ! For the case where the second waypoint is a printout after the first time 
-  ! step, we must increment the waypoint beyond the first (time=0.) waypoint.  
-  ! Otherwise the second time step will be zero. - geh
-  if (this%cur_waypoint%time < 1.d-40) then
-    this%cur_waypoint => this%cur_waypoint%next
+  ! cur_waypoint may be null due to restart of a simulation that reached 
+  ! its final time
+  if (associated(this%cur_waypoint)) then 
+    ! For the case where the second waypoint is a printout after the 
+    ! first time step, we must increment the waypoint beyond the first 
+    ! (time=0.) waypoint. ! Otherwise the second time step will be zero. - geh
+    if (this%cur_waypoint%time < 1.d-40) then
+      this%cur_waypoint => this%cur_waypoint%next
+    endif
   endif
 
 end subroutine TimestepperBaseInitializeRun

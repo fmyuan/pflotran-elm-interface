@@ -333,12 +333,12 @@ subroutine GeomechConditionRead(condition,input,option)
       case('INTERPOLATION')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')   
-        call StringToLower(word)
+        call StringToUpper(word)
         select case(word)
-          case('step')
+          case('STEP')
             default_time_storage%time_interpolation_method = &
               INTERPOLATION_STEP
-          case('linear') 
+          case('LINEAR') 
             default_time_storage%time_interpolation_method = &
               INTERPOLATION_LINEAR
         end select
