@@ -41,7 +41,12 @@ module Richards_module
          RichardsUpdateSolution, &
          RichardsComputeMassBalance, &
          RichardsDestroy, &
-         RichardsUpdateSurfacePress
+         RichardsUpdateSurfacePress, &
+         RichardsResidualInternalConn, &
+         RichardsResidualBoundaryConn, &
+         RichardsJacobianInternalConn, &
+         RichardsJacobianBoundaryConn, &
+         RichardsJacobianSourceSink
 
 contains
 
@@ -730,7 +735,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)  
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, region_id
-  PetscInt :: iphasebc, iphase, i
+  PetscInt :: iphasebc, iphase, i, istart, iend
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof), Pl
   PetscErrorCode :: ierr
@@ -759,7 +764,10 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
     !geh - Ignore inactive cells with inactive materials
     if (patch%imat(ghosted_id) <= 0) cycle
 
-    call RichardsAuxVarCompute(xx_loc_p(ghosted_id:ghosted_id), &
+    iend = ghosted_id*option%nflowdof
+    istart = iend - option%nflowdof + 1
+
+    call RichardsAuxVarCompute(xx_loc_p(istart:iend), &
                                rich_auxvars(ghosted_id), &
                                global_auxvars(ghosted_id), &
                                material_auxvars(ghosted_id), &
@@ -794,6 +802,8 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
+      istart = (ghosted_id-1)*option%nflowdof + 1
+
       if (patch%imat(ghosted_id) <= 0) cycle
 
       select case(boundary_condition%flow_condition% &
@@ -806,7 +816,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                       flow_aux_real_var(RICHARDS_PRESSURE_DOF,iconn)
         case(NEUMANN_BC,ZERO_GRADIENT_BC,UNIT_GRADIENT_BC, &
              SURFACE_ZERO_GRADHEIGHT)
-          xxbc(1) = xx_loc_p(ghosted_id)
+          xxbc(1) = xx_loc_p(istart)
       end select
      
       call RichardsAuxVarCompute(xxbc(1),rich_auxvars_bc(sum_connection), &
