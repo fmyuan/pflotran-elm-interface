@@ -27,6 +27,10 @@ module Richards_Aux_module
     PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda    
 #endif
 
+    PetscReal :: mass
+    PetscReal :: dpres_dtime
+    PetscReal :: dmass_dtime
+
     ! OLD-VAR-NAMES            = NEW-VAR
     ! ------------------------------------------------
     ! P_min                    = vars_for_sflow(1)
@@ -126,6 +130,10 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%dsat_dp = 0.d0
   auxvar%dden_dp = 0.d0
 
+  auxvar%mass = 0.d0
+  auxvar%dpres_dtime = 0.d0
+  auxvar%dmass_dtime = 0.0d0
+
   if (option%surf_flow_on) then
     allocate(auxvar%vars_for_sflow(11))
     auxvar%vars_for_sflow(:) = 0.d0
@@ -165,6 +173,10 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dden_dp = auxvar%dden_dp
  
+  auxvar2%mass = auxvar%mass
+  auxvar2%dpres_dtime = auxvar%dpres_dtime
+  auxvar2%dmass_dtime = auxvar%dmass_dtime
+
   if (option%surf_flow_on) &
     auxvar2%vars_for_sflow(:) = auxvar%vars_for_sflow(:)
 
