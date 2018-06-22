@@ -95,6 +95,12 @@ subroutine CondControlAssignFlowInitCond(realization)
   field => realization%field
   patch => realization%patch
 
+  select case(option%iflowmode)
+  case (RICHARDS_2DOFs_MODE)
+     call CondControlAssignFlowInitCond_Richards2DOFs(realization)
+     return
+  end select
+
   ! to catch uninitialized grid cells.  see VecMin check at bottom.
   call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
   iphase_loc_p = UNINITIALIZED_DOUBLE
@@ -805,6 +811,169 @@ subroutine CondControlAssignFlowInitCond(realization)
   endif
 
 end subroutine CondControlAssignFlowInitCond
+
+! ************************************************************************** !
+
+subroutine CondControlAssignFlowInitCond_Richards2DOFs(realization)
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Realization_Subsurface_class
+  use Discretization_module
+  use Region_module
+  use Option_module
+  use Field_module
+  use Coupler_module
+  use Condition_module
+  use Dataset_Base_class
+  use Dataset_Gridded_HDF5_class
+  use Dataset_Common_HDF5_class
+  use Grid_module
+  use Patch_module
+  use EOS_Water_module
+
+  use Global_module
+  use Global_Aux_module
+
+  implicit none
+  
+  class(realization_subsurface_type) :: realization
+  
+  PetscInt :: icell, iconn, idof, iface
+  PetscInt :: local_id, ghosted_id, iend, ibegin
+  PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
+  PetscErrorCode :: ierr
+  
+  character(len=MAXSTRINGLENGTH) :: string
+  
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field  
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(discretization_type), pointer :: discretization
+  type(coupler_type), pointer :: initial_condition
+  type(patch_type), pointer :: cur_patch
+  class(dataset_base_type), pointer :: dataset
+  type(global_auxvar_type) :: global_aux
+  PetscBool :: use_dataset
+  PetscBool :: dataset_flag(realization%option%nflowdof)
+  PetscInt :: num_connections
+  PetscInt, pointer :: conn_id_ptr(:)
+  PetscInt :: offset, istate
+  PetscReal :: x(realization%option%nflowdof)
+  PetscReal :: temperature, p_sat
+  PetscReal :: tempreal,pru,sou,sgu,pbu
+  PetscInt :: saturated_state
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+
+  option => realization%option
+  discretization => realization%discretization
+  field => realization%field
+  patch => realization%patch
+
+  ! to catch uninitialized grid cells.  see VecMin check at bottom.
+  call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
+  iphase_loc_p = UNINITIALIZED_DOUBLE
+  call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
+
+  cur_patch => realization%patch_list%first
+  do
+    if (.not.associated(cur_patch)) exit
+
+    grid => cur_patch%grid
+
+        ! assign initial conditions values to domain
+        call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
+
+        xx_p = UNINITIALIZED_DOUBLE
+      
+        initial_condition => cur_patch%initial_condition_list%first
+        do
+      
+          if (.not.associated(initial_condition)) exit
+
+          use_dataset = PETSC_FALSE
+          dataset_flag = PETSC_FALSE
+          do idof = 1, 1!option%nflowdof
+            dataset =>  initial_condition%flow_condition% &
+                              sub_condition_ptr(idof)%ptr%dataset
+            select type(dataset_ptr => dataset)
+              class is(dataset_gridded_hdf5_type)
+                ! already mapped to flow_aux_real_var
+              class is(dataset_common_hdf5_type)
+                use_dataset = PETSC_TRUE
+                dataset_flag(idof) = PETSC_TRUE
+                call ConditionControlMapDatasetToVec(realization, &
+                        initial_condition%flow_condition% &
+                          sub_condition_ptr(idof)%ptr%dataset,idof, &
+                        field%flow_xx,GLOBAL)
+              class default
+            end select
+          enddo            
+
+          num_connections = initial_condition%region%num_cells
+          conn_id_ptr => initial_condition%region%cell_ids
+
+          do iconn=1, num_connections
+            local_id = conn_id_ptr(iconn)
+            ghosted_id = grid%nL2G(local_id)
+            iend = local_id*option%nflowdof
+            ibegin = iend-option%nflowdof+1
+            if (cur_patch%imat(ghosted_id) <= 0) then
+              xx_p(ibegin:iend) = 0.d0
+              iphase_loc_p(ghosted_id) = 0
+              cycle
+            endif
+            if (associated(initial_condition%flow_aux_real_var)) then
+              do idof = 1, 1!option%nflowdof
+                if (.not.dataset_flag(idof)) then
+                  xx_p(ibegin+idof-1) =  &
+                    initial_condition%flow_aux_real_var(idof,iconn)
+                endif
+              enddo
+            else
+              do idof = 1, 1!option%nflowdof
+                if (.not.dataset_flag(idof)) then
+                  xx_p(ibegin+idof-1) = &
+                  initial_condition%flow_condition% &
+                  sub_condition_ptr(idof)%ptr%dataset%rarray(1)
+                endif
+              enddo
+            endif
+            iphase_loc_p(ghosted_id) = &
+              initial_condition%flow_condition%iphase
+          enddo
+          initial_condition => initial_condition%next
+        enddo
+        call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+
+    cur_patch => cur_patch%next
+  enddo
+
+  !call GlobalUpdateState(realization)
+  
+  ! update dependent vectors
+  call DiscretizationGlobalToLocal(discretization,field%flow_xx, &
+                                   field%flow_xx_loc,NFLOWDOF)  
+
+  call VecCopy(field%flow_xx, field%flow_yy, ierr);CHKERRQ(ierr)
+  call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
+                                  field%iphas_loc,ONEDOF)  
+  call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
+                                  field%iphas_old_loc,ONEDOF)
+
+  ! cannot perform VecMin on local vector as the ghosted corner values are not
+  ! updated during the local to local update.
+  call DiscretizationLocalToGlobal(discretization,field%iphas_loc,field%work, &
+                                   ONEDOF)
+  call VecMin(field%work,PETSC_NULL_INTEGER,tempreal,ierr);CHKERRQ(ierr)
+
+  if (tempreal < 0.d0) then
+    option%io_buffer = 'Uninitialized cells in domain.'
+    call printErrMsg(option)
+  endif
+
+end subroutine CondControlAssignFlowInitCond_Richards2DOFs
 
 ! ************************************************************************** !
 

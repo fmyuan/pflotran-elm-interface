@@ -88,6 +88,7 @@ subroutine PMCSubsurfaceSetupSolvers(this)
   ! 
   use Option_module
   use Timestepper_BE_class
+  use Timestepper_TS_class
 
   implicit none
 
@@ -101,6 +102,9 @@ subroutine PMCSubsurfaceSetupSolvers(this)
     select type(ts => this%timestepper)
       class is(timestepper_BE_type)
         call PMCSubsurfaceSetupSolvers_TimestepperBE(this)
+
+      class is(timestepper_TS_type)
+        call PMCSubsurfaceSetupSolvers_TS(this)
 
       class default
         option%io_buffer = 'Unknown timestepper found in PMCSubsurfaceSetupSolvers '
@@ -472,6 +476,116 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   call printMsg(option)
 
 end subroutine PMCSubsurfaceSetupSolvers_TimestepperBE
+
+! ************************************************************************** !
+
+subroutine PMCSubsurfaceSetupSolvers_TS(this)
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/20/2018
+  ! 
+#include "petsc/finclude/petscts.h"
+  use petscts
+  use Convergence_module
+  use Discretization_module
+  use Option_module
+  use PMC_Base_class
+  use PM_Base_Pointer_module
+  use PM_Base_class
+  use PM_Subsurface_Flow_class
+  use PM_Richards_class
+  use Solver_module
+  use Timestepper_Base_class
+  use Timestepper_TS_class
+
+  implicit none
+
+  class(pmc_subsurface_type) :: this
+
+  type(solver_type), pointer :: solver
+  type(option_type), pointer :: option
+  SNESLineSearch :: linesearch  
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscBool :: add_pre_check
+  PetscErrorCode :: ierr
+
+  option => this%option
+
+  select type(ts => this%timestepper)
+    class is(timestepper_TS_type)
+      solver => ts%solver
+    class default
+      call printErrMsg(option,"Attempting to set up PETSc TS when" // &
+       " timestepper is not of TS type")
+  end select
+
+  call SolverCreateTS(solver,option%mycomm)
+
+  call TSSetProblemType(solver%ts,TS_NONLINEAR, &
+                        ierr);CHKERRQ(ierr)
+
+  call TSSetDuration(solver%ts, ONE_INTEGER, 2.d0, ierr); CHKERRQ(ierr)
+
+  call TSSetType(solver%ts, TSBEULER, ierr); CHKERRQ(ierr)
+
+  ! set solver pointer within pm for convergence purposes
+  call this%pm_ptr%pm%SetSolver(solver)
+
+  select type(pm => this%pm_ptr%pm)
+
+    class is (pm_subsurface_flow_type)
+      call printMsg(option,"  Beginning setup of FLOW SNES ")
+
+      select case(option%iflowmode)
+        case(RICHARDS_2DOFs_MODE)
+        case default
+          option%io_buffer = 'Timestepper TS unsupported for mode: '// option%flowmode
+          call printErrMsg(option)
+        end select
+
+        if (OptionPrintToScreen(option)) then
+          write(*,'(" number of dofs = ",i3,", number of &
+                    &phases = ",i3,i2)') option%nflowdof,option%nphase
+          select case(option%iflowmode)
+            case(RICHARDS_2DOFs_MODE)
+              write(*,'(" mode = Richards: p m")')
+          end select
+        endif
+
+        call TSSetOptionsPrefix(solver%ts, "flow_",ierr);CHKERRQ(ierr)
+        call SolverCheckCommandLine(solver)
+
+        solver%Jpre_mat_type = MATBAIJ
+
+        call DiscretizationCreateJacobian(pm%realization%discretization, &
+                                          NFLOWDOF, &
+                                          solver%Jpre_mat_type, &
+                                          solver%Jpre, &
+                                          option)
+
+        call MatSetOptionsPrefix(solver%Jpre,"flow_",ierr);CHKERRQ(ierr)
+
+        if (solver%J_mat_type /= MATMFFD) then
+          solver%J = solver%Jpre
+        endif
+
+      call TSSetIFunction(solver%ts, &
+                          this%pm_ptr%pm%residual_vec, &
+                          PMIFunctionPtr, &
+                          this%pm_ptr, &
+                          ierr);CHKERRQ(ierr)
+
+      call TSSetIJacobian(solver%ts, &
+                          solver%J, &
+                          solver%Jpre, &
+                          PMIJacobianPtr, &
+                          this%pm_ptr, &
+                          ierr);CHKERRQ(ierr)
+
+      call printMsg(option,"  Finished setting up FLOW SNES ")
+  end select
+
+end subroutine PMCSubsurfaceSetupSolvers_TS
 
 ! ************************************************************************** !
 

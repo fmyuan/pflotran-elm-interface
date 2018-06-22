@@ -203,6 +203,7 @@ set(MODE_AUX_SOURCES
 	pm_mphase.F90
 	pm_miscible.F90
 	pm_richards.F90
+	pm_richards_2dofs.F90
 	pm_rt.F90
 	pm_subsurface_flow.F90
 	pm_surface_flow.F90
@@ -400,6 +401,7 @@ set(MISC_SOURCES
 	strata.F90
 	timestepper_base.F90
 	timestepper_BE.F90
+	timestepper_TS.F90
 	transport.F90
 	uniform_velocity.F90
 	waypoint.F90

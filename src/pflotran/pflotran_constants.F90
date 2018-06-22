@@ -132,7 +132,8 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: TOIL_IMS_MODE = 8
   PetscInt, parameter, public :: TOWG_MODE = 9
   PetscInt, parameter, public :: WF_MODE = 10
-  
+  PetscInt, parameter, public :: RICHARDS_2DOFs_MODE = 11
+
   ! flow sub-modes
   PetscInt, parameter, public :: TOWG_IMMISCIBLE = 1
   PetscInt, parameter, public :: TOWG_TODD_LONGSTAFF = 2

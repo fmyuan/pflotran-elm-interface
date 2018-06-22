@@ -285,6 +285,7 @@ mode_aux_obj = \
 	${common_src}pm_mphase.o \
 	${common_src}pm_miscible.o \
 	${common_src}pm_richards.o \
+	${common_src}pm_richards_2dofs.o \
 	${common_src}pm_rt.o \
 	${common_src}pm_subsurface_flow.o \
 	${common_src}pm_surface_flow.o \
@@ -469,6 +470,7 @@ misc_obj = \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \
 	${common_src}timestepper_BE.o \
+	${common_src}timestepper_TS.o \
 	${common_src}transport.o \
 	${common_src}waypoint.o \
 	${common_src}wipp.o \
