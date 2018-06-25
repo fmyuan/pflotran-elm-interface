@@ -524,8 +524,6 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
   call TSSetProblemType(solver%ts,TS_NONLINEAR, &
                         ierr);CHKERRQ(ierr)
 
-  call TSSetDuration(solver%ts, ONE_INTEGER, 2.d0, ierr); CHKERRQ(ierr)
-
   call TSSetType(solver%ts, TSBEULER, ierr); CHKERRQ(ierr)
 
   ! set solver pointer within pm for convergence purposes

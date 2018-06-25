@@ -17,6 +17,9 @@ module Timestepper_TS_class
     PetscReal :: dt_max_allowable
 
     PetscInt :: num_newton_iterations ! number of Newton iterations in a time step
+    PetscInt :: num_linear_iterations ! number of linear solver iterations in a time step
+    PetscInt :: cumulative_newton_iterations       ! Total number of Newton iterations
+    PetscInt :: cumulative_linear_iterations     ! Total number of linear iterations
 
     PetscInt :: iaccel        ! Accelerator index
     ! An array of multiplicative factors that specify how to increase time step.
@@ -98,6 +101,12 @@ subroutine TimestepperTSInit(this)
 
   call TimestepperBaseInit(this)
 
+  this%num_newton_iterations = 0
+  this%num_linear_iterations = 0
+
+  this%cumulative_newton_iterations = 0
+  this%cumulative_linear_iterations = 0
+
   this%dt_max_allowable = 0.d0
   this%iaccel = 5
   this%ntfac = 13
@@ -141,6 +150,11 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   PetscReal :: tmp
   type(solver_type), pointer :: solver
   type(option_type), pointer :: option
+  Vec :: residual_vec
+  PetscReal :: fnorm, inorm, scaled_fnorm
+  PetscInt :: ts_reason
+  PetscInt :: num_newton_iter_before, num_newton_iter_after
+  PetscInt :: num_linear_iter_before, num_linear_iter_after
   PetscErrorCode :: ierr
 
   solver => this%solver
@@ -153,8 +167,8 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   call process_model%PreSolve()
 
   call TSSetTime(solver%ts,0.d0,ierr);CHKERRQ(ierr)
+  call TSSetMaxTime(solver%ts,option%flow_dt,ierr);CHKERRQ(ierr)
   call TSSetTimeStep(solver%ts,option%flow_dt,ierr);CHKERRQ(ierr)
-  call TSSetDuration(solver%ts,100000,option%flow_dt,ierr); CHKERRQ(ierr)
 
 #if (PETSC_VERSION_MINOR >= 8)
   call TSSetStepNumber(solver%ts,ZERO_INTEGER,ierr);CHKERRQ(ierr)
@@ -162,25 +176,63 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   call TSSetExactFinalTime(solver%ts,TS_EXACTFINALTIME_MATCHSTEP, &
                            ierr);CHKERRQ(ierr)
 
-  call TSSetMaxSteps(solver%ts,1,ierr);CHKERRQ(ierr)
+  call TSGetSNESIterations(solver%ts,num_newton_iter_before,ierr)
+  call TSGetKSPIterations(solver%ts,num_linear_iter_before,ierr)
+
   call TSSolve(solver%ts,process_model%solution_vec,ierr);CHKERRQ(ierr)
+
+  call TSGetConvergedReason(solver%ts,ts_reason,ierr);CHKERRQ(ierr)
   call TSGetTime(solver%ts,time,ierr);CHKERRQ(ierr)
   call TSGetTimeStep(solver%ts,dtime,ierr);CHKERRQ(ierr)
-  call TSGetSNESIterations(solver%ts,this%num_newton_iterations,ierr)
+  call TSGetSNESIterations(solver%ts,num_newton_iter_after,ierr)
+  call TSGetKSPIterations(solver%ts,num_linear_iter_after,ierr)
 
-  call process_model%FinalizeTimestep()
+  this%num_newton_iterations = num_newton_iter_after - num_newton_iter_before
+  this%cumulative_newton_iterations = this%cumulative_newton_iterations + this%num_newton_iterations
 
-  call process_model%PostSolve()
+  this%num_linear_iterations = num_linear_iter_after - num_linear_iter_before
+  this%cumulative_linear_iterations = this%cumulative_linear_iterations + this%num_linear_iterations
+
+  if (ts_reason<0) then
+     write(*,*)'TS failed to converge. Stopping execution!'
+     stop
+  endif
+
+  call TSGetRHSFunction(solver%ts,residual_vec,PETSC_NULL_FUNCTION, &
+                       PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+  call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
+  call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
 
   this%steps = this%steps + 1
 
   if (option%print_screen_flag) then
-    write(*, '(" FLOW ",i6," Time= ",1pe12.5," Dt= ",1pe12.5," [",a1,"]")') &
+    write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
+         & " [",a,"]", " ts_conv_reason: ",i4,/,"  newton = ",i3, &
+         & " [",i8,"]", " linear = ",i5," [",i10,"]")') &
       this%steps, &
-      time/process_model%output_option%tconv, &
+      this%target_time/process_model%output_option%tconv, &
       dtime/process_model%output_option%tconv, &
-      process_model%output_option%tunit
+      trim(process_model%output_option%tunit), &
+      ts_reason, &
+      this%num_newton_iterations, this%cumulative_newton_iterations, &
+      this%num_linear_iterations, this%cumulative_linear_iterations
+
+    if (associated(process_model%realization_base%discretization%grid)) then
+       scaled_fnorm = fnorm/process_model%realization_base% &
+                        discretization%grid%nmax
+    else
+       scaled_fnorm = fnorm
+    endif
+
+    print *,' --> TS SNES Linear/Non-Linear Iterations = ', &
+             this%num_linear_iterations,' / ',this%num_newton_iterations
+    write(*,'("  --> TS SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm
+
   endif
+
+  call process_model%FinalizeTimestep()
+
+  call process_model%PostSolve()
 
 end subroutine TimestepperTSStepDT
 
