@@ -76,7 +76,7 @@ module PM_UFD_Biosphere_class
     PetscReal :: output_start_time
     PetscBool :: unsupp_rads_needed
   contains
-    procedure, public :: PMUFDBSetRealization
+    procedure, public :: SetRealization => PMUFDBSetRealization
     procedure, public :: Setup => PMUFDBSetup
     procedure, public :: Read => PMUFDBRead
     procedure, public :: InitializeRun => PMUFDBInitializeRun

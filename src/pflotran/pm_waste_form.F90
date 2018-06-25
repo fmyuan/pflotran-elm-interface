@@ -349,7 +349,7 @@ module PM_Waste_Form_class
     PetscBool :: print_mass_balance
     PetscBool :: implicit_solution
   contains
-    procedure, public :: PMWFSetRealization
+    procedure, public :: SetRealization => PMWFSetRealization
     procedure, public :: Setup => PMWFSetup
     procedure, public :: Read => PMWFRead
     procedure, public :: InitializeRun => PMWFInitializeRun
