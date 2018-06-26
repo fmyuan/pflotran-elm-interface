@@ -485,7 +485,9 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
   ! Date: 06/20/2018
   ! 
 #include "petsc/finclude/petscts.h"
+#include "petsc/finclude/petscsnes.h"
   use petscts
+  use petscsnes
   use Convergence_module
   use Discretization_module
   use Option_module
@@ -507,6 +509,7 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
   SNESLineSearch :: linesearch  
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: add_pre_check
+  SNES :: snes
   PetscErrorCode :: ierr
 
   option => this%option
@@ -521,7 +524,7 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
 
   call SolverCreateTS(solver,option%mycomm)
 
-  call TSSetProblemType(solver%ts,TS_NONLINEAR, &
+  call TSSetEquationType(solver%ts,TS_EQ_IMPLICIT, &
                         ierr);CHKERRQ(ierr)
 
   call TSSetType(solver%ts, TSBEULER, ierr); CHKERRQ(ierr)
@@ -551,6 +554,8 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
         endif
 
         call TSSetOptionsPrefix(solver%ts, "flow_",ierr);CHKERRQ(ierr)
+        call TSSetFromOptions(solver%ts,ierr);CHKERRQ(ierr)
+
         call SolverCheckCommandLine(solver)
 
         solver%Jpre_mat_type = MATBAIJ
@@ -579,6 +584,13 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
                           PMIJacobianPtr, &
                           this%pm_ptr, &
                           ierr);CHKERRQ(ierr)
+
+      call TSGetSNES(solver%ts,snes,ierr); CHKERRQ(ierr)
+
+      call SNESSetConvergenceTest(snes, &
+                                  PMCheckConvergencePtr, &
+                                  this%pm_ptr, &
+                                  PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
 
       call printMsg(option,"  Finished setting up FLOW SNES ")
   end select

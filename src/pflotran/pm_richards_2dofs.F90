@@ -30,6 +30,7 @@ module PM_Richards_2DOFs_class
     procedure, public :: MaxChange => PMRichards2DOFsMaxChange
     procedure, public :: InitializeTimestep => PMRichards2DOFsInitializeTimestep
     procedure, public :: Destroy => PMRichards2DOFsDestroy
+    procedure, public :: CheckConvergence => PMRichards2DOFsCheckConvergence
   end type pm_richards_2DOFs_type
 
   public :: PMRichards2DOFsCreate, &
@@ -432,6 +433,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   PetscInt :: ibeg, iend
   PetscInt :: row, col
   PetscReal:: val
+  PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof)
   PetscReal :: compressed_porosity, dcompressed_porosity_dp
   PetscReal :: por, dpor_dP
 
@@ -614,6 +616,56 @@ subroutine PMRichards2DOFsInitializeTimestep(this)
   call PMSubsurfaceFlowInitializeTimestepB(this)
 
 end subroutine PMRichards2DOFsInitializeTimestep
+
+! ************************************************************************** !
+
+subroutine PMRichards2DOFsCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
+  ! 
+  ! Adds a convergence check for the nonlinear problem
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 06/19/18
+  ! 
+
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
+
+  implicit none
+  
+  SNES :: snes
+  PetscInt :: it
+  PetscReal :: xnorm ! 2-norm of updated solution
+  PetscReal :: unorm ! 2-norm of update. PETSc refers to this as snorm
+  PetscReal :: fnorm ! 2-norm of updated residual
+  SNESConvergedReason :: reason
+  class(pm_richards_2DOFs_type) :: this
+  PetscErrorCode :: ierr
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  call SNESConvergedDefault(snes,it,xnorm,unorm,fnorm,reason, &
+                            0,ierr);CHKERRQ(ierr)
+
+  if (this%option%print_screen_flag) then
+      select case(int(reason))
+        case(2)
+          string = 'atol'
+        case(3)
+          string = 'rtol'
+        case(4)
+          string = 'stol'
+        case default
+          write(string,'(i3)') reason
+      end select
+
+      write(*,'(i3," 2r:",es9.2, &
+              & " 2x:",es9.2, &
+              & " 2u:",es9.2, &
+              & " rsn: ",a)') &
+              it, fnorm, xnorm, unorm, trim(string)
+  endif
+
+end subroutine PMRichards2DOFsCheckConvergence
 
 ! ************************************************************************** !
 
