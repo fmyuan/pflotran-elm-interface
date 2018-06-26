@@ -765,10 +765,16 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%nphase = 2
       option%liquid_phase = 1           ! liquid_pressure
       option%oil_phase = 2              ! oil_pressure
-      allocate(option%phase_map(option%nphase))
+
       option%phase_map(1) = LIQUID_PHASE
       option%phase_map(2) = OIL_PHASE
-      !option%phase_map(3) = UNINITIALIZED_INTEGER ! no third phase
+
+! Check that MAX_PHASE is sufficiently large
+
+      if( option%nphase > MAX_PHASE ) then
+        option%io_buffer = 'ERROR: number of phases has exceeded MAX_PHASE'
+        call printMsg(option)
+      endif
 
       !option%capillary_pressure_id = 3  ! capillary pressure
 
@@ -788,10 +794,18 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%oil_phase = 2              ! oil_pressure
       option%gas_phase = 3              ! gas_pressure
       !option%solvent_phase = 4         ! solvent saturation
-      allocate(option%phase_map(option%nphase))
+
       option%phase_map(1) = LIQUID_PHASE
       option%phase_map(2) = OIL_PHASE
       option%phase_map(3) = GAS_PHASE
+
+! Check that MAX_PHASE is sufficiently large
+
+      if( option%nphase > MAX_PHASE ) then
+        option%io_buffer = 'ERROR: number of phases has exceeded MAX_PHASE'
+        call printMsg(option)
+      endif
+
       option%energy_id = towg_energy_eq_idx
       select case (towg_miscibility_model)
         case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
@@ -1450,11 +1464,11 @@ subroutine SubsurfaceSetupRealization(simulation)
 
   call PetscLogEventBegin(logging%event_setup,ierr);CHKERRQ(ierr)
 
+  ! process eos tables ready for evaluation
+  call EOSProcess(option)
+
   ! set reference densities if not specified in input file.
   call EOSReferenceDensity(option)
-
-  !process eos tables
-  call EOSProcess(option)
 
 
   ! read reaction database

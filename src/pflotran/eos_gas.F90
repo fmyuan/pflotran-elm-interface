@@ -1024,7 +1024,7 @@ subroutine EOSGasViscosityTable(T, P_comp, P_gas, Rho_comp, V_mix, &
   !call pvt_table%EOSProp(T,P_gas,EOS_VISCOSITY,V_mix,table_idxs,ierr)
   
   call pvt_table%EOSPropGrad(T,P_gas,EOS_VISCOSITY,V_mix,dV_dT,dV_dPgas, &
-                             table_idxs,ierr)
+                             ierr,table_idxs)
 
   dV_dPcomp = 0.0d0
   dV_dRhocomp = 0.0d0
@@ -1538,7 +1538,7 @@ subroutine EOSGasDensityTable(T, P, Rho_gas, dRho_dT, dRho_dP, ierr, &
   !call pvt_table%EOSProp(T,P,EOS_DENSITY,Rho_gas,table_idxs,ierr)
 
   call pvt_table%EOSPropGrad(T,P,EOS_DENSITY,Rho_gas,dRho_dT,dRho_dP, &
-                             table_idxs,ierr)
+                             ierr,table_idxs)
 
   ! initialize to derivative to NaN so that not mistakenly used.
   ! NaN = 0.0
