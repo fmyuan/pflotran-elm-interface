@@ -496,7 +496,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
 
 ! Check that MAX_PHASE is sufficiently large
 
-      if( option%nphase .gt. MAX_PHASE ) then
+      if( option%nphase > MAX_PHASE ) then
         option%io_buffer = 'ERROR: number of phases has exceeded MAX_PHASE'
         call printMsg(option)
       endif
@@ -526,7 +526,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
 
 ! Check that MAX_PHASE is sufficiently large
 
-      if( option%nphase .gt. MAX_PHASE ) then
+      if( option%nphase > MAX_PHASE ) then
         option%io_buffer = 'ERROR: number of phases has exceeded MAX_PHASE'
         call printMsg(option)
       endif
