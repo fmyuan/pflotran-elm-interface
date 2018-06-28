@@ -36,7 +36,7 @@ module PM_RT_class
   contains
     procedure, public :: Setup => PMRTSetup
     procedure, public :: Read => PMRTRead
-    procedure, public :: PMRTSetRealization
+    procedure, public :: SetRealization => PMRTSetRealization
     procedure, public :: InitializeRun => PMRTInitializeRun
     procedure, public :: FinalizeRun => PMRTFinalizeRun
     procedure, public :: InitializeTimestep => PMRTInitializeTimestep

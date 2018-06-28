@@ -61,6 +61,10 @@ module PMC_Base_class
     procedure, public :: GetAuxData
     procedure, public :: SetAuxData
     procedure, public :: CheckNullPM => PMCBaseCheckNullPM
+    procedure, public :: SetName
+    procedure, public :: SetOption
+    procedure, public :: SetCheckpointOption
+    procedure, public :: SetWaypointList
     !procedure, public :: SetChildPeerPtr => PMCBaseSetChildPeerPtr
   end type pmc_base_type
   
@@ -1609,6 +1613,83 @@ subroutine PMCBaseStrip(this)
   nullify(this%sim_aux)
 
 end subroutine PMCBaseStrip
+
+!    procedure, public :: SetName
+!    procedure, public ::
+!    procedure, public ::
+!    procedure, public ::
+
+! ************************************************************************** !
+
+subroutine SetName(this, name)
+  ! 
+  ! Sets name
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/11/18
+  ! 
+  implicit none
+  
+  class(pmc_base_type) :: this
+  character(len=*) :: name
+
+  this%name = name
+
+end subroutine SetName
+
+! ************************************************************************** !
+
+subroutine SetOption(this, option)
+  ! 
+  ! Sets option
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/11/18
+  ! 
+  implicit none
+  
+  class(pmc_base_type) :: this
+  type(option_type), pointer :: option
+
+  if (associated(option)) this%option => option
+
+end subroutine SetOption
+
+! ************************************************************************** !
+
+subroutine SetCheckpointOption(this, checkpoint_option)
+  ! 
+  ! Sets checkpoint option
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/11/18
+  ! 
+  implicit none
+  
+  class(pmc_base_type) :: this
+  type(checkpoint_option_type), pointer :: checkpoint_option
+
+  if (associated(checkpoint_option)) this%checkpoint_option => checkpoint_option
+
+end subroutine SetCheckpointOption
+
+! ************************************************************************** !
+
+subroutine SetWaypointList(this, waypoint_list)
+  ! 
+  ! Sets waypoint list
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/11/18
+  ! 
+  implicit none
+  
+  class(pmc_base_type) :: this
+  type(waypoint_list_type), pointer :: waypoint_list
+
+  if (associated(waypoint_list)) this%waypoint_list => waypoint_list
+
+end subroutine SetWaypointList
 
 ! ************************************************************************** !
 

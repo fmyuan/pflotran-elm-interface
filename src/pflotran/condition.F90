@@ -2031,8 +2031,13 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           case('RATE')
             input%force_units = PETSC_TRUE
             input%err_buf = word
-            internal_units = trim(rate_string) // ',' // trim(rate_string) //&
-                             ',MJ/sec|MW'
+            select case(option%iflowmode)
+              case(WF_MODE)
+                internal_units = trim(rate_string) // ',' // trim(rate_string)
+              case(G_MODE)
+                internal_units = trim(rate_string) // ',' // &
+                  trim(rate_string) // ',MJ/sec|MW'
+            end select
           case('LIQUID_FLUX','GAS_FLUX')
             internal_units = 'meter/sec'
           case('ENERGY_FLUX')

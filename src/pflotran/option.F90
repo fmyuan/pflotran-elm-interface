@@ -60,7 +60,7 @@ module Option_module
     PetscInt :: liquid_phase
     PetscInt :: gas_phase
     PetscInt :: oil_phase
-    PetscInt, pointer :: phase_map(:)
+    PetscInt :: phase_map(MAX_PHASE)
     PetscInt :: nflowdof
     PetscInt :: nflowspec
     PetscInt :: nmechdof
@@ -145,7 +145,7 @@ module Option_module
     PetscInt :: idt_switch
     PetscReal :: reference_temperature
     PetscReal :: reference_pressure
-    PetscReal :: reference_density(2)
+    PetscReal :: reference_density(MAX_PHASE)
     PetscReal :: reference_porosity
     PetscReal :: reference_saturation
 
@@ -471,11 +471,13 @@ subroutine OptionInitRealization(option)
   option%itranmode = NULL_MODE
   option%ntrandof = 0
 
-  nullify(option%phase_map)
+  option%phase_map = UNINITIALIZED_INTEGER
+
   option%nphase = 0
-  option%liquid_phase = 0
-  option%oil_phase = 0
-  option%gas_phase = 0
+
+  option%liquid_phase = UNINITIALIZED_INTEGER
+  option%oil_phase    = UNINITIALIZED_INTEGER
+  option%gas_phase    = UNINITIALIZED_INTEGER
 
   option%air_pressure_id = 0
   option%capillary_pressure_id = 0
@@ -1447,11 +1449,7 @@ subroutine OptionDestroy(option)
 
   call OptionFlowDestroy(option%flow)
   call OptionTransportDestroy(option%transport)
-  ! all kinds of stuff needs to be added here.
-  if (associated(option%phase_map) ) then
-    deallocate(option%phase_map)
-    nullify(option%phase_map)
-  end if
+
   ! all the below should be placed somewhere other than option.F90
 
   deallocate(option)
