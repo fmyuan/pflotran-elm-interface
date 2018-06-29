@@ -1948,9 +1948,8 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscReal :: dt_min
   PetscReal :: units_conversion
 
-  class(timestepper_BE_type), pointer :: flow_timestepper
+  class(timestepper_base_type), pointer :: flow_timestepper
   class(timestepper_BE_type), pointer :: tran_timestepper
-  class(timestepper_TS_type), pointer :: flow_ts_timestepper
 
   internal_units = 'not_assigned'
 
@@ -1965,12 +1964,15 @@ subroutine SubsurfaceReadInput(simulation,input)
   field => realization%field
   reaction => realization%reaction
 
-  flow_timestepper => TimestepperBECreate()
+  if (option%iflowmode == RICHARDS_2DOFS_MODE) then
+    flow_timestepper => TimestepperTSCreate()
+  else
+    flow_timestepper => TimestepperBECreate()
+  endif
   flow_timestepper%solver%itype = FLOW_CLASS
+
   tran_timestepper => TimestepperBECreate()
   tran_timestepper%solver%itype = TRANSPORT_CLASS
-  flow_ts_timestepper => TimestepperTSCreate()
-  flow_ts_timestepper%solver%itype = FLOW_CLASS
 
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
@@ -2481,11 +2483,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call StringToUpper(word)
         select case(word)
           case('FLOW')
-             if (option%iflowmode == RICHARDS_2DOFs_MODE) then
-               call flow_ts_timestepper%ReadInput(input,option)
-             else
-               call flow_timestepper%ReadInput(input,option)
-             endif
+            call flow_timestepper%ReadInput(input,option)
           case('TRAN','TRANSPORT')
             call tran_timestepper%ReadInput(input,option)
           case default
@@ -2500,11 +2498,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call StringToUpper(word)
         select case(word)
           case('FLOW')
-            if (option%iflowmode == RICHARDS_2DOFs_MODE) then
-              call SolverReadLinear(flow_ts_timestepper%solver,input,option)
-            else
-              call SolverReadLinear(flow_timestepper%solver,input,option)
-            endif
+            call SolverReadLinear(flow_timestepper%solver,input,option)
           case('TRAN','TRANSPORT')
             call SolverReadLinear(tran_timestepper%solver,input,option)
           case default
@@ -2519,11 +2513,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call StringToUpper(word)
         select case(word)
           case('FLOW')
-            if (option%iflowmode == RICHARDS_2DOFs_MODE) then
-              call SolverReadNewton(flow_ts_timestepper%solver,input,option)
-            else
-              call SolverReadNewton(flow_timestepper%solver,input,option)
-            endif
+            call SolverReadNewton(flow_timestepper%solver,input,option)
           case('TRAN','TRANSPORT')
             call SolverReadNewton(tran_timestepper%solver,input,option)
           case default
@@ -3299,10 +3289,6 @@ subroutine SubsurfaceReadInput(simulation,input)
             flow_timestepper%dt_init = dt_init
             option%flow_dt = dt_init
           endif
-          if (associated(flow_ts_timestepper)) then
-            flow_ts_timestepper%dt_init = dt_init
-            option%flow_dt = dt_init
-          endif
           if (associated(tran_timestepper)) then
             tran_timestepper%dt_init = dt_init
             option%tran_dt = dt_init
@@ -3311,9 +3297,6 @@ subroutine SubsurfaceReadInput(simulation,input)
         if (Initialized(dt_min)) then
           if (associated(flow_timestepper)) then
             flow_timestepper%dt_min = dt_min
-          endif
-          if (associated(flow_ts_timestepper)) then
-            flow_ts_timestepper%dt_min = dt_min
           endif
           if (associated(tran_timestepper)) then
             tran_timestepper%dt_min = dt_min
@@ -3407,24 +3390,18 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   if (associated(simulation%flow_process_model_coupler)) then
     if (option%iflowmode == RICHARDS_2DOFs_MODE) then
-       flow_ts_timestepper%name = 'FLOW'
        if (option%steady_state) then
          option%io_buffer = 'Steady state not supported with PETSC TS'
          call printErrMsg(option)
        endif
-       simulation%flow_process_model_coupler%timestepper => flow_ts_timestepper
-    else
-       flow_timestepper%name = 'FLOW'
-       if (option%steady_state) call TimestepperSteadyCreateFromBE(flow_timestepper)
-       simulation%flow_process_model_coupler%timestepper => flow_timestepper
     endif
+    flow_timestepper%name = 'FLOW'
+    if (option%steady_state) call TimestepperSteadyCreateFromBase(flow_timestepper)
+    simulation%flow_process_model_coupler%timestepper => flow_timestepper
   else
     call flow_timestepper%Destroy()
     deallocate(flow_timestepper)
     nullify(flow_timestepper)
-    call flow_ts_timestepper%Destroy()
-    deallocate(flow_ts_timestepper)
-    nullify(flow_ts_timestepper)
   endif
   if (associated(simulation%rt_process_model_coupler)) then
     tran_timestepper%name = 'TRAN'
