@@ -277,7 +277,6 @@ mode_aux_obj = \
 	${common_src}pm_base_pointer.o \
 	${common_src}pm_general.o \
 	${common_src}pm_wipp_flow.o \
-	${common_src}pm_bragflo.o \
 	${common_src}pm_toil_ims.o \
 	${common_src}pm_towg.o \
 	${common_src}pm_flash2.o \
@@ -305,8 +304,6 @@ mode_obj = \
 	${common_src}general_common.o \
 	${common_src}wipp_flow.o \
 	${common_src}wipp_flow_common.o \
-	${common_src}bragflo.o \
-	${common_src}bragflo_common.o \
 	${common_src}toil_ims.o \
 	${common_src}towg.o \
 	${common_src}global.o \

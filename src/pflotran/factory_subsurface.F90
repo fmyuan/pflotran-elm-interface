@@ -900,7 +900,6 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
   use PM_TH_class
   use PM_TOilIms_class
   use PM_TOWG_class
-  use PM_Bragflo_class
 
   use Init_Common_module
 
@@ -931,7 +930,7 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
         call StringToUpper(word)
         select case(word)
           case('GENERAL','TOIL_IMS','TOWG_IMMISCIBLE','TODD_LONGSTAFF', &
-               'TOWG_MISCIBLE','BLACK_OIL','SOLVENT_TL','WIPP_FLOW','BRAGFLO')
+               'TOWG_MISCIBLE','BLACK_OIL','SOLVENT_TL','WIPP_FLOW')
           ! In OptionFlowInitRealization(), numerical_derivatives is set to
           ! PETSC_FALSE, but the default for GENERAL needs to be PETSC_TRUE.
           ! This is will eventually affect all flow modes with numerical
@@ -942,8 +941,6 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
         select case(word)
           case('GENERAL')
             pm => PMGeneralCreate()
-          case('BRAGFLO')
-            pm => PMBragfloCreate()
           case('WIPP_FLOW')
             pm => PMWIPPFloCreate()
           case('MPHASE')

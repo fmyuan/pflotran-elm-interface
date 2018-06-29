@@ -4,7 +4,6 @@ module WIPP_Flow_module
   use petscsnes
   use WIPP_Flow_Aux_module
   use WIPP_Flow_Common_module
-  use Bragflo_Common_module
   use Global_Aux_module
 
   use PFLOTRAN_Constants_module
@@ -212,12 +211,12 @@ subroutine WIPPFloSetup(realization)
   list => realization%output_option%output_obs_variable_list
   call WIPPFloSetPlotVariables(realization,list)
   
-  if (wippflo_use_bragflo_flux) then
-    XXFlux => BRAGFloFlux
-    XXBCFlux => BRAGFloBCFlux
+  if (wippflo_use_lumped_harm_flux) then
+    XXFlux => WIPPFloFluxLumpedHarmonic
+    XXBCFlux => WIPPFloBCFluxLumpedHarmonic
   else
-    XXFlux => WIPPFloFlux
-    XXBCFlux => WIPPFloBCFlux
+    XXFlux => WIPPFloFluxHarmonicPermOnly
+    XXBCFlux => WIPPFloBCFluxHarmonicPermOnly
   endif
 
   ! these counters are used for performance analysis only.  they will not 
