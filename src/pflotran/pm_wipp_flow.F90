@@ -1097,6 +1097,15 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   this%convergence_flags(MAX_CHANGE_LIQ_PRES_NI) = &
     max_abs_pressure_change_NI_cell
   this%convergence_flags(MIN_LIQ_PRES) = min_liq_pressure_cell
+
+  if (max_abs_pressure_change_TS > this%dpres_max) then
+    this%convergence_flags(MAX_CHANGE_LIQ_PRES_TS) = &
+                                             max_abs_pressure_change_TS_cell
+  endif
+  if (max_gas_sat_change_TS > this%dsat_max) then
+    this%convergence_flags(MAX_CHANGE_GAS_SAT_TS) = max_gas_sat_change_TS_cell
+  endif
+
   this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI) = max_liq_pres_rel_change
   this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_TS) = &
     max_rel_pressure_change_TS
@@ -1463,10 +1472,20 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
   if (OptionPrintToScreen(option)) then
     !TODO(geh): add the option to report only violated tolerances, zeroing
     !           the others.
-    tempreal3 = this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI)
-    tempint3 = this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI)
-    tempreal4 = this%convergence_reals(MAX_CHANGE_GAS_SAT_NI)
-    tempint4 = this%convergence_flags(MAX_CHANGE_GAS_SAT_NI)
+    if (this%convergence_flags(MAX_CHANGE_LIQ_PRES_TS) > 0) then
+      tempreal3 = this%convergence_reals(MAX_CHANGE_LIQ_PRES_TS)
+      tempint3 = this%convergence_flags(MAX_CHANGE_LIQ_PRES_TS)
+    else
+      tempreal3 = this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI)
+      tempint3 = this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI)
+    endif
+    if (this%convergence_flags(MAX_CHANGE_GAS_SAT_TS) > 0) then
+      tempreal4 = this%convergence_reals(MAX_CHANGE_GAS_SAT_TS)
+      tempint4 = this%convergence_flags(MAX_CHANGE_GAS_SAT_TS)
+    else
+      tempreal4 = this%convergence_reals(MAX_CHANGE_GAS_SAT_NI)
+      tempint4 = this%convergence_flags(MAX_CHANGE_GAS_SAT_NI)
+    endif
     if (this%convergence_flags(MIN_GAS_PRES) > 0) then
       tempreal3 = this%convergence_reals(MIN_GAS_PRES)
       tempint3 = this%convergence_flags(MIN_GAS_PRES)
