@@ -238,13 +238,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   ! a "data" dataset and optionally a "time" dataset.
   option%io_buffer = 'Opening group: ' // trim(this%hdf5_dataset_name)
   call printMsg(option)  
-  call h5gopen_f(file_id,this%hdf5_dataset_name,grp_id,hdf5_err)
-
-  if (hdf5_err < 0) then
-    option%io_buffer = 'A group named "' // trim(this%hdf5_dataset_name) // &
-      '" not found in HDF5 file "' // trim(this%filename) // '".'
-    call printErrMsg(option)  
-  endif
+  call HDF5GroupOpen(file_id,this%hdf5_dataset_name,grp_id,option)
 
   ! only want to read on first time through
   if (this%data_dim == DIM_NULL) then

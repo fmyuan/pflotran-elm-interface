@@ -794,6 +794,7 @@ subroutine TimestepperBERestartHDF5(this, chk_grp_id, option)
   !
   use Option_module
   use hdf5
+  use HDF5_Aux_module
   use Checkpoint_module, only : CheckPointReadIntDatasetHDF5
   use Checkpoint_module, only : CheckPointReadRealDatasetHDF5
 
@@ -830,7 +831,7 @@ subroutine TimestepperBERestartHDF5(this, chk_grp_id, option)
 
   string = "Timestepper"
   h5_chk_grp_id = chk_grp_id
-  call h5gopen_f(h5_chk_grp_id, string, timestepper_grp_id, hdf5_err)
+  call HDF5GroupOpen(h5_chk_grp_id,string,timestepper_grp_id,option)
 
   allocate(start(1))
   allocate(dims(1))

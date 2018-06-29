@@ -1036,15 +1036,10 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
 
   ! Open the Regions group
   string = 'Regions'
-  call h5gopen_f(file_id,string,grp_id,hdf5_err)
+  call HDF5GroupOpen(file_id,string,grp_id,option)
 
   ! Open the Regions group
-  string = trim(region%name)
-  call h5gopen_f(grp_id,string,grp_id2,hdf5_err)
-  if (hdf5_err /= 0) then
-    option%io_buffer = 'HDF5 group "' // trim(region%name) // '" not found.'
-    call printErrMsg(option)
-  endif
+  call HDF5GroupOpen(grp_id,region%name,grp_id2,option)
 
   ! Querry region definition
   string = "Cell Ids"
@@ -1133,17 +1128,13 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   string = 'Regions' 
   option%io_buffer = 'Opening group: ' // trim(string)
   call printMsg(option)  
-  call h5gopen_f(file_id,string,grp_id,hdf5_err)
+  call HDF5GroupOpen(file_id,string,grp_id,option)
 
   ! Open the Regions group
   string = trim(region%name)
   option%io_buffer = 'Opening group: ' // trim(string)
   call printMsg(option)  
-  call h5gopen_f(grp_id,string,grp_id2,hdf5_err)
-  if (hdf5_err /= 0) then
-    option%io_buffer = 'HDF5 group "' // trim(region%name) // '" not found.'
-    call printErrMsg(option)
-  endif
+  call HDF5GroupOpen(grp_id,region%name,grp_id2,option)
 
   ! Read Cell Ids
   string = "Cell Ids"
@@ -1531,7 +1522,7 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   if (len_trim(group_name) > 1) then
     option%io_buffer = 'Opening group: ' // trim(group_name)
     call printMsg(option)   
-    call h5gopen_f(file_id,group_name,grp_id,hdf5_err)
+    call HDF5GroupOpen(file_id,group_name,grp_id,option)
   else
     grp_id = file_id
   endif
@@ -1749,7 +1740,7 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   if (len_trim(group_name) > 1) then
     option%io_buffer = 'Opening group: ' // trim(group_name)
     call printMsg(option)   
-    call h5gopen_f(file_id,group_name,grp_id,hdf5_err)
+    call HDF5GroupOpen(file_id,group_name,grp_id,option)
   else
     grp_id = file_id
   endif

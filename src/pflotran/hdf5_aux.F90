@@ -43,7 +43,8 @@ module HDF5_Aux_module
 ! SCORPIO
             HDF5MakeStringCompatible, &
             HDF5ReadDbase, &
-            HDF5OpenFileReadOnly
+            HDF5OpenFileReadOnly, &
+            HDF5GroupOpen
 
 contains
 
@@ -400,6 +401,40 @@ end subroutine HDF5ReadDatasetReal1D
 
 #endif 
 ! PARALLELIO_LIB
+
+! ************************************************************************** !
+
+subroutine HDF5GroupOpen(parent_id,group_name,group_id,option)
+  ! 
+  ! Opens an HDF5 group with proper error messaging when not found.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 06/28/18
+  ! 
+
+#include <petsc/finclude/petscsys.h>
+  use petscsys
+  use hdf5
+  use Option_module
+  
+  implicit none
+  
+  integer(HID_T) :: parent_id
+  character(len=*) :: group_name
+  integer(HID_T) :: group_id
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscMPIInt :: hdf5_err
+
+  string = adjustl(group_name)
+  call h5gopen_f(parent_id,trim(string),group_id,hdf5_err)
+  if (hdf5_err < 0) then
+    option%io_buffer = 'HDF5 Group "' // trim(string) // '" not found.'
+    call printErrMsg(option)
+  endif
+
+end subroutine HDF5GroupOpen
 
 ! ************************************************************************** !
 

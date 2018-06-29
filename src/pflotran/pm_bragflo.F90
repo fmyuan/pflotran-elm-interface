@@ -140,6 +140,7 @@ subroutine PMBragfloRead(this,input)
       case('DO_NOT_LSCALE')
         this%scale_linear_system = PETSC_FALSE
       case('2D_FLARED_DIRICHLET_BCS')
+        icount = 0
         int_array = 0.d0
         do
           call InputReadPflotranString(input,option)
