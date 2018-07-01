@@ -265,6 +265,9 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dvo_dt, dvo_dp
   PetscReal, dimension(1:3) :: dmobl, dmobo
 
+  PetscBool ::  getNewDerivs
+  PetscInt :: dof_op, dof_osat, dof_temp
+
   ! from SubsurfaceSetFlowMode
   ! option%liquid_phase = 1           ! liquid_pressure
   ! option%oil_phase = 2              ! oil_pressure
@@ -295,9 +298,31 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     toil_auxvar%d%dU_dt  = 0.d0
     toil_auxvar%d%dmobility = 0.d0
     getDerivs = PETSC_TRUE
+
+    if (toil_auxvar%has_derivs) then
+      getNewDerivs = PETSC_TRUE
+      toil_auxvar%D_pres = 0.d0
+      toil_auxvar%D_sat = 0.d0
+      toil_auxvar%D_pc = 0.d0
+      toil_auxvar%D_den = 0.d0
+      toil_auxvar%D_den_kg = 0.d0
+      toil_auxvar%D_mobility = 0.d0
+      toil_auxvar%D_viscosity = 0.d0
+      toil_auxvar%D_xmol = 0.d0
+      toil_auxvar%D_por = 0.d0
+
+      toil_auxvar%D_H = 0.d0
+      toil_auxvar%D_U = 0.d0
+    endif
+
   else 
     getDerivs = PETSC_FALSE
+    getNewDerivs = PETSC_FALSE
   endif
+
+  dof_op     = TOIL_IMS_PRESSURE_DOF
+  dof_osat   = TOIL_IMS_SATURATION_DOF
+  dof_temp   = TOIL_IMS_ENERGY_DOF
 
   ! passing auxvars given by the solution variables
   toil_auxvar%pres(oid) = x(TOIL_IMS_PRESSURE_DOF)
@@ -326,6 +351,11 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     !!               = d_pc_satl
     toil_auxvar%d%dp_dsat(lid) = dpc_dsatl
     toil_auxvar%d%dp_dsat(oid) = 0.d0
+
+    if (getNewDerivs) then
+      toil_auxvar%D_pc(lid,dof_op) = dpc_dsatl ! diff pc in liquid phase wrt oil presure
+    endif 
+
   endif
 
   cell_pressure = max(toil_auxvar%pres(lid),toil_auxvar%pres(oid))
@@ -351,6 +381,11 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
         !! DANGER
         toil_auxvar%d%dpor_dp = dummy
        call CheckDerivNotNAN(toil_auxvar%d%dpor_dP, option, "dpor_dP")
+
+        if (getNewDerivs) then
+          toil_auxvar%D_por(dof_op) = dummy
+        endif
+
       endif
     endif
     if (option%iflag /= TOIL_IMS_UPDATE_FOR_DERIVATIVE) then
@@ -364,6 +399,7 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   ! must use cell_pressure as the pressure, not %pres(lid)
 
   if (getDerivs) then
+    !!! TOCHECK - molar density here or not?
     call EOSWaterDensity( toil_auxvar%temp,cell_pressure, &
                          toil_auxvar%den_kg(lid),toil_auxvar%den(lid), &
                          toil_auxvar%d%dden_dp(lid), &
@@ -371,6 +407,15 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
 
     call CheckDerivNotNAN(toil_auxvar%d%dden_dP(lid), option, "dden_dP (liquid)")
     call CheckDerivNotNAN(toil_auxvar%d%dden_dT(lid), option, "dden_dT (liquid)")
+
+
+    if (getNewDerivs) then
+      call EOSWaterDensity( toil_auxvar%temp,cell_pressure, &
+                           toil_auxvar%den_kg(lid),toil_auxvar%den(lid), &
+                           toil_auxvar%D_den(lid,dof_op), &
+                           toil_auxvar%D_den(lid,dof_temp), ierr)
+   endif 
+
   else
     call EOSWaterDensity(toil_auxvar%temp,cell_pressure, &
                          toil_auxvar%den_kg(lid),toil_auxvar%den(lid),ierr)
@@ -391,6 +436,19 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
 
     toil_auxvar%d%dH_dT(lid) = toil_auxvar%d%dH_dT(lid) * 1.d-6 ! J/kmol -> MJ/kmol
     toil_auxvar%d%dH_dP(lid) = toil_auxvar%d%dH_dP(lid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+    if (getNewDerivs) then
+      call EOSWaterEnthalpy(toil_auxvar%temp, &
+                            cell_pressure, &
+                            toil_auxvar%H(lid), &
+                            toil_auxvar%D_H(lid,dof_op), &
+                            toil_auxvar%D_H(lid,dof_temp), &
+                            ierr)
+
+      toil_auxvar%D_H(lid,dof_temp) = toil_auxvar%D_H(lid,dof_temp) * 1.d-6 ! J/kmol -> MJ/kmol
+      toil_auxvar%D_H(lid,dof_op) = toil_auxvar%D_H(lid,dof_op) * 1.d-6 ! J/kmol -> MJ/kmol
+    endif 
+
   else
     call EOSWaterEnthalpy(toil_auxvar%temp,cell_pressure,toil_auxvar%H(lid),ierr)
   endif
@@ -411,6 +469,19 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     toil_auxvar%d%dU_dT(lid) = toil_auxvar%d%dH_dT(lid) + &
                                          1.d-6 * cell_pressure * toil_auxvar%d%dden_dT(lid) / & 
                                          toil_auxvar%den(lid)/toil_auxvar%den(lid) 
+
+    if (getNewDerivs) then
+      toil_auxvar%D_U(lid,dof_op) = toil_auxvar%D_H(lid,dof_op) - &
+                                           1.d-6 / toil_auxvar%den(lid) +  &
+                                           1.d-6 * cell_pressure*toil_auxvar%D_den(lid,dof_op) / &
+                                           toil_auxvar%den(lid)/toil_auxvar%den(lid) 
+
+      toil_auxvar%D_U(lid,dof_temp) = toil_auxvar%D_H(lid,dof_temp) + &
+                                           1.d-6 * cell_pressure * toil_auxvar%D_den(lid,dof_temp) / & 
+                                           toil_auxvar%den(lid)/toil_auxvar%den(lid) 
+    endif
+
+
   endif
 
   ! ADD HERE BRINE dependency. Two options (see mphase)
@@ -455,6 +526,20 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     toil_auxvar%d%dU_dT(oid) = toil_auxvar%d%dU_dT(oid) * 1.d-6 ! J/kmol -> MJ/kmol
     toil_auxvar%d%dH_dP(oid) = toil_auxvar%d%dH_dP(oid) * 1.d-6 ! J/kmol -> MJ/kmol
     toil_auxvar%d%dU_dP(oid) = toil_auxvar%d%dU_dP(oid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+    if (getNewDerivs) then
+      call EOSOilDensityEnergy(toil_auxvar%temp,toil_auxvar%pres(oid),toil_auxvar%den(oid), &
+                               toil_auxvar%D_den(oid,dof_temp),toil_auxvar%D_den(oid,dof_op), &
+                               toil_auxvar%H(oid),toil_auxvar%D_H(oid,dof_temp),toil_auxvar%D_H(oid,dof_op), &
+                               toil_auxvar%U(oid),toil_auxvar%d_U(oid,dof_temp),toil_auxvar%D_U(oid,dof_op), &
+                               ierr) !! look out for conversion between kg/molar density in derivs
+
+      toil_auxvar%D_H(oid,dof_temp) = toil_auxvar%D_H(oid,dof_temp) * 1.d-6 ! J/kmol -> MJ/kmol
+      toil_auxvar%D_U(oid,dof_temp) = toil_auxvar%D_U(oid,dof_temp) * 1.d-6 ! J/kmol -> MJ/kmol
+      toil_auxvar%D_H(oid,dof_op) = toil_auxvar%D_H(oid,dof_op) * 1.d-6 ! J/kmol -> MJ/kmol
+      toil_auxvar%D_U(oid,dof_op) = toil_auxvar%D_U(oid,dof_op) * 1.d-6 ! J/kmol -> MJ/kmol
+    endif
+
   else
     call EOSOilDensityEnergy(toil_auxvar%temp,toil_auxvar%pres(oid),&
                              toil_auxvar%den(oid),toil_auxvar%H(oid), &
@@ -497,6 +582,15 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     dkrl_Se = -1.d0 * dkrl_Se
     call MobilityDerivs_TOIL_IMS(dmobl, krl, visl, dkrl_Se, dvl_dt, dvl_dp)
     toil_auxvar%d%dmobility(lid, :) = dmobl(:)
+
+    if (getNewDerivs) then
+      !!! NOTE - do we really need visc derivs?
+      toil_auxvar%D_viscosity(lid, dof_op) = dvl_dp
+      toil_auxvar%D_viscosity(lid, dof_temp) = dvl_dt
+
+      toil_auxvar%D_mobility(lid, :) = dmobl(:)
+    endif
+
   else
     call EOSWaterViscosity(toil_auxvar%temp,cell_pressure,wat_sat_pres,visl,ierr)
   endif
@@ -528,6 +622,15 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     dkro_Se = -1.d0 * dkro_Se
     call MobilityDerivs_TOIL_IMS(dmobo, kro, viso, dkro_Se, dvo_dt, dvo_dp)
     toil_auxvar%d%dmobility(oid, :) = dmobo(:)
+
+    if (getNewDerivs) then
+      !!! NOTE - do we really need visc derivs?
+      toil_auxvar%D_viscosity(oid, dof_op) = dvo_dp
+      toil_auxvar%D_viscosity(oid, dof_temp) = dvo_dt
+
+      toil_auxvar%D_mobility(oid, :) = dmobo(:)
+    endif
+
   else
     call EOSOilViscosity(toil_auxvar%temp,toil_auxvar%pres(oid), &
                          toil_auxvar%den(oid), viso, ierr)
