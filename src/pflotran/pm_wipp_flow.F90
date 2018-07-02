@@ -1294,6 +1294,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
 
   if (wippflo_debug_first_iteration) stop
 
+  ! the following flags are used in detemining convergence
   if (.not.converged_liquid_pressure) then 
     this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI) = &
       max_liq_pres_rel_change_cell
@@ -1301,13 +1302,6 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   if (.not.converged_gas_saturation) then 
     this%convergence_flags(MAX_CHANGE_GAS_SAT_NI) = max_gas_sat_change_NI_cell
   endif
-  ! this following flags can always be set
-  this%convergence_flags(MAX_CHANGE_GAS_SAT_NI_TRACK) = &
-    max_gas_sat_change_NI_cell
-  this%convergence_flags(MAX_CHANGE_LIQ_PRES_NI) = &
-    max_abs_pressure_change_NI_cell
-  this%convergence_flags(MIN_LIQ_PRES) = min_liq_pressure_cell
-
   if (max_abs_pressure_change_TS > this%dpres_max) then
     this%convergence_flags(MAX_CHANGE_LIQ_PRES_TS) = &
                                              max_abs_pressure_change_TS_cell
@@ -1315,6 +1309,16 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   if (max_gas_sat_change_TS > this%dsat_max) then
     this%convergence_flags(MAX_CHANGE_GAS_SAT_TS) = max_gas_sat_change_TS_cell
   endif
+  if (force_another_iteration) this%convergence_flags(FORCE_ITERATION) = &
+    max_gas_sat_outside_lim_cell
+  if (cut_timestep) this%convergence_flags(OUTSIDE_BOUNDS) = 1
+
+  ! the following flags are for REPORTING purposes only
+  this%convergence_flags(MAX_CHANGE_GAS_SAT_NI_TRACK) = &
+    max_gas_sat_change_NI_cell
+  this%convergence_flags(MAX_CHANGE_LIQ_PRES_NI) = &
+    max_abs_pressure_change_NI_cell
+  this%convergence_flags(MIN_LIQ_PRES) = min_liq_pressure_cell
 
   this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI) = max_liq_pres_rel_change
   this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_TS) = &
@@ -1326,9 +1330,6 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   this%convergence_reals(MAX_CHANGE_GAS_SAT_TS) = max_gas_sat_change_TS
   this%convergence_reals(MIN_LIQ_PRES) = min_liq_pressure
   this%convergence_reals(FORCE_ITERATION) = max_gas_sat_outside_lim
-  if (force_another_iteration) this%convergence_flags(FORCE_ITERATION) = &
-    max_gas_sat_outside_lim_cell
-  if (cut_timestep) this%convergence_flags(OUTSIDE_BOUNDS) = 1
 
   call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
@@ -1557,6 +1558,7 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
     endif
   enddo
 
+  ! the following flags are used in detemining convergence
   if (.not.converged_liquid_equation) then
     this%convergence_flags(MAX_NORMAL_RES_LIQ) = max_normal_res_liq_cell
   endif
@@ -1566,8 +1568,7 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
   if (min_gas_pressure < 0.d0 .and. .not.wippflo_allow_neg_gas_pressure) then
     this%convergence_flags(MIN_GAS_PRES) = min_gas_pressure_cell
   endif
-  ! the following flags are not used for convergence purposes, and thus can
-  ! always be set
+  ! the following flags are for REPORTING purposes only
   this%convergence_flags(MAX_RES_LIQ) = max_res_liq_cell
   this%convergence_flags(MAX_RES_GAS) = max_res_gas_cell
 
