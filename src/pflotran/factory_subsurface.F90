@@ -830,10 +830,10 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
         case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
           option%nflowdof = 4
           option%nflowspec = 3 !H20, Oil, Gas
-        !case(TOWG_SOLVENT_TL)
-        !  option%nphase = 4
-        !  option%nflowdof = 5
-        !  option%nflowspec = 4 !H20, Oil, Gas, Solvent
+        case(TOWG_SOLVENT_TL)
+          option%nphase = 4
+          option%nflowdof = 5
+          option%nflowspec = 4 !H20, Oil, Gas, Solvent
         case default
           !option%io_buffer = 'SubsurfaceSetFlowMode: ' //
           !  'towg_miscibility_model must be intiialized'
