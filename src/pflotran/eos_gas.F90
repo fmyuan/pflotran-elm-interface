@@ -981,9 +981,7 @@ subroutine EOSGasViscosityEOSDBase(T, P_comp, P_gas, Rho_comp, V_mix, &
   dV_dRhocomp = 0.0d0
 
   ! initialize to derivative to NaN so that not mistakenly used.
-  ! NaN = 0.0
-  ! NaN = 1.0/NaN
-  ! NaN = 0.0d0*NaN
+  ! NaN = InitToNan()
   ! 
   ! dV_dT = NaN
   ! dV_dPcomp = NaN
@@ -1029,9 +1027,7 @@ subroutine EOSGasViscosityTable(T, P_comp, P_gas, Rho_comp, V_mix, &
   dV_dPcomp = 0.0d0
   dV_dRhocomp = 0.0d0
   ! initialize to derivative to NaN so that not mistakenly used.
-  ! NaN = 0.0
-  ! NaN = 1.0/NaN
-  ! NaN = 0.0d0*NaN
+  ! NaN = InitToNan()
   ! 
   ! dV_dT = NaN
   ! dV_dPcomp = NaN
@@ -1491,8 +1487,6 @@ subroutine EOSGasDensityEOSDBase(T, P, Rho_gas, dRho_dT, dRho_dP, ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  PetscReal :: NaN
-
   !ierr initialised in EOSEOSProp 
   !call eos_dbase%EOSProp(T,P,EOS_DENSITY,Rho_gas,ierr)
   call eos_dbase%EOSPropGrad(T,P,EOS_DENSITY,Rho_gas,dRho_dT,dRho_dP,ierr)
@@ -1503,13 +1497,6 @@ subroutine EOSGasDensityEOSDBase(T, P, Rho_gas, dRho_dT, dRho_dP, ierr, &
   Rho_gas = Rho_gas / fmw_gas ! kmol/m^3
   dRho_dT = dRho_dT / fmw_gas
   dRho_dP = dRho_dP / fmw_gas
-
-  ! ! initialize to derivative to NaN so that not mistakenly used.
-  ! NaN = 0.0
-  ! NaN = 1.0/NaN
-  ! NaN = 0.0d0*NaN
-  ! dRho_dT = NaN
-  ! dRho_dP = NaN
 
 end subroutine EOSGasDensityEOSDBase
 
@@ -1532,20 +1519,12 @@ subroutine EOSGasDensityTable(T, P, Rho_gas, dRho_dT, dRho_dP, ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  PetscReal :: NaN
 
   !Rho from pvt table is in kmol/m3
   !call pvt_table%EOSProp(T,P,EOS_DENSITY,Rho_gas,table_idxs,ierr)
 
   call pvt_table%EOSPropGrad(T,P,EOS_DENSITY,Rho_gas,dRho_dT,dRho_dP, &
                              ierr,table_idxs)
-
-  ! initialize to derivative to NaN so that not mistakenly used.
-  ! NaN = 0.0
-  ! NaN = 1.0/NaN
-  ! NaN = 0.0d0*NaN
-  ! dRho_dT = NaN
-  ! dRho_dP = NaN
 
 end subroutine EOSGasDensityTable
 
@@ -1686,7 +1665,7 @@ subroutine EOSGasEnergyEOSDBase(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
   call eos_dbase%EOSPropGrad(T,P,EOS_ENTHALPY,H,dH_dT,dH_dP,ierr)
   call eos_dbase%EOSPropGrad(T,P,EOS_INTERNAL_ENERGY,U,dU_dT,dU_dP,ierr)
   
-  !PO todo: conversion when loaidng database to do this operation only once
+  !PO todo: conversion when loading database to do this operation only once
   ! conversion to molar energy
   ! J/kg * kg/Kmol = J/Kmol
   H = H  * fmw_gas
@@ -1697,15 +1676,6 @@ subroutine EOSGasEnergyEOSDBase(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
   dU_dT = dU_dT * fmw_gas
   dU_dP = dU_dP * fmw_gas
 
-  ! NaN = 0.0
-  ! NaN = 1.0/NaN
-  ! NaN = 0.0d0*NaN
-  ! 
-  ! dU_dP = NaN
-  ! dU_dT = NaN
-  ! dH_dP = NaN
-  ! dH_dT = NaN
-    
 end subroutine EOSGasEnergyEOSDBase
 
 ! ************************************************************************** !
@@ -2132,6 +2102,7 @@ subroutine EOSGasTest(temp_low,temp_high,pres_low,pres_high, &
                         ntemp,npres,uniform_temp,uniform_pres,filename)
 
   use EOS_Water_module, only : EOSWaterSaturationPressure
+  use Utility_module, only : InitToNan
 
   implicit none
 
@@ -2168,9 +2139,7 @@ subroutine EOSGasTest(temp_low,temp_high,pres_low,pres_high, &
 
   PetscErrorCode :: ierr
 
-  NaN = 0.d0
-  NaN = 1.d0/NaN
-  NaN = 0.d0*NaN
+  NaN = InitToNan()
 
   allocate(temp(ntemp))
   temp = UNINITIALIZED_DOUBLE
