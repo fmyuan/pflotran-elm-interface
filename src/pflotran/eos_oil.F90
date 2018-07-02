@@ -921,17 +921,6 @@ subroutine EOSOilViscosityEOSDBase(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr, &
   
   call eos_dbase%EOSPropGrad(T,P,EOS_VISCOSITY,Vis,dVis_dT,dVis_dP,ierr) 
 
-  ! initialize to derivative to NaN so that not mistakenly used.
-  !dVis_dT = InitToNan()
-  !dVis_dP = InitToNan()
-
-  ! if (deriv) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
-  !   print*, "EOSOilViscosityEOSDBase - Viscosity derivatives not supported"
-  !   stop
-  ! end if
-
 end subroutine EOSOilViscosityEOSDBase
 
 ! ************************************************************************** !
@@ -1511,6 +1500,8 @@ end subroutine EOSOilEnthalpyDerive
 
 subroutine EOSOilDensityEnergyS(T,P,deriv,Rho,dRho_dT,dRho_dP, &
                                 H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr,table_idxs)
+
+  use Utility_module,only : InitToNan
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
@@ -1806,23 +1797,6 @@ subroutine EOSOilViscosibilityDerive(T,P,Cvis,dCvis_dT,dCvis_dP,ierr, &
                               ierr,table_idxs)
 
 end subroutine EOSOilViscosibilityDerive
-
-! **************************************************************************** !
-
-
-function InitToNan()
-
-implicit none
-
-PetscReal :: InitToNan
-
-InitToNan = 0.0
-InitToNan = 1.0/InitToNan
-InitToNan = 0.0d0*InitToNan
-
-return
-
-end function InitToNan
 
 ! **************************************************************************** !
 
