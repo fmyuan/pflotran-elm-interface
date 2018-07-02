@@ -32,6 +32,7 @@ module Characteristic_Curves_Base_module
     procedure, public :: SetupPolynomials => SFBaseSetupPolynomials
     procedure, public :: CapillaryPressure => SFBaseCapillaryPressure
     procedure, public :: Saturation => SFBaseSaturation
+    procedure, public :: D2SatDP2 => SFBaseD2SatDP2
   end type sat_func_base_type
 
 !-----------------------------------------------------------------------------
@@ -243,6 +244,24 @@ subroutine SFBaseSaturation(this,capillary_pressure, &
   call printErrMsg(option)
   
 end subroutine SFBaseSaturation
+
+! ************************************************************************** !
+
+subroutine SFBaseD2SatDP2(this,pc,d2s_dp2,option)
+
+  use Option_module
+
+  implicit none
+  
+  class(sat_func_base_type) :: this
+  PetscReal, intent(in) :: pc
+  PetscReal, intent(out) :: d2s_dp2
+  type(option_type), intent(inout) :: option
+  
+  option%io_buffer = 'SFBaseD2SatDP2 must be extended.'
+  call printErrMsg(option)
+  
+end subroutine SFBaseD2SatDP2
 
 ! ************************************************************************** !
 

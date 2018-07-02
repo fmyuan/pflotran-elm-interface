@@ -139,6 +139,7 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
   use Grid_module
   use Patch_module
   use Option_module
+  use Richards_Aux_module, only : RichardsAuxVarCompute2ndOrderDeriv
 
   implicit none
   
@@ -173,7 +174,11 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
      
     if (patch%imat(ghosted_id) <= 0) cycle !Ignore inactive cells with inactive materials
 
-     rich_auxvars(ghosted_id)%dpres_dtime = xxdot_loc_p(ibeg)
+     rich_auxvars(ghosted_id)%dpres_dtime = xxdot_loc_p(ghosted_id)
+
+     call RichardsAuxVarCompute2ndOrderDeriv(rich_auxvars(ghosted_id), &
+            patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr, &
+            option)
 
   enddo
 
@@ -365,6 +370,11 @@ subroutine PMRichardsTSIJacobian(this,ts,time,U,Udot,shift,A,B,ierr)
   call RichardsJacobianSourceSink(J,realization,ierr)
   call IJacobianAccumulation(J,shift,realization,ierr)
 
+  if (A /= B) then
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr);
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr);
+  endif
+
 end subroutine PMRichardsTSIJacobian
 
 ! ************************************************************************** !
@@ -442,8 +452,8 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
     sat = global_auxvars(ghosted_id)%sat(1)
     dden_dP = rich_auxvars(ghosted_id)%dden_dp
     dsat_dP = rich_auxvars(ghosted_id)%dsat_dp
-    d2den_dP2 = 0.d0
-    d2sat_dP2 = 0.d0
+    d2den_dP2 = rich_auxvars(ghosted_id)%d2den_dp2
+    d2sat_dP2 = rich_auxvars(ghosted_id)%d2sat_dp2
     d2por_dP2 = 0.d0
 
     row = ibeg - 1; col = ibeg - 1
