@@ -320,7 +320,11 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
 
   toil_auxvar%sat(lid) = 1.d0 - toil_auxvar%sat(oid)
 
-  !!! TODO - saturation derivatives!
+  ! trivial saturation derivatives: 
+  if (getDerivs) then
+    toil_auxvar%D_sat(oid,dof_osat) = 1.d0 ! diff oil sat by oil sat
+    toil_auxvar%D_sat(lid,dof_osat) = -1.d0 ! diff liquid sat by oil sat
+  endif
 
   call characteristic_curves%saturation_function% &
              CapillaryPressure(toil_auxvar%sat(lid), &
