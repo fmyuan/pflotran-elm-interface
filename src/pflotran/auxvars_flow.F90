@@ -29,7 +29,6 @@ module AuxVars_Flow_module
     PetscReal, pointer :: D_den(:,:)    ! (iphase) kmol/m^3 phase
     PetscReal, pointer :: D_den_kg(:,:) ! (iphase) kg/m^3 phase
     PetscReal, pointer :: D_mobility(:,:) ! relative perm / dynamic viscosity
-    PetscReal, pointer :: D_viscosity(:,:) ! dynamic viscosity
     PetscReal, pointer :: D_xmol(:,:,:) ! mole fractions (icomponent,iphase,sol var)
     PetscReal, pointer :: D_por(:) ! mole fractions (sol var)
 
@@ -97,8 +96,6 @@ subroutine AuxVarFlowInit(this,option)
     this%D_den_kg = 0.d0
     allocate(this%D_mobility(option%nphase,option%nflowdof))
     this%D_mobility = 0.d0
-    allocate(this%D_viscosity(option%nphase,option%nflowdof))
-    this%D_viscosity = 0.d0
     allocate(this%D_xmol(option%nflowspec,option%nphase,option%nflowdof))
     this%D_xmol = 0.d0
     allocate(this%D_por(option%nflowdof))
@@ -142,7 +139,6 @@ subroutine AuxVarFlowStrip(this)
     call DeallocateArray(this%D_den)
     call DeallocateArray(this%D_den_kg)
     call DeallocateArray(this%D_mobility)
-    call DeallocateArray(this%D_viscosity)
     call DeallocateArray(this%D_xmol)
     call DeallocateArray(this%D_por)
   endif

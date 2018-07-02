@@ -289,7 +289,10 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   if (toil_analytical_derivatives) then
     if (.NOT. toil_auxvar%has_derivs) then
       ! how did this happen?
-      !!! TODO - error message
+      option%io_buffer = 'Toil ims auxvars: toil_analytical_derivatives is true, &
+                          but toil_auxvar%has_derivs is false, should both be true. &
+                          How did this happen?'
+      call printErrMsg(option)
     endif
     getDerivs = PETSC_TRUE
 
@@ -299,7 +302,6 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     toil_auxvar%D_den = 0.d0
     toil_auxvar%D_den_kg = 0.d0
     toil_auxvar%D_mobility = 0.d0
-    toil_auxvar%D_viscosity = 0.d0
     toil_auxvar%D_xmol = 0.d0
     toil_auxvar%D_por = 0.d0
 
@@ -503,10 +505,6 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     dkrl_Se = -1.d0 * dkrl_Se
     call MobilityDerivs_TOIL_IMS(dmobl, krl, visl, dkrl_Se, dvl_dt, dvl_dp)
 
-    !!! NOTE - do we really need visc derivs?
-    toil_auxvar%D_viscosity(lid, dof_op) = dvl_dp
-    toil_auxvar%D_viscosity(lid, dof_temp) = dvl_dt
-
     toil_auxvar%D_mobility(lid, :) = dmobl(:)
 
   else
@@ -539,10 +537,6 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     !! We want derivatives w.r.t. oil saturation so
     dkro_Se = -1.d0 * dkro_Se
     call MobilityDerivs_TOIL_IMS(dmobo, kro, viso, dkro_Se, dvo_dt, dvo_dp)
-
-    !!! NOTE - do we really need visc derivs?
-    toil_auxvar%D_viscosity(oid, dof_op) = dvo_dp
-    toil_auxvar%D_viscosity(oid, dof_temp) = dvo_dt
 
     toil_auxvar%D_mobility(oid, :) = dmobo(:)
   else
