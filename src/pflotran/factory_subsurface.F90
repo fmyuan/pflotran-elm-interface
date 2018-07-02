@@ -110,9 +110,9 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   simulation%waypoint_list_subsurface => WaypointListCreate()
 
   ! Setup linkages between PMCs
-  call SetupPMCLinkages(simulation, pm_flow, pm_rt, pm_waste_form, &
-    pm_ufd_decay, pm_ufd_biosphere, pm_auxiliary, realization)
-
+  call SetupPMCLinkages(simulation,pm_flow,pm_rt,pm_waste_form,&
+    pm_ufd_decay,pm_ufd_biosphere,pm_auxiliary,realization)
+  
   ! SubsurfaceInitSimulation() must be called after pmc linkages are set above.
   call SubsurfaceInitSimulation(simulation)
 
