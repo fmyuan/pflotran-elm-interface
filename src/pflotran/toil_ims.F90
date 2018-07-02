@@ -988,6 +988,13 @@ subroutine TOilImsAccumulation(toil_auxvar,material_auxvar, &
   PetscBool :: analytical_derivatives
   PetscInt :: oid, lid
 
+  PetscInt :: dof_op, dof_osat, dof_temp
+
+  dof_op     = TOIL_IMS_PRESSURE_DOF
+  dof_osat   = TOIL_IMS_SATURATION_DOF
+  dof_temp   = TOIL_IMS_ENERGY_DOF
+  
+
   energy_id = option%energy_id
   
   ! v_over_t[m^3 bulk/sec] = vol[m^3 bulk] / dt[sec]
@@ -1041,22 +1048,22 @@ subroutine TOilImsAccumulation(toil_auxvar,material_auxvar, &
 
     !!    OIL EQUATION:
     !! w.r.t. pressure
-    j(oid, 1) = porosity*toil_auxvar%sat(oid)*toil_auxvar%d%dden_dp(oid) + &
-                toil_auxvar%d%dpor_dp*(toil_auxvar%sat(oid)*toil_auxvar%den(oid))
+    j(oid, 1) = porosity*toil_auxvar%sat(oid)*toil_auxvar%D_den(oid,dof_op) + &
+                toil_auxvar%D_por(dof_op)*(toil_auxvar%sat(oid)*toil_auxvar%den(oid))
     !! w.r.t. sat:
     j(oid, 2)  = porosity*toil_auxvar%den(oid)
     !! w.r.t. temp:
-    j(oid,3) = porosity*toil_auxvar%sat(oid)*toil_auxvar%d%dden_dT(oid)
+    j(oid,3) = porosity*toil_auxvar%sat(oid)*toil_auxvar%D_den(oid,dof_temp)
     !! END OIL EQUATION
 
     !!     LIQUID EQUATION
     !! w.r.t. pressure:
-    j(lid,1)  = porosity*toil_auxvar%sat(lid)*toil_auxvar%d%dden_dp(lid) + &
-                toil_auxvar%d%dpor_dp*(toil_auxvar%sat(lid)*toil_auxvar%den(lid))
+    j(lid,1)  = porosity*toil_auxvar%sat(lid)*toil_auxvar%D_den(lid,dof_op) + &
+                toil_auxvar%D_por(dof_op)*(toil_auxvar%sat(lid)*toil_auxvar%den(lid))
     !! w.r.t. sat:
     j(lid,2)  = -1.d0*toil_auxvar%den(lid)*porosity
     !! w.r.t. temp
-    j(lid,3) =  porosity*toil_auxvar%sat(lid)*toil_auxvar%d%dden_dT(lid)
+    j(lid,3) =  porosity*toil_auxvar%sat(lid)*toil_auxvar%D_den(lid,dof_temp)
     !! END LIQUID EQUATION
 
     !! ENERGY EQUATION:
@@ -1070,11 +1077,11 @@ subroutine TOilImsAccumulation(toil_auxvar,material_auxvar, &
     j(energy_id, 1) = j(energy_id, 1) + & 
                       porosity * &
                       toil_auxvar%sat(lid)* ( &
-                      toil_auxvar%d%dden_dp(lid)*toil_auxvar%U(lid) + &
-                      toil_auxvar%den(lid)*toil_auxvar%d%dU_dp(lid) )
+                      toil_auxvar%D_den(lid,dof_op)*toil_auxvar%U(lid) + &
+                      toil_auxvar%den(lid)*toil_auxvar%D_U(lid,dof_op) )
     !! and density w.r.t. pressure:
     j(energy_id, 1) = j(energy_id, 1) + & 
-                      toil_auxvar%d%dpor_dp*toil_auxvar%sat(lid)*toil_auxvar%den(lid)*toil_auxvar%u(lid)
+                      toil_auxvar%D_por(dof_op)*toil_auxvar%sat(lid)*toil_auxvar%den(lid)*toil_auxvar%u(lid)
     !! w.r.t oil sat:
     j(energy_id, 2) = j(energy_id, 2) - & !! note negative, next term is scaled by dsl/dso 
                       porosity*toil_auxvar%den(lid)*toil_auxvar%U(lid)
@@ -1082,19 +1089,19 @@ subroutine TOilImsAccumulation(toil_auxvar,material_auxvar, &
     j(energy_id,3) = j(energy_id,3) + &
                      porosity * &
                      toil_auxvar%sat(lid)* ( &
-                     toil_auxvar%d%dden_dt(lid)*toil_auxvar%U(lid) + &
-                     toil_auxvar%den(lid)*toil_auxvar%d%dU_dT(lid)  )
+                     toil_auxvar%D_den(lid,dof_temp)*toil_auxvar%U(lid) + &
+                     toil_auxvar%den(lid)*toil_auxvar%D_U(lid,dof_temp)  )
     !!  oil phase
     !!
     !! w.r.t pressure
     j(energy_id, 1) = j(energy_id, 1) + & 
                       porosity * &
                       toil_auxvar%sat(oid)* ( &
-                      toil_auxvar%d%dden_dp(oid)*toil_auxvar%U(oid) + &
-                      toil_auxvar%den(oid)*toil_auxvar%d%dU_dp(oid) )
+                      toil_auxvar%D_den(oid,dof_op)*toil_auxvar%U(oid) + &
+                      toil_auxvar%den(oid)*toil_auxvar%D_U(oid,dof_op) )
     !! and density w.r.t. pressure:
     j(energy_id, 1) = j(energy_id, 1) + & 
-                      toil_auxvar%d%dpor_dp*toil_auxvar%sat(oid)*toil_auxvar%den(oid)*toil_auxvar%u(oid)
+                      toil_auxvar%D_por(dof_op)*toil_auxvar%sat(oid)*toil_auxvar%den(oid)*toil_auxvar%u(oid)
     !! w.r.t oil sat:
     j(energy_id, 2) = j(energy_id, 2) + & 
                       porosity*toil_auxvar%den(oid)*toil_auxvar%U(oid)
@@ -1102,10 +1109,10 @@ subroutine TOilImsAccumulation(toil_auxvar,material_auxvar, &
     j(energy_id,3) = j(energy_id,3) + &
                      porosity * &
                      toil_auxvar%sat(oid)* ( &
-                     toil_auxvar%d%dden_dt(oid)*toil_auxvar%U(oid) + &
-                     toil_auxvar%den(oid)*toil_auxvar%d%dU_dT(oid)  )
+                     toil_auxvar%D_den(oid,dof_temp)*toil_auxvar%U(oid) + &
+                     toil_auxvar%den(oid)*toil_auxvar%D_U(oid,dof_temp)  )
     !! also the (1-por) ... term
-    j(energy_id,1) = j(energy_id,1) - toil_auxvar%d%dpor_dp*material_auxvar%soil_particle_density* &
+    j(energy_id,1) = j(energy_id,1) - toil_auxvar%D_por(dof_op)*material_auxvar%soil_particle_density* &
                      soil_heat_capacity*toil_auxvar%temp
     j(energy_id,3) = j(energy_id,3) + (1.d0 - porosity)*material_auxvar%soil_particle_density * &
                                                                soil_heat_capacity
