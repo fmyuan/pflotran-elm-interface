@@ -791,15 +791,32 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%use_isothermal = PETSC_FALSE
     class is (pm_towg_type)
       option%iflowmode = TOWG_MODE
+
+! Basic oil and gas
+
       option%nphase = 3
       option%liquid_phase = 1           ! liquid_pressure
       option%oil_phase = 2              ! oil_pressure
       option%gas_phase = 3              ! gas_pressure
-      !option%solvent_phase = 4         ! solvent saturation
+
+!  Add solvent phase
+
+      if (towg_miscibility_model == TOWG_SOLVENT_TL ) then
+        option%nphase = 4
+        option%solvent_phase= 4
+      endif
+
+!  Phase maps
 
       option%phase_map(1) = LIQUID_PHASE
       option%phase_map(2) = OIL_PHASE
       option%phase_map(3) = GAS_PHASE
+
+! Add solvent phase
+
+      if ( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+        option%phase_map(4) = SOLVENT_PHASE
+      endif
 
 ! Check that MAX_PHASE is sufficiently large
 
