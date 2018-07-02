@@ -353,7 +353,8 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     toil_auxvar%d%dp_dsat(oid) = 0.d0
 
     if (getNewDerivs) then
-      toil_auxvar%D_pc(lid,dof_op) = dpc_dsatl ! diff pc in liquid phase wrt oil presure
+      toil_auxvar%D_pres(lid,dof_osat) = dpc_dsatl 
+      toil_auxvar%D_pc(lid,dof_osat) = dpc_dsatl 
     endif 
 
   endif
