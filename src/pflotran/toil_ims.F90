@@ -2335,12 +2335,8 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
     ss_flow_vol_flux(iphase) = qsrc_mol/ den
     Res(iphase) = qsrc_mol
     if (analytical_derivatives) then
-      call Qsrc_mol_derivs(d_qsrc_mol,dden_bool, qsrc(iphase), toil_auxvar%d%dden_dp(iphase), &
-                           toil_auxvar%d%dden_dt(iphase), scale_use)
-#if 0
-      call Qsrc_mol_derivs(d_qsrc_mol,dden_bool, qsrc(iphase), toil_auxvar%d%dden_dp(iphase), &
-                           toil_auxvar%d%dden_dt(iphase), scale_use)
-#endif
+      call Qsrc_mol_derivs(d_qsrc_mol,dden_bool, qsrc(iphase), toil_auxvar%D_den(iphase,dof_op), &
+                           toil_auxvar%D_den(iphase,dof_temp), scale_use)
       j(iphase, 1:3) = j(iphase, 1:3) + d_qsrc_mol(1:3)
     endif
   enddo
@@ -2463,8 +2459,8 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
         !! and switched on or off by an upstreaming-like flag
         call SrcSinkEnergyPartDerivs(d_inj_en_part, denth_bool, &
                                        Res(option%liquid_phase), &
-                                       toil_auxvar%d%dH_dp(option%liquid_phase), &
-                                       toil_auxvar%d%dH_dT(option%liquid_phase))
+                                       toil_auxvar%D_H(option%liquid_phase,dof_op), &
+                                       toil_auxvar%D_H(option%liquid_phase,dof_temp))
         j(option%energy_id, :) = j(option%energy_id, :) +  d_inj_en_part
       endif
 
@@ -2479,8 +2475,8 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
       if (analytical_derivatives) then
         call SrcSinkEnergyPartDerivs(d_inj_en_part, denth_bool, &
                                        Res(option%oil_phase), &
-                                       toil_auxvar%d%dH_dp(option%oil_phase), &
-                                       toil_auxvar%d%dH_dT(option%oil_phase))
+                                       toil_auxvar%D_H(option%oil_phase,dof_op), &
+                                       toil_auxvar%D_H(option%oil_phase,dof_temp))
         j(option%energy_id, :) = j(option%energy_id, :) +  d_inj_en_part
       endif
 
