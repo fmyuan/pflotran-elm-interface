@@ -127,7 +127,7 @@ subroutine TOilImsSetup(realization)
   
   patch%aux%TOil_ims => TOilImsAuxCreate(option)
 
-  toil_analytical_derivatives = .not.option%flow%numerical_derivatives
+  toil_analytical_derivatives = .not. option%flow%numerical_derivatives
   toil_analytical_derivatives_compare = option%flow%numerical_derivatives_compare
 
   toil_dcomp_tol = option%debug_tol
@@ -1206,6 +1206,7 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
 
   PetscReal, dimension(1:3,1:3) :: jup, jdn
   PetscBool :: analytical_derivatives
+  PetscInt :: dof_op, dof_osat, dof_temp
 
 
 
@@ -1226,6 +1227,10 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
 
   jup = 0.d0
   jdn = 0.d0
+
+  dof_op     = TOIL_IMS_PRESSURE_DOF
+  dof_osat   = TOIL_IMS_SATURATION_DOF
+  dof_temp   = TOIL_IMS_ENERGY_DOF
 
 
 #ifdef TOIL_CONVECTION
@@ -1337,12 +1342,12 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
                                               d_delta_pres_dT_up, d_delta_pres_dT_dn,     &
                                               dist_gravity,                               &
                                               ddensity_ave_dden_up, ddensity_ave_dden_dn, &
-                                              toil_auxvar_up%d%dden_dp(iphase),                &
-                                              toil_auxvar_dn%d%dden_dp(iphase),                &
-                                              toil_auxvar_up%d%dden_dt(iphase),                 &
-                                              toil_auxvar_dn%d%dden_dt(iphase),                 &
-                                              toil_auxvar_up%d%dp_dsat(iphase),                 &
-                                              toil_auxvar_dn%d%dp_dsat(iphase),                 &
+                                              toil_auxvar_up%D_den(iphase,dof_op),                &
+                                              toil_auxvar_dn%D_den(iphase,dof_op),                &
+                                              toil_auxvar_up%D_den(iphase,dof_temp),                 &
+                                              toil_auxvar_dn%D_den(iphase,dof_temp),                 &
+                                              toil_auxvar_up%D_pres(iphase,dof_osat),                 &
+                                              toil_auxvar_dn%D_pres(iphase,dof_osat),                 &
                                               d_delta_pres_ds_up, d_delta_pres_ds_dn,&
                                               toil_ims_fmw_comp(iphase))
 
@@ -1350,10 +1355,10 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
                                              !ddelta_pressure_dsatup, ddelta_pressure_dsatdn )
 
 
-        call v_darcy_derivs(d_v_darcy_up, toil_auxvar_up%d%dmobility(iphase, 1:3),     &
+        call v_darcy_derivs(d_v_darcy_up, toil_auxvar_up%D_mobility(iphase, 1:3),     &
                             up_scale, delta_pressure, mobility, perm_ave_over_dist(iphase),  &
                             d_delta_pres_dp_up, d_delta_pres_dt_up, d_delta_pres_ds_up)
-        call v_darcy_derivs(d_v_darcy_dn, toil_auxvar_dn%d%dmobility(iphase, 1:3),     &
+        call v_darcy_derivs(d_v_darcy_dn, toil_auxvar_dn%D_mobility(iphase, 1:3),     &
                             dn_scale, delta_pressure, mobility, perm_ave_over_dist(iphase),  &
                             d_delta_pres_dp_dn, d_delta_pres_dt_dn, d_delta_pres_ds_dn)
       endif
@@ -1372,9 +1377,9 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
 
       if (analytical_derivatives) then
         call MoleFluxDerivs(d_mole_flux_up, d_q_up, q, density_ave, ddensity_ave_dden_up, &
-                            toil_auxvar_up%d%dden_dp(iphase), toil_auxvar_up%d%dden_dt(iphase))
+                            toil_auxvar_up%D_den(iphase,dof_op), toil_auxvar_up%D_den(iphase,dof_temp))
         call MoleFluxDerivs(d_mole_flux_dn, d_q_dn, q, density_ave, ddensity_ave_dden_dn, &
-                            toil_auxvar_dn%d%dden_dp(iphase), toil_auxvar_dn%d%dden_dt(iphase))
+                            toil_auxvar_dn%D_den(iphase,dof_op), toil_auxvar_dn%D_den(iphase,dof_temp))
         jup(iphase,1:3) = jup(iphase, 1:3) + d_mole_flux_up
         jdn(iphase, 1:3) = jdn(iphase, 1:3) + d_mole_flux_dn
       endif
@@ -1406,9 +1411,9 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
       if (analytical_derivatives) then
         !! by `energy driven flux' mean the term moleFlux * uH
         call EnergyDrivenFluxDerivs(d_energy_flux_up, d_mole_flux_up, uH, up_scale, mole_flux, &
-                              toil_auxvar_up%d%dH_dp(iphase), toil_auxvar_up%d%dH_dt(iphase))
+                              toil_auxvar_up%D_H(iphase,dof_op), toil_auxvar_up%D_H(iphase,dof_temp))
         call EnergyDrivenFluxDerivs(d_energy_flux_dn, d_mole_flux_dn, uH, dn_scale, mole_flux, &
-                              toil_auxvar_dn%d%dH_dp(iphase), toil_auxvar_dn%d%dH_dt(iphase))
+                              toil_auxvar_dn%D_H(iphase,dof_op), toil_auxvar_dn%D_H(iphase,dof_temp))
         jup(energy_id, 1:3) = jup(energy_id, 1:3) + d_energy_flux_up
         jdn(energy_id, 1:3) = jdn(energy_id, 1:3) + d_energy_flux_dn
       endif
