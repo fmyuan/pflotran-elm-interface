@@ -70,6 +70,7 @@ module Utility_module
             lubksb, &
             FileExists, &
             Equal, &
+            InitToNaN, &
             BestFloat, &
             QuadraticPolynomialSetup, &
             QuadraticPolynomialEvaluate, &
@@ -1424,6 +1425,28 @@ function Equal(value1, value2)
   if (dabs(value1 - value2) < spacing(value2)/2.0)  Equal = PETSC_TRUE
   
 end function Equal
+
+! ************************************************************************** !
+
+function InitToNan()
+
+!------------------------------------------------------------------------------
+! Function to provide a NaN (not a number value)
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Jun 2018
+!------------------------------------------------------------------------------
+implicit none
+
+PetscReal :: InitToNan
+
+InitToNan = 0.0
+InitToNan = 1.0/InitToNan
+InitToNan = 0.0d0*InitToNan
+
+return
+
+end function InitToNan
 
 ! ************************************************************************** !
 
