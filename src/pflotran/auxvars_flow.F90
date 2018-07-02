@@ -80,7 +80,6 @@ subroutine AuxVarFlowInit(this,option)
 
   this%has_derivs = PETSC_FALSE
   if (.not.option%flow%numerical_derivatives) then
-    print *, "auxvars flow, allocating derivs because option,flow,numerical derivs is false"
 
     this%has_derivs = PETSC_TRUE
 
@@ -100,9 +99,6 @@ subroutine AuxVarFlowInit(this,option)
     this%D_xmol = 0.d0
     allocate(this%D_por(option%nflowdof))
     this%D_xmol = 0.d0
-
-  else
-    print *, "auxvars flow, NOT allocating derivs because option,flow,numerical derivs is true"
   endif
 
 
