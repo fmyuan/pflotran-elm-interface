@@ -289,7 +289,7 @@ subroutine RealizationCreateDiscretization(realization)
     call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xx_loc, &
                                     LOCAL,option)
 
-    if (option%iflowmode == RICHARDS_2DOFs_MODE) then
+    if (option%iflowmode == RICHARDS_2DOFs_MODE .or. option%iflowmode == RICHARDS_TS_MODE) then
       call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xxdot, &
                                       GLOBAL,option)
 

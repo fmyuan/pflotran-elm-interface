@@ -165,20 +165,20 @@ factory_subsurface.o : characteristic_curves.o checkpoint.o condition.o \
                        pflotran_constants.o pm_auxiliary.o pm_base.o \
                        pm_base_pointer.o pm_bragflo.o pm_flash2.o pm_general.o \
                        pm_immis.o pm_miscible.o pm_mphase.o pm_richards.o \
-                       pm_richards_2dofs.o pm_rt.o pm_subsurface_flow.o \
-                       pm_th.o pm_toil_ims.o pm_towg.o pm_towg_aux.o \
-                       pm_ufd_biosphere.o pm_ufd_decay.o pm_waste_form.o \
-                       pm_wipp_flow.o pm_wipp_srcsink.o pmc_auxiliary.o \
-                       pmc_base.o pmc_subsurface.o pmc_third_party.o \
-                       reaction.o reaction_aux.o reaction_database.o \
-                       reaction_mineral.o reaction_solid_solution.o \
-                       reactive_transport.o realization_base.o \
-                       realization_subsurface.o region.o regression.o \
-                       saturation_function.o simulation_subsurface.o solver.o \
-                       srcsink_sandbox.o strata.o string.o timestepper_BE.o \
-                       timestepper_TS.o timestepper_steady.o \
-                       transport_constraint.o units.o utility.o waypoint.o \
-                       well_spec_base.o wipp.o
+                       pm_richards_2dofs.o pm_richards_ts.o pm_rt.o \
+                       pm_subsurface_flow.o pm_th.o pm_toil_ims.o pm_towg.o \
+                       pm_towg_aux.o pm_ufd_biosphere.o pm_ufd_decay.o \
+                       pm_waste_form.o pm_wipp_flow.o pm_wipp_srcsink.o \
+                       pmc_auxiliary.o pmc_base.o pmc_subsurface.o \
+                       pmc_third_party.o reaction.o reaction_aux.o \
+                       reaction_database.o reaction_mineral.o \
+                       reaction_solid_solution.o reactive_transport.o \
+                       realization_base.o realization_subsurface.o region.o \
+                       regression.o saturation_function.o \
+                       simulation_subsurface.o solver.o srcsink_sandbox.o \
+                       strata.o string.o timestepper_BE.o timestepper_TS.o \
+                       timestepper_steady.o transport_constraint.o units.o \
+                       utility.o waypoint.o well_spec_base.o wipp.o
 factory_surface.o : checkpoint.o checkpoint_surface.o condition.o \
                     condition_control.o coupler.o dataset.o dataset_base.o \
                     dataset_common_hdf5.o debug.o discretization.o grid.o \
@@ -353,8 +353,9 @@ init_subsurface_flow.o : co2_sw.o condition_control.o coupler.o \
                          discretization.o field.o flash2.o general.o grid.o \
                          hdf5.o immis.o init_common.o material.o miscible.o \
                          mphase.o option.o patch.o pflotran_constants.o \
-                         pm_richards_2dofs.o realization_subsurface.o \
-                         richards.o th.o toil_ims.o towg.o well.o wipp_flow.o
+                         pm_richards_2dofs.o pm_richards_ts.o \
+                         realization_subsurface.o richards.o th.o toil_ims.o \
+                         towg.o well.o wipp_flow.o
 init_subsurface_transport.o : condition_control.o global.o option.o \
                               pflotran_constants.o reactive_transport.o \
                               realization_subsurface.o variables.o
@@ -529,6 +530,10 @@ pm_richards_2dofs.o : discretization.o field.o global_aux.o grid.o material.o \
                       material_aux.o option.o patch.o pflotran_constants.o \
                       pm_base.o pm_subsurface_flow.o realization_subsurface.o \
                       richards.o richards_aux.o richards_common.o
+pm_richards_ts.o : discretization.o field.o global_aux.o grid.o material.o \
+                   material_aux.o option.o patch.o pflotran_constants.o \
+                   pm_base.o pm_subsurface_flow.o realization_subsurface.o \
+                   richards.o richards_aux.o richards_common.o
 pm_rt.o : checkpoint.o communicator_base.o communicator_structured.o \
           communicator_unstructured.o condition.o condition_control.o \
           convergence.o data_mediator.o discretization.o field.o global.o \
@@ -929,7 +934,7 @@ timestepper_TS.o : option.o output.o pflotran_constants.o pm_base.o \
                    pm_surface_flow.o solver.o surface_flow.o \
                    timestepper_base.o utility.o waypoint.o
 timestepper_base.o : input_aux.o option.o output.o pflotran_constants.o \
-                     pm_base.o string.o waypoint.o
+                     pm_base.o solver.o string.o waypoint.o
 timestepper_steady.o : convergence.o option.o output.o pflotran_constants.o \
                        pm_base.o pm_geomechanics_force.o solver.o \
                        timestepper_BE.o timestepper_base.o waypoint.o

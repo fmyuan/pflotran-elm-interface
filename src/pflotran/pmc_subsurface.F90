@@ -539,6 +539,7 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
 
       select case(option%iflowmode)
         case(RICHARDS_2DOFs_MODE)
+        case(RICHARDS_TS_MODE)
         case default
           option%io_buffer = 'Timestepper TS unsupported for mode: '// option%flowmode
           call printErrMsg(option)
@@ -550,6 +551,8 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
           select case(option%iflowmode)
             case(RICHARDS_2DOFs_MODE)
               write(*,'(" mode = Richards: p m")')
+            case(RICHARDS_TS_MODE)
+              write(*,'(" mode = Richards: p")')
           end select
         endif
 

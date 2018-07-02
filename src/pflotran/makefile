@@ -286,6 +286,7 @@ mode_aux_obj = \
 	${common_src}pm_miscible.o \
 	${common_src}pm_richards.o \
 	${common_src}pm_richards_2dofs.o \
+	${common_src}pm_richards_ts.o \
 	${common_src}pm_rt.o \
 	${common_src}pm_subsurface_flow.o \
 	${common_src}pm_surface_flow.o \
