@@ -409,26 +409,33 @@ subroutine TOWGSetup(realization)
         case(TOWG_TODD_LONGSTAFF)
           call TOWGTLAuxVarComputeSetup()
       end select
-    case(TOWG_BLACK_OIL)
-! No trap on neg Sg, avoid dampling Pb as Sg, so special black oil version
+    case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+! No trap on neg Sg, avoid dampling Pb as Sg, so special black oil/TL4P version
        TOWGCheckUpdatePre => TOWGBlackOilCheckUpdatePre
-! Must convert Pbub changes to eff. satn. change, so special black oil version
-       TOWGMaxChange => TOWGBOMaxChange
-! Detailed lookup needed for the oil source case, so special black oil version
+! Detailed lookup needed for the oil source case, so special black oil/TL4P version
        TOWGSrcSink => TOWGBOSrcSink
-       call TOWGBlackOilAuxVarComputeSetup()
+! Cases in which black oil and TL4P are different
+       select case(towg_miscibility_model)
+          case(TOWG_BLACK_OIL)
+! Must convert Pbub changes to eff. satn. change, so special black oil version
+            TOWGMaxChange => TOWGBOMaxChange
+            call TOWGBlackOilAuxVarComputeSetup()
+          case(TOWG_SOLVENT_TL)
+! Pbub changes and extra saturation, so special solvent version
+            TOWGMaxChange => TOWGTL4PMaxChange
+            call TL4PAuxVarComputeSetup()
+       end select
     case default
-      option%io_buffer = 'TOWGSetup: mode not supported.'
-      call printErrMsg(option)
+       option%io_buffer = 'TOWGSetup: mode not supported.'
+       call printErrMsg(option)
   end select
 
 !------------------------------------------------------------------------------
 ! TOWG functions that do not vary with the miscibility model
-! (may be different for solvent)
 !------------------------------------------------------------------------------
 
   select case(towg_miscibility_model)
-    case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
+    case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
        TOWGAccumulation => TOWGImsTLBOAccumulation
        TOWGUpdateAuxVars => TOWGImsTLBOUpdateAuxVars
        TOWGComputeMassBalance => TOWGImsTLBOComputeMassBalance
@@ -958,10 +965,9 @@ subroutine TOWGImsTLBOComputeMassBalance(realization,mass_balance)
   PetscBool :: is_black_oil
   PetscBool :: componentInPhase,is_oil_in_oil,is_gas_in_oil
 
-! Set flag indicating a black oil run
-
   is_black_oil=PETSC_FALSE
-  if( towg_miscibility_model == TOWG_BLACK_OIL ) is_black_oil=PETSC_TRUE
+  if(     ( towg_miscibility_model == TOWG_BLACK_OIL  ) &
+     .or. ( towg_miscibility_model == TOWG_SOLVENT_TL ) ) is_black_oil=PETSC_TRUE
 
   option => realization%option
   patch => realization%patch
@@ -1249,6 +1255,146 @@ subroutine TOWGBOMaxChange(realization,max_change_ivar,max_change_isubvar,&
 
 end subroutine TOWGBOMaxChange
 
+subroutine TOWGTL4PMaxChange(realization,max_change_ivar,max_change_isubvar,&
+                             max_pressure_change,max_xmol_change, &
+                             max_saturation_change,max_temperature_change)
+
+!------------------------------------------------------------------------------
+! Used in TOWG_SOLVENT_TL, to compute primary variable max changes
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Apr 2018
+!------------------------------------------------------------------------------
+
+  use Realization_Base_class
+  use Realization_Subsurface_class
+  use Option_module
+  use Field_module
+  use Grid_module
+  use Variables_module, only : OIL_PRESSURE
+
+  implicit none
+
+  class(realization_subsurface_type), pointer :: realization
+  PetscInt :: max_change_ivar(:)
+  PetscInt :: max_change_isubvar(:)
+  PetscReal :: max_pressure_change
+  PetscReal :: max_xmol_change
+  PetscReal :: max_saturation_change
+  PetscReal :: max_temperature_change
+
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(grid_type), pointer :: grid
+  PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
+  PetscReal :: max_change_local(6)
+  PetscReal :: max_change_global(6)
+  PetscReal :: sum_values_local (2)
+  PetscReal :: sum_values_global(2)
+  PetscReal :: max_change,sum_pressure,normed_max_pb_change,average_pressure
+  PetscInt :: i, j
+  PetscInt :: local_id, ghosted_id
+
+  PetscErrorCode :: ierr
+
+  option => realization%option
+  field => realization%field
+  grid => realization%patch%grid
+
+  max_change_global   = 0.d0
+  max_change_local    = 0.d0
+  sum_pressure        = 0.d0
+  normed_max_pb_change= 0.d0
+  average_pressure    = 0.d0
+
+!------------------------------------------------------------------------------
+! Look at the TL4P oil variables (order defined by max_change_ivar)
+! {OIL_PRESSURE,OIL_SATURATION,GAS_SATURATION,SOLVENT_SATURATION,TEMPERATURE,BUBBLE_POINT}
+!------------------------------------------------------------------------------
+
+  do i = 1, 6
+
+!--Get values------------------------------------------------------------------
+
+    call RealizationGetVariable(realization,field%work, &
+                                max_change_ivar(i),max_change_isubvar(i))
+    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%max_change_vecs(i),vec_ptr2,ierr);CHKERRQ(ierr)
+    max_change = 0.d0
+    do j = 1, grid%nlmax
+      ! have to weed out cells that changed state
+      if (dabs(vec_ptr(j)) > 1.d-40 .and. dabs(vec_ptr2(j)) > 1.d-40) then
+        max_change = max(max_change,dabs(vec_ptr(j)-vec_ptr2(j)))
+      endif
+    enddo
+    max_change_local(i) = max_change
+
+!--Case of pressure to provide norm for bubble point change--------------------
+
+    if( max_change_ivar(i)==OIL_PRESSURE ) then
+      do j = 1, grid%nlmax
+        sum_values_local(1)=sum_pressure
+        sum_values_local(2)=real(grid%nlmax)
+      enddo
+    endif
+
+!--Restore values--------------------------------------------------------------
+
+    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%max_change_vecs(i),vec_ptr2, &
+                            ierr);CHKERRQ(ierr)
+
+    call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
+
+  enddo
+
+!------------------------------------------------------------------------------
+! Do global reductions
+!------------------------------------------------------------------------------
+
+  call MPI_Allreduce(max_change_local,max_change_global,SIX_INTEGER, &
+                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+  call MPI_Allreduce(sum_values_local,sum_values_global,TWO_INTEGER, &
+                      MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+
+  if( sum_values_global(2)>0.0 ) then
+    average_pressure=sum_values_global(1)/sum_values_global(2)
+  endif
+
+  if( average_pressure>0.0 ) then
+   normed_max_pb_change=max_change_global(6)/average_pressure
+  endif
+
+!------------------------------------------------------------------------------
+! Report the changes
+!------------------------------------------------------------------------------
+
+  if (OptionPrintToScreen(option)) then
+    write(*,'("  --> max chng: dpo= ",1pe12.4, " dso= ",1pe12.4, &
+      & " dsg= ",1pe12.4," dss= ",1pe12.4," dt= ",1pe12.4," dpb= ",1pe12.4)') &
+      max_change_global(1:6)
+  endif
+  if (OptionPrintToFile(option)) then
+    write(option%fid_out,'("  --> max chng: dpo= ",1pe12.4, " dso= ",1pe12.4,&
+      & " dsg= ",1pe12.4," dss= ",1pe12.4,/,15x,"  dt= ",1pe12.4,"  dpb= ",1pe12.4)') &
+      max_change_global(1:6)
+  endif
+
+!------------------------------------------------------------------------------
+! Assemble the changes that control the simulation step
+! TL4P model should be independent of mole weights,
+! so do not set mole fraction max change
+! Include normed maximum bubble point as an effective saturation change
+!------------------------------------------------------------------------------
+
+  max_pressure_change    = max_change_global(1)
+  max_xmol_change        = 0.0d0
+  max_saturation_change  = maxval(max_change_global(2:4))
+  max_saturation_change  = max(max_saturation_change,normed_max_pb_change)
+  max_temperature_change = max_change_global(5)
+
+end subroutine TOWGTL4PMaxChange
+
 ! ************************************************************************** !
 
 subroutine TOWGMapBCAuxVarsToGlobal(realization)
@@ -1403,22 +1549,6 @@ subroutine TOWGSetPlotVariables(list)
                                BUBBLE_POINT)
   end if
 
-  !to be added later for solvent model
-  if ( towg_miscibility_model == TOWG_SOLVENT_TL ) then
-    ! add solvent saturation 
-     write(*,*) "error: TOWGSetPlotVariables: TOWG_SOLVENT_TL " // &
-                "not currently supported"
-     stop
-  end if
-
- ! to switch on when TOWG_BLACK_OIL is implemented 
- ! name = 'Thermodynamic State'
- ! units = ''
- ! output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE,units,STATE)
- ! output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
- ! output_variable%iformat = 1 ! integer
- ! call OutputVariableAddToList(list,output_variable)   
-  
 end subroutine TOWGSetPlotVariables
 
 ! ************************************************************************** !
@@ -1528,7 +1658,7 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
                                  soil_heat_capacity,option,Res,debug_cell)
   ! 
   ! Computes the non-fixed portion of the accumulation term for the residual
-  ! Used for TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF and TOWG_BLACK_OIL models
+  ! Used for TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL,TOWG_SOLVENT_TL
   ! 
   ! Author: Paolo Orsini
   ! Date: 12/07/16 
@@ -1559,7 +1689,8 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
 ! Set flag indicating a black oil run
 
   is_black_oil=PETSC_FALSE
-  if( towg_miscibility_model == TOWG_BLACK_OIL ) is_black_oil=PETSC_TRUE
+  if(     ( towg_miscibility_model == TOWG_BLACK_OIL  ) &
+     .or. ( towg_miscibility_model == TOWG_SOLVENT_TL ) ) is_black_oil=PETSC_TRUE
  
   energy_id = option%energy_id
   
@@ -1705,7 +1836,8 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
 ! Set flag indicating a black oil run
 
   is_black_oil=PETSC_FALSE
-  if( towg_miscibility_model == TOWG_BLACK_OIL ) is_black_oil=PETSC_TRUE
+  if(     ( towg_miscibility_model == TOWG_BLACK_OIL  ) &
+     .or. ( towg_miscibility_model == TOWG_SOLVENT_TL ) ) is_black_oil=PETSC_TRUE
 
   energy_id = option%energy_id
 
@@ -2010,7 +2142,8 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 ! Set flag indicating a black oil run
 
   is_black_oil=PETSC_FALSE
-  if( towg_miscibility_model == TOWG_BLACK_OIL ) is_black_oil=PETSC_TRUE
+  if(     ( towg_miscibility_model == TOWG_BLACK_OIL  ) &
+     .or. ( towg_miscibility_model == TOWG_SOLVENT_TL ) ) is_black_oil=PETSC_TRUE
   
   energy_id = option%energy_id
 
@@ -4076,7 +4209,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
                                       max_it_before_damping,damping_factor, &
                                       max_pressure_change,ierr)
 !------------------------------------------------------------------------------
-! Used in TOWG_BLACK_OIL, prepares update for solver
+! Used in TOWG_BLACK_OIL and TOWG_SOLVENT_TL, prepares update for solver
 !------------------------------------------------------------------------------
 ! Author: Dave Ponting
 ! Date  : Oct 2017
