@@ -540,9 +540,8 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   
 #ifdef DEBUG_GENERAL  
   ! create a NaN
-  NaN = 0.d0
-  NaN = 1.d0/NaN
-  NaN = 0.d0*NaN
+  NaN = InitToNan()
+
   gen_auxvar%H = NaN
   gen_auxvar%U = NaN
   gen_auxvar%pres = NaN
