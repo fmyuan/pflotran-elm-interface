@@ -50,10 +50,14 @@ subroutine AuxVarFlowEnergyInit(this,option)
   allocate(this%U(option%nphase))
   this%U = 0.d0
 
-  allocate(this%D_H(option%nphase,option%nflowdof))
-  this%H = 0.d0
-  allocate(this%D_U(option%nphase,option%nflowdof))
-  this%U = 0.d0
+  this%has_derivs = PETSC_FALSE
+  if (.not.option%flow%numerical_derivatives) then
+    this%has_derivs = PETSC_TRUE
+    allocate(this%D_H(option%nphase,option%nflowdof))
+    this%D_H = 0.d0
+    allocate(this%D_U(option%nphase,option%nflowdof))
+    this%D_U = 0.d0
+  endif
 
 end subroutine AuxVarFlowEnergyInit
 
