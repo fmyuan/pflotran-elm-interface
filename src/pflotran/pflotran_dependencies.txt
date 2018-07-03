@@ -585,12 +585,14 @@ pm_waste_form.o : condition.o data_mediator_vec.o dataset_ascii.o \
                   pflotran_constants.o pm_base.o reaction_aux.o \
                   reactive_transport_aux.o realization_base.o \
                   realization_subsurface.o region.o string.o units.o utility.o
-pm_wipp_flow.o : checkpoint.o convergence.o debug.o field.o global.o \
-                 global_aux.o grid.o input_aux.o material.o material_aux.o \
-                 option.o patch.o pflotran_constants.o pm_base.o \
-                 pm_subsurface_flow.o pm_wipp_srcsink.o realization_base.o \
-                 realization_subsurface.o saturation_function.o string.o \
-                 variables.o wipp_flow.o wipp_flow_aux.o wipp_flow_common.o
+pm_wipp_flow.o : checkpoint.o convergence.o dataset.o dataset_base.o \
+                 dataset_common_hdf5.o debug.o discretization.o field.o \
+                 global.o global_aux.o grid.o hdf5.o input_aux.o material.o \
+                 material_aux.o option.o patch.o pflotran_constants.o \
+                 pm_base.o pm_subsurface_flow.o pm_wipp_srcsink.o \
+                 realization_base.o realization_subsurface.o \
+                 saturation_function.o string.o variables.o wipp_flow.o \
+                 wipp_flow_aux.o wipp_flow_common.o
 pm_wipp_srcsink.o : data_mediator_vec.o eos_gas.o eos_water.o global_aux.o \
                     grid.o input_aux.o material.o material_aux.o option.o \
                     output_aux.o patch.o pflotran_constants.o pm_base.o \
