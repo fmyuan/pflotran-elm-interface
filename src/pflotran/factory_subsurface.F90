@@ -943,6 +943,10 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
             pm => PMGeneralCreate()
           case('WIPP_FLOW')
             pm => PMWIPPFloCreate()
+          case('BRAGFLO')
+            option%io_buffer = 'BRAGFLO mode has been merged with WIPP_FLOW. &
+              &Please use WIPP_FLOW instead.'
+            call printErrMsg(option)
           case('MPHASE')
             pm => PMMphaseCreate()
           case('FLASH2')
