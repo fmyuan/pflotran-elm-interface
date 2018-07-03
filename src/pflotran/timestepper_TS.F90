@@ -35,6 +35,7 @@ module Timestepper_TS_class
     procedure, public :: Strip => TimestepperTSStrip
     procedure, public :: StepDT => TimestepperTSStepDT
     procedure, public :: UpdateDT => TimestepperTSUpdateDT
+    procedure, public :: FinalizeRun => TimestepperTSFinalizeRun
   end type timestepper_TS_type
 
   ! For checkpointing
@@ -233,6 +234,8 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   call process_model%FinalizeTimestep()
 
   call process_model%PostSolve()
+
+  if (option%print_screen_flag) print *, ""  
 
 end subroutine TimestepperTSStepDT
 
@@ -554,5 +557,43 @@ subroutine TimestepperTSUpdateDT(this,process_model)
   endif
 
 end subroutine TimestepperTSUpdateDT
+
+! ************************************************************************** !
+
+recursive subroutine TimestepperTSFinalizeRun(this,option)
+  ! 
+  ! Finalizes the time stepping
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 07/03/18
+  ! 
+
+  use Option_module
+  
+  implicit none
+  
+  class(timestepper_TS_type) :: this
+  type(option_type) :: option
+  
+  character(len=MAXSTRINGLENGTH) :: string
+  
+#ifdef DEBUG
+  call printMsg(option,'TimestepperBEFinalizeRun()')
+#endif
+  
+  if (OptionPrintToScreen(option)) then
+    write(*,'(/,a," PETSc TS steps = ",i6," newton = ",i8," linear = ",i10, &
+            & " cuts = ",i6)') &
+            trim(this%name), &
+            this%steps, &
+            this%cumulative_newton_iterations, &
+            this%cumulative_linear_iterations, &
+            this%cumulative_time_step_cuts
+    write(string,'(f12.1)') this%cumulative_solver_time
+    write(*,'(a)') trim(this%name) // ' PETSc TS SNES time = ' // &
+      trim(adjustl(string)) // ' seconds'
+  endif
+  
+end subroutine TimestepperTSFinalizeRun
 
 end module Timestepper_TS_class

@@ -17,11 +17,11 @@ SUBSURFACE
 GRID
   TYPE structured
   ORIGIN 0.d0 0.d0 0.d0
-  NXYZ 1 1 1
+  NXYZ 1 1 10
   DXYZ
     1.d0
     1.d0
-    10.d0
+    1.d0
   /
 END
 
@@ -54,14 +54,11 @@ END
 #=========================== output options ===================================
 OUTPUT
   FORMAT TECPLOT POINT
-  SCREEN OFF
 /
 
 #=========================== times ============================================
 TIME
-#FINAL_TIME 10.d0 y
-FINAL_TIME 0.01d0 month
-INITIAL_TIMESTEP_SIZE 0.01d0 y
+FINAL_TIME 10.d0 y
 MAXIMUM_TIMESTEP_SIZE 0.1d0 y
 /
 
