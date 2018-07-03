@@ -388,8 +388,8 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(auxvar,characteristic_curves,optio
   PetscReal :: d2s_dp2
   PetscReal :: d2den_dp2
   PetscReal :: pw1,pw2
-  PetscReal :: dw_mol_1, dw_mol_2
-  PetscReal :: dw_kg, dw_dp,dw_dt
+  PetscReal :: dw_dp_1,dw_dp_2
+  PetscReal :: dw_kg,dw_mol,dw_dt
   PetscBool :: saturated
   PetscErrorCode :: ierr
 
@@ -412,11 +412,11 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(auxvar,characteristic_curves,optio
 
   if (saturated) then
     pw2 = pw1 + dp
-    call EOSWaterDensity(option%reference_temperature,pw1,dw_kg,dw_mol_1, &
-                         dw_dp,dw_dt,ierr)
-    call EOSWaterDensity(option%reference_temperature,pw2,dw_kg,dw_mol_2, &
-                         dw_dp,dw_dt,ierr)
-    d2den_dp2 = (dw_mol_2 - dw_mol_1)/dp
+    call EOSWaterDensity(option%reference_temperature,pw1,dw_kg,dw_mol, &
+                         dw_dp_1,dw_dt,ierr)
+    call EOSWaterDensity(option%reference_temperature,pw2,dw_kg,dw_mol, &
+                         dw_dp_2,dw_dt,ierr)
+    d2den_dp2 = (dw_dp_2 - dw_dp_2)/dp
   endif
 
   auxvar%d2sat_dp2 = d2s_dp2
