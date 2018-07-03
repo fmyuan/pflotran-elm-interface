@@ -29,6 +29,7 @@ module Timestepper_TS_class
   contains
     procedure, public :: CheckpointBinary => TimestepperTSCheckpointBinary
     procedure, public :: Init => TimestepperTSInit
+    procedure, public :: ReadInput => TimestepperTSRead
     procedure, public :: RestartBinary => TimestepperTSRestartBinary
     procedure, public :: Reset => TimestepperTSReset
     procedure, public :: InputRecord => TimestepperSurfInputRecord
@@ -121,6 +122,63 @@ subroutine TimestepperTSInit(this)
   this%tfac(13) = 1.0d0
 
 end subroutine TimestepperTSInit
+
+! ************************************************************************** !
+
+subroutine TimestepperTSRead(this,input,option)
+  ! 
+  ! Reads parameters associated with time stepper
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 07/03/18
+  ! 
+
+  use Option_module
+  use String_module
+  use Input_Aux_module
+  use Utility_module
+  
+  implicit none
+
+  class(timestepper_TS_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: string
+
+  input%ierr = 0
+  do
+  
+    call InputReadPflotranString(input,option)
+
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword','TIMESTEPPER_BE')
+    call StringToUpper(keyword)
+
+    select case(trim(keyword))
+  
+      case('TS_ACCELERATION')
+        call InputReadInt(input,option,this%iaccel)
+        call InputDefaultMsg(input,option,'iaccel')
+
+      case('DT_FACTOR')
+        string='time_step_factor'
+        call UtilityReadArray(this%tfac,NEG_ONE_INTEGER,string,input, &
+            option)
+        this%ntfac = size(this%tfac)
+
+      case default
+        call TimestepperBaseProcessKeyword(this,input,option,keyword)
+    end select
+  
+  enddo
+
+  this%solver%print_ekg = this%print_ekg
+
+end subroutine TimestepperTSRead
 
 ! ************************************************************************** !
 
