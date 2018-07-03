@@ -204,7 +204,6 @@ set(MODE_AUX_SOURCES
 	pm_miscible.F90
 	pm_richards.F90
 	pm_richards_ts.F90
-	pm_richards_2dofs.F90
 	pm_rt.F90
 	pm_subsurface_flow.F90
 	pm_surface_flow.F90

@@ -703,7 +703,6 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use PM_TOilIms_class
   use PM_TOWG_class
   use PM_TOWG_Aux_module
-  use PM_Richards_2DOFs_class
   use PM_Richards_TS_class
 
   implicit none
@@ -859,13 +858,6 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%nflowspec = 1
       option%use_isothermal = PETSC_FALSE
       option%flow%store_fluxes = PETSC_TRUE
-    class is (pm_richards_2DOFs_type)
-      option%iflowmode = RICHARDS_2DOFs_MODE
-      option%nphase = 1
-      option%liquid_phase = 1
-      option%nflowdof = 2
-      option%nflowspec = 1
-      option%use_isothermal = PETSC_TRUE
     class is (pm_richards_ts_type)
       option%iflowmode = RICHARDS_TS_MODE
       option%nphase = 1
@@ -906,7 +898,6 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
   use PM_TOilIms_class
   use PM_TOWG_class
   use PM_Bragflo_class
-  use PM_Richards_2DOFs_class
   use PM_Richards_TS_class
   use Init_Common_module
   use General_module
@@ -969,8 +960,6 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
           case('TOWG_IMMISCIBLE','TODD_LONGSTAFF','TOWG_MISCIBLE', &
                'BLACK_OIL','SOLVENT_TL')
             pm => PMTOWGCreate(word,option)
-          case('RICHARDS_2DOFS')
-            pm => PMRichards2DOFsCreate()
           case ('RICHARDS_TS')
             pm => PMRichardsTSCreate()
           case default
@@ -1975,8 +1964,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   field => realization%field
   reaction => realization%reaction
 
-  if (option%iflowmode == RICHARDS_2DOFS_MODE .or. &
-      option%iflowmode == RICHARDS_TS_MODE) then
+  if (option%iflowmode == RICHARDS_TS_MODE) then
     flow_timestepper => TimestepperTSCreate()
   else
     flow_timestepper => TimestepperBECreate()
@@ -2576,14 +2564,13 @@ subroutine SubsurfaceReadInput(simulation,input)
 
         if (.not.(option%iflowmode == NULL_MODE .or. &
                   option%iflowmode == RICHARDS_MODE .or. &
-                  option%iflowmode == RICHARDS_2DOFs_MODE .or. &
                   option%iflowmode == RICHARDS_TS_MODE .or. &
                   option%iflowmode == TOIL_IMS_MODE .or. &
                   option%iflowmode == TOWG_MODE .or. &
                   option%iflowmode == G_MODE .or. &
                   option%iflowmode == WF_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow ' // &
-            'modes other than RICHARDS, RICHARDS_2DOFs_MODE, RICHARDS_TS, ' // &
+            'modes other than RICHARDS, RICHARDS_TS, ' // &
             'TOIL_IMS,  or GENERAL.  Use SATURATION_FUNCTION.'
           call printErrMsg(option)
         endif
@@ -3402,7 +3389,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   enddo
 
   if (associated(simulation%flow_process_model_coupler)) then
-    if (option%iflowmode == RICHARDS_2DOFs_MODE .or. option%iflowmode == RICHARDS_TS_MODE) then
+    if (option%iflowmode == RICHARDS_TS_MODE) then
        if (option%steady_state) then
          option%io_buffer = 'Steady state not supported with PETSC TS'
          call printErrMsg(option)

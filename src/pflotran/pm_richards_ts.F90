@@ -52,15 +52,15 @@ function PMRichardsTSCreate()
   
   class(pm_richards_ts_type), pointer :: PMRichardsTSCreate
 
-  class(pm_richards_ts_type), pointer :: richards_2dofs_pm
+  class(pm_richards_ts_type), pointer :: richards_ts_pm
   
-  allocate(richards_2dofs_pm)
+  allocate(richards_ts_pm)
 
-  call PMSubsurfaceFlowCreate(richards_2dofs_pm)
+  call PMSubsurfaceFlowCreate(richards_ts_pm)
 
-  richards_2dofs_pm%name = 'Richards 2DOFs Flow'
+  richards_ts_pm%name = 'Richards TS Flow'
 
-  PMRichardsTSCreate => richards_2dofs_pm
+  PMRichardsTSCreate => richards_ts_pm
   
 end function PMRichardsTSCreate
 

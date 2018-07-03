@@ -538,7 +538,6 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
       call printMsg(option,"  Beginning setup of FLOW SNES ")
 
       select case(option%iflowmode)
-        case(RICHARDS_2DOFs_MODE)
         case(RICHARDS_TS_MODE)
         case default
           option%io_buffer = 'Timestepper TS unsupported for mode: '// option%flowmode
@@ -549,8 +548,6 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
           write(*,'(" number of dofs = ",i3,", number of &
                     &phases = ",i3,i2)') option%nflowdof,option%nphase
           select case(option%iflowmode)
-            case(RICHARDS_2DOFs_MODE)
-              write(*,'(" mode = Richards: p m")')
             case(RICHARDS_TS_MODE)
               write(*,'(" mode = Richards: p")')
           end select
