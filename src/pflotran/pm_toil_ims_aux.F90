@@ -302,7 +302,6 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     toil_auxvar%D_den = 0.d0
     toil_auxvar%D_den_kg = 0.d0
     toil_auxvar%D_mobility = 0.d0
-    toil_auxvar%D_xmol = 0.d0
     toil_auxvar%D_por = 0.d0
 
     toil_auxvar%D_H = 0.d0
@@ -326,6 +325,11 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   if (getDerivs) then
     toil_auxvar%D_sat(oid,dof_osat) = 1.d0 ! diff oil sat by oil sat
     toil_auxvar%D_sat(lid,dof_osat) = -1.d0 ! diff liquid sat by oil sat
+  endif
+  ! trivial pressure derivatives: 
+  if (getDerivs) then
+    toil_auxvar%D_pres(oid,dof_op) = 1.d0 ! diff oil pres by oil pres
+    toil_auxvar%D_pres(lid,dof_op) = 1.d0 ! diff liquid pres by oil pres
   endif
 
   call characteristic_curves%saturation_function% &
