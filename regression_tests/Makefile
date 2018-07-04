@@ -289,6 +289,10 @@ clean-tests :
 	-rm -f default/discretization/mixed_implicit-np4.h5
 	-rm -f default/discretization/mixed_implicit.h5
 	-rm -f general/calcite_flow_and_tran_general.h5
+	-rm -f general/ictest1D.h5
+	-rm -f general/ictest1D-mas.dat
+	-rm -f general/ictest2D.h5
+	-rm -f general/ictest2D-mas.dat
 	-rm -f ngee/sink-mas.dat 
 	-rm -f ngee/sink.h5 
 	-rm -f ngee/source-mas.dat
