@@ -487,7 +487,7 @@ subroutine EOSGasSetViscosityConstant(viscosity)
   
   PetscReal :: viscosity
   
-  constant_viscosity = viscosity  
+  constant_viscosity = viscosity
   EOSGasViscosityPtr => EOSGasViscosityConstant
   
 end subroutine EOSGasSetViscosityConstant

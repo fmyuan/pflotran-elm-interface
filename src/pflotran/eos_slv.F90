@@ -114,7 +114,7 @@ module EOS_Slv_module
   public :: EOSSlvSetDensityIdeal, &
             EOSSlvSetEnergyIdeal, &
             EOSSlvSetFMW, &
-            EOSSlvGetFMW, & 
+            EOSSlvGetFMW, &
             EOSSlvSetViscosityConstant, &
             EOSSlvSetReferenceDensity, &
             EOSSlvGetReferenceDensity, &
@@ -130,7 +130,7 @@ subroutine EOSSlvInit()
 
   implicit none
 
-  fmw_slv = UNINITIALIZED_DOUBLE  
+  fmw_slv = UNINITIALIZED_DOUBLE
   constant_density = UNINITIALIZED_DOUBLE
   constant_viscosity = UNINITIALIZED_DOUBLE
 
@@ -193,7 +193,7 @@ subroutine EOSSlvVerify(ierr,error_string)
       ierr = 1
     end if
   end if
-      
+
 end subroutine EOSSlvVerify
 
 ! ************************************************************************** !
@@ -369,7 +369,7 @@ subroutine EOSSlvSetViscosityConstant(viscosity)
 
   PetscReal,intent(in) :: viscosity
 
-  constant_viscosity = viscosity  
+  constant_viscosity = viscosity
   EOSSlvViscosityPtr => EOSSlvViscosityConstant
 
 end subroutine EOSSlvSetViscosityConstant
@@ -459,7 +459,7 @@ subroutine EOSSlvDensityNoDerive(T,P,Rho_slv,ierr,table_idxs)
   PetscReal :: dum1, dum2
 
   call EOSSlvDensityPtr(T,P,Rho_slv,dum1,dum2,ierr,table_idxs)
-  
+
 end subroutine EOSSlvDensityNoDerive
 
 ! ************************************************************************** !
@@ -587,7 +587,7 @@ subroutine EOSSlvDensityEnergy1(T,P,Rho_slv,dRho_dT,dRho_dP, &
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   call EOSSlvDensityPtr(T,P,Rho_slv,dRho_dT,dRho_dP,ierr,table_idxs)
-  call EOSSlvEnergyPtr(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)  
+  call EOSSlvEnergyPtr(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
 
 end subroutine EOSSlvDensityEnergy1
 
@@ -752,19 +752,19 @@ subroutine EOSSlvSetPVDS(input,option)
   pvt_table => EOSTableCreate('PVDS',option)
 
   pvt_table%num_prop = 2
-  
+
   ! units initially assing default values - overwritten by units specified 
-  ! in the table input 
+  ! in the table input
   internal_units = '' !assign default value by SetDefaultInternalUnits
   user_units = ''     !assign default value by SetMetricUnits
-  
-  !adding FVF 
+
+  !adding FVF
   data_idx = 1 !position of FVF in the table (after pressure)
   db_var => CreateLookupTableVar(EOS_FVF,internal_units,user_units,data_idx)
   call pvt_table%AddEOSProp(db_var,option)
   nullify(db_var)
 
-  !adding VISCOSITY 
+  !adding VISCOSITY
   data_idx = 2 !position of viscosity in the table (after FVF)
   db_var => CreateLookupTableVar(EOS_VISCOSITY,internal_units,user_units, &
                                  data_idx)
