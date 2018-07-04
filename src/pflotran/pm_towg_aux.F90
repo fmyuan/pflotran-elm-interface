@@ -1844,8 +1844,7 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
   PetscReal,intent(out):: denotl,dengtl
   PetscReal            :: tlomegac,viscginv,viscotlinv,viscgtlinv &
                          ,m,mooe,moge,mqp,mooeqp,mogeqp,mqpm,mqpm1,mqpm1inv &
-                         ,fo_oe,fo_ge,fg_oe,fg_ge &
-                         ,denm
+                         ,fo_oe,fo_ge,fg_oe,fg_ge,denm
 
 !--Set up complement of omega--------------------------------------------------
 
@@ -1993,6 +1992,102 @@ end subroutine TOWGImsTLAuxVarPerturb
 
 ! ************************************************************************** !
 
+subroutine TOWGBlackOilAuxVarPerturb(auxvar,global_auxvar, &
+                                     material_auxvar, &
+                                     characteristic_curves,natural_id, &
+                                     option)
+!------------------------------------------------------------------------------
+! Set up auxillary variables for perturbed system
+! Used in TOWG_BLACK_OIL
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Oct 2017
+!------------------------------------------------------------------------------
+
+  use Option_module
+  use Characteristic_Curves_module
+  use Global_Aux_module
+  use Material_Aux_class
+
+  implicit none
+
+  type(option_type) :: option
+  PetscInt :: natural_id
+  type(auxvar_towg_type) :: auxvar(0:)
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  class(characteristic_curves_type) :: characteristic_curves
+
+  PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), &
+               pert(option%nflowdof), x_pert_save(option%nflowdof)
+
+  PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: tempreal
+  PetscReal, parameter :: perturbation_tolerance = 1.d-8
+  PetscReal, parameter :: min_perturbation = 1.d-10
+  PetscInt :: idof,saturated_state
+  PetscBool::isSaturated
+
+!--Look at the state and set saturated oil flag--------------------------------
+
+  saturated_state=global_auxvar%istate
+  if( saturated_state==TOWG_THREE_PHASE_STATE ) then
+    isSaturated=.true.
+  else
+    isSaturated=.false.
+  endif
+
+!--Set up perturbed solution---------------------------------------------------
+
+  x(TOWG_OIL_PRESSURE_DOF) = auxvar(ZERO_INTEGER)%pres(option%oil_phase)
+  x(TOWG_OIL_SATURATION_DOF) = auxvar(ZERO_INTEGER)%sat(option%oil_phase)
+  if( isSaturated ) then
+    x(TOWG_GAS_SATURATION_3PH_DOF) = auxvar(ZERO_INTEGER)%sat(option%gas_phase)
+  else
+    x(TOWG_BUBBLE_POINT_3PH_DOF  ) = auxvar(ZERO_INTEGER)%bo%bubble_point
+  endif
+  x(TOWG_3CMPS_ENERGY_DOF) = auxvar(ZERO_INTEGER)%temp
+
+  pert(TOWG_OIL_PRESSURE_DOF) = &
+    perturbation_tolerance*x(TOWG_OIL_PRESSURE_DOF)+min_perturbation
+  pert(TOWG_3CMPS_ENERGY_DOF) = &
+    perturbation_tolerance*x(TOWG_3CMPS_ENERGY_DOF)+min_perturbation
+  if (x(TOWG_OIL_SATURATION_DOF) > 0.5d0) then
+    pert(TOWG_OIL_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+  else
+    pert(TOWG_OIL_SATURATION_DOF) = perturbation_tolerance
+  endif
+
+  if( isSaturated ) then
+    if (x(TOWG_GAS_SATURATION_3PH_DOF) > 0.5d0) then
+      pert(TOWG_GAS_SATURATION_3PH_DOF) = -1.d0 * perturbation_tolerance
+    else
+      pert(TOWG_GAS_SATURATION_3PH_DOF) = perturbation_tolerance
+    endif
+  else
+    pert(TOWG_BUBBLE_POINT_3PH_DOF) = &
+    perturbation_tolerance*x(TOWG_BUBBLE_POINT_3PH_DOF)+min_perturbation
+  endif
+
+  ! TOWG_UPDATE_FOR_DERIVATIVE indicates call from perturbation
+  option%iflag = TOWG_UPDATE_FOR_DERIVATIVE
+  do idof = 1, option%nflowdof
+    auxvar(idof)%pert = pert(idof)
+    x_pert = x
+    x_pert(idof) = x(idof) + pert(idof)
+    x_pert_save = x_pert
+    call TOWGAuxVarCompute(x_pert,auxvar(idof),global_auxvar, &
+                           material_auxvar, &
+                           characteristic_curves,natural_id,option)
+  enddo
+
+  auxvar(TOWG_OIL_PRESSURE_DOF)%pert = &
+     auxvar(TOWG_OIL_PRESSURE_DOF)%pert / towg_pressure_scale
+
+end subroutine TOWGBlackOilAuxVarPerturb
+
+! ************************************************************************** !
+
 subroutine TL4PAuxVarPerturb(auxvar,global_auxvar, &
                              material_auxvar, &
                              characteristic_curves,natural_id, &
@@ -2112,102 +2207,6 @@ subroutine TL4PAuxVarPerturb(auxvar,global_auxvar, &
      auxvar(TOWG_OIL_PRESSURE_DOF)%pert / towg_pressure_scale
 
 end subroutine TL4PAuxVarPerturb
-
-! ************************************************************************** !
-
-subroutine TOWGBlackOilAuxVarPerturb(auxvar,global_auxvar, &
-                                     material_auxvar, &
-                                     characteristic_curves,natural_id, &
-                                     option)
-!------------------------------------------------------------------------------
-! Set up auxillary variables for perturbed system
-! Used in TOWG_BLACK_OIL
-!------------------------------------------------------------------------------
-! Author: Dave Ponting
-! Date  : Oct 2017
-!------------------------------------------------------------------------------
-
-  use Option_module
-  use Characteristic_Curves_module
-  use Global_Aux_module
-  use Material_Aux_class
-
-  implicit none
-
-  type(option_type) :: option
-  PetscInt :: natural_id
-  type(auxvar_towg_type) :: auxvar(0:)
-  type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
-  class(characteristic_curves_type) :: characteristic_curves
-
-  PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), &
-               pert(option%nflowdof), x_pert_save(option%nflowdof)
-
-  PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
-  PetscReal :: tempreal
-  PetscReal, parameter :: perturbation_tolerance = 1.d-8
-  PetscReal, parameter :: min_perturbation = 1.d-10
-  PetscInt :: idof,saturated_state
-  PetscBool::isSaturated
-
-!--Look at the state and set saturated oil flag--------------------------------
-
-  saturated_state=global_auxvar%istate
-  if( saturated_state==TOWG_THREE_PHASE_STATE ) then
-    isSaturated=.true.
-  else
-    isSaturated=.false.
-  endif
-
-!--Set up perturbed solution---------------------------------------------------
-
-  x(TOWG_OIL_PRESSURE_DOF) = auxvar(ZERO_INTEGER)%pres(option%oil_phase)
-  x(TOWG_OIL_SATURATION_DOF) = auxvar(ZERO_INTEGER)%sat(option%oil_phase)
-  if( isSaturated ) then
-    x(TOWG_GAS_SATURATION_3PH_DOF) = auxvar(ZERO_INTEGER)%sat(option%gas_phase)
-  else
-    x(TOWG_BUBBLE_POINT_3PH_DOF  ) = auxvar(ZERO_INTEGER)%bo%bubble_point
-  endif
-  x(TOWG_3CMPS_ENERGY_DOF) = auxvar(ZERO_INTEGER)%temp
-
-  pert(TOWG_OIL_PRESSURE_DOF) = &
-    perturbation_tolerance*x(TOWG_OIL_PRESSURE_DOF)+min_perturbation
-  pert(TOWG_3CMPS_ENERGY_DOF) = &
-    perturbation_tolerance*x(TOWG_3CMPS_ENERGY_DOF)+min_perturbation
-  if (x(TOWG_OIL_SATURATION_DOF) > 0.5d0) then
-    pert(TOWG_OIL_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-  else
-    pert(TOWG_OIL_SATURATION_DOF) = perturbation_tolerance
-  endif
-
-  if( isSaturated ) then
-    if (x(TOWG_GAS_SATURATION_3PH_DOF) > 0.5d0) then
-      pert(TOWG_GAS_SATURATION_3PH_DOF) = -1.d0 * perturbation_tolerance
-    else
-      pert(TOWG_GAS_SATURATION_3PH_DOF) = perturbation_tolerance
-    endif
-  else
-    pert(TOWG_BUBBLE_POINT_3PH_DOF) = &
-    perturbation_tolerance*x(TOWG_BUBBLE_POINT_3PH_DOF)+min_perturbation
-  endif
-
-  ! TOWG_UPDATE_FOR_DERIVATIVE indicates call from perturbation
-  option%iflag = TOWG_UPDATE_FOR_DERIVATIVE
-  do idof = 1, option%nflowdof
-    auxvar(idof)%pert = pert(idof)
-    x_pert = x
-    x_pert(idof) = x(idof) + pert(idof)
-    x_pert_save = x_pert
-    call TOWGAuxVarCompute(x_pert,auxvar(idof),global_auxvar, &
-                           material_auxvar, &
-                           characteristic_curves,natural_id,option)
-  enddo
-
-  auxvar(TOWG_OIL_PRESSURE_DOF)%pert = &
-     auxvar(TOWG_OIL_PRESSURE_DOF)%pert / towg_pressure_scale
-
-end subroutine TOWGBlackOilAuxVarPerturb
 
 ! ************************************************************************** !
 
