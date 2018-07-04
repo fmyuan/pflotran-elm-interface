@@ -1549,6 +1549,14 @@ subroutine TOWGSetPlotVariables(list)
                                BUBBLE_POINT)
   end if
 
+! Solvent model
+  if ( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+    name = 'Solvent Saturation'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+                                 SOLVENT_SATURATION)
+  end if
+
 end subroutine TOWGSetPlotVariables
 
 ! ************************************************************************** !
@@ -2190,8 +2198,13 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
         ! gravity = vector(3)
         ! dist(1:3) = vector(3) - unit vector
         dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
-      
+
         if (bc_type == CONDUCTANCE_BC) then
+
+! The values at TOWG_LIQ_CONDUCTANCE_INDEX etc are not actually set
+         option%io_buffer = 'Boundary conductances are not available'
+         call printErrMsg(option)
+
           select case(option%phase_map(iphase)) 
             case(LIQUID_PHASE)
               idof = bc_auxvar_mapping(TOWG_LIQ_CONDUCTANCE_INDEX)
@@ -2199,6 +2212,8 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
               idof = bc_auxvar_mapping(TOWG_OIL_CONDUCTANCE_INDEX)
             case(GAS_PHASE)
               idof = bc_auxvar_mapping(TOWG_GAS_CONDUCTANCE_INDEX)
+            case(SOLVENT_PHASE)
+              idof = bc_auxvar_mapping(TOWG_SOLVENT_CONDUCTANCE_INDEX)
           end select        
           perm_ave_over_dist = bc_auxvars(idof)
         else
@@ -2298,6 +2313,8 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
             idof = bc_auxvar_mapping(TOWG_OIL_FLUX_INDEX)
           case(GAS_PHASE)
             idof = bc_auxvar_mapping(TOWG_GAS_FLUX_INDEX)
+          case(SOLVENT_PHASE)
+            idof = bc_auxvar_mapping(TOWG_SOLV_FLUX_INDEX)
         end select
         
         neumann_bc_present = PETSC_TRUE
@@ -2468,6 +2485,7 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
   use EOS_Water_module
   use EOS_Oil_module
   use EOS_Gas_module
+  use EOS_Slv_module
 
   implicit none
 
@@ -2549,6 +2567,9 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
         case(GAS_PHASE)
           call EOSGasDensity(temperature,cell_pressure,den,ierr, &
                              auxvar%table_idx)
+        case(SOLVENT_PHASE)
+          call EOSSlvDensity(temperature,cell_pressure,den,ierr, &
+                             auxvar%table_idx)
       end select 
     else
       den = auxvar%den(iphase)
@@ -2580,7 +2601,7 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
   !    associated(src_sink_condition%enthalpy) &
   !   ) then
   !if the energy rate is not given, use either temperature or enthalpy
-  if ( dabs(qsrc(FOUR_INTEGER)) < 1.0d-40 ) then
+  if ( dabs(qsrc(option%energy_id)) < 1.0d-40 ) then
     ! water injection 
     if (qsrc(option%liquid_phase) > 0.d0) then !implies qsrc(option%oil_phase)>=0
       if ( energy_var == SRC_ENTHALPY ) then
@@ -2595,7 +2616,7 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
         ! enthalpy = [J/kmol]
       end if
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
-      ! enthalpy units: MJ/kmol ! water component mass    
+      ! enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%liquid_phase) * enthalpy
     end if
@@ -2612,7 +2633,7 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
         ! enthalpy = [J/kmol]
       end if
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
-      ! enthalpy units: MJ/kmol ! oil component mass
+      ! enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%oil_phase) * enthalpy
     end if
@@ -2630,33 +2651,41 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
         ! enthalpy = [J/kmol]
       end if
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
-      ! enthalpy units: MJ/kmol ! oil component mass           
+      ! enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%gas_phase) * enthalpy
     end if
     ! water energy extraction due to water production
     if (qsrc(option%liquid_phase) < 0.d0) then !implies qsrc(option%oil_phase)<=0
-      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      ! auxvar enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%liquid_phase) * &
                               auxvar%H(option%liquid_phase)
     end if
     !oil energy extraction due to oil production
     if (qsrc(option%oil_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
-      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      ! auxvar enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%oil_phase) * &
                               auxvar%H(option%oil_phase)
     end if
     if (qsrc(option%gas_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
-      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      ! auxvar enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%gas_phase) * &
                               auxvar%H(option%gas_phase)
     end if
+    if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+      if (qsrc(option%solvent_phase) < 0.d0) then !implies qsrc(option%solvent_phase)<=0
+        ! auxvar enthalpy units: MJ/kmol
+        Res(option%energy_id) = Res(option%energy_id) + &
+                                Res(option%solvent_phase) * &
+                                auxvar%H(option%solvent_phase)
+      end if
+    end if
   else !if the energy rate is given, it overwrites both temp and enthalpy
     ! if energy rate is given, loaded in qsrc(4) in MJ/sec 
-    Res(option%energy_id) = qsrc(FOUR_INTEGER)* scale ! MJ/s
+    Res(option%energy_id) = qsrc(option%energy_id)* scale ! MJ/s
   end if
 
   nullify(qsrc)      
@@ -2680,7 +2709,8 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
   use EOS_Water_module
   use EOS_Oil_module
   use EOS_Gas_module
-  
+  use EOS_Slv_module
+
   implicit none
 
   type(option_type) :: option
@@ -2770,6 +2800,9 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         case(GAS_PHASE)
           call EOSGasDensity(temperature,cell_pressure,den,ierr, &
                              auxvar%table_idx)
+        case(SOLVENT_PHASE)
+          call EOSSlvDensity(temperature,cell_pressure,den,ierr, &
+                             auxvar%table_idx)
       end select
     else
       den = auxvar%den(iphase)
@@ -2820,7 +2853,7 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
   !    associated(src_sink_condition%enthalpy) &
   !   ) then
   !if the energy rate is not given, use either temperature or enthalpy
-  if ( dabs(qsrc(FOUR_INTEGER)) < 1.0d-40 ) then
+  if ( dabs(qsrc(option%energy_id)) < 1.0d-40 ) then
     ! water injection
     if (qsrc(option%liquid_phase) > 0.d0) then !implies qsrc(option%oil_phase)>=0
       if ( energy_var == SRC_ENTHALPY ) then
@@ -2835,7 +2868,7 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         ! enthalpy = [J/kmol]
       end if
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
-      ! enthalpy units: MJ/kmol ! water component mass
+      ! enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%liquid_phase) * enthalpy
     end if
@@ -2852,7 +2885,7 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         ! enthalpy = [J/kmol]
       end if
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
-      ! enthalpy units: MJ/kmol ! oil component mass
+      ! enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%oil_phase) * enthalpy
     end if
@@ -2870,33 +2903,69 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         ! enthalpy = [J/kmol]
       end if
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
-      ! enthalpy units: MJ/kmol ! oil component mass
+      ! enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%gas_phase) * enthalpy
     end if
+
+!--Solvent injection-----------------------------------------------------------
+
+    if( towg_miscibility_model ==TOWG_SOLVENT_TL ) then
+      if (qsrc(option%solvent_phase) > 0.d0) then
+        if ( energy_var == SRC_ENTHALPY ) then
+          enthalpy = src_sink_condition%enthalpy% &
+                       dataset%rarray(option%solvent_phase)
+                        !J/kg * kg/kmol = J/kmol
+          enthalpy = enthalpy * towg_fmw_comp(option%solvent_phase)
+        else !note: temp can either be input or taken as the one of perf. block
+        !if ( energy_var == SRC_TEMPERATURE ) then
+          call EOSSlvEnergy(temperature,cell_pressure,enthalpy, &
+                            internal_energy_dummy,ierr)
+          ! enthalpy = [J/kmol]
+        end if
+        enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
+        ! enthalpy units: MJ/kmol
+        Res(option%energy_id) = Res(option%energy_id) + &
+                                Res(option%solvent_phase) * enthalpy
+      end if
+    endif
+
     ! water energy extraction due to water production
     if (qsrc(option%liquid_phase) < 0.d0) then !implies qsrc(option%oil_phase)<=0
-      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      ! auxvar enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%liquid_phase) * &
                               auxvar%H(option%liquid_phase)
     end if
     !oil energy extraction due to oil production
     if (qsrc(option%oil_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
-      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      ! auxvar enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%oil_phase) * &
                               auxvar%H(option%oil_phase)
     end if
     if (qsrc(option%gas_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
-      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      ! auxvar enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%gas_phase) * &
                               auxvar%H(option%gas_phase)
     end if
+
+    !--Solvent energy extraction due to solvent production-------------------------
+
+    if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+
+      if (qsrc(option%solvent_phase) < 0.d0) then !implies qsrc(option%gas_phase)<=0
+        ! auxvar enthalpy units: MJ/kmol
+        Res(option%energy_id) = Res(option%energy_id) + &
+                                Res(option%solvent_phase) * &
+                                auxvar%H(option%solvent_phase)
+      end if
+    endif
+
   else !if the energy rate is given, it overwrites both temp and enthalpy
-    ! if energy rate is given, loaded in qsrc(4) in MJ/sec
-    Res(option%energy_id) = qsrc(FOUR_INTEGER)* scale ! MJ/s
+    ! if energy rate is given, loaded in qsrc(option%energy_id) in MJ/sec
+    Res(option%energy_id) = qsrc(option%energy_id)* scale ! MJ/s
   end if
 
   nullify(qsrc)
@@ -4072,8 +4141,8 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
   PetscReal :: temperature0, temperature1, del_temperature
   PetscReal :: saturation0, saturation1, del_saturation
 
-  PetscReal :: max_saturation_change = 0.125d0
-  PetscReal :: max_temperature_change = 10.d0
+  PetscReal, parameter :: max_saturation_change = 0.125d0
+  PetscReal, parameter :: max_temperature_change = 10.d0
   PetscReal :: scale, temp_scale, temp_real
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
@@ -4249,8 +4318,8 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   PetscReal :: temperature0, temperature1, del_temperature
   PetscReal :: saturation0, saturation1, del_saturation
 
-  PetscReal :: max_saturation_change = 0.125d0
-  PetscReal :: max_temperature_change = 10.d0
+  PetscReal,parameter :: max_saturation_change = 0.125d0
+  PetscReal,parameter :: max_temperature_change = 10.d0
   PetscReal :: max_pb_change
   PetscReal :: scale, temp_scale, temp_real
   PetscReal, parameter :: tolerance = 0.99d0
