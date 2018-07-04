@@ -803,7 +803,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
 
       if (towg_miscibility_model == TOWG_SOLVENT_TL ) then
         option%nphase = 4
-        option%solvent_phase= 4
+        option%solvent_phase = 4         ! solvent saturation
       endif
 
 !  Phase maps
