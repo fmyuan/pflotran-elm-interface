@@ -1836,7 +1836,7 @@ subroutine EOSOilSetPVDO(input,option)
   nullify(db_var)
 
   !adding VISCOSITY 
-  data_idx = 2 !position of FVF in the table (after pressure)
+  data_idx = 2 !position of viscosity in the table (after FVF)
   db_var => CreateLookupTableVar(EOS_VISCOSITY,internal_units,user_units, &
                                  data_idx)
   call pvt_table%AddEOSProp(db_var,option)
