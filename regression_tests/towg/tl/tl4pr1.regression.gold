@@ -82,6 +82,12 @@
      Mean:   2.0137760557208E+07
         1:   2.0251896373397E+07
        20:   2.0011781781805E+07
+-- SATURATION: Solvent Saturation --
+      Max:   4.4732804318461E-01
+      Min:   3.2902988822254E-04
+     Mean:   2.5697216554385E-01
+        1:   3.3814520980339E-01
+       20:   4.1507134981003E-01
 -- DISCRETE: Material ID --
       Max:         1
       Min:         1
@@ -89,7 +95,7 @@
         1:         1
        20:         1
 -- SOLUTION: Flow --
-   Time (seconds):   1.5172359943390E+00
+   Time (seconds):   1.5256907939911E+00
    Time Steps:           66
    Newton Iterations:          287
    Solver Iterations:         1618
