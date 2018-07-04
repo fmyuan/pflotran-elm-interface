@@ -23,9 +23,6 @@ DEBUG
 #VECVIEW_SOLUTION
 /
 
-# == mode =====================================================================
-UNIFORM_VELOCITY 0.d0 0.d0 0.d0
-
 # == chemistry ================================================================
 CHEMISTRY
   PRIMARY_SPECIES
@@ -41,7 +38,7 @@ CHEMISTRY
 #  OPERATOR_SPLIT
 #  LOG_FORMULATION
   OUTPUT
-    All
+    ALL
     TOTAL
   /
 /

@@ -148,6 +148,8 @@ include_directories("${PROJECT_BINARY_DIR}")
 #link_directories("${PROJECT_BINARY_DIR}/lib")
 
 set(UTIL_SOURCES
+	appleyard.F90
+	generic.F90
 	input_aux.F90
 	logging.F90
 	matrix_block_aux.F90
@@ -160,6 +162,7 @@ set(UTIL_SOURCES
 	string.F90
 	units.F90
 	utility.F90
+	toil_ims_derivs.F90
 	variables.F90
 )
 
@@ -191,7 +194,6 @@ set(MODE_AUX_SOURCES
 	pm_auxiliary.F90
 	pm_base.F90
 	pm_base_pointer.F90
-	pm_bragflo.F90
 	pm_general.F90
 	pm_toil_ims.F90
 	pm_towg.F90
@@ -218,8 +220,6 @@ set(MODE_AUX_SOURCES
 )
 
 set(MODE_SOURCES
-	bragflo.F90
-	bragflo_common.F90
 	flash2.F90
 	general.F90
 	general_common.F90

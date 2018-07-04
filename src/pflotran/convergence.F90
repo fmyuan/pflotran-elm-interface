@@ -207,6 +207,9 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
         reason = 999
     end select
   endif
+  ! must turn off after each convergence check as a subsequent process
+  ! model may not user this custom test
+  option%convergence = CONVERGENCE_OFF
     
 !  if (reason <= 0 .and. solver%check_infinity_norm) then
   if (solver%check_infinity_norm) then

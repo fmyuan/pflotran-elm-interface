@@ -178,7 +178,7 @@ end subroutine RichardsAuxVarCopy
 ! ************************************************************************** !
 
 subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
-                                 characteristic_curves,option)
+                                 characteristic_curves,natural_id,option)
   ! 
   ! Computes auxiliary variables for each grid cell
   ! 
@@ -204,6 +204,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   type(richards_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
+  PetscInt :: natural_id
   
   PetscInt :: i
   PetscBool :: saturated
@@ -229,7 +230,13 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   global_auxvar%pres = x(1)
   global_auxvar%temp = option%reference_temperature
  
-  auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
+  ! For a very large negative liquid pressure (e.g. -1.d18), the capillary 
+  ! pressure can go near infinite, resulting in ds_dp being < 1.d-40 below 
+  ! and flipping the cell to saturated, when it is really far from saturated.
+  ! The large negative liquid pressure is then passed to the EOS causing it 
+  ! to blow up.  Therefore, we truncate to the max capillary pressure here.
+  auxvar%pc = min(option%reference_pressure - global_auxvar%pres(1), &
+                  characteristic_curves%saturation_function%pcmax)
   
 !***************  Liquid phase properties **************************
   pw = option%reference_pressure
@@ -298,6 +305,10 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (.not.option%flow%density_depends_on_salinity) then
     call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol, &
                          dw_dp,dw_dt,ierr)
+    if (ierr /= 0) then
+      call printMsgByCell(option,natural_id, &
+                          'Error in RichardsAuxVarCompute->EOSWaterDensity')
+    endif
     ! may need to compute dpsat_dt to pass to VISW
     call EOSWaterSaturationPressure(global_auxvar%temp,sat_pressure,ierr)
     !geh: 0.d0 passed in for derivative of pressure w/respect to temp
@@ -307,6 +318,10 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     aux(1) = global_auxvar%m_nacl(1)
     call EOSWaterDensityExt(global_auxvar%temp,pw,aux, &
                             dw_kg,dw_mol,dw_dp,dw_dt,ierr)
+    if (ierr /= 0) then
+      call printMsgByCell(option,natural_id, &
+                          'Error in RichardsAuxVarCompute->EOSWaterDensityExt')
+    endif
     call EOSWaterViscosityExt(global_auxvar%temp,pw,sat_pressure,0.d0,aux, &
                               visl,dvis_dt,dvis_dp,ierr) 
   endif

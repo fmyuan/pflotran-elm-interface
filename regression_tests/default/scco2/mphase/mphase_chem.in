@@ -19,6 +19,7 @@ SIMULATION
     /
     SUBSURFACE_TRANSPORT TRANSPORT
       GLOBAL_IMPLICIT
+      INCLUDE_GAS_PHASE
     /
   /
 END
@@ -411,10 +412,10 @@ CHEMISTRY
   MOLAL
   OUTPUT
     PH
-    pe
-    eh
-    all
-    Total
+    PE
+    EH
+    ALL
+    TOTAL
   /
 END
 

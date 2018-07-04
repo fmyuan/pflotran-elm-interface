@@ -40,7 +40,7 @@ module PM_Subsurface_Flow_class
   contains
 !geh: commented out subroutines can only be called externally
     procedure, public :: Setup => PMSubsurfaceFlowSetup
-    procedure, public :: PMSubsurfaceFlowSetRealization
+    procedure, public :: SetRealization => PMSubsurfaceFlowSetRealization
     procedure, public :: InitializeRun => PMSubsurfaceFlowInitializeRun
 !    procedure, public :: FinalizeRun => PMSubsurfaceFlowFinalizeRun
 !    procedure, public :: InitializeTimestep => PMSubsurfaceFlowInitializeTimestep
@@ -198,6 +198,19 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('ANALYTICAL_DERIVATIVES')
       option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  Please &
         &use ANALYTICAL_JACOBIAN instead.'
+
+    case('ANALYTICAL_JACOBIAN_COMPARE')
+      option%flow%numerical_derivatives_compare = PETSC_TRUE
+
+    case('COMPARE_RELATIVE_DIFFERENCE')
+      option%matcompare_reldiff = PETSC_TRUE
+
+    case('DEBUG_TOL')
+      call InputReadDouble(input,option,option%debug_tol)
+      call InputErrorMsg(input,option,'DEBUG_TOL',error_string)
+
+    case('GEOMETRIC_PENALTY')
+      option%use_GP= PETSC_TRUE
 
     case default
       found = PETSC_FALSE
@@ -920,10 +933,9 @@ subroutine PMSubsurfaceFlowUpdateSolution(this)
   
   ! begin from RealizationUpdate()
   call FlowConditionUpdate(this%realization%flow_conditions, &
-                           this%realization%option, &
-                           this%realization%option%time)
-  call SSSandboxUpdate(ss_sandbox_list,this%realization%option%time, &
-                       this%realization%option,this%realization%output_option)
+                           this%realization%option)
+  call SSSandboxUpdate(ss_sandbox_list,this%realization%option, &
+                       this%realization%output_option)
   ! right now, RealizUpdateAllCouplerAuxVars only updates flow
   call RealizUpdateAllCouplerAuxVars(this%realization,force_update_flag)
   if (associated(this%realization%uniform_velocity_dataset)) then

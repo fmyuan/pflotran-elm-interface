@@ -1862,12 +1862,20 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
   string = 'CHARACTERISTIC_CURVES(' // trim(characteristic_curves%name) // &
            '),'
 
-  call characteristic_curves%saturation_function%Verify(string,option)
+  if (associated(characteristic_curves%saturation_function)) then
+    call characteristic_curves%saturation_function%Verify(string,option)
+  else
+    option%io_buffer = 'A saturation function has &
+                       &not been set under CHARACTERISTIC_CURVES "' // &
+                       trim(characteristic_curves%name) // '". A &
+                       &PERMEABILITY_FUNCTION block must be specified &
+                       &for the liquid phase.'
+  endif
   
   if (associated(characteristic_curves%liq_rel_perm_function) ) then
     call characteristic_curves%liq_rel_perm_function%Verify(string,option)
   else
-    option%io_buffer = 'A liquid phase relative permeability curve has &
+    option%io_buffer = 'A liquid phase relative permeability function has &
                        &not been set under CHARACTERISTIC_CURVES "' // &
                        trim(characteristic_curves%name) // '". A &
                        &PERMEABILITY_FUNCTION block must be specified &
@@ -1880,7 +1888,7 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
   else
     if (option%iflowmode == G_MODE .or. option%iflowmode == TOWG_MODE .or. &
         option%iflowmode == WF_MODE) then
-      option%io_buffer = 'A gas phase relative permeability curve has &
+      option%io_buffer = 'A gas phase relative permeability function has &
                          &not been set under CHARACTERISTIC_CURVES "' // &
                          trim(characteristic_curves%name) // '". Another &
                          &PERMEABILITY_FUNCTION block must be specified &
@@ -1894,7 +1902,7 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
   else 
     if (option%iflowmode == TOIL_IMS_MODE .or. &
         option%iflowmode == TOWG_MODE  ) then
-      option%io_buffer = 'An oil phase relative permeability curve has &
+      option%io_buffer = 'An oil phase relative permeability function has &
                          &not been set under CHARACTERISTIC_CURVES "' // &
                          trim(characteristic_curves%name) // '". Another &
                          &PERMEABILITY_FUNCTION block must be specified &

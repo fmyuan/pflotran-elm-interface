@@ -60,7 +60,7 @@ module Option_module
     PetscInt :: liquid_phase
     PetscInt :: gas_phase
     PetscInt :: oil_phase
-    PetscInt, pointer :: phase_map(:)
+    PetscInt :: phase_map(MAX_PHASE)
     PetscInt :: nflowdof
     PetscInt :: nflowspec
     PetscInt :: nmechdof
@@ -145,7 +145,7 @@ module Option_module
     PetscInt :: idt_switch
     PetscReal :: reference_temperature
     PetscReal :: reference_pressure
-    PetscReal :: reference_water_density
+    PetscReal :: reference_density(MAX_PHASE)
     PetscReal :: reference_porosity
     PetscReal :: reference_saturation
 
@@ -224,6 +224,10 @@ module Option_module
     PetscReal :: inline_surface_Mannings_coeff
     character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
 
+    PetscReal :: debug_tol
+    PetscBool :: matcompare_reldiff
+    PetscBool :: use_GP
+
   end type option_type
 
   PetscInt, parameter, public :: SUBSURFACE_SIM_TYPE = 1
@@ -278,6 +282,7 @@ module Option_module
             printMsg, &
             printMsgAnyRank, &
             printMsgByRank, &
+            printMsgByCell, &
             printErrMsgNoStopByRank, &
             printVerboseMsg, &
             OptionCheckTouch, &
@@ -466,11 +471,13 @@ subroutine OptionInitRealization(option)
   option%itranmode = NULL_MODE
   option%ntrandof = 0
 
-  nullify(option%phase_map)
+  option%phase_map = UNINITIALIZED_INTEGER
+
   option%nphase = 0
-  option%liquid_phase = 0
-  option%oil_phase = 0
-  option%gas_phase = 0
+
+  option%liquid_phase = UNINITIALIZED_INTEGER
+  option%oil_phase    = UNINITIALIZED_INTEGER
+  option%gas_phase    = UNINITIALIZED_INTEGER
 
   option%air_pressure_id = 0
   option%capillary_pressure_id = 0
@@ -489,9 +496,10 @@ subroutine OptionInitRealization(option)
       ! seems good practice to set them to sensible values when a pflowGrid
       ! is created.
 !-----------------------------------------------------------------------
+  !TODO(geh): move to option%flow.F90
   option%reference_pressure = 101325.d0
   option%reference_temperature = 25.d0
-  option%reference_water_density = 0.d0
+  option%reference_density = 0.d0
   option%reference_porosity = 0.25d0
   option%reference_saturation = 1.d0
 
@@ -582,6 +590,10 @@ subroutine OptionInitRealization(option)
   option%inline_surface_flow           = PETSC_FALSE
   option%inline_surface_Mannings_coeff = 0.02d0
   option%inline_surface_region_name    = ""
+
+  option%debug_tol = 1.d0
+  option%matcompare_reldiff = PETSC_FALSE
+  option%use_GP = PETSC_FALSE
 
 end subroutine OptionInitRealization
 
@@ -732,11 +744,13 @@ subroutine printErrMsgByRank2(option,string)
 
   character(len=MAXWORDLENGTH) :: word
 
-  write(word,*) option%myrank
-  print *
-  print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(string)
-  print *
-  print *, 'Stopping!'
+  if (option%print_to_screen) then
+    write(word,*) option%myrank
+    print *
+    print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(string)
+    print *
+    print *, 'Stopping!'
+  endif
   stop
 
 end subroutine printErrMsgByRank2
@@ -780,10 +794,12 @@ subroutine printErrMsgNoStopByRank2(option,string)
 
   character(len=MAXWORDLENGTH) :: word
 
-  write(word,*) option%myrank
-  print *
-  print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(string)
-  print *
+  if (option%print_to_screen) then
+    write(word,*) option%myrank
+    print *
+    print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(string)
+    print *
+  endif
 
 end subroutine printErrMsgNoStopByRank2
 
@@ -875,7 +891,7 @@ subroutine printMsgAnyRank1(option)
 
   type(option_type) :: option
 
-  if (OptionPrintToScreen(option)) call printMsgAnyRank2(option%io_buffer)
+  if (option%print_to_screen) call printMsgAnyRank2(option%io_buffer)
 
 end subroutine printMsgAnyRank1
 
@@ -892,7 +908,7 @@ subroutine printMsgAnyRank2(string)
   implicit none
 
   character(len=*) :: string
-
+  
   print *, trim(string)
 
 end subroutine printMsgAnyRank2
@@ -932,12 +948,37 @@ subroutine printMsgByRank2(option,string)
 
   character(len=MAXWORDLENGTH) :: word
 
-  if (OptionPrintToScreen(option)) then
+  if (option%print_to_screen) then
     write(word,*) option%myrank
     print *, '(' // trim(adjustl(word)) // '): ' // trim(string)
   endif
 
 end subroutine printMsgByRank2
+
+! ************************************************************************** !
+
+subroutine printMsgByCell(option,cell_id,string)
+  !
+  ! Prints the message from p0
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/14/07
+  !
+
+  implicit none
+
+  type(option_type) :: option
+  PetscInt :: cell_id
+  character(len=*) :: string
+
+  character(len=MAXWORDLENGTH) :: word
+
+  write(word,*) cell_id
+  word = adjustl(word)
+  option%io_buffer = trim(string) // ' for cell ' // trim(word) // '.'
+  call printMsgByRank(option)
+
+end subroutine printMsgByCell
 
 ! ************************************************************************** !
 
@@ -1324,8 +1365,19 @@ subroutine OptionCreateProcessorGroups(option,num_groups)
   PetscInt :: offset, delta, remainder
   PetscInt :: igroup
   PetscMPIInt :: mycolor_mpi, mykey_mpi
+  character(len=MAXWORDLENGTH) :: word
   PetscErrorCode :: ierr
 
+  if (num_groups > option%global_commsize) then
+    write(word,*) num_groups
+    option%io_buffer = 'The number of process groups (' // adjustl(word)
+    write(word,*) option%global_commsize
+    option%io_buffer = trim(option%io_buffer) // &
+      ') must be equal to or less than the number of processes (' // &
+      adjustl(word)
+    option%io_buffer = trim(option%io_buffer) // ').'
+    call printErrMsg(option)
+  endif
   local_commsize = option%global_commsize / num_groups
   remainder = option%global_commsize - num_groups * local_commsize
   offset = 0
@@ -1397,11 +1449,7 @@ subroutine OptionDestroy(option)
 
   call OptionFlowDestroy(option%flow)
   call OptionTransportDestroy(option%transport)
-  ! all kinds of stuff needs to be added here.
-  if (associated(option%phase_map) ) then
-    deallocate(option%phase_map)
-    nullify(option%phase_map)
-  end if
+
   ! all the below should be placed somewhere other than option.F90
 
   deallocate(option)

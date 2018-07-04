@@ -25,20 +25,14 @@ END
 #=========================== flow mode ========================================
 # Uniform velocity (see below). No flow mode specified.
 
-#=========================== useful tranport parameters ==================
-#SPECIFIED_VELOCITY
-#  UNIFORM? YES
-#  DATASET 
-#    TIME_UNITS yr
-!    DATA_UNITS m/yr
-#    0.d0 1.d0 0.d0 0.d0
-#  /
-#END
-
-# scenario 1
-VELOCITY_DATASET
-  UNITS m/yr
-  VELOCITY 1.d0 0.d0 0.d0
+#=========================== useful tranport parameters =======================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET LIST
+    TIME_UNITS yr
+    DATA_UNITS m/yr
+    0.d0 1.d0 0.d0 0.d0
+  /
 END
 
 #=========================== chemistry ========================================
@@ -48,7 +42,7 @@ CHEMISTRY
   /
   OUTPUT
     TOTAL
-    all
+    ALL
   /
 END
 
@@ -111,7 +105,7 @@ REGION pulse_region_scenario_1
 END
 
 REGION west
-  FACE west
+  FACE WEST
   COORDINATES
     0.d0 0.d0 0.d0
     0.d0 1.d0 1.d0
@@ -119,7 +113,7 @@ REGION west
 END
 
 REGION east
-  FACE east
+  FACE EAST
   COORDINATES
     100.d0 0.d0 0.d0
     100.d0 1.d0 1.d0

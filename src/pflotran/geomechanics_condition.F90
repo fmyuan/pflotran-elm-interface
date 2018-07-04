@@ -333,12 +333,12 @@ subroutine GeomechConditionRead(condition,input,option)
       case('INTERPOLATION')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')   
-        call StringToLower(word)
+        call StringToUpper(word)
         select case(word)
-          case('step')
+          case('STEP')
             default_time_storage%time_interpolation_method = &
               INTERPOLATION_STEP
-          case('linear') 
+          case('LINEAR') 
             default_time_storage%time_interpolation_method = &
               INTERPOLATION_LINEAR
         end select
@@ -633,7 +633,7 @@ end subroutine GeomechConditionPrintSubCondition
 
 ! ************************************************************************** !
 
-subroutine GeomechConditionUpdate(condition_list,option,time)
+subroutine GeomechConditionUpdate(condition_list,option)
   ! 
   ! Updates a transient condition
   ! 
@@ -648,7 +648,6 @@ subroutine GeomechConditionUpdate(condition_list,option,time)
   
   type(geomech_condition_list_type) :: condition_list
   type(option_type) :: option
-  PetscReal :: time
   
   type(geomech_condition_type), pointer :: condition
   type(geomech_sub_condition_type), pointer :: sub_condition
@@ -663,7 +662,7 @@ subroutine GeomechConditionUpdate(condition_list,option,time)
       sub_condition => condition%sub_condition_ptr(isub_condition)%ptr
       
       if (associated(sub_condition)) then
-        call DatasetUpdate(sub_condition%dataset,time,option)
+        call DatasetUpdate(sub_condition%dataset,option)
       endif
       
     enddo

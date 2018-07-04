@@ -132,6 +132,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   PetscReal, allocatable :: velocities(:,:,:)
   PetscInt :: local_id
   PetscInt :: icolumn
+  PetscInt :: nphase
   PetscErrorCode :: ierr
 
   call PetscLogEventBegin(logging%event_output_observation,ierr);CHKERRQ(ierr)
@@ -160,10 +161,11 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   endif
   
   if (calculate_velocities) then
-    allocate(velocities(3,realization_base%patch%grid%nlmax,option%nphase))
+    nphase = max(option%nphase,option%transport%nphase)
+    allocate(velocities(3,realization_base%patch%grid%nlmax,nphase))
     call PatchGetCellCenteredVelocities(realization_base%patch, &
                                         ONE_INTEGER,velocities(:,:,1))
-    if (option%nphase > 1) then
+    if (nphase > 1) then
       call PatchGetCellCenteredVelocities(realization_base%patch, &
                                           TWO_INTEGER,velocities(:,:,2))
     endif
@@ -411,7 +413,7 @@ subroutine WriteObservationHeader(fid,realization_base,cell_string, &
     call OutputWriteToHeader(fid,'qly',string,cell_string,icolumn)
     call OutputWriteToHeader(fid,'qlz',string,cell_string,icolumn)
 
-    if (option%nphase > 1) then
+    if (max(option%nphase,option%transport%nphase) > 1) then
       call OutputWriteToHeader(fid,'qgx',string,cell_string,icolumn)
       call OutputWriteToHeader(fid,'qgy',string,cell_string,icolumn)
       call OutputWriteToHeader(fid,'qgz',string,cell_string,icolumn)
@@ -1164,7 +1166,7 @@ subroutine WriteVelocityAtCell(fid,realization_base,local_id)
   write(fid,200,advance="no") velocity(1:3)* &
                               realization_base%output_option%tconv
 
-  if (option%nphase > 1) then
+  if (max(option%nphase,option%transport%nphase) > 1) then
     iphase = 2
     velocity = GetVelocityAtCell(fid,realization_base,local_id,iphase)
     write(fid,200,advance="no") velocity(1:3)* &
@@ -1202,7 +1204,7 @@ subroutine WriteVelocityAtCell2(fid,realization_base,local_id,velocities)
   write(fid,200,advance="no") velocity(1:3)* &
                               realization_base%output_option%tconv
 
-  if (option%nphase > 1) then
+  if (max(option%nphase,option%transport%nphase) > 1) then
     velocity = velocities(:,local_id,2)
     write(fid,200,advance="no") velocity(1:3)* &
                                 realization_base%output_option%tconv
@@ -1355,7 +1357,7 @@ subroutine WriteVelocityAtCoord(fid,realization_base,region)
                                 region%coordinates(ONE_INTEGER)%z,iphase)
   write(fid,200,advance="no") velocity(1:3)*realization_base%output_option%tconv   
 
-  if (option%nphase > 1) then
+  if (max(option%nphase,option%transport%nphase) > 1) then
     iphase = 2
     velocity = GetVelocityAtCoord(fid,realization_base,region%cell_ids(1), &
                                 region%coordinates(ONE_INTEGER)%x, &
@@ -1964,9 +1966,9 @@ subroutine OutputMassBalance(realization_base)
   PetscReal :: sum_kg_global(realization_base%option%nflowspec, &
                realization_base%option%nphase)
   PetscReal :: sum_mol(realization_base%option%ntrandof, &
-               realization_base%option%nphase)
+               realization_base%option%transport%nphase)
   PetscReal :: sum_mol_global(realization_base%option%ntrandof, &
-               realization_base%option%nphase)
+               realization_base%option%transport%nphase)
 
   PetscReal, allocatable :: sum_mol_mnrl(:)
   PetscReal, allocatable :: sum_mol_mnrl_global(:)
@@ -2412,6 +2414,15 @@ subroutine OutputMassBalance(realization_base)
   endif
   
   if (option%ntrandof > 0) then
+    if (option%transport%nphase > 1) then
+      !TODO(geh): Within RTComputeMassBalance() all the mass is lumped into the
+      !           liquid phase.  This need to be split out.  Also, the below
+      !           where mass is summed across minerals needs to be moved
+      !           to reactive_transport.F90.
+      option%io_buffer = 'OutputMassBalance() needs to be refactored to &
+        consider species in the gas phase.'
+      call printErrMsg(option)
+    endif
     sum_mol = 0.d0
     select type(realization_base)
       class is(realization_subsurface_type)
@@ -2420,7 +2431,7 @@ subroutine OutputMassBalance(realization_base)
         option%io_buffer = 'Unrecognized realization class in MassBalance().'
         call printErrMsg(option)
     end select
-    int_mpi = option%nphase*option%ntrandof
+    int_mpi = option%transport%nphase*option%ntrandof
     call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
                     MPI_DOUBLE_PRECISION,MPI_SUM, &
                     option%io_rank,option%mycomm,ierr)
@@ -2912,7 +2923,7 @@ subroutine OutputMassBalance(realization_base)
         sum_mol = sum_mol + rt_auxvars_bc_or_ss(offset+iconn)%mass_balance
       enddo
 
-      int_mpi = option%nphase*option%ntrandof
+      int_mpi = option%transport%nphase*option%ntrandof
       call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
                       MPI_DOUBLE_PRECISION,MPI_SUM, &
                       option%io_rank,option%mycomm,ierr)
@@ -2932,7 +2943,7 @@ subroutine OutputMassBalance(realization_base)
         sum_mol = sum_mol + rt_auxvars_bc_or_ss(offset+iconn)%mass_balance_delta 
       enddo
 
-      int_mpi = option%nphase*option%ntrandof
+      int_mpi = option%transport%nphase*option%ntrandof
       call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
                       MPI_DOUBLE_PRECISION,MPI_SUM, &
                       option%io_rank,option%mycomm,ierr)
@@ -3022,13 +3033,13 @@ subroutine OutputMassBalance(realization_base)
       sum_mol = 0.d0
       sum_mol = sum_mol + patch%aux%RT%auxvars(iconn)%mass_balance
 
-      int_mpi = option%nphase*option%ntrandof
+      int_mpi = option%transport%nphase*option%ntrandof
       call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
                       MPI_DOUBLE_PRECISION,MPI_SUM, &
                       option%io_rank,option%mycomm,ierr)
 
       if (option%myrank == option%io_rank) then
-        do iphase = 1, option%nphase
+        do iphase = 1, option%transport%nphase
           do icomp = 1, reaction%naqcomp
             if (reaction%primary_species_print(icomp)) then
               ! change sign for positive in / negative out

@@ -16,6 +16,7 @@ module EOS_module
 
   public :: EOSInit, &
             EOSRead, &
+            EOSReferenceDensity, &
             EOSProcess, &
             EOSInputRecord, &
             AllEOSDBaseDestroy
@@ -611,6 +612,8 @@ subroutine EOSRead(input,option)
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'EOS,OIL','DATABASE filename')
             call EOSOilSetEOSDBase(word,option)
+          case('VISCOSITY_LINLOG_INTERPOLATION')
+            call EOSOilSetVisLinLogInterp(option)
           case('REFERENCE_DENSITY','SURFACE_DENSITY','STANDARD_DENSITY')
             call InputReadDouble(input,option,tempreal)
             call InputErrorMsg(input,option,'VALUE', &
@@ -829,6 +832,54 @@ subroutine EOSRead(input,option)
   end select
 
 end subroutine EOSRead
+
+! **************************************************************************** !
+
+subroutine EOSReferenceDensity(option)
+  ! 
+  ! Calculates reference densities for phases if not specified in input file
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/08/18
+  ! 
+  use Option_module
+  
+  implicit none
+  
+  type(option_type) :: option
+
+  PetscReal :: vapor_saturation_pressure
+  PetscReal :: vapor_density_kg
+  PetscReal :: air_density_kmol
+  PetscReal :: dum1, dum2
+  PetscErrorCode :: ierr
+  
+  if (Initialized(option%liquid_phase)) then
+    if (option%reference_density(option%liquid_phase) < 1.d-40) then
+      call EOSWaterDensity(option%reference_temperature, &
+                           option%reference_pressure, &
+                           option%reference_density(option%liquid_phase), &
+                           dum1,ierr)
+    endif
+  endif
+  if (Initialized(option%gas_phase)) then
+    if (option%reference_density(option%gas_phase) < 1.d-40) then
+      ! assume saturated vapor pressure
+      call EOSWaterSaturationPressure(option%reference_temperature, &
+                                      vapor_saturation_pressure,dum1,ierr)
+      call EOSWaterSteamDensityEnthalpy(option%reference_temperature, &
+                                        vapor_saturation_pressure, &
+                                        vapor_density_kg,dum1,dum2,ierr)
+      ! call no-derivative version of EOSGasDensity
+      call EOSGasDensity(option%reference_temperature, &
+                         option%reference_pressure-vapor_saturation_pressure, &
+                         air_density_kmol,ierr)
+      option%reference_density(option%gas_phase) = &
+        vapor_density_kg + air_density_kmol*FMWAIR
+    endif
+  endif
+
+end subroutine EOSReferenceDensity
 
 ! **************************************************************************** !
 

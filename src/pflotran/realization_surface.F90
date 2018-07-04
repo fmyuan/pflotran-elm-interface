@@ -637,8 +637,7 @@ subroutine RealizSurfInitAllCouplerAuxVars(surf_realization)
   type(patch_type), pointer :: cur_patch
 
   call FlowConditionUpdate(surf_realization%surf_flow_conditions, &
-                           surf_realization%option, &
-                           surf_realization%option%time)
+                           surf_realization%option)
 
   cur_patch => surf_realization%patch_list%first
   do
@@ -1394,8 +1393,7 @@ subroutine RealizSurfUpdate(surf_realization)
 
   ! must update conditions first
   call FlowConditionUpdate(surf_realization%surf_flow_conditions, &
-                           surf_realization%option, &
-                           surf_realization%option%time)
+                           surf_realization%option)
 
   call RealizSurfAllCouplerAuxVars(surf_realization,force_update_flag)
 

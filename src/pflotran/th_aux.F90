@@ -227,7 +227,8 @@ subroutine THAuxVarInit(auxvar,option)
     auxvar%ice%Ke_fr     = uninit_value
     auxvar%ice%dKe_fr_dp = uninit_value
     auxvar%ice%dKe_fr_dt = uninit_value
-    ! NOTE(bja, 2013-12) always initialize ice variables to zero, even if not used!
+    ! NOTE(bja, 2013-12) always initialize ice variables to zero, even if 
+    !                    not used!
     auxvar%ice%sat_ice       = uninit_value
     auxvar%ice%sat_gas       = uninit_value
     auxvar%ice%dsat_ice_dp   = uninit_value
@@ -371,7 +372,7 @@ end subroutine THAuxVarCopy
 subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
                                      material_auxvar, &
                                      iphase,saturation_function, &
-                                     th_parameter, ithrm, &
+                                     th_parameter, ithrm, natural_id, &
                                      option)
   ! 
   ! Computes auxiliary variables for each grid cell
@@ -398,6 +399,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   type(TH_parameter_type) :: th_parameter
   PetscInt :: ithrm
   class(material_auxvar_type) :: material_auxvar
+  PetscInt :: natural_id
 
   PetscErrorCode :: ierr
   PetscReal :: pw,dw_kg,dw_mol,hw,sat_pressure,visl
@@ -430,7 +432,8 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   global_auxvar%temp = x(2)
  
 ! auxvar%pc = option%reference_pressure - auxvar%pres
-  auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
+  auxvar%pc = min(option%reference_pressure - global_auxvar%pres(1), &
+                  saturation_function%pcwmax)
 
 !***************  Liquid phase properties **************************
   auxvar%avgmw = FMWH2O
@@ -470,12 +473,20 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
   if (.not.option%flow%density_depends_on_salinity) then
     call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
+    if (ierr /= 0) then
+      call printMsgByCell(option,natural_id, &
+                       'Error in THAuxVarComputeNoFreezing->EOSWaterDensity')
+    endif
     call EOSWaterViscosity(global_auxvar%temp,pw,sat_pressure,dpsat_dt,visl, &
                            dvis_dt,dvis_dp,ierr)
   else
     aux(1) = global_auxvar%m_nacl(1)
     call EOSWaterDensityExt(global_auxvar%temp,pw,aux, &
                             dw_kg,dw_mol,dw_dp,dw_dt,ierr)
+    if (ierr /= 0) then
+      call printMsgByCell(option,natural_id, &
+                     'Error in THAuxVarComputeNoFreezing->EOSWaterDensityExt')
+    endif
     call EOSWaterViscosityExt(global_auxvar%temp,pw,sat_pressure,dpsat_dt,aux, &
                               visl,dvis_dt,dvis_dp,ierr)
   endif
@@ -549,7 +560,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                    material_auxvar, &
                                    iphase, &
                                    saturation_function, &
-                                   th_parameter, ithrm, &
+                                   th_parameter, ithrm, natural_id, &
                                    option)
   ! 
   ! Computes auxillary variables for each grid cell when
@@ -581,6 +592,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   type(TH_parameter_type) :: th_parameter
   PetscInt :: ithrm
   PetscInt :: iphase
+  PetscInt :: natural_id
 
   PetscErrorCode :: ierr
   PetscReal :: pw, dw_kg, dw_mol, hw, sat_pressure, visl
@@ -713,6 +725,10 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   end select
 
   call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
+  if (ierr /= 0) then
+    call printMsgByCell(option,natural_id, &
+                        'Error in THAuxVarComputeFreezing->EOSWaterDensity')
+  endif
   call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
   ! J/kmol -> MJ/kmol
   hw = hw * option%scale
@@ -741,7 +757,8 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%dden_dt = dw_dt
   auxvar%dden_dp = dw_dp
 !geh: contribution of dvis_dpsat is now added in EOSWaterViscosity  
-!  auxvar%dkvr_dt = -kr/(visl*visl)*(dvis_dt + dvis_dpsat*dpsat_dt) + dkr_dt/visl
+!  auxvar%dkvr_dt = -kr/(visl*visl)*(dvis_dt + dvis_dpsat*dpsat_dt) + &
+!    dkr_dt/visl
   auxvar%dkvr_dt = -kr/(visl*visl)*dvis_dt + dkr_dt/visl
   auxvar%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp
   auxvar%dh_dp = hw_dp
@@ -761,7 +778,10 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! Calculate the density, internal energy and derivatives for ice
   call EOSWaterDensityIce(global_auxvar%temp, global_auxvar%pres(1), &
                           den_ice, dden_ice_dT, dden_ice_dP, ierr)
-
+  if (ierr /= 0) then
+    call printMsgByCell(option,natural_id, &
+                      'Error in THAuxVarComputeFreezing->EOSWaterDensityIce')
+  endif
   call EOSWaterInternalEnergyIce(global_auxvar%temp, u_ice, du_ice_dT)
 
   auxvar%ice%den_ice = den_ice
@@ -774,15 +794,17 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   call EOSWaterSaturationPressure(global_auxvar%temp, p_sat, ierr)
 
   p_g            = option%reference_pressure
-  auxvar%ice%den_gas = p_g/(IDEAL_GAS_CONSTANT*(global_auxvar%temp + 273.15d0))*1.d-3 !in kmol/m3
+  auxvar%ice%den_gas = p_g/(IDEAL_GAS_CONSTANT* &
+                         (global_auxvar%temp + 273.15d0))*1.d-3 !in kmol/m3
   mol_g          = p_sat/p_g
   C_g            = C_wv*mol_g*FMWH2O + C_a*(1.d0 - mol_g)*FMWAIR ! in MJ/kmol/K
-  auxvar%ice%u_gas   = C_g*(global_auxvar%temp + 273.15d0)           ! in MJ/kmol
+  auxvar%ice%u_gas   = C_g*(global_auxvar%temp + 273.15d0)       ! in MJ/kmol
   auxvar%ice%mol_gas = mol_g
 
-  auxvar%ice%dden_gas_dt = - p_g/(IDEAL_GAS_CONSTANT*(global_auxvar%temp + 273.15d0)**2)*1.d-3
+  auxvar%ice%dden_gas_dt = -p_g/(IDEAL_GAS_CONSTANT* &
+                            (global_auxvar%temp + 273.15d0)**2)*1.d-3
   dmolg_dt           = dpsat_dt/p_g
-  auxvar%ice%du_gas_dt   = C_g + (C_wv*dmolg_dt*FMWH2O - C_a*dmolg_dt*FMWAIR)* &
+  auxvar%ice%du_gas_dt = C_g + (C_wv*dmolg_dt*FMWH2O - C_a*dmolg_dt*FMWAIR)* &
                        (global_auxvar%temp + 273.15d0)
   auxvar%ice%dmol_gas_dt = dmolg_dt
 
@@ -891,7 +913,8 @@ subroutine THAuxDestroy(aux)
   nullify(aux%auxvars_ss)
   if (associated(aux%zero_rows_local)) deallocate(aux%zero_rows_local)
   nullify(aux%zero_rows_local)
-  if (associated(aux%zero_rows_local_ghosted)) deallocate(aux%zero_rows_local_ghosted)
+  if (associated(aux%zero_rows_local_ghosted)) &
+    deallocate(aux%zero_rows_local_ghosted)
   nullify(aux%zero_rows_local_ghosted)
   if (associated(aux%TH_parameter)) then
     if (associated(aux%TH_parameter%diffusion_coefficient)) &
@@ -909,9 +932,11 @@ subroutine THAuxDestroy(aux)
     if (associated(aux%TH_parameter%alpha)) deallocate(aux%TH_parameter%alpha)
     nullify(aux%TH_parameter%alpha)
     ! ice
-    if (associated(aux%TH_parameter%ckfrozen)) deallocate(aux%TH_parameter%ckfrozen)
+    if (associated(aux%TH_parameter%ckfrozen)) &
+      deallocate(aux%TH_parameter%ckfrozen)
     nullify(aux%TH_parameter%ckfrozen)
-    if (associated(aux%TH_parameter%alpha_fr)) deallocate(aux%TH_parameter%alpha_fr)
+    if (associated(aux%TH_parameter%alpha_fr)) &
+      deallocate(aux%TH_parameter%alpha_fr)
     nullify(aux%TH_parameter%alpha_fr)
 
     if (associated(aux%TH_parameter%sir)) deallocate(aux%TH_parameter%sir)

@@ -14,6 +14,10 @@ module String_module
   PetscInt, parameter, public :: STRING_IS_A_DOUBLE = 2
   PetscInt, parameter, public :: STRING_IS_A_WORD = 3
 
+  PetscInt, parameter, public :: STRING_YES = 1
+  PetscInt, parameter, public :: STRING_NO = 0
+  PetscInt, parameter, public :: STRING_OTHER = UNINITIALIZED_INTEGER
+
   public :: StringCompare, &
             StringCompareIgnoreCase, &
             StringToUpper, &
@@ -29,7 +33,8 @@ module String_module
             StringSwapChar, &
             StringFormatInt, &
             StringFormatDouble, &
-            StringIntegerDoubleOrWord
+            StringIntegerDoubleOrWord, &
+            StringYesNoOther
   
   interface StringCompare
     module procedure StringCompare1
@@ -539,7 +544,9 @@ function StringSplit(string,chars)
   
   ! determine how many delimiting block in string
   length = len_trim(string)
-  length_chars = len_trim(chars)
+  ! do not use len_trim for chars.  All characters including the blank and 
+  ! trailing blanks (spaces) should be accounted for.
+  length_chars = len(chars)
   icount = 0
   last_index = 1
   iend = length-length_chars+1
@@ -685,5 +692,35 @@ function StringIntegerDoubleOrWord(string_in)
   if (len_trim(string) > 0) StringIntegerDoubleOrWord = STRING_IS_A_WORD
   
 end function StringIntegerDoubleOrWord
+
+! ************************************************************************** !
+
+function StringYesNoOther(string)
+  ! 
+  ! Returns PETSC_TRUE if a string is blank
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/07/10
+  ! 
+      
+  implicit none
+
+  character(len=*) :: string
+
+  character(len=MAXSTRINGLENGTH) :: string2
+
+  PetscInt :: StringYesNoOther
+
+  string2 = adjustl(string)
+  call StringToUpper(string2)
+
+  StringYesNoOther = STRING_OTHER
+  if (len_trim(string2) == 3 .and. StringStartsWith(string2,'YES')) then
+    StringYesNoOther = STRING_YES
+  elseif (len_trim(string2) == 2 .and. StringStartsWith(string2,'NO')) then
+    StringYesNoOther = STRING_NO
+  endif
+
+end function StringYesNoOther
 
 end module String_module

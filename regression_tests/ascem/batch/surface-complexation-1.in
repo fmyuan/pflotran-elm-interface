@@ -16,12 +16,6 @@ REGRESSION
   CELLS_PER_PROCESS 1
 END
 
-#=========================== flow mode ========================================
-# Uniform velocity (see below). No flow mode specified.
-
-#=========================== useful tranport parameters ==================
-UNIFORM_VELOCITY 0.0 0.d0 0.d0 ! 1. meter/yr
-
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
@@ -54,8 +48,8 @@ CHEMISTRY
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS TIMESTEP
   OUTPUT
-    all
-    pH
+    ALL
+    PH
     TOTAL
     TOTAL_SORBED
   /
@@ -114,7 +108,7 @@ REGION all
 END
 
 REGION west
-  FACE west
+  FACE WEST
   COORDINATES
     0.d0 0.d0 0.d0
     0.d0 1.d0 1.d0
@@ -122,7 +116,7 @@ REGION west
 END
 
 REGION east
-  FACE east
+  FACE EAST
   COORDINATES
     1.d0 0.d0 0.d0
     1.d0 1.d0 1.d0

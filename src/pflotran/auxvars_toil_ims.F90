@@ -12,8 +12,37 @@ module AuxVars_TOilIms_module
 
   private
 
+  PetscBool, public :: toil_analytical_derivatives = PETSC_FALSE
+  PetscBool, public :: toil_analytical_derivatives_compare = PETSC_FALSE
+  PetscReal, public :: toil_dcomp_tol = 1.d0
+  PetscBool, public :: toil_GP = PETSC_FALSE
+
+  type, public :: toil_derivative_auxvar_type
+    PetscReal, pointer :: dp_dsat(:) !! pressure w.r.t. saturation, will take into account 
+                                     !! dependence of liquid pressure on saturation
+    PetscReal, pointer :: dden_dp(:) !! density w.r.t. pressure
+    PetscReal, pointer :: dden_dt(:)   !! density w.r.t. temperature
+    PetscReal, pointer :: dsat_dt(:)   !! saturattion w.r.t. temperature
+    PetscReal, pointer :: dU_dp(:)     !! internal energy w.r.t. pressure
+    PetscReal, pointer :: dU_dt(:)
+    PetscReal, pointer :: dH_dp(:)
+    PetscReal, pointer :: dH_dt(:)
+
+    PetscReal, pointer :: dmobility(:,:) !! this seems to be the only one
+                                         !! that qualifies for the full 
+                                         !! square matrix treatment
+                                         !! (2x3 here)
+
+    PetscReal :: dpor_dp
+
+  contains
+    procedure, public :: Init => AuxVarDerivsTOilImsInit
+    procedure, public :: Strip => AuxVarDerivsTOilImsStrip
+  end type toil_derivative_auxvar_type
+
   type, public, extends(auxvar_flow_energy_type) :: auxvar_toil_ims_type
-    ! no data at the moment
+    PetscBool :: hasDerivatives
+    type(toil_derivative_auxvar_type), pointer :: d
   contains
     procedure, public :: Init => AuxVarTOilImsInit
     procedure, public :: Strip => AuxVarTOilImsStrip
@@ -42,6 +71,14 @@ subroutine AuxVarTOilImsInit(this,option)
 
   this%effective_porosity = 0.d0
   this%pert = 0.d0
+
+  if (toil_analytical_derivatives) then
+    this%hasDerivatives = PETSC_TRUE
+    allocate(this%d)
+    call this%d%Init(option)
+  else
+    this%hasDerivatives = PETSC_FALSE
+  endif
 
   !PO to do:
   !allign TOIL_IMS AuxVarCompute to new pc array (see AuxVarFlowInit),
@@ -77,7 +114,47 @@ subroutine AuxVarTOilImsInit(this,option)
   !end block to replace with AuxVarFlowEnergyInit
   call AuxVarFlowEnergyInit(this,option)
 
+
 end subroutine AuxVarTOilImsInit
+
+! ************************************************************************** !
+
+subroutine AuxVarDerivsTOilImsInit(this,option)
+  ! 
+  ! Initialize auxiliary object
+  ! 
+  ! Author: PAolo Orsini
+  ! Date: 5/27/16
+  ! 
+
+  use Option_module
+
+  implicit none
+  
+  class(toil_derivative_auxvar_type) :: this
+  type(option_type) :: option
+
+  allocate(this%dp_dsat(option%nphase))
+  this%dp_dsat= 0.d0
+  allocate(this%dden_dp(option%nphase))
+  this%dden_dp = 0.d0
+  allocate(this%dsat_dt(option%nphase))
+  this%dsat_dt = 0.d0
+  allocate(this%dden_dt(option%nphase))
+  this%dden_dt = 0.d0
+  allocate(this%dU_dt(option%nphase))
+  this%dU_dt = 0.d0
+  allocate(this%dU_dp(option%nphase))
+  this%dU_dP = 0.d0
+  allocate(this%dH_dt(option%nphase))
+  this%dH_dt = 0.d0
+  allocate(this%dH_dp(option%nphase))
+  this%dH_dP = 0.d0
+  allocate(this%dmobility(option%nphase, 3))
+  this%dmobility = 0.d0
+  this%dpor_dp = 0.d0
+
+end subroutine AuxVarDerivsTOilImsInit
 
 ! ************************************************************************** !
 
@@ -94,11 +171,69 @@ subroutine AuxVarTOilImsStrip(this)
 
   class(auxvar_toil_ims_type) :: this
 
+  if (this%hasDerivatives) then 
+    call this%d%Strip()
+    deallocate(this%d)
+    nullify(this%d)
+  endif
+
   call AuxVarFlowStrip(this)
 
   call AuxVarFlowEnergyStrip(this)
 
 end subroutine AuxVarTOilImsStrip
+
+! ************************************************************************** !
+
+subroutine AuxVarDerivsTOilImsStrip(this)
+ ! 
+  use Utility_module, only : DeallocateArray
+
+  implicit none
+
+  class(toil_derivative_auxvar_type) :: this
+
+  call DeallocateArray(this%dp_dsat)
+  call DeallocateArray(this%dden_dp)
+  call DeallocateArray(this%dsat_dt)
+  call DeallocateArray(this%dden_dt)
+  call DeallocateArray(this%dU_dt)
+  call DeallocateArray(this%dU_dp)
+  call DeallocateArray(this%dH_dt)
+  call DeallocateArray(this%dH_dp)
+
+  call deallocatearray(this%dmobility)
+
+end subroutine AuxVarDerivsTOilImsStrip
+
+! ************************************************************************** !
+
+subroutine AuxVarDerivsTOilIMSCopy(auxvar,auxvar2,option)
+  ! 
+  ! Copies an auxiliary derivatives variable
+  ! 
+
+  use Option_module
+
+  implicit none
+  
+  class(toil_derivative_auxvar_type) :: auxvar, auxvar2
+  type(option_type) :: option
+
+  auxvar2%dp_dsat= auxvar%dp_dsat
+  auxvar2%dden_dp = auxvar%dden_dp
+  auxvar2%dden_dt = auxvar%dden_dt
+  auxvar2%dsat_dt = auxvar%dsat_dt
+  auxvar2%dU_dp = auxvar%dU_dp
+  auxvar2%dU_dt = auxvar%dU_dt
+  auxvar2%dH_dp = auxvar%dH_dp
+  auxvar2%dH_dt = auxvar%dH_dt
+  auxvar2%dmobility = auxvar%dmobility
+  auxvar2%dpor_dp = auxvar%dpor_dp
+
+
+end subroutine AuxVarDerivsTOilIMSCopy
+
 ! ************************************************************************** !
 
 end module AuxVars_TOilIms_module

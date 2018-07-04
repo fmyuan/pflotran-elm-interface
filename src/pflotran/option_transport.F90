@@ -26,6 +26,8 @@ module Option_Transport_module
     PetscBool :: no_restart_kinetic_sorption
     PetscBool :: no_restart_mineral_vol_frac
     PetscBool :: numerical_derivatives
+
+    PetscInt :: nphase
         
   end type transport_option_type
   
@@ -121,6 +123,8 @@ subroutine OptionTransportInitRealization(option)
 
   option%inf_rel_update_tol = UNINITIALIZED_DOUBLE
   option%inf_scaled_res_tol = UNINITIALIZED_DOUBLE 
+
+  option%nphase = 1
   
 end subroutine OptionTransportInitRealization
 

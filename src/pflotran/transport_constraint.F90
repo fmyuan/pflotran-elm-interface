@@ -298,7 +298,8 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
               call InputReadWord(input,option,aq_species_constraint% &
                                  constraint_aux_string(icomp), &
                                  PETSC_TRUE)
-              call InputErrorMsg(input,option,'constraint name',block_string)
+              call InputErrorMsg(input,option,'constraining species name', &
+                                 block_string)
             else
               call InputReadWord(input,option,word,PETSC_FALSE)
               if (input%ierr == 0) then

@@ -238,7 +238,7 @@ function GasGetIDFromName(gas_species_list,name)
   PetscInt :: GasGetIDFromName
   type(gas_species_type), pointer :: gas_species
 
-  GasGetIDFromName = -1
+  GasGetIDFromName = UNINITIALIZED_INTEGER
  
   gas_species => gas_species_list
   do

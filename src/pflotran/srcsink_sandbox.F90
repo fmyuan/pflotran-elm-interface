@@ -290,7 +290,7 @@ end subroutine SSSandbox
 
 ! ************************************************************************** !
 
-subroutine SSSandboxUpdate(sandbox_list,time,option,output_option)
+subroutine SSSandboxUpdate(sandbox_list,option,output_option)
   ! 
   ! Updates datasets associated with a sandbox, if they exist
   ! 
@@ -303,7 +303,6 @@ subroutine SSSandboxUpdate(sandbox_list,time,option,output_option)
   implicit none
 
   class(srcsink_sandbox_base_type), pointer :: sandbox_list
-  PetscReal :: time
   type(option_type) :: option
   type(output_option_type) :: output_option
 
@@ -312,7 +311,7 @@ subroutine SSSandboxUpdate(sandbox_list,time,option,output_option)
   cur_sandbox => sandbox_list
   do
     if (.not.associated(cur_sandbox)) exit
-    call cur_sandbox%Update(time,option)
+    call cur_sandbox%Update(option)
     cur_sandbox => cur_sandbox%next
   enddo 
   
