@@ -5345,8 +5345,6 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = &
                 patch%aux%Global%auxvars(grid%nL2G(local_id))%istate
             enddo
-          !need to add:
-          ! - solvent_saturation for SOLVENT model
         end select
 
       endif
