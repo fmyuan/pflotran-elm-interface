@@ -254,6 +254,7 @@ eos_obj = \
 	${common_src}eos_database.o \
 	${common_src}eos_gas.o \
 	${common_src}eos_oil.o \
+        ${common_src}eos_slv.o \
 	${common_src}gas_eos_mod.o 
 
 mode_aux_obj = \

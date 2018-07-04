@@ -3333,6 +3333,8 @@ end subroutine EOSWaterInputRecord
 subroutine EOSWaterTest(temp_low,temp_high,pres_low,pres_high, &
                         ntemp,npres,uniform_temp,uniform_pres,filename)
 
+  use Utility_module, only : InitToNan
+
   implicit none
 
   PetscReal :: temp_low
@@ -3364,9 +3366,7 @@ subroutine EOSWaterTest(temp_low,temp_high,pres_low,pres_high, &
 
   PetscErrorCode :: ierr
 
-  NaN = 0.d0
-  NaN = 1.d0/NaN
-  NaN = 0.d0*NaN
+  NaN = InitToNan()
 
   allocate(temp(ntemp))
   temp = UNINITIALIZED_DOUBLE
@@ -3522,6 +3522,8 @@ end subroutine EOSWaterTest
 subroutine EOSWaterSteamTest(temp_low,temp_high,pres_low,pres_high, &
                              ntemp,npres,uniform_temp,uniform_pres,filename)
 
+  use Utility_module, only : InitToNan
+
   implicit none
 
   PetscReal :: temp_low
@@ -3554,9 +3556,7 @@ subroutine EOSWaterSteamTest(temp_low,temp_high,pres_low,pres_high, &
 
   PetscErrorCode :: ierr
 
-  NaN = 0.d0
-  NaN = 1.d0/NaN
-  NaN = 0.d0*NaN
+  NaN = InitToNan()
 
   allocate(temp(ntemp))
   temp = UNINITIALIZED_DOUBLE

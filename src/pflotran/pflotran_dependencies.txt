@@ -109,7 +109,7 @@ e4d_run.o : e4d_vars.o
 e4d_setup.o : e4d_mat_inv.o e4d_vars.o
 e4d_vars.o :
 eos.o : co2_span_wagner.o eos_database.o eos_gas.o eos_oil.o eos_water.o \
-        input_aux.o option.o pflotran_constants.o string.o
+        eos_slv.o input_aux.o option.o pflotran_constants.o string.o
 eos_database.o : input_aux.o lookup_table.o option.o pflotran_constants.o \
                  string.o units.o utility.o
 eos_gas.o : eos_database.o eos_water.o input_aux.o lookup_table.o option.o \
@@ -117,6 +117,7 @@ eos_gas.o : eos_database.o eos_water.o input_aux.o lookup_table.o option.o \
 eos_oil.o : eos_database.o input_aux.o lookup_table.o option.o \
             pflotran_constants.o
 eos_water.o : geometry.o pflotran_constants.o
+eos_slv.o : eos_database.o pflotran_constants.o option.o input_aux.o
 factory_geomechanics.o : condition_control.o convergence.o discretization.o \
                          factory_subsurface.o geomech_grid.o \
                          geomech_grid_aux.o geomechanics_condition.o \
@@ -567,8 +568,8 @@ pm_towg.o : checkpoint.o field.o global.o input_aux.o material.o option.o \
             realization_base.o realization_subsurface.o string.o towg.o \
             variables.o
 pm_towg_aux.o : auxvars_towg.o characteristic_curves.o eos_gas.o eos_oil.o \
-                eos_water.o global_aux.o grid.o material_aux.o option.o \
-                pflotran_constants.o pm_base_aux.o utility.o
+                eos_water.o eos_slv.o global_aux.o grid.o material_aux.o \
+                option.o pflotran_constants.o pm_base_aux.o utility.o
 pm_ufd_biosphere.o : coupler.o global_aux.o grid.o input_aux.o material_aux.o \
                      option.o output_aux.o pflotran_constants.o pm_base.o \
                      reaction_aux.o reactive_transport_aux.o \

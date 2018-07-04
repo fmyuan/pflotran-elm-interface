@@ -141,16 +141,22 @@ module Variables_module
 
   PetscInt, parameter, public :: OIL_VISCOSITY           = 116
 
-  PetscInt, parameter, public :: OIL_MOLE_FRACTION       = 115
-  PetscInt, parameter, public :: SOLVENT_SATURATION      = 116
-  PetscInt, parameter, public :: CAPILLARY_PRESSURE_OGC  = 117
-  PetscInt, parameter, public :: FRACTURE                = 118
+  PetscInt, parameter, public :: OIL_MOLE_FRACTION       = 117
+  PetscInt, parameter, public :: SOLVENT_SATURATION      = 118
+  PetscInt, parameter, public :: CAPILLARY_PRESSURE_OGC  = 119
+  PetscInt, parameter, public :: FRACTURE                = 120
 
-  PetscInt, parameter, public :: GAS_PERMEABILITY        = 119
-  PetscInt, parameter, public :: GAS_PERMEABILITY_X      = 120
-  PetscInt, parameter, public :: GAS_PERMEABILITY_Y      = 121
-  PetscInt, parameter, public :: GAS_PERMEABILITY_Z      = 122
+  PetscInt, parameter, public :: GAS_PERMEABILITY        = 121
+  PetscInt, parameter, public :: GAS_PERMEABILITY_X      = 122
+  PetscInt, parameter, public :: GAS_PERMEABILITY_Y      = 123
+  PetscInt, parameter, public :: GAS_PERMEABILITY_Z      = 124
 
-  PetscInt, parameter, public :: BUBBLE_POINT            = 123
+  PetscInt, parameter, public :: BUBBLE_POINT            = 125
+
+  PetscInt, parameter, public :: SOLVENT_PRESSURE        = 126
+  PetscInt, parameter, public :: SOLVENT_DENSITY         = 127
+  PetscInt, parameter, public :: SOLVENT_DENSITY_MOL     = 128
+  PetscInt, parameter, public :: SOLVENT_ENERGY          = 129
+  PetscInt, parameter, public :: SOLVENT_MOBILITY        = 130
 
 end module Variables_module

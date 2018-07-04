@@ -4270,7 +4270,9 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
          EFFECTIVE_POROSITY,LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
          MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
          OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
-         OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT)
+         OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT, &
+         SOLVENT_PRESSURE,SOLVENT_SATURATION,SOLVENT_DENSITY, &
+         SOLVENT_DENSITY_MOL,SOLVENT_ENERGY,SOLVENT_MOBILITY )
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -5287,6 +5289,47 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mobility(option%gas_phase)
             enddo
+          case(SOLVENT_PRESSURE)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%solvent_phase)
+            enddo
+          case(SOLVENT_SATURATION)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                  grid%nL2G(local_id))%sat(option%solvent_phase)
+            enddo
+          case(SOLVENT_ENERGY)
+            if (isubvar == ZERO_INTEGER) then
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                    grid%nL2G(local_id))%U(option%solvent_phase)
+              enddo
+            else
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                      grid%nL2G(local_id))%U(option%solvent_phase) * &
+                    patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                      grid%nL2G(local_id))%den(option%solvent_phase)
+              enddo
+            endif
+          case(SOLVENT_DENSITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                  grid%nL2G(local_id))%den_kg(option%solvent_phase)
+            enddo
+          case(SOLVENT_DENSITY_MOL)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                  grid%nL2G(local_id))%den(option%solvent_phase)
+            enddo
+          case(SOLVENT_MOBILITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                  grid%nL2G(local_id))%mobility(option%solvent_phase)
+            enddo
           case(EFFECTIVE_POROSITY)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
@@ -5302,8 +5345,6 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = &
                 patch%aux%Global%auxvars(grid%nL2G(local_id))%istate
             enddo
-          !need to add:
-          ! - solvent_saturation for SOLVENT model
         end select
 
       endif
@@ -5875,7 +5916,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE, &
          LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
          OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
-         OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT)
+         OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT, &
+         SOLVENT_PRESSURE,SOLVENT_SATURATION,SOLVENT_DENSITY, &
+         SOLVENT_DENSITY_MOL,SOLVENT_ENERGY,SOLVENT_MOBILITY)
 
      if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -6450,9 +6493,55 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             else
               value=0.0
             endif
-          !need to add:
-          ! - gas and oil mole fraction for the black oil model
-          ! - solvent_saturation for SOLVENT model
+          case(SOLVENT_PRESSURE)
+            if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      pres(option%solvent_phase)
+            else
+              value=0.0d0
+            endif
+          case(SOLVENT_SATURATION)
+            if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      sat(option%solvent_phase)
+            else
+              value=0.0d0
+            endif
+          case(SOLVENT_ENERGY)
+            if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+              if (isubvar == ZERO_INTEGER) then
+                value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                        U(option%solvent_phase)
+              else
+                value = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                        ghosted_id)%U(option%solvent_phase) * &
+                      patch%aux%TOWG%auxvars(ZERO_INTEGER, &
+                        ghosted_id)%den(option%solvent_phase)
+              endif
+            else
+              value=0.0d0
+            endif
+          case(SOLVENT_DENSITY)
+            if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      den_kg(option%solvent_phase)
+            else
+              value=0.0d0
+            endif
+          case(SOLVENT_DENSITY_MOL)
+            if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      den(option%solvent_phase)
+            else
+              value=0.0d0
+            endif
+          case(SOLVENT_MOBILITY)
+            if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      mobility(option%solvent_phase)
+            else
+              value=0.0d0
+            endif
         end select
 
       endif

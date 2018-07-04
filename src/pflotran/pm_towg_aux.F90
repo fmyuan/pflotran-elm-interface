@@ -22,13 +22,12 @@ module PM_TOWG_Aux_module
   PetscReal, parameter, public :: towg_pressure_scale = 1.d0
 
   PetscReal, public :: val_tl_omega = 0.0d0
+  PetscReal, public :: fmis_sl      = 0.0d0
+  PetscReal, public :: fmis_su      = 1.0d0
+  PetscBool, public :: fmis_is_zero = .false.
+  PetscBool, public :: fmis_is_unity= .false.
 
   PetscBool, public :: towg_isothermal = PETSC_FALSE
-  !PO:needs to add input for towg_no_gas and towg_no_oil in pm_towg%Read
-  !   towg_no_oil currently supported only for TOWG_IMMISCIBLE
-  !   and TOWG_TODD_LONGSTAFF. To have it working also for BLACK_OIL and SOLV.
-  !   must swap the orger of primary vars for TOWG_LIQ_GAS_STATE,
-  !   Po,Sg,Xg^G -> Po,Xg^G,Sg
   PetscBool, public :: towg_no_gas = PETSC_FALSE
   PetscBool, public :: towg_no_oil = PETSC_FALSE
   PetscInt, public :: towg_miscibility_model = UNINITIALIZED_INTEGER
@@ -36,12 +35,6 @@ module PM_TOWG_Aux_module
   ! list of TOWG paramters
   PetscInt, parameter, public :: TOWG_PREV_TS = 1
   PetscInt, parameter, public :: TOWG_PREV_IT = 2
-
-  ! available miscibility models - now defined in PFLOTRAN_Constants_module
-  ! PetscInt, parameter, public :: TOWG_IMMISCIBLE = 1
-  ! PetscInt, parameter, public :: TOWG_TODD_LONGSTAFF = 2
-  ! PetscInt, parameter, public :: TOWG_BLACK_OIL = 3
-  ! PetscInt, parameter, public :: TOWG_SOLVENT_TL = 4
 
   ! thermodynamic state of fluid ids - for BLACK OIL
   PetscInt, parameter, public :: TOWG_NULL_STATE = 0
@@ -56,9 +49,7 @@ module PM_TOWG_Aux_module
   PetscInt, parameter, public :: TOWG_GAS_SATURATION_2PH_DOF = 2
   PetscInt, parameter, public :: TOWG_GAS_SATURATION_3PH_DOF = 3
   PetscInt, parameter, public :: TOWG_BUBBLE_POINT_3PH_DOF   = 3 !Variable substitutes with gas saturation
-  PetscInt, parameter, public :: TOWG_X_GAS_IN_OIL_DOF = 3
-  PetscInt, parameter, public :: TOWG_X_OIL_IN_GAS_DOF = 3
-  PetscInt, parameter, public :: TOWG_SOLV_SATURATION = 4
+  PetscInt, parameter, public :: TOWG_SOLV_SATURATION_DOF = 4
   PetscInt, parameter, public :: TOWG_3CMPS_ENERGY_DOF = 4
   PetscInt, parameter, public :: TOWG_SOLV_TL_ENERGY_DOF = 5
   !towg_energy_dof assigned TOWG_3CMPS_ENERGY_DOF or TOWG_SOLV_TL_ENERGY_DOF
@@ -91,7 +82,8 @@ module PM_TOWG_Aux_module
   PetscInt, parameter, public :: TOWG_LIQ_CONDUCTANCE_INDEX = 12
   PetscInt, parameter, public :: TOWG_OIL_CONDUCTANCE_INDEX = 13
   PetscInt, parameter, public :: TOWG_GAS_CONDUCTANCE_INDEX = 14
-  PetscInt, parameter, public :: TOWG_MAX_INDEX = 14
+  PetscInt, parameter, public :: TOWG_SOLVENT_CONDUCTANCE_INDEX = 15
+  PetscInt, parameter, public :: TOWG_MAX_INDEX = 15
 
   !Indices used to map aux_int_var for condition values
   PetscInt, parameter, public :: TOWG_STATE_INDEX = 1
@@ -179,9 +171,8 @@ module PM_TOWG_Aux_module
             TOWGImsAuxVarComputeSetup, &
             TOWGTLAuxVarComputeSetup, &
             TOWGAuxVarPerturb, &
-            TOWGBlackOilAuxVarComputeSetup
-  !          TOilImsAuxVarPerturb, TOilImsAuxDestroy, &
-  !          TOilImsAuxVarStrip
+            TOWGBlackOilAuxVarComputeSetup, &
+            TL4PAuxVarComputeSetup
 
 contains
 
@@ -198,6 +189,7 @@ function TOWGAuxCreate(option)
   use Option_module
   use EOS_Oil_module
   use EOS_Gas_module
+  use EOS_Slv_module
 
   implicit none
 
@@ -209,7 +201,8 @@ function TOWGAuxCreate(option)
 
   allocate(towg_fmw_comp(option%nflowspec))
 
-  !in TOWG the gas FMW must be defined in the input deck
+!--In TOWG case the gas FMW must be defined in the input deck
+
   if ( Uninitialized(EOSGasGetFMW()) ) then
     option%io_buffer = 'TOWG: gas FMW not initialised. ' // &
                        'Define its value in the the input deck' // &
@@ -221,10 +214,18 @@ function TOWGAuxCreate(option)
   towg_fmw_comp(2) = EOSOilGetFMW()
   towg_fmw_comp(3) = EOSGasGetFMW()
 
-  !need to add an EOS for solvent, before adding solvent
-  !if ( towg_miscibility_model == TOWG_SOLVENT_TL ) then
-  !  towg_fmw_comp(4) =
-  !end if
+!--If solvent option, set up solvent molecular weight
+
+  if ( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+
+    if ( Uninitialized(EOSSlvGetFMW()) ) then
+      option%io_buffer = 'Solvent FMW not initialised. ' // &
+                         'Define its value in the the input deck' // &
+                         ' or add EOS SOLVENT card to default to FMWCO2'
+      call printErrMsg(option)
+    endif
+    towg_fmw_comp(4) =EOSSlvGetFMW()
+  end if
 
   allocate( towg_dof_to_primary_variable(1:option%nflowdof,1:3) )
 
@@ -311,7 +312,8 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
       if (towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
         call this%auxvars(idof,ghosted_id)%InitTL(option)
       end if
-      if (towg_miscibility_model == TOWG_BLACK_OIL      ) then
+      if (    (towg_miscibility_model == TOWG_BLACK_OIL ) &
+          .or.(towg_miscibility_model == TOWG_SOLVENT_TL) ) then
         call this%auxvars(idof,ghosted_id)%InitBO(option)
       end if
     enddo
@@ -326,7 +328,8 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
       if (towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
         call this%auxvars_bc(iconn)%InitTL(option)
       end if
-      if (towg_miscibility_model == TOWG_BLACK_OIL      ) then
+      if (    (towg_miscibility_model == TOWG_BLACK_OIL ) &
+          .or.(towg_miscibility_model == TOWG_SOLVENT_TL) ) then
         call this%auxvars_bc(iconn)%InitBO(option)
       end if
     enddo
@@ -340,7 +343,8 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
       if (towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
         call this%auxvars_ss(iconn)%InitTL(option)
       end if
-      if (towg_miscibility_model == TOWG_BLACK_OIL      ) then
+      if (    (towg_miscibility_model == TOWG_BLACK_OIL ) &
+          .or.(towg_miscibility_model == TOWG_SOLVENT_TL) ) then
         call this%auxvars_ss(iconn)%InitBO(option)
       end if
     enddo
@@ -544,7 +548,7 @@ subroutine getBlackOilComposition(bubble_point,temperature,table_idxs,xo,xg)
 
 !------------------------------------------------------------------------------
 ! Find oil phase composition (xo,xg) as a function of bubble point
-! Used in TOWG_BLACK_OIL
+! Used in TOWG_BLACK_OIL and TOWG_SOLVENT_TL
 !------------------------------------------------------------------------------
 ! Author: Dave Ponting
 ! Date  : Dec 2017
@@ -558,7 +562,7 @@ subroutine getBlackOilComposition(bubble_point,temperature,table_idxs,xo,xg)
   PetscInt, pointer, intent(inout) :: table_idxs(:)
   PetscReal, intent(out) :: xo
   PetscReal, intent(out) :: xg
-  PetscReal              :: rs_volume=0.0d0,rs_molar
+  PetscReal              :: rs_molar
   PetscInt               :: ierr
 
 !--Get molar Rsm=(moles gas)/(moles oil)---------------------------------------
@@ -616,17 +620,20 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dkro_sato,dkro_satg
   PetscReal :: dkrg_sato,dkrg_satg
   PetscErrorCode :: ierr
-  PetscBool isSat
-  PetscReal :: epss=1.0d-4,epssc,epsp=1.0d3
+  PetscBool :: isSat
+  PetscReal :: oneminuseps
   PetscReal :: dummy2,deno,cr,cvisc,ho,uo,crusp,cvusp
   PetscReal :: test
+
   PetscReal, parameter :: eps_oil   = 1.0d-6
+  PetscReal, parameter :: epss=1.0d-4
+  PetscReal, parameter :: epsp=1.0d3
 
 !==============================================================================
 !  Initialise
 !==============================================================================
 
-  epssc=1.0d0-epss
+  oneminuseps=1.0d0-epss
 
 ! 'Liquid' is really the aqueous, water phase
 
@@ -694,9 +701,9 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
         auxvar%sat(gid)               =epss
         x(TOWG_GAS_SATURATION_3PH_DOF)=epss
 ! Make sure the extra gas does not push the water saturation negative
-        if( auxvar%sat(oid) > epssc ) then
-          auxvar%sat(oid)             =epssc
-          x(TOWG_OIL_SATURATION_DOF)  =epssc
+        if( auxvar%sat(oid) > oneminuseps ) then
+          auxvar%sat(oid)             =oneminuseps
+          x(TOWG_OIL_SATURATION_DOF)  =oneminuseps
         endif
       endif
     endif
@@ -885,7 +892,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                    RelativePermeability(auxvar%sat(oid),auxvar%sat(gid),krg, &
                                 dkrg_sato,dkrg_satg,option,auxvar%table_idx)
 
-!--If PVDG defined in EOS OIL, the viscosities are extracted via table lookup--
+!--If PVDG defined in EOS GAS, the viscosities are extracted via table lookup--
 
   call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
                        auxvar%pres(gid),auxvar%den(gid),visg,ierr,&
@@ -894,6 +901,554 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%mobility(gid) = krg/visg
 
 end subroutine TOWGBlackOilAuxVarCompute
+
+! ************************************************************************** !
+
+subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
+                             characteristic_curves,natural_id,option)
+!------------------------------------------------------------------------------
+! Auxillary variable calculation for 4-phase Todd-Longstaff
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Apr 2018
+!------------------------------------------------------------------------------
+
+  use Option_module
+  use Global_Aux_module
+  use EOS_Water_module
+  use EOS_Oil_module
+  use EOS_Gas_module
+  use EOS_Slv_module
+  use Characteristic_Curves_module
+  use Material_Aux_class
+
+  implicit none
+
+  type(option_type) :: option
+  PetscReal :: x(option%nflowdof)
+  class(auxvar_towg_type) :: auxvar
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  class(characteristic_curves_type) :: characteristic_curves
+  PetscInt :: natural_id !only for debugging/print out - currently not used
+
+  PetscInt :: wid, oid, gid, sid, istate
+  PetscReal :: cell_pressure, wat_sat_pres
+  PetscReal :: so,sg,sw,ss,sv,sh,t
+  PetscReal,parameter::szero=0.0
+  PetscReal :: uoil,ugas,uslv,uvap
+  PetscReal :: krh,dkrh_sath,dkrh_satz
+  PetscReal :: kroi,krgi,krsi
+  PetscReal :: krom,krgm,krsm
+  PetscReal :: krw ,visw,viswtl
+  PetscReal :: kro ,viso,visotl
+  PetscReal :: krg ,visg,visgtl
+  PetscReal :: krs ,viss,visstl
+  PetscReal :: dummy,po,pb
+  PetscReal :: dkrw_sato,dkrw_satg
+  PetscReal :: dkro_sato,dkro_satg
+  PetscReal :: dkrg_sato,dkrg_satg
+  PetscReal :: dkrv_sato,dkrv_satv,krvi
+  PetscErrorCode :: ierr
+  PetscBool isSat
+  PetscReal :: oneminuseps
+  PetscReal :: dummy2,cr,cvisc,ho,uo,crusp,cvusp
+  PetscReal :: test
+  PetscReal :: swcr,sgcr,sowcr,sogcr,swco,fm,fi,rat
+  PetscReal :: deno,deng,dens,denotl,dengtl,denstl,krow,krog,sc,den,soa,sva,sumhydsat
+  PetscReal :: socrs,svcrs,krvm
+
+  PetscReal, parameter :: eps_oil=1.0d-5
+  PetscReal, parameter :: eps_gas=1.0d-8
+  PetscReal, parameter :: epss   =1.0d-4
+  PetscReal, parameter :: epsp   =1.0d3
+  PetscReal, parameter :: epseps =1.0d-10
+
+!==============================================================================
+!  Initialise
+!==============================================================================
+
+  krh      =0.0
+  dkrh_sath=0.0
+  dkrh_satz=0.0
+
+  kroi=0.0
+  krgi=0.0
+  krsi=0.0
+
+  krom=0.0
+  krgm=0.0
+  krsm=0.0
+
+  krw =0.0
+  kro =0.0
+  krg =0.0
+  krs =0.0
+
+  krvi=0.0
+
+  swcr =0.0
+  sgcr =0.0
+  sowcr=0.0
+  sogcr=0.0
+  swco =0.0
+
+  fm =0.0
+  fi =1.0
+
+  oneminuseps=1.0d0-epss
+
+! 'Liquid' is really the aqueous, water phase
+
+  wid = option%liquid_phase
+  oid = option%oil_phase
+  gid = option%gas_phase
+  sid = option%solvent_phase
+
+  auxvar%effective_porosity = 0.d0
+  auxvar%pres = 0.d0
+  auxvar%sat = 0.d0
+  auxvar%pc = 0.d0
+  auxvar%den = 0.d0
+  auxvar%den_kg = 0.d0
+  auxvar%mobility = 0.d0
+  auxvar%H = 0.d0
+  auxvar%U = 0.d0
+
+!==============================================================================
+!  Check state to see if saturated
+!==============================================================================
+
+  istate=global_auxvar%istate
+
+  if( istate==TOWG_THREE_PHASE_STATE ) then
+    isSat=PETSC_TRUE
+  else
+    isSat=PETSC_FALSE
+  endif
+
+!==============================================================================
+! Getting auxvars as given by the solution variables,
+! allowing for saturated/undersaturated switch
+!==============================================================================
+
+  auxvar%pres(oid) = x(TOWG_OIL_PRESSURE_DOF  )
+  auxvar%sat (oid) = x(TOWG_OIL_SATURATION_DOF)
+  if( isSat ) then
+    auxvar%sat(gid)        = x(TOWG_GAS_SATURATION_3PH_DOF)
+    auxvar%bo%bubble_point = auxvar%pres(oid)
+  else
+    auxvar%bo%bubble_point = x(TOWG_BUBBLE_POINT_3PH_DOF)
+    auxvar%sat(gid)        = 0.0
+  endif
+  auxvar%sat(sid)        = x(TOWG_SOLV_SATURATION_DOF)
+  auxvar%temp = x(towg_energy_dof)
+
+!==============================================================================
+! Check if this state still valid and flip if not (but not on diff call)
+!==============================================================================
+
+  if (option%iflag /= TOWG_UPDATE_FOR_DERIVATIVE) then
+    if( isSat ) then
+      if( (auxvar%sat(gid)<(-epseps)) .and. (auxvar%sat(oid)>eps_oil) ) then
+! Gas saturation has gone negative and significant oil in cell
+        global_auxvar%istate          =TOWG_LIQ_OIL_STATE
+        auxvar%sat(gid)               =0.0d0
+        auxvar%bo%bubble_point        =auxvar%pres(oid)-epsp
+        x(TOWG_BUBBLE_POINT_3PH_DOF)  =auxvar%pres(oid)-epsp
+      endif
+    else
+      if(      (auxvar%bo%bubble_point > auxvar%pres(oid)) &
+          .or. (auxvar%sat(oid)        < eps_oil         ) ) then
+! Bubble point has exceeded oil pressure or no significant oil in cell
+        global_auxvar%istate          =TOWG_THREE_PHASE_STATE
+        auxvar%bo%bubble_point        =auxvar%pres(oid)
+        if(auxvar%bo%bubble_point > auxvar%pres(oid)) then
+          auxvar%sat(gid)=epss      ! Bubble point crossed
+        else
+          auxvar%sat(gid)=eps_gas   ! Run out of oil
+        endif
+        x(TOWG_GAS_SATURATION_3PH_DOF)=auxvar%sat(gid)
+! Make sure the extra gas does not push the water saturation negative
+        sumhydsat=auxvar%sat(oid)+auxvar%sat(sid)+auxvar%sat(gid)
+        if( sumhydsat>1.0  ) then
+          rat=1.0/sumhydsat
+          auxvar%sat(oid)=auxvar%sat(oid)*rat
+          auxvar%sat(gid)=auxvar%sat(gid)*rat
+          auxvar%sat(sid)=auxvar%sat(sid)*rat
+          x(TOWG_OIL_SATURATION_DOF    )=auxvar%sat(oid)
+          x(TOWG_GAS_SATURATION_3PH_DOF)=auxvar%sat(gid)
+          x(TOWG_SOLV_SATURATION_DOF   )=auxvar%sat(sid)
+        endif
+      endif
+    endif
+  endif
+
+!==============================================================================
+! Set up the final saturation value (water)
+!==============================================================================
+
+  auxvar%sat(wid) = 1.d0 - auxvar%sat(oid) - auxvar%sat(gid) - auxvar%sat(sid)
+
+!==============================================================================
+! Extract solution into local scalars
+!==============================================================================
+
+  po=auxvar%pres(oid)
+  pb=auxvar%bo%bubble_point
+
+  so=auxvar%sat(oid)
+  sg=auxvar%sat(gid)
+  sw=auxvar%sat(wid)
+  ss=auxvar%sat(sid)
+
+  sv=sg+ss
+  sh=so+sv
+
+  t =auxvar%temp
+
+!==============================================================================
+! Look up the Rs value
+!==============================================================================
+
+  call getBlackOilComposition(pb,t,auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
+
+!==============================================================================
+!  Get the miscible-immiscible mixing fractions (functions of fs=Ss/(Sg+Ss))
+!==============================================================================
+
+  call TL4PMiscibilityFraction(sg,ss,fm)
+  fi=1.0-fm
+
+!==============================================================================
+!  Get the capillary pressures using three phase mode as functions of so,sv,sw
+!==============================================================================
+
+!--Prepare argument for lookups (these routines can fail if so+sv>1.0)
+
+  soa=so
+  sva=sv
+  if( sh>=1.0d0 ) then
+    soa=(1.0d0-eps_oil)*so/sh
+    sva=(1.0d0-eps_oil)*sv/sh
+  endif
+
+!--Pcow------------------------------------------------------------------------
+
+  auxvar%pc(wid) =0.0d0
+  call characteristic_curves%oil_wat_sat_func% &
+            CapillaryPressure(soa,sva,auxvar%pc(wid), &
+                              dummy,dummy2,option,auxvar%table_idx)
+
+!--Pcog------------------------------------------------------------------------
+
+  auxvar%pc(oid) = 0.0d0
+  call characteristic_curves%oil_gas_sat_func% &
+            CapillaryPressure(soa,sva,auxvar%pc(oid), &
+                              dummy,dummy2,option,auxvar%table_idx)
+
+!  Scale Pcog for degree of miscibility
+
+  auxvar%pc(oid)=fi*auxvar%pc(oid)
+
+!==============================================================================
+!  Get the phase pressures
+!==============================================================================
+
+  auxvar%pres(wid) = po-auxvar%pc(wid)
+  auxvar%pres(gid) = po+auxvar%pc(oid)
+
+  auxvar%pres(sid) = auxvar%pres(gid)
+
+  cell_pressure = max(auxvar%pres(wid),auxvar%pres(oid),auxvar%pres(gid))
+
+!==============================================================================
+!  Get rock properties
+!==============================================================================
+
+!--Calculate effective porosity as a function of pressure----------------------
+
+  if (option%iflag /= TOWG_UPDATE_FOR_BOUNDARY) then
+    auxvar%effective_porosity = material_auxvar%porosity_base
+
+    if (soil_compressibility_index > 0) then
+      call MaterialCompressSoil(material_auxvar,cell_pressure, &
+                                auxvar%effective_porosity,dummy)
+    endif
+    if (option%iflag /= TOWG_UPDATE_FOR_DERIVATIVE) then
+      material_auxvar%porosity = auxvar%effective_porosity
+    endif
+  endif
+
+!==============================================================================
+!  Get fluid properties
+!==============================================================================
+
+!------------------------------------------------------------------------------
+! Water phase thermodynamic properties
+!------------------------------------------------------------------------------
+
+  call EOSWaterDensity(t,cell_pressure, &
+                       auxvar%den_kg(wid),auxvar%den(wid),ierr)
+  call EOSWaterEnthalpy(t,cell_pressure,auxvar%H(wid),ierr)
+  auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+  ! MJ/kmol comp                  ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
+  auxvar%U(wid) = auxvar%H(wid) - (cell_pressure / auxvar%den(wid) * 1.d-6)
+
+!------------------------------------------------------------------------------
+! Gas phase thermodynamic properties. Can be ideal gas default or PVTG table
+!------------------------------------------------------------------------------
+
+  call EOSGasDensityEnergy(t,auxvar%pres(gid),auxvar%den(gid), &
+                           auxvar%H(gid),auxvar%U(gid),ierr,auxvar%table_idx)
+
+  auxvar%den_kg(gid) = auxvar%den(gid) * EOSGasGetFMW()
+
+  auxvar%H(gid) = auxvar%H(gid) * 1.d-6 ! J/kmol -> MJ/kmol
+  auxvar%U(gid) = auxvar%U(gid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+!------------------------------------------------------------------------------
+! Solvent phase thermodynamic properties. Can be ideal gas default or PVTS table
+!------------------------------------------------------------------------------
+
+  call EOSSlvDensityEnergy(t,auxvar%pres(sid), &
+                           auxvar%den(sid),auxvar%H(sid),auxvar%U(sid),ierr,&
+                           auxvar%table_idx)
+
+  auxvar%den_kg(sid) = auxvar%den(sid) * EOSSlvGetFMW()
+
+  auxvar%H(sid) = auxvar%H(sid) * 1.d-6 ! J/kmol -> MJ/kmol
+  auxvar%U(sid) = auxvar%U(sid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+!------------------------------------------------------------------------------
+! Oil phase thermodynamic properties from PVCO
+! Note that auxvar%table_idx for table lookup is passed after ierr
+! because it is an optional argument (needed only if table lookup)
+!------------------------------------------------------------------------------
+
+  call EOSOilDensityEnergy  (auxvar%temp,po,deno,ho,uo,ierr,auxvar%table_idx)
+! Density and compressibility look-up at bubble point
+  call EOSOilDensity        (auxvar%temp,pb,deno      ,ierr,auxvar%table_idx)
+  call EOSOilCompressibility(auxvar%temp,pb,cr        ,ierr,auxvar%table_idx)
+
+!  Correct for undersaturation: correction not yet available for energy
+
+  crusp=cr*(po-pb)
+  deno=deno*(1.0+crusp*(1.0+0.5*crusp))
+  auxvar%den(oid)=deno
+  auxvar%H  (oid)=ho
+  auxvar%U  (oid)=uo
+
+!------------------------------------------------------------------------------
+! Correct oil phase molar density and enthalpy for oil composition
+! EOSOilDensity returns oil moles/volume in oil phase,
+! but really have (1+Rsmolar) times as many moles when dissolved gas included
+! 1+Rsmolar=1+xg/xo=(xo+xg)/xo=1/xo.
+! Note xo=1/(1+Rsmolar) so cannot be zero for finite looked up Rsmolar
+!------------------------------------------------------------------------------
+
+  auxvar%den(oid)=auxvar%den(oid)/auxvar%bo%xo
+
+! Get oil mass density as (mixture oil molar density).(mixture oil molecular weight)
+
+  auxvar%den_kg(oid) = auxvar%den(oid) * ( auxvar%bo%xo*EOSOilGetFMW() &
+                                          +auxvar%bo%xg*EOSGasGetFMW() )
+
+  auxvar%H(oid) = auxvar%H(oid) * 1.d-6 ! J/kmol -> MJ/kmol
+  auxvar%U(oid) = auxvar%U(oid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+!------------------------------------------------------------------------------
+! Get oil enthalpy/oil mole in oil phase.
+! Calculation was for pure oil, but really have total molar enthalpy of:
+! oil hydrocarbon enthalpy/oil hydrocarbon mole= xo*(oil enthalpy/oil mole)
+!                                               +xg*(gas enthalpy/gas mole)
+!------------------------------------------------------------------------------
+
+  auxvar%H(oid) = auxvar%bo%xo*auxvar%H(oid)+auxvar%bo%xg*auxvar%H(gid)
+  auxvar%U(oid) = auxvar%bo%xo*auxvar%U(oid)+auxvar%bo%xg*auxvar%U(gid)
+
+!===============================================================================
+! Fluid mobility calculation
+!===============================================================================
+
+!-------------------------------------------------------------------------------
+!  Water mobility (rel. perm / viscosity)
+!-------------------------------------------------------------------------------
+
+  call characteristic_curves%wat_rel_perm_func_owg% &
+                    RelativePermeability(so,sv, &
+                              krw,dkrw_sato,dkrw_satg,option,auxvar%table_idx)
+
+  call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
+
+! use cell_pressure; cell_pressure - psat calculated internally
+  call EOSWaterViscosity(t,cell_pressure,wat_sat_pres,visw,ierr)
+
+  auxvar%mobility(wid) = krw/visw
+
+!-------------------------------------------------------------------------------
+!  Hydrocarbon mobilities
+!-------------------------------------------------------------------------------
+
+!--Get and scale the endpoints--------------------------------------------------
+
+  call GetCriticals( characteristic_curves%gas_rel_perm_func_owg, &
+                     characteristic_curves%wat_rel_perm_func_owg, &
+                     swcr,sgcr,sowcr,sogcr,swco )
+
+  call TL4PScaleCriticals(sgcr,sogcr,fm,so,sv,uoil,uvap)
+
+!-------------------------------------------------------------------------------
+! Oil mobility (rel. perm / viscosity)
+!-------------------------------------------------------------------------------
+
+!--Oil relative permeabilities--------------------------------------------------*/
+
+!--Immiscible lookup (Eclipse 3-phase)
+
+! Get Krow(So) at Sg=0, Sw=1-So
+  call characteristic_curves%oil_rel_perm_func_owg% &
+                  RelativePermeability(so,szero,krow, &
+                                 dkro_sato,dkro_satg,option,auxvar%table_idx)
+
+
+! Get Krog(Uo) at Sg=1-Uo-Swco, Sw=1-Uo-(1-Uo-swco)=Swco
+  sc=1.0d0-uoil-swco
+  call characteristic_curves%oil_rel_perm_func_owg% &
+                  RelativePermeability(uoil,sc,krog, &
+                                 dkro_sato,dkro_satg,option,auxvar%table_idx)
+
+! Form the Eclipse three-phase Kro expression
+
+  den=sv+sw-swco
+  if( den>0.0 ) then
+    kroi=(sv*krog+(sw-swco)*krow)/den
+  else
+    kroi=0.5*(krog+krow)
+  endif
+
+!--Miscible lookup (Krow at Sh=So+Sg+Ss, is projected out by the szero argument)
+
+  call characteristic_curves%oil_rel_perm_func_owg% &
+                  RelativePermeability(sh,szero,krh, &
+                                 dkrh_sath,dkrh_satz,option,auxvar%table_idx)
+
+!  Obtain all the miscible limit rel. perms. from Krh, allowing for criticals
+
+!  Get the modified critical oil on gas and vapour
+
+  socrs=fi*sogcr
+  svcrs=fi*sgcr
+
+! For non-zero Krom, must have So and Sh > Socrs
+  if( (sh .gt. (socrs+epss)) .and. (so .ge. socrs) ) then
+    krom=krh*(so-socrs)/(sh-socrs)
+  else
+    krom=0.0
+  endif
+
+! For non-zero Krvm, must have Sv and Sh > Svcrs
+  if( (sh .gt. (svcrs+epss)) .and. (sv .ge. svcrs) ) then
+    krvm=krh*(sv-svcrs)/(sh-svcrs)
+  else
+    krvm=0.0
+  endif
+
+! Now split vapour Krvm into Krgm and Krsm pro rata saturations
+
+  if( sv .gt. 0.0 ) then
+    krgm=krvm*sg/sv
+    krsm=krvm*ss/sv
+  else
+    krgm=0.0
+    krsm=0.0
+  endif
+
+!--Oil viscosities--------------------------------------------------------------*/
+
+!--If PVCO defined in EOS OIL, the viscosities are extracted via table lookup--
+
+! Viscosity and viscosibility look-up at bubble point
+  call EOSOilViscosity    (auxvar%temp,pb, &
+                           auxvar%den(oid), viso, ierr,auxvar%table_idx)
+  call EOSOilViscosibility(auxvar%temp,pb,cvisc,ierr,auxvar%table_idx)
+
+  cvusp=cvisc*(po-pb)
+  viso=viso*(1.0+cvusp*(1.0+0.5*cvusp))
+
+!-------------------------------------------------------------------------------
+!  Vapour (gas and solvent) mobilities (rel. perm / viscosity)
+!-------------------------------------------------------------------------------
+
+  call characteristic_curves%gas_rel_perm_func_owg% &
+                   RelativePermeability(so,sv,krvi, &
+                                dkrv_sato,dkrv_satv,option,auxvar%table_idx)
+
+!  Obtain all the immiscible limit rel. perms. from Krvi
+
+  if( sv>0.0 ) then
+    krgi=sg*krvi/sv
+    krsi=ss*krvi/sv
+  else
+    krgi=0.0
+    krsi=0.0
+  endif
+
+!--If PVDG defined in EOS GAS, the viscosities are extracted via table lookup--
+
+  call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
+                       auxvar%pres(gid),auxvar%den(gid),visg,ierr,&
+                       auxvar%table_idx)
+
+!--If PVDS defined in EOS SLV, the viscosities are extracted via table lookup--
+
+  call EOSSlvViscosity(auxvar%temp,auxvar%pres(sid), &
+                       viss,ierr,&
+                       auxvar%table_idx)
+
+!-------------------------------------------------------------------------------
+!  Form the Todd-Longstaff rel perms
+!-------------------------------------------------------------------------------
+
+  call TL4PRelativePermeabilities( so,sg,sw,ss,sv,sh,fm, &
+                                   swcr,sgcr,sowcr,sogcr,swco, &
+                                   kroi,krgi,krsi, &
+                                   krom,krgm,krsm, &
+                                   kro ,krg ,krs  )
+
+!--Form the Todd-Longstaff viscosities-----------------------------------------
+
+  call TL4PViscosity(so,sg,ss,viso,visg,viss,visotl,visgtl,visstl)
+
+!--Form the Todd-Longstaff densities (for Darcy flow only)---------------------
+
+  deno=auxvar%den_kg(oid)
+  deng=auxvar%den_kg(gid)
+  dens=auxvar%den_kg(sid)
+
+  call TL4PDensity( so,sg,ss,                            &
+                    viso,visg,viss,visotl,visgtl,visstl, &
+                    deno,deng,dens,denotl,dengtl,denstl )
+
+!------------------------------------------------------------------------------
+!  Make and load mobilities
+!------------------------------------------------------------------------------
+
+  auxvar%mobility(oid) = kro/visotl
+  auxvar%mobility(gid) = krg/visgtl
+  auxvar%mobility(sid) = krs/visstl
+
+!------------------------------------------------------------------------------
+!  Load densities
+!------------------------------------------------------------------------------
+
+  auxvar%den_kg(oid)=denotl
+  auxvar%den_kg(gid)=dengtl
+  auxvar%den_kg(sid)=denstl
+
+end subroutine TL4PAuxVarCompute
+
 
 ! ************************************************************************** !
 
@@ -940,7 +1495,19 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dummy,dummy2,deno,deng
   !PetscReal :: Uoil_J_kg, Hoil_J_kg
   PetscErrorCode :: ierr
-  PetscReal :: krotl=0.0,krgtl=0.0,viscotl=0.0,viscgtl=0.0,denotl=0.0,dengtl=0.0
+  PetscReal :: krotl,krgtl,viscotl,viscgtl,denotl,dengtl
+
+!--Initialise-----------------------------------------------------------------
+
+  krotl  =0.0
+  krgtl  =0.0
+
+  viscotl=0.0
+  viscgtl=0.0
+
+  denotl =0.0
+  dengtl =0.0
+
 !--Get phase pointers for water,oil and gas-----------------------------------
 
   ! from SubsurfaceSetFlowMode
@@ -1277,8 +1844,7 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
   PetscReal,intent(out):: denotl,dengtl
   PetscReal            :: tlomegac,viscginv,viscotlinv,viscgtlinv &
                          ,m,mooe,moge,mqp,mooeqp,mogeqp,mqpm,mqpm1,mqpm1inv &
-                         ,fo_oe,fo_ge,fg_oe,fg_ge &
-                         ,denm
+                         ,fo_oe,fo_ge,fg_oe,fg_ge,denm
 
 !--Set up complement of omega--------------------------------------------------
 
@@ -1321,7 +1887,7 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
 
     mqpm1=mqp-1.0
 
-    mqpm1inv=0.0;
+    mqpm1inv=0.0
     if( abs(mqpm1)>0.0 ) then
       mqpm1inv=1.0/mqpm1
     endif
@@ -1352,8 +1918,6 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
   endif
 
 end subroutine vToddLongstaffDensity
-
-! ************************************************************************** !
 
 subroutine TOWGImsTLAuxVarPerturb(auxvar,global_auxvar, &
                                   material_auxvar, &
@@ -1524,6 +2088,128 @@ end subroutine TOWGBlackOilAuxVarPerturb
 
 ! ************************************************************************** !
 
+subroutine TL4PAuxVarPerturb(auxvar,global_auxvar, &
+                             material_auxvar, &
+                             characteristic_curves,natural_id, &
+                             option)
+!------------------------------------------------------------------------------
+! Set up auxillary variables for perturbed system
+! Used in TOWG_SOLVENT_TL
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Apr 2018
+!------------------------------------------------------------------------------
+
+  use Option_module
+  use Characteristic_Curves_module
+  use Global_Aux_module
+  use Material_Aux_class
+
+  implicit none
+
+  type(option_type) :: option
+  PetscInt :: natural_id
+  type(auxvar_towg_type) :: auxvar(0:)
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  class(characteristic_curves_type) :: characteristic_curves
+
+  PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), &
+               pert(option%nflowdof), x_pert_save(option%nflowdof)
+
+  PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: tempreal
+  PetscReal, parameter :: perturbation_tolerance = 1.d-8
+  PetscReal, parameter :: min_perturbation = 1.d-10
+  PetscInt :: idof,saturated_state
+  PetscBool::isSaturated
+
+!--Look at the state and set saturated oil flag--------------------------------
+
+  saturated_state=global_auxvar%istate
+  if( saturated_state==TOWG_THREE_PHASE_STATE ) then
+    isSaturated=.true.
+  else
+    isSaturated=.false.
+  endif
+
+!--Set up perturbed solution---------------------------------------------------
+
+! Oil pressure
+  x(TOWG_OIL_PRESSURE_DOF) = auxvar(ZERO_INTEGER)%pres(option%oil_phase)
+
+! Oil satn
+  x(TOWG_OIL_SATURATION_DOF) = auxvar(ZERO_INTEGER)%sat(option%oil_phase)
+
+! Gas saturation or bubble point
+  if( isSaturated ) then
+    x(TOWG_GAS_SATURATION_3PH_DOF) = auxvar(ZERO_INTEGER)%sat(option%gas_phase)
+  else
+    x(TOWG_BUBBLE_POINT_3PH_DOF  ) = auxvar(ZERO_INTEGER)%bo%bubble_point
+  endif
+
+! Solvent saturation
+  x(TOWG_SOLV_SATURATION_DOF) =  auxvar(ZERO_INTEGER)%sat(option%solvent_phase)
+
+! TL4P energy location
+  x(TOWG_SOLV_TL_ENERGY_DOF) = auxvar(ZERO_INTEGER)%temp
+
+!--Now the actual perturbation-------------------------------------------------
+
+! Oil pressure
+  pert(TOWG_OIL_PRESSURE_DOF) = &
+    perturbation_tolerance*x(TOWG_OIL_PRESSURE_DOF)+min_perturbation
+
+! Oil saturation
+  if (x(TOWG_OIL_SATURATION_DOF) > 0.5d0) then
+    pert(TOWG_OIL_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+  else
+    pert(TOWG_OIL_SATURATION_DOF) = perturbation_tolerance
+  endif
+
+! Gas saturation or bubble point
+  if( isSaturated ) then
+    if (x(TOWG_GAS_SATURATION_3PH_DOF) > 0.5d0) then
+      pert(TOWG_GAS_SATURATION_3PH_DOF) = -1.d0 * perturbation_tolerance
+    else
+      pert(TOWG_GAS_SATURATION_3PH_DOF) = perturbation_tolerance
+    endif
+  else
+    pert(TOWG_BUBBLE_POINT_3PH_DOF) = &
+    perturbation_tolerance*x(TOWG_BUBBLE_POINT_3PH_DOF)+min_perturbation
+  endif
+
+! Solvent saturation
+  if (x(TOWG_SOLV_SATURATION_DOF) > 0.5d0) then
+    pert(TOWG_SOLV_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+  else
+    pert(TOWG_SOLV_SATURATION_DOF) = perturbation_tolerance
+  endif
+
+! TL4P energy location
+  pert(TOWG_SOLV_TL_ENERGY_DOF) = &
+    perturbation_tolerance*x(TOWG_SOLV_TL_ENERGY_DOF)+min_perturbation
+
+!--TOWG_UPDATE_FOR_DERIVATIVE indicates call from perturbation-----------------
+
+  option%iflag = TOWG_UPDATE_FOR_DERIVATIVE
+  do idof = 1, option%nflowdof
+    auxvar(idof)%pert = pert(idof)
+    x_pert = x
+    x_pert(idof) = x(idof) + pert(idof)
+    x_pert_save = x_pert
+    call TOWGAuxVarCompute(x_pert,auxvar(idof),global_auxvar, &
+                           material_auxvar, &
+                           characteristic_curves,natural_id,option)
+  enddo
+
+  auxvar(TOWG_OIL_PRESSURE_DOF)%pert = &
+     auxvar(TOWG_OIL_PRESSURE_DOF)%pert / towg_pressure_scale
+
+end subroutine TL4PAuxVarPerturb
+
+! ************************************************************************** !
+
 subroutine TOWGImsAuxVarComputeSetup()
 
   implicit none
@@ -1551,6 +2237,25 @@ subroutine TOWGBlackOilAuxVarComputeSetup()
   TOWGAuxVarPerturb => TOWGBlackOilAuxVarPerturb
 
 end subroutine TOWGBlackOilAuxVarComputeSetup
+
+! ************************************************************************** !
+
+subroutine TL4PAuxVarComputeSetup()
+
+!------------------------------------------------------------------------------
+! Used in TOWG_SOLVENT_TL, set function pointers to required routines to
+! do auxillary variable main setup and perturbation calculation
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Apr 2018
+!------------------------------------------------------------------------------
+
+  implicit none
+
+  TOWGAuxVarCompute => TL4PAuxVarCompute
+  TOWGAuxVarPerturb => TL4PAuxVarPerturb
+
+end subroutine TL4PAuxVarComputeSetup
 
 ! ************************************************************************** !
 
@@ -1681,6 +2386,469 @@ subroutine TOWGAuxVarArray2Strip(auxvars)
   enddo
 
 end subroutine TOWGAuxVarArray2Strip
+
+subroutine TL4PMiscibilityFraction(sg,ss,fm)
+
+!------------------------------------------------------------------------------
+! Set up the TL miscibility fraction
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Apr 2018
+!------------------------------------------------------------------------------
+
+  implicit none
+
+  PetscReal,intent(in ) :: sg,ss
+  PetscReal,intent(out) :: fm
+  PetscReal             :: svi,fs,sv,dfmdfs
+
+  fm    =0.0
+  dfmdfs=0.0
+
+  sv=sg+ss
+  if( sv>0.0 ) then
+    svi=1.0/sv
+    fs=ss*svi
+    call TL4PMiscibilityFractionFromSaturationFraction(fs,fm,dfmdfs)
+  endif
+
+end subroutine TL4PMiscibilityFraction
+
+! ************************************************************************** !
+
+subroutine TL4PRelativePermeabilities( so  ,sg  ,sw   ,ss   ,sv  ,sh, fm , &
+                                       swcr,sgcr,sowcr,sogcr,swco, &
+                                       kroi,krgi,krsi, &
+                                       krom,krgm,krsm, &
+                                       kro ,krg ,krs  )
+
+!------------------------------------------------------------------------------
+! Set up the interpolated TL4P relative permeabilities
+! Used in TOWG_BLACK_OIL and TOWG_SOLVENT_TL
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Apr 2018
+!------------------------------------------------------------------------------
+
+  implicit none
+
+  PetscReal,intent(in ) :: so  ,sg  ,sw   ,ss   ,sv  ,sh,fm 
+  PetscReal,intent(in ) :: swcr,sgcr,sowcr,sogcr,swco
+  PetscReal,intent(in ) :: kroi,krgi,krsi
+  PetscReal,intent(in ) :: krom,krgm,krsm
+  PetscReal,intent(out) :: kro ,krg ,krs
+
+  PetscReal svi,fs,fi
+
+  kro=0.0
+  krg=0.0
+  krs=0.0
+
+!--Form new mixed results and derivatives--------------------------------------
+
+  fi=1.0-fm
+
+  kro=fm*krom+fi*kroi
+  krg=fm*krgm+fi*krgi
+  krs=fm*krsm+fi*krsi
+
+end subroutine TL4PRelativePermeabilities
+
+! ************************************************************************** !
+
+subroutine TL4PViscosity( so   ,sg   ,ss   , &
+                           visco,viscg,viscs, &
+                           viscotl,viscgtl,viscstl)
+
+!------------------------------------------------------------------------------
+! Set up the interpolated TL4P viscosities
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Apr 2018
+!------------------------------------------------------------------------------
+
+  implicit none
+
+  PetscReal,intent(in ) :: so     ,sg     ,ss
+  PetscReal,intent(in ) :: visco  ,viscg  ,viscs
+  PetscReal,intent(out) :: viscotl,viscgtl,viscstl
+  PetscReal             :: viscom ,viscgm ,viscsm
+  PetscReal             :: viscoimw,viscgimw,viscsimw
+  PetscReal             :: sos,sosi
+  PetscReal             :: sgs,sgsi
+  PetscReal             :: sh ,shi
+  PetscReal             :: voqp,vgqp,vsqp
+  PetscReal             :: denos ,dengs ,denogs
+  PetscReal             :: denosi,dengsi,denogsi
+  PetscReal             :: tlomegac
+  PetscReal             :: viscom_w,viscgm_w,viscsm_w
+  PetscReal             :: visco_wc,viscg_wc,viscs_wc
+
+!--Set up complement of the Todd Longstaff omega-------------------------------
+
+  tlomegac=1.0-val_tl_omega
+
+!--Saturation sums-------------------------------------------------------------
+
+  sos=so+ss
+  sosi=0.0
+  if( sos>0.0 ) sosi=1.0/sos
+
+  sgs=sg+ss
+  sgsi=0.0
+  if( sgs>0.0 ) sgsi=1.0/sgs
+
+  sh=so+sg+ss
+  shi=0.0
+  if( sh>0.0  ) shi=1.0/sh
+
+!--Use quarter-power mixing rule-----------------------------------------------
+
+  voqp=visco**0.25
+  vgqp=viscg**0.25
+  vsqp=viscs**0.25
+
+  if( sosi>0.0 ) then
+    denos= so*sosi*vsqp &
+          +ss*sosi*voqp
+  else
+    denos= 0.5*(vsqp+voqp)
+  endif
+
+  if( sgsi>0.0 ) then
+    dengs= sg*sgsi*vsqp &
+          +ss*sgsi*vgqp
+  else
+    dengs= 0.5*(vsqp+vgqp)
+  endif
+
+  if( shi>0.0 ) then
+    denogs = so*shi*vgqp*vsqp &
+            +sg*shi*vsqp*voqp &
+            +ss*shi*voqp*vgqp
+  else
+    denogs =( vgqp*vsqp &
+             +vsqp*voqp &
+             +voqp*vgqp )/3.0
+  endif
+
+  denos =denos **4.0
+  dengs =dengs **4.0
+  denogs=denogs**4.0
+
+  denosi =0.0
+  if( denos >0.0 ) denosi =1.0/denos
+
+  dengsi =0.0
+  if( dengs >0.0 ) dengsi =1.0/dengs
+
+  denogsi=0.0
+  if( denogs>0.0 ) denogsi=1.0/denogs
+
+!--Construct mixed forms-------------------------------------------------------
+
+  viscom=visco      *viscs*denosi
+  viscgm=viscg      *viscs*dengsi
+  viscsm=visco*viscg*viscs*denogsi
+
+!--Construct mixed forms to power omega----------------------------------------
+
+  viscom_w=viscom**val_tl_omega
+  viscgm_w=viscgm**val_tl_omega
+  viscsm_w=viscsm**val_tl_omega
+
+!--Construct original forms to power omega-------------------------------------
+
+  visco_wc=visco**tlomegac
+  viscg_wc=viscg**tlomegac
+  viscs_wc=viscs**tlomegac
+
+!--Combine---------------------------------------------------------------------
+
+  viscotl=viscom_w*visco_wc
+  viscgtl=viscgm_w*viscg_wc
+  viscstl=viscsm_w*viscs_wc
+
+end subroutine TL4PViscosity
+
+! ************************************************************************** !
+
+subroutine TL4PDensity( so    ,sg    ,ss    , &
+                        viso  ,visg  ,viss  , &
+                        visotl,visgtl,visstl, &
+                        deno  ,deng  ,dens  , &
+                        denotl,dengtl,denstl )
+
+!------------------------------------------------------------------------------
+! Set up the interpolated TL4P gravity densities
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Apr 2018
+!------------------------------------------------------------------------------
+
+  implicit none
+
+  PetscReal,intent(in ) :: so    ,sg    ,ss
+  PetscReal,intent(in ) :: viso  ,visg  ,viss
+  PetscReal,intent(in ) :: visotl,visgtl,visstl
+  PetscReal,intent(in ) :: deno  ,deng  ,dens
+  PetscReal,intent(out) :: denotl,dengtl,denstl
+  PetscReal             :: tlomega,tlomegac,sh,shi,fo,fg,fs,denm,sog,sogi,go,gg
+  PetscReal             :: visoqp,visgqp,d,d4,d4i,visog,denog,denmo,denmg,denms
+
+!--Initialise------------------------------------------------------------------
+
+  visoqp=0.0
+  visgqp=0.0
+
+!--Set up complement of the Todd Longstaff omega and hydrocarbon saturation----
+
+  tlomega =    val_tl_omega
+  tlomegac=1.0-val_tl_omega
+
+  sh=so+sg+ss
+
+!--Form the hydrocarbon saturation fractions-----------------------------------
+
+  if( sh>0.0 ) then
+
+    shi=1.0/sh
+
+    fo=so*shi
+    fg=sg*shi
+    fs=ss*shi
+
+  else
+
+    fo=1.0/3.0
+    fg=1.0/3.0
+    fs=1.0/3.0
+
+  endif
+
+!--Form the default mixed density----------------------------------------------
+
+  denm= fo*deno &
+       +fg*deng &
+       +fs*dens
+  denmo=denm
+  denmg=denm
+  denms=denm
+
+!--Omega-dependent mixing to final density-------------------------------------
+
+  denotl=tlomegac*deno+tlomega*denm
+  dengtl=tlomegac*deng+tlomega*denm
+  denstl=tlomegac*dens+tlomega*denm
+
+!--Now the main calculation: start with forming an oil-gas viscosity estimate--
+
+  sog=so+sg
+  if( sog>0.0 ) then
+    sogi=1.0/sog
+    go=so*sogi
+    gg=sg*sogi
+  else
+    go=0.5
+    gg=0.5
+  endif
+
+  denog=go*deno+gg*deng
+
+!--Form the quarter-powers of the two viscosities (unless zero value is OK)----
+
+  if( viso>0.0 ) visoqp=viso**0.25
+  if( visg>0.0 ) visgqp=visg**0.25
+
+!--Form 1/4 power combination (note indices to get inverses)---------------- --
+
+  d=go*visgqp+gg*visoqp
+  d4=d**4.0
+  if( d4>0.0 ) d4i=1.0/d4
+
+! Form value
+  visog=viso*visg*d4i
+
+!--Now form the viscosity-weighted values--------------------------------------
+
+  call formMixedDen2(viso,viss ,visotl,deno,dens ,denotl)
+  call formMixedDen2(visg,viss ,visgtl,deng,dens ,dengtl)
+  call formMixedDen2(viss,visog,visstl,dens,denog,denstl)
+
+end subroutine TL4PDensity
+
+! ************************************************************************** !
+
+subroutine TL4PMiscibilityFractionFromSaturationFraction(fs,fm,dfmdfs)
+
+!------------------------------------------------------------------------------
+! Obtain the miscibility fraction from the solvent in vapour fraction
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Apr 2018
+!------------------------------------------------------------------------------
+
+  implicit none
+
+  PetscReal,intent(in) ::fs
+  PetscReal,intent(out)::fm
+  PetscReal,intent(out)::dfmdfs
+  PetscReal::den,deni
+
+!--Default to straight line----------------------------------------------------
+
+  fm    =fs
+  dfmdfs=1.0
+
+!--Check for special cases or ramp function------------------------------------
+
+  if( fmis_is_zero ) then
+    fm    =0.0
+    dfmdfs=0.0
+  else if( fmis_is_unity ) then
+    fm    =1.0
+    dfmdfs=0.0
+  else
+    if( fs<=fmis_sl ) then
+      fm    =0.0d0
+      dfmdfs=0.0
+    else if( fs>=fmis_su ) then
+      fm    =1.0d0
+      dfmdfs=0.0
+    else
+      den=fmis_su-fmis_sl
+      deni=0.0
+      if( abs(den)>0.0 ) deni=1.0/(fmis_su-fmis_sl)
+      fm    =(fs-fmis_sl)*deni
+      dfmdfs=deni
+    endif
+  endif
+
+end subroutine TL4PMiscibilityFractionFromSaturationFraction
+
+! ************************************************************************** !
+
+subroutine TL4PScaleCriticals(sgcr,sogcr,fm,soil,svap,uoil,uvap)
+
+!------------------------------------------------------------------------------
+! Obtain lookup args modified for scaling (to be used against unscaled data)
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Apr 2018
+!------------------------------------------------------------------------------
+
+  implicit none
+
+  PetscReal,intent(in ) :: sgcr,sogcr,fm,soil,svap
+  PetscReal,intent(out) :: uoil,uvap
+  PetscReal             :: ugcr,uogcr,fi
+
+  fi=1.0-fm
+
+  ugcr =fi*sgcr
+  uogcr=fi*sogcr
+
+  call TL4PScaleLookupSaturation(sgcr ,ugcr ,svap,uvap)
+  call TL4PScaleLookupSaturation(sogcr,uogcr,soil,uoil)
+
+end subroutine TL4PScaleCriticals
+
+! ************************************************************************** !
+
+subroutine TL4PScaleLookupSaturation(sl,ul,s,u)
+
+!------------------------------------------------------------------------------
+! Transform a true saturation to a value to be used with unscaled data
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Apr 2018
+!------------------------------------------------------------------------------
+
+  implicit none
+
+  PetscReal,intent(in ) :: sl,ul,s
+  PetscReal,intent(out) :: u
+  PetscReal             :: slc
+  PetscReal             :: sli,slci
+
+!--Form safe inverses----------------------------------------------------------
+
+  sli=0.0
+  if( sl>0.0 ) sli=1.0/sl
+
+  slc=1.0-sl
+
+  slci=0.0
+  if( slc>0.0 ) slci=1.0/slc
+
+  if( s<=sl ) then
+! First interval: scale by ul/sl so s=sl maps to ul
+    u=s*ul*sli
+  else
+! Second interval: scale so that s=sl maps to ul, s=1 maps to 1
+    u=ul+(s-sl)*(1.0-ul)*slci
+  endif
+
+end subroutine TL4PScaleLookupSaturation
+
+! ************************************************************************** !
+
+subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl)
+
+!------------------------------------------------------------------------------
+! Obtain interpolated Todd-Longstaff density to match Todd-Longstaff viscosity
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Apr 2018
+!------------------------------------------------------------------------------
+
+  implicit none
+
+  PetscReal,intent(in)   :: visa,visb,visatl,dena,denb
+  PetscReal,intent(inout):: denatl
+  PetscReal              :: visbi,visatli
+  PetscReal              :: m,me,mqp,meqp,mqpm1,mqpm1i
+  PetscReal              :: fa,fb
+
+!--Form the viscosity ratio and check that it is not unity---------------------
+
+  visbi=0.0
+  if( visb  >0.0 ) visbi=1.0/visb
+
+  visatli=0.0
+  if( visatl>0.0 ) visatli=1.0/visatl
+
+  m=visa*visbi
+  if( (m.ne.1.0) .and. (visatl>0.0) ) then
+
+! Build the interpolation coefficient, fa
+
+    me=visa*visatli
+
+    mqp =M**0.25
+    meqp=Me**0.25
+
+    mqpm1=mqp-1.0
+
+    mqpm1i=0.0
+    if( abs(mqpm1)>0.0 ) mqpm1i=1.0/mqpm1
+
+    fa=(mqp-meqp)*mqpm1i
+
+! Check for limiting to (0,1)
+
+    if( fa<0.0 ) fa=0.0
+    if( fa>1.0 ) fa=1.0
+
+    fb=1.0-fa
+
+! Construct output density and over-write existing default value
+
+    denatl=dena*fa+denb*fb
+
+  endif
+
+end subroutine formMixedDen2
 
 ! ************************************************************************** !
 

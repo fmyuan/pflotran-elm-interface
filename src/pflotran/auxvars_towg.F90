@@ -97,8 +97,8 @@ end subroutine InitTL
 subroutine InitBO(this,option)
 
 !------------------------------------------------------------------------------
-! Used in TOWG_BLACK_OIL, initialises the bo sub-structure of auxvars
-! Contains the bubble point, the oil mole fractions and the saturated oil flag
+! Used in TOWG_BLACK_OIL and TOWG_SOLVENT_TL, initialises the bo sub-structure
+! of auxvars. Contains the bubble point and the oil mole fractions.
 !------------------------------------------------------------------------------
 ! Author: Dave Ponting
 ! Date  : Sep 2017
@@ -113,9 +113,9 @@ subroutine InitBO(this,option)
 
   allocate(this%bo)
 
-  this%bo%bubble_point   = 0.0
-  this%bo%xg             = 0.0
-  this%bo%xo             = 0.0
+  this%bo%bubble_point=0.0
+  this%bo%xg          =0.0
+  this%bo%xo          =0.0
 
 end subroutine InitBO
 
@@ -168,7 +168,8 @@ end subroutine StripTL
 subroutine StripBO(this)
 
 !------------------------------------------------------------------------------
-! Used in TOWG_BLACK_OIL, de-allocate the bo sub-structure of auxvars
+! Used in TOWG_BLACK_OIL and TOWG_SOLVENT_TL.
+! Deallocate the bo sub-structure of auxvars
 !------------------------------------------------------------------------------
 ! Author: Dave Ponting
 ! Date  : Sep 2017
