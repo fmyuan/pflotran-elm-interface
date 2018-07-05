@@ -41,7 +41,7 @@ module WIPP_Flow_Aux_module
   PetscBool, public :: wippflo_debug_ts_update = PETSC_FALSE
   PetscBool, public :: wippflo_debug_gas_generation = PETSC_FALSE
   PetscBool, public :: wippflo_debug_first_iteration = PETSC_FALSE
-  PetscBool, public :: wippflo_use_bragflo_flux = PETSC_FALSE
+  PetscBool, public :: wippflo_use_lumped_harm_flux = PETSC_TRUE
   PetscBool, public :: wippflo_fix_upwind_direction = PETSC_TRUE
   PetscBool, public :: wippflo_update_upwind_direction = PETSC_FALSE
   PetscBool, public :: wippflo_count_upwind_dir_flip = PETSC_FALSE

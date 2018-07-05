@@ -98,8 +98,8 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   ! process command line arguments specific to subsurface
   call SubsurfInitCommandLineSettings(option)
 
-  call ExtractPMsFromPMList(simulation, pm_flow, pm_rt, pm_waste_form, &
-         pm_ufd_decay, pm_ufd_biosphere, pm_auxiliary)
+  call ExtractPMsFromPMList(simulation,pm_flow,pm_rt,pm_waste_form,&
+                            pm_ufd_decay,pm_ufd_biosphere,pm_auxiliary)
 
   call SubsurfaceSetFlowMode(pm_flow,option)
 
@@ -123,8 +123,8 @@ end subroutine SubsurfaceInitializePostPetsc
 
 ! ************************************************************************** !
 
-subroutine ExtractPMsFromPMList(simulation, pm_flow, pm_rt, pm_waste_form, &
-         pm_ufd_decay, pm_ufd_biosphere, pm_auxiliary)
+subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_rt,pm_waste_form,&
+                                pm_ufd_decay,pm_ufd_biosphere,pm_auxiliary)
   !
   ! Extracts all possible PMs from the PM list
   !
@@ -199,8 +199,9 @@ end subroutine ExtractPMsFromPMList
 
 ! ************************************************************************** !
 
-subroutine SetupPMCLinkages(simulation, pm_flow, pm_rt, pm_waste_form, &
-    pm_ufd_decay, pm_ufd_biosphere, pm_auxiliary, realization)
+subroutine SetupPMCLinkages(simulation,pm_flow,pm_rt,pm_waste_form,&
+                            pm_ufd_decay,pm_ufd_biosphere,pm_auxiliary, &
+                            realization)
   !
   ! Sets up all PMC linkages
   !
@@ -236,28 +237,31 @@ subroutine SetupPMCLinkages(simulation, pm_flow, pm_rt, pm_waste_form, &
   option => simulation%option
 
   if (associated(pm_flow)) &
-    call AddPMCSubsurfaceFlow(simulation, pm_flow, 'PMCSubsurfaceFlow', realization, option)
+    call AddPMCSubsurfaceFlow(simulation,pm_flow,'PMCSubsurfaceFlow', &
+                              realization,option)
 
   if (associated(pm_rt))   &
-    call AddPMCSubsurfaceRT(simulation, pm_rt,'PMCSubsurfaceTransport', realization, option)
+    call AddPMCSubsurfaceRT(simulation,pm_rt,'PMCSubsurfaceTransport', &
+                            realization,option)
 
   input => InputCreate(IN_UNIT,option%input_filename,option)
   call SubsurfaceReadRequiredCards(simulation,input)
   call SubsurfaceReadInput(simulation,input)
 
   if (associated(pm_waste_form)) &
-       call AddPMCWasteForm(simulation, pm_waste_form, 'WASTE_FORM_GENERAL', &
-       associated(pm_ufd_decay), realization, input, option)
+    call AddPMCWasteForm(simulation,pm_waste_form,'WASTE_FORM_GENERAL',&
+                         associated(pm_ufd_decay),realization,input,option)
 
   if (associated(pm_ufd_decay)) &
-    call AddPMCUDFDecay(simulation, pm_ufd_decay, 'UFD_DECAY', realization, input, option)
+    call AddPMCUDFDecay(simulation,pm_ufd_decay,'UFD_DECAY',realization, &
+                        input,option)
 
   if (associated(pm_ufd_biosphere)) &
-       call AddPMCUDFBiosphere(simulation, pm_ufd_biosphere, 'UFD_BIOSPHERE', &
-       associated(pm_ufd_decay), realization, input, option)
+    call AddPMCUDFBiosphere(simulation,pm_ufd_biosphere,'UFD_BIOSPHERE',&
+                            associated(pm_ufd_decay),realization,input,option)
 
   if (associated(pm_auxiliary)) &
-    call AddPMCAuxiliary(simulation, pm_auxiliary,'SALINITY', realization, option)
+    call AddPMCAuxiliary(simulation,pm_auxiliary,'SALINITY',realization,option)
 
   call InputDestroy(input)
 
@@ -265,8 +269,7 @@ end subroutine SetupPMCLinkages
 
 ! ************************************************************************** !
 
-subroutine AddPMCSubsurfaceFlow(simulation, pm_flow, pmc_name, &
-  realization, option)
+subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
 
   !
   ! Adds a subsurface flow PMC
@@ -314,8 +317,7 @@ end subroutine AddPMCSubsurfaceFlow
 
 ! ************************************************************************** !
 
-subroutine AddPMCSubsurfaceRT(simulation, pm_rt, pmc_name, &
-  realization, option)
+subroutine AddPMCSubsurfaceRT(simulation,pm_rt,pmc_name,realization,option)
 
   !
   ! Adds a subsurface reactive transport PMC
@@ -372,8 +374,8 @@ end subroutine AddPMCSubsurfaceRT
 
 ! ************************************************************************** !
 
-subroutine AddPMCWasteForm(simulation, pm_waste_form, pmc_name, &
-  pm_ufd_decay_present, realization, input, option)
+subroutine AddPMCWasteForm(simulation,pm_waste_form,pmc_name,&
+                           pm_ufd_decay_present,realization,input,option)
 
   !
   ! Adds a waste form PMC
@@ -444,15 +446,15 @@ subroutine AddPMCWasteForm(simulation, pm_waste_form, pmc_name, &
   string = 'WASTE_FORM_GENERAL'
   call LoggingCreateStage(string,pmc_waste_form%stage)
   call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_waste_form),PM_CHILD, &
-       PMCCastToBase(simulation%rt_process_model_coupler), &
-       pmc_dummy,PM_APPEND)
+         PMCCastToBase(simulation%rt_process_model_coupler), &
+         pmc_dummy,PM_APPEND)
 
 end subroutine AddPMCWasteForm
 
 ! ************************************************************************** !
 
-subroutine AddPMCUDFDecay(simulation, pm_ufd_decay, pmc_name, &
-  realization, input, option)
+subroutine AddPMCUDFDecay(simulation,pm_ufd_decay,pmc_name,&
+                          realization,input,option)
 
   !
   ! Adds a UFD decay PMC
@@ -509,15 +511,15 @@ subroutine AddPMCUDFDecay(simulation, pm_ufd_decay, pmc_name, &
   string = 'UFD_DECAY'
   call LoggingCreateStage(string,pmc_ufd_decay%stage)
   call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_ufd_decay),PM_CHILD, &
-       PMCCastToBase(simulation%rt_process_model_coupler), &
-       pmc_dummy,PM_APPEND)
+         PMCCastToBase(simulation%rt_process_model_coupler), &
+         pmc_dummy,PM_APPEND)
 
 end subroutine AddPMCUDFDecay
 
 ! ************************************************************************** !
 
-subroutine AddPMCUDFBiosphere(simulation, pm_ufd_biosphere, pmc_name, &
-  pm_ufd_decay_present, realization, input, option)
+subroutine AddPMCUDFBiosphere(simulation,pm_ufd_biosphere,pmc_name,&
+                              pm_ufd_decay_present,realization,input,option)
 
   !
   ! Adds a UFD biosphere PMC
@@ -579,15 +581,15 @@ subroutine AddPMCUDFBiosphere(simulation, pm_ufd_biosphere, pmc_name, &
   string = 'UFD_BIOSPHERE'
   call LoggingCreateStage(string,pmc_ufd_biosphere%stage)
   call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_ufd_biosphere),PM_CHILD, &
-       PMCCastToBase(simulation%rt_process_model_coupler), &
-       pmc_dummy,PM_APPEND)
+         PMCCastToBase(simulation%rt_process_model_coupler), &
+         pmc_dummy,PM_APPEND)
 
 end subroutine AddPMCUDFBiosphere
 
 ! ************************************************************************** !
 
-subroutine AddPMCAuxiliary(simulation, pm_auxiliary, pmc_name, &
-  realization, option)
+subroutine AddPMCAuxiliary(simulation,pm_auxiliary,pmc_name, &
+                           realization,option)
 
   !
   ! Adds an auxiliary PMC
@@ -630,8 +632,8 @@ subroutine AddPMCAuxiliary(simulation, pm_auxiliary, pmc_name, &
       pmc_auxiliary%pm_list => pm_auxiliary
       pmc_auxiliary%pm_aux => pm_auxiliary
       call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_PEER, &
-           PMCCastToBase(simulation%rt_process_model_coupler), &
-           pmc_dummy,PM_APPEND)
+             PMCCastToBase(simulation%rt_process_model_coupler), &
+             pmc_dummy,PM_APPEND)
     else
       option%io_buffer = 'Reactive transport must be included in the &
            &SIMULATION block in order to use the SALINITY process model.'
@@ -768,10 +770,16 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%nphase = 2
       option%liquid_phase = 1           ! liquid_pressure
       option%oil_phase = 2              ! oil_pressure
-      allocate(option%phase_map(option%nphase))
+
       option%phase_map(1) = LIQUID_PHASE
       option%phase_map(2) = OIL_PHASE
-      !option%phase_map(3) = UNINITIALIZED_INTEGER ! no third phase
+
+! Check that MAX_PHASE is sufficiently large
+
+      if( option%nphase > MAX_PHASE ) then
+        option%io_buffer = 'ERROR: number of phases has exceeded MAX_PHASE'
+        call printMsg(option)
+      endif
 
       !option%capillary_pressure_id = 3  ! capillary pressure
 
@@ -791,10 +799,18 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%oil_phase = 2              ! oil_pressure
       option%gas_phase = 3              ! gas_pressure
       !option%solvent_phase = 4         ! solvent saturation
-      allocate(option%phase_map(option%nphase))
+
       option%phase_map(1) = LIQUID_PHASE
       option%phase_map(2) = OIL_PHASE
       option%phase_map(3) = GAS_PHASE
+
+! Check that MAX_PHASE is sufficiently large
+
+      if( option%nphase > MAX_PHASE ) then
+        option%io_buffer = 'ERROR: number of phases has exceeded MAX_PHASE'
+        call printMsg(option)
+      endif
+
       option%energy_id = towg_energy_eq_idx
       select case (towg_miscibility_model)
         case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
@@ -875,7 +891,7 @@ end subroutine SubsurfaceSetFlowMode
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadFlowPM(input, option, pm)
+subroutine SubsurfaceReadFlowPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -897,7 +913,6 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
   use PM_TH_class
   use PM_TOilIms_class
   use PM_TOWG_class
-  use PM_Bragflo_class
   use PM_Richards_TS_class
   use Init_Common_module
   use General_module
@@ -927,7 +942,7 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
         call StringToUpper(word)
         select case(word)
           case('GENERAL','TOIL_IMS','TOWG_IMMISCIBLE','TODD_LONGSTAFF', &
-               'TOWG_MISCIBLE','BLACK_OIL','SOLVENT_TL','WIPP_FLOW','BRAGFLO')
+               'TOWG_MISCIBLE','BLACK_OIL','SOLVENT_TL','WIPP_FLOW')
           ! In OptionFlowInitRealization(), numerical_derivatives is set to
           ! PETSC_FALSE, but the default for GENERAL needs to be PETSC_TRUE.
           ! This is will eventually affect all flow modes with numerical
@@ -938,10 +953,12 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
         select case(word)
           case('GENERAL')
             pm => PMGeneralCreate()
-          case('BRAGFLO')
-            pm => PMBragfloCreate()
           case('WIPP_FLOW')
             pm => PMWIPPFloCreate()
+          case('BRAGFLO')
+            option%io_buffer = 'BRAGFLO mode has been merged with WIPP_FLOW. &
+              &Please use WIPP_FLOW instead.'
+            call printErrMsg(option)
           case('MPHASE')
             pm => PMMphaseCreate()
           case('FLASH2')
@@ -990,7 +1007,7 @@ end subroutine SubsurfaceReadFlowPM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadRTPM(input, option, pm)
+subroutine SubsurfaceReadRTPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -1025,7 +1042,7 @@ end subroutine SubsurfaceReadRTPM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadWasteFormPM(input, option, pm)
+subroutine SubsurfaceReadWasteFormPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -1086,7 +1103,7 @@ end subroutine SubsurfaceReadWasteFormPM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadUFDDecayPM(input, option, pm)
+subroutine SubsurfaceReadUFDDecayPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -1130,7 +1147,7 @@ end subroutine SubsurfaceReadUFDDecayPM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadUFDBiospherePM(input, option, pm)
+subroutine SubsurfaceReadUFDBiospherePM(input,option,pm)
   !
   ! Author: Jenn Frederick
   ! Date: 03/13/2017
@@ -1464,11 +1481,11 @@ subroutine SubsurfaceSetupRealization(simulation)
 
   call PetscLogEventBegin(logging%event_setup,ierr);CHKERRQ(ierr)
 
+  ! process eos tables ready for evaluation
+  call EOSProcess(option)
+
   ! set reference densities if not specified in input file.
   call EOSReferenceDensity(option)
-
-  !process eos tables
-  call EOSProcess(option)
 
 
   ! read reaction database

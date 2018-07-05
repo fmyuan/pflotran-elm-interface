@@ -1113,12 +1113,12 @@ subroutine FlowConditionRead(condition,input,option)
       case('INTERPOLATION')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
-        call StringToLower(word)
+        call StringToUpper(word)
         select case(word)
-          case('step')
+          case('STEP')
             default_time_storage%time_interpolation_method = &
               INTERPOLATION_STEP
-          case('linear')
+          case('LINEAR')
             default_time_storage%time_interpolation_method = &
               INTERPOLATION_LINEAR
           case default
@@ -1856,12 +1856,12 @@ subroutine FlowConditionGeneralRead(condition,input,option)
       case('INTERPOLATION')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
-        call StringToLower(word)
+        call StringToUpper(word)
         select case(word)
-          case('step')
+          case('STEP')
             default_time_storage%time_interpolation_method = &
               INTERPOLATION_STEP
-          case('linear')
+          case('LINEAR')
             default_time_storage%time_interpolation_method = &
               INTERPOLATION_LINEAR
         end select
@@ -2035,8 +2035,13 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           case('RATE')
             input%force_units = PETSC_TRUE
             input%err_buf = word
-            internal_units = trim(rate_string) // ',' // trim(rate_string) //&
-                             ',MJ/sec|MW'
+            select case(option%iflowmode)
+              case(WF_MODE)
+                internal_units = trim(rate_string) // ',' // trim(rate_string)
+              case(G_MODE)
+                internal_units = trim(rate_string) // ',' // &
+                  trim(rate_string) // ',MJ/sec|MW'
+            end select
           case('LIQUID_FLUX','GAS_FLUX')
             internal_units = 'meter/sec'
           case('ENERGY_FLUX')
@@ -2369,12 +2374,12 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
       case('INTERPOLATION')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
-        call StringToLower(word)
+        call StringToUpper(word)
         select case(word)
-          case('step')
+          case('STEP')
             default_time_storage%time_interpolation_method = &
               INTERPOLATION_STEP
-          case('linear')
+          case('LINEAR')
             default_time_storage%time_interpolation_method = &
               INTERPOLATION_LINEAR
         end select
@@ -2974,12 +2979,12 @@ subroutine FlowConditionTOWGRead(condition,input,option)
       case('INTERPOLATION')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
-        call StringToLower(word)
+        call StringToUpper(word)
         select case(word)
-          case('step')
+          case('STEP')
             default_time_storage%time_interpolation_method = &
               INTERPOLATION_STEP
-          case('linear')
+          case('LINEAR')
             default_time_storage%time_interpolation_method = &
               INTERPOLATION_LINEAR
         end select

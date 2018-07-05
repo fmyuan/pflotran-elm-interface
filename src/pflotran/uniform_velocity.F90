@@ -126,11 +126,11 @@ subroutine UniformVelocityDatasetRead(dataset,input,option)
       case('INTERPOLATION')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'INTERPOLATION','VELOCITY_DATASET')   
-        call StringToLower(word)
+        call StringToUpper(word)
         select case(word)
-          case('step')
+          case('STEP')
             dataset%interpolation_method = STEP
-          case('linear') 
+          case('LINEAR') 
             dataset%interpolation_method = LINEAR
         end select
       case('VELOCITY')

@@ -40,6 +40,7 @@ module Solver_module
     PetscInt :: galerkin_mg_levels_x
     PetscInt :: galerkin_mg_levels_y
     PetscInt :: galerkin_mg_levels_z
+    PetscBool :: verbose_error_msg
 
     ! Jacobian matrix
     Mat :: J    ! Jacobian
@@ -84,7 +85,8 @@ module Solver_module
             SolverPrintNewtonInfo, &
             SolverPrintLinearInfo, &
             SolverCheckCommandLine, &
-            SolverLinearPrintFailedReason
+            SolverLinearPrintFailedReason, &
+            SolverNewtonPrintFailedReason
   
 contains
 
@@ -137,6 +139,8 @@ function SolverCreate()
   solver%galerkin_mg_levels_x = 1
   solver%galerkin_mg_levels_y = 1
   solver%galerkin_mg_levels_z = 1
+
+  solver%verbose_error_msg = PETSC_FALSE
   
   solver%J = PETSC_NULL_MAT
   solver%Jpre = PETSC_NULL_MAT
@@ -792,7 +796,31 @@ subroutine SolverReadLinear(solver,input,option)
                                   trim(string),trim(word),ierr);CHKERRQ(ierr)
 
       case ('CPR_OPTIONS')
-          call SolverCPRRead(solver%cprstash, input,option, ierr)
+        call SolverCPRRead(solver%cprstash, input,option, ierr)
+
+      case ('VERBOSE_ERROR_MESSAGING')
+        solver%verbose_error_msg = PETSC_TRUE 
+
+      case('GMRES_RESTART')
+        ! Equivalent to 
+        ! -[prefix]_ksp_gmres_restart x
+        ! on command line
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option, &
+                           'GMRES restart','LINEAR SOLVER')  
+        string = trim(prefix) // 'ksp_gmres_restart'
+        call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                  trim(string),trim(word), &
+                                  ierr);CHKERRQ(ierr)
+
+      case('GMRES_MODIFIED_GS')
+        ! Equivalent to 
+        ! -[prefix]_ksp_gmres_modifiedgramschmidt
+        ! on command line
+        string = trim(prefix) // 'ksp_gmres_modifiedgramschmidt'
+        word = ''
+        call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                  trim(string),trim(word),ierr);CHKERRQ(ierr)
 
       case default
         call InputKeywordUnrecognized(keyword,'LINEAR_SOLVER',option)
@@ -966,6 +994,9 @@ subroutine SolverReadNewton(solver,input,option)
             call printErrMsg(option)
         end select
         
+      case ('VERBOSE_ERROR_MESSAGING')
+        solver%verbose_error_msg = PETSC_TRUE 
+
       case default
         call InputKeywordUnrecognized(keyword,'NEWTON_SOLVER',option)
     end select 
@@ -1230,6 +1261,118 @@ end subroutine SolverCheckCommandLine
 
 ! ************************************************************************** !
 
+subroutine SolverNewtonPrintFailedReason(solver,option)    
+  ! 
+  ! Prints the reason for the solver failing
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/02/16
+  ! 
+  use Option_module
+
+  implicit none
+  
+  type(solver_type) :: solver
+  type(option_type) :: option
+
+  SNESConvergedReason :: snes_reason
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscReal :: abstol, rtol, stol, divtol
+  PetscInt :: maxit, maxf
+  PetscErrorCode :: ierr
+
+  call SNESGetConvergedReason(solver%snes,snes_reason,ierr);CHKERRQ(ierr)
+  call SNESGetTolerances(solver%snes,abstol,rtol,stol,maxit,maxf, &
+                         ierr);CHKERRQ(ierr)
+  select case(snes_reason)
+    case(SNES_DIVERGED_FUNCTION_DOMAIN)
+      if (solver%verbose_error_msg) then
+        error_string = 'The new solution location passed to the function &
+          &is not in the domain of F.'
+      else
+        error_string = 'SNES_DIVERGED_FUNCTION_DOMAIN'
+      endif
+    case(SNES_DIVERGED_FUNCTION_COUNT)
+      if (solver%verbose_error_msg) then
+        write(word,*) maxf
+        error_string = 'The user provided function has been called &
+          &more times than the final argument (' // trim(adjustl(word)) // &
+          ') in SNESSetTolerances().'
+      else
+        error_string = 'SNES_DIVERGED_FUNCTION_COUNT'
+      endif
+    case(SNES_DIVERGED_LINEAR_SOLVE)
+      if (solver%verbose_error_msg) then
+        error_string = 'The linear solver failed.'
+      else
+        error_string = 'SNES_DIVERGED_LINEAR_SOLVE'
+      endif
+    case(SNES_DIVERGED_FNORM_NAN)
+      if (solver%verbose_error_msg) then
+        error_string = 'The norm of the residual is &
+          &not a number (NaN). It is likely that the residual has NaNs &
+          &in it.  This could be caused by errors in boundary conditions, &
+          &using a constitutive relation evaluated outside prescribed &
+          &bounds or a bug.'
+      else
+        error_string = 'SNES_DIVERGED_FNORM_NAN'
+      endif
+    case(SNES_DIVERGED_MAX_IT)
+      if (solver%verbose_error_msg) then
+        write(word,*) maxit
+        error_string = 'The maximum number of Newton iterations (' // &
+        trim(adjustl(word)) // ') was reached.'
+      else
+        error_string = 'SNES_DIVERGED_MAX_IT'
+      endif
+    case(SNES_DIVERGED_LINE_SEARCH)
+      if (solver%verbose_error_msg) then
+        error_string = 'The line search failed.'
+      else
+        error_string = 'SNES_DIVERGED_LINE_SEARCH'
+      endif
+    case(SNES_DIVERGED_INNER)
+      if (solver%verbose_error_msg) then
+        error_string = 'The inner solver failed.'
+      else
+        error_string = 'SNES_DIVERGED_INNER'
+      endif
+    case(SNES_DIVERGED_LOCAL_MIN)
+      if (solver%verbose_error_msg) then
+        error_string = '|| J^T b || is small, implying convergence to a &
+          &local minimum of F().' 
+      else
+        error_string = 'SNES_DIVERGED_LOCAL_MIN'
+      endif
+    case(SNES_DIVERGED_DTOL)
+      if (solver%verbose_error_msg) then
+        call SNESGetDivergenceTolerance(solver%snes,divtol,ierr);CHKERRQ(ierr)
+        write(word,'(es12.4)') divtol
+        error_string = 'The nonlinear residual has diverged based on &
+          &||F|| > divtol*||F_initial||, where divtol = ' // &
+          trim(adjustl(word)) // '.'
+      else
+        error_string = 'SNES_DIVERGED_DTOL'
+      endif
+    case default
+      write(word,*) snes_reason 
+      error_string = 'Unknown(' // &
+        trim(adjustl(word)) // ').'
+  end select
+  option%io_buffer = 'Newton solver reason: ' // trim(error_string)
+  call printMsg(option)
+
+  ! print out subsequent information specific to each case
+  select case(snes_reason)
+    case(SNES_DIVERGED_LINEAR_SOLVE)
+      call SolverLinearPrintFailedReason(solver,option)    
+  end select
+
+end subroutine SolverNewtonPrintFailedReason
+
+! ************************************************************************** !
+
 subroutine SolverLinearPrintFailedReason(solver,option)    
   ! 
   ! Prints the reason for the solver failing
@@ -1253,109 +1396,172 @@ subroutine SolverLinearPrintFailedReason(solver,option)
   PetscInt :: first_sub_ksp
   KSPConvergedReason :: ksp_reason
   PCFailedReason :: pc_failed_reason, global_pc_failed_reason
+  character(len=MAXSTRINGLENGTH) :: error_string
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: zero_pivot_tol, zero_pivot
   character(len=MAXWORDLENGTH) :: word, word2
   PetscInt :: irow, temp_int
+  PetscReal :: rtol, abstol, dtol
+  PetscReal :: rnorm
+  PetscInt :: maxits
   PetscErrorCode :: ierr
 
   call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr);CHKERRQ(ierr)
+  call KSPGetTolerances(solver%ksp,rtol,abstol,dtol,maxits,ierr);CHKERRQ(ierr)
   select case(ksp_reason)
     case(KSP_DIVERGED_ITS)
-      option%io_buffer = ' -> KSPReason: Diverged due to iterations'
+      if (solver%verbose_error_msg) then
+        write(word,*) maxits
+        error_string = 'The linear solver took too many iterations, beyond &
+          &the allowable number set by maxits ('// trim(adjustl(word)) // ').'
+      else
+        error_string = 'KSP_DIVERGED_ITS'
+      endif
     case(KSP_DIVERGED_DTOL)
-      option%io_buffer = ' -> KSPReason: Diverged due to dtol'
+      if (solver%verbose_error_msg) then
+        call KSPGetResidualNorm(solver%ksp,rnorm,ierr);CHKERRQ(ierr)
+        write(word,'(es12.4)') rnorm
+        error_string = 'The linear solver diverged due to dtol based on &
+          &the equation: norm(r) >= dtol*norm(b) where r = b-Ax for the &
+          &linear system Ax=b within the Krylov solver. norm(r) = ' // &
+          trim(adjustl(word)) // ').'
+      else
+        error_string = 'KSP_DIVERGED_DTOL'
+      endif
     case(KSP_DIVERGED_BREAKDOWN)
-      option%io_buffer = ' -> KSPReason: Diverged due to breakdown'
+      if (solver%verbose_error_msg) then
+        error_string = 'A breakdown in the Krylov method was detected &
+          &so the method could not continue to enlarge the Krylov space. &
+          &Could be due to a singlular matrix or preconditioner.'
+      else
+        error_string = 'KSP_DIVERGED_BREAKDOWN'
+      endif
     case(KSP_DIVERGED_BREAKDOWN_BICG)
-      option%io_buffer = ' -> KSPReason: Diverged due to breakdown bicg'
+      if (solver%verbose_error_msg) then
+        error_string = 'A breakdown in the KSPBICG method was detected &
+          &so the method could not continue to enlarge the Krylov space.'
+      else
+        error_string = 'KSP_DIVERGED_BREAKDOWN_BICG'
+      endif
     case(KSP_DIVERGED_NONSYMMETRIC)
-      option%io_buffer = ' -> KSPReason: Diverged due to nonsymmetric'
+      if (solver%verbose_error_msg) then
+        ! must use '"' instead of "'" due to parentheses
+        error_string = "It appears the operator or preconditioner is not &
+          &symmetric and this Krylov method (KSPCG, KSPMINRES, KSPCR)&
+          &requires symmetry."
+      else
+        error_string = 'KSP_DIVERGED_NONSYMMETRIC'
+      endif
     case(KSP_DIVERGED_INDEFINITE_PC)
-      option%io_buffer = ' -> KSPReason: Diverged due to indefinite PC'
+      if (solver%verbose_error_msg) then
+        ! must use '"' instead of "'" due to parentheses
+        error_string = "It appears the preconditioner is indefinite (has &
+          &both positive and negative eigenvalues) and this Krylov method &
+          &(KSPCG) requires it to be positive definite. This can happen &
+          &with the PCICC preconditioner, use -pc_factor_shift_positive_&
+          &definite to force the PCICC preconditioner to generate a &
+          &positive definite preconditioner."
+      else
+        error_string = 'KSP_DIVERGED_INDEFINITE_PC'
+      endif
     case(KSP_DIVERGED_NANORINF)
-      option%io_buffer = ' -> KSPReason: Diverged due to NaN or Inf PC'
+      if (solver%verbose_error_msg) then
+        error_string = 'The linear solver produced a NaN (not a number) &
+          for Inf (infinite number) likely due to a divide by zero (0/0).'
+      else
+        error_string = 'KSP_DIVERGED_NANORINF'
+      endif
     case(KSP_DIVERGED_INDEFINITE_MAT)
-      option%io_buffer = ' -> KSPReason: Diverged due to indefinite matix'
+      if (solver%verbose_error_msg) then
+        error_string = 'The linear solver failed due to an indefinite matrix.'
+      else
+        error_string = 'KSP_DIVERGED_INDEFINITE_MAT'
+      endif
     case(KSP_DIVERGED_PCSETUP_FAILED)
-      option%io_buffer = ' -> KSPReason: Diverged due to PC setup failed'
-      pc = solver%pc
-      call PCGetType(pc,pc_type,ierr);CHKERRQ(ierr)
-      call PCGetSetUpFailedReason(pc,pc_failed_reason, &
-                                  ierr);CHKERRQ(ierr)
-      ! have to perform global reduction on pc_failed_reason
-      temp_int = pc_failed_reason
-      call MPI_Allreduce(MPI_IN_PLACE,temp_int,ONE_INTEGER_MPI, &
-                         MPI_INTEGER,MPI_MAX,option%mycomm,ierr)
-      global_pc_failed_reason = temp_int
-      if (global_pc_failed_reason == PC_SUBPC_ERROR) then
-        if (pc_type == PCBJACOBI) then
-          call PCBJacobiGetSubKSP(pc,nsub_ksp,first_sub_ksp, &
-                                  PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
-          allocate(sub_ksps(nsub_ksp))
-          sub_ksps = PETSC_NULL_KSP
-          call PCBJacobiGetSubKSP(pc,nsub_ksp,first_sub_ksp, &
-                                  sub_ksps,ierr);CHKERRQ(ierr)
-          if (nsub_ksp > 1) then
-            option%io_buffer = 'NSUB_KSP > 1.  What to do?  Email pflotran&
-              &-dev@googlegroups.com.'
+      if (solver%verbose_error_msg) then
+        error_string = 'Preconditioner setup failed.'
+        pc = solver%pc
+        call PCGetType(pc,pc_type,ierr);CHKERRQ(ierr)
+        call PCGetSetUpFailedReason(pc,pc_failed_reason, &
+                                    ierr);CHKERRQ(ierr)
+        ! have to perform global reduction on pc_failed_reason
+        temp_int = pc_failed_reason
+        call MPI_Allreduce(MPI_IN_PLACE,temp_int,ONE_INTEGER_MPI, &
+                           MPI_INTEGER,MPI_MAX,option%mycomm,ierr)
+        global_pc_failed_reason = temp_int
+        if (global_pc_failed_reason == PC_SUBPC_ERROR) then
+          if (pc_type == PCBJACOBI) then
+            call PCBJacobiGetSubKSP(pc,nsub_ksp,first_sub_ksp, &
+                                    PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
+            allocate(sub_ksps(nsub_ksp))
+            sub_ksps = PETSC_NULL_KSP
+            call PCBJacobiGetSubKSP(pc,nsub_ksp,first_sub_ksp, &
+                                    sub_ksps,ierr);CHKERRQ(ierr)
+            if (nsub_ksp > 1) then
+              option%io_buffer = 'NSUB_KSP > 1.  What to do?  Email pflotran&
+                &-dev@googlegroups.com.'
+              call printErrMsg(option)
+            endif
+            do i = 1, nsub_ksp
+              call KSPGetPC(sub_ksps(i),pc,ierr);CHKERRQ(ierr)
+              call PCGetSetUpFailedReason(pc,pc_failed_reason, &
+                                          ierr);CHKERRQ(ierr)
+            enddo
+            deallocate(sub_ksps)
+            nullify(sub_ksps)
+          else
+            option%io_buffer = 'Error in SUB PC of unknown type "' // &
+              trim(pc_type) // '".'
             call printErrMsg(option)
           endif
-          do i = 1, nsub_ksp
-            call KSPGetPC(sub_ksps(i),pc,ierr);CHKERRQ(ierr)
-            call PCGetSetUpFailedReason(pc,pc_failed_reason, &
-                                        ierr);CHKERRQ(ierr)
-          enddo
-          deallocate(sub_ksps)
-          nullify(sub_ksps)
-        else
-          option%io_buffer = 'Error in SUB PC of unknown type "' // &
-            trim(pc_type) // '".'
-          call printErrMsg(option)
         endif
+        ! have to perform global reduction (again) on pc_failed_reason
+        temp_int = pc_failed_reason
+        call MPI_Allreduce(MPI_IN_PLACE,temp_int,ONE_INTEGER_MPI, &
+                           MPI_INTEGER,MPI_MAX,option%mycomm,ierr)
+        global_pc_failed_reason = temp_int
+        select case(global_pc_failed_reason)
+          case(PC_FACTOR_STRUCT_ZEROPIVOT,PC_FACTOR_NUMERIC_ZEROPIVOT)
+            select case(solver%itype)
+              case(FLOW_CLASS)
+                string = 'Flow'
+              case(TRANSPORT_CLASS)
+                string = 'Transport'
+            end select
+            call PCFactorGetZeroPivot(pc,zero_pivot_tol, &
+                                      ierr);CHKERRQ(ierr)
+            write(word,*) zero_pivot_tol
+            ! In parallel, some processes will not have a zero pivot and
+            ! will report zero as the error.  We must skip these processes.
+            zero_pivot = 1.d20
+            ! note that this is not the global pc reason
+            select case(pc_failed_reason)
+              case(PC_FACTOR_STRUCT_ZEROPIVOT,PC_FACTOR_NUMERIC_ZEROPIVOT)
+              call PCFactorGetMatrix(pc,mat,ierr);CHKERRQ(ierr)
+              call MatFactorGetErrorZeroPivot(mat,zero_pivot,irow, &
+                                              ierr);CHKERRQ(ierr)
+            end select
+            call MPI_Allreduce(MPI_IN_PLACE,zero_pivot,ONE_INTEGER_MPI, &
+                               MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+            write(word2,*) zero_pivot
+            option%io_buffer = 'PC Setup failed for ' // trim(string) // &
+              '. The ' // trim(string) // ' preconditioner zero pivot &
+              &tolerance (' // trim(adjustl(word)) // &
+              ') is too large due to a zero pivot of ' // &
+              trim(adjustl(word2)) // '. Please set a ZERO_PIVOT_TOL smaller &
+              &than that value or email pflotran-dev@googlegroups.com with &
+              &this information for guidance.'
+            call printErrMsg(option)
+        end select
+      else
+        error_string = 'KSP_DIVERGED_PCSETUP_FAILED'
       endif
-      ! have to perform global reduction (again) on pc_failed_reason
-      temp_int = pc_failed_reason
-      call MPI_Allreduce(MPI_IN_PLACE,temp_int,ONE_INTEGER_MPI, &
-                         MPI_INTEGER,MPI_MAX,option%mycomm,ierr)
-      global_pc_failed_reason = temp_int
-      select case(global_pc_failed_reason)
-        case(PC_FACTOR_STRUCT_ZEROPIVOT,PC_FACTOR_NUMERIC_ZEROPIVOT)
-          select case(solver%itype)
-            case(FLOW_CLASS)
-              string = 'Flow'
-            case(TRANSPORT_CLASS)
-              string = 'Transport'
-          end select
-          call PCFactorGetZeroPivot(pc,zero_pivot_tol, &
-                                    ierr);CHKERRQ(ierr)
-          write(word,*) zero_pivot_tol
-          ! In parallel, some processes will not have a zero pivot and
-          ! will report zero as the error.  We must skip these processes.
-          zero_pivot = 1.d20
-          ! note that this is not the global pc reason
-          select case(pc_failed_reason)
-            case(PC_FACTOR_STRUCT_ZEROPIVOT,PC_FACTOR_NUMERIC_ZEROPIVOT)
-            call PCFactorGetMatrix(pc,mat,ierr);CHKERRQ(ierr)
-            call MatFactorGetErrorZeroPivot(mat,zero_pivot,irow, &
-                                            ierr);CHKERRQ(ierr)
-          end select
-          call MPI_Allreduce(MPI_IN_PLACE,zero_pivot,ONE_INTEGER_MPI, &
-                             MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
-          write(word2,*) zero_pivot
-          option%io_buffer = 'PC Setup failed for ' // trim(string) // &
-            '. The ' // trim(string) // ' preconditioner zero pivot &
-            &tolerance (' // trim(adjustl(word)) // &
-            ') is too large due to a zero pivot of ' // &
-            trim(adjustl(word2)) // '. Please set a ZERO_PIVOT_TOL smaller &
-            &than that value or email pflotran-dev@googlegroups.com with &
-            &this information for guidance.'
-          call printErrMsg(option)
-      end select
     case default
-      write(option%io_buffer,'('' -> KSPReason: Unknown: '',i2)') &
-        ksp_reason
+      write(word,*) ksp_reason 
+      option%io_buffer = 'Unknown(' // &
+        trim(adjustl(word)) // ').'
   end select
+  option%io_buffer = 'Linear solver reason: ' // trim(error_string)
   call printMsg(option)
 
 end subroutine SolverLinearPrintFailedReason

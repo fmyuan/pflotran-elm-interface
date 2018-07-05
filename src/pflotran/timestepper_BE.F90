@@ -261,7 +261,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   use petscsnes
   use PM_Base_class
   use Option_module
-  use Output_module, only : Output
+  use Output_module, only : Output, OutputFindNaNOrInfInVec
   use Output_EKG_module, only : IUNIT_EKG
   
   implicit none
@@ -385,13 +385,25 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
            option%time/tconv, &
            this%dt/tconv
       call printMsg(option)
-      if (snes_reason == SNES_DIVERGED_LINEAR_SOLVE) then
+      if (snes_reason < SNES_CONVERGED_ITERATING) then
+        call SolverNewtonPrintFailedReason(solver,option)
+        if (solver%verbose_error_msg) then
+          select case(snes_reason)
+            case(SNES_DIVERGED_FNORM_NAN)
+              ! attempt to find cells with NaNs.
+              call SNESGetFunction(solver%snes,residual_vec, &
+                                   PETSC_NULL_FUNCTION,PETSC_NULL_INTEGER, &
+                                 ierr);CHKERRQ(ierr)
+              call OutputFindNaNOrInfInVec(residual_vec, &
+                                           process_model%realization_base% &
+                                             discretization%grid,option)
+          end select
+        endif
         call KSPGetIterationNumber(solver%ksp,num_linear_iterations2, &
                                    ierr);CHKERRQ(ierr)
         sum_wasted_linear_iterations = sum_wasted_linear_iterations + &
           num_linear_iterations2
         sum_linear_iterations = sum_linear_iterations + num_linear_iterations2
-        call SolverLinearPrintFailedReason(solver,option)
       endif
 
       this%target_time = this%target_time + this%dt
@@ -418,7 +430,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   this%num_linear_iterations = num_linear_iterations  
   
   ! print screen output
-  call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTIOn, &
+  call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
   call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
   call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
@@ -780,6 +792,7 @@ subroutine TimestepperBERestartHDF5(this, chk_grp_id, option)
   !
   use Option_module
   use hdf5
+  use HDF5_Aux_module
   use Checkpoint_module, only : CheckPointReadIntDatasetHDF5
   use Checkpoint_module, only : CheckPointReadRealDatasetHDF5
 
@@ -816,7 +829,7 @@ subroutine TimestepperBERestartHDF5(this, chk_grp_id, option)
 
   string = "Timestepper"
   h5_chk_grp_id = chk_grp_id
-  call h5gopen_f(h5_chk_grp_id, string, timestepper_grp_id, hdf5_err)
+  call HDF5GroupOpen(h5_chk_grp_id,string,timestepper_grp_id,option)
 
   allocate(start(1))
   allocate(dims(1))

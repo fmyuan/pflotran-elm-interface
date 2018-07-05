@@ -1005,7 +1005,7 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
         &is at or beyond the end of checkpointed simulation (' // &
         trim(adjustl(this%option%io_buffer)) // &
         trim(this%pm_list%realization_base%output_option%tunit) // ').'
-      call printErrMsg(this%option)
+      call printMsg(this%option)
     endif
     this%option%time = this%timestepper%target_time
   endif
@@ -1199,6 +1199,7 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
   ! 
   use Logging_module
   use hdf5
+  use HDF5_Aux_module
   use Checkpoint_module, only : CheckPointReadCompatibilityHDF5, &
                                 CheckpointOpenFileForReadHDF5
 
@@ -1227,7 +1228,6 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
 
   ! if the top PMC
   if (this%is_master) then
-
     this%option%io_buffer = 'Restarting with checkpoint file "' // &
       trim(this%option%restart_filename) // '".'
     call printMsg(this%option)
@@ -1242,8 +1242,7 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
     call CheckPointReadCompatibilityHDF5(h5_chk_grp_id, &
                                          this%option)
 
-    call h5gopen_f(h5_chk_grp_id, trim(this%name), &
-                   h5_pmc_grp_id, hdf5_err)
+    call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
 
     ! read pmc header
     call PMCBaseGetHeaderHDF5(this, h5_pmc_grp_id, this%option)
@@ -1254,9 +1253,7 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
     chk_grp_id = h5_chk_grp_id 
   else
     h5_chk_grp_id = chk_grp_id
-    call h5gopen_f(h5_chk_grp_id, trim(this%name), &
-                   h5_pmc_grp_id, hdf5_err)
-
+    call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
   endif
 
   if (associated(this%timestepper)) then
@@ -1296,8 +1293,7 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
   cur_pm => this%pm_list
   do
     if (.not.associated(cur_pm)) exit
-    call h5gopen_f(h5_pmc_grp_id, trim(cur_pm%name), h5_pm_grp_id, &
-                   hdf5_err)
+    call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id,this%option)
     call cur_pm%RestartHDF5(h5_pm_grp_id)
     call h5gclose_f(h5_pm_grp_id, hdf5_err)
     cur_pm => cur_pm%next

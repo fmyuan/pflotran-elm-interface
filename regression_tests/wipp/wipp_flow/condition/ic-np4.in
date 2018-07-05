@@ -6,6 +6,8 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE WIPP_FLOW
       OPTIONS
+        HARMONIC_PERMEABILITY_ONLY
+        DO_NOT_LSCALE
       /
     /
   /

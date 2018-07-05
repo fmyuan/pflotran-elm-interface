@@ -3113,7 +3113,7 @@ subroutine ReactionReadOutput(reaction,input,option)
 !        reaction%print_pH = PETSC_TRUE
       case('PRIMARY_SPECIES')
         reaction%print_all_primary_species = PETSC_TRUE
-        reaction%print_pH = PETSC_TRUE
+!        reaction%print_pH = PETSC_TRUE
       case('SECONDARY_SPECIES')
         reaction%print_all_secondary_species = PETSC_TRUE
       case('GASES')

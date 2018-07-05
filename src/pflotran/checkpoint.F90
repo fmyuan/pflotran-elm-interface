@@ -613,6 +613,7 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   !
   use Option_module
   use hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -647,10 +648,15 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   call h5pset_fapl_mpio_f(prop_id, option%mycomm, MPI_INFO_NULL, hdf5_err)
 #endif
   call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, hdf5_err, prop_id)
+  if (hdf5_err < 0) then
+    option%io_buffer = 'HDF5 restart file "' // trim(filename) // &
+                       '" not found.'
+    call printErrMsg(option)
+  endif
   call h5pclose_f(prop_id, hdf5_err)
 
   string = "Checkpoint"
-  call h5gopen_f(file_id, string, grp_id, hdf5_err)
+  call HDF5GroupOpen(file_id,string,grp_id,option)
 #endif
 
 end subroutine CheckpointOpenFileForReadHDF5
@@ -1185,7 +1191,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   global_vec = PETSC_NULL_VEC
 
   if (option%nflowdof > 0) then
-     call DiscretizationCreateVector(realization%discretization, NFLOWDOF, &
+    call DiscretizationCreateVector(realization%discretization, NFLOWDOF, &
                                     natural_vec, NATURAL, option)
 
     call DiscretizationGlobalToNatural(discretization, field%flow_xx, &
@@ -1198,7 +1204,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
 
     call DiscretizationCreateVector(realization%discretization, ONEDOF, &
                                     global_vec, GLOBAL,option)
-     call DiscretizationCreateVector(realization%discretization, ONEDOF, &
+    call DiscretizationCreateVector(realization%discretization, ONEDOF, &
                                     natural_vec, NATURAL, option)
 
     ! If we are running with multiple phases, we need to dump the vector

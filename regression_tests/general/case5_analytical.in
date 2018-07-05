@@ -170,7 +170,7 @@ REGION all
 /
 
 REGION top
-  FACE top
+  FACE TOP
   COORDINATES
     0.d0 0.d0 21.d0
     10.5d0 1.d0 21.d0
