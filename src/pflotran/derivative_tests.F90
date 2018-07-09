@@ -330,9 +330,12 @@ end subroutine NumCompare_toil
 
 ! ************************************************************************** !
 
-subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option)
+subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
+                              dof_op,dof_osat,dof_gsat,dof_temp)
   ! intention: given an array of auxvar objects, do differencing 
   ! to compare analytical derivatives
+
+  use PFLOTRAN_Constants_module
   implicit none
   PetscInt :: nphase,ndof
   type(auxvar_towg_type) :: auxvars(0:)
@@ -343,6 +346,8 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option)
   PetscReal :: atol,rtol
   PetscInt :: probs
 
+  PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp
+
 
   atol = flow_aux_debug_tol
   rtol = flow_aux_debug_reltol
@@ -351,6 +356,149 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option)
   probs = 0
 
   !! *********  from auxvars BO*********
+
+  ! deno by pb:
+  !do idof=1,ndof
+  idof = dof_gsat
+    ! get perturbation for this dof variable
+  pert = auxvars(idof)%pert
+  !do iphase=1,nphase
+  iphase = option%oil_phase
+  ! get unperturbed value
+  p_unpert = auxvars(0)%pres(iphase)
+  ! get perturbed value
+  p_pert = auxvars(idof)%pres(iphase)
+
+  ! numerical derivative
+  nderiv = (p_pert-p_unpert)/pert
+  ! analytical derivative
+  aderiv = auxvars(0)%D_pres(iphase,idof)
+
+  ! difference:
+  diff = abs(aderiv-nderiv)
+  rdiff = diff/abs(nderiv)
+
+  if (diff>atol .OR. rdiff>rtol) then
+    print *, "den oil by bubble pressure:"
+    call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+    print *,
+    probs = probs + 1
+  endif
+  !enddo
+  !enddo
+
+  ! xo by pb:
+  idof = dof_gsat
+  ! get perturbation for this dof variable
+  pert = auxvars(idof)%pert
+  !do iphase=1,nphase
+  iphase = option%oil_phase
+  ! get unperturbed value
+  p_unpert = auxvars(0)%bo%xo
+  ! get perturbed value
+  p_pert = auxvars(idof)%bo%xo
+
+  ! numerical derivative
+  nderiv = (p_pert-p_unpert)/pert
+  ! analytical derivative
+  aderiv = auxvars(0)%bo%d%dxo_dpb
+
+  ! difference:
+  diff = abs(aderiv-nderiv)
+  rdiff = diff/abs(nderiv)
+
+  if (diff>atol .OR. rdiff>rtol) then
+    print *, "den oil by bubble pressure (note iphase meaningless):"
+    iphase = 0
+    call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+    print *,
+    probs = probs + 1
+  endif
+
+  ! xo by T:
+  idof = dof_temp
+  ! get perturbation for this dof variable
+  pert = auxvars(idof)%pert
+  !do iphase=1,nphase
+  iphase = option%oil_phase
+  ! get unperturbed value
+  p_unpert = auxvars(0)%bo%xo
+  ! get perturbed value
+  p_pert = auxvars(idof)%bo%xo
+
+  ! numerical derivative
+  nderiv = (p_pert-p_unpert)/pert
+  ! analytical derivative
+  aderiv = auxvars(0)%bo%d%dxo_dpb
+
+  ! difference:
+  diff = abs(aderiv-nderiv)
+  rdiff = diff/abs(nderiv)
+
+  if (diff>atol .OR. rdiff>rtol) then
+    print *, "den oil by bubble temp (note iphase meaningless):"
+    iphase = 0
+    call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+    print *,
+    probs = probs + 1
+  endif
+
+  ! xg by pb:
+  idof = dof_gsat
+  ! get perturbation for this dof variable
+  pert = auxvars(idof)%pert
+  !do iphase=1,nphase
+  iphase = option%oil_phase
+  ! get unperturbed value
+  p_unpert = auxvars(0)%bo%xg
+  ! get perturbed value
+  p_pert = auxvars(idof)%bo%xg
+
+  ! numerical derivative
+  nderiv = (p_pert-p_unpert)/pert
+  ! analytical derivative
+  aderiv = auxvars(0)%bo%d%dxg_dpb
+
+  ! difference:
+  diff = abs(aderiv-nderiv)
+  rdiff = diff/abs(nderiv)
+
+  if (diff>atol .OR. rdiff>rtol) then
+    print *, "den oil by bubble pressure (note iphase meaningless):"
+    iphase = 0
+    call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+    print *,
+    probs = probs + 1
+  endif
+
+  ! xg by T:
+  idof = dof_temp
+  ! get perturbation for this dof variable
+  pert = auxvars(idof)%pert
+  !do iphase=1,nphase
+  iphase = option%oil_phase
+  ! get unperturbed value
+  p_unpert = auxvars(0)%bo%xg
+  ! get perturbed value
+  p_pert = auxvars(idof)%bo%xg
+
+  ! numerical derivative
+  nderiv = (p_pert-p_unpert)/pert
+  ! analytical derivative
+  aderiv = auxvars(0)%bo%d%dxg_dpb
+
+  ! difference:
+  diff = abs(aderiv-nderiv)
+  rdiff = diff/abs(nderiv)
+
+  if (diff>atol .OR. rdiff>rtol) then
+    print *, "den oil by bubble temp (note iphase meaningless):"
+    iphase = 0
+    call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+    print *,
+    probs = probs + 1
+  endif
+
   !! ...
   !! *********  end offrom auxvars BO*********
 

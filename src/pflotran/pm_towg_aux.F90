@@ -1289,6 +1289,7 @@ subroutine EOSOilDenEnergyDerive(T,P,Rho,dRho_dT,dRho_dP,H,dH_dT,dH_dP, &
                                  dkro_sato,dkro_satg,option,auxvar%table_idx)
 
 
+#if 0
   pert = 1.d-8
   call characteristic_curves%oil_rel_perm_func_owg% &
                   RelativePermeability(auxvar%sat(oid),auxvar%sat(gid)+pert,kro_pert, &
@@ -1303,6 +1304,7 @@ subroutine EOSOilDenEnergyDerive(T,P,Rho,dRho_dT,dRho_dP,H,dH_dT,dH_dP, &
                     RelativePermeability(auxvar%sat(oid),auxvar%sat(gid),kro, &
                                    dkro_sato,dkro_satg,option,auxvar%table_idx)
   endif
+#endif
 
 !--If PVCO defined in EOS OIL, the viscosities are extracted via table lookup--
 
@@ -2658,7 +2660,9 @@ subroutine TOWGBlackOilAuxVarPerturb(auxvar,global_auxvar, &
 
   if (option%flow%numerical_derivatives_compare) then 
     print *, "saturated?", isSaturated
-    call NumCompare_towg_bo(option%nphase,option%nflowdof,auxvar,option)
+    call NumCompare_towg_bo(option%nphase,option%nflowdof,auxvar,option,&
+                            TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
+                            TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof)
   endif
 
 end subroutine TOWGBlackOilAuxVarPerturb
