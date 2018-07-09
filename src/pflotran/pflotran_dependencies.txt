@@ -103,7 +103,7 @@ dataset_map_hdf5.o : dataset_base.o dataset_common_hdf5.o hdf5_aux.o \
                      input_aux.o logging.o option.o pflotran_constants.o \
                      string.o time_storage.o units.o utility.o
 debug.o : input_aux.o option.o pflotran_constants.o
-derivative_tests.o : auxvars_flow.o auxvars_toil_ims.o option.o
+derivative_tests.o : auxvars_flow.o auxvars_toil_ims.o auxvars_towg.o option.o
 discretization.o : dm_kludge.o grid.o grid_structured.o grid_unstructured.o \
                    grid_unstructured_aux.o grid_unstructured_explicit.o \
                    grid_unstructured_polyhedra.o input_aux.o material_aux.o \
@@ -577,9 +577,10 @@ pm_towg.o : checkpoint.o field.o global.o input_aux.o material.o option.o \
             pflotran_constants.o pm_base.o pm_subsurface_flow.o pm_towg_aux.o \
             realization_base.o realization_subsurface.o string.o towg.o \
             variables.o
-pm_towg_aux.o : auxvars_towg.o characteristic_curves.o eos_gas.o eos_oil.o \
-                eos_slv.o eos_water.o global_aux.o grid.o material_aux.o \
-                option.o pflotran_constants.o pm_base_aux.o utility.o
+pm_towg_aux.o : auxvars_towg.o characteristic_curves.o derivative_tests.o \
+                eos_gas.o eos_oil.o derivatives_utilities.o\
+                eos_water.o global_aux.o grid.o material_aux.o option.o \
+                pflotran_constants.o pm_base_aux.o utility.o
 pm_ufd_biosphere.o : coupler.o global_aux.o grid.o input_aux.o material_aux.o \
                      option.o output_aux.o pflotran_constants.o pm_base.o \
                      reaction_aux.o reactive_transport_aux.o \

@@ -1,0 +1,144 @@
+module Derivatives_utilities_module 
+
+! Collection of simple routines for applying common calculus
+! rules.
+
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
+  implicit none
+
+  private
+
+  public  :: d_prodrule_2, &
+             d_prodrule_3, &
+             d_divrule, &
+             d_power, &
+             scal_d_prodrule
+
+  contains
+
+! ************************************************************************** !
+
+function scal_d_prodrule(x,dx,y,dy)
+
+  implicit none
+  PetscReal :: x,dx,y,dy
+  PetscReal :: scal_d_prodrule
+
+  scal_d_prodrule = dx*y + x*dy
+
+end function scal_d_prodrule
+
+! ************************************************************************** !
+function  d_prodrule_2(x, dx, y, dy, n)
+
+!! Compute derivatives of x*y.
+!! Assume x and y are functions and there are some n variables
+!! t_1, t_2, ... 2_n, so that 
+!!
+!! x = x(t_1, .... t_n)
+!! y = y(t_1, .... t_n)
+!!
+!! Assume we are given the partial derivatives in the arrays
+!! dx and dy, i.e.,
+!!
+!! dx = [dx/dt_1,  .... , dx_dt_n]
+!! dy = [dy/dt_1,  .... , dy_dt_n]
+!!
+!! Then we compute and return an array:
+!!
+!! [d(xy)/dt_1, ... , d(xy)/dt_n]
+
+implicit none
+
+  PetscInt :: n
+  PetscReal :: x, y
+  PetscReal, dimension(1:n) :: dx, dy
+  PetscReal, dimension(1:n) :: d_prodrule_2
+
+  PetscInt :: i
+
+  !!! TODO: error checking on lengths?
+
+  d_prodrule_2 = 0.d0
+
+  do i = 1,n
+    d_prodrule_2(i) = x*dy(i) + y*dx(i)  
+  enddo
+
+end function d_prodrule_2
+
+! ************************************************************************** !
+
+function  d_prodrule_3(x, dx, y, dy, z, dz, n)
+
+implicit none
+
+  PetscInt :: n
+  PetscReal :: x, y, z
+  PetscReal, dimension(1:n) :: dx, dy, dz
+  PetscReal, dimension(1:n) :: d_yz
+  PetscReal, dimension(1:n) :: d_prodrule_3
+  PetscReal :: yz
+
+  d_yz = d_prodrule_2(y, dy, z, dz, n)
+  yz = y*z
+  d_prodrule_3 = d_prodrule_2(x, dx, yz, d_yz, n)
+
+end function  d_prodrule_3
+
+! ************************************************************************** !
+
+function d_divrule(x, dx, y, dy, n)
+
+!! derivatives of x/y, see comments in d_prodrule_2 for general schema
+!! of partial derivatives and etc.
+
+implicit none
+  PetscInt :: n
+  PetscReal :: x, y
+  PetscReal, dimension(1:n) :: dx, dy
+  PetscReal, dimension(1:n) :: d_divrule
+
+  PetscReal :: denompart
+  PetscInt :: i
+
+  d_divrule = 0.d0
+  if( abs(y)>0.0 ) then
+    return
+  endif
+
+  denompart = 1.d0/y/y
+  do i = 1,n
+    d_divrule(i) =  dx(i)/y - x*dy(i)*denompart
+  end do
+
+
+end function d_divrule
+
+! ************************************************************************** !
+
+function d_power(x, dx, alpha, n)
+
+!! x^alpha
+
+implicit none
+  PetscInt :: n
+  PetscReal :: x, alpha
+  PetscReal, dimension(1:n) :: dx
+  PetscReal, dimension(1:n) :: d_power
+
+  PetscReal :: constpart
+  PetscInt :: i
+
+  constpart = alpha*(x**(alpha-1.d0))
+  do i=1,n
+    d_power(i) = dx(i)*constpart 
+  end do
+
+end function d_power
+
+! ************************************************************************** !
+
+end module Derivatives_utilities_module 

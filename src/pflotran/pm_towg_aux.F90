@@ -545,7 +545,8 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
 end subroutine TOWGImsAuxVarCompute
 
-subroutine getBlackOilComposition(bubble_point,temperature,table_idxs,xo,xg)
+subroutine getBlackOilComposition(bubble_point,temperature,table_idxs,xo,xg,&
+                                  dxo_dpb,dxg_dpb,dxo_dt,dxg_dt)
 
 !------------------------------------------------------------------------------
 ! Find oil phase composition (xo,xg) as a function of bubble point
@@ -566,9 +567,22 @@ subroutine getBlackOilComposition(bubble_point,temperature,table_idxs,xo,xg)
   PetscReal              :: rs_molar
   PetscInt               :: ierr
 
+  PetscReal, optional, intent(out) :: dxo_dpb,dxg_dpb,dxo_dt,dxg_dt
+  PetscReal              :: drs_molar_dt,drs_molar_dpb
+  PetscBool              :: getDerivs
+
+  getDerivs = PETSC_FALSE
+  if (present(dxo_dpb).AND.present(dxg_dpb).AND.present(dxo_dt).AND.present(dxg_dt))then
+    getDerivs = PETSC_TRUE
+  endif
+
 !--Get molar Rsm=(moles gas)/(moles oil)---------------------------------------
 
-  call EOSOilRS(temperature,bubble_point,rs_molar,ierr,table_idxs)
+  if (getDerivs) then
+    call EOSOilRS(temperature,bubble_point,rs_molar,drs_molar_dt,drs_molar_dpb,ierr,table_idxs)
+  else
+    call EOSOilRS(temperature,bubble_point,rs_molar,ierr,table_idxs)
+  endif
 
 !--Get oil and gas mole fractions----------------------------------------------
 !
@@ -579,6 +593,14 @@ subroutine getBlackOilComposition(bubble_point,temperature,table_idxs,xo,xg)
 
   xo=1.0d0   /(1.0d0+rs_molar)
   xg=rs_molar/(1.0d0+rs_molar)
+
+  if (getDerivs) then
+    dxo_dpb = -drs_molar_dpb/(1.0d0+rs_molar)/(1.0d0+rs_molar)
+    dxg_dpb = -dxo_dpb
+    ! (see above: xg = 1 - xo)
+    dxo_dt = -drs_molar_dt/(1.0d0+rs_molar)/(1.0d0+rs_molar)
+    dxg_dt = -dxo_dt
+  endif
 
 end subroutine getBlackOilComposition
 
@@ -593,8 +615,6 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 ! Date  : Jul 2017
 !------------------------------------------------------------------------------
 
-! new branch opened for aderiv modifications - DS
-
   use Option_module
   use Global_Aux_module
   use EOS_Water_module
@@ -602,6 +622,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   use EOS_Gas_module
   use Characteristic_Curves_module
   use Material_Aux_class
+  use Derivatives_utilities_module
 
   implicit none
 
@@ -631,6 +652,62 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal, parameter :: eps_oil   = 1.0d-6
   PetscReal, parameter :: epss=1.0d-4
   PetscReal, parameter :: epsp=1.0d3
+  PetscBool :: getDerivs
+  
+  PetscReal :: dpc_dso,dpc_dsg
+  PetscReal :: dcr_dt,dcr_dpb
+  PetscReal :: dcrusp_dpo,dcrusp_dpb,dcrusp_dt
+  PetscReal :: cor,one_p_crusp,dcor_dpo,dcor_dpb,dcor_dt
+  PetscReal :: one_over_xo_sq
+  PetscReal :: dps_dt
+  PetscReal :: dvw_dt, dvw_dp
+  PetscReal, dimension(1:option%nflowdof) :: dmobw,dmobo,dmobg
+  PetscReal :: dviso_dT,dviso_dpb,dcvisc_dT,dcvisc_dPb
+  PetscReal :: dcvusp_dpo,dcvusp_dpb,dcvusp_dt
+  PetscReal :: one_p_cvusp
+  PetscReal :: dvo_dp,dvo_dpb,dvo_dt
+  PetscReal :: dvg_dt,dvg_dpcomp,dvg_dpgas 
+
+  PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp
+
+  PetscReal :: pert,deno_pert,df,ndv,kro_pert
+
+  dof_op = TOWG_OIL_PRESSURE_DOF
+  dof_osat = TOWG_OIL_SATURATION_DOF
+  dof_gsat = TOWG_GAS_SATURATION_3PH_DOF
+  dof_temp = towg_energy_dof
+
+  if (towg_analytical_derivatives) then
+    if (.NOT. auxvar%has_derivs) then
+      ! how did this happen?
+      option%io_buffer = 'towg bo auxvars: towg_analytical_derivatives is true, &
+                          but auxvar%has_derivs is false, should both be true. &
+                          How did this happen?'
+      call printErrMsg(option)
+    endif
+
+    auxvar%D_pres = 0.d0
+    auxvar%D_sat = 0.d0
+    auxvar%D_pc = 0.d0
+    auxvar%D_den = 0.d0
+    auxvar%D_den_kg = 0.d0
+    auxvar%D_mobility = 0.d0
+    auxvar%D_por = 0.d0
+
+    auxvar%D_H = 0.d0
+    auxvar%D_U = 0.d0
+
+    !!! TODO: also zero out all black oil derivatives
+    auxvar%bo%d%ddeno_dpb = 0.d0
+    auxvar%bo%d%dxo_dpb = 0.d0
+    auxvar%bo%d%dxg_dpb = 0.d0
+    auxvar%bo%d%dxo_dt = 0.d0
+    auxvar%bo%d%dxg_dt = 0.d0
+
+    getDerivs = PETSC_TRUE
+  else 
+    getDerivs = PETSC_FALSE
+  endif
 
 !==============================================================================
 !  Initialise
@@ -725,26 +802,77 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   po=auxvar%pres(oid)
   pb=auxvar%bo%bubble_point
 
+
+!==============================================================================
+
+  ! trivial saturation derivatives: 
+  if (getDerivs) then
+    auxvar%D_sat(oid,dof_osat) = 1.d0 ! diff oil sat by oil sat
+    auxvar%D_sat(wid,dof_osat) = -1.d0 ! diff liquid sat by oil sat
+    if (isSat) then
+      auxvar%D_sat(wid,dof_gsat) = -1.d0 ! diff liquid sat by gas sat
+      auxvar%D_sat(gid,dof_gsat) = 1.d0 ! diff gas sat by gas sat
+    endif
+  endif
+  ! trivial pressure derivatives: 
+  if (getDerivs) then
+    auxvar%D_pres(oid,dof_op) = 1.d0 ! diff oil pres by oil pres
+    auxvar%D_pres(wid,dof_op) = 1.d0 ! diff liquid pres by oil pres
+    auxvar%D_pres(gid,dof_op) = 1.d0 ! diff gas pres by oil pres
+  endif
+
 !==============================================================================
 ! Look up the Rs value
 !==============================================================================
 
-  call getBlackOilComposition(auxvar%bo%bubble_point,auxvar%temp, &
-                              auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
+  if (getDerivs) then
+    call getBlackOilComposition(auxvar%bo%bubble_point,auxvar%temp, &
+                                auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg, &
+                                auxvar%bo%d%dxo_dpb,auxvar%bo%d%dxg_dpb,&
+                                auxvar%bo%d%dxo_dt,auxvar%bo%d%dxg_dt)
+  else
+    call getBlackOilComposition(auxvar%bo%bubble_point,auxvar%temp, &
+                                auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
+  endif
 
 !==============================================================================
 !  Get the capillary pressures
 !==============================================================================
 
+
+#if 0
+!!! new
   call characteristic_curves%oil_wat_sat_func% &
             CapillaryPressure(auxvar%sat(wid), &
-                              auxvar%pc(wid),dummy,option,auxvar%table_idx)
+                              auxvar%pc(wid),dpcw_dw,option,auxvar%table_idx)
 
   auxvar%pc(oid) = 0.0d0
                 
   call characteristic_curves%oil_gas_sat_func% &
             CapillaryPressure(auxvar%sat(gid), &
-                              auxvar%pc(oid),dummy,option,auxvar%table_idx)
+                              auxvar%pc(oid),dpco_dg,option,auxvar%table_idx)
+#endif
+
+# if 0
+!!! collection of derivatives
+  if (getDerivs) then
+
+    auxvar%D_pc(wid,dof_osat) = -dpcw_dw
+    if (isSat) then
+      !!!! nothing?
+    endif
+    auxvar%D_pc(oid,dof_osat) = dpcw_dw !!!! or other sign convention
+    if (isSat) then
+      !!!! nothing?
+    endif
+
+    auxvar%D_pc(oid,dof_gsat) = dpco_dg
+    auxvar%D_pc(gid,dof_gsat) = -dpco_dg !!!! or other sign convention
+
+    !!!! TODO - save pressure as well
+  endif
+#endif
+
 
 !==============================================================================
 !  Get the phase pressures
@@ -754,6 +882,11 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%pres(gid) = auxvar%pres(oid) + auxvar%pc(oid)
 
   cell_pressure = max(auxvar%pres(wid),auxvar%pres(oid),auxvar%pres(gid))
+
+  ! For analytical derivatives:
+  ! assume cell pres and oil pres are interchangeable for purposes as derivs 
+  ! since either cell pres = oil pres, (oil pres - water cp), (oil pres- oil pc);
+  ! in all three cases derivative d(cell pres)/d(oil pres) = 1
 
 !==============================================================================
 !  Get rock properties
@@ -767,6 +900,12 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     if (soil_compressibility_index > 0) then
       call MaterialCompressSoil(material_auxvar,cell_pressure, &
                                 auxvar%effective_porosity,dummy)
+      if (getDerivs) then
+#if 0
+        auxvar%d%dpor_dp_oil = dummy
+#endif
+        auxvar%D_por(dof_op) = dummy
+      endif
     endif
     if (option%iflag /= TOWG_UPDATE_FOR_DERIVATIVE) then
       material_auxvar%porosity = auxvar%effective_porosity
@@ -781,9 +920,34 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 ! Water phase thermodynamic properties
 !------------------------------------------------------------------------------
 
-  call EOSWaterDensity(auxvar%temp,cell_pressure, &
-                       auxvar%den_kg(wid),auxvar%den(wid),ierr)
-  call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
+  if (getDerivs) then
+    call EOSWaterDensity(auxvar%temp,cell_pressure, &
+                      auxvar%den_kg(wid),auxvar%den(wid), &
+                      auxvar%D_den(wid,dof_op), &
+                      auxvar%D_den(wid,dof_temp), ierr)
+
+    call EOSWaterEnthalpy(auxvar%temp, &
+                       cell_pressure, &
+                       auxvar%H(wid), &
+                       auxvar%D_H(wid,dof_op), &
+                       auxvar%D_H(wid,dof_temp), &
+                       ierr)
+    auxvar%D_H(wid,dof_temp) = auxvar%D_H(wid,dof_temp) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_H(wid,dof_op) = auxvar%D_H(wid,dof_op) * 1.d-6 ! J/kmol -> MJ/kmol
+
+    auxvar%D_U(wid,dof_op) = auxvar%D_H(wid,dof_op) - &
+                                      1.d-6 / auxvar%den(wid) +  &
+                                      1.d-6 * cell_pressure*auxvar%D_den(wid,dof_op) / &
+                                      auxvar%den(wid)/auxvar%den(wid) 
+
+    auxvar%D_U(wid,dof_temp) = auxvar%D_H(wid,dof_temp) + &
+                                      1.d-6 * cell_pressure * auxvar%D_den(wid,dof_temp) / & 
+                                      auxvar%den(wid)/auxvar%den(wid) 
+  else
+    call EOSWaterDensity(auxvar%temp,cell_pressure, &
+                         auxvar%den_kg(wid),auxvar%den(wid),ierr)
+    call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
+  endif
   auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
 
   ! MJ/kmol comp                  ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
@@ -793,10 +957,35 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 ! Gas phase thermodynamic properties. Can be ideal gas default or PVTG table
 !------------------------------------------------------------------------------
 
-  call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid), &
-                           auxvar%H(gid),auxvar%U(gid),ierr,auxvar%table_idx)
+  if (getDerivs) then
+    !         note here derivative w.r.t. gas pressure saved as derivatives w.r.t. oil presures \/                                            
+    call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid),auxvar%D_den(gid,dof_temp),auxvar%D_den(gid,dof_op), &
+                                     auxvar%H(gid),auxvar%D_H(gid,dof_temp),auxvar%D_H(gid,dof_op),auxvar%U(gid),&
+                                     auxvar%D_U(gid,dof_temp),&
+                                     auxvar%D_U(gid,dof_op),ierr,auxvar%table_idx)
+
+    ! as discussed earlier derivative of any phase pressure w.r.t. any other is 1 and we are only interested in oil pressure
+    ! so we save derivative w.r.t. gas pressure here as the derivative w.r.t. oil pressure because 
+    ! d x / d (oil pres) = (d x / d (gas pres))*(d (gas pres) / d (oil pres))
+    ! where d (gas pres) / d (oil pres) = 1.
+
+    ! scaling:
+    auxvar%D_H(gid,dof_temp) = auxvar%D_H(gid,dof_temp) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(gid,dof_temp) = auxvar%D_U(gid,dof_temp) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_H(gid,dof_op) = auxvar%D_H(gid,dof_op) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(gid,dof_op) = auxvar%D_U(gid,dof_op) * 1.d-6 ! J/kmol -> MJ/kmol
+
+    !!! do we want kg derivs too?
+  else
+    call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid), &
+                             auxvar%H(gid),auxvar%U(gid),ierr,auxvar%table_idx)
+  endif
 
   auxvar%den_kg(gid) = auxvar%den(gid) * EOSGasGetFMW()
+
+  if (getDerivs) then
+    auxvar%D_den_kg(gid,:) = auxvar%D_den(gid,:) * EOSGasGetFMW()
+  endif
 
   auxvar%H(gid) = auxvar%H(gid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(gid) = auxvar%U(gid) * 1.d-6 ! J/kmol -> MJ/kmol
@@ -807,18 +996,95 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 ! because it is an optional argument (needed only if table lookup)
 !------------------------------------------------------------------------------
 
-  call EOSOilDensityEnergy  (auxvar%temp,po,deno,ho,uo,ierr,auxvar%table_idx)
-! Density and compressibility look-up at bubble point
-  call EOSOilDensity        (auxvar%temp,pb,deno      ,ierr,auxvar%table_idx)
-  call EOSOilCompressibility(auxvar%temp,pb,cr        ,ierr,auxvar%table_idx)
+  if (getDerivs) then
+    call EOSOilDensityEnergy(auxvar%temp,po,deno, &
+                             auxvar%D_den(oid,dof_temp),auxvar%D_den(oid,dof_op), &
+                             ho,auxvar%D_H(oid,dof_temp),auxvar%D_H(oid,dof_op), &
+                             uo,auxvar%D_U(oid,dof_temp),auxvar%D_U(oid,dof_op), &
+                             ierr) !! look out for conversion between kg/molar density in derivs
+
+#if 0
+subroutine EOSOilDenEnergyDerive(T,P,Rho,dRho_dT,dRho_dP,H,dH_dT,dH_dP, &
+                                    U,dU_dT,dU_dP,ierr,table_idxs)
+#endif
+
+    !!! TODO ASSIGN THE H, U DERIVS
+
+    !!! TODO SCALE THE H, U DERIVS (maybe below with scaling of H,U)
+
+
+    ! Density and compressibility look-up at bubble point
+#if 0
+    call EOSOilDensity(auxvar%temp,pb,deno,auxvar%D_den(oid,dof_temp),auxvar%bo%d%ddeno_dpb,ierr,auxvar%table_idx)
+#endif
+    !!! NOTE - here placing deriv of oil den w.r.t. bp in D_den(oid,dof_gsat) - this is valid if state is unsat.
+    !!!        otherwise should zero out that entry once we're done using it
+    call EOSOilDensity(auxvar%temp,pb,deno,auxvar%D_den(oid,dof_temp),auxvar%D_den(oid,dof_gsat),ierr,auxvar%table_idx)
+
+#if 0
+    pert = 0.2d0
+    call EOSOilDensity(auxvar%temp,pb+pert,deno_pert,dummy,dummy,ierr,auxvar%table_idx)
+    !!!subroutine EOSOilDensityDerive(T,P,Rho,dRho_dT,dRho_dP,ierr,table_idxs)
+    print *, "pb: ", pb, ", pb pert: ", pb+pert
+    print *, "deno: ", deno, ", deno pert: ", deno_pert 
+    df  = deno_pert-deno
+    ndv = df/pert
+    print *, "diff: ", df, ", ndv: ", ndv
+#endif
+
+
+    call EOSOilCompressibility(auxvar%temp,pb,cr,dcr_dt,dcr_dpb,ierr,auxvar%table_idx)
+    !!!subroutine EOSOilCompressibilityDerive(T,P,Co,dCo_dT,dCo_dP,ierr,table_idxs)
+
+
+  else
+    call EOSOilDensityEnergy  (auxvar%temp,po,deno,ho,uo,ierr,auxvar%table_idx)
+  ! Density and compressibility look-up at bubble point
+    call EOSOilDensity        (auxvar%temp,pb,deno      ,ierr,auxvar%table_idx)
+    call EOSOilCompressibility(auxvar%temp,pb,cr        ,ierr,auxvar%table_idx)
+  endif
+
+  if (getDerivs) then
+    ! differentiate the correction for undersaturation (see below)
+    ! NOTE: might have to adjust this when corrections are introduced for energy
+    if (isSat) then
+      !print *, "sat"
+      ! leave density derivs w.r.t. pres, temp, and bubble point as set above since the correction
+      ! is zero.
+    else
+      !print *, "nosat"
+      dcrusp_dpo =  cr !  +  dcr_dpo*(po-pb) but we know dcr_dpo is zero
+      dcrusp_dpb = dcr_dpb*(po-pb) - cr
+      dcrusp_dt =  dcr_dt*(po-pb)
+
+      cor = 1 + crusp + 0.5*crusp*crusp
+      ! dcor/dx = dcrusp/dx + crusp*dcrusp/dx  = (1 + crusp)*dcrusp/dx
+      ! so
+      one_p_crusp = 1.d0 + crusp
+      dcor_dpo = one_p_crusp*dcrusp_dpo
+      dcor_dpb = one_p_crusp*dcrusp_dpb
+      dcor_dt = one_p_crusp*dcrusp_dt
+
+      auxvar%D_den(oid,dof_op) = deno*dcor_dpo ! +  ddeno_dpo*cor but we know ddeno_dpo is zero
+#if 0
+      auxvar%bo%d%ddeno_dpb = auxvar%bo%d%ddeno_dpb*cor + deno*dcor_dpb
+#endif
+      auxvar%D_den(oid,dof_gsat) = auxvar%D_den(oid,dof_gsat)*cor + deno*dcor_dpb
+
+      auxvar%D_den(oid,dof_temp) = auxvar%D_den(oid,dof_temp)*cor + deno*dcor_dt
+    endif
+
+  endif
 
 !  Correct for undersaturation: correction not yet available for energy
 
   crusp=cr*(po-pb)
   deno=deno*(1.0+crusp*(1.0+0.5*crusp))
   auxvar%den(oid)=deno
+  !print *, "assigned deno ", auxvar%den(oid)
   auxvar%H  (oid)=ho
   auxvar%U  (oid)=uo
+
 
 !------------------------------------------------------------------------------
 ! Correct oil phase molar density and enthalpy for oil composition
@@ -828,15 +1094,84 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 ! Note xo=1/(1+Rsmolar) so cannot be zero for finite looked up Rsmolar
 !------------------------------------------------------------------------------
 
+  if (getDerivs) then
+    ! xo and xg are dependent on pb and t only
+
+    one_over_xo_sq = 1.d0/auxvar%bo%xo/auxvar%bo%xo
+    auxvar%D_den(oid,dof_temp)  = auxvar%D_den(oid,dof_temp)/auxvar%bo%xo &
+                           - auxvar%den(oid)*auxvar%bo%d%dxo_dt*one_over_xo_sq
+    auxvar%D_den(oid,dof_gsat)  = auxvar%D_den(oid,dof_gsat)/auxvar%bo%xo &
+                           - auxvar%den(oid)*auxvar%bo%d%dxo_dpb*one_over_xo_sq
+
+    ! all other derivatives must be scaled by 1/xo as well
+    auxvar%D_den(oid,dof_op) = auxvar%D_den(oid,dof_op)/auxvar%bo%xo
+    if (isSat) then
+       ! done with density computations; we don't actually need deriv w.r.t. pb
+       ! since pb=op in this state. Actual sol variable is gsat and that deriv
+       ! should be 0.
+       auxvar%D_den(oid,dof_op) =  auxvar%D_den(oid,dof_gsat)
+       auxvar%D_den(oid,dof_gsat) = 0.d0
+    else
+    endif
+  endif
+
   auxvar%den(oid)=auxvar%den(oid)/auxvar%bo%xo
 
 ! Get oil mass density as (mixture oil molar density).(mixture oil molecular weight)
 
+  if (getDerivs) then
+    ! pressure:
+    if (isSat) then
+      ! pb as pressure
+      auxvar%D_den_kg(oid,dof_op) =   auxvar%D_den(oid,dof_op)         &
+                                    * ( auxvar%bo%xo*EOSOilGetFMW()    &
+                                        +auxvar%bo%xg*EOSGasGetFMW() ) &
+                                    + auxvar%den(oid)                  &
+                                    *( auxvar%bo%d%dxo_dpb*EOSOilGetFMW()     &
+                                        +auxvar%bo%d%dxg_dpb*EOSGasGetFMW() )
+                                     
+    else
+      auxvar%D_den_kg(oid,dof_op) =   auxvar%D_den(oid,dof_op)         &
+                                    * ( auxvar%bo%xo*EOSOilGetFMW()    &
+                                        +auxvar%bo%xg*EOSGasGetFMW() )
+    endif
+    ! nothing for oil saturation
+
+    ! gas saturation:
+    if (isSat) then
+    else
+      auxvar%D_den_kg(oid,dof_gsat) =   auxvar%den(oid)         &
+                                    *( auxvar%bo%d%dxo_dpb*EOSOilGetFMW()     &
+                                        +auxvar%bo%d%dxg_dpb*EOSGasGetFMW() )
+                                     
+    endif
+
+#if 0
+    ! temp:
+    auxvar%D_den_kg(oid,dof_temp) =   auxvar%den(oid)         &
+                                  *( auxvar%bo%d%dxo_dt*EOSOilGetFMW()     &
+                                      +auxvar%bo%d%dxg_dt*EOSGasGetFMW() )
+#endif
+  auxvar%D_den_kg(oid,dof_temp) =   auxvar%D_den(oid,dof_temp)         &
+                                * ( auxvar%bo%xo*EOSOilGetFMW()    &
+                                    +auxvar%bo%xg*EOSGasGetFMW() ) &
+                                + auxvar%den(oid)                  &
+                                *( auxvar%bo%d%dxo_dt*EOSOilGetFMW()     &
+                                    +auxvar%bo%d%dxg_dt*EOSGasGetFMW() )
+
+  endif
+
   auxvar%den_kg(oid) = auxvar%den(oid) * ( auxvar%bo%xo*EOSOilGetFMW() &
                                           +auxvar%bo%xg*EOSGasGetFMW() )
 
+
   auxvar%H(oid) = auxvar%H(oid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(oid) = auxvar%U(oid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+  if (getDerivs) then
+    auxvar%D_H(oid,:) = auxvar%D_H(oid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(oid,:) = auxvar%D_U(oid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+  endif
 
 !------------------------------------------------------------------------------
 ! Get oil enthalpy/oil mole in oil phase.
@@ -845,8 +1180,53 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !                                               +xg*(gas enthalpy/gas mole)
 !------------------------------------------------------------------------------
 
+  if (getDerivs) then
+    ! note a dependence of H and U on pb is introduced here
+
+    ! pressure derivatives:
+    if (isSat) then
+      !! pressure and pb are the same so treat derivs w.r.t. pb as w.r.t. p?
+      auxvar%D_H(oid,dof_op) = auxvar%bo%xo*auxvar%D_H(oid,dof_op) &
+                             + auxvar%bo%xg*auxvar%D_H(gid,dof_op) &
+                             + auxvar%bo%d%dxo_dpb*auxvar%H(oid)   &
+                             + auxvar%bo%d%dxg_dpb*auxvar%H(gid)
+
+
+      auxvar%D_U(oid,dof_op) = auxvar%bo%xo*auxvar%D_U(oid,dof_op) &
+                             + auxvar%bo%xg*auxvar%D_U(gid,dof_op) &
+                             + auxvar%bo%d%dxo_dpb*auxvar%U(oid)   &
+                             + auxvar%bo%d%dxg_dpb*auxvar%U(gid)
+
+    else
+      auxvar%D_H(oid,dof_op) = auxvar%bo%xo*auxvar%D_H(oid,dof_op) &
+                          + auxvar%bo%xg*auxvar%D_H(gid,dof_op)
+      auxvar%D_U(oid,dof_op) = auxvar%bo%xo*auxvar%D_U(oid,dof_op) &
+                          + auxvar%bo%xg*auxvar%D_U(gid,dof_op)
+
+      !!! ?
+      ! bubble point derivatives
+      auxvar%D_H(oid,dof_gsat) = auxvar%bo%d%dxo_dpb*auxvar%H(oid) &
+                               + auxvar%bo%d%dxg_dpb*auxvar%H(gid)
+      auxvar%D_U(oid,dof_gsat) = auxvar%bo%d%dxo_dpb*auxvar%U(oid) &
+                               + auxvar%bo%d%dxg_dpb*auxvar%U(gid)
+    endif
+
+    ! temperature derivatives:
+    auxvar%D_H(oid,dof_temp) =  scal_d_prodrule(auxvar%bo%xo,auxvar%bo%d%dxo_dt,   &
+                                           auxvar%H(oid),auxvar%D_H(oid,dof_temp)) &
+                        +  scal_d_prodrule(auxvar%bo%xg,auxvar%bo%d%dxg_dt,   &
+                                           auxvar%H(gid),auxvar%D_H(gid,dof_temp)) 
+
+    auxvar%D_U(oid,dof_temp) =  scal_d_prodrule(auxvar%bo%xo,auxvar%bo%d%dxo_dt,   &
+                                           auxvar%U(oid),auxvar%D_U(oid,dof_temp)) &
+                        +  scal_d_prodrule(auxvar%bo%xg,auxvar%bo%d%dxg_dt,   &
+                                           auxvar%U(gid),auxvar%D_U(gid,dof_temp)) 
+
+  endif
+
   auxvar%H(oid) = auxvar%bo%xo*auxvar%H(oid)+auxvar%bo%xg*auxvar%H(gid)
   auxvar%U(oid) = auxvar%bo%xo*auxvar%U(oid)+auxvar%bo%xg*auxvar%U(gid)
+
 
 !===============================================================================
 ! Fluid mobility calculation
@@ -860,12 +1240,45 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                     RelativePermeability(auxvar%sat(wid),krw,dkrw_satw,option, &
                     auxvar%table_idx)
 
-  call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
-! use cell_pressure; cell_pressure - psat calculated internally
-  call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr)
+
+  if (getDerivs) then
+    call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,dps_dt,ierr)
+
+    call EOSWaterViscosity(auxvar%temp, cell_pressure, &
+                           wat_sat_pres, dps_dt, visw, &
+                           dvw_dt,  dvw_dp, ierr)
+  else
+    call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
+
+  ! use cell_pressure; cell_pressure - psat calculated internally
+    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr)
+  endif
 
   auxvar%mobility(wid) = krw/visw
+#if 0
+  print *, 
+  print *, "wmob: ", auxvar%mobility(wid)
+  print *, "krw: ", krw
+  print *, "visw: ", visw
+  if (krw < 1.d-20 .AND. krw > 0.d0) then 
+    print *, "here"
+    call characteristic_curves%wat_rel_perm_func_owg% &
+                      RelativePermeability(auxvar%sat(oid),auxvar%sat(gid), &
+                                krw,dkrw_sato,dkrw_satg,option,auxvar%table_idx)
+  endif
+  print *, 
+#endif
+
+
+  if (getDerivs) then
+    ! visc here is independent of pb so we can just put in zero for the derivative:
+    dummy = 0.d0 
+    !                                                       0=d(visc)/d(pb) \/
+    call MobilityDerivs_TOWG_BO(dmobw,krw,visw,dkrw_sato,dkrw_satg,dvw_dp,dummy,dvw_dt,isSat,option%nflowdof)
+    ! (ok, if state is saturated then we've set pb = po but pb won't be used in that case)
+    auxvar%D_mobility(wid, :) = dmobw(:)
+  endif
 
 !-------------------------------------------------------------------------------
 ! Oil mobility (rel. perm / viscosity)
@@ -875,17 +1288,127 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                   RelativePermeability(auxvar%sat(oid),auxvar%sat(gid),kro, &
                                  dkro_sato,dkro_satg,option,auxvar%table_idx)
 
+
+  pert = 1.d-8
+  call characteristic_curves%oil_rel_perm_func_owg% &
+                  RelativePermeability(auxvar%sat(oid),auxvar%sat(gid)+pert,kro_pert, &
+                                 dummy,dummy2,option,auxvar%table_idx)
+
+  print *, "sat: ", auxvar%sat(gid), " satpert: ",  auxvar%sat(gid)+pert
+  print *, "kro: ", kro, " kro pert ", kro_pert
+
+  if (dkro_satg == 0.d0 .AND. kro /= kro_pert) then
+    print *, "here"
+    call characteristic_curves%oil_rel_perm_func_owg% &
+                    RelativePermeability(auxvar%sat(oid),auxvar%sat(gid),kro, &
+                                   dkro_sato,dkro_satg,option,auxvar%table_idx)
+  endif
+
 !--If PVCO defined in EOS OIL, the viscosities are extracted via table lookup--
 
-! Viscosity and viscosibility look-up at bubble point
-  call EOSOilViscosity    (auxvar%temp,pb, &
-                           auxvar%den(oid), viso, ierr,auxvar%table_idx)
-  call EOSOilViscosibility(auxvar%temp,pb,cvisc,ierr,auxvar%table_idx)
+  if (getDerivs) then
+    call EOSOilViscosity(auxvar%temp,pb,auxvar%den(oid),viso,dviso_dT,dviso_dpb,ierr,auxvar%table_idx)
+    call EOSOilViscosibility(auxvar%temp,pb,cvisc,dcvisc_dT,dcvisc_dPb,ierr, &
+                             auxvar%table_idx)
+
+  else
+  ! Viscosity and viscosibility look-up at bubble point
+    call EOSOilViscosity    (auxvar%temp,pb, &
+                             auxvar%den(oid), viso, ierr,auxvar%table_idx)
+    call EOSOilViscosibility(auxvar%temp,pb,cvisc,ierr,auxvar%table_idx)
+  endif
+
+  ! --- correction ----
+  cvusp=cvisc*(po-pb)
+
+#if 0
+  if (getDerivs) then
+    if (isSat) then
+      !!! ... 
+      !!! don't do correction derivs because reduce to trivial
+      !!!! This is probably wrong
+
+
+    else
+      !!! get viso derivs with correction
+      !!! ...
+
+
+      dcvusp_dpo = cvisc !!! cvisc is independent of po
+      !dcvusp_dpb = dcvisc_dpb*(po-pb) - cvusp
+      dcvusp_dpb = dcvisc_dpb*(po-pb) - cvisc
+      dcvusp_dt = dcvisc_dt*(po-pb) 
+
+
+      cor = (1.0+cvusp*(1.0+0.5*cvusp))
+      !  dcor/dx = dcvusp/dx + cvusp*dcvusp so:
+      one_p_cvusp = 1.d0 + cvusp
+      dcor_dpo = dcvusp_dpo*one_p_cvusp 
+      dcor_dpb = dcvusp_dpb*one_p_cvusp 
+      dcor_dt = dcvusp_dt*one_p_cvusp 
+
+      dvo_dp = viso*dcor_dpo !!! viso is independent of po - unless sat state?
+      dvo_dpb = viso*dcor_dpb + dviso_dpb*dviso_dpb
+      dvo_dt = viso*dcor_dt + dviso_dpb*dviso_dt
+
+    endif
+  endif
+#endif
+  if (getDerivs) then
+    !! get derivatives of corrected viso
+    if (isSat) then
+      !! 1) cvusp = 0; cor = 1 constants
+      !! 2) pb derivs equiv to po derivs
+
+      dvo_dp = dviso_dpb
+      ! dvo_dt unchanged
+      ! need to refactor out the uneeded multiple variables
+      dvo_dt = dviso_dt
+    else
+      !! 1) cvusp, cor now vary
+      !! 2) pb derivs diferent from po derivs
+
+      dcvusp_dpo = cvisc !!! cvisc is independent of po here
+      !dcvusp_dpb = dcvisc_dpb*(po-pb) - cvusp
+      dcvusp_dpb = dcvisc_dpb*(po-pb) - cvisc
+      dcvusp_dt = dcvisc_dt*(po-pb) 
+
+      cor = (1.0+cvusp*(1.0+0.5*cvusp))
+      !  dcor/dx = dcvusp/dx + cvusp*dcvusp so:
+      one_p_cvusp = 1.d0 + cvusp
+      dcor_dpo = dcvusp_dpo*one_p_cvusp 
+      dcor_dpb = dcvusp_dpb*one_p_cvusp 
+      dcor_dt = dcvusp_dt*one_p_cvusp 
+
+      dvo_dp = viso*dcor_dpo !!! viso is independent of po here
+      dvo_dpb = viso*dcor_dpb + dviso_dpb*dviso_dpb
+      dvo_dt = viso*dcor_dt + dviso_dpb*dviso_dt
+
+    endif
+  endif
 
   cvusp=cvisc*(po-pb)
   viso=viso*(1.0+cvusp*(1.0+0.5*cvusp))
+  ! --- /correction ----
 
   auxvar%mobility(oid) = kro/viso
+
+
+  if (getDerivs) then
+    ! mobility derivatives:
+    call MobilityDerivs_TOWG_BO(dmobo,kro,viso,dkro_sato,dkro_satg,dvo_dp,dvo_dpb,dvo_dt,isSat,option%nflowdof)
+#if 0
+    print *, "dmobo: ", dmobo
+    print *, "dkro_satg: ", dkro_satg
+    print *, "kro: ", kro
+    print *, "dvo_dt: ", dvo_dt
+#endif
+    auxvar%D_mobility(oid, :) = dmobo(:)
+
+    if (auxvar%D_mobility(oid,dof_gsat) == 0.d0) then
+      print *, "here"
+    endif
+  endif
 
 !-------------------------------------------------------------------------------
 !  Gas mobility (rel. perm / viscosity)
@@ -895,15 +1418,83 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                    RelativePermeability(auxvar%sat(gid),krg, &
                                 dkrg_satg,option,auxvar%table_idx)
 
-!--If PVDG defined in EOS GAS, the viscosities are extracted via table lookup--
+  if (getDerivs) then
+    ! seems to want derivatves of comp pressure w.r.t. pressure and temp, we use 
+    ! comp pres = pres so set these to zero
+    dummy = 0.d0
 
-  call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
-                       auxvar%pres(gid),auxvar%den(gid),visg,ierr,&
-                       auxvar%table_idx)
+
+    call  EOSGasViscosity(auxvar%temp,auxvar%pres(gid),auxvar%pres(gid),&
+                          auxvar%den(gid), &
+                          auxvar%D_den(gid,dof_temp), auxvar%D_den(gid,dof_temp), auxvar%D_den(gid,dof_op), &
+                          dummy,dummy, &                      ! dPcomp_dT, dPcomp_dPgas
+                          visg, dvg_dt, dvg_dpcomp, dvg_dpgas, ierr, &
+                          auxvar%table_idx)
+    !!! I think derivs w.r.t pgas and pcomp should be the same but available for comparison here
+
+!!!subroutine EOSGasViscosityDerive(T, P_comp, P_gas, Rho_comp, &
+!!!                                 dRho_dT, dRho_dPcomp, dRho_dPgas, &
+!!!                                 dPcomp_dT, dPcomp_dPgas, &
+!!!                                 V_mix, dV_dT, dV_dPcomp, dV_dPgas, ierr, &
+!!!                                 table_idxs)
+  else
+  !--If PVDG defined in EOS OIL, the viscosities are extracted via table lookup--
+    call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
+                         auxvar%pres(gid),auxvar%den(gid),visg,ierr,&
+                         auxvar%table_idx)
+
+    !!!subroutine EOSGasViscosityNoDerive(T, P_comp, P_gas, Rho_comp, V_mix, ierr, &
+     !!!                                   table_idxs)
+  endif
 
   auxvar%mobility(gid) = krg/visg
+  if (getDerivs) then
+    !!! call ComputeBOMobilityDerivs(...)
+    dummy = 0.d0
+    call MobilityDerivs_TOWG_BO(dmobg,krg,visg,dkrg_sato,dkrg_satg,dvg_dpgas,dummy,dvg_dt,isSat,option%nflowdof)
+    auxvar%D_mobility(gid, :) = dmobg(:)
+  endif
 
 end subroutine TOWGBlackOilAuxVarCompute
+
+! ************************************************************************** !
+
+subroutine MobilityDerivs_TOWG_BO(dmob,kr,visc,dkr_dso,dkr_dsg,dvisc_dpo,dvisc_dpb,dvisc_dt,isSat,ndof)
+  implicit none
+  PetscInt :: ndof
+  PetscReal, dimension(1:ndof) :: dmob
+  PetscReal :: kr,visc 
+  PetscReal :: dkr_dso, dkr_dsg
+  PetscReal :: dvisc_dpo, dvisc_dpb, dvisc_dt
+  PetscBool :: isSat
+
+  PetscReal :: one_over_visc_sq
+
+  dmob = 0.d0
+
+  one_over_visc_sq = 1.d0/visc/visc
+
+  !! oil pressure derivative
+  dmob(TOWG_OIL_PRESSURE_DOF) = -1.d0*kr*dvisc_dpo*one_over_visc_sq
+
+  !! oil saturation derivative 
+  dmob(TOWG_OIL_SATURATION_DOF) = dkr_dso/visc
+
+  !! temperature derivative
+  dmob(towg_energy_dof) = -1.d0*kr*dvisc_dt*one_over_visc_sq
+
+  !! gas saturation OR bubble point derivative
+  if (isSat) then
+    !! gas saturation
+    dmob(TOWG_GAS_SATURATION_3PH_DOF) = dkr_dsg/visc
+  else
+    !! bubble point
+    dmob(TOWG_GAS_SATURATION_3PH_DOF) = -1.d0*kr*dvisc_dpb*one_over_visc_sq
+  endif
+
+
+end subroutine MobilityDerivs_TOWG_BO
+
 
 ! ************************************************************************** !
 
@@ -1988,6 +2579,7 @@ subroutine TOWGBlackOilAuxVarPerturb(auxvar,global_auxvar, &
   use Characteristic_Curves_module
   use Global_Aux_module
   use Material_Aux_class
+  use Derivative_tests_module
 
   implicit none
 
@@ -2064,6 +2656,11 @@ subroutine TOWGBlackOilAuxVarPerturb(auxvar,global_auxvar, &
   auxvar(TOWG_OIL_PRESSURE_DOF)%pert = &
      auxvar(TOWG_OIL_PRESSURE_DOF)%pert / towg_pressure_scale
 
+  if (option%flow%numerical_derivatives_compare) then 
+    print *, "saturated?", isSaturated
+    call NumCompare_towg_bo(option%nphase,option%nflowdof,auxvar,option)
+  endif
+
 end subroutine TOWGBlackOilAuxVarPerturb
 
 ! ************************************************************************** !
@@ -2084,6 +2681,8 @@ subroutine TL4PAuxVarPerturb(auxvar,global_auxvar, &
   use Characteristic_Curves_module
   use Global_Aux_module
   use Material_Aux_class
+  use Derivative_tests_module
+
 
   implicit none
 
@@ -2178,9 +2777,12 @@ subroutine TL4PAuxVarPerturb(auxvar,global_auxvar, &
     x_pert = x
     x_pert(idof) = x(idof) + pert(idof)
     x_pert_save = x_pert
+    !print *, "call compute pert in ", idof, "xpert: ", x_pert
     call TOWGAuxVarCompute(x_pert,auxvar(idof),global_auxvar, &
                            material_auxvar, &
                            characteristic_curves,natural_id,option)
+    !print *, "deno here: ", auxvar(idof)%den(2)
+    !print *, "deno diff: ", auxvar(idof)%den(2) - auxvar(0)%den(2)
   enddo
 
   auxvar(TOWG_OIL_PRESSURE_DOF)%pert = &
