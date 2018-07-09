@@ -293,6 +293,9 @@ subroutine TOWGSetup(realization)
   
   patch%aux%TOWG => TOWGAuxCreate(option)
 
+  towg_analytical_derivatives = .not. option%flow%numerical_derivatives
+  towg_analytical_derivatives_compare = option%flow%numerical_derivatives_compare
+
   ! ensure that material properties specific to this module are properly
   ! initialized
   material_parameter => patch%aux%Material%material_parameter

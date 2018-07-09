@@ -235,7 +235,8 @@ subroutine InitBO(this,option)
   this%bo%xg          =0.0
   this%bo%xo          =0.0
 
-  if (towg_analytical_derivatives) then
+  !if (towg_analytical_derivatives) then
+  if (.NOT. option%flow%numerical_derivatives) then
     !this%hasDerivatives = PETSC_TRUE
     this%bo%hasDerivatives = PETSC_TRUE
     allocate(this%bo%d)
