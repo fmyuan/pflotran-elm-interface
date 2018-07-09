@@ -323,7 +323,6 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
   !! ********* end of from auxvars energy flow *********
 
   print *, "NumCompare TOil, total possible problems here: ", probs
-  print *
 
 end subroutine NumCompare_toil
 
