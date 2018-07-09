@@ -386,12 +386,15 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   ! must use cell_pressure as the pressure, not %pres(lid)
 
   if (getDerivs) then
-    !!! TOCHECK - molar density here or not?
+    ! confusingly, the derivatives returned from this are MOLAR
+    ! so we have to get th kg derivs ourself
     call EOSWaterDensity( toil_auxvar%temp,cell_pressure, &
                          toil_auxvar%den_kg(lid),toil_auxvar%den(lid), &
                          toil_auxvar%D_den(lid,dof_op), &
                          toil_auxvar%D_den(lid,dof_temp), ierr)
 
+    toil_auxvar%D_den_kg(lid,dof_op) = FMWH2O*toil_auxvar%D_den(lid,dof_op)
+    toil_auxvar%D_den_kg(lid,dof_temp) = FMWH2O*toil_auxvar%D_den(lid,dof_temp)
   else
     call EOSWaterDensity(toil_auxvar%temp,cell_pressure, &
                          toil_auxvar%den_kg(lid),toil_auxvar%den(lid),ierr)
@@ -475,6 +478,9 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
 
   !toil_auxvar%den_kg(oid) = toil_auxvar%den(oid) * fmw_oil
   toil_auxvar%den_kg(oid) = toil_auxvar%den(oid) * EOSOilGetFMW()
+  if (getDerivs) then
+    toil_auxvar%D_den_kg(oid,:) = toil_auxvar%D_den(oid,:) * EOSOilGetFMW()
+  endif
 
   toil_auxvar%H(oid) = toil_auxvar%H(oid) * 1.d-6 ! J/kmol -> MJ/kmol
   toil_auxvar%U(oid) = toil_auxvar%U(oid) * 1.d-6 ! J/kmol -> MJ/kmol
