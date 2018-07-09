@@ -351,7 +351,7 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     !!               =      -1       * - d_pc_satl
     !!               = d_pc_satl
     toil_auxvar%D_pres(lid,dof_osat) = dpc_dsatl 
-    toil_auxvar%D_pc(lid,dof_osat) = dpc_dsatl 
+    toil_auxvar%D_pc(lid,dof_osat) = -dpc_dsatl 
   endif
 
   cell_pressure = max(toil_auxvar%pres(lid),toil_auxvar%pres(oid))
