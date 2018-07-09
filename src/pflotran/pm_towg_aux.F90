@@ -698,7 +698,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     auxvar%D_U = 0.d0
 
     ! also zero out all black oil derivatives
-    auxvar%bo%d%ddeno_dpb = 0.d0
+    !auxvar%bo%d%ddeno_dpb = 0.d0
     auxvar%bo%d%dxo_dpb = 0.d0
     auxvar%bo%d%dxg_dpb = 0.d0
     auxvar%bo%d%dxo_dt = 0.d0
@@ -2662,7 +2662,7 @@ subroutine TOWGBlackOilAuxVarPerturb(auxvar,global_auxvar, &
     print *, "saturated?", isSaturated
     call NumCompare_towg_bo(option%nphase,option%nflowdof,auxvar,option,&
                             TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
-                            TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof)
+                            TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof,isSaturated)
   endif
 
 end subroutine TOWGBlackOilAuxVarPerturb
