@@ -226,6 +226,7 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
 
     PetscReal :: debug_tol
+    PetscReal :: debug_reltol
     PetscBool :: matcompare_reldiff
     PetscBool :: use_GP
 
@@ -596,6 +597,7 @@ subroutine OptionInitRealization(option)
   option%inline_surface_region_name    = ""
 
   option%debug_tol = 1.d0
+  option%debug_reltol = 1.d0
   option%matcompare_reldiff = PETSC_FALSE
   option%use_GP = PETSC_FALSE
 

@@ -737,6 +737,7 @@ subroutine TOilImsAuxVarPerturb(toil_auxvar,global_auxvar, &
   use Characteristic_Curves_module
   use Global_Aux_module
   use Material_Aux_class
+  use Derivative_tests_module
 
   implicit none
 
@@ -826,6 +827,10 @@ subroutine TOilImsAuxVarPerturb(toil_auxvar,global_auxvar, &
 
   !write(*,"('within TOilImsAuxVarPerturb perturb = ',(4(e10.4,1x)))"), &
   !         toil_auxvar(0:3)%pert
+
+  if (option%flow%numerical_derivatives_compare) then 
+    call NumCompare_toil(option%nphase,option%nflowdof,toil_auxvar,option)
+  endif
 
 end subroutine TOilImsAuxVarPerturb
 

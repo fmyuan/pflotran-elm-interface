@@ -211,6 +211,9 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('DEBUG_TOL')
       call InputReadDouble(input,option,option%debug_tol)
       call InputErrorMsg(input,option,'DEBUG_TOL',error_string)
+    case('DEBUG_RELTOL')
+      call InputReadDouble(input,option,option%debug_reltol)
+      call InputErrorMsg(input,option,'DEBUG_RELTOL',error_string)
 
     case('GEOMETRIC_PENALTY')
       option%use_GP= PETSC_TRUE
