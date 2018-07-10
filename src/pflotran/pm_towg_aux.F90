@@ -671,6 +671,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp
 
   PetscReal :: pert,deno_pert,df,ndv,kro_pert
+  PetscReal :: dpcw_dw,dpco_dg
 
   dof_op = TOWG_OIL_PRESSURE_DOF
   dof_osat = TOWG_OIL_SATURATION_DOF
@@ -840,7 +841,6 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !==============================================================================
 
 
-#if 0
 !!! new
   call characteristic_curves%oil_wat_sat_func% &
             CapillaryPressure(auxvar%sat(wid), &
@@ -851,9 +851,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   call characteristic_curves%oil_gas_sat_func% &
             CapillaryPressure(auxvar%sat(gid), &
                               auxvar%pc(oid),dpco_dg,option,auxvar%table_idx)
-#endif
 
-# if 0
 !!! collection of derivatives
   if (getDerivs) then
 
@@ -871,7 +869,6 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
     !!!! TODO - save pressure as well
   endif
-#endif
 
 
 !==============================================================================
