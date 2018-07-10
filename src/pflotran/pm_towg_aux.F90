@@ -1136,8 +1136,19 @@ subroutine EOSOilDenEnergyDerive(T,P,Rho,dRho_dT,dRho_dP,H,dH_dT,dH_dP, &
 
     ! gas saturation:
     if (isSat) then
+      ! gas saturation means gas saturation and no dependence here
     else
+#if 0
       auxvar%D_den_kg(oid,dof_gsat) =   auxvar%den(oid)         &
+                                    *( auxvar%bo%d%dxo_dpb*EOSOilGetFMW()     &
+                                        +auxvar%bo%d%dxg_dpb*EOSGasGetFMW() )
+#endif
+
+      ! gas saturation means pb and dependence is:
+      auxvar%D_den_kg(oid,dof_gsat) =   auxvar%D_den(oid,dof_gsat)         &
+                                    * ( auxvar%bo%xo*EOSOilGetFMW()    &
+                                        +auxvar%bo%xg*EOSGasGetFMW() ) &
+                                    + auxvar%den(oid)                  &
                                     *( auxvar%bo%d%dxo_dpb*EOSOilGetFMW()     &
                                         +auxvar%bo%d%dxg_dpb*EOSGasGetFMW() )
                                      
@@ -1294,7 +1305,11 @@ subroutine EOSOilDenEnergyDerive(T,P,Rho,dRho_dT,dRho_dP,H,dH_dT,dH_dP, &
 
   print *, "sat: ", auxvar%sat(gid), " satpert: ",  auxvar%sat(gid)+pert
   print *, "kro: ", kro, " kro pert ", kro_pert
+  print *, "num deriv: ", (kro_pert-kro)/pert
+  print *, "aly deriv: ", dkro_satg
+#endif
 
+#if 0
   if (dkro_satg == 0.d0 .AND. kro /= kro_pert) then
     print *, "here"
     call characteristic_curves%oil_rel_perm_func_owg% &
@@ -1320,39 +1335,6 @@ subroutine EOSOilDenEnergyDerive(T,P,Rho,dRho_dT,dRho_dP,H,dH_dT,dH_dP, &
   ! --- correction ----
   cvusp=cvisc*(po-pb)
 
-#if 0
-  if (getDerivs) then
-    if (isSat) then
-      !!! ... 
-      !!! don't do correction derivs because reduce to trivial
-      !!!! This is probably wrong
-
-
-    else
-      !!! get viso derivs with correction
-      !!! ...
-
-
-      dcvusp_dpo = cvisc !!! cvisc is independent of po
-      !dcvusp_dpb = dcvisc_dpb*(po-pb) - cvusp
-      dcvusp_dpb = dcvisc_dpb*(po-pb) - cvisc
-      dcvusp_dt = dcvisc_dt*(po-pb) 
-
-
-      cor = (1.0+cvusp*(1.0+0.5*cvusp))
-      !  dcor/dx = dcvusp/dx + cvusp*dcvusp so:
-      one_p_cvusp = 1.d0 + cvusp
-      dcor_dpo = dcvusp_dpo*one_p_cvusp 
-      dcor_dpb = dcvusp_dpb*one_p_cvusp 
-      dcor_dt = dcvusp_dt*one_p_cvusp 
-
-      dvo_dp = viso*dcor_dpo !!! viso is independent of po - unless sat state?
-      dvo_dpb = viso*dcor_dpb + dviso_dpb*dviso_dpb
-      dvo_dt = viso*dcor_dt + dviso_dpb*dviso_dt
-
-    endif
-  endif
-#endif
   if (getDerivs) then
     !! get derivatives of corrected viso
     if (isSat) then
@@ -1380,8 +1362,13 @@ subroutine EOSOilDenEnergyDerive(T,P,Rho,dRho_dT,dRho_dP,H,dH_dT,dH_dP, &
       dcor_dt = dcvusp_dt*one_p_cvusp 
 
       dvo_dp = viso*dcor_dpo !!! viso is independent of po here
+#if 0
+      !!!! what are these?
       dvo_dpb = viso*dcor_dpb + dviso_dpb*dviso_dpb
       dvo_dt = viso*dcor_dt + dviso_dpb*dviso_dt
+#endif
+      dvo_dpb = viso*dcor_dpb + dviso_dpb*cor
+      dvo_dt = viso*dcor_dt + dviso_dt*cor
 
     endif
   endif
@@ -1403,10 +1390,6 @@ subroutine EOSOilDenEnergyDerive(T,P,Rho,dRho_dT,dRho_dP,H,dH_dT,dH_dP, &
     print *, "dvo_dt: ", dvo_dt
 #endif
     auxvar%D_mobility(oid, :) = dmobo(:)
-
-    if (auxvar%D_mobility(oid,dof_gsat) == 0.d0) then
-      print *, "here"
-    endif
   endif
 
 !-------------------------------------------------------------------------------

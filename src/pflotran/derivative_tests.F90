@@ -650,6 +650,8 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
         print *,  "sats: ", auxvars(0)%sat
         print *,  "mob0: ", p_unpert
         print *,  "mob pert: ", p_pert
+        print *,  "mob diff: ", p_pert - p_unpert
+        print *,  "pert in dof is: ", pert
         print *,
         probs = probs + 1
       endif
