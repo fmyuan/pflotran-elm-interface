@@ -358,124 +358,64 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
   probs = 0
 
   !! *********  from auxvars BO*********
-
-  ! xo by pb:
-  if (.not. isSat) then ! only if pb is a solution variable
-    idof = dof_gsat
+  ! xo
+  do idof=1,ndof
     ! get perturbation for this dof variable
     pert = auxvars(idof)%pert
     !do iphase=1,nphase
-    iphase = option%oil_phase
-    ! get unperturbed value
-    p_unpert = auxvars(0)%bo%xo
-    ! get perturbed value
-    p_pert = auxvars(idof)%bo%xo
+    iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%bo%xo
+      ! get perturbed value
+      p_pert = auxvars(idof)%bo%xo
 
-    ! numerical derivative
-    nderiv = (p_pert-p_unpert)/pert
-    ! analytical derivative
-    aderiv = auxvars(0)%bo%d%dxo_dpb
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+      ! analytical derivative
+      aderiv = auxvars(0)%bo%D_xo(idof)
 
-    ! difference:
-    diff = abs(aderiv-nderiv)
-    rdiff = diff/abs(nderiv)
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
 
-    if (diff>atol .OR. rdiff>rtol) then
-      print *, "xo by bubble pressure (note iphase meaningless):"
-      iphase = 0
-      call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-      print *,
-      probs = probs + 1
-    endif
-  endif
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "xo (note phase meaningless):"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *,
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
 
-  ! xo by T:
-  idof = dof_temp
-  ! get perturbation for this dof variable
-  pert = auxvars(idof)%pert
-  !do iphase=1,nphase
-  iphase = option%oil_phase
-  ! get unperturbed value
-  p_unpert = auxvars(0)%bo%xo
-  ! get perturbed value
-  p_pert = auxvars(idof)%bo%xo
-
-  ! numerical derivative
-  nderiv = (p_pert-p_unpert)/pert
-  ! analytical derivative
-  aderiv = auxvars(0)%bo%d%dxo_dT
-
-  ! difference:
-  diff = abs(aderiv-nderiv)
-  rdiff = diff/abs(nderiv)
-
-  if (diff>atol .OR. rdiff>rtol) then
-    print *, "xo by temp (note iphase meaningless):"
-    iphase = 0
-    call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-    print *,
-    probs = probs + 1
-  endif
-
-  ! xg by pb:
-  if (.not. isSat) then ! only if pb is a solution variable
-    idof = dof_gsat
+  ! xg
+  do idof=1,ndof
     ! get perturbation for this dof variable
     pert = auxvars(idof)%pert
     !do iphase=1,nphase
-    iphase = option%oil_phase
-    ! get unperturbed value
-    p_unpert = auxvars(0)%bo%xg
-    ! get perturbed value
-    p_pert = auxvars(idof)%bo%xg
+    iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%bo%xg
+      ! get perturbed value
+      p_pert = auxvars(idof)%bo%xg
 
-    ! numerical derivative
-    nderiv = (p_pert-p_unpert)/pert
-    ! analytical derivative
-    aderiv = auxvars(0)%bo%d%dxg_dpb
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+      ! analytical derivative
+      aderiv = auxvars(0)%bo%D_xg(idof)
 
-    ! difference:
-    diff = abs(aderiv-nderiv)
-    rdiff = diff/abs(nderiv)
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
 
-    if (diff>atol .OR. rdiff>rtol) then
-      print *, "xg by bubble pressure (note iphase meaningless):"
-      iphase = 0
-      call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-      print *,
-      probs = probs + 1
-    endif
-  endif
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "xg (note phase meaningless):"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *,
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
 
-  ! xg by T:
-  idof = dof_temp
-  ! get perturbation for this dof variable
-  pert = auxvars(idof)%pert
-  !do iphase=1,nphase
-  iphase = option%oil_phase
-  ! get unperturbed value
-  p_unpert = auxvars(0)%bo%xg
-  ! get perturbed value
-  p_pert = auxvars(idof)%bo%xg
-
-  ! numerical derivative
-  nderiv = (p_pert-p_unpert)/pert
-  ! analytical derivative
-  aderiv = auxvars(0)%bo%d%dxg_dt
-
-  ! difference:
-  diff = abs(aderiv-nderiv)
-  rdiff = diff/abs(nderiv)
-
-  if (diff>atol .OR. rdiff>rtol) then
-    print *, "xg by temp (note iphase meaningless):"
-    iphase = 0
-    call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-    print *,
-    probs = probs + 1
-  endif
-
-  !! ...
   !! *********  end offrom auxvars BO*********
 
 

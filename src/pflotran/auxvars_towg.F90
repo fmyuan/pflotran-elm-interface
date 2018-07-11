@@ -40,8 +40,13 @@ module AuxVars_TOWG_module
     PetscReal :: bubble_point
     PetscReal :: xo
     PetscReal :: xg
-    PetscBool :: hasDerivatives
-    type(bo_derivative_auxvar_type), pointer :: d
+
+    PetscBool :: has_derivs
+    ! new generalized versions of derivatives:
+    PetscReal, pointer :: D_xo(:)   ! (idof)
+    PetscReal, pointer :: D_xg(:)   ! (idof)
+
+    !type(bo_derivative_auxvar_type), pointer :: d
   end type bo_auxvar_type
 
   type, public ::  bo_derivative_auxvar_type
@@ -52,6 +57,7 @@ module AuxVars_TOWG_module
     PetscReal :: dxg_dpb ! xg w.r.t. bubble pt
     PetscReal :: dxo_dt  ! xo w.r.t. temperature
     PetscReal :: dxg_dt  ! xg w.r.t. temperature
+
   contains
     procedure, public :: Init => AuxVarDerivsBOTOWGInit
     procedure, public :: Strip => AuxVarDerivsBOTOWGStrip
@@ -141,12 +147,19 @@ subroutine InitBO(this,option)
   !if (towg_analytical_derivatives) then
   if (.NOT. option%flow%numerical_derivatives) then
     !this%hasDerivatives = PETSC_TRUE
-    this%bo%hasDerivatives = PETSC_TRUE
-    allocate(this%bo%d)
-    call this%bo%d%Init(option)
+    this%bo%has_derivs= PETSC_TRUE
+    !allocate(this%bo%d)
+    !call this%bo%d%Init(option)
+
+    !!! new general derivs:
+    allocate(this%bo%D_xo(option%nflowdof))
+    this%bo%D_xo = 0.d0
+    allocate(this%bo%D_xg(option%nflowdof))
+    this%bo%D_xg = 0.d0
+
   else
     !this%hasDerivatives = PETSC_FALSE
-    this%bo%hasDerivatives = PETSC_FALSE
+    this%bo%has_derivs = PETSC_FALSE
   endif
 
 end subroutine InitBO
@@ -213,6 +226,11 @@ subroutine StripBO(this)
   implicit none
 
   class(auxvar_towg_type) :: this
+
+  if (this%has_derivs) then
+    call DeallocateArray(this%bo%D_xo)
+    call DeallocateArray(this%bo%D_xg)
+  endif
 
   deallocate(this%bo)
 
