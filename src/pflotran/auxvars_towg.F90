@@ -45,23 +45,7 @@ module AuxVars_TOWG_module
     ! new generalized versions of derivatives:
     PetscReal, pointer :: D_xo(:)   ! (idof)
     PetscReal, pointer :: D_xg(:)   ! (idof)
-
-    !type(bo_derivative_auxvar_type), pointer :: d
   end type bo_auxvar_type
-
-  type, public ::  bo_derivative_auxvar_type
-
-    ! deivaties of xo, xg with respect to various
-    ! solution variables
-    PetscReal :: dxo_dpb ! xo w.r.t. bubble pt
-    PetscReal :: dxg_dpb ! xg w.r.t. bubble pt
-    PetscReal :: dxo_dt  ! xo w.r.t. temperature
-    PetscReal :: dxg_dt  ! xg w.r.t. temperature
-
-  contains
-    procedure, public :: Init => AuxVarDerivsBOTOWGInit
-    procedure, public :: Strip => AuxVarDerivsBOTOWGStrip
-  end type bo_derivative_auxvar_type
 
   public :: AuxVarTOWGStrip
 
@@ -237,38 +221,6 @@ subroutine StripBO(this)
 end subroutine StripBO
 
 ! ************************************************************************** !
-
-subroutine AuxVarDerivsBOTowgInit(this,option)
-  ! 
-  ! 
-
-  use Option_module
-
-  implicit none
-  
-  class(bo_derivative_auxvar_type) :: this
-  type(option_type) :: option
-
-   this%dxo_dpb = 0.d0!! xo w.r.t. bubble pt
-   this%dxg_dpb = 0.d0!! xg w.r.t. bubble pt
-   this%dxo_dt = 0.d0 !! xo w.r.t. temperature
-   this%dxg_dt = 0.d0 !! xg w.r.t. temperature
-
-
-
-end subroutine AuxVarDerivsBOTowgInit
-
-! ************************************************************************** !
-
-subroutine AuxVarDerivsBOTOWGStrip(this,option)
-  use Option_module
-
-  implicit none
-  
-  class(bo_derivative_auxvar_type) :: this
-  type(option_type) :: option
-end subroutine AuxVarDerivsBOTOWGStrip
-
 
 end module AuxVars_TOWG_module
 
