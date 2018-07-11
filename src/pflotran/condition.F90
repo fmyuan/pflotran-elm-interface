@@ -2119,8 +2119,15 @@ subroutine FlowConditionGeneralRead(condition,input,option)
             &a temperature'
           call printErrMsg(option)
         endif
-        if (associated(general%gas_pressure) .and. &
-            associated(general%gas_saturation)) then
+        if ( associated(general%gas_pressure) .and. &
+             associated(general%gas_saturation) .and. &
+             associated(general%liquid_pressure) .and. &
+             (associated(general%mole_fraction) .or. &
+              associated(general%relative_humidity)) ) then
+          ! multiphase condition
+          condition%iphase = MULTI_STATE
+        else if (associated(general%gas_pressure) .and. &
+                 associated(general%gas_saturation)) then
           ! two phase condition
           condition%iphase = TWO_PHASE_STATE
         else if (associated(general%liquid_pressure) .and. &

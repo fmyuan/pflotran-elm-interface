@@ -1689,6 +1689,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   use Hydrostatic_module
   use Saturation_module
   use EOS_Water_module
+  use Utility_module
 
   use General_Aux_module
   use Grid_module
@@ -1708,8 +1709,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   type(flow_general_condition_type), pointer :: general
   PetscBool :: update
   PetscBool :: dof1, dof2, dof3
-  PetscReal :: temperature, p_sat, p_air, p_gas, p_cap, s_liq, xmol
+  PetscReal :: temperature, p_sat, p_cap, s_liq, xmol
   PetscReal :: relative_humidity
+  PetscReal :: gas_sat, air_pressure, gas_pressure, liq_pressure
   PetscReal :: dummy_real
   PetscReal :: x(option%nflowdof)
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -1717,9 +1719,10 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
 
   PetscInt :: idof, num_connections,sum_connection
   PetscInt :: iconn, local_id, ghosted_id
-  ! use to map flow_aux_map to the flow_aux_real_var array
   PetscInt :: real_count
-
+  PetscInt :: dof_count_local(3)
+  PetscInt :: dof_count_global(3)
+  
   num_connections = coupler%connection_set%num_connections
 
   flow_condition => coupler%flow_condition
@@ -1729,89 +1732,369 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   dof2 = PETSC_FALSE
   dof3 = PETSC_FALSE
   real_count = 0
+  
+  ! mapping of flow_aux_mapping to the flow_aux_real_var array:
+  
+  ! liquid and gas pressure are set to 1st dof index
+  ! liquid flux is set to 1st dof index
+  coupler%flow_aux_mapping(GENERAL_GAS_PRESSURE_INDEX) = 1
+  coupler%flow_aux_mapping(GENERAL_LIQUID_PRESSURE_INDEX) = 1
+  coupler%flow_aux_mapping(GENERAL_LIQUID_FLUX_INDEX) = 1
+  ! temperature is set to 2nd dof index
+  ! energy flux is set to 2nd dof index
+  coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = 2
+  coupler%flow_aux_mapping(GENERAL_ENERGY_FLUX_INDEX) = 2
+  ! air mole fraction, gas sat., and air pressure are set to 3rd dof index
+  ! gas flux is set to 3rd dof index
+  coupler%flow_aux_mapping(GENERAL_MOLE_FRACTION_INDEX) = 3
+  coupler%flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) = 3
+  coupler%flow_aux_mapping(GENERAL_AIR_PRESSURE_INDEX) = 3
+  coupler%flow_aux_mapping(GENERAL_GAS_FLUX_INDEX) = 3
+  
   select case(flow_condition%iphase)
+    case(MULTI_STATE)
+      select type(dataset => general%gas_saturation%dataset)
+        class is(dataset_ascii_type)
+          gas_sat = general%gas_saturation%dataset%rarray(1)
+          if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
+            coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
+              TWO_PHASE_STATE
+          else if (gas_sat == 0.d0) then
+            coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
+              LIQUID_STATE
+          else 
+            coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
+              GAS_STATE
+          endif
+        class is(dataset_gridded_hdf5_type)
+          do iconn = 1, num_connections
+            call PatchGetCouplerValueFromDataset(coupler,option,patch%grid, &
+                                  general%gas_saturation%dataset,iconn,gas_sat)
+            if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
+              coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = &
+                TWO_PHASE_STATE
+            elseif (Equal(gas_sat, 0.d0)) then 
+              coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = LIQUID_STATE
+            elseif (Equal(gas_sat, 1.d0)) then 
+              coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = GAS_STATE
+            endif                                       
+          enddo
+        class default
+          option%io_buffer = 'Unknown dataset class: &
+            &general%gas_saturation%dataset,MULTI_STATE'
+          call printErrMsg(option)
+      end select
     case(TWO_PHASE_STATE)
       coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
         TWO_PHASE_STATE
-      real_count = real_count + 1
-      select case(general%gas_pressure%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(GENERAL_GAS_PRESSURE_INDEX) = real_count
-          coupler%flow_aux_real_var(real_count,1:num_connections) = &
-            general%gas_pressure%dataset%rarray(1)
-          dof1 = PETSC_TRUE
-          coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(general%gas_pressure%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'general two phase state gas pressure',string)
-          call printErrMsg(option)
-      end select
-      ! in two-phase flow, air pressure is second dof
-      real_count = real_count + 1
-      select case(general%temperature%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(general_2ph_energy_dof) = real_count
-          temperature = general%temperature%dataset%rarray(1)
-          if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
-            coupler%flow_aux_real_var(real_count,1:num_connections) = &
-              temperature
-          else
-            call EOSWaterSaturationPressure(temperature,p_sat,ierr)
-            coupler%flow_aux_real_var(real_count,1:num_connections) = &
-              general%gas_pressure%dataset%rarray(1) - p_sat
-          endif
-          dof3 = PETSC_TRUE
-          coupler%flow_bc_type(GENERAL_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(general%temperature%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'general two phase state temperature',string)
-          call printErrMsg(option)
-      end select
-      ! in two-phase flow, gas saturation is third dof
-      real_count = real_count + 1
-      select case(general%gas_saturation%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) = real_count
-          coupler%flow_aux_real_var(real_count,1:num_connections) = &
-            general%gas_saturation%dataset%rarray(1)
-          dof2 = PETSC_TRUE
-          coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(general%gas_saturation%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'general two phase state gas saturation',string)
-          call printErrMsg(option)
-      end select
+        ! no need to loop in the next do loop if its all the same state, which 
+        ! you know from flow_condition%iphase
     case(LIQUID_STATE)
       coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
         LIQUID_STATE
       if (general%liquid_pressure%itype == HYDROSTATIC_BC) then
-!        option%io_buffer = 'Hydrostatic BC for general phase cannot possibly ' // &
-!          'be set up correctly. - GEH'
-!        call printErrMsg(option)
+!       option%io_buffer = 'Hydrostatic BC for general phase cannot possibly ' // &
+!         'be set up correctly. - GEH'
+!       call printErrMsg(option)
         if (general%mole_fraction%itype /= DIRICHLET_BC) then
-          option%io_buffer = &
-            'Hydrostatic liquid state pressure bc for flow condition "' // &
-            trim(flow_condition%name) // &
-            '" requires a mole fraction bc of type dirichlet'
+          option%io_buffer = 'Hydrostatic liquid state pressure BC for &
+            &flow condition "' // trim(flow_condition%name) // &
+            '" requires a mole fraction BC of type DIRICHLET.'
           call printErrMsg(option)
         endif
         if (general%temperature%itype /= DIRICHLET_BC) then
-          option%io_buffer = &
-            'Hydrostatic liquid state pressure bc for flow condition "' // &
-            trim(flow_condition%name) // &
-            '" requires a temperature bc of type dirichlet'
+          option%io_buffer = 'Hydrostatic liquid state pressure BC for &
+            &flow condition "' // trim(flow_condition%name) // &
+            '" requires a temperature BC of type DIRICHLET.'
           call printErrMsg(option)
         endif
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
+        dof1 = PETSC_TRUE; dof2 = PETSC_TRUE; dof3 = PETSC_TRUE;
+      endif
+    case(GAS_STATE)
+      coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
+        GAS_STATE
+    case(ANY_STATE)
+      if (associated(coupler%flow_aux_int_var)) then ! not used with rate
+        coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
+          ANY_STATE
+      endif
+  end select
+  
+  ! loop over each connection in the coupler and check its state
+  ! set the flow_aux_mapping, flow_aux_real_var, etc on a connection
+  ! basis rather than in coupler chunks
+  ! this might be slower since we need to loop over all the connections
+  ! but it makes the algorithm more general
+  do iconn = 1, num_connections
+    select case(coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn))
+    ! ----------------------------------------------------------------------- !
+      case(TWO_PHASE_STATE)
+        ! gas pressure; 1st dof ------------------------ !
+        select case(general%gas_pressure%itype)
+          case(DIRICHLET_BC)
+            call PatchGetCouplerValueFromDataset(coupler,option, &
+                    patch%grid,general%gas_pressure%dataset,iconn,gas_pressure)
+            coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
+            dof1 = PETSC_TRUE
+            coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
+          case default
+            string = GetSubConditionName(general%gas_pressure%itype)
+            option%io_buffer = &
+              FlowConditionUnknownItype(coupler%flow_condition, &
+                'GENERAL_MODE two phase state gas pressure ',string)
+            call printErrMsg(option)
+        end select
+        ! temperature; 2nd dof ------------------------- !  
+        select case(general%temperature%itype)
+          case(DIRICHLET_BC)
+            call PatchGetCouplerValueFromDataset(coupler,option, &
+                      patch%grid,general%temperature%dataset,iconn,temperature)
+            if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
+              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
+            else
+              call EOSWaterSaturationPressure(temperature,p_sat,ierr)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                    patch%grid,general%gas_pressure%dataset,iconn,gas_pressure)
+              ! should it still be index = 2 here below?
+              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = gas_pressure-p_sat
+            endif
+            dof2 = PETSC_TRUE
+            coupler%flow_bc_type(GENERAL_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
+          case default
+            string = GetSubConditionName(general%temperature%itype)
+            option%io_buffer = &
+              FlowConditionUnknownItype(coupler%flow_condition, &
+                'GENERAL_MODE two phase state temperature ',string)
+            call printErrMsg(option)
+        end select
+        ! gas saturation; 3rd dof ---------------------- !
+        select case(general%gas_saturation%itype)
+          case(DIRICHLET_BC)
+            call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,general%gas_saturation%dataset,iconn,gas_sat)
+            coupler%flow_aux_real_var(THREE_INTEGER,iconn) = gas_sat
+            dof3 = PETSC_TRUE
+            coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = DIRICHLET_BC
+          case default
+            string = GetSubConditionName(general%gas_saturation%itype)
+            option%io_buffer = &
+              FlowConditionUnknownItype(coupler%flow_condition, &
+                'GENERAL_MODE two phase state gas saturation ',string)
+            call printErrMsg(option)
+        end select
+    ! ----------------------------------------------------------------------- !
+      case(LIQUID_STATE)
+        if (general%liquid_pressure%itype == HYDROSTATIC_BC) then
+!         option%io_buffer = 'Hydrostatic BC for general phase cannot possibly ' // &
+!           'be set up correctly. - GEH'
+!         call printErrMsg(option)
+          if (general%mole_fraction%itype /= DIRICHLET_BC) then
+            option%io_buffer = 'Hydrostatic liquid state pressure BC for &
+              &flow condition "' // trim(flow_condition%name) // &
+              '" requires a mole fraction BC of type DIRICHLET.'
+            call printErrMsg(option)
+          endif
+          if (general%temperature%itype /= DIRICHLET_BC) then
+            option%io_buffer = 'Hydrostatic liquid state pressure BC for &
+              &flow condition "' // trim(flow_condition%name) // &
+              '" requires a temperature BC of type DIRICHLET.'
+            call printErrMsg(option)
+          endif
+          ! ---> see code that just prints error
+          coupler%flow_bc_type(1) = HYDROSTATIC_BC
+          coupler%flow_bc_type(2:3) = DIRICHLET_BC
+        else 
+        ! liquid pressure; 1st dof --------------------- !
+          select case(general%liquid_pressure%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                 patch%grid,general%liquid_pressure%dataset,iconn,liq_pressure)
+              coupler%flow_aux_real_var(ONE_INTEGER,iconn) = liq_pressure
+              dof1 = PETSC_TRUE
+              coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(general%liquid_pressure%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                'GENERAL_MODE liquid state liquid pressure ',string)
+              call printErrMsg(option)
+          end select
+        ! temperature; 2nd dof ------------------------- !
+          select case(general%temperature%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                      patch%grid,general%temperature%dataset,iconn,temperature)
+              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
+              dof2 = PETSC_TRUE
+              coupler%flow_bc_type(GENERAL_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(general%temperature%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                'GENERAL_MODE liquid state temperature ',string)
+              call printErrMsg(option)
+          end select
+        ! mole fraction; 3rd dof ----------------------- !
+          select case(general%mole_fraction%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                           patch%grid,general%mole_fraction%dataset,iconn,xmol)
+              if (general_immiscible) then
+                xmol = GENERAL_IMMISCIBLE_VALUE
+              endif
+              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = xmol
+              dof3 = PETSC_TRUE
+              coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(general%mole_fraction%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                'GENERAL_MODE liquid state mole fraction ',string)
+              call printErrMsg(option)
+          end select
+        endif
+    ! ----------------------------------------------------------------------- !
+      case(GAS_STATE)
+        gas_pressure = UNINITIALIZED_DOUBLE
+        temperature = UNINITIALIZED_DOUBLE
+        ! gas pressure; 1st dof ------------------------ !
+        select case(general%gas_pressure%itype)
+          case(DIRICHLET_BC)
+            call PatchGetCouplerValueFromDataset(coupler,option, &
+                 patch%grid,general%gas_pressure%dataset,iconn,gas_pressure)
+            coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
+            dof1 = PETSC_TRUE
+            coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = DIRICHLET_BC
+          case default
+            string = GetSubConditionName(general%gas_pressure%itype)
+            option%io_buffer = &
+              FlowConditionUnknownItype(coupler%flow_condition, &
+              'GENERAL_MODE gas state gas pressure',string)
+            call printErrMsg(option)
+        end select
+        ! temperature; 2nd dof ------------------------- !
+        select case(general%temperature%itype)
+          case(DIRICHLET_BC)
+            call PatchGetCouplerValueFromDataset(coupler,option, &
+                      patch%grid,general%temperature%dataset,iconn,temperature)
+            coupler%flow_aux_real_var(TWO_INTEGER,iconn) = &
+              temperature
+            dof2 = PETSC_TRUE
+            coupler%flow_bc_type(GENERAL_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
+          case default
+            string = GetSubConditionName(general%temperature%itype)
+            option%io_buffer = &
+              FlowConditionUnknownItype(coupler%flow_condition, &
+              'GENERAL_MODE gas state temperature',string)
+            call printErrMsg(option)
+        end select
+        ! air mole fraction; 3rd dof ------------------- !
+        if (associated(general%mole_fraction)) then
+          select case(general%mole_fraction%itype)
+            case(DIRICHLET_BC)
+              if (Uninitialized(gas_pressure) .or. &
+                  Uninitialized(temperature)) then
+                option%io_buffer = 'GAS_PRESSURE or TEMPERATURE not set &
+                  &correctly in flow condition "' // &
+                  trim(flow_condition%name) // '".'
+                call printErrMsg(option)
+              endif
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                          patch%grid,general%mole_fraction%dataset,iconn,xmol)
+              air_pressure = xmol * gas_pressure
+              if (general_immiscible) then
+                air_pressure = gas_pressure - GENERAL_IMMISCIBLE_VALUE
+              endif
+              call EOSWaterSaturationPressure(temperature,p_sat,ierr)
+              if (gas_pressure - air_pressure >= p_sat) then
+                option%io_buffer = 'MOLE_FRACTION set in flow &
+                  &condition "' // trim(flow_condition%name) // &
+                  '" results in a vapor pressure exceeding the water &
+                  &saturation pressure, which indicates that a two-phase &
+                  &state with GAS_PRESSURE and GAS_SATURATION should be used.'
+                call printErrMsg(option)
+              endif
+              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = air_pressure
+              dof3 = PETSC_TRUE
+              coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = &
+                                                                  DIRICHLET_BC
+            case default
+              string = GetSubConditionName(general%mole_fraction%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                'GENERAL_MODE air mole fraction',string)
+              call printErrMsg(option)
+          end select
+      ! relative humidity; 3rd dof ------------------- !
+        else
+          select case(general%relative_humidity%itype)
+            case(DIRICHLET_BC)
+              if (Uninitialized(gas_pressure) .or. &
+                  Uninitialized(temperature)) then
+                option%io_buffer = 'GAS_PRESSURE or TEMPERATURE not set &
+                  &correctly in flow condition "' // &
+                  trim(flow_condition%name) // '".'
+                call printErrMsg(option)
+              endif
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                patch%grid,general%relative_humidity%dataset, &
+                iconn,relative_humidity)  ! relative_humidity is in percent
+              if (relative_humidity < 0.d0 .or. &
+                  relative_humidity > 100.d0) then
+                option%io_buffer = 'RELATIVE_HUMIDITY in flow &
+                  &condition "' // trim(flow_condition%name) // '" outside &
+                  &bounds of 0-100%.'
+                call printErrMsg(option)
+              endif
+              call EOSWaterSaturationPressure(temperature,p_sat,ierr)
+                                ! convert from % to fraction
+              air_pressure = gas_pressure - relative_humidity*1.d-2*p_sat
+              if (general_immiscible) then
+                air_pressure = gas_pressure - GENERAL_IMMISCIBLE_VALUE
+              endif
+              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = air_pressure
+              dof3 = PETSC_TRUE
+              coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = &
+                                                                  DIRICHLET_BC
+            case default
+              string = GetSubConditionName(general%relative_humidity%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                'GENERAL_MODE relative humidity',string)
+              call printErrMsg(option)
+          end select
+        endif
+    ! ----------------------------------------------------------------------- !
+      case(ANY_STATE)
+        ! temperature; 2nd dof ------------------------- !
+        if (associated(general%temperature)) then
+          select case(general%temperature%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                      patch%grid,general%temperature%dataset,iconn,temperature)
+              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
+              dof2 = PETSC_TRUE
+              coupler%flow_bc_type(GENERAL_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(general%temperature%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                'GENERAL_MODE gas state temperature ',string)
+              call printErrMsg(option)
+          end select
+        endif
+    ! ----------------------------------------------------------------------- !
+    end select
+  enddo
+
+  
+  select case(flow_condition%iphase)
+    case(MULTI_STATE)
+    case(TWO_PHASE_STATE)
+    case(LIQUID_STATE)
+    ! ---> this code just prints an error, I think:
+      if (general%liquid_pressure%itype == HYDROSTATIC_BC) then
         do iconn=1,coupler%connection_set%num_connections
           if (coupler%flow_aux_int_var(ONE_INTEGER,iconn) == TWO_PHASE_STATE) then
             !geh: This cannot possibly be working.  real_count needs to be incremented
@@ -1832,7 +2115,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
             !        air pressure in this case hijacked for capillary pressure
             !  2        coupler%flow_aux_mapping(GENERAL_AIR_PRESSURE_INDEX) = 2
             !  3        coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = 3
-            p_gas = coupler%flow_aux_real_var( &
+            gas_pressure = coupler%flow_aux_real_var( &
                       coupler%flow_aux_mapping( &
                         GENERAL_GAS_PRESSURE_INDEX),iconn)
             p_cap = coupler%flow_aux_real_var( &
@@ -1850,7 +2133,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
               coupler%flow_aux_real_var( &
                 coupler%flow_aux_mapping( &
                   GENERAL_AIR_PRESSURE_INDEX),iconn) = &
-                    p_gas - p_sat ! air pressure
+                    gas_pressure - p_sat ! air pressure
             endif
             call patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))% &
                    ptr%saturation_function%Saturation(p_cap,s_liq, &
@@ -1865,280 +2148,59 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
         coupler%flow_bc_type(1) = HYDROSTATIC_BC
         coupler%flow_bc_type(2:3) = DIRICHLET_BC
       else
-        real_count = real_count + 1
-        select case(general%liquid_pressure%itype)
-          case(DIRICHLET_BC)
-            coupler%flow_aux_mapping(GENERAL_LIQUID_PRESSURE_INDEX) = real_count
-            select type(selector => general%liquid_pressure%dataset)
-              class is(dataset_ascii_type)
-                coupler%flow_aux_real_var(real_count,1:num_connections) = &
-                  selector%rarray(1)
-                dof1 = PETSC_TRUE
-              class is(dataset_gridded_hdf5_type)
-                call PatchUpdateCouplerFromDataset(coupler,option, &
-                                                   patch%grid,selector, &
-                                                   real_count)
-                dof1 = PETSC_TRUE
-              class default
-                option%io_buffer = 'Unknown dataset class (general%liquid_' // &
-                  'pressure%itype,LIQUID_STATE,DIRICHLET_BC)'
-                call printErrMsg(option)
-            end select
-            coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
-          case default
-            string = &
-              GetSubConditionName(general%liquid_pressure%itype)
-            option%io_buffer = &
-              FlowConditionUnknownItype(coupler%flow_condition, &
-                'general liquid state liquid pressure',string)
-            call printErrMsg(option)
-        end select
-        real_count = real_count + 1
-        select case(general%mole_fraction%itype)
-          case(DIRICHLET_BC)
-            coupler%flow_aux_mapping(GENERAL_MOLE_FRACTION_INDEX) = real_count
-            xmol = general%mole_fraction%dataset%rarray(1)
-            if (general_immiscible) then
-              xmol = GENERAL_IMMISCIBLE_VALUE
-            endif
-            coupler%flow_aux_real_var(real_count,1:num_connections) = xmol
-            dof2 = PETSC_TRUE
-            coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = DIRICHLET_BC
-          case default
-            string = &
-              GetSubConditionName(general%mole_fraction%itype)
-            option%io_buffer = &
-              FlowConditionUnknownItype(coupler%flow_condition, &
-                'general liquid state mole fraction',string)
-            call printErrMsg(option)
-        end select
-        real_count = real_count + 1
-        select case(general%temperature%itype)
-          case(DIRICHLET_BC)
-            coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = real_count
-            select type(selector =>general%temperature%dataset)
-              class is(dataset_ascii_type)
-                coupler%flow_aux_real_var(real_count,1:num_connections) = &
-                  selector%rarray(1)
-                dof3 = PETSC_TRUE
-              class is(dataset_gridded_hdf5_type)
-                call PatchUpdateCouplerFromDataset(coupler,option, &
-                                                   patch%grid,selector, &
-                                                   real_count)
-                dof3 = PETSC_TRUE
-              class default
-                option%io_buffer = 'Unknown dataset class (general%' // &
-                  'temperature%itype,LIQUID_STATE,DIRICHLET_BC)'
-                call printErrMsg(option)
-            end select
-            coupler%flow_bc_type(GENERAL_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
-          case default
-            string = &
-              GetSubConditionName(general%temperature%itype)
-            option%io_buffer = &
-              FlowConditionUnknownItype(coupler%flow_condition, &
-                'general liquid state temperature',string)
-            call printErrMsg(option)
-        end select
       endif
     case(GAS_STATE)
-      p_gas = UNINITIALIZED_DOUBLE ! set to uninitialized
-      temperature = UNINITIALIZED_DOUBLE
-      real_count = real_count + 1
-      coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = GAS_STATE
-      select case(general%gas_pressure%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(GENERAL_GAS_PRESSURE_INDEX) = real_count
-          p_gas = general%gas_pressure%dataset%rarray(1)
-          coupler%flow_aux_real_var(real_count,1:num_connections) = p_gas
-          dof1 = PETSC_TRUE
-          coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(general%gas_pressure%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'general gas state gas pressure',string)
-          call printErrMsg(option)
-      end select
-      real_count = real_count + 1
-      select case(general%temperature%itype)
-        case(DIRICHLET_BC)
-          temperature = general%temperature%dataset%rarray(1)
-          coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = real_count
-          coupler%flow_aux_real_var(real_count,1:num_connections) = &
-            temperature
-          dof3 = PETSC_TRUE
-          coupler%flow_bc_type(GENERAL_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(general%temperature%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'general gas state temperature',string)
-          call printErrMsg(option)
-      end select
-      real_count = real_count + 1
-      if (associated(general%mole_fraction)) then
-        select case(general%mole_fraction%itype)
-          case(DIRICHLET_BC)
-            if (Uninitialized(p_gas) .or. Uninitialized(temperature)) then
-              option%io_buffer = 'Gas pressure or temperature not set ' // &
-                'correctly in flow condition "' // &
-                trim(flow_condition%name) // '".'
-              call printErrMsg(option)
-            endif
-            coupler%flow_aux_mapping(GENERAL_AIR_PRESSURE_INDEX) = real_count
-            p_air = general%mole_fraction%dataset%rarray(1) * p_gas
-            if (general_immiscible) then
-              p_air = p_gas - GENERAL_IMMISCIBLE_VALUE
-            endif
-            call EOSWaterSaturationPressure(temperature,p_sat,ierr)
-            if (p_gas - p_air >= p_sat) then
-              option%io_buffer = 'MOLE_FRACTION set in flow condition "' // &
-                trim(flow_condition%name) // &
-                '" results in a vapor pressure exceeding the water ' // &
-                'saturation pressure, which indicates that a two-phase ' // &
-                'state with GAS_PRESSURE and GAS_SATURATION should be used.'
-              call printErrMsg(option)
-            endif
-            coupler%flow_aux_real_var(real_count,1:num_connections) = p_air
-            dof2 = PETSC_TRUE
-            coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
-          case default
-            string = &
-              GetSubConditionName(general%mole_fraction%itype)
-            option%io_buffer = &
-                FlowConditionUnknownItype(coupler%flow_condition, &
-                'general gas state mole fraction',string)
-            call printErrMsg(option)
-        end select
-      else
-        select case(general%relative_humidity%itype)
-          case(DIRICHLET_BC)
-            if (Uninitialized(p_gas) .or. Uninitialized(temperature)) then
-              option%io_buffer = 'Gas pressure or temperature not set ' // &
-                'correctly in flow condition "' // &
-                trim(flow_condition%name) // '".'
-              call printErrMsg(option)
-            endif
-            coupler%flow_aux_mapping(GENERAL_AIR_PRESSURE_INDEX) = real_count
-            ! relative humidity in %
-            relative_humidity = general%relative_humidity%dataset%rarray(1)
-            if (relative_humidity < 0.d0 .or. relative_humidity > 100.d0) then
-              option%io_buffer = 'Relative humidity in flow condition "' // &
-                trim(flow_condition%name) // '" outside bounds of 0-100%.'
-              call printErrMsg(option)
-            endif
-            call EOSWaterSaturationPressure(temperature,p_sat,ierr)
-                             ! convert from % to fraction
-            p_air = p_gas - relative_humidity*1.d-2*p_sat
-            if (general_immiscible) then
-              p_air = p_gas - GENERAL_IMMISCIBLE_VALUE
-            endif
-            coupler%flow_aux_real_var(real_count,1:num_connections) = p_air
-            dof2 = PETSC_TRUE
-            coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
-          case default
-            string = &
-              GetSubConditionName(general%mole_fraction%itype)
-            option%io_buffer = &
-                FlowConditionUnknownItype(coupler%flow_condition, &
-                'general gas state relative humidity',string)
-            call printErrMsg(option)
-        end select
-      endif
     case(ANY_STATE)
-      if (associated(coupler%flow_aux_int_var)) then ! not used with rate
-        coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
-          ANY_STATE
-      endif
-      if (associated(general%temperature)) then
-        real_count = real_count + 1
-        select case(general%temperature%itype)
-          case(DIRICHLET_BC)
-            coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = real_count
-            select type(selector =>general%temperature%dataset)
-              class is(dataset_ascii_type)
-                coupler%flow_aux_real_var(real_count,1:num_connections) = &
-                  selector%rarray(1)
-                dof3 = PETSC_TRUE
-              class is(dataset_gridded_hdf5_type)
-                call PatchUpdateCouplerFromDataset(coupler,option, &
-                                                   patch%grid,selector, &
-                                                   real_count)
-                dof3 = PETSC_TRUE
-              class default
-                option%io_buffer = 'Unknown dataset class (general%' // &
-                  'temperature%itype,LIQUID_STATE,DIRICHLET_BC)'
-                call printErrMsg(option)
-            end select
-            coupler%flow_bc_type(GENERAL_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
-          case default
-            string = &
-              GetSubConditionName(general%temperature%itype)
-            option%io_buffer = &
-              FlowConditionUnknownItype(coupler%flow_condition, &
-                'general gas state temperature',string)
-            call printErrMsg(option)
-        end select
-      endif
   end select
 
   if (associated(general%liquid_flux)) then
     coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = NEUMANN_BC
-    real_count = real_count + 1
-    coupler%flow_aux_mapping(GENERAL_LIQUID_FLUX_INDEX) = real_count
     select type(selector => general%liquid_flux%dataset)
       class is(dataset_ascii_type)
-        coupler%flow_aux_real_var(real_count,1:num_connections) = &
+        coupler%flow_aux_real_var(ONE_INTEGER,1:num_connections) = &
                                            general%liquid_flux%dataset%rarray(1)
         dof1 = PETSC_TRUE
       class is(dataset_gridded_hdf5_type)
         call PatchVerifyDatasetGriddedForFlux(selector,coupler,option)
         call PatchUpdateCouplerFromDataset(coupler,option,patch%grid,selector, &
-                                           real_count)
+                                           ONE_INTEGER)
         dof1 = PETSC_TRUE
       class default
         option%io_buffer = 'Unknown dataset class for general%liquid_flux.'
         call printErrMsg(option)
     end select
   endif
-  if (associated(general%gas_flux)) then
-    coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = NEUMANN_BC
-    real_count = real_count + 1
-    coupler%flow_aux_mapping(GENERAL_GAS_FLUX_INDEX) = real_count
-    select type(selector => general%gas_flux%dataset)
+  if (associated(general%energy_flux)) then
+    coupler%flow_bc_type(GENERAL_ENERGY_EQUATION_INDEX) = NEUMANN_BC
+    select type(selector => general%energy_flux%dataset)
       class is(dataset_ascii_type)
-        coupler%flow_aux_real_var(real_count,1:num_connections) = &
-                                              general%gas_flux%dataset%rarray(1)
+        coupler%flow_aux_real_var(TWO_INTEGER,1:num_connections) = &
+          general%energy_flux%dataset%rarray(1)
         dof2 = PETSC_TRUE
       class is(dataset_gridded_hdf5_type)
         call PatchVerifyDatasetGriddedForFlux(selector,coupler,option)
         call PatchUpdateCouplerFromDataset(coupler,option,patch%grid,selector, &
-                                           real_count)
+                                           TWO_INTEGER)
         dof2 = PETSC_TRUE
       class default
-        option%io_buffer = 'Unknown dataset class for general%gas_flux.'
+        option%io_buffer = 'Unknown dataset class for general%energy_flux.'
         call printErrMsg(option)
     end select
   endif
-  if (associated(general%energy_flux)) then
-    coupler%flow_bc_type(GENERAL_ENERGY_EQUATION_INDEX) = NEUMANN_BC
-    real_count = real_count + 1
-    coupler%flow_aux_mapping(GENERAL_ENERGY_FLUX_INDEX) = real_count
-    select type(selector => general%energy_flux%dataset)
+  if (associated(general%gas_flux)) then
+    coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = NEUMANN_BC
+    select type(selector => general%gas_flux%dataset)
       class is(dataset_ascii_type)
-        coupler%flow_aux_real_var(real_count,1:num_connections) = &
-          general%energy_flux%dataset%rarray(1)
+        coupler%flow_aux_real_var(THREE_INTEGER,1:num_connections) = &
+                                              general%gas_flux%dataset%rarray(1)
         dof3 = PETSC_TRUE
       class is(dataset_gridded_hdf5_type)
         call PatchVerifyDatasetGriddedForFlux(selector,coupler,option)
         call PatchUpdateCouplerFromDataset(coupler,option,patch%grid,selector, &
-                                           real_count)
+                                           THREE_INTEGER)
         dof3 = PETSC_TRUE
       class default
-        option%io_buffer = 'Unknown dataset class for general%energy_flux.'
+        option%io_buffer = 'Unknown dataset class for general%gas_flux.'
         call printErrMsg(option)
     end select
   endif
@@ -2150,9 +2212,22 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     end select
   endif
 
-  !geh: is this really correct, or should it be .or.
+  dof_count_global = 0
+  dof_count_local = 0
+  if (dof1) dof_count_local(1) = 1
+  if (dof2) dof_count_local(2) = 1
+  if (dof3) dof_count_local(3) = 1
+  call MPI_Allreduce(dof_count_local,dof_count_global,THREE_INTEGER_MPI, &
+                     MPI_INTEGER,MPI_SUM,option%mycomm,ierr)
+  if (dof_count_global(1) > 0) dof1 = PETSC_TRUE
+  if (dof_count_global(2) > 0) dof2 = PETSC_TRUE
+  if (dof_count_global(3) > 0) dof3 = PETSC_TRUE
+  ! need to check if these dofs are true on any process, because the 
+  ! boundary condition might be split up on 2 or more processes  
   if (.not.dof1 .or. .not.dof2 .or. .not.dof3) then
-    option%io_buffer = 'Error with general phase boundary condition'
+    option%io_buffer = 'Error with GENERAL_MODE phase boundary condition: &
+                        &Missing dof.'
+    call printErrMsg(option)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsG
@@ -3510,6 +3585,65 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsRich
+
+! ************************************************************************** !
+
+subroutine PatchGetCouplerValueFromDataset(coupler,option,grid,dataset,iconn, &
+                                           value)
+  !
+  ! Gets you an auxiliary variable from a dataset for a given connection.
+  !
+  ! Author: Glenn Hammond/Jennifer M. Frederick
+  ! Date: 04/18/2018
+  !
+
+  use Option_module
+  use Grid_module
+  use Coupler_module
+  use Dataset_Common_HDF5_class
+  use Dataset_Gridded_HDF5_class
+  use Dataset_Ascii_class
+  use Dataset_module
+
+  implicit none
+
+  type(coupler_type) :: coupler
+  type(option_type) :: option
+  type(grid_type) :: grid
+  class(dataset_base_type) :: dataset
+  PetscInt :: iconn
+  PetscReal :: value
+
+  PetscInt :: local_id
+  PetscInt :: ghosted_id
+  PetscReal :: x
+  PetscReal :: y
+  PetscReal :: z
+  PetscReal :: dist(-1:3)
+  
+  select type(dataset)
+    class is(dataset_ascii_type)
+      value = dataset%rarray(1)
+    class is(dataset_gridded_hdf5_type)
+      local_id = coupler%connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      x = grid%x(ghosted_id)
+      y = grid%y(ghosted_id)
+      z = grid%z(ghosted_id)
+      if (associated(coupler%connection_set%dist)) then
+        dist = coupler%connection_set%dist(:,iconn)
+        x = x-dist(0)*dist(1)
+        y = y-dist(0)*dist(2)
+        z = z-dist(0)*dist(3)
+      endif
+      call DatasetGriddedHDF5InterpolateReal(dataset,x,y,z,value,option)
+    class default
+      option%io_buffer = 'Unknown dataset class: &
+                         &PatchGetCouplerValueFromDataset().'
+      call printErrMsg(option)
+  end select
+
+end subroutine PatchGetCouplerValueFromDataset
 
 ! ************************************************************************** !
 
