@@ -259,37 +259,46 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
   type(input_type) :: input
   type(option_type) :: option
 
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  error_string = 'TIMESTEPPER'
+
   select case(trim(keyword))
 
     case('NUM_STEPS_AFTER_TS_CUT')
       call InputReadInt(input,option,this%constant_time_step_threshold)
       call InputErrorMsg(input,option,'num_constant_time_steps_after_ts_cut', &
-                         'TIMESTEPPER')
+                         error_string)
     case('MAX_STEPS')
       call InputReadInt(input,option,this%max_time_step)
-      call InputErrorMsg(input,option,'max_time_step','TIMESTEPPER')
-    case('MAX_TS_CUTS')
+      call InputErrorMsg(input,option,'max_time_step',error_string)
+    case('MAX_TS_CUTS','MAXIMUM_TIMESTEP_CUTS')
       call InputReadInt(input,option,this%max_time_step_cuts)
-      call InputErrorMsg(input,option,'max_time_step_cuts','TIMESTEPPER')
+      call InputErrorMsg(input,option,'max_time_step_cuts',error_string)
     case('MAX_NUM_CONTIGUOUS_REVERTS')
       call InputReadInt(input,option,this%max_num_contig_revert)
-      call InputErrorMsg(input,option,'max_num_contig_reverts','TIMESTEPPER')
+      call InputErrorMsg(input,option,'max_num_contig_reverts',error_string)
+    case('TIMESTEP_MINIMUM_SIZE')
+      call InputReadDouble(input,option,this%dt_min)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadAndConvertUnits(input,this%dt_min,'sec', &
+                                    trim(error_string)//','//keyword,option)
     case('TIMESTEP_REDUCTION_FACTOR')
       call InputReadDouble(input,option,this%time_step_reduction_factor)
-      call InputErrorMsg(input,option,'timestep reduction factor','TIMESTEPPER')
+      call InputErrorMsg(input,option,'timestep reduction factor',error_string)
     case('TIMESTEP_MAXIMUM_GROWTH_FACTOR')
       call InputReadDouble(input,option,this%time_step_max_growth_factor)
       call InputErrorMsg(input,option,'timestep maximum growth factor', &
-                         'TIMESTEPPER')
-    case('TIMESTEP_OVERSTEP_TOLERANCE')
+                         error_string)
+    case('TIMESTEP_OVERSTEP_REL_TOLERANCE')
       call InputReadDouble(input,option,this%time_step_tolerance)
       call InputErrorMsg(input,option,'timestep overstep tolerance', &
-                         'TIMESTEPPER')
+                         error_string)
     case('INITIALIZE_TO_STEADY_STATE')
       this%init_to_steady_state = PETSC_TRUE
       call InputReadDouble(input,option,this%steady_state_rel_tol)
       call InputErrorMsg(input,option,'steady state convergence relative &
-                         &tolerance','TIMESTEPPER')
+                         &tolerance',error_string)
     case('RUN_AS_STEADY_STATE')
       this%run_as_steady_state = PETSC_TRUE
     case('PRINT_EKG')
@@ -303,7 +312,7 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
         &deprecated in TIMESTEPPER and moved to the FLOW PM OPTIONS block.'
       call printErrMsg(option)
     case default
-      call InputKeywordUnrecognized(keyword,'TIMESTEPPER',option)
+      call InputKeywordUnrecognized(keyword,error_string,option)
   end select
 
 end subroutine TimestepperBaseProcessKeyword

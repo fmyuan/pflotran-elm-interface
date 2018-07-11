@@ -53,9 +53,6 @@ module WIPP_Flow_Aux_module
   PetscBool, public :: wippflo_use_bragflo_cc = PETSC_FALSE
   !TODO(geh): hardwire gas to H2
   PetscReal, public :: fmw_comp(2) = [FMWH2O,2.01588d0]
-  PetscReal, public :: wippflo_max_pressure_change = 5.d4
-  PetscInt, public :: wippflo_max_it_before_damping = UNINITIALIZED_INTEGER
-  PetscReal, public :: wippflo_damping_factor = 0.6d0
 
   PetscInt, parameter, public :: WIPPFLO_LIQUID_PRESSURE_DOF = 1
   PetscInt, parameter, public :: WIPPFLO_GAS_SATURATION_DOF = 2
@@ -114,7 +111,6 @@ module WIPP_Flow_Aux_module
   
   type, public :: wippflo_parameter_type
     PetscBool :: check_post_converged
-    PetscBool :: fix_upwind_direction
   end type wippflo_parameter_type
   
   type, public :: wippflo_type
@@ -206,7 +202,6 @@ function WIPPFloAuxCreate(option)
 
   allocate(aux%wippflo_parameter)
   aux%wippflo_parameter%check_post_converged = PETSC_FALSE
-  aux%wippflo_parameter%fix_upwind_direction = PETSC_TRUE
   
   WIPPFloAuxCreate => aux
   
