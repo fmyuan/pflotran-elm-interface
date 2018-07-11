@@ -55,9 +55,14 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
   atol = flow_aux_debug_tol
   rtol = flow_aux_debug_reltol
 
+  print *, 
   print *, "NumCompare TOil"
-  probs = 0
+  print *, "Comparing numerical to analytical derivatives of aux variables in one cell."
+  print *, "Displaying potential problems if difference is > ", atol, ","
+  print *, "or if relative difference is > ", rtol 
+  print *, 
 
+  probs = 0
 
   !! ********* from auxvars flow *********
 
@@ -354,7 +359,18 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
   atol = flow_aux_debug_tol
   rtol = flow_aux_debug_reltol
 
+  print *, 
   print *, "NumCompare TOWG BO"
+  print *, "Comparing numerical to analytical derivatives of aux variables in one cell."
+  print *, "Displaying potential problems if difference is > ", atol, ","
+  print *, "or if relative difference is > ", rtol 
+  if (isSat) then
+    print *, "This cell is in saturated state."
+  else
+    print *, "This cell is in UNsaturated state."
+  endif
+  print *, 
+
   probs = 0
 
   !! *********  from auxvars BO*********

@@ -2570,10 +2570,10 @@ subroutine TOWGBlackOilAuxVarPerturb(auxvar,global_auxvar, &
      auxvar(TOWG_OIL_PRESSURE_DOF)%pert / towg_pressure_scale
 
   if (option%flow%numerical_derivatives_compare) then 
-    print *, "saturated?", isSaturated
     call NumCompare_towg_bo(option%nphase,option%nflowdof,auxvar,option,&
                             TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
-                            TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof,isSaturated)
+                            TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof,&
+                            isSaturated)
   endif
 
 end subroutine TOWGBlackOilAuxVarPerturb
