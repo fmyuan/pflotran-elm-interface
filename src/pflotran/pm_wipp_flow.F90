@@ -33,7 +33,7 @@ module PM_WIPP_Flow_class
     PetscInt, pointer :: max_change_ivar(:)
     PetscReal :: liquid_residual_infinity_tol
     PetscReal :: gas_equation_infinity_tol
-    PetscReal :: max_allow_liq_pres_change_ni
+    PetscReal :: max_allow_rel_liq_pres_chang_ni
     PetscReal :: max_allow_rel_gas_sat_change_ni
     ! the below is set automatically to -log10(max_allow_rel_gas_sat_change_ni)
     PetscReal :: neg_log10_rel_gas_sat_change_ni 
@@ -45,7 +45,7 @@ module PM_WIPP_Flow_class
     PetscReal :: gas_sat_change_ts_governor
     PetscReal :: liq_pres_change_ts_governor
     PetscReal :: gas_sat_gov_switch_abs_to_rel
-    PetscReal :: deltmin
+    PetscReal :: minimum_timestep_size
     PetscBool :: convergence_test_both
     class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
     Vec :: stored_residual_vec
@@ -144,7 +144,7 @@ subroutine PMWIPPFloInitObject(this)
   ! defaults from BRAGFLO input deck or recommended values from user manual
   this%liquid_residual_infinity_tol = 1.d-2
   this%gas_equation_infinity_tol = 1.d-2
-  this%max_allow_liq_pres_change_ni = 1.d-2
+  this%max_allow_rel_liq_pres_chang_ni = 1.d-2
   this%max_allow_rel_gas_sat_change_ni = 1.d-3
   ! the below is set automatically to -log10(max_allow_rel_gas_sat_change_ni)
   this%neg_log10_rel_gas_sat_change_ni = UNINITIALIZED_DOUBLE
@@ -156,7 +156,7 @@ subroutine PMWIPPFloInitObject(this)
   this%gas_sat_change_ts_governor = 3.d-1    ! [-]
   this%liq_pres_change_ts_governor = 5.d5    ! [Pa]
   this%gas_sat_gov_switch_abs_to_rel = 0.01d0   ! [-]
-  this%deltmin = 8.64d-4  ! [sec]
+  this%minimum_timestep_size = 8.64d-4  ! [sec]
   this%stored_residual_vec = PETSC_NULL_VEC
   this%alpha_dataset_name = ''
   this%elevation_dataset_name = ''
@@ -227,9 +227,10 @@ subroutine PMWIPPFloRead(this,input)
       case('GAS_RESIDUAL_INFINITY_TOL')
         call InputReadDouble(input,option,this%gas_equation_infinity_tol)
         call InputErrorMsg(input,option,keyword,error_string)
-      case('MAX_ALLOW_LIQ_PRES_CHANGE_NI')
-        call InputReadDouble(input,option,this%max_allow_liq_pres_change_ni)
+      case('MAX_ALLOW_REL_LIQ_PRES_CHANG_NI')
+        call InputReadDouble(input,option,this%max_allow_rel_liq_pres_chang_ni)
         call InputErrorMsg(input,option,keyword,error_string)
+        ! no units conversion since it is relative
       case('MAX_ALLOW_REL_GAS_SAT_CHANGE_NI')
         call InputReadDouble(input,option,this%max_allow_rel_gas_sat_change_ni)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -273,9 +274,12 @@ subroutine PMWIPPFloRead(this,input)
       case('REL_LIQ_PRESSURE_PERTURBATION')
         call InputReadDouble(input,option,wippflo_pres_rel_pert)
         call InputErrorMsg(input,option,keyword,error_string)
+        ! no units conversion since it is relative
       case('MIN_LIQ_PRESSURE_PERTURBATION')
         call InputReadDouble(input,option,wippflo_pres_min_pert)
         call InputErrorMsg(input,option,keyword,error_string)
+        call InputReadAndConvertUnits(input,wippflo_pres_min_pert, &
+                                      'Pa',keyword,option)
       case('REL_GAS_SATURATION_PERTURBATION')
         call InputReadDouble(input,option,wippflo_sat_rel_pert)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -291,24 +295,34 @@ subroutine PMWIPPFloRead(this,input)
       case('MIN_LIQ_PRES_FORCE_TS_CUT')
         call InputReadDouble(input,option,this%min_liq_pres_force_ts_cut)
         call InputErrorMsg(input,option,keyword,error_string)
+        call InputReadAndConvertUnits(input,this%min_liq_pres_force_ts_cut, &
+                                      'Pa',keyword,option)
       case('MAX_ALLOW_GAS_SAT_CHANGE_TS')
         call InputReadDouble(input,option,this%max_allow_gas_sat_change_ts)
         call InputErrorMsg(input,option,keyword,error_string)
       case('MAX_ALLOW_LIQ_PRES_CHANGE_TS')
         call InputReadDouble(input,option,this%max_allow_liq_pres_change_ts)
         call InputErrorMsg(input,option,keyword,error_string)
+        ! units conversion since it is absolute
+        call InputReadAndConvertUnits(input,this%max_allow_liq_pres_change_ts, &
+                                      'Pa',keyword,option)
       case('GAS_SAT_CHANGE_TS_GOVERNOR')
         call InputReadDouble(input,option,this%gas_sat_change_ts_governor)
         call InputErrorMsg(input,option,keyword,error_string)
       case('LIQ_PRES_CHANGE_TS_GOVERNOR')
         call InputReadDouble(input,option,this%liq_pres_change_ts_governor)
         call InputErrorMsg(input,option,keyword,error_string)
+        ! units conversion since it is absolute
+        call InputReadAndConvertUnits(input,this%liq_pres_change_ts_governor, &
+                                      'Pa',keyword,option)
       case('GAS_SAT_GOV_SWITCH_ABS_TO_REL')
         call InputReadDouble(input,option,this%gas_sat_gov_switch_abs_to_rel)
         call InputErrorMsg(input,option,keyword,error_string)
-      case('DELTMIN')
-        call InputReadDouble(input,option,this%deltmin)
+      case('MINIMUM_TIMESTEP_SIZE')
+        call InputReadDouble(input,option,this%minimum_timestep_size)
         call InputErrorMsg(input,option,keyword,error_string)
+        call InputReadAndConvertUnits(input,this%minimum_timestep_size, &
+                                      'sec',keyword,option)
       case('CONVERGENCE_TEST')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -363,12 +377,12 @@ subroutine PMWIPPFloRead(this,input)
         call InputReadNChars(input,option,this%elevation_dataset_name,&
                              MAXWORDLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,error_string)
-      case('P_SCALE')
+      case('JACOBIAN_PRESSURE_DERIV_SCALE')
         call InputReadDouble(input,option,this%linear_system_scaling_factor)
         call InputErrorMsg(input,option,keyword,error_string)
-      case('LSCALE')
+      case('SCALE_JACOBIAN')
         this%scale_linear_system = PETSC_TRUE
-      case('DO_NOT_LSCALE')
+      case('DO_NOT_SCALE_JACOBIAN')
         this%scale_linear_system = PETSC_FALSE
       case('2D_FLARED_DIRICHLET_BCS')
         icount = 0
@@ -744,7 +758,7 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   
   class(pm_wippflo_type) :: this
   PetscReal :: dt
-  PetscReal :: dt_min ! DO NOT USE
+  PetscReal :: dt_min ! DO NOT USE (see comment below)
   PetscReal :: dt_max
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
@@ -768,8 +782,9 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   ! make sure time step is within bounds given in the input deck
   dt = min(dt,dt_max)
   ! do not use the PFLOTRAN dt_min as it will shut down the simulation from
-  ! within timestepper_BE. use %deltmin, which is specific to bragflo.
-  dt = max(dt,this%deltmin)
+  ! within timestepper_BE. use %minimum_timestep_size, which is specific to 
+  ! wipp_flow.
+  dt = max(dt,this%minimum_timestep_size)
 
   if (wippflo_debug_ts_update) then
     if (minval(dtime(:)) < time_step_max_growth_factor .and. dt < dt_max) then
@@ -1164,7 +1179,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
         max_liq_pres_rel_change_cell = local_id
         max_liq_pres_rel_change = delta_scale*dX_p(pressure_index)/abs_X
       endif
-      if (abs_dX_over_absX >= this%max_allow_liq_pres_change_ni) then
+      if (abs_dX_over_absX >= this%max_allow_rel_liq_pres_chang_ni) then
         converged_liquid_pressure = PETSC_FALSE
       endif
     endif
@@ -1786,7 +1801,7 @@ subroutine PMWIPPFloTimeCut(this)
            this%max_allow_rel_gas_sat_change_ni), &
       this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI), &
       dabs(this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI)/ &
-           this%max_allow_liq_pres_change_ni), &
+           this%max_allow_rel_liq_pres_chang_ni), &
       this%convergence_flags(MAX_NORMAL_RES_GAS), &
       dabs(this%convergence_reals(MAX_NORMAL_RES_GAS)/ &
            this%gas_equation_infinity_tol), &

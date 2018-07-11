@@ -7,7 +7,7 @@ SIMULATION
       MODE WIPP_FLOW
       OPTIONS
         HARMONIC_PERMEABILITY_ONLY
-        DO_NOT_LSCALE
+        DO_NOT_SCALE_JACOBIAN
       /
     /
   /
@@ -34,7 +34,7 @@ END
 
 #=========================== solver options ===================================
 TIMESTEPPER FLOW
-  MAX_STEPS 0
+  MAXIMUM_TIMESTEP 0
 END
 
 #=========================== datasets =========================================

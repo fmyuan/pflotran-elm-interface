@@ -874,12 +874,12 @@ subroutine SolverReadNewton(solver,input,option)
       case ('NO_INF_NORM','NO_INFINITY_NORM')
         solver%check_infinity_norm = PETSC_FALSE
 
-      case('MAXIMUM_NEWTON_ITERATIONS')
+      case('MAXIT','MAXIMUM_NEWTON_ITERATION','MAXIMUM_NEWTON_ITERATIONS')
         call InputReadInt(input,option,solver%newton_max_iterations)
         call InputErrorMsg(input,option,'maximum newton iterations', &
                            'NEWTON_SOLVER')
 
-      case('MINIMUM_NEWTON_ITERATIONS')
+      case('MINIMUM_NEWTON_ITERATION','MINIMUM_NEWTON_ITERATIONS')
         call InputReadInt(input,option,solver%newton_min_iterations)
         call InputErrorMsg(input,option,'minimum newton iterations', &
                            'NEWTON_SOLVER')
@@ -945,11 +945,6 @@ subroutine SolverReadNewton(solver,input,option)
         call InputErrorMsg(input,option,'newton_inf_res_tol_sec', &
                            'NEWTON_SOLVER')
    
-      case('MAXIT')
-        call InputReadInt(input,option,solver%newton_max_iterations)
-        call InputErrorMsg(input,option,'maximum newton iterations', &
-                           'NEWTON_SOLVER')
-
       case('MAXF')
         call InputReadInt(input,option,solver%newton_maxf)
         call InputErrorMsg(input,option,'newton_maxf','NEWTON_SOLVER')
