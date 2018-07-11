@@ -694,6 +694,7 @@ subroutine RPF_TOUGH2_Linear_Oil_RelPerm(this,liquid_saturation, &
 
 
   use Option_module
+  use Utility_module, only : InitToNan
   
   implicit none
 
@@ -707,9 +708,7 @@ subroutine RPF_TOUGH2_Linear_Oil_RelPerm(this,liquid_saturation, &
   PetscReal :: Seo
   
   ! initialize to derivative to NaN so that not mistakenly used.
-  dkr_sat = 0.d0
-  dkr_sat = dkr_sat / 0.d0
-  dkr_sat = dkr_sat * 0.d0
+  dkr_sat = InitToNan()
 
   So = 1.d0 - liquid_saturation
 
@@ -918,9 +917,7 @@ subroutine RPF_Mod_BC_Liq_RelPerm(this,liquid_saturation, &
   PetscReal :: dSe_Sl, dkr_Se
   
   ! initialize to derivative to NaN so that not mistakenly used.
-  dkr_sat = 0.d0
-  dkr_sat = dkr_sat / 0.d0
-  dkr_sat = dkr_sat * 0.d0
+  dkr_sat = InitToNan()
 
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sro - this%Sr - this%Srg )
   dSe_Sl = 1.d0 / (1.d0 - this%Sro - this%Sr - this%Srg )
@@ -978,9 +975,7 @@ subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
   PetscReal :: dSe_So, dkr_Se
   
   ! initialize to derivative to NaN so that not mistakenly used.
-  dkr_sat = 0.d0
-  dkr_sat = dkr_sat / 0.d0
-  dkr_sat = dkr_sat * 0.d0
+  dkr_sat = InitToNan()
 
   So = 1.d0 - liquid_saturation
 

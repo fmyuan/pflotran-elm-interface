@@ -2058,16 +2058,15 @@ subroutine OutputMassBalance(realization_base)
           call OutputWriteToHeader(fid,'Global Water Mass', &
                                     'kg','',icol)
           select case(towg_miscibility_model)
-            case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
+            case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
               call OutputWriteToHeader(fid,'Global Oil Mass', &
                                        'kg','',icol)
               call OutputWriteToHeader(fid,'Global Gas Mass', &
                                        'kg','',icol)
-            case(TOWG_SOLVENT_TL)
-              option%io_buffer = 'OutputMassBalance not yet ' // &
-                'implemented for: TOWG_SOLVENT_TL '
-              call printErrMsg(option)
-              !must add: solvent mass
+              if(towg_miscibility_model == TOWG_SOLVENT_TL) then
+                call OutputWriteToHeader(fid,'Global Solvent Mass', &
+                                         'kg','',icol)
+              endif
           end select
         case(MPH_MODE,FLASH2_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Water Phase', &
@@ -2388,19 +2387,10 @@ subroutine OutputMassBalance(realization_base)
           enddo
         case(TOWG_MODE)
           select case(towg_miscibility_model)
-            case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
+            case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
               do iphase = 1, option%nphase
                 write(fid,110,advance="no") sum_kg_global(iphase,1)
               enddo
-            case(TOWG_SOLVENT_TL)
-              option%io_buffer = 'OutputMassBalance not yet ' // &
-                'implemented for: TOWG_SOLVENT_TL '
-              call printErrMsg(option)
-!              !do iphase = 1, option%nphase
-!              !  do ispec = 1, option%nflowspec
-!              !    write(fid,110,advance="no") sum_kg_global(ispec,iphase)
-!              !  enddo
-!              !enddo
           end select
         case(MPH_MODE,FLASH2_MODE)
           do iphase = 1, option%nphase
@@ -2877,7 +2867,7 @@ subroutine OutputMassBalance(realization_base)
             write(fid,110,advance="no") -sum_kg_global(:,1)*output_option%tconv
           endif
         case(TOWG_MODE)
-          ! print out cumulative H2O, Oil and Gas fluxes
+          ! print out cumulative Water, Oil, Gas and Solvent fluxes
           sum_kg = 0.d0
           do iconn = 1, coupler%connection_set%num_connections
             sum_kg = sum_kg + global_auxvars_bc_or_ss(offset+iconn)%mass_balance
@@ -2902,6 +2892,9 @@ subroutine OutputMassBalance(realization_base)
           sum_kg(1,1) = sum_kg(1,1)*towg_fmw_comp(1) 
           sum_kg(2,1) = sum_kg(2,1)*towg_fmw_comp(2)
           sum_kg(3,1) = sum_kg(3,1)*towg_fmw_comp(3)
+          if ( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+            sum_kg(4,1) = sum_kg(4,1)*towg_fmw_comp(4)
+          endif
 
           int_mpi = option%nphase
           call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &

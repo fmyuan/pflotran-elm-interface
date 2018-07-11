@@ -224,6 +224,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: LIQUID_PHASE = 1
   PetscInt, parameter, public :: GAS_PHASE = 2
   PetscInt, parameter, public :: OIL_PHASE = 3
+  PetscInt, parameter, public :: SOLVENT_PHASE = 4
 
   PetscInt, parameter, public :: MAX_PHASE = 4
   

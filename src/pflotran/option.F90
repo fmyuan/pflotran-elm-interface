@@ -60,6 +60,7 @@ module Option_module
     PetscInt :: liquid_phase
     PetscInt :: gas_phase
     PetscInt :: oil_phase
+    PetscInt :: solvent_phase
     PetscInt :: phase_map(MAX_PHASE)
     PetscInt :: nflowdof
     PetscInt :: nflowspec
@@ -475,9 +476,10 @@ subroutine OptionInitRealization(option)
 
   option%nphase = 0
 
-  option%liquid_phase = UNINITIALIZED_INTEGER
-  option%oil_phase    = UNINITIALIZED_INTEGER
-  option%gas_phase    = UNINITIALIZED_INTEGER
+  option%liquid_phase  = UNINITIALIZED_INTEGER
+  option%oil_phase     = UNINITIALIZED_INTEGER
+  option%gas_phase     = UNINITIALIZED_INTEGER
+  option%solvent_phase = UNINITIALIZED_INTEGER
 
   option%air_pressure_id = 0
   option%capillary_pressure_id = 0

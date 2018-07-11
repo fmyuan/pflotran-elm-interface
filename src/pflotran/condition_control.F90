@@ -652,7 +652,7 @@ subroutine CondControlAssignFlowInitCond(realization)
               xx_p(ibegin+towg_energy_dof) = &
                   towg%temperature%dataset%rarray(1)
               if (towg_miscibility_model == TOWG_SOLVENT_TL) then
-                xx_p(ibegin+TOWG_SOLV_SATURATION) = &
+                xx_p(ibegin+TOWG_SOLV_SATURATION_DOF) = &
                    towg%solvent_saturation%dataset%rarray(1)
               endif
               cur_patch%aux%Global%auxvars(ghosted_id)%istate = &

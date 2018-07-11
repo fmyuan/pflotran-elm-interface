@@ -6,6 +6,7 @@ module EOS_module
   use EOS_Water_module
   use EOS_Gas_module
   use EOS_Oil_module
+  use EOS_Slv_module
   use co2_span_wagner_module
   use EOSData_module
 
@@ -32,6 +33,7 @@ subroutine EOSInit()
   call EOSWaterInit()
   call EOSGasInit()
   call EOSOilInit()
+  call EOSSlvInit()
 
   call EOSTableInitList()
 
@@ -827,6 +829,94 @@ subroutine EOSRead(input,option)
         endif
         call printErrMsg(option)
       endif
+    case('SOLVENT')
+      do
+        call InputReadPflotranString(input,option)
+        if (InputCheckExit(input,option)) exit
+        call InputReadWord(input,option,keyword,PETSC_TRUE)
+        call InputErrorMsg(input,option,'keyword','EOS,SLV')
+        call StringToUpper(keyword)
+        select case(trim(keyword))
+          case('REFERENCE_DENSITY','SURFACE_DENSITY','STANDARD_DENSITY')
+            call InputReadDouble(input,option,tempreal)
+            call InputErrorMsg(input,option,'VALUE', &
+                               'EOS,SLV,REFERENCE_DENSITY')
+            call InputReadAndConvertUnits(input,tempreal, &
+                           'kg/m^3','EOS,SLV,REFERENCE_DENSITY',option)
+            call EOSSlvSetReferenceDensity(tempreal)
+          case('DENSITY')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'DENSITY','EOS,GAS')
+            call StringToUpper(word)
+            select case(trim(word))
+              case('CONSTANT')
+                call InputReadDouble(input,option,tempreal)
+                call InputErrorMsg(input,option,'VALUE', &
+                                   'EOS,GAS,DENSITY,CONSTANT')
+                call InputReadAndConvertUnits(input,tempreal, &
+                            'kmol/m^3','EOS,GAS,DENSITY,CONSTANT',option)
+                call EOSGasSetDensityConstant(tempreal)
+              case('IDEAL','DEFAULT')
+                call EOSSlvSetDensityIdeal()
+              case default
+                call InputKeywordUnrecognized(word,'EOS,GAS,DENSITY',option)
+            end select
+          case('ENTHALPY')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'ENTHALPY','EOS,SLV')
+            call StringToUpper(word)
+            select case(trim(word))
+              case('IDEAL','DEFAULT')
+                call EOSSlvSetEnergyIdeal()
+              case default
+                call InputKeywordUnrecognized(word,'EOS,GAS,ENTHALPY',option)
+            end select
+          case('VISCOSITY')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'VISCOSITY','EOS,GAS')
+            call StringToUpper(word)
+            select case(trim(word))
+              case('CONSTANT')
+                call InputReadDouble(input,option,tempreal)
+                call InputErrorMsg(input,option,'VALUE', &
+                                   'EOS,SLV,VISCOSITY,CONSTANT')
+                call InputReadAndConvertUnits(input,tempreal, &
+                                 'Pa-s','SLV,GAS,VISCOSITY,CONSTANT',option)
+                call EOSSlvSetViscosityConstant(tempreal)
+              case('DEFAULT')
+              case default
+                call InputKeywordUnrecognized(word,'EOS,SLV,VISCOSITY',option)
+            end select
+          case('FORMULA_WEIGHT')
+            call InputReadDouble(input,option,tempreal)
+            call InputErrorMsg(input,option,'VALUE','EOS,SLV,FORMULA_WEIGHT')
+            call InputReadAndConvertUnits(input,tempreal, &
+                             'g/mol','EOS,SLV,FORMULA_WEIGHT',option)
+            call EOSSlvSetFMW(tempreal)
+          case('DATABASE')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'EOS,SLV','DATABASE filename')
+            call EOSSlvSetEOSDBase(word,option)
+          case('PVDS')
+            call EOSSlvSetPVDS(input,option)
+          case('CO2_DATABASE')
+            call EOSSlvSetFMW(FMWCO2)
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'EOS,SLV','DATABASE filename')
+            call EOSSlvSetEOSDBase(word,option)
+          case default
+            call InputKeywordUnrecognized(keyword,'EOS,SOLVENT',option)
+        end select
+      enddo
+      string = ''
+      call EOSSlvVerify(ierr,string)
+      if (ierr /= 0) then
+        option%io_buffer = 'Error in Slv EOS'
+        if (len_trim(string) > 1) then
+          option%io_buffer = trim(option%io_buffer) // ': ' // trim(string)
+        endif
+        call printErrMsg(option)
+      endif
     case default
       call InputKeywordUnrecognized(keyword,'EOS',option)
   end select
@@ -845,7 +935,6 @@ subroutine EOSReferenceDensity(option)
   use Option_module
   
   implicit none
-  
   type(option_type) :: option
 
   PetscReal :: vapor_saturation_pressure
@@ -853,7 +942,7 @@ subroutine EOSReferenceDensity(option)
   PetscReal :: air_density_kmol
   PetscReal :: dum1, dum2
   PetscErrorCode :: ierr
-  
+
   if (Initialized(option%liquid_phase)) then
     if (option%reference_density(option%liquid_phase) < 1.d-40) then
       call EOSWaterDensity(option%reference_temperature, &
@@ -898,6 +987,7 @@ subroutine EOSProcess(option)
 
   call EOSOilTableProcess(option,EOSGasGetFMW(),EOSGasGetReferenceDensity())
   call EOSGasTableProcess(option)
+  call EOSSlvTableProcess(option)
 
   call EOSTableProcessList(option)
 

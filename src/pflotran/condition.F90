@@ -3213,8 +3213,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
     phase_state_found=PETSC_FALSE
     if ( associated(towg%oil_pressure  ) .and. &
          associated(towg%oil_saturation) ) then
-
-      if( towg_miscibility_model == TOWG_BLACK_OIL ) then
+      if (     (towg_miscibility_model == TOWG_BLACK_OIL ) &
+           .or.(towg_miscibility_model == TOWG_SOLVENT_TL) ) then
 ! Setup for black oil case - needs gas saturation and/or bubble point
         if(      associated(towg%gas_saturation) &
            .and. associated(towg%bubble_point  ) ) then
