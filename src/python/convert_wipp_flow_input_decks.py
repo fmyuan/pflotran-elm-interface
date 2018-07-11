@@ -43,7 +43,7 @@ def swap_file(filename):
   f = open(filename,'r')
   f2 = open(filename+'.tmp','w')
   # initialize local variables
-  time_step_growth_factor = -999.
+  time_step_growth_factor = '' 
   for line in f:
     line2 = line
     # replace cards
@@ -53,7 +53,7 @@ def swap_file(filename):
         line2 = line.replace(card,cards[card])
       if card in remove_card_list:
         if card.startswith('DTIMEMAX'):
-          time_step_growth_factor = float(line.split()[1])
+          time_step_growth_factor = line.split()[1]
         continue
     # custom replacement
     line_strip = line.lstrip()
@@ -61,13 +61,26 @@ def swap_file(filename):
       line2 = line.replace('BRAGFLO','WIPP_FLOW')
     if line_strip.startswith('ICONVTEST'):
       line2 = '        CONVERGENCE_TEST BOTH\n'
+    if line2.strip().startswith('END_SUBSURFACE') and \
+      len(time_step_growth_factor) > 0:
+      # we have reached the end of the SUBSURFACE block without a 
+      # TIMESTEPPER FLOW block, and we need one to properly set 
+      # TIMESTEP_MAXIMUM_GROWTH_FACTOR
+      f2.write('TIMESTEPPER FLOW\n')
+      f2.write('  TIMESTEP_MAXIMUM_GROWTH_FACTOR %s\n' % \
+               time_step_growth_factor)
+      f2.write('END\n')
+      # set back to blank
+      time_step_growth_factor = ''
     f2.write(line2)
     # add select cards
     if line2.strip().startswith('TIMESTEPPER') and \
        line.find('FLOW') > -1:
-      if time_step_growth_factor > 0.:
-        f2.write('  TIMESTEP_MAXIMUM_GROWTH_FACTOR %f\n' % \
+      if len(time_step_growth_factor) > 0:
+        f2.write('  TIMESTEP_MAXIMUM_GROWTH_FACTOR %s\n' % \
                  time_step_growth_factor)
+        # set back to blank
+        time_step_growth_factor = ''
   f.close()
   f2.close()
   # using shutil.move adds ^M to end of lines.
