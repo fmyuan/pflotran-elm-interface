@@ -29,20 +29,14 @@ module_skip_list = ('hdf5','h5lt','petsc','clm_pflotran_interface_data', \
 
 # Obtain list of source files
 source_file_roots = []
-source_block = False
-for line in open('makefile','r'):
-  if line.startswith('# Begin Source Block'):
-    source_block = True
-  if line.startswith('# End Source Block'):
-    source_block = False
-  if source_block:
-    # find .o file
-    # coule use re.split() here, but too complicated.
-    w = line.split('}')
-    if len(w) == 2:
-      w2 = w[1].split('.o')
-#      print(w2[0])
-      source_file_roots.append(w2[0])
+for line in open('pflotran_object_files.txt','r'):
+  # find .o file
+  # could use re.split() here, but too complicated.
+  w = line.split('}')
+  if len(w) == 2:
+    w2 = w[1].split('.o')
+#    print(w2[0])
+    source_file_roots.append(w2[0])
 source_file_roots.append('pflotran')
 
 # Alphabetize
@@ -119,9 +113,13 @@ for root in source_file_roots:
     for line in open(get_filename(root,'F90')):
       if line.lstrip().startswith('use '):
         w = line.split()
+        # split again as there may be a ', only ...' after the module name
+        # cannot use string.strip(',') as it will not work in the case of
+        # XXX_module,only...
+        w = w[1].split(',')
         # skip modules
-        if not w[1].startswith(module_skip_list):
-          module_list.append(w[1].strip(','))
+        if not w[0].startswith(module_skip_list):
+          module_list.append(w[0])
     # remove duplicate modules
     module_list = set(module_list)
     file_list = []

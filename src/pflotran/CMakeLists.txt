@@ -173,6 +173,7 @@ set(EOS_SOURCES
 	eos_database.F90
 	eos_gas.F90
 	eos_oil.F90
+	eos_slv.F90
 	gas_eos_mod.F90
 )
 
