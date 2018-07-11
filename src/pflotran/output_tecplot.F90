@@ -2341,9 +2341,9 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
   ! Here we are assuming that if there are secondary continua for both
   ! heat and reactive transport, then the shape and type of secondary
   ! continua are the same - SK
-  if (associated(sec_heat_vars)) then
+  if (associated(patch%aux%SC_heat)) then
     dist => sec_heat_vars(1)%sec_continuum%distance
-  elseif (associated(rt_sec_tranport_vars)) then
+  elseif (associated(patch%aux%SC_RT)) then
     dist => rt_sec_tranport_vars(1)%sec_continuum%distance
   endif
 
@@ -2436,7 +2436,8 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
               do naqcomp = 1, reaction%naqcomp
                 write(OUTPUT_UNIT,1000,advance='no') &
                 RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                             SECONDARY_CONCENTRATION,sec_id)
+                                             SECONDARY_CONCENTRATION,sec_id, &
+                                             naqcomp)
                enddo
             endif
           endif
