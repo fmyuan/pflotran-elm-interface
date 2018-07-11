@@ -11,6 +11,7 @@ module PM_Richards_TS_class
   use Material_Aux_class
   use PM_Base_class
   use PM_Subsurface_Flow_class
+  use PM_Richards_class
   
   use PFLOTRAN_Constants_module
 
@@ -18,16 +19,11 @@ module PM_Richards_TS_class
 
   private
 
-  type, public, extends(pm_subsurface_flow_type) :: pm_richards_ts_type
+  type, public, extends(pm_richards_type) :: pm_richards_ts_type
   contains
-    procedure, public :: PreSolve => PMRichardsTSPreSolve
     procedure, public :: UpdateAuxVars => PMRichardsTSUpdateAuxVars
-    procedure, public :: UpdateSolution => PMRichardsTSUpdateSolution
     procedure, public :: IFunction => PMRichardsTSIFunction
     procedure, public :: IJacobian => PMRichardsTSIJacobian
-    procedure, public :: PostSolve => PMRichardsTSPostSolve
-    procedure, public :: UpdateTimestep => PMRichardsTSUpdateTimestep
-    procedure, public :: MaxChange => PMRichardsTSMaxChange
     procedure, public :: InitializeTimestep => PMRichardsTSInitializeTimestep
     procedure, public :: Destroy => PMRichardsTSDestroy
     procedure, public :: CheckConvergence => PMRichardsTSCheckConvergence
@@ -42,7 +38,7 @@ contains
 
 function PMRichardsTSCreate()
   ! 
-  ! Creates Richards 2DOFs process models shell
+  ! Creates Richards TS process models shell
   ! 
   ! Author: Gautam Bisht
   ! Date: 06/07/18
@@ -55,9 +51,7 @@ function PMRichardsTSCreate()
   class(pm_richards_ts_type), pointer :: richards_ts_pm
   
   allocate(richards_ts_pm)
-
-  call PMSubsurfaceFlowCreate(richards_ts_pm)
-
+  call PMRichardsInit(richards_ts_pm)
   richards_ts_pm%name = 'Richards TS Flow'
 
   PMRichardsTSCreate => richards_ts_pm
@@ -66,60 +60,15 @@ end function PMRichardsTSCreate
 
 ! ************************************************************************** !
 
-subroutine PMRichardsTSPreSolve(this)
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 06/07/18
-
-  implicit none
-  
-  class(pm_richards_ts_type) :: this
-
-  call PMSubsurfaceFlowPreSolve(this)
-
-end subroutine PMRichardsTSPreSolve
-
-! ************************************************************************** !
-
 subroutine PMRichardsTSUpdateAuxVars(this)
   ! 
   ! Author: Gautam Bisht
   ! Date: 06/07/18
 
-  use Realization_Subsurface_class
-  use Patch_module
-  use Option_module
-  use Field_module
-  use Grid_module
-  use Material_module
-  use Discretization_module
-
   implicit none
   
   class(pm_richards_ts_type) :: this
 
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
-  type(field_type), pointer :: field
-  type(richards_auxvar_type), pointer :: rich_auxvars(:) 
-  type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
-  PetscInt  :: ghosted_id
-  PetscReal :: compressed_porosity, dcompressed_porosity_dp
-  PetscReal :: por
-  PetscReal, pointer :: xx_loc_p(:)
-  PetscErrorCode :: ierr
-
-  field => this%realization%field
-  option => this%realization%option
-  patch => this%realization%patch
-  grid => patch%grid
-  rich_auxvars => patch%aux%Richards%auxvars
-  global_auxvars => patch%aux%Global%auxvars
-  material_auxvars => patch%aux%Material%auxvars
-
-  ! Given P, update auxvars
   call PMRichardsTSUpdateAuxVarsPatch(this%realization)
 
 end subroutine PMRichardsTSUpdateAuxVars
@@ -127,15 +76,12 @@ end subroutine PMRichardsTSUpdateAuxVars
 ! ************************************************************************** !
 
 subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
-  !
-  !
-  !
+  ! 
   ! Author: Gautam Bisht
   ! Date: 06/07/18
-  !
+
   use Realization_Subsurface_class
   use Field_module
-  use Discretization_module
   use Grid_module
   use Patch_module
   use Option_module
@@ -147,66 +93,46 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
 
   type(option_type), pointer :: option
   type(field_type), pointer :: field
-  type(richards_auxvar_type), pointer :: rich_auxvars(:) 
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
+  type(richards_auxvar_type), pointer :: rich_auxvars(:) 
   PetscInt :: ghosted_id
-  PetscInt :: ibeg
   PetscReal, pointer :: xx_loc_p(:),xxdot_loc_p(:)
   PetscErrorCode :: ierr
 
   option => realization%option
   field => realization%field
-  grid => realization%patch%grid
   patch => realization%patch
+  grid => patch%grid
   rich_auxvars => patch%aux%Richards%auxvars
 
   ! 1. Update auxvars based on new values of pressure
   call RichardsUpdateAuxVars(realization)
 
-  ! 2. Update auxvars based on new value of dpressure_dtime, mass, and dmass_dtime
+  ! 2. Update auxvars based on new value of dpressure_dtime, mass, and 
+  !    dmass_dtime
   call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p,ierr);CHKERRQ(ierr)
 
   do ghosted_id = 1, grid%ngmax
-
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
-     
-    if (patch%imat(ghosted_id) <= 0) cycle !Ignore inactive cells with inactive materials
-
-     rich_auxvars(ghosted_id)%dpres_dtime = xxdot_loc_p(ghosted_id)
-
-     call RichardsAuxVarCompute2ndOrderDeriv(rich_auxvars(ghosted_id), &
-            patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr, &
-            option)
-
+    !Ignore inactive cells with inactive materials
+    if (patch%imat(ghosted_id) <= 0) cycle 
+    rich_auxvars(ghosted_id)%dpres_dtime = xxdot_loc_p(ghosted_id)
+    call RichardsAuxVarCompute2ndOrderDeriv(rich_auxvars(ghosted_id), &
+                                       patch%characteristic_curves_array( &
+                                         patch%sat_func_id(ghosted_id))%ptr, &
+                                       option)
   enddo
 
   call VecRestoreArrayReadF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p, &
+                              ierr);CHKERRQ(ierr)
 
 end subroutine PMRichardsTSUpdateAuxVarsPatch
 
 ! ************************************************************************** !
 
-subroutine PMRichardsTSUpdateSolution(this)
-  !
-  !
-  !
-  ! Author: Gautam Bisht
-  ! Date: 06/07/18
-  !
-  implicit none
-  
-  class(pm_richards_ts_type) :: this
-
-  call PMSubsurfaceFlowUpdateSolution(this)
-
-  call RichardsUpdateSolution(this%realization)
-
-end subroutine PMRichardsTSUpdateSolution
-
-! ************************************************************************** !
 subroutine PMRichardsTSIFunction(this,ts,time,U,Udot,F,ierr)
   !
   !
@@ -240,7 +166,8 @@ subroutine PMRichardsTSIFunction(this,ts,time,U,Udot,F,ierr)
   call VecZeroEntries(F, ierr); CHKERRQ(ierr)
 
   call DiscretizationGlobalToLocal(discretization,U,field%flow_xx_loc,NFLOWDOF)
-  call DiscretizationGlobalToLocal(discretization,Udot,field%flow_xxdot_loc,NFLOWDOF)
+  call DiscretizationGlobalToLocal(discretization,Udot,field%flow_xxdot_loc, &
+                                   NFLOWDOF)
 
   call PMRichardsTSUpdateAuxVarsPatch(realization)
 
@@ -315,9 +242,12 @@ subroutine IFunctionAccumulation(F,realization,ierr)
     endif
 
     ! F = d(rho*phi*s)/dP * dP_dtime * Vol
-    dmass_dP = global_auxvars(ghosted_id)%den(1)*dpor_dP*global_auxvars(ghosted_id)%sat(1) + &
-               rich_auxvars(ghosted_id)%dden_dp *por    *global_auxvars(ghosted_id)%sat(1) + &
-               global_auxvars(ghosted_id)%den(1)*por    *rich_auxvars(ghosted_id)%dsat_dp
+    dmass_dP = global_auxvars(ghosted_id)%den(1)*dpor_dP* &
+                             global_auxvars(ghosted_id)%sat(1) + &
+               rich_auxvars(ghosted_id)%dden_dp *por    * &
+                             global_auxvars(ghosted_id)%sat(1) + &
+               global_auxvars(ghosted_id)%den(1)*por    * &
+                             rich_auxvars(ghosted_id)%dsat_dp
 
     f_p(ibeg) = f_p(ibeg) + &
                   dmass_dP*rich_auxvars(ghosted_id)%dpres_dtime * &
@@ -475,8 +405,9 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
       sat       * den       * d2por_dP2 &
        )
 
-    val = (shift* dmass_dP + d2mass_dP2 * rich_auxvars(ghosted_id)%dpres_dtime)* &
-          material_auxvars(ghosted_id)%volume
+    val = (shift* dmass_dP + d2mass_dP2 * &
+            rich_auxvars(ghosted_id)%dpres_dtime)* &
+            material_auxvars(ghosted_id)%volume
 
     call MatSetValuesLocal(J,1,row,1,col,val,ADD_VALUES,ierr);CHKERRQ(ierr)
 
@@ -486,107 +417,6 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   call MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
 end subroutine IJacobianAccumulation
-
-! ************************************************************************** !
-
-subroutine PMRichardsTSPostSolve(this)
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 06/07/18
-
-  implicit none
-  
-  class(pm_richards_ts_type) :: this
-
-end subroutine PMRichardsTSPostSolve
-
-! ************************************************************************** !
-subroutine PMRichardsTSUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac, &
-                                    time_step_max_growth_factor)
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 06/07/18
-  !
-  use Realization_Subsurface_class, only : RealizationLimitDTByCFL
-
-  implicit none
-  
-  class(pm_richards_ts_type) :: this
-  PetscReal :: dt
-  PetscReal :: dt_min,dt_max
-  PetscInt :: iacceleration
-  PetscInt :: num_newton_iterations
-  PetscReal :: tfac(:)
-  PetscReal :: time_step_max_growth_factor
-  
-  PetscReal :: fac
-  PetscReal :: ut
-  PetscReal :: up
-  PetscReal :: dtt
-  PetscReal :: dt_p
-  PetscReal :: dt_tfac
-  PetscInt :: ifac
-
-  if (iacceleration > 0) then
-    fac = 0.5d0
-    if (num_newton_iterations >= iacceleration) then
-      fac = 0.33d0
-      ut = 0.d0
-    else
-      up = this%pressure_change_governor/(this%max_pressure_change+0.1)
-      ut = up
-    endif
-    dtt = fac * dt * (1.d0 + ut)
-  else
-    ifac = max(min(num_newton_iterations,size(tfac)),1)
-    dt_tfac = tfac(ifac) * dt
-
-    fac = 0.5d0
-    up = this%pressure_change_governor/(this%max_pressure_change+0.1)
-    dt_p = fac * dt * (1.d0 + up)
-
-    dtt = min(dt_tfac,dt_p)
-  endif
-
-  dtt = min(time_step_max_growth_factor*dt,dtt)
-  if (dtt > dt_max) dtt = dt_max
-  ! geh: There used to be code here that cut the time step if it is too
-  !      large relative to the simulation time.  This has been removed.
-  dtt = max(dtt,dt_min)
-  dt = dtt
-
-  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
-
-end subroutine PMRichardsTSUpdateTimestep
-
-! ************************************************************************** !
-
-subroutine PMRichardsTSMaxChange(this)
-  ! 
-  ! Not needed given RichardsMaxChange is called in PostSolve
-  ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 06/19/18
-  !
-
-  use Richards_module, only : RichardsMaxChange
-
-  implicit none
-  
-  class(pm_richards_ts_type) :: this
-
-  call RichardsMaxChange(this%realization,this%max_pressure_change)
-
-  if (this%option%print_screen_flag) then
-    write(*,'("  --> max chng: dpmx= ",1pe12.4)') this%max_pressure_change
-  endif
-  if (this%option%print_file_flag) then
-    write(this%option%fid_out,'("  --> max chng: dpmx= ",1pe12.4)') &
-      this%max_pressure_change
-  endif    
-
-end subroutine PMRichardsTSMaxChange
 
 ! ************************************************************************** !
 
@@ -607,7 +437,7 @@ subroutine PMRichardsTSInitializeTimestep(this)
   call PMSubsurfaceFlowInitializeTimestepA(this)
 
   if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," RICHARDS FLOW ",63("="))')
+    write(*,'(/,2("=")," RICHARDS TS FLOW ",60("="))')
   endif
 
   call PMSubsurfaceFlowInitializeTimestepB(this)
@@ -616,7 +446,8 @@ end subroutine PMRichardsTSInitializeTimestep
 
 ! ************************************************************************** !
 
-subroutine PMRichardsTSCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
+subroutine PMRichardsTSCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
+                                        reason,ierr)
   ! 
   ! Adds a convergence check for the nonlinear problem
   ! 
@@ -644,22 +475,22 @@ subroutine PMRichardsTSCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ie
                             0,ierr);CHKERRQ(ierr)
 
   if (this%option%print_screen_flag) then
-      select case(int(reason))
-        case(2)
-          string = 'atol'
-        case(3)
-          string = 'rtol'
-        case(4)
-          string = 'stol'
-        case default
-          write(string,'(i3)') reason
-      end select
+    select case(int(reason))
+      case(2)
+        string = 'atol'
+      case(3)
+        string = 'rtol'
+      case(4)
+        string = 'stol'
+      case default
+        write(string,'(i3)') reason
+    end select
 
-      write(*,'(i3," 2r:",es9.2, &
-              & " 2x:",es9.2, &
-              & " 2u:",es9.2, &
-              & " rsn: ",a)') &
-              it, fnorm, xnorm, unorm, trim(string)
+    write(*,'(i3," 2r:",es9.2, &
+            & " 2x:",es9.2, &
+            & " 2u:",es9.2, &
+            & " rsn: ",a)') &
+            it, fnorm, xnorm, unorm, trim(string)
   endif
 
 end subroutine PMRichardsTSCheckConvergence
@@ -673,7 +504,6 @@ subroutine PMRichardsTSDestroy(this)
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   ! 
-
   use Richards_module, only : RichardsDestroy
 
   implicit none
@@ -685,8 +515,7 @@ subroutine PMRichardsTSDestroy(this)
   endif
 
   ! preserve this ordering
-  call RichardsDestroy(this%realization)
-  call PMSubsurfaceFlowDestroy(this)
+  call PMRichardsDestroy(this)
   
 end subroutine PMRichardsTSDestroy
 

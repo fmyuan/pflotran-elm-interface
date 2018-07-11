@@ -226,7 +226,9 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   call process_model%PreSolve()
 
   call TSSetTime(solver%ts,0.d0,ierr);CHKERRQ(ierr)
+#if (PETSC_VERSION_MINOR >= 8)
   call TSSetMaxTime(solver%ts,option%flow_dt,ierr);CHKERRQ(ierr)
+#endif
   call TSSetTimeStep(solver%ts,option%flow_dt,ierr);CHKERRQ(ierr)
 
 #if (PETSC_VERSION_MINOR >= 8)
