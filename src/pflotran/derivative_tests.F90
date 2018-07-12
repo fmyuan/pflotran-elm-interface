@@ -230,8 +230,10 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
       rdiff = diff/abs(nderiv)
 
       if (diff>atol .OR. rdiff>rtol) then
+      !if (diff>atol .OR. rdiff>rtol .OR. auxvars(0)%sat(1) == 0 .OR. auxvars(0)%sat(1) == 1 ) then
         print *, "mob:"
         print *,  "sats: ", auxvars(0)%sat
+        print *, "pert is ", pert
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
         probs = probs + 1
         print *
