@@ -93,7 +93,7 @@ fi # GNU_PFLOTRAN_TEST_SUCCESS
 
 if [ $GNU_INTERFACE_TEST_SUCCESS = true ] ; then
 
-echo "CMake PFLOTRAN_INTERFACE"
+echo "CMake PFLOTRAN"
 
 # build PFLOTRAN
 cd $PFLOTRAN_DIR/src/pflotran
