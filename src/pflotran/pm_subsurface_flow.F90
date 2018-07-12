@@ -136,6 +136,7 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
   use Input_Aux_module
   use String_module
   use Option_module
+  use AuxVars_Flow_module
  
   implicit none
   
@@ -205,18 +206,15 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('ANALYTICAL_JACOBIAN_COMPARE')
       option%flow%numerical_derivatives_compare = PETSC_TRUE
 
-    case('COMPARE_RELATIVE_DIFFERENCE')
-      option%matcompare_reldiff = PETSC_TRUE
-
     case('DEBUG_TOL')
-      call InputReadDouble(input,option,option%debug_tol)
+      call InputReadDouble(input,option,AUXFLOW_debug_tol)
       call InputErrorMsg(input,option,'DEBUG_TOL',error_string)
     case('DEBUG_RELTOL')
-      call InputReadDouble(input,option,option%debug_reltol)
+      call InputReadDouble(input,option,AUXFLOW_debug_reltol)
       call InputErrorMsg(input,option,'DEBUG_RELTOL',error_string)
 
     case('GEOMETRIC_PENALTY')
-      option%use_GP= PETSC_TRUE
+      AUXFLOW_use_GP= PETSC_TRUE
 
     case default
       found = PETSC_FALSE

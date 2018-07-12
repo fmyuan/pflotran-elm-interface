@@ -14,7 +14,8 @@ module AuxVars_TOilIms_module
 
   PetscBool, public :: toil_analytical_derivatives = PETSC_FALSE
   PetscBool, public :: toil_analytical_derivatives_compare = PETSC_FALSE
-  PetscReal, public :: toil_dcomp_tol = 1.d0
+  PetscReal, public :: toil_dcomp_tol = 1.d-1
+  PetscReal, public :: toil_dcomp_reltol = 1.d-1
   PetscBool, public :: toil_GP = PETSC_FALSE
 
   type, public, extends(auxvar_flow_energy_type) :: auxvar_toil_ims_type

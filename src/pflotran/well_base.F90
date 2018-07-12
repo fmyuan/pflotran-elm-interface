@@ -671,7 +671,7 @@ end subroutine BaseExplUpdate
 
 subroutine WellBaseExplJDerivative(this,iconn,ghosted_id,isothermal, &
                                    energy_equation_index,option,Jac, &
-                                   analytical, analytical_compare, comptol    )
+                                   analytical, analytical_compare, comptol, compreltol    )
   ! 
   ! Computes the well derivatives terms for the jacobian
   ! 
@@ -692,7 +692,7 @@ subroutine WellBaseExplJDerivative(this,iconn,ghosted_id,isothermal, &
   !PetscReal :: Jac(option%nflowdof,option%nflowdof)
   PetscReal :: Jac(:,:)
   PetscBool :: analytical, analytical_compare
-  PetscReal :: comptol
+  PetscReal :: comptol,compreltol
 
   print *, "WellFlowEnergyExplJDerivative must be extended"
   stop  

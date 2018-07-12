@@ -8,6 +8,10 @@ module AuxVars_Flow_module
 
   implicit none
 
+  PetscReal,public :: AUXFLOW_debug_tol = 1.d-1
+  PetscReal,public :: AUXFLOW_debug_reltol = 1.d-1
+  PetscBool,public :: AUXFLOW_use_GP = PETSC_FALSE
+
   private
 
   type, public, extends(auxvar_base_type) :: auxvar_flow_type

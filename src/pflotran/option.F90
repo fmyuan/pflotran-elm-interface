@@ -225,10 +225,6 @@ module Option_module
     PetscReal :: inline_surface_Mannings_coeff
     character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
 
-    PetscReal :: debug_tol
-    PetscReal :: debug_reltol
-    PetscBool :: matcompare_reldiff
-    PetscBool :: use_GP
 
   end type option_type
 
@@ -596,10 +592,6 @@ subroutine OptionInitRealization(option)
   option%inline_surface_Mannings_coeff = 0.02d0
   option%inline_surface_region_name    = ""
 
-  option%debug_tol = 1.d0
-  option%debug_reltol = 1.d0
-  option%matcompare_reldiff = PETSC_FALSE
-  option%use_GP = PETSC_FALSE
 
 end subroutine OptionInitRealization
 

@@ -100,6 +100,7 @@ subroutine TOilImsSetup(realization)
   !use Fluid_module
   use Material_Aux_class
   use Output_Aux_module
+  use AuxVars_Flow_module
  
   implicit none
   
@@ -130,8 +131,10 @@ subroutine TOilImsSetup(realization)
   toil_analytical_derivatives = .not. option%flow%numerical_derivatives
   toil_analytical_derivatives_compare = option%flow%numerical_derivatives_compare
 
-  toil_dcomp_tol = option%debug_tol
-  toil_GP = option%use_GP
+  !toil_dcomp_tol = option%debug_tol
+  toil_dcomp_tol = AUXFLOW_debug_tol
+  toil_dcomp_reltol = AUXFLOW_debug_reltol
+  toil_GP = AUXFLOW_use_GP
 
   ! ensure that material properties specific to this module are properly
   ! initialized
@@ -2553,7 +2556,6 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
 
   PetscReal :: J_alt(option%nflowdof,option%nflowdof)
   PetscReal :: J_dff(option%nflowdof,option%nflowdof)
-  PetscReal :: tol
   PetscReal :: Jdum(option%nflowdof,option%nflowdof)  
 
   J_alt = 0.d0
@@ -2620,8 +2622,7 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
 
       J_dff = J - J_alt
 
-      tol = toil_dcomp_tol
-      call MatCompare(J, J_alt, 3, 3, tol, option%matcompare_reldiff)
+      call MatCompare(J, J_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol)
 
       call TOilImsAccumulation(toil_auxvar(ZERO_INTEGER), &
                                material_auxvar,soil_heat_capacity,option,Res,&
@@ -2687,8 +2688,6 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
   PetscReal :: Jdum1(option%nflowdof,option%nflowdof)  
   PetscReal :: Jdum2(option%nflowdof,option%nflowdof)  
   
-  PetscReal :: tol
-
   Jup = 0.d0
   Jdn = 0.d0
 
@@ -2776,9 +2775,8 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
       Jup_dff = Jup - Jup_alt
       Jdn_dff = Jdn - Jdn_alt
 
-       tol = toil_dcomp_tol
-       call MatCompare(Jup, Jup_alt, 3, 3, tol, option%matcompare_reldiff)
-       call MatCompare(Jdn, Jdn_alt, 3, 3, tol, option%matcompare_reldiff)
+       call MatCompare(Jup, Jup_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol)
+       call MatCompare(Jdn, Jdn_alt, 3, 3, toil_dcomp_tol,toil_dcomp_reltol)
 
       call TOilImsFluxPFL(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                            material_auxvar_up, &
@@ -2856,7 +2854,6 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 
   PetscReal :: Jdn_alt(option%nflowdof,option%nflowdof)
   PetscReal :: J_dff(option%nflowdof,option%nflowdof)
-  PetscReal :: tol
 
   Jdn = 0.d0
   !Jdn_alt = 0.d0
@@ -2922,8 +2919,7 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
     if (toil_analytical_derivatives_compare) then
        J_dff = Jdn -  Jdn_alt
 
-       tol = toil_dcomp_tol
-       call MatCompare(Jdn, Jdn_alt, 3, 3, tol, option%matcompare_reldiff)
+       call MatCompare(Jdn, Jdn_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol)
 
       call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          toil_auxvar_up,global_auxvar_up, &
@@ -2981,7 +2977,6 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
 
   PetscReal :: J_alt(option%nflowdof,option%nflowdof)
   PetscReal :: J_dff(option%nflowdof,option%nflowdof)
-  PetscReal :: tol
 
   option%iflag = -3
 
@@ -3028,8 +3023,7 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
     if (toil_analytical_derivatives_compare) then
         J_dff = Jac - J_alt
 
-       tol = toil_dcomp_tol
-       call MatCompare(Jac, J_alt, 3, 3, tol, option%matcompare_reldiff)
+       call MatCompare(Jac, J_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol)
 
        call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
                                global_auxvar,dummy_real,scale,Res,j_alt,PETSC_TRUE)
@@ -3801,7 +3795,8 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
         call source_sink%well%ExplJDerivative(iconn,ghosted_id, &
                         toil_ims_isothermal,TOIL_IMS_ENERGY_EQUATION_INDEX, &
                          option,Jdn, toil_analytical_derivatives, &
-                         toil_analytical_derivatives_compare, toil_dcomp_tol)
+                         toil_analytical_derivatives_compare, toil_dcomp_tol,&
+                         toil_dcomp_reltol)
         Jdn = -Jdn  
 
         call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &

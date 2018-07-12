@@ -19,6 +19,7 @@ module Derivative_tests_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use Option_module
+  use AuxVars_Flow_module
   use AuxVars_TOilIms_module
 
   implicit none
@@ -49,8 +50,8 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
   PetscReal :: atol,rtol
   PetscInt :: probs
 
-  atol = option%debug_tol
-  rtol = option%debug_reltol
+  atol = AUXFLOW_debug_tol
+  rtol = AUXFLOW_debug_reltol
 
   print *, "NumCompare TOil"
   probs = 0
