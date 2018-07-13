@@ -104,6 +104,7 @@ module Characteristic_Curves_Common_module
     procedure, public :: Init => RPF_Burdine_BC_Liq_Init
     procedure, public :: Verify => RPF_Burdine_BC_Liq_Verify
     procedure, public :: RelativePermeability => RPF_Burdine_BC_Liq_RelPerm
+    procedure, public :: SetupPolynomials => RPF_Burdine_BC_Liq_SetupPolynomials  ! added by F.-M. Yuan (2017-03-10)
   end type rpf_Burdine_BC_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_Burdine_BC_gas_type
@@ -418,7 +419,7 @@ subroutine SFConstantVerify(this,name,option)
   endif
   call SFBaseVerify(this,string,option)
   select case(option%iflowmode)
-    case(RICHARDS_MODE,TH_MODE)
+    case(TH_MODE)
       if (Initialized(this%constant_capillary_pressure)) then
         option%io_buffer = 'CONSTANT_CAPILLARY_PRESSURE is not supported for &
           &Richards or TH flow modes as CONSTANT_SATURATION must be applied. &
@@ -552,6 +553,7 @@ subroutine RPF_ConstantRelPerm(this,liquid_saturation,relative_permeability, &
 end subroutine RPF_ConstantRelPerm
 
 ! ************************************************************************** !
+
 ! ************************************************************************** !
 
 function SF_VG_Create()
@@ -559,12 +561,12 @@ function SF_VG_Create()
   ! Creates the van Genutchten capillary pressure function object
 
   implicit none
-  
+
   class(sat_func_VG_type), pointer :: SF_VG_Create
-  
+
   allocate(SF_VG_Create)
   call SF_VG_Create%Init()
-  
+
 end function SF_VG_Create
 
 ! ************************************************************************** !
@@ -844,10 +846,41 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: error_string
   
-  PetscReal :: b(4)
+  PetscReal :: b(4), Se
 
+#ifdef SMOOTHING2
+  ! F.-M. Yuan (2017-03-10): newly smoothing approach using Heaveside Function Smoothed
+  ! a note here: when setup, only needs starting/ending points for smoothing
+
+  ! WET-end
+  if (associated(this%pres_poly)) call PolynomialDestroy(this%pres_poly)
+  this%pres_poly => PolynomialCreate()
+  this%pres_poly%low  = 0.000d0/this%alpha  ! have to make Se=1, exactly@pc=0 (otherwise, by BC equation, this is 1/alpha)
+  this%pres_poly%high = 1.005d0/this%alpha  ! this is very sensitive (better close to 1/alpha)
+
+  if (associated(this%sat_poly)) call PolynomialDestroy(this%sat_poly)
+  this%sat_poly => PolynomialCreate()
+  this%sat_poly%low = 1.0d0
+  this%sat_poly%high = this%Sr+(1.d0-this%Sr)*1.005d0**(-this%lambda)
+
+  ! DRY-end
+  if (associated(this%pres_poly2)) call PolynomialDestroy(this%pres_poly2)
+  this%pres_poly2 => PolynomialCreate()
+  this%pres_poly2%high= min(this%pcmax, &
+          (0.001d0**(-1.d0/this%lambda))/this%alpha)       ! Se = 0.001 (note that if Se=0, pc=0 by this eq.)
+  this%pres_poly2%low = min(this%pres_poly2%high-1.0d2, &  ! this is the starting point for smoothing, so it must be less than %high end.
+          (0.005d0**(-1.d0/this%lambda))/this%alpha)       ! Se = 0.005
+
+  if (associated(this%sat_poly2)) call PolynomialDestroy(this%sat_poly2)
+  this%sat_poly2 => PolynomialCreate()
+  Se = (this%pres_poly2%low*this%alpha)**(-this%lambda)
+  this%sat_poly2%low = this%Sr + (1.d0-this%Sr)*Se
+  this%sat_poly2%high = this%Sr + (1.d0-this%Sr)*0.001d0
+
+#else
   ! polynomial fitting pc as a function of saturation
   ! 1.05 is essentially pc*alpha (i.e. pc = 1.05/alpha)
+  if (associated(this%sat_poly)) call PolynomialDestroy(this%sat_poly)
   this%sat_poly => PolynomialCreate()
   this%sat_poly%low = 1.05d0**(-this%lambda)
   this%sat_poly%high = 1.d0
@@ -876,6 +909,7 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   !     since it can result in saturations > 1 with both
   !     quadratic and cubic polynomials
   ! fill matix with values
+  if (associated(this%pres_poly)) call PolynomialDestroy(this%pres_poly)
   this%pres_poly => PolynomialCreate()
   this%pres_poly%low = 0.95/this%alpha
   this%pres_poly%high = 1.05/this%alpha
@@ -896,6 +930,7 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   call CubicPolynomialSetup(this%pres_poly%low,this%pres_poly%high,b)
 
   this%pres_poly%coefficients(1:4) = b(1:4)
+#endif
   
   
 end subroutine SF_BC_SetupPolynomials
@@ -928,15 +963,20 @@ subroutine SF_BC_CapillaryPressure(this,liquid_saturation, &
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
+#ifdef SMOOTHING2
+  PetscReal :: Hfunc, dHfunc, x1, x0, y
+#endif
   PetscReal :: dSe_dsatl
   PetscReal :: dpc_dSe
   PetscReal :: neg_one_over_lambda
 
   dpc_dsatl = 0.d0
   
-  if (liquid_saturation <= this%Sr) then
+  if (liquid_saturation <= this%Sr) then   ! F.-M. Yuan (2017-03-14): This IS not mathmatically correct, although this function seems NOT called except for unit test
+#ifndef SMOOTHING2
     capillary_pressure = this%pcmax
     return
+#endif
   else if (liquid_saturation >= 1.d0) then
     capillary_pressure = 0.d0
     return
@@ -944,6 +984,7 @@ subroutine SF_BC_CapillaryPressure(this,liquid_saturation, &
   
   dSe_dsatl = 1.d0 / (1.d0-this%Sr)
   Se = (liquid_saturation-this%Sr)*dSe_dsatl
+#ifndef SMOOTHING2
   if (associated(this%sat_poly)) then
     if (Se > this%sat_poly%low) then
       call QuadraticPolynomialEvaluate(this%sat_poly%coefficients(1:3), &
@@ -952,6 +993,7 @@ subroutine SF_BC_CapillaryPressure(this,liquid_saturation, &
       return
     endif
   endif
+#endif
   neg_one_over_lambda = -1.d0/this%lambda
   capillary_pressure = (Se**neg_one_over_lambda)/this%alpha
   dpc_dsatl = capillary_pressure/Se*neg_one_over_lambda*dSe_dsatl
@@ -964,10 +1006,55 @@ subroutine SF_BC_CapillaryPressure(this,liquid_saturation, &
   endif
 #endif  
 
+#ifndef SMOOTHING2
   if (capillary_pressure > this%pcmax) then
     capillary_pressure = this%pcmax
     dpc_dsatl = 0.d0
   endif
+
+#else
+  ! WET-end
+  if (associated(this%pres_poly)) then
+    call this%Saturation(this%pres_poly%high,x1,y,option)
+    x1 = this%Sr+(1.d0-this%Sr)*x1           ! S to start smoothing, towards saturated (S=1)
+    if (liquid_saturation>x1) then
+      call this%Saturation(this%pres_poly%low,x0,y,option)
+      x0 = this%Sr+(1.d0-this%Sr)*x0         ! S to end smoothing @pc=pres_poly%low ( should be 0, i.e. S=1)
+
+      call HFunctionSmooth(liquid_saturation, x1, x0, Hfunc, dHfunc)
+
+      dpc_dsatl = (capillary_pressure-this%pres_poly%low)*dHfunc + dpc_dsatl*Hfunc
+      capillary_pressure = capillary_pressure*Hfunc + this%pres_poly%low * (1.d0-Hfunc)
+      if(capillary_pressure<this%pres_poly%low) then
+        capillary_pressure=this%pres_poly%low
+        dpc_dsatl = 0.d0
+      end if
+    end if
+  end if
+
+  ! DRY-end
+  ! fmy: by BC function, mathemaatically @Sr, pc not necessarily equals to pcmax
+  !      So, @pcmax, S is not necessarily equaled to Sr, and requiring smoothing
+  if (associated(this%pres_poly2)) then
+    call this%Saturation(this%pres_poly2%low,x1,y,option)
+    x1 = this%Sr+(1.d0-this%Sr)*x1         ! S to start smoothing, towards S=Sr
+    if (liquid_saturation<x1) then
+      call this%Saturation(this%pres_poly2%high,x0,y,option)
+      x0 = this%Sr+(1.d0-this%Sr)*x0         ! S to end smoothing @pc=pres_poly2%high (note: if Se=0, mathmatically pc is NaN or inf)
+
+      call HFunctionSmooth(liquid_saturation, x1, x0, Hfunc, dHfunc)
+
+      dpc_dsatl = (capillary_pressure-this%pres_poly2%high)*dHfunc + dpc_dsatl*Hfunc
+      capillary_pressure = capillary_pressure*Hfunc + this%pres_poly2%high * (1.d0-Hfunc)
+      if(capillary_pressure>this%pres_poly2%high) then
+        capillary_pressure=this%pres_poly2%high
+        dpc_dsatl = 0.d0
+      end if
+
+    end if
+  end if
+
+#endif
   
 end subroutine SF_BC_CapillaryPressure
 
@@ -1002,9 +1089,14 @@ subroutine SF_BC_Saturation(this,capillary_pressure, &
   PetscReal :: Se
   PetscReal :: dSe_dpc
   PetscReal, parameter :: dpc_dpres = -1.d0
+#ifdef SMOOTHING2
+  PetscReal :: Hfunc, dHfunc
+#endif
+  !-----------------------------------------------------------
   
   dsat_dpres = 0.d0
   
+#ifndef SMOOTHING2
   ! reference #1
   if (associated(this%pres_poly)) then
     if (capillary_pressure < this%pres_poly%low) then
@@ -1031,6 +1123,53 @@ subroutine SF_BC_Saturation(this,capillary_pressure, &
   liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
   dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
   
+#else
+
+  ! F.-M. Yuan (2017-03-10): new smoothing approach using Heaveside Function
+  ! WET-end
+  if ( (associated(this%pres_poly) .and. associated(this%sat_poly)) &
+      .and. capillary_pressure<this%pres_poly%high ) then ! a note here: no 'equal = ', otherwise derivative is zeroed at the point
+      call HFunctionSmooth(capillary_pressure, &
+                           this%pres_poly%low, this%pres_poly%high, &
+                           Hfunc, dHfunc)
+    !sat-smoothed = this%sat_poly%high + (this%sat_poly%low-this%sat_poly%high)*Hfunc
+    ! in which 'high' is for pc=high end
+    dsat_dpres = (this%sat_poly%low-this%sat_poly%high)*dHfunc
+    dsat_dpres = dsat_dpres*dpc_dpres
+    liquid_saturation = this%sat_poly%high + &
+                       (this%sat_poly%low-this%sat_poly%high)*Hfunc
+
+  ! DRY-end
+  elseif ( (associated(this%pres_poly2) .and. associated(this%sat_poly2)) &
+      .and. capillary_pressure>this%pres_poly2%low ) then
+    call HFunctionSmooth(capillary_pressure, &
+                         this%pres_poly2%low, this%pres_poly2%high, &
+                         Hfunc, dHfunc)
+    !sat-smoothed = this%sat_poly%high + (this%sat_poly%low-this%sat_poly%high)*Hfunc
+    ! in which 'high' is for pc=high end
+    dsat_dpres = (this%sat_poly2%low-this%sat_poly2%high)*dHfunc
+    dsat_dpres = dsat_dpres*dpc_dpres
+    liquid_saturation = this%sat_poly2%high + &
+                       (this%sat_poly2%low-this%sat_poly2%high)*Hfunc
+
+  !
+  else
+    if (capillary_pressure < 1.d0/this%alpha) then
+      liquid_saturation = 1.d0
+      dsat_dpres = 0.d0
+    !
+    else
+      pc_alpha_neg_lambda = (capillary_pressure*this%alpha)**(-this%lambda)
+      Se = pc_alpha_neg_lambda
+      dSe_dpc = -this%lambda/capillary_pressure*pc_alpha_neg_lambda
+      liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+      dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
+    endif
+
+  endif
+
+#endif
+
 end subroutine SF_BC_Saturation
 
 ! ************************************************************************** !
@@ -1774,6 +1913,43 @@ end subroutine RPF_Burdine_BC_Liq_Verify
 
 ! ************************************************************************** !
 
+subroutine RPF_Burdine_BC_Liq_SetupPolynomials(this,option,error_string)
+
+  ! Sets up smoothing approach for Burdine-BC permeability function
+  ! F.-M. Yuan (2017-03-10): applying for newly-written HFunctionSmooth to do tail-smoothing
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(rpf_Burdine_BC_liq_type) :: this
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+#ifdef SMOOTHING2
+  ! F.-M. Yuan (2017-03-10): applying for newly-written HFunctionSmooth to do tail-smoothing
+  ! Here, we only need to know the smoothing startng/ending points, if with option of SMOOTH keyword in input cards
+
+  ! WET-end smoothing
+  if (associated(this%poly)) call PolynomialDestroy(this%poly)
+  this%poly => PolynomialCreate()
+  this%poly%low  = 0.999d0 ! normalized effective saturation (Se)  (starting smoothing point)
+  this%poly%high = 1.000d0 ! normalized effective saturation (Se)  (saturated flow above this point)
+
+  ! DRY-end smoothing
+  if (associated(this%poly2)) call PolynomialDestroy(this%poly2)
+  this%poly2 => PolynomialCreate()
+  this%poly2%high = 0.050d0 ! normalized effective saturation (Se) (starting smoothing point)
+  this%poly2%low  = 0.001d0 ! normalized effective saturation (Se)
+                            !   (note that by BC function, Se may not never be ZERO)
+
+#endif
+
+end subroutine RPF_Burdine_BC_Liq_SetupPolynomials
+
+! ************************************************************************** !
+
 subroutine RPF_Burdine_BC_Liq_RelPerm(this,liquid_saturation, &
                               relative_permeability,dkr_sat,option)
   ! 
@@ -1789,6 +1965,7 @@ subroutine RPF_Burdine_BC_Liq_RelPerm(this,liquid_saturation, &
   ! Date: 12/11/07, 09/23/14
   ! 
   use Option_module
+  use Utility_module
   
   implicit none
 
@@ -1802,6 +1979,11 @@ subroutine RPF_Burdine_BC_Liq_RelPerm(this,liquid_saturation, &
   PetscReal :: power
   PetscReal :: dkr_Se
   PetscReal :: dSe_sat
+
+#ifdef SMOOTHING2
+  PetscReal :: Hfunc, dHfunc
+#endif
+
 
   relative_permeability = 0.d0
   dkr_sat = 0.d0
@@ -1821,7 +2003,36 @@ subroutine RPF_Burdine_BC_Liq_RelPerm(this,liquid_saturation, &
   dkr_Se = power*relative_permeability/Se          
   dSe_sat = 1.d0 / (1.d0 - this%Sr)
   dkr_sat = dkr_Se * dSe_sat
-  
+
+  ! smoothing curve at both dry and wet endings (F.-M. Yuan, 2017-03-10)
+#ifdef SMOOTHING2
+  ! WET-end smoothing up to 1.0@Se=1.0 (ending high point)
+  if (associated(this%poly)) then
+    if (Se>=this%poly%low) then
+      call HFunctionSmooth(Se, this%poly%low, this%poly%high, Hfunc, dHfunc)
+
+      !rpf = 1.0 + (rpf-1.0) * Hfunc, in which '1.0' is the base RP@Se=1.0
+      dkr_sat = dkr_sat*Hfunc + (relative_permeability-1.0d0)*dHfunc
+      relative_permeability = 1.0d0+(relative_permeability-1.0d0)*Hfunc
+
+    endif
+
+  endif
+
+  ! DRY-end smoothing down to 0.0@Se=ending low point
+  if (associated(this%poly2)) then
+    if (Se<=this%poly2%high) then
+      call HFunctionSmooth(Se, this%poly2%high, this%poly2%low, Hfunc, dHfunc)
+
+      !rpf = rpf * Hfunc ( or, rpf = 0.0 + (rpf - 0.0)*Hfunc)
+      dkr_sat = dkr_sat*Hfunc + relative_permeability*dHfunc
+      relative_permeability = relative_permeability*Hfunc
+
+    endif
+
+  endif
+#endif
+
 end subroutine RPF_Burdine_BC_Liq_RelPerm
 
 ! ************************************************************************** !
@@ -2944,7 +3155,7 @@ subroutine RPF_mK_Liq_RelPerm(this,liquid_saturation, &
   !
   ! Malama, B. & K.L. Kuhlman, 2015. Unsaturated Hydraulic Conductivity
   ! Models Based on Truncated Lognormal Pore-size Distributions, Groundwater,
-  ! 53(3):498�502. http://dx.doi.org/10.1111/gwat.12220
+  ! 53(3):498-502. http://dx.doi.org/10.1111/gwat.12220
   !
   ! Author: Kris Kuhlman
   ! Date: 2017
@@ -3080,7 +3291,7 @@ subroutine RPF_mK_Gas_RelPerm(this,liquid_saturation, &
   !
   ! Malama, B. & K.L. Kuhlman, 2015. Unsaturated Hydraulic Conductivity
   ! Models Based on Truncated Lognormal Pore-size Distributions, Groundwater,
-  ! 53(3):498�502. http://dx.doi.org/10.1111/gwat.12220
+  ! 53(3):498-502. http://dx.doi.org/10.1111/gwat.12220
   !
   ! Author: Kris Kuhlman
   ! Date: 2017

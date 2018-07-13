@@ -399,6 +399,7 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
   ! 
   ! Author: Jitendra Kumar
   ! Date: 07/21/2010
+  !       2018-09-06 modified by fmyuan to have 3-phase of water mass
   ! 
  
   use Realization_Subsurface_class
@@ -442,8 +443,6 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
-    ! mass = volume*saturation*density
-
     if (soil_compressibility_index > 0) then
       call MaterialCompressSoil(material_auxvars(ghosted_id), &
                                 global_auxvars(ghosted_id)%pres(1), &
@@ -453,15 +452,26 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
       por = material_auxvars(ghosted_id)%porosity
     endif
 
-    mass_balance = mass_balance + &
-      global_auxvars(ghosted_id)%den_kg* &
-      global_auxvars(ghosted_id)%sat* &
+    ! mass_liqwater = volume*saturation*density
+    mass_balance(1) = mass_balance(1) + &
+      global_auxvars(ghosted_id)%den_kg(1)* &
+      global_auxvars(ghosted_id)%sat(1)* &
       por* &
       material_auxvars(ghosted_id)%volume
 
     if (option%use_th_freezing) then
-      ! mass = volume*saturation_ice*density_ice
-      mass_balance = mass_balance + &
+
+      ! currently 'mass' are 3-phase mixture
+      ! mass_vapor = volume*saturation_air*density_air*fraction_vapor
+      mass_balance(1) = mass_balance(1) + &
+        TH_auxvars(ghosted_id)%ice%den_gas* &
+        TH_auxvars(ghosted_id)%ice%sat_gas* &
+        TH_auxvars(ghosted_id)%ice%mol_gas*FMWH2O* &
+        por* &
+        material_auxvars(ghosted_id)%volume
+
+      ! mass_ice = volume*saturation_ice*density_ice
+      mass_balance(1) = mass_balance(1) + &
         TH_auxvars(ghosted_id)%ice%den_ice*FMWH2O* &
         TH_auxvars(ghosted_id)%ice%sat_ice* &
         por* &
@@ -4055,6 +4065,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
             1.d-10) cycle
       endif
 
+#if 0
       fraction_upwind = cur_connection_set%dist(-1,iconn)
       distance = cur_connection_set%dist(0,iconn)
       ! distance = scalar - magnitude of distance
@@ -4069,6 +4080,14 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       ! however, this introduces ever so slight error causing pflow-overhaul not
       ! to match pflow-orig.  This can be changed to 1.d0-fraction_upwind
       upweight = dd_dn/(dd_up+dd_dn)
+
+
+! better to use the following to avoid inconsistence (fmyuan)
+#else
+      call ConnectionCalculateDistances(cur_connection_set%dist(:,iconn), &
+                                    option%gravity,dd_up,dd_dn, &
+                                    distance_gravity,upweight)
+#endif
         
       ithrm_up = int(ithrm_loc_p(ghosted_id_up))
       ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
@@ -4115,6 +4134,17 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 
       patch%internal_velocities(1,sum_connection) = v_darcy
       patch%internal_flow_fluxes(:,sum_connection) = Res(:)
+
+#ifdef COMPUTE_INTERNAL_MASS_FLUX
+      if (option%compute_mass_balance_new) then
+        ! contribution to up cells
+        global_auxvars(ghosted_id_up)%mass_balance_delta(1,1) = &
+          global_auxvars(ghosted_id_up)%mass_balance_delta(1,1) - Res(1)
+        ! contribution to dn cells
+        global_auxvars(ghosted_id_dn)%mass_balance_delta(1,1) = &
+          global_auxvars(ghosted_id_dn)%mass_balance_delta(1,1) + Res(1)
+      endif
+#endif
 
       if (local_id_up>0) then
         iend = local_id_up*option%nflowdof
@@ -4624,7 +4654,8 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
 
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
-   
+
+#if 0
       fraction_upwind = cur_connection_set%dist(-1,iconn)
       distance = cur_connection_set%dist(0,iconn)
       ! distance = scalar - magnitude of distance
@@ -4639,6 +4670,14 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
       ! however, this introduces ever so slight error causing pflow-overhaul not
       ! to match pflow-orig.  This can be changed to 1.d0-fraction_upwind
       upweight = dd_dn/(dd_up+dd_dn)
+
+
+! better to use the following to avoid inconsistence
+#else
+      call ConnectionCalculateDistances(cur_connection_set%dist(:,iconn), &
+                                    option%gravity,dd_up,dd_dn, &
+                                    distance_gravity,upweight)
+#endif
     
       ithrm_up = int(ithrm_loc_p(ghosted_id_up))
       ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
