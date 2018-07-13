@@ -3763,8 +3763,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       if(ibndtype(TH_TEMPERATURE_DOF) == NEUMANN_BC) skip_mass_flow = PETSC_TRUE
 
     case default
-      option%io_buffer = 'BC type "' // &
-        trim(GetSubConditionName(ibndtype(TH_PRESSURE_DOF))) // &
+      option%io_buffer = 'BC type for H: "' // trim(GetSubConditionName(ibndtype(TH_PRESSURE_DOF))) // &
         '" not implemented in TH mode.'
       call PrintErrMsg(option)
 
