@@ -484,8 +484,8 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
     endif
 
     mass_balance = mass_balance + &
-      global_auxvars(ghosted_id)%den_kg* &
-      global_auxvars(ghosted_id)%sat* &
+      global_auxvars(ghosted_id)%den_kg(1)* &
+      global_auxvars(ghosted_id)%sat(1)* &
       por* &
       material_auxvars(ghosted_id)%volume
 
@@ -3785,8 +3785,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       if(ibndtype(TH_TEMPERATURE_DOF) == NEUMANN_BC) skip_mass_flow = PETSC_TRUE
 
     case default
-      option%io_buffer = 'BC type "' // &
-        trim(GetSubConditionName(ibndtype(TH_PRESSURE_DOF))) // &
+      option%io_buffer = 'BC type for H: "' // trim(GetSubConditionName(ibndtype(TH_PRESSURE_DOF))) // &
         '" not implemented in TH mode.'
       call PrintErrMsg(option)
 
