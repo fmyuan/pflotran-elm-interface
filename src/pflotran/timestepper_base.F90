@@ -269,7 +269,7 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
       call InputReadInt(input,option,this%constant_time_step_threshold)
       call InputErrorMsg(input,option,'num_constant_time_steps_after_ts_cut', &
                          error_string)
-    case('MAX_STEPS','MAXIMUM_TIMESTEP','MAXIMUM_TIMESTEPS')
+    case('MAX_STEPS','MAXIMUM_NUMBER_OF_TIMESTEPS')
       call InputReadInt(input,option,this%max_time_step)
       call InputErrorMsg(input,option,'max_time_step',error_string)
     case('MAX_TS_CUTS','MAXIMUM_CONSECUTIVE_TS_CUTS')

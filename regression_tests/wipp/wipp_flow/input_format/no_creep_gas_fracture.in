@@ -90,7 +90,7 @@ KLINKENBERG_EFFECT
 END
 #================================solver options================================#
 NEWTON_SOLVER FLOW
-  MAXIMUM_NEWTON_ITERATION 15
+  MAXIMUM_NUMBER_OF_ITERATIONS 15
 END
 
 LINEAR_SOLVER FLOW
