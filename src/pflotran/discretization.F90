@@ -348,10 +348,14 @@ subroutine DiscretizationRead(discretization,input,option)
   PetscInt :: nx, ny, nz
   PetscInt :: i
   PetscReal :: tempreal
+  PetscBool :: bounds_read
+  PetscBool :: dxyz_read
 
   nx = 0
   ny = 0
   nz = 0
+  bounds_read = PETSC_FALSE
+  dxyz_read = PETSC_FALSE
 
 ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
@@ -370,6 +374,7 @@ subroutine DiscretizationRead(discretization,input,option)
     select case(trim(word))
       case('TYPE','NXYZ','ORIGIN','FILE')
       case('DXYZ')
+        dxyz_read = PETSC_TRUE
         select case(discretization%itype)
           case(STRUCTURED_GRID)
             call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
@@ -385,6 +390,7 @@ subroutine DiscretizationRead(discretization,input,option)
           call printErrMsg(option)
         endif
       case('BOUNDS')
+        bounds_read = PETSC_TRUE
         select case(discretization%itype)
           case(STRUCTURED_GRID)
             grid => discretization%grid
@@ -565,6 +571,12 @@ subroutine DiscretizationRead(discretization,input,option)
         option%gravity(Z_DIRECTION) = -1.d0*option%gravity(Z_DIRECTION)
       endif
   end select
+
+  if (bounds_read .and. dxyz_read) then
+    option%io_buffer = 'Only BOUNDS or DXYZ may be set in the GRID &
+                       &block, not both.'
+    call printErrMsg(option)
+  endif
   
 end subroutine DiscretizationRead
 
