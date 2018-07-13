@@ -454,8 +454,8 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
     endif
 
     mass_balance = mass_balance + &
-      global_auxvars(ghosted_id)%den_kg* &
-      global_auxvars(ghosted_id)%sat* &
+      global_auxvars(ghosted_id)%den_kg(1)* &
+      global_auxvars(ghosted_id)%sat(1)* &
       por* &
       material_auxvars(ghosted_id)%volume
 
@@ -4120,6 +4120,17 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 
       patch%internal_velocities(1,sum_connection) = v_darcy
       patch%internal_flow_fluxes(:,sum_connection) = Res(:)
+
+#ifdef COMPUTE_INTERNAL_MASS_FLUX
+      if (option%compute_mass_balance_new) then
+        ! contribution to up cells
+        global_auxvars(ghosted_id_up)%mass_balance_delta(1,1) = &
+          global_auxvars(ghosted_id_up)%mass_balance_delta(1,1) - Res(1)
+        ! contribution to dn cells
+        global_auxvars(ghosted_id_dn)%mass_balance_delta(1,1) = &
+          global_auxvars(ghosted_id_dn)%mass_balance_delta(1,1) + Res(1)
+      endif
+#endif
 
       if (local_id_up>0) then
         iend = local_id_up*option%nflowdof
