@@ -1408,8 +1408,12 @@ subroutine RealizationRevertFlowParameters(realization)
   endif   
   call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                    field%work_loc,ONEDOF)  
+  !call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
+  !                             ZERO_INTEGER)
   call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
-                               ZERO_INTEGER)
+                               POROSITY_MINERAL)
+  call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
+                               POROSITY_CURRENT)
   call DiscretizationGlobalToLocal(discretization,field%tortuosity0, &
                                    field%work_loc,ONEDOF)  
   call MaterialSetAuxVarVecLoc(Material,field%work_loc,TORTUOSITY, &
