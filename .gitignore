@@ -44,6 +44,9 @@ src/pims/pims.xcodeproj/*.pbxuser
 src/pims/pims.xcodeproj/*.mode1
 shortcourse/exercises/sx-115/doc/sx115.pdf
 src/pflotran/*xcode/*
+src/clm-pflotran/pflotran_interface
+src/clm-pflotran/libpflotran.a
+src/clm-pflotran/*.testlog
 *.toc
 *.aux
 *.log

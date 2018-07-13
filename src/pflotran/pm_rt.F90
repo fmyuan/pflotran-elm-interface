@@ -32,7 +32,6 @@ module PM_RT_class
     PetscBool :: temperature_dependent_diffusion
     ! for transport only
     PetscBool :: transient_porosity
-    PetscBool :: include_gas_phase
   contains
     procedure, public :: Setup => PMRTSetup
     procedure, public :: Read => PMRTRead
@@ -111,7 +110,6 @@ function PMRTCreate()
   rt_pm%temperature_dependent_diffusion = PETSC_FALSE
   ! these flags can only be true for transport only
   rt_pm%transient_porosity = PETSC_FALSE
-  rt_pm%include_gas_phase = PETSC_FALSE
 
   call PMBaseInit(rt_pm)
   rt_pm%name = 'Reactive Transport'
@@ -171,8 +169,9 @@ subroutine PMRTRead(this,input)
       case('NUMERICAL_JACOBIAN')
         option%transport%numerical_derivatives = PETSC_TRUE
       case('INCLUDE_GAS_PHASE')
-        this%include_gas_phase = PETSC_TRUE
-        option%transport%nphase = 2
+        option%io_buffer = 'INCLUDE_GAS_PHASE under SUBSURFACE_TRANSPORT &
+                           &has been deprecated.'
+        call printErrMsg(option)
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
       case('MAX_CFL')

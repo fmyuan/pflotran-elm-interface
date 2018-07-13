@@ -1040,7 +1040,7 @@ subroutine BasisInit(reaction,option)
   
   reaction%naqcomp = GetPrimarySpeciesCount(reaction)
   reaction%neqcplx = GetSecondarySpeciesCount(reaction)
-  reaction%gas%ngas = GasGetCount(reaction%gas%list,ACTIVE_AND_PASSIVE_GAS)
+  reaction%gas%ngas = GasGetCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS)
   reaction%nimcomp = GetImmobileCount(reaction)
   reaction%ncoll = GetColloidCount(reaction)
   ! set to naqcomp for now, will be adjusted later
@@ -1767,7 +1767,7 @@ subroutine BasisInit(reaction,option)
   ! passive
   call ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
                                   temp_high,temp_low,itemp_high,itemp_low, &
-                                  reaction%gas%list,PASSIVE_GAS, &
+                                  reaction%gas,PASSIVE_GAS, &
                                   reaction%gas%npassive_gas, &
                                   reaction%gas%passive_names, &
                                   reaction%gas%passive_print_me, &
@@ -1780,7 +1780,7 @@ subroutine BasisInit(reaction,option)
   ! active
   call ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
                                   temp_high,temp_low,itemp_high,itemp_low, &
-                                  reaction%gas%list,ACTIVE_GAS, &
+                                  reaction%gas,ACTIVE_GAS, &
                                   reaction%gas%nactive_gas, &
                                   reaction%gas%active_names, &
                                   reaction%gas%active_print_me, &
@@ -4035,7 +4035,7 @@ end function GetSpeciesBasisID
 subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
                                       temp_high,temp_low, &
                                       itemp_high,itemp_low, &
-                                      gas_species_list,gas_itype, &
+                                      gas,gas_itype, &
                                       ngas,gas_names,gas_print, &
                                       eqspecid,eqstoich,eqh2oid,eqh2ostoich, &
                                       eqlogK,eqlogKcoef)
@@ -4060,7 +4060,7 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
   PetscInt :: h2o_id
   PetscReal :: temp_high, temp_low
   PetscInt :: itemp_high, itemp_low
-  type(gas_species_type), pointer :: gas_species_list
+  type(gas_type), pointer :: gas
   PetscInt :: gas_itype
   PetscInt :: ngas
   character(len=MAXWORDLENGTH), pointer :: gas_names(:)
@@ -4079,11 +4079,11 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
   PetscInt :: i
   PetscInt :: spec_id
     
-  ngas = GasGetCount(gas_species_list,gas_itype)
+  ngas = GasGetCount(gas,gas_itype)
   if (ngas > 0) then
   
     ! get maximum # of aqueous species in a gas reaction
-    cur_gas_spec => gas_species_list
+    cur_gas_spec => gas%list
     max_aq_species = 0
     do
       if (.not.associated(cur_gas_spec)) exit
