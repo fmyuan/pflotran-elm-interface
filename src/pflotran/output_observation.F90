@@ -1958,20 +1958,15 @@ subroutine OutputMassBalance(realization_base)
   PetscInt :: iconn
   PetscInt :: offset
   PetscInt :: iphase, ispec
-  PetscInt :: icomp, imnrl
+  PetscInt :: icomp
+  PetscInt :: max_tran_size
   PetscReal :: sum_area(4)
   PetscReal :: sum_area_global(4)
   PetscReal :: sum_kg(realization_base%option%nflowspec, &
                realization_base%option%nphase)
   PetscReal :: sum_kg_global(realization_base%option%nflowspec, &
                realization_base%option%nphase)
-  PetscReal :: sum_mol(realization_base%option%ntrandof, &
-               realization_base%option%transport%nphase)
-  PetscReal :: sum_mol_global(realization_base%option%ntrandof, &
-               realization_base%option%transport%nphase)
-
-  PetscReal, allocatable :: sum_mol_mnrl(:)
-  PetscReal, allocatable :: sum_mol_mnrl_global(:)
+  PetscReal, allocatable :: sum_mol(:,:), sum_mol_global(:,:)
   
   PetscReal :: global_total_mass, global_water_mass
 
@@ -2104,6 +2099,13 @@ subroutine OutputMassBalance(realization_base)
         do i=1,reaction%immobile%nimmobile
           if (reaction%immobile%print_me(i)) then
             string = 'Global ' // trim(reaction%immobile%names(i))
+            call OutputWriteToHeader(fid,string,'mol','',icol)
+          endif
+        enddo
+
+        do i=1,reaction%gas%nactive_gas
+          if (reaction%gas%active_print_me(i)) then
+            string = 'Global ' // trim(reaction%gas%active_names(i))
             call OutputWriteToHeader(fid,string,'mol','',icol)
           endif
         enddo
@@ -2411,71 +2413,59 @@ subroutine OutputMassBalance(realization_base)
       !           to reactive_transport.F90.
       option%io_buffer = 'OutputMassBalance() needs to be refactored to &
         consider species in the gas phase.'
-      call printErrMsg(option)
+!      call printErrMsg(option)
     endif
+    max_tran_size = max(reaction%naqcomp,reaction%mineral%nkinmnrl, &
+                        reaction%immobile%nimmobile,reaction%gas%nactive_gas)
+    ! see RTComputeMassBalance for indexing used below
+    allocate(sum_mol(max_tran_size,8))
+    allocate(sum_mol_global(max_tran_size,8))
     sum_mol = 0.d0
     select type(realization_base)
       class is(realization_subsurface_type)
-        call RTComputeMassBalance(realization_base,sum_mol)
+        call RTComputeMassBalance(realization_base,max_tran_size,sum_mol)
       class default
         option%io_buffer = 'Unrecognized realization class in MassBalance().'
         call printErrMsg(option)
     end select
-    int_mpi = option%transport%nphase*option%ntrandof
+    int_mpi = max_tran_size*8
     call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
                     MPI_DOUBLE_PRECISION,MPI_SUM, &
                     option%io_rank,option%mycomm,ierr)
 
     if (option%myrank == option%io_rank) then
-!     do iphase = 1, option%nphase
-      iphase = 1
-        do icomp = 1, reaction%naqcomp
-          if (reaction%primary_species_print(icomp)) then
-            write(fid,110,advance="no") sum_mol_global(icomp,iphase)
-          endif
-        enddo
-!      enddo
-        ! immobile species
-        do icomp = 1, reaction%immobile%nimmobile
-          if (reaction%immobile%print_me(icomp)) then
-            write(fid,110,advance="no") &
-              sum_mol_global(reaction%offset_immobile+icomp,iphase)
-          endif
-        enddo
+      do icomp = 1, reaction%naqcomp
+        if (reaction%primary_species_print(icomp)) then
+          write(fid,110,advance="no") sum_mol_global(icomp,1)
+        endif
+      enddo
+      ! immobile species
+      do i = 1, reaction%immobile%nimmobile
+        if (reaction%immobile%print_me(i)) then
+          write(fid,110,advance="no") &
+            sum_mol_global(i,7)
+        endif
+      enddo
+      ! gas species
+      do i = 1, reaction%gas%nactive_gas
+        if (reaction%gas%active_print_me(i)) then
+          write(fid,110,advance="no") &
+            sum_mol_global(i,8)
+        endif
+      enddo
     endif
 
 !   print out mineral contribution to mass balance
     if (option%mass_bal_detailed) then
-      allocate(sum_mol_mnrl(realization_base%reaction%mineral%nkinmnrl))
-      allocate(sum_mol_mnrl_global(realization_base%reaction%mineral%nkinmnrl))
-
-!     store integral over mineral volume fractions
-      do imnrl = 1, reaction%mineral%nkinmnrl
-        sum_mol_mnrl(imnrl) = 0.d0
-        do local_id = 1, grid%nlmax
-          ghosted_id = grid%nL2G(local_id)
-          if (patch%imat(ghosted_id) <= 0) cycle
-          sum_mol_mnrl(imnrl) = sum_mol_mnrl(imnrl) &
-            + rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl) &
-            * material_auxvars(ghosted_id)%volume &
-            / reaction%mineral%kinmnrl_molar_vol(imnrl)
-        enddo
-      enddo
-
-      int_mpi = reaction%mineral%nkinmnrl
-      call MPI_Reduce(sum_mol_mnrl,sum_mol_mnrl_global,int_mpi, &
-                    MPI_DOUBLE_PRECISION,MPI_SUM, &
-                    option%io_rank,option%mycomm,ierr)
       if (option%myrank == option%io_rank) then
-        do imnrl = 1, reaction%mineral%nkinmnrl
-          if (reaction%mineral%kinmnrl_print(imnrl)) then
-            write(fid,110,advance="no") sum_mol_mnrl_global(imnrl)
+        do i = 1, reaction%mineral%nkinmnrl
+          if (reaction%mineral%kinmnrl_print(i)) then
+            write(fid,110,advance="no") sum_mol_global(i,6)
           endif
         enddo
       endif
-      deallocate(sum_mol_mnrl)
-      deallocate(sum_mol_mnrl_global)
     endif
+    deallocate(sum_mol,sum_mol_global)
   endif
 
   coupler => patch%boundary_condition_list%first
@@ -2910,13 +2900,15 @@ subroutine OutputMassBalance(realization_base)
     
     if (option%ntrandof > 0) then
 
+      allocate(sum_mol(reaction%naqcomp,option%transport%nphase))
+      allocate(sum_mol_global(reaction%naqcomp,option%transport%nphase))
       ! print out cumulative boundary flux
       sum_mol = 0.d0
       do iconn = 1, coupler%connection_set%num_connections
         sum_mol = sum_mol + rt_auxvars_bc_or_ss(offset+iconn)%mass_balance
       enddo
 
-      int_mpi = option%transport%nphase*option%ntrandof
+      int_mpi = reaction%naqcomp*option%transport%nphase
       call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
                       MPI_DOUBLE_PRECISION,MPI_SUM, &
                       option%io_rank,option%mycomm,ierr)
@@ -2950,6 +2942,7 @@ subroutine OutputMassBalance(realization_base)
           endif
         enddo
       endif
+      deallocate(sum_mol,sum_mol_global)
     endif
 
     coupler => coupler%next 
