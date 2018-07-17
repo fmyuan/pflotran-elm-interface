@@ -350,7 +350,7 @@ END
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  MATERIAL ./543_non_contig.h5
+  FILE ./543_non_contig.h5
 END
 
 END_SUBSURFACE
