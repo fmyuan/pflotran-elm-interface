@@ -1057,7 +1057,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
     call InputErrorMsg(input,option,'file or value','UtilityReadIntArray')
     call StringToLower(word)
     if (StringCompare(word,'file',FOUR_INTEGER)) then
-      call InputReadNChars(input,option,string2,MAXSTRINGLENGTH,PETSC_TRUE)
+      call InputReadFilename(input,option,string2)
       input%err_buf = 'filename'
       input%err_buf2 = comment
       call InputErrorMsg(input,option)
@@ -1220,7 +1220,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
     call InputErrorMsg(input,option,'file or value','UtilityReadRealArray')
     call StringToLower(word)
     if (StringCompare(word,'file',FOUR_INTEGER)) then
-      call InputReadNChars(input,option,string2,MAXSTRINGLENGTH,PETSC_TRUE)
+      call InputReadFilename(input,option,string2)
       input%err_buf = 'filename'
       input%err_buf2 = comment
       call InputErrorMsg(input,option)

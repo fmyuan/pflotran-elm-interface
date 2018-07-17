@@ -533,8 +533,7 @@ subroutine RegionRead(region,input,option)
           end select
         enddo
       case('FILE')
-        call InputReadNChars(input,option,region%filename, &
-                             MAXSTRINGLENGTH,PETSC_TRUE)
+        call InputReadFilename(input,option,region%filename)
         call InputErrorMsg(input,option,'filename','REGION')
       case('LIST')
         option%io_buffer = 'REGION LIST currently not implemented'

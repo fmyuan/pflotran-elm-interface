@@ -544,7 +544,7 @@ subroutine CreepClosureRead(this,input,option)
       
     select case(trim(keyword))
       case('FILENAME') 
-        call InputReadNChars(input,option,filename,MAXSTRINGLENGTH,PETSC_TRUE)
+        call InputReadFilename(input,option,filename)
         call InputErrorMsg(input,option,'FILENAME',error_string)
       case('SHUTDOWN_PRESSURE')
         call InputReadDouble(input,option,this%shutdown_pressure)

@@ -208,8 +208,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
                 unstructured_grid_itype = POLYHEDRA_UNSTRUCTURED_GRID
                 unstructured_grid_ctype = 'polyhedra unstructured'
             end select
-            call InputReadNChars(input,option,discretization%filename, &
-                                 MAXSTRINGLENGTH,PETSC_TRUE)
+            call InputReadFilename(input,option,discretization%filename)
             call InputErrorMsg(input,option,'unstructured filename','GRID')
           case default
             call InputKeywordUnrecognized(word,'discretization type',option)

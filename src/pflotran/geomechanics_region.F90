@@ -245,8 +245,7 @@ subroutine GeomechRegionRead(region,input,option)
         call GeometryReadCoordinates(input,option,region%name, &
                                      region%coordinates)
       case('FILE')
-        call InputReadNChars(input,option,region%filename, &
-            MAXSTRINGLENGTH,PETSC_TRUE)
+        call InputReadFilename(input,option,region%filename)
         call InputErrorMsg(input,option,'filename','GEOMECHANICS_REGION')
         call GeomechRegionReadFromFilename(region,option,region%filename)
       case('LIST')

@@ -3764,7 +3764,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
         StringCompare(word,'file',FOUR_INTEGER)) then 
       input%err_buf2 = trim(keyword) // ', FILE'
       input%err_buf = 'keyword'
-      call InputReadNChars(input,option,string2,MAXSTRINGLENGTH,PETSC_TRUE)
+      call InputReadFilename(input,option,string2)
       if (input%ierr == 0) then
         filename = string2
       else
