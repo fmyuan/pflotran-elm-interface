@@ -282,7 +282,6 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscLogDouble :: log_end_time
   PetscInt :: num_newton_iterations
   PetscInt :: num_linear_iterations
-  PetscInt :: num_linear_iterations2
   PetscInt :: sum_newton_iterations
   PetscInt :: sum_linear_iterations
   PetscInt :: sum_wasted_linear_iterations
@@ -401,11 +400,6 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
                                              discretization%grid,option)
           end select
         endif
-        call KSPGetIterationNumber(solver%ksp,num_linear_iterations2, &
-                                   ierr);CHKERRQ(ierr)
-        sum_wasted_linear_iterations = sum_wasted_linear_iterations + &
-          num_linear_iterations2
-        sum_linear_iterations = sum_linear_iterations + num_linear_iterations2
       endif
 
       this%target_time = this%target_time + this%dt
