@@ -316,7 +316,7 @@ END
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  MATERIAL  ./heater_usg.h5
+  FILE  ./heater_usg.h5
 END
 
 END_SUBSURFACE
