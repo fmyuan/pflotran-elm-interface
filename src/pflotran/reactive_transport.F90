@@ -2546,7 +2546,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 #endif                   
       if (associated(patch%boundary_tran_fluxes)) then
         patch%boundary_tran_fluxes(1:reaction%ncomp,sum_connection) = &
-            -Res(1:reaction%ncomp)
+            Res(1:reaction%ncomp)
       endif
     enddo
     boundary_condition => boundary_condition%next

@@ -440,7 +440,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
 #include "petsc/finclude/petscdm.h"
   use petscdm
   use Option_module
-  use Utility_module, only: reallocateIntArray, SearchOrderedArray
+  use Utility_module, only: ReallocateArray, SearchOrderedArray
   
   implicit none
 

@@ -144,7 +144,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
 
   use Input_Aux_module
   use String_module
-  use Utility_module, only : reallocateRealArray
+  use Utility_module, only : ReallocateArray
   use Option_module
   use Units_module, only : UnitsConvertToInternal
   use Time_Storage_module  
@@ -260,7 +260,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
     
     ! enlarge the array as needed.
     if (row_count+1 > max_size) then
-      call reallocateRealArray(temp_array,max_size) 
+      call ReallocateArray(temp_array,max_size) 
     endif  
   enddo
   

@@ -158,7 +158,7 @@ subroutine RegressionRead(regression,input,option)
           if (InputCheckExit(input,option)) exit  
           count = count + 1
           if (count > max_cells) then
-            call reallocateIntArray(int_array,max_cells)
+            call ReallocateArray(int_array,max_cells)
           endif
           call InputReadInt(input,option,int_array(count))
           call InputErrorMsg(input,option,'natural cell id','REGRESSION,CELLS')

@@ -487,7 +487,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   use Option_module
   use String_module
   use Grid_Unstructured_Cell_module
-  use Utility_module, only: reallocateIntArray, SearchOrderedArray
+  use Utility_module, only: ReallocateArray, SearchOrderedArray
 
   implicit none
 
@@ -999,7 +999,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
       if (vertex_id < 1) exit
       vertex_count = vertex_count + 1
       if (vertex_count > max_int_count) then
-        call reallocateIntArray(int_array_pointer,max_int_count)
+        call ReallocateArray(int_array_pointer,max_int_count)
       endif
       vec_ptr(ivertex + vertex_ids_offset + (ghosted_id-1)*cell_stride) = vertex_count
       int_array_pointer(vertex_count) = vertex_id
@@ -2148,7 +2148,7 @@ subroutine UGridPolyhedraGetCellsInRectangle(x_min, x_max, y_min, y_max, z_min, 
   ! Date: 12/28/13
   ! 
   use Option_module
-  use Utility_module, only : reallocateIntArray
+  use Utility_module, only : ReallocateArray
   use Geometry_module
   
   implicit none
@@ -2219,9 +2219,9 @@ subroutine UGridPolyhedraGetCellsInRectangle(x_min, x_max, y_min, y_max, z_min, 
       if (in_rectangle) then
         num_cells = num_cells + 1
         if (num_cells > temp_array_size) then
-          call reallocateIntArray(temp_cell_array,temp_array_size)
+          call ReallocateArray(temp_cell_array,temp_array_size)
           temp_array_size = temp_array_size / 2 ! convert back for next call
-          call reallocateIntArray(temp_face_array,temp_array_size)
+          call ReallocateArray(temp_face_array,temp_array_size)
         endif
         temp_cell_array(num_cells) = local_id
         temp_face_array(num_cells) = iface

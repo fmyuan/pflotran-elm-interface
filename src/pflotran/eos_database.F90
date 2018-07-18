@@ -1091,7 +1091,7 @@ subroutine EOSTableRead(this,input,option)
             case('TEMPERATURE')
               n_temp_count = n_temp_count + 1
               if (n_temp_count > temp_array_size) then
-                call reallocateRealArray(temp_array,temp_array_size)
+                call ReallocateArray(temp_array,temp_array_size)
               end if
               call InputReadDouble(input,option,temp_array(n_temp_count))
               call InputErrorMsg(input,option,&
@@ -1245,7 +1245,7 @@ subroutine ReadPressureTable(input,option,press_idx,n_press,press_data_array)
     if ( press_idx > size_rank2 ) then
       !each time doubles the size of rank 2
       !tmp_array_size overwritten by new size
-      call reallocateRealArray(press_data_array,size_rank2)
+      call ReallocateArray(press_data_array,size_rank2)
     end if
     do i_data = 1, num_fields
       call InputReadDouble(input,option,press_data_array(i_data,press_idx))
