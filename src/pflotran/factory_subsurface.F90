@@ -2359,7 +2359,9 @@ subroutine SubsurfaceReadInput(simulation,input)
 !......................
 
       case("MULTIPLE_CONTINUUM")
-        option%use_mc = PETSC_TRUE
+        option%io_buffer = 'MULTIPLE_CONTINUUM must be entered under the &
+          &SUBSURFACE_TRANSPORT block within the SIMULATION block.'
+        call PrintErrMsg(option)
 
 !......................
 

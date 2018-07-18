@@ -189,6 +189,9 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       call InputReadDouble(input,option,this%cfl_governor)
       call InputErrorMsg(input,option,'MAX_CFL',error_string)
 
+    case('MULTIPLE_CONTINUUM')
+      option%use_mc = PETSC_TRUE
+
     case('NUMERICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_TRUE
 

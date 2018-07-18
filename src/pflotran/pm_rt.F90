@@ -178,6 +178,8 @@ subroutine PMRTRead(this,input)
         call InputReadDouble(input,option,this%cfl_governor)
         call InputErrorMsg(input,option,'MAX_CFL', &
                            'SUBSURFACE_TRANSPORT OPTIONS')
+      case('MULTIPLE_CONTINUUM')
+        option%use_mc = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(word,error_string,option)
     end select
