@@ -1,0 +1,33 @@
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE HYDROSTATIC
+  /
+  DATUM 0. 0. 2.
+  PRESSURE 101325.d0
+END
+
+FLOW_CONDITION inlet
+  TYPE 
+    FLUX NEUMANN
+  /
+  FLUX 1.d0 mm/s
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT initial
+    CONCENTRATIONS
+      Tracer  1.d-3  T
+    /
+  /
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
