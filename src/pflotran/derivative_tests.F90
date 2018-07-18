@@ -361,6 +361,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
   atol = flow_aux_debug_tol
   rtol = flow_aux_debug_reltol
 
+#if 0
   print *, 
   print *, "NumCompare TOWG BO"
   print *, "Comparing numerical to analytical derivatives of aux variables in one cell."
@@ -372,6 +373,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
     print *, "This cell is in UNsaturated state."
   endif
   print *, 
+#endif
 
   probs = 0
 
@@ -705,8 +707,14 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
   enddo
   !! ********* end of from auxvars energy flow *********
 
-  print *, "NumCompare TOWG BO, total possible problems here: ", probs
-  print *, 
+  !print *, "NumCompare TOWG BO, total possible problems here: ", probs
+  !print *, 
+
+  print *, "NumCompare TOWG BO (atol: ", atol, ", rtol: ", rtol
+  print *, ", saturated? ", isSat, "), probs: ", probs
+  if (probs > 0) then
+    print *, "more than 0 problems"
+  endif
 
 
 end subroutine NumCompare_towg_bo
@@ -720,7 +728,8 @@ subroutine NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
   PetscReal :: nderiv,aderiv,diff,rdiff
 
   print *, "phase, ", iphase, ", deriv w.r.t. variable number ", idof
-  print *, "alyt: ", aderiv, "; num: ", nderiv, "; DIFFERENCE: ", diff, rdiff
+  print *, "alyt: ", aderiv, "; num: ", nderiv
+  print *, "; DIFFERENCE (abs,rel): ", diff, rdiff
 
 end subroutine NumCompareOutput
 

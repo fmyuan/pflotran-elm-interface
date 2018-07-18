@@ -305,19 +305,35 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
   PetscInt :: ghosted_id, iconn, local_id
   PetscInt :: idof
 
-  allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
-  do ghosted_id = 1, grid%ngmax
-    do idof = 0, option%nflowdof
-      call this%auxvars(idof,ghosted_id)%Init(option)
-      if (towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
-        call this%auxvars(idof,ghosted_id)%InitTL(option)
-      end if
-      if (    (towg_miscibility_model == TOWG_BLACK_OIL ) &
-          .or.(towg_miscibility_model == TOWG_SOLVENT_TL) ) then
-        call this%auxvars(idof,ghosted_id)%InitBO(option)
-      end if
-    enddo
-  enddo
+  if (option%flow%numerical_derivatives .OR. option%flow%numerical_derivatives_compare) then
+    allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
+    do ghosted_id = 1, grid%ngmax
+      do idof = 0, option%nflowdof
+        call this%auxvars(idof,ghosted_id)%Init(option)
+        if (towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
+          call this%auxvars(idof,ghosted_id)%InitTL(option)
+        end if
+        if (    (towg_miscibility_model == TOWG_BLACK_OIL ) &
+            .or.(towg_miscibility_model == TOWG_SOLVENT_TL) ) then
+          call this%auxvars(idof,ghosted_id)%InitBO(option)
+        end if
+      end do
+    end do
+  else
+    allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
+    do ghosted_id = 1, grid%ngmax
+      !do idof = 0, option%nflowdof
+        call this%auxvars(0,ghosted_id)%Init(option)
+        if (towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
+          call this%auxvars(0,ghosted_id)%InitTL(option)
+        end if
+        if (    (towg_miscibility_model == TOWG_BLACK_OIL ) &
+            .or.(towg_miscibility_model == TOWG_SOLVENT_TL) ) then
+          call this%auxvars(0,ghosted_id)%InitBO(option)
+        end if
+      !end do
+    end do
+  endif
 
   this%num_aux = grid%ngmax
 
@@ -1308,6 +1324,11 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
 
   if (getDerivs) then
+#if 0
+    print *, "sats: ", auxvar%sat
+    print *, "kro: ", kro, " viso: ", viso, ", mob: ", auxvar%mobility(oid)
+    print *, "dkro_satg: ", dkro_satg
+#endif
     ! mobility derivatives:
     call MobilityDerivs_TOWG_BO(dmobo,kro,viso,dkro_sato,dkro_satg,dvo_dp,dvo_dpb,dvo_dt,isSat,option%nflowdof)
     auxvar%D_mobility(oid, :) = dmobo(:)
