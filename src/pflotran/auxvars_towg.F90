@@ -15,7 +15,9 @@ module AuxVars_TOWG_module
 
   PetscBool, public :: towg_analytical_derivatives = PETSC_FALSE
   PetscBool, public :: towg_analytical_derivatives_compare = PETSC_FALSE
-  PetscReal, public :: towg_dcomp_tol = 1.d0
+
+  PetscReal, public :: towg_dcomp_tol = 1.d-1
+  PetscReal, public :: towg_dcomp_reltol = 1.d-1
 
 
   type, public, extends(auxvar_flow_energy_type) :: auxvar_towg_type

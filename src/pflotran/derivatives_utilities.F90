@@ -14,9 +14,69 @@ module Derivatives_utilities_module
              d_prodrule_3, &
              d_divrule, &
              d_power, &
-             scal_d_prodrule
+             scal_d_prodrule, &
+             ProdRule, &
+             ProdRule3
 
   contains
+
+! ************************************************************************** !
+function  ProdRule(x, dx, y, dy,n)
+
+!! Compute derivatives of x*y.
+!! Assume x and y are functions and there are some n variables
+!! t_1, t_2, ... 2_n, so that 
+!!
+!! x = x(t_1, .... t_n)
+!! y = y(t_1, .... t_n)
+!!
+!! Assume we are given the partial derivatives in the arrays
+!! dx and dy, i.e.,
+!!
+!! dx = [dx/dt_1,  .... , dx_dt_n]
+!! dy = [dy/dt_1,  .... , dy_dt_n]
+!!
+!! Then we compute and return an array:
+!!
+!! [d(xy)/dt_1, ... , d(xy)/dt_n]
+
+implicit none
+
+  PetscInt :: n
+  PetscReal :: x, y
+  PetscReal, dimension(1:n) :: dx, dy
+  PetscReal, dimension(1:n) :: ProdRule
+
+  PetscInt :: i
+
+  !!! TODO: error checking on lengths?
+
+  Prodrule = 0.d0
+
+  do i = 1,n
+    ProdRule(i) = x*dy(i) + y*dx(i)  
+  enddo
+
+end function ProdRule
+
+! ************************************************************************** !
+
+function  ProdRule3(x, dx, y, dy, z, dz, n)
+
+implicit none
+
+  PetscInt :: n
+  PetscReal :: x, y, z
+  PetscReal, dimension(1:n) :: dx, dy, dz
+  PetscReal, dimension(1:n) :: d_yz
+  PetscReal, dimension(1:n) :: ProdRule3
+  PetscReal :: yz
+
+  d_yz = ProdRule(y, dy, z, dz, n)
+  yz = y*z
+  ProdRule3 = ProdRule(x, dx, yz, d_yz, n)
+
+end function  ProdRule3
 
 ! ************************************************************************** !
 

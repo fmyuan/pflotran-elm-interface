@@ -54,7 +54,8 @@ module TOWG_module
     end subroutine TOWGUpdateAuxVarsDummy
 
     subroutine TOWGAccumulationDummy(auxvar,global_auxvar,material_auxvar, &
-                                     soil_heat_capacity,option,Res,debug_cell)
+                                     soil_heat_capacity,option,Res,debug_cell,&
+                                     j,analytical_derivatives)
       use AuxVars_TOWG_module
       use Global_Aux_module
       use Option_module
@@ -68,6 +69,8 @@ module TOWG_module
       type(option_type) :: option
       PetscReal :: Res(option%nflowdof) 
       PetscBool :: debug_cell
+      PetscReal :: j(1:option%nflowspec,1:option%nflowdof) 
+      PetscBool :: analytical_derivatives
     end subroutine TOWGAccumulationDummy
 
     subroutine TOWGComputeMassBalanceDummy(realization,mass_balance)
@@ -266,6 +269,7 @@ subroutine TOWGSetup(realization)
   !use Fluid_module
   use Material_Aux_class
   use Output_Aux_module
+  use AuxVars_Flow_module
 
   implicit none
   
@@ -295,6 +299,9 @@ subroutine TOWGSetup(realization)
 
   towg_analytical_derivatives = .not. option%flow%numerical_derivatives
   towg_analytical_derivatives_compare = option%flow%numerical_derivatives_compare
+
+  towg_dcomp_tol = flow_aux_debug_tol
+  towg_dcomp_reltol = flow_aux_debug_reltol
 
   ! ensure that material properties specific to this module are properly
   ! initialized
@@ -1619,6 +1626,8 @@ subroutine TOWGUpdateFixedAccum(realization)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
                           
   PetscErrorCode :: ierr
+
+  PetscReal :: jdum(realization%option%nflowdof,realization%option%nflowdof)
   
   option => realization%option
   field => realization%field
@@ -1663,7 +1672,7 @@ subroutine TOWGUpdateFixedAccum(realization)
                           material_auxvars(ghosted_id), &
                           material_parameter%soil_heat_capacity(imat), &
                           option,accum_p(local_start:local_end), &
-                          local_id == towg_debug_cell_id) 
+                          local_id == towg_debug_cell_id,jdum,PETSC_FALSE) 
   enddo
   
   !for tough2 convergence criteria
@@ -1686,8 +1695,8 @@ end subroutine TOWGUpdateFixedAccum
 ! ************************************************************************** !
 
 subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
-                                 soil_heat_capacity,option,Res,debug_cell)
-!                                j, analytical_derivatives)
+                                 soil_heat_capacity,option,Res,debug_cell,&
+                                 j,analytical_derivatives)
   ! 
   ! Computes the non-fixed portion of the accumulation term for the residual
   ! Used for TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL,TOWG_SOLVENT_TL
@@ -1699,6 +1708,7 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
   use Option_module
   use Material_module
   use Material_Aux_class
+  use Derivatives_utilities_module 
   
   implicit none
 
@@ -1717,6 +1727,22 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
 
   PetscBool :: is_black_oil
   PetscBool :: componentInPhase,is_oil_in_oil,is_gas_in_oil
+
+  PetscReal :: j(1:option%nflowdof,1:option%nflowdof) 
+  PetscReal :: D_xmf(1:option%nflowdof) 
+  PetscReal :: D_temp(1:option%nflowdof) 
+  PetscBool :: analytical_derivatives
+  PetscInt :: ndof 
+  
+  ndof = option%nflowdof
+
+  if (analytical_derivatives) then
+    j = 0.d0
+
+    ! a bit silly but helps elegance later on:
+    D_temp = 0.d0
+    D_temp(towg_energy_dof) = 1.d0
+  endif
 
 ! Set flag indicating a black oil run
 
@@ -1750,22 +1776,20 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
           if( is_oil_in_oil ) xmf=auxvar%bo%xo
           if( is_gas_in_oil ) xmf=auxvar%bo%xg
 
-#if 0
           if (analytical_derivatives) then
-            xmf = 0.d0
+            D_xmf = 0.d0
             if( is_oil_in_oil ) D_xmf=auxvar%bo%D_xo
             if( is_gas_in_oil ) D_xmf=auxvar%bo%D_xg
           endif
-#endif
 
           Res(icomp)=Res(icomp)+xmf*auxvar%sat(iphase)*auxvar%den(iphase)
-#if 0
+
           if (analytical_derivatives) then
-            J(icomp,:) = J(icomp,:) + ProdRule3(xmf,D_xmf,                                 &
-                                            auxvar%sat(iphase),auxvar%D_sat(iphase,:), &
-                                            auxvar%den(iphase),auxvar%D_den(iphase,:) )
+            J(icomp,:) = J(icomp,:) + ProdRule3(xmf,D_xmf,                                  &
+                                            auxvar%sat(iphase),auxvar%D_sat(iphase,:),      &
+                                            auxvar%den(iphase),auxvar%D_den(iphase,:),ndof )
           endif
-#endif
+
         endif
 
       enddo
@@ -1776,31 +1800,38 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
     !                           den[kmol phase/m^3 phase] * 
     Res(iphase) = Res(iphase) + auxvar%sat(iphase) * &
                                 auxvar%den(iphase) 
-#if 0
+
+!!!!
     if (analytical_derivatives) then
-      J(icomp,:) = J(icomp,:) + ProdRule(auxvar%sat(iphase),auxvar%D_sat(iphase,:), &
-                                         auxvar%den(iphase),auxvar%D_den(iphase,:) )
+      J(icomp,:) = J(icomp,:) + ProdRule(auxvar%sat(iphase),auxvar%D_sat(iphase,:),      &
+                                         auxvar%den(iphase),auxvar%D_den(iphase,:),ndof )
     endif
-#endif
+!!!!
+
   enddo
   endif
 
   ! scale by porosity * volume / dt
   ! Res[kmol/sec] = Res[kmol/m^3 void] * por[m^3 void/m^3 bulk] * 
+  !---------  scale by porosity * volume / dt ----------------
   !                 vol[m^3 bulk] / dt[sec]
+
+  ! do derivs first because it depends on unmodified value of Res.
+  if (analytical_derivatives) then
+    !!! TOCHECK: is this porosity (mat_auxvar%effective por)
+    !!!          compatible with D_por?
+    do icomp = 1,option%nflowspec
+      J(icomp,:) = ProdRule(Res(icomp),J(icomp,:), &
+                            porosity,auxvar%D_por,ndof) &
+                 * volume_over_dt
+    enddo
+  endif
+
   Res(1:option%nflowspec) = Res(1:option%nflowspec) * &
                             porosity * volume_over_dt
-#if 0
-    if (analytical_derivatives) then
-      !!! TOCHECK: is this porosity (mat_auxvar%effective por)
-      !!!          compatible with D_por?
-      do icomp = 1,option%nflowspec
-        J(icomp,:) = ProdRule(Res(icomp),J(icomp,:), &
-                              porosity,auxvar%D_por) &
-                   * volume_over_dt
-      enddo
-    endif
-#endif
+
+  !---------  scale by porosity * volume / dt ----------------
+
 
   do iphase = 1, option%nphase
     ! Res[MJ/m^3 void] = sat[m^3 phase/m^3 void] *
@@ -1808,13 +1839,12 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
     Res(energy_id) = Res(energy_id) + auxvar%sat(iphase) * &
                                       auxvar%den(iphase) * &
                                       auxvar%U(iphase)
-#if 0
     if (analytical_derivatives) then
-      J(energy_id,:) = J(energy_id,:) + ProdRule3(auxvar%sat(iphase),auxvar%D_sat(iphase,:)   &
-                                                  auxvar%den(iphase),auxvar%D_den(iphase,:)   &
-                                                  auxvar%U(iphase),auxvar%D_U(iphase,:)      )
+      J(energy_id,:) = J(energy_id,:) + ProdRule3(auxvar%sat(iphase),auxvar%D_sat(iphase,:),   &
+                                                  auxvar%den(iphase),auxvar%D_den(iphase,:),   &
+                                                  auxvar%U(iphase),auxvar%D_U(iphase,:),ndof    )
     endif
-#endif
+
   enddo
   ! Res[MJ/sec] = (Res[MJ/m^3 void] * por[m^3 void/m^3 bulk] + 
   !                (1-por)[m^3 rock/m^3 bulk] * 
@@ -1824,19 +1854,18 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
                     (1.d0 - porosity) * &
                     material_auxvar%soil_particle_density * &
                     soil_heat_capacity * auxvar%temp) * volume_over_dt
-#if 0
+
     if (analytical_derivatives) then
       !!! TOCHECK: is this porosity (mat_auxvar%effective por)
       !!!          compatible with D_por?
-      J(energy_id,:) = (  ProdRule(Res(energy_id),J(energy_id,:)     &
-                                  porosity,auxvar%D_por         )    &
-                        + material_auxvar%soil_particle_density      &
-                        * soil_heat_capacity                         &
-                        * ProdRule(1.d0-porosity,-1.d0*auxvar%D_por  &
-                                   auxvar%temp,auxvar%D_temp       ) &
+      J(energy_id,:) = (  ProdRule(Res(energy_id),J(energy_id,:),     &
+                                  porosity,auxvar%D_por,ndof    )     &
+                        + material_auxvar%soil_particle_density       &
+                        * soil_heat_capacity                          &
+                        * ProdRule(1.d0-porosity,-1.d0*auxvar%D_por,  &
+                                   auxvar%temp,D_temp,ndof         )  &
                        ) * volume_over_dt
     endif
-#endif
   
 #ifdef DEBUG_TOWG_FILEOUTPUT
   if (debug_flag > 0) then
@@ -3215,6 +3244,7 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
   use Option_module
   use Saturation_Function_module
   use Material_Aux_class
+  use Utility_module
 
   implicit none
 
@@ -3230,30 +3260,62 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
   PetscReal :: jac_pert(option%nflowdof,option%nflowdof)
   PetscInt :: idof, irow
 
-  call TOWGAccumulation(auxvar(ZERO_INTEGER),global_auxvar,material_auxvar, &
-                        soil_heat_capacity,option,res,PETSC_FALSE)
+  PetscReal :: jdum(option%nflowdof,option%nflowdof)
+  PetscReal :: jalyt(option%nflowdof,option%nflowdof)
 
-  do idof = 1, option%nflowdof
-    call TOWGAccumulation(auxvar(idof),global_auxvar,material_auxvar, &
-                          soil_heat_capacity,option,res_pert,PETSC_FALSE)
-    do irow = 1, option%nflowdof
-      J(irow,idof) = (res_pert(irow)-res(irow))/auxvar(idof)%pert
-    enddo !irow
-  enddo ! idof
+  if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare) then
+    call TOWGAccumulation(auxvar(ZERO_INTEGER),global_auxvar,material_auxvar, &
+                          soil_heat_capacity,option,res,PETSC_FALSE,jdum,PETSC_FALSE)
 
-  if (towg_isothermal) then
-    J(towg_energy_eq_idx,:) = 0.d0
-    J(:,towg_energy_eq_idx) = 0.d0
+    do idof = 1, option%nflowdof
+      call TOWGAccumulation(auxvar(idof),global_auxvar,material_auxvar, &
+                            soil_heat_capacity,option,res_pert,PETSC_FALSE,jdum,PETSC_FALSE)
+      do irow = 1, option%nflowdof
+        J(irow,idof) = (res_pert(irow)-res(irow))/auxvar(idof)%pert
+      enddo !irow
+    enddo ! idof
+
+    if (towg_isothermal) then
+      J(towg_energy_eq_idx,:) = 0.d0
+      J(:,towg_energy_eq_idx) = 0.d0
+    endif
+
+    if (towg_no_oil) then
+      J(TOWG_OIL_EQ_IDX,:) = 0.d0
+      J(:,TOWG_OIL_EQ_IDX) = 0.d0
+    endif
+
+    if (towg_no_gas) then
+      J(TOWG_GAS_EQ_IDX,:) = 0.d0
+      J(:,TOWG_GAS_EQ_IDX) = 0.d0
+    endif
   endif
 
-  if (towg_no_oil) then
-    J(TOWG_OIL_EQ_IDX,:) = 0.d0
-    J(:,TOWG_OIL_EQ_IDX) = 0.d0
-  endif
+  if (towg_analytical_derivatives) then
+    call TOWGAccumulation(auxvar(ZERO_INTEGER),global_auxvar,material_auxvar, &
+                          soil_heat_capacity,option,res,PETSC_FALSE,jalyt,PETSC_TRUE)
+    if (towg_isothermal) then
+      jalyt(towg_energy_eq_idx,:) = 0.d0
+      jalyt(:,towg_energy_eq_idx) = 0.d0
+    endif
 
-  if (towg_no_gas) then
-    J(TOWG_GAS_EQ_IDX,:) = 0.d0
-    J(:,TOWG_GAS_EQ_IDX) = 0.d0
+    if (towg_no_oil) then
+      jalyt(TOWG_OIL_EQ_IDX,:) = 0.d0
+      jalyt(:,TOWG_OIL_EQ_IDX) = 0.d0
+    endif
+
+    if (towg_no_gas) then
+      jalyt(TOWG_GAS_EQ_IDX,:) = 0.d0
+      jalyt(:,TOWG_GAS_EQ_IDX) = 0.d0
+    endif
+
+    if (towg_analytical_derivatives_compare) then
+      call MatCompare(J, jalyt, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
+    endif
+
+    j = jalyt
+
+
   endif
 
 
@@ -3365,6 +3427,7 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
     Jdn(TOWG_GAS_EQ_IDX,:) = 0.d0
     Jdn(:,TOWG_GAS_EQ_IDX) = 0.d0
   endif  
+
 
 end subroutine TOWGFluxDerivative
 
@@ -3587,6 +3650,8 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
 
   type(well_data_list_type),pointer :: well_data_list
   class(well_data_type), pointer :: well_data
+
+  PetscReal :: jdum(realization%option%nflowdof,realization%option%nflowdof)
   
   discretization => realization%discretization
   option => realization%option
@@ -3666,7 +3731,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
                           global_auxvars(ghosted_id), &
                           material_auxvars(ghosted_id), &
                           material_parameter%soil_heat_capacity(imat), &
-                          option,Res,local_id == towg_debug_cell_id)
+                          option,Res,local_id == towg_debug_cell_id,jdum,PETSC_FALSE)
 
 
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
