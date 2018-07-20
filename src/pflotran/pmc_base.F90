@@ -949,12 +949,19 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
   PetscBag :: bag
   PetscSizeT :: bagsize
   PetscLogDouble :: tstart, tend
+  PetscBool :: flag
   PetscErrorCode :: ierr
 
   bagsize = size(transfer(dummy_header,dummy_char))
 
   ! if the top PMC, 
   if (this%is_master) then
+    call PetscTestFile(this%option%restart_filename,'r',flag,ierr);CHKERRQ(ierr)
+    if (.not.flag) then
+      this%option%io_buffer = 'Restart file "' // &
+        trim(this%option%restart_filename) // '" not found.'
+      call PrintErrMsg(this%option)
+    endif
     this%option%io_buffer = 'Restarting with checkpoint file "' // &
       trim(this%option%restart_filename) // '".'
     call printMsg(this%option)

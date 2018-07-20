@@ -759,6 +759,12 @@ subroutine HDF5ReadDbase(filename,option)
     endif
   enddo
   allocate(dbase)
+  nullify(dbase%icard)
+  nullify(dbase%rcard)
+  nullify(dbase%ccard)
+  nullify(dbase%ivalue)
+  nullify(dbase%rvalue)
+  nullify(dbase%cvalue)
   if (num_ints > 0) then
     allocate(dbase%icard(num_ints))
     dbase%icard = ''
