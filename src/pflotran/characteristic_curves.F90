@@ -18,8 +18,9 @@ module Characteristic_Curves_module
     PetscBool :: print_me
     PetscBool :: test
     class(sat_func_base_type), pointer :: saturation_function
-    class(sat_func_owg_base_type), pointer :: oil_wat_sat_func
-    class(sat_func_owg_base_type), pointer :: oil_gas_sat_func
+    class(sat_func_xw_base_type), pointer :: oil_wat_sat_func
+    class(sat_func_og_base_type), pointer :: oil_gas_sat_func
+    class(sat_func_xw_base_type), pointer :: gas_wat_sat_func
     class(rel_perm_func_base_type), pointer :: liq_rel_perm_function
     class(rel_perm_func_base_type), pointer :: gas_rel_perm_function
     class(rel_perm_func_base_type), pointer :: oil_rel_perm_function
@@ -70,6 +71,7 @@ function CharacteristicCurvesCreate()
   nullify(characteristic_curves%saturation_function)
   nullify(characteristic_curves%oil_wat_sat_func)
   nullify(characteristic_curves%oil_gas_sat_func)
+  nullify(characteristic_curves%gas_wat_sat_func)
   nullify(characteristic_curves%liq_rel_perm_function)
   nullify(characteristic_curves%gas_rel_perm_function)
   nullify(characteristic_curves%oil_rel_perm_function)
@@ -106,8 +108,17 @@ subroutine CharacteristicCurvesRead(this,input,option)
   character(len=MAXWORDLENGTH) :: interface_keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   class(rel_perm_func_base_type), pointer :: rel_perm_function_ptr
-  class(sat_func_owg_base_type), pointer :: sat_func_owg_ptr
+  !class(sat_func_owg_base_type), pointer :: sat_func_owg_ptr
+  !class(sat_func_xw_base_type), pointer :: sat_func_ow_ptr
+  !class(sat_func_xw_base_type), pointer :: sat_func_gw_ptr
+  !class(sat_func_og_base_type), pointer :: sat_func_og_ptr
+  
   class(rel_perm_func_owg_base_type), pointer :: rel_perm_func_owg_ptr
+
+  nullify(rel_perm_function_ptr)
+  !nullify(sat_func_ow_ptr)
+  !nullify(sat_func_gw_ptr)
+  !nullify(sat_func_og_ptr)
 
   input%ierr = 0
   error_string = 'CHARACTERISTIC_CURVES'  
@@ -162,31 +173,87 @@ subroutine CharacteristicCurvesRead(this,input,option)
         call SaturationFunctionRead(this%saturation_function,input,option)
     !-----------------------------------------------------------------------
       case('SATURATION_FUNCTION_OWG')
+        option%io_buffer = 'SATURATION_FUNCTION_OWG is not supported any more &
+                           &in CHARACTERISTIC_CURVES. Please use either: &
+                           &CAP_PRESSURE_FUNCTION_OW or PC_OW for Pcow; &
+                           &CAP_PRESSURE_FUNCTION_WG or PC_WG for Pcwg or; &
+                           &CAP_PRESSURE_FUNCTION_OG or PC_OG for Pcog'
+        call printErrMsg(option)       
+      case('SATURATION_FUNCTION_OW','CAP_PRESSURE_FUNCTION_OW','PC_OW')
         call InputReadWordDbaseCompatible(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'SATURATION_FUNCTION_OWG',error_string)
+        call InputErrorMsg(input,option,'SATURATION_FUNCTION_OW',error_string)
         call StringToUpper(word)
-        nullify(sat_func_owg_ptr)
-        interface_keyword = 'NONE'
+        !interface_keyword = 'NONE'
         select case(word)
-          case('VAN_GENUCHTEN_OW')
-            sat_func_owg_ptr => SF_OW_VG_Create()
-            interface_keyword = 'OIL_WATER'
-          case('BROOKS_COREY_OG')
-            sat_func_owg_ptr => SF_OG_BC_Create()
-            interface_keyword = 'OIL_GAS'
-          case('VAN_GENUCHTEN_OG_SL')
-            sat_func_owg_ptr => SF_OG_VG_SL_Create()
-            interface_keyword = 'OIL_GAS'
+          case('VAN_GENUCHTEN','VAN_GENUCHTEN_OW')
+            this%oil_wat_sat_func => SF_XW_VG_Create()
+            !interface_keyword = 'OIL_WATER'
+          case('CONSTANT') !suppot only new format
+            !sat_func_ow_ptr => SF_XW_constant_Create()
+            this%oil_wat_sat_func => SF_XW_constant_Create()            
+            !interface_keyword = 'OIL_WATER'
+          !case('TABLE')
+          ! ! add table option
+          !!****** delete below
+          !case('BROOKS_COREY_OG') ! not supported any longer
+          !  sat_func_owg_ptr => SF_OG_BC_Create()
+          !  interface_keyword = 'OIL_GAS'
+          !case('VAN_GENUCHTEN_OG_SL') !moved to SF_OG select block
+          !  sat_func_owg_ptr => SF_OG_VG_SL_Create()
+          !  interface_keyword = 'OIL_GAS'
           case default
-            call InputKeywordUnrecognized(word,'SATURATION_FUNCTION_OWG',option)
+            call InputKeywordUnrecognized(word,'SATURATION_FUNCTION_OW',option)
         end select
-        call SaturationFunctionOWGRead(sat_func_owg_ptr,input,option)
-        select case(interface_keyword)
-          case('OIL_WATER')
-            this%oil_wat_sat_func => sat_func_owg_ptr
-          case('OIL_GAS')
-            this%oil_gas_sat_func => sat_func_owg_ptr
+        call SaturationFunctionOWGRead(this%oil_wat_sat_func,input,option)
+        !call SaturationFunctionXWRead(this%oil_wat_sat_func,input,option)
+        !this%oil_wat_sat_func => sat_func_ow_ptr
+        !select case(interface_keyword)
+        !  case('OIL_WATER')
+        !    !this%oil_wat_sat_func => sat_func_owg_ptr
+        !  case('GAS_WATER')
+        !  !case('OIL_GAS')
+        !  !  this%oil_gas_sat_func => sat_func_owg_ptr
+        !end select
+      case('SATURATION_FUNCTION_WG','CAP_PRESSURE_FUNCTION_WG','PC_WG')
+        call InputReadWordDbaseCompatible(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'SATURATION_FUNCTION_WG',error_string)
+        call StringToUpper(word)
+        !nullify(sat_func_ow_ptr)
+        !interface_keyword = 'NONE'
+        select case(word)
+          case("VAN_GENUCHTEN")
+            !sat_func_owg_ptr => SF_OW_VG_Create()
+            !sat_func_gw_ptr => SF_XW_VG_Create()
+            this%gas_wat_sat_func => SF_XW_VG_Create()
+            !interface_keyword = 'OIL_WATER'
+          case('CONSTANT') !suppot only new format
+            !sat_func_gw_ptr => SF_XW_constant_Create()
+            this%gas_wat_sat_func => SF_XW_VG_Create()
+          !add vase with table  
+          case default
+            call InputKeywordUnrecognized(word,'SATURATION_FUNCTION_WG',option)
         end select
+        call SaturationFunctionOWGRead(this%gas_wat_sat_func,input,option)
+      case('SATURATION_FUNCTION_OG','CAP_PRESSURE_FUNCTION_OG','PC_OG')
+        call InputReadWordDbaseCompatible(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'SATURATION_FUNCTION_OG',error_string)
+        call StringToUpper(word)
+        select case(word)
+          case('VAN_GENUCHTEN_SL','VAN_GENUCHTEN_OG_SL')
+            this%oil_gas_sat_func => SF_OG_VG_SL_Create()
+          case('CONSTANT')
+            this%oil_gas_sat_func => SF_OG_constant_Create()
+          case('BROOKS_COREY_OG')
+            option%io_buffer = 'SATURATION_FUNCTION_OG - BROOKS_COREY_OG&
+                          &in CHARACTERISTIC_CURVES. &
+                          &BROOKS_COREY_OG not supported please use:  &
+                          &CONSTANT for Pcog = const, TABLE for lookup tables &
+                          &VAN_GENUCHTEN_SL for Pcog(Sl)'
+            call printErrMsg(option)             
+          case default
+            call InputKeywordUnrecognized(word,'SATURATION_FUNCTION_OG',option)
+        end select
+        call SaturationFunctionOWGRead(this%oil_gas_sat_func,input,option)
       case('PERMEABILITY_FUNCTION')
         nullify(rel_perm_function_ptr)
         phase_keyword = 'NONE'
@@ -414,10 +481,12 @@ subroutine CharacteristicCurvesRead(this,input,option)
   enddo
   
   select case(option%iflowmode)
-    case(TOWG_MODE)
+    case(TOWG_MODE) !add here TOIL_IMS when supported
+      ! CC process: (i) associates func with tables (if any), 
+      ! (ii) assign external end points, (iii) run end point consistency checks
       call CharacteristicCurvesOWGVerify(this,option)
     case default
-  call CharacteristicCurvesVerify(this,option)
+      call CharacteristicCurvesVerify(this,option)
    end select
 
 end subroutine CharacteristicCurvesRead
@@ -2552,8 +2621,12 @@ recursive subroutine CharacteristicCurvesDestroy(cc)
   
   call SaturationFunctionDestroy(cc%saturation_function)
 
-  call SaturationFunctionOWGDestroy(cc%oil_wat_sat_func)
-  call SaturationFunctionOWGDestroy(cc%oil_gas_sat_func)
+  ! call SaturationFunctionOWGDestroy(cc%oil_wat_sat_func)
+  ! call SaturationFunctionOWGDestroy(cc%oil_gas_sat_func)
+  ! call SaturationFunctionOWGDestroy(cc%gas_wat_sat_func)
+  call SaturationFunctionXWDestroy(cc%oil_wat_sat_func)
+  call SaturationFunctionXWDestroy(cc%gas_wat_sat_func)
+  call SaturationFunctionOGDestroy(cc%oil_gas_sat_func)
 
   ! the liquid and gas relative permeability pointers may pointer to the
   ! same address. if so, destroy one and nullify the other.

@@ -110,12 +110,8 @@ MATERIAL_PROPERTY formation
 #=========================== datasets ==============================
 #=========================== saturation functions =============================
 CHARACTERISTIC_CURVES ch1
-! This is just for capillary pressure, and is set to zero here
-  SATURATION_FUNCTION_OWG VAN_GENUCHTEN_OW
-    M 0.44380d0
-    ALPHA 5.792e-05
-    WATER_RESIDUAL_SATURATION 8.01E-2
-    MAX_CAPILLARY_PRESSURE 0.0
+  CAP_PRESSURE_FUNCTION_OW CONSTANT
+   CONSTANT_PRESSURE 0.0
   /
   PERMEABILITY_FUNCTION_OWG BURDINE_VG_WAT
    M 3.0

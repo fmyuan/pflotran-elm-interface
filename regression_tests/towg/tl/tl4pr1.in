@@ -95,20 +95,12 @@ MATERIAL_PROPERTY formation
 /
 
 #=========================== saturation functions =============================
-
 CHARACTERISTIC_CURVES ch1
-! Capillary pressures - shape irrelevant as Pcmax=0
- SATURATION_FUNCTION_OWG VAN_GENUCHTEN_OW
-  M 0.44380d0
-  ALPHA 5.0e-05
-  WATER_RESIDUAL_SATURATION 0.0
-  MAX_CAPILLARY_PRESSURE    0.0
+ CAP_PRESSURE_FUNCTION_OW CONSTANT
+  CONSTANT_PRESSURE 0.0
  /
- SATURATION_FUNCTION_OWG BROOKS_COREY_OG
-  LAMBDA 0.4d0
-  ALPHA  0.5e-03
-  OIL_RESIDUAL_SATURATION 0.0
-  MAX_CAPILLARY_PRESSURE 0.0
+ CAP_PRESSURE_FUNCTION_OG CONSTANT
+   CONSTANT_PRESSURE 0.0
  /
 ! Relative permeabilities
 ! Krw shape irrelevant as Swat=0

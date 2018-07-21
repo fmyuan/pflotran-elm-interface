@@ -15,51 +15,212 @@ module Characteristic_Curves_OWG_module
 !-- OWG Saturation Functions -------------------------------------------------
 !-----------------------------------------------------------------------------
   !---------------------------------------------------------------------------
-  type, public :: sat_func_owg_base_type
-    !type(polynomial_type), pointer :: sat_poly
-    !type(polynomial_type), pointer :: pres_poly
-    PetscReal :: Swco !connate water saturation
-    PetscReal :: Swcr !critical (residual) water saturation
-    PetscReal :: Soco !connate oil saturation
-    PetscReal :: Socr !critical (residual) oil saturation
-    PetscReal :: Sgco !connate gas saturation
-    PetscReal :: Sgcr !critical (residual) gas saturation
+  ! type, public :: sat_func_owg_base_type
+  !   !type(polynomial_type), pointer :: sat_poly
+  !   !type(polynomial_type), pointer :: pres_poly
+  !   PetscReal :: Swco !connate water saturation
+  !   PetscReal :: Swcr !critical (residual) water saturation
+  !   PetscReal :: Soco !connate oil saturation
+  !   PetscReal :: Socr !critical (residual) oil saturation
+  !   PetscReal :: Sgco !connate gas saturation
+  !   PetscReal :: Sgcr !critical (residual) gas saturation
+  !   PetscReal :: pcmax
+  !   !lookup_table_general_type :: lookup_table
+  !   class(sat_func_base_type), pointer :: sat_func_sl
+  !   PetscBool :: analytical_derivative_available
+  ! contains
+  !   procedure, public :: Init => SFOWGBaseInit
+  !   procedure, public :: Verify => SFOWGBaseVerify
+  !   procedure, public :: Test => SFOWGBaseTest
+  !   procedure, public :: SetupPolynomials => SFOWGBaseSetupPolynomials
+  !   procedure, public :: CapillaryPressure => SFOWGBaseCapillaryPressure
+  !   !procedure, public :: Saturation => SFOWGBaseSaturation
+  ! end type sat_func_owg_base_type
+
+  !to be considered
+  ! type, public :: sat_func_owg_base_type
+  !   PetscReal :: pcmax
+  !   class(sat_func_base_type), pointer :: sat_func_sl
+  !   PetscBool :: analytical_derivative_available
+  !   character(len=MAXWORDLENGTH) :: table_name
+  !   class(characteristic_curve_table_type), pointer :: lookup_table
+  ! contains
+  !   procedure, public :: Init => SFOWGBaseInit !only for pcmax, nullify pointer (table and sl), init table name
+  !   procedure, public :: Verify => SFOWGBaseVerify ! to be extended
+  !   procedure, public :: Test => SFOWGBaseTest     ! to be extended
+  !   procedure, public :: SetupPolynomials => SFOWGBaseSetupPolynomials !not needed now we removed sat_func_og_BC_type
+  !   !procedure, public :: CapillaryPressure => SFOWGBaseCapillaryPressure ! to be etxended BUT DIFFERENT ARGUMENT LIST!!!!
+  !end type sat_func_owg_base_type
+  !    generic, public :: CapillaryPressure => SFOWGBaseCapillaryPressure (no argument list)
+
+  ! type, public, extends(sat_func_owg_base_type) :: sat_func_xw_base_type !replace with table_type?
+  !   PetscReal :: Swco !connate water saturation
+  !   PetscReal :: Swcr !critical (residual) water saturation  
+  ! contains
+  !   procedure, public :: Init => SF_WX_BaseInit !init Swcr, Swco, etc
+  !   procedure, public :: Verify => SF_WX_BaseVerify ! verify Swcr, Swco, etc
+  !   procedure, public :: Test => SFOWGBaseTest     ! Print Pcw(Sw)
+  !   procedure, pass(this) :: SF_XW_BaseCapillaryPressure !To be extended (can define here the arguments template) - error if invoked 
+  !   generic, public :: CapillaryPressure => SF_XW_BaseCapillaryPressure
+  !   procedure, public :: GetConnateWaterSat
+  !   procedure, public :: GetCriticalWaterSat
+  !end type sat_func_xw_base_type
+  
+  ! type, public, extends(sat_func_xw_base_type) :: sat_func_xw_VG_type
+  ! contains
+  !   procedure, public :: Init => SF_WX_VG_Init !init VG parameter alpha, m, etc
+  !   procedure, public :: Verify => SF_WX_BaseVerify ! verify alpha, m, etc
+  !   procedure, pass(this) :: SF_XW_VG_CapillaryPressure !Define VG - pass(this) not needed if this is the first argument
+  !   generic, public :: CapillaryPressure => SF_XW_VG_CapillaryPressure
+  !end type sat_func_xw_base_type
+  
+  ! type, public, extends(sat_func_owg_base_type) :: sat_func_og_base_type
+  !   PetscReal :: Sgco !connate gas saturation
+  !   PetscReal :: Sgcr !critical gas saturation  
+  ! contains
+  !   procedure, public :: Init => SF_OG_BaseInit !init Sgcr, Sgco
+  !   procedure, public :: Verify => SF_OG_BaseVerify ! verify Sgcr, Sgco, etc
+  !   procedure, public :: Test => SF_OG_BaseTest     ! Print Pcog(Sg)
+  !   procedure, pass(this) :: SF_OG_BaseCapillaryPressure !To be extended (can define here the arguments template) - error if invoked
+  !   generic, public :: CapillaryPressure => SF_OG_BaseCapillaryPressure
+  !end type sat_func_xw_base_type
+  
+  ! type, public, extends(sat_func_og_base_type) :: sat_func_og_table_type
+  ! contains
+  !   procedure, public :: Init => SF_OB_TableInit ! Init table stuff
+  !   procedure, public :: Verify => SF_OB_TableVerify ! verify table: is_funct_present, etc
+  !   procedure, pass(this) :: SF_OG_TableCapillaryPressure(this,Sg,dPSog,etc)
+  !   generic, public :: CapillaryPressure => SF_OG_TableCapillaryPressure
+  !end type sat_func_og_table_type
+  
+!**************************************************************************
+!********** Enf of to be considered ************************************************
+!**************************************************************************
+
+!-----------------------------------------------------------------------------
+!-- OWG Saturation Functions Base class  -------------------------------------
+!-----------------------------------------------------------------------------
+
+  type, abstract, public :: sat_func_owg_base_type
     PetscReal :: pcmax
-    !lookup_table_general_type :: lookup_table
     class(sat_func_base_type), pointer :: sat_func_sl
     PetscBool :: analytical_derivative_available
+    !uncomment for tables
+    !character(len=MAXWORDLENGTH) :: table_name
+    !class(characteristic_curve_table_type), pointer :: lookup_table
   contains
-    procedure, public :: Init => SFOWGBaseInit
-    procedure, public :: Verify => SFOWGBaseVerify
-    procedure, public :: Test => SFOWGBaseTest
+    procedure, public :: Init => SFOWGBaseInit !only for pcmax, nullify pointer (table and sl), init table name
+    procedure, public :: Verify => SFOWGBaseVerify ! to be extended
+    procedure, public :: Test => SFOWGBaseTest     ! to be extended
     procedure, public :: SetupPolynomials => SFOWGBaseSetupPolynomials
-    procedure, public :: CapillaryPressure => SFOWGBaseCapillaryPressure
-    !procedure, public :: Saturation => SFOWGBaseSaturation
+    ! try to comment the below - should not be needed with the new interface
+    !procedure, pass(this) :: SFOWGBaseCapillaryPressure  !(no argument list, a part of this)
+    !generic, public :: CapillaryPressure => SFOWGBaseCapillaryPressure 
   end type sat_func_owg_base_type
 
-   !--------------------------------------------------------------------------
-  type, public, extends(sat_func_owg_base_type) :: sat_func_ow_VG_type
+  !-----------------------------------------------------------------------------
+  !-- XW Saturation Functions  -------------------------------------------------
+  !-- XW = x/water - any two-phase interfaces where water is the wetting phase -
+  !-----------------------------------------------------------------------------
+
+  !type, public :: sat_func_xw_base_type
+  type,abstract,public,extends(sat_func_owg_base_type) :: sat_func_xw_base_type
+    ! xw =  x/water - any two-phase interfaces where water is wetting
+    PetscReal :: Swco !connate water saturation
+    PetscReal :: Swcr !critical (residual) water saturation
+    !PetscReal :: pcmax
+    !PetscBool :: analytical_derivative_available
+    !class(sat_func_base_type), pointer :: sat_func_sl
+  contains
+    procedure, public :: Init => SFXWBaseInit
+    procedure, public :: Verify => SFXWBaseVerify
+    procedure, public :: Test => SFXWBaseTest
+    !procedure, public :: SetupPolynomials => SFXWBaseSetupPolynomials
+    procedure, public :: CapillaryPressure => SFXWBaseCapillaryPressure
+    !procedure, pass(this) :: SFXWBaseCapillaryPressure
+    !generic, public :: CapillaryPressure => SFXWBaseCapillaryPressure    
+  end type sat_func_xw_base_type  
+  
+  type, public, extends(sat_func_xw_base_type) :: sat_func_xw_constant_type
+    PetscReal :: constant_capillary_pressure
+  contains
+    procedure, public :: Init => SF_XW_constant_Init
+    procedure, public :: Verify => SF_XW_constant_Verify
+    procedure, public :: CapillaryPressure => SF_XW_const_CapillaryPressure
+    !procedure, pass(this) :: SF_XW_const_CapillaryPressure
+    !generic, public :: CapillaryPressure => SF_XW_const_CapillaryPressure
+  end type sat_func_xw_constant_type
+
+  ! add other analytical model extensions  
+  type, public, extends(sat_func_xw_base_type) :: sat_func_xw_VG_type
     PetscReal :: alpha
     PetscReal :: m
   contains
-    procedure, public :: Init => SF_OW_VG_Init
-    procedure, public :: Verify => SF_OW_VG_Verify
-    procedure, public :: CapillaryPressure => SF_OW_VG_CapillaryPressure
-    !procedure, public :: Saturation => SF_OW_VG_Saturation
-  end type sat_func_ow_VG_type
-  !---------------------------------------------------------------------------
-  type, public, extends(sat_func_owg_base_type) :: sat_func_og_BC_type
-    PetscReal :: alpha
-    PetscReal :: lambda
+    procedure, public :: Init => SF_XW_VG_Init
+    procedure, public :: Verify => SF_XW_VG_Verify
+    procedure, public :: CapillaryPressure => SF_XW_VG_CapillaryPressure
+    !procedure, pass(this) :: SF_XW_VG_CapillaryPressure
+    !generic, public :: CapillaryPressure => SF_XW_VG_CapillaryPressure
+  end type sat_func_xw_VG_type
+
+  !add table extension
+
+!-----------------------------------------------------------------------------
+!-- OG Saturation Functions --------------------------------------------------
+!-----------------------------------------------------------------------------
+
+  !type, public :: sat_func_og_base_type
+  type,abstract,public,extends(sat_func_owg_base_type) :: sat_func_og_base_type
+    PetscReal :: Sgco !connate oil saturation
+    PetscReal :: Sgcr !critical (residual) gas saturation
+    !PetscReal :: pcmax
+    !PetscBool :: analytical_derivative_available
+    !class(sat_func_base_type), pointer :: sat_func_sl
   contains
-    procedure, public :: Init => SF_OG_BC_Init
-    procedure, public :: Verify => SF_OG_BC_Verify
-    procedure, public :: SetupPolynomials => SF_OG_BC_SetupPolynomials
-    procedure, public :: CapillaryPressure => SF_OG_BC_CapillaryPressure
-    !procedure, public :: Saturation => SF_OW_VG_Saturation
-  end type sat_func_og_BC_type
+    procedure, public :: Init => SFOGBaseInit
+    procedure, public :: Verify => SFOGBaseVerify
+    procedure, public :: Test => SFOGBaseTest
+    procedure, public :: SetupPolynomials => SFOGBaseSetupPolynomials
+    procedure, public :: CapillaryPressure => SFOGBaseCapillaryPressure
+    !procedure, pass(this) :: SFOGBaseCapillaryPressure
+    !generic, public :: CapillaryPressure => SFOGBaseCapillaryPressure
+  end type sat_func_og_base_type
+
+! add constant extension
+  type,public,extends(sat_func_og_base_type) :: sat_func_og_constant_type
+    PetscReal :: constant_capillary_pressure
+  contains
+    procedure, public :: Init => SF_OG_constant_Init
+    procedure, public :: Verify => SF_OG_constant_Verify
+    procedure, public :: CapillaryPressure => SF_OG_Const_CapillaryPressure
+    !procedure, pass(this) :: SF_OG_Const_CapillaryPressure
+    !generic, public :: CapillaryPressure => SF_OG_Const_CapillaryPressure
+  end type sat_func_og_constant_type
+
+   !--------------------------------------------------------------------------
+  ! type, public, extends(sat_func_owg_base_type) :: sat_func_ow_VG_type
+  !   PetscReal :: alpha
+  !   PetscReal :: m
+  ! contains
+  !   procedure, public :: Init => SF_OW_VG_Init
+  !   procedure, public :: Verify => SF_OW_VG_Verify
+  !   procedure, public :: CapillaryPressure => SF_OW_VG_CapillaryPressure
+  !   !procedure, public :: Saturation => SF_OW_VG_Saturation
+  ! end type sat_func_ow_VG_type
   !---------------------------------------------------------------------------
-  type, public, extends(sat_func_owg_base_type) :: sat_func_og_VG_SL_type
+  ! type, public, extends(sat_func_owg_base_type) :: sat_func_og_BC_type
+  !   PetscReal :: alpha
+  !   PetscReal :: lambda
+  ! contains
+  !   procedure, public :: Init => SF_OG_BC_Init
+  !   procedure, public :: Verify => SF_OG_BC_Verify
+  !   procedure, public :: SetupPolynomials => SF_OG_BC_SetupPolynomials
+  !   procedure, public :: CapillaryPressure => SF_OG_BC_CapillaryPressure
+  !   !procedure, public :: Saturation => SF_OW_VG_Saturation
+  ! end type sat_func_og_BC_type
+  !---------------------------------------------------------------------------
+  !type, public, extends(sat_func_owg_base_type) :: sat_func_og_VG_SL_type
+  type, public, extends(sat_func_og_base_type) :: sat_func_og_VG_SL_type
     PetscReal :: alpha
     PetscReal :: m
     PetscReal :: Slcr
@@ -69,6 +230,8 @@ module Characteristic_Curves_OWG_module
     procedure, public :: CapillaryPressure => SF_OG_VG_SL_CapillaryPressure
     !procedure, public :: Saturation => SF_OW_VG_Saturation
   end type sat_func_og_VG_SL_type
+
+  !add table etxension
   
 !-----------------------------------------------------------------------------
 !-- Relative Permeability Functions ------------------------------------------
@@ -92,7 +255,7 @@ module Characteristic_Curves_OWG_module
   type, public, extends(RPF_Mod_BC_type) :: RPF_Mod_BC_oil_type
   contains
     procedure, public :: RelativePermeability => RPF_Mod_BC_Oil_RelPerm
-  end type RPF_Mod_BC_oil_type  
+  end type RPF_Mod_BC_oil_type    
   
 !-----------------------------------------------------------------------------
 !-- OWG Relative Permeability Functions --------------------------------------
@@ -224,9 +387,12 @@ module Characteristic_Curves_OWG_module
   public :: SaturationFunctionOWGRead, &
             PermeabilityFunctionOWGRead, &
             ! OWG saturation functions
-            SF_OW_VG_Create, &
-            SF_OG_BC_Create, &
+            !SF_OW_VG_Create, &
+            !SF_OG_BC_Create, &
+            SF_XW_VG_Create, &
+            SF_XW_constant_Create, &
             SF_OG_VG_SL_Create, &
+            SF_OG_constant_Create, &
             RPF_TOUGH2_Linear_Oil_Create, &
             RPF_Mod_BC_Liq_Create, &
             RPF_Mod_BC_Oil_Create, &
@@ -241,13 +407,157 @@ module Characteristic_Curves_OWG_module
             RPF_OWG_Burdine_VG_gas_Create, &
             RPF_OWG_Burdine_BC_wat_Create, &
             RPF_OWG_Burdine_BC_gas_Create, &
-            SaturationFunctionOWGDestroy, &
+            !SaturationFunctionOWGDestroy, &
+            SaturationFunctionXWDestroy, &
+            SaturationFunctionOGDestroy, &
             PermeabilityFunctionOWGDestroy
             
   
 contains
 
 ! ************************************************************************** !
+
+! subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
+!   !
+!   ! Reads in contents of a SATURATION_FUNCTION_OWG block
+!   !
+!   ! Author: Paolo Orsini
+!   ! Date: 11/16/17
+!   !
+!   use Option_module
+!   use Input_Aux_module
+!   use String_module
+! 
+!   implicit none
+! 
+!   class(sat_func_owg_base_type) :: sat_func_owg
+!   type(input_type), pointer :: input
+!   type(option_type) :: option
+! 
+!   character(len=MAXWORDLENGTH) :: keyword
+!   character(len=MAXSTRINGLENGTH) :: error_string
+!   PetscBool :: found
+!   PetscBool :: smooth
+! 
+!   PetscReal :: m_tmp
+! 
+!   input%ierr = 0
+!   smooth = PETSC_FALSE
+!   error_string = 'CHARACTERISTIC_CURVES,SATURATION_FUNCTION_OWG,'
+!   select type(sf_owg => sat_func_owg)
+!     class is(sat_func_ow_VG_type)
+!       error_string = trim(error_string) // 'VAN_GENUCHTEN_OW'
+!     class is(sat_func_og_BC_type)
+!       error_string = trim(error_string) // 'BROOKS_COREY_OG'
+!   end select
+! 
+!   do
+!     call InputReadPflotranString(input,option)
+!     if (InputCheckExit(input,option)) exit
+! 
+!     call InputReadWord(input,option,keyword,PETSC_TRUE)
+!     call InputErrorMsg(input,option,'keyword',error_string)
+!     call StringToUpper(keyword)
+! 
+!     ! base
+!     found = PETSC_TRUE
+!     select case(keyword)
+!       case('MAX_CAPILLARY_PRESSURE')
+!         call InputReadDouble(input,option,sat_func_owg%pcmax)
+!         call InputErrorMsg(input,option,'MAX_CAPILLARY_PRESSURE', &
+!                             error_string)
+!         if ( associated(sat_func_owg%sat_func_sl) ) then
+!           sat_func_owg%sat_func_sl%pcmax = sat_func_owg%pcmax
+!         end if
+!       case('SMOOTH')
+!         smooth = PETSC_TRUE
+!       case default
+!         found = PETSC_FALSE
+!     end select
+! 
+!     if (found) cycle
+! 
+!     select type(sf_owg => sat_func_owg)
+!       class is(sat_func_ow_VG_type)
+!         select type(sf_sl => sf_owg%sat_func_sl)
+!           class is(sat_func_VG_type)
+!             select case(keyword)
+!               case('M')
+!                 call InputReadDouble(input,option,sf_owg%m)
+!                 call InputErrorMsg(input,option,'M',error_string)
+!                 sf_sl%m = sf_owg%m
+!               case('ALPHA')
+!                 call InputReadDouble(input,option,sf_owg%alpha)
+!                 call InputErrorMsg(input,option,'ALPHA',error_string)
+!                 sf_sl%alpha = sf_owg%alpha
+!               case('WATER_RESIDUAL_SATURATION')
+!                 call InputReadDouble(input,option,sf_owg%Swcr)
+!                 call InputErrorMsg(input,option,'WATER_RESIDUAL_SATURATION', &
+!                                    error_string)
+!                 sf_sl%Sr = sf_owg%Swcr
+!               case default
+!                 call InputKeywordUnrecognized(keyword, &
+!                      'Van Genuchten Oil-Water saturation function',option)
+!             end select
+!         end select
+!       class is(sat_func_og_BC_type)
+!         select type(sf_sl => sf_owg%sat_func_sl)
+!           class is(sat_func_BC_type)
+!             select case(keyword)
+!                case('LAMBDA')
+!                  call InputReadDouble(input,option,sf_owg%lambda)
+!                  call InputErrorMsg(input,option,'LAMBDA',error_string)
+!                  sf_sl%lambda = sf_owg%lambda
+!                case('ALPHA')
+!                  call InputReadDouble(input,option,sf_owg%alpha)
+!                  call InputErrorMsg(input,option,'ALPHA',error_string)
+!                  sf_sl%alpha = sf_owg%alpha
+!               case('OIL_RESIDUAL_SATURATION')
+!                 call InputReadDouble(input,option,sf_owg%Socr)
+!                 call InputErrorMsg(input,option,'OIL_RESIDUAL_SATURATION', &
+!                                    error_string)
+!                 sf_sl%Sr = sf_owg%Socr
+!               case default
+!                 call InputKeywordUnrecognized(keyword, &
+!                        'Brooks-Corey Oil-Gas saturation function',option)
+!             end select
+!           end select
+!       class is(sat_func_og_VG_SL_type)
+!         select type(sf_sl => sf_owg%sat_func_sl)
+!           class is(sat_func_VG_type)
+!             select case(keyword)
+!               case('M')
+!                 call InputReadDouble(input,option,sf_owg%m)
+!                 call InputErrorMsg(input,option,'M',error_string)
+!                 sf_sl%m = sf_owg%m
+!               case('ALPHA')
+!                 call InputReadDouble(input,option,sf_owg%alpha)
+!                 call InputErrorMsg(input,option,'ALPHA',error_string)
+!                 sf_sl%alpha = sf_owg%alpha
+!               case('LIQUID_RESIDUAL_SATURATION')
+!                 call InputReadDouble(input,option,sf_owg%Slcr)
+!                 call InputErrorMsg(input,option,'LIQUID_RESIDUAL_SATURATION', &
+!                                    error_string)
+!                 sf_sl%Sr = sf_owg%Slcr
+!               case default
+!                 call InputKeywordUnrecognized(keyword, &
+!                        'Van Genuchten Oil-Gas-SL saturation function',option)
+!             end select
+!         end select
+!       !add here table case
+!     end select
+!   !add reading instructions for other OWG saturation functions (tables etc)
+!   end do
+! 
+!   !pass on parameters to sl function if needed
+! 
+!   if ( smooth .and. associated(sat_func_owg%sat_func_sl) ) then
+!     call sat_func_owg%sat_func_sl%SetupPolynomials(option,error_string)
+!   end if
+! 
+! end subroutine SaturationFunctionOWGRead
+! 
+! ! ************************************************************************** !
 
 subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
   !
@@ -271,16 +581,24 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
   PetscBool :: found
   PetscBool :: smooth
 
-  PetscReal :: m_tmp
 
   input%ierr = 0
   smooth = PETSC_FALSE
   error_string = 'CHARACTERISTIC_CURVES,SATURATION_FUNCTION_OWG,'
   select type(sf_owg => sat_func_owg)
-    class is(sat_func_ow_VG_type)
-      error_string = trim(error_string) // 'VAN_GENUCHTEN_OW'
-    class is(sat_func_og_BC_type)
-      error_string = trim(error_string) // 'BROOKS_COREY_OG'
+    class is(sat_func_xw_VG_type)
+      error_string = trim(error_string) // 'VAN_GENUCHTEN_XW'
+    class is(sat_func_xw_constant_type)
+      error_string = trim(error_string) // 'CONSTANT_PRESSURE_XW'
+    class is(sat_func_og_constant_type)
+      error_string = trim(error_string) // 'CONSTANT_PRESSURE_OG'
+    !add here the two classes using lokup_tables   
+    !class is(sat_func_xw_lookup_table_type)
+    !   error_string = trim(error_string) // 'LOOKUP_TABLE_XW'
+    !class is(sat_func_og_lookup_table_type)
+    !   error_string = trim(error_string) // 'LOOKUP_TABLE_OG'
+    !class is(sat_func_og_BC_type)
+    !  error_string = trim(error_string) // 'BROOKS_COREY_OG'
   end select
 
   do
@@ -291,7 +609,7 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
 
-    ! base
+    ! read sat_func_owg_base
     found = PETSC_TRUE
     select case(keyword)
       case('MAX_CAPILLARY_PRESSURE')
@@ -303,17 +621,48 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
         end if
       case('SMOOTH')
         smooth = PETSC_TRUE
+      case('TABLE_NAME')
+        !read table name
       case default
         found = PETSC_FALSE
     end select
 
     if (found) cycle
 
+    !read read sat_func_xw_base/sat_func_og_base
+    found = PETSC_TRUE
     select type(sf_owg => sat_func_owg)
-      class is(sat_func_ow_VG_type)
+      class is(sat_func_xw_base_type)
+        select case(keyword)
+          case('WATER_CONNATE_SATURATION')
+            call InputReadDouble(input,option,sf_owg%Swco)
+            call InputErrorMsg(input,option,'CONNATE_WATER_SATURATION', &
+                               error_string)
+          case default
+            found = PETSC_FALSE
+        end select  
+      class is(sat_func_og_base_type)  
+        select case(keyword)
+          !case('GAS_RESIDUAL_SATURATION')
+          !  call InputReadDouble(input,option,sf_owg%Sgcr)
+          !  call InputErrorMsg(input,option,'WATER_RESIDUAL_SATURATION', &
+          !                     error_string)
+          case('GAS_CONNATE_SATURATION')
+            call InputReadDouble(input,option,sf_owg%Sgco)
+            call InputErrorMsg(input,option,'CONNATE_WATER_SATURATION', &
+                               error_string)
+          case default
+            found = PETSC_FALSE
+        end select
+    end select    
+
+    if (found) cycle
+
+    select type(sf_owg => sat_func_owg)
+      class is(sat_func_xw_VG_type)
         select type(sf_sl => sf_owg%sat_func_sl)
           class is(sat_func_VG_type)
-            select case(keyword)
+            select case(keyword)              
               case('M')
                 call InputReadDouble(input,option,sf_owg%m)
                 call InputErrorMsg(input,option,'M',error_string)
@@ -332,28 +681,22 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
                      'Van Genuchten Oil-Water saturation function',option)
             end select
         end select
-      class is(sat_func_og_BC_type)
-        select type(sf_sl => sf_owg%sat_func_sl)
-          class is(sat_func_BC_type)
-            select case(keyword)
-               case('LAMBDA')
-                 call InputReadDouble(input,option,sf_owg%lambda)
-                 call InputErrorMsg(input,option,'LAMBDA',error_string)
-                 sf_sl%lambda = sf_owg%lambda
-               case('ALPHA')
-                 call InputReadDouble(input,option,sf_owg%alpha)
-                 call InputErrorMsg(input,option,'ALPHA',error_string)
-                 sf_sl%alpha = sf_owg%alpha
-              case('OIL_RESIDUAL_SATURATION')
-                call InputReadDouble(input,option,sf_owg%Socr)
-                call InputErrorMsg(input,option,'OIL_RESIDUAL_SATURATION', &
-                                   error_string)
-                sf_sl%Sr = sf_owg%Socr
-              case default
-                call InputKeywordUnrecognized(keyword, &
-                       'Brooks-Corey Oil-Gas saturation function',option)
-            end select
-          end select
+      class is(sat_func_xw_constant_type)
+        !Swcr not needed for constant capillary pressures
+        !In the consistency check assign Swcr loaded for krw
+        sf_owg%Swcr = 0.0
+        select case(keyword)                
+          case('WATER_RESIDUAL_SATURATION')
+            call InputReadDouble(input,option,sf_owg%Swcr)
+            call InputErrorMsg(input,option,'WATER_RESIDUAL_SATURATION', &
+                               error_string)   
+          case('CONSTANT_PRESSURE')
+            call InputReadDouble(input,option, &
+                                  sf_owg%constant_capillary_pressure)
+            call InputErrorMsg(input,option,'CONSTANT_CAPILLARY_PRESSURE', &
+                                error_string)
+            sf_owg%pcmax = sf_owg%constant_capillary_pressure
+        end select        
       class is(sat_func_og_VG_SL_type)
         select type(sf_sl => sf_owg%sat_func_sl)
           class is(sat_func_VG_type)
@@ -371,12 +714,52 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
                 call InputErrorMsg(input,option,'LIQUID_RESIDUAL_SATURATION', &
                                    error_string)
                 sf_sl%Sr = sf_owg%Slcr
+                !Sgcr initialised to zero since not used by this model
+                !In the consistency check assign the Sgcr loaded for krg if zero
+                sf_owg%Sgcr = 0.0
               case default
                 call InputKeywordUnrecognized(keyword, &
                        'Van Genuchten Oil-Gas-SL saturation function',option)
             end select
         end select
-      !add here table case
+      class is(sat_func_og_constant_type)
+        select case(keyword)                
+          case('GAS_RESIDUAL_SATURATION')
+            call InputReadDouble(input,option,sf_owg%Sgcr)
+            call InputErrorMsg(input,option,'GAS_RESIDUAL_SATURATION', &
+                               error_string)   
+          case('CONSTANT_PRESSURE')
+            call InputReadDouble(input,option, &
+                                  sf_owg%constant_capillary_pressure)
+            call InputErrorMsg(input,option,'CONSTANT_CAPILLARY_PRESSURE', &
+                                error_string)
+            sf_owg%pcmax = sf_owg%constant_capillary_pressure
+            !Sgcr not needed for constant og capillary pressures
+            !Wehn running consistency check assign Sgcr loaded for krw if zero
+            sf_owg%Sgcr = 0.0            
+        end select  
+        ! class is(sat_func_og_BC_type)
+        !   select type(sf_sl => sf_owg%sat_func_sl)
+        !     class is(sat_func_BC_type)
+        !       select case(keyword)
+        !          case('LAMBDA')
+        !            call InputReadDouble(input,option,sf_owg%lambda)
+        !            call InputErrorMsg(input,option,'LAMBDA',error_string)
+        !            sf_sl%lambda = sf_owg%lambda
+        !          case('ALPHA')
+        !            call InputReadDouble(input,option,sf_owg%alpha)
+        !            call InputErrorMsg(input,option,'ALPHA',error_string)
+        !            sf_sl%alpha = sf_owg%alpha
+        !         case('OIL_RESIDUAL_SATURATION')
+        !           call InputReadDouble(input,option,sf_owg%Socr)
+        !           call InputErrorMsg(input,option,'OIL_RESIDUAL_SATURATION', &
+        !                              error_string)
+        !           sf_sl%Sr = sf_owg%Socr
+        !         case default
+        !           call InputKeywordUnrecognized(keyword, &
+        !                  'Brooks-Corey Oil-Gas saturation function',option)
+        !       end select
+        !     end select        
     end select
   !add reading instructions for other OWG saturation functions (tables etc)
   end do
@@ -388,6 +771,236 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
   end if
 
 end subroutine SaturationFunctionOWGRead
+
+! ! ************************************************************************** !
+! 
+! subroutine SaturationFunctionXWRead(sat_func_xw,input,option)
+!   !
+!   ! Reads in contents of a SATURATION_FUNCTION_XW block
+!   !
+!   ! Author: Paolo Orsini
+!   ! Date: 19/07/18
+!   !
+!   use Option_module
+!   use Input_Aux_module
+!   use String_module
+! 
+!   implicit none
+! 
+!   class(sat_func_xw_base_type) :: sat_func_xw
+!   type(input_type), pointer :: input
+!   type(option_type) :: option
+! 
+!   character(len=MAXWORDLENGTH) :: keyword
+!   character(len=MAXSTRINGLENGTH) :: error_string
+!   PetscBool :: found
+!   PetscBool :: smooth
+! 
+!   !PetscReal :: m_tmp
+! 
+!   input%ierr = 0
+!   smooth = PETSC_FALSE
+!   error_string = 'CHARACTERISTIC_CURVES,SATURATION_FUNCTION_XW,'
+!   select type(sf_owg => sat_func_xw)
+!     class is(sat_func_xw_VG_type)
+!       error_string = trim(error_string) // 'VAN_GENUCHTEN'
+!     class is(sat_func_xw_constant_type)
+!       error_string = trim(error_string) // 'CONSTANT'
+!     !class is(sat_func_xw_table_type)  
+!     !  error_string = trim(error_string) // 'TABLE'
+!   end select
+! 
+!   do
+!     call InputReadPflotranString(input,option)
+!     if (InputCheckExit(input,option)) exit
+! 
+!     call InputReadWord(input,option,keyword,PETSC_TRUE)
+!     call InputErrorMsg(input,option,'keyword',error_string)
+!     call StringToUpper(keyword)
+! 
+!     ! base
+!     found = PETSC_TRUE
+!     select case(keyword)
+!       !note Swco and Swcr and Pcmax loaded only for analytical functions
+!       !if table read when loading table
+!       !case('WATER_RESIDUAL_SATURATION')
+!       case('CONNATE_WATER_SATURATION')
+!         call InputReadDouble(input,option,sat_func_xw%Swco)
+!         call InputErrorMsg(input,option,'CONNATE_WATER_SATURATION', &
+!                             error_string)
+!       !case('MAX_CAPILLARY_PRESSURE')
+!       !  call InputReadDouble(input,option,sat_func_xw%pcmax)
+!       !  call InputErrorMsg(input,option,'MAX_CAPILLARY_PRESSURE', &
+!       !                      error_string)
+!       !  if ( associated(sat_func_xw%sat_func_sl) ) then
+!       !    sat_func_xw%sat_func_sl%pcmax = sat_func_xw%pcmax
+!       !  end if
+!       case('SMOOTH')
+!         smooth = PETSC_TRUE
+!       case default
+!         found = PETSC_FALSE
+!     end select
+! 
+!     if (found) cycle
+! 
+!     select type(sf_xw => sat_func_xw)
+!       class is(sat_func_xw_constant_type)
+!         !Swcr not needed for constant capillary pressures
+!         !Wehn running consistency check assign Swcr loaded for krw if zero
+!         sf_xw%Swcr = 0.0        
+!         select case(keyword)
+!           case('WATER_RESIDUAL_SATURATION')
+!             call InputReadDouble(input,option,sf_xw%Swcr)
+!             call InputErrorMsg(input,option,'WATER_RESIDUAL_SATURATION', &
+!                                error_string)   
+!           case('CONSTANT_PRESSURE')
+!             call InputReadDouble(input,option, &
+!                                   sf_xw%constant_capillary_pressure)
+!             call InputErrorMsg(input,option,'CONSTANT_CAPILLARY_PRESSURE', &
+!                                 error_string)
+!             sf_xw%pcmax = sf_xw%constant_capillary_pressure
+!         end select
+!       class is(sat_func_xw_VG_type)
+!         select type(sf_sl => sf_xw%sat_func_sl)
+!           class is(sat_func_VG_type)
+!             select case(keyword)
+!               case('MAX_CAPILLARY_PRESSURE')
+!                 call InputReadDouble(input,option,sat_func_xw%pcmax)
+!                 call InputErrorMsg(input,option,'MAX_CAPILLARY_PRESSURE', &
+!                                    error_string)
+!                 sf_sl%pcmax = sf_xw%pcmax
+!               case('M')
+!                 call InputReadDouble(input,option,sf_xw%m)
+!                 call InputErrorMsg(input,option,'M',error_string)
+!                 sf_sl%m = sf_xw%m
+!               case('ALPHA')
+!                 call InputReadDouble(input,option,sf_xw%alpha)
+!                 call InputErrorMsg(input,option,'ALPHA',error_string)
+!                 sf_sl%alpha = sf_xw%alpha
+!               case('WATER_RESIDUAL_SATURATION')
+!                 call InputReadDouble(input,option,sf_xw%Swcr)
+!                 call InputErrorMsg(input,option,'WATER_RESIDUAL_SATURATION', &
+!                                    error_string)
+!                 sf_sl%Sr = sf_xw%Swcr
+!               case default
+!                 call InputKeywordUnrecognized(keyword, &
+!                      'Van Genuchten Oil-Water saturation function',option)
+!             end select
+!         end select
+!       !class is(sat_func_xw_table_type)
+!       !  select case(keyword)
+!       !    case('TABLE_NAME')
+!       !      call InputReadWord(input,option,sf_xw%table_name,PETSC_TRUE)
+!       !      call InputErrorMsg(input,option,'table name',error_string)
+!       !      call StringToUpper(sf_xw%table_name)
+!       !  end select 
+!       !add here table case
+!     end select
+!   end do
+! 
+!   !pass on parameters to sl function if needed
+!   if ( smooth .and. associated(sat_func_xw%sat_func_sl) ) then
+!     call sat_func_xw%sat_func_sl%SetupPolynomials(option,error_string)
+!   end if
+! 
+! end subroutine SaturationFunctionXWRead
+! 
+! ! ************************************************************************** !
+! 
+! subroutine SaturationFunctionOGRead(sat_func_xw,input,option)
+!   !
+!   ! Reads in contents of a SATURATION_FUNCTION_OG block
+!   !
+!   ! Author: Paolo Orsini
+!   ! Date: 19/07/18
+!   !
+!   use Option_module
+!   use Input_Aux_module
+!   use String_module
+! 
+!   implicit none
+! 
+!   class(sat_func_og_base_type) :: sat_func_og
+!   type(input_type), pointer :: input
+!   type(option_type) :: option
+! 
+!   character(len=MAXWORDLENGTH) :: keyword
+!   character(len=MAXSTRINGLENGTH) :: error_string
+!   PetscBool :: found
+!   PetscBool :: smooth
+! 
+!   input%ierr = 0
+!   smooth = PETSC_FALSE
+!   error_string = 'CHARACTERISTIC_CURVES,SATURATION_FUNCTION_OG,'
+!   select type(sf_owg => sat_func_og)
+!     class is(sat_func_xg_VG_SL_type)
+!       error_string = trim(error_string) // 'VAN_GENUCHTEN_SL'
+!     class is(sat_func_og_constant_type)
+!       error_string = trim(error_string) // 'CONSTANT'
+!     !class is(sat_func_og_table_type)  
+!     !  error_string = trim(error_string) // 'TABLE'
+!   end select
+! 
+!   do
+!     call InputReadPflotranString(input,option)
+!     if (InputCheckExit(input,option)) exit
+! 
+!     call InputReadWord(input,option,keyword,PETSC_TRUE)
+!     call InputErrorMsg(input,option,'keyword',error_string)
+!     call StringToUpper(keyword)
+! 
+!     ! base
+!     found = PETSC_TRUE
+!     select case(keyword)
+!       case('MAX_CAPILLARY_PRESSURE')
+!         call InputReadDouble(input,option,sat_func_og%pcmax)
+!         call InputErrorMsg(input,option,'MAX_CAPILLARY_PRESSURE', &
+!                             error_string)
+!         if ( associated(sat_func_og%sat_func_sl) ) then
+!           sat_func_og%sat_func_sl%pcmax = sat_func_og%pcmax
+!         end if
+!       case('SMOOTH')
+!         smooth = PETSC_TRUE
+!       case default
+!         found = PETSC_FALSE
+!     end select
+! 
+!     if (found) cycle
+! 
+!     select type(sf_owg => sat_func_og)
+!       class is(sat_func_og_VG_SL_type)
+!         select type(sf_sl => sf_owg%sat_func_sl)
+!           class is(sat_func_VG_type)
+!             select case(keyword)
+!               case('M')
+!                 call InputReadDouble(input,option,sf_owg%m)
+!                 call InputErrorMsg(input,option,'M',error_string)
+!                 sf_sl%m = sf_owg%m
+!               case('ALPHA')
+!                 call InputReadDouble(input,option,sf_owg%alpha)
+!                 call InputErrorMsg(input,option,'ALPHA',error_string)
+!                 sf_sl%alpha = sf_owg%alpha
+!               case('LIQUID_RESIDUAL_SATURATION')
+!                 call InputReadDouble(input,option,sf_owg%Slcr)
+!                 call InputErrorMsg(input,option,'LIQUID_RESIDUAL_SATURATION', &
+!                                    error_string)
+!                 sf_sl%Sr = sf_owg%Slcr
+!               case default
+!                 call InputKeywordUnrecognized(keyword, &
+!                        'Van Genuchten Oil-Gas-SL saturation function',option)
+!             end select
+!         end select
+!       !add here table case
+!     end select
+!   !add reading instructions for other OWG saturation functions (tables etc)
+!   end do
+! 
+!   !pass on parameters to sl function if needed
+!   if ( smooth .and. associated(sat_func_xw%sat_func_sl) ) then
+!     call sat_func_xw%sat_func_sl%SetupPolynomials(option,error_string)
+!   end if
+! 
+! end subroutine SaturationFunctionOGRead
 
 ! ************************************************************************** !
 
@@ -1010,7 +1623,7 @@ subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
 end subroutine RPF_Mod_BC_Oil_RelPerm
 
 ! ************************************************************************** !
-! *********** OWG Saturaton functions  ************************************* !
+! *********** OWG Saturaton functions base class memebers  ***************** !
 ! ************************************************************************** !
 
 subroutine SFOWGBaseInit(this)
@@ -1018,23 +1631,16 @@ subroutine SFOWGBaseInit(this)
   implicit none
   
   class(sat_func_owg_base_type) :: this
-  
-  !nullify(this%sat_poly)
-  !nullify(this%pres_poly)
-  this%Swco = 0.0d0
-  this%Swcr = UNINITIALIZED_DOUBLE
-  this%Soco = 0.0
-  this%Socr = UNINITIALIZED_DOUBLE
-  this%Sgco = 0.0d0
-  this%Sgcr = UNINITIALIZED_DOUBLE
+
   this%pcmax = DEFAULT_PCMAX
   this%analytical_derivative_available = PETSC_FALSE
+  
   !nullify(lookup_table)
   nullify(this%sat_func_sl)
 
 end subroutine SFOWGBaseInit
 
-! ************************************************************************** !
+
 subroutine SFOWGBaseVerify(this,name,option)
 
   use Option_module
@@ -1045,6 +1651,15 @@ subroutine SFOWGBaseVerify(this,name,option)
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
   
+  character(len=MAXSTRINGLENGTH) :: string
+
+  !PO check if this makes sense
+  if (index(name,'SATURATION_FUNCTION_OWG') > 0) then
+    string = name
+  else
+    string = trim(name) // 'SATURATION_FUNCTION_OWG'
+  endif
+    
   if ((.not.this%analytical_derivative_available) .and. &
       (.not.option%flow%numerical_derivatives)) then
     option%io_buffer = 'Analytical derivatives are not available for the &
@@ -1055,7 +1670,6 @@ subroutine SFOWGBaseVerify(this,name,option)
 
 end subroutine SFOWGBaseVerify
 
-! ************************************************************************** !
 
 subroutine SFOWGBaseTest(this,cc_name,option)
 
@@ -1068,73 +1682,13 @@ subroutine SFOWGBaseTest(this,cc_name,option)
   character(len=MAXWORDLENGTH) :: cc_name
   type(option_type), intent(inout) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string, sat_name
-  PetscInt, parameter :: num_values = 101
-  PetscReal :: capillary_pressure(num_values)
-  PetscReal :: wat_saturation(num_values)
-  PetscReal :: oil_saturation(num_values)
-  PetscReal :: gas_saturation(num_values)
-  PetscReal :: saturation(num_values)
-  PetscReal :: dpc_dsato(num_values),dpc_dsatg(num_values)
-  PetscInt :: i
-
-
- ! calculate capillary pressure as a function of saturation
-  do i = 1, num_values
-    wat_saturation(i) = dble(i-1)*0.01d0
-    if (wat_saturation(i) < 1.d-7) then
-      wat_saturation(i) = 1.d-7
-    else if (wat_saturation(i) > (1.d0-1.d-7)) then
-      wat_saturation(i) = 1.d0-1.d-7
-    endif
-  end do
-
-  write(string,*) cc_name
-  select type(sf => this)
-    class is(sat_func_ow_VG_type)
-      oil_saturation = 1.0 - wat_saturation
-      gas_saturation = 0.0
-      saturation = wat_saturation
-      string = trim(cc_name) // '_pc_OW_wat_sat.dat'
-      sat_name = 'wat_sat'
-    class is(sat_func_og_BC_type)
-      oil_saturation = wat_saturation
-      gas_saturation = 0.0
-      wat_saturation = 0.0
-      saturation = oil_saturation
-      string = trim(cc_name) // '_pc_OG_oil_sat.dat'
-      sat_name = 'oil_sat'
-    class is(sat_func_og_VG_SL_type)
-      gas_saturation = 1.d0 - wat_saturation
-      oil_saturation = 0.0
-      saturation = wat_saturation
-      string = trim(cc_name) // '_pc_OG_liq_sat.dat'
-      sat_name = 'liq_sat'
-  end select
-  !sat_name = trim(sat_name)
-
-  do i = 1, num_values
-   call this%CapillaryPressure(oil_saturation(i), gas_saturation(i), &
-                               capillary_pressure(i),dpc_dsato(i), &
-                               dpc_dsatg(i),option)
-    ! calculate numerical derivatives?
-  enddo
-
-  open(unit=86,file=string)
-  write(86,*) '"',trim(sat_name), '"', ', "capillary pressure", "dpc/dsat0", &
-              &dpc/dsatg"'
-  do i = 1, num_values
-    write(86,'(4es14.6)') saturation(i), capillary_pressure(i), &
-                          dpc_dsato(i), dpc_dsatg(i)
-  enddo
-  close(86)
+  option%io_buffer = 'SFOWGBaseTest must be extended.'
+  call printErrMsg(option)
 
 end subroutine SFOWGBaseTest
 
-! ************************************************************************** !
 
 subroutine SFOWGBaseSetupPolynomials(this,option,error_string)
-
   ! Sets up polynomials for smoothing saturation functions
 
   use Option_module
@@ -1150,55 +1704,238 @@ subroutine SFOWGBaseSetupPolynomials(this,option,error_string)
 
 end subroutine SFOWGBaseSetupPolynomials
 
+!this cannot work, since we would have extension with different argument lists
+! subroutine SFOWGBaseCapillaryPressure(this,option)
+!   ! no argument list - no sure we need this
+!   use Option_module
+! 
+!   implicit none
+! 
+!   class(sat_func_owg_base_type) :: this
+!   type(option_type), intent(inout) :: option
+! 
+!   option%io_buffer = 'SFOWGBaseCapillaryPressure must be extended.'
+!   call printErrMsg(option)
+! 
+! end subroutine SFOWGBaseCapillaryPressure
+
+! ************************************************************************** !
+! *********** XW Saturaton functions  ************************************** !
 ! ************************************************************************** !
 
-subroutine SFOWGBaseCapillaryPressure(this,oil_saturation, gas_saturation, &
-                                      capillary_pressure,dpc_dsato,dpc_dsatg, &
-                                      option,table_idxs)
+!subroutine SFOWGBaseInit(this)
+subroutine SFXWBaseInit(this)
+
+  implicit none
+  
+  !class(sat_func_owg_base_type) :: this
+  class(sat_func_xw_base_type) :: this
+  
+  call SFOWGBaseInit(this)
+  
+  !nullify(this%sat_poly)
+  !nullify(this%pres_poly)
+  this%Swco = 0.0d0
+  this%Swcr = UNINITIALIZED_DOUBLE
+  !this%Soco = 0.0
+  !this%Socr = UNINITIALIZED_DOUBLE
+  !this%Sgco = 0.0d0
+  !this%Sgcr = UNINITIALIZED_DOUBLE
+  !this%pcmax = DEFAULT_PCMAX
+  !this%analytical_derivative_available = PETSC_FALSE
+  !nullify(lookup_table)
+  !nullify(this%sat_func_sl)
+
+!end subroutine SFOWGBaseInit
+end subroutine SFXWBaseInit
+
+! ************************************************************************** !
+!subroutine SFOWGBaseVerify(this,name,option)
+subroutine SFXWBaseVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+  
+  !class(sat_func_owg_base_type) :: this
+  class(sat_func_xw_base_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+  
+  character(len=MAXSTRINGLENGTH) :: string
+
+  call SFOWGBaseVerify(this,name,option)
+
+  !PO check if this makes sense
+  if (index(name,'SATURATION_FUNCTION_OWG') > 0) then
+    string = name
+  else
+    string = trim(name) // 'SATURATION_FUNCTION_OWG,SF_XW'
+  endif
+
+  ! if ((.not.this%analytical_derivative_available) .and. &
+  !     (.not.option%flow%numerical_derivatives)) then
+  !   option%io_buffer = 'Analytical derivatives are not available for the &
+  !     &capillary pressure - saturation function chosen: ' // &
+  !     trim(name)
+  !   call printErrMsg(option)
+  ! endif
+
+  if (Uninitialized(this%Swcr)) then
+    option%io_buffer = UninitializedMessage('WATER_RESIDUAL_SATURATION',string)
+    call printErrMsg(option)
+  endif
+
+!end subroutine SFOWGBaseVerify
+end subroutine SFXWBaseVerify
+
+! ************************************************************************** !
+
+!subroutine SFOWGBaseTest(this,cc_name,option)
+subroutine SFXWBaseTest(this,cc_name,option)
+
+  use Option_module
+  use Material_Aux_class
+
+  implicit none
+
+  !class(sat_func_owg_base_type) :: this
+  class(sat_func_xw_base_type) :: this
+  character(len=MAXWORDLENGTH) :: cc_name
+  type(option_type), intent(inout) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string, sat_name
+  PetscInt, parameter :: num_values = 101
+  PetscReal :: capillary_pressure(num_values)
+  PetscReal :: wat_saturation(num_values)
+  !PetscReal :: oil_saturation(num_values)
+  !PetscReal :: gas_saturation(num_values)
+  PetscReal :: saturation(num_values)
+  !PetscReal :: dpc_dsato(num_values),dpc_dsatg(num_values)
+  PetscReal :: dpc_dsatw(num_values)
+  PetscInt :: i
+
+
+ ! calculate capillary pressure as a function of saturation
+  do i = 1, num_values
+    wat_saturation(i) = dble(i-1)*0.01d0
+    if (wat_saturation(i) < 1.d-7) then
+      wat_saturation(i) = 1.d-7
+    else if (wat_saturation(i) > (1.d0-1.d-7)) then
+      wat_saturation(i) = 1.d0-1.d-7
+    endif
+  end do
+
+  write(string,*) cc_name
+  
+  !select type(sf => this)
+    !select type not needed anymore - tables
+    ! class is(sat_func_ow_VG_type)
+    !   oil_saturation = 1.0 - wat_saturation
+    !   gas_saturation = 0.0
+    !   saturation = wat_saturation
+    !   string = trim(cc_name) // '_pc_OW_wat_sat.dat'
+    !   sat_name = 'wat_sat'
+    !now implmented in the sat_func_og_type  
+    ! class is(sat_func_og_BC_type)
+    !   oil_saturation = wat_saturation
+    !   gas_saturation = 0.0
+    !   wat_saturation = 0.0
+    !   saturation = oil_saturation
+    !   string = trim(cc_name) // '_pc_OG_oil_sat.dat'
+    !   sat_name = 'oil_sat'
+    ! now implmented in the sat_func_og_type
+    ! class is(sat_func_og_VG_SL_type)
+    !   gas_saturation = 1.d0 - wat_saturation
+    !   oil_saturation = 0.0
+    !   saturation = wat_saturation
+    !   string = trim(cc_name) // '_pc_OG_liq_sat.dat'
+    !   sat_name = 'liq_sat'
+  !end select
+  !sat_name = trim(sat_name)
+
+  do i = 1, num_values
+   ! call this%CapillaryPressure(oil_saturation(i), gas_saturation(i), &
+   !                             capillary_pressure(i),dpc_dsato(i), &
+   !                             dpc_dsatg(i),option)
+   ! fot tables function recognise there is no table_idx - assign table_idx=1
+   call this%CapillaryPressure(wat_saturation(i), capillary_pressure(i), &
+                               dpc_dsatw(i),option)
+    ! calculate numerical derivatives?
+  enddo
+
+  open(unit=86,file=string)
+!  write(86,*) '"',trim(sat_name), '"', ', "capillary pressure", "dpc/dsat0", &
+!              &dpc/dsatg"'
+  write(86,*) ' "wat_saturation", "capillary pressure", "dpc/dsatw" '
+  do i = 1, num_values
+    !write(86,'(4es14.6)') saturation(i), capillary_pressure(i), &
+    !                      dpc_dsato(i), dpc_dsatg(i)
+    write(86,'(3es14.6)') wat_saturation(i),capillary_pressure(i),dpc_dsatw(i)
+  enddo
+  close(86)
+
+!end subroutine SFOWGBaseTest
+end subroutine SFXWBaseTest
+
+! ************************************************************************** !
+
+
+
+! ************************************************************************** !
+
+!subroutine SFOWGBaseCapillaryPressure(this,oil_saturation, gas_saturation, &
+!                                      capillary_pressure,dpc_dsato,dpc_dsatg, &
+!                                      option,table_idxs)
+subroutine SFXWBaseCapillaryPressure(this,wat_saturation,capillary_pressure,&
+                                       dpc_dsatw,option,table_idxs)
+  !argument template for SW_XW_CapillaryPressure functions                                
   use Option_module
 
   implicit none
 
-  class(sat_func_owg_base_type) :: this
-  PetscReal, intent(in) :: oil_saturation
-  PetscReal, intent(in) :: gas_saturation
+  !class(sat_func_owg_base_type) :: this
+  class(sat_func_xw_base_type) :: this
+  PetscReal, intent(in) :: wat_saturation
+  !PetscReal, intent(in) :: oil_saturation
+  !PetscReal, intent(in) :: gas_saturation
   PetscReal, intent(out) :: capillary_pressure
-  PetscReal, intent(out) :: dpc_dsato
-  PetscReal, intent(out) :: dpc_dsatg
+  !PetscReal, intent(out) :: dpc_dsato
+  !PetscReal, intent(out) :: dpc_dsatg
+  PetscReal, intent(out) :: dpc_dsatw
   type(option_type), intent(inout) :: option
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  option%io_buffer = 'SFOWGBaseCapillaryPressure must be extended.'
+  option%io_buffer = 'SFXWBaseCapillaryPressure must be extended.'
   call printErrMsg(option)
 
-end subroutine SFOWGBaseCapillaryPressure
+end subroutine SFXWBaseCapillaryPressure
 
 ! ************************************************************************** !
 
-function SF_OW_VG_Create()
+function SF_XW_VG_Create()
 
   implicit none
 
-  class(sat_func_ow_VG_type), pointer :: SF_OW_VG_Create
+  class(sat_func_xw_VG_type), pointer :: SF_XW_VG_Create
 
-  allocate(SF_OW_VG_Create)
+  allocate(SF_XW_VG_Create)
 
-  call SFOWGBaseInit(SF_OW_VG_Create)
+  call SFXWBaseInit(SF_XW_VG_Create)
 
-  SF_OW_VG_Create%sat_func_sl => SF_VG_Create()
+  SF_XW_VG_Create%sat_func_sl => SF_VG_Create()
 
-  call SF_OW_VG_Create%Init()
+  call SF_XW_VG_Create%Init()
 
-
-end function SF_OW_VG_Create
+end function SF_XW_VG_Create
 
 ! ************************************************************************** !
 
-subroutine SF_OW_VG_Init(this)
+subroutine SF_XW_VG_Init(this)
 
   implicit none
 
-  class(sat_func_ow_VG_type) :: this
+  class(sat_func_xw_VG_type) :: this
 
   this%alpha = UNINITIALIZED_DOUBLE
   this%m = UNINITIALIZED_DOUBLE
@@ -1206,34 +1943,35 @@ subroutine SF_OW_VG_Init(this)
   this%analytical_derivative_available = &
       this%sat_func_sl%analytical_derivative_available
 
-end subroutine SF_OW_VG_Init
+end subroutine SF_XW_VG_Init
 
 ! ************************************************************************** !
 
-subroutine SF_OW_VG_Verify(this,name,option)
+subroutine SF_XW_VG_Verify(this,name,option)
 
   use Option_module
 
   implicit none
 
-  class(sat_func_ow_VG_type) :: this
+  class(sat_func_xw_VG_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
 
+  !PO check if this make sense
   if (index(name,'SATURATION_FUNCTION_OWG') > 0) then
     string = name
   else
     string = trim(name) // 'SATURATION_FUNCTION_OWG,SF_OW_VG'
   endif
 
-  call SFOWGBaseVerify(this,string,option)
+  call SFXWBaseVerify(this,string,option)
 
-  if (Uninitialized(this%Swcr)) then
-    option%io_buffer = UninitializedMessage('WATER_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
-  endif
+  ! if (Uninitialized(this%Swcr)) then
+  !   option%io_buffer = UninitializedMessage('WATER_RESIDUAL_SATURATION',string)
+  !   call printErrMsg(option)
+  ! endif
 
   if (Uninitialized(this%alpha)) then
     option%io_buffer = UninitializedMessage('ALPHA = 1/Pcc',string)
@@ -1247,172 +1985,485 @@ subroutine SF_OW_VG_Verify(this,name,option)
 
   if ( .not.associated(this%sat_func_sl) ) then
     option%io_buffer = 'Not analytical function associated with the capillary &
-      & pressure between water and oil - saturation function chosen: ' // &
+      & pressure between X and water - saturation function chosen: ' // &
       trim(string)
     call printErrMsg(option)
   end if
 
   call this%sat_func_sl%verify(name,option)
 
-end subroutine SF_OW_VG_Verify
+end subroutine SF_XW_VG_Verify
 
 ! ************************************************************************** !
 
-subroutine SF_OW_VG_CapillaryPressure(this,oil_saturation, gas_saturation, &
-                                      capillary_pressure,dpc_dsato,dpc_dsatg, &
-                                      option,table_idxs)
+!subroutine SF_OW_VG_CapillaryPressure(this,oil_saturation, gas_saturation, &
+!                                      capillary_pressure,dpc_dsato,dpc_dsatg, &
+!                                      option,table_idxs)
+subroutine SF_XW_VG_CapillaryPressure(this,wat_saturation,capillary_pressure, &
+                                      dpc_dsatw,option,table_idxs)
   use Option_module
 
   implicit none
 
-  class(sat_func_ow_VG_type) :: this
-  PetscReal, intent(in) :: oil_saturation
-  PetscReal, intent(in) :: gas_saturation
+  class(sat_func_xw_VG_type) :: this
+  !PetscReal, intent(in) :: oil_saturation
+  !PetscReal, intent(in) :: gas_saturation
+  PetscReal, intent(in) :: wat_saturation
   PetscReal, intent(out) :: capillary_pressure
-  PetscReal, intent(out) :: dpc_dsato
-  PetscReal, intent(out) :: dpc_dsatg
+  !PetscReal, intent(out) :: dpc_dsato
+  !PetscReal, intent(out) :: dpc_dsatg
+  PetscReal, intent(out) :: dpc_dsatw
   type(option_type), intent(inout) :: option
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  PetscReal :: water_saturation, dpc_dsatw
+  !PetscReal :: water_saturation, dpc_dsatw
 
-  water_saturation = 1.0 - oil_saturation - gas_saturation
+  !water_saturation = 1.0 - oil_saturation - gas_saturation
 
-  call this%sat_func_sl%CapillaryPressure(water_saturation,capillary_pressure, &
+  call this%sat_func_sl%CapillaryPressure(wat_saturation,capillary_pressure, &
                                           dpc_dsatw,option)
 
-  dpc_dsato = - dpc_dsatw
+  ! now to be computed outside this routine
+  !dpc_dsato = - dpc_dsatw
 
-  dpc_dsatg = - dpc_dsatw
+  !dpc_dsatg = - dpc_dsatw
 
-end subroutine SF_OW_VG_CapillaryPressure
+end subroutine SF_XW_VG_CapillaryPressure
 
 ! ************************************************************************** !
 
-function SF_OG_BC_Create()
+function SF_XW_constant_Create()
 
   implicit none
 
-  class(sat_func_og_BC_type), pointer :: SF_OG_BC_Create
+  class(sat_func_xw_constant_type), pointer :: SF_XW_constant_Create
 
-  allocate(SF_OG_BC_Create)
+  allocate(SF_XW_constant_Create)
 
-  call SFOWGBaseInit(SF_OG_BC_Create)
+  call SFXWBaseInit(SF_XW_constant_Create)
 
-  SF_OG_BC_Create%sat_func_sl => SF_BC_Create()
+  call SF_XW_constant_Create%Init()
 
-  call SF_OG_BC_Create%Init()
-
-end function SF_OG_BC_Create
+end function SF_XW_constant_Create
 
 ! ************************************************************************** !
 
-subroutine SF_OG_BC_Init(this)
+subroutine SF_XW_constant_Init(this)
 
   implicit none
 
-  class(sat_func_og_BC_type) :: this
+  class(sat_func_xw_constant_type) :: this
 
-  this%lambda =  UNINITIALIZED_DOUBLE
-  this%alpha =  UNINITIALIZED_DOUBLE
+  this%constant_capillary_pressure = UNINITIALIZED_DOUBLE
 
-  this%analytical_derivative_available = &
-      this%sat_func_sl%analytical_derivative_available
+  this%analytical_derivative_available = PETSC_TRUE
 
-end subroutine SF_OG_BC_Init
+end subroutine SF_XW_constant_Init
 
 ! ************************************************************************** !
 
-subroutine SF_OG_BC_Verify(this,name,option)
+subroutine SF_XW_constant_Verify(this,name,option)
 
   use Option_module
 
   implicit none
 
-  class(sat_func_og_BC_type) :: this
+  class(sat_func_xw_constant_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
 
+  !PO check if this make sense
+  if (index(name,'SATURATION_FUNCTION_XW') > 0) then
+    string = name
+  else
+    string = trim(name) // 'SATURATION_FUNCTION_XW,SF_XW_Constant'
+  endif
+
+  call SFXWBaseVerify(this,string,option)
+
+  if (Uninitialized(this%constant_capillary_pressure)) then
+    option%io_buffer = 'CONSTANT_CAPILLARY_PRESSURE must be specified &
+      &for ' // trim(string) // '.'
+    call printErrMsg(option)
+  endif
+
+end subroutine SF_XW_constant_Verify
+
+! ************************************************************************** !
+
+subroutine SF_XW_const_CapillaryPressure(this,wat_saturation, &
+                               capillary_pressure,dpc_dsatw,option,table_idxs)
+  use Option_module
+
+  implicit none
+
+  class(sat_func_xw_constant_type) :: this
+  PetscReal, intent(in) :: wat_saturation
+  PetscReal, intent(out) :: capillary_pressure
+  PetscReal, intent(out) :: dpc_dsatw
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  capillary_pressure = this%constant_capillary_pressure
+  dpc_dsatw = 0.0d0
+
+end subroutine SF_XW_const_CapillaryPressure
+
+! ************************************************************************** !
+
+
+! ************************************************************************** !
+! *********** OG Saturaton functions  ************************************** !
+! ************************************************************************** !
+
+subroutine SFOGBaseInit(this)
+
+  implicit none
+  
+  class(sat_func_og_base_type) :: this
+  
+  call SFOWGBaseInit(this)
+    
+  this%Sgco = 0.0d0
+  this%Sgcr = UNINITIALIZED_DOUBLE
+    
+  !this%pcmax = DEFAULT_PCMAX
+  !this%analytical_derivative_available = PETSC_FALSE
+
+end subroutine SFOGBaseInit
+
+! ************************************************************************** !
+subroutine SFOGBaseVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+  
+  class(sat_func_og_base_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+  
+  character(len=MAXSTRINGLENGTH) :: string
+
+  call SFOWGBaseVerify(this,name,option)
+
   if (index(name,'SATURATION_FUNCTION_OWG') > 0) then
     string = name
   else
-    string = trim(name) // 'SATURATION_FUNCTION_OWG,SF_OG_BC'
-  endif
-
-  if ( .not.associated(this%sat_func_sl) ) then
-    option%io_buffer = 'Not analytical function associated with the capillary &
-      & pressure between oil and gas - saturation function chosen: ' // &
-      trim(string)
-    call printErrMsg(option)
-  end if
-
-  call SFOWGBaseVerify(this,string,option)
-
-  if (Uninitialized(this%Socr)) then
-    option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
+    string = trim(name) // 'SATURATION_FUNCTION_OWG,SF_OG'
+  endif  
+  
+  if (Uninitialized(this%Sgcr)) then
+    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
     call printErrMsg(option)
   endif
 
-  if (Uninitialized(this%lambda)) then
-    option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call printErrMsg(option)
-  endif
+  ! done in SFOWGBaseVerify
+  ! if ((.not.this%analytical_derivative_available) .and. &
+  !     (.not.option%flow%numerical_derivatives)) then
+  !   option%io_buffer = 'Analytical derivatives are not available for the &
+  !     &capillary pressure - saturation function chosen: ' // &
+  !     trim(name)
+  !   call printErrMsg(option)
+  ! endif
 
-  if (Uninitialized(this%alpha)) then
-    option%io_buffer = UninitializedMessage('alpha = 1/Pcc',string)
-    call printErrMsg(option)
-  endif
-
-  call this%sat_func_sl%verify(name,option)
-
-end subroutine SF_OG_BC_Verify
+end subroutine SFOGBaseVerify
 
 ! ************************************************************************** !
 
-subroutine SF_OG_BC_SetupPolynomials(this,option,error_string)
-
-  ! Sets up polynomials for smoothing Brooks-Corey saturation function
+subroutine SFOGBaseTest(this,cc_name,option)
 
   use Option_module
-  use Utility_module
+  use Material_Aux_class
 
   implicit none
 
-  class(sat_func_og_BC_type) :: this
+  class(sat_func_og_base_type) :: this
+  character(len=MAXWORDLENGTH) :: cc_name
+  type(option_type), intent(inout) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string, sat_name
+  PetscInt, parameter :: num_values = 101
+  PetscReal :: capillary_pressure(num_values)
+  PetscReal :: gas_saturation(num_values)
+  PetscReal :: dpc_dsatg(num_values)
+  PetscInt :: i
+
+ ! calculate capillary pressure as a function of saturation
+  do i = 1, num_values
+    gas_saturation(i) = dble(i-1)*0.01d0
+    if (gas_saturation(i) < 1.d-7) then
+      gas_saturation(i) = 1.d-7
+    else if (gas_saturation(i) > (1.d0-1.d-7)) then
+      gas_saturation(i) = 1.d0-1.d-7
+    endif
+  end do
+
+  write(string,*) cc_name
+
+  do i = 1, num_values
+   call this%CapillaryPressure(gas_saturation(i),capillary_pressure(i), &
+                               dpc_dsatg(i),option)
+  enddo
+
+  open(unit=86,file=string)
+  write(86,*) ' "gas_saturation", "capillary pressure", "dpc/dsatw" '
+  do i = 1, num_values
+    write(86,'(3es14.6)') gas_saturation(i),capillary_pressure(i),dpc_dsatg(i)
+  enddo
+  close(86)
+
+end subroutine SFOGBaseTest
+
+! ************************************************************************** !
+
+subroutine SFOGBaseSetupPolynomials(this,option,error_string)
+
+  ! Sets up polynomials for smoothing saturation functions
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_og_base_type) :: this
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: error_string
 
-  call this%sat_func_sl%SetupPolynomials(option,error_string)
+  option%io_buffer = 'SF OG Smoothing not supported for ' // trim(error_string)
+  call printErrMsg(option)
 
-end subroutine SF_OG_BC_SetupPolynomials
+end subroutine SFOGBaseSetupPolynomials
 
 ! ************************************************************************** !
 
-subroutine SF_OG_BC_CapillaryPressure(this,oil_saturation, gas_saturation, &
-                                      capillary_pressure,dpc_dsato,dpc_dsatg, &
-                                      option,table_idxs)
+subroutine SFOGBaseCapillaryPressure(this,gas_saturation,capillary_pressure, &
+                                     dpc_dsatg,option,table_idxs)
   use Option_module
 
   implicit none
 
-  class(sat_func_og_BC_type) :: this
-  PetscReal, intent(in) :: oil_saturation
+  class(sat_func_og_base_type) :: this
   PetscReal, intent(in) :: gas_saturation
   PetscReal, intent(out) :: capillary_pressure
-  PetscReal, intent(out) :: dpc_dsato
   PetscReal, intent(out) :: dpc_dsatg
   type(option_type), intent(inout) :: option
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  call this%sat_func_sl%CapillaryPressure(oil_saturation,capillary_pressure, &
-                                          dpc_dsato,option)
+  option%io_buffer = 'SFOGBaseCapillaryPressure must be extended.'
+  call printErrMsg(option)
 
+end subroutine SFOGBaseCapillaryPressure
+
+! ************************************************************************** !
+
+function SF_OG_constant_Create()
+
+  implicit none
+
+  class(sat_func_og_constant_type), pointer :: SF_OG_constant_Create
+
+  allocate(SF_OG_constant_Create)
+
+  call SFOGBaseInit(SF_OG_constant_Create)
+
+  call SF_OG_constant_Create%Init()
+
+end function SF_OG_constant_Create
+
+! ************************************************************************** !
+
+subroutine SF_OG_constant_Init(this)
+
+  implicit none
+
+  class(sat_func_og_constant_type) :: this
+
+  this%constant_capillary_pressure =  UNINITIALIZED_DOUBLE
+  this%analytical_derivative_available = PETSC_TRUE
+
+end subroutine SF_OG_constant_Init
+
+! ************************************************************************** !
+
+subroutine SF_OG_constant_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_og_constant_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'SATURATION_FUNCTION_OG') > 0) then
+    string = name
+  else
+    string = trim(name) // 'SATURATION_FUNCTION_OG,SF_OG_constant'
+  endif
+
+  call SFOGBaseVerify(this,string,option)
+
+  if (Uninitialized(this%constant_capillary_pressure)) then
+    option%io_buffer = UninitializedMessage('Pcog_const',string)
+    call printErrMsg(option)
+  endif
+
+end subroutine SF_OG_constant_Verify
+
+! ************************************************************************** !
+
+subroutine SF_OG_Const_CapillaryPressure(this, gas_saturation, &
+                                         capillary_pressure,dpc_dsatg, &
+                                         option,table_idxs)
+  use Option_module
+
+  implicit none
+
+  class(sat_func_og_constant_type) :: this
+  PetscReal, intent(in) :: gas_saturation
+  PetscReal, intent(out) :: capillary_pressure
+  PetscReal, intent(out) :: dpc_dsatg
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  capillary_pressure = this%constant_capillary_pressure
   dpc_dsatg = 0.0d0
 
-end subroutine SF_OG_BC_CapillaryPressure
+end subroutine SF_OG_Const_CapillaryPressure
 
+
+! ************************************************************************** !
+! ************************************************************************** !
+! ************************************************************************** !
+
+! function SF_OG_BC_Create()
+! 
+!   implicit none
+! 
+!   class(sat_func_og_BC_type), pointer :: SF_OG_BC_Create
+! 
+!   allocate(SF_OG_BC_Create)
+! 
+!   call SFOWGBaseInit(SF_OG_BC_Create)
+! 
+!   SF_OG_BC_Create%sat_func_sl => SF_BC_Create()
+! 
+!   call SF_OG_BC_Create%Init()
+! 
+! end function SF_OG_BC_Create
+! 
+! ! ************************************************************************** !
+! 
+! subroutine SF_OG_BC_Init(this)
+! 
+!   implicit none
+! 
+!   class(sat_func_og_BC_type) :: this
+! 
+!   this%lambda =  UNINITIALIZED_DOUBLE
+!   this%alpha =  UNINITIALIZED_DOUBLE
+! 
+!   this%analytical_derivative_available = &
+!       this%sat_func_sl%analytical_derivative_available
+! 
+! end subroutine SF_OG_BC_Init
+! 
+! ! ************************************************************************** !
+! 
+! subroutine SF_OG_BC_Verify(this,name,option)
+! 
+!   use Option_module
+! 
+!   implicit none
+! 
+!   class(sat_func_og_BC_type) :: this
+!   character(len=MAXSTRINGLENGTH) :: name
+!   type(option_type) :: option
+! 
+!   character(len=MAXSTRINGLENGTH) :: string
+! 
+!   if (index(name,'SATURATION_FUNCTION_OWG') > 0) then
+!     string = name
+!   else
+!     string = trim(name) // 'SATURATION_FUNCTION_OWG,SF_OG_BC'
+!   endif
+! 
+!   if ( .not.associated(this%sat_func_sl) ) then
+!     option%io_buffer = 'Not analytical function associated with the capillary &
+!       & pressure between oil and gas - saturation function chosen: ' // &
+!       trim(string)
+!     call printErrMsg(option)
+!   end if
+! 
+!   call SFOWGBaseVerify(this,string,option)
+! 
+!   if (Uninitialized(this%Socr)) then
+!     option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
+!     call printErrMsg(option)
+!   endif
+! 
+!   if (Uninitialized(this%lambda)) then
+!     option%io_buffer = UninitializedMessage('LAMBDA',string)
+!     call printErrMsg(option)
+!   endif
+! 
+!   if (Uninitialized(this%alpha)) then
+!     option%io_buffer = UninitializedMessage('alpha = 1/Pcc',string)
+!     call printErrMsg(option)
+!   endif
+! 
+!   call this%sat_func_sl%verify(name,option)
+! 
+! end subroutine SF_OG_BC_Verify
+! 
+! ! ************************************************************************** !
+! 
+! subroutine SF_OG_BC_SetupPolynomials(this,option,error_string)
+! 
+!   ! Sets up polynomials for smoothing Brooks-Corey saturation function
+! 
+!   use Option_module
+!   use Utility_module
+! 
+!   implicit none
+! 
+!   class(sat_func_og_BC_type) :: this
+!   type(option_type) :: option
+!   character(len=MAXSTRINGLENGTH) :: error_string
+! 
+!   call this%sat_func_sl%SetupPolynomials(option,error_string)
+! 
+! end subroutine SF_OG_BC_SetupPolynomials
+! 
+! ! ************************************************************************** !
+! 
+! subroutine SF_OG_BC_CapillaryPressure(this,oil_saturation, gas_saturation, &
+!                                       capillary_pressure,dpc_dsato,dpc_dsatg, &
+!                                       option,table_idxs)
+!   use Option_module
+! 
+!   implicit none
+! 
+!   class(sat_func_og_BC_type) :: this
+!   PetscReal, intent(in) :: oil_saturation
+!   PetscReal, intent(in) :: gas_saturation
+!   PetscReal, intent(out) :: capillary_pressure
+!   PetscReal, intent(out) :: dpc_dsato
+!   PetscReal, intent(out) :: dpc_dsatg
+!   type(option_type), intent(inout) :: option
+!   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+! 
+!   call this%sat_func_sl%CapillaryPressure(oil_saturation,capillary_pressure, &
+!                                           dpc_dsato,option)
+! 
+!   dpc_dsatg = 0.0d0
+! 
+! end subroutine SF_OG_BC_CapillaryPressure
+! 
 ! ************************************************************************** !
 
 function SF_OG_VG_SL_Create()
@@ -1426,7 +2477,8 @@ function SF_OG_VG_SL_Create()
 
   allocate(SF_OG_VG_SL_Create)
 
-  call SFOWGBaseInit(SF_OG_VG_SL_Create)
+  !call SFOWGBaseInit(SF_OG_VG_SL_Create)
+  call SFOGBaseInit(SF_OG_VG_SL_Create)
 
   SF_OG_VG_SL_Create%sat_func_sl => SF_VG_Create()
 
@@ -1479,7 +2531,8 @@ subroutine SF_OG_VG_SL_Verify(this,name,option)
     call printErrMsg(option)
   end if
 
-  call SFOWGBaseVerify(this,string,option)
+  !call SFOWGBaseVerify(this,string,option)
+  call SFOGBaseVerify(this,string,option)
 
   if (Uninitialized(this%Slcr)) then
     option%io_buffer = UninitializedMessage('LIQUID_RESIDUAL_SATURATION',string)
@@ -1502,18 +2555,21 @@ end subroutine SF_OG_VG_SL_Verify
 
 ! ************************************************************************** !
 
-subroutine SF_OG_VG_SL_CapillaryPressure(this,oil_saturation, gas_saturation, &
-                                       capillary_pressure,dpc_dsato,dpc_dsatg, &
-                                       option,table_idxs)
+!subroutine SF_OG_VG_SL_CapillaryPressure(this,oil_saturation, gas_saturation, &
+!                                       capillary_pressure,dpc_dsato,dpc_dsatg, &
+!                                       option,table_idxs)
+subroutine SF_OG_VG_SL_CapillaryPressure(this, gas_saturation, &
+                                         capillary_pressure,dpc_dsatg, &
+                                         option,table_idxs)
   use Option_module
 
   implicit none
 
   class(sat_func_og_VG_SL_type) :: this
-  PetscReal, intent(in) :: oil_saturation
+  !PetscReal, intent(in) :: oil_saturation
   PetscReal, intent(in) :: gas_saturation
   PetscReal, intent(out) :: capillary_pressure
-  PetscReal, intent(out) :: dpc_dsato
+  !PetscReal, intent(out) :: dpc_dsato
   PetscReal, intent(out) :: dpc_dsatg
   type(option_type), intent(inout) :: option
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
@@ -1525,9 +2581,8 @@ subroutine SF_OG_VG_SL_CapillaryPressure(this,oil_saturation, gas_saturation, &
   call this%sat_func_sl%CapillaryPressure(liq_saturation,capillary_pressure, &
                                           dpc_dsatl,option)
 
-  dpc_dsato = dpc_dsatl
+  !dpc_dsato = dpc_dsatl
   dpc_dsatg = - dpc_dsatl
-
 
 end subroutine SF_OG_VG_SL_CapillaryPressure
 
@@ -2811,26 +3866,49 @@ end subroutine RPF_oil_ecl_RelPerm
 
 ! ************************************************************************** !
 
-subroutine SaturationFunctionOWGDestroy(sf_owg)
+subroutine SaturationFunctionXWDestroy(sf_xw)
   !
-  ! Destroys an OWG saturuation function
+  ! Destroys an XW saturuation function
   !
   ! Author: Paolo Orsini
-  ! Date: 11/16/17
+  ! Date: 11/16/17 - 07/20/18
   !
 
   implicit none
 
-  class(sat_func_owg_base_type), pointer :: sf_owg
+  class(sat_func_xw_base_type), pointer :: sf_xw
 
-  if (.not.associated(sf_owg)) return
+  if (.not.associated(sf_xw)) return
 
-  call SaturationFunctionDestroy(sf_owg%sat_func_sl)
+  call SaturationFunctionDestroy(sf_xw%sat_func_sl)
 
-  deallocate(sf_owg)
-  nullify(sf_owg)
+  deallocate(sf_xw)
+  nullify(sf_xw)
 
-end subroutine SaturationFunctionOWGDestroy
+end subroutine SaturationFunctionXWDestroy
+
+! ************************************************************************** !
+
+subroutine SaturationFunctionOGDestroy(sf_og)
+  !
+  ! Destroys an OG saturuation function
+  !
+  ! Author: Paolo Orsini
+  ! Date: 07/20/18
+  !
+
+  implicit none
+
+  class(sat_func_og_base_type), pointer :: sf_og
+
+  if (.not.associated(sf_og)) return
+
+  call SaturationFunctionDestroy(sf_og%sat_func_sl)
+
+  deallocate(sf_og)
+  nullify(sf_og)
+
+end subroutine SaturationFunctionOGDestroy
 
 ! ************************************************************************** !
 

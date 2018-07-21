@@ -426,12 +426,20 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !  Get oil-water and oil-gas capilliary pressures
 !  Note Pw=Po-Pcow, Pg=Po+Pcog
 
+  ! call characteristic_curves%oil_wat_sat_func% &
+  !           CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(wid), &
+  !                             dummy,dummy2,option,auxvar%table_idx)
   call characteristic_curves%oil_wat_sat_func% &
-            CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(wid), &
-                              dummy,dummy2,option,auxvar%table_idx)
+            CapillaryPressure(auxvar%sat(wid), &
+                              auxvar%pc(wid),dummy,option,auxvar%table_idx)
+                              
+  ! call characteristic_curves%oil_gas_sat_func% &
+  !           CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(oid), &
+  !                             dummy,dummy2,option,auxvar%table_idx)
   call characteristic_curves%oil_gas_sat_func% &
-            CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(oid), &
-                              dummy,dummy2,option,auxvar%table_idx)
+            CapillaryPressure(auxvar%sat(gid), &
+                              auxvar%pc(oid),dummy,option,auxvar%table_idx)                            
+                              
   auxvar%pres(wid) = auxvar%pres(oid) - auxvar%pc(wid)
   auxvar%pres(gid) = auxvar%pres(oid) + auxvar%pc(oid)
 
@@ -733,15 +741,23 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !  Get the capillary pressures
 !==============================================================================
 
+  ! call characteristic_curves%oil_wat_sat_func% &
+  !           CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(wid), &
+  !                             dummy,dummy2,option,auxvar%table_idx)
+
   call characteristic_curves%oil_wat_sat_func% &
-            CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(wid), &
-                              dummy,dummy2,option,auxvar%table_idx)
+            CapillaryPressure(auxvar%sat(wid), &
+                              auxvar%pc(wid),dummy,option,auxvar%table_idx)
 
   auxvar%pc(oid) = 0.0d0
 
+  ! call characteristic_curves%oil_gas_sat_func% &
+  !           CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(oid), &
+  !                             dummy,dummy2,option,auxvar%table_idx)
+                              
   call characteristic_curves%oil_gas_sat_func% &
-            CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(oid), &
-                              dummy,dummy2,option,auxvar%table_idx)
+            CapillaryPressure(auxvar%sat(gid), &
+                              auxvar%pc(oid),dummy,option,auxvar%table_idx)
 
 !==============================================================================
 !  Get the phase pressures
@@ -956,6 +972,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: test
   PetscReal :: swcr,sgcr,sowcr,sogcr,swco,fm,fi,rat
   PetscReal :: deno,deng,dens,denotl,dengtl,denstl,krow,krog,sc,den,soa,sva,sumhydsat
+  PetscReal :: swa
   PetscReal :: socrs,svcrs,krvm
 
   PetscReal, parameter :: eps_oil=1.0d-5
@@ -1132,20 +1149,27 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     soa=(1.0d0-eps_oil)*so/sh
     sva=(1.0d0-eps_oil)*sv/sh
   endif
+  swa = 1 - soa - sva
 
 !--Pcow------------------------------------------------------------------------
 
-  auxvar%pc(wid) =0.0d0
+  ! auxvar%pc(wid) =0.0d0
+  ! call characteristic_curves%oil_wat_sat_func% &
+  !           CapillaryPressure(soa,sva,auxvar%pc(wid), &
+  !                             dummy,dummy2,option,auxvar%table_idx)
+!New Pcow function                            
   call characteristic_curves%oil_wat_sat_func% &
-            CapillaryPressure(soa,sva,auxvar%pc(wid), &
-                              dummy,dummy2,option,auxvar%table_idx)
+            CapillaryPressure(swa,auxvar%pc(wid),dummy,option,auxvar%table_idx)
 
 !--Pcog------------------------------------------------------------------------
 
-  auxvar%pc(oid) = 0.0d0
+  ! auxvar%pc(oid) = 0.0d0
+  ! call characteristic_curves%oil_gas_sat_func% &
+  !           CapillaryPressure(soa,sva,auxvar%pc(oid), &
+  !                             dummy,dummy2,option,auxvar%table_idx)
+!New Pcog function
   call characteristic_curves%oil_gas_sat_func% &
-            CapillaryPressure(soa,sva,auxvar%pc(oid), &
-                              dummy,dummy2,option,auxvar%table_idx)
+            CapillaryPressure(sva,auxvar%pc(oid),dummy,option,auxvar%table_idx)
 
 !  Scale Pcog for degree of miscibility
 
@@ -1554,9 +1578,12 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   ! PO after characteristic_curves refactoring
   !    dummy=dPcdSo,dummy2=dPcdSg
+  ! call characteristic_curves%oil_wat_sat_func% &
+  !           CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(wid), &
+  !                             dummy,dummy2,option,auxvar%table_idx)
   call characteristic_curves%oil_wat_sat_func% &
-            CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(wid), &
-                              dummy,dummy2,option,auxvar%table_idx)
+              CapillaryPressure(sat_water,auxvar%pc(wid),dummy, &
+                                option,auxvar%table_idx)
 
   auxvar%pres(gid) = auxvar%pres(oid)
   auxvar%pres(wid) = auxvar%pres(oid) - auxvar%pc(wid)

@@ -1294,7 +1294,7 @@ subroutine SF_mK_CapillaryPressure(this,liquid_saturation, &
   !
   ! Malama, B. & K.L. Kuhlman, 2015. Unsaturated Hydraulic Conductivity
   ! Models Based on Truncated Lognormal Pore-size Distributions, Groundwater,
-  ! 53(3):498–502. http://dx.doi.org/10.1111/gwat.12220
+  ! 53(3):498ï¿½502. http://dx.doi.org/10.1111/gwat.12220
   !
   ! Author: Kris Kuhlman
   ! Date: 2017
@@ -1372,7 +1372,7 @@ subroutine SF_mK_Saturation(this,capillary_pressure, &
   !
   ! Malama, B. & K.L. Kuhlman, 2015. Unsaturated Hydraulic Conductivity
   ! Models Based on Truncated Lognormal Pore-size Distributions, Groundwater,
-  ! 53(3):498–502. http://dx.doi.org/10.1111/gwat.12220
+  ! 53(3):498ï¿½502. http://dx.doi.org/10.1111/gwat.12220
   !
   ! Author: Kris Kuhlman
   ! Date: 2017
@@ -2944,7 +2944,7 @@ subroutine RPF_mK_Liq_RelPerm(this,liquid_saturation, &
   !
   ! Malama, B. & K.L. Kuhlman, 2015. Unsaturated Hydraulic Conductivity
   ! Models Based on Truncated Lognormal Pore-size Distributions, Groundwater,
-  ! 53(3):498–502. http://dx.doi.org/10.1111/gwat.12220
+  ! 53(3):498ï¿½502. http://dx.doi.org/10.1111/gwat.12220
   !
   ! Author: Kris Kuhlman
   ! Date: 2017
@@ -3080,7 +3080,7 @@ subroutine RPF_mK_Gas_RelPerm(this,liquid_saturation, &
   !
   ! Malama, B. & K.L. Kuhlman, 2015. Unsaturated Hydraulic Conductivity
   ! Models Based on Truncated Lognormal Pore-size Distributions, Groundwater,
-  ! 53(3):498–502. http://dx.doi.org/10.1111/gwat.12220
+  ! 53(3):498ï¿½502. http://dx.doi.org/10.1111/gwat.12220
   !
   ! Author: Kris Kuhlman
   ! Date: 2017
