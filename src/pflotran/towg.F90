@@ -3018,6 +3018,7 @@ end subroutine TOWGImsTLSrcSink
 
 subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
                          global_auxvar,ss_flow_vol_flux,scale,Res)
+                         ! & j, analytical_derivatives
   ! 
   ! Computes the source/sink terms for the residual in the black oil case
   ! 
@@ -3100,11 +3101,25 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
     mole_wt  = towg_fmw_comp(iphase)
     xmfo=auxvar%bo%xo
     xmfg=auxvar%bo%xg
+#if 0
+          if (analytical_derivatives) then
+            !!! get xo and xg derivs from auxvars,
+            D_xmfo = auxvar%bo%D_xo
+            D_xmfg = auxvar%bo%D_xg
+            !!! mol wt has 0 derivs
+            D_mol_wt = 0.d0
+          endif
+#endif
     if ( qsrc(iphase) > 0.d0) then
       select case(option%phase_map(iphase))
         case(LIQUID_PHASE)
 ! Case of water
           call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
+#if 0
+          if (analytical_derivatives) then
+            !!! there is a density deriv w.r.t. pressure and temp at least
+          endif
+#endif
         case(OIL_PHASE)
 ! Note this is dead oil, so take bubble point as reference pressure
           po=cell_pressure
@@ -3119,19 +3134,55 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
           xmfo=1.0D0
           xmfg=0.0D0
           mole_wt=EOSOilGetFMW()
+#if 0
+          if (analytical_derivatives) then
+            !!! density derivs. 
+            !!! corrected densityderivs
+            !!! ...
+            !!! xmfo and xmfg are constants now
+            D_xmfo = 0.d0
+            D_xmfg = 0.d0
+          endif
+#endif
+
         case(GAS_PHASE)
           call EOSGasDensity(temperature,cell_pressure,den,ierr, &
                              auxvar%table_idx)
+#if 0
+          if (analytical_derivatives) then
+            !!! there is a density deriv w.r.t. pressure and temp at least
+          endif
+#endif
         case(SOLVENT_PHASE)
           call EOSSlvDensity(temperature,cell_pressure,den,ierr, &
                              auxvar%table_idx)
+#if 0
+          if (analytical_derivatives) then
+            !!! there is a density deriv w.r.t. pressure and temp at least
+            !!!! TODO
+          endif
+#endif
       end select
     else
       den = auxvar%den(iphase)
+#if 0
+          if (analytical_derivatives) then
+            !!! get den derivs from auxvar
+            D_Den = auxvar%D_den(iphase,:)
+          endif
+#endif
       select case(option%phase_map(iphase))
         case(OIL_PHASE)
           mole_wt= xmfo*EOSOilGetFMW() &
                   +xmfg*EOSGasGetFMW()
+#if 0
+          if (analytical_derivatives) then
+            !!! xmf derivs have been taken as the ones from 
+            !!! the auxvar, so just add and multiply by ...FMW()
+            D_mole_wt = D_xmfo*EOSOilGetFMW() &
+                      + D_xmfg*EOSGasGetFMW()
+          endif
+#endif
       end select
     end if
 
@@ -3139,14 +3190,44 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
       ! injection and production
       case(MASS_RATE_SS)
         qsrc_mol = qsrc(iphase)/mole_wt          ! kg/sec -> kmol/sec
+#if 0
+        !!! 
+        if (analytical_derivatives) then
+          D_qsrc_mol = DivRule(qsrc(iphase),D_qsrc,      &
+                               mole_wt,D_mole_wt,ndof  ) &
+                     * scale
+        endif
+#endif
       case(SCALED_MASS_RATE_SS)                  ! kg/sec -> kmol/sec
         qsrc_mol = qsrc(iphase)/mole_wt*scale
+#if 0
+        !!! 
+        if (analytical_derivatives) then
+          D_qsrc_mol = DivRule(qsrc(iphase),D_qsrc,      &
+                               mole_wt,D_mole_wt,ndof  ) &
+                     * scale
+        endif
+#endif
       case(VOLUMETRIC_RATE_SS)  ! assume local density for now
                                 ! qsrc(iphase) = m^3/sec
         qsrc_mol = qsrc(iphase)*den ! den = kmol/m^3
+#if 0
+        !!! 
+        if (analytical_derivatives) then
+          D_qsrc_mol =  ProdRule(qsrc(iphase),D_qsrc, &
+                                 den,D_den,ndof        )
+        endif
+#endif
       case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
         ! qsrc1 = m^3/sec              ! den = kmol/m^3
         qsrc_mol = qsrc(iphase)* den * scale
+#if 0
+        !!! 
+        if (analytical_derivatives) then
+          D_qsrc_mol =  ProdRule(qsrc(iphase),D_qsrc, &
+                                 den,D_den,ndof        )
+        endif
+#endif
     end select
 
     ss_flow_vol_flux(iphase) = qsrc_mol/ den
@@ -3161,6 +3242,14 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         if( is_oil_in_oil ) xmf=xmfo
         if( is_gas_in_oil ) xmf=xmfg
         Res(icomp) = Res(icomp)+xmf*qsrc_mol
+
+#if 0
+        !!! jac contribution here
+        if (analytical_derivatives) then
+          J(icomp,:) = J(icomp,:) + ProdRule(xmf,D_xmf,              &
+                                             qsrc_mol,D_qsrc_mol,ndof )
+        endif
+#endif
       endif
     enddo
 
