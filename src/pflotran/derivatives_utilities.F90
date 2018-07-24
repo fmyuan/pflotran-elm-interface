@@ -12,11 +12,13 @@ module Derivatives_utilities_module
 
   public  :: d_prodrule_2, &
              d_prodrule_3, &
-             d_divrule, &
+             !d_divrule, &
              d_power, &
              scal_d_prodrule, &
              ProdRule, &
-             ProdRule3
+             ProdRule3, &
+             DivRule, &
+             DivRule1
 
   contains
 
@@ -150,7 +152,7 @@ end function  d_prodrule_3
 
 ! ************************************************************************** !
 
-function d_divrule(x, dx, y, dy, n)
+function DivRule(x, dx, y, dy, n)
 
 !! derivatives of x/y, see comments in d_prodrule_2 for general schema
 !! of partial derivatives and etc.
@@ -159,23 +161,52 @@ implicit none
   PetscInt :: n
   PetscReal :: x, y
   PetscReal, dimension(1:n) :: dx, dy
-  PetscReal, dimension(1:n) :: d_divrule
+  PetscReal, dimension(1:n) :: DivRule 
 
   PetscReal :: denompart
   PetscInt :: i
 
-  d_divrule = 0.d0
-  if( abs(y)>0.0 ) then
+  DivRule = 0.d0
+  if( abs(y)<EPSILON(x) ) then
     return
   endif
 
   denompart = 1.d0/y/y
   do i = 1,n
-    d_divrule(i) =  dx(i)/y - x*dy(i)*denompart
+    DivRule(i) =  dx(i)/y - x*dy(i)*denompart
   end do
 
 
-end function d_divrule
+end function DivRule 
+
+! ************************************************************************** !
+
+function DivRule1(x, dx, n)
+
+!! derivatives of 1/x, see comments in above for general schema
+!! of partial derivatives and etc.
+
+implicit none
+  PetscInt :: n
+  PetscReal :: x
+  PetscReal, dimension(1:n) :: dx
+  PetscReal, dimension(1:n) :: DivRule1
+
+  PetscReal :: denompart
+  PetscInt :: i
+
+  DivRule1 = 0.d0
+  if( abs(x)<EPSILON(x) ) then
+    return
+  endif
+
+  denompart = 1.d0/x/x
+  do i = 1,n
+    DivRule1(i) = -1.d0*dx(i)*denompart
+  end do
+
+
+end function DivRule1
 
 ! ************************************************************************** !
 
