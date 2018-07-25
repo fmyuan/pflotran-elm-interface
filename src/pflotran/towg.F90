@@ -1812,7 +1812,7 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
 
 !!!!
     if (analytical_derivatives) then
-      J(icomp,:) = J(icomp,:) + ProdRule(auxvar%sat(iphase),auxvar%D_sat(iphase,:),      &
+      J(iphase,:) = J(iphase,:) + ProdRule(auxvar%sat(iphase),auxvar%D_sat(iphase,:),      &
                                          auxvar%den(iphase),auxvar%D_den(iphase,:),ndof )
     endif
 !!!!
@@ -2497,6 +2497,10 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
   ndof = option%nflowdof
 
+  if (analytical_derivatives) then
+    jdn = 0.d0
+  endif
+
 ! Set flag indicating a black oil run
 
   is_black_oil=PETSC_FALSE
@@ -2539,7 +2543,22 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 #ifdef CONVECTION  
   do iphase = 1, option%nphase
 
-    !!!! TODO - zero out workers
+    if (analytical_derivatives) then
+      !!! zero out all the workers 
+      D_den_kg_ave_up=0.d0;        D_den_kg_ave_dn=0.d0
+      D_den_ave_up=0.d0;           D_den_ave_dn=0.d0
+      D_delta_presure_up=0.d0;     D_delta_presure_dn=0.d0
+      D_mobility_up=0.d0;          D_mobility_dn=0.d0
+      D_uH_up=0.d0;                D_uH_dn=0.d0
+      D_v_darcy_up=0.d0;           D_v_darcy_dn=0.d0
+      D_q_up=0.d0;                 D_q_dn=0.d0
+      D_mole_flux_up=0.d0;         D_mole_flux_dn=0.d0
+      D_xmf_up=0.d0;               D_xmf_dn=0.d0
+      d_den_kg_ave_dden_up=0.d0;   d_den_kg_ave_dden_dn=0.d0
+      d_den_ave_dden_up=0.d0;      d_den_ave_dden_dn=0.d0
+      d_delta_temp_dt_up=0.d0;     d_delta_temp_dt_dn=0.d0
+      dheat_flux_ddelta_temp=0.d0
+   endif
  
     bc_type = ibndtype(iphase)
     select case(bc_type)
@@ -3303,6 +3322,11 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
 
 
   ref_pressure=option%reference_pressure
+
+  if (analytical_derivatives) then
+    j = 0.d0
+    ndof = option%nflowdof
+  endif
 
   ! this can be removed if extending to pressure condition
   if (.not.associated(src_sink_condition%rate) ) then
@@ -4119,8 +4143,23 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                     area,dist,towg_parameter, &
                     option,v_darcy,res,PETSC_FALSE,jalyt_dn,PETSC_TRUE)
 
+    if (towg_isothermal) then
+     jalyt_dn(towg_energy_eq_idx,:) = 0.d0
+     jalyt_dn(:,towg_energy_eq_idx) = 0.d0
+    endif
+    
+    if (towg_no_oil) then
+     jalyt_dn(TOWG_OIL_EQ_IDX,:) = 0.d0
+     jalyt_dn(:,TOWG_OIL_EQ_IDX) = 0.d0
+    endif  
+
+    if (towg_no_gas) then
+      jalyt_dn(TOWG_GAS_EQ_IDX,:) = 0.d0
+      jalyt_dn(:,TOWG_GAS_EQ_IDX) = 0.d0
+    endif  
+
     if (towg_analytical_derivatives_compare) then
-      call MatCompare(Jdn, Jalyt_dn, 4, 4, option%debug_tol, option%matcompare_reldiff)
+      call MatCompare(Jdn, Jalyt_dn, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
     endif
 
     jdn = jalyt_dn
@@ -4194,8 +4233,23 @@ subroutine TOWGSrcSinkDerivative(option,src_sink_condition,auxvars, &
     call TOWGSrcSink(option,src_sink_condition,auxvars(ZERO_INTEGER), &
                      global_auxvar,dummy_real,scale,res_pert,Jalyt,PETSC_TRUE)
 
+    if (towg_isothermal) then
+      jalyt(towg_energy_eq_idx,:) = 0.d0
+      jalyt(:,towg_energy_eq_idx) = 0.d0
+    endif
+    
+    if (towg_no_oil) then
+     jalyt(TOWG_OIL_EQ_IDX,:) = 0.d0
+     jalyt(:,TOWG_OIL_EQ_IDX) = 0.d0
+    endif  
+
+    if (towg_no_gas) then
+      jalyt(TOWG_GAS_EQ_IDX,:) = 0.d0
+      jalyt(:,TOWG_GAS_EQ_IDX) = 0.d0
+    endif  
+
     if (towg_analytical_derivatives_compare) then
-      call MatCompare(Jac, Jalyt, 4, 4, option%debug_tol, option%matcompare_reldiff)
+      call MatCompare(Jac, Jalyt, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
     endif
 
     jac = jalyt
