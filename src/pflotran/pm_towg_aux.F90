@@ -1091,6 +1091,9 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                              uo,auxvar%D_U(oid,dof_temp),auxvar%D_U(oid,dof_op), &
                              ierr) !! look out for conversion between kg/molar density in derivs
 
+    !EOSOilDenEnergyDerive(T,P,Rho,dRho_dT,dRho_dP,H,dH_dT,dH_dP, &
+                                    !U,dU_dT,dU_dP,ierr,table_idxs)
+
     ! Density and compressibility look-up at bubble point
 #if 0
     ! NOTE - here placing deriv of oil den w.r.t. pb in D_den(oid,dof_gsat) - this is valid if state is unsat.
@@ -1351,7 +1354,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                       + ProdRule(auxvar%bo%xg,auxvar%bo%D_xg,           &
                                  auxvar%H(gid),auxvar%D_H(gid,:),option%nflowdof) 
 
-    auxvar%D_H(oid,:) = prodrule(auxvar%bo%xo,auxvar%bo%d_xo,           &
+    auxvar%D_U(oid,:) = prodrule(auxvar%bo%xo,auxvar%bo%d_xo,           &
                                  auxvar%U(oid),auxvar%D_U(oid,:),option%nflowdof)  &
                       + ProdRule(auxvar%bo%xg,auxvar%bo%d_xg,           &
                                  auxvar%U(gid),auxvar%D_U(gid,:),option%nflowdof) 
@@ -1361,6 +1364,12 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%H(oid) = auxvar%bo%xo*auxvar%H(oid)+auxvar%bo%xg*auxvar%H(gid)
   auxvar%U(oid) = auxvar%bo%xo*auxvar%U(oid)+auxvar%bo%xg*auxvar%U(gid)
 !----------/Oil enthalpy/oil mole in oil phase---------------------------------
+
+#if 0
+if (auxvar%D_U(oid,dof_temp)==0.d0) then
+  print *, "here"
+endif
+#endif
 
 
 !===============================================================================
