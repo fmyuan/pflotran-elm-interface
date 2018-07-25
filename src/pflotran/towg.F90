@@ -4040,6 +4040,7 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
   use Option_module 
   use Material_Aux_class
+  use Utility_module
   
   implicit none
 
@@ -4062,49 +4063,70 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   PetscInt :: idof, irow
 
   PetscReal :: jdum(option%nflowdof,option%nflowdof)
+  PetscReal :: Jalyt_dn(option%nflowdof,option%nflowdof)
 
   Jdn = 0.d0
   !print *, 'TOWGBCFluxDerivative'
 
-  option%iflag = -2
-  call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
-                  auxvar_up,global_auxvar_up, &
-                  auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                  material_auxvar_dn,sir_dn, &
-                  thermal_conductivity_dn, &
-                  area,dist,towg_parameter, &
-                  option,v_darcy,res,PETSC_FALSE,jdum,PETSC_FALSE)
-                    
-  ! downgradient derivatives
-  do idof = 1, option%nflowdof
+  if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare) then
+
+    option%iflag = -2
     call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                     auxvar_up,global_auxvar_up, &
-                    auxvar_dn(idof),global_auxvar_dn, &
+                    auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                     material_auxvar_dn,sir_dn, &
                     thermal_conductivity_dn, &
                     area,dist,towg_parameter, &
-                    option,v_darcy,res_pert,PETSC_FALSE,jdum,PETSC_FALSE)
-    do irow = 1, option%nflowdof
-      Jdn(irow,idof) = (res_pert(irow)-res(irow))/auxvar_dn(idof)%pert
-    enddo !irow
-  enddo ! idof
+                    option,v_darcy,res,PETSC_FALSE,jdum,PETSC_FALSE)
+                      
+    ! downgradient derivatives
+    do idof = 1, option%nflowdof
+      call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
+                      auxvar_up,global_auxvar_up, &
+                      auxvar_dn(idof),global_auxvar_dn, &
+                      material_auxvar_dn,sir_dn, &
+                      thermal_conductivity_dn, &
+                      area,dist,towg_parameter, &
+                      option,v_darcy,res_pert,PETSC_FALSE,jdum,PETSC_FALSE)
+      do irow = 1, option%nflowdof
+        Jdn(irow,idof) = (res_pert(irow)-res(irow))/auxvar_dn(idof)%pert
+      enddo !irow
+    enddo ! idof
 
-  if (towg_isothermal) then
-    Jdn(towg_energy_eq_idx,:) = 0.d0
-    Jdn(:,towg_energy_eq_idx) = 0.d0
+    if (towg_isothermal) then
+      Jdn(towg_energy_eq_idx,:) = 0.d0
+      Jdn(:,towg_energy_eq_idx) = 0.d0
+    endif
+    
+    if (towg_no_oil) then
+      Jdn(TOWG_OIL_EQ_IDX,:) = 0.d0
+      Jdn(:,TOWG_OIL_EQ_IDX) = 0.d0
+    endif  
+
+    if (towg_no_gas) then
+      Jdn(TOWG_GAS_EQ_IDX,:) = 0.d0
+      Jdn(:,TOWG_GAS_EQ_IDX) = 0.d0
+    endif  
+
   endif
-  
-  if (towg_no_oil) then
-    Jdn(TOWG_OIL_EQ_IDX,:) = 0.d0
-    Jdn(:,TOWG_OIL_EQ_IDX) = 0.d0
-  endif  
 
-  if (towg_no_gas) then
-    Jdn(TOWG_GAS_EQ_IDX,:) = 0.d0
-    Jdn(:,TOWG_GAS_EQ_IDX) = 0.d0
-  endif  
-  
-end subroutine TOWGBCFluxDerivative
+  if (towg_analytical_derivatives) then
+    call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
+                    auxvar_up,global_auxvar_up, &
+                    auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                    material_auxvar_dn,sir_dn, &
+                    thermal_conductivity_dn, &
+                    area,dist,towg_parameter, &
+                    option,v_darcy,res,PETSC_FALSE,jalyt_dn,PETSC_TRUE)
+
+    if (towg_analytical_derivatives_compare) then
+      call MatCompare(Jdn, Jalyt_dn, 4, 4, option%debug_tol, option%matcompare_reldiff)
+    endif
+
+    jdn = jalyt_dn
+  endif
+    
+  end subroutine TOWGBCFluxDerivative
 
 ! ************************************************************************** !
 
@@ -4119,6 +4141,7 @@ subroutine TOWGSrcSinkDerivative(option,src_sink_condition,auxvars, &
 
   use Option_module
   use Condition_module
+  use Utility_module
 
   implicit none
 
@@ -4134,34 +4157,49 @@ subroutine TOWGSrcSinkDerivative(option,src_sink_condition,auxvars, &
   PetscInt :: idof, irow
 
   PetscReal :: jdum(option%nflowdof,option%nflowdof)
+  PetscReal :: Jalyt(option%nflowdof,option%nflowdof)
 
-  option%iflag = -3
-  call TOWGSrcSink(option,src_sink_condition,auxvars(ZERO_INTEGER), &
-                   global_auxvar,dummy_real,scale,Res,jdum,PETSC_FALSE)
+  if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare) then
+    option%iflag = -3
+    call TOWGSrcSink(option,src_sink_condition,auxvars(ZERO_INTEGER), &
+                     global_auxvar,dummy_real,scale,Res,jdum,PETSC_FALSE)
 
-  ! downgradient derivatives
-  do idof = 1, option%nflowdof
-    call TOWGSrcSink(option,src_sink_condition,auxvars(idof), &
-                     global_auxvar,dummy_real,scale,res_pert,jdum,PETSC_FALSE)
-    do irow = 1, option%nflowdof
-      Jac(irow,idof) = (res_pert(irow)-res(irow))/auxvars(idof)%pert
-    enddo !irow
-  enddo ! idof
- 
-  if (towg_isothermal) then
-    Jac(towg_energy_eq_idx,:) = 0.d0
-    Jac(:,towg_energy_eq_idx) = 0.d0
+    ! downgradient derivatives
+    do idof = 1, option%nflowdof
+      call TOWGSrcSink(option,src_sink_condition,auxvars(idof), &
+                       global_auxvar,dummy_real,scale,res_pert,jdum,PETSC_FALSE)
+      do irow = 1, option%nflowdof
+        Jac(irow,idof) = (res_pert(irow)-res(irow))/auxvars(idof)%pert
+      enddo !irow
+    enddo ! idof
+   
+    if (towg_isothermal) then
+      Jac(towg_energy_eq_idx,:) = 0.d0
+      Jac(:,towg_energy_eq_idx) = 0.d0
+    endif
+    
+    if (towg_no_oil) then
+      Jac(TOWG_OIL_EQ_IDX,:) = 0.d0
+      Jac(:,TOWG_OIL_EQ_IDX) = 0.d0
+    endif  
+
+    if (towg_no_gas) then
+      Jac(TOWG_GAS_EQ_IDX,:) = 0.d0
+      Jac(:,TOWG_GAS_EQ_IDX) = 0.d0
+    endif  
   endif
-  
-  if (towg_no_oil) then
-    Jac(TOWG_OIL_EQ_IDX,:) = 0.d0
-    Jac(:,TOWG_OIL_EQ_IDX) = 0.d0
-  endif  
 
-  if (towg_no_gas) then
-    Jac(TOWG_GAS_EQ_IDX,:) = 0.d0
-    Jac(:,TOWG_GAS_EQ_IDX) = 0.d0
-  endif  
+  if (towg_analytical_derivatives) then
+
+    call TOWGSrcSink(option,src_sink_condition,auxvars(ZERO_INTEGER), &
+                     global_auxvar,dummy_real,scale,res_pert,Jalyt,PETSC_TRUE)
+
+    if (towg_analytical_derivatives_compare) then
+      call MatCompare(Jac, Jalyt, 4, 4, option%debug_tol, option%matcompare_reldiff)
+    endif
+
+    jac = jalyt
+  endif
 
 end subroutine TOWGSrcSinkDerivative
 
