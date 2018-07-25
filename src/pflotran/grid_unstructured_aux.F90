@@ -391,7 +391,7 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
 #include "petsc/finclude/petscdm.h"
   use petscdm
   use Option_module
-  use Utility_module, only: reallocateIntArray
+  use Utility_module, only: ReallocateArray
   
   implicit none
   
@@ -729,7 +729,7 @@ subroutine UGridCreateUGDMShell(unstructured_grid,da,ugdm,ndof,option)
 #include "petsc/finclude/petscdmda.h"
   use petscdmda
   use Option_module
-  use Utility_module, only: reallocateIntArray
+  use Utility_module, only: ReallocateArray
   
   implicit none
 
@@ -1132,7 +1132,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
 #include "petsc/finclude/petscmat.h"
   use petscmat
   use Option_module
-  use Utility_module, only: reallocateIntArray, DeallocateArray
+  use Utility_module, only: ReallocateArray, DeallocateArray
   
   implicit none
 
@@ -1401,7 +1401,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
         ghost_cell_count = ghost_cell_count + 1
         ! reallocate the ghost cell array if necessary
         if (ghost_cell_count > max_ghost_cell_count) then
-          call reallocateIntArray(int_array_pointer,max_ghost_cell_count)
+          call ReallocateArray(int_array_pointer,max_ghost_cell_count)
         endif
         int_array_pointer(ghost_cell_count) = dual_id
         vec_ptr(idual + dual_offset + (local_id-1)*stride) = &

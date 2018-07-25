@@ -216,8 +216,7 @@ subroutine DatasetCommonHDF5ReadSelectCase(this,input,keyword,found,option)
       call InputReadWord(input,option,this%hdf5_dataset_name,PETSC_TRUE)
       call InputErrorMsg(input,option,'hdf5_dataset_name','DATASET')
     case('FILENAME') 
-      call InputReadNChars(input,option,this%filename, &
-                            MAXSTRINGLENGTH,PETSC_TRUE)
+      call InputReadFilename(input,option,this%filename)
       call InputErrorMsg(input,option,'name','DATASET')
     case('REALIZATION_DEPENDENT')
       this%realization_dependent = PETSC_TRUE

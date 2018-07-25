@@ -533,8 +533,7 @@ subroutine RegionRead(region,input,option)
           end select
         enddo
       case('FILE')
-        call InputReadNChars(input,option,region%filename, &
-                             MAXSTRINGLENGTH,PETSC_TRUE)
+        call InputReadFilename(input,option,region%filename)
         call InputErrorMsg(input,option,'filename','REGION')
       case('LIST')
         option%io_buffer = 'REGION LIST currently not implemented'
@@ -707,7 +706,7 @@ subroutine RegionReadFromFileId(region,input,option)
         cell_ids_p(count) = temp_int
       endif
       if (count+1 > max_size) then ! resize temporary array
-        call reallocateIntArray(cell_ids_p, max_size)
+        call ReallocateArray(cell_ids_p, max_size)
       endif
     enddo
 
@@ -755,8 +754,8 @@ subroutine RegionReadFromFileId(region,input,option)
       endif
       face_ids_p(count) = temp_int
       if (count+1 > max_size) then ! resize temporary array
-        call reallocateIntArray(cell_ids_p, max_size)
-        call reallocateIntArray(face_ids_p, max_size)
+        call ReallocateArray(cell_ids_p, max_size)
+        call ReallocateArray(face_ids_p, max_size)
       endif
     enddo
 
@@ -822,11 +821,11 @@ subroutine RegionReadFromFileId(region,input,option)
         end select
 
         if (count+1 > max_size) then ! resize temporary array
-          call reallocateIntArray(vert_id_0_p,max_size)
-          call reallocateIntArray(vert_id_1_p,max_size)
-          call reallocateIntArray(vert_id_2_p,max_size)
-          call reallocateIntArray(vert_id_3_p,max_size)
-          call reallocateIntArray(vert_id_4_p,max_size)
+          call ReallocateArray(vert_id_0_p,max_size)
+          call ReallocateArray(vert_id_1_p,max_size)
+          call ReallocateArray(vert_id_2_p,max_size)
+          call ReallocateArray(vert_id_3_p,max_size)
+          call ReallocateArray(vert_id_4_p,max_size)
         endif
       enddo
     enddo
@@ -870,7 +869,7 @@ subroutine RegionReadFromFileId(region,input,option)
       write(*,*) count,temp_int
     endif
     if (count+1 > max_size) then ! resize temporary array
-      call reallocateIntArray(temp_int_array,max_size)
+      call ReallocateArray(temp_int_array,max_size)
     endif
   enddo
 

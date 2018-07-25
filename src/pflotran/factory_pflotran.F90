@@ -261,8 +261,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
         option%restart_flag = PETSC_TRUE
         realization_dependent_restart = PETSC_FALSE
         ! this section preserves the legacy implementation
-        call InputReadNChars(input,option,option%restart_filename, &
-                             MAXSTRINGLENGTH,PETSC_TRUE)
+        call InputReadFilename(input,option,option%restart_filename)
         if (input%ierr == 0) then
           call InputReadDouble(input,option,option%restart_time)
           if (input%ierr == 0) then
@@ -280,8 +279,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           call StringToUpper(word)
           select case(word)
             case('FILENAME')
-              call InputReadNChars(input,option,option%restart_filename, &
-                                   MAXSTRINGLENGTH,PETSC_TRUE)
+              call InputReadFilename(input,option,option%restart_filename)
               call InputErrorMsg(input,option,'RESTART','filename') 
             case('RESET_TO_TIME_ZERO')
               ! any value but UNINITIALIZED_DOUBLE will set back to zero.

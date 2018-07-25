@@ -301,7 +301,7 @@ END
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  MATERIAL ./543_inactive_ugi.h5
+  FILE ./543_inactive_ugi.h5
 END
 
 END_SUBSURFACE

@@ -1186,8 +1186,8 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
       vertex_ids_geomech(count) = temp_int
       if (count+1 > max_size) then ! resize temporary array
         max_size_old = max_size
-        call reallocateIntArray(cell_ids_flow, max_size_old)
-        call reallocateIntArray(vertex_ids_geomech, max_size)
+        call ReallocateArray(cell_ids_flow, max_size_old)
+        call ReallocateArray(vertex_ids_geomech, max_size)
       endif
     enddo
 

@@ -785,8 +785,7 @@ subroutine ReactionReadPass1(reaction,input,option)
           end select
         enddo
       case('DATABASE')
-        call InputReadNChars(input,option,reaction%database_filename, &
-                             MAXSTRINGLENGTH,PETSC_TRUE)  
+        call InputReadFilename(input,option,reaction%database_filename)
         call InputErrorMsg(input,option,'keyword', &
                            'CHEMISTRY,DATABASE FILENAME')  
       case('LOG_FORMULATION')

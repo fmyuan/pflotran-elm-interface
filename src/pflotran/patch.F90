@@ -722,9 +722,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
   integral_flux => patch%integral_flux_list%first
   do
     if (.not.associated(integral_flux)) exit
-    integral_flux%connections => &
-      PatchGetConnectionsFromCoords(patch,integral_flux%coordinates, &
-                                    integral_flux%name,option)
+    call PatchGetIntegralFluxConnections(patch,integral_flux,option)
     call IntegralFluxSizeStorage(integral_flux,option)
     integral_flux => integral_flux%next
     option%flow%store_fluxes = PETSC_TRUE
@@ -8338,223 +8336,387 @@ end subroutine PatchGetCellCenteredVelocities
 
 ! ************************************************************************** !
 
-function PatchGetConnectionsFromCoords(patch,coordinates,integral_flux_name, &
-                                       option)
+subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   !
   !
   ! Returns a list of internal and boundary connection ids for cell
-  ! interfaces within a polygon.
+  ! interfaces defined by an integral flux object.
   !
   ! Author: Glenn Hammond
-  ! Date: 10/20/14
+  ! Date: 10/20/14, 01/31/18
   !
   use Option_module
+  use Integral_Flux_module
   use Geometry_module
   use Utility_module
   use Connection_module
   use Coupler_module
+  use Grid_Unstructured_Cell_module, only : MAX_VERT_PER_FACE
+  
 
   implicit none
 
   type(patch_type) :: patch
-  type(point3d_type) :: coordinates(:)
-  character(len=MAXWORDLENGTH) :: integral_flux_name
+  type(integral_flux_type) :: integral_flux
   type(option_type) :: option
 
-  PetscInt, pointer :: PatchGetConnectionsFromCoords(:)
-
-  PetscInt, pointer :: connections(:)
+  type(point3d_type), pointer :: polygon(:)
+  type(plane_type), pointer :: plane
+  PetscReal,pointer :: coordinates_and_directions(:,:)
+  PetscInt,pointer :: vertices(:,:)
   type(grid_type), pointer :: grid
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(coupler_type), pointer :: boundary_condition
 
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt, pointer :: connections(:)
   PetscInt :: idir
   PetscInt :: icount
   PetscInt :: array_size
   PetscInt :: sum_connection
   PetscInt :: iconn
-  PetscInt :: i
+  PetscInt :: ivert
+  PetscInt :: i, ii
+  PetscInt :: face_id
   PetscInt :: local_id
   PetscInt :: local_id_up
   PetscInt :: ghosted_id
   PetscInt :: ghosted_id_up
-  PetscInt :: ghosted_id_dn
   PetscReal :: fraction_upwind
   PetscReal :: magnitude
-  PetscReal :: v1(3), v2(3)
+  PetscReal :: v1(3), v2(3), cp(3)
   PetscReal :: x, y, z
-  PetscReal :: value1, value2
+  PetscReal :: coord(3)
+  PetscReal :: unit_direction(3) 
+  PetscReal, parameter :: absolute_tolerance = 1.d-10
   PetscReal, parameter :: relative_tolerance = 1.d-6
-  PetscBool :: within_tolerance
+  PetscBool :: found
+  PetscBool :: found2
+  PetscBool :: reverse_direction
+  PetscBool :: same_direction
+  PetscBool, pointer :: yet_to_be_found(:)
+  PetscInt :: ipass
+  PetscInt :: face_vertices_natural(MAX_VERT_PER_FACE)
+  PetscInt :: ivert1, ivert2
+  PetscInt :: iv1, iv2
+  PetscInt :: num_vertices1, num_vertices2
+  PetscInt :: num_to_be_found
   PetscErrorCode :: ierr
 
-  grid => patch%grid
+  nullify(yet_to_be_found)
+  nullify(connections)
 
-  ! determine orientation of polygon
-  if (size(coordinates) > 2) then
-    v1(1) = coordinates(2)%x - coordinates(1)%x
-    v1(2) = coordinates(2)%y - coordinates(1)%y
-    v1(3) = coordinates(2)%z - coordinates(1)%z
-    v2(1) = coordinates(2)%x - coordinates(3)%x
-    v2(2) = coordinates(2)%y - coordinates(3)%y
-    v2(3) = coordinates(2)%z - coordinates(3)%z
-    v1 = CrossProduct(v1,v2)
-    icount = 0
-    idir = 0
-    do i = X_DIRECTION, Z_DIRECTION
-      if (v1(i) > 1.d-10) then
-        icount = icount + 1
-        idir = i
+  grid => patch%grid
+  polygon => integral_flux%polygon
+  plane => integral_flux%plane
+  coordinates_and_directions => integral_flux%coordinates_and_directions
+  vertices => integral_flux%vertices
+  num_to_be_found = 0
+
+  if (associated(polygon)) then
+    ! determine orientation of polygon
+    allocate(plane)
+    if (size(polygon) > 2) then
+      call GeometryComputePlaneWithPoints(plane, &
+                                   polygon(1)%x,polygon(1)%y,polygon(1)%z, &
+                                   polygon(2)%x,polygon(2)%y,polygon(2)%z, &
+                                   polygon(3)%x,polygon(3)%y,polygon(3)%z)
+    else
+      if (Equal(polygon(1)%x,polygon(2)%x) .and. &
+          .not. Equal(polygon(1)%y,polygon(2)%y) .and. &
+          .not. Equal(polygon(1)%z,polygon(2)%z)) then
+        call GeometryComputePlaneWithPoints(plane, &
+                                     polygon(1)%x,polygon(1)%y,polygon(1)%z, &
+                                     polygon(1)%x,polygon(1)%y,polygon(2)%z, &
+                                     polygon(1)%x,polygon(2)%y,polygon(2)%z)
+      else if (.not. Equal(polygon(1)%x,polygon(2)%x) .and. &
+               Equal(polygon(1)%y,polygon(2)%y) .and. &
+               .not. Equal(polygon(1)%z,polygon(2)%z)) then
+        call GeometryComputePlaneWithPoints(plane, &
+                                     polygon(1)%x,polygon(1)%y,polygon(1)%z, &
+                                     polygon(1)%x,polygon(1)%y,polygon(2)%z, &
+                                     polygon(2)%x,polygon(1)%y,polygon(2)%z)
+      else if (.not. Equal(polygon(1)%x,polygon(2)%x) .and. &
+               .not. Equal(polygon(1)%y,polygon(2)%y) .and. &
+               Equal(polygon(1)%z,polygon(2)%z)) then
+        call GeometryComputePlaneWithPoints(plane, &
+                                     polygon(1)%x,polygon(1)%y,polygon(1)%z, &
+                                     polygon(1)%x,polygon(2)%y,polygon(1)%z, &
+                                     polygon(2)%x,polygon(2)%y,polygon(1)%z)
+      else
+        if (OptionPrintToScreen(option)) write(*,*) 'pt1: ', &
+          polygon(1)%x, polygon(1)%y, polygon(1)%z
+        if (OptionPrintToScreen(option)) write(*,*) 'pt2: ', &
+          polygon(2)%x, polygon(2)%y, polygon(2)%z
+        option%io_buffer = 'An integral flux polygon defined by 2 points must &
+          & be a plane.' 
+        call printErrMsg(option)
       endif
-    enddo
-  else
-    v1(1) = coordinates(1)%x
-    v1(2) = coordinates(1)%y
-    v1(3) = coordinates(1)%z
-    v2(1) = coordinates(2)%x
-    v2(2) = coordinates(2)%y
-    v2(3) = coordinates(2)%z
+    endif
     icount = 0
-    do i = X_DIRECTION, Z_DIRECTION
-      if (Equal(v2(i),v1(i))) then
-        idir = i
-        icount = icount + 1
-      endif
-    enddo
-    if (icount == 0) icount = 3
+    if (dabs(plane%A) > absolute_tolerance) then
+      idir = 1
+      icount = icount + 1
+    endif
+    if (dabs(plane%B) > absolute_tolerance) then
+      idir = 2
+      icount = icount + 1
+    endif
+    if (dabs(plane%C) > absolute_tolerance) then
+      idir = 3
+      icount = icount + 1
+    endif
+    if (icount /= 1) then
+      option%io_buffer = 'Polygon defined in integral flux "' // &
+        trim(adjustl(integral_flux%name)) // &
+        '" must be aligned with grid axes.'
+      call printErrMsg(option)
+    endif
+    integral_flux%plane => plane
   endif
 
-  if (icount > 1) then
-    option%io_buffer = 'Rectangle defined in integral flux "' // &
-      trim(adjustl(integral_flux_name)) // &
-      '" must be aligned with structured grid coordinates axes.'
-    call printErrMsg(option)
+  if (associated(coordinates_and_directions)) then
+    num_to_be_found = size(coordinates_and_directions,2)
+    allocate(yet_to_be_found(num_to_be_found))
+    yet_to_be_found = PETSC_TRUE
+  endif
+
+  if (associated(vertices)) then
+    if (grid%itype /= IMPLICIT_UNSTRUCTURED_GRID) then
+      option%io_buffer = 'INTEGRAL_FLUXES defined by VERTICES are only &
+        &supported for implicit unstructured grids: ' // &
+        trim(integral_flux%name) // '.'
+      call printErrMsg(option)
+    endif
+    num_to_be_found = size(vertices,2)
+    allocate(yet_to_be_found(num_to_be_found))
+    yet_to_be_found = PETSC_TRUE
   endif
 
   array_size = 100
   allocate(connections(array_size))
+
+  ipass = 1
+  nullify(boundary_condition)
+  nullify(cur_connection_set)
+  do 
+    select case(ipass)
+      case(1) ! internal connections
+        cur_connection_set => grid%internal_connection_set_list%first
+        sum_connection = 0
+        icount = 0
+      case(2) ! boundary connections
+        ! sets up first boundayr condition in list
+        if (.not.associated(boundary_condition)) then
+          boundary_condition => patch%boundary_condition_list%first
+          sum_connection = 0
+          icount = 0
+        endif
+        cur_connection_set => boundary_condition%connection_set
+    end select
+    do
+      if (.not.associated(cur_connection_set)) exit
+      do iconn = 1, cur_connection_set%num_connections
+        sum_connection = sum_connection + 1
+        magnitude = cur_connection_set%dist(0,iconn)
+        unit_direction(:) = &
+          cur_connection_set%dist(X_DIRECTION:Z_DIRECTION,iconn) 
+        select case(ipass)
+          case(1) ! internal connections
+            ghosted_id_up = cur_connection_set%id_up(iconn)
+            local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
+            ! if one of the cells is ghosted, the process stores the flux only
+            ! when the upwind cell is non-ghosted.
+            if (local_id_up <= 0) cycle
+            fraction_upwind = cur_connection_set%dist(-1,iconn)
+            x = grid%x(ghosted_id_up) + fraction_upwind * magnitude * &
+                                        unit_direction(X_DIRECTION)
+            y = grid%y(ghosted_id_up) + fraction_upwind * magnitude * &
+                                        unit_direction(Y_DIRECTION)
+            z = grid%z(ghosted_id_up) + fraction_upwind * magnitude * &
+                                        unit_direction(Z_DIRECTION)
+          case(2) ! boundary connections
+            local_id = cur_connection_set%id_dn(iconn)
+            ghosted_id = grid%nL2G(local_id)
+            fraction_upwind = 1.d0
+            x = grid%x(ghosted_id) - fraction_upwind * magnitude * &
+                                     unit_direction(X_DIRECTION)
+            y = grid%y(ghosted_id) - fraction_upwind * magnitude * &
+                                     unit_direction(Y_DIRECTION)
+            z = grid%z(ghosted_id) - fraction_upwind * magnitude * &
+                                     unit_direction(Z_DIRECTION)
+        end select 
+        found = PETSC_FALSE
+        same_direction = PETSC_TRUE
+        if (associated(plane)) then
+          if (minval(unit_direction) < 0.d0) then
+            same_direction = PETSC_FALSE
+          endif
+          found = dabs(GeomComputeDistanceFromPlane(plane,x,y,z)) < &
+                  relative_tolerance
+          if (found .and. associated(polygon)) then
+            found = GeometryPointInPolygon(x,y,z,iabs(idir),polygon)
+          endif
+        endif
+        if (.not.found .and. associated(coordinates_and_directions)) then
+          do i = 1, num_to_be_found
+            if (.not.yet_to_be_found(i)) cycle
+            v1(1) = coordinates_and_directions(1,i) - x
+            v1(2) = coordinates_and_directions(2,i) - y
+            v1(3) = coordinates_and_directions(3,i) - z
+            ! same point?
+            if (DotProduct(v1,v1)/magnitude < relative_tolerance) then
+              v2(1) = coordinates_and_directions(4,i)
+              v2(2) = coordinates_and_directions(5,i)
+              v2(3) = coordinates_and_directions(6,i)
+              ! same direction?
+              cp = CrossProduct(v2,unit_direction)
+              if (DotProduct(cp,cp)/magnitude < relative_tolerance) then
+                found = PETSC_TRUE
+                yet_to_be_found(i) = PETSC_FALSE
+                ! could be opposite direction
+                if (minval(v2*unit_direction) < 0.d0) then
+                  same_direction = PETSC_FALSE
+                endif
+                exit
+              endif
+            endif
+          enddo
+        endif
+        if (.not.found .and. associated(vertices)) then
+          face_id = grid%unstructured_grid%connection_to_face(iconn)
+          face_vertices_natural = &
+            grid%unstructured_grid%face_to_vertex_natural(:,face_id)
+          num_vertices1 = MAX_VERT_PER_FACE
+          do
+            if (face_vertices_natural(num_vertices1) > 0) exit
+            num_vertices1 = num_vertices1 - 1
+          enddo
+          do i = 1, num_to_be_found
+            if (.not.yet_to_be_found(i)) cycle
+            num_vertices2 = size(vertices,1)
+            do
+              if (Initialized(vertices(num_vertices2,i))) exit
+              num_vertices2 = num_vertices2 - 1
+            enddo
+            if (num_vertices1 /= num_vertices2) cycle
+            found2 = PETSC_FALSE
+            do ivert1 = 1, num_vertices1
+              do ivert2 = 1, num_vertices2
+                if (face_vertices_natural(ivert1) == vertices(ivert2,i)) then
+                  found2 = PETSC_TRUE
+                  exit
+                endif
+              enddo
+            enddo
+            if (found2) then
+              reverse_direction = PETSC_FALSE
+              ! search forward direction
+              iv1 = ivert1
+              iv2 = ivert2
+              do ii = 1, num_vertices1
+                if (face_vertices_natural(iv1) /= vertices(iv2,i)) then
+                  found2 = PETSC_FALSE
+                endif
+                iv1 = iv1 + 1
+                if (iv1 > num_vertices1) iv1 = 1
+                iv2 = iv2 + 1
+                if (iv2 > num_vertices1) iv2 = 1
+              enddo
+              ! search backward direction
+              if (.not.found) then
+                reverse_direction = PETSC_TRUE
+                found2 = PETSC_TRUE
+                iv1 = ivert1
+                iv2 = ivert2
+                do ii = 1, num_vertices1
+                  if (face_vertices_natural(iv1) /= vertices(iv2,i)) then
+                    found2 = PETSC_FALSE
+                  endif
+                  iv1 = iv1 + 1
+                  if (iv1 > num_vertices1) iv1 = 1
+                  iv2 = iv2 - 1
+                  if (iv2 < 1) iv2 = num_vertices1
+                enddo
+              endif
+            endif
+            if (found2) then
+              yet_to_be_found(i) = PETSC_FALSE
+              found = PETSC_TRUE
+              if (reverse_direction) same_direction = PETSC_FALSE
+              exit
+            endif
+          enddo
+        endif
+        if (found) then
+          icount = icount + 1
+          if (icount > size(connections)) then
+            call ReallocateArray(connections,array_size)
+          endif
+          if (same_direction) then
+            connections(icount) = sum_connection
+          else
+            connections(icount) = -sum_connection
+          endif
+        endif
+      enddo
+      cur_connection_set => cur_connection_set%next
+    enddo
+    select case(ipass)
+      case(1) ! internal connections
+        if (icount > 0) then
+          allocate(integral_flux%internal_connections(icount))
+          integral_flux%internal_connections = connections(1:icount)
+        endif
+        icount = 0
+        ipass = ipass + 1
+      case(2) ! boundary connections
+        boundary_condition => boundary_condition%next
+        if (.not.associated(boundary_condition)) then
+          if (icount > 0) then
+            allocate(integral_flux%boundary_connections(icount))
+            integral_flux%boundary_connections = connections(1:icount)
+          endif
+          exit
+        endif
+    end select
+  enddo
+
+  call DeallocateArray(yet_to_be_found)
+  call DeallocateArray(connections)
+
   icount = 0
-  ! Interior Flux Terms -----------------------------------
-  connection_set_list => grid%internal_connection_set_list
-  cur_connection_set => connection_set_list%first
-  sum_connection = 0
-  do
-    if (.not.associated(cur_connection_set)) exit
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-
-      ghosted_id_up = cur_connection_set%id_up(iconn)
-      ghosted_id_dn = cur_connection_set%id_dn(iconn)
-
-      local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
-      ! if one of the cells is ghosted, the process stores the flux only
-      ! when the upwind cell is non-ghosted.
-      if (local_id_up <= 0) cycle
-
-      fraction_upwind = cur_connection_set%dist(-1,iconn)
-      magnitude = cur_connection_set%dist(0,iconn)
-      x = grid%x(ghosted_id_up) + fraction_upwind * magnitude * &
-          cur_connection_set%dist(X_DIRECTION,iconn)
-      y = grid%y(ghosted_id_up) + fraction_upwind * magnitude * &
-          cur_connection_set%dist(Y_DIRECTION,iconn)
-      z = grid%z(ghosted_id_up) + fraction_upwind * magnitude * &
-          cur_connection_set%dist(Z_DIRECTION,iconn)
-      select case(idir)
-        case(X_DIRECTION)
-          value1 = x
-          value2 = coordinates(1)%x
-        case(Y_DIRECTION)
-          value1 = y
-          value2 = coordinates(1)%y
-        case(Z_DIRECTION)
-          value1 = z
-          value2 = coordinates(1)%z
-      end select
-      within_tolerance = PETSC_FALSE
-      if (Equal(value1,0.d0)) then
-        within_tolerance = Equal(value1,value2)
-      else
-        within_tolerance = dabs((value1-value2)/value1) < relative_tolerance
-      endif
-      if (within_tolerance .and. &
-          GeometryPointInPolygon(x,y,z,idir,coordinates)) then
-        icount = icount + 1
-        if (icount > size(connections)) then
-          call reallocateIntArray(connections,array_size)
-        endif
-        connections(icount) = sum_connection
-      endif
-    enddo
-    cur_connection_set => cur_connection_set%next
-  enddo
-
-  ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_condition_list%first
-  sum_connection = 0
-  do
-    if (.not.associated(boundary_condition)) exit
-    cur_connection_set => boundary_condition%connection_set
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-      local_id = cur_connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
-      fraction_upwind = 1.d0
-      magnitude = cur_connection_set%dist(0,iconn)
-      x = grid%x(ghosted_id) - fraction_upwind * magnitude * &
-                               cur_connection_set%dist(X_DIRECTION,iconn)
-      y = grid%y(ghosted_id) - fraction_upwind * magnitude * &
-                               cur_connection_set%dist(Y_DIRECTION,iconn)
-      z = grid%z(ghosted_id) - fraction_upwind * magnitude * &
-                               cur_connection_set%dist(Z_DIRECTION,iconn)
-      select case(idir)
-        case(X_DIRECTION)
-          value1 = x
-          value2 = coordinates(1)%x
-        case(Y_DIRECTION)
-          value1 = y
-          value2 = coordinates(1)%y
-        case(Z_DIRECTION)
-          value1 = z
-          value2 = coordinates(1)%z
-      end select
-      within_tolerance = PETSC_FALSE
-      if (Equal(value1,0.d0)) then
-        within_tolerance = Equal(value1,value2)
-      else
-        within_tolerance = dabs((value1-value2)/value1) < relative_tolerance
-      endif
-      if (within_tolerance .and. &
-          GeometryPointInPolygon(x,y,z,idir,coordinates)) then
-        icount = icount + 1
-        if (icount > size(connections)) then
-          call reallocateIntArray(connections,array_size)
-        endif
-        connections(icount) = -1 * sum_connection
-      endif
-    enddo
-    boundary_condition => boundary_condition%next
-  enddo
-
-  nullify(PatchGetConnectionsFromCoords)
-  if (icount > 0) then
-    allocate(PatchGetConnectionsFromCoords(icount))
-    PatchGetConnectionsFromCoords = connections(1:icount)
+  if (associated(integral_flux%internal_connections)) then
+    icount = icount + size(integral_flux%internal_connections)
   endif
-  deallocate(connections)
-  nullify(connections)
-
-  call MPI_Allreduce(icount,i,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                     option%mycomm,ierr)
-  if (i == 0) then
+  if (associated(integral_flux%boundary_connections)) then
+    icount = icount + size(integral_flux%boundary_connections)
+  endif
+  call MPI_Allreduce(MPI_IN_PLACE,icount,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                     MPI_SUM,option%mycomm,ierr)
+  if (icount == 0) then
     option%io_buffer = 'Zero connections found for INTEGRAL_FLUX "' // &
-      trim(adjustl(integral_flux_name)) // &
-      '".  Please ensure that the coordinates coincide with a cell boundary.'
+      trim(adjustl(integral_flux%name)) // &
+      '".  Please ensure that the polygon coincides with an internal &
+      &cell boundary or a boundary condition.'
     call printErrMsg(option)
+  else if (num_to_be_found > 0 .and. icount /= num_to_be_found) then
+    write(word,*) num_to_be_found - icount
+    option%io_buffer = trim(adjustl(word)) // &
+      ' face(s) missed for INTEGRAL_FLUX "' // &
+      trim(adjustl(integral_flux%name)) // &
+      '".  Please ensure that the polygon coincides with an internal &
+      &cell boundary or a boundary condition.'
+    call printErrMsg(option)
+  else
+    write(option%io_buffer,*) icount
+    option%io_buffer = trim(adjustl(option%io_buffer)) // ' connections found &
+      &for integral flux "' // trim(adjustl(integral_flux%name)) // '".'
+    call printMsg(option)
   endif
 
-end function PatchGetConnectionsFromCoords
-
+end subroutine PatchGetIntegralFluxConnections
 ! **************************************************************************** !
 
 subroutine PatchCouplerInputRecord(patch)

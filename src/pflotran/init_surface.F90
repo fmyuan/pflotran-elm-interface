@@ -140,10 +140,7 @@ subroutine SurfaceInit(surf_realization,input,option)
           unstructured_grid_itype = IMPLICIT_UNSTRUCTURED_GRID
           unstructured_grid_ctype = 'implicit unstructured'
           discretization%itype = UNSTRUCTURED_GRID
-          call InputReadNChars(input,option, &
-                               discretization%filename, &
-                               MAXSTRINGLENGTH, &
-                               PETSC_TRUE)
+          call InputReadFilename(input,option,discretization%filename)
           call InputErrorMsg(input,option,'keyword','filename')
 
           grid => GridCreate()
