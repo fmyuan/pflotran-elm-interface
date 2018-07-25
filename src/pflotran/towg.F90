@@ -4812,14 +4812,14 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   do ghosted_id = 1, grid%ngmax  ! For each local node do...
     if (patch%imat(ghosted_id) <= 0) cycle
     natural_id = grid%nG2A(ghosted_id)
-    !if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare) then
+    if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare) then
       call TOWGAuxVarPerturb(towg%auxvars(:,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
                              patch%characteristic_curves_array( &
                              patch%sat_func_id(ghosted_id))%ptr, &
                              natural_id,option)
-    !endif
+    endif
 
   enddo
 
