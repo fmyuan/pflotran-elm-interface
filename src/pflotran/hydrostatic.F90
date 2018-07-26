@@ -71,6 +71,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   PetscReal :: gravity_magnitude
   PetscReal :: z_offset
   PetscReal :: aux(1), dummy
+  PetscReal :: lower_segment, upper_segment
+  character(len=MAXWORDLENGTH) :: word
   PetscErrorCode :: ierr
   
   class(dataset_gridded_hdf5_type), pointer :: datum_dataset
@@ -82,6 +84,9 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   type(connection_set_type), pointer :: cur_connection_set
   
   condition => coupler%flow_condition
+
+  datum_dataset_rmax = -1.d20
+  datum_dataset_rmin = 1.d20
   
   xm_nacl = option%m_nacl * FMWNACL
   xm_nacl = xm_nacl /(1.d3 + xm_nacl)
@@ -233,9 +238,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         datum(1:3) = UNINITIALIZED_DOUBLE
         datum_dataset_rmax = maxval(datum_dataset%rarray)
         datum_dataset_rmin = minval(datum_dataset%rarray)
-        datum(3) = 0.5d0*(datum_dataset_rmax+datum_dataset_rmin)
-        ! round the number to the nearest whole number
-        datum(3) = int(datum(3))
       class default
         option%io_buffer = &
           'Incorrect dataset type in HydrostaticUpdateCoupler. Dataset "' // &
@@ -273,9 +275,36 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     ! compute the vertical gradient based on a 1 meter vertical spacing and
     ! interpolate the values from that array
     if (associated(datum_dataset)) then
-      temp_real = grid%z_max_global - grid%z_min_global
-      max_z = max(grid%z_max_global,datum_dataset_rmax+temp_real)+1.d0
-      min_z = min(grid%z_min_global,datum_dataset_rmin-temp_real)-1.d0
+      !
+      !                                            --- max_z
+      ! if all dataset values are above the
+      ! domain, datum will be at max_z,
+      ! the max dataset value                ***** --- datum
+      !                                 *****
+      !                            *****
+      !   ---     ------------*****-------------
+      ! upper     |      *****                 |
+      !  segment  | *****                      |   lower
+      !   ---  *****                           |    segment
+      !           |                            |
+      !           |                            |
+      !           |                            |
+      !           |                            |
+      !           ------------------------------   --- min_z
+      !
+      ! full length = upper segment + lower segment
+      ! datum is at an elevation of lower_segment up full length
+      !
+      lower_segment = max(datum_dataset_rmax-grid%z_min_global,0.d0)
+      upper_segment = max(grid%z_max_global-datum_dataset_rmin,0.d0)
+      min_z = min(grid%z_min_global,datum_dataset_rmin)
+      max_z = min_z + lower_segment + upper_segment
+      datum(Z_DIRECTION) = lower_segment/(lower_segment+upper_segment) * &
+                           (max_z-min_z) + min_z
+      ! adde buffer and convert to round numbers
+      datum(Z_DIRECTION) = nint(datum(Z_DIRECTION))
+      min_z = nint(min_z-1.d0)
+      max_z = nint(max_z+2.d0) ! use 2 instead of 1 since nint rounds down
     else
       max_z = max(grid%z_max_global,datum(Z_DIRECTION))+1.d0 ! add 1m buffer
       min_z = min(grid%z_min_global,datum(Z_DIRECTION))-1.d0
@@ -292,6 +321,29 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     idatum = int((datum(Z_DIRECTION)-min_z)/(max_z-min_z) * &
                  dble(num_pressures))+1
     pressure_array(idatum) = pressure_at_datum
+
+    ! check for potential bounds violations
+    dist_z = grid%z_min_global-max(datum_dataset_rmax,datum(Z_DIRECTION))
+    ipressure = idatum+int(dist_z/delta_z)
+    if (ipressure < 1) then
+      write(word,*) ipressure
+      option%io_buffer = 'Minimum index for pressure array outside of &
+        &bounds (' // trim(adjustl(word)) // ') for hydrostatic FLOW_&
+        &CONDITION "' // trim(condition%name) // '".'
+      call PrintErrMsgToDev('include your input deck',option)
+    endif
+    dist_z = grid%z_max_global-min(datum_dataset_rmin,datum(Z_DIRECTION))
+    ipressure = idatum+int(dist_z/delta_z)
+    if (ipressure > num_pressures) then
+      write(option%io_buffer,*) num_pressures
+      write(word,*) ipressure
+      option%io_buffer = 'Maximum index for pressure array outside of &
+        &bounds (' // trim(adjustl(word)) // ' > ' // &
+        trim(adjustl(option%io_buffer)) // ') for hydrostatic FLOW_&
+        &CONDITION "' // trim(condition%name) // '".'
+      call PrintErrMsgToDev('include your input deck',option)
+    endif
+
     call EOSWaterDensityExt(temperature_at_datum,pressure_at_datum, &
                             aux,rho_kg,dummy,ierr)
     if (ierr /= 0) then
