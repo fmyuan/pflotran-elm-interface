@@ -2472,10 +2472,8 @@ subroutine RealizUnInitializedVar1(realization,ivar,var_name)
   if (Uninitialized(rmin)) then
     write(word,*) imin+1 ! zero to one based indexing
     option%io_buffer = 'Incorrect assignment of variable (' &
-      // trim(var_name) // ',cell=' // trim(adjustl(word)) // &
-      '). Please send this error message and your input file to &
-      &pflotran-dev@googlegroups.com.'
-    call printErrMsg(option)
+      // trim(var_name) // ',cell=' // trim(adjustl(word)) // ').'
+    call PrintErrMsgToDev('send your input deck.',option)
   endif
 
 end subroutine RealizUnInitializedVar1

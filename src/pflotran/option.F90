@@ -278,7 +278,9 @@ module Option_module
   public :: OptionCreate, &
             OptionCheckCommandLine, &
             printErrMsg, &
+            PrintErrMsgToDev, &
             printErrMsgByRank, &
+            PrintErrMsgByRankToDev, &
             printWrnMsg, &
             printMsg, &
             printMsgAnyRank, &
@@ -759,8 +761,6 @@ end subroutine printErrMsgByRank2
 
 ! ************************************************************************** !
 
-! ************************************************************************** !
-
 subroutine printErrMsgNoStopByRank1(option)
   !
   ! Prints the error message from processor with error along
@@ -804,6 +804,64 @@ subroutine printErrMsgNoStopByRank2(option,string)
   endif
 
 end subroutine printErrMsgNoStopByRank2
+
+! ************************************************************************** !
+
+subroutine PrintErrMsgToDev(string,option)
+  !
+  ! Prints the error message from p0, appends a request to submit input 
+  ! deck to pflotran-dev, and stops.  The reverse order of arguments is 
+  ! to avoid conflict with variants of PrintErrMsg()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 07/26/18
+  !
+
+  implicit none
+
+  character(len=*) :: string
+  type(option_type) :: option
+
+  if (len_trim(string) > 0) then
+    option%io_buffer = trim(option%io_buffer) // &
+      ' Please email pflotran-dev@googlegroups.com and ' // &
+      trim(adjustl(string)) // '.'
+  else
+    option%io_buffer = trim(option%io_buffer) // &
+      ' Please email pflotran-dev@googlegroups.com.'
+  endif
+  call PrintErrMsg(option)
+
+end subroutine PrintErrMsgToDev
+
+! ************************************************************************** !
+
+subroutine PrintErrMsgByRankToDev(string,option)
+  !
+  ! Prints the error message from processor with error along
+  ! with rank. The reverse order of arguments is to avoid conflict with
+  ! variants of PrintErrMsg()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/04/11
+  !
+
+  implicit none
+
+  character(len=*) :: string
+  type(option_type) :: option
+
+  if (len_trim(string) > 0) then
+    option%io_buffer = trim(option%io_buffer) // &
+      ' Please email pflotran-dev@googlegroups.com and ' // &
+      trim(adjustl(string)) // '.'
+  else
+    option%io_buffer = trim(option%io_buffer) // &
+      ' Please email pflotran-dev@googlegroups.com.'
+  endif
+  call PrintErrMsgByRank(option)
+
+end subroutine PrintErrMsgByRankToDev
 
 ! ************************************************************************** !
 

@@ -330,9 +330,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
             option%io_buffer = 'PHASE has not been set for &
                                &CHARACTERISTIC_CURVES,PERMEABILITY_FUNCTION. &
                                &This is most likely a development issue, and &
-                               &not an input deck mistake. Please e-mail &
-                               &pflotran-dev@googlegroups.com.' 
-            call printErrMsg(option)
+                               &not an input deck mistake. '
+            call PrintErrMsgToDev('',option)
           case default
             call InputKeywordUnrecognized(word, &
               'PERMEABILITY_FUNCTION,PHASE',option)
@@ -1696,9 +1695,8 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
       class default
         option%io_buffer = 'Relative permeability class not supported in &
-              &CharCurvesGetGetResidualSats. &
-              &Contact pflotran-dev@googlegroups.com'
-        call printErrMsg(option)
+              &CharCurvesGetGetResidualSats.'
+        call PrintErrMsgToDev('',option)
     end select
 
   end if

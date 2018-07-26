@@ -188,9 +188,9 @@ subroutine PMAuxiliaryRead(input, option, this)
           case('SPECIES')
             i = i + 1
             if (i > 6) then
-              option%io_buffer = 'Email pflotran-dev@googlegroups.com and ask &
-                &for the maximum number of salinity species to be increased.'
-              call printErrMsg(option)
+              option%io_buffer = 'Number of salinity species exceeded.'
+              call PrintErrMsgToDev('ask for the maximum number of salinity &
+                                    &species to be increased',option)
             endif
             call InputReadWord(input,option,this%salinity% &
                                  species_names(i),PETSC_TRUE)

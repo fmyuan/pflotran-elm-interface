@@ -646,9 +646,8 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
             temp_real = dabs(temp_real / del_liquid_pressure)
           else
             option%io_buffer = 'Something is seriously wrong in ' // &
-              'GeneralCheckUpdatePre(liquid<min).  Contact Glenn through ' // &
-              'pflotran-dev@googlegroups.com.'
-            call printErrMsg(option)
+              'GeneralCheckUpdatePre(liquid<min).'
+            call PrintErrMsgToDev('',option)
           endif
 #ifdef DEBUG_GENERAL_INFO
           if (cell_locator(0) < max_cell_id) then
@@ -832,9 +831,8 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
           if (temp_real <= 0.d0) then
             ! add info on pressures here
             option%io_buffer = 'Something is seriously wrong in ' // &
-              'GeneralCheckUpdatePre(gas<=air).  Contact Glenn through ' // &
-              'pflotran-dev@googlegroups.com.'
-            call printErrMsg(option)
+              'GeneralCheckUpdatePre(gas<=air).'
+            call PrintErrMsgToDev('',option)
           endif
 #ifdef DEBUG_GENERAL_INFO
           if (cell_locator(0) < max_cell_id) then

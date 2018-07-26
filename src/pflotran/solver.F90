@@ -1493,9 +1493,8 @@ subroutine SolverLinearPrintFailedReason(solver,option)
             call PCBJacobiGetSubKSP(pc,nsub_ksp,first_sub_ksp, &
                                     sub_ksps,ierr);CHKERRQ(ierr)
             if (nsub_ksp > 1) then
-              option%io_buffer = 'NSUB_KSP > 1.  What to do?  Email pflotran&
-                &-dev@googlegroups.com.'
-              call printErrMsg(option)
+              option%io_buffer = 'NSUB_KSP > 1.  What to do?'
+              call PrintErrMsgToDev('',option)
             endif
             do i = 1, nsub_ksp
               call KSPGetPC(sub_ksps(i),pc,ierr);CHKERRQ(ierr)
@@ -1544,9 +1543,8 @@ subroutine SolverLinearPrintFailedReason(solver,option)
               &tolerance (' // trim(adjustl(word)) // &
               ') is too large due to a zero pivot of ' // &
               trim(adjustl(word2)) // '. Please set a ZERO_PIVOT_TOL smaller &
-              &than that value or email pflotran-dev@googlegroups.com with &
-              &this information for guidance.'
-            call printErrMsg(option)
+              &than that value.'
+            call PrintErrMsgToDev('if you need further help',option)
         end select
       else
         error_string = 'KSP_DIVERGED_PCSETUP_FAILED'

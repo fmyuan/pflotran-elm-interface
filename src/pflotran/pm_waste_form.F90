@@ -1314,11 +1314,10 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               k = k + 1
               if (k > 50) then
                 option%io_buffer = 'More than 50 radionuclide species are &
-                                 &provided in the ' // trim(error_string) // &
-                                 ', SPECIES block. Reduce to less than 50 &
-                                 &species, or e-mail pflotran-dev at &
-                                 &googlegroups dot com.'
-                call printErrMsg(option)
+                  &provided in the ' // trim(error_string) // &
+                  ', SPECIES block.'
+                call PrintErrMsgToDev('if reducing to less than 50 is not &
+                                      an option.',option)
               endif
               temp_species_array(k) = PMWFRadSpeciesCreate() 
               ! read species name
