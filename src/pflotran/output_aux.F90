@@ -247,7 +247,7 @@ function OutputOptionCreate()
   output_option%print_final_obs = PETSC_TRUE
   output_option%print_initial_snap = PETSC_TRUE
   output_option%print_final_snap = PETSC_TRUE
-  output_option%print_initial_massbal = PETSC_FALSE
+  output_option%print_initial_massbal = PETSC_TRUE
   output_option%print_final_massbal = PETSC_TRUE
   output_option%plot_number = 0
   output_option%screen_imod = 1
