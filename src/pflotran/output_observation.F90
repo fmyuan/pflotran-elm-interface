@@ -2418,11 +2418,12 @@ subroutine OutputMassBalance(realization_base)
           call OutputWriteToHeader(fid,'Global Water Mass','kg','',icol)
         case(ZFLOW_MODE)
           call OutputWriteToHeader(fid,'Global Water Volume','m^3','',icol)
-        case(TH_MODE,TH_TS_MODE)
+        case(TH_TS_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
-        case(G_MODE,H_MODE)
-          call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
+        case(TH_MODE,G_MODE,H_MODE)
+          call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &          
+          call OutputWriteToHeader(fid,'Global Water Mass in Solid Phase', &
                                     'kg','',icol)
           call OutputWriteToHeader(fid,'Global Air Mass in Liquid Phase', &
                                     'kg','',icol)
@@ -2577,6 +2578,10 @@ subroutine OutputMassBalance(realization_base)
             string = trim(coupler%name) // ' CO2 Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
         end select
+        if (option%nflowdof > 0) then
+          string = ' SUM of All Water Mass and Flux'
+          call OutputWriteToHeader(fid,string,'kg','',icol)
+        endif
         
         if (option%ntrandof > 0) then
           select case(option%itranmode)
@@ -2710,6 +2715,7 @@ subroutine OutputMassBalance(realization_base)
   if (option%nflowdof > 0) then
     sum_kg = 0.d0
     sum_trapped = 0.d0
+    sum_kg_water = 0.d0
     select type(realization_base)
       class is(realization_subsurface_type)
         select case(option%iflowmode)
@@ -2754,6 +2760,9 @@ subroutine OutputMassBalance(realization_base)
           do iphase = 1, option%nphase
             do ispec = 1, option%nflowspec
               write(fid,110,advance="no") sum_kg_global(ispec,iphase)
+
+              if(ispec==1) &
+              sum_kg_water = sum_kg_water + sum_kg_global(ispec,iphase)
             enddo
           enddo
         case(WF_MODE)
@@ -2964,6 +2973,11 @@ subroutine OutputMassBalance(realization_base)
           if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
             write(fid,110,advance="no") -sum_kg_global
+
+            do iphase = 1, option%nphase
+              sum_kg_water = sum_kg_water+sum_kg_global(1, iphase)
+            enddo
+
           endif
 
           ! print out H2O flux
@@ -3000,6 +3014,10 @@ subroutine OutputMassBalance(realization_base)
           if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
             write(fid,110,advance="no") -sum_kg_global
+
+            do iphase = 1, option%nphase
+              sum_kg_water = sum_kg_water+sum_kg_global(1, iphase)
+            enddo
           endif
 
           ! print out H2O flux
@@ -3078,6 +3096,11 @@ subroutine OutputMassBalance(realization_base)
           if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
             write(fid,110,advance="no") -sum_kg_global(:,1)
+
+            do iphase = 1, option%nphase
+              sum_kg_water = sum_kg_water+sum_kg_global(1, iphase)
+            enddo
+
           endif
 
           ! print out H2O flux
@@ -3134,6 +3157,18 @@ subroutine OutputMassBalance(realization_base)
             write(fid,110,advance="no") -sum_kg_global(:,1)*output_option%tconv
           endif
       end select
+
+      ! sum of all mass-balance items
+      ! print out sum of global water mass and fluxes
+      ! (NOTE: THIS amount MUST BE constant, otherwise error in mass-conservation)
+      select case(option%iflowmode)
+        case(RICHARDS_MODE, G_MODE, TH_MODE)
+          if (option%myrank == option%io_rank) then
+            write(fid,110,advance="no") sum_kg_water
+          endif
+
+      end select
+
     endif
 
     if (option%ntrandof > 0) then
