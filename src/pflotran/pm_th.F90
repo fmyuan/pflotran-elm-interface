@@ -133,6 +133,10 @@ subroutine PMTHRead(this,input)
   PetscInt :: lid, eid
   PetscReal :: tempreal
 
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHRead()'
+#endif
+
   option => this%option
 
   lid = option%liquid_phase
@@ -287,6 +291,10 @@ subroutine PMTHSetup(this)
   
   class(pm_th_type) :: this
 
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHSetup()'
+#endif
+
   call PMSubsurfaceFlowSetup(this)
   
   ! set up communicator
@@ -317,6 +325,10 @@ subroutine PMTHInitializeTimestep(this)
   
   class(pm_th_type) :: this
 
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHInitializeTimeStep()'
+#endif
+
   call PMSubsurfaceFlowInitializeTimestepA(this)
 
   ! update porosity
@@ -346,6 +358,10 @@ subroutine PMTHPreSolve(this)
   
   class(pm_th_type) :: this
 
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHPreSolve()'
+#endif
+
   call PMSubsurfaceFlowPreSolve(this)
 
 end subroutine PMTHPreSolve
@@ -362,6 +378,10 @@ subroutine PMTHPostSolve(this)
   implicit none
   
   class(pm_th_type) :: this
+
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHPostSolve()'
+#endif
   
 end subroutine PMTHPostSolve
 
@@ -457,6 +477,10 @@ subroutine PMTHResidual(this,snes,xx,r,ierr)
   Vec :: xx
   Vec :: r
   PetscErrorCode :: ierr
+
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHResidual()'
+#endif
   
   call THResidual(snes,xx,r,this%realization,ierr)
 
@@ -482,6 +506,10 @@ subroutine PMTHJacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
   
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHJacobian()'
+#endif
+
   call THJacobian(snes,xx,A,B,this%realization,ierr)
 
 end subroutine PMTHJacobian
@@ -527,6 +555,10 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscReal :: P0, P1, P_R, delP, delP_old
   PetscReal :: scale, press_limit, temp_limit
   PetscInt :: iend, istart
+
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHCheckUpdatePre()'
+#endif
   
   patch => this%realization%patch
   grid => patch%grid
@@ -936,6 +968,10 @@ subroutine PMTHTimeCut(this)
   implicit none
   
   class(pm_th_type) :: this
+
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHTimeCut()'
+#endif
   
   call PMSubsurfaceFlowTimeCut(this)
   call THTimeCut(this%realization)
@@ -957,6 +993,10 @@ subroutine PMTHUpdateSolution(this)
   implicit none
   
   class(pm_th_type) :: this
+
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHUpdateSolution()'
+#endif
   
   call PMSubsurfaceFlowUpdateSolution(this)
   call THUpdateSolution(this%realization)
@@ -977,6 +1017,10 @@ subroutine PMTHUpdateAuxVars(this)
   implicit none
   
   class(pm_th_type) :: this
+
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHUpdateAuxVars()'
+#endif
 
   call THUpdateAuxVars(this%realization)
 
@@ -1032,6 +1076,10 @@ subroutine PMTHComputeMassBalance(this,mass_balance_array)
   
   class(pm_th_type) :: this
   PetscReal :: mass_balance_array(:)
+
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHComputeMassBalance()'
+#endif
   
   call THComputeMassBalance(this%realization,mass_balance_array)
 
@@ -1053,6 +1101,11 @@ subroutine PMTHInputRecord(this)
 
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
+
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHInputRecord()'
+#endif
+
 
   id = INPUT_RECORD_UNIT
 
@@ -1078,6 +1131,10 @@ subroutine PMTHDestroy(this)
   implicit none
   
   class(pm_th_type) :: this
+
+#ifdef PM_TH_DEBUG
+  print *, 'PMTHDestroy()'
+#endif
   
   if (associated(this%next)) then
     call this%next%Destroy()
