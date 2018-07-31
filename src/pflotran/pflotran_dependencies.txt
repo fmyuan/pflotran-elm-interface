@@ -466,15 +466,16 @@ patch.o : auxiliary.o characteristic_curves.o condition.o connection.o \
           coupler.o dataset.o dataset_ascii.o dataset_base.o \
           dataset_common_hdf5.o dataset_gridded_hdf5.o dataset_map_hdf5.o \
           eos_water.o field.o general_aux.o geometry.o global_aux.o grid.o \
-          hydrostatic.o hydrostatic_multi_phase.o immis_aux.o integral_flux.o \
-          material.o material_aux.o miscible_aux.o mphase_aux.o observation.o \
-          option.o output_aux.o pflotran_constants.o pm_toil_ims_aux.o \
-          pm_towg_aux.o reaction.o reaction_aux.o reaction_mineral.o \
-          reaction_mineral_aux.o reaction_surf_complex_aux.o \
-          reactive_transport_aux.o region.o richards_aux.o saturation.o \
-          saturation_function.o strata.o string.o surface_auxiliary.o \
-          surface_field.o surface_material.o th_aux.o transport_constraint.o \
-          utility.o variables.o well.o well_spec_base.o wipp_flow_aux.o
+          grid_unstructured_cell.o hydrostatic.o hydrostatic_multi_phase.o \
+          immis_aux.o integral_flux.o material.o material_aux.o miscible_aux.o \
+          mphase_aux.o observation.o option.o output_aux.o \
+          pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o reaction.o \
+          reaction_aux.o reaction_mineral.o reaction_mineral_aux.o \
+          reaction_surf_complex_aux.o reactive_transport_aux.o region.o \
+          richards_aux.o saturation.o saturation_function.o strata.o string.o \
+          surface_auxiliary.o surface_field.o surface_material.o th_aux.o \
+          transport_constraint.o utility.o variables.o well.o well_spec_base.o \
+          wipp_flow_aux.o
 pflotran.o : factory_hydrogeophysics.o factory_pflotran.o factory_subsurface.o \
              multisimulation.o option.o pflotran_constants.o \
              pflotran_provenance.o simulation_base.o
@@ -529,10 +530,11 @@ pm_rt.o : checkpoint.o communicator_base.o communicator_structured.o \
           reaction_aux.o reactive_transport.o reactive_transport_aux.o \
           realization_base.o realization_subsurface.o secondary_continuum.o \
           string.o variables.o
-pm_subsurface_flow.o : auxvars_flow.o characteristic_curves.o characteristic_curves_wipp.o \
-                       checkpoint.o communicator_base.o \
-                       communicator_structured.o communicator_unstructured.o \
-                       condition.o condition_control.o convergence.o coupler.o \
+pm_subsurface_flow.o : auxvars_flow.o characteristic_curves.o \
+                       characteristic_curves_wipp.o checkpoint.o \
+                       communicator_base.o communicator_structured.o \
+                       communicator_unstructured.o condition.o \
+                       condition_control.o convergence.o coupler.o \
                        data_mediator.o dataset_base.o dataset_common_hdf5.o \
                        dataset_gridded_hdf5.o discretization.o global.o grid.o \
                        hdf5.o input_aux.o integral_flux.o material.o \

@@ -16,7 +16,8 @@ util_obj  = \
 	${common_src}units.o \
 	${common_src}utility.o \
 	${common_src}toil_ims_derivs.o \
-	${common_src}variables.o
+	${common_src}variables.o \
+	${common_src}derivative_tests.o
 
 eos_obj = \
 	${common_src}co2_sw.o \
