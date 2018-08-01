@@ -8,6 +8,10 @@ module AuxVars_Flow_module
 
   implicit none
 
+  PetscReal,public :: flow_aux_debug_tol = 1.d-1
+  PetscReal,public :: flow_aux_debug_reltol = 1.d-1
+  PetscBool,public :: flow_aux_use_GP = PETSC_FALSE
+
   private
 
   type, public, extends(auxvar_base_type) :: auxvar_flow_type
@@ -19,11 +23,17 @@ module AuxVars_Flow_module
     PetscReal, pointer :: mobility(:) ! relative perm / dynamic viscosity
     PetscReal, pointer :: viscosity(:) ! dynamic viscosity
     PetscInt, pointer :: table_idx(:)
-    !PetscReal, pointer :: dsat_dp(:,:)
-    !PetscReal, pointer :: dden_dp(:,:)
-    !PetscReal, pointer :: dsat_dt(:)
-    !PetscReal, pointer :: dden_dt(:)
-    !PetscReal, pointer :: dmobility_dp(:)
+
+    ! derivatives
+    PetscBool :: has_derivs
+    PetscReal, pointer :: D_pres(:,:)   ! (iphase)
+    PetscReal, pointer :: D_sat(:,:)    ! (iphase)
+    PetscReal, pointer :: D_pc(:,:)     ! capillary pressure (iphase-1)
+    PetscReal, pointer :: D_den(:,:)    ! (iphase) kmol/m^3 phase
+    PetscReal, pointer :: D_den_kg(:,:) ! (iphase) kg/m^3 phase
+    PetscReal, pointer :: D_mobility(:,:) ! relative perm / dynamic viscosity
+    PetscReal, pointer :: D_por(:) ! mole fractions (sol var)
+
   contains
     !procedure, public :: Init => InitAuxVarFlow
   end type auxvar_flow_type
@@ -67,6 +77,27 @@ subroutine AuxVarFlowInit(this,option)
     this%table_idx = 1
   end if
 
+  this%has_derivs = PETSC_FALSE
+  if (.not.option%flow%numerical_derivatives) then
+
+    this%has_derivs = PETSC_TRUE
+
+    allocate(this%D_pres(option%nphase,option%nflowdof))
+    this%D_pres = 0.d0
+    allocate(this%D_sat(option%nphase,option%nflowdof))
+    this%D_sat = 0.d0
+    allocate(this%D_pc(option%nphase,option%nflowdof))
+    this%D_pc = 0.d0
+    allocate(this%D_den(option%nphase,option%nflowdof))
+    this%D_den = 0.d0
+    allocate(this%D_den_kg(option%nphase,option%nflowdof))
+    this%D_den_kg = 0.d0
+    allocate(this%D_mobility(option%nphase,option%nflowdof))
+    this%D_mobility = 0.d0
+    allocate(this%D_por(option%nflowdof))
+    this%D_por = 0.d0
+  endif
+
 
 end subroutine AuxVarFlowInit
 
@@ -93,6 +124,16 @@ subroutine AuxVarFlowStrip(this)
   call DeallocateArray(this%mobility)
   call DeallocateArray(this%viscosity)
   call DeallocateArray(this%table_idx)
+
+  if (this%has_derivs) then 
+    call DeallocateArray(this%D_pres)
+    call DeallocateArray(this%D_sat)
+    call DeallocateArray(this%D_pc)
+    call DeallocateArray(this%D_den)
+    call DeallocateArray(this%D_den_kg)
+    call DeallocateArray(this%D_mobility)
+    call DeallocateArray(this%D_por)
+  endif
 
 end subroutine AuxVarFlowStrip
 ! ************************************************************************** !

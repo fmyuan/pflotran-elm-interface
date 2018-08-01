@@ -164,6 +164,7 @@ set(UTIL_SOURCES
 	utility.F90
 	toil_ims_derivs.F90
 	variables.F90
+	derivative_tests.F90
 )
 
 set(EOS_SOURCES

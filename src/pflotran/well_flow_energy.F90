@@ -197,7 +197,7 @@ end subroutine WellFlowEnergy1DGridVarsSetup
 
 subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
                                          energy_equation_index,option,Jac, &
-                                         analytical, analytical_compare, comptol   )
+                                         analytical, analytical_compare, comptol, compreltol )
   ! 
   ! Computes the well derivatives terms for the jacobian
   ! 
@@ -221,7 +221,7 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
   PetscReal :: Jac(:,:)
 
   PetscBool :: analytical, analytical_compare
-  PetscReal :: comptol
+  PetscReal :: comptol,compreltol
 
 
   !type(flow_toil_ims_condition_type), pointer :: src_sink_condition
@@ -306,7 +306,7 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
 
     if (analytical_compare) then
 
-      call MatCompare(Jac, Jac_alt, 3, 3, comptol, option%matcompare_reldiff)
+      call MatCompare(Jac, Jac_alt, 3, 3, comptol, compreltol)
 
 #if 0
       call this%ExplResAD(iconn,dummy_real,isothermal,ghosted_id,ZERO_INTEGER,&
