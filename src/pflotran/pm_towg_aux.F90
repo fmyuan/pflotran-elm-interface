@@ -337,10 +337,6 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
 
 #if 0
   if (option%flow%numerical_derivatives .OR. option%flow%numerical_derivatives_compare) then
-<<<<<<< f05f182fce18272c0e47ebbf07a05cc48b617efd
-=======
-
->>>>>>> perturbation auxvars only exist/populated for when using numerical derivatives (including for comparison with analytical)
     allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
     do ghosted_id = 1, grid%ngmax
       do idof = 0, option%nflowdof
@@ -352,14 +348,8 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
             .or.(towg_miscibility_model == TOWG_SOLVENT_TL) ) then
           call this%auxvars(idof,ghosted_id)%InitBO(option)
         end if
-<<<<<<< f05f182fce18272c0e47ebbf07a05cc48b617efd
       end do
     end do
-=======
-      enddo
-    enddo
-
->>>>>>> perturbation auxvars only exist/populated for when using numerical derivatives (including for comparison with analytical)
   else
     allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
     do ghosted_id = 1, grid%ngmax

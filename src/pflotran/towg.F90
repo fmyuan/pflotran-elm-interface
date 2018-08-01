@@ -1965,6 +1965,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
   PetscReal :: d_den_kg_ave_dden_up,d_den_kg_ave_dden_dn
   PetscReal :: d_den_ave_dden_up,d_den_ave_dden_dn
   PetscReal :: d_delta_temp_dt_up,d_delta_temp_dt_dn,dheat_flux_ddelta_temp
+#if 0
   PetscReal, dimension(1:option%nflowdof) :: D_den_kg_ave_up,D_den_kg_ave_dn
   PetscReal, dimension(1:option%nflowdof) :: D_den_ave_up,D_den_ave_dn
   PetscReal, dimension(1:option%nflowdof) :: D_delta_presure_up,D_delta_presure_dn
@@ -1974,6 +1975,17 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
   PetscReal, dimension(1:option%nflowdof) :: D_q_up,D_q_dn
   PetscReal, dimension(1:option%nflowdof) :: D_mole_flux_up,D_mole_flux_dn
   PetscReal, dimension(1:option%nflowdof) :: D_xmf_up,D_xmf_dn
+#endif
+
+  PetscReal :: D_den_kg_ave_up(option%nflowdof),D_den_kg_ave_dn(option%nflowdof)
+  PetscReal :: D_den_ave_up(option%nflowdof),D_den_ave_dn(option%nflowdof)
+  PetscReal :: D_delta_presure_up(option%nflowdof),D_delta_presure_dn(option%nflowdof)
+  PetscReal :: D_mobility_up(option%nflowdof),D_mobility_dn(option%nflowdof)
+  PetscReal :: D_uH_up(option%nflowdof),D_uH_dn(option%nflowdof)
+  PetscReal :: D_v_darcy_up(option%nflowdof),D_v_darcy_dn(option%nflowdof)
+  PetscReal :: D_q_up(option%nflowdof),D_q_dn(option%nflowdof)
+  PetscReal :: D_mole_flux_up(option%nflowdof),D_mole_flux_dn(option%nflowdof)
+  PetscReal :: D_xmf_up(option%nflowdof),D_xmf_dn(option%nflowdof)
 
   ndof = option%nflowdof
   if (analytical_derivatives) then
@@ -2177,7 +2189,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
-
 
       if (analytical_derivatives) then
         D_v_darcy_up(:) = perm_ave_over_dist(iphase)                             &
