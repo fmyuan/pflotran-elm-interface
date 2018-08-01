@@ -207,14 +207,14 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       option%flow%numerical_derivatives_compare = PETSC_TRUE
 
     case('DEBUG_TOL')
-      call InputReadDouble(input,option,AUXFLOW_debug_tol)
+      call InputReadDouble(input,option,flow_aux_debug_tol)
       call InputErrorMsg(input,option,'DEBUG_TOL',error_string)
     case('DEBUG_RELTOL')
-      call InputReadDouble(input,option,AUXFLOW_debug_reltol)
+      call InputReadDouble(input,option,flow_aux_debug_reltol)
       call InputErrorMsg(input,option,'DEBUG_RELTOL',error_string)
 
     case('GEOMETRIC_PENALTY')
-      AUXFLOW_use_GP= PETSC_TRUE
+      flow_aux_use_GP= PETSC_TRUE
 
     case default
       found = PETSC_FALSE

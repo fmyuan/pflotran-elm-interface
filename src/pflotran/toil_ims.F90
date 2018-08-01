@@ -131,10 +131,9 @@ subroutine TOilImsSetup(realization)
   toil_analytical_derivatives = .not. option%flow%numerical_derivatives
   toil_analytical_derivatives_compare = option%flow%numerical_derivatives_compare
 
-  !toil_dcomp_tol = option%debug_tol
-  toil_dcomp_tol = AUXFLOW_debug_tol
-  toil_dcomp_reltol = AUXFLOW_debug_reltol
-  toil_GP = AUXFLOW_use_GP
+  toil_dcomp_tol = flow_aux_debug_tol
+  toil_dcomp_reltol = flow_aux_debug_reltol
+  toil_GP = flow_aux_use_GP
 
   ! ensure that material properties specific to this module are properly
   ! initialized

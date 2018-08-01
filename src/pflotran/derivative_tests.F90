@@ -50,8 +50,8 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
   PetscReal :: atol,rtol
   PetscInt :: probs
 
-  atol = AUXFLOW_debug_tol
-  rtol = AUXFLOW_debug_reltol
+  atol = flow_aux_debug_tol
+  rtol = flow_aux_debug_reltol
 
   print *, "NumCompare TOil"
   probs = 0
