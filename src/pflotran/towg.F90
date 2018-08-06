@@ -3337,6 +3337,9 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
   if (analytical_derivatives) then
     j = 0.d0
     ndof = option%nflowdof
+    ! let's be thorough and zero out the intermediates:
+    D_xmfo = 0.d0; D_xmfg = 0.d0; D_mole_wt = 0.d0; D_den = 0.d0
+    D_qsrc_mol = 0.d0; D_enthalpy = 0.d0; D_xmf = 0.d0
   endif
 
   ! this can be removed if extending to pressure condition
