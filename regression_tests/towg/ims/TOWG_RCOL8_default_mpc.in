@@ -1,53 +1,53 @@
-# TOUGH2 EOS8 - Sample 9 case - RCOL8 input 
+# TOUGH2 EOS8 - Sample 9 case - RCOL8 input
+
+# this version uses the default version of MAXIMUM_PRESSURE_CHANGE
+
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   !SIMULATION_TYPE GEOMECHANICS_SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW Flow
-      MODE TOIL_IMS
+      MODE TOWG_IMMISCIBLE  !TODD_LONGOSTAFF, BLACK_OIL, SOLVENT_TL
+      !MODE TOIL_IMS
+      !MODE RICHARDS
       OPTIONS
-       MAXIMUM_PRESSURE_CHANGE 5.D4
-       ANALYTICAL_JACOBIAN
+       # removal of this line is the difference:
+       #MAXIMUM_PRESSURE_CHANGE 5.D4
        !ISOTHERMAL
+       !NO_GAS
        !TOUGH2_ITOL_SCALED_RESIDUAL 1.d-5 1.d0
       /
     / ! end of subsurface_flow
     !GEOMECHANICS_SUBSURFACE geomech ! geomech not currenlty used
-    !GEOMECHANICS_SUBSURFACE xxx ! at least one "x" to avoid input error 
+    !GEOMECHANICS_SUBSURFACE xxx ! at least one "x" to avoid input error
   / ! end of process models
-END  !! end simulation 
+END  !! end simulation
 
 SUBSURFACE
-
 #=========================== regression =======================================
 REGRESSION
   CELLS
     1
     2
-    18
+    3
     19
   /
-  CELLS_PER_PROCESS 2
 END
 
 #=========================== discretization ===================================
 GRID
   TYPE structured
   ORIGIN 0.d0 0.d0 0.d0
-  NXYZ 19 1 1 
+  NXYZ 19 1 1
   BOUNDS
-    0.d0 0.0 0.0 
+    0.d0 0.0 0.0
     19.d0 1.d0  1.d0
   /
 END
 
 #=========================== solver options ===================================
 TIMESTEPPER FLOW
-  !TS_ACCELERATION 4
   TS_ACCELERATION 12
-  !MAX_PRESSURE_CHANGE 5.e5
-  !MAX_TEMPERATURE_CHANGE 5.d0
-  !MAX_SATURATION_CHANGE 0.025
 /
 
 NEWTON_SOLVER FLOW
@@ -56,39 +56,25 @@ NEWTON_SOLVER FLOW
   STOL 1D-30
   DTOL 1D15
   ITOL 1D-6
-  !ITOL 1D-7
-  !ITOL 1D-9 
   MAXIT 25
   MAXF 100
 END
 
 #=========================== times ============================================
 TIME
-!FINAL_TIME 2.55d4 s
 FINAL_TIME 8.64d4 s
-!INITIAL_TIMESTEP_SIZE 1.d2 s
-INITIAL_TIMESTEP_SIZE 1.0 s 
+INITIAL_TIMESTEP_SIZE 1.0 s
 MAXIMUM_TIMESTEP_SIZE 1.0d3 s
 /
 
-#=========================== RESTART ============================================
-!CHECKPOINT 40
-
 #=========================== output options ===================================
+skip
 OUTPUT
- skip
-  TIMES s 0.31d4 8.64d4 
-  !PERIODIC_OBSERVATION TIMESTEP 1
-  !FORMAT TECPLOT POINT
-  !FORMAT VTK
+  TIMES s 0.31d4 8.64d4
   FORMAT HDF5
-  !PERMEABILITY
   MASS_BALANCE
- noskip
 END
-
-#=========================== fluid properties =================================
-!no diffusion for immiscible  
+noskip
 
 #=========================== material properties ==============================
 MATERIAL_PROPERTY formation
@@ -98,8 +84,7 @@ MATERIAL_PROPERTY formation
   ROCK_DENSITY 2.65d3
   SPECIFIC_HEAT 1.d3
   THERMAL_CONDUCTIVITY_DRY 2.1
-  THERMAL_CONDUCTIVITY_WET 2.1 
-  !SATURATION_FUNCTION sf2
+  THERMAL_CONDUCTIVITY_WET 2.1
   CHARACTERISTIC_CURVES ch1
   PERMEABILITY
     PERM_X 1.e-13
@@ -109,48 +94,48 @@ MATERIAL_PROPERTY formation
 /
 
 #=========================== saturation functions =============================
-!SATURATION_FUNCTION sf2
 CHARACTERISTIC_CURVES ch1
-  SATURATION_FUNCTION VAN_GENUCHTEN
+  SATURATION_FUNCTION_OWG VAN_GENUCHTEN_OW
     M 0.44380d0
     ALPHA 5.792e-05
-    LIQUID_RESIDUAL_SATURATION 0.1d0
-    MAX_CAPILLARY_PRESSURE 0.d0
-    !SMOOTH !when using smoothing option
+    WATER_RESIDUAL_SATURATION 8.01E-2
+    MAX_CAPILLARY_PRESSURE 0.0
   /
-  PERMEABILITY_FUNCTION MUALEM_VG_LIQ  ! checks it calls RPF_Mualem_VG_Liq_RelPerm and for Oil?
-    PHASE LIQUID
-    LIQUID_RESIDUAL_SATURATION 0.2d0
+  SATURATION_FUNCTION_OWG VAN_GENUCHTEN_OG_SL
+     M 0.44380d0
+     ALPHA 5.792e-05
+     LIQUID_RESIDUAL_SATURATION 8.01E-2
+     MAX_CAPILLARY_PRESSURE 5.d6
+  /
+  PERMEABILITY_FUNCTION_OWG MUALEM_VG_WAT
+    WATER_RESIDUAL_SATURATION 0.2d0
     M 0.5d0
+    SMOOTH !when using smoothing option
+  /
+  PERMEABILITY_FUNCTION_OWG TOUGH2_IRP7_GAS_SL
+    LIQUID_RESIDUAL_SATURATION 0.2d0
+    GAS_RESIDUAL_SATURATION 0.1
+    M 0.5d0
+  /
+  PERMEABILITY_FUNCTION_OWG MOD_BROOKS_COREY_OIL
+    WATER_RESIDUAL_SATURATION 0.0d0
+    OIL_RESIDUAL_SATURATION 0.01d0
+    GAS_RESIDUAL_SATURATION 0.00d0
+    M 1.0 !linear function
     !SMOOTH !when using smoothing option
   /
-  !PERMEABILITY_FUNCTION BURDINE_BC_LIQ  
-  !  PHASE LIQUID
-  !  LIQUID_RESIDUAL_SATURATION 0.2d0
-  !  LAMBDA 2.0d0
-  !  !SMOOTH !when using smoothing option
-  !/
-  PERMEABILITY_FUNCTION TOUGH2_LINEAR_OIL  
-    !PHASE OIL ! not needed
-    LIQUID_RESIDUAL_SATURATION 0.0d0 ! not used
-    OIL_RESIDUAL_SATURATION 0.01d0
-    !SMOOTH !when using smoothing option - to be implemented for oil functions
-  /
+  !TEST
 /
 
 #=========================== EOSs =============================================
-
-! if all commented, initialised IFC67 for density, enthaplty and viscosity  
-!EOS WATER
-!  DENSITY CONSTANT 997.16d0
-!  ENTHALPY CONSTANT 1.8890d0
-!  VISCOSITY CONSTANT 8.904156d-4
-!END
-
 EOS OIL
-  DENSITY CONSTANT 800.0d0 !kg/m3
-  ENTHALPY LINEAR_TEMP 1.d3 !J/kg/°C h=cp_oil*T 
+  DENSITY CONSTANT 800.0d0
+  !ENTHALPY CONSTANT 5.680d6 !J/Kmol (t=40°C, with TOUGH2-EOS8 linear model)
+  ENTHALPY LINEAR_TEMP 1.d3 !J/kg/°C
   VISCOSITY CONSTANT 0.5d-3
+END
+
+EOS GAS
 END
 
 #=========================== regions ==========================================
@@ -176,17 +161,28 @@ REGION wat_injector
   /
 END
 
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 1.d0
+  /
+END
+
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   !UNITS Pa,C,M,yr
   TYPE
-    PRESSURE dirichlet
+    OIL_PRESSURE dirichlet
     OIL_SATURATION dirichlet
+    GAS_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  !DATUM 0.d0 0.d0 0.d0
-  PRESSURE 1.D5
-  OIL_SATURATION 0.6d0 
+  DATUM 0.d0 0.d0 0.d0
+  !OIL_PRESSURE 1.D5
+  OIL_PRESSURE 85426.0 !to match TOUGH IC on gas pressure
+  OIL_SATURATION 0.5d0
+  GAS_SATURATION 0.2d0
   TEMPERATURE 15.d0 C
 /
 
@@ -196,9 +192,9 @@ FLOW_CONDITION wat_injection
     RATE mass_rate
     ENTHALPY dirichlet !can use also temperature
   /
-  !Wat(kg/s), oil(kg/s), Energy rate (J/sec) - overwritten by Temp or Enthalpy 
-  RATE 0.03d0 0.d0 0.0d0 kg/s kg/s MW
-  ENTHALPY 2.d5 !(J/kg)
+  !     Wat   oil   Gas  Energy [overwritten by Temp or Enth if specified]
+  RATE 0.03d0 0.0d0 0.d0 0.0d0 kg/s kg/s kg/s J/s
+  ENTHALPY 2.d5 0.0d0 0.0d0 !(J/kg)
 /
 #=========================== condition couplers ===============================
 # initial condition
@@ -207,13 +203,13 @@ INITIAL_CONDITION
   REGION formation
 END
 
-BOUNDARY_CONDITION outlet
+BOUNDARY_CONDITION
   FLOW_CONDITION initial
   REGION east
 END
 
 # water injector
-SOURCE_SINK injector
+SOURCE_SINK
   FLOW_CONDITION wat_injection
   REGION wat_injector
 END
@@ -225,4 +221,3 @@ STRATA
 END
 
 END_SUBSURFACE
-

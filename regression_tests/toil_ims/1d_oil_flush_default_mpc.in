@@ -1,4 +1,7 @@
 # TOUGH2 EOS8 - Sample 9 case - RCOL8 input 
+
+# this version uses the default version of MAXIMUM_PRESSURE_CHANGE
+
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   !SIMULATION_TYPE GEOMECHANICS_SUBSURFACE
@@ -6,8 +9,8 @@ SIMULATION
     SUBSURFACE_FLOW Flow
       MODE TOIL_IMS
       OPTIONS
-       MAXIMUM_PRESSURE_CHANGE 5.D4
-       ANALYTICAL_JACOBIAN
+       # removal of this line is the difference:
+       #MAXIMUM_PRESSURE_CHANGE 5.D4
        !ISOTHERMAL
        !TOUGH2_ITOL_SCALED_RESIDUAL 1.d-5 1.d0
       /
@@ -24,10 +27,9 @@ REGRESSION
   CELLS
     1
     2
-    18
+    3
     19
   /
-  CELLS_PER_PROCESS 2
 END
 
 #=========================== discretization ===================================
@@ -84,7 +86,7 @@ OUTPUT
   FORMAT HDF5
   !PERMEABILITY
   MASS_BALANCE
- noskip
+ noskip 
 END
 
 #=========================== fluid properties =================================
