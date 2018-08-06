@@ -1,14 +1,18 @@
 ﻿#  OpenGoSim 4-Oct-2017
-#  Todd-Longstaff - SWAG 1D case - omega=0.4
+#  Todd-Longstaff - 1D case - omega=0
+
+# this version uses the default version of MAXIMUM_PRESSURE_CHANGE
+
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW Flow
       MODE TODD_LONGSTAFF
       OPTIONS
-       MAXIMUM_PRESSURE_CHANGE 5.D4
+       # removal of this line is the difference:
+       #MAXIMUM_PRESSURE_CHANGE 5.D4
        ISOTHERMAL
-       TL_OMEGA 0.4
+       TL_OMEGA 0.0
       /
     / ! end of subsurface_flow
   / ! end of process models
@@ -26,8 +30,8 @@ REGRESSION
     10
   /
 END
-
 #=========================== discretization ===================================
+
 ! PV~10E5 m3
 GRID
   TYPE structured
@@ -41,6 +45,7 @@ GRID
 END
 
 #=========================== solver options ===================================
+
 NEWTON_SOLVER FLOW
   ATOL 1D-8
   RTOL 1D-8
@@ -56,6 +61,7 @@ TIME
   INITIAL_TIMESTEP_SIZE 1.0d-5 d
   MINIMUM_TIMESTEP_SIZE 1.0D-10 d
   MAXIMUM_TIMESTEP_SIZE 10.0 d
+  !MAXIMUM_TIMESTEP_SIZE 1 d at 0. d
 END
 
 #=========================== output options ===================================
@@ -106,6 +112,7 @@ MATERIAL_PROPERTY formation
   /
 /
 
+#=========================== datasets ==============================
 #=========================== saturation functions =============================
 CHARACTERISTIC_CURVES ch1
 ! This is just for capillary pressure, and is set to zero here
@@ -163,11 +170,7 @@ COORDINATES
 /
 /
 
-REGION injg
- BLOCK  1 1 1 1 1 1
-END
-
-REGION injw
+REGION inj1
  BLOCK  1 1 1 1 1 1
 END
 
@@ -208,16 +211,7 @@ FLOW_CONDITION gas_injector_cond
     RATE volumetric_rate
     TEMPERATURE dirichlet
   /
-  RATE 0.0000000 0.000000 50 0 m^3/day m^3/day m^3/day MW
-  TEMPERATURE 15.0 C
-/
-
-FLOW_CONDITION water_injector_cond
-  TYPE
-    RATE volumetric_rate
-    TEMPERATURE dirichlet
-  /
-  RATE 50 0.0 0 0 m^3/day m^3/day m^3/day MW
+  RATE 0.0000000 0.000000 100 0 m^3/day m^3/day m^3/day MW
   TEMPERATURE 15.0 C
 /
 
@@ -246,12 +240,7 @@ REGION all
 
 SOURCE_SINK gas_injection1
   FLOW_CONDITION gas_injector_cond
-  REGION injg
-END
-
-SOURCE_SINK water_injection1
-  FLOW_CONDITION water_injector_cond
-  REGION injw
+  REGION inj1
 END
 
 BOUNDARY_CONDITION producer

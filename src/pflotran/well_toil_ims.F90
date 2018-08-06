@@ -327,6 +327,12 @@ subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
 
   PetscBool :: analytical_derivatives
 
+  PetscInt :: dof_op, dof_osat, dof_temp
+
+  dof_op     = TOIL_IMS_PRESSURE_DOF
+  dof_osat   = TOIL_IMS_SATURATION_DOF
+  dof_temp   = TOIL_IMS_ENERGY_DOF
+
   Res = 0.0d0
   vol_flux = 0.0d0
 
@@ -349,7 +355,7 @@ subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
   if (analytical_derivatives) then 
     mob = this%ConnMob_derivs(this%flow_auxvars(dof,ghosted_id)%mobility,option%liquid_phase, &
                        dof,ghosted_id, d_mob,  &
-                       this%toil_auxvars(dof,ghosted_id)%d%dmobility)
+                       this%toil_auxvars(dof,ghosted_id)%D_mobility)
   else
     mob = this%ConnMob(this%flow_auxvars(dof,ghosted_id)%mobility, &
                                          option%liquid_phase,dof,ghosted_id)
@@ -364,7 +370,7 @@ subroutine TOilImsWatInjExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
     d_dphi_dp = -1.d0
     !!! TOTO: also add cap pressure based saturation derivatives here
     !d_dphi_ds = -1.d0*this%toil_auxvars%dp_dsat(option%liquid_phase)
-    d_dphi_ds = -1.d0*this%toil_auxvars(dof, ghosted_id)%d%dp_dsat(option%liquid_phase)
+    d_dphi_ds = -1.d0*this%toil_auxvars(dof, ghosted_id)%D_pres(option%liquid_phase,dof_osat)
     !! recall that the value in the auxvar is already w.r.t. OIL
     !! sat so don't be tempted to throw in an extra -1 here - 
     !! just the -1 from the eq for dphi
@@ -530,6 +536,12 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
 
   PetscBool :: analytical_derivatives
 
+  PetscInt :: dof_op, dof_osat, dof_temp
+
+  dof_op     = TOIL_IMS_PRESSURE_DOF
+  dof_osat   = TOIL_IMS_SATURATION_DOF
+  dof_temp   = TOIL_IMS_ENERGY_DOF
+
   hc = this%conn_h(iconn)
   temp = this%conn_temp(iconn)
   cfact = this%conn_factors(iconn)
@@ -566,7 +578,7 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
     if (analytical_derivatives) then 
       !!! so dphi_dp is just 1 - unless cap pres derivatives are involved
       d_dphi_dp = 1.d0
-      d_dphi_ds = this%toil_auxvars(dof, ghosted_id)%d%dp_dsat(i_ph)
+      d_dphi_ds = this%toil_auxvars(dof, ghosted_id)%D_pres(i_ph,dof_osat)
     endif
 
     !upwind for den_mol 
@@ -575,8 +587,8 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
 
       if (analytical_derivatives) then 
         !!! so grab derivatives from corresponding toil_auxvar
-        d_pmd_dp = this%toil_auxvars(dof, ghosted_id)%d%dden_dp(i_ph)
-        d_pmd_dT = this%toil_auxvars(dof, ghosted_id)%d%dden_dT(i_ph)
+        d_pmd_dp = this%toil_auxvars(dof, ghosted_id)%D_den(i_ph,dof_op)
+        d_pmd_dT = this%toil_auxvars(dof, ghosted_id)%D_den(i_ph,dof_temp)
       endif
 
 
@@ -615,8 +627,8 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
 
         if (analytical_derivatives) then
           !!! grab H derivtives as d_phase_ent
-          d_pe_dp = this%toil_auxvars(dof, ghosted_id)%d%dH_dp(i_ph)
-          d_pe_dT = this%toil_auxvars(dof, ghosted_id)%d%dH_dT(i_ph)
+          d_pe_dp = this%toil_auxvars(dof, ghosted_id)%D_H(i_ph,dof_op)
+          d_pe_dT = this%toil_auxvars(dof, ghosted_id)%D_H(i_ph,dof_temp)
         endif
 
       else if (dphi < 0.0d0) then 
@@ -656,7 +668,7 @@ subroutine TOilImsProducerExplRes(this,iconn,ss_flow_vol_flux,isothermal, &
     if (analytical_derivatives) then 
       mob = this%ConnMob_derivs(this%flow_auxvars(dof,ghosted_id)%mobility,i_ph, &
                          dof,ghosted_id, d_mob,  &
-                         this%toil_auxvars(dof,ghosted_id)%d%dmobility)
+                         this%toil_auxvars(dof,ghosted_id)%D_mobility)
     else
       mob = this%ConnMob(this%flow_auxvars(dof,ghosted_id)%mobility,i_ph, &
                          dof,ghosted_id)

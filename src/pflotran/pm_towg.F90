@@ -17,7 +17,7 @@ module PM_TOWG_class
     PetscInt, pointer :: max_change_isubvar(:)
     ! A) and B) could be moved to pm_subsurface
     !A) used for truncation within CheckUpdatePre
-    PetscReal :: trunc_max_pressure_change = 5.d4
+    PetscReal :: trunc_max_pressure_change = 5.d10
     PetscInt ::  max_it_before_damping = UNINITIALIZED_INTEGER
     PetscReal :: damping_factor = 0.6d0
     !B) used for convergence criteria within CheckUpdatePost
@@ -110,7 +110,8 @@ function PMTOWGCreate(miscibility_model,option)
                          'TOWG MISCIBILITY_MODEL',option)
   end select
 
-  towg_pm%trunc_max_pressure_change = 5.d4
+  !towg_pm%trunc_max_pressure_change = 5.d4
+  towg_pm%trunc_max_pressure_change = 5.d10
   towg_pm%max_it_before_damping = UNINITIALIZED_INTEGER
   towg_pm%damping_factor = 0.6d0
   towg_pm%itol_rel_update = UNINITIALIZED_DOUBLE
