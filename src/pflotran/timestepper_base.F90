@@ -588,45 +588,30 @@ subroutine TimestepperBasePrintInfo(this,option)
   ! 
 
   use Option_module
+  use String_module
   
   implicit none
   
   class(timestepper_base_type) :: this
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
-  
-  if (OptionPrintToScreen(option)) then
-    write(*,*) 
-    write(*,'(a)') trim(this%name) // ' Time Stepper'
-    write(string,*) this%max_time_step
-    write(*,'("max steps:",x,a)') trim(adjustl(string))
-    write(string,*) this%constant_time_step_threshold
-    write(*,'("max constant cumulative time steps:",x,a)') &
-      trim(adjustl(string))
-    write(string,*) this%max_time_step_cuts
-    write(*,'("max cuts:",x,a)') trim(adjustl(string))
-    write(string,*) this%time_step_reduction_factor
-    write(*,'("ts reduction factor:",x,a)') trim(adjustl(string))
-    write(string,*) this%time_step_max_growth_factor
-    write(*,'("ts maximum growth factor:",x,a)') trim(adjustl(string))
-  endif
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,*) 
-    write(option%fid_out,'(a)') trim(this%name) // ' Time Stepper'
-    write(string,*) this%max_time_step
-    write(option%fid_out,'("max steps:",x,a)') trim(adjustl(string))
-    write(string,*) this%constant_time_step_threshold
-    write(option%fid_out,'("max constant cumulative time steps:",x,a)') &
-      trim(adjustl(string))
-    write(string,*) this%max_time_step_cuts
-    write(option%fid_out,'("max cuts:",x,a)') trim(adjustl(string))
-    write(string,*) this%time_step_reduction_factor
-    write(option%fid_out,'("ts reduction factor:",x,a)') trim(adjustl(string))
-    write(string,*) this%time_step_max_growth_factor
-    write(option%fid_out,'("ts maximum growth factor:",x,a)') &
-      trim(adjustl(string))
-  endif    
+  PetscInt :: fids(2)
+  character(len=MAXSTRINGLENGTH) :: strings(10)
+
+  fids = OptionGetFIDs(option)
+  ! header is printed in daughter class
+  strings(:) = ''
+  strings(1) = 'maximum number of steps: ' // StringWrite(this%max_time_step)
+  strings(2) = 'constant time steps threshold: ' // &
+                              StringWrite(this%constant_time_step_threshold)
+  strings(3) = 'maximum number of cuts: ' // &
+                                        StringWrite(this%max_time_step_cuts)
+  strings(4) = 'reduction factor: ' // &
+                                StringWrite(this%time_step_reduction_factor)
+  strings(5) = 'maximum growth factor: ' // &
+                               StringWrite(this%time_step_max_growth_factor)
+  call StringsCenter(strings,30,':')
+  call StringWriteToUnits(fids,strings)
 
 end subroutine TimestepperBasePrintInfo
 

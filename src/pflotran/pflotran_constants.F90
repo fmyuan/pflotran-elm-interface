@@ -1,6 +1,8 @@
 module PFLOTRAN_Constants_module
 
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
+
+  use, intrinsic :: iso_fortran_env, only : stdout=>Output_Unit
  
   implicit none
 
@@ -13,6 +15,7 @@ module PFLOTRAN_Constants_module
   
   PetscInt, parameter, public :: MAXSTRINGLENGTH = 512
   PetscInt, parameter, public :: MAXWORDLENGTH = 32
+  PetscInt, parameter, public :: STDOUT_UNIT = stdout
   PetscInt, parameter, public :: OUT_UNIT = 15
   PetscInt, parameter, public :: OUTPUT_UNIT = 16
   PetscInt, parameter, public :: IN_UNIT = 17

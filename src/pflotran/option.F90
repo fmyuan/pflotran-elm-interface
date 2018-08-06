@@ -291,6 +291,7 @@ module Option_module
             OptionCheckTouch, &
             OptionPrintToScreen, &
             OptionPrintToFile, &
+            OptionGetFIDs, &
             OptionInitRealization, &
             OptionMeanVariance, &
             OptionMaxMinMeanVariance, &
@@ -1141,6 +1142,29 @@ function OptionPrintToFile(option)
   endif
 
 end function OptionPrintToFile
+
+! ************************************************************************** !
+
+function OptionGetFIDs(option)
+  !
+  ! Determines whether printing to file should occur
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/29/09
+  !
+
+
+  implicit none
+
+  type(option_type) :: option
+
+  PetscInt :: OptionGetFIDs(2)
+
+  OptionGetFIDs = -1
+  if (OptionPrintToScreen(option)) OptionGetFIDs(1) = STDOUT_UNIT
+  if (OptionPrintToFile(option)) OptionGetFIDs(2) = option%fid_out
+
+end function OptionGetFIDs
 
 ! ************************************************************************** !
 

@@ -34,7 +34,25 @@ module String_module
             StringFormatInt, &
             StringFormatDouble, &
             StringIntegerDoubleOrWord, &
-            StringYesNoOther
+            StringYesNoOther, &
+            StringsCenter, &
+            StringCenter, &
+            StringWrite, &
+            StringWriteF, &
+            StringWriteToUnit, &
+            StringWriteToUnits, &
+            String1Or2
+
+  interface StringWrite
+    module procedure StringWriteI
+    module procedure StringWriteES
+    module procedure StringWriteString
+  end interface
+
+  interface StringWriteToUnits
+    module procedure StringWriteStringToUnits
+    module procedure StringWriteStringsToUnits
+  end interface
   
   interface StringCompare
     module procedure StringCompare1
@@ -722,5 +740,249 @@ function StringYesNoOther(string)
   endif
 
 end function StringYesNoOther
+
+! ************************************************************************** !
+
+subroutine StringsCenter(strings,center_column,center_characters)
+  ! 
+  ! Writes strings centered on center_characters within width
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/03/18
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: strings(:)
+  PetscInt :: center_column
+  character(len=*) :: center_characters
+ 
+  PetscInt :: i
+ 
+  do i=1, size(strings)
+    strings(i) = StringCenter(strings(i),center_column,center_characters)
+  enddo
+ 
+end subroutine StringsCenter
+
+! ************************************************************************** !
+
+function StringCenter(string,center_column,center_characters)
+  ! 
+  ! Writes a string centered on center_characters within width
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/03/18
+  ! 
+
+  implicit none
+ 
+  character(len=*) :: string
+  PetscInt :: center_column
+  character(len=*) :: center_characters
+
+  character(len=MAXSTRINGLENGTH) :: StringCenter
+
+  PetscInt :: icol
+  character(len=center_column) :: buffer
+ 
+  if (len_trim(center_characters) > 0) then
+    icol = center_column - index(string,center_characters)
+    if (icol > 0) then
+      buffer(1:icol) = ''
+      string = buffer(1:icol) // string
+    endif
+  else if (len(center_characters) > 0) then
+    string = center_characters // string
+  endif
+
+  StringCenter = string
+ 
+end function StringCenter
+
+! ************************************************************************** !
+
+function StringWriteI(i)
+  ! 
+  ! Writes an integer to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteI
+
+  PetscInt :: i
+
+  write(StringWriteI,*) i
+  StringWriteI = adjustl(StringWriteI)
+ 
+end function StringWriteI
+
+! ************************************************************************** !
+
+function StringWriteES(es)
+  ! 
+  ! Writes a double precision number in scientific notation to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteES
+
+  PetscReal :: es
+
+  write(StringWriteES,'(es13.6)') es
+  StringWriteES = adjustl(StringWriteES)
+ 
+end function StringWriteES
+
+! ************************************************************************** !
+
+function StringWriteF(f)
+  ! 
+  ! Writes a double precision number in floating point notaton to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteF
+
+  PetscReal :: f
+
+  write(StringWriteF,'(f20.4)') f
+  StringWriteF = adjustl(StringWriteF)
+ 
+end function StringWriteF
+
+! ************************************************************************** !
+
+function StringWriteString(s)
+  ! 
+  ! Writes a double precision number in floating point notaton to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteString
+
+  character(len=*) :: s
+
+  StringWriteString = adjustl(s)
+ 
+end function StringWriteString
+
+! ************************************************************************** !
+
+subroutine StringWriteToUnit(fid,string)
+  ! 
+  ! Writes a string to a file unit (which could be the screen). ! This 
+  ! routine WILL NOT SKIP empty lines.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  PetscInt :: fid
+  character(len=*) :: string
+
+  write(fid,'(a)') trim(string)
+ 
+end subroutine StringWriteToUnit
+
+! ************************************************************************** !
+
+subroutine StringWriteStringToUnits(fids,string)
+  ! 
+  ! Writes a SINGLE string to multiple file units (one of which could
+  ! be the screen)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  PetscInt :: fids(:)
+  character(len=*) :: string
+
+  PetscInt :: i
+
+  do i = 1, size(fids)
+    if (fids(i) > 0) call StringWriteToUnit(fids(i),string)
+  enddo
+ 
+end subroutine StringWriteStringToUnits
+
+! ************************************************************************** !
+
+subroutine StringWriteStringsToUnits(fids,strings)
+  ! 
+  ! Writes MULTIPLE strings to multiple file units (one of which could
+  ! be the screen).  This routine WILL SKIP empty lines.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  PetscInt :: fids(:)
+  character(len=*) :: strings(:)
+
+  PetscInt :: ifile, istring
+
+  do istring = 1, size(strings)
+    if (len_trim(strings(istring)) > 0) then
+      do ifile = 1, size(fids)
+        if (fids(ifile) > 0) then
+          call StringWriteToUnit(fids(ifile),strings(istring))
+        endif
+      enddo
+    endif
+  enddo
+ 
+end subroutine StringWriteStringsToUnits
+
+! ************************************************************************** !
+
+function String1Or2(bool,string1,string2)
+  ! 
+  ! Writes a string to multipel file units (one of which could be the screen)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  PetscBool :: bool
+  character(len=*) :: string1
+  character(len=*) :: string2
+
+  character(len=MAXSTRINGLENGTH) :: String1Or2
+
+  if (bool) then
+    String1Or2 = string1
+  else
+    String1Or2 = string2
+  endif
+
+end function String1Or2
+
+! ************************************************************************** !
 
 end module String_module

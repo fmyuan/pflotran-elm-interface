@@ -473,10 +473,6 @@ subroutine PMCSubsurfaceSetupSolvers(this)
 #endif
                              ierr);CHKERRQ(ierr)
         call SolverSetSNESOptions(solver,option)
-        option%io_buffer = 'Solver: ' // trim(solver%ksp_type)
-        call printMsg(option)
-        option%io_buffer = 'Preconditioner: ' // trim(solver%pc_type)
-        call printMsg(option)
     end select
   endif ! associated(pmc%timestepper)        
 

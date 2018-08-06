@@ -388,7 +388,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       call printMsg(option)
       if (snes_reason < SNES_CONVERGED_ITERATING) then
         call SolverNewtonPrintFailedReason(solver,option)
-        if (solver%verbose_error_msg) then
+        if (solver%verbose_logging) then
           select case(snes_reason)
             case(SNES_DIVERGED_FNORM_NAN)
               ! attempt to find cells with NaNs.
@@ -978,12 +978,38 @@ subroutine TimestepperBEPrintInfo(this,option)
   ! Date: 12/04/14
   ! 
   use Option_module
+  use String_module
 
   implicit none
 
   class(timestepper_BE_type) :: this
   type(option_type) :: option
-  
+
+  PetscInt :: fids(2)
+  PetscInt :: i
+  character(len=MAXSTRINGLENGTH), allocatable :: strings(:)
+
+  fids = OptionGetFIDs(option)
+  call StringWriteToUnits(fids,' ')
+  call StringWriteToUnits(fids,trim(this%name) // ' Time Stepper')
+
+  ! have to allocate since ntfac can be infinite
+  allocate(strings(this%ntfac+20))
+  strings = '' 
+  strings(1) = 'acceleration: ' // &
+                           StringWrite(String1Or2(this%iaccel>0,'on','off'))
+  if (this%iaccel > 0) then
+    strings(2) = 'acceleration threshold: ' // StringWrite(this%iaccel)
+  endif
+  strings(3) = 'number of ramp entries: ' // StringWrite(this%iaccel)
+  do i = 1, this%ntfac
+    strings(i+3) = 'ramp entry #' // trim(StringWrite(i)) // ': ' // &
+                   StringWriteF(this%tfac(i))
+  enddo
+  call StringsCenter(strings,30,':')
+  call StringWriteToUnits(fids,strings)
+  deallocate(strings)
+
   call TimestepperBasePrintInfo(this,option)
   call SolverPrintNewtonInfo(this%solver,this%name,option)
   call SolverPrintLinearInfo(this%solver,this%name,option)
