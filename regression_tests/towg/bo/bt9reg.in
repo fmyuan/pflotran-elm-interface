@@ -6,6 +6,7 @@ SIMULATION
     SUBSURFACE_FLOW Flow
       MODE BLACK_OIL
       OPTIONS
+       MAXIMUM_PRESSURE_CHANGE 5.D4
       /
     / ! end of subsurface_flow
   / ! end of process models
