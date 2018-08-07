@@ -707,6 +707,7 @@ function PMWFCreate()
   PMWFCreate%print_mass_balance = PETSC_FALSE
   PMWFCreate%implicit_solution = PETSC_FALSE
   PMWFCreate%name = 'waste form general'
+  PMWFCreate%header = 'WASTE FORM (GENERAL)'
 
   call PMBaseInit(PMWFCreate)
 
@@ -2508,9 +2509,7 @@ subroutine PMWFInitializeTimestep(this)
   grid => this%realization%patch%grid
   dt = option%tran_dt
   
-  if (option%print_screen_flag) then
-    write(*,'(/,2("=")," WASTE FORM MODEL ",60("="))')
-  endif
+  call PMBasePrintHeader(this)
 
   ! zero entries from previous time step
   call VecZeroEntries(this%data_mediator%vec,ierr);CHKERRQ(ierr)
@@ -3011,9 +3010,8 @@ subroutine PMWFSolve(this,time,ierr)
   if ((fmdm_count_global > 0) .and. &
       this%realization%option%print_screen_flag) then
     write(word,'(i5)') fmdm_count_global
-    write(*,'(/,2("=")," FMDM ",72("="))')
   ! ** START (this can be removed after FMDM profiling is finished) **
-    write(*,'(a)') '== ' // adjustl(trim(word)) // ' calls to FMDM.'
+    write(*,'(a)') '== ' // adjustl(trim(word)) // ' call(s) to FMDM.'
   ! ** END (this can be removed after FMDM profiling is finished) **
   endif
   

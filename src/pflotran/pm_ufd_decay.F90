@@ -206,6 +206,7 @@ function PMUFDDecayCreate()
   allocate(PMUFDDecayCreate)
   call PMBaseInit(PMUFDDecayCreate)
 
+  PMUFDDecayCreate%header = 'USED FUEL DISPOSITION DECAY'
   PMUFDDecayCreate%num_isotopes = 0
   PMUFDDecayCreate%num_elements = 0
   PMUFDDecayCreate%implicit_solution = PETSC_FALSE
@@ -981,9 +982,7 @@ subroutine PMUFDDecayInitializeTimestep(this)
   class(pm_ufd_decay_type) :: this
 ! --------------------------------
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," USED FUEL DISPOSITION DECAY MODEL ",43("="))')
-  endif
+  call PMBasePrintHeader(this)
 
 end subroutine PMUFDDecayInitializeTimestep
 

@@ -162,6 +162,7 @@ function PMTOWGCreate(miscibility_model,option)
 
   call PMSubsurfaceFlowCreate(towg_pm)
   towg_pm%name = 'TOWG Flow'
+  towg_pm%header = 'TOWG FLOW'
 
   PMTOWGCreate => towg_pm
   
@@ -373,10 +374,6 @@ subroutine PMTOWGInitializeTimestep(this)
                                  this%realization%field%work_loc,TORTUOSITY, &
                                  ZERO_INTEGER)
                                  
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," TOWG FLOW ",64("="))')
-  endif
-  
   call TOWGInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)                                 
   

@@ -118,6 +118,7 @@ function PMUFDBCreate()
   PMUFDBCreate%output_start_time = 0.d0  ! [sec] default value
   PMUFDBCreate%unsupp_rads_needed = PETSC_FALSE
   PMUFDBCreate%name = 'ufd biosphere'
+  PMUFDBCreate%header = 'UFD BIOSPHERE'
 
   call PMBaseInit(PMUFDBCreate)
   
@@ -1309,9 +1310,7 @@ subroutine PMUFDBInitializeTimestep(this)
 
   class(pm_ufd_biosphere_type) :: this
   
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," UFD BIOSPHERE MODEL ",57("="))')
-  endif
+  call PMBasePrintHeader(this)
   
   if (this%option%time >= this%output_start_time) then
     call PMUFDBOutput(this)

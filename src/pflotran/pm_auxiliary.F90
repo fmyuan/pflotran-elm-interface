@@ -238,9 +238,10 @@ subroutine PMAuxiliarySetFunctionPointer(this,string)
     case('EVOLVING_STRATA')
       this%Evaluate => PMAuxiliaryEvolvingStrata
       this%name = 'auxiliary evolving strata'
+      this%header = 'AUXILIARY EVOLVING STRATA'
     case('SALINITY')
       this%Evaluate => PMAuxiliarySalinity
-      this%name = 'auxiliary salinity'
+      this%header = 'AUXILIARY SALINITY'
     case default
       this%option%io_buffer = 'Function pointer "' // trim(string) // '" not &
         &found among available functions in PMAuxiliarySetFunctionPointer.'
@@ -312,9 +313,7 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
 
   PetscInt :: ndof
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," EVOLVE STRATA ",63("="))')
-  endif
+  call PMBasePrintHeader(this)
 
   ierr = 0
   call InitSubsurfAssignMatIDsToRegns(this%realization)
@@ -347,9 +346,7 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt, parameter :: iphase = 1
     
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," UPDATE SALINITY ",61("="))')
-  endif
+  call PMBasePrintHeader(this)
 
   ierr = 0
   do j = 1, 2

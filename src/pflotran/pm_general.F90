@@ -75,6 +75,7 @@ function PMGeneralCreate()
   
   call PMSubsurfaceFlowCreate(general_pm)
   general_pm%name = 'General Multiphase Flow'
+  general_pm%header = 'GENERAL MULTIPHASE FLOW'
 
   PMGeneralCreate => general_pm
   
@@ -279,6 +280,7 @@ subroutine PMGeneralInitializeTimestep(this)
   use Global_module
   use Variables_module, only : TORTUOSITY
   use Material_module, only : MaterialAuxVarCommunicate
+  use Option_module
   
   implicit none
   
@@ -291,10 +293,6 @@ subroutine PMGeneralInitializeTimestep(this)
                                  this%realization%field%work_loc,TORTUOSITY, &
                                  ZERO_INTEGER)
                                  
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," GENERAL FLOW ",64("="))')
-  endif
-  
   call GeneralInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)                                 
   

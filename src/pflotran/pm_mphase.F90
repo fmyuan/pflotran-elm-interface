@@ -56,6 +56,7 @@ function PMMphaseCreate()
 
   call PMSubsurfaceFlowCreate(mphase_pm)
   mphase_pm%name = 'Mphase CO2 Flow'
+  mphase_pm%header = 'MPHASE CO2 FLOW'
 
   PMMphaseCreate => mphase_pm
   
@@ -125,17 +126,13 @@ subroutine PMMphaseInitializeTimestep(this)
   ! 
 
   use Mphase_module, only : MphaseInitializeTimestep
+  use Option_module
   
   implicit none
   
   class(pm_mphase_type) :: this
 
   call PMSubsurfaceFlowInitializeTimestepA(this)         
-
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," MPHASE FLOW ",65("="))')
-  endif
-  
   call MphaseInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)         
   

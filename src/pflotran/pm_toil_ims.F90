@@ -73,6 +73,7 @@ function PMTOilImsCreate()
   
   call PMSubsurfaceFlowCreate(toil_ims_pm)
   toil_ims_pm%name = 'TOilIms Flow'
+  toil_ims_pm%header = 'TOIL_IMS FLOW'
 
   call TOilImsDefaultSetup()
 
@@ -257,10 +258,6 @@ subroutine PMTOilImsInitializeTimestep(this)
                                  this%realization%field%work_loc,TORTUOSITY, &
                                  ZERO_INTEGER)
                                  
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," TOIL_IMS FLOW ",64("="))')
-  endif
-  
   call TOilImsInitializeTimestep(this%realization)
 
   call PMSubsurfaceFlowInitializeTimestepB(this)                                 

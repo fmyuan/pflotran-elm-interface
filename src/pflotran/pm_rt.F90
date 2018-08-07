@@ -113,6 +113,7 @@ function PMRTCreate()
 
   call PMBaseInit(rt_pm)
   rt_pm%name = 'Reactive Transport'
+  rt_pm%header = 'REACTIVE TRANSPORT'
   
   PMRTCreate => rt_pm
   
@@ -369,6 +370,7 @@ subroutine PMRTInitializeTimestep(this)
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_TIMESTEP
   use Global_module
   use Material_module
+  use Option_module
 
   implicit none
   
@@ -378,13 +380,11 @@ subroutine PMRTInitializeTimestep(this)
 #ifdef PM_RT_DEBUG  
   call printMsg(this%option,'PMRT%InitializeTimestep()')
 #endif
-  
+
   this%option%tran_dt = this%option%dt
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," REACTIVE TRANSPORT ",58("="))')
-  endif
-  
+  call PMBasePrintHeader(this)
+
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
   ! RTInitializeTimestep and RTTimeCut (which calls RTInitializeTimestep)

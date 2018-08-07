@@ -60,6 +60,7 @@ function PMMiscibleCreate()
 
   call PMSubsurfaceFlowCreate(miscible_pm)
   miscible_pm%name = 'Miscible Flow'
+  miscible_pm%header = 'MISCIBLE FLOW'
 
   PMMiscibleCreate => miscible_pm
   
@@ -135,11 +136,6 @@ subroutine PMMiscibleInitializeTimestep(this)
   class(pm_miscible_type) :: this
 
   call PMSubsurfaceFlowInitializeTimestepA(this)         
-
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," MISCIBLE FLOW ",63("="))')
-  endif
-  
   call MiscibleInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)         
   

@@ -118,6 +118,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
   PetscReal, pointer :: vec_ptr(:)
   
   character(len=MAXSTRINGLENGTH) :: string, string2, string3, sec_string
+  character(len=MAXSTRINGLENGTH) :: out_string
   PetscBool :: print_sol_norm_info = PETSC_FALSE
   PetscBool :: print_upd_norm_info = PETSC_FALSE
   PetscBool :: print_res_norm_info = PETSC_FALSE
@@ -288,7 +289,8 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
           case default
             write(sec_string,'(i3)') sec_reason
         end select
-        write(*,'(i3," 2r:",es9.2, &
+        write(out_string,&
+             '(i3," 2r:",es9.2, &
                 & " 2x:",es9.2, &
                 & " 2u:",es9.2, &
                 & " ir:",es9.2, &
@@ -299,7 +301,8 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
                 inorm_update, option%infnorm_res_sec, &
                 trim(string), trim(sec_string)
       else
-        write(*,'(i3," 2r:",es9.2, &
+        write(out_string,&
+             '(i3," 2r:",es9.2, &
                 & " 2x:",es9.2, &
                 & " 2u:",es9.2, &
                 & " ir:",es9.2, &
@@ -308,6 +311,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
                 i_iteration, fnorm, xnorm, unorm, inorm_residual, &
                 inorm_update, trim(string)        
       endif
+      call OptionPrint(out_string,option)
     endif
   else
   
@@ -349,10 +353,11 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
         case default
           write(string,'(i3)') reason
       end select
-      write(*,'(i3," 2r:",es10.2, &
-              & " 2u:",es10.2, &
-              & 32x, &
-              & " rsn: ",a)') i_iteration, fnorm, unorm, trim(string)
+      write(out_string,'(i3," 2r:",es10.2, &
+                          & " 2u:",es10.2, &
+                          & 32x, &
+                      & " rsn: ",a)') i_iteration, fnorm, unorm, trim(string)
+      call OptionPrint(out_string,option)
       if (solver%print_linear_iterations) then
         call KSPGetIterationNumber(solver%ksp,i,ierr);CHKERRQ(ierr)
         write(option%io_buffer,'("   Linear Solver Iterations: ",i6)') i

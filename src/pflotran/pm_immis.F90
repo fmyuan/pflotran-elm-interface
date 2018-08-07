@@ -56,6 +56,7 @@ function PMImmisCreate()
 
   call PMSubsurfaceFlowCreate(immis_pm)
   immis_pm%name = 'Immisible Flow'
+  immis_pm%header = 'IMMISCIBLE FLOW'
 
   PMImmisCreate => immis_pm
   
@@ -131,11 +132,6 @@ subroutine PMImmisInitializeTimestep(this)
   class(pm_immis_type) :: this
 
   call PMSubsurfaceFlowInitializeTimestepA(this)         
-
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," IMMISCIBLE FLOW ",61("="))')
-  endif
-  
   call ImmisInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)         
   

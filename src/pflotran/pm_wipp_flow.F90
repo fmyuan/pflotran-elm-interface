@@ -138,6 +138,7 @@ subroutine PMWIPPFloInitObject(this)
   
   call PMSubsurfaceFlowCreate(this)
   this%name = 'WIPP Immiscible Multiphase Flow'
+  this%header = 'WIPP IMMISCIBLE MULTIPHASE FLOW'
 
   this%check_post_convergence = PETSC_TRUE
 
@@ -627,16 +628,13 @@ subroutine PMWIPPFloInitializeTimestep(this)
   use Global_module
   use Variables_module, only : TORTUOSITY
   use Material_module, only : MaterialAuxVarCommunicate
+  use Option_module
   
   implicit none
   
   class(pm_wippflo_type) :: this
 
-  call PMSubsurfaceFlowInitializeTimestepA(this)                                 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," WIPP FLOW MODE ",62("="))')
-  endif
-  
+  call PMSubsurfaceFlowInitializeTimestepA(this)
   call WIPPFloInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)  
   

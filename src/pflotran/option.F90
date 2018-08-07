@@ -286,6 +286,7 @@ module Option_module
             printErrMsgNoStopByRank, &
             printVerboseMsg, &
             OptionCheckTouch, &
+            OptionPrint, &
             OptionPrintToScreen, &
             OptionPrintToFile, &
             OptionGetFIDs, &
@@ -1139,6 +1140,32 @@ end function OptionPrintToFile
 
 ! ************************************************************************** !
 
+subroutine OptionPrint(string,option)
+  !
+  ! Determines whether printing to file should occur
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/29/09
+  !
+  use PFLOTRAN_Constants_module
+
+  implicit none
+
+  character(len=*) :: string
+  type(option_type) :: option
+
+  ! note that these flags can be toggled off specific time steps
+  if (option%print_screen_flag) then
+    write(STDOUT_UNIT,'(a)') trim(string)
+  endif
+  if (option%print_file_flag) then
+    write(option%fid_out,'(a)') trim(string)
+  endif
+
+end subroutine OptionPrint
+
+! ************************************************************************** !
+
 function OptionGetFIDs(option)
   !
   ! Determines whether printing to file should occur
@@ -1146,8 +1173,6 @@ function OptionGetFIDs(option)
   ! Author: Glenn Hammond
   ! Date: 01/29/09
   !
-
-
   implicit none
 
   type(option_type) :: option
