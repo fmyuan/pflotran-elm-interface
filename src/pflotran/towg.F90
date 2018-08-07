@@ -16,6 +16,8 @@ module TOWG_module
 #define LIQUID_DIFFUSION
 #define CONDUCTION
 
+#define GLOBALWORKERS
+
 !#define DEBUG_TOWG_FILEOUTPUT
 !#define DEBUG_TOWG_FLUXES  
 
@@ -32,6 +34,19 @@ module TOWG_module
   PetscInt :: debug_timestep_cut_count
   PetscInt :: debug_timestep_count
 #endif
+
+#ifdef GLOBALWORKERS
+  PetscReal, allocatable, dimension(:) :: D_den_kg_ave_up,D_den_kg_ave_dn
+  PetscReal, allocatable, dimension(:) :: D_den_ave_up,D_den_ave_dn
+  PetscReal, allocatable, dimension(:) :: D_delta_presure_up,D_delta_presure_dn
+  PetscReal, allocatable, dimension(:) :: D_mobility_up,D_mobility_dn
+  PetscReal, allocatable, dimension(:) :: D_uH_up,D_uH_dn
+  PetscReal, allocatable, dimension(:) :: D_v_darcy_up,D_v_darcy_dn
+  PetscReal, allocatable, dimension(:) :: D_q_up,D_q_dn
+  PetscReal, allocatable, dimension(:) :: D_mole_flux_up,D_mole_flux_dn
+  PetscReal, allocatable, dimension(:) :: D_xmf_up,D_xmf_dn
+#endif
+
 
   !pointing to null() function
   procedure(TOWGUpdateAuxVarsDummy), pointer :: TOWGUpdateAuxVars => null()
@@ -312,6 +327,32 @@ subroutine TOWGSetup(realization)
   towg_dcomp_tol = flow_aux_debug_tol
   towg_dcomp_reltol = flow_aux_debug_reltol
 
+#ifdef GLOBALWORKERS
+  if (towg_analytical_derivatives) then
+    !!!! this isn't the best since it's still technically possible to call routines
+    !!!! that need them and have them not allocated
+
+    allocate(D_den_kg_ave_up (1:option%nflowdof))
+    allocate(D_den_kg_ave_dn (1:option%nflowdof))
+    allocate(D_den_ave_up (1:option%nflowdof))
+    allocate(D_den_ave_dn (1:option%nflowdof))
+    allocate(D_delta_presure_up (1:option%nflowdof))
+    allocate(D_delta_presure_dn (1:option%nflowdof))
+    allocate( D_mobility_up (1:option%nflowdof))
+    allocate(D_mobility_dn (1:option%nflowdof))
+    allocate(D_uH_up (1:option%nflowdof))
+    allocate(D_uH_dn (1:option%nflowdof))
+    allocate(D_v_darcy_up (1:option%nflowdof))
+    allocate(D_v_darcy_dn (1:option%nflowdof))
+    allocate(D_q_up (1:option%nflowdof))
+    allocate(D_q_dn (1:option%nflowdof))
+    allocate(D_mole_flux_up (1:option%nflowdof))
+    allocate(D_mole_flux_dn (1:option%nflowdof))
+    allocate(D_xmf_up (1:option%nflowdof))
+    allocate(D_xmf_dn (1:option%nflowdof))
+  endif
+#endif
+
   ! ensure that material properties specific to this module are properly
   ! initialized
   material_parameter => patch%aux%Material%material_parameter
@@ -478,6 +519,75 @@ subroutine TOWGSetup(realization)
 #endif  
 
 end subroutine TOWGSetup
+
+! ************************************************************************** !
+
+#ifdef GLOBALWORKERS
+function CheckWorkersAllocated()
+
+  implicit none
+
+  PetscBool :: CheckWorkersAllocated
+
+  CheckWorkersAllocated = PETSC_TRUE
+
+  if (.NOT. allocated(D_den_kg_ave_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_den_kg_ave_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_den_ave_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_den_ave_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_delta_presure_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_delta_presure_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_mobility_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_mobility_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_uH_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_uH_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_v_darcy_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_v_darcy_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_q_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_q_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_mole_flux_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_mole_flux_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_xmf_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_xmf_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+
+end function CheckWorkersAllocated
+#endif
 
 ! ************************************************************************** !
 
@@ -1965,6 +2075,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
   PetscReal :: d_den_kg_ave_dden_up,d_den_kg_ave_dden_dn
   PetscReal :: d_den_ave_dden_up,d_den_ave_dden_dn
   PetscReal :: d_delta_temp_dt_up,d_delta_temp_dt_dn,dheat_flux_ddelta_temp
+
 #if 0
   PetscReal, dimension(1:option%nflowdof) :: D_den_kg_ave_up,D_den_kg_ave_dn
   PetscReal, dimension(1:option%nflowdof) :: D_den_ave_up,D_den_ave_dn
@@ -1977,6 +2088,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
   PetscReal, dimension(1:option%nflowdof) :: D_xmf_up,D_xmf_dn
 #endif
 
+#ifndef GLOBALWORKERS
   PetscReal :: D_den_kg_ave_up(option%nflowdof),D_den_kg_ave_dn(option%nflowdof)
   PetscReal :: D_den_ave_up(option%nflowdof),D_den_ave_dn(option%nflowdof)
   PetscReal :: D_delta_presure_up(option%nflowdof),D_delta_presure_dn(option%nflowdof)
@@ -1986,6 +2098,18 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
   PetscReal :: D_q_up(option%nflowdof),D_q_dn(option%nflowdof)
   PetscReal :: D_mole_flux_up(option%nflowdof),D_mole_flux_dn(option%nflowdof)
   PetscReal :: D_xmf_up(option%nflowdof),D_xmf_dn(option%nflowdof)
+#endif
+
+#ifdef GLOBALWORKERS
+  if (analytical_derivatives) then
+    if (.NOT. CheckWorkersAllocated()) then
+      ! something has gone horribly wrong here
+      ! ... TODO
+    endif
+  endif
+#endif
+
+
 
   ndof = option%nflowdof
   if (analytical_derivatives) then
@@ -5550,6 +5674,32 @@ subroutine TOWGDestroy(realization)
   type(realization_subsurface_type) :: realization
   
   ! place anything that needs to be freed here.
+#ifdef GLOBALWORKERS
+  if (towg_analytical_derivatives) then
+    !!!! this isn't the best since it's still technically possible to call routines
+    !!!! that need them and have them not allocated
+
+    deallocate(D_den_kg_ave_up)
+    deallocate(D_den_kg_ave_dn)
+    deallocate(D_den_ave_up)
+    deallocate(D_den_ave_dn)
+    deallocate(D_delta_presure_up)
+    deallocate(D_delta_presure_dn)
+    deallocate( D_mobility_up)
+    deallocate(D_mobility_dn)
+    deallocate(D_uH_up)
+    deallocate(D_uH_dn)
+    deallocate(D_v_darcy_up)
+    deallocate(D_v_darcy_dn)
+    deallocate(D_q_up)
+    deallocate(D_q_dn)
+    deallocate(D_mole_flux_up)
+    deallocate(D_mole_flux_dn)
+    deallocate(D_xmf_up)
+    deallocate(D_xmf_dn)
+  endif
+#endif
+
 
 end subroutine TOWGDestroy
 
