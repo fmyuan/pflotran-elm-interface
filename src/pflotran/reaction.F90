@@ -1503,7 +1503,10 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   endif  
   
   if (.not.reaction%use_full_geochemistry) then
-    aq_species_constraint%basis_molarity = conc ! don't need to convert
+    ! if constraint concentratoins are molalities, need to convert to molarity
+    ! when reaction%initialize_with_molality is true, regardless of whether
+    ! free or total component.
+    aq_species_constraint%basis_molarity = conc * convert_molal_to_molar
     rt_auxvar%pri_molal = aq_species_constraint%basis_molarity* &
                           convert_molar_to_molal
     rt_auxvar%total(:,iphase) = aq_species_constraint%basis_molarity
