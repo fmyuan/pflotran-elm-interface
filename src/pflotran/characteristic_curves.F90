@@ -120,17 +120,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
   character(len=MAXWORDLENGTH) :: interface_keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   class(rel_perm_func_base_type), pointer :: rel_perm_function_ptr
-  !class(sat_func_owg_base_type), pointer :: sat_func_owg_ptr
-  !class(sat_func_xw_base_type), pointer :: sat_func_ow_ptr
-  !class(sat_func_xw_base_type), pointer :: sat_func_gw_ptr
-  !class(sat_func_og_base_type), pointer :: sat_func_og_ptr
-  
-  !class(rel_perm_func_owg_base_type), pointer :: rel_perm_func_owg_ptr
 
   nullify(rel_perm_function_ptr)
-  !nullify(sat_func_ow_ptr)
-  !nullify(sat_func_gw_ptr)
-  !nullify(sat_func_og_ptr)
 
   input%ierr = 0
   error_string = 'CHARACTERISTIC_CURVES'  
@@ -206,42 +197,20 @@ subroutine CharacteristicCurvesRead(this,input,option)
             !interface_keyword = 'OIL_WATER'
           !case('TABLE')
           ! ! add table option
-          !!****** delete below
-          !case('BROOKS_COREY_OG') ! not supported any longer
-          !  sat_func_owg_ptr => SF_OG_BC_Create()
-          !  interface_keyword = 'OIL_GAS'
-          !case('VAN_GENUCHTEN_OG_SL') !moved to SF_OG select block
-          !  sat_func_owg_ptr => SF_OG_VG_SL_Create()
-          !  interface_keyword = 'OIL_GAS'
           case default
             call InputKeywordUnrecognized(word,'SATURATION_FUNCTION_OW',option)
         end select
         call SaturationFunctionOWGRead(this%oil_wat_sat_func,input,option)
-        !call SaturationFunctionXWRead(this%oil_wat_sat_func,input,option)
-        !this%oil_wat_sat_func => sat_func_ow_ptr
-        !select case(interface_keyword)
-        !  case('OIL_WATER')
-        !    !this%oil_wat_sat_func => sat_func_owg_ptr
-        !  case('GAS_WATER')
-        !  !case('OIL_GAS')
-        !  !  this%oil_gas_sat_func => sat_func_owg_ptr
-        !end select
       case('SATURATION_FUNCTION_WG','CAP_PRESSURE_FUNCTION_WG','PC_WG')
         call InputReadWordDbaseCompatible(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'SATURATION_FUNCTION_WG',error_string)
         call StringToUpper(word)
-        !nullify(sat_func_ow_ptr)
-        !interface_keyword = 'NONE'
         select case(word)
           case("VAN_GENUCHTEN")
-            !sat_func_owg_ptr => SF_OW_VG_Create()
-            !sat_func_gw_ptr => SF_XW_VG_Create()
             this%gas_wat_sat_func => SF_XW_VG_Create()
-            !interface_keyword = 'OIL_WATER'
           case('CONSTANT') !suppot only new format
-            !sat_func_gw_ptr => SF_XW_constant_Create()
             this%gas_wat_sat_func => SF_XW_VG_Create()
-          !add vase with table  
+          !add case with table  
           case default
             call InputKeywordUnrecognized(word,'SATURATION_FUNCTION_WG',option)
         end select
@@ -524,70 +493,6 @@ subroutine CharacteristicCurvesRead(this,input,option)
                    &PERMEABILITY_FUNCTION_OG or KROG for krog; &
                    &PERMEABILITY_FUNCTION_OIL or KRO for kro;'
         call printErrMsg(option)
-        ! nullify(rel_perm_func_owg_ptr)
-        ! phase_keyword = 'NONE'
-        ! call InputReadWordDbaseCompatible(input,option,word,PETSC_TRUE)
-        ! call InputErrorMsg(input,option,'PERMEABILITY_FUNCTION_OWG', &
-        !                    error_string)
-        ! call StringToUpper(word)
-        ! select case(word)
-        ! case('MOD_BROOKS_COREY_WATER')
-        !     rel_perm_func_owg_ptr => RPF_wat_MBC_Create()
-        !     phase_keyword = 'WATER'
-        !   case('MOD_BROOKS_COREY_OIL')
-        !     rel_perm_func_owg_ptr => RPF_oil_MBC_Create()
-        !     phase_keyword = 'OIL'
-        !   case('MOD_BROOKS_COREY_HYDROCARBON')
-        !     rel_perm_func_owg_ptr => RPF_oil_MBC_Create()
-        !     rel_perm_func_owg_ptr%So_is_Sh = PETSC_TRUE
-        !     phase_keyword = 'OIL'
-        !   case('MOD_BROOKS_COREY_GAS')
-        !     rel_perm_func_owg_ptr => RPF_gas_MBC_Create()
-        !     phase_keyword = 'GAS'
-        !   case('ECLIPSE_OIL')
-        !     rel_perm_func_owg_ptr => RPF_oil_ecl_Create()
-        !     phase_keyword = 'OIL'
-        !   case('MUALEM_VG_WAT')
-        !     rel_perm_func_owg_ptr => RPF_OWG_Mualem_VG_wat_Create()
-        !     phase_keyword = 'WATER'
-        !   case('MUALEM_VG_GAS_SL')
-        !     rel_perm_func_owg_ptr => RPF_OWG_Mualem_VG_gas_Create()
-        !     rel_perm_func_owg_ptr%function_of_liquid_sat = PETSC_TRUE
-        !     phase_keyword = 'GAS'
-        !   case('TOUGH2_IRP7_GAS_SL')
-        !     rel_perm_func_owg_ptr => RPF_OWG_TOUGH2_IRP7_gas_Create()
-        !     rel_perm_func_owg_ptr%function_of_liquid_sat = PETSC_TRUE
-        !     phase_keyword = 'GAS'
-        !   case('BURDINE_VG_WAT')
-        !     rel_perm_func_owg_ptr => RPF_OWG_Burdine_VG_wat_Create()
-        !     phase_keyword = 'WATER'
-        !   case('BURDINE_VG_GAS_SL')
-        !     rel_perm_func_owg_ptr => RPF_OWG_Burdine_VG_gas_Create()
-        !     rel_perm_func_owg_ptr%function_of_liquid_sat = PETSC_TRUE
-        !     phase_keyword = 'GAS'
-        !   case('BURDINE_BC_WAT')
-        !     rel_perm_func_owg_ptr => RPF_OWG_Burdine_BC_wat_Create()
-        !     phase_keyword = 'WATER'
-        !   case('BURDINE_BC_GAS_SL')
-        !     rel_perm_func_owg_ptr => RPF_OWG_Burdine_BC_gas_Create()
-        !     rel_perm_func_owg_ptr%function_of_liquid_sat = PETSC_TRUE
-        !     phase_keyword = 'GAS'
-        !   case default
-        !     call InputKeywordUnrecognized(word,'PERMEABILITY_FUNCTION_OWG', &
-        !                                         option)
-        ! end select
-        ! call PermeabilityFunctionOWGRead(rel_perm_func_owg_ptr,phase_keyword, &
-        !                                  input,option)
-        ! ! align to correct pointer
-        ! phase_keyword = trim(phase_keyword)
-        ! select case(phase_keyword)
-        !   case('WATER')
-        !     this%wat_rel_perm_func_owg => rel_perm_func_owg_ptr
-        !   case('OIL')
-        !     this%oil_rel_perm_func_owg => rel_perm_func_owg_ptr
-        !   case('GAS')
-        !     this%gas_rel_perm_func_owg => rel_perm_func_owg_ptr
-        ! end select
       case('TEST') 
         this%test = PETSC_TRUE
       case('DEFAULT')
@@ -1799,17 +1704,9 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
                     sogcr_dummy, &
                     swco_dummy, &
                     option)
-      ! CharCurvesGetGetResidualSats(option%liquid_phase) = &
-      !   characteristic_curves%wat_rel_perm_func_owg%Swcr
-      ! CharCurvesGetGetResidualSats(option%oil_phase) = &
-      !   characteristic_curves%oil_rel_perm_func_owg%Socr
       if (option%iflow_sub_mode == TOWG_TODD_LONGSTAFF) then
         CharCurvesGetGetResidualSats(option%gas_phase) = 0.0d0
       end if  
-      ! else
-      !   CharCurvesGetGetResidualSats(option%gas_phase) = &
-      !     characteristic_curves%gas_rel_perm_func_owg%Sgcr
-      ! end if
     case default
   CharCurvesGetGetResidualSats(1) = &
     characteristic_curves%liq_rel_perm_function%Sr
@@ -2185,24 +2082,11 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
   sgcr = 0.0
   sowcr = 0.0
   sogcr = 0.0
-  
  
   oil_perm_2ph_ow = PETSC_FALSE
   oil_perm_3ph_owg = PETSC_FALSE
   gas_present = PETSC_FALSE
   oil_gas_interface_present = PETSC_FALSE
-
-  !sta function
-  ! class(sat_func_xw_base_type), pointer :: oil_wat_sat_func
-  ! class(sat_func_og_base_type), pointer :: oil_gas_sat_func
-  ! class(sat_func_xw_base_type), pointer :: gas_wat_sat_func
-  ! !rel perm
-  ! class(rel_perm_wat_owg_base_type), pointer :: wat_rel_perm_func_owg
-  ! class(rel_perm_gas_owg_base_type), pointer :: gas_rel_perm_func_owg
-  ! class(rel_perm_ow_owg_base_type), pointer :: ow_rel_perm_func_owg
-  ! class(rel_perm_og_owg_base_type), pointer :: og_rel_perm_func_owg
-  ! class(rel_perm_oil_owg_base_type), pointer :: oil_rel_perm_func_owg
-
 
   select case(option%iflowmode)
     case(TOIL_IMS_MODE)
@@ -2442,86 +2326,6 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
     end select      
   end if
 
-  !END OF REFACTORING
-
-  ! select case(option%iflow_sub_mode)
-  !   case(TOWG_TODD_LONGSTAFF)
-  !     !do nothing - for TL only one saturation function is required
-  !   case default
-  !     ! if (.not.(associated(characteristic_curves%oil_gas_sat_func))) then
-  !     !   option%io_buffer = "An oil/gas saturation function has  &
-  !     !                       &not been set under CHARACTERISTIC_CURVES " // &
-  !     !                       trim(characteristic_curves%name) // '". A &
-  !     !                       &SATURATION_FUNCTION_OWG block must be &
-  !     !                       &specified for the oil/gas phase interface.'
-  !     !   call printErrMsg(option)
-  !     ! else
-  !     !   call characteristic_curves%oil_gas_sat_func%verify(string,option)
-  !     ! end if
-  ! end select
-
-  ! Check if the relative permeabilities have been defined
-  ! if (.not.(associated(characteristic_curves%wat_rel_perm_func_owg))) then
-  !   option%io_buffer = "A water relative permeability function has &
-  !                       &not been set under CHARACTERISTIC_CURVES " // &
-  !                       trim(characteristic_curves%name) // '". A &
-  !                       &PERMEABILITY_FUNCTION_OWG block must be &
-  !                       &specified for the water phase.'
-  !   call printErrMsg(option)
-  ! else
-  !   call characteristic_curves%wat_rel_perm_func_owg%verify(string,option)
-  ! end if
-
-  ! if (.not.(associated(characteristic_curves%oil_rel_perm_func_owg))) then
-  !   option%io_buffer = "An oil relative permeability function has &
-  !                       &not been set under CHARACTERISTIC_CURVES " // &
-  !                       trim(characteristic_curves%name) // '". A &
-  !                       &PERMEABILITY_FUNCTION_OWG block must be &
-  !                       &specified for the oil phase.'
-  !   call printErrMsg(option)
-  ! else
-  !   call characteristic_curves%oil_rel_perm_func_owg%verify(string,option)
-  ! end if
-
-  !check if end points in wat_rel_perm and oil_rel_perm are consistent
-  !PO todo: add consistency checks for all functions in a seperate routine.
-  !         Check Swcr vs Slcr: In some functions/tables only Slcr might
-  !         be defined, thuse check Slcr == Socr + Swcr
-  ! if (characteristic_curves%wat_rel_perm_func_owg%Swcr /= &
-  !     characteristic_curves%oil_rel_perm_func_owg%Swcr
-  !    ) then
-  !    option%io_buffer = "Water critical saturation in the water and oil &
-  !                       &relative permeability functions are different &
-  !                        &for the CHARACTERISTIC_CURVES " // &
-  !                        trim(characteristic_curves%name) // '". Please &
-  !                        &ensure these to sse same values'
-  ! end if
-
-  ! select case(option%iflowmode)
-  !   case(TOIL_IMS_MODE)
-  !     ! do nothing - gas phase no defined in TOIL_IMS
-  !   case(TOWG_MODE)
-  !     if ( option%iflow_sub_mode /= TOWG_TODD_LONGSTAFF ) then
-  !       ! if (.not.(associated(characteristic_curves%gas_rel_perm_func_owg)) &
-  !       !    ) then
-  !       !   option%io_buffer = "A gas relative permeability function has &
-  !       !                       &not been set under CHARACTERISTIC_CURVES " // &
-  !       !                       trim(characteristic_curves%name) // '". A &
-  !       !                       &PERMEABILITY_FUNCTION_OWG block must be &
-  !       !                       &specified for the gas phase.'
-  !       !   call printErrMsg(option)
-  !       ! else
-  !       !   call characteristic_curves%gas_rel_perm_func_owg% &
-  !       !                                                 verify(string,option)
-  !       ! 
-  !       ! end if
-  !     end if
-  ! end select
-
-  !copy required end point from/to cap pressures and rel perms curves
-
-
-  !run verify for each curve
 
 end subroutine CharacteristicCurvesOWGVerify
 
@@ -3080,9 +2884,6 @@ recursive subroutine CharacteristicCurvesDestroy(cc)
   
   call SaturationFunctionDestroy(cc%saturation_function)
 
-  ! call SaturationFunctionOWGDestroy(cc%oil_wat_sat_func)
-  ! call SaturationFunctionOWGDestroy(cc%oil_gas_sat_func)
-  ! call SaturationFunctionOWGDestroy(cc%gas_wat_sat_func)
   call SaturationFunctionXWDestroy(cc%oil_wat_sat_func)
   call SaturationFunctionXWDestroy(cc%gas_wat_sat_func)
   call SaturationFunctionOGDestroy(cc%oil_gas_sat_func)
@@ -3103,10 +2904,6 @@ recursive subroutine CharacteristicCurvesDestroy(cc)
     !call PermeabilityFunctionDestroy(cc%oil_rel_perm_function)
   endif
 
-  ! call PermeabilityFunctionOWGDestroy(cc%wat_rel_perm_func_owg)
-  ! call PermeabilityFunctionOWGDestroy(cc%oil_rel_perm_func_owg)
-  ! call PermeabilityFunctionOWGDestroy(cc%gas_rel_perm_func_owg)
-
    call WatPermFunctionOWGDestroy(cc%wat_rel_perm_func_owg)
    call OWPermFunctionOWGDestroy(cc%ow_rel_perm_func_owg)
    call OilPermFunctionOWGDestroy(cc%oil_rel_perm_func_owg)
@@ -3116,40 +2913,6 @@ recursive subroutine CharacteristicCurvesDestroy(cc)
   nullify(cc)
   
 end subroutine CharacteristicCurvesDestroy
-
-! subroutine GetCriticals(gg,ww,swcr,sgcr,sowcr,sogcr,swco)
-! 
-! !------------------------------------------------------------------------------
-! ! Routine to obtain relative permeability endpoints
-! !
-! ! input  : gg,ww           : Gas and water relative permeability data
-! ! output : swcr            : Critical water saturation
-! ! output : sgcr            : Critical gas saturation
-! ! output : sowcr           : Critical oil in water saturation
-! ! output : sogcr           : Critical oil in gas saturation
-! ! output : swco            : Connate water saturation
-! !
-! !------------------------------------------------------------------------------
-! ! Author: Dave Ponting
-! ! Date  : Jun 2018
-! !------------------------------------------------------------------------------
-! 
-!  class(rel_perm_func_owg_base_type), intent(in)::gg
-!  class(rel_perm_func_owg_base_type), intent(in)::ww
-! 
-!  PetscReal,intent(out)::swcr
-!  PetscReal,intent(out)::sgcr
-!  PetscReal,intent(out)::sowcr
-!  PetscReal,intent(out)::sogcr
-!  PetscReal,intent(out)::swco
-! 
-!   swcr =ww%swcr
-!   sgcr =gg%sgcr
-!   sowcr=ww%socr
-!   sogcr=gg%socr
-!   swco =ww%swco
-! 
-! end subroutine GetCriticals
 
 ! ************************************************************************** !
 
