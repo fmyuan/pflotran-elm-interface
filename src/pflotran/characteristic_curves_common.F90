@@ -833,7 +833,7 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: error_string
   
-  PetscReal :: b(4)
+  PetscReal :: b(4), Se
 
 #ifdef SMOOTHING2
   ! F.-M. Yuan (2017-03-10): newly smoothing approach using Heaveside Function Smoothed
@@ -845,6 +845,11 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   this%pres_poly%low  = 0.000d0/this%alpha  ! have to make Se=1, exactly@pc=0 (otherwise, by BC equation, this is 1/alpha)
   this%pres_poly%high = 1.005d0/this%alpha  ! this is very sensitive (better close to 1/alpha)
 
+  if (associated(this%sat_poly)) call PolynomialDestroy(this%sat_poly)
+  this%sat_poly => PolynomialCreate()
+  this%sat_poly%low = 1.0d0
+  this%sat_poly%high = this%Sr+(1.d0-this%Sr)*1.005d0**(-this%lambda)
+
   ! DRY-end
   if (associated(this%pres_poly2)) call PolynomialDestroy(this%pres_poly2)
   this%pres_poly2 => PolynomialCreate()
@@ -853,6 +858,11 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   this%pres_poly2%low = min(this%pres_poly2%high-1.0d2, &  ! this is the starting point for smoothing, so it must be less than %high end.
           (0.005d0**(-1.d0/this%lambda))/this%alpha)       ! Se = 0.005
 
+  if (associated(this%sat_poly2)) call PolynomialDestroy(this%sat_poly2)
+  this%sat_poly2 => PolynomialCreate()
+  Se = (this%pres_poly2%low*this%alpha)**(-this%lambda)
+  this%sat_poly2%low = this%Sr + (1.d0-this%Sr)*Se
+  this%sat_poly2%high = this%Sr + (1.d0-this%Sr)*0.001d0
 
 #else
   ! polynomial fitting pc as a function of saturation
@@ -1069,7 +1079,7 @@ subroutine SF_BC_Saturation(this,capillary_pressure, &
 #ifdef SMOOTHING2
   PetscReal :: Hfunc, dHfunc
 #endif
-
+  !-----------------------------------------------------------
   
   dsat_dpres = 0.d0
   
@@ -1102,49 +1112,47 @@ subroutine SF_BC_Saturation(this,capillary_pressure, &
   
 #else
 
-  ! F.-M. Yuan (2017-03-10): needs full range function
-  if (capillary_pressure < 1.d0/this%alpha) then
-    liquid_saturation = 1.d0
-    dsat_dpres = 0.d0
-  else
-    pc_alpha_neg_lambda = (capillary_pressure*this%alpha)**(-this%lambda)
-    Se = pc_alpha_neg_lambda
-    dSe_dpc = -this%lambda/capillary_pressure*pc_alpha_neg_lambda
-    liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
-    dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
-  endif
-
-  ! F.-M. Yuan (2017-03-10): new smoothing approach using Heaveside Function Smoothed
+  ! F.-M. Yuan (2017-03-10): new smoothing approach using Heaveside Function
   ! WET-end
-  if (associated(this%pres_poly)) then
-    if (capillary_pressure<this%pres_poly%high) then
-      call HFunctionSmooth(capillary_pressure, this%pres_poly%high, this%pres_poly%low, &
+  if ( (associated(this%pres_poly) .and. associated(this%sat_poly)) &
+      .and. capillary_pressure<this%pres_poly%high ) then ! a note here: no 'equal = ', otherwise derivative is zeroed at the point
+      call HFunctionSmooth(capillary_pressure, &
+                           this%pres_poly%low, this%pres_poly%high, &
                            Hfunc, dHfunc)
-      !sat = 1.0 + (sat-1.0) * Hfunc, in which '1.0' is the base sat @pc=low end
-      dsat_dpres = dsat_dpres*Hfunc + (liquid_saturation-1.d0) * dHfunc
-      liquid_saturation = 1.0d0 + (liquid_saturation-1.d0)*Hfunc
-      if(liquid_saturation>1.0d0) then
-        liquid_saturation=1.0d0
-        dsat_dpres = 0.d0
-      endif
-
-    endif
-  endif
+    !sat-smoothed = this%sat_poly%high + (this%sat_poly%low-this%sat_poly%high)*Hfunc
+    ! in which 'high' is for pc=high end
+    dsat_dpres = (this%sat_poly%low-this%sat_poly%high)*dHfunc
+    dsat_dpres = dsat_dpres*dpc_dpres
+    liquid_saturation = this%sat_poly%high + &
+                       (this%sat_poly%low-this%sat_poly%high)*Hfunc
 
   ! DRY-end
-  if (associated(this%pres_poly2)) then
-    if (capillary_pressure>this%pres_poly2%low) then
-      call HFunctionSmooth(capillary_pressure, this%pres_poly2%low, this%pres_poly2%high, &
-                           Hfunc, dHfunc)
-      !sat = sr + (sat-sr) * Hfunc, in which 'sr' is the base sat @pc=high (high end)
-      dsat_dpres = dsat_dpres * Hfunc + (liquid_saturation-this%Sr) * dHfunc
-      liquid_saturation = this%Sr+(liquid_saturation-this%Sr) * Hfunc
-      if(liquid_saturation<this%Sr) then
-        liquid_saturation=this%Sr
-        dsat_dpres = 0.d0
-      endif
+  elseif ( (associated(this%pres_poly2) .and. associated(this%sat_poly2)) &
+      .and. capillary_pressure>this%pres_poly2%low ) then
+    call HFunctionSmooth(capillary_pressure, &
+                         this%pres_poly2%low, this%pres_poly2%high, &
+                         Hfunc, dHfunc)
+    !sat-smoothed = this%sat_poly%high + (this%sat_poly%low-this%sat_poly%high)*Hfunc
+    ! in which 'high' is for pc=high end
+    dsat_dpres = (this%sat_poly2%low-this%sat_poly2%high)*dHfunc
+    dsat_dpres = dsat_dpres*dpc_dpres
+    liquid_saturation = this%sat_poly2%high + &
+                       (this%sat_poly2%low-this%sat_poly2%high)*Hfunc
 
+  !
+  else
+    if (capillary_pressure < 1.d0/this%alpha) then
+      liquid_saturation = 1.d0
+      dsat_dpres = 0.d0
+    !
+    else
+      pc_alpha_neg_lambda = (capillary_pressure*this%alpha)**(-this%lambda)
+      Se = pc_alpha_neg_lambda
+      dSe_dpc = -this%lambda/capillary_pressure*pc_alpha_neg_lambda
+      liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+      dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
     endif
+
   endif
 
 #endif
