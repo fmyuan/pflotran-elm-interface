@@ -1153,10 +1153,11 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   soa=so
   sva=sv
-  if( sh>=1.0d0 ) then
-    soa=(1.0d0-eps_oil)*so/sh
-    sva=(1.0d0-eps_oil)*sv/sh
-  endif
+!-- comment protection since this is now implemented within Pcow and Pcog
+!  if( sh>=1.0d0 ) then
+!    soa=(1.0d0-eps_oil)*so/sh
+!    sva=(1.0d0-eps_oil)*sv/sh
+!  endif
   swa = 1 - soa - sva
 
 !--Pcow------------------------------------------------------------------------

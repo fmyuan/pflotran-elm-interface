@@ -1650,7 +1650,16 @@ subroutine SF_XW_VG_CapillaryPressure(this,wat_saturation,capillary_pressure, &
   type(option_type), intent(inout) :: option
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  call this%sat_func_sl%CapillaryPressure(wat_saturation,capillary_pressure, &
+  PetscReal, parameter :: eps_wat=1.0d-5
+  PetscReal :: swa
+
+  if (wat_saturation < 0.0) then
+    swa = eps_wat
+  else   
+    swa = wat_saturation
+  end if
+
+  call this%sat_func_sl%CapillaryPressure(swa,capillary_pressure, &
                                           dpc_dsatw,option)
 
 end subroutine SF_XW_VG_CapillaryPressure
@@ -2112,9 +2121,14 @@ subroutine SF_OG_VG_SL_CapillaryPressure(this, gas_saturation, &
   type(option_type), intent(inout) :: option
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
+  PetscReal, parameter :: eps_liq = 1.0d-5
   PetscReal :: liq_saturation, dpc_dsatl
 
   liq_saturation = 1.0 - gas_saturation
+
+  if ( liq_saturation < 0.0 ) then
+    liq_saturation = eps_liq
+  end if
 
   call this%sat_func_sl%CapillaryPressure(liq_saturation,capillary_pressure, &
                                           dpc_dsatl,option)
