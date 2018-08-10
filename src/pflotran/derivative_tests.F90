@@ -82,7 +82,7 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
         print *, "pres:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
         probs = probs + 1
-        print *,
+        print *
       endif
     enddo
   enddo
@@ -111,7 +111,7 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
         print *, "sat:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
         probs = probs + 1
-        print *,
+        print *
       endif
     enddo
   enddo
@@ -140,7 +140,7 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
         print *, "pc:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
         probs = probs + 1
-        print *,
+        print *
       endif
     enddo
   enddo
@@ -168,7 +168,7 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
         print *, "den:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
         probs = probs + 1
-        print *,
+        print *
       endif
     enddo
   enddo
@@ -197,7 +197,7 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
         print *, "den_kg:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
         probs = probs + 1
-        print *,
+        print *
       endif
     enddo
   enddo
@@ -227,7 +227,7 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
         print *,  "sats: ", auxvars(0)%sat
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
         probs = probs + 1
-        print *,
+        print *
       endif
     enddo
   enddo
@@ -256,7 +256,7 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
         print *, "poro (note phase is meaningless):"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
         probs = probs + 1
-        print *,
+        print *
       endif
     enddo
   enddo
@@ -288,7 +288,7 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
         print *, "H:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
         probs = probs + 1
-        print *,
+        print *
       endif
     enddo
   enddo
@@ -316,14 +316,14 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
         print *, "U:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
         probs = probs + 1
-        print *,
+        print *
       endif
     enddo
   enddo
   !! ********* end of from auxvars energy flow *********
 
   print *, "NumCompare TOil, total possible problems here: ", probs
-  print *, 
+  print *
 
 end subroutine NumCompare_toil
 
