@@ -2038,8 +2038,8 @@ subroutine SF_KRP12_CapillaryPressure(this,liquid_saturation, &
     option%pct_updated = PETSC_FALSE
   endif
 
-  Se = (liquid_saturation - this%s_min - this%s_effmin) / &
-       (1.d0 - this%s_min - this%s_effmin)
+  Se = (liquid_saturation - (this%s_min - this%s_effmin)) / &
+       (1.d0 - (this%s_min - this%s_effmin))
   Se21 = max(min(Se,1.d0),this%s_effmin)
   
   capillary_pressure = this%pct/(Se21**(1.d0/this%lambda))
