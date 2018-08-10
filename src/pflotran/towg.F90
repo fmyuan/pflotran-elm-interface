@@ -2105,6 +2105,9 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
     if (.NOT. CheckWorkersAllocated()) then
       ! something has gone horribly wrong here
       ! ... TODO
+      option%io_buffer = 'TOWGImsTLBOFlux: analytical derivatives mode is ON but &
+                          intermediate workers are not allocated.'
+     call printErrMsg(option)
     endif
   endif
 #endif

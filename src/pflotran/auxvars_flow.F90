@@ -86,7 +86,7 @@ subroutine AuxVarFlowInit(this,option)
     this%D_pres = 0.d0
     allocate(this%D_sat(option%nphase,option%nflowdof))
     this%D_sat = 0.d0
-    allocate(this%D_pc(option%nphase,option%nflowdof))
+    allocate(this%D_pc(option%nphase - ONE_INTEGER,option%nflowdof))
     this%D_pc = 0.d0
     allocate(this%D_den(option%nphase,option%nflowdof))
     this%D_den = 0.d0
