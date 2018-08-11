@@ -164,14 +164,13 @@ module Characteristic_Curves_OWG_module
   end type rel_perm_wat_owg_base_type
 
   type,public,extends(rel_perm_wat_owg_base_type) :: RPF_wat_owg_MBC_type
-    PetscReal :: Socr !critical oil saturation
-    PetscReal :: Sgcr !critical gas saturation
+    PetscReal :: Sowcr !critical oil saturation
   contains
     procedure, public :: Init => RPF_wat_owg_MBC_Init
     procedure, public :: Verify => RPF_wat_owg_MBC_Verify
     !procedure, public :: Test => RPFOWGWatBaseTest
     procedure, public :: SetupPolynomials => RPF_wat_owg_MBC_SetupPoly
-    procedure, public :: RPF_wat_owg_MBC_SetSgcrSocr
+    procedure, public :: RPF_wat_owg_MBC_SetSowcr
     procedure, public :: RelativePermeability => RPF_wat_owg_MBC_RelPerm !define argument template
   end type RPF_wat_owg_MBC_type
 
@@ -227,13 +226,13 @@ module Characteristic_Curves_OWG_module
   end type rel_perm_gas_owg_base_type
 
   type,public,extends(rel_perm_gas_owg_base_type) :: RPF_gas_owg_MBC_type
-    PetscReal :: Swcr !critical water saturation
-    PetscReal :: Socr !critical oil saturation
+    PetscReal :: Swco !connate water saturation
+    PetscReal :: Sogcr !critical saturation of oil in gas
   contains
     procedure, public :: Init => RPF_gas_owg_MBC_Init
     procedure, public :: Verify => RPF_gas_owg_MBC_Verify
     procedure, public :: SetupPolynomials => RPF_gas_owg_MBC_SetupPoly 
-    procedure, public :: RPF_gas_owg_MBC_SetSwcrSocr
+    procedure, public :: RPF_gas_owg_MBC_SetSwcoSogcr
     procedure, public :: RelativePermeability => RPF_gas_owg_MBC_RelPerm !define argument template
   end type RPF_gas_owg_MBC_type
 
@@ -2309,8 +2308,7 @@ subroutine RPF_wat_owg_MBC_Init(this)
 
   call RPFWatOWGBaseInit(this)
 
-  this%Socr = UNINITIALIZED_DOUBLE
-  this%Sgcr = UNINITIALIZED_DOUBLE
+  this%Sowcr = UNINITIALIZED_DOUBLE
 
   this%analytical_derivative_available = PETSC_TRUE
 
@@ -2342,12 +2340,8 @@ subroutine RPF_wat_owg_MBC_Verify(this,name,option)
     call printErrMsg(option)
   endif
 
-  if (Uninitialized(this%Socr)) then
+  if (Uninitialized(this%Sowcr)) then
     option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
-  endif
-  if (Uninitialized(this%Sgcr)) then
-    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
     call printErrMsg(option)
   endif
 
@@ -2373,7 +2367,7 @@ subroutine RPF_wat_owg_MBC_SetupPoly(this,option,error_string)
 end subroutine RPF_wat_owg_MBC_SetupPoly
 
 
-subroutine RPF_wat_owg_MBC_SetSgcrSocr(this,sgcr,socr,option)
+subroutine RPF_wat_owg_MBC_SetSowcr(this,sowcr,option)
 
   ! Sets up Sgcr and Socr needed for Wat MBC
 
@@ -2382,13 +2376,12 @@ subroutine RPF_wat_owg_MBC_SetSgcrSocr(this,sgcr,socr,option)
   implicit none
 
   class(RPF_wat_owg_MBC_type) :: this
-  PetscReal, intent(in) :: sgcr,socr  
+  PetscReal, intent(in) :: sowcr  
   type(option_type) :: option
 
-  this%Sgcr = sgcr
-  this%Socr = socr
+  this%Sowcr = sowcr
 
-end subroutine RPF_wat_owg_MBC_SetSgcrSocr
+end subroutine RPF_wat_owg_MBC_SetSowcr
 
 
 subroutine RPF_wat_owg_MBC_RelPerm(this,wat_sat,rel_perm, &
@@ -2407,13 +2400,10 @@ subroutine RPF_wat_owg_MBC_RelPerm(this,wat_sat,rel_perm, &
   PetscReal :: Se, dSe_dSw, dkr_dSe
 
 
-  Se = (wat_sat - this%Swcr) / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
+  Se = (wat_sat - this%Swcr) / (1.d0 - this%Swcr - this%Sowcr )
 
-  dSe_dSw = 1.0 / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
+  dSe_dSw = 1.0 / (1.d0 - this%Swcr - this%Sowcr )
 
-  
-  !call this%RPF_OWG_MBC_RelPerm_dkr_dSe(Se,rel_perm,dkr_dSe,option)
-  
   ! scaling WRT Kr_max occurs within RPF_OWG_MBC_RelPerm_dkr_dSe
   call MBC_RelPerm_dkr_dSe(this%poly,this%m,this%kr_max,Se,rel_perm, &
                                          dkr_dSe,option)
@@ -2748,8 +2738,8 @@ subroutine RPF_gas_owg_MBC_Init(this)
 
   call RPFGasOWGBaseInit(this)
 
-  this%Swcr = UNINITIALIZED_DOUBLE
-  this%Socr = UNINITIALIZED_DOUBLE
+  this%Swco = UNINITIALIZED_DOUBLE
+  this%Sogcr = UNINITIALIZED_DOUBLE
  
   this%analytical_derivative_available = PETSC_TRUE
 
@@ -2781,12 +2771,12 @@ subroutine RPF_gas_owg_MBC_Verify(this,name,option)
     call printErrMsg(option)
   endif
 
-  if (Uninitialized(this%Socr)) then
+  if (Uninitialized(this%Sogcr)) then
     option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
     call printErrMsg(option)
   endif
-  if (Uninitialized(this%Swcr)) then
-    option%io_buffer = UninitializedMessage('WAT_RESIDUAL_SATURATION',string)
+  if (Uninitialized(this%Swco)) then
+    option%io_buffer = UninitializedMessage('WAT_CONNATE_SATURATION',string)
     call printErrMsg(option)
   endif
 
@@ -2811,7 +2801,7 @@ subroutine RPF_gas_owg_MBC_SetupPoly(this,option,error_string)
 end subroutine RPF_gas_owg_MBC_SetupPoly
 
 
-subroutine RPF_gas_owg_MBC_SetSwcrSocr(this,swcr,socr,option)
+subroutine RPF_gas_owg_MBC_SetSwcoSogcr(this,swco,sogcr,option)
 
   ! Sets up Swcr and Socr needed for Gas MBC
 
@@ -2820,13 +2810,13 @@ subroutine RPF_gas_owg_MBC_SetSwcrSocr(this,swcr,socr,option)
   implicit none
 
   class(RPF_gas_owg_MBC_type) :: this
-  PetscReal, intent(in) :: swcr,socr  
+  PetscReal, intent(in) :: swco,sogcr  
   type(option_type) :: option
   
-  this%Swcr = swcr
-  this%Socr = socr
+  this%Swco = swco
+  this%Sogcr = sogcr
   
-end subroutine RPF_gas_owg_MBC_SetSwcrSocr
+end subroutine RPF_gas_owg_MBC_SetSwcoSogcr
 
 
 subroutine RPF_gas_owg_MBC_RelPerm(this,gas_sat,rel_perm, &
@@ -2844,9 +2834,9 @@ subroutine RPF_gas_owg_MBC_RelPerm(this,gas_sat,rel_perm, &
 
   PetscReal :: Se, dkr_dSe, dSe_dSg
 
-  Se = (gas_sat - this%Sgcr) / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
+  Se = (gas_sat - this%Sgcr) / (1.d0 - this%Sgcr - this%Sogcr - this%Swco )
 
-  dSe_dSg = 1.0 / (1.d0 - this%Socr - this%Swcr - this%Sgcr )
+  dSe_dSg = 1.0 / (1.d0 - this%Sgcr - this%Sogcr - this%Swco )
 
   ! scaling WRT Kr_max occurs within _MBC_RelPerm_dkr_dSe
   call MBC_RelPerm_dkr_dSe(this%poly,this%m,this%kr_max,Se,rel_perm, &

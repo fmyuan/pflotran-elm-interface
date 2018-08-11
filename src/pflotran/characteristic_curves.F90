@@ -2005,7 +2005,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
     !real values assigned later once RPF_gas and RPF_oil have been verirified
     select type(rpf => characteristic_curves%wat_rel_perm_func_owg)
       class is(RPF_wat_owg_MBC_type)
-        call rpf%RPF_wat_owg_MBC_SetSgcrSocr(0.d0,0.d0,option)
+        call rpf%RPF_wat_owg_MBC_SetSowcr(0.d0,option)
     end select
     call characteristic_curves%wat_rel_perm_func_owg%verify(string,option)
     swco = characteristic_curves%wat_rel_perm_func_owg%GetConnateSaturation( &
@@ -2060,7 +2060,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
       !real values assigned later once RPF_wat and RPF_oil have been verirified      
       select type(rpf => characteristic_curves%gas_rel_perm_func_owg)
         class is(RPF_gas_owg_MBC_type)
-          call rpf%RPF_gas_owg_MBC_SetSwcrSocr(0.d0,0.d0,option)
+          call rpf%RPF_gas_owg_MBC_SetSwcoSogcr(0.d0,0.d0,option)
       end select  
       call characteristic_curves%gas_rel_perm_func_owg%verify(string,option)
       sgco = &
@@ -2197,7 +2197,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
   !setup sgcr and socr for RPF_wat_MBC
   select type(rpf => characteristic_curves%wat_rel_perm_func_owg)
     class is(RPF_wat_owg_MBC_type)
-      call rpf%RPF_wat_owg_MBC_SetSgcrSocr(sgcr,sowcr,option)
+      call rpf%RPF_wat_owg_MBC_SetSowcr(sowcr,option)
       call rpf%Verify(string,option)
   end select  
 
@@ -2205,7 +2205,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
   if (gas_present) then
     select type(rpf => characteristic_curves%gas_rel_perm_func_owg)
       class is(RPF_gas_owg_MBC_type)
-        call rpf%RPF_gas_owg_MBC_SetSwcrSocr(swcr,sogcr,option)
+        call rpf%RPF_gas_owg_MBC_SetSwcoSogcr(swco,sogcr,option)
         call rpf%Verify(string,option)
     end select      
   end if
