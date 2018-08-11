@@ -397,9 +397,6 @@ module Characteristic_Curves_OWG_module
             SF_OG_VG_SL_Create, &
             SF_OG_constant_Create, &
             RPF_ow_owg_linear_Create, &
-            !RPF_TOUGH2_Linear_Oil_Create, &
-            !RPF_Mod_BC_Liq_Create, &
-            !RPF_Mod_BC_Oil_Create, &
             RPF_wat_owg_MBC_Create, &
             RPF_gas_owg_MBC_Create, &
             RPF_og_owg_MBC_Create, &
@@ -1093,6 +1090,8 @@ subroutine SFXWBaseTest(this,cc_name,option)
     ! calculate numerical derivatives?
   enddo
 
+  string = trim(cc_name) // '_pcxw_sw.dat'
+
   open(unit=86,file=string)
   write(86,*) ' "wat_saturation", "capillary pressure", "dpc/dsatw" '
   do i = 1, num_values
@@ -1638,8 +1637,10 @@ subroutine SFOGBaseTest(this,cc_name,option)
                                dpc_dsatg(i),option)
   enddo
 
+  string = trim(cc_name) // '_pcog_sg.dat'
+
   open(unit=86,file=string)
-  write(86,*) ' "gas_saturation", "capillary pressure", "dpc/dsatw" '
+  write(86,*) ' "gas_saturation", "capillary pressure", "dpc/dsatg" '
   do i = 1, num_values
     write(86,'(3es14.6)') gas_saturation(i),capillary_pressure(i),dpc_dsatg(i)
   enddo
@@ -2637,7 +2638,7 @@ subroutine RPFGasOWGBaseTest(this,cc_name,option)
   enddo
   
   !print any other owg rel perms
-  string = trim(cc_name) // 'gas_rel_perm.dat'
+  string = trim(cc_name) // '_gas_rel_perm.dat'
   open(unit=86,file=string)
   write(86,*) '"gas_saturation", "gas_rel_perm", "dkrg/dsatg" '
   do i = 1, size(gas_saturation)
@@ -3749,10 +3750,10 @@ subroutine RPFOilOWGBaseTest(this,cc_name,option)
     end do 
   end do
 
-  write(string,*) cc_name // '_oil_rel_perm.dat'  
+  write(string,*) trim(cc_name) // '_oil_rel_perm.dat'  
 
   open(unit=86,file=string)
-  write(86,*) '"oil_saturation", "oil_saturation", "oil_rel_perm", &
+  write(86,*) '"oil_saturation", "gas_saturation", "oil_rel_perm", &
               &"dkro/dsato", " dkro/dsatg"'
               
   do i_oil = 1, size(oil_saturation)
