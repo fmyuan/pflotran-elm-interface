@@ -46,6 +46,7 @@ module Characteristic_Curves_OWG_module
     procedure, public :: Test => SFXWBaseTest
     !procedure, public :: SetupPolynomials => SFXWBaseSetupPolynomials
     procedure, public :: CapillaryPressure => SFXWBaseCapillaryPressure
+    procedure, public :: Saturation => SFXWBaseSaturation
     procedure, public :: SetConnateSaturation => SFXWSetConnateSatBase
     procedure, public :: GetConnateSaturation => SFXWGetConnateSatBase
     procedure, public :: SetCriticalSaturation => SFXWSetCriticalSatBase
@@ -58,6 +59,7 @@ module Characteristic_Curves_OWG_module
     procedure, public :: Init => SF_XW_constant_Init
     procedure, public :: Verify => SF_XW_constant_Verify
     procedure, public :: CapillaryPressure => SF_XW_const_CapillaryPressure
+    procedure, public :: Saturation => SF_XW_const_Saturation
   end type sat_func_xw_constant_type
 
   ! add other analytical model extensions  
@@ -68,7 +70,18 @@ module Characteristic_Curves_OWG_module
     procedure, public :: Init => SF_XW_VG_Init
     procedure, public :: Verify => SF_XW_VG_Verify
     procedure, public :: CapillaryPressure => SF_XW_VG_CapillaryPressure
+    procedure, public :: Saturation => SF_XW_VG_Saturation
   end type sat_func_xw_VG_type
+
+  type, public, extends(sat_func_xw_base_type) :: sat_func_xw_BC_type
+    PetscReal :: alpha
+    PetscReal :: lambda
+  contains
+    procedure, public :: Init => SF_XW_BC_Init
+    procedure, public :: Verify => SF_XW_BC_Verify
+    procedure, public :: CapillaryPressure => SF_XW_BC_CapillaryPressure
+    procedure, public :: Saturation => SF_XW_BC_Saturation
+  end type sat_func_xw_BC_type
 
   !add table extension
 
@@ -113,40 +126,43 @@ module Characteristic_Curves_OWG_module
   !add table etxension
   
 !-----------------------------------------------------------------------------
-!-- Relative Permeability Functions ------------------------------------------
+!-- Oil Oil Relative Permeability Functions ------------------------------------------
 !-----------------------------------------------------------------------------  
-  type, public, extends(rel_perm_func_base_type) :: RPF_Mod_BC_type
-    PetscReal :: m   !exponential coeff. 
-    PetscReal :: Srg 
-    PetscReal :: Sro
-    PetscReal :: kr_max
-  contains
-    procedure, public :: Init => RPF_Mod_BC_Init 
-    procedure, public :: Verify => RPF_Mod_BC_Verify
-    procedure, public :: SetupPolynomials => RPF_Mod_BC_SetupPolynomials
-  end type RPF_Mod_BC_type
+  ! type, public, extends(rel_perm_func_base_type) :: RPF_Mod_BC_type
+  !   PetscReal :: m   !exponential coeff. 
+  !   PetscReal :: Srg 
+  !   PetscReal :: Sro
+  !   PetscReal :: kr_max
+  ! contains
+  !   procedure, public :: Init => RPF_Mod_BC_Init 
+  !   procedure, public :: Verify => RPF_Mod_BC_Verify
+  !   procedure, public :: SetupPolynomials => RPF_Mod_BC_SetupPolynomials
+  ! end type RPF_Mod_BC_type
+  ! !---------------------------------------------------------------------------
+  ! type, public, extends(RPF_Mod_BC_type) :: RPF_Mod_BC_liq_type
+  ! contains
+  !   procedure, public :: RelativePermeability => RPF_Mod_BC_Liq_RelPerm
+  ! end type RPF_Mod_BC_liq_type
+  ! !---------------------------------------------------------------------------
+  ! type, public, extends(RPF_Mod_BC_type) :: RPF_Mod_BC_oil_type
+  ! contains
+  !   procedure, public :: RelativePermeability => RPF_Mod_BC_Oil_RelPerm
+  ! end type RPF_Mod_BC_oil_type    
+  ! 
+  ! 
+  ! type, public, extends(rel_perm_func_base_type) :: rpf_TOUGH2_Linear_oil_type
+  !   PetscReal :: Sro !
+  ! contains
+  !   procedure, public :: Init => RPF_TOUGH2_Linear_Oil_Init 
+  !   procedure, public :: Verify => RPF_TOUGH2_Linear_Oil_Verify
+  !   procedure, public :: RelativePermeability => RPF_TOUGH2_Linear_Oil_RelPerm
+  ! end type rpf_TOUGH2_Linear_Oil_type  
   !---------------------------------------------------------------------------
-  type, public, extends(RPF_Mod_BC_type) :: RPF_Mod_BC_liq_type
-  contains
-    procedure, public :: RelativePermeability => RPF_Mod_BC_Liq_RelPerm
-  end type RPF_Mod_BC_liq_type
-  !---------------------------------------------------------------------------
-  type, public, extends(RPF_Mod_BC_type) :: RPF_Mod_BC_oil_type
-  contains
-    procedure, public :: RelativePermeability => RPF_Mod_BC_Oil_RelPerm
-  end type RPF_Mod_BC_oil_type    
+
+  !-----------------------------------------------------------------------------
+  !-- OWG Relative Permeability Functions --------------------------------------
+  !-----------------------------------------------------------------------------  
   
-!-----------------------------------------------------------------------------
-!-- OWG Relative Permeability Functions --------------------------------------
-!-----------------------------------------------------------------------------
-  type, public, extends(rel_perm_func_base_type) :: rpf_TOUGH2_Linear_oil_type
-    PetscReal :: Sro !
-  contains
-    procedure, public :: Init => RPF_TOUGH2_Linear_Oil_Init 
-    procedure, public :: Verify => RPF_TOUGH2_Linear_Oil_Verify
-    procedure, public :: RelativePermeability => RPF_TOUGH2_Linear_Oil_RelPerm
-  end type rpf_TOUGH2_Linear_Oil_type  
-  !---------------------------------------------------------------------------
   type,abstract,public :: rel_perm_owg_base_type
     PetscReal :: m
     PetscReal :: kr_max
@@ -312,6 +328,13 @@ module Characteristic_Curves_OWG_module
     procedure, public :: RelativePermeability => RPFOWOWGBaseRelPerm !defines argument template
     procedure, public :: GetCriticalSaturation => RPFOWGetCriticalSatOWGBase
   end type rel_perm_ow_owg_base_type  
+
+  type,public,extends(rel_perm_ow_owg_base_type) :: rel_perm_ow_owg_linear_type
+  contains
+    procedure, public :: Init => RPF_ow_owg_linear_Init
+    procedure, public :: Verify => RPF_ow_owg_linear_Verify
+    procedure, public :: RelativePermeability => RPF_ow_owg_linear_RelPerm
+  end type rel_perm_ow_owg_linear_type
     
   type,public,extends(rel_perm_ow_owg_base_type) :: rel_perm_ow_owg_MBC_type
     PetscReal :: Swcr
@@ -319,7 +342,7 @@ module Characteristic_Curves_OWG_module
     procedure, public :: Init => RPF_ow_owg_MBC_Init
     procedure, public :: Verify => RPF_ow_owg_MBC_Verify
     procedure, public :: SetupPolynomials => RPF_ow_owg_MBC_SetupPoly
-    procedure, public :: RelativePermeability => RPF_ow_owg_MBC_RelPerm !defines argument template
+    procedure, public :: RelativePermeability => RPF_ow_owg_MBC_RelPerm
     procedure, public :: RPF_ow_owg_MBC_SetSwcr
   end type rel_perm_ow_owg_MBC_type
 
@@ -404,12 +427,14 @@ module Characteristic_Curves_OWG_module
   public :: SaturationFunctionOWGRead, &
             PermeabilityFunctionOWGRead, &
             SF_XW_VG_Create, &
+            SF_XW_BC_Create, &
             SF_XW_constant_Create, &
             SF_OG_VG_SL_Create, &
             SF_OG_constant_Create, &
-            RPF_TOUGH2_Linear_Oil_Create, &
-            RPF_Mod_BC_Liq_Create, &
-            RPF_Mod_BC_Oil_Create, &
+            RPF_ow_owg_linear_Create, &
+            !RPF_TOUGH2_Linear_Oil_Create, &
+            !RPF_Mod_BC_Liq_Create, &
+            !RPF_Mod_BC_Oil_Create, &
             RPF_wat_owg_MBC_Create, &
             RPF_gas_owg_MBC_Create, &
             RPF_og_owg_MBC_Create, &
@@ -552,6 +577,28 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
                      'Van Genuchten Oil-Water saturation function',option)
             end select
         end select
+      class is(sat_func_xw_BC_type)
+        select type(sf_sl => sf_owg%sat_func_sl)
+        class is(sat_func_BC_type)
+            select case(keyword)              
+            case('LAMBDA')
+                call InputReadDouble(input,option,sf_owg%lambda)
+                call InputErrorMsg(input,option,'LAMBDA',error_string)
+                sf_sl%lambda = sf_owg%lambda
+              case('ALPHA')
+                call InputReadDouble(input,option,sf_owg%alpha)
+                call InputErrorMsg(input,option,'ALPHA',error_string)
+                sf_sl%alpha = sf_owg%alpha
+              case('WATER_RESIDUAL_SATURATION')
+                call InputReadDouble(input,option,sf_owg%Swcr)
+                call InputErrorMsg(input,option,'WATER_RESIDUAL_SATURATION', &
+                                   error_string)
+                sf_sl%Sr = sf_owg%Swcr
+              case default
+                call InputKeywordUnrecognized(keyword, &
+                     'Van Genuchten Oil-Water saturation function',option)
+            end select
+        end select          
       class is(sat_func_xw_constant_type)
         select case(keyword)                
           case('CONSTANT_PRESSURE')
@@ -656,6 +703,8 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
       error_string = trim(error_string) // 'MOD_BROOKS_COREY'
     class is(rel_perm_ow_owg_MBC_type)
       error_string = trim(error_string) // 'MOD_BROOKS_COREY'
+    class is(rel_perm_ow_owg_linear_type)
+      error_string = trim(error_string) // 'TOUGH2_LINEAR'
     class is(rel_perm_og_owg_MBC_type)
       error_string = trim(error_string) // 'MOD_BROOKS_COREY'            
     class is(RPF_wat_owg_Mualem_VG_type)
@@ -924,390 +973,391 @@ end subroutine PermeabilityFunctionOWGRead
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_TOUGH2_Linear_Oil_Create()
-
-  ! Creates the TOUGH2 Linear oil relative permeability function object
-  ! Author: Paolo Orsini (OGS)
-  ! Date: 10/19/2015
-
-  class(rpf_TOUGH2_Linear_oil_type), pointer :: RPF_TOUGH2_Linear_Oil_Create
-
-  allocate(RPF_TOUGH2_Linear_Oil_Create)
-  call RPF_TOUGH2_Linear_Oil_Create%Init()
-
-end function RPF_TOUGH2_Linear_Oil_Create
+! function RPF_TOUGH2_Linear_Oil_Create()
+! 
+!   ! Creates the TOUGH2 Linear oil relative permeability function object
+!   ! Author: Paolo Orsini (OGS)
+!   ! Date: 10/19/2015
+! 
+!   class(rpf_TOUGH2_Linear_oil_type), pointer :: RPF_TOUGH2_Linear_Oil_Create
+! 
+!   allocate(RPF_TOUGH2_Linear_Oil_Create)
+!   call RPF_TOUGH2_Linear_Oil_Create%Init()
+! 
+! end function RPF_TOUGH2_Linear_Oil_Create
+! 
+! ! ************************************************************************** !
+! 
+! subroutine RPF_TOUGH2_Linear_Oil_Init(this)
+! 
+!   ! Initializes the TOUGH2 Linear Oil relative permeability function 
+!   ! object
+!   ! Author: Paolo Orsini (OGS)
+!   ! Date: 10/19/2015
+! 
+!   implicit none
+! 
+!   class(rpf_TOUGH2_Linear_oil_type) :: this
+! 
+!   call RPFBaseInit(this)
+!   this%Sro = UNINITIALIZED_DOUBLE
+! 
+!   this%analytical_derivative_available = PETSC_TRUE
+! 
+! end subroutine RPF_TOUGH2_Linear_Oil_Init
+! 
+! ! ************************************************************************** !
+! 
+! subroutine RPF_TOUGH2_Linear_Oil_Verify(this,name,option)
+! 
+!   use Option_module
+! 
+!   implicit none
+! 
+!   class(rpf_TOUGH2_Linear_oil_type) :: this
+!   character(len=MAXSTRINGLENGTH) :: name
+!   type(option_type) :: option
+! 
+!   character(len=MAXSTRINGLENGTH) :: string 
+! 
+!   if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+!     string = name
+!   else
+!     string = trim(name) // 'PERMEABILITY_FUNCTION,TOUGH2_LINEAR_OIL'
+!   endif    
+!   call RPFBaseVerify(this,string,option)
+!   if (Uninitialized(this%Sro)) then
+!     option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
+!     call printErrMsg(option)
+!   endif  
+! 
+! end subroutine RPF_TOUGH2_Linear_Oil_Verify
+! 
+! ! ************************************************************************** !
+! 
+! subroutine RPF_TOUGH2_Linear_Oil_RelPerm(this,liquid_saturation, &
+!                                          relative_permeability,dkr_sat,option)
+!   ! 
+!   ! Computes the relative permeability (and associated derivatives) as a 
+!   ! function of saturation
+!   !
+!   ! Author: Paolo Orsini (OGS)
+!   ! Date: 10/19/2015
+! 
+! 
+!   use Option_module
+!   use Utility_module, only : InitToNan
+! 
+!   implicit none
+! 
+!   class(rpf_TOUGH2_Linear_oil_type) :: this
+!   PetscReal, intent(in) :: liquid_saturation
+!   PetscReal, intent(out) :: relative_permeability
+!   PetscReal, intent(out) :: dkr_sat
+!   type(option_type), intent(inout) :: option
+! 
+!   PetscReal :: So
+!   PetscReal :: Seo
+! 
+!   ! initialize to derivative to NaN so that not mistakenly used.
+!   dkr_sat = InitToNan()
+! 
+!   So = 1.d0 - liquid_saturation
+! 
+!   Seo = (So - this%Sro) / (1.d0 - this%Sro)
+! 
+!   !!! DS added
+!   !Seo = (So - this%Sro) / (1.d0 - this%Sro)
+!   !dSeo_so = 1.d0 / (1.d0 - this%Sro)
+!   !dkr_Seo = 1.d0
+!   !! return dkr_sat is derivative of relperm wrt liquid saturation to 
+!   !! be consistent 
+!   !dkr_sat = -1.d0*dSeo_so*dkr_Seo !! -1.d0 is dso/dsl
+!   !! just hard code it:
+!   dkr_sat = -1.d0 / (1.d0 - this%Sro)
+! 
+!   if (Seo >= 1.d0) then
+!     relative_permeability = 1.d0
+!     dkr_sat = 0.d0
+!     return
+!   else if (Seo <=  0.d0) then
+!     relative_permeability = 0.d0
+!     dkr_sat = 0.d0
+!     return
+!   endif
+! 
+!   relative_permeability = Seo
+! 
+! end subroutine RPF_TOUGH2_Linear_Oil_RelPerm
 
 ! ************************************************************************** !
-
-subroutine RPF_TOUGH2_Linear_Oil_Init(this)
-
-  ! Initializes the TOUGH2 Linear Oil relative permeability function 
-  ! object
-  ! Author: Paolo Orsini (OGS)
-  ! Date: 10/19/2015
-
-  implicit none
-  
-  class(rpf_TOUGH2_Linear_oil_type) :: this
-
-  call RPFBaseInit(this)
-  this%Sro = UNINITIALIZED_DOUBLE
-  
-  this%analytical_derivative_available = PETSC_TRUE
-  
-end subroutine RPF_TOUGH2_Linear_Oil_Init
-
 ! ************************************************************************** !
-
-subroutine RPF_TOUGH2_Linear_Oil_Verify(this,name,option)
-
-  use Option_module
-
-  implicit none
-  
-  class(rpf_TOUGH2_Linear_oil_type) :: this
-  character(len=MAXSTRINGLENGTH) :: name
-  type(option_type) :: option
-  
-  character(len=MAXSTRINGLENGTH) :: string 
-
-  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
-    string = name
-  else
-    string = trim(name) // 'PERMEABILITY_FUNCTION,TOUGH2_LINEAR_OIL'
-  endif    
-  call RPFBaseVerify(this,string,option)
-  if (Uninitialized(this%Sro)) then
-    option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
-  endif  
-  
-end subroutine RPF_TOUGH2_Linear_Oil_Verify
-
-! ************************************************************************** !
-
-subroutine RPF_TOUGH2_Linear_Oil_RelPerm(this,liquid_saturation, &
-                                         relative_permeability,dkr_sat,option)
-  ! 
-  ! Computes the relative permeability (and associated derivatives) as a 
-  ! function of saturation
-  !
-  ! Author: Paolo Orsini (OGS)
-  ! Date: 10/19/2015
-
-
-  use Option_module
-  use Utility_module, only : InitToNan
-  
-  implicit none
-
-  class(rpf_TOUGH2_Linear_oil_type) :: this
-  PetscReal, intent(in) :: liquid_saturation
-  PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_sat
-  type(option_type), intent(inout) :: option
-  
-  PetscReal :: So
-  PetscReal :: Seo
-  
-  ! initialize to derivative to NaN so that not mistakenly used.
-  dkr_sat = InitToNan()
-
-  So = 1.d0 - liquid_saturation
-
-  Seo = (So - this%Sro) / (1.d0 - this%Sro)
-
-  !!! DS added
-  !Seo = (So - this%Sro) / (1.d0 - this%Sro)
-  !dSeo_so = 1.d0 / (1.d0 - this%Sro)
-  !dkr_Seo = 1.d0
-  !! return dkr_sat is derivative of relperm wrt liquid saturation to 
-  !! be consistent 
-  !dkr_sat = -1.d0*dSeo_so*dkr_Seo !! -1.d0 is dso/dsl
-  !! just hard code it:
-  dkr_sat = -1.d0 / (1.d0 - this%Sro)
-
-  if (Seo >= 1.d0) then
-    relative_permeability = 1.d0
-    dkr_sat = 0.d0
-    return
-  else if (Seo <=  0.d0) then
-    relative_permeability = 0.d0
-    dkr_sat = 0.d0
-    return
-  endif
-
-  relative_permeability = Seo
-
-end subroutine RPF_TOUGH2_Linear_Oil_RelPerm
-
-! ************************************************************************** !
-! ************************************************************************** !
-
+! ************** OLD Liquid and Oil MBC ************************************ !
+!
 !Beginning RPF Modified Brooks-Corey for liq and oil phase (RPF_Mod_BC_Oil)
 
 !  procedure, public :: Init => RPF_Mod_BC_Oil_Init 
 !  procedure, public :: Verify => RPF_Mod_BC_Oil_Verify
 !  procedure, public :: SetupPolynomials => RPF_Mod_BC_SetupPolynomials
-!  procedure, public :: RelativePermeability => RPF_Mod_BC_Oil_RelPerm
-
-function RPF_Mod_BC_Liq_Create()
-
-  ! Creates the Modified BC Oil relative permeability function object
-  ! Author: Paolo Orsini (OGS)
-  ! Date: 02/20/2016
-
-  class(rpf_mod_BC_liq_type), pointer :: RPF_Mod_BC_Liq_Create
-
-  allocate(RPF_Mod_BC_Liq_Create)
-  call RPF_Mod_BC_Liq_Create%Init()
-
-end function RPF_Mod_BC_Liq_Create
-
-! ************************************************************************** !
-
-function RPF_Mod_BC_Oil_Create()
-
-  ! Creates the Modified BC Oil relative permeability function object
-  ! Author: Paolo Orsini (OGS)
-  ! Date: 02/20/2016
-
-  class(rpf_mod_BC_oil_type), pointer :: RPF_Mod_BC_Oil_Create
-
-  allocate(RPF_Mod_BC_Oil_Create)
-  call RPF_Mod_BC_Oil_Create%Init()
-
-end function RPF_Mod_BC_Oil_Create
-
-! ************************************************************************** !
-
-subroutine RPF_Mod_BC_Init(this)
-
-  ! Initializes the Modified BC Oil relative permeability function object 
-  ! object
-  ! Author: Paolo Orsini (OGS)
-  ! Date: 02/20/2016
-
-  implicit none
-  
-  !class(rpf_mod_BC_oil_type) :: this
-  class(rpf_mod_BC_type) :: this
-
-  call RPFBaseInit(this)
-  this%m = UNINITIALIZED_DOUBLE
-  this%Srg = UNINITIALIZED_DOUBLE
-  this%Sro = UNINITIALIZED_DOUBLE
-  this%kr_max = 1.0d0
-  
-  this%analytical_derivative_available = PETSC_TRUE
-   
-!end subroutine RPF_Mod_BC_Oil_Init
-end subroutine RPF_Mod_BC_Init
-
-! ************************************************************************** !
-
-subroutine RPF_Mod_BC_Verify(this,name,option)
-
-  use Option_module
-
-  implicit none
-  
-  !class(rpf_mod_BC_oil_type) :: this
-  class(rpf_mod_BC_type) :: this
-  character(len=MAXSTRINGLENGTH) :: name
-  type(option_type) :: option
-  
-  character(len=MAXSTRINGLENGTH) :: string 
-
-  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
-    string = name
-  else
-    select type(rpf => this)
-      class is(rpf_mod_BC_liq_type) 
-        string = trim(name) // 'PERMEABILITY_FUNCTION,MOD_BC_LIQ'
-      class is(rpf_mod_BC_oil_type)
-        string = trim(name) // 'PERMEABILITY_FUNCTION,MOD_BC_OIL'
-    end select
-  endif    
-  call RPFBaseVerify(this,string,option)
-  if (Uninitialized(this%Sro)) then
-    option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
-  endif
-  if (Uninitialized(this%Srg)) then
-    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
-  endif  
-
-  if (Uninitialized(this%m)) then
-    option%io_buffer = UninitializedMessage('POWER EXPONENT',string)
-    call printErrMsg(option)
-  endif
-  
-end subroutine RPF_Mod_BC_Verify
-
-! ************************************************************************** !
-
-subroutine RPF_Mod_BC_SetupPolynomials(this,option,error_string)
-
-  ! Sets up polynomials for smoothing Modified BC permeability function
-
-  use Option_module
-  use Utility_module
-  
-  implicit none
-  
-  class(rpf_mod_BC_type) :: this
-  type(option_type) :: option
-  character(len=MAXSTRINGLENGTH) :: error_string
-  
-  PetscReal :: b(4)
-
-  PetscReal :: Se_ph_low
-
-  this%poly => PolynomialCreate()
-  ! fill matix with values
-  this%poly%low = 0.99d0  ! just below saturated
-  !this%poly%low = 0.95d0  ! just below saturated 
-  this%poly%high = 1.d0   ! saturated
-  Se_ph_low = this%poly%low
-  !select type(rpf => this)
-  !  class is(rpf_mod_BC_liq_type) 
-  !    Se_ph_low = ( this%poly%low - this%Sr ) / &
-  !                (1.0 - this%Sro - this%Sr - this%Srg)
-  !  class is(rpf_mod_BC_oil_type)
-  !    Se_ph_low = ( this%poly%low - this%Sro ) / &
-  !                (1.0 - this%Sro - this%Sr - this%Srg) 
-  !end select 
-
-  b(1) = this%kr_max
-  b(2) = this%kr_max * (Se_ph_low ** this%m)
-  b(3) = 0.d0
-  b(4) = this%m * this%kr_max * Se_ph_low ** (this%m - 1.0 )
-  
-  call CubicPolynomialSetup(this%poly%high,this%poly%low,b)
-  
-  this%poly%coefficients(1:4) = b(1:4)
-  
-end subroutine RPF_Mod_BC_SetupPolynomials
-
-! ************************************************************************** !
-
-subroutine RPF_Mod_BC_Liq_RelPerm(this,liquid_saturation, &
-                                  relative_permeability,dkr_sat,option)
-  ! 
-  ! Computes the relative permeability (and associated derivatives) as a 
-  ! function of saturation
-  !
-  ! Author: Paolo Orsini (OGS)
-  ! Date: 02/21/2016
-
-  use Option_module
-  use Utility_module
-  
-  implicit none
-
-  class(rpf_Mod_BC_liq_type) :: this
-  PetscReal, intent(in) :: liquid_saturation
-  PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_sat
-  type(option_type), intent(inout) :: option
-  
-  PetscReal :: Se
-  PetscReal :: dSe_Sl, dkr_Se
-  
-  ! initialize to derivative to NaN so that not mistakenly used.
-  dkr_sat = InitToNan()
-
-  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sro - this%Sr - this%Srg )
-  dSe_Sl = 1.d0 / (1.d0 - this%Sro - this%Sr - this%Srg )
-
-  dkr_Se = this%m * this%kr_max * (Se ** (this%m - 1))
-  dkr_sat = dSe_Sl * dkr_Se
-
-  if (Se >= 1.d0) then
-    relative_permeability = this%kr_max
-    dkr_sat = 0.d0
-    return
-  else if (Se <=  0.d0) then
-    dkr_sat = 0.d0
-    relative_permeability = 0.d0
-    return
-  endif
-
-  if (associated(this%poly)) then
-    if (Se > this%poly%low) then
-      call CubicPolynomialEvaluate(this%poly%coefficients, &
-                                   Se,relative_permeability,dkr_Se)
-      dkr_sat = dSe_Sl * dkr_Se
-      return
-    endif
-  endif
-
-  relative_permeability = this%kr_max * (Se ** this%m)
-
-end subroutine RPF_Mod_BC_Liq_RelPerm
-
-! ************************************************************************** !
-
-subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
-                                  relative_permeability,dkr_sat,option)
-  ! 
-  ! Computes the relative permeability (and associated derivatives) as a 
-  ! function of saturation
-  !
-  ! Author: Paolo Orsini (OGS)
-  ! Date: 02/20/2016
-
-  use Option_module
-  use Utility_module
-  
-  implicit none
-
-  class(rpf_Mod_BC_oil_type) :: this
-  PetscReal, intent(in) :: liquid_saturation
-  PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_sat
-  type(option_type), intent(inout) :: option
-  
-  PetscReal :: So
-  PetscReal :: Seo
-  PetscReal :: dSe_So, dkr_Se
-  
-  ! initialize to derivative to NaN so that not mistakenly used.
-  dkr_sat = InitToNan()
-
-  So = 1.d0 - liquid_saturation
-
-  Seo = (So - this%Sro) / (1.d0 - this%Sro - this%Sr - this%Srg ) 
-  dSe_So = 1.d0 / (1.d0 - this%Sro - this%Sr - this%Srg )
-
-  dkr_Se = this%m * this%kr_max * (Seo ** (this%m - 1))
-
-  dkr_sat = -1.d0 * dSe_So * dkr_Se ! -1.d0 factor makes derivative w.r.t. Sl
-
-  if (Seo >= 1.d0) then
-    relative_permeability = this%kr_max
-    dkr_sat = 0.d0
-    return
-  else if (Seo <=  0.d0) then
-    relative_permeability = 0.d0
-    dkr_sat = 0.d0
-    return
-  endif
-
-  if (associated(this%poly)) then
-    if (Seo > this%poly%low) then
-      call CubicPolynomialEvaluate(this%poly%coefficients, &
-                                   Seo,relative_permeability,dkr_Se)
-      dkr_sat = -1.d0 * dSe_So * dkr_Se ! -1.d0 factor makes derivative w.r.t. Sl
-      return
-    endif
-  endif
-
-  relative_permeability = this%kr_max * (Seo ** this%m)
-
-end subroutine RPF_Mod_BC_Oil_RelPerm
+! !  procedure, public :: RelativePermeability => RPF_Mod_BC_Oil_RelPerm
+! 
+! function RPF_Mod_BC_Liq_Create()
+! 
+!   ! Creates the Modified BC Oil relative permeability function object
+!   ! Author: Paolo Orsini (OGS)
+!   ! Date: 02/20/2016
+! 
+!   class(rpf_mod_BC_liq_type), pointer :: RPF_Mod_BC_Liq_Create
+! 
+!   allocate(RPF_Mod_BC_Liq_Create)
+!   call RPF_Mod_BC_Liq_Create%Init()
+! 
+! end function RPF_Mod_BC_Liq_Create
+! 
+! ! ************************************************************************** !
+! 
+! function RPF_Mod_BC_Oil_Create()
+! 
+!   ! Creates the Modified BC Oil relative permeability function object
+!   ! Author: Paolo Orsini (OGS)
+!   ! Date: 02/20/2016
+! 
+!   class(rpf_mod_BC_oil_type), pointer :: RPF_Mod_BC_Oil_Create
+! 
+!   allocate(RPF_Mod_BC_Oil_Create)
+!   call RPF_Mod_BC_Oil_Create%Init()
+! 
+! end function RPF_Mod_BC_Oil_Create
+! 
+! ! ************************************************************************** !
+! 
+! subroutine RPF_Mod_BC_Init(this)
+! 
+!   ! Initializes the Modified BC Oil relative permeability function object 
+!   ! object
+!   ! Author: Paolo Orsini (OGS)
+!   ! Date: 02/20/2016
+! 
+!   implicit none
+! 
+!   !class(rpf_mod_BC_oil_type) :: this
+!   class(rpf_mod_BC_type) :: this
+! 
+!   call RPFBaseInit(this)
+!   this%m = UNINITIALIZED_DOUBLE
+!   this%Srg = UNINITIALIZED_DOUBLE
+!   this%Sro = UNINITIALIZED_DOUBLE
+!   this%kr_max = 1.0d0
+! 
+!   this%analytical_derivative_available = PETSC_TRUE
+! 
+! !end subroutine RPF_Mod_BC_Oil_Init
+! end subroutine RPF_Mod_BC_Init
+! 
+! ! ************************************************************************** !
+! 
+! subroutine RPF_Mod_BC_Verify(this,name,option)
+! 
+!   use Option_module
+! 
+!   implicit none
+! 
+!   !class(rpf_mod_BC_oil_type) :: this
+!   class(rpf_mod_BC_type) :: this
+!   character(len=MAXSTRINGLENGTH) :: name
+!   type(option_type) :: option
+! 
+!   character(len=MAXSTRINGLENGTH) :: string 
+! 
+!   if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+!     string = name
+!   else
+!     select type(rpf => this)
+!       class is(rpf_mod_BC_liq_type) 
+!         string = trim(name) // 'PERMEABILITY_FUNCTION,MOD_BC_LIQ'
+!       class is(rpf_mod_BC_oil_type)
+!         string = trim(name) // 'PERMEABILITY_FUNCTION,MOD_BC_OIL'
+!     end select
+!   endif    
+!   call RPFBaseVerify(this,string,option)
+!   if (Uninitialized(this%Sro)) then
+!     option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
+!     call printErrMsg(option)
+!   endif
+!   if (Uninitialized(this%Srg)) then
+!     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+!     call printErrMsg(option)
+!   endif  
+! 
+!   if (Uninitialized(this%m)) then
+!     option%io_buffer = UninitializedMessage('POWER EXPONENT',string)
+!     call printErrMsg(option)
+!   endif
+! 
+! end subroutine RPF_Mod_BC_Verify
+! 
+! ! ************************************************************************** !
+! 
+! subroutine RPF_Mod_BC_SetupPolynomials(this,option,error_string)
+! 
+!   ! Sets up polynomials for smoothing Modified BC permeability function
+! 
+!   use Option_module
+!   use Utility_module
+! 
+!   implicit none
+! 
+!   class(rpf_mod_BC_type) :: this
+!   type(option_type) :: option
+!   character(len=MAXSTRINGLENGTH) :: error_string
+! 
+!   PetscReal :: b(4)
+! 
+!   PetscReal :: Se_ph_low
+! 
+!   this%poly => PolynomialCreate()
+!   ! fill matix with values
+!   this%poly%low = 0.99d0  ! just below saturated
+!   !this%poly%low = 0.95d0  ! just below saturated 
+!   this%poly%high = 1.d0   ! saturated
+!   Se_ph_low = this%poly%low
+!   !select type(rpf => this)
+!   !  class is(rpf_mod_BC_liq_type) 
+!   !    Se_ph_low = ( this%poly%low - this%Sr ) / &
+!   !                (1.0 - this%Sro - this%Sr - this%Srg)
+!   !  class is(rpf_mod_BC_oil_type)
+!   !    Se_ph_low = ( this%poly%low - this%Sro ) / &
+!   !                (1.0 - this%Sro - this%Sr - this%Srg) 
+!   !end select 
+! 
+!   b(1) = this%kr_max
+!   b(2) = this%kr_max * (Se_ph_low ** this%m)
+!   b(3) = 0.d0
+!   b(4) = this%m * this%kr_max * Se_ph_low ** (this%m - 1.0 )
+! 
+!   call CubicPolynomialSetup(this%poly%high,this%poly%low,b)
+! 
+!   this%poly%coefficients(1:4) = b(1:4)
+! 
+! end subroutine RPF_Mod_BC_SetupPolynomials
+! 
+! ! ************************************************************************** !
+! 
+! subroutine RPF_Mod_BC_Liq_RelPerm(this,liquid_saturation, &
+!                                   relative_permeability,dkr_sat,option)
+!   ! 
+!   ! Computes the relative permeability (and associated derivatives) as a 
+!   ! function of saturation
+!   !
+!   ! Author: Paolo Orsini (OGS)
+!   ! Date: 02/21/2016
+! 
+!   use Option_module
+!   use Utility_module
+! 
+!   implicit none
+! 
+!   class(rpf_Mod_BC_liq_type) :: this
+!   PetscReal, intent(in) :: liquid_saturation
+!   PetscReal, intent(out) :: relative_permeability
+!   PetscReal, intent(out) :: dkr_sat
+!   type(option_type), intent(inout) :: option
+! 
+!   PetscReal :: Se
+!   PetscReal :: dSe_Sl, dkr_Se
+! 
+!   ! initialize to derivative to NaN so that not mistakenly used.
+!   dkr_sat = InitToNan()
+! 
+!   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sro - this%Sr - this%Srg )
+!   dSe_Sl = 1.d0 / (1.d0 - this%Sro - this%Sr - this%Srg )
+! 
+!   dkr_Se = this%m * this%kr_max * (Se ** (this%m - 1))
+!   dkr_sat = dSe_Sl * dkr_Se
+! 
+!   if (Se >= 1.d0) then
+!     relative_permeability = this%kr_max
+!     dkr_sat = 0.d0
+!     return
+!   else if (Se <=  0.d0) then
+!     dkr_sat = 0.d0
+!     relative_permeability = 0.d0
+!     return
+!   endif
+! 
+!   if (associated(this%poly)) then
+!     if (Se > this%poly%low) then
+!       call CubicPolynomialEvaluate(this%poly%coefficients, &
+!                                    Se,relative_permeability,dkr_Se)
+!       dkr_sat = dSe_Sl * dkr_Se
+!       return
+!     endif
+!   endif
+! 
+!   relative_permeability = this%kr_max * (Se ** this%m)
+! 
+! end subroutine RPF_Mod_BC_Liq_RelPerm
+! 
+! ! ************************************************************************** !
+! 
+! subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
+!                                   relative_permeability,dkr_sat,option)
+!   ! 
+!   ! Computes the relative permeability (and associated derivatives) as a 
+!   ! function of saturation
+!   !
+!   ! Author: Paolo Orsini (OGS)
+!   ! Date: 02/20/2016
+! 
+!   use Option_module
+!   use Utility_module
+! 
+!   implicit none
+! 
+!   class(rpf_Mod_BC_oil_type) :: this
+!   PetscReal, intent(in) :: liquid_saturation
+!   PetscReal, intent(out) :: relative_permeability
+!   PetscReal, intent(out) :: dkr_sat
+!   type(option_type), intent(inout) :: option
+! 
+!   PetscReal :: So
+!   PetscReal :: Seo
+!   PetscReal :: dSe_So, dkr_Se
+! 
+!   ! initialize to derivative to NaN so that not mistakenly used.
+!   dkr_sat = InitToNan()
+! 
+!   So = 1.d0 - liquid_saturation
+! 
+!   Seo = (So - this%Sro) / (1.d0 - this%Sro - this%Sr - this%Srg ) 
+!   dSe_So = 1.d0 / (1.d0 - this%Sro - this%Sr - this%Srg )
+! 
+!   dkr_Se = this%m * this%kr_max * (Seo ** (this%m - 1))
+! 
+!   dkr_sat = -1.d0 * dSe_So * dkr_Se ! -1.d0 factor makes derivative w.r.t. Sl
+! 
+!   if (Seo >= 1.d0) then
+!     relative_permeability = this%kr_max
+!     dkr_sat = 0.d0
+!     return
+!   else if (Seo <=  0.d0) then
+!     relative_permeability = 0.d0
+!     dkr_sat = 0.d0
+!     return
+!   endif
+! 
+!   if (associated(this%poly)) then
+!     if (Seo > this%poly%low) then
+!       call CubicPolynomialEvaluate(this%poly%coefficients, &
+!                                    Seo,relative_permeability,dkr_Se)
+!       dkr_sat = -1.d0 * dSe_So * dkr_Se ! -1.d0 factor makes derivative w.r.t. Sl
+!       return
+!     endif
+!   endif
+! 
+!   relative_permeability = this%kr_max * (Seo ** this%m)
+! 
+! end subroutine RPF_Mod_BC_Oil_RelPerm
 
 ! ************************************************************************** !
 ! *********** OWG Saturaton functions base class memebers  ***************** !
@@ -1498,6 +1548,25 @@ subroutine SFXWBaseCapillaryPressure(this,wat_saturation,capillary_pressure,&
 end subroutine SFXWBaseCapillaryPressure
 
 
+subroutine SFXWBaseSaturation(this,capillary_pressure,wat_saturation, &
+                                      dsatw_dpc,option,table_idxs)
+  use Option_module
+
+  implicit none
+
+  class(sat_func_xw_base_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: wat_saturation
+  PetscReal, intent(out) :: dsatw_dpc
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  option%io_buffer = 'SFXWBaseSaturation must be extended.'
+  call printErrMsg(option)
+
+end subroutine SFXWBaseSaturation
+
+
 subroutine SFXWSetConnateSatBase(this,swco,option)
 
 use Option_module
@@ -1605,7 +1674,6 @@ subroutine SF_XW_VG_Verify(this,name,option)
 
   character(len=MAXSTRINGLENGTH) :: string
 
-  !PO check if this make sense
   if (index(name,'SATURATION_FUNCTION_OWG') > 0) then
     string = name
   else
@@ -1665,6 +1733,150 @@ subroutine SF_XW_VG_CapillaryPressure(this,wat_saturation,capillary_pressure, &
 end subroutine SF_XW_VG_CapillaryPressure
 
 ! ************************************************************************** !
+
+subroutine SF_XW_VG_Saturation(this,capillary_pressure,wat_saturation, &
+                                      dsatw_dpc,option,table_idxs)
+  use Option_module
+
+  implicit none
+
+  class(sat_func_xw_VG_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: wat_saturation
+  PetscReal, intent(out) :: dsatw_dpc
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  call this%sat_func_sl%Saturation(capillary_pressure, &
+                                     wat_saturation,dsatw_dpc,option)
+
+end subroutine SF_XW_VG_Saturation
+
+! ************************************************************************** !
+! *****************SF x-Water BC function ********************************** !
+
+function SF_XW_BC_Create()
+
+  implicit none
+
+  class(sat_func_xw_BC_type), pointer :: SF_XW_BC_Create
+
+  allocate(SF_XW_BC_Create)
+
+  call SFXWBaseInit(SF_XW_BC_Create)
+
+  SF_XW_BC_Create%sat_func_sl => SF_BC_Create()
+
+  call SF_XW_BC_Create%Init()
+
+end function SF_XW_BC_Create
+
+
+subroutine SF_XW_BC_Init(this)
+
+  implicit none
+
+  class(sat_func_xw_BC_type) :: this
+
+  this%alpha = UNINITIALIZED_DOUBLE
+  this%lambda = UNINITIALIZED_DOUBLE
+
+  this%analytical_derivative_available = &
+      this%sat_func_sl%analytical_derivative_available
+
+end subroutine SF_XW_BC_Init
+
+
+subroutine SF_XW_BC_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_xw_BC_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'SATURATION_FUNCTION_OWG') > 0) then
+    string = name
+  else
+    string = trim(name) // 'SATURATION_FUNCTION_OWG,SF_OW_BC'
+  endif
+
+  call SFXWBaseVerify(this,string,option)
+
+  if (Uninitialized(this%alpha)) then
+    option%io_buffer = UninitializedMessage('ALPHA = 1/Pcc',string)
+    call printErrMsg(option)
+  endif
+
+  if (Uninitialized(this%lambda)) then
+    option%io_buffer = UninitializedMessage('LAMBDA',string)
+    call printErrMsg(option)
+  endif
+
+  if ( .not.associated(this%sat_func_sl) ) then
+    option%io_buffer = 'Not analytical function associated with the capillary &
+      & pressure between X and water - saturation function chosen: ' // &
+      trim(string)
+    call printErrMsg(option)
+  end if
+
+  call this%sat_func_sl%verify(name,option)
+
+end subroutine SF_XW_BC_Verify
+
+
+subroutine SF_XW_BC_CapillaryPressure(this,wat_saturation,capillary_pressure, &
+                                      dpc_dsatw,option,table_idxs)
+  use Option_module
+
+  implicit none
+
+  class(sat_func_xw_BC_type) :: this
+  PetscReal, intent(in) :: wat_saturation
+  PetscReal, intent(out) :: capillary_pressure
+  PetscReal, intent(out) :: dpc_dsatw
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  PetscReal, parameter :: eps_wat=1.0d-5
+  PetscReal :: swa
+
+  if (wat_saturation < 0.0) then
+    swa = eps_wat
+  else   
+    swa = wat_saturation
+  end if
+
+  call this%sat_func_sl%CapillaryPressure(swa,capillary_pressure, &
+                                          dpc_dsatw,option)
+
+end subroutine SF_XW_BC_CapillaryPressure
+
+
+subroutine SF_XW_BC_Saturation(this,capillary_pressure,wat_saturation, &
+                                      dsatw_dpc,option,table_idxs)
+  use Option_module
+
+  implicit none
+
+  class(sat_func_xw_BC_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: wat_saturation
+  PetscReal, intent(out) :: dsatw_dpc
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  call this%sat_func_sl%Saturation(capillary_pressure, &
+                                     wat_saturation,dsatw_dpc,option)
+
+end subroutine SF_XW_BC_Saturation
+
+! ************************************************************************** !
+
 
 function SF_XW_constant_Create()
 
@@ -1744,6 +1956,25 @@ subroutine SF_XW_const_CapillaryPressure(this,wat_saturation, &
   dpc_dsatw = 0.0d0
 
 end subroutine SF_XW_const_CapillaryPressure
+
+
+subroutine SF_XW_const_Saturation(this,capillary_pressure,wat_saturation, &
+                                      dsatw_dpc,option,table_idxs)
+  use Option_module
+
+  implicit none
+
+  class(sat_func_xw_constant_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: wat_saturation
+  PetscReal, intent(out) :: dsatw_dpc
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  option%io_buffer = 'SF_XW_const_Saturation not supported.'
+  call printErrMsg(option)
+
+end subroutine SF_XW_const_Saturation
 
 ! ************************************************************************** !
 ! *********** OG Saturaton functions  ************************************** !
@@ -2504,6 +2735,8 @@ subroutine RPF_wat_owg_MBC_Init(this)
   this%Socr = UNINITIALIZED_DOUBLE
   this%Sgcr = UNINITIALIZED_DOUBLE
 
+  this%analytical_derivative_available = PETSC_TRUE
+
 end subroutine RPF_wat_owg_MBC_Init
 
 
@@ -2940,6 +3173,8 @@ subroutine RPF_gas_owg_MBC_Init(this)
 
   this%Swcr = UNINITIALIZED_DOUBLE
   this%Socr = UNINITIALIZED_DOUBLE
+ 
+  this%analytical_derivative_available = PETSC_TRUE
 
 end subroutine RPF_gas_owg_MBC_Init
 
@@ -3381,6 +3616,99 @@ function RPFOWGetCriticalSatOWGBase(this,option)
   
 end function RPFOWGetCriticalSatOWGBase
 
+!-----------------------------------------------------------------------------
+!-- RPF Oil-Water linear -----------------------------------------------------
+!-----------------------------------------------------------------------------
+function RPF_ow_owg_linear_Create()
+
+  implicit none
+
+  class(rel_perm_ow_owg_linear_type), pointer :: RPF_ow_owg_linear_Create
+
+  allocate(RPF_ow_owg_linear_Create)
+
+  call RPF_ow_owg_linear_Create%Init()
+
+end function RPF_ow_owg_linear_Create
+
+
+subroutine RPF_ow_owg_linear_Init(this)
+ 
+  implicit none
+   
+  class(rel_perm_ow_owg_linear_type) :: this
+   
+  call RPFOWOWGBaseInit(this)
+   
+  this%analytical_derivative_available = PETSC_TRUE
+ 
+end subroutine RPF_ow_owg_linear_Init
+
+
+subroutine RPF_ow_owg_linear_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(rel_perm_ow_owg_linear_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION_OW') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION_OW,TOUGH2_LINEAR.'
+  endif
+
+  call RPFOWOWGBaseVerify(this,string,option)
+
+end subroutine RPF_ow_owg_linear_Verify
+
+
+subroutine RPF_ow_owg_linear_RelPerm(this,oil_sat,rel_perm, &
+                                          dkr_sato,option,table_idxs)
+
+ use Option_module
+ use Utility_module
+
+ implicit none
+
+ class(rel_perm_ow_owg_linear_type) :: this
+ PetscReal, intent(in) :: oil_sat
+ PetscReal, intent(out) :: rel_perm
+ PetscReal, intent(out) :: dkr_sato
+ type(option_type), intent(inout) :: option
+ PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+ PetscReal :: Seo, swa, soa
+
+ !PO done to get same truncation error than previous Kro implementation
+ !   in order to pass regression tests
+ swa = 1.0d0 - oil_sat
+ soa = 1.0d0 - swa
+ 
+ !Seo = (oil_sat - this%Sowcr) / (1.d0 - this%Sowcr)
+ Seo = (soa - this%Sowcr) / (1.d0 - this%Sowcr)
+
+ dkr_sato = 1.d0 / (1.d0 - this%Sowcr)
+ 
+ if (Seo >= 1.d0) then
+   rel_perm = 1.d0
+   dkr_sato = 0.d0
+   return
+ else if (Seo <=  0.d0) then
+   rel_perm = 0.d0
+   dkr_sato = 0.d0
+   return
+ endif
+
+ rel_perm = Seo
+
+
+end subroutine RPF_ow_owg_linear_RelPerm
 
 !-----------------------------------------------------------------------------
 !-- RPF Oil-Water MBC ------------------------------------------------------
@@ -3408,7 +3736,7 @@ subroutine RPF_ow_owg_MBC_Init(this)
    
   this%Swcr = UNINITIALIZED_DOUBLE
    
-  this%analytical_derivative_available = PETSC_FALSE
+  this%analytical_derivative_available = PETSC_TRUE
  
 end subroutine RPF_ow_owg_MBC_Init
 
@@ -3428,7 +3756,7 @@ subroutine RPF_ow_owg_MBC_Verify(this,name,option)
   if (index(name,'PERMEABILITY_FUNCTION_OW') > 0) then
     string = name
   else
-    string = trim(name) // 'PERMEABILITY_FUNCTION_OW, MBC:'
+    string = trim(name) // 'PERMEABILITY_FUNCTION_OW, MBC'
   endif
 
   call RPFOWOWGBaseVerify(this,string,option)
@@ -3668,7 +3996,7 @@ subroutine RPF_og_owg_MBC_Init(this)
   this%Sgcr = UNINITIALIZED_DOUBLE
   this%Swco = UNINITIALIZED_DOUBLE
    
-  this%analytical_derivative_available = PETSC_FALSE
+  this%analytical_derivative_available = PETSC_TRUE
  
 end subroutine RPF_og_owg_MBC_Init
 
@@ -3979,7 +4307,7 @@ subroutine RPF_oil_ecl_Verify(this,name,option)
   if (index(name,'PERMEABILITY_FUNCTION_OIL') > 0) then
     string = name
   else
-    string = trim(name) // 'PERMEABILITY_FUNCTION_OIL,Eclipse'
+    string = trim(name) // 'PERMEABILITY_FUNCTION_OIL,Eclipse.'
   endif
 
    if (Uninitialized(this%Swco)) then

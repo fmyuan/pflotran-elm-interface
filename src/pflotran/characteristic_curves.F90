@@ -23,7 +23,7 @@ module Characteristic_Curves_module
     class(sat_func_xw_base_type), pointer :: gas_wat_sat_func
     class(rel_perm_func_base_type), pointer :: liq_rel_perm_function
     class(rel_perm_func_base_type), pointer :: gas_rel_perm_function
-    class(rel_perm_func_base_type), pointer :: oil_rel_perm_function
+    !class(rel_perm_func_base_type), pointer :: oil_rel_perm_function
     !class(rel_perm_func_owg_base_type), pointer :: wat_rel_perm_func_owg
     !class(rel_perm_func_owg_base_type), pointer :: oil_rel_perm_func_owg
     !class(rel_perm_func_owg_base_type), pointer :: gas_rel_perm_func_owg
@@ -81,7 +81,7 @@ function CharacteristicCurvesCreate()
   nullify(characteristic_curves%gas_wat_sat_func)
   nullify(characteristic_curves%liq_rel_perm_function)
   nullify(characteristic_curves%gas_rel_perm_function)
-  nullify(characteristic_curves%oil_rel_perm_function)  
+  !nullify(characteristic_curves%oil_rel_perm_function)  
   ! nullify(characteristic_curves%wat_rel_perm_func_owg)
   ! nullify(characteristic_curves%oil_rel_perm_func_owg)
   ! nullify(characteristic_curves%gas_rel_perm_func_owg)
@@ -186,15 +186,13 @@ subroutine CharacteristicCurvesRead(this,input,option)
         call InputReadWordDbaseCompatible(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'SATURATION_FUNCTION_OW',error_string)
         call StringToUpper(word)
-        !interface_keyword = 'NONE'
         select case(word)
           case('VAN_GENUCHTEN','VAN_GENUCHTEN_OW')
             this%oil_wat_sat_func => SF_XW_VG_Create()
-            !interface_keyword = 'OIL_WATER'
-          case('CONSTANT') !suppot only new format
-            !sat_func_ow_ptr => SF_XW_constant_Create()
-            this%oil_wat_sat_func => SF_XW_constant_Create()            
-            !interface_keyword = 'OIL_WATER'
+          case("BROOKS_COREY")  
+            this%oil_wat_sat_func => SF_XW_BC_Create()            
+          case('CONSTANT') 
+            this%oil_wat_sat_func => SF_XW_constant_Create()
           !case('TABLE')
           ! ! add table option
           case default
@@ -208,6 +206,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
         select case(word)
           case("VAN_GENUCHTEN")
             this%gas_wat_sat_func => SF_XW_VG_Create()
+          case("BROOKS_COREY")  
+            this%gas_wat_sat_func => SF_XW_BC_Create()
           case('CONSTANT') !suppot only new format
             this%gas_wat_sat_func => SF_XW_VG_Create()
           !add case with table  
@@ -344,15 +344,15 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('MODIFIED_KOSUGI_GAS')
             rel_perm_function_ptr => RPF_mK_Gas_Create()
             phase_keyword = 'GAS'
-          case('TOUGH2_LINEAR_OIL')
-            rel_perm_function_ptr => RPF_TOUGH2_Linear_Oil_Create()
-            phase_keyword = 'OIL'
-          case('MOD_BC_LIQ')
-            rel_perm_function_ptr => RPF_Mod_BC_Liq_Create()
-            phase_keyword = 'LIQUID'
-          case('MOD_BC_OIL')
-            rel_perm_function_ptr => RPF_Mod_BC_Oil_Create()
-            phase_keyword = 'OIL'
+          ! case('TOUGH2_LINEAR_OIL')
+          !   rel_perm_function_ptr => RPF_TOUGH2_Linear_Oil_Create()
+          !   phase_keyword = 'OIL'
+          ! case('MOD_BC_LIQ')
+          !   rel_perm_function_ptr => RPF_Mod_BC_Liq_Create()
+          !   phase_keyword = 'LIQUID'
+          ! case('MOD_BC_OIL')
+          !   rel_perm_function_ptr => RPF_Mod_BC_Oil_Create()
+          !   phase_keyword = 'OIL'
           case('CONSTANT')
             rel_perm_function_ptr => RPF_Constant_Create()
             ! phase_keyword = 'NONE'
@@ -367,8 +367,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%gas_rel_perm_function => rel_perm_function_ptr
           case('LIQUID')
             this%liq_rel_perm_function => rel_perm_function_ptr
-          case('OIL')
-            this%oil_rel_perm_function => rel_perm_function_ptr 
+          ! case('OIL')
+          !   this%oil_rel_perm_function => rel_perm_function_ptr 
             ! PO: gas_rel_perm_fucntion initiated oil_rel_perm_function
             ! to pass the verification in CharacteristicCurvesVerify
             ! in case gas_rel_perm_function is not defined in the input
@@ -442,6 +442,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
         select case(word)
           case('MOD_BROOKS_COREY')
             this%ow_rel_perm_func_owg => RPF_ow_owg_MBC_Create()
+          case('TOUGH2_LINEAR')
+            this%ow_rel_perm_func_owg => RPF_ow_owg_linear_Create()
           case('TABLE')
             !this%ow_rel_perm_func_owg => RPF_ow_owg_table_Create()
           case default
@@ -506,7 +508,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
   enddo
   
   select case(option%iflowmode)
-    case(TOWG_MODE) !add here TOIL_IMS when supported
+    case(TOWG_MODE,TOIL_IMS_MODE) 
       ! CC process: (i) associates func with tables (if any), 
       ! (ii) assign external end points, (iii) run end point consistency checks
       call CharacteristicCurvesOWGVerify(this,option)
@@ -1020,12 +1022,12 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'MODIFIED_KOSUGI_LIQ'
     class is(rpf_mK_gas_type)
       error_string = trim(error_string) // 'MODIFIED_KOSUGI_GAS'
-    class is(rpf_TOUGH2_Linear_oil_type)
-      error_string = trim(error_string) // 'TOUGH2_Linear_OIL'
-    class is(rpf_mod_BC_liq_type)
-      error_string = trim(error_string) // 'Mod_BC_LIQ'
-    class is(rpf_mod_BC_oil_type)
-      error_string = trim(error_string) // 'Mod_BC_OIL'
+    !class is(rpf_TOUGH2_Linear_oil_type)
+    !  error_string = trim(error_string) // 'TOUGH2_Linear_OIL'
+    ! class is(rpf_mod_BC_liq_type)
+    !   error_string = trim(error_string) // 'Mod_BC_LIQ'
+    ! class is(rpf_mod_BC_oil_type)
+    !   error_string = trim(error_string) // 'Mod_BC_OIL'
     class is(rel_perm_func_constant_type)
       error_string = trim(error_string) // 'CONSTANT'
   end select
@@ -1480,56 +1482,56 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
                  &'function',option)
         end select
     !------------------------------------------
-      class is(rpf_TOUGH2_Linear_oil_type)
-        select case(keyword)
-          case('OIL_RESIDUAL_SATURATION') 
-            call InputReadDouble(input,option,rpf%Sro)
-            call InputErrorMsg(input,option,'Sro',error_string)
-          case default
-            call InputKeywordUnrecognized(keyword, &
-              'TOUGH2 LINEAR oil relative permeability function', &
-              option)
-        end select
+      ! class is(rpf_TOUGH2_Linear_oil_type)
+      !   select case(keyword)
+      !     case('OIL_RESIDUAL_SATURATION') 
+      !       call InputReadDouble(input,option,rpf%Sro)
+      !       call InputErrorMsg(input,option,'Sro',error_string)
+      !     case default
+      !       call InputKeywordUnrecognized(keyword, &
+      !         'TOUGH2 LINEAR oil relative permeability function', &
+      !         option)
+      !   end select
     !------------------------------------------
-      class is(rpf_mod_BC_liq_type)
-        select case(keyword)
-          case('M')
-            call InputReadDouble(input,option,rpf%m)
-            call InputErrorMsg(input,option,'m - power',error_string)
-          case('OIL_RESIDUAL_SATURATION') 
-            call InputReadDouble(input,option,rpf%Sro)
-            call InputErrorMsg(input,option,'Sro',error_string)
-          case('GAS_RESIDUAL_SATURATION') 
-            call InputReadDouble(input,option,rpf%Srg)
-            call InputErrorMsg(input,option,'Srg',error_string)
-          case('LIQUID_MAX_REL_PERM') 
-            call InputReadDouble(input,option,rpf%kr_max)
-            call InputErrorMsg(input,option,'kr_max',error_string)
-          case default
-            call InputKeywordUnrecognized(keyword, &
-              'Mod BC liq relative permeability function', &
-              option)
-        end select
+      ! class is(rpf_mod_BC_liq_type)
+      !   select case(keyword)
+      !     case('M')
+      !       call InputReadDouble(input,option,rpf%m)
+      !       call InputErrorMsg(input,option,'m - power',error_string)
+      !     case('OIL_RESIDUAL_SATURATION') 
+      !       call InputReadDouble(input,option,rpf%Sro)
+      !       call InputErrorMsg(input,option,'Sro',error_string)
+      !     case('GAS_RESIDUAL_SATURATION') 
+      !       call InputReadDouble(input,option,rpf%Srg)
+      !       call InputErrorMsg(input,option,'Srg',error_string)
+      !     case('LIQUID_MAX_REL_PERM') 
+      !       call InputReadDouble(input,option,rpf%kr_max)
+      !       call InputErrorMsg(input,option,'kr_max',error_string)
+      !     case default
+      !       call InputKeywordUnrecognized(keyword, &
+      !         'Mod BC liq relative permeability function', &
+      !         option)
+      !   end select
     !------------------------------------------
-      class is(rpf_mod_BC_oil_type)
-        select case(keyword)
-          case('M')
-            call InputReadDouble(input,option,rpf%m)
-            call InputErrorMsg(input,option,'m - power',error_string)
-          case('OIL_RESIDUAL_SATURATION') 
-            call InputReadDouble(input,option,rpf%Sro)
-            call InputErrorMsg(input,option,'Sro',error_string)
-          case('GAS_RESIDUAL_SATURATION') 
-            call InputReadDouble(input,option,rpf%Srg)
-            call InputErrorMsg(input,option,'Srg',error_string)
-          case('OIL_MAX_REL_PERM') 
-            call InputReadDouble(input,option,rpf%kr_max)
-            call InputErrorMsg(input,option,'kr_max',error_string)
-          case default
-            call InputKeywordUnrecognized(keyword, &
-              'Mod BC oil relative permeability function', &
-              option)
-        end select
+      ! class is(rpf_mod_BC_oil_type)
+      !   select case(keyword)
+      !     case('M')
+      !       call InputReadDouble(input,option,rpf%m)
+      !       call InputErrorMsg(input,option,'m - power',error_string)
+      !     case('OIL_RESIDUAL_SATURATION') 
+      !       call InputReadDouble(input,option,rpf%Sro)
+      !       call InputErrorMsg(input,option,'Sro',error_string)
+      !     case('GAS_RESIDUAL_SATURATION') 
+      !       call InputReadDouble(input,option,rpf%Srg)
+      !       call InputErrorMsg(input,option,'Srg',error_string)
+      !     case('OIL_MAX_REL_PERM') 
+      !       call InputReadDouble(input,option,rpf%kr_max)
+      !       call InputErrorMsg(input,option,'kr_max',error_string)
+      !     case default
+      !       call InputKeywordUnrecognized(keyword, &
+      !         'Mod BC oil relative permeability function', &
+      !         option)
+      !   end select
     !------------------------------------------
       class is(rel_perm_func_constant_type)
         select case(keyword)
@@ -1695,7 +1697,7 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
   PetscReal :: sowcr_dummy, sogcr_dummy, swco_dummy
 
   select case(option%iflowmode)
-    case(TOWG_MODE)
+    case(TOWG_MODE,TOIL_IMS_MODE)
       call characteristic_curves%GetOWGCriticalAndConnateSats( &
                     CharCurvesGetGetResidualSats(option%liquid_phase), &
                     CharCurvesGetGetResidualSats(option%gas_phase), &
@@ -1783,8 +1785,8 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
       class is(rpf_mK_gas_type)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_mod_BC_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
+      ! class is(rpf_mod_BC_liq_type)
+      !   CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
       class is(rel_perm_func_constant_type)
         CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
       class is(rel_perm_func_default_type)
@@ -1798,19 +1800,19 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
   end if
 
   !PO todo - remove when extending use of owg cc to TOIL
-  if ( (option%nphase > 1) .and. &
-       associated(characteristic_curves%oil_rel_perm_function) ) then
-    select type(rpf=>characteristic_curves%oil_rel_perm_function)
-      class is(rpf_TOUGH2_Linear_oil_type)
-        CharCurvesGetGetResidualSats(option%oil_phase) = rpf%Sro
-      class is(rpf_mod_BC_oil_type)
-        CharCurvesGetGetResidualSats(option%oil_phase) = rpf%Sro 
-      class default
-        option%io_buffer = 'Oil Relative permeability class ' // &
-          'not supported in CharCurvesGetGetResidualSats.'
-        call printErrMsg(option)
-    end select
-  endif
+  ! if ( (option%nphase > 1) .and. &
+  !      associated(characteristic_curves%oil_rel_perm_function) ) then
+  !   select type(rpf=>characteristic_curves%oil_rel_perm_function)
+  !     class is(rpf_TOUGH2_Linear_oil_type)
+  !       CharCurvesGetGetResidualSats(option%oil_phase) = rpf%Sro
+  !     class is(rpf_mod_BC_oil_type)
+  !       CharCurvesGetGetResidualSats(option%oil_phase) = rpf%Sro 
+  !     class default
+  !       option%io_buffer = 'Oil Relative permeability class ' // &
+  !         'not supported in CharCurvesGetGetResidualSats.'
+  !       call printErrMsg(option)
+  !   end select
+  ! endif
 
   end select ! end flow mode select
 
@@ -1950,12 +1952,12 @@ subroutine CharacteristicCurvesTest(characteristic_curves,option)
   endif
 
   !to be removed after TOIL refactoring
-  if ( associated(characteristic_curves%oil_rel_perm_function) ) then
-    phase = 'oil'
-    call characteristic_curves%oil_rel_perm_function%Test( &
-                                                 characteristic_curves%name, &
-                                                 phase,option)
-  end if
+  ! if ( associated(characteristic_curves%oil_rel_perm_function) ) then
+  !   phase = 'oil'
+  !   call characteristic_curves%oil_rel_perm_function%Test( &
+  !                                                characteristic_curves%name, &
+  !                                                phase,option)
+  ! end if
   
   if ( associated(characteristic_curves%wat_rel_perm_func_owg) ) then
     call characteristic_curves%wat_rel_perm_func_owg%Test( &
@@ -2039,18 +2041,18 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
     end if
   end if
 
-  if ( associated(characteristic_curves%oil_rel_perm_function) ) then  
-    call characteristic_curves%oil_rel_perm_function%Verify(string,option)
-  else 
-    if (option%iflowmode == TOIL_IMS_MODE .or. &
-        option%iflowmode == TOWG_MODE  ) then
-      option%io_buffer = 'An oil phase relative permeability function has &
-                         &not been set under CHARACTERISTIC_CURVES "' // &
-                         trim(characteristic_curves%name) // '". Another &
-                         &PERMEABILITY_FUNCTION block must be specified &
-                         &for the oil phase.'      
-    end if
-  end if
+  ! if ( associated(characteristic_curves%oil_rel_perm_function) ) then  
+  !   call characteristic_curves%oil_rel_perm_function%Verify(string,option)
+  ! else 
+  !   if (option%iflowmode == TOIL_IMS_MODE .or. &
+  !       option%iflowmode == TOWG_MODE  ) then
+  !     option%io_buffer = 'An oil phase relative permeability function has &
+  !                        &not been set under CHARACTERISTIC_CURVES "' // &
+  !                        trim(characteristic_curves%name) // '". Another &
+  !                        &PERMEABILITY_FUNCTION block must be specified &
+  !                        &for the oil phase.'      
+  !   end if
+  ! end if
   
 end subroutine CharacteristicCurvesVerify
 
@@ -2840,22 +2842,23 @@ subroutine CharCurvesInputRecord(char_curve_list)
       !------------------------------------
       end select
     endif
-    
-    if (associated(cur_ccurve%oil_rel_perm_function)) then
-      write(id,'(a29)',advance='no') 'oil relative perm. func.: '
-      select type (rpf => cur_ccurve%oil_rel_perm_function)
-      !------------------------------------
-        class is (rel_perm_func_default_type)
-          write(id,'(a)') 'default'
-      !------------------------------------
-        class is (rpf_TOUGH2_Linear_Oil_type)
-          write(id,'(a)') 'tough2_linear_oil'
-          write(id,'(a29)',advance='no') 'oil residual sat.: '
-          write(word1,*) rpf%Sro
-          write(id,'(a)') adjustl(trim(word1))
-      !------------------------------------
-      end select
-    endif
+
+    !PO: to add cc_owg print out     
+    ! if (associated(cur_ccurve%oil_rel_perm_function)) then
+    !   write(id,'(a29)',advance='no') 'oil relative perm. func.: '
+    !   select type (rpf => cur_ccurve%oil_rel_perm_function)
+    !   !------------------------------------
+    !     class is (rel_perm_func_default_type)
+    !       write(id,'(a)') 'default'
+    !   !------------------------------------
+    !     class is (rpf_TOUGH2_Linear_Oil_type)
+    !       write(id,'(a)') 'tough2_linear_oil'
+    !       write(id,'(a29)',advance='no') 'oil residual sat.: '
+    !       write(word1,*) rpf%Sro
+    !       write(id,'(a)') adjustl(trim(word1))
+    !   !------------------------------------
+    !   end select
+    ! endif
 
     write(id,'(a29)') '---------------------------: '
     cur_ccurve => cur_ccurve%next
@@ -2895,9 +2898,9 @@ recursive subroutine CharacteristicCurvesDestroy(cc)
     nullify(cc%gas_rel_perm_function)
   !PO how about avoiding xxx_rel_perm_function => aaa_rel_perm_function? 
   !   it should semplify code. It seems we do this only to pass verify 
-  else if (associated(cc%oil_rel_perm_function,cc%gas_rel_perm_function)) then 
-    call PermeabilityFunctionDestroy(cc%oil_rel_perm_function)
-    nullify(cc%gas_rel_perm_function)
+  ! else if (associated(cc%oil_rel_perm_function,cc%gas_rel_perm_function)) then 
+  !   call PermeabilityFunctionDestroy(cc%oil_rel_perm_function)
+  !   nullify(cc%gas_rel_perm_function)
   else
     call PermeabilityFunctionDestroy(cc%liq_rel_perm_function)
     call PermeabilityFunctionDestroy(cc%gas_rel_perm_function)
