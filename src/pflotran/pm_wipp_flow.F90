@@ -892,9 +892,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   Vec :: diagonal_vec
   PetscReal :: norm
   PetscInt :: matsize
-  PetscInt :: i, irow, icol, ncol, row_start, irow_mat
-  PetscReal :: vals(100) ! accommodates 49 connections max
-  PetscReal :: max_abs_val
+  PetscInt :: i, irow
   PetscReal, pointer :: vec_p(:)
   
   call WIPPFloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
@@ -938,34 +936,8 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
     enddo
     call VecRestoreArrayF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
     call MatDiagonalScale(A,PETSC_NULL_VEC,this%scaling_vec,ierr);CHKERRQ(ierr)
-#if 1
-    call MPI_Exscan(this%realization%patch%grid%nlmax,row_start,&
-                    ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                    this%option%mycomm,ierr)
-    call VecGetArrayF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
-    row_start = row_start * 2 ! two dofs per grid cell
-    row_start = row_start - 1 ! subtract one for zero-based indexing below
-    do irow = 1, matsize
-      irow_mat = irow + row_start
-      call MatGetRow(A,irow_mat,ncol,PETSC_NULL_INTEGER,vals,ierr);CHKERRQ(ierr)
-      if (ncol > 100) then
-        this%option%io_buffer = 'Increase size of vals() in &
-                                &PMWIPPFloJacobian.'
-        call printErrMsg(this%option)
-      endif
-      max_abs_val = 0.d0
-      do icol = 1, ncol
-        max_abs_val = max(dabs(vals(icol)),max_abs_val)
-      enddo
-      call MatRestoreRow(A,irow_mat,ncol,PETSC_NULL_INTEGER,vals, &
-                         ierr);CHKERRQ(ierr)
-      vec_p(irow) = max_abs_val
-    enddo
-    call VecRestoreArrayF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
-#else
     call MatGetRowMaxAbs(A,this%scaling_vec,PETSC_NULL_INTEGER, &
                          ierr);CHKERRQ(ierr)
-#endif
 
     call VecReciprocal(this%scaling_vec,ierr);CHKERRQ(ierr)
 
@@ -1003,7 +975,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
     write(this%option%io_buffer,'("inf norm: ",es11.4)') norm
     call printMsg(this%option)
   endif
-stop
+
 end subroutine PMWIPPFloJacobian
 
 ! ************************************************************************** !
