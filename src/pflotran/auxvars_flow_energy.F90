@@ -50,6 +50,9 @@ subroutine AuxVarFlowEnergyInit(this,option)
   allocate(this%U(option%nphase))
   this%U = 0.d0
 
+  nullify(this%D_H)
+  nullify(this%D_U)
+
   this%has_derivs = PETSC_FALSE
   if (.not.option%flow%numerical_derivatives) then
     this%has_derivs = PETSC_TRUE
