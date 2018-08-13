@@ -394,7 +394,7 @@ subroutine PMWIPPFloRead(this,input)
           if (InputCheckExit(input,option)) exit
           if (icount+1 > max_dirichlet_bc) then
             option%io_buffer = 'Must increase size of "max_dirichlet_bc" & 
-              &in PMBragfloRead'
+              &in PMWIPPFloRead'
             call printErrMsg(option)
           endif
           call InputReadInt(input,option,temp_int)
@@ -892,9 +892,8 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   Vec :: diagonal_vec
   PetscReal :: norm
   PetscInt :: matsize
-  PetscInt :: i, irow, icol, ncol
-  PetscInt :: cols(100) ! accommodates 49 connections max
-  PetscReal :: vals(100)
+  PetscInt :: i, irow, icol, ncol, row_start, irow_mat
+  PetscReal :: vals(100) ! accommodates 49 connections max
   PetscReal :: max_abs_val
   PetscReal, pointer :: vec_p(:)
   
@@ -926,35 +925,47 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   call SNESGetFunction(snes,residual_vec,PETSC_NULL_FUNCTION, &
                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
   if (this%scale_linear_system) then
-    if (this%option%mycommsize > 1) then
-      this%option%io_buffer = 'WIPP FLOW matrix scaling not allowed in &
-        &parallel.'
-      call printErrMsg(this%option)
-    endif
+!    if (this%option%mycommsize > 1) then
+!      this%option%io_buffer = 'WIPP FLOW matrix scaling not allowed in &
+!        &parallel.'
+!      call printErrMsg(this%option)
+!    endif
     call VecGetLocalSize(this%scaling_vec,matsize,ierr);CHKERRQ(ierr)
     call VecSet(this%scaling_vec,1.d0,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
     do irow = 1, matsize, 2
       vec_p(irow) = this%linear_system_scaling_factor
     enddo
-    call VecRestoreArrayReadF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
     call MatDiagonalScale(A,PETSC_NULL_VEC,this%scaling_vec,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+#if 1
+    call MPI_Exscan(this%realization%patch%grid%nlmax,row_start,&
+                    ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                    this%option%mycomm,ierr)
+    call VecGetArrayF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+    row_start = row_start * 2 ! two dofs per grid cell
+    row_start = row_start - 1 ! subtract one for zero-based indexing below
     do irow = 1, matsize
-      call MatGetRow(A,irow-1,ncol,cols,vals,ierr);CHKERRQ(ierr)
+      irow_mat = irow + row_start
+      call MatGetRow(A,irow_mat,ncol,PETSC_NULL_INTEGER,vals,ierr);CHKERRQ(ierr)
       if (ncol > 100) then
-        this%option%io_buffer = 'Increase size of cols() and vals() in &
-                                &PMBragfloJacobian.'
+        this%option%io_buffer = 'Increase size of vals() in &
+                                &PMWIPPFloJacobian.'
         call printErrMsg(this%option)
       endif
       max_abs_val = 0.d0
       do icol = 1, ncol
         max_abs_val = max(dabs(vals(icol)),max_abs_val)
       enddo
-      call MatRestoreRow(A,irow-1,ncol,cols,vals,ierr);CHKERRQ(ierr)
+      call MatRestoreRow(A,irow_mat,ncol,PETSC_NULL_INTEGER,vals, &
+                         ierr);CHKERRQ(ierr)
       vec_p(irow) = max_abs_val
     enddo
-    call VecRestoreArrayReadF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+#else
+    call MatGetRowMaxAbs(A,this%scaling_vec,PETSC_NULL_INTEGER, &
+                         ierr);CHKERRQ(ierr)
+#endif
 
     call VecReciprocal(this%scaling_vec,ierr);CHKERRQ(ierr)
 
@@ -992,7 +1003,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
     write(this%option%io_buffer,'("inf norm: ",es11.4)') norm
     call printMsg(this%option)
   endif
-
+stop
 end subroutine PMWIPPFloJacobian
 
 ! ************************************************************************** !
