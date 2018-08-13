@@ -387,7 +387,7 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   PetscInt :: wid, oid, gid
   PetscReal :: cell_pressure, wat_sat_pres
-  PetscReal :: krw,dkrw_sato,dkrw_satg, visw
+  PetscReal :: krw,dkrw_sato,dkrw_satg,dkrw_satw, visw
   PetscReal :: kro,dkro_sato,dkro_satg, viso
   PetscReal :: krg,dkrg_sato,dkrg_satg, visg
   PetscReal :: sat_liq_gas, sat_tot_liq
@@ -427,11 +427,13 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !  Note Pw=Po-Pcow, Pg=Po+Pcog
 
   call characteristic_curves%oil_wat_sat_func% &
-            CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(wid), &
-                              dummy,dummy2,option,auxvar%table_idx)
+            CapillaryPressure(auxvar%sat(wid), &
+                              auxvar%pc(wid),dummy,option,auxvar%table_idx)
+                              
   call characteristic_curves%oil_gas_sat_func% &
-            CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(oid), &
-                              dummy,dummy2,option,auxvar%table_idx)
+            CapillaryPressure(auxvar%sat(gid), &
+                              auxvar%pc(oid),dummy,option,auxvar%table_idx)                            
+                              
   auxvar%pres(wid) = auxvar%pres(oid) - auxvar%pc(wid)
   auxvar%pres(gid) = auxvar%pres(oid) + auxvar%pc(oid)
 
@@ -507,8 +509,8 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! compute water mobility (rel. perm / viscostiy)
 
   call characteristic_curves%wat_rel_perm_func_owg% &
-                    RelativePermeability(auxvar%sat(oid),auxvar%sat(gid), &
-                              krw,dkrw_sato,dkrw_satg,option,auxvar%table_idx)
+                  RelativePermeability(auxvar%sat(wid),krw,dkrw_satw, &
+                                            option,auxvar%table_idx)
 
   call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
@@ -518,10 +520,10 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%mobility(wid) = krw/visw
 
   ! compute oil mobility (rel. perm / viscosity)
-
-  call characteristic_curves%oil_rel_perm_func_owg% &
-                  RelativePermeability(auxvar%sat(oid),auxvar%sat(gid),kro, &
-                                 dkro_sato,dkro_satg,option,auxvar%table_idx)
+  !PO: For testing use krow - to be extended to kro (Eclipse model)
+  call characteristic_curves%ow_rel_perm_func_owg% &
+                       RelativePermeability(auxvar%sat(oid),kro,dkro_sato, &
+                                                     option,auxvar%table_idx)
 
   call EOSOilViscosity(auxvar%temp,auxvar%pres(oid), &
                        auxvar%den(oid), viso, ierr)
@@ -529,10 +531,9 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%mobility(oid) = kro/viso
 
   !compute gas mobility (rel. perm / viscosity)
-
   call characteristic_curves%gas_rel_perm_func_owg% &
-                   RelativePermeability(auxvar%sat(oid),auxvar%sat(gid),krg, &
-                                dkrg_sato,dkrg_satg,option,auxvar%table_idx)
+                       RelativePermeability(auxvar%sat(gid),krg,dummy,&
+                                                     option,auxvar%table_idx)
 
   !currently only a viscosity model for air or constant value
 
@@ -616,7 +617,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: kro, viso
   PetscReal :: krg, visg
   PetscReal :: dummy,po,pb
-  PetscReal :: dkrw_sato,dkrw_satg
+  PetscReal :: dkrw_sato,dkrw_satg,dkrw_satw
   PetscReal :: dkro_sato,dkro_satg
   PetscReal :: dkrg_sato,dkrg_satg
   PetscErrorCode :: ierr
@@ -734,14 +735,14 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !==============================================================================
 
   call characteristic_curves%oil_wat_sat_func% &
-            CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(wid), &
-                              dummy,dummy2,option,auxvar%table_idx)
+            CapillaryPressure(auxvar%sat(wid), &
+                              auxvar%pc(wid),dummy,option,auxvar%table_idx)
 
   auxvar%pc(oid) = 0.0d0
-
+                
   call characteristic_curves%oil_gas_sat_func% &
-            CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(oid), &
-                              dummy,dummy2,option,auxvar%table_idx)
+            CapillaryPressure(auxvar%sat(gid), &
+                              auxvar%pc(oid),dummy,option,auxvar%table_idx)
 
 !==============================================================================
 !  Get the phase pressures
@@ -854,8 +855,8 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !-------------------------------------------------------------------------------
 
   call characteristic_curves%wat_rel_perm_func_owg% &
-                    RelativePermeability(auxvar%sat(oid),auxvar%sat(gid), &
-                              krw,dkrw_sato,dkrw_satg,option,auxvar%table_idx)
+                    RelativePermeability(auxvar%sat(wid),krw,dkrw_satw,option, &
+                    auxvar%table_idx)
 
   call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
@@ -889,8 +890,8 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !-------------------------------------------------------------------------------
 
   call characteristic_curves%gas_rel_perm_func_owg% &
-                   RelativePermeability(auxvar%sat(oid),auxvar%sat(gid),krg, &
-                                dkrg_sato,dkrg_satg,option,auxvar%table_idx)
+                   RelativePermeability(auxvar%sat(gid),krg, &
+                                dkrg_satg,option,auxvar%table_idx)
 
 !--If PVDG defined in EOS GAS, the viscosities are extracted via table lookup--
 
@@ -945,7 +946,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: krg ,visg,visgtl
   PetscReal :: krs ,viss,visstl
   PetscReal :: dummy,po,pb
-  PetscReal :: dkrw_sato,dkrw_satg
+  PetscReal :: dkrw_sato,dkrw_satg,dkrw_satw
   PetscReal :: dkro_sato,dkro_satg
   PetscReal :: dkrg_sato,dkrg_satg
   PetscReal :: dkrv_sato,dkrv_satv,krvi
@@ -956,6 +957,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: test
   PetscReal :: swcr,sgcr,sowcr,sogcr,swco,fm,fi,rat
   PetscReal :: deno,deng,dens,denotl,dengtl,denstl,krow,krog,sc,den,soa,sva,sumhydsat
+  PetscReal :: swa
   PetscReal :: socrs,svcrs,krvm
 
   PetscReal, parameter :: eps_oil=1.0d-5
@@ -1128,24 +1130,22 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   soa=so
   sva=sv
-  if( sh>=1.0d0 ) then
-    soa=(1.0d0-eps_oil)*so/sh
-    sva=(1.0d0-eps_oil)*sv/sh
-  endif
+!-- comment protection since this is now implemented within Pcow and Pcog
+!  if( sh>=1.0d0 ) then
+!    soa=(1.0d0-eps_oil)*so/sh
+!    sva=(1.0d0-eps_oil)*sv/sh
+!  endif
+  swa = 1 - soa - sva
 
 !--Pcow------------------------------------------------------------------------
 
-  auxvar%pc(wid) =0.0d0
   call characteristic_curves%oil_wat_sat_func% &
-            CapillaryPressure(soa,sva,auxvar%pc(wid), &
-                              dummy,dummy2,option,auxvar%table_idx)
+            CapillaryPressure(swa,auxvar%pc(wid),dummy,option,auxvar%table_idx)
 
 !--Pcog------------------------------------------------------------------------
 
-  auxvar%pc(oid) = 0.0d0
   call characteristic_curves%oil_gas_sat_func% &
-            CapillaryPressure(soa,sva,auxvar%pc(oid), &
-                              dummy,dummy2,option,auxvar%table_idx)
+            CapillaryPressure(sva,auxvar%pc(oid),dummy,option,auxvar%table_idx)
 
 !  Scale Pcog for degree of miscibility
 
@@ -1277,8 +1277,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !-------------------------------------------------------------------------------
 
   call characteristic_curves%wat_rel_perm_func_owg% &
-                    RelativePermeability(so,sv, &
-                              krw,dkrw_sato,dkrw_satg,option,auxvar%table_idx)
+                RelativePermeability(sw,krw,dkrw_satw,option,auxvar%table_idx)
 
   call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
@@ -1293,9 +1292,8 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
 !--Get and scale the endpoints--------------------------------------------------
 
-  call GetCriticals( characteristic_curves%gas_rel_perm_func_owg, &
-                     characteristic_curves%wat_rel_perm_func_owg, &
-                     swcr,sgcr,sowcr,sogcr,swco )
+  call characteristic_curves%GetOWGCriticalAndConnateSats(swcr,sgcr,dummy, &
+                      sowcr,sogcr,swco,option)
 
   call TL4PScaleCriticals(sgcr,sogcr,fm,so,sv,uoil,uvap)
 
@@ -1307,17 +1305,13 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
 !--Immiscible lookup (Eclipse 3-phase)
 
-! Get Krow(So) at Sg=0, Sw=1-So
+! Get Krow(So) directly from the krow member function of kro
   call characteristic_curves%oil_rel_perm_func_owg% &
-                  RelativePermeability(so,szero,krow, &
-                                 dkro_sato,dkro_satg,option,auxvar%table_idx)
+              RelPermOW(so,krow,dkro_sato,option,auxvar%table_idx)
 
-
-! Get Krog(Uo) at Sg=1-Uo-Swco, Sw=1-Uo-(1-Uo-swco)=Swco
-  sc=1.0d0-uoil-swco
+! Get Krog(Uo) directly from the krow member function of kro
   call characteristic_curves%oil_rel_perm_func_owg% &
-                  RelativePermeability(uoil,sc,krog, &
-                                 dkro_sato,dkro_satg,option,auxvar%table_idx)
+              RelPermOG(uoil,krog,dkro_sato,option,auxvar%table_idx)
 
 ! Form the Eclipse three-phase Kro expression
 
@@ -1328,11 +1322,9 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     kroi=0.5*(krog+krow)
   endif
 
-!--Miscible lookup (Krow at Sh=So+Sg+Ss, is projected out by the szero argument)
-
+!--Miscible lookup (Krow at Sh=So+Sg+Ss)
   call characteristic_curves%oil_rel_perm_func_owg% &
-                  RelativePermeability(sh,szero,krh, &
-                                 dkrh_sath,dkrh_satz,option,auxvar%table_idx)
+                RelPermOW(sh,krh,dkrh_sath,option,auxvar%table_idx)
 
 !  Obtain all the miscible limit rel. perms. from Krh, allowing for criticals
 
@@ -1382,8 +1374,8 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !-------------------------------------------------------------------------------
 
   call characteristic_curves%gas_rel_perm_func_owg% &
-                   RelativePermeability(so,sv,krvi, &
-                                dkrv_sato,dkrv_satv,option,auxvar%table_idx)
+               RelativePermeability(sv,krvi,dkrv_satv,option,auxvar%table_idx)
+
 
 !  Obtain all the immiscible limit rel. perms. from Krvi
 
@@ -1485,8 +1477,8 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   !PetscReal :: krl, dkrl_Se
   !PetscReal :: krh, dkrh_Se
   PetscReal :: sath
-  PetscReal :: krw,dkrw_sato,dkrw_satg
-  PetscReal :: krh,dkrh_sato,dkrh_satg
+  PetscReal :: krw,dkrw_sato,dkrw_satg,dkrw_satw
+  PetscReal :: krh,dkrh_sato,dkrh_satg, dkrh_sath
   PetscReal :: viso
   PetscReal :: visg
   !PetscReal :: visl
@@ -1548,15 +1540,9 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   sat_water = auxvar%sat(wid)
 
-  ! PO before characteristic_curves refactoring
-  !call characteristic_curves%saturation_function% &
-  !     CapillaryPressure(sat_water,auxvar%pc(wid),dummy,option)
-
-  ! PO after characteristic_curves refactoring
-  !    dummy=dPcdSo,dummy2=dPcdSg
   call characteristic_curves%oil_wat_sat_func% &
-            CapillaryPressure(auxvar%sat(oid),auxvar%sat(gid),auxvar%pc(wid), &
-                              dummy,dummy2,option,auxvar%table_idx)
+              CapillaryPressure(sat_water,auxvar%pc(wid),dummy, &
+                                option,auxvar%table_idx)
 
   auxvar%pres(gid) = auxvar%pres(oid)
   auxvar%pres(wid) = auxvar%pres(oid) - auxvar%pc(wid)
@@ -1615,13 +1601,9 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !--Set up water phase rel. perm. and unmixed viscosities-----------------------
 
   ! compute water relative permability Krw(Sw)
-  ! PO before characteristic_curves refactoring
-  !call characteristic_curves%liq_rel_perm_function% &
-  !       RelativePermeability(sat_water,krl,dkrl_Se,option)
-  ! PO after characteristic_curves refactoring
   call characteristic_curves%wat_rel_perm_func_owg% &
-                   RelativePermeability(auxvar%sat(oid),auxvar%sat(gid), &
-                            krw,dkrw_sato,dkrw_satg,option,auxvar%table_idx)
+                      RelativePermeability(auxvar%sat(wid),krw,dkrw_satw, &
+                                                option,auxvar%table_idx)
 
   call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
@@ -1635,15 +1617,11 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! In Todd-Longstaff case, look up the hydrocarbon rel perm using the
   ! hydrocarbon saturation (Sh=So+Sg=1-Sw), with water saturation as argument
 
-  ! PO before characteristic_curves refactoring
-  !call characteristic_curves%oil_rel_perm_function% &
-  !       RelativePermeability(sat_water,krh,dkrh_Se,option)
-  ! PO after characteristic_curves refactoring
   sath = auxvar%sat(oid) + auxvar%sat(gid)
   dummy = 0.0
-  call characteristic_curves%oil_rel_perm_func_owg% &
-                  RelativePermeability(sath,dummy,krh, &
-                                  dkrh_sato,dkrh_satg,option,auxvar%table_idx)
+
+  call characteristic_curves%ow_rel_perm_func_owg% &
+               RelativePermeability(sath,krh,dkrh_sath,option,auxvar%table_idx)
 
   ! Oil viscosity
   call EOSOilViscosity(auxvar%temp,auxvar%pres(oid), &

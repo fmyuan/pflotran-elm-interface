@@ -253,7 +253,7 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   PetscInt :: lid, oid, cpid
   PetscReal :: cell_pressure, wat_sat_pres
   PetscReal :: krl, visl, dkrl_Se
-  PetscReal :: kro, viso, dkro_Se
+  PetscReal :: kro, viso, dkro_Se, dkro_So
   PetscReal :: dummy
   PetscReal :: Uoil_J_kg, Hoil_J_kg
   PetscReal :: dpc_dsatl
@@ -332,10 +332,10 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     toil_auxvar%D_pres(lid,dof_op) = 1.d0 ! diff liquid pres by oil pres
   endif
 
-  call characteristic_curves%saturation_function% &
+  call characteristic_curves%oil_wat_sat_func% &
              CapillaryPressure(toil_auxvar%sat(lid), &
-                                toil_auxvar%pc(lid),dpc_dsatl,option)
-                               !toil_auxvar%pres(cpid),dpc_dsatl,option)
+                               toil_auxvar%pc(lid),dpc_dsatl,option, &
+                               toil_auxvar%table_idx) 
 
   ! Testing zero capillary pressure
   !toil_auxvar%pres(cpid) = 0.d0
@@ -486,8 +486,10 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   toil_auxvar%U(oid) = toil_auxvar%U(oid) * 1.d-6 ! J/kmol -> MJ/kmol
 
   ! compute water mobility (rel. perm / viscostiy)
-  call characteristic_curves%liq_rel_perm_function% &
-         RelativePermeability(toil_auxvar%sat(lid),krl,dkrl_Se,option)
+  call characteristic_curves%wat_rel_perm_func_owg% &
+        RelativePermeability(toil_auxvar%sat(lid),krl,dkrl_Se, &
+                                         option,toil_auxvar%table_idx)
+
   !! not sure about name dkrl_se, seems like output would be 
   !! w.r.t. liquid sat
   if (getDerivs) then
@@ -526,12 +528,16 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
 
 
   ! compute oil mobility (rel. perm / viscostiy)
-  call characteristic_curves%oil_rel_perm_function% &
-         RelativePermeability(toil_auxvar%sat(lid),kro,dkro_Se,option)
+  ! PO: new krow function return dkrow_So
+  call characteristic_curves%ow_rel_perm_func_owg% &
+         RelativePermeability(toil_auxvar%sat(oid),kro,dkro_So, &
+                              option,toil_auxvar%table_idx)
+         
   !! not sure about name dkro_se, seems like output would be 
   !! w.r.t. liquid sat
   if (getDerivs) then
-    call CheckDerivNotNAN(dkro_Se, option, "dkro_Se")
+    !call CheckDerivNotNAN(dkro_Se, option, "dkro_Se")
+    call CheckDerivNotNAN(dkro_So, option, "dkro_So")
   endif
 
   if (getDerivs) then
@@ -541,14 +547,9 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     call CheckDerivNotNAN(dvo_dt, option, "dvo_dt")
     call CheckDerivNotNAN(dvo_dp, option, "dvo_dp")
 
-    !! assume dkro_Se is w.r.t. liquid saturation as that is how the relperm
-    !! routine is called (see also source code for those, they assume liquid
-    !! saturation input and account for it)
-    !! We want derivatives w.r.t. oil saturation so
-    dkro_Se = -1.d0 * dkro_Se
-    call MobilityDerivs_TOIL_IMS(dmobo, kro, viso, dkro_Se, dvo_dt, dvo_dp)
-
+    call MobilityDerivs_TOIL_IMS(dmobo, kro, viso, dkro_So, dvo_dt, dvo_dp)
     toil_auxvar%D_mobility(oid, :) = dmobo(:)
+
   else
     call EOSOilViscosity(toil_auxvar%temp,toil_auxvar%pres(oid), &
                          toil_auxvar%den(oid), viso, ierr)
