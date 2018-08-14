@@ -702,7 +702,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal, parameter :: epsp=1.0d3
   PetscBool :: getDerivs
   
-  PetscReal :: dpc_w_dso,dpc_w_dsg, dpc_o_dso,dpc_o_dsg
+  PetscReal :: dpc_w_dso,dpc_w_dsg, dpc_o_dso,dpc_o_dsg, dpc_w_dsw
   PetscReal :: dcr_dt,dcr_dpb
   PetscReal :: dcrusp_dpo,dcrusp_dpb,dcrusp_dt
   PetscReal :: cor,one_p_crusp,dcor_dpo,dcor_dpb,dcor_dt
@@ -726,6 +726,8 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   PetscReal :: pert,deno_pert,df,ndv,kro_pert
   PetscReal :: dpcw_dw,dpco_dg
+
+  PetscReal :: prt, kro_prt,nderiv
 
   dof_op = TOWG_OIL_PRESSURE_DOF
   dof_osat = TOWG_OIL_SATURATION_DOF
@@ -933,27 +935,28 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !!! new
   call characteristic_curves%oil_wat_sat_func% &
             CapillaryPressure(auxvar%sat(wid), &
-                              auxvar%pc(wid),dpcw_dw,option,auxvar%table_idx)
+                              !auxvar%pc(wid),dpcw_dw,option,auxvar%table_idx)
+                              auxvar%pc(wid),dpc_w_dsw,option,auxvar%table_idx)
 
   auxvar%pc(oid) = 0.0d0
                 
   call characteristic_curves%oil_gas_sat_func% &
             CapillaryPressure(auxvar%sat(gid), &
-                              auxvar%pc(oid),dpco_dg,option,auxvar%table_idx)
+                              !auxvar%pc(oid),dpco_dg,option,auxvar%table_idx)
+                              auxvar%pc(oid),dpc_o_dsg,option,auxvar%table_idx)
 
 !!! collection of derivatives
   if (getDerivs) then
-    auxvar%D_pc(wid,dof_osat) = -dpcw_dw
+    auxvar%D_pc(wid,dof_osat) = -dpc_w_dsw
     if (isSat) then
       !!!! nothing?
     endif
-    auxvar%D_pc(oid,dof_osat) = dpcw_dw !!!! or other sign convention
+    auxvar%D_pc(oid,dof_osat) = dpc_w_dsw !!!! or other sign convention
     if (isSat) then
       !!!! nothing?
     endif
 
-    auxvar%D_pc(oid,dof_gsat) = dpco_dg
-    auxvar%D_pc(gid,dof_gsat) = -dpco_dg !!!! or other sign convention
+    auxvar%D_pc(oid,dof_gsat) = dpc_o_dsg
 
     !!!! TODO - save pressure as well
   endif
@@ -999,14 +1002,6 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! In the case of nonzero cap pressure we may have dependencies on saturations,
   ! through the cap pressures.
 
-  ! Schema:  WRONG
-  ! we have D_cell_pres, array of derivs of cell_pressure w.r.t. solution 
-  ! variables, as now standard.
-  ! We will have many instances of dX/d(cell_pres) below.
-  ! then we have by chain rule
-  ! D_X = (dX/d(cell_pres)) * D_cell_pres
-  
-
   D_cell_pres = 0.d0
   D_cell_pres(dof_op) = 1.d0
   d_cellpres_dso = 0.d0
@@ -1015,7 +1010,8 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   !if     (loc == 1) then ! wid
   if (cell_pressure == auxvar%pres(wid)) then
     ! recall: auxvar%pres(wid) = auxvar%pres(oid) - auxvar%pc(wid)
-    D_cell_pres(dof_op) = -dpc_w_dso
+    !D_cell_pres(dof_op) = -dpc_w_dso !! NO
+    D_cell_pres(dof_osat) = -dpc_w_dso
     d_cellpres_dso = -dpc_w_dso
     if (isSat) then
       D_cell_pres(dof_gsat) = -dpc_w_dsg
@@ -1543,6 +1539,24 @@ endif
   call characteristic_curves%oil_rel_perm_func_owg% &
                   RelativePermeability(auxvar%sat(oid),auxvar%sat(gid),kro, &
                                  dkro_sato,dkro_satg,option,auxvar%table_idx)
+#if 0
+  prt = -1.D-8
+  call characteristic_curves%oil_rel_perm_func_owg% &
+                  RelativePermeability(auxvar%sat(oid)+prt,auxvar%sat(gid),kro_prt, &
+                                 dummy,dummy2,option,auxvar%table_idx)
+  nderiv = (kro_prt-kro)/prt
+  print *, "k oil, oil sat deriv num: ", nderiv, ", analytical: ", dkro_sato
+#endif
+
+#if 0
+  prt = 1.D-8
+  call characteristic_curves%oil_rel_perm_func_owg% &
+                  RelativePermeability(auxvar%sat(oid),auxvar%sat(gid)+prt,kro_prt, &
+                                 dummy,dummy2,option,auxvar%table_idx)
+  nderiv = (kro_prt-kro)/prt
+  print *, "k oil, gas sat deriv num: ", nderiv, ", analytical: ", dkro_satg
+#endif
+
 
 
 !--If PVCO defined in EOS OIL, the viscosities are extracted via table lookup--
