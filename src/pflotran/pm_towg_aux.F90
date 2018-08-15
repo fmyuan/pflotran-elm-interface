@@ -663,6 +663,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 ! Date  : Jul 2017
 !------------------------------------------------------------------------------
 
+
   use Option_module
   use Global_Aux_module
   use EOS_Water_module
@@ -694,8 +695,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscErrorCode :: ierr
   PetscBool :: isSat
   PetscReal :: oneminuseps
-  PetscReal :: dummy2,deno,cr,cvisc,ho,uo,crusp,cvusp
-  PetscReal :: test
+  PetscReal :: deno,cr,cvisc,ho,uo,crusp,cvusp
 
   PetscReal, parameter :: eps_oil   = 1.0d-6
   PetscReal, parameter :: epss=1.0d-4
@@ -706,11 +706,10 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dcr_dt,dcr_dpb
   PetscReal :: dcrusp_dpo,dcrusp_dpb,dcrusp_dt
   PetscReal :: cor,one_p_crusp,dcor_dpo,dcor_dpb,dcor_dt
-  PetscReal :: one_over_xo_sq
   PetscReal :: dps_dt
   PetscReal :: dvw_dt, dvw_dp
   PetscReal, dimension(1:option%nflowdof) :: dmobw,dmobo,dmobg
-  PetscReal :: dviso_dT,dviso_dpb,dcvisc_dT,dcvisc_dPb
+  PetscReal :: dviso_dpb,dcvisc_dT,dcvisc_dPb
   PetscReal :: dcvusp_dpo,dcvusp_dpb,dcvusp_dt
   PetscReal :: one_p_cvusp
   PetscReal :: dvo_dp,dvo_dpb,dvo_dt
@@ -720,14 +719,8 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal, dimension(1:option%nflowdof) :: D_cell_pres
   PetscReal, dimension(1:option%nflowdof) :: D_visc,D_kr
   PetscReal :: d_cellpres_dso,d_cellpres_dsg
-  PetscInt :: loc
 
   PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp
-
-  PetscReal :: pert,deno_pert,df,ndv,kro_pert
-  PetscReal :: dpcw_dw,dpco_dg
-
-  PetscReal :: prt, kro_prt,nderiv
 
   dof_op = TOWG_OIL_PRESSURE_DOF
   dof_osat = TOWG_OIL_SATURATION_DOF
