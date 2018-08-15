@@ -1919,7 +1919,7 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
 
     if (analytical_derivatives) then
       J(iphase,:) = J(iphase,:) + ProdRule(auxvar%sat(iphase),auxvar%D_sat(iphase,:),      &
-                                         auxvar%den(iphase),auxvar%D_den(iphase,:),ndof )
+                                           auxvar%den(iphase),auxvar%D_den(iphase,:),ndof )
     endif
 
   enddo
@@ -1958,6 +1958,17 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
     endif
 
   enddo
+
+  
+  if (analytical_derivatives) then
+    J(energy_id,:) = (  ProdRule(Res(energy_id),J(energy_id,:),     &
+                                porosity,auxvar%D_por,ndof    )     &
+                      + material_auxvar%soil_particle_density       &
+                      * soil_heat_capacity                          &
+                      * ProdRule(1.d0-porosity,-1.d0*auxvar%D_por,  &
+                                 auxvar%temp,D_temp,ndof         )  &
+                     ) * volume_over_dt
+  endif
   ! Res[MJ/sec] = (Res[MJ/m^3 void] * por[m^3 void/m^3 bulk] + 
   !                (1-por)[m^3 rock/m^3 bulk] * 
   !                  dencpr[kg rock/m^3 rock * MJ/kg rock-K] * T[C]) &
@@ -1967,15 +1978,6 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
                     material_auxvar%soil_particle_density * &
                     soil_heat_capacity * auxvar%temp) * volume_over_dt
 
-    if (analytical_derivatives) then
-      J(energy_id,:) = (  ProdRule(Res(energy_id),J(energy_id,:),     &
-                                  porosity,auxvar%D_por,ndof    )     &
-                        + material_auxvar%soil_particle_density       &
-                        * soil_heat_capacity                          &
-                        * ProdRule(1.d0-porosity,-1.d0*auxvar%D_por,  &
-                                   auxvar%temp,D_temp,ndof         )  &
-                       ) * volume_over_dt
-    endif
   
 #ifdef DEBUG_TOWG_FILEOUTPUT
   if (debug_flag > 0) then
@@ -2243,10 +2245,17 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
                      gravity_term
 
     if (analytical_derivatives) then
+      !!! ?
+#if 0
       D_delta_presure_up = auxvar_up%D_pres(iphase,:) &
                          + D_den_kg_ave_up
       D_delta_presure_dn = -auxvar_dn%D_pres(iphase,:) &
                            + D_den_kg_ave_dn
+#endif
+      D_delta_presure_up = auxvar_up%D_pres(iphase,:) &
+                         + D_den_kg_ave_up*dist_gravity
+      D_delta_presure_dn = -auxvar_dn%D_pres(iphase,:) &
+                           + D_den_kg_ave_dn*dist_gravity
     endif
 
 #ifdef TOWG_DEBUG
@@ -2758,8 +2767,13 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                            gravity_term
 
           if (analytical_derivatives) then
+#if 0
+            !!!!?
             D_delta_presure_dn = -auxvar_dn%D_pres(iphase,:) &
                                  + D_den_kg_ave_dn
+#endif
+            D_delta_presure_dn = -auxvar_dn%D_pres(iphase,:) &
+                                 + D_den_kg_ave_dn*dist_gravity
           endif
 
 #ifdef DEBUG_TOWG_FILEOUTPUT
@@ -3886,6 +3900,7 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
 
     if (towg_analytical_derivatives_compare) then
       call MatCompare(J, jalyt, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
+      print *, "this is accum derivative"
     endif
 
     j = jalyt
@@ -4048,7 +4063,9 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
 
     if (towg_analytical_derivatives_compare) then
       call MatCompare(Jup, Jalyt_up, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
+      print *, "this is flux derivative, that was matrix up"
       call MatCompare(Jdn, Jalyt_dn, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
+      print *, "this is flux derivative, that was matrix dn"
     endif
 
     jup = jalyt_up
@@ -4173,6 +4190,7 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
     if (towg_analytical_derivatives_compare) then
       call MatCompare(Jdn, Jalyt_dn, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
+      print *, "this is bc flux derivative"
     endif
 
     jdn = jalyt_dn
@@ -4263,6 +4281,7 @@ subroutine TOWGSrcSinkDerivative(option,src_sink_condition,auxvars, &
 
     if (towg_analytical_derivatives_compare) then
       call MatCompare(Jac, Jalyt, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
+      print *, "this is src sink derivative"
     endif
 
     jac = jalyt
