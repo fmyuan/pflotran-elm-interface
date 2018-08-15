@@ -45,8 +45,14 @@ module String_module
 
   interface StringWrite
     module procedure StringWriteI
-    module procedure StringWriteES
+    module procedure StringWriteES1
+    module procedure StringWriteES2
     module procedure StringWriteString
+  end interface
+
+  interface StringWriteF
+    module procedure StringWriteF1
+    module procedure StringWriteF2
   end interface
 
   interface StringWriteToUnits
@@ -737,6 +743,10 @@ function StringYesNoOther(string)
     StringYesNoOther = STRING_YES
   elseif (len_trim(string2) == 2 .and. StringStartsWith(string2,'NO')) then
     StringYesNoOther = STRING_NO
+  elseif (len_trim(string2) == 2 .and. StringStartsWith(string2,'ON')) then
+    StringYesNoOther = STRING_YES
+  elseif (len_trim(string2) == 3 .and. StringStartsWith(string2,'OFF')) then
+    StringYesNoOther = STRING_NO
   endif
 
 end function StringYesNoOther
@@ -823,7 +833,7 @@ end function StringWriteI
 
 ! ************************************************************************** !
 
-function StringWriteES(es)
+function StringWriteES1(es)
   ! 
   ! Writes a double precision number in scientific notation to a string
   ! 
@@ -833,18 +843,39 @@ function StringWriteES(es)
 
   implicit none
  
-  character(len=MAXSTRINGLENGTH) :: StringWriteES
+  character(len=MAXSTRINGLENGTH) :: StringWriteES1
 
   PetscReal :: es
-
-  write(StringWriteES,'(es13.6)') es
-  StringWriteES = adjustl(StringWriteES)
+  
+  StringWriteES1 = StringWrite('(es13.6)',es)
  
-end function StringWriteES
+end function StringWriteES1
 
 ! ************************************************************************** !
 
-function StringWriteF(f)
+function StringWriteES2(format_string,es)
+  ! 
+  ! Writes a double precision number in scientific notation to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteES2
+
+  character(len=*) format_string
+  PetscReal :: es
+
+  write(StringWriteES2,format_string) es
+  StringWriteES2 = adjustl(StringWriteES2)
+ 
+end function StringWriteES2
+
+! ************************************************************************** !
+
+function StringWriteF1(f)
   ! 
   ! Writes a double precision number in floating point notaton to a string
   ! 
@@ -854,14 +885,35 @@ function StringWriteF(f)
 
   implicit none
  
-  character(len=MAXSTRINGLENGTH) :: StringWriteF
+  character(len=MAXSTRINGLENGTH) :: StringWriteF1
 
   PetscReal :: f
 
-  write(StringWriteF,'(f20.4)') f
-  StringWriteF = adjustl(StringWriteF)
+  StringWriteF1 = StringWriteF('(f20.4)',f)
  
-end function StringWriteF
+end function StringWriteF1
+
+! ************************************************************************** !
+
+function StringWriteF2(format_string,f)
+  ! 
+  ! Writes a double precision number in floating point notaton to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteF2
+
+  character(len=*) format_string
+  PetscReal :: f
+
+  write(StringWriteF2,format_string) f
+  StringWriteF2 = adjustl(StringWriteF2)
+ 
+end function StringWriteF2
 
 ! ************************************************************************** !
 

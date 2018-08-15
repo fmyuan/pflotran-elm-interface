@@ -41,6 +41,11 @@ module Solver_module
     PetscInt :: galerkin_mg_levels_y
     PetscInt :: galerkin_mg_levels_z
     PetscBool :: verbose_logging
+    PetscBool :: convergence_2r
+    PetscBool :: convergence_2x
+    PetscBool :: convergence_2u
+    PetscBool :: convergence_ir
+    PetscBool :: convergence_iu
 
     ! Jacobian matrix
     Mat :: J    ! Jacobian
@@ -141,6 +146,11 @@ function SolverCreate()
   solver%galerkin_mg_levels_z = 1
 
   solver%verbose_logging = PETSC_FALSE
+  solver%convergence_2r = PETSC_TRUE
+  solver%convergence_2x = PETSC_TRUE
+  solver%convergence_2u = PETSC_TRUE
+  solver%convergence_ir = PETSC_TRUE
+  solver%convergence_iu = PETSC_TRUE
   
   solver%J = PETSC_NULL_MAT
   solver%Jpre = PETSC_NULL_MAT
@@ -851,6 +861,8 @@ subroutine SolverReadNewton(solver,input,option)
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword, word, word2
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: boolean
 
   input%ierr = 0
   do
@@ -992,6 +1004,40 @@ subroutine SolverReadNewton(solver,input,option)
       case ('VERBOSE_LOGGING','VERBOSE_ERROR_MESSAGING')
         solver%verbose_logging = PETSC_TRUE 
 
+      case ('CONVERGENCE_INFO')
+        error_string = 'NEWTON_SOLVER,CONVERGENCE_INFO'
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit  
+          call InputReadWord(input,option,keyword,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword',error_string)
+          call StringToUpper(keyword)
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call StringToUpper(word)
+          select case(StringYesNoOther(word))
+            case(STRING_YES)
+              boolean = PETSC_TRUE
+            case(STRING_NO)
+              boolean = PETSC_FALSE
+            case(STRING_OTHER)
+              error_string = trim(error_string) // ',' // keyword
+              call InputKeywordUnrecognized(word,error_string,option)
+          end select
+          select case(trim(keyword))
+            case('2R','FNORM','2NORMR')
+              solver%convergence_2r = boolean
+            case('2X','XNORM','2NORMX')
+              solver%convergence_2x = boolean
+            case('2U','UNORM','2NORMU')
+              solver%convergence_2u = boolean
+            case('IR','INORMR')
+              solver%convergence_ir = boolean
+            case('IU','INORMU')
+              solver%convergence_iu = boolean
+            case default
+              call InputKeywordUnrecognized(keyword,error_string,option)
+          end select
+        enddo
       case default
         call InputKeywordUnrecognized(keyword,'NEWTON_SOLVER',option)
     end select 
