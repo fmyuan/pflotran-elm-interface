@@ -66,7 +66,7 @@ condition_control.o : condition.o connection.o coupler.o dataset_base.o \
                       surface_field.o surface_global_aux.o surface_th_aux.o \
                       transport_constraint.o variables.o wipp_flow_aux.o
 connection.o : pflotran_constants.o utility.o
-convergence.o : grid.o option.o pflotran_constants.o solver.o
+convergence.o : grid.o option.o pflotran_constants.o solver.o string.o
 coupler.o : condition.o connection.o dataset_base.o dataset_gridded_hdf5.o \
             grid.o grid_unstructured_aux.o grid_unstructured_explicit.o \
             input_aux.o option.o pflotran_constants.o region.o string.o \
@@ -486,7 +486,7 @@ pm_auxiliary.o : communicator_base.o global_aux.o init_subsurface.o \
                  reaction_aux.o reactive_transport_aux.o \
                  realization_subsurface.o string.o
 pm_base.o : input_aux.o option.o output_aux.o pflotran_constants.o \
-            realization_base.o solver.o
+            realization_base.o solver.o string.o
 pm_base_aux.o : auxvars_base.o grid.o option.o pflotran_constants.o utility.o
 pm_base_pointer.o : option.o pflotran_constants.o pm_base.o \
                     realization_subsurface.o
@@ -597,8 +597,8 @@ pm_wipp_flow.o : checkpoint.o convergence.o dataset.o dataset_base.o \
                  material_aux.o option.o patch.o pflotran_constants.o \
                  pm_base.o pm_subsurface_flow.o pm_wipp_srcsink.o \
                  realization_base.o realization_subsurface.o \
-                 saturation_function.o string.o variables.o wipp_flow.o \
-                 wipp_flow_aux.o wipp_flow_common.o
+                 saturation_function.o string.o utility.o variables.o \
+                 wipp_flow.o wipp_flow_aux.o wipp_flow_common.o
 pm_wipp_srcsink.o : data_mediator_vec.o eos_gas.o eos_water.o global_aux.o \
                     grid.o input_aux.o material.o material_aux.o option.o \
                     output_aux.o patch.o pflotran_constants.o pm_base.o \
