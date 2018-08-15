@@ -44,7 +44,7 @@ module AuxVars_TOWG_module
     PetscReal :: xg
 
     PetscBool :: has_derivs
-    ! new generalized versions of derivatives:
+    ! derivatives:
     PetscReal, pointer :: D_xo(:)   ! (idof)
     PetscReal, pointer :: D_xg(:)   ! (idof)
   end type bo_auxvar_type
@@ -130,21 +130,19 @@ subroutine InitBO(this,option)
   this%bo%xg          =0.0
   this%bo%xo          =0.0
 
+  nullify(this%bo%D_xo)
+  nullify(this%bo%D_xg)
+
   !if (towg_analytical_derivatives) then
   if (.NOT. option%flow%numerical_derivatives) then
-    !this%hasDerivatives = PETSC_TRUE
     this%bo%has_derivs= PETSC_TRUE
-    !allocate(this%bo%d)
-    !call this%bo%d%Init(option)
 
-    !!! new general derivs:
     allocate(this%bo%D_xo(option%nflowdof))
     this%bo%D_xo = 0.d0
     allocate(this%bo%D_xg(option%nflowdof))
     this%bo%D_xg = 0.d0
 
   else
-    !this%hasDerivatives = PETSC_FALSE
     this%bo%has_derivs = PETSC_FALSE
   endif
 

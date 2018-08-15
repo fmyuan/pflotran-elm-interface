@@ -329,9 +329,6 @@ subroutine TOWGSetup(realization)
 
 #ifdef GLOBALWORKERS
   if (towg_analytical_derivatives) then
-    !!!! this isn't the best since it's still technically possible to call routines
-    !!!! that need them and have them not allocated
-
     allocate(D_den_kg_ave_up (1:option%nflowdof))
     allocate(D_den_kg_ave_dn (1:option%nflowdof))
     allocate(D_den_ave_up (1:option%nflowdof))
@@ -1920,12 +1917,10 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
     Res(iphase) = Res(iphase) + auxvar%sat(iphase) * &
                                 auxvar%den(iphase) 
 
-!!!!
     if (analytical_derivatives) then
       J(iphase,:) = J(iphase,:) + ProdRule(auxvar%sat(iphase),auxvar%D_sat(iphase,:),      &
                                          auxvar%den(iphase),auxvar%D_den(iphase,:),ndof )
     endif
-!!!!
 
   enddo
   endif
@@ -1937,8 +1932,6 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
 
   ! do derivs first because it depends on unmodified value of Res.
   if (analytical_derivatives) then
-    !!! TOCHECK: is this porosity (mat_auxvar%effective por)
-    !!!          compatible with D_por?
     do icomp = 1,option%nflowspec
       J(icomp,:) = ProdRule(Res(icomp),J(icomp,:), &
                             porosity,auxvar%D_por,ndof) &
@@ -1975,8 +1968,6 @@ subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
                     soil_heat_capacity * auxvar%temp) * volume_over_dt
 
     if (analytical_derivatives) then
-      !!! TOCHECK: is this porosity (mat_auxvar%effective por)
-      !!!          compatible with D_por?
       J(energy_id,:) = (  ProdRule(Res(energy_id),J(energy_id,:),     &
                                   porosity,auxvar%D_por,ndof    )     &
                         + material_auxvar%soil_particle_density       &
@@ -2205,14 +2196,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
         denup=auxvar_up%tl%den_gas_eff_kg
         dendn=auxvar_dn%tl%den_gas_eff_kg
       endif
-#if 0
-      !!! moved to an if statment below
-      density_kg_ave = TOWGImsTLAverageDensity( auxvar_up%sat(iphase), &
-                                                auxvar_dn%sat(iphase), &
-                                                denup                , &
-                                                dendn )
-#endif
-
 
       if (analytical_derivatives) then
 
@@ -2223,10 +2206,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
                                                   dendn                , &
                                                   d_den_kg_ave_dden_up , &
                                                   d_den_kg_ave_dden_dn    )
-        !!! ...
-        !!! d_den_kg_ave_dden_up comes from average density calc
-        !!! ( d (ave den) / d (den up) )
-        !!! 
         D_den_kg_ave_up = auxvar_up%D_den_kg(iphase,:)*d_den_kg_ave_dden_up
         D_den_kg_ave_dn = auxvar_dn%D_den_kg(iphase,:)*d_den_kg_ave_dden_dn
       else
@@ -2246,10 +2225,8 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
                                                   auxvar_dn%den_kg(iphase) , &
                                                   d_den_kg_ave_dden_up     , &
                                                   d_den_kg_ave_dden_dn         )
-        !!! ...
-        !!! d_den_kg_ave_dden_up comes from average density calc
-        !!! ( d (ave den) / d (den up) )
-        !!! 
+        ! d_den_kg_ave_dden_up comes from average density calc
+        ! ( d (ave den) / d (den up) )
         D_den_kg_ave_up = auxvar_up%D_den_kg(iphase,:)*d_den_kg_ave_dden_up
         D_den_kg_ave_dn = auxvar_dn%D_den_kg(iphase,:)*d_den_kg_ave_dden_dn
       else
@@ -2259,13 +2236,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
                                                   auxvar_dn%den_kg(iphase) )
       endif
 
-#if 0
-      !!! moved to an if statment above
-      density_kg_ave = TOWGImsTLAverageDensity( auxvar_up%sat(iphase)   , &
-                                                auxvar_dn%sat(iphase)   , &
-                                                auxvar_up%den_kg(iphase), &
-                                                auxvar_dn%den_kg(iphase) )
-#endif
     endif
 
     gravity_term = density_kg_ave * dist_gravity
@@ -2274,7 +2244,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
                      gravity_term
 
     if (analytical_derivatives) then
-      !!!
       D_delta_presure_up = auxvar_up%D_pres(iphase,:) &
                          + D_den_kg_ave_up
       D_delta_presure_dn = -auxvar_dn%D_pres(iphase,:) &
@@ -2326,13 +2295,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
                                           delta_pressure,D_delta_presure_dn,ndof  )
       endif
 
-#if 0
-!!! moved into if stat below
-      density_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
-                                            auxvar_dn%sat(iphase), &
-                                            auxvar_up%den(iphase), &
-                                            auxvar_dn%den(iphase) )
-#endif
       if (analytical_derivatives) then
 
         density_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
@@ -2341,10 +2303,8 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
                                               auxvar_dn%den(iphase), &
                                               d_den_ave_dden_up    , &
                                               d_den_ave_dden_dn       )
-        !!! ...
-        !!! d_den_ave_dden_up comes from average density calc
-        !!! ( d (ave den) / d (den up) )
-        !!! 
+        ! d_den_ave_dden_up comes from average density calc
+        ! ( d (ave den) / d (den up) )
         D_den_ave_up = auxvar_up%D_den(iphase,:)*d_den_ave_dden_up
         D_den_ave_dn = auxvar_dn%D_den(iphase,:)*d_den_ave_dden_dn
       else
@@ -2357,7 +2317,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(iphase) * area  
       if (analytical_derivatives) then
-        !!! ...
         D_q_up = D_v_darcy_up * area
         D_q_dn = D_v_darcy_dn * area
       endif
@@ -2367,7 +2326,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
       mole_flux = q*density_ave
 
       if (analytical_derivatives) then
-        !!! ...
         D_mole_flux_up = ProdRule(q,D_q_up,                     &
                                   density_ave,D_den_ave_up,ndof  )
         D_mole_flux_dn = ProdRule(q,D_q_dn,                     &
@@ -2434,7 +2392,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
 
 
       if (analytical_derivatives) then
-        !!! ...
         Jup(icomp,:) = Jup(icomp,:) + ProdRule(mole_flux,D_mole_flux_up, &
                                                uH,D_uH_up,ndof             )
         Jdn(icomp,:) = Jdn(icomp,:) + ProdRule(mole_flux,D_mole_flux_dn, &
@@ -2497,8 +2454,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
   ! MJ/s
   Res(energy_id) = Res(energy_id) + heat_flux
 
-!!! maybe just this?
-!!!! TODO
   if (analytical_derivatives) then
     d_delta_temp_dt_up = 1.d0
     d_delta_temp_dt_dn = - 1.d0
@@ -2619,19 +2574,20 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   PetscBool :: analytical_derivatives
   PetscInt :: ndof 
 
-  PetscReal, dimension(1:option%nflowdof) :: D_den_kg_ave_up,D_den_kg_ave_dn
-  PetscReal, dimension(1:option%nflowdof) :: D_den_ave_up,D_den_ave_dn
-  PetscReal, dimension(1:option%nflowdof) :: D_delta_presure_up,D_delta_presure_dn
-  PetscReal, dimension(1:option%nflowdof) :: D_mobility_up,D_mobility_dn
-  PetscReal, dimension(1:option%nflowdof) :: D_uH_up,D_uH_dn
-  PetscReal, dimension(1:option%nflowdof) :: D_v_darcy_up,D_v_darcy_dn
-  PetscReal, dimension(1:option%nflowdof) :: D_q_up,D_q_dn
-  PetscReal, dimension(1:option%nflowdof) :: D_mole_flux_up,D_mole_flux_dn
-  PetscReal, dimension(1:option%nflowdof) :: D_xmf_up,D_xmf_dn
-  PetscReal :: d_den_kg_ave_dden_up,d_den_kg_ave_dden_dn
-  PetscReal :: d_den_ave_dden_up,d_den_ave_dden_dn
-  PetscReal :: d_delta_temp_dt_up,d_delta_temp_dt_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_den_kg_ave_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_den_ave_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_delta_presure_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_mobility_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_uH_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_v_darcy_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_q_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_mole_flux_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_xmf_dn
+  PetscReal :: d_den_kg_ave_dden_dn
+  PetscReal :: d_den_ave_dden_dn
+  PetscReal :: d_delta_temp_dt_dn
   PetscReal :: dheat_flux_ddelta_temp
+  PetscReal :: dummy
 
   ndof = option%nflowdof
 
@@ -2682,7 +2638,9 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   do iphase = 1, option%nphase
 
     if (analytical_derivatives) then
-      !!! zero out all the workers 
+      ! zero out all the workers 
+#if 0
+      !!!!
       D_den_kg_ave_up=0.d0;        D_den_kg_ave_dn=0.d0
       D_den_ave_up=0.d0;           D_den_ave_dn=0.d0
       D_delta_presure_up=0.d0;     D_delta_presure_dn=0.d0
@@ -2695,6 +2653,20 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       d_den_kg_ave_dden_up=0.d0;   d_den_kg_ave_dden_dn=0.d0
       d_den_ave_dden_up=0.d0;      d_den_ave_dden_dn=0.d0
       d_delta_temp_dt_up=0.d0;     d_delta_temp_dt_dn=0.d0
+      dheat_flux_ddelta_temp=0.d0
+#endif
+      D_den_kg_ave_dn=0.d0
+      D_den_ave_dn=0.d0
+      D_delta_presure_dn=0.d0
+      D_mobility_dn=0.d0
+      D_uH_dn=0.d0
+      D_v_darcy_dn=0.d0
+      D_q_dn=0.d0
+      D_mole_flux_dn=0.d0
+      D_xmf_dn=0.d0
+      d_den_kg_ave_dden_dn=0.d0
+      d_den_ave_dden_dn=0.d0
+      d_delta_temp_dt_dn=0.d0
       dheat_flux_ddelta_temp=0.d0
    endif
  
@@ -2753,32 +2725,24 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
           isgas=(option%phase_map(iphase) == GAS_PHASE)
           if( istl .and. (isoil.or.isgas) ) then
             if( isoil ) then
-              denup=auxvar_up%tl%den_oil_eff_kg
+              !denup=auxvar_up%tl%den_oil_eff_kg
               dendn=auxvar_dn%tl%den_oil_eff_kg
             else
-              denup=auxvar_up%tl%den_gas_eff_kg
+              !denup=auxvar_up%tl%den_gas_eff_kg
               dendn=auxvar_dn%tl%den_gas_eff_kg
             endif
-#if 0
-            !!! moved into if stat below
-            density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
-                                                     auxvar_dn%sat(iphase), &
-                                                     denup                , &
-                                                     dendn )
-#endif
             if (analytical_derivatives) then
               density_kg_ave = TOWGImsTLAverageDensity( auxvar_up%sat(iphase), &
                                                         auxvar_dn%sat(iphase), &
                                                         denup                , &
                                                         dendn                , &
-                                                        d_den_kg_ave_dden_up , &
+                                                        !d_den_kg_ave_dden_up , &
+                                                        dummy  , &
                                                         d_den_kg_ave_dden_dn    )
 
-              !!! ...
-              !!! d_den_kg_ave_dden_up comes from average density calc
-              !!! ( d (ave den) / d (den up) )
-              !!! 
-              D_den_kg_ave_up = auxvar_up%D_den_kg(iphase,:)*d_den_kg_ave_dden_up
+              ! d_den_kg_ave_dden_up comes from average density calc
+              ! ( d (ave den) / d (den up) )
+              !D_den_kg_ave_up = auxvar_up%D_den_kg(iphase,:)*d_den_kg_ave_dden_up
               D_den_kg_ave_dn = auxvar_dn%D_den_kg(iphase,:)*d_den_kg_ave_dden_dn
               else
                 density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
@@ -2787,26 +2751,18 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                                                          dendn )
             endif
                 else
-#if 0
-            !!! moved to if stat below
-            density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase)   , &
-                                                     auxvar_dn%sat(iphase)   , &
-                                                     auxvar_up%den_kg(iphase), &
-                                                     auxvar_dn%den_kg(iphase) )
-#endif
 
             if (analytical_derivatives) then
               density_kg_ave = TOWGImsTLAverageDensity( auxvar_up%sat(iphase), &
                                                         auxvar_dn%sat(iphase), &
                                                      auxvar_up%den_kg(iphase), &
                                                      auxvar_dn%den_kg(iphase), &
-                                                        d_den_kg_ave_dden_up , &
+                                                        !d_den_kg_ave_dden_up , &
+                                                        dummy , &
                                                         d_den_kg_ave_dden_dn    )
-              !!! ...
-              !!! d_den_kg_ave_dden_up comes from average density calc
-              !!! ( d (ave den) / d (den up) )
-              !!! 
-              D_den_kg_ave_up = auxvar_up%D_den_kg(iphase,:)*d_den_kg_ave_dden_up
+              ! d_den_kg_ave_dden_up comes from average density calc
+              ! ( d (ave den) / d (den up) )
+              !D_den_kg_ave_up = auxvar_up%D_den_kg(iphase,:)*d_den_kg_ave_dden_up
               D_den_kg_ave_dn = auxvar_dn%D_den_kg(iphase,:)*d_den_kg_ave_dden_dn
             else
               density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase)   , &
@@ -2824,9 +2780,8 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                            gravity_term
 
           if (analytical_derivatives) then
-            !!!
-            D_delta_presure_up = auxvar_up%D_pres(iphase,:) &
-                               + D_den_kg_ave_up
+            !D_delta_presure_up = auxvar_up%D_pres(iphase,:) &
+                               !+ D_den_kg_ave_up
             D_delta_presure_dn = -auxvar_dn%D_pres(iphase,:) &
                                  + D_den_kg_ave_dn
           endif
@@ -2844,8 +2799,6 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                  option%reference_pressure < eps) then
               delta_pressure = 0.d0
               if (analytical_derivatives) then
-                !!!! TODO
-                !!!! to clarify - but looks like derivs 0 here
                 D_delta_presure_up = 0.d0
                 D_delta_presure_dn = 0.d0
               endif
@@ -2857,18 +2810,18 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
             mobility = auxvar_up%mobility(iphase)
             uH = auxvar_up%H(iphase)
             if (analytical_derivatives) then
-              D_mobility_up = auxvar_up%D_mobility(iphase,:)
+              !D_mobility_up = auxvar_up%D_mobility(iphase,:)
               D_mobility_dn = 0.d0
-              D_uH_up = auxvar_up%D_H(iphase,:)
+              !D_uH_up = auxvar_up%D_H(iphase,:)
               D_uH_dn = 0.d0
             endif
           else
             mobility = auxvar_dn%mobility(iphase)
             uH = auxvar_dn%H(iphase)
             if (analytical_derivatives) then
-              D_mobility_up = 0.d0
+              !D_mobility_up = 0.d0
               D_mobility_dn = auxvar_dn%D_mobility(iphase,:)
-              D_uH_up = 0.d0
+              !D_uH_up = 0.d0
               D_uH_dn = auxvar_dn%D_H(iphase,:)
             endif
           endif      
@@ -2879,35 +2832,29 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
             v_darcy(iphase) = perm_ave_over_dist * mobility * delta_pressure
 
             if (analytical_derivatives) then
+#if 0
               D_v_darcy_up = perm_ave_over_dist                                        &
                                      * ProdRule(mobility,D_mobility_up,                &
                                                 delta_pressure,D_delta_presure_up,ndof  )
+#endif
               D_v_darcy_dn = perm_ave_over_dist                                        &
                                      * ProdRule(mobility,D_mobility_dn,                &
                                                 delta_pressure,D_delta_presure_dn,ndof  )
             endif
 
             ! only need average density if velocity > 0.
-#if 0
-            !!! moved into if stat below
-            density_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
-                                                  auxvar_dn%sat(iphase), &
-                                                  auxvar_up%den(iphase), &
-                                                  auxvar_dn%den(iphase) )
-#endif
             if (analytical_derivatives) then
 
               density_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
                                                     auxvar_dn%sat(iphase), &
                                                     auxvar_up%den(iphase), &
                                                     auxvar_dn%den(iphase), &
-                                                    d_den_ave_dden_up    , &
+                                                    !d_den_ave_dden_up    , &
+                                                    dummy    , &
                                                     d_den_ave_dden_dn       )
-              !!! ...
-              !!! d_den_ave_dden_up comes from average density calc
-              !!! ( d (ave den) / d (den up) )
-              !!! 
-              D_den_ave_up = auxvar_up%D_den(iphase,:)*d_den_ave_dden_up
+              ! d_den_ave_dden_up comes from average density calc
+              ! ( d (ave den) / d (den up) )
+              !D_den_ave_up = auxvar_up%D_den(iphase,:)*d_den_ave_dden_up
               D_den_ave_dn = auxvar_dn%D_den(iphase,:)*d_den_ave_dden_dn
             else
               density_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
@@ -2939,26 +2886,25 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
           v_darcy(iphase) = bc_auxvars(idof)
           !upwinding based on given BC flux sign
           if (analytical_derivatives) then
-            !!!! zero out v darcy derivs here?
-            D_v_darcy_up(:) = 0.d0 
+            !D_v_darcy_up(:) = 0.d0 
             D_v_darcy_dn(:) = 0.d0
           endif
           if (v_darcy(iphase) > 0.d0) then 
             density_ave = auxvar_up%den(iphase)
             uH = auxvar_up%H(iphase)
             if (analytical_derivatives) then
-              D_den_ave_up = auxvar_up%D_den(iphase,:)
+              !D_den_ave_up = auxvar_up%D_den(iphase,:)
               D_den_ave_dn = 0.d0
-              D_uH_up = auxvar_up%D_H(iphase,:)
+              !D_uH_up = auxvar_up%D_H(iphase,:)
               D_uH_dn = 0.d0
             endif
           else 
             density_ave = auxvar_dn%den(iphase)
             uH = auxvar_dn%H(iphase)
             if (analytical_derivatives) then
-              D_den_ave_up = 0.d0
+              !D_den_ave_up = 0.d0
               D_den_ave_dn = auxvar_dn%D_den(iphase,:)
-              D_uH_up = 0.d0
+              !D_uH_up = 0.d0
               D_uH_dn = auxvar_dn%D_H(iphase,:)
             endif
           endif 
@@ -2973,7 +2919,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(iphase) * area
       if (analytical_derivatives) then
-        D_q_up = D_v_darcy_up * area
+        !D_q_up = D_v_darcy_up * area
         D_q_dn = D_v_darcy_dn * area
       endif
       if (density_ave < 1.d-40) then
@@ -2985,8 +2931,10 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       mole_flux = q*density_ave
       ! Res[kmol phase/sec] 
       if (analytical_derivatives) then
+#if 0
         D_mole_flux_up = ProdRule(q,D_q_up,                     &
                                   density_ave,D_den_ave_up,ndof  )
+#endif
         D_mole_flux_dn = ProdRule(q,D_q_dn,                     &
                                   density_ave,D_den_ave_dn,ndof  )
       endif
@@ -3008,11 +2956,11 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
             endif
 
             if (analytical_derivatives) then
-              D_xmf_up=0.0d0
+              !D_xmf_up=0.0d0
               D_xmf_dn=0.0d0
               if (delta_pressure >= 0.D0) then
-                if( is_oil_in_oil ) D_xmf_up=auxvar_up%bo%D_xo
-                if( is_gas_in_oil ) D_xmf_up=auxvar_up%bo%D_xg
+                !if( is_oil_in_oil ) D_xmf_up=auxvar_up%bo%D_xo
+                !if( is_gas_in_oil ) D_xmf_up=auxvar_up%bo%D_xg
               else
                 if( is_oil_in_oil ) D_xmf_dn=auxvar_dn%bo%D_xo
                 if( is_gas_in_oil ) D_xmf_dn=auxvar_dn%bo%D_xg
@@ -3020,10 +2968,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
             endif
 
             Res(icomp)=Res(icomp)+xmf*mole_flux
-            !!!! TODO - there shouldn't be a jup?
             if (analytical_derivatives) then
-              !Jup(icomp,:) = Jup(icomp,:) + ProdRule(xmf,D_xmf_up,                &
-                                                     !mole_flux,D_mole_flux_up,ndof )
               Jdn(icomp,:) = Jdn(icomp,:) + ProdRule(xmf,D_xmf_dn,                &
                                                      mole_flux,D_mole_flux_dn,ndof )
             endif
@@ -3037,9 +2982,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
       Res(iphase) = mole_flux 
 
-     !!!! TODO - there shouldn't be a jup?
       if (analytical_derivatives) then
-        !Jup(icomp,:) = Jup(icomp,:) + D_mole_flux_up(:)
         Jdn(icomp,:) = Jdn(icomp,:) + D_mole_flux_dn(:)
       endif
 
@@ -3051,11 +2994,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       ! Res[MJ/sec] = mole_flux[kmol comp/sec] * H_ave[MJ/kmol comp]
       Res(energy_id) = Res(energy_id) + mole_flux * uH ! H_ave
 
-     !!!! TODO - there shouldn't be a jup?
       if (analytical_derivatives) then
-        !!! ...
-        !Jup(icomp,:) = Jup(icomp,:) + ProdRule(mole_flux,D_mole_flux_up, &
-                                               !uH,D_uH_up,ndof             )
         Jdn(icomp,:) = Jdn(icomp,:) + ProdRule(mole_flux,D_mole_flux_dn, &
                                                uH,D_uH_dn,ndof             )
       endif
@@ -3104,14 +3043,10 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       delta_temp = auxvar_up%temp - auxvar_dn%temp
       heat_flux = k_eff_ave * delta_temp * area * 1.d-6 ! convert W -> MW
 
-!!! maybe just this?
-!!!! TODO
   if (analytical_derivatives) then
-    d_delta_temp_dt_up = 1.d0
     d_delta_temp_dt_dn = - 1.d0
 
     dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
-    !jup(energy_id,towg_energy_dof) = jup(energy_id,towg_energy_dof) + d_delta_temp_dt_up*dheat_flux_ddelta_temp
     jdn(energy_id,towg_energy_dof) = jdn(energy_id,towg_energy_dof) + d_delta_temp_dt_dn*dheat_flux_ddelta_temp
   endif
 
