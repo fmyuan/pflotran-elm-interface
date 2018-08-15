@@ -877,6 +877,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! trivial pressure derivatives: 
   if (getDerivs) then
     auxvar%D_pres(oid,dof_op) = 1.d0 ! diff oil pres by oil pres
+    ! these will be overwritten with cap pres derivs below
     auxvar%D_pres(wid,dof_op) = 1.d0 ! diff liquid pres by oil pres
     auxvar%D_pres(gid,dof_op) = 1.d0 ! diff gas pres by oil pres
   endif
@@ -1343,9 +1344,11 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     ! might as well apply divrule to krw/visw instead of call the specific mobility
     ! derivatives routine
     D_kr = 0.d0
-    D_kr(dof_osat) = dkrw_sato
+    !!! char curve returns deriv w.r.t  water sat so account for that
+    !D_kr(dof_osat) = dkrw_sato
+    D_kr(dof_osat) = -dkrw_satw
     if (isSat) then 
-      D_kr(dof_gsat) = dkrw_satg
+      D_kr(dof_gsat) = -dkrw_satw 
     endif
     dmobw = DivRule(krw,D_kr,                  &
                     visw,D_visc,option%nflowdof )
@@ -1464,7 +1467,8 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
     ! see comment for water mobility
     D_kr = 0.d0
-    D_kr(dof_osat) = dkrg_sato
+    !D_kr(dof_osat) = dkrg_sato
+    !!!! nothing here? relperm ftn is independent of oil sat
     if (isSat) then 
       D_kr(dof_gsat) = dkrg_satg
     endif
