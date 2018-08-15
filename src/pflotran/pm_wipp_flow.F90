@@ -58,6 +58,7 @@ module PM_WIPP_Flow_class
     PetscBool :: scale_linear_system
     Vec :: scaling_vec
     PetscInt, pointer :: dirichlet_dofs(:) ! this array is zero-based indexing
+    PetscInt :: logging_verbosity
   contains
     procedure, public :: Read => PMWIPPFloRead
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
@@ -168,6 +169,7 @@ subroutine PMWIPPFloInitObject(this)
   this%convergence_test_both = PETSC_TRUE
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
+  this%logging_verbosity = 0
 
 end subroutine PMWIPPFloInitObject
 
@@ -417,6 +419,9 @@ subroutine PMWIPPFloRead(this,input)
           allocate(this%dirichlet_dofs(icount))       ! convert to zero-based
           this%dirichlet_dofs = int_array(1:icount) - 1 
         endif
+      case('LOGGING_VERBOSITY')
+        call InputReadInt(input,option,this%logging_verbosity)
+        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(keyword,'WIPP Flow Mode',option)
     end select
@@ -744,13 +749,14 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   ! Author: Glenn Hammond
   ! Date: 07/11/17
   ! 
-
+  use Option_module
   use Realization_Base_class, only : RealizationGetVariable
   use Realization_Subsurface_class, only : RealizationLimitDTByCFL
   use Field_module
   use Global_module, only : GlobalSetAuxVarVecLoc
   use Variables_module, only : LIQUID_SATURATION, GAS_SATURATION
   use WIPP_Flow_Aux_module, only : wippflo_debug_ts_update
+  use Utility_module, only : Equal
 
   implicit none
   
@@ -762,6 +768,7 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
   PetscReal :: time_step_max_growth_factor
+  character(len=MAXSTRINGLENGTH) :: string
   
   PetscReal :: dtime(2)
   type(field_type), pointer :: field
@@ -779,6 +786,19 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   dt = min(min(dtime(1),dtime(2))*dt,time_step_max_growth_factor*dt)
   ! make sure time step is within bounds given in the input deck
   dt = min(dt,dt_max)
+  if (this%logging_verbosity > 0) then
+    if (Equal(dt,dt_max)) then
+      string = 'maximum time step size'
+    else if (minval(dtime) > time_step_max_growth_factor) then
+      string = 'maximum time step growth factor'
+    else if (dtime(1) < dtime(2)) then
+      string = 'gas saturation governor'
+    else
+      string = 'liquid pressure governor'
+    endif
+    string = 'TS update: ' // trim(string)
+    call OptionPrint(string,this%option)
+  endif
   ! do not use the PFLOTRAN dt_min as it will shut down the simulation from
   ! within timestepper_BE. use %minimum_timestep_size, which is specific to 
   ! wipp_flow.
@@ -1674,6 +1694,7 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
     if (this%convergence_flags(MAX_CHANGE_LIQ_PRES_TS) > 0) then
       tempreal3 = this%convergence_reals(MAX_CHANGE_LIQ_PRES_TS)
       tempint3 = this%convergence_flags(MAX_CHANGE_LIQ_PRES_TS)
+      reason_string(6:6) = 'p'
     else
       tempreal3 = this%convergence_reals(MAX_REL_CHANGE_LIQ_PRES_NI)
       tempint3 = this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI)
@@ -1699,7 +1720,7 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
       ! just overwrite the character, the flag/real matches FORCE_ITERATION
       reason_string(7:7) = 'B'
     endif
-    if (option%mycommsize > 1) then
+    if (option%mycommsize > 1 .or. grid%nmax > 9999) then
       write(*,'(4x,"Rsn: ",a10,4es10.2)') reason_string, &
         this%convergence_reals(MAX_NORMAL_RES_LIQ), &
         this%convergence_reals(MAX_NORMAL_RES_GAS), &
