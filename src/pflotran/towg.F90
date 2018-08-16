@@ -2093,6 +2093,8 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
   PetscReal :: D_xmf_up(option%nflowdof),D_xmf_dn(option%nflowdof)
 #endif
 
+!!! to be reconsidered - these could be optimised or moved into global workers; the excess here
+!!!                      is done for clarity and simplicity
   PetscReal, dimension(1:option%nflowdof) :: D_sat_liquid_up,D_sat_liquid_dn,D_k_eff_up,D_k_eff_dn
   PetscReal, dimension(1:option%nflowdof) :: D_k_eff_ave_up,D_k_eff_ave_dn,D_delta_temp_up,D_delta_temp_dn
   PetscReal :: worker1,worker2
@@ -2455,13 +2457,11 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
              sqrt(sat_liquid_pos) * &
              (thermal_conductivity_up(2) - thermal_conductivity_up(1))
 
-!!! TODO
+!!! experimental
   if (analytical_derivatives) then
     D_sat_liquid_up(:) = auxvar_up%D_sat(option%liquid_phase,:) + &
                          auxvar_up%D_sat(option%oil_phase,:)
-    !!! TODO - analogy to the positivity safety above
 
-   
     D_k_eff_up = 0.d0
     do i = 1,ndof
       if (abs(D_sat_liquid_up(i)) < epsilon(sat_liquid) .OR.  sat_liquid_pos == 0.d0) then
@@ -2483,12 +2483,10 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
              sqrt(sat_liquid_pos) * &
              (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
 
-!!! TODO
+!!! experimental
   if (analytical_derivatives) then
     D_sat_liquid_dn = auxvar_dn%D_sat(option%liquid_phase,:) + &
                       auxvar_dn%D_sat(option%oil_phase,:)
-    !!! TODO - analogy to the positivity safety above
-   
     D_k_eff_dn = 0.d0
     do i = 1,ndof
       if (abs(D_sat_liquid_dn(i)) < epsilon(sat_liquid) .OR.  sat_liquid_pos == 0.d0) then
@@ -2505,33 +2503,37 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
     k_eff_ave = (k_eff_up*k_eff_dn)/(k_eff_up*dist_dn+k_eff_dn*dist_up)
 
 
-    !!! upwind derivatives
-    D_k_eff_ave_up = 0.d0
+    if (analytical_derivatives) then
+      !!! upwind derivatives
+      D_k_eff_ave_up = 0.d0
 
-    worker1 = k_eff_up*k_eff_dn
-    D_worker1 = k_eff_dn*D_k_eff_up
+      worker1 = k_eff_up*k_eff_dn
+      D_worker1 = k_eff_dn*D_k_eff_up
 
-    worker2 = k_eff_up*dist_dn+k_eff_dn*dist_up
-    D_worker2 = D_k_eff_up*dist_dn
+      worker2 = k_eff_up*dist_dn+k_eff_dn*dist_up
+      D_worker2 = D_k_eff_up*dist_dn
 
-    D_k_eff_ave_up = DivRule(worker1,D_worker1, &
-                             worker2,D_worker2,ndof)
+      D_k_eff_ave_up = DivRule(worker1,D_worker1, &
+                               worker2,D_worker2,ndof)
 
-    !!! downwind derivatives
-    D_k_eff_ave_dn = 0.d0
+      !!! downwind derivatives
+      D_k_eff_ave_dn = 0.d0
 
-    worker1 = k_eff_up*k_eff_dn
-    D_worker1 = k_eff_up*D_k_eff_dn
+      worker1 = k_eff_up*k_eff_dn
+      D_worker1 = k_eff_up*D_k_eff_dn
 
-    worker2 = k_eff_up*dist_dn+k_eff_dn*dist_up
-    D_worker2 = D_k_eff_dn*dist_up
+      worker2 = k_eff_up*dist_dn+k_eff_dn*dist_up
+      D_worker2 = D_k_eff_dn*dist_up
 
-    D_k_eff_ave_dn = DivRule(worker1,D_worker1, &
-                             worker2,D_worker2,ndof)
+      D_k_eff_ave_dn = DivRule(worker1,D_worker1, &
+                               worker2,D_worker2,ndof)
+    endif
   else
     k_eff_ave = 0.d0
-    D_k_eff_ave_up = 0.d0
-    D_k_eff_ave_dn = 0.d0
+    if (analytical_derivatives) then
+      D_k_eff_ave_up = 0.d0
+      D_k_eff_ave_dn = 0.d0
+    endif
   endif
   ! units:
   ! k_eff = W/K-m = J/s/K-m
@@ -2562,8 +2564,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
                                    + ProdRule(k_eff_ave,D_k_eff_ave_dn,          &
                                               delta_temp,D_delta_temp_dn,ndof )  &
                                    * area * 1.d-6
-
-
 
 #if 0
     dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
@@ -2698,6 +2698,10 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   PetscReal :: d_delta_temp_dt_dn
   PetscReal :: dheat_flux_ddelta_temp
   PetscReal :: dummy
+
+  PetscReal, dimension(1:option%nflowdof) :: D_sat_liquid_dn,D_k_eff_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_k_eff_ave_dn,D_delta_temp_dn
+  PetscInt :: i
 
   ndof = option%nflowdof
 
@@ -3108,6 +3112,23 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       k_eff_dn = thermal_conductivity_dn(1) + &
                  sqrt(sat_liquid_pos) * &
                  (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
+
+!!! experimental
+  if (analytical_derivatives) then
+    D_sat_liquid_dn = auxvar_dn%D_sat(option%liquid_phase,:) + &
+                      auxvar_dn%D_sat(option%oil_phase,:)
+    D_k_eff_dn = 0.d0
+    do i = 1,ndof
+      if (abs(D_sat_liquid_dn(i)) < epsilon(sat_liquid) .OR.  sat_liquid_pos == 0.d0) then
+        D_k_eff_dn(i) = 0.d0 
+      else
+        D_k_eff_dn(i) = 0.5d0*D_sat_liquid_dn(i)/sqrt(sat_liquid_pos)
+      endif
+    enddo
+    D_k_eff_dn = D_k_eff_dn * &
+                 (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
+  endif
+
       ! units:
       ! k_eff = W/K/m/m = J/s/K/m/m
       ! delta_temp = K
@@ -3118,10 +3139,23 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       heat_flux = k_eff_ave * delta_temp * area * 1.d-6 ! convert W -> MW
 
   if (analytical_derivatives) then
+
+      D_k_eff_ave_dn = D_k_eff_dn / dist(0)
+      D_delta_temp_dn = 0.d0
+      D_delta_temp_dn(towg_energy_dof) = -1.d0
+
+      jdn(energy_id,:) = jdn(energy_id,:)              &
+                                     + ProdRule(k_eff_ave,D_k_eff_ave_dn,          &
+                                                delta_temp,D_delta_temp_dn,ndof )  &
+                                     * area * 1.d-6
+
+#if 0
     d_delta_temp_dt_dn = - 1.d0
 
     dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
     jdn(energy_id,towg_energy_dof) = jdn(energy_id,towg_energy_dof) + d_delta_temp_dt_dn*dheat_flux_ddelta_temp
+#endif
+
   endif
 
     case(NEUMANN_BC)
