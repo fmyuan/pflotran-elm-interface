@@ -45,6 +45,10 @@ module TOWG_module
   PetscReal, allocatable, dimension(:) :: D_q_up,D_q_dn
   PetscReal, allocatable, dimension(:) :: D_mole_flux_up,D_mole_flux_dn
   PetscReal, allocatable, dimension(:) :: D_xmf_up,D_xmf_dn
+
+  PetscReal, allocatable, dimension(:) :: D_sat_liquid_up,D_sat_liquid_dn,D_k_eff_up,D_k_eff_dn
+  PetscReal, allocatable, dimension(:) :: D_k_eff_ave_up,D_k_eff_ave_dn,D_delta_temp_up,D_delta_temp_dn
+  PetscReal, allocatable, dimension(:) :: D_worker1,D_worker2
 #endif
 
 
@@ -347,6 +351,18 @@ subroutine TOWGSetup(realization)
     allocate(D_mole_flux_dn (1:option%nflowdof))
     allocate(D_xmf_up (1:option%nflowdof))
     allocate(D_xmf_dn (1:option%nflowdof))
+
+    allocate( D_sat_liquid_up  (1:option%nflowdof))
+    allocate( D_sat_liquid_dn (1:option%nflowdof))
+    allocate(D_k_eff_up  (1:option%nflowdof))
+    allocate(D_k_eff_dn  (1:option%nflowdof))
+    allocate(D_k_eff_ave_up (1:option%nflowdof))
+    allocate(D_k_eff_ave_dn (1:option%nflowdof))
+    allocate(D_delta_temp_up (1:option%nflowdof))
+    allocate(  D_delta_temp_dn (1:option%nflowdof))
+    allocate( D_worker1 (1:option%nflowdof))
+    allocate(D_worker2 (1:option%nflowdof))
+
   endif
 #endif
 
@@ -2091,14 +2107,12 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
   PetscReal :: D_q_up(option%nflowdof),D_q_dn(option%nflowdof)
   PetscReal :: D_mole_flux_up(option%nflowdof),D_mole_flux_dn(option%nflowdof)
   PetscReal :: D_xmf_up(option%nflowdof),D_xmf_dn(option%nflowdof)
-#endif
-
-!!! to be reconsidered - these could be optimised or moved into global workers; the excess here
-!!!                      is done for clarity and simplicity
   PetscReal, dimension(1:option%nflowdof) :: D_sat_liquid_up,D_sat_liquid_dn,D_k_eff_up,D_k_eff_dn
   PetscReal, dimension(1:option%nflowdof) :: D_k_eff_ave_up,D_k_eff_ave_dn,D_delta_temp_up,D_delta_temp_dn
-  PetscReal :: worker1,worker2
   PetscReal, dimension(1:option%nflowdof) :: D_worker1,D_worker2
+#endif
+
+  PetscReal :: worker1,worker2
   PetscInt :: i
 
 #ifdef GLOBALWORKERS
@@ -3736,6 +3750,12 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         xmf=1.0d0
         if( is_oil_in_oil ) xmf=xmfo
         if( is_gas_in_oil ) xmf=xmfg
+
+        if (analytical_derivatives) then
+          if( is_oil_in_oil ) D_xmf=D_xmfo
+          if( is_gas_in_oil ) D_xmf=D_xmfg
+        endif
+
         Res(icomp) = Res(icomp)+xmf*qsrc_mol
         ! jac contribution here
         if (analytical_derivatives) then
@@ -4423,6 +4443,8 @@ subroutine TOWGSrcSinkDerivative(option,src_sink_condition,auxvars, &
     if (towg_analytical_derivatives_compare) then
       call MatCompare(Jac, Jalyt, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
       print *, "this is src sink derivative"
+      call TOWGSrcSink(option,src_sink_condition,auxvars(ZERO_INTEGER), &
+                       global_auxvar,dummy_real,scale,res_pert,Jalyt,PETSC_TRUE)
     endif
 
     jac = jalyt
@@ -5729,6 +5751,17 @@ subroutine TOWGDestroy(realization)
     deallocate(D_mole_flux_dn)
     deallocate(D_xmf_up)
     deallocate(D_xmf_dn)
+
+    deallocate(D_sat_liquid_up)
+    deallocate(D_sat_liquid_dn)
+    deallocate(D_k_eff_up)
+    deallocate(D_k_eff_dn)
+    deallocate(D_k_eff_ave_up)
+    deallocate(D_k_eff_ave_dn)
+    deallocate(D_delta_temp_up)
+    deallocate(D_delta_temp_dn)
+    deallocate(D_worker1)
+    deallocate(D_worker2)
   endif
 #endif
 
