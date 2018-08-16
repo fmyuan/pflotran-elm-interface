@@ -17,6 +17,7 @@ module TOWG_module
 #define CONDUCTION
 
 #define GLOBALWORKERS
+#define DERIVS_VD_INDEP
 
 !#define DEBUG_TOWG_FILEOUTPUT
 !#define DEBUG_TOWG_FLUXES  
@@ -2267,13 +2268,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
                      gravity_term
 
     if (analytical_derivatives) then
-      !!! ?
-#if 0
-      D_delta_presure_up = auxvar_up%D_pres(iphase,:) &
-                         + D_den_kg_ave_up
-      D_delta_presure_dn = -auxvar_dn%D_pres(iphase,:) &
-                           + D_den_kg_ave_dn
-#endif
       D_delta_presure_up = auxvar_up%D_pres(iphase,:) &
                          + D_den_kg_ave_up*dist_gravity
       D_delta_presure_dn = -auxvar_dn%D_pres(iphase,:) &
@@ -2379,6 +2373,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
               if( is_gas_in_oil ) xmf=auxvar_dn%bo%xg
             endif
 
+#ifndef DERIVS_VD_INDEP
             if (analytical_derivatives) then
               D_xmf_up=0.0d0
               D_xmf_dn=0.0d0
@@ -2391,7 +2386,137 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
               endif
             endif
 
+
+            if (analytical_derivatives) then
+              Jup(icomp,:) = Jup(icomp,:) + ProdRule(xmf,D_xmf_up,                &
+                                                     mole_flux,D_mole_flux_up,ndof )
+              Jdn(icomp,:) = Jdn(icomp,:) + ProdRule(xmf,D_xmf_dn,                &
+                                                     mole_flux,D_mole_flux_dn,ndof )
+            endif
+#endif
+
             Res(icomp)=Res(icomp)+xmf*mole_flux
+
+          endif
+        enddo
+      else
+! One component in phase
+        Res(iphase) = mole_flux
+
+#ifndef DERIVS_VD_INDEP
+        if (analytical_derivatives) then
+          Jup(icomp,:) = Jup(icomp,:) + D_mole_flux_up(:)
+          Jdn(icomp,:) = Jdn(icomp,:) + D_mole_flux_dn(:)
+        endif
+#endif
+
+      endif
+
+#ifdef DEBUG_FLUXES  
+      adv_flux(iphase) = mole_flux
+#endif
+
+      ! Res[MJ/sec] = mole_flux[kmol comp/sec] * H_ave[MJ/kmol comp]
+      Res(energy_id) = Res(energy_id) + mole_flux * uH
+
+
+#ifndef DERIVS_VD_INDEP
+      if (analytical_derivatives) then
+        Jup(energy_id,:) = Jup(energy_id,:) + ProdRule(mole_flux,D_mole_flux_up, &
+                                               uH,D_uH_up,ndof             )
+        Jdn(energy_id,:) = Jdn(energy_id,:) + ProdRule(mole_flux,D_mole_flux_dn, &
+                                               uH,D_uH_dn,ndof             )
+      endif
+#endif
+
+#ifdef DEBUG_FLUXES  
+      adv_flux(energy_id) = adv_flux(energy_id) + mole_flux * uH
+#endif
+
+#ifdef DEBUG_TOWG_FILEOUTPUT
+      debug_dphi(iphase) = delta_pressure
+      debug_flux(iphase) = mole_flux * uH
+#endif
+    endif                   
+
+#ifdef DERIVS_VD_INDEP
+      ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
+      !                    dP[Pa]]
+      v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
+
+      if (analytical_derivatives) then
+        D_v_darcy_up(:) = perm_ave_over_dist(iphase)                             &
+                               * ProdRule(mobility,D_mobility_up,                &
+                                          delta_pressure,D_delta_presure_up,ndof  )
+        D_v_darcy_dn(:) = perm_ave_over_dist(iphase)                             &
+                               * ProdRule(mobility,D_mobility_dn,                &
+                                          delta_pressure,D_delta_presure_dn,ndof  )
+      endif
+
+      if (analytical_derivatives) then
+
+        density_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
+                                              auxvar_dn%sat(iphase), &
+                                              auxvar_up%den(iphase), &
+                                              auxvar_dn%den(iphase), &
+                                              d_den_ave_dden_up    , &
+                                              d_den_ave_dden_dn       )
+        D_den_ave_up = auxvar_up%D_den(iphase,:)*d_den_ave_dden_up
+        D_den_ave_dn = auxvar_dn%D_den(iphase,:)*d_den_ave_dden_dn
+      else
+        density_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
+                                              auxvar_dn%sat(iphase), &
+                                              auxvar_up%den(iphase), &
+                                              auxvar_dn%den(iphase) )
+      endif
+
+      ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
+      q = v_darcy(iphase) * area  
+      if (analytical_derivatives) then
+        D_q_up = D_v_darcy_up * area
+        D_q_dn = D_v_darcy_dn * area
+      endif
+
+      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
+      !                             density_ave[kmol phase/m^3 phase]        
+      mole_flux = q*density_ave
+
+      if (analytical_derivatives) then
+        D_mole_flux_up = ProdRule(q,D_q_up,                     &
+                                  density_ave,D_den_ave_up,ndof  )
+        D_mole_flux_dn = ProdRule(q,D_q_dn,                     &
+                                  density_ave,D_den_ave_dn,ndof  )
+      endif
+
+      ! Res[kmol total/sec] = mole_flux[kmol phase/sec]
+
+      if( is_black_oil ) then
+! Loop over components in phase
+        do icomp = 1, option%nphase
+          componentInPhase=checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
+          if( componentInPhase ) then
+
+            xmf=1.0d0
+            if (delta_pressure >= 0.D0) then
+              if( is_oil_in_oil ) xmf=auxvar_up%bo%xo
+              if( is_gas_in_oil ) xmf=auxvar_up%bo%xg
+            else
+              if( is_oil_in_oil ) xmf=auxvar_dn%bo%xo
+              if( is_gas_in_oil ) xmf=auxvar_dn%bo%xg
+            endif
+
+            if (analytical_derivatives) then
+              D_xmf_up=0.0d0
+              D_xmf_dn=0.0d0
+              if (delta_pressure >= 0.D0) then
+                if( is_oil_in_oil ) D_xmf_up=auxvar_up%bo%D_xo
+                if( is_gas_in_oil ) D_xmf_up=auxvar_up%bo%D_xg
+              else
+                if( is_oil_in_oil ) D_xmf_dn=auxvar_dn%bo%D_xo
+                if( is_gas_in_oil ) D_xmf_dn=auxvar_dn%bo%D_xg
+              endif
+            endif
+
 
             if (analytical_derivatives) then
               Jup(icomp,:) = Jup(icomp,:) + ProdRule(xmf,D_xmf_up,                &
@@ -2404,7 +2529,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
         enddo
       else
 ! One component in phase
-        Res(iphase) = mole_flux
 
         if (analytical_derivatives) then
           Jup(icomp,:) = Jup(icomp,:) + D_mole_flux_up(:)
@@ -2413,37 +2537,16 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
 
       endif
 
-#ifdef DEBUG_FLUXES  
-      adv_flux(iphase) = mole_flux
-#endif
-
-      ! Res[MJ/sec] = mole_flux[kmol comp/sec] * H_ave[MJ/kmol comp]
-      Res(energy_id) = Res(energy_id) + mole_flux * uH
 
 
       if (analytical_derivatives) then
-#if 0
-        !!! ?
-        Jup(icomp,:) = Jup(icomp,:) + ProdRule(mole_flux,D_mole_flux_up, &
-                                               uH,D_uH_up,ndof             )
-        Jdn(icomp,:) = Jdn(icomp,:) + ProdRule(mole_flux,D_mole_flux_dn, &
-                                               uH,D_uH_dn,ndof             )
-#endif
         Jup(energy_id,:) = Jup(energy_id,:) + ProdRule(mole_flux,D_mole_flux_up, &
                                                uH,D_uH_up,ndof             )
         Jdn(energy_id,:) = Jdn(energy_id,:) + ProdRule(mole_flux,D_mole_flux_dn, &
                                                uH,D_uH_dn,ndof             )
       endif
 
-#ifdef DEBUG_FLUXES  
-      adv_flux(energy_id) = adv_flux(energy_id) + mole_flux * uH
 #endif
-
-#ifdef DEBUG_TOWG_FILEOUTPUT
-      debug_dphi(iphase) = delta_pressure
-      debug_flux(iphase) = mole_flux * uH
-#endif
-    endif                   
 
   enddo
 ! CONVECTION
@@ -3044,6 +3147,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
               if( is_gas_in_oil ) xmf=auxvar_dn%bo%xg
             endif
 
+#ifndef DERIVS_VD_INDEP
             if (analytical_derivatives) then
               D_xmf_dn=0.0d0
               if (delta_pressure >= 0.D0) then
@@ -3054,11 +3158,13 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
               endif
             endif
 
-            Res(icomp)=Res(icomp)+xmf*mole_flux
             if (analytical_derivatives) then
               Jdn(icomp,:) = Jdn(icomp,:) + ProdRule(xmf,D_xmf_dn,                &
                                                      mole_flux,D_mole_flux_dn,ndof )
             endif
+#endif
+
+            Res(icomp)=Res(icomp)+xmf*mole_flux
 
           endif
         enddo
@@ -3069,9 +3175,11 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
       Res(iphase) = mole_flux 
 
+#ifndef DERIVS_VD_INDEP
       if (analytical_derivatives) then
         Jdn(icomp,:) = Jdn(icomp,:) + D_mole_flux_dn(:)
       endif
+#endif
 
       endif
 
@@ -3081,15 +3189,12 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       ! Res[MJ/sec] = mole_flux[kmol comp/sec] * H_ave[MJ/kmol comp]
       Res(energy_id) = Res(energy_id) + mole_flux * uH ! H_ave
 
+#ifndef DERIVS_VD_INDEP
       if (analytical_derivatives) then
-#if 0
-        !!! ?
-        Jdn(icomp,:) = Jdn(icomp,:) + ProdRule(mole_flux,D_mole_flux_dn, &
-                                               uH,D_uH_dn,ndof             )
-#endif
         Jdn(energy_id,:) = Jdn(energy_id,:) + ProdRule(mole_flux,D_mole_flux_dn, &
                                                uH,D_uH_dn,ndof             )
       endif
+#endif
 
 #ifdef DEBUG_FLUXES  
       adv_flux(energy_id) = adv_flux(energy_id) + mole_flux * uH
@@ -3098,6 +3203,62 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       debug_flux(iphase) = mole_flux * uH
 #endif
     endif
+
+#ifdef DERIVS_VD_INDEP
+      q = v_darcy(iphase) * area
+
+      if (analytical_derivatives) then
+        D_q_dn = D_v_darcy_dn * area
+      endif
+#if 0
+      if (density_ave < 1.d-40) then
+        option%io_buffer = 'Zero density in TOWGImsTLBOBCFlux()'
+        call printErrMsgByRank(option)
+      endif
+#endif
+      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
+      !                              density_ave[kmol phase/m^3 phase]
+      mole_flux = q*density_ave
+      ! Res[kmol phase/sec] 
+      if (analytical_derivatives) then
+        D_mole_flux_dn = ProdRule(q,D_q_dn,                     &
+                                  density_ave,D_den_ave_dn,ndof  )
+      endif
+      if( is_black_oil ) then
+        do icomp = 1, option%nphase
+          componentInPhase=checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
+          if( componentInPhase ) then
+            if (analytical_derivatives) then
+              D_xmf_dn=0.0d0
+              if (delta_pressure >= 0.D0) then
+                ! we'd set upstream derivatives here but we won't use them
+                if( is_oil_in_oil ) xmf=auxvar_up%bo%xo
+                if( is_gas_in_oil ) xmf=auxvar_up%bo%xg
+              else
+                if( is_oil_in_oil ) xmf=auxvar_dn%bo%xo
+                if( is_gas_in_oil ) xmf=auxvar_dn%bo%xg
+                if( is_oil_in_oil ) D_xmf_dn=auxvar_dn%bo%D_xo
+                if( is_gas_in_oil ) D_xmf_dn=auxvar_dn%bo%D_xg
+              endif
+            endif
+            if (analytical_derivatives) then
+              Jdn(icomp,:) = Jdn(icomp,:) + ProdRule(xmf,D_xmf_dn,                &
+                                                     mole_flux,D_mole_flux_dn,ndof )
+            endif
+          endif
+        enddo
+      else
+! Just one component in this phase
+      if (analytical_derivatives) then
+        Jdn(icomp,:) = Jdn(icomp,:) + D_mole_flux_dn(:)
+      endif
+    endif
+
+    if (analytical_derivatives) then
+      Jdn(energy_id,:) = Jdn(energy_id,:) + ProdRule(mole_flux,D_mole_flux_dn, &
+                                             uH,D_uH_dn,ndof             )
+    endif
+#endif
   enddo
 ! CONVECTION
 #endif

@@ -1140,10 +1140,14 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 #endif
 
     ! scaling:
+#if 0
     auxvar%D_H(gid,dof_temp) = auxvar%D_H(gid,dof_temp) * 1.d-6 ! J/kmol -> MJ/kmol
     auxvar%D_U(gid,dof_temp) = auxvar%D_U(gid,dof_temp) * 1.d-6 ! J/kmol -> MJ/kmol
     auxvar%D_H(gid,dof_op) = auxvar%D_H(gid,dof_op) * 1.d-6 ! J/kmol -> MJ/kmol
     auxvar%D_U(gid,dof_op) = auxvar%D_U(gid,dof_op) * 1.d-6 ! J/kmol -> MJ/kmol
+#endif
+    auxvar%D_H(gid,:) = auxvar%D_H(gid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(gid,:) = auxvar%D_U(gid,:) * 1.d-6 ! J/kmol -> MJ/kmol
 
   else
     call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid), &
