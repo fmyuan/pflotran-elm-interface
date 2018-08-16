@@ -1328,6 +1328,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
         D_visc(dof_op) = dvw_dp
         D_visc(dof_osat)= d_cellpres_dso*dvw_dp
         D_visc(dof_gsat)= d_cellpres_dsg*dvw_dp
+        D_visc(dof_temp)= dvw_dt
   else
     call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
@@ -1454,6 +1455,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
         D_visc(dof_op) = dvg_dpgas
         D_visc(dof_osat)= d_cellpres_dso*dvg_dpgas
         D_visc(dof_gsat)= d_cellpres_dsg*dvg_dpgas
+        D_visc(dof_temp)= dvg_dt
 
   else
   !--If PVDG defined in EOS OIL, the viscosities are extracted via table lookup--
