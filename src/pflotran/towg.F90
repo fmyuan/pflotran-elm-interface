@@ -3620,6 +3620,12 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
             call EOSOilDensity(temperature,pb,den,D_den(dof_temp),D_den(dof_gsat),ierr,auxvar%table_idx)
             call EOSOilCompressibility(temperature,pb,cr,dcr_dt,dcr_dpb,ierr,auxvar%table_idx)
 
+            !!! TOTIDY
+            ! note that pb is actually constant reference pressure here so we shouldn't
+            ! mistake it for the solution variable pb and assign derivatives 
+            D_den(dof_gsat) = 0.d0
+            dcr_dpb = 0.d0
+
 
             ! corrected density derivs
             isSat = ( global_auxvar%istate==TOWG_THREE_PHASE_STATE ) 
@@ -3627,12 +3633,14 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
               ! leave density derivs w.r.t. pres, temp, and bubble point as set above since the correction
               ! is zero.
             else
+              crusp=cr*(po-pb)
               dcrusp_dpo =  cr !  +  dcr_dpo*(po-pb) but we know dcr_dpo is zero
 
               ! recall potentially cell_pressure is constant - need to multiply derivs by dp_dpo:
               dcrusp_dpo = dcrusp_dpo * dp_dpo
 
-              dcrusp_dpb = dcr_dpb*(po-pb) - cr
+              !dcrusp_dpb = dcr_dpb*(po-pb) - cr
+              dcrusp_dpb = 0.d0
               dcrusp_dt =  dcr_dt*(po-pb)
 
               cor = 1 + crusp + 0.5*crusp*crusp
@@ -3640,11 +3648,13 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
               ! so
               one_p_crusp = 1.d0 + crusp
               dcor_dpo = one_p_crusp*dcrusp_dpo
-              dcor_dpb = one_p_crusp*dcrusp_dpb
+              !dcor_dpb = one_p_crusp*dcrusp_dpb
+              dcor_dpb = 0.d0
               dcor_dt = one_p_crusp*dcrusp_dt
 
               D_den(dof_op) = den*dcor_dpo ! +  ddeno_dpo*cor but we know ddeno_dpo is zero
-              D_den(dof_gsat) = D_den(dof_gsat)*cor + den*dcor_dpb
+              !d_den(dof_gsat) = d_den(dof_gsat)*cor + den*dcor_dpb
+              d_den(dof_gsat) = 0.d0
               D_den(dof_temp) = D_den(dof_temp)*cor + den*dcor_dt
             endif
             if (isSat) then
@@ -3728,14 +3738,16 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         qsrc_mol = qsrc(iphase)*den ! den = kmol/m^3
         ! 
         if (analytical_derivatives) then
-          D_qsrc_mol = qsrc(iphase)*DivRule1(mole_wt,D_mole_wt,ndof)
+          !D_qsrc_mol = qsrc(iphase)*DivRule1(den,D_den,ndof)
+          D_qsrc_mol = qsrc(iphase)*D_den
         endif
       case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
         ! qsrc1 = m^3/sec              ! den = kmol/m^3
         qsrc_mol = qsrc(iphase)* den * scale
         ! 
         if (analytical_derivatives) then
-          D_qsrc_mol = scale*qsrc(iphase)*DivRule1(mole_wt,D_mole_wt,ndof)
+          !D_qsrc_mol = scale*qsrc(iphase)*DivRule1(den,D_den,ndof)
+          D_qsrc_mol = scale*qsrc(iphase)*D_den
         endif
     end select
 
@@ -4352,6 +4364,14 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
     if (towg_analytical_derivatives_compare) then
       call MatCompare(Jdn, Jalyt_dn, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
       print *, "this is bc flux derivative"
+
+      call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
+                      auxvar_up,global_auxvar_up, &
+                      auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                      material_auxvar_dn,sir_dn, &
+                      thermal_conductivity_dn, &
+                      area,dist,towg_parameter, &
+                      option,v_darcy,res,PETSC_FALSE,jalyt_dn,PETSC_TRUE)
     endif
 
     jdn = jalyt_dn
