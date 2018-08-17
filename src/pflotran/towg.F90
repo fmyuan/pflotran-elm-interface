@@ -3716,6 +3716,9 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
     cell_pressure = &
         maxval(auxvar%pres(option%liquid_phase:option%gas_phase))
     if (analytical_derivatives) then
+      !!!! TODO - really should have the whole D_pres(...) depending on
+      !!!!        what is taken for cell pressure since there could be
+      !!!!        saturation derivs from cap pres here.
       dp_dpo = 1.d0
     endif
   end if
@@ -3925,6 +3928,7 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         if( is_gas_in_oil ) xmf=xmfg
 
         if (analytical_derivatives) then
+          D_xmf = 0.d0
           if( is_oil_in_oil ) D_xmf=D_xmfo
           if( is_gas_in_oil ) D_xmf=D_xmfg
         endif
