@@ -443,7 +443,7 @@ subroutine SetSOF2Table(this,option)
   character(len=MAXWORDLENGTH) :: internal_units, user_units
   PetscInt :: data_idx
 
-  this%num_fields = 3
+  this%num_fields = 2
 
   !default units to none - only pressure for Pc is required
   internal_units = 'unitless' 
