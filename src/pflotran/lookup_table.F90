@@ -29,8 +29,10 @@ module Lookup_Table_module
     procedure(LookupTableValAndGradDummy),deferred,public :: SampleAndGradient
     procedure, public :: LookupTableVarConvFactors  
     procedure, public :: LookupTableVarsInit
+    procedure, public :: VarDataRead
     procedure, public :: VarPointAndUnitConv
     procedure, public :: SetupConstGradExtrap
+    procedure, public :: SetupConstValExtrap
     procedure, public :: LookupTableVarInitGradients
     procedure, public :: SetupVarLinLogInterp
   end type lookup_table_base_type
@@ -126,8 +128,10 @@ module Lookup_Table_module
 
   public :: LookupTableCreateUniform, &
             LookupTableCreateGeneral, &
+            InverseLookupTableCreateGen, &
             LookupTableAxisInit, &
             LookupTableDestroy, &
+            InverseLookupTableGenDestroy, &
             LookupTableTest, &
             LookupTableVarInitList, &
             CreateLookupTableVar, &
@@ -251,6 +255,54 @@ function LookupTableCreateGeneralNoDim()
   LookupTableCreateGeneralNoDim => lookup_table
 
 end function LookupTableCreateGeneralNoDim
+
+! ************************************************************************** !
+
+function InverseLookupTableCreateGen(lookup_table,new_var_iname)
+  ! 
+  ! Author: Paolo Orsini
+   
+  ! Create inverse lookup given: 
+  !   - a general lookup table 
+  !   - the new axis var, assumed to be stored in var_data and with monotonic
+  !     beahaviour
+  ! Note only 1D inverse lookup are currently supported
+  !
+  ! Date: 08/15/18
+  ! 
+
+  implicit none
+  
+  class(lookup_table_general_type), pointer :: InverseLookupTableCreateGen
+  class(lookup_table_general_type), intent(in) :: lookup_table
+  PetscInt, intent(in) :: new_var_iname
+
+  class(lookup_table_general_type), pointer :: inv_lookup_table
+  PetscInt :: data_idx
+  
+  allocate(inv_lookup_table)
+  call LookupTableBaseInit(inv_lookup_table)
+  Inv_lookup_table%dim = lookup_table%dim
+  Inv_lookup_table%dims = lookup_table%dims
+  nullify(inv_lookup_table%axis2)
+  allocate(inv_lookup_table%axis1)
+  call LookupTableAxisInit(inv_lookup_table%axis1)
+  if (Inv_lookup_table%dim > 1) then
+    write(*,*) "only 1D inverse lookup are supported"
+  endif
+  
+  nullify(inv_lookup_table%data)
+  inv_lookup_table%var_data => lookup_table%var_data
+  inv_lookup_table%var_array => lookup_table%var_array
+  inv_lookup_table%vars => lookup_table%vars
+  
+  allocate(inv_lookup_table%axis1)
+  data_idx = lookup_table%var_array(new_var_iname)%ptr%data_idx
+  inv_lookup_table%axis1%values => lookup_table%var_data(data_idx,:)
+  
+  InverseLookupTableCreateGen => inv_lookup_table
+
+end function InverseLookupTableCreateGen
 
 ! ************************************************************************** !
 
@@ -1688,6 +1740,57 @@ subroutine LookupTableGeneralDestroy(lookup_table)
 end subroutine LookupTableGeneralDestroy
 
 ! ************************************************************************** !
+
+subroutine InverseLookupTableGenDestroy(lookup_table)
+  ! 
+  ! Destroy InverseLookupTableGen 
+  ! Not that lookup vars and var_data are only pointer to original lookup
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 08/15/18
+  ! 
+  use Utility_module
+  
+  implicit none
+
+    class(lookup_table_general_type), pointer :: lookup_table
+ 
+    if (.not.associated(lookup_table)) return
+ 
+    if ( associated(lookup_table%data) ) then
+      nullify (lookup_table%data)
+    end if
+ 
+    if ( associated(lookup_table%var_data) ) then
+      nullify (lookup_table%var_data)
+    end if
+
+    if ( associated(lookup_table%axis1) ) then
+      nullify(lookup_table%axis1%values)
+      deallocate(lookup_table%axis1)
+      nullify(lookup_table%axis1)
+    end if  
+
+    if (associated(lookup_table%var_array)) then
+      nullify(lookup_table%var_array)
+    end if
+
+    if (associated(lookup_table%vars)) then
+      nullify(lookup_table%vars)
+    end if
+
+    if (associated(lookup_table%axis2)) then
+      nullify(lookup_table%axis2%values)
+      deallocate(lookup_table%axis2)
+      nullify(lookup_table%axis2)
+    end if
+
+    deallocate(lookup_table)
+    nullify(lookup_table)
+ 
+end subroutine InverseLookupTableGenDestroy
+
+! ************************************************************************** !
 ! ** lookup table variable procedures
 ! ************************************************************************** !
 
@@ -1829,6 +1932,79 @@ end subroutine LookupTableVarInitGradients
 
 ! ************************************************************************** !
 
+subroutine VarDataRead(this,input,num_fields,error_string,option)
+  !
+  ! Reads in table data from input
+  !
+  ! Author: Paolo Orsini
+  ! Date: 08/15/2018
+  !
+
+  use Option_module
+  use Units_module
+  use Input_Aux_module
+  use Utility_module
+  
+  implicit none
+
+  class(lookup_table_base_type) :: this
+  type(input_type), pointer, intent(inout) :: input
+  PetscInt, intent(in) :: num_fields
+  character(len=MAXSTRINGLENGTH), intent(in) :: error_string
+  type(option_type), intent(inout) :: option
+
+  PetscInt :: tmp_array_size 
+  PetscReal, pointer :: tmp_data_array(:,:)
+  PetscInt :: i_data, num_entries, i_entry
+
+  tmp_array_size = 1000 !estimate max table points
+  allocate(tmp_data_array(num_fields,tmp_array_size))
+  tmp_data_array = UNINITIALIZED_DOUBLE
+  
+  !PO TODO replace this entire block with an internal subroutine
+  ! to support the "*" eclipe default entries
+  !call EclipseTable(input,num_fields,tmp_data_array,num_entries,option)
+  ! inputs : input,num_fields
+  ! output : tmp_data_array,num_entries
+  ! inpout : option
+  ! tmp_data_array has computed default "*" 
+  ! note that this approach is general - since if not "*" are gas_present
+  ! the tables are read as usual. Reading will just be more expensive
+  
+  num_entries = 0
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    if (InputError(input)) then
+      option%io_buffer = 'Lookup table var_data reading'
+      call printErrMsg(option)
+    end if
+    num_entries = num_entries + 1
+    !press_idx = press_idx + 1
+    if ( num_entries > tmp_array_size ) then
+      !each time doubles the size of tmp_array_size
+      !tmp_array_size overwritten by new size
+      call ReallocateArray(tmp_data_array,tmp_array_size)
+    end if
+    do i_data = 1, num_fields
+      call InputReadDouble(input,option,tmp_data_array(i_data,num_entries))
+      call InputErrorMsg(input,option,'VALUE',error_string)
+    end do
+  end do
+
+  allocate(this%var_data(num_fields,num_entries))
+  do i_entry = 1,num_entries
+    do i_data = 1, num_fields
+      this%var_data(i_data,i_entry) = tmp_data_array(i_data,i_entry)
+    end do
+  end do
+  
+  call DeallocateArray(tmp_data_array)
+  
+end subroutine VarDataRead
+
+! ************************************************************************** !
+
 subroutine LookupTableVarConvFactors(this,option)
   !
   ! Compute conversion varctors for all lookup table variables
@@ -1895,9 +2071,7 @@ end subroutine VarPointAndUnitConv
 
 subroutine SetupConstGradExtrap(this,option)
   !
-  ! Points variable data arrays to their table columns given the locations
-  ! Convert variable data units given the convrsion factors 
-  ! previously computed
+  ! Setup estrapolation method to constant gradient for all lookup vars
   !
   ! Author: Paolo Orsini
   ! Date: 05/04/2018
@@ -1919,8 +2093,34 @@ subroutine SetupConstGradExtrap(this,option)
   end do  
   
 end subroutine SetupConstGradExtrap
+
+! ************************************************************************** !
+
+subroutine SetupConstValExtrap(this,option)
+  !
+  ! Setup extrapolation method to constant gradient for all lookup vars
+  !
+  ! Author: Paolo Orsini
+  ! Date: 08/16/2018
+  !
+  use Option_module
+
+  implicit none
+
+  class(lookup_table_base_type) :: this
+  type(option_type) :: option
+
+  PetscInt :: prop_idx
+  
+  do prop_idx = 1,size(this%var_array(:))
+    if ( associated(this%var_array(prop_idx)%ptr) ) then
+      this%var_array(prop_idx)%ptr%extrapolation_itype = VAR_EXTRAP_CONST_VAL
+    end if
+  end do  
+  
+end subroutine SetupConstValExtrap
     
-! ************************************************************************** !    
+! ************************************************************************** !
 
 subroutine SetupVarLinLogInterp(this,var_iname,option)
   ! 

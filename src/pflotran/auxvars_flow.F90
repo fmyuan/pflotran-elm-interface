@@ -72,8 +72,8 @@ subroutine AuxVarFlowInit(this,option)
   this%mobility = 0.d0
   allocate(this%viscosity(option%nphase))
   this%viscosity = 0.d0
-  if (option%neos_table_indices > 0) then
-    allocate(this%table_idx(option%neos_table_indices))
+  if (option%num_table_indices > 0) then
+    allocate(this%table_idx(option%num_table_indices))
     this%table_idx = 1
   end if
 

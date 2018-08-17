@@ -1469,7 +1469,7 @@ subroutine SubsurfaceSetupRealization(simulation)
   use EOS_module
   use Dataset_module
   use Patch_module
-  use EOS_module
+  use EOS_module !to be removed as already present above
 
   implicit none
 
