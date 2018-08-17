@@ -1057,15 +1057,17 @@ subroutine SFOWGBaseProcessTable(this,char_curves_tables,error_string,option)
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
 
+  character(len=MAXSTRINGLENGTH) :: error_string_lc
+
   select type(sf => this)
     class is(sat_func_xw_base_type)
-      error_string = trim(error_string) // ',PCOW/PCWG,'
+      error_string_lc = trim(error_string) // 'PCOW/PCWG,'
     class is(sat_func_og_base_type)
-      error_string = trim(error_string) // ',PCOG,'
+      error_string_lc = trim(error_string) // 'PCOG,'
   end select
 
   this%table =>  CharCurveTableGetPtrFromList(this%table_name, &
-                           char_curves_tables,error_string,option)
+                           char_curves_tables,error_string_lc,option)
 
  !load cc curve end points from table
  select type(sf => this)
@@ -2284,19 +2286,21 @@ subroutine RPFOWGBaseProcessTable(this,char_curves_tables,error_string,option)
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
 
+  character(len=MAXSTRINGLENGTH) :: error_string_lc
+
   select type(rpf => this)
     class is(rel_perm_wat_owg_base_type)
-      error_string = trim(error_string) // ',KRW,'
+      error_string_lc = trim(error_string) // 'KRW,'
     class is(rel_perm_gas_owg_base_type)
-      error_string = trim(error_string) // ',KRG,'
+      error_string_lc = trim(error_string) // 'KRG,'
     class is(rel_perm_ow_owg_base_type)
-      error_string = trim(error_string) // ',KROW,'
+      error_string_lc = trim(error_string) // 'KROW,'
     class is(rel_perm_og_owg_base_type)
-      error_string = trim(error_string) // ',KROG,'
+      error_string_lc = trim(error_string) // 'KROG,'
   end select
 
   this%table =>  CharCurveTableGetPtrFromList(this%table_name, &
-                           char_curves_tables,error_string,option)
+                           char_curves_tables,error_string_lc,option)
  !load cc curve end points from table
  select type(rpf => this)
    class is(rel_perm_wat_owg_base_type)
