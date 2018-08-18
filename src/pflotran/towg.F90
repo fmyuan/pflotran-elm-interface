@@ -2884,6 +2884,8 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       d_delta_temp_dt_dn=0.d0
       dheat_flux_ddelta_temp=0.d0
    endif
+   ! zero this out
+   density_ave = 0.d0
  
     bc_type = ibndtype(iphase)
     select case(bc_type)
@@ -2990,11 +2992,6 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                            gravity_term
 
           if (analytical_derivatives) then
-#if 0
-            !!!!?
-            D_delta_presure_dn = -auxvar_dn%D_pres(iphase,:) &
-                                 + D_den_kg_ave_dn
-#endif
             D_delta_presure_dn = -auxvar_dn%D_pres(iphase,:) &
                                  + D_den_kg_ave_dn*dist_gravity
           endif
@@ -3210,12 +3207,12 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       if (analytical_derivatives) then
         D_q_dn = D_v_darcy_dn * area
       endif
-#if 0
       if (density_ave < 1.d-40) then
-        option%io_buffer = 'Zero density in TOWGImsTLBOBCFlux()'
-        call printErrMsgByRank(option)
+        print *, "density ave is ", density_ave
+        !option%io_buffer = 'Zero density in TOWGImsTLBOBCFlux()'
+        !call printErrMsgByRank(option)
       endif
-#endif
+
       ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
       !                              density_ave[kmol phase/m^3 phase]
       mole_flux = q*density_ave
@@ -3235,6 +3232,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                 if( is_oil_in_oil ) xmf=auxvar_up%bo%xo
                 if( is_gas_in_oil ) xmf=auxvar_up%bo%xg
               else
+                D_xmf_dn = 0.d0
                 if( is_oil_in_oil ) xmf=auxvar_dn%bo%xo
                 if( is_gas_in_oil ) xmf=auxvar_dn%bo%xg
                 if( is_oil_in_oil ) D_xmf_dn=auxvar_dn%bo%D_xo
