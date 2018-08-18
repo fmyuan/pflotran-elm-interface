@@ -429,7 +429,8 @@ module Characteristic_Curves_OWG_module
             GasPermFunctionOWGDestroy, &
             OGPermFunctionOWGDestroy, &
             OWPermFunctionOWGDestroy, &
-            OilPermFunctionOWGDestroy
+            OilPermFunctionOWGDestroy, &
+            SetCCOWGPhaseFlags
   
 contains
 
@@ -1072,9 +1073,11 @@ subroutine SFOWGBaseProcessTable(this,char_curves_tables,error_string,option)
  !load cc curve end points from table
  select type(sf => this)
    class is(sat_func_xw_base_type)
+     call this%table%CheckCCTVariableExists(CCT_PCXW,error_string_lc,option)
      sf%Swco = sf%table%Swco
      sf%Swcr = sf%table%Swcr
    class is(sat_func_og_base_type)
+     call this%table%CheckCCTVariableExists(CCT_PCOG,error_string_lc,option)
      sf%Sgco = sf%table%Sgco
      sf%Sgcr = sf%table%Sgcr
 end select
@@ -2304,14 +2307,18 @@ subroutine RPFOWGBaseProcessTable(this,char_curves_tables,error_string,option)
  !load cc curve end points from table
  select type(rpf => this)
    class is(rel_perm_wat_owg_base_type)
+     call this%table%CheckCCTVariableExists(CCT_KRW,error_string_lc,option)
      rpf%Swco = rpf%table%Swco
      rpf%Swcr = rpf%table%Swcr
    class is(rel_perm_gas_owg_base_type)
+     call this%table%CheckCCTVariableExists(CCT_KRG,error_string_lc,option)
      rpf%Sgco = rpf%table%Sgco
      rpf%Sgcr = rpf%table%Sgcr
    class is(rel_perm_ow_owg_base_type)
+     call this%table%CheckCCTVariableExists(CCT_KROW,error_string_lc,option)
      rpf%Sowcr = rpf%table%Sowcr
    class is(rel_perm_og_owg_base_type)
+     call this%table%CheckCCTVariableExists(CCT_KROG,error_string_lc,option)
      rpf%Sogcr = rpf%table%Sogcr
 end select
 
@@ -4699,5 +4706,54 @@ subroutine OilPermFunctionOWGDestroy(rpf)
 
 end subroutine OilPermFunctionOWGDestroy
 
+! ************************************************************************** !
+
+subroutine SetCCOWGPhaseFlags(option,oil_gas_interface_present, &
+                              wat_gas_interface_present, gas_present, &
+                              oil_perm_2ph_ow,oil_perm_3ph_owg)
+  !
+  ! Set phase flags for error checks based on PM moeds
+  !
+  ! Author: Paolo Orsini
+  ! Date: 08/18/18
+  !
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+  PetscBool, intent(out) :: oil_gas_interface_present
+  PetscBool, intent(out) :: wat_gas_interface_present
+  PetscBool, intent(out) :: gas_present
+  PetscBool, intent(out) :: oil_perm_2ph_ow
+  PetscBool, intent(out) :: oil_perm_3ph_owg
+
+  oil_perm_2ph_ow = PETSC_FALSE
+  oil_perm_3ph_owg = PETSC_FALSE
+  gas_present = PETSC_FALSE
+  oil_gas_interface_present = PETSC_FALSE
+  wat_gas_interface_present = PETSC_FALSE
+
+  select case(option%iflowmode)
+    case(TOIL_IMS_MODE)
+      oil_perm_2ph_ow = PETSC_TRUE
+    case(TOWG_MODE)
+      select case(option%iflow_sub_mode)
+        case(TOWG_TODD_LONGSTAFF)
+          oil_perm_2ph_ow = PETSC_TRUE
+        case(TOWG_IMMISCIBLE)
+          oil_perm_2ph_ow = PETSC_TRUE !oil_perm_3ph_owg no yet supported
+          gas_present = PETSC_TRUE
+          oil_gas_interface_present = PETSC_TRUE
+        case default ! Black Oil and Solvent models
+          oil_perm_3ph_owg = PETSC_TRUE
+          gas_present = PETSC_TRUE
+          oil_gas_interface_present = PETSC_TRUE
+    end select
+  end select
+
+end subroutine SetCCOWGPhaseFlags
+
+! ************************************************************************** !
 
 end module Characteristic_Curves_OWG_module

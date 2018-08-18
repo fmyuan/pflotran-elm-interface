@@ -28,6 +28,9 @@ module Char_Curves_Table_module
   PetscInt, parameter, public :: CCT_SOF2 = 3
   PetscInt, parameter, public :: CCT_SOF3 = 4
   
+  !PO This can be defined also as extension of lookup_table_general_type
+  ! could save some code, shorten the call signatures via lookup_table,
+  ! and reduce the methods to access lookup_table memebers
   type, public :: char_curves_table_type
     character(len=MAXWORDLENGTH) :: name 
     PetscInt :: itype
@@ -45,6 +48,7 @@ module Char_Curves_Table_module
     procedure :: SetSGFNTable
     procedure :: SetSOF3Table
     procedure :: SetSOF2Table
+    procedure, public :: CheckCCTVariableExists
     procedure, public :: CharCurveTableVarGrad
     procedure, public :: CharCurvePcInvTableVarGrad
   end type char_curves_table_type
@@ -53,6 +57,7 @@ module Char_Curves_Table_module
             CharCurvesTableRead, &
             CharCurvesTableAddToList, &
             CharCurveTableGetPtrFromList, &
+            SearchCCTVarInCCTableList, &
             CharCurvesTableDestroy
   
 contains
@@ -543,6 +548,91 @@ function CharCurveTableGetPtrFromList(cc_table_name,list,error_string,option)
   end if
     
 end function CharCurveTableGetPtrFromList
+
+! ************************************************************************** !
+
+subroutine SearchCCTVarInCCTableList(list,var_iname,cc_table_name, &
+                                                        error_string,option)
+  ! 
+  ! Returns a pointer to the cc_table matching cc_table_name
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 08/16/18
+  ! 
+
+  use String_module
+  use Option_module
+
+  implicit none
+  
+  type(char_curves_table_type), pointer :: list
+  PetscInt, intent(in) :: var_iname
+  character(len=MAXWORDLENGTH), intent(out) :: cc_table_name
+  character(len=MAXSTRINGLENGTH), intent(in) :: error_string
+  type(option_type) :: option  
+  
+  class(char_curves_table_type), pointer :: cur_char_curves_table
+  PetscInt :: num_occurrences
+  
+  num_occurrences = 0
+  cc_table_name = ''
+  
+  !point the first object in the list 
+  cur_char_curves_table => list
+  do 
+    if (.not.associated(cur_char_curves_table)) exit 
+    !occurrence check
+    if (cur_char_curves_table%lookup_table%LookupTableVarIsPresent( &
+                                                          var_iname)) then
+      num_occurrences = num_occurrences + 1
+      cc_table_name = trim(cur_char_curves_table%name)
+    end if
+    cur_char_curves_table => cur_char_curves_table%next
+  enddo
+
+  if (num_occurrences == 1) then
+    return
+  else if (num_occurrences > 1) then
+    option%io_buffer = trim(error_string) // &
+              ' data found in multiple tables - please select one of table'
+    call printErrMsg(option)
+  else if ( num_occurrences < 1) then
+    option%io_buffer = trim(error_string) // &
+                               'data not found within the tables'
+    call printErrMsg(option)
+  end if
+    
+end subroutine SearchCCTVarInCCTableList
+
+! ************************************************************************** !
+
+subroutine CheckCCTVariableExists(this,var_iname,error_string,option)
+  ! 
+  ! Check if a CCT variable is present 
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 08/18/18
+  ! 
+
+  use Option_module
+  use String_module
+  
+  implicit none
+  
+  class(char_curves_table_type) :: this
+  PetscInt, intent(in) :: var_iname
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: error_string_lc
+
+  if (.not.this%lookup_table%LookupTableVarIsPresent(var_iname)) then
+    error_string_lc = 'data not found in table = ' // trim(this%name)
+    option%io_buffer = error_string_lc
+    call printErrMsg(option)      
+  end if
+
+end subroutine CheckCCTVariableExists
 
 ! ************************************************************************** !
 

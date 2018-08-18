@@ -29,6 +29,7 @@ module Lookup_Table_module
     procedure(LookupTableValAndGradDummy),deferred,public :: SampleAndGradient
     procedure, public :: LookupTableVarConvFactors  
     procedure, public :: LookupTableVarsInit
+    procedure, public :: LookupTableVarIsPresent
     procedure, public :: VarDataRead
     procedure, public :: VarPointAndUnitConv
     procedure, public :: SetupConstGradExtrap
@@ -1817,6 +1818,26 @@ subroutine LookupTableVarsInit(this,n_var_max)
   end do
 
 end subroutine LookupTableVarsInit
+
+! ************************************************************************** !
+
+function LookupTableVarIsPresent(this,var_iname)
+  !
+  ! Check is a lookup table var is present in an existing lookup table
+  !
+  ! Author: Paolo Orsini
+  ! Date: 05/04/18
+  !
+
+  implicit none
+
+  PetscBool :: LookupTableVarIsPresent
+  class(lookup_table_base_type) :: this
+  PetscInt, intent(in) :: var_iname
+
+  LookupTableVarIsPresent = associated(this%var_array(var_iname)%ptr)
+
+end function LookupTableVarIsPresent
 
 ! ************************************************************************** !
 

@@ -2063,7 +2063,8 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
   type(option_type) :: option
   
   character(len=MAXSTRINGLENGTH) :: string
-  PetscBool :: gas_present, oil_gas_interface_present
+  PetscBool :: gas_present, oil_gas_interface_present 
+  PetscBool :: wat_gas_interface_present
   PetscBool :: oil_perm_2ph_ow, oil_perm_3ph_owg
   PetscReal :: swcr, swco, sgco, sgcr, sowcr, sogcr
  
@@ -2074,27 +2075,31 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
   sowcr = 0.0
   sogcr = 0.0
  
-  oil_perm_2ph_ow = PETSC_FALSE
-  oil_perm_3ph_owg = PETSC_FALSE
-  gas_present = PETSC_FALSE
-  oil_gas_interface_present = PETSC_FALSE
-
-  select case(option%iflowmode)
-    case(TOIL_IMS_MODE)
-      oil_perm_2ph_ow = PETSC_TRUE
-    case(TOWG_MODE)
-      select case(option%iflow_sub_mode)
-        case(TOWG_TODD_LONGSTAFF)
-          oil_perm_2ph_ow = PETSC_TRUE
-        case(TOWG_IMMISCIBLE)
-          oil_perm_2ph_ow = PETSC_TRUE
-          gas_present = PETSC_TRUE          
-        case default
-          oil_perm_3ph_owg = PETSC_TRUE
-          gas_present = PETSC_TRUE
-          oil_gas_interface_present = PETSC_TRUE
-    end select
-  end select
+  call SetCCOWGPhaseFlags(option,oil_gas_interface_present, &
+                          wat_gas_interface_present, gas_present, &
+                          oil_perm_2ph_ow,oil_perm_3ph_owg)
+ 
+  ! oil_perm_2ph_ow = PETSC_FALSE
+  ! oil_perm_3ph_owg = PETSC_FALSE
+  ! gas_present = PETSC_FALSE
+  ! oil_gas_interface_present = PETSC_FALSE
+  ! 
+  ! select case(option%iflowmode)
+  !   case(TOIL_IMS_MODE)
+  !     oil_perm_2ph_ow = PETSC_TRUE
+  !   case(TOWG_MODE)
+  !     select case(option%iflow_sub_mode)
+  !       case(TOWG_TODD_LONGSTAFF)
+  !         oil_perm_2ph_ow = PETSC_TRUE
+  !       case(TOWG_IMMISCIBLE)
+  !         oil_perm_2ph_ow = PETSC_TRUE
+  !         gas_present = PETSC_TRUE          
+  !       case default
+  !         oil_perm_3ph_owg = PETSC_TRUE
+  !         gas_present = PETSC_TRUE
+  !         oil_gas_interface_present = PETSC_TRUE
+  !   end select
+  ! end select
 
   string = 'CHARACTERISTIC_CURVES(' // trim(characteristic_curves%name) // &
            '),'
@@ -2339,129 +2344,151 @@ subroutine CharCurvesOWGPostReadProcess(cc,option)
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXSTRINGLENGTH) :: error_string_search
+  character(len=MAXWORDLENGTH) :: table_name
+  PetscBool :: gas_present, oil_gas_interface_present 
+  PetscBool :: wat_gas_interface_present
+  PetscBool :: oil_perm_2ph_ow, oil_perm_3ph_owg
+
+  call SetCCOWGPhaseFlags(option,oil_gas_interface_present, &
+                          wat_gas_interface_present, gas_present, &
+                          oil_perm_2ph_ow,oil_perm_3ph_owg)
 
   error_string = 'CHARACTERISTIC CURVES,(' // trim(cc%name) // '),'
+  error_string_search = ''
+ 
+  if (associated(cc%oil_wat_sat_func)) then
+    select type (sf => cc%oil_wat_sat_func)
+      class is (sat_func_xw_table_type)
+        call sf%ProcessTable(cc%char_curves_tables,error_string,option)
+    end select
+  else !attempt to create from list of cc_tables - always
+    error_string_search = trim(error_string) // 'searching for PC_OW,'
+    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_PCXW, &
+                                    table_name,error_string_search,option)
+    cc%oil_wat_sat_func => SF_XW_table_Create()
+    cc%oil_wat_sat_func%table_name = table_name
+    call cc%oil_wat_sat_func%ProcessTable(cc%char_curves_tables, &
+                                                error_string_search,option)
+  end if
+  
+  if (associated(cc%gas_wat_sat_func)) then 
+    select type (sf => cc%gas_wat_sat_func)
+      class is (sat_func_xw_table_type)
+        call sf%ProcessTable(cc%char_curves_tables,error_string,option)
+    end select
+  else if (wat_gas_interface_present) then !attempt to create from list of cc_tables
+    error_string_search = trim(error_string) // 'searching for PC_GW,'
+    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_PCXW, &
+                                    table_name,error_string_search,option)
+    cc%gas_wat_sat_func => SF_XW_table_Create()
+    cc%gas_wat_sat_func%table_name = table_name
+    call cc%gas_wat_sat_func%ProcessTable(cc%char_curves_tables, &
+                                                error_string_search,option)
+  end if
 
-   if (associated(cc%oil_wat_sat_func)) then
-     select type (sf => cc%oil_wat_sat_func)
-       class is (sat_func_xw_table_type)
-         call sf%ProcessTable(cc%char_curves_tables,error_string,option)
-  !       sf%cc_lookup_table => cc_curve_get_table_prt(sf%table_name, &
-  !                             cc%char_curves_tables,'PCOW',error_string,option)
-  !       ! sf%cc_lookup_table => &
-  !       !   CharCurveTableGetPtrFromList(sf%table_name,cc%char_curves_tables)
-  !       ! if (.not. associated(sf%cc_lookup_table) ) then
-  !       !   error_string = error_string // 'PCOW table = ' //  &
-  !       !                  trim(sf%table_name) // ' not found'
-  !       !   call printErrMsg(option)
-  !       ! end if  
-     end select
-   end if
-  !else
-  ! search for SWFN in the table list (new function - take table type return table pointer) 
-  ! if present cc%oil_wat_sat_func => RPF_og_owg_table_Create()
-  ! cc%oil_wat_sat_func%table_name = cc_table%name
-  ! cc%oil_wat_sat_func%ProcessTable(cc%char_curves_tables,error_string,option)
-  !
-  !end if
-  ! 
-   if (associated(cc%gas_wat_sat_func)) then 
-     select type (sf => cc%gas_wat_sat_func)
-       class is (sat_func_xw_table_type)
-         call sf%ProcessTable(cc%char_curves_tables,error_string,option)
-  !       sf%cc_lookup_table => cc_curve_get_table_prt(sf%table_name, &
-  !                             cc%char_curves_tables,'PCGW',error_string,option)
-  !       ! sf%cc_lookup_table => &
-  !       !   CharCurveTableGetPtrFromList(sf%table_name,cc%char_curves_tables)
-  !       ! if (.not. associated(sf%cc_lookup_table) ) then
-  !       !   error_string = error_string // 'PCGW table = ' //  &
-  !       !                  trim(sf%table_name) // ' not found'
-  !       !   call printErrMsg(option)
-  !       ! end if  
-     end select
-   end if
-
-   if (associated(cc%oil_gas_sat_func)) then 
-     select type (sf => cc%oil_gas_sat_func)
-       class is (sat_func_og_table_type)
-         call sf%ProcessTable(cc%char_curves_tables,error_string,option)
-  !       sf%cc_lookup_table => cc_curve_get_table_prt(sf%table_name, &
-  !                             cc%char_curves_tables,'PCOG',error_string,option)
-  !       ! sf%cc_lookup_table => &
-  !       !   CharCurveTableGetPtrFromList(sf%table_name,cc%char_curves_tables)
-  !       ! if (.not. associated(sf%cc_lookup_table) ) then
-  !       !   error_string = error_string // 'PCOG table = ' //  &
-  !       !                  trim(sf%table_name) // ' not found'
-  !       !   call printErrMsg(option)
-  !       ! end if  
-     end select
-   end if
+  if (associated(cc%oil_gas_sat_func)) then 
+    select type (sf => cc%oil_gas_sat_func)
+      class is (sat_func_og_table_type)
+        call sf%ProcessTable(cc%char_curves_tables,error_string,option)
+    end select
+  else if (oil_gas_interface_present) then !attempt to create from list of cc_tables
+    error_string_search = trim(error_string) // 'searching for PC_OG,'
+    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_PCOG, &
+                                     table_name,error_string_search,option)
+    cc%oil_gas_sat_func => SF_OG_table_Create()
+    cc%oil_gas_sat_func%table_name = table_name
+    call cc%oil_gas_sat_func%ProcessTable(cc%char_curves_tables, &
+                                                  error_string_search,option)
+  end if
 
   if (associated(cc%wat_rel_perm_func_owg)) then
     select type (rpf => cc%wat_rel_perm_func_owg)
       class is (RPF_wat_owg_table_type)
         call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
-        !rpf%cc_lookup_table => cc_curve_get_table_prt(rpf%table_name, &
-        !                      cc%char_curves_tables,'KRW',error_string,option)
-        ! rpf%cc_lookup_table => &
-        !   CharCurveTableGetPtrFromList(rpf%table_name,cc%char_curves_tables)
-        ! if (.not. associated(rpf%cc_lookup_table) ) then
-        !   error_string = error_string // 'KRW table = ' //  &
-        !                  trim(rpf%table_name) // ' not found'
-        !   call printErrMsg(option)
-        ! end if  
     end select
+  else !attempt to create from list of cc_tables - always
+    error_string_search = trim(error_string) // 'searching for KRW,'
+    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KRW, &
+                                    table_name,error_string_search,option)
+    cc%wat_rel_perm_func_owg => RPF_wat_owg_table_Create()
+    cc%wat_rel_perm_func_owg%table_name = table_name
+    call cc%wat_rel_perm_func_owg%ProcessTable(cc%char_curves_tables, &
+                                                  error_string_search,option)
   end if
 
   if (associated(cc%gas_rel_perm_func_owg)) then
     select type (rpf => cc%gas_rel_perm_func_owg)
-      class is (RPF_gas_owg_table_type)
-        call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
-        !rpf%cc_lookup_table => cc_curve_get_table_prt(rpf%table_name, &
-        !                       cc%char_curves_tables,'KRG',error_string,option)
-        ! rpf%cc_lookup_table => &
-        !   CharCurveTableGetPtrFromList(rpf%table_name,cc%char_curves_tables)
-        ! if (.not. associated(rpf%cc_lookup_table) ) then
-        !   error_string = error_string // 'KRG table = ' //  &
-        !                  trim(rpf%table_name) // ' not found'
-        !   call printErrMsg(option)
-        ! end if  
+     class is (RPF_gas_owg_table_type)
+       call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
     end select
+  else if(gas_present) then !attempt to create from list of cc_tables
+    error_string_search = trim(error_string) // 'searching for KRG,'
+    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KRG, &
+                                    table_name,error_string_search,option)
+    cc%gas_rel_perm_func_owg => RPF_gas_owg_table_Create()
+    cc%gas_rel_perm_func_owg%table_name = table_name
+    call cc%gas_rel_perm_func_owg%ProcessTable(cc%char_curves_tables, &
+                                                  error_string_search,option)
   end if
 
   if (associated(cc%ow_rel_perm_func_owg)) then
     select type (rpf => cc%ow_rel_perm_func_owg)
       class is (rel_perm_ow_owg_table_type)
         call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
-        !rpf%cc_lookup_table => cc_curve_get_table_prt(rpf%table_name, &
-        !                      cc%char_curves_tables,'KROW',error_string,option)
-        ! rpf%cc_lookup_table => &
-        !   CharCurveTableGetPtrFromList(rpf%table_name,cc%char_curves_tables)
-        ! if (.not. associated(rpf%cc_lookup_table) ) then
-        !   error_string = error_string // 'KROW table = ' //  &
-        !                  trim(rpf%table_name) // ' not found'
-        !   call printErrMsg(option)
-        ! end if  
     end select
+  else if (oil_perm_2ph_ow) then !attempt to create from list of cc_tables
+    error_string_search = trim(error_string) // 'searching for KROW,'
+    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KROW, &
+                                    table_name,error_string_search,option)
+    cc%ow_rel_perm_func_owg => RPF_ow_owg_table_Create()
+    cc%ow_rel_perm_func_owg%table_name = table_name
+    call cc%ow_rel_perm_func_owg%ProcessTable(cc%char_curves_tables, &
+                                               error_string_search,option)
   end if
 
   if (associated(cc%oil_rel_perm_func_owg)) then
     if (associated(cc%oil_rel_perm_func_owg%rel_perm_ow)) then
       select type (rpf => cc%oil_rel_perm_func_owg%rel_perm_ow)
-        class is(rel_perm_ow_owg_table_type)
-          call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
-          !rpf%cc_lookup_table => cc_curve_get_table_prt(rpf%table_name, &
-          !                  cc%char_curves_tables,'KROW',error_string,option)
-      end select  
-    end if  
+       class is(rel_perm_ow_owg_table_type)
+         call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
+      end select
+    end if
     if (associated(cc%oil_rel_perm_func_owg%rel_perm_og)) then
       select type (rpf => cc%oil_rel_perm_func_owg%rel_perm_og)
         class is(rel_perm_og_owg_table_type)
           call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
-          !rpf%cc_lookup_table => cc_curve_get_table_prt(rpf%table_name, &
-          !                  cc%char_curves_tables,'KROG',error_string,option)
-      end select  
-    end if  
+       end select
+    end if   
+    ! else !attempt to create from list of cc_tables
+    !   error_string_search = trim(error_string) // 'searching KROW'
+    !   call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KROW, &
+    !                                   table_name,error_string_search,option)
+    !   cc%oil_rel_perm_func_owg%rel_perm_ow => RPF_ow_owg_table_Create()
+    !   cc%oil_rel_perm_func_owg%rel_perm_ow%table_name = table_name
+    !   call cc%oil_rel_perm_func_owg%rel_perm_ow%ProcessTable( &
+    !                        cc%char_curves_tables,error_string_search,option)
+    ! end if
+  else if(oil_perm_3ph_owg) then
+    !default to eclipse - user must enter the KRO block to define different 
+    !models when available
+    cc%oil_rel_perm_func_owg => RPF_oil_ecl_Create()
+    !attempt to create KROW from list of cc_tables
+    error_string_search = trim(error_string) // 'searching for KROW,'
+    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KROW, &
+                                   table_name,error_string_search,option)
+    cc%oil_rel_perm_func_owg%rel_perm_ow => RPF_ow_owg_table_Create()
+    cc%oil_rel_perm_func_owg%rel_perm_ow%table_name = table_name
+    call cc%oil_rel_perm_func_owg%rel_perm_ow%ProcessTable( &
+                        cc%char_curves_tables,error_string_search,option)
+    !attempt to create KROG from list of cc_tables
+    error_string_search = trim(error_string) // 'searching for KROG,'
+    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KROG, &
+                                  table_name,error_string_search,option)
+    cc%oil_rel_perm_func_owg%rel_perm_og => RPF_og_owg_table_Create()
+    cc%oil_rel_perm_func_owg%rel_perm_og%table_name = table_name
+    call cc%oil_rel_perm_func_owg%rel_perm_og%ProcessTable( &
+                         cc%char_curves_tables,error_string_search,option)
   end if
 
 end subroutine CharCurvesOWGPostReadProcess
