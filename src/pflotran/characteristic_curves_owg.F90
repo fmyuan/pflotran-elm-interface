@@ -3281,6 +3281,12 @@ subroutine RPF_gas_owg_func_sl_RelPerm(this,gas_sat,rel_perm, &
  liq_sat = 1.0 - gas_sat
  dkrg_satl = 0.0
 
+ if (gas_sat <= this%Sgcr ) then
+   rel_perm = 0.0
+   dkrg_satl = 0.0
+   return
+ end if
+
  call this%rel_perm_func_sl%RelativePermeability(liq_sat,rel_perm, &
                                                         dkrg_satl,option)
 
