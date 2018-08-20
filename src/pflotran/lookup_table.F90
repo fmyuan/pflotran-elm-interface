@@ -335,19 +335,6 @@ function InverseLookupTableCreateGen(lookup_table,new_axis_var_iname,option)
     inv_lookup_table%var_data = lookup_table%var_data
   end if
     
-  ! inv_lookup_table%var_array => lookup_table%var_array
-  ! !repoint data in var_array to new var_data (since this might have been inverted)
-  ! inv_lookup_table%vars => lookup_table%vars
-  ! do i_tmp = 1,size(inv_lookup_table%var_array(:))
-  !   if ( associated(inv_lookup_table%var_array(i_tmp)%ptr) ) then
-  !     NewInvLookupVar => CreateLookupTableVar(lookup_table%var_array(i_tmp)%ptr)
-  !     nullify(NewInvLookupVar%data)
-  !     data_idx = inv_lookup_table%var_array(i_tmp)%ptr%data_idx
-  !     call LookupTableVarAddToList(NewInvLookupVar,NewInvLookupVar%vars)
-  !     !inv_lookup_table%var_array(i_tmp)%ptr%data => &
-  !     !                        inv_lookup_table%var_data(data_idx,:)
-  !   end if
-  ! end do    
   call inv_lookup_table%LookupTableVarsInit(size(lookup_table%var_array(:)))
   do i_tmp = 1,size(lookup_table%var_array(:))
     if ( associated(lookup_table%var_array(i_tmp)%ptr) ) then
@@ -365,7 +352,6 @@ function InverseLookupTableCreateGen(lookup_table,new_axis_var_iname,option)
   
   allocate(inv_lookup_table%axis1)
   data_idx = inv_lookup_table%var_array(new_axis_var_iname)%ptr%data_idx
-  !inv_lookup_table%axis1%values => inv_lookup_table%var_data(data_idx,:)
   !copying axis1%values (not pointing) for consistency with all other tables
   allocate(inv_lookup_table%axis1%values( &
                           size(inv_lookup_table%var_data(data_idx,:))) )
@@ -1810,51 +1796,6 @@ subroutine LookupTableGeneralDestroy(lookup_table)
 
 end subroutine LookupTableGeneralDestroy
 
-! ************************************************************************** !
-
-! subroutine InverseLookupTableGenDestroy(lookup_table)
-!   ! 
-!   ! Destroy InverseLookupTableGen (1d only supported)
-!   ! Not that lookup vars and var_data are only pointer to original lookup
-!   ! 
-!   ! Author: Paolo Orsini
-!   ! Date: 08/15/18
-!   ! 
-!   use Utility_module
-! 
-!   implicit none
-! 
-!     class(lookup_table_general_type), pointer :: lookup_table
-! 
-!     if (.not.associated(lookup_table)) return
-! 
-!     if ( associated(lookup_table%data) ) then
-!       nullify (lookup_table%data)
-!     end if
-! 
-!     if ( associated(lookup_table%var_data) ) then
-!       call DeallocateArray(lookup_table%var_data)
-!       nullify (lookup_table%var_data)
-!     end if
-! 
-!     if ( associated(lookup_table%axis1) ) then
-!       nullify(lookup_table%axis1%values)
-!       deallocate(lookup_table%axis1)
-!       nullify(lookup_table%axis1)
-!     end if  
-! 
-!     if (associated(lookup_table%var_array)) then
-!       nullify(lookup_table%var_array)
-!     end if
-! 
-!     if (associated(lookup_table%vars)) then
-!       nullify(lookup_table%vars)
-!     end if
-! 
-!     deallocate(lookup_table)
-!     nullify(lookup_table)
-! 
-! end subroutine InverseLookupTableGenDestroy
 
 ! ************************************************************************** !
 ! ** lookup table variable procedures

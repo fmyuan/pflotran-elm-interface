@@ -798,8 +798,6 @@ recursive subroutine CharCurvesTableDestroy(cc_table)
   
   call CharCurvesTableDestroy(cc_table%next)
   
-  !destroy inverse_lookup_table before, as contains pointers to lookup_table
-  !call InverseLookupTableGenDestroy(cc_table%pc_inv_lookup_table)
   call LookupTableDestroy(cc_table%pc_inv_lookup_table)
   call LookupTableDestroy(cc_table%lookup_table)
 

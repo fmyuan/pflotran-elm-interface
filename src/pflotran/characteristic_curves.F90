@@ -48,7 +48,6 @@ module Characteristic_Curves_module
             CharCurvesGetGetResidualSats, &
             CharacteristicCurvesDestroy, &
             CharCurvesInputRecord 
-            !GetCriticals
 
 contains
 
@@ -2078,28 +2077,6 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
   call SetCCOWGPhaseFlags(option,oil_gas_interface_present, &
                           wat_gas_interface_present, gas_present, &
                           oil_perm_2ph_ow,oil_perm_3ph_owg)
- 
-  ! oil_perm_2ph_ow = PETSC_FALSE
-  ! oil_perm_3ph_owg = PETSC_FALSE
-  ! gas_present = PETSC_FALSE
-  ! oil_gas_interface_present = PETSC_FALSE
-  ! 
-  ! select case(option%iflowmode)
-  !   case(TOIL_IMS_MODE)
-  !     oil_perm_2ph_ow = PETSC_TRUE
-  !   case(TOWG_MODE)
-  !     select case(option%iflow_sub_mode)
-  !       case(TOWG_TODD_LONGSTAFF)
-  !         oil_perm_2ph_ow = PETSC_TRUE
-  !       case(TOWG_IMMISCIBLE)
-  !         oil_perm_2ph_ow = PETSC_TRUE
-  !         gas_present = PETSC_TRUE          
-  !       case default
-  !         oil_perm_3ph_owg = PETSC_TRUE
-  !         gas_present = PETSC_TRUE
-  !         oil_gas_interface_present = PETSC_TRUE
-  !   end select
-  ! end select
 
   string = 'CHARACTERISTIC_CURVES(' // trim(characteristic_curves%name) // &
            '),'
@@ -2470,15 +2447,6 @@ subroutine CharCurvesOWGPostReadProcess(cc,option)
           call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
        end select
     end if   
-    ! else !attempt to create from list of cc_tables
-    !   error_string_search = trim(error_string) // 'searching KROW'
-    !   call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KROW, &
-    !                                   table_name,error_string_search,option)
-    !   cc%oil_rel_perm_func_owg%rel_perm_ow => RPF_ow_owg_table_Create()
-    !   cc%oil_rel_perm_func_owg%rel_perm_ow%table_name = table_name
-    !   call cc%oil_rel_perm_func_owg%rel_perm_ow%ProcessTable( &
-    !                        cc%char_curves_tables,error_string_search,option)
-    ! end if
   else if(oil_perm_3ph_owg) then
     !default to eclipse - user must enter the KRO block to define different 
     !models when available
@@ -2503,42 +2471,6 @@ subroutine CharCurvesOWGPostReadProcess(cc,option)
 
 end subroutine CharCurvesOWGPostReadProcess
 
-! **************************************************************************** !
-
-!subroutine cc_curve_get_table_prt(curve_type,cc_lookup_table,table_name,char_curves_tables)
-
-! function cc_curve_get_table_prt(table_name,cc_tables,curve_type, &
-!                                               error_string,option)
-!   !
-!   ! Get cc_table pointer for a given cc curve defined bt table
-!   ! Return error if table not available in the cc_tables list
-!   !
-!   ! Author: Paolo Orsini
-!   ! Date: 08/16/18
-!   !
-!   use Option_module
-! 
-!   implicit none
-! 
-!   class(char_curves_table_type), pointer :: cc_curve_get_table_prt
-!   character(len=MAXWORDLENGTH), intent(in) :: table_name
-!   class(char_curves_table_type), intent(in), pointer :: cc_tables
-!   character(len=MAXWORDLENGTH), intent(in) :: curve_type
-!   character(len=MAXSTRINGLENGTH), intent(in) :: error_string
-!   type(option_type) :: option
-! 
-!   character(len=MAXSTRINGLENGTH) :: error_string_to_print
-! 
-!   cc_curve_get_table_prt => CharCurveTableGetPtrFromList(table_name,cc_tables)
-! 
-!   if (.not. associated(cc_curve_get_table_prt) ) then
-!     error_string_to_print = error_string // trim(curve_type) ' table = ' //  &
-!                             trim(rpf%table_name) // ' not found'
-!     option%io_buffer = error_string_to_print           
-!     call printErrMsg(option)
-!   end if
-! 
-! end function  cc_curve_get_table_prt
 ! **************************************************************************** !
 
 subroutine CharCurvesInputRecord(char_curve_list)

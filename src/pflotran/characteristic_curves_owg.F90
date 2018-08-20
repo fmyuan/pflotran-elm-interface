@@ -470,13 +470,6 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
       error_string = trim(error_string) // 'CONSTANT_PRESSURE_XW'
     class is(sat_func_og_constant_type)
       error_string = trim(error_string) // 'CONSTANT_PRESSURE_OG'
-    !add here the two classes using lokup_tables   
-    !class is(sat_func_xw_lookup_table_type)
-    !   error_string = trim(error_string) // 'LOOKUP_TABLE_XW'
-    !class is(sat_func_og_lookup_table_type)
-    !   error_string = trim(error_string) // 'LOOKUP_TABLE_OG'
-    !class is(sat_func_og_BC_type)
-    !  error_string = trim(error_string) // 'BROOKS_COREY_OG'
   end select
 
   do
@@ -865,12 +858,6 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
             select case(perm_func_ch_type)
               case('MOD_BROOKS_COREY')
                 rpf%rel_perm_ow => RPF_ow_owg_MBC_Create()
-              ! case('TABLE')
-              !   rpf%rel_perm_ow => RPF_ow_owg_table_Create()
-              !   call InputReadWord(input,option, &
-              !                      rpf%rel_perm_ow%table_name,PETSC_TRUE)
-              !   call InputErrorMsg(input,option, &
-              !           'PERMEABILITY_FUNCTION_OW/KOW,TABLE',error_string)
               case default
                 call InputKeywordUnrecognized(perm_func_ch_type, &
                                             'PERMEABILITY_FUNCTION_OW',option)
@@ -889,12 +876,6 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
             select case(perm_func_ch_type)
               case('MOD_BROOKS_COREY')
                 rpf%rel_perm_og => RPF_og_owg_MBC_Create()
-              ! case('TABLE')
-              !   rpf%rel_perm_og => RPF_og_owg_table_Create()
-              !   call InputReadWord(input,option, &
-              !                      rpf%rel_perm_og%table_name,PETSC_TRUE)
-              !   call InputErrorMsg(input,option, &
-              !           'PERMEABILITY_FUNCTION_OG/KOG,TABLE',error_string)
               case default
                 call InputKeywordUnrecognized(perm_func_ch_type, &
                                             'PERMEABILITY_FUNCTION_OG',option)
