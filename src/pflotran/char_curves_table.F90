@@ -38,16 +38,16 @@ module Char_Curves_Table_module
     PetscInt :: n_indices !number of indices to be saved for lookup
     PetscInt :: first_index !location of first index in auxvars
     PetscReal :: Swco,Swcr,Sgco,Sgcr,Sowcr,Sogcr !table end points
+    PetscBool :: pc_inverse_available
     class(lookup_table_general_type), pointer :: lookup_table
     class(lookup_table_general_type), pointer :: pc_inv_lookup_table
     class(char_curves_table_type), pointer :: next
   contains
-    !procedure, public :: ReadLookupTable
-    !procedure, public :: SetPcInvLookupTable
     procedure :: SetSWFNTable
     procedure :: SetSGFNTable
     procedure :: SetSOF3Table
     procedure :: SetSOF2Table
+    procedure :: CCTVarIsMonotonic
     procedure, public :: CheckCCTVariableExists
     procedure, public :: CharCurveTableVarGrad
     procedure, public :: CharCurvePcInvTableVarGrad
@@ -90,6 +90,7 @@ function CharCurvesTableCreate()
   CharCurvesTable%Sgcr = UNINITIALIZED_DOUBLE
   CharCurvesTable%Sowcr = UNINITIALIZED_DOUBLE
   CharCurvesTable%Sogcr = UNINITIALIZED_DOUBLE
+  CharCurvesTable%pc_inverse_available = PETSC_FALSE
   nullify(CharCurvesTable%lookup_table)
   nullify(CharCurvesTable%pc_inv_lookup_table)
   
@@ -224,8 +225,11 @@ subroutine CharCurvesTableRead(this,input,option)
        end if   
      end do
      !create inverse table for capillary pressures Pcow
-     this%pc_inv_lookup_table => &
-                     InverseLookupTableCreateGen(this%lookup_table,CCT_PCXW)
+     if (this%CCTVarIsMonotonic(CCT_PCXW,option)) then
+       this%pc_inverse_available = PETSC_TRUE
+       this%pc_inv_lookup_table => &
+           InverseLookupTableCreateGen(this%lookup_table,CCT_PCXW,option)
+     end if     
    case(CCT_SGFN)
      this%Sgco = this%lookup_table%axis1%values(1)
      do s_idx =1, size(this%lookup_table%axis1%values(:))
@@ -237,19 +241,22 @@ subroutine CharCurvesTableRead(this,input,option)
        end if       
      end do
      !create inverse table for capillary pressures Pcog
-      this%pc_inv_lookup_table => &
-                     InverseLookupTableCreateGen(this%lookup_table,CCT_PCOG)
-    case(CCT_SOF2)
-      do s_idx =1, size(this%lookup_table%axis1%values(:))
-        krow = this%lookup_table%var_array(CCT_KROW)%ptr%data(s_idx)
-        if (krow < kr_eps ) then
-          this%Sowcr = this%lookup_table%axis1%values(s_idx)
-        else
-          exit
-        end if
-      end do      
-    case(CCT_SOF3)
-      do s_idx =1, size(this%lookup_table%axis1%values(:))
+     if (this%CCTVarIsMonotonic(CCT_PCOG,option)) then
+       this%pc_inverse_available = PETSC_TRUE
+       this%pc_inv_lookup_table => &
+          InverseLookupTableCreateGen(this%lookup_table,CCT_PCOG,option)
+     end if    
+   case(CCT_SOF2)
+     do s_idx =1, size(this%lookup_table%axis1%values(:))
+       krow = this%lookup_table%var_array(CCT_KROW)%ptr%data(s_idx)
+       if (krow < kr_eps ) then
+         this%Sowcr = this%lookup_table%axis1%values(s_idx)
+       else
+         exit
+       end if
+     end do      
+   case(CCT_SOF3)
+     do s_idx =1, size(this%lookup_table%axis1%values(:))
         krow = this%lookup_table%var_array(CCT_KROW)%ptr%data(s_idx)
         krog = this%lookup_table%var_array(CCT_KROG)%ptr%data(s_idx)
         if (krow < kr_eps ) then
@@ -472,6 +479,62 @@ end subroutine SetSOF2Table
 
 ! ************************************************************************** !
 
+function CCTVarIsMonotonic(this,var_iname,option)
+  ! 
+  ! Check if a CCT var (int name = var_iname) is monotonic or not
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 08/20/18
+  ! 
+  use Option_module
+
+  implicit none
+
+  PetscBool :: CCTVarIsMonotonic
+  class(char_curves_table_type) :: this
+  PetscInt, intent(in) :: var_iname
+  type(option_type) :: option
+
+  PetscReal, parameter :: diff_eps = 1.0d-6
+  PetscInt :: data_idx, var_idx_max
+  PetscInt :: i_tmp
+  PetscReal :: data_tmp
+  
+  data_idx = this%lookup_table%var_array(var_iname)%ptr%data_idx
+  var_idx_max = size(this%lookup_table%axis1%values(:))
+  
+  CCTVarIsMonotonic = PETSC_TRUE
+  
+  !check if a constant value has been given
+  if ( dabs(this%lookup_table%var_data(data_idx,1) -  &
+            this%lookup_table%var_data(data_idx,var_idx_max)  &
+           )  < diff_eps &
+     ) then
+    CCTVarIsMonotonic = PETSC_FALSE
+    return
+  end if
+  
+  if (this%lookup_table%var_data(data_idx,1) > &
+      this%lookup_table%var_data(data_idx,var_idx_max)) then
+    do i_tmp = 1,var_idx_max
+      data_tmp = this%lookup_table%var_data(data_idx,i_tmp)
+      if ( data_tmp > this%lookup_table%var_data(data_idx,1) ) then
+        CCTVarIsMonotonic = PETSC_FALSE
+      end if
+    end do  
+  else if (this%lookup_table%var_data(data_idx,1) < &
+        this%lookup_table%var_data(data_idx,var_idx_max)) then
+    do i_tmp = 1,var_idx_max
+      data_tmp = this%lookup_table%var_data(data_idx,i_tmp)
+      if ( data_tmp < this%lookup_table%var_data(data_idx,1) ) then
+        CCTVarIsMonotonic = PETSC_FALSE
+      end if
+    end do
+  end if
+
+end function CCTVarIsMonotonic
+
+! ************************************************************************** !
 
 subroutine CharCurvesTableAddToList(new_char_curves_table,list)
   !
@@ -594,7 +657,7 @@ subroutine SearchCCTVarInCCTableList(list,var_iname,cc_table_name, &
     return
   else if (num_occurrences > 1) then
     option%io_buffer = trim(error_string) // &
-              ' data found in multiple tables - please select one of table'
+            ' data found in multiple tables - please select one of the tables'
     call printErrMsg(option)
   else if ( num_occurrences < 1) then
     option%io_buffer = trim(error_string) // &
@@ -736,7 +799,8 @@ recursive subroutine CharCurvesTableDestroy(cc_table)
   call CharCurvesTableDestroy(cc_table%next)
   
   !destroy inverse_lookup_table before, as contains pointers to lookup_table
-  call InverseLookupTableGenDestroy(cc_table%pc_inv_lookup_table)
+  !call InverseLookupTableGenDestroy(cc_table%pc_inv_lookup_table)
+  call LookupTableDestroy(cc_table%pc_inv_lookup_table)
   call LookupTableDestroy(cc_table%lookup_table)
 
   deallocate(cc_table)

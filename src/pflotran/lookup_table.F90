@@ -122,6 +122,11 @@ module Lookup_Table_module
     module procedure LookupTableCreateGeneralNoDim  
   end interface
 
+  interface CreateLookupTableVar
+    module procedure CreateLookupTableVar1
+    module procedure CreateLookupTableVar2
+  end interface
+
   interface LookupTableDestroy
     module procedure LookupTableUniformDestroy
     module procedure LookupTableGeneralDestroy
@@ -132,7 +137,7 @@ module Lookup_Table_module
             InverseLookupTableCreateGen, &
             LookupTableAxisInit, &
             LookupTableDestroy, &
-            InverseLookupTableGenDestroy, &
+            !InverseLookupTableGenDestroy, &
             LookupTableTest, &
             LookupTableVarInitList, &
             CreateLookupTableVar, &
@@ -259,7 +264,7 @@ end function LookupTableCreateGeneralNoDim
 
 ! ************************************************************************** !
 
-function InverseLookupTableCreateGen(lookup_table,new_var_iname)
+function InverseLookupTableCreateGen(lookup_table,new_axis_var_iname,option)
   ! 
   ! Author: Paolo Orsini
    
@@ -272,14 +277,19 @@ function InverseLookupTableCreateGen(lookup_table,new_var_iname)
   ! Date: 08/15/18
   ! 
 
+  use Option_module
+
   implicit none
   
   class(lookup_table_general_type), pointer :: InverseLookupTableCreateGen
   class(lookup_table_general_type), intent(in) :: lookup_table
-  PetscInt, intent(in) :: new_var_iname
-
+  PetscInt, intent(in) ::  new_axis_var_iname
+  type (option_type) :: option
+  
   class(lookup_table_general_type), pointer :: inv_lookup_table
-  PetscInt :: data_idx
+  type(lookup_table_var_type), pointer :: NewInvLookupVar
+  PetscBool :: reverse
+  PetscInt :: data_idx, i_tmp, var_idx_max
   
   allocate(inv_lookup_table)
   call LookupTableBaseInit(inv_lookup_table)
@@ -289,17 +299,77 @@ function InverseLookupTableCreateGen(lookup_table,new_var_iname)
   allocate(inv_lookup_table%axis1)
   call LookupTableAxisInit(inv_lookup_table%axis1)
   if (Inv_lookup_table%dim > 1) then
-    write(*,*) "only 1D inverse lookup are supported"
+    option%io_buffer = "only 1D inverse lookup are supported"
+    call printErrMsg(option)
   endif
   
   nullify(inv_lookup_table%data)
-  inv_lookup_table%var_data => lookup_table%var_data
-  inv_lookup_table%var_array => lookup_table%var_array
-  inv_lookup_table%vars => lookup_table%vars
+  nullify(inv_lookup_table%var_data)
+  
+  allocate(inv_lookup_table%var_data( size(lookup_table%var_data,1), &
+                                      size(lookup_table%var_data,2)  ) )
+                                      
+  !determine if table inversion is required or not
+  data_idx = lookup_table%var_array(new_axis_var_iname)%ptr%data_idx
+  var_idx_max = size(lookup_table%axis1%values(:))
+  if (lookup_table%var_data(data_idx,1) > &
+      lookup_table%var_data(data_idx,var_idx_max)) then
+    reverse = PETSC_TRUE
+  else if (lookup_table%var_data(data_idx,1) < &
+      lookup_table%var_data(data_idx,var_idx_max)) then
+    reverse = PETSC_FALSE  
+  else
+    option%io_buffer = "InverseLookupTableCreateGen: cannot create " // &
+      "inverse gradient lookup as the new axis var selected is not monotonic "
+    call printErrMsg(option)
+  end if
+    
+  !assumes that any unit conversion on lookup_table%var_data is already done
+  if (reverse) then
+    data_idx =  1
+    do i_tmp = size(lookup_table%var_data,2),1,-1
+      inv_lookup_table%var_data(:,data_idx) = lookup_table%var_data(:,i_tmp)
+      data_idx = data_idx + 1    
+    end do 
+  else
+    inv_lookup_table%var_data = lookup_table%var_data
+  end if
+    
+  ! inv_lookup_table%var_array => lookup_table%var_array
+  ! !repoint data in var_array to new var_data (since this might have been inverted)
+  ! inv_lookup_table%vars => lookup_table%vars
+  ! do i_tmp = 1,size(inv_lookup_table%var_array(:))
+  !   if ( associated(inv_lookup_table%var_array(i_tmp)%ptr) ) then
+  !     NewInvLookupVar => CreateLookupTableVar(lookup_table%var_array(i_tmp)%ptr)
+  !     nullify(NewInvLookupVar%data)
+  !     data_idx = inv_lookup_table%var_array(i_tmp)%ptr%data_idx
+  !     call LookupTableVarAddToList(NewInvLookupVar,NewInvLookupVar%vars)
+  !     !inv_lookup_table%var_array(i_tmp)%ptr%data => &
+  !     !                        inv_lookup_table%var_data(data_idx,:)
+  !   end if
+  ! end do    
+  call inv_lookup_table%LookupTableVarsInit(size(lookup_table%var_array(:)))
+  do i_tmp = 1,size(lookup_table%var_array(:))
+    if ( associated(lookup_table%var_array(i_tmp)%ptr) ) then
+      NewInvLookupVar => CreateLookupTableVar( &
+                                          lookup_table%var_array(i_tmp)%ptr)
+      nullify(NewInvLookupVar%data)
+      data_idx = lookup_table%var_array(i_tmp)%ptr%data_idx
+      NewInvLookupVar%data_idx = data_idx
+      NewInvLookupVar%data => inv_lookup_table%var_data(data_idx,:)
+      inv_lookup_table%var_array(i_tmp)%ptr => NewInvLookupVar
+      call LookupTableVarAddToList(NewInvLookupVar,inv_lookup_table%vars)
+    end if
+  end do
+
   
   allocate(inv_lookup_table%axis1)
-  data_idx = lookup_table%var_array(new_var_iname)%ptr%data_idx
-  inv_lookup_table%axis1%values => lookup_table%var_data(data_idx,:)
+  data_idx = inv_lookup_table%var_array(new_axis_var_iname)%ptr%data_idx
+  !inv_lookup_table%axis1%values => inv_lookup_table%var_data(data_idx,:)
+  !copying axis1%values (not pointing) for consistency with all other tables
+  allocate(inv_lookup_table%axis1%values( &
+                          size(inv_lookup_table%var_data(data_idx,:))) )
+  inv_lookup_table%axis1%values = inv_lookup_table%var_data(data_idx,:)
   
   InverseLookupTableCreateGen => inv_lookup_table
 
@@ -1742,54 +1812,49 @@ end subroutine LookupTableGeneralDestroy
 
 ! ************************************************************************** !
 
-subroutine InverseLookupTableGenDestroy(lookup_table)
-  ! 
-  ! Destroy InverseLookupTableGen 
-  ! Not that lookup vars and var_data are only pointer to original lookup
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 08/15/18
-  ! 
-  use Utility_module
-  
-  implicit none
-
-    class(lookup_table_general_type), pointer :: lookup_table
- 
-    if (.not.associated(lookup_table)) return
- 
-    if ( associated(lookup_table%data) ) then
-      nullify (lookup_table%data)
-    end if
- 
-    if ( associated(lookup_table%var_data) ) then
-      nullify (lookup_table%var_data)
-    end if
-
-    if ( associated(lookup_table%axis1) ) then
-      nullify(lookup_table%axis1%values)
-      deallocate(lookup_table%axis1)
-      nullify(lookup_table%axis1)
-    end if  
-
-    if (associated(lookup_table%var_array)) then
-      nullify(lookup_table%var_array)
-    end if
-
-    if (associated(lookup_table%vars)) then
-      nullify(lookup_table%vars)
-    end if
-
-    if (associated(lookup_table%axis2)) then
-      nullify(lookup_table%axis2%values)
-      deallocate(lookup_table%axis2)
-      nullify(lookup_table%axis2)
-    end if
-
-    deallocate(lookup_table)
-    nullify(lookup_table)
- 
-end subroutine InverseLookupTableGenDestroy
+! subroutine InverseLookupTableGenDestroy(lookup_table)
+!   ! 
+!   ! Destroy InverseLookupTableGen (1d only supported)
+!   ! Not that lookup vars and var_data are only pointer to original lookup
+!   ! 
+!   ! Author: Paolo Orsini
+!   ! Date: 08/15/18
+!   ! 
+!   use Utility_module
+! 
+!   implicit none
+! 
+!     class(lookup_table_general_type), pointer :: lookup_table
+! 
+!     if (.not.associated(lookup_table)) return
+! 
+!     if ( associated(lookup_table%data) ) then
+!       nullify (lookup_table%data)
+!     end if
+! 
+!     if ( associated(lookup_table%var_data) ) then
+!       call DeallocateArray(lookup_table%var_data)
+!       nullify (lookup_table%var_data)
+!     end if
+! 
+!     if ( associated(lookup_table%axis1) ) then
+!       nullify(lookup_table%axis1%values)
+!       deallocate(lookup_table%axis1)
+!       nullify(lookup_table%axis1)
+!     end if  
+! 
+!     if (associated(lookup_table%var_array)) then
+!       nullify(lookup_table%var_array)
+!     end if
+! 
+!     if (associated(lookup_table%vars)) then
+!       nullify(lookup_table%vars)
+!     end if
+! 
+!     deallocate(lookup_table)
+!     nullify(lookup_table)
+! 
+! end subroutine InverseLookupTableGenDestroy
 
 ! ************************************************************************** !
 ! ** lookup table variable procedures
@@ -1884,7 +1949,7 @@ end subroutine LookupTableVarAddToList
 
 ! ************************************************************************** !
 
-function CreateLookupTableVar(var_iname,internal_units,user_units,data_idx)
+function CreateLookupTableVar1(var_iname,internal_units,user_units,data_idx)
   !
   ! Creates a new lookup table var
   !
@@ -1894,28 +1959,61 @@ function CreateLookupTableVar(var_iname,internal_units,user_units,data_idx)
 
   implicit none
 
-  type(lookup_table_var_type), pointer :: CreateLookupTableVar
+  type(lookup_table_var_type), pointer :: CreateLookupTableVar1
   PetscInt, intent(in) :: var_iname
   character(len=MAXWORDLENGTH), intent(in) :: internal_units
   character(len=MAXWORDLENGTH), intent(in) :: user_units
   PetscInt, intent(in) :: data_idx
 
-  allocate(CreateLookupTableVar)
+  allocate(CreateLookupTableVar1)
 
-  CreateLookupTableVar%id = UNINITIALIZED_INTEGER
-  CreateLookupTableVar%iname = var_iname
-  CreateLookupTableVar%data_idx = data_idx
-  CreateLookupTableVar%extrapolation_itype = UNINITIALIZED_INTEGER
-  CreateLookupTableVar%interp_type = VAR_INTERP_LINEAR
-  CreateLookupTableVar%internal_units = trim(internal_units)
-  CreateLookupTableVar%user_units = trim(user_units)
-  CreateLookupTableVar%conversion_factor = UNINITIALIZED_DOUBLE
-  nullify(CreateLookupTableVar%data)
-  CreateLookupTableVar%sample = UNINITIALIZED_DOUBLE
-  nullify(CreateLookupTableVar%sample_grad)
-  nullify(CreateLookupTableVar%next)
+  CreateLookupTableVar1%id = UNINITIALIZED_INTEGER
+  CreateLookupTableVar1%iname = var_iname
+  CreateLookupTableVar1%data_idx = data_idx
+  CreateLookupTableVar1%extrapolation_itype = UNINITIALIZED_INTEGER
+  CreateLookupTableVar1%interp_type = VAR_INTERP_LINEAR
+  CreateLookupTableVar1%internal_units = trim(internal_units)
+  CreateLookupTableVar1%user_units = trim(user_units)
+  CreateLookupTableVar1%conversion_factor = UNINITIALIZED_DOUBLE
+  nullify(CreateLookupTableVar1%data)
+  CreateLookupTableVar1%sample = UNINITIALIZED_DOUBLE
+  nullify(CreateLookupTableVar1%sample_grad)
+  nullify(CreateLookupTableVar1%next)
 
-end function CreateLookupTableVar
+end function CreateLookupTableVar1
+
+! ************************************************************************** !
+
+function CreateLookupTableVar2(lookup_var)
+  !
+  ! Creates a new lookup table var from an exisitng lookup table var
+  !
+  ! Author: Paolo Orsini
+  ! Date: 08/20/2018
+  !
+
+  implicit none
+
+  type(lookup_table_var_type), pointer :: CreateLookupTableVar2
+  type(lookup_table_var_type), intent(in) :: lookup_var
+
+  allocate(CreateLookupTableVar2)
+
+  CreateLookupTableVar2%id = lookup_var%id
+  CreateLookupTableVar2%iname = lookup_var%iname
+  CreateLookupTableVar2%data_idx = lookup_var%data_idx
+  CreateLookupTableVar2%extrapolation_itype = lookup_var%extrapolation_itype
+  CreateLookupTableVar2%interp_type = lookup_var%interp_type
+  CreateLookupTableVar2%internal_units = lookup_var%internal_units
+  CreateLookupTableVar2%user_units = lookup_var%user_units
+  CreateLookupTableVar2%conversion_factor = lookup_var%conversion_factor
+  CreateLookupTableVar2%data => lookup_var%data
+  CreateLookupTableVar2%sample = lookup_var%sample
+  allocate(CreateLookupTableVar2%sample_grad(size(lookup_var%sample_grad(:))))
+  CreateLookupTableVar2%sample_grad = UNINITIALIZED_DOUBLE
+  nullify(CreateLookupTableVar2%next)
+
+end function CreateLookupTableVar2
 
 ! ************************************************************************** !
 

@@ -20,6 +20,7 @@ module Characteristic_Curves_OWG_module
     PetscReal :: pcmax
     class(sat_func_base_type), pointer :: sat_func_sl
     PetscBool :: analytical_derivative_available
+    PetscBool :: sat_func_of_pc_available
     character(len=MAXWORDLENGTH) :: table_name
     class(char_curves_table_type), pointer :: table
   contains
@@ -984,6 +985,7 @@ subroutine SFOWGBaseInit(this)
 
   this%pcmax = DEFAULT_PCMAX
   this%analytical_derivative_available = PETSC_FALSE
+  this%sat_func_of_pc_available = PETSC_FALSE
   
   this%table_name =''
   nullify(this%table)
@@ -1059,6 +1061,7 @@ subroutine SFOWGBaseProcessTable(this,char_curves_tables,error_string,option)
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: error_string_lc
+  PetscInt :: sat_i_max
 
   select type(sf => this)
     class is(sat_func_xw_base_type)
@@ -1070,16 +1073,19 @@ subroutine SFOWGBaseProcessTable(this,char_curves_tables,error_string,option)
   this%table =>  CharCurveTableGetPtrFromList(this%table_name, &
                            char_curves_tables,error_string_lc,option)
 
- !load cc curve end points from table
+  !load cc curve end points from table
  select type(sf => this)
    class is(sat_func_xw_base_type)
      call this%table%CheckCCTVariableExists(CCT_PCXW,error_string_lc,option)
      sf%Swco = sf%table%Swco
      sf%Swcr = sf%table%Swcr
+     sf%pcmax = this%table%lookup_table%var_array(CCT_PCXW)%ptr%data(1)
    class is(sat_func_og_base_type)
      call this%table%CheckCCTVariableExists(CCT_PCOG,error_string_lc,option)
      sf%Sgco = sf%table%Sgco
      sf%Sgcr = sf%table%Sgcr
+     sat_i_max = this%table%lookup_table%dims(1)
+     sf%pcmax = this%table%lookup_table%var_array(CCT_PCOG)%ptr%data(sat_i_max)
 end select
 
 end subroutine SFOWGBaseProcessTable
@@ -1309,6 +1315,7 @@ subroutine SF_XW_VG_Init(this)
 
   this%analytical_derivative_available = &
       this%sat_func_sl%analytical_derivative_available
+  this%sat_func_of_pc_available = PETSC_TRUE
 
 end subroutine SF_XW_VG_Init
 
@@ -1435,6 +1442,7 @@ subroutine SF_XW_BC_Init(this)
 
   this%analytical_derivative_available = &
       this%sat_func_sl%analytical_derivative_available
+  this%sat_func_of_pc_available = PETSC_TRUE
 
 end subroutine SF_XW_BC_Init
 

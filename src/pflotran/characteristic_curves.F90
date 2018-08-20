@@ -2141,6 +2141,11 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
         call sf%SetCriticalSaturation(swcr,option)
       class is(sat_func_xw_VG_type)
         call sf%SetConnateSaturation(swco,option)
+      class is(sat_func_xw_table_type)
+        !check if sat_func_of_pc_available
+        if (sf%table%pc_inverse_available) then
+          sf%sat_func_of_pc_available = PETSC_TRUE
+        end if  
     end select
     call characteristic_curves%oil_wat_sat_func%verify(string,option)
     !check if swco and swcr defined in krw and pcw are the same
@@ -2155,7 +2160,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
       option%io_buffer = adjustl(trim(string)) // & 
                         'Swcr defined in KRW and PC_XW differs- check input'
       call printErrMsg(option)
-    end if    
+    end if
   end if
 
   !check gas rel perm
@@ -2200,7 +2205,12 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
           call sf%SetCriticalSaturation(sgcr,option)
         class is(sat_func_og_VG_SL_type)  
           call sf%SetConnateSaturation(sgco,option)
-          call sf%SetCriticalSaturation(sgcr,option)          
+          call sf%SetCriticalSaturation(sgcr,option)
+        class is(sat_func_og_table_type)
+          !check if sat_func_of_pc_available
+          if (sf%table%pc_inverse_available) then
+            sf%sat_func_of_pc_available = PETSC_TRUE
+          end if          
       end select
       call characteristic_curves%oil_gas_sat_func%verify(string,option)
       !check if sgco and sgcr defined in KRG and PC_OG have the same values
