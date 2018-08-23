@@ -1432,7 +1432,9 @@ subroutine GeomechForceJacobianLinearPart(A,geomech_realization)
   PetscReal, allocatable :: local_disp(:)
   PetscInt, allocatable :: ghosted_ids(:)
   PetscReal, allocatable :: Jac_full(:,:)
-  PetscReal, allocatable :: Jac_sub_mat(:,:)
+  ! due to PETSc explicit interface declaring the sub matrix as pointer,
+  ! must be pointer and not allocatable
+  PetscReal, pointer :: Jac_sub_mat(:,:)
   PetscInt, allocatable :: rows(:)
   PetscReal, allocatable :: youngs_vec(:), poissons_vec(:)
   PetscInt :: ielem,ivertex 
