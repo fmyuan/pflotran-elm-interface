@@ -60,7 +60,7 @@ echo "GNU Make PFLOTRAN_INTERFACE"
 
 # build PFLOTRAN_INTERFACE interface
 cd $PFLOTRAN_DIR/src/clm-pflotran
-remove_linked_files.sh
+./remove_linked_files.sh
 ./link_files.sh
 make clean > /dev/null 2>&1
 make pflotran_interface > $MAKE_LOG 2>&1
