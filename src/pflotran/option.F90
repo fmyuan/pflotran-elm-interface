@@ -67,7 +67,7 @@ module Option_module
     PetscInt :: nmechdof
     PetscInt :: nsec_cells
     PetscInt :: nwells
-    PetscInt :: neos_table_indices
+    PetscInt :: num_table_indices
     PetscBool :: use_th_freezing
 
     PetscBool :: surf_flow_on
@@ -444,7 +444,7 @@ subroutine OptionInitRealization(option)
   option%nmechdof = 0
   option%nsec_cells = 0
   option%nwells = 0
-  option%neos_table_indices = 0
+  option%num_table_indices = 0
   option%use_th_freezing = PETSC_FALSE
 
   option%nsurfflowdof = 0

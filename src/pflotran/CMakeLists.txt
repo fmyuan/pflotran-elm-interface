@@ -348,6 +348,7 @@ set(IO_SOURCES
 set(MISC_SOURCES
 	block_solve.F90
 	block_tridiag.F90
+	characteristic_curves_table.F90
 	checkpoint.F90
 	condition.F90
 	condition_control.F90

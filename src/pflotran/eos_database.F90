@@ -1551,13 +1551,13 @@ subroutine EOSTableProcessList(option)
 
   if (.not.associated(list)) return
 
-  option%neos_table_indices = 0
+  !option%num_table_indices = 0 this is initialised in option init
   !loop over  EOS tables and create a map to store save indices in auxvars
   eos_table => list%first
   do
     if (.not.(associated(eos_table))) exit
-    eos_table%first_index = option%neos_table_indices + 1
-    option%neos_table_indices = option%neos_table_indices + eos_table%n_indices
+    eos_table%first_index = option%num_table_indices + 1
+    option%num_table_indices = option%num_table_indices + eos_table%n_indices
     ! add here other operation that must be performed on all eos tables
     ! move to next table if it is associated
     if( .not.(associated(eos_table%next))) exit

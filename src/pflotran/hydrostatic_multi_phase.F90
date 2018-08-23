@@ -276,8 +276,14 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
   sat_ir(:) = CharCurvesGetGetResidualSats(characteristic_curves,option) 
   sat_liq_owc = 1.0 - sat_ir(2)
       
-  ! call characteristic_curves%saturation_function% &
-  !      CapillaryPressure(sat_liq_owc,pc_owc,dpc_dsatl,option)
+  if ( (pw_hydrostatic .or. po_hydrostatic ) .and. &
+       (.not.characteristic_curves%oil_wat_sat_func%sat_func_of_pc_available) &
+     ) then
+       option%io_buffer = 'The capillary pressure function used for&
+                          & hydrostatic equilibration is not valid.'
+      call printErrMsg(option)
+  end if    
+
   call characteristic_curves%oil_wat_sat_func% &
            CapillaryPressure(sat_liq_owc,pc_owc,dpc_dsatl,option)
 
@@ -448,8 +454,6 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
       else
         ! water/oil transition zone
         coupler%flow_aux_real_var(1,iconn) = po_cell      
-        ! call characteristic_curves%saturation_function%Saturation( &
-        !            pc_comp,sat_liq_comp,dsat_dpres,option) 
         call characteristic_curves%oil_wat_sat_func%Saturation( &
                   pc_comp,sat_liq_comp,dsat_dpres,option)         
         coupler%flow_aux_real_var(2,iconn) = 1.0d0 - sat_liq_comp

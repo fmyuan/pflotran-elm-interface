@@ -789,7 +789,12 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           trim(cur_material_property%saturation_function_name) // &
           '" not found.'
         call printErrMsg(option)
-      endif
+      else
+        if (associated(patch%characteristic_curves_array)) then
+          call CharCurvesProcessTables(patch%characteristic_curves_array(  &
+                        cur_material_property%saturation_function_id)%ptr,option)
+        end if                
+      end if
     endif
     
     ! if named, link dataset to property

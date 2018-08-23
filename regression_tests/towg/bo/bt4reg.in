@@ -1,4 +1,10 @@
 ﻿#  DKP Black oil test run 4: gas and water injection, general Kr
+#       Swco = 0 dispite the fact that Swco = 0.07 in the input which was ignored
+#
+#  PO 13-Aug-2018: regernerate gold solution after correcting krw, krow, krog, krg
+#                  running with Swco=0
+#
+#  PO 20-Aug-2018 modified inputs to impose swco = 0.07
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -6,7 +12,6 @@ SIMULATION
     SUBSURFACE_FLOW Flow
       MODE BLACK_OIL
       OPTIONS
-       MAXIMUM_PRESSURE_CHANGE 5.D4
        ISOTHERMAL
       /
     / ! end of subsurface_flow
@@ -117,6 +122,7 @@ MATERIAL_PROPERTY formation
 
 #=========================== datasets ==============================
 #=========================== saturation functions =============================
+! Relative permeabilities
 CHARACTERISTIC_CURVES ch1
  CAP_PRESSURE_FUNCTION_OW CONSTANT
   CONSTANT_PRESSURE 0.0
@@ -124,10 +130,9 @@ CHARACTERISTIC_CURVES ch1
  CAP_PRESSURE_FUNCTION_OG CONSTANT
   CONSTANT_PRESSURE 0.0
  /
-! Relative permeabilities
  PERMEABILITY_FUNCTION_WAT MOD_BROOKS_COREY
    M 2.0
-   WATER_CONNATE_SATURATION  0.00
+   WATER_CONNATE_SATURATION  0.07
    WATER_RESIDUAL_SATURATION 0.15
  END
  PERMEABILITY_FUNCTION_OIL ECLIPSE
@@ -145,6 +150,7 @@ CHARACTERISTIC_CURVES ch1
   GAS_RESIDUAL_SATURATION   0.05
   M 2.0
  END
+ !TEST 
 /
 #=========================== EOSs =============================================
 EOS WATER

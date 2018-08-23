@@ -6,6 +6,7 @@ module Characteristic_Curves_OWG_module
   use Characteristic_Curves_Base_module
   use Characteristic_Curves_Common_module
   use Characteristic_Curves_WIPP_module
+  use Characteristic_Curves_Table_module
 
   implicit none
 
@@ -19,15 +20,15 @@ module Characteristic_Curves_OWG_module
     PetscReal :: pcmax
     class(sat_func_base_type), pointer :: sat_func_sl
     PetscBool :: analytical_derivative_available
-    !uncomment for tables
-    !character(len=MAXWORDLENGTH) :: table_name
-    !class(characteristic_curve_table_type), pointer :: lookup_table
+    PetscBool :: sat_func_of_pc_available
+    character(len=MAXWORDLENGTH) :: table_name
+    class(char_curves_table_type), pointer :: table
   contains
     procedure, public :: Init => SFOWGBaseInit !only for pcmax, nullify pointer (table and sl), init table name
     procedure, public :: Verify => SFOWGBaseVerify ! to be extended
     procedure, public :: Test => SFOWGBaseTest     ! to be extended
     procedure, public :: SetupPolynomials => SFOWGBaseSetupPolynomials
-    !procedure, public :: GetConnateSaturation => GetConnateSatBase
+    procedure, public :: ProcessTable => SFOWGBaseProcessTable
   end type sat_func_owg_base_type
 
   !-----------------------------------------------------------------------------
@@ -83,7 +84,13 @@ module Characteristic_Curves_OWG_module
     procedure, public :: Saturation => SF_XW_BC_Saturation
   end type sat_func_xw_BC_type
 
-  !add table extension
+   type, public, extends(sat_func_xw_base_type) :: sat_func_xw_table_type
+   contains
+     procedure, public :: Init => SF_XW_table_Init
+     !procedure, public :: Verify => SF_XW_table_Verify
+     procedure, public :: CapillaryPressure => SF_XW_table_CapillaryPressure
+     procedure, public :: Saturation => SF_XW_table_Saturation
+   end type sat_func_xw_table_type
 
 !-----------------------------------------------------------------------------
 !-- OG Saturation Functions --------------------------------------------------
@@ -98,6 +105,7 @@ module Characteristic_Curves_OWG_module
     procedure, public :: Test => SFOGBaseTest
     procedure, public :: SetupPolynomials => SFOGBaseSetupPolynomials
     procedure, public :: CapillaryPressure => SFOGBaseCapillaryPressure
+    procedure, public :: Saturation => SFOGBaseSaturation
     procedure, public :: SetConnateSaturation => SFOGSetConnateSatBase
     procedure, public :: GetConnateSaturation => SFOGGetConnateSatBase
     procedure, public :: SetCriticalSaturation => SFOGSetCriticalSatBase
@@ -123,7 +131,13 @@ module Characteristic_Curves_OWG_module
     !procedure, public :: Saturation => SF_OW_VG_Saturation
   end type sat_func_og_VG_SL_type
 
-  !add table etxension
+  type, public, extends(sat_func_og_base_type) :: sat_func_og_table_type
+  contains
+    procedure, public :: Init => SF_OG_table_Init
+    !procedure, public :: Verify => SF_OG_table_Verify
+    procedure, public :: CapillaryPressure => SF_OG_table_CapillaryPressure
+    procedure, public :: Saturation => SF_OG_table_Saturation
+  end type sat_func_og_table_type
 
   !-----------------------------------------------------------------------------
   !-- OWG Relative Permeability Functions --------------------------------------
@@ -135,14 +149,14 @@ module Characteristic_Curves_OWG_module
     class(rel_perm_func_base_type), pointer :: rel_perm_func_sl
     type(polynomial_type), pointer :: poly
     PetscBool :: analytical_derivative_available
-    !uncomment for tables
-    !character(len=MAXWORDLENGTH) :: table_name
-    !class(characteristic_curve_table_type), pointer :: lookup_table
+    character(len=MAXWORDLENGTH) :: table_name
+    class(char_curves_table_type), pointer :: table
   contains
     procedure, public :: Init => RPFOWGBaseInit
     procedure, public :: Verify => RPFOWGBaseVerify
     procedure, public :: SetupPolynomials => RPFOWGBaseSetupPolynomials !to be extended
     procedure, public :: Strip => PermFunctionOWGBaseStrip
+    procedure, public :: ProcessTable => RPFOWGBaseProcessTable
   end type rel_perm_owg_base_type
 
   !-----------------------------------------------------------------------------
@@ -198,15 +212,12 @@ module Characteristic_Curves_OWG_module
   contains
   end type RPF_wat_owg_Burdine_BC_type
 
-  !add here table extension
-  ! type,public,extends(rel_perm_wat_owg_base_type) :: RPF_wat_owg_table_type
-  !   PetscReal :: Swcr !critical water saturation
-  ! contains
-  !   procedure, public :: Init => RPF_wat_owg_table_Init
-  !   procedure, public :: Verify => RPF_wat_owg_table_Verify
-  !   !procedure, public :: Test => RPFOWGWatBaseTest
-  !   procedure, public :: RelativePermeability => RPF_wat_owg_table_RelPerm !define argument template
-  ! end type RPF_wat_owg_table_type
+  type,public,extends(rel_perm_wat_owg_base_type) :: RPF_wat_owg_table_type
+  contains
+    procedure, public :: Init => RPF_wat_owg_table_Init
+    !procedure, public :: Verify => RPF_wat_owg_table_Verify
+    procedure, public :: RelativePermeability => RPF_wat_owg_table_RelPerm
+  end type RPF_wat_owg_table_type
 
   !-----------------------------------------------------------------------------
   !-- Gas OWG Relative Permeability Functions ----------------------------------
@@ -265,15 +276,13 @@ module Characteristic_Curves_OWG_module
   contains
   end type RPF_gas_owg_Burdine_BC_type
 
-  !add here table extension
-  ! type,public,extends(rel_perm_gas_owg_base_type) :: RPF_gas_owg_table_type
-  !   PetscReal :: Swcr !critical water saturation
-  ! contains
-  !   procedure, public :: Init => RPF_gas_owg_table_Init
-  !   procedure, public :: Verify => RPF_gas_owg_table_Verify
-  !   !procedure, public :: Test => RPFGasOWGBaseTest
-  !   procedure, public :: RelativePermeability => RPF_wat_owg_table_RelPerm !define argument template
-  ! end type RPF_gas_owg_table_type
+  type,public,extends(rel_perm_gas_owg_base_type) :: &
+                                                      RPF_gas_owg_table_type
+  contains  
+    procedure, public :: Init => RPF_gas_owg_table_Init
+    !procedure, public :: Verify => RPF_gas_owg_table_Verify
+    procedure, public :: RelativePermeability => RPF_gas_owg_table_RelPerm
+  end type RPF_gas_owg_table_type
 
   !-----------------------------------------------------------------------------
   !-- Oil-Water OWG Relative Permeability Functions ----------------------------
@@ -311,12 +320,12 @@ module Characteristic_Curves_OWG_module
     procedure, public :: RPF_ow_owg_MBC_SetSwcr
   end type rel_perm_ow_owg_MBC_type
 
-  ! type,public,extends(rel_perm_ow_owg_base_type) :: rel_perm_ow_owg_table_type
-  ! contains
-  !   procedure, public :: Init => RPF_OW_OWG_table_Init
-  !   procedure, public :: Verify => RPF_OW_OWG_table_Verify
-  !   procedure, public :: RelativePermeability => RPF_OW_OWG_table_RelPerm !defines argument template
-  ! end type rel_perm_ow_owg_table_type
+  type,public,extends(rel_perm_ow_owg_base_type) :: rel_perm_ow_owg_table_type
+  contains
+    procedure, public :: Init => RPF_ow_owg_table_Init
+    !procedure, public :: Verify => RPF_ow_owg_table_Verify
+    procedure, public :: RelativePermeability => RPF_ow_owg_table_RelPerm
+  end type rel_perm_ow_owg_table_type
  
   !-----------------------------------------------------------------------------
   !-- Oil-Gas OWG Relative Permeability Functions ------------------------------
@@ -342,16 +351,16 @@ module Characteristic_Curves_OWG_module
     procedure, public :: Init => RPF_OG_OWG_MBC_Init
     procedure, public :: Verify => RPF_OG_OWG_MBC_Verify
     procedure, public :: SetupPolynomials => RPF_OG_OWG_MBC_SetupPoly
-    procedure, public :: RelativePermeability => RPF_OG_OWG_MBC_RelPerm !defines argument template
+    procedure, public :: RelativePermeability => RPF_OG_OWG_MBC_RelPerm
     procedure, public :: RPF_og_owg_MBC_SetSwcoSgcr
   end type rel_perm_og_owg_MBC_type
 
-  ! type,public,extends(rel_perm_og_owg_base_type) :: rel_perm_og_owg_table_type
-  ! contains
-  !   procedure, public :: Init => RPF_OG_OWG_table_Init
+  type,public,extends(rel_perm_og_owg_base_type) :: rel_perm_og_owg_table_type
+  contains
+    procedure, public :: Init => RPF_OG_OWG_table_Init
   !   procedure, public :: Verify => RPF_OG_OWG_table_Verify
-  !   procedure, public :: RelativePermeability => RPF_OG_OWG_table_RelPerm !defines argument template
-  ! end type rel_perm_og_owg_table_type
+     procedure, public :: RelativePermeability => RPF_OG_OWG_table_RelPerm
+  end type rel_perm_og_owg_table_type
 
   !-----------------------------------------------------------------------------
   !-- Oil OWG Relative Permeability Functions ------------------------------
@@ -394,8 +403,10 @@ module Characteristic_Curves_OWG_module
             SF_XW_VG_Create, &
             SF_XW_BC_Create, &
             SF_XW_constant_Create, &
+            SF_XW_table_Create, &
             SF_OG_VG_SL_Create, &
             SF_OG_constant_Create, &
+            SF_OG_table_Create, &
             RPF_ow_owg_linear_Create, &
             RPF_wat_owg_MBC_Create, &
             RPF_gas_owg_MBC_Create, &
@@ -409,13 +420,18 @@ module Characteristic_Curves_OWG_module
             RPF_gas_owg_Burdine_VG_Create, &
             RPF_wat_owg_Burdine_BC_Create, &
             RPF_gas_owg_Burdine_BC_Create, &
+            RPF_wat_owg_table_Create, &
+            RPF_gas_owg_table_Create, &
+            RPF_ow_owg_table_Create, &
+            RPF_og_owg_table_Create, &
             SaturationFunctionXWDestroy, &
             SaturationFunctionOGDestroy, &
             WatPermFunctionOWGDestroy, &
             GasPermFunctionOWGDestroy, &
             OGPermFunctionOWGDestroy, &
             OWPermFunctionOWGDestroy, &
-            OilPermFunctionOWGDestroy
+            OilPermFunctionOWGDestroy, &
+            SetCCOWGPhaseFlags
   
 contains
 
@@ -454,13 +470,6 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
       error_string = trim(error_string) // 'CONSTANT_PRESSURE_XW'
     class is(sat_func_og_constant_type)
       error_string = trim(error_string) // 'CONSTANT_PRESSURE_OG'
-    !add here the two classes using lokup_tables   
-    !class is(sat_func_xw_lookup_table_type)
-    !   error_string = trim(error_string) // 'LOOKUP_TABLE_XW'
-    !class is(sat_func_og_lookup_table_type)
-    !   error_string = trim(error_string) // 'LOOKUP_TABLE_OG'
-    !class is(sat_func_og_BC_type)
-    !  error_string = trim(error_string) // 'BROOKS_COREY_OG'
   end select
 
   do
@@ -849,13 +858,16 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
             select case(perm_func_ch_type)
               case('MOD_BROOKS_COREY')
                 rpf%rel_perm_ow => RPF_ow_owg_MBC_Create()
-              case('TABLE')
-                !rpf%rel_perm_ow => RPF_ow_owg_table_Create 
               case default
                 call InputKeywordUnrecognized(perm_func_ch_type, &
                                             'PERMEABILITY_FUNCTION_OW',option)
             end select
             call PermeabilityFunctionOWGRead(rpf%rel_perm_ow,input,option)
+          case('KROW_TABLE')
+            rpf%rel_perm_ow => RPF_ow_owg_table_Create()
+            call InputReadWord(input,option, &
+                               rpf%rel_perm_ow%table_name,PETSC_TRUE)
+            call InputErrorMsg(input,option,'KROW_TABLE',error_string)
           case('PERMEABILITY_FUNCTION_OG','KROG')
             call InputReadWord(input,option,perm_func_ch_type,PETSC_TRUE)
             call InputErrorMsg(input,option,'perm_func_ch_type',error_string)
@@ -864,13 +876,23 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
             select case(perm_func_ch_type)
               case('MOD_BROOKS_COREY')
                 rpf%rel_perm_og => RPF_og_owg_MBC_Create()
-              case('TABLE')
-                !rpf%rel_perm_og => RPF_og_owg_table_Create 
               case default
                 call InputKeywordUnrecognized(perm_func_ch_type, &
                                             'PERMEABILITY_FUNCTION_OG',option)
             end select
             call PermeabilityFunctionOWGRead(rpf%rel_perm_og,input,option)
+          case('KROG_TABLE')
+            rpf%rel_perm_og => RPF_og_owg_table_Create()
+            call InputReadWord(input,option, &
+                               rpf%rel_perm_og%table_name,PETSC_TRUE)
+            call InputErrorMsg(input,option,'KROG_TABLE',error_string)
+          case('KRO_TABLE')
+            rpf%rel_perm_ow => RPF_ow_owg_table_Create()
+            rpf%rel_perm_og => RPF_og_owg_table_Create()
+            call InputReadWord(input,option, &
+                               rpf%rel_perm_ow%table_name,PETSC_TRUE)
+            call InputErrorMsg(input,option,'KRO_TABLE',error_string)
+            rpf%rel_perm_og%table_name = rpf%rel_perm_ow%table_name
           case default
             call InputKeywordUnrecognized(keyword, &
                       'ECLIPSE relative permeability function',option)
@@ -944,8 +966,10 @@ subroutine SFOWGBaseInit(this)
 
   this%pcmax = DEFAULT_PCMAX
   this%analytical_derivative_available = PETSC_FALSE
+  this%sat_func_of_pc_available = PETSC_FALSE
   
-  !nullify(lookup_table)
+  this%table_name =''
+  nullify(this%table)
   nullify(this%sat_func_sl)
 
 end subroutine SFOWGBaseInit
@@ -1006,6 +1030,47 @@ subroutine SFOWGBaseSetupPolynomials(this,option,error_string)
 end subroutine SFOWGBaseSetupPolynomials
 
 
+subroutine SFOWGBaseProcessTable(this,char_curves_tables,error_string,option)
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_owg_base_type) :: this
+  class(char_curves_table_type), pointer :: char_curves_tables
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: error_string_lc
+  PetscInt :: sat_i_max
+
+  select type(sf => this)
+    class is(sat_func_xw_base_type)
+      error_string_lc = trim(error_string) // 'PCOW/PCWG,'
+    class is(sat_func_og_base_type)
+      error_string_lc = trim(error_string) // 'PCOG,'
+  end select
+
+  this%table =>  CharCurveTableGetPtrFromList(this%table_name, &
+                           char_curves_tables,error_string_lc,option)
+
+  !load cc curve end points from table
+ select type(sf => this)
+   class is(sat_func_xw_base_type)
+     call this%table%CheckCCTVariableExists(CCT_PCXW,error_string_lc,option)
+     sf%Swco = sf%table%Swco
+     sf%Swcr = sf%table%Swcr
+     sf%pcmax = this%table%lookup_table%var_array(CCT_PCXW)%ptr%data(1)
+   class is(sat_func_og_base_type)
+     call this%table%CheckCCTVariableExists(CCT_PCOG,error_string_lc,option)
+     sf%Sgco = sf%table%Sgco
+     sf%Sgcr = sf%table%Sgcr
+     sat_i_max = this%table%lookup_table%dims(1)
+     sf%pcmax = this%table%lookup_table%var_array(CCT_PCOG)%ptr%data(sat_i_max)
+end select
+
+end subroutine SFOWGBaseProcessTable
+
 ! ************************************************************************** !
 ! *********** XW Saturaton functions  ************************************** !
 ! ************************************************************************** !
@@ -1063,11 +1128,10 @@ subroutine SFXWBaseTest(this,cc_name,option)
   character(len=MAXWORDLENGTH) :: cc_name
   type(option_type), intent(inout) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string, sat_name
+  character(len=MAXSTRINGLENGTH) :: string
   PetscInt, parameter :: num_values = 101
   PetscReal :: capillary_pressure(num_values)
   PetscReal :: wat_saturation(num_values)
-  PetscReal :: saturation(num_values)
   PetscReal :: dpc_dsatw(num_values)
   PetscInt :: i
 
@@ -1232,6 +1296,7 @@ subroutine SF_XW_VG_Init(this)
 
   this%analytical_derivative_available = &
       this%sat_func_sl%analytical_derivative_available
+  this%sat_func_of_pc_available = PETSC_TRUE
 
 end subroutine SF_XW_VG_Init
 
@@ -1358,6 +1423,7 @@ subroutine SF_XW_BC_Init(this)
 
   this%analytical_derivative_available = &
       this%sat_func_sl%analytical_derivative_available
+  this%sat_func_of_pc_available = PETSC_TRUE
 
 end subroutine SF_XW_BC_Init
 
@@ -1452,6 +1518,74 @@ end subroutine SF_XW_BC_Saturation
 
 ! ************************************************************************** !
 
+function SF_XW_table_Create()
+
+  implicit none
+
+  class(sat_func_xw_table_type), pointer :: SF_XW_table_Create
+
+  allocate(SF_XW_table_Create)
+
+  call SFXWBaseInit(SF_XW_table_Create)
+
+  call SF_XW_table_Create%Init()
+
+end function SF_XW_table_Create
+
+
+subroutine SF_XW_table_Init(this)
+
+  implicit none
+
+  class(sat_func_xw_table_type) :: this
+
+  this%analytical_derivative_available = PETSC_TRUE
+
+end subroutine SF_XW_table_Init
+
+
+subroutine SF_XW_table_CapillaryPressure(this,wat_saturation, &
+                              capillary_pressure,dpc_dsatw,option,table_idxs)
+  use Option_module
+
+  implicit none
+
+  class(sat_func_xw_table_type) :: this
+  PetscReal, intent(in) :: wat_saturation
+  PetscReal, intent(out) :: capillary_pressure
+  PetscReal, intent(out) :: dpc_dsatw
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  PetscErrorCode :: ierr
+
+  call this%table%CharCurveTableVarGrad(wat_saturation,CCT_PCXW, &
+                              capillary_pressure,dpc_dsatw,ierr,table_idxs)
+
+end subroutine SF_XW_table_CapillaryPressure
+
+
+subroutine SF_XW_table_Saturation(this,capillary_pressure,wat_saturation, &
+                                       dsatw_dpc,option,table_idxs)
+  use Option_module
+
+  implicit none
+
+  class(sat_func_xw_table_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: wat_saturation
+  PetscReal, intent(out) :: dsatw_dpc
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  PetscErrorCode :: ierr
+
+  call this%table%CharCurvePcInvTableVarGrad(capillary_pressure,CCT_SAT_WAT, &
+                                     wat_saturation,dsatw_dpc,ierr,table_idxs)
+
+end subroutine SF_XW_table_Saturation
+
+!************************************************************************** !
 
 function SF_XW_constant_Create()
 
@@ -1613,7 +1747,7 @@ subroutine SFOGBaseTest(this,cc_name,option)
   character(len=MAXWORDLENGTH) :: cc_name
   type(option_type), intent(inout) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string, sat_name
+  character(len=MAXSTRINGLENGTH) :: string
   PetscInt, parameter :: num_values = 101
   PetscReal :: capillary_pressure(num_values)
   PetscReal :: gas_saturation(num_values)
@@ -1684,6 +1818,27 @@ subroutine SFOGBaseCapillaryPressure(this,gas_saturation,capillary_pressure, &
   call printErrMsg(option)
 
 end subroutine SFOGBaseCapillaryPressure
+
+
+subroutine SFOGBaseSaturation(this,capillary_pressure,gas_saturation, &
+                                       dsatg_dpc,option,table_idxs)
+  use Option_module
+
+  implicit none
+
+  class(sat_func_og_base_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: gas_saturation
+  PetscReal, intent(out) :: dsatg_dpc
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  PetscErrorCode :: ierr
+
+  option%io_buffer = 'SFOGBaseSaturation must be extended.'
+  call printErrMsg(option)
+
+end subroutine SFOGBaseSaturation
 
 
 subroutine SFOGSetConnateSatBase(this,sgco,option)
@@ -1946,6 +2101,77 @@ subroutine SF_OG_VG_SL_CapillaryPressure(this, gas_saturation, &
 end subroutine SF_OG_VG_SL_CapillaryPressure
 
 ! ************************************************************************** !
+
+function SF_OG_table_Create()
+
+  implicit none
+
+  class(sat_func_og_table_type), pointer :: SF_OG_table_Create
+
+  allocate(SF_OG_table_Create)
+
+  call SFOGBaseInit(SF_OG_table_Create)
+
+  call SF_OG_table_Create%Init()
+
+end function SF_OG_table_Create
+
+
+subroutine SF_OG_table_Init(this)
+
+  implicit none
+
+  class(sat_func_og_table_type) :: this
+
+  this%analytical_derivative_available = PETSC_TRUE
+
+end subroutine SF_OG_table_Init
+
+
+subroutine SF_OG_table_CapillaryPressure(this,gas_saturation, &
+                                         capillary_pressure,dpc_dsatg, &
+                                         option,table_idxs)
+  use Option_module
+
+  implicit none
+
+  class(sat_func_og_table_type) :: this
+  PetscReal, intent(in) :: gas_saturation
+  PetscReal, intent(out) :: capillary_pressure
+  PetscReal, intent(out) :: dpc_dsatg
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  PetscErrorCode :: ierr
+
+  call this%table%CharCurveTableVarGrad(gas_saturation,CCT_PCOG, &
+                                capillary_pressure,dpc_dsatg,ierr,table_idxs)
+
+end subroutine SF_OG_table_CapillaryPressure
+
+
+subroutine SF_OG_table_Saturation(this,capillary_pressure,gas_saturation, &
+                                       dsatg_dpc,option,table_idxs)
+  use Option_module
+
+  implicit none
+
+  class(sat_func_og_table_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: gas_saturation
+  PetscReal, intent(out) :: dsatg_dpc
+  type(option_type), intent(inout) :: option
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  PetscErrorCode :: ierr
+
+  call this%table%CharCurvePcInvTableVarGrad(capillary_pressure,CCT_SAT_GAS, &
+                                     gas_saturation,dsatg_dpc,ierr,table_idxs)
+
+end subroutine SF_OG_table_Saturation
+
+
+! ************************************************************************** !
 ! *********** END OWG Saturation functions    ****************************** !
 ! ************************************************************************** !
 
@@ -1964,6 +2190,8 @@ subroutine RPFOWGBaseInit(this)
 
   this%analytical_derivative_available = PETSC_FALSE
 
+  this%table_name =''
+  nullify(this%table)
   nullify(this%rel_perm_func_sl)
   nullify(this%poly)
 
@@ -2033,10 +2261,57 @@ subroutine PermFunctionOWGBaseStrip(this)
 
   call PermeabilityFunctionDestroy(this%rel_perm_func_sl)
 
-  !add here cc_table delloacation
+  nullify(this%table)
+
 
 end subroutine PermFunctionOWGBaseStrip
 
+
+subroutine RPFOWGBaseProcessTable(this,char_curves_tables,error_string,option)
+
+  use Option_module
+
+  implicit none
+
+  class(rel_perm_owg_base_type) :: this
+  class(char_curves_table_type), pointer :: char_curves_tables
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: error_string_lc
+
+  select type(rpf => this)
+    class is(rel_perm_wat_owg_base_type)
+      error_string_lc = trim(error_string) // 'KRW,'
+    class is(rel_perm_gas_owg_base_type)
+      error_string_lc = trim(error_string) // 'KRG,'
+    class is(rel_perm_ow_owg_base_type)
+      error_string_lc = trim(error_string) // 'KROW,'
+    class is(rel_perm_og_owg_base_type)
+      error_string_lc = trim(error_string) // 'KROG,'
+  end select
+
+  this%table =>  CharCurveTableGetPtrFromList(this%table_name, &
+                           char_curves_tables,error_string_lc,option)
+ !load cc curve end points from table
+ select type(rpf => this)
+   class is(rel_perm_wat_owg_base_type)
+     call this%table%CheckCCTVariableExists(CCT_KRW,error_string_lc,option)
+     rpf%Swco = rpf%table%Swco
+     rpf%Swcr = rpf%table%Swcr
+   class is(rel_perm_gas_owg_base_type)
+     call this%table%CheckCCTVariableExists(CCT_KRG,error_string_lc,option)
+     rpf%Sgco = rpf%table%Sgco
+     rpf%Sgcr = rpf%table%Sgcr
+   class is(rel_perm_ow_owg_base_type)
+     call this%table%CheckCCTVariableExists(CCT_KROW,error_string_lc,option)
+     rpf%Sowcr = rpf%table%Sowcr
+   class is(rel_perm_og_owg_base_type)
+     call this%table%CheckCCTVariableExists(CCT_KROG,error_string_lc,option)
+     rpf%Sogcr = rpf%table%Sogcr
+end select
+
+end subroutine RPFOWGBaseProcessTable
 
 ! ************************************************************************** !
 ! **************RPF MBC common functions ************************************ !
@@ -2457,7 +2732,7 @@ subroutine RPF_wat_owg_func_sl_Verify(this,name,option)
   call RPFWatOWGBaseVerify(this,string,option)
 
   if (.not.associated(this%rel_perm_func_sl) ) then
-    option%io_buffer = string // ' Sub SL analytical model not defined'
+    option%io_buffer = trim(string) // ' Sub SL analytical model not defined'
     call printErrMsg(option)
   else
     call this%rel_perm_func_sl%verify(string,option)
@@ -2504,7 +2779,6 @@ subroutine RPF_wat_owg_func_sl_RelPerm(this,wat_sat,rel_perm, &
  dkrw_satw = this%kr_max * dkrw_satw
 
 end subroutine RPF_wat_owg_func_sl_RelPerm
-
 
 ! ************************************************************************** !
 ! **************RPF wat Mualem VG function ********************************* !
@@ -2558,6 +2832,60 @@ function RPF_wat_owg_Burdine_BC_Create()
 end function RPF_wat_owg_Burdine_BC_Create
 
 ! ************************************************************************** !
+! **************RPF wat table function ******************************** !
+! ************************************************************************** !
+function RPF_wat_owg_table_Create()
+
+  implicit none
+
+  class(RPF_wat_owg_table_type), pointer :: RPF_wat_owg_table_Create
+
+  allocate(RPF_wat_owg_table_Create)
+
+  call RPF_wat_owg_table_Create%Init()
+
+end function RPF_wat_owg_table_Create
+
+
+subroutine RPF_wat_owg_table_Init(this)
+
+  implicit none
+
+  class(RPF_wat_owg_table_type) :: this
+  
+  call RPFWatOWGBaseInit(this)
+
+  this%analytical_derivative_available = PETSC_TRUE
+     
+end subroutine RPF_wat_owg_table_Init
+
+
+subroutine RPF_wat_owg_table_RelPerm(this,wat_sat,rel_perm, &
+                                          dkrw_satw,option,table_idxs)
+!
+! Author: Paolo Orsini (OGS)
+! Date: 08/17/2018
+
+ use Option_module
+ use Utility_module
+
+ implicit none
+
+ class(RPF_wat_owg_table_type) :: this
+ PetscReal, intent(in) :: wat_sat
+ PetscReal, intent(out) :: rel_perm
+ PetscReal, intent(out) :: dkrw_satw
+ type(option_type), intent(inout) :: option
+ PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+ PetscErrorCode:: ierr
+
+ call this%table%CharCurveTableVarGrad(wat_sat,CCT_KRW, &
+                                      rel_perm,dkrw_satw,ierr,table_idxs)
+
+end subroutine RPF_wat_owg_table_RelPerm
+
+! ************************************************************************** !
 ! **************RPF gas owg base functions ********************************* !
 ! ************************************************************************** !
 
@@ -2599,7 +2927,7 @@ subroutine RPFGasOWGBaseVerify(this,name,option)
   endif
 
   if (this%Sgco > 0.0 ) then
-    option%io_buffer = name // ', WARNING Sgco > 0 has been set'
+    option%io_buffer = trim(name) // ', WARNING Sgco > 0 has been set'
     call printMsg(option)
 end if
 
@@ -2942,6 +3270,12 @@ subroutine RPF_gas_owg_func_sl_RelPerm(this,gas_sat,rel_perm, &
  liq_sat = 1.0 - gas_sat
  dkrg_satl = 0.0
 
+ if (gas_sat <= this%Sgcr ) then
+   rel_perm = 0.0
+   dkrg_satl = 0.0
+   return
+ end if
+
  call this%rel_perm_func_sl%RelativePermeability(liq_sat,rel_perm, &
                                                         dkrg_satl,option)
 
@@ -3026,6 +3360,58 @@ function RPF_gas_owg_Burdine_BC_Create()
   RPF_gas_owg_Burdine_BC_Create%rel_perm_func_sl => RPF_Burdine_BC_gas_create()
 
 end function RPF_gas_owg_Burdine_BC_Create
+
+! ************************************************************************** !
+! *********** RPF gas table ******************************************* !
+! ************************************************************************** !
+
+function RPF_gas_owg_table_Create()
+
+  implicit none
+
+  class(RPF_gas_owg_table_type), pointer :: RPF_gas_owg_table_Create
+
+  allocate(RPF_gas_owg_table_Create)
+
+  call RPF_gas_owg_table_Create%Init()
+
+end function RPF_gas_owg_table_Create
+
+
+subroutine RPF_gas_owg_table_Init(this)
+
+  implicit none
+
+  class(RPF_gas_owg_table_type) :: this
+  
+  call RPFGasOWGBaseInit(this)
+
+  this%analytical_derivative_available = PETSC_TRUE
+     
+end subroutine RPF_gas_owg_table_Init
+
+
+subroutine RPF_gas_owg_table_RelPerm(this,gas_sat,rel_perm, &
+                                          dkrg_satg,option,table_idxs)
+
+ use Option_module
+ use Utility_module
+
+ implicit none
+
+ class(RPF_gas_owg_table_type) :: this
+ PetscReal, intent(in) :: gas_sat
+ PetscReal, intent(out) :: rel_perm
+ PetscReal, intent(out) :: dkrg_satg
+ type(option_type), intent(inout) :: option
+ PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+ PetscErrorCode:: ierr
+
+ call this%table%CharCurveTableVarGrad(gas_sat,CCT_KRG, &
+                                      rel_perm,dkrg_satg,ierr,table_idxs)
+
+end subroutine RPF_gas_owg_table_RelPerm
 
 !-----------------------------------------------------------------------------
 !-- RPF Oil-Water base ------------------------------------------------------
@@ -3401,6 +3787,59 @@ subroutine RPF_ow_owg_MBC_SetSwcr(this,swcr,option)
   
 end subroutine RPF_ow_owg_MBC_SetSwcr
 
+! ************************************************************************** !
+! *********** RPF oil-water table ****************************************** !
+! ************************************************************************** !
+
+function RPF_ow_owg_table_Create()
+
+  implicit none
+
+  class(rel_perm_ow_owg_table_type), pointer :: RPF_ow_owg_table_Create
+
+  allocate(RPF_ow_owg_table_Create)
+
+  call RPF_ow_owg_table_Create%Init()
+
+end function RPF_ow_owg_table_Create
+
+
+subroutine RPF_ow_owg_table_Init(this)
+
+  implicit none
+
+  class(rel_perm_ow_owg_table_type) :: this
+  
+  call RPFOWOWGBaseInit(this)
+
+  this%analytical_derivative_available = PETSC_TRUE
+     
+end subroutine RPF_ow_owg_table_Init
+
+
+subroutine RPF_ow_owg_table_RelPerm(this,oil_sat,rel_perm, &
+                                          dkr_sato,option,table_idxs)
+
+ use Option_module
+ use Utility_module
+
+ implicit none
+
+ class(rel_perm_ow_owg_table_type) :: this
+ PetscReal, intent(in) :: oil_sat
+ PetscReal, intent(out) :: rel_perm
+ PetscReal, intent(out) :: dkr_sato
+ type(option_type), intent(inout) :: option
+ PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+ PetscErrorCode:: ierr
+
+ call this%table%CharCurveTableVarGrad(oil_sat,CCT_KROW, &
+                                      rel_perm,dkr_sato,ierr,table_idxs)
+
+end subroutine RPF_ow_owg_table_RelPerm
+
+
 !-----------------------------------------------------------------------------
 !-- RPF Oil-Gas base ---------------------------------------------------------
 !-----------------------------------------------------------------------------
@@ -3668,7 +4107,57 @@ subroutine RPF_og_owg_MBC_SetSwcoSgcr(this,swco,sgcr,option)
   
 end subroutine RPF_og_owg_MBC_SetSwcoSgcr
 
+! ************************************************************************** !
+! *********** RPF oil-gas table ****************************************** !
+! ************************************************************************** !
 
+function RPF_og_owg_table_Create()
+
+  implicit none
+
+  class(rel_perm_og_owg_table_type), pointer :: RPF_og_owg_table_Create
+
+  allocate(RPF_og_owg_table_Create)
+
+  call RPF_og_owg_table_Create%Init()
+
+end function RPF_og_owg_table_Create
+
+
+subroutine RPF_og_owg_table_Init(this)
+
+  implicit none
+
+  class(rel_perm_og_owg_table_type) :: this
+  
+  call RPFOGOWGBaseInit(this)
+
+  this%analytical_derivative_available = PETSC_TRUE
+     
+end subroutine RPF_og_owg_table_Init
+
+
+subroutine RPF_og_owg_table_RelPerm(this,oil_sat,rel_perm, &
+                                          dkr_sato,option,table_idxs)
+
+ use Option_module
+ use Utility_module
+
+ implicit none
+
+ class(rel_perm_og_owg_table_type) :: this
+ PetscReal, intent(in) :: oil_sat
+ PetscReal, intent(out) :: rel_perm
+ PetscReal, intent(out) :: dkr_sato
+ type(option_type), intent(inout) :: option
+ PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+ PetscErrorCode:: ierr
+
+ call this%table%CharCurveTableVarGrad(oil_sat,CCT_KROG, &
+                                      rel_perm,dkr_sato,ierr,table_idxs)
+
+end subroutine RPF_og_owg_table_RelPerm
 
 !-----------------------------------------------------------------------------
 !-- RPF Oil base -------------------------------------------------------------
@@ -3884,14 +4373,14 @@ subroutine RPF_oil_ecl_Verify(this,name,option)
    end if
 
    if ( .not.associated(this%rel_perm_ow) ) then
-     option%io_buffer = string // ' ,RPF_OIL_WATER not defined'
+     option%io_buffer = trim(string) // ' ,RPF_OIL_WATER not defined'
      call printErrMsg(option)
    else
      call this%rel_perm_ow%Verify(string,option)
    end if
 
    if ( .not.associated(this%rel_perm_og) ) then
-     option%io_buffer = string // ' ,RPF_OIL_GAS not defined'
+     option%io_buffer = trim(string) // ' ,RPF_OIL_GAS not defined'
      call printErrMsg(option)
    else
      call this%rel_perm_og%Verify(string,option)
@@ -3906,7 +4395,7 @@ subroutine RPF_oil_ecl_Verify(this,name,option)
                                                dkr_dummy,option)
                                                
    if ( krow_max /= krog_max ) then
-     option%io_buffer = string // ' krow_max /= krog_max '
+     option%io_buffer = trim(string) // ' krow_max /= krog_max '
      call printErrMsg(option)
    end if 
 
@@ -4084,6 +4573,7 @@ subroutine SaturationFunctionXWDestroy(sf_xw)
   if (.not.associated(sf_xw)) return
 
   call SaturationFunctionDestroy(sf_xw%sat_func_sl)
+  nullify(sf_xw%table)
 
   deallocate(sf_xw)
   nullify(sf_xw)
@@ -4107,6 +4597,7 @@ subroutine SaturationFunctionOGDestroy(sf_og)
   if (.not.associated(sf_og)) return
 
   call SaturationFunctionDestroy(sf_og%sat_func_sl)
+  nullify(sf_og%table)
 
   deallocate(sf_og)
   nullify(sf_og)
@@ -4210,5 +4701,54 @@ subroutine OilPermFunctionOWGDestroy(rpf)
 
 end subroutine OilPermFunctionOWGDestroy
 
+! ************************************************************************** !
+
+subroutine SetCCOWGPhaseFlags(option,oil_gas_interface_present, &
+                              wat_gas_interface_present, gas_present, &
+                              oil_perm_2ph_ow,oil_perm_3ph_owg)
+  !
+  ! Set phase flags for error checks based on PM moeds
+  !
+  ! Author: Paolo Orsini
+  ! Date: 08/18/18
+  !
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+  PetscBool, intent(out) :: oil_gas_interface_present
+  PetscBool, intent(out) :: wat_gas_interface_present
+  PetscBool, intent(out) :: gas_present
+  PetscBool, intent(out) :: oil_perm_2ph_ow
+  PetscBool, intent(out) :: oil_perm_3ph_owg
+
+  oil_perm_2ph_ow = PETSC_FALSE
+  oil_perm_3ph_owg = PETSC_FALSE
+  gas_present = PETSC_FALSE
+  oil_gas_interface_present = PETSC_FALSE
+  wat_gas_interface_present = PETSC_FALSE
+
+  select case(option%iflowmode)
+    case(TOIL_IMS_MODE)
+      oil_perm_2ph_ow = PETSC_TRUE
+    case(TOWG_MODE)
+      select case(option%iflow_sub_mode)
+        case(TOWG_TODD_LONGSTAFF)
+          oil_perm_2ph_ow = PETSC_TRUE
+        case(TOWG_IMMISCIBLE)
+          oil_perm_2ph_ow = PETSC_TRUE !oil_perm_3ph_owg no yet supported
+          gas_present = PETSC_TRUE
+          oil_gas_interface_present = PETSC_TRUE
+        case default ! Black Oil and Solvent models
+          oil_perm_3ph_owg = PETSC_TRUE
+          gas_present = PETSC_TRUE
+          oil_gas_interface_present = PETSC_TRUE
+    end select
+  end select
+
+end subroutine SetCCOWGPhaseFlags
+
+! ************************************************************************** !
 
 end module Characteristic_Curves_OWG_module

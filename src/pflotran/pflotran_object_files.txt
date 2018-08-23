@@ -189,6 +189,7 @@ io_obj = \
 misc_obj = \
 	${common_src}block_solve.o \
 	${common_src}block_tridiag.o \
+	${common_src}characteristic_curves_table.o \
 	${common_src}checkpoint.o \
 	${common_src}condition.o \
 	${common_src}condition_control.o \
