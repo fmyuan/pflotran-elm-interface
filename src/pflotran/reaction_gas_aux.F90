@@ -63,7 +63,8 @@ module Reaction_Gas_Aux_module
             GasGetNames, &
             GasGetCount, &
             GasSpeciesListMergeDuplicates, &
-            GasDestroy
+            GasDestroy, &
+            GasGetIDFromName
              
 contains
 
