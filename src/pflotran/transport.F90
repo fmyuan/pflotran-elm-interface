@@ -124,12 +124,12 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
           t_ref_inv = 1.d0/298.15d0 ! 1. / (25. + 273.15)
           molecular_diffusion_up(:) = &
             rt_parameter%diffusion_coefficient(:,iphase) * &
-            exp(rt_parameter%diffusion_activation_energy(:) / &
+            exp(rt_parameter%diffusion_activation_energy(:,iphase) / &
                 IDEAL_GAS_CONSTANT* &
                 (t_ref_inv - 1.d0/(global_auxvar_up%temp + 273.15d0)))
           molecular_diffusion_dn(:) = &
             rt_parameter%diffusion_coefficient(:,iphase) * &
-            exp(rt_parameter%diffusion_activation_energy(:) / &
+            exp(rt_parameter%diffusion_activation_energy(:,iphase) / &
                 IDEAL_GAS_CONSTANT* &
                 (t_ref_inv - 1.d0/(global_auxvar_dn%temp + 273.15d0)))
         case(GAS_PHASE)
@@ -288,7 +288,7 @@ subroutine TDispersionBC(ibndtype, &
           t_ref_inv = 1.d0/298.15d0 ! 1. / (25. + 273.15)
           molecular_diffusion(:) = &
             rt_parameter%diffusion_coefficient(:,iphase) * &
-            exp(rt_parameter%diffusion_activation_energy(:) / &
+            exp(rt_parameter%diffusion_activation_energy(:,iphase) / &
                 IDEAL_GAS_CONSTANT* &
                 (t_ref_inv - 1.d0/(global_auxvar_up%temp + 273.15d0)))
         case(GAS_PHASE)

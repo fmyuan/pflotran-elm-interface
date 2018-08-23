@@ -88,7 +88,7 @@ module Reactive_Transport_Aux_module
     PetscInt, pointer :: pri_spec_to_coll_spec(:)
     PetscInt, pointer :: coll_spec_to_pri_spec(:)
     PetscReal, pointer :: diffusion_coefficient(:,:)
-    PetscReal, pointer :: diffusion_activation_energy(:)
+    PetscReal, pointer :: diffusion_activation_energy(:,:)
 #ifdef OS_STATISTICS
 ! use PetscReal for large counts
     PetscInt :: newton_call_count
@@ -182,7 +182,7 @@ function RTAuxCreate(naqcomp,nphase)
   aux%rt_parameter%naqcomp = naqcomp
   aux%rt_parameter%nphase = nphase
   allocate(aux%rt_parameter%diffusion_coefficient(naqcomp,nphase))
-  allocate(aux%rt_parameter%diffusion_activation_energy(naqcomp))
+  allocate(aux%rt_parameter%diffusion_activation_energy(naqcomp,nphase))
   aux%rt_parameter%diffusion_coefficient = 1.d-9
   aux%rt_parameter%diffusion_activation_energy = 0.d0
   aux%rt_parameter%ncomp = 0

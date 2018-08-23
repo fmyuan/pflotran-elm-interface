@@ -321,10 +321,12 @@ subroutine RTSetup(realization)
     iphase = cur_fluid_property%phase_id
     ! setting of phase diffusion coefficients must come before individual
     ! species below
-    rt_parameter%diffusion_coefficient(:,iphase) = &
-      cur_fluid_property%diffusion_coefficient
-    rt_parameter%diffusion_activation_energy(:) = &
-      cur_fluid_property%diffusion_activation_energy
+    if (iphase <= option%transport%nphase) then
+      rt_parameter%diffusion_coefficient(:,iphase) = &
+        cur_fluid_property%diffusion_coefficient
+      rt_parameter%diffusion_activation_energy(:,iphase) = &
+        cur_fluid_property%diffusion_activation_energy
+    endif
     cur_fluid_property => cur_fluid_property%next
   enddo
 
