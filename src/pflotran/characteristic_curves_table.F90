@@ -1,4 +1,4 @@
-module Char_Curves_Table_module
+module Characteristic_Curves_Table_module
  
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -808,4 +808,4 @@ end subroutine CharCurvesTableDestroy
 
 ! ************************************************************************** !
   
-end module Char_Curves_Table_module
+end module Characteristic_Curves_Table_module

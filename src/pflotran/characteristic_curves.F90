@@ -7,7 +7,7 @@ module Characteristic_Curves_module
   use Characteristic_Curves_Common_module
   use Characteristic_Curves_OWG_module
   use Characteristic_Curves_WIPP_module
-  use Char_Curves_Table_module
+  use Characteristic_Curves_Table_module
 
   implicit none
 
