@@ -582,7 +582,7 @@ function CharCurveTableGetPtrFromList(cc_table_name,list,error_string,option)
   
   class(char_curves_table_type), pointer :: CharCurveTableGetPtrFromList
   character(len=MAXWORDLENGTH) :: cc_table_name
-  type(char_curves_table_type), pointer :: list
+  class(char_curves_table_type), pointer :: list
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option  
   
@@ -628,7 +628,7 @@ subroutine SearchCCTVarInCCTableList(list,var_iname,cc_table_name, &
 
   implicit none
   
-  type(char_curves_table_type), pointer :: list
+  class(char_curves_table_type), pointer :: list
   PetscInt, intent(in) :: var_iname
   character(len=MAXWORDLENGTH), intent(out) :: cc_table_name
   character(len=MAXSTRINGLENGTH), intent(in) :: error_string
