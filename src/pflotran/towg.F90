@@ -17,7 +17,7 @@ module TOWG_module
 #define CONDUCTION
 
 #define GLOBALWORKERS
-#define DERIVS_VD_INDEP
+!#define DERIVS_VD_INDEP
 
 !#define DEBUG_TOWG_FILEOUTPUT
 !#define DEBUG_TOWG_FLUXES  
@@ -5727,6 +5727,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   changed = PETSC_TRUE
 
   max_pb_change=2.0*max_pressure_change
+  !max_pb_change= 1.1D5
 
   ! truncation
   ! Oil saturation must be truncated.  We do not use scaling
@@ -5806,9 +5807,18 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
       endif
     else if( istate == TOWG_LIQ_OIL_STATE ) then ! Is bubble point variable
       if (dabs(del_saturation) > max_pb_change) then
+        print *, "here scaling pb change"
          temp_real = dabs(max_pb_change/del_saturation)
          temp_scale = min(temp_scale,temp_real)
       endif
+      !!!! HACK
+      !!!! let's try avoiding negative pb values
+      if ((X_p(saturation_index) - dX_p(saturation_index))  < 0.d0) then
+        print *, "negative pb! ", X_p(saturation_index)
+        print *, dX_p(saturation_index), ", ", X_p(saturation_index) - dX_p(saturation_index)
+      dX_p(saturation_index) = X_p(saturation_index) - 0.5
+      endif
+      !!!! HACK
     endif
 #endif
 !LIMIT_MAX_SATURATION_CHANGE

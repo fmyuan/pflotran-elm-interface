@@ -905,6 +905,16 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                                 auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
   endif
 
+  if (auxvar%bo%xo < 0.d0) then
+    print *, "xo negative ", auxvar%bo%xo, " pb is ", auxvar%bo%bubble_point
+    option%io_buffer = 'xo has gone negative; xo and bubble point are'
+    call printMsg(option)
+    write(option%io_buffer,*) auxvar%bo%xo
+    call printMsg(option)
+    write(option%io_buffer,*) auxvar%bo%bubble_point
+    call printMsg(option)
+  endif
+
 !==============================================================================
 !  Get the capillary pressures
 !==============================================================================
