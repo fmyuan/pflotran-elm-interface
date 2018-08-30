@@ -309,20 +309,20 @@ wipp_test :
 # removed.
 #
 clean-tests :
-	-find . -type f -name '*.testlog' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.out' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.tec' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.regression' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.stdout' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.old' -print0 | xargs -0 -r rm
-	-find . -type f -name '*~' -print0 | xargs -0 -r rm
-	-find . -type f -name 'tmp-restart-*' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.chk' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.pyc' -print0 | xargs -0 -r rm
-	-find . -type f -name 'sigma*.txt' -print0 | xargs -0 -r rm 
-	-find . -type f -name '*.dpd' -print0 | xargs -0 -r rm
-	-find . -type f -name 'e4d*.log' -print0 | xargs -0 -r rm
-	-find . -type d -name '__pycache__' -print0 | xargs -0 -r rm 
+	-find . -type f -name '*.testlog' -print0 | xargs -0 rm
+	-find . -type f -name '*.out' -print0 | xargs -0 rm
+	-find . -type f -name '*.tec' -print0 | xargs -0 rm
+	-find . -type f -name '*.regression' -print0 | xargs -0 rm
+	-find . -type f -name '*.stdout' -print0 | xargs -0 rm
+	-find . -type f -name '*.old' -print0 | xargs -0 rm
+	-find . -type f -name '*~' -print0 | xargs -0 rm
+	-find . -type f -name 'tmp-restart-*' -print0 | xargs -0 rm
+	-find . -type f -name '*.chk' -print0 | xargs -0 rm
+	-find . -type f -name '*.pyc' -print0 | xargs -0 rm
+	-find . -type f -name 'sigma*.txt' -print0 | xargs -0 rm 
+	-find . -type f -name '*.dpd' -print0 | xargs -0 rm
+	-find . -type f -name 'e4d*.log' -print0 | xargs -0 rm
+	-find . -type d -name '__pycache__' -print0 | xargs -0 rm 
 	-rm -f mfd/mfd-mas.dat
 	-rm -f mfd/mfd.h5
 	-rm -f default/543/543_flow_and_tracer-np8.h5
