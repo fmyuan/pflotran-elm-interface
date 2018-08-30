@@ -31,6 +31,8 @@ import traceback
 import difflib
 import math
 from collections import OrderedDict
+import psutil
+import subprocess
 
 if sys.version_info[0] == 2:
     from ConfigParser import SafeConfigParser as config_parser
@@ -327,8 +329,27 @@ class RegressionTest(object):
         if self._np is not None:
             if mpiexec:
                 command.append(mpiexec)
-                command.append("-np")
-                command.append(self._np)
+                
+                mympiexec = subprocess.getoutput(mpiexec+' --version')
+                line0=mympiexec.split('\n')[0]
+                isopenmpi = False
+                if 'OpenRTE' in line0 and 'HYDRA' not in line0: isopenmpi=True
+                maxnp = psutil.cpu_count(logical=False)
+
+                if (int(self._np)>maxnp):
+                    # OPENMPI doesn't allow over physical CPU cores.
+                    # and OPENMPI 4 won't work anymore with '--oversubscribe'
+                    # FOR both OPENMPI and MPICH work consistently, try to reset -np to max. phyiscal CPU cores.
+                    #   otherwise, output .regression file are different.
+                    command.append("-np")
+                    
+                    print("\nWarning for testing: ", test_name,
+                        "requested CPU cores", self._np, " are over max.", maxnp, " AND reset!")
+                    command.append(str(maxnp))
+
+                else:
+                    command.append("-np")
+                    command.append(self._np)
             else:
                 # parallel test, but don't have mpiexec, we mark the
                 # test as skipped and bail....

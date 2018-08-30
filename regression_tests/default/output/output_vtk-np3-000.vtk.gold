@@ -80,8 +80,8 @@ LOOKUP_TABLE default
 SCALARS Process_ID           int 1
 LOOKUP_TABLE default
   0
+  0
   1
-  2
 
 
 SCALARS Free_Tracer          float 1
