@@ -21,7 +21,7 @@ NUMERICAL_METHODS TRANSPORT
 
 END
 
-PROC 2 2 1
+PROC 2 1 1
 
 #=========================== regression =======================================
 REGRESSION
