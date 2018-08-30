@@ -159,4 +159,7 @@ module Variables_module
   PetscInt, parameter, public :: SOLVENT_ENERGY          = 129
   PetscInt, parameter, public :: SOLVENT_MOBILITY        = 130
 
+  PetscInt, parameter, public :: LIQUID_REL_PERM         = 131
+  PetscInt, parameter, public :: GAS_REL_PERM            = 132
+
 end module Variables_module

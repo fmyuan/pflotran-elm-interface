@@ -1983,7 +1983,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
 
   ! Accumulation terms ------------------------------------
   if (.not.option%steady_state) then
-    r_p = r_p - accum_p
+    r_p(1:grid%nlmax) = r_p(1:grid%nlmax) - accum_p(1:grid%nlmax)
 
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)

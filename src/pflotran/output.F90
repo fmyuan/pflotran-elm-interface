@@ -1056,6 +1056,18 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      GAS_PERMEABILITY_Z)
+      case ('LIQUID_RELATIVE_PERMEABILITY')
+        units = '-'
+        name = 'Liquid Relative Permeability'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     LIQUID_REL_PERM)
+      case ('GAS_RELATIVE_PERMEABILITY')
+        units = '-'
+        name = 'Gas Relative Permeability'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     GAS_REL_PERM)
       case ('SOIL_COMPRESSIBILITY')
         units = ''
         name = 'Compressibility'

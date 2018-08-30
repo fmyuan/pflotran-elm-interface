@@ -5926,6 +5926,30 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                                   vec_ptr(local_id),ivar)
           enddo
       end select
+    case(LIQUID_REL_PERM)
+      select case(option%iflowmode)
+        case(WF_MODE)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))% &
+                kr(option%liquid_phase)
+          enddo
+        case default
+          option%io_buffer = 'Output of liquid phase relative permeability &
+            &not supported for current flow mode.'
+      end select
+    case(GAS_REL_PERM)
+      select case(option%iflowmode)
+        case(WF_MODE)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))% &
+                kr(option%gas_phase)
+          enddo
+        case default
+          option%io_buffer = 'Output of gas phase relative permeability &
+            &not supported for current flow mode.'
+      end select
     case(PHASE)
       call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
       do local_id=1,grid%nlmax
@@ -6951,6 +6975,24 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
                                                           ghosted_id), &
                                 material_auxvars(ghosted_id), &
                                 value,ivar)
+      end select
+    case(LIQUID_REL_PERM)
+      select case(option%iflowmode)
+        case(WF_MODE)
+          value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    kr(option%liquid_phase)
+        case default
+          option%io_buffer = 'Output of liquid phase relative permeability &
+            &not supported for current flow mode.'
+      end select
+    case(GAS_REL_PERM)
+      select case(option%iflowmode)
+        case(WF_MODE)
+          value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    kr(option%gas_phase)
+        case default
+          option%io_buffer = 'Output of gas phase relative permeability &
+            &not supported for current flow mode.'
       end select
     case(PHASE)
       call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
