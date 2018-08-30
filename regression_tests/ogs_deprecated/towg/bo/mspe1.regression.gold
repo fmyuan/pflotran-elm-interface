@@ -37,7 +37,7 @@
 -- SATURATION: Gas Saturation --
       Max:   3.1416468413266E-01
       Min:   0.0000000000000E+00
-     Mean:   1.4094939514557E-02
+     Mean:   1.4094939514556E-02
         1:   0.0000000000000E+00
        27:   0.0000000000000E+00
 -- GENERIC: Liquid Density --
@@ -66,9 +66,9 @@
        27:   1.0974470429443E+00
 -- GENERIC: Oil Energy --
       Max:   2.1607317068534E+00
-      Min:   4.8651801597252E-01
+      Min:   4.8651801597250E-01
      Mean:   1.2890587957139E+00
-        1:   4.8651801597252E-01
+        1:   4.8651801597250E-01
        27:   1.8163126182290E+00
 -- GENERIC: Gas Energy --
       Max:   6.0079276099205E+00
@@ -89,10 +89,10 @@
         1:         1
        27:         1
 -- SOLUTION: Flow --
-   Time (seconds):   7.5446367263794E-02
+   Time (seconds):   8.6283445358276E-02
    Time Steps:           17
    Newton Iterations:           54
    Solver Iterations:          205
    Time Step Cuts:            0
    Solution 2-Norm:   2.3021881380285E+08
-   Residual 2-Norm:   2.6239203676123E-09
+   Residual 2-Norm:   2.6240516042055E-09
