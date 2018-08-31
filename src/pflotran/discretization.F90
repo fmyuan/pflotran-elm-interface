@@ -1697,7 +1697,7 @@ subroutine DiscretizationDestroy(discretization)
 
 
   if (discretization%tvd_ghost_scatter /= PETSC_NULL_VECSCATTER) &
-    call VecScatterDestroy(discretization%tvd_ghost_scatter)
+    call VecScatterDestroy(discretization%tvd_ghost_scatter,ierr);CHKERRQ(ierr)
   
   call GridDestroy(discretization%grid)
   
