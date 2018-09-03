@@ -817,6 +817,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
       if( (auxvar%sat(gid)<0.0d0) .and. (auxvar%sat(oid)>eps_oil) ) then
 ! Gas saturation has gone negative and significant oil in cell
         global_auxvar%istate          =TOWG_LIQ_OIL_STATE
+        print *, "state change to unsat, this is cell ", natural_id
         auxvar%sat(gid)               =0.0d0
         auxvar%bo%bubble_point        =auxvar%pres(oid)-epsp
         x(TOWG_BUBBLE_POINT_3PH_DOF)  =auxvar%pres(oid)-epsp
@@ -829,6 +830,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
         auxvar%bo%bubble_point        =auxvar%pres(oid)
         auxvar%sat(gid)               =epss
         x(TOWG_GAS_SATURATION_3PH_DOF)=epss
+        print *, "state change to sat, this is cell ", natural_id
 ! Make sure the extra gas does not push the water saturation negative
         if( auxvar%sat(oid) > oneminuseps ) then
           auxvar%sat(oid)             =oneminuseps
@@ -854,6 +856,8 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !==============================================================================
 
   auxvar%sat(wid) = 1.d0 - auxvar%sat(oid) - auxvar%sat(gid)
+
+
 
 !==============================================================================
 ! Extract solution into local scalars
@@ -920,6 +924,16 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !==============================================================================
 
 
+!!! phase notation for the cap pressure can be confusing. There are (ndof -1)
+!!! entries in the array as opposed to ndof. 
+!!! pc(wid) = pc_{wo} : between oil and water
+!!! pc(oid) = pc_{og} : between oil and gas
+
+!!! and of course analagously for D_pc.
+!!! Writing into or reading from D_pc(gid) is a mistake.
+!!! Note this implies a hardcoding of the values of w/o/gid, since we must
+!!! always have gid > wid,oid.
+
   call characteristic_curves%oil_wat_sat_func% &
             CapillaryPressure(auxvar%sat(wid), &
                               auxvar%pc(wid),dpc_w_dsw,option,auxvar%table_idx)
@@ -932,9 +946,11 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   if (getDerivs) then
     auxvar%D_pc(wid,dof_osat) = -dpc_w_dsw
-    auxvar%D_pc(oid,dof_osat) = dpc_w_dsw 
+    auxvar%D_pc(wid,dof_gsat) = -dpc_w_dsw
+    !auxvar%D_pc(oid,dof_osat) = dpc_w_dsw 
     
     auxvar%D_pc(oid,dof_gsat) = dpc_o_dsg
+    auxvar%D_pc(oid,dof_osat) = -dpc_o_dsg
 
     ! pressure saved below
   endif
@@ -946,6 +962,23 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   auxvar%pres(wid) = auxvar%pres(oid) - auxvar%pc(wid)
   auxvar%pres(gid) = auxvar%pres(oid) + auxvar%pc(oid)
+
+#if 0
+if (natural_id == 1 ) then
+  print *,
+  print *, "id: ", natural_id, " sat: ", auxvar%sat, " sat state: ", isSat
+  print *, "pres: ", auxvar%pres
+  print *,
+endif
+#endif
+#if 0
+if (natural_id == 2 ) then
+  print *,
+  print *, "id: ", natural_id, " sat: ", auxvar%sat, " sat state: ", isSat
+  print *, "pres: ", auxvar%pres
+  print *,
+endif
+#endif
 
   if (getDerivs) then
     ! pres(oid) has derivatives w.r.t. oil pressure, obviously:
@@ -959,9 +992,16 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     ! pres(oid) has derivatives w.r.t. oil pressure, obviously:
     auxvar%D_pres(gid,dof_op) = 1.d0
     ! pc(gid) has derivatives w.r.t. oil and gas sat
+#if 0
+    !!!!! WRONG -  D_pc(gid not set!
     auxvar%D_pres(gid,dof_osat) =  auxvar%D_pc(gid,dof_osat)
     if (isSat) then
       auxvar%D_pres(gid,dof_gsat) =  auxvar%D_pc(gid,dof_gsat)
+    endif
+#endif
+    auxvar%D_pres(gid,dof_osat) =  auxvar%D_pc(oid,dof_osat)
+    if (isSat) then
+      auxvar%D_pres(gid,dof_gsat) =  auxvar%D_pc(oid,dof_gsat)
     endif
 
   endif
@@ -1374,6 +1414,12 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                     RelativePermeability(auxvar%sat(wid),krw,dkrw_satw,option, &
                     auxvar%table_idx)
 
+#if 0
+if (natural_id == 1 .OR. natural_id == 2) then
+  print *, "id: ", natural_id, " wat sat: ", auxvar%sat(wid),  " wat relperm: ", krw, ", dkrw_satw: ", dkrw_satw
+endif
+#endif
+
 
 
   if (getDerivs) then
@@ -1429,6 +1475,12 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   call characteristic_curves%oil_rel_perm_func_owg% &
                   RelativePermeability(auxvar%sat(oid),auxvar%sat(gid),kro, &
                                  dkro_sato,dkro_satg,option,auxvar%table_idx)
+
+#if 0
+if (natural_id == 1 .OR. natural_id == 2) then
+  print *, "id: ", natural_id, " oil sat: ", auxvar%sat(oid),  " oil relperm: ", kro, ", dkro_sato: ", dkro_sato
+endif
+#endif
 
 !--If PVCO defined in EOS OIL, the viscosities are extracted via table lookup--
 
@@ -1501,6 +1553,12 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   call characteristic_curves%gas_rel_perm_func_owg% &
                    RelativePermeability(auxvar%sat(gid),krg, &
                                 dkrg_satg,option,auxvar%table_idx)
+
+#if 0
+if (natural_id == 1 .OR. natural_id == 2) then
+  print *, "id: ", natural_id, " gas sat: ", auxvar%sat(gid),  " gas relperm: ", krg, ", dkrg_satg: ", dkrg_satg
+endif
+#endif
 
   if (getDerivs) then
     ! seems to want derivatves of comp pressure w.r.t. pressure and temp, we use 

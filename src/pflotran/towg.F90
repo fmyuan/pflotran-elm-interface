@@ -2279,6 +2279,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
 #endif
 
     if (delta_pressure >= 0.D0) then
+      !print *, "flux is upstream"
       mobility = auxvar_up%mobility(iphase)
       H_ave = auxvar_up%H(iphase)
       uH = H_ave
@@ -2291,6 +2292,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
       endif
 
     else
+      !print *, "flux is downstream"
       mobility = auxvar_dn%mobility(iphase)
       H_ave = auxvar_dn%H(iphase)
       uH = H_ave
@@ -4836,6 +4838,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
 
+!print *, "residual compute flux"
       call TOWGFlux(towg%auxvars(ZERO_INTEGER,ghosted_id_up), &
                     global_auxvars(ghosted_id_up), &
                     material_auxvars(ghosted_id_up), & 
@@ -4852,6 +4855,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
                     (local_id_up == towg_debug_cell_id .or. &
                      local_id_dn == towg_debug_cell_id), &
                      jdum,jdum2,PETSC_FALSE)
+!print *, "done with residual compute flux"
 
       patch%internal_velocities(:,sum_connection) = v_darcy
       if (associated(patch%internal_flow_fluxes)) then
@@ -5249,6 +5253,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
                               
+!print *, "jacobian compute flux"
       call TOWGFluxDerivative(towg%auxvars(:,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
@@ -5263,6 +5268,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
                      cur_connection_set%dist(:,iconn), &
                      towg_parameter,option,&
                      Jup,Jdn)
+!print *, "done jacobian compute flux"
 
       if (local_id_up > 0) then
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
@@ -5842,6 +5848,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   ! it performs an homogenous scaling using the smallest scaling factor
   ! over all subdomains domains
   if (scale < 0.9999d0) then
+    print *, "we are scaling ", scale
     dX_p = scale*dX_p
   endif
 
