@@ -1958,7 +1958,7 @@ subroutine OutputMassBalance(realization_base)
   PetscInt :: iconn
   PetscInt :: offset
   PetscInt :: iphase, ispec
-  PetscInt :: icomp
+  PetscInt :: icomp, nmobilecomp
   PetscInt :: max_tran_size
   PetscReal :: sum_area(4)
   PetscReal :: sum_area_global(4)
@@ -2900,15 +2900,17 @@ subroutine OutputMassBalance(realization_base)
     
     if (option%ntrandof > 0) then
 
-      allocate(sum_mol(reaction%naqcomp,option%transport%nphase))
-      allocate(sum_mol_global(reaction%naqcomp,option%transport%nphase))
+      nmobilecomp = reaction%naqcomp
+      allocate(sum_mol(nmobilecomp,option%transport%nphase))
+      allocate(sum_mol_global(nmobilecomp,option%transport%nphase))
       ! print out cumulative boundary flux
       sum_mol = 0.d0
       do iconn = 1, coupler%connection_set%num_connections
-        sum_mol = sum_mol + rt_auxvars_bc_or_ss(offset+iconn)%mass_balance
+        sum_mol = sum_mol + &
+          rt_auxvars_bc_or_ss(offset+iconn)%mass_balance(1:nmobilecomp,:)
       enddo
 
-      int_mpi = reaction%naqcomp*option%transport%nphase
+      int_mpi = nmobilecomp
       call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
                       MPI_DOUBLE_PRECISION,MPI_SUM, &
                       option%io_rank,option%mycomm,ierr)
@@ -2925,10 +2927,11 @@ subroutine OutputMassBalance(realization_base)
       ! print out boundary flux
       sum_mol = 0.d0
       do iconn = 1, coupler%connection_set%num_connections
-        sum_mol = sum_mol + rt_auxvars_bc_or_ss(offset+iconn)%mass_balance_delta 
+        sum_mol = sum_mol + &
+          rt_auxvars_bc_or_ss(offset+iconn)%mass_balance_delta(1:nmobilecomp,:) 
       enddo
 
-      int_mpi = option%transport%nphase*option%ntrandof
+      int_mpi = nmobilecomp
       call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
                       MPI_DOUBLE_PRECISION,MPI_SUM, &
                       option%io_rank,option%mycomm,ierr)
