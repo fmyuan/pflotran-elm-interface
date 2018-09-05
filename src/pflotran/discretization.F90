@@ -1696,8 +1696,9 @@ subroutine DiscretizationDestroy(discretization)
   nullify(discretization%dm_n_stress_strain_dof)
 
 
-  if (discretization%tvd_ghost_scatter /= PETSC_NULL_VECSCATTER) &
+  if (discretization%tvd_ghost_scatter /= PETSC_NULL_VECSCATTER) then
     call VecScatterDestroy(discretization%tvd_ghost_scatter,ierr);CHKERRQ(ierr)
+  endif
   
   call GridDestroy(discretization%grid)
   
