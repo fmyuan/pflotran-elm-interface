@@ -181,8 +181,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         if (associated(DatasetCommonHDF5Cast(condition%&
                                              temperature%dataset))) then
           option%io_buffer = 'HDF5-type datasets for temperature are not &
-            &supported for hydrostatic, seepage, or conductance boundary &
-            &conditions.'
+            &supported in combination with hydrostatic, seepage, or &
+            &conductance boundary conditions for pressure.'
           call printErrMsg(option)
         endif
         if (condition%temperature%itype == DIRICHLET_BC) then
