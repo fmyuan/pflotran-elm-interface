@@ -280,7 +280,7 @@ recursive subroutine PMCBaseSetChildPeerPtr(pmcA,relationship_to,pmcB, &
 #ifdef DEBUG
         pmcA%option%io_buffer = trim(pmcA%name) // ' assigned as peer of ' // &
                                 trim(pmcB%name) // ' via "append".'
-        call printMsg(option)
+        call printMsg(pmcA%option)
 #endif
           endif
       !----------------------------------------------------
@@ -291,7 +291,7 @@ recursive subroutine PMCBaseSetChildPeerPtr(pmcA,relationship_to,pmcB, &
 #ifdef DEBUG
         pmcA%option%io_buffer = trim(pmcA%name)// ' assigned as first child&
                                 & of ' // trim(pmcB%name) // ' via "insert".'
-        call printMsg(option)
+        call printMsg(pmcA%option)
 #endif
           else
             pmcA%option%io_buffer = 'Null pointer for pmcB_parent passed into &
