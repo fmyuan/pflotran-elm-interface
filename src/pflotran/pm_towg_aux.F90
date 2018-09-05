@@ -949,8 +949,11 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     auxvar%D_pc(wid,dof_gsat) = -dpc_w_dsw
     !auxvar%D_pc(oid,dof_osat) = dpc_w_dsw 
     
-    auxvar%D_pc(oid,dof_gsat) = dpc_o_dsg
-    auxvar%D_pc(oid,dof_osat) = -dpc_o_dsg
+    if (isSat) then
+      auxvar%D_pc(oid,dof_gsat) = dpc_o_dsg
+      auxvar%D_pc(oid,dof_osat) = -dpc_o_dsg
+      ! gas saturation isn't a solution variable is not sat state
+    endif
 
     ! pressure saved below
   endif
