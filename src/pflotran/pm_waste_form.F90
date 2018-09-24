@@ -19,6 +19,7 @@ module PM_Waste_Form_class
   use Data_Mediator_Vec_class
   use Dataset_Base_class
   use Region_module
+  use Checkpoint_module
  
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
@@ -357,7 +358,7 @@ module PM_Waste_Form_class
     procedure, public :: FinalizeTimestep => PMWFFinalizeTimestep
     procedure, public :: UpdateSolution => PMWFUpdateSolution
     procedure, public :: Solve => PMWFSolve
-    procedure, public :: Checkpoint => PMWFCheckpoint    
+    procedure, public :: CheckpointHDF5 => PMWFCheckpointHDF5
     procedure, public :: Restart => PMWFRestart  
     procedure, public :: InputRecord => PMWFInputRecord
     procedure, public :: Destroy => PMWFDestroy
@@ -3803,58 +3804,105 @@ end subroutine PMWFOutputHeader
 
 ! ***************************************************************************** !
 
-subroutine PMWFCheckpoint(this,viewer)
+subroutine PMWFCheckpointHDF5(this,pm_grp_id)
   ! 
-  ! Checkpoints data associated with the waste form process model
-  ! 
+  ! Checkpoints data associated with the waste form process model: 
+  ! wasteform volume and canister vitality.
+  !
+  ! Should it be a recursive subroutine to checkpoint all of the
+  ! waste forms? 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/26/15
   !
+  !
+  ! Modified by Michael Nole
+  ! Date: 09/21/18
+  ! 
+
+#if  !defined(PETSC_HAVE_HDF5)
+  implicit none
+  class(pm_waste_form_type) :: this
+  integer :: pm_grp_id
+  type(option_type) :: option
+  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
+        'write HDF5 formatted checkpoint file. Darn.'
+  stop
+#else
+
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use Option_module
+  use Realization_Subsurface_class
+  use hdf5
+  use Checkpoint_module, only: CheckPointWriteRealDatasetHDF5
+!  use HDF5_module, only : HDF5WriteDataSetFromVec
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): waste form process model object
-! viewer (input): PETSc viewer object
-! ---------------------------------
+  ! Input Arguments
   class(pm_waste_form_type) :: this
-  PetscViewer :: viewer
-! ---------------------------------
-  
-! LOCAL VARIABLES:
-! ================
-! ------------------------------------------------------
+
+#if defined(SCORPIO_WRITE)
+  integer :: pm_grp_id
+#else
+  integer(HID_T) :: pm_grp_id
+#endif
+
+  ! Local Variables
+
+#if defined(SCORPIO_WRITE)
+  integer, pointer :: dims(:)
+  integer, pointer :: start(:)
+  integer, pointer :: stride(:)
+  integer, pointer :: length(:)
+#else
+  integer(HSIZE_T), pointer :: dims(:)
+  integer(HSIZE_T), pointer :: start(:)
+  integer(HSIZE_T), pointer :: stride(:)
+  integer(HSIZE_T), pointer :: length(:)
+#endif
+
+  PetscMPIInt :: dataset_rank
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+
+  PetscReal, pointer :: vitality(:)
+
   class(waste_form_base_type), pointer :: cur_waste_form
-  PetscInt :: maximum_waste_form_id
-  PetscInt :: local_waste_form_count
-  PetscInt :: temp_int
-  Vec :: local, global
-  PetscErrorCode :: ierr
-! ------------------------------------------------------
-  
-  this%option%io_buffer = 'PMWFCheckpoint not implemented.'
-  call printErrMsg(this%option)
-  
-  ! calculate maximum waste form id
-  maximum_waste_form_id = 0
-  local_waste_form_count = 0
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+
   cur_waste_form => this%waste_form_list
+  realization => this%realization
+  option => realization%option
+
+  allocate(start(1))
+  allocate(dims(1))
+  allocate(length(1))
+  allocate(stride(1))
+  allocate(vitality(1))
+
+
+  dataset_rank = 1
+  dims(1) = ONE_INTEGER
+  start(1) = 0
+  length(1) = ONE_INTEGER
+  stride(1) = ONE_INTEGER
   do
     if (.not.associated(cur_waste_form)) exit
-    local_waste_form_count = local_waste_form_count + 1
-    maximum_waste_form_id = max(maximum_waste_form_id,cur_waste_form%id)
-    cur_waste_form => cur_waste_form%next
-  enddo
-  call MPI_Allreduce(maximum_waste_form_id,temp_int,ONE_INTEGER_MPI, &
-                     MPIU_INTEGER,MPI_MAX,this%option%mycomm,ierr)
-!  call VecCreateMPI(this%option%mycomm,local_waste_form_count,PETSC_DETERMINE,ierr)
-  
-                     
-end subroutine PMWFCheckpoint
+      dataset_name=trim(cur_waste_form%mech_name) // '_canister_vitality'
+      vitality(1)=cur_waste_form%canister_vitality
+      call CheckPointWriteRealDatasetHDF5(pm_grp_id, dataset_name, & 
+                                     dataset_rank, dims, start, length, stride, &
+                                     vitality, option)
+      cur_waste_form => cur_waste_form%next
+  enddo 
+
+!   this%option%io_buffer = 'PMWFCheckpoint not fully implemented.'
+!   call printErrMsg(this%option)
+#endif
+
+end subroutine PMWFCheckpointHDF5
 
 ! ***************************************************************************** !
 
@@ -4075,3 +4123,4 @@ end subroutine PMWFDestroy
 ! ************************************************************************** !
   
 end module PM_Waste_Form_class
+

@@ -84,6 +84,7 @@ module PM_UFD_Biosphere_class
     procedure, public :: FinalizeTimestep => PMUFDBFinalizeTimestep
     procedure, public :: Solve => PMUFDBSolve
     procedure, public :: Output => PMUFDBOutput
+    procedure, public :: CheckpointHDF5 => PMUFDBCheckpointHDF5
     procedure, public :: InputRecord => PMUFDBInputRecord
     procedure, public :: Destroy => PMUFDBDestroy
   end type pm_ufd_biosphere_type
@@ -1597,6 +1598,135 @@ end subroutine PMUFDBOutput
 
 ! *************************************************************************** !
 
+subroutine PMUFDBCheckpointHDF5(this, pm_grp_id)
+  ! 
+  ! Checkpoints data associated with the biosphere process model.
+  !
+  ! Modified by Michael Nole
+  ! Date: 09/24/18
+  ! 
+#if  !defined(PETSC_HAVE_HDF5)
+  implicit none
+  class(pm_waste_form_type) :: this
+  integer :: pm_grp_id
+  type(option_type) :: option
+  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
+        'write HDF5 formatted checkpoint file. Darn.'
+  stop
+#else
+
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Option_module
+  use Realization_Subsurface_class
+  use hdf5
+  use Checkpoint_module, only: CheckPointWriteRealDatasetHDF5
+  
+  implicit none
+    
+  ! Input Arguments
+  class(pm_ufd_biosphere_type) :: this
+
+#if defined(SCORPIO_WRITE)
+  integer :: pm_grp_id
+#else
+  integer(HID_T) :: pm_grp_id
+#endif
+
+ ! Local Variables
+ 
+#if defined(SCORPIO_WRITE)
+  integer, pointer :: dims(:)
+  integer, pointer :: start(:)
+  integer, pointer :: stride(:)
+  integer, pointer :: length(:)
+#else   
+  integer(HSIZE_T), pointer :: dims(:)
+  integer(HSIZE_T), pointer :: start(:)
+  integer(HSIZE_T), pointer :: stride(:)
+  integer(HSIZE_T), pointer :: length(:)
+#endif
+
+  PetscMPIInt :: dataset_rank
+  PetscInt :: k
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+ 
+  PetscReal, pointer :: aq_conc_sup_rad(:), aq_conc_unsup_rad(:)
+  class(realization_subsurface_type), pointer :: realization
+  class(ERB_base_type), pointer :: cur_ERB
+  type(supported_rad_type), pointer :: cur_sup_rad
+  type(unsupported_rad_type), pointer :: cur_unsup_rad
+
+  type(option_type), pointer :: option
+
+  cur_ERB => this%ERB_list
+  realization => this%realization
+  option => realization%option
+
+  allocate(start(1))
+  allocate(dims(1))
+  allocate(length(1))
+  allocate(stride(1))
+  allocate(aq_conc_sup_rad(1))
+  allocate(aq_conc_unsup_rad(1))
+
+  cur_sup_rad => this%supported_rad_list
+  cur_unsup_rad => this%unsupported_rad_list
+
+  k=1
+  dataset_rank = 1
+  dims(1) = ONE_INTEGER
+  start(1) = 0
+  length(1) = ONE_INTEGER
+  stride(1) = ONE_INTEGER
+
+  cur_ERB => this%ERB_list
+  do
+
+    cur_sup_rad => this%supported_rad_list
+    do
+      if (.not.associated(cur_sup_rad)) exit
+        aq_conc_sup_rad(1)=cur_ERB%aqueous_conc_supported_rad(k)
+        dataset_name=trim(cur_ERB%name) // '_sup_rad_' &
+                // trim(cur_sup_rad%name) // '_aq_conc'
+        call CheckPointWriteRealDatasetHDF5(pm_grp_id, dataset_name, &
+                                    dataset_rank, dims, start, length, &
+                                    stride, aq_conc_sup_rad, option)
+
+      cur_sup_rad => cur_sup_rad%next
+      k = k + 1
+    enddo
+
+    if (cur_ERB%incl_unsupported_rads) then
+      k = 1
+      cur_unsup_rad => this%unsupported_rad_list
+      do
+        if (.not.associated(cur_unsup_rad)) exit
+        aq_conc_unsup_rad(1)=cur_ERB%aqueous_conc_unsupported_rad(k)
+        dataset_name=trim(cur_ERB%name) // '_unsup_rad_' &
+                                    // trim(cur_unsup_rad%name) // '_aq_conc'
+        call CheckPointWriteRealDatasetHDF5(pm_grp_id, dataset_name, &
+                                    dataset_rank, dims, start, length, stride, &
+                                    aq_conc_unsup_rad, option)
+
+        cur_unsup_rad => cur_unsup_rad%next
+        k = k + 1
+      enddo
+    endif
+
+    cur_ERB => cur_ERB%next
+  enddo
+
+
+!  this%option%io_buffer = 'PMUFDBCheckpoint not implemented.'
+!  call printErrMsg(this%option)
+
+#endif  
+
+end subroutine PMUFDBCheckpointHDF5
+
+! *************************************************************************** !
+
 subroutine PMUFDBOutputHeader(this)
   !
   ! Opens the output file and writes the header line.
@@ -1893,3 +2023,4 @@ end subroutine PMUFDBDestroy
 ! ************************************************************************** !
 
 end module PM_UFD_Biosphere_class
+
