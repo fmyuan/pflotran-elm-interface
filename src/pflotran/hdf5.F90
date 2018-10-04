@@ -13,6 +13,7 @@ module HDF5_module
   PetscErrorCode :: ierr
 
   PetscBool, public :: trick_hdf5 = PETSC_FALSE
+  PetscInt, public :: stagger_hdf5 = 0
 
 #if defined(SCORPIO)
   include "scorpiof.h"  
