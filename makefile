@@ -19,6 +19,8 @@ all:
           echo "failed building pflotran, libpflotran.a, and/or libpflotranchem.a"; exit 1 ;\
         fi
 
+clean:
+	@cd ${PFLOTRAN_DIR_LOC}/src/pflotran ; make clean
 
 check:
 	-@cd ${PFLOTRAN_DIR_LOC}/src/pflotran; make check PETSC_DIR=${PETSC_DIR_LOC} PETSC_ARCH=${PETSC_ARCH_LOC} 2>&1 | tee -a test.log
