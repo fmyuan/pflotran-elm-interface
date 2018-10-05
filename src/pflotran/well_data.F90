@@ -63,9 +63,9 @@ module Well_Data_class
 
 ! Well target rate array types: target, actual and total flags
 
-  PetscInt, parameter,public ::VALTYPE_TARGET    = 1
-  PetscInt, parameter,public ::VALTYPE_ACTUAL    = 2
-  PetscInt, parameter,public ::VALTYPE_TOTAL     = 3
+  PetscInt, parameter,public :: VALTYPE_TARGET    = 1
+  PetscInt, parameter,public :: VALTYPE_ACTUAL    = 2
+  PetscInt, parameter,public :: VALTYPE_TOTAL     = 3
 
 ! Flag on use of well_data wells
 
@@ -455,13 +455,13 @@ subroutine WellDataRead(this,input,option)
     if (InputCheckExit(input,option)) exit
 
     call InputReadWord(input,option,keyword,PETSC_TRUE)
-    call InputErrorMsg(input,option,'keyword','WELL_SPEC')
+    call InputErrorMsg(input,option,'keyword','WELL_DATA')
     call StringToUpper(keyword)
 
     select case(trim(keyword))
       case('RADIUS')  ! this has a conversion factor to account for
         call InputReadDouble(input,option,this%w_radius)
-        call InputErrorMsg(input,option,'well-radius','WELL_SPEC')
+        call InputErrorMsg(input,option,'well-radius','WELL_DATA')
         call InputReadWord(input,option,word,PETSC_TRUE)
         internal_units = 'meter'
         if (InputError(input)) then
@@ -476,16 +476,18 @@ subroutine WellDataRead(this,input,option)
       case('SKIN_FACTOR')
         call InputReadDouble(input,option,this%w_skin_factor)
         this%w_skin_factor_set = PETSC_TRUE
-        call InputErrorMsg(input,option,'skin factor','WELL_SPEC')
+        call InputErrorMsg(input,option,'skin factor','WELL_DATA')
         call InputReadWord(input,option,word,PETSC_TRUE)
       case('THETA_FRACTION')
         call InputReadDouble(input,option,this%w_theta_frac)
         this%w_theta_frac_set = PETSC_TRUE
-        call InputErrorMsg(input,option,'theta angle fraction','WELL_SPEC')
+        call InputErrorMsg(input,option,'theta angle fraction','WELL_DATA')
         call InputReadWord(input,option,word,PETSC_TRUE)
       case('WELL_TYPE')
         call InputReadWord(input,option,keyword,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword','WELL_TYPE')
+        call StringToUpper(keyword)
+
         select case(trim(keyword))
           case('PRODUCER','PROD')
             this%w_itype =  PROD_WELL_TYPE
@@ -510,6 +512,8 @@ subroutine WellDataRead(this,input,option)
         this%w_const_drill_dir_set = PETSC_TRUE
         call InputReadWord(input,option,keyword,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword','CONST_DRILL_DIR')
+        call StringToUpper(keyword)
+
         select case(trim(keyword))
           case('DIR_X')
             this%w_const_drill_dir = X_DIRECTION
@@ -525,7 +529,7 @@ subroutine WellDataRead(this,input,option)
       case('Z_REF')
         this%w_z_ref_set = PETSC_TRUE
         call InputReadDouble(input,option,v)
-        call InputErrorMsg(input,option,'z_ref','WELL_SPEC')
+        call InputErrorMsg(input,option,'z_ref','WELL_DATA')
         call InputReadWord(input,option,word,PETSC_TRUE)
         internal_units = 'meter'
         if (InputError(input)) then
@@ -551,7 +555,7 @@ subroutine WellDataRead(this,input,option)
       case('BHPL')
 !  Read a well bhp limit (will be max for injector, min for producer)
         call InputReadDouble(input,option,v)
-        call InputErrorMsg(input,option,'BHPL','WELL_SPEC')
+        call InputErrorMsg(input,option,'BHPL','WELL_DATA')
         call InputReadWord(input,option,word,PETSC_TRUE)
         internal_units = 'Pa'
         if (InputError(input)) then
@@ -1839,7 +1843,7 @@ subroutine readWellTarget(this,input,option,keyword,word,target_type)
 
 !  Read a well surface target rate int v
   call InputReadDouble(input,option,v)
-  call InputErrorMsg(input,option,keyword,'WELL_SPEC')
+  call InputErrorMsg(input,option,keyword,'WELL_DATA')
 ! Read the units into word
   call InputReadWord(input,option,word,PETSC_TRUE)
   vmtype=GetTargetUnitType(target_type)
