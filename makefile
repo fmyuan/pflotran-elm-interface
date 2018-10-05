@@ -12,15 +12,15 @@ PFLOTRANCHEM_LIB="${PFLOTRAN_DIR_LOC}/src/pflotran/libpflotranchem.a"
 # build pflotran and libpflotran.a
 all:
 	@cd ${PFLOTRAN_DIR_LOC}/src/pflotran ;\
-           make pflotran PETSC_DIR=${PETSC_DIR_LOC} PETSC_ARCH=${PETSC_ARCH_LOC} 2>&1 | tee make.log ; \
-	   make libpflotran.a PETSC_DIR=${PETSC_DIR_LOC} PETSC_ARCH=${PETSC_ARCH_LOC} 2>&1 | tee -a make.log ; \
-	   make libpflotranchem.a PETSC_DIR=${PETSC_DIR_LOC} PETSC_ARCH=${PETSC_ARCH_LOC} 2>&1 | tee -a make.log
+           make pflotran libpflotran.a libpflotranchem.a PETSC_DIR=${PETSC_DIR_LOC} PETSC_ARCH=${PETSC_ARCH_LOC} 2>&1 | tee make.log
 	@if [ -e "${PFLOTRAN_EXE}" -a -e "${PFLOTRAN_LIB}" -a -e "${PFLOTRANCHEM_LIB}" ] ; then \
           echo "pflotran, libpflotran.a, and libpflotranchem.a successfully built." ;\
         else \
-          echo "failed building pflotran, libpflotran.a, and/or libpflotranchem.a" ;\
+          echo "failed building pflotran, libpflotran.a, and/or libpflotranchem.a"; exit 1 ;\
         fi
 
+clean:
+	@cd ${PFLOTRAN_DIR_LOC}/src/pflotran ; make clean
 
 check:
 	-@cd ${PFLOTRAN_DIR_LOC}/src/pflotran; make check PETSC_DIR=${PETSC_DIR_LOC} PETSC_ARCH=${PETSC_ARCH_LOC} 2>&1 | tee -a test.log
