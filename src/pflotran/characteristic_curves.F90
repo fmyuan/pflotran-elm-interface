@@ -1687,11 +1687,11 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
   type(option_type) :: option
 
   PetscReal :: CharCurvesGetGetResidualSats(option%nphase)
-  PetscReal :: sowcr_dummy, sogcr_dummy, swco_dummy
+  PetscReal :: sgcr_dummy,sowcr_dummy, sogcr_dummy, swco_dummy
   PetscReal :: gas_res_sat
 
   select case(option%iflowmode)
-    case(TOWG_MODE,TOIL_IMS_MODE)
+    case(TOWG_MODE)
       call characteristic_curves%GetOWGCriticalAndConnateSats( &
                     CharCurvesGetGetResidualSats(option%liquid_phase), &
                     CharCurvesGetGetResidualSats(option%gas_phase), &
@@ -1702,7 +1702,16 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
                     option)
       if (option%iflow_sub_mode == TOWG_TODD_LONGSTAFF) then
         CharCurvesGetGetResidualSats(option%gas_phase) = 0.0d0
-      end if  
+      end if
+    case(TOIL_IMS_MODE)
+      call characteristic_curves%GetOWGCriticalAndConnateSats( &
+                    CharCurvesGetGetResidualSats(option%liquid_phase), &
+                    sgcr_dummy, &
+                    CharCurvesGetGetResidualSats(option%oil_phase), &
+                    sowcr_dummy, &
+                    sogcr_dummy, &
+                    swco_dummy, &
+                    option)
     case default
       CharCurvesGetGetResidualSats(1) = &
         characteristic_curves%liq_rel_perm_function%Sr
