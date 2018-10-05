@@ -409,6 +409,8 @@ set(MISC_SOURCES
 set(WELL_SOURCES
 	well_spec_base.F90
 	well_base.F90
+	well_data.F90
+	well_solver.F90
 	well_flow.F90
 	well_flow_energy.F90
 	well_water_injector.F90
