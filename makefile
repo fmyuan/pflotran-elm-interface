@@ -12,7 +12,7 @@ PFLOTRANCHEM_LIB="${PFLOTRAN_DIR_LOC}/src/pflotran/libpflotranchem.a"
 # build pflotran and libpflotran.a
 all:
 	@cd ${PFLOTRAN_DIR_LOC}/src/pflotran ;\
-           make pflotran libpflotran.a libpflotranchem.a PETSC_DIR=${PETSC_DIR_LOC} PETSC_ARCH=${PETSC_ARCH_LOC} 2>&1 | tee make.log
+           ${MAKE} pflotran libpflotran.a libpflotranchem.a PETSC_DIR=${PETSC_DIR_LOC} PETSC_ARCH=${PETSC_ARCH_LOC} 2>&1 | tee make.log
 	@if [ -e "${PFLOTRAN_EXE}" -a -e "${PFLOTRAN_LIB}" -a -e "${PFLOTRANCHEM_LIB}" ] ; then \
           echo "pflotran, libpflotran.a, and libpflotranchem.a successfully built." ;\
         else \
