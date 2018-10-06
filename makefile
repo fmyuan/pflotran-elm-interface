@@ -28,7 +28,7 @@ check:
           PASSED=$(grep -c "Failed" $TEST_LOG) ;\
           echo $PASSED ;\
           if [ $PASSED -gt "0" ]; then \
-             echo "PFLOTRAN test failed." ;\
+             echo "PFLOTRAN test failed." ; exit 1 ;\
           else \
              echo "PFLOTRAN test passed" ;\
          fi;\
