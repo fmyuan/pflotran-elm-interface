@@ -241,6 +241,8 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
 
   PetscReal :: pert
 
+  PetscBool :: flagged
+
   option%iflag = -3
 
   if (.not. analytical .or. analytical_compare) then
@@ -306,7 +308,7 @@ subroutine WellFlowEnergyExplJDerivative(this,iconn,ghosted_id,isothermal, &
 
     if (analytical_compare) then
 
-      call MatCompare(Jac, Jac_alt, 3, 3, comptol, compreltol)
+      call MatCompare(Jac, Jac_alt, 3, 3, comptol, compreltol,flagged)
 
 #if 0
       call this%ExplResAD(iconn,dummy_real,isothermal,ghosted_id,ZERO_INTEGER,&

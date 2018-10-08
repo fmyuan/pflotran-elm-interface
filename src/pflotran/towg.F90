@@ -4189,6 +4189,7 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
 
   PetscReal :: jdum(option%nflowdof,option%nflowdof)
   PetscReal :: jalyt(option%nflowdof,option%nflowdof)
+  PetscBool :: flagged
 
   if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare) then
     call TOWGAccumulation(auxvar(ZERO_INTEGER),global_auxvar,material_auxvar, &
@@ -4237,8 +4238,11 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
     endif
 
     if (towg_analytical_derivatives_compare) then
-      call MatCompare(J, jalyt, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
-      print *, "this is accum derivative"
+      flagged = PETSC_FALSE
+      call MatCompare(J, jalyt, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      if (flagged) then
+        print *, "this is accum derivative"
+      endif
     endif
 
     j = jalyt
@@ -4297,6 +4301,8 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
 
   PetscReal :: Jdum_up(option%nflowdof,option%nflowdof)
   PetscReal :: Jdum_dn(option%nflowdof,option%nflowdof)
+
+  PetscBool :: flagged
 
   Jup = 0.d0
   Jdn = 0.d0
@@ -4400,10 +4406,16 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
     endif  
 
     if (towg_analytical_derivatives_compare) then
-      call MatCompare(Jup, Jalyt_up, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
-      print *, "this is flux derivative, that was matrix up"
-      call MatCompare(Jdn, Jalyt_dn, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
-      print *, "this is flux derivative, that was matrix dn"
+      flagged = PETSC_FALSE
+      call MatCompare(Jup, Jalyt_up, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      if (flagged) then
+        print *, "this is flux derivative, that was matrix up"
+      endif
+      flagged = PETSC_FALSE
+      call MatCompare(Jdn, Jalyt_dn, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      if (flagged) then
+        print *, "this is flux derivative, that was matrix dn"
+      endif
     endif
 
     jup = jalyt_up
@@ -4456,6 +4468,8 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
   PetscReal :: jdum(option%nflowdof,option%nflowdof)
   PetscReal :: Jalyt_dn(option%nflowdof,option%nflowdof)
+
+  PetscBool :: flagged
 
   Jdn = 0.d0
   !print *, 'TOWGBCFluxDerivative'
@@ -4527,8 +4541,11 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
     endif  
 
     if (towg_analytical_derivatives_compare) then
-      call MatCompare(Jdn, Jalyt_dn, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
-      print *, "this is bc flux derivative"
+      flagged = PETSC_FALSE
+      call MatCompare(Jdn, Jalyt_dn, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      if (flagged) then
+        print *, "this is bc flux derivative"
+      endif
 
       call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                       auxvar_up,global_auxvar_up, &
@@ -4574,6 +4591,9 @@ subroutine TOWGSrcSinkDerivative(option,src_sink_condition,auxvars, &
 
   PetscReal :: jdum(option%nflowdof,option%nflowdof)
   PetscReal :: Jalyt(option%nflowdof,option%nflowdof)
+
+  PetscBool :: flagged
+
 
   if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare) then
     option%iflag = -3
@@ -4626,8 +4646,11 @@ subroutine TOWGSrcSinkDerivative(option,src_sink_condition,auxvars, &
     endif  
 
     if (towg_analytical_derivatives_compare) then
-      call MatCompare(Jac, Jalyt, 4, 4, towg_dcomp_tol, towg_dcomp_reltol)
-      print *, "this is src sink derivative"
+      flagged = PETSC_FALSE
+      call MatCompare(Jac, Jalyt, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      if (flagged) then 
+        print *, "this is src sink derivative"
+      endif
       call TOWGSrcSink(option,src_sink_condition,auxvars(ZERO_INTEGER), &
                        global_auxvar,dummy_real,scale,res_pert,Jalyt,PETSC_TRUE)
     endif
@@ -5677,6 +5700,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   use Field_module
   use Option_module
   use Patch_module
+  use Appleyard_module
 
   implicit none
 
@@ -5704,7 +5728,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
 
   PetscReal :: pressure0, pressure1, del_pressure
   PetscReal :: temperature0, temperature1, del_temperature
-  PetscReal :: saturation0, saturation1, del_saturation
+  PetscReal :: saturation0, saturation1, del_saturation, del_sat_cand
 
   PetscReal,parameter :: max_saturation_change = 0.125d0
   PetscReal,parameter :: max_temperature_change = 10.d0
@@ -5716,6 +5740,10 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   PetscInt :: newton_iteration,istate
 
   type(global_auxvar_type), pointer :: global_auxvars(:)
+
+  PetscReal :: saturation0_oil, del_saturation_oil
+  PetscInt :: oid
+  PetscBool :: ayard_ch
 
   grid => realization%patch%grid
   option => realization%option
@@ -5735,6 +5763,8 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   max_pb_change=2.0*max_pressure_change
   !max_pb_change= 1.1D5
 
+  oid = option%oil_phase
+
   ! truncation
   ! Oil saturation must be truncated.  We do not use scaling
   ! here because of the very small values.  just truncation.
@@ -5747,7 +5777,25 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     if ( (X_p(saturation_index) - dX_p(saturation_index)) < 0.d0 ) then
       dX_p(saturation_index) = X_p(saturation_index)
     end if
+#if 0
+    elseif ( (X_p(saturation_index) - dX_p(saturation_index)) > 1.d0 ) then
+    print *, "catch, changing for sat > 1"
+      dX_p(saturation_index) = X_p(saturation_index) - 1.d0
+    end if
+#endif
   enddo
+
+#if 0
+    saturation0 = X_p(saturation_index)
+    del_saturation = dX_p(saturation_index)
+    call TOWGAppleyard(saturation0, del_sat_cand, ghosted_id, realization, oid, ayard_ch)
+    !if (del_saturation /= del_sat_cand) then
+    if (ayard_ch) then
+      print *, "appleyarding; d sat is ", dX_p(saturation_index), &
+                " will be ", del_sat_cand, " sat is ", saturation0
+      dX_p(saturation_index) = del_sat_cand
+    endif
+#endif
 
   scale = initial_scale
   if (max_it_before_damping > 0 .and. &

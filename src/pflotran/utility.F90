@@ -2385,7 +2385,7 @@ end subroutine CalcParallelSUM2
 
 ! ************************************************************************** !
 
-subroutine MatCompare(a1,a2,n,m,tol,reltol)
+subroutine MatCompare(a1,a2,n,m,tol,reltol,flagged_err)
 
   !! Daniel Stone, March 2018
   !! Just output warnings and provide place
@@ -2397,10 +2397,14 @@ subroutine MatCompare(a1,a2,n,m,tol,reltol)
   PetscInt :: n, m
   PetscReal, dimension(1:n, 1:m) :: a1, a2
   PetscReal :: tol,reltol
+  PetscBool :: flagged_err
   !PetscBool :: do_rel_err 
 
   PetscInt :: i, j
   PetscReal :: dff,reldff
+
+
+  flagged_err = PETSC_FALSE
 
   do i = 1,n
     do j = 1,m
@@ -2411,6 +2415,7 @@ subroutine MatCompare(a1,a2,n,m,tol,reltol)
                  ", relative difference: ", reldff
         print *, a1(i,j), " compare to ", a2(i,j)
         print *, "..."
+        flagged_err = PETSC_TRUE
       endif
     end do
   end do 

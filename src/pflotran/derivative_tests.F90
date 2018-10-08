@@ -710,9 +710,9 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
   !print *, "NumCompare TOWG BO, total possible problems here: ", probs
   !print *, 
 
-  print *, "NumCompare TOWG BO (atol: ", atol, ", rtol: ", rtol
-  print *, ", saturated? ", isSat, "), probs: ", probs
   if (probs > 0) then
+    print *, "NumCompare TOWG BO (atol: ", atol, ", rtol: ", rtol
+    print *, ", saturated? ", isSat, "), probs: ", probs
     print *, "more than 0 problems"
   endif
 

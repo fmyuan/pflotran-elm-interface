@@ -944,7 +944,7 @@ toil_ims.o : appleyard.o auxvars_flow.o auxvars_toil_ims.o condition.o \
              saturation_function.o toil_ims_derivs.o utility.o variables.o
 toil_ims_derivs.o : auxvars_toil_ims.o global_aux.o pflotran_constants.o \
                     pm_toil_ims_aux.o
-towg.o : auxvars_towg.o condition.o connection.o coupler.o debug.o \
+towg.o : appleyard.o auxvars_towg.o condition.o connection.o coupler.o debug.o \
          discretization.o eos_gas.o eos_oil.o eos_slv.o eos_water.o field.o \
          global_aux.o grid.o material.o material_aux.o option.o output_aux.o \
          patch.o pflotran_constants.o pm_towg_aux.o realization_base.o \

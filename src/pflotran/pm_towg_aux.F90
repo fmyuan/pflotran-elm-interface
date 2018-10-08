@@ -722,6 +722,8 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp
 
+  PetscReal :: stpt, drpt, dff, ndrv
+
   dof_op = TOWG_OIL_PRESSURE_DOF
   dof_osat = TOWG_OIL_SATURATION_DOF
   dof_gsat = TOWG_GAS_SATURATION_3PH_DOF
@@ -817,7 +819,9 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
       if( (auxvar%sat(gid)<0.0d0) .and. (auxvar%sat(oid)>eps_oil) ) then
 ! Gas saturation has gone negative and significant oil in cell
         global_auxvar%istate          =TOWG_LIQ_OIL_STATE
-        print *, "state change to unsat, this is cell ", natural_id
+
+        print *, "state change unsat, cell ", natural_id, "gsat, osat:", auxvar%sat(gid), auxvar%sat(oid)
+
         auxvar%sat(gid)               =0.0d0
         auxvar%bo%bubble_point        =auxvar%pres(oid)-epsp
         x(TOWG_BUBBLE_POINT_3PH_DOF)  =auxvar%pres(oid)-epsp
@@ -826,11 +830,15 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
       if(      (auxvar%bo%bubble_point > auxvar%pres(oid)) &
           .or. (auxvar%sat(oid)        < eps_oil         ) ) then
 ! Bubble point has exceeded oil pressure or no significant oil in cell
+
+        print *, "state change sat, cell ", natural_id, "pb, opres, osat:",  &
+                 auxvar%bo%bubble_point, auxvar%pres(oid), auxvar%sat(oid)
+
         global_auxvar%istate          =TOWG_THREE_PHASE_STATE
         auxvar%bo%bubble_point        =auxvar%pres(oid)
         auxvar%sat(gid)               =epss
         x(TOWG_GAS_SATURATION_3PH_DOF)=epss
-        print *, "state change to sat, this is cell ", natural_id
+        !print *, "state change to sat, this is cell ", natural_id
 ! Make sure the extra gas does not push the water saturation negative
         if( auxvar%sat(oid) > oneminuseps ) then
           auxvar%sat(oid)             =oneminuseps
@@ -1478,6 +1486,21 @@ endif
   call characteristic_curves%oil_rel_perm_func_owg% &
                   RelativePermeability(auxvar%sat(oid),auxvar%sat(gid),kro, &
                                  dkro_sato,dkro_satg,option,auxvar%table_idx)
+
+#if 0
+!PetscReal :: stpt, drpt, dff, ndrv
+
+  stpt = -1.0d-8
+
+  call characteristic_curves%oil_rel_perm_func_owg% &
+                  RelativePermeability(auxvar%sat(oid)+stpt,auxvar%sat(gid),drpt, &
+                                 dummy,dummy,option,auxvar%table_idx)
+
+  dff = drpt-kro
+  ndrv = dff/stpt
+  print *, "num: ", ndrv, ", alyt: ", dkro_sato
+#endif
+
 
 #if 0
 if (natural_id == 1 .OR. natural_id == 2) then
