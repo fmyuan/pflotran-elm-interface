@@ -5741,9 +5741,12 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
 
   type(global_auxvar_type), pointer :: global_auxvars(:)
 
+# if 0
+  !! for appleyard:
   PetscReal :: saturation0_oil, del_saturation_oil
   PetscInt :: oid
   PetscBool :: ayard_ch
+#endif
 
   grid => realization%patch%grid
   option => realization%option
@@ -5758,12 +5761,12 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
 
-  changed = PETSC_TRUE
+  !changed = PETSC_TRUE ! for appleyard
 
   max_pb_change=2.0*max_pressure_change
   !max_pb_change= 1.1D5
 
-  oid = option%oil_phase
+  !oid = option%oil_phase ! for appleyard
 
   ! truncation
   ! Oil saturation must be truncated.  We do not use scaling
@@ -5777,15 +5780,10 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     if ( (X_p(saturation_index) - dX_p(saturation_index)) < 0.d0 ) then
       dX_p(saturation_index) = X_p(saturation_index)
     end if
-#if 0
-    elseif ( (X_p(saturation_index) - dX_p(saturation_index)) > 1.d0 ) then
-    print *, "catch, changing for sat > 1"
-      dX_p(saturation_index) = X_p(saturation_index) - 1.d0
-    end if
-#endif
   enddo
 
 #if 0
+    ! appleyard, not currently functional:
     saturation0 = X_p(saturation_index)
     del_saturation = dX_p(saturation_index)
     call TOWGAppleyard(saturation0, del_sat_cand, ghosted_id, realization, oid, ayard_ch)
@@ -5865,14 +5863,12 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
          temp_real = dabs(max_pb_change/del_saturation)
          temp_scale = min(temp_scale,temp_real)
       endif
-      !!!! HACK
-      !!!! let's try avoiding negative pb values
+      ! let's try avoiding negative pb values:
       if ((X_p(saturation_index) - dX_p(saturation_index))  < 0.d0) then
-        print *, "negative pb! ", X_p(saturation_index)
+      !print *, "negative pb! ", X_p(saturation_index)
         print *, dX_p(saturation_index), ", ", X_p(saturation_index) - dX_p(saturation_index)
       dX_p(saturation_index) = X_p(saturation_index) - 0.5
       endif
-      !!!! HACK
     endif
 #endif
 !LIMIT_MAX_SATURATION_CHANGE
@@ -5896,7 +5892,6 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   ! it performs an homogenous scaling using the smallest scaling factor
   ! over all subdomains domains
   if (scale < 0.9999d0) then
-    print *, "we are scaling ", scale
     dX_p = scale*dX_p
   endif
 

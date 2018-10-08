@@ -819,9 +819,6 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
       if( (auxvar%sat(gid)<0.0d0) .and. (auxvar%sat(oid)>eps_oil) ) then
 ! Gas saturation has gone negative and significant oil in cell
         global_auxvar%istate          =TOWG_LIQ_OIL_STATE
-
-        print *, "state change unsat, cell ", natural_id, "gsat, osat:", auxvar%sat(gid), auxvar%sat(oid)
-
         auxvar%sat(gid)               =0.0d0
         auxvar%bo%bubble_point        =auxvar%pres(oid)-epsp
         x(TOWG_BUBBLE_POINT_3PH_DOF)  =auxvar%pres(oid)-epsp
@@ -830,15 +827,10 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
       if(      (auxvar%bo%bubble_point > auxvar%pres(oid)) &
           .or. (auxvar%sat(oid)        < eps_oil         ) ) then
 ! Bubble point has exceeded oil pressure or no significant oil in cell
-
-        print *, "state change sat, cell ", natural_id, "pb, opres, osat:",  &
-                 auxvar%bo%bubble_point, auxvar%pres(oid), auxvar%sat(oid)
-
         global_auxvar%istate          =TOWG_THREE_PHASE_STATE
         auxvar%bo%bubble_point        =auxvar%pres(oid)
         auxvar%sat(gid)               =epss
         x(TOWG_GAS_SATURATION_3PH_DOF)=epss
-        !print *, "state change to sat, this is cell ", natural_id
 ! Make sure the extra gas does not push the water saturation negative
         if( auxvar%sat(oid) > oneminuseps ) then
           auxvar%sat(oid)             =oneminuseps

@@ -4453,17 +4453,14 @@ subroutine RPF_oil_ecl_RelPerm(this,oil_sat,gas_sat,rel_perm, &
    rel_perm=(gas_sat*krog+(wat_sat-this%Swco)*krow)/den
    den2 = den * den
    dkro_sato = gas_sat/den * dkrog_sato + &
-               !gas_sat * dkrog_sato / den2 + &
-               gas_sat * krog / den2 + & !! DS - ?
+               gas_sat * krog / den2 + & 
                (wat_sat - this%Swco) / den * dkrow_sato - &
                krow / den + &
                (wat_sat - this%Swco) * krow / den2
-   !dkro_satg = (krog - 1.0 ) / den             
-   dkro_satg = (krog - 1.0*krow ) / den !! DS - ?  
+   dkro_satg = (krog - 1.0*krow ) / den 
  else
    rel_perm=0.5*(krog+krow)
-   dkro_sato = dkrog_sato + dkrow_sato !!!! not sure what is going on here
-   !dkro_sato = 0.5*(dkrog_sato + dkrow_sato) !! DS - ?
+   dkro_sato = 0.5*(dkrog_sato + dkrow_sato)
    dkro_satg = 0.0d0   
  endif
 
