@@ -903,7 +903,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   PetscErrorCode :: ierr
   
-  Mat, parameter :: null_mat = tMat(-1)
+  Mat, parameter :: null_mat = tMat(0)
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -1370,7 +1370,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
-  Vec, parameter :: null_vec = tVec(-1)
+  Vec, parameter :: null_vec = tVec(0)
   
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
                Jdn(realization%option%nflowdof,realization%option%nflowdof)
