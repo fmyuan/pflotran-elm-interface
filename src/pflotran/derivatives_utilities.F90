@@ -10,37 +10,54 @@ module Derivatives_utilities_module
 
   private
 
-  public  :: d_prodrule_2, &
-             d_prodrule_3, &
-             !d_divrule, &
-             d_power, &
-             scal_d_prodrule, &
-             ProdRule, &
+  Public ::  ProdRule, &
              ProdRule3, &
              DivRule, &
              DivRule1
+
+! ************************************************************************** !
+!                 General explaination for schema here
+!
+! Consider two (or more) variables X, Y, could be for example density or
+! enthalpy or any auxvar type variable in general.
+!
+! Assume we have corresponding arrays D_X, D_Y, where D_X(i) is the 
+! partial derivative of variable X with respect to some other variable
+! indexed by i. Typically these would be the solution varibles like
+! pressure or saturation etc., but we do not care here what these 
+! variables are here, only that they are indexed.
+
+! In this module we define simple routines for obtaining corresponding
+! arrays of partial derivatives D_A, where A is related to X and Y by:
+
+! A = X*Y          ( see ProdRule() )
+! A = X/Y          ( see DivRule()  )
+! A = X*Y*Z        ( see ProdRule3())
+! A = 1/X          ( see DivRule1() )
+
+! ************************************************************************** !
 
   contains
 
 ! ************************************************************************** !
 function  ProdRule(x, dx, y, dy,n)
 
-!! Compute derivatives of x*y.
-!! Assume x and y are functions and there are some n variables
-!! t_1, t_2, ... 2_n, so that 
-!!
-!! x = x(t_1, .... t_n)
-!! y = y(t_1, .... t_n)
-!!
-!! Assume we are given the partial derivatives in the arrays
-!! dx and dy, i.e.,
-!!
-!! dx = [dx/dt_1,  .... , dx_dt_n]
-!! dy = [dy/dt_1,  .... , dy_dt_n]
-!!
-!! Then we compute and return an array:
-!!
-!! [d(xy)/dt_1, ... , d(xy)/dt_n]
+! Compute derivatives of x*y.
+! Assume x and y are functions and there are some n variables
+! t_1, t_2, ... 2_n, so that 
+!
+! x = x(t_1, .... t_n)
+! y = y(t_1, .... t_n)
+!
+! Assume we are given the partial derivatives in the arrays
+! dx and dy, i.e.,
+!
+! dx = [dx/dt_1,  .... , dx_dt_n]
+! dy = [dy/dt_1,  .... , dy_dt_n]
+!
+! Then we compute and return an array:
+!
+! [d(xy)/dt_1, ... , d(xy)/dt_n]
 
 implicit none
 
@@ -50,8 +67,6 @@ implicit none
   PetscReal, dimension(1:n) :: ProdRule
 
   PetscInt :: i
-
-  !!! TODO: error checking on lengths?
 
   Prodrule = 0.d0
 
@@ -93,64 +108,6 @@ function scal_d_prodrule(x,dx,y,dy)
 end function scal_d_prodrule
 
 ! ************************************************************************** !
-function  d_prodrule_2(x, dx, y, dy, n)
-
-!! Compute derivatives of x*y.
-!! Assume x and y are functions and there are some n variables
-!! t_1, t_2, ... 2_n, so that 
-!!
-!! x = x(t_1, .... t_n)
-!! y = y(t_1, .... t_n)
-!!
-!! Assume we are given the partial derivatives in the arrays
-!! dx and dy, i.e.,
-!!
-!! dx = [dx/dt_1,  .... , dx_dt_n]
-!! dy = [dy/dt_1,  .... , dy_dt_n]
-!!
-!! Then we compute and return an array:
-!!
-!! [d(xy)/dt_1, ... , d(xy)/dt_n]
-
-implicit none
-
-  PetscInt :: n
-  PetscReal :: x, y
-  PetscReal, dimension(1:n) :: dx, dy
-  PetscReal, dimension(1:n) :: d_prodrule_2
-
-  PetscInt :: i
-
-  !!! TODO: error checking on lengths?
-
-  d_prodrule_2 = 0.d0
-
-  do i = 1,n
-    d_prodrule_2(i) = x*dy(i) + y*dx(i)  
-  enddo
-
-end function d_prodrule_2
-
-! ************************************************************************** !
-
-function  d_prodrule_3(x, dx, y, dy, z, dz, n)
-
-implicit none
-
-  PetscInt :: n
-  PetscReal :: x, y, z
-  PetscReal, dimension(1:n) :: dx, dy, dz
-  PetscReal, dimension(1:n) :: d_yz
-  PetscReal, dimension(1:n) :: d_prodrule_3
-  PetscReal :: yz
-
-  d_yz = d_prodrule_2(y, dy, z, dz, n)
-  yz = y*z
-  d_prodrule_3 = d_prodrule_2(x, dx, yz, d_yz, n)
-
-end function  d_prodrule_3
-
-! ************************************************************************** !
 
 function DivRule(x, dx, y, dy, n)
 
@@ -183,8 +140,8 @@ end function DivRule
 
 function DivRule1(x, dx, n)
 
-!! derivatives of 1/x, see comments in above for general schema
-!! of partial derivatives and etc.
+! derivatives of 1/x, see comments in above for general schema
+! of partial derivatives and so on.
 
 implicit none
   PetscInt :: n
@@ -210,25 +167,27 @@ end function DivRule1
 
 ! ************************************************************************** !
 
-function d_power(x, dx, alpha, n)
+! not currently used but may come in handy at some point:
 
-!! x^alpha
+function PowerRule(x, dx, alpha, n)
+
+! derivatives of: x^alpha
 
 implicit none
   PetscInt :: n
   PetscReal :: x, alpha
   PetscReal, dimension(1:n) :: dx
-  PetscReal, dimension(1:n) :: d_power
+  PetscReal, dimension(1:n) :: PowerRule
 
   PetscReal :: constpart
   PetscInt :: i
 
   constpart = alpha*(x**(alpha-1.d0))
   do i=1,n
-    d_power(i) = dx(i)*constpart 
+    PowerRule(i) = dx(i)*constpart 
   end do
 
-end function d_power
+end function PowerRule
 
 ! ************************************************************************** !
 

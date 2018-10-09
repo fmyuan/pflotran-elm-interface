@@ -945,8 +945,10 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                               auxvar%pc(oid),dpc_o_dsg,option,auxvar%table_idx)
 
   if (getDerivs) then
+    ! deriv of pc between oil and water, w.r.t. oil sat:
     auxvar%D_pc(wid,dof_osat) = -dpc_w_dsw
-    auxvar%D_pc(wid,dof_gsat) = -dpc_w_dsw
+    ! deriv of pc between oil and water, w.r.t. gas sat:
+    auxvar%D_pc(wid,dof_gsat) = -dpc_w_dsw !!! should this check if sat?
     !auxvar%D_pc(oid,dof_osat) = dpc_w_dsw 
     
     if (isSat) then
@@ -966,42 +968,15 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%pres(wid) = auxvar%pres(oid) - auxvar%pc(wid)
   auxvar%pres(gid) = auxvar%pres(oid) + auxvar%pc(oid)
 
-#if 0
-if (natural_id == 1 ) then
-  print *,
-  print *, "id: ", natural_id, " sat: ", auxvar%sat, " sat state: ", isSat
-  print *, "pres: ", auxvar%pres
-  print *,
-endif
-#endif
-#if 0
-if (natural_id == 2 ) then
-  print *,
-  print *, "id: ", natural_id, " sat: ", auxvar%sat, " sat state: ", isSat
-  print *, "pres: ", auxvar%pres
-  print *,
-endif
-#endif
-
   if (getDerivs) then
-    ! pres(oid) has derivatives w.r.t. oil pressure, obviously:
     auxvar%D_pres(wid,dof_op) = 1.d0
     ! pc(wid) has derivatives w.r.t. oil and gas sat
     auxvar%D_pres(wid,dof_osat) =  -auxvar%D_pc(wid,dof_osat)
     if (isSat) then
       auxvar%D_pres(wid,dof_gsat) = -auxvar%D_pc(wid,dof_gsat)
     endif
-
-    ! pres(oid) has derivatives w.r.t. oil pressure, obviously:
     auxvar%D_pres(gid,dof_op) = 1.d0
     ! pc(gid) has derivatives w.r.t. oil and gas sat
-#if 0
-    !!!!! WRONG -  D_pc(gid not set!
-    auxvar%D_pres(gid,dof_osat) =  auxvar%D_pc(gid,dof_osat)
-    if (isSat) then
-      auxvar%D_pres(gid,dof_gsat) =  auxvar%D_pc(gid,dof_gsat)
-    endif
-#endif
     auxvar%D_pres(gid,dof_osat) =  auxvar%D_pc(oid,dof_osat)
     if (isSat) then
       auxvar%D_pres(gid,dof_gsat) =  auxvar%D_pc(oid,dof_gsat)
@@ -1012,47 +987,16 @@ endif
   cell_pressure = max(auxvar%pres(wid),auxvar%pres(oid),auxvar%pres(gid))
 
   ! For analytical derivatives:
-  ! assume cell pres and oil pres are interchangeable for purposes as derivs 
-  ! since either cell pres = oil pres, (oil pres - water cp), (oil pres- oil pc);
-  ! in all three cases derivative d(cell pres)/d(oil pres) = 1
-
-  ! HOWEVER
   ! In the case of nonzero cap pressure we may have dependencies on saturations,
   ! through the cap pressures, this is dealt with next:
 
   if (getDerivs) then
     D_cell_pres = 0.d0
     D_cell_pres(dof_op) = 1.d0
-#if 0
-    d_cellpres_dso = 0.d0
-    d_cellpres_dsg = 0.d0
-#endif
     if (cell_pressure == auxvar%pres(wid)) then
       D_cell_pres(:) = auxvar%D_pres(wid,:)
-#if 0
-      !!! OLD
-      ! recall: auxvar%pres(wid) = auxvar%pres(oid) - auxvar%pc(wid)
-      D_cell_pres(dof_osat) = -dpc_w_dso
-      d_cellpres_dso = -dpc_w_dso
-      if (isSat) then
-        D_cell_pres(dof_gsat) = -dpc_w_dsg
-        d_cellpres_dsg = -dpc_w_dsg
-      endif
-#endif
     elseif (cell_pressure == auxvar%pres(gid)) then
       D_cell_pres(:) = auxvar%D_pres(gid,:)
-
-#if 0
-      !!! OLD
-      ! recall: auxvar%pres(gid) = auxvar%pres(oid) + auxvar%pc(oid)
-      D_cell_pres(dof_osat) =  dpc_o_dso
-      d_cellpres_dso =  dpc_o_dso
-      if (isSat) then
-        D_cell_pres(dof_gsat) = dpc_o_dsg
-        d_cellpres_dsg = dpc_o_dsg
-      endif
-#endif
-
     !else ! cell pressure = oil pressure and we need to do nothing here
     endif
   endif
@@ -1073,14 +1017,10 @@ endif
       if (getDerivs) then
         ! it's a cell pressure derivative:
         auxvar%D_por(dof_op) = dummy
-
         auxvar%D_por(dof_osat) = dummy*D_cell_pres(dof_osat)
         auxvar%D_por(dof_gsat) = dummy*D_cell_pres(dof_osat)
-
-#if 0
-        auxvar%D_por(dof_osat) = dummy*d_cellpres_dso
-        auxvar%D_por(dof_gsat) = dummy*d_cellpres_dsg
-#endif
+        !!! could this not just be
+        !!! D_por = dummy*D_cell_pres?
 
       endif
     endif
@@ -1104,13 +1044,10 @@ endif
                       auxvar%D_den(wid,dof_temp), ierr)
 
         ! pressure deriv is a a cell pressure derivative:
-
         auxvar%D_den(wid,dof_osat) = D_cell_pres(dof_osat)*auxvar%D_den(wid,dof_op)
         auxvar%D_den(wid,dof_gsat) = D_cell_pres(dof_gsat)*auxvar%D_den(wid,dof_op)
-#if 0
-        auxvar%D_den(wid,dof_osat) = d_cellpres_dso*auxvar%D_den(wid,dof_op)
-        auxvar%D_den(wid,dof_gsat) = d_cellpres_dsg*auxvar%D_den(wid,dof_op)
-#endif
+        ! (implicitly: D_cell_pres(dof_oid) = 1 and a multplication by 1 was not
+        !  done here)
 
     call EOSWaterEnthalpy(auxvar%temp, &
                        cell_pressure, &
@@ -1122,11 +1059,8 @@ endif
     ! pressure deriv is a a cell pressure derivative:
     auxvar%D_H(wid,dof_osat) = D_cell_pres(dof_osat)*auxvar%D_H(wid,dof_op)
     auxvar%D_H(wid,dof_gsat) = D_cell_pres(dof_gsat)*auxvar%D_H(wid,dof_op)
-
-#if 0
-    auxvar%D_H(wid,dof_osat) = d_cellpres_dso*auxvar%D_H(wid,dof_op)
-    auxvar%D_H(wid,dof_gsat) = d_cellpres_dsg*auxvar%D_H(wid,dof_op)
-#endif
+    ! (implicitly: D_cell_pres(dof_oid) = 1 and a multplication by 1 was not
+    !  done here)
     
     auxvar%D_H = auxvar%D_H * 1.d-6 ! J/kmol -> MJ/kmol
 
@@ -1156,15 +1090,8 @@ endif
                                      auxvar%D_U(gid,dof_temp),&
                                      auxvar%D_U(gid,dof_op),ierr,auxvar%table_idx)
 
-    ! as discussed earlier derivative of any phase pressure w.r.t. any other is 1 and we are only interested in oil pressure
-    ! so we save derivative w.r.t. gas pressure here as the derivative w.r.t. oil pressure because 
-    ! d x / d (oil pres) = (d x / d (gas pres))*(d (gas pres) / d (oil pres))
-    ! where d (gas pres) / d (oil pres) = 1.
-
-    ! saturation derivatives due to cell pressure potentially having saturation derivatives through cap. pres. are a little
-    ! more complicated however
-
     
+    ! pressure derivatives:
     auxvar%D_den(gid,dof_osat) = auxvar%D_den(gid,dof_op)*D_cell_pres(dof_osat)
     if (isSat) then
       auxvar%D_den(gid,dof_gsat) = auxvar%D_den(gid,dof_op)*D_cell_pres(dof_gsat)
@@ -1177,28 +1104,8 @@ endif
     if (isSat) then
       auxvar%D_U(gid,dof_gsat) = auxvar%D_U(gid,dof_op)*D_cell_pres(dof_gsat)
     endif
-#if 0
-    auxvar%D_den(gid,dof_osat) = auxvar%D_den(gid,dof_op)*dpc_o_dso
-    if (isSat) then
-      auxvar%D_den(gid,dof_gsat) = auxvar%D_den(gid,dof_op)*dpc_o_dsg
-     endif
-    auxvar%D_H(gid,dof_osat) = auxvar%D_H(gid,dof_op)*dpc_o_dso
-    if (isSat) then
-      auxvar%D_H(gid,dof_gsat) = auxvar%D_H(gid,dof_op)*dpc_o_dsg
-     endif
-    auxvar%D_U(gid,dof_osat) = auxvar%D_U(gid,dof_op)*dpc_o_dso
-    if (isSat) then
-      auxvar%D_U(gid,dof_gsat) = auxvar%D_U(gid,dof_op)*dpc_o_dsg
-    endif
-#endif
 
     ! scaling:
-#if 0
-    auxvar%D_H(gid,dof_temp) = auxvar%D_H(gid,dof_temp) * 1.d-6 ! J/kmol -> MJ/kmol
-    auxvar%D_U(gid,dof_temp) = auxvar%D_U(gid,dof_temp) * 1.d-6 ! J/kmol -> MJ/kmol
-    auxvar%D_H(gid,dof_op) = auxvar%D_H(gid,dof_op) * 1.d-6 ! J/kmol -> MJ/kmol
-    auxvar%D_U(gid,dof_op) = auxvar%D_U(gid,dof_op) * 1.d-6 ! J/kmol -> MJ/kmol
-#endif
     auxvar%D_H(gid,:) = auxvar%D_H(gid,:) * 1.d-6 ! J/kmol -> MJ/kmol
     auxvar%D_U(gid,:) = auxvar%D_U(gid,:) * 1.d-6 ! J/kmol -> MJ/kmol
 
@@ -1308,9 +1215,13 @@ endif
   auxvar%den(oid)=auxvar%den(oid)/auxvar%bo%xo
 !----------/Correct oil molar density-----------------------------------------
 
+
+
 ! Get oil mass density as (mixture oil molar density).(mixture oil molecular weight)
 
 !----------Oil mass density---------------------------------------------------
+!!! TO CHECK - needed?
+#if 0
   if (getDerivs) then
     ! pressure:
     if (isSat) then
@@ -1351,6 +1262,7 @@ endif
                                       + auxvar%bo%D_xg(dof_temp)*EOSGasGetFMW() )
 
   endif
+#endif
   if (getDerivs) then
     ! assume D_xo and D_xg have been previously set up
     ! correctly independently of state (so derivatives w.r.t. temp, and w.r.t.
@@ -1417,14 +1329,6 @@ endif
                     RelativePermeability(auxvar%sat(wid),krw,dkrw_satw,option, &
                     auxvar%table_idx)
 
-#if 0
-if (natural_id == 1 .OR. natural_id == 2) then
-  print *, "id: ", natural_id, " wat sat: ", auxvar%sat(wid),  " wat relperm: ", krw, ", dkrw_satw: ", dkrw_satw
-endif
-#endif
-
-
-
   if (getDerivs) then
     call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,dps_dt,ierr)
 
@@ -1438,10 +1342,6 @@ endif
 
         D_visc(dof_osat)= D_cell_pres(dof_osat)*dvw_dp
         D_visc(dof_gsat)= D_cell_pres(dof_gsat)*dvw_dp
-#if 0
-        D_visc(dof_osat)= d_cellpres_dso*dvw_dp
-        D_visc(dof_gsat)= d_cellpres_dsg*dvw_dp
-#endif
         D_visc(dof_temp)= dvw_dt
   else
     call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
@@ -1459,16 +1359,19 @@ endif
     ! might as well apply divrule to krw/visw instead of call the specific mobility
     ! derivatives routine
     D_kr = 0.d0
-    !!! char curve returns deriv w.r.t  water sat so account for that
-    !D_kr(dof_osat) = dkrw_sato
+    ! char curve returns deriv w.r.t  water sat so account for that
     D_kr(dof_osat) = -dkrw_satw
     if (isSat) then 
       D_kr(dof_gsat) = -dkrw_satw 
     endif
+#if 0
     dmobw = DivRule(krw,D_kr,                  &
                     visw,D_visc,option%nflowdof )
-
     auxvar%D_mobility(wid, :) = dmobw(:)
+#endif
+    !!! neatening:
+    auxvar%D_mobility(wid, :) =  DivRule(krw,D_kr,                  &
+                                         visw,D_visc,option%nflowdof )
   endif
 
 !-------------------------------------------------------------------------------
@@ -1479,31 +1382,9 @@ endif
                   RelativePermeability(auxvar%sat(oid),auxvar%sat(gid),kro, &
                                  dkro_sato,dkro_satg,option,auxvar%table_idx)
 
-#if 0
-!PetscReal :: stpt, drpt, dff, ndrv
-
-  stpt = -1.0d-8
-
-  call characteristic_curves%oil_rel_perm_func_owg% &
-                  RelativePermeability(auxvar%sat(oid)+stpt,auxvar%sat(gid),drpt, &
-                                 dummy,dummy,option,auxvar%table_idx)
-
-  dff = drpt-kro
-  ndrv = dff/stpt
-  print *, "num: ", ndrv, ", alyt: ", dkro_sato
-#endif
-
-
-#if 0
-if (natural_id == 1 .OR. natural_id == 2) then
-  print *, "id: ", natural_id, " oil sat: ", auxvar%sat(oid),  " oil relperm: ", kro, ", dkro_sato: ", dkro_sato
-endif
-#endif
-
 !--If PVCO defined in EOS OIL, the viscosities are extracted via table lookup--
 
   if (getDerivs) then
-    !!!!call EOSOilViscosity(auxvar%temp,pb,auxvar%den(oid),viso,dviso_dT,dviso_dpb,ierr,auxvar%table_idx)
     call EOSOilViscosity(auxvar%temp,pb,auxvar%den(oid),viso,dvo_dt,dviso_dpb,ierr,auxvar%table_idx)
     call EOSOilViscosibility(auxvar%temp,pb,cvisc,dcvisc_dT,dcvisc_dPb,ierr, &
                              auxvar%table_idx)
@@ -1525,7 +1406,6 @@ endif
       ! 2) pb is really oil pressure so pb derivs equal to  po derivs
 
       dvo_dp = dviso_dpb
-      !!!!dvo_dt = dviso_dt
     else ! unsat state
       ! 1) cvusp, cor now vary
       ! 2) pb derivs diferent from po derivs
@@ -1545,13 +1425,12 @@ endif
 
       dvo_dp = viso*dcor_dpo ! viso is independent of po here
       dvo_dpb = viso*dcor_dpb + dviso_dpb*cor
-      !!!!dvo_dt = viso*dcor_dt + dviso_dt*cor
       dvo_dt = viso*dcor_dt + dvo_dt*cor
 
     endif
   endif
 
-  cvusp=cvisc*(po-pb)
+  !cvusp=cvisc*(po-pb) !!! moved above
   viso=viso*(1.0+cvusp*(1.0+0.5*cvusp))
 !----------/Correct oil viscosity-----------------------------------------------
 
@@ -1562,6 +1441,24 @@ endif
     ! mobility derivatives:
     call MobilityDerivs_TOWG_BO(dmobo,kro,viso,dkro_sato,dkro_satg,dvo_dp,dvo_dpb,dvo_dt,isSat,option%nflowdof)
     auxvar%D_mobility(oid, :) = dmobo(:)
+# if 0
+    ! alternative in line with everything else:
+    D_kr = 0.d0
+    D_kr(dof_osat) = dkr_sato
+    if (isSat) then 
+      D_kr(dof_gsat) = dkro_satg
+    endif
+    D_visc = 0.d0
+    D_visc(dof_op) = dvo_dp
+    if (.NOT. isSat) then 
+      D_visc(dof_gsat) = dvo_dpb
+    endif
+    D_visc(dof_temp) = dvo_dt
+
+    auxvar%D_mobility(oid, :) =  DivRule(kro,D_kr,                  &
+                                         viso,D_visc,option%nflowdof )
+
+# endif
   endif
 
 !-------------------------------------------------------------------------------
@@ -1571,12 +1468,6 @@ endif
   call characteristic_curves%gas_rel_perm_func_owg% &
                    RelativePermeability(auxvar%sat(gid),krg, &
                                 dkrg_satg,option,auxvar%table_idx)
-
-#if 0
-if (natural_id == 1 .OR. natural_id == 2) then
-  print *, "id: ", natural_id, " gas sat: ", auxvar%sat(gid),  " gas relperm: ", krg, ", dkrg_satg: ", dkrg_satg
-endif
-#endif
 
   if (getDerivs) then
     ! seems to want derivatves of comp pressure w.r.t. pressure and temp, we use 
@@ -1598,11 +1489,6 @@ endif
         D_visc(dof_osat)= D_cell_pres(dof_osat)*dvg_dpgas
         D_visc(dof_gsat)= D_cell_pres(dof_gsat)*dvg_dpgas
 
-#if 0
-        D_visc(dof_osat)= d_cellpres_dso*dvg_dpgas
-        D_visc(dof_gsat)= d_cellpres_dsg*dvg_dpgas
-#endif
-
         D_visc(dof_temp)= dvg_dt
 
   else
@@ -1622,10 +1508,15 @@ endif
     if (isSat) then 
       D_kr(dof_gsat) = dkrg_satg
     endif
+#if 0
     dmobg = DivRule(krg,D_kr,                  &
                     visg,D_visc,option%nflowdof )
 
     auxvar%D_mobility(gid, :) = dmobg(:)
+#endif
+
+    auxvar%D_mobility(gid, :) =  DivRule(krg,D_kr,                  &
+                                         visg,D_visc,option%nflowdof )
   endif
 
 
