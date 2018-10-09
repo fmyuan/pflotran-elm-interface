@@ -3453,13 +3453,18 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
   PetscReal :: dp_dpo,dT_dTcell
   PetscReal, dimension(1:option%nflowdof) :: D_xmfo,D_xmfg,D_mole_wt,D_den
   PetscReal, dimension(1:option%nflowdof) :: D_qsrc_mol,D_enthalpy,D_xmf
+  PetscReal, dimension(1:option%nflowdof) :: D_cpres
+  PetscReal, dimension(1:option%nflowdof) :: D_crusp, D_cor
 
-  PetscInt :: ndof 
+  PetscInt :: ndof, cp_loc, idex
   PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp
   PetscReal :: cor,one_p_crusp,dcor_dpo,dcor_dpb,dcor_dt
-  PetscReal :: dcr_dt,dcr_dpb,dum1,dum2
+  PetscReal :: dcr_dt,dcr_dpb,dum1,dum2,mxpcand
   PetscReal :: dcrusp_dpo,dcrusp_dpb,dcrusp_dt
+  PetscReal :: dx_dcpres, dx_dtcell
   PetscBool :: isSat
+
+  PetscReal :: dden_dt, dummy
 
 
   dof_op = TOWG_OIL_PRESSURE_DOF
@@ -3512,8 +3517,21 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
       !!!!        saturation derivs from cap pres here.
       dp_dpo = 1.d0
       ! !!! TODO - get out actual index of the max there
-      ! cp_loc =  maxloc(auxvar%pres(option%liquid_phase:option%gas_phase))
-      ! D_cpres = auxvar%D_pres(cp_loc,:)
+      ! this is stupid but figuring out maxloc might take all day so do 
+      ! this quickly:
+      cp_loc = option%liquid_phase
+      do idex = option%liquid_phase,option%gas_phase
+        if (auxvar%pres(idex) > auxvar%pres(cp_loc)) then
+          cp_loc = idex
+        endif
+      end do
+      !cp_loc =  maxloc(auxvar%pres(option%liquid_phase:option%gas_phase))
+      D_cpres = auxvar%D_pres(cp_loc,:)
+#if 0
+      print *, "dex: ", cp_loc
+      print *, auxvar%pres
+      print *, D_cpres
+#endif
     endif
   end if
 
@@ -3556,17 +3574,52 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
             call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
           else
             ! there is a density deriv w.r.t. pressure and temp
+#if 0
             call EOSWaterDensity(temperature,cell_pressure, &
                                  den_kg,den, &
                                  D_den(dof_op), &
                                  D_den(dof_temp), ierr)
-            D_den(dof_op) = D_den(dof_op) * dp_dpo
-#if 0
-            !!! or:
-            ! (get d_den_d_cellp in place of D_den(dof_op) in call above):
-            ! D_den = 
+            !D_den(dof_op) = D_den(dof_op) * dp_dpo
 #endif
-            D_den(dof_temp) = D_den(dof_temp) * dT_dTcell
+            call EOSWaterDensity(temperature,cell_pressure, &
+                                 den_kg,den, &
+                                 dx_dcpres, &
+                                 dx_dtcell, ierr)
+            D_den = D_cpres*dx_dcpres
+
+
+          ! dx_dtcell may or may not be derivative by true 
+          ! temperature, so we filter:
+          dx_dtcell = dx_dtcell * dT_dTcell
+
+          ! technically we might have to deal with a case where
+          ! cell pressure is depenent on temp; this has been assumed
+          ! possible since we use the full D_cpres array or derivatives,
+          ! and is taken care of correctly above.
+          ! However the density routine also introduces a seperate 
+          ! dependence on temperature (though it may be fixed temp case thus
+          ! zero etc etc)
+
+          ! The cell pressure temp derivative is going to be 0 in any model we're dealing 
+          ! with now, but for generality and correctness we should treat this
+          ! properly.
+          ! Let the density routine above be 
+          ! den = den(a,b) ; it takes two arguments.
+          ! We have selected a = cell pressure, b = temp:
+          ! den = den(cp,t).
+          ! Now we assume cp is a function of all nflowdof solution variables.
+          ! Denote the cell variables as
+          ! x;t
+          ! where t is temperature and x are the non temperature variables
+          ! we don't care about.
+          ! the d den / d x_i are taken care of properly above. For derivative
+          ! w.r.t. t we have a part (potentially) missing, since:
+          ! d den / d t = (d den / d a) * (d cp / d t) + (d t / d t = 1) * (d den / d b)
+          ! The part (d den / d cp) * (d cp / d t) was correctly taken care of
+          ! by the line " D_den = D_cpres*dx_dcpres " above, so we just add in the
+          ! missing part:
+          D_den(dof_temp) = D_den(dof_temp) + dx_dtcell
+
           endif
         case(OIL_PHASE)
 ! Note this is dead oil, so take bubble point as reference pressure
@@ -3577,11 +3630,56 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
             call EOSOilDensity        (temperature,pb,den,ierr,auxvar%table_idx)
             call EOSOilCompressibility(temperature,pb,cr ,ierr,auxvar%table_idx)
           else
+            ! differentiate following correction 
+            !crusp=cr*(po-pb)
+            !den=den*(1.0+crusp*(1.0+0.5*crusp))
+            ! given:
+            !       - po is cell pres which should be treated as having full derivs
+            !       - pb is ref pressure which is constant
+            ! should care about the temp derivatives in the density and compressibility calls
+            ! but not the pb ones:
+            call EOSOilDensity(temperature,pb,den,dden_dt,dummy,ierr,auxvar%table_idx)
+            call EOSOilCompressibility(temperature,pb,cr,dcr_dt,dummy,ierr,auxvar%table_idx)
+
+
+            ! should also make sure dcr_dt is acted on by dT_dTcell:
+            dcr_dt = dcr_dt * dT_dTcell
+            dden_dt = dden_dt * dT_dTcell
+
+            ! fully, we have:
+            ! crusp(X) = cr(X) * (po(X) - pb)
+            ! =>
+            ! D_crusp(X) = D_cr(X) * (po(X) - pb) + cr(X) * D_po(X)
+            ! The only nonzero term in D_cr would be the dof_temp one, so we 
+            ! won't do full arrays for the first term of the above.
+            ! the second term is:
+            D_crusp = cr * D_cpres
+            ! correction for the nonzero temp deriv of cr:
+            D_crusp(dof_temp) = D_crusp(dof_temp) + dcr_dt * (po - pb)
+
+            ! then we consider
+            cor = 1 + crusp + 0.5*crusp*crusp
+            ! dcor/dx = dcrusp/dx + crusp*dcrusp/dx  = (1 + crusp)*dcrusp/dx
+            ! or
+            D_cor = (1.d0 + crusp) * D_crusp
+            ! Next:
+            ! den = cor * den
+            ! In principle full prod rule applies:
+            ! D_den = cor * D_den + D_cor * den
+            ! but only nonzero part of D_den is temp again so like before:
+            D_den = den * D_cor
+            ! correct temp part:
+            D_cor(dof_temp) = D_cor(dof_temp) + dden_dt * cor
+
+
+
+# if 0
             ! density derivs. 
             ! NOTE - here placing deriv of oil den w.r.t. pb in D_den(dof_gsat) - this is valid if state is unsat.
             !        otherwise should zero out that entry once we're done using it
             call EOSOilDensity(temperature,pb,den,D_den(dof_temp),D_den(dof_gsat),ierr,auxvar%table_idx)
             call EOSOilCompressibility(temperature,pb,cr,dcr_dt,dcr_dpb,ierr,auxvar%table_idx)
+
 
             !!! TOTIDY
             ! note that pb is actually constant reference pressure here so we shouldn't
@@ -3630,6 +3728,7 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
             ! xmfo and xmfg are constants now
             D_xmfo = 0.d0
             D_xmfg = 0.d0
+#endif
           endif
 ! Correct for undersaturation: correction not yet available for energy
           crusp=cr*(po-pb)
@@ -3639,27 +3738,52 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
           xmfg=0.0D0
           mole_wt=EOSOilGetFMW()
 
+          if (analytical_derivatives) then
+            ! now constants:
+            D_xmfo = 0.d0
+            D_xmfg = 0.d0
+            D_mole_wt = 0.d0
+          endif
+
         case(GAS_PHASE)
           if (.NOT. analytical_derivatives) then
             call EOSGasDensity(temperature,cell_pressure,den,ierr, &
                                auxvar%table_idx)
           else
             ! there is a density deriv w.r.t. pressure and temp at least
+#if 0
             call EOSGasDensity(temperature,cell_pressure,den,D_den(dof_temp),D_den(dof_op), &
                                      ierr,auxvar%table_idx)
             D_den(dof_op) = D_den(dof_op) * dp_dpo
-            D_den(dof_temp) = D_den(dof_temp) * dT_dTcell
+#endif
+            call EOSGasDensity(temperature,cell_pressure,den,dx_dtcell,dx_dcpres, &
+                               ierr,auxvar%table_idx)
+            ! refer to explaination after analgous water density
+            ! calls above
+            dx_dtcell = dx_dtcell * dT_dTcell
+            D_den = D_cpres * dx_dcpres
+            D_den(dof_temp) = D_den(dof_temp) + dx_dtcell
+
           endif
         case(SOLVENT_PHASE)
           call EOSSlvDensity(temperature,cell_pressure,den,ierr, &
                              auxvar%table_idx)
           if (analytical_derivatives) then
+#if 0
             call EOSSlvDensity(temperature,cell_pressure,den,    &
                                D_den(dof_temp), d_den(dof_op),   &
                                ierr,                             &
                                auxvar%table_idx)
             D_den(dof_op) = D_den(dof_op) * dp_dpo
             D_den(dof_temp) = D_den(dof_temp) * dT_dTcell
+#endif
+            call EOSSlvDensity(temperature,cell_pressure,den,dx_dcpres,dx_dtcell, &
+                               ierr,auxvar%table_idx)
+            ! refer to explaination after analgous water density
+            ! calls above
+            dx_dtcell = dx_dtcell * dT_dTcell
+            D_den = D_cpres * dx_dcpres
+            D_den(dof_temp) = D_den(dof_temp) + dx_dtcell
           endif
       end select
     else
@@ -3769,10 +3893,19 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
       !else if ( energy_var == SRC_TEMPERATURE ) then
         if (analytical_derivatives) then
           ! enthalpy derivatives from eos
+#if 0
           call EOSWaterEnthalpy(temperature, cell_pressure,enthalpy,D_enthalpy(dof_op),D_enthalpy(dof_temp),ierr)
 
           D_enthalpy(dof_op) = D_enthalpy(dof_op) * dp_dpo
           D_enthalpy(dof_temp) = D_enthalpy(dof_temp) * dT_dTcell
+          D_enthalpy = D_enthalpy * 1.d-6
+#endif
+          ! all anagous to density calls above
+          call EOSWaterEnthalpy(temperature, cell_pressure,enthalpy,dx_dcpres,dx_dtcell,ierr)
+
+          dx_dtcell = dx_dtcell * dT_dTcell
+          D_enthalpy = dx_dcpres * D_cpres
+          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) + dx_dtcell
           D_enthalpy = D_enthalpy * 1.d-6
         else
           call EOSWaterEnthalpy(temperature, cell_pressure,enthalpy,ierr)
@@ -3804,15 +3937,27 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
                      dataset%rarray(option%oil_phase)
                       !J/kg * kg/kmol = J/kmol
         enthalpy = enthalpy * towg_fmw_comp(option%oil_phase)
+
+        ! derivs should be 0 here
       else !note: temp can either be input or taken as the one of perf. block
       !if ( energy_var == SRC_TEMPERATURE ) then
         ! enthalpy = [J/kmol]
         if (analytical_derivatives) then
           ! enthalpy derivatives from eos
+#if 0
           call EOSOilEnthalpy(temperature, cell_pressure,enthalpy,D_enthalpy(dof_op),D_enthalpy(dof_temp),ierr)
 
           D_enthalpy(dof_op) = D_enthalpy(dof_op) * dp_dpo
           D_enthalpy(dof_temp) = D_enthalpy(dof_temp) * dT_dTcell
+          D_enthalpy = D_enthalpy * 1.d-6
+#endif
+
+          ! all anagous to density calls above
+          call EOSOilEnthalpy(temperature, cell_pressure,enthalpy,dx_dcpres,dx_dtcell,ierr)
+
+          dx_dtcell = dx_dtcell * dT_dTcell
+          D_enthalpy = dx_dcpres * D_cpres
+          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) + dx_dtcell
           D_enthalpy = D_enthalpy * 1.d-6
         else
           call EOSOilEnthalpy(temperature,cell_pressure,enthalpy,ierr)
@@ -3846,16 +3991,25 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         ! enthalpy = [J/kmol]
         if (analytical_derivatives) then
           ! enthalpy derivatives from eos
+#if 0
           call EOSGasEnergy(temperature, cell_pressure,enthalpy,D_enthalpy(dof_temp),D_enthalpy(dof_op),&
                             internal_energy_dummy,dum1,dum2,ierr)
 
           D_enthalpy(dof_op) = D_enthalpy(dof_op) * dp_dpo
-#if 0
-          D_enthalpy(dof_op) = D_enthalpy(dof_op) * dp_dpo
-
-#endif
           D_enthalpy(dof_temp) = D_enthalpy(dof_temp) * dT_dTcell
+
           D_enthalpy = D_enthalpy * 1.d-6
+#endif
+
+          ! all anagous to density calls above
+          call EOSGasEnergy(temperature, cell_pressure,enthalpy,dx_dtcell,dx_dcpres,&
+                            internal_energy_dummy,dum1,dum2,ierr)
+
+          dx_dtcell = dx_dtcell * dT_dTcell
+          D_enthalpy = dx_dcpres * D_cpres
+          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) + dx_dtcell
+          D_enthalpy = D_enthalpy * 1.d-6
+
         else
           call EOSGasEnergy(temperature,cell_pressure,enthalpy, &
                                 internal_energy_dummy,ierr)
@@ -3884,9 +4038,20 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
           enthalpy = enthalpy * towg_fmw_comp(option%solvent_phase)
         else !note: temp can either be input or taken as the one of perf. block
         !if ( energy_var == SRC_TEMPERATURE ) then
-          call EOSSlvEnergy(temperature,cell_pressure,enthalpy, &
-                            internal_energy_dummy,ierr)
-          ! enthalpy = [J/kmol]
+          if (analytical_derivatives) then
+!subroutine EOSSlvEnergyDerive(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
+            call EOSSlvEnergy(temperature,cell_pressure,enthalpy,dx_dtcell,dx_dcpres, &
+                              internal_energy_dummy,dummy,dummy,ierr)
+
+            dx_dtcell = dx_dtcell * dT_dTcell
+            D_enthalpy = dx_dcpres * D_cpres
+            D_enthalpy(dof_temp) = D_enthalpy(dof_temp) + dx_dtcell
+            D_enthalpy = D_enthalpy * 1.d-6
+          else
+            call EOSSlvEnergy(temperature,cell_pressure,enthalpy, &
+                              internal_energy_dummy,ierr)
+            ! enthalpy = [J/kmol]
+          endif
         end if
         enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
         ! enthalpy units: MJ/kmol

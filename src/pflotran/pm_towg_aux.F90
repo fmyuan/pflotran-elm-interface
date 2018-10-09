@@ -924,15 +924,15 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !==============================================================================
 
 
-!!! phase notation for the cap pressure can be confusing. There are (ndof -1)
-!!! entries in the array as opposed to ndof. 
-!!! pc(wid) = pc_{wo} : between oil and water
-!!! pc(oid) = pc_{og} : between oil and gas
+! phase notation for the cap pressure can be confusing. There are (ndof -1)
+! entries in the array as opposed to ndof. 
+! pc(wid) = pc_{wo} : between oil and water
+! pc(oid) = pc_{og} : between oil and gas
 
-!!! and of course analagously for D_pc.
-!!! Writing into or reading from D_pc(gid) is a mistake.
-!!! Note this implies a hardcoding of the values of w/o/gid, since we must
-!!! always have gid > wid,oid.
+! and of course analagously for D_pc.
+! Writing into or reading from D_pc(gid) is a mistake.
+! Note this implies a hardcoding of the values of w/o/gid, since we must
+! always have gid > wid,oid.
 
   call characteristic_curves%oil_wat_sat_func% &
             CapillaryPressure(auxvar%sat(wid), &
@@ -948,12 +948,16 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     ! deriv of pc between oil and water, w.r.t. oil sat:
     auxvar%D_pc(wid,dof_osat) = -dpc_w_dsw
     ! deriv of pc between oil and water, w.r.t. gas sat:
-    auxvar%D_pc(wid,dof_gsat) = -dpc_w_dsw !!! should this check if sat?
-    !auxvar%D_pc(oid,dof_osat) = dpc_w_dsw 
+    if (isSat) then
+      auxvar%D_pc(wid,dof_gsat) = -dpc_w_dsw !!! should this check if sat?
+    endif
     
     if (isSat) then
+      ! deriv of pc between gas and oil w.r.t. oil sat:
       auxvar%D_pc(oid,dof_gsat) = dpc_o_dsg
-      auxvar%D_pc(oid,dof_osat) = -dpc_o_dsg
+      ! deriv of pc between gas and oil w.r.t. gas sat:
+      ! 0 b/c g sat is only arg of the cp routine
+      !auxvar%D_pc(oid,dof_osat) = -dpc_o_dsg
       ! gas saturation isn't a solution variable is not sat state
     endif
 
@@ -1018,7 +1022,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
         ! it's a cell pressure derivative:
         auxvar%D_por(dof_op) = dummy
         auxvar%D_por(dof_osat) = dummy*D_cell_pres(dof_osat)
-        auxvar%D_por(dof_gsat) = dummy*D_cell_pres(dof_osat)
+        auxvar%D_por(dof_gsat) = dummy*D_cell_pres(dof_gsat)
         !!! could this not just be
         !!! D_por = dummy*D_cell_pres?
 
@@ -1439,12 +1443,13 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   if (getDerivs) then
     ! mobility derivatives:
+#if 0
     call MobilityDerivs_TOWG_BO(dmobo,kro,viso,dkro_sato,dkro_satg,dvo_dp,dvo_dpb,dvo_dt,isSat,option%nflowdof)
     auxvar%D_mobility(oid, :) = dmobo(:)
-# if 0
+#endif
     ! alternative in line with everything else:
     D_kr = 0.d0
-    D_kr(dof_osat) = dkr_sato
+    D_kr(dof_osat) = dkro_sato
     if (isSat) then 
       D_kr(dof_gsat) = dkro_satg
     endif
@@ -1458,7 +1463,6 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     auxvar%D_mobility(oid, :) =  DivRule(kro,D_kr,                  &
                                          viso,D_visc,option%nflowdof )
 
-# endif
   endif
 
 !-------------------------------------------------------------------------------
