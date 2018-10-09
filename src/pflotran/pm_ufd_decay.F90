@@ -1560,7 +1560,7 @@ subroutine PMUFDDecayCheckpointHDF5(this,pm_grp_id)
   
 #if  !defined(PETSC_HAVE_HDF5)
   implicit none
-  class(pm_waste_form_type) :: this
+  class(pm_ufd_decay_type) :: this
   integer :: pm_grp_id
   type(option_type) :: option
   print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
@@ -1587,59 +1587,6 @@ subroutine PMUFDDecayCheckpointHDF5(this,pm_grp_id)
   integer(HID_T) :: pm_grp_id
 #endif
 
-  ! Local Variables
-
-  PetscInt :: i
-  
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
-  integer(HSIZE_T), pointer :: dims(:)
-  integer(HSIZE_T), pointer :: start(:)
-  integer(HSIZE_T), pointer :: stride(:)
-  integer(HSIZE_T), pointer :: length(:)
-#endif
-
-  PetscMPIInt :: dataset_rank
-  character(len=MAXSTRINGLENGTH) :: dataset_name
-
-  PetscReal, pointer :: cur_isotope_mass(:)
-  type(isotope_type), pointer :: cur_isotope
-
-  class(realization_subsurface_type), pointer :: realization
-  type(option_type), pointer :: option
-
-  realization => this%realization
-  option => realization%option
-  
-  allocate(start(1))
-  allocate(dims(1))
-  allocate(length(1))
-  allocate(stride(1))
-  allocate(cur_isotope_mass(1))
-
-  i = 1
-  dataset_rank = 1
-  dims(1) = ONE_INTEGER
-  start(1) = 0
-  length(1) = ONE_INTEGER
-  stride(1) = ONE_INTEGER
-  
-  cur_isotope => this%isotope_list
-  
-  do
-    if (.not.associated(cur_isotope)) exit
-    cur_isotope_mass(1) = this%isotope_tot_mass(i)
-    dataset_name=trim(cur_isotope%name) // '_total_mass'
-    call CheckPointWriteRealDatasetHDF5(pm_grp_id, dataset_name, dataset_rank, &
-                                    dims, start, length, stride, &
-                                    cur_isotope_mass, option)
-    i=i+1
-    cur_isotope => cur_isotope%next
-  enddo
 
 !   this%option%io_buffer = 'PMUFDDecayCheckpoint not fully implemented.'
 !   call printErrMsg(this%option)
