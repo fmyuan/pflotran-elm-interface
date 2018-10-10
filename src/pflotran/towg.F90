@@ -3512,11 +3512,7 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
     cell_pressure = &
         maxval(auxvar%pres(option%liquid_phase:option%gas_phase))
     if (analytical_derivatives) then
-      !!!! TODO - really should have the whole D_pres(...) depending on
-      !!!!        what is taken for cell pressure since there could be
-      !!!!        saturation derivs from cap pres here.
       dp_dpo = 1.d0
-      ! !!! TODO - get out actual index of the max there
       ! this is stupid but figuring out maxloc might take all day so do 
       ! this quickly:
       cp_loc = option%liquid_phase
@@ -3527,11 +3523,6 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
       end do
       !cp_loc =  maxloc(auxvar%pres(option%liquid_phase:option%gas_phase))
       D_cpres = auxvar%D_pres(cp_loc,:)
-#if 0
-      print *, "dex: ", cp_loc
-      print *, auxvar%pres
-      print *, D_cpres
-#endif
     endif
   end if
 
@@ -4829,7 +4820,6 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
 
-!print *, "residual compute flux"
       call TOWGFlux(towg%auxvars(ZERO_INTEGER,ghosted_id_up), &
                     global_auxvars(ghosted_id_up), &
                     material_auxvars(ghosted_id_up), & 
@@ -4846,7 +4836,6 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
                     (local_id_up == towg_debug_cell_id .or. &
                      local_id_dn == towg_debug_cell_id), &
                      jdum,jdum2,PETSC_FALSE)
-!print *, "done with residual compute flux"
 
       patch%internal_velocities(:,sum_connection) = v_darcy
       if (associated(patch%internal_flow_fluxes)) then
@@ -5244,7 +5233,6 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
                               
-!print *, "jacobian compute flux"
       call TOWGFluxDerivative(towg%auxvars(:,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
@@ -5259,7 +5247,6 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
                      cur_connection_set%dist(:,iconn), &
                      towg_parameter,option,&
                      Jup,Jdn)
-!print *, "done jacobian compute flux"
 
       if (local_id_up > 0) then
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
@@ -5827,14 +5814,13 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
       endif
     else if( istate == TOWG_LIQ_OIL_STATE ) then ! Is bubble point variable
       if (dabs(del_saturation) > max_pb_change) then
-        print *, "here scaling pb change"
          temp_real = dabs(max_pb_change/del_saturation)
          temp_scale = min(temp_scale,temp_real)
       endif
       ! let's try avoiding negative pb values:
       if ((X_p(saturation_index) - dX_p(saturation_index))  < 0.d0) then
-      !print *, "negative pb! ", X_p(saturation_index)
-        print *, dX_p(saturation_index), ", ", X_p(saturation_index) - dX_p(saturation_index)
+         !print *, "negative pb! ", X_p(saturation_index)
+        !print *, dX_p(saturation_index), ", ", X_p(saturation_index) - dX_p(saturation_index)
       dX_p(saturation_index) = X_p(saturation_index) - 0.5
       endif
     endif

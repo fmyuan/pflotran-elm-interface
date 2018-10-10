@@ -320,7 +320,7 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
       end do
     end do
   else
-    allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
+    allocate(this%auxvars(0:0,grid%ngmax))
     do ghosted_id = 1, grid%ngmax
       !do idof = 0, option%nflowdof
         call this%auxvars(0,ghosted_id)%Init(option)
@@ -334,38 +334,6 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
       !end do
     end do
   endif
-
-#if 0
-  if (option%flow%numerical_derivatives .OR. option%flow%numerical_derivatives_compare) then
-    allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
-    do ghosted_id = 1, grid%ngmax
-      do idof = 0, option%nflowdof
-        call this%auxvars(idof,ghosted_id)%Init(option)
-        if (towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
-          call this%auxvars(idof,ghosted_id)%InitTL(option)
-        end if
-        if (    (towg_miscibility_model == TOWG_BLACK_OIL ) &
-            .or.(towg_miscibility_model == TOWG_SOLVENT_TL) ) then
-          call this%auxvars(idof,ghosted_id)%InitBO(option)
-        end if
-      end do
-    end do
-  else
-    allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
-    do ghosted_id = 1, grid%ngmax
-      !do idof = 0, option%nflowdof
-        call this%auxvars(0,ghosted_id)%Init(option)
-        if (towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
-          call this%auxvars(0,ghosted_id)%InitTL(option)
-        end if
-        if (    (towg_miscibility_model == TOWG_BLACK_OIL ) &
-            .or.(towg_miscibility_model == TOWG_SOLVENT_TL) ) then
-          call this%auxvars(0,ghosted_id)%InitBO(option)
-        end if
-      !end do
-    end do
-  endif
-#endif
 
   this%num_aux = grid%ngmax
 
