@@ -150,10 +150,6 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
 !              SNES_DIVERGED_LOCAL_MIN           = -8, /* || J^T b || is small, implies converged to local minimum of F() */
 !              SNES_CONVERGED_ITERATING          =  0} SNESConvergedReason;
 
-  residual_vec = tVec(0)
-  solution_vec = tVec(0)
-  update_vec = tVec(0)
-
   if (option%use_touch_options) then
     string = 'detailed_convergence'
     if (OptionCheckTouch(option,string)) then

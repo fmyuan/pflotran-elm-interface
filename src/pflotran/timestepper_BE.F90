@@ -292,10 +292,6 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   Vec :: residual_vec
   PetscErrorCode :: ierr
 
-  ! GNU -O3 can fail below in SNESGetFunction() as the compiler can set the
-  ! initial value to -1, which CHKFORTRANNULLOBJECT() interprets as NULL.
-  residual_vec = tVec(0) 
-  
   solver => this%solver
   option => process_model%option
   
