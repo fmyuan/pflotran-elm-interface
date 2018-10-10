@@ -9,8 +9,18 @@ module PFLOTRAN_Constants_module
   private
 
 #include "petsc/finclude/petscsys.h"
-  ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS MODIFIED TO PREVENT
-  ! COMPATIBILITY ISSUES - geh.
+#define VMAJOR 3
+#define VMINOR 10
+#define VSUBMINOR 2
+#if (PETSC_VERSION_MAJOR < VMAJOR ||                    \
+     (PETSC_VERSION_MAJOR == VMAJOR &&                  \
+      (PETSC_VERSION_MINOR < VMINOR ||                  \
+       (PETSC_VERSION_MINOR == VMINOR &&                \
+        (PETSC_VERSION_SUBMINOR < VSUBMINOR)))))
+#error "Please use PETSc version 3.10.2: 'git checkout v3.10.2' in $PETSC_DIR"
+#endif
+  ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS 
+  ! MODIFIED TO PREVENT COMPATIBILITY ISSUES - geh.
   PetscInt, parameter, public :: CHECKPOINT_REVISION_NUMBER = 1
   
   PetscInt, parameter, public :: MAXSTRINGLENGTH = 512
