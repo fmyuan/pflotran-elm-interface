@@ -917,7 +917,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     auxvar%D_pc(wid,dof_osat) = -dpc_w_dsw
     ! deriv of pc between oil and water, w.r.t. gas sat:
     if (isSat) then
-      auxvar%D_pc(wid,dof_gsat) = -dpc_w_dsw !!! should this check if sat?
+      auxvar%D_pc(wid,dof_gsat) = -dpc_w_dsw
     endif
     
     if (isSat) then
@@ -991,8 +991,8 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
         auxvar%D_por(dof_op) = dummy
         auxvar%D_por(dof_osat) = dummy*D_cell_pres(dof_osat)
         auxvar%D_por(dof_gsat) = dummy*D_cell_pres(dof_gsat)
-        !!! could this not just be
-        !!! D_por = dummy*D_cell_pres?
+        ! could also just be:
+        ! D_por = dummy*D_cell_pres?
 
       endif
     endif
@@ -1192,49 +1192,6 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 ! Get oil mass density as (mixture oil molar density).(mixture oil molecular weight)
 
 !----------Oil mass density---------------------------------------------------
-!!! TO CHECK - needed?
-#if 0
-  if (getDerivs) then
-    ! pressure:
-    if (isSat) then
-      ! pb as pressure
-      auxvar%D_den_kg(oid,dof_op) =   auxvar%D_den(oid,dof_op)         &
-                                    * ( auxvar%bo%xo*EOSOilGetFMW()    &
-                                        +auxvar%bo%xg*EOSGasGetFMW() ) &
-                                    + auxvar%den(oid)                  &
-                                    *( auxvar%bo%D_xo(dof_gsat)*EOSOilGetFMW()     &
-                                        +auxvar%bo%D_xg(dof_gsat)*EOSGasGetFMW() )
-                                     
-    else
-      auxvar%D_den_kg(oid,dof_op) =   auxvar%D_den(oid,dof_op)         &
-                                    * ( auxvar%bo%xo*EOSOilGetFMW()    &
-                                        +auxvar%bo%xg*EOSGasGetFMW() )
-    endif
-    ! nothing for oil saturation
-
-    ! gas saturation:
-    if (isSat) then
-      ! gas saturation means gas saturation and no dependence here
-    else
-      ! gas saturation means pb and dependence is:
-      auxvar%D_den_kg(oid,dof_gsat) =   auxvar%D_den(oid,dof_gsat)              &
-                                    * ( auxvar%bo%xo*EOSOilGetFMW()             &
-                                        + auxvar%bo%xg*EOSGasGetFMW() )         &
-                                    + auxvar%den(oid)                           &
-                                    * ( auxvar%bo%D_xo(dof_gsat)*EOSOilGetFMW() &
-                                        + auxvar%bo%D_xg(dof_gsat)*EOSGasGetFMW() )
-                                     
-    endif
-    ! temperature:
-    auxvar%D_den_kg(oid,dof_temp) =   auxvar%D_den(oid,dof_temp)                  &
-                                  * ( auxvar%bo%xo*EOSOilGetFMW()                 &
-                                      + auxvar%bo%xg*EOSGasGetFMW() )             &
-                                  + auxvar%den(oid)                               &
-                                  * ( auxvar%bo%D_xo(dof_temp)*EOSOilGetFMW()     &
-                                      + auxvar%bo%D_xg(dof_temp)*EOSGasGetFMW() )
-
-  endif
-#endif
   if (getDerivs) then
     ! assume D_xo and D_xg have been previously set up
     ! correctly independently of state (so derivatives w.r.t. temp, and w.r.t.
@@ -1336,12 +1293,6 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     if (isSat) then 
       D_kr(dof_gsat) = -dkrw_satw 
     endif
-#if 0
-    dmobw = DivRule(krw,D_kr,                  &
-                    visw,D_visc,option%nflowdof )
-    auxvar%D_mobility(wid, :) = dmobw(:)
-#endif
-    !!! neatening:
     auxvar%D_mobility(wid, :) =  DivRule(krw,D_kr,                  &
                                          visw,D_visc,option%nflowdof )
   endif
@@ -1411,11 +1362,6 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   if (getDerivs) then
     ! mobility derivatives:
-#if 0
-    call MobilityDerivs_TOWG_BO(dmobo,kro,viso,dkro_sato,dkro_satg,dvo_dp,dvo_dpb,dvo_dt,isSat,option%nflowdof)
-    auxvar%D_mobility(oid, :) = dmobo(:)
-#endif
-    ! alternative in line with everything else:
     D_kr = 0.d0
     D_kr(dof_osat) = dkro_sato
     if (isSat) then 
@@ -1475,18 +1421,9 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
     ! see comment for water mobility
     D_kr = 0.d0
-    !D_kr(dof_osat) = dkrg_sato
-    !!!! nothing here? relperm ftn is independent of oil sat
     if (isSat) then 
       D_kr(dof_gsat) = dkrg_satg
     endif
-#if 0
-    dmobg = DivRule(krg,D_kr,                  &
-                    visg,D_visc,option%nflowdof )
-
-    auxvar%D_mobility(gid, :) = dmobg(:)
-#endif
-
     auxvar%D_mobility(gid, :) =  DivRule(krg,D_kr,                  &
                                          visg,D_visc,option%nflowdof )
   endif
@@ -1497,6 +1434,7 @@ end subroutine TOWGBlackOilAuxVarCompute
 
 ! ************************************************************************** !
 
+! this is no longer used:
 subroutine MobilityDerivs_TOWG_BO(dmob,kr,visc,dkr_dso,dkr_dsg,dvisc_dpo,dvisc_dpb,dvisc_dt,isSat,ndof)
   implicit none
   PetscInt :: ndof
