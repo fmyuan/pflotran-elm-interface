@@ -189,11 +189,6 @@ ifdef scorpio
   MYFLAGS += -I${SCORPIO_DIR}/include
 endif
 
-ifdef tau
-FC = /ccs/proj/geo002/tau/tau-2.19.1/craycnl/bin/tau_f90.sh -optCompInst -tau_makefile=$(TAU_MAKEFILE)
-FLINKER = /ccs/proj/geo002/tau/tau-2.19.1/craycnl/bin/tau_f90.sh -optCompInst -tau_makefile=$(TAU_MAKEFILE)
-endif
-
 ###############################################################################
 # Assign additional compiler/preprocessor flags
 ###############################################################################
