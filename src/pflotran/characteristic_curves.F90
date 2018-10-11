@@ -1687,10 +1687,11 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
   type(option_type) :: option
 
   PetscReal :: CharCurvesGetGetResidualSats(option%nphase)
-  PetscReal :: sowcr_dummy, sogcr_dummy, swco_dummy
+  PetscReal :: sgcr_dummy,sowcr_dummy, sogcr_dummy, swco_dummy
+  PetscReal :: gas_res_sat
 
   select case(option%iflowmode)
-    case(TOWG_MODE,TOIL_IMS_MODE)
+    case(TOWG_MODE)
       call characteristic_curves%GetOWGCriticalAndConnateSats( &
                     CharCurvesGetGetResidualSats(option%liquid_phase), &
                     CharCurvesGetGetResidualSats(option%gas_phase), &
@@ -1701,96 +1702,108 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
                     option)
       if (option%iflow_sub_mode == TOWG_TODD_LONGSTAFF) then
         CharCurvesGetGetResidualSats(option%gas_phase) = 0.0d0
-      end if  
+      end if
+    case(TOIL_IMS_MODE)
+      call characteristic_curves%GetOWGCriticalAndConnateSats( &
+                    CharCurvesGetGetResidualSats(option%liquid_phase), &
+                    sgcr_dummy, &
+                    CharCurvesGetGetResidualSats(option%oil_phase), &
+                    sowcr_dummy, &
+                    sogcr_dummy, &
+                    swco_dummy, &
+                    option)
     case default
-  CharCurvesGetGetResidualSats(1) = &
-    characteristic_curves%liq_rel_perm_function%Sr
-  !if (option%nphase > 1) then
-  if ( (option%nphase > 1) .and. &
-       associated(characteristic_curves%gas_rel_perm_function) ) then
-    select type(rpf=>characteristic_curves%gas_rel_perm_function)
-      class is(rpf_Mualem_VG_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_Mualem_VG_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_Burdine_BC_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_Burdine_BC_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_Mualem_BC_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_Mualem_BC_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_Burdine_VG_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_Burdine_VG_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_TOUGH2_IRP7_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_Mualem_Linear_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_Mualem_Linear_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_Burdine_Linear_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_Burdine_Linear_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_KRP1_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP1_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_KRP2_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP2_gas_type)
-        ! KRP2 does not use a Srg, so return 0.d0
-        CharCurvesGetGetResidualSats(option%gas_phase) = 0.d0
-      class is(rpf_KRP3_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP3_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_KRP4_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP4_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_KRP5_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP5_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_KRP8_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP8_gas_type)
-        ! KRP8 does not use a Srg, so return 0.d0
-        CharCurvesGetGetResidualSats(option%gas_phase) = 0.d0
-      class is(rpf_KRP9_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP9_gas_type)
-        ! KRP9 does not use a Srg, so return 0.d0
-        CharCurvesGetGetResidualSats(option%gas_phase) = 0.d0
-      class is(rpf_KRP11_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP11_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_KRP12_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_KRP12_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      class is(rpf_mK_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rpf_mK_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Srg
-      ! class is(rpf_mod_BC_liq_type)
-      !   CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rel_perm_func_constant_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class is(rel_perm_func_default_type)
-        CharCurvesGetGetResidualSats(option%gas_phase) = rpf%Sr
-      class default
-        option%io_buffer = 'Relative permeability class not supported in &
-              &CharCurvesGetGetResidualSats.'
-        call PrintErrMsgToDev('',option)
-    end select
-
-  end if
+      CharCurvesGetGetResidualSats(1) = &
+        characteristic_curves%liq_rel_perm_function%Sr
+      ! the Intel compiler on Windows complains about the use of a recursive
+      ! subroutine when CharCurvesGetGetResidualSats(option%gas_phase) is 
+      ! set equal to the residual gas saturation below. Using gas_res_sat
+      ! within the select type resolves the issue.
+      if (option%nphase > 1 .and. &
+          associated(characteristic_curves%gas_rel_perm_function) ) then
+        select type(rpf=>characteristic_curves%gas_rel_perm_function)
+          class is(rpf_Mualem_VG_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_Mualem_VG_gas_type)
+            gas_res_sat = rpf%Srg
+          class is(rpf_Burdine_BC_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_Burdine_BC_gas_type)
+            gas_res_sat = rpf%Srg
+          class is(rpf_Mualem_BC_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_Mualem_BC_gas_type)
+            gas_res_sat = rpf%Srg
+          class is(rpf_Burdine_VG_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_Burdine_VG_gas_type)
+            gas_res_sat = rpf%Srg
+          class is(rpf_TOUGH2_IRP7_gas_type)
+            gas_res_sat = rpf%Srg
+          class is(rpf_Mualem_Linear_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_Mualem_Linear_gas_type)
+            gas_res_sat = rpf%Srg
+          class is(rpf_Burdine_Linear_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_Burdine_Linear_gas_type)
+            gas_res_sat = rpf%Srg
+          class is(rpf_KRP1_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_KRP1_gas_type)
+            gas_res_sat = rpf%Srg
+          class is(rpf_KRP2_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_KRP2_gas_type)
+            ! KRP2 does not use a Srg, so return 0.d0
+            gas_res_sat = 0.d0
+          class is(rpf_KRP3_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_KRP3_gas_type)
+            gas_res_sat = rpf%Srg
+          class is(rpf_KRP4_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_KRP4_gas_type)
+            gas_res_sat = rpf%Srg
+          class is(rpf_KRP5_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_KRP5_gas_type)
+            gas_res_sat = rpf%Srg
+          class is(rpf_KRP8_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_KRP8_gas_type)
+            ! KRP8 does not use a Srg, so return 0.d0
+            gas_res_sat = 0.d0
+          class is(rpf_KRP9_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_KRP9_gas_type)
+            ! KRP9 does not use a Srg, so return 0.d0
+            gas_res_sat = 0.d0
+          class is(rpf_KRP11_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_KRP11_gas_type)
+            gas_res_sat = rpf%Srg
+          class is(rpf_KRP12_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_KRP12_gas_type)
+            gas_res_sat = rpf%Srg
+          class is(rpf_mK_liq_type)
+            gas_res_sat = rpf%Sr
+          class is(rpf_mK_gas_type)
+            gas_res_sat = rpf%Srg
+          ! class is(rpf_mod_BC_liq_type)
+          !   gas_res_sat = rpf%Sr
+          class is(rel_perm_func_constant_type)
+            gas_res_sat = rpf%Sr
+          class is(rel_perm_func_default_type)
+            gas_res_sat = rpf%Sr
+          class default
+            option%io_buffer = 'Relative permeability class not supported in &
+                  &CharCurvesGetGetResidualSats.'
+            call PrintErrMsgToDev('',option)
+        end select
+        CharCurvesGetGetResidualSats(option%gas_phase) = gas_res_sat
+      endif
 
   end select ! end flow mode select
 

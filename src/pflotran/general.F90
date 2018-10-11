@@ -1055,7 +1055,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   
-  Mat, parameter :: null_mat = tMat(-1)
+  Mat, parameter :: null_mat = tMat(0)
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -1499,7 +1499,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   PetscInt :: irow
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
-  Vec, parameter :: null_vec = tVec(-1)
+  Vec, parameter :: null_vec = tVec(0)
   
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
                Jdn(realization%option%nflowdof,realization%option%nflowdof)

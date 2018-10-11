@@ -1892,9 +1892,10 @@ subroutine SubsurfaceReadInput(simulation,input)
   use PMC_Subsurface_class
   use Timestepper_BE_class
   use Timestepper_Steady_class
-#if WELL_CLASS
+#ifdef WELL_CLASS
   use WellSpec_Base_class
 #endif
+  use Well_Data_class
 
 #ifdef SOLID_SOLUTION
   use Reaction_Solid_Solution_module, only : SolidSolutionReadFromInputFile
@@ -1933,6 +1934,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 #ifdef WELL_CLASS
   class(well_spec_base_type), pointer :: well_spec
 #endif
+  class(well_data_type), pointer :: well_data
   type(tran_condition_type), pointer :: tran_condition
   type(tran_constraint_type), pointer :: tran_constraint
   type(tran_constraint_type), pointer :: sec_tran_constraint
@@ -2181,6 +2183,16 @@ subroutine SubsurfaceReadInput(simulation,input)
         call WellSpecAddToList(well_spec,realization%well_specs)
         nullify(well_spec)
 #endif
+
+      case ('WELL_DATA')
+        call WellDataSetFlag()
+        well_data => WellDataCreate()
+        call InputReadWord(input,option,well_data%w_name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'WELL_SPEC','name')
+        call printMsg(option,well_data%w_name)
+        call well_data%Read(input,option)
+        call WellDataAddToList(well_data,realization%well_data)
+        nullify(well_data)
 
 !....................
       case ('TRANSPORT_CONDITION')
