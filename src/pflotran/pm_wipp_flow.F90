@@ -1118,8 +1118,11 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   field => this%realization%field
   patch => this%realization%patch
 
-  dX_changed = PETSC_FALSE
-  X1_changed = PETSC_FALSE
+  ! If these are changed from true, we must add a global reduction on both
+  ! variables to ensure that their values match across all processes. Otherwise
+  ! PETSc will throw an error in debug mode or ignore the error in optimized.
+  dX_changed = PETSC_TRUE
+  X1_changed = PETSC_TRUE
   
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   if (wippflo_print_update) then
