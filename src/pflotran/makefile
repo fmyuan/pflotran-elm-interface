@@ -42,6 +42,8 @@ unit_test_dir = $(SRC_DIR)/unittests
 # Import variables/options/rules from PETSc.
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
+# reseting PETSC_MAKE_STOP_ON_ERROR causes build to stop on error.
+PETSC_MAKE_STOP_ON_ERROR=
 # Those files also include 
 # ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables
 # and 

@@ -253,6 +253,8 @@ well_obj = \
 	${common_src}well_water_injector.o \
 	${common_src}well_oil_producer.o \
 	${common_src}well_toil_ims.o \
+	${common_src}well_data.o \
+	${common_src}well_solver.o \
 	${common_src}well.o
 
 surface_obj = \

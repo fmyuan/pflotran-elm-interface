@@ -1434,7 +1434,6 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
   wippflo_auxvars => patch%aux%WIPPFlo%auxvars
   material_auxvars => patch%aux%Material%auxvars
 
-  residual_vec = tVec(0)
   ! check residual terms
   if (this%stored_residual_vec == PETSC_NULL_VEC) then
     residual_vec = field%flow_r

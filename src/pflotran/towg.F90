@@ -228,22 +228,22 @@ function checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
 
 !  Default return values
 
-  componentInPhase=PETSC_FALSE
-  is_oil_in_oil   =PETSC_FALSE
-  is_gas_in_oil   =PETSC_FALSE
+  componentInPhase = PETSC_FALSE
+  is_oil_in_oil    = PETSC_FALSE
+  is_gas_in_oil    = PETSC_FALSE
 
 ! disgas is special case
 
-  if( iphase==option%oil_phase ) then
-    if( icomp==option%oil_phase ) is_oil_in_oil=PETSC_TRUE
-    if( icomp==option%gas_phase ) is_gas_in_oil=PETSC_TRUE
+  if( iphase == option%oil_phase ) then
+    if( icomp == option%oil_phase ) is_oil_in_oil = PETSC_TRUE
+    if( icomp == option%gas_phase ) is_gas_in_oil = PETSC_TRUE
   endif
 
 ! OK if phase and component match or dissolved gas
 
-  if( iphase==icomp .or. is_gas_in_oil )  componentInPhase=PETSC_TRUE
+  if( iphase == icomp .or. is_gas_in_oil )  componentInPhase = PETSC_TRUE
 
-  checkBlackOilCIP=componentInPhase
+  checkBlackOilCIP = componentInPhase
 
 end function checkBlackOilCIP
 
@@ -745,10 +745,14 @@ subroutine TOWGUpdateSolution(realization)
   use Discretization_module
   use Option_module
   use Grid_module
+  use Well_Data_class
   
   implicit none
   
   type(realization_subsurface_type) :: realization
+  class(well_data_type), pointer :: well_data
+  type(well_data_list_type),pointer :: well_data_list
+  PetscBool :: well_update_ok
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -758,6 +762,7 @@ subroutine TOWGUpdateSolution(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)  
   PetscInt :: local_id, ghosted_id
   PetscErrorCode :: ierr
+  PetscReal :: dt
   
   option => realization%option
   field => realization%field
@@ -765,7 +770,22 @@ subroutine TOWGUpdateSolution(realization)
   grid => patch%grid
   towg => patch%aux%TOWG
   global_auxvars => patch%aux%Global%auxvars
-  
+
+! Loop over well_data wells if present
+
+  dt=option%flow_dt
+
+  if (WellDataGetFlag()) then
+    well_data_list => realization%well_data
+    well_data => well_data_list%first
+
+    do
+      if (.not.associated(well_data)) exit
+      call well_data%DoUpdate(dt,option)
+      well_data => well_data%next
+    enddo
+  endif
+
   if (realization%option%compute_mass_balance_new) then
     call TOWGUpdateMassBalance(realization)
   endif
@@ -2910,7 +2930,7 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
 
 !--Solvent injection-----------------------------------------------------------
 
-    if( towg_miscibility_model ==TOWG_SOLVENT_TL ) then
+    if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
       if (qsrc(option%solvent_phase) > 0.d0) then
         if ( energy_var == SRC_ENTHALPY ) then
           enthalpy = src_sink_condition%enthalpy% &
@@ -3304,6 +3324,8 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   use Coupler_module  
   use Debug_module
   use Material_Aux_class
+  use Well_Data_class
+  use Well_Solver_module
 
   implicit none
 
@@ -3312,7 +3334,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   Vec :: r
   type(realization_subsurface_type) :: realization
   PetscViewer :: viewer
-  PetscErrorCode :: ierr
+  PetscErrorCode :: ierr,jerr
   
   Mat, parameter :: null_mat = PETSC_NULL_MAT
   type(discretization_type), pointer :: discretization
@@ -3354,6 +3376,9 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   !PetscReal :: Jac_dummy(realization%option%nflowdof, &
   !                       realization%option%nflowdof)
   PetscReal :: v_darcy(realization%option%nphase)
+
+  type(well_data_list_type),pointer :: well_data_list
+  class(well_data_type), pointer :: well_data
   
   discretization => realization%discretization
   option => realization%option
@@ -3619,8 +3644,23 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
     source_sink => source_sink%next
   enddo
 
+! Loop over well_data wells if present
+
+  if (WellDataGetFlag()) then
+    jerr=0
+    well_data_list => realization%well_data
+    well_data => well_data_list%first
+
+    do
+      if (.not.associated(well_data)) exit
+        call SolveWell(patch%aux,option,well_data,r_p)
+        call MPI_Barrier(option%mycomm,jerr)
+      well_data => well_data%next
+    enddo
+  endif
+
   if (towg%inactive_cells_exist) then
-    do i=1,towg%n_inactive_rows
+    do i = 1,towg%n_inactive_rows
       r_p(towg%inactive_rows_local(i)) = 0.d0
     enddo
   endif
@@ -4417,12 +4457,12 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     del_saturation = dX_p(saturation_index)
     !saturation0 = X_p(saturation_index)
     !saturation1 = saturation0 - del_saturation
-    if( istate==TOWG_THREE_PHASE_STATE ) then ! Is gas saturation variable
+    if( istate == TOWG_THREE_PHASE_STATE ) then ! Is gas saturation variable
       if (dabs(del_saturation) > max_saturation_change) then
          temp_real = dabs(max_saturation_change/del_saturation)
          temp_scale = min(temp_scale,temp_real)
       endif
-    else if( istate==TOWG_LIQ_OIL_STATE ) then ! Is bubble point variable
+    else if( istate == TOWG_LIQ_OIL_STATE ) then ! Is bubble point variable
       if (dabs(del_saturation) > max_pb_change) then
          temp_real = dabs(max_pb_change/del_saturation)
          temp_scale = min(temp_scale,temp_real)
