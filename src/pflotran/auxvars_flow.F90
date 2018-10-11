@@ -32,7 +32,7 @@ module AuxVars_Flow_module
     PetscReal, pointer :: D_den(:,:)    ! (iphase) kmol/m^3 phase
     PetscReal, pointer :: D_den_kg(:,:) ! (iphase) kg/m^3 phase
     PetscReal, pointer :: D_mobility(:,:) ! relative perm / dynamic viscosity
-    PetscReal, pointer :: D_por(:) ! mole fractions (sol var)
+    PetscReal, pointer :: D_por(:)
 
   contains
     !procedure, public :: Init => InitAuxVarFlow
