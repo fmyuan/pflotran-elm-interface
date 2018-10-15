@@ -180,6 +180,7 @@ module Option_module
     PetscBool :: use_touch_options
     PetscBool :: overwrite_restart_transport
     PetscBool :: overwrite_restart_flow
+    PetscBool :: overwrite_restart_wf
     PetscInt :: io_handshake_buffer_size
 
     character(len=MAXSTRINGLENGTH) :: initialize_flow_filename
@@ -550,6 +551,7 @@ subroutine OptionInitRealization(option)
   option%use_touch_options = PETSC_FALSE
   option%overwrite_restart_transport = PETSC_FALSE
   option%overwrite_restart_flow = PETSC_FALSE
+  option%overwrite_restart_wf = PETSC_FALSE
 
   option%time = 0.d0
   option%flow_dt = 0.d0
