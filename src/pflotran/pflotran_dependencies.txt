@@ -580,7 +580,6 @@ pm_towg.o : checkpoint.o field.o global.o input_aux.o material.o option.o \
 pm_towg_aux.o : auxvars_towg.o characteristic_curves.o eos_gas.o eos_oil.o \
                 eos_slv.o eos_water.o global_aux.o grid.o material_aux.o \
                 option.o pflotran_constants.o pm_base_aux.o utility.o
-<<<<<<< HEAD
 pm_ufd_biosphere.o : checkpoint.o coupler.o global_aux.o grid.o input_aux.o \
                      material_aux.o option.o output_aux.o pflotran_constants.o \
                      pm_base.o reaction_aux.o reactive_transport_aux.o \
@@ -596,23 +595,6 @@ pm_waste_form.o : checkpoint.o condition.o data_mediator_vec.o dataset_ascii.o \
                   hdf5.o input_aux.o material_aux.o option.o output_aux.o \
                   patch.o pflotran_constants.o pm_base.o reaction_aux.o \
                   reactive_transport_aux.o realization_base.o \
-=======
-pm_ufd_biosphere.o : coupler.o global_aux.o grid.o hdf5.o input_aux.o material_aux.o \
-                     option.o output_aux.o pflotran_constants.o pm_base.o \
-                     reaction_aux.o reactive_transport_aux.o checkpoint.o \
-                     realization_subsurface.o region.o string.o utility.o
-pm_ufd_decay.o : field.o global.o global_aux.o grid.o hdf5.o input_aux.o material.o \
-                 material_aux.o option.o output_aux.o patch.o \
-                 pflotran_constants.o pm_base.o reaction_aux.o \
-                 reaction_mineral_aux.o reactive_transport_aux.o \
-                 realization_subsurface.o string.o utility.o checkpoint.o
-pm_waste_form.o : condition.o data_mediator_vec.o dataset_ascii.o \
-                  dataset_base.o field.o geometry.o global_aux.o grid.o \
-                  grid_structured.o grid_unstructured.o hdf5.o input_aux.o \
-                  material_aux.o option.o output_aux.o patch.o \
-                  pflotran_constants.o pm_base.o reaction_aux.o \
-                  reactive_transport_aux.o realization_base.o checkpoint.o \
->>>>>>> 77e43015e4e4349d3d07798e8e79f890bdda6ea1
                   realization_subsurface.o region.o string.o units.o utility.o
 pm_wipp_flow.o : checkpoint.o convergence.o dataset.o dataset_base.o \
                  dataset_common_hdf5.o debug.o discretization.o field.o \
@@ -1024,4 +1006,3 @@ wipp_flow_common.o : connection.o eos_gas.o eos_water.o global_aux.o \
                      wipp_flow_aux.o
 wrapper_hydrogeophysics.o : e4d_run.o e4d_setup.o e4d_vars.o option.o \
                             pflotran_constants.o
-
