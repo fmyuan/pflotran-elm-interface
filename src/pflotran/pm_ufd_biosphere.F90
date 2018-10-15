@@ -84,7 +84,6 @@ module PM_UFD_Biosphere_class
     procedure, public :: FinalizeTimestep => PMUFDBFinalizeTimestep
     procedure, public :: Solve => PMUFDBSolve
     procedure, public :: Output => PMUFDBOutput
-    procedure, public :: CheckpointHDF5 => PMUFDBCheckpointHDF5
     procedure, public :: InputRecord => PMUFDBInputRecord
     procedure, public :: Destroy => PMUFDBDestroy
   end type pm_ufd_biosphere_type
@@ -1598,50 +1597,6 @@ end subroutine PMUFDBOutput
 
 ! *************************************************************************** !
 
-subroutine PMUFDBCheckpointHDF5(this, pm_grp_id)
-  ! 
-  ! Checkpoints data associated with the biosphere process model.
-  !
-  ! Modified by Michael Nole
-  ! Date: 09/24/18
-  ! 
-#if  !defined(PETSC_HAVE_HDF5)
-  implicit none
-  class(pm_waste_form_type) :: this
-  integer :: pm_grp_id
-  type(option_type) :: option
-  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
-        'write HDF5 formatted checkpoint file. Darn.'
-  stop
-#else
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use Option_module
-  use Realization_Subsurface_class
-  use hdf5
-  use Checkpoint_module, only: CheckPointWriteRealDatasetHDF5
-  
-  implicit none
-    
-  ! Input Arguments
-  class(pm_ufd_biosphere_type) :: this
-
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
-  integer(HID_T) :: pm_grp_id
-#endif
-
-!  this%option%io_buffer = 'PMUFDBCheckpoint not implemented.'
-!  call printErrMsg(this%option)
-
-#endif  
-
-end subroutine PMUFDBCheckpointHDF5
-
-! *************************************************************************** !
-
 subroutine PMUFDBOutputHeader(this)
   !
   ! Opens the output file and writes the header line.
@@ -1938,4 +1893,3 @@ end subroutine PMUFDBDestroy
 ! ************************************************************************** !
 
 end module PM_UFD_Biosphere_class
-

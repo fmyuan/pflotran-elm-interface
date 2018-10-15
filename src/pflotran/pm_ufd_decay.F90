@@ -100,7 +100,7 @@ module PM_UFD_Decay_class
 !    procedure, public :: TimeCut => PMUFDDecayTimeCut
 !    procedure, public :: UpdateSolution => PMUFDDecayUpdateSolution
 !    procedure, public :: UpdateAuxVars => PMUFDDecayUpdateAuxVars
-    procedure, public :: CheckpointHDF5 => PMUFDDecayCheckpointHDF5    
+!    procedure, public :: Checkpoint => PMUFDDecayCheckpoint    
 !    procedure, public :: Restart => PMUFDDecayRestart  
     procedure, public :: Output => PMUFDDecayOutput
     procedure, public :: InputRecord => PMUFDDecayInputRecord
@@ -1548,51 +1548,26 @@ end subroutine PMUFDDecayUpdateAuxVars
 
 ! ************************************************************************** !
 
-subroutine PMUFDDecayCheckpointHDF5(this,pm_grp_id)
+subroutine PMUFDDecayCheckpoint(this,viewer)
   ! 
   ! Checkpoints data associated with UFD Decay process model
   ! 
   ! Author: Glenn Hammond
   ! Date: 06/24/15
-  ! 
-  ! Modified by Michael Nole
-  ! Date: 09/24/18
-  
-#if  !defined(PETSC_HAVE_HDF5)
-  implicit none
-  class(pm_ufd_decay_type) :: this
-  integer :: pm_grp_id
-  type(option_type) :: option
-  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
-        'write HDF5 formatted checkpoint file. Darn.'
-  stop
-#else
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use Option_module
-  use Realization_Subsurface_class
-  use hdf5
-  use Checkpoint_module, only: CheckPointWriteRealDatasetHDF5
-!  use HDF5_module, only : HDF5WriteDataSetFromVec
 
   implicit none
+#include "petsc/finclude/petscviewer.h"      
 
-  ! Input Arguments
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): UFD Decay process model object
+! viewer (input): PETSc viewer object
+! --------------------------------
   class(pm_ufd_decay_type) :: this
-
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
-  integer(HID_T) :: pm_grp_id
-#endif
-
-
-!   this%option%io_buffer = 'PMUFDDecayCheckpoint not fully implemented.'
-!   call printErrMsg(this%option)
-#endif
+  PetscViewer :: viewer
+! --------------------------------
   
-end subroutine PMUFDDecayCheckpointHDF5
+end subroutine PMUFDDecayCheckpoint
 
 ! ************************************************************************** !
 

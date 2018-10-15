@@ -3983,9 +3983,9 @@ end subroutine PMWFCheckpointHDF5
 subroutine PMWFRestartHDF5(this,pm_grp_id)
   ! 
   ! Restarts data associated with waste form process model
-  ! from the "canister_properties" dataset for a given wf pm: 
-  ! canister vitality (1), canister volume (2), breach time (3),
-  ! radionuclide mass fraction (4:2:end-1), 
+  ! in HDF5 format from the "canister_properties" dataset for a 
+  ! given wf pm: canister vitality (1), canister volume (2), 
+  ! breach time (3),radionuclide mass fraction (4:2:end-1), 
   ! cumulative mass released (5:2:end) .
   ! 
   ! Author: Michael Nole
