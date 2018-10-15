@@ -317,7 +317,8 @@ subroutine GasDestroy(this)
   deallocate(this%gas_vec)
   deallocate(this%k)
   deallocate(this%Keq)
-  
+  deallocate(this%name_vec)
+
 end subroutine GasDestroy
 
 end module Reaction_Sandbox_Gas_class
