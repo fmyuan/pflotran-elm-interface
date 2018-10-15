@@ -100,7 +100,7 @@ module PM_UFD_Decay_class
 !    procedure, public :: TimeCut => PMUFDDecayTimeCut
 !    procedure, public :: UpdateSolution => PMUFDDecayUpdateSolution
 !    procedure, public :: UpdateAuxVars => PMUFDDecayUpdateAuxVars
-    procedure, public :: CheckpointHDF5 => PMUFDDecayCheckpointHDF5    
+!    procedure, public :: Checkpoint => PMUFDDecayCheckpoint    
 !    procedure, public :: Restart => PMUFDDecayRestart  
     procedure, public :: Output => PMUFDDecayOutput
     procedure, public :: InputRecord => PMUFDDecayInputRecord
@@ -1548,104 +1548,26 @@ end subroutine PMUFDDecayUpdateAuxVars
 
 ! ************************************************************************** !
 
-subroutine PMUFDDecayCheckpointHDF5(this,pm_grp_id)
+subroutine PMUFDDecayCheckpoint(this,viewer)
   ! 
   ! Checkpoints data associated with UFD Decay process model
   ! 
   ! Author: Glenn Hammond
   ! Date: 06/24/15
-  ! 
-  ! Modified by Michael Nole
-  ! Date: 09/24/18
-  
-#if  !defined(PETSC_HAVE_HDF5)
-  implicit none
-  class(pm_waste_form_type) :: this
-  integer :: pm_grp_id
-  type(option_type) :: option
-  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
-        'write HDF5 formatted checkpoint file. Darn.'
-  stop
-#else
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use Option_module
-  use Realization_Subsurface_class
-  use hdf5
-  use Checkpoint_module, only: CheckPointWriteRealDatasetHDF5
-!  use HDF5_module, only : HDF5WriteDataSetFromVec
 
   implicit none
+#include "petsc/finclude/petscviewer.h"      
 
-  ! Input Arguments
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): UFD Decay process model object
+! viewer (input): PETSc viewer object
+! --------------------------------
   class(pm_ufd_decay_type) :: this
-
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
-  integer(HID_T) :: pm_grp_id
-#endif
-
-  ! Local Variables
-
-  PetscInt :: i
+  PetscViewer :: viewer
+! --------------------------------
   
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
-  integer(HSIZE_T), pointer :: dims(:)
-  integer(HSIZE_T), pointer :: start(:)
-  integer(HSIZE_T), pointer :: stride(:)
-  integer(HSIZE_T), pointer :: length(:)
-#endif
-
-  PetscMPIInt :: dataset_rank
-  character(len=MAXSTRINGLENGTH) :: dataset_name
-
-  PetscReal, pointer :: cur_isotope_mass(:)
-  type(isotope_type), pointer :: cur_isotope
-
-  class(realization_subsurface_type), pointer :: realization
-  type(option_type), pointer :: option
-
-  realization => this%realization
-  option => realization%option
-  
-  allocate(start(1))
-  allocate(dims(1))
-  allocate(length(1))
-  allocate(stride(1))
-  allocate(cur_isotope_mass(1))
-
-  i = 1
-  dataset_rank = 1
-  dims(1) = ONE_INTEGER
-  start(1) = 0
-  length(1) = ONE_INTEGER
-  stride(1) = ONE_INTEGER
-  
-  cur_isotope => this%isotope_list
-  
-  do
-    if (.not.associated(cur_isotope)) exit
-    cur_isotope_mass(1) = this%isotope_tot_mass(i)
-    dataset_name=trim(cur_isotope%name) // '_total_mass'
-    call CheckPointWriteRealDatasetHDF5(pm_grp_id, dataset_name, dataset_rank, &
-                                    dims, start, length, stride, &
-                                    cur_isotope_mass, option)
-    i=i+1
-    cur_isotope => cur_isotope%next
-  enddo
-
-!   this%option%io_buffer = 'PMUFDDecayCheckpoint not fully implemented.'
-!   call printErrMsg(this%option)
-#endif
-  
-end subroutine PMUFDDecayCheckpointHDF5
+end subroutine PMUFDDecayCheckpoint
 
 ! ************************************************************************** !
 

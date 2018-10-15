@@ -359,13 +359,9 @@ module PM_Waste_Form_class
     procedure, public :: UpdateSolution => PMWFUpdateSolution
     procedure, public :: Solve => PMWFSolve
     procedure, public :: CheckpointHDF5 => PMWFCheckpointHDF5
-<<<<<<< HEAD
     procedure, public :: CheckpointBinary => PMWFCheckpointBinary
     procedure, public :: RestartHDF5 => PMWFRestartHDF5  
     procedure, public :: RestartBinary => PMWFRestartBinary
-=======
-    procedure, public :: Restart => PMWFRestart  
->>>>>>> 77e43015e4e4349d3d07798e8e79f890bdda6ea1
     procedure, public :: InputRecord => PMWFInputRecord
     procedure, public :: Destroy => PMWFDestroy
   end type pm_waste_form_type
@@ -3815,7 +3811,6 @@ end subroutine PMWFOutputHeader
 
 subroutine PMWFCheckpointHDF5(this,pm_grp_id)
   ! 
-<<<<<<< HEAD
   ! Checkpoints data associated with the waste form process model
   ! into the "canister_properties" dataset for a given wf pm: 
   ! canister vitality (1), canister volume (2), breach time (3),
@@ -3824,19 +3819,6 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
 
   !
   ! Author: Michael Nole
-=======
-  ! Checkpoints data associated with the waste form process model: 
-  ! wasteform volume and canister vitality.
-  !
-  ! Should it be a recursive subroutine to checkpoint all of the
-  ! waste forms? 
-  !
-  ! Author: Glenn Hammond
-  ! Date: 08/26/15
-  !
-  !
-  ! Modified by Michael Nole
->>>>>>> 77e43015e4e4349d3d07798e8e79f890bdda6ea1
   ! Date: 09/21/18
   ! 
 
@@ -3855,12 +3837,7 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
   use Option_module
   use Realization_Subsurface_class
   use hdf5
-<<<<<<< HEAD
   use HDF5_module, only : HDF5WriteDataSetFromVec
-=======
-  use Checkpoint_module, only: CheckPointWriteRealDatasetHDF5
-!  use HDF5_module, only : HDF5WriteDataSetFromVec
->>>>>>> 77e43015e4e4349d3d07798e8e79f890bdda6ea1
 
   implicit none
 
@@ -3874,7 +3851,6 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
 #endif
 
   ! Local Variables
-<<<<<<< HEAD
   IS :: is
   VecScatter :: scatter_ctx
   Vec :: global_wf_vec, local_wf_vec
@@ -4007,9 +3983,9 @@ end subroutine PMWFCheckpointHDF5
 subroutine PMWFRestartHDF5(this,pm_grp_id)
   ! 
   ! Restarts data associated with waste form process model
-  ! in HDF5 format from the "canister_properties" dataset for a 
-  ! given wf pm: canister vitality (1), canister volume (2), 
-  ! breach time (3),radionuclide mass fraction (4:2:end-1), 
+  ! from the "canister_properties" dataset for a given wf pm: 
+  ! canister vitality (1), canister volume (2), breach time (3),
+  ! radionuclide mass fraction (4:2:end-1), 
   ! cumulative mass released (5:2:end) .
   ! 
   ! Author: Michael Nole
@@ -4317,61 +4293,6 @@ subroutine PMWFCheckpointBinary(this, viewer)
   
 
 end subroutine PMWFCheckpointBinary
-=======
-
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
-  integer(HSIZE_T), pointer :: dims(:)
-  integer(HSIZE_T), pointer :: start(:)
-  integer(HSIZE_T), pointer :: stride(:)
-  integer(HSIZE_T), pointer :: length(:)
-#endif
-
-  PetscMPIInt :: dataset_rank
-  character(len=MAXSTRINGLENGTH) :: dataset_name
-
-  PetscReal, pointer :: vitality(:)
-
-  class(waste_form_base_type), pointer :: cur_waste_form
-  class(realization_subsurface_type), pointer :: realization
-  type(option_type), pointer :: option
-
-  cur_waste_form => this%waste_form_list
-  realization => this%realization
-  option => realization%option
-
-  allocate(start(1))
-  allocate(dims(1))
-  allocate(length(1))
-  allocate(stride(1))
-  allocate(vitality(1))
-
-
-  dataset_rank = 1
-  dims(1) = ONE_INTEGER
-  start(1) = 0
-  length(1) = ONE_INTEGER
-  stride(1) = ONE_INTEGER
-  do
-    if (.not.associated(cur_waste_form)) exit
-      dataset_name=trim(cur_waste_form%mech_name) // '_canister_vitality'
-      vitality(1)=cur_waste_form%canister_vitality
-      call CheckPointWriteRealDatasetHDF5(pm_grp_id, dataset_name, & 
-                                     dataset_rank, dims, start, length, stride, &
-                                     vitality, option)
-      cur_waste_form => cur_waste_form%next
-  enddo 
-
-!   this%option%io_buffer = 'PMWFCheckpoint not fully implemented.'
-!   call printErrMsg(this%option)
-#endif
-
-end subroutine PMWFCheckpointHDF5
->>>>>>> 77e43015e4e4349d3d07798e8e79f890bdda6ea1
 
 ! ***************************************************************************** !
 
