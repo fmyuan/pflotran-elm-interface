@@ -125,7 +125,7 @@ subroutine SimulationBaseInitializeRun(this)
 
   class(simulation_base_type) :: this
 
-  integer(HID_T) :: chk_grp_id
+  integer(HID_T) :: h5_chk_grp_id
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   
@@ -146,7 +146,7 @@ subroutine SimulationBaseInitializeRun(this)
               &unless PFLOTRAN is compiled with HDF5 libraries enabled.'
          call printErrMsg(this%option)
 #else
-        call this%process_model_coupler_list%RestartHDF5(chk_grp_id)
+        call this%process_model_coupler_list%RestartHDF5(h5_chk_grp_id)
 #endif
       else
         this%option%io_buffer = 'Unknown restart filename format. ' // &

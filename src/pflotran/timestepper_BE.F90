@@ -633,7 +633,7 @@ end subroutine TimestepperBERestartBinary
 ! ************************************************************************** !
 
 #if defined(PETSC_HAVE_HDF5)
-subroutine TimestepperBECheckpointHDF5(this, chk_grp_id, option)
+subroutine TimestepperBECheckpointHDF5(this, h5_chk_grp_id, option)
   !
   ! Checkpoints parameters/variables associated with
   ! a time stepper.
@@ -649,11 +649,10 @@ subroutine TimestepperBECheckpointHDF5(this, chk_grp_id, option)
   implicit none
   
   class(timestepper_BE_type) :: this
-  integer(HID_T) :: chk_grp_id
+  integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
 
 #if defined(SCORPIO_WRITE)
-  integer :: h5_chk_grp_id
   integer, pointer :: dims(:)
   integer, pointer :: start(:)
   integer, pointer :: stride(:)
@@ -665,7 +664,6 @@ subroutine TimestepperBECheckpointHDF5(this, chk_grp_id, option)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
   integer(HID_T) :: timestepper_grp_id
-  integer(HID_T) :: h5_chk_grp_id
 #endif
 
   PetscMPIInt :: dataset_rank
@@ -678,7 +676,6 @@ subroutine TimestepperBECheckpointHDF5(this, chk_grp_id, option)
   PetscMPIInt :: hdf5_err
 
   string = "Timestepper"
-  h5_chk_grp_id = chk_grp_id
   call h5gcreate_f(h5_chk_grp_id, string, timestepper_grp_id, &
                    hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
 
@@ -775,7 +772,7 @@ end subroutine TimestepperBECheckpointHDF5
 
 ! ************************************************************************** !
 
-subroutine TimestepperBERestartHDF5(this, chk_grp_id, option)
+subroutine TimestepperBERestartHDF5(this, h5_chk_grp_id, option)
   !
   ! Restarts parameters/variables associated with
   ! a time stepper.
@@ -792,11 +789,10 @@ subroutine TimestepperBERestartHDF5(this, chk_grp_id, option)
   implicit none
   
   class(timestepper_BE_type) :: this
-  integer(HID_T) :: chk_grp_id
+  integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
 
 #if defined(SCORPIO_WRITE)
-  integer :: h5_chk_grp_id
   integer, pointer :: dims(:)
   integer, pointer :: start(:)
   integer, pointer :: stride(:)
@@ -808,7 +804,6 @@ subroutine TimestepperBERestartHDF5(this, chk_grp_id, option)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
   integer(HID_T) :: timestepper_grp_id
-  integer(HID_T) :: h5_chk_grp_id
 #endif
 
   PetscMPIInt :: dataset_rank
@@ -821,7 +816,6 @@ subroutine TimestepperBERestartHDF5(this, chk_grp_id, option)
   PetscMPIInt :: hdf5_err
 
   string = "Timestepper"
-  h5_chk_grp_id = chk_grp_id
   call HDF5GroupOpen(h5_chk_grp_id,string,timestepper_grp_id,option)
 
   allocate(start(1))
