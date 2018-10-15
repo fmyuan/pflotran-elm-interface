@@ -55,12 +55,12 @@ subroutine NumCompare_toil(nphase,ndof,auxvars,option)
   atol = flow_aux_debug_tol
   rtol = flow_aux_debug_reltol
 
-  print *, 
+  print *
   print *, "NumCompare TOil"
   print *, "Comparing numerical to analytical derivatives of aux variables in one cell."
   print *, "Displaying potential problems if difference is > ", atol, ","
   print *, "or if relative difference is > ", rtol 
-  print *, 
+  print *
 
   probs = 0
 
@@ -362,7 +362,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
   rtol = flow_aux_debug_reltol
 
 #if 0
-  print *, 
+  print *
   print *, "NumCompare TOWG BO"
   print *, "Comparing numerical to analytical derivatives of aux variables in one cell."
   print *, "Displaying potential problems if difference is > ", atol, ","
@@ -372,7 +372,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
   else
     print *, "This cell is in UNsaturated state."
   endif
-  print *, 
+  print *
 #endif
 
   probs = 0
@@ -401,7 +401,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "xo (note phase meaningless):"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *,
+        print *
         probs = probs + 1
       endif
     !enddo
@@ -430,7 +430,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "xg (note phase meaningless):"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *,
+        print *
         probs = probs + 1
       endif
     !enddo
@@ -463,7 +463,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "pres:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *,
+        print *
         probs = probs + 1
       endif
     enddo
@@ -492,7 +492,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "sat:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *,
+        print *
         probs = probs + 1
       endif
     enddo
@@ -521,7 +521,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "pc:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *,
+        print *
         probs = probs + 1
       endif
     enddo
@@ -549,7 +549,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "den:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *,
+        print *
         probs = probs + 1
       endif
     enddo
@@ -578,7 +578,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "den_kg:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *,
+        print *
         probs = probs + 1
       endif
     enddo
@@ -612,7 +612,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
         print *,  "mob pert: ", p_pert
         print *,  "mob diff: ", p_pert - p_unpert
         print *,  "pert in dof is: ", pert
-        print *,
+        print *
         probs = probs + 1
       endif
     enddo
@@ -640,7 +640,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "poro:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *,
+        print *
         probs = probs + 1
       endif
     enddo
@@ -672,7 +672,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "H:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *,
+        print *
         probs = probs + 1
       endif
     enddo
@@ -700,7 +700,7 @@ subroutine NumCompare_towg_bo(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "U:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *,
+        print *
         probs = probs + 1
       endif
     enddo
