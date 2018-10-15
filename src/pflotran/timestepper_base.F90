@@ -676,13 +676,13 @@ subroutine TimestepperBaseCheckpointHDF5(this, chk_grp_id, option)
   ! Author: Gautam Bisht, LBNL
   ! Date: 07/30/15
   ! 
-
   use Option_module
+  use hdf5
 
   implicit none
   
   class(timestepper_base_type) :: this
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: chk_grp_id
   type(option_type) :: option
 
   option%io_buffer = 'TimestepperBaseCheckpointHDF5 must be extended.'
@@ -699,13 +699,13 @@ subroutine TimestepperBaseRestartHDF5(this, chk_grp_id, option)
   ! Author: Gautam Bisht, LBNL
   ! Date: 08/16/15
   ! 
-
   use Option_module
+  use hdf5
 
   implicit none
 
   class(timestepper_base_type) :: this
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: chk_grp_id
   type(option_type) :: option
 
   option%io_buffer = 'TimestepperBaseRestartHDF5 must be extended.'

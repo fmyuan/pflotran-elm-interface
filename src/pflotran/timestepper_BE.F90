@@ -649,7 +649,7 @@ subroutine TimestepperBECheckpointHDF5(this, chk_grp_id, option)
   implicit none
   
   class(timestepper_BE_type) :: this
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: chk_grp_id
   type(option_type) :: option
 
 #if defined(SCORPIO_WRITE)
@@ -792,7 +792,7 @@ subroutine TimestepperBERestartHDF5(this, chk_grp_id, option)
   implicit none
   
   class(timestepper_BE_type) :: this
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: chk_grp_id
   type(option_type) :: option
 
 #if defined(SCORPIO_WRITE)

@@ -125,7 +125,7 @@ subroutine SimulationBaseInitializeRun(this)
 
   class(simulation_base_type) :: this
 
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: chk_grp_id
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   

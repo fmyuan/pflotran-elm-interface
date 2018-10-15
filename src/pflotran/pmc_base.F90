@@ -753,6 +753,7 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
   ! 
 #include "petsc/finclude/petscsys.h"
   use petscsys
+  use hdf5
   use Option_module
   
   implicit none
@@ -760,7 +761,7 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
   class(pmc_base_type) :: this
   character(len=MAXSTRINGLENGTH) :: filename_append
   
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: chk_grp_id
   PetscViewer :: viewer
   
   if (this%checkpoint_option%format == CHECKPOINT_BINARY .or. &
@@ -1105,7 +1106,7 @@ recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
   implicit none
 
   class(pmc_base_type) :: this
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: chk_grp_id
   character(len=MAXSTRINGLENGTH) :: append_name
 
 #if defined(SCORPIO_WRITE)
@@ -1125,7 +1126,7 @@ recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
   class(pmc_base_header_type), pointer :: header
   type(pmc_base_header_type) :: dummy_header
   character(len=1),pointer :: dummy_char(:)
-  PetscInt :: pmc_grp_id
+  integer(HID_T) :: pmc_grp_id
   PetscSizeT :: bagsize
   PetscLogDouble :: tstart, tend
   PetscErrorCode :: ierr
@@ -1213,7 +1214,7 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
   implicit none
 
   class(pmc_base_type) :: this
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: chk_grp_id
 
   class(pm_base_type), pointer :: cur_pm
   PetscLogDouble :: tstart, tend
@@ -1231,7 +1232,7 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
   integer(HID_T) :: h5_pmc_grp_id
   integer(HID_T) :: h5_pm_grp_id
 #endif
-  PetscInt :: pmc_grp_id
+  integer(HID_T) :: pmc_grp_id
 
   ! if the top PMC
   if (this%is_master) then
