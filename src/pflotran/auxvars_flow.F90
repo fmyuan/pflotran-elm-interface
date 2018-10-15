@@ -32,7 +32,7 @@ module AuxVars_Flow_module
     PetscReal, pointer :: D_den(:,:)    ! (iphase) kmol/m^3 phase
     PetscReal, pointer :: D_den_kg(:,:) ! (iphase) kg/m^3 phase
     PetscReal, pointer :: D_mobility(:,:) ! relative perm / dynamic viscosity
-    PetscReal, pointer :: D_por(:) ! mole fractions (sol var)
+    PetscReal, pointer :: D_por(:)
 
   contains
     !procedure, public :: Init => InitAuxVarFlow
@@ -86,7 +86,7 @@ subroutine AuxVarFlowInit(this,option)
     this%D_pres = 0.d0
     allocate(this%D_sat(option%nphase,option%nflowdof))
     this%D_sat = 0.d0
-    allocate(this%D_pc(option%nphase,option%nflowdof))
+    allocate(this%D_pc(option%nphase - ONE_INTEGER,option%nflowdof))
     this%D_pc = 0.d0
     allocate(this%D_den(option%nphase,option%nflowdof))
     this%D_den = 0.d0

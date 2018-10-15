@@ -103,7 +103,9 @@ dataset_map_hdf5.o : dataset_base.o dataset_common_hdf5.o hdf5_aux.o \
                      input_aux.o logging.o option.o pflotran_constants.o \
                      string.o time_storage.o units.o utility.o
 debug.o : input_aux.o option.o pflotran_constants.o
-derivative_tests.o : auxvars_flow.o auxvars_toil_ims.o option.o
+derivative_tests.o : auxvars_flow.o auxvars_toil_ims.o auxvars_towg.o option.o \
+                     pflotran_constants.o
+derivatives_utilities.o :
 discretization.o : dm_kludge.o grid.o grid_structured.o grid_unstructured.o \
                    grid_unstructured_aux.o grid_unstructured_explicit.o \
                    grid_unstructured_polyhedra.o input_aux.o material_aux.o \
@@ -577,9 +579,10 @@ pm_towg.o : checkpoint.o field.o global.o input_aux.o material.o option.o \
             pflotran_constants.o pm_base.o pm_subsurface_flow.o pm_towg_aux.o \
             realization_base.o realization_subsurface.o string.o towg.o \
             variables.o
-pm_towg_aux.o : auxvars_towg.o characteristic_curves.o eos_gas.o eos_oil.o \
-                eos_slv.o eos_water.o global_aux.o grid.o material_aux.o \
-                option.o pflotran_constants.o pm_base_aux.o utility.o
+pm_towg_aux.o : auxvars_towg.o characteristic_curves.o derivative_tests.o \
+                derivatives_utilities.o eos_gas.o eos_oil.o eos_slv.o \
+                eos_water.o global_aux.o grid.o material_aux.o option.o \
+                pflotran_constants.o pm_base_aux.o utility.o
 pm_ufd_biosphere.o : coupler.o global_aux.o grid.o input_aux.o material_aux.o \
                      option.o output_aux.o pflotran_constants.o pm_base.o \
                      reaction_aux.o reactive_transport_aux.o \
@@ -943,11 +946,12 @@ toil_ims.o : appleyard.o auxvars_flow.o auxvars_toil_ims.o condition.o \
              saturation_function.o toil_ims_derivs.o utility.o variables.o
 toil_ims_derivs.o : auxvars_toil_ims.o global_aux.o pflotran_constants.o \
                     pm_toil_ims_aux.o
-towg.o : auxvars_towg.o condition.o connection.o coupler.o debug.o \
-         discretization.o eos_gas.o eos_oil.o eos_slv.o eos_water.o field.o \
-         global_aux.o grid.o material.o material_aux.o option.o output_aux.o \
-         patch.o pflotran_constants.o pm_towg_aux.o realization_base.o \
-         realization_subsurface.o saturation_function.o variables.o \
+towg.o : appleyard.o auxvars_flow.o auxvars_towg.o condition.o connection.o \
+         coupler.o debug.o derivatives_utilities.o discretization.o eos_gas.o \
+         eos_oil.o eos_slv.o eos_water.o field.o global_aux.o grid.o \
+         material.o material_aux.o option.o output_aux.o patch.o \
+         pflotran_constants.o pm_towg_aux.o realization_base.o \
+         realization_subsurface.o saturation_function.o utility.o variables.o \
          well_data.o well_solver.o
 transport.o : connection.o global_aux.o material_aux.o matrix_block_aux.o \
               option.o pflotran_constants.o reactive_transport_aux.o

@@ -2557,6 +2557,8 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
   PetscReal :: J_dff(option%nflowdof,option%nflowdof)
   PetscReal :: Jdum(option%nflowdof,option%nflowdof)  
 
+  PetscBool :: flagged
+
   J_alt = 0.d0
 
   if (.NOT. toil_analytical_derivatives .OR. toil_analytical_derivatives_compare) then
@@ -2621,7 +2623,7 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
 
       J_dff = J - J_alt
 
-      call MatCompare(J, J_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol)
+      call MatCompare(J, J_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol,flagged)
 
       call TOilImsAccumulation(toil_auxvar(ZERO_INTEGER), &
                                material_auxvar,soil_heat_capacity,option,Res,&
@@ -2686,7 +2688,10 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
 
   PetscReal :: Jdum1(option%nflowdof,option%nflowdof)  
   PetscReal :: Jdum2(option%nflowdof,option%nflowdof)  
+
+  PetscBool :: flagged
   
+
   Jup = 0.d0
   Jdn = 0.d0
 
@@ -2774,8 +2779,8 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
       Jup_dff = Jup - Jup_alt
       Jdn_dff = Jdn - Jdn_alt
 
-       call MatCompare(Jup, Jup_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol)
-       call MatCompare(Jdn, Jdn_alt, 3, 3, toil_dcomp_tol,toil_dcomp_reltol)
+       call MatCompare(Jup, Jup_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol,flagged)
+       call MatCompare(Jdn, Jdn_alt, 3, 3, toil_dcomp_tol,toil_dcomp_reltol,flagged)
 
       call TOilImsFluxPFL(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                            material_auxvar_up, &
@@ -2854,6 +2859,8 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: Jdn_alt(option%nflowdof,option%nflowdof)
   PetscReal :: J_dff(option%nflowdof,option%nflowdof)
 
+  PetscBool :: flagged
+
   Jdn = 0.d0
   !Jdn_alt = 0.d0
 !geh:print *, 'GeneralBCFluxDerivative'
@@ -2918,7 +2925,7 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
     if (toil_analytical_derivatives_compare) then
        J_dff = Jdn -  Jdn_alt
 
-       call MatCompare(Jdn, Jdn_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol)
+       call MatCompare(Jdn, Jdn_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol,flagged)
 
       call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          toil_auxvar_up,global_auxvar_up, &
@@ -2977,6 +2984,8 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
   PetscReal :: J_alt(option%nflowdof,option%nflowdof)
   PetscReal :: J_dff(option%nflowdof,option%nflowdof)
 
+  PetscBool :: flagged
+
   option%iflag = -3
 
  J_alt = 0.d0
@@ -3022,7 +3031,7 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
     if (toil_analytical_derivatives_compare) then
         J_dff = Jac - J_alt
 
-       call MatCompare(Jac, J_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol)
+       call MatCompare(Jac, J_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol,flagged)
 
        call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
                                global_auxvar,dummy_real,scale,Res,j_alt,PETSC_TRUE)

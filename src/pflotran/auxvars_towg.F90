@@ -5,12 +5,20 @@ module AuxVars_TOWG_module
   use AuxVars_Base_module
   use AuxVars_Flow_module
   use AuxVars_FlowEnergy_module
+  use petscsys
 
   implicit none
   
   private 
 
 #include "petsc/finclude/petscsys.h"
+
+  PetscBool, public :: towg_analytical_derivatives = PETSC_FALSE
+  PetscBool, public :: towg_analytical_derivatives_compare = PETSC_FALSE
+
+  PetscReal, public :: towg_dcomp_tol = 1.d-1
+  PetscReal, public :: towg_dcomp_reltol = 1.d-1
+
 
   type, public, extends(auxvar_flow_energy_type) :: auxvar_towg_type
     PetscInt :: istate_store(2) ! 1 = previous timestep; 2 = previous iteration
@@ -34,6 +42,11 @@ module AuxVars_TOWG_module
     PetscReal :: bubble_point
     PetscReal :: xo
     PetscReal :: xg
+
+    PetscBool :: has_derivs
+    ! derivatives:
+    PetscReal, pointer :: D_xo(:)   ! (idof)
+    PetscReal, pointer :: D_xg(:)   ! (idof)
   end type bo_auxvar_type
 
   public :: AuxVarTOWGStrip
@@ -59,7 +72,7 @@ subroutine AuxVarTOWGInit(this,option)
 
   this%effective_porosity = 0.d0
   this%pert = 0.d0
-  
+
   call AuxVarFlowInit(this,option)
 
   call AuxVarFlowEnergyInit(this,option)
@@ -117,6 +130,22 @@ subroutine InitBO(this,option)
   this%bo%xg          =0.0
   this%bo%xo          =0.0
 
+  nullify(this%bo%D_xo)
+  nullify(this%bo%D_xg)
+
+  !if (towg_analytical_derivatives) then
+  if (.NOT. option%flow%numerical_derivatives) then
+    this%bo%has_derivs= PETSC_TRUE
+
+    allocate(this%bo%D_xo(option%nflowdof))
+    this%bo%D_xo = 0.d0
+    allocate(this%bo%D_xg(option%nflowdof))
+    this%bo%D_xg = 0.d0
+
+  else
+    this%bo%has_derivs = PETSC_FALSE
+  endif
+
 end subroutine InitBO
 
 !--Routine to initialise the TOWG substructure-------------------------------
@@ -142,6 +171,7 @@ subroutine AuxVarTOWGStrip(this)
   if (associated(this%bo)) call this%StripBO()
 
 end subroutine AuxVarTOWGStrip
+
 
 ! ************************************************************************** !
 
@@ -181,9 +211,16 @@ subroutine StripBO(this)
 
   class(auxvar_towg_type) :: this
 
+  if (this%has_derivs) then
+    call DeallocateArray(this%bo%D_xo)
+    call DeallocateArray(this%bo%D_xg)
+  endif
+
   deallocate(this%bo)
 
 end subroutine StripBO
+
+! ************************************************************************** !
 
 end module AuxVars_TOWG_module
 

@@ -6,9 +6,53 @@ module Appleyard_module
 
   private
 
-  public :: TOilAppleyard
+  public :: TOilAppleyard, &
+            TOWGAppleyard
 
 contains
+
+subroutine  TOWGAppleyard(saturation0, del_saturation, ghosted_id, realization, oid, changed)
+
+  use Realization_Subsurface_class
+  implicit none
+  PetscReal :: saturation0, del_saturation
+  PetscInt :: ghosted_id, oid
+  !class(realization_subsurface_type), pointer :: realization
+  !type(realization_subsurface_type), pointer :: realization
+  type(realization_subsurface_type) :: realization
+
+  PetscReal ::  ds_out_o, slc, soc
+  PetscReal :: saturation0_oil, del_saturation_oil
+
+  PetscBool :: changed
+
+  changed = PETSC_FALSE
+
+
+      !! 1) get residual (critical) saturations
+      call GetCriticalSaturation(soc, oid, realization, ghosted_id)
+
+      !! 2) perform the chop on each phase
+      !!    oil:
+      saturation0_oil = saturation0
+      del_saturation_oil = del_saturation
+      call AppleyardChopSuggest(saturation0_oil, del_saturation_oil, soc, ds_out_o)
+
+      !! 3) update the saturation change if it needs to be changed:
+      if (del_saturation_oil /= ds_out_o) then
+        print *, "oil appleyard ", del_saturation_oil, " ", ds_out_o, " ", &
+                 saturation0_oil - ds_out_o
+      !call AppleyardChop(saturation0_oil, del_saturation_oil, soc, ds_out_o)
+
+        del_saturation = ds_out_o
+        changed = PETSC_TRUE
+      endif
+
+      !print *, "oil crit is ", soc
+      !!! /end of Applyard chop
+end subroutine TOWGAppleyard
+
+! ************************************************************************** !
 
 
 subroutine  TOilAppleyard(saturation0, del_saturation, ghosted_id, realization, lid, oid)
@@ -62,6 +106,9 @@ subroutine  TOilAppleyard(saturation0, del_saturation, ghosted_id, realization, 
         del_saturation = ds_out_o
       endif
       !!! /end of Applyard chop
+
+
+      !!!!! what about default case?
 end subroutine TOilAppleyard
 
 ! ************************************************************************** !
@@ -137,7 +184,9 @@ subroutine GetCriticalSaturation(sc, phase_id, realization, cell_id)
   implicit none
   PetscReal :: sc
   PetscInt :: phase_id, cell_id
-  class(realization_subsurface_type), pointer :: realization
+  !class(realization_subsurface_type), pointer :: realization
+  !type(realization_subsurface_type), pointer :: realization
+  type(realization_subsurface_type) :: realization
 
 
   ! we're only doing three things here:
