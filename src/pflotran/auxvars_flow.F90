@@ -75,7 +75,9 @@ subroutine AuxVarFlowInit(this,option)
   if (option%num_table_indices > 0) then
     allocate(this%table_idx(option%num_table_indices))
     this%table_idx = 1
-  end if
+  else
+    nullify(this%table_idx)
+  endif
 
   this%has_derivs = PETSC_FALSE
   if (.not.option%flow%numerical_derivatives) then
