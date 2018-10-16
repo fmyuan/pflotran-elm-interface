@@ -314,7 +314,6 @@ subroutine SolverSetSNESOptions(solver, option)
 #endif
     end select
     allocate(sub_ksps(nsub_ksp))
-    sub_ksps = tKSP(0)
     select case(solver%pc_type)
       case(PCBJACOBI)
         call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
@@ -344,7 +343,6 @@ subroutine SolverSetSNESOptions(solver, option)
       call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                               PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
       allocate(sub_ksps(nsub_ksp))
-      sub_ksps = tKSP(0)
       call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                               sub_ksps,ierr);CHKERRQ(ierr)
       do i = 1, nsub_ksp
@@ -1477,7 +1475,6 @@ subroutine SolverLinearPrintFailedReason(solver,option)
             call PCBJacobiGetSubKSP(pc,nsub_ksp,first_sub_ksp, &
                                     PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
             allocate(sub_ksps(nsub_ksp))
-            sub_ksps = tKSP(0)
             call PCBJacobiGetSubKSP(pc,nsub_ksp,first_sub_ksp, &
                                     sub_ksps,ierr);CHKERRQ(ierr)
             if (nsub_ksp > 1) then
