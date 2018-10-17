@@ -231,7 +231,7 @@ general.o : connection.o coupler.o debug.o discretization.o eos_water.o \
 general_aux.o : characteristic_curves.o eos_gas.o eos_water.o global_aux.o \
                 material_aux.o option.o pflotran_constants.o string.o \
                 utility.o wipp.o
-general_common.o : connection.o eos_gas.o eos_water.o general_aux.o \
+general_common.o : connection.o coupler.o eos_gas.o eos_water.o general_aux.o \
                    global_aux.o material_aux.o option.o pflotran_constants.o \
                    utility.o wipp.o
 generic.o : pflotran_constants.o string.o

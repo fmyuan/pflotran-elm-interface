@@ -675,9 +675,10 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
-  type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_type), pointer :: cur_connection_set
-  type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:)  
+  type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:), &
+                                        gen_auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)  
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
@@ -705,6 +706,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
 
   gen_auxvars => patch%aux%General%auxvars
   gen_auxvars_bc => patch%aux%General%auxvars_bc
+  gen_auxvars_ss => patch%aux%General%auxvars_ss
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
@@ -752,11 +754,11 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                               PETSC_TRUE,option)
 #endif
 #ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(debug_unit,'(a,i5,i3,7es24.15)') 'auxvar:', natural_id, &
+    if (debug_flag > 0) then
+      write(debug_unit,'(a,i5,i3,7es24.15)') 'auxvar:', natural_id, &
                         global_auxvars(ghosted_id)%istate, &
                         xx_loc_p(ghosted_start:ghosted_end)
-  endif
+    endif
 #endif
   enddo
 
@@ -910,6 +912,12 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
 #endif
     enddo
     boundary_condition => boundary_condition%next
+  enddo
+  
+  source_sink => patch%source_sink_list%first
+  do
+    if (.not.associated(source_sink)) exit
+    source_sink => source_sink%next
   enddo
 
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
@@ -1346,9 +1354,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
         scale = 1.d0
       endif
       
-      call GeneralSrcSink(option,source_sink%flow_condition%general%rate% &
-                                  dataset%rarray(:), &
-                          source_sink%flow_condition%general%rate%itype, &
+      call GeneralSrcSink(option,source_sink, &
                           gen_auxvars(ZERO_INTEGER,ghosted_id), &
                           global_auxvars(ghosted_id), &
                           ss_flow_vol_flux, &
@@ -1743,10 +1749,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       endif
       
       Jup = 0.d0
-      call GeneralSrcSinkDerivative(option, &
-                        source_sink%flow_condition%general%rate% &
-                                  dataset%rarray(:), &
-                        source_sink%flow_condition%general%rate%itype, &
+      call GeneralSrcSinkDerivative(option,source_sink, &
                         gen_auxvars(:,ghosted_id), &
                         global_auxvars(ghosted_id), &
                         scale,Jup)
