@@ -399,6 +399,7 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
   ! 
   ! Author: Jitendra Kumar
   ! Date: 07/21/2010
+  !       2018-09-06 modified by fmyuan to have 3-phase of water mass
   ! 
  
   use Realization_Subsurface_class
@@ -442,8 +443,6 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
-    ! mass = volume*saturation*density
-
     if (soil_compressibility_index > 0) then
       call MaterialCompressSoil(material_auxvars(ghosted_id), &
                                 global_auxvars(ghosted_id)%pres(1), &
@@ -453,15 +452,26 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
       por = material_auxvars(ghosted_id)%porosity
     endif
 
-    mass_balance = mass_balance + &
-      global_auxvars(ghosted_id)%den_kg* &
-      global_auxvars(ghosted_id)%sat* &
+    ! mass_liqwater = volume*saturation*density
+    mass_balance(1) = mass_balance(1) + &
+      global_auxvars(ghosted_id)%den_kg(1)* &
+      global_auxvars(ghosted_id)%sat(1)* &
       por* &
       material_auxvars(ghosted_id)%volume
 
     if (option%use_th_freezing) then
-      ! mass = volume*saturation_ice*density_ice
-      mass_balance = mass_balance + &
+
+      ! currently 'mass' are 3-phase mixture
+      ! mass_vapor = volume*saturation_air*density_air*fraction_vapor
+      mass_balance(1) = mass_balance(1) + &
+        TH_auxvars(ghosted_id)%ice%den_gas* &
+        TH_auxvars(ghosted_id)%ice%sat_gas* &
+        TH_auxvars(ghosted_id)%ice%mol_gas*FMWH2O* &
+        por* &
+        material_auxvars(ghosted_id)%volume
+
+      ! mass_ice = volume*saturation_ice*density_ice
+      mass_balance(1) = mass_balance(1) + &
         TH_auxvars(ghosted_id)%ice%den_ice*FMWH2O* &
         TH_auxvars(ghosted_id)%ice%sat_ice* &
         por* &
@@ -2554,13 +2564,12 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: rho
   PetscReal :: dq_lin,dP_lin
   PetscReal :: q_approx,dq_approx
-  PetscBool :: skip_thermal_conduction
-  PetscReal :: ugas_ave, dugas_ave_dt, dugas_ave_dp, fdiffgas, fdiffgas_dx
-  PetscReal :: deltaTf
+  PetscBool :: skip_thermal_conduction, skip_mass_flow
+  PetscReal :: ugas_ave, dugas_ave_dt, dugas_ave_dp
+  PetscReal :: deltaTf, fdiffgas, fdiffgas_dx
 
-  PetscBool :: skip_mass_flow
+  !---------------------------------------------------------
 
-!----------------------------------------------------------------------------------------
   skip_thermal_conduction = PETSC_FALSE
   skip_mass_flow = PETSC_FALSE
   T_th  = 0.5d0
@@ -2957,9 +2966,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
       endif
 
-      ! if NO flow at all, turn-off any mass-flow (later on, e.g. for vapor-diffusion)
-      if(abs(auxvars(TH_PRESSURE_DOF)) <= floweps) skip_mass_flow = PETSC_TRUE
-
     case(ZERO_GRADIENT_BC)
       ! do nothing, but by-passing default
 
@@ -3171,145 +3177,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
     Jdn(option%nflowdof,1) = 0.d0
   endif
 
-#if 0
-  if (option%flow%numerical_derivatives) then
-    allocate(material_auxvar_pert_up,material_auxvar_pert_dn)
-
-    call MaterialAuxVarInit(material_auxvar_pert_up,option)
-    call MaterialAuxVarInit(material_auxvar_pert_dn,option)  
-    
-    call GlobalAuxVarInit(global_auxvar_pert_up,option)
-    call GlobalAuxVarInit(global_auxvar_pert_dn,option)  
-    call THAuxVarCopy(auxvar_up,auxvar_pert_up,option)
-    call THAuxVarCopy(auxvar_dn,auxvar_pert_dn,option)
-    call GlobalAuxVarCopy(global_auxvar_up,global_auxvar_pert_up,option)
-    call GlobalAuxVarCopy(global_auxvar_dn,global_auxvar_pert_dn,option)
-    
-    call MaterialAuxVarCopy(material_auxvar_dn,material_auxvar_pert_up, &
-                            option)
-    call MaterialAuxVarCopy(material_auxvar_dn,material_auxvar_pert_dn, &
-                            option)
-
-    x_up(1) = global_auxvar_up%pres(1)
-    x_up(2) = global_auxvar_up%temp
-    x_dn(1) = global_auxvar_dn%pres(1)
-    x_dn(2) = global_auxvar_dn%temp
-    do ideriv = 1,3
-      if (ibndtype(ideriv) == ZERO_GRADIENT_BC) then
-        x_up(ideriv) = x_dn(ideriv)
-      endif
-    enddo
-    if (option%use_th_freezing) then
-       call THAuxVarComputeFreezing(x_dn,auxvar_dn, &
-            global_auxvar_dn, &
-            material_auxvar_dn, &
-            iphase,sat_func_dn, &
-            TH_parameter,ithrm_up, &
-            option)
-       call THAuxVarComputeFreezing(x_up,auxvar_up, &
-            global_auxvar_up, &
-            material_auxvar_up, &
-            iphase,sat_func_dn, &
-            TH_parameter,ithrm_up, &
-            option)
-    else
-       call THAuxVarComputeNoFreezing(x_dn,auxvar_dn, &
-            global_auxvar_dn, &
-            material_auxvar_dn, &
-            iphase,sat_func_dn, &
-            option)
-       call THAuxVarComputeNoFreezing(x_up,auxvar_up, &
-            global_auxvar_up, &
-            material_auxvar_up, &
-            iphase,sat_func_dn, &
-            option)
-    endif
-    
-    call THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
-                  material_auxvar_up, &
-                  auxvar_dn,global_auxvar_dn, &
-                  material_auxvar_dn, &
-                  sir_dn, &
-                  Dk_dn, &
-                  area,dist_gravity,option,v_darcy, &
-                  fluxe_bulk, fluxe_cond, &
-                  res)
-    if (ibndtype(TH_PRESSURE_DOF) == ZERO_GRADIENT_BC .or. &
-        ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC ) then
-      x_pert_up = x_up
-    endif
-
-    do ideriv = 1,option%nflowdof
-      pert_dn = x_dn(ideriv)*perturbation_tolerance    
-      x_pert_dn = x_dn
-     
-      if (option%use_th_freezing) then
-      
-         if (ideriv == 1) then
-            if (x_pert_dn(ideriv) < option%reference_pressure) then
-               pert_dn = - pert_dn
-            endif
-            x_pert_dn(ideriv) = x_pert_dn(ideriv) + pert_dn
-         endif
-      
-         if (ideriv == 2) then
-            if (x_pert_dn(ideriv) < 0.d0) then
-               pert_dn = - 1.d-5
-            else
-               pert_dn = 1.d-5
-            endif
-            x_pert_dn(ideriv) = x_pert_dn(ideriv) + pert_dn
-         endif
-      else
-         x_pert_dn(ideriv) = x_pert_dn(ideriv) + pert_dn
-      endif
-        
-      x_pert_up = x_up
-      if (ibndtype(ideriv) == ZERO_GRADIENT_BC) then
-        x_pert_up(ideriv) = x_pert_dn(ideriv)
-      endif   
-
-      if (option%use_th_freezing) then
-         call THAuxVarComputeFreezing(x_pert_dn,auxvar_pert_dn, &
-              global_auxvar_pert_dn, &
-              material_auxvar_pert_dn, &
-              iphase,sat_func_dn, &
-              option)
-         call THAuxVarComputeFreezing(x_pert_up,auxvar_pert_up, &
-              global_auxvar_pert_up, &
-              material_auxvar_pert_up, &
-              iphase,sat_func_dn, &
-              option)
-      else
-         call THAuxVarComputeNoFreezing(x_pert_dn,auxvar_pert_dn, &
-              global_auxvar_pert_dn, &
-              material_auxvar_pert_dn, &
-              iphase,sat_func_dn, &
-              option)
-         call THAuxVarComputeNoFreezing(x_pert_up,auxvar_pert_up, &
-              global_auxvar_pert_up, &
-              material_auxvar_pert_up, &
-              iphase,sat_func_dn, &
-              option)
-      endif
-
-      call THBCFlux(ibndtype,auxvars,auxvar_pert_up,global_auxvar_pert_up, &
-                    material_auxvar_pert_up, &
-                    auxvar_pert_dn,global_auxvar_pert_dn, &
-                    material_auxvar_pert_dn, &
-                    sir_dn, &
-                    Dk_dn, &
-                    area,dist_gravity,option,v_darcy, &
-                    fluxe_bulk, fluxe_cond, &
-                    res_pert_dn)
-      J_pert_dn(:,ideriv) = (res_pert_dn(:)-res(:))/pert_dn
-    enddo
-    Jdn = J_pert_dn
-    call GlobalAuxVarStrip(global_auxvar_pert_up)
-    call GlobalAuxVarStrip(global_auxvar_pert_dn)      
-  endif
-#endif
-
 end subroutine THBCFluxDerivative
 
 ! ************************************************************************** !
@@ -3378,9 +3245,9 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   PetscReal :: q_approx, dq_approx
   PetscReal :: T_th,fctT,fct
   PetscBool :: skip_thermal_conduction,  skip_mass_flow
-  PetscReal :: fdiffgas, ugas_ave
-  PetscReal :: deltaTf
+  PetscReal :: deltaTF, fdiffgas, ugas_ave
 
+  !--------------------------------------------------------------------
   skip_thermal_conduction = PETSC_FALSE
   skip_mass_flow = PETSC_FALSE
   T_th  = 0.5d0
@@ -3624,9 +3491,6 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
         endif 
 
       endif
-
-      ! if NO flow at all, turn-off any mass-flow (later on, e.g. for vapor-diffusion)
-      if(abs(auxvars(TH_PRESSURE_DOF)) <= floweps) skip_mass_flow = PETSC_TRUE
 
     case(ZERO_GRADIENT_BC)
 
@@ -4236,6 +4100,17 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 
       patch%internal_velocities(1,sum_connection) = v_darcy
       patch%internal_flow_fluxes(:,sum_connection) = Res(:)
+
+#ifdef COMPUTE_INTERNAL_MASS_FLUX
+      if (option%compute_mass_balance_new) then
+        ! contribution to up cells
+        global_auxvars(ghosted_id_up)%mass_balance_delta(1,1) = &
+          global_auxvars(ghosted_id_up)%mass_balance_delta(1,1) - Res(1)
+        ! contribution to dn cells
+        global_auxvars(ghosted_id_dn)%mass_balance_delta(1,1) = &
+          global_auxvars(ghosted_id_dn)%mass_balance_delta(1,1) + Res(1)
+      endif
+#endif
 
       if (local_id_up>0) then
         iend = local_id_up*option%nflowdof
