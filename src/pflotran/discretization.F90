@@ -264,13 +264,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
             call printErrMsg(option)
 #else
 
-#ifdef SCORPIO
-            call UGridReadHDF5PIOLib(un_str_grid,discretization%filename,option)
-#else
             call UGridReadHDF5(un_str_grid,discretization%filename,option)
-#endif
-! #ifdef SCORPIO
-
 #endif
 !#if !defined(PETSC_HAVE_HDF5)
 

@@ -11,10 +11,6 @@ module Grid_Unstructured_Polyhedra_module
 
   private
 
-#if defined(SCORPIO)
-  include "scorpiof.h"
-#endif
-
   public :: UGridPolyhedraRead, &
             UGridPolyhedraDecompose, &
             UGridPolyhedraSetCellCentroids, &

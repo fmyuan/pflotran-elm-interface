@@ -3844,11 +3844,7 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
   ! Input Arguments
   class(pm_waste_form_type) :: this
 
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
 
   ! Local Variables
   IS :: is
@@ -4012,11 +4008,7 @@ subroutine PMWFRestartHDF5(this,pm_grp_id)
   ! Input Arguments
   class(pm_waste_form_type) :: this
 
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif 
 
   ! Local Variables
   IS :: is

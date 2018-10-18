@@ -40,10 +40,6 @@ module Option_module
     PetscMPIInt :: hdf5_read_group_size, hdf5_write_group_size
     PetscBool :: broadcast_read
 
-#if defined(SCORPIO)
-    PetscMPIInt :: ioread_group_id, iowrite_group_id
-#endif
-
     character(len=MAXSTRINGLENGTH) :: io_buffer
 
     PetscInt :: fid_out

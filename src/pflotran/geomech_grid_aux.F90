@@ -11,10 +11,6 @@ module Geomechanics_Grid_Aux_module
 
   private 
 
-#if defined(SCORPIO)
-  include "scorpiof.h"
-#endif
- 
   type, public :: geomech_grid_type
     ! variables for geomechanics grid (unstructured) for finite element formulation
     ! The dofs (displacements, here) are solved at the nodes 

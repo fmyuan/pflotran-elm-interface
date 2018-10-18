@@ -15,10 +15,6 @@ module Output_HDF5_module
 
   PetscMPIInt, private, parameter :: ON=1, OFF=0
 
-#if defined(SCORPIO_WRITE)
-  include "scorpiof.h"
-#endif
-
   ! flags signifying the first time a routine is called during a given
   ! simulation
   PetscBool :: hdf5_first
@@ -112,16 +108,6 @@ subroutine OutputHDF5(realization_base,var_list_type)
   class(realization_base_type) :: realization_base
   PetscInt :: var_list_type
 
-#if defined(SCORPIO_WRITE)
-  integer :: file_id
-  integer :: grp_id
-  integer :: file_space_id
-  integer :: realization_set_id
-  integer :: prop_id
-  PetscMPIInt :: rank
-  integer :: dims(3)
-  integer :: pio_dataset_groupid
-#else
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
   integer(HID_T) :: file_space_id
@@ -129,7 +115,6 @@ subroutine OutputHDF5(realization_base,var_list_type)
   integer(HID_T) :: prop_id
   PetscMPIInt :: rank
   integer(HSIZE_T) :: dims(3)
-#endif
   
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
@@ -174,17 +159,8 @@ subroutine OutputHDF5(realization_base,var_list_type)
     call OutputHDF5Provenance(option, output_option, file_id)
 
     ! create a group for the coordinates data set
-#if defined(SCORPIO_WRITE)
-    string = "Coordinates" // CHAR(0)
-    call fscorpio_create_dataset_group(pio_dataset_groupid, string, file_id, &
-                                        option%iowrite_group_id, ierr)
-        ! set grp_id here
-        ! As we already created the group, we will use file_id as group_id
-    grp_id = file_id
-#else
     string = "Coordinates"
     call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
-#endif
 
     !GEH - Structured Grid Dependence - Begin
     ! write out coordinates in x, y, and z directions
@@ -219,12 +195,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
     deallocate(array)
     !GEH - Structured Grid Dependence - End
 
-#if defined(SCORPIO_WRITE)
-    call fscorpio_close_dataset_group(pio_dataset_groupid, file_id, &
-                                        option%iowrite_group_id, ierr)
-#else
     call h5gclose_f(grp_id,hdf5_err)
-#endif
 
   endif
         
@@ -235,21 +206,12 @@ subroutine OutputHDF5(realization_base,var_list_type)
     string = trim(string) // ' ' // output_option%plot_name
   endif
   !string = trim(string3) // ' ' // trim(string)
-#if defined(SCORPIO_WRITE)
-  string = trim(string) //CHAR(0)
-    ! This opens existing dataset and creates it if needed
-  call fscorpio_create_dataset_group(pio_dataset_groupid, string, file_id, &
-                                        option%iowrite_group_id, ierr)
-  grp_id = file_id
-#else
   call h5eset_auto_f(OFF,hdf5_err)
   call h5gopen_f(file_id,string,grp_id,hdf5_err)
   if (hdf5_err /= 0) then
     call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
   endif
   call h5eset_auto_f(ON,hdf5_err)
-#endif
-! SCORPIO_WRITE
   
   ! write out data sets 
   call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
@@ -393,14 +355,9 @@ subroutine OutputHDF5(realization_base,var_list_type)
   call VecDestroy(global_vec_vy,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec_vz,ierr);CHKERRQ(ierr)
 
-#if defined(SCORPIO_WRITE)
-    call fscorpio_close_dataset_group(pio_dataset_groupid, file_id, &
-            option%iowrite_group_id, ierr)
-#else
-    call h5gclose_f(grp_id,hdf5_err)
-#endif
+  call h5gclose_f(grp_id,hdf5_err)
 
-    call OutputHDF5CloseFile(option, file_id)
+  call OutputHDF5CloseFile(option, file_id)
 
 #endif
 !PETSC_HAVE_HDF5
@@ -452,13 +409,8 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   PetscBool, intent(out) :: first
   PetscErrorCode :: ierr
 
-#if defined(SCORPIO_WRITE)
-  integer, intent(out) :: file_id
-  integer :: prop_id
-#else
   integer(HID_T), intent(out) :: file_id
   integer(HID_T) :: prop_id
-#endif
   
   character(len=MAXSTRINGLENGTH) :: string,string2,string3
   PetscMPIInt :: hdf5_err
@@ -501,22 +453,6 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
                 '-' // trim(string) // trim(string2) // '.h5'
   endif
 
-#if defined(SCORPIO_WRITE)
-  if (.not.first) then
-    filename = trim(filename) // CHAR(0)
-    call fscorpio_open_file(filename, option%iowrite_group_id, &
-                              SCORPIO_FILE_READWRITE, file_id, ierr)
-    if (file_id == -1) first = PETSC_TRUE
-  endif
-  if (first) then
-    filename = trim(filename) // CHAR(0)
-    call fscorpio_open_file(filename, option%iowrite_group_id, &
-                              SCORPIO_FILE_CREATE, file_id, ierr)
-  endif
-
-#else
-! SCORPIO_WRITE is not defined
-
     ! initialize fortran interface
   call h5open_f(hdf5_err)
 
@@ -535,8 +471,6 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
                       H5P_DEFAULT_F,prop_id)
   endif
   call h5pclose_f(prop_id,hdf5_err)
-#endif
-! SCORPIO_WRITE
 
   if (first) then
     option%io_buffer = '--> creating hdf5 output file: ' // trim(filename)
@@ -579,12 +513,8 @@ subroutine OutputHDF5CloseFile(option, file_id)
   integer :: hdf5_err
   PetscErrorCode :: ierr
 
-#if defined(SCORPIO_WRITE)
-  call fscorpio_close_file(file_id, option%iowrite_group_id, ierr)
-#else
   call h5fclose_f(file_id, hdf5_err)
   call h5close_f(hdf5_err)
-#endif
 
 #endif
 !PETSC_HAVE_HDF5
@@ -643,20 +573,6 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   class(realization_base_type) :: realization_base
   PetscInt :: var_list_type
 
-#if defined(SCORPIO_WRITE)
-  integer :: file_id
-  integer :: data_type
-  integer :: grp_id
-  integer :: file_space_id
-  integer :: memory_space_id
-  integer :: data_set_id
-  integer :: realization_set_id
-  integer :: prop_id
-  PetscMPIInt :: rank
-  integer :: rank_mpi,file_space_rank_mpi
-  integer :: dims(3)
-  integer :: start(3), length(3), stride(3)
-#else
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
   integer(HID_T) :: grp_id
@@ -669,7 +585,6 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   integer(HSIZE_T) :: dims(3)
   integer(HSIZE_T) :: start(3), length(3), stride(3)
-#endif
 
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
@@ -759,11 +674,6 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   endif
 
   grid => patch%grid
-
-#ifdef SCORPIO_WRITE
-   option%io_buffer='OutputHDF5UGridXDMF not supported with SCORPIO_WRITE'
-   call printErrMsg(option)
-#endif
 
     ! initialize fortran interface
   call h5open_f(hdf5_err)
@@ -1077,20 +987,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   class(realization_base_type) :: realization_base
   PetscInt :: var_list_type
 
-#if defined(SCORPIO_WRITE)
-  integer :: file_id, new_file_id, file_id2
-  integer :: data_type
-  integer :: grp_id, new_grp_id, grp_id2
-  integer :: file_space_id
-  integer :: memory_space_id
-  integer :: data_set_id
-  integer :: realization_set_id
-  integer :: prop_id, new_prop_id
-  PetscMPIInt :: rank
-  integer :: rank_mpi,file_space_rank_mpi
-  integer :: dims(3), max_dims(3)
-  integer :: start(3), length(3), stride(3)
-#else
   integer(HID_T) :: file_id, new_file_id, file_id2
   integer(HID_T) :: data_type
   integer(HID_T) :: grp_id, new_grp_id, grp_id2
@@ -1103,7 +999,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   integer(HSIZE_T) :: dims(3), max_dims(3)
   integer(HSIZE_T) :: start(3), length(3), stride(3)
-#endif
 
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
@@ -1197,11 +1092,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   endif
 
   grid => patch%grid
-
-#ifdef SCORPIO_WRITE
-   option%io_buffer='OutputHDF5UGridXDMF not supported with SCORPIO_WRITE'
-   call printErrMsg(option)
-#endif
 
     ! initialize fortran interface
   call h5open_f(hdf5_err)
@@ -1636,20 +1526,6 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
   
   implicit none
   
-#if defined(SCORPIO_WRITE)
-  character(len=32) :: name
-  type(option_type) :: option
-  PetscInt :: length
-  PetscReal :: array(:)
-  integer :: file_id
-
-  integer :: file_space_id
-  integer :: data_set_id
-  integer :: prop_id
-  integer :: dims(3)
-  PetscMPIInt :: rank
-  integer :: globaldims(3)
-#else
   character(len=32) :: name
   type(option_type) :: option
   PetscInt :: length
@@ -1662,39 +1538,12 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
   integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3)
   PetscMPIInt :: rank
-#endif
   integer :: hdf5_err
   PetscMPIInt :: hdf5_flag
   PetscErrorCode :: ierr
   
   call PetscLogEventBegin(logging%event_output_coordinates_hdf5, &
                           ierr);CHKERRQ(ierr)
-#if defined(SCORPIO_WRITE)
-
-  name = trim(name) // CHAR(0)
-  ! write out grid structure
-  rank = 1
-  dims = 0
-  globaldims = 0
-  ! x-direction
-
-  ! Only process 0 writes coordinates
-  if (option%myrank == 0 ) then
-     dims(1) = length
-     globaldims(1) = length
-  else
-     dims(1) = 0
-     globaldims(1) = length
-  endif
-
-  call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
-  call fscorpio_write_dataset(array, SCORPIO_DOUBLE, rank, globaldims, dims, &
-       file_id, name, option%iowrite_group_id, SCORPIO_NONUNIFORM_CONTIGUOUS_WRITE, &
-       ierr)
-  call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
-
-#else
-!SCORPIO_WRITE is not defined
 
   ! write out grid structure
   rank = 1
@@ -1723,9 +1572,6 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
   call h5pclose_f(prop_id,hdf5_err)
   call h5dclose_f(data_set_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
-
-#endif
-! SCORPIO_WRITE
 
   call PetscLogEventEnd(logging%event_output_coordinates_hdf5, &
                         ierr);CHKERRQ(ierr)
@@ -1756,21 +1602,6 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
 
-#if defined(SCORPIO_WRITE)
-  integer :: file_id
-  integer :: data_type
-  integer :: grp_id
-  integer :: file_space_id
-  integer :: memory_space_id
-  integer :: data_set_id
-  integer :: realization_set_id
-  integer :: prop_id
-  integer :: dims(3)
-  integer :: start(3), length(3), stride(3)
-  integer :: rank_mpi,file_space_rank_mpi
-  integer :: hdf5_flag
-  integer, parameter :: ON=1, OFF=0
-#else
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
   integer(HID_T) :: grp_id
@@ -1784,7 +1615,6 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
-#endif
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscMPIInt :: hdf5_err  
@@ -1826,16 +1656,6 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   call VecGetArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
 
-#if defined(SCORPIO_WRITE)
-  write(*,*) 'SCORPIO_WRITE'
-  option%io_buffer = 'WriteHDF5CoordinatesUGrid not supported for SCORPIO_WRITE'
-  call printErrMsg(option)
-#else
-
-  !
-  !        not(SCORPIO_WRITE)
-  !
-   
   ! memory space which is a 1D vector
   rank_mpi = 1
   dims = 0
@@ -1911,9 +1731,6 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   call h5dclose_f(data_set_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
 
-
-#endif
-
   call VecRestoreArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
@@ -1940,15 +1757,6 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   local_size = grid%unstructured_grid%nlmax
-#if defined(SCORPIO_WRITE)
-  write(*,*) 'SCORPIO_WRITE'
-  option%io_buffer = 'WriteHDF5CoordinatesUGrid not supported for SCORPIO_WRITE'
-  call printErrMsg(option)
-#else
-
-  !
-  !        not(SCORPIO_WRITE)
-  !
    
   ! memory space which is a 1D vector
   rank_mpi = 1
@@ -2034,8 +1842,6 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   call h5dclose_f(data_set_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
 
-#endif
-
   call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
@@ -2067,21 +1873,6 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
 
-#if defined(SCORPIO_WRITE)
-  integer :: file_id
-  integer :: data_type
-  integer :: grp_id
-  integer :: file_space_id
-  integer :: memory_space_id
-  integer :: data_set_id
-  integer :: realization_set_id
-  integer :: prop_id
-  integer :: dims(3)
-  integer :: start(3), length(3), stride(3)
-  integer :: rank_mpi,file_space_rank_mpi
-  integer :: hdf5_flag
-  integer, parameter :: ON=1, OFF=0
-#else
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
   integer(HID_T) :: grp_id
@@ -2095,7 +1886,6 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
-#endif
 
   type(grid_type), pointer :: grid
   character(len=MAXSTRINGLENGTH) :: string
@@ -2146,16 +1936,6 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   call VecGetArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
-
-#if defined(SCORPIO_WRITE)
-  write(*,*) 'SCORPIO_WRITE'
-  option%io_buffer = 'WriteHDF5CoordinatesUGrid not supported for SCORPIO_WRITE'
-  call printErrMsg(option)
-#else
-
-  !
-  !        not(SCORPIO_WRITE)
-  !
 
   ! memory space which is a 1D vector
   rank_mpi = 1
@@ -2581,9 +2361,6 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
 
   call UGridDMDestroy(ugdm_cell)
 
-#endif
-!if defined(SCORPIO_WRITE)
-
 end subroutine WriteHDF5CoordinatesUGridXDMF
 
 ! ************************************************************************** !
@@ -2678,21 +2455,6 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
 
-#if defined(SCORPIO_WRITE)
-  integer :: file_id
-  integer :: data_type
-  integer :: grp_id
-  integer :: file_space_id
-  integer :: memory_space_id
-  integer :: data_set_id
-  integer :: realization_set_id
-  integer :: prop_id
-  integer :: dims(3)
-  integer :: start(3), length(3), stride(3)
-  integer :: rank_mpi,file_space_rank_mpi
-  integer :: hdf5_flag
-  integer, parameter :: ON=1, OFF=0
-#else
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
   integer(HID_T) :: grp_id
@@ -2706,7 +2468,6 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
-#endif
 
   type(grid_type), pointer :: grid
   character(len=MAXSTRINGLENGTH) :: string
@@ -2744,17 +2505,6 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
     vec_z_ptr(i) = grid%unstructured_grid%explicit_grid%vertex_coordinates(i)%z
   enddo
  
-#if defined(SCORPIO_WRITE)
-  write(*,*) 'SCORPIO_WRITE'
-  option%io_buffer = 'WriteHDF5CoordinatesUGrid not supported for &
-                     &SCORPIO_WRITE'
-  call printErrMsg(option)
-#else
-
-  !
-  !        not(SCORPIO_WRITE)
-  !
-  
   !local_size = grid%unstructured_grid%explicit_grid%num_cells_global
   local_size = grid%unstructured_grid%explicit_grid%num_vertices
   ! memory space which is a 1D vector
@@ -2932,9 +2682,6 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
     
-#endif
-!if defined(SCORPIO_WRITE)
-
 end subroutine WriteHDF5CoordinatesUGridXDMFExplicit
 
 ! ************************************************************************** !
@@ -2970,21 +2717,6 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   type(option_type), pointer :: option
   PetscInt :: var_list_type  
 
-#if defined(SCORPIO_WRITE)
-  integer :: file_id
-  integer :: data_type
-  integer :: grp_id
-  integer :: file_space_id
-  integer :: memory_space_id
-  integer :: data_set_id
-  integer :: realization_set_id
-  integer :: prop_id
-  integer :: dims(3)
-  integer :: start(3), length(3), stride(3)
-  integer :: rank_mpi,file_space_rank_mpi
-  integer :: hdf5_flag
-  integer, parameter :: ON=1, OFF=0
-#else
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
   integer(HID_T) :: grp_id
@@ -2998,7 +2730,6 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
-#endif
 
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -3052,11 +2783,6 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   output_option =>realization_base%output_option
   field => realization_base%field
 
-#if defined(SCORPIO_WRITE)
-  write(*,*) 'SCORPIO_WRITE'
-  option%io_buffer = 'WriteHDF5FlowratesUGrid not supported for SCORPIO_WRITE'
-  call printErrMsg(option)
-#else
   select case(option%iflowmode)
     case (RICHARDS_MODE)
       ndof=1
@@ -3202,8 +2928,6 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
 
   ! Free up memory
   deallocate(double_array)
-#endif
-! #ifdef SCORPIO_WRITE
 
 end subroutine WriteHDF5FlowratesUGrid
 
@@ -3240,21 +2964,6 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   type(option_type), pointer :: option
   PetscInt :: var_list_type
 
-#if defined(SCORPIO_WRITE)
-  integer :: file_id
-  integer :: data_type
-  integer :: grp_id
-  integer :: file_space_id
-  integer :: memory_space_id
-  integer :: data_set_id
-  integer :: realization_set_id
-  integer :: prop_id
-  integer :: dims(3)
-  integer :: start(3), length(3), stride(3)
-  integer :: rank_mpi,file_space_rank_mpi
-  integer :: hdf5_flag
-  integer, parameter :: ON=1, OFF=0
-#else
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
   integer(HID_T) :: grp_id
@@ -3268,7 +2977,6 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
-#endif
 
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -3321,12 +3029,6 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   ugrid => grid%unstructured_grid
   output_option =>realization_base%output_option
   field => realization_base%field
-
-#if defined(SCORPIO_WRITE)
-  write(*,*) 'SCORPIO_WRITE'
-  option%io_buffer = 'WriteHDF5FaceVelUGrid not supported for SCORPIO_WRITE'
-  call printErrMsg(option)
-#else
 
   if (option%nphase == 1 .and. option%transport%nphase > 1) then
     option%io_buffer = 'WriteHDF5FaceVelUGrid not supported for gas &
@@ -3460,8 +3162,6 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
 
   ! Free up memory
   deallocate(double_array)
-#endif
-! #ifdef SCORPIO_WRITE
 
 end subroutine WriteHDF5FaceVelUGrid
 

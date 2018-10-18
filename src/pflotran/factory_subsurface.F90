@@ -1763,7 +1763,6 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         endif
 
 !....................
-#if defined(SCORPIO)
       case('HDF5_WRITE_GROUP_SIZE')
         call InputReadInt(input,option,option%hdf5_write_group_size)
         call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
@@ -1772,7 +1771,6 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
       case('HDF5_READ_GROUP_SIZE')
         call InputReadInt(input,option,option%hdf5_read_group_size)
         call InputErrorMsg(input,option,'HDF5_READ_GROUP_SIZE','Group size')
-#endif
 
 !....................
       case('PROC')
@@ -1825,10 +1823,6 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         call ReactionInit(realization%reaction,input,option)
     end select
   enddo
-
-#if defined(SCORPIO)
-  call InitCommonCreateIOGroups(option)
-#endif
 
 end subroutine SubsurfaceReadRequiredCards
 

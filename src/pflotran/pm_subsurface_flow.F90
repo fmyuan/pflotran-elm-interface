@@ -1117,11 +1117,7 @@ subroutine PMSubsurfaceFlowCheckpointHDF5(this, pm_grp_id)
   implicit none
 
   class(pm_subsurface_flow_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
 
   call CheckpointFlowProcessModelHDF5(pm_grp_id, this%realization)
 
@@ -1142,11 +1138,7 @@ subroutine PMSubsurfaceFlowRestartHDF5(this, pm_grp_id)
   implicit none
 
   class(pm_subsurface_flow_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
 
   call RestartFlowProcessModelHDF5(pm_grp_id, this%realization)
   call this%UpdateAuxVars()
