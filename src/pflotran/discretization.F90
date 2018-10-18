@@ -236,7 +236,8 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
         call InputErrorMsg(input,option,'Z direction','Origin')        
       case('FILE','GRAVITY','INVERT_Z','MAX_CELLS_SHARING_A_VERTEX',&
            'STENCIL_WIDTH','STENCIL_TYPE','FLUX_METHOD','DOMAIN_FILENAME', &
-           'UPWIND_FRACTION_METHOD','PERM_TENSOR_TO_SCALAR_MODEL')
+           'UPWIND_FRACTION_METHOD','PERM_TENSOR_TO_SCALAR_MODEL', &
+           '2ND_ORDER_BOUNDARY_CONDITION')
       case('DXYZ','BOUNDS')
         call InputSkipToEND(input,option,word) 
       case default
@@ -559,6 +560,13 @@ subroutine DiscretizationRead(discretization,input,option)
                                           option)
         end select
 
+      case('2ND_ORDER_BOUNDARY_CONDITION')
+        if (discretization%itype /= STRUCTURED_GRID) then
+          option%io_buffer = '2ND_ORDER_BOUNDARY_CONDITION only supported &
+            &for structured grids.'
+          call PrintErrMsg(option)
+        endif
+        discretization%grid%structured_grid%second_order_bc = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(word,'GRID',option)
     end select 
