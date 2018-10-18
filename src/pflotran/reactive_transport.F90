@@ -4524,11 +4524,7 @@ subroutine RTCheckpointKineticSorptionHDF5(realization, pm_grp_id, checkpoint)
                           HDF5ReadDataSetInVec
 
   type(realization_subsurface_type) :: realization
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
   PetscBool :: checkpoint
 
   type(option_type), pointer :: option

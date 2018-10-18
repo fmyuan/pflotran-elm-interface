@@ -322,11 +322,7 @@ subroutine PMBaseCheckpointHDF5(this, pm_grp_id)
   implicit none
 
   class(pm_base_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
 !  print *, 'Must extend PMBaseCheckpointHDF5/RestartHDF5.'
 !  stop
 #endif

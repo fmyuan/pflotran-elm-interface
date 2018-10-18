@@ -652,19 +652,11 @@ subroutine TimestepperBECheckpointHDF5(this, h5_chk_grp_id, option)
   integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
 
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-  integer :: timestepper_grp_id
-#else
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
   integer(HID_T) :: timestepper_grp_id
-#endif
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -792,19 +784,11 @@ subroutine TimestepperBERestartHDF5(this, h5_chk_grp_id, option)
   integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
 
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-  integer :: timestepper_grp_id
-#else
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
   integer(HID_T) :: timestepper_grp_id
-#endif
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name

@@ -10,10 +10,6 @@ module Geomechanics_Grid_module
 
   private 
 
-#if defined(SCORPIO)
-  include "scorpiof.h"
-#endif
-
   !  PetscInt, parameter :: HEX_TYPE          = 1
   !  PetscInt, parameter :: TET_TYPE          = 2
   !  PetscInt, parameter :: WEDGE_TYPE        = 3

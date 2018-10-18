@@ -18,10 +18,6 @@ module Output_module
 
   private
 
-#if defined(SCORPIO_WRITE)
-  include "scorpiof.h"
-#endif
-
   PetscInt, parameter :: TECPLOT_INTEGER = 0
   PetscInt, parameter :: TECPLOT_REAL = 1
 
@@ -1205,11 +1201,6 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       endif      
       call PetscLogEventEnd(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
       call PetscTime(tend,ierr);CHKERRQ(ierr)
-#ifdef SCORPIO_WRITE
-      if (option%myrank == 0) write (*,'(" Parallel IO Write method is used in &
-        &writing the output, HDF5_WRITE_GROUP_SIZE = ",i5)') &
-        option%hdf5_write_group_size
-#endif
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') &
             tend-tstart
       call printMsg(option)

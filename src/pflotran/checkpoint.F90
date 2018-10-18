@@ -561,24 +561,12 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
-#if defined(SCORPIO_WRITE)
-  integer, intent(out) :: file_id
-  integer :: prop_id
-  integer,intent(out) :: grp_id
-#else
   integer(HID_T), intent(out) :: file_id
   integer(HID_T) :: prop_id
   integer(HID_T), intent(out) :: grp_id
-#endif
 
   filename = CheckpointFilename(append_name, option)
   filename = trim(filename) // '.h5'
-
-#if defined(SCORPIO_WRITE)
-    filename = trim(filename) // CHAR(0)
-    call scorpio_open_file(filename, option%iowrite_group_id, &
-                              SCORPIO_FILE_CREATE, file_id, ierr)
-#else
 
     ! initialize fortran interface
   call h5open_f(hdf5_err)
@@ -590,8 +578,6 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   call h5fcreate_f(filename, H5F_ACC_TRUNC_F, file_id, hdf5_err, &
                    H5P_DEFAULT_F, prop_id)
   call h5pclose_f(prop_id, hdf5_err)
-
-#endif
 
   string = "Checkpoint"
   call h5gcreate_f(file_id, string, grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
@@ -624,21 +610,9 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
-#if defined(SCORPIO)
-  integer, intent(out) :: file_id
-  integer :: prop_id
-  integer,intent(out) :: grp_id
-#else
   integer(HID_T), intent(out) :: file_id
   integer(HID_T) :: prop_id
   integer(HID_T), intent(out) :: grp_id
-#endif
-
-#if defined(SCORPIO)
-  write(option%io_buffer, &
-        '("Checkpoint from HDF5 not supported for SCORPIO. Darn.")')
-  call printErrMsg(option)
-#else
 
   ! initialize fortran interface
   call h5open_f(hdf5_err)
@@ -657,7 +631,6 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
 
   string = "Checkpoint"
   call HDF5GroupOpen(file_id,string,grp_id,option)
-#endif
 
 end subroutine CheckpointOpenFileForReadHDF5
 
@@ -678,14 +651,6 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   
   implicit none
 
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-  PetscMPIInt :: dataset_rank
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HID_T) :: chk_grp_id
   character(len=MAXSTRINGLENGTH) :: dataset_name
   PetscMPIInt :: dataset_rank
@@ -693,7 +658,6 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
   type(option_type) :: option
 
   integer(HID_T) :: data_set_id
@@ -771,14 +735,6 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   
   implicit none
 
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-  PetscMPIInt :: dataset_rank
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HID_T) :: chk_grp_id
   character(len=MAXSTRINGLENGTH) :: dataset_name
   PetscMPIInt :: dataset_rank
@@ -786,7 +742,6 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
   type(option_type) :: option
 
   integer(HID_T) :: data_set_id
@@ -860,14 +815,6 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   implicit none
 
 
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-  PetscMPIInt :: dataset_rank
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HID_T) :: chk_grp_id
   character(len=MAXSTRINGLENGTH) :: dataset_name
   PetscMPIInt :: dataset_rank
@@ -875,7 +822,6 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
   type(option_type) :: option
 
   integer(HID_T) :: data_set_id
@@ -942,15 +888,6 @@ subroutine CheckPointReadRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   
   implicit none
 
-
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-  PetscMPIInt :: dataset_rank
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HID_T) :: chk_grp_id
   character(len=MAXSTRINGLENGTH) :: dataset_name
   PetscMPIInt :: dataset_rank
@@ -958,7 +895,6 @@ subroutine CheckPointReadRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
   type(option_type) :: option
 
   integer(HID_T) :: data_set_id
@@ -1022,21 +958,12 @@ subroutine CheckPointWriteCompatibilityHDF5(chk_grp_id, option)
 
   implicit none
 
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HID_T) :: chk_grp_id
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
   type(option_type) :: option
-
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -1086,21 +1013,12 @@ subroutine CheckPointReadCompatibilityHDF5(chk_grp_id, option)
 
   implicit none
 
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HID_T) :: chk_grp_id
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
   type(option_type) :: option
-
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -1167,11 +1085,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   use HDF5_module, only : HDF5WriteDataSetFromVec
   implicit none
 
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
   class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
@@ -1307,11 +1221,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   use HDF5_module, only : HDF5ReadDataSetInVec
   implicit none
 
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
   class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 

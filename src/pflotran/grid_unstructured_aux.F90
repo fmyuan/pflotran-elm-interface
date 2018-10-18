@@ -12,10 +12,6 @@ module Grid_Unstructured_Aux_module
 
   private 
 
-#if defined(SCORPIO)
-  include "scorpiof.h"
-#endif
-
   PetscInt, parameter, public :: UGRID_UPWIND_FRACTION_PT_PROJ = 1
   PetscInt, parameter, public :: UGRID_UPWIND_FRACTION_CELL_VOL = 2
   PetscInt, parameter, public :: UGRID_UPWIND_FRACTION_ABS_DIST = 3

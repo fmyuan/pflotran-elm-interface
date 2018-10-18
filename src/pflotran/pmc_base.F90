@@ -1109,16 +1109,9 @@ recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   integer(HID_T) :: h5_chk_grp_id
   character(len=MAXSTRINGLENGTH) :: append_name
 
-#if defined(SCORPIO_WRITE)
-  integer :: h5_file_id
-  integer :: h5_pmc_grp_id
-  integer :: pm_grp_id
-  integer :: temp_id
-#else
   integer(HID_T) :: h5_file_id
   integer(HID_T) :: h5_pmc_grp_id
   integer(HID_T) :: h5_pm_grp_id
-#endif
 
   class(pm_base_type), pointer :: cur_pm
   class(pmc_base_header_type), pointer :: header
@@ -1215,15 +1208,9 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
   PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
-#if defined(SCORPIO_WRITE)
-  integer :: h5_file_id
-  integer :: h5_pmc_grp_id
-  integer :: h5_pm_grp_id
-#else
   integer(HID_T) :: h5_file_id
   integer(HID_T) :: h5_pmc_grp_id
   integer(HID_T) :: h5_pm_grp_id
-#endif
 
   ! if the top PMC
   if (this%is_master) then
@@ -1337,24 +1324,13 @@ subroutine PMCBaseSetHeaderHDF5(this, h5_chk_grp_id, option)
   implicit none
 
   class(pmc_base_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: h5_chk_grp_id
-#else
   integer(HID_T) :: h5_chk_grp_id
-#endif
   type(option_type) :: option
   
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -1414,24 +1390,13 @@ subroutine PMCBaseGetHeaderHDF5(this, h5_chk_grp_id, option)
   implicit none
 
   class(pmc_base_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: h5_chk_grp_id
-#else
   integer(HID_T) :: h5_chk_grp_id
-#endif
   type(option_type) :: option
 
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
