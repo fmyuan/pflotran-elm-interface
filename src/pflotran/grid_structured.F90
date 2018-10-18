@@ -66,6 +66,7 @@ module Grid_Structured_module
     PetscReal, pointer :: dx(:), dy(:), dz(:)  ! ghosted grid spacings for each grid cell
     
     PetscInt, pointer :: cell_neighbors(:,:)
+    PetscBool :: second_order_bc
     
   end type grid_structured_type
 
@@ -186,6 +187,7 @@ function StructGridCreate()
   structured_grid%bounds = -1.d20
   
   structured_grid%invert_z_axis = PETSC_FALSE
+  structured_grid%second_order_bc = PETSC_FALSE
   
   StructGridCreate => structured_grid
   
@@ -1142,10 +1144,17 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection,iface,
   PetscInt :: ghosted_id
   type(option_type) :: option
   PetscReal :: radius(:)
+  PetscReal :: dist_scale
   
   PetscErrorCode :: ierr
   
   PetscReal, parameter :: Pi=3.141592653590d0
+
+  if (structured_grid%second_order_bc) then
+    dist_scale = 1.d0
+  else
+    dist_scale = 0.5d0
+  endif
   
   select case(connection%itype)
     case(BOUNDARY_CONNECTION_TYPE)
@@ -1157,7 +1166,8 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection,iface,
           select case(structured_grid%itype)
             case(CARTESIAN_GRID)
               connection%dist(:,iconn) = 0.d0
-              connection%dist(0,iconn) = 0.5d0*structured_grid%dx(ghosted_id)
+              connection%dist(0,iconn) = dist_scale* &
+                                         structured_grid%dx(ghosted_id)
               connection%area(iconn) = structured_grid%dy(ghosted_id)* &
                                    structured_grid%dz(ghosted_id)
 
@@ -1175,7 +1185,8 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection,iface,
               endif              
             case(CYLINDRICAL_GRID)
               connection%dist(:,iconn) = 0.d0
-              connection%dist(0,iconn) = 0.5d0*structured_grid%dx(ghosted_id)
+              connection%dist(0,iconn) = dist_scale* &
+                                         structured_grid%dx(ghosted_id)
               if (iface ==  WEST_FACE) then
                 connection%dist(1,iconn) = 1.d0
                 connection%area(iconn) = 2.d0 * pi * (radius(ghosted_id)- &
@@ -1189,7 +1200,8 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection,iface,
               endif
             case(SPHERICAL_GRID)
               connection%dist(:,iconn) = 0.d0
-              connection%dist(0,iconn) = 0.5d0*structured_grid%dx(ghosted_id)
+              connection%dist(0,iconn) = dist_scale* &
+                                         structured_grid%dx(ghosted_id)
               if (iface ==  WEST_FACE) then
                 connection%dist(1,iconn) = 1.d0
                 connection%area(iconn) = 0.d0
@@ -1205,7 +1217,8 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection,iface,
           select case(structured_grid%itype)
             case(CARTESIAN_GRID)
               connection%dist(:,iconn) = 0.d0
-              connection%dist(0,iconn) = 0.5d0*structured_grid%dy(ghosted_id)
+              connection%dist(0,iconn) = dist_scale* &
+                                         structured_grid%dy(ghosted_id)
               connection%area(iconn) = structured_grid%dx(ghosted_id)* &
                                    structured_grid%dz(ghosted_id)
               if (iface == SOUTH_FACE) then
@@ -1232,7 +1245,8 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection,iface,
           select case(structured_grid%itype)
             case(CARTESIAN_GRID)
               connection%dist(:,iconn) = 0.d0
-              connection%dist(0,iconn) = 0.5d0*structured_grid%dz(ghosted_id)
+              connection%dist(0,iconn) = dist_scale* &
+                                         structured_grid%dz(ghosted_id)
               connection%area(iconn) = structured_grid%dx(ghosted_id)* &
                                    structured_grid%dy(ghosted_id)
               if (structured_grid%invert_z_axis) then
@@ -1259,7 +1273,8 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection,iface,
               endif              
             case(CYLINDRICAL_GRID)
               connection%dist(:,iconn) = 0.d0
-              connection%dist(0,iconn) = 0.5d0*structured_grid%dz(ghosted_id)
+              connection%dist(0,iconn) = dist_scale* &
+                                         structured_grid%dz(ghosted_id)
               connection%area(iconn) = 2.d0 * pi * radius(ghosted_id) * &
                                         structured_grid%dx(ghosted_id)
               if (structured_grid%invert_z_axis) then
