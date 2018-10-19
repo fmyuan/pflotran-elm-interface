@@ -1695,6 +1695,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   use Dataset_Gridded_HDF5_class
   use Dataset_Ascii_class
   use Dataset_module
+  use String_module
 
   implicit none
 
@@ -1720,6 +1721,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   PetscInt :: real_count
   PetscInt :: dof_count_local(3)
   PetscInt :: dof_count_global(3)
+  PetscReal, parameter :: min_two_phase_gas_pressure = 3.d3
   
   num_connections = coupler%connection_set%num_connections
 
@@ -1749,7 +1751,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     coupler%flow_aux_mapping(GENERAL_AIR_PRESSURE_INDEX) = 3
     coupler%flow_aux_mapping(GENERAL_GAS_FLUX_INDEX) = 3
   endif
-  
+
   select case(flow_condition%iphase)
     case(MULTI_STATE)
       select type(dataset => general%gas_saturation%dataset)
@@ -1766,6 +1768,21 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
               GAS_STATE
           endif
         class is(dataset_gridded_hdf5_type)
+          ! If the gas pressure dataset is defined, we must ensure that its
+          ! minimum pressure is greater than min_two_phase_gas_pressure. 
+          ! Otherwise, a zero gas pressure may be incorrectly used within 
+          ! an interpolation of gas pressure for a two phase cell mixed 
+          ! with a single phase liquid cell
+          if (associated(general%gas_pressure)) then
+            dummy_real = &
+              DatasetGetMinRValue(general%gas_pressure%dataset,option)
+            if (dummy_real < min_two_phase_gas_pressure) then
+              option%io_buffer = 'Minimum gas pressure exceeded for &
+                    &FLOW_CONDITION "' // trim(flow_condition%name) // &
+                    '": ' // trim(StringFormatDouble(dummy_real)) // '.'
+              call PrintErrMsg(option)
+            endif
+          endif
           do iconn = 1, num_connections
             call PatchGetCouplerValueFromDataset(coupler,option,patch%grid, &
                                   general%gas_saturation%dataset,iconn,gas_sat)

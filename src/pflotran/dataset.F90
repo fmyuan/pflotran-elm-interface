@@ -26,6 +26,7 @@ module Dataset_module
             DatasetGetClass, &
             DatasetPrint, &
             DatasetReadDoubleOrDataset, &
+            DatasetGetMinRValue, &
             DatasetDestroy
 
 contains
@@ -508,6 +509,55 @@ subroutine DatasetReadDoubleOrDataset(input,double_value,dataset, &
   endif
   
 end subroutine DatasetReadDoubleOrDataset
+
+! ************************************************************************** !
+
+function DatasetGetMinRValue(dataset,option)
+  ! 
+  ! Returns the minimum value in a dataset.  Considers distributed datasets.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/19/19
+  ! 
+
+  use Option_module
+
+  implicit none
+  
+  class(dataset_base_type) :: dataset
+  type(option_type) :: option
+
+  PetscReal :: DatasetGetMinRValue
+
+  PetscBool :: global_reduction_flag
+  PetscErrorCode :: ierr
+
+  global_reduction_flag = PETSC_TRUE
+  DatasetGetMinRValue = 1.d20
+
+  if (associated(dataset%rarray)) then
+    DatasetGetMinRValue =  minval(dataset%rarray)
+  endif
+  
+  select type (dataset)
+    class is (dataset_ascii_type)
+    class is (dataset_global_hdf5_type)
+      global_reduction_flag = PETSC_TRUE
+    class is (dataset_gridded_hdf5_type)
+    class is (dataset_map_hdf5_type)
+      global_reduction_flag = PETSC_TRUE
+    class is (dataset_common_hdf5_type)
+      global_reduction_flag = PETSC_TRUE
+    class is (dataset_base_type)
+    class default
+  end select
+
+  if (global_reduction_flag) then
+    call MPI_Allreduce(MPI_IN_PLACE,DatasetGetMinRValue,ONE_INTEGER_MPI, &
+                       MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+  endif
+  
+end function DatasetGetMinRValue
 
 ! ************************************************************************** !
 
