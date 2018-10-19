@@ -1760,7 +1760,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
             coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
               TWO_PHASE_STATE
-          else if (gas_sat == 0.d0) then
+          ! Cannot user gas_sat == 0.d0 or Equal(gas_sat,0.d0) as optimization
+          ! in the Intel compiler changes the answer.
+          else if (gas_sat < 0.5d0) then
             coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
               LIQUID_STATE
           else 
@@ -1789,9 +1791,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
             if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
               coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = &
                 TWO_PHASE_STATE
-            elseif (Equal(gas_sat, 0.d0)) then 
+            else if (gas_sat < 0.5d0) then
               coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = LIQUID_STATE
-            elseif (Equal(gas_sat, 1.d0)) then 
+            else
               coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = GAS_STATE
             endif                                       
           enddo
