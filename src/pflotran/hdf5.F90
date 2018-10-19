@@ -320,8 +320,6 @@ end subroutine HDF5WriteStructuredDataSet
 subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
                            indices)
   ! 
-  ! End of Default HDF5 Write
-  ! GEH - Structured Grid Dependence - End
   ! Reads cell indices from an hdf5 dataset
   ! 
   ! Author: Glenn Hammond
@@ -440,7 +438,6 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   call h5dclose_f(data_set_id,hdf5_err)
 
   call PetscLogEventEnd(logging%event_read_indices_hdf5,ierr);CHKERRQ(ierr)
-! End of Default HDF5 Mechanism  
   
 end subroutine HDF5ReadIndices
 
@@ -596,7 +593,6 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   
   call PetscLogEventEnd(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
-! End of Default HDF5 Mechanism
 
 end subroutine HDF5ReadArray
 
