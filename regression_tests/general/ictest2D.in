@@ -64,14 +64,9 @@ END
 
 #=========================== times ============================================
 TIME
-  #FINAL_TIME 1.d6 yr
-  FINAL_TIME 0.5d0 yr
-  INITIAL_TIMESTEP_SIZE 1.d-6 y
-  MAXIMUM_TIMESTEP_SIZE 1. y at 1. y
-  MAXIMUM_TIMESTEP_SIZE 5. y at 10. y
-  MAXIMUM_TIMESTEP_SIZE 50. y at 100. y
-  MAXIMUM_TIMESTEP_SIZE 500. y at 1000. y
-  MAXIMUM_TIMESTEP_SIZE 5000. y at 10000. y
+  FINAL_TIME 1.d-2 yr
+  INITIAL_TIMESTEP_SIZE 1.d-4 y
+  MAXIMUM_TIMESTEP_SIZE 1.d0 y
 END
 
 #=========================== output options ===================================
@@ -84,14 +79,6 @@ OUTPUT
   /
   SNAPSHOT_FILE
     FORMAT HDF5
-    PRINT_COLUMN_IDS
-    PERIODIC TIME 1.E-5 y between 0. y and 1.e-4 y
-    PERIODIC TIME 1. y between 0. y and 10. y
-    PERIODIC TIME 10. y between 0. y and 100. y
-    PERIODIC TIME 100. y between 0. y and 1000. y
-    PERIODIC TIME 1000. y between 0. y and 10000. y
-    PERIODIC TIME 10000. y between 0. y and 100000. y
-    PERIODIC TIME 100000. y between 0. y and 100000. y
   /
   VELOCITY_AT_CENTER
   VARIABLES
