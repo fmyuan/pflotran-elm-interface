@@ -40,10 +40,6 @@ module Option_module
     PetscMPIInt :: hdf5_read_group_size, hdf5_write_group_size
     PetscBool :: broadcast_read
 
-#if defined(SCORPIO)
-    PetscMPIInt :: ioread_group_id, iowrite_group_id
-#endif
-
     character(len=MAXSTRINGLENGTH) :: io_buffer
 
     PetscInt :: fid_out
@@ -60,13 +56,14 @@ module Option_module
     PetscInt :: liquid_phase
     PetscInt :: gas_phase
     PetscInt :: oil_phase
+    PetscInt :: solvent_phase
     PetscInt :: phase_map(MAX_PHASE)
     PetscInt :: nflowdof
     PetscInt :: nflowspec
     PetscInt :: nmechdof
     PetscInt :: nsec_cells
     PetscInt :: nwells
-    PetscInt :: neos_table_indices
+    PetscInt :: num_table_indices
     PetscBool :: use_th_freezing
 
     PetscBool :: surf_flow_on
@@ -179,6 +176,7 @@ module Option_module
     PetscBool :: use_touch_options
     PetscBool :: overwrite_restart_transport
     PetscBool :: overwrite_restart_flow
+    PetscBool :: overwrite_restart_wf
     PetscInt :: io_handshake_buffer_size
 
     character(len=MAXSTRINGLENGTH) :: initialize_flow_filename
@@ -223,10 +221,6 @@ module Option_module
     PetscBool :: inline_surface_flow
     PetscReal :: inline_surface_Mannings_coeff
     character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
-
-    PetscReal :: debug_tol
-    PetscBool :: matcompare_reldiff
-    PetscBool :: use_GP
 
   end type option_type
 
@@ -277,7 +271,9 @@ module Option_module
   public :: OptionCreate, &
             OptionCheckCommandLine, &
             printErrMsg, &
+            PrintErrMsgToDev, &
             printErrMsgByRank, &
+            PrintErrMsgByRankToDev, &
             printWrnMsg, &
             printMsg, &
             printMsgAnyRank, &
@@ -286,8 +282,10 @@ module Option_module
             printErrMsgNoStopByRank, &
             printVerboseMsg, &
             OptionCheckTouch, &
+            OptionPrint, &
             OptionPrintToScreen, &
             OptionPrintToFile, &
+            OptionGetFIDs, &
             OptionInitRealization, &
             OptionMeanVariance, &
             OptionMaxMinMeanVariance, &
@@ -442,7 +440,7 @@ subroutine OptionInitRealization(option)
   option%nmechdof = 0
   option%nsec_cells = 0
   option%nwells = 0
-  option%neos_table_indices = 0
+  option%num_table_indices = 0
   option%use_th_freezing = PETSC_FALSE
 
   option%nsurfflowdof = 0
@@ -475,9 +473,10 @@ subroutine OptionInitRealization(option)
 
   option%nphase = 0
 
-  option%liquid_phase = UNINITIALIZED_INTEGER
-  option%oil_phase    = UNINITIALIZED_INTEGER
-  option%gas_phase    = UNINITIALIZED_INTEGER
+  option%liquid_phase  = UNINITIALIZED_INTEGER
+  option%oil_phase     = UNINITIALIZED_INTEGER
+  option%gas_phase     = UNINITIALIZED_INTEGER
+  option%solvent_phase = UNINITIALIZED_INTEGER
 
   option%air_pressure_id = 0
   option%capillary_pressure_id = 0
@@ -547,6 +546,7 @@ subroutine OptionInitRealization(option)
   option%use_touch_options = PETSC_FALSE
   option%overwrite_restart_transport = PETSC_FALSE
   option%overwrite_restart_flow = PETSC_FALSE
+  option%overwrite_restart_wf = PETSC_FALSE
 
   option%time = 0.d0
   option%flow_dt = 0.d0
@@ -591,9 +591,6 @@ subroutine OptionInitRealization(option)
   option%inline_surface_Mannings_coeff = 0.02d0
   option%inline_surface_region_name    = ""
 
-  option%debug_tol = 1.d0
-  option%matcompare_reldiff = PETSC_FALSE
-  option%use_GP = PETSC_FALSE
 
 end subroutine OptionInitRealization
 
@@ -757,8 +754,6 @@ end subroutine printErrMsgByRank2
 
 ! ************************************************************************** !
 
-! ************************************************************************** !
-
 subroutine printErrMsgNoStopByRank1(option)
   !
   ! Prints the error message from processor with error along
@@ -802,6 +797,64 @@ subroutine printErrMsgNoStopByRank2(option,string)
   endif
 
 end subroutine printErrMsgNoStopByRank2
+
+! ************************************************************************** !
+
+subroutine PrintErrMsgToDev(string,option)
+  !
+  ! Prints the error message from p0, appends a request to submit input 
+  ! deck to pflotran-dev, and stops.  The reverse order of arguments is 
+  ! to avoid conflict with variants of PrintErrMsg()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 07/26/18
+  !
+
+  implicit none
+
+  character(len=*) :: string
+  type(option_type) :: option
+
+  if (len_trim(string) > 0) then
+    option%io_buffer = trim(option%io_buffer) // &
+      ' Please email pflotran-dev@googlegroups.com and ' // &
+      trim(adjustl(string)) // '.'
+  else
+    option%io_buffer = trim(option%io_buffer) // &
+      ' Please email pflotran-dev@googlegroups.com.'
+  endif
+  call PrintErrMsg(option)
+
+end subroutine PrintErrMsgToDev
+
+! ************************************************************************** !
+
+subroutine PrintErrMsgByRankToDev(string,option)
+  !
+  ! Prints the error message from processor with error along
+  ! with rank. The reverse order of arguments is to avoid conflict with
+  ! variants of PrintErrMsg()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/04/11
+  !
+
+  implicit none
+
+  character(len=*) :: string
+  type(option_type) :: option
+
+  if (len_trim(string) > 0) then
+    option%io_buffer = trim(option%io_buffer) // &
+      ' Please email pflotran-dev@googlegroups.com and ' // &
+      trim(adjustl(string)) // '.'
+  else
+    option%io_buffer = trim(option%io_buffer) // &
+      ' Please email pflotran-dev@googlegroups.com.'
+  endif
+  call PrintErrMsgByRank(option)
+
+end subroutine PrintErrMsgByRankToDev
 
 ! ************************************************************************** !
 
@@ -1081,6 +1134,53 @@ function OptionPrintToFile(option)
   endif
 
 end function OptionPrintToFile
+
+! ************************************************************************** !
+
+subroutine OptionPrint(string,option)
+  !
+  ! Determines whether printing to file should occur
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/29/09
+  !
+  use PFLOTRAN_Constants_module
+
+  implicit none
+
+  character(len=*) :: string
+  type(option_type) :: option
+
+  ! note that these flags can be toggled off specific time steps
+  if (option%print_screen_flag) then
+    write(STDOUT_UNIT,'(a)') trim(string)
+  endif
+  if (option%print_file_flag) then
+    write(option%fid_out,'(a)') trim(string)
+  endif
+
+end subroutine OptionPrint
+
+! ************************************************************************** !
+
+function OptionGetFIDs(option)
+  !
+  ! Determines whether printing to file should occur
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/29/09
+  !
+  implicit none
+
+  type(option_type) :: option
+
+  PetscInt :: OptionGetFIDs(2)
+
+  OptionGetFIDs = -1
+  if (OptionPrintToScreen(option)) OptionGetFIDs(1) = STDOUT_UNIT
+  if (OptionPrintToFile(option)) OptionGetFIDs(2) = option%fid_out
+
+end function OptionGetFIDs
 
 ! ************************************************************************** !
 

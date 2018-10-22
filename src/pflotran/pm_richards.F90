@@ -56,6 +56,7 @@ function PMRichardsCreate()
   allocate(richards_pm)
   call PMRichardsInit(richards_pm)
   richards_pm%name = 'Richards Flow'
+  richards_pm%header = 'RICHARDS FLOW'
 
   PMRichardsCreate => richards_pm
   
@@ -159,6 +160,7 @@ subroutine PMRichardsInitializeTimestep(this)
   ! 
 
   use Richards_module, only : RichardsInitializeTimestep
+  use Option_module
   
   implicit none
   
@@ -166,10 +168,6 @@ subroutine PMRichardsInitializeTimestep(this)
 
   call PMSubsurfaceFlowInitializeTimestepA(this)
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," RICHARDS FLOW ",63("="))')
-  endif
-  
   call RichardsInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)
   
@@ -596,19 +594,16 @@ subroutine PMRichardsMaxChange(this)
   ! 
 
   use Richards_module, only : RichardsMaxChange
+  use Option_module
 
   implicit none
   
   class(pm_richards_type) :: this
+  character(len=MAXSTRINGLENGTH) :: string
   
   call RichardsMaxChange(this%realization,this%max_pressure_change)
-  if (this%option%print_screen_flag) then
-    write(*,'("  --> max chng: dpmx= ",1pe12.4)') this%max_pressure_change
-  endif
-  if (this%option%print_file_flag) then
-    write(this%option%fid_out,'("  --> max chng: dpmx= ",1pe12.4)') &
-      this%max_pressure_change
-  endif    
+  write(string,'("  --> max chng: dpmx= ",1pe12.4)') this%max_pressure_change
+  call OptionPrint(string,this%option)
 
 end subroutine PMRichardsMaxChange
 

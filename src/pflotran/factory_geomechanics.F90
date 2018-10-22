@@ -438,10 +438,7 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
         select case(trim(word))
           case ('UNSTRUCTURED')
             geomech_discretization%itype = UNSTRUCTURED_GRID
-            call InputReadNChars(input,option, &
-                                 geomech_discretization%filename, &
-                                 MAXSTRINGLENGTH, &
-                                 PETSC_TRUE)
+            call InputReadFilename(input,option,geomech_discretization%filename)
             call InputErrorMsg(input,option,'keyword','filename')
 
             geomech_discretization%grid  => GMGridCreate()
@@ -699,10 +696,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
           if (InputCheckExit(input,option)) exit
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','MAPPING_FILE')
-          call InputReadNChars(input,option, &
-                               grid%mapping_filename, &
-                               MAXSTRINGLENGTH, &
-                               PETSC_TRUE)
+          call InputReadFilename(input,option,grid%mapping_filename)
           call InputErrorMsg(input,option,'keyword','mapping_file')
           call GeomechSubsurfMapFromFilename(grid,grid%mapping_filename, &
                                              option)

@@ -1,0 +1,123 @@
+INTEGRAL_FLUX
+  ! 2 x 2 x - with the connection between 1 and 5 carved out: 3 total
+  ! 3 m^2 \perp Z
+  ! @ 1 mm/s for 2 s = -6 kg total, -3 kg/s
+  NAME Z3
+  INVERT_DIRECTION
+  POLYGON
+    1. 0. 1.
+    2. 0. 1.
+    2. 2. 1.
+    0. 2. 1.
+    0. 1. 1.
+    1. 1. 1.
+  /
+END
+
+INTEGRAL_FLUX
+  ! 2 x 1 x - top
+  ! 2 m^2 \perp Z
+  ! @ 1 mm/s for 2 s = 4 kg total, 2 kg/s
+  NAME top
+  POLYGON
+    0. 0. 2.
+    2. 1. 2.
+  /
+END
+
+INTEGRAL_FLUX
+  NAME entire_top
+  ! 4 m^2 \perp Z
+  ! @ 1 mm/s for 2 s = 8 kg total, 4 kg/s
+  PLANE
+    0. 0. 2.
+    1. 0. 2.
+    0. 1. 2.
+  /
+END
+
+# coordinates and directions
+INTEGRAL_FLUX
+  ! 1 m^2 \perp X, Y, Z = 3 m^2 total
+  ! @ 1 mm/s for 2 s = -2 kg total, -1 kg/s
+  ! negative due to -0.5 direction in z
+  NAME top_north_east_corner_z
+  COORDINATES_AND_DIRECTIONS
+    1.5 1.5 2. 0. 0. -0.5  ! top face of cell 8
+  /
+END
+
+# =============================== Z plane at 0 ================================
+INTEGRAL_FLUX
+  ! @ 1 mm/s for 2 s = 8 kg total, 4 kg/s
+  NAME Z_at_0
+  VERTICES
+    4 5 2 1
+    5 6 3 2
+    7 8 5 4
+    8 9 6 5
+  /
+END
+
+! the four below should sum to the above
+INTEGRAL_FLUX Z_at_0_1
+  VERTICES
+    1 2 5 4
+  /
+END
+
+INTEGRAL_FLUX Z_at_0_2
+  VERTICES
+    2 3 6 5
+  /
+END
+
+INTEGRAL_FLUX Z_at_0_3
+  VERTICES
+    4 5 8 7
+  /
+END
+
+INTEGRAL_FLUX Z_at_0_4
+  VERTICES
+    5 6 9 8
+  /
+END
+
+# =============================== Z plane at 2 ================================
+INTEGRAL_FLUX
+  ! @ 1 mm/s for 2 s = 8 kg total, 4 kg/s
+  NAME Z_at_2
+  VERTICES
+    23 24 27 26
+    22 23 26 25
+    20 21 24 23
+    19 20 23 22
+  /
+END
+
+! the four below should sum to the above
+INTEGRAL_FLUX Z_at_2_5
+  VERTICES
+    19 20 23 22
+  /
+END
+
+INTEGRAL_FLUX Z_at_2_6
+  VERTICES
+    20 21 24 23
+  /
+END
+
+INTEGRAL_FLUX Z_at_0_7
+  VERTICES
+    22 23 26 25
+  /
+END
+
+INTEGRAL_FLUX Z_at_2_8
+  VERTICES
+    23 24 27 26
+  /
+END
+

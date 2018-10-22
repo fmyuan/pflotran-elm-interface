@@ -106,6 +106,9 @@ subroutine ReactionInit(reaction,input,option)
   option%ntrandof = option%ntrandof + GetColloidCount(reaction)
   option%ntrandof = option%ntrandof + GetImmobileCount(reaction)
   reaction%ncomp = option%ntrandof  
+  if (GasGetCount(reaction%gas,ACTIVE_GAS) > 0) then
+    option%transport%nphase = 2
+  endif
   reaction%nphase = option%transport%nphase
 
 end subroutine ReactionInit
@@ -782,8 +785,7 @@ subroutine ReactionReadPass1(reaction,input,option)
           end select
         enddo
       case('DATABASE')
-        call InputReadNChars(input,option,reaction%database_filename, &
-                             MAXSTRINGLENGTH,PETSC_TRUE)  
+        call InputReadFilename(input,option,reaction%database_filename)
         call InputErrorMsg(input,option,'keyword', &
                            'CHEMISTRY,DATABASE FILENAME')  
       case('LOG_FORMULATION')
@@ -850,12 +852,10 @@ subroutine ReactionReadPass1(reaction,input,option)
         call InputReadDouble(input,option,reaction%max_dlnC)
         call InputErrorMsg(input,option,trim(word),'CHEMISTRY')
       case('OPERATOR_SPLIT','OPERATOR_SPLITTING')
-        option%io_buffer = 'OPERATOR_SPLIT functionality has not been ' // &
-          'reimplemented in the refactored PFLOTRAN at this time.  Please ' // &
-          'GLOBAL_IMPLICIT (remove OPERATOR_SPLIT(TING)) or ask for the ' // &
-          'capability through pflotran-dev@googlegroups.com if you really ' // &
-          'need it.'
-        call printErrMsg(option)
+        option%io_buffer = 'OPERATOR_SPLIT functionality has not been &
+          &reimplemented in the refactored PFLOTRAN at this time.  Please &
+          &use GLOBAL_IMPLICIT (remove OPERATOR_SPLIT(TING)).'
+        call PrintErrMsgToDev('if you really need operator splitting',option)
         option%transport%reactive_transport_coupling = OPERATOR_SPLIT    
       case('EXPLICIT_ADVECTION')
         option%itranmode = EXPLICIT_ADVECTION
@@ -933,7 +933,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   if (reaction%neqcplx + reaction%nsorb + reaction%mineral%nmnrl + &
       reaction%ngeneral_rxn + reaction%microbial%nrxn + &
       reaction%nradiodecay_rxn + reaction%immobile%nimmobile > 0 .or. &
-      GasGetCount(reaction%gas%list,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
+      GasGetCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
       reaction_clm_read .or. &
       reaction_sandbox_read) then
     reaction%use_full_geochemistry = PETSC_TRUE
@@ -1503,7 +1503,10 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   endif  
   
   if (.not.reaction%use_full_geochemistry) then
-    aq_species_constraint%basis_molarity = conc ! don't need to convert
+    ! if constraint concentratoins are molalities, need to convert to molarity
+    ! when reaction%initialize_with_molality is true, regardless of whether
+    ! free or total component.
+    aq_species_constraint%basis_molarity = conc * convert_molal_to_molar
     rt_auxvar%pri_molal = aq_species_constraint%basis_molarity* &
                           convert_molar_to_molal
     rt_auxvar%total(:,iphase) = aq_species_constraint%basis_molarity
@@ -5526,7 +5529,7 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
       call ReactionInterpolateLogK(reaction%gas%acteqlogKcoef, &
                                     reaction%gas%acteqlogK, &
                                     temp, &
-                                    reaction%gas%npassive_gas)
+                                    reaction%gas%nactive_gas)
     endif
     if (associated(reaction%gas%paseqlogKcoef)) then
       call ReactionInterpolateLogK(reaction%gas%paseqlogKcoef, &

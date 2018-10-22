@@ -486,6 +486,8 @@ function PMWSSCreate()
   nullify(pm%srcsink_brine)
   nullify(pm%srcsink_gas)
   nullify(pm%srcsink2ghosted)
+  nullify(pm%bh_material_names)
+  nullify(pm%bh_material_ids)
   pm%name = 'wipp source sink'
   pm%alpharxn = UNINITIALIZED_DOUBLE
   pm%smin = UNINITIALIZED_DOUBLE

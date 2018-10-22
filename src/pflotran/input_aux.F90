@@ -135,7 +135,8 @@ module Input_Aux_module
             InputRewind, &
             InputCloseNestedFiles, &
             InputReadFileDirNamePrefix, &
-            UnitReadAndConversionFactor
+            UnitReadAndConversionFactor, &
+            InputReadFilename
 
 contains
 
@@ -164,6 +165,7 @@ function InputCreate1(fid,path,filename,option)
   character(len=MAXSTRINGLENGTH) :: local_path
   character(len=MAXSTRINGLENGTH) :: full_path
   type(input_type), pointer :: input
+  PetscBool, parameter :: back = PETSC_TRUE
   
   allocate(input)
   input%fid = fid
@@ -178,25 +180,15 @@ function InputCreate1(fid,path,filename,option)
   nullify(input%parent)
 
   
-  local_path = ''
   ! split the filename into a path and filename
                               ! backwards search
-  islash = index(filename,'/',PETSC_TRUE)
+  islash = index(filename,'/',back)
   if (islash > 0) then
-    local_path(1:islash) = filename(1:islash)
+    input%path(1:islash) = filename(1:islash)
     input%filename(1:len_trim(filename)-islash) = &
       filename(islash+1:len_trim(filename))
   else
     input%filename = filename
-  endif
-
-  ! If the path starts with a '/', then it is not relative, but absolute. 
-  ! Do not add the externally passed path.
-  local_path = adjustl(local_path)
-  if (index(local_path,'/') == 1) then
-    input%path = local_path
-  else
-    input%path = trim(path) // trim(local_path)
   endif
 
   if (fid == MAX_IN_UNIT) then
@@ -1060,6 +1052,34 @@ end subroutine InputReadNChars2
 
 ! ************************************************************************** !
 
+subroutine InputReadFilename(input, option, filename)
+  ! 
+  ! Reads in a filename and prepends the input object path if applicable.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/31/18
+  ! 
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: filename
+
+  PetscBool, parameter :: return_blank_error = PETSC_TRUE
+
+  call InputReadNChars(input,option,filename, &
+                       MAXSTRINGLENGTH,return_blank_error)
+
+  ! only prepend a path if a path exist and the filename is not absolue (i.e.
+  ! it does not start with a "/").
+  if (len_trim(input%path) > 0 .and. index(filename,'/') /= 1) then
+    filename = trim(input%path) // trim(filename)
+  endif
+
+end subroutine InputReadFilename
+
+! ************************************************************************** !
+
 subroutine InputReadQuotedWord(input, option, word, return_blank_error)
   ! 
   ! reads and removes a word from a string, that is
@@ -1771,7 +1791,7 @@ subroutine InputReadFilenames(option,filenames)
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit  
-    call InputReadNChars(input,option,filename,MAXSTRINGLENGTH,PETSC_FALSE)
+    call InputReadFilename(input,option,filename)
     filename_count = filename_count + 1
   enddo
   
@@ -1789,7 +1809,7 @@ subroutine InputReadFilenames(option,filenames)
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit  
-    call InputReadNChars(input,option,filename,MAXSTRINGLENGTH,PETSC_FALSE)
+    call InputReadFilename(input,option,filename)
     filename_count = filename_count + 1
     filenames(filename_count) = filename
   enddo
@@ -1994,6 +2014,12 @@ subroutine InputReadASCIIDbase(filename,option)
   
   call InputRewind(input)
   allocate(dbase)
+  nullify(dbase%icard)
+  nullify(dbase%rcard)
+  nullify(dbase%ccard)
+  nullify(dbase%ivalue)
+  nullify(dbase%rvalue)
+  nullify(dbase%cvalue)
   if (num_ints > 0) then
     allocate(dbase%icard(num_ints))
     dbase%icard = ''
@@ -2493,7 +2519,7 @@ subroutine InputPushExternalFile(input,option)
   character(len=MAXSTRINGLENGTH) :: string
   type(input_type), pointer :: input_child
   
-  call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
+  call InputReadFilename(input,option,string)
   call InputErrorMsg(input,option,'filename','EXTERNAL_FILE')
   input_child => InputCreate(input,string,option) 
   input_child%parent => input

@@ -40,7 +40,12 @@ module Solver_module
     PetscInt :: galerkin_mg_levels_x
     PetscInt :: galerkin_mg_levels_y
     PetscInt :: galerkin_mg_levels_z
-    PetscBool :: verbose_error_msg
+    PetscBool :: verbose_logging
+    PetscBool :: convergence_2r
+    PetscBool :: convergence_2x
+    PetscBool :: convergence_2u
+    PetscBool :: convergence_ir
+    PetscBool :: convergence_iu
 
     ! Jacobian matrix
     Mat :: J    ! Jacobian
@@ -140,7 +145,12 @@ function SolverCreate()
   solver%galerkin_mg_levels_y = 1
   solver%galerkin_mg_levels_z = 1
 
-  solver%verbose_error_msg = PETSC_FALSE
+  solver%verbose_logging = PETSC_FALSE
+  solver%convergence_2r = PETSC_TRUE
+  solver%convergence_2x = PETSC_TRUE
+  solver%convergence_2u = PETSC_TRUE
+  solver%convergence_ir = PETSC_TRUE
+  solver%convergence_iu = PETSC_TRUE
   
   solver%J = PETSC_NULL_MAT
   solver%Jpre = PETSC_NULL_MAT
@@ -333,7 +343,6 @@ subroutine SolverSetSNESOptions(solver, option)
       call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                               PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
       allocate(sub_ksps(nsub_ksp))
-      sub_ksps = PETSC_NULL_KSP
       call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                               sub_ksps,ierr);CHKERRQ(ierr)
       do i = 1, nsub_ksp
@@ -798,8 +807,8 @@ subroutine SolverReadLinear(solver,input,option)
       case ('CPR_OPTIONS')
         call SolverCPRRead(solver%cprstash, input,option, ierr)
 
-      case ('VERBOSE_ERROR_MESSAGING')
-        solver%verbose_error_msg = PETSC_TRUE 
+      case ('VERBOSE_LOGGING','VERBOSE_ERROR_MESSAGING')
+        solver%verbose_logging = PETSC_TRUE 
 
       case('GMRES_RESTART')
         ! Equivalent to 
@@ -851,6 +860,8 @@ subroutine SolverReadNewton(solver,input,option)
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword, word, word2
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: boolean
 
   input%ierr = 0
   do
@@ -874,12 +885,12 @@ subroutine SolverReadNewton(solver,input,option)
       case ('NO_INF_NORM','NO_INFINITY_NORM')
         solver%check_infinity_norm = PETSC_FALSE
 
-      case('MAXIMUM_NEWTON_ITERATIONS')
+      case('MAXIT','MAXIMUM_NUMBER_OF_ITERATIONS')
         call InputReadInt(input,option,solver%newton_max_iterations)
         call InputErrorMsg(input,option,'maximum newton iterations', &
                            'NEWTON_SOLVER')
 
-      case('MINIMUM_NEWTON_ITERATIONS')
+      case('MINIMUM_NEWTON_ITERATION','MINIMUM_NEWTON_ITERATIONS')
         call InputReadInt(input,option,solver%newton_min_iterations)
         call InputErrorMsg(input,option,'minimum newton iterations', &
                            'NEWTON_SOLVER')
@@ -945,11 +956,6 @@ subroutine SolverReadNewton(solver,input,option)
         call InputErrorMsg(input,option,'newton_inf_res_tol_sec', &
                            'NEWTON_SOLVER')
    
-      case('MAXIT')
-        call InputReadInt(input,option,solver%newton_max_iterations)
-        call InputErrorMsg(input,option,'maximum newton iterations', &
-                           'NEWTON_SOLVER')
-
       case('MAXF')
         call InputReadInt(input,option,solver%newton_maxf)
         call InputErrorMsg(input,option,'newton_maxf','NEWTON_SOLVER')
@@ -994,9 +1000,43 @@ subroutine SolverReadNewton(solver,input,option)
             call printErrMsg(option)
         end select
         
-      case ('VERBOSE_ERROR_MESSAGING')
-        solver%verbose_error_msg = PETSC_TRUE 
+      case ('VERBOSE_LOGGING','VERBOSE_ERROR_MESSAGING')
+        solver%verbose_logging = PETSC_TRUE 
 
+      case ('CONVERGENCE_INFO')
+        error_string = 'NEWTON_SOLVER,CONVERGENCE_INFO'
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit  
+          call InputReadWord(input,option,keyword,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword',error_string)
+          call StringToUpper(keyword)
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call StringToUpper(word)
+          select case(StringYesNoOther(word))
+            case(STRING_YES)
+              boolean = PETSC_TRUE
+            case(STRING_NO)
+              boolean = PETSC_FALSE
+            case(STRING_OTHER)
+              error_string = trim(error_string) // ',' // keyword
+              call InputKeywordUnrecognized(word,error_string,option)
+          end select
+          select case(trim(keyword))
+            case('2R','FNORM','2NORMR')
+              solver%convergence_2r = boolean
+            case('2X','XNORM','2NORMX')
+              solver%convergence_2x = boolean
+            case('2U','UNORM','2NORMU')
+              solver%convergence_2u = boolean
+            case('IR','INORMR')
+              solver%convergence_ir = boolean
+            case('IU','INORMU')
+              solver%convergence_iu = boolean
+            case default
+              call InputKeywordUnrecognized(keyword,error_string,option)
+          end select
+        enddo
       case default
         call InputKeywordUnrecognized(keyword,'NEWTON_SOLVER',option)
     end select 
@@ -1016,6 +1056,7 @@ subroutine SolverPrintLinearInfo(solver,header,option)
   ! 
 
   use Option_module
+  use String_module
   
   implicit none
   
@@ -1023,7 +1064,9 @@ subroutine SolverPrintLinearInfo(solver,header,option)
   character(len=*) :: header  
   type(option_type) :: option
 
-  PetscInt :: fid
+  PetscInt :: fids(2)
+  character(len=MAXSTRINGLENGTH) :: strings(20)
+  PetscErrorCode :: ierr
 
 #if !defined(PETSC_HAVE_MUMPS)
   if (option%mycommsize > 1) then
@@ -1034,35 +1077,30 @@ subroutine SolverPrintLinearInfo(solver,header,option)
     endif
   endif
 #endif
-  
-  if (OptionPrintToScreen(option)) then
-    write(*,*) 
-    write(*,'(a)') trim(header) // ' Linear Solver'
-    write(*,'("   solver:  ",a)') trim(solver%ksp_type)
-    write(*,'("  precond:  ",a)') trim(solver%pc_type)
-    write(*,'("     atol:",1pe12.4)') solver%linear_atol
-    write(*,'("     rtol:",1pe12.4)') solver%linear_rtol
-    write(*,'("     dtol:",1pe12.4)') solver%linear_dtol
-    write(*,'(" max iter:",i7)') solver%linear_max_iterations
-    if (Initialized(solver%linear_zero_pivot_tol)) then
-      write(*,'("pivot tol:",1pe12.4)') solver%linear_zero_pivot_tol
-    endif
+
+  fids = OptionGetFIDs(option)
+  call StringWriteToUnits(fids,'')
+  call StringWriteToUnits(fids,trim(header) // ' Linear Solver')
+  strings(:) = ''
+  strings(1) = 'solver: '// StringWrite(solver%ksp_type)
+  strings(2) = 'preconditioner: '// StringWrite(solver%pc_type)
+  strings(3) = 'atol: '// StringWrite(solver%linear_atol)
+  strings(4) = 'rtol: '// StringWrite(solver%linear_rtol)
+  strings(5) = 'dtol: '// StringWrite(solver%linear_dtol)
+  strings(6) = 'maximum iteration: ' // &
+                                   StringWrite(solver%linear_max_iterations)
+  if (Initialized(solver%linear_zero_pivot_tol)) then
+    strings(7) = 'zero pivot tolerance: ' // &
+                                   StringWrite(solver%linear_zero_pivot_tol)
+  endif
+  call StringsCenter(strings,30,':')
+  call StringWriteToUnits(fids,strings)
+
+  if (solver%verbose_logging) then
+    call KSPView(solver%ksp,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+    call PCView(solver%pc,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
   endif
   
-  if (OptionPrintToFile(option)) then
-    fid = option%fid_out
-    write(fid,*) 
-    write(fid,'(a)') trim(header) // ' Linear Solver'
-    write(fid,'("   solver:  ",a)') trim(solver%ksp_type)
-    write(fid,'("  precond:  ",a)') trim(solver%pc_type)
-    write(fid,'("     atol:",1pe12.4)') solver%linear_atol
-    write(fid,'("     rtol:",1pe12.4)') solver%linear_rtol
-    write(fid,'("     dtol:",1pe12.4)') solver%linear_dtol
-    write(fid,'(" max iter:",i7)') solver%linear_max_iterations
-    if (Initialized(solver%linear_zero_pivot_tol)) then
-      write(fid,'("pivot tol:",1pe12.4)') solver%linear_zero_pivot_tol
-    endif
-  endif
 
 end subroutine SolverPrintLinearInfo
 
@@ -1076,109 +1114,52 @@ subroutine SolverPrintNewtonInfo(solver,header,option)
   ! Date: 02/23/08
   ! 
   use Option_module
+  use String_module
 
   implicit none
   
   type(solver_type) :: solver
   character(len=*) :: header  
   type(option_type) :: option
-  PetscInt :: fid
 
-  if (OptionPrintToScreen(option)) then
-    write(*,*) 
-    write(*,'(a)') trim(header) // ' Newton Solver'
-    write(*,'("        atol:",1pe12.4)') solver%newton_atol
-    write(*,'("        rtol:",1pe12.4)') solver%newton_rtol
-    write(*,'("        stol:",1pe12.4)') solver%newton_stol
-    write(*,'("        dtol:",1pe12.4)') solver%newton_dtol
-    write(*,'("     maxnorm:",1pe12.4)') solver%max_norm
-    write(*,'("   inftolres:",1pe12.4)') solver%newton_inf_res_tol
-    write(*,'("   inftolupd:",1pe12.4)') solver%newton_inf_upd_tol
-    write(*,'("inftolrelupd:",1pe12.4)') solver%newton_inf_rel_update_tol
-    write(*,'("inftolsclres:",1pe12.4)') solver%newton_inf_scaled_res_tol
-    write(*,'("    max iter:",i6)') solver%newton_max_iterations
-    write(*,'("    min iter:",i6)') solver%newton_min_iterations
-    write(*,'("        maxf:",i6)') solver%newton_maxf
-    write(*,*) 
-    if (len_trim(solver%J_mat_type) > 2) then
-      write(*,'("matrix type:",a20)') solver%J_mat_type
-    endif
-    if (len_trim(solver%Jpre_mat_type) > 2) then
-      write(*,'("precond. matrix type:",a20)') solver%Jpre_mat_type
-    endif
-    if (solver%inexact_newton) then
-      write(*,'("inexact newton: on")')
-    else
-      write(*,'("inexact newton: off")')
-    endif
-        
-    if (solver%print_convergence) then
-      write(*,'("print convergence: on")')
-    else
-      write(*,'("print convergence: off")')
-    endif
-        
-    if (solver%print_detailed_convergence) then
-      write(*,'("print detailed convergence: on")')
-    else
-      write(*,'("print detailed convergence: off")')
-    endif
-        
-    if (solver%check_infinity_norm) then
-      write(*,'("check infinity norm: on")')
-    else
-      write(*,'("check infinity norm: off")')
-    endif
+  PetscInt :: fids(2)
+  character(len=MAXSTRINGLENGTH) :: strings(20)
+  PetscErrorCode :: ierr
+
+  fids = OptionGetFIDs(option)
+  call StringWriteToUnits(fids,'')
+  call StringWriteToUnits(fids,trim(header) // ' Newton Solver')
+  strings(:) = ''
+  strings(1) = 'atol: '// StringWrite(solver%newton_atol)
+  strings(2) = 'rtol: '// StringWrite(solver%newton_rtol)
+  strings(3) = 'stol: '// StringWrite(solver%newton_stol)
+  strings(4) = 'dtol: '// StringWrite(solver%newton_dtol)
+  strings(5) = 'maxnorm: '// StringWrite(solver%max_norm)
+  strings(6) = 'inftolres: ' // StringWrite(solver%newton_inf_res_tol)
+  strings(7) = 'inftolupd: ' // StringWrite(solver%newton_inf_upd_tol)
+  strings(8) = 'inftolrelupd: ' // StringWrite(solver%newton_inf_rel_update_tol)
+  strings(9) = 'inftolsclres: ' // StringWrite(solver%newton_inf_scaled_res_tol)
+  strings(10) = 'max iter: ' // StringWrite(solver%newton_max_iterations)
+  strings(11) = 'min iter: ' // StringWrite(solver%newton_min_iterations)
+  strings(12) = 'maxf: ' // StringWrite(solver%newton_maxf)
+  strings(13) = 'matrix type: ' // StringWrite(solver%J_mat_type)
+  strings(14) = 'precond. matrix type: ' // StringWrite(solver%Jpre_mat_type)
+  strings(15) = 'inexact newton: ' // &
+                   StringWrite(String1Or2(solver%inexact_newton,'on','off'))
+  strings(16) = 'print convergence: ' // &
+                StringWrite(String1Or2(solver%print_convergence,'on','off'))
+  strings(17) = 'print detailed convergence: ' // &
+       StringWrite(String1Or2(solver%print_detailed_convergence,'on','off'))
+  strings(18) = 'check infinity norm: ' // &
+              StringWrite(String1Or2(solver%check_infinity_norm,'on','off'))
+
+  call StringsCenter(strings,30,':')
+  call StringWriteToUnits(fids,strings)
+
+  if (solver%verbose_logging) then
+    call SNESView(solver%snes,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
   endif
-
-  if (OptionPrintToFile(option)) then
-    fid = option%fid_out
-    write(fid,*) 
-    write(fid,'(a)') trim(header) // ' Newton Solver'
-    write(fid,'("        atol:",1pe12.4)') solver%newton_atol
-    write(fid,'("        rtol:",1pe12.4)') solver%newton_rtol
-    write(fid,'("        stol:",1pe12.4)') solver%newton_stol
-    write(fid,'("        dtol:",1pe12.4)') solver%newton_dtol
-    write(fid,'("     maxnorm:",1pe12.4)') solver%max_norm
-    write(fid,'("   inftolres:",1pe12.4)') solver%newton_inf_res_tol
-    write(fid,'("   inftolupd:",1pe12.4)') solver%newton_inf_upd_tol
-    write(fid,'("inftolrelupd:",1pe12.4)') solver%newton_inf_rel_update_tol
-    write(fid,'("inftolsclres:",1pe12.4)') solver%newton_inf_scaled_res_tol
-    write(fid,'("    max iter:",i6)') solver%newton_max_iterations
-    write(fid,'("    min iter:",i6)') solver%newton_min_iterations
-    write(fid,'("        maxf:",i6)') solver%newton_maxf
-    write(fid,*) 
-    if (len_trim(solver%J_mat_type) > 2) then
-      write(fid,'("matrix type:",a20)') solver%J_mat_type
-    endif
-    if (len_trim(solver%Jpre_mat_type) > 2) then
-      write(fid,'("precond. matrix type:",a20)') solver%Jpre_mat_type
-    endif
-    if (solver%inexact_newton) then
-      write(fid,'("inexact newton: on")')
-    else
-      write(fid,'("inexact newton: off")')
-    endif
-        
-    if (solver%print_convergence) then
-      write(fid,'("print convergence: on")')
-    else
-      write(fid,'("print convergence: off")')
-    endif
-        
-    if (solver%print_detailed_convergence) then
-      write(fid,'("print detailed convergence: on")')
-    else
-      write(fid,'("print detailed convergence: off")')
-    endif
-        
-    if (solver%check_infinity_norm) then
-      write(fid,'("check infinity norm: on")')
-    else
-      write(fid,'("check infinity norm: off")')
-    endif
-  endif
-
+  
 end subroutine SolverPrintNewtonInfo
 
 ! ************************************************************************** !
@@ -1287,14 +1268,14 @@ subroutine SolverNewtonPrintFailedReason(solver,option)
                          ierr);CHKERRQ(ierr)
   select case(snes_reason)
     case(SNES_DIVERGED_FUNCTION_DOMAIN)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         error_string = 'The new solution location passed to the function &
           &is not in the domain of F.'
       else
         error_string = 'SNES_DIVERGED_FUNCTION_DOMAIN'
       endif
     case(SNES_DIVERGED_FUNCTION_COUNT)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         write(word,*) maxf
         error_string = 'The user provided function has been called &
           &more times than the final argument (' // trim(adjustl(word)) // &
@@ -1303,13 +1284,13 @@ subroutine SolverNewtonPrintFailedReason(solver,option)
         error_string = 'SNES_DIVERGED_FUNCTION_COUNT'
       endif
     case(SNES_DIVERGED_LINEAR_SOLVE)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         error_string = 'The linear solver failed.'
       else
         error_string = 'SNES_DIVERGED_LINEAR_SOLVE'
       endif
     case(SNES_DIVERGED_FNORM_NAN)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         error_string = 'The norm of the residual is &
           &not a number (NaN). It is likely that the residual has NaNs &
           &in it.  This could be caused by errors in boundary conditions, &
@@ -1319,7 +1300,7 @@ subroutine SolverNewtonPrintFailedReason(solver,option)
         error_string = 'SNES_DIVERGED_FNORM_NAN'
       endif
     case(SNES_DIVERGED_MAX_IT)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         write(word,*) maxit
         error_string = 'The maximum number of Newton iterations (' // &
         trim(adjustl(word)) // ') was reached.'
@@ -1327,26 +1308,26 @@ subroutine SolverNewtonPrintFailedReason(solver,option)
         error_string = 'SNES_DIVERGED_MAX_IT'
       endif
     case(SNES_DIVERGED_LINE_SEARCH)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         error_string = 'The line search failed.'
       else
         error_string = 'SNES_DIVERGED_LINE_SEARCH'
       endif
     case(SNES_DIVERGED_INNER)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         error_string = 'The inner solver failed.'
       else
         error_string = 'SNES_DIVERGED_INNER'
       endif
     case(SNES_DIVERGED_LOCAL_MIN)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         error_string = '|| J^T b || is small, implying convergence to a &
           &local minimum of F().' 
       else
         error_string = 'SNES_DIVERGED_LOCAL_MIN'
       endif
     case(SNES_DIVERGED_DTOL)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         call SNESGetDivergenceTolerance(solver%snes,divtol,ierr);CHKERRQ(ierr)
         write(word,'(es12.4)') divtol
         error_string = 'The nonlinear residual has diverged based on &
@@ -1410,7 +1391,7 @@ subroutine SolverLinearPrintFailedReason(solver,option)
   call KSPGetTolerances(solver%ksp,rtol,abstol,dtol,maxits,ierr);CHKERRQ(ierr)
   select case(ksp_reason)
     case(KSP_DIVERGED_ITS)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         write(word,*) maxits
         error_string = 'The linear solver took too many iterations, beyond &
           &the allowable number set by maxits ('// trim(adjustl(word)) // ').'
@@ -1418,7 +1399,7 @@ subroutine SolverLinearPrintFailedReason(solver,option)
         error_string = 'KSP_DIVERGED_ITS'
       endif
     case(KSP_DIVERGED_DTOL)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         call KSPGetResidualNorm(solver%ksp,rnorm,ierr);CHKERRQ(ierr)
         write(word,'(es12.4)') rnorm
         error_string = 'The linear solver diverged due to dtol based on &
@@ -1429,7 +1410,7 @@ subroutine SolverLinearPrintFailedReason(solver,option)
         error_string = 'KSP_DIVERGED_DTOL'
       endif
     case(KSP_DIVERGED_BREAKDOWN)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         error_string = 'A breakdown in the Krylov method was detected &
           &so the method could not continue to enlarge the Krylov space. &
           &Could be due to a singlular matrix or preconditioner.'
@@ -1437,14 +1418,14 @@ subroutine SolverLinearPrintFailedReason(solver,option)
         error_string = 'KSP_DIVERGED_BREAKDOWN'
       endif
     case(KSP_DIVERGED_BREAKDOWN_BICG)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         error_string = 'A breakdown in the KSPBICG method was detected &
           &so the method could not continue to enlarge the Krylov space.'
       else
         error_string = 'KSP_DIVERGED_BREAKDOWN_BICG'
       endif
     case(KSP_DIVERGED_NONSYMMETRIC)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         ! must use '"' instead of "'" due to parentheses
         error_string = "It appears the operator or preconditioner is not &
           &symmetric and this Krylov method (KSPCG, KSPMINRES, KSPCR)&
@@ -1453,7 +1434,7 @@ subroutine SolverLinearPrintFailedReason(solver,option)
         error_string = 'KSP_DIVERGED_NONSYMMETRIC'
       endif
     case(KSP_DIVERGED_INDEFINITE_PC)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         ! must use '"' instead of "'" due to parentheses
         error_string = "It appears the preconditioner is indefinite (has &
           &both positive and negative eigenvalues) and this Krylov method &
@@ -1465,20 +1446,20 @@ subroutine SolverLinearPrintFailedReason(solver,option)
         error_string = 'KSP_DIVERGED_INDEFINITE_PC'
       endif
     case(KSP_DIVERGED_NANORINF)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         error_string = 'The linear solver produced a NaN (not a number) &
           for Inf (infinite number) likely due to a divide by zero (0/0).'
       else
         error_string = 'KSP_DIVERGED_NANORINF'
       endif
     case(KSP_DIVERGED_INDEFINITE_MAT)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         error_string = 'The linear solver failed due to an indefinite matrix.'
       else
         error_string = 'KSP_DIVERGED_INDEFINITE_MAT'
       endif
     case(KSP_DIVERGED_PCSETUP_FAILED)
-      if (solver%verbose_error_msg) then
+      if (solver%verbose_logging) then
         error_string = 'Preconditioner setup failed.'
         pc = solver%pc
         call PCGetType(pc,pc_type,ierr);CHKERRQ(ierr)
@@ -1494,13 +1475,11 @@ subroutine SolverLinearPrintFailedReason(solver,option)
             call PCBJacobiGetSubKSP(pc,nsub_ksp,first_sub_ksp, &
                                     PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
             allocate(sub_ksps(nsub_ksp))
-            sub_ksps = PETSC_NULL_KSP
             call PCBJacobiGetSubKSP(pc,nsub_ksp,first_sub_ksp, &
                                     sub_ksps,ierr);CHKERRQ(ierr)
             if (nsub_ksp > 1) then
-              option%io_buffer = 'NSUB_KSP > 1.  What to do?  Email pflotran&
-                &-dev@googlegroups.com.'
-              call printErrMsg(option)
+              option%io_buffer = 'NSUB_KSP > 1.  What to do?'
+              call PrintErrMsgToDev('',option)
             endif
             do i = 1, nsub_ksp
               call KSPGetPC(sub_ksps(i),pc,ierr);CHKERRQ(ierr)
@@ -1549,9 +1528,8 @@ subroutine SolverLinearPrintFailedReason(solver,option)
               &tolerance (' // trim(adjustl(word)) // &
               ') is too large due to a zero pivot of ' // &
               trim(adjustl(word2)) // '. Please set a ZERO_PIVOT_TOL smaller &
-              &than that value or email pflotran-dev@googlegroups.com with &
-              &this information for guidance.'
-            call printErrMsg(option)
+              &than that value.'
+            call PrintErrMsgToDev('if you need further help',option)
         end select
       else
         error_string = 'KSP_DIVERGED_PCSETUP_FAILED'

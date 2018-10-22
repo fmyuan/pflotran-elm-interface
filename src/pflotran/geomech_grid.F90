@@ -10,10 +10,6 @@ module Geomechanics_Grid_module
 
   private 
 
-#if defined(SCORPIO)
-  include "scorpiof.h"
-#endif
-
   !  PetscInt, parameter :: HEX_TYPE          = 1
   !  PetscInt, parameter :: TET_TYPE          = 2
   !  PetscInt, parameter :: WEDGE_TYPE        = 3
@@ -1186,8 +1182,8 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
       vertex_ids_geomech(count) = temp_int
       if (count+1 > max_size) then ! resize temporary array
         max_size_old = max_size
-        call reallocateIntArray(cell_ids_flow, max_size_old)
-        call reallocateIntArray(vertex_ids_geomech, max_size)
+        call ReallocateArray(cell_ids_flow, max_size_old)
+        call ReallocateArray(vertex_ids_geomech, max_size)
       endif
     enddo
 

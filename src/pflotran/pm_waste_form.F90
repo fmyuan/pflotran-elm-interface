@@ -19,6 +19,7 @@ module PM_Waste_Form_class
   use Data_Mediator_Vec_class
   use Dataset_Base_class
   use Region_module
+  use Checkpoint_module
  
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
@@ -357,11 +358,14 @@ module PM_Waste_Form_class
     procedure, public :: FinalizeTimestep => PMWFFinalizeTimestep
     procedure, public :: UpdateSolution => PMWFUpdateSolution
     procedure, public :: Solve => PMWFSolve
-    procedure, public :: Checkpoint => PMWFCheckpoint    
-    procedure, public :: Restart => PMWFRestart  
+    procedure, public :: CheckpointHDF5 => PMWFCheckpointHDF5
+    procedure, public :: CheckpointBinary => PMWFCheckpointBinary
+    procedure, public :: RestartHDF5 => PMWFRestartHDF5  
+    procedure, public :: RestartBinary => PMWFRestartBinary
     procedure, public :: InputRecord => PMWFInputRecord
     procedure, public :: Destroy => PMWFDestroy
   end type pm_waste_form_type
+
 ! -------------------------------------------------------------------
   
   public :: PMWFCreate, &
@@ -707,6 +711,7 @@ function PMWFCreate()
   PMWFCreate%print_mass_balance = PETSC_FALSE
   PMWFCreate%implicit_solution = PETSC_FALSE
   PMWFCreate%name = 'waste form general'
+  PMWFCreate%header = 'WASTE FORM (GENERAL)'
 
   call PMBaseInit(PMWFCreate)
 
@@ -1314,11 +1319,10 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               k = k + 1
               if (k > 50) then
                 option%io_buffer = 'More than 50 radionuclide species are &
-                                 &provided in the ' // trim(error_string) // &
-                                 ', SPECIES block. Reduce to less than 50 &
-                                 &species, or e-mail pflotran-dev at &
-                                 &googlegroups dot com.'
-                call printErrMsg(option)
+                  &provided in the ' // trim(error_string) // &
+                  ', SPECIES block.'
+                call PrintErrMsgToDev('if reducing to less than 50 is not &
+                                      an option.',option)
               endif
               temp_species_array(k) = PMWFRadSpeciesCreate() 
               ! read species name
@@ -2072,7 +2076,7 @@ subroutine PMWFSetup(this)
   class(waste_form_base_type), pointer :: prev_waste_form
   class(waste_form_base_type), pointer :: next_waste_form
   class(wf_mechanism_base_type), pointer :: cur_mechanism
-  PetscInt :: waste_form_id
+  PetscInt :: waste_form_id, num_species
   PetscInt :: i, j
   PetscBool :: local, found
   PetscErrorCode :: ierr
@@ -2263,6 +2267,31 @@ subroutine PMWFSetup(this)
     cur_mechanism => cur_mechanism%next
   enddo
   
+  cur_waste_form => this%waste_form_list
+  do
+    if (.not.associated(cur_waste_form)) exit
+    num_species = cur_waste_form%mechanism%num_species
+    
+    allocate(cur_waste_form%cumulative_mass(num_species))
+    cur_waste_form%cumulative_mass = 0.d0
+    allocate(cur_waste_form%rad_mass_fraction(num_species))
+    cur_waste_form%rad_mass_fraction = &
+      cur_waste_form%mechanism%rad_species_list%mass_fraction
+    allocate(cur_waste_form%rad_concentration(num_species))
+    cur_waste_form%rad_concentration = 0.d0
+    allocate(cur_waste_form%instantaneous_mass_rate(num_species))
+    cur_waste_form%instantaneous_mass_rate = 0.d0
+    allocate(cur_waste_form%inst_release_amount(num_species))
+    cur_waste_form%inst_release_amount = 0.d0
+    do j = 1, num_species
+      cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
+        GetPrimarySpeciesIDFromName( &
+        cur_waste_form%mechanism%rad_species_list(j)%name, &
+        this%realization%reaction,this%option)
+    enddo
+    cur_waste_form => cur_waste_form%next
+  enddo
+  
   
 end subroutine PMWFSetup
 
@@ -2308,34 +2337,11 @@ end subroutine PMWFSetup
   PetscInt, allocatable :: species_indices_in_residual(:)
   PetscErrorCode :: ierr
 ! -------------------------------------------------------
-
-  cur_waste_form => this%waste_form_list
-  do
-    if (.not.associated(cur_waste_form)) exit
-    num_species = cur_waste_form%mechanism%num_species
-    allocate(cur_waste_form%instantaneous_mass_rate(num_species))
-    allocate(cur_waste_form%cumulative_mass(num_species))
-    cur_waste_form%instantaneous_mass_rate = 0.d0
-    cur_waste_form%cumulative_mass = 0.d0
-    allocate(cur_waste_form%rad_mass_fraction(num_species))
-    allocate(cur_waste_form%rad_concentration(num_species))
-    allocate(cur_waste_form%inst_release_amount(num_species))
-    cur_waste_form%rad_mass_fraction = &
-      cur_waste_form%mechanism%rad_species_list%mass_fraction
-    cur_waste_form%rad_concentration = 0.d0
-    cur_waste_form%inst_release_amount = 0.d0
-    do j = 1, num_species
-      cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
-        GetPrimarySpeciesIDFromName( &
-        cur_waste_form%mechanism%rad_species_list(j)%name, &
-        this%realization%reaction,this%option)
-    enddo
-    cur_waste_form => cur_waste_form%next
-  enddo
   
   ! restart
   if (this%option%restart_flag .and. &
-      this%option%overwrite_restart_transport) then
+      this%option%overwrite_restart_wf) then
+      call PMWFSetup(this)
   endif
   
   if (this%print_mass_balance) then
@@ -2509,9 +2515,7 @@ subroutine PMWFInitializeTimestep(this)
   grid => this%realization%patch%grid
   dt = option%tran_dt
   
-  if (option%print_screen_flag) then
-    write(*,'(/,2("=")," WASTE FORM MODEL ",60("="))')
-  endif
+  call PMBasePrintHeader(this)
 
   ! zero entries from previous time step
   call VecZeroEntries(this%data_mediator%vec,ierr);CHKERRQ(ierr)
@@ -3012,9 +3016,8 @@ subroutine PMWFSolve(this,time,ierr)
   if ((fmdm_count_global > 0) .and. &
       this%realization%option%print_screen_flag) then
     write(word,'(i5)') fmdm_count_global
-    write(*,'(/,2("=")," FMDM ",72("="))')
   ! ** START (this can be removed after FMDM profiling is finished) **
-    write(*,'(a)') '== ' // adjustl(trim(word)) // ' calls to FMDM.'
+    write(*,'(a)') '== ' // adjustl(trim(word)) // ' call(s) to FMDM.'
   ! ** END (this can be removed after FMDM profiling is finished) **
   endif
   
@@ -3806,90 +3809,630 @@ end subroutine PMWFOutputHeader
 
 ! ***************************************************************************** !
 
-subroutine PMWFCheckpoint(this,viewer)
+subroutine PMWFCheckpointHDF5(this,pm_grp_id)
   ! 
   ! Checkpoints data associated with the waste form process model
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 08/26/15
+  ! into the "canister_properties" dataset for a given wf pm: 
+  ! canister vitality (1), canister volume (2), breach time (3),
+  ! radionuclide mass fraction (4:2:end-1), 
+  ! cumulative mass released (5:2:end) .
+
   !
+  ! Author: Michael Nole
+  ! Date: 09/21/18
+  ! 
+
+#if  !defined(PETSC_HAVE_HDF5)
+  implicit none
+  class(pm_waste_form_type) :: this
+  integer :: pm_grp_id
+  type(option_type) :: option
+  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
+        'write HDF5 formatted checkpoint file. Darn.'
+  stop
+#else
+
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use Option_module
+  use Realization_Subsurface_class
+  use hdf5
+  use HDF5_module, only : HDF5WriteDataSetFromVec
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): waste form process model object
-! viewer (input): PETSc viewer object
-! ---------------------------------
+  ! Input Arguments
   class(pm_waste_form_type) :: this
-  PetscViewer :: viewer
-! ---------------------------------
+
+  integer(HID_T) :: pm_grp_id
+
+  ! Local Variables
+  IS :: is
+  VecScatter :: scatter_ctx
+  Vec :: global_wf_vec, local_wf_vec
   
-! LOCAL VARIABLES:
-! ================
-! ------------------------------------------------------
-  class(waste_form_base_type), pointer :: cur_waste_form
-  PetscInt :: maximum_waste_form_id
-  PetscInt :: local_waste_form_count
-  PetscInt :: temp_int
-  Vec :: local, global
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  
   PetscErrorCode :: ierr
-! ------------------------------------------------------
+  PetscInt :: local_stride, n_wf_local, n_wf_global, n_check_vars, &
+              n_vecs, local_stride_tmp, i, j, num_species, stride
+  PetscInt, allocatable :: indices(:), int_array(:)
+  PetscReal, allocatable :: check_vars(:)
   
-  this%option%io_buffer = 'PMWFCheckpoint not implemented.'
-  call printErrMsg(this%option)
+  class(waste_form_base_type), pointer :: cur_waste_form
   
-  ! calculate maximum waste form id
-  maximum_waste_form_id = 0
-  local_waste_form_count = 0
+  cur_waste_form => this%waste_form_list
+  
+  local_stride=0
+  local_stride_tmp=0
+  n_wf_local=0
+  n_wf_global=0
+  
+  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_vecs=2 !number of vector wf checkpoint variables (by species)
+  
+  do 
+    if (.not.associated(cur_waste_form)) exit
+    n_wf_local=n_wf_local+1
+    local_stride_tmp=local_stride_tmp+n_check_vars+&
+                     cur_waste_form%mechanism%num_species*n_vecs
+    cur_waste_form => cur_waste_form%next
+    if (local_stride_tmp>local_stride) then
+      local_stride=local_stride_tmp
+    endif
+    local_stride_tmp=0
+  enddo
+  
+  cur_waste_form => this%waste_form_list
+  allocate(int_array(n_wf_local))
+  i=1
+  do
+    if (.not.associated(cur_waste_form)) exit
+    int_array(i)=cur_waste_form%id-1
+    i=i+1
+    cur_waste_form => cur_waste_form%next
+  enddo
+  
+  
+  !Gather relevant information from all processes
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI, &
+                     MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+  
+  !Create MPI vector and sequential vector for mapping
+  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,&
+                    n_wf_global*stride,& 
+                    global_wf_vec,ierr);CHKERRQ(ierr)
+                    
+  call VecCreateSeq(PETSC_COMM_SELF, n_wf_local*stride,local_wf_vec, &
+                    ierr); CHKERRQ(ierr)
+  
+  call VecSetBlockSize(global_wf_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wf_vec, stride, ierr);CHKERRQ(ierr)
+                                    
+                    
+  allocate(check_vars(stride))
+  allocate(indices(stride))
+  
+  !Collect data for checkpointing
+  j=1
   cur_waste_form => this%waste_form_list
   do
     if (.not.associated(cur_waste_form)) exit
-    local_waste_form_count = local_waste_form_count + 1
-    maximum_waste_form_id = max(maximum_waste_form_id,cur_waste_form%id)
+    num_species=cur_waste_form%mechanism%num_species
+    check_vars(1)=cur_waste_form%canister_vitality
+    check_vars(2)=cur_waste_form%volume
+    check_vars(3)=cur_waste_form%breach_time
+    
+    do i = 1,num_species
+      check_vars(n_vecs*i-1+n_check_vars)=cur_waste_form%rad_mass_fraction(i)
+      check_vars(n_vecs*i-1+n_check_vars+1)=cur_waste_form%cumulative_mass(i)
+    enddo
+    i=n_vecs*num_species+n_check_vars+1
+    do
+      if (i>stride) exit
+      check_vars(i)=-9999
+      i=i+1
+    enddo
+    
+    do i = 1,stride
+      indices(i)=(j-1)*stride+i-1
+    enddo
+    j=j+1
+    
+    call VecSetValues(local_wf_vec,stride,indices,check_vars, &
+                     INSERT_VALUES,ierr);CHKERRQ(ierr)
     cur_waste_form => cur_waste_form%next
+
   enddo
-  call MPI_Allreduce(maximum_waste_form_id,temp_int,ONE_INTEGER_MPI, &
-                     MPIU_INTEGER,MPI_MAX,this%option%mycomm,ierr)
-!  call VecCreateMPI(this%option%mycomm,local_waste_form_count,PETSC_DETERMINE,ierr)
   
-                     
-end subroutine PMWFCheckpoint
+  !Create map and add values from the sequential vector to the global 
+  call ISCreateBlock(this%option%mycomm,stride,n_wf_local,int_array, &
+                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+  
+  call VecScatterCreate(local_wf_vec,PETSC_NULL_IS,global_wf_vec, &
+                        is,scatter_ctx, ierr);CHKERRQ(ierr)
+                        
+  call VecScatterBegin(scatter_ctx, local_wf_vec, global_wf_vec, &  
+                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx, local_wf_vec, global_wf_vec, & 
+                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  
+  dataset_name='canister_properties'
+  
+  !Write the checkpoint file
+  call HDF5WriteDataSetFromVec(dataset_name, this%option, global_wf_vec,&
+           pm_grp_id, H5T_NATIVE_DOUBLE)
+           
+  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
+  call ISDestroy(is, ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wf_vec, ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wf_vec, ierr);CHKERRQ(ierr)
+#endif
+
+end subroutine PMWFCheckpointHDF5
 
 ! ***************************************************************************** !
 
-subroutine PMWFRestart(this,viewer)
+
+subroutine PMWFRestartHDF5(this,pm_grp_id)
   ! 
-  ! Restarts data associated with Subsurface PM
+  ! Restarts data associated with waste form process model
+  ! from the "canister_properties" dataset for a given wf pm: 
+  ! canister vitality (1), canister volume (2), breach time (3),
+  ! radionuclide mass fraction (4:2:end-1), 
+  ! cumulative mass released (5:2:end) .
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 08/26/15
+  ! Author: Michael Nole
+  ! Date: 10/03/18
+#if  !defined(PETSC_HAVE_HDF5)
+  implicit none
+  class(pm_waste_form_type) :: this
+  integer :: pm_grp_id
+  type(option_type) :: option
+  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
+        'write HDF5 formatted checkpoint file. Darn.'
+  stop
+#else
+
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Option_module
+  use Realization_Subsurface_class
+  use hdf5
+  use HDF5_module, only : HDF5ReadDataSetInVec
 
   implicit none
-#include "petsc/finclude/petscviewer.h"      
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): waste form process model object
-! viewer (input): PETSc viewer object
-! ---------------------------------
+  ! Input Arguments
   class(pm_waste_form_type) :: this
-  PetscViewer :: viewer
-! ---------------------------------
-  
-  this%option%io_buffer = 'PMWFRestart not implemented.'
-  call printErrMsg(this%option)
 
-!  call RestartFlowProcessModel(viewer,this%realization)
-!  call this%UpdateAuxVars()
-!  call this%UpdateSolution()
+  integer(HID_T) :: pm_grp_id
+
+  ! Local Variables
+  IS :: is
+  VecScatter :: scatter_ctx
+  character(len=MAXSTRINGLENGTH) :: dataset_name
   
-end subroutine PMWFRestart
+  PetscErrorCode :: ierr
+  PetscInt :: local_stride, n_wf_local, n_wf_global, n_check_vars, &
+              n_vecs, local_stride_tmp, i, j, num_species, stride
+  PetscInt, allocatable :: int_array(:)
+  PetscReal, pointer :: local_wf_array(:)
+
+  class(waste_form_base_type), pointer :: cur_waste_form
+  
+  Vec :: global_wf_vec, local_wf_vec
+
+  cur_waste_form => this%waste_form_list
+  
+  local_stride=0
+  local_stride_tmp=0
+  n_wf_local=0
+  n_wf_global=0
+  
+  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_vecs=2 !number of vector wf checkpoint variables (by species)
+  
+  do 
+    if (.not.associated(cur_waste_form)) exit
+    n_wf_local=n_wf_local+1
+    local_stride_tmp=local_stride_tmp+n_check_vars+&
+                     cur_waste_form%mechanism%num_species*n_vecs
+    cur_waste_form => cur_waste_form%next
+    if (local_stride_tmp>local_stride) then
+      local_stride=local_stride_tmp
+    endif
+    local_stride_tmp=0
+  enddo
+  
+  cur_waste_form => this%waste_form_list
+  allocate(int_array(n_wf_local))
+  i=1
+  do
+    if (.not.associated(cur_waste_form)) exit
+    int_array(i)=cur_waste_form%id-1
+    i=i+1
+    cur_waste_form => cur_waste_form%next
+  enddo
+  
+  !Gather relevant information
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI, &
+                     MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+                     
+  !Create MPI vector into which HDF5 will read, and sequential vector
+  !for wf information on a given process.
+  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,&
+                    n_wf_global*stride,& 
+                    global_wf_vec,ierr);CHKERRQ(ierr)
+  
+  call VecCreateSeq(PETSC_COMM_SELF, n_wf_local*stride,local_wf_vec, &
+                    ierr); CHKERRQ(ierr)
+  
+  call VecSetBlockSize(global_wf_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wf_vec, stride, ierr);CHKERRQ(ierr)
+  
+  !Read the data
+  dataset_name = 'canister_properties'
+  call HDF5ReadDataSetInVec(dataset_name, this%option, global_wf_vec, &
+                             pm_grp_id, H5T_NATIVE_DOUBLE)
+  
+  !Create map between MPI and sequential vectors
+  call ISCreateBlock(this%option%mycomm,stride,n_wf_local,int_array, &
+                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+                     
+  call VecScatterCreate(global_wf_vec,is,local_wf_vec, &
+                        PETSC_NULL_IS,scatter_ctx, ierr);CHKERRQ(ierr)
+  
+  !Get the data from the MPI vector
+  call VecScatterBegin(scatter_ctx, global_wf_vec, local_wf_vec, &  
+                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx, global_wf_vec, local_wf_vec, & 
+                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  
+  !Convert the data to a Fortran array
+  call VecGetArrayF90(local_wf_vec, local_wf_array, ierr); CHKERRQ(ierr)
+
+  !Assign checkpointed waste form attribute values
+  i=1
+  cur_waste_form => this%waste_form_list
+  do
+    if (.not.associated(cur_waste_form)) exit
+    num_species=cur_waste_form%mechanism%num_species
+    
+    allocate(cur_waste_form%rad_mass_fraction(num_species))
+    allocate(cur_waste_form%cumulative_mass(num_species))
+    
+    cur_waste_form%canister_vitality=local_wf_array(i)
+    cur_waste_form%volume=local_wf_array(i+1)
+    cur_waste_form%breach_time=local_wf_array(i+2)
+    if (cur_waste_form%breach_time<0) then
+      cur_waste_form%breached=PETSC_FALSE
+    else
+      cur_waste_form%breached=PETSC_TRUE
+    endif
+    
+    do j = 1,num_species
+      cur_waste_form%rad_mass_fraction(j)=local_wf_array(2*(j-1)+i+n_check_vars)
+      cur_waste_form%cumulative_mass(j)=local_wf_array(2*j-1+i+n_check_vars)
+    enddo
+    cur_waste_form => cur_waste_form%next
+    i=i+stride
+  enddo
+  
+  call VecRestoreArrayF90(local_wf_vec, local_wf_array, ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
+  call ISDestroy(is, ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wf_vec, ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wf_vec, ierr);CHKERRQ(ierr)
+
+#endif
+  
+end subroutine PMWFRestartHDF5
 
 ! ************************************************************************** !
+subroutine PMWFCheckpointBinary(this, viewer)
+  ! 
+  ! Checkpoints data associated with the waste form process model
+  ! into a checkpiont binary file for a given wf pm: 
+  ! canister vitality (1), canister volume (2), breach time (3),
+  ! radionuclide mass fraction (4:2:end-1), 
+  ! cumulative mass released (5:2:end) .
+
+  !
+  ! Author: Michael Nole
+  ! Date: 10/09/18
+  ! 
+
+  use petscvec
+  use Option_module
+  use Realization_Subsurface_class
+  use Realization_Base_class
+  use Field_module
+  use Discretization_module
+  use Grid_module
+  
+  implicit none
+  
+  !Input Arguments
+  PetscViewer :: viewer
+  class(pm_waste_form_type) :: this
+  
+  ! Local Variables
+  
+  IS :: is
+  VecScatter :: scatter_ctx
+  Vec :: global_wf_vec, local_wf_vec
+  
+  PetscErrorCode :: ierr
+  PetscInt :: local_stride, n_wf_local, n_wf_global, n_check_vars, &
+              n_vecs, local_stride_tmp, i, j, num_species, stride
+  PetscInt, allocatable :: indices(:), int_array(:)
+  PetscReal, allocatable :: check_vars(:)
+  
+  class(waste_form_base_type), pointer :: cur_waste_form
+  
+  cur_waste_form => this%waste_form_list
+  
+  local_stride=0
+  local_stride_tmp=0
+  n_wf_local=0
+  n_wf_global=0
+  
+  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_vecs=2 !number of vector wf checkpoint variables (by species)
+  
+  do 
+    if (.not.associated(cur_waste_form)) exit
+    n_wf_local=n_wf_local+1
+    local_stride_tmp=local_stride_tmp+n_check_vars+&
+                     cur_waste_form%mechanism%num_species*n_vecs
+    cur_waste_form => cur_waste_form%next
+    if (local_stride_tmp>local_stride) then
+      local_stride=local_stride_tmp
+    endif
+    local_stride_tmp=0
+  enddo
+  
+  cur_waste_form => this%waste_form_list
+  allocate(int_array(n_wf_local))
+  i=1
+  do
+    if (.not.associated(cur_waste_form)) exit
+    int_array(i)=cur_waste_form%id-1
+    i=i+1
+    cur_waste_form => cur_waste_form%next
+  enddo
+  
+  
+  !Gather relevant information from all processes
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI, &
+                     MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)                  
+                     
+  !Create MPI vector and sequential vector for mapping
+  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,&
+                    n_wf_global*stride,& 
+                    global_wf_vec,ierr);CHKERRQ(ierr)
+                    
+  call VecCreateSeq(PETSC_COMM_SELF, n_wf_local*stride,local_wf_vec, &
+                    ierr); CHKERRQ(ierr)
+  
+  call VecSetBlockSize(global_wf_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wf_vec, stride, ierr);CHKERRQ(ierr)
+                                    
+                    
+  allocate(check_vars(stride))
+  allocate(indices(stride))
+  
+  !Collect data for checkpointing
+  j=1
+  cur_waste_form => this%waste_form_list
+  do
+    if (.not.associated(cur_waste_form)) exit
+    num_species=cur_waste_form%mechanism%num_species
+    check_vars(1)=cur_waste_form%canister_vitality
+    check_vars(2)=cur_waste_form%volume
+    check_vars(3)=cur_waste_form%breach_time
+    
+    do i = 1,num_species
+      check_vars(n_vecs*i-1+n_check_vars)=cur_waste_form%rad_mass_fraction(i)
+      check_vars(n_vecs*i-1+n_check_vars+1)=cur_waste_form%cumulative_mass(i)
+    enddo
+    i=n_vecs*num_species+n_check_vars+1
+    do
+      if (i>stride) exit
+      check_vars(i)=-9999
+      i=i+1
+    enddo
+    
+    do i = 1,stride
+      indices(i)=(j-1)*stride+i-1
+    enddo
+    j=j+1
+    
+    call VecSetValues(local_wf_vec,stride,indices,check_vars, &
+                     INSERT_VALUES,ierr);CHKERRQ(ierr)
+    cur_waste_form => cur_waste_form%next
+
+  enddo
+  
+  !Create map and add values from the sequential vector to the global 
+  call ISCreateBlock(this%option%mycomm,stride,n_wf_local,int_array, &
+                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+  
+  call VecScatterCreate(local_wf_vec,PETSC_NULL_IS,global_wf_vec, &
+                        is,scatter_ctx, ierr);CHKERRQ(ierr)
+                        
+  call VecScatterBegin(scatter_ctx, local_wf_vec, global_wf_vec, &  
+                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx, local_wf_vec, global_wf_vec, & 
+                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  
+  !Write the checkpoint file
+
+  call VecView(global_wf_vec,viewer,ierr);CHKERRQ(ierr)         
+           
+  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
+  call ISDestroy(is, ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wf_vec, ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wf_vec, ierr);CHKERRQ(ierr)
+  
+  
+
+end subroutine PMWFCheckpointBinary
+
+! ***************************************************************************** !
+
+subroutine PMWFRestartBinary(this, viewer)
+
+  ! 
+  ! Restarts data associated with waste form process model
+  ! from a checkpoint binary file for a given wf pm: 
+  ! canister vitality (1), canister volume (2), breach time (3),
+  ! radionuclide mass fraction (4:2:end-1), 
+  ! cumulative mass released (5:2:end) .
+  ! 
+  ! Author: Michael Nole
+  ! Date: 10/09/18
+
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Option_module
+  use Realization_Subsurface_class
+  use hdf5
+  use HDF5_module, only : HDF5ReadDataSetInVec
+
+  implicit none
+
+  ! Input Arguments
+  PetscViewer :: viewer
+  class(pm_waste_form_type) :: this
+
+  ! Local Variables
+  IS :: is
+  VecScatter :: scatter_ctx
+  
+  PetscErrorCode :: ierr
+  PetscInt :: local_stride, n_wf_local, n_wf_global, n_check_vars, &
+              n_vecs, local_stride_tmp, i, j, num_species, stride
+  PetscInt, allocatable :: int_array(:)
+  PetscReal, pointer :: local_wf_array(:)
+
+  class(waste_form_base_type), pointer :: cur_waste_form
+  
+  Vec :: global_wf_vec, local_wf_vec
+
+  cur_waste_form => this%waste_form_list
+  
+  local_stride=0
+  local_stride_tmp=0
+  n_wf_local=0
+  n_wf_global=0
+  
+  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_vecs=2 !number of vector wf checkpoint variables (by species)
+  
+  do 
+    if (.not.associated(cur_waste_form)) exit
+    n_wf_local=n_wf_local+1
+    local_stride_tmp=local_stride_tmp+n_check_vars+&
+                     cur_waste_form%mechanism%num_species*n_vecs
+    cur_waste_form => cur_waste_form%next
+    if (local_stride_tmp>local_stride) then
+      local_stride=local_stride_tmp
+    endif
+    local_stride_tmp=0
+  enddo
+  
+  cur_waste_form => this%waste_form_list
+  allocate(int_array(n_wf_local))
+  i=1
+  do
+    if (.not.associated(cur_waste_form)) exit
+    int_array(i)=cur_waste_form%id-1
+    i=i+1
+    cur_waste_form => cur_waste_form%next
+  enddo
+  
+  !Gather relevant information
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI, &
+                     MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+                     
+  !Create MPI vector into which HDF5 will read, and sequential vector
+  !for wf information on a given process.
+  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,&
+                    n_wf_global*stride,& 
+                    global_wf_vec,ierr);CHKERRQ(ierr)
+  
+  call VecCreateSeq(PETSC_COMM_SELF, n_wf_local*stride,local_wf_vec, &
+                    ierr); CHKERRQ(ierr)
+  
+  call VecSetBlockSize(global_wf_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wf_vec, stride, ierr);CHKERRQ(ierr)
+  
+  !Read the data
+  call VecLoad(global_wf_vec,viewer, ierr);CHKERRQ(ierr)
+  
+  !Create map between MPI and sequential vectors
+  call ISCreateBlock(this%option%mycomm,stride,n_wf_local,int_array, &
+                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+                     
+  call VecScatterCreate(global_wf_vec,is,local_wf_vec, &
+                        PETSC_NULL_IS,scatter_ctx, ierr);CHKERRQ(ierr)
+  
+  !Get the data from the MPI vector
+  call VecScatterBegin(scatter_ctx, global_wf_vec, local_wf_vec, &  
+                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx, global_wf_vec, local_wf_vec, & 
+                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  
+  !Convert the data to a Fortran array
+  call VecGetArrayF90(local_wf_vec, local_wf_array, ierr); CHKERRQ(ierr)
+
+  !Assign checkpointed waste form attribute values
+  i=1
+  cur_waste_form => this%waste_form_list
+  do
+    if (.not.associated(cur_waste_form)) exit
+    num_species=cur_waste_form%mechanism%num_species
+    
+    allocate(cur_waste_form%rad_mass_fraction(num_species))
+    allocate(cur_waste_form%cumulative_mass(num_species))
+    
+    cur_waste_form%canister_vitality=local_wf_array(i)
+    cur_waste_form%volume=local_wf_array(i+1)
+    cur_waste_form%breach_time=local_wf_array(i+2)
+    if (cur_waste_form%breach_time<0) then
+      cur_waste_form%breached=PETSC_FALSE
+    else
+      cur_waste_form%breached=PETSC_TRUE
+    endif
+    
+    do j = 1,num_species
+      cur_waste_form%rad_mass_fraction(j)=local_wf_array(2*(j-1)+i+n_check_vars)
+      cur_waste_form%cumulative_mass(j)=local_wf_array(2*j-1+i+n_check_vars)
+    enddo
+    cur_waste_form => cur_waste_form%next
+    i=i+stride
+  enddo
+  
+  call VecRestoreArrayF90(local_wf_vec, local_wf_array, ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
+  call ISDestroy(is, ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wf_vec, ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wf_vec, ierr);CHKERRQ(ierr)
+
+
+end subroutine PMWFRestartBinary
+
+! ***************************************************************************** !
 
 subroutine PMWFInputRecord(this)
   ! 
@@ -4078,3 +4621,4 @@ end subroutine PMWFDestroy
 ! ************************************************************************** !
   
 end module PM_Waste_Form_class
+

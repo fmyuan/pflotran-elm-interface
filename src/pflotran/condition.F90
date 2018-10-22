@@ -2123,8 +2123,15 @@ subroutine FlowConditionGeneralRead(condition,input,option)
             &a temperature'
           call printErrMsg(option)
         endif
-        if (associated(general%gas_pressure) .and. &
-            associated(general%gas_saturation)) then
+        if ( associated(general%gas_pressure) .and. &
+             associated(general%gas_saturation) .and. &
+             associated(general%liquid_pressure) .and. &
+             (associated(general%mole_fraction) .or. &
+              associated(general%relative_humidity)) ) then
+          ! multiphase condition
+          condition%iphase = MULTI_STATE
+        else if (associated(general%gas_pressure) .and. &
+                 associated(general%gas_saturation)) then
           ! two phase condition
           condition%iphase = TWO_PHASE_STATE
         else if (associated(general%liquid_pressure) .and. &
@@ -3210,8 +3217,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
     phase_state_found=PETSC_FALSE
     if ( associated(towg%oil_pressure  ) .and. &
          associated(towg%oil_saturation) ) then
-
-      if( towg_miscibility_model == TOWG_BLACK_OIL ) then
+      if (     (towg_miscibility_model == TOWG_BLACK_OIL ) &
+           .or.(towg_miscibility_model == TOWG_SOLVENT_TL) ) then
 ! Setup for black oil case - needs gas saturation and/or bubble point
         if(      associated(towg%gas_saturation) &
            .and. associated(towg%bubble_point  ) ) then
@@ -3761,7 +3768,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
         StringCompare(word,'file',FOUR_INTEGER)) then 
       input%err_buf2 = trim(keyword) // ', FILE'
       input%err_buf = 'keyword'
-      call InputReadNChars(input,option,string2,MAXSTRINGLENGTH,PETSC_TRUE)
+      call InputReadFilename(input,option,string2)
       if (input%ierr == 0) then
         filename = string2
       else

@@ -75,6 +75,7 @@ function PMGeneralCreate()
   
   call PMSubsurfaceFlowCreate(general_pm)
   general_pm%name = 'General Multiphase Flow'
+  general_pm%header = 'GENERAL MULTIPHASE FLOW'
 
   PMGeneralCreate => general_pm
   
@@ -279,6 +280,7 @@ subroutine PMGeneralInitializeTimestep(this)
   use Global_module
   use Variables_module, only : TORTUOSITY
   use Material_module, only : MaterialAuxVarCommunicate
+  use Option_module
   
   implicit none
   
@@ -291,10 +293,6 @@ subroutine PMGeneralInitializeTimestep(this)
                                  this%realization%field%work_loc,TORTUOSITY, &
                                  ZERO_INTEGER)
                                  
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," GENERAL FLOW ",64("="))')
-  endif
-  
   call GeneralInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)                                 
   
@@ -646,9 +644,8 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
             temp_real = dabs(temp_real / del_liquid_pressure)
           else
             option%io_buffer = 'Something is seriously wrong in ' // &
-              'GeneralCheckUpdatePre(liquid<min).  Contact Glenn through ' // &
-              'pflotran-dev@googlegroups.com.'
-            call printErrMsg(option)
+              'GeneralCheckUpdatePre(liquid<min).'
+            call PrintErrMsgToDev('',option)
           endif
 #ifdef DEBUG_GENERAL_INFO
           if (cell_locator(0) < max_cell_id) then
@@ -832,9 +829,8 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
           if (temp_real <= 0.d0) then
             ! add info on pressures here
             option%io_buffer = 'Something is seriously wrong in ' // &
-              'GeneralCheckUpdatePre(gas<=air).  Contact Glenn through ' // &
-              'pflotran-dev@googlegroups.com.'
-            call printErrMsg(option)
+              'GeneralCheckUpdatePre(gas<=air).'
+            call PrintErrMsgToDev('',option)
           endif
 #ifdef DEBUG_GENERAL_INFO
           if (cell_locator(0) < max_cell_id) then

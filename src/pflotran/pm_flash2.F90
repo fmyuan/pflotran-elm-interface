@@ -56,6 +56,7 @@ function PMFlash2Create()
   allocate(flash2_pm)
   call PMSubsurfaceFlowCreate(flash2_pm)
   flash2_pm%name = 'Flash2 Flow'
+  flash2_pm%header = 'FLASH2 FLOW'
 
   PMFlash2Create => flash2_pm
   
@@ -130,9 +131,6 @@ subroutine PMFlash2InitializeTimestep(this)
   
   class(pm_flash2_type) :: this
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," FLASH2 FLOW ",65("="))')
-  endif
   
   call PMSubsurfaceFlowInitializeTimestepA(this)
   call Flash2InitializeTimestep(this%realization)

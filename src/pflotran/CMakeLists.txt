@@ -164,6 +164,8 @@ set(UTIL_SOURCES
 	utility.F90
 	toil_ims_derivs.F90
 	variables.F90
+	derivative_tests.F90
+	derivatives_utilities.F90
 )
 
 set(EOS_SOURCES
@@ -173,6 +175,7 @@ set(EOS_SOURCES
 	eos_database.F90
 	eos_gas.F90
 	eos_oil.F90
+	eos_slv.F90
 	gas_eos_mod.F90
 )
 
@@ -347,6 +350,7 @@ set(IO_SOURCES
 set(MISC_SOURCES
 	block_solve.F90
 	block_tridiag.F90
+	characteristic_curves_table.F90
 	checkpoint.F90
 	condition.F90
 	condition_control.F90
@@ -400,7 +404,6 @@ set(MISC_SOURCES
 	timestepper_BE.F90
 	timestepper_TS.F90
 	transport.F90
-	uniform_velocity.F90
 	waypoint.F90
 	wipp.F90
 	wrapper_hydrogeophysics.F90
@@ -409,6 +412,8 @@ set(MISC_SOURCES
 set(WELL_SOURCES
 	well_spec_base.F90
 	well_base.F90
+	well_data.F90
+	well_solver.F90
 	well_flow.F90
 	well_flow_energy.F90
 	well_water_injector.F90

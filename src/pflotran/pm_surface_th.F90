@@ -52,6 +52,7 @@ function PMSurfaceTHCreate()
   allocate(surface_th_pm)
   call PMSurfaceCreate(surface_th_pm)
   surface_th_pm%name = 'Surface+TH Flow'
+  surface_th_pm%header = 'SURFACE TH FLOW'
 
   PMSurfaceTHCreate => surface_th_pm
 
@@ -124,9 +125,7 @@ subroutine PMSurfaceTHPreSolve(this)
   PetscErrorCode :: ierr
   class(pm_surface_th_type) :: this
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," SURFACE TH FLOW ",61("="))')
-  endif
+  call PMBasePrintHeader(this)
 
 end subroutine PMSurfaceTHPreSolve
 

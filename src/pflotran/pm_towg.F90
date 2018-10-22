@@ -17,7 +17,7 @@ module PM_TOWG_class
     PetscInt, pointer :: max_change_isubvar(:)
     ! A) and B) could be moved to pm_subsurface
     !A) used for truncation within CheckUpdatePre
-    PetscReal :: trunc_max_pressure_change = 5.d4
+    PetscReal :: trunc_max_pressure_change = 5.d10
     PetscInt ::  max_it_before_damping = UNINITIALIZED_INTEGER
     PetscReal :: damping_factor = 0.6d0
     !B) used for convergence criteria within CheckUpdatePost
@@ -100,21 +100,18 @@ function PMTOWGCreate(miscibility_model,option)
       allocate(towg_pm%max_change_isubvar(5))
       towg_pm%max_change_isubvar = [0,0,0,0,0]
     case('SOLVENT_TL')
-      allocate(towg_pm%max_change_ivar(8))
-      towg_pm%max_change_ivar = [OIL_PRESSURE, GAS_PRESSURE, &
-                                 OIL_SATURATION, GAS_SATURATION, &
-                                 OIL_MOLE_FRACTION, GAS_MOLE_FRACTION, &
-                                 TEMPERATURE, SOLVENT_SATURATION]
-      allocate(towg_pm%max_change_isubvar(8))
-                                           !2 = gas in xmol(gas_c,oil_phase)
-      towg_pm%max_change_isubvar = [0,0,0,0,2,1,0,0]
-                                             !1 = gas in xmol(gas_c,gas_phase)
+      allocate(towg_pm%max_change_ivar(6))
+      towg_pm%max_change_ivar = [OIL_PRESSURE, OIL_SATURATION, &
+                                 GAS_SATURATION,SOLVENT_SATURATION,TEMPERATURE,BUBBLE_POINT]
+      allocate(towg_pm%max_change_isubvar(6))
+      towg_pm%max_change_isubvar = [0,0,0,0,0,0]
     case default
       call InputKeywordUnrecognized(miscibility_model, &
                          'TOWG MISCIBILITY_MODEL',option)
   end select
 
-  towg_pm%trunc_max_pressure_change = 5.d4
+  !towg_pm%trunc_max_pressure_change = 5.d4
+  towg_pm%trunc_max_pressure_change = 5.d10
   towg_pm%max_it_before_damping = UNINITIALIZED_INTEGER
   towg_pm%damping_factor = 0.6d0
   towg_pm%itol_rel_update = UNINITIALIZED_DOUBLE
@@ -165,6 +162,7 @@ function PMTOWGCreate(miscibility_model,option)
 
   call PMSubsurfaceFlowCreate(towg_pm)
   towg_pm%name = 'TOWG Flow'
+  towg_pm%header = 'TOWG FLOW'
 
   PMTOWGCreate => towg_pm
   
@@ -223,6 +221,8 @@ subroutine PMTOWGRead(this,input)
       case('TL_OMEGA')
         call InputReadDouble(input,option,val_tl_omega)
         call InputDefaultMsg(input,option,'towg tl_omega')
+      case('FMIS' )
+        call FMISOWGRead(input,option)
       case('ITOL_SCALED_RESIDUAL')
         call InputReadDouble(input,option,this%itol_scaled_res)
         call InputDefaultMsg(input,option,'towg itol_scaled_res')
@@ -374,10 +374,6 @@ subroutine PMTOWGInitializeTimestep(this)
                                  this%realization%field%work_loc,TORTUOSITY, &
                                  ZERO_INTEGER)
                                  
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," TOWG FLOW ",64("="))')
-  endif
-  
   call TOWGInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)                                 
   
@@ -717,6 +713,57 @@ subroutine PMTOWGDestroy(this)
   call PMSubsurfaceFlowDestroy(this)
   
 end subroutine PMTOWGDestroy
+
+subroutine FMISOWGRead(input,option)
+
+!------------------------------------------------------------------------------
+! Read in the parameters describing required fs->fm conversion in TL4P
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : May 2018
+!------------------------------------------------------------------------------
+
+  use Option_module
+  use Input_Aux_module
+  use PM_TOWG_Aux_module
+
+  implicit none
+
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  PetscReal:: fmis_av
+  PetscReal,parameter:: eps=0.001
+
+  character(len=MAXSTRINGLENGTH) :: error_string='FMIS'
+
+!--Basic read operations-------------------------------------------------------
+
+  call InputReadDouble(input,option,fmis_sl)
+  call InputErrorMsg(input,option,'Lower saturation point',error_string)
+  call InputReadDouble(input,option,fmis_su)
+  call InputErrorMsg(input,option,'Upper saturation point',error_string)
+
+!--Order, separation and range checks------------------------------------------
+
+  if(      fmis_sl==1.0d0 ) then
+    fmis_is_zero =.true.
+  else if( fmis_su==0.0d0 ) then
+    fmis_is_unity=.true.
+  else
+    if( fmis_su<=fmis_sl ) then
+      option%io_buffer = 'Second FMIS value must exceed first'
+      call printErrMsg(option)
+      fmis_av=0.5*(fmis_sl+fmis_su)
+      fmis_sl=fmis_av-0.5*eps
+      fmis_su=fmis_av+0.5*eps
+    endif
+  endif
+
+  fmis_sl=max(fmis_sl,0.0d0)
+  fmis_su=min(fmis_su,1.0d0)
+
+end subroutine FMISOWGRead
 
 ! ************************************************************************** !
 

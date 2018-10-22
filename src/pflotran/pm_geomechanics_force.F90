@@ -60,6 +60,7 @@ function PMGeomechForceCreate()
   nullify(geomech_force_pm%comm1)
 
   call PMBaseInit(geomech_force_pm)
+  geomech_force_pm%header = 'GEOMECHANICS'
 
   PMGeomechForceCreate => geomech_force_pm
 
@@ -184,10 +185,7 @@ subroutine PMGeomechForceInitializeTimestep(this)
   call printMsg(this%option,'PMGeomechForce%InitializeTimestep()')
 #endif
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," GEOMECHANICS ",62("="))')
-  endif
-  
+  call PMBasePrintHeader(this)
   call GeomechanicsForceInitialGuess(this%geomech_realization)
   
 end subroutine PMGeomechForceInitializeTimestep

@@ -18,10 +18,6 @@ module Output_module
 
   private
 
-#if defined(SCORPIO_WRITE)
-  include "scorpiof.h"
-#endif
-
   PetscInt, parameter :: TECPLOT_INTEGER = 0
   PetscInt, parameter :: TECPLOT_REAL = 1
 
@@ -823,6 +819,62 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      OUTPUT_GENERIC,units, &
                                      OIL_ENERGY,temp_int)
 
+      case ('SOLVENT_PRESSURE')
+        name = 'Solvent Pressure'
+        units = 'Pa'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_PRESSURE,units, &
+                                     SOLVENT_PRESSURE)
+      case ('SOLVENT_SATURATION')
+        name = 'Solvent Saturation'
+        units = ''
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_SATURATION,units, &
+                                     SOLVENT_SATURATION)
+      case ('SOLVENT_DENSITY')
+        name = 'Solvent Density'
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (input%ierr == 0) then
+          if (StringCompareIgnoreCase(word,'MOLAR')) then
+            units = 'kmol/m^3'
+            temp_int = SOLVENT_DENSITY_MOL
+          else
+            call InputErrorMsg(input,option,'optional keyword', &
+                               'VARIABLES,SOLVENT_DENSITY')
+          endif
+        else
+          units = 'kg/m^3'
+          temp_int = SOLVENT_DENSITY
+        endif
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     temp_int)
+      case ('SOLVENT_MOBILITY')
+        name = 'Solvent Mobility'
+        units = '1/Pa-s'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     SOLVENT_MOBILITY)
+      case ('SOLVENT_ENERGY')
+        name = 'Solvent Energy'
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (input%ierr == 0) then
+          if (StringCompareIgnoreCase(word,'PER_VOLUME')) then
+            units = 'MJ/m^3'
+            temp_int = ONE_INTEGER
+          else
+            input%ierr = 1
+            call InputErrorMsg(input,option,'optional keyword', &
+                               'VARIABLES,SOLVENT_ENERGY')
+          endif
+        else
+          units = 'MJ/kmol'
+          temp_int = ZERO_INTEGER
+        endif
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     SOLVENT_ENERGY,temp_int)
+
       case ('BUBBLE_POINT')
         name = 'Bubble Point'
         units = 'Pa'
@@ -1000,6 +1052,18 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      GAS_PERMEABILITY_Z)
+      case ('LIQUID_RELATIVE_PERMEABILITY')
+        units = '-'
+        name = 'Liquid Relative Permeability'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     LIQUID_REL_PERM)
+      case ('GAS_RELATIVE_PERMEABILITY')
+        units = '-'
+        name = 'Gas Relative Permeability'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     GAS_REL_PERM)
       case ('SOIL_COMPRESSIBILITY')
         units = ''
         name = 'Compressibility'
@@ -1137,11 +1201,6 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       endif      
       call PetscLogEventEnd(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
       call PetscTime(tend,ierr);CHKERRQ(ierr)
-#ifdef SCORPIO_WRITE
-      if (option%myrank == 0) write (*,'(" Parallel IO Write method is used in &
-        &writing the output, HDF5_WRITE_GROUP_SIZE = ",i5)') &
-        option%hdf5_write_group_size
-#endif
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') &
             tend-tstart
       call printMsg(option)

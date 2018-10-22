@@ -1784,7 +1784,7 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   PetscReal :: well_inj_water
   PetscReal :: Dq, dphi, v_darcy, ukvr
 
-  Mat, parameter :: null_mat = tMat(-1)
+  Mat, parameter :: null_mat = tMat(0)
 
   PetscErrorCode :: ierr
 
@@ -1993,7 +1993,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
 
   ! Accumulation terms ------------------------------------
   if (.not.option%steady_state) then
-    r_p = r_p - accum_p
+    r_p(1:grid%nlmax) = r_p(1:grid%nlmax) - accum_p(1:grid%nlmax)
 
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
@@ -2701,7 +2701,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   PetscReal :: pressure_max
   PetscReal :: pressure_min
   PetscReal :: ukvr, Dq, dphi, v_darcy
-  Vec, parameter :: null_vec = tVec(-1)
+  Vec, parameter :: null_vec = tVec(0)
   character(len=MAXSTRINGLENGTH) :: string
 
   patch => realization%patch

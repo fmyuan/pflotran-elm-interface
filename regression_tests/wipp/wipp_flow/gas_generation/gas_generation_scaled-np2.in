@@ -10,23 +10,19 @@ SIMULATION
       MODE WIPP_FLOW
       OPTIONS
         HARMONIC_PERMEABILITY_ONLY
-        DO_NOT_LSCALE
-        FIX_UPWIND_DIRECTION
+#        DO_NOT_SCALE_JACOBIAN
         GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! H2 kg/kmol
-        LIQUID_EQUATION_TOLERANCE 1.d-6
-        GAS_EQUATION_TOLERANCE 1.d-6
-        LIQUID_PRESSURE_TOLERANCE 1.d-5
-        DTIMEMAX   1.25
-        SATLIMIT   1.d-3
-        DSATLIM    0.20
-        DSAT_MAX   1.0d-2
-        SATNORM    3.d-1
-        TSWITCH    1.d-2
-        EPS_PRES   1.d-3
-        EPS_SAT    4
-        DPRELIM   -1.d8   ! Pa
-        DPRES_MAX  1.d7   ! Pa
-        PRESNORM   5.d5   ! Pa
+        LIQUID_RESIDUAL_INFINITY_TOL 1.d-6
+        GAS_RESIDUAL_INFINITY_TOL 1.d-6
+        MAX_ALLOW_REL_LIQ_PRES_CHANG_NI 1.d-5
+        GAS_SAT_THRESH_FORCE_EXTRA_NI   1.d-3
+        GAS_SAT_THRESH_FORCE_TS_CUT    0.20
+        MAX_ALLOW_GAS_SAT_CHANGE_TS   1.0d-2
+        GAS_SAT_CHANGE_TS_GOVERNOR    3.d-1
+        GAS_SAT_GOV_SWITCH_ABS_TO_REL    1.d-2
+        MIN_LIQ_PRES_FORCE_TS_CUT   -1.d8   ! Pa
+        MAX_ALLOW_LIQ_PRES_CHANGE_TS  1.d7   ! Pa
+        LIQ_PRES_CHANGE_TS_GOVERNOR   5.d5   ! Pa
       END
     END
   END
@@ -37,6 +33,7 @@ SUBSURFACE
 !=========================== TIMESTEPPER ======================================
 TIMESTEPPER FLOW
   TIMESTEP_REDUCTION_FACTOR 0.5d0
+  TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.25d0
 END
 
 !=========================== REGRESSION =======================================
@@ -185,7 +182,7 @@ NEWTON_SOLVER FLOW
   ATOL 1.0000000d-8
   STOL 1.0000000d-8
   RTOL 1.0000000d-8
-  MAXIT 20
+  MAXIMUM_NUMBER_OF_ITERATIONS 20
 END
 
 

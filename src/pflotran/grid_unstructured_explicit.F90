@@ -11,10 +11,6 @@ module Grid_Unstructured_Explicit_module
 
   private 
 
-#if defined(SCORPIO)
-  include "scorpiof.h"
-#endif
-
   public :: UGridExplicitRead, &
             UGridExplicitDecompose, &
             UGridExplicitSetInternConnect, &
@@ -440,7 +436,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
 #include "petsc/finclude/petscdm.h"
   use petscdm
   use Option_module
-  use Utility_module, only: reallocateIntArray, SearchOrderedArray
+  use Utility_module, only: ReallocateArray, SearchOrderedArray
   
   implicit none
 

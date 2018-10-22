@@ -8,6 +8,7 @@ SIMULATION
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
       GLOBAL_IMPLICIT
+      MULTIPLE_CONTINUUM
     /
   /
 END
@@ -23,8 +24,6 @@ SPECIFIED_VELOCITY
   UNIFORM? YES
   DATASET 14.4d0 0.d0 0.d0 m/yr
 END
-
-MULTIPLE_CONTINUUM
 
 #=========================== chemistry ========================================
 CHEMISTRY

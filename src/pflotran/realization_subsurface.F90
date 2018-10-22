@@ -12,6 +12,7 @@ module Realization_Subsurface_class
 #ifdef WELL_CLASS
   use WellSpec_Base_class
 #endif
+  use Well_Data_class
   use Transport_Constraint_module
   use Material_module
   use Saturation_Function_module
@@ -40,6 +41,7 @@ private
 #ifdef WELL_CLASS
     type(well_spec_list_type), pointer :: well_specs
 #endif
+    type(well_data_list_type), pointer :: well_data
     type(tran_condition_list_type), pointer :: transport_conditions
     type(tran_constraint_list_type), pointer :: transport_constraints
     
@@ -153,6 +155,9 @@ function RealizationCreate2(option)
   allocate(realization%well_specs)
   call WellSpecInitList(realization%well_specs)
 #endif
+! Allocate well_data and create its list of wells
+  allocate(realization%well_data)
+  call WellDataInitList(realization%well_data,option%nphase)
   allocate(realization%transport_conditions)
   call TranConditionInitList(realization%transport_conditions)
   allocate(realization%transport_constraints)
@@ -799,7 +804,12 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           trim(cur_material_property%saturation_function_name) // &
           '" not found.'
         call printErrMsg(option)
-      endif
+      else
+        if (associated(patch%characteristic_curves_array)) then
+          call CharCurvesProcessTables(patch%characteristic_curves_array(  &
+                        cur_material_property%saturation_function_id)%ptr,option)
+        end if                
+      end if
     endif
     
     ! if named, link dataset to property
@@ -2482,10 +2492,8 @@ subroutine RealizUnInitializedVar1(realization,ivar,var_name)
   if (Uninitialized(rmin)) then
     write(word,*) imin+1 ! zero to one based indexing
     option%io_buffer = 'Incorrect assignment of variable (' &
-      // trim(var_name) // ',cell=' // trim(adjustl(word)) // &
-      '). Please send this error message and your input file to &
-      &pflotran-dev@googlegroups.com.'
-    call printErrMsg(option)
+      // trim(var_name) // ',cell=' // trim(adjustl(word)) // ').'
+    call PrintErrMsgToDev('send your input deck.',option)
   endif
 
 end subroutine RealizUnInitializedVar1
@@ -2561,6 +2569,8 @@ subroutine RealizationDestroyLegacy(realization)
 #ifdef WELL_CLASS
   call WellSpecDestroyList(realization%well_specs)
 #endif
+!  Destroy the list of wells held by well_data
+  call WellDataDestroyList(realization%well_data)
   call TranConditionDestroyList(realization%transport_conditions)
   call TranConstraintDestroyList(realization%transport_constraints)
 

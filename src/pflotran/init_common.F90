@@ -17,10 +17,6 @@ module Init_Common_module
             setSurfaceFlowMode, &
             InitCommonAddOutputWaypoints
 
-#if defined(SCORPIO)
-  public :: InitCommonCreateIOGroups
-#endif  
-  
 contains
 
 ! ************************************************************************** !
@@ -64,7 +60,7 @@ subroutine InitReadInputFilenames(option,filenames)
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit  
-    call InputReadNChars(input,option,filename,MAXSTRINGLENGTH,PETSC_FALSE)
+    call InputReadFilename(input,option,filename)
     filename_count = filename_count + 1
   enddo
   
@@ -82,7 +78,7 @@ subroutine InitReadInputFilenames(option,filenames)
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit  
-    call InputReadNChars(input,option,filename,MAXSTRINGLENGTH,PETSC_FALSE)
+    call InputReadFilename(input,option,filename)
     filename_count = filename_count + 1
     filenames(filename_count) = filename
   enddo
@@ -431,90 +427,6 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
   endif
   
 end subroutine readVectorFromFile
-
-! ************************************************************************** !
-
-subroutine InitCommonCreateIOGroups(option)
-  ! 
-  ! Create sub-communicators that are used in initialization
-  ! and output HDF5 routines.
-  ! 
-  ! Author: Vamsi Sripathi
-  ! Date: 07/14/09
-  ! 
-
-  use Option_module
-  use Logging_module
-
-#if defined(SCORPIO)
-  use hdf5
-#endif
-
-  implicit none
-
-  type(option_type) :: option
-  PetscErrorCode :: ierr
-
-#if defined(SCORPIO)
-
-  PetscMPIInt :: numiogroups
-
-  call PetscLogEventBegin(logging%event_create_iogroups,ierr);CHKERRQ(ierr)
-
-  ! Initialize HDF interface to define global constants  
-  call h5open_f(ierr)
-
-  if (option%hdf5_read_group_size <= 0) then
-    write(option%io_buffer,& 
-          '("The keyword HDF5_READ_GROUP_SIZE & 
-            & in the input file (pflotran.in) is either not set or &
-            & its value is less than or equal to ZERO. &
-            & HDF5_READ_GROUP_SIZE =  ",i6)') &
-             option%hdf5_read_group_size
-    !call printErrMsg(option)
-    call printMsg(option)
-    ! default is to let one process read and broadcast to everyone
-    option%hdf5_read_group_size = option%mycommsize
-  endif         
- 
-  if (option%hdf5_write_group_size <= 0) then
-    write(option%io_buffer,& 
-          '("The keyword HDF5_WRITE_GROUP_SIZE & 
-            &in the input file (pflotran.in) is either not set or &
-            &its value is less than or equal to ZERO. &
-            &HDF5_WRITE_GROUP_SIZE =  ",i6)') &
-             option%hdf5_write_group_size
-    !call printErrMsg(option)
-    call printMsg(option)
-    ! default is to let everyone write separately 
-    option%hdf5_write_group_size = 1
-  endif                    
-
-  ! create read IO groups
-  numiogroups = option%mycommsize/option%hdf5_read_group_size
-  call fscorpio_iogroup_init(numiogroups, option%mycomm, &
-                             option%ioread_group_id, ierr)
-
-  if ( option%hdf5_read_group_size == option%hdf5_write_group_size ) then
-    ! reuse read_group to use for writing too as both groups are same size
-    option%iowrite_group_id = option%ioread_group_id
-  else   
-      ! create write IO groups
-      numiogroups = option%mycommsize/option%hdf5_write_group_size
-      call fscorpio_iogroup_init(numiogroups, option%mycomm, &
-                                 option%iowrite_group_id, ierr)
-  end if
-
-    write(option%io_buffer, '(" Read group id :  ", i6)') option%ioread_group_id
-    call printMsg(option)      
-    write(option%io_buffer, '(" Write group id :  ", i6)') &
-      option%iowrite_group_id
-    call printMsg(option)      
-  call PetscLogEventEnd(logging%event_create_iogroups,ierr);CHKERRQ(ierr)
-#endif
-! SCORPIO
- 
-end subroutine InitCommonCreateIOGroups
 
 ! ************************************************************************** !
 

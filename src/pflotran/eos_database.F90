@@ -1091,7 +1091,7 @@ subroutine EOSTableRead(this,input,option)
             case('TEMPERATURE')
               n_temp_count = n_temp_count + 1
               if (n_temp_count > temp_array_size) then
-                call reallocateRealArray(temp_array,temp_array_size)
+                call ReallocateArray(temp_array,temp_array_size)
               end if
               call InputReadDouble(input,option,temp_array(n_temp_count))
               call InputErrorMsg(input,option,&
@@ -1245,7 +1245,7 @@ subroutine ReadPressureTable(input,option,press_idx,n_press,press_data_array)
     if ( press_idx > size_rank2 ) then
       !each time doubles the size of rank 2
       !tmp_array_size overwritten by new size
-      call reallocateRealArray(press_data_array,size_rank2)
+      call ReallocateArray(press_data_array,size_rank2)
     end if
     do i_data = 1, num_fields
       call InputReadDouble(input,option,press_data_array(i_data,press_idx))
@@ -1551,13 +1551,13 @@ subroutine EOSTableProcessList(option)
 
   if (.not.associated(list)) return
 
-  option%neos_table_indices = 0
+  !option%num_table_indices = 0 this is initialised in option init
   !loop over  EOS tables and create a map to store save indices in auxvars
   eos_table => list%first
   do
     if (.not.(associated(eos_table))) exit
-    eos_table%first_index = option%neos_table_indices + 1
-    option%neos_table_indices = option%neos_table_indices + eos_table%n_indices
+    eos_table%first_index = option%num_table_indices + 1
+    option%num_table_indices = option%num_table_indices + eos_table%n_indices
     ! add here other operation that must be performed on all eos tables
     ! move to next table if it is associated
     if( .not.(associated(eos_table%next))) exit

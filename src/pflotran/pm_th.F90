@@ -68,6 +68,7 @@ function PMTHCreate()
 
   call PMSubsurfaceFlowCreate(th_pm)
   th_pm%name = 'TH Flow'
+  th_pm%header = 'TH FLOW'
 
   PMTHCreate => th_pm
   
@@ -205,6 +206,7 @@ subroutine PMTHInitializeTimestep(this)
   ! 
 
   use TH_module, only : THInitializeTimestep
+  use Option_module
 
   implicit none
   
@@ -220,10 +222,6 @@ subroutine PMTHInitializeTimestep(this)
   call this%comm1%LocalToLocal(this%realization%field%iphas_loc, &
                                this%realization%field%iphas_loc)
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," TH FLOW ",69("="))')
-  endif
-  
   call THInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)
   
@@ -719,22 +717,18 @@ subroutine PMTHMaxChange(this)
   ! 
 
   use TH_module, only : THMaxChange
+  use Option_module
 
   implicit none
   
   class(pm_th_type) :: this
+  character(len=MAXSTRINGLENGTH) :: string
   
   call THMaxChange(this%realization,this%max_pressure_change, &
                    this%max_temperature_change)
-    if (this%option%print_screen_flag) then
-    write(*,'("  --> max chng: dpmx= ",1pe12.4," dtmpmx= ",1pe12.4)') &
+  write(string,'("  --> max chng: dpmx= ",1pe12.4," dtmpmx= ",1pe12.4)') &
       this%max_pressure_change,this%max_temperature_change
-  endif
-  if (this%option%print_file_flag) then
-    write(this%option%fid_out,'("  --> max chng: dpmx= ",1pe12.4, &
-      & " dtmpmx= ",1pe12.4)') &
-      this%max_pressure_change,this%max_temperature_change
-  endif 
+  call OptionPrint(string,this%option)
 
 end subroutine PMTHMaxChange
 

@@ -142,7 +142,7 @@ END
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  MATERIAL ./4x4x4/material_and_regions.h5
+  FILE ./4x4x4/material_and_regions.h5
 END
 
 END_SUBSURFACE

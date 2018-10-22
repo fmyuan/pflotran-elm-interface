@@ -19,9 +19,15 @@ module Utility_module
     module procedure CrossProduct1
   end interface
   
-  interface reallocateRealArray
-    module procedure reallocateRealArray1D
-    module procedure reallocateRealArray2D
+  interface ReallocateArray
+    module procedure ReallocateIntArray1
+    module procedure ReallocateIntArray2
+    module procedure ReallocateIntArray3
+    module procedure ReallocateIntArray4
+    module procedure ReallocateRealArray1
+    module procedure ReallocateRealArray2
+    module procedure ReallocateRealArray3
+    module procedure ReallocateRealArray4
   end interface
   
   interface UtilityReadArray
@@ -57,8 +63,7 @@ module Utility_module
   public :: GetRndNumFromNormalDist, &
             DotProduct, &
             CrossProduct, &
-            reallocateRealArray, &
-            reallocateIntArray, &
+            ReallocateArray, &
             UtilityReadArray, &
             DeallocateArray, &
             InterfaceApprox, &
@@ -70,6 +75,7 @@ module Utility_module
             lubksb, &
             FileExists, &
             Equal, &
+            InitToNaN, &
             BestFloat, &
             QuadraticPolynomialSetup, &
             QuadraticPolynomialEvaluate, &
@@ -314,12 +320,33 @@ end subroutine Natural2LocalIndex
 
 ! ************************************************************************** !
 
-subroutine reallocateIntArray(array,size)
+subroutine ReallocateIntArray1(array)
   ! 
   ! Reallocates an integer array to a larger size and copies
   ! 
   ! Author: Glenn Hammond
-  ! Date: 10/29/07
+  ! Date: 10/29/07, 01/31/18
+  ! 
+
+  implicit none
+
+  PetscInt, pointer :: array(:)
+  
+  PetscInt :: i
+
+  i = size(array)
+  call ReallocateArray(array,i)
+
+end subroutine ReallocateIntArray1
+
+! ************************************************************************** !
+
+subroutine ReallocateIntArray2(array,size)
+  ! 
+  ! Reallocates an integer array to a larger size and copies
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/29/07, 01/31/18
   ! 
 
   implicit none
@@ -338,46 +365,142 @@ subroutine reallocateIntArray(array,size)
   size = 2*size
   deallocate(array2)
 
-end subroutine reallocateIntArray
+end subroutine ReallocateIntArray2
 
 ! ************************************************************************** !
 
-subroutine reallocateRealArray1D(array,size)
+subroutine ReallocateIntArray3(array)
   ! 
-  ! reallocateRealArray2D: Reallocates a 2D real array to a larger size and
+  ! Reallocates a 2D integer array to a larger size in last
+  ! dimension and copies values over.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/03/13, 01/31/18
+  ! 
+
+  implicit none
+
+  PetscInt, pointer :: array(:,:)
+
+  PetscInt :: i
+
+  i = size(array,2)
+  call ReallocateArray(array,i)
+  
+end subroutine ReallocateIntArray3
+
+! ************************************************************************** !
+
+subroutine ReallocateIntArray4(array,rank2_size)
+  ! 
+  ! Reallocates a 2D integer array to a larger size in last
+  ! dimension and copies values over.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/03/13, 01/31/18
+  ! 
+
+  implicit none
+
+  PetscInt, pointer :: array(:,:)
+  PetscInt :: rank1_size, rank2_size
+  
+  PetscInt, allocatable :: array2(:,:)
+  
+  rank1_size = size(array,1)
+  allocate(array2(rank1_size,rank2_size))
+  array2(:,1:rank2_size) = array(:,1:rank2_size)
+  deallocate(array)
+  allocate(array(rank1_size,2*rank2_size))
+  array = 0
+  array(:,1:rank2_size) = array2(:,1:rank2_size)
+  rank2_size = 2*rank2_size
+  deallocate(array2)
+
+end subroutine ReallocateIntArray4
+
+! ************************************************************************** !
+
+subroutine ReallocateRealArray1(array)
+  ! 
+  ! ReallocateRealArray2D: Reallocates a 2D real array to a larger size and
   ! copies values over.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 10/29/07, 10/03/13
+  ! Date: 10/29/07, 10/03/13, 01/31/18
   ! 
 
   implicit none
 
   PetscReal, pointer :: array(:)
-  PetscInt :: size
-  
-  PetscReal, allocatable :: array2(:)
-  
-  allocate(array2(size))
-  array2(1:size) = array(1:size)
-  deallocate(array)
-  allocate(array(2*size))
-  array = 0.d0
-  array(1:size) = array2(1:size)
-  size = 2*size
-  deallocate(array2)
 
-end subroutine reallocateRealArray1D
+  PetscInt :: i
+
+  i = size(array)
+  call ReallocateArray(array,i)
+  
+end subroutine ReallocateRealArray1
 
 ! ************************************************************************** !
 
-subroutine reallocateRealArray2D(array,rank2_size)
+subroutine ReallocateRealArray2(array,rank1_size)
+  ! 
+  ! ReallocateRealArray2D: Reallocates a 2D real array to a larger size and
+  ! copies values over.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/29/07, 10/03/13, 01/31/18
+  ! 
+
+  implicit none
+
+  PetscReal, pointer :: array(:)
+  PetscInt :: rank1_size
+  
+  PetscReal, allocatable :: array2(:)
+  
+  allocate(array2(rank1_size))
+  array2(1:rank1_size) = array(1:rank1_size)
+  deallocate(array)
+  allocate(array(2*rank1_size))
+  array = 0.d0
+  array(1:rank1_size) = array2(1:rank1_size)
+  rank1_size = 2*rank1_size
+  deallocate(array2)
+
+end subroutine ReallocateRealArray2
+
+! ************************************************************************** !
+
+subroutine ReallocateRealArray3(array)
   ! 
   ! Reallocates a 2D real array to a larger size in last
   ! dimension and copies values over.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 10/03/13
+  ! Date: 10/03/13, 01/31/18
+  ! 
+
+  implicit none
+
+  PetscReal, pointer :: array(:,:)
+
+  PetscInt :: i
+
+  i = size(array,2)
+  call ReallocateArray(array,i)
+  
+end subroutine ReallocateRealArray3
+
+! ************************************************************************** !
+
+subroutine ReallocateRealArray4(array,rank2_size)
+  ! 
+  ! Reallocates a 2D real array to a larger size in last
+  ! dimension and copies values over.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/03/13, 01/31/18
   ! 
 
   implicit none
@@ -397,7 +520,9 @@ subroutine reallocateRealArray2D(array,rank2_size)
   rank2_size = 2*rank2_size
   deallocate(array2)
 
-end subroutine reallocateRealArray2D
+end subroutine ReallocateRealArray4
+
+! ************************************************************************** !
 
 ! ************************************************************************** !
 
@@ -1056,7 +1181,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
     call InputErrorMsg(input,option,'file or value','UtilityReadIntArray')
     call StringToLower(word)
     if (StringCompare(word,'file',FOUR_INTEGER)) then
-      call InputReadNChars(input,option,string2,MAXSTRINGLENGTH,PETSC_TRUE)
+      call InputReadFilename(input,option,string2)
       input%err_buf = 'filename'
       input%err_buf2 = comment
       call InputErrorMsg(input,option)
@@ -1097,8 +1222,8 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
         call InputReadInt(string2,option,value,input2%ierr)
         call InputErrorMsg(input2,option,'value',err_string)
         do while (icount+num_values > temp_array_size)
-          ! careful.  reallocateRealArray double temp_array_size every time.
-          call reallocateIntArray(temp_array,temp_array_size) 
+          ! careful.  ReallocateArray double temp_array_size every time.
+          call ReallocateArray(temp_array,temp_array_size) 
         enddo
         do i=1, num_values
           icount = icount + 1
@@ -1110,8 +1235,8 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
         call InputErrorMsg(input2,option,'value',err_string)
         icount = icount + 1
         if (icount > temp_array_size) then
-          ! careful.  reallocateRealArray double temp_array_size every time.
-          call reallocateIntArray(temp_array,temp_array_size) 
+          ! careful.  ReallocateArray double temp_array_size every time.
+          call ReallocateArray(temp_array,temp_array_size) 
         endif
         temp_array(icount) = value
       endif
@@ -1219,7 +1344,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
     call InputErrorMsg(input,option,'file or value','UtilityReadRealArray')
     call StringToLower(word)
     if (StringCompare(word,'file',FOUR_INTEGER)) then
-      call InputReadNChars(input,option,string2,MAXSTRINGLENGTH,PETSC_TRUE)
+      call InputReadFilename(input,option,string2)
       input%err_buf = 'filename'
       input%err_buf2 = comment
       call InputErrorMsg(input,option)
@@ -1260,8 +1385,8 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
         call InputReadDouble(string2,option,value,input2%ierr)
         call InputErrorMsg(input2,option,'value',err_string)
         do while (icount+num_values > temp_array_size)
-          ! careful.  reallocateRealArray double temp_array_size every time.
-          call reallocateRealArray(temp_array,temp_array_size) 
+          ! careful.  ReallocateArray double temp_array_size every time.
+          call ReallocateArray(temp_array,temp_array_size) 
         enddo
         do i=1, num_values
           icount = icount + 1
@@ -1273,8 +1398,8 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
         call InputErrorMsg(input2,option,'value',err_string)
         icount = icount + 1
         if (icount > temp_array_size) then
-          ! careful.  reallocateRealArray double temp_array_size every time.
-          call reallocateRealArray(temp_array,temp_array_size) 
+          ! careful.  ReallocateArray double temp_array_size every time.
+          call ReallocateArray(temp_array,temp_array_size) 
         endif
         temp_array(icount) = value
       endif
@@ -1424,6 +1549,28 @@ function Equal(value1, value2)
   if (dabs(value1 - value2) < spacing(value2)/2.0)  Equal = PETSC_TRUE
   
 end function Equal
+
+! ************************************************************************** !
+
+function InitToNan()
+
+!------------------------------------------------------------------------------
+! Function to provide a NaN (not a number value)
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Jun 2018
+!------------------------------------------------------------------------------
+implicit none
+
+PetscReal :: InitToNan
+
+InitToNan = 0.0
+InitToNan = 1.0/InitToNan
+InitToNan = 0.0d0*InitToNan
+
+return
+
+end function InitToNan
 
 ! ************************************************************************** !
 
@@ -2238,7 +2385,7 @@ end subroutine CalcParallelSUM2
 
 ! ************************************************************************** !
 
-subroutine MatCompare(a1, a2, n, m, tol, do_rel_err)
+subroutine MatCompare(a1,a2,n,m,tol,reltol,flagged_err)
 
   !! Daniel Stone, March 2018
   !! Just output warnings and provide place
@@ -2249,22 +2396,26 @@ subroutine MatCompare(a1, a2, n, m, tol, do_rel_err)
   implicit none
   PetscInt :: n, m
   PetscReal, dimension(1:n, 1:m) :: a1, a2
-  PetscReal :: tol
-  PetscBool :: do_rel_err 
+  PetscReal :: tol,reltol
+  PetscBool :: flagged_err
+  !PetscBool :: do_rel_err 
 
   PetscInt :: i, j
-  PetscReal :: dff
+  PetscReal :: dff,reldff
+
+
+  flagged_err = PETSC_FALSE
 
   do i = 1,n
     do j = 1,m
       dff = abs(a1(i,j) - a2(i,j)) 
-      if (do_rel_err) then
-        dff = dff/abs(a1(i,j))
-      endif
-      if (dff > tol) then
-        print *, "difference in matrices at ", i, ", ", j, ", value ", dff
+      reldff = dff/abs(a1(i,j))
+      if (dff > tol .OR. reldff > reltol) then
+        print *, "difference in matrices at ", i, ", ", j, ", value ", dff, &
+                 ", relative difference: ", reldff
         print *, a1(i,j), " compare to ", a2(i,j)
         print *, "..."
+        flagged_err = PETSC_TRUE
       endif
     end do
   end do 

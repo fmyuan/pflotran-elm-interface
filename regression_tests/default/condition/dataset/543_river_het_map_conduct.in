@@ -353,7 +353,7 @@ END
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  MATERIAL ./543_river_setup.h5
+  FILE ./543_river_setup.h5
 END
 
 END_SUBSURFACE

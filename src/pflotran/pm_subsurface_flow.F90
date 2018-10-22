@@ -63,6 +63,7 @@ module PM_Subsurface_Flow_class
     procedure  :: AllWellsInit
     procedure :: AllWellsUpdate
 #endif
+    procedure, public :: InitialiseAllWells
 !    procedure, public :: Destroy => PMSubsurfaceFlowDestroy
   end type pm_subsurface_flow_type
   
@@ -136,6 +137,7 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
   use Input_Aux_module
   use String_module
   use Option_module
+  use AuxVars_Flow_module
  
   implicit none
   
@@ -189,6 +191,9 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       call InputReadDouble(input,option,this%cfl_governor)
       call InputErrorMsg(input,option,'MAX_CFL',error_string)
 
+    case('MULTIPLE_CONTINUUM')
+      option%use_mc = PETSC_TRUE
+
     case('NUMERICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_TRUE
 
@@ -202,15 +207,15 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('ANALYTICAL_JACOBIAN_COMPARE')
       option%flow%numerical_derivatives_compare = PETSC_TRUE
 
-    case('COMPARE_RELATIVE_DIFFERENCE')
-      option%matcompare_reldiff = PETSC_TRUE
-
     case('DEBUG_TOL')
-      call InputReadDouble(input,option,option%debug_tol)
+      call InputReadDouble(input,option,flow_aux_debug_tol)
       call InputErrorMsg(input,option,'DEBUG_TOL',error_string)
+    case('DEBUG_RELTOL')
+      call InputReadDouble(input,option,flow_aux_debug_reltol)
+      call InputErrorMsg(input,option,'DEBUG_RELTOL',error_string)
 
     case('GEOMETRIC_PENALTY')
-      option%use_GP= PETSC_TRUE
+      flow_aux_use_GP= PETSC_TRUE
 
     case default
       found = PETSC_FALSE
@@ -324,6 +329,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   use Material_module
   use Variables_module, only : POROSITY
   use Material_Aux_class, only : POROSITY_MINERAL, POROSITY_CURRENT
+  use Well_Data_class
 
   implicit none
   
@@ -383,6 +389,13 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
 #ifdef WELL_CLASS
   call this%AllWellsInit() !does nothing if no well exist
 #endif    
+
+! Initialise the well data held in well_data
+
+  if (WellDataGetFlag()) then
+    call this%InitialiseAllWells()
+  endif
+
 end subroutine PMSubsurfaceFlowInitializeRun
 
 ! ************************************************************************** !
@@ -562,6 +575,81 @@ subroutine AllWellsInit(this)
 
 end subroutine AllWellsInit
 #endif
+
+subroutine InitialiseAllWells(this)
+ !
+ ! Initialise all the wells with data held in well_data
+ !
+ ! Author: Dave Ponting
+ ! Date  : 08/15/18
+
+
+  use Well_Data_class
+  use Well_Solver_module
+  use Grid_module
+  use Material_Aux_class
+
+  implicit none
+
+  class(pm_subsurface_flow_type) :: this
+  class(well_data_type), pointer :: well_data
+  type(well_data_list_type),pointer :: well_data_list
+  type(grid_type), pointer :: grid
+  type(material_auxvar_type), pointer :: type_material_auxvars(:)
+  class(material_auxvar_type), pointer :: class_material_auxvars(:)
+  type(option_type), pointer :: option
+
+  PetscInt  :: num_well
+  PetscBool :: cast_ok
+
+! Loop over wells
+
+  well_data_list => this%realization%well_data
+  num_well=getnwell(well_data_list)
+  if( num_well > 0 ) then
+
+    well_data => well_data_list%first
+    option => this%realization%option
+
+    grid => this%realization%patch%grid
+
+!  Specialise polymorphic class pointer to type pointer
+
+    cast_ok = PETSC_FALSE
+    type_material_auxvars => null()
+    select type(class_material_auxvars=>this%realization%patch%aux%Material%auxvars)
+      type is (material_auxvar_type)
+        type_material_auxvars => class_material_auxvars
+        cast_ok = PETSC_TRUE
+      class default
+    end select
+
+!  Checks
+
+    if (grid%itype /= STRUCTURED_GRID) then
+      option%io_buffer='WELL_DATA well specification can only be used with structured grids'
+      call printErrMsg(option)
+    endif
+
+    if( .not. cast_ok ) then
+      option%io_buffer='WELL_DATA call cannot cast CLASS to TYPE'
+      call printErrMsg(option)
+    else
+
+      do
+        if (.not.associated(well_data)) exit
+        call InitialiseWell(well_data,grid,type_material_auxvars,option)
+        well_data => well_data%next
+      enddo
+
+      call doWellMPISetup(option,num_well,well_data_list)
+
+    endif
+
+  endif ! If num_well>0
+
+end subroutine InitialiseAllWells
+
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowInitializeTimestepA(this)
@@ -580,6 +668,8 @@ subroutine PMSubsurfaceFlowInitializeTimestepA(this)
   class(pm_subsurface_flow_type) :: this
 
   this%option%flow_dt = this%option%dt
+
+  call PMBasePrintHeader(this)
 
   if (this%store_porosity_for_ts_cut) then
     ! store base properties for reverting at time step cut
@@ -1027,11 +1117,7 @@ subroutine PMSubsurfaceFlowCheckpointHDF5(this, pm_grp_id)
   implicit none
 
   class(pm_subsurface_flow_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
 
   call CheckpointFlowProcessModelHDF5(pm_grp_id, this%realization)
 
@@ -1052,11 +1138,7 @@ subroutine PMSubsurfaceFlowRestartHDF5(this, pm_grp_id)
   implicit none
 
   class(pm_subsurface_flow_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
 
   call RestartFlowProcessModelHDF5(pm_grp_id, this%realization)
   call this%UpdateAuxVars()

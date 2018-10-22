@@ -468,12 +468,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                        PMJacobianPtr, &
                        this%pm_ptr, &
 #endif
-                       ierr);CHKERRQ(ierr)
+                             ierr);CHKERRQ(ierr)
   call SolverSetSNESOptions(solver,option)
-  option%io_buffer = 'Solver: ' // trim(solver%ksp_type)
-  call printMsg(option)
-  option%io_buffer = 'Preconditioner: ' // trim(solver%pc_type)
-  call printMsg(option)
 
 end subroutine PMCSubsurfaceSetupSolvers_TimestepperBE
 

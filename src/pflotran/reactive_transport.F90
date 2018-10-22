@@ -321,10 +321,12 @@ subroutine RTSetup(realization)
     iphase = cur_fluid_property%phase_id
     ! setting of phase diffusion coefficients must come before individual
     ! species below
-    rt_parameter%diffusion_coefficient(:,iphase) = &
-      cur_fluid_property%diffusion_coefficient
-    rt_parameter%diffusion_activation_energy(:) = &
-      cur_fluid_property%diffusion_activation_energy
+    if (iphase <= option%transport%nphase) then
+      rt_parameter%diffusion_coefficient(:,iphase) = &
+        cur_fluid_property%diffusion_coefficient
+      rt_parameter%diffusion_activation_energy(:,iphase) = &
+        cur_fluid_property%diffusion_activation_energy
+    endif
     cur_fluid_property => cur_fluid_property%next
   enddo
 
@@ -393,7 +395,7 @@ end subroutine RTSetup
 
 ! ************************************************************************** !
 
-subroutine RTComputeMassBalance(realization,mass_balance)
+subroutine RTComputeMassBalance(realization,max_size,sum_mol)
   ! 
   ! Author: Glenn Hammond
   ! Date: 12/23/08
@@ -405,9 +407,10 @@ subroutine RTComputeMassBalance(realization,mass_balance)
   use Field_module
   use Grid_module
 
+
   type(realization_subsurface_type) :: realization
-  PetscReal :: mass_balance(realization%option%ntrandof, &
-                            realization%option%transport%nphase)
+  PetscInt :: max_size
+  PetscReal :: sum_mol(max_size,8)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
@@ -417,14 +420,23 @@ subroutine RTComputeMassBalance(realization,mass_balance)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(reaction_type), pointer :: reaction
 
+  PetscReal :: sum_mol_tot(max_size)
+  PetscReal :: sum_mol_aq(max_size)
+  PetscReal :: sum_mol_sb(max_size)
+  PetscReal :: sum_mol_mnrl(max_size)
+  PetscReal :: sum_mol_gas(max_size)
+  PetscReal :: sum_mol_by_mnrl(max_size)
+  PetscReal :: sum_mol_by_im(max_size)
+  PetscReal :: sum_mol_by_gas(max_size)
+
   PetscErrorCode :: ierr
   PetscInt :: local_id
   PetscInt :: ghosted_id
-  PetscInt :: iphase
   PetscInt :: i, icomp, imnrl, ncomp, irate, irxn, naqcomp
-  PetscInt :: nphase
+  PetscReal :: pp_to_mol_per_L
+  PetscReal :: liquid_saturation, porosity, volume
+  PetscReal :: tempreal
 
-  iphase = 1
   option => realization%option
   patch => realization%patch
   grid => patch%grid
@@ -436,64 +448,99 @@ subroutine RTComputeMassBalance(realization,mass_balance)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
 
-  mass_balance = 0.d0
+  sum_mol = 0.d0
+  sum_mol_tot = 0.d0
+  sum_mol_aq = 0.d0
+  sum_mol_sb = 0.d0
+  sum_mol_mnrl = 0.d0
+  sum_mol_gas = 0.d0
+  sum_mol_by_mnrl = 0.d0
+  sum_mol_by_im = 0.d0
+  sum_mol_by_gas = 0.d0
+
   naqcomp = reaction%naqcomp
-  nphase = option%transport%nphase
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
     if (patch%imat(ghosted_id) <= 0) cycle
-    do iphase = 1, nphase
+    liquid_saturation = global_auxvars(ghosted_id)%sat(1)
+    porosity = material_auxvars(ghosted_id)%porosity
+    volume = material_auxvars(ghosted_id)%volume ! [m^3]
     
-!     mass_balance(:,iphase) = mass_balance(:,iphase) + &
-      mass_balance(1:naqcomp,1) = &
-        mass_balance(1:naqcomp,1) + &
-        rt_auxvars(ghosted_id)%total(:,iphase) * &
-        global_auxvars(ghosted_id)%sat(iphase) * &
-        material_auxvars(ghosted_id)%porosity * &
-        material_auxvars(ghosted_id)%volume*1000.d0
-        
-      if (iphase == 1) then
-        ! add contribution of equilibrium sorption
-        if (reaction%neqsorb > 0) then
-          mass_balance(1:naqcomp,iphase) = mass_balance(1:naqcomp,iphase) + &
-            rt_auxvars(ghosted_id)%total_sorb_eq(:) * &
-            material_auxvars(ghosted_id)%volume
-        endif
+    ! aqueous (sum_mol_aq)
+    sum_mol_aq(1:naqcomp) = sum_mol_aq(1:naqcomp) + &
+               rt_auxvars(ghosted_id)%total(:,LIQUID_PHASE) * &
+               liquid_saturation*porosity*volume*1.d3
 
-        ! add contribution of kinetic multirate sorption
-        do irxn = 1, reaction%surface_complexation%nkinmrsrfcplxrxn
-          do irate = 1, reaction%surface_complexation%kinmr_nrate(irxn)
-            mass_balance(1:naqcomp,iphase) = mass_balance(1:naqcomp,iphase) + &
-              rt_auxvars(ghosted_id)%kinmr_total_sorb(:,irate,irxn) * &
-              material_auxvars(ghosted_id)%volume
-          enddo
-        enddo
+    ! equilibrium sorption (sum_mol_sb)
+    if (reaction%neqsorb > 0) then
+      sum_mol_sb(1:naqcomp) = sum_mol_sb(1:naqcomp) + &
+        rt_auxvars(ghosted_id)%total_sorb_eq(:) * volume
+    endif
 
-        ! add contribution from mineral volume fractions
-        do imnrl = 1, reaction%mineral%nkinmnrl
-          ncomp = reaction%mineral%kinmnrlspecid(0,imnrl)
-          do i = 1, ncomp
-            icomp = reaction%mineral%kinmnrlspecid(i,imnrl)
-            mass_balance(icomp,iphase) = mass_balance(icomp,iphase) &
-            + reaction%mineral%kinmnrlstoich(i,imnrl) &
-            * rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl) &
-            * material_auxvars(ghosted_id)%volume &
-            / reaction%mineral%kinmnrl_molar_vol(imnrl)
-          enddo
-        enddo
-
-        ! add contribution of immobile mass (still considered aqueous phase)
-        do i = 1, reaction%immobile%nimmobile
-          mass_balance(reaction%offset_immobile+i,iphase) = &
-            mass_balance(reaction%offset_immobile+i,iphase) + &
-            rt_auxvars(ghosted_id)%immobile(i) * &
-            material_auxvars(ghosted_id)%volume
-        enddo
-      endif
+    ! kinetic multirate sorption (sum_mol_sb)
+    do irxn = 1, reaction%surface_complexation%nkinmrsrfcplxrxn
+      do irate = 1, reaction%surface_complexation%kinmr_nrate(irxn)
+        sum_mol_sb(1:naqcomp) = sum_mol_sb(1:naqcomp) + &
+          rt_auxvars(ghosted_id)%kinmr_total_sorb(:,irate,irxn) * &
+          volume
+      enddo
     enddo
+
+    ! mineral volume fractions (sum_mol_mnrl, sum_mol_by_mnrl)
+    do imnrl = 1, reaction%mineral%nkinmnrl
+      tempreal = rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl) * &
+                 volume / &
+                 reaction%mineral%kinmnrl_molar_vol(imnrl)
+
+      ncomp = reaction%mineral%kinmnrlspecid(0,imnrl)
+      do i = 1, ncomp
+        icomp = reaction%mineral%kinmnrlspecid(i,imnrl)
+        sum_mol_mnrl(icomp) = sum_mol_mnrl(icomp) + &
+          reaction%mineral%kinmnrlstoich(i,imnrl) * tempreal
+      enddo
+      sum_mol_by_mnrl(imnrl) = sum_mol_by_mnrl(imnrl) + tempreal
+    enddo
+
+    ! immobile mass
+    do i = 1, reaction%immobile%nimmobile
+      sum_mol_by_im(i) = sum_mol_by_im(i) + &
+        rt_auxvars(ghosted_id)%immobile(i) * volume
+    enddo
+
+    ! gas mass
+    if (reaction%gas%nactive_gas > 0) then
+      ! total for gas is in mol/L(gas)
+      sum_mol_gas(1:naqcomp) = sum_mol_gas(1:naqcomp) + &
+           rt_auxvars(ghosted_id)%total(:,GAS_PHASE) * &
+           (1.d0-liquid_saturation)*porosity*volume*1.d3
+      ! individual gas pressure is in partial pressure [Bar]
+      ! partial pressure in bars to moles
+      ! mol/L = pp [Bar] * 10^5 Pa/Bar / 
+      !                       (R [kPa-L/mol-K] * T [K] * 1000 Pa/kPa)
+      pp_to_mol_per_L = &
+          1.d5 / (IDEAL_GAS_CONSTANT* &
+                  (global_auxvars(ghosted_id)%temp+273.15d0)*1.d3)
+      do i = 1, reaction%gas%nactive_gas
+        sum_mol_by_gas(i) = sum_mol_by_gas(i) + &
+          ! gas_pp in Bar 
+          rt_auxvars(ghosted_id)%gas_pp(i) * pp_to_mol_per_L * &
+          (1.d0-liquid_saturation) * porosity * volume * 1.d3
+      enddo
+    endif
   enddo
+
+  sum_mol_tot = sum_mol_aq + sum_mol_sb + sum_mol_mnrl + sum_mol_gas
+
+  sum_mol(:,1) = sum_mol_tot
+  sum_mol(:,2) = sum_mol_aq
+  sum_mol(:,3) = sum_mol_sb
+  sum_mol(:,4) = sum_mol_mnrl
+  sum_mol(:,5) = sum_mol_gas
+  sum_mol(:,6) = sum_mol_by_mnrl
+  sum_mol(:,7) = sum_mol_by_im
+  sum_mol(:,8) = sum_mol_by_gas
 
 end subroutine RTComputeMassBalance
 
@@ -2501,7 +2548,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 #endif                   
       if (associated(patch%boundary_tran_fluxes)) then
         patch%boundary_tran_fluxes(1:reaction%ncomp,sum_connection) = &
-            -Res(1:reaction%ncomp)
+            Res(1:reaction%ncomp)
       endif
     enddo
     boundary_condition => boundary_condition%next
@@ -4477,11 +4524,7 @@ subroutine RTCheckpointKineticSorptionHDF5(realization, pm_grp_id, checkpoint)
                           HDF5ReadDataSetInVec
 
   type(realization_subsurface_type) :: realization
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
   PetscBool :: checkpoint
 
   type(option_type), pointer :: option

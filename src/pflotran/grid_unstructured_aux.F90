@@ -12,10 +12,6 @@ module Grid_Unstructured_Aux_module
 
   private 
 
-#if defined(SCORPIO)
-  include "scorpiof.h"
-#endif
-
   PetscInt, parameter, public :: UGRID_UPWIND_FRACTION_PT_PROJ = 1
   PetscInt, parameter, public :: UGRID_UPWIND_FRACTION_CELL_VOL = 2
   PetscInt, parameter, public :: UGRID_UPWIND_FRACTION_ABS_DIST = 3
@@ -391,7 +387,7 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
 #include "petsc/finclude/petscdm.h"
   use petscdm
   use Option_module
-  use Utility_module, only: reallocateIntArray
+  use Utility_module, only: ReallocateArray
   
   implicit none
   
@@ -729,7 +725,7 @@ subroutine UGridCreateUGDMShell(unstructured_grid,da,ugdm,ndof,option)
 #include "petsc/finclude/petscdmda.h"
   use petscdmda
   use Option_module
-  use Utility_module, only: reallocateIntArray
+  use Utility_module, only: ReallocateArray
   
   implicit none
 
@@ -796,9 +792,10 @@ subroutine UGridDMCreateJacobian(unstructured_grid,ugdm,mat_type,J,option)
   type(option_type) :: option
 
   PetscInt, allocatable :: d_nnz(:), o_nnz(:)
-  PetscInt :: local_id, ineighbor, neighbor_id
+  PetscInt :: local_id, ineighbor, neighbor_id, ghosted_id
   PetscInt :: iconn, id_up, id_dn
   PetscInt :: ndof_local
+  PetscReal, allocatable :: values(:,:)
   PetscErrorCode :: ierr
   
   allocate(d_nnz(unstructured_grid%nlmax))
@@ -855,6 +852,47 @@ subroutine UGridDMCreateJacobian(unstructured_grid,ugdm,mat_type,J,option)
   deallocate(d_nnz)
   deallocate(o_nnz)
   
+  ! traverse again to set up non-zero structure. need this in order to
+  ! perform any matviews prior to residual evaluation.
+  allocate(values(ugdm%ndof,ugdm%ndof))
+  values = 0.d0
+  if (associated(unstructured_grid%explicit_grid)) then
+    do iconn = 1, size(unstructured_grid%explicit_grid%connections,2)
+      id_up = unstructured_grid%explicit_grid%connections(1,iconn)
+      id_dn = unstructured_grid%explicit_grid%connections(2,iconn)
+      if (id_up <= unstructured_grid%nlmax) then ! local
+        call MatSetValuesBlockedLocal(J,1,id_up-1,1,id_up-1,values,ADD_VALUES, &
+                                      ierr);CHKERRQ(ierr)
+        call MatSetValuesBlockedLocal(J,1,id_up-1,1,id_dn-1,values,ADD_VALUES, &
+                                      ierr);CHKERRQ(ierr)
+      endif
+      if (id_dn <= unstructured_grid%nlmax) then ! local
+        call MatSetValuesBlockedLocal(J,1,id_dn-1,1,id_dn-1,values,ADD_VALUES, &
+                                      ierr);CHKERRQ(ierr)
+        call MatSetValuesBlockedLocal(J,1,id_dn-1,1,id_up-1,values,ADD_VALUES, &
+                                      ierr);CHKERRQ(ierr)
+      endif
+    enddo
+  else
+    do local_id = 1, unstructured_grid%nlmax
+      ! for unstructured grids, the first nlmax cells have identical local 
+      ! and global ids
+      ghosted_id = local_id
+      call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,values, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+      do ineighbor = 1, unstructured_grid% &
+                          cell_neighbors_local_ghosted(0,local_id)
+        neighbor_id = abs(unstructured_grid% &
+                            cell_neighbors_local_ghosted(ineighbor,local_id))
+        call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,neighbor_id-1,values, &
+                                      ADD_VALUES,ierr);CHKERRQ(ierr)
+      enddo
+    enddo
+  endif
+  deallocate(values)
+  call MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+
 end subroutine UGridDMCreateJacobian
 
 ! ************************************************************************** !
@@ -1132,7 +1170,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
 #include "petsc/finclude/petscmat.h"
   use petscmat
   use Option_module
-  use Utility_module, only: reallocateIntArray, DeallocateArray
+  use Utility_module, only: ReallocateArray, DeallocateArray
   
   implicit none
 
@@ -1401,7 +1439,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
         ghost_cell_count = ghost_cell_count + 1
         ! reallocate the ghost cell array if necessary
         if (ghost_cell_count > max_ghost_cell_count) then
-          call reallocateIntArray(int_array_pointer,max_ghost_cell_count)
+          call ReallocateArray(int_array_pointer,max_ghost_cell_count)
         endif
         int_array_pointer(ghost_cell_count) = dual_id
         vec_ptr(idual + dual_offset + (local_id-1)*stride) = &

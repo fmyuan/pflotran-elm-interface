@@ -1,18 +1,31 @@
 module PFLOTRAN_Constants_module
 
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
+
+  use, intrinsic :: iso_fortran_env, only : stdout=>Output_Unit
  
   implicit none
 
   private
 
 #include "petsc/finclude/petscsys.h"
-  ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS MODIFIED TO PREVENT
-  ! COMPATIBILITY ISSUES - geh.
+#define VMAJOR 3
+#define VMINOR 10
+#define VSUBMINOR 2
+#if (PETSC_VERSION_MAJOR < VMAJOR ||                    \
+     (PETSC_VERSION_MAJOR == VMAJOR &&                  \
+      (PETSC_VERSION_MINOR < VMINOR ||                  \
+       (PETSC_VERSION_MINOR == VMINOR &&                \
+        (PETSC_VERSION_SUBMINOR < VSUBMINOR)))))
+#error "Please use PETSc version 3.10.2: 'git checkout v3.10.2' in $PETSC_DIR"
+#endif
+  ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS 
+  ! MODIFIED TO PREVENT COMPATIBILITY ISSUES - geh.
   PetscInt, parameter, public :: CHECKPOINT_REVISION_NUMBER = 1
   
   PetscInt, parameter, public :: MAXSTRINGLENGTH = 512
   PetscInt, parameter, public :: MAXWORDLENGTH = 32
+  PetscInt, parameter, public :: STDOUT_UNIT = stdout
   PetscInt, parameter, public :: OUT_UNIT = 15
   PetscInt, parameter, public :: OUTPUT_UNIT = 16
   PetscInt, parameter, public :: IN_UNIT = 17
@@ -225,6 +238,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: LIQUID_PHASE = 1
   PetscInt, parameter, public :: GAS_PHASE = 2
   PetscInt, parameter, public :: OIL_PHASE = 3
+  PetscInt, parameter, public :: SOLVENT_PHASE = 4
 
   PetscInt, parameter, public :: MAX_PHASE = 4
   

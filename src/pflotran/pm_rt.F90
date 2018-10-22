@@ -32,7 +32,6 @@ module PM_RT_class
     PetscBool :: temperature_dependent_diffusion
     ! for transport only
     PetscBool :: transient_porosity
-    PetscBool :: include_gas_phase
   contains
     procedure, public :: Setup => PMRTSetup
     procedure, public :: Read => PMRTRead
@@ -111,10 +110,10 @@ function PMRTCreate()
   rt_pm%temperature_dependent_diffusion = PETSC_FALSE
   ! these flags can only be true for transport only
   rt_pm%transient_porosity = PETSC_FALSE
-  rt_pm%include_gas_phase = PETSC_FALSE
 
   call PMBaseInit(rt_pm)
   rt_pm%name = 'Reactive Transport'
+  rt_pm%header = 'REACTIVE TRANSPORT'
   
   PMRTCreate => rt_pm
   
@@ -171,14 +170,17 @@ subroutine PMRTRead(this,input)
       case('NUMERICAL_JACOBIAN')
         option%transport%numerical_derivatives = PETSC_TRUE
       case('INCLUDE_GAS_PHASE')
-        this%include_gas_phase = PETSC_TRUE
-        option%transport%nphase = 2
+        option%io_buffer = 'INCLUDE_GAS_PHASE under SUBSURFACE_TRANSPORT &
+                           &has been deprecated.'
+        call printErrMsg(option)
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
       case('MAX_CFL')
         call InputReadDouble(input,option,this%cfl_governor)
         call InputErrorMsg(input,option,'MAX_CFL', &
                            'SUBSURFACE_TRANSPORT OPTIONS')
+      case('MULTIPLE_CONTINUUM')
+        option%use_mc = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(word,error_string,option)
     end select
@@ -368,6 +370,7 @@ subroutine PMRTInitializeTimestep(this)
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_TIMESTEP
   use Global_module
   use Material_module
+  use Option_module
 
   implicit none
   
@@ -377,13 +380,11 @@ subroutine PMRTInitializeTimestep(this)
 #ifdef PM_RT_DEBUG  
   call printMsg(this%option,'PMRT%InitializeTimestep()')
 #endif
-  
+
   this%option%tran_dt = this%option%dt
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," REACTIVE TRANSPORT ",58("="))')
-  endif
-  
+  call PMBasePrintHeader(this)
+
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
   ! RTInitializeTimestep and RTTimeCut (which calls RTInitializeTimestep)
@@ -822,11 +823,10 @@ subroutine PMRTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
             'converge based on the infinity norm of the update vector. ' // &
             'In this case, it is recommended that you use the ' // &
             'LOG_FORMULATION for chemistry or truncate concentrations ' // &
-            '(TRUNCATE_CONCENTRATION <float> in CHEMISTRY block). ' // &
-            'If that does not work, please send your input deck to ' // &
-            'pflotran-dev@googlegroups.com.'
+            '(TRUNCATE_CONCENTRATION <float> in CHEMISTRY block).'
           this%realization%option%io_buffer = string
-          call printErrMsg(this%realization%option)
+          call PrintErrMsgToDev('send your input deck if that does not work', &
+                                this%realization%option)
         endif
         ! scale by 0.99 to make the update slightly smaller than the min_ratio
         dC_p = dC_p*min_ratio*0.99d0
@@ -1144,7 +1144,7 @@ subroutine PMRTComputeMassBalance(this,mass_balance_array)
 #endif
 
 #ifndef SIMPLIFY 
-  call RTComputeMassBalance(this%realization,mass_balance_array)
+  call RTComputeMassBalance(this%realization,-999,mass_balance_array)
 #endif
 
 end subroutine PMRTComputeMassBalance
@@ -1521,23 +1521,12 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
   implicit none
 
   class(pm_rt_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
 
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -1727,23 +1716,12 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   implicit none
 
   class(pm_rt_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
 
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name

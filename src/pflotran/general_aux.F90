@@ -38,6 +38,7 @@ module General_Aux_module
   PetscInt, parameter, public :: GAS_STATE = 2
   PetscInt, parameter, public :: TWO_PHASE_STATE = 3
   PetscInt, parameter, public :: ANY_STATE = 4
+  PetscInt, parameter, public :: MULTI_STATE = 5
   
   PetscInt, parameter, public :: PREV_TS = 1
   PetscInt, parameter, public :: PREV_IT = 2
@@ -540,9 +541,8 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   
 #ifdef DEBUG_GENERAL  
   ! create a NaN
-  NaN = 0.d0
-  NaN = 1.d0/NaN
-  NaN = 0.d0*NaN
+  NaN = InitToNan()
+
   gen_auxvar%H = NaN
   gen_auxvar%U = NaN
   gen_auxvar%pres = NaN

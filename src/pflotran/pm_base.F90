@@ -15,6 +15,7 @@ module PM_Base_class
 
   type, public :: pm_base_type
     character(len=MAXWORDLENGTH) :: name
+    character(len=MAXWORDLENGTH) :: header
     type(option_type), pointer :: option
     type(output_option_type), pointer :: output_option
     Vec :: solution_vec
@@ -64,6 +65,7 @@ module PM_Base_class
     
   public :: PMBaseInit, &
             PMBaseInputRecord, &
+            PMBasePrintHeader, &
             PMBaseResidual, &
             PMBaseJacobian, &
             PMBaseRHSFunction
@@ -351,15 +353,41 @@ subroutine PMBaseCheckpointHDF5(this, pm_grp_id)
   implicit none
 
   class(pm_base_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
 !  print *, 'Must extend PMBaseCheckpointHDF5/RestartHDF5.'
 !  stop
 #endif
 
 end subroutine PMBaseCheckpointHDF5
+
+! ************************************************************************** !
+
+subroutine PMBasePrintHeader(this)
+  !
+  ! Prints PM header to screen and file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  !
+  use Option_module
+  use String_module
+
+  implicit none
+
+  class(pm_base_type) :: this
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (len_trim(this%header) == 0) then
+    print *, 'header name needs to be set for PMBaseInitializeTimestep'
+    stop
+  endif
+  string = '(2("=")," ' // trim(this%header) // ' ",' // &
+           trim(StringWrite(80-len_trim(this%header)-4)) // '("="))'
+  write(string,string)
+  call OptionPrint('',this%option)
+  call OptionPrint(string,this%option)
+
+end subroutine PMBasePrintHeader
 
 end module PM_Base_class

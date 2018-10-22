@@ -1229,20 +1229,6 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   type(realization_geomech_type) :: geomech_realization
   PetscInt :: var_list_type
 
-#if defined(SCORPIO_WRITE)
-  integer :: file_id
-  integer :: data_type
-  integer :: grp_id
-  integer :: file_space_id
-  integer :: memory_space_id
-  integer :: data_set_id
-  integer :: realization_set_id
-  integer :: prop_id
-  PetscMPIInt :: rank
-  integer :: rank_mpi,file_space_rank_mpi
-  integer :: dims(3)
-  integer :: start(3), length(3), stride(3)
-#else
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
   integer(HID_T) :: grp_id
@@ -1255,7 +1241,6 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   integer(HSIZE_T) :: dims(3)
   integer(HSIZE_T) :: start(3), length(3), stride(3)
-#endif
 
   type(geomech_grid_type), pointer :: grid
   type(geomech_discretization_type), pointer :: geomech_discretization
@@ -1333,11 +1318,6 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   endif
 
   grid => patch%geomech_grid
-
-#ifdef SCORPIO_WRITE
-   option%io_buffer='OutputHDF5UGridXDMF not supported with SCORPIO_WRITE'
-   call printErrMsg(option)
-#endif
 
     ! initialize fortran interface
   call h5open_f(hdf5_err)
@@ -1525,21 +1505,6 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   type(realization_geomech_type) :: geomech_realization
   type(option_type), pointer :: option
 
-#if defined(SCORPIO_WRITE)
-  integer :: file_id
-  integer :: data_type
-  integer :: grp_id
-  integer :: file_space_id
-  integer :: memory_space_id
-  integer :: data_set_id
-  integer :: realization_set_id
-  integer :: prop_id
-  integer :: dims(3)
-  integer :: start(3), length(3), stride(3)
-  integer :: rank_mpi,file_space_rank_mpi
-  integer :: hdf5_flag
-  integer, parameter :: ON=1, OFF=0
-#else
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
   integer(HID_T) :: grp_id
@@ -1553,7 +1518,6 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
-#endif
 
   PetscInt :: istart
   type(geomech_grid_type), pointer :: grid
@@ -1606,16 +1570,6 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   call VecGetArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
-
-#if defined(SCORPIO_WRITE)
-  write(*,*) 'SCORPIO_WRITE'
-  option%io_buffer = 'WriteHDF5CoordinatesUGrid not supported for SCORPIO_WRITE'
-  call printErrMsg(option)
-#else
-
-  !
-  !        not(SCORPIO_WRITE)
-  !
 
   ! memory space which is a 1D vector
   rank_mpi = 1
@@ -1825,9 +1779,6 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call GMDMDestroy(gmdm_element)
                                   
-#endif
-!if defined(SCORPIO_WRITE)
-
 end subroutine WriteHDF5CoordinatesXDMFGeomech
 #endif
 ! defined(PETSC_HAVE_HDF5)

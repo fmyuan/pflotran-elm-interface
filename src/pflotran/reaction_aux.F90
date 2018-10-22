@@ -494,6 +494,7 @@ function ReactionCreate()
   nullify(reaction%total_sorb_mobile_print)
   nullify(reaction%colloid_print)
   
+  reaction%nphase = 0
   reaction%ncomp = 0
   reaction%naqcomp = 0
   reaction%ncoll = 0

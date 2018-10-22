@@ -753,6 +753,7 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
   ! 
 #include "petsc/finclude/petscsys.h"
   use petscsys
+  use hdf5
   use Option_module
   
   implicit none
@@ -760,7 +761,7 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
   class(pmc_base_type) :: this
   character(len=MAXSTRINGLENGTH) :: filename_append
   
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: h5_chk_grp_id
   PetscViewer :: viewer
   
   if (this%checkpoint_option%format == CHECKPOINT_BINARY .or. &
@@ -774,7 +775,7 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
       &unless PFLOTRAN is compiled with HDF5 libraries enabled.'
     call printErrMsg(this%option)
 #else
-    call this%CheckpointHDF5(chk_grp_id,filename_append)
+    call this%CheckpointHDF5(h5_chk_grp_id,filename_append)
 #endif
   endif
 
@@ -949,12 +950,19 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
   PetscBag :: bag
   PetscSizeT :: bagsize
   PetscLogDouble :: tstart, tend
+  PetscBool :: flag
   PetscErrorCode :: ierr
 
   bagsize = size(transfer(dummy_header,dummy_char))
 
   ! if the top PMC, 
   if (this%is_master) then
+    call PetscTestFile(this%option%restart_filename,'r',flag,ierr);CHKERRQ(ierr)
+    if (.not.flag) then
+      this%option%io_buffer = 'Restart file "' // &
+        trim(this%option%restart_filename) // '" not found.'
+      call PrintErrMsg(this%option)
+    endif
     this%option%io_buffer = 'Restarting with checkpoint file "' // &
       trim(this%option%restart_filename) // '".'
     call printMsg(this%option)
@@ -1083,7 +1091,7 @@ end subroutine PMCBaseGetHeader
 ! ************************************************************************** !
 
 #if defined(PETSC_HAVE_HDF5)
-recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
+recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   !
   ! Checkpoints PMC timestepper and state variables in HDF5 format.
   !
@@ -1098,27 +1106,17 @@ recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
   implicit none
 
   class(pmc_base_type) :: this
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: h5_chk_grp_id
   character(len=MAXSTRINGLENGTH) :: append_name
 
-#if defined(SCORPIO_WRITE)
-  integer :: h5_chk_grp_id
-  integer :: h5_file_id
-  integer :: pmc_grp_id
-  integer :: pm_grp_id
-  integer :: temp_id
-#else
-  integer(HID_T) :: h5_chk_grp_id
   integer(HID_T) :: h5_file_id
   integer(HID_T) :: h5_pmc_grp_id
   integer(HID_T) :: h5_pm_grp_id
-#endif
 
   class(pm_base_type), pointer :: cur_pm
   class(pmc_base_header_type), pointer :: header
   type(pmc_base_header_type) :: dummy_header
   character(len=1),pointer :: dummy_char(:)
-  PetscInt :: pmc_grp_id
   PetscSizeT :: bagsize
   PetscLogDouble :: tstart, tend
   PetscErrorCode :: ierr
@@ -1139,16 +1137,13 @@ recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
     call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
                      h5_pmc_grp_id,hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
     call PMCBaseSetHeaderHDF5(this, h5_pmc_grp_id, this%option)
-    chk_grp_id = h5_chk_grp_id
   else
-    h5_chk_grp_id = chk_grp_id
     call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
                      h5_pmc_grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
   endif
 
   if (associated(this%timestepper)) then
-    pmc_grp_id = h5_pmc_grp_id
-    call this%timestepper%CheckpointHDF5(pmc_grp_id, this%option)
+    call this%timestepper%CheckpointHDF5(h5_pmc_grp_id, this%option)
   endif
 
   cur_pm => this%pm_list
@@ -1166,11 +1161,11 @@ recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
   call h5gclose_f(h5_pmc_grp_id, hdf5_err)
 
   if (associated(this%child)) then
-    call this%child%CheckpointHDF5(chk_grp_id,append_name)
+    call this%child%CheckpointHDF5(h5_chk_grp_id,append_name)
   endif
 
   if (associated(this%peer)) then
-    call this%peer%CheckpointHDF5(chk_grp_id,append_name)
+    call this%peer%CheckpointHDF5(h5_chk_grp_id,append_name)
   endif
 
   if (this%is_master) then
@@ -1190,7 +1185,7 @@ end subroutine PMCBaseCheckpointHDF5
 
 ! ************************************************************************** !
 
-recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
+recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
   ! 
   ! Restarts PMC timestepper and state variables from a HDF5
   ! 
@@ -1206,25 +1201,16 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
   implicit none
 
   class(pmc_base_type) :: this
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: h5_chk_grp_id
 
   class(pm_base_type), pointer :: cur_pm
   PetscLogDouble :: tstart, tend
   PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
-#if defined(SCORPIO_WRITE)
-  integer :: h5_chk_grp_id
-  integer :: h5_file_id
-  integer :: h5_pmc_grp_id
-  integer :: h5_pm_grp_id
-#else
-  integer(HID_T) :: h5_chk_grp_id
   integer(HID_T) :: h5_file_id
   integer(HID_T) :: h5_pmc_grp_id
   integer(HID_T) :: h5_pm_grp_id
-#endif
-  PetscInt :: pmc_grp_id
 
   ! if the top PMC
   if (this%is_master) then
@@ -1250,15 +1236,12 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
     if (Initialized(this%option%restart_time)) then
       this%pm_list%realization_base%output_option%plot_number = 0
     endif
-    chk_grp_id = h5_chk_grp_id 
   else
-    h5_chk_grp_id = chk_grp_id
     call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
   endif
 
   if (associated(this%timestepper)) then
-    pmc_grp_id = h5_pmc_grp_id
-    call this%timestepper%RestartHDF5(pmc_grp_id, this%option)
+    call this%timestepper%RestartHDF5(h5_pmc_grp_id, this%option)
 
     if (Initialized(this%option%restart_time)) then
       ! simply a flag to set time back to zero, no matter what the restart
@@ -1302,11 +1285,11 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
   call h5gclose_f(h5_pmc_grp_id, hdf5_err)
 
   if (associated(this%child)) then
-    call this%child%RestartHDF5(chk_grp_id)
+    call this%child%RestartHDF5(h5_chk_grp_id)
   endif
 
   if (associated(this%peer)) then
-    call this%peer%RestartHDF5(chk_grp_id)
+    call this%peer%RestartHDF5(h5_chk_grp_id)
   endif
 
   if (this%is_master) then
@@ -1325,7 +1308,7 @@ end subroutine PMCBaseRestartHDF5
 
 ! ************************************************************************** !
 
-subroutine PMCBaseSetHeaderHDF5(this, chk_grp_id, option)
+subroutine PMCBaseSetHeaderHDF5(this, h5_chk_grp_id, option)
   ! 
   ! Similar to PMCBaseSetHeader(), except this subroutine writes values in
   ! a HDF5.
@@ -1341,24 +1324,13 @@ subroutine PMCBaseSetHeaderHDF5(this, chk_grp_id, option)
   implicit none
 
   class(pmc_base_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-#else
-  integer(HID_T) :: chk_grp_id
-#endif
+  integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
   
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -1380,14 +1352,14 @@ subroutine PMCBaseSetHeaderHDF5(this, chk_grp_id, option)
 
   dataset_name = "Output_plot_number" // CHAR(0)
   int_array(1) = this%pm_list%realization_base%output_option%plot_number
-  call CheckPointWriteIntDatasetHDF5(chk_grp_id, &
+  call CheckPointWriteIntDatasetHDF5(h5_chk_grp_id, &
                                      dataset_name, dataset_rank, &
                                      dims, start, length, stride, &
                                      int_array, option)
 
   dataset_name = "Output_times_per_h5_file" // CHAR(0)
   int_array(1) = this%pm_list%realization_base%output_option%times_per_h5_file
-  call CheckPointWriteIntDatasetHDF5(chk_grp_id, &
+  call CheckPointWriteIntDatasetHDF5(h5_chk_grp_id, &
                                      dataset_name, dataset_rank, &
                                      dims, start, length, stride, &
                                      int_array, option)
@@ -1402,7 +1374,7 @@ end subroutine PMCBaseSetHeaderHDF5
 
 ! ************************************************************************** !
 
-subroutine PMCBaseGetHeaderHDF5(this, chk_grp_id, option)
+subroutine PMCBaseGetHeaderHDF5(this, h5_chk_grp_id, option)
   ! 
   ! Similar to PMCBaseGetHeader(), except this subroutine reads values from
   ! a HDF5.
@@ -1418,24 +1390,13 @@ subroutine PMCBaseGetHeaderHDF5(this, chk_grp_id, option)
   implicit none
 
   class(pmc_base_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-#else
-  integer(HID_T) :: chk_grp_id
-#endif
+  integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
 
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -1456,13 +1417,13 @@ subroutine PMCBaseGetHeaderHDF5(this, chk_grp_id, option)
   stride(1) = ONE_INTEGER
 
   dataset_name = "Output_plot_number" // CHAR(0)
-  call CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, &
+  call CheckPointReadIntDatasetHDF5(h5_chk_grp_id, dataset_name, dataset_rank, &
                                     dims, start, length, stride, &
                                     int_array, option)
   this%pm_list%realization_base%output_option%plot_number = int_array(1)
 
   dataset_name = "Output_times_per_h5_file" // CHAR(0)
-  call CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, &
+  call CheckPointReadIntDatasetHDF5(h5_chk_grp_id, dataset_name, dataset_rank, &
                                     dims, start, length, stride, &
                                     int_array, option)
   this%pm_list%realization_base%output_option%times_per_h5_file = int_array(1)

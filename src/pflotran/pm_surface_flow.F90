@@ -46,6 +46,7 @@ function PMSurfaceFlowCreate()
   allocate(surface_flow_pm)
   call PMSurfaceCreate(surface_flow_pm)
   surface_flow_pm%name = 'Surface Flow'
+  surface_flow_pm%header = 'SURFACE FLOW'
 
   PMSurfaceFlowCreate => surface_flow_pm
 
@@ -116,9 +117,7 @@ subroutine PMSurfaceFlowPreSolve(this)
 
   class(pm_surface_flow_type) :: this
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," SURFACE FLOW ",64("="))')
-  endif
+  call PMBasePrintheader(this)
 
 end subroutine PMSurfaceFlowPreSolve
 
