@@ -62,7 +62,7 @@ end function TimestepperSteadyCreate
 
 ! ************************************************************************** !
 
-subroutine TimestepperSteadyCreateFromBase(timestepper_base)
+function TimestepperSteadyCreateFromBase(timestepper_base)
   ! 
   ! This routine creates timestepper for steady solve
   ! 
@@ -72,7 +72,9 @@ subroutine TimestepperSteadyCreateFromBase(timestepper_base)
 
   implicit none
 
-  class(timestepper_base_type), pointer :: timestepper_base
+  class(timestepper_base_type) :: timestepper_base
+
+  class(timestepper_steady_type), pointer :: TimestepperSteadyCreateFromBase
 
   class(timestepper_steady_type), pointer :: stepper
 
@@ -111,14 +113,17 @@ subroutine TimestepperSteadyCreateFromBase(timestepper_base)
   stepper%prev_waypoint => timestepper_base%prev_waypoint
 
   stepper%solver => timestepper_base%solver
+  ! decouple the solver pointer or the upcoming TimestepperDestroy will 
+  ! destory it
+  nullify(timestepper_base%solver)
 
-  timestepper_base => stepper
+  TimestepperSteadyCreateFromBase => stepper
 
-end subroutine TimestepperSteadyCreateFromBase
+end function TimestepperSteadyCreateFromBase
 
 ! ************************************************************************** !
 
-subroutine TimestepperSteadyCreateFromBE(timestepper_BE)
+function TimestepperSteadyCreateFromBE(timestepper_BE)
   ! 
   ! This routine creates timestepper for steady solve
   ! 
@@ -128,9 +133,12 @@ subroutine TimestepperSteadyCreateFromBE(timestepper_BE)
 
   implicit none
 
-  class(timestepper_BE_type), pointer :: timestepper_BE
+  class(timestepper_BE_type) :: timestepper_BE
+
+  class(timestepper_steady_type), pointer :: TimestepperSteadyCreateFromBE
 
   class(timestepper_steady_type), pointer :: stepper
+  PetscInt :: i
 
   allocate(stepper)
   
@@ -174,26 +182,19 @@ subroutine TimestepperSteadyCreateFromBE(timestepper_BE)
 
   stepper%iaccel = timestepper_BE%iaccel
   stepper%ntfac = timestepper_BE%ntfac
-  allocate(stepper%tfac(13))
-  stepper%tfac(1) = timestepper_BE%tfac(1)  
-  stepper%tfac(2) = timestepper_BE%tfac(2)  
-  stepper%tfac(3) = timestepper_BE%tfac(3)  
-  stepper%tfac(4) = timestepper_BE%tfac(4)  
-  stepper%tfac(5) = timestepper_BE%tfac(5)  
-  stepper%tfac(6) = timestepper_BE%tfac(6)  
-  stepper%tfac(7) = timestepper_BE%tfac(7)  
-  stepper%tfac(8) = timestepper_BE%tfac(8)  
-  stepper%tfac(9) = timestepper_BE%tfac(9)  
-  stepper%tfac(10) = timestepper_BE%tfac(10)  
-  stepper%tfac(11) = timestepper_BE%tfac(11)  
-  stepper%tfac(12) = timestepper_BE%tfac(12)  
-  stepper%tfac(13) = timestepper_BE%tfac(13)  
-  
+  allocate(stepper%tfac(timestepper_BE%ntfac))
+  do i = 1, timestepper_BE%ntfac
+    stepper%tfac(i) = timestepper_BE%tfac(i)
+  enddo
+
   stepper%solver => timestepper_BE%solver
+  ! decouple the solver pointer or the upcoming TimestepperDestroy will 
+  ! destory it
+  nullify(timestepper_BE%solver)
 
-  timestepper_BE => stepper
+  TimestepperSteadyCreateFromBE => stepper
 
-end subroutine TimestepperSteadyCreateFromBE
+end function TimestepperSteadyCreateFromBE
 
 ! ************************************************************************** !
 

@@ -100,14 +100,13 @@ subroutine PMCSubsurfaceSetupSolvers(this)
 
   if (associated(this%timestepper)) then
     select type(ts => this%timestepper)
-      class is(timestepper_BE_type)
-        call PMCSubsurfaceSetupSolvers_TimestepperBE(this)
-
       class is(timestepper_TS_type)
         call PMCSubsurfaceSetupSolvers_TS(this)
-
+      class is(timestepper_BE_type)
+        call PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       class default
-        option%io_buffer = 'Unknown timestepper found in PMCSubsurfaceSetupSolvers '
+        option%io_buffer = &
+          'Unknown timestepper found in PMCSubsurfaceSetupSolvers '
         call printErrMsg(option)
     end select
   endif

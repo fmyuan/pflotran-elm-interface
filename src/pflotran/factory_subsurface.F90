@@ -1978,6 +1978,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscReal :: dt_min
   PetscReal :: units_conversion
 
+  class(timestepper_base_type), pointer :: temp_timestepper
   class(timestepper_base_type), pointer :: flow_timestepper
   class(timestepper_BE_type), pointer :: tran_timestepper
 
@@ -3426,12 +3427,21 @@ subroutine SubsurfaceReadInput(simulation,input)
     endif
     flow_timestepper%name = 'FLOW'
     if (option%steady_state) then
-      select type(flow_timestepper)
+      !geh: This is a workaround for the Intel compiler which thinks that
+      !     fts and/or flow_timestepper is not a pointer when passed within
+      !     the select type statment.  This is too convoluted; it needs to
+      !     be refactored!
+      select type(fts=>flow_timestepper)
         class is(timestepper_BE_type)
-          call TimestepperSteadyCreateFromBE(flow_timestepper)
+          temp_timestepper => TimestepperSteadyCreateFromBE(fts)
         class is(timestepper_base_type)
-          call TimestepperSteadyCreateFromBase(flow_timestepper)
+          temp_timestepper =>  TimestepperSteadyCreateFromBase(fts)
       end select
+      call flow_timestepper%Destroy()
+      deallocate(flow_timestepper)
+      nullify(flow_timestepper)
+      flow_timestepper => temp_timestepper
+      nullify(temp_timestepper)
     endif
     simulation%flow_process_model_coupler%timestepper => flow_timestepper
   else
@@ -3443,7 +3453,12 @@ subroutine SubsurfaceReadInput(simulation,input)
     tran_timestepper%name = 'TRAN'
     if (option%steady_state) then
       ! transport is currently always BE
-      call TimestepperSteadyCreateFromBE(tran_timestepper)
+      temp_timestepper => TimestepperSteadyCreateFromBE(tran_timestepper)
+      call tran_timestepper%Destroy()
+      deallocate(tran_timestepper)
+      nullify(tran_timestepper)
+      flow_timestepper => temp_timestepper
+      nullify(temp_timestepper)
     endif
     simulation%rt_process_model_coupler%timestepper => tran_timestepper
   else
