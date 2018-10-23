@@ -90,7 +90,7 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
 
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(field_type), pointer :: field
@@ -157,7 +157,7 @@ subroutine PMRichardsTSIFunction(this,ts,time,U,Udot,F,ierr)
 
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
-  type(realization_subsurface_type), pointer :: realization
+  class(realization_subsurface_type), pointer :: realization
   PetscInt :: skip_conn_type
 
   realization => this%realization
@@ -198,7 +198,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
 
   implicit none
 
-  type(realization_subsurface_type), pointer :: realization
+  class(realization_subsurface_type), pointer :: realization
   Vec :: F
   PetscErrorCode :: ierr
 
@@ -285,7 +285,7 @@ subroutine PMRichardsTSIJacobian(this,ts,time,U,Udot,shift,A,B,ierr)
 
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
-  type(realization_subsurface_type), pointer :: realization
+  class(realization_subsurface_type), pointer :: realization
   Mat :: J
 
   realization => this%realization
@@ -326,7 +326,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
 
   implicit none
 
-  type(realization_subsurface_type), pointer :: realization
+  class(realization_subsurface_type), pointer :: realization
   PetscReal :: shift
   Mat :: J
   PetscErrorCode :: ierr
