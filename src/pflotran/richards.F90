@@ -1907,9 +1907,6 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
     source_sink => source_sink%next
   enddo
 
-  call RichardsSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
-                         global_auxvars,rich_auxvars,option)
-  
   if (patch%aux%Richards%inactive_cells_exist) then
     do i=1,patch%aux%Richards%n_zero_rows
       r_p(patch%aux%Richards%zero_rows_local(i)) = 0.d0
@@ -1917,6 +1914,10 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   endif
 
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+
+  call RichardsSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
+                         global_auxvars,rich_auxvars,option)
+  
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   call VecRestoreArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr); CHKERRQ(ierr)
 #endif
