@@ -52,6 +52,8 @@ function PMGeneralCreate()
   use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
                                LIQUID_MOLE_FRACTION, TEMPERATURE, &
                                GAS_SATURATION
+  use Upwind_Direction_module
+
   implicit none
   
   class(pm_general_type), pointer :: PMGeneralCreate
@@ -76,6 +78,10 @@ function PMGeneralCreate()
   call PMSubsurfaceFlowCreate(general_pm)
   general_pm%name = 'General Multiphase Flow'
   general_pm%header = 'GENERAL MULTIPHASE FLOW'
+
+  ! turn off default upwinding which is set to PETSC_TRUE in
+  !  upwind_direction.F90
+  fix_upwind_direction = PETSC_FALSE
 
   PMGeneralCreate => general_pm
   
@@ -221,7 +227,7 @@ subroutine PMGeneralRead(this,input)
     end select
     
   enddo  
-  
+
   if (general_isothermal .and. &
       general_2ph_energy_dof == GENERAL_AIR_PRESSURE_INDEX) then
     option%io_buffer = 'Isothermal GENERAL mode may only be run with ' // &
