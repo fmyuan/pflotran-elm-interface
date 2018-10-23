@@ -1,4 +1,5 @@
 module PM_Richards_class
+
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use PM_Base_class
@@ -30,7 +31,9 @@ module PM_Richards_class
     procedure, public :: Destroy => PMRichardsDestroy
   end type pm_richards_type
   
-  public :: PMRichardsCreate
+  public :: PMRichardsCreate, &
+            PMRichardsInit, &
+            PMRichardsDestroy
   
 contains
 
@@ -51,13 +54,31 @@ function PMRichardsCreate()
   class(pm_richards_type), pointer :: richards_pm
   
   allocate(richards_pm)
-  call PMSubsurfaceFlowCreate(richards_pm)
+  call PMRichardsInit(richards_pm)
   richards_pm%name = 'Richards Flow'
   richards_pm%header = 'RICHARDS FLOW'
 
   PMRichardsCreate => richards_pm
   
 end function PMRichardsCreate
+
+! ************************************************************************** !
+
+subroutine PMRichardsInit(this)
+  ! 
+  ! Initializes Richards process models shell
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/11/18
+  ! 
+
+  implicit none
+  
+  class(pm_richards_type) :: this
+  
+  call PMSubsurfaceFlowCreate(this)
+  
+end subroutine PMRichardsInit
 
 ! ************************************************************************** !
 

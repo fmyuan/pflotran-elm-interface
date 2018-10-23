@@ -111,6 +111,7 @@ function PMUFDBCreate()
   class(pm_ufd_biosphere_type), pointer :: PMUFDBCreate
   
   allocate(PMUFDBCreate)
+  call PMBaseInit(PMUFDBCreate)
   nullify(PMUFDBCreate%realization)
   nullify(PMUFDBCreate%ERB_list)
   nullify(PMUFDBCreate%unsupported_rad_list)
@@ -120,7 +121,6 @@ function PMUFDBCreate()
   PMUFDBCreate%name = 'ufd biosphere'
   PMUFDBCreate%header = 'UFD BIOSPHERE'
 
-  call PMBaseInit(PMUFDBCreate)
   
 end function PMUFDBCreate
 

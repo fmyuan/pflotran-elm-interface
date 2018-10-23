@@ -27,6 +27,12 @@ module Richards_Aux_module
     PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda    
 #endif
 
+    PetscReal :: d2sat_dp2
+    PetscReal :: d2den_dp2
+    PetscReal :: mass
+    PetscReal :: dpres_dtime
+    PetscReal :: dmass_dtime
+
     ! OLD-VAR-NAMES            = NEW-VAR
     ! ------------------------------------------------
     ! P_min                    = vars_for_sflow(1)
@@ -56,7 +62,8 @@ module Richards_Aux_module
 
   public :: RichardsAuxCreate, RichardsAuxDestroy, &
             RichardsAuxVarCompute, RichardsAuxVarInit, &
-            RichardsAuxVarCopy
+            RichardsAuxVarCopy, &
+            RichardsAuxVarCompute2ndOrderDeriv
 
 contains
 
@@ -126,6 +133,12 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%dsat_dp = 0.d0
   auxvar%dden_dp = 0.d0
 
+  auxvar%d2sat_dp2 = 0.d0
+  auxvar%d2den_dp2 = 0.d0
+  auxvar%mass = 0.d0
+  auxvar%dpres_dtime = 0.d0
+  auxvar%dmass_dtime = 0.0d0
+
   if (option%surf_flow_on) then
     allocate(auxvar%vars_for_sflow(11))
     auxvar%vars_for_sflow(:) = 0.d0
@@ -165,6 +178,12 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dden_dp = auxvar%dden_dp
  
+  auxvar2%d2sat_dp2 = auxvar%d2sat_dp2
+  auxvar2%d2den_dp2 = auxvar%d2den_dp2
+  auxvar2%mass = auxvar%mass
+  auxvar2%dpres_dtime = auxvar%dpres_dtime
+  auxvar2%dmass_dtime = auxvar%dmass_dtime
+
   if (option%surf_flow_on) &
     auxvar2%vars_for_sflow(:) = auxvar%vars_for_sflow(:)
 
@@ -339,6 +358,71 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp
   
 end subroutine RichardsAuxVarCompute
+
+! ************************************************************************** !
+subroutine RichardsAuxVarCompute2ndOrderDeriv(auxvar,characteristic_curves,option)
+
+  ! Computes 2nd order derivatives auxiliary variables for each grid cell
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 07/02/18
+  ! 
+
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+  use Option_module
+  use Global_Aux_module
+  
+  use EOS_Water_module
+  use Characteristic_Curves_module
+  use Characteristic_Curves_Common_module
+  use Material_Aux_class
+  
+  implicit none
+
+  type(option_type) :: option
+  class(characteristic_curves_type) :: characteristic_curves
+  type(richards_auxvar_type) :: auxvar
+
+  PetscReal, parameter :: dp = 1.d-4
+  PetscReal :: d2s_dp2
+  PetscReal :: d2den_dp2
+  PetscReal :: pw1,pw2
+  PetscReal :: dw_dp_1,dw_dp_2
+  PetscReal :: dw_kg,dw_mol,dw_dt
+  PetscBool :: saturated
+  PetscErrorCode :: ierr
+
+  auxvar%d2sat_dp2 = 0.d0
+  d2s_dp2 = 0.d0
+  d2den_dp2 = 0.d0
+
+  pw1 = option%reference_pressure
+  saturated = PETSC_FALSE
+
+  if (auxvar%pc > 0.d0) then
+    call characteristic_curves%saturation_function% &
+                               D2SatDP2(auxvar%pc, &
+                                          d2s_dp2,option)
+    saturated = PETSC_FALSE
+    if (auxvar%dsat_dp < 1.d-40) saturated = PETSC_TRUE
+  else
+    saturated = PETSC_TRUE
+  endif
+
+  if (saturated) then
+    pw2 = pw1 + dp
+    call EOSWaterDensity(option%reference_temperature,pw1,dw_kg,dw_mol, &
+                         dw_dp_1,dw_dt,ierr)
+    call EOSWaterDensity(option%reference_temperature,pw2,dw_kg,dw_mol, &
+                         dw_dp_2,dw_dt,ierr)
+    d2den_dp2 = (dw_dp_2 - dw_dp_2)/dp
+  endif
+
+  auxvar%d2sat_dp2 = d2s_dp2
+  auxvar%d2den_dp2 = d2den_dp2
+
+end subroutine RichardsAuxVarCompute2ndOrderDeriv
 
 ! ************************************************************************** !
 

@@ -293,6 +293,16 @@ subroutine RealizationCreateDiscretization(realization)
     ! ndof degrees of freedom, local
     call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xx_loc, &
                                     LOCAL,option)
+
+    if (option%iflowmode == RICHARDS_TS_MODE) then
+      call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xxdot, &
+                                      GLOBAL,option)
+
+      call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xxdot_loc, &
+                                      LOCAL,option)
+
+    endif
+
   endif
 
   if (option%ntrandof > 0) then

@@ -1180,7 +1180,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
             ! allocate arrays that match the number of connections
             select case(option%iflowmode)
 
-              case(RICHARDS_MODE)
+              case(RICHARDS_MODE, RICHARDS_TS_MODE)
                 temp_int = 1
                 select case(coupler%flow_condition%pressure%itype)
                   case(CONDUCTANCE_BC,HET_CONDUCTANCE_BC)
@@ -1251,6 +1251,9 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                 coupler%flow_aux_int_var = 0
 
               case default
+                option%io_buffer = 'Failed allocation for flow condition "' // &
+                  trim(coupler%flow_condition%name)
+                call printErrMsg(option)
             end select
 
           else if (associated(coupler%flow_condition%rate)) then
@@ -1269,7 +1272,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                    VOLUMETRIC_RATE_SS,MASS_RATE_SS, &
                    HET_VOL_RATE_SS,HET_MASS_RATE_SS)
                 select case(option%iflowmode)
-                  case(RICHARDS_MODE)
+                  case(RICHARDS_MODE, RICHARDS_TS_MODE)
                     allocate(coupler%flow_aux_real_var(1,num_connections))
                     coupler%flow_aux_real_var = 0.d0
                   case(TH_MODE)
@@ -1449,7 +1452,7 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
             call PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
           case(MIS_MODE)
             call PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
-          case(RICHARDS_MODE)
+          case(RICHARDS_MODE, RICHARDS_TS_MODE)
             call PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
           case(TOIL_IMS_MODE)
             call PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
