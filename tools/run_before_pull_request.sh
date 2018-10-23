@@ -12,8 +12,8 @@ TEST_LOG="test.log"
 
 GNU_PFLOTRAN_MAKE_SUCCESS=false
 GNU_PFLOTRAN_TEST_SUCCESS=false
-CMAKE_PFLOTRAN_MAKE_SUCCESS=false
-CMAKE_PFLOTRAN_TEST_SUCCESS=false
+#CMAKE_PFLOTRAN_MAKE_SUCCESS=false
+#CMAKE_PFLOTRAN_TEST_SUCCESS=false
 GNU_INTERFACE_MAKE_SUCCESS=false
 GNU_INTERFACE_TEST_SUCCESS=false
 
@@ -89,47 +89,47 @@ fi
 
 fi # GNU_PFLOTRAN_TEST_SUCCESS
 
-# CMake PFLOTRAN --------------------------------------------------------------
-
-if [ $GNU_INTERFACE_TEST_SUCCESS = true ] ; then
-
-echo "CMake PFLOTRAN"
-
-# build PFLOTRAN
-cd $PFLOTRAN_DIR/src/pflotran
-mkdir -p build
-cd build
-rm -Rf *
-cmake ../ -DBUILD_SHARED_LIBS=Off > $MAKE_LOG 2>&1
-make VERBOSE=1 >> $MAKE_LOG 2>&1
-
-if [ -e "pflotran.exe" ] ; then
-  CMAKE_PFLOTRAN_MAKE_SUCCESS=true
-  echo "  Build passed."
-
-# test PFLOTRAN
-  ctest --verbose > $TEST_LOG 2>&1
-  if [ -e "$TEST_LOG" ] ; then
-    PASSED=$(grep -c "Fail" "$TEST_LOG")
-    if [ $PASSED -gt "0" ] ; then
-      echo "  Tests failed.      <--------------------------------PROBLEMS!!!"
-    else
-      CMAKE_PFLOTRAN_TEST_SUCCESS=true
-      echo "  Tests passed."
-    fi
-  fi
-else
-  MYDIR=`pwd`
-  echo "  Build failed. See $MYDIR/$MAKE_LOG."
-fi
+## CMake PFLOTRAN --------------------------------------------------------------
+#
+#if [ $GNU_INTERFACE_TEST_SUCCESS = true ] ; then
+#
+#echo "CMake PFLOTRAN"
+#
+## build PFLOTRAN
+#cd $PFLOTRAN_DIR/src/pflotran
+#mkdir -p build
+#cd build
+#rm -Rf *
+#cmake ../ -DBUILD_SHARED_LIBS=Off > $MAKE_LOG 2>&1
+#make VERBOSE=1 >> $MAKE_LOG 2>&1
+#
+#if [ -e "pflotran.exe" ] ; then
+#  CMAKE_PFLOTRAN_MAKE_SUCCESS=true
+#  echo "  Build passed."
+#
+## test PFLOTRAN
+#  ctest --verbose > $TEST_LOG 2>&1
+#  if [ -e "$TEST_LOG" ] ; then
+#    PASSED=$(grep -c "Fail" "$TEST_LOG")
+#    if [ $PASSED -gt "0" ] ; then
+#      echo "  Tests failed.      <--------------------------------PROBLEMS!!!"
+#    else
+#      CMAKE_PFLOTRAN_TEST_SUCCESS=true
+#      echo "  Tests passed."
+#    fi
+#  fi
+#else
+#  MYDIR=`pwd`
+#  echo "  Build failed. See $MYDIR/$MAKE_LOG."
+#fi
 echo "\nEnd of test for pull request....\n"
 
-fi # GNU_INTERFACE_TEST_SUCCESS
+#fi # GNU_INTERFACE_TEST_SUCCESS
 
 if [ $GNU_PFLOTRAN_MAKE_SUCCESS = true ] && 
    [ $GNU_PFLOTRAN_TEST_SUCCESS = true ] && 
-   [ $CMAKE_PFLOTRAN_MAKE_SUCCESS = true ] &&
-   [ $CMAKE_PFLOTRAN_TEST_SUCCESS = true ] && 
+#   [ $CMAKE_PFLOTRAN_MAKE_SUCCESS = true ] &&
+#   [ $CMAKE_PFLOTRAN_TEST_SUCCESS = true ] && 
    [ $GNU_INTERFACE_MAKE_SUCCESS = true ] && 
    [ $GNU_INTERFACE_TEST_SUCCESS = true ] ; then
   echo "You may submit your pull request to bitbucket.org/pflotran/pflotran.\n"
