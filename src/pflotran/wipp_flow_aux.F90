@@ -42,10 +42,6 @@ module WIPP_Flow_Aux_module
   PetscBool, public :: wippflo_debug_gas_generation = PETSC_FALSE
   PetscBool, public :: wippflo_debug_first_iteration = PETSC_FALSE
   PetscBool, public :: wippflo_use_lumped_harm_flux = PETSC_TRUE
-  PetscBool, public :: wippflo_fix_upwind_direction = PETSC_TRUE
-  PetscBool, public :: wippflo_update_upwind_direction = PETSC_FALSE
-  PetscBool, public :: wippflo_count_upwind_dir_flip = PETSC_FALSE
-  PetscInt, public :: wippflo_upwind_dir_update_freq = 99
   PetscInt, public :: wippflo_newton_iteration_number = 0
   PetscBool, public :: wippflo_use_gas_generation = PETSC_TRUE
   PetscBool, public :: wippflo_use_fracture = PETSC_TRUE
@@ -75,17 +71,6 @@ module WIPP_Flow_Aux_module
   PetscInt, parameter, public :: WIPPFLO_UPDATE_FOR_BOUNDARY = 2
   
   PetscReal, parameter, public :: WIPPFLO_PRESSURE_SCALE = 1.d0
-
-  ! variables that track the number of times the upwind direction changes
-  ! during the residual and Jacobian calculations.
-  PetscInt, public :: liq_upwind_flip_count_by_res
-  PetscInt, public :: gas_upwind_flip_count_by_res
-  PetscInt, public :: liq_bc_upwind_flip_count_by_res
-  PetscInt, public :: gas_bc_upwind_flip_count_by_res
-  PetscInt, public :: liq_upwind_flip_count_by_jac
-  PetscInt, public :: gas_upwind_flip_count_by_jac
-  PetscInt, public :: liq_bc_upwind_flip_count_by_jac
-  PetscInt, public :: gas_bc_upwind_flip_count_by_jac
 
   ! these variables, which are global to general, can be modified
   PetscInt, public :: dof_to_primary_variable(2)
@@ -121,8 +106,6 @@ module WIPP_Flow_Aux_module
     PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
-    PetscInt, pointer :: upwind_direction(:,:)
-    PetscInt, pointer :: upwind_direction_bc(:,:)
     type(wippflo_parameter_type), pointer :: wippflo_parameter
     type(wippflo_auxvar_type), pointer :: auxvars(:,:)
     type(wippflo_auxvar_type), pointer :: auxvars_bc(:)
@@ -190,8 +173,6 @@ function WIPPFloAuxCreate(option)
   aux%num_aux = 0
   aux%num_aux_bc = 0
   aux%num_aux_ss = 0
-  nullify(aux%upwind_direction)
-  nullify(aux%upwind_direction_bc)
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
@@ -1067,8 +1048,6 @@ subroutine WIPPFloAuxDestroy(aux)
   call WIPPFloAuxVarDestroy(aux%auxvars_bc)
   call WIPPFloAuxVarDestroy(aux%auxvars_ss)
 
-  call DeallocateArray(aux%upwind_direction)
-  call DeallocateArray(aux%upwind_direction_bc)
   call DeallocateArray(aux%inactive_rows_local)
   call DeallocateArray(aux%inactive_rows_local_ghosted)
   call DeallocateArray(aux%row_zeroing_array)

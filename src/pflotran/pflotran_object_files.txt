@@ -243,6 +243,7 @@ misc_obj = \
 	${common_src}timestepper_base.o \
 	${common_src}timestepper_BE.o \
 	${common_src}transport.o \
+	${common_src}upwind_direction.o \
 	${common_src}waypoint.o \
 	${common_src}wipp.o \
 	${common_src}wrapper_hydrogeophysics.o

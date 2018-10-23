@@ -55,6 +55,10 @@ module Patch_module
     ! for TH surface/subsurface
     PetscReal, pointer :: boundary_energy_flux(:,:)
 
+    ! for upwind direction in multiphase flow
+    PetscInt, pointer :: flow_upwind_direction(:,:)
+    PetscInt, pointer :: flow_upwind_direction_bc(:,:)
+
     type(grid_type), pointer :: grid
 
     type(region_list_type), pointer :: region_list
@@ -125,7 +129,8 @@ module Patch_module
             PatchGetCellCenteredVelocities, &
             PatchGetCompMassInRegion, &
             PatchGetWaterMassInRegion, &
-            PatchGetCompMassInRegionAssign
+            PatchGetCompMassInRegionAssign, &
+            PatchSetupUpwindDirection
 
 contains
 
@@ -164,6 +169,9 @@ function PatchCreate()
   nullify(patch%ss_tran_fluxes)
   nullify(patch%ss_flow_vol_fluxes)
   nullify(patch%boundary_energy_flux)
+
+  nullify(patch%flow_upwind_direction)
+  nullify(patch%flow_upwind_direction_bc)
 
   nullify(patch%grid)
 
@@ -9144,6 +9152,91 @@ end subroutine PatchVerifyDatasetGriddedForFlux
 
 ! ************************************************************************** !
 
+subroutine PatchSetupUpwindDirection(patch,option)
+  !
+  ! Sets up upwind direction arrays
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/22/18
+  !
+  use Grid_module
+  use Coupler_module
+  use Connection_module
+  use Option_module
+  use Upwind_Direction_module
+
+  implicit none
+
+  type(patch_type) :: patch
+  type(option_type) :: option
+
+  type(grid_type), pointer :: grid
+  type(connection_set_list_type), pointer :: connection_set_list
+  type(connection_set_type), pointer :: cur_connection_set
+  type(coupler_type), pointer :: boundary_condition
+  PetscInt, pointer :: upwind_direction(:,:)
+  PetscInt, pointer :: upwind_direction_bc(:,:)
+  PetscInt :: sum_connection
+  PetscInt :: i, iconn
+  PetscReal :: dist(3)
+
+  grid => patch%grid
+
+  call UpwindDirectionInit()
+
+  ! allocate arrays for upwind directions
+  ! internal connections
+  connection_set_list => grid%internal_connection_set_list
+  sum_connection = ConnectionGetNumberInList(connection_set_list)
+  allocate(upwind_direction(option%nphase,sum_connection))
+  cur_connection_set => connection_set_list%first
+  sum_connection = 0
+  do
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      dist(1:3) = dabs(cur_connection_set%dist(1:3,iconn))
+      if (dist(1) > dist(2) .and. dist(1) > dist(3)) then
+        i = X_DIRECTION
+      else if (dist(2) > dist(1) .and. dist(2) > dist(3)) then
+        i = Y_DIRECTION
+      else if (dist(3) > dist(1) .and. dist(3) > dist(2)) then
+        i = Z_DIRECTION
+      endif
+      upwind_direction(:,sum_connection) = i
+    enddo
+    cur_connection_set => cur_connection_set%next
+  enddo
+  ! boundary connections
+  sum_connection = CouplerGetNumConnectionsInList(patch%boundary_condition_list)
+  boundary_condition => patch%boundary_condition_list%first
+  allocate(upwind_direction_bc(option%nphase,sum_connection))
+  sum_connection = 0
+  do
+    if (.not.associated(boundary_condition)) exit
+    cur_connection_set => boundary_condition%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      dist(1:3) = dabs(cur_connection_set%dist(1:3,iconn))
+      if (dist(1) > dist(2) .and. dist(1) > dist(3)) then
+        i = X_DIRECTION
+      else if (dist(2) > dist(1) .and. dist(2) > dist(3)) then
+        i = Y_DIRECTION
+      else if (dist(3) > dist(1) .and. dist(3) > dist(2)) then
+        i = Z_DIRECTION
+      endif
+      upwind_direction_bc(:,sum_connection) = i
+    enddo
+    boundary_condition => boundary_condition%next
+  enddo
+
+  patch%flow_upwind_direction => upwind_direction
+  patch%flow_upwind_direction_bc => upwind_direction_bc
+
+end subroutine PatchSetupUpwindDirection
+
+! ************************************************************************** !
+
 subroutine PatchDestroyList(patch_list)
   !
   ! Deallocates a patch list and array of patches
@@ -9212,6 +9305,9 @@ subroutine PatchDestroy(patch)
   call DeallocateArray(patch%ss_flow_vol_fluxes)
 
   call DeallocateArray(patch%boundary_energy_flux)
+
+  call DeallocateArray(patch%flow_upwind_direction)
+  call DeallocateArray(patch%flow_upwind_direction_bc)
 
 
   if (associated(patch%material_property_array)) &
