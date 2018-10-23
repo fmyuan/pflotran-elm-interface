@@ -42,7 +42,7 @@ module PM_Subsurface_Flow_class
     procedure, public :: Setup => PMSubsurfaceFlowSetup
     procedure, public :: SetRealization => PMSubsurfaceFlowSetRealization
     procedure, public :: InitializeRun => PMSubsurfaceFlowInitializeRun
-!    procedure, public :: FinalizeRun => PMSubsurfaceFlowFinalizeRun
+    procedure, public :: FinalizeRun => PMSubsurfaceFlowFinalizeRun
 !    procedure, public :: InitializeTimestep => PMSubsurfaceFlowInitializeTimestep
     procedure, public :: FinalizeTimestep => PMSubsurfaceFlowFinalizeTimestep
     procedure, public :: PreSolve => PMSubsurfaceFlowPreSolve

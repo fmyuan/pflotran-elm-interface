@@ -21,6 +21,7 @@ module PM_Auxiliary_class
   contains
     procedure, public :: Setup => PMAuxiliarySetup
     procedure, public :: InitializeRun => PMAuxiliaryInitializeRun
+    procedure, public :: FinalizeRun => PMAuxiliaryFinalizeRun
     procedure, public :: InputRecord => PMAuxiliaryInputRecord
     procedure, public :: Destroy => PMAuxiliaryDestroy
   end type pm_auxiliary_type
@@ -296,6 +297,28 @@ end subroutine PMAuxiliaryInitializeRun
 
 ! ************************************************************************** !
 
+recursive subroutine PMAuxiliaryFinalizeRun(this)
+  ! 
+  ! Finalizes the run
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/22/18
+  ! 
+
+  implicit none
+
+  class(pm_auxiliary_type) :: this
+
+  ! do something here
+
+  if (associated(this%next)) then
+    call this%next%FinalizeRun()
+  endif
+
+end subroutine PMAuxiliaryFinalizeRun
+
+! ************************************************************************** !
+
 subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
   ! 
   ! Initializes auxiliary process model
@@ -399,7 +422,6 @@ subroutine PMAuxiliaryInputRecord(this)
   write(id,'(a)') this%name
 
 end subroutine PMAuxiliaryInputRecord
-
 
 ! ************************************************************************** !
 
