@@ -663,6 +663,10 @@ recursive subroutine FinalizeRun(this)
     call this%timestepper%FinalizeRun(this%option)
   endif
 
+  if (associated(this%pm_list)) then
+    call this%pm_list%FinalizeRun()
+  endif
+
   if (associated(this%child)) then
     call this%child%FinalizeRun()
   endif

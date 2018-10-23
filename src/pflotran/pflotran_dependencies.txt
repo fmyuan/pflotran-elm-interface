@@ -228,13 +228,14 @@ general.o : connection.o coupler.o debug.o discretization.o eos_water.o \
             material.o material_aux.o option.o output_aux.o output_tecplot.o \
             patch.o pflotran_constants.o realization_subsurface.o \
             saturation_function.o srcsink_sandbox.o srcsink_sandbox_base.o \
-            srcsink_sandbox_wipp_gas.o srcsink_sandbox_wipp_well.o variables.o
+            srcsink_sandbox_wipp_gas.o srcsink_sandbox_wipp_well.o \
+            upwind_direction.o variables.o
 general_aux.o : characteristic_curves.o eos_gas.o eos_water.o global_aux.o \
                 material_aux.o option.o pflotran_constants.o string.o \
                 utility.o wipp.o
 general_common.o : connection.o eos_gas.o eos_water.o general_aux.o \
                    global_aux.o material_aux.o option.o pflotran_constants.o \
-                   utility.o wipp.o
+                   upwind_direction.o utility.o wipp.o
 generic.o : pflotran_constants.o string.o
 geomech_grid.o : gauss.o geomech_grid_aux.o geomechanics_region.o geometry.o \
                  grid_unstructured_aux.o grid_unstructured_cell.o input_aux.o \
@@ -481,8 +482,8 @@ patch.o : auxiliary.o characteristic_curves.o condition.o connection.o \
           reaction_surf_complex_aux.o reactive_transport_aux.o region.o \
           richards_aux.o saturation.o saturation_function.o strata.o string.o \
           surface_auxiliary.o surface_field.o surface_material.o th_aux.o \
-          transport_constraint.o utility.o variables.o well.o well_spec_base.o \
-          wipp_flow_aux.o
+          transport_constraint.o upwind_direction.o utility.o variables.o \
+          well.o well_spec_base.o wipp_flow_aux.o
 pflotran.o : factory_hydrogeophysics.o factory_pflotran.o factory_subsurface.o \
              multisimulation.o option.o pflotran_constants.o \
              pflotran_provenance.o simulation_base.o
@@ -505,7 +506,7 @@ pm_general.o : checkpoint.o field.o general.o general_aux.o global.o \
                option.o output_ekg.o patch.o pflotran_constants.o pm_base.o \
                pm_subsurface_flow.o realization_base.o \
                realization_subsurface.o saturation_function.o string.o \
-               variables.o
+               upwind_direction.o variables.o
 pm_geomechanics_force.o : checkpoint.o communicator_base.o \
                           communicator_structured.o \
                           communicator_unstructured.o convergence.o \
@@ -551,8 +552,8 @@ pm_subsurface_flow.o : auxvars_flow.o characteristic_curves.o \
                        hdf5.o input_aux.o integral_flux.o material.o \
                        material_aux.o option.o patch.o pflotran_constants.o \
                        pm_base.o realization_base.o realization_subsurface.o \
-                       srcsink_sandbox.o string.o variables.o well_data.o \
-                       well_solver.o wipp.o
+                       srcsink_sandbox.o string.o upwind_direction.o \
+                       variables.o well_data.o well_solver.o wipp.o
 pm_surface.o : checkpoint_surface.o communicator_base.o \
                communicator_unstructured.o condition.o discretization.o \
                global.o grid.o input_aux.o option.o pflotran_constants.o \
@@ -610,8 +611,8 @@ pm_wipp_flow.o : checkpoint.o convergence.o dataset.o dataset_base.o \
                  material_aux.o option.o patch.o pflotran_constants.o \
                  pm_base.o pm_subsurface_flow.o pm_wipp_srcsink.o \
                  realization_base.o realization_subsurface.o \
-                 saturation_function.o string.o utility.o variables.o \
-                 wipp_flow.o wipp_flow_aux.o wipp_flow_common.o
+                 saturation_function.o string.o upwind_direction.o utility.o \
+                 variables.o wipp_flow.o wipp_flow_aux.o
 pm_wipp_srcsink.o : data_mediator_vec.o eos_gas.o eos_water.o global_aux.o \
                     grid.o input_aux.o material.o material_aux.o option.o \
                     output_aux.o patch.o pflotran_constants.o pm_base.o \
@@ -975,6 +976,7 @@ transport_constraint.o : global_aux.o input_aux.o logging.o option.o \
                          reaction_surf_complex_aux.o reactive_transport_aux.o \
                          string.o units.o
 units.o : option.o pflotran_constants.o
+upwind_direction.o : option.o
 utility.o : input_aux.o option.o pflotran_constants.o string.o
 variables.o :
 waypoint.o : option.o output_aux.o pflotran_constants.o utility.o
@@ -1015,12 +1017,13 @@ wipp_flow.o : characteristic_curves.o connection.o coupler.o discretization.o \
               pflotran_constants.o pm_wipp_srcsink.o realization_subsurface.o \
               srcsink_sandbox.o srcsink_sandbox_base.o \
               srcsink_sandbox_wipp_gas.o srcsink_sandbox_wipp_well.o \
-              variables.o wipp.o wipp_flow_aux.o wipp_flow_common.o
+              upwind_direction.o variables.o wipp.o wipp_flow_aux.o \
+              wipp_flow_common.o
 wipp_flow_aux.o : characteristic_curves.o characteristic_curves_wipp.o \
                   eos_gas.o eos_water.o global_aux.o material_aux.o option.o \
                   pflotran_constants.o utility.o variables.o wipp.o
 wipp_flow_common.o : connection.o eos_gas.o eos_water.o global_aux.o \
                      material_aux.o option.o pflotran_constants.o \
-                     wipp_flow_aux.o
+                     upwind_direction.o wipp_flow_aux.o
 wrapper_hydrogeophysics.o : e4d_run.o e4d_setup.o e4d_vars.o option.o \
                             pflotran_constants.o
