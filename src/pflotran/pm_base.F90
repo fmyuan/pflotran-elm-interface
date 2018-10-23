@@ -82,6 +82,7 @@ subroutine PMBaseInit(this)
 
   ! Cannot allocate here.  Allocation takes place in daughter class
   this%name = ''
+  this%header = ''
   nullify(this%option)
   nullify(this%output_option)
   nullify(this%realization_base)

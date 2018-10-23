@@ -53,6 +53,7 @@ function PMRichardsTSCreate()
   allocate(richards_ts_pm)
   call PMRichardsInit(richards_ts_pm)
   richards_ts_pm%name = 'Richards TS Flow'
+  richards_ts_pm%header = 'RICHARDS TS FLOW'
 
   PMRichardsTSCreate => richards_ts_pm
   
