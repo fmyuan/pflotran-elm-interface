@@ -529,9 +529,9 @@ pm_richards.o : characteristic_curves.o eos_water.o field.o global_aux.o \
                 pflotran_constants.o pm_base.o pm_subsurface_flow.o \
                 realization_subsurface.o richards.o richards_aux.o \
                 richards_common.o string.o utility.o
-pm_richards_ts.o : discretization.o field.o global_aux.o grid.o material.o \
-                   material_aux.o option.o patch.o pflotran_constants.o \
-                   pm_base.o pm_subsurface_flow.o realization_subsurface.o \
+pm_richards_ts.o : discretization.o field.o global_aux.o grid.o material_aux.o \
+                   option.o patch.o pflotran_constants.o pm_base.o \
+                   pm_richards.o pm_subsurface_flow.o realization_subsurface.o \
                    richards.o richards_aux.o richards_common.o
 pm_rt.o : checkpoint.o communicator_base.o communicator_structured.o \
           communicator_unstructured.o condition.o condition_control.o \

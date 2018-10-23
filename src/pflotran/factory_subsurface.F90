@@ -3425,7 +3425,14 @@ subroutine SubsurfaceReadInput(simulation,input)
        endif
     endif
     flow_timestepper%name = 'FLOW'
-    if (option%steady_state) call TimestepperSteadyCreateFromBase(flow_timestepper)
+    if (option%steady_state) then
+      select type(flow_timestepper)
+        class is(timestepper_BE_type)
+          call TimestepperSteadyCreateFromBE(flow_timestepper)
+        class is(timestepper_base_type)
+          call TimestepperSteadyCreateFromBase(flow_timestepper)
+      end select
+    endif
     simulation%flow_process_model_coupler%timestepper => flow_timestepper
   else
     call flow_timestepper%Destroy()
@@ -3434,7 +3441,10 @@ subroutine SubsurfaceReadInput(simulation,input)
   endif
   if (associated(simulation%rt_process_model_coupler)) then
     tran_timestepper%name = 'TRAN'
-    if (option%steady_state) call TimestepperSteadyCreateFromBE(tran_timestepper)
+    if (option%steady_state) then
+      ! transport is currently always BE
+      call TimestepperSteadyCreateFromBE(tran_timestepper)
+    endif
     simulation%rt_process_model_coupler%timestepper => tran_timestepper
   else
     call tran_timestepper%Destroy()
