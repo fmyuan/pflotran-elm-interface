@@ -1475,6 +1475,9 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                             general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(r,viewer,ierr);CHKERRQ(ierr)
+    if (realization%debug%matlab_format) then
+      call PetscViewerPopFormat(viewer,ierr);CHKERRQ(ierr)
+    endif
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
   if (realization%debug%vecview_solution) then
@@ -1483,6 +1486,9 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                             general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(xx,viewer,ierr);CHKERRQ(ierr)
+    if (realization%debug%matlab_format) then
+      call PetscViewerPopFormat(viewer,ierr);CHKERRQ(ierr)
+    endif
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
@@ -1645,6 +1651,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                             general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    if (realization%debug%matlab_format) then
+      call PetscViewerPopFormat(viewer,ierr);CHKERRQ(ierr)
+    endif
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
@@ -1710,6 +1719,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                             general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    if (realization%debug%matlab_format) then
+      call PetscViewerPopFormat(viewer,ierr);CHKERRQ(ierr)
+    endif
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
@@ -1767,6 +1779,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                             general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    if (realization%debug%matlab_format) then
+      call PetscViewerPopFormat(viewer,ierr);CHKERRQ(ierr)
+    endif
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
@@ -1815,6 +1830,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                             general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    if (realization%debug%matlab_format) then
+      call PetscViewerPopFormat(viewer,ierr);CHKERRQ(ierr)
+    endif
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
   
@@ -1862,6 +1880,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                             general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
+    if (realization%debug%matlab_format) then
+      call PetscViewerPopFormat(viewer,ierr);CHKERRQ(ierr)
+    endif
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
   if (realization%debug%norm_Jacobian) then

@@ -17,6 +17,7 @@ module Debug_module
     PetscBool :: norm_Jacobian
 
     PetscBool :: binary_format
+    PetscBool :: matlab_format
     PetscBool :: verbose_filename
 
     PetscBool :: print_numerical_derivatives
@@ -60,6 +61,7 @@ function DebugCreate()
   debug%norm_Jacobian = PETSC_FALSE
 
   debug%binary_format = PETSC_FALSE
+  debug%matlab_format = PETSC_FALSE
   debug%verbose_filename = PETSC_FALSE
   
   debug%print_numerical_derivatives = PETSC_FALSE
@@ -132,6 +134,8 @@ subroutine DebugRead(debug,input,option)
         debug%binary_format = PETSC_TRUE
       case('APPEND_COUNTS_TO_FILENAME','APPEND_COUNTS_TO_FILENAMES')
         debug%verbose_filename = PETSC_TRUE
+      case('MATLAB_FORMAT')
+        debug%matlab_format = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(keyword,'DEBUG',option)
     end select 
@@ -168,7 +172,13 @@ subroutine DebugCreateViewer(debug,viewer_name_prefix,option,viewer)
     viewer_name = trim(adjustl(viewer_name_prefix)) // '.bin'
     call PetscViewerBinaryOpen(option%mycomm,viewer_name, &
                                FILE_MODE_WRITE,viewer,ierr);CHKERRQ(ierr)
-  else
+  else if (debug%matlab_format) then
+    viewer_name = trim(viewer_name_prefix) // '.mat'
+    call PetscViewerASCIIOpen(option%mycomm,viewer_name, &
+                               viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerPushFormat(viewer,PETSC_VIEWER_ASCII_MATLAB, &
+                               ierr);CHKERRQ(ierr)
+  else if (.not.(debug%binary_format .and. debug%matlab_format)) then
     viewer_name = trim(viewer_name_prefix) // '.out'
     call PetscViewerASCIIOpen(option%mycomm,viewer_name,viewer, &
                               ierr);CHKERRQ(ierr)
@@ -203,11 +213,11 @@ subroutine DebugWriteFilename(debug,filename,prefix,suffix,ts,ts_cut,ni)
   filename = adjustl(prefix)
   if (debug%verbose_filename) then
     write(word,*) ts
-    filename = trim(filename) // '_' // adjustl(word)
+    filename = trim(filename) // '_ts' // adjustl(word)
     write(word,*) ts_cut
-    filename = trim(filename) // '_' // adjustl(word)
+    filename = trim(filename) // '_tc' // adjustl(word)
     write(word,*) ni
-    filename = trim(filename) // '_' // adjustl(word)
+    filename = trim(filename) // '_ni' // adjustl(word)
   endif
   if (len_trim(suffix) > 0) then
     filename = trim(filename) // '.' // adjustl(suffix)
