@@ -227,6 +227,8 @@ subroutine GeneralSetup(realization)
   close(debug_info_unit)
 #endif  
 
+  call PatchSetupUpwindDirection(patch,option)
+
 end subroutine GeneralSetup
 
 ! ************************************************************************** !
@@ -240,11 +242,14 @@ subroutine GeneralInitializeTimestep(realization)
   ! 
 
   use Realization_Subsurface_class
+  use Upwind_Direction_module
   
   implicit none
   
   type(realization_subsurface_type) :: realization
 
+  general_newton_iteration_number = 0
+  update_upwind_direction = PETSC_TRUE
   call GeneralUpdateFixedAccum(realization)
   
   general_ni_count = 0
@@ -1048,6 +1053,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   use Coupler_module  
   use Debug_module
   use Material_Aux_class
+  use Upwind_Direction_module
 
 !#define DEBUG_WITH_TECPLOT
 #ifdef DEBUG_WITH_TECPLOT
@@ -1136,6 +1142,17 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     close(debug_info_unit)
   endif
 #endif
+
+  general_newton_iteration_number = general_newton_iteration_number + 1
+  ! bragflo uses the following logic, update when
+  !   it == 1, before entering iteration loop
+  !   it > 1 and mod(it-1,frequency) == 0
+  ! the first is set in GeneralInitializeTimestep, the second is set here
+  if (general_newton_iteration_number > 1 .and. &
+      mod(general_newton_iteration_number-1, &
+          upwind_dir_update_freq) == 0) then
+    update_upwind_direction = PETSC_TRUE
+  endif
 
   ! Communication -----------------------------------------
   ! These 3 must be called before GeneralUpdateAuxVars()
@@ -1246,9 +1263,12 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                        material_parameter%soil_thermal_conductivity(:,imat_dn), &
                        cur_connection_set%area(iconn), &
                        cur_connection_set%dist(:,iconn), &
+                       patch%flow_upwind_direction(:,iconn), &
                        general_parameter,option,v_darcy,Res, &
                        Jac_dummy,Jac_dummy, &
                        general_analytical_derivatives, &
+                       update_upwind_direction, &
+                       count_upwind_direction_flip, &
                        (local_id_up == general_debug_cell_id .or. &
                         local_id_dn == general_debug_cell_id))
 
@@ -1308,9 +1328,12 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
+                     patch%flow_upwind_direction_bc(:,iconn), &
                      general_parameter,option, &
                      v_darcy,Res,Jac_dummy, &
                      general_analytical_derivatives, &
+                     update_upwind_direction, &
+                     count_upwind_direction_flip, &
                      local_id == general_debug_cell_id)
       patch%boundary_velocities(:,sum_connection) = v_darcy
       if (associated(patch%boundary_flow_fluxes)) then
@@ -1468,6 +1491,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     close(debug_unit)
   endif
 #endif
+
+  update_upwind_direction = PETSC_FALSE
   
 end subroutine GeneralResidual
 
@@ -1490,6 +1515,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   use Field_module
   use Debug_module
   use Material_Aux_class
+  use Upwind_Direction_module
 
   implicit none
 
@@ -1655,6 +1681,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
+                     patch%flow_upwind_direction(:,iconn), &
                      general_parameter,option,&
                      Jup,Jdn)
       if (local_id_up > 0) then
@@ -1721,6 +1748,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                       material_parameter%soil_thermal_conductivity(:,imat_dn), &
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
+                      patch%flow_upwind_direction_bc(:,iconn), &
                       general_parameter,option, &
                       Jdn)
 

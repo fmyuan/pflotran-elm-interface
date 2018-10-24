@@ -59,7 +59,6 @@ subroutine WIPPFloSetup(realization)
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
   type(output_variable_list_type), pointer :: list
-  type(coupler_type), pointer :: boundary_condition
   type(material_parameter_type), pointer :: material_parameter
 
   PetscInt :: ghosted_id, iconn, sum_connection, local_id
@@ -72,8 +71,6 @@ subroutine WIPPFloSetup(realization)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars_bc(:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars_ss(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(connection_set_list_type), pointer :: connection_set_list
-  type(connection_set_type), pointer :: cur_connection_set
   class(characteristic_curves_type), pointer :: cc
   
   option => realization%option
@@ -156,52 +153,6 @@ subroutine WIPPFloSetup(realization)
   endif
   patch%aux%WIPPFlo%num_aux_ss = sum_connection
 
-  ! allocate arrays for upwind directions
-  ! internal connections
-  connection_set_list => grid%internal_connection_set_list
-  sum_connection = ConnectionGetNumberInList(connection_set_list)
-  allocate(patch%aux%WIPPFlo%upwind_direction(option%nphase,sum_connection))
-  cur_connection_set => connection_set_list%first
-  sum_connection = 0  
-  do 
-    if (.not.associated(cur_connection_set)) exit
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-      dist(1:3) = dabs(cur_connection_set%dist(1:3,iconn))
-      if (dist(1) > dist(2) .and. dist(1) > dist(3)) then
-        i = X_DIRECTION
-      else if (dist(2) > dist(1) .and. dist(2) > dist(3)) then
-        i = Y_DIRECTION
-      else if (dist(3) > dist(1) .and. dist(3) > dist(2)) then
-        i = Z_DIRECTION
-      endif
-      patch%aux%WIPPFlo%upwind_direction(:,sum_connection) = i
-    enddo
-    cur_connection_set => cur_connection_set%next
-  enddo
-  ! boundary connections
-  sum_connection = CouplerGetNumConnectionsInList(patch%boundary_condition_list)
-  boundary_condition => patch%boundary_condition_list%first
-  allocate(patch%aux%WIPPFlo%upwind_direction_bc(option%nphase,sum_connection))
-  sum_connection = 0  
-  do 
-    if (.not.associated(boundary_condition)) exit
-    cur_connection_set => boundary_condition%connection_set
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-      dist(1:3) = dabs(cur_connection_set%dist(1:3,iconn))
-      if (dist(1) > dist(2) .and. dist(1) > dist(3)) then
-        i = X_DIRECTION
-      else if (dist(2) > dist(1) .and. dist(2) > dist(3)) then
-        i = Y_DIRECTION
-      else if (dist(3) > dist(1) .and. dist(3) > dist(2)) then
-        i = Z_DIRECTION
-      endif
-      patch%aux%WIPPFlo%upwind_direction_bc(:,sum_connection) = i
-    enddo
-    boundary_condition => boundary_condition%next
-  enddo
-
   ! create array for zeroing Jacobian entries if inactive
   allocate(patch%aux%WIPPFlo%row_zeroing_array(grid%nlmax))
   patch%aux%WIPPFlo%row_zeroing_array = 0
@@ -219,17 +170,6 @@ subroutine WIPPFloSetup(realization)
     XXBCFlux => WIPPFloBCFluxHarmonicPermOnly
   endif
 
-  ! these counters are used for performance analysis only.  they will not 
-  ! affect simulation results.
-  liq_upwind_flip_count_by_res = 0
-  gas_upwind_flip_count_by_res = 0
-  liq_bc_upwind_flip_count_by_res = 0
-  gas_bc_upwind_flip_count_by_res = 0
-  liq_upwind_flip_count_by_jac = 0
-  gas_upwind_flip_count_by_jac = 0
-  liq_bc_upwind_flip_count_by_jac = 0
-  gas_bc_upwind_flip_count_by_jac = 0
-
   if (wippflo_use_bragflo_cc) then
     do i = 1, size(realization%patch%characteristic_curves_array)
       cc => realization%patch%characteristic_curves_array(i)%ptr
@@ -239,6 +179,8 @@ subroutine WIPPFloSetup(realization)
                         option)
     enddo
   endif
+
+  call PatchSetupUpwindDirection(patch,option)
 
 end subroutine WIPPFloSetup
 
@@ -251,15 +193,15 @@ subroutine WIPPFloInitializeTimestep(realization)
   ! Author: Glenn Hammond
   ! Date: 07/11/17
   ! 
-
   use Realization_Subsurface_class
+  use Upwind_Direction_module
   
   implicit none
   
   type(realization_subsurface_type) :: realization
 
   wippflo_newton_iteration_number = 0
-  wippflo_update_upwind_direction = PETSC_TRUE
+  update_upwind_direction = PETSC_TRUE
   call WIPPFloUpdateFixedAccum(realization)
   
 end subroutine WIPPFloInitializeTimestep
@@ -890,9 +832,10 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
 
   use Connection_module
   use Grid_module
-  use Coupler_module  
+  use Coupler_module
   use Material_Aux_class
   use PM_WIPP_SrcSink_class
+  use Upwind_Direction_module
 
   implicit none
 
@@ -921,6 +864,8 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
+  PetscInt, pointer :: upwind_direction(:,:)
+  PetscInt, pointer :: upwind_direction_bc(:,:)
 
   PetscInt :: iconn
   PetscReal :: scale
@@ -930,7 +875,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
   PetscInt :: i, imat, imat_up, imat_dn
-  PetscInt, pointer :: upwind_direction(:,:), upwind_direction_bc(:,:)
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
@@ -958,20 +902,20 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
-  upwind_direction => patch%aux%WIPPFlo%upwind_direction
-  upwind_direction_bc => patch%aux%WIPPFlo%upwind_direction_bc
+  upwind_direction => patch%flow_upwind_direction
+  upwind_direction_bc => patch%flow_upwind_direction_bc
 
   if (.not.wippflo_jacobian_test_active) then
-  wippflo_newton_iteration_number = wippflo_newton_iteration_number + 1
-  ! bragflo uses the following logic, update when
-  !   it == 1, before entering iteration loop
-  !   it > 1 and mod(it-1,frequency) == 0
-  ! the first is set in WIPPFloInitializeTimestep, the second is set here
-  if (wippflo_newton_iteration_number > 1 .and. &
-      mod(wippflo_newton_iteration_number-1, &
-          wippflo_upwind_dir_update_freq) == 0) then
-    wippflo_update_upwind_direction = PETSC_TRUE
-  endif
+    wippflo_newton_iteration_number = wippflo_newton_iteration_number + 1
+    ! bragflo uses the following logic, update when
+    !   it == 1, before entering iteration loop
+    !   it > 1 and mod(it-1,frequency) == 0
+    ! the first is set in WIPPFloInitializeTimestep, the second is set here
+    if (wippflo_newton_iteration_number > 1 .and. &
+        mod(wippflo_newton_iteration_number-1, &
+            upwind_dir_update_freq) == 0) then
+      update_upwind_direction = PETSC_TRUE
+    endif
   endif
   
   ! Communication -----------------------------------------
@@ -1106,9 +1050,8 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                        upwind_direction(:,sum_connection), &
                        wippflo_parameter,option,v_darcy,Res, &
                        PETSC_FALSE, & ! derivative call
-                       wippflo_fix_upwind_direction, &
-                       wippflo_update_upwind_direction, &
-                       wippflo_count_upwind_dir_flip, & 
+                       update_upwind_direction, &
+                       count_upwind_direction_flip, &
                        debug_connection)
 
       patch%internal_velocities(:,sum_connection) = v_darcy
@@ -1197,9 +1140,8 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
                      wippflo_parameter,option, &
                      v_darcy,Res, &
                      PETSC_FALSE, & ! derivative call
-                     wippflo_fix_upwind_direction, &
-                     wippflo_update_upwind_direction, &
-                     wippflo_count_upwind_dir_flip, & 
+                     update_upwind_direction, &
+                     count_upwind_direction_flip, &
                      PETSC_FALSE)
       patch%boundary_velocities(:,sum_connection) = v_darcy
       if (associated(patch%boundary_flow_fluxes)) then
@@ -1327,7 +1269,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
 !    call VecAXPY(r,-1.d0,field%flow_mass_transfer,ierr);CHKERRQ(ierr)
   endif                      
                         
-  wippflo_update_upwind_direction = PETSC_FALSE
+  update_upwind_direction = PETSC_FALSE
 
 end subroutine WIPPFloResidual
 
@@ -1350,6 +1292,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   use Field_module
   use Material_Aux_class
   use PM_WIPP_SrcSink_class
+  use Upwind_Direction_module
 
   implicit none
 
@@ -1392,7 +1335,8 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  PetscInt, pointer :: upwind_direction(:,:), upwind_direction_bc(:,:)
+  PetscInt, pointer :: upwind_direction(:,:)
+  PetscInt, pointer :: upwind_direction_bc(:,:)
   
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: k
@@ -1408,8 +1352,8 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
-  upwind_direction => patch%aux%WIPPFlo%upwind_direction
-  upwind_direction_bc => patch%aux%WIPPFlo%upwind_direction_bc
+  upwind_direction => patch%flow_upwind_direction
+  upwind_direction_bc => patch%flow_upwind_direction_bc
 
   call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
   if (mat_type == MATMFFD) then
@@ -1977,19 +1921,6 @@ subroutine WIPPFloDestroy(realization)
   
   ! place anything that needs to be freed here.
   ! auxvars are deallocated in auxiliary.F90.
-
-  if (wippflo_fix_upwind_direction .and. &
-      wippflo_count_upwind_dir_flip .and. &
-      OptionPrintToScreen(realization%option)) then
-    print *, 'Res upwind dir. flip (liq): ', liq_upwind_flip_count_by_res
-    print *, 'Res upwind dir. flip (gas): ', gas_upwind_flip_count_by_res
-    print *, 'Res upwind dir. flip (liq bc): ', liq_bc_upwind_flip_count_by_res
-    print *, 'Res upwind dir. flip (gas bc): ', gas_bc_upwind_flip_count_by_res
-    print *, 'Jac upwind dir. flip (liq): ', liq_upwind_flip_count_by_jac
-    print *, 'Jac upwind dir. flip (gas): ', gas_upwind_flip_count_by_jac
-    print *, 'Jac upwind dir. flip (liq bc): ', liq_bc_upwind_flip_count_by_jac
-    print *, 'Jac upwind dir. flip (gas bc): ', gas_bc_upwind_flip_count_by_jac
-  endif
 
 end subroutine WIPPFloDestroy
 

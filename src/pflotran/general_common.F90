@@ -424,9 +424,12 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
                        gen_auxvar_dn,global_auxvar_dn, &
                        material_auxvar_dn, &
                        thermal_conductivity_dn, &
-                       area, dist, general_parameter, &
+                       area, dist, upwind_direction_, &
+                       general_parameter, &
                        option,v_darcy,Res,Jup,Jdn, &
                        analytical_derivatives, &
+                       update_upwind_direction_, &
+                       count_upwind_direction_flip_, &
                        debug_connection)
   ! 
   ! Computes the internal flux terms for the residual
@@ -439,6 +442,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   use Connection_module
   use Fracture_module
   use Klinkenberg_module
+  use Upwind_Direction_module
   
   implicit none
   
@@ -449,6 +453,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: area
   PetscReal :: dist(-1:3)
+  PetscInt :: upwind_direction_(option%nphase)
   type(general_parameter_type) :: general_parameter
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: thermal_conductivity_up(2)
@@ -456,6 +461,8 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
   PetscBool :: analytical_derivatives
+  PetscBool :: update_upwind_direction_
+  PetscBool :: count_upwind_direction_flip_
   PetscBool :: debug_connection
 
   PetscReal :: dist_gravity  ! distance along gravity vector
@@ -491,6 +498,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: ddelta_pressure_dTup, ddelta_pressure_dTdn
   
   PetscReal :: up_scale, dn_scale
+  PetscBool :: upwind
   PetscReal :: tot_mole_flux_ddel_pressure
   PetscReal :: ddensity_kg_ave_dden_kg_up, ddensity_kg_ave_dden_kg_dn
   PetscReal :: ddensity_ave_dden_up, ddensity_ave_dden_dn
@@ -605,7 +613,12 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
     endif
     up_scale = 0.d0
     dn_scale = 0.d0
-    if (delta_pressure >= 0.d0) then
+    upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                             .not.analytical_derivatives, &
+                             count_upwind_direction_flip_, &
+                             liq_upwind_flip_count_by_res, &
+                             liq_upwind_flip_count_by_jac)
+    if (upwind) then
       up_scale = 1.d0
       mobility = gen_auxvar_up%mobility(iphase)
       xmol(:) = gen_auxvar_up%xmol(:,iphase)
@@ -1049,7 +1062,12 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
     endif
     up_scale = 0.d0
     dn_scale = 0.d0
-    if (delta_pressure >= 0.d0) then
+    upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                             .not.analytical_derivatives, &
+                             count_upwind_direction_flip_, &
+                             gas_upwind_flip_count_by_res, &
+                             gas_upwind_flip_count_by_jac)
+    if (upwind) then
       up_scale = 1.d0
       mobility = gen_auxvar_up%mobility(iphase)
       xmol(:) = gen_auxvar_up%xmol(:,iphase)
@@ -2417,9 +2435,12 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          gen_auxvar_dn,global_auxvar_dn, &
                          material_auxvar_dn, &
                          thermal_conductivity_dn, &
-                         area,dist,general_parameter, &
+                         area,dist,upwind_direction_, &
+                         general_parameter, &
                          option,v_darcy,Res,J, &
                          analytical_derivatives, &
+                         update_upwind_direction_, &
+                         count_upwind_direction_flip_, &
                          debug_connection)
   ! 
   ! Computes the boundary flux terms for the residual
@@ -2431,6 +2452,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   use Material_Aux_class
   use Fracture_module
   use Klinkenberg_module
+  use Upwind_Direction_module
   
   implicit none
   
@@ -2443,12 +2465,15 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   class(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: area
   PetscReal :: dist(-1:3)
+  PetscInt :: upwind_direction_(option%nphase)
   type(general_parameter_type) :: general_parameter
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: Res(1:option%nflowdof)
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: J(3,3)
   PetscBool :: analytical_derivatives
+  PetscBool :: update_upwind_direction_
+  PetscBool :: count_upwind_direction_flip_
   PetscBool :: debug_connection
   
   PetscInt :: wat_comp_id, air_comp_id, energy_id
@@ -2473,6 +2498,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: tempreal
   PetscReal :: delta_X_whatever
   PetscReal :: wat_mole_flux, air_mole_flux
+  PetscBool :: upwind
 
   ! Darcy flux
   PetscReal :: ddelta_pressure_dpup, ddelta_pressure_dpdn
@@ -2626,7 +2652,12 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
           endif
         endif
         dn_scale = 0.d0
-        if (delta_pressure >= 0.d0) then
+        upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                                 .not.analytical_derivatives, &
+                                 count_upwind_direction_flip_, &
+                                 liq_bc_upwind_flip_count_by_res, &
+                                 liq_bc_upwind_flip_count_by_jac)
+        if (upwind) then
           mobility = gen_auxvar_up%mobility(iphase)
           xmol(:) = gen_auxvar_up%xmol(:,iphase)
           uH = gen_auxvar_up%H(iphase)
@@ -2962,7 +2993,12 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ! don't expect the derivative to match precisely at delta_pressure = 0
         ! due to potential switch in direction for numerically perturbed
         ! residual
-        if (delta_pressure >= 0.d0) then
+        upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                                 .not.analytical_derivatives, &
+                                 count_upwind_direction_flip_, &
+                                 gas_bc_upwind_flip_count_by_res, &
+                                 gas_bc_upwind_flip_count_by_jac)
+        if (upwind) then
           mobility = gen_auxvar_up%mobility(iphase)
           xmol(:) = gen_auxvar_up%xmol(:,iphase)
           uH = gen_auxvar_up%H(iphase)
@@ -4108,7 +4144,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
                                  gen_auxvar_dn,global_auxvar_dn, &
                                  material_auxvar_dn, &
                                  thermal_conductivity_dn, &
-                                 area, dist, &
+                                 area, dist, upwind_direction_, &
                                  general_parameter, &
                                  option,Jup,Jdn)
   ! 
@@ -4120,6 +4156,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
   ! 
   use Option_module
   use Material_Aux_class
+  use Upwind_Direction_module, only : count_upwind_direction_flip
   
   implicit none
   
@@ -4131,6 +4168,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: thermal_conductivity_up(2)
   PetscReal :: area
   PetscReal :: dist(-1:3)
+  PetscInt :: upwind_direction_(option%nphase)
   type(general_parameter_type) :: general_parameter
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
@@ -4153,9 +4191,14 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
                    gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                    material_auxvar_dn, &
                    thermal_conductivity_dn, &
-                   area,dist,general_parameter, &
+                   area,dist,upwind_direction_, &
+                   general_parameter, &
                    option,v_darcy,res,Janal_up,Janal_dn,&
-                   general_analytical_derivatives,PETSC_FALSE)
+                   general_analytical_derivatives, &
+                   PETSC_FALSE, & ! update the upwind direction
+                   ! avoid double counting upwind direction flip
+                   PETSC_FALSE, & ! count upwind direction flip
+                   PETSC_FALSE)
  
   if (general_analytical_derivatives) then
     Jup = Janal_up
@@ -4169,9 +4212,13 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
                        gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                        material_auxvar_dn, &
                        thermal_conductivity_dn, &
-                       area,dist,general_parameter, &
+                       area,dist,upwind_direction_, &
+                       general_parameter, &
                        option,v_darcy,res_pert,Jdummy,Jdummy, &
-                       PETSC_FALSE,PETSC_FALSE)
+                       PETSC_FALSE, & ! analytical derivatives
+                       PETSC_FALSE, & ! update the upwind direction
+                       count_upwind_direction_flip, &
+                       PETSC_FALSE)
       do irow = 1, option%nflowdof
         Jup(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_up(idof)%pert
   !geh:print *, 'up: ', irow, idof, Jup(irow,idof), gen_auxvar_up(idof)%pert
@@ -4186,9 +4233,13 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
                        gen_auxvar_dn(idof),global_auxvar_dn, &
                        material_auxvar_dn, &
                        thermal_conductivity_dn, &
-                       area,dist,general_parameter, &
+                       area,dist,upwind_direction_, &
+                       general_parameter, &
                        option,v_darcy,res_pert,Jdummy,Jdummy, &
-                       PETSC_FALSE,PETSC_FALSE)
+                       PETSC_FALSE, & ! analytical derivatives
+                       PETSC_FALSE, & ! update the upwind direction
+                       count_upwind_direction_flip, &
+                       PETSC_FALSE)
       do irow = 1, option%nflowdof
         Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
   !geh:print *, 'dn: ', irow, idof, Jdn(irow,idof), gen_auxvar_dn(idof)%pert
@@ -4226,7 +4277,8 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                                    gen_auxvar_dn,global_auxvar_dn, &
                                    material_auxvar_dn, &
                                    thermal_conductivity_dn, &
-                                   area,dist,general_parameter, &
+                                   area,dist,upwind_direction_, &
+                                   general_parameter, &
                                    option,Jdn)
   ! 
   ! Computes the derivatives of the boundary flux terms
@@ -4238,6 +4290,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 
   use Option_module 
   use Material_Aux_class
+  use Upwind_Direction_module, only : count_upwind_direction_flip
   
   implicit none
 
@@ -4251,6 +4304,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: area
   PetscReal :: dist(-1:3)
+  PetscInt :: upwind_direction_(option%nphase)
   type(general_parameter_type) :: general_parameter
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
 
@@ -4268,9 +4322,14 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                      gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                      material_auxvar_dn, &
                      thermal_conductivity_dn, &
-                     area,dist,general_parameter, &
+                     area,dist,upwind_direction_, &
+                     general_parameter, &
                      option,v_darcy,res,Jdum, &
-                     general_analytical_derivatives,PETSC_FALSE)
+                     general_analytical_derivatives, &
+                     PETSC_FALSE, & ! update the upwind direction
+                     ! avoid double counting upwind direction flip
+                     PETSC_FALSE, & ! count upwind direction flip
+                     PETSC_FALSE)
 
   if (general_analytical_derivatives) then
     Jdn = Jdum
@@ -4282,9 +4341,13 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                          gen_auxvar_dn(idof),global_auxvar_dn, &
                          material_auxvar_dn, &
                          thermal_conductivity_dn, &
-                         area,dist,general_parameter, &
+                         area,dist,upwind_direction_, &
+                         general_parameter, &
                          option,v_darcy,res_pert,Jdum, &
-                         PETSC_FALSE,PETSC_FALSE)   
+                         PETSC_FALSE, & ! analytical derivatives
+                         PETSC_FALSE, & ! update the upwind direction
+                         count_upwind_direction_flip, &
+                         PETSC_FALSE)
       do irow = 1, option%nflowdof
         Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
       enddo !irow

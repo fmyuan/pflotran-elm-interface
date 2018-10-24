@@ -27,8 +27,6 @@ module Timestepper_BE_class
     PetscReal, pointer :: tfac(:)
     PetscInt :: ntfac             ! size of tfac
             
-    type(solver_type), pointer :: solver
-  
   contains
     
     procedure, public :: ReadInput => TimestepperBERead

@@ -227,8 +227,6 @@ function PMUFDDecayCreate()
   nullify(PMUFDDecayCreate%isotope_list)
   nullify(PMUFDDecayCreate%element_list)
 
-  call PMBaseInit(PMUFDDecayCreate)
-
 end function PMUFDDecayCreate
 
 ! ************************************************************************** !

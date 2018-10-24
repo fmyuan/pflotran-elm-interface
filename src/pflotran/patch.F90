@@ -55,6 +55,10 @@ module Patch_module
     ! for TH surface/subsurface
     PetscReal, pointer :: boundary_energy_flux(:,:)
 
+    ! for upwind direction in multiphase flow
+    PetscInt, pointer :: flow_upwind_direction(:,:)
+    PetscInt, pointer :: flow_upwind_direction_bc(:,:)
+
     type(grid_type), pointer :: grid
 
     type(region_list_type), pointer :: region_list
@@ -125,7 +129,8 @@ module Patch_module
             PatchGetCellCenteredVelocities, &
             PatchGetCompMassInRegion, &
             PatchGetWaterMassInRegion, &
-            PatchGetCompMassInRegionAssign
+            PatchGetCompMassInRegionAssign, &
+            PatchSetupUpwindDirection
 
 contains
 
@@ -164,6 +169,9 @@ function PatchCreate()
   nullify(patch%ss_tran_fluxes)
   nullify(patch%ss_flow_vol_fluxes)
   nullify(patch%boundary_energy_flux)
+
+  nullify(patch%flow_upwind_direction)
+  nullify(patch%flow_upwind_direction_bc)
 
   nullify(patch%grid)
 
@@ -1180,7 +1188,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
             ! allocate arrays that match the number of connections
             select case(option%iflowmode)
 
-              case(RICHARDS_MODE)
+              case(RICHARDS_MODE, RICHARDS_TS_MODE)
                 temp_int = 1
                 select case(coupler%flow_condition%pressure%itype)
                   case(CONDUCTANCE_BC,HET_CONDUCTANCE_BC)
@@ -1251,6 +1259,9 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                 coupler%flow_aux_int_var = 0
 
               case default
+                option%io_buffer = 'Failed allocation for flow condition "' // &
+                  trim(coupler%flow_condition%name)
+                call printErrMsg(option)
             end select
 
           else if (associated(coupler%flow_condition%rate)) then
@@ -1269,7 +1280,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                    VOLUMETRIC_RATE_SS,MASS_RATE_SS, &
                    HET_VOL_RATE_SS,HET_MASS_RATE_SS)
                 select case(option%iflowmode)
-                  case(RICHARDS_MODE)
+                  case(RICHARDS_MODE, RICHARDS_TS_MODE)
                     allocate(coupler%flow_aux_real_var(1,num_connections))
                     coupler%flow_aux_real_var = 0.d0
                   case(TH_MODE)
@@ -1449,7 +1460,7 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
             call PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
           case(MIS_MODE)
             call PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
-          case(RICHARDS_MODE)
+          case(RICHARDS_MODE, RICHARDS_TS_MODE)
             call PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
           case(TOIL_IMS_MODE)
             call PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
@@ -1695,6 +1706,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   use Dataset_Gridded_HDF5_class
   use Dataset_Ascii_class
   use Dataset_module
+  use String_module
 
   implicit none
 
@@ -1720,6 +1732,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   PetscInt :: real_count
   PetscInt :: dof_count_local(3)
   PetscInt :: dof_count_global(3)
+  PetscReal, parameter :: min_two_phase_gas_pressure = 3.d3
   
   num_connections = coupler%connection_set%num_connections
 
@@ -1749,7 +1762,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     coupler%flow_aux_mapping(GENERAL_AIR_PRESSURE_INDEX) = 3
     coupler%flow_aux_mapping(GENERAL_GAS_FLUX_INDEX) = 3
   endif
-  
+
   select case(flow_condition%iphase)
     case(MULTI_STATE)
       select type(dataset => general%gas_saturation%dataset)
@@ -1758,7 +1771,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
             coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
               TWO_PHASE_STATE
-          else if (gas_sat == 0.d0) then
+          ! Cannot user gas_sat == 0.d0 or Equal(gas_sat,0.d0) as optimization
+          ! in the Intel compiler changes the answer.
+          else if (gas_sat < 0.5d0) then
             coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
               LIQUID_STATE
           else 
@@ -1766,15 +1781,30 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
               GAS_STATE
           endif
         class is(dataset_gridded_hdf5_type)
+          ! If the gas pressure dataset is defined, we must ensure that its
+          ! minimum pressure is greater than min_two_phase_gas_pressure. 
+          ! Otherwise, a zero gas pressure may be incorrectly used within 
+          ! an interpolation of gas pressure for a two phase cell mixed 
+          ! with a single phase liquid cell
+          if (associated(general%gas_pressure)) then
+            dummy_real = &
+              DatasetGetMinRValue(general%gas_pressure%dataset,option)
+            if (dummy_real < min_two_phase_gas_pressure) then
+              option%io_buffer = 'Minimum gas pressure exceeded for &
+                    &FLOW_CONDITION "' // trim(flow_condition%name) // &
+                    '": ' // trim(StringFormatDouble(dummy_real)) // '.'
+              call PrintErrMsg(option)
+            endif
+          endif
           do iconn = 1, num_connections
             call PatchGetCouplerValueFromDataset(coupler,option,patch%grid, &
                                   general%gas_saturation%dataset,iconn,gas_sat)
             if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
               coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = &
                 TWO_PHASE_STATE
-            elseif (Equal(gas_sat, 0.d0)) then 
+            else if (gas_sat < 0.5d0) then
               coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = LIQUID_STATE
-            elseif (Equal(gas_sat, 1.d0)) then 
+            else
               coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = GAS_STATE
             endif                                       
           enddo
@@ -9125,6 +9155,91 @@ end subroutine PatchVerifyDatasetGriddedForFlux
 
 ! ************************************************************************** !
 
+subroutine PatchSetupUpwindDirection(patch,option)
+  !
+  ! Sets up upwind direction arrays
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/22/18
+  !
+  use Grid_module
+  use Coupler_module
+  use Connection_module
+  use Option_module
+  use Upwind_Direction_module
+
+  implicit none
+
+  type(patch_type) :: patch
+  type(option_type) :: option
+
+  type(grid_type), pointer :: grid
+  type(connection_set_list_type), pointer :: connection_set_list
+  type(connection_set_type), pointer :: cur_connection_set
+  type(coupler_type), pointer :: boundary_condition
+  PetscInt, pointer :: upwind_direction(:,:)
+  PetscInt, pointer :: upwind_direction_bc(:,:)
+  PetscInt :: sum_connection
+  PetscInt :: i, iconn
+  PetscReal :: dist(3)
+
+  grid => patch%grid
+
+  call UpwindDirectionInit()
+
+  ! allocate arrays for upwind directions
+  ! internal connections
+  connection_set_list => grid%internal_connection_set_list
+  sum_connection = ConnectionGetNumberInList(connection_set_list)
+  allocate(upwind_direction(option%nphase,sum_connection))
+  cur_connection_set => connection_set_list%first
+  sum_connection = 0
+  do
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      dist(1:3) = dabs(cur_connection_set%dist(1:3,iconn))
+      if (dist(1) > dist(2) .and. dist(1) > dist(3)) then
+        i = X_DIRECTION
+      else if (dist(2) > dist(1) .and. dist(2) > dist(3)) then
+        i = Y_DIRECTION
+      else if (dist(3) > dist(1) .and. dist(3) > dist(2)) then
+        i = Z_DIRECTION
+      endif
+      upwind_direction(:,sum_connection) = i
+    enddo
+    cur_connection_set => cur_connection_set%next
+  enddo
+  ! boundary connections
+  sum_connection = CouplerGetNumConnectionsInList(patch%boundary_condition_list)
+  boundary_condition => patch%boundary_condition_list%first
+  allocate(upwind_direction_bc(option%nphase,sum_connection))
+  sum_connection = 0
+  do
+    if (.not.associated(boundary_condition)) exit
+    cur_connection_set => boundary_condition%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      dist(1:3) = dabs(cur_connection_set%dist(1:3,iconn))
+      if (dist(1) > dist(2) .and. dist(1) > dist(3)) then
+        i = X_DIRECTION
+      else if (dist(2) > dist(1) .and. dist(2) > dist(3)) then
+        i = Y_DIRECTION
+      else if (dist(3) > dist(1) .and. dist(3) > dist(2)) then
+        i = Z_DIRECTION
+      endif
+      upwind_direction_bc(:,sum_connection) = i
+    enddo
+    boundary_condition => boundary_condition%next
+  enddo
+
+  patch%flow_upwind_direction => upwind_direction
+  patch%flow_upwind_direction_bc => upwind_direction_bc
+
+end subroutine PatchSetupUpwindDirection
+
+! ************************************************************************** !
+
 subroutine PatchDestroyList(patch_list)
   !
   ! Deallocates a patch list and array of patches
@@ -9193,6 +9308,9 @@ subroutine PatchDestroy(patch)
   call DeallocateArray(patch%ss_flow_vol_fluxes)
 
   call DeallocateArray(patch%boundary_energy_flux)
+
+  call DeallocateArray(patch%flow_upwind_direction)
+  call DeallocateArray(patch%flow_upwind_direction_bc)
 
 
   if (associated(patch%material_property_array)) &

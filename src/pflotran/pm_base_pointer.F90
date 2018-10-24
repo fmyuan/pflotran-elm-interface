@@ -36,7 +36,9 @@ module PM_Base_Pointer_module
             PMCheckUpdatePrePtr, &
             PMCheckUpdatePostPtr, &
             PMCheckConvergencePtr, &
-            PMRHSFunctionPtr
+            PMRHSFunctionPtr, &
+            PMIFunctionPtr, &
+            PMIJacobianPtr
 
 contains
 
@@ -206,6 +208,62 @@ subroutine PMRHSFunctionPtr(ts,time,xx,ff,this,ierr)
   call this%pm%RHSFunction(ts,time,xx,ff,ierr)
 
 end subroutine PMRHSFunctionPtr
+
+! ************************************************************************** !
+
+subroutine PMIFunctionPtr(ts,time,U,Udot,F,this,ierr)
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/20/18
+  ! 
+
+#include "petsc/finclude/petscts.h"
+  use petscts
+  implicit none
+
+  TS :: ts
+  PetscReal :: time
+  Vec :: U, Udot
+  Vec :: F
+  type(pm_base_pointer_type) :: this
+  PetscErrorCode :: ierr
+  
+#ifdef DEBUG
+  print *, 'PMIFunctionPtr()'
+#endif
+
+  call this%pm%IFunction(ts,time,U,Udot,F,ierr)
+
+end subroutine PMIFunctionPtr
+
+! ************************************************************************** !
+
+subroutine PMIJacobianPtr(ts,time,U,Udot,shift,A,B,this,ierr)
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/20/18
+  ! 
+#include "petsc/finclude/petscts.h"
+  use petscts
+  use Option_module
+  
+  implicit none
+
+  TS :: ts
+  PetscReal :: time
+  Vec :: U, Udot
+  PetscReal :: shift
+  Mat :: A, B
+  type(pm_base_pointer_type) :: this
+  PetscErrorCode :: ierr
+  
+#ifdef DEBUG
+  print *, 'PMIJacobianPtr()'
+#endif
+
+  call this%pm%IJacobian(ts,time,U,Udot,shift,A,B,ierr)
+    
+end subroutine PMIJacobianPtr
 
 ! ************************************************************************** !
 

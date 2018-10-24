@@ -240,15 +240,6 @@ subroutine PMWIPPFloRead(this,input)
       case('GAS_COMPONENT_FORMULA_WEIGHT')
         call InputReadDouble(input,option,fmw_comp(2))
         call InputErrorMsg(input,option,keyword,error_string)
-      case('FIX_UPWIND_DIRECTION')
-        wippflo_fix_upwind_direction = PETSC_TRUE
-      case('UNFIX_UPWIND_DIRECTION')
-        wippflo_fix_upwind_direction = PETSC_FALSE
-      case('COUNT_UPWIND_DIRECTION_FLIP')
-        wippflo_count_upwind_dir_flip = PETSC_TRUE
-      case('UPWIND_DIR_UPDATE_FREQUENCY')
-        call InputReadInt(input,option,wippflo_upwind_dir_update_freq)
-        call InputErrorMsg(input,option,keyword,error_string)
       case('NO_FRACTURE')
         wippflo_use_fracture = PETSC_FALSE
       case('NO_CREEP_CLOSURE')
@@ -695,8 +686,7 @@ subroutine PMWIPPFloPostSolve(this)
   ! Author: Glenn Hammond
   ! Date: 07/11/17
   
-  use WIPP_Flow_Common_module
-  use WIPP_Flow_Aux_module
+  use Upwind_Direction_module
   use Option_module
 
   implicit none
@@ -706,8 +696,8 @@ subroutine PMWIPPFloPostSolve(this)
   PetscInt, save :: lr = 0, gr = 0, lbr = 0, gbr = 0
   PetscInt, save :: lj = 0, gj = 0, lbj = 0, gbj = 0
 
-  if (wippflo_fix_upwind_direction .and. &
-      wippflo_count_upwind_dir_flip .and. &
+  if (fix_upwind_direction .and. &
+      count_upwind_direction_flip .and. &
       OptionPrintToScreen(this%realization%option)) then
     write(*,'(6x,"Res: ",4i5," : ",4i7)') &
       liq_upwind_flip_count_by_res-lr, &

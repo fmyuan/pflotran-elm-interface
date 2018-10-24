@@ -1475,6 +1475,10 @@ subroutine FlowConditionRead(condition,input,option)
                               PETSC_TRUE)
 
   select case(option%iflowmode)
+    case default
+      option%io_buffer = 'The flow mode not supported in original &
+        &FlowConditionRead.'
+      call printMsg(option)
     case(G_MODE)
       option%io_buffer = 'General mode not supported in original &
         &FlowConditionRead.'
@@ -1703,7 +1707,7 @@ subroutine FlowConditionRead(condition,input,option)
       condition%itype(TWO_INTEGER) = concentration%itype
 !#endif
 
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE, RICHARDS_TS_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate) .and. &
           .not.associated(saturation) .and. .not.associated(well)) then
         option%io_buffer = 'pressure, rate and saturation condition null in &

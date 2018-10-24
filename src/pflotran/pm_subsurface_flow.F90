@@ -42,7 +42,7 @@ module PM_Subsurface_Flow_class
     procedure, public :: Setup => PMSubsurfaceFlowSetup
     procedure, public :: SetRealization => PMSubsurfaceFlowSetRealization
     procedure, public :: InitializeRun => PMSubsurfaceFlowInitializeRun
-!    procedure, public :: FinalizeRun => PMSubsurfaceFlowFinalizeRun
+    procedure, public :: FinalizeRun => PMSubsurfaceFlowFinalizeRun
 !    procedure, public :: InitializeTimestep => PMSubsurfaceFlowInitializeTimestep
     procedure, public :: FinalizeTimestep => PMSubsurfaceFlowFinalizeTimestep
     procedure, public :: PreSolve => PMSubsurfaceFlowPreSolve
@@ -138,6 +138,7 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
   use String_module
   use Option_module
   use AuxVars_Flow_module
+  use Upwind_Direction_module
  
   implicit none
   
@@ -206,6 +207,16 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
 
     case('ANALYTICAL_JACOBIAN_COMPARE')
       option%flow%numerical_derivatives_compare = PETSC_TRUE
+
+    case('FIX_UPWIND_DIRECTION')
+      fix_upwind_direction = PETSC_TRUE
+    case('UNFIX_UPWIND_DIRECTION')
+      fix_upwind_direction = PETSC_FALSE
+    case('COUNT_UPWIND_DIRECTION_FLIP')
+      count_upwind_direction_flip = PETSC_TRUE
+    case('UPWIND_DIR_UPDATE_FREQUENCY')
+      call InputReadInt(input,option,upwind_dir_update_freq)
+      call InputErrorMsg(input,option,keyword,error_string)
 
     case('DEBUG_TOL')
       call InputReadDouble(input,option,flow_aux_debug_tol)
@@ -1157,11 +1168,14 @@ recursive subroutine PMSubsurfaceFlowFinalizeRun(this)
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
+  use Upwind_Direction_module
+
   implicit none
   
   class(pm_subsurface_flow_type) :: this
   
   ! do something here
+  call UpwindDirectionPrintStats(this%option)
   
   if (associated(this%next)) then
     call this%next%FinalizeRun()

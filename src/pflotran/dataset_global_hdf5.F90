@@ -174,8 +174,6 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   
   implicit none
 
-! Default HDF5 Mechanism 
- 
   class(dataset_global_hdf5_type) :: this
   type(option_type) :: option
   integer(HID_T) :: data_type 
@@ -390,7 +388,6 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   
   call PetscLogEventEnd(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
-! End of Default HDF5 Mechanism
 
 end subroutine DatasetGlobalHDF5ReadData
 #endif
