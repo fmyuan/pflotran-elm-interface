@@ -32,6 +32,11 @@ module General_Aux_module
   PetscBool, public :: general_harmonic_diff_density = PETSC_TRUE
 #endif
 
+  ! debugging
+  PetscInt, public :: general_ni_count
+  PetscInt, public :: general_ts_cut_count
+  PetscInt, public :: general_ts_count
+
   ! thermodynamic state of fluid ids
   PetscInt, parameter, public :: NULL_STATE = 0
   PetscInt, parameter, public :: LIQUID_STATE = 1

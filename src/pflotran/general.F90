@@ -212,6 +212,9 @@ subroutine GeneralSetup(realization)
   list => realization%output_option%output_obs_variable_list
   call GeneralSetPlotVariables(realization,list)
   
+  general_ts_count = 0
+  general_ts_cut_count = 0
+  general_ni_count = 0
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   debug_flag = 0
   debug_iteration_count = 0
@@ -244,6 +247,7 @@ subroutine GeneralInitializeTimestep(realization)
 
   call GeneralUpdateFixedAccum(realization)
   
+  general_ni_count = 0
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   debug_flag = 0
 !  if (realization%option%time >= 35.6d0*3600d0*24.d0*365.d0 - 1.d-40) then
@@ -305,6 +309,9 @@ subroutine GeneralUpdateSolution(realization)
       global_auxvars(ghosted_id)%istate
   enddo
   
+  general_ts_count = general_ts_count + 1
+  general_ts_cut_count = 0
+  general_ni_count = 0
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   debug_iteration_count = 0
   debug_timestep_cut_count = 0
@@ -353,6 +360,7 @@ subroutine GeneralTimeCut(realization)
       gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS)
   enddo
 
+  general_ts_cut_count = general_ts_cut_count + 1
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   debug_timestep_cut_count = debug_timestep_cut_count + 1
 #endif 
@@ -1439,13 +1447,17 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   
   
   if (realization%debug%vecview_residual) then
-    string = 'Gresidual'
+    call DebugWriteFilename(realization%debug,string,'Gresidual','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(r,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
   if (realization%debug%vecview_solution) then
-    string = 'Gxx'
+    call DebugWriteFilename(realization%debug,string,'Gxx','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(xx,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -1602,7 +1614,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_accum'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_accum','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -1664,7 +1678,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_flux'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_flux','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -1718,7 +1734,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_bcflux'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_bcflux','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -1764,7 +1782,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_srcsink'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_srcsink','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -1809,7 +1829,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   endif
   
   if (realization%debug%matview_Jacobian) then
-    string = 'Gjacobian'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -1851,6 +1873,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     close(debug_unit)
   endif
 #endif
+  ! update after evaluations to ensure zero-based index to match screen output
+  general_ni_count = general_ni_count + 1
 
 end subroutine GeneralJacobian
 

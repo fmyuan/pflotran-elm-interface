@@ -102,7 +102,7 @@ dataset_gridded_hdf5.o : dataset_base.o dataset_common_hdf5.o hdf5_aux.o \
 dataset_map_hdf5.o : dataset_base.o dataset_common_hdf5.o hdf5_aux.o \
                      input_aux.o logging.o option.o pflotran_constants.o \
                      string.o time_storage.o units.o utility.o
-debug.o : input_aux.o option.o pflotran_constants.o
+debug.o : input_aux.o option.o pflotran_constants.o string.o
 derivative_tests.o : auxvars_flow.o auxvars_toil_ims.o auxvars_towg.o option.o \
                      pflotran_constants.o
 derivatives_utilities.o :

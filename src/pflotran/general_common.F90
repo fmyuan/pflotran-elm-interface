@@ -24,7 +24,7 @@ module General_Common_module
 #define AIR_SRCSINK
 #define ENERGY_SRCSINK
   
-!#define DEBUG_GENERAL_FILEOUTPUT
+#define DEBUG_GENERAL_FILEOUTPUT
 !#define DEBUG_FLUXES  
 
 ! Cutoff parameters
