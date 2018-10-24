@@ -2,6 +2,7 @@ module Timestepper_Base_class
  
 #include "petsc/finclude/petscsys.h"
   use Waypoint_module 
+  use Solver_module
  
   use PFLOTRAN_Constants_module
 
@@ -54,6 +55,8 @@ module Timestepper_Base_class
 
     type(waypoint_type), pointer :: cur_waypoint
     type(waypoint_type), pointer :: prev_waypoint
+
+    type(solver_type), pointer :: solver
 
   contains
     

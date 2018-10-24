@@ -17,6 +17,7 @@ module Debug_module
     PetscBool :: norm_Jacobian
 
     PetscBool :: binary_format
+    PetscBool :: verbose_filename
 
     PetscBool :: print_numerical_derivatives
 
@@ -26,7 +27,11 @@ module Debug_module
     PetscBool :: print_waypoints
   end type debug_type
 
-  public :: DebugCreate, DebugRead, DebugCreateViewer, DebugDestroy
+  public :: DebugCreate, &
+            DebugRead, &
+            DebugCreateViewer, &
+            DebugWriteFilename, &
+            DebugDestroy
   
 contains
 
@@ -55,6 +60,7 @@ function DebugCreate()
   debug%norm_Jacobian = PETSC_FALSE
 
   debug%binary_format = PETSC_FALSE
+  debug%verbose_filename = PETSC_FALSE
   
   debug%print_numerical_derivatives = PETSC_FALSE
   
@@ -79,6 +85,7 @@ subroutine DebugRead(debug,input,option)
 
   use Option_module
   use Input_Aux_module
+  use String_module
   
   implicit none
     
@@ -97,6 +104,7 @@ subroutine DebugRead(debug,input,option)
 
     call InputReadWord(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','DEBUG')   
+    call StringToUpper(keyword)
       
     select case(trim(keyword))
     
@@ -122,6 +130,8 @@ subroutine DebugRead(debug,input,option)
         debug%print_waypoints = PETSC_TRUE
       case('BINARY_FORMAT')
         debug%binary_format = PETSC_TRUE
+      case('APPEND_COUNTS_TO_FILENAME','APPEND_COUNTS_TO_FILENAMES')
+        debug%verbose_filename = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(keyword,'DEBUG',option)
     end select 
@@ -166,6 +176,44 @@ subroutine DebugCreateViewer(debug,viewer_name_prefix,option,viewer)
 
 
 end subroutine DebugCreateViewer
+
+! ************************************************************************** !
+
+subroutine DebugWriteFilename(debug,filename,prefix,suffix,ts,ts_cut,ni)
+  ! 
+  ! Appends timestep, timestep cut, and Newton iteration counts to a 
+  ! filename.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/23/18
+  ! 
+
+  implicit none
+
+  type(debug_type) :: debug
+  character(len=*) :: filename
+  character(len=*) :: prefix
+  character(len=*) :: suffix
+  PetscInt :: ts
+  PetscInt :: ts_cut
+  PetscInt :: ni
+
+  character(len=MAXWORDLENGTH) :: word
+ 
+  filename = adjustl(prefix)
+  if (debug%verbose_filename) then
+    write(word,*) ts
+    filename = trim(filename) // '_' // adjustl(word)
+    write(word,*) ts_cut
+    filename = trim(filename) // '_' // adjustl(word)
+    write(word,*) ni
+    filename = trim(filename) // '_' // adjustl(word)
+  endif
+  if (len_trim(suffix) > 0) then
+    filename = trim(filename) // '.' // adjustl(suffix)
+  endif
+ 
+end subroutine DebugWriteFilename
 
 ! ************************************************************************** !
 

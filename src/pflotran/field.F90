@@ -40,6 +40,7 @@ module Field_module
     ! Solution vectors (yy = previous solution, xx = current iterate)
     Vec :: flow_xx, flow_xx_loc, flow_dxx, flow_yy, flow_accum, flow_accum2
     Vec :: tran_xx, tran_xx_loc, tran_dxx, tran_yy, tran_accum
+    Vec :: flow_xxdot, flow_xxdot_loc
 
     ! vectors for operator splitting
     Vec :: tran_rhs
@@ -126,6 +127,8 @@ function FieldCreate()
   field%flow_yy = PETSC_NULL_VEC
   field%flow_accum = PETSC_NULL_VEC
   field%flow_accum2 = PETSC_NULL_VEC
+  field%flow_xxdot = PETSC_NULL_VEC
+  field%flow_xxdot_loc = PETSC_NULL_VEC
 
   field%tran_r = PETSC_NULL_VEC
   field%tran_log_xx = PETSC_NULL_VEC
@@ -262,6 +265,12 @@ subroutine FieldDestroy(field)
   endif
   if (field%flow_accum2 /= PETSC_NULL_VEC) then
     call VecDestroy(field%flow_accum2,ierr);CHKERRQ(ierr)
+  endif
+  if (field%flow_xxdot /= PETSC_NULL_VEC) then
+    call VecDestroy(field%flow_xxdot,ierr);CHKERRQ(ierr)
+  endif
+  if (field%flow_xxdot_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(field%flow_xxdot_loc,ierr);CHKERRQ(ierr)
   endif
   
   if (field%tran_r /= PETSC_NULL_VEC) then

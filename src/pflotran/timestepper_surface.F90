@@ -16,7 +16,6 @@ module Timestepper_Surface_class
   type, public, extends(timestepper_base_type) :: timestepper_surface_type
     PetscReal :: dt_max_allowable
     PetscReal :: surf_subsurf_coupling_flow_dt
-    type(solver_type), pointer :: solver
   contains
     procedure, public :: CheckpointBinary => TimestepperSurfaceCheckpointBinary
     procedure, public :: Init => TimestepperSurfaceInit

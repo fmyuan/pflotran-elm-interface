@@ -297,10 +297,12 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
   character(len=MAXSTRINGLENGTH) :: string
 
   pmc_subsurface => PMCSubsurfaceCreate()
+
   call pmc_subsurface%SetName(pmc_name)
   call pmc_subsurface%SetOption(option)
   call pmc_subsurface%SetCheckpointOption(simulation%checkpoint_option)
   call pmc_subsurface%SetWaypointList(simulation%waypoint_list_subsurface)
+
   pmc_subsurface%pm_list => pm_flow
   pmc_subsurface%pm_ptr%pm => pm_flow
   pmc_subsurface%realization => realization
@@ -703,6 +705,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use PM_TOilIms_class
   use PM_TOWG_class
   use PM_TOWG_Aux_module
+  use PM_Richards_TS_class
 
   implicit none
 
@@ -888,7 +891,17 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%nflowspec = 1
       option%use_isothermal = PETSC_FALSE
       option%flow%store_fluxes = PETSC_TRUE
+    class is (pm_richards_ts_type)
+      option%iflowmode = RICHARDS_TS_MODE
+      option%nphase = 1
+      option%liquid_phase = 1
+      option%nflowdof = 1
+      option%nflowspec = 1
+      option%use_isothermal = PETSC_TRUE
     class default
+      option%io_buffer = ''
+      call printErrMsg(option)
+
   end select
 
 end subroutine SubsurfaceSetFlowMode
@@ -917,9 +930,8 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
   use PM_TH_class
   use PM_TOilIms_class
   use PM_TOWG_class
-
+  use PM_Richards_TS_class
   use Init_Common_module
-
   use General_module
 
   implicit none
@@ -982,6 +994,8 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
           case('TOWG_IMMISCIBLE','TODD_LONGSTAFF','TOWG_MISCIBLE', &
                'BLACK_OIL','SOLVENT_TL')
             pm => PMTOWGCreate(word,option)
+          case ('RICHARDS_TS')
+            pm => PMRichardsTSCreate()
           case default
             error_string = trim(error_string) // ',MODE'
             call InputKeywordUnrecognized(word,error_string,option)
@@ -1397,7 +1411,6 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
     if (.not.associated(cur_pm)) exit
     ! set realization
     select type(cur_pm)
-    !-----------------------------------
       class is(pm_rt_type)
         if (.not.associated(realization%reaction)) then
           option%io_buffer = 'SUBSURFACE_TRANSPORT specified as a &
@@ -1405,34 +1418,35 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
           call printErrMsg(option)
         endif
         call cur_pm%SetRealization(realization)
-    !-----------------------------------
+
       class is(pm_subsurface_flow_type)
         call cur_pm%SetRealization(realization)
-    !-----------------------------------
+
       class is(pm_waste_form_type)
         call cur_pm%SetRealization(realization)
-    !-----------------------------------
+
       class is(pm_ufd_decay_type)
         call cur_pm%SetRealization(realization)
-    !-----------------------------------
+
       class is(pm_ufd_biosphere_type)
         call cur_pm%SetRealization(realization)
-    !-----------------------------------
+
     end select
+
     ! set time stepper
     select type(cur_pm)
-    !-----------------------------------
       class is(pm_subsurface_flow_type)
         pmc%timestepper%dt = option%flow_dt
-    !-----------------------------------
+
       class is(pm_rt_type)
         pmc%timestepper%dt = option%tran_dt
-    !-----------------------------------
+
     end select
     cur_pm%output_option => simulation%output_option
     call cur_pm%Setup()
     cur_pm => cur_pm%next
   enddo
+
   call pmc%SetupSolvers()
 
   ! call this function for this pmc's child
@@ -1886,6 +1900,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use PMC_Subsurface_class
   use Timestepper_BE_class
   use Timestepper_Steady_class
+  use Timestepper_TS_class
 #ifdef WELL_CLASS
   use WellSpec_Base_class
 #endif
@@ -1963,7 +1978,8 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscReal :: dt_min
   PetscReal :: units_conversion
 
-  class(timestepper_BE_type), pointer :: flow_timestepper
+  class(timestepper_base_type), pointer :: temp_timestepper
+  class(timestepper_base_type), pointer :: flow_timestepper
   class(timestepper_BE_type), pointer :: tran_timestepper
 
   internal_units = 'not_assigned'
@@ -1979,8 +1995,13 @@ subroutine SubsurfaceReadInput(simulation,input)
   field => realization%field
   reaction => realization%reaction
 
-  flow_timestepper => TimestepperBECreate()
+  if (option%iflowmode == RICHARDS_TS_MODE) then
+    flow_timestepper => TimestepperTSCreate()
+  else
+    flow_timestepper => TimestepperBECreate()
+  endif
   flow_timestepper%solver%itype = FLOW_CLASS
+
   tran_timestepper => TimestepperBECreate()
   tran_timestepper%solver%itype = TRANSPORT_CLASS
 
@@ -2489,7 +2510,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call StringToUpper(word)
         select case(word)
           case('FLOW')
-             call flow_timestepper%ReadInput(input,option)
+            call flow_timestepper%ReadInput(input,option)
           case('TRAN','TRANSPORT')
             call tran_timestepper%ReadInput(input,option)
           case default
@@ -2570,12 +2591,13 @@ subroutine SubsurfaceReadInput(simulation,input)
 
         if (.not.(option%iflowmode == NULL_MODE .or. &
                   option%iflowmode == RICHARDS_MODE .or. &
+                  option%iflowmode == RICHARDS_TS_MODE .or. &
                   option%iflowmode == TOIL_IMS_MODE .or. &
                   option%iflowmode == TOWG_MODE .or. &
                   option%iflowmode == G_MODE .or. &
                   option%iflowmode == WF_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow &
-            &modes other than RICHARDS, TOIL_IMS, WIPP_FLOW, or GENERAL. &
+            &modes other than RICHARDS, RICHARDS_TS, TOIL_IMS, WIPP_FLOW, or GENERAL. &
             &Use SATURATION_FUNCTION.'
           call printErrMsg(option)
         endif
@@ -3397,8 +3419,30 @@ subroutine SubsurfaceReadInput(simulation,input)
   enddo
 
   if (associated(simulation%flow_process_model_coupler)) then
+    if (option%iflowmode == RICHARDS_TS_MODE) then
+       if (option%steady_state) then
+         option%io_buffer = 'Steady state not supported with PETSC TS'
+         call printErrMsg(option)
+       endif
+    endif
     flow_timestepper%name = 'FLOW'
-    if (option%steady_state) call TimestepperSteadyCreateFromBE(flow_timestepper)
+    if (option%steady_state) then
+      !geh: This is a workaround for the Intel compiler which thinks that
+      !     fts and/or flow_timestepper is not a pointer when passed within
+      !     the select type statment.  This is too convoluted; it needs to
+      !     be refactored!
+      select type(fts=>flow_timestepper)
+        class is(timestepper_BE_type)
+          temp_timestepper => TimestepperSteadyCreateFromBE(fts)
+        class is(timestepper_base_type)
+          temp_timestepper =>  TimestepperSteadyCreateFromBase(fts)
+      end select
+      call flow_timestepper%Destroy()
+      deallocate(flow_timestepper)
+      nullify(flow_timestepper)
+      flow_timestepper => temp_timestepper
+      nullify(temp_timestepper)
+    endif
     simulation%flow_process_model_coupler%timestepper => flow_timestepper
   else
     call flow_timestepper%Destroy()
@@ -3407,7 +3451,15 @@ subroutine SubsurfaceReadInput(simulation,input)
   endif
   if (associated(simulation%rt_process_model_coupler)) then
     tran_timestepper%name = 'TRAN'
-    if (option%steady_state) call TimestepperSteadyCreateFromBE(tran_timestepper)
+    if (option%steady_state) then
+      ! transport is currently always BE
+      temp_timestepper => TimestepperSteadyCreateFromBE(tran_timestepper)
+      call tran_timestepper%Destroy()
+      deallocate(tran_timestepper)
+      nullify(tran_timestepper)
+      flow_timestepper => temp_timestepper
+      nullify(temp_timestepper)
+    endif
     simulation%rt_process_model_coupler%timestepper => tran_timestepper
   else
     call tran_timestepper%Destroy()

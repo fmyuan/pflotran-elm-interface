@@ -704,6 +704,7 @@ function PMWFCreate()
 ! ------------------------------------------------
   
   allocate(PMWFCreate)
+  call PMBaseInit(PMWFCreate)
   nullify(PMWFCreate%realization)
   nullify(PMWFCreate%data_mediator)
   nullify(PMWFCreate%waste_form_list)
@@ -712,8 +713,6 @@ function PMWFCreate()
   PMWFCreate%implicit_solution = PETSC_FALSE
   PMWFCreate%name = 'waste form general'
   PMWFCreate%header = 'WASTE FORM (GENERAL)'
-
-  call PMBaseInit(PMWFCreate)
 
 end function PMWFCreate
 

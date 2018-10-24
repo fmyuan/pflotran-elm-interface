@@ -51,6 +51,8 @@ module PM_Base_class
     procedure, public :: ComputeMassBalance => PMBaseComputeMassBalance
     procedure, public :: Destroy => PMBaseThisOnly
     procedure, public :: RHSFunction => PMBaseRHSFunction
+    procedure, public :: IFunction => PMBaseIFunction
+    procedure, public :: IJacobian => PMBaseIJacobian
     procedure, public :: CheckpointBinary => PMBaseCheckpointBinary
     procedure, public :: RestartBinary => PMBaseCheckpointBinary
     procedure, public :: CheckpointHDF5 => PMBaseCheckpointHDF5
@@ -80,6 +82,7 @@ subroutine PMBaseInit(this)
 
   ! Cannot allocate here.  Allocation takes place in daughter class
   this%name = ''
+  this%header = ''
   nullify(this%option)
   nullify(this%output_option)
   nullify(this%realization_base)
@@ -293,6 +296,35 @@ subroutine PMBaseRHSFunction(this,ts,time,xx,ff,ierr)
   print *, 'Must extend PMBaseRHSFunction for: ' // trim(this%name)
   stop
 end subroutine PMBaseRHSFunction
+
+! ************************************************************************** !
+
+subroutine PMBaseIFunction(this,ts,time,U,Udot,F,ierr)
+  implicit none
+  class(pm_base_type) :: this
+  TS :: ts
+  PetscReal :: time
+  Vec :: U, Udot
+  Vec :: F
+  PetscErrorCode :: ierr
+  print *, 'Must extend PMBaseIFunction for: ' // trim(this%name)
+  stop
+end subroutine PMBaseIFunction
+
+! ************************************************************************** !
+
+subroutine PMBaseIJacobian(this,ts,time,U,Udot,shift,A,B,ierr)
+  implicit none
+  class(pm_base_type) :: this
+  TS :: ts
+  PetscReal :: time
+  Vec :: U, Udot
+  PetscReal :: shift
+  Mat :: A, B
+  PetscErrorCode :: ierr
+  print *, 'Must extend PMBaseIJacobian for: ' // trim(this%name)
+  stop
+end subroutine PMBaseIJacobian
 
 ! ************************************************************************** !
 

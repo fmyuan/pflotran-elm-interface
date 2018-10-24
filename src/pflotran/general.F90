@@ -212,6 +212,9 @@ subroutine GeneralSetup(realization)
   list => realization%output_option%output_obs_variable_list
   call GeneralSetPlotVariables(realization,list)
   
+  general_ts_count = 0
+  general_ts_cut_count = 0
+  general_ni_count = 0
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   debug_flag = 0
   debug_iteration_count = 0
@@ -223,6 +226,8 @@ subroutine GeneralSetup(realization)
   write(debug_info_unit,*) 'type timestep cut iteration'
   close(debug_info_unit)
 #endif  
+
+  call PatchSetupUpwindDirection(patch,option)
 
 end subroutine GeneralSetup
 
@@ -237,13 +242,17 @@ subroutine GeneralInitializeTimestep(realization)
   ! 
 
   use Realization_Subsurface_class
+  use Upwind_Direction_module
   
   implicit none
   
   type(realization_subsurface_type) :: realization
 
+  general_newton_iteration_number = 0
+  update_upwind_direction = PETSC_TRUE
   call GeneralUpdateFixedAccum(realization)
   
+  general_ni_count = 0
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   debug_flag = 0
 !  if (realization%option%time >= 35.6d0*3600d0*24.d0*365.d0 - 1.d-40) then
@@ -305,6 +314,9 @@ subroutine GeneralUpdateSolution(realization)
       global_auxvars(ghosted_id)%istate
   enddo
   
+  general_ts_count = general_ts_count + 1
+  general_ts_cut_count = 0
+  general_ni_count = 0
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   debug_iteration_count = 0
   debug_timestep_cut_count = 0
@@ -353,6 +365,7 @@ subroutine GeneralTimeCut(realization)
       gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS)
   enddo
 
+  general_ts_cut_count = general_ts_cut_count + 1
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   debug_timestep_cut_count = debug_timestep_cut_count + 1
 #endif 
@@ -1081,6 +1094,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   use Coupler_module  
   use Debug_module
   use Material_Aux_class
+  use Upwind_Direction_module
 
 !#define DEBUG_WITH_TECPLOT
 #ifdef DEBUG_WITH_TECPLOT
@@ -1175,6 +1189,17 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     close(debug_info_unit)
   endif
 #endif
+
+  general_newton_iteration_number = general_newton_iteration_number + 1
+  ! bragflo uses the following logic, update when
+  !   it == 1, before entering iteration loop
+  !   it > 1 and mod(it-1,frequency) == 0
+  ! the first is set in GeneralInitializeTimestep, the second is set here
+  if (general_newton_iteration_number > 1 .and. &
+      mod(general_newton_iteration_number-1, &
+          upwind_dir_update_freq) == 0) then
+    update_upwind_direction = PETSC_TRUE
+  endif
 
   ! Communication -----------------------------------------
   ! These 3 must be called before GeneralUpdateAuxVars()
@@ -1285,9 +1310,12 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                        material_parameter%soil_thermal_conductivity(:,imat_dn), &
                        cur_connection_set%area(iconn), &
                        cur_connection_set%dist(:,iconn), &
+                       patch%flow_upwind_direction(:,iconn), &
                        general_parameter,option,v_darcy,Res, &
                        Jac_dummy,Jac_dummy, &
                        general_analytical_derivatives, &
+                       update_upwind_direction, &
+                       count_upwind_direction_flip, &
                        (local_id_up == general_debug_cell_id .or. &
                         local_id_dn == general_debug_cell_id))
 
@@ -1347,9 +1375,12 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
+                     patch%flow_upwind_direction_bc(:,iconn), &
                      general_parameter,option, &
                      v_darcy,Res,Jac_dummy, &
                      general_analytical_derivatives, &
+                     update_upwind_direction, &
+                     count_upwind_direction_flip, &
                      local_id == general_debug_cell_id)
       patch%boundary_velocities(:,sum_connection) = v_darcy
       if (associated(patch%boundary_flow_fluxes)) then
@@ -1489,13 +1520,17 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   
   
   if (realization%debug%vecview_residual) then
-    string = 'Gresidual'
+    call DebugWriteFilename(realization%debug,string,'Gresidual','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(r,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
   if (realization%debug%vecview_solution) then
-    string = 'Gxx'
+    call DebugWriteFilename(realization%debug,string,'Gxx','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(xx,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -1506,6 +1541,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     close(debug_unit)
   endif
 #endif
+
+  update_upwind_direction = PETSC_FALSE
   
 end subroutine GeneralResidual
 
@@ -1528,6 +1565,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   use Field_module
   use Debug_module
   use Material_Aux_class
+  use Upwind_Direction_module
 
   implicit none
 
@@ -1656,7 +1694,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_accum'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_accum','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -1695,6 +1735,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
+                     patch%flow_upwind_direction(:,iconn), &
                      general_parameter,option,&
                      Jup,Jdn)
       if (local_id_up > 0) then
@@ -1718,7 +1759,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_flux'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_flux','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -1759,6 +1802,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                       material_parameter%soil_thermal_conductivity(:,imat_dn), &
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
+                      patch%flow_upwind_direction_bc(:,iconn), &
                       general_parameter,option, &
                       Jdn)
 
@@ -1772,7 +1816,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_bcflux'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_bcflux','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -1817,7 +1863,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_srcsink'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_srcsink','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -1862,7 +1910,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   endif
   
   if (realization%debug%matview_Jacobian) then
-    string = 'Gjacobian'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -1904,6 +1954,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     close(debug_unit)
   endif
 #endif
+  ! update after evaluations to ensure zero-based index to match screen output
+  general_ni_count = general_ni_count + 1
 
 end subroutine GeneralJacobian
 

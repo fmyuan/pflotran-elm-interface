@@ -18,7 +18,8 @@ module Characteristic_Curves_Common_module
     procedure, public :: Verify => SFDefaultVerify
     procedure, public :: CapillaryPressure => SFDefaultCapillaryPressure
     procedure, public :: Saturation => SFDefaultSaturation
-  end type sat_func_default_type  
+    procedure, public :: D2SatDP2 => SFDefaultD2SatDP2
+  end type sat_func_default_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_constant_type
     PetscReal :: constant_capillary_pressure
@@ -27,6 +28,7 @@ module Characteristic_Curves_Common_module
     procedure, public :: Verify => SFConstantVerify
     procedure, public :: CapillaryPressure => SFConstantCapillaryPressure
     procedure, public :: Saturation => SFConstantSaturation
+    procedure, public :: D2SatDP2 => SFConstantD2SatDP2
   end type sat_func_constant_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_VG_type
@@ -37,7 +39,8 @@ module Characteristic_Curves_Common_module
     procedure, public :: Verify => SF_VG_Verify
     procedure, public :: CapillaryPressure => SF_VG_CapillaryPressure
     procedure, public :: Saturation => SF_VG_Saturation
-  end type sat_func_VG_type  
+    procedure, public :: D2SatDP2 => SF_VG_D2SatDP2
+  end type sat_func_VG_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_BC_type
     PetscReal :: alpha
@@ -48,7 +51,8 @@ module Characteristic_Curves_Common_module
     procedure, public :: SetupPolynomials => SF_BC_SetupPolynomials
     procedure, public :: CapillaryPressure => SF_BC_CapillaryPressure
     procedure, public :: Saturation => SF_BC_Saturation
-  end type sat_func_BC_type  
+    procedure, public :: D2SatDP2 => SF_BC_D2SatDP2
+  end type sat_func_BC_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_Linear_type
     PetscReal :: alpha
@@ -57,6 +61,7 @@ module Characteristic_Curves_Common_module
     procedure, public :: Verify => SF_Linear_Verify
     procedure, public :: CapillaryPressure => SF_Linear_CapillaryPressure
     procedure, public :: Saturation => SF_Linear_Saturation
+    procedure, public :: D2SatDP2 => SF_Linear_D2SatDP2
   end type sat_func_Linear_type
   type, public, extends(sat_func_base_type) :: sat_func_mK_type
     PetscReal :: sigmaz, muz
@@ -317,6 +322,25 @@ subroutine SFDefaultSaturation(this,capillary_pressure, &
 end subroutine SFDefaultSaturation
 
 ! ************************************************************************** !
+
+subroutine SFDefaultD2SatDP2(this,pc, &
+                               d2s_dp2,option)
+  use Option_module
+
+  implicit none
+  
+  class(sat_func_default_type) :: this
+  PetscReal, intent(in) :: pc
+  PetscReal, intent(out) :: d2s_dp2
+  type(option_type), intent(inout) :: option
+  
+  option%io_buffer = 'SFDefaultD2SatDP2 is a dummy routine used &
+    &for saturated flow only.  The user must specify a valid &
+    &SATURATION_FUNCTION.'
+  call printErrMsgByRank(option)
+
+end subroutine SFDefaultD2SatDP2
+
 ! ************************************************************************** !
 
 function RPF_Default_Create()
@@ -487,6 +511,21 @@ subroutine SFConstantSaturation(this,capillary_pressure, &
 end subroutine SFConstantSaturation
 
 ! ************************************************************************** !
+
+subroutine SFConstantD2SatDP2(this,pc,d2s_dp2,option)
+  use Option_module
+
+  implicit none
+  
+  class(sat_func_constant_type) :: this
+  PetscReal, intent(in) :: pc
+  PetscReal, intent(out) :: d2s_dp2
+  type(option_type), intent(inout) :: option
+  
+  d2s_dp2 = 0.d0
+
+end subroutine SFConstantD2SatDP2
+
 ! ************************************************************************** !
 
 function RPF_Constant_Create()
@@ -765,6 +804,48 @@ subroutine SF_VG_Saturation(this,capillary_pressure, &
 end subroutine SF_VG_Saturation
 
 ! ************************************************************************** !
+
+subroutine SF_VG_D2SatDP2(this,pc,d2s_dp2,option)
+
+  use Option_module
+
+  implicit none
+  
+  class(sat_func_VG_type) :: this
+  PetscReal, intent(in) :: pc
+  PetscReal, intent(out) :: d2s_dp2
+  type(option_type), intent(inout) :: option
+  
+  PetscReal, parameter :: pc_alpha_n_epsilon = 1.d-15
+  PetscReal :: n
+  PetscReal :: pc_alpha
+  PetscReal :: pc_alpha_n
+  PetscReal :: one_plus_pc_alpha_n
+  PetscReal :: Se
+  PetscReal :: d2Se_dpc2
+  PetscReal, parameter :: dpc_dpres = -1.d0
+
+  if (pc <= 0.d0) then
+    d2s_dp2 = 0.d0
+    return
+  else
+    n = 1.d0/(1.d0-this%m)
+    pc_alpha = pc*this%alpha
+    pc_alpha_n = pc_alpha**n
+    if (pc_alpha_n < pc_alpha_n_epsilon) then
+      d2s_dp2 = 0.d0
+      return
+    endif
+    one_plus_pc_alpha_n = 1.d0+pc_alpha_n
+    Se = one_plus_pc_alpha_n**(-this%m)
+
+    d2Se_dpc2 = this%m*n*(pc_alpha_n) * one_plus_pc_alpha_n**(-this%m-2.d0)* &
+               ( (this%m *n + 1.d0)*pc_alpha_n - n + 1.d0)/ pc**2.d0
+    d2s_dp2 = (1.d0-this%Sr)*d2Se_dpc2*(dpc_dpres*dpc_dpres)
+  endif
+
+end subroutine SF_VG_D2SatDP2
+
 ! ************************************************************************** !
 
 function SF_BC_Create()
@@ -1034,6 +1115,47 @@ subroutine SF_BC_Saturation(this,capillary_pressure, &
 end subroutine SF_BC_Saturation
 
 ! ************************************************************************** !
+
+subroutine SF_BC_D2SatDP2(this,pc,d2s_dp2,option)
+
+  use Option_module
+  use Utility_module
+  
+  implicit none
+
+  class(sat_func_BC_type) :: this
+  PetscReal, intent(in) :: pc
+  PetscReal, intent(out) :: d2s_dp2
+  type(option_type), intent(inout) :: option
+  
+  PetscReal :: pc_alpha_neg_lambda
+  PetscReal :: d2Se_dpc2
+  PetscReal, parameter :: dpc_dpres = -1.d0
+  
+  ! reference #1
+  if (associated(this%pres_poly)) then
+    if (pc < this%pres_poly%low) then
+      d2s_dp2 = 0.d0
+      return
+    else if (pc < this%pres_poly%high) then
+      d2Se_dpc2 = this%pres_poly%coefficients(3)*2.d0 + &
+                  this%pres_poly%coefficients(4)*6.d0*pc
+      d2s_dp2 = (1.d0-this%Sr)*d2Se_dpc2*dpc_dpres*dpc_dpres
+      return
+    endif
+  else
+    if (pc < 1.d0/this%alpha) then
+      d2s_dp2 = 0.d0
+      return
+    endif
+  endif
+
+  pc_alpha_neg_lambda = (pc*this%alpha)**(-this%lambda)
+  d2Se_dpc2 = (this%lambda*this%lambda + this%lambda)/(pc*2.d0)*pc_alpha_neg_lambda
+  d2s_dp2 = (1.d0-this%Sr)*d2Se_dpc2*dpc_dpres*dpc_dpres
+  
+end subroutine SF_BC_D2SatDP2
+
 ! ************************************************************************** !
 
 function SF_Linear_Create()
@@ -1190,6 +1312,27 @@ subroutine SF_Linear_Saturation(this,capillary_pressure, &
 end subroutine SF_Linear_Saturation
 
 ! ************************************************************************** !
+
+subroutine SF_Linear_D2SatDP2(this,pc,d2s_dp2,option)
+
+  use Option_module
+  use Utility_module
+  
+  implicit none
+
+  class(sat_func_Linear_type) :: this
+  PetscReal, intent(in) :: pc
+  PetscReal, intent(out) :: d2s_dp2
+  type(option_type), intent(inout) :: option
+  
+  PetscReal :: Se
+  PetscReal :: dSe_dpc
+  PetscReal, parameter :: dpc_dpres = -1.d0
+  
+  d2s_dp2 = 0.d0
+
+end subroutine SF_Linear_D2SatDP2
+
 ! ************************************************************************** !
 
 function SF_mK_Create()
