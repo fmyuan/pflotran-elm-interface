@@ -683,13 +683,15 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
-  PetscInt :: ghosted_start, ghosted_end
+  PetscInt :: ghosted_start, ghosted_end, ssn
   PetscInt :: iphasebc, iphase
   PetscInt :: offset
   PetscInt :: istate
   PetscReal :: gas_pressure, capillary_pressure, liquid_saturation
   PetscReal :: saturation_pressure, temperature
-  PetscInt :: real_index, variable
+  PetscReal :: src_sink_temp, src_sink_liq_pres, &
+               src_sink_gas_pres, qsrc(3)
+  PetscInt :: real_index, variable, flow_src_sink_type
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
 !#define DEBUG_AUXVARS
@@ -915,8 +917,39 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
   enddo
   
   source_sink => patch%source_sink_list%first
+  ssn=0
   do
-    if (.not.associated(source_sink)) exit
+    if (.not.associated(source_sink).or.(.not.associated(source_sink% &
+                        region%cell_ids))) exit
+    ssn=ssn+1
+    
+    qsrc=source_sink%flow_condition%general%rate%dataset%rarray(:)
+    
+    flow_src_sink_type = source_sink%flow_condition%general%rate%itype
+    if (associated(source_sink%flow_condition%general%temperature)) then
+      src_sink_temp = source_sink%flow_condition%general%temperature% &
+                      dataset%rarray(1)
+    else
+      src_sink_temp=-999
+    endif
+    if (associated(source_sink%flow_condition%general%liquid_pressure)) then
+      src_sink_liq_pres = source_sink%flow_condition%general% &
+                           liquid_pressure%dataset%rarray(1)
+    else
+      src_sink_liq_pres=-999
+    endif
+    
+    if (associated(source_sink%flow_condition%general%gas_pressure)) then
+      src_sink_gas_pres = source_sink%flow_condition%general% &
+                           gas_pressure%dataset%rarray(1)
+    else
+      src_sink_gas_pres =-999
+    endif
+    
+    call GeneralAuxVarComputeSS(option,qsrc,src_sink_temp, &
+                                src_sink_liq_pres, src_sink_gas_pres, &
+                                gen_auxvars(0,source_sink%region%cell_ids(1)),gen_auxvars_ss(ssn))
+   
     source_sink => source_sink%next
   enddo
 
@@ -1073,7 +1106,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   type(coupler_type), pointer :: source_sink
   type(material_parameter_type), pointer :: material_parameter
   type(general_parameter_type), pointer :: general_parameter
-  type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:)
+  type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:), &
+                                        gen_auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
@@ -1091,10 +1125,14 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
   PetscInt :: i, imat, imat_up, imat_dn
   PetscInt, save :: iplot = 0
+  PetscInt :: flow_src_sink_type
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
   PetscReal, pointer :: vec_p(:)
+  
+  PetscReal :: qsrc(3)
+  PetscInt :: ssn
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
@@ -1113,6 +1151,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   material_parameter => patch%aux%Material%material_parameter
   gen_auxvars => patch%aux%General%auxvars
   gen_auxvars_bc => patch%aux%General%auxvars_bc
+  gen_auxvars_ss => patch%aux%General%auxvars_ss
   general_parameter => patch%aux%General%general_parameter
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
@@ -1334,9 +1373,10 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first 
   sum_connection = 0
+  ssn=0
   do 
     if (.not.associated(source_sink)) exit
-    
+    ssn=ssn+1
     cur_connection_set => source_sink%connection_set
     
     do iconn = 1, cur_connection_set%num_connections      
@@ -1353,8 +1393,12 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       else
         scale = 1.d0
       endif
+
+      qsrc=source_sink%flow_condition%general%rate%dataset%rarray(:)
+      flow_src_sink_type=source_sink%flow_condition%general%rate%itype
       
-      call GeneralSrcSink(option,source_sink, &
+      call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+                          gen_auxvars_ss(ssn), &
                           gen_auxvars(ZERO_INTEGER,ghosted_id), &
                           global_auxvars(ghosted_id), &
                           ss_flow_vol_flux, &
@@ -1514,7 +1558,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
-  PetscInt :: sum_connection  
+  PetscInt :: sum_connection 
+  PetscInt :: ssn
   PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity 
   PetscInt, pointer :: zeros(:)
@@ -1524,7 +1569,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   type(field_type), pointer :: field 
   type(material_parameter_type), pointer :: material_parameter
   type(general_parameter_type), pointer :: general_parameter
-  type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:)
+  type(general_auxvar_type), pointer :: gen_auxvars(:,:), &
+                                        gen_auxvars_bc(:), &
+                                        gen_auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
   class(material_auxvar_type), pointer :: material_auxvars(:)
   
@@ -1538,6 +1585,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   material_parameter => patch%aux%Material%material_parameter
   gen_auxvars => patch%aux%General%auxvars
   gen_auxvars_bc => patch%aux%General%auxvars_bc
+  gen_auxvars_ss => patch%aux%General%auxvars_ss
   general_parameter => patch%aux%General%general_parameter
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
@@ -1732,10 +1780,12 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
 
   ! Source/sinks
   source_sink => patch%source_sink_list%first 
+  ssn=0
   do 
     if (.not.associated(source_sink)) exit
     
     cur_connection_set => source_sink%connection_set
+    ssn=ssn+1
     
     do iconn = 1, cur_connection_set%num_connections      
       local_id = cur_connection_set%id_dn(iconn)
@@ -1749,7 +1799,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       endif
       
       Jup = 0.d0
-      call GeneralSrcSinkDerivative(option,source_sink, &
+      call GeneralSrcSinkDerivative(option,source_sink,gen_auxvars_ss(ssn), &
                         gen_auxvars(:,ghosted_id), &
                         global_auxvars(ghosted_id), &
                         scale,Jup)

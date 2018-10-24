@@ -734,13 +734,13 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
   call GeneralPrintAuxVars(general_auxvar(0),global_auxvar(0),material_auxvar(0), &
                            natural_id,'srcsink',option)
 
-  call GeneralSrcSink(option,source_sink, &
+  call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
                       general_auxvar(ZERO_INTEGER),global_auxvar(ZERO_INTEGER), &
                       ss_flow_vol_flux, &
                       scale,res,jac_anal,PETSC_TRUE,PETSC_FALSE)                           
                            
   do i = 1, 3
-    call GeneralSrcSink(option,source_sink, &
+    call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
                         general_auxvar(i),global_auxvar(i), &
                         ss_flow_vol_flux, &
                         scale,res_pert(:,i),jac_dum,PETSC_FALSE,PETSC_FALSE)                           

@@ -3791,7 +3791,7 @@ end subroutine GeneralBCFlux
 
 ! ************************************************************************** !
 
-subroutine GeneralSrcSink(option,source_sink, &
+subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
                           gen_auxvar,global_auxvar,ss_flow_vol_flux, &
                           scale,Res,J,analytical_derivatives,debug_cell)
   ! 
@@ -3802,15 +3802,13 @@ subroutine GeneralSrcSink(option,source_sink, &
   ! 
 
   use Option_module
-  use Coupler_module
   use EOS_Water_module
   use EOS_Gas_module
 
   implicit none
 
   type(option_type) :: option
-  type(coupler_type), pointer :: source_sink
-  type(general_auxvar_type) :: gen_auxvar
+  type(general_auxvar_type) :: gen_auxvar,gen_auxvar_ss
   type(global_auxvar_type) :: global_auxvar
   PetscReal :: ss_flow_vol_flux(option%nphase)
   PetscReal :: scale
@@ -3823,7 +3821,7 @@ subroutine GeneralSrcSink(option,source_sink, &
   PetscInt :: flow_src_sink_type
   PetscReal :: qsrc_mol
   PetscReal :: enthalpy, internal_energy
-  PetscReal :: cell_pressure, dummy_pressure, inj_pressure_liq
+  PetscReal :: ss_pressure, dummy_pressure, inj_pressure
   PetscInt :: wat_comp_id, air_comp_id, energy_id
   PetscReal :: Jl(option%nflowdof,option%nflowdof)  
   PetscReal :: Jg(option%nflowdof,option%nflowdof)  
@@ -3840,23 +3838,6 @@ subroutine GeneralSrcSink(option,source_sink, &
   Res = 0.d0
   J = 0.d0
   
-  qsrc=source_sink%flow_condition%general%rate%dataset%rarray(:)
-  if (associated(source_sink%flow_condition%general%temperature)) then
-    inj_temp=source_sink%flow_condition%general%temperature%&
-             dataset%rarray(1)
-  else
-    inj_temp = gen_auxvar%temp
-  endif
-  
-  if (associated(source_sink%flow_condition%general%liquid_pressure)) then
-    inj_pressure_liq=source_sink%flow_condition%general%liquid_pressure%&
-             dataset%rarray(1)
-  else
-    inj_pressure_liq=maxval(gen_auxvar%pres(option%liquid_phase:&
-                            option%gas_phase))
-  endif
-  
-  flow_src_sink_type=source_sink%flow_condition%general%rate%itype
   
 #ifdef WATER_SRCSINK
   qsrc_mol = 0.d0
@@ -3955,6 +3936,7 @@ subroutine GeneralSrcSink(option,source_sink, &
   endif
 #endif
 
+  
   if (dabs(qsrc(air_comp_id)) < 1.d-40 .and. &
       qsrc(wat_comp_id) < 0.d0) then ! extraction only
     ! Res(1) holds qsrc_mol for water.  If the src/sink value for air is zero,
@@ -3993,37 +3975,16 @@ subroutine GeneralSrcSink(option,source_sink, &
   ! energy units: MJ/sec
   if (size(qsrc) == THREE_INTEGER) then
     if (dabs(qsrc(energy_id)) < 1.d-40) then
-      cell_pressure = &
-        maxval(gen_auxvar%pres(option%liquid_phase:option%gas_phase))
-      if (qsrc(wat_comp_id) < 0.d0) then
+      ss_pressure = &
+        maxval(gen_auxvar_ss%pres(option%liquid_phase:option%gas_phase))
+      if (dabs(qsrc(wat_comp_id)) > 1.d-40) then
         if (associated(gen_auxvar%d)) then
-          call EOSWaterEnthalpy(gen_auxvar%temp,cell_pressure,enthalpy, &
-                                hw_dp,hw_dT,ierr)
+          call EOSWaterEnthalpy(gen_auxvar_ss%temp,ss_pressure, &
+                                enthalpy,hw_dp,hw_dT,ierr)
           hw_dp = hw_dp * 1.d-6
           hw_dT = hw_dT * 1.d-6
         else
-          call EOSWaterEnthalpy(gen_auxvar%temp,cell_pressure,enthalpy,ierr)
-        endif
-        enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
-        ! enthalpy units: MJ/kmol                       ! water component mass
-        Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * &
-                                                        enthalpy
-        if (analytical_derivatives) then
-          Je = 0.d0
-          Je(3,1) = Jl(1,1) * enthalpy + &
-                    Res(wat_comp_id) * hw_dp
-          Je(3,3) = Jl(1,3) * enthalpy + &
-                    Res(wat_comp_id) * hw_dT
-        endif
-        J = J + Je
-      elseif (qsrc(wat_comp_id)> 0.d0) then
-        if (associated(gen_auxvar%d)) then
-          call EOSWaterEnthalpy(inj_temp,inj_pressure_liq,enthalpy, &
-                                hw_dp,hw_dT,ierr)
-          hw_dp = hw_dp * 1.d-6
-          hw_dT = hw_dT * 1.d-6
-        else
-          call EOSWaterEnthalpy(inj_temp,inj_pressure_liq,enthalpy,ierr)
+          enthalpy = gen_auxvar_ss%h(wat_comp_id)
         endif
         enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
         ! enthalpy units: MJ/kmol                       ! water component mass
@@ -4039,43 +4000,19 @@ subroutine GeneralSrcSink(option,source_sink, &
         J = J + Je
       endif
       
-      if (qsrc(air_comp_id) < 0.d0) then
+      if (dabs(qsrc(air_comp_id)) > 1.d-40) then
         ! this is pure air, we use the enthalpy of air, NOT the air/water
         ! mixture in gas
         ! air enthalpy is only a function of temperature and the 
         dummy_pressure = 0.d0
         if (associated(gen_auxvar%d)) then
-          call EOSGasEnergy(gen_auxvar%temp,dummy_pressure,enthalpy, &
+          call EOSGasEnergy(gen_auxvar%temp,ss_pressure,enthalpy, &
                             ha_dT,ha_dp,dum1,dum2,dum3,ierr)
           ha_dp = ha_dp * 1.d-6
           ha_dT = ha_dT * 1.d-6
         else
-          call EOSGasEnergy(gen_auxvar%temp,dummy_pressure, &
-                            enthalpy,internal_energy,ierr)
-        endif
-        enthalpy = enthalpy * 1.d-6 ! J/kmol -> MJ/kmol                                  
-        ! enthalpy units: MJ/kmol                       ! air component mass
-        Res(energy_id) = Res(energy_id) + Res(air_comp_id) * &
-                                                        enthalpy
-        if (analytical_derivatives) then
-          Je = 0.d0
-          Je(3,1) = Jg(2,1) * enthalpy + &
-                    Res(air_comp_id) * ha_dp
-          Je(3,2) = Jg(2,2) * enthalpy
-          Je(3,3) = Jg(2,3) * enthalpy + &
-                    Res(air_comp_id) * ha_dT
-        endif 
-        J = J + Je
-      elseif (qsrc(air_comp_id) > 0.d0) then
-        dummy_pressure = 0.d0
-        if (associated(gen_auxvar%d)) then
-          call EOSGasEnergy(inj_temp,dummy_pressure,enthalpy, &
-                            ha_dT,ha_dp,dum1,dum2,dum3,ierr)
-          ha_dp = ha_dp * 1.d-6
-          ha_dT = ha_dT * 1.d-6
-        else
-          call EOSGasEnergy(inj_temp,dummy_pressure, &
-                            enthalpy,internal_energy,ierr)
+          internal_energy = gen_auxvar_ss%u(air_comp_id)
+          enthalpy = gen_auxvar_ss%h(air_comp_id)
         endif
         enthalpy = enthalpy * 1.d-6 ! J/kmol -> MJ/kmol                                  
         ! enthalpy units: MJ/kmol                       ! air component mass
@@ -4379,7 +4316,7 @@ end subroutine GeneralBCFluxDerivative
 
 ! ************************************************************************** !
 
-subroutine GeneralSrcSinkDerivative(option,source_sink, &
+subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
                                     gen_auxvars,global_auxvar,scale,Jac)
   ! 
   ! Computes the source/sink terms for the residual
@@ -4395,7 +4332,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink, &
 
   type(option_type) :: option
   type(coupler_type), pointer :: source_sink
-  type(general_auxvar_type) :: gen_auxvars(0:)
+  type(general_auxvar_type) :: gen_auxvars(0:), gen_auxvar_ss
   type(global_auxvar_type) :: global_auxvar
   PetscReal :: scale
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
@@ -4411,7 +4348,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink, &
   flow_src_sink_type=source_sink%flow_condition%general%rate%itype
 
   option%iflag = -3
-  call GeneralSrcSink(option,source_sink, &
+  call GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
                       gen_auxvars(ZERO_INTEGER),global_auxvar,dummy_real, &
                       scale,res,Jdum,general_analytical_derivatives, &
                       PETSC_FALSE)
@@ -4421,9 +4358,9 @@ subroutine GeneralSrcSinkDerivative(option,source_sink, &
   else                      
     ! downgradient derivatives
     do idof = 1, option%nflowdof
-      call GeneralSrcSink(option,source_sink, &
+      call GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
                           gen_auxvars(idof),global_auxvar,dummy_real, &
-                          scale,res_pert,Jdum,PETSC_FALSE,PETSC_FALSE)            
+                          scale,res_pert,Jdum,PETSC_FALSE,PETSC_FALSE)  
       do irow = 1, option%nflowdof
         Jac(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvars(idof)%pert
       enddo !irow
