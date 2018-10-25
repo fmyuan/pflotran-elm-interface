@@ -48,7 +48,6 @@ module Checkpoint_module
             CheckPointReadCompatibilityBinary, &
             CheckpointFlowProcessModelBinary, &
             RestartFlowProcessModelBinary, &
-#if defined(PETSC_HAVE_HDF5)
             RestartFlowProcessModelHDF5, &
             CheckpointOpenFileForWriteHDF5, &
             CheckPointWriteCompatibilityHDF5, &
@@ -59,7 +58,6 @@ module Checkpoint_module
             CheckPointReadIntDatasetHDF5, &
             CheckpointOpenFileForReadHDF5, &
             CheckPointReadCompatibilityHDF5, &
-#endif
             CheckpointPeriodicTimeWaypoints, &
             CheckpointInputRecord, &
             CheckpointRead
@@ -539,7 +537,6 @@ end subroutine RestartFlowProcessModelBinary
 
 ! ************************************************************************** !
 
-#if defined(PETSC_HAVE_HDF5)
 subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
                                           id_stamp)
   !
@@ -1346,7 +1343,6 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   endif
 
 end subroutine RestartFlowProcessModelHDF5
-#endif
 
 ! ************************************************************************** !
 

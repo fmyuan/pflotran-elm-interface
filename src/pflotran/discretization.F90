@@ -258,16 +258,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       select case(unstructured_grid_itype)
         case(IMPLICIT_UNSTRUCTURED_GRID)
           if (index(discretization%filename,'.h5') > 0) then
-#if !defined(PETSC_HAVE_HDF5)
-            option%io_buffer = 'PFLOTRAN must be built with HDF5 ' // &
-              'support to read unstructured grid .h5 files'
-            call printErrMsg(option)
-#else
-
             call UGridReadHDF5(un_str_grid,discretization%filename,option)
-#endif
-!#if !defined(PETSC_HAVE_HDF5)
-
           else
             call UGridRead(un_str_grid,discretization%filename,option)
           endif

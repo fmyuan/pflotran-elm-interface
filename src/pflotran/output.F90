@@ -1642,18 +1642,6 @@ subroutine OutputMAD(realization_base)
   use Variables_module
   use Output_Common_module, only : OutputGetVariableArray
  
-#if !defined(PETSC_HAVE_HDF5)
-  implicit none
-  
-  class(realization_base_type) :: realization_base
-
-  call printMsg(realization_base%option,'')
-  write(realization_base%option%io_buffer, &
-        '("PFLOTRAN must be compiled with HDF5 to ", &
-        &"write HDF5 formatted structured grids.")')
-  call printErrMsg(realization_base%option)
-#else
-
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
 !#define HDF_NATIVE_INTEGER H5T_STD_I64LE
@@ -1766,7 +1754,7 @@ subroutine OutputMAD(realization_base)
 
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
-#endif
+
 end subroutine OutputMAD
 
 ! ************************************************************************** !

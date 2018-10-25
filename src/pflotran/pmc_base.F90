@@ -49,10 +49,8 @@ module PMC_Base_class
     procedure, public :: Checkpoint => PMCBaseCheckpoint
     procedure, public :: CheckpointBinary => PMCBaseCheckpointBinary
     procedure, public :: RestartBinary => PMCBaseRestartBinary
-#if defined(PETSC_HAVE_HDF5)
     procedure, public :: CheckpointHDF5 => PMCBaseCheckpointHDF5
     procedure, public :: RestartHDF5 => PMCBaseRestartHDF5
-#endif
     procedure, public :: FinalizeRun
     procedure, public :: OutputLocal
     procedure, public :: UpdateSolution => PMCBaseUpdateSolution
@@ -774,13 +772,7 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
   endif
   if (this%checkpoint_option%format == CHECKPOINT_HDF5 .or. &
       this%checkpoint_option%format == CHECKPOINT_BOTH) then
-#if !defined(PETSC_HAVE_HDF5)
-    this%option%io_buffer = 'HDF5 formatted checkpointing not supported &
-      &unless PFLOTRAN is compiled with HDF5 libraries enabled.'
-    call printErrMsg(this%option)
-#else
     call this%CheckpointHDF5(h5_chk_grp_id,filename_append)
-#endif
   endif
 
 end subroutine PMCBaseCheckpoint
@@ -1094,7 +1086,6 @@ end subroutine PMCBaseGetHeader
 
 ! ************************************************************************** !
 
-#if defined(PETSC_HAVE_HDF5)
 recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   !
   ! Checkpoints PMC timestepper and state variables in HDF5 format.
@@ -1439,7 +1430,6 @@ subroutine PMCBaseGetHeaderHDF5(this, h5_chk_grp_id, option)
   deallocate(int_array)
 
 end subroutine PMCBaseGetHeaderHDF5
-#endif
 
 ! ************************************************************************** !
 

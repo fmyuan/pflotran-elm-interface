@@ -24,10 +24,8 @@ module Output_HDF5_module
             OutputHDF5UGridXDMF, &
             OutputHDF5FilenameID, &
             OutputHDF5UGridXDMFExplicit, &
-#if defined(PETSC_HAVE_HDF5)
             OutputHDF5DatasetStringArray, &
             OutputHDF5AttributeStringArray, &
-#endif
             OutputHDF5OpenFile, &
             OutputHDF5CloseFile
 
@@ -76,19 +74,6 @@ subroutine OutputHDF5(realization_base,var_list_type)
   use Reaction_Aux_module
   use String_module
   
-#if !defined(PETSC_HAVE_HDF5)
-  implicit none
-  
-  class(realization_base_type) :: realization_base
-  PetscInt :: var_list_type  
-
-  call printMsg(realization_base%option,'')
-  write(realization_base%option%io_buffer, &
-        '("PFLOTRAN must be compiled with HDF5 to &
-        &write HDF5 formatted structured grids Darn.")')
-  call printErrMsg(realization_base%option)
-#else
-
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
 !#define HDF_NATIVE_INTEGER H5T_STD_I64LE
@@ -359,9 +344,6 @@ subroutine OutputHDF5(realization_base,var_list_type)
 
   call OutputHDF5CloseFile(option, file_id)
 
-#endif
-!PETSC_HAVE_HDF5
-
   hdf5_first = PETSC_FALSE
 
 end subroutine OutputHDF5
@@ -380,24 +362,6 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
-#if  !defined(PETSC_HAVE_HDF5)
-  implicit none
-
-  type(option_type), intent(inout) :: option
-  type(output_option_type), intent(in) :: output_option
-  PetscInt, intent(in) :: var_list_type
-  character(len=MAXSTRINGLENGTH) :: filename
-  integer, intent(out) :: file_id
-  integer :: prop_id
-  PetscBool, intent(in) :: first
-
-  call printMsg(option,'')
-  write(option%io_buffer, &
-        '("PFLOTRAN must be compiled with HDF5 to &
-        &write HDF5 formatted structured grids Darn.")')
-  call printErrMsg(option)
-#else
-
   use hdf5
 
   implicit none
@@ -479,9 +443,6 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   endif
   call printMsg(option)
 
-#endif
-!PETSC_HAVE_HDF5
-
 end subroutine OutputHDF5OpenFile
 
 ! ************************************************************************** !
@@ -489,21 +450,6 @@ end subroutine OutputHDF5OpenFile
 subroutine OutputHDF5CloseFile(option, file_id)
 
   use Option_module, only : option_type, printMsg, printErrMsg
-
-#if  !defined(PETSC_HAVE_HDF5)
-  implicit none
-
-  type(option_type), intent(inout) :: option
-  integer, intent(in) :: file_id
-
-  call printMsg(option,'')
-  write(option%io_buffer, &
-        '("PFLOTRAN must be compiled with HDF5 to &
-        &write HDF5 formatted structured grids Darn.")')
-  call printErrMsg(option)
-
-#else
-
   use hdf5
 
   implicit none
@@ -515,9 +461,6 @@ subroutine OutputHDF5CloseFile(option, file_id)
 
   call h5fclose_f(file_id, hdf5_err)
   call h5close_f(hdf5_err)
-
-#endif
-!PETSC_HAVE_HDF5
 
 end subroutine OutputHDF5CloseFile
 
@@ -538,21 +481,6 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   use Field_module
   use Patch_module
   use Reaction_Aux_module
-
-#if  !defined(PETSC_HAVE_HDF5)
-
-  implicit none
-  
-  class(realization_base_type) :: realization_base
-  PetscInt :: var_list_type
-
-  call printMsg(realization_base%option,'')
-  write(realization_base%option%io_buffer, &
-        '("PFLOTRAN must be compiled with HDF5 to &
-        &write HDF5 formatted structured grids Darn.")')
-  call printErrMsg(realization_base%option)
-
-#else
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -929,9 +857,6 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 
   hdf5_first = PETSC_FALSE
 
-#endif
-! !defined(PETSC_HAVE_HDF5)
-
 end subroutine OutputHDF5UGridXDMF
 
 ! ************************************************************************** !
@@ -952,21 +877,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   use Field_module
   use Patch_module
   use Reaction_Aux_module
-
-#if  !defined(PETSC_HAVE_HDF5)
-
-  implicit none
-  
-  class(realization_base_type) :: realization_base
-  PetscInt :: var_list_type
-
-  call printMsg(realization_base%option,'')
-  write(realization_base%option%io_buffer, &
-        '("PFLOTRAN must be compiled with HDF5 to &
-        &write HDF5 formatted structured grids Darn.")')
-  call printErrMsg(realization_base%option)
-
-#else
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -1312,9 +1222,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 
   hdf5_first = PETSC_FALSE
 
-#endif
-! !defined(PETSC_HAVE_HDF5)
-
 end subroutine OutputHDF5UGridXDMFExplicit
 
 ! ************************************************************************** !
@@ -1369,8 +1276,6 @@ function OutputHDF5FilenameID(output_option,option,var_list_type)
   OutputHDF5FilenameID = adjustl(OutputHDF5FilenameID)
 
 end function OutputHDF5FilenameID
-
-#if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
 
@@ -3437,8 +3342,5 @@ subroutine OutputHDF5DatasetStringArray(parent_id, type, name, length, data)
   call h5sclose_f(dataspace_id, hdf5_err)
 
 end subroutine OutputHDF5DatasetStringArray
-
-! PETSC_HAVE_HDF5
-#endif
 
 end module Output_HDF5_module

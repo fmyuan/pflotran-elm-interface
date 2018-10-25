@@ -1195,21 +1195,6 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   use Geomechanics_Field_module
   use Geomechanics_Patch_module
 
-#if  !defined(PETSC_HAVE_HDF5)
-
-  implicit none
-  
-  type(realization_geomech_type) :: geomech_realization
-  PetscInt :: var_list_type
-
-  call printMsg(geomech_realization%option,'')
-  write(geomech_realization%option%io_buffer, &
-        '("PFLOTRAN must be compiled with HDF5 to &
-        &write HDF5 formatted structured grids Darn.")')
-  call printErrMsg(geomech_realization%option)
-
-#else
-
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
 !#define HDF_NATIVE_INTEGER H5T_STD_I64LE
@@ -1472,12 +1457,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
 
   geomech_hdf5_first = PETSC_FALSE
   
-#endif
-! !defined(PETSC_HAVE_HDF5)
-
 end subroutine OutputHDF5UGridXDMFGeomech
-
-#if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
 
@@ -1780,7 +1760,5 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   call GMDMDestroy(gmdm_element)
                                   
 end subroutine WriteHDF5CoordinatesXDMFGeomech
-#endif
-! defined(PETSC_HAVE_HDF5)
 
 end module Output_Geomechanics_module

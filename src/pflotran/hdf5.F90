@@ -14,7 +14,9 @@ module HDF5_module
 
   PetscBool, public :: trick_hdf5 = PETSC_FALSE
 
-#if defined(PETSC_HAVE_HDF5)
+#if !defined(PETSC_HAVE_HDF5)
+#error "PETSc must be configured with HDF5 to run PFLOTRAN"
+#endif
   PetscMPIInt :: hdf5_err
   PetscMPIInt :: io_rank
       
@@ -25,14 +27,10 @@ module HDF5_module
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
 
-#endif
-      
-#if defined(PETSC_HAVE_HDF5)
   public :: HDF5WriteStructDataSetFromVec, &
             HDF5WriteDataSetFromVec, &
             HDF5ReadDataSetInVec, &
             HDF5WriteStructuredDataSet
-#endif            
 
   public :: HDF5ReadRegionFromFile, &
             HDF5ReadCellIndexedIntegerArray, &
@@ -41,8 +39,6 @@ module HDF5_module
             HDF5ReadRegionDefinedByVertex
 
 contains
-
-#if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
 
@@ -596,8 +592,6 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
 
 end subroutine HDF5ReadArray
 
-#endif
-
 ! ************************************************************************** !
 
 subroutine HDF5QueryRegionDefinition(region, filename, option, &
@@ -614,9 +608,7 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
   ! Date: 10/21/2015
   !
 
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
 
   use Option_module
   use Grid_module
@@ -636,20 +628,11 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
 
   character(len=MAXSTRINGLENGTH) :: string
 
-#if defined(PETSC_HAVE_HDF5)
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
-#endif
 
   PetscBool :: grp_exists
-
-#if !defined(PETSC_HAVE_HDF5)
-  call printMsg(option,'')
-  write(option%io_buffer,'("PFLOTRAN must be compiled with HDF5 to ", &
-                           &"read HDF5 formatted structured grids.")')
-  call printErrMsg(option)
-#else
 
   ! initialize fortran hdf5 interface
   call h5open_f(hdf5_err)
@@ -683,7 +666,6 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
   call h5gclose_f(grp_id,hdf5_err)
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
-#endif
 
 end subroutine HDF5QueryRegionDefinition
 
@@ -691,7 +673,6 @@ end subroutine HDF5QueryRegionDefinition
 
 subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   ! 
-  ! PETSC_HAVE_HDF5
   ! Reads a region from an hdf5 file
   ! 
   ! Author: Glenn Hammond
@@ -700,9 +681,7 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
   
   use Realization_Subsurface_class
   use Option_module
@@ -723,21 +702,12 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
 
   character(len=MAXSTRINGLENGTH) :: string 
 
-#if defined(PETSC_HAVE_HDF5)  
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
-#endif
 
   PetscInt :: num_integers
   PetscBool :: grp_exists
-
-#if !defined(PETSC_HAVE_HDF5)
-  call printMsg(option,'')
-  write(option%io_buffer,'("PFLOTRAN must be compiled with HDF5 to ", &
-                           &"read HDF5 formatted structured grids.")')
-  call printErrMsg(option)
-#else
 
   call PetscLogEventBegin(logging%event_region_read_hdf5,ierr);CHKERRQ(ierr)
                           
@@ -805,9 +775,6 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
 
-#endif
-!PETSC_HAVE_HDF5
-
   call PetscLogEventEnd(logging%event_region_read_hdf5,ierr);CHKERRQ(ierr)
 
 end subroutine HDF5ReadRegionFromFile
@@ -824,9 +791,7 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
 
   use Realization_Subsurface_class
   use Option_module
@@ -858,7 +823,6 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: string2
 
-#if defined(PETSC_HAVE_HDF5)
   integer(HID_T) :: file_id
   integer(HID_T) :: prop_id
   integer(HID_T) :: data_set_id
@@ -867,16 +831,8 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: length(2), offset(2)
   integer(SIZE_T) :: string_size
-#endif
   integer :: ndims_h5
 
-
-#if !defined(PETSC_HAVE_HDF5)
-  call printMsg(option,'')
-  write(option%io_buffer,'("PFLOTRAN must be compiled with HDF5 to ", &
-                           &"read HDF5 formatted unstructured grids.")')
-  call printErrMsg(option)
-#else
   ! Initialize FORTRAN predefined datatypes
   call h5open_f(hdf5_err)
 
@@ -992,9 +948,6 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
 
-#endif
-! if defined(PETSC_HAVE_HDF5)
-
 end subroutine HDF5ReadRegionDefinedByVertex
 
 ! ************************************************************************** !
@@ -1012,9 +965,7 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
   
   use Realization_Subsurface_class
   use Discretization_module
@@ -1042,25 +993,15 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
 
   character(len=MAXSTRINGLENGTH) :: string 
 
-#if defined(PETSC_HAVE_HDF5)  
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
   integer(HID_T) :: prop_id
-#endif
 
   PetscLogDouble :: tstart, tend
   
   PetscInt, pointer :: indices(:)
   PetscInt, allocatable :: integer_array(:)
   
-#if !defined(PETSC_HAVE_HDF5)
-  option => realization%option
-  call printMsg(option,'')
-  write(option%io_buffer,'("PFLOTRAN must be compiled with HDF5 to ", &
-                           &"read HDF5 formatted structured grids.")')
-  call printErrMsg(option)
-#else
-
   nullify(indices)
 
   option => realization%option
@@ -1144,9 +1085,6 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
 
-#endif
-! PETSC_HAVE_HDF5
-
   call PetscLogEventEnd(logging%event_cell_indx_int_read_hdf5, &
                         ierr);CHKERRQ(ierr)
                           
@@ -1166,9 +1104,7 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
   
   use Realization_Subsurface_class
   use Discretization_module
@@ -1196,25 +1132,15 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
 
   character(len=MAXSTRINGLENGTH) :: string 
 
-#if defined(PETSC_HAVE_HDF5)  
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
   integer(HID_T) :: prop_id
-#endif
 
   PetscLogDouble :: tstart, tend
   
   PetscInt, pointer :: indices(:)
   PetscReal, allocatable :: real_array(:)
   
-#if !defined(PETSC_HAVE_HDF5)
-  option => realization%option
-  call printMsg(option,'')
-  write(option%io_buffer,'("PFLOTRAN must be compiled with HDF5 to ", &
-                           &"read HDF5 formatted structured grids.")')
-  call printErrMsg(option)
-#else
-
   nullify(indices)
 
   option => realization%option
@@ -1296,15 +1222,10 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
 
-#endif
-! PETSC_HAVE_HDF5
-
   call PetscLogEventEnd(logging%event_cell_indx_real_read_hdf5, &
                         ierr);CHKERRQ(ierr)
                           
 end subroutine HDF5ReadCellIndexedRealArray
-
-#if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
 
@@ -1643,8 +1564,6 @@ subroutine HDF5ReadDataSetInVec(name, option, vec, file_id, data_type)
   call h5sclose_f(file_space_id,hdf5_err)
 
 end subroutine HDF5ReadDataSetInVec
-
-#endif
 
 end module HDF5_module
 

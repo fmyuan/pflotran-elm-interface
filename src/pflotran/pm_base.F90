@@ -341,23 +341,14 @@ end subroutine PMBaseCheckpointBinary
 
 subroutine PMBaseCheckpointHDF5(this, pm_grp_id)
 
-#if  !defined(PETSC_HAVE_HDF5)
-  implicit none
-  class(pm_base_type) :: this
-  integer :: pm_grp_id
-  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
-        'write HDF5 formatted checkpoint file. Darn.'
-  stop
-#else
-
   use hdf5
+
   implicit none
 
   class(pm_base_type) :: this
   integer(HID_T) :: pm_grp_id
 !  print *, 'Must extend PMBaseCheckpointHDF5/RestartHDF5.'
 !  stop
-#endif
 
 end subroutine PMBaseCheckpointHDF5
 

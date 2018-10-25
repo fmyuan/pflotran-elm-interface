@@ -147,11 +147,9 @@ subroutine SurfaceInit(surf_realization,input,option)
           un_str_sfgrid => UGridCreate()
           un_str_sfgrid%grid_type = TWO_DIM_GRID
           if (index(discretization%filename,'.h5') > 0) then
-#if defined(PETSC_HAVE_HDF5)
             call UGridReadHDF5SurfGrid( un_str_sfgrid, &
                                         discretization%filename, &
                                         option)
-#endif
           else
             call UGridReadSurfGrid(un_str_sfgrid, &
                                    surf_realization%subsurf_filename, &
@@ -522,7 +520,6 @@ subroutine SurfaceInitReadRegionFiles(surf_realization)
     if (.not.associated(surf_region)) exit
     if (len_trim(surf_region%filename) > 1) then
       if (index(surf_region%filename,'.h5') > 0) then
-#if defined(PETSC_HAVE_HDF5)
         call HDF5QueryRegionDefinition(surf_region, surf_region%filename, &
                                        surf_realization%option, &
                                        cell_ids_exists, face_ids_exists, &
@@ -541,7 +538,6 @@ subroutine SurfaceInitReadRegionFiles(surf_realization)
           call HDF5ReadRegionDefinedByVertex(option,surf_region, &
                                              surf_region%filename)
         endif
-#endif      
       else if (index(surf_region%filename,'.ss') > 0) then
         surf_region%sideset => RegionCreateSideset()
         call RegionReadFromFile(surf_region%sideset,surf_region%filename, &

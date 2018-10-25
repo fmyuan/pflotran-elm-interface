@@ -21,13 +21,9 @@ module Grid_Unstructured_module
   !  PetscInt, parameter :: MAX_VERT_PER_FACE = 4
 
   public :: UGridRead, &
-#if defined(PETSC_HAVE_HDF5)
             UGridReadHDF5, &
-#endif
             UGridReadSurfGrid, &
-#if defined(PETSC_HAVE_HDF5)
             UGridReadHDF5SurfGrid, &
-#endif
             UGridDecompose, &
             UGridComputeInternConnect, &
             UGridPopulateConnection, &
@@ -559,8 +555,6 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
 
 end subroutine UGridReadSurfGrid
 
-#if defined(PETSC_HAVE_HDF5)
-
 ! ************************************************************************** !
 
 subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
@@ -570,10 +564,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   ! Author: Gautam Bisht, ORNL
   ! Date: 06/01/12
   ! 
-
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -609,7 +600,6 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   PetscInt, parameter :: max_nvert_per_cell = 8  
   PetscErrorCode :: ierr
 
-#if defined(PETSC_HAVE_HDF5)
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
@@ -620,7 +610,6 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   integer(HSIZE_T) :: num_data_in_file
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(2), length(2), stride(2), block(2), dims(2)
-#endif
   integer :: ndims_h5
 
   ! Initialize FORTRAN predefined datatypes
@@ -839,11 +828,6 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   
 end subroutine UGridReadHDF5SurfGrid
 
-#endif
-! End PETSC_HAVE_HDF5
-
-#if defined(PETSC_HAVE_HDF5)
-
 ! ************************************************************************** !
 
 subroutine UGridReadHDF5(unstructured_grid,filename,option)
@@ -853,10 +837,7 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   ! Author: Gautam Bisht
   ! Date: 04/25/11
   ! 
-
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -894,7 +875,6 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   PetscInt :: error_count
   PetscErrorCode :: ierr
 
-#if defined(PETSC_HAVE_HDF5)
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
@@ -905,7 +885,6 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   integer(HSIZE_T) :: num_data_in_file
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(2), length(2), stride(2), block(2), dims(2)
-#endif
   integer :: ndims_h5
 
   ! Initialize FORTRAN predefined datatypes
@@ -1143,9 +1122,6 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   unstructured_grid%num_vertices_local = num_vertices_local
   
 end subroutine UGridReadHDF5
-
-#endif
-! End PETSC_HAVE_HDF5
 
 ! ************************************************************************** !
 

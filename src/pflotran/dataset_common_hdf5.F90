@@ -31,9 +31,7 @@ module Dataset_Common_HDF5_class
             DatasetCommonHDF5Strip, &
             DatasetCommonHDF5Destroy
   
-#if defined(PETSC_HAVE_HDF5)   
   public :: DatasetCommonHDF5ReadTimes
-#endif  
 
 contains
 
@@ -153,12 +151,6 @@ subroutine DatasetCommonHDF5Read(this,input,option)
   character(len=MAXWORDLENGTH) :: keyword
   PetscBool :: found
 
-#if !defined(PETSC_HAVE_HDF5)
-  option%io_buffer = 'HDF5 formatted datasets not supported &
-    &unless PFLOTRAN is compiled with HDF5 libraries enabled.'
-  call printErrMsg(option)
-#endif
-
   input%ierr = 0
   do
   
@@ -228,8 +220,6 @@ subroutine DatasetCommonHDF5ReadSelectCase(this,input,keyword,found,option)
   end select  
   
 end subroutine DatasetCommonHDF5ReadSelectCase
-
-#if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
 
@@ -414,7 +404,6 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   call PetscLogEventEnd(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
   
 end subroutine DatasetCommonHDF5ReadTimes
-#endif
 
 ! ************************************************************************** !
 
@@ -426,9 +415,7 @@ function DatasetCommonHDF5Load(this,option)
   ! Date: 05/03/13
   ! 
   
-#if defined(PETSC_HAVE_HDF5)    
   use hdf5, only : H5T_NATIVE_DOUBLE
-#endif
   use Option_module
   use Time_Storage_module
 
@@ -444,10 +431,8 @@ function DatasetCommonHDF5Load(this,option)
   DatasetCommonHDF5Load = PETSC_FALSE
   
   if (.not.associated(this%time_storage)) then
-#if defined(PETSC_HAVE_HDF5)    
     call DatasetCommonHDF5ReadTimes(this%filename,this%hdf5_dataset_name, &
                                     this%time_storage,option)
-#endif
     ! if no times are read, this%time_storage will be null coming out of
     ! DatasetCommonHDF5ReadTimes()
   endif
@@ -503,13 +488,9 @@ function DatasetCommonHDF5IsCellIndexed(dataset,option)
   
   PetscBool :: DatasetCommonHDF5IsCellIndexed
   
-#if defined(PETSC_HAVE_HDF5)
-
   DatasetCommonHDF5IsCellIndexed = &
     .not.HDF5GroupExists(dataset%filename,dataset%hdf5_dataset_name,option)
 
-#endif
- 
 end function DatasetCommonHDF5IsCellIndexed
 
 ! ************************************************************************** !

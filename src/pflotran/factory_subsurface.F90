@@ -1572,12 +1572,10 @@ subroutine SubsurfaceSetupRealization(simulation)
   call RealizationPrintGridStatistics(realization)
 #endif
 
-#if defined(PETSC_HAVE_HDF5)
 #if !defined(HDF5_BROADCAST)
   call printMsg(option,"Default HDF5 method is used in Initialization")
 #else
   call printMsg(option,"Glenn's HDF5 broadcast method is used in Initialization")
-#endif
 #endif
 
 end subroutine SubsurfaceSetupRealization
@@ -1769,9 +1767,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         call InputReadFilename(input,option,string)
         call InputErrorMsg(input,option,'filename','DBASE_FILENAME')
         if (index(string,'.h5') > 0) then
-#if defined(PETSC_HAVE_HDF5)
           call HDF5ReadDbase(string,option)
-#endif
         else
           call InputReadASCIIDbase(string,option)
         endif

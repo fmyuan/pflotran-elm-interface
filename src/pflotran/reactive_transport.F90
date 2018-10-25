@@ -4492,27 +4492,6 @@ subroutine RTCheckpointKineticSorptionHDF5(realization, pm_grp_id, checkpoint)
   ! Author: Gautam Bisht, LBNL
   ! Date: 07/30/15
   !
-
-#if  !defined(PETSC_HAVE_HDF5)
-  use Realization_Subsurface_class
-  use Option_module
-
-  implicit none
-
-  type(realization_subsurface_type) :: realization
-  integer :: pm_grp_id
-  PetscBool :: checkpoint
-
-  PetscErrorCode :: ierr
-
-  call printMsg(realization%option,'')
-  write(realization%option%io_buffer, &
-        '("PFLOTRAN must be compiled with HDF5 to &
-        &write HDF5 formatted checkpoint file. Darn.")')
-  call printErrMsg(realization%option)
-
-#else
-
   use Realization_Subsurface_class
   use Patch_module
   use Grid_module
@@ -4627,7 +4606,6 @@ subroutine RTCheckpointKineticSorptionHDF5(realization, pm_grp_id, checkpoint)
       enddo
     endif
   enddo
-#endif
 
 end subroutine RTCheckpointKineticSorptionHDF5
 

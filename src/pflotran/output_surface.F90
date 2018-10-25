@@ -685,20 +685,6 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
   use Patch_module
   use Reaction_Aux_module
 
-#if !defined(PETSC_HAVE_HDF5)
-  implicit none
-  
-  class(realization_surface_type) :: surf_realization
-  class(realization_subsurface_type) :: realization
-  PetscInt :: var_list_type
-
-  call printMsg(surf_realization%option,'')
-  write(surf_realization%option%io_buffer, &
-        '("PFLOTRAN must be compiled with HDF5 to &
-        &write HDF5 formatted structured grids Darn.")')
-  call printErrMsg(surf_realization%option)
-#else
-
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
 !#define HDF_NATIVE_INTEGER H5T_STD_I64LE
@@ -974,12 +960,7 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
 
   surf_hdf5_first = PETSC_FALSE
 
-#endif
-!ifdef PETSC_HAVE_HDF5
-
 end subroutine OutputSurfaceHDF5UGridXDMF
-
-#if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
 
@@ -1482,13 +1463,11 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   call VecDestroy(natural_z_cell_vec,ierr);CHKERRQ(ierr)
 
 end subroutine WriteHDF5CoordinatesUGridXDMF
-#endif
 
 ! ************************************************************************** !
 
 subroutine OutputSurfaceGetVarFromArray(surf_realization,vec,ivar,isubvar,isubvar1)
   ! 
-  ! ifdef PETSC_HAVE_HDF5
   ! This routine extracts variables indexed by ivar from a multivar array
   ! 
   ! Author: Gautam Bisht, LBNL
@@ -1762,8 +1741,6 @@ function OutputSurfaceHDF5FilenameID(output_option,option,var_list_type)
   OutputSurfaceHDF5FilenameID = adjustl(OutputSurfaceHDF5FilenameID)
 
 end function OutputSurfaceHDF5FilenameID
-
-#if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
 
@@ -2221,6 +2198,5 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
   enddo
 
 end subroutine WriteHDF5SurfaceFlowratesUGrid
-#endif
 
 end module Output_Surface_module

@@ -54,10 +54,8 @@ module PM_Subsurface_Flow_class
     procedure, public :: UpdateAuxVars => PMSubsurfaceFlowUpdateAuxVars
     procedure, public :: CheckpointBinary => PMSubsurfaceFlowCheckpointBinary
     procedure, public :: RestartBinary => PMSubsurfaceFlowRestartBinary
-#if defined(PETSC_HAVE_HDF5)
     procedure, public :: CheckpointHDF5 => PMSubsurfaceFlowCheckpointHDF5
     procedure, public :: RestartHDF5 => PMSubsurfaceFlowRestartHDF5
-#endif
     procedure, public :: InputRecord => PMSubsurfaceFlowInputRecord
 #ifdef WELL_CLASS
     procedure  :: AllWellsInit
@@ -1114,7 +1112,6 @@ end subroutine PMSubsurfaceFlowRestartBinary
 
 ! ************************************************************************** !
 
-#if defined(PETSC_HAVE_HDF5)
 subroutine PMSubsurfaceFlowCheckpointHDF5(this, pm_grp_id)
   !
   ! Checkpoints data associated with Subsurface PM
@@ -1157,7 +1154,6 @@ subroutine PMSubsurfaceFlowRestartHDF5(this, pm_grp_id)
 
 
 end subroutine PMSubsurfaceFlowRestartHDF5
-#endif
 
 ! ************************************************************************** !
 

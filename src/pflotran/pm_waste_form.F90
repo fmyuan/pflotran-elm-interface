@@ -3821,16 +3821,6 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
   ! Date: 09/21/18
   ! 
 
-#if  !defined(PETSC_HAVE_HDF5)
-  implicit none
-  class(pm_waste_form_type) :: this
-  integer :: pm_grp_id
-  type(option_type) :: option
-  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
-        'write HDF5 formatted checkpoint file. Darn.'
-  stop
-#else
-
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use Option_module
@@ -3968,7 +3958,6 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
   call ISDestroy(is, ierr);CHKERRQ(ierr)
   call VecDestroy(global_wf_vec, ierr);CHKERRQ(ierr)
   call VecDestroy(local_wf_vec, ierr);CHKERRQ(ierr)
-#endif
 
 end subroutine PMWFCheckpointHDF5
 
@@ -3985,15 +3974,6 @@ subroutine PMWFRestartHDF5(this,pm_grp_id)
   ! 
   ! Author: Michael Nole
   ! Date: 10/03/18
-#if  !defined(PETSC_HAVE_HDF5)
-  implicit none
-  class(pm_waste_form_type) :: this
-  integer :: pm_grp_id
-  type(option_type) :: option
-  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
-        'write HDF5 formatted checkpoint file. Darn.'
-  stop
-#else
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
@@ -4128,8 +4108,6 @@ subroutine PMWFRestartHDF5(this,pm_grp_id)
   call VecDestroy(global_wf_vec, ierr);CHKERRQ(ierr)
   call VecDestroy(local_wf_vec, ierr);CHKERRQ(ierr)
 
-#endif
-  
 end subroutine PMWFRestartHDF5
 
 ! ************************************************************************** !

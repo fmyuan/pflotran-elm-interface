@@ -188,20 +188,16 @@ subroutine DatasetMapHDF5Load(this,option)
   type(option_type) :: option
   
   if (DatasetCommonHDF5Load(this,option)) then
-#if defined(PETSC_HAVE_HDF5)    
     if (.not.associated(this%mapping)) then
       call DatasetMapHDF5ReadMap(this,option)
     endif
     call DatasetMapHDF5ReadData(this,option)
-#endif    
 !    call this%Reorder(option)
     call DatasetBaseReorder(this,option)
   endif
   call DatasetBaseInterpolateTime(this)
     
 end subroutine DatasetMapHDF5Load
-
-#if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
 
@@ -560,7 +556,6 @@ subroutine DatasetMapHDF5ReadMap(this,option)
                         ierr);CHKERRQ(ierr)
   
 end subroutine DatasetMapHDF5ReadMap
-#endif
 
 ! ************************************************************************** !
 

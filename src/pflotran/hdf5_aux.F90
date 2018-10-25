@@ -1,10 +1,7 @@
 module HDF5_Aux_module
 
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
   use Logging_module
-
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -17,7 +14,6 @@ module HDF5_Aux_module
 
   PetscErrorCode :: ierr
 
-#if defined(PETSC_HAVE_HDF5)
   integer :: hdf5_err
   PetscMPIInt :: io_rank_mpi
 ! 64-bit stuff
@@ -37,11 +33,6 @@ module HDF5_Aux_module
             HDF5GroupOpen
 
 contains
-
-#endif
-  
-
-#if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
 
@@ -463,7 +454,6 @@ subroutine HDF5ReadDbase(filename,option)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: object_name
   character(len=MAXWORDLENGTH) :: word
-#if defined(PETSC_HAVE_HDF5)  
   integer(HID_T) :: file_id
   integer(HID_T) :: prop_id
   integer(HID_T) :: dataset_id
@@ -478,7 +468,6 @@ subroutine HDF5ReadDbase(filename,option)
   integer(HSIZE_T) :: offset(1), length(1), stride(1)
   PetscMPIInt :: rank_mpi
   PetscMPIInt :: int_mpi
-#endif
   integer :: num_objects
   integer :: i_object
   integer :: object_type
@@ -719,8 +708,5 @@ subroutine HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
   endif
   
 end subroutine HDF5OpenFileReadOnly
-
-#endif
-! defined(PETSC_HAVE_HDF5)
 
 end module HDF5_Aux_module

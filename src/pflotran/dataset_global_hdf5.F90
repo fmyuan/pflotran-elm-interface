@@ -109,9 +109,7 @@ subroutine DatasetGlobalHDF5Load(this,option)
   ! Date: 05/03/13
   ! 
   
-#if defined(PETSC_HAVE_HDF5)    
   use hdf5, only : H5T_NATIVE_DOUBLE
-#endif
   use Option_module
   use Time_Storage_module
   use Dataset_Base_class  
@@ -145,16 +143,12 @@ subroutine DatasetGlobalHDF5Load(this,option)
       allocate(this%rbuffer(this%local_size*this%buffer_nslice))
       this%rbuffer = 0.d0
     endif
-#if defined(PETSC_HAVE_HDF5)    
     call DatasetGlobalHDF5ReadData(this,option,H5T_NATIVE_DOUBLE)
-#endif  
     ! no need to reorder since it is 1D in the h5 file.
   endif
   call DatasetBaseInterpolateTime(this)
     
 end subroutine DatasetGlobalHDF5Load
-
-#if defined(PETSC_HAVE_HDF5)    
 
 ! ************************************************************************** !
 
@@ -390,7 +384,6 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   call PetscLogEventEnd(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
 
 end subroutine DatasetGlobalHDF5ReadData
-#endif
 
 ! ************************************************************************** !
 

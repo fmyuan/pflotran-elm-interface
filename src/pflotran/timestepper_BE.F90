@@ -36,10 +36,8 @@ module Timestepper_BE_class
     procedure, public :: UpdateDT => TimestepperBEUpdateDT
     procedure, public :: CheckpointBinary => TimestepperBECheckpointBinary
     procedure, public :: RestartBinary => TimestepperBERestartBinary
-#if defined(PETSC_HAVE_HDF5)
     procedure, public :: CheckpointHDF5 => TimestepperBECheckpointHDF5
     procedure, public :: RestartHDF5 => TimestepperBERestartHDF5
-#endif
     procedure, public :: Reset => TimestepperBEReset
     procedure, public :: PrintInfo => TimestepperBEPrintInfo
     procedure, public :: InputRecord => TimestepperBEInputRecord
@@ -630,7 +628,6 @@ end subroutine TimestepperBERestartBinary
 
 ! ************************************************************************** !
 
-#if defined(PETSC_HAVE_HDF5)
 subroutine TimestepperBECheckpointHDF5(this, h5_chk_grp_id, option)
   !
   ! Checkpoints parameters/variables associated with
@@ -889,7 +886,6 @@ subroutine TimestepperBERestartHDF5(this, h5_chk_grp_id, option)
   deallocate(real_array)
 
 end subroutine TimestepperBERestartHDF5
-#endif
 
 ! ************************************************************************** !
 
