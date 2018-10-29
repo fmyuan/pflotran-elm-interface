@@ -406,3 +406,15 @@ src/pflotran-elm-interface/matrix_zeroing.F90
 src/pflotran-elm-interface/pm_osrt.F90
 src/pflotran-elm-interface/pmc_subsurface_osrt.F90
 src/pflotran-elm-interface/timestepper_KSP.F90
+src/pflotran-elm-interface/ert.F90
+src/pflotran-elm-interface/ert_aux.F90
+src/pflotran-elm-interface/init_subsurface_geophysics.F90
+src/pflotran-elm-interface/option_geophysics.F90
+src/pflotran-elm-interface/pm_ert.F90
+src/pflotran-elm-interface/pmc_geophysics.F90
+src/pflotran-elm-interface/reaction_isotherm.F90
+src/pflotran-elm-interface/reaction_isotherm_aux.F90
+src/pflotran-elm-interface/reaction_sandbox_gmd_1.F90
+src/pflotran-elm-interface/reaction_sandbox_gmd_2.F90
+src/pflotran-elm-interface/survey.F90
+src/pflotran-elm-interface/timer.F90
