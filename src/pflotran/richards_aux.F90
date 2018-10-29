@@ -26,10 +26,6 @@ module Richards_Aux_module
     PetscReal :: dkvr_dp
     PetscReal :: dsat_dp
     PetscReal :: dden_dp
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
-    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda    
-#endif
 
     PetscReal :: d2sat_dp2
     PetscReal :: d2den_dp2
@@ -151,11 +147,6 @@ subroutine RichardsAuxVarInit(auxvar,option)
     nullify(auxvar%vars_for_sflow)
   endif
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  auxvar%bc_alpha  = 0.0d0
-  auxvar%bc_lambda  = 0.0d0
-#endif 
-  
 end subroutine RichardsAuxVarInit
 
 ! ************************************************************************** !
@@ -192,11 +183,6 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
 
   if (option%surf_flow_on) &
     auxvar2%vars_for_sflow(:) = auxvar%vars_for_sflow(:)
-
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  auxvar2%bc_alpha  = auxvar%bc_alpha
-  auxvar2%bc_lambda = auxvar%bc_lambda
-#endif
 
 end subroutine RichardsAuxVarCopy
 
@@ -270,36 +256,6 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   dkr_dp = 0.d0
 
   if (auxvar%pc > 0.d0) then
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    if (auxvar%bc_alpha > 0.d0) then
-      select type(sf => characteristic_curves%saturation_function)
-        class is(sat_func_VG_type)
-          sf%m     = auxvar%bc_lambda
-          sf%alpha = auxvar%bc_alpha
-        class is(sat_func_BC_type)
-            sf%lambda = auxvar%bc_lambda
-            sf%alpha  = auxvar%bc_alpha
-        class default
-          option%io_buffer = 'CLM-PFLOTRAN only supports ' // &
-            'sat_func_VG_type and sat_func_BC_type'
-          call printErrMsg(option)
-      end select
-
-      select type(rpf => characteristic_curves%liq_rel_perm_function)
-        class is(rpf_Mualem_VG_liq_type)
-          rpf%m = auxvar%bc_lambda
-        class is(rpf_Burdine_BC_liq_type)
-          rpf%lambda = auxvar%bc_lambda
-        class is(rpf_Mualem_BC_liq_type)
-          rpf%lambda = auxvar%bc_lambda
-        class is(rpf_Burdine_VG_liq_type)
-          rpf%m = auxvar%bc_lambda
-        class default
-          option%io_buffer = 'Unsupported LIQUID-REL-PERM-FUNCTION'
-          call printErrMsg(option)
-      end select
-    endif
-#endif
     saturated = PETSC_FALSE
     call characteristic_curves%saturation_function% &
                                Saturation(auxvar%pc,global_auxvar%sat(1), &
