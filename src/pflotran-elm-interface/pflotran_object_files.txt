@@ -1,0 +1,338 @@
+# this file contains all object files except pflotran.o, pflotran_rxn.o, etc.
+
+# DO NOT place any object files that depend on the discretization within 
+# util_obj
+util_obj  = \
+	${common_src}generic.o \
+	${common_src}input_aux.o \
+	${common_src}logging.o \
+	${common_src}matrix_block_aux.o \
+	${common_src}option.o \
+	${common_src}option_flow.o \
+	${common_src}option_transport.o \
+	${common_src}output_aux.o \
+	${common_src}matrix_zeroing.o \
+	${common_src}pflotran_constants.o \
+	${common_src}pflotran_provenance.o \
+	${common_src}string.o \
+	${common_src}units.o \
+	${common_src}utility.o \
+	${common_src}variables.o
+
+deriv_obj = \
+	${common_src}toil_ims_derivs.o \
+	${common_src}general_derivative.o \
+	${common_src}derivative_tests.o \
+	${common_src}derivatives_utilities.o
+
+# DO NOT place any object files that depend on the discretization within 
+# util_obj
+eos_obj = \
+	${common_src}co2_sw.o \
+	${common_src}co2_span_wagner_spline.o \
+	${common_src}eos.o \
+	${common_src}eos_gas.o \
+	${common_src}eos_oil.o \
+        ${common_src}eos_slv.o \
+	${common_src}gas_eos_mod.o 
+
+mode_aux_obj = \
+	${common_src}auxiliary.o \
+	${common_src}auxvars_base.o \
+	${common_src}auxvars_flow.o \
+	${common_src}auxvars_flow_energy.o \
+	${common_src}auxvars_toil_ims.o \
+	${common_src}auxvars_towg.o \
+	${common_src}flash2_aux.o \
+	${common_src}general_aux.o \
+	${common_src}hydrate_aux.o \
+	${common_src}wipp_flow_aux.o \
+	${common_src}pm_base_aux.o \
+	${common_src}pm_toil_ims_aux.o \
+	${common_src}pm_towg_aux.o \
+	${common_src}immis_aux.o \
+	${common_src}miscible_aux.o \
+	${common_src}mphase_aux.o \
+        ${common_src}nw_transport_aux.o \
+	${common_src}kdtree.o \
+	${common_src}pm_auxiliary.o \
+	${common_src}pm_base.o \
+	${common_src}pm_base_pointer.o \
+	${common_src}pm_general.o \
+	${common_src}pm_hydrate.o \
+	${common_src}pm_wipp_flow.o \
+	${common_src}pm_toil_ims.o \
+	${common_src}pm_towg.o \
+	${common_src}pm_flash2.o \
+	${common_src}pm_immis.o \
+	${common_src}pm_mphase.o \
+	${common_src}pm_miscible.o \
+        ${common_src}pm_nwt.o \
+	${common_src}pm_richards.o \
+	${common_src}pm_richards_ts.o \
+	${common_src}pm_osrt.o \
+	${common_src}pm_rt.o \
+	${common_src}pm_subsurface_flow.o \
+	${common_src}pm_surface_flow.o \
+	${common_src}pm_surface_th.o \
+	${common_src}pm_surface.o \
+	${common_src}pm_th.o \
+	${common_src}pm_th_ts.o \
+	${common_src}pm_ufd_decay.o \
+	${common_src}pm_waste_form.o \
+	${common_src}pm_wipp_srcsink.o \
+	${common_src}pm_ufd_biosphere.o \
+	${common_src}richards_aux.o \
+	${common_src}th_aux.o \
+	${common_src}inlinesurface_aux.o
+
+mode_obj = \
+	${common_src}flash2.o \
+	${common_src}general.o \
+	${common_src}general_common.o \
+	${common_src}wipp_flow.o \
+	${common_src}hydrate.o \
+	${common_src}hydrate_common.o \
+	${common_src}wipp_flow_common.o \
+	${common_src}toil_ims.o \
+	${common_src}towg.o \
+	${common_src}global.o \
+	${common_src}immis.o \
+	${common_src}miscible.o \
+	${common_src}mphase.o \
+        ${common_src}nw_transport.o \
+	${common_src}reactive_transport.o \
+	${common_src}richards.o \
+	${common_src}richards_common.o \
+	${common_src}th.o \
+	${common_src}inlinesurface.o
+
+# DO NOT place any object files that depend on the discretization within 
+# util_obj
+shared_mode_aux_obj = \
+	${common_src}co2eos.o \
+	${common_src}co2_span_wagner.o \
+	${common_src}co2_sw_rtsafe.o \
+	${common_src}eos_database.o \
+	${common_src}eos_water.o \
+	${common_src}geometry.o \
+	${common_src}global_aux.o \
+	${common_src}lookup_table.o \
+	${common_src}material_aux.o \
+	${common_src}reactive_transport_aux.o 
+
+# DO NOT place any object files that depend on the discretization within 
+# util_obj
+chem_obj = \
+	${common_src}reaction_database.o \
+	${common_src}reaction_database_aux.o \
+	${common_src}reaction_database_hpt.o \
+	${common_src}reaction_gas.o \
+	${common_src}reaction_gas_aux.o \
+	${common_src}reaction_immobile.o \
+	${common_src}reaction_immobile_aux.o \
+	${common_src}reaction_microbial.o \
+	${common_src}reaction_microbial_aux.o \
+	${common_src}reaction_mineral.o \
+	${common_src}reaction_mineral_aux.o \
+	${common_src}reaction.o \
+	${common_src}reaction_base.o \
+	${common_src}reaction_aux.o \
+	${common_src}reaction_clm.o \
+	${common_src}reaction_sandbox.o \
+	${common_src}reaction_sandbox_base.o \
+	${common_src}reaction_sandbox_clm_cn.o \
+	${common_src}reaction_sandbox_example.o \
+	${common_src}reaction_sandbox_pnnl_cyber.o \
+	${common_src}reaction_sandbox_gas.o \
+        ${common_src}reaction_sandbox_simple.o \
+	${common_src}reaction_sandbox_ufd_wp.o \
+	${common_src}reaction_solid_solution.o \
+	${common_src}reaction_solid_solution_aux.o \
+	${common_src}reaction_surf_complex.o \
+	${common_src}reaction_surf_complex_aux.o \
+	${common_src}nw_transport_equilibrium.o \
+	${common_src}transport_constraint.o \
+	${common_src}transport_constraint_base.o \
+	${common_src}transport_constraint_rt.o \
+	${common_src}transport_constraint_nwt.o
+
+grid_obj = \
+	${common_src}connection.o \
+	${common_src}communicator_base.o \
+	${common_src}communicator_structured.o \
+	${common_src}communicator_unstructured.o \
+	${common_src}discretization.o \
+	${common_src}dm_kludge.o \
+	${common_src}grid.o \
+	${common_src}grid_grdecl.o \
+	${common_src}grid_grdecl_util.o \
+	${common_src}grid_structured.o \
+	${common_src}grid_unstructured_cell.o \
+	${common_src}grid_unstructured_explicit.o \
+	${common_src}grid_unstructured_aux.o \
+	${common_src}grid_unstructured.o \
+	${common_src}grid_unstructured_polyhedra.o
+
+relations_obj = \
+	${common_src}saturation_function.o \
+	${common_src}characteristic_curves.o \
+	${common_src}characteristic_curves_base.o \
+	${common_src}characteristic_curves_common.o \
+	${common_src}characteristic_curves_owg.o \
+	${common_src}characteristic_curves_wipp.o \
+	${common_src}characteristic_curves_thermal.o \
+	${common_src}mphase_pckr_mod.o
+
+properties_obj = \
+	${common_src}fluid.o \
+	${common_src}material.o 
+
+dataset_obj = \
+	${common_src}dataset_ascii.o \
+	${common_src}dataset_base.o \
+	${common_src}dataset_common_hdf5.o \
+	${common_src}dataset_global_hdf5.o \
+	${common_src}dataset_map_hdf5.o \
+	${common_src}dataset.o \
+	${common_src}dataset_gridded_hdf5.o \
+	${common_src}time_storage.o 
+
+srcsink_obj = \
+	${common_src}srcsink_sandbox.o \
+	${common_src}srcsink_sandbox_base.o \
+	${common_src}srcsink_sandbox_mass_rate.o \
+	${common_src}srcsink_sandbox_downreg.o \
+	${common_src}srcsink_sandbox_wipp_gas.o \
+	${common_src}srcsink_sandbox_wipp_well.o
+
+io_obj = \
+	${common_src}output_eclipse.o \
+	${common_src}hdf5.o \
+	${common_src}hdf5_aux.o \
+	${common_src}output.o \
+	${common_src}output_common.o \
+	${common_src}output_ekg.o \
+	${common_src}output_hdf5.o \
+	${common_src}output_observation.o \
+	${common_src}output_surface.o \
+	${common_src}output_tecplot.o \
+	${common_src}output_vtk.o
+
+misc_obj = \
+	${common_src}block_solve.o \
+	${common_src}block_tridiag.o \
+	${common_src}characteristic_curves_table.o \
+	${common_src}checkpoint.o \
+	${common_src}condition.o \
+	${common_src}condition_control.o \
+	${common_src}convergence.o \
+	${common_src}coupler.o \
+	${common_src}data_mediator.o \
+	${common_src}data_mediator_dataset.o \
+	${common_src}data_mediator_vec.o \
+	${common_src}data_mediator_base.o \
+	${common_src}debug.o \
+	${common_src}factory_pflotran.o \
+	${common_src}factory_subsurface.o \
+	${common_src}field.o \
+	${common_src}hydrostatic.o \
+	${common_src}hydrostatic_multi_phase.o \
+	${common_src}init_common.o \
+	${common_src}init_subsurface.o \
+	${common_src}init_subsurface_flow.o \
+	${common_src}init_subsurface_transport.o \
+	${common_src}integral_flux.o \
+	${common_src}matrix_buffer.o \
+	${common_src}multisimulation.o \
+	${common_src}observation.o \
+	${common_src}patch.o \
+	${common_src}pmc_auxiliary.o \
+	${common_src}pmc_base.o \
+	${common_src}pmc_subsurface.o \
+	${common_src}pmc_subsurface_osrt.o \
+	${common_src}pmc_third_party.o \
+	${common_src}realization_base.o \
+	${common_src}realization_subsurface.o \
+	${common_src}region.o \
+	${common_src}regression.o \
+	${common_src}secondary_continuum_aux.o\
+	${common_src}secondary_continuum.o \
+	${common_src}simulation_aux.o \
+	${common_src}simulation_base.o \
+	${common_src}simulation_subsurface.o \
+	${common_src}spline.o \
+	${common_src}strata.o \
+	${common_src}timestepper_base.o \
+	${common_src}timestepper_KSP.o \
+	${common_src}timestepper_BE.o \
+	${common_src}timestepper_TS.o \
+	${common_src}transport.o \
+	${common_src}upwind_direction.o \
+	${common_src}waypoint.o \
+	${common_src}wipp.o
+
+well_obj = \
+	${common_src}well_data.o \
+	${common_src}well_type.o \
+	${common_src}well_solver.o
+
+surface_obj = \
+	${common_src}checkpoint_surface.o \
+	${common_src}factory_surface.o \
+	${common_src}factory_surfsubsurface.o \
+	${common_src}init_surface.o \
+	${common_src}pmc_surface.o \
+	${common_src}simulation_surface.o \
+	${common_src}simulation_surfsubsurface.o \
+	${common_src}surface_auxiliary.o \
+	${common_src}surface_field.o \
+	${common_src}surface_flow.o \
+	${common_src}surface_global_aux.o \
+	${common_src}surface_global.o \
+	${common_src}surface_material.o \
+	${common_src}realization_surface.o \
+	${common_src}surface_th_aux.o \
+	${common_src}surface_th.o \
+	${common_src}timestepper_surface.o
+
+geomech_obj = \
+	${common_src}factory_geomechanics.o \
+	${common_src}gauss.o \
+	${common_src}geomechanics_auxiliary.o \
+	${common_src}geomechanics_realization.o \
+	${common_src}geomechanics_discretization.o \
+	${common_src}geomech_grid.o \
+	${common_src}geomech_grid_aux.o \
+	${common_src}geomechanics_condition.o \
+	${common_src}geomechanics_coupler.o \
+	${common_src}geomechanics_debug.o \
+	${common_src}geomechanics_field.o \
+	${common_src}geomechanics_force.o \
+	${common_src}geomechanics_global.o \
+	${common_src}geomechanics_global_aux.o\
+	${common_src}geomechanics_material.o \
+	${common_src}geomechanics_patch.o \
+	${common_src}geomechanics_region.o \
+	${common_src}geomechanics_regression.o \
+	${common_src}geomechanics_strata.o \
+	${common_src}geomechanics_subsurface_properties.o \
+	${common_src}output_geomechanics.o \
+	${common_src}pm_geomechanics_force.o \
+	${common_src}pmc_geomechanics.o \
+	${common_src}simulation_geomechanics.o \
+	${common_src}shape_function.o \
+	${common_src}timestepper_steady.o
+
+solver_obj = \
+	${common_src}preconditioner_cpr.o \
+	${common_src}solver.o \
+	${common_src}solver_cpr.o
+
+clmpf_interface_obj = \
+	${common_src}pflotran_clm_main.o \
+	${common_src}pflotran_clm_setmapping.o \
+	${common_src}clmpf_interface_data.o \
+	${common_src}mapping.o \
+	${common_src}geodesic.o
+	
