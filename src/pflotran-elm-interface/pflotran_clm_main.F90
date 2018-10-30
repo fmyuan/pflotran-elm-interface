@@ -2191,7 +2191,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
                                     clm_pf_idata%effporosity_clms)
 
     if (option%iflowmode == TH_MODE .and. &
-        option%th_use_freezing) then
+        option%th_freezing) then
 
       TH_auxvars => patch%aux%TH%auxvars
 
