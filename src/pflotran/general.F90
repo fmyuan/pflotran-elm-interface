@@ -711,7 +711,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
   PetscInt :: real_index, variable, flow_src_sink_type
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof), & 
-               xxss(realization%option%nflowdof), qsrc_vol(2),scale
+               xxss(realization%option%nflowdof)
+  PetscReal :: cell_pressure,qsrc_vol(2),scale
 !#define DEBUG_AUXVARS
 #ifdef DEBUG_AUXVARS
   character(len=MAXWORDLENGTH) :: word
@@ -995,11 +996,21 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
       qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)*scale
     end select
     
-    xxss(1) = max(gen_auxvar_ss%pres(wat_comp_id), &
-                gen_auxvar_ss%pres(air_comp_id))
+    xxss(1) = maxval(gen_auxvar_ss%pres(option% &
+                     liquid_phase:option%gas_phase))
     xxss(2) = qsrc_vol(air_comp_id)/(qsrc_vol(wat_comp_id) &
               + qsrc_vol(air_comp_id))
     xxss(3) = gen_auxvar_ss%temp
+    
+    cell_pressure = maxval(gen_auxvar%pres(option% &
+                           liquid_phase:option%gas_phase))    
+    
+    if ((cell_pressure.gt.xxss(1)).or.(qsrc(wat_comp_id)<0).or. &
+         qsrc(air_comp_id)<0.d0) then
+      xxss(1) = cell_pressure
+      xxss(2) = gen_auxvar%sat(air_comp_id)
+      xxss(3) = gen_auxvar%temp
+    endif
     
     global_auxvar_ss=global_auxvars_ss(ssn)
     global_auxvar_ss%istate = TWO_PHASE_STATE
@@ -1007,7 +1018,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     allocate(global_auxvar_ss%m_nacl(1))
     global_auxvar_ss%m_nacl(1)=0.d0
     
-    ! Compute state variables by checking direction of xxss
+    ! Compute state variables 
     call GeneralAuxVarCompute(xxss,gen_auxvar_ss, &
                                 global_auxvar_ss, &
                                 material_auxvars(source_sink% &
