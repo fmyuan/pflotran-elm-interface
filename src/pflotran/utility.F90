@@ -28,6 +28,7 @@ module Utility_module
     module procedure ReallocateRealArray2
     module procedure ReallocateRealArray3
     module procedure ReallocateRealArray4
+    module procedure ReallocateBoolArray1
   end interface
   
   interface UtilityReadArray
@@ -43,6 +44,7 @@ module Utility_module
     module procedure DeallocateArray1DReal
     module procedure DeallocateArray2DReal
     module procedure DeallocateArray3DReal
+    module procedure DeallocateArray4DReal
     module procedure DeallocateArray1DLogical
     module procedure DeallocateArray2DLogical
     module procedure DeallocateArray3DLogical
@@ -523,6 +525,32 @@ subroutine ReallocateRealArray4(array,rank2_size)
 end subroutine ReallocateRealArray4
 
 ! ************************************************************************** !
+
+subroutine ReallocateBoolArray1(array,size)
+  !
+  ! Reallocates a bool array to a larger size and copies
+  !
+  ! Author: Dave Ponting
+  ! Date: 10/24/18
+  !
+
+  implicit none
+
+  PetscBool, pointer :: array(:)
+  PetscInt :: size
+
+  PetscBool, allocatable :: array2(:)
+
+  allocate(array2(size))
+  array2(1:size) = array(1:size)
+  deallocate(array)
+  allocate(array(2*size))
+  array = 0
+  array(1:size) = array2(1:size)
+  size = 2*size
+  deallocate(array2)
+
+end subroutine ReallocateBoolArray1
 
 ! ************************************************************************** !
 
@@ -1883,6 +1911,25 @@ subroutine DeallocateArray3DReal(array)
   nullify(array)
 
 end subroutine DeallocateArray3DReal
+
+! ************************************************************************** !
+
+subroutine DeallocateArray4DReal(array)
+  !
+  ! Deallocates a 4D real array
+  !
+  ! Author: Dave Ponting
+  ! Date: 08/15/18
+  !
+
+  implicit none
+
+  PetscReal, pointer :: array(:,:,:,:)
+
+  if (associated(array)) deallocate(array)
+  nullify(array)
+
+end subroutine DeallocateArray4DReal
 
 ! ************************************************************************** !
 
