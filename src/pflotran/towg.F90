@@ -915,7 +915,7 @@ subroutine TOWGUpdateSolution(realization)
 
 ! Loop over well_data wells if present
 
-  dt=option%flow_dt
+  dt = option%flow_dt
 
   if (WellDataGetFlag()) then
     well_data_list => realization%well_data
@@ -4970,7 +4970,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
 ! Loop over well_data wells if present
 
   if (WellDataGetFlag()) then
-    jerr=0
+    jerr = 0
     well_data_list => realization%well_data
     well_data => well_data_list%first
 
