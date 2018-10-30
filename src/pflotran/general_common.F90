@@ -3857,14 +3857,12 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
   PetscInt :: flow_src_sink_type
   PetscReal :: qsrc_mol
   PetscReal :: enthalpy, internal_energy
-  PetscReal :: ss_pressure, dummy_pressure, inj_pressure
   PetscInt :: wat_comp_id, air_comp_id, energy_id
   PetscReal :: Jl(option%nflowdof,option%nflowdof)  
   PetscReal :: Jg(option%nflowdof,option%nflowdof)  
   PetscReal :: Je(option%nflowdof,option%nflowdof)  
   PetscReal :: dden_bool
-  PetscReal :: hw_dp, hw_dT, ha_dp, ha_dT, dum1, dum2, dum3
-  PetscReal :: inj_temp
+  PetscReal :: hw_dp, hw_dT, ha_dp, ha_dT
   PetscErrorCode :: ierr
 
   wat_comp_id = option%water_id
@@ -4008,21 +4006,16 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
       J = J + Jg
     endif
   endif
+  
   ! energy units: MJ/sec
   if (size(qsrc) == THREE_INTEGER) then
     if (dabs(qsrc(energy_id)) < 1.d-40) then
-      ss_pressure = &
-        maxval(gen_auxvar_ss%pres(option%liquid_phase:option%gas_phase))
       if (dabs(qsrc(wat_comp_id)) > 1.d-40) then
         if (associated(gen_auxvar%d)) then
-          call EOSWaterEnthalpy(gen_auxvar_ss%temp,ss_pressure, &
-                                enthalpy,hw_dp,hw_dT,ierr)
-          hw_dp = hw_dp * 1.d-6
-          hw_dT = hw_dT * 1.d-6
-        else
-          enthalpy = gen_auxvar_ss%h(wat_comp_id)
+          hw_dp = gen_auxvar_ss%d%Hl_pl
+          hw_dT = gen_auxvar_ss%d%Hl_T
         endif
-        enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
+        enthalpy = gen_auxvar_ss%h(wat_comp_id)
         ! enthalpy units: MJ/kmol                       ! water component mass
         Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * &
                                                         enthalpy
@@ -4039,18 +4032,15 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
       if (dabs(qsrc(air_comp_id)) > 1.d-40) then
         ! this is pure air, we use the enthalpy of air, NOT the air/water
         ! mixture in gas
-        ! air enthalpy is only a function of temperature and the 
-        dummy_pressure = 0.d0
+        ! air enthalpy is only a function of temperature
         if (associated(gen_auxvar%d)) then
-          call EOSGasEnergy(gen_auxvar%temp,ss_pressure,enthalpy, &
-                            ha_dT,ha_dp,dum1,dum2,dum3,ierr)
-          ha_dp = ha_dp * 1.d-6
-          ha_dT = ha_dT * 1.d-6
-        else
-          internal_energy = gen_auxvar_ss%u(air_comp_id)
-          enthalpy = gen_auxvar_ss%h(air_comp_id)
+          ha_dp = gen_auxvar_ss%d%Ha_pg
+          ha_dT = gen_auxvar_ss%d%Ha_T
+          
         endif
-        enthalpy = enthalpy * 1.d-6 ! J/kmol -> MJ/kmol                                  
+        
+        internal_energy = gen_auxvar_ss%u(air_comp_id)
+        enthalpy = gen_auxvar_ss%h(air_comp_id)                                 
         ! enthalpy units: MJ/kmol                       ! air component mass
         Res(energy_id) = Res(energy_id) + Res(air_comp_id) * &
                                                         enthalpy

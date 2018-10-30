@@ -692,7 +692,11 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
   type(connection_set_type), pointer :: cur_connection_set
   type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:), &
                                         gen_auxvars_ss(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)  
+  type(general_auxvar_type) :: gen_auxvar, gen_auxvar_ss
+  type(global_auxvar_type) :: global_auxvar_ss
+  type(global_auxvar_type), pointer :: global_auxvars(:), &
+                                       global_auxvars_bc(:), global_auxvars_ss(:)
+  
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
@@ -700,13 +704,14 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
   PetscInt :: iphasebc, iphase
   PetscInt :: offset
   PetscInt :: istate
+  PetscInt :: wat_comp_id, air_comp_id
   PetscReal :: gas_pressure, capillary_pressure, liquid_saturation
   PetscReal :: saturation_pressure, temperature
-  PetscReal :: src_sink_temp, src_sink_liq_pres, &
-               src_sink_gas_pres, qsrc(3)
+  PetscReal :: qsrc(3)
   PetscInt :: real_index, variable, flow_src_sink_type
   PetscReal, pointer :: xx_loc_p(:)
-  PetscReal :: xxbc(realization%option%nflowdof)
+  PetscReal :: xxbc(realization%option%nflowdof), & 
+               xxss(realization%option%nflowdof), qsrc_vol(2),scale
 !#define DEBUG_AUXVARS
 #ifdef DEBUG_AUXVARS
   character(len=MAXWORDLENGTH) :: word
@@ -722,6 +727,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
   gen_auxvars => patch%aux%General%auxvars
   gen_auxvars_bc => patch%aux%General%auxvars_bc
   gen_auxvars_ss => patch%aux%General%auxvars_ss
+  global_auxvars_ss => patch%aux%Global%auxvars_ss
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
@@ -929,6 +935,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     boundary_condition => boundary_condition%next
   enddo
   
+  wat_comp_id = option%water_id
+  air_comp_id = option%air_id
   source_sink => patch%source_sink_list%first
   ssn=0
   do
@@ -937,35 +945,83 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     ssn=ssn+1
     
     qsrc=source_sink%flow_condition%general%rate%dataset%rarray(:)
+    gen_auxvar = gen_auxvars(0,source_sink%region%cell_ids(1))
+    gen_auxvar_ss = gen_auxvars_ss(ssn)
+    gen_auxvar_ss%ss_flag=PETSC_TRUE
+    
+    if (associated(gen_auxvar%d)) then
+      allocate(gen_auxvar_ss%d)
+    endif
     
     flow_src_sink_type = source_sink%flow_condition%general%rate%itype
+    
     if (associated(source_sink%flow_condition%general%temperature)) then
-      src_sink_temp = source_sink%flow_condition%general%temperature% &
-                      dataset%rarray(1)
+      gen_auxvar_ss%temp = source_sink%flow_condition%general% &
+                           temperature%dataset%rarray(1)
     else
-      src_sink_temp=-999
+      gen_auxvar_ss%temp= gen_auxvar%temp
     endif
+    
+    ! Check if liquid pressure is set
     if (associated(source_sink%flow_condition%general%liquid_pressure)) then
-      src_sink_liq_pres = source_sink%flow_condition%general% &
-                           liquid_pressure%dataset%rarray(1)
+      gen_auxvar_ss%pres(wat_comp_id) = source_sink%flow_condition% &
+                                    general%liquid_pressure%dataset%rarray(1)
     else
-      src_sink_liq_pres=-999
+      gen_auxvar_ss%pres(wat_comp_id)=gen_auxvar%pres(option%liquid_phase)
     endif
     
+    ! Check if gas pressure is set
     if (associated(source_sink%flow_condition%general%gas_pressure)) then
-      src_sink_gas_pres = source_sink%flow_condition%general% &
-                           gas_pressure%dataset%rarray(1)
+      gen_auxvar_ss%pres(air_comp_id)=source_sink%flow_condition% &
+                               general%gas_pressure%dataset%rarray(1)
     else
-      src_sink_gas_pres =-999
+      gen_auxvar_ss%pres(air_comp_id)=gen_auxvar%pres(option%gas_phase)
     endif
     
-    call GeneralAuxVarComputeSS(option,qsrc,src_sink_temp, &
-                                src_sink_liq_pres, src_sink_gas_pres, &
-                                gen_auxvars(0,source_sink%region%cell_ids(1)),gen_auxvars_ss(ssn))
-   
+    select case(flow_src_sink_type)
+    case(MASS_RATE_SS)
+      qsrc_vol(air_comp_id) = qsrc(air_comp_id)/(fmw_comp(air_comp_id)* &
+                              gen_auxvar%den(air_comp_id))
+      qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/(fmw_comp(wat_comp_id)* &
+                              gen_auxvar%den(wat_comp_id))
+    case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
+      qsrc_vol(air_comp_id) = qsrc(air_comp_id)/(fmw_comp(air_comp_id)* &
+                              gen_auxvar%den(air_comp_id))*scale 
+      qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/(fmw_comp(wat_comp_id)* &
+                              gen_auxvar%den(wat_comp_id))*scale 
+    case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
+      ! qsrc1 = m^3/sec             ! den = kmol/m^3
+      qsrc_vol(air_comp_id) = qsrc(air_comp_id)*scale
+      qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)*scale
+    end select
+    
+    xxss(1) = max(gen_auxvar_ss%pres(wat_comp_id), &
+                gen_auxvar_ss%pres(air_comp_id))
+    xxss(2) = qsrc_vol(air_comp_id)/(qsrc_vol(wat_comp_id) &
+              + qsrc_vol(air_comp_id))
+    xxss(3) = gen_auxvar_ss%temp
+    
+    global_auxvar_ss=global_auxvars_ss(ssn)
+    global_auxvar_ss%istate = TWO_PHASE_STATE
+    
+    allocate(global_auxvar_ss%m_nacl(1))
+    global_auxvar_ss%m_nacl(1)=0.d0
+    
+    ! Compute state variables by checking direction of xxss
+    call GeneralAuxVarCompute(xxss,gen_auxvar_ss, &
+                                global_auxvar_ss, &
+                                material_auxvars(source_sink% &
+                                region%cell_ids(1)), &
+                                patch%characteristic_curves_array( &
+                                patch%sat_func_id(source_sink%region% &
+                                cell_ids(1)))%ptr, &
+                                source_sink%region%cell_ids(1), &
+                                option)
+
+    gen_auxvars_ss(ssn) = gen_auxvar_ss
     source_sink => source_sink%next
   enddo
-
+  
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
 
   patch%aux%General%auxvars_up_to_date = PETSC_TRUE

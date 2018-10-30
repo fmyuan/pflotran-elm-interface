@@ -92,6 +92,7 @@ module General_Aux_module
   
   type, public :: general_auxvar_type
     PetscInt :: istate_store(2) ! 1 = previous timestep; 2 = previous iteration
+    PetscBool :: ss_flag
     PetscReal, pointer :: pres(:)   ! (iphase)
     PetscReal, pointer :: sat(:)    ! (iphase)
     PetscReal, pointer :: den(:)    ! (iphase) kmol/m^3 phase
@@ -212,7 +213,6 @@ module General_Aux_module
             GeneralAuxDestroy, &
             GeneralAuxSetEnergyDOF, &
             GeneralAuxVarCompute, &
-            GeneralAuxVarComputeSS, &
             GeneralAuxVarInit, &
             GeneralAuxVarCopy, &
             GeneralAuxVarDestroy, &
@@ -299,6 +299,7 @@ subroutine GeneralAuxVarInit(auxvar,allocate_derivative,option)
   type(option_type) :: option
 
   auxvar%istate_store = NULL_STATE
+  auxvar%ss_flag = PETSC_FALSE
   auxvar%temp = 0.d0
   auxvar%effective_porosity = 0.d0
   auxvar%pert = 0.d0
@@ -809,8 +810,17 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
   end select
 
-  cell_pressure = max(gen_auxvar%pres(lid),gen_auxvar%pres(gid), &
-                      gen_auxvar%pres(spid))
+  cell_pressure =0
+  
+  if (lid.gt.0) cell_pressure=gen_auxvar%pres(lid)
+  
+  if (gid.gt.0) then
+    cell_pressure=max(cell_pressure,gen_auxvar%pres(gid))
+  endif
+  
+  if (spid.gt.0) then
+    cell_pressure=max(cell_pressure,gen_auxvar%pres(spid))
+  endif
         
   ! calculate effective porosity as a function of pressure
   if (option%iflag /= GENERAL_UPDATE_FOR_BOUNDARY) then
@@ -1009,6 +1019,13 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
     gen_auxvar%H(gid) = gen_auxvar%U(gid) + &
                         ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
                         gen_auxvar%pres(gid)/gen_auxvar%den(gid) * 1.d-6
+    if (gen_auxvar%ss_flag) then
+      call EOSGasEnergy(gen_auxvar%temp,cell_pressure, &
+                            gen_auxvar%H(gid),gen_auxvar%U(gid),ierr)
+      gen_auxvar%H(gid)=gen_auxvar%H(gid)* 1.d-6
+      gen_auxvar%U(gid)=gen_auxvar%H(gid)* 1.d-6
+    endif
+    
     if (associated(gen_auxvar%d)) then
       gen_auxvar%d%Uv = u_water_vapor
       gen_auxvar%d%Hv = h_water_vapor
@@ -1193,73 +1210,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
 end subroutine GeneralAuxVarCompute
 
-! ************************************************************************** !
 
-subroutine GeneralAuxVarComputeSS(option,qsrc, &
-                                  src_sink_temp, src_sink_liq_pres, &
-                                  src_sink_gas_pres, gen_auxvar,gen_auxvar_ss)
-
-                        
-  use Option_module
-  use EOS_Water_module
-  use EOS_Gas_module
-
-  implicit none
-
-  type(option_type) :: option
-  type(general_auxvar_type) :: gen_auxvar, gen_auxvar_ss
-
-  PetscReal :: internal_energy, src_sink_temp, src_sink_liq_pres, &
-               src_sink_gas_pres, qsrc(3)
-  PetscInt :: wat_comp_id, air_comp_id, energy_id
-  PetscErrorCode :: ierr
-
-  wat_comp_id = option%water_id
-  air_comp_id = option%air_id
-  energy_id = option%energy_id
-  
-  
-  if (src_sink_temp>-300) then
-    gen_auxvar_ss%temp=src_sink_temp
-  else
-    gen_auxvar_ss%temp= gen_auxvar%temp
-  endif
-  
-  gen_auxvar_ss%pres=gen_auxvar%pres
-  
-  if (src_sink_liq_pres>gen_auxvar%pres(option%liquid_phase)) then
-    gen_auxvar_ss%pres(wat_comp_id)=src_sink_liq_pres                   
-  endif
-  
-  if (src_sink_gas_pres>gen_auxvar%pres(option%gas_phase)) then
-    gen_auxvar_ss%pres(air_comp_id)=src_sink_gas_pres
-  endif
-  
-  if (qsrc(wat_comp_id)>0.or.(src_sink_liq_pres>gen_auxvar% &
-      pres(option%liquid_phase))) then
-    call EOSWaterEnthalpy(gen_auxvar_ss%temp, &
-                        maxval(gen_auxvar_ss%pres(option%liquid_phase: &
-                        option%gas_phase)),gen_auxvar_ss%h(wat_comp_id),ierr)
-  else
-    call EOSWaterEnthalpy(gen_auxvar%temp, &
-                        maxval(gen_auxvar_ss%pres(option%liquid_phase: &
-                        option%gas_phase)),gen_auxvar_ss%h(wat_comp_id),ierr)
-  endif
-  
-  if (qsrc(air_comp_id)>0.or.(src_sink_gas_pres>gen_auxvar% &
-      pres(option%gas_phase))) then
-    call EOSGasEnergy(gen_auxvar_ss%temp, maxval(gen_auxvar_ss%pres(option% &
-                    liquid_phase:option%gas_phase)),gen_auxvar_ss% &
-                    h(air_comp_id),gen_auxvar_ss%u(air_comp_id),ierr)
-  else
-    call EOSGasEnergy(gen_auxvar%temp, maxval(gen_auxvar%pres(option% &
-                    liquid_phase:option%gas_phase)),gen_auxvar_ss% &
-                    h(air_comp_id),gen_auxvar_ss%u(air_comp_id),ierr)
-  endif
-  
-
-
-end subroutine GeneralAuxVarComputeSS
 
 ! ************************************************************************** !
 
