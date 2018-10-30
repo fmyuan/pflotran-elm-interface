@@ -176,7 +176,7 @@ module Well_Solver_module
 
     character(len = MAXSTRINGLENGTH) :: ws_name       ! Well name
 
-    PetscInt::w_comm                                ! Well MPI communicator
+    PetscInt :: w_comm                                ! Well MPI communicator
 
     PetscReal,dimension(:    ),allocatable :: xwbs      ! Wellbore sol.
     PetscReal,dimension(:    ),allocatable :: rwbs      ! Wellbore res.
@@ -190,11 +190,11 @@ module Well_Solver_module
 
     PetscBool :: is_solvent
 
-    PetscInt::ixwso
-    PetscInt::ixwsg
-    PetscInt::ixwpb
-    PetscInt::ixwss
-    PetscInt::ixwt
+    PetscInt :: ixwso
+    PetscInt :: ixwsg
+    PetscInt :: ixwpb
+    PetscInt :: ixwss
+    PetscInt :: ixwt
 
     PetscReal :: ws_injection_p = 1.01325d5
     PetscReal :: ws_injection_t = 15.0
@@ -829,7 +829,7 @@ function solveForWellTarget(pw,option,itertt,itt,jwwi)
   ! Date  : 09/19/18
 
   PetscBool :: solveForWellTarget
-  PetscReal,intent(inout) ::pw
+  PetscReal,intent(inout) :: pw
   type(option_type), pointer :: option
   PetscInt,intent(in   ) :: itertt
   PetscInt,intent(inout) :: itt
@@ -1766,7 +1766,7 @@ subroutine buildWellFlows()
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
-  PetscInt::icompe,icmpl,ierr,ixw,jcmpl,jdof
+  PetscInt :: icompe,icmpl,ierr,ixw,jcmpl,jdof
 
   ierr = 0
 
@@ -2130,7 +2130,7 @@ subroutine getRwbsAndJwbs(pw,option)
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
-  PetscReal,intent(in)::pw
+  PetscReal,intent(in) :: pw
   type(option_type), pointer :: option
 
   PetscReal :: so,sg,sw,ss,pb,t
@@ -2139,8 +2139,8 @@ subroutine getRwbsAndJwbs(pw,option)
                ixw,ipoil,ipgas,ipwat,ipslv,eid
   PetscInt  :: jcmpl,jdof,ippref
 
-  PetscReal,dimension(  :),allocatable::sumxw
-  PetscReal,dimension(:,:),allocatable::sumxc
+  PetscReal,dimension(  :),allocatable :: sumxw
+  PetscReal,dimension(:,:),allocatable :: sumxc
 
 !  Initialise
 
@@ -2462,7 +2462,7 @@ subroutine findWellborePropertiesAndDerivatives(pw,so,sg,sw,ss,pb,t,option)
   PetscInt :: ierr,iphase,icomp,icoil,icgas
   PetscInt :: ipoil,ipgas,ipwat,ipslv,ixw
 
-  PetscReal,dimension(:),allocatable::sumxw
+  PetscReal,dimension(:),allocatable :: sumxw
 
   PetscInt, pointer :: table_idx(:)
 
@@ -3136,7 +3136,7 @@ subroutine invertJacobian(deti)
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
-  PetscReal,intent(out)::deti
+  PetscReal,intent(out) :: deti
   PetscReal :: det,a,b,c,d,ai,bi,ci,di
   PetscReal :: cf(3,3),eps
   PetscInt  :: i,j,k
@@ -3223,8 +3223,8 @@ subroutine findInjectionEnthalpy()
 
   implicit none
 
-  PetscReal::p,t,u,h
-  PetscInt ::ierr
+  PetscReal :: p,t,u,h
+  PetscInt  :: ierr
 
   ws_injection_h = 0.0
 
@@ -3266,12 +3266,12 @@ subroutine incrTactX(ip,c,tact,tactpw)
 
   implicit none
 
-  PetscInt ,intent(in)::ip
-  PetscReal,intent(in)::c
-  PetscReal,intent(inout)::tact
-  PetscReal,intent(inout)::tactpw
+  PetscInt ,intent(in) :: ip
+  PetscReal,intent(in) :: c
+  PetscReal,intent(inout) :: tact
+  PetscReal,intent(inout) :: tactpw
 
-  PetscInt::icmpl,idof,ixw
+  PetscInt :: icmpl,idof,ixw
 
 !  Actual flow
 
@@ -3327,10 +3327,10 @@ subroutine findFullFlowDerivatives(jwwi)
 
   implicit none
 
-  PetscReal,intent(inout)::jwwi
+  PetscReal,intent(inout) :: jwwi
 
-  PetscInt::icomp,icmpl,jcmpl,jdof,ixw
-  PetscReal::sum
+  PetscInt  :: icomp,icmpl,jcmpl,jdof,ixw
+  PetscReal :: sum
 
 ! Step 1: construct dPw/dXc=-(1/(dRw/dPw))*(dRw/dXc)
 !         Note derivatives have expanded into Pw and Xc derivatives
@@ -3379,7 +3379,7 @@ subroutine throwWellSolverException(message)
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
-  character(len=*)::message
+  character(len=*) :: message
   print *,message
 
 end subroutine throwWellSolverException

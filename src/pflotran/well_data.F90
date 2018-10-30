@@ -1687,7 +1687,7 @@ subroutine DoIncrJacInList(this,option,nflowdof,Jup,A)
   PetscReal,intent(out) :: Jup(nflowdof,nflowdof)
   Mat :: A
 
-  PetscInt::ghosted_id,ierr,icmpl,ncmpl,i,j
+  PetscInt :: ghosted_id,ierr,icmpl,ncmpl,i,j
 
   ncmpl = this%GetNCmpl()
 
@@ -1826,7 +1826,7 @@ function GetCmplSkinFactorInList(this,icmpl)
 
   implicit none
 
-  PetscReal ::GetCmplSkinFactorInList
+  PetscReal :: GetCmplSkinFactorInList
   PetscInt,intent(in) :: icmpl
   class(well_data_type) :: this
 
@@ -2031,8 +2031,8 @@ subroutine GetWellInjectionPAndTInList(this,injection_p,injection_t)
   implicit none
   class(well_data_type) :: this
 
-  PetscReal,intent(out)::injection_p
-  PetscReal,intent(out)::injection_t
+  PetscReal,intent(out) :: injection_p
+  PetscReal,intent(out) :: injection_t
 
   injection_p = this%w_injection_p
   injection_t = this%w_injection_t
@@ -2108,7 +2108,7 @@ subroutine SetWellType(this,well_type)
   class(well_data_type) :: this
   PetscInt, intent(in)  :: well_type
 
-  PetscReal::rval
+  PetscReal :: rval
 
   if (this%w_readtime>0.0) then
    rval = 0.0
@@ -2339,8 +2339,8 @@ subroutine CheckEventCount(this)
 
   class(well_data_type) :: this
 
-  PetscInt ::mold,mnew
-  PetscReal::vzero
+  PetscInt :: mold,mnew
+  PetscReal :: vzero
 
   vzero = 0.0
 
@@ -2374,8 +2374,8 @@ subroutine CheckCompletionCount(this)
 
   class(well_data_type) :: this
 
-  PetscInt ::mold,mnew
-  PetscReal::vneg,vzero,vunity,vrdef
+  PetscInt :: mold,mnew
+  PetscReal :: vneg,vzero,vunity,vrdef
 
   vneg   =-1.0
   vzero  = 0.0
@@ -2424,10 +2424,10 @@ subroutine AllocOrReallocI(pi,idef,mold,mnew)
 
   Implicit none
 
-  PetscInt, pointer, intent(inout)::pi(:)
-  PetscInt,          intent(in   )::idef
-  PetscInt,          intent(in   )::mold
-  PetscInt,          intent(out  )::mnew
+  PetscInt, pointer, intent(inout) :: pi(:)
+  PetscInt,          intent(in   ) :: idef
+  PetscInt,          intent(in   ) :: mold
+  PetscInt,          intent(out  ) :: mnew
 
   mnew = mold
 
@@ -2453,10 +2453,10 @@ subroutine AllocOrReallocR(pr,rdef,mold,mnew)
 
   Implicit none
 
-  PetscReal, pointer, intent(inout)::pr(:)
-  PetscReal,          intent(in   )::rdef
-  PetscInt ,          intent(in   )::mold
-  PetscInt ,          intent(out  )::mnew
+  PetscReal, pointer, intent(inout) :: pr(:)
+  PetscReal,          intent(in   ) :: rdef
+  PetscInt ,          intent(in   ) :: mold
+  PetscInt ,          intent(out  ) :: mnew
 
   mnew = mold
 
@@ -2482,10 +2482,10 @@ subroutine AllocOrReallocB(pb,bdef,mold,mnew)
 
   Implicit none
 
-  PetscBool, pointer, intent(inout)::pb(:)
-  PetscBool,          intent(in   )::bdef
-  PetscInt ,          intent(in   )::mold
-  PetscInt ,          intent(out  )::mnew
+  PetscBool, pointer, intent(inout) :: pb(:)
+  PetscBool,          intent(in   ) :: bdef
+  PetscInt ,          intent(in   ) :: mold
+  PetscInt ,          intent(out  ) :: mnew
 
   mnew = mold
 
