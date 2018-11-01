@@ -50,3 +50,7 @@ script:
   - ./.travis/pflotran-interface-build.sh
   - ./.travis/pflotran-interface-test.sh
   - cat src/clm-pflotran/*.testlog
+
+after_success:
+ - bash <(curl -s https://codecov.io/bash)
+
