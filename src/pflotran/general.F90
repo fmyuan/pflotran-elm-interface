@@ -939,16 +939,15 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
   source_sink => patch%source_sink_list%first
-  ssn=0
+  ssn = 0
   do
-    if (.not.associated(source_sink).or.(.not.associated(source_sink% &
-                        region%cell_ids))) exit
-    ssn=ssn+1
+    if (.not.associated(source_sink) .or. .not.associated(source_sink% &
+                        region%cell_ids)) exit
+    ssn = ssn+1
     
-    qsrc=source_sink%flow_condition%general%rate%dataset%rarray(:)
+    qsrc = source_sink%flow_condition%general%rate%dataset%rarray(:)
     gen_auxvar = gen_auxvars(0,source_sink%region%cell_ids(1))
     gen_auxvar_ss = gen_auxvars_ss(ssn)
-    gen_auxvar_ss%ss_flag=PETSC_TRUE
     
     if (associated(gen_auxvar%d)) then
       allocate(gen_auxvar_ss%d)
@@ -960,7 +959,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
       gen_auxvar_ss%temp = source_sink%flow_condition%general% &
                            temperature%dataset%rarray(1)
     else
-      gen_auxvar_ss%temp= gen_auxvar%temp
+      gen_auxvar_ss%temp = gen_auxvar%temp
     endif
     
     ! Check if liquid pressure is set
@@ -968,15 +967,15 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
       gen_auxvar_ss%pres(wat_comp_id) = source_sink%flow_condition% &
                                     general%liquid_pressure%dataset%rarray(1)
     else
-      gen_auxvar_ss%pres(wat_comp_id)=gen_auxvar%pres(option%liquid_phase)
+      gen_auxvar_ss%pres(wat_comp_id) = gen_auxvar%pres(option%liquid_phase)
     endif
     
     ! Check if gas pressure is set
     if (associated(source_sink%flow_condition%general%gas_pressure)) then
-      gen_auxvar_ss%pres(air_comp_id)=source_sink%flow_condition% &
+      gen_auxvar_ss%pres(air_comp_id) = source_sink%flow_condition% &
                                general%gas_pressure%dataset%rarray(1)
     else
-      gen_auxvar_ss%pres(air_comp_id)=gen_auxvar%pres(option%gas_phase)
+      gen_auxvar_ss%pres(air_comp_id) = gen_auxvar%pres(option%gas_phase)
     endif
     
     select case(flow_src_sink_type)
@@ -1005,18 +1004,19 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     cell_pressure = maxval(gen_auxvar%pres(option% &
                            liquid_phase:option%gas_phase))    
     
-    if ((cell_pressure.gt.xxss(1)).or.(qsrc(wat_comp_id)<0).or. &
+    if (cell_pressure>xxss(1) .or. qsrc(wat_comp_id)<0 .or. &
          qsrc(air_comp_id)<0.d0) then
       xxss(1) = cell_pressure
       xxss(2) = gen_auxvar%sat(air_comp_id)
       xxss(3) = gen_auxvar%temp
     endif
     
-    global_auxvar_ss=global_auxvars_ss(ssn)
+    global_auxvar_ss = global_auxvars_ss(ssn)
     global_auxvar_ss%istate = TWO_PHASE_STATE
     
     allocate(global_auxvar_ss%m_nacl(1))
-    global_auxvar_ss%m_nacl(1)=0.d0
+    global_auxvar_ss%m_nacl(1) = 0.d0
+    option%iflag = GENERAL_UPDATE_FOR_SS
     
     ! Compute state variables 
     call GeneralAuxVarCompute(xxss,gen_auxvar_ss, &
@@ -1898,11 +1898,13 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     if (.not.associated(source_sink)) exit
     
     cur_connection_set => source_sink%connection_set
-    ssn=ssn+1
     
-    do iconn = 1, cur_connection_set%num_connections      
+    do iconn = 1, cur_connection_set%num_connections
+      ssn=ssn+1
+      
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
+      
       if (patch%imat(ghosted_id) <= 0) cycle
 
       if (associated(source_sink%flow_aux_real_var)) then

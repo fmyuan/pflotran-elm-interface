@@ -20,6 +20,7 @@ module PM_Waste_Form_class
   use Dataset_Base_class
   use Region_module
   use Checkpoint_module
+  use Criticality_module
  
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
@@ -294,6 +295,7 @@ module PM_Waste_Form_class
 !    form should start decaying, default time is 0.d0 sec
 ! mech_name: name string for the waste form mechanism object
 ! mechanism: pointer to waste form's mechanism object
+! crit: pointer to the criticality object
 ! next: pointer to next waste form object in linked list
 ! -----------------------------------------------------
   type :: waste_form_base_type
@@ -322,6 +324,7 @@ module PM_Waste_Form_class
     character(len=MAXWORDLENGTH) :: mech_name
     class(wf_mechanism_base_type), pointer :: mechanism
     class(waste_form_base_type), pointer :: next
+    
   end type waste_form_base_type
 ! -----------------------------------------------------
 
@@ -347,6 +350,7 @@ module PM_Waste_Form_class
     class(data_mediator_vec_type), pointer :: data_mediator
     class(waste_form_base_type), pointer :: waste_form_list
     class(wf_mechanism_base_type), pointer :: mechanism_list
+    type(criticality_type), pointer :: criticality_list
     PetscBool :: print_mass_balance
     PetscBool :: implicit_solution
   contains
@@ -708,7 +712,8 @@ function PMWFCreate()
   nullify(PMWFCreate%realization)
   nullify(PMWFCreate%data_mediator)
   nullify(PMWFCreate%waste_form_list)
-  nullify(PMWFCreate%mechanism_list)  
+  nullify(PMWFCreate%mechanism_list) 
+  nullify(PMWFCreate%criticality_list)
   PMWFCreate%print_mass_balance = PETSC_FALSE
   PMWFCreate%implicit_solution = PETSC_FALSE
   PMWFCreate%name = 'waste form general'
@@ -740,6 +745,7 @@ subroutine PMWFRead(this,input)
 ! ----------------------------------
   class(pm_waste_form_type) :: this
   type(input_type), pointer :: input
+!   class(simulation_subsurface_type) :: simulation
 ! ----------------------------------
   
 ! LOCAL VARIABLES:
@@ -793,6 +799,10 @@ subroutine PMWFRead(this,input)
     
     error_string = 'WASTE_FORM_GENERAL'
     call PMWFReadWasteForm(this,input,option,word,error_string,found)
+    if (found) cycle
+    
+    error_string = 'WASTE_FORM_GENERAL'
+    call ReadCriticality(this%criticality_list,input,option,word,error_string,found)
     if (found) cycle
    
   enddo
