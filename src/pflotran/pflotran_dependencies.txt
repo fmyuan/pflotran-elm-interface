@@ -958,7 +958,8 @@ toil_ims.o : appleyard.o auxvars_flow.o auxvars_toil_ims.o condition.o \
              eos_water.o field.o global_aux.o grid.o material.o material_aux.o \
              option.o output_aux.o output_tecplot.o patch.o \
              pflotran_constants.o pm_toil_ims_aux.o realization_subsurface.o \
-             saturation_function.o toil_ims_derivs.o utility.o variables.o
+             saturation_function.o toil_ims_derivs.o utility.o variables.o \
+             well_data.o well_solver.o
 toil_ims_derivs.o : auxvars_toil_ims.o global_aux.o pflotran_constants.o \
                     pm_toil_ims_aux.o
 towg.o : appleyard.o auxvars_flow.o auxvars_towg.o condition.o connection.o \
