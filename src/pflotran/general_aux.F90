@@ -1011,12 +1011,6 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                         ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
                         gen_auxvar%pres(gid)/gen_auxvar%den(gid) * 1.d-6
     
-    ! Assuming pure component flow rates specified for injectors/producers
-!     if (option%iflag == GENERAL_UPDATE_FOR_SS) then
-!       gen_auxvar%U(gid) = u_air
-!       gen_auxvar%H(gid) = h_air
-!     endif
-    
     if (associated(gen_auxvar%d)) then
       gen_auxvar%d%Uv = u_water_vapor
       gen_auxvar%d%Hv = h_water_vapor

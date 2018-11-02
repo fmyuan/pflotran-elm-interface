@@ -693,7 +693,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
   type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:), &
                                         gen_auxvars_ss(:)
   type(general_auxvar_type) :: gen_auxvar, gen_auxvar_ss
-  type(global_auxvar_type) :: global_auxvar_ss
+  type(global_auxvar_type) :: global_auxvar_ss, global_auxvar
   type(global_auxvar_type), pointer :: global_auxvars(:), &
                                        global_auxvars_bc(:), global_auxvars_ss(:)
   
@@ -946,8 +946,10 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     ssn = ssn+1
     
     qsrc = source_sink%flow_condition%general%rate%dataset%rarray(:)
-    gen_auxvar = gen_auxvars(0,source_sink%region%cell_ids(1))
+    gen_auxvar = gen_auxvars(0,source_sink%region%cell_ids(ssn))
+    global_auxvar = global_auxvars(source_sink%region%cell_ids(ssn))
     gen_auxvar_ss = gen_auxvars_ss(ssn)
+    global_auxvar_ss = global_auxvars_ss(ssn)
     
     if (associated(gen_auxvar%d)) then
       allocate(gen_auxvar_ss%d)
@@ -1011,8 +1013,20 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
       xxss(3) = gen_auxvar%temp
     endif
     
-    global_auxvar_ss = global_auxvars_ss(ssn)
-    global_auxvar_ss%istate = TWO_PHASE_STATE
+    if (dabs(qsrc(wat_comp_id)) > 0.d0 .and. &
+        dabs(qsrc(air_comp_id)) > 0.d0) then
+      global_auxvar_ss%istate = TWO_PHASE_STATE
+    elseif (dabs(qsrc(wat_comp_id)) > 0.d0) then
+      global_auxvar_ss%istate = LIQUID_STATE
+    elseif (dabs(qsrc(air_comp_id)) > 0.d0) then
+      global_auxvar_ss%istate = GAS_STATE
+    else
+      global_auxvar_ss%istate = TWO_PHASE_STATE
+    endif
+    
+    if (global_auxvar_ss%istate /= global_auxvar%istate) then
+      global_auxvar_ss%istate = TWO_PHASE_STATE
+    endif
     
     allocate(global_auxvar_ss%m_nacl(1))
     global_auxvar_ss%m_nacl(1) = 0.d0
