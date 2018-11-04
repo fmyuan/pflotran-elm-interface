@@ -128,19 +128,26 @@ subroutine PMTHRead(this,input)
       case('ITOL_SCALED_RESIDUAL')
         call InputReadDouble(input,option,th_itol_scaled_res)
         call InputDefaultMsg(input,option,'th_itol_scaled_res')
-        this%check_post_convergence = PETSC_TRUE
+        this%check_post_convergence = PETSC_FALSE!PETSC_TRUE
+        ! A NOTE (fmyuan, 2018-10-17): this option may have mass-balance issue if not carefully
+        !    setting the 'th_itol_scaled_res' values. Temperally off now.
+        option%io_buffer = ' TH: OPTIONS itol_scaled_residual IS currently OFF due to mass-balance issue!'
+        call printMsg(option)
       case('ITOL_RELATIVE_UPDATE')
         call InputReadDouble(input,option,th_itol_rel_update)
         call InputDefaultMsg(input,option,'th_itol_rel_update')
-        this%check_post_convergence = PETSC_TRUE        
-      case('FREEZING')
-        option%use_th_freezing = PETSC_TRUE
-        option%io_buffer = ' TH: using FREEZING submode!'
+        this%check_post_convergence = PETSC_FALSE!PETSC_TRUE
+        ! A NOTE (fmyuan, 2018-10-17): this option may have mass-balance issue if not carefully
+        !    setting the 'th_itol_scaled_res' values. Temperally off now.
+        option%io_buffer = ' TH: OPTIONS itol_rel_update IS currently OFF due to mass-balance issue!'
+        call printMsg(option)
+      case('ICE_MODEL')
+        option%io_buffer = ' TH: using ICE submode option ON.'
         call printMsg(option)
         ! Override the default setting for TH-mode with freezing
         call EOSWaterSetDensity('PAINTER')
         call EOSWaterSetEnthalpy('PAINTER')
-      case('ICE_MODEL')
+
         call InputReadWord(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case (trim(word))
@@ -163,8 +170,13 @@ subroutine PMTHRead(this,input)
             option%io_buffer = 'Cannot identify the specificed ice model.' // &
              'Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT' // &
              ' or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO ' // &
-             ' or PAINTER_KARRA_EXPLICIT_SMOOTH or DALL_AMICO.'
-            call printErrMsg(option)
+             ' or PAINTER_KARRA_EXPLICIT_SMOOTH ' // &
+             ' or DALL_AMICO.' // &
+             ' TH MODE with iso-thermal option is ON'
+
+            option%use_isothermal = PETSC_TRUE
+
+            call printMsg(option)
           end select
       case default
         call InputKeywordUnrecognized(word,error_string,option)
@@ -569,6 +581,9 @@ subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   ! Date: 03/90/13
   ! 
 
+  ! A NOTE (fmyuan, 2018-10-17): this option may have mass-balance issue if not carefully
+  !    setting the 'th_itol_scaled_res' values. Temperally off now.
+
   use Realization_Subsurface_class
   use Grid_module
   use Field_module
@@ -709,7 +724,7 @@ subroutine PMTHUpdateSolution(this)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THUpdateSolution, THUpdateSurfaceBC
+  use TH_module, only : THUpdateSolution
 
   implicit none
   
@@ -721,8 +736,6 @@ subroutine PMTHUpdateSolution(this)
   
   call PMSubsurfaceFlowUpdateSolution(this)
   call THUpdateSolution(this%realization)
-  if (this%option%surf_flow_on) &
-    call THUpdateSurfaceBC(this%realization)
 
 end subroutine PMTHUpdateSolution     
 

@@ -431,7 +431,7 @@ subroutine OptionInitRealization(option)
   option%use_matrix_free = PETSC_FALSE
   option%use_mc = PETSC_FALSE
   option%set_secondary_init_temp = PETSC_FALSE
-  option%ice_model = PAINTER_EXPLICIT
+  option%ice_model = UNINITIALIZED_INTEGER !PAINTER_EXPLICIT
   option%frzthw_halfwidth = UNINITIALIZED_DOUBLE
   option%set_secondary_init_conc = PETSC_FALSE
 

@@ -261,10 +261,8 @@ subroutine SFBaseIceCapillaryPressure(this, pres_l, tc, &
   PetscReal, intent(out) :: ice_pc, dice_pc_dt, dice_pc_dpres     ! in Pa
   type(option_type), intent(inout) :: option
 
-  if (option%use_th_freezing) then
-    call SF_Ice_CapillaryPressure(this, pres_l, tc, &
+  call SF_Ice_CapillaryPressure(this, pres_l, tc, &
                            ice_pc, dice_pc_dpres, dice_pc_dt, option)
-  end if
 
 end subroutine SFBaseIceCapillaryPressure
 
@@ -495,6 +493,10 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 !         Revised with freezing-thawing zone smoothing following ATS algorithm
 ! Date: 06/01/2016
 !
+! Two Cautions here: (1) when w.r.t. '_dp', means to 'pc'; while w.r.t. '_dpl' or '_dpres', it's to 'presure head'
+!                 (2) 'p' or 'pc' or 'cp' is capillary potential and always positive; while 'pres' or 'presl' or 'pl' NOT.
+
+
   use Option_module
   use EOS_Water_module
   use Utility_module
@@ -502,9 +504,10 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   implicit none
 
   class(sat_func_base_type) :: this
-  PetscReal, intent(in) :: pres_l      ! liquid water pressure head (atm. P adjusted), in Pa
+  PetscReal, intent(in) :: pres_l      ! liquid water pressure head (refrence atm. P added), in Pa
   PetscReal, intent(in) :: tc          ! in oC
-  PetscReal, intent(out) :: ice_pc, dice_pc_dt, dice_pc_dpres     ! in Pa
+  PetscReal, intent(out) :: ice_pc     ! in Pa
+  PetscReal, intent(out) :: dice_pc_dt, dice_pc_dpres     ! w.r.t. 'oC' or 'pressure head'
   type(option_type) :: option
 
   PetscReal :: pcgl, pw, tk
@@ -550,8 +553,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   ! constant 'rhoi' (for ice)
   rhoi    = 916.7d0             ! kg/m3 at 273.15K
 
-  if (option%use_th_freezing) then
-
+  ! --------------------
     gamma       = beta*Lf
     alpha       = gamma/T0*rhol
     dalpha_drhol= gamma/T0
@@ -577,8 +579,8 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
         if(tc<0.d0) then
 
-          ice_pc = rhoi*beta*Lf*(-tc)/T0
-          dice_pc_dt = -rhoi*beta*Lf/T0
+          ice_pc = -1.0d0*rhoi*beta*Lf*(-tc)/T0  ! in positive value
+          dice_pc_dt = rhoi*beta*Lf/T0
           dice_pc_dp = 0.d0
 
          endif
@@ -593,11 +595,11 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
          dtftheta_dt = 1.0d0/T0
          dtftheta_dp = 0.d0
 
-         ice_pc     = -gamma * rhol*tftheta           ! P.-K. Eq.(18), first term (i.e. ice only)
+         ice_pc     = gamma * rhol*tftheta           ! P.-K. Eq.(18), first term (i.e. ice only), but in positive value as all in CC equations
          tempreal   = rhol*dtftheta_dt+tftheta*drhol_dt
-         dice_pc_dt = -gamma * tempreal
+         dice_pc_dt = gamma * tempreal
          tempreal   = rhol*dtftheta_dp+tftheta*drhol_dp
-         dice_pc_dp = -gamma * tempreal
+         dice_pc_dp = gamma * tempreal
 
          ! Heaviside function to truncate Eq. (18) at 'Tf': Tf = T0-1/alpha*pcgl, i.e. -alpha*(Tf-T0)=pcgl, the left side IS exactly ice_pc @Tf
          Hfunc = sign(0.5d0, -(Tk-Tf))+0.5d0
@@ -612,7 +614,8 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
          if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = option%frzthw_halfwidth
          if (option%ice_model==PAINTER_KARRA_EXPLICIT_SMOOTH .and. deltaTf>1.0d-50) then
 
-#if 0
+
+!#if 0
            ! F.-M. Yuan (2017-03-14): OFF
            ! symmetrically smoothing over 'T0', so may create a gap from Tf ~ T0-deltaTf (Tf could be far away from T0)
            if (abs(xTf)<deltaTf) then
@@ -636,7 +639,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
              ! Then it means the smoothing_curve ends exactly with the original format
            endif
 
-#else
+#if 0
 
            ! using the new Heaveside Smoothing function:
            ! ice_pc@Tf-deltaTf --> ice_pc = pcgl @T0+deltaTf  (note: @Tf, ice_pc = pcgl by PKE, so this smoothing actually span over a large ranges around Tf~T0)
@@ -701,31 +704,26 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
          ! HOWever, if we do derivative here for 'ice_pc' above, 'ice_pc' shall be
          !   ice_pc = pcgl - beta2*Lf*rhol*Hfunc* (Tk/T_star-1)
-         !  w.r.t. 'pc', the second term can be simplified as: -beta2*Lf*rhol*Hfunc*Tk * (1/T_star)
-         !              in which, dT_star_dp = -1.d0/beta2/Lf/rhol, and
-         !                        d(1/T_star)_dp = dT_star_dp/T_star/T_star
+         !  w.r.t. 'pc', the second term can be simplified as:
+         !              -beta2*Lf*rhol*Hfunc*Tk * (1/T_star)
+         !              in which, because: dT_star_dp = -1.d0/beta2/Lf/rhol,
+         !                        then:  d(1/T_star)_dp = dT_star_dp/T_star/T_star
          ! i.e.,
-         dice_pc_dp = -(1.0d0 + Tk/T_star/T_star*Hfunc)   ! '-1' is for reverse '_dP' to '_dpc'
+         dice_pc_dp = 1.0d0 + Tk/T_star/T_star*Hfunc
 
        case default
-         option%io_buffer = 'SF_Ice_CapillaryPressure: characteristic-curve now only  ' // &
-                       'support ice-model: PAINTER_KARRA_EXPLICIT, or ' // &
-                       ' PAINTER_KARRA_EXPLICIT_SMOOTH, or ' // &
-                       ' PAINTER_EXPLICIT, or ' // &
-                       ' DALL_AMICO '
 
-         call printErrMsg(option)
+         ! no ice-model defined
+         ice_pc = pcgl
+         dice_pc_dt = 0.d0
+         dice_pc_dp = 1.d0
 
        end select ! select case (option%ice_model)
+     !
 
-     dice_pc_dpres = dice_pc_dp*dpc_dpres  ! convert to w.r.t 'pressure' from 'pc'
-
-   else
-
-     option%io_buffer = 'SF_Ice_CapillaryPressure: Ice model is OFF.'
-     call printMsg(option)
-
-   endif ! 'option%use_th_freezing'
+  ! --------------------
+  dice_pc_dpres = dice_pc_dp*dpc_dpres  ! convert 'pc_dp' to 'pc_dpresl'
+  !(NOTE: this is very confusing, so if something wrong better checking this one in all CC equations)
 
 end subroutine SF_Ice_CapillaryPressure
 

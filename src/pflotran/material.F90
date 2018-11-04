@@ -726,18 +726,16 @@ subroutine MaterialPropertyRead(material_property,input,option)
   endif
 
   if (option%iflowmode == TH_MODE) then
-     if (option%use_th_freezing .eqv. PETSC_TRUE) then
-        if (.not. therm_k_frz) then
-           option%io_buffer = 'THERMAL_CONDUCTIVITY_FROZEN must be set &
-             &in inputdeck for MODE TH(C) ICE'
-           call printErrMsg(option)
-        endif
-        if (.not. therm_k_exp_frz) then
-           option%io_buffer = 'THERMAL_COND_EXPONENT_FROZEN must be set &
-             &in inputdeck for MODE TH(C) ICE'
-           call printErrMsg(option)
-        endif
-     endif
+    if (.not. therm_k_frz) then
+      option%io_buffer = 'THERMAL_CONDUCTIVITY_FROZEN must be set &
+          & in inputdeck for MODE TH ICE phase'
+      call printErrMsg(option)
+    endif
+    if (.not. therm_k_exp_frz) then
+      option%io_buffer = 'THERMAL_COND_EXPONENT_FROZEN must be set &
+         &in inputdeck for MODE TH ICE phase'
+      call printErrMsg(option)
+    endif
   endif
 
   if (len_trim(material_property%soil_compressibility_function) > 0) then

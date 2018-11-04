@@ -460,11 +460,11 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%use_isothermal = PETSC_TRUE
     class is (pm_th_type)
       option%iflowmode = TH_MODE
-      option%nphase = 1
+      option%nphase = 1       ! liq, gas, and solid
       option%liquid_phase = 1
       option%gas_phase = 2
-      option%nflowdof = 2
-      option%nflowspec = 1
+      option%nflowdof = 2     ! water and energy
+      option%nflowspec = 1    ! water
       option%use_isothermal = PETSC_FALSE
       option%flow%store_fluxes = PETSC_TRUE
     class default

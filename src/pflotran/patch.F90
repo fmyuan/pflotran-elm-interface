@@ -2224,32 +2224,19 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
             call printErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
-              if (option%use_th_freezing) then
-                vec_ptr(local_id) = &
+              vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas
-              else
-                vec_ptr(local_id) = &
-                  1.d0 - patch%aux%Global%auxvars(grid%nL2G(local_id))%sat(1)
-              endif
             enddo
           case(ICE_SATURATION)
-            if (option%use_th_freezing) then
-              do local_id=1,grid%nlmax
-                vec_ptr(local_id) = &
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice
-              enddo
-            else
-              call printErrMsg(option,'ICE_SATURATION not supported by without freezing option TH')
-            endif
+            enddo
           case(ICE_DENSITY)
-            if (option%use_th_freezing) then
-              do local_id=1,grid%nlmax
-                vec_ptr(local_id) = &
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice*FMWH2O
-              enddo
-            else
-              call printErrMsg(option,'ICE_DENSITY not supported without freezing option in TH')
-            endif
+            enddo
           case(LIQUID_VISCOSITY)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
@@ -2909,19 +2896,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY) ! still need implementation
             call printErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
           case(GAS_SATURATION)
-            if (option%use_th_freezing) then
-              value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_gas
-            else
-              value = 0.d0
-            endif
+            value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_gas
           case(ICE_SATURATION)
-            if (option%use_th_freezing) then
-              value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_ice
-            endif
+            value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_ice
           case(ICE_DENSITY)
-            if (option%use_th_freezing) then
-              value = patch%aux%TH%auxvars(ghosted_id)%ice%den_ice*FMWH2O
-            endif
+            value = patch%aux%TH%auxvars(ghosted_id)%ice%den_ice*FMWH2O
           case(LIQUID_MOLE_FRACTION)
             call printErrMsg(option,'LIQUID_MOLE_FRACTION not supported by TH')
           case(LIQUID_ENERGY)
@@ -3384,43 +3363,37 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY)
             call printErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
           case(GAS_SATURATION)
-            if (option%use_th_freezing) then
-              if (vec_format == GLOBAL) then
-                do local_id=1,grid%nlmax
-                  patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas = &
+            if (vec_format == GLOBAL) then
+              do local_id=1,grid%nlmax
+                patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas = &
                     vec_ptr(local_id)
-                enddo
-              else if (vec_format == LOCAL) then
-                do ghosted_id=1,grid%ngmax
-                  patch%aux%TH%auxvars(ghosted_id)%ice%sat_gas = vec_ptr(ghosted_id)
-                enddo
-              endif
+              enddo
+            else if (vec_format == LOCAL) then
+              do ghosted_id=1,grid%ngmax
+                patch%aux%TH%auxvars(ghosted_id)%ice%sat_gas = vec_ptr(ghosted_id)
+              enddo
             endif
           case(ICE_SATURATION)
-            if (option%use_th_freezing) then
-              if (vec_format == GLOBAL) then
-                do local_id=1,grid%nlmax
-                  patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice = &
+            if (vec_format == GLOBAL) then
+              do local_id=1,grid%nlmax
+                patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice = &
                     vec_ptr(local_id)
-                enddo
-              else if (vec_format == LOCAL) then
-                do ghosted_id=1,grid%ngmax
-                  patch%aux%TH%auxvars(ghosted_id)%ice%sat_ice = vec_ptr(ghosted_id)
-                enddo
-              endif
+              enddo
+            else if (vec_format == LOCAL) then
+              do ghosted_id=1,grid%ngmax
+                patch%aux%TH%auxvars(ghosted_id)%ice%sat_ice = vec_ptr(ghosted_id)
+              enddo
             endif
           case(ICE_DENSITY)
-            if (option%use_th_freezing) then
-              if (vec_format == GLOBAL) then
-                do local_id=1,grid%nlmax
-                  patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice = &
+            if (vec_format == GLOBAL) then
+              do local_id=1,grid%nlmax
+                patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice = &
                     vec_ptr(local_id)
-                enddo
-              else if (vec_format == LOCAL) then
-                do ghosted_id=1,grid%ngmax
-                  patch%aux%TH%auxvars(ghosted_id)%ice%den_ice = vec_ptr(ghosted_id)
-                enddo
-              endif
+              enddo
+            else if (vec_format == LOCAL) then
+              do ghosted_id=1,grid%ngmax
+                patch%aux%TH%auxvars(ghosted_id)%ice%den_ice = vec_ptr(ghosted_id)
+              enddo
             endif
           case(LIQUID_VISCOSITY)
           case(GAS_VISCOSITY)

@@ -491,7 +491,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
       massbal_plot_at_this_time_flag = PETSC_FALSE
       checkpoint_at_this_time_flag = PETSC_FALSE
     endif
-    if (local_stop_flag == TS_STOP_FAILURE) exit ! failure
+    if (local_stop_flag == TS_STOP_FAILURE) stop!exit ! failure
     ! Have to loop over all process models coupled in this object and update
     ! the time step size.  Still need code to force all process models to
     ! use the same time step size if tightly or iteratively coupled.

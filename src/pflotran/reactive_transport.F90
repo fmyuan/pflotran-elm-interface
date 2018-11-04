@@ -2917,9 +2917,6 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
         iphase = 1
         rt_auxvars_ss(sum_connection)%mass_balance_delta(:,iphase) = &
           rt_auxvars_ss(sum_connection)%mass_balance_delta(:,iphase) + Res
-        ! contribution to internal 
-!        rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) = &
-!          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) - Res
         endif
     enddo
     source_sink => source_sink%next
