@@ -3,8 +3,8 @@ module Well_Solver_module
 !  This well solver finds the current state of a well, automatically switching
 !  to the controlling target mode.
 !  The calculated well flows are place in the Pflotran residual
-!  Well data is obtained from  the Well_Data class
-!  Solution results are stored the Well_Data class
+!  Well data is obtained from     the Well_Data class
+!  Solution results are stored in the Well_Data class
 
 #include "petsc/finclude/petscsys.h"
 
@@ -18,83 +18,187 @@ module Well_Solver_module
 
   private
 
-    PetscInt,parameter :: max_itertt = 20 ! Max iterations over target types
-    PetscInt,parameter :: max_iterws = 20 ! Max iterations for well solution
+    PetscInt,parameter :: max_iterTT  = 20     ! Max iterations over target types
+    PetscInt,parameter :: max_iterPW  = 20     ! Max iterations for well solution
+    PetscInt,parameter :: max_iterWBS = 20     ! Max iterations for well solution
 
-    PetscReal,parameter :: ws_eps_p = 1.0E-3  ! Pressure small shift value
+    PetscReal,parameter :: ws_atm   = 1.01325d5  ! Used for default bhp limits
+    PetscReal,parameter :: ws_pwmin = 0.1*ws_atm
 
-    PetscReal :: ws_gravity                  ! Vertical gravity constant
+    PetscBool :: ws_is_black_oil = PETSC_FALSE ! Is black oil (has bubble point)
 
-    PetscBool :: ws_oil ! Bools indicating phases are present
+    PetscReal :: ws_gravity                    ! Vertical gravity constant
+
+    PetscBool :: ws_isothermal = PETSC_TRUE    ! Case is isothermal
+
+    PetscBool :: ws_oil                        ! Bools indicating phases are present
     PetscBool :: ws_gas
     PetscBool :: ws_wat
     PetscBool :: ws_slv
 
-    PetscInt :: ws_nphase                    ! Number of phases and components
-    PetscInt :: ws_ncomp
-    PetscInt :: ws_ncompe                    ! Number of components plus energy
+    PetscInt :: ws_loc_soil = -1                 !  Pointers into well solution
+    PetscInt :: ws_loc_sgpb = -1
+    PetscInt :: ws_loc_trel = -1
+    PetscInt :: ws_loc_sslv = -1
 
-    PetscInt :: w_type                       ! Well type (producer, gas inj...)
+    PetscInt :: ws_nphase             ! Number of phases
+    PetscInt :: ws_ncomp              ! Number of components
+    PetscInt :: ws_ncompe             ! Number of components plus energy
+    PetscInt :: ws_nxw                ! Number of variables in well bore soln
+    PetscInt :: ws_ndof               ! Number of primary variables/cell
 
-    PetscBool :: ws_isproducer = PETSC_TRUE ! Flags indicating producer or inj.
-    PetscBool :: ws_isinjector = PETSC_FALSE
+    PetscInt :: w_type                ! Well type (producer, gas injector...)
 
-    PetscInt :: w_ncmpl =  0            ! Number of completions (this proc)
-    PetscInt :: w_ncmplg = 0            ! Number of completions (all procs)
+    PetscBool :: ws_isproducer    = PETSC_TRUE  ! Flags for prod. or inje.
+    PetscBool :: ws_isinjector    = PETSC_FALSE
 
-    PetscBool :: w_crossproc = PETSC_FALSE  ! Flag indicating cross-proc well
+    PetscBool :: ws_isoilinjector = PETSC_FALSE ! Flags for injector type
+    PetscBool :: ws_isgasinjector = PETSC_FALSE
+    PetscBool :: ws_iswatinjector = PETSC_FALSE
+    PetscBool :: ws_isslvinjector = PETSC_FALSE
 
-    PetscReal :: w_sign   ! Sign flag for well (+ve prod,-ve inje)
+    PetscInt :: w_ncmpl  = 0             ! Number of completions (this proc)
+    PetscInt :: w_ncmplg = 0             ! Number of completions (all procs)
 
-    PetscReal :: w_pw                           ! Well pressure at reference
-    PetscReal :: w_pb                           ! Well bubble point pressure
-    PetscReal,dimension(:),allocatable :: w_sp  ! Well saturations by phase
-    PetscReal,dimension(:),allocatable :: w_bp  ! Well molar densities by phase
-    PetscReal,dimension(:),allocatable :: w_gdp ! Well densities by phase
+    PetscInt :: ws_xpr = 1               ! Location of pressure in ndof
 
-    PetscReal :: ws_pwbf ! Well pressure such that all completions backflow
+    PetscBool :: w_crossproc = PETSC_FALSE ! Flag indicating cross-proc well
 
-    PetscReal :: w_zref  ! Reference elevation for well
-    PetscReal :: w_gd    ! Gravity density (G*wellbore fluid density)
+    PetscReal :: w_sign                    ! Sign (+ve prod,-ve inje)
 
-    PetscReal :: ws_targets(N_WELL_TT)         ! Well targets by target type
-    PetscReal :: ws_actuals(N_WELL_TT)         ! Well actuals by target type
+    PetscReal :: w_trel                          ! Well rel. temp. (deg C)
+    PetscReal :: w_pb                            ! Well bubble point pressure
+    PetscBool :: w_issat                         ! Well state flag
 
-    PetscReal,dimension(:),allocatable :: ws_svpm ! Well surf. vol./mole by comp
-    PetscReal,dimension(:),allocatable :: ws_mspm ! Well mass/mole for each comp
+    PetscReal,dimension(:)  ,allocatable :: w_sp    ! Well saturations by phase
+    PetscReal,dimension(:,:),allocatable :: w_spxw ! ...wrt well soln
 
-    PetscInt ,dimension(:),allocatable :: c_ghosted_id ! Cell ghosted id by compl
-    PetscInt ,dimension(:),allocatable :: c_local_id   ! Cell local   id by compl
-    PetscReal,dimension(:),allocatable :: c_ccf  ! Compl. conn. factor by compl.
-    PetscReal,dimension(:),allocatable :: c_z    ! Cell elevation by completion
+! Well molar densities (moles/unit res. vol) by phase
+    PetscReal,dimension(:)  ,allocatable :: w_mdp
+    PetscReal,dimension(:)  ,allocatable :: w_mdppw ! ...wrt well pressure
+    PetscReal,dimension(:,:),allocatable :: w_mdpxw ! ...wrt well soln
 
-! Molar comp. and enegy flows by compl (this proc)
-    PetscReal,dimension(:,:),allocatable :: c_flows
+! Well gravity densities (G.Kg/unit res. vol) by phase
+    PetscReal,dimension(:)  ,allocatable :: w_kgdp   ! Well grav dens by phase
+    PetscReal,dimension(:)  ,allocatable :: w_kgdppw ! ...wrt well pressure
+    PetscReal,dimension(:,:),allocatable :: w_kgdpxw ! ...wrt well soln
 
-! For well,this proc:
-    PetscReal,dimension(  :),allocatable :: w_flows    ! Molar component flows
-    PetscReal,dimension(  :),allocatable :: w_flows_ms ! Mass  component flows
-    PetscReal,dimension(  :),allocatable :: w_flows_sv ! Surf. vol. comp. flows
+! Well component molar densities (moles/unit res. vol.) by component
+    PetscReal,dimension(:)  ,allocatable :: w_mdc    ! Well comp. mol. densities/unit res vol
+    PetscReal,dimension(:)  ,allocatable :: w_mdcpw  ! ...wrt well pressure
+    PetscReal,dimension(:,:),allocatable :: w_mdcxw  ! ...wrt well soln
 
-! For well, all procs
-    PetscReal,dimension(  :),allocatable :: w_flowsG    ! Molar component flows
-    PetscReal,dimension(  :),allocatable :: w_flowsG_ms ! Mass component flows
-    PetscReal,dimension(  :),allocatable :: w_flowsG_sv ! Surf.vol. comp. flows
+! Well component mole fractions by component
+    PetscReal,dimension(:)  ,allocatable :: w_zmf    ! Well mole fractions
+    PetscReal,dimension(:)  ,allocatable :: w_zmfpw  ! ...wrt well pressure
+    PetscReal,dimension(:,:),allocatable :: w_zmfxw  ! ...wrt well soln
 
-! Cell values (this proc)
-    PetscReal,dimension(  :),allocatable :: c_p    ! Pressures
-    PetscReal,dimension(  :),allocatable :: c_pb   ! Bubble points
-    PetscReal,dimension(:,:),allocatable :: c_mdp  ! Molar densities
-    PetscReal,dimension(:,:),allocatable :: c_sp   ! Saturations
-    PetscReal,dimension(:,:),allocatable :: c_mob  ! Mobilities K/vsc
-    PetscReal,dimension(  :),allocatable :: c_xo   ! Oil mole fraction)
-    PetscReal,dimension(  :),allocatable :: c_xg   ! Gas mole fraction
-    PetscReal,dimension(:,:),allocatable :: c_kgdp ! Mass density
-    PetscReal,dimension(:,:),allocatable :: c_hp   ! Enthalpy density
+!  Wellbore phase enthalpy/unit res vol
+    PetscReal,dimension(:)  ,allocatable :: w_hp
+    PetscReal,dimension(:)  ,allocatable :: w_hpdpw  ! ...wrt well pressure
+    PetscReal,dimension(:,:),allocatable :: w_hpdxw  ! ...wrt well soln
 
-    character(len=MAXSTRINGLENGTH) :: ws_name    ! Well name
+!  Wellbore total enthalpy/unit res vol
 
-    PetscInt :: w_comm  ! Well MPI communicator
+    PetscReal :: w_h
+    PetscReal :: w_hdpw                               ! ...wrt well pressure
+    PetscReal,dimension(:),allocatable :: w_hdxw      ! ...wrt well soln
+
+!  Wellbore total enthalpy/mole
+
+    PetscReal :: w_hpm
+    PetscReal :: w_hpmdpw                             ! ...wrt well pressure
+    PetscReal,dimension(:),allocatable :: w_hpmdxw    ! ...wrt well soln
+
+    PetscReal :: w_zref                  ! Reference elevation for well
+
+    PetscReal :: w_gd                               ! Gravity den. (G*well mass den.)
+    PetscReal :: w_gdpw                             ! Gravity den. wrt Pw
+    PetscReal,dimension(:)  ,allocatable :: w_gdxw  ! Gravity den. wrt Xw
+
+    PetscReal :: ws_targets(N_WELL_TT)          ! Well targets by target type
+    PetscReal :: ws_actuals(N_WELL_TT)          ! Well actuals by target type
+
+    PetscReal,dimension(:),allocatable :: ws_svpm ! Well sv/mole   by comp
+    PetscReal,dimension(:),allocatable :: ws_mspm ! Well mass/mole by comp
+
+    PetscInt ,dimension(:),allocatable :: c_ghosted_id ! Cmpl cell ghosted id
+    PetscInt ,dimension(:),allocatable :: c_local_id   ! Cmpl cell local   id
+    PetscReal,dimension(:),allocatable :: c_ccf        ! CCF by completion
+    PetscReal,dimension(:),allocatable :: c_z          ! Cmpl elev. by compl.
+
+!  Completion flows for this proc
+    PetscReal,dimension(    :,:),allocatable :: c_flows   ! Cmpl cmp. & heat flows
+    PetscReal,dimension(    :,:),allocatable :: c_flowspw ! ..wrt Pw
+    PetscReal,dimension(  :,:,:),allocatable :: c_flowsxw ! ..wrt Xw
+    PetscReal,dimension(:,:,:,:),allocatable :: c_flowsxc ! ..wrt Xc
+
+!  Well flows for this proc
+    PetscReal,dimension(    :),allocatable :: w_flows     ! Molar   well flows
+    PetscReal,dimension(    :),allocatable :: w_flowspw   ! ..wrt Pw
+    PetscReal,dimension(  :,:),allocatable :: w_flowsxw   ! ..wrt Xw
+    PetscReal,dimension(:,:,:),allocatable :: w_flowsxc   ! ..wrt Xc
+
+!  Well flows for all procs
+    PetscReal,dimension(    :),allocatable :: w_flowsG    ! Molar   well flows
+    PetscReal,dimension(    :),allocatable :: w_flowsGpw  ! ..wrt Pw
+    PetscReal,dimension(  :,:),allocatable :: w_flowsGxw  ! ..wrt Xw
+    PetscReal,dimension(:,:,:),allocatable :: w_flowsGxc  ! ..wrt Xc
+
+!  Derivative of Xw wrt Pw
+    PetscReal,dimension(  :,:),allocatable :: w_tactxc
+    PetscReal,dimension(  :,:),allocatable :: w_rwxc
+
+!  Derivative of Xw wrt Pw
+    PetscReal,dimension(    :),allocatable :: w_dxwdpw
+    PetscReal,dimension(  :,:),allocatable :: w_dpwdxc
+    PetscReal,dimension(:,:,:),allocatable :: w_dxwdxc
+
+! Cmpl values this proc
+    PetscReal,dimension(  :),allocatable :: c_p       ! Cmpl pressures
+    PetscReal,dimension(  :),allocatable :: c_t       ! Cmpl temperature
+    PetscReal,dimension(  :),allocatable :: c_pb      ! Cmpl bubble points
+    PetscReal,dimension(:,:),allocatable :: c_mdp     ! Cmpl molar densities
+    PetscReal,dimension(:,:),allocatable :: c_sp      ! Cmpl saturations
+    PetscReal,dimension(:,:),allocatable :: c_mob     ! Cmpl mobilities K/vsc
+    PetscReal,dimension(  :),allocatable :: c_xo      ! Cmpl oil mole fraction
+    PetscReal,dimension(  :),allocatable :: c_xg      ! Cmpl gas mole fraction
+    PetscReal,dimension(:,:),allocatable :: c_kgdp    ! Cmpl mass density
+    PetscReal,dimension(:,:),allocatable :: c_hp      ! Cmpl enthalpy density
+
+    PetscReal,dimension(:,:,:),allocatable :: c_mdpX  ! Cmpl molar dens. wrt Xc
+    PetscReal,dimension(:,:,:),allocatable :: c_spX   ! Cmpl saturations wrt Xc
+    PetscReal,dimension(:,:,:),allocatable :: c_mobX  ! Cmpl mobs~K/vsc  wrt Xc
+    PetscReal,dimension(  :,:),allocatable :: c_xoX   ! Cmpl oil mol frc wrt Xc
+    PetscReal,dimension(  :,:),allocatable :: c_xgX   ! Cmpl gas mol frc wrt Xc
+    PetscReal,dimension(:,:,:),allocatable :: c_kgdpX ! Cmpl mass dens.  wrt Xc
+    PetscReal,dimension(:,:,:),allocatable :: c_hpX   ! Cmpl enth. dens. wrt Xc
+
+    character(len = MAXSTRINGLENGTH) :: ws_name       ! Well name
+
+    PetscInt :: w_comm                                ! Well MPI communicator
+
+    PetscReal,dimension(:    ),allocatable :: xwbs      ! Wellbore sol.
+    PetscReal,dimension(:    ),allocatable :: rwbs      ! Wellbore res.
+    PetscReal,dimension(:    ),allocatable :: rwbshold  ! Stored wellbore res.
+    PetscReal,dimension(:    ),allocatable :: xwbshold  ! Stored wellbore sol.
+    PetscReal,dimension(:    ),allocatable :: rwbspw    ! Wellbore res. wrt Pw
+    PetscReal,dimension(:,:,:),allocatable :: rwbsxc    ! Wellbore res. wrt Xc
+    PetscReal,dimension(:,:  ),allocatable :: jwbs      ! Welbore Jac.
+    PetscReal,dimension(:,:  ),allocatable :: jwbsi     ! Welbore Jac. (inv)
+    PetscReal,dimension(:    ),allocatable :: dxwbs     ! Wellbore sol. change
+
+    PetscBool :: is_solvent
+
+    PetscInt :: ixwso
+    PetscInt :: ixwsg
+    PetscInt :: ixwpb
+    PetscInt :: ixwss
+    PetscInt :: ixwt
+
+    PetscReal :: ws_injection_p = 1.01325d5
+    PetscReal :: ws_injection_t = 15.0
+    PetscReal :: ws_injection_h =  0.0
 
   public ::  SolveWell,InitialiseWell,doWellMPISetup
 
@@ -102,28 +206,27 @@ contains
 
 ! ************************************************************************** !
 
-subroutine InitialiseWell(well_data,grid,material_auxvars,option)
+subroutine initialiseWell(well_data,grid,material_auxvars,option)
   !
   ! Do well initialisation, including completion connection factors
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
-  !
+  ! Date  : 09/19/18
 
   use Well_Data_class
   use Grid_module
   use Material_Aux_class
-
-  implicit none
+  use PM_TOilIms_Aux_module
 
   class(well_data_type) , pointer :: well_data
   type (grid_type)      , pointer :: grid
-  type(material_auxvar_type), pointer :: material_auxvars(:)
-  type(option_type), pointer :: option
+  type (material_auxvar_type), pointer :: material_auxvars(:)
+  type (option_type), pointer :: option
 
   PetscInt  :: icmpl,ncmpl,ixuser,iyuser,izuser,ix,iy,iz
   PetscInt  :: drilling_direction
   PetscReal :: dx,dy,dz,z,ccf,dx1,dx2,dh,k1,k2,radius,skinfactor,thetafactor,r0
+  PetscReal :: dxyz(3)
 
   PetscInt :: lx,ly,lz,nlx,nly,nlz,ixl,ixu,iyl,iyu,izl,izu
   PetscBool :: onproc
@@ -135,7 +238,13 @@ subroutine InitialiseWell(well_data,grid,material_auxvars,option)
   iyuser = 0
   izuser = 0
 
-  nCmpl = well_data%GetNCmpl()
+  nCmpl = well_data%getNCmpl()
+
+  if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+    is_solvent = PETSC_TRUE
+  else
+    is_solvent = PETSC_FALSE
+  endif
 
 !  Store gravity constant
 
@@ -145,9 +254,9 @@ subroutine InitialiseWell(well_data,grid,material_auxvars,option)
 
 !  Get grid details
 
-  lx = grid%structured_grid%lxs
-  ly = grid%structured_grid%lys
-  lz = grid%structured_grid%lzs
+  lx  = grid%structured_grid%lxs
+  ly  = grid%structured_grid%lys
+  lz  = grid%structured_grid%lzs
 
   nlx = grid%structured_grid%nlx
   nly = grid%structured_grid%nly
@@ -163,7 +272,7 @@ subroutine InitialiseWell(well_data,grid,material_auxvars,option)
 
 !  Fill in completion data (from values set for wells etc.)
 
-  call well_data%FillCmplData()
+  call well_data%fillCmplData()
 
 !  Loop over completions
 
@@ -171,43 +280,43 @@ subroutine InitialiseWell(well_data,grid,material_auxvars,option)
 
 !  Get the completion location
 
-    call well_data%GetCmplLocation(icmpl,ixuser,iyuser,izuser, &
+    call well_data%getCmplLocation(icmpl,ixuser,iyuser,izuser, &
                                    local_id,ghosted_id)
 
 !  Check if on-proc
 
-    onproc = PETSC_FALSE
+    onproc = .false.
     if (      (ixuser >= ixl) .and. (ixuser <= ixu) &
         .and. (iyuser >= iyl) .and. (iyuser <= iyu) &
         .and. (izuser >= izl) .and. (izuser <= izu)  ) then
-      onproc=PETSC_TRUE
+      onproc = .true.
       ix = ixuser-ixl+1
       iy = iyuser-iyl+1
       iz = izuser-izl+1
       local_id   = ix+(iy-1)*nlx+(iz-1)*nlx*nly
       ghosted_id = grid%nL2G(local_id)
-      call well_data%SetCmplIndices(icmpl,local_id,ghosted_id)
+      call well_data%setCmplIndices(icmpl,local_id,ghosted_id)
     endif
 
 !  if not on-proc then mark the completion for deletion
 
     if (.not.onproc) then
-      call well_data%MarkCmplForDeletion(icmpl)
+      call well_data%markCmplForDeletion(icmpl)
     endif
  enddo
 
 !  Now delete the marked completions
 
- call well_data%DeleteMarkedCompletions()
+  call well_data%deleteMarkedCompletions()
 
 !  Get new number of completions and generate ccfs
 
-  ncmpl = well_data%GetNCmpl()
+  ncmpl = well_data%getNCmpl()
   do icmpl = 1,ncmpl
 
 ! Get completion location
 
-    call well_data%GetCmplLocation(icmpl,ixuser,iyuser,izuser, &
+    call well_data%getCmplLocation(icmpl,ixuser,iyuser,izuser, &
                                    local_id,ghosted_id)
 
 !  Get cell location
@@ -220,42 +329,42 @@ subroutine InitialiseWell(well_data,grid,material_auxvars,option)
 
 ! Get cell dimensions
 
-    dx = well_data%GetCmplDx(icmpl)
-    dy = well_data%GetCmplDy(icmpl)
-    dz = well_data%GetCmplDz(icmpl)
+    dx = well_data%getCmplDx(icmpl)
+    dy = well_data%getCmplDy(icmpl)
+    dz = well_data%getCmplDz(icmpl)
 
-    if (dx<0.0) dx = grid%structured_grid%dx(ghosted_id)
-    if (dy<0.0) dy = grid%structured_grid%dy(ghosted_id)
-    if (dz<0.0) dz = grid%structured_grid%dz(ghosted_id)
+    if (dx < 0.0) dx = grid%structured_grid%dx(ghosted_id)
+    if (dy < 0.0) dy = grid%structured_grid%dy(ghosted_id)
+    if (dz < 0.0) dz = grid%structured_grid%dz(ghosted_id)
 
     z = grid%z(ghosted_id)
 
 !  Get cell directional properties
 
-    drilling_direction = well_data%GetCmplDrillingDirection(icmpl)
-    radius             = well_data%GetCmplRadius           (icmpl)
-    skinfactor         = well_data%GetCmplSkinFactor       (icmpl)
-    thetafactor        = well_data%GetCmplThetaFactor      (icmpl)
+    drilling_direction = well_data%getCmplDrillingDirection(icmpl)
+    radius             = well_data%getCmplRadius           (icmpl)
+    skinfactor         = well_data%getCmplSkinFactor       (icmpl)
+    thetafactor        = well_data%getCmplThetaFactor      (icmpl)
 
     select case(drilling_direction)
       case(X_DIRECTION)
         dx1 = dy
         dx2 = dz
-        dh = dx
-        k1 = material_auxvars(ghosted_id)%permeability(perm_yy_index)
-        k2 = material_auxvars(ghosted_id)%permeability(perm_zz_index)
+        dh  = dx
+        k1  = material_auxvars(ghosted_id)%permeability(perm_yy_index)
+        k2  = material_auxvars(ghosted_id)%permeability(perm_zz_index)
       case(Y_DIRECTION)
         dx1 = dx
         dx2 = dz
-        dh = dy
-        k1 = material_auxvars(ghosted_id)%permeability(perm_xx_index)
-        k2 = material_auxvars(ghosted_id)%permeability(perm_zz_index)
+        dh  = dy
+        k1  = material_auxvars(ghosted_id)%permeability(perm_xx_index)
+        k2  = material_auxvars(ghosted_id)%permeability(perm_zz_index)
       case(Z_DIRECTION)
         dx1 = dx
         dx2 = dy
-        dh = dz
-        k1 = material_auxvars(ghosted_id)%permeability(perm_xx_index)
-        k2 = material_auxvars(ghosted_id)%permeability(perm_yy_index)
+        dh  = dz
+        k1  = material_auxvars(ghosted_id)%permeability(perm_xx_index)
+        k2  = material_auxvars(ghosted_id)%permeability(perm_yy_index)
      end select
 
       r0 = (dx1**2.d0 * (k2/k1)**0.5d0 + dx2**2.d0 * (k1/k2)**0.5d0)**0.5d0 * &
@@ -265,14 +374,22 @@ subroutine InitialiseWell(well_data,grid,material_auxvars,option)
                       thetaFactor / &
                       ( dlog(r0/radius) + skinfactor )
 
-      call well_data%SetCCF  (icmpl,ccf)
-      call well_data%SetCmplZ(icmpl,z  )
+      call well_data%setCCF  (icmpl,ccf)
+      call well_data%setCmplZ(icmpl,z  )
 
   enddo
 
 !  Fill in well reference z value
 
-  call well_data%SetZRef(option)
+  call well_data%setZRef(option)
+
+  if ( option%iflowmode == TOWG_MODE         ) then
+    ws_isothermal = towg_isothermal
+  elseif ( option%iflowmode == TOIL_IMS_MODE ) then
+    ws_isothermal = toil_ims_isothermal
+  else
+    ws_isothermal = option%use_isothermal
+  endif
 
 end subroutine InitialiseWell
 
@@ -280,13 +397,11 @@ end subroutine InitialiseWell
 
 subroutine doWellMPISetup(option,num_well,well_data_list)
   !
-  ! Setup the communicators for the wells
+  ! Setup the connectors for the wells
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
+  ! Date  : 09/19/18
   !
-
-  implicit none
 
   type(option_type), pointer :: option
 
@@ -321,9 +436,6 @@ subroutine doWellMPISetup(option,num_well,well_data_list)
 
 !  Find which procs this well exists on
 
-    comm  =0
-    group =0
-
 !  First set all rank completion counts to zero
 
     ncpr    = 0
@@ -332,7 +444,7 @@ subroutine doWellMPISetup(option,num_well,well_data_list)
 
 ! Now increment the completion count for this rank
 
-    ncmpl=GetWellNCmpl(iwell,well_data_list)
+    ncmpl = getWellNCmpl(iwell,well_data_list)
     ncpr(myrank+1) = ncmpl
 
 ! Do a gather to find out where the other rank completions are
@@ -341,14 +453,14 @@ subroutine doWellMPISetup(option,num_well,well_data_list)
     call MPI_ALLREDUCE(ncpr, ncprall,comm_size, &
                        MPI_INTEGER,MPI_SUM,option%mycomm,ierr)
 
-!  Is this a multi=proc well?
+!  Is this a multi-proc well?
 
     ncmplg = 0
     nrankw = 0
 
     ismp = PETSC_FALSE
     do irankp = 1,comm_size
-      if ( ncprall(irankp)>0 ) then
+      if ( ncprall(irankp) > 0 ) then
         ncmplg = ncmplg+ncprall(irankp)
         nrankw = nrankw+1
         rfortw(nrankw) = irankp-1
@@ -364,7 +476,7 @@ subroutine doWellMPISetup(option,num_well,well_data_list)
     if ( ismp ) then
 
       call MPI_GROUP_INCL (option%mygroup,nrankw,rfortw,group,ierr)
-      call MPI_COMM_CREATE(option%mycomm,group,comm,ierr)
+      call MPI_COMM_CREATE(option%mycomm ,option%mygroup,comm,ierr)
 
     endif
 
@@ -387,18 +499,18 @@ end subroutine doWellMPISetup
 ! *************************************************************************** !
 
 subroutine SolveWell(aux,option,well_data,r_p)
-  !
-  ! Supervise well solution to obtain residual and Jacobian contributions
-  !
-  ! Author: Dave Ponting
-  ! Date: 08/15/18
-  !
+!
+! Supervise well solution to obtain residual and Jacobian contributions
+!
+! Author: Dave Ponting
+! Date  : 09/19/18
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use Well_Data_class
   use EOS_Oil_module
   use EOS_Gas_module
+  use EOS_Water_module
   use EOS_Slv_module
   use Auxiliary_module
 
@@ -409,18 +521,18 @@ subroutine SolveWell(aux,option,well_data,r_p)
   class(well_data_type), pointer :: well_data
   PetscReal, pointer :: r_p(:)
 
-  PetscInt :: ci = 1
-  PetscInt :: cj = 1
-  PetscInt :: ck = 1
-  PetscInt :: local_id = 1
-  PetscInt :: ghosted_id = 1
-  PetscInt :: icmpl
-  PetscBool :: finished,well_is_dead
+  PetscInt  :: ci = 1
+  PetscInt  :: cj = 1
+  PetscInt  :: ck = 1
+  PetscInt  :: local_id   = 1
+  PetscInt  :: ghosted_id = 1
+  PetscInt  :: icmpl,jcmpl,ipoil,ipgas,ipwat,ipslv,loc,ixw,jdof
+  PetscBool :: finished
 
   PetscBool :: welllocationfound
   PetscBool :: welltargetsfound
-  PetscReal :: mw,sd
-  PetscInt :: itertt,itt,jtt,rank,iphase
+  PetscReal :: ccf,mw,sd,pw,sum,jwwi,tactpw
+  PetscInt  :: itertt,itt,jtt,rank,icomp,iphase,status
   PetscBool :: possible,well_solution_set
 
 !  Basic setup
@@ -433,52 +545,111 @@ subroutine SolveWell(aux,option,well_data,r_p)
   ws_ncomp  = option%nphase
   ws_ncompe = option%nphase+1
 
+  if (ws_isothermal) then
+    ws_nxw = ws_ncompe-2
+  else
+    ws_nxw = ws_ncompe-1
+  endif
+
+  ws_ndof = option%nflowdof
+
+  ipoil = option%oil_phase
+  ipgas = option%gas_phase
+  ipwat = option%liquid_phase
+  ipslv = option%solvent_phase
+
   ws_oil = PETSC_FALSE
   ws_gas = PETSC_FALSE
   ws_wat = PETSC_FALSE
   ws_slv = PETSC_FALSE
 
   do iphase = 1,ws_nphase
-    if ( iphase .eq. option%oil_phase     ) ws_oil = PETSC_TRUE
-    if ( iphase .eq. option%gas_phase     ) ws_gas = PETSC_TRUE
-    if ( iphase .eq. option%liquid_phase  ) ws_wat = PETSC_TRUE
-    if ( iphase .eq. option%solvent_phase ) ws_slv = PETSC_TRUE
+    if ( iphase == ipoil ) ws_oil = PETSC_TRUE
+    if ( iphase == ipgas ) ws_gas = PETSC_TRUE
+    if ( iphase == ipwat ) ws_wat = PETSC_TRUE
+    if ( iphase == ipslv ) ws_slv = PETSC_TRUE
   enddo
 
-  w_type = well_data%GetType()
-  if ( w_type .eq. PROD_WELL_TYPE ) then
-    ws_isproducer = PETSC_TRUE
-    ws_isinjector = PETSC_FALSE
+!  Pointers into the wellbore solution array
+
+  loc = 0
+  if (ws_oil) then
+    loc = loc+1
+    ws_loc_soil = loc
+  endif
+  if (ws_gas) then
+    loc = loc+1
+    ws_loc_sgpb = loc
+  endif
+  if (.not.ws_isothermal) then
+    loc = loc+1
+    ws_loc_trel = loc
+  endif
+  if (ws_slv) then
+    loc = loc+1
+    ws_loc_sslv = loc
+  endif
+  if (.not.ws_wat) then
+    call throwWellSolverException('well_solver assumes water phase is present')
+  endif
+
+!  Check for black oil cases (with dissolved gas)
+
+  ws_is_black_oil = PETSC_FALSE
+  if (     ( towg_miscibility_model == TOWG_BLACK_OIL  )   &
+      .or. ( towg_miscibility_model == TOWG_SOLVENT_TL ) ) &
+    ws_is_black_oil = PETSC_TRUE
+
+  w_type = well_data%getType()
+
+  call well_data%getWellInjectionPAndT(ws_injection_p,ws_injection_t)
+
+  ws_isoilinjector = PETSC_FALSE
+  ws_isgasinjector = PETSC_FALSE
+  ws_iswatinjector = PETSC_FALSE
+  ws_isslvinjector = PETSC_FALSE
+
+  if ( w_type == PROD_WELL_TYPE ) then
+    ws_isproducer  = PETSC_TRUE
+    ws_isinjector  = PETSC_FALSE
+    ws_injection_h = 0.0
   else
     ws_isproducer = PETSC_FALSE
     ws_isinjector = PETSC_TRUE
+    if ( w_type == OIL_INJ_WELL_TYPE ) ws_isoilinjector = PETSC_TRUE
+    if ( w_type == GAS_INJ_WELL_TYPE ) ws_isgasinjector = PETSC_TRUE
+    if ( w_type == WAT_INJ_WELL_TYPE ) ws_iswatinjector = PETSC_TRUE
+    if ( w_type == SLV_INJ_WELL_TYPE ) ws_isslvinjector = PETSC_TRUE
+    call findInjectionEnthalpy()
   endif
 
-  if ( w_type .eq. PROD_WELL_TYPE ) then
+  if ( w_type == PROD_WELL_TYPE ) then
     w_sign = 1.0
   else
-    w_sign =-1.0
+    w_sign = -1.0
   endif
 
-  w_zref = well_data%GetZRef()
+  w_zref = well_data%getZRef()
 
 !  Solve well if required
 
-  w_ncmpl  = well_data%GetNCmpl ()
-  w_ncmplg = well_data%GetNCmplG()
-  w_comm   = well_data%GetWellComm()
+  w_ncmpl  = well_data%getNCmpl ()
+  w_ncmplg = well_data%getNCmplG()
+  w_comm   = well_data%getWellComm()
 
-  if ( (w_ncmpl > 0) .and. (w_ncmplg > w_ncmpl) ) then
+  if ( w_ncmplg > w_ncmpl ) then
     w_crossproc = PETSC_TRUE
   else
     w_crossproc = PETSC_FALSE
   endif
 
-  if ( w_ncmpl > 0 ) then
+  status = well_data%GetWellStatus()
+
+  if ( w_ncmpl > 0 .and. status == W_STATUS_OPEN ) then
 
 !  Debug
 
-    call well_data%GetWellName(ws_name)
+    call well_data%getWellName(ws_name)
     rank = option%myrank
 
 !  Allocate the work arrays
@@ -487,12 +658,12 @@ subroutine SolveWell(aux,option,well_data,r_p)
 
 !  Extract completion data
 
-    do icmpl =1,w_ncmpl
-      call well_data%GetCmplLocation(icmpl,ci,cj,ck,local_id,ghosted_id)
+    do icmpl = 1,w_ncmpl
+      call well_data%getCmplLocation(icmpl,ci,cj,ck,local_id,ghosted_id)
       c_local_id  (icmpl) = local_id
       c_ghosted_id(icmpl) = ghosted_id
-      c_ccf       (icmpl) = well_data%GetCCF  (icmpl)
-      c_z         (icmpl) = well_data%GetCmplZ(icmpl)
+      c_ccf       (icmpl) = well_data%getCCF  (icmpl)
+      c_z         (icmpl) = well_data%getCmplZ(icmpl)
     enddo
 
 !  Load the cell properties into arrays indexed by completion
@@ -507,16 +678,67 @@ subroutine SolveWell(aux,option,well_data,r_p)
 
 !  Setup well solution
 
-    well_solution_set = well_data%GetWellSolutionSet()
-    if ( well_solution_set ) then
-      call well_data%GetWellSolution(w_pw,w_pb,w_sp)
+    well_solution_set = well_data%getWellSolutionSet()
+    if (well_solution_set) then
+      call well_data%GetWellSolution(pw,w_pb,w_sp,w_issat,w_trel)
     else
+
 !  Take initial solution from first completion
-      w_pw = c_p (1)
-      w_pb = c_pb(1)
-      do iphase = 1,ws_nphase
-        w_sp(iphase) = c_sp(1,iphase)
-      enddo
+
+      pw  = c_p(1)
+!  Set up pressure to get correct initial flow direction
+      if (ws_isproducer) pw = 0.9*c_p(1) ! Positive starting drawdown
+      if (ws_isinjector) pw = 1.1*c_p(1) ! Negative starting drawdown
+
+!  Bubble point if required
+
+      if (ws_is_black_oil) then
+        w_pb  = c_pb(1)
+      endif
+
+!  Treat producer and injector separately
+
+      if (ws_isproducer) then
+
+!  Case of producer
+
+        do iphase = 1,ws_nphase
+          w_sp(iphase) = c_sp(1,iphase)
+        enddo
+
+        if (ws_oil .and. ws_gas) then
+          if (w_sp(ipoil)>1.0E-6 .and. w_sp(ipgas)<1.0E-6) then
+             w_issat = PETSC_FALSE
+          else
+             w_issat = PETSC_TRUE
+          endif
+        endif
+
+      else
+
+! Case of injector
+
+        w_sp = 0.0
+        if (ws_isoilinjector .and. ws_oil) then
+          w_sp(ipoil) = 1.0
+          w_issat     = PETSC_FALSE
+        endif
+        if (ws_isgasinjector .and. ws_gas) then
+          w_sp(ipgas) = 1.0
+          w_issat     = PETSC_TRUE
+        endif
+        if (ws_iswatinjector .and. ws_wat) then
+          w_sp(ipwat) = 1.0
+          w_issat     = PETSC_TRUE
+        endif
+        if (ws_isslvinjector .and. ws_slv) then
+          w_sp(ipslv) = 1.0
+          w_issat     = PETSC_TRUE
+        endif
+      endif
+
+      w_trel = c_t (1)
+
     endif
 
 !  Set up surface volume/mole values
@@ -526,17 +748,17 @@ subroutine SolveWell(aux,option,well_data,r_p)
       mw = 1.0
       sd = 1.0
 
-      if ( iphase .eq. option%oil_phase     ) mw = EOSOilGetFMW()
-      if ( iphase .eq. option%gas_phase     ) mw = EOSGasGetFMW()
-      if ( iphase .eq. option%liquid_phase  ) mw = FMWH2O
-      if ( iphase .eq. option%solvent_phase ) mw = EOSSlvGetFMW()
+      if ( iphase == option%oil_phase     ) mw = EOSOilGetFMW()
+      if ( iphase == option%gas_phase     ) mw = EOSGasGetFMW()
+      if ( iphase == option%liquid_phase  ) mw = FMWH2O
+      if ( iphase == option%solvent_phase ) mw = EOSSlvGetFMW()
 
-      if ( iphase .eq. option%oil_phase     ) sd = EOSOilGetReferenceDensity()
-      if ( iphase .eq. option%gas_phase     ) sd = EOSGasGetReferenceDensity()
-      if ( iphase .eq. option%liquid_phase  ) then
+      if ( iphase == option%oil_phase     ) sd = EOSOilGetReferenceDensity()
+      if ( iphase == option%gas_phase     ) sd = EOSGasGetReferenceDensity()
+      if ( iphase == option%liquid_phase  ) then
         sd = option%reference_density(option%liquid_phase)
       endif
-      if ( iphase.eq.option%solvent_phase ) sd = EOSSlvGetReferenceDensity()
+      if ( iphase == option%solvent_phase ) sd = EOSSlvGetReferenceDensity()
 
       ws_svpm(iphase) = mw/sd
       ws_mspm(iphase) = mw
@@ -544,71 +766,49 @@ subroutine SolveWell(aux,option,well_data,r_p)
 
 !  Extract well status data
 
-    welltargetsfound = well_data%GetTargets(ws_targets)
-    itt=well_data%GetTT()
-
-!  Find well gravity density based on cell properties
-
-    call findWellboreGravityDensity()
-
-!  Find backflow well pressure
-
-   call findBackflowWellPressure()
-   well_is_dead = PETSC_FALSE
-   if( ws_isProducer ) then
-    if( ws_targets(W_BHP_LIMIT) > ws_pwbf ) well_is_dead = PETSC_TRUE
-   endif
-   if( ws_isInjector ) then
-    if( ws_targets(W_BHP_LIMIT) < ws_pwbf ) well_is_dead = PETSC_TRUE
-   endif
-
-!  Either solve well or zero rates
-
-   if( .not.well_is_dead ) then
+    welltargetsfound = well_data%getTargets(ws_targets)
+    itt = well_data%getTT()
 
 !  Loop over attempts to find the well target type
 
-      do itertt = 1,max_itertt
-        finished = solveForWellTarget(option,itertt,itt)
-        if ( finished ) exit
-      enddo
-      if ( .not.finished ) then
-        call throwWellSolverException('Unable to converge target iteration')
-      endif
+    do iterTT = 1,max_iterTT
+      finished = solveForWellTarget(pw,option,itertt,itt,jwwi)
+      if ( finished ) exit
+    enddo
+
+!  Check for lack of convergence
+
+    if ( .not.finished ) then
+      call throwWellSolverException('Unable to converge target iteration')
+    endif
+
+!  Find full derivative of flows
+
+    call findFullFlowDerivatives(jwwi)
 
 !  Update residual
 
-      call updateMainResidual(option,r_p)
+    call updateMainResidual(option,r_p)
 
-!  Get actual rates for each target for this proc (will be globalised in well_data)
+!  Get actuals for each target for this proc (will be globalised in well_data)
 
-      do jtt = 1,N_WELL_TT
-        ws_actuals(jtt) = getActualFlowForTargetType(option,jtt,possible, &
-                                                     w_flows_sv,w_flows_ms)
-      enddo
+    do jTT = 1,N_WELL_TT
+      ws_actuals(jTT) = &
+        getActualFlowForTargetType(pw,option,jTT,possible,tactpw)
+    enddo
 
 !  Update stored well status
 
-      call well_data%SetTT(itt)
-      call well_data%SetNComp(ws_ncomp)
-      call well_data%SetWellFlows(w_flows        ,ws_ncomp)
-      call well_data%SetCmplFlows(c_flows,w_ncmpl,ws_ncomp)
-      call well_data%SetActuals(ws_actuals)
-
-    else
-
-      itt = W_BHP_LIMIT
-      call well_data%SetTT(itt)
-      call well_data%SetNComp(ws_ncomp)
-      call well_data%ZeroWellFlows(ws_ncomp)
-      call well_data%ZeroCmplFlows(w_ncmpl,ws_ncomp)
-      call well_data%ZeroActuals()
-
-    endif
+    call well_data%setTT(itt)
+    call well_data%setNComp(ws_ncomp)
+    call well_data%setWellFlows(w_flows,ws_ncompe)
+    call well_data%setCmplFlows(c_flows,c_flowsxc, &
+                                w_ncmpl,ws_ncompe,ws_ndof,ws_isothermal)
+    call well_data%setActuals(ws_actuals)
 
 !  Update stored well solution
 
-    call well_data%SetWellSolution(w_pw,w_pb,w_sp)
+    call well_data%SetWellSolution(pw,w_pb,w_sp,w_issat,w_trel)
     call well_data%SetWellSolutionSet()
 
 !  Free the work arrays
@@ -621,104 +821,105 @@ end subroutine SolveWell
 
 ! *************************************************************************** !
 
-function solveForWellTarget(option,itertt,itt)
+function solveForWellTarget(pw,option,itertt,itt,jwwi)
   !
   ! Solve for a given well target
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
-  !
-
-  implicit none
+  ! Date  : 09/19/18
 
   PetscBool :: solveForWellTarget
+  PetscReal,intent(inout) :: pw
   type(option_type), pointer :: option
   PetscInt,intent(in   ) :: itertt
   PetscInt,intent(inout) :: itt
+  PetscReal,intent(out)  :: jwwi
 
-  PetscInt :: iterws,jtt,nconv
-  PetscBool :: finished,possible
+  PetscInt  :: iterpw,jTT,nconv
+  PetscBool :: finished,possible,usediff
 ! fpsc: flow with positive sign convention
-  PetscReal::conv_crit,rw,jww,jwwi,fpsc,ftarg,pwtarg,bhp_target
+  PetscReal :: conv_crit,rw,jww,fpsc,ftarg,pwtarg,tactpw,eps,anal,diff,rat,rwe
+
+!  Initialize
 
   conv_crit = 1.0E-6
+  eps       = 1.0E-2
   rw        = 0.0
   jww       = 1.0
+  usediff   = PETSC_FALSE
 
-!  Do the inner iteration for the well solution when on this target
+!  Set up a prediction value of the well gravity density
+
+  call findWellboreGravityDensityPredictor()
+
+!  Do the iteration in pw for the well solution when on this target
 
   finished = PETSC_FALSE
-  nconv = 0
-  do iterws = 1,max_iterws
+  nconv    = 0
+  do iterpw = 1,max_iterPW
 
-!  Check that solution is within range
-
-    if(itt .ne. W_BHP_LIMIT) then
-
-      bhp_target = ws_targets(W_BHP_LIMIT)
-      if (ws_isproducer) then
-        if (w_pw < bhp_target) w_pw = bhp_target
-! Leave space for differencing
-        if (w_pw > ws_pwbf) w_pw = ws_pwbf-2.0*ws_eps_p
+    if (usediff) then
+      call getRwAndJw(option,iterpw,itt,pw+eps,rwe,jww)
+      call getRwAndJw(option,iterpw,itt,pw    ,rw ,jww)
+      anal = jww
+      diff = (rwe-rw)/eps
+      rat = (anal+1.0E-10)/(diff+1.0E-10)
+      if (abs(rat-1.0)>0.1) then
+        print *,'pw,a,d,r ',pw,anal,diff,rat
       endif
-      if (ws_isinjector) then
-        if (w_pw > bhp_target) w_pw = bhp_target
-        if (w_pw < ws_pwbf) w_pw = ws_pwbf
-      endif
+    else
+      call getRwAndJw(option,iterpw,itt,pw    ,rw ,jww)
     endif
 
-!  Get the residual and Jacobian, exit if converged
-
-    call getWellResidualAndJacobian(option,iterws,itt,rw,jww)
     if (abs(rw) < conv_crit) nconv = nconv+1
-    if (nconv > 3) then
+    if (nconv > 1) then
       finished = PETSC_TRUE
       exit
     endif
-
-!  Find inverse Jacobian
-
-    if (abs(jww) > 0.0) then
+    if ( abs(jww)>0.0 ) then
       jwwi = 1.0/jww
     else
       jwwi = 0.0
     endif
-
-!  Update solution
-
-    w_pw = w_pw - rw*jwwi
-
+    pw = pw-rw*jwwi
+    if (pw.lt.ws_pwmin) pw = ws_pwmin
   enddo
 
-  if (.not.finished) then
+!  Check for convergence error
+
+  if ( .not.finished ) then
     call throwWellSolverException('Unable to converge well iteration')
   endif
 
 !  Check if all other targets satisfied
 
   pwtarg = ws_targets(W_BHP_LIMIT)
+  if (pwtarg<0.0) then
+    if (ws_isproducer) pwtarg =        ws_atm
+    if (ws_isinjector) pwtarg = 1000.0*ws_atm
+  endif
 
   solveForWellTarget = PETSC_TRUE
-  do jtt = 1,N_WELL_TT
+  do jTT = 1,N_WELL_TT
 ! No need to check current type
-    if (jtt .eq. itt) cycle
+    if ( jtt == itt ) cycle
 ! Case of bhp control
-    if (jtt .eq. W_BHP_LIMIT) then
-      if (     ( ws_isproducer .and. ( w_pw<pwtarg )) &
-          .or. ( ws_isinjector .and. ( w_pw>pwtarg ))) then
+    if ( jTT == W_BHP_LIMIT ) then
+      if (      ( ws_isproducer .and. ( pw < 0.999999*pwtarg ) ) &
+           .or. ( ws_isinjector .and. ( pw > 1.000001*pwtarg ) ) ) then
 !  Switch to bhp control
         itt = jtt
         solveForWellTarget = PETSC_FALSE
       endif
     else
 ! Case of rate control - get positive convention flow
-      fpsc = w_sign*getActualFlowForTargetType(option,jtt,possible, &
-                                             w_flowsG_sv,w_flowsG_ms)
-      if (possible) then
-        ftarg = ws_targets(jtt)
-        if (ftarg > -0.5) then
-          if (fpsc > ftarg) then
-! Non-defaulted flow target exceeded - switch to this target
+      fpsc = &
+        w_sign*getActualFlowForTargetType(pw,option,jTT,possible,tactpw)
+      if ( possible ) then
+        ftarg = ws_targets(jTT)
+        if ( ftarg >-0.5 ) then
+! If non-defaulted flow target exceeded - switch to this target
+          if ( fpsc > 1.000001*ftarg ) then
             itt = jtt
             solveForWellTarget = PETSC_FALSE
           endif
@@ -731,165 +932,178 @@ end function solveForWellTarget
 
 ! *************************************************************************** !
 
-subroutine getWellResidualAndJacobian(option,iterws,itt,rw,jww)
+subroutine getRwAndJw(option,iterpw,itt,pw,rw,jww)
   !
-  ! Do one iteration of well solution
+  ! Obtain residual and Jacobian required to solve for Pw
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
-  !
-
-  implicit none
+  ! Date  : 09/19/18
 
   type(option_type), pointer :: option
-  PetscInt,intent(in)::iterws
-  PetscInt,intent(in)::itt
-  PetscReal,intent(out)::rw,jww
-  PetscReal::rwe
+  PetscInt,intent(in)   :: iterpw
+  PetscInt,intent(in)   :: itt
+  PetscReal,intent(in)  :: pw
+  PetscReal,intent(out) :: rw,jww
+  PetscReal :: res_norm,ccf
+  PetscInt :: icmpl
 
 !  Build up the residual for this target and solution
 
-  rwe = 0.0
-  rw  = 0.0
+  jww    = 0.0
+  w_rwxc = 0.0
 
-  w_pw = w_pw + ws_eps_p
-  call findWellFlows(option)
-  rwe = extractResidual(option,itt)
-  w_pw = w_pw - ws_eps_p
+  call findWellFlows(pw,option)
+  rw = extractResidualandJacobian(pw,option,itt,jww)
 
-  call findWellFlows(option)
-  rw = extractResidual(option,itt)
+end subroutine getRwAndJw
 
-  jww = (rwe-rw) / ws_eps_p
+!**************************************************************************** !
 
-end subroutine getWellResidualAndJacobian
-
-!***************************************************************************************!
-
-function extractResidual(option,itt)
+function extractResidualandJacobian(pw,option,itt,jww)
   !
-  ! Get residual for well solver
+  ! Get residual and Jacobian for well solver
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
-  !
+  ! Date  : 09/19/18
 
-  implicit none
-
-  PetscReal :: extractResidual
+  PetscReal :: extractResidualandJacobian
+  PetscReal,intent(in) :: pw
   type(option_type), pointer :: option
   PetscInt,intent(in) :: itt
+  PetscReal,intent(out) :: jww
+
   PetscBool :: possible
 
-  PetscReal :: tact,treq,rw
+  PetscReal :: tact,tactpw,treq,rw
 
-  rw = 0.0
+  rw       = 0.0
+  w_tactxc = 0.0
+
   possible = PETSC_FALSE
 
-  if ( itt .eq. W_BHP_LIMIT ) then
+  if ( itt == W_BHP_LIMIT ) then
     treq = ws_targets(itt)
-    rw = w_pw- treq
+    rw   = pw- treq
+    jww  = 1.0
   else
-    tact= getActualFlowForTargetType(option,itt,possible, &
-                                     w_flowsG_sv,w_flowsG_ms)
+    tact = getActualFlowForTargetType(pw,option,itt,possible,tactpw)
     treq = ws_targets(itt)
-    rw = w_sign*tact - treq
-    extractResidual = rw
+    rw   = w_sign*tact  -treq
+    jww  = w_sign*tactpw
+    extractResidualandJacobian = rw
+    w_rwxc = w_sign*w_tactxc
   endif
 
-  extractResidual = rw
+  extractResidualandJacobian = rw
 
-end function extractResidual
+end function extractResidualandJacobian
 
 ! *************************************************************************** !
 
-function getActualFlowForTargetType(option,itt,possible,flows_sv,flows_ms)
+function getActualFlowForTargetType(pw,option,itt,possible,tactpw)
   !
   ! Get actual flow for a given target type
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
-  !
-
-  implicit none
+  ! Date  : 09/19/18
 
   PetscReal :: getActualFlowForTargetType
+  PetscReal,intent(in) :: pw
   type(option_type), pointer :: option
   PetscInt,intent(in) :: itt
   PetscBool,intent(out) :: possible
-  PetscReal,dimension(:) :: flows_sv
-  PetscReal,dimension(:) :: flows_ms
+  PetscReal,intent(out) :: tactpw
 
-  PetscReal :: f
+  PetscReal :: tact,c,co,cw
+  PetscInt  :: ipoil,ipgas,ipwat,ipslv,ixw,jcmpl,jdof
 
-  f = 0.0
+!  Initialise
+
+  tact = 0.0
   possible = PETSC_FALSE
 
-  if( itt .eq. W_BHP_LIMIT ) then
-    f = w_pw
+  ipoil = option%oil_phase
+  ipgas = option%gas_phase
+  ipwat = option%liquid_phase
+  ipslv = option%solvent_phase
+
+!  Case of bhp limit
+
+  if ( itt == W_BHP_LIMIT ) then
+    tact   = pw
+    tactpw = 1.0
   endif
 
-  if ((itt .eq. W_TARG_OSV) .and. ws_oil) then
-    f = flows_sv(option%oil_phase    )
+!  Case of various flow targets
+
+  if ( (itt == W_TARG_OSV) .and. ws_oil ) then
+    c = ws_svpm(ipoil)
+    call incrTactX(ipoil,c,tact,tactpw)
     possible = PETSC_TRUE
   endif
 
-  if ((itt.eq. W_TARG_GSV) .and. ws_gas) then
-    f = flows_sv(option%gas_phase    )
+  if ( (itt == W_TARG_GSV) .and. ws_gas ) then
+    c = ws_svpm(ipgas)
+    call incrTactX(ipgas,c,tact,tactpw)
     possible = PETSC_TRUE
   endif
 
-  if ((itt .eq. W_TARG_WSV).and. ws_wat) then
-    f = flows_sv(option%liquid_phase )
+  if ( (itt == W_TARG_WSV) .and. ws_wat ) then
+    c = ws_svpm(ipwat)
+    call incrTactX(ipwat,c,tact,tactpw)
     possible = PETSC_TRUE
   endif
 
-  if ((itt .eq. W_TARG_SSV).and. ws_slv) then
-    f = flows_sv(option%solvent_phase)
+  if ( (itt == W_TARG_SSV) .and. ws_slv ) then
+    c = ws_svpm(ipslv)
+    call incrTactX(ipslv,c,tact,tactpw)
     possible = PETSC_TRUE
   endif
 
-  if ((itt .eq. W_TARG_LSV).and. ws_oil .and. ws_wat) then
-    f =  flows_sv(option%oil_phase    ) &
-        +flows_sv(option%liquid_phase )
+  if ( (itt == W_TARG_LSV) .and. ws_oil .and. ws_wat ) then
+    co = ws_svpm(ipoil)
+    cw = ws_svpm(ipwat)
+    call incrTactX(ipoil,co,tact,tactpw)
+    call incrTactX(ipoil,cw,tact,tactpw)
     possible = PETSC_TRUE
   endif
 
-  if ((itt .eq. W_TARG_OM).and. ws_oil) then
-    f = flows_ms(option%oil_phase    )
+  if ( (itt == W_TARG_OM) .and. ws_oil ) then
+    c = ws_mspm(ipoil)
+    call incrTactX(ipoil,c,tact,tactpw )
     possible = PETSC_TRUE
   endif
 
-  if ((itt .eq. W_TARG_GM).and. ws_gas) then
-    f = flows_ms(option%gas_phase    )
+  if ( (itt == W_TARG_GM) .and. ws_gas ) then
+    c = ws_mspm(ipgas)
+    call incrTactX(ipgas,c,tact,tactpw)
     possible = PETSC_TRUE
   endif
 
-  if ((itt .eq. W_TARG_WM).and. ws_wat) then
-    f = flows_ms(option%liquid_phase )
+  if ( (itt == W_TARG_WM) .and. ws_wat ) then
+    c = ws_mspm(ipwat)
+    call incrTactX(ipwat,c,tact,tactpw)
     possible = PETSC_TRUE
   endif
 
-  if ((itt .eq. W_TARG_SM).and. ws_slv) then
-    f = flows_ms(option%solvent_phase)
+  if ( (itt == W_TARG_SM).and. ws_slv ) then
+    c = ws_mspm(ipslv)
+    call incrTactX(ipslv,c,tact,tactpw)
     possible = PETSC_TRUE
   endif
 
-  getActualFlowForTargetType = f
+  getActualFlowForTargetType = tact
 
 end function getActualFlowForTargetType
 
-! ************************************************************************** !
+! *************************************************************************** !
 
 subroutine updateMainResidual(option,r_p)
   !
-  ! Insert the well flow contributiosn into the mail Pflotran residual
+  ! Insert the well flow contributiosn into the main Pflotran residual
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
-  !
-
-  implicit none
+  ! Date  : 09/19/18
 
   type(option_type), pointer :: option
   PetscReal, pointer :: r_p(:)
@@ -904,7 +1118,7 @@ subroutine updateMainResidual(option,r_p)
 
     res = 0.0
 
-    local_id =c_local_id(icmpl)
+    local_id = c_local_id(icmpl)
     do icompe = 1,ws_ncompe
       res(icompe) = c_flows(icmpl,icompe)
     enddo
@@ -924,10 +1138,7 @@ subroutine allocateWorkArrays()
   ! Allocate well solve work arrays
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
-  !
-
-  implicit none
+  ! Date  : 09/19/18
 
   allocate(c_local_id  (w_ncmpl          ))
   allocate(c_ghosted_id(w_ncmpl          ))
@@ -938,15 +1149,32 @@ subroutine allocateWorkArrays()
   allocate(ws_mspm     (        ws_ncomp ))
 
   allocate(c_flows     (w_ncmpl,ws_ncompe)) ! Note extra energy location
-  allocate(w_flows     (        ws_ncomp ))
-  allocate(w_flows_ms  (        ws_ncomp ))
-  allocate(w_flows_sv  (        ws_ncomp ))
-  allocate(w_flowsG    (        ws_ncomp ))
-  allocate(w_flowsG_ms (        ws_ncomp ))
-  allocate(w_flowsG_sv (        ws_ncomp ))
+  allocate(c_flowspw   (w_ncmpl,ws_ncompe))
+  allocate(c_flowsxw   (w_ncmpl,ws_ncompe,ws_nxw ))
+  allocate(c_flowsxc   (w_ncmpl,ws_ncompe,w_ncmpl,ws_ndof))
+
+  allocate(w_flows     (ws_ncompe        ))
+  allocate(w_flowspw   (ws_ncompe        ))
+  allocate(w_flowsxw   (ws_ncompe,ws_nxw ))
+  allocate(w_flowsxc   (ws_ncompe,w_ncmpl,ws_ndof))
+
+  allocate(w_rwxc      (w_ncmpl,ws_ndof))
+  allocate(w_tactxc    (w_ncmpl,ws_ndof))
+
+  allocate(w_flowsG    (ws_ncompe        ))
+  allocate(w_flowsGpw  (ws_ncompe        ))
+  allocate(w_flowsGxw  (ws_ncompe,ws_nxw ))
+  allocate(w_flowsGxc  (ws_ncompe,w_ncmpl,ws_ndof))
+
+  allocate(w_dxwdpw    (ws_nxw))
+  allocate(w_dpwdxc    (       w_ncmpl,ws_ndof))
+  allocate(w_dxwdxc    (ws_nxw,w_ncmpl,ws_ndof))
 
   allocate(c_p         (w_ncmpl          ))
-  allocate(c_pb        (w_ncmpl          ))
+  allocate(c_t         (w_ncmpl          ))
+  if (ws_is_black_oil) then
+    allocate(c_pb        (w_ncmpl          ))
+  endif
   allocate(c_mdp       (w_ncmpl,ws_nphase))
   allocate(c_sp        (w_ncmpl,ws_nphase))
   allocate(c_mob       (w_ncmpl,ws_nphase))
@@ -955,23 +1183,74 @@ subroutine allocateWorkArrays()
   allocate(c_kgdp      (w_ncmpl,ws_nphase))
   allocate(c_hp        (w_ncmpl,ws_nphase))
 
-  allocate(w_sp        (        ws_nphase))
-  allocate(w_bp        (        ws_nphase))
-  allocate(w_gdp       (        ws_nphase))
+  allocate(c_mdpX      (w_ncmpl,ws_nphase,ws_ndof))
+  allocate(c_spX       (w_ncmpl,ws_nphase,ws_ndof))
+  allocate(c_mobX      (w_ncmpl,ws_nphase,ws_ndof))
+  allocate(c_xoX       (w_ncmpl          ,ws_ndof))
+  allocate(c_xgX       (w_ncmpl          ,ws_ndof))
+  allocate(c_kgdpX     (w_ncmpl,ws_nphase,ws_ndof))
+  allocate(c_hpX       (w_ncmpl,ws_nphase,ws_ndof))
+
+!  Initialise (will stay at zero if numerical derivativess)
+
+  c_mdpX  = 0.0
+  c_spX   = 0.0
+  c_mobX  = 0.0
+  c_xoX   = 0.0
+  c_xgX   = 0.0
+  c_kgdpX = 0.0
+  c_hpX   = 0.0
+
+  allocate(w_sp        (ws_nphase       ))
+  allocate(w_spxw      (ws_nphase,ws_nxw))
+
+  allocate(w_mdp       (ws_nphase       ))
+  allocate(w_mdppw     (ws_nphase       ))
+  allocate(w_mdpxw     (ws_nphase,ws_nxw))
+
+  allocate(w_mdc       (ws_ncomp        ))
+  allocate(w_mdcpw     (ws_ncomp        ))
+  allocate(w_mdcxw     (ws_ncomp ,ws_nxw))
+
+  allocate(w_zmf       (ws_ncomp        ))
+  allocate(w_zmfpw     (ws_ncomp        ))
+  allocate(w_zmfxw     (ws_ncomp ,ws_nxw))
+
+  allocate(w_kgdp      (ws_nphase       ))
+  allocate(w_kgdppw    (ws_nphase       ))
+  allocate(w_kgdpxw    (ws_nphase,ws_nxw))
+
+  allocate(w_hp        (ws_nphase       ))
+  allocate(w_hpdpw     (ws_nphase       ))
+  allocate(w_hpdxw     (ws_nphase,ws_nxw))
+
+  allocate(w_hdxw      (          ws_nxw))
+  allocate(w_hpmdxw    (          ws_nxw))
+
+  allocate(w_gdxw      (          ws_nxw))
+
+!  Wellbore solution values
+
+  allocate(xwbs        (       ws_nxw))
+  allocate(rwbs        (       ws_nxw))
+  allocate(rwbshold    (       ws_nxw))
+  allocate(xwbshold    (       ws_nxw))
+  allocate(rwbspw      (       ws_nxw))
+  allocate(rwbsxc      (ws_nxw,w_ncmpl,ws_ndof))
+  allocate(jwbs        (ws_nxw,ws_nxw))
+  allocate(jwbsi       (ws_nxw,ws_nxw))
+  allocate(dxwbs       (       ws_nxw))
 
 end subroutine allocateWorkArrays
 
-! *************************************************************************** !
+!*****************************************************************************!
 
 subroutine freeWorkArrays()
   !
   ! De-allocate well solve work arrays
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
-  !
-
-  implicit none
+  ! Date  : 09/19/18
 
   deallocate(c_local_id  )
   deallocate(c_ghosted_id)
@@ -982,15 +1261,32 @@ subroutine freeWorkArrays()
   deallocate(ws_mspm     )
 
   deallocate(c_flows     )
-  deallocate(w_flows     )
-  deallocate(w_flows_ms  )
-  deallocate(w_flows_sv  )
-  deallocate(w_flowsG    )
-  deallocate(w_flowsG_ms )
-  deallocate(w_flowsG_sv )
+  deallocate(c_flowspw   )
+  deallocate(c_flowsxw   )
+  deallocate(c_flowsxc   )
 
-  deallocate(c_P         )
-  deallocate(c_pb        )
+  deallocate(w_flows     )
+  deallocate(w_flowspw   )
+  deallocate(w_flowsxw   )
+  deallocate(w_flowsxc   )
+
+  deallocate(w_rwxc      )
+  deallocate(w_tactxc    )
+
+  deallocate(w_flowsG    )
+  deallocate(w_flowsGpw  )
+  deallocate(w_flowsGxw  )
+  deallocate(w_flowsGxc  )
+
+  deallocate(w_dxwdpw    )
+  deallocate(w_dxwdxc    )
+  deallocate(w_dpwdxc    )
+
+  deallocate(c_p         )
+  deallocate(c_t         )
+  if (ws_is_black_oil) then
+    deallocate(c_pb        )
+  endif
   deallocate(c_mdp       )
   deallocate(c_sp        )
   deallocate(c_mob       )
@@ -999,89 +1295,131 @@ subroutine freeWorkArrays()
   deallocate(c_kgdp      )
   deallocate(c_hp        )
 
+  deallocate(c_mdpX      )
+  deallocate(c_spX       )
+  deallocate(c_mobX      )
+  deallocate(c_xoX       )
+  deallocate(c_xgX       )
+  deallocate(c_kgdpX     )
+  deallocate(c_hpX       )
+
   deallocate(w_sp        )
-  deallocate(w_bp        )
-  deallocate(w_gdp       )
+  deallocate(w_spxw      )
+
+  deallocate(w_mdp       )
+  deallocate(w_mdppw     )
+  deallocate(w_mdpxw     )
+
+  deallocate(w_mdc       )
+  deallocate(w_mdcpw     )
+  deallocate(w_mdcxw     )
+
+  deallocate(w_zmf       )
+  deallocate(w_zmfpw     )
+  deallocate(w_zmfxw     )
+
+  deallocate(w_kgdp      )
+  deallocate(w_kgdppw    )
+  deallocate(w_kgdpxw    )
+
+  deallocate(w_hp        )
+  deallocate(w_hpdpw     )
+  deallocate(w_hpdxw     )
+
+  deallocate(w_hdxw      )
+  deallocate(w_hpmdxw    )
+
+  deallocate(w_gdxw      )
+
+  deallocate(xwbs        )
+  deallocate(rwbs        )
+  deallocate(rwbshold    )
+  deallocate(xwbshold    )
+  deallocate(rwbspw      )
+  deallocate(rwbsxc      )
+  deallocate(jwbs        )
+  deallocate(jwbsi       )
+  deallocate(dxwbs       )
 
 end subroutine freeWorkArrays
 
 ! *************************************************************************** !
 
-subroutine findWellFlows(option)
+subroutine findWellFlows(pw,option)
   !
   ! Find well flows
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
-  !
+  ! Date  : 09/19/18
 
-  implicit none
+  use EOS_Water_module
 
+  PetscReal,intent(in) :: pw
   type(option_type), pointer :: option
-  PetscInt :: ghosted_id,icomp,icmpl,ierr
+  PetscInt :: icomp,icmpl,ierr
 
-!  Initialise the output arrays
+!  Find wellbore solution
 
-  c_flows     = 0.0
-  w_flows     = 0.0
-  w_flows_ms  = 0.0
-  w_flows_sv  = 0.0
-  w_flowsG    = 0.0
-  w_flowsG_ms = 0.0
-  w_flowsG_sv = 0.0
+  call findWellboreSolution(pw,option)
 
-!  Get completion flows
+!  Find completion flow at this wellbore density
 
-  do icmpl = 1,w_ncmpl
-   ghosted_id = c_ghosted_id(icmpl)
-   call findCompletionFlows(option,icmpl)
-  enddo
+  call findAllCompletionFlows(pw,option)
 
 !  Build well flows
 
-  do icomp = 1,ws_ncomp
-    do icmpl = 1,w_ncmpl
-      w_flows   (icomp) = w_flows   (icomp)+               c_flows(icmpl,icomp)
-      w_flows_sv(icomp) = w_flows_sv(icomp)+ws_svpm(icomp)*c_flows(icmpl,icomp)
-      w_flows_ms(icomp) = w_flows_ms(icomp)+ws_mspm(icomp)*c_flows(icmpl,icomp)
-    enddo
-  enddo
-
-!  Build well flows across procs if required
-
-  if (w_crossproc) then
-    call MPI_Allreduce(w_flows   ,w_flowsG   ,ws_ncomp, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,w_comm,ierr)
-    call MPI_Allreduce(w_flows_sv,w_flowsG_sv,ws_ncomp, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,w_comm,ierr)
-    call MPI_Allreduce(w_flows_ms,w_flowsG_ms,ws_ncomp, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,w_comm,ierr)
-  else
-    w_flowsG    = w_flows
-    w_flowsG_sv = w_flows_sv
-    w_flowsG_ms = w_flows_ms
-  endif
+  call buildWellFlows()
 
 end subroutine findWellFlows
 
 ! *************************************************************************** !
 
-subroutine findCompletionFlows(option,icmpl)
+subroutine findAllCompletionFlows(pw,option)
   !
-  ! Find completion flows
+  ! Find flows for all completions
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
+  ! Date  : 09/19/18
+
+  PetscReal,intent(in) :: pw
+  type(option_type), pointer :: option
+  PetscInt :: icmpl
+
+  c_flows   = 0.0
+  c_flowspw = 0.0
+  c_flowsxw = 0.0
+  c_flowsxc = 0.0
+  do icmpl = 1,w_ncmpl
+   call findCompletionFlows(pw,option,icmpl)
+  enddo
+
+end subroutine findAllCompletionFlows
+
+! *************************************************************************** !
+
+subroutine findCompletionFlows(pw,option,icmpl)
   !
+  ! Find completion flows for one completion
+  !
+  ! Author: Dave Ponting
+  ! Date  : 09/19/18
 
-  implicit none
-
+  PetscReal,intent(in) :: pw
   type(option_type), pointer :: option
   PetscInt ,intent(in) :: icmpl
 
-  PetscBool :: is_black_oil,componentInPhase,is_oil_in_oil,is_gas_in_oil
-  PetscInt :: iphase,icomp,eid
-  PetscReal :: xmf,ccf,z,dhh,pdd,mob,mobt,mdp,flow
+  PetscInt  :: jcmpl,jdof
+
+  PetscBool :: componentInPhase,is_oil_in_oil,is_gas_in_oil
+  PetscInt  :: iphase,jphase,icomp,eid,ixw
+  PetscReal :: xmf,ccf,z,dhh,pdd,pddpw,pddpc,mob,mobt,mdp,svpm, &
+               flow,flowpw,flowxw,flowpc,flowxc, &
+               hp,hpP,mdc,mdcpw
+  PetscReal :: mobX,mdpX,xmfX,hpX
+  PetscReal,dimension(:), allocatable :: pddxw
+
+  allocate(pddxw(ws_nxw))
+  pddxw=0.0
 
 !  Initialise
 
@@ -1092,22 +1430,23 @@ subroutine findCompletionFlows(option,icmpl)
   ccf = c_ccf(icmpl)
   z   = c_z  (icmpl)
   dhh = z-w_zref
-  pdd = c_P  (icmpl)-w_pw+w_gd*dhh
 
-!  Check for black oil cases (with dissolved gas)
+  pdd   = c_P  (icmpl)-pw +w_gd  *dhh
+  pddpw =             -1.0+w_gdpw*dhh
+  pddpc = 1.0
 
-  is_black_oil = PETSC_FALSE
-  if (     ( towg_miscibility_model == TOWG_BLACK_OIL) &
-      .or. ( towg_miscibility_model == TOWG_SOLVENT_TL)) is_black_oil = PETSC_TRUE
+  do ixw = 1,ws_nxw
+    pddxw(ixw) = w_gdxw(ixw)*dhh
+  enddo
 
   mobt = 0.0
   do iphase = 1, ws_nphase
-    mobt = mobt + c_mob(icmpl,iphase)
+    mobt = mobt+c_mob(icmpl,iphase)
   enddo
 
 !  Loop over phases and components building up component flows
 
-  if (is_black_oil) then
+  if ( ws_is_black_oil ) then
     do iphase = 1, ws_nphase
       do icomp = 1, ws_ncomp
 
@@ -1115,59 +1454,129 @@ subroutine findCompletionFlows(option,icmpl)
         is_oil_in_oil    = PETSC_FALSE
         is_gas_in_oil    = PETSC_FALSE
 
-! disgas is special case
+! Oil phase in black oil mode is special case
 
-        if (iphase == option%oil_phase) then
-          if (icomp == option%oil_phase) is_oil_in_oil = PETSC_TRUE
-          if (icomp == option%gas_phase) is_gas_in_oil = PETSC_TRUE
+        if ( iphase == option%oil_phase ) then
+          if ( icomp == option%oil_phase ) is_oil_in_oil = PETSC_TRUE
+          if ( icomp == option%gas_phase ) is_gas_in_oil = PETSC_TRUE
         endif
 
-! OK if phase and component match or dissolved gas
+! OK if phase and component match or dissolved gas in producer
 
-        if (iphase == icomp .or. (ws_isproducer .and. is_gas_in_oil)) then
-          componentInPhase = PETSC_TRUE
-        endif
+        if ( (iphase == icomp) .or. &
+             (is_gas_in_oil.and.ws_isproducer)  ) componentInPhase = PETSC_TRUE
 
-        if (componentInPhase) then
+        if ( componentInPhase ) then
+
           xmf = 1.0d0
-          if (ws_isproducer) then
-            if (is_oil_in_oil) xmf = c_xo(icmpl)
-            if (is_gas_in_oil) xmf = c_xg(icmpl)
+          if ( Pdd > 0.0 ) then
+            if ( is_oil_in_oil ) xmf = c_xo(icmpl)
+            if ( is_gas_in_oil ) xmf = c_xg(icmpl)
           endif
 
-!  Initialise mobility and get molar density of phase
+          mob  = 0.0
+          mdp  = 0.0
+          hp   = 0.0
+          hpP  = 0.0
 
-          mob =0.0
-          mdp =c_mdp(icmpl,iphase)
+! Increment molar flow by component
 
-! Check for backflow (leave mob at zero otherwise)
+          if (pdd > 0.0) then
 
-          if (     ( ws_isproducer .and. (Pdd > 0.0)) &
-              .or. ( ws_isinjector .and. (Pdd < 0.0)) ) then
+!  Producing completion: mobility and molar density are cell functions
 
-!  Set up mobility estimate
+            mob   = c_mob(icmpl,iphase)
+            mdp   = c_mdp(icmpl,iphase)
 
-            if (ws_isproducer) mob = c_mob(icmpl,iphase)
-            if (      (w_type .eq. OIL_INJ_WELL_TYPE) &
-                .and. (icomp.eq.option%oil_phase    )) mob = mobt
-            if (      (w_type .eq. GAS_INJ_WELL_TYPE) &
-                .and. (icomp.eq.option%gas_phase    )) mob = mobt
-            if (      (w_type .eq. WAT_INJ_WELL_TYPE) &
-                .and. (icomp.eq.option%liquid_phase )) mob = mobt
-            if (      (w_type .eq. SLV_INJ_WELL_TYPE) &
-                .and. (icomp.eq.option%solvent_phase)) mob = mobt
+            flow   = ccf*xmf*mob*mdp*pdd
+            flowpw = ccf*xmf*mob*mdp*pddpw
+
+            c_flows  (icmpl,icomp) = c_flows  (icmpl,icomp)+flow
+            c_flowspw(icmpl,icomp) = c_flowspw(icmpl,icomp)+flowpw
+
+!  For producing case:
+!  Mobility and molar density are Xc functions
+!  Drawdowns                  are Xw functions
+
+!  Wellbore solution derivatives
+            do ixw = 1,ws_nxw
+              flowxw = ccf*xmf*mob*mdp*pddxw(ixw)
+              c_flowsxw(icmpl,icomp,ixw) = c_flowsxw(icmpl,icomp,ixw)+flowxw
+            enddo
+
+!  Cell solution derivatives (diagonal in completion index)
+
+!  Wrt cell pressure
+
+            flowpc = ccf*xmf*mob*mdp*pddpc
+            c_flowsxc(icmpl,icomp,icmpl,ws_xpr) &
+          = c_flowsxc(icmpl,icomp,icmpl,ws_xpr) + flowpc
+
+!  Wrt cell properties
+            do jdof = 1,ws_ndof
+
+!  Wrt molar density and mobility
+              mobX   = c_mobX(icmpl,iphase,jdof)
+              mdpX   = c_mdpX(icmpl,iphase,jdof)
+              flowxc = ccf*xmf*(mobX*mdp+mob*mdpX)*pdd
+
+              c_flowsxc(icmpl,icomp,icmpl,jdof) &
+            = c_flowsxc(icmpl,icomp,icmpl,jdof) + flowxc
+
+!  Wrt mole fraction
+              xmfX = 0.0
+              if ( is_oil_in_oil ) xmfX = c_xoX(icmpl,jdof)
+              if ( is_gas_in_oil ) xmfX = c_xgX(icmpl,jdof)
+              flowxc = ccf*xmfX*mob*mdp*pdd
+
+              c_flowsxc(icmpl,icomp,icmpl,jdof) &
+            = c_flowsxc(icmpl,icomp,icmpl,jdof) + flowxc
+
+            enddo
+
+          else
+
+!  For injecting case:
+!  Mobility and molar density are Xc functions
+!  Drawdowns                  are Xw functions
+
+            mdc   = w_mdc  (icomp)
+            mdcpw = w_mdcpw(icomp)
+
+            flow   = ccf*mobt*  mdc  *pdd
+            flowpw = ccf*mobt*( mdcpw*pdd   &
+                               +mdc  *pddpw )
+
+            c_flows  (icmpl,icomp) = c_flows  (icmpl,icomp)+flow
+            c_flowspw(icmpl,icomp) = c_flowspw(icmpl,icomp)+flowpw
+
+!  Wellbore solution derivatives
+            do ixw = 1,ws_nxw
+              flowxw = ccf*mobt*( w_mdcxw(icomp,ixw)*pdd        &
+                                 +mdc               *pddxw(ixw) )
+              c_flowsxw(icmpl,icomp,ixw) = c_flowsxw(icmpl,icomp,ixw)+flowxw
+            enddo
+
+!  Cell solution derivatives (diagonal in completion index)
+
+!  Wrt cell pressure via drawdown
+
+            flowpc = ccf*mobt*mdc*pddpc
+            c_flowsxc(icmpl,icomp,icmpl,ws_xpr) &
+          = c_flowsxc(icmpl,icomp,icmpl,ws_xpr) + flowpc
+
+! Wrt cell voidage mobility via mobt
+
+            do jphase = 1, ws_nphase
+              do jdof = 1,ws_ndof
+                  flowxc = ccf*c_mobX(icmpl,jphase,jdof)*mdc*pdd
+                  c_flowsxc(icmpl,icomp,icmpl,jdof) &
+                = c_flowsxc(icmpl,icomp,icmpl,jdof)+flowxc
+              enddo
+            enddo
+
           endif
 
-!  Find flow
-
-          flow = ccf*xmf*mob*mdp*pdd
-          c_flows(icmpl,icomp) = c_flows(icmpl,icomp)+flow
-
-!  Increment energy flow by component
-
-          if(iphase == icomp) then
-            c_flows(icmpl,eid)=c_flows(icmpl,eid) + flow*c_hp(icmpl,iphase)
-          endif
         endif
 
       enddo
@@ -1179,45 +1588,783 @@ subroutine findCompletionFlows(option,icmpl)
 
     do iphase = 1, ws_nphase
 
-      icomp = iphase ! Component and phase indices are the same in non-black-oil case
+      icomp = iphase
 
-      if (ws_isproducer) mob = c_mob(icmpl,iphase)
-      if (      w_type .eq. OIL_INJ_WELL_TYPE &
-          .and. iphase.eq.option%oil_phase    ) mob = mobt
-      if (      w_type .eq. GAS_INJ_WELL_TYPE &
-          .and. iphase.eq.option%gas_phase    ) mob = mobt
-      if (      w_type .eq. WAT_INJ_WELL_TYPE &
-          .and. iphase.eq.option%liquid_phase ) mob = mobt
-      if (      w_type .eq. SLV_INJ_WELL_TYPE &
-          .and. iphase.eq.option%solvent_phase) mob = mobt
+! Increment molar flow by component
 
-      mdp = c_mdp(icmpl,iphase)
+      if (pdd > 0.0) then
 
-      flow = ccf*mob*mdp*pdd
-      c_flows(icmpl,icomp) = c_flows(icmpl,icomp)+flow
+!  Producing completion: mobility and molar density are cell functions
+
+        mob = c_mob(icmpl,iphase)
+        mdp = c_mdp(icmpl,iphase)
+
+        flow   = ccf*mob*mdp*pdd
+        flowpw = ccf*mob*mdp*pddpw
+
+        c_flows  (icmpl,icomp) = c_flows  (icmpl,icomp)+flow
+        c_flowspw(icmpl,icomp) = c_flowspw(icmpl,icomp)+flowpw
+
+!  For producing case, mobility and molar density are cell functions
+!  Only the drawdown is a pw function
+
+        do ixw = 1,ws_nxw
+          flowxw = ccf*mob*mdp*pddxw(ixw)
+          c_flowsxw(icmpl,icomp,ixw) = c_flowsxw(icmpl,icomp,ixw)+flowxw
+        enddo
+
+!  Cell solution derivatives (diagonal in completion index)
+
+!  Wrt cell pressure
+        flowpc = ccf*mob*mdp*pddpc
+        c_flowsxc(icmpl,icomp,icmpl,ws_xpr) &
+      = c_flowsxc(icmpl,icomp,icmpl,ws_xpr) + flowpc
+
+!  Wrt cell properties
+        do jdof = 1,ws_ndof
+
+!  Wrt molar density and mobility (this completion)
+          mobX   = c_mobX(icmpl,iphase,jdof)
+          mdpX   = c_mdpX(icmpl,iphase,jdof)
+          flowxc = ccf*(mobX*mdp+mob*mdpX)*pdd
+
+          c_flowsxc(icmpl,icomp,icmpl,jdof) &
+        = c_flowsxc(icmpl,icomp,icmpl,jdof) + flowxc
+
+        enddo
+
+      else
+
+!  Injecting completion: molar densities are well functions
+
+        mdc   = w_mdc  (icomp)
+        mdcpw = w_mdcpw(icomp)
+
+        flow   = ccf*mobt*  mdc  *pdd
+        flowpw = ccf*mobt*( mdcpw*pdd   &
+                           +mdc  *pddpw )
+
+        c_flows  (icmpl,icomp) = c_flows  (icmpl,icomp) + flow
+        c_flowspw(icmpl,icomp) = c_flowspw(icmpl,icomp) + flowpw
+
+        do ixw = 1,ws_nxw
+          flowxw = ccf*mobt*( w_mdcxw(icomp,ixw)*pdd        &
+                             +mdc               *pddxw(ixw) )
+          c_flowsxw(icmpl,icomp,ixw) = c_flowsxw(icmpl,icomp,ixw) + flowxw
+        enddo
+
+!  Cell solution derivatives (diagonal in completion index)
+
+         flowpc = ccf*mobt*mdc*pddpc
+         c_flowsxc(icmpl,icomp,icmpl,ws_xpr) &
+       = c_flowsxc(icmpl,icomp,icmpl,ws_xpr) + flowpc
+
+! Sum over elements of mobt
+
+         do jphase = 1, ws_nphase
+          do jdof = 1,ws_ndof
+            flowxc = ccf*c_mobX(icmpl,jphase,jdof)*mdc*pdd
+            c_flowsxc(icmpl,icomp,icmpl,jdof) &
+          = c_flowsxc(icmpl,icomp,icmpl,jdof) + flowxc
+          enddo
+        enddo
+
+      endif
 
     enddo
 
   endif
 
+! Thermal part
+
+  if (pdd > 0.0) then
+
+! Thermal producing completion
+
+    do iphase = 1, ws_nphase
+
+      mob = c_mob(icmpl,iphase)
+      mdp = c_mdp(icmpl,iphase)
+      hp  = c_hp (icmpl,iphase)
+
+      flow   = ccf*mob*mdp*pdd  *hp
+      flowpw = ccf*mob*mdp*pddpw*hp
+
+      c_flows  (icmpl,eid) = c_flows  (icmpl,eid) + flow
+      c_flowspw(icmpl,eid) = c_flowspw(icmpl,eid) + flowpw
+
+      do ixw = 1,ws_nxw
+        flowxw = ccf*mob*mdp*pddxw(ixw)*hp
+        c_flowsxw(icmpl,eid,ixw) = c_flowsxw(icmpl,eid,ixw) + flowxw
+      enddo
+
+!  Cell solution derivatives (diagonal in completion index)
+
+!  Wrt cell pressure
+      flowpc = ccf*mob*mdp*pddpc*hp
+      c_flowsxc(icmpl,eid,icmpl,ws_xpr) &
+    = c_flowsxc(icmpl,eid,icmpl,ws_xpr) + flowpc
+
+!  Wrt cell properties
+        do jdof = 1,ws_ndof
+
+!  Wrt molar density, mobility and specific enthalpy
+          mobX   = c_mobX(icmpl,iphase,jdof)
+          mdpX   = c_mdpX(icmpl,iphase,jdof)
+          hpX    = c_hpX (icmpl,iphase,jdof)
+          flowxc = ccf*(mobX*mdp*hp+mob*mdpX*hp+mob*mdp*hpX)*pdd
+
+          c_flowsxc(icmpl,eid,icmpl,jdof) &
+        = c_flowsxc(icmpl,eid,icmpl,jdof) + flowxc
+
+        enddo
+
+    enddo
+  else
+
+! Thermal injecting completion
+
+    flow   = ccf*mobt* pdd  *w_h
+    flowpw = ccf*mobt*(pddpw*w_h+pdd*w_hdpw)
+
+    c_flows  (icmpl,eid) = c_flows  (icmpl,eid) + flow
+    c_flowspw(icmpl,eid) = c_flowspw(icmpl,eid) + flowpw
+
+    do ixw = 1,ws_nxw
+      flowxw = ccf*mobt*(pddxw(ixw)*w_h+pdd*w_hdxw(ixw))
+      c_flowsxw(icmpl,eid,ixw) = c_flowsxw(icmpl,eid,ixw) + flowxw
+    enddo
+
+!  Cell solution derivatives (diagonal in completion index)
+
+    flowpc = ccf*mobt*pddpc*w_h
+    c_flowsxc(icmpl,eid,icmpl,ws_xpr) &
+  = c_flowsxc(icmpl,eid,icmpl,ws_xpr) + flowpc
+
+! Sum over elements of mobt
+
+    do jphase = 1, ws_nphase
+      do jdof = 1,ws_ndof
+        flowxc = ccf*c_mobX(icmpl,jphase,jdof)*mdc*pdd*w_h
+        c_flowsxc(icmpl,eid,icmpl,jdof) &
+      = c_flowsxc(icmpl,eid,icmpl,jdof) + flowxc
+      enddo
+    enddo
+
+  endif
+
+  deallocate(pddxw)
+
 end subroutine findCompletionFlows
 
 ! *************************************************************************** !
 
-subroutine findWellboreGravityDensity()
+subroutine buildWellFlows()
   !
-  ! Find gravity*(wellbore mass density)
+  ! Build the well flows from the completion flows
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
+  ! Date  : 09/19/18
+
+  PetscInt :: icompe,icmpl,ierr,ixw,jcmpl,jdof
+
+  ierr = 0
+
+  w_flows     = 0.0
+  w_flowspw   = 0.0
+  w_flowsxw   = 0.0
+  w_flowsxc   = 0.0
+
+  w_flowsG    = 0.0
+  w_flowsGpw  = 0.0
+  w_flowsGxw  = 0.0
+  w_flowsGxc  = 0.0
+
+  do icompe = 1,ws_ncompe
+    do icmpl = 1,w_ncmpl
+      w_flows  (icompe) = w_flows  (icompe) + c_flows  (icmpl,icompe)
+      w_flowspw(icompe) = w_flowspw(icompe) + c_flowspw(icmpl,icompe)
+      do ixw = 1,ws_nxw
+        w_flowsxw(icompe,ixw) &
+      = w_flowsxw(icompe,ixw) + c_flowsxw(icmpl,icompe,ixw)
+      enddo
+      do jcmpl = 1,w_ncmpl
+        do jdof = 1,ws_ndof
+          w_flowsxc(icompe,jcmpl,jdof) &
+        = w_flowsxc(icompe,jcmpl,jdof) + c_flowsxc(icmpl,icompe,jcmpl,jdof)
+        enddo
+      enddo
+    enddo
+  enddo
+
+!  Build well flows across procs if required
+
+  if ( w_crossproc ) then
+    call MPI_Allreduce( w_flows   ,w_flowsG   ,ws_ncompe         &
+                       ,MPI_DOUBLE_PRECISION,MPI_SUM,w_comm,ierr )
+    call MPI_Allreduce( w_flowspw ,w_flowsGpw ,ws_ncompe        &
+                       ,MPI_DOUBLE_PRECISION,MPI_SUM,w_comm,ierr )
+    call MPI_Allreduce( w_flowsxw ,w_flowsGxw ,ws_ncompe*ws_nxw &
+                       ,MPI_DOUBLE_PRECISION,MPI_SUM,w_comm,ierr )
+    w_flowsGxc  = w_flowsxc ! Assume no cross-proc terms for now
+  else
+    w_flowsG    = w_flows
+    w_flowsGpw  = w_flowspw
+    w_flowsGxw  = w_flowsxw
+    w_flowsGxc  = w_flowsxc
+  endif
+
+end subroutine buildWellFlows
+
+! *************************************************************************** !
+
+subroutine findWellboreSolution(pw,option)
   !
+  ! Find gravity*(wellbore mass density) and well bore composition
+  !
+  ! Author: Dave Ponting
+  ! Date  : 09/19/18
 
-  implicit none
+  PetscReal,intent(in) :: pw
+  type(option_type), pointer :: option
 
-  PetscReal :: wd,sumgdm,sumgds,summ,sums,sp,gdp,mp
-  PetscInt :: icmpl,iphase,ierr
+  PetscInt  :: iterwbs,ixc,ix,ir,irw,ixw,jdof,jcmpl
+  PetscReal :: eps,Rnorm,so,sg,pb,deti,diff,anal,rat,pwe
+  PetscBool :: finished,usediff,usediff2
+
+! Initialise
+
+  eps = 1.0E-6
+  finished = PETSC_FALSE
+  usediff  = PETSC_FALSE
+  usediff2 = PETSC_FALSE
+
+!  Pack wellbore solution into xwbs
+
+  call packWellboreSolution(option)
+
+!  Iterate to find wellbore solution
+
+  do iterwbs = 1,max_iterWBS
+
+!  Get residuals
+
+    call getRwbsAndJwbs(pw,option)
+    do ir = 1,ws_nxw
+      rwbshold(ir) = rwbs(ir)
+      xwbshold(ir) = xwbs(ir)
+    enddo
+
+    if (usediff) then
+      do ixw = 1,ws_nxw
+
+       xwbs(ixw) = xwbshold(ixw)
+
+        eps = 1.0E-6
+        if (ixw == 1 .and. (xwbs(ixw)>0.5) ) eps = -1.0E-6
+        if (ixw == 2 ) eps = 1.0E-2
+
+        xwbs(ixw) = xwbs(ixw)+eps
+        call getRwbsAndJwbs(pw,option)
+        do ir = 1,ws_nxw
+          diff = (rwbs(ir)-rwbshold(ir))/eps
+          anal = jwbs(ir,ixw)
+          rat  = (diff+1.0E-20)/(anal+1.0E-20)
+          print *,'RwbsXw:ir,ix,d,a,rat ' ,ir,ixw,diff,anal,rat
+        enddo
+
+        xwbs(ixw) = xwbshold(ixw)
+      enddo
+    endif
+    if (usediff2) then
+      eps = 1.0
+      pwe = pw+eps
+      call getRwbsAndJwbs(pwe,option)
+      do ir = 1,ws_nxw
+        diff = (rwbs(ir)-rwbshold(ir))/eps
+        anal =  rwbspw(ir)
+        rat  = (diff+1.0E-20)/(anal+1.0E-20)
+        print *,'dRwbsPw:ir,d,a,r ',ir,diff,anal,rat
+      enddo
+    endif
+
+    call getRwbsAndJwbs(pw,option)
+
+! Find norm
+
+    Rnorm = 0.0
+    do ixw = 1,ws_nxw
+      Rnorm = Rnorm+rwbs(ixw)*rwbs(ixw)
+    enddo
+    Rnorm = sqrt(Rnorm)
+    if (Rnorm < eps .and. iterwbs>1 ) then
+      finished = PETSC_TRUE
+      call invertJacobian(deti)
+      exit
+    endif
+
+! Invert Jacobian
+
+    call invertJacobian(deti)
+
+! Find solution change
+
+    dxwbs = 0.0
+
+    do ixw = 1,ws_nxw
+      do ir = 1,ws_nxw
+        dxwbs(ixw) = dxwbs(ixw) - jwbsi(ixw,ir)*rwbs(ir)
+      enddo
+    enddo
+
+!  Do update
+
+    do ixw = 1,ws_nxw
+      xwbs(ixw) = xwbs(ixw)+dxwbs(ixw)
+    enddo
+
+    if (xwbs(1)<0.0) xwbs(1) = 0.0
+    if (xwbs(1)>1.0) xwbs(1) = 1.0
+
+!  Check for state change
+
+    if (ws_is_black_oil) then
+      so = xwbs(1)
+      if (w_issat) then
+        sg = xwbs(2)
+        pb = pw
+        if ( sg < 0.0 .and. so > eps) then
+          w_issat = PETSC_FALSE
+          xwbs(2) = pb - eps
+        endif
+        if ( sg>1.0 ) then
+          sg = 1.0
+          xwbs(2) = sg
+        endif
+      else
+        sg = 0.0
+        pb = xwbs(2)
+        if ( pb > pw .or. so <= eps) then
+          w_issat = PETSC_TRUE
+          xwbs(2) = eps
+        endif
+      endif
+    endif
+
+! Limit to positive now change detected
+
+    do ixw = 1,ws_nxw
+      if (xwbs(ixw) < 0.0) xwbs(ixw) = 0.0
+    enddo
+
+  enddo
+
+! Check for lack of convergence
+
+  if (.not.finished) then
+    call throwWellSolverException('Unable to converge wellbore solution')
+  endif
+
+!  Use implicit function theorem to find derivatives of Xw wrt Pw and Xc
+
+!  Find dXw/dPw=-(1/(dRwbs/dXw))*(dRbs/dPw)
+
+  w_dxwdpw = 0.0
+  do ixw = 1,ws_nxw
+
+    do irw = 1,ws_nxw
+      w_dxwdpw(ixw) = w_dxwdpw(ixw) - jwbsi(ixw,irw)*rwbspw(irw)
+    enddo
+
+  enddo
+
+!  Sort out dXw/dXc=-(1/(dRwbs/dXw))*(dRwbs/dXc)
+
+  w_dxwdxc = 0.0
+
+  do ixw = 1,ws_nxw
+    do jcmpl = 1,w_ncmpl
+      do jdof = 1,ws_ndof
+
+        do irw = 1,ws_nxw
+          w_dxwdxc(ixw,jcmpl,jdof) &
+        = w_dxwdxc(ixw,jcmpl,jdof) - jwbsi(ixw,irw)*rwbsxc(irw,jcmpl,jdof)
+        enddo
+
+      enddo
+    enddo
+  enddo
+
+end subroutine findWellboreSolution
+
+!*****************************************************************************!
+
+subroutine packWellboreSolution(option)
+  !
+  !  Pack the wellbore solution into the well solution array
+  !
+  ! Author: Dave Ponting
+  ! Date  : 09/19/18
+
+  type(option_type), pointer :: option
+
+  if (ws_oil) then
+    xwbs(ws_loc_soil) = w_sp(option%oil_phase)
+  endif
+
+  if (ws_gas) then
+    if (w_issat) then
+      xwbs(ws_loc_sgpb) = w_sp(option%gas_phase)
+    else
+      xwbs(ws_loc_sgpb) = w_pb
+    endif
+  endif
+
+  if (.not.ws_isothermal) then
+    xwbs(ws_loc_trel) = w_trel
+  endif
+
+  if (is_solvent) then
+    xwbs(ws_loc_sslv) = w_sp(option%solvent_phase)
+  endif
+
+end subroutine packWellboreSolution
+
+! *************************************************************************** !
+
+subroutine unpackWellboreSolution(pw,so,sg,sw,ss,pb,t)
+  !
+  !  Unpack the wellbore solution from the well solution array
+  !
+  ! Author: Dave Ponting
+  ! Date  : 09/19/18
+
+  PetscReal,intent(in)  :: pw
+  PetscReal,intent(out) :: so,sg,sw,ss,pb,t
+
+  PetscReal :: sn,sni
+
+! Initialise
+
+  ixwsg = 0
+  ixwpb = 0
+  ixwss = 0
+  ixwt  = 0
+
+  so =  0.0
+  sg =  0.0
+  ss =  0.0
+  sw =  0.0
+  t  = 15.0
+
+!  Set up saturations and pointers
+
+  if (ws_oil) then
+    ixwso = ws_loc_soil
+!  Oil in (0,1)
+    if (xwbs(ixwso)<0.0) xwbs(ixwso) = 0.0
+    if (xwbs(ixwso)>1.0) xwbs(ixwso) = 1.0
+    so = xwbs(ixwso)
+  endif
+
+  if (ws_gas) then
+    if (w_issat .or. (.not.ws_is_black_oil)) then
+      ixwsg = ws_loc_sgpb
+! Gas  >0.0 if not black oil and <1.0 all cases
+      if ((.not.ws_is_black_oil) .and. (xwbs(ixwsg)<0.0)) xwbs(ixwsg) = 0.0
+      if (                             (xwbs(ixwsg)>1.0)) xwbs(ixwsg) = 1.0
+      sg    = xwbs(ixwsg)
+      pb    = pw
+    else
+      ixwpb = ws_loc_sgpb
+      sg    = 0.0
+! Pb >0.0 all cases
+      if (xwbs(ixwpb)<0.0) xwbs(ixwpb) = 0.0
+      pb    = xwbs(ixwpb)
+    endif
+  endif
+
+  if (.not.ws_isothermal) then
+    t    = xwbs(ws_loc_trel)
+    ixwt = ws_loc_trel
+  endif
+
+  if (is_solvent) then
+    ixwss = ws_loc_sslv
+    if (xwbs(ixwss)<0.0) xwbs(ixwss) = 0.0
+    if (xwbs(ixwss)>1.0) xwbs(ixwss) = 1.0
+    ss = xwbs(ixwss)
+  endif
+
+!  Water is always present and dependent
+
+  sn = so+sg+ss
+  sw = 1.0-sn
+
+  if (sn>1.0) then
+    sni = 1.0/sn
+    if (ws_oil) then
+      xwbs(ws_loc_soil) = xwbs(ws_loc_soil)*sni
+      so                = xwbs(ws_loc_soil)
+    endif
+    if ( ws_gas .and. (w_issat .or. (.not.ws_is_black_oil)) ) then
+      xwbs(ws_loc_sgpb) = xwbs(ws_loc_sgpb)*sni
+      sg                = xwbs(ws_loc_sgpb)
+    endif
+    if ( ws_slv ) then
+      xwbs(ws_loc_sslv) = xwbs(ws_loc_sslv)*sni
+      ss                = xwbs(ws_loc_sslv)
+    endif
+    sn = so+sg+ss
+    sw = 1.0-sn
+  endif
+
+end subroutine unpackWellboreSolution
+
+! *************************************************************************** !
+
+subroutine getRwbsAndJwbs(pw,option)
+  !
+  !  Get the residual and Jacobian for the wellbore solution
+  !
+  ! Author: Dave Ponting
+  ! Date  : 09/19/18
+
+  PetscReal,intent(in) :: pw
+  type(option_type), pointer :: option
+
+  PetscReal :: so,sg,sw,ss,pb,t
+  PetscReal :: wd,sum,sumpw
+  PetscInt  :: ierr,icomp,icompc,icomph,iphase,nic,irw, &
+               ixw,ipoil,ipgas,ipwat,ipslv,eid
+  PetscInt  :: jcmpl,jdof,ippref
+
+  PetscReal,dimension(  :),allocatable :: sumxw
+  PetscReal,dimension(:,:),allocatable :: sumxc
+
+!  Initialise
+
+  allocate(sumxw(ws_nxw ))
+  allocate(sumxc(w_ncmpl,ws_ndof))
+
+  nic = ws_nxw
+  if (.not.ws_isothermal) nic = ws_nxw-1
+
+  icomph = -1
+
+  ipoil = option%oil_phase
+  ipgas = option%gas_phase
+  ipwat = option%liquid_phase
+  ipslv = option%solvent_phase
+
+  if (ws_isproducer) then
+    if(ws_oil) then
+       ippref = ipoil
+     else
+       ippref = ipwat
+    endif
+   endif
+
+  eid = option%energy_id
+
+!  Zero wellbore residual, derivative wrt Pw and Jacobian
+
+  rwbs   = 0.0
+  rwbspw = 0.0
+  jwbs   = 0.0
+  rwbsxc = 0.0
+
+!  Unpack the wellbore solution from xwbs
+
+  call unpackWellboreSolution(pw,so,sg,sw,ss,pb,t)
+
+!  Get wellbore properties
+
+  call findWellborePropertiesAndDerivatives(pw,so,sg,sw,ss,pb,t,option)
+
+!  Now calculate all the completion flows
+
+  call findAllCompletionFlows(pw,option)
+
+!  Sum to find well flows
+
+  call buildWellFlows()
+
+!  Find if producing or not
+
+  sum   = 0.0
+  sumpw = 0.0
+  sumxw = 0.0
+  sumxc = 0.0
+
+  do icomp = 1,ws_ncomp
+
+    sum   = sum   + w_flowsG  (icomp)
+    sumpw = sumpw + w_flowsGpw(icomp)
+    do ixw = 1,ws_nxw
+      sumxw(ixw) = sumxw(ixw) + w_flowsGxw(icomp,ixw)
+    enddo
+
+    do jcmpl = 1,w_ncmpl
+      do jdof = 1,ws_ndof
+        sumxc(jcmpl,jdof) = sumxc(jcmpl,jdof) + w_flowsGxc(icomp,jcmpl,jdof)
+      enddo
+    enddo
+
+  enddo
+
+!  Setup flow part of residual (if isothermal,just ncomps-1 flows)
+
+  do icompc = 1,nic
+    rwbs  (icompc) = w_flowsG  (icompc)
+    rwbspw(icompc) = w_flowsGpw(icompc)
+    do ixw = 1,ws_nxw
+      jwbs(icompc,ixw) = w_flowsGxw(icompc,ixw)
+    enddo
+    do jcmpl = 1,w_ncmpl
+      do jdof = 1,ws_ndof
+        rwbsxc(icompc,jcmpl,jdof) &
+      = rwbsxc(icompc,jcmpl,jdof) + w_flowsGxc(icompc,jcmpl,jdof)
+      enddo
+    enddo
+  enddo
+
+! In thermal case, last equation is heat
+
+  if (.not.ws_isothermal) then
+
+    icomph = ws_nxw
+
+    rwbs  (icomph) = w_flowsG  (eid)
+    rwbspw(icomph) = w_flowsGpw(eid)
+
+    do ixw = 1,ws_nxw
+      jwbs(icomph,ixw) = w_flowsGxw(eid,ixw)
+    enddo
+
+    do jcmpl = 1,w_ncmpl
+      do jdof = 1,ws_ndof
+        rwbsxc(icomph,jcmpl,jdof) &
+      = rwbsxc(icomph,jcmpl,jdof) + w_flowsGxc(eid,jcmpl,jdof)
+      enddo
+    enddo
+
+  endif
+
+!  Update residuals with flow to/from surface term
+
+  if (sum>0.0) then
+
+!  Is producing = subtract outflow equal to (sum times wellbore molar density)
+
+    do icompc = 1,nic
+
+      rwbs  (icompc) = rwbs  (icompc) -    sum  *w_zmf  (icompc)
+      rwbspw(icompc) = rwbspw(icompc) - (  sumpw*w_zmf  (icompc) &
+                                         + sum  *w_zmfpw(icompc) )
+      do ixw = 1,ws_nxw
+        jwbs(icompc,ixw) = jwbs(icompc,ixw)-( sumxw(ixw)*w_zmf  (icompc    ) &
+                                             +sum       *w_zmfxw(icompc,ixw) )
+      enddo
+
+      do jcmpl = 1,w_ncmpl
+        do jdof = 1,ws_ndof
+           rwbsxc(icompc,jcmpl,jdof) &
+         = rwbsxc(icompc,jcmpl,jdof) - sumxc(jcmpl,jdof)*w_zmf(icompc)
+        enddo
+      enddo
+
+    enddo
+
+!  Thermal part
+
+    if (.not.ws_isothermal) then
+      rwbs  (icomph) = rwbs  (icomph)-sum  *w_hpm
+      rwbspw(icomph) = rwbspw(icomph)-sumpw*w_hpm   &
+                                     -sum  *w_hpmdpw
+      do ixw = 1,ws_nxw
+        jwbs(icomph,ixw) = jwbs(icomph,ixw)-sumxw(ixw)*w_hpm         &
+                                           -sum       *w_hpmdxw(ixw)
+      enddo
+
+      do jcmpl = 1,w_ncmpl
+        do jdof = 1,ws_ndof
+          rwbsxc(icomph,jcmpl,jdof) &
+        = rwbsxc(icomph,jcmpl,jdof)-sumxc(jcmpl,jdof)*w_hpm
+        enddo
+      enddo
+
+    endif
+  else
+
+!  Is injecting, subtract outflow (add inflow)
+!  equal to sum times injection component molar density
+
+    do icompc = 1,nic
+      if (     ( ws_isproducer    .and. icompc == ippref ) &
+          .or. ( ws_isoilinjector .and. icompc == ipoil  ) &
+          .or. ( ws_isgasinjector .and. icompc == ipgas  ) &
+          .or. ( ws_iswatinjector .and. icompc == ipwat  ) &
+          .or. ( ws_isslvinjector .and. icompc == ipslv  ) ) then
+
+        rwbs  (icompc) = rwbs  (icompc)-sum
+        rwbspw(icompc) = rwbspw(icompc)-sumpw
+
+        do ixw = 1,ws_nxw
+          jwbs(icompc,ixw) = jwbs(icompc,ixw)-sumxw(ixw)
+        enddo
+
+        do jcmpl = 1,w_ncmpl
+          do jdof = 1,ws_ndof
+             rwbsxc(icompc,jcmpl,jdof) &
+           = rwbsxc(icompc,jcmpl,jdof) - sumxc(jcmpl,jdof)
+          enddo
+        enddo
+
+      endif
+    enddo
+
+! Thermal part
+
+    if (.not.ws_isothermal) then
+
+      rwbs  (icomph) = rwbs  (icomph)-sum  *ws_injection_h
+      rwbspw(icomph) = rwbspw(icomph)-sumpw*ws_injection_h
+
+      do ixw = 1,ws_nxw
+        jwbs(icomph,ixw) = jwbs(icomph,ixw)-sumxw(ixw)*ws_injection_h
+      enddo
+
+      do jcmpl = 1,w_ncmpl
+        do jdof = 1,ws_ndof
+           rwbsxc(icomph,jcmpl,jdof) &
+         = rwbsxc(icomph,jcmpl,jdof) - sumxc(jcmpl,jdof)*ws_injection_h
+        enddo
+      enddo
+
+    endif
+  endif
+
+!  Release work arrays
+
+  deallocate(sumxw)
+  deallocate(sumxc)
+
+end subroutine getRwbsAndJwbs
+
+! *************************************************************************** !
+
+subroutine findWellboreGravityDensityPredictor()
+  !
+  ! Find predictor value for well gravity density (does not need Pw)
+  !
+  ! Author: Dave Ponting
+  ! Date  : 09/19/18
+
+  PetscReal :: sumgdm,sumgds,summ,sums,sp,gdp,mp,wd
+  PetscInt  :: icmpl,iphase,ierr
   PetscReal,dimension(FOUR_INTEGER) :: sl
-  PetscReal,dimension(FOUR_INTEGER) :: rg
+  PetscReal,dimension(FOUR_INTEGER) :: sg
 
   wd = 0.0
 
@@ -1229,8 +2376,8 @@ subroutine findWellboreGravityDensity()
   summ = 0.0
   sums = 0.0
 
-  do icmpl=1,w_ncmpl
-    do iphase=1,ws_nphase
+  do icmpl = 1,w_ncmpl
+    do iphase = 1,ws_nphase
       sp  = c_sp  (icmpl,iphase)
       mp  = c_mob (icmpl,iphase)
       gdp = c_kgdp(icmpl,iphase)
@@ -1244,102 +2391,556 @@ subroutine findWellboreGravityDensity()
 !  In case of cross-proc well continue summation over processors
 
   if (w_crossproc) then
-    ierr= 0
-    rg = 0.0
+    ierr = 0
+    sg   = 0.0
     sl(1) = sumgdm
     sl(2) = sumgds
     sl(3) = summ
     sl(4) = sums
-    call MPI_ALLREDUCE(sl,rg,FOUR_INTEGER, &
+    call MPI_ALLREDUCE(sl,sg,FOUR_INTEGER, &
                        MPI_DOUBLE_PRECISION,MPI_SUM,w_comm,ierr)
-    sumgdm = rg(1)
-    sumgds = rg(2)
-    summ   = rg(3)
-    sums   = rg(4)
+    sumgdm = sg(1)
+    sumgds = sg(2)
+    summ   = sg(3)
+    sums   = sg(4)
   endif
 
-!  For density in Kg/rm3
+!  Form density in Kg/rm3
 
-  if (summ > 0.0) then
+  if ( summ>0.0 ) then
     wd = sumgdm/summ
   else
     wd = sumgds/sums
   endif
 
-!--Store result with gravity constant included
+!  Store result with gravity constant included
 
   w_gd = wd*ws_gravity
 
-end subroutine findWellboreGravityDensity
+end subroutine findWellboreGravityDensityPredictor
 
-! *************************************************************************** !
+!  **************************************************************************** !
 
-subroutine findBackflowWellPressure()
+subroutine findWellborePropertiesAndDerivatives(pw,so,sg,sw,ss,pb,t,option)
   !
-  ! Find the pressure at which the well will attempt to backflow
+  ! Find values and derivs of properties used to obtain well gravity density
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
-  !
+  ! Date  : 10/15/18
+
+  use EOS_Water_module
+  use EOS_Gas_module
+  use EOS_Oil_module
+  use EOS_Slv_module
 
   implicit none
 
-  PetscInt :: icmpl,ierr
-  PetscReal :: pwbf,z,dhh,pwbfc
-  PetscReal,dimension(1) :: sl
-  PetscReal,dimension(1) :: rg
+  PetscReal,intent(in)  :: pw,so,sg,sw,ss,pb,t
+  type(option_type), pointer :: option
 
-  ierr = 0
+  PetscReal :: mdos,mdost,mdospb
+  PetscReal :: usf,usft,usfpw,usfpb
+  PetscReal :: cr,crt,crpb
+  PetscReal :: crusp,cruspt,crusppw,crusppb
+  PetscReal :: mdo,mdot,mdopw,mdopb,hot,hop
+  PetscReal :: uodum,uotdum,uopdum,kgdo,kgdot,kgdop,kgdopb
+  PetscReal :: mdg,mdgt,mdgp,kgdg,kgdgt,kgdgp,hgt,hgp,ugdum,ugtdum,ugpdum
+  PetscReal :: hs,hst,hsp,usdum,ustdum,uspdum
+  PetscReal :: mdw,mdwp,mdwt,kgdw,hwp,hwt,uw
+  PetscReal :: mds,mdsp,mdst,kgds,kgdst,kgdsp,us,z
+  PetscReal :: ho,hg,hw
 
-!  For producer, find maximum of pw values at which injection starts
+  PetscReal :: sp,mdp,hp
+  PetscReal :: spP
+  PetscReal :: spX,mdpX,hpX
 
-  if (ws_isproducer) then
-    pwbf = 0.0
-    do icmpl = 1,w_ncmpl
-      z   = c_z  (icmpl)
-      dhh = z-w_zref
-      pwbfc =c_P(icmpl)+w_gd*dhh
-      if( pwbfc > pwbf ) pwbf = pwbfc
-    enddo
+  PetscReal :: rsm,rsmt,rsmpb
+  PetscReal :: den,deni,deni2,dent,denpb
+  PetscReal :: xo,xg,xot,xopb,xgt,xgpb
+  PetscReal :: mwo,mwg,mws,mww,wd,sum,sumi,sumpw
 
-!  Take cross-proc value if required
+  PetscInt :: ierr,iphase,icomp,icoil,icgas
+  PetscInt :: ipoil,ipgas,ipwat,ipslv,ixw
 
-    if (w_crossproc) then
-      rg =0.0
-      sl(1) = pwbf
-      call MPI_ALLREDUCE(sl,rg,ONE_INTEGER, &
-                         MPI_DOUBLE_PRECISION,MPI_MAX,w_comm,ierr)
-      pwbf = rg(1)
+  PetscReal,dimension(:),allocatable :: sumxw
+
+  PetscInt, pointer :: table_idx(:)
+
+!  Initialise local variables
+
+  ipoil = option%oil_phase
+  ipgas = option%gas_phase
+  ipwat = option%liquid_phase
+  ipslv = option%solvent_phase
+
+!  Molar density of saturated oil
+
+  mdos    = 0.0
+  mdost   = 0.0
+  mdospb  = 0.0
+
+!  Undersaturation
+
+  usf     = 0.0
+  usft    = 0.0
+  usfpw   = 0.0
+  usfpb   = 0.0
+
+!  Compressibility
+
+  cr      = 0.0
+  crt     = 0.0
+  crpb    = 0.0
+
+!  Compressibility times undersaration
+
+  crusp   = 0.0
+  cruspt  = 0.0
+  crusppw = 0.0
+  crusppb = 0.0
+
+!  Molar and enthapy density of oil
+
+  mdo     = 0.0
+  mdot    = 0.0
+  mdopw   = 0.0
+  mdopb   = 0.0
+
+  ho      = 0.0
+  hg      = 0.0
+  hw      = 0.0
+  hs      = 0.0
+
+!  Molar density and enthalpy of gas
+
+  mdg     = 0.0
+  mdgt    = 0.0
+  mdgp    = 0.0
+
+  hg      = 0.0
+  hgt     = 0.0
+  hgp     = 0.0
+
+  ugdum   = 0.0
+  ugtdum  = 0.0
+  ugpdum  = 0.0
+
+!  Set up work array
+
+  allocate(sumxw(ws_ncomp))
+  sumxw = 0.0
+
+!  Set up dummy table_idx
+
+  table_idx => null()
+
+  if (option%num_table_indices > 0) then
+    allocate(table_idx(option%num_table_indices))
+    table_idx = 1
+  endif
+
+!  Get oil and gas molecular weights
+
+  mwo = EOSOilGetFMW()
+  mwg = EOSGasGetFMW()
+  if (is_solvent) then
+    mws = EOSSlvGetFMW()
+  else
+    mws = 0.0
+  endif
+  mww = FMWH2O
+
+!  Default oil composition (as mole fractions)
+
+  xo = 1.0
+  xg = 0.0
+
+  xot  = 0.0
+  xopb = 0.0
+  xgt  = 0.0
+  xgpb = 0.0
+
+!  Initialise the output properties and derivatives
+
+!  Saturations
+  w_sp     = 0.0
+  w_spxw   = 0.0
+
+! Molar density of each phase
+  w_mdp    = 0.0
+  w_mdppw  = 0.0
+  w_mdpxw  = 0.0
+
+! Total molar density of each component
+  w_mdc    = 0.0
+  w_mdcpw  = 0.0
+  w_mdcxw  = 0.0
+
+!  Total mole fractions
+  w_zmf    = 0.0
+  w_zmfpw  = 0.0
+  w_zmfxw  = 0.0
+
+!  Mass density of each phase
+  w_kgdp   = 0.0
+  w_kgdppw = 0.0
+  w_kgdpxw = 0.0
+
+! Molar enthaply of each phase
+  w_hp     = 0.0
+  w_hpdpw  = 0.0
+  w_hpdxw  = 0.0
+
+! Total enthalpy density
+  w_h      = 0.0
+  w_hdpw   = 0.0
+  w_hdxw   = 0.0
+
+! Molar enthalpy density
+  w_hpm    = 0.0
+  w_hpmdpw = 0.0
+  w_hpmdxw = 0.0
+
+! Total gravity density
+  w_gd     = 0.0
+  w_gdpw   = 0.0
+  w_gdxw   = 0.0
+
+!  Set up saturations and derivatives
+
+  if (ws_oil) then
+    w_sp  (ipoil) = so
+    w_spxw(ipoil,ixwso) =  1.0
+    w_spxw(ipwat,ixwso) = -1.0
+  endif
+
+  if (ws_gas) then
+    w_sp(ipgas) = sg
+    if ( ixwsg>0 ) then
+      w_spxw(ipgas,ixwsg) =  1.0
+      w_spxw(ipwat,ixwsg) = -1.0
     endif
+  endif
+
+  w_sp(ipwat) = sw
+
+  if ( is_solvent ) then
+    w_sp  (ipslv      ) =  ss
+    w_spxw(ipslv,ixwss) =  1.0
+    w_spxw(ipwat,ixwss) = -1.0
+  endif
+
+!  Get oil phase molar density and phase molar enthalpy
+
+  if ( ws_oil ) then
+
+    call EOSOilDensityEnergy(t,pw,mdo,mdot,mdopw, &
+                                  ho ,hot ,hop  , &
+                                  uodum ,uotdum ,uopdum  ,ierr,table_idx)
+    ho  = ho  * 1.d-6 ! J/kmol -> MJ/kmol
+    hot = hot * 1.d-6
+    hop = hop * 1.d-6
+
+! Special case of black oil
+    if (ws_is_black_oil) then
+
+      call EOSOilRS(t,pb,rsm,rsmt,rsmpb,ierr,table_idx)
+      den = 1.0+rsm
+      deni = 0.0
+      if (den /= 0.0) then
+        deni = 1.0/den
+      endif
+      deni2 = deni*deni
+
+      dent  = rsmt
+      denpb = rsmpb
+
+      xo =     deni
+      xg = rsm*deni
+
+      xot  = -deni2*dent
+      xopb = -deni2*denpb
+
+      xgt  = (rsmt -xg*dent )*deni
+      xgpb = (rsmpb-xg*denpb)*deni
+
+      call EOSOilDensity        (t,pb,mdos,mdost,mdospb,ierr,table_idx)
+      call EOSOilCompressibility(t,pb,cr  ,crt  ,crpb  ,ierr,table_idx)
+
+      if (w_issat) then
+
+        mdo   = mdos
+        mdopw = mdospb
+
+      else
+
+        crusp   =  cr *(pw-pb)
+        cruspt  =  crt*(pw-pb)
+        crusppw =  cr
+        crusppb = -cr+crpb*(pw-pb)
+
+        usf   =  1.0+crusp*(1.0+0.5*crusp)
+        usft  = (1.0+crusp)*cruspt
+        usfpw = (1.0+crusp)*crusppw
+        usfpb = (1.0+crusp)*crusppb
+
+        mdo   = mdos*usf
+        mdot  = mdos*usft +mdost *usf
+        mdopw = mdos*usfpw
+        mdopb = mdos*usfpb+mdospb*usf
+
+      endif
+
+    endif
+
+! Store oil molar density and derivatives
+
+    if (ws_is_black_oil) then
+
+                   w_mdp   (ipoil)       = mdo
+                   w_mdppw (ipoil)       = mdopw
+      if (ixwt >0) w_mdpxw (ipoil,ixwt ) = mdot
+      if (ixwpb>0) w_mdpxw (ipoil,ixwpb) = mdopb
+
+                   w_kgdp  (ipoil)       = mdo  *(xo*mwo+xg*mwg)
+                   w_kgdppw(ipoil)       = mdopw*(xo*mwo+xg*mwg)
+      if (ixwt >0) w_kgdpxw(ipoil,ixwt ) = mdot *(xo *mwo+xg *mwg) &
+                                           +mdo  *(xot*mwo+xgt*mwg)
+      if (ixwpb>0) w_kgdpxw(ipoil,ixwpb) = mdopb*(xo  *mwo+xg  *mwg) &
+                                           +mdo  *(xopb*mwo+xgpb*mwg)
+    else
+                   w_mdp   (ipoil)       = mdo
+                   w_mdppw (ipoil)       = mdopw
+      if (ixwt >0) w_mdpxw (ipoil,ixwt ) = mdot
+
+                  w_kgdp  (ipoil)       = mdo  *mwo
+                  w_kgdppw(ipoil)       = mdopw*mwo
+      if (ixwt >0) w_kgdpxw(ipoil,ixwt ) = mdot *mwo
+
+    endif
+
+                 w_hp   (ipoil)       = ho
+                 w_hpdpw(ipoil)       = hop
+    if (ixwt >0) w_hpdxw(ipoil,ixwt ) = hot
 
   endif
 
-!  For injector, find minimum of pw values at which production start
+!  Gas molar density and derivatives
 
-  if (ws_isinjector) then
-    pwbf = 1.0D10
-    do icmpl = 1,w_ncmpl
-      z   = c_z  (icmpl)
-      dhh = z-w_zref
-      pwbfc = c_P(icmpl)+w_gd*dhh
-      if( pwbfc < pwbf ) pwbf = pwbfc
-    enddo
+  if (ws_gas) then
 
-!  Take cross-proc value if required
+    call EOSGasDensityEnergy( t,pw,mdg  ,mdgt  ,mdgp &
+                                  ,hg   ,hgt   ,hgp  &
+                                  ,ugdum,ugtdum,ugpdum,ierr )
+    hg  = hg  * 1.d-6 ! J/kmol -> MJ/kmol
+    hgt = hgt * 1.d-6
+    hgp = hgp * 1.d-6
 
-    if (w_crossproc) then
-      rg = 0.0
-      sl(1) = pwbf
-      call MPI_ALLREDUCE(sl,rg,ONE_INTEGER, &
-                         MPI_DOUBLE_PRECISION,MPI_MIN,w_comm,ierr)
-      pwbf = rg(1)
-    endif
+                w_mdp   (ipgas)      = mdg
+                w_mdppw (ipgas)      = mdgp
+    if (ixwt>0) w_mdpxw (ipgas,ixwt) = mdgt
+
+                w_kgdp  (ipgas)      = mdg *mwg
+                w_kgdppw(ipgas)      = mdgp*mwg
+    if (ixwt>0) w_kgdpxw(ipgas,ixwt) = mdgt*mwg
+
+                w_hp   (ipgas)       = hg
+                w_hpdpw(ipgas)       = hgp
+    if (ixwt>0) w_hpdxw(ipgas,ixwt)  = hgt
 
   endif
 
-  ws_pwbf = pwbf
+!  Water molar density and derivatives
 
-end subroutine findBackflowWellPressure
+  if ( ws_wat ) then
+
+    call EOSWaterDensity    (t,pw,kgdw,mdw,mdwp,mdwt,ierr)
+    call EOSWaterEnthalpy   (t,pw,hw,hwp,hwt        ,ierr)
+    hw  = hw  * 1.d-6 ! J/kmol -> MJ/kmol
+    hwt = hwt * 1.d-6
+    hwp = hwp * 1.d-6
+
+                w_mdp   (ipwat)      = mdw
+                w_mdppw (ipwat)      = mdwp
+    if (ixwt>0) w_mdpxw (ipwat,ixwt) = mdwt
+
+                w_kgdp  (ipwat)      = mdw *mww
+                w_kgdppw(ipwat)      = mdwp*mww
+    if (ixwt>0) w_kgdpxw(ipwat,ixwt) = mdwt*mww
+
+                w_hp   (ipwat)       = hw
+                w_hpdpw(ipwat)       = hwp
+    if (ixwt>0) w_hpdxw(ipwat,ixwt)  = hwt
+
+  endif
+
+!  Solvent molar density and derivatives
+
+  if (is_solvent) then
+
+    call EOSSlvDensity(t,pw,mds,mdst,mdsp,ierr,table_idx)
+    call EOSSlvEnergy (t,pw,hs,hst,hsp,usdum,ustdum,uspdum,ierr)
+
+    hs  = hs  * 1.d-6 ! J/kmol -> MJ/kmol
+    hst = hst * 1.d-6
+    hsp = hsp * 1.d-6
+
+                w_mdp   (ipslv)      = mds
+                w_mdppw (ipslv)      = mdsp
+    if (ixwt>0) w_mdpxw (ipslv,ixwt) = mdst
+
+                w_kgdp  (ipslv)      = mds *mws
+                w_kgdppw(ipslv)      = mdsp*mws
+    if (ixwt>0) w_kgdpxw(ipslv,ixwt) = mdst*mws
+
+                w_hp    (ipslv)      = hs
+                w_hpdpw (ipslv)      = hsp
+    if (ixwt>0) w_hpdxw (ipslv,ixwt) = hst
+
+  endif
+
+!  Form total well molar densities
+
+  w_mdc   = 0.0
+  w_mdcpw = 0.0
+  w_mdcxw = 0.0
+
+  if (ws_is_black_oil) then
+!  Black-oil - oil contains both oil and gas compositions
+    do iphase = 1,ws_nphase
+      sp  = w_sp (iphase)
+      mdp = w_mdp(iphase)
+      if (iphase == option%oil_phase) then
+        icoil = option%oil_phase
+        icgas = option%gas_phase
+        w_mdc  (icoil) = w_mdc  (icoil)+xo*sp*mdp
+        w_mdc  (icgas) = w_mdc  (icgas)+xg*sp*mdp
+        w_mdcpw(icoil) = w_mdcpw(icoil)+xo*sp*w_mdppw(iphase)
+        w_mdcpw(icgas) = w_mdcpw(icgas)+xg*sp*w_mdppw(iphase)
+        do ixw = 1,ws_nxw
+          w_mdcxw(icoil,ixw) = w_mdcxw(icoil,ixw) &
+                              + xo*(  w_spxw(iphase,ixw)*mdp &
+                                    + sp                *w_mdpxw(iphase,ixw) )
+          w_mdcxw(icgas,ixw) = w_mdcxw(icgas,ixw) &
+                              + xg*(  w_spxw(iphase,ixw)*mdp &
+                                    + sp                *w_mdpxw(iphase,ixw) )
+          if (ixw == ixwpb) then
+            w_mdcxw(icoil,ixw) = w_mdcxw(icoil,ixw) + xopb*sp*mdp
+            w_mdcxw(icgas,ixw) = w_mdcxw(icgas,ixw) + xgpb*sp*mdp
+          endif
+          if (ixw == ixwt) then
+            w_mdcxw(icoil,ixw) = w_mdcxw(icoil,ixw) + xot*w_sp(iphase)*mdp
+            w_mdcxw(icgas,ixw) = w_mdcxw(icgas,ixw) + xgt*w_sp(iphase)*mdp
+          endif
+        enddo
+      else
+        icomp = iphase
+        w_mdc  (icomp) = w_mdc  (icomp)+sp*mdp
+        w_mdcpw(icomp) = w_mdcpw(icomp)+sp*w_mdppw(iphase)
+
+        do ixw = 1,ws_nxw
+          w_mdcxw(icomp,ixw) = w_mdcxw(icomp,ixw) &
+                              + sp*w_mdpxw(iphase,ixw) &
+                              + w_spxw(iphase,ixw)*mdp
+        enddo
+      endif
+    enddo
+  else
+!  Non black-oil - each phase contains just its own composition
+    do iphase = 1,ws_nphase
+      icomp = iphase
+      w_mdc  (icomp) = w_mdc  (icomp)+w_sp(iphase)*w_mdp  (iphase)
+      w_mdcpw(icomp) = w_mdcpw(icomp)+w_sp(iphase)*w_mdppw(iphase)
+
+      do ixw = 1,ws_nxw
+        w_mdcxw(icomp,ixw) =   w_mdcxw(icomp,ixw) &
+                             + w_spxw(iphase,ixw)*w_mdp  (iphase    ) &
+                             + w_sp  (iphase    )*w_mdpxw(iphase,ixw)
+      enddo
+    enddo
+  endif
+
+!  Build up wellbore mole fractions
+
+  sum   = 0.0
+  sumi  = 0.0
+  sumpw = 0.0
+  sumxw = 0.0
+
+  do icomp = 1,ws_ncomp
+    sum   = sum  + w_mdc  (icomp)
+    sumpw = sumpw+ w_mdcpw(icomp)
+    do ixw = 1,ws_nxw
+      sumxw(ixw) = sumxw(ixw)+ w_mdcxw(icomp,ixw)
+    enddo
+  enddo
+
+  if (sum>0.0) then
+    sumi = 1.0/sum
+    do icomp = 1,ws_ncomp
+      z = w_mdc(icomp)*sumi
+      w_zmf  (icomp) =  z
+      w_zmfpw(icomp) = (w_mdcpw(icomp)-z*sumpw)*sumi
+      do ixw = 1,ws_nxw
+        w_zmfxw(icomp,ixw) = (w_mdcxw(icomp,ixw)-z*sumxw(ixw))*sumi
+      enddo
+    enddo
+  endif
+
+!  Build up wellbore saturation*density
+
+  do iphase = 1,ws_nphase
+
+    w_gd   = w_gd   + w_sp (iphase)*w_kgdp  (iphase)*ws_gravity
+    w_gdpw = w_gdpw + w_sp (iphase)*w_kgdppw(iphase)*ws_gravity
+    do ixw = 1,ws_nxw
+      w_gdxw(ixw) = w_gdxw(ixw) &
+                   + ( w_spxw(iphase,ixw)*w_kgdp  (iphase    ) &
+                      +w_sp  (iphase    )*w_kgdpxw(iphase,ixw) )*ws_gravity
+    enddo
+
+  enddo
+
+!  Build up enthalpy per unit reservoir volume
+
+  do iphase = 1,ws_nphase
+
+    sp  = w_sp (iphase)
+    hp  = w_hp (iphase)
+    mdp = w_mdp(iphase)
+
+    w_h    = w_h    + sp*mdp*hp
+    w_hdpw = w_hdpw + sp*( w_mdppw(iphase)*hp              &
+                          +  mdp          *w_hpdpw(iphase) )
+
+    do ixw = 1,ws_nxw
+
+      spX  = w_spxw (iphase,ixw)
+      hpX  = w_hpdxw(iphase,ixw)
+      mdpX = w_mdpxw(iphase,ixw)
+
+      w_hdxw(ixw) = w_hdxw(ixw) + spX*mdp*hp + sp*mdpX*hp + sp*mdp*hpX
+    enddo
+
+  enddo
+
+!  Build up enthalpy per mole as (enthalpy/res.vol.)/(moles/res.vol.)
+
+  w_hpm    =  w_h                *sumi
+  w_hpmdpw = (w_hdpw-w_hpm*sumpw)*sumi
+  do ixw = 1,ws_nxw
+    w_hpmdxw(ixw) = (w_hdxw(ixw)-w_hpm*sumxw(ixw))*sumi
+  enddo
+
+!  Free the table index array and sumxw arrays
+
+  if (option%num_table_indices > 0) then
+    deallocate(table_idx)
+  endif
+
+  deallocate(sumxw)
+
+end subroutine findWellborePropertiesAndDerivatives
 
 ! *************************************************************************** !
 
@@ -1348,15 +2949,12 @@ subroutine wellSolverLoaderTOWG(aux,option)
   ! Load completion solution arrays for TOWG mode
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
-  !
+  ! Date  : 09/19/18
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use Auxiliary_module
   use PM_TOWG_Aux_module
-
-  implicit none
 
   type(auxiliary_type) :: aux
   type(option_type), pointer :: option
@@ -1365,7 +2963,9 @@ subroutine wellSolverLoaderTOWG(aux,option)
 
   PetscInt :: icmpl,ghosted_id
 
-  towg=>aux%TOWG
+  ws_xpr = TOWG_OIL_PRESSURE_DOF
+
+  towg => aux%TOWG
 
   do icmpl = 1,w_ncmpl
    ghosted_id = c_ghosted_id(icmpl)
@@ -1374,68 +2974,401 @@ subroutine wellSolverLoaderTOWG(aux,option)
 
 end subroutine wellSolverLoaderTOWG
 
-!*****************************************************************************!
-
-subroutine loadCellDataTOWG(auxvar,option,icmpl)
-  !
-  ! Load completion cell arrays for TOWG mode (for one cell)
-  !
-  ! Author: Dave Ponting
-  ! Date: 08/15/18
-  !
-
-  use AuxVars_TOWG_module
-
-  implicit none
-
-  class(auxvar_towg_type) :: auxvar
-  type(option_type), pointer :: option
-  PetscInt ,intent(in) :: icmpl
-  PetscInt :: iphase
-
-  c_p (icmpl) = auxvar%pres(option%oil_phase)
-  c_pb(icmpl) = auxvar%bo%bubble_point
-
-  do iphase = 1, ws_nphase
-    c_mdp (icmpl,iphase) = auxvar%den     (iphase)
-    c_sp  (icmpl,iphase) = auxvar%sat     (iphase)
-    c_mob (icmpl,iphase) = auxvar%mobility(iphase)
-    c_kgdp(icmpl,iphase) = auxvar%den_kg  (iphase)
-    c_hp  (icmpl,iphase) = auxvar%H       (iphase)
-  enddo
-
-  c_xo(icmpl) = auxvar%bo%xo
-  c_xg(icmpl) = auxvar%bo%xg
-
-end subroutine loadCellDataTOWG
-
-! **************************************************************************** !
+! *************************************************************************** !
 
 subroutine wellSolverLoaderTOIL(aux,option)
   !
-  ! Well solver loader for TOIl mode (not yet supported)
+  ! Well solver loader for TOIl mode
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
-  !
+  ! Date  : 09/19/18
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use Auxiliary_module
   use PM_TOilIms_Aux_module
 
-  implicit none
-
   type(auxiliary_type) :: aux
   type(option_type), pointer :: option
 
-  class(pm_toil_ims_aux_type), pointer :: TOil_ims
+  class(pm_toil_ims_aux_type), pointer :: toil
 
-  TOil_ims => aux%TOil_ims
+  PetscInt :: icmpl,ghosted_id
 
-  call throwWellSolverException('TOIL mode not yet supported by SolveWell')
+  ws_xpr = TOIL_IMS_PRESSURE_DOF
+
+  toil => aux%TOil_ims
+
+  do icmpl = 1,w_ncmpl
+   ghosted_id = c_ghosted_id(icmpl)
+     call loadCellDataTOIL(toil%auxvars(ZERO_INTEGER,ghosted_id),option,icmpl)
+  enddo
 
 end subroutine wellSolverLoaderTOIL
+
+! **************************************************************************** !
+
+subroutine loadCellDataTOWG(auxvar,option,icmpl)
+  !
+  ! Load completion cell arrays for TOWG mode (for one cell)
+  !
+  ! Author: Dave Ponting
+  ! Date  : 09/19/18
+
+  use AuxVars_TOWG_module
+
+  class(auxvar_towg_type) :: auxvar
+  type(option_type), pointer :: option
+  PetscInt ,intent(in) :: icmpl
+  PetscInt :: iphase,idof
+
+  c_p (icmpl) = auxvar%pres(option%oil_phase)
+  c_t (icmpl) = auxvar%temp
+  if (ws_is_black_oil) then
+    c_pb(icmpl) = auxvar%bo%bubble_point
+  endif
+
+  do iphase = 1, ws_nphase
+
+    c_mdp (icmpl,iphase) = auxvar%den     (iphase)
+    c_sp  (icmpl,iphase) = auxvar%sat     (iphase)
+    c_mob (icmpl,iphase) = auxvar%mobility(iphase)
+    c_kgdp(icmpl,iphase) = auxvar%den_kg  (iphase)
+    c_hp  (icmpl,iphase) = auxvar%H       (iphase)
+
+    if (.not.option%flow%numerical_derivatives) then
+      do idof = 1,ws_ndof
+        c_mdpX (icmpl,iphase,idof) = auxvar%D_den     (iphase,idof)
+        c_spX  (icmpl,iphase,idof) = auxvar%D_sat     (iphase,idof)
+        c_mobX (icmpl,iphase,idof) = auxvar%D_mobility(iphase,idof)
+        c_kgdpX(icmpl,iphase,idof) = auxvar%D_den_kg  (iphase,idof)
+        c_hpX  (icmpl,iphase,idof) = auxvar%D_H       (iphase,idof)
+        if (ws_isothermal .and. (idof.eq.towg_energy_dof)) then
+          c_mdpX (icmpl,iphase,idof) = 0.0
+          c_spX  (icmpl,iphase,idof) = 0.0
+          c_mobX (icmpl,iphase,idof) = 0.0
+          c_kgdpX(icmpl,iphase,idof) = 0.0
+          c_hpX  (icmpl,iphase,idof) = 0.0
+        endif
+      enddo
+    endif
+
+  enddo
+
+  if (ws_is_black_oil) then
+
+    c_xo(icmpl) = auxvar%bo%xo
+    c_xg(icmpl) = auxvar%bo%xg
+
+    if (.not.option%flow%numerical_derivatives) then
+      do idof = 1,ws_ndof
+        c_xoX(icmpl,idof) = auxvar%bo%D_xo(idof)
+        c_xgX(icmpl,idof) = auxvar%bo%D_xg(idof)
+        if (ws_isothermal .and. (idof.eq.towg_energy_dof)) then
+          c_xoX(icmpl,idof) = 0.0
+          c_xgX(icmpl,idof) = 0.0
+        endif
+      enddo
+    endif
+
+  endif
+
+end subroutine loadCellDataTOWG
+
+! **************************************************************************** !
+
+subroutine loadCellDataTOIL(auxvar,option,icmpl)
+  !
+  ! Load completion cell arrays for TOIL mode (for one cell)
+  !
+  ! Author: Dave Ponting
+  ! Date  : 09/19/18
+
+  use Material_Aux_class
+  use AuxVars_TOilIms_module
+  use PM_TOilIms_Aux_module
+
+  implicit none
+
+  class(auxvar_toil_ims_type) :: auxvar
+  type(option_type), pointer :: option
+  PetscInt ,intent(in) :: icmpl
+  PetscInt :: iphase,idof
+
+  c_p (icmpl) = auxvar%pres(option%oil_phase)
+  c_t (icmpl) = auxvar%temp
+
+  do iphase = 1, ws_nphase
+
+    c_mdp (icmpl,iphase) = auxvar%den     (iphase)
+    c_sp  (icmpl,iphase) = auxvar%sat     (iphase)
+    c_mob (icmpl,iphase) = auxvar%mobility(iphase)
+    c_kgdp(icmpl,iphase) = auxvar%den_kg  (iphase)
+    c_hp  (icmpl,iphase) = auxvar%H       (iphase)
+
+    if (.not.option%flow%numerical_derivatives) then
+      do idof = 1,ws_ndof
+        c_mdpX (icmpl,iphase,idof) = auxvar%D_den     (iphase,idof)
+        c_spX  (icmpl,iphase,idof) = auxvar%D_sat     (iphase,idof)
+        c_mobX (icmpl,iphase,idof) = auxvar%D_mobility(iphase,idof)
+        c_kgdpX(icmpl,iphase,idof) = auxvar%D_den_kg  (iphase,idof)
+        c_hpX  (icmpl,iphase,idof) = auxvar%D_H       (iphase,idof)
+        if (ws_isothermal .and. (idof.eq.TOIL_IMS_ENERGY_DOF)) then
+          c_mdpX (icmpl,iphase,idof) = 0.0
+          c_spX  (icmpl,iphase,idof) = 0.0
+          c_mobX (icmpl,iphase,idof) = 0.0
+          c_kgdpX(icmpl,iphase,idof) = 0.0
+          c_hpX  (icmpl,iphase,idof) = 0.0
+        endif
+      enddo
+    endif
+
+  enddo
+
+end subroutine loadCellDataTOIL
+
+! *************************************************************************** !
+
+subroutine invertJacobian(deti)
+  !
+  ! Invert the wellbore composition Jacobian
+  !
+  ! Author: Dave Ponting
+  ! Date  : 09/19/18
+
+  PetscReal,intent(out) :: deti
+  PetscReal :: det,a,b,c,d,ai,bi,ci,di
+  PetscReal :: cf(3,3),eps
+  PetscInt  :: i,j,k
+
+  eps = 1.0E-6
+
+  if (ws_nxw == 1) then
+    det  = jwbs(1,1)
+    deti = 0.0
+    if (abs(det)>0.0) deti = 1.0/det
+    jwbsi(1,1) = deti
+  endif
+
+  if (ws_nxw == 2) then
+
+    a = jwbs(1,1)
+    b = jwbs(1,2)
+    c = jwbs(2,1)
+    d = jwbs(2,2)
+
+    det = a*d-b*c;
+
+    deti = 0.0
+    if (abs(det)>0.0) deti = 1.0/det
+
+    ai =  d*deti
+    bi = -b*deti
+    ci = -c*deti
+    di =  a*deti
+
+    jwbsi(1,1) = ai
+    jwbsi(1,2) = bi
+    jwbsi(2,1) = ci
+    jwbsi(2,2) = di
+
+  endif
+
+  if (ws_nxw == 3) then
+
+     cf(1,1) =  jwbs(2,2)*jwbs(3,3)-jwbs(3,2)*jwbs(2,3)
+     cf(1,2) = -jwbs(2,1)*jwbs(3,3)+jwbs(3,1)*jwbs(2,3)
+     cf(1,3) =  jwbs(2,1)*jwbs(3,2)-jwbs(3,1)*jwbs(2,2)
+
+     cf(2,1) = -jwbs(1,2)*jwbs(3,3)+jwbs(3,2)*jwbs(1,3)
+     cf(2,2) =  jwbs(1,1)*jwbs(3,3)-jwbs(3,1)*jwbs(1,3)
+     cf(2,3) = -jwbs(1,1)*jwbs(3,2)+jwbs(3,1)*jwbs(1,2)
+
+     cf(3,1) =  jwbs(1,2)*jwbs(2,3)-jwbs(2,2)*jwbs(1,3)
+     cf(3,2) = -jwbs(1,1)*jwbs(2,3)+jwbs(2,1)*jwbs(1,3)
+     cf(3,3) =  jwbs(1,1)*jwbs(2,2)-jwbs(2,1)*jwbs(1,2)
+
+     det = jwbs(1,1)*cf(1,1)+jwbs(1,2)*cf(1,2)+jwbs(1,3)*cf(1,3)
+
+     deti = 0.0
+     if (abs(det) > 0.0) deti = 1.0/det
+
+     do i = 1,3
+       do j = 1,3
+         jwbsi(i,j) = cf(j,i)*deti
+       enddo
+     enddo
+
+  endif
+
+  if (ws_nxw >3) then
+    call throwWellSolverException('Inversion error:no solver for this ws_nxw')
+  endif
+
+end subroutine invertJacobian
+
+! *************************************************************************** !
+
+subroutine findInjectionEnthalpy()
+  !
+  ! Find the molar enthalpy of the injection fluid
+  !
+  ! Author: Dave Ponting
+  ! Date  : 10/16/18
+
+  use EOS_Oil_module
+  use EOS_Gas_module
+  use EOS_Water_module
+  use EOS_Slv_module
+
+  implicit none
+
+  PetscReal :: p,t,u,h
+  PetscInt  :: ierr
+
+  ws_injection_h = 0.0
+
+  p = ws_injection_p
+  t = ws_injection_t
+
+  ierr = 0
+  u    = 0.0
+  h    = 0.0
+
+  if ( w_type == OIL_INJ_WELL_TYPE ) then
+    call EOSOilEnthalpy(t,p,h,ierr)
+  endif
+
+  if ( w_type == GAS_INJ_WELL_TYPE ) then
+    call EOSGasEnergy(t,p,h,u,ierr)
+  endif
+
+  if ( w_type == WAT_INJ_WELL_TYPE ) then
+    call EOSWaterEnthalpy(t,p,h,ierr)
+  endif
+
+  if ( w_type == SLV_INJ_WELL_TYPE ) then
+    call EOSSlvEnergy(t,p,h,u,ierr)
+  endif
+
+  ws_injection_h = h*1.0d-6
+
+end subroutine findInjectionEnthalpy
+
+! ************************************************************************** !
+
+subroutine incrTactX(ip,c,tact,tactpw)
+  !
+  ! Build up the actual flow
+  !
+  ! Author: Dave Ponting
+  ! Date  : 10/16/18
+
+  implicit none
+
+  PetscInt ,intent(in) :: ip
+  PetscReal,intent(in) :: c
+  PetscReal,intent(inout) :: tact
+  PetscReal,intent(inout) :: tactpw
+
+  PetscInt :: icmpl,idof,ixw
+
+!  Actual flow
+
+  tact = w_flowsG(ip)*c
+
+!  Derivs wrt Pw (expanding out the Xw dependence)
+
+!  Basic term
+
+  tactpw = w_flowsGpw(ip)*c
+
+!  Terms via Xw
+
+  do ixw = 1,ws_nxw
+   tactpw = tactpw + w_flowsGxw(ip,ixw)*w_dxwdpw(ixw)*c
+  enddo
+
+!  Derivs wrt Xc (expanding out the Xw dependence)
+
+  do icmpl = 1,w_ncmpl
+    do idof = 1,ws_ndof
+
+!  Basic term
+
+      w_tactxc(icmpl,idof) = w_tactxc(icmpl,idof) + w_flowsGxc(ip,icmpl,idof)*c
+
+!  Terms via Xw
+
+      do ixw = 1,ws_nxw
+        w_tactxc(icmpl,idof) = w_tactxc(icmpl,idof) + &
+          w_flowsGxw(ip,ixw)*w_dxwdxc(ixw,icmpl,idof)*c
+      enddo
+
+    enddo
+  enddo
+
+end subroutine incrTactX
+
+! *************************************************************************** !
+
+subroutine findFullFlowDerivatives(jwwi)
+  !
+  !  Find fully expanded flow derivatives (ie total derivatives in Xp)
+  !  based on :
+  !
+  !    df/dPw, dfw/dXw and df/dXc from flow calculation
+  !
+  !    dXw/dPw and dXw/dXc from Xw-solution
+  !                dPw/dXc from Pw solution (formed in this routine)
+  !
+  ! Author: Dave Ponting
+  ! Date  : 10/16/18
+
+  implicit none
+
+  PetscReal,intent(inout) :: jwwi
+
+  PetscInt  :: icomp,icmpl,jcmpl,jdof,ixw
+  PetscReal :: sum
+
+! Step 1: construct dPw/dXc=-(1/(dRw/dPw))*(dRw/dXc)
+!         Note derivatives have expanded into Pw and Xc derivatives
+
+  do jcmpl = 1,w_ncmpl
+    do jdof = 1,ws_ndof
+      w_dpwdxc(jcmpl,jdof) = -jwwi*w_rwxc(jcmpl,jdof)
+    enddo
+  enddo
+
+!  Step 2: expand flow derivatives in Pw and Xw into Xc
+
+!  Loop over flows
+  do icmpl = 1,w_ncmpl
+    do icomp = 1,ws_ncomp
+
+!  Loop over Xc
+      do jcmpl = 1,w_ncmpl
+        do jdof = 1,ws_ndof
+
+!  Extend df/dXc with df/fPw.dPw/dXc
+          sum = c_flowspw(icmpl,icomp)*w_dpwdxc(jcmpl,jdof)
+
+!  Extend df/dXc with df/fXw.dXw/dXc
+          do ixw = 1,ws_nxw
+             sum = sum+c_flowsxw(icmpl,icomp,ixw)*w_dxwdxc(ixw,jcmpl,jdof)
+          enddo
+
+!  Add extension to this flow term
+            c_flowsxc(icmpl,icomp,jcmpl,jdof) &
+          = c_flowsxc(icmpl,icomp,jcmpl,jdof)+sum
+
+        enddo
+      enddo
+    enddo
+  enddo
+
+end subroutine findFullFlowDerivatives
 
 ! *************************************************************************** !
 
@@ -1444,9 +3377,7 @@ subroutine throwWellSolverException(message)
   ! Issue a general well solver error
   !
   ! Author: Dave Ponting
-  ! Date: 08/15/18
-
-  implicit none
+  ! Date  : 09/19/18
 
   character(len=*) :: message
   print *,message
@@ -1454,4 +3385,3 @@ subroutine throwWellSolverException(message)
 end subroutine throwWellSolverException
 
 end module Well_Solver_module
-

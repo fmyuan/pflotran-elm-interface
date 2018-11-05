@@ -894,7 +894,6 @@ subroutine TOWGUpdateSolution(realization)
   type(realization_subsurface_type) :: realization
   class(well_data_type), pointer :: well_data
   type(well_data_list_type),pointer :: well_data_list
-  PetscBool :: well_update_ok
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -915,7 +914,7 @@ subroutine TOWGUpdateSolution(realization)
 
 ! Loop over well_data wells if present
 
-  dt=option%flow_dt
+  dt = option%flow_dt
 
   if (WellDataGetFlag()) then
     well_data_list => realization%well_data
@@ -2380,6 +2379,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
       else
 ! One component in phase
         Res(iphase) = mole_flux
+        icomp = iphase
 
         if (analytical_derivatives) then
           Jup(icomp,:) = Jup(icomp,:) + D_mole_flux_up(:)
@@ -4970,7 +4970,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
 ! Loop over well_data wells if present
 
   if (WellDataGetFlag()) then
-    jerr=0
+    jerr = 0
     well_data_list => realization%well_data
     well_data => well_data_list%first
 
@@ -5084,6 +5084,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   use Field_module
   use Debug_module
   use Material_Aux_class
+  use Well_Data_class
 
   implicit none
 
@@ -5091,7 +5092,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   Vec :: xx
   Mat :: A, B
   type(realization_subsurface_type) :: realization
-  PetscErrorCode :: ierr
+  PetscErrorCode :: ierr,jerr,nflowdof
 
   Mat :: J
   MatType :: mat_type
@@ -5106,7 +5107,10 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   Vec, parameter :: null_vec = PETSC_NULL_VEC
-  
+
+  class(well_data_type), pointer :: well_data
+  type(well_data_list_type),pointer :: well_data_list
+
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
                Jdn(realization%option%nflowdof,realization%option%nflowdof)
   
@@ -5127,6 +5131,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   type(towg_parameter_type), pointer :: towg_parameter
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscBool::analytical_derivatives
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
@@ -5361,7 +5366,25 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
-  
+
+! Loop over well_data wells if present
+
+  analytical_derivatives = .not. option%flow%numerical_derivatives
+  if( analytical_derivatives ) then
+    if (WellDataGetFlag()) then
+      nflowdof=realization%option%nflowdof
+      jerr = 0
+      well_data_list => realization%well_data
+      well_data => well_data_list%first
+
+      do
+        if (.not.associated(well_data)) exit
+          call well_data%DoIncrJac(option,nflowdof,Jup,A)
+          well_data => well_data%next
+      enddo
+    endif
+  endif
+
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
