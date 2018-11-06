@@ -1,5 +1,10 @@
-module pflotran_clm_main_module
 
+module pflotran_clm_main_module
+!
+#ifdef CLM_PFLOTRAN
+! ************************************************************************** !
+!
+!
 #include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petscvec.h"
   use petscsys
@@ -431,14 +436,16 @@ contains
     type(pflotran_model_type), pointer :: model
     character(len=MAXWORDLENGTH) :: restart_stamp
 
-    model%option%io_buffer = 'restart is not implemented in clm-pflotran.' // &
+    option => model%option
+
+    option%io_buffer = 'restart is not implemented in clm-pflotran.' // &
        'AND, pflotran will be initialized from CLM'
 
     if (.not. StringNull(restart_stamp)) then
-       model%option%restart_flag = PETSC_TRUE
-       model%option%restart_filename = &
-            trim(model%option%global_prefix) // &
-            trim(model%option%group_prefix) // &
+       option%restart_flag = PETSC_TRUE
+       option%restart_filename = &
+            trim(option%global_prefix) // &
+            trim(option%group_prefix) // &
             '-' // trim(restart_stamp) // '.chk'
 
        model%option%io_buffer = 'restart file is: ' // &
@@ -476,10 +483,11 @@ contains
 
     PetscReal :: pause_time1
 
+    option => model%option
     if(isprintout) then
-      if (model%option%io_rank == model%option%myrank) then
-        write(model%option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
-        write(model%option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
+      if (option%io_rank == option%myrank) then
+        write(option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
+        write(option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
       endif
     endif
 
@@ -1554,7 +1562,7 @@ contains
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
     PetscReal          :: unitconv, perm_adj, tempreal
 
-    PetscScalar, pointer :: porosity_pfs_loc(:), porosity_pfp_loc(:)  ! these are from 'clm-pf-idata%'
+    PetscScalar, pointer :: porosity_pfs_loc(:)  ! these are from 'clm-pf-idata%'
     PetscScalar, pointer :: hksat_x_pf_loc(:), hksat_y_pf_loc(:), hksat_z_pf_loc(:)
     PetscScalar, pointer :: watsat_pf_loc(:), bsw_pf_loc(:)
 
@@ -1677,9 +1685,11 @@ contains
     call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,ZERO_INTEGER)
+                               POROSITY,POROSITY_MINERAL)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               POROSITY,POROSITY_CURRENT)
 
-    if(option%iflowmode==TH_MODE) then
+    if(option%nflowdof>0) then
         call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
                                      field%work_loc,ONEDOF)
         call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
@@ -1863,6 +1873,7 @@ contains
     use Realization_Base_class
     use Patch_module
     use Grid_module
+    use Field_module
     use Global_Aux_module
     use Simulation_Subsurface_class, only : simulation_subsurface_type
     use Realization_Subsurface_class, only : realization_subsurface_type
@@ -1881,14 +1892,19 @@ contains
 
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
     type(global_auxvar_type), pointer         :: global_auxvars(:)
 
     PetscErrorCode     :: ierr
 
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: soillsat_pf_loc(:), soilisat_pf_loc(:)
+    PetscReal, pointer :: soilliq_pf_loc(:)
     PetscReal, pointer :: soilt_pf_loc(:)
     PetscReal, pointer :: soilpress_pf_loc(:)
+
+    PetscReal, pointer :: porosity0_loc_p(:)     ! soil porosity in field%porosity0
+    PetscReal          :: liq_kgm3, ice_kgm3
 
     subname = 'pflotranModelUpdateTHfromCLM'
 
@@ -1908,6 +1924,7 @@ contains
     patch           => realization%patch
     grid            => patch%grid
     global_auxvars  => patch%aux%Global%auxvars
+    field           => realization%field
 
     ! Save the liq saturation values from CLM to PFLOTRAN, if needed
     if (.not.pf_hmode) then
@@ -1935,6 +1952,12 @@ contains
         call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecGetArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
         call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pf_loc, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
+        ! saved porosity for coversion btw actual water mass/vol and saturation
+        call VecGetArrayF90(field%porosity0,porosity0_loc_p,ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         do ghosted_id=1, grid%ngmax
           local_id=grid%nG2L(ghosted_id)
@@ -1949,13 +1972,24 @@ contains
               'sat_globalvars(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
               'sat_pfs(ghosted_id)=',soillsat_pf_loc(ghosted_id)
 #endif
-          global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(ghosted_id)
+          !global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(ghosted_id)
+          ! alternatively, calculate sat from water mass (kgH2O/m3 bulk soil)
+          liq_kgm3 = global_auxvars(ghosted_id)%den_kg(1) ! water den = kg/m^3
+          global_auxvars(ghosted_id)%sat(1)=soilliq_pf_loc(local_id)/liq_kgm3/ &
+                                            porosity0_loc_p(local_id)
+
+          ! water pressure (pa)
           global_auxvars(ghosted_id)%pres(1)=soilpress_pf_loc(ghosted_id)
+
         enddo
 
         call VecRestoreArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
         call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pf_loc, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(field%porosity0,porosity0_loc_p,ierr)
         call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         !
@@ -2123,7 +2157,7 @@ contains
       ! PF's field porosity pass to clm-pf-idata and saved
       porosity_loc_pfp(local_id) = porosity0_loc_p(local_id)
 
-      ! calculate water mass and pass to clm-pf-idata
+      ! calculate water mass (kgH2O/m3) and pass to clm-pf-idata
       liq_kgm3 = global_auxvars(ghosted_id)%den_kg(1) ! water den = kg/m^3
       soilliq_pf_p(local_id) = global_auxvars(ghosted_id)%sat(1)* &
                                porosity0_loc_p(local_id)*liq_kgm3
@@ -3712,10 +3746,10 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
   !
   subroutine pflotranModelUpdateAqGasesFromCLM(pflotran_model)
 
-    use Global_Aux_module
     use Realization_Base_class
     use Patch_module
     use Grid_module
+    use Global_Aux_module
     use Option_module
     use Field_module
     use Discretization_module
@@ -4947,7 +4981,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     use Characteristic_Curves_module
     use Characteristic_Curves_Base_module
     use Characteristic_Curves_Common_module
-    use TH_module, only : THUpdateAuxVars
+    use TH_module, only : THUpdateAuxVars, THComputeMassBalance
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -4972,12 +5006,18 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     PetscInt           :: cur_sat_func_id
     PetscReal          :: liquid_saturation, capillary_pressure, dx, porosity
     PetscReal          :: liq_kgm3
+    PetscReal          :: sum_kg(pflotran_model%option%nflowspec, pflotran_model%option%nphase)
+
+    !field%
     PetscReal, pointer :: xx_loc_p(:)
+    PetscReal, pointer :: porosity0_loc_p(:)     ! this is from 'field%porosity0'
 
     PetscScalar, pointer :: soilt_pf_loc(:)      ! temperature [oC]
     PetscScalar, pointer :: soilpress_pf_loc(:)  ! water pressure (Pa)
     PetscScalar, pointer :: soilliq_pf_loc(:)    ! liq. water mass (kg/m3)
     PetscScalar, pointer :: soilice_pf_loc(:)    ! ice water mass (kg/m3)
+    PetscScalar, pointer :: soillsat_pf_loc(:)   ! liq. water saturation (0 - 1)
+    PetscScalar, pointer :: soilisat_pf_loc(:)   ! ice water saturation (0 - 1)
 
     subname = 'ModelSetInternalTHStatesFromCLM'
 
@@ -5041,15 +5081,24 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
 
     call VecGetArrayF90(field%flow_xx, xx_loc_p, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecGetArrayF90(field%porosity0, porosity0_loc_p, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
+
     call VecGetArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pf_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecGetArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%soilice_pfs, soilice_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecGetArrayF90(clm_pf_idata%soilisat_pfs, soilisat_pf_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
+    sum_kg = 0.d0
     do local_id = 1, grid%nlmax
        ghosted_id = grid%nL2G(local_id)
        if (ghosted_id <= 0 .or. local_id <= 0) cycle
@@ -5087,6 +5136,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
 
        else
          ! need to recalculate 'pressure' from saturation/water-mass
+         !liquid_saturation = soillsat_pf_loc(ghosted_id)
          liquid_saturation = soilliq_pf_loc(ghosted_id)/liq_kgm3/porosity
          select type(sf => characteristic_curves%saturation_function)
            !class is(sat_func_VG_type)
@@ -5104,13 +5154,24 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
 
        end if
 
+       !
+       global_auxvars(ghosted_id)%sat(1)  = liquid_saturation
+       global_auxvars(ghosted_id)%pres(1) = option%reference_pressure - capillary_pressure
        if (option%iflowmode .eq. TH_MODE)  then
          xx_loc_p(istart+1)= soilt_pf_loc(ghosted_id)
        end if
+
+
+       !
+       sum_kg(1,1)= sum_kg(1,1)+ soilliq_pf_loc(ghosted_id)*material_auxvars(ghosted_id)%volume
+
     enddo
 
     call VecRestoreArrayF90(field%flow_xx, xx_loc_p, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecRestoreArrayF90(field%porosity0, porosity0_loc_p, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
     call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
@@ -5118,6 +5179,10 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     call VecRestoreArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pf_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%soilice_pfs, soilice_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecRestoreArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecRestoreArrayF90(clm_pf_idata%soilisat_pfs, soilisat_pf_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call DiscretizationGlobalToLocal(realization%discretization, field%flow_xx, &
@@ -5151,6 +5216,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Option_module
     use Patch_module
     use Grid_module
+    use Global_Aux_module
     use Coupler_module
     use Connection_module
 
@@ -5171,6 +5237,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     type(pflotran_model_type), pointer        :: pflotran_model
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
+    type(global_auxvar_type), pointer         :: global_auxvars(:)
 
     class(simulation_subsurface_type), pointer  :: simulation
     class(realization_subsurface_type), pointer :: realization
@@ -5185,12 +5252,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscScalar, pointer :: press_maxponding_pf_loc(:)  ! subsurface top boundary max. ponding pressure (Pa) (seepage BC)
     PetscScalar, pointer :: press_subsurf_pf_loc(:)     ! subsurface top boundary pressure-head (Pa) (dirichlet BC)
-    PetscScalar, pointer :: qfluxw_subsurf_pf_loc(:)    ! subsurface top boundary infiltration rate (m/s) (neumann BC)
-    PetscScalar, pointer :: qfluxv_subsurf_pf_loc(:)    ! subsurface top boundary evaporation rate (m/s) (neumann BC)
+    PetscScalar, pointer :: qfluxw_subsurf_pf_loc(:)    ! subsurface top boundary infiltration rate (kgH2O/m2/s) (neumann BC)
+    PetscScalar, pointer :: qfluxv_subsurf_pf_loc(:)    ! subsurface top boundary evaporation rate (kgH2O/m2/s) (neumann BC)
     PetscScalar, pointer :: press_subbase_pf_loc(:)     ! bottom boundary pressure-head (Pa) (dirichlet BC)
     PetscScalar, pointer :: qfluxw_subbase_pf_loc(:)     ! botoom boundary drainage flow rate (m/s) (neumann BC)
 
     PetscScalar, pointer :: toparea_p(:)                ! subsurface top area saved
+
+    PetscReal :: liq_kgm3
 
     !------------------------------------------------------------------------------------
 
@@ -5210,6 +5279,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     end select
     patch           => realization%patch
     grid            => patch%grid
+    global_auxvars  => patch%aux%Global%auxvars
 
     call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
                                     option, &
@@ -5338,10 +5408,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         if (ghosted_id <= 0 .or. local_id <= 0) cycle
         if (patch%imat(ghosted_id) < 0) cycle
 
+        liq_kgm3 = global_auxvars(ghosted_id)%den_kg(1) ! water den = kg/m^3
+
         if(StringCompare(boundary_condition%name,'clm_gwflux_bc')) then
           if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
             boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-              qfluxw_subsurf_pf_loc(iconn)
+              qfluxw_subsurf_pf_loc(iconn)/liq_kgm3         ! kgH2O/m2/s --> mH2O/s
 
             if (HAVE_PRESS_TOPBC .and. HAVE_QFLUX_TOPBC) then
               cur_connection_set%area(iconn) = toparea_p(local_id)     ! normally it's ON (MPI vec, it's from 'local_id')
@@ -5373,7 +5445,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         if(StringCompare(boundary_condition%name,'clm_gevflux_bc')) then
           if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
             boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-              qfluxv_subsurf_pf_loc(iconn)
+              qfluxv_subsurf_pf_loc(iconn)/liq_kgm3         ! kg/m2/s --> m/s
+
           endif
         endif
 
@@ -5392,7 +5465,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                        press_subbase_pf_loc(iconn)
           else if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
             boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-                       qfluxw_subbase_pf_loc(iconn)
+                       qfluxw_subbase_pf_loc(iconn)*liq_kgm3   !kg/m2/s --> m/s
 
           else if (boundary_condition%flow_condition%itype(press_dof) /= ZERO_GRADIENT_BC) then
             option%io_buffer='pflotranModelSetTHbcs -  ' // &
@@ -6018,8 +6091,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Realization_Subsurface_class, only : realization_subsurface_type
 
     use Global_Aux_module
+    use Material_Aux_class
     use Reactive_Transport_Aux_module
     use Reaction_Aux_module
+
+    use TH_module, only : THComputeMassBalance
+    use Reactive_Transport_module, only : RTComputeMassBalance
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -6033,11 +6110,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     type(patch_type), pointer :: patch
     type(grid_type), pointer  :: grid
 
-    type(coupler_type), pointer :: boundary_condition
+    type(coupler_type), pointer :: boundary_condition, source_sink
     type(connection_set_type), pointer :: cur_connection_set
-    type(global_auxvar_type), pointer :: global_auxvars_bc(:)
+    type(global_auxvar_type), pointer :: global_auxvars_bc(:), global_auxvars_ss(:),global_auxvars(:)
+    class(material_auxvar_type), pointer :: material_auxvars(:)
     type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc(:)
 
+    PetscReal, pointer :: qevap_subsurf_pf_loc(:)
     PetscReal, pointer :: qinfl_subsurf_pf_loc(:)
     PetscReal, pointer :: qsurf_subsurf_pf_loc(:)
     PetscReal, pointer :: qflux_subbase_pf_loc(:)
@@ -6046,6 +6125,15 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscReal, pointer :: f_nh4_subbase_pf_loc(:)
     PetscReal, pointer :: f_no3_subbase_pf_loc(:)
 
+    PetscReal, pointer :: soilliq_pfs(:) ! saved liq. water mass at begging of time-step (kgH2O/m3)
+    PetscReal, pointer :: soilice_pfs(:) ! saved iced water mass at begging of time-step (kgH2O/m3)
+
+
+    PetscReal :: sum_kg(pflotran_model%option%nflowspec, pflotran_model%option%nphase)
+    PetscReal :: total_change, liqmass_change,liqmass_change0
+    PetscReal, pointer :: bc(:), ss(:)
+
+    PetscInt :: iflowspec, iphase
     PetscInt :: local_id, ghosted_id, iconn
     PetscInt :: offset
     PetscErrorCode :: ierr
@@ -6066,7 +6154,19 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     !
     patch => realization%patch
     grid  => patch%grid
+    material_auxvars => patch%aux%Material%auxvars
+
     option=> realization%option
+
+    ! currently only do mass-balance for liq. water
+    iflowspec = 1
+    iphase = 1
+
+    allocate(bc(1:grid%ngmax))
+    allocate(ss(1:grid%ngmax))
+    bc(1:grid%ngmax) = 0.d0
+    ss(1:grid%ngmax) = 0.d0
+
     !-------------------------------------------------------------------------
 
     if (clm_pf_idata%nlpf_2dtop <= 0 .and. clm_pf_idata%ngpf_2dtop <= 0    &
@@ -6075,6 +6175,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     !
+    call VecGetArrayF90(clm_pf_idata%qevap_subsurf_pfp, qevap_subsurf_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%qinfl_subsurf_pfp, qinfl_subsurf_pf_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%qsurf_subsurf_pfp, qsurf_subsurf_pf_loc, ierr)
@@ -6082,6 +6184,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecGetArrayF90(clm_pf_idata%qflux_subbase_pfp, qflux_subbase_pf_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
+    qevap_subsurf_pf_loc(:) = 0.d0
     qinfl_subsurf_pf_loc(:) = 0.d0
     qsurf_subsurf_pf_loc(:) = 0.d0
     qflux_subbase_pf_loc(:) = 0.d0
@@ -6103,39 +6206,53 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       if (option%nflowdof > 0) then
 
           ! retrieving H2O flux at top BC
+          qinfl_subsurf_pf_loc(iconn) = 0.d0  ! there are 2 possible BC type for infiltration
           do iconn = 1, cur_connection_set%num_connections
              local_id = cur_connection_set%id_dn(iconn)
              ghosted_id = grid%nL2G(local_id)
              if (ghosted_id <= 0 .or. local_id <= 0) cycle
              if (patch%imat(ghosted_id) < 0) cycle
 
-             if(StringCompare(boundary_condition%name,'clm_gpress_bc')) then          ! infilitration (+)
-                qinfl_subsurf_pf_loc(iconn) = &
-                               -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
+             bc(ghosted_id) = bc(ghosted_id)+global_auxvars_bc(offset+iconn)%mass_balance(iflowspec,iphase)
+
+
+             ! soil actual evaporation (-)
+             if(StringCompare(boundary_condition%name,'clm_gevflux_bc')) then
+                qevap_subsurf_pf_loc(iconn) = &
+                               -global_auxvars_bc(offset+iconn)%mass_balance(iflowspec,iphase) &
+                               /cur_connection_set%area(iconn)                  !unit: kg --> kg/m2
 
                 ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
-                global_auxvars_bc(offset+iconn)%mass_balance(1,1) = 0.d0
+                global_auxvars_bc(offset+iconn)%mass_balance(iflowspec,iphase) = 0.d0
+             endif
+
+             ! soil actual infilitration (+)
+             if(StringCompare(boundary_condition%name,'clm_gpress_bc') .or. &
+                StringCompare(boundary_condition%name,'clm_gwflux_bc')) then
+                qinfl_subsurf_pf_loc(iconn) = qinfl_subsurf_pf_loc(iconn) &
+                               -global_auxvars_bc(offset+iconn)%mass_balance(iflowspec,iphase) &
+                               /cur_connection_set%area(iconn)                  !unit: kg --> kg/m2
 
              endif
 
-             if(StringCompare(boundary_condition%name,'exfiltration')) then          ! exfiltration (-)
+             ! soil excess water exfiltration (upwarding) (-)
+             if(StringCompare(boundary_condition%name,'exfiltration')) then
                 qsurf_subsurf_pf_loc(iconn) = &
-                               -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
-
-                 ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
-                global_auxvars_bc(offset+iconn)%mass_balance(1,1) = 0.d0
+                               -global_auxvars_bc(offset+iconn)%mass_balance(iflowspec,iphase) &
+                               /cur_connection_set%area(iconn)                  !unit: kg --> kg/m2
 
              endif
 
              ! retrieving H2O flux at bottom BC
              if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then          ! bottom water flux
                 qflux_subbase_pf_loc(iconn) = &
-                               -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
-
-                ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
-                global_auxvars_bc(offset+iconn)%mass_balance(1,1) = 0.d0
+                               -global_auxvars_bc(offset+iconn)%mass_balance(iflowspec,iphase) &
+                               /cur_connection_set%area(iconn)                  !unit: kg --> kg/m2
 
              endif
+
+            ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
+            global_auxvars_bc(offset+iconn)%mass_balance(iflowspec,iphase) = 0.d0
 
           enddo
 
@@ -6146,6 +6263,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     enddo
 
+    call VecRestoreArrayF90(clm_pf_idata%qevap_subsurf_pfp, qevap_subsurf_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%qinfl_subsurf_pfp, qinfl_subsurf_pf_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%qsurf_subsurf_pfp, qsurf_subsurf_pf_loc, ierr)
@@ -6155,6 +6274,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     ! pass vecs to CLM
     if (clm_pf_idata%nlpf_2dtop > 0 .and. clm_pf_idata%ngpf_2dtop > 0 ) then
+      call MappingSourceToDestination(pflotran_model%map_pf_2dtop_to_clm_2dtop, &
+                                    option, &
+                                    clm_pf_idata%qevap_subsurf_pfp, &
+                                    clm_pf_idata%qevap_subsurf_clms)
+
       call MappingSourceToDestination(pflotran_model%map_pf_2dtop_to_clm_2dtop, &
                                     option, &
                                     clm_pf_idata%qinfl_subsurf_pfp, &
@@ -6172,9 +6296,89 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%qflux_subbase_pfp, &
                                     clm_pf_idata%qflux_subbase_clms)
     endif
+
+
+    !-------------------------------------------------------------------------
+    global_auxvars_ss => patch%aux%Global%auxvars_ss
+    source_sink => patch%source_sink_list%first
+    do
+      if (.not.associated(source_sink)) exit
+
+      cur_connection_set => source_sink%connection_set
+      offset = cur_connection_set%offset
+
+      if (option%nflowdof > 0) then
+        do iconn = 1, cur_connection_set%num_connections
+          local_id = cur_connection_set%id_dn(iconn)
+          ghosted_id = grid%nL2G(local_id)
+          if (patch%imat(ghosted_id) <= 0) cycle
+          ss(ghosted_id) = ss(ghosted_id)+global_auxvars_ss(offset+iconn)%mass_balance(iflowspec,iphase)
+
+          ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
+          global_auxvars_ss(offset+iconn)%mass_balance(iflowspec,iphase) = 0.d0
+
+        end do
+      endif
+      source_sink => source_sink%next
+    end do
+
+    !-------------------------------------------------------------------------
+    ! global mass-balance checking
+
+    call VecGetArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pfs, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
+    select case(option%iflowmode)
+       case(TH_MODE)
+         !
+         sum_kg = 0.d0
+         call THComputeMassBalance(realization,sum_kg(iflowspec,:))
+
+         global_auxvars => patch%aux%Global%auxvars
+         !
+#ifdef COMPUTE_INTERNAL_MASS_FLUX
+         total_change = 0.d0
+         liqmass_change = 0.d0
+         liqmass_change0= 0.d0
+         do local_id = 1, grid%nlmax
+           ghosted_id = grid%nL2G(local_id)
+           if (ghosted_id <= 0 .or. local_id <= 0) cycle
+           if (patch%imat(ghosted_id) < 0) cycle
+
+           liqmass_change = liqmass_change+global_auxvars(ghosted_id)%den_kg(1)* &
+             global_auxvars(ghosted_id)%sat(1)* &
+             material_auxvars(ghosted_id)%porosity* &
+             material_auxvars(ghosted_id)%volume
+           liqmass_change0 = liqmass_change0 + soilliq_pfs(ghosted_id)*material_auxvars(ghosted_id)%volume
+
+
+           total_change = total_change + patch%aux%Global%auxvars(ghosted_id)%mass_balance(iflowspec,iphase) &
+                                       - bc(ghosted_id) - ss(ghosted_id)
+
+           ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
+           global_auxvars(ghosted_id)%mass_balance(iflowspec,iphase) = 0.d0
+
+         end do
+
+#endif
+
+       case default
+         option%io_buffer = " Flow mode  in " // trim(subname) // &
+              "currently is Not support in this simulation."
+         call printErrMsg(option)
+
+     end select
+
+     deallocate(bc)
+     deallocate(ss)
+
+     call VecRestoreArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pfs, ierr)
+     call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
   end subroutine pflotranModelGetBCMassBalanceDeltaFromPF
 
   ! ************************************************************************** !
+#endif
   
 end module pflotran_clm_main_module
 

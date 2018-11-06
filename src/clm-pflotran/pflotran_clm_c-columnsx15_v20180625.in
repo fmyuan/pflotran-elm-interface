@@ -8,7 +8,7 @@ SIMULATION
 
     SUBSURFACE_TRANSPORT transport
       GLOBAL_IMPLICIT
-      TEMPERATURE_DEPENDENT_DIFFUSION
+      !TEMPERATURE_DEPENDENT_DIFFUSION
       ITOL_RELATIVE_UPDATE
       
     /
@@ -167,9 +167,9 @@ LINEAR_SOLVER TRANSPORT
 END
 
 NEWTON_SOLVER TRANSPORT
-  ATOL 1.0D-20
-  RTOL 1.0D-15
-  STOL 1.0D-10         ! at least 1.0d-8, better 1.d-10 for convergency (otherwise N Balance issue, especially N Half_saturations are very small!)
+  ATOL 1.0D-15
+  RTOL 1.0D-10
+  STOL 1.0D-08         ! at least 1.0d-8, better 1.d-10 for convergency (otherwise N Balance issue, especially N Half_saturations are very small!)
   ITOL 1.0D-08
 
   MAXIT 30
@@ -182,7 +182,7 @@ END
 TIME
   FINAL_TIME 0.0208333d-2 d
   INITIAL_TIMESTEP_SIZE 1800.0 s
-  MINIMUM_TIMESTEP_SIZE 6.0d-1 s   ! this should be the min. with a few steps, otherwise trouble
+  MINIMUM_TIMESTEP_SIZE 6.0d0 s   ! this should be the min. with a few steps, otherwise trouble
   MAXIMUM_TIMESTEP_SIZE 1800.0 s
 END
 
@@ -192,11 +192,12 @@ END
 #==================== V-1. output options ===================================
 OUTPUT
   !SCREEN OFF 
-  SCREEN PERIODIC 12
+  SCREEN PERIODIC 48
   !PERIODIC TIME 1800 s   ! this is good for directly comparing two outputs
   !PERIODIC TIMESTEP 1   ! this is good for checking PF each time-step
   !FORMAT HDF5
   !NO_INITIAL
+  !mass_balance
 END
 
 !DEBUG
