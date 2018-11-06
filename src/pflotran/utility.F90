@@ -545,7 +545,7 @@ subroutine ReallocateBoolArray1(array,size)
   array2(1:size) = array(1:size)
   deallocate(array)
   allocate(array(2*size))
-  array = 0
+  array = PETSC_FALSE
   array(1:size) = array2(1:size)
   size = 2*size
   deallocate(array2)
