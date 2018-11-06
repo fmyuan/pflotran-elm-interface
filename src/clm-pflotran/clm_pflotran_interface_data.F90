@@ -1,4 +1,8 @@
+
 module clm_pflotran_interface_data
+
+#ifdef CLM_PFLOTRAN
+
 !
 ! NOTES for convenience:
 !        (1) '*_pfp': mpi vecs for PF variables; '_clmp': mpi vecs for CLM variables;
@@ -417,13 +421,13 @@ module clm_pflotran_interface_data
   Vec :: press_maxponding_clmp ! mpi vec
   Vec :: press_maxponding_pfs  ! seq vec
 
-  ! BC-h: water infiltration/recharge(drainage) (mH2O/sec) on the 2D top/bottom interface of 3-D subsurface domain as boundary conditions from CLM to PF
+  ! BC-h: water infiltration/recharge(drainage) (kgH2O/m2/sec) on the 2D top/bottom interface of 3-D subsurface domain as boundary conditions from CLM to PF
   Vec :: qfluxw_subsurf_clmp    ! mpi vec
   Vec :: qfluxw_subbase_clmp    ! mpi vec
   Vec :: qfluxw_subsurf_pfs     ! seq vec
   Vec :: qfluxw_subbase_pfs     ! seq vec
 
-  ! BC-h: soil evaporation (mH2O/sec) on the 2D top interface of 3-D subsurface domain as boundary conditions from CLM to PF
+  ! BC-h: soil evaporation (kgH2O/m2/sec) on the 2D top interface of 3-D subsurface domain as boundary conditions from CLM to PF
   Vec :: qfluxev_subsurf_clmp   ! mpi vec
   Vec :: qfluxev_subsurf_pfs    ! seq vec
 
@@ -450,8 +454,10 @@ module clm_pflotran_interface_data
   ! -----TH vecs from PF (mpi, ghosted) to CLM (seq, local)
   !
 
-  ! actual mass water flow rate (kgH2O/sec) through the top/bottom BC (2-D) of 3-D subsurface domain
+  ! actual mass water flow rate (kgH2O/m2/sec) through the top/bottom BC (2-D) of 3-D subsurface domain
   ! (+ in, - out)
+  Vec :: qevap_subsurf_pfp    ! mpi vec: actual soil evaporation (-)
+  Vec :: qevap_subsurf_clms   ! seq vec
   Vec :: qinfl_subsurf_pfp    ! mpi vec: actual infiltration (+)
   Vec :: qinfl_subsurf_clms   ! seq vec
   Vec :: qsurf_subsurf_pfp    ! mpi vec: actual overland flow - potential-actual infiltration or water upwarding (-)
@@ -464,13 +470,13 @@ module clm_pflotran_interface_data
   Vec :: eflux_subbase_pfp    ! mpi vec: actual bottom interface energy flux
   Vec :: eflux_subbase_clms   ! seq vec
 
-  ! net water (with thermal) flow for PFLOTRAN's 3D subsurface domain
+  ! net water (with thermal) flow for PFLOTRAN's 3D subsurface domain (NOTE: this is for root water extraction due to transpiration)
   Vec :: qflow_pfp     ! mpi vec (H2O): kgH2O/m3/sec
   Vec :: qflow_clms    ! seq vec
   Vec :: qflowt_pfp    ! mpi vec (H2O)
   Vec :: qflowt_clms   ! seq vec
 
-  ! net heat exchange (no mass) for 3-D subsurface domain
+  ! net heat exchange (non mass) for 3-D subsurface domain
   Vec :: eflow_pfp     ! mpi vec: all non-mass forms of energy exchange rate (MJ/m3/sec)
   Vec :: eflow_clms    ! seq vec
 
@@ -848,6 +854,8 @@ contains
 
     !---------------
     ! water/energy boundary flux
+    clm_pf_idata%qevap_subsurf_pfp   = PETSC_NULL_VEC
+    clm_pf_idata%qevap_subsurf_clms  = PETSC_NULL_VEC
     clm_pf_idata%qinfl_subsurf_pfp   = PETSC_NULL_VEC
     clm_pf_idata%qinfl_subsurf_clms  = PETSC_NULL_VEC
     clm_pf_idata%qsurf_subsurf_pfp   = PETSC_NULL_VEC
@@ -1237,6 +1245,7 @@ contains
 
     ! --------- For TH data transfer from PFLOTRAN to CLM
     ! (by copying) Create MPI Vectors for PFLOTRAN  ----------------------
+    call VecDuplicate(clm_pf_idata%area_subsurf_pfp,clm_pf_idata%qevap_subsurf_pfp,ierr)
     call VecDuplicate(clm_pf_idata%area_subsurf_pfp,clm_pf_idata%qinfl_subsurf_pfp,ierr)
     call VecDuplicate(clm_pf_idata%area_subsurf_pfp,clm_pf_idata%qsurf_subsurf_pfp,ierr)
     call VecDuplicate(clm_pf_idata%area_subsurf_pfp,clm_pf_idata%eflux_subsurf_pfp,ierr)
@@ -1249,6 +1258,7 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%eflow_pfp,ierr)
 
     ! (by copying) Create Seq. Vectors for CLM  ----------------------
+    call VecDuplicate(clm_pf_idata%area_subsurf_clms,clm_pf_idata%qevap_subsurf_clms,ierr)
     call VecDuplicate(clm_pf_idata%area_subsurf_clms,clm_pf_idata%qinfl_subsurf_clms,ierr)
     call VecDuplicate(clm_pf_idata%area_subsurf_clms,clm_pf_idata%qsurf_subsurf_clms,ierr)
     call VecDuplicate(clm_pf_idata%area_subsurf_clms,clm_pf_idata%eflux_subsurf_clms,ierr)
@@ -1799,6 +1809,10 @@ contains
        call VecDestroy(clm_pf_idata%gtemp_subbase_pfs,ierr)
 
     !------------------
+    if(clm_pf_idata%qevap_subsurf_pfp /= PETSC_NULL_VEC) &
+       call VecDestroy(clm_pf_idata%qevap_subsurf_pfp,ierr)
+    if(clm_pf_idata%qevap_subsurf_clms /= PETSC_NULL_VEC) &
+       call VecDestroy(clm_pf_idata%qevap_subsurf_clms,ierr)
     if(clm_pf_idata%qinfl_subsurf_pfp /= PETSC_NULL_VEC) &
        call VecDestroy(clm_pf_idata%qinfl_subsurf_pfp,ierr)
     if(clm_pf_idata%qinfl_subsurf_clms /= PETSC_NULL_VEC) &
@@ -1839,4 +1853,7 @@ contains
 
   end subroutine CLMPFLOTRANIDataDestroy
 
+#endif
+
 end module clm_pflotran_interface_data
+

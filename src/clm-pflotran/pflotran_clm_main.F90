@@ -1,5 +1,10 @@
-module pflotran_clm_main_module
 
+module pflotran_clm_main_module
+!
+#ifdef CLM_PFLOTRAN
+! ************************************************************************** !
+!
+!
 #include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petscvec.h"
   use petscsys
@@ -10,6 +15,7 @@ module pflotran_clm_main_module
   use Simulation_Base_class, only : simulation_base_type
   use Multi_Simulation_module, only : multi_simulation_type
   use Realization_Base_class, only : realization_base_type
+  use Utility_module, only : where_checkerr
 
   use Mapping_module
   use clm_pflotran_interface_data
@@ -104,7 +110,6 @@ contains
     use Multi_Simulation_module
     use Factory_PFLOTRAN_module
     use Factory_Subsurface_module
-    use Factory_Hydrogeophysics_module
     use PFLOTRAN_Constants_module
     use Output_Aux_module, only : INSTANTANEOUS_VARS
     use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
@@ -431,14 +436,16 @@ contains
     type(pflotran_model_type), pointer :: model
     character(len=MAXWORDLENGTH) :: restart_stamp
 
-    model%option%io_buffer = 'restart is not implemented in clm-pflotran.' // &
+    option => model%option
+
+    option%io_buffer = 'restart is not implemented in clm-pflotran.' // &
        'AND, pflotran will be initialized from CLM'
 
     if (.not. StringNull(restart_stamp)) then
-       model%option%restart_flag = PETSC_TRUE
-       model%option%restart_filename = &
-            trim(model%option%global_prefix) // &
-            trim(model%option%group_prefix) // &
+       option%restart_flag = PETSC_TRUE
+       option%restart_filename = &
+            trim(option%global_prefix) // &
+            trim(option%group_prefix) // &
             '-' // trim(restart_stamp) // '.chk'
 
        model%option%io_buffer = 'restart file is: ' // &
@@ -476,15 +483,15 @@ contains
 
     PetscReal :: pause_time1
 
+    option => model%option
     if(isprintout) then
-      if (model%option%io_rank == model%option%myrank) then
-        write(model%option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
-        write(model%option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
+      if (option%io_rank == option%myrank) then
+        write(option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
+        write(option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
       endif
     endif
 
     pause_time1 = pause_time + dtime
-    !call pflotranModelUpdateFinalWaypoint(model, pause_time1, dtime, PETSC_FALSE)
     call pflotranModelInsertWaypoint(model, pause_time1, dtime, PETSC_FALSE, isprintout)
 
     call model%simulation%RunToTime(pause_time)
@@ -505,10 +512,8 @@ contains
 
     implicit none
 
-    type(Option_type), pointer :: option
     type(pflotran_model_type), pointer :: model
     character(len=MAXSTRINGLENGTH), intent(in) :: id_stamp
-    PetscViewer :: viewer
 
     if (associated(model%simulation%process_model_coupler_list%checkpoint_option)) then
       call model%simulation%process_model_coupler_list%Checkpoint(id_stamp)
@@ -530,7 +535,6 @@ contains
 
     implicit none
 
-    type(Option_type), pointer :: option
     type(pflotran_model_type), pointer :: model
 
     call model%simulation%FinalizeRun()
@@ -553,7 +557,6 @@ contains
 
     implicit none
 
-    type(Option_type), pointer :: option
     type(pflotran_model_type), pointer :: model
 
     call model%simulation%FinalizeRun()
@@ -608,13 +611,11 @@ contains
     use Material_module
     use Material_Aux_class
 
-    !use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : simulation_subsurface_type
-    !use Realization_Base_class, only : realization_base_type
     use Realization_Subsurface_class, only : realization_subsurface_type
 
     use clm_pflotran_interface_data
-    use Saturation_Function_module
+    use Mapping_module
 
     use Variables_module, only : VOLUME
 
@@ -697,9 +698,9 @@ contains
                                     clm_pf_idata%zisoil_clmp, &
                                     clm_pf_idata%zisoil_pfs)
     call VecGetArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !
     if ( (clm_pf_idata%nxclm_mapped >= 1 .and. clm_pf_idata%nyclm_mapped >= 1) .and. &
@@ -727,13 +728,13 @@ contains
 
     !
       call VecGetArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecGetArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecGetArrayReadF90(clm_pf_idata%xsoil_pfs, lonc_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecGetArrayReadF90(clm_pf_idata%ysoil_pfs, latc_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     end if
 
     !
@@ -896,19 +897,19 @@ contains
     if ( (clm_pf_idata%nxclm_mapped >= 1 .and. clm_pf_idata%nyclm_mapped >= 1) .and. &
          (.not.option%mapping_files) ) then
       call VecRestoreArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecRestoreArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecRestoreArrayReadF90(clm_pf_idata%xsoil_pfs, lonc_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecRestoreArrayReadF90(clm_pf_idata%ysoil_pfs, latc_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     end if
 
     call VecRestoreArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! re-do some dimension calculations after changes above
     call MPI_Barrier(option%mycomm,ierr)
@@ -945,7 +946,7 @@ contains
       ! inactive cells with weighted top-surface area of 0 (i.e. CLM grid of inactive or zero coverage of land)
       ! by setting their 'material' id to -999
       call VecGetArrayReadF90(clm_pf_idata%area_top_face_pfs, topface_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       do ghosted_id = 1, grid%ngmax
         local_id = grid%nG2L(ghosted_id)
@@ -957,15 +958,15 @@ contains
       end do
 
       call VecRestoreArrayReadF90(clm_pf_idata%area_top_face_pfs, topface_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     end if
 
 #ifdef CLM_PF_DEBUG
     ! the following is for checking
     call VecGetArrayF90(clm_pf_idata%cellid_pfp, cellid_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%cellid_pfs, cellid_clm_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       cellid_pf_loc(local_id) = grid%nG2A(ghosted_id)
@@ -976,9 +977,9 @@ contains
 
     end do
     call VecRestoreArrayF90(clm_pf_idata%cellid_pfp, cellid_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%cellid_pfs, cellid_clm_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     option, &
                                     clm_pf_idata%cellid_pfp, &
@@ -1033,8 +1034,7 @@ contains
     use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use TH_Aux_module
-    use Richards_Aux_module
-    use Characteristic_Curves_module   ! this is used by Richards_module and TH_module
+    use Characteristic_Curves_module   ! this is used by TH_module
     use Characteristic_Curves_Base_module
     use Characteristic_Curves_Common_module
 
@@ -1050,8 +1050,6 @@ contains
     type(field_type), pointer                 :: field
 
     class(characteristic_curves_type), pointer:: characteristic_curves
-    type(richards_auxvar_type), pointer       :: rich_auxvars(:), rich_auxvars_bc(:), rich_auxvars_ss(:)
-    type(richards_auxvar_type), pointer       :: rich_auxvar
     type(th_auxvar_type), pointer             :: th_auxvars(:), th_auxvars_bc(:), th_auxvars_ss(:)
     type(th_auxvar_type), pointer             :: th_auxvar
     type(TH_parameter_type), pointer          :: TH_parameter
@@ -1120,10 +1118,6 @@ contains
     material_auxvars=> patch%aux%Material%auxvars
 
     select case(option%iflowmode)
-      case(RICHARDS_MODE)
-        rich_auxvars    => patch%aux%Richards%auxvars
-        rich_auxvars_bc => patch%aux%Richards%auxvars_bc
-        rich_auxvars_ss => patch%aux%Richards%auxvars_ss
       case(TH_MODE)
         th_auxvars      => patch%aux%TH%auxvars
         th_auxvars_bc   => patch%aux%TH%auxvars_bc
@@ -1210,49 +1204,48 @@ contains
     !---------------------
     !
     call VecGetArrayF90(clm_pf_idata%tkwet_pfs, tkwet_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%tkdry_pfs, tkdry_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%tkfrz_pfs, tkfrz_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%hcvsol_pfs, hcapvs_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecGetArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%hksat_y_pfs, hksat_y_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%hksat_z_pfs, hksat_z_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%sucsat_pfs,  sucsat_pf_loc,  ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%watsat_pfs,  watsat_pf_loc,  ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%bsw_pfs,     bsw_pf_loc,     ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecGetArrayF90(clm_pf_idata%bulkdensity_dry_pfs,  bd_dry_pf_loc,     ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecGetArrayF90(field%porosity0, porosity_loc_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
-    if(option%iflowmode==RICHARDS_MODE .or. &
-       option%iflowmode==TH_MODE) then
+    if(option%iflowmode==TH_MODE) then
       ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
       call VecGetArrayF90(field%perm0_xx,  perm_xx_loc_p,  ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecGetArrayF90(field%perm0_yy,  perm_yy_loc_p,  ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecGetArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecGetArrayF90(field%icap_loc,  icap_loc_p, ierr);
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr);
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
@@ -1269,10 +1262,9 @@ contains
 
       !F.-M. Yuan: (1) the following IS to pass CLM soil hydraulic data into 'saturation_function';
       !            (2) data-passing IS by from 'ghosted_id' to PF's 'local_id'.
-      if(option%iflowmode == RICHARDS_MODE .or. &
-         option%iflowmode == TH_MODE) then
+      if(option%iflowmode == TH_MODE) then
 
-        ! Richards_MODE/TH_MODE now are using 'charateristic_curves' module
+        ! TH_MODE now are using 'charateristic_curves' module
         characteristic_curves => patch%  &
             characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr  ! MUST be in 'ghosted_id' for 'sat_func_id(:)'.
 
@@ -1345,9 +1337,6 @@ contains
 
         !
         select case(option%iflowmode)
-          case(RICHARDS_MODE)
-            rich_auxvar => rich_auxvars(ghosted_id)
-
           case(TH_MODE)
             th_auxvar   => th_auxvars(ghosted_id)
 
@@ -1370,8 +1359,7 @@ contains
       ! hydraulic conductivity => permissivity IS going to 'field%'
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
       ! [m^2]          [mm/sec]
-      if(option%iflowmode==RICHARDS_MODE .or. &
-         option%iflowmode==TH_MODE) then
+      if(option%iflowmode==TH_MODE) then
            ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
            perm_xx_loc_p(local_id) = hksat_x_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
            perm_yy_loc_p(local_id) = hksat_y_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
@@ -1423,49 +1411,48 @@ contains
 
     ! -------------
     call VecRestoreArrayF90(clm_pf_idata%tkwet_pfs, tkwet_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%tkdry_pfs, tkdry_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%tkfrz_pfs, tkfrz_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%hcvsol_pfs, hcapvs_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecRestoreArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%hksat_y_pfs, hksat_y_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%hksat_z_pfs, hksat_z_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%sucsat_pfs,  sucsat_pf_loc,  ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%watsat_pfs,  watsat_pf_loc,  ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%bsw_pfs,     bsw_pf_loc,     ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecRestoreArrayF90(clm_pf_idata%bulkdensity_dry_pfs,  bd_dry_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
-    if(option%iflowmode==RICHARDS_MODE .or. &
-      option%iflowmode==TH_MODE) then
+    if(option%iflowmode==TH_MODE) then
       ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
       call VecRestoreArrayF90(field%perm0_xx,  perm_xx_loc_p,  ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecRestoreArrayF90(field%perm0_yy,  perm_yy_loc_p,  ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecRestoreArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecRestoreArrayF90(field%icap_loc,  icap_loc_p, ierr);
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr);
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
@@ -1493,9 +1480,6 @@ contains
           if (patch%imat(ghosted_id) < 0) cycle
 
           select case(option%iflowmode)
-            case(RICHARDS_MODE)
-              call RichardsAuxVarCopy(rich_auxvars(ghosted_id),       &   ! 'rich_auxvars' have already updated above
-                                rich_auxvars_bc(sum_connection), option)
             case(TH_MODE)
               call THAuxVarCopy(th_auxvars(ghosted_id),               &   ! 'th_auxvars' have already updated above
                                 th_auxvars_bc(sum_connection), option)
@@ -1526,9 +1510,6 @@ contains
         if (patch%imat(ghosted_id) < 0) cycle
 
         select case(option%iflowmode)
-          case(RICHARDS_MODE)
-            call RichardsAuxVarCopy(rich_auxvars(ghosted_id),       &   ! 'rich_auxvars' have already updated above
-                                    rich_auxvars_ss(sum_connection), option)
           case(TH_MODE)
             call THAuxVarCopy(th_auxvars(ghosted_id),               &   ! 'th_auxvars' have already updated above
                               th_auxvars_ss(sum_connection), option)
@@ -1581,7 +1562,7 @@ contains
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
     PetscReal          :: unitconv, perm_adj, tempreal
 
-    PetscScalar, pointer :: porosity_pfs_loc(:), porosity_pfp_loc(:)  ! these are from 'clm-pf-idata%'
+    PetscScalar, pointer :: porosity_pfs_loc(:)  ! these are from 'clm-pf-idata%'
     PetscScalar, pointer :: hksat_x_pf_loc(:), hksat_y_pf_loc(:), hksat_z_pf_loc(:)
     PetscScalar, pointer :: watsat_pf_loc(:), bsw_pf_loc(:)
 
@@ -1613,34 +1594,33 @@ contains
                                     clm_pf_idata%effporosity_pfs)
     ! for adjusting porosity
     call VecGetArrayF90(clm_pf_idata%effporosity_pfs,  porosity_pfs_loc,  ierr)
-    CHKERRQ(ierr)   !seq. vec (to receive '_clmp' vec)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(field%porosity0, porosity0_loc_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! for adjusting permissivity
-    if(option%iflowmode==RICHARDS_MODE .or. &
-       option%iflowmode==TH_MODE) then
+    if(option%iflowmode==TH_MODE) then
 
         unitconv  = 0.001002d0/(998.2d0*EARTH_GRAVITY)/1000.d0    ! from hydraulic conductivity (mmH2O/sec) to permissivity (kg/sec)
         perm_adj  = 1.0d0
 
         call VecGetArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecGetArrayF90(clm_pf_idata%hksat_y_pfs, hksat_y_pf_loc, ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecGetArrayF90(clm_pf_idata%hksat_z_pfs, hksat_z_pf_loc, ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecGetArrayF90(clm_pf_idata%watsat_pfs,  watsat_pf_loc,  ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecGetArrayF90(clm_pf_idata%bsw_pfs,  bsw_pf_loc,  ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         call VecGetArrayF90(field%perm0_xx,  perm_xx_loc_p,  ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecGetArrayF90(field%perm0_yy,  perm_yy_loc_p,  ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecGetArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     do ghosted_id = 1, grid%ngmax
@@ -1661,8 +1641,7 @@ contains
 
       porosity0_loc_p(local_id) = porosity_pfs_loc(ghosted_id)
 
-      if(option%iflowmode==RICHARDS_MODE .or. &
-         option%iflowmode==TH_MODE) then
+      if(option%iflowmode==TH_MODE) then
            ! Ksat is based on actaul porosity, so when porosity is using the effective one, Ksat should be effective as well
            ! This will prevent large hydraulic conductivity in PFLOTRAN when shrinking pore size
            ! because PFLOTRAN uses pressure (saturation) in its rel. perm calculation.
@@ -1678,39 +1657,39 @@ contains
     enddo
 
     call VecRestoreArrayF90(clm_pf_idata%effporosity_pfs,  porosity_pfs_loc,  ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(field%porosity0, porosity0_loc_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     !
-    if(option%iflowmode==RICHARDS_MODE .or. &
-       option%iflowmode==TH_MODE) then
+    if(option%iflowmode==TH_MODE) then
         call VecRestoreArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecRestoreArrayF90(clm_pf_idata%hksat_y_pfs, hksat_y_pf_loc, ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecRestoreArrayF90(clm_pf_idata%hksat_z_pfs, hksat_z_pf_loc, ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecRestoreArrayF90(clm_pf_idata%watsat_pfs,  watsat_pf_loc,  ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecRestoreArrayF90(clm_pf_idata%bsw_pfs,  bsw_pf_loc,  ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         call VecRestoreArrayF90(field%perm0_xx,  perm_xx_loc_p,  ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecRestoreArrayF90(field%perm0_yy,  perm_yy_loc_p,  ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecRestoreArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     !
     call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,ZERO_INTEGER)
+                               POROSITY,POROSITY_MINERAL)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               POROSITY,POROSITY_CURRENT)
 
-    if(option%iflowmode==RICHARDS_MODE .or. &
-       option%iflowmode==TH_MODE) then
+    if(option%nflowdof>0) then
         call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
                                      field%work_loc,ONEDOF)
         call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
@@ -1751,7 +1730,6 @@ contains
     use Characteristic_Curves_Base_module
     use Characteristic_Curves_Common_module
 
-    use Richards_Aux_module
     use TH_Aux_module
 
     implicit none
@@ -1766,7 +1744,7 @@ contains
     class(realization_subsurface_type), pointer :: realization
 
     class(characteristic_curves_type), pointer :: characteristic_curves
-    type(richards_auxvar_type), pointer :: rich_auxvar
+
     type(th_auxvar_type), pointer :: th_auxvar
 
     PetscErrorCode     :: ierr
@@ -1804,14 +1782,14 @@ contains
     field           => realization%field
 
     call VecGetArrayF90(field%porosity_t,porosity_loc_p,ierr)     ! current porosity (checking ?? 'porosity_t' or 'porosity_tpdt')
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecGetArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%sr_pcwmax_pfp, sr_pcwmax_loc_pfp, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%pcwmax_pfp, pcwmax_loc_pfp, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     do local_id=1,grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -1827,16 +1805,11 @@ contains
       cur_sat_func_id = patch%sat_func_id(ghosted_id)
 
       !
-      if (option%iflowmode==RICHARDS_MODE) then
-        rich_auxvar => patch%aux%Richards%auxvars(ghosted_id)
-
-      elseif(option%iflowmode==TH_MODE) then
+      if(option%iflowmode==TH_MODE) then
         th_auxvar => patch%aux%TH%auxvars(ghosted_id)
-
       endif
 
-      ! Richards_MODE/TH_MODE now are using 'charateristic_curves' module
-
+      ! TH_MODE now are using 'charateristic_curves' module
       characteristic_curves => patch% &
           characteristic_curves_array(cur_sat_func_id)%ptr
 
@@ -1860,13 +1833,13 @@ contains
     enddo
 
     call VecRestoreArrayF90(field%porosity_t,porosity_loc_p,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%sr_pcwmax_pfp, sr_pcwmax_loc_pfp, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%pcwmax_pfp, pcwmax_loc_pfp, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -1890,7 +1863,7 @@ contains
   end subroutine pflotranModelGetSoilPropFromPF
 
 ! ************************************************************************************* !
-  ! This routine Updates T/H drivers (PF global vars) for PFLOTRAN BGC/Richards-mode,
+  ! This routine Updates T/H drivers (PF global vars) for PFLOTRAN BGC/Flow (TH)-mode,
   ! that is to say, CLM passes soil temperature or moisture (liq. pressure) or both to PF global auxvars,
   ! if either T ('pf_tmode') or H ('pf_hmode') or both NOT invoked in PFLOTRAN.
   !
@@ -1900,6 +1873,7 @@ contains
     use Realization_Base_class
     use Patch_module
     use Grid_module
+    use Field_module
     use Global_Aux_module
     use Simulation_Subsurface_class, only : simulation_subsurface_type
     use Realization_Subsurface_class, only : realization_subsurface_type
@@ -1918,14 +1892,19 @@ contains
 
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
     type(global_auxvar_type), pointer         :: global_auxvars(:)
 
     PetscErrorCode     :: ierr
 
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: soillsat_pf_loc(:), soilisat_pf_loc(:)
+    PetscReal, pointer :: soilliq_pf_loc(:)
     PetscReal, pointer :: soilt_pf_loc(:)
     PetscReal, pointer :: soilpress_pf_loc(:)
+
+    PetscReal, pointer :: porosity0_loc_p(:)     ! soil porosity in field%porosity0
+    PetscReal          :: liq_kgm3, ice_kgm3
 
     subname = 'pflotranModelUpdateTHfromCLM'
 
@@ -1945,6 +1924,7 @@ contains
     patch           => realization%patch
     grid            => patch%grid
     global_auxvars  => patch%aux%Global%auxvars
+    field           => realization%field
 
     ! Save the liq saturation values from CLM to PFLOTRAN, if needed
     if (.not.pf_hmode) then
@@ -1969,9 +1949,15 @@ contains
                                     clm_pf_idata%soilliq_pfs)
 
         call VecGetArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecGetArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pf_loc, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
+        ! saved porosity for coversion btw actual water mass/vol and saturation
+        call VecGetArrayF90(field%porosity0,porosity0_loc_p,ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         do ghosted_id=1, grid%ngmax
           local_id=grid%nG2L(ghosted_id)
@@ -1986,14 +1972,25 @@ contains
               'sat_globalvars(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
               'sat_pfs(ghosted_id)=',soillsat_pf_loc(ghosted_id)
 #endif
-          global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(ghosted_id)
+          !global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(ghosted_id)
+          ! alternatively, calculate sat from water mass (kgH2O/m3 bulk soil)
+          liq_kgm3 = global_auxvars(ghosted_id)%den_kg(1) ! water den = kg/m^3
+          global_auxvars(ghosted_id)%sat(1)=soilliq_pf_loc(local_id)/liq_kgm3/ &
+                                            porosity0_loc_p(local_id)
+
+          ! water pressure (pa)
           global_auxvars(ghosted_id)%pres(1)=soilpress_pf_loc(ghosted_id)
+
         enddo
 
         call VecRestoreArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
         call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pf_loc, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(field%porosity0,porosity0_loc_p,ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         !
         ! for exactly using moisture and other response functions of decomposition from CLM-CN
@@ -2022,7 +2019,7 @@ contains
                                     clm_pf_idata%soilice_pfs)
 
         call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         do ghosted_id=1, grid%ngmax
             local_id=grid%nG2L(ghosted_id)
@@ -2032,7 +2029,7 @@ contains
             global_auxvars(ghosted_id)%temp=soilt_pf_loc(ghosted_id)
         enddo
         call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
-        CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! for exactly using temperature response function of decomposition from CLM-CN
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -2062,13 +2059,11 @@ contains
     use Grid_module
     use Field_module
     use Global_Aux_module
-    use Richards_Aux_module
     use TH_Aux_module
 
     use Realization_Subsurface_class, only : realization_subsurface_type
     use Simulation_Subsurface_class, only : simulation_subsurface_type
     use TH_module, only : THUpdateAuxVars
-    use Richards_module, Only : RichardsUpdateAuxVars
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -2081,7 +2076,7 @@ contains
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
     type(global_auxvar_type), pointer         :: global_auxvars(:)
-    type(richards_auxvar_type), pointer       :: rich_auxvars(:)
+
     type(TH_auxvar_type), pointer             :: th_auxvars(:)
 
     class(simulation_subsurface_type), pointer  :: simulation
@@ -2099,11 +2094,7 @@ contains
     PetscScalar, pointer :: porosity_loc_pfp(:)  ! soil porosity saved in clm-pf-idata
     PetscReal          :: liq_kgm3, ice_kgm3
 
-    !PetscInt :: i
-    !PetscReal, pointer :: vec_loc(:)
-    !PetscViewer :: viewer
-
-    subname = 'pflotranModelSetSoilDimension'
+    subname = 'pflotranModelGetSaturationFromPF'
 !-------------------------------------------------------------------------
     option => pflotran_model%option
     select type (modelsim => pflotran_model%simulation)
@@ -2124,9 +2115,6 @@ contains
     global_auxvars  => patch%aux%Global%auxvars
 
     select case(option%iflowmode)
-      case (RICHARDS_MODE)
-         call RichardsUpdateAuxVars(realization)
-         rich_auxvars => patch%aux%Richards%auxvars
       case (TH_MODE)
          call THUpdateAuxVars(realization)
          th_auxvars => patch%aux%TH%auxvars
@@ -2145,19 +2133,19 @@ contains
 
     ! Save the saturation/pc/pressure values
     call VecGetArrayF90(clm_pf_idata%soillsat_pfp, soillsat_pf_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%soilliq_pfp, soilliq_pf_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! save porosity for estimating actual water content from saturation, when needed
     call VecGetArrayF90(field%porosity0,porosity0_loc_p,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     do local_id=1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
@@ -2169,7 +2157,7 @@ contains
       ! PF's field porosity pass to clm-pf-idata and saved
       porosity_loc_pfp(local_id) = porosity0_loc_p(local_id)
 
-      ! calculate water mass and pass to clm-pf-idata
+      ! calculate water mass (kgH2O/m3) and pass to clm-pf-idata
       liq_kgm3 = global_auxvars(ghosted_id)%den_kg(1) ! water den = kg/m^3
       soilliq_pf_p(local_id) = global_auxvars(ghosted_id)%sat(1)* &
                                porosity0_loc_p(local_id)*liq_kgm3
@@ -2183,27 +2171,22 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         'idata%sat_pfp(local_id)=',soillsat_pf_p(local_id)
 #endif
 
-
-      if (option%iflowmode == RICHARDS_MODE) then
-        soilpsi_pf_p(local_id) = -rich_auxvars(ghosted_id)%pc
-
-      else if (option%iflowmode == TH_MODE) then
+      if (option%iflowmode == TH_MODE) then
         soilpsi_pf_p(local_id) = -th_auxvars(ghosted_id)%pc
-
       endif
     enddo
     call VecRestoreArrayF90(clm_pf_idata%soillsat_pfp, soillsat_pf_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%soilliq_pfp, soilliq_pf_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(field%porosity0,porosity0_loc_p,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! mapping to CLM vecs (seq)
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -2231,19 +2214,23 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
                                     clm_pf_idata%effporosity_pfp, &
                                     clm_pf_idata%effporosity_clms)
 
+
     if (option%iflowmode == TH_MODE .and. &
         option%use_th_freezing) then
 
       TH_auxvars => patch%aux%TH%auxvars
 
       call VecGetArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecGetArrayF90(clm_pf_idata%soilice_pfp, soilice_pf_p, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecGetArrayF90(field%porosity0,porosity0_loc_p,ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
       do local_id = 1, grid%nlmax
         ghosted_id = grid%nL2G(local_id)
         if (ghosted_id <=0 ) cycle
+
         soilisat_pf_p(local_id) = TH_auxvars(ghosted_id)%ice%sat_ice
 
         ice_kgm3 = TH_auxvars(ghosted_id)%ice%den_ice        ! ice den = kg/m^3
@@ -2252,10 +2239,11 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
       enddo
       call VecRestoreArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecRestoreArrayF90(clm_pf_idata%soilice_pfp, soilice_pf_p, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecRestoreArrayF90(field%porosity0,porosity0_loc_p,ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                       option, &
@@ -2345,7 +2333,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     end select
 
     call VecGetArrayF90(clm_pf_idata%soilt_pfp, soilt_pf_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     do local_id=1,grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (ghosted_id>0) then
@@ -2353,7 +2341,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
       endif
     enddo
     call VecRestoreArrayF90(clm_pf_idata%soilt_pfp, soilt_pf_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     option, &
@@ -2948,27 +2936,32 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
     ! create temporary vecs/arrays for each 'decomp_pool' data-mapping
     call VecDuplicate(clm_pf_idata%zsoil_clmp, vec_clmp,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecDuplicate(clm_pf_idata%zsoil_pfs, vec_pfs,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! decomp'C'
     if (associated(clm_pf_idata%ispec_decomp_c)) then
       ! assembly the 'vec_clmp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_clmp, ierr); CHKERRQ(ierr)
-      call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_clmp, ierr); CHKERRQ(ierr)
+      call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_clmp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
+      call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_clmp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
 
         call VecGetArrayReadF90(clm_pf_idata%decomp_cpools_vr_clmp, array_temp, ierr)
-        call VecGetArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_clmp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlclm_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%decomp_cpools_vr_clmp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec for one species
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -2979,37 +2972,44 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_pfs' into the whole '_pfs' vec
         vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_pfs, array_temp, ierr)
-        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngpf_sub) = array_pfs
 
         call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_pfs, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
 
       ! assembly the whole '_pfs' vec
       call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_pfs, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_pfs, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! decomp_'N'
     if (associated(clm_pf_idata%ispec_decomp_n)) then
-      call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_clmp, ierr); CHKERRQ(ierr)
-      call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_clmp, ierr); CHKERRQ(ierr)
+      call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_clmp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
+      call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_clmp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a segment of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%decomp_npools_vr_clmp, array_temp, ierr)
-        call VecGetArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_clmp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlclm_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%decomp_npools_vr_clmp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. Vec
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -3020,26 +3020,30 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_pfs' into the whole '_pfs' vec
         vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_pfs, array_temp, ierr)
-        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngpf_sub) = array_pfs
 
         call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_pfs, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
 
       ! assembly the whole '_pfs' vec, which then pass to PF's field%
       call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_pfs, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_pfs, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! clear-up of temporary vecs/arrarys
-    call VecDestroy(vec_clmp,ierr); CHKERRQ(ierr)
-    call VecDestroy(vec_pfs,ierr); CHKERRQ(ierr)
+    call VecDestroy(vec_clmp,ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecDestroy(vec_pfs,ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
 
     !-----------------------------------------------------------------
@@ -3067,32 +3071,32 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
     if (associated(clm_pf_idata%ispec_decomp_c)) then
       call VecGetArrayReadF90(clm_pf_idata%decomp_cpools_vr_pfs, decomp_cpools_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
     if (associated(clm_pf_idata%ispec_decomp_n)) then
       call VecGetArrayReadF90(clm_pf_idata%decomp_npools_vr_pfs, decomp_npools_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     !
     if(clm_pf_idata%ispec_no3 > 0 .or. clm_pf_idata%ispec_nh4s > 0) then
       call VecGetArrayReadF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     if(clm_pf_idata%ispec_nh4 > 0 .or. clm_pf_idata%ispec_nh4s > 0) then
       call VecGetArrayReadF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       call VecGetArrayReadF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecGetArrayReadF90(field%porosity0, porosity_loc_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
 
     !----------------------------------------------------------------------------------------------------
@@ -3184,38 +3188,38 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
     if (associated(clm_pf_idata%ispec_decomp_c)) then
       call VecRestoreArrayReadF90(clm_pf_idata%decomp_cpools_vr_pfs, decomp_cpools_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
     if (associated(clm_pf_idata%ispec_decomp_n)) then
       call VecRestoreArrayReadF90(clm_pf_idata%decomp_npools_vr_pfs, decomp_npools_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     !
     if(clm_pf_idata%ispec_no3 > 0 .or. clm_pf_idata%ispec_no3s > 0) then
       call VecRestoreArrayReadF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     if(clm_pf_idata%ispec_nh4 > 0 .or. clm_pf_idata%ispec_nh4s > 0) then
       call VecRestoreArrayReadF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       call VecRestoreArrayReadF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call DiscretizationGlobalToLocal(realization%discretization,field%tran_xx, &
                                    field%tran_xx_loc,NTRANDOF)
 
     call VecCopy(field%tran_xx,field%tran_yy,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
 
   end subroutine pflotranModelSetBgcConcFromCLM
@@ -3295,25 +3299,31 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
     ! create temporary vecs/arrays for rate of each 'decomp_pool''s data-mapping
     call VecDuplicate(clm_pf_idata%zsoil_clmp, vec_clmp,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecDuplicate(clm_pf_idata%zsoil_pfs, vec_pfs,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! rate of decomp_'C' pools from CLM-CN
     if (associated(clm_pf_idata%ispec_decomp_c)) then
       ! assembly the 'vec_clmp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%rate_decomp_c_clmp, ierr); CHKERRQ(ierr)
-      call VecAssemblyEnd(clm_pf_idata%rate_decomp_c_clmp, ierr); CHKERRQ(ierr)
+      call VecAssemblyBegin(clm_pf_idata%rate_decomp_c_clmp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
+      call VecAssemblyEnd(clm_pf_idata%rate_decomp_c_clmp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%rate_decomp_c_clmp, array_temp, ierr)
-        call VecGetArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_clmp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlclm_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%rate_decomp_c_clmp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -3324,39 +3334,49 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_pfs' into the whole '_pfs' vec
         vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%rate_decomp_c_pfs, array_temp, ierr)
-        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngpf_sub) = array_pfs
 
         call VecRestoreArrayF90(clm_pf_idata%rate_decomp_c_pfs, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
 
       ! assembly the whole '_pfs' vec
       call VecAssemblyBegin(clm_pf_idata%rate_decomp_c_pfs, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecAssemblyEnd(clm_pf_idata%rate_decomp_c_pfs, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! rate of decomp_'N' pools from CLM-CN
     if (associated(clm_pf_idata%ispec_decomp_n)) then
 
-      call VecAssemblyBegin(clm_pf_idata%rate_decomp_n_clmp, ierr); CHKERRQ(ierr)
-      call VecAssemblyEnd(clm_pf_idata%rate_decomp_n_clmp, ierr); CHKERRQ(ierr)
+      call VecAssemblyBegin(clm_pf_idata%rate_decomp_n_clmp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
+      call VecAssemblyEnd(clm_pf_idata%rate_decomp_n_clmp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a segment of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%rate_decomp_n_clmp, array_temp, ierr)
-        call VecGetArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_clmp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlclm_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%rate_decomp_n_clmp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. Vec
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -3367,26 +3387,32 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_pfs' into the whole '_pfs' vec
         vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%rate_decomp_n_pfs, array_temp, ierr)
-        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngpf_sub) = array_pfs
 
         call VecRestoreArrayF90(clm_pf_idata%rate_decomp_n_pfs, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
 
       ! assembly the whole '_pfs' vec, which then pass to PF's field%
       call VecAssemblyBegin(clm_pf_idata%rate_decomp_n_pfs, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecAssemblyEnd(clm_pf_idata%rate_decomp_n_pfs, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! clear-up of temporary vecs/arrarys
-    call VecDestroy(vec_clmp,ierr); CHKERRQ(ierr)
-    call VecDestroy(vec_pfs,ierr); CHKERRQ(ierr)
+    call VecDestroy(vec_clmp,ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecDestroy(vec_pfs,ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !-----------------------------------------------------------------
     ! the following is a site-scalar to adjust decomposition rate constants
@@ -3425,7 +3451,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
     ! get cell volume to convert mass transfer rate unit from moles/m3/s to moles/s
     call VecGetArrayReadF90(field%volume0,volume_p,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !
     offsetim = realization%reaction%offset_immobile
@@ -3444,13 +3470,13 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
           if(cur_data_mediator%idof == clm_pf_idata%ispec_nh4 .or. &
              cur_data_mediator%idof == clm_pf_idata%ispec_nh4s) then
             call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
-            CHKERRQ(ierr)
+            call where_checkerr(ierr, subname, __FILE__, __LINE__)
             found_rtmasstr = PETSC_TRUE
 
           elseif(cur_data_mediator%idof == clm_pf_idata%ispec_no3 .or. &
              cur_data_mediator%idof == clm_pf_idata%ispec_no3s) then
             call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
-            CHKERRQ(ierr)
+            call where_checkerr(ierr, subname, __FILE__, __LINE__)
             found_rtmasstr = PETSC_TRUE
 
           else
@@ -3461,7 +3487,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
                if( cur_data_mediator%idof == (offsetim + clm_pf_idata%ispec_decomp_c(k)) ) then
                  vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
                  call VecGetArrayReadF90(clm_pf_idata%rate_decomp_c_pfs, rate_pf_loc, ierr)
-                 CHKERRQ(ierr)
+                 call where_checkerr(ierr, subname, __FILE__, __LINE__)
                  found_rtmasstr = PETSC_TRUE
 
                  exit   ! exit the 'do k=1, ...' loop
@@ -3469,7 +3495,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
                elseif( cur_data_mediator%idof == (offsetim + clm_pf_idata%ispec_decomp_n(k)) ) then
                  vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
                  call VecGetArrayReadF90(clm_pf_idata%rate_decomp_n_pfs, rate_pf_loc, ierr)
-                 CHKERRQ(ierr)
+                 call where_checkerr(ierr, subname, __FILE__, __LINE__)
                  found_rtmasstr = PETSC_TRUE
 
                  exit   ! exit the 'do k=1, ...' loop
@@ -3511,11 +3537,11 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
            if(cur_data_mediator%idof == clm_pf_idata%ispec_nh4 .or. &
               cur_data_mediator%idof == clm_pf_idata%ispec_nh4s) then
              call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
-             CHKERRQ(ierr)
+             call where_checkerr(ierr, subname, __FILE__, __LINE__)
            elseif(cur_data_mediator%idof == clm_pf_idata%ispec_no3 .or. &
                   cur_data_mediator%idof == clm_pf_idata%ispec_no3s) then
              call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
-             CHKERRQ(ierr)
+             call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
            else
            !--------------------------------------------------------------------------
@@ -3524,12 +3550,12 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
                do k=1,clm_pf_idata%ndecomp_pools
                  if( cur_data_mediator%idof == (offsetim + clm_pf_idata%ispec_decomp_c(k)) ) then
                    call VecRestoreArrayReadF90(clm_pf_idata%rate_decomp_c_pfs, rate_pf_loc, ierr)
-                   CHKERRQ(ierr)
+                   call where_checkerr(ierr, subname, __FILE__, __LINE__)
                    exit   ! exit the 'do k=1, ...' loop
 
                  elseif( cur_data_mediator%idof == (offsetim + clm_pf_idata%ispec_decomp_n(k)) ) then
                    call VecRestoreArrayReadF90(clm_pf_idata%rate_decomp_n_pfs, rate_pf_loc, ierr)
-                   CHKERRQ(ierr)
+                   call where_checkerr(ierr, subname, __FILE__, __LINE__)
                    exit   ! exit the 'do k=1, ...' loop
                  endif
                enddo
@@ -3558,7 +3584,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     end do
 
     call VecRestoreArrayReadF90(field%volume0,volume_p,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
   end subroutine pflotranModelSetBGCRatesFromCLM
 
@@ -3644,17 +3670,17 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     !-----------------------------------------------------------------
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecGetArrayReadF90(field%porosity0, porosity0_loc_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! the previous time-step porosity and lsat from PFLOTRAN, saved in clm_pf_idata
     ! NOTE: make sure NOT modified by CLM
     call VecGetArrayReadF90(clm_pf_idata%effporosity_pfp, porosity_pre_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayReadF90(clm_pf_idata%soillsat_pfp, soillsat_pre_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     do local_id = 1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
@@ -3690,20 +3716,20 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     enddo
 
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(field%porosity0, porosity0_loc_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecRestoreArrayReadF90(clm_pf_idata%effporosity_pfp, porosity_pre_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayReadF90(clm_pf_idata%soillsat_pfp, soillsat_pre_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call DiscretizationGlobalToLocal(realization%discretization,field%tran_xx, &
                                    field%tran_xx_loc,NTRANDOF)
 
     call VecCopy(field%tran_xx,field%tran_yy,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
 
   end subroutine pflotranModelUpdateAqConcFromCLM
@@ -3720,10 +3746,10 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
   !
   subroutine pflotranModelUpdateAqGasesFromCLM(pflotran_model)
 
-    use Global_Aux_module
     use Realization_Base_class
     use Patch_module
     use Grid_module
+    use Global_Aux_module
     use Option_module
     use Field_module
     use Discretization_module
@@ -3809,14 +3835,14 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
     ! (iii) get the 'PF' vecs for resetting data
     call VecGetArrayF90(clm_pf_idata%gco2_vr_pfs, gco2_vr_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%gn2_vr_pfs, gn2_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%gn2o_vr_pfs, gn2o_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)
-    CHKERRQ(ierr)  ! extract data from pflotran internal portion
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)  ! extract data from pflotran internal portion
 
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
@@ -3843,21 +3869,21 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     enddo
 
     call VecRestoreArrayF90(clm_pf_idata%gco2_vr_pfs, gco2_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%gn2_vr_pfs, gn2_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%gn2o_vr_pfs, gn2o_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     !
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !
     call DiscretizationGlobalToLocal(realization%discretization,field%tran_xx, &
                                    field%tran_xx_loc,NTRANDOF)
 
     call VecCopy(field%tran_xx,field%tran_yy,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
 
   end subroutine pflotranModelUpdateAqGasesFromCLM
@@ -3974,76 +4000,76 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     !
 
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_pfp, decomp_cpools_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_pfp, decomp_npools_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     !
     call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfp, smin_no3_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%smin_nh4sorb_vr_pfp, smin_nh4sorb_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     !
     call VecGetArrayF90(clm_pf_idata%gco2_vr_pfp, gco2_vr_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%gn2_vr_pfp, gn2_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%gn2o_vr_pfp, gn2o_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     !
     call VecGetArrayF90(clm_pf_idata%accextrnh4_vr_pfp, accextrnh4_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%accextrno3_vr_pfp, accextrno3_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     if (clm_pf_idata%ispec_hrimm>0) then
       call VecGetArrayF90(clm_pf_idata%acctothr_vr_pfp, acchr_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else
       call VecGetArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     if (clm_pf_idata%ispec_nmin>0) then
       call VecGetArrayF90(clm_pf_idata%acctotnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else   ! can have both, but now NOT
       call VecGetArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     if (clm_pf_idata%ispec_nimp>0) then
       call VecGetArrayF90(clm_pf_idata%acctotnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else   ! can have both, but now NOT
       call VecGetArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     if (clm_pf_idata%ispec_nimm>0) then
       call VecGetArrayF90(clm_pf_idata%acctotnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else   ! can have both, but now NOT
       call VecGetArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     call VecGetArrayF90(clm_pf_idata%accngasmin_vr_pfp, accngasmin_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%accngasnitr_vr_pfp, accngasnitr_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%accngasdeni_vr_pfp, accngasdeni_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !
     ! (ii) pass the data from internal to CLM-PFLOTRAN interface vecs
     !
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)
-    CHKERRQ(ierr)  ! extract data from pflotran internal vecs
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)  ! extract data from pflotran internal vecs
     call VecGetArrayReadF90(field%porosity0, porosity_loc_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! loop over cells
     do local_id=1,grid%nlmax
@@ -4306,78 +4332,78 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
     !
     call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_pfp, decomp_cpools_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_pfp, decomp_npools_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     !
     call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfp, smin_no3_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%smin_nh4sorb_vr_pfp, smin_nh4sorb_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     !
     call VecRestoreArrayF90(clm_pf_idata%gco2_vr_pfp, gco2_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%gn2_vr_pfp, gn2_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%gn2o_vr_pfp, gn2o_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     !
     call VecRestoreArrayF90(clm_pf_idata%accextrnh4_vr_pfp, accextrnh4_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%accextrno3_vr_pfp, accextrno3_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     if (clm_pf_idata%ispec_hrimm>0) then
       call VecGetArrayF90(clm_pf_idata%acctothr_vr_pfp, acchr_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else
       call VecRestoreArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     if (clm_pf_idata%ispec_nmin>0) then
       call VecGetArrayF90(clm_pf_idata%acctotnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else
       call VecRestoreArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     if (clm_pf_idata%ispec_nimp>0) then
       call VecGetArrayF90(clm_pf_idata%acctotnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else
       call VecRestoreArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     if (clm_pf_idata%ispec_nimm>0) then
       call VecGetArrayF90(clm_pf_idata%acctotnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else
       call VecRestoreArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     call VecRestoreArrayF90(clm_pf_idata%accngasmin_vr_pfp, accngasmin_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%accngasnitr_vr_pfp, accngasnitr_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%accngasdeni_vr_pfp, accngasdeni_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     !
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayReadF90(field%porosity0, porosity_loc_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
      ! resetting the tracked variable states, which zeroed above
     call DiscretizationGlobalToLocal(realization%discretization,field%tran_xx, &
                                    field%tran_xx_loc,NTRANDOF)
     call VecCopy(field%tran_xx,field%tran_yy,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
 
     !
@@ -4390,25 +4416,31 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
     ! create temporary vecs/arrays for each 'decomp_pool' data-mapping
     call VecDuplicate(clm_pf_idata%zsoil_pfp, vec_pfp,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecDuplicate(clm_pf_idata%zsoil_clms, vec_clms,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! decomp'C'
     if (associated(clm_pf_idata%ispec_decomp_c)) then
       ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_pfp, ierr); CHKERRQ(ierr)
-      call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_pfp, ierr); CHKERRQ(ierr)
+      call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_pfp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
+      call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_pfp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%decomp_cpools_vr_pfp, array_temp, ierr)
-        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_pfp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlpf_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%decomp_cpools_vr_pfp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -4419,38 +4451,48 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_clms' into the whole '_clms' vec
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_clms, array_temp, ierr)
-        call VecGetArrayReadF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngclm_sub) = array_clms
 
         call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_clms, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
 
       ! assembly the whole '_clms' vec, after k compositing pools updated
       call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_clms, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_clms, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! decomp'N'
     if (associated(clm_pf_idata%ispec_decomp_n)) then
       ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_pfp, ierr); CHKERRQ(ierr)
-      call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_pfp, ierr); CHKERRQ(ierr)
+      call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_pfp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
+      call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_pfp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%decomp_npools_vr_pfp, array_temp, ierr)
-        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_pfp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlpf_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%decomp_npools_vr_pfp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -4461,38 +4503,48 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_clms' into the whole '_clms' vec
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_clms, array_temp, ierr)
-        call VecGetArrayReadF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngclm_sub) = array_clms
 
         call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_clms, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
 
       ! assembly the whole '_clms' vec, after k compositing pools updated
       call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_clms, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_clms, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! HR from decomp'C'
     if (associated(clm_pf_idata%ispec_decomp_c) .and. clm_pf_idata%ispec_hrimm<=0) then
       ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%acchr_vr_pfp, ierr); CHKERRQ(ierr)
-      call VecAssemblyEnd(clm_pf_idata%acchr_vr_pfp, ierr); CHKERRQ(ierr)
+      call VecAssemblyBegin(clm_pf_idata%acchr_vr_pfp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
+      call VecAssemblyEnd(clm_pf_idata%acchr_vr_pfp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%acchr_vr_pfp, array_temp, ierr)
-        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_pfp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlpf_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%acchr_vr_pfp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -4503,38 +4555,48 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_clms' into the whole '_clms' vec
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%acchr_vr_clms, array_temp, ierr)
-        call VecGetArrayReadF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngclm_sub) = array_clms
 
         call VecRestoreArrayF90(clm_pf_idata%acchr_vr_clms, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+         call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
 
       ! assembly the whole '_clms' vec, after k compositing pools updated
       call VecAssemblyBegin(clm_pf_idata%acchr_vr_clms, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecAssemblyEnd(clm_pf_idata%acchr_vr_clms, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! NMIN from decomp'N'
     if (associated(clm_pf_idata%ispec_decomp_n) .and. clm_pf_idata%ispec_nmin<=0) then
       ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%accnmin_vr_pfp, ierr); CHKERRQ(ierr)
-      call VecAssemblyEnd(clm_pf_idata%accnmin_vr_pfp, ierr); CHKERRQ(ierr)
+      call VecAssemblyBegin(clm_pf_idata%accnmin_vr_pfp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
+      call VecAssemblyEnd(clm_pf_idata%accnmin_vr_pfp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%accnmin_vr_pfp, array_temp, ierr)
-        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_pfp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlpf_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%accnmin_vr_pfp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -4545,38 +4607,48 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_clms' into the whole '_clms' vec
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%accnmin_vr_clms, array_temp, ierr)
-        call VecGetArrayReadF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngclm_sub) = array_clms
 
         call VecRestoreArrayF90(clm_pf_idata%accnmin_vr_clms, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
 
       ! assembly the whole '_clms' vec, after k compositing pools updated
       call VecAssemblyBegin(clm_pf_idata%accnmin_vr_clms, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecAssemblyEnd(clm_pf_idata%accnmin_vr_clms, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! NIMP from decomp'N'
     if (associated(clm_pf_idata%ispec_decomp_n) .and. clm_pf_idata%ispec_nimp<=0) then
       ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%accnimmp_vr_pfp, ierr); CHKERRQ(ierr)
-      call VecAssemblyEnd(clm_pf_idata%accnimmp_vr_pfp, ierr); CHKERRQ(ierr)
+      call VecAssemblyBegin(clm_pf_idata%accnimmp_vr_pfp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
+      call VecAssemblyEnd(clm_pf_idata%accnimmp_vr_pfp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%accnimmp_vr_pfp, array_temp, ierr)
-        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_pfp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlpf_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%accnimmp_vr_pfp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -4587,38 +4659,48 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_clms' into the whole '_clms' vec
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%accnimmp_vr_clms, array_temp, ierr)
-        call VecGetArrayReadF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngclm_sub) = array_clms
 
         call VecRestoreArrayF90(clm_pf_idata%accnimmp_vr_clms, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
 
       ! assembly the whole '_clms' vec, after k compositing pools updated
       call VecAssemblyBegin(clm_pf_idata%accnimmp_vr_clms, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecAssemblyEnd(clm_pf_idata%accnimmp_vr_clms, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! NIMM from decomp'N'
     if (associated(clm_pf_idata%ispec_decomp_n) .and. clm_pf_idata%ispec_nimm<=0) then
       ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%accnimm_vr_pfp, ierr); CHKERRQ(ierr)
-      call VecAssemblyEnd(clm_pf_idata%accnimm_vr_pfp, ierr); CHKERRQ(ierr)
+      call VecAssemblyBegin(clm_pf_idata%accnimm_vr_pfp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
+      call VecAssemblyEnd(clm_pf_idata%accnimm_vr_pfp, ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%accnimm_vr_pfp, array_temp, ierr)
-        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_pfp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlpf_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%accnimm_vr_pfp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -4629,26 +4711,32 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_clms' into the whole '_clms' vec
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%accnimm_vr_clms, array_temp, ierr)
-        call VecGetArrayReadF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngclm_sub) = array_clms
 
         call VecRestoreArrayF90(clm_pf_idata%accnimm_vr_clms, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
 
       ! assembly the whole '_clms' vec, after k compositing pools updated
       call VecAssemblyBegin(clm_pf_idata%accnimm_vr_clms, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
       call VecAssemblyEnd(clm_pf_idata%accnimm_vr_clms, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! clear-up of temporary vecs/arrarys
-    call VecDestroy(vec_pfp,ierr); CHKERRQ(ierr)
-    call VecDestroy(vec_clms,ierr); CHKERRQ(ierr)
+    call VecDestroy(vec_pfp,ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecDestroy(vec_clms,ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !-----------------------------------------------------------------
     ! for single element, mapping approach directly
@@ -4754,46 +4842,46 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
     if (clm_pf_idata%ispec_hrimm>0) then
       call VecGetArrayF90(clm_pf_idata%acctothr_vr_pfp, acchr_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else
       call VecGetArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     if (clm_pf_idata%ispec_nmin>0) then
       call VecGetArrayF90(clm_pf_idata%acctotnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else
       call VecGetArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     if (clm_pf_idata%ispec_nimp>0) then
       call VecGetArrayF90(clm_pf_idata%acctotnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else
       call VecGetArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     if (clm_pf_idata%ispec_nimm>0) then
       call VecGetArrayF90(clm_pf_idata%acctotnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else
       call VecGetArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     call VecGetArrayF90(clm_pf_idata%accextrnh4_vr_pfp, accextrnh4_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%accextrno3_vr_pfp, accextrno3_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%accngasmin_vr_pfp, accngasmin_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%accngasnitr_vr_pfp, accngasnitr_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%accngasdeni_vr_pfp, accngasdeni_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     acchr_vr_pf_loc(:)      = 0.d0
     accnmin_vr_pf_loc(:)    = 0.d0
@@ -4807,46 +4895,46 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
     if (clm_pf_idata%ispec_hrimm>0) then
       call VecRestoreArrayF90(clm_pf_idata%acctothr_vr_pfp, acchr_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else
       call VecRestoreArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     if (clm_pf_idata%ispec_nmin>0) then
       call VecRestoreArrayF90(clm_pf_idata%acctotnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else
       call VecRestoreArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     if (clm_pf_idata%ispec_nimp>0) then
       call VecRestoreArrayF90(clm_pf_idata%acctotnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else
       call VecRestoreArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     if (clm_pf_idata%ispec_nimm>0) then
       call VecRestoreArrayF90(clm_pf_idata%acctotnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     else
       call VecRestoreArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
+      call where_checkerr(ierr, subname, __FILE__, __LINE__)
     endif
 
     call VecRestoreArrayF90(clm_pf_idata%accextrnh4_vr_pfp, accextrnh4_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%accextrno3_vr_pfp, accextrno3_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%accngasmin_vr_pfp, accngasmin_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%accngasnitr_vr_pfp, accngasnitr_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%accngasdeni_vr_pfp, accngasdeni_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     !
 
   end subroutine pflotranModelGetBgcVariablesFromPF
@@ -4883,7 +4971,6 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     use Field_module
     use Discretization_module
     use TH_Aux_module
-    use Richards_Aux_module
     use Material_Aux_class
     use Global_Aux_module
 
@@ -4894,8 +4981,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     use Characteristic_Curves_module
     use Characteristic_Curves_Base_module
     use Characteristic_Curves_Common_module
-    use TH_module, only : THUpdateAuxVars
-    use Richards_module, Only : RichardsUpdateAuxVars
+    use TH_module, only : THUpdateAuxVars, THComputeMassBalance
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -4920,12 +5006,18 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     PetscInt           :: cur_sat_func_id
     PetscReal          :: liquid_saturation, capillary_pressure, dx, porosity
     PetscReal          :: liq_kgm3
+    PetscReal          :: sum_kg(pflotran_model%option%nflowspec, pflotran_model%option%nphase)
+
+    !field%
     PetscReal, pointer :: xx_loc_p(:)
+    PetscReal, pointer :: porosity0_loc_p(:)     ! this is from 'field%porosity0'
 
     PetscScalar, pointer :: soilt_pf_loc(:)      ! temperature [oC]
     PetscScalar, pointer :: soilpress_pf_loc(:)  ! water pressure (Pa)
     PetscScalar, pointer :: soilliq_pf_loc(:)    ! liq. water mass (kg/m3)
     PetscScalar, pointer :: soilice_pf_loc(:)    ! ice water mass (kg/m3)
+    PetscScalar, pointer :: soillsat_pf_loc(:)   ! liq. water saturation (0 - 1)
+    PetscScalar, pointer :: soilisat_pf_loc(:)   ! ice water saturation (0 - 1)
 
     subname = 'ModelSetInternalTHStatesFromCLM'
 
@@ -4933,7 +5025,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     option => pflotran_model%option
 
     select case(option%iflowmode)
-      case (RICHARDS_MODE, TH_MODE)
+      case (TH_MODE)
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
                                     clm_pf_idata%soillsat_clmp, &
@@ -4988,16 +5080,25 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
 
 
     call VecGetArrayF90(field%flow_xx, xx_loc_p, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%soilice_pfs, soilice_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecGetArrayF90(field%porosity0, porosity0_loc_p, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
+
+    call VecGetArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecGetArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecGetArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecGetArrayF90(clm_pf_idata%soilice_pfs, soilice_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecGetArrayF90(clm_pf_idata%soilisat_pfs, soilisat_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
+    sum_kg = 0.d0
     do local_id = 1, grid%nlmax
        ghosted_id = grid%nL2G(local_id)
        if (ghosted_id <= 0 .or. local_id <= 0) cycle
@@ -5035,6 +5136,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
 
        else
          ! need to recalculate 'pressure' from saturation/water-mass
+         !liquid_saturation = soillsat_pf_loc(ghosted_id)
          liquid_saturation = soilliq_pf_loc(ghosted_id)/liq_kgm3/porosity
          select type(sf => characteristic_curves%saturation_function)
            !class is(sat_func_VG_type)
@@ -5052,30 +5154,43 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
 
        end if
 
+       !
+       global_auxvars(ghosted_id)%sat(1)  = liquid_saturation
+       global_auxvars(ghosted_id)%pres(1) = option%reference_pressure - capillary_pressure
        if (option%iflowmode .eq. TH_MODE)  then
          xx_loc_p(istart+1)= soilt_pf_loc(ghosted_id)
        end if
+
+
+       !
+       sum_kg(1,1)= sum_kg(1,1)+ soilliq_pf_loc(ghosted_id)*material_auxvars(ghosted_id)%volume
+
     enddo
 
     call VecRestoreArrayF90(field%flow_xx, xx_loc_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecRestoreArrayF90(field%porosity0, porosity0_loc_p, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
     call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%soilice_pfs, soilice_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecRestoreArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    call VecRestoreArrayF90(clm_pf_idata%soilisat_pfs, soilisat_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call DiscretizationGlobalToLocal(realization%discretization, field%flow_xx, &
          field%flow_xx_loc, NFLOWDOF)
     call VecCopy(field%flow_xx, field%flow_yy, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     select case(option%iflowmode)
-      case (RICHARDS_MODE)
-        call RichardsUpdateAuxVars(realization)
       case (TH_MODE)
         call THUpdateAuxVars(realization)
       case default
@@ -5101,18 +5216,17 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Option_module
     use Patch_module
     use Grid_module
+    use Global_Aux_module
     use Coupler_module
     use Connection_module
 
     use TH_Aux_module
-    use Richards_Aux_module
 
     use String_module
 
     use Realization_Subsurface_class, only : realization_subsurface_type
     use Simulation_Subsurface_class, only : simulation_subsurface_type
     use TH_module, only : THUpdateAuxVars
-    use Richards_module, Only : RichardsUpdateAuxVars
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -5123,6 +5237,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     type(pflotran_model_type), pointer        :: pflotran_model
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
+    type(global_auxvar_type), pointer         :: global_auxvars(:)
 
     class(simulation_subsurface_type), pointer  :: simulation
     class(realization_subsurface_type), pointer :: realization
@@ -5137,12 +5252,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscScalar, pointer :: press_maxponding_pf_loc(:)  ! subsurface top boundary max. ponding pressure (Pa) (seepage BC)
     PetscScalar, pointer :: press_subsurf_pf_loc(:)     ! subsurface top boundary pressure-head (Pa) (dirichlet BC)
-    PetscScalar, pointer :: qfluxw_subsurf_pf_loc(:)    ! subsurface top boundary infiltration rate (m/s) (neumann BC)
-    PetscScalar, pointer :: qfluxv_subsurf_pf_loc(:)    ! subsurface top boundary evaporation rate (m/s) (neumann BC)
+    PetscScalar, pointer :: qfluxw_subsurf_pf_loc(:)    ! subsurface top boundary infiltration rate (kgH2O/m2/s) (neumann BC)
+    PetscScalar, pointer :: qfluxv_subsurf_pf_loc(:)    ! subsurface top boundary evaporation rate (kgH2O/m2/s) (neumann BC)
     PetscScalar, pointer :: press_subbase_pf_loc(:)     ! bottom boundary pressure-head (Pa) (dirichlet BC)
     PetscScalar, pointer :: qfluxw_subbase_pf_loc(:)     ! botoom boundary drainage flow rate (m/s) (neumann BC)
 
     PetscScalar, pointer :: toparea_p(:)                ! subsurface top area saved
+
+    PetscReal :: liq_kgm3
 
     !------------------------------------------------------------------------------------
 
@@ -5162,6 +5279,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     end select
     patch           => realization%patch
     grid            => patch%grid
+    global_auxvars  => patch%aux%Global%auxvars
 
     call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
                                     option, &
@@ -5195,25 +5313,23 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     ! interface vecs of PF
     call VecGetArrayF90(clm_pf_idata%press_subsurf_pfs,  press_subsurf_pf_loc,  ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%qfluxw_subsurf_pfs,  qfluxw_subsurf_pf_loc,  ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%qfluxev_subsurf_pfs,  qfluxv_subsurf_pf_loc,  ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%press_subbase_pfs,  press_subbase_pf_loc,  ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%qfluxw_subbase_pfs, qfluxw_subbase_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%press_maxponding_pfs, press_maxponding_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecGetArrayF90(clm_pf_idata%area_top_face_pfp, toparea_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! passing from interface to internal
     select case(option%iflowmode)
-      case (RICHARDS_MODE)
-        press_dof = RICHARDS_PRESSURE_DOF
       case (TH_MODE)
         press_dof = TH_PRESSURE_DOF
       case default
@@ -5292,10 +5408,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         if (ghosted_id <= 0 .or. local_id <= 0) cycle
         if (patch%imat(ghosted_id) < 0) cycle
 
+        liq_kgm3 = global_auxvars(ghosted_id)%den_kg(1) ! water den = kg/m^3
+
         if(StringCompare(boundary_condition%name,'clm_gwflux_bc')) then
           if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
             boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-              qfluxw_subsurf_pf_loc(iconn)
+              qfluxw_subsurf_pf_loc(iconn)/liq_kgm3         ! kgH2O/m2/s --> mH2O/s
 
             if (HAVE_PRESS_TOPBC .and. HAVE_QFLUX_TOPBC) then
               cur_connection_set%area(iconn) = toparea_p(local_id)     ! normally it's ON (MPI vec, it's from 'local_id')
@@ -5327,7 +5445,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         if(StringCompare(boundary_condition%name,'clm_gevflux_bc')) then
           if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
             boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-              qfluxv_subsurf_pf_loc(iconn)
+              qfluxv_subsurf_pf_loc(iconn)/liq_kgm3         ! kg/m2/s --> m/s
+
           endif
         endif
 
@@ -5346,7 +5465,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                        press_subbase_pf_loc(iconn)
           else if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
             boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-                       qfluxw_subbase_pf_loc(iconn)
+                       qfluxw_subbase_pf_loc(iconn)*liq_kgm3   !kg/m2/s --> m/s
 
           else if (boundary_condition%flow_condition%itype(press_dof) /= ZERO_GRADIENT_BC) then
             option%io_buffer='pflotranModelSetTHbcs -  ' // &
@@ -5365,24 +5484,22 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     enddo
 
     call VecRestoreArrayF90(clm_pf_idata%press_subsurf_pfs, press_subsurf_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%qfluxw_subsurf_pfs, qfluxw_subsurf_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%qfluxev_subsurf_pfs, qfluxv_subsurf_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%press_subbase_pfs, press_subbase_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%qfluxw_subbase_pfs, qfluxw_subbase_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%press_maxponding_pfs, press_maxponding_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecRestoreArrayF90(clm_pf_idata%area_top_face_pfp, toparea_p, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     select case(option%iflowmode)
-      case (RICHARDS_MODE)
-        call RichardsUpdateAuxVars(realization)
       case (TH_MODE)
         call THUpdateAuxVars(realization)
       case default
@@ -5469,9 +5586,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     ! Find value of pressure-dof depending on flow mode
     select case (option%iflowmode)
-      case (RICHARDS_MODE)
-        press_dof       = RICHARDS_PRESSURE_DOF
-        temperature_dof = UNINITIALIZED_INTEGER
       case (TH_MODE)
         press_dof       = TH_PRESSURE_DOF
         temperature_dof = TH_TEMPERATURE_DOF
@@ -5482,9 +5596,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     ! Update the 'clm_et_ss' source/sink term
     call VecGetArrayF90(clm_pf_idata%qflow_pfs,qflx_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%qflowt_pfs,qflxt_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     found = PETSC_FALSE
 
@@ -5543,9 +5657,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       source_sink => source_sink%next
     enddo
     call VecRestoreArrayF90(clm_pf_idata%qflow_pfs,qflx_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%qflowt_pfs,qflxt_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !if(.not.found) &
       !call printMsg(option,'clm_et_ss not found in ' // &
@@ -5672,23 +5786,23 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     ! Update the heat flux/ground-temperature BC term
     call VecGetArrayF90(clm_pf_idata%eflux_subsurf_pfs,geflx_subsurf_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%efluxr_subsurf_pfs,geflxr_subsurf_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%efluxl_subsurf_pfs,geflxl_subsurf_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! Update the 'clm_bflux_bc' base heat/energy flux/base-temperature BC term
     call VecGetArrayF90(clm_pf_idata%eflux_subbase_pfs,geflx_subbase_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%gtemp_subbase_pfs,gtemp_subbase_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! energy flow rate (source/sink)
     call VecGetArrayF90(clm_pf_idata%eflow_pfs,geflow_sub_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! need to check the BC list first, so that we have necessary BCs in a consistent way
     HAVE_GEV_TOPBC   = PETSC_FALSE  ! top BC: (water and heat) having soil evaporation flux type (NEUMANN)
@@ -5941,19 +6055,19 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     enddo
 
     call VecRestoreArrayF90(clm_pf_idata%eflux_subsurf_pfs,geflx_subsurf_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%efluxr_subsurf_pfs,geflxr_subsurf_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%efluxl_subsurf_pfs,geflxl_subsurf_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%eflux_subbase_pfs,geflx_subbase_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%gtemp_subbase_pfs,gtemp_subbase_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%eflow_pfs,geflow_sub_pf_loc,ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
   end subroutine pflotranModelUpdateSubsurfTCond
 
@@ -5977,8 +6091,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Realization_Subsurface_class, only : realization_subsurface_type
 
     use Global_Aux_module
+    use Material_Aux_class
     use Reactive_Transport_Aux_module
     use Reaction_Aux_module
+
+    use TH_module, only : THComputeMassBalance
+    use Reactive_Transport_module, only : RTComputeMassBalance
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -5992,11 +6110,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     type(patch_type), pointer :: patch
     type(grid_type), pointer  :: grid
 
-    type(coupler_type), pointer :: boundary_condition
+    type(coupler_type), pointer :: boundary_condition, source_sink
     type(connection_set_type), pointer :: cur_connection_set
-    type(global_auxvar_type), pointer :: global_auxvars_bc(:)
+    type(global_auxvar_type), pointer :: global_auxvars_bc(:), global_auxvars_ss(:),global_auxvars(:)
+    class(material_auxvar_type), pointer :: material_auxvars(:)
     type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc(:)
 
+    PetscReal, pointer :: qevap_subsurf_pf_loc(:)
     PetscReal, pointer :: qinfl_subsurf_pf_loc(:)
     PetscReal, pointer :: qsurf_subsurf_pf_loc(:)
     PetscReal, pointer :: qflux_subbase_pf_loc(:)
@@ -6005,6 +6125,15 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscReal, pointer :: f_nh4_subbase_pf_loc(:)
     PetscReal, pointer :: f_no3_subbase_pf_loc(:)
 
+    PetscReal, pointer :: soilliq_pfs(:) ! saved liq. water mass at begging of time-step (kgH2O/m3)
+    PetscReal, pointer :: soilice_pfs(:) ! saved iced water mass at begging of time-step (kgH2O/m3)
+
+
+    PetscReal :: sum_kg(pflotran_model%option%nflowspec, pflotran_model%option%nphase)
+    PetscReal :: total_change, liqmass_change,liqmass_change0
+    PetscReal, pointer :: bc(:), ss(:)
+
+    PetscInt :: iflowspec, iphase
     PetscInt :: local_id, ghosted_id, iconn
     PetscInt :: offset
     PetscErrorCode :: ierr
@@ -6025,7 +6154,19 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     !
     patch => realization%patch
     grid  => patch%grid
+    material_auxvars => patch%aux%Material%auxvars
+
     option=> realization%option
+
+    ! currently only do mass-balance for liq. water
+    iflowspec = 1
+    iphase = 1
+
+    allocate(bc(1:grid%ngmax))
+    allocate(ss(1:grid%ngmax))
+    bc(1:grid%ngmax) = 0.d0
+    ss(1:grid%ngmax) = 0.d0
+
     !-------------------------------------------------------------------------
 
     if (clm_pf_idata%nlpf_2dtop <= 0 .and. clm_pf_idata%ngpf_2dtop <= 0    &
@@ -6034,13 +6175,16 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     !
+    call VecGetArrayF90(clm_pf_idata%qevap_subsurf_pfp, qevap_subsurf_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%qinfl_subsurf_pfp, qinfl_subsurf_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%qsurf_subsurf_pfp, qsurf_subsurf_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%qflux_subbase_pfp, qflux_subbase_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
+    qevap_subsurf_pf_loc(:) = 0.d0
     qinfl_subsurf_pf_loc(:) = 0.d0
     qsurf_subsurf_pf_loc(:) = 0.d0
     qflux_subbase_pf_loc(:) = 0.d0
@@ -6062,39 +6206,53 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       if (option%nflowdof > 0) then
 
           ! retrieving H2O flux at top BC
+          qinfl_subsurf_pf_loc(iconn) = 0.d0  ! there are 2 possible BC type for infiltration
           do iconn = 1, cur_connection_set%num_connections
              local_id = cur_connection_set%id_dn(iconn)
              ghosted_id = grid%nL2G(local_id)
              if (ghosted_id <= 0 .or. local_id <= 0) cycle
              if (patch%imat(ghosted_id) < 0) cycle
 
-             if(StringCompare(boundary_condition%name,'clm_gpress_bc')) then          ! infilitration (+)
-                qinfl_subsurf_pf_loc(iconn) = &
-                               -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
+             bc(ghosted_id) = bc(ghosted_id)+global_auxvars_bc(offset+iconn)%mass_balance(iflowspec,iphase)
+
+
+             ! soil actual evaporation (-)
+             if(StringCompare(boundary_condition%name,'clm_gevflux_bc')) then
+                qevap_subsurf_pf_loc(iconn) = &
+                               -global_auxvars_bc(offset+iconn)%mass_balance(iflowspec,iphase) &
+                               /cur_connection_set%area(iconn)                  !unit: kg --> kg/m2
 
                 ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
-                global_auxvars_bc(offset+iconn)%mass_balance(1,1) = 0.d0
+                global_auxvars_bc(offset+iconn)%mass_balance(iflowspec,iphase) = 0.d0
+             endif
+
+             ! soil actual infilitration (+)
+             if(StringCompare(boundary_condition%name,'clm_gpress_bc') .or. &
+                StringCompare(boundary_condition%name,'clm_gwflux_bc')) then
+                qinfl_subsurf_pf_loc(iconn) = qinfl_subsurf_pf_loc(iconn) &
+                               -global_auxvars_bc(offset+iconn)%mass_balance(iflowspec,iphase) &
+                               /cur_connection_set%area(iconn)                  !unit: kg --> kg/m2
 
              endif
 
-             if(StringCompare(boundary_condition%name,'exfiltration')) then          ! exfiltration (-)
+             ! soil excess water exfiltration (upwarding) (-)
+             if(StringCompare(boundary_condition%name,'exfiltration')) then
                 qsurf_subsurf_pf_loc(iconn) = &
-                               -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
-
-                 ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
-                global_auxvars_bc(offset+iconn)%mass_balance(1,1) = 0.d0
+                               -global_auxvars_bc(offset+iconn)%mass_balance(iflowspec,iphase) &
+                               /cur_connection_set%area(iconn)                  !unit: kg --> kg/m2
 
              endif
 
              ! retrieving H2O flux at bottom BC
              if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then          ! bottom water flux
                 qflux_subbase_pf_loc(iconn) = &
-                               -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
-
-                ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
-                global_auxvars_bc(offset+iconn)%mass_balance(1,1) = 0.d0
+                               -global_auxvars_bc(offset+iconn)%mass_balance(iflowspec,iphase) &
+                               /cur_connection_set%area(iconn)                  !unit: kg --> kg/m2
 
              endif
+
+            ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
+            global_auxvars_bc(offset+iconn)%mass_balance(iflowspec,iphase) = 0.d0
 
           enddo
 
@@ -6105,15 +6263,22 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     enddo
 
+    call VecRestoreArrayF90(clm_pf_idata%qevap_subsurf_pfp, qevap_subsurf_pf_loc, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%qinfl_subsurf_pfp, qinfl_subsurf_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%qsurf_subsurf_pfp, qsurf_subsurf_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%qflux_subbase_pfp, qflux_subbase_pf_loc, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! pass vecs to CLM
     if (clm_pf_idata%nlpf_2dtop > 0 .and. clm_pf_idata%ngpf_2dtop > 0 ) then
+      call MappingSourceToDestination(pflotran_model%map_pf_2dtop_to_clm_2dtop, &
+                                    option, &
+                                    clm_pf_idata%qevap_subsurf_pfp, &
+                                    clm_pf_idata%qevap_subsurf_clms)
+
       call MappingSourceToDestination(pflotran_model%map_pf_2dtop_to_clm_2dtop, &
                                     option, &
                                     clm_pf_idata%qinfl_subsurf_pfp, &
@@ -6131,9 +6296,89 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%qflux_subbase_pfp, &
                                     clm_pf_idata%qflux_subbase_clms)
     endif
+
+
+    !-------------------------------------------------------------------------
+    global_auxvars_ss => patch%aux%Global%auxvars_ss
+    source_sink => patch%source_sink_list%first
+    do
+      if (.not.associated(source_sink)) exit
+
+      cur_connection_set => source_sink%connection_set
+      offset = cur_connection_set%offset
+
+      if (option%nflowdof > 0) then
+        do iconn = 1, cur_connection_set%num_connections
+          local_id = cur_connection_set%id_dn(iconn)
+          ghosted_id = grid%nL2G(local_id)
+          if (patch%imat(ghosted_id) <= 0) cycle
+          ss(ghosted_id) = ss(ghosted_id)+global_auxvars_ss(offset+iconn)%mass_balance(iflowspec,iphase)
+
+          ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
+          global_auxvars_ss(offset+iconn)%mass_balance(iflowspec,iphase) = 0.d0
+
+        end do
+      endif
+      source_sink => source_sink%next
+    end do
+
+    !-------------------------------------------------------------------------
+    ! global mass-balance checking
+
+    call VecGetArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pfs, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
+    select case(option%iflowmode)
+       case(TH_MODE)
+         !
+         sum_kg = 0.d0
+         call THComputeMassBalance(realization,sum_kg(iflowspec,:))
+
+         global_auxvars => patch%aux%Global%auxvars
+         !
+#ifdef COMPUTE_INTERNAL_MASS_FLUX
+         total_change = 0.d0
+         liqmass_change = 0.d0
+         liqmass_change0= 0.d0
+         do local_id = 1, grid%nlmax
+           ghosted_id = grid%nL2G(local_id)
+           if (ghosted_id <= 0 .or. local_id <= 0) cycle
+           if (patch%imat(ghosted_id) < 0) cycle
+
+           liqmass_change = liqmass_change+global_auxvars(ghosted_id)%den_kg(1)* &
+             global_auxvars(ghosted_id)%sat(1)* &
+             material_auxvars(ghosted_id)%porosity* &
+             material_auxvars(ghosted_id)%volume
+           liqmass_change0 = liqmass_change0 + soilliq_pfs(ghosted_id)*material_auxvars(ghosted_id)%volume
+
+
+           total_change = total_change + patch%aux%Global%auxvars(ghosted_id)%mass_balance(iflowspec,iphase) &
+                                       - bc(ghosted_id) - ss(ghosted_id)
+
+           ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
+           global_auxvars(ghosted_id)%mass_balance(iflowspec,iphase) = 0.d0
+
+         end do
+
+#endif
+
+       case default
+         option%io_buffer = " Flow mode  in " // trim(subname) // &
+              "currently is Not support in this simulation."
+         call printErrMsg(option)
+
+     end select
+
+     deallocate(bc)
+     deallocate(ss)
+
+     call VecRestoreArrayF90(clm_pf_idata%soilliq_pfs, soilliq_pfs, ierr)
+     call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
   end subroutine pflotranModelGetBCMassBalanceDeltaFromPF
 
   ! ************************************************************************** !
+#endif
   
 end module pflotran_clm_main_module
 
