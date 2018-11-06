@@ -1,4 +1,8 @@
+
 module clm_pflotran_interface_data
+
+#ifdef CLM_PFLOTRAN
+
 !
 ! NOTES for convenience:
 !        (1) '*_pfp': mpi vecs for PF variables; '_clmp': mpi vecs for CLM variables;
@@ -1849,4 +1853,7 @@ contains
 
   end subroutine CLMPFLOTRANIDataDestroy
 
+#endif
+
 end module clm_pflotran_interface_data
+
