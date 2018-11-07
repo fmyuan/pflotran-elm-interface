@@ -113,7 +113,7 @@ module Well_Data_class
       PetscReal :: w_pw                ! Well (bhp) pressure
       PetscReal :: w_pb                ! Well bubble point pressure
       PetscReal , pointer :: w_sp(:)   ! Well saturations
-      PetscInt  :: w_issat             ! Well state (sat or un-sat)
+      PetscBool :: w_issat             ! Well state (sat or un-sat)
       PetscReal :: w_trel              ! Well temperature
       PetscBool :: well_solution_set   ! Indicates well solution set
 
