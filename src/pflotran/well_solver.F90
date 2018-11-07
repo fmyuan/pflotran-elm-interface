@@ -226,7 +226,6 @@ subroutine initialiseWell(well_data,grid,material_auxvars,option)
   PetscInt  :: icmpl,ncmpl,ixuser,iyuser,izuser,ix,iy,iz
   PetscInt  :: drilling_direction
   PetscReal :: dx,dy,dz,z,ccf,dx1,dx2,dh,k1,k2,radius,skinfactor,thetafactor,r0
-  PetscReal :: dxyz(3)
 
   PetscInt :: lx,ly,lz,nlx,nly,nlz,ixl,ixu,iyl,iyu,izl,izu
   PetscBool :: onproc
@@ -346,6 +345,12 @@ subroutine initialiseWell(well_data,grid,material_auxvars,option)
     skinfactor         = well_data%getCmplSkinFactor       (icmpl)
     thetafactor        = well_data%getCmplThetaFactor      (icmpl)
 
+    dx1 = 0.0
+    dx2 = 0.0
+    dh  = 0.0
+    k1  = 0.0
+    k2  = 0.0
+
     select case(drilling_direction)
       case(X_DIRECTION)
         dx1 = dy
@@ -367,12 +372,16 @@ subroutine initialiseWell(well_data,grid,material_auxvars,option)
         k2  = material_auxvars(ghosted_id)%permeability(perm_yy_index)
      end select
 
+     if ( (k1 > 0.0) .and. (k2 > 0.0) ) then
       r0 = (dx1**2.d0 * (k2/k1)**0.5d0 + dx2**2.d0 * (k1/k2)**0.5d0)**0.5d0 * &
            0.28d0 / ((k2/k1)**0.25d0 + (k1/k2)**0.25d0)
 
       ccf = 2.0d0 * PI * dh * dsqrt(k1*k2) * &
                       thetaFactor / &
                       ( dlog(r0/radius) + skinfactor )
+     else
+       ccf= 0.0
+     endif
 
       call well_data%setCCF  (icmpl,ccf)
       call well_data%setCmplZ(icmpl,z  )
@@ -526,13 +535,13 @@ subroutine SolveWell(aux,option,well_data,r_p)
   PetscInt  :: ck = 1
   PetscInt  :: local_id   = 1
   PetscInt  :: ghosted_id = 1
-  PetscInt  :: icmpl,jcmpl,ipoil,ipgas,ipwat,ipslv,loc,ixw,jdof
+  PetscInt  :: icmpl,ipoil,ipgas,ipwat,ipslv,loc
   PetscBool :: finished
 
   PetscBool :: welllocationfound
   PetscBool :: welltargetsfound
-  PetscReal :: ccf,mw,sd,pw,sum,jwwi,tactpw
-  PetscInt  :: itertt,itt,jtt,rank,icomp,iphase,status
+  PetscReal :: mw,sd,pw,jwwi,tactpw
+  PetscInt  :: itertt,itt,jtt,rank,iphase,status
   PetscBool :: possible,well_solution_set
 
 !  Basic setup
@@ -944,8 +953,6 @@ subroutine getRwAndJw(option,iterpw,itt,pw,rw,jww)
   PetscInt,intent(in)   :: itt
   PetscReal,intent(in)  :: pw
   PetscReal,intent(out) :: rw,jww
-  PetscReal :: res_norm,ccf
-  PetscInt :: icmpl
 
 !  Build up the residual for this target and solution
 
@@ -1015,7 +1022,7 @@ function getActualFlowForTargetType(pw,option,itt,possible,tactpw)
   PetscReal,intent(out) :: tactpw
 
   PetscReal :: tact,c,co,cw
-  PetscInt  :: ipoil,ipgas,ipwat,ipslv,ixw,jcmpl,jdof
+  PetscInt  :: ipoil,ipgas,ipwat,ipslv
 
 !  Initialise
 
@@ -1356,7 +1363,6 @@ subroutine findWellFlows(pw,option)
 
   PetscReal,intent(in) :: pw
   type(option_type), pointer :: option
-  PetscInt :: icomp,icmpl,ierr
 
 !  Find wellbore solution
 
@@ -1408,11 +1414,11 @@ subroutine findCompletionFlows(pw,option,icmpl)
   type(option_type), pointer :: option
   PetscInt ,intent(in) :: icmpl
 
-  PetscInt  :: jcmpl,jdof
+  PetscInt  :: jdof
 
   PetscBool :: componentInPhase,is_oil_in_oil,is_gas_in_oil
   PetscInt  :: iphase,jphase,icomp,eid,ixw
-  PetscReal :: xmf,ccf,z,dhh,pdd,pddpw,pddpc,mob,mobt,mdp,svpm, &
+  PetscReal :: xmf,ccf,z,dhh,pdd,pddpw,pddpc,mob,mobt,mdp, &
                flow,flowpw,flowxw,flowpc,flowxc, &
                hp,hpP,mdc,mdcpw
   PetscReal :: mobX,mdpX,xmfX,hpX
@@ -1745,7 +1751,7 @@ subroutine findCompletionFlows(pw,option,icmpl)
 
     do jphase = 1, ws_nphase
       do jdof = 1,ws_ndof
-        flowxc = ccf*c_mobX(icmpl,jphase,jdof)*mdc*pdd*w_h
+        flowxc = ccf*c_mobX(icmpl,jphase,jdof)*pdd*w_h
         c_flowsxc(icmpl,eid,icmpl,jdof) &
       = c_flowsxc(icmpl,eid,icmpl,jdof) + flowxc
       enddo
@@ -1828,7 +1834,7 @@ subroutine findWellboreSolution(pw,option)
   PetscReal,intent(in) :: pw
   type(option_type), pointer :: option
 
-  PetscInt  :: iterwbs,ixc,ix,ir,irw,ixw,jdof,jcmpl
+  PetscInt  :: iterwbs,ir,irw,ixw,jdof,jcmpl
   PetscReal :: eps,Rnorm,so,sg,pb,deti,diff,anal,rat,pwe
   PetscBool :: finished,usediff,usediff2
 
@@ -2134,8 +2140,8 @@ subroutine getRwbsAndJwbs(pw,option)
   type(option_type), pointer :: option
 
   PetscReal :: so,sg,sw,ss,pb,t
-  PetscReal :: wd,sum,sumpw
-  PetscInt  :: ierr,icomp,icompc,icomph,iphase,nic,irw, &
+  PetscReal :: sum,sumpw
+  PetscInt  :: icomp,icompc,icomph,nic, &
                ixw,ipoil,ipgas,ipwat,ipslv,eid
   PetscInt  :: jcmpl,jdof,ippref
 
@@ -2157,6 +2163,7 @@ subroutine getRwbsAndJwbs(pw,option)
   ipwat = option%liquid_phase
   ipslv = option%solvent_phase
 
+  ippref = 1
   if (ws_isproducer) then
     if(ws_oil) then
        ippref = ipoil
@@ -2443,21 +2450,20 @@ subroutine findWellborePropertiesAndDerivatives(pw,so,sg,sw,ss,pb,t,option)
   PetscReal :: cr,crt,crpb
   PetscReal :: crusp,cruspt,crusppw,crusppb
   PetscReal :: mdo,mdot,mdopw,mdopb,hot,hop
-  PetscReal :: uodum,uotdum,uopdum,kgdo,kgdot,kgdop,kgdopb
-  PetscReal :: mdg,mdgt,mdgp,kgdg,kgdgt,kgdgp,hgt,hgp,ugdum,ugtdum,ugpdum
+  PetscReal :: uodum,uotdum,uopdum
+  PetscReal :: mdg,mdgt,mdgp,hgt,hgp,ugdum,ugtdum,ugpdum
   PetscReal :: hs,hst,hsp,usdum,ustdum,uspdum
-  PetscReal :: mdw,mdwp,mdwt,kgdw,hwp,hwt,uw
-  PetscReal :: mds,mdsp,mdst,kgds,kgdst,kgdsp,us,z
+  PetscReal :: mdw,mdwp,mdwt,kgdw,hwp,hwt
+  PetscReal :: mds,mdsp,mdst,z
   PetscReal :: ho,hg,hw
 
   PetscReal :: sp,mdp,hp
-  PetscReal :: spP
   PetscReal :: spX,mdpX,hpX
 
   PetscReal :: rsm,rsmt,rsmpb
   PetscReal :: den,deni,deni2,dent,denpb
   PetscReal :: xo,xg,xot,xopb,xgt,xgpb
-  PetscReal :: mwo,mwg,mws,mww,wd,sum,sumi,sumpw
+  PetscReal :: mwo,mwg,mws,mww,sum,sumi,sumpw
 
   PetscInt :: ierr,iphase,icomp,icoil,icgas
   PetscInt :: ipoil,ipgas,ipwat,ipslv,ixw
@@ -3139,7 +3145,7 @@ subroutine invertJacobian(deti)
   PetscReal,intent(out) :: deti
   PetscReal :: det,a,b,c,d,ai,bi,ci,di
   PetscReal :: cf(3,3),eps
-  PetscInt  :: i,j,k
+  PetscInt  :: i,j
 
   eps = 1.0E-6
 
