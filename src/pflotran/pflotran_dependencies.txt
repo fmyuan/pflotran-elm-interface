@@ -75,8 +75,8 @@ coupler.o : condition.o connection.o dataset_base.o dataset_gridded_hdf5.o \
             grid.o grid_unstructured_aux.o grid_unstructured_explicit.o \
             input_aux.o option.o pflotran_constants.o region.o string.o \
             utility.o well.o well_base.o
-criticality.o : condition.o coupler.o dataset_ascii.o input_aux.o option.o \
-                pflotran_constants.o reaction_aux.o region.o string.o units.o
+criticality.o : data_mediator_vec.o input_aux.o option.o pflotran_constants.o \
+                realization_base.o realization_subsurface.o region.o string.o
 data_mediator.o : data_mediator_base.o option.o
 data_mediator_base.o : dataset_global_hdf5.o option.o pflotran_constants.o
 data_mediator_dataset.o : data_mediator_base.o dataset_base.o \
