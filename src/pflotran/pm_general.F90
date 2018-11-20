@@ -25,6 +25,7 @@ module PM_General_class
     procedure, public :: PostSolve => PMGeneralPostSolve
     procedure, public :: CheckUpdatePre => PMGeneralCheckUpdatePre
     procedure, public :: CheckUpdatePost => PMGeneralCheckUpdatePost
+    procedure, public :: CheckConvergence => PMGeneralCheckConvergence
     procedure, public :: TimeCut => PMGeneralTimeCut
     procedure, public :: UpdateSolution => PMGeneralUpdateSolution
     procedure, public :: UpdateAuxVars => PMGeneralUpdateAuxVars
@@ -1261,6 +1262,32 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   endif                               
 
 end subroutine PMGeneralCheckUpdatePost
+
+! ************************************************************************** !
+
+subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
+                                     reason,ierr)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/20/18
+  !
+  use Convergence_module
+
+  implicit none
+
+  class(pm_general_type) :: this
+  SNES :: snes
+  PetscInt :: it
+  PetscReal :: xnorm
+  PetscReal :: unorm
+  PetscReal :: fnorm
+  SNESConvergedReason :: reason
+  PetscErrorCode :: ierr
+
+  call PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
+                                        reason,ierr)
+
+end subroutine PMGeneralCheckConvergence
 
 ! ************************************************************************** !
 

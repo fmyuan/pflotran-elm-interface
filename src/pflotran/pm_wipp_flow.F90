@@ -71,7 +71,7 @@ module PM_WIPP_Flow_class
     procedure, public :: PostSolve => PMWIPPFloPostSolve
     procedure, public :: CheckUpdatePre => PMWIPPFloCheckUpdatePre
     procedure, public :: CheckUpdatePost => PMWIPPFloCheckUpdatePost
-    procedure, public :: CheckConvergence => PMWIPPFloConvergence
+    procedure, public :: CheckConvergence => PMWIPPFloCheckConvergence
     procedure, public :: TimeCut => PMWIPPFloTimeCut
     procedure, public :: UpdateSolution => PMWIPPFloUpdateSolution
     procedure, public :: UpdateAuxVars => PMWIPPFloUpdateAuxVars
@@ -1344,8 +1344,8 @@ end subroutine PMWIPPFloCheckUpdatePost
 
 ! ************************************************************************** !
 
-subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
-                                            fnorm,reason,ierr)
+subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
+                                     fnorm,reason,ierr)
   ! Author: Glenn Hammond
   ! Date: 11/15/17
   ! 
@@ -1765,11 +1765,10 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
   call VecRestoreArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
 
-  call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
-                       this%realization%patch%grid, &
-                       this%option,this%solver,ierr)
+  call PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
+                                        reason,ierr)
 
-end subroutine PMWIPPFloConvergence
+end subroutine PMWIPPFloCheckConvergence
 
 ! ************************************************************************** !
 
