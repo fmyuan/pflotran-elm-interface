@@ -515,9 +515,9 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
           case(OBSERVATION_SCALAR)
             if (associated(observation%region%coordinates) .and. &
                 .not.observation%at_cell_center) then
-              option%io_buffer = 'Writing of data at coordinates not ' // &
-                'functioning properly for minerals.  Perhaps due to ' // &
-                'non-ghosting of vol frac....>? - geh'
+              option%io_buffer = 'Writing of data at coordinates not &
+                &functioning properly for minerals.  Perhaps due to &
+                &non-ghosting of vol frac....>? - geh'
               call printErrMsg(option)
               call WriteObservationHeaderForCoordSec(fid,realization_base, &
                                                   observation%region, &
@@ -2426,7 +2426,7 @@ subroutine OutputMassBalance(realization_base)
       !           where mass is summed across minerals needs to be moved
       !           to reactive_transport.F90.
       option%io_buffer = 'OutputMassBalance() needs to be refactored to &
-        consider species in the gas phase.'
+        &consider species in the gas phase.'
 !      call printErrMsg(option)
     endif
     max_tran_size = max(reaction%naqcomp,reaction%mineral%nkinmnrl, &
