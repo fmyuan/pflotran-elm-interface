@@ -16,6 +16,8 @@ module Criticality_module
 
   implicit none
   
+  private
+  
   ! Stores variables relevant to criticality calculations
   type, public :: criticality_mechanism_type
     character(len=MAXWORDLENGTH) :: mech_name
@@ -101,11 +103,11 @@ subroutine CriticalityMechInit(this)
   allocate(this)
   nullify(this%next)
   
-  this%heat_released=UNINITIALIZED_DOUBLE
-  this%sw=UNINITIALIZED_DOUBLE
-  this%rho_w=UNINITIALIZED_DOUBLE
-  this%temperature=UNINITIALIZED_DOUBLE
-  this%k_effective=UNINITIALIZED_DOUBLE
+  this%heat_released = UNINITIALIZED_DOUBLE
+  this%sw = UNINITIALIZED_DOUBLE
+  this%rho_w = UNINITIALIZED_DOUBLE
+  this%temperature = UNINITIALIZED_DOUBLE
+  this%k_effective = UNINITIALIZED_DOUBLE
   
   
   
@@ -230,10 +232,10 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
         select case (trim(word))
           case('NAME')
             call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'criticality mechanism assignment', &
-                               error_string)
+            call InputErrorMsg(input,option, &
+                  'criticality mechanism assignment',error_string)
             call StringToUpper(word)
-            new_crit_mech%mech_name= trim(word)
+            new_crit_mech%mech_name = trim(word)
           case('HEAT_RELEASED')
             call InputReadDouble(input,option,new_crit_mech%heat_released)
             call InputErrorMsg(input,option,'HEAT_RELEASED',error_string)
@@ -262,7 +264,7 @@ end subroutine ReadCriticalityMech
 
 subroutine CriticalityCalc(this,time,ierr)
 
-  ! 
+  ! Calculate mass and heat source terms as a function of time.
   ! Author: Michael Nole
   ! Date: 11/01/18
   
@@ -272,7 +274,7 @@ subroutine CriticalityCalc(this,time,ierr)
   PetscReal :: time
   PetscErrorCode :: ierr
   
-  this%heat_released = time/1000
+  this%heat_released = 1.e-4
   
 end subroutine CriticalityCalc
 
@@ -280,7 +282,6 @@ end subroutine CriticalityCalc
 
 subroutine CriticalityInitializeRun(this, realization, option)
 
-  ! 
   ! Author: Michael Nole
   ! Date: 11/01/18
   
@@ -315,24 +316,24 @@ subroutine CriticalityInitializeRun(this, realization, option)
     cur_criticality => cur_criticality%next
   enddo
   
-  call VecCreateSeq(PETSC_COMM_SELF, vec_size, &
-                    this%data_mediator%vec,ierr); CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF, vec_size,this%data_mediator%vec,ierr); &
+                    CHKERRQ(ierr)
   call VecSetFromOptions(this%data_mediator%vec,ierr); CHKERRQ(ierr)
   
   cur_criticality => this%criticality_list
   allocate(energy_indices_in_residual(vec_size))
-  j=0
+  j = 0
   do
     if (.not. associated(cur_criticality)) exit
       do i = 1, cur_criticality%region%num_cells
-        j=j+1
-        energy_indices_in_residual(j)=(cur_criticality%region%cell_ids(i)-1)* &
-              option%nflowdof+3
+        j = j + 1
+        energy_indices_in_residual(j) = (cur_criticality%region% &
+                                        cell_ids(i) - 1) * option%nflowdof + 3
       enddo
     cur_criticality => cur_criticality%next
   enddo
   
-  this%total_num_cells=j
+  this%total_num_cells = j
   
   call ISCreateGeneral(option%mycomm,vec_size, &
                        energy_indices_in_residual, &
@@ -419,11 +420,11 @@ subroutine CriticalitySolve(this,realization,time,ierr)
                       ierr);CHKERRQ(ierr)
   
   cur_criticality => this%criticality_list
-  j=0
+  j = 0
   do
     if (.not. associated(cur_criticality)) exit
     do i = 1, cur_criticality%region%num_cells
-      j=j+1
+      j = j + 1
       heat_source(j) = -cur_criticality%crit_mech%heat_released
     enddo
     cur_criticality => cur_criticality%next

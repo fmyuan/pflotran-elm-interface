@@ -4017,14 +4017,11 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
         endif
         enthalpy = gen_auxvar_ss%h(wat_comp_id)
         ! enthalpy units: MJ/kmol                       ! water component mass
-        Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * &
-                                                        enthalpy
+        Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * enthalpy
         if (analytical_derivatives) then
           Je = 0.d0
-          Je(3,1) = Jl(1,1) * enthalpy + &
-                    Res(wat_comp_id) * hw_dp
-          Je(3,3) = Jl(1,3) * enthalpy + &
-                    Res(wat_comp_id) * hw_dT
+          Je(3,1) = Jl(1,1) * enthalpy + Res(wat_comp_id) * hw_dp
+          Je(3,3) = Jl(1,3) * enthalpy + Res(wat_comp_id) * hw_dT
         endif
         J = J + Je
       endif
@@ -4036,21 +4033,17 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
         if (associated(gen_auxvar%d)) then
           ha_dp = gen_auxvar_ss%d%Ha_pg
           ha_dT = gen_auxvar_ss%d%Ha_T
-          
         endif
         
         internal_energy = gen_auxvar_ss%u(air_comp_id)
         enthalpy = gen_auxvar_ss%h(air_comp_id)                                 
         ! enthalpy units: MJ/kmol                       ! air component mass
-        Res(energy_id) = Res(energy_id) + Res(air_comp_id) * &
-                                                        enthalpy
+        Res(energy_id) = Res(energy_id) + Res(air_comp_id) * enthalpy
         if (analytical_derivatives) then
           Je = 0.d0
-          Je(3,1) = Jg(2,1) * enthalpy + &
-                    Res(air_comp_id) * ha_dp
+          Je(3,1) = Jg(2,1) * enthalpy + Res(air_comp_id) * ha_dp
           Je(3,2) = Jg(2,2) * enthalpy
-          Je(3,3) = Jg(2,3) * enthalpy + &
-                    Res(air_comp_id) * ha_dT
+          Je(3,3) = Jg(2,3) * enthalpy + Res(air_comp_id) * ha_dT
         endif 
         J = J + Je
       endif
@@ -4093,8 +4086,7 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
 
 !geh:print *, 'GeneralAccumDerivative'
 
-  call GeneralAccumulation(gen_auxvar(ZERO_INTEGER), &
-                           global_auxvar, &
+  call GeneralAccumulation(gen_auxvar(ZERO_INTEGER),global_auxvar, &
                            material_auxvar,soil_heat_capacity,option, &
                            res,jac,general_analytical_derivatives, &
                            PETSC_FALSE)
@@ -4103,10 +4095,9 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
     J = jac
   else
     do idof = 1, option%nflowdof
-      call GeneralAccumulation(gen_auxvar(idof), &
-                               global_auxvar, &
-                               material_auxvar,soil_heat_capacity, &
-                               option,res_pert,jac_pert,PETSC_FALSE,PETSC_FALSE)
+      call GeneralAccumulation(gen_auxvar(idof),global_auxvar, &
+                               material_auxvar,soil_heat_capacity,option, &
+                               res_pert,jac_pert,PETSC_FALSE,PETSC_FALSE)
       do irow = 1, option%nflowdof
         J(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
       enddo !irow
@@ -4397,8 +4388,8 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
   PetscInt :: idof, irow
   PetscReal :: Jdum(option%nflowdof,option%nflowdof)
   
-  qsrc=source_sink%flow_condition%general%rate%dataset%rarray(:)
-  flow_src_sink_type=source_sink%flow_condition%general%rate%itype
+  qsrc = source_sink%flow_condition%general%rate%dataset%rarray(:)
+  flow_src_sink_type = source_sink%flow_condition%general%rate%itype
 
   option%iflag = -3
   call GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &

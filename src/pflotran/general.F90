@@ -1914,7 +1914,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     cur_connection_set => source_sink%connection_set
     
     do iconn = 1, cur_connection_set%num_connections
-      ssn=ssn+1
+      ssn = ssn+1
       
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
