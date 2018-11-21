@@ -14,8 +14,14 @@ module PM_General_class
   type, public, extends(pm_subsurface_flow_type) :: pm_general_type
     PetscInt, pointer :: max_change_ivar(:)
     PetscInt, pointer :: max_change_isubvar(:)
-    PetscInt :: converged_flag(3,3,3)
+    PetscBool :: converged_flag(3,3,3)
+    PetscInt :: converged_cell(3,3,3)
     PetscReal :: converged_real(3,3,3)
+    PetscReal :: residual_abs_inf_tol(3)
+    PetscReal :: residual_scaled_inf_tol(3)
+    PetscReal :: abs_update_inf_tol(3,3)
+    PetscReal :: rel_update_inf_tol(3,3)
+    PetscBool :: verbose_logging
   contains
     procedure, public :: Read => PMGeneralRead
     procedure, public :: InitializeRun => PMGeneralInitializeRun
@@ -61,33 +67,62 @@ function PMGeneralCreate()
   
   class(pm_general_type), pointer :: PMGeneralCreate
 
-  class(pm_general_type), pointer :: general_pm
+  class(pm_general_type), pointer :: this
   
+  PetscReal, parameter :: pres_abs_inf_tol = 1.d0
+  PetscReal, parameter :: temp_abs_inf_tol = 1.d-5
+  PetscReal, parameter :: sat_abs_inf_tol = 1.d-6
+  PetscReal, parameter :: xmol_abs_inf_tol = 1.d-6
+  PetscReal, parameter :: abs_update_inf_tol(3,3) = &
+    reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol], &
+            shape(abs_update_inf_tol)) * &
+            1.d0 ! change to 0.d0 to zero tolerances
+  PetscReal, parameter :: pres_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: xmol_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: rel_update_inf_tol(3,3) = &
+    reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol], &
+            shape(rel_update_inf_tol)) * &
+            1.d0 ! change to 0.d0 to zero tolerances
+  PetscReal, parameter :: residual_abs_inf_tol(3) = 1.d-5
+  PetscReal, parameter :: residual_scaled_inf_tol(3) = 1.d-5
+
 #ifdef PM_GENERAL_DEBUG  
   print *, 'PMGeneralCreate()'
 #endif  
 
-  allocate(general_pm)
-  allocate(general_pm%max_change_ivar(6))
-  general_pm%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
+  allocate(this)
+  allocate(this%max_change_ivar(6))
+  this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
                                 LIQUID_MOLE_FRACTION, TEMPERATURE, &
                                 GAS_SATURATION]
-  allocate(general_pm%max_change_isubvar(6))
+  allocate(this%max_change_isubvar(6))
                                    ! UNINITIALIZED_INTEGER avoids zeroing of 
                                    ! pressures not represented in phase
                                        ! 2 = air in xmol(air,liquid)
-  general_pm%max_change_isubvar = [0,0,0,2,0,0]
+  this%max_change_isubvar = [0,0,0,2,0,0]
   
-  call PMSubsurfaceFlowCreate(general_pm)
-  general_pm%name = 'General Multiphase Flow'
-  general_pm%header = 'GENERAL MULTIPHASE FLOW'
+  call PMSubsurfaceFlowCreate(this)
+  this%name = 'General Multiphase Flow'
+  this%header = 'GENERAL MULTIPHASE FLOW'
 
   ! turn off default upwinding which is set to PETSC_TRUE in
   !  upwind_direction.F90
   fix_upwind_direction = PETSC_FALSE
-  general_pm%check_post_convergence = PETSC_TRUE
 
-  PMGeneralCreate => general_pm
+  this%check_post_convergence = PETSC_TRUE
+  this%residual_abs_inf_tol = residual_abs_inf_tol
+  this%residual_scaled_inf_tol = residual_scaled_inf_tol
+  this%abs_update_inf_tol = abs_update_inf_tol
+  this%rel_update_inf_tol = rel_update_inf_tol
+  this%verbose_logging = PETSC_FALSE
+
+  PMGeneralCreate => this
   
 end function PMGeneralCreate
 
@@ -116,8 +151,13 @@ subroutine PMGeneralRead(this,input)
   PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
+  PetscInt :: lid, gid, eid
 
   option => this%option
+
+  lid = option%liquid_phase
+  gid = option%gas_phase
+  eid = option%energy_id
 
   error_string = 'General Options'
   
@@ -138,34 +178,126 @@ subroutine PMGeneralRead(this,input)
     if (found) cycle
     
     select case(trim(keyword))
-      case('ITOL_SCALED_RESIDUAL')
-        call InputReadDouble(input,option,general_itol_scaled_res)
-        call InputDefaultMsg(input,option,'general_itol_scaled_res')
-        this%check_post_convergence = PETSC_TRUE
-      case('ITOL_RELATIVE_UPDATE')
-        call InputReadDouble(input,option,general_itol_rel_update)
-        call InputDefaultMsg(input,option,'general_itol_rel_update')
-        this%check_post_convergence = PETSC_TRUE        
-      case('TOUGH2_ITOL_SCALED_RESIDUAL')
-        ! since general_tough2_itol_scaled_res_e1 is an array, we must read
-        ! the tolerance into a double and copy it to the array.
-        tempreal = UNINITIALIZED_DOUBLE
+
+      ! Tolerances
+
+      ! All Residual
+      case('RESIDUAL_INF_TOL')
         call InputReadDouble(input,option,tempreal)
-        ! tempreal will remain uninitialized if the read fails.
-        call InputDefaultMsg(input,option,'tough_itol_scaled_residual_e1')
-        if (Initialized(tempreal)) then
-          general_tough2_itol_scaled_res_e1 = tempreal
-        endif
-        call InputReadDouble(input,option,general_tough2_itol_scaled_res_e2)
-        call InputDefaultMsg(input,option,'tough_itol_scaled_residual_e2')
-        general_tough2_conv_criteria = PETSC_TRUE
-        this%check_post_convergence = PETSC_TRUE
-      case('T2_ITOL_SCALED_RESIDUAL_TEMP')
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%residual_abs_inf_tol(:) = tempreal
+        this%residual_scaled_inf_tol(:) = tempreal
+
+      ! Absolute Residual
+      case('RESIDUAL_ABS_INF_TOL')
         call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option, &
-                           'tough_itol_scaled_residual_e1 for temperature', &
-                           error_string)
-        general_tough2_itol_scaled_res_e1(3,:) = tempreal
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%residual_abs_inf_tol(:) = tempreal
+      case('LIQUID_RESIDUAL_ABS_INF_TOL')
+        call InputReadDouble(input,option,this%residual_abs_inf_tol(lid))
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('GAS_RESIDUAL_ABS_INF_TOL')
+        call InputReadDouble(input,option,this%residual_abs_inf_tol(gid))
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('ENERGY_RESIDUAL_ABS_INF_TOL')
+        call InputReadDouble(input,option,this%residual_abs_inf_tol(eid))
+        call InputErrorMsg(input,option,keyword,error_string)
+
+      ! Relative Residual
+      case('RESIDUAL_REL_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%residual_scaled_inf_tol(:) = tempreal
+      case('LIQUID_RESIDUAL_REL_INF_TOL')
+        call InputReadDouble(input,option,this%residual_scaled_inf_tol(lid))
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('GAS_RESIDUAL_REL_INF_TOL')
+        call InputReadDouble(input,option,this%residual_scaled_inf_tol(gid))
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('ENERGY_RESIDUAL_REL_INF_TOL')
+        call InputReadDouble(input,option,this%residual_scaled_inf_tol(eid))
+        call InputErrorMsg(input,option,keyword,error_string)
+
+      ! All Updates
+      case('UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(:,:) = tempreal
+        this%rel_update_inf_tol(:,:) = tempreal
+
+      ! Absolute Updates
+      case('ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(:,:) = tempreal
+      case('PRES_ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(1,:) = tempreal
+        this%abs_update_inf_tol(2,2) = tempreal
+      case('TEMP_ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(3,:) = tempreal
+      case('SAT_ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(2,3) = tempreal
+      case('XMOL_ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(2,1) = tempreal
+      case('LIQUID_PRES_ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(1,1) = tempreal
+      case('GAS_PRES_ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(1,2:3) = tempreal
+      case('AIR_PRES_ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(2,2) = tempreal
+
+      ! Relative Updates
+      case('REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(:,:) = tempreal
+      case('PRES_REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(1,:) = tempreal
+        this%rel_update_inf_tol(2,2) = tempreal
+      case('TEMP_REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(3,:) = tempreal
+      case('SAT_REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(2,3) = tempreal
+      case('XMOL_REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(2,1) = tempreal
+      case('LIQUID_PRES_REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(1,1) = tempreal
+      case('GAS_PRES_REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(1,2:3) = tempreal
+      case('AIR_PRES_REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(2,2) = tempreal
+
+      case('VERBOSE_LOGGING') 
+        this%verbose_logging = PETSC_TRUE
+
       case('WINDOW_EPSILON') 
         call InputReadDouble(input,option,window_epsilon)
         call InputErrorMsg(input,option,'window epsilon',error_string)
@@ -459,16 +591,8 @@ end subroutine PMGeneralJacobian
 subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 11/21/18
   ! 
-  use Realization_Subsurface_class
-  use Grid_module
-  use Field_module
-  use Option_module
-  use Saturation_Function_module
-  use Patch_module
-  use General_Aux_module
-  use Global_Aux_module
   
   implicit none
   
@@ -479,66 +603,8 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-  PetscReal, pointer :: X_p(:)
-  PetscReal, pointer :: dX_p(:)
-  PetscReal, pointer :: r_p(:)
-  type(grid_type), pointer :: grid
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  type(field_type), pointer :: field
-  type(general_auxvar_type), pointer :: gen_auxvars(:,:)
-  type(global_auxvar_type), pointer :: global_auxvars(:)  
-#ifdef DEBUG_GENERAL_INFO
-  character(len=MAXSTRINGLENGTH) :: string, string2, string3
-  character(len=MAXWORDLENGTH) :: cell_id_word
-  PetscInt, parameter :: max_cell_id = 10
-  PetscInt :: cell_id, cell_locator(0:max_cell_id)
-  PetscInt :: i, ii
-#endif
-  PetscInt :: local_id, ghosted_id
-  PetscInt :: offset
-  PetscInt :: liquid_pressure_index, gas_pressure_index, air_pressure_index
-  PetscInt :: saturation_index, temperature_index, xmol_index
-  PetscInt :: lid, gid, apid, cpid, vpid, spid
-  PetscInt :: pgas_index
-  PetscReal :: liquid_pressure0, liquid_pressure1, del_liquid_pressure
-  PetscReal :: gas_pressure0, gas_pressure1, del_gas_pressure
-  PetscReal :: air_pressure0, air_pressure1, del_air_pressure
-  PetscReal :: temperature0, temperature1, del_temperature
-  PetscReal :: saturation0, saturation1, del_saturation
-  PetscReal :: xmol0, xmol1, del_xmol
-  PetscReal :: max_saturation_change = 0.125d0
-  PetscReal :: max_temperature_change = 10.d0
-  PetscReal :: min_pressure
-  PetscReal :: scale, temp_scale, temp_real
-  PetscReal, parameter :: tolerance = 0.99d0
-  PetscReal, parameter :: initial_scale = 1.d0
-  PetscReal, parameter :: ALMOST_ZERO = 1.d-10
-  PetscReal, parameter :: ALMOST_ONE = 1.d0-ALMOST_ZERO
-  SNES :: snes
-  PetscInt :: newton_iteration
-  
-  grid => this%realization%patch%grid
-  option => this%realization%option
-  field => this%realization%field
-  gen_auxvars => this%realization%patch%aux%General%auxvars
-  global_auxvars => this%realization%patch%aux%Global%auxvars
-
-  patch => this%realization%patch
-
-  spid = option%saturation_pressure_id
-  apid = option%air_pressure_id
-
-  call SNESLineSearchGetSNES(line_search,snes,ierr)
-  call SNESGetIterationNumber(snes,newton_iteration,ierr)
-
-  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
-
-  changed = PETSC_TRUE
-
-  call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+!geh: uncomment if changes occur
+!  changed = PETSC_TRUE
 
 end subroutine PMGeneralCheckUpdatePre
 
@@ -581,29 +647,11 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof
   PetscReal :: dX_, dX_X0
-  PetscReal, parameter :: inf_pres_tol = 1.d0
-  PetscReal, parameter :: inf_temp_tol = 1.d-5
-  PetscReal, parameter :: inf_sat_tol = 1.d-6
-  PetscReal, parameter :: inf_xmol_tol = 1.d-6
-  PetscReal, parameter :: inf_norm_update_tol(3,3) = &
-    reshape([inf_pres_tol,inf_xmol_tol,inf_temp_tol, &
-             inf_pres_tol,inf_pres_tol,inf_temp_tol, &
-             inf_pres_tol,inf_pres_tol,inf_sat_tol], &
-            shape(inf_norm_update_tol)) * &
-            1.d0 ! change to 0.d0 to zero tolerances
-  PetscReal, parameter :: inf_rel_pres_tol = 1.d-3
-  PetscReal, parameter :: inf_rel_temp_tol = 1.d-3
-  PetscReal, parameter :: inf_rel_sat_tol = 1.d-3
-  PetscReal, parameter :: inf_rel_xmol_tol = 1.d-3
-  PetscReal, parameter :: inf_norm_rel_update_tol(3,3) = &
-    reshape([inf_rel_pres_tol,inf_rel_xmol_tol,inf_rel_temp_tol, &
-             inf_rel_pres_tol,inf_rel_pres_tol,inf_rel_temp_tol, &
-             inf_rel_pres_tol,inf_rel_pres_tol,inf_rel_sat_tol], &
-            shape(inf_norm_rel_update_tol)) * &
-            1.d0 ! change to 0.d0 to zero tolerances
-  PetscInt :: converged_update_flag(3,3)
-  PetscInt :: converged_rel_update_flag(3,3)
-  PetscReal :: converged_update_real(3,3)
+  PetscBool :: converged_abs_update_flag(3,3)
+  PetscBool :: converged_rel_update_flag(3,3)
+  PetscInt :: converged_abs_update_cell(3,3)
+  PetscInt :: converged_rel_update_cell(3,3)
+  PetscReal :: converged_abs_update_real(3,3)
   PetscReal :: converged_rel_update_real(3,3)
   PetscInt :: istate
   PetscBool :: converged_absolute
@@ -620,13 +668,16 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
 
   call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
-  converged_update_flag = ZERO_INTEGER
-  converged_rel_update_flag = ZERO_INTEGER
-  converged_update_real = 0.d0
+  converged_abs_update_flag = PETSC_TRUE
+  converged_rel_update_flag = PETSC_TRUE
+  converged_abs_update_cell = ZERO_INTEGER
+  converged_rel_update_cell = ZERO_INTEGER
+  converged_abs_update_real = 0.d0
   converged_rel_update_real = 0.d0
   do local_id = 1, grid%nlmax
     offset = (local_id-1)*option%nflowdof
     ghosted_id = grid%nL2G(local_id)
+    natural_id = grid%nG2A(ghosted_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     istate = global_auxvars(ghosted_id)%istate
     do idof = 1, option%nflowdof
@@ -636,23 +687,27 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       converged_relative = PETSC_TRUE
       dX_ = dabs(dX_p(ival))
       dX_X0 = dabs(dX_/X0_p(ival))
-      if (dX_ > inf_norm_update_tol(idof,istate)) then
+      if (dX_ > this%abs_update_inf_tol(idof,istate)) then
         converged_absolute = PETSC_FALSE
       endif
-      if (dX_X0 > inf_norm_rel_update_tol(idof,istate)) then
+      if (converged_abs_update_real(idof,istate) < dX_) then
+        converged_abs_update_real(idof,istate) = dX_
+        converged_abs_update_cell(idof,istate) = natural_id
+      endif
+      if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
         converged_relative = PETSC_FALSE
       endif
+      if (converged_rel_update_real(idof,istate) < dX_X0) then
+        converged_rel_update_real(idof,istate) = dX_X0
+        converged_rel_update_cell(idof,istate) = natural_id
+      endif
+      ! only enter this condition if both are not converged
       if (.not.(converged_absolute .or. converged_relative)) then
-        natural_id = grid%nG2A(ghosted_id)
-        if (.not.converged_absolute .and. &
-            converged_update_real(idof,istate) < dX_) then
-          converged_update_real(idof,istate) = dX_
-          converged_update_flag(idof,istate) = natural_id
+        if (.not.converged_absolute) then
+          converged_rel_update_flag(idof,istate) = PETSC_FALSE
         endif
-        if (.not.converged_relative .and. &
-            converged_rel_update_real(idof,istate) < dX_) then
-          converged_rel_update_real(idof,istate) = dX_X0
-          converged_rel_update_flag(idof,istate) = natural_id
+        if (.not.converged_relative) then
+          converged_rel_update_flag(idof,istate) = PETSC_FALSE
         endif
       endif
     enddo
@@ -660,10 +715,12 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
 
-  this%converged_flag(:,:,1) = converged_update_flag(:,:)
+  this%converged_flag(:,:,1) = converged_abs_update_flag(:,:)
   this%converged_flag(:,:,2) = converged_rel_update_flag(:,:)
-  this%converged_real(:,:,1) = converged_update_real(:,:)
+  this%converged_real(:,:,1) = converged_abs_update_real(:,:)
   this%converged_real(:,:,2) = converged_rel_update_real(:,:)
+  this%converged_cell(:,:,1) = converged_abs_update_cell(:,:)
+  this%converged_cell(:,:,2) = converged_rel_update_cell(:,:)
 
 end subroutine PMGeneralCheckUpdatePost
 
@@ -709,9 +766,9 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscInt :: offset, ival, idof, itol
   PetscReal :: R, A, R_A
   PetscReal, parameter :: A_zero = 1.d-15
-  PetscReal, parameter :: inf_tol(3) = 1.d-5
-  PetscInt :: converged_residual_flag(3,3)
+  PetscBool :: converged_residual_flag(3,3)
   PetscReal :: converged_residual_real(3,3)
+  PetscInt :: converged_residual_cell(3,3)
   PetscInt :: istate
   PetscMPIInt :: mpi_int
   character(len=MAXSTRINGLENGTH) :: string
@@ -719,8 +776,8 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     ['Liquid State','Gas State   ','2Phase State']
   character(len=17), parameter :: dof_string(3,3) = &
     reshape(['Liquid Pressure  ','Air Mole Fraction','Temperature      ', &
-             'Gas Pressure     ','Gas Saturation   ','Temperature      ', &
-             'Gas Pressure     ','Air Pressure     ','Temperature      '], &
+             'Gas Pressure     ','Air Pressure     ','Temperature      ', &
+             'Gas Pressure     ','Gas Saturation   ','Temperature      '], &
              shape(dof_string))
   character(len=15), parameter :: tol_string(3) = &
     ['Absolute Update','Relative Update','Residual       ']
@@ -733,8 +790,9 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 
   call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
-  converged_residual_flag = ZERO_INTEGER
+  converged_residual_flag = PETSC_TRUE
   converged_residual_real = 0.d0
+  converged_residual_cell = ZERO_INTEGER
   do local_id = 1, grid%nlmax
     offset = (local_id-1)*option%nflowdof
     ghosted_id = grid%nL2G(local_id)
@@ -747,14 +805,16 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       A = dabs(accum2_p(ival))
       R_A = R/A
       if (A > A_zero) then
-        if (R > inf_tol(idof)) then
-          if (R_A > inf_tol(idof)) then
-            if (converged_residual_real(idof,istate) <  R) then
-              converged_residual_real(idof,istate) = R
-              converged_residual_flag(idof,istate) = grid%nG2A(ghosted_id)
-            endif
+        if (R > this%residual_abs_inf_tol(idof)) then
+          if (R_A > this%residual_scaled_inf_tol(idof)) then
+            converged_residual_flag(idof,istate) = PETSC_FALSE
           endif
         endif
+      endif
+      ! find max value regardless of convergence
+      if (converged_residual_real(idof,istate) <  R) then
+        converged_residual_real(idof,istate) = R
+        converged_residual_cell(idof,istate) = grid%nG2A(ghosted_id)
       endif
     enddo
   enddo
@@ -763,32 +823,49 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 
   this%converged_flag(:,:,3) = converged_residual_flag(:,:)
   this%converged_real(:,:,3) = converged_residual_real(:,:)
+  this%converged_cell(:,:,3) = converged_residual_cell(:,:)
   mpi_int = 27
+  ! do not perform an all reduce on cell id as this info is not printed 
+  ! in parallel
   call MPI_Allreduce(MPI_IN_PLACE,this%converged_flag,mpi_int, &
-                     MPI_INTEGER,MPI_MAX,option%mycomm,ierr)
+                     MPI_INTEGER,MPI_LAND,option%mycomm,ierr)
   call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
 
   option%convergence = CONVERGENCE_CONVERGED
-  if (maxval(this%converged_flag) > ZERO_INTEGER) then
-    option%convergence = CONVERGENCE_KEEP_ITERATING
-  endif
-
+  
   do itol = 1, 3 
     do istate = 1, 3
       do idof = 1, 3
-        if (this%converged_flag(idof,istate,itol) /= ZERO_INTEGER) then
-          string = '   ' // trim(tol_string(itol)) // ', ' // &
-            trim(state_string(istate)) // ', ' // &
-            trim(dof_string(idof,istate)) // ' (' // &
-            trim(StringFormatInt(this%converged_flag(idof,istate,itol))) // &
-            ') : ' // &
-            StringFormatDouble(this%converged_real(idof,istate,itol))
-          call OptionPrint(string,option)
+        if (.not.this%converged_flag(idof,istate,itol)) then
+          option%convergence = CONVERGENCE_KEEP_ITERATING
+          if (this%verbose_logging) then
+            string = '   ' // trim(tol_string(itol)) // ', ' // &
+              trim(state_string(istate)) // ', ' // dof_string(idof,istate)
+            if (option%mycommsize == 1) then
+              string = trim(string) // ' (' // &
+                trim(StringFormatInt(this%converged_cell(idof,istate,itol))) &
+                // ')' 
+            endif
+            string = trim(string) // ' : ' // &
+              StringFormatDouble(this%converged_real(idof,istate,itol))
+            call OptionPrint(string,option)
+          endif
         endif
       enddo
     enddo
   enddo
+  if (this%verbose_logging .and. it > 0 .and. &
+      option%convergence == CONVERGENCE_CONVERGED) then
+    string = '   Converged'
+    call OptionPrint(string,option)
+    write(string,'(4x," R:",9es8.1)') this%converged_real(:,:,3)
+    call OptionPrint(string,option)
+    write(string,'(4x,"AU:",9es8.1)') this%converged_real(:,:,1)
+    call OptionPrint(string,option)
+    write(string,'(4x,"RU:",9es8.1)') this%converged_real(:,:,2)
+    call OptionPrint(string,option)
+  endif
 
   call PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                         reason,ierr)
