@@ -204,6 +204,7 @@ subroutine PMGeneralRead(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
 
       ! Relative Residual
+      !TODO(man): Change REL to SCALED
       case('RESIDUAL_REL_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -686,6 +687,7 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       converged_absolute = PETSC_TRUE
       converged_relative = PETSC_TRUE
       dX_ = dabs(dX_p(ival))
+      !TODO(man): consider perturbation of X0_p to avoid divide by zero
       dX_X0 = dabs(dX_/X0_p(ival))
       if (dX_ > this%abs_update_inf_tol(idof,istate)) then
         converged_absolute = PETSC_FALSE
