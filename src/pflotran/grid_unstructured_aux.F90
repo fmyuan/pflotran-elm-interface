@@ -857,6 +857,14 @@ subroutine UGridDMCreateJacobian(unstructured_grid,ugdm,mat_type,J,option)
   allocate(values(ugdm%ndof,ugdm%ndof))
   values = 0.d0
   if (associated(unstructured_grid%explicit_grid)) then
+
+! Go down the diagonal to ensure we have visited any unconnected cells
+    do local_id = 1, unstructured_grid%nlmax
+      ghosted_id = local_id
+      call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,values, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+    enddo
+
     do iconn = 1, size(unstructured_grid%explicit_grid%connections,2)
       id_up = unstructured_grid%explicit_grid%connections(1,iconn)
       id_dn = unstructured_grid%explicit_grid%connections(2,iconn)
