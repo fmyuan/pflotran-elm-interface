@@ -1104,14 +1104,8 @@ subroutine GeneralUpdateFixedAccum(realization)
   material_parameter => patch%aux%Material%material_parameter
     
   call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
-  !Heeho initialize dynamic accumulation term for every p iteration step
-  if (general_tough2_conv_criteria) then
-    call VecGetArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
-  endif
-  
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
@@ -1139,18 +1133,9 @@ subroutine GeneralUpdateFixedAccum(realization)
                              local_id == general_debug_cell_id) 
   enddo
   
-  if (general_tough2_conv_criteria) then
-    accum_p2 = accum_p
-  endif
   
   call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  
-  !Heeho initialize dynamic accumulation term for every p iteration step
-  if (general_tough2_conv_criteria) then
-    call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
-  endif
   
 end subroutine GeneralUpdateFixedAccum
 
@@ -1322,14 +1307,10 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   ! accumulation at t(k) (doesn't change during Newton iteration)
   call VecGetArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
   r_p = -accum_p
+  call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
-  
-  !Heeho dynamically update p+1 accumulation term
-  if (general_tough2_conv_criteria) then
-    call VecGetArrayReadF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
-  endif
-  
   ! accumulation at t(k+1)
+  call VecGetArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax  ! For each local node do...
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
@@ -1345,19 +1326,9 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                              general_analytical_derivatives, &
                              local_id == general_debug_cell_id) 
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
-    
-    !Heeho dynamically update p+1 accumulation term
-    if (general_tough2_conv_criteria) then
-      accum_p2(local_start:local_end) = Res(:)
-    endif
-    
+    accum_p2(local_start:local_end) = Res(:)
   enddo
-
-  call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  !Heeho dynamically update p+1 accumulation term
-  if (general_tough2_conv_criteria) then
-    call VecRestoreArrayReadF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
-  endif
+  call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
 
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list

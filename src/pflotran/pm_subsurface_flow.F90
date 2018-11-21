@@ -71,6 +71,7 @@ module PM_Subsurface_Flow_class
             PMSubsurfaceFlowInitializeTimestepB, &
             PMSubsurfaceFlowFinalizeTimestep, &
             PMSubsurfaceFlowPreSolve, &
+            PMSubsurfaceFlowCheckConvergence, &
             PMSubsurfaceFlowInitializeRun, &
             PMSubsurfaceFlowUpdateSolution, &
             PMSubsurfaceFlowUpdatePropertiesNI, &
