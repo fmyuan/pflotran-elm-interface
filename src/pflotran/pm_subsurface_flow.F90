@@ -37,6 +37,7 @@ module PM_Subsurface_Flow_class
     PetscReal :: saturation_change_limit
     PetscReal :: pressure_change_limit
     PetscReal :: temperature_change_limit
+    PetscInt :: logging_verbosity
   contains
 !geh: commented out subroutines can only be called externally
     procedure, public :: Setup => PMSubsurfaceFlowSetup
@@ -117,7 +118,8 @@ subroutine PMSubsurfaceFlowCreate(this)
   this%saturation_change_limit = UNINITIALIZED_DOUBLE
   this%pressure_change_limit = UNINITIALIZED_DOUBLE
   this%temperature_change_limit = UNINITIALIZED_DOUBLE
-  
+  this%logging_verbosity = 0
+
   call PMBaseInit(this)
 
 end subroutine PMSubsurfaceFlowCreate
@@ -215,6 +217,13 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       count_upwind_direction_flip = PETSC_TRUE
     case('UPWIND_DIR_UPDATE_FREQUENCY')
       call InputReadInt(input,option,upwind_dir_update_freq)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('USE_INFINITY_NORM_CONVERGENCE')
+      this%check_post_convergence = PETSC_TRUE
+
+    case('LOGGING_VERBOSITY')
+      call InputReadInt(input,option,this%logging_verbosity)
       call InputErrorMsg(input,option,keyword,error_string)
 
     case('DEBUG_TOL')
