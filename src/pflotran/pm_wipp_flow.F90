@@ -58,7 +58,6 @@ module PM_WIPP_Flow_class
     PetscBool :: scale_linear_system
     Vec :: scaling_vec
     PetscInt, pointer :: dirichlet_dofs(:) ! this array is zero-based indexing
-    PetscInt :: logging_verbosity
   contains
     procedure, public :: Read => PMWIPPFloRead
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
@@ -169,7 +168,6 @@ subroutine PMWIPPFloInitObject(this)
   this%convergence_test_both = PETSC_TRUE
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
-  this%logging_verbosity = 0
 
 end subroutine PMWIPPFloInitObject
 
@@ -410,9 +408,6 @@ subroutine PMWIPPFloRead(this,input)
           allocate(this%dirichlet_dofs(icount))       ! convert to zero-based
           this%dirichlet_dofs = int_array(1:icount) - 1 
         endif
-      case('LOGGING_VERBOSITY')
-        call InputReadInt(input,option,this%logging_verbosity)
-        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(keyword,'WIPP Flow Mode',option)
     end select

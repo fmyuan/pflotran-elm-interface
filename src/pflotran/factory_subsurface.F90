@@ -1009,7 +1009,6 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
         endif
         call pm%Read(input)
       case default
-        error_string = trim(error_string) // ',SUBSURFACE_FLOW'
         call InputKeywordUnrecognized(word,error_string,option)
     end select
   enddo
