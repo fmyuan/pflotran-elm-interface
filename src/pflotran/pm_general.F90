@@ -706,7 +706,7 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       ! only enter this condition if both are not converged
       if (.not.(converged_absolute .or. converged_relative)) then
         if (.not.converged_absolute) then
-          converged_rel_update_flag(idof,istate) = PETSC_FALSE
+          converged_abs_update_flag(idof,istate) = PETSC_FALSE
         endif
         if (.not.converged_relative) then
           converged_rel_update_flag(idof,istate) = PETSC_FALSE
