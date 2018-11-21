@@ -192,7 +192,7 @@ subroutine GeneralDerivativeDriver(option)
       qsrc = 0.d0
       qsrc(1) = -1.d-10
       srcsink_scale = 1.d0
-      call GeneralDerivativeSrcSink(pert,qsrc,flow_src_sink_type, &
+      call GeneralDerivativeSrcSink(pert,source_sink, &
                                     general_auxvar,global_auxvar, &
                                     material_auxvar,srcsink_scale,option)
   end select
@@ -695,25 +695,27 @@ end subroutine GeneralDerivativeFluxBC
 
 ! ************************************************************************** !
 
-subroutine GeneralDerivativeSrcSink(pert,qsrc,flow_src_sink_type, &
+subroutine GeneralDerivativeSrcSink(pert,source_sink, &
                                     general_auxvar,global_auxvar, &
                                     material_auxvar,scale,option)
 
   use Option_module
+  use Coupler_module
   use Characteristic_Curves_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type), pointer :: option
-  PetscReal :: pert(3)
-  PetscReal :: qsrc(:)
-  PetscInt :: flow_src_sink_type  
+  type(coupler_type), pointer :: source_sink
+  PetscReal :: pert(3)  
   type(general_auxvar_type) :: general_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar(0:)
   type(material_auxvar_type) :: material_auxvar(0:)
   PetscReal :: scale
   
+  PetscReal :: qsrc(3)
+  PetscInt :: flow_src_sink_type
   PetscReal :: ss_flow_vol_flux(option%nphase)  
 
   PetscInt :: natural_id = 1
@@ -725,6 +727,9 @@ subroutine GeneralDerivativeSrcSink(pert,qsrc,flow_src_sink_type, &
   PetscReal :: jac_anal(3,3)
   PetscReal :: jac_num(3,3)
   PetscReal :: jac_dum(3,3)
+  
+  qsrc=source_sink%flow_condition%general%rate%dataset%rarray(:)
+  flow_src_sink_type=source_sink%flow_condition%general%rate%itype
   
   call GeneralPrintAuxVars(general_auxvar(0),global_auxvar(0),material_auxvar(0), &
                            natural_id,'srcsink',option)

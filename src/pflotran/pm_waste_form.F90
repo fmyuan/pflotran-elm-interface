@@ -20,6 +20,7 @@ module PM_Waste_Form_class
   use Dataset_Base_class
   use Region_module
   use Checkpoint_module
+  use Criticality_module
  
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
@@ -294,6 +295,7 @@ module PM_Waste_Form_class
 !    form should start decaying, default time is 0.d0 sec
 ! mech_name: name string for the waste form mechanism object
 ! mechanism: pointer to waste form's mechanism object
+! crit: pointer to the criticality object
 ! next: pointer to next waste form object in linked list
 ! -----------------------------------------------------
   type :: waste_form_base_type
@@ -322,6 +324,7 @@ module PM_Waste_Form_class
     character(len=MAXWORDLENGTH) :: mech_name
     class(wf_mechanism_base_type), pointer :: mechanism
     class(waste_form_base_type), pointer :: next
+    
   end type waste_form_base_type
 ! -----------------------------------------------------
 
@@ -347,6 +350,7 @@ module PM_Waste_Form_class
     class(data_mediator_vec_type), pointer :: data_mediator
     class(waste_form_base_type), pointer :: waste_form_list
     class(wf_mechanism_base_type), pointer :: mechanism_list
+    type(criticality_mediator_type), pointer :: criticality_mediator
     PetscBool :: print_mass_balance
     PetscBool :: implicit_solution
   contains
@@ -708,7 +712,8 @@ function PMWFCreate()
   nullify(PMWFCreate%realization)
   nullify(PMWFCreate%data_mediator)
   nullify(PMWFCreate%waste_form_list)
-  nullify(PMWFCreate%mechanism_list)  
+  nullify(PMWFCreate%mechanism_list) 
+  nullify(PMWFCreate%criticality_mediator)
   PMWFCreate%print_mass_balance = PETSC_FALSE
   PMWFCreate%implicit_solution = PETSC_FALSE
   PMWFCreate%name = 'waste form general'
@@ -740,6 +745,7 @@ subroutine PMWFRead(this,input)
 ! ----------------------------------
   class(pm_waste_form_type) :: this
   type(input_type), pointer :: input
+!   class(simulation_subsurface_type) :: simulation
 ! ----------------------------------
   
 ! LOCAL VARIABLES:
@@ -794,9 +800,19 @@ subroutine PMWFRead(this,input)
     error_string = 'WASTE_FORM_GENERAL'
     call PMWFReadWasteForm(this,input,option,word,error_string,found)
     if (found) cycle
+    
+    error_string = 'WASTE_FORM_GENERAL'
+    call ReadCriticalityMech(this%criticality_mediator,input,option, &
+                         word,error_string,found)
+    if (found) cycle
    
   enddo
-
+  
+  ! Assign chosen mechanism to each criticality object
+  if (associated(this%criticality_mediator)) then
+    call AssignCritMech(this%criticality_mediator)
+  endif
+  
   ! Assign chosen mechanism to each waste form
   cur_waste_form => this%waste_form_list
   do
@@ -1634,6 +1650,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
   use String_module
   use Units_module
   use Region_module
+  use Criticality_module
   
   implicit none
   
@@ -1666,6 +1683,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
   PetscInt :: num_errors
   character(len=MAXWORDLENGTH) :: word
   class(waste_form_base_type), pointer :: new_waste_form, cur_waste_form
+  type(criticality_type), pointer :: cur_criticality, new_criticality
 ! ----------------------------------------------------------------------
 
   error_string = trim(error_string) // ',WASTE_FORM'
@@ -1739,11 +1757,50 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
                  new_waste_form%decay_start_time,'sec',trim(error_string)// &
                  ',DECAY_START_TIME',option)
         !-----------------------------    
+          case('CRITICALITY')
+            new_criticality => CriticalityCreate()
+            do
+              call InputReadPflotranString(input, option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'keyword',error_string)
+              call StringToUpper(word)
+              select case (trim(word))
+                case('MECH_NAME')
+                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputErrorMsg(input,option,'criticality mechanism assignment', &
+                                     error_string)
+                  call StringToUpper(word)
+                  new_criticality%crit_event%mech_name= trim(word)
+                case('CRIT_TIME')
+                  call InputReadDouble(input,option,new_criticality% &
+                                       crit_event%crit_time)
+                  call InputErrorMsg(input,option,'CRIT_TIME',error_string)
+                case default
+                  call InputKeywordUnrecognized(word,error_string,option)
+              end select
+            enddo        
+            if (.not. associated(this%criticality_mediator)) then
+              this%criticality_mediator => CriticalityMediatorCreate()
+              this%criticality_mediator%criticality_list => new_criticality
+            else
+              cur_criticality => this%criticality_mediator%criticality_list
+              do
+                if (.not. associated(cur_criticality)) exit
+                if (.not. associated(cur_criticality%next)) then
+                  cur_criticality%next => new_criticality
+                endif
+                cur_criticality => cur_criticality%next
+              enddo
+            endif
           case default
             call InputKeywordUnrecognized(word,error_string,option)
         !-----------------------------
         end select
+
       enddo
+    
       
      ! ----------------- error messaging -------------------------------------
       if (Uninitialized(new_waste_form%volume)) then
@@ -1828,6 +1885,7 @@ subroutine PMWFAssociateRegion(this,region_list)
   use Grid_module
   use Grid_Structured_module
   use Grid_Unstructured_module
+  use Criticality_module
 
   implicit none
   
@@ -1856,6 +1914,7 @@ subroutine PMWFAssociateRegion(this,region_list)
   type(region_type), pointer :: cur_region
   type(region_type), pointer :: new_region
   class(waste_form_base_type), pointer :: cur_waste_form
+  type(criticality_type), pointer :: cur_criticality
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   character(len=MAXWORDLENGTH) :: word1, word2
@@ -1870,6 +1929,12 @@ subroutine PMWFAssociateRegion(this,region_list)
   coordinate_counter = 0
   
   cur_waste_form => this%waste_form_list
+  if (associated(this%criticality_mediator)) then
+    cur_criticality => this%criticality_mediator%criticality_list
+  else
+    nullify(cur_criticality)
+  endif
+  
   do
     if (.not.associated(cur_waste_form)) exit
     ! if COORDINATE was given, auto-create a region for it
@@ -1903,6 +1968,12 @@ subroutine PMWFAssociateRegion(this,region_list)
         new_region%name = 'WF_COORDINATE_' // trim(adjustl(word1)) // '_p' //  &
                           trim(adjustl(word2))
         cur_waste_form%region => new_region
+        
+        if (associated(cur_criticality)) then
+          cur_criticality%region => new_region
+          cur_criticality => cur_criticality%next
+        endif
+        
         allocate(cur_waste_form%scaling_factor(1))
         cur_waste_form%scaling_factor(1) = 1.d0
       endif
@@ -1912,6 +1983,12 @@ subroutine PMWFAssociateRegion(this,region_list)
         if (.not.associated(cur_region)) exit
         if (StringCompare(cur_region%name,cur_waste_form%region_name)) then
           cur_waste_form%region => cur_region
+          
+          if (associated(cur_criticality)) then
+            cur_criticality%region => cur_region
+            cur_criticality => cur_criticality%next
+          endif
+          
           exit
         endif
         cur_region => cur_region%next
@@ -1925,6 +2002,19 @@ subroutine PMWFAssociateRegion(this,region_list)
     !
     cur_waste_form => cur_waste_form%next
   enddo
+  
+  if (associated(this%criticality_mediator)) then
+    cur_criticality => this%criticality_mediator%criticality_list
+    do
+      if (.not.associated(cur_criticality)) exit
+      if (.not.associated(cur_criticality%region)) then
+        nullify(this%criticality_mediator%criticality_list)
+        exit
+      endif
+      cur_criticality => cur_criticality%next
+    enddo
+  endif
+  
   
 end subroutine PMWFAssociateRegion
   
@@ -2348,6 +2438,11 @@ end subroutine PMWFSetup
     call PMWFOutput(this)
   endif
 
+  ! set up heat transfer
+  if (associated(this%criticality_mediator)) then
+    call CriticalityInitializeRun(this%criticality_mediator,this%realization, &
+                                  this%option)
+  endif
   ! set up mass transfer
   call RealizCreateTranMassTransferVec(this%realization)
   this%data_mediator => DataMediatorVecCreate()
@@ -2863,6 +2958,7 @@ subroutine PMWFSolve(this,time,ierr)
   use Global_Aux_module
   use Material_Aux_class
   use Grid_module
+  use Criticality_module
   
   implicit none
 
@@ -3022,6 +3118,10 @@ subroutine PMWFSolve(this,time,ierr)
   
   call VecRestoreArrayF90(this%realization%field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
+  
+  if (associated(this%criticality_mediator)) then
+    call CriticalitySolve(this%criticality_mediator,this%realization,time,ierr)
+  endif
   
 end subroutine PMWFSolve
 
@@ -4485,6 +4585,7 @@ subroutine PMWFStrip(this)
   enddo
   nullify(this%waste_form_list)
   call PMWFMechanismStrip(this)
+!   call CriticalityStrip(this%criticality_mediator)
 
 end subroutine PMWFStrip
 

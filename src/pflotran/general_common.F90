@@ -3827,7 +3827,7 @@ end subroutine GeneralBCFlux
 
 ! ************************************************************************** !
 
-subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
                           gen_auxvar,global_auxvar,ss_flow_vol_flux, &
                           scale,Res,J,analytical_derivatives,debug_cell)
   ! 
@@ -3838,16 +3838,13 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
   ! 
 
   use Option_module
-  
   use EOS_Water_module
   use EOS_Gas_module
 
   implicit none
 
   type(option_type) :: option
-  PetscReal :: qsrc(:)
-  PetscInt :: flow_src_sink_type
-  type(general_auxvar_type) :: gen_auxvar
+  type(general_auxvar_type) :: gen_auxvar,gen_auxvar_ss
   type(global_auxvar_type) :: global_auxvar
   PetscReal :: ss_flow_vol_flux(option%nphase)
   PetscReal :: scale
@@ -3855,16 +3852,17 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
   PetscReal :: J(option%nflowdof,option%nflowdof)  
   PetscBool :: analytical_derivatives  
   PetscBool :: debug_cell
-      
+  
+  PetscReal :: qsrc(3)
+  PetscInt :: flow_src_sink_type
   PetscReal :: qsrc_mol
   PetscReal :: enthalpy, internal_energy
-  PetscReal :: cell_pressure, dummy_pressure
   PetscInt :: wat_comp_id, air_comp_id, energy_id
   PetscReal :: Jl(option%nflowdof,option%nflowdof)  
   PetscReal :: Jg(option%nflowdof,option%nflowdof)  
   PetscReal :: Je(option%nflowdof,option%nflowdof)  
   PetscReal :: dden_bool
-  PetscReal :: hw_dp, hw_dT, ha_dp, ha_dT, dum1, dum2, dum3
+  PetscReal :: hw_dp, hw_dT, ha_dp, ha_dT
   PetscErrorCode :: ierr
 
   wat_comp_id = option%water_id
@@ -3873,6 +3871,7 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
   
   Res = 0.d0
   J = 0.d0
+  
   
 #ifdef WATER_SRCSINK
   qsrc_mol = 0.d0
@@ -3921,6 +3920,7 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
     J = J + Jl
   endif
 #endif
+
 #ifdef AIR_SRCSINK
   qsrc_mol = 0.d0
   dden_bool = 0.d0
@@ -3969,20 +3969,22 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
     J = J + Jg
   endif
 #endif
-  if (dabs(qsrc(TWO_INTEGER)) < 1.d-40 .and. &
-      qsrc(ONE_INTEGER) < 0.d0) then ! extraction only
+
+  
+  if (dabs(qsrc(air_comp_id)) < 1.d-40 .and. &
+      qsrc(wat_comp_id) < 0.d0) then ! extraction only
     ! Res(1) holds qsrc_mol for water.  If the src/sink value for air is zero,
     ! remove/add the equivalent mole fraction of air in the liquid phase.
-    qsrc_mol = Res(wat_comp_id)*gen_auxvar%xmol(TWO_INTEGER,ONE_INTEGER)
-    Res(TWO_INTEGER) = qsrc_mol
-    ss_flow_vol_flux(air_comp_id) = qsrc_mol/gen_auxvar%den(TWO_INTEGER)
+    qsrc_mol = Res(wat_comp_id)*gen_auxvar%xmol(air_comp_id,wat_comp_id)
+    Res(air_comp_id) = qsrc_mol
+    ss_flow_vol_flux(air_comp_id) = qsrc_mol/gen_auxvar%den(air_comp_id)
     if (analytical_derivatives) then
       !Jg = 0.d0
       select case(global_auxvar%istate)
         case(LIQUID_STATE)
           ! derivative wrt liquid pressure
           ! derivative wrt air mole fraction
-          Jg(2,2) = Jg(2,2) + Res(ONE_INTEGER)
+          Jg(2,2) = Jg(2,2) + Res(wat_comp_id)
           ! derivative wrt temperature
         case(GAS_STATE)
           ! derivative wrt gas pressure
@@ -3992,75 +3994,61 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
           ! derivative wrt gas pressure
           Jg(2,1) = Jg(2,1) + &
                     dden_bool * qsrc(wat_comp_id) * gen_auxvar%d%denl_pl * &
-                    gen_auxvar%xmol(TWO_INTEGER,ONE_INTEGER) + &
-                    Res(ONE_INTEGER) * gen_auxvar%d%xmol_p(2,1)
+                    gen_auxvar%xmol(air_comp_id,wat_comp_id) + &
+                    Res(wat_comp_id) * gen_auxvar%d%xmol_p(2,1)
           ! derivative wrt gas saturation
           ! derivative wrt temperature
           Jg(2,3) = Jg(2,3) + &
                     dden_bool * qsrc(wat_comp_id) * gen_auxvar%d%denl_T * &
-                    gen_auxvar%xmol(TWO_INTEGER,ONE_INTEGER) + &
-                    Res(ONE_INTEGER) * gen_auxvar%d%xmol_T(2,1)
+                    gen_auxvar%xmol(air_comp_id,wat_comp_id) + &
+                    Res(wat_comp_id) * gen_auxvar%d%xmol_T(2,1)
       end select
       J = J + Jg
     endif
   endif
+  
   ! energy units: MJ/sec
   if (size(qsrc) == THREE_INTEGER) then
-    if (dabs(qsrc(THREE_INTEGER)) < 1.d-40) then
-      cell_pressure = &
-        maxval(gen_auxvar%pres(option%liquid_phase:option%gas_phase))
-      if (dabs(qsrc(ONE_INTEGER)) > 0.d0) then
+    if (dabs(qsrc(energy_id)) < 1.d-40) then
+      if (dabs(qsrc(wat_comp_id)) > 1.d-40) then
         if (associated(gen_auxvar%d)) then
-          call EOSWaterEnthalpy(gen_auxvar%temp,cell_pressure,enthalpy, &
-                                hw_dp,hw_dT,ierr)
-          hw_dp = hw_dp * 1.d-6
-          hw_dT = hw_dT * 1.d-6
-        else
-          call EOSWaterEnthalpy(gen_auxvar%temp,cell_pressure,enthalpy,ierr)
+          hw_dp = gen_auxvar_ss%d%Hl_pl
+          hw_dT = gen_auxvar_ss%d%Hl_T
         endif
-        enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
+        enthalpy = gen_auxvar_ss%h(wat_comp_id)
         ! enthalpy units: MJ/kmol                       ! water component mass
-        Res(option%energy_id) = Res(option%energy_id) + Res(ONE_INTEGER) * &
-                                                        enthalpy
+        Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * enthalpy
         if (analytical_derivatives) then
           Je = 0.d0
-          Je(3,1) = Jl(1,1) * enthalpy + &
-                    Res(ONE_INTEGER) * hw_dp
-          Je(3,3) = Jl(1,3) * enthalpy + &
-                    Res(ONE_INTEGER) * hw_dT
+          Je(3,1) = Jl(1,1) * enthalpy + Res(wat_comp_id) * hw_dp
+          Je(3,3) = Jl(1,3) * enthalpy + Res(wat_comp_id) * hw_dT
         endif
         J = J + Je
       endif
-      if (dabs(qsrc(TWO_INTEGER)) > 0.d0) then
+      
+      if (dabs(qsrc(air_comp_id)) > 1.d-40) then
         ! this is pure air, we use the enthalpy of air, NOT the air/water
         ! mixture in gas
-        ! air enthalpy is only a function of temperature and the 
-        dummy_pressure = 0.d0
+        ! air enthalpy is only a function of temperature
         if (associated(gen_auxvar%d)) then
-          call EOSGasEnergy(gen_auxvar%temp,dummy_pressure,enthalpy, &
-                            ha_dT,ha_dp,dum1,dum2,dum3,ierr)
-          ha_dp = ha_dp * 1.d-6
-          ha_dT = ha_dT * 1.d-6
-        else
-          call EOSGasEnergy(gen_auxvar%temp,dummy_pressure, &
-                            enthalpy,internal_energy,ierr)
+          ha_dp = gen_auxvar_ss%d%Ha_pg
+          ha_dT = gen_auxvar_ss%d%Ha_T
         endif
-        enthalpy = enthalpy * 1.d-6 ! J/kmol -> MJ/kmol                                  
+        
+        internal_energy = gen_auxvar_ss%u(air_comp_id)
+        enthalpy = gen_auxvar_ss%h(air_comp_id)                                 
         ! enthalpy units: MJ/kmol                       ! air component mass
-        Res(option%energy_id) = Res(option%energy_id) + Res(TWO_INTEGER) * &
-                                                        enthalpy
+        Res(energy_id) = Res(energy_id) + Res(air_comp_id) * enthalpy
         if (analytical_derivatives) then
           Je = 0.d0
-          Je(3,1) = Jg(2,1) * enthalpy + &
-                    Res(TWO_INTEGER) * ha_dp
+          Je(3,1) = Jg(2,1) * enthalpy + Res(air_comp_id) * ha_dp
           Je(3,2) = Jg(2,2) * enthalpy
-          Je(3,3) = Jg(2,3) * enthalpy + &
-                    Res(TWO_INTEGER) * ha_dT
-        endif
+          Je(3,3) = Jg(2,3) * enthalpy + Res(air_comp_id) * ha_dT
+        endif 
         J = J + Je
       endif
     else
-      Res(option%energy_id) = qsrc(THREE_INTEGER)*scale ! MJ/s
+      Res(energy_id) = qsrc(energy_id)*scale ! MJ/s
       ! no derivative
     endif
   endif
@@ -4098,8 +4086,7 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
 
 !geh:print *, 'GeneralAccumDerivative'
 
-  call GeneralAccumulation(gen_auxvar(ZERO_INTEGER), &
-                           global_auxvar, &
+  call GeneralAccumulation(gen_auxvar(ZERO_INTEGER),global_auxvar, &
                            material_auxvar,soil_heat_capacity,option, &
                            res,jac,general_analytical_derivatives, &
                            PETSC_FALSE)
@@ -4108,10 +4095,9 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
     J = jac
   else
     do idof = 1, option%nflowdof
-      call GeneralAccumulation(gen_auxvar(idof), &
-                               global_auxvar, &
-                               material_auxvar,soil_heat_capacity, &
-                               option,res_pert,jac_pert,PETSC_FALSE,PETSC_FALSE)
+      call GeneralAccumulation(gen_auxvar(idof),global_auxvar, &
+                               material_auxvar,soil_heat_capacity,option, &
+                               res_pert,jac_pert,PETSC_FALSE,PETSC_FALSE)
       do irow = 1, option%nflowdof
         J(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
       enddo !irow
@@ -4374,7 +4360,7 @@ end subroutine GeneralBCFluxDerivative
 
 ! ************************************************************************** !
 
-subroutine GeneralSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
+subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
                                     gen_auxvars,global_auxvar,scale,Jac)
   ! 
   ! Computes the source/sink terms for the residual
@@ -4384,24 +4370,29 @@ subroutine GeneralSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   ! 
 
   use Option_module
+  use Coupler_module
 
   implicit none
 
   type(option_type) :: option
-  PetscReal :: qsrc(:)
-  PetscInt :: flow_src_sink_type
-  type(general_auxvar_type) :: gen_auxvars(0:)
+  type(coupler_type), pointer :: source_sink
+  type(general_auxvar_type) :: gen_auxvars(0:), gen_auxvar_ss
   type(global_auxvar_type) :: global_auxvar
   PetscReal :: scale
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
   
+  PetscReal :: qsrc(3)
+  PetscInt :: flow_src_sink_type
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscReal :: dummy_real(option%nphase)
   PetscInt :: idof, irow
-  PetscReal :: Jdum(option%nflowdof,option%nflowdof)  
+  PetscReal :: Jdum(option%nflowdof,option%nflowdof)
+  
+  qsrc = source_sink%flow_condition%general%rate%dataset%rarray(:)
+  flow_src_sink_type = source_sink%flow_condition%general%rate%itype
 
   option%iflag = -3
-  call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+  call GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
                       gen_auxvars(ZERO_INTEGER),global_auxvar,dummy_real, &
                       scale,res,Jdum,general_analytical_derivatives, &
                       PETSC_FALSE)
@@ -4411,9 +4402,9 @@ subroutine GeneralSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   else                      
     ! downgradient derivatives
     do idof = 1, option%nflowdof
-      call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+      call GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
                           gen_auxvars(idof),global_auxvar,dummy_real, &
-                          scale,res_pert,Jdum,PETSC_FALSE,PETSC_FALSE)            
+                          scale,res_pert,Jdum,PETSC_FALSE,PETSC_FALSE)  
       do irow = 1, option%nflowdof
         Jac(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvars(idof)%pert
       enddo !irow

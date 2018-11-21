@@ -80,6 +80,7 @@ module General_Aux_module
   PetscInt, parameter, public :: GENERAL_UPDATE_FOR_FIXED_ACCUM = 0
   PetscInt, parameter, public :: GENERAL_UPDATE_FOR_ACCUM = 1
   PetscInt, parameter, public :: GENERAL_UPDATE_FOR_BOUNDARY = 2
+  PetscInt, parameter, public :: GENERAL_UPDATE_FOR_SS = 3
 
   PetscReal, parameter, public :: GENERAL_IMMISCIBLE_VALUE = 1.d-10
   PetscReal, parameter, public :: GENERAL_PRESSURE_SCALE = 1.d0
@@ -969,6 +970,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                                         den_kg_water_vapor,den_water_vapor, &
                                         h_water_vapor,ierr)
     endif
+    
     u_water_vapor = h_water_vapor - &
                     ! Pa / kmol/m^3 = J/kmol
                     water_vapor_pressure / den_water_vapor
@@ -981,9 +983,9 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 !    if (gen_auxvar%xmol(acid,gid) < 1.d-40) then
 !      xmol_air_in_gas = den_air / gen_auxvar%den(gid)
 !      xmol_water_in_gas = 1.d0 - gen_auxvar%xmol(acid,gid)
-!    else
-      xmol_air_in_gas = gen_auxvar%xmol(acid,gid)
-      xmol_water_in_gas = gen_auxvar%xmol(wid,gid)
+!    else    
+     xmol_air_in_gas = gen_auxvar%xmol(acid,gid)
+     xmol_water_in_gas = gen_auxvar%xmol(wid,gid)
 !    endif
       
 #ifdef DEBUG_GENERAL  
@@ -1008,6 +1010,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
     gen_auxvar%H(gid) = gen_auxvar%U(gid) + &
                         ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
                         gen_auxvar%pres(gid)/gen_auxvar%den(gid) * 1.d-6
+    
     if (associated(gen_auxvar%d)) then
       gen_auxvar%d%Uv = u_water_vapor
       gen_auxvar%d%Hv = h_water_vapor
@@ -1192,7 +1195,10 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
 end subroutine GeneralAuxVarCompute
 
+
+
 ! ************************************************************************** !
+
 
 subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
                                     material_auxvar, &
