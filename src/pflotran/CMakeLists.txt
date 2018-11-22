@@ -361,11 +361,6 @@ set(MISC_SOURCES
 	data_mediator_vec.F90
 	data_mediator_base.F90
 	debug.F90
-	e4d_mat_inv.F90
-	e4d_run.F90
-	e4d_setup.F90
-	e4d_vars.F90
-	factory_hydrogeophysics.F90
 	factory_pflotran.F90
 	factory_subsurface.F90
 	field.F90
@@ -384,7 +379,6 @@ set(MISC_SOURCES
 	patch.F90
 	pmc_auxiliary.F90
 	pmc_base.F90
-	pmc_hydrogeophysics.F90
 	pmc_subsurface.F90
 	pmc_third_party.F90
 	realization_base.F90
@@ -395,7 +389,6 @@ set(MISC_SOURCES
 	secondary_continuum.F90
 	simulation_aux.F90
 	simulation_base.F90
-	simulation_hydrogeophysics.F90
 	simulation_subsurface.F90
 	solver.F90
 	spline.F90
@@ -406,7 +399,6 @@ set(MISC_SOURCES
 	transport.F90
 	waypoint.F90
 	wipp.F90
-	wrapper_hydrogeophysics.F90
 )
 
 set(WELL_SOURCES

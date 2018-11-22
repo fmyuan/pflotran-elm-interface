@@ -302,9 +302,8 @@ module PFLOTRAN_Constants_module
   ! Macros that are used as 'vscatter_index' values
   PetscInt, parameter, public :: SURF_TO_SUBSURF = 1
   PetscInt, parameter, public :: SUBSURF_TO_SURF = 2
-  PetscInt, parameter, public :: SUBSURF_TO_HYDROGEOPHY = 3
-  PetscInt, parameter, public :: SUBSURF_TO_GEOMECHANICS = 4
-  PetscInt, parameter, public :: GEOMECHANICS_TO_SUBSURF = 5
+  PetscInt, parameter, public :: SUBSURF_TO_GEOMECHANICS = 3
+  PetscInt, parameter, public :: GEOMECHANICS_TO_SUBSURF = 4
   
   ! Ice/water/vapor partitioning model
   PetscInt, parameter, public :: PAINTER_EXPLICIT = 1
