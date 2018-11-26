@@ -11,17 +11,22 @@ module PM_General_class
 
   private
 
+  PetscInt, parameter :: ABS_UPDATE_INDEX = 1
+  PetscInt, parameter :: REL_UPDATE_INDEX = 2
+  PetscInt, parameter :: RESIDUAL_INDEX = 3
+  PetscInt, parameter :: SCALED_RESIDUAL_INDEX = 4
+  PetscInt, parameter :: MAX_INDEX = SCALED_RESIDUAL_INDEX
+
   type, public, extends(pm_subsurface_flow_type) :: pm_general_type
     PetscInt, pointer :: max_change_ivar(:)
     PetscInt, pointer :: max_change_isubvar(:)
-    PetscBool :: converged_flag(3,3,3)
-    PetscInt :: converged_cell(3,3,3)
-    PetscReal :: converged_real(3,3,3)
+    PetscBool :: converged_flag(3,3,MAX_INDEX)
+    PetscInt :: converged_cell(3,3,MAX_INDEX)
+    PetscReal :: converged_real(3,3,MAX_INDEX)
     PetscReal :: residual_abs_inf_tol(3)
     PetscReal :: residual_scaled_inf_tol(3)
     PetscReal :: abs_update_inf_tol(3,3)
     PetscReal :: rel_update_inf_tol(3,3)
-    PetscBool :: verbose_logging
   contains
     procedure, public :: Read => PMGeneralRead
     procedure, public :: InitializeRun => PMGeneralInitializeRun
@@ -137,12 +142,13 @@ function PMGeneralCreate()
   !  upwind_direction.F90
   fix_upwind_direction = PETSC_FALSE
 
-  this%check_post_convergence = PETSC_TRUE
+! this should be set explicitly in input file using 
+! USE_INFINITY_NORM_CONVERGENCE specified in input block
+!  this%check_post_convergence = PETSC_TRUE
   this%residual_abs_inf_tol = residual_abs_inf_tol
   this%residual_scaled_inf_tol = residual_scaled_inf_tol
   this%abs_update_inf_tol = abs_update_inf_tol
   this%rel_update_inf_tol = rel_update_inf_tol
-  this%verbose_logging = PETSC_FALSE
 
   PMGeneralCreate => this
   
@@ -227,7 +233,7 @@ subroutine PMGeneralRead(this,input)
 
       ! Scaled Residual
       !TODO(man): Change REL to SCALED
-      case('RESIDUAL_REL_INF_TOL')
+      case('RESIDUAL_REL_INF_TOL','ITOL_SCALED_RESIDUAL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%residual_scaled_inf_tol(:) = tempreal
@@ -284,7 +290,7 @@ subroutine PMGeneralRead(this,input)
         this%abs_update_inf_tol(2,2) = tempreal
 
       ! Relative Updates
-      case('REL_UPDATE_INF_TOL')
+      case('REL_UPDATE_INF_TOL','ITOL_RELATIVE_UPDATE')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%rel_update_inf_tol(:,:) = tempreal
@@ -317,9 +323,6 @@ subroutine PMGeneralRead(this,input)
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%rel_update_inf_tol(2,2) = tempreal
-
-      case('VERBOSE_LOGGING') 
-        this%verbose_logging = PETSC_TRUE
 
       case('WINDOW_EPSILON') 
         call InputReadDouble(input,option,window_epsilon)
@@ -741,7 +744,7 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       ! only enter this condition if both are not converged
       if (.not.(converged_absolute .or. converged_relative)) then
         if (.not.converged_absolute) then
-          converged_rel_update_flag(idof,istate) = PETSC_FALSE
+          converged_abs_update_flag(idof,istate) = PETSC_FALSE
         endif
         if (.not.converged_relative) then
           converged_rel_update_flag(idof,istate) = PETSC_FALSE
@@ -752,12 +755,12 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
 
-  this%converged_flag(:,:,1) = converged_abs_update_flag(:,:)
-  this%converged_flag(:,:,2) = converged_rel_update_flag(:,:)
-  this%converged_real(:,:,1) = converged_abs_update_real(:,:)
-  this%converged_real(:,:,2) = converged_rel_update_real(:,:)
-  this%converged_cell(:,:,1) = converged_abs_update_cell(:,:)
-  this%converged_cell(:,:,2) = converged_rel_update_cell(:,:)
+  this%converged_flag(:,:,ABS_UPDATE_INDEX) = converged_abs_update_flag(:,:)
+  this%converged_flag(:,:,REL_UPDATE_INDEX) = converged_rel_update_flag(:,:)
+  this%converged_real(:,:,ABS_UPDATE_INDEX) = converged_abs_update_real(:,:)
+  this%converged_real(:,:,REL_UPDATE_INDEX) = converged_rel_update_real(:,:)
+  this%converged_cell(:,:,ABS_UPDATE_INDEX) = converged_abs_update_cell(:,:)
+  this%converged_cell(:,:,REL_UPDATE_INDEX) = converged_rel_update_cell(:,:)
 
 end subroutine PMGeneralCheckUpdatePost
 
@@ -799,14 +802,19 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   type(global_auxvar_type), pointer :: global_auxvars(:)  
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum2_p(:)
-  PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof, itol
   PetscReal :: R, A, R_A
   PetscReal, parameter :: A_zero = 1.d-15
-  PetscBool :: converged_residual_flag(3,3)
-  PetscReal :: converged_residual_real(3,3)
-  PetscInt :: converged_residual_cell(3,3)
+  PetscBool :: converged_abs_residual_flag(3,3)
+  PetscReal :: converged_abs_residual_real(3,3)
+  PetscInt :: converged_abs_residual_cell(3,3)
+  PetscBool :: converged_scaled_residual_flag(3,3)
+  PetscReal :: converged_scaled_residual_real(3,3)
+  PetscInt :: converged_scaled_residual_cell(3,3)
   PetscInt :: istate
+  PetscBool :: converged_absolute
+  PetscBool :: converged_scaled
   PetscMPIInt :: mpi_int
   character(len=MAXSTRINGLENGTH) :: string
   character(len=12), parameter :: state_string(3) = &
@@ -816,8 +824,8 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
              'Gas Pressure     ','Air Pressure     ','Temperature      ', &
              'Gas Pressure     ','Gas Saturation   ','Temperature      '], &
              shape(dof_string))
-  character(len=15), parameter :: tol_string(3) = &
-    ['Absolute Update','Relative Update','Residual       ']
+  character(len=15), parameter :: tol_string(MAX_INDEX) = &
+    ['Absolute Update','Relative Update','Residual       ','Scaled Residual']
   
   patch => this%realization%patch
   option => this%realization%option
@@ -825,83 +833,117 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   grid => patch%grid
   global_auxvars => patch%aux%Global%auxvars
 
-  call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
-  converged_residual_flag = PETSC_TRUE
-  converged_residual_real = 0.d0
-  converged_residual_cell = ZERO_INTEGER
-  do local_id = 1, grid%nlmax
-    offset = (local_id-1)*option%nflowdof
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    istate = global_auxvars(ghosted_id)%istate
-    do idof = 1, option%nflowdof
-      ival = offset+idof
-      ! infinity norms on residual
-      R = dabs(r_p(ival))
-      A = dabs(accum2_p(ival))
-      R_A = R/A
-      if (A > A_zero) then
+  if (this%check_post_convergence) then
+    call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+    converged_abs_residual_flag = PETSC_TRUE
+    converged_abs_residual_real = 0.d0
+    converged_abs_residual_cell = ZERO_INTEGER
+    converged_scaled_residual_flag = PETSC_TRUE
+    converged_scaled_residual_real = 0.d0
+    converged_scaled_residual_cell = ZERO_INTEGER
+    do local_id = 1, grid%nlmax
+      offset = (local_id-1)*option%nflowdof
+      ghosted_id = grid%nL2G(local_id)
+      natural_id = grid%nG2A(ghosted_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      istate = global_auxvars(ghosted_id)%istate
+      do idof = 1, option%nflowdof
+        ival = offset+idof
+        converged_absolute = PETSC_TRUE
+        converged_scaled = PETSC_TRUE
+        ! infinity norms on residual
+        R = dabs(r_p(ival))
+        A = dabs(accum2_p(ival))
+        R_A = R/A
         if (R > this%residual_abs_inf_tol(idof)) then
+          converged_absolute = PETSC_FALSE
+        endif
+        ! find max value regardless of convergence
+        if (converged_abs_residual_real(idof,istate) < R) then
+          converged_abs_residual_real(idof,istate) = R
+          converged_abs_residual_cell(idof,istate) = natural_id
+        endif
+        if (A > A_zero) then
           if (R_A > this%residual_scaled_inf_tol(idof)) then
-            converged_residual_flag(idof,istate) = PETSC_FALSE
+            converged_scaled = PETSC_FALSE
+          endif
+          ! find max value regardless of convergence
+          if (converged_scaled_residual_real(idof,istate) < R_A) then
+            converged_scaled_residual_real(idof,istate) = R_A
+            converged_scaled_residual_cell(idof,istate) = natural_id
           endif
         endif
-      endif
-      ! find max value regardless of convergence
-      if (converged_residual_real(idof,istate) <  R) then
-        converged_residual_real(idof,istate) = R
-        converged_residual_cell(idof,istate) = grid%nG2A(ghosted_id)
-      endif
-    enddo
-  enddo
-  call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
-
-  this%converged_flag(:,:,3) = converged_residual_flag(:,:)
-  this%converged_real(:,:,3) = converged_residual_real(:,:)
-  this%converged_cell(:,:,3) = converged_residual_cell(:,:)
-  mpi_int = 27
-  ! do not perform an all reduce on cell id as this info is not printed 
-  ! in parallel
-  call MPI_Allreduce(MPI_IN_PLACE,this%converged_flag,mpi_int, &
-                     MPI_INTEGER,MPI_LAND,option%mycomm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
-
-  option%convergence = CONVERGENCE_CONVERGED
-  
-  do itol = 1, 3 
-    do istate = 1, 3
-      do idof = 1, 3
-        if (.not.this%converged_flag(idof,istate,itol)) then
-          option%convergence = CONVERGENCE_KEEP_ITERATING
-          if (this%verbose_logging) then
-            string = '   ' // trim(tol_string(itol)) // ', ' // &
-              trim(state_string(istate)) // ', ' // dof_string(idof,istate)
-            if (option%mycommsize == 1) then
-              string = trim(string) // ' (' // &
-                trim(StringFormatInt(this%converged_cell(idof,istate,itol))) &
-                // ')' 
-            endif
-            string = trim(string) // ' : ' // &
-              StringFormatDouble(this%converged_real(idof,istate,itol))
-            call OptionPrint(string,option)
+        ! only enter this condition if both are not converged
+        if (.not.(converged_absolute .or. converged_scaled)) then
+          if (.not.converged_absolute) then
+            converged_abs_residual_flag(idof,istate) = PETSC_FALSE
+          endif
+          if (.not.converged_scaled) then
+            converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
           endif
         endif
       enddo
     enddo
-  enddo
-  if (this%verbose_logging .and. it > 0 .and. &
-      option%convergence == CONVERGENCE_CONVERGED) then
-    string = '   Converged'
-    call OptionPrint(string,option)
-    write(string,'(4x," R:",9es8.1)') this%converged_real(:,:,3)
-    call OptionPrint(string,option)
-    write(string,'(4x,"AU:",9es8.1)') this%converged_real(:,:,1)
-    call OptionPrint(string,option)
-    write(string,'(4x,"RU:",9es8.1)') this%converged_real(:,:,2)
-    call OptionPrint(string,option)
+    call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+  
+    this%converged_flag(:,:,RESIDUAL_INDEX) = converged_abs_residual_flag(:,:)
+    this%converged_real(:,:,RESIDUAL_INDEX) = converged_abs_residual_real(:,:)
+    this%converged_cell(:,:,RESIDUAL_INDEX) = converged_abs_residual_cell(:,:)
+    this%converged_flag(:,:,SCALED_RESIDUAL_INDEX) = &
+                                       converged_scaled_residual_flag(:,:)
+    this%converged_real(:,:,SCALED_RESIDUAL_INDEX) = &
+                                       converged_scaled_residual_real(:,:)
+    this%converged_cell(:,:,SCALED_RESIDUAL_INDEX) = &
+                                       converged_scaled_residual_cell(:,:)
+    mpi_int = 9*MAX_INDEX
+    ! do not perform an all reduce on cell id as this info is not printed 
+    ! in parallel
+    call MPI_Allreduce(MPI_IN_PLACE,this%converged_flag,mpi_int, &
+                       MPI_INTEGER,MPI_LAND,option%mycomm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
+                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+  
+    option%convergence = CONVERGENCE_CONVERGED
+    
+    do itol = 1, MAX_INDEX
+      do istate = 1, 3
+        do idof = 1, option%nflowdof
+          if (.not.this%converged_flag(idof,istate,itol)) then
+            option%convergence = CONVERGENCE_KEEP_ITERATING
+            if (this%logging_verbosity > 0) then
+              string = '   ' // trim(tol_string(itol)) // ', ' // &
+                trim(state_string(istate)) // ', ' // dof_string(idof,istate)
+              if (option%mycommsize == 1) then
+                string = trim(string) // ' (' // &
+                  trim(StringFormatInt(this%converged_cell(idof,istate,itol))) &
+                  // ')' 
+              endif
+              string = trim(string) // ' : ' // &
+                StringFormatDouble(this%converged_real(idof,istate,itol))
+              call OptionPrint(string,option)
+            endif
+          endif
+        enddo
+      enddo
+    enddo
+    if (this%logging_verbosity > 0 .and. it > 0 .and. &
+        option%convergence == CONVERGENCE_CONVERGED) then
+      string = '   Converged'
+      call OptionPrint(string,option)
+      write(string,'(4x," R:",9es8.1)') this%converged_real(:,:,RESIDUAL_INDEX)
+      call OptionPrint(string,option)
+      write(string,'(4x,"SR:",9es8.1)') &
+        this%converged_real(:,:,SCALED_RESIDUAL_INDEX)
+      call OptionPrint(string,option)
+      write(string,'(4x,"AU:",9es8.1)') &
+        this%converged_real(:,:,ABS_UPDATE_INDEX)
+      call OptionPrint(string,option)
+      write(string,'(4x,"RU:",9es8.1)') &
+        this%converged_real(:,:,REL_UPDATE_INDEX)
+      call OptionPrint(string,option)
+    endif
   endif
 
   call PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &

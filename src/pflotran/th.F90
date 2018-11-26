@@ -3698,6 +3698,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
 
   PetscReal, pointer :: accum_p(:)
+  PetscReal, pointer :: accum2_p(:)
 
   PetscReal, pointer :: r_p(:), xx_loc_p(:), xx_p(:), yy_p(:)
   PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
@@ -3784,7 +3785,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 ! now assign access pointer to local variables
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90( r, r_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
  
   call VecGetArrayF90(field%flow_yy,yy_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
@@ -3800,8 +3800,11 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   r_p = 0.d0
 
   ! Accumulation terms ------------------------------------
+  call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
   r_p = - accum_p
+  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
+  call VecGetArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax  ! For each local node do...
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
@@ -3818,7 +3821,9 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
                         TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
                         option,vol_frac_prim,Res)
     r_p(istart:iend) = r_p(istart:iend) + Res
+    accum2_p(istart:iend) = Res
   enddo
+  call VecRestoreArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
 
 
   ! ================== Secondary continuum heat source terms ==================
@@ -4165,7 +4170,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr);CHKERRQ(ierr)
