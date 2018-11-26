@@ -69,16 +69,26 @@ function PMGeneralCreate()
 
   class(pm_general_type), pointer :: this
   
-  PetscReal, parameter :: pres_abs_inf_tol = 1.d0
-  PetscReal, parameter :: temp_abs_inf_tol = 1.d-5
-  PetscReal, parameter :: sat_abs_inf_tol = 1.d-6
-  PetscReal, parameter :: xmol_abs_inf_tol = 1.d-6
+  PetscReal, parameter :: ref_temp = 20.d0 !degrees C
+  PetscReal, parameter :: ref_pres = 101325.d0 !Pa
+  PetscReal, parameter :: ref_sat = 0.5
+  PetscReal, parameter :: ref_xmol = 1.d-6
+  
+  PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
+  PetscReal, parameter :: temp_abs_inf_tol = pres_abs_inf_tol * ref_temp /  &
+                                             ref_pres !1.d-5
+  PetscReal, parameter :: sat_abs_inf_tol = pres_abs_inf_tol * ref_sat / & 
+                                            ref_pres !1.d-6
+  PetscReal, parameter :: xmol_abs_inf_tol = pres_abs_inf_tol * ref_xmol / &
+                                             ref_pres !1.d-6
+  
   PetscReal, parameter :: abs_update_inf_tol(3,3) = &
     reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
              pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
              pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol], &
             shape(abs_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
+            
   PetscReal, parameter :: pres_rel_inf_tol = 1.d-3
   PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
   PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
@@ -89,7 +99,19 @@ function PMGeneralCreate()
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol], &
             shape(rel_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
-  PetscReal, parameter :: residual_abs_inf_tol(3) = 1.d-5
+  
+  PetscReal, parameter :: ref_density_w = 55.058 !kmol_water/m^3
+  PetscReal, parameter :: ref_density_a = 0.0423 !kmol_air/m^3
+  PetscReal, parameter :: ref_u = 83.8 !MJ/m^3
+  
+  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-8 !kmol_water/sec
+  PetscReal, parameter :: a_mass_abs_inf_tol = w_mass_abs_inf_tol * &
+                                              ref_density_a / ref_density_w
+  PetscReal, parameter :: u_abs_inf_tol = w_mass_abs_inf_tol * &
+                                          ref_u / ref_density_w
+                                          
+  PetscReal, parameter :: residual_abs_inf_tol(3) = (/w_mass_abs_inf_tol, &
+                             a_mass_abs_inf_tol, u_abs_inf_tol/)
   PetscReal, parameter :: residual_scaled_inf_tol(3) = 1.d-5
 
 #ifdef PM_GENERAL_DEBUG  
@@ -203,19 +225,19 @@ subroutine PMGeneralRead(this,input)
         call InputReadDouble(input,option,this%residual_abs_inf_tol(eid))
         call InputErrorMsg(input,option,keyword,error_string)
 
-      ! Relative Residual
+      ! Scaled Residual
       !TODO(man): Change REL to SCALED
       case('RESIDUAL_REL_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%residual_scaled_inf_tol(:) = tempreal
-      case('LIQUID_RESIDUAL_REL_INF_TOL')
+      case('LIQUID_RESIDUAL_SCALED_INF_TOL')
         call InputReadDouble(input,option,this%residual_scaled_inf_tol(lid))
         call InputErrorMsg(input,option,keyword,error_string)
-      case('GAS_RESIDUAL_REL_INF_TOL')
+      case('GAS_RESIDUAL_SCALED_INF_TOL')
         call InputReadDouble(input,option,this%residual_scaled_inf_tol(gid))
         call InputErrorMsg(input,option,keyword,error_string)
-      case('ENERGY_RESIDUAL_REL_INF_TOL')
+      case('ENERGY_RESIDUAL_SCALED_INF_TOL')
         call InputReadDouble(input,option,this%residual_scaled_inf_tol(eid))
         call InputErrorMsg(input,option,keyword,error_string)
 
@@ -604,6 +626,13 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscBool :: changed
   PetscErrorCode :: ierr
   
+!  PetscReal, pointer :: dX_temp(:)
+!  
+!   call VecGetArrayF90(dX,dX_temp,ierr); CHKERRQ(ierr)
+!   
+!   dX_temp = dX_temp*0.8
+!   
+!   call VecRestoreArrayF90(dX,dX_temp,ierr); CHKERRQ(ierr)
 !geh: uncomment if changes occur
 !  changed = PETSC_TRUE
 
@@ -675,6 +704,7 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   converged_rel_update_cell = ZERO_INTEGER
   converged_abs_update_real = 0.d0
   converged_rel_update_real = 0.d0
+  
   do local_id = 1, grid%nlmax
     offset = (local_id-1)*option%nflowdof
     ghosted_id = grid%nL2G(local_id)
@@ -688,7 +718,12 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       converged_relative = PETSC_TRUE
       dX_ = dabs(dX_p(ival))
       !TODO(man): consider perturbation of X0_p to avoid divide by zero
-      dX_X0 = dabs(dX_/X0_p(ival))
+      if (X0_p(ival) == 0) then
+        dX_X0 = dabs(dX_/1.d-20)
+      else
+        dX_X0 = dabs(dX_/X0_p(ival))
+      endif
+      
       if (dX_ > this%abs_update_inf_tol(idof,istate)) then
         converged_absolute = PETSC_FALSE
       endif
