@@ -679,7 +679,7 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   type(global_auxvar_type), pointer :: global_auxvars(:)  
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof
-  PetscReal :: dX_, dX_X0
+  PetscReal :: dX_abs, dX_X0
   PetscBool :: converged_abs_update_flag(3,3)
   PetscBool :: converged_rel_update_flag(3,3)
   PetscInt :: converged_abs_update_cell(3,3)
@@ -719,19 +719,14 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       ! infinity norms on update
       converged_absolute = PETSC_TRUE
       converged_relative = PETSC_TRUE
-      dX_ = dabs(dX_p(ival))
-      !TODO(man): consider perturbation of X0_p to avoid divide by zero
-      if (X0_p(ival) == 0) then
-        dX_X0 = dabs(dX_/1.d-20)
-      else
-        dX_X0 = dabs(dX_/X0_p(ival))
-      endif
+      dX_abs = dabs(dX_p(ival))
+      dX_X0 = dabs(dX_abs/(X0_p(ival)+epsilon(1.d0)))
       
-      if (dX_ > this%abs_update_inf_tol(idof,istate)) then
+      if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
         converged_absolute = PETSC_FALSE
       endif
-      if (converged_abs_update_real(idof,istate) < dX_) then
-        converged_abs_update_real(idof,istate) = dX_
+      if (converged_abs_update_real(idof,istate) < dX_abs) then
+        converged_abs_update_real(idof,istate) = dX_abs
         converged_abs_update_cell(idof,istate) = natural_id
       endif
       if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
