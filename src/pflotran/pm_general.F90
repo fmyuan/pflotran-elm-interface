@@ -720,7 +720,11 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       converged_absolute = PETSC_TRUE
       converged_relative = PETSC_TRUE
       dX_abs = dabs(dX_p(ival))
-      dX_X0 = dabs(dX_abs/(X0_p(ival)+epsilon(1.d0)))
+      if (X0_p(ival) > 0.d0) then
+        dX_X0 = dabs(dX_abs/(X0_p(ival)))
+      else
+        dX_X0 = dabs(dX_abs/1.d-40)
+      endif
       
       if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
         converged_absolute = PETSC_FALSE
