@@ -4717,7 +4717,7 @@ subroutine RRadioactiveDecay(Res,Jac,compute_derivative,rt_auxvar, &
     ! sum total moles of component in aqueous and sorbed phases
     sum = rt_auxvar%total(icomp,iphase)*L_water
     if (reaction%gas%nactive_gas > 0) then
-      sum = sum + rt_auxvar%total(icomp,option%gas_phase)
+      sum = sum + rt_auxvar%total(icomp,option%gas_phase)*L_gas
     endif
     if (associated(rt_auxvar%total_sorb_eq)) then
       sum = sum + rt_auxvar%total_sorb_eq(icomp)*material_auxvar%volume
