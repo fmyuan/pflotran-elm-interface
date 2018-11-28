@@ -204,11 +204,6 @@ misc_obj = \
 	${common_src}data_mediator_vec.o \
 	${common_src}data_mediator_base.o \
 	${common_src}debug.o \
-	${common_src}e4d_mat_inv.o \
-	${common_src}e4d_run.o \
-	${common_src}e4d_setup.o \
-	${common_src}e4d_vars.o \
-	${common_src}factory_hydrogeophysics.o \
 	${common_src}factory_pflotran.o \
 	${common_src}factory_subsurface.o \
 	${common_src}field.o \
@@ -227,7 +222,6 @@ misc_obj = \
 	${common_src}patch.o \
 	${common_src}pmc_auxiliary.o \
 	${common_src}pmc_base.o \
-	${common_src}pmc_hydrogeophysics.o \
 	${common_src}pmc_subsurface.o \
 	${common_src}pmc_third_party.o \
 	${common_src}realization_base.o \
@@ -238,7 +232,6 @@ misc_obj = \
 	${common_src}secondary_continuum.o \
 	${common_src}simulation_aux.o \
 	${common_src}simulation_base.o \
-	${common_src}simulation_hydrogeophysics.o \
 	${common_src}simulation_subsurface.o \
 	${common_src}spline.o \
 	${common_src}strata.o \
@@ -248,8 +241,7 @@ misc_obj = \
 	${common_src}transport.o \
 	${common_src}upwind_direction.o \
 	${common_src}waypoint.o \
-	${common_src}wipp.o \
-	${common_src}wrapper_hydrogeophysics.o
+	${common_src}wipp.o
 
 well_obj = \
 	${common_src}well_spec_base.o \

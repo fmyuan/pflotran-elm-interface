@@ -65,7 +65,6 @@ STANDARD_CFG = \
 	default/velocity/velocity.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	general/general.cfg \
-	hydrogeophysics/hydrogeophysics.cfg \
 	ngee/ngee.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
@@ -164,7 +163,6 @@ NOHDF5_CFG = \
 	wipp/nuts/nuts.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	ufd/ufd.cfg \
-	hydrogeophysics/hydrogeophysics.cfg \
 	ascem/1d/1d-calcite/1d-calcite.cfg \
 	default/materials/mineral_volume/mineral_volume.cfg \
 	default/batch/batch.cfg \
@@ -339,16 +337,6 @@ clean-tests :
 	-rm -f default/output/output_vtk-np3-000.vtk
 	-rm -f default/output/output_xdmf_explicit-000.xmf
 	-rm -f default/output/output_xdmf_explicit_primal-000.xmf
-	-rm -f hydrogeophysics/e4d__000000000003600.dpd
-	-rm -f hydrogeophysics/e4d__000000000010800.dpd
-	-rm -f hydrogeophysics/e4d__000000000025200.dpd
-	-rm -f hydrogeophysics/e4d__000000000054000.dpd
-	-rm -f hydrogeophysics/e4d__000000000111600.dpd
-	-rm -f hydrogeophysics/sigma__000000000003600.txt
-	-rm -f hydrogeophysics/sigma__000000000010800.txt
-	-rm -f hydrogeophysics/sigma__000000000025200.txt
-	-rm -f hydrogeophysics/sigma__000000000054000.txt
-	-rm -f hydrogeophysics/sigma__000000000111600.txt
 	-rm -f ufd/glass-0.wf
 	-rm -f ufd/fmdm_dummy-0.wf
 	-rm -f ufd/wf_doubles-0.wf

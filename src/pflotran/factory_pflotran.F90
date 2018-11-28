@@ -115,7 +115,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   use Simulation_Subsurface_class
   use Simulation_Surf_Subsurf_class
   use Simulation_Geomechanics_class
-  use Simulation_Hydrogeophysics_class
   use PM_Base_class
   use PM_Surface_Flow_class
   use PM_Surface_TH_class
@@ -128,7 +127,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   use Units_module
   
   use Factory_Subsurface_module
-  use Factory_Hydrogeophysics_module
   use Factory_Surf_Subsurf_module
   use Factory_Geomechanics_module
   
@@ -215,7 +213,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
                 &unless you are running in WIPP_FLOW mode and intend to &
                 &include gas generation.'
               call printErrMsg(option)
-            case('HYDROGEOPHYSICS')
             case('SURFACE_SUBSURFACE')
               call SurfSubsurfaceReadFlowPM(input,option,new_pm)
             case('GEOMECHANICS_SUBSURFACE')
@@ -333,8 +330,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   select case(simulation_type)
     case('SUBSURFACE')
       simulation => SubsurfaceSimulationCreate(option)
-    case('HYDROGEOPHYSICS')
-      simulation => HydrogeophysicsCreate(option)
     case('SURFACE_SUBSURFACE')
       simulation => SurfSubsurfaceSimulationCreate(option)
     case('GEOMECHANICS_SUBSURFACE')
@@ -355,8 +350,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   select type(simulation)
     class is(simulation_subsurface_type)
       call SubsurfaceInitialize(simulation)  
-    class is(simulation_hydrogeophysics_type)
-      call HydrogeophysicsInitialize(simulation)
     class is(simulation_surfsubsurface_type)
       call SurfSubsurfaceInitialize(simulation)
     class is(simulation_geomechanics_type)
