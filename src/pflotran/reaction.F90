@@ -4696,12 +4696,16 @@ subroutine RRadioactiveDecay(Res,Jac,compute_derivative,rt_auxvar, &
   class(material_auxvar_type) :: material_auxvar
   
   PetscInt :: i, icomp, jcomp, irxn, ncomp
-  PetscReal :: tempreal, L_water, sum, rate
+  PetscReal :: tempreal, sum, rate
+  PetscReal :: L_pore, L_water, L_gas
 
   PetscInt, parameter :: iphase = 1
 
-  L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
-            material_auxvar%volume*1.d3 ! L water
+  L_pore = material_auxvar%porosity*material_auxvar%volume*1.d3 
+  L_water = L_pore*global_auxvar%sat(iphase)
+  if (reaction%gas%nactive_gas > 0) then
+    L_gas = L_pore*global_auxvar%sat(option%gas_phase)
+  endif
 
   do irxn = 1, reaction%nradiodecay_rxn ! for each reaction
     
@@ -4712,6 +4716,9 @@ subroutine RRadioactiveDecay(Res,Jac,compute_derivative,rt_auxvar, &
 
     ! sum total moles of component in aqueous and sorbed phases
     sum = rt_auxvar%total(icomp,iphase)*L_water
+    if (reaction%gas%nactive_gas > 0) then
+      sum = sum + rt_auxvar%total(icomp,option%gas_phase)*L_gas
+    endif
     if (associated(rt_auxvar%total_sorb_eq)) then
       sum = sum + rt_auxvar%total_sorb_eq(icomp)*material_auxvar%volume
     endif
@@ -4730,6 +4737,27 @@ subroutine RRadioactiveDecay(Res,Jac,compute_derivative,rt_auxvar, &
 
     tempreal = -1.d0*reaction%radiodecay_kf(irxn)
     jcomp = reaction%radiodecayforwardspecid(irxn)
+    do i = 1, ncomp
+      icomp = reaction%radiodecayspecid(i,irxn)
+      ! units = (mol/sec)*(kg water/mol) = kg water/sec
+      Jac(icomp,1:reaction%naqcomp) = Jac(icomp,1:reaction%naqcomp) + &
+        tempreal * &
+        reaction%radiodecaystoich(i,irxn) * &
+        rt_auxvar%aqueous%dtotal(jcomp,1:reaction%naqcomp,iphase)*L_water
+    enddo
+    if (reaction%gas%nactive_gas > 0) then
+      do i = 1, ncomp
+        icomp = reaction%radiodecayspecid(i,irxn)
+        ! units = (mol/sec)*(kg water/mol) = kg water/sec
+        Jac(icomp,1:reaction%naqcomp) = Jac(icomp,1:reaction%naqcomp) + &
+          tempreal * &
+          reaction%radiodecaystoich(i,irxn) * &
+          ! kg water / L gas - see RTotalGas
+          rt_auxvar%aqueous%dtotal(jcomp,1:reaction%naqcomp, &
+                                   option%gas_phase) * &
+          L_gas
+      enddo
+    endif
     if (associated(rt_auxvar%dtotal_sorb_eq)) then
       do i = 1, ncomp
         icomp = reaction%radiodecayspecid(i,irxn)
@@ -4737,18 +4765,8 @@ subroutine RRadioactiveDecay(Res,Jac,compute_derivative,rt_auxvar, &
         Jac(icomp,1:reaction%naqcomp) = Jac(icomp,1:reaction%naqcomp) + &
           tempreal * &
           reaction%radiodecaystoich(i,irxn) * &
-          (rt_auxvar%aqueous%dtotal(jcomp,1:reaction%naqcomp,iphase)*L_water + &
-           rt_auxvar%dtotal_sorb_eq(jcomp,1:reaction%naqcomp)* &
-           material_auxvar%volume)
-      enddo
-    else ! no sorption
-      do i = 1, ncomp
-        icomp = reaction%radiodecayspecid(i,irxn)
-        ! units = (mol/sec)*(kg water/mol) = kg water/sec
-        Jac(icomp,1:reaction%naqcomp) = Jac(icomp,1:reaction%naqcomp) + &
-          tempreal * &
-          reaction%radiodecaystoich(i,irxn) * &
-          rt_auxvar%aqueous%dtotal(jcomp,1:reaction%naqcomp,iphase)*L_water
+          rt_auxvar%dtotal_sorb_eq(jcomp,1:reaction%naqcomp)* &
+          material_auxvar%volume
       enddo
     endif
     
