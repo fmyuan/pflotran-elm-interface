@@ -1571,10 +1571,21 @@ function Equal(value1, value2)
   PetscReal :: value1, value2
 
   Equal = PETSC_FALSE
-  ! using "abs(x) < spacing(y)/2.0" consistently gives same response as "x == y" for reals
-  ! using both gfortran and intel compilers for y around 0.0 and 1.0
-  ! this is setup assuming the "correct value" is on the RHS (second arg)
-  if (dabs(value1 - value2) < spacing(value2)/2.0)  Equal = PETSC_TRUE
+
+  ! using "abs(x) < spacing(y)/2.0" consistently gives same response as 
+  ! "x == y" for reals using both gfortran and intel compilers for y 
+  ! around 0.0 and 1.0 this is setup assuming the "correct value" is on 
+  ! the RHS (second arg)
+
+!  if (dabs(value1 - value2) < spacing(value2)/2.d0) Equal = PETSC_TRUE
+
+  !geh: spacing(0.d0) ~= 2.22d-308 and spacing(0.d0)/2.d0 = 0.d0
+  !     if value1 = value2 = 0.d0, then this will never be true since
+  !     dabs(0.d0 - 0.d0) = 0.d0 is not less than 0.d0.
+  !     therefore, switch division of spacing() by 2.d0 to multiplication
+  !     of dabs() by 2.d0
+
+  if (2.d0*dabs(value1 - value2) < spacing(value2)) Equal = PETSC_TRUE
   
 end function Equal
 
