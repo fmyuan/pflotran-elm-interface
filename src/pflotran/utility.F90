@@ -111,6 +111,7 @@ function rnd()
   iseed = iseed - (iseed/2796203) * 2796203
   rnd   = iseed/2796203.0
   return
+  
 end function rnd
 
 ! ************************************************************************** !
@@ -225,7 +226,7 @@ end function ran2
 
 ! ************************************************************************** !
 
-subroutine GetRndNumFromNormalDist(mean,st_dev,number)
+subroutine GetRndNumFromNormalDist(mean,st_dev,number,seed)
   ! 
   ! Generates a random number that is normally distributed, as defined by the
   ! mean and standard deviation given. This subroutine uses the Box-Muller
@@ -240,6 +241,7 @@ subroutine GetRndNumFromNormalDist(mean,st_dev,number)
   implicit none
   
   PetscReal :: mean, st_dev, number
+  PetscInt :: seed, f
 
   PetscBool, save :: switch
   PetscReal, save :: z0, z1
@@ -252,8 +254,10 @@ subroutine GetRndNumFromNormalDist(mean,st_dev,number)
   if (.not.switch) then
 
     ! Generate two random numbers between (0,1)
-    u1 = rnd()
-    u2 = rnd()
+    do f=1,seed
+      u1 = rnd()
+      u2 = rnd()
+    enddo
     
     z0 = sqrt(-2.0*log(u1)) * cos(TWO_PI*u2)
     z1 = sqrt(-2.0*log(u1)) * sin(TWO_PI*u2) 
