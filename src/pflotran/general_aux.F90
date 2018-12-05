@@ -1233,7 +1233,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
   PetscBool :: flag
   character(len=MAXSTRINGLENGTH) :: state_change_string, string
 
-  if (general_immiscible) return
+  if (general_immiscible .or. global_auxvar%istatechng) return
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -1428,6 +1428,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
   if (flag) then
     call GeneralAuxVarCompute(x,gen_auxvar, global_auxvar,material_auxvar, &
                               characteristic_curves,natural_id,option)
+    global_auxvar%istatechng = PETSC_TRUE
 !#ifdef DEBUG_GENERAL
     state_change_string = 'State Transition: ' // trim(state_change_string)
     call printMsgByRank(option,state_change_string)

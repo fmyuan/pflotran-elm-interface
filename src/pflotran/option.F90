@@ -222,6 +222,10 @@ module Option_module
     PetscReal :: inline_surface_Mannings_coeff
     character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
 
+    !man: change the initial saturation upon phase change
+    PetscReal :: phase_chng_epsilon
+    PetscBool :: restrict_state_chng
+
   end type option_type
 
   PetscInt, parameter, public :: SUBSURFACE_SIM_TYPE = 1
@@ -590,7 +594,9 @@ subroutine OptionInitRealization(option)
   option%inline_surface_flow           = PETSC_FALSE
   option%inline_surface_Mannings_coeff = 0.02d0
   option%inline_surface_region_name    = ""
-
+  
+  option%phase_chng_epsilon = 1.d-9
+  option%restrict_state_chng = PETSC_FALSE
 
 end subroutine OptionInitRealization
 

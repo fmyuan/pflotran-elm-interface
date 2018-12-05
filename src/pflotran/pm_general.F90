@@ -27,6 +27,7 @@ module PM_General_class
     PetscReal :: residual_scaled_inf_tol(3)
     PetscReal :: abs_update_inf_tol(3,3)
     PetscReal :: rel_update_inf_tol(3,3)
+    PetscReal :: damping_factor
   contains
     procedure, public :: Read => PMGeneralRead
     procedure, public :: InitializeRun => PMGeneralInitializeRun
@@ -79,13 +80,19 @@ function PMGeneralCreate()
   PetscReal, parameter :: ref_sat = 0.5
   PetscReal, parameter :: ref_xmol = 1.d-6
   
+!   PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
+!   PetscReal, parameter :: temp_abs_inf_tol = pres_abs_inf_tol * ref_temp /  &
+!                                              ref_pres !1.d-5
+!   PetscReal, parameter :: sat_abs_inf_tol = pres_abs_inf_tol * ref_sat / & 
+!                                             ref_pres !1.d-6
+!   PetscReal, parameter :: xmol_abs_inf_tol = pres_abs_inf_tol * ref_xmol / &
+!                                              ref_pres !1.d-6
+                                             
+  !MAN optimized:
   PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
-  PetscReal, parameter :: temp_abs_inf_tol = pres_abs_inf_tol * ref_temp /  &
-                                             ref_pres !1.d-5
-  PetscReal, parameter :: sat_abs_inf_tol = pres_abs_inf_tol * ref_sat / & 
-                                            ref_pres !1.d-6
-  PetscReal, parameter :: xmol_abs_inf_tol = pres_abs_inf_tol * ref_xmol / &
-                                             ref_pres !1.d-6
+  PetscReal, parameter :: temp_abs_inf_tol = 1.d-5
+  PetscReal, parameter :: sat_abs_inf_tol = 1.d-5
+  PetscReal, parameter :: xmol_abs_inf_tol = 1.d-9
   
   PetscReal, parameter :: abs_update_inf_tol(3,3) = &
     reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
@@ -109,11 +116,16 @@ function PMGeneralCreate()
   PetscReal, parameter :: ref_density_a = 0.0423 !kmol_air/m^3
   PetscReal, parameter :: ref_u = 83.8 !MJ/m^3
   
+  !PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-8 !kmol_water/sec
+  !PetscReal, parameter :: a_mass_abs_inf_tol = w_mass_abs_inf_tol * &
+  !                                            ref_density_a / ref_density_w
+  !PetscReal, parameter :: u_abs_inf_tol = w_mass_abs_inf_tol * &
+  !                                        ref_u / ref_density_w
+  
+  !MAN optimized:
   PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-8 !kmol_water/sec
-  PetscReal, parameter :: a_mass_abs_inf_tol = w_mass_abs_inf_tol * &
-                                              ref_density_a / ref_density_w
-  PetscReal, parameter :: u_abs_inf_tol = w_mass_abs_inf_tol * &
-                                          ref_u / ref_density_w
+  PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-8
+  PetscReal, parameter :: u_abs_inf_tol = 1.d-10
                                           
   PetscReal, parameter :: residual_abs_inf_tol(3) = (/w_mass_abs_inf_tol, &
                              a_mass_abs_inf_tol, u_abs_inf_tol/)
@@ -133,6 +145,7 @@ function PMGeneralCreate()
                                    ! pressures not represented in phase
                                        ! 2 = air in xmol(air,liquid)
   this%max_change_isubvar = [0,0,0,2,0,0]
+  this%damping_factor = -1.d0
   
   call PMSubsurfaceFlowCreate(this)
   this%name = 'General Multiphase Flow'
@@ -183,9 +196,9 @@ subroutine PMGeneralRead(this,input)
 
   option => this%option
 
-  lid = option%liquid_phase
-  gid = option%gas_phase
-  eid = option%energy_id
+  lid = 1 !option%liquid_phase
+  gid = 2 !option%gas_phase
+  eid = 3 !option%energy_id
 
   error_string = 'General Options'
   
@@ -206,7 +219,14 @@ subroutine PMGeneralRead(this,input)
     if (found) cycle
     
     select case(trim(keyword))
-
+      !man: phase change
+      case('PHASE_CHANGE_EPSILON')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        option%phase_chng_epsilon = tempreal
+      
+      case('RESTRICT_STATE_CHANGE')
+        option%restrict_state_chng = PETSC_TRUE
       ! Tolerances
 
       ! All Residual
@@ -232,8 +252,7 @@ subroutine PMGeneralRead(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
 
       ! Scaled Residual
-      !TODO(man): Change REL to SCALED
-      case('RESIDUAL_REL_INF_TOL','ITOL_SCALED_RESIDUAL')
+      case('RESIDUAL_SCALED_INF_TOL','ITOL_SCALED_RESIDUAL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%residual_scaled_inf_tol(:) = tempreal
@@ -351,6 +370,7 @@ subroutine PMGeneralRead(this,input)
       case('DAMPING_FACTOR')
         call InputReadDouble(input,option,general_damping_factor)
         call InputErrorMsg(input,option,'damping factor',error_string)
+        this%damping_factor = general_damping_factor
 #if 0        
       case('GOVERN_MAXIMUM_PRESSURE_CHANGE')
         call InputReadDouble(input,option,this%dPmax_allowable)
@@ -629,15 +649,14 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-!  PetscReal, pointer :: dX_temp(:)
-!  
-!   call VecGetArrayF90(dX,dX_temp,ierr); CHKERRQ(ierr)
-!   
-!   dX_temp = dX_temp*0.8
-!   
-!   call VecRestoreArrayF90(dX,dX_temp,ierr); CHKERRQ(ierr)
-!geh: uncomment if changes occur
-!  changed = PETSC_TRUE
+  PetscReal, pointer :: dX_temp(:)
+ 
+  if (this%damping_factor > 0.d0) then
+    call VecGetArrayF90(dX,dX_temp,ierr); CHKERRQ(ierr)
+    dX_temp = dX_temp*this%damping_factor
+    call VecRestoreArrayF90(dX,dX_temp,ierr); CHKERRQ(ierr)
+    changed = PETSC_TRUE
+  endif
 
 end subroutine PMGeneralCheckUpdatePre
 
@@ -715,7 +734,9 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     if (patch%imat(ghosted_id) <= 0) cycle
     istate = global_auxvars(ghosted_id)%istate
     do idof = 1, option%nflowdof
+      
       ival = offset+idof
+
       ! infinity norms on update
       converged_absolute = PETSC_TRUE
       converged_relative = PETSC_TRUE
@@ -742,12 +763,8 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       endif
       ! only enter this condition if both are not converged
       if (.not.(converged_absolute .or. converged_relative)) then
-        if (.not.converged_absolute) then
-          converged_abs_update_flag(idof,istate) = PETSC_FALSE
-        endif
-        if (.not.converged_relative) then
-          converged_rel_update_flag(idof,istate) = PETSC_FALSE
-        endif
+        converged_abs_update_flag(idof,istate) = PETSC_FALSE
+        converged_rel_update_flag(idof,istate) = PETSC_FALSE
       endif
     enddo
   enddo
@@ -804,7 +821,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof, itol
   PetscReal :: R, A, R_A
-  PetscReal, parameter :: A_zero = 1.d-15
+  PetscReal, parameter :: A_zero = 1.d-25
   PetscBool :: converged_abs_residual_flag(3,3)
   PetscReal :: converged_abs_residual_real(3,3)
   PetscInt :: converged_abs_residual_cell(3,3)
@@ -855,9 +872,18 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         R = dabs(r_p(ival))
         A = dabs(accum2_p(ival))
         R_A = R/A
+        
+        !TOUGH2 way:
+!         if (A > 1) then
+!           R_A = R/A
+!         else
+!           R_A = R
+!         endif
+
         if (R > this%residual_abs_inf_tol(idof)) then
-          converged_absolute = PETSC_FALSE
+           converged_absolute = PETSC_FALSE
         endif
+        
         ! find max value regardless of convergence
         if (converged_abs_residual_real(idof,istate) < R) then
           converged_abs_residual_real(idof,istate) = R
@@ -875,12 +901,8 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         endif
         ! only enter this condition if both are not converged
         if (.not.(converged_absolute .or. converged_scaled)) then
-          if (.not.converged_absolute) then
-            converged_abs_residual_flag(idof,istate) = PETSC_FALSE
-          endif
-          if (.not.converged_scaled) then
-            converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
-          endif
+          converged_abs_residual_flag(idof,istate) = PETSC_FALSE
+          converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
         endif
       enddo
     enddo
