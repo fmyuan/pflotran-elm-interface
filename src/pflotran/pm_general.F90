@@ -879,9 +879,9 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 !         else
 !           R_A = R
 !         endif
-!         if (R > this%residual_abs_inf_tol(idof)) then
-!           converged_absolute = PETSC_FALSE
-!         endif
+        if (R > this%residual_abs_inf_tol(idof)) then
+          converged_absolute = PETSC_FALSE
+        endif
         
         ! find max value regardless of convergence
         if (converged_abs_residual_real(idof,istate) < R) then
