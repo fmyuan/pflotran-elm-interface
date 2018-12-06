@@ -2550,33 +2550,4 @@ subroutine GeneralDestroy(realization)
 
 end subroutine GeneralDestroy
 
-! ************************************************************************** !
-
-subroutine DebugViewerDestroy(realization,viewer)
-  !
-  ! Deallocates PETSc Viewer
-  !
-  ! Author: Heeho Park
-  ! Date: 11/08/18
-  !
-  use Realization_Subsurface_class
-
-  implicit none
-
-  type(realization_subsurface_type) :: realization
-  PetscViewer :: viewer
-  PetscErrorCode :: ierr
-  
-  if (realization%debug%output_format .ge. 3) then
-  !  DEBUG_ASCII_FORMAT = 1
-  !  DEBUG_BINARY_FORMAT = 2 
-  !  DEBUG_MATLAB_FORMAT = 3  popformat required
-  !  DEBUG_NATIVE_FORMAT = 4  popformat required
-    call PetscViewerPopFormat(viewer,ierr);CHKERRQ(ierr)
-  endif
-  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  
-
-end subroutine DebugViewerDestroy
-
 end module General_module

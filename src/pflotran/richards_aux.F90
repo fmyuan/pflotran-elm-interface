@@ -14,7 +14,10 @@ module Richards_Aux_module
 
   PetscReal, public :: richards_itol_scaled_res = 1.d-5
   PetscReal, public :: richards_itol_rel_update = UNINITIALIZED_DOUBLE
-
+  PetscInt, public :: richards_ni_count
+  PetscInt, public :: richards_ts_cut_count
+  PetscInt, public :: richards_ts_count
+  
   type, public :: richards_auxvar_type
   
     PetscReal :: pc
