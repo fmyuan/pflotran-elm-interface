@@ -4083,7 +4083,7 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: jac(option%nflowdof,option%nflowdof)
   PetscReal :: jac_pert(option%nflowdof,option%nflowdof)
   PetscInt :: idof, irow
-
+  
 !geh:print *, 'GeneralAccumDerivative'
 
   call GeneralAccumulation(gen_auxvar(ZERO_INTEGER),global_auxvar, &
@@ -4098,6 +4098,7 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
       call GeneralAccumulation(gen_auxvar(idof),global_auxvar, &
                                material_auxvar,soil_heat_capacity,option, &
                                res_pert,jac_pert,PETSC_FALSE,PETSC_FALSE)
+      
       do irow = 1, option%nflowdof
         J(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
       enddo !irow
@@ -4205,8 +4206,10 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
                        PETSC_FALSE, & ! update the upwind direction
                        count_upwind_direction_flip, &
                        PETSC_FALSE)
+      
       do irow = 1, option%nflowdof
         Jup(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_up(idof)%pert
+        
   !geh:print *, 'up: ', irow, idof, Jup(irow,idof), gen_auxvar_up(idof)%pert
       enddo !irow
     enddo ! idof
@@ -4226,6 +4229,8 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
                        PETSC_FALSE, & ! update the upwind direction
                        count_upwind_direction_flip, &
                        PETSC_FALSE)
+      
+      
       do irow = 1, option%nflowdof
         Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
   !geh:print *, 'dn: ', irow, idof, Jdn(irow,idof), gen_auxvar_dn(idof)%pert
@@ -4334,6 +4339,8 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                          PETSC_FALSE, & ! update the upwind direction
                          count_upwind_direction_flip, &
                          PETSC_FALSE)
+    
+      
       do irow = 1, option%nflowdof
         Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
       enddo !irow
@@ -4405,6 +4412,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
       call GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
                           gen_auxvars(idof),global_auxvar,dummy_real, &
                           scale,res_pert,Jdum,PETSC_FALSE,PETSC_FALSE)  
+      
       do irow = 1, option%nflowdof
         Jac(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvars(idof)%pert
       enddo !irow

@@ -105,7 +105,6 @@ subroutine GlobalAuxVarInit(auxvar,option)
   
   auxvar%istate = 0
   auxvar%temp = 0.d0
-
   auxvar%istatechng = PETSC_FALSE
 
   ! nullify everthing to begin with and allocate later

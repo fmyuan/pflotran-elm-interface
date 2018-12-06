@@ -736,7 +736,7 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     do idof = 1, option%nflowdof
       
       ival = offset+idof
-
+      
       ! infinity norms on update
       converged_absolute = PETSC_TRUE
       converged_relative = PETSC_TRUE
@@ -879,10 +879,9 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 !         else
 !           R_A = R
 !         endif
-
-        if (R > this%residual_abs_inf_tol(idof)) then
-           converged_absolute = PETSC_FALSE
-        endif
+!         if (R > this%residual_abs_inf_tol(idof)) then
+!           converged_absolute = PETSC_FALSE
+!         endif
         
         ! find max value regardless of convergence
         if (converged_abs_residual_real(idof,istate) < R) then

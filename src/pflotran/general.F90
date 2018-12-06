@@ -247,11 +247,11 @@ subroutine GeneralInitializeTimestep(realization)
   implicit none
   
   type(realization_subsurface_type) :: realization
-
+  
   if (realization%option%restrict_state_chng) then
     realization%patch%aux%global%auxvars%istatechng = PETSC_FALSE
   endif
-
+  
   general_newton_iteration_number = 0
   update_upwind_direction = PETSC_TRUE
   call GeneralUpdateFixedAccum(realization)
@@ -1219,6 +1219,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscReal :: qsrc(3)
   PetscInt :: ssn
   
+  
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
 
@@ -1228,6 +1229,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                          realization%option%nflowdof)
   PetscReal :: v_darcy(realization%option%nphase)
   
+
   discretization => realization%discretization
   option => realization%option
   patch => realization%patch
@@ -1242,6 +1244,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
+  
   
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   if (debug_flag > 0) then
@@ -1572,6 +1575,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     write(debug_unit,'(a,i5,7es24.15)') 'residual:', local_id, &
       r_p((local_id-1)*option%nflowdof+1:local_id*option%nflowdof)
   enddo
+  
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
 #endif
   
@@ -1685,6 +1689,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
+
 
   call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
   if (mat_type == MATMFFD) then
@@ -2015,7 +2020,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
 #endif
   ! update after evaluations to ensure zero-based index to match screen output
   general_ni_count = general_ni_count + 1
-
+  
 end subroutine GeneralJacobian
 
 ! ************************************************************************** !

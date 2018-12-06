@@ -27,6 +27,7 @@ module General_Aux_module
   PetscBool, public :: general_harmonic_diff_density = PETSC_TRUE
 #endif
   PetscInt, public :: general_newton_iteration_number = 0
+  
 
   ! debugging
   PetscInt, public :: general_ni_count
@@ -541,6 +542,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   wid = option%water_id
   eid = option%energy_id
   
+  
 #ifdef DEBUG_GENERAL  
   ! create a NaN
   NaN = InitToNan()
@@ -649,6 +651,10 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       
     case(GAS_STATE)
       gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
+      
+      !man
+      !gen_auxvar%pres(gid) = max(0.d0,gen_auxvar%pres(gid))
+      
       gen_auxvar%pres(apid) = x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
       gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
 
@@ -710,7 +716,16 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       
     case(TWO_PHASE_STATE)
       gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
+      
+      !man
+      !gen_auxvar%pres(gid) = max(0.d0,gen_auxvar%pres(gid))
+      
       gen_auxvar%sat(gid) = x(GENERAL_GAS_SATURATION_DOF)
+      
+      !man
+!       gen_auxvar%sat(gid) = max(0.d0,gen_auxvar%sat(gid))
+!       gen_auxvar%sat(gid) = min(1.d0,gen_auxvar%sat(gid))
+      
       if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
         gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
         if (associated(gen_auxvar%d)) then
@@ -751,24 +766,27 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       
       call characteristic_curves%saturation_function% &
              CapillaryPressure(gen_auxvar%sat(lid), &
-                               gen_auxvar%pres(cpid),dpc_dsatl,option)                             
+                               gen_auxvar%pres(cpid),dpc_dsatl,option) 
+      
+      gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - gen_auxvar%pres(cpid)
+      
       if (associated(gen_auxvar%d)) then
         ! for now, calculate derivative through finite differencing
 #if 0
       !TODO(geh): make an analytical derivative
-        tempreal = 1.d-6 * gen_auxvar%sat(lid)
-        tempreal2 = gen_auxvar%sat(lid) + tempreal
-        call characteristic_curves%saturation_function% &
-             CapillaryPressure(material_auxvar,tempreal2,tempreal3,dpc_dsatl, &
+      tempreal = 1.d-6 * gen_auxvar%sat(lid)
+      tempreal2 = gen_auxvar%sat(lid) + tempreal
+      call characteristic_curves%saturation_function% &
+            CapillaryPressure(material_auxvar,tempreal2,tempreal3,dpc_dsatl, &
                                option)
-        gen_auxvar%d%pc_satg = -1.d0*(tempreal3-gen_auxvar%pres(cpid))/tempreal
+      gen_auxvar%d%pc_satg = -1.d0*(tempreal3-gen_auxvar%pres(cpid))/ & 
+                                  tempreal
 #else
-        gen_auxvar%d%pc_satg = -1.d0*dpc_dsatl
+      gen_auxvar%d%pc_satg = -1.d0*dpc_dsatl
 #endif
       endif
 !      gen_auxvar%pres(cpid) = 0.d0
- 
-      gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - &
+       gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - &
                               gen_auxvar%pres(cpid)
 
       gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
@@ -778,8 +796,9 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       
       gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
       gen_auxvar%xmol(acid,gid) = gen_auxvar%pres(apid) / &
-                                   gen_auxvar%pres(gid)
+                                  gen_auxvar%pres(gid)
       gen_auxvar%xmol(wid,gid) = 1.d0 - gen_auxvar%xmol(acid,gid)
+      
       if (associated(gen_auxvar%d)) then
         gen_auxvar%d%pv_T = gen_auxvar%d%psat_T
         gen_auxvar%d%pv_p = gen_auxvar%d%psat_p
@@ -1233,7 +1252,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
   PetscBool :: flag
   character(len=MAXSTRINGLENGTH) :: state_change_string, string
 
-  if (general_immiscible .or. global_auxvar%istatechng) return
+  if (general_immiscible) return
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -1303,7 +1322,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
               0.01d0*x(GENERAL_GAS_PRESSURE_DOF)
           endif
         endif
-        x(GENERAL_GAS_SATURATION_DOF) = 1.d-6
+        x(GENERAL_GAS_SATURATION_DOF) = option%phase_chng_epsilon !1.d-6
 !        x(GENERAL_GAS_SATURATION_DOF) = liquid_epsilon
         flag = PETSC_TRUE
       endif
@@ -1340,7 +1359,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
           X(GENERAL_ENERGY_DOF) = gen_auxvar%pres(apid)*(1.d0-epsilon)
         endif
 !        x(GENERAL_GAS_SATURATION_DOF) = 1.d0 - epsilon
-        x(GENERAL_GAS_SATURATION_DOF) = 1.d0 - 1.d-6
+        x(GENERAL_GAS_SATURATION_DOF) = 1.d0 - option%phase_chng_epsilon !1.d-6
         flag = PETSC_TRUE
       endif
     case(TWO_PHASE_STATE)
@@ -1428,7 +1447,6 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
   if (flag) then
     call GeneralAuxVarCompute(x,gen_auxvar, global_auxvar,material_auxvar, &
                               characteristic_curves,natural_id,option)
-    global_auxvar%istatechng = PETSC_TRUE
 !#ifdef DEBUG_GENERAL
     state_change_string = 'State Transition: ' // trim(state_change_string)
     call printMsgByRank(option,state_change_string)
@@ -1440,6 +1458,8 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
   endif
 
 end subroutine GeneralAuxVarUpdateState
+
+
 
 ! ************************************************************************** !
 
