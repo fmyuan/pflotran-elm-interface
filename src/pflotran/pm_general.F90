@@ -921,7 +921,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     ! do not perform an all reduce on cell id as this info is not printed 
     ! in parallel
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_flag,mpi_int, &
-                       MPI_INTEGER,MPI_LAND,option%mycomm,ierr)
+                       MPI_LOGICAL,MPI_LAND,option%mycomm,ierr)
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
   
