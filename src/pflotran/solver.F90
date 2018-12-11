@@ -20,6 +20,7 @@ module Solver_module
     PetscBool :: linear_stop_on_failure ! flag determines whether the code is
                                         ! killed when the solver fails, as
                                         ! opposed ot cutting the step.
+    PetscBool :: linear_shift      ! shift diagonal to alleviate zero pivots
     PetscReal :: newton_atol       ! absolute tolerance
     PetscReal :: newton_rtol       ! relative tolerance
     PetscReal :: newton_stol       ! relative tolerance (relative to previous iteration)
@@ -124,6 +125,7 @@ function SolverCreate()
   solver%linear_max_iterations = PETSC_DEFAULT_INTEGER
   solver%linear_zero_pivot_tol = UNINITIALIZED_DOUBLE
   solver%linear_stop_on_failure = PETSC_FALSE
+  solver%linear_shift = PETSC_TRUE
   
   solver%newton_atol = PETSC_DEFAULT_REAL
   solver%newton_rtol = PETSC_DEFAULT_REAL
@@ -290,49 +292,51 @@ subroutine SolverSetSNESOptions(solver, option)
   ! LineSearchParams, or they crash
   call SNESSetFromOptions(solver%snes,ierr);CHKERRQ(ierr)
 
-  ! the below must come after SNESSetFromOptions
-  ! PETSc no longer performs a shift on matrix diagonals by default.  We 
-  ! force the shift since it helps alleviate zero pivots.
-  ! Note that if the preconditioner type does not support a shift, the shift 
-  ! we've set is ignored; we don't need to check to see if the type supports 
-  ! a shift before calling this.
-  call PCFactorSetShiftType(solver%pc,MAT_SHIFT_INBLOCKS,ierr);CHKERRQ(ierr)
-  if (solver%pc_type == PCBJACOBI .or. solver%pc_type == PCASM .or. &
-      solver%pc_type == PCGASM) then
-    call KSPSetup(solver%ksp,ierr);CHKERRQ(ierr)
-    select case(solver%pc_type)
-      case(PCBJACOBI)
-        call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
-                                PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
-      case(PCASM)
-        call PCASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
-                            PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
-      case(PCGASM)
+  if (solver%linear_shift) then
+    ! the below must come after SNESSetFromOptions
+    ! PETSc no longer performs a shift on matrix diagonals by default.  We 
+    ! force the shift since it helps alleviate zero pivots.
+    ! Note that if the preconditioner type does not support a shift, the shift 
+    ! we've set is ignored; we don't need to check to see if the type supports 
+    ! a shift before calling this.
+    call PCFactorSetShiftType(solver%pc,MAT_SHIFT_INBLOCKS,ierr);CHKERRQ(ierr)
+    if (solver%pc_type == PCBJACOBI .or. solver%pc_type == PCASM .or. &
+        solver%pc_type == PCGASM) then
+      call KSPSetup(solver%ksp,ierr);CHKERRQ(ierr)
+      select case(solver%pc_type)
+        case(PCBJACOBI)
+          call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
+                                  PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
+        case(PCASM)
+          call PCASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
+                              PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
+        case(PCGASM)
 #if (PETSC_VERSION_MINOR >= 8)
-        call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
-                             PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
+          call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
+                               PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
 #endif
-    end select
-    allocate(sub_ksps(nsub_ksp))
-    select case(solver%pc_type)
-      case(PCBJACOBI)
-        call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
-                                sub_ksps,ierr);CHKERRQ(ierr)
-      case(PCASM)
-        call PCASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
-                            sub_ksps,ierr);CHKERRQ(ierr)
-      case(PCGASM)
+      end select
+      allocate(sub_ksps(nsub_ksp))
+      select case(solver%pc_type)
+        case(PCBJACOBI)
+          call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
+                                  sub_ksps,ierr);CHKERRQ(ierr)
+        case(PCASM)
+          call PCASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
+                              sub_ksps,ierr);CHKERRQ(ierr)
+        case(PCGASM)
 #if (PETSC_VERSION_MINOR >= 8)
-        call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
-                             sub_ksps,ierr);CHKERRQ(ierr)
+          call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
+                               sub_ksps,ierr);CHKERRQ(ierr)
 #endif
-    end select
-    do i = 1, nsub_ksp
-      call KSPGetPC(sub_ksps(i),pc,ierr);CHKERRQ(ierr)
-      call PCFactorSetShiftType(pc,MAT_SHIFT_INBLOCKS,ierr);CHKERRQ(ierr)
-    enddo
-    deallocate(sub_ksps)
-    nullify(sub_ksps)
+      end select
+      do i = 1, nsub_ksp
+        call KSPGetPC(sub_ksps(i),pc,ierr);CHKERRQ(ierr)
+        call PCFactorSetShiftType(pc,MAT_SHIFT_INBLOCKS,ierr);CHKERRQ(ierr)
+      enddo
+      deallocate(sub_ksps)
+      nullify(sub_ksps)
+    endif
   endif
   
   if (Initialized(solver%linear_zero_pivot_tol)) then
@@ -794,6 +798,9 @@ subroutine SolverReadLinear(solver,input,option)
         call InputReadDouble(input,option,solver%linear_zero_pivot_tol)
         call InputErrorMsg(input,option,'linear_zero_pivot_tol', &
                            'LINEAR_SOLVER')
+
+      case('DISABLE_SHIFT')
+        solver%linear_shift = PETSC_FALSE
 
       case('STOP_ON_FAILURE')
         solver%linear_stop_on_failure = PETSC_TRUE
