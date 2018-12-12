@@ -1279,7 +1279,7 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
                             richards_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(r,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization,viewer)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
   if (realization%debug%vecview_solution) then
     call DebugWriteFilename(realization%debug,string,'Rxx','', &
@@ -1287,7 +1287,7 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
                             richards_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(xx,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization,viewer)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
 
   call PetscLogEventEnd(logging%event_r_residual,ierr);CHKERRQ(ierr)
@@ -2102,7 +2102,7 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
                             richards_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization,viewer)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
   if (realization%debug%norm_Jacobian) then
     option => realization%option
@@ -2371,7 +2371,7 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
                             richards_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization,viewer)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
 
 end subroutine RichardsJacobianInternalConn
@@ -2556,7 +2556,7 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
                             richards_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization,viewer)    
+    call DebugViewerDestroy(realization%debug,viewer)    
   endif
   
 end subroutine RichardsJacobianBoundaryConn
@@ -2669,7 +2669,7 @@ subroutine RichardsJacobianAccumulation(A,realization,ierr)
                             richards_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization,viewer)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
 
 end subroutine RichardsJacobianAccumulation
@@ -2832,7 +2832,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
                             richards_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization,viewer)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
   
 #ifdef BUFFER_MATRIX
