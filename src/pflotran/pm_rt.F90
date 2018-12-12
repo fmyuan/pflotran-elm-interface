@@ -165,8 +165,13 @@ subroutine PMRTRead(this,input)
         call InputDefaultMsg(input,option,'maximum volume fraction change')
       case('ITOL_RELATIVE_UPDATE')
         call InputReadDouble(input,option,rt_itol_rel_update)
-        call InputDefaultMsg(input,option,'rt_itol_rel_update')
+        call InputErrorMsg(input,option,'rt_itol_rel_update', &
+                           'SUBSURFACE_TRANSPORT OPTIONS')
         this%check_post_convergence = PETSC_TRUE
+      case('MINIMUM_SATURATION')
+        call InputReadDouble(input,option,rt_min_saturation)
+        call InputErrorMsg(input,option,'min_saturation', &
+                           'SUBSURFACE_TRANSPORT OPTIONS')
       case('NUMERICAL_JACOBIAN')
         option%transport%numerical_derivatives = PETSC_TRUE
       case('INCLUDE_GAS_PHASE')

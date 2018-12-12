@@ -1288,6 +1288,7 @@ subroutine RTCalculateRHS_t1(realization)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -1321,6 +1322,7 @@ subroutine RTCalculateRHS_t1(realization)
   rt_auxvars => patch%aux%RT%auxvars
   rt_auxvars_bc => patch%aux%RT%auxvars_bc
   global_auxvars => patch%aux%Global%auxvars
+  global_auxvars_bc => patch%aux%Global%auxvars_bc
   grid => patch%grid
   reaction => realization%reaction
   rt_parameter => patch%aux%RT%rt_parameter
@@ -1361,7 +1363,10 @@ subroutine RTCalculateRHS_t1(realization)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter, &
+                     global_auxvars_bc(sum_connection), &
+                     global_auxvars(ghosted_id), &
+                     option,cur_connection_set%area(iconn), &
                      patch%boundary_velocities(:,sum_connection), &
                      patch%boundary_tran_coefs(:,:,sum_connection), &
                      0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
@@ -1422,7 +1427,8 @@ subroutine RTCalculateRHS_t1(realization)
       if (associated(patch%ss_flow_vol_fluxes)) then
         qsrc(1:nphase) = patch%ss_flow_vol_fluxes(1:nphase,sum_connection)
       endif
-      call TSrcSinkCoef(rt_parameter,qsrc,source_sink%tran_condition%itype, &
+      call TSrcSinkCoef(rt_parameter,global_auxvars(ghosted_id), &
+                        qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)      
 
       Res(istartaq:iendaq) = & !coef_in*rt_auxvars(ghosted_id)%total(:,iphase) + &
@@ -1519,6 +1525,7 @@ subroutine RTCalculateTransportMatrix(realization,T)
   Mat :: T
   
   type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1551,6 +1558,7 @@ subroutine RTCalculateTransportMatrix(realization,T)
   field => realization%field
   patch => realization%patch
   global_auxvars => patch%aux%Global%auxvars
+  global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
   grid => patch%grid  
   rt_parameter => patch%aux%RT%rt_parameter
@@ -1579,7 +1587,10 @@ subroutine RTCalculateTransportMatrix(realization,T)
       if (patch%imat(ghosted_id_up) <= 0 .or.  &
           patch%imat(ghosted_id_dn) <= 0) cycle
 
-      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter, &
+                     global_auxvars(ghosted_id_up), &
+                     global_auxvars(ghosted_id_dn), &
+                     option,cur_connection_set%area(iconn), &
                      patch%internal_velocities(:,sum_connection), &
                      patch%internal_tran_coefs(:,:,sum_connection), &
                      cur_connection_set%dist(-1,iconn), &
@@ -1624,7 +1635,10 @@ subroutine RTCalculateTransportMatrix(realization,T)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter, &
+                     global_auxvars_bc(sum_connection), &
+                     global_auxvars(ghosted_id), &
+                     option,cur_connection_set%area(iconn), &
                      patch%boundary_velocities(:,sum_connection), &
                      patch%boundary_tran_coefs(:,:,sum_connection), &
                      0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
@@ -1687,7 +1701,8 @@ subroutine RTCalculateTransportMatrix(realization,T)
       if (associated(patch%ss_flow_vol_fluxes)) then
         qsrc(1:nphase) = patch%ss_flow_vol_fluxes(1:nphase,sum_connection)
       endif
-      call TSrcSinkCoef(rt_parameter,qsrc,source_sink%tran_condition%itype, &
+      call TSrcSinkCoef(rt_parameter,global_auxvars(ghosted_id), &
+                        qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
 
       coef_dn = coef_in
@@ -2018,7 +2033,10 @@ subroutine RTComputeBCMassBalanceOS(realization)
       if (patch%imat(ghosted_id) <= 0) cycle
 
       ! TFluxCoef accomplishes the same as what TBCCoef would
-      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter, &
+                     global_auxvars_bc(sum_connection), &
+                     global_auxvars(ghosted_id), &
+                     option,cur_connection_set%area(iconn), &
                      patch%boundary_velocities(:,sum_connection), &
                      patch%boundary_tran_coefs(:,:,sum_connection), &
                      0.5d0, &
@@ -2067,7 +2085,8 @@ subroutine RTComputeBCMassBalanceOS(realization)
       if (associated(patch%ss_flow_vol_fluxes)) then
         qsrc(1:nphase) = patch%ss_flow_vol_fluxes(1:nphase,sum_connection)
       endif
-      call TSrcSinkCoef(rt_parameter,qsrc,source_sink%tran_condition%itype, &
+      call TSrcSinkCoef(rt_parameter,global_auxvars(ghosted_id), &
+                        qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
       
       Res = coef_in*rt_auxvars(ghosted_id)%total(:,iphase) + &
@@ -2409,7 +2428,10 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
       
       
 #ifndef CENTRAL_DIFFERENCE        
-      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter, &
+                global_auxvars(ghosted_id_up), &
+                global_auxvars(ghosted_id_dn), &
+                option,cur_connection_set%area(iconn), &
                 patch%internal_velocities(:,sum_connection), &
                 patch%internal_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
                 cur_connection_set%dist(-1,iconn), &
@@ -2440,7 +2462,10 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
         r_p(istart:iend) = r_p(istart:iend) - Res(1:reaction%ncomp)
       endif
 #else
-      call TFluxCoef_CD(option,cur_connection_set%area(iconn), &
+      call TFluxCoef_CD(rt_parameter,option, &
+                 global_auxvars(ghosted_id_up), &
+                 global_auxvars(ghosted_id_dn), &
+                 cur_connection_set%area(iconn), &
                  patch%internal_velocities(:,sum_connection), &
                  patch%internal_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
                  cur_connection_set%dist(-1,iconn), &
@@ -2494,7 +2519,10 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
       
 #ifndef CENTRAL_DIFFERENCE
       ! TFluxCoef accomplishes the same as what TBCCoef would
-      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter, &
+                  global_auxvars_bc(sum_connection), &
+                  global_auxvars(ghosted_id), &
+                  option,cur_connection_set%area(iconn), &
                   patch%boundary_velocities(:,sum_connection), &
                   patch%boundary_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
                   0.5d0, &
@@ -2520,7 +2548,10 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
         endif  
 
 #else
-      call TFluxCoef_CD(option,cur_connection_set%area(iconn), &
+      call TFluxCoef_CD(rt_parameter, &
+                global_auxvars_bc(sum_connection), &
+                global_auxvars(ghosted_id), &
+                option,cur_connection_set%area(iconn), &
                 patch%boundary_velocities(:,sum_connection), &
                 patch%boundary_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
                 0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
@@ -2771,7 +2802,8 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       if (associated(patch%ss_flow_vol_fluxes)) then
         qsrc(1:nphase) = patch%ss_flow_vol_fluxes(1:nphase,sum_connection)
       endif
-      call TSrcSinkCoef(rt_parameter,qsrc,source_sink%tran_condition%itype, &
+      call TSrcSinkCoef(rt_parameter,global_auxvars(ghosted_id), &
+                        qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
 
       Res = 0.d0
@@ -3051,6 +3083,7 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
   PetscViewer :: viewer  
   type(grid_type),  pointer :: grid
   character(len=MAXSTRINGLENGTH) :: string
+  PetscReal :: rdum
 
   call PetscLogEventBegin(logging%event_rt_jacobian,ierr);CHKERRQ(ierr)
 
@@ -3088,6 +3121,16 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
     call RTJacobianEquilibrateCO2(J,realization)
   end select
 !#endif
+
+  if (realization%patch%aux%RT%inactive_cells_exist) then
+    call PetscLogEventBegin(logging%event_rt_jacobian_zero,ierr);CHKERRQ(ierr)
+    rdum = 1.d0
+    call MatZeroRowsLocal(J,realization%patch%aux%RT%n_zero_rows, &
+                          realization%patch%aux%RT%zero_rows_local_ghosted, &
+                          rdum,PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                          ierr);CHKERRQ(ierr)
+    call PetscLogEventEnd(logging%event_rt_jacobian_zero,ierr);CHKERRQ(ierr)
+  endif
 
   call PetscLogEventEnd(logging%event_rt_jacobian2,ierr);CHKERRQ(ierr)
     
@@ -3164,7 +3207,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: sum_connection, iconn
   PetscInt :: ghosted_id_up, ghosted_id_dn, local_id_up, local_id_dn
-  PetscReal :: fraction_upwind, distance, dist_up, dist_dn, rdum
+  PetscReal :: fraction_upwind, distance, dist_up, dist_dn
   
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscReal :: vol_frac_prim
@@ -3233,7 +3276,10 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
       endif 
 
 #ifndef CENTRAL_DIFFERENCE
-      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter, &
+                global_auxvars(ghosted_id_up), &
+                global_auxvars(ghosted_id_dn), &
+                option,cur_connection_set%area(iconn), &
                 patch%internal_velocities(:,sum_connection), &
                 patch%internal_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
                 cur_connection_set%dist(-1,iconn), &
@@ -3261,7 +3307,10 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
       endif
 
 #else
-      call TFluxCoef_CD(option,cur_connection_set%area(iconn), &
+      call TFluxCoef_CD(rt_parameter, &
+                global_auxvars(ghosted_id_up), &
+                global_auxvars(ghosted_id_dn), &
+                option,cur_connection_set%area(iconn), &
                 patch%internal_velocities(:,sum_connection), &
                 patch%internal_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
                 cur_connection_set%dist(-1,iconn), &
@@ -3321,7 +3370,10 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
 
 #ifndef CENTRAL_DIFFERENCE
       ! TFluxCoef accomplishes the same as what TBCCoef would
-      call TFluxCoef(rt_parameter,option,cur_connection_set%area(iconn), &
+      call TFluxCoef(rt_parameter, &
+                global_auxvars_bc(sum_connection), &
+                global_auxvars(ghosted_id), &
+                option,cur_connection_set%area(iconn), &
                 patch%boundary_velocities(:,sum_connection), &
                 patch%boundary_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
                 0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
@@ -3341,7 +3393,10 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
                                     ierr);CHKERRQ(ierr)
  
 #else
-      call TFluxCoef_CD(option,cur_connection_set%area(iconn), &
+      call TFluxCoef_CD(rt_parameter, &
+                 global_auxvars_bc(sum_connection), &
+                 global_auxvars(ghosted_id), &
+                 option,cur_connection_set%area(iconn), &
                  patch%boundary_velocities(:,sum_connection), &
                  patch%boundary_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
                  0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
@@ -3419,7 +3474,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn, sum_connection
-  PetscReal :: qsrc(2), rdum
+  PetscReal :: qsrc(2)
   PetscBool :: volumetric
   PetscInt :: flow_src_sink_type
   PetscReal :: coef_in(2), coef_out(2)
@@ -3535,7 +3590,8 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
       if (associated(patch%ss_flow_vol_fluxes)) then
         qsrc(1:nphase) = patch%ss_flow_vol_fluxes(1:nphase,sum_connection)
       endif
-      call TSrcSinkCoef(rt_parameter,qsrc,source_sink%tran_condition%itype, &
+      call TSrcSinkCoef(rt_parameter,global_auxvars(ghosted_id), &
+                        qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
       Jup = 0.d0
       ! coef_in is non-zero
@@ -3630,16 +3686,6 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   
-  if (patch%aux%RT%inactive_cells_exist) then
-    call PetscLogEventBegin(logging%event_rt_jacobian_zero,ierr);CHKERRQ(ierr)
-    rdum = 1.d0
-    call MatZeroRowsLocal(A,patch%aux%RT%n_zero_rows, &
-                          patch%aux%RT%zero_rows_local_ghosted,rdum, &
-                          PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
-    call PetscLogEventEnd(logging%event_rt_jacobian_zero,ierr);CHKERRQ(ierr)
-  endif
-
 end subroutine RTJacobianNonFlux
 
 ! ************************************************************************** !
@@ -4926,7 +4972,8 @@ subroutine RTExplicitAdvection(realization)
       if (associated(patch%ss_flow_vol_fluxes)) then
         qsrc(1:nphase) = patch%ss_flow_vol_fluxes(1:nphase,sum_connection)
       endif
-      call TSrcSinkCoef(rt_parameter,qsrc,source_sink%tran_condition%itype, &
+      call TSrcSinkCoef(rt_parameter,global_auxvars(ghosted_id), &
+                        qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
       do iphase = 1, nphase
         flux = coef_in*rt_auxvars(ghosted_id)%total(:,iphase) + &

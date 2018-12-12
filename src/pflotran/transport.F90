@@ -13,9 +13,6 @@ module Transport_module
   
   private 
 
-! Cutoff parameters
-  PetscReal, parameter :: eps       = 1.D-8
-  
   public :: TDispersion, &
             TDispersionBC, &
             TFlux, &
@@ -117,7 +114,7 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
     sat_up = global_auxvar_up%sat(iphase)
     sat_dn = global_auxvar_dn%sat(iphase)
     ! skip phase if it does not exist on either side of the connection
-    if (sat_up < eps .or. sat_dn < eps) cycle 
+    if (sat_up < rt_min_saturation .or. sat_dn < rt_min_saturation) cycle 
     if (rt_parameter%temperature_dependent_diffusion) then
       select case(iphase)
         case(LIQUID_PHASE)
@@ -281,7 +278,7 @@ subroutine TDispersionBC(ibndtype, &
     ! we use upwind saturation as that is the saturation at the boundary face
     sat_up = global_auxvar_up%sat(iphase)
     sat_dn = global_auxvar_dn%sat(iphase)
-    if (sat_up < eps .or. sat_dn < eps) cycle 
+    if (sat_up < rt_min_saturation .or. sat_dn < rt_min_saturation) cycle 
     if (rt_parameter%temperature_dependent_diffusion) then
       select case(iphase)
         case(LIQUID_PHASE)
@@ -741,7 +738,9 @@ end subroutine TFluxDerivative_CD
 
 ! ************************************************************************** !
 
-subroutine TFluxCoef(rt_parameter,option,area,velocity, &
+subroutine TFluxCoef(rt_parameter, &
+                     global_auxvar_up,global_auxvar_dn, &
+                     option,area,velocity, &
                      tran_coefs_over_dist, &
                      fraction_upwind,T_up,T_dn)
   ! 
@@ -756,6 +755,7 @@ subroutine TFluxCoef(rt_parameter,option,area,velocity, &
   implicit none
   
   type(reactive_transport_param_type) :: rt_parameter  
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
   type(option_type) :: option
   PetscReal :: area
   PetscReal :: velocity(*)
@@ -773,7 +773,14 @@ subroutine TFluxCoef(rt_parameter,option,area,velocity, &
   PetscReal :: q
   
   nphase = rt_parameter%nphase
+
+  T_up(:,:) = 0.d0
+  T_dn(:,:) = 0.d0
   
+  ! as long as gas phase chemistry is a function of aqueous, skip both phases
+  if (global_auxvar_up%sat(LIQUID_PHASE) < rt_min_saturation .or. &
+      global_auxvar_dn%sat(LIQUID_PHASE) < rt_min_saturation) return
+
   do iphase = 1, nphase
     q = velocity(iphase)
 
@@ -807,7 +814,9 @@ end subroutine TFluxCoef
 
 ! ************************************************************************** !
 
-subroutine TFluxCoef_CD(rt_parameter,option,area,velocity, &
+subroutine TFluxCoef_CD(rt_parameter, &
+                        global_auxvar_up,global_auxvar_dn, &
+                        option,area,velocity, &
                         tran_coefs_over_dist, &
                         fraction_upwind,T_11,T_12,T_21,T_22)
   ! 
@@ -822,6 +831,7 @@ subroutine TFluxCoef_CD(rt_parameter,option,area,velocity, &
   implicit none
   
   type(reactive_transport_param_type) :: rt_parameter  
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
   type(option_type) :: option
   PetscReal :: area
   PetscReal :: velocity(*)
@@ -846,6 +856,14 @@ subroutine TFluxCoef_CD(rt_parameter,option,area,velocity, &
   ! T_12 = off diagonal term for upwind cell (row)
   ! T_21 = off diagonal term for downwind cell (row)
   ! T_22 = diagonal term for downwind cell (row)
+
+  T_11(:,:) = 0.d0
+  T_12(:,:) = 0.d0
+  T_21(:,:) = 0.d0
+  T_22(:,:) = 0.d0
+
+  if (global_auxvar_up%sat(LIQUID_PHASE) < rt_min_saturation .or. &
+      global_auxvar_dn%sat(LIQUID_PHASE) < rt_min_saturation) return
 
   ! Advection
   if (option%use_upwinding) then
@@ -886,7 +904,8 @@ end subroutine TFluxCoef_CD
 
 ! ************************************************************************** !
 
-subroutine TSrcSinkCoef(rt_parameter,qsrc,tran_src_sink_type,T_in,T_out)
+subroutine TSrcSinkCoef(rt_parameter,global_auxvar,qsrc, &
+                        tran_src_sink_type,T_in,T_out)
   ! 
   ! Computes src/sink coefficients for transport matrix
   ! Here qsrc [m^3/sec] provided by flow.
@@ -900,6 +919,7 @@ subroutine TSrcSinkCoef(rt_parameter,qsrc,tran_src_sink_type,T_in,T_out)
   implicit none
 
   type(reactive_transport_param_type) :: rt_parameter
+  type(global_auxvar_type) :: global_auxvar
   PetscReal :: qsrc(2)
   PetscInt :: tran_src_sink_type
   PetscReal :: T_in(2) ! coefficient that scales concentration at cell
@@ -909,6 +929,8 @@ subroutine TSrcSinkCoef(rt_parameter,qsrc,tran_src_sink_type,T_in,T_out)
       
   T_in = 0.d0 
   T_out = 0.d0
+
+  if (global_auxvar%sat(LIQUID_PHASE) < rt_min_saturation) return
      
   select case(tran_src_sink_type)
     case(EQUILIBRIUM_SS)
