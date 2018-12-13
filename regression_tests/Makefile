@@ -52,6 +52,7 @@ STANDARD_CFG = \
 	default/numerical/numerical.cfg \
 	default/output/output.cfg \
 	default/restart/restart.cfg \
+	default/restart/skip/skip.cfg \
 	default/steady/steady.cfg \
 	default/condition/condition.cfg \
 	default/condition/dataset/dataset.cfg \

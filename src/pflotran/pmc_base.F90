@@ -1017,6 +1017,11 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
   cur_pm => this%pm_list
   do
     if (.not.associated(cur_pm)) exit
+    if (cur_pm%skip_restart) then
+      this%option%io_buffer = 'Due to sequential nature of binary files, &
+        &skipping restart for binary formatted files is not allowed.'
+      call PrintErrMsg(this%option)
+    endif
     call cur_pm%RestartBinary(viewer)
     cur_pm => cur_pm%next
   enddo
@@ -1271,9 +1276,11 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
   cur_pm => this%pm_list
   do
     if (.not.associated(cur_pm)) exit
-    call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id,this%option)
-    call cur_pm%RestartHDF5(h5_pm_grp_id)
-    call h5gclose_f(h5_pm_grp_id, hdf5_err)
+    if (.not.cur_pm%skip_restart) then
+      call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id,this%option)
+      call cur_pm%RestartHDF5(h5_pm_grp_id)
+      call h5gclose_f(h5_pm_grp_id, hdf5_err)
+    endif
     cur_pm => cur_pm%next
   enddo
 

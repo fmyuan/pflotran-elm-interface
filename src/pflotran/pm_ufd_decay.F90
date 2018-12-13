@@ -270,6 +270,7 @@ subroutine PMUFDDecayRead(this,input)
 ! Kd_material_name(:): name string array of material names
 ! Kd(:): [kg-water/m3-bulk] array of Kd values
 ! tempreal: [-] temporary double precision number
+! found: flag indicating keyword has been found
 ! -------------------------------------------------------------
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: word
@@ -282,6 +283,7 @@ subroutine PMUFDDecayRead(this,input)
   character(len=MAXWORDLENGTH) :: Kd_material_name(MAX_KD_SIZE)
   PetscReal :: Kd(MAX_KD_SIZE)
   PetscReal :: tempreal
+  PetscBool :: found
 ! -------------------------------------------------------------
 
   option => this%option
@@ -301,6 +303,10 @@ subroutine PMUFDDecayRead(this,input)
     call InputReadWord(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
+
+    found = PETSC_FALSE
+    call PMBaseReadSelectCase(this,input,word,found,error_string,option)
+    if (found) cycle
     
     select case(trim(word))
       case('ELEMENT')
