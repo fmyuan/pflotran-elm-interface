@@ -3492,7 +3492,7 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   time = option%time
   
   avg_temp_local = 0.d0
-  do i = 1,waste_form%region%num_cells)
+  do i = 1,waste_form%region%num_cells
     ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
     avg_temp_local = avg_temp_local + &  ! Celcius
                global_auxvars(ghosted_id)%temp * waste_form%scaling_factor(i)
@@ -3507,7 +3507,7 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   ! convert this%dissolution_rate from fmdm to pflotran units:
   ! g/m^2/yr => kg/m^2/sec
   this%dissolution_rate = this%dissolution_rate / &
-                          (1000.d0*24.d0*3600.d0*DAYS_PER_YEA)
+                          (1000.d0*24.d0*3600.d0*DAYS_PER_YEAR)
   Usource = Usource / (1000.d0*24.d0*3600.d0*DAYS_PER_YEAR)
  !====================================================================
 #else
