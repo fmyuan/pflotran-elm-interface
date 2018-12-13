@@ -353,6 +353,7 @@ module PM_Waste_Form_class
     type(criticality_mediator_type), pointer :: criticality_mediator
     PetscBool :: print_mass_balance
     PetscBool :: implicit_solution
+    PetscLogDouble :: cumulative_time
   contains
     procedure, public :: SetRealization => PMWFSetRealization
     procedure, public :: Setup => PMWFSetup
@@ -716,6 +717,7 @@ function PMWFCreate()
   nullify(PMWFCreate%criticality_mediator)
   PMWFCreate%print_mass_balance = PETSC_FALSE
   PMWFCreate%implicit_solution = PETSC_FALSE
+  PMWFCreate%cumulative_time = 0.d0
   PMWFCreate%name = 'waste form general'
   PMWFCreate%header = 'WASTE FORM (GENERAL)'
 
@@ -3006,11 +3008,14 @@ subroutine PMWFSolve(this,time,ierr)
   PetscReal, pointer :: vec_p(:)  
   PetscReal, pointer :: xx_p(:)
   PetscInt :: fmdm_count_global, fmdm_count_local
+  PetscLogDouble :: log_start_time, log_end_time
   character(len=MAXWORDLENGTH) :: word
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
 ! -----------------------------------------------------------
+
+  call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
   
   fmdm_count_global = 0
   fmdm_count_local = 0
@@ -3123,6 +3128,10 @@ subroutine PMWFSolve(this,time,ierr)
     call CriticalitySolve(this%criticality_mediator,this%realization,time,ierr)
   endif
   
+  call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+
+  this%cumulative_time = this%cumulative_time + (log_end_time - log_start_time)
+
 end subroutine PMWFSolve
 
 ! ************************************************************************** !
@@ -3501,7 +3510,7 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
                        avg_temp_global)
   call AMP_step(this%burnup, time, avg_temp_global, this%concentration, &
                 initialRun, this%dissolution_rate, Usource, success) 
-  write(*,*) this%dissolution_rate
+  !write(*,*) this%dissolution_rate
   ! convert total component concentration from mol/m3 back to mol/L (/1.d3)
   this%concentration = this%concentration/1.d3
   ! convert this%dissolution_rate from fmdm to pflotran units:
@@ -4691,7 +4700,11 @@ subroutine PMWFDestroy(this)
 ! ---------------------------------
   class(pm_waste_form_type) :: this
 ! ---------------------------------
+  character(len=MAXWORDLENGTH) :: word
+
+  write(word,'(f12.1)') this%cumulative_time
   
+  write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // ' seconds'
   call PMWFStrip(this)
   
 end subroutine PMWFDestroy
