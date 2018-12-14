@@ -13,7 +13,8 @@ module Derivatives_utilities_module
   Public ::  ProdRule, &
              ProdRule3, &
              DivRule, &
-             DivRule1
+             DivRule1, &
+             PowerRule
 
 ! ************************************************************************** !
 !                 General explaination for schema here

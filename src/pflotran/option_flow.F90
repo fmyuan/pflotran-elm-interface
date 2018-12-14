@@ -21,6 +21,7 @@ module Option_Flow_module
     PetscBool :: quasi_3d
     PetscBool :: numerical_derivatives
     PetscBool :: numerical_derivatives_compare
+    PetscBool :: num_as_alyt_derivs
     PetscBool :: only_energy_eq
 
   end type flow_option_type
@@ -107,7 +108,8 @@ subroutine OptionFlowInitRealization(option)
   option%density_depends_on_salinity = PETSC_FALSE
   option%quasi_3d = PETSC_FALSE
   option%numerical_derivatives = PETSC_FALSE
-  option%numerical_derivatives_compare = PETSC_FALSE
+  option%numerical_derivatives_compare = petsc_false
+  option%num_as_alyt_derivs= petsc_false
   option%only_energy_eq = PETSC_FALSE
 
 end subroutine OptionFlowInitRealization

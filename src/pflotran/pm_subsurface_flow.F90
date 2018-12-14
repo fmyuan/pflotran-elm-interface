@@ -210,6 +210,8 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
 
     case('ANALYTICAL_JACOBIAN_COMPARE')
       option%flow%numerical_derivatives_compare = PETSC_TRUE
+    case('NUMRICAL_AS_as')
+      option%flow%num_as_alyt_derivs = PETSC_TRUE
 
     case('FIX_UPWIND_DIRECTION')
       fix_upwind_direction = PETSC_TRUE

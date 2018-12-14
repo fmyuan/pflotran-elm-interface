@@ -36,6 +36,9 @@ module AuxVars_TOWG_module
   type, public ::  tl_auxvar_type
     PetscReal :: den_oil_eff_kg
     PetscReal :: den_gas_eff_kg
+    PetscBool :: has_derivs
+    PetscReal, pointer :: D_den_oil_eff_kg(:)   ! (idof)
+    PetscReal, pointer :: D_den_gas_eff_kg(:)   ! (idof)
   end type tl_auxvar_type
 
   type, public ::  bo_auxvar_type
@@ -100,8 +103,20 @@ subroutine InitTL(this,option)
 
   allocate(this%tl)
 
+  nullify(this%tl%D_den_oil_eff_kg)
+  nullify(this%tl%D_den_gas_eff_kg)
+
   this%tl%den_oil_eff_kg = 0.0
   this%tl%den_gas_eff_kg = 0.0
+
+  if (.NOT. option%flow%numerical_derivatives) then
+    this%tl%has_derivs = PETSC_TRUE
+
+    allocate(this%tl%D_den_oil_eff_kg(option%nflowdof))
+    this%tl%D_den_oil_eff_kg= 0.d0
+    allocate(this%tl%D_den_gas_eff_kg(option%nflowdof))
+    this%tl%D_den_gas_eff_kg= 0.d0
+  endif
 
 end subroutine InitTL
 
@@ -188,6 +203,11 @@ subroutine StripTL(this)
   implicit none
 
   class(auxvar_towg_type) :: this
+
+  if (this%has_derivs) then
+    call DeallocateArray(this%tl%D_den_oil_eff_kg)
+    call DeallocateArray(this%tl%D_den_gas_eff_kg)
+  endif
 
   deallocate(this%tl)
 
