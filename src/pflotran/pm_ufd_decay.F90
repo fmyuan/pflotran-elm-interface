@@ -1175,6 +1175,9 @@ subroutine PMUFDDecaySolve(this,time,ierr)
     ghosted_id = grid%nL2G(local_id)
     imat = patch%imat(ghosted_id)
     if (imat <= 0) cycle
+    if (global_auxvars(ghosted_id)%sat(LIQUID_PHASE) < rt_min_saturation) then
+      cycle
+    endif
     vol = material_auxvars(ghosted_id)%volume
     den_w_kg = global_auxvars(ghosted_id)%den_kg(1)
     por = material_auxvars(ghosted_id)%porosity
