@@ -2957,6 +2957,7 @@ subroutine PMWFSolve(this,time,ierr)
   use petscvec
   use Global_Aux_module
   use Material_Aux_class
+  use Reactive_Transport_Aux_module, only : rt_min_saturation
   use Grid_module
   use Criticality_module
   
@@ -3040,6 +3041,10 @@ subroutine PMWFSolve(this,time,ierr)
           do k = 1,cur_waste_form%region%num_cells
             local_id = cur_waste_form%region%cell_ids(k)
             ghosted_id = grid%nL2G(local_id)
+            if (global_auxvars(ghosted_id)%sat(LIQUID_PHASE) < &
+                rt_min_saturation) then
+              cycle
+            endif
             do j = 1,num_species
               i = i + 1
               cur_waste_form%instantaneous_mass_rate(j) = &   ! mol-rad/sec
