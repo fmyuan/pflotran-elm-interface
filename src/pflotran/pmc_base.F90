@@ -1219,7 +1219,7 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
   cur_pm => this%pm_list
   do
     if (.not.associated(cur_pm)) exit
-    if (.not.cur_pm%skip_restart) then
+    if (cur_pm%skip_restart) then
       skip_restart = PETSC_TRUE
       exit
     endif

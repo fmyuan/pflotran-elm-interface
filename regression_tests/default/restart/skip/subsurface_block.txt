@@ -1,0 +1,247 @@
+SUBSURFACE
+
+#=========================== output options ===================================
+OUTPUT
+  FORMAT TECPLOT POINT
+  PERIODIC TIME 0.025d0 y
+  VARIABLES
+    LIQUID_PRESSURE
+    GAS_SATURATION
+    TEMPERATURE
+    THERMODYNAMIC_STATE
+  /
+  VELOCITY_AT_CENTER
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 10 1 1 
+  BOUNDS
+    0.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0
+  /
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS
+    2
+    4
+    6
+    8
+  /
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    H+
+    HCO3-
+  /
+  SECONDARY_SPECIES
+    OH-
+    CO3--
+    CO2(aq)
+  /
+  DATABASE ../../../../database/hanford.dat
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS TIMESTEP
+  OUTPUT
+    ALL
+    PH
+    TOTAL
+    ACTIVITY_COEFFICIENTS
+  /
+END
+
+#=========================== solver options ===================================
+TIMESTEPPER FLOW
+  # end simulation without taking a time step
+#  MAX_STEPS 0
+END
+
+NEWTON_SOLVER FLOW
+  ITOL_UPDATE 1.d4
+END
+
+LINEAR_SOLVER FLOW
+  SOLVER DIRECT
+END
+
+LINEAR_SOLVER TRANSPORT
+  SOLVER DIRECT
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+EOS WATER
+  DENSITY CONSTANT 1.d3
+  ENTHALPY CONSTANT 1.8890d0
+  VISCOSITY CONSTANT 8.904156d-4
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil
+  ID 1
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25d0
+  TORTUOSITY 0.5d0
+  ROCK_DENSITY 2650.d0 kg/m^3
+  THERMAL_CONDUCTIVITY_DRY 0.6d0 W/m-C
+  THERMAL_CONDUCTIVITY_WET 1.9d0 W/m-C
+  HEAT_CAPACITY 830.d0 J/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-13
+  /
+/
+
+#=========================== saturation functions =============================
+CHARACTERISTIC_CURVES cc1
+#  TEST
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    ALPHA 1.d-4
+    M 0.5d0
+    MAX_CAPILLARY_PRESSURE 1.d6
+
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    M 0.5d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    GAS_RESIDUAL_SATURATION 1.d-40
+    M 0.5d0
+  /
+/
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 0.1d0 y
+  INITIAL_TIMESTEP_SIZE 1.d-6 y
+  MAXIMUM_TIMESTEP_SIZE 1.d0 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 -1.d20 -1.d20
+    0.d0 1.d20 1.d20
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    10.d0 -1.d20 -1.d20
+    10.d0 1.d20 1.d20
+  /
+END
+
+REGION west_half
+  COORDINATES
+    0.d0 -1.d20 -1.d20
+    5.d0 1.d20 1.d20
+  /
+END
+
+REGION east_half
+  COORDINATES
+    5.d0 -1.d20 -1.d20
+    10.d0 1.d20 1.d20
+  /
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION west
+  TYPE
+    GAS_PRESSURE dirichlet
+    GAS_SATURATION dirichlet
+    TEMPERATURE dirichlet
+  /
+  GAS_PRESSURE 2100000.d0
+  GAS_SATURATION 0.2d0
+  TEMPERATURE 27.d0
+/
+
+FLOW_CONDITION east
+  TYPE
+    GAS_PRESSURE dirichlet
+    GAS_SATURATION dirichlet
+    TEMPERATURE dirichlet
+  /
+  GAS_PRESSURE 1900000.d0
+  GAS_SATURATION 0.8d0
+  TEMPERATURE 23.d0
+/
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT initial
+    CONCENTRATIONS
+      H+     1.d-4      T
+      HCO3-  1.d-5      T
+    /
+  /
+END
+
+TRANSPORT_CONDITION inlet
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT inlet
+    CONCENTRATIONS
+      H+     1.d-8      T
+      HCO3-  1.d-3      T
+    /
+  /
+END
+
+#=========================== constraints ======================================
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION west
+  TRANSPORT_CONDITION initial
+  REGION west_half
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION east
+  TRANSPORT_CONDITION initial
+  REGION east_half
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION west
+  TRANSPORT_CONDITION inlet
+  REGION west
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION east
+  TRANSPORT_CONDITION initial
+  REGION east
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil
+END
+
+END_SUBSURFACE
