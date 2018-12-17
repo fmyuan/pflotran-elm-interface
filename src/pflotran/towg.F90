@@ -3032,7 +3032,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       Res(iphase) = mole_flux 
 
       if (analytical_derivatives) then
-        Jdn(icomp,:) = Jdn(icomp,:) + D_mole_flux_dn(:)
+        Jdn(iphase,:) = Jdn(iphase,:) + D_mole_flux_dn(:)
       endif
 
       endif
@@ -3451,9 +3451,21 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
         !!! no analytical derivatives here
       else !note: temp can either be input or taken as the one of perf. block
       !if ( energy_var == SRC_TEMPERATURE ) then
-        call EOSOilEnthalpy(temperature,cell_pressure,enthalpy,ierr)
+        if (analytical_derivatives) then
+          call EOSOilEnthalpy(temperature, cell_pressure,enthalpy,dx_dcpres,dx_dtcell,ierr)
+          D_enthalpy = D_cpres*dx_dcpres
+          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) + dx_dtcell*dT_dTcell
+        else
+          call EOSOilEnthalpy(temperature,cell_pressure,enthalpy,ierr)
+        endif
         ! enthalpy = [J/kmol]
       end if
+      if (analytical_derivatives) then
+        D_enthalpy = D_enthalpy * 1.d-6 ! J/kmol -> whatever units
+        J(option%energy_id,:) = J(option%energy_id,:) &
+                              + ProdRule(Res(option%oil_phase),J(option%oil_phase,:),&
+                                             enthalpy,D_enthalpy,ndof)
+      endif
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
       ! enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
@@ -3468,10 +3480,23 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
         enthalpy = enthalpy * towg_fmw_comp(option%gas_phase)
       else !note: temp can either be input or taken as the one of perf. block
       !if ( energy_var == SRC_TEMPERATURE ) then
-        call EOSGasEnergy(temperature,cell_pressure,enthalpy, &
+        if (analytical_derivatives) then
+          call EOSGasEnergy(temperature, cell_pressure,enthalpy,dx_dtcell,dx_dcpres,&
+                            internal_energy_dummy,dum1,dum2,ierr)
+          D_enthalpy = D_cpres*dx_dcpres
+          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) + dx_dtcell*dT_dTcell
+        else
+          call EOSGasEnergy(temperature,cell_pressure,enthalpy, &
                               internal_energy_dummy,ierr)
+        endif
         ! enthalpy = [J/kmol]
       end if
+      if (analytical_derivatives) then
+        D_enthalpy = D_enthalpy * 1.d-6 ! J/kmol -> whatever units
+        J(option%energy_id,:) = J(option%energy_id,:) &
+                              + ProdRule(Res(option%gas_phase),J(option%gas_phase,:),&
+                                             enthalpy,D_enthalpy,ndof)
+      endif
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
       ! enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
@@ -3480,6 +3505,12 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
     ! water energy extraction due to water production
     if (qsrc(option%liquid_phase) < 0.d0) then !implies qsrc(option%oil_phase)<=0
       ! auxvar enthalpy units: MJ/kmol
+      if (analytical_derivatives) then
+        J(option%energy_id,:) = J(option%energy_id,:)                                               &
+                              + ProdRule(Res(option%liquid_phase),J(option%liquid_phase,:),               &
+                                         auxvar%H(option%liquid_phase),auxvar%D_H(option%liquid_phase,:), &
+                                         ndof)
+      endif
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%liquid_phase) * &
                               auxvar%H(option%liquid_phase)
@@ -3487,12 +3518,24 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
     !oil energy extraction due to oil production
     if (qsrc(option%oil_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
       ! auxvar enthalpy units: MJ/kmol
+      if (analytical_derivatives) then
+        J(option%energy_id,:) = J(option%energy_id,:)                                               &
+                              + ProdRule(Res(option%oil_phase),J(option%oil_phase,:),               &
+                                         auxvar%H(option%oil_phase),auxvar%D_H(option%oil_phase,:), &
+                                         ndof)
+      endif
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%oil_phase) * &
                               auxvar%H(option%oil_phase)
     end if
     if (qsrc(option%gas_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
       ! auxvar enthalpy units: MJ/kmol
+      if (analytical_derivatives) then
+        J(option%energy_id,:) = J(option%energy_id,:)                                               &
+                              + ProdRule(Res(option%gas_phase),J(option%gas_phase,:),               &
+                                         auxvar%H(option%gas_phase),auxvar%D_H(option%gas_phase,:), &
+                                         ndof)
+      endif
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%gas_phase) * &
                               auxvar%H(option%gas_phase)
@@ -3500,6 +3543,12 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
     if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
       if (qsrc(option%solvent_phase) < 0.d0) then !implies qsrc(option%solvent_phase)<=0
         ! auxvar enthalpy units: MJ/kmol
+      if (analytical_derivatives) then
+        J(option%energy_id,:) = J(option%energy_id,:)                                               &
+                              + ProdRule(Res(option%solvent_phase),J(option%solvent_phase,:),               &
+                                         auxvar%H(option%solvent_phase),auxvar%D_H(option%solvent_phase,:), &
+                                         ndof)
+      endif
         Res(option%energy_id) = Res(option%energy_id) + &
                                 Res(option%solvent_phase) * &
                                 auxvar%H(option%solvent_phase)

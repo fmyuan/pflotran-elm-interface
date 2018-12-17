@@ -735,7 +735,7 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
   use PFLOTRAN_Constants_module
   implicit none
   PetscInt :: nphase,ndof
-  type(auxvar_towg_type) :: auxvars(0:)
+  type(auxvar_towg_type),intent(INOUT) :: auxvars(0:)
   type(option_type) :: option
 
   PetscInt :: iphase,idof
@@ -876,7 +876,7 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
       nderiv = (p_pert-p_unpert)/pert
 
       !!! assign
-      auxvars(0)%D_pres(iphase,idof) = nderiv
+      auxvars(0)%D_sat(iphase,idof) = nderiv
 
 #if 0
       ! analytical derivative
@@ -912,7 +912,7 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
       nderiv = (p_pert-p_unpert)/pert
 
       !!! assign
-      auxvars(0)%D_pres(iphase,idof) = nderiv
+      auxvars(0)%D_pc(iphase,idof) = nderiv
 
 #if 0
       ! analytical derivative
@@ -946,7 +946,7 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
       nderiv = (p_pert-p_unpert)/pert
 
       !!! assign
-      auxvars(0)%D_pres(iphase,idof) = nderiv
+      auxvars(0)%D_den(iphase,idof) = nderiv
 
 #if 0
       ! analytical derivative
@@ -981,7 +981,7 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
       nderiv = (p_pert-p_unpert)/pert
 
       !!! assign
-      auxvars(0)%D_pres(iphase,idof) = nderiv
+      auxvars(0)%D_den_kg(iphase,idof) = nderiv
 #if 0
       ! analytical derivative
       aderiv = auxvars(0)%D_den_kg(iphase,idof)
@@ -1015,7 +1015,7 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
       nderiv = (p_pert-p_unpert)/pert
 
       !!! assign
-      auxvars(0)%D_pres(iphase,idof) = nderiv
+      auxvars(0)%D_mobility(iphase,idof) = nderiv
 #if 0
       ! analytical derivative
       aderiv = auxvars(0)%D_mobility(iphase,idof)
@@ -1053,7 +1053,7 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
       nderiv = (p_pert-p_unpert)/pert
 
       !!! assign
-      auxvars(0)%D_pres(iphase,idof) = nderiv
+      auxvars(0)%D_por(idof) = nderiv
 #if 0
       ! analytical derivative
       aderiv = auxvars(0)%D_por(idof)
@@ -1090,7 +1090,7 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
       nderiv = (p_pert-p_unpert)/pert
 
       !!! assign
-      auxvars(0)%D_pres(iphase,idof) = nderiv
+      auxvars(0)%D_H(iphase,idof) = nderiv
 #if 0
       ! analytical derivative
       aderiv = auxvars(0)%D_H(iphase,idof)
@@ -1123,7 +1123,7 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
       nderiv = (p_pert-p_unpert)/pert
 
       !!! assign
-      auxvars(0)%D_pres(iphase,idof) = nderiv
+      auxvars(0)%D_U(iphase,idof) = nderiv
 #if 0
       ! analytical derivative
       aderiv = auxvars(0)%D_U(iphase,idof)
