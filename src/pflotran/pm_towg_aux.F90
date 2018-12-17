@@ -1034,7 +1034,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     ! (implicitly: D_cell_pres(dof_oid) = 1 and a multplication by 1 was not
     !  done here)
     
-    auxvar%D_H = auxvar%D_H * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_H(wid,:) = auxvar%D_H(wid,:) * 1.d-6 ! J/kmol -> MJ/kmol
 
     ! derivatives corresponding to computation of U(wid) below:
     auxvar%D_U(wid,:) = auxvar%D_H(wid,:)                                          &
@@ -2030,6 +2030,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   use EOS_Gas_module
   use Characteristic_Curves_module
   use Material_Aux_class
+  use Derivatives_utilities_module
 
   implicit none
 
@@ -2058,6 +2059,46 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   !PetscReal :: Uoil_J_kg, Hoil_J_kg
   PetscErrorCode :: ierr
   PetscReal :: krotl,krgtl,viscotl,viscgtl,denotl,dengtl
+
+  PetscBool :: getDerivs
+  PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp
+
+  dof_op = TOWG_OIL_PRESSURE_DOF
+  dof_osat = TOWG_OIL_SATURATION_DOF
+  dof_gsat = TOWG_GAS_SATURATION_3PH_DOF
+  dof_temp = towg_energy_dof
+
+
+
+  if (towg_analytical_derivatives) then
+    if (.NOT. auxvar%has_derivs) then
+      ! how did this happen?
+      option%io_buffer = 'towg tl auxvars: towg_analytical_derivatives is true, &
+                          but auxvar%has_derivs is false, should both be true. &
+                          How did this happen?'
+      call printErrMsg(option)
+    endif
+
+    auxvar%D_pres = 0.d0
+    auxvar%D_sat = 0.d0
+    auxvar%D_pc = 0.d0
+    auxvar%D_den = 0.d0
+    auxvar%D_den_kg = 0.d0
+    auxvar%D_mobility = 0.d0
+    auxvar%D_por = 0.d0
+
+    auxvar%D_H = 0.d0
+    auxvar%D_U = 0.d0
+
+    auxvar%tl%D_den_oil_eff_kg(:) = 0.d0
+    auxvar%tl%D_den_gas_eff_kg(:) = 0.d0
+
+
+    getDerivs = PETSC_TRUE
+  else 
+    getDerivs = PETSC_FALSE
+  endif
+
 
 !--Initialise-----------------------------------------------------------------
 
@@ -2100,6 +2141,15 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%temp = x(towg_energy_dof)
 
   auxvar%sat(wid) = 1.d0 - auxvar%sat(oid) - auxvar%sat(gid)
+
+  ! trivial saturation derivatives:
+  if (getDerivs) then
+    auxvar%D_sat(oid,dof_osat) =  1.d0 ! diff oil sat by oil sat
+    auxvar%D_sat(wid,dof_osat) = -1.d0 ! diff liquid sat by gas sat
+    auxvar%D_sat(wid,dof_gsat) = -1.d0 ! diff liquid sat by gas sat
+    auxvar%D_sat(gid,dof_gsat) =  1.d0 ! diff gas sat by gas sat
+  endif
+
 
 !--Set up phase pressures and capillary pressures-----------------------------
 
