@@ -2167,6 +2167,24 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%pres(gid) = auxvar%pres(oid)
   auxvar%pres(wid) = auxvar%pres(oid) - auxvar%pc(wid)
 
+  if (getDerivs) then 
+    auxvar%D_pres(oid,dof_op) = 1.d0
+    auxvar%D_pres(gid,dof_op) = 1.d0
+    auxvar%D_pres(wid,dof_op) = 1.d0 
+
+    ! dummy is d cp / d s_w 
+    ! sw = 1 - s_o - s_g s
+    ! so d cp / d s_o = d cp / d s_w * d sw / d s_o = -1*d pc / d s_w
+    ! so:
+    !auxvar%D_pc(oid,dof_osat) = dummy
+    !auxvar%D_pc(oid,dof_gsat) = dummy
+    auxvar%D_pc(wid,dof_osat) = -dummy
+    auxvar%D_pc(wid,dof_gsat) = -dummy
+    auxvar%D_pres(wid,dof_osat) = -auxvar%D_pc(wid,dof_osat)
+    auxvar%D_pres(wid,dof_gsat) = -auxvar%D_pc(wid,dof_gsat)
+
+  endif 
+
   cell_pressure = max(auxvar%pres(wid),auxvar%pres(oid),auxvar%pres(gid))
 
 !--Calculate effective porosity as a function of pressure---------------------

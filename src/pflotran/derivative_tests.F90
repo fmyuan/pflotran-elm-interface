@@ -839,10 +839,11 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
       ! numerical derivative
       nderiv = (p_pert-p_unpert)/pert
 
+#if 0
       !!! assign
       auxvars(0)%D_pres(iphase,idof) = nderiv
+#endif
 
-#if 0
       ! analytical derivative
       aderiv = auxvars(0)%D_pres(iphase,idof)
 
@@ -856,7 +857,6 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
         print *
         probs = probs + 1
       endif
-#endif
 
     enddo
   enddo
@@ -875,10 +875,11 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
       ! numerical derivative
       nderiv = (p_pert-p_unpert)/pert
 
+#if 0
       !!! assign
       auxvars(0)%D_sat(iphase,idof) = nderiv
+#endif
 
-#if 0
       ! analytical derivative
       aderiv = auxvars(0)%D_sat(iphase,idof)
 
@@ -892,7 +893,6 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
         print *
         probs = probs + 1
       endif
-#endif
 
     enddo
   enddo
@@ -911,10 +911,11 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
       ! numerical derivative
       nderiv = (p_pert-p_unpert)/pert
 
+#if 0
       !!! assign
       auxvars(0)%D_pc(iphase,idof) = nderiv
+#endif
 
-#if 0
       ! analytical derivative
       aderiv = auxvars(0)%D_pc(iphase,idof)
 
@@ -928,7 +929,6 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
         print *
         probs = probs + 1
       endif
-#endif
     enddo
   enddo
 
