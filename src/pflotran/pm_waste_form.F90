@@ -782,6 +782,10 @@ subroutine PMWFRead(this,input)
     call InputReadWord(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
+
+    found = PETSC_FALSE
+    call PMBaseReadSelectCase(this,input,word,found,error_string,option)
+    if (found) cycle    
     
     select case(trim(word))
     !-------------------------------------
@@ -805,7 +809,7 @@ subroutine PMWFRead(this,input)
     
     error_string = 'WASTE_FORM_GENERAL'
     call ReadCriticalityMech(this%criticality_mediator,input,option, &
-                         word,error_string,found)
+                             word,error_string,found)
     if (found) cycle
    
   enddo
@@ -2429,9 +2433,8 @@ end subroutine PMWFSetup
   PetscErrorCode :: ierr
 ! -------------------------------------------------------
   
-  ! restart
-  if (this%option%restart_flag .and. &
-      this%option%overwrite_restart_wf) then
+  if (this%option%restart_flag .and. .not.this%skip_restart) then
+      ! need to verify whether this is needed anymore
       call PMWFSetup(this)
   endif
   

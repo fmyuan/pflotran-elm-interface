@@ -1079,6 +1079,7 @@ subroutine SubsurfaceReadWasteFormPM(input,option,pm)
 
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
 
   error_string = 'SIMULATION,PROCESS_MODELS,WASTE_FORM'
 
@@ -1088,6 +1089,11 @@ subroutine SubsurfaceReadWasteFormPM(input,option,pm)
     if (InputCheckExit(input,option)) exit
     call InputReadWord(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
+
+    found = PETSC_FALSE
+    call PMBaseReadSelectCase(pm,input,word,found,error_string,option)
+    if (found) cycle
+
     select case(word)
       case('TYPE')
         call InputReadWord(input,option,word,PETSC_FALSE)
@@ -2654,10 +2660,16 @@ subroutine SubsurfaceReadInput(simulation,input)
                            'HANDSHAKE_IO')
 
       case ('OVERWRITE_RESTART_TRANSPORT')
-        option%overwrite_restart_transport = PETSC_TRUE
+        option%io_buffer = 'OVERWRITE_RESTART_TRANSPORT no longer &
+          &supported. Please use SKIP_RESTART in the SUBSURFACE_TRANSPORT &
+          &process model options block.'
+        call PrintErrMsg(option)
 
       case ('OVERWRITE_RESTART_FLOW_PARAMS')
-        option%overwrite_restart_flow = PETSC_TRUE
+        option%io_buffer = 'OVERWRITE_RESTART_FLOW_PARAMS no longer &
+          &supported. Please use REVERT_PARAMETERS_ON_RESTART in &
+          &the SUBSURFACE_FLOW process model options block.'
+        call PrintErrMsg(option)
 
       case ('INITIALIZE_FLOW_FROM_FILE')
         call InputReadFilename(input,option,option%initialize_flow_filename)
