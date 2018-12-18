@@ -40,7 +40,7 @@ module Reaction_module
             ReactionReadPass1, &
             ReactionReadPass2, &
             ReactionReadOutput, &
-            ReactionReadRedoxSpecies, &
+            ReactionReadDecoupledSpecies, &
             RTotal, &
             RTotalAqueous, &
             CO2AqActCoeff, &
@@ -845,6 +845,10 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('ACTIVITY_H2O','ACTIVITY_WATER')
         reaction%use_activity_h2o = PETSC_TRUE
       case('REDOX_SPECIES')
+        option%io_buffer = 'REDOX_SPECIES is no longer supported. Please &
+          &use DECOUPLED_EQULIBRIUM_REACTIONS instead.'
+        call PrintErrMsg(option)
+      case('DECOUPLED_EQUILIBRIUM_REACTIONS')
         call InputSkipToEnd(input,option,word)
       case('OUTPUT')
         call InputSkipToEnd(input,option,word)
@@ -884,11 +888,14 @@ subroutine ReactionReadPass1(reaction,input,option)
           call InputDefaultMsg(input,option,'TVD Flux Limiter')
         endif
       case('MAX_RELATIVE_CHANGE_TOLERANCE','REACTION_TOLERANCE')
-        call InputReadDouble(input,option,reaction%max_relative_change_tolerance)
-        call InputErrorMsg(input,option,'maximum relative change tolerance','CHEMISTRY')
+        call InputReadDouble(input,option, &
+                             reaction%max_relative_change_tolerance)
+        call InputErrorMsg(input,option,'maximum relative change tolerance', &
+                           'CHEMISTRY')
       case('MAX_RESIDUAL_TOLERANCE')
         call InputReadDouble(input,option,reaction%max_residual_tolerance)
-        call InputErrorMsg(input,option,'maximum residual tolerance','CHEMISTRY')
+        call InputErrorMsg(input,option,'maximum residual tolerance', &
+                           'CHEMISTRY')
       case('MINIMUM_POROSITY')
         call InputReadDouble(input,option,reaction%minimum_porosity)
         call InputErrorMsg(input,option,'minimim porosity','CHEMISTRY')
@@ -997,8 +1004,8 @@ subroutine ReactionReadPass2(reaction,input,option)
             'ACTIVE_GAS_SPECIES','PASSIVE_GAS_SPECIES', &
             'AQUEOUS_DIFFUSION_COEFFICIENTS','GAS_DIFFUSION_COEFFICIENTS')
         call InputSkipToEND(input,option,card)
-      case('REDOX_SPECIES')
-        call ReactionReadRedoxSpecies(reaction,input,option)
+      case('DECOUPLED_EQUILIBRIUM_REACTIONS')
+        call ReactionReadDecoupledSpecies(reaction,input,option)
       case('OUTPUT')
         call ReactionReadOutput(reaction,input,option)
       case('MINERAL_KINETICS')
@@ -1085,7 +1092,7 @@ end subroutine ReactionReadPass2
 
 ! ************************************************************************** !
 
-subroutine ReactionReadRedoxSpecies(reaction,input,option)
+subroutine ReactionReadDecoupledSpecies(reaction,input,option)
   ! 
   ! Reads names of mineral species and sets flag
   ! 
@@ -1115,7 +1122,8 @@ subroutine ReactionReadRedoxSpecies(reaction,input,option)
     if (InputCheckExit(input,option)) exit  
 
     call InputReadWord(input,option,name,PETSC_TRUE)
-    call InputErrorMsg(input,option,'keyword','CHEMISTRY,REDOX_SPECIES')
+    call InputErrorMsg(input,option,'keyword', &
+                       'CHEMISTRY,DECOUPLED_EQUILIBRIUM_REACTIONS')
     
     cur_species => reaction%primary_species_list
     do 
@@ -1128,13 +1136,13 @@ subroutine ReactionReadRedoxSpecies(reaction,input,option)
     enddo
     
     if (.not.associated(cur_species)) then
-      option%io_buffer = 'Redox species "' // trim(name) // &
-        '" not found among primary species.'
+      option%io_buffer = 'Decoupled equlibrium reaction species "' // &
+        trim(name) // '" not found among primary species.'
       call printErrMsg(option)
     endif
   enddo
   
-end subroutine ReactionReadRedoxSpecies
+end subroutine ReactionReadDecoupledSpecies
 
 ! ************************************************************************** !
 
@@ -3569,6 +3577,8 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
 
+  if (global_auxvar%sat(LIQUID_PHASE) < rt_min_saturation) return
+
   if (reaction%mineral%nkinmnrl > 0) then
     call RKineticMineral(Res,Jac,derivative,rt_auxvar,global_auxvar, &
                          material_auxvar,reaction,option)
@@ -3648,6 +3658,8 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
   PetscReal :: Jac_dummy(reaction%ncomp,reaction%ncomp)
   PetscReal :: pert
   PetscBool :: compute_derivative
+
+  if (global_auxvar%sat(LIQUID_PHASE) < rt_min_saturation) return
 
   ! add new reactions in the 3 locations below
 
@@ -5180,6 +5192,8 @@ subroutine RTAccumulation(rt_auxvar,global_auxvar,material_auxvar, &
   
   iphase = 1
   Res = 0.d0
+
+  if (global_auxvar%sat(LIQUID_PHASE) < rt_min_saturation) return
   
   ! units = (mol solute/L water)*(m^3 por/m^3 bulk)*(m^3 water/m^3 por)*
   !         (m^3 bulk)*(1000L water/m^3 water)/(sec) = mol/sec
@@ -5256,13 +5270,22 @@ subroutine RTAccumulationDerivative(rt_auxvar,global_auxvar, &
   PetscInt :: iimob
   PetscReal :: psvd_t ! d is for density
 
+  J = 0.d0
+
+  if (global_auxvar%sat(LIQUID_PHASE) < rt_min_saturation) then
+    ! set diagonal to 1 and return as this cell is dry and inert
+    do idof = 1, reaction%ncomp
+      J(idof,idof) = 1.d0
+    enddo
+    return
+  endif
+
   iphase = 1
   istart = 1
   iendaq = reaction%naqcomp 
   ! units = (m^3 por/m^3 bulk)*(m^3 water/m^3 por)*(m^3 bulk)/(sec)
   !         *(kg water/L water)*(1000L water/m^3 water) = kg water/sec
   ! all Jacobian entries should be in kg water/sec
-  J = 0.d0
   if (associated(rt_auxvar%aqueous%dtotal)) then ! units of dtotal = kg water/L water
     psvd_t = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0* &
              material_auxvar%volume/option%tran_dt

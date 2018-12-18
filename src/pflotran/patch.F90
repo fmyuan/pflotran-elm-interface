@@ -1664,6 +1664,8 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
     select case(general%rate%itype)
       case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
         call PatchScaleSourceSink(patch,coupler,general%rate%isubtype,option)
+        dof1 = PETSC_TRUE
+        dof2 = PETSC_TRUE
     end select
   endif
 

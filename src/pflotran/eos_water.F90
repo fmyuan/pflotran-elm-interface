@@ -221,6 +221,7 @@ module EOS_Water_module
   public :: EOSWaterSetDensity, &
             EOSWaterSetEnthalpy, &
             EOSWaterSetViscosity, &
+            EOSWaterSetSaturationPressure, &
             EOSWaterSetSteamDensity, &
             EOSWaterSetSteamEnthalpy
             
@@ -475,6 +476,27 @@ subroutine EOSWaterSetViscosity(keyword,aux)
   
 end subroutine EOSWaterSetViscosity
 
+! ************************************************************************** !
+
+subroutine EOSWaterSetSaturationPressure(keyword,aux)
+
+  implicit none
+
+  character(len=*) :: keyword
+  PetscReal, optional :: aux(*)
+
+  select case(keyword)
+    case('IFC67')
+      EOSWaterSaturationPressurePtr => EOSWaterSaturationPressureIFC67
+    case('WAGNER_AND_PRUSS')
+      EOSWaterSaturationPressurePtr => EOSWaterSatPresWagnerPruss
+    case default
+      print *, 'Unknown pointer type "' // trim(keyword) // &
+        '" in EOSWaterSetSaturationPressure().'
+      stop
+  end select
+
+end subroutine EOSWaterSetSaturationPressure
 
 ! ************************************************************************** !
 
@@ -953,7 +975,7 @@ subroutine EOSWaterSatPresWagnerPruss(T, calculate_derivatives, &
   PetscReal :: polynomial
   PetscReal :: dpolynomial_dtau, dtau_dT
   
-  T_over_Tc = (T+293.15d0)/Tc
+  T_over_Tc = (T+273.15d0)/Tc
   tau = 1.d0 - T_over_Tc
   polynomial = a(1)*tau+a(2)*tau**1.5d0+a(3)*tau**3.d0+ &
                a(4)*tau**3.5d0+a(5)*tau**4.d0+a(6)*tau**7.5d0
@@ -3462,6 +3484,9 @@ subroutine EOSWaterTest(temp_low,temp_high,pres_low,pres_high, &
   if (associated(EOSWaterSaturationPressurePtr, &
                  EOSWaterSaturationPressureIFC67)) then
     eos_saturation_pressure_name = 'IFC67'
+  elseif (associated(EOSWaterSaturationPressurePtr, &
+                     EOSWaterSatPresWagnerPruss)) then
+    eos_saturation_pressure_name = 'WagnerAndPruss'
   else
     eos_saturation_pressure_name = 'Unknown'
   endif
@@ -3623,6 +3648,9 @@ subroutine EOSWaterSteamTest(temp_low,temp_high,pres_low,pres_high, &
   if (associated(EOSWaterSaturationPressurePtr, &
                  EOSWaterSaturationPressureIFC67)) then
     eos_saturation_pressure_name = 'IFC67'
+  elseif (associated(EOSWaterSaturationPressurePtr, &
+                     EOSWaterSatPresWagnerPruss)) then
+    eos_saturation_pressure_name = 'WagnerAndPruss'
   else
     eos_saturation_pressure_name = 'Unknown'
   endif

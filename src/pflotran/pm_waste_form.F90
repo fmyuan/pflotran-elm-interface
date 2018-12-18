@@ -353,6 +353,7 @@ module PM_Waste_Form_class
     type(criticality_mediator_type), pointer :: criticality_mediator
     PetscBool :: print_mass_balance
     PetscBool :: implicit_solution
+    PetscLogDouble :: cumulative_time
   contains
     procedure, public :: SetRealization => PMWFSetRealization
     procedure, public :: Setup => PMWFSetup
@@ -716,6 +717,7 @@ function PMWFCreate()
   nullify(PMWFCreate%criticality_mediator)
   PMWFCreate%print_mass_balance = PETSC_FALSE
   PMWFCreate%implicit_solution = PETSC_FALSE
+  PMWFCreate%cumulative_time = 0.d0
   PMWFCreate%name = 'waste form general'
   PMWFCreate%header = 'WASTE FORM (GENERAL)'
 
@@ -780,6 +782,10 @@ subroutine PMWFRead(this,input)
     call InputReadWord(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
+
+    found = PETSC_FALSE
+    call PMBaseReadSelectCase(this,input,word,found,error_string,option)
+    if (found) cycle    
     
     select case(trim(word))
     !-------------------------------------
@@ -803,7 +809,7 @@ subroutine PMWFRead(this,input)
     
     error_string = 'WASTE_FORM_GENERAL'
     call ReadCriticalityMech(this%criticality_mediator,input,option, &
-                         word,error_string,found)
+                             word,error_string,found)
     if (found) cycle
    
   enddo
@@ -2427,9 +2433,8 @@ end subroutine PMWFSetup
   PetscErrorCode :: ierr
 ! -------------------------------------------------------
   
-  ! restart
-  if (this%option%restart_flag .and. &
-      this%option%overwrite_restart_wf) then
+  if (this%option%restart_flag .and. .not.this%skip_restart) then
+      ! need to verify whether this is needed anymore
       call PMWFSetup(this)
   endif
   
@@ -2957,6 +2962,7 @@ subroutine PMWFSolve(this,time,ierr)
   use petscvec
   use Global_Aux_module
   use Material_Aux_class
+  use Reactive_Transport_Aux_module, only : rt_min_saturation
   use Grid_module
   use Criticality_module
   
@@ -3006,11 +3012,14 @@ subroutine PMWFSolve(this,time,ierr)
   PetscReal, pointer :: vec_p(:)  
   PetscReal, pointer :: xx_p(:)
   PetscInt :: fmdm_count_global, fmdm_count_local
+  PetscLogDouble :: log_start_time, log_end_time
   character(len=MAXWORDLENGTH) :: word
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
 ! -----------------------------------------------------------
+
+  call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
   
   fmdm_count_global = 0
   fmdm_count_local = 0
@@ -3040,6 +3049,10 @@ subroutine PMWFSolve(this,time,ierr)
           do k = 1,cur_waste_form%region%num_cells
             local_id = cur_waste_form%region%cell_ids(k)
             ghosted_id = grid%nL2G(local_id)
+            if (global_auxvars(ghosted_id)%sat(LIQUID_PHASE) < &
+                rt_min_saturation) then
+              cycle
+            endif
             do j = 1,num_species
               i = i + 1
               cur_waste_form%instantaneous_mass_rate(j) = &   ! mol-rad/sec
@@ -3123,6 +3136,10 @@ subroutine PMWFSolve(this,time,ierr)
     call CriticalitySolve(this%criticality_mediator,this%realization,time,ierr)
   endif
   
+  call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+
+  this%cumulative_time = this%cumulative_time + (log_end_time - log_start_time)
+
 end subroutine PMWFSolve
 
 ! ************************************************************************** !
@@ -3492,7 +3509,7 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   time = option%time
   
   avg_temp_local = 0.d0
-  do i = 1,waste_form%region%num_cells)
+  do i = 1,waste_form%region%num_cells
     ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
     avg_temp_local = avg_temp_local + &  ! Celcius
                global_auxvars(ghosted_id)%temp * waste_form%scaling_factor(i)
@@ -3501,13 +3518,13 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
                        avg_temp_global)
   call AMP_step(this%burnup, time, avg_temp_global, this%concentration, &
                 initialRun, this%dissolution_rate, Usource, success) 
-  write(*,*) this%dissolution_rate
+  !write(*,*) this%dissolution_rate
   ! convert total component concentration from mol/m3 back to mol/L (/1.d3)
   this%concentration = this%concentration/1.d3
   ! convert this%dissolution_rate from fmdm to pflotran units:
   ! g/m^2/yr => kg/m^2/sec
   this%dissolution_rate = this%dissolution_rate / &
-                          (1000.d0*24.d0*3600.d0*DAYS_PER_YEA)
+                          (1000.d0*24.d0*3600.d0*DAYS_PER_YEAR)
   Usource = Usource / (1000.d0*24.d0*3600.d0*DAYS_PER_YEAR)
  !====================================================================
 #else
@@ -4691,7 +4708,11 @@ subroutine PMWFDestroy(this)
 ! ---------------------------------
   class(pm_waste_form_type) :: this
 ! ---------------------------------
+  character(len=MAXWORDLENGTH) :: word
+
+  write(word,'(f12.1)') this%cumulative_time
   
+  write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // ' seconds'
   call PMWFStrip(this)
   
 end subroutine PMWFDestroy
