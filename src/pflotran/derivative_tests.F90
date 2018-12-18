@@ -752,8 +752,220 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
 
   probs = 0
 
+  !! *********  TL INTERMEDIATES************
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+    iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%tl3TEST%krh
+      ! get perturbed value
+      p_pert = auxvars(idof)%tl3TEST%krh
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%tl3TEST%D_krh(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "krh, note phase meaningless:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *,  "sats: ", auxvars(0)%sat
+        print *,  "krh0: ", p_unpert
+        print *,  "krh pert: ", p_pert
+        print *,  "krh diff: ", p_pert - p_unpert
+        print *,  "pert in dof is: ", pert
+        print *
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+    iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%tl3TEST%denotl
+      ! get perturbed value
+      p_pert = auxvars(idof)%tl3TEST%denotl
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%tl3TEST%D_denotl(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "denotl, note phase meaningless:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+    iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%tl3TEST%dengtl
+      ! get perturbed value
+      p_pert = auxvars(idof)%tl3TEST%dengtl
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%tl3TEST%D_dengtl(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "dengtl, note phase meaningless:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+    iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%tl3TEST%viscotl
+      ! get perturbed value
+      p_pert = auxvars(idof)%tl3TEST%viscotl
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%tl3TEST%D_viscotl(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "viscotl, note phase meaningless:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+    iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%tl3TEST%viscgtl
+      ! get perturbed value
+      p_pert = auxvars(idof)%tl3TEST%viscgtl
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%tl3TEST%D_viscgtl(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "viscgtl, note phase meaningless:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+
+
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+    iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%tl3TEST%krotl
+      ! get perturbed value
+      p_pert = auxvars(idof)%tl3TEST%krotl
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%tl3TEST%D_krotl(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "krotl, note phase meaningless:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+    iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%tl3TEST%krgtl
+      ! get perturbed value
+      p_pert = auxvars(idof)%tl3TEST%krgtl
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%tl3TEST%D_krgtl(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "krgtl, note phase meaningless:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+
+
+  !! ********* END  TL INTERMEDIATES*******
+
   !! *********  from TL specifically*********
-  !!! TODO
   ! den_oil_eff_kg:
   do idof=1,ndof
     ! get perturbation for this dof variable
@@ -768,11 +980,12 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
       ! numerical derivative
       nderiv = (p_pert-p_unpert)/pert
 
+#if 0
       !!! assign
       auxvars(0)%tl%D_den_oil_eff_kg(idof) = nderiv
-#if 0
+#endif
       ! analytical derivative
-      aderiv = auxvars(0)%tl%D_den_oil_eff_kg(iphase,idof)
+      aderiv = auxvars(0)%tl%D_den_oil_eff_kg(idof)
 
       ! difference:
       diff = abs(aderiv-nderiv)
@@ -784,7 +997,6 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
         print *
         probs = probs + 1
       endif
-#endif
     !enddo
   enddo
 
@@ -802,11 +1014,12 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
       ! numerical derivative
       nderiv = (p_pert-p_unpert)/pert
 
+#if 0
       !!! assign
       auxvars(0)%tl%D_den_gas_eff_kg(idof) = nderiv
-#if 0
+#endif
       ! analytical derivative
-      aderiv = auxvars(0)%tl%D_den_gas_eff_kg(iphase,idof)
+      aderiv = auxvars(0)%tl%D_den_gas_eff_kg(idof)
 
       ! difference:
       diff = abs(aderiv-nderiv)
@@ -818,7 +1031,6 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
         print *
         probs = probs + 1
       endif
-#endif
     !enddo
   enddo
   !! *********  end offrom TL specifically*********
@@ -1014,9 +1226,10 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
       ! numerical derivative
       nderiv = (p_pert-p_unpert)/pert
 
+#if 0
       !!! assign
       auxvars(0)%D_mobility(iphase,idof) = nderiv
-#if 0
+#endif
       ! analytical derivative
       aderiv = auxvars(0)%D_mobility(iphase,idof)
 
@@ -1035,7 +1248,6 @@ subroutine NumCompare_tl3p(nphase,ndof,auxvars,option,&
         print *
         probs = probs + 1
       endif
-#endif
     enddo
   enddo
 

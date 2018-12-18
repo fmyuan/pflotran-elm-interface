@@ -2194,12 +2194,12 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
     endif
  
  !!! EXPERIMENTAL
- if (.NOT. analytical_derivatives) then
+ !if (.NOT. analytical_derivatives) then
     if (auxvar_up%mobility(iphase) + &
         auxvar_dn%mobility(iphase) < eps) then
       cycle
     endif
-  endif
+  !endif
 
     istl =(towg_miscibility_model == TOWG_TODD_LONGSTAFF)
     isoil=(option%phase_map(iphase) == OIL_PHASE)

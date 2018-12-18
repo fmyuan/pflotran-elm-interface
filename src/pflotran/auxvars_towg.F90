@@ -22,8 +22,10 @@ module AuxVars_TOWG_module
 
   type, public, extends(auxvar_flow_energy_type) :: auxvar_towg_type
     PetscInt :: istate_store(2) ! 1 = previous timestep; 2 = previous iteration
+    PetscBool :: hastl3p_test_object
     type(tl_auxvar_type), pointer :: tl=>null()
     type(bo_auxvar_type), pointer :: bo=>null()
+    type(tl3_test_type), pointer  :: tl3TEST=>null()
   contains
     procedure, public :: Init => AuxVarTOWGInit
     procedure, public :: Strip => AuxVarTOWGStrip
@@ -51,6 +53,12 @@ module AuxVars_TOWG_module
     PetscReal, pointer :: D_xo(:)   ! (idof)
     PetscReal, pointer :: D_xg(:)   ! (idof)
   end type bo_auxvar_type
+
+  type, public :: tl3_test_type
+    PetscReal :: denotl,dengtl,viscotl,viscgtl,krotl,krgtl,krh
+    PetscReal,pointer :: D_denotl(:),D_dengtl(:),D_viscotl(:),D_viscgtl(:),D_krotl(:),D_krgtl(:) 
+    PetscReal,pointer :: D_krh(:)
+  end type tl3_test_type
 
   public :: AuxVarTOWGStrip
 
@@ -106,6 +114,7 @@ subroutine InitTL(this,option)
   nullify(this%tl%D_den_oil_eff_kg)
   nullify(this%tl%D_den_gas_eff_kg)
 
+
   this%tl%den_oil_eff_kg = 0.0
   this%tl%den_gas_eff_kg = 0.0
 
@@ -117,6 +126,37 @@ subroutine InitTL(this,option)
     allocate(this%tl%D_den_gas_eff_kg(option%nflowdof))
     this%tl%D_den_gas_eff_kg= 0.d0
   endif
+
+    this%hastl3p_test_object = PETSC_FALSE
+  if (option%flow%numerical_derivatives_compare) then
+    this%hastl3p_test_object = PETSC_TRUE
+
+    allocate(this%tl3TEST)
+
+    nullify(this%tl3TEST%D_denotl)
+    nullify(this%tl3TEST%D_dengtl)
+    nullify(this%tl3TEST%D_viscotl)
+    nullify(this%tl3TEST%D_viscgtl)
+    nullify(this%tl3TEST%D_krotl)
+    nullify(this%tl3TEST%D_krgtl)
+    nullify(this%tl3TEST%D_krh)
+
+    allocate(this%tl3TEST%D_denotl(option%nflowdof))
+    this%tl3TEST%D_denotl= 0.d0
+    allocate(this%tl3TEST%D_dengtl(option%nflowdof))
+    this%tl3TEST%D_dengtl= 0.d0
+    allocate(this%tl3TEST%D_viscotl(option%nflowdof))
+    this%tl3TEST%D_viscotl= 0.d0
+    allocate(this%tl3TEST%D_viscgtl(option%nflowdof))
+    this%tl3TEST%D_viscgtl= 0.d0
+    allocate(this%tl3TEST%D_krotl(option%nflowdof))
+    this%tl3TEST%D_krotl= 0.d0
+    allocate(this%tl3TEST%D_krgtl(option%nflowdof))
+    this%tl3TEST%D_krgtl= 0.d0
+    allocate(this%tl3TEST%D_krh(option%nflowdof))
+    this%tl3TEST%D_krh= 0.d0
+  endif
+
 
 end subroutine InitTL
 
@@ -208,6 +248,17 @@ subroutine StripTL(this)
     call DeallocateArray(this%tl%D_den_oil_eff_kg)
     call DeallocateArray(this%tl%D_den_gas_eff_kg)
   endif
+
+  if (this%hastl3p_test_object) then
+    call DeallocateArray(this%tl3TEST%D_denotl)
+    call DeallocateArray(this%tl3TEST%D_dengtl)
+    call DeallocateArray(this%tl3TEST%D_viscotl)
+    call DeallocateArray(this%tl3TEST%D_viscotl)
+    call DeallocateArray(this%tl3TEST%D_krotl)
+    call DeallocateArray(this%tl3TEST%D_krgtl)
+    call DeallocateArray(this%tl3TEST%D_krh)
+  endif
+
 
   deallocate(this%tl)
 

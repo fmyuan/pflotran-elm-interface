@@ -14,7 +14,8 @@ module Derivatives_utilities_module
              ProdRule3, &
              DivRule, &
              DivRule1, &
-             PowerRule
+             PowerRule!, &
+             !ProdDivrule
 
 ! ************************************************************************** !
 !                 General explaination for schema here
@@ -191,5 +192,31 @@ implicit none
 end function PowerRule
 
 ! ************************************************************************** !
+
+!!! to be completed
+#if 0
+function  ProdDivRule(x, dx, y, dy, z, dz, n)
+
+
+implicit none
+
+  PetscInt :: n
+  PetscReal :: x, y, z
+  PetscReal, dimension(1:n) :: dx, dy, dz
+  PetscReal, dimension(1:n) :: ProdDivRule
+
+  PetscInt :: i
+
+  ProdDivRule = 0.d0
+
+  do i = 1,n
+    ProdDivRule(i) = x*dy(i) + y*dx(i)  
+  enddo
+
+end function ProdDivRule
+#endif
+
+! ************************************************************************** !
+
 
 end module Derivatives_utilities_module 
