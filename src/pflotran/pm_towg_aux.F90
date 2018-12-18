@@ -2061,7 +2061,8 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: krotl,krgtl,viscotl,viscgtl,denotl,dengtl
 
   PetscBool :: getDerivs
-  PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp
+  PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp,cploc
+  PetscReal,dimension(1:option%nflowdof) :: D_cell_pres
 
   dof_op = TOWG_OIL_PRESSURE_DOF
   dof_osat = TOWG_OIL_SATURATION_DOF
@@ -2187,6 +2188,18 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   cell_pressure = max(auxvar%pres(wid),auxvar%pres(oid),auxvar%pres(gid))
 
+  if (getDerivs) then
+    ! a bit ugly but works:
+    cploc = wid
+    if (auxvar%pres(oid) > auxvar%pres(cploc)) then
+      cploc = oid
+    endif
+    if (auxvar%pres(gid) > auxvar%pres(cploc)) then
+      cploc = gid
+    endif
+    D_cell_pres = auxvar%D_pres(cploc,:)
+  endif
+
 !--Calculate effective porosity as a function of pressure---------------------
 
   if (option%iflag /= TOWG_UPDATE_FOR_BOUNDARY) then
@@ -2195,6 +2208,10 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     if (soil_compressibility_index > 0) then
       call MaterialCompressSoil(material_auxvar,cell_pressure, &
                                 auxvar%effective_porosity,dummy)
+      if (getDerivs) then
+        ! dummy here is d por / d cell pres so
+        auxvar%D_por = dummy*D_cell_pres
+      endif
     endif
     if (option%iflag /= TOWG_UPDATE_FOR_DERIVATIVE) then
       material_auxvar%porosity = auxvar%effective_porosity
