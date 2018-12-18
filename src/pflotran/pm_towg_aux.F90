@@ -2400,7 +2400,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (getDerivs) then
     D_visco = 0.d0
     call EOSOilViscosity(auxvar%temp,auxvar%pres(oid), &
-                         auxvar%den(oid), viso, D_visco(dof_op),D_visco(dof_temp), &
+                         auxvar%den(oid), viso, D_visco(dof_temp),D_visco(dof_op), &
                          ierr,auxvar%table_idx)
   else
     call EOSOilViscosity(auxvar%temp,auxvar%pres(oid), &
@@ -2828,7 +2828,7 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
 
   m=visco*viscginv
   if (getDerivs) then
-    D_m = ProdRule(visco,D_visco,viscg,D_viscg,ndof)
+    D_m = DivRule(visco,D_visco,viscg,D_viscg,ndof)
   endif
   if( abs(m-1.0)>1.0E-6 .and. viscotl>0.0 .and. viscgtl>0.0 ) then
 
