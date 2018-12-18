@@ -3450,13 +3450,13 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
           ! enthalpy = [J/kmol]
         endif
       end if
+      enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
       if (analytical_derivatives) then
         D_enthalpy = D_enthalpy * 1.d-6 ! J/kmol -> whatever units
         J(option%energy_id,:) = J(option%energy_id,:) &
                               + ProdRule(Res(option%liquid_phase),J(option%liquid_phase,:),&
                                              enthalpy,D_enthalpy,ndof)
       endif
-      enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
       ! enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%liquid_phase) * enthalpy
@@ -3483,13 +3483,13 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
         endif
         ! enthalpy = [J/kmol]
       end if
+      enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
       if (analytical_derivatives) then
         D_enthalpy = D_enthalpy * 1.d-6 ! J/kmol -> whatever units
         J(option%energy_id,:) = J(option%energy_id,:) &
                               + ProdRule(Res(option%oil_phase),J(option%oil_phase,:),&
                                              enthalpy,D_enthalpy,ndof)
       endif
-      enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
       ! enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%oil_phase) * enthalpy
@@ -3504,6 +3504,7 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
       else !note: temp can either be input or taken as the one of perf. block
       !if ( energy_var == SRC_TEMPERATURE ) then
         if (analytical_derivatives) then
+          !subroutine EOSGasEnergyDerive(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
           call EOSGasEnergy(temperature, cell_pressure,enthalpy,dx_dtcell,dx_dcpres,&
                             internal_energy_dummy,dum1,dum2,ierr)
           D_enthalpy = D_cpres*dx_dcpres
@@ -3514,13 +3515,13 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
         endif
         ! enthalpy = [J/kmol]
       end if
+      enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
       if (analytical_derivatives) then
         D_enthalpy = D_enthalpy * 1.d-6 ! J/kmol -> whatever units
         J(option%energy_id,:) = J(option%energy_id,:) &
                               + ProdRule(Res(option%gas_phase),J(option%gas_phase,:),&
                                              enthalpy,D_enthalpy,ndof)
       endif
-      enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
       ! enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%gas_phase) * enthalpy

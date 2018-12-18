@@ -1051,6 +1051,12 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! MJ/kmol comp                  ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
   auxvar%U(wid) = auxvar%H(wid) - (cell_pressure / auxvar%den(wid) * 1.d-6)
 
+  if (getDerivs) then
+    auxvar%D_den_kg(oid,:) = auxvar%D_den(oid,:) * EOSOilGetFMW()
+  endif
+
+
+
 !------------------------------------------------------------------------------
 ! Gas phase thermodynamic properties. Can be ideal gas default or PVTG table
 !------------------------------------------------------------------------------
@@ -2063,6 +2069,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscBool :: getDerivs
   PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp,cploc
   PetscReal,dimension(1:option%nflowdof) :: D_cell_pres
+  PetscReal :: d_x_d_cp,d_x_d_T
 
   dof_op = TOWG_OIL_PRESSURE_DOF
   dof_osat = TOWG_OIL_SATURATION_DOF
@@ -2223,35 +2230,117 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! Liquid phase thermodynamic properties
   ! using cell_pressure (which is the max press)? or %pres(wid)?
 
-  call EOSWaterDensity(auxvar%temp,cell_pressure, &
-                       auxvar%den_kg(wid),auxvar%den(wid),ierr)
-  call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
+! WATER THERMODYNAMIC PROPERTIES --------------------------------------------
+  if (getDerivs) then
+    call EOSWaterDensity(auxvar%temp,cell_pressure, &
+                      auxvar%den_kg(wid),auxvar%den(wid), &
+                      d_x_d_cp, &
+                      d_x_d_T, ierr)
+
+    ! den = den( cell_pressure, temp)
+    ! chain rule for cell pressure part:
+    auxvar%D_den(wid,:) = d_x_d_cp*D_cell_pres(:)
+    ! then additional term for temperature derivative:
+    auxvar%D_den(wid,dof_temp) = auxvar%D_den(wid,dof_temp) + d_x_d_T
+
+
+    call EOSWaterEnthalpy(auxvar%temp, &
+                       cell_pressure, &
+                       auxvar%H(wid), &
+                       d_x_d_cp, &
+                       d_x_d_T, &
+                       ierr)
+
+    ! H = H H(  cell_pressure, temp)
+    ! chain rule for cell pressure part:
+    auxvar%D_H(wid,:) = d_x_d_cp*D_cell_pres(:)
+    ! then additional term for temperature derivative:
+    auxvar%D_H(wid,dof_temp) = auxvar%D_H(wid,dof_temp) + d_x_d_T
+
+    ! derivatives corresponding to scaling of H then computation of U(wid) below:
+    auxvar%D_H(wid,:) = auxvar%D_H(wid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(wid,:) = auxvar%D_H(wid,:)                                          &
+                      - 1.d-6                                                      &
+                      * DivRule(cell_pressure,D_cell_pres,                         &
+                                auxvar%den(wid),auxvar%D_den(wid,:),option%nflowdof )
+
+    ! don't forget den kg derivatives:
+    auxvar%den_kg(wid) = auxvar%den(wid) * FMWH2O 
+
+  else
+    call EOSWaterDensity(auxvar%temp,cell_pressure, &
+                         auxvar%den_kg(wid),auxvar%den(wid),ierr)
+    call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
+  endif
   auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
 
   ! MJ/kmol comp                  ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
   auxvar%U(wid) = auxvar%H(wid) - (cell_pressure / auxvar%den(wid) * 1.d-6)
+
+! END OF WATER THERMODYNAMIC PROPERTIES -----------------------------------------
+  
 
   ! ADD HERE BRINE dependency. Two options (see mphase)
   ! - salinity constant in space and time (passed in option%option%m_nacl)
   ! - salt can be transported by RT (sequential coupling) and passed
   !   and passed with global_auxvar%m_nacl
 
-  call EOSOilDensityEnergy(auxvar%temp,auxvar%pres(oid),&
-                           auxvar%den(oid),auxvar%H(oid), &
-                           auxvar%U(oid),ierr,auxvar%table_idx)
+
+! OIL THERMODYNAMIC PROPERTIES ------------------------------------------------------
+
+  if (getDerivs) then
+    call EOSOilDensityEnergy(auxvar%temp,auxvar%pres(oid),auxvar%den(oid), &
+                             auxvar%D_den(oid,dof_temp),auxvar%D_den(oid,dof_op), &
+                             auxvar%H(oid),auxvar%D_H(oid,dof_temp),auxvar%D_H(oid,dof_op), &
+                             auxvar%U(oid),auxvar%D_U(oid,dof_temp),auxvar%D_U(oid,dof_op), &
+                             ierr,auxvar%table_idx) 
+
+    auxvar%D_den_kg(oid,:) = auxvar%D_den(oid,:) * EOSOilGetFMW()
+
+    auxvar%D_H(oid,:) = auxvar%D_H(oid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(oid,:) = auxvar%D_U(oid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+  else
+    call EOSOilDensityEnergy(auxvar%temp,auxvar%pres(oid),&
+                             auxvar%den(oid),auxvar%H(oid), &
+                             auxvar%U(oid),ierr,auxvar%table_idx)
+  endif
 
   auxvar%den_kg(oid) = auxvar%den(oid) * EOSOilGetFMW()
 
   auxvar%H(oid) = auxvar%H(oid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(oid) = auxvar%U(oid) * 1.d-6 ! J/kmol -> MJ/kmol
 
+! END OF OIL THERMODYNAMIC PROPERTIES -----------------------------------------------
+
+! GAS THERMODYNAMIC PROPERTIES ------------------------------------------------------
+
   !compute gas properties (default is air - but methane can be set up)
-  call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid), &
-                      auxvar%H(gid),auxvar%U(gid),ierr,auxvar%table_idx)
+  if (getDerivs) then
+    call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid),auxvar%D_den(gid,dof_temp),auxvar%D_den(gid,dof_op), &
+                                     auxvar%H(gid),auxvar%D_H(gid,dof_temp),auxvar%D_H(gid,dof_op),auxvar%U(gid),&
+                                     auxvar%D_U(gid,dof_temp),&
+                                     auxvar%D_U(gid,dof_op),ierr,auxvar%table_idx)
+   ! Note some implicit chain rule here. The pressure derivatives this gives are with respect to gas pressure, not cell or oil pressure.
+   ! Referencing above, we see that 
+   ! "  auxvar%pres(gid) = auxvar%pres(oid)  "
+   ! is the only dependence - on capilliary pres complications, gas pressure is just oil pressure. So we save some lines and just save
+   ! the gas presure derivatives as oil pressure derivatives, since the correct chain rule is just to multpily by one.
+   ! NOTE that if someone decides to change the cap pressure behaviour so that gas pressure is more complex, then need to revise this.
+
+    auxvar%D_den_kg(gid,:) = auxvar%D_den(gid,:) * EOSGasGetFMW()
+    auxvar%D_H(gid,:) = auxvar%D_H(gid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(gid,:) = auxvar%D_U(gid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+
+  else
+    call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid), &
+                        auxvar%H(gid),auxvar%U(gid),ierr,auxvar%table_idx)
+  endif
 
   auxvar%den_kg(gid) = auxvar%den(gid) * EOSGasGetFMW()
   auxvar%H(gid) = auxvar%H(gid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(gid) = auxvar%U(gid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+! END OF GAS THERMODYNAMIC PROPERTIES -----------------------------------------------
 
 !--Set up water phase rel. perm. and unmixed viscosities-----------------------
 
