@@ -544,10 +544,11 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
     endif
     
     if (this%is_master .and. associated(this%checkpoint_option)) then
-      if (this%checkpoint_option%periodic_ts_incr > 0 .and. &
-          mod(this%timestepper%steps, &
-              this%checkpoint_option%periodic_ts_incr) == 0) then
-        checkpoint_at_this_timestep_flag = PETSC_TRUE
+      if (this%checkpoint_option%periodic_ts_incr > 0) then
+        if (mod(this%timestepper%steps, &
+                this%checkpoint_option%periodic_ts_incr) == 0) then
+          checkpoint_at_this_timestep_flag = PETSC_TRUE
+        endif
       endif
     endif
 
