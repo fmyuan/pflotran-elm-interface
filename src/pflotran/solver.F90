@@ -284,7 +284,8 @@ subroutine SolverSetSNESOptions(solver, option)
     do i=1,solver%galerkin_mg_levels-1
       call PCMGSetInterpolation(solver%pc, i, solver%interpolation(i), &
                                 ierr);CHKERRQ(ierr)
-      call PCMGSetGalerkin(solver%pc,ierr);CHKERRQ(ierr)
+      !geh: not sure if this is the right type....
+      call PCMGSetGalerkin(solver%pc,PC_MG_GALERKIN_MAT,ierr);CHKERRQ(ierr)
     enddo
   endif
   
