@@ -1209,9 +1209,9 @@ subroutine EOSGasDensityIdeal(T,P,Rho_gas,dRho_dT,dRho_dP,ierr,table_idxs)
   PetscReal  T_kelvin
 
   T_kelvin = T + 273.15d0
-  Rho_gas = P / T_kelvin / IDEAL_GAS_CONSTANT * 1.d-3 ! mol/m^3 -> kmol/m^3
-
-  dRho_dP =  Rho_gas / P
+  ! calculate derivative first to avoid divide by zero
+  dRho_dP = 1.d0 / T_kelvin / IDEAL_GAS_CONSTANT * 1.d-3 ! mol/m^3 -> kmol/m^3
+  Rho_gas = P * dRho_dP
   dRho_dT = -Rho_gas / T_kelvin
 
 end subroutine EOSGasDensityIdeal
