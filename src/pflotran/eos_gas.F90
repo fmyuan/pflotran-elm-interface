@@ -746,9 +746,17 @@ subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, &
       vis2 = 10.d0*vs
       vis3 = 266.93d-7*sqrt(fmw3*trd3*fmix)/(cmix*cmix*ome3*trd3)
       z1 = xga*xga/vis1+2.d0*xg1*xga/vis3+xg1*xg1/vis2
-      g = xga*xga*FMWAIR/FMWH2O
+      ! calculate dg_dxga first to avoid divide by zero in optimized 
+      ! derivative calculation when pa = 0
+      dg_dxga = 2.d0*xga*FMWAIR/FMWH2O
+      ! g = xga*xga*FMWAIR/FMWH2O
+      g = 0.5d0*xga*dg_dxga
       h = xg1*xg1*FMWH2O/FMWAIR
-      e = (2.d0*xga*xg1*FMWAIR*FMWH2O/fmw3**2.d0)*vis3/(vis1*vis2)
+      ! calculate de_dxga first to avoid divide by zero in optimized 
+      ! derivative calculation when pa = 0
+      de_dxga = (2.d0*xg1*FMWAIR*FMWH2O/fmw3**2.d0)*vis3/(vis1*vis2)
+      ! e = (2.d0*xga*xg1*FMWAIR*FMWH2O/fmw3**2.d0)*vis3/(vis1*vis2)
+      e = xga*de_dxga
       z2 = 0.6d0*ard*(g/vis1+e+h/vis2)
       z3 = 0.6d0*ard*(g+e*(vis1+vis2)-2.d0*xga*xg1+h)
       visg  = (1.d0+z3)/(z1+z2)*.1d0 
@@ -854,7 +862,8 @@ subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, &
   
     ! g wrt xga
     ! g = xga*xga*FMWAIR/FMWH2O
-    dg_dxga = 2.d0*g/xga
+    !geh: now calculated above
+    ! dg_dxga = 2.d0*g/xga
     dg_dPcomp = dg_dxga*dxga_dPcomp
     dg_dPgas = dg_dxga*dxga_dPgas
 
@@ -866,7 +875,8 @@ subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, &
   
     ! e wrt xg#, vis#
     ! e = (2.d0*xga*xg1*FMWAIR*FMWH2O/fmw3**2.d0)*vis3/(vis1*vis2)
-    de_dxga = e/xga
+    !geh: now calculated above
+    ! de_dxga = e/xga
     de_dxg1 = e/xg1
     de_dvis1 = -1.d0*e/vis1
     de_dvis2 = -1.d0*e/vis2
