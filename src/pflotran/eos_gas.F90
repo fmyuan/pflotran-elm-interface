@@ -682,7 +682,7 @@ subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, &
   data  fair,   fwat,    cair,  cwat &
         /97.d0, 363.d0, 3.617d0, 2.655d0/
  
-  PetscReal :: fmix,cmix,d,xga,xg1,tk,trd1,trd3,ome1,ome3,ard,fmw3,vis1, &
+  PetscReal :: fmix,cmix,d,xga,xgw,tk,trd1,trd3,ome1,ome3,ard,fmw3,vis1, &
                v1,vs,vis2,vis3,z1,g,h,e,z2,z3
                
   PetscReal :: dtrd1_dT, dtrd3_dT
@@ -696,18 +696,18 @@ subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, &
   PetscReal :: dvs_dT, dvs_dd, dvs_dRhocomp
   PetscReal :: dd_dRhocomp
   PetscReal :: dxga_dPcomp, dxga_dPgas
-  PetscReal :: dxg1_dPcomp, dxg1_dPgas
+  PetscReal :: dxgw_dPcomp, dxgw_dPgas
   PetscReal :: dg_dxga, dg_dPcomp, dg_dPgas
-  PetscReal :: de_dxga, de_dxg1, de_dvis1, de_dvis2, de_dvis3, &
+  PetscReal :: de_dxga, de_dxgw, de_dvis1, de_dvis2, de_dvis3, &
                de_dT, de_dRhocomp, de_dPcomp, de_dPgas
-  PetscReal :: dh_dxg1, dh_dPcomp, dh_dPgas
-  PetscReal :: dz1_dxga, dz1_dxg1, dz1_dvis1, dz1_dvis2, dz1_dvis3, &
+  PetscReal :: dh_dxgw, dh_dPcomp, dh_dPgas
+  PetscReal :: dz1_dxga, dz1_dxgw, dz1_dvis1, dz1_dvis2, dz1_dvis3, &
                dz1_dT, dz1_dRhocomp, dz1_dPcomp, dz1_dPgas
   PetscReal :: dz2_dard, dz2_de, dz2_dg, dz2_dh, dz2_dvis1, dz2_dvis2, &
                dz2_dvis3, dz2_dT, dz2_dRhocomp, dz2_dPcomp, dz2_dPgas
   PetscReal :: dz3_dard, dz3_de, dz3_dg, dz3_dh, dz3_dvis1, dz3_dvis2, &
                dz3_dvis3, dz3_dT, dz3_dRhocomp, dz3_dPcomp, dz3_dPgas, &
-               dz3_dxga, dz3_dxg1
+               dz3_dxga, dz3_dxgw
   PetscReal :: dvisg_dz1, dvisg_dz2, dvisg_dz3
   PetscReal :: ard_0point6, one_over_vis1sq, one_over_vis2sq, z1pz2
   PetscReal :: one_over_trd3
@@ -726,7 +726,7 @@ subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, &
 
       d = d_air * FMWAIR   
       xga = p_air / P_gas
-      xg1 = 1.D0 - xga
+      xgw = 1.D0 - xga
       tk  = t + 273.15d0
       trd1 = tk/fair
       trd3 = tk/fmix
@@ -745,19 +745,27 @@ subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, &
       endif
       vis2 = 10.d0*vs
       vis3 = 266.93d-7*sqrt(fmw3*trd3*fmix)/(cmix*cmix*ome3*trd3)
-      z1 = xga*xga/vis1+2.d0*xg1*xga/vis3+xg1*xg1/vis2
-      g = xga*xga*FMWAIR/FMWH2O
-      h = xg1*xg1*FMWH2O/FMWAIR
-      e = (2.d0*xga*xg1*FMWAIR*FMWH2O/fmw3**2.d0)*vis3/(vis1*vis2)
+      z1 = xga*xga/vis1+2.d0*xgw*xga/vis3+xgw*xgw/vis2
+      ! calculate dg_dxga first to avoid divide by zero in optimized 
+      ! derivative calculation when pa = 0
+      dg_dxga = 2.d0*xga*FMWAIR/FMWH2O
+      ! g = xga*xga*FMWAIR/FMWH2O
+      g = 0.5d0*xga*dg_dxga
+      h = xgw*xgw*FMWH2O/FMWAIR
+      ! calculate de_dxga first to avoid divide by zero in optimized 
+      ! derivative calculation when pa = 0
+      de_dxga = (2.d0*xgw*FMWAIR*FMWH2O/fmw3**2.d0)*vis3/(vis1*vis2)
+      ! e = (2.d0*xga*xgw*FMWAIR*FMWH2O/fmw3**2.d0)*vis3/(vis1*vis2)
+      e = xga*de_dxga
       z2 = 0.6d0*ard*(g/vis1+e+h/vis2)
-      z3 = 0.6d0*ard*(g+e*(vis1+vis2)-2.d0*xga*xg1+h)
+      z3 = 0.6d0*ard*(g+e*(vis1+vis2)-2.d0*xga*xgw+h)
       visg  = (1.d0+z3)/(z1+z2)*.1d0 
       
   V_mix = visg
   
   if (calculate_derivative) then
 
-    if (xg1 < 1.d-100) then
+    if (xgw < 1.d-100) then
       print *, 'Derivatives in EOSGasViscosity1() may not be calculated &
         &when the water vapor pressure is essentially zero.'
       stop
@@ -772,10 +780,10 @@ subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, &
     dxga_dPcomp = 1.d0 / P_gas
     dxga_dPgas = -1.d0 * p_air / (P_gas*P_gas)
   
-    ! xg1
-    ! xg1 = 1.D0 - xga
-    dxg1_dPcomp = -1.d0*dxga_dPcomp
-    dxg1_dPgas = -1.d0*dxga_dPgas
+    ! xgw
+    ! xgw = 1.D0 - xga
+    dxgw_dPcomp = -1.d0*dxga_dPcomp
+    dxgw_dPgas = -1.d0*dxga_dPgas
   
     ! trd3 wrt t
     ! trd1 = tk/fair
@@ -841,40 +849,42 @@ subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, &
     one_over_vis1sq = 1.d0/(vis1*vis1)
     one_over_vis2sq = 1.d0/(vis2*vis2)
     ! z1 wrt vis#,xg#
-    ! z1 = xga*xga/vis1+2.d0*xg1*xga/vis3+xg1*xg1/vis2
-    dz1_dxga = 2.d0*xga/vis1 + 2.d0*xg1/vis3
-    dz1_dxg1 = 2.d0*xga/vis3 + 2.d0*xg1/vis2
+    ! z1 = xga*xga/vis1+2.d0*xgw*xga/vis3+xgw*xgw/vis2
+    dz1_dxga = 2.d0*xga/vis1 + 2.d0*xgw/vis3
+    dz1_dxgw = 2.d0*xga/vis3 + 2.d0*xgw/vis2
     dz1_dvis1 = -1.d0*xga*xga*one_over_vis1sq
-    dz1_dvis2 = -1.d0*xg1*xg1*one_over_vis2sq
-    dz1_dvis3 = -2.d0*xg1*xga/(vis3*vis3)
+    dz1_dvis2 = -1.d0*xgw*xgw*one_over_vis2sq
+    dz1_dvis3 = -2.d0*xgw*xga/(vis3*vis3)
     dz1_dT = dz1_dvis1*dvis1_dT + dz1_dvis2*dvis2_dT + dz1_dvis3*dvis3_dT
     dz1_dRhocomp = dz1_dvis2*dvis2_dRhocomp
-    dz1_dPcomp = dz1_dxga*dxga_dPcomp + dz1_dxg1*dxg1_dPcomp
-    dz1_dPgas = dz1_dxga*dxga_dPgas + dz1_dxg1*dxg1_dPgas
+    dz1_dPcomp = dz1_dxga*dxga_dPcomp + dz1_dxgw*dxgw_dPcomp
+    dz1_dPgas = dz1_dxga*dxga_dPgas + dz1_dxgw*dxgw_dPgas
   
     ! g wrt xga
     ! g = xga*xga*FMWAIR/FMWH2O
-    dg_dxga = 2.d0*g/xga
+    !geh: now calculated above
+    ! dg_dxga = 2.d0*g/xga
     dg_dPcomp = dg_dxga*dxga_dPcomp
     dg_dPgas = dg_dxga*dxga_dPgas
 
-    ! h wrt xg1
-    ! h = xg1*xg1*FMWH2O/FMWAIR
-    dh_dxg1 = 2.d0*h/xg1
-    dh_dPcomp = dh_dxg1*dxg1_dPcomp
-    dh_dPgas = dh_dxg1*dxg1_dPgas
+    ! h wrt xgw
+    ! h = xgw*xgw*FMWH2O/FMWAIR
+    dh_dxgw = 2.d0*h/xgw
+    dh_dPcomp = dh_dxgw*dxgw_dPcomp
+    dh_dPgas = dh_dxgw*dxgw_dPgas
   
     ! e wrt xg#, vis#
-    ! e = (2.d0*xga*xg1*FMWAIR*FMWH2O/fmw3**2.d0)*vis3/(vis1*vis2)
-    de_dxga = e/xga
-    de_dxg1 = e/xg1
+    ! e = (2.d0*xga*xgw*FMWAIR*FMWH2O/fmw3**2.d0)*vis3/(vis1*vis2)
+    !geh: now calculated above
+    ! de_dxga = e/xga
+    de_dxgw = e/xgw
     de_dvis1 = -1.d0*e/vis1
     de_dvis2 = -1.d0*e/vis2
     de_dvis3 = e/vis3
     de_dT = de_dvis1*dvis1_dT + de_dvis2*dvis2_dT + de_dvis3*dvis3_dT
     de_dRhocomp = de_dvis2*dvis2_dRhocomp
-    de_dPcomp = de_dxga*dxga_dPcomp + de_dxg1*dxg1_dPcomp
-    de_dPgas = de_dxga*dxga_dPgas + de_dxg1*dxg1_dPgas
+    de_dPcomp = de_dxga*dxga_dPcomp + de_dxgw*dxgw_dPcomp
+    de_dPgas = de_dxga*dxga_dPgas + de_dxgw*dxgw_dPgas
       
     ard_0point6 = 0.6d0*ard
     ! z2 wrt ard,e,g,h,vis#,xg#
@@ -892,20 +902,20 @@ subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, &
     dz2_dPgas = dz2_dg*dg_dPgas + dz2_de*de_dPgas + dz2_dh*dh_dPgas
   
     ! z3 wrt ard,e,g,h,vis#,xg#
-    ! z3 = 0.6d0*ard*(g+e*(vis1+vis2)-2.d0*xga*xg1+h)
-    dz3_dard = 0.6d0*(g+e*(vis1+vis2)-2.d0*xga*xg1+h)
+    ! z3 = 0.6d0*ard*(g+e*(vis1+vis2)-2.d0*xga*xgw+h)
+    dz3_dard = 0.6d0*(g+e*(vis1+vis2)-2.d0*xga*xgw+h)
     dz3_dg = ard_0point6
     dz3_de = ard_0point6*((vis1+vis2))
     dz3_dvis1 = ard_0point6*(e)
     dz3_dvis2 = ard_0point6*(e)
-    dz3_dxga = ard_0point6*(-2.d0*xg1)
-    dz3_dxg1 = ard_0point6*(-2.d0*xga)
+    dz3_dxga = ard_0point6*(-2.d0*xgw)
+    dz3_dxgw = ard_0point6*(-2.d0*xga)
     dz3_dh = ard_0point6
         
     dz3_dT = dz3_dard*dard_dT + dz3_de*de_dT + dz3_dvis1*dvis1_dT + dz3_dvis2*dvis2_dT
     dz3_dRhocomp = dz3_de*de_dRhocomp + dz3_dvis2*dvis2_dRhocomp
-    dz3_dPcomp = dz3_dxga*dxga_dPcomp + dz3_dxg1*dxg1_dPcomp + dz3_dg*dg_dPcomp + dz3_de*de_dPcomp + dz3_dh*dh_dPcomp
-    dz3_dPgas = dz3_dxga*dxga_dPgas + dz3_dxg1*dxg1_dPgas + dz3_dg*dg_dPgas + dz3_de*de_dPgas + dz3_dh*dh_dPgas
+    dz3_dPcomp = dz3_dxga*dxga_dPcomp + dz3_dxgw*dxgw_dPcomp + dz3_dg*dg_dPcomp + dz3_de*de_dPcomp + dz3_dh*dh_dPcomp
+    dz3_dPgas = dz3_dxga*dxga_dPgas + dz3_dxgw*dxgw_dPgas + dz3_dg*dg_dPgas + dz3_de*de_dPgas + dz3_dh*dh_dPgas
   
     ! visg wrt z#
     ! visg  = (1.d0+z3)/(z1+z2)*.1d0 
@@ -1209,9 +1219,9 @@ subroutine EOSGasDensityIdeal(T,P,Rho_gas,dRho_dT,dRho_dP,ierr,table_idxs)
   PetscReal  T_kelvin
 
   T_kelvin = T + 273.15d0
-  Rho_gas = P / T_kelvin / IDEAL_GAS_CONSTANT * 1.d-3 ! mol/m^3 -> kmol/m^3
-
-  dRho_dP =  Rho_gas / P
+  ! calculate derivative first to avoid divide by zero
+  dRho_dP = 1.d0 / T_kelvin / IDEAL_GAS_CONSTANT * 1.d-3 ! mol/m^3 -> kmol/m^3
+  Rho_gas = P * dRho_dP
   dRho_dT = -Rho_gas / T_kelvin
 
 end subroutine EOSGasDensityIdeal
