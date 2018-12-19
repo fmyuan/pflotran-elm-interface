@@ -1044,6 +1044,7 @@ subroutine PMWSSRead(this,input)
   PetscInt :: num_errors
   PetscInt :: rxn_num, spec_num
   PetscBool :: added
+  PetscBool :: found
   character(len=MAXWORDLENGTH) :: bh_materials(100)
 ! ----------------------------------------------------------------------------
   
@@ -1062,6 +1063,11 @@ subroutine PMWSSRead(this,input)
     call InputErrorMsg(input,option,'keyword',error_string)
     num_errors = 0
     error_string = 'WIPP_SOURCE_SINK'
+
+    found = PETSC_FALSE
+    call PMBaseReadSelectCase(this,input,word,found,error_string,option)
+    if (found) cycle
+
     call StringToUpper(word)
     select case(trim(word))
     !-----------------------------------------

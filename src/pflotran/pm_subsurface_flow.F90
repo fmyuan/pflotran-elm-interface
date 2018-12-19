@@ -21,6 +21,7 @@ module PM_Subsurface_Flow_class
     PetscBool :: store_porosity_for_ts_cut
     PetscBool :: store_porosity_for_transport
     PetscBool :: check_post_convergence
+    PetscBool :: revert_parameters_on_restart
     ! these govern the size of subsequent time steps
     PetscReal :: max_pressure_change
     PetscReal :: max_temperature_change
@@ -101,6 +102,7 @@ subroutine PMSubsurfaceFlowCreate(this)
   this%store_porosity_for_ts_cut = PETSC_FALSE
   this%store_porosity_for_transport = PETSC_FALSE
   this%check_post_convergence = PETSC_FALSE
+  this%revert_parameters_on_restart = PETSC_FALSE
   
   ! defaults
   this%max_pressure_change = 0.d0
@@ -146,6 +148,9 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
   PetscBool :: found
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
+
+  call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+  if (found) return
 
   found = PETSC_TRUE
   select case(trim(keyword))
@@ -225,6 +230,9 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
 
     case('GEOMETRIC_PENALTY')
       flow_aux_use_GP= PETSC_TRUE
+
+    case('REVERT_PARAMETERS_ON_RESTART')
+      this%revert_parameters_on_restart = PETSC_TRUE
 
     case default
       found = PETSC_FALSE
@@ -363,7 +371,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   endif
   
   ! restart
-  if (this%option%restart_flag .and. this%option%overwrite_restart_flow) then
+  if (this%revert_parameters_on_restart) then
     call RealizationRevertFlowParameters(this%realization)
 !geh: for testing only.  In general, we only revert parameter, not flow.
 !    call CondControlAssignFlowInitCond(this%realization)

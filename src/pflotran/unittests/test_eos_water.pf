@@ -280,5 +280,49 @@ contains
 
   end subroutine testEOSWater_BatzleAndWangExt
 
+! ************************************************************************** !
+
+  @Test
+  subroutine testEOSWater_SatPresWagnerPruss(this)
+    !
+    ! verify that the EOSWaterSatPresWagnerPruss returns the correct values
+    !
+    use PFLOTRAN_Constants_module, only : MAXSTRINGLENGTH
+
+    implicit none
+
+    class (Test_EOS_Water), intent(inout) :: this
+
+    PetscErrorCode :: ierr
+    character(len=MAXSTRINGLENGTH) :: error_string
+
+    PetscReal :: temperature
+    PetscReal :: saturation_pressure
+    PetscReal :: dsaturation_pressure
+    PetscReal :: value
+
+    call EOSWaterInit()
+    call EOSWaterSetSaturationPressure('WAGNER_AND_PRUSS')
+
+    temperature = 0.d0
+    saturation_pressure = 0.d0
+    dsaturation_pressure = 0.d0
+
+    call EOSWaterSaturationPressure(temperature, saturation_pressure, ierr)
+    value = 611.21284593985558d0
+    @assertEqual(value, saturation_pressure, 1.0d-16)
+
+    temperature = 100.d0
+    call EOSWaterSaturationPressure(temperature, saturation_pressure, ierr)
+    value = 101417.99381792783d0
+    @assertEqual(value, saturation_pressure, 1.0d-16)
+
+    temperature = 373.946d0
+    call EOSWaterSaturationPressure(temperature, saturation_pressure, ierr)
+    value = 22064000.000000000d0
+    @assertEqual(value, saturation_pressure, 1.0d-16)
+
+  end subroutine testEOSWater_SatPresWagnerPruss
+
 end module Test_EOS_Water_module
 

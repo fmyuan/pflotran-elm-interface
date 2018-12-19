@@ -25,6 +25,7 @@ contains
 subroutine GeneralDerivativeDriver(option)
           
   use Characteristic_Curves_module
+  use Coupler_module
 
   implicit none
   
@@ -56,9 +57,11 @@ subroutine GeneralDerivativeDriver(option)
   PetscInt :: auxvar_mapping(GENERAL_MAX_INDEX)
   PetscReal :: auxvars(3) ! from aux_real_var array
   
+  type(general_auxvar_type), pointer :: general_auxvar_ss
   PetscInt :: flow_src_sink_type
   PetscReal :: qsrc(3)
   PetscReal :: srcsink_scale
+  type(coupler_type), pointer :: source_sink  
   
   class(characteristic_curves_type), pointer :: characteristic_curves
   type(material_parameter_type), pointer :: material_parameter
@@ -67,6 +70,7 @@ subroutine GeneralDerivativeDriver(option)
   nullify(characteristic_curves)
   nullify(material_parameter)
   nullify(general_parameter)
+  nullify(source_sink)
   call GeneralDerivativeSetFlowMode(option)
   call GeneralDerivativeSetupEOS(option)
   
@@ -193,6 +197,7 @@ subroutine GeneralDerivativeDriver(option)
       qsrc(1) = -1.d-10
       srcsink_scale = 1.d0
       call GeneralDerivativeSrcSink(pert,source_sink, &
+                                    general_auxvar_ss, &
                                     general_auxvar,global_auxvar, &
                                     material_auxvar,srcsink_scale,option)
   end select
@@ -542,7 +547,10 @@ subroutine GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
   
   PetscReal :: v_darcy(2)
   
-  
+  PetscBool :: update_upwind_direction_ = PETSC_TRUE
+  PetscBool :: count_upwind_direction_flip_ = PETSC_FALSE
+  PetscInt :: upwind_direction_(option%nphase)  
+    
   PetscInt :: irow
   PetscReal :: res(3)
   PetscReal :: res_pert(3,3)
@@ -568,8 +576,10 @@ subroutine GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
                    global_auxvar2(ZERO_INTEGER), &
                    material_auxvar2(ZERO_INTEGER), &
                    material_parameter2%soil_thermal_conductivity(:,1), &
-                   area, dist, general_parameter, &
+                   area, dist, upwind_direction_, general_parameter, &
                    option,v_darcy,res,jac_anal,jac_anal2, &
+                   update_upwind_direction_, &
+                   count_upwind_direction_flip_, &
                    PETSC_TRUE,PETSC_FALSE)                           
 
   do i = 1, 3
@@ -581,8 +591,10 @@ subroutine GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
                      global_auxvar2(ZERO_INTEGER), &
                      material_auxvar2(ZERO_INTEGER), &
                      material_parameter2%soil_thermal_conductivity(:,1), &
-                     area, dist, general_parameter, &
+                     area, dist, upwind_direction_, general_parameter, &
                      option,v_darcy,res_pert(:,i),jac_dum,jac_dum2, &
+                     update_upwind_direction_, &
+                     count_upwind_direction_flip_, &
                      PETSC_FALSE,PETSC_FALSE)                           
     do irow = 1, option%nflowdof
       jac_num(irow,i) = (res_pert(irow,i)-res(irow))/pert(i)
@@ -597,8 +609,10 @@ subroutine GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
                      global_auxvar2(i), &
                      material_auxvar2(i), &
                      material_parameter2%soil_thermal_conductivity(:,1), &
-                     area, dist, general_parameter, &
+                     area, dist, upwind_direction_, general_parameter, &
                      option,v_darcy,res_pert2(:,i),jac_dum,jac_dum2, &
+                     update_upwind_direction_, &
+                     count_upwind_direction_flip_, &
                      PETSC_FALSE,PETSC_FALSE)                           
     do irow = 1, option%nflowdof
       jac_num2(irow,i) = (res_pert2(irow,i)-res(irow))/pert2(i)
@@ -651,6 +665,9 @@ subroutine GeneralDerivativeFluxBC(pert, &
   
   PetscReal :: v_darcy(2)
   
+  PetscBool :: update_upwind_direction_ = PETSC_TRUE
+  PetscBool :: count_upwind_direction_flip_ = PETSC_FALSE
+  PetscInt :: upwind_direction_(option%nphase) 
   
   PetscInt :: irow
   PetscReal :: res(3)
@@ -669,8 +686,10 @@ subroutine GeneralDerivativeFluxBC(pert, &
                      general_auxvar_dn(ZERO_INTEGER),global_auxvar_dn(ZERO_INTEGER), &
                      material_auxvar_dn(ZERO_INTEGER), &
                      material_parameter_dn%soil_thermal_conductivity(:,1), &
-                     area,dist,general_parameter, &
+                     area,dist,upwind_direction_,general_parameter, &
                      option,v_darcy,res,jac_anal, &
+                     update_upwind_direction_, &
+                     count_upwind_direction_flip_, &
                      PETSC_TRUE,PETSC_FALSE)                           
                            
   do i = 1, 3
@@ -679,9 +698,11 @@ subroutine GeneralDerivativeFluxBC(pert, &
                        general_auxvar_dn(i),global_auxvar_dn(i), &
                        material_auxvar_dn(i), &
                        material_parameter_dn%soil_thermal_conductivity(:,1), &
-                       area,dist,general_parameter, &
+                       area,dist,upwind_direction_,general_parameter, &
                        option,v_darcy,res_pert(:,i),jac_dum, &
-                       PETSC_FALSE,PETSC_FALSE)                           
+                       update_upwind_direction_, &
+                       count_upwind_direction_flip_, &                      
+                       PETSC_FALSE,PETSC_FALSE)                          
     do irow = 1, option%nflowdof
       jac_num(irow,i) = (res_pert(irow,i)-res(irow))/pert(i)
     enddo !irow
@@ -696,6 +717,7 @@ end subroutine GeneralDerivativeFluxBC
 ! ************************************************************************** !
 
 subroutine GeneralDerivativeSrcSink(pert,source_sink, &
+                                    general_auxvar_ss, &
                                     general_auxvar,global_auxvar, &
                                     material_auxvar,scale,option)
 
@@ -709,6 +731,7 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
   type(option_type), pointer :: option
   type(coupler_type), pointer :: source_sink
   PetscReal :: pert(3)  
+  type(general_auxvar_type) :: general_auxvar_ss
   type(general_auxvar_type) :: general_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar(0:)
   type(material_auxvar_type) :: material_auxvar(0:)
@@ -735,12 +758,14 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
                            natural_id,'srcsink',option)
 
   call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+                      general_auxvar_ss, &
                       general_auxvar(ZERO_INTEGER),global_auxvar(ZERO_INTEGER), &
                       ss_flow_vol_flux, &
                       scale,res,jac_anal,PETSC_TRUE,PETSC_FALSE)                           
                            
   do i = 1, 3
     call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+                        general_auxvar_ss, &
                         general_auxvar(i),global_auxvar(i), &
                         ss_flow_vol_flux, &
                         scale,res_pert(:,i),jac_dum,PETSC_FALSE,PETSC_FALSE)                           
