@@ -1,0 +1,21 @@
+#Description: 10-cell flow and carbonate transport problem for verifying checkpoint/restart with skips
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        MAX_CFL 50.d0
+      /
+    /
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+  CHECKPOINT
+    FORMAT HDF5
+  /
+END
+
+EXTERNAL_FILE subsurface_block.txt

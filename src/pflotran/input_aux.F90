@@ -775,6 +775,10 @@ subroutine InputReadPflotranStringSlave(input, option)
       call InputPushExternalFile(input,option)
       cycle
     else if (word(1:4) == 'SKIP') then
+      ! to avoid keywords that start with SKIP 
+      if (len_trim(word) > 4) then
+        exit
+      endif
       skip_count = 1
       do 
         read(input%fid,'(a512)',iostat=input%ierr) tempstring

@@ -35,6 +35,7 @@ module Debug_module
             DebugRead, &
             DebugCreateViewer, &
             DebugWriteFilename, &
+            DebugViewerDestroy, &
             DebugDestroy
   
 contains
@@ -235,6 +236,36 @@ subroutine DebugWriteFilename(debug,filename,prefix,suffix,ts,ts_cut,ni)
   endif
  
 end subroutine DebugWriteFilename
+
+! ************************************************************************** !
+
+subroutine DebugViewerDestroy(debug,viewer)
+  !
+  ! Deallocates PETSc Viewer
+  !
+  ! Author: Heeho Park
+  ! Date: 11/08/18
+  !
+  implicit none
+
+  type(debug_type) :: debug
+  PetscViewer :: viewer
+  PetscErrorCode :: ierr
+  
+  !geh: must use an 'or' operation since new formats greater than
+  !     DEBUG_NATIVE_FORMAT may not require PopFormat()
+  if (debug%output_format == DEBUG_MATLAB_FORMAT .or. &
+      debug%output_format == DEBUG_NATIVE_FORMAT) then
+  !  DEBUG_ASCII_FORMAT = 1
+  !  DEBUG_BINARY_FORMAT = 2 
+  !  DEBUG_MATLAB_FORMAT = 3  popformat required
+  !  DEBUG_NATIVE_FORMAT = 4  popformat required
+    call PetscViewerPopFormat(viewer,ierr);CHKERRQ(ierr)
+  endif
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  
+
+end subroutine DebugViewerDestroy
 
 ! ************************************************************************** !
 

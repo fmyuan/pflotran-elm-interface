@@ -21,6 +21,7 @@ module PM_Base_class
     Vec :: solution_vec
     Vec :: residual_vec
     PetscBool :: print_ekg
+    PetscBool :: skip_restart
     !TODO(geh): remove solver and place required convergence settings elsewhere
     type(solver_type), pointer :: solver
     class(realization_base_type), pointer :: realization_base
@@ -65,6 +66,7 @@ module PM_Base_class
     
   public :: PMBaseInit, &
             PMBaseInputRecord, &
+            PMBaseReadSelectCase, &
             PMBasePrintHeader, &
             PMBaseResidual, &
             PMBaseJacobian, &
@@ -90,6 +92,7 @@ subroutine PMBaseInit(this)
   this%solution_vec = PETSC_NULL_VEC
   this%residual_vec = PETSC_NULL_VEC
   this%print_ekg = PETSC_FALSE
+  this%skip_restart = PETSC_FALSE
   nullify(this%next)
   
 end subroutine PMBaseInit
@@ -104,6 +107,31 @@ subroutine PMBaseRead(this,input)
   print *, 'Must extend PMBaseRead for: ' // trim(this%name)
   stop
 end subroutine PMBaseRead
+
+! ************************************************************************** !
+
+subroutine PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+
+  use Input_Aux_module
+
+  implicit none
+  class(pm_base_type) :: this
+  type(input_type) :: input
+
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type) :: option
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('SKIP_RESTART')
+      this%skip_restart = PETSC_TRUE
+    case default
+      found = PETSC_FALSE
+  end select
+
+end subroutine PMBaseReadSelectCase
 
 ! ************************************************************************** !
 
