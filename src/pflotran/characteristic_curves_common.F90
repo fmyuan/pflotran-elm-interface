@@ -1012,6 +1012,7 @@ subroutine SF_BC_CapillaryPressure(this,liquid_saturation, &
   PetscReal :: dSe_dsatl
   PetscReal :: dpc_dSe
   PetscReal :: neg_one_over_lambda
+  PetscReal :: Pcmax_copy
 
   dpc_dsatl = 0.d0
   
