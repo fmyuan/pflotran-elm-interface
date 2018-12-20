@@ -2433,14 +2433,14 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (getDerivs) then
     call vToddLongstaff( oid,gid,krh,viso,visg,deno,deng,auxvar    &
                         ,krotl,krgtl,viscotl,viscgtl,denotl,dengtl,&
-                        PETSC_TRUE,ndof,                           &
+                        PETSC_TRUE,ndof,option,                    &
                         D_visco,D_viscg,D_kr,                      &
-                        D_krotl,D_krgtl,D_viscotl,D_viscgtl,      &
+                        D_krotl,D_krgtl,D_viscotl,D_viscgtl,       &
                         D_denotl,D_dengtl                           )
   else
     call vToddLongstaff( oid,gid,krh,viso,visg,deno,deng,auxvar &
                         ,krotl,krgtl,viscotl,viscgtl,denotl,dengtl,&
-                        PETSC_FALSE,ndof)
+                        PETSC_FALSE,ndof,option)
   endif
 
   if (auxvar%hastl3p_test_object) then
@@ -2507,7 +2507,7 @@ end subroutine TOWGTLAuxVarCompute
 
 subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
                           ,krotl,krgtl,viscotl,viscgtl,denotl,dengtl  &
-                          ,getDerivs,ndof                             &
+                          ,getDerivs,ndof,option                      &
                           ,D_visco,D_viscg,D_krh                      &
                           ,D_krotl,D_krgtl,D_viscotl,D_viscgtl        &
                           ,D_denotl,D_dengtl                           )
@@ -2536,6 +2536,7 @@ subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
 !------------------------------------------------------------------------------
 
   use Derivatives_utilities_module
+  use Option_module
   implicit none
 
   PetscInt ,intent(in )   ::oid,gid
@@ -2546,6 +2547,7 @@ subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
   PetscInt,intent(in)     :: ndof
 
   PetscReal,dimension(1:ndof),optional,intent(in ):: D_visco,D_viscg,D_krh
+  type(option_type) :: option
   PetscReal,dimension(1:ndof),optional,intent(out):: D_krotl,D_krgtl
   PetscReal,dimension(1:ndof),optional,intent(out):: D_viscotl,D_viscgtl
   PetscReal,dimension(1:ndof),optional,intent(out):: D_denotl,D_dengtl
@@ -2560,11 +2562,12 @@ subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
   PetscReal,dimension(1:ndof):: D_deno,D_deng 
 
 
-  !!! TODO - input error check
   if (getDerivs .AND. &
       .NOT.(present(D_visco).AND.present(D_viscg).AND.present(D_krh).AND.present(D_krotl).AND.present(D_krgtl).AND. &
             present(D_viscotl).AND.present(D_viscgtl).AND.present(D_denotl).AND.present(D_dengtl)                    )) then
-      print *, "ERROR in input in vtoddlongstaff"
+      option%io_buffer = 'vToddLongstaff(): attempting to get analytical &
+                          derivatives but not all optional arguments in place'
+      call printErrMsg(option)
   endif
           
 
@@ -2611,9 +2614,11 @@ subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
   
   if (getDerivs) then
     call vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl,PETSC_TRUE,ndof &
+                                 ,option                                                 &
                                  ,D_fo,D_fg,D_visco,D_viscg,D_viscotl,D_viscgtl)
   else
-    call vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl,PETSC_FALSE,ndof)
+    call vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl,PETSC_FALSE,ndof&
+                                ,option)
   endif
 
 !--Form the omega weighted oil and gas densities (for Darcy flow only)---------
@@ -2621,12 +2626,13 @@ subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
   if (getDerivs) then
     call vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
                                ,deno,deng,denotl,dengtl,PETSC_TRUE,ndof &
-                               ,D_deno,D_deng                          &
+                               ,option                                  &
+                               ,D_deno,D_deng                           &
                                ,D_visco,D_viscg,D_fo,D_fg               &
                                ,D_viscotl,D_viscgtl, D_denotl,D_dengtl)
   else
     call vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
-                               ,deno,deng,denotl,dengtl,PETSC_FALSE,NDOF)
+                               ,deno,deng,denotl,dengtl,PETSC_FALSE,NDOF,option)
   endif
 
 end subroutine vToddLongstaff
@@ -2634,7 +2640,7 @@ end subroutine vToddLongstaff
 !==============================================================================
 
 subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl &
-                                  ,getDerivs,ndof,D_fo,D_fg,D_visco,D_viscg &
+                                  ,getDerivs,ndof,option,D_fo,D_fg,D_visco,D_viscg &
                                   ,D_viscotl,D_viscgtl)
 
 !------------------------------------------------------------------------------
@@ -2649,6 +2655,7 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl &
 ! Date  : Jul 2017
 !------------------------------------------------------------------------------
   use Derivatives_utilities_module
+  use Option_module
   implicit none
 
   PetscReal,intent(in ):: fo,fg,so,sg,visco,viscg
@@ -2656,6 +2663,7 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl &
   PetscBool,intent(in)    :: getDerivs
   PetscInt,intent(in)     :: ndof
   PetscReal,dimension(1:ndof),optional,intent(in ):: D_fo,D_fg,D_visco,D_viscg
+  type(option_type) :: option
 
   PetscReal,intent(out):: viscotl,viscgtl
   PetscReal,dimension(1:ndof),optional,intent(out):: D_viscotl,D_viscgtl
@@ -2670,7 +2678,9 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl &
   if (getDerivs .AND. &
       .NOT.(present(D_fo).AND.present(D_fg).AND.present(D_visco).AND.present(D_viscg).AND.&
             present(D_viscotl).AND.present(D_viscgtl)                   )) then
-      print *, "ERROR in input in todd longstaff visc"
+      option%io_buffer = 'vToddLongstaffViscosity(): attempting to get analytical &
+                          derivatives but not all optional arguments in place'
+      call printErrMsg(option)
   endif
 
 !--Set up complement of the Todd Longstaff omega-------------------------------
@@ -2753,6 +2763,7 @@ end subroutine vToddLongstaffViscosity
 
 subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
                                  ,deno,deng,denotl,dengtl,getDerivs,ndof &
+                                 ,option                                 &
                                  ,D_deno,D_deng,D_visco,D_viscg          &
                                  ,D_fo,D_fg                              &
                                  ,D_viscotl,D_viscgtl                    &
@@ -2773,6 +2784,7 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
 !------------------------------------------------------------------------------
 
   use Derivatives_utilities_module
+  use Option_module
   implicit none
 
   PetscReal,intent(in) :: fo,fg,visco,viscg,viscotl,viscgtl,deno,deng
@@ -2781,6 +2793,8 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
   PetscInt,intent(in)     :: ndof
   PetscReal,dimension(1:ndof),optional,intent(in ):: D_deno,D_deng,D_visco,D_viscg
   PetscReal,dimension(1:ndof),optional,intent(in ):: D_viscotl,D_viscgtl,D_fo,D_fg
+
+  type(option_type) :: option
 
   PetscReal,intent(out):: denotl,dengtl
 
@@ -2798,7 +2812,9 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
       .NOT.(present(D_deno).AND.present(D_deng).AND.present(D_visco).AND.present(D_viscg).AND.&
             present(D_viscotl).AND.present(D_viscgtl).AND.present(D_fo).AND.present(D_fg).AND.&
             present(D_denotl).AND.present(D_dengtl)                                            )) then
-      print *, "ERROR in input in todd longstaff density"
+      option%io_buffer = 'vToddLongstaffDensity(): attempting to get analytical &
+                          derivatives but not all optional arguments in place'
+      call printErrMsg(option)
   endif
 
 !--Set up complement of omega--------------------------------------------------
@@ -2984,21 +3000,8 @@ subroutine TOWGImsTLAuxVarPerturb(auxvar,global_auxvar, &
      auxvar(TOWG_OIL_PRESSURE_DOF)%pert / towg_pressure_scale
 
 
-  !!! EXPERIMENTAL - DS
-  !!! Here is a way of replacing analytical auxvar derivatives with differenced ones.
-  !!! Idea is to go through each of the D_xyz variable arrays in the auxvar object, calculate
-  !!! a differencing approximation using the perturbed auxvar objects we have here,
-  !!! and populate the D_xyz array with the numerical derivatives.
 
-  !!! In this way we can:
-  !!! 1) Test analytical derivative implementations of Jacobian contributions
-  !!!    independently of auxvar analytical derivative implementations - the 
-  !!!    analytical derivatives in the Jac contributions need D_xyz to be populated.
-  !!!
-  !!! 2) Implement and test auxvar derivatives piecemeal - when some D_xyz is populated
-  !!!    properly by implementation in computeAuxVars(), then all we need to do is
-  !!!    comment out the part where it would be overwritten in the routine below.
-  if (.NOT. option%flow%numerical_derivatives .AND. option%flow%num_as_alyt_derivs) then
+  if (option%flow%numerical_derivatives_compare) then 
     call NumCompare_tl3p(option%nphase,option%nflowdof,auxvar,option,&
                             TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
                             TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof)

@@ -210,6 +210,9 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
 
     case('ANALYTICAL_JACOBIAN_COMPARE')
       option%flow%numerical_derivatives_compare = PETSC_TRUE
+
+    ! artifact from testing, currently does nothing; will be used again
+    ! in future testing/implementation phases.
     case('NUMERICAL_AS_ALYT')
       option%flow%num_as_alyt_derivs = PETSC_TRUE
 
