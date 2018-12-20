@@ -2197,7 +2197,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
       D_xmf_up=0.d0;                         D_xmf_dn=0.d0
     endif
  
- !!! EXPERIMENTAL
+ !!! EXPERIMENTAL - turning off the cycle command remains a bad idea
  !if (.NOT. analytical_derivatives) then
     if (auxvar_up%mobility(iphase) + &
         auxvar_dn%mobility(iphase) < eps) then
@@ -2306,8 +2306,8 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
 
     endif      
 
-    !if (mobility > floweps) then
-    if (mobility > floweps .OR. analytical_derivatives) then
+    !if (mobility > floweps) then  
+    if (mobility > floweps .OR. analytical_derivatives) then ! not clear how much differnce this makes
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
@@ -6103,6 +6103,11 @@ function TOWGImsTLAverageDensity(sat_up,sat_dn,density_up,density_dn, &
 !  if ( (towg_miscibility_model == TOWG_IMMISCIBLE) .or. &
 !       (towg_miscibility_model == TOWG_TODD_LONGSTAFF) &
 !     ) then
+!!! EXPERIMENTAL
+#if 0
+  if ( towg_miscibility_model == TOWG_TODD_LONGSTAFF  .OR. &
+       towg_miscibility_model == TOWG_SOLVENT_TL) then
+#endif
   if ( towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
     TOWGImsTLAverageDensity = 0.5d0*(density_up+density_dn)
     if (getDerivs) then
