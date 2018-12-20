@@ -28,6 +28,7 @@ module PM_General_class
     PetscReal :: abs_update_inf_tol(3,3)
     PetscReal :: rel_update_inf_tol(3,3)
     PetscReal :: damping_factor
+    PetscInt :: general_newton_max_iter
   contains
     procedure, public :: Read => PMGeneralRead
     procedure, public :: InitializeRun => PMGeneralInitializeRun
@@ -123,9 +124,9 @@ function PMGeneralCreate()
   !                                        ref_u / ref_density_w
   
   !MAN optimized:
-  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-8 !kmol_water/sec
-  PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-8
-  PetscReal, parameter :: u_abs_inf_tol = 1.d-10
+  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-7 !kmol_water/sec
+  PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-7
+  PetscReal, parameter :: u_abs_inf_tol = 1.d-6
                                           
   PetscReal, parameter :: residual_abs_inf_tol(3) = (/w_mass_abs_inf_tol, &
                              a_mass_abs_inf_tol, u_abs_inf_tol/)
@@ -146,6 +147,7 @@ function PMGeneralCreate()
                                        ! 2 = air in xmol(air,liquid)
   this%max_change_isubvar = [0,0,0,2,0,0]
   this%damping_factor = -1.d0
+  this%general_newton_max_iter = 8
   
   call PMSubsurfaceFlowCreate(this)
   this%name = 'General Multiphase Flow'
@@ -220,6 +222,10 @@ subroutine PMGeneralRead(this,input)
     
     select case(trim(keyword))
       !man: phase change
+      case('MAX_NEWTON_ITERATIONS')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%general_newton_max_iter = tempreal
       case('PHASE_CHANGE_EPSILON')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -640,6 +646,12 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! Date: 11/21/18
   ! 
   
+  use Grid_module
+  use Option_module
+  use Patch_module
+  use General_Aux_module
+  use Global_Aux_module
+
   implicit none
   
   class(pm_general_type) :: this
@@ -649,14 +661,86 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-  PetscReal, pointer :: dX_temp(:)
- 
+  type(patch_type), pointer :: patch  
+  type(grid_type), pointer :: grid 
+  type(option_type), pointer :: option 
+  type(general_auxvar_type), pointer :: gen_auxvars(:,:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: offset
+  PetscInt :: pgas_index, xmol_index, pw_index
+  PetscInt :: saturation_index
+  PetscReal :: temp_real
+
+  PetscReal, parameter :: ALMOST_ZERO = 1.d-10
+  PetscReal, parameter :: ALMOST_ONE = 1.d0-ALMOST_ZERO
+
+  PetscReal, pointer :: X_p(:),dX_p(:)
+
+  call VecGetArrayF90(dX,dX_p,ierr); CHKERRQ(ierr)
+  call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+
+  grid => this%realization%patch%grid
+  patch => this%realization%patch
+  option => this%realization%option
+  gen_auxvars => this%realization%patch%aux%General%auxvars
+  global_auxvars => this%realization%patch%aux%Global%auxvars
+  
+  changed = PETSC_TRUE 
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    offset = (local_id-1)*option%nflowdof
+    select case(global_auxvars(ghosted_id)%istate)
+      case(LIQUID_STATE)
+        xmol_index = offset + GENERAL_LIQUID_STATE_X_MOLE_DOF
+        pw_index = offset + GENERAL_LIQUID_PRESSURE_DOF
+        if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
+          dX_p(xmol_index) = X_p(xmol_index)
+          changed = PETSC_TRUE
+        endif
+        if (X_p(pw_index)- dX_p(pw_index) <= 0.d0) then
+          dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+      case(GAS_STATE)
+        pgas_index = offset + GENERAL_GAS_PRESSURE_DOF
+        if (X_p(pgas_index)- dX_p(pgas_index) <= 0.d0) then
+          dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+      case(TWO_PHASE_STATE)
+        pgas_index = offset + GENERAL_GAS_PRESSURE_DOF
+        if (X_p(pgas_index) - dX_p(pgas_index) < &
+                gen_auxvars(ZERO_INTEGER,ghosted_id)% &
+                pres(option%saturation_pressure_id)) then
+          dX_p(pgas_index) = X_p(pgas_index) - &
+                  gen_auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%saturation_pressure_id)
+          changed = PETSC_TRUE
+        endif
+        if (general_immiscible) then
+          saturation_index = offset + GENERAL_GAS_SATURATION_DOF
+          temp_real = X_p(saturation_index) - dX_p(saturation_index)
+          if (temp_real > ALMOST_ONE) then
+            dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+            changed = PETSC_TRUE
+          else if (temp_real < ALMOST_ZERO) then
+            dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+            changed = PETSC_TRUE
+          endif
+        endif
+    end select
+  enddo
+
   if (this%damping_factor > 0.d0) then
-    call VecGetArrayF90(dX,dX_temp,ierr); CHKERRQ(ierr)
-    dX_temp = dX_temp*this%damping_factor
-    call VecRestoreArrayF90(dX,dX_temp,ierr); CHKERRQ(ierr)
+    dX_p = dX_p*this%damping_factor
     changed = PETSC_TRUE
   endif
+
+  call VecRestoreArrayF90(dX,dX_p,ierr); CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMGeneralCheckUpdatePre
 
@@ -821,7 +905,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof, itol
   PetscReal :: R, A, R_A
-  PetscReal, parameter :: A_zero = 1.d-25
+  PetscReal, parameter :: A_zero = 1.d-15
   PetscBool :: converged_abs_residual_flag(3,3)
   PetscReal :: converged_abs_residual_real(3,3)
   PetscInt :: converged_abs_residual_cell(3,3)
@@ -848,7 +932,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   field => this%realization%field
   grid => patch%grid
   global_auxvars => patch%aux%Global%auxvars
-
+  
   if (this%check_post_convergence) then
     call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
@@ -871,14 +955,15 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         ! infinity norms on residual
         R = dabs(r_p(ival))
         A = dabs(accum2_p(ival))
-        R_A = R/A
+!         R_A = R/A
         
-        !TOUGH2 way:
-!         if (A > 1) then
-!           R_A = R/A
-!         else
-!           R_A = R
-!         endif
+        !TOUGH3 way:
+        if (A > 1) then
+          R_A = R/A
+        else
+          R_A = R
+        endif
+
         if (R > this%residual_abs_inf_tol(idof)) then
           converged_absolute = PETSC_FALSE
         endif
@@ -962,6 +1047,15 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       call OptionPrint(string,option)
       write(string,'(4x,"RU:",9es8.1)') &
         this%converged_real(:,:,REL_UPDATE_INDEX)
+      call OptionPrint(string,option)
+    endif
+  endif
+
+  if (it >= this%general_newton_max_iter) then
+    option%convergence = CONVERGENCE_CUT_TIMESTEP
+    
+    if (this%logging_verbosity > 0) then
+      string = '    Exceeded General Mode Max Newton Iterations'
       call OptionPrint(string,option)
     endif
   endif
