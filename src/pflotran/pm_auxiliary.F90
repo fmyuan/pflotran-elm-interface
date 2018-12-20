@@ -96,6 +96,8 @@ subroutine PMAuxiliaryInit(this)
   this%name = ''
   
   call PMBaseInit(this)
+  ! restart not currently supported for auxiliary pm's, and not needed.
+  this%skip_restart = PETSC_TRUE
   
 end subroutine PMAuxiliaryInit
 

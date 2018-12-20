@@ -1146,6 +1146,7 @@ subroutine SubsurfaceReadUFDDecayPM(input,option,pm)
 
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
 
   error_string = 'SIMULATION,PROCESS_MODELS,UFD_DECAY'
 
@@ -1158,6 +1159,11 @@ subroutine SubsurfaceReadUFDDecayPM(input,option,pm)
     if (InputCheckExit(input,option)) exit
     call InputReadWord(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
+
+    found = PETSC_FALSE
+    call PMBaseReadSelectCase(pm,input,word,found,error_string,option)
+    if (found) cycle
+
     select case(word)
       case default
         option%io_buffer = 'Keyword ' // trim(word) // &
