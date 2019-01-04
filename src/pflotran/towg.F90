@@ -2920,7 +2920,8 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
             endif
           endif      
 
-          if (mobility > floweps) then
+          if (mobility > floweps .or. analytical_derivatives) then ! not clear how much difference this makes
+          !if (mobility > floweps) then
             ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
             !                    dP[Pa]]
             v_darcy(iphase) = perm_ave_over_dist * mobility * delta_pressure
