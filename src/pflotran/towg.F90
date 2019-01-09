@@ -4390,7 +4390,7 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
 
     if (towg_analytical_derivatives_compare) then
       flagged = PETSC_FALSE
-      call MatCompare(J, jalyt, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      call MatCompare(J, jalyt, option%nflowdof, option%nflowdof, towg_dcomp_tol, towg_dcomp_reltol,flagged)
       if (flagged) then
         print *, "this is accum derivative"
       endif
@@ -4558,15 +4558,25 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
 
     if (towg_analytical_derivatives_compare) then
       flagged = PETSC_FALSE
-      call MatCompare(Jup, Jalyt_up, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      call MatCompare(Jup, Jalyt_up, option%nflowdof,option%nflowdof, towg_dcomp_tol, towg_dcomp_reltol,flagged)
       if (flagged) then
         print *, "this is flux derivative, that was matrix up"
       endif
       flagged = PETSC_FALSE
-      call MatCompare(Jdn, Jalyt_dn, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      call MatCompare(Jdn, Jalyt_dn, option%nflowdof, option%nflowdof, towg_dcomp_tol, towg_dcomp_reltol,flagged)
       if (flagged) then
         print *, "this is flux derivative, that was matrix dn"
       endif
+
+    call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                  material_auxvar_up,sir_up, &
+                  thermal_conductivity_up, &
+                  auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                  material_auxvar_dn,sir_dn, &
+                  thermal_conductivity_dn, &
+                  area,dist,towg_parameter, &
+                  option,v_darcy,res,PETSC_FALSE,Jalyt_up,Jalyt_dn,PETSC_TRUE)
+
     endif
 
     jup = jalyt_up
@@ -4693,7 +4703,7 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
     if (towg_analytical_derivatives_compare) then
       flagged = PETSC_FALSE
-      call MatCompare(Jdn, Jalyt_dn, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      call MatCompare(Jdn, Jalyt_dn, option%nflowdof, option%nflowdof, towg_dcomp_tol, towg_dcomp_reltol,flagged)
       if (flagged) then
         print *, "this is bc flux derivative"
       endif
@@ -4798,7 +4808,7 @@ subroutine TOWGSrcSinkDerivative(option,src_sink_condition,auxvars, &
 
     if (towg_analytical_derivatives_compare) then
       flagged = PETSC_FALSE
-      call MatCompare(Jac, Jalyt, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      call MatCompare(Jac, Jalyt,option%nflowdof,option%nflowdof, towg_dcomp_tol, towg_dcomp_reltol,flagged)
       if (flagged) then 
         print *, "this is src sink derivative"
       endif
