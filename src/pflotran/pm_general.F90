@@ -1049,6 +1049,12 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         this%converged_real(:,:,REL_UPDATE_INDEX)
       call OptionPrint(string,option)
     endif
+    
+    if (option%convergence == CONVERGENCE_KEEP_ITERATING) then
+      call SNESConvergedDefault(snes,it,xnorm,unorm,fnorm,reason, &
+                            0,ierr);CHKERRQ(ierr)
+      if (reason > 0) option%convergence = CONVERGENCE_OFF
+    endif
   endif
 
   if (it >= this%general_newton_max_iter) then
