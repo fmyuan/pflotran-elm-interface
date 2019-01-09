@@ -279,6 +279,9 @@ subroutine PMTOWGRead(this,input)
       case('DEBUG_CELL')
         call InputReadInt(input,option,towg_debug_cell_id)
         call InputErrorMsg(input,option,'debug cell id',error_string)
+      case('TL4P_ALTERNATIVE_DENSITY')
+        TL4P_altDensity = PETSC_TRUE
+
       !case('DIFFUSE_XMASS')
       !  general_diffuse_xmol = PETSC_FALSE
       !case('HARMONIC_GAS_DIFFUSIVE_DENSITY')

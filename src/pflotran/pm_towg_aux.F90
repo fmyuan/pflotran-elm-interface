@@ -94,6 +94,9 @@ module PM_TOWG_Aux_module
   PetscInt, parameter, public :: TOWG_UPDATE_FOR_ACCUM = 1
   PetscInt, parameter, public :: TOWG_UPDATE_FOR_BOUNDARY = 2
 
+  !alternative density computation for tl4p, sometimes problematic?
+  PetscBool, public :: TL4P_altDensity = PETSC_FALSE
+
   ! it might be required for thermal diffusion terms and tough conv criteria
   type, public :: towg_parameter_type
      !  PetscReal, pointer :: diffusion_coefficient(:) ! (iphase)
@@ -308,7 +311,9 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
   PetscInt :: ghosted_id, iconn, local_id
   PetscInt :: idof
 
-  if (option%flow%numerical_derivatives .OR. option%flow%numerical_derivatives_compare) then
+  if (option%flow%numerical_derivatives         .OR. &
+      option%flow%numerical_derivatives_compare .OR. &
+      option%flow%num_as_alyt_derivs)             then
     allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
     do ghosted_id = 1, grid%ngmax
       do idof = 0, option%nflowdof
@@ -3003,7 +3008,13 @@ subroutine TOWGImsTLAuxVarPerturb(auxvar,global_auxvar, &
      auxvar(TOWG_OIL_PRESSURE_DOF)%pert / towg_pressure_scale
 
 
-
+#if 0
+  if (.NOT. option%flow%numerical_derivatives .AND. option%flow%num_as_alyt_derivs) then
+    call NumCompare_tl3p(option%nphase,option%nflowdof,auxvar,option,&
+                            TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
+                            TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof)
+  endif
+#endif
   if (option%flow%numerical_derivatives_compare) then 
     call NumCompare_tl3p(option%nphase,option%nflowdof,auxvar,option,&
                             TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
@@ -3259,12 +3270,18 @@ subroutine TL4PAuxVarPerturb(auxvar,global_auxvar, &
                             TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof, &
                             isSaturated)
 
-#if 0
-    call NumCompare_towg_bo(option%nphase,option%nflowdof,auxvar,option,&
-                            TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
-                            TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof,&
-#endif
   endif
+#if 0
+  ! alternatively, for the finished version we will want this (maybe allow seperate routine to 
+  ! do alyt as num anyway?):
+  if (option%flow%numerical_derivatives_compare) then 
+    call NumCompare_tl4p(option%nphase,option%nflowdof,auxvar,option,&
+                            TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
+                            TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof, &
+                            isSaturated)
+  endif
+#endif
+
 
 end subroutine TL4PAuxVarPerturb
 

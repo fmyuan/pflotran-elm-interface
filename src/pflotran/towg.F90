@@ -6109,7 +6109,9 @@ function TOWGImsTLAverageDensity(sat_up,sat_dn,density_up,density_dn, &
   if ( towg_miscibility_model == TOWG_TODD_LONGSTAFF  .OR. &
        towg_miscibility_model == TOWG_SOLVENT_TL) then
 #endif
-  if ( towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
+  if ( towg_miscibility_model == TOWG_TODD_LONGSTAFF  .OR. &
+       (towg_miscibility_model == TOWG_SOLVENT_TL .AND. TL4P_altDensity)) then
+  !if ( towg_miscibility_model == towg_todd_longstaff ) then
     TOWGImsTLAverageDensity = 0.5d0*(density_up+density_dn)
     if (getDerivs) then
       d_denave_den_up = 0.5d0;d_denave_den_dn = 0.5d0
