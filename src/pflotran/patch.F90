@@ -2068,13 +2068,6 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
               '" requires a temperature bc of type dirichlet'
             call printErrMsg(option)
       endif
-      ! at the moment hydrostatic pressure is valid only for regions
-      ! fully saturated in water Sw=Sw_max, where Pw=Po (i.e. Pc=0)
-      !coupler%flow_aux_mapping(TOIL_IMS_OIL_SATURATION_INDEX) = 2
-      !coupler%flow_aux_real_var(2,1:num_connections) = 0.d0
-      !allow for exception when zero capillary pressure (pw=po)
-      !coupler%flow_aux_real_var(2,1:num_connections) = &
-      !  toil_ims%saturation%dataset%rarray(1)
       dof2 = PETSC_TRUE
       call TOIHydrostaticUpdateCoupler(coupler,option,patch%grid, &
                    patch%characteristic_curves_array,patch%sat_func_id, &
@@ -2237,7 +2230,7 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
 
   use Option_module
   use Condition_module
-  !use Hydrostatic_module
+  use HydrostaticMultiPhase_module
   use Saturation_module
   !use EOS_Water_module
 
@@ -2298,6 +2291,16 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
               towg%oil_pressure%dataset%rarray(1)
             dof1 = PETSC_TRUE
             coupler%flow_bc_type(TOWG_LIQ_EQ_IDX) = DIRICHLET_BC
+          case(HYDROSTATIC_BC)
+            call HydrostaticMPUpdateCoupler(coupler,option,patch%grid, &
+                         patch%characteristic_curves_array,patch%sat_func_id, &
+                         patch%imat)
+            dof1 = PETSC_TRUE
+            dof2 = PETSC_TRUE
+            dof3 = PETSC_TRUE
+            coupler%flow_bc_type(TOWG_LIQ_EQ_IDX) = HYDROSTATIC_BC
+            coupler%flow_bc_type(TOWG_OIL_EQ_IDX) = HYDROSTATIC_BC
+            coupler%flow_bc_type(TOWG_GAS_EQ_IDX) = HYDROSTATIC_BC
           case default
             string = GetSubConditionName(towg%oil_pressure%itype)
             option%io_buffer = &
@@ -2305,57 +2308,59 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
                 'TOWG three phase state oil pressure',string)
             call printErrMsg(option)
         end select
-      !in three-phase flow, oil saturation is the second dof
-        real_count = real_count + 1
-        select case(towg%oil_saturation%itype)
-          case(DIRICHLET_BC)
-            coupler%flow_aux_mapping(TOWG_OIL_SATURATION_INDEX) = real_count
-            coupler%flow_aux_real_var(real_count,1:num_connections) = &
-               towg%oil_saturation%dataset%rarray(1)
-            dof2 = PETSC_TRUE
-            coupler%flow_bc_type(TOWG_OIL_EQ_IDX) = DIRICHLET_BC
-          case default
-            string = GetSubConditionName(towg%oil_saturation%itype)
-            option%io_buffer = &
-              FlowConditionUnknownItype(coupler%flow_condition, &
-                'TOWG three phase state oil saturation',string)
-            call printErrMsg(option)
-        end select
-      !in three-phase flow, gas saturation or bubble point is the third dof
-        real_count = real_count + 1
-        select case(towg%gas_saturation%itype)
-          case(DIRICHLET_BC)
-! Extract gas and bubble point for this dof (and set bubble point and state if required)
-            coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = real_count
-            soil=towg%oil_saturation%dataset%rarray(1)
-            sgas=towg%gas_saturation%dataset%rarray(1)
-            if(    ( towg_miscibility_model == TOWG_SOLVENT_TL )   &
-               .or.( towg_miscibility_model == TOWG_BLACK_OIL  ) ) then
-              pressure    =towg%oil_pressure%dataset%rarray(1)
-              bubble_point=towg%bubble_point%dataset%rarray(1)
-! Put cells into saturated or undersaturated state (one or other in this case)
-              state       =TOWG_THREE_PHASE_STATE
-              if( (sgas<eps_gas) .and. (bubble_point<pressure) .and. (soil>eps_oil) ) state=TOWG_LIQ_OIL_STATE
-              if( state==TOWG_THREE_PHASE_STATE ) then
-                coupler%flow_aux_real_var(real_count,1:num_connections) = sgas
+        if ( towg%oil_pressure%itype /= HYDROSTATIC_BC) then
+          !in three-phase flow, oil saturation is the second dof
+          real_count = real_count + 1
+          select case(towg%oil_saturation%itype)
+            case(DIRICHLET_BC)
+              coupler%flow_aux_mapping(TOWG_OIL_SATURATION_INDEX) = real_count
+              coupler%flow_aux_real_var(real_count,1:num_connections) = &
+                 towg%oil_saturation%dataset%rarray(1)
+              dof2 = PETSC_TRUE
+              coupler%flow_bc_type(TOWG_OIL_EQ_IDX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(towg%oil_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'TOWG three phase state oil saturation',string)
+              call printErrMsg(option)
+          end select
+          !in three-phase flow, gas saturation or bubble point is the third dof
+          real_count = real_count + 1
+          select case(towg%gas_saturation%itype)
+            case(DIRICHLET_BC)
+            ! Extract gas and bubble point for this dof (and set bubble point and state if required)
+              coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = real_count
+              soil=towg%oil_saturation%dataset%rarray(1)
+              sgas=towg%gas_saturation%dataset%rarray(1)
+              if(    ( towg_miscibility_model == TOWG_SOLVENT_TL )   &
+                 .or.( towg_miscibility_model == TOWG_BLACK_OIL  ) ) then
+                pressure    =towg%oil_pressure%dataset%rarray(1)
+                bubble_point=towg%bubble_point%dataset%rarray(1)
+  ! Put cells into saturated or undersaturated state (one or other in this case)
+                state       =TOWG_THREE_PHASE_STATE
+                if( (sgas<eps_gas) .and. (bubble_point<pressure) .and. (soil>eps_oil) ) state=TOWG_LIQ_OIL_STATE
+                if( state==TOWG_THREE_PHASE_STATE ) then
+                  coupler%flow_aux_real_var(real_count,1:num_connections) = sgas
+                else
+                  coupler%flow_aux_real_var(real_count,1:num_connections) = bubble_point
+                endif
+                coupler%flow_aux_int_var(TOWG_STATE_INDEX,1:num_connections) = state
               else
-                coupler%flow_aux_real_var(real_count,1:num_connections) = bubble_point
+                coupler%flow_aux_real_var(real_count,1:num_connections) = sgas
               endif
-              coupler%flow_aux_int_var(TOWG_STATE_INDEX,1:num_connections) = state
-            else
-              coupler%flow_aux_real_var(real_count,1:num_connections) = sgas
-            endif
-            dof3 = PETSC_TRUE
-            coupler%flow_bc_type(TOWG_GAS_EQ_IDX) = DIRICHLET_BC
-          case default
-            string = &
-              GetSubConditionName(towg%gas_saturation%itype)
-            option%io_buffer = &
-              FlowConditionUnknownItype(coupler%flow_condition, &
-                'TOWG three phase state gas saturation',string)
-            call printErrMsg(option)
-        end select
-     endif
+              dof3 = PETSC_TRUE
+              coupler%flow_bc_type(TOWG_GAS_EQ_IDX) = DIRICHLET_BC
+            case default
+              string = &
+                GetSubConditionName(towg%gas_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'TOWG three phase state gas saturation',string)
+              call printErrMsg(option)
+          end select
+        end if !end if not hydrostatic  
+      endif
 
     case(TOWG_THREE_PHASE_STATE)
       coupler%flow_aux_int_var(TOWG_STATE_INDEX,1:num_connections) = TOWG_THREE_PHASE_STATE

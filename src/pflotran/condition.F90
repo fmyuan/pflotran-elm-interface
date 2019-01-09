@@ -86,6 +86,7 @@ module Condition_module
   ! data structure for towg
   ! some of these variables depend on primary variable choice
   type, public :: flow_towg_condition_type
+    PetscBool :: is_wg_equilibration
     type(flow_sub_condition_type), pointer :: oil_pressure
     type(flow_sub_condition_type), pointer :: gas_pressure
     type(flow_sub_condition_type), pointer :: oil_saturation
@@ -103,6 +104,11 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: gas_in_gas_mole_fraction
     type(flow_sub_condition_type), pointer :: rate
     type(flow_sub_condition_type), pointer :: bhp_pressure
+    type(flow_sub_condition_type), pointer :: owc_z
+    type(flow_sub_condition_type), pointer :: pcow_owc
+    type(flow_sub_condition_type), pointer :: ogc_z
+    type(flow_sub_condition_type), pointer :: pcog_ogc
+    type(flow_sub_condition_type), pointer :: datum_z
     ! any new sub conditions must be added to FlowConditionIsTransient
   end type flow_towg_condition_type
 
@@ -355,6 +361,7 @@ function FlowTOWGConditionCreate(option)
 
   allocate(towg_condition)
 
+  towg_condition%is_wg_equilibration = PETSC_FALSE
   nullify(towg_condition%oil_pressure)
   nullify(towg_condition%gas_pressure)
   nullify(towg_condition%oil_saturation)
@@ -372,6 +379,11 @@ function FlowTOWGConditionCreate(option)
   nullify(towg_condition%gas_in_gas_mole_fraction)
   nullify(towg_condition%rate)
   nullify(towg_condition%bhp_pressure)
+  nullify(towg_condition%owc_z)
+  nullify(towg_condition%pcow_owc)
+  nullify(towg_condition%ogc_z)
+  nullify(towg_condition%pcog_ogc)
+  nullify(towg_condition%datum_z)
 
   FlowTOWGConditionCreate => towg_condition
 
@@ -648,7 +660,7 @@ function FlowTOWGSubConditionPtr(sub_condition_name,towg, &
   type(flow_sub_condition_type), pointer :: sub_condition_ptr
 
   select case(sub_condition_name)
-    case('OIL_PRESSURE')
+  case('OIL_PRESSURE','PRESSURE')
       if (associated(towg%oil_pressure)) then
         sub_condition_ptr => towg%oil_pressure
       else
@@ -766,6 +778,41 @@ function FlowTOWGSubConditionPtr(sub_condition_name,towg, &
       else
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         towg%bhp_pressure => sub_condition_ptr
+      endif
+    case('OWC_Z','OWC_D','WGC_Z','WGC_D')
+      if (associated(towg%owc_z)) then
+        sub_condition_ptr => towg%owc_z
+      else
+        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+        towg%owc_z => sub_condition_ptr
+      endif
+    case('PCOW_OWC','PCWG_WGC')
+      if (associated(towg%pcow_owc)) then
+        sub_condition_ptr => towg%pcow_owc
+      else
+        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+        towg%pcow_owc => sub_condition_ptr
+      endif      
+    case('OGC_Z','OGC_D')
+      if (associated(towg%ogc_z)) then
+        sub_condition_ptr => towg%ogc_z
+      else
+        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+        towg%ogc_z => sub_condition_ptr
+      endif
+    case('PCOG_OGC')
+      if (associated(towg%pcog_ogc)) then
+        sub_condition_ptr => towg%pcog_ogc
+      else
+        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+        towg%pcog_ogc => sub_condition_ptr
+      endif
+    case('DATUM_Z','DATUM_D')
+      if (associated(towg%datum_z)) then
+        sub_condition_ptr => towg%datum_z
+      else
+        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+        towg%datum_z => sub_condition_ptr
       endif
     case default
       call InputKeywordUnrecognized(sub_condition_name, &
@@ -3126,15 +3173,23 @@ subroutine FlowConditionTOWGRead(condition,input,option)
         sub_condition_ptr => FlowTOWGSubConditionPtr(word,towg,option)
         call InputReadDouble(input,option,sub_condition_ptr%aux_real(1))
         call InputErrorMsg(input,option,'LIQUID_CONDUCTANCE','CONDITION')
-      !when refactoring replace this block  with a mode-specific function
-      case('OIL_PRESSURE','GAS_PRESSURE','OIL_SATURATION', 'GAS_SATURATION', &
-           'SOLVENT_SATURATION','BUBBLE_POINT','TEMPERATURE','GAS_IN_OIL_MOLE_FRACTION', &
-           'GAS_IN_GAS_MOLE_FRACTION','RATE','BHP_PRESSURE', 'LIQUID_FLUX', &
-           'OIL_FLUX','GAS_FLUX','SOLVENT_FLUX','ENERGY_FLUX','ENTHALPY')
+      case('WATER_GAS_EQUILIBRATION')
+        towg%is_wg_equilibration = PETSC_TRUE
+      case('PRESSURE','OIL_PRESSURE','GAS_PRESSURE','OIL_SATURATION', &
+          'GAS_SATURATION','SOLVENT_SATURATION','BUBBLE_POINT','TEMPERATURE', &
+          'GAS_IN_OIL_MOLE_FRACTION', 'GAS_IN_GAS_MOLE_FRACTION', &
+          'RATE','BHP_PRESSURE', 'LIQUID_FLUX','OIL_FLUX','GAS_FLUX', &
+          'SOLVENT_FLUX','ENERGY_FLUX','ENTHALPY', 'DATUM_Z','DATUM_D', &
+          'OWC_Z','OWC_D','PCOW_OWC', 'OGC_Z','OGC_D', 'PCOG_OGC', &
+          'WGC_Z','WGC_D','PCWG_WGC')
         sub_condition_ptr => FlowTOWGSubConditionPtr(word,towg,option)
         select case(trim(word))
-          case('OIL_PRESSURE','GAS_PRESSURE','BHP_PRESSURE','BUBBLE_POINT')
+          case('PRESSURE','OIL_PRESSURE','GAS_PRESSURE','BHP_PRESSURE', &
+               'BUBBLE_POINT','PCOW_OWC','PCOG_OGC','PCWG_WGC')
             internal_units_string = 'Pa'
+          case('OWC_Z','OWC_D','OGC_Z','OGC_D','WGC_Z','WGC_D', &
+               'DATUM_Z','DATUM_D')
+            internal_units_string = 'meter' 
           case('OIL_SATURATION','GAS_SATURATION','SOLVENT_SATURATION', &
                'GAS_IN_OIL_MOLE_FRACTION', 'GAS_IN_GAS_MOLE_FRACTION')
             internal_units_string = 'unitless'
@@ -3160,10 +3215,22 @@ subroutine FlowConditionTOWGRead(condition,input,option)
             input%err_buf = word
             internal_units_string = 'MW/m^2|MJ/m^2-sec'
         end select
+        select case(trim(word))
+        !give a type to pass FlowSubConditionVerify.
+          case('OWC_Z','OWC_D','OGC_Z','OGC_D','DATUM_Z','DATUM_D', &
+                'PCOW_OWC','PCOG_OGC','PCWG_WGC')
+            sub_condition_ptr%itype = DIRICHLET_BC
+            sub_condition_ptr%ctype = 'dirichlet'
+        end select
         call ConditionReadValues(input,option,word, &
-                                 sub_condition_ptr%dataset, &
-                                 sub_condition_ptr%units,internal_units_string)
+                            sub_condition_ptr%dataset, &
+                            sub_condition_ptr%units,internal_units_string)
         input%force_units = PETSC_FALSE
+        select case(trim(word))
+          case('OWC_D','OGC_D','WGC_D','DATUM_D')
+            sub_condition_ptr%dataset%rbuffer(:) =  - &
+                                    sub_condition_ptr%dataset%rbuffer(:)
+        end select
       case default
         call InputKeywordUnrecognized(word,'flow condition',option)
     end select
@@ -3202,9 +3269,6 @@ subroutine FlowConditionTOWGRead(condition,input,option)
             associated(towg%temperature)) &
           ) then
     condition%iphase = TOWG_ANY_STATE
-  !initialise to TOWG_ANY_STATE if hydrostatic condition
-  !for hydrostatic the phase state will change cell by cell and assigned in
-  !the hydrostatic coupler
   else
     !check oil/gas phase state
     phase_state_found=PETSC_FALSE
@@ -3234,6 +3298,14 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           phase_state_found = PETSC_TRUE
         end if
       end if
+    !only oil pressuse associated: this is a hydrostatic equilibration
+    !initialise to TOWG_ANY_STATE. Phase state computed in HydrostaticMPUpdateCoupler
+    else if ( associated(towg%oil_pressure) .and. &
+              towg%oil_pressure%itype == HYDROSTATIC_BC ) then
+      condition%iphase  = TOWG_ANY_STATE
+      phase_state_found = PETSC_TRUE
+      !if not present: owc_z, ogc_z, datum_z, pcow_owc, pcog_ogc, pcwg_wgc
+      ! are set to zero by the equilibration function
     end if
 
     !check that a valid phase state has been found
@@ -3357,9 +3429,28 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   call FlowSubConditionVerify(option,condition,word,towg%rate, &
                               default_time_storage, &
                               PETSC_TRUE)
-
   word = 'bhp pressure'
   call FlowSubConditionVerify(option,condition,word,towg%bhp_pressure, &
+                              default_time_storage, &
+                              PETSC_TRUE)
+  word = 'owc_z'
+  call FlowSubConditionVerify(option,condition,word,towg%owc_z, &
+                              default_time_storage, &
+                              PETSC_TRUE)
+  word = 'pcow_owc'
+  call FlowSubConditionVerify(option,condition,word,towg%pcow_owc, &
+                              default_time_storage, &
+                              PETSC_TRUE)
+  word = 'ogc_z'
+  call FlowSubConditionVerify(option,condition,word,towg%ogc_z, &
+                              default_time_storage, &
+                              PETSC_TRUE)
+  word = 'pcog_ogc'
+  call FlowSubConditionVerify(option,condition,word,towg%pcog_ogc, &
+                              default_time_storage, &
+                              PETSC_TRUE)
+  word = 'datum_z'
+  call FlowSubConditionVerify(option,condition,word,towg%datum_z, &
                               default_time_storage, &
                               PETSC_TRUE)
 
@@ -3398,6 +3489,16 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   if (associated(towg%rate)) &
     i = i + 1
   if (associated(towg%bhp_pressure)) &
+    i = i + 1
+  if (associated(towg%owc_z)) &
+    i = i + 1
+  if (associated(towg%pcow_owc)) &
+    i = i + 1
+  if (associated(towg%ogc_z)) &
+    i = i + 1
+  if (associated(towg%pcog_ogc)) &
+    i = i + 1
+  if (associated(towg%datum_z)) &
     i = i + 1
 
   condition%num_sub_conditions = i
@@ -3473,6 +3574,26 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   if (associated(towg%bhp_pressure)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => towg%bhp_pressure
+  endif
+  if (associated(towg%owc_z)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => towg%owc_z
+  endif
+  if (associated(towg%pcow_owc)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => towg%pcow_owc
+  endif
+  if (associated(towg%ogc_z)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => towg%ogc_z
+  endif
+  if (associated(towg%pcog_ogc)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => towg%pcog_ogc
+  endif
+  if (associated(towg%datum_z)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => towg%datum_z
   endif
 
   ! set condition types
