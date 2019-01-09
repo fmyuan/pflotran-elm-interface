@@ -4439,7 +4439,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE,ICE_DENSITY, &
-         EFFECTIVE_POROSITY,LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
+         LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
          MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
          OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
          OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT, &
@@ -4515,11 +4515,6 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%u
             enddo
-          case(EFFECTIVE_POROSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%TH%auxvars(grid%nL2G(local_id))%transient_por
-            enddo
         end select
 
       else if (associated(patch%aux%Richards)) then
@@ -4549,8 +4544,6 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
             call printErrMsg(option,'GAS_VISCOSITY not supported by Richards')
           case(GAS_MOBILITY)
             call printErrMsg(option,'GAS_MOBILITY not supported by Richards')
-          case(EFFECTIVE_POROSITY)
-            call printErrMsg(option,'EFFECTIVE_POROSITY not supported by Richards')
           case(LIQUID_PRESSURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
@@ -5066,11 +5059,6 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mobility(option%gas_phase)
             enddo
-          case(EFFECTIVE_POROSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%effective_porosity
-            enddo
         end select
 
       else if (associated(patch%aux%WIPPFlo)) then
@@ -5177,11 +5165,6 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mobility(option%gas_phase)
-            enddo
-          case(EFFECTIVE_POROSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%effective_porosity
             enddo
         end select
 
@@ -5301,11 +5284,6 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%viscosity(option%oil_phase)
-            enddo
-          case(EFFECTIVE_POROSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%effective_porosity
             enddo
         end select
 
@@ -5501,11 +5479,6 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mobility(option%solvent_phase)
-            enddo
-          case(EFFECTIVE_POROSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%effective_porosity
             enddo
           case(BUBBLE_POINT)
             do local_id=1,grid%nlmax
@@ -6108,7 +6081,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,AIR_PRESSURE,CAPILLARY_PRESSURE, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE,ICE_DENSITY, &
-         SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL,EFFECTIVE_POROSITY, &
+         SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE, &
          LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
          OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
@@ -6116,7 +6089,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
          SOLVENT_PRESSURE,SOLVENT_SATURATION,SOLVENT_DENSITY, &
          SOLVENT_DENSITY_MOL,SOLVENT_ENERGY,SOLVENT_MOBILITY)
 
-     if (associated(patch%aux%TH)) then
+      if (associated(patch%aux%TH)) then
         select case(ivar)
           case(TEMPERATURE)
             value = patch%aux%Global%auxvars(ghosted_id)%temp
@@ -6153,8 +6126,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(SECONDARY_TEMPERATURE)
             local_id = grid%nG2L(ghosted_id)
             value = patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp(isubvar)
-          case(EFFECTIVE_POROSITY)
-            value = patch%aux%TH%auxvars(ghosted_id)%transient_por
         end select
       else if (associated(patch%aux%Richards)) then
         select case(ivar)
@@ -6172,8 +6143,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             call printErrMsg(option,'LIQUID_ENERGY not supported by Richards')
           case(GAS_ENERGY)
             call printErrMsg(option,'GAS_ENERGY not supported by Richards')
-          case(EFFECTIVE_POROSITY)
-            call printErrMsg(option,'EFFECTIVE_POROSITY not supported by Richards')
           case(LIQUID_PRESSURE)
             value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
           case(LIQUID_HEAD)
@@ -6444,9 +6413,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(GAS_MOBILITY)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%gas_phase)
-          case(EFFECTIVE_POROSITY)
-            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      effective_porosity
         end select
 
       else if (associated(patch%aux%WIPPFlo)) then
@@ -6509,9 +6475,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(GAS_MOBILITY)
             value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%gas_phase)
-          case(EFFECTIVE_POROSITY)
-            value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      effective_porosity
         end select
 
       else if (associated(patch%aux%TOil_ims)) then
@@ -6584,9 +6547,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(OIL_VISCOSITY)
             value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
                     viscosity(option%oil_phase)
-          case(EFFECTIVE_POROSITY)
-            value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    effective_porosity
         end select
 
       else if (associated(patch%aux%TOWG)) then
@@ -6678,9 +6638,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(GAS_MOBILITY)
             value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
                     mobility(option%gas_phase)
-          case(EFFECTIVE_POROSITY)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    effective_porosity
           case(BUBBLE_POINT)
             if(    ( towg_miscibility_model == TOWG_SOLVENT_TL )   &
                .or.( towg_miscibility_model == TOWG_BLACK_OIL  ) ) then

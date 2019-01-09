@@ -31,7 +31,6 @@ module TH_Aux_module
     PetscReal :: dh_dt
     PetscReal :: du_dp
     PetscReal :: du_dt
-    PetscReal :: transient_por
     PetscReal :: Dk_eff
     PetscReal :: Ke
     PetscReal :: dKe_dp
@@ -217,7 +216,6 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%dh_dt     = uninit_value
   auxvar%du_dp     = uninit_value
   auxvar%du_dt     = uninit_value    
-  auxvar%transient_por = uninit_value
   auxvar%Dk_eff    = uninit_value
   auxvar%Ke        = uninit_value
   auxvar%dKe_dp    = uninit_value
@@ -314,7 +312,6 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%dh_dt = auxvar%dh_dt
   auxvar2%du_dp = auxvar%du_dp
   auxvar2%du_dt = auxvar%du_dt  
-  auxvar2%transient_por = auxvar%transient_por
   auxvar2%Dk_eff = auxvar%Dk_eff
   auxvar2%Ke = auxvar%Ke
   auxvar2%dKe_dp = auxvar%dKe_dp

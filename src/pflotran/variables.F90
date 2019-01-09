@@ -110,7 +110,8 @@ module Variables_module
   PetscInt, parameter, public :: SATURATION_PRESSURE     = 95
   PetscInt, parameter, public :: MAXIMUM_PRESSURE        = 96
 
-  PetscInt, parameter, public :: EFFECTIVE_POROSITY      = 97
+!geh: POROSITY stores the effective porosity
+!  PetscInt, parameter, public :: EFFECTIVE_POROSITY      = 97
   PetscInt, parameter, public :: LIQUID_HEAD             = 98
 
   PetscInt, parameter, public :: GAS_CONCENTRATION       = 99
