@@ -439,7 +439,6 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscReal :: compressed_porosity
-  PetscReal :: por
   PetscReal :: dum1
 
   option => realization%option
@@ -456,19 +455,19 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
     if (patch%imat(ghosted_id) <= 0) cycle
     ! mass = volume*saturation*density
 
+    material_auxvars(ghosted_id)%porosity = &
+      material_auxvars(ghosted_id)%porosity_base
     if (soil_compressibility_index > 0) then
       call MaterialCompressSoil(material_auxvars(ghosted_id), &
                                 global_auxvars(ghosted_id)%pres(1), &
                                 compressed_porosity,dum1)
-      por = compressed_porosity
-    else
-      por = material_auxvars(ghosted_id)%porosity
+      material_auxvars(ghosted_id)%porosity = compressed_porosity
     endif
 
     mass_balance = mass_balance + &
       global_auxvars(ghosted_id)%den_kg* &
       global_auxvars(ghosted_id)%sat* &
-      por* &
+      material_auxvars(ghosted_id)%porosity* &
       material_auxvars(ghosted_id)%volume
 
     if (option%use_th_freezing) then
@@ -476,7 +475,7 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
       mass_balance = mass_balance + &
         TH_auxvars(ghosted_id)%ice%den_ice*FMWH2O* &
         TH_auxvars(ghosted_id)%ice%sat_ice* &
-        por* &
+        material_auxvars(ghosted_id)%porosity* &
         material_auxvars(ghosted_id)%volume
     endif
 
@@ -1308,15 +1307,15 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   du_dt = TH_auxvar%du_dt
   du_dp = TH_auxvar%du_dp
   
+  material_auxvar%porosity = material_auxvar%porosity_base
+  dcompressed_porosity_dp = 0.d0
   if (soil_compressibility_index > 0) then
     tempreal = sat*den
     call MaterialCompressSoil(material_auxvar,pres, &
                               compressed_porosity,dcompressed_porosity_dp)
-    por = compressed_porosity
-  else
-    por = material_auxvar%porosity
-    dcompressed_porosity_dp = 0.d0
+    material_auxvar%porosity = compressed_porosity
   endif
+  por = material_auxvar%porosity
 
   porXvol = por*vol
 
@@ -1510,14 +1509,14 @@ subroutine THAccumulation(auxvar,global_auxvar, &
   
   vol = material_auxvar%volume
   
+  material_auxvar%porosity = material_auxvar%porosity_base
+  dcompressed_porosity_dp = 0.d0
   if (soil_compressibility_index > 0) then
     call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1), &
                               compressed_porosity,dcompressed_porosity_dp)
     material_auxvar%porosity = compressed_porosity
-    por = compressed_porosity
-  else
-    por = material_auxvar%porosity
   endif
+  por = material_auxvar%porosity
 
   ! TechNotes, TH Mode: First term of Equation 8
   porXvol = por*vol

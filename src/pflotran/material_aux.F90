@@ -17,7 +17,8 @@ module Material_Aux_class
   PetscInt, parameter, public :: perm_xz_index = 6
   
   PetscInt, parameter, public :: POROSITY_CURRENT = 0
-  PetscInt, parameter, public :: POROSITY_MINERAL = 1
+  PetscInt, parameter, public :: POROSITY_BASE = 1
+  PetscInt, parameter, public :: POROSITY_INITIAL = 2
 
   ! Tensor to scalar conversion models
   PetscInt, parameter, public :: TENSOR_TO_SCALAR_LINEAR = 1
@@ -37,8 +38,12 @@ module Material_Aux_class
   type, public :: material_auxvar_type
     PetscInt :: id
     PetscReal :: volume
-    PetscReal :: porosity_base
-    PetscReal :: porosity
+    PetscReal :: porosity_0 ! initial porosity as defined in input file or 
+                            ! initial conditon
+    PetscReal :: porosity_base ! base porosity prescribed by pm outside flow 
+                               ! (e.g. geomechanics, mineral precip/diss)
+    PetscReal :: porosity ! porosity used in calculation, which may be a 
+                          ! function of soil compressibity, etc.
     PetscReal :: dporosity_dp
     PetscReal :: tortuosity
     PetscReal :: soil_particle_density
@@ -169,9 +174,10 @@ subroutine MaterialAuxVarInit(auxvar,option)
   
   auxvar%id = UNINITIALIZED_INTEGER
   auxvar%volume = UNINITIALIZED_DOUBLE
+  auxvar%porosity_0 = UNINITIALIZED_DOUBLE
+  auxvar%porosity_base = UNINITIALIZED_DOUBLE
   auxvar%porosity = UNINITIALIZED_DOUBLE
   auxvar%dporosity_dp = 0.d0
-  auxvar%porosity_base = UNINITIALIZED_DOUBLE
   auxvar%tortuosity = UNINITIALIZED_DOUBLE
   auxvar%soil_particle_density = UNINITIALIZED_DOUBLE
   if (option%iflowmode /= NULL_MODE) then
@@ -214,8 +220,9 @@ subroutine MaterialAuxVarCopy(auxvar,auxvar2,option)
   type(option_type) :: option
   
   auxvar2%volume = auxvar%volume
-  auxvar2%porosity = auxvar%porosity
+  auxvar2%porosity_0 = auxvar%porosity_0
   auxvar2%porosity_base = auxvar%porosity_base
+  auxvar2%porosity = auxvar%porosity
   auxvar2%tortuosity = auxvar%tortuosity
   auxvar2%soil_particle_density = auxvar%soil_particle_density
   if (associated(auxvar%permeability)) then
@@ -358,10 +365,12 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
   select case(ivar)
     case(VOLUME)
       MaterialAuxVarGetValue = material_auxvar%volume
+    case(INITIAL_POROSITY)
+      MaterialAuxVarGetValue = material_auxvar%porosity_0
+    case(BASE_POROSITY)
+      MaterialAuxVarGetValue = material_auxvar%porosity_base
     case(POROSITY)
       MaterialAuxVarGetValue = material_auxvar%porosity
-    case(MINERAL_POROSITY)
-      MaterialAuxVarGetValue = material_auxvar%porosity_base
     case(TORTUOSITY)
       MaterialAuxVarGetValue = material_auxvar%tortuosity
     case(PERMEABILITY_X)
@@ -407,10 +416,12 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
   select case(ivar)
     case(VOLUME)
       material_auxvar%volume = value
+    case(INITIAL_POROSITY)
+      material_auxvar%porosity_0 = value
+    case(BASE_POROSITY)
+      material_auxvar%porosity_base = value
     case(POROSITY)
       material_auxvar%porosity = value
-    case(MINERAL_POROSITY)
-      material_auxvar%porosity_base = value
     case(TORTUOSITY)
       material_auxvar%tortuosity = value
     case(PERMEABILITY_X)

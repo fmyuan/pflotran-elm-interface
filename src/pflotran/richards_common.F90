@@ -61,7 +61,6 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
      
   PetscInt :: ispec 
   PetscReal :: vol_over_dt
-  PetscReal :: por
   PetscReal :: tempreal
   PetscReal :: derivative
   PetscReal :: compressed_porosity, dcompressed_porosity_dp
@@ -74,20 +73,21 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
   PetscReal :: x(1), x_pert(1), pert, res(1), res_pert(1), J_pert(1,1)
 
   vol_over_dt = material_auxvar%volume/option%flow_dt
-  por = material_auxvar%porosity
   
   derivative = 0.d0
+  material_auxvar%porosity = material_auxvar%porosity_base
   if (soil_compressibility_index > 0) then
     tempreal = global_auxvar%sat(1)*global_auxvar%den(1)
     call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1), &
-                                 compressed_porosity,dcompressed_porosity_dp)
-    por = compressed_porosity
+                              compressed_porosity,dcompressed_porosity_dp)
+    material_auxvar%porosity = compressed_porosity
     derivative = derivative + dcompressed_porosity_dp * tempreal
   endif
 
   ! accumulation term units = dkmol/dp
   derivative = derivative + (global_auxvar%sat(1)*rich_auxvar%dden_dp + &
-                             rich_auxvar%dsat_dp*global_auxvar%den(1)) * por
+                             rich_auxvar%dsat_dp*global_auxvar%den(1)) * &
+                            material_auxvar%porosity
 
   J(1,1) = derivative * vol_over_dt
 
@@ -148,22 +148,21 @@ subroutine RichardsAccumulation(rich_auxvar,global_auxvar, &
   type(option_type) :: option
   PetscReal :: Res(1:option%nflowdof)
   
-  PetscReal :: por, por1, vol_over_dt
+  PetscReal :: vol_over_dt
   PetscReal :: compressed_porosity, dcompressed_porosity_dp
        
   vol_over_dt = material_auxvar%volume/option%flow_dt
-  por = material_auxvar%porosity
-  
+
+  material_auxvar%porosity = material_auxvar%porosity_base
   if (soil_compressibility_index > 0) then
     call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1), &
                               compressed_porosity,dcompressed_porosity_dp)
     material_auxvar%porosity = compressed_porosity
-    por = compressed_porosity
   endif
     
   ! accumulation term units = kmol/s
-  Res(1) = global_auxvar%sat(1) * global_auxvar%den(1) * por * &
-           vol_over_dt
+  Res(1) = global_auxvar%sat(1) * global_auxvar%den(1) * &
+           material_auxvar%porosity * vol_over_dt
   
 end subroutine RichardsAccumulation
 

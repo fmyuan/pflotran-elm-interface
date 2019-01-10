@@ -5896,7 +5896,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               patch%aux%RT%auxvars(grid%nL2G(local_id))%auxiliary_data(isubvar)
           enddo
       end select
-    case(POROSITY,MINERAL_POROSITY,VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
+    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
+         VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
          SOIL_REFERENCE_PRESSURE)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
@@ -6940,8 +6941,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
         case(REACTION_AUXILIARY)
           value = patch%aux%RT%auxvars(ghosted_id)%auxiliary_data(isubvar)
       end select
-    case(POROSITY,MINERAL_POROSITY,VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
-         SOIL_REFERENCE_PRESSURE)
+    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
+         VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE)
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar)
     case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y, PERMEABILITY_Z, &
          PERMEABILITY_XY,PERMEABILITY_XZ,PERMEABILITY_YZ, &
@@ -7905,7 +7906,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
         case(COLLOID_IMMOBILE)
           call printErrMsg(option,'Setting of immobile colloid concentration at grid cell not supported.')
       end select
-    case(POROSITY,MINERAL_POROSITY)
+    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY)
       if (vec_format == GLOBAL) then
         do local_id=1,grid%nlmax
           call MaterialAuxVarSetValue(material_auxvars(grid%nL2G(local_id)), &
