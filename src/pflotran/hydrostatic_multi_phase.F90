@@ -89,6 +89,9 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   PetscReal, pointer :: xm_nacl_vec(:)
   PetscReal, pointer :: pb_vec(:)
   PetscReal, pointer :: rs_vec(:)
+  PetscReal, pointer :: wat_press_vec(:)
+  PetscReal, pointer :: oil_press_vec(:)
+  PetscReal, pointer :: gas_press_vec(:)  
   PetscReal, pointer :: wat_den_kg_vec(:)
   PetscReal, pointer :: oil_den_kg_vec(:)
   PetscReal, pointer :: gas_den_kg_vec(:)
@@ -180,34 +183,56 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   grid_size = size(one_d_grid%z(:))
 
   !allocate and initialise one_d_grid data arrays
-  nullify(temp_vec)
-  allocate(temp_vec(grid_size))
-  temp_vec = UNINITIALIZED_DOUBLE
-  nullify(xm_nacl_vec)
-  allocate(xm_nacl_vec(grid_size))
-  xm_nacl_vec = 0.0d0
-  nullify(pb_vec)
-  allocate(pb_vec(grid_size))
-  pb_vec = UNINITIALIZED_DOUBLE
-  nullify(rs_vec)
-  allocate(rs_vec(grid_size))
-  rs_vec = UNINITIALIZED_DOUBLE
-  nullify(wat_den_kg_vec)
-  allocate(wat_den_kg_vec(grid_size))
-  wat_den_kg_vec = UNINITIALIZED_DOUBLE
-  nullify(oil_den_kg_vec)
-  allocate(oil_den_kg_vec(grid_size))
-  oil_den_kg_vec = UNINITIALIZED_DOUBLE
-  nullify(gas_den_kg_vec)
-  allocate(gas_den_kg_vec(grid_size))
-  gas_den_kg_vec = UNINITIALIZED_DOUBLE  
+  ! nullify(temp_vec)
+  ! allocate(temp_vec(grid_size))
+  ! temp_vec = UNINITIALIZED_DOUBLE
+  ! nullify(xm_nacl_vec)
+  ! allocate(xm_nacl_vec(grid_size))
+  ! xm_nacl_vec = 0.0d0
+  ! nullify(pb_vec)
+  ! allocate(pb_vec(grid_size))
+  ! pb_vec = UNINITIALIZED_DOUBLE
+  ! nullify(rs_vec)
+  ! allocate(rs_vec(grid_size))
+  ! rs_vec = UNINITIALIZED_DOUBLE
+  ! nullify(wat_den_kg_vec)
+  ! allocate(wat_den_kg_vec(grid_size))
+  ! wat_den_kg_vec = UNINITIALIZED_DOUBLE
+  ! nullify(oil_den_kg_vec)
+  ! allocate(oil_den_kg_vec(grid_size))
+  ! oil_den_kg_vec = UNINITIALIZED_DOUBLE
+  ! nullify(gas_den_kg_vec)
+  ! allocate(gas_den_kg_vec(grid_size))
+  ! gas_den_kg_vec = UNINITIALIZED_DOUBLE
+
+  !allocate and initialise one_d_grid data arrays
+  call AllocateInitArray(temp_vec,grid_size,UNINITIALIZED_DOUBLE)
+  call AllocateInitArray(xm_nacl_vec,grid_size,0.0d0)
+  call AllocateInitArray(pb_vec,grid_size,UNINITIALIZED_DOUBLE)
+  call AllocateInitArray(rs_vec,grid_size,UNINITIALIZED_DOUBLE)
+  call AllocateInitArray(wat_press_vec,grid_size,UNINITIALIZED_DOUBLE)
+  call AllocateInitArray(oil_press_vec,grid_size,UNINITIALIZED_DOUBLE)
+  call AllocateInitArray(gas_press_vec,grid_size,UNINITIALIZED_DOUBLE)
+  call AllocateInitArray(wat_den_kg_vec,grid_size,UNINITIALIZED_DOUBLE)
+  call AllocateInitArray(oil_den_kg_vec,grid_size,UNINITIALIZED_DOUBLE)
+  call AllocateInitArray(gas_den_kg_vec,grid_size,UNINITIALIZED_DOUBLE)
+
 
   ! Interpolate Pb and Temp on 1d grid
   call InterpolatePMInput(condition,option,one_d_grid,press_at_datum, &
                                   temp_vec,xm_nacl_vec,pb_vec,rs_vec)  
   
-  
   ! compute hydrostatic pressure profiles for exisitng phases
+  if (datum_in_wat) then
+    ! call PhaseHydrostaticPressure(one_d_grid,option%gravity, &
+    !           LIQUID_PHASE,pressure_at_datum, &
+    !           one_d_grid%idatum,xm_nacl,temperature_array, &
+    !           wat_pressure_array,wat_density_array)    
+  else if (datum_in_oil) then
+    
+  else if (datum_in_gas) then
+    
+  end if
   
   ! compute saturation for exisitng transition zones
   
@@ -223,6 +248,13 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   call DeallocateArray(xm_nacl_vec)
   call DeallocateArray(pb_vec)
   call DeallocateArray(rs_vec)
+  call DeallocateArray(wat_press_vec)
+  call DeallocateArray(oil_press_vec)
+  call DeallocateArray(gas_press_vec)
+  call DeallocateArray(wat_den_kg_vec)
+  call DeallocateArray(oil_den_kg_vec)
+  call DeallocateArray(gas_den_kg_vec)
+
 
 end subroutine HydrostaticMPUpdateCoupler
 
@@ -514,7 +546,9 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
   PetscInt  :: i_owc, ipressure, ipress_start ! id_loc_owc 
   PetscReal, pointer :: wat_pressure_array(:), wat_density_array(:)
   PetscReal, pointer :: oil_pressure_array(:), oil_density_array(:)  
-  PetscReal, pointer :: temperature_array(:)
+  PetscReal, pointer :: temperature_array(:), xm_nacl_array(:)
+  PetscReal, pointer :: dummy_array1(:)
+  PetscReal :: dummy_val
   PetscReal :: dist_x, dist_y, dist_z, delta_z, dist_z_for_pressure
   PetscReal :: dist_owc_start
   PetscReal :: dist_z_owc, dx_conn, dy_conn, dz_conn
@@ -539,6 +573,10 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
   nullify(wat_density_array)
   nullify(oil_pressure_array)
   nullify(oil_density_array)
+  nullify(temperature_array)
+  nullify(xm_nacl_array)
+  nullify(dummy_array1)
+  
 
   ! fix indices for map to flow_aux_real_var
   coupler%flow_aux_mapping(TOIL_IMS_PRESSURE_INDEX) = 1
@@ -553,6 +591,7 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
   oil_press_grad(:) = 0.0d0
   wat_press_grad(:) = 0.0d0
   temperature_grad(:) = 0.0d0
+  dummy_val = 0.0d0 
    
   if ( associated(condition%datum) ) then
     datum(1:3) = condition%datum%rarray(1:3) 
@@ -643,6 +682,10 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
       allocate(oil_density_array(size(one_d_grid%z(:))))
     end if
   end if
+  allocate(dummy_array1(size(one_d_grid%z(:))))
+  dummy_array1 = 0.0d0
+  allocate(xm_nacl_array(size(one_d_grid%z(:))))
+  xm_nacl_array = xm_nacl
   
   dist_x = 0.d0
   dist_y = 0.d0
@@ -687,10 +730,15 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
   ! is imposed. And pressure (water or oil) at owc elevation
   if (datum_in_water) then 
     if (pw_hydrostatic) then
-      call PhaseHydrostaticPressure(one_d_grid,option%gravity, &
-                LIQUID_PHASE,pressure_at_datum, &
-                one_d_grid%idatum,xm_nacl,temperature_array, &
-                wat_pressure_array,wat_density_array)   
+      ! call PhaseHydrostaticPressure(one_d_grid,option%gravity, &
+      !           LIQUID_PHASE,pressure_at_datum, &
+      !           one_d_grid%idatum,xm_nacl,temperature_array, &
+      !           wat_pressure_array,wat_density_array)
+      call PhaseHydrostaticPressure(one_d_grid,option,LIQUID_PHASE, &
+                  pressure_at_datum,one_d_grid%idatum,temperature_array, &
+                  xm_nacl_array,dummy_array1,dummy_array1, &
+                  wat_pressure_array,wat_density_array)
+                  
       pw_owc = PressInterp(i_owc,dist_x,dist_y,dist_z_for_pressure, &
                            option%gravity,wat_pressure_array, &
                            wat_density_array,wat_press_grad)
@@ -709,19 +757,30 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
       !  ipress_start = size(one_d_grid%z(:))
       dist_owc_start = one_d_grid%z(ipress_start) - owc(Z_DIRECTION)
       press_start = po_owc + dist_owc_start * &
-                    PhaseDensity(OIL_PHASE,po_owc,temp_owc,xm_nacl) * &
-                    option%gravity(Z_DIRECTION)
-      call PhaseHydrostaticPressure(one_d_grid,option%gravity, &
-                OIL_PHASE,press_start, &
-                ipress_start,xm_nacl,temperature_array, &
-                oil_pressure_array,oil_density_array)   
+                    ! PhaseDensity(OIL_PHASE,po_owc,temp_owc,xm_nacl) * &
+                    PhaseDensity(option,OIL_PHASE,po_owc,temp_owc,xm_nacl, &
+                            dummy_val,dummy_val) * option%gravity(Z_DIRECTION)
+      ! call PhaseHydrostaticPressure(one_d_grid,option%gravity, &
+      !           OIL_PHASE,press_start, &
+      !           ipress_start,xm_nacl,temperature_array, &
+      !           oil_pressure_array,oil_density_array)
+      !
+      call PhaseHydrostaticPressure(one_d_grid,option,OIL_PHASE, &
+                  press_start,ipress_start,temperature_array, &
+                  xm_nacl_array,dummy_array1,dummy_array1, &
+                  oil_pressure_array,oil_density_array)
     end if
   else ! datum is in the oil region
     if (po_hydrostatic) then
-      call PhaseHydrostaticPressure(one_d_grid,option%gravity, &
-                OIL_PHASE,pressure_at_datum, &
-                one_d_grid%idatum,xm_nacl,temperature_array, &
-                oil_pressure_array,oil_density_array)   
+      ! call PhaseHydrostaticPressure(one_d_grid,option%gravity, &
+      !           OIL_PHASE,pressure_at_datum, &
+      !           one_d_grid%idatum,xm_nacl,temperature_array, &
+      !           oil_pressure_array,oil_density_array)
+      !
+      call PhaseHydrostaticPressure(one_d_grid,option,OIL_PHASE, &
+                  pressure_at_datum,one_d_grid%idatum,temperature_array, &
+                  xm_nacl_array,dummy_array1,dummy_array1, &
+                  oil_pressure_array,oil_density_array)      
       po_owc = PressInterp(i_owc,dist_x,dist_y,dist_z_for_pressure, &
                            option%gravity,oil_pressure_array, &
                            oil_density_array,oil_press_grad)
@@ -738,12 +797,18 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
       ipress_start = i_owc + 1
       dist_owc_start = one_d_grid%z(ipress_start) - owc(Z_DIRECTION)
       press_start = pw_owc + dist_owc_start * &
-                    PhaseDensity(LIQUID_PHASE,pw_owc,temp_owc,xm_nacl) * &
-                    option%gravity(Z_DIRECTION)
-      call PhaseHydrostaticPressure(one_d_grid,option%gravity, &
-                LIQUID_PHASE,press_start, &
-                ipress_start,xm_nacl,temperature_array, &
-                wat_pressure_array,wat_density_array) 
+                    !PhaseDensity(LIQUID_PHASE,pw_owc,temp_owc,xm_nacl) * &
+                    PhaseDensity(option,LIQUID_PHASE,pw_owc,temp_owc,xm_nacl, &
+                            dummy_val,dummy_val) * option%gravity(Z_DIRECTION)
+      ! call PhaseHydrostaticPressure(one_d_grid,option%gravity, &
+      !           LIQUID_PHASE,press_start, &
+      !           ipress_start,xm_nacl,temperature_array, &
+      !           wat_pressure_array,wat_density_array)
+      !
+      call PhaseHydrostaticPressure(one_d_grid,option,LIQUID_PHASE, &
+                  press_start,ipress_start,temperature_array, &
+                  xm_nacl_array,dummy_array1,dummy_array1, &
+                  wat_pressure_array,wat_density_array)      
     end if
   end if
   

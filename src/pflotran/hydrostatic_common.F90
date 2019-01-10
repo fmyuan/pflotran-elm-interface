@@ -99,8 +99,9 @@ end function GetCellOnPhaseConact
 
 ! ************************************************************************** !
 
-subroutine PhaseHydrostaticPressure(one_d_grid,gravity,iphase,press_start, &
-                                    id_start,xm_nacl,temp,press,den_kg)
+subroutine PhaseHydrostaticPressure(one_d_grid,option,iphase,press_start, &
+                                    id_start,temp_v,xm_nacl_v,pb_v,rv_v, &
+                                    press_v,den_kg_v)
   ! 
   ! Compute an hydrostatic pressure profile for a given phase and 1D 
   ! 1D discretisation
@@ -109,44 +110,55 @@ subroutine PhaseHydrostaticPressure(one_d_grid,gravity,iphase,press_start, &
   ! or one of the phase contact interface (e.g. OWC, OGC, etc)
   !
   ! Author: Paolo Orsini
-  ! Date: 12/21/15
+  ! Date: 12/21/15 - 01/10/2019
   ! 
+
+  use Option_module
 
   implicit none
 
   class(one_dim_grid_type) :: one_d_grid
-  PetscReal, intent(in) :: gravity(:) ! this is option%gravity
+  !PetscReal, intent(in) :: gravity(:) ! this is option%gravity
+  type(option_type) :: option
   PetscInt, intent(in) :: iphase
   PetscReal, intent(in) :: press_start
   PetscInt, intent(in) :: id_start
-  PetscReal, intent(in) :: temp(:)
-  PetscReal, intent(in) :: xm_nacl
-  PetscReal, intent(out) :: press(:)
-  PetscReal, intent(out) :: den_kg(:)
+  PetscReal, intent(in) :: temp_v(:)
+  PetscReal, intent(in) :: xm_nacl_v(:)
+  PetscReal, intent(in) :: pb_v(:)
+  PetscReal, intent(in) :: rv_v(:)
+  PetscReal, intent(out) :: press_v(:)
+  PetscReal, intent(out) :: den_kg_v(:)
 
+  PetscReal :: gravity(3)
   PetscReal :: pressure, pressure0, rho, rho_one, rho_kg, rho_zero
   PetscInt :: ipressure, num_iteration
+  
+  gravity(1:3) = option%gravity(1:3)
   
   if(iphase == GAS_PHASE ) then
     print *, "PhaseHydrostaticPressure does not support gas"
     stop
   end if
 
-  rho_kg = PhaseDensity(iphase,press_start,temp(id_start),xm_nacl)
+  rho_kg = PhaseDensity(option,iphase,press_start,temp_v(id_start), &
+                        xm_nacl_v(id_start),pb_v(id_start),rv_v(id_start))
 
   ! fill properties for reference pressure
-  den_kg(id_start) = rho_kg
-  press(id_start) = press_start 
+  den_kg_v(id_start) = rho_kg
+  press_v(id_start) = press_start 
 
   pressure0 = press_start 
   rho_zero = rho_kg 
   do ipressure=id_start+1,size(one_d_grid%z(:))
-    rho_kg = PhaseDensity(iphase,pressure0,temp(ipressure),xm_nacl)
+    rho_kg = PhaseDensity(option,iphase,pressure0,temp_v(ipressure), &
+                          xm_nacl_v(ipressure),pb_v(ipressure),rv_v(ipressure))
     num_iteration = 0
     do 
       pressure = pressure0 + 0.5d0*(rho_kg+rho_zero) * &
                  gravity(Z_DIRECTION) * one_d_grid%delta_z
-      rho_one = PhaseDensity(iphase,pressure,temp(ipressure),xm_nacl)
+      rho_one = PhaseDensity(option,iphase,pressure,temp_v(ipressure), &
+                        xm_nacl_v(ipressure),pb_v(ipressure),rv_v(ipressure))
       !check convergence on density
       if (dabs(rho_kg-rho_one) < 1.d-10) exit
       rho_kg = rho_one
@@ -160,21 +172,23 @@ subroutine PhaseHydrostaticPressure(one_d_grid,gravity,iphase,press_start, &
       endif
     enddo
     rho_zero = rho_kg
-    press(ipressure) = pressure
-    den_kg(ipressure) = rho_kg
+    press_v(ipressure) = pressure
+    den_kg_v(ipressure) = rho_kg
     pressure0 = pressure
   enddo
 
   ! compute pressures below one_d_grid%z(id_start), if any
-  pressure0 = press(id_start)
-  rho_zero = den_kg(id_start)
+  pressure0 = press_v(id_start)
+  rho_zero = den_kg_v(id_start)
   do ipressure=id_start-1,1,-1
-    rho_kg = PhaseDensity(iphase,pressure0,temp(ipressure),xm_nacl)
+    rho_kg = PhaseDensity(option,iphase,pressure0,temp_v(ipressure), &
+                          xm_nacl_v(ipressure),pb_v(ipressure),rv_v(ipressure))
     num_iteration = 0
     do                   ! notice the negative sign (-) here
       pressure = pressure0 - 0.5d0*(rho_kg+rho_zero) * &
                  gravity(Z_DIRECTION) * one_d_grid%delta_z
-      rho_one = PhaseDensity(iphase,pressure,temp(ipressure),xm_nacl)
+      rho_one = PhaseDensity(option,iphase,pressure,temp_v(ipressure), &
+                         xm_nacl_v(ipressure),pb_v(ipressure),rv_v(ipressure))
       !check convergence on density
       if (dabs(rho_kg-rho_one) < 1.d-10) exit
       rho_kg = rho_one
@@ -188,8 +202,8 @@ subroutine PhaseHydrostaticPressure(one_d_grid,gravity,iphase,press_start, &
       endif
     enddo
     rho_zero = rho_kg
-    press(ipressure) = pressure
-    den_kg(ipressure) = rho_kg
+    press_v(ipressure) = pressure
+    den_kg_v(ipressure) = rho_kg
     pressure0 = pressure
   enddo
 
@@ -199,24 +213,29 @@ subroutine PhaseHydrostaticPressure(one_d_grid,gravity,iphase,press_start, &
 end subroutine PhaseHydrostaticPressure
 
 ! ************************************************************************** !
-function PhaseDensity(iphase,p,t,xm_nacl) 
+function PhaseDensity(option,iphase,p,t,xm_nacl,pb,rv)
   !
   ! computes phase density given the specified phase
   !
   ! Author: Paolo Orsini
-  ! Date: 12/21/15
+  ! Date: 12/21/15 - 01/10/2019
   ! 
 
+  use Option_module
   use EOS_Oil_module
   use EOS_Water_module
   use EOS_Gas_module ! when gas is considered
 
   implicit none
 
+  type(option_type) :: option
   PetscInt, intent(in) :: iphase
   PetscReal, intent(in) :: p
   PetscReal, intent(in) :: t
   PetscReal, intent(in) :: xm_nacl
+  PetscReal, intent(in) :: pb
+  PetscReal, intent(in) :: rv
+  
  
   PetscReal :: PhaseDensity ! kg/m3 
   PetscReal :: dw_mol
