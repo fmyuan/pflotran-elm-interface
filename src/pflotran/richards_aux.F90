@@ -258,12 +258,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (update_porosity) then
     material_auxvar%porosity = material_auxvar%porosity_base
     material_auxvar%dporosity_dp = 0.d0
-    if (soil_compressibility_index > 0) then
-      call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1), &
-                                compressed_porosity,dcompressed_porosity_dp)
-      material_auxvar%porosity = compressed_porosity
-      material_auxvar%dporosity_dp = dcompressed_porosity_dp
-    endif
+    call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1))
   endif
  
   ! For a very large negative liquid pressure (e.g. -1.d18), the capillary 

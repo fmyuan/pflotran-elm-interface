@@ -99,6 +99,7 @@ module Material_Aux_class
   
   interface MaterialCompressSoil
     procedure MaterialCompressSoilPtr
+    procedure MaterialCompressSoil1
   end interface
   
   public :: MaterialCompressSoilDummy, &
@@ -443,6 +444,28 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
   end select
   
 end subroutine MaterialAuxVarSetValue
+
+! ************************************************************************** !
+
+subroutine MaterialCompressSoil1(auxvar,pressure)
+  ! 
+  ! Calls MaterialCompressSoilPtr with just the material auxvar.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/10/19
+  ! 
+
+  implicit none
+
+  class(material_auxvar_type), intent(inout) :: auxvar
+  PetscReal, intent(in) :: pressure
+  
+  if (soil_compressibility_index > 0) then
+    call MaterialCompressSoil(auxvar,pressure,auxvar%porosity, &
+                              auxvar%dporosity_dp)
+  endif
+  
+end subroutine MaterialCompressSoil1
 
 ! ************************************************************************** !
 
