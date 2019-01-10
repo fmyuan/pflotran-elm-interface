@@ -102,10 +102,10 @@ function PMGeneralCreate()
             shape(abs_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
             
-  PetscReal, parameter :: pres_rel_inf_tol = 1.d-3
-  PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
-  PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
-  PetscReal, parameter :: xmol_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: pres_rel_inf_tol = 1.d0 !1.d-3
+  PetscReal, parameter :: temp_rel_inf_tol = 1.d0 !1.d-3
+  PetscReal, parameter :: sat_rel_inf_tol = 1.d0 !1.d-3
+  PetscReal, parameter :: xmol_rel_inf_tol = 1.d0 !1.d-3
   PetscReal, parameter :: rel_update_inf_tol(3,3) = &
     reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
              pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
@@ -124,9 +124,9 @@ function PMGeneralCreate()
   !                                        ref_u / ref_density_w
   
   !MAN optimized:
-  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-7 !kmol_water/sec
-  PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-7
-  PetscReal, parameter :: u_abs_inf_tol = 1.d-6
+  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kmol_water/sec
+  PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-5 !1.d-7
+  PetscReal, parameter :: u_abs_inf_tol = 1.d-5 !1.d-7
                                           
   PetscReal, parameter :: residual_abs_inf_tol(3) = (/w_mass_abs_inf_tol, &
                              a_mass_abs_inf_tol, u_abs_inf_tol/)
@@ -1050,13 +1050,13 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       call OptionPrint(string,option)
     endif
     
-    if (option%convergence == CONVERGENCE_KEEP_ITERATING) then
-      call SNESConvergedDefault(snes,it,xnorm,unorm,fnorm,reason, &
-                            0,ierr);CHKERRQ(ierr)
-      if (reason > 0) option%convergence = CONVERGENCE_OFF
-    endif
+!     if (option%convergence == CONVERGENCE_KEEP_ITERATING) then
+!       call SNESConvergedDefault(snes,it,xnorm,unorm,fnorm,reason, &
+!                             0,ierr);CHKERRQ(ierr)
+!       if (reason > 0) option%convergence = CONVERGENCE_OFF
+!     endif
   endif
-
+  
   if (it >= this%general_newton_max_iter) then
     option%convergence = CONVERGENCE_CUT_TIMESTEP
     
@@ -1069,6 +1069,11 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   call PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                         reason,ierr)
 
+  !RESET ALL FLAGS AND ZERO ALL THE CELL ID'S
+  this%converged_flag(:,:,:) = PETSC_TRUE
+  this%converged_real(:,:,:) = 0.d0
+  this%converged_cell(:,:,:) = 0
+                                        
 end subroutine PMGeneralCheckConvergence
 
 ! ************************************************************************** !
