@@ -780,7 +780,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                                patch%characteristic_curves_array( &
                                  patch%sat_func_id(ghosted_id))%ptr, &
                                grid%nG2A(ghosted_id), &
-                               option)   
+                               PETSC_TRUE,option)   
   enddo
 
   if (option%inline_surface_flow) then
@@ -831,7 +831,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                                  patch%characteristic_curves_array( &
                                    patch%sat_func_id(ghosted_id))%ptr, &
                                  -grid%nG2A(ghosted_id), &
-                                 option)
+                                 PETSC_FALSE,option)
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -1099,7 +1099,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
                    patch%characteristic_curves_array( &
                          patch%sat_func_id(ghosted_id))%ptr, &
                    grid%nG2A(ghosted_id), &
-                   option)
+                   PETSC_TRUE,option)
     call RichardsAccumulation(rich_auxvars(ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
@@ -3248,7 +3248,7 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
                            material_auxvars(ghosted_id), &
                            patch%characteristic_curves_array(icap_dn)%ptr, &
                            -grid%nG2A(ghosted_id), &
-                           option)
+                           PETSC_FALSE,option)
 
         sir_dn = material_parameter%soil_residual_saturation(1,icap_dn)
 

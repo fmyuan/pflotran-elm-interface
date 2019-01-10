@@ -370,7 +370,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
                                      material_auxvar, &
                                      iphase,saturation_function, &
                                      th_parameter, ithrm, natural_id, &
-                                     option)
+                                     update_porosity,option)
   ! 
   ! Computes auxiliary variables for each grid cell
   ! 
@@ -397,6 +397,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   PetscInt :: ithrm
   class(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
+  PetscBool :: update_porosity
 
   PetscErrorCode :: ierr
   PetscReal :: pw,dw_kg,dw_mol,hw,sat_pressure,visl
@@ -410,6 +411,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   PetscReal :: Dk
   PetscReal :: Dk_dry
   PetscReal :: aux(1)
+  PetscReal :: compressed_porosity, dcompressed_porosity_dp
 
 ! auxvar%den = 0.d0
 ! auxvar%den_kg = 0.d0
@@ -428,6 +430,17 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   global_auxvar%pres = x(1)  
   global_auxvar%temp = x(2)
  
+  if (update_porosity) then
+    material_auxvar%porosity = material_auxvar%porosity_base
+    material_auxvar%dporosity_dp = 0.d0
+    if (soil_compressibility_index > 0) then
+      call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1), &
+                                compressed_porosity,dcompressed_porosity_dp)
+      material_auxvar%porosity = compressed_porosity
+      material_auxvar%dporosity_dp = dcompressed_porosity_dp
+    endif
+  endif
+
 ! auxvar%pc = option%reference_pressure - auxvar%pres
   auxvar%pc = min(option%reference_pressure - global_auxvar%pres(1), &
                   saturation_function%pcwmax)
@@ -438,6 +451,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   pw = option%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
+
 !  if (auxvar%pc > 0.d0) then
   if (auxvar%pc > 1.d0) then
     iphase = 3
@@ -558,7 +572,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                    iphase, &
                                    saturation_function, &
                                    th_parameter, ithrm, natural_id, &
-                                   option)
+                                   update_porosity,option)
   ! 
   ! Computes auxillary variables for each grid cell when
   ! ice and vapor phases are present
@@ -590,6 +604,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   PetscInt :: ithrm
   PetscInt :: iphase
   PetscInt :: natural_id
+  PetscBool :: update_porosity
 
   PetscErrorCode :: ierr
   PetscReal :: pw, dw_kg, dw_mol, hw, sat_pressure, visl
@@ -622,6 +637,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   PetscReal :: Dk
   PetscReal :: Dk_dry
   PetscReal :: Dk_ice
+  PetscReal :: compressed_porosity, dcompressed_porosity_dp
 
   out_of_table_flag = PETSC_FALSE
  
@@ -643,6 +659,16 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     global_auxvar%pres(1) = -1.d8 + option%reference_pressure + 1.d0
   endif
 
+  if (update_porosity) then
+    material_auxvar%porosity = material_auxvar%porosity_base
+    material_auxvar%dporosity_dp = 0.d0
+    if (soil_compressibility_index > 0) then
+      call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1), &
+                                compressed_porosity,dcompressed_porosity_dp)
+      material_auxvar%porosity = compressed_porosity
+      material_auxvar%dporosity_dp = dcompressed_porosity_dp
+    endif
+  endif
  
   auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
 
