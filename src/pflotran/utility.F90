@@ -2477,6 +2477,9 @@ subroutine MatCompare(a1,a2,n,m,tol,reltol,flagged_err)
                  ", relative difference: ", reldff
         print *, a1(i,j), " compare to ", a2(i,j)
         print *, "..."
+        if (j==4) then
+          print *, "here"
+        endif
         flagged_err = PETSC_TRUE
       endif
     end do

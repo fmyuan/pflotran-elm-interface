@@ -2015,6 +2015,10 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%mobility(gid) = krg/visgtl
   auxvar%mobility(sid) = krs/visstl
 
+  if (auxvar%mobility(sid) < 0.d0) then 
+    print *, "negative solvent mob?" 
+  endif
+
 !------------------------------------------------------------------------------
 !  Load densities
 !------------------------------------------------------------------------------

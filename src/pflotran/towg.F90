@@ -4577,6 +4577,25 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
                   area,dist,towg_parameter, &
                   option,v_darcy,res,PETSC_FALSE,Jalyt_up,Jalyt_dn,PETSC_TRUE)
 
+    call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                  material_auxvar_up,sir_up, &
+                  thermal_conductivity_up, &
+                  auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                  material_auxvar_dn,sir_dn, &
+                  thermal_conductivity_dn, &
+                  area,dist,towg_parameter, &
+                  option,v_darcy,res,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
+
+      idof = 2
+      call TOWGFlux(auxvar_up(idof),global_auxvar_up, &
+                    material_auxvar_up,sir_up, &
+                    thermal_conductivity_up, &
+                    auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                    material_auxvar_dn,sir_dn, &
+                    thermal_conductivity_dn, &
+                    area,dist,towg_parameter, &
+                    option,v_darcy,res_pert,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
+
     endif
 
     jup = jalyt_up
@@ -5965,6 +5984,13 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     if ( (X_p(saturation_index) - dX_p(saturation_index)) < 0.d0 ) then
       dX_p(saturation_index) = X_p(saturation_index)
     end if
+! Stop SOLVENT saturation going negative
+    if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+      saturation_index = offset + TOWG_SOLV_SATURATION_DOF 
+      if ( (X_p(saturation_index) - dX_p(saturation_index)) < 0.d0 ) then
+        dX_p(saturation_index) = X_p(saturation_index)
+      end if
+    endif
   enddo
 
 #if 0
