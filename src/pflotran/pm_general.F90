@@ -102,10 +102,10 @@ function PMGeneralCreate()
             shape(abs_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
             
-  PetscReal, parameter :: pres_rel_inf_tol = 1.d0 !1.d-3
-  PetscReal, parameter :: temp_rel_inf_tol = 1.d0 !1.d-3
-  PetscReal, parameter :: sat_rel_inf_tol = 1.d0 !1.d-3
-  PetscReal, parameter :: xmol_rel_inf_tol = 1.d0 !1.d-3
+  PetscReal, parameter :: pres_rel_inf_tol = 1.d-2 !1.d-3
+  PetscReal, parameter :: temp_rel_inf_tol = 1.d-2 !1.d-3
+  PetscReal, parameter :: sat_rel_inf_tol = 1.d-2 !1.d-3
+  PetscReal, parameter :: xmol_rel_inf_tol = 1.d-2 !1.d-3
   PetscReal, parameter :: rel_update_inf_tol(3,3) = &
     reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
              pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
@@ -1049,12 +1049,6 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         this%converged_real(:,:,REL_UPDATE_INDEX)
       call OptionPrint(string,option)
     endif
-    
-!     if (option%convergence == CONVERGENCE_KEEP_ITERATING) then
-!       call SNESConvergedDefault(snes,it,xnorm,unorm,fnorm,reason, &
-!                             0,ierr);CHKERRQ(ierr)
-!       if (reason > 0) option%convergence = CONVERGENCE_OFF
-!     endif
   endif
   
   if (it >= this%general_newton_max_iter) then
