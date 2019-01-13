@@ -10,7 +10,6 @@ module HydrostaticMultiPhase_module
   private
 
   !module vriables
-  !PetscReal :: pb_constant
   PetscBool :: oil_wat_zone
   PetscBool :: oil_gas_zone
   PetscBool :: wat_gas_zone
@@ -21,14 +20,44 @@ module HydrostaticMultiPhase_module
   PetscBool :: datum_in_oil
   PetscBool :: datum_in_gas
 
+  PetscReal :: datum_z
+  PetscReal :: press_at_datum
+  PetscReal :: owc_z
+  PetscReal :: pcow_owc
+  PetscReal :: ogc_z
+  PetscReal :: pcog_ogc
+  PetscReal :: wgc_z
+  PetscReal :: pcwg_wgc
+  
+  PetscReal :: res_temp_const
+  PetscBool :: res_temp_is_const
+
+  PetscReal :: pb_const
+  PetscBool :: pb_is_const
+
+  PetscReal :: g_z
+
+  PetscReal :: pw_owc
+  PetscReal :: po_owc
+  PetscReal :: po_ogc
+  PetscReal :: pg_ogc
+  PetscReal :: pw_wgc
+  PetscReal :: pg_wgc
+  
+  !working arrays
+  PetscReal, allocatable :: temp_vec(:)
+  PetscReal, allocatable :: xm_nacl_vec(:)
+  PetscReal, allocatable :: pb_vec(:)
+  PetscReal, allocatable :: rv_vec(:)
+  PetscReal, allocatable :: wat_press_vec(:)
+  PetscReal, allocatable :: oil_press_vec(:)
+  PetscReal, allocatable :: gas_press_vec(:)  
+  PetscReal, allocatable :: wat_den_kg_vec(:)
+  PetscReal, allocatable :: oil_den_kg_vec(:)
+  PetscReal, allocatable :: gas_den_kg_vec(:)
+
   !parameters
   PetscReal, parameter :: z_eps = 1.0d-6
-
-#if 0
-  !LIQ = water to be consistent with the remainder fo the code
-  PetscInt, parameter :: HYDRO_LIQ_PHASE = 1  
-  PetscInt, parameter :: HYDRO_GAS_PHASE = 2
-  PetscInt, parameter :: HYDRO_OIL_PHASE = 3 
 
   type :: one_dim_grid_type
     PetscReal :: delta_z
@@ -37,9 +66,9 @@ module HydrostaticMultiPhase_module
     PetscReal, pointer :: z(:)
     PetscInt :: idatum
   contains 
-    procedure :: ElevationIdLoc
+    procedure :: ZLookup
   end type one_dim_grid_type
-#endif
+
 
   public :: TOIHydrostaticUpdateCoupler, &
             HydrostaticMPUpdateCoupler
@@ -81,45 +110,38 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
 
   type(flow_condition_type), pointer :: condition
   class(one_dim_grid_type), pointer :: one_d_grid
-  PetscInt :: grid_size
-  PetscReal :: max_z, min_z
+  PetscInt :: i_z
+  PetscInt :: grid_size, i_n, i_press_start
+  PetscReal :: dist_dn, dist_up
+
+  PetscReal :: temp_owc
+  PetscReal :: xm_nacl_owc
+  PetscReal :: pb_owc
+  PetscReal :: rv_owc
+  
+  PetscReal :: temp_ogc
+  PetscReal :: xm_nacl_ogc
+  PetscReal :: pb_ogc
+  PetscReal :: rv_ogc
+  
+  PetscReal :: temp_wgc
+  PetscReal :: xm_nacl_wgc
+  PetscReal :: pb_wgc
+  PetscReal :: rv_wgc
+  
+  PetscReal :: press_start
+    
   PetscReal :: gravity_magnitude
   PetscReal :: datum_tmp_3v(3)
-  PetscReal, pointer :: temp_vec(:)
-  PetscReal, pointer :: xm_nacl_vec(:)
-  PetscReal, pointer :: pb_vec(:)
-  PetscReal, pointer :: rs_vec(:)
-  PetscReal, pointer :: wat_press_vec(:)
-  PetscReal, pointer :: oil_press_vec(:)
-  PetscReal, pointer :: gas_press_vec(:)  
-  PetscReal, pointer :: wat_den_kg_vec(:)
-  PetscReal, pointer :: oil_den_kg_vec(:)
-  PetscReal, pointer :: gas_den_kg_vec(:)
+  
+  PetscReal :: max_z, min_z
 
-  !consider to declare all these input variables as private module variables
-  !once the old TOIHydrostaticUpdateCoupler has been removed
-  !declared with the same names in HydrostaticPMLoader to make this change easier
-  PetscReal :: datum_z
-  PetscReal :: press_at_datum
-  PetscReal :: owc_z
-  PetscReal :: pcow_owc
-  PetscReal :: ogc_z
-  PetscReal :: pcog_ogc
-  PetscReal :: wgc_z
-  PetscReal :: pcwg_wgc
-
-  !module variables initialisation
-  oil_wat_zone = PETSC_FALSE
-  oil_gas_zone = PETSC_FALSE
-  wat_gas_zone = PETSC_FALSE
-  wat_present = PETSC_FALSE
-  oil_present = PETSC_FALSE
-  gas_present = PETSC_FALSE  
 
   condition => coupler%flow_condition
 
-  call HydrostaticPMLoader(condition,option,datum_z,press_at_datum, &
-                           owc_z,pcow_owc,ogc_z,pcog_ogc,wgc_z,pcwg_wgc)  
+  call HydrostaticPMLoader(condition,option)
+  ! call HydrostaticPMLoader(condition,option,datum_z,press_at_datum, &
+  !                          owc_z,pcow_owc,ogc_z,pcog_ogc,wgc_z,pcwg_wgc)  
   
   !determine which are the phase and transition zone present
   max_z = max(grid%z_max_global,datum_z)+1.d0 ! add 1m buffer
@@ -132,6 +154,18 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
 
   if ( ogc_z >= min_z .and. ogc_z <= max_z ) then
     oil_gas_zone = PETSC_TRUE
+  end if
+
+  !check that water is heavier than oil and oil heavier than gas
+  if ( owc_z > ogc_z ) then
+    option%io_buffer = 'Hydrostatic Equilibration input error: owc > ogc'
+    call printErrMsg(option)
+  end if
+
+  if ( dabs(ogc_z - owc_z) < 0.1d0 ) then
+    option%io_buffer = 'Hydrostatic Equilibration error: owc and ogc &
+                        &less than 10 cm apart, consider to switch to wgc'
+    call printErrMsg(option)
   end if
 
   ! wat_gas_zone determined in HydrostaticPMLoader
@@ -168,7 +202,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
 
   !check gravity value
   gravity_magnitude = sqrt(DotProduct(option%gravity,option%gravity))
-
+  g_z = option%gravity(Z_DIRECTION)
   if (dabs(gravity_magnitude-EARTH_GRAVITY) > 0.1d0) then
     option%io_buffer = 'Magnitude of gravity vector is not near 9.81.'
     call printErrMsg(option)
@@ -182,54 +216,82 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   
   grid_size = size(one_d_grid%z(:))
 
-  !allocate and initialise one_d_grid data arrays
-  ! nullify(temp_vec)
-  ! allocate(temp_vec(grid_size))
-  ! temp_vec = UNINITIALIZED_DOUBLE
-  ! nullify(xm_nacl_vec)
-  ! allocate(xm_nacl_vec(grid_size))
-  ! xm_nacl_vec = 0.0d0
-  ! nullify(pb_vec)
-  ! allocate(pb_vec(grid_size))
-  ! pb_vec = UNINITIALIZED_DOUBLE
-  ! nullify(rs_vec)
-  ! allocate(rs_vec(grid_size))
-  ! rs_vec = UNINITIALIZED_DOUBLE
-  ! nullify(wat_den_kg_vec)
-  ! allocate(wat_den_kg_vec(grid_size))
-  ! wat_den_kg_vec = UNINITIALIZED_DOUBLE
-  ! nullify(oil_den_kg_vec)
-  ! allocate(oil_den_kg_vec(grid_size))
-  ! oil_den_kg_vec = UNINITIALIZED_DOUBLE
-  ! nullify(gas_den_kg_vec)
-  ! allocate(gas_den_kg_vec(grid_size))
-  ! gas_den_kg_vec = UNINITIALIZED_DOUBLE
-
-  !allocate and initialise one_d_grid data arrays
-  call AllocateInitArray(temp_vec,grid_size,UNINITIALIZED_DOUBLE)
-  call AllocateInitArray(xm_nacl_vec,grid_size,0.0d0)
-  call AllocateInitArray(pb_vec,grid_size,UNINITIALIZED_DOUBLE)
-  call AllocateInitArray(rs_vec,grid_size,UNINITIALIZED_DOUBLE)
-  call AllocateInitArray(wat_press_vec,grid_size,UNINITIALIZED_DOUBLE)
-  call AllocateInitArray(oil_press_vec,grid_size,UNINITIALIZED_DOUBLE)
-  call AllocateInitArray(gas_press_vec,grid_size,UNINITIALIZED_DOUBLE)
-  call AllocateInitArray(wat_den_kg_vec,grid_size,UNINITIALIZED_DOUBLE)
-  call AllocateInitArray(oil_den_kg_vec,grid_size,UNINITIALIZED_DOUBLE)
-  call AllocateInitArray(gas_den_kg_vec,grid_size,UNINITIALIZED_DOUBLE)
-
+  call AllocateGridArrays(grid_size)
 
   ! Interpolate Pb and Temp on 1d grid
-  call InterpolatePMInput(condition,option,one_d_grid,press_at_datum, &
-                                  temp_vec,xm_nacl_vec,pb_vec,rs_vec)  
+  !call InterpolatePMInput(condition,option,one_d_grid)
+  ! call InterpolatePMInput(condition,option,one_d_grid,press_at_datum, &
+  !                                 temp_vec,xm_nacl_vec,pb_vec,rv_vec)  
+
+  do i_z = 1,size(one_d_grid%z(:))
+    call GetZPointProps(one_d_grid%z(i_z),option,temp_vec(i_z), &
+                        xm_nacl_vec(i_z),pb_vec(i_z),rv_vec(i_z))
+  end do
   
   ! compute hydrostatic pressure profiles for exisitng phases
   if (datum_in_wat) then
-    ! call PhaseHydrostaticPressure(one_d_grid,option%gravity, &
-    !           LIQUID_PHASE,pressure_at_datum, &
-    !           one_d_grid%idatum,xm_nacl,temperature_array, &
-    !           wat_pressure_array,wat_density_array)    
+    call PhaseHydrostaticPressure(one_d_grid,option,LIQUID_PHASE, &
+                press_at_datum,one_d_grid%idatum,temp_vec, &
+                xm_nacl_vec,pb_vec,rv_vec, &
+                wat_press_vec,wat_den_kg_vec)
+    if ( oil_present ) then
+      ! compute pw_owc and starts po computation from pw_owc
+      call one_d_grid%ZLookup(owc_z,i_n,dist_dn,dist_up)
+      pw_owc = wat_press_vec(i_n) + wat_den_kg_vec(i_n) * g_z * dist_dn
+      po_owc = pw_owc + pcow_owc
+      i_press_start = i_n + 1
+
+      call GetZPointProps(owc_z,option,temp_owc,xm_nacl_owc,pb_owc,rv_owc)
+
+      press_start = po_owc + PhaseDensity(option,OIL_PHASE,po_owc,temp_owc, &
+                             xm_nacl_owc,pb_owc,rv_owc) * g_z * dist_up
+      !
+      call PhaseHydrostaticPressure(one_d_grid,option,OIL_PHASE, &
+                  press_start,i_press_start,temp_vec, &
+                  xm_nacl_vec,pb_vec,rv_vec, &
+                  oil_press_vec,oil_den_kg_vec)
+    end if
+    if ( gas_present .and. oil_present ) then
+      !compute po_ogc and starts pg computation from po_ogc
+
+    else if ( gas_present .and. (.not.oil_present) ) then
+      !compute po_wgc and starts pg computation from pg_wgc
+    end if
   else if (datum_in_oil) then
-    
+    call PhaseHydrostaticPressure(one_d_grid,option,OIL_PHASE, &
+                press_at_datum,one_d_grid%idatum,temp_vec, &
+                xm_nacl_vec,pb_vec,rv_vec, &
+                oil_press_vec,oil_den_kg_vec)
+    if (wat_present) then
+      call one_d_grid%ZLookup(owc_z,i_n,dist_dn,dist_up)
+      po_owc = oil_press_vec(i_n) + oil_den_kg_vec(i_n) * g_z * dist_dn
+      pw_owc = po_owc - pcow_owc
+      i_press_start = i_n + 1
+      call GetZPointProps(owc_z,option,temp_owc,xm_nacl_owc,pb_owc,rv_owc)
+      press_start = pw_owc + PhaseDensity(option,LIQUID_PHASE,pw_owc,temp_owc, &
+                             xm_nacl_owc,pb_owc,rv_owc) * g_z * dist_up
+      !
+      call PhaseHydrostaticPressure(one_d_grid,option,LIQUID_PHASE, &
+                  press_start,i_press_start,temp_vec, &
+                  xm_nacl_vec,pb_vec,rv_vec, &
+                  wat_press_vec,wat_den_kg_vec)
+    end if  
+    if (gas_present) then
+      call one_d_grid%ZLookup(ogc_z,i_n,dist_dn,dist_up)
+      po_ogc = oil_press_vec(i_n) + oil_den_kg_vec(i_n) * g_z * dist_dn
+      pg_ogc = po_ogc + pcog_ogc
+      i_press_start = i_n + 1
+      call GetZPointProps(ogc_z,option,temp_ogc,xm_nacl_ogc,pb_ogc,rv_ogc)
+      press_start = pg_ogc + PhaseDensity(option,GAS_PHASE,pg_ogc,temp_ogc, &
+                             xm_nacl_ogc,pb_ogc,rv_ogc) * g_z * dist_up
+      !
+      call PhaseHydrostaticPressure(one_d_grid,option,GAS_PHASE, &
+                  press_start,i_press_start,temp_vec, &
+                  xm_nacl_vec,pb_vec,rv_vec, &
+                  gas_press_vec,gas_den_kg_vec)
+    end if
+    !check what phase are above water
+    !write z function lookup
   else if (datum_in_gas) then
     
   end if
@@ -244,24 +306,61 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   ! call HydrostaticPMWriter(condition%flow_aux_real_var(:,iconn), &
   !                            condition%flow_aux_int_var(:,iconn) )
 
-  call DeallocateArray(temp_vec)
-  call DeallocateArray(xm_nacl_vec)
-  call DeallocateArray(pb_vec)
-  call DeallocateArray(rs_vec)
-  call DeallocateArray(wat_press_vec)
-  call DeallocateArray(oil_press_vec)
-  call DeallocateArray(gas_press_vec)
-  call DeallocateArray(wat_den_kg_vec)
-  call DeallocateArray(oil_den_kg_vec)
-  call DeallocateArray(gas_den_kg_vec)
-
+  call DeallocateGridArrays()
 
 end subroutine HydrostaticMPUpdateCoupler
 
 ! ************************************************************************** !
 
-subroutine HydrostaticPMLoader(condition,option,datum_z,press_at_datum, &
-                               owc_z,pcow_owc,ogc_z,pcog_ogc,wgc_z,pcwg_wgc)
+subroutine HydrostaticMPInit()
+  ! 
+  ! Initialise Multi Phase hydrostatic variables
+  !
+  ! Author: Paolo Orsini
+  ! Date: 01/13/19
+
+  implicit none
+
+  oil_wat_zone = PETSC_FALSE
+  oil_gas_zone = PETSC_FALSE
+  wat_gas_zone = PETSC_FALSE
+  wat_present = PETSC_FALSE
+  oil_present = PETSC_FALSE
+  gas_present = PETSC_FALSE  
+
+  !assign default values to datum and pahse contacts
+  datum_z = 0.0d0
+  owc_z = 0.0d0
+  pcow_owc = 0.0d0
+  ogc_z = 0.0d0
+  pcog_ogc = 0.0d0
+  wgc_z = 0.0d0
+  pcwg_wgc = 0.0d0
+
+  press_at_datum = UNINITIALIZED_DOUBLE
+  
+  res_temp_const = UNINITIALIZED_DOUBLE
+  res_temp_is_const = PETSC_FALSE
+
+  pb_const = UNINITIALIZED_DOUBLE
+  pb_is_const = PETSC_FALSE
+
+  g_z = UNINITIALIZED_DOUBLE
+
+  pw_owc = UNINITIALIZED_DOUBLE
+  po_owc = UNINITIALIZED_DOUBLE
+  po_ogc = UNINITIALIZED_DOUBLE
+  pg_ogc = UNINITIALIZED_DOUBLE
+  pw_wgc = UNINITIALIZED_DOUBLE
+  pg_wgc = UNINITIALIZED_DOUBLE
+
+end subroutine HydrostaticMPInit
+
+! ************************************************************************** !
+
+subroutine HydrostaticPMLoader(condition,option)
+!subroutine HydrostaticPMLoader(condition,option,datum_z,press_at_datum, &
+!                               owc_z,pcow_owc,ogc_z,pcog_ogc,wgc_z,pcwg_wgc)
   ! 
   ! Extract input data fro equilibration from different modes
   !
@@ -278,28 +377,34 @@ subroutine HydrostaticPMLoader(condition,option,datum_z,press_at_datum, &
   !consider to declare all these input variables as private module variables
   !declare with the same names in the calling function to make this change easier
   !once the old TOIHydrostaticUpdateCoupler has been removed
-  PetscReal, intent(out) :: datum_z
-  PetscReal, intent(out) :: press_at_datum
-  PetscReal, intent(out) :: owc_z
-  PetscReal, intent(out) :: pcow_owc
-  PetscReal, intent(out) :: ogc_z
-  PetscReal, intent(out) :: pcog_ogc
-  PetscReal, intent(out) :: wgc_z
-  PetscReal, intent(out) :: pcwg_wgc
+  ! PetscReal, intent(out) :: datum_z
+  ! PetscReal, intent(out) :: press_at_datum
+  ! PetscReal, intent(out) :: owc_z
+  ! PetscReal, intent(out) :: pcow_owc
+  ! PetscReal, intent(out) :: ogc_z
+  ! PetscReal, intent(out) :: pcog_ogc
+  ! PetscReal, intent(out) :: wgc_z
+  ! PetscReal, intent(out) :: pcwg_wgc
   !add temp_table and pb_table
 
   PetscBool :: press_at_datum_found
+  PetscReal :: temperature
+  PetscReal :: temp_grad(3)
+  PetscBool :: temp_grad_given
 
   !assign default values
   press_at_datum_found = PETSC_FALSE
-  datum_z = 0.0d0
-  press_at_datum = 0.0d0
-  owc_z = 0.0d0
-  pcow_owc = 0.0d0
-  ogc_z = 0.0d0
-  pcog_ogc = 0.0d0
-  wgc_z = 0.0d0
-  pcwg_wgc = 0.0d0
+  temperature = UNINITIALIZED_DOUBLE
+  temp_grad(1:3) = UNINITIALIZED_DOUBLE
+  temp_grad_given = PETSC_FALSE
+  ! datum_z = 0.0d0
+  ! press_at_datum = 0.0d0
+  ! owc_z = 0.0d0
+  ! pcow_owc = 0.0d0
+  ! ogc_z = 0.0d0
+  ! pcog_ogc = 0.0d0
+  ! wgc_z = 0.0d0
+  ! pcwg_wgc = 0.0d0
 
 
   select case(option%iflowmode)
@@ -334,14 +439,29 @@ subroutine HydrostaticPMLoader(condition,option,datum_z,press_at_datum, &
       if ( associated(condition%towg%pcog_ogc) ) then
         pcog_ogc = condition%towg%pcog_ogc%dataset%rarray(1)
       end if
+      if ( associated(condition%towg%temperature) ) then
+        !gradient or constant 
+        temperature = condition%towg%temperature%dataset%rarray(1)
+        if ( associated(condition%towg%temperature%gradient ) ) then
+          temp_grad(1:3) = condition%towg%temperature%gradient%rarray(1:3)
+          temp_grad_given = PETSC_TRUE
+        end if
+      end if
 
-      !if ( .not.associated(condition%towg%pbvz_table) ) then 
-        if ( dabs(ogc_z - datum_z) > z_eps ) then
-          option%io_buffer = 'Hydrostatic equilibration: PB table not defined, &
-                              &datum and OGC must be in the same location'
-          call printErrMsg(option)
-        end if  
-      !end if
+      select case (option%iflow_sub_mode)
+        case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+          !if ( .not.associated(condition%towg%pbvz_table) ) then
+            pb_const = press_at_datum
+            pb_is_const = PETSC_TRUE
+            if ( dabs(ogc_z - datum_z) > z_eps ) then
+              option%io_buffer = 'Hydrostatic equilibration: PB table not defined, &
+                                  &datum and OGC must be in the same location'
+              call printErrMsg(option)
+            end if  
+          !end if
+        case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+          !nothing to do pb not needed  
+      end select
       
       if (condition%towg%is_wg_equilibration) then
         ogc_z = 1.0d20
@@ -361,8 +481,39 @@ subroutine HydrostaticPMLoader(condition,option,datum_z,press_at_datum, &
       if ( associated(condition%toil_ims%pressure) ) then
         press_at_datum = condition%toil_ims%pressure%dataset%rarray(1)
         press_at_datum_found = PETSC_TRUE
-      end if      
+      end if
+      if ( associated(condition%toil_ims%temperature) ) then
+        !gradient or constant 
+        temperature = condition%toil_ims%temperature%dataset%rarray(1)
+        if ( associated(condition%toil_ims%temperature%gradient ) ) then
+          temp_grad(1:3) = condition%toil_ims%temperature%gradient%rarray(1:3)
+          temp_grad_given = PETSC_TRUE
+        end if
+      end if
   end select
+
+  !if both temp_grad and rtempvz_table given, returns an error
+  
+  if (temp_grad_given) then
+    if (Uninitialized(temperature)) then
+      option%io_buffer = 'MP Equilibration input error: a temperature value &
+                          &at datum must be input to initialise the rservoir &
+                          &with a temperature gradient'
+      call printErrMsg(option)
+    end if
+    !build rtempvz_table using temperature and temp_grad
+  end if
+  
+  !if ( .not.associated (rtempvz_table) ) then
+     if (Uninitialized(temperature)) then
+       option%io_buffer = 'MP Equilibration input error: a temperature value &
+                           &or table must be input to initialise the rservoir'
+       call printErrMsg(option)
+     end if
+     res_temp_is_const = PETSC_TRUE
+     res_temp_const = temperature
+  !end if
+
 
   if (.not.press_at_datum_found) then
     option%io_buffer = 'TOWG Equilibration condition input error: &
@@ -373,91 +524,593 @@ subroutine HydrostaticPMLoader(condition,option,datum_z,press_at_datum, &
 end subroutine HydrostaticPMLoader
 
 ! ************************************************************************** !
+! 
+! subroutine InterpolatePMInput(condition,option,one_d_grid)
+! !subroutine InterpolatePMInput(condition,option,one_d_grid,press_at_datum, &
+! !                             temp_vec,xm_nacl_vec,pb_vec,rs_vec)
+!   ! 
+!   ! Interpolate thermodynamics properties into 1d grid
+!   !
+!   ! Author: Paolo Orsini
+!   ! Date: 01/09/19  
+! 
+!   use Option_module
+!   use Condition_module
+! 
+!   implicit none
+! 
+!   type(flow_condition_type), intent(in) :: condition
+!   type(option_type) :: option
+!   class(one_dim_grid_type), intent(in) :: one_d_grid
+!   ! PetscReal, intent(in) :: press_at_datum
+!   ! PetscReal, intent(out) :: temp_vec(:)
+!   ! PetscReal, intent(out) :: xm_nacl_vec(:)
+!   ! PetscReal, intent(out) :: pb_vec(:)
+!   ! PetscReal, intent(out) :: rs_vec(:)
+! 
+!   PetscReal :: xm_nacl, temperature
+!   PetscReal :: temp_grad(3)
+!   PetscInt :: grid_size
+!   PetscBool :: temp_grad_given
+! 
+!   xm_nacl = 0.0d0
+!   temp_grad = UNINITIALIZED_DOUBLE
+!   temperature = UNINITIALIZED_DOUBLE
+!   grid_size = size(one_d_grid%z(:))
+!   temp_grad_given = PETSC_FALSE
+! 
+!   select case(option%iflowmode)
+!     case(TOWG_MODE)
+!       select case (option%iflow_sub_mode)
+!         case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+!           !if pbvz_table then
+!           ! do lookup for each z and copy values onto pb_vec
+!           !else          
+!           if (pb_is_const) then            
+!             !pb_vec(1:grid_size) = press_at_datum
+!             pb_vec(1:grid_size) = pb_const
+!           end if
+!           !end if
+!           ! if ( associated(condition%towg%temperature) ) then
+!           !   !gradient or constant 
+!           !   temperature = condition%towg%temperature%dataset%rarray(1)
+!           !   if ( associated(condition%towg%temperature%gradient ) ) then
+!           !     temp_grad(1:3) = condition%towg%temperature%gradient%rarray(1:3)
+!           !     temp_grad_given = PETSC_TRUE
+!           !   end if  
+!           ! end if
+!         case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+!           !do nothing : pb is not required
+!       end select
+!     case(TOIL_IMS_MODE)
+!       ! if ( associated(condition%toil_ims%temperature) ) then
+!       !   !gradient or constant 
+!       !   temperature = condition%toil_ims%temperature%dataset%rarray(1)
+!       !   if ( associated(condition%toil_ims%temperature%gradient ) ) then
+!       !     temp_grad(1:3) = condition%toil_ims%temperature%gradient%rarray(1:3)
+!       !     temp_grad_given = PETSC_TRUE
+!       !   end if  
+!       ! end if
+!   end select
+! 
+!   !check also if both temperature and rtempvz_table have been defined and return 
+!   !an error. This needs to be implmenented in cocordination with condition read
+!   !must allow to read read either temperature (with/wihtout gread) or rtempvz_table
+!   ! if not temp, (and temp_grad) or rtempvz_table return an error
+! 
+!   !if (res_temp_is_const) then
+!     temp_vec(1:grid_size) = res_temp_const
+!   !else if (associated(rtempvz_table)) then
+!   ! interpolation using rtempvz_table
+!   !end if
+! 
+!     ! if (temp_grad_given) then
+!     !   call CompVertTempProfile(one_d_grid,temp_grad,temperature, &
+!     !                            temp_vec)
+!     ! else
+!     !   temp_vec(1:grid_size)=temperature
+!     ! end if  
+!   !end if 
+! 
+! 
+!   !if (associated(condition%saltvz_table)) then
+!   ! do lookup for each z and copy values onto xm_nacl_vec
+!   !else
+!     xm_nacl = option%m_nacl * FMWNACL
+!     xm_nacl = xm_nacl /(1.d3 + xm_nacl)
+!     xm_nacl_vec(1:grid_size) = xm_nacl
+!   !
+! 
+! end subroutine InterpolatePMInput
 
-subroutine InterpolatePMInput(condition,option,one_d_grid,press_at_datum, &
-                             temp_vec,xm_nacl_vec,pb_vec,rs_vec)
+! ************************************************************************** !
+! 
+! subroutine Populate1DGridDataArrays(one_d_grid,option)
+!   ! do I need this?
+!   use Option_module
+! 
+!   implicit none
+! 
+!   class(one_dim_grid_type), intent(in) :: one_d_grid
+!   type(option_type) :: option
+! 
+!   PetscInt :: i_z
+! 
+!   do i_z = 1,size(one_d_grid%z(:))
+!     call GetZPointProps(one_d_grid%z(i_z),option,temp_vec(i_z), &
+!                         xm_nacl_vec(i_z),pb_vec(i_z),rv_vec(i_z))
+!   end do
+! 
+! end subroutine Populate1DGridDataArrays
+! 
+! ************************************************************************** !
+
+function CreateOneDimGrid(min_z,max_z,datum)
   ! 
-  ! Interpolate thermodynamics properties into 1d grid
+  ! Computes 1D grid for interpolation needed in hydrostatic pressure
+  ! computation
   !
   ! Author: Paolo Orsini
-  ! Date: 01/09/19  
-
-  use Option_module
-  use Condition_module
+  ! Date: 12/21/15
+  ! 
 
   implicit none
 
-  type(flow_condition_type), intent(in) :: condition
+  class(one_dim_grid_type), pointer :: one_d_grid
+  PetscReal,intent(in) :: datum(3)
+  PetscReal, intent(in) :: min_z, max_z
+
+  class(one_dim_grid_type), pointer :: CreateOneDimGrid
+
+  PetscInt :: num_z, i_z
+  PetscReal :: dist_z
+
+  allocate(one_d_grid)
+
+  one_d_grid%min_z = min_z
+  one_d_grid%max_z = max_z
+
+  one_d_grid%delta_z = min((max_z-min_z)/500.d0,1.d0)
+  ! if zero, assign 1.d0 to avoid divide by zero below. essentially the grid
+  ! is flat.
+  if (one_d_grid%delta_z < 1.d-40) one_d_grid%delta_z = 1.d0
+
+  num_z = int((max_z-min_z)/one_d_grid%delta_z) + 1
+
+  allocate(one_d_grid%z(num_z))
+
+  one_d_grid%idatum = int((datum(Z_DIRECTION)-min_z)/(max_z-min_z) * &
+                        dble(num_z))+1  
+
+  one_d_grid%z(one_d_grid%idatum) = datum(Z_DIRECTION)  
+
+  dist_z = 0.d0
+  do i_z=one_d_grid%idatum+1,num_z
+    dist_z = dist_z + one_d_grid%delta_z
+    one_d_grid%z(i_z) = one_d_grid%z(one_d_grid%idatum) + dist_z
+  enddo
+
+  dist_z = 0.d0
+  do i_z = one_d_grid%idatum-1,1,-1
+    dist_z = dist_z + one_d_grid%delta_z
+    one_d_grid%z(i_z) = one_d_grid%z(one_d_grid%idatum) - dist_z
+  enddo
+
+  CreateOneDimGrid => one_d_grid
+
+end function CreateOneDimGrid
+
+! ************************************************************************** !
+
+subroutine ZLookup(this,z,i_node,dist_dn,dist_up)
+  !
+  ! Lookup z within the one dimentional grid and renturns:
+  ! i_node : index of the lower closest nodes
+  ! dist_z_i_node: distance from the closest lower node
+  !
+  ! Author: Paolo Orsini
+  ! Date: 01/12/19
+  !
+
+  implicit none
+
+  class(one_dim_grid_type) :: this
+  PetscReal, intent(in) :: z
+  PetscInt, intent(out) :: i_node
+  PetscReal, intent(out) :: dist_dn
+  PetscReal, intent(out) :: dist_up
+
+  PetscReal :: dist_z
+
+  dist_z = z - this%z(this%idatum)
+  i_node = this%idatum+int(dist_z/this%delta_z)
+  dist_dn = z - this%z(i_node)
+  dist_up = this%z(i_node + 1) - z
+
+end subroutine ZLookup
+
+! ************************************************************************** !
+
+subroutine DestroyOneDimGrid(one_d_grid)
+  !
+  ! destroys OneDimGrid
+  ! 
+  ! Author: Paolo Orsini
+  ! Date: 12/30/15
+  ! 
+
+  use Utility_module 
+
+  implicit none
+
+  class(one_dim_grid_type), pointer :: one_d_grid
+
+  if (.not.associated(one_d_grid) ) return
+
+  call DeallocateArray(one_d_grid%z)
+
+  deallocate(one_d_grid)
+  nullify(one_d_grid)
+
+end subroutine DestroyOneDimGrid
+
+! ************************************************************************** !
+
+subroutine GetZPointProps(z,option,temp,xm_nacl,pb,rv)
+  
+  use Option_module
+  
+  implicit none
+  
+  PetscReal, intent(in) :: z
   type(option_type) :: option
-  class(one_dim_grid_type), intent(in) :: one_d_grid
-  PetscReal, intent(in) :: press_at_datum
-  PetscReal, intent(out) :: temp_vec(:)
-  PetscReal, intent(out) :: xm_nacl_vec(:)
-  PetscReal, intent(out) :: pb_vec(:)
-  PetscReal, intent(out) :: rs_vec(:)
+  PetscReal, intent(out) :: temp
+  PetscReal, intent(out) :: xm_nacl
+  PetscReal, intent(out) :: pb
+  PetscReal, intent(out) :: rv
 
-  PetscReal :: xm_nacl, temperature
-  PetscReal :: temp_grad(3)
-  PetscInt :: grid_size
-  PetscBool :: temp_grad_given
+  temp = UNINITIALIZED_DOUBLE
+  xm_nacl = UNINITIALIZED_DOUBLE
+  pb = UNINITIALIZED_DOUBLE
+  rv = UNINITIALIZED_DOUBLE
 
-  xm_nacl = 0.0d0
-  temp_grad = UNINITIALIZED_DOUBLE
-  temperature = UNINITIALIZED_DOUBLE
-  grid_size = size(one_d_grid%z(:))
-  temp_grad_given = PETSC_FALSE
+  if (res_temp_is_const) then
+    temp = res_temp_const
+  end if
+  !else
+    ! inteprolate using rtempvz_table
+  !
+  
+  xm_nacl = option%m_nacl * FMWNACL
+  xm_nacl = xm_nacl /(1.d3 + xm_nacl)
 
   select case(option%iflowmode)
     case(TOWG_MODE)
-      !if pbvz_table then
-      ! do lookup for each z and copy values onto pb_vec
-      !else
-      pb_vec(1:grid_size) = press_at_datum
-      !end if
-      if ( associated(condition%towg%temperature) ) then
-        !gradient or constant 
-        temperature = condition%towg%temperature%dataset%rarray(1)
-        if ( associated(condition%towg%temperature%gradient ) ) then
-          temp_grad(1:3) = condition%towg%temperature%gradient%rarray(1:3)
-          temp_grad_given = PETSC_TRUE
-        end if  
-      end if
+      select case (option%iflow_sub_mode)
+        case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+          if (pb_is_const) then
+            pb = pb_const
+          end if
+          !else use pb_table
+          !
+        case (TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+          ! do nothng as pb is not required
+      end select
     case(TOIL_IMS_MODE)
-      if ( associated(condition%toil_ims%temperature) ) then
-        !gradient or constant 
-        temperature = condition%toil_ims%temperature%dataset%rarray(1)
-        if ( associated(condition%toil_ims%temperature%gradient ) ) then
-          temp_grad(1:3) = condition%toil_ims%temperature%gradient%rarray(1:3)
-          temp_grad_given = PETSC_TRUE
-        end if  
-      end if
   end select
-  
-  !check also if both temperature and rtempvz_table have been defined and return 
-  !an error. This needs to be implmenented in cocordination with condition read
-  !must allow to read read either temperature (with/wihtout gread) or rtempvz_table
-  ! if not temp, (and temp_grad) or rtempvz_table return an error
-  
-  !if (associated(condition%rtempvz_table)) then
-  !else if
-    if (temp_grad_given) then
-      call CompVertTempProfile(one_d_grid,temp_grad,temperature, &
-                               temp_vec)
-    else
-      temp_vec(1:grid_size)=temperature
-    end if  
-  !end if 
 
+end subroutine GetZPointProps
 
-  !if (associated(condition%saltvz_table)) then
-  ! do lookup for each z and copy values onto xm_nacl_vec
-  !else
-    xm_nacl = option%m_nacl * FMWNACL
-    xm_nacl = xm_nacl /(1.d3 + xm_nacl)
-    xm_nacl_vec(1:grid_size) = xm_nacl
+! ************************************************************************** !
+
+subroutine PhaseHydrostaticPressure(one_d_grid,option,iphase,press_start, &
+                                    id_start,temp_v,xm_nacl_v,pb_v,rv_v, &
+                                    press_v,den_kg_v)
+  ! 
+  ! Compute an hydrostatic pressure profile for a given phase and 1D
+  ! 1D discretisation
+  ! The "starting point" for the computation of the pressure profile
+  ! is the elevation where a reference pressure is given, it can be the datum,
+  ! or one of the phase contact interface (e.g. OWC, OGC, etc)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 12/21/15 - 01/10/2019
   !
 
-end subroutine InterpolatePMInput
+  use Option_module
+
+  implicit none
+
+  class(one_dim_grid_type) :: one_d_grid
+  !PetscReal, intent(in) :: gravity(:) ! this is option%gravity
+  type(option_type) :: option
+  PetscInt, intent(in) :: iphase
+  PetscReal, intent(in) :: press_start
+  PetscInt, intent(in) :: id_start
+  PetscReal, intent(in) :: temp_v(:)
+  PetscReal, intent(in) :: xm_nacl_v(:)
+  PetscReal, intent(in) :: pb_v(:)
+  PetscReal, intent(in) :: rv_v(:)
+  PetscReal, intent(out) :: press_v(:)
+  PetscReal, intent(out) :: den_kg_v(:)
+
+  PetscReal :: gravity(3)
+  PetscReal :: pressure, pressure0, rho, rho_one, rho_kg, rho_zero
+  PetscInt :: ipressure, num_iteration
+
+  gravity(1:3) = option%gravity(1:3)
+
+  rho_kg = PhaseDensity(option,iphase,press_start,temp_v(id_start), &
+                        xm_nacl_v(id_start),pb_v(id_start),rv_v(id_start))
+
+  ! fill properties for reference pressure
+  den_kg_v(id_start) = rho_kg
+  press_v(id_start) = press_start
+
+  pressure0 = press_start
+  rho_zero = rho_kg
+  do ipressure=id_start+1,size(one_d_grid%z(:))
+    rho_kg = PhaseDensity(option,iphase,pressure0,temp_v(ipressure), &
+                          xm_nacl_v(ipressure),pb_v(ipressure),rv_v(ipressure))
+    num_iteration = 0
+    do
+      pressure = pressure0 + 0.5d0*(rho_kg+rho_zero) * &
+                 gravity(Z_DIRECTION) * one_d_grid%delta_z
+      if (iphase == OIL_PHASE) then
+        select case(option%iflowmode)
+          case(TOWG_MODE)
+            select case (option%iflow_sub_mode)
+              case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+                if ( one_d_grid%z(ipressure) >= ogc_z) then
+                  pressure = pb_v(ipressure)
+                else
+                  if (pressure < pb_v(ipressure)) then
+                    pressure = pb_v(ipressure)
+                  end if
+                end if
+            end select
+        end select
+      end if !end if OIL_PHASE
+      rho_one = PhaseDensity(option,iphase,pressure,temp_v(ipressure), &
+                        xm_nacl_v(ipressure),pb_v(ipressure),rv_v(ipressure))
+      !check convergence on density
+      if (dabs(rho_kg-rho_one) < 1.d-10) exit
+      rho_kg = rho_one
+      num_iteration = num_iteration + 1
+      if (num_iteration > 100) then
+        print *,'Phase-Hydrostatic iteration failed to converge', &
+                 num_iteration,rho_one,rho_kg
+        !print *, condition%name, idatum
+        !print *, pressure_array
+        stop
+      endif
+    enddo
+    rho_zero = rho_kg
+    press_v(ipressure) = pressure
+    den_kg_v(ipressure) = rho_kg
+    pressure0 = pressure
+  enddo
+
+  ! compute pressures below one_d_grid%z(id_start), if any
+  pressure0 = press_v(id_start)
+  rho_zero = den_kg_v(id_start)
+  do ipressure=id_start-1,1,-1
+    rho_kg = PhaseDensity(option,iphase,pressure0,temp_v(ipressure), &
+                          xm_nacl_v(ipressure),pb_v(ipressure),rv_v(ipressure))
+    num_iteration = 0
+    do                   ! notice the negative sign (-) here
+      pressure = pressure0 - 0.5d0*(rho_kg+rho_zero) * &
+                 gravity(Z_DIRECTION) * one_d_grid%delta_z
+      if (iphase == OIL_PHASE) then
+        select case(option%iflowmode)
+          case(TOWG_MODE)
+            select case (option%iflow_sub_mode)
+              case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+                if ( one_d_grid%z(ipressure) >= ogc_z) then
+                  pressure = pb_v(ipressure)
+                else
+                  if (pressure < pb_v(ipressure)) then
+                    pressure = pb_v(ipressure)
+                  end if
+                end if
+            end select
+        end select
+      end if !end if OIL_PHASE
+      rho_one = PhaseDensity(option,iphase,pressure,temp_v(ipressure), &
+                         xm_nacl_v(ipressure),pb_v(ipressure),rv_v(ipressure))
+      !check convergence on density
+      if (dabs(rho_kg-rho_one) < 1.d-10) exit
+      rho_kg = rho_one
+      num_iteration = num_iteration + 1
+      if (num_iteration > 100) then
+        print *,'Phase-Hydrostatic iteration failed to converge', &
+                 num_iteration,rho_one,rho_kg
+        !print *, condition%name, idatum
+        !print *, pressure_array
+        stop
+      endif
+    enddo
+    rho_zero = rho_kg
+    press_v(ipressure) = pressure
+    den_kg_v(ipressure) = rho_kg
+    pressure0 = pressure
+  enddo
+
+  !write(*,*) "den fine bottom", den_kg(1) 
+  !write(*,*) "den fine top", den_kg(size(one_d_grid%z(:)))
+
+end subroutine PhaseHydrostaticPressure
+
+! ************************************************************************** !
+function PhaseDensity(option,iphase,p,t,xm_nacl,pb,rv)
+  !
+  ! computes phase density given the specified phase
+  !
+  ! Author: Paolo Orsini
+  ! Date: 12/21/15 - 01/10/2019
+  ! 
+
+  use Option_module
+  use EOS_Oil_module
+  use EOS_Water_module
+  use EOS_Gas_module ! when gas is considered
+
+  implicit none
+
+  type(option_type) :: option
+  PetscInt, intent(in) :: iphase
+  PetscReal, intent(in) :: p
+  PetscReal, intent(in) :: t
+  PetscReal, intent(in) :: xm_nacl
+  PetscReal, intent(in) :: pb
+  PetscReal, intent(in) :: rv
+  PetscReal :: PhaseDensity ! kg/m3 
+
+  PetscReal :: dw_mol
+  PetscReal :: aux(1)
+  PetscReal :: rs_molar
+  PetscReal :: xo, xg, cr, deno, crusp
+  !PetscInt :: table_idx
+
+  PetscErrorCode :: ierr
+
+  !table_idx = 1
+  xo = 0.0d0
+  xg = 0.0d0
+  cr = 0.0d0
+  deno = 0.0d0
+  crusp = 0.0d0
+
+  select case(iphase)
+    case(LIQUID_PHASE)
+      if ( option%m_nacl < 1.0d-40) then !no salt in water
+        call EOSWaterDensity(t,p,PhaseDensity,dw_mol,ierr)
+      else
+        aux(1) = xm_nacl
+        call EOSWaterDensityExt(t,p,aux,PhaseDensity,dw_mol,ierr)
+      end if
+    case(GAS_PHASE)
+      !note: curently no gas-condensate can be modeled
+      call EOSGasDensity(t,p,PhaseDensity,ierr)
+      !convert to mass density
+      PhaseDensity = PhaseDensity * EOSGasGetFMW()
+    case(OIL_PHASE)
+      select case(option%iflowmode)
+        case(TOIL_IMS_MODE)
+          call EOSOilDensity(t,p,PhaseDensity,ierr)
+          PhaseDensity = PhaseDensity * EOSOilGetFMW()
+        case(TOWG_MODE)
+          select case (option%iflow_sub_mode)
+            case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+              !Look up the Rs value
+              !table_idx =  1
+              !call getBlackOilComposition(pb,t,table_idx,xo,xg)
+              call EOSOilRS(t,pb,rs_molar,ierr)
+              xo=1.0d0   /(1.0d0+rs_molar)
+              xg=rs_molar/(1.0d0+rs_molar)
+              !Density and compressibility look-up at bubble point
+              call EOSOilDensity (t,pb,deno,ierr)
+              call EOSOilCompressibility(t,pb,cr,ierr)
+              !Correct for undersaturation
+              crusp=cr*(p-pb)
+              deno=deno*(1.0+crusp*(1.0+0.5*crusp))
+              !correct for composition, i.e. add gas component contribution
+              deno=deno/xo
+              !convert to mass density
+              PhaseDensity = deno * (xo*EOSOilGetFMW() + xg*EOSGasGetFMW() )
+            case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+              call EOSOilDensity(t,p,PhaseDensity,ierr)
+              PhaseDensity = PhaseDensity * EOSOilGetFMW()
+        end select
+      end select
+  end select
+
+end function PhaseDensity
+
+! ************************************************************************** !
+
+subroutine CompVertTempProfile(one_d_grid,temp_grad,temp_at_datum, &
+                               temp_profile)
+  ! 
+  ! Computes the temperature vertical profile on the 1D grid use for the 
+  ! hydrostatic pressure calculation
+  !
+  ! Author: Paolo Orsini
+  ! Date: 12/21/15
+  ! 
+
+  implicit none
+
+  class(one_dim_grid_type) :: one_d_grid
+  PetscReal, intent(in) :: temp_grad(:)
+  PetscReal, intent(in) :: temp_at_datum
+  PetscReal, intent(out) :: temp_profile(:)
+ 
+  PetscInt :: i_z
+
+  temp_profile(one_d_grid%idatum) = temp_at_datum
+
+  do i_z=one_d_grid%idatum+1,size(one_d_grid%z(:))
+    temp_profile(i_z) = temp_profile(i_z-1) + &
+                        temp_grad(Z_DIRECTION)*one_d_grid%delta_z   
+  end do
+
+  do i_z=one_d_grid%idatum-1,1,-1
+    temp_profile(i_z) = temp_profile(i_z+1) - & ! note the (-) sign
+                        temp_grad(Z_DIRECTION)*one_d_grid%delta_z   
+  end do
+
+end subroutine CompVertTempProfile
+
+! ************************************************************************** !
+
+subroutine AllocateGridArrays(grid_size)
+
+  implicit none
+
+  PetscInt, intent(in) :: grid_size
+
+  allocate(temp_vec(grid_size))
+  temp_vec = UNINITIALIZED_DOUBLE
+  allocate(xm_nacl_vec(grid_size))
+  xm_nacl_vec = 0.0d0
+  allocate(pb_vec(grid_size))
+  pb_vec = UNINITIALIZED_DOUBLE
+  allocate(rv_vec(grid_size))
+  rv_vec = UNINITIALIZED_DOUBLE
+  allocate(wat_press_vec(grid_size))
+  wat_press_vec = UNINITIALIZED_DOUBLE
+  allocate(wat_den_kg_vec(grid_size))
+  wat_den_kg_vec = UNINITIALIZED_DOUBLE
+  allocate(oil_press_vec(grid_size))
+  oil_press_vec = UNINITIALIZED_DOUBLE
+  allocate(oil_den_kg_vec(grid_size))
+  oil_den_kg_vec = UNINITIALIZED_DOUBLE
+  allocate(gas_press_vec(grid_size))
+  gas_press_vec = UNINITIALIZED_DOUBLE
+  allocate(gas_den_kg_vec(grid_size))
+  gas_den_kg_vec = UNINITIALIZED_DOUBLE
+
+end subroutine AllocateGridArrays
+
+! ************************************************************************** !
+
+subroutine DeallocateGridArrays()
+
+  implicit none
+
+  deallocate(temp_vec)
+  deallocate(xm_nacl_vec)
+  deallocate(pb_vec)
+  deallocate(rv_vec)
+  deallocate(wat_press_vec)
+  deallocate(wat_den_kg_vec)
+  deallocate(oil_press_vec)
+  deallocate(oil_den_kg_vec)
+  deallocate(gas_press_vec)
+  deallocate(gas_den_kg_vec)
+
+end subroutine DeallocateGridArrays
 
 ! ************************************************************************** !
 
@@ -943,422 +1596,8 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
 
 end subroutine TOIHydrostaticUpdateCoupler
 
-#if 0
 ! ************************************************************************** !
 
-function GetCouplerCellOnPhaseConact(coupler,grid,imat,z_phase_contact,option)
-
-  ! Returns the ghosted_id of the closest cell to phase contact  
-  ! Where more cells have the same minimum distance from z_phase_contact,
-  ! the first cell in the list will be selected as for the minloc function 
-  !
-  ! Author: Paolo Orsini
-  ! Date: 12/31/15
-  ! 
-
-  use Grid_module
-  use Coupler_module
-  use Utility_module
-  use Option_module
-
-  implicit none
-
-  type(coupler_type), intent(in) :: coupler
-  type(grid_type), intent(in) :: grid
-  PetscInt, pointer, intent(in) :: imat(:)
-  PetscReal, intent(in) :: z_phase_contact
-  type(option_type) :: option
-
-  PetscInt :: GetCouplerCellOnPhaseConact
-
-  PetscInt :: iconn, local_id, ghosted_id
-  PetscInt :: iconn_min(1)
-  PetscReal, pointer :: phase_contact_dist(:) 
-
-  allocate(phase_contact_dist(coupler%connection_set%num_connections))
-  phase_contact_dist = 1.d20
-  
-  do iconn=1,coupler%connection_set%num_connections
-    local_id = coupler%connection_set%id_dn(iconn)
-    ghosted_id = grid%nL2G(local_id)
-    if (imat(ghosted_id) <= 0) cycle
-    phase_contact_dist(iconn) = dabs(grid%z(ghosted_id) - z_phase_contact)
-  end do
-
-  iconn_min = minloc(phase_contact_dist(:))
-
-  local_id = coupler%connection_set%id_dn(iconn_min(1))
-
-  !write(*,*) "in get ghost -rank=", option%myrank, "icon_min=", iconn_min(1), &
-  !           " ghost =", grid%nL2G(local_id), "size dist = ", size(phase_contact_dist(:))
-
-  GetCouplerCellOnPhaseConact = grid%nL2G(local_id) 
-
-  call DeallocateArray(phase_contact_dist)
- 
-
-end function GetCouplerCellOnPhaseConact
-
-! ************************************************************************** !
-
-subroutine PhaseHydrostaticPressure(one_d_grid,gravity,iphase,press_start, &
-                                    id_start,xm_nacl,temp,press,den_kg)
-  ! 
-  ! Compute an hydrostatic pressure profile for a given phase and 1D 
-  ! 1D discretisation
-  ! The "starting point" for the computation of the pressure profile
-  ! is the elevation where a reference pressure is given, it can be the datum,
-  ! or one of the phase contact interface (e.g. OWC, OGC, etc)
-  !
-  ! Author: Paolo Orsini
-  ! Date: 12/21/15
-  ! 
-
-  implicit none
-
-  class(one_dim_grid_type) :: one_d_grid
-  PetscReal, intent(in) :: gravity(:) ! this is option%gravity
-  PetscInt, intent(in) :: iphase
-  PetscReal, intent(in) :: press_start
-  PetscInt, intent(in) :: id_start
-  PetscReal, intent(in) :: temp(:)
-  PetscReal, intent(in) :: xm_nacl
-  PetscReal, intent(out) :: press(:)
-  PetscReal, intent(out) :: den_kg(:)
-
-  PetscReal :: pressure, pressure0, rho, rho_one, rho_kg, rho_zero
-  PetscInt :: ipressure, num_iteration
-  
-  if(iphase == HYDRO_GAS_PHASE ) then
-    print *, "PhaseHydrostaticPressure does not support gas"
-    stop
-  end if
-
-  rho_kg = PhaseDensity(iphase,press_start,temp(id_start),xm_nacl)
-
-  ! fill properties for reference pressure
-  den_kg(id_start) = rho_kg
-  press(id_start) = press_start 
-
-  pressure0 = press_start 
-  rho_zero = rho_kg 
-  do ipressure=id_start+1,size(one_d_grid%z(:))
-    rho_kg = PhaseDensity(iphase,pressure0,temp(ipressure),xm_nacl)
-    num_iteration = 0
-    do 
-      pressure = pressure0 + 0.5d0*(rho_kg+rho_zero) * &
-                 gravity(Z_DIRECTION) * one_d_grid%delta_z
-      rho_one = PhaseDensity(iphase,pressure,temp(ipressure),xm_nacl)
-      !check convergence on density
-      if (dabs(rho_kg-rho_one) < 1.d-10) exit
-      rho_kg = rho_one
-      num_iteration = num_iteration + 1
-      if (num_iteration > 100) then
-        print *,'Phase-Hydrostatic iteration failed to converge', &
-                 num_iteration,rho_one,rho_kg
-        !print *, condition%name, idatum
-        !print *, pressure_array
-        stop
-      endif
-    enddo
-    rho_zero = rho_kg
-    press(ipressure) = pressure
-    den_kg(ipressure) = rho_kg
-    pressure0 = pressure
-  enddo
-
-  ! compute pressures below one_d_grid%z(id_start), if any
-  pressure0 = press(id_start)
-  rho_zero = den_kg(id_start)
-  do ipressure=id_start-1,1,-1
-    rho_kg = PhaseDensity(iphase,pressure0,temp(ipressure),xm_nacl)
-    num_iteration = 0
-    do                   ! notice the negative sign (-) here
-      pressure = pressure0 - 0.5d0*(rho_kg+rho_zero) * &
-                 gravity(Z_DIRECTION) * one_d_grid%delta_z
-      rho_one = PhaseDensity(iphase,pressure,temp(ipressure),xm_nacl)
-      !check convergence on density
-      if (dabs(rho_kg-rho_one) < 1.d-10) exit
-      rho_kg = rho_one
-      num_iteration = num_iteration + 1
-      if (num_iteration > 100) then
-        print *,'Phase-Hydrostatic iteration failed to converge', &
-                 num_iteration,rho_one,rho_kg
-        !print *, condition%name, idatum
-        !print *, pressure_array
-        stop
-      endif
-    enddo
-    rho_zero = rho_kg
-    press(ipressure) = pressure
-    den_kg(ipressure) = rho_kg
-    pressure0 = pressure
-  enddo
-
-end subroutine PhaseHydrostaticPressure
-
-! ************************************************************************** !
-function PhaseDensity(iphase,p,t,xm_nacl) 
-  !
-  ! computes phase density given the specified phase
-  !
-  ! Author: Paolo Orsini
-  ! Date: 12/21/15
-  ! 
-
-  use EOS_Oil_module
-  use EOS_Water_module
-  use EOS_Gas_module ! when gas is considered
-
-  implicit none
-
-  PetscInt, intent(in) :: iphase
-  PetscReal, intent(in) :: p
-  PetscReal, intent(in) :: t
-  PetscReal, intent(in) :: xm_nacl
- 
-  PetscReal :: PhaseDensity ! kg/m3 
-  PetscReal :: dw_mol
-  PetscReal :: aux(1)
-
-  PetscErrorCode :: ierr
-
-  select case(iphase)
-    case(HYDRO_LIQ_PHASE)
-      aux(1) = xm_nacl
-      call EOSWaterDensityExt(t,p,aux,PhaseDensity,dw_mol,ierr)
-    case(HYDRO_GAS_PHASE)
-      !call EOSGasDensityNoDerive(t,p,PhaseDensity,ierr)
-      ! rho_kg = rho * GAS_FMW (to get gas FMW currenlty mode specific)
-      ! gas_fmw should be defined in gas_eos 
-    case(HYDRO_OIL_PHASE)
-      call EOSOilDensity(t,p,PhaseDensity,ierr)
-      PhaseDensity = PhaseDensity * EOSOilGetFMW() 
-  end select
-
-end function PhaseDensity 
-
-! ************************************************************************** !
-
-function PressInterp(ipressure,dist_x,dist_y,dist_z_for_pressure,gravity, &
-                     pressure_array,density_array,pressure_gradient)
-
-  ! Computes hydrostatic pressure over dz from a reference pressure and
-  ! a density, combining possible horizontal gradients  
-  !
-  ! Author: Paolo Orsini
-  ! Date: 12/21/15
-
-
-  implicit none
-
-  PetscInt, intent(in) :: ipressure
-  PetscReal, intent(in) :: dist_x
-  PetscReal, intent(in) :: dist_y
-  PetscReal, intent(in) :: dist_z_for_pressure
-  PetscReal, intent(in) :: gravity(:)
-  PetscReal, intent(in) :: pressure_array(:)
-  PetscReal, intent(in) :: density_array(:)
-  PetscReal, intent(in) :: pressure_gradient(:)
-
-  PetscReal :: PressInterp
-
-  PressInterp = pressure_array(ipressure) + &
-                density_array(ipressure) * gravity(Z_DIRECTION) * &
-                dist_z_for_pressure + &
-                pressure_gradient(X_DIRECTION) * dist_x + & ! gradient in Pa/m
-                pressure_gradient(Y_DIRECTION) * dist_y
-
-end function PressInterp
-
-! ************************************************************************** !
-
-!function HydrostaticPressOverDz(dz,gravity,press_ref,density_ref)
-!
-!  implicit none
-!
-!  PetscReal, intent(in) :: dz
-!  PetscReal, intent(in) :: gravity(:)
-!  PetscReal, intent(in) :: press_ref
-!  PetscReal, intent(in) :: density_ref
-!
-!  PetscReal :: HydrostaticPressOverDz
-!
-!  HydrostaticPressOverDz = press_ref + density_ref * gravity(Z_DIRECTION) * dz
-!
-!end function HydrostaticPressOverDz
-
-! ************************************************************************** !
-
-function PressGrad(dist_x,dist_y,dist_z,press_ref,pressure_gradient)
-
-  ! Computes pressure from a reference pressure, distances in the three 
-  ! directions, and a 3d local pressure gradient  
-  !
-  ! Author: Paolo Orsini
-  ! Date: 12/21/15
-
-
-  implicit none
-
-  PetscReal, intent(in) :: dist_x
-  PetscReal, intent(in) :: dist_y
-  PetscReal, intent(in) :: dist_z
-  PetscReal, intent(in) :: press_ref
-  PetscReal, intent(in) :: pressure_gradient(:)
-
-  PetscReal :: PressGrad
-
-  PressGrad = press_ref + &
-              pressure_gradient(X_DIRECTION)*dist_x + & ! gradient in Pa/m
-              pressure_gradient(Y_DIRECTION)*dist_y + &
-              pressure_gradient(Z_DIRECTION)*dist_z 
-
-end function PressGrad
-
-! ************************************************************************** !
-
-
-subroutine CompVertTempProfile(one_d_grid,temp_grad,temp_at_datum, &
-                               temp_profile)
-  ! 
-  ! Computes the temperature vertical profile on the 1D grid use for the 
-  ! hydrostatic pressure calculation
-  !
-  ! Author: Paolo Orsini
-  ! Date: 12/21/15
-  ! 
-
-  implicit none
-
-  class(one_dim_grid_type) :: one_d_grid
-  PetscReal, intent(in) :: temp_grad(:)
-  PetscReal, intent(in) :: temp_at_datum
-  PetscReal, intent(out) :: temp_profile(:)
- 
-  PetscInt :: i_z
-
-  temp_profile(one_d_grid%idatum) = temp_at_datum
-
-  do i_z=one_d_grid%idatum+1,size(one_d_grid%z(:))
-    temp_profile(i_z) = temp_profile(i_z-1) + &
-                        temp_grad(Z_DIRECTION)*one_d_grid%delta_z   
-  end do
-
-  do i_z=one_d_grid%idatum-1,1,-1
-    temp_profile(i_z) = temp_profile(i_z+1) - & ! note the (-) sign
-                        temp_grad(Z_DIRECTION)*one_d_grid%delta_z   
-  end do
-
-end subroutine CompVertTempProfile
-! ************************************************************************** !
-
-function CreateOneDimGrid(min_z,max_z,datum)
-  ! 
-  ! Computes 1D grid for interpolation needed in hydrostatic pressure
-  ! computation
-  !
-  ! Author: Paolo Orsini
-  ! Date: 12/21/15
-  ! 
-
-  implicit none
-
-  class(one_dim_grid_type), pointer :: one_d_grid
-  PetscReal,intent(in) :: datum(3)
-  PetscReal, intent(in) :: min_z, max_z
-
-  class(one_dim_grid_type), pointer :: CreateOneDimGrid
-
-  PetscInt :: num_z, i_z
-  PetscReal :: dist_z
-
-  allocate(one_d_grid)
-
-  one_d_grid%min_z = min_z
-  one_d_grid%max_z = max_z
-
-  one_d_grid%delta_z = min((max_z-min_z)/500.d0,1.d0)
-  ! if zero, assign 1.d0 to avoid divide by zero below. essentially the grid
-  ! is flat.
-  if (one_d_grid%delta_z < 1.d-40) one_d_grid%delta_z = 1.d0
-
-  num_z = int((max_z-min_z)/one_d_grid%delta_z) + 1
-
-  allocate(one_d_grid%z(num_z))
-
-  one_d_grid%idatum = int((datum(Z_DIRECTION)-min_z)/(max_z-min_z) * &
-                        dble(num_z))+1  
-
-  one_d_grid%z(one_d_grid%idatum) = datum(Z_DIRECTION)  
-
-  dist_z = 0.d0
-  do i_z=one_d_grid%idatum+1,num_z
-    dist_z = dist_z + one_d_grid%delta_z
-    one_d_grid%z(i_z) = one_d_grid%z(one_d_grid%idatum) + dist_z
-  enddo
-
-  dist_z = 0.d0
-  do i_z = one_d_grid%idatum-1,1,-1
-    dist_z = dist_z + one_d_grid%delta_z
-    one_d_grid%z(i_z) = one_d_grid%z(one_d_grid%idatum) - dist_z
-  enddo
-
-  CreateOneDimGrid => one_d_grid
-
-end function CreateOneDimGrid
-
-! ************************************************************************** !
-function ElevationIdLoc(this,elevation)
-  ! 
-  ! Detect id location in one_d_grid given an absolute elevation
-  ! Note: absolute elevation, not relative to the datum 
-  !
-  ! Author: Paolo Orsini
-  ! Date: 12/21/15
-  ! 
-
-  implicit none
-
-  class(one_dim_grid_type) :: this
-  PetscReal, intent(in) :: elevation !this is the global elevation
-  
-  PetscInt :: ElevationIdLoc
-   
-  ElevationIdLoc = int( (elevation-this%min_z)/(this%max_z-this%min_z) * &
-                        dble(size(this%z(:))) ) + 1 
-
-  !  idatum = int((datum(Z_DIRECTION)-min_z)/(max_z-min_z) * &
-  !               dble(num_pressures))+1
-
-end function ElevationIdLoc
-
-! ************************************************************************** !
-
-subroutine DestroyOneDimGrid(one_d_grid)
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 12/30/15
-  ! 
-  ! destroys OneDimGrid
-
-  use Utility_module 
-
-  implicit none
-
-  class(one_dim_grid_type), pointer :: one_d_grid
-
-  if (.not.associated(one_d_grid) ) return
-
-  call DeallocateArray(one_d_grid%z)
-
-  deallocate(one_d_grid)
-  nullify(one_d_grid)
-
-end subroutine DestroyOneDimGrid
-
-! ************************************************************************** !
-#endif
 
 end module HydrostaticMultiPhase_module
 

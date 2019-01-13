@@ -36,10 +36,6 @@ module Utility_module
     module procedure UtilityReadRealArray
   end interface
 
-  interface AllocateInitArray
-    module procedure AllocateInitArray1DReal
-  end interface
-
   interface DeallocateArray
     ! TODO(geh) replace deallocations with the below
     module procedure DeallocateArray1DInteger
@@ -71,7 +67,6 @@ module Utility_module
             CrossProduct, &
             ReallocateArray, &
             UtilityReadArray, &
-            AllocateInitArray, &
             DeallocateArray, &
             InterfaceApprox, &
             Interpolate, &
@@ -1817,28 +1812,6 @@ subroutine CubicPolynomialEvaluate(coefficients,x,f,df_dx)
           coefficients(4)*3.d0*x_squared
   
 end subroutine CubicPolynomialEvaluate
-
-! ************************************************************************** !
-
-subroutine AllocateInitArray1DReal(array,array_size,initial_value)
-  ! 
-  ! Allocates a initialise 1D Double array
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 01/09/19
-  !   
-  
-  implicit none
-  
-  PetscReal, pointer :: array(:)
-  PetscInt, intent(in) :: array_size
-  PetscReal, intent(in) :: initial_value
-  
-  nullify(array)
-  allocate(array(array_size))
-  array = initial_value
-  
-end subroutine AllocateInitArray1DReal
 
 ! ************************************************************************** !
 

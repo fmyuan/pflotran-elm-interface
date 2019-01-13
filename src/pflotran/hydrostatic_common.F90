@@ -8,14 +8,7 @@ module Hydrostatic_Common_module
 
   private
 
-
-  ! commented out, use those defined in pflotran_constants
-  !LIQ = water to be consistent with the remainder fo the code
-  !PetscInt, parameter, public :: HYDRO_LIQ_PHASE = 1  
-  !PetscInt, parameter, public :: HYDRO_GAS_PHASE = 2
-  !PetscInt, parameter, public :: HYDRO_OIL_PHASE = 3 
-
-
+#if 0
   type, public :: one_dim_grid_type
     PetscReal :: delta_z
     PetscReal :: min_z
@@ -25,17 +18,18 @@ module Hydrostatic_Common_module
   contains 
     procedure :: ElevationIdLoc
     procedure, public :: InterpFromWellConnTo1DGrid
+    procedure, public :: ZLookup
   end type one_dim_grid_type
-
+#endif
 
   public :: GetCellOnPhaseConact, &
-            PhaseHydrostaticPressure, &
-            PhaseDensity, &
+            ! PhaseHydrostaticPressure, &
+            ! PhaseDensity, &
             PressInterp, &
-            PressGrad, &  
-            CompVertTempProfile, &
-            CreateOneDimGrid, &
-            DestroyOneDimGrid
+            PressGrad !, &  
+            !CompVertTempProfile !, &
+            ! CreateOneDimGrid, &
+            ! DestroyOneDimGrid
                     
  
 contains
@@ -99,6 +93,8 @@ end function GetCellOnPhaseConact
 
 ! ************************************************************************** !
 
+#if 0
+
 subroutine PhaseHydrostaticPressure(one_d_grid,option,iphase,press_start, &
                                     id_start,temp_v,xm_nacl_v,pb_v,rv_v, &
                                     press_v,den_kg_v)
@@ -157,6 +153,20 @@ subroutine PhaseHydrostaticPressure(one_d_grid,option,iphase,press_start, &
     do 
       pressure = pressure0 + 0.5d0*(rho_kg+rho_zero) * &
                  gravity(Z_DIRECTION) * one_d_grid%delta_z
+      !
+      ! select case(option%iflowmode)
+      !   case(TOWG_MODE)
+      !     select case (option%iflow_sub_mode)
+      !       case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+      !         if ( one_d_grid%z(ipressure) >= ogc_z) then
+      !           pressure = pb_v(ipressure)
+      !         else
+      !           if (pressure > pb_v(ipressure)) then
+      !             pressure = pb_v(ipressure)
+      !           end if  
+      !         end if    
+      !     end select
+      ! end select
       rho_one = PhaseDensity(option,iphase,pressure,temp_v(ipressure), &
                         xm_nacl_v(ipressure),pb_v(ipressure),rv_v(ipressure))
       !check convergence on density
@@ -235,30 +245,72 @@ function PhaseDensity(option,iphase,p,t,xm_nacl,pb,rv)
   PetscReal, intent(in) :: xm_nacl
   PetscReal, intent(in) :: pb
   PetscReal, intent(in) :: rv
-  
- 
   PetscReal :: PhaseDensity ! kg/m3 
+  
   PetscReal :: dw_mol
   PetscReal :: aux(1)
+  PetscReal :: rs_molar
+  PetscReal :: xo, xg, cr, deno, crusp  
+  !PetscInt :: table_idx
 
   PetscErrorCode :: ierr
 
+  !table_idx = 1
+  xo = 0.0d0
+  xg = 0.0d0
+  cr = 0.0d0
+  deno = 0.0d0
+  crusp = 0.0d0
+
   select case(iphase)
     case(LIQUID_PHASE)
-      aux(1) = xm_nacl
-      call EOSWaterDensityExt(t,p,aux,PhaseDensity,dw_mol,ierr)
+      if ( option%m_nacl < 1.0d-40) then !no salt in water
+        call EOSWaterDensity(t,p,PhaseDensity,dw_mol,ierr)
+      else  
+        aux(1) = xm_nacl
+        call EOSWaterDensityExt(t,p,aux,PhaseDensity,dw_mol,ierr)
+      end if  
     case(GAS_PHASE)
-      !call EOSGasDensityNoDerive(t,p,PhaseDensity,ierr)
-      ! rho_kg = rho * GAS_FMW (to get gas FMW currenlty mode specific)
-      ! gas_fmw should be defined in gas_eos 
+      !note: curently no gas-condensate can be modeled
+      call EOSGasDensity(t,p,PhaseDensity,ierr)
+      !convert to mass density
+      PhaseDensity = PhaseDensity * EOSGasGetFMW()
     case(OIL_PHASE)
-      call EOSOilDensity(t,p,PhaseDensity,ierr)
-      PhaseDensity = PhaseDensity * EOSOilGetFMW() 
+      select case(option%iflowmode)
+        case(TOIL_IMS_MODE)
+          call EOSOilDensity(t,p,PhaseDensity,ierr)
+          PhaseDensity = PhaseDensity * EOSOilGetFMW()
+        case(TOWG_MODE)
+          select case (option%iflow_sub_mode)
+            case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+              !Look up the Rs value
+              !table_idx =  1
+              !call getBlackOilComposition(pb,t,table_idx,xo,xg)
+              call EOSOilRS(t,pb,rs_molar,ierr)
+              xo=1.0d0   /(1.0d0+rs_molar)
+              xg=rs_molar/(1.0d0+rs_molar)
+              !Density and compressibility look-up at bubble point
+              call EOSOilDensity (t,pb,deno,ierr)
+              call EOSOilCompressibility(t,pb,cr,ierr)
+              !Correct for undersaturation
+              crusp=cr*(p-pb)
+              deno=deno*(1.0+crusp*(1.0+0.5*crusp))
+              !correct for composition, i.e. add gas component contribution
+              deno=deno/xo
+              !convert to mass density
+              PhaseDensity = deno * (xo*EOSOilGetFMW() + xg*EOSGasGetFMW() )
+            case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+              call EOSOilDensity(t,p,PhaseDensity,ierr)
+              PhaseDensity = PhaseDensity * EOSOilGetFMW()              
+        end select
+      end select      
   end select
 
 end function PhaseDensity 
 
 ! ************************************************************************** !
+
+#endif
 
 function PressInterp(ipressure,dist_x,dist_y,dist_z_for_pressure,gravity, &
                      pressure_array,density_array,pressure_gradient)
@@ -338,6 +390,7 @@ end function PressGrad
 
 ! ************************************************************************** !
 
+#if 0
 
 subroutine CompVertTempProfile(one_d_grid,temp_grad,temp_at_datum, &
                                temp_profile)
@@ -372,6 +425,7 @@ subroutine CompVertTempProfile(one_d_grid,temp_grad,temp_at_datum, &
 
 end subroutine CompVertTempProfile
 ! ************************************************************************** !
+
 
 function CreateOneDimGrid(min_z,max_z,datum)
   ! 
@@ -427,6 +481,36 @@ function CreateOneDimGrid(min_z,max_z,datum)
   CreateOneDimGrid => one_d_grid
 
 end function CreateOneDimGrid
+
+! ************************************************************************** ! 
+
+subroutine ZLookup(this,z,i_node,dist_dn,dist_up)
+  ! 
+  ! Lookup z within the one dimentional grid and renturns:
+  ! i_node : index of the lower closest nodes
+  ! dist_z_i_node: distance from the closest lower node 
+  !
+  ! Author: Paolo Orsini
+  ! Date: 01/12/19
+  !
+
+  implicit none
+
+  class(one_dim_grid_type) :: this
+  PetscReal, intent(in) :: z
+  PetscInt, intent(out) :: i_node
+  PetscReal, intent(out) :: dist_dn
+  PetscReal, intent(out) :: dist_up
+  
+  PetscReal :: dist_z
+  
+  dist_z = z - this%z(this%idatum)
+  i_node = this%idatum+int(dist_z/this%delta_z)
+  dist_dn = z - this%z(i_node)
+  dist_up = this%z(i_node + 1) - z
+
+end subroutine ZLookup
+
 
 ! ************************************************************************** !
 function ElevationIdLoc(this,elevation)
@@ -546,6 +630,7 @@ subroutine DestroyOneDimGrid(one_d_grid)
 end subroutine DestroyOneDimGrid
 
 ! ************************************************************************** !
+#endif
 
 end module Hydrostatic_Common_module
 
