@@ -1506,6 +1506,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   use EOS_Slv_module
   use Characteristic_Curves_module
   use Material_Aux_class
+  use Derivatives_utilities_module
 
   implicit none
 
@@ -1544,11 +1545,56 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: swa
   PetscReal :: socrs,svcrs,krvm
 
+  PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp,dof_ssat,ndof
+#if 0
+  PetscReal,dimension(1:option%nflowdof) :: D_cell_pres,D_kr,D_visc,D_visco,D_viscg
+  PetscReal,dimension(1:option%nflowdof) :: D_deno,D_deng,D_sath
+  PetscReal,dimension(1:option%nflowdof) :: D_krotl,D_krgtl,D_viscotl,D_viscgtl,D_denotl,D_dengtl
+  PetscReal :: d_x_d_cp,d_x_d_T,d_ps_d_T
+#endif
+
   PetscReal, parameter :: eps_oil=1.0d-5
   PetscReal, parameter :: eps_gas=1.0d-8
   PetscReal, parameter :: epss   =1.0d-4
   PetscReal, parameter :: epsp   =1.0d3
   PetscReal, parameter :: epseps =1.0d-10
+  PetscBool :: getDerivs
+
+  dof_op = TOWG_OIL_PRESSURE_DOF
+  dof_osat = TOWG_OIL_SATURATION_DOF
+  dof_gsat = TOWG_GAS_SATURATION_3PH_DOF
+  dof_temp = towg_energy_dof
+  dof_ssat = TOWG_SOLV_SATURATION_DOF
+  ndof = option%nflowdof
+
+if (towg_analytical_derivatives) then
+  if (.NOT. auxvar%has_derivs) then
+    ! how did this happen?
+    option%io_buffer = 'towg tl4p auxvars: towg_analytical_derivatives is true, &
+                        but auxvar%has_derivs is false, should both be true. &
+                        How did this happen?'
+    call printErrMsg(option)
+  endif
+
+  auxvar%D_pres = 0.d0
+  auxvar%D_sat = 0.d0
+  auxvar%D_pc = 0.d0
+  auxvar%D_den = 0.d0
+  auxvar%D_den_kg = 0.d0
+  auxvar%D_mobility = 0.d0
+  auxvar%D_por = 0.d0
+
+  auxvar%D_H = 0.d0
+  auxvar%D_U = 0.d0
+
+  ! also zero out all black oil derivatives
+  auxvar%bo%D_xo = 0.d0
+  auxvar%bo%D_xg = 0.d0
+
+  getDerivs = PETSC_TRUE
+else
+  getDerivs = PETSC_FALSE
+endif
 
 !==============================================================================
 !  Initialise
@@ -1642,6 +1688,8 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
         auxvar%sat(gid)               =0.0d0
         auxvar%bo%bubble_point        =auxvar%pres(oid)-epsp
         x(TOWG_BUBBLE_POINT_3PH_DOF)  =auxvar%pres(oid)-epsp
+        ! make sure this bool is still correct:
+        isSat = PETSC_FALSE 
       endif
     else
       if(      (auxvar%bo%bubble_point > auxvar%pres(oid)) &
@@ -1657,6 +1705,8 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
         x(TOWG_GAS_SATURATION_3PH_DOF)=auxvar%sat(gid)
 ! Make sure the extra gas does not push the water saturation negative
         sumhydsat=auxvar%sat(oid)+auxvar%sat(sid)+auxvar%sat(gid)
+        ! make sure this bool is still correct:
+        isSat = PETSC_TRUE
         if( sumhydsat>1.0  ) then
           rat=1.0/sumhydsat
           auxvar%sat(oid)=auxvar%sat(oid)*rat
@@ -1675,6 +1725,19 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !==============================================================================
 
   auxvar%sat(wid) = 1.d0 - auxvar%sat(oid) - auxvar%sat(gid) - auxvar%sat(sid)
+
+  if (getDerivs) then
+    auxvar%D_sat(oid,dof_osat) =  1.d0 ! diff oil sat by oil sat
+    auxvar%D_sat(sid,dof_ssat) =  1.d0 ! diff solvent sat by solvent sat
+
+    auxvar%D_sat(wid,dof_osat) = -1.d0 ! diff liquid sat by oil sat
+    auxvar%D_sat(wid,dof_ssat) = -1.d0 ! diff liquid sat by solvent sat
+
+    if (isSat) then
+      auxvar%D_sat(gid,dof_gsat) = 1.d0 ! diff gas sat by gas sat
+      auxvar%D_sat(wid,dof_gsat) = -1.d0 ! diff liquid sat by gas sat
+    endif
+  endif
 
 !==============================================================================
 ! Extract solution into local scalars
@@ -1698,6 +1761,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !==============================================================================
 
   call getBlackOilComposition(pb,t,auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
+  !!!! TODO DERIVS HERE
 
 !==============================================================================
 !  Get the miscible-immiscible mixing fractions (functions of fs=Ss/(Sg+Ss))
@@ -1705,6 +1769,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   call TL4PMiscibilityFraction(sg,ss,fm)
   fi=1.0-fm
+  !!!! TODO DERIVS HERE (though not stored)
 
 !==============================================================================
 !  Get the capillary pressures using three phase mode as functions of so,sv,sw
