@@ -1,12 +1,12 @@
 ###############################################################################
-# PFLOTRAN makefile for coupling with CLM
+# PFLOTRAN makefile, when coupled with CLM
 #
 # Before building make sure that the environmental variables
 #   PETSC_DIR and PETSC_ARCH are defined.
 #
 # To build PFLOTRAN library, i.e. libpflotran.a , from within the source directory, run, e.g.:
 #   cd $PFLOTRAN_DIR/src/pflotran-elm-interface
-#   bash link_files.sh
+#   make link_common_src
 #   make PETSCT_DIR=$PETSC_DIR libpflotran.a
 # this will generate the libpflotran.a and object and .mod files in the source directory.
 # 
@@ -27,13 +27,13 @@
 #
 ###############################################################################
 
-# PFLOTRAN source directory -- default to the current directory
+# PFLOTRAN-CLM source directory -- default to the current directory
 SRC_DIR = ./
 
 # make option to search for source files in $SRC_DIR
 VPATH = $(SRC_DIR)
 
-pflotran_src =
+pflotran_src = $(SRC_DIR)/../pflotran
 common_src   =
 regression_test_dir = $(SRC_DIR)/../../regression_tests
 unit_test_dir = $(SRC_DIR)/unittests
@@ -52,27 +52,30 @@ PETSC_MAKE_STOP_ON_ERROR=
 
 MYFLAGS = -I. 
 
-MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN
-
 ###############################################################################
 # Preprocessor flags for special PFLOTRAN features/hacks
 ###############################################################################
+ifdef debugbuild
+  MYFLAGS += -g -O0
+endif
+
+MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN ${FC_DEFINE_FLAG}NO_VAPOR_DIFFUSION
+
+# calculate the jacobians for tracking variables if coupled with CLM-CN
+ifdef nojacboian_track_vars
+  MYFLAGS += ${FC_DEFINE_FLAG}nojacobian_track_vars
+endif
 
 ifdef match_tough2
   MYFLAGS += ${FC_DEFINE_FLAG}MATCH_TOUGH2
 endif
 
-ifdef uo2
+ifdef internal_mass_flux
   MYFLAGS += ${FC_DEFINE_FLAG}COMPUTE_INTERNAL_MASS_FLUX
 endif
 
 ifdef fmdm
   MYFLAGS += ${FC_DEFINE_FLAG}FMDM_MODEL
-endif
-
-ifdef glenn
-#  MYFLAGS += ${FC_DEFINE_FLAG}XINGYUAN_BC
-#  MYFLAGS += ${FC_DEFINE_FLAG}BROADCAST_DATASET
 endif
 
 ifdef ye_flux
@@ -87,10 +90,6 @@ ifdef dbl
   MYFLAGS += ${FC_DEFINE_FLAG}DOUBLE_LAYER
 endif
 
-ifdef pcl
-  MYFLAGS += ${FC_DEFINE_FLAG}PCL ${FC_DEFINE_FLAG}MUALEM_SPLINE
-endif
-
 ifdef condnr
   MYFLAGS += ${FC_DEFINE_FLAG}CONDNR
 endif
@@ -99,20 +98,6 @@ ifdef temp
   MYFLAGS += ${FC_DEFINE_FLAG}TEMP_DEPENDENT_LOGK
 endif
 
-ifdef remove_sat
-  MYFLAGS += ${FC_DEFINE_FLAG}REMOVE_SATURATION
-endif
-
-ifdef no_vapor_diffusion
-  MYFLAGS += ${FC_DEFINE_FLAG}NO_VAPOR_DIFFUSION
-endif
-
-ifdef debug_gen
-  MYFLAGS += ${FC_DEFINE_FLAG}DEBUG_GENERAL
-  ifeq ($(debug_gen),2)
-    MYFLAGS += ${FC_DEFINE_FLAG}DEBUG_GENERAL_INFO
-  endif
-endif 
 
 ifdef coll
   MYFLAGS += ${FC_DEFINE_FLAG}COLL
@@ -171,10 +156,6 @@ ifdef towg_debug
   MYFLAGS += ${FC_DEFINE_FLAG}TOWG_DEBUG
 endif
 
-ifdef well_class
-  MYFLAGS += ${FC_DEFINE_FLAG}WELL_CLASS
-endif
-
 ifdef have_hdf5
 LIBS +=  -L${HDF5_LIB} -lhdf5_fortran -lhdf5 -lz 
 endif
@@ -186,6 +167,11 @@ ifdef scorpio
   MYFLAGS += ${FC_DEFINE_FLAG}SCORPIO
   MYFLAGS += ${FC_DEFINE_FLAG}SCORPIO_WRITE
   MYFLAGS += -I${SCORPIO_DIR}/include
+endif
+
+ifdef codecov
+  MYFLAGS += -fprofile-arcs -ftest-coverage
+  LIBS += -lgcov
 endif
 
 ###############################################################################
@@ -237,27 +223,20 @@ include pflotran_object_files.txt
 ###############################################################################
 
 # Concatentate dependency groups 
-
-lib_pflotran_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
+common_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
 	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(well_obj) \
 	$(grid_obj) $(relations_obj) $(properties_obj) $(dataset_obj) \
 	$(srcsink_obj) $(io_obj) $(misc_obj) $(surface_obj) $(solver_obj) \
     $(clm_interface_obj)
 
-# PFLOTRAN as a library
+# PFLOTRAN as a library for coupling with CLM
+# source files to be copied/linked from $(pflotran_src) to $SRC_DIR
+common_srcfiles := $(subst $(common_src),,$(common_obj:.o=.F90))
+clmpf_interface_srcfiles := $(subst $(SRC_DIR),,$(clmpf_interface_obj:.o=.F90))
+lib_pflotran_obj := $(common_obj) $(clmpf_interface_obj)
+
 libpflotran.a : $(lib_pflotran_obj)
 	$(AR) $(ARFLAGS) $@ $(lib_pflotran_obj)
-
-remove_linked_files :
-	./remove_linked_files.sh
-
-link_files :
-	./link_files.sh
-	if [ -f $(SRC_DIR)/pflotran_no_provenance.F90 ] ; then 
-	  cp $(SRC_DIR)/pflotran_no_provenance.F90 $(SRC_DIR)/pflotran_provenance.F90;
-	else
-	  cp $(SRC_DIR)/pflotran_provenance.F90 $(SRC_DIR)/pflotran_provenance.F90;	 
-	fi;
 
 ###############################################################################
 # Dependencies
@@ -306,7 +285,22 @@ check : FORCE
 	fi
 
 clean-pflotran :
-	-rm -f $(CLEANFILES) *.o *.mod *.a;
+	-rm -f $(CLEANFILES) *.o *.mod *.a *.gcov *.gcda *.gcno;
+
+link_common_src: FORCE
+	@if [ -d $(pflotran_src) ]; then \
+		ln -sf $(addprefix $(pflotran_src)/,$(common_srcfiles)) $(SRC_DIR); \
+		ln -sf $(pflotran_src)/pflotran_no_provenance.F90 $(SRC_DIR)/pflotran_provenance.F90; \
+	fi
+
+copy_common_src: FORCE
+	@if [ -d $(pflotran_src) ]; then \
+		cp -f $(addprefix $(pflotran_src)/,$(common_srcfiles)) $(SRC_DIR); \
+		cp $(pflotran_src)/pflotran_no_provenance.F90 $(SRC_DIR)/pflotran_provenance.F90; \
+	fi
+
+clean_common_src: FORCE
+	-rm -f $(addprefix $(SRC_DIR)/,$(common_srcfiles));
 
 # Flags
 echo-flags :
