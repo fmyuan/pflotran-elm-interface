@@ -399,3 +399,10 @@ src/pflotran-elm-interface/reaction_sandbox_microbial.F90
 src/pflotran-elm-interface/reaction_sandbox_nitrif.F90
 src/pflotran-elm-interface/reaction_sandbox_plantn.F90
 src/pflotran-elm-interface/reaction_sandbox_somdec.F90
+src/pflotran-elm-interface/grid_grdecl.F90
+src/pflotran-elm-interface/grid_grdecl_util.F90
+src/pflotran-elm-interface/output_eclipse.F90
+src/pflotran-elm-interface/well_type.F90
+src/pflotran-elm-interface/hydrate_aux.F90
+src/pflotran-elm-interface/hydrate_common.F90
+src/pflotran-elm-interface/pm_hydrate.F90
