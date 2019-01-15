@@ -1409,9 +1409,8 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       nderiv = (p_pert-p_unpert)/pert
 
       !!! assign
-      auxvars(0)%bo%D_xo(idof) = nderiv
+      !auxvars(0)%bo%D_xo(idof) = nderiv
 
-#if 0
       ! analytical derivative
       aderiv = auxvars(0)%bo%D_xo(idof)
 
@@ -1425,7 +1424,6 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
         print *
         probs = probs + 1
       endif
-#endif
     !enddo
   enddo
 
@@ -1444,9 +1442,8 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       nderiv = (p_pert-p_unpert)/pert
 
       !!! assign
-      auxvars(0)%bo%D_xg(idof) = nderiv
+      !auxvars(0)%bo%D_xg(idof) = nderiv
 
-#if 0
       ! analytical derivative
       aderiv = auxvars(0)%bo%D_xg(idof)
 
@@ -1460,7 +1457,6 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
         print *
         probs = probs + 1
       endif
-#endif
     !enddo
   enddo
 

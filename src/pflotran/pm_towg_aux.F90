@@ -1560,6 +1560,8 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal, parameter :: epseps =1.0d-10
   PetscBool :: getDerivs
 
+  PetscReal :: d_xo_dpb,d_xg_dpb
+
   dof_op = TOWG_OIL_PRESSURE_DOF
   dof_osat = TOWG_OIL_SATURATION_DOF
   dof_gsat = TOWG_GAS_SATURATION_3PH_DOF
@@ -1760,8 +1762,37 @@ endif
 ! Look up the Rs value
 !==============================================================================
 
-  call getBlackOilComposition(pb,t,auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
+  !call getBlackOilComposition(pb,t,auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
   !!!! TODO DERIVS HERE
+    !!! new:
+if (getDerivs) then
+  call getBlackOilComposition(pb,t, &
+                              auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg, &
+                              d_xo_dpb,d_xg_dpb,&
+                              auxvar%bo%D_xo(dof_temp),auxvar%bo%D_xg(dof_temp))
+  if (isSat) then
+    ! bubble point is cell pressure
+    auxvar%bo%D_xo(dof_op) = d_xo_dpb
+    auxvar%bo%D_xg(dof_op) = d_xg_dpb
+  else
+    ! bubble point is a solution variable
+    auxvar%bo%D_xo(dof_gsat) = d_xo_dpb
+    auxvar%bo%D_xg(dof_gsat) = d_xg_dpb
+  endif
+else
+  call getBlackOilComposition(pb,t, &
+                              auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
+endif
+
+if (auxvar%bo%xo < 0.d0) then
+  print *, "xo negative ", auxvar%bo%xo, " pb is ", auxvar%bo%bubble_point
+  option%io_buffer = 'xo has gone negative; xo and bubble point are'
+  call printMsg(option)
+  write(option%io_buffer,*) auxvar%bo%xo
+  call printMsg(option)
+  write(option%io_buffer,*) auxvar%bo%bubble_point
+  call printMsg(option)
+endif
 
 !==============================================================================
 !  Get the miscible-immiscible mixing fractions (functions of fs=Ss/(Sg+Ss))
