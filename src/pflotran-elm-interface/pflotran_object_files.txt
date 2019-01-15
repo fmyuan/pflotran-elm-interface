@@ -315,7 +315,7 @@ solver_obj = \
 	${common_src}solver.o \
 	${common_src}solver_cpr.o
 
-clm_interface_obj = \
+clmpf_interface_obj = \
 	${common_src}pflotran_clm_main.o \
 	${common_src}pflotran_clm_setmapping.o \
 	${common_src}clm_pflotran_interface_data.o \
