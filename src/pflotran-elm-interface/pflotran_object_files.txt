@@ -1,7 +1,6 @@
 # this file contains all object files except pflotran.o, pflotran_rxn.o, etc.
 
 util_obj  = \
-	${common_src}appleyard.o \
 	${common_src}generic.o \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
@@ -18,7 +17,8 @@ util_obj  = \
 	${common_src}toil_ims_derivs.o \
 	${common_src}variables.o \
 	${common_src}derivative_tests.o \
-	${common_src}derivatives_utilities.o
+	${common_src}derivatives_utilities.o \
+	${common_src}grid_grdecl_util.o
 
 eos_obj = \
 	${common_src}co2_sw.o \
@@ -124,7 +124,7 @@ chem_obj = \
 	${common_src}reaction_sandbox_example.o \
 	${common_src}reaction_sandbox_pnnl_cyber.o \
 	${common_src}reaction_sandbox_gas.o \
-        ${common_src}reaction_sandbox_simple.o \
+    ${common_src}reaction_sandbox_simple.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}clm_rspfuncs.o \
 	${common_src}reaction_sandbox_degas.o \
@@ -152,7 +152,8 @@ grid_obj = \
 	${common_src}grid_unstructured_explicit.o \
 	${common_src}grid_unstructured_aux.o \
 	${common_src}grid_unstructured.o \
-	${common_src}grid_unstructured_polyhedra.o
+	${common_src}grid_unstructured_polyhedra.o \
+	${common_src}grid_grdecl.o
 
 relations_obj = \
 	${common_src}saturation.o \
@@ -187,6 +188,7 @@ srcsink_obj = \
 	${common_src}srcsink_sandbox_wipp_well.o
 
 io_obj = \
+	${common_src}output_eclipse.o \
 	${common_src}hdf5.o \
 	${common_src}hdf5_aux.o \
 	${common_src}output.o \
@@ -216,7 +218,6 @@ misc_obj = \
 	${common_src}factory_subsurface.o \
 	${common_src}field.o \
 	${common_src}hydrostatic.o \
-	${common_src}hydrostatic_common.o \
 	${common_src}hydrostatic_multi_phase.o \
 	${common_src}init_common.o \
 	${common_src}init_subsurface.o \
@@ -253,16 +254,9 @@ misc_obj = \
 	${common_src}wipp.o
 
 well_obj = \
-	${common_src}well_spec_base.o \
-	${common_src}well_base.o \
-	${common_src}well_flow.o \
-	${common_src}well_flow_energy.o \
-	${common_src}well_water_injector.o \
-	${common_src}well_oil_producer.o \
-	${common_src}well_toil_ims.o \
 	${common_src}well_data.o \
-	${common_src}well_solver.o \
-	${common_src}well.o
+	${common_src}well_type.o \
+	${common_src}well_solver.o
 
 surface_obj = \
 	${common_src}checkpoint_surface.o \
@@ -315,7 +309,7 @@ solver_obj = \
 	${common_src}solver.o \
 	${common_src}solver_cpr.o
 
-clm_interface_obj = \
+clmpf_interface_obj = \
 	${common_src}pflotran_clm_main.o \
 	${common_src}pflotran_clm_setmapping.o \
 	${common_src}clm_pflotran_interface_data.o \
