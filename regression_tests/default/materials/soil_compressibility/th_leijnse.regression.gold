@@ -6,7 +6,7 @@
        21:   9.1059961031792E+04
        41:   7.2832114312562E+04
        61:   6.2125790984482E+04
-       81:   5.8772414548503E+04
+       81:   5.8772414548502E+04
 -- SATURATION: Liquid Saturation --
       Max:   1.0000000000000E+00
       Min:   3.0104226278286E-01
@@ -44,10 +44,10 @@
        61:         1
        81:         1
 -- SOLUTION: Flow --
-   Time (seconds):   7.7666032227426E+00
+   Time (seconds):   2.6625735759735E+00
    Time Steps:         1423
    Newton Iterations:         6054
    Solver Iterations:         6054
    Time Step Cuts:            0
    Solution 2-Norm:   7.5581105812901E+05
-   Residual 2-Norm:   9.8827458974105E-16
+   Residual 2-Norm:   1.0047010399521E-15
