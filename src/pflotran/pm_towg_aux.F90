@@ -1561,6 +1561,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscBool :: getDerivs
 
   PetscReal :: d_xo_dpb,d_xg_dpb
+  PetscReal,dimension(1:option%nflowdof) :: D_fm
 
   dof_op = TOWG_OIL_PRESSURE_DOF
   dof_osat = TOWG_OIL_SATURATION_DOF
@@ -1797,10 +1798,22 @@ endif
 !==============================================================================
 !  Get the miscible-immiscible mixing fractions (functions of fs=Ss/(Sg+Ss))
 !==============================================================================
+  if (getDerivs) D_fm = 0.d0
 
-  call TL4PMiscibilityFraction(sg,ss,fm)
+  call TL4PMiscibilityFraction(sg,ss,fm,D_fm(dof_gsat),D_fm(dof_ssat))
   fi=1.0-fm
+
   !!!! TODO DERIVS HERE (though not stored)
+  if (getDerivs) then
+    D_fm(dof_gsat)= 0.d0
+
+    !!! hack for testing
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%fm = fm
+      auxvar%tlT%D_fm = D_fm
+    endif
+
+  endif
 
 !==============================================================================
 !  Get the capillary pressures using three phase mode as functions of so,sv,sw
@@ -3564,7 +3577,7 @@ subroutine TOWGAuxVarArray2Strip(auxvars)
 
 end subroutine TOWGAuxVarArray2Strip
 
-subroutine TL4PMiscibilityFraction(sg,ss,fm)
+subroutine TL4PMiscibilityFraction(sg,ss,fm,dfmdsg,dfmdss)
 
 !------------------------------------------------------------------------------
 ! Set up the TL miscibility fraction
@@ -3576,7 +3589,7 @@ subroutine TL4PMiscibilityFraction(sg,ss,fm)
   implicit none
 
   PetscReal,intent(in ) :: sg,ss
-  PetscReal,intent(out) :: fm
+  PetscReal,intent(out) :: fm,dfmdsg,dfmdss
   PetscReal             :: svi,fs,sv,dfmdfs
 
   fm    =0.0
@@ -3586,7 +3599,13 @@ subroutine TL4PMiscibilityFraction(sg,ss,fm)
   if( sv>0.0 ) then
     svi=1.0/sv
     fs=ss*svi
+
+    if (sg ==0.d0) fs = 1.d0
+
     call TL4PMiscibilityFractionFromSaturationFraction(fs,fm,dfmdfs)
+
+    dfmdsg = -dfmdfs*ss*svi*svi
+    dfmdss =  dfmdfs*sg*svi*svi
   endif
 
 end subroutine TL4PMiscibilityFraction
