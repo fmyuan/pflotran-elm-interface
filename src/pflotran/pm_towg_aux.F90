@@ -3600,7 +3600,8 @@ subroutine TL4PMiscibilityFraction(sg,ss,fm,dfmdsg,dfmdss)
     svi=1.0/sv
     fs=ss*svi
 
-    if (sg ==0.d0) fs = 1.d0
+    ! maybe a good idea but will cause slight discrepencies with previous runs!
+    !if (sg ==0.d0) fs = 1.d0
 
     call TL4PMiscibilityFractionFromSaturationFraction(fs,fm,dfmdfs)
 
