@@ -1561,6 +1561,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscBool :: getDerivs
 
   PetscReal :: d_xo_dpb,d_xg_dpb
+  PetscReal :: d_pcw_d_swa,d_pco_d_sva
   PetscReal,dimension(1:option%nflowdof) :: D_fm
 
   dof_op = TOWG_OIL_PRESSURE_DOF
@@ -1803,7 +1804,6 @@ endif
   call TL4PMiscibilityFraction(sg,ss,fm,D_fm(dof_gsat),D_fm(dof_ssat))
   fi=1.0-fm
 
-  !!!! TODO DERIVS HERE (though not stored)
   if (getDerivs) then
     D_fm(dof_gsat)= 0.d0
 
@@ -1833,15 +1833,54 @@ endif
 !--Pcow------------------------------------------------------------------------
 
   call characteristic_curves%oil_wat_sat_func% &
-            CapillaryPressure(swa,auxvar%pc(wid),dummy,option,auxvar%table_idx)
+            CapillaryPressure(swa,auxvar%pc(wid),d_pcw_d_swa,option,auxvar%table_idx)
 
 !--Pcog------------------------------------------------------------------------
 
   call characteristic_curves%oil_gas_sat_func% &
-            CapillaryPressure(sva,auxvar%pc(oid),dummy,option,auxvar%table_idx)
+            CapillaryPressure(sva,auxvar%pc(oid),d_pco_d_sva,option,auxvar%table_idx)
+
+  if (getDerivs) then
+    ! recall these composite saturations
+    ! swa = 1 - soa - sva
+    ! sva = sv = sg + ss
+    ! soa = so
+    ! therefore
+    ! swa = 1 - so - sg - ss
+    ! derivs all -1
+    !
+    ! sva = sv = ss + sg
+    ! d sva / dso = 0
+    ! d sva / dsg = 1
+    ! d sva / dss = 1
+
+    ! deriv of pc between oil and water, w.r.t. oil sat:
+    auxvar%D_pc(wid,dof_osat) =  -d_pcw_d_swa
+    ! deriv of pc between oil and water, w.r.t. slv sat:
+    auxvar%D_pc(wid,dof_osat) =  -d_pcw_d_swa
+    ! deriv of pc between oil and water, w.r.t. gas sat:
+    if (isSat) then
+      auxvar%D_pc(wid,dof_gsat) = -d_pcw_d_swa
+    endif
+
+    ! handle cap pres between vapour and oil:
+    ! deriv of pc between vapour and oil w.r.t. slv sat:
+    auxvar%D_pc(oid,dof_ssat) = d_pco_d_sva
+
+    if (isSat) then
+      ! deriv of pc between vapour and oil w.r.t. oil sat:
+      auxvar%D_pc(oid,dof_gsat) = d_pco_d_sva
+    endif
+
+    ! pressure (to be) saved below
+
+    !  Scale Pcog for degree of miscibility
+    !  Need to do chain rule on fi*pc(oid)
+    !  We have D_fm; D_fi is -D_fm so:
+    auxvar%D_pc(oid,:) = ProdRule(fi,-D_fm,auxvar%pc(oid),auxvar%D_pc(oid,:),ndof)
+  endif
 
 !  Scale Pcog for degree of miscibility
-
   auxvar%pc(oid)=fi*auxvar%pc(oid)
 
 !==============================================================================
@@ -1853,7 +1892,27 @@ endif
 
   auxvar%pres(sid) = auxvar%pres(gid)
 
+  if (getDerivs) then
+    ! first trivial presure derivatives:
+    ! oil by oil:
+    auxvar%D_pres(oid,dof_op) = 1.d0
+
+    ! water presure, first the pc term:
+    auxvar%D_pres(wid,:) = -auxvar%D_pc(wid,:)
+    ! ..then the oil presure term:
+    auxvar%D_pres(wid,:) = auxvar%D_pres(wid,:) + auxvar%D_pres(oid,:)
+
+    ! gas presure, first the pc term:
+    auxvar%D_pres(gid,:) = auxvar%D_pc(gid,:)
+    ! ..then the oil presure term:
+    auxvar%D_pres(gid,:) = auxvar%D_pres(gid,:) + auxvar%D_pres(oid,:)
+
+    ! solvent pressure: 
+    auxvar%D_pres(sid,:) = auxvar%D_pres(gid,:)
+  endif
+
   cell_pressure = max(auxvar%pres(wid),auxvar%pres(oid),auxvar%pres(gid))
+  !!!! TODO CELL PRESS DERIVS
 
 !==============================================================================
 !  Get rock properties
