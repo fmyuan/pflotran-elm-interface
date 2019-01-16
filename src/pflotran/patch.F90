@@ -2301,6 +2301,7 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
             coupler%flow_bc_type(TOWG_LIQ_EQ_IDX) = HYDROSTATIC_BC
             coupler%flow_bc_type(TOWG_OIL_EQ_IDX) = HYDROSTATIC_BC
             coupler%flow_bc_type(TOWG_GAS_EQ_IDX) = HYDROSTATIC_BC
+            coupler%flow_bc_type(towg_energy_eq_idx) = DIRICHLET_BC
           case default
             string = GetSubConditionName(towg%oil_pressure%itype)
             option%io_buffer = &
@@ -2514,37 +2515,40 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
     end select
   endif
 
-  !temperature (if defined): same BC/IC whatever is the phase state
-  if (associated(towg%temperature)) then
-    real_count = real_count + 1
-    select case(towg%temperature%itype)
-      case(DIRICHLET_BC)
-        coupler%flow_aux_mapping(TOWG_TEMPERATURE_INDEX) = real_count
-        select type(selector =>towg%temperature%dataset)
-          class is(dataset_ascii_type)
-            coupler%flow_aux_real_var(real_count,1:num_connections) = &
-              selector%rarray(1)
-            dof_temp = PETSC_TRUE
-          class is(dataset_gridded_hdf5_type)
-            call PatchUpdateCouplerFromDataset(coupler,option, &
-                                               patch%grid,selector, &
-                                               real_count)
-            dof_temp = PETSC_TRUE
-          class default
-            option%io_buffer = 'Unknown dataset class (towg%' // &
-              'temperature%itype,DIRICHLET_BC)'
-            call printErrMsg(option)
-        end select
-        coupler%flow_bc_type(towg_energy_eq_idx) = DIRICHLET_BC
-      case default
-        string = &
-          GetSubConditionName(towg%temperature%itype)
-        option%io_buffer = &
-          FlowConditionUnknownItype(coupler%flow_condition, &
-            'towg temperature',string)
-        call printErrMsg(option)
-    end select
-  endif
+  !if hydrostatic equilibration, temperature assigned in HydrostaticMPUpdateCoupler
+  if ( towg%oil_pressure%itype /= HYDROSTATIC_BC) then
+    !temperature (if defined): same BC/IC whatever is the phase state
+    if (associated(towg%temperature)) then
+      real_count = real_count + 1
+      select case(towg%temperature%itype)
+        case(DIRICHLET_BC)
+          coupler%flow_aux_mapping(TOWG_TEMPERATURE_INDEX) = real_count
+          select type(selector =>towg%temperature%dataset)
+            class is(dataset_ascii_type)
+              coupler%flow_aux_real_var(real_count,1:num_connections) = &
+                selector%rarray(1)
+              dof_temp = PETSC_TRUE
+            class is(dataset_gridded_hdf5_type)
+              call PatchUpdateCouplerFromDataset(coupler,option, &
+                                                 patch%grid,selector, &
+                                                 real_count)
+              dof_temp = PETSC_TRUE
+            class default
+              option%io_buffer = 'Unknown dataset class (towg%' // &
+                'temperature%itype,DIRICHLET_BC)'
+              call printErrMsg(option)
+          end select
+          coupler%flow_bc_type(towg_energy_eq_idx) = DIRICHLET_BC
+        case default
+          string = &
+            GetSubConditionName(towg%temperature%itype)
+          option%io_buffer = &
+            FlowConditionUnknownItype(coupler%flow_condition, &
+              'towg temperature',string)
+          call printErrMsg(option)
+      end select
+    endif
+  end if
 
   if (associated(towg%liquid_flux)) then
     coupler%flow_bc_type(TOWG_LIQ_EQ_IDX) = NEUMANN_BC

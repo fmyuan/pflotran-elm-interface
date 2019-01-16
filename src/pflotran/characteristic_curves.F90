@@ -2141,6 +2141,8 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
         end if  
     end select
     call characteristic_curves%oil_wat_sat_func%verify(string,option)
+    !Pm min is computed after function verification
+    call characteristic_curves%oil_wat_sat_func%ComputePcMin(option)
     !check if swco and swcr defined in krw and pcw are the same
     if (characteristic_curves%oil_wat_sat_func%GetConnateSaturation(option) &
         /= swco ) then
@@ -2206,6 +2208,8 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
           end if          
       end select
       call characteristic_curves%oil_gas_sat_func%verify(string,option)
+      !Pcmin compute after fucntion vericifation
+      call characteristic_curves%oil_gas_sat_func%ComputePcMin(option)
       !check if sgco and sgcr defined in KRG and PC_OG have the same values
       if (characteristic_curves%oil_gas_sat_func%GetConnateSaturation(option) &
           /= sgco ) then

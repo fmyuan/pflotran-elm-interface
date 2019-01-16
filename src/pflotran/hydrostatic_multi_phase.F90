@@ -101,7 +101,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
 
   implicit none
 
-  type(coupler_type), intent(in) :: coupler
+  type(coupler_type), intent(inout) :: coupler
   type(option_type) :: option
   type(grid_type), intent(in) :: grid
   type(characteristic_curves_ptr_type), intent(in) :: characteristic_curves_array(:)
@@ -109,10 +109,39 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   PetscInt, pointer, intent(in) :: imat(:)
 
   type(flow_condition_type), pointer :: condition
+  class(characteristic_curves_type), pointer :: cc_ptr
   class(one_dim_grid_type), pointer :: one_d_grid
   PetscInt :: i_z
   PetscInt :: grid_size, i_n, i_press_start
   PetscReal :: dist_dn, dist_up
+  PetscInt :: iconn, local_id, ghosted_id
+  PetscReal :: dz_conn, z_cell
+
+  PetscReal :: pw_cell
+  PetscReal :: po_cell
+  PetscReal :: pg_cell
+  PetscReal :: pow_cell
+  PetscReal :: pog_cell
+  PetscReal :: pwg_cell
+  PetscReal :: sw_cell
+  PetscReal :: so_cell
+  PetscReal :: sg_cell
+  
+  PetscReal :: pcow_min
+  PetscReal :: pcow_max
+  PetscReal :: pcow
+  PetscReal :: pcog_min
+  PetscReal :: pcog_max
+  PetscReal :: pcog
+  PetscReal :: pcwg_min
+  PetscReal :: pcwg_max  
+  PetscReal :: sw_max
+  PetscReal :: sw_min
+  PetscReal :: sg_max
+  PetscReal :: sg_min
+  PetscReal :: so_min
+  PetscReal :: dsat_dp
+  PetscReal :: dp_dsat
 
   PetscReal :: temp_owc
   PetscReal :: xm_nacl_owc
@@ -174,7 +203,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
     oil_gas_zone = PETSC_FALSE    
   end if  
   
-  !determin what are the phases present in the model
+  !works out what are the phases present in the model
   if ( oil_wat_zone .or. wat_gas_zone ) then
     wat_present = PETSC_TRUE
   end if
@@ -297,14 +326,157 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   end if
   
   ! compute saturation for exisitng transition zones
-  
-  ! if oil, water and gas present, check is (sg + sw > 1)
-  
-  !loop over connections and assign initial solution variables
+  do iconn=1,coupler%connection_set%num_connections 
+    local_id = coupler%connection_set%id_dn(iconn)
+    ghosted_id = grid%nL2G(local_id)
+ 
+    dz_conn = 0.0d0
+    ! geh: note that this is a boundary connection, thus the entire distance is between
+    ! the face and cell center
+    if (associated(coupler%connection_set%dist)) then
+      dz_conn = coupler%connection_set%dist(0,iconn) * &
+                      coupler%connection_set%dist(3,iconn)
+    endif
 
-  ! within connection loop
-  ! call HydrostaticPMWriter(condition%flow_aux_real_var(:,iconn), &
-  !                            condition%flow_aux_int_var(:,iconn) )
+    ! note the negative (-) dz_conn is required due to the offset of the boundary face
+    z_cell = grid%z(ghosted_id)-dz_conn
+  
+    !cell z lookup for
+    call one_d_grid%ZLookup(z_cell,i_n,dist_dn,dist_up)
+
+    !cell pressure computations
+    if (wat_present) then
+      pw_cell = wat_press_vec(i_n) + wat_den_kg_vec(i_n) * g_z * dist_dn
+    end if   
+
+    if (oil_present) then
+      po_cell = oil_press_vec(i_n) + oil_den_kg_vec(i_n) * g_z * dist_dn
+    end if
+
+    if (gas_present) then
+      pg_cell = gas_press_vec(i_n) + gas_den_kg_vec(i_n) * g_z * dist_dn
+    end if
+   
+    cc_ptr => characteristic_curves_array(sat_func_id(ghosted_id))%ptr
+    
+    !assign default end point values for saturation away from transition zones
+    sw_min = 0.0d0
+    so_min = 0.0d0 !if there is no oil remains zero
+    sg_min = 0.0d0 !if there is no gas remains zero
+    
+    !get swco from krw as this is available for both WO and WG interfaces
+    if (wat_present ) then
+      sw_min = cc_ptr%wat_rel_perm_func_owg%GetConnateSaturation(option)
+      sw_max = 1.0
+    end if
+
+    if (oil_present) then
+      if ( associated(cc_ptr%ow_rel_perm_func_owg) ) then
+        so_min =  cc_ptr%ow_rel_perm_func_owg%GetConnateSaturation()
+      else if ( associated( cc_ptr%oil_rel_perm_func_owg ) ) then
+        so_min =  cc_ptr%oil_rel_perm_func_owg%GetConnateSaturation()
+      end if  
+    end if
+      
+    if (gas_present) then
+      sg_min = cc_ptr%oil_gas_sat_func%GetConnateSaturation(option)
+    end if
+   
+    sw_max = 1.0 - so_min - sg_min
+    sg_max = 1.0 - sw_min - so_min
+    
+    if (oil_wat_zone) then
+      pow_cell = po_cell - pw_cell
+      pcow_min = cc_ptr%oil_wat_sat_func%GetPcMin()
+      pcow_max = cc_ptr%oil_wat_sat_func%GetPcMax()
+      if ( pow_cell <= pcow_min ) then
+        sw_cell = sw_max
+        po_cell = pw_cell + pcow_min !follows Pw as water supports the pressure
+      else if ( pow_cell > pcow_min .and. pow_cell < pcow_max )  then
+        if ( .not.cc_ptr%oil_wat_sat_func%sat_func_of_pc_available ) then
+           option%io_buffer = 'The Pcow function used for&
+                              & hydrostatic equilibration is not valid.'
+           call printErrMsg(option)
+        end if
+        call cc_ptr%oil_wat_sat_func%Saturation(pow_cell,sw_cell, &
+                                                dsat_dp,option)
+      else if ( pow_cell >= pcow_max ) then
+        sw_cell = sw_min
+      end if  
+    end if
+
+    if (oil_gas_zone) then
+      pog_cell = pg_cell - po_cell
+      pcog_min = cc_ptr%oil_gas_sat_func%GetPcMin()
+      pcog_max = cc_ptr%oil_gas_sat_func%GetPcMax()
+      if ( pog_cell <= pcog_min ) then
+        sg_cell = sg_min
+      else if( pog_cell > pcog_min .and. pog_cell < pcog_max ) then
+        if ( .not.cc_ptr%oil_gas_sat_func%sat_func_of_pc_available ) then
+          option%io_buffer = 'The Pcog function used for&
+                             & hydrostatic equilibration is not valid.'
+          call printErrMsg(option)
+        end if  
+        call cc_ptr%oil_gas_sat_func%Saturation(pog_cell,sg_cell, &
+                                                dsat_dp,option)
+      else if (pog_cell >= pcog_max ) then
+        sg_cell = sg_max
+        po_cell = pg_cell - pcog_max !follows the Pg as the gas supports pressure 
+      end if    
+    end if
+
+    if (wat_gas_zone) then
+      pwg_cell = pg_cell - pw_cell
+      pcwg_min = cc_ptr%gas_wat_sat_func%GetPcMin()
+      pcwg_max = cc_ptr%gas_wat_sat_func%GetPcMax()
+      if ( pwg_cell <= pcwg_min ) then
+        sg_cell = sg_min
+      else if ( pwg_cell > pcwg_min .and. pwg_cell < pcwg_max ) then
+        !to finsh
+      else if ( pwg_cell >= pcwg_max ) then
+        sg_min = 1.0 - sg_min
+      end if
+    end if
+
+    so_cell = 0.0d0
+    if ( wat_present .and. oil_present .and. (.not.gas_present) ) then
+      so_cell =  1.0 - sw_cell
+    else if ( wat_present .and. oil_present .and. gas_present ) then
+      so_cell =  1.0 - sw_cell - sg_cell
+      if (so_cell < 0.0 ) then
+        so_cell = 0.0d0
+        pwg_cell = pg_cell - pw_cell
+        pcwg_min = pcow_min + pcog_min
+        pcwg_max = pcow_max + pcog_max
+        if ( pwg_cell <= pcwg_min ) then
+          sw_cell = 1.0 - sg_min
+          !pg_cell = pw_cell + pcwg(sg) = pw_cell + Pcog(1-Sw) + Pcow(Sw)
+          !assumes Po = Pg to assign a value to the oil pressure
+          !po_cell = pw_cell + Pcow(Sw)
+          call cc_ptr%oil_wat_sat_func%CapillaryPressure(sw_cell,pcow,&
+                                                         dp_dsat,option)
+          po_cell = pw_cell + pcow
+        else if ( pwg_cell > pcwg_min .and. pwg_cell < pcwg_max ) then
+          !call Non-linear solution of: Pcwg(Sw) = Pcog(1-Sw) + Pcow(Sw) = pwg_cell
+          option%io_buffer = 'hydrostatic: Sw + Sg > 1 not supported yet'
+          call printErrMsg(option)
+        else if ( pwg_cell >= pcwg_max ) then
+          sw_cell = sw_min
+          sg_cell = 1.0 - sw_min
+          !pw_cell = pg_cell - pcwg(sg) = pg_cell - Pcog(1-Sw) - Pcow(Sw)
+          !assumes Po = Pw to assign a value to the oil pressure
+          !po_cell = pg_cell - pcwg(sg) = po_cell - Pcog(1-Sw)
+          call cc_ptr%oil_gas_sat_func%CapillaryPressure(sg_cell,pcog, &
+                                                          dp_dsat,option)
+          po_cell = pg_cell - pcog
+        end if
+      end if  
+    end if
+
+    call HydrostaticPMCellInit(option,z_cell,pw_cell,po_cell,pg_cell,sw_cell, &
+                               so_cell,sg_cell,iconn,coupler)
+
+  end do !end of connection loop
 
   call DeallocateGridArrays()
 
@@ -522,6 +694,101 @@ subroutine HydrostaticPMLoader(condition,option)
   end if
 
 end subroutine HydrostaticPMLoader
+
+! ************************************************************************** !
+
+subroutine HydrostaticPMCellInit(option,z,pw,po,pg,sw,so,sg,iconn,coupler)
+  
+  use Option_module
+  use Coupler_module
+  use PM_TOWG_Aux_module
+  use PM_TOilIms_Aux_module
+    
+  implicit none
+  
+  type(option_type) :: option
+  PetscReal, intent(in) :: z
+  PetscReal, intent(in) :: pw
+  PetscReal, intent(in) :: po
+  PetscReal, intent(in) :: pg
+  PetscReal, intent(in) :: sw
+  PetscReal, intent(in) :: so
+  PetscReal, intent(in) :: sg
+  PetscInt, intent(in) :: iconn
+  type(coupler_type), intent(inout) :: coupler
+  
+  !PetscReal, intent(out) :: aux_real(:)
+  !PetscInt, intent(out) :: aux_int(:)
+  
+  PetscReal :: temp,xm_nacl,pb,rv
+  PetscInt :: state
+  PetscReal, parameter :: eps_oil   = 1.0d-6
+  PetscReal, parameter :: eps_gas   = 1.0d-6
+  
+  call GetZPointProps(z,option,temp,xm_nacl,pb,rv)
+  
+  select case(option%iflowmode)
+    case(TOIL_IMS_MODE)
+      coupler%flow_aux_real_var(ONE_INTEGER,iconn) = po
+      coupler%flow_aux_mapping(TOIL_IMS_PRESSURE_INDEX) = ONE_INTEGER
+      coupler%flow_aux_real_var(TWO_INTEGER,iconn) = so
+      coupler%flow_aux_mapping(TOIL_IMS_OIL_SATURATION_INDEX) = TWO_INTEGER
+      coupler%flow_aux_real_var(THREE_INTEGER,iconn) = temp
+      coupler%flow_aux_mapping(TOIL_IMS_TEMPERATURE_INDEX) = THREE_INTEGER
+    case(TOWG_MODE)
+      coupler%flow_aux_real_var(ONE_INTEGER,iconn) = po
+      coupler%flow_aux_mapping(TOWG_OIL_PRESSURE_INDEX) = ONE_INTEGER
+      coupler%flow_aux_real_var(TWO_INTEGER,iconn) = so
+      coupler%flow_aux_mapping(TOWG_OIL_SATURATION_INDEX) = TWO_INTEGER
+      select case (option%iflow_sub_mode)
+        case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+          ! ---- to go on pm_towg_aux
+          ! Put cells into saturated or undersaturated state (one or other in this case)
+          state = TOWG_THREE_PHASE_STATE
+          if( (sg < eps_gas) .and. (pb < po) .and. (so > eps_oil) ) then
+             state=TOWG_LIQ_OIL_STATE
+          end if
+          !----
+          if( state == TOWG_THREE_PHASE_STATE ) then
+            coupler%flow_aux_real_var(THREE_INTEGER,iconn) = sg
+            coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = THREE_INTEGER
+          else
+            coupler%flow_aux_real_var(THREE_INTEGER,iconn) = pb
+            coupler%flow_aux_mapping(TOWG_BUBBLE_POINT_INDEX) = THREE_INTEGER
+          endif
+          coupler%flow_aux_int_var(TOWG_STATE_INDEX,iconn) = state
+        case (TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+          coupler%flow_aux_real_var(THREE_INTEGER,iconn) = sg
+          coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = THREE_INTEGER
+      end select
+      if ( option%iflow_sub_mode == TOWG_SOLVENT_TL ) then
+        coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 0.0d0 !imposing zero sovent saturation
+        coupler%flow_aux_mapping(TOWG_SOLV_SATURATION_INDEX) = FOUR_INTEGER
+        coupler%flow_aux_real_var(FIVE_INTEGER,iconn) = temp
+        coupler%flow_aux_mapping(TOWG_TEMPERATURE_INDEX) = FIVE_INTEGER
+      else
+        coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = temp
+        coupler%flow_aux_mapping(TOWG_TEMPERATURE_INDEX) = FOUR_INTEGER
+      end if
+  end select
+  
+end subroutine HydrostaticPMCellInit
+  
+! coupler%flow_aux_real_var(1,iconn) = po_cell      
+! call characteristic_curves%oil_wat_sat_func%Saturation( &
+!           pc_comp,sat_liq_comp,dsat_dpres,option)         
+! coupler%flow_aux_real_var(2,iconn) = 1.0d0 - sat_liq_comp
+! if (coupler%flow_aux_real_var(2,iconn) < 1.0d-6 ) &
+!    coupler%flow_aux_real_var(2,iconn) = 1.0d-6 
+! end if
+! end if
+! 
+! ! assign temperature
+! temperature = temperature_at_datum + &
+!           temperature_grad(X_DIRECTION)*dist_x + & ! gradient in K/m
+!           temperature_grad(Y_DIRECTION)*dist_y + &
+!           temperature_grad(Z_DIRECTION)*dist_z 
+! coupler%flow_aux_real_var(3,iconn) = temperature
 
 ! ************************************************************************** !
 ! 
@@ -856,21 +1123,21 @@ subroutine PhaseHydrostaticPressure(one_d_grid,option,iphase,press_start, &
     do
       pressure = pressure0 + 0.5d0*(rho_kg+rho_zero) * &
                  gravity(Z_DIRECTION) * one_d_grid%delta_z
-      if (iphase == OIL_PHASE) then
-        select case(option%iflowmode)
-          case(TOWG_MODE)
-            select case (option%iflow_sub_mode)
-              case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
-                if ( one_d_grid%z(ipressure) >= ogc_z) then
-                  pressure = pb_v(ipressure)
-                else
-                  if (pressure < pb_v(ipressure)) then
-                    pressure = pb_v(ipressure)
-                  end if
-                end if
-            end select
-        end select
-      end if !end if OIL_PHASE
+      ! if (iphase == OIL_PHASE) then
+      !   select case(option%iflowmode)
+      !     case(TOWG_MODE)
+      !       select case (option%iflow_sub_mode)
+      !         case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+      !           ! if ( one_d_grid%z(ipressure) >= ogc_z) then
+      !           !   pressure = pb_v(ipressure)
+      !           ! else
+      !           !   if (pressure < pb_v(ipressure)) then
+      !           !     pressure = pb_v(ipressure)
+      !           !   end if
+      !           ! end if
+      !       end select
+      !   end select
+      ! end if !end if OIL_PHASE
       rho_one = PhaseDensity(option,iphase,pressure,temp_v(ipressure), &
                         xm_nacl_v(ipressure),pb_v(ipressure),rv_v(ipressure))
       !check convergence on density
@@ -901,21 +1168,21 @@ subroutine PhaseHydrostaticPressure(one_d_grid,option,iphase,press_start, &
     do                   ! notice the negative sign (-) here
       pressure = pressure0 - 0.5d0*(rho_kg+rho_zero) * &
                  gravity(Z_DIRECTION) * one_d_grid%delta_z
-      if (iphase == OIL_PHASE) then
-        select case(option%iflowmode)
-          case(TOWG_MODE)
-            select case (option%iflow_sub_mode)
-              case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
-                if ( one_d_grid%z(ipressure) >= ogc_z) then
-                  pressure = pb_v(ipressure)
-                else
-                  if (pressure < pb_v(ipressure)) then
-                    pressure = pb_v(ipressure)
-                  end if
-                end if
-            end select
-        end select
-      end if !end if OIL_PHASE
+      ! if (iphase == OIL_PHASE) then
+      !   select case(option%iflowmode)
+      !     case(TOWG_MODE)
+      !       select case (option%iflow_sub_mode)
+      !         case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+      !           if ( one_d_grid%z(ipressure) >= ogc_z) then
+      !             pressure = pb_v(ipressure)
+      !           else
+      !             if (pressure < pb_v(ipressure)) then
+      !               pressure = pb_v(ipressure)
+      !             end if
+      !           end if
+      !       end select
+      !   end select
+      ! end if !end if OIL_PHASE
       rho_one = PhaseDensity(option,iphase,pressure,temp_v(ipressure), &
                          xm_nacl_v(ipressure),pb_v(ipressure),rv_v(ipressure))
       !check convergence on density
@@ -970,6 +1237,7 @@ function PhaseDensity(option,iphase,p,t,xm_nacl,pb,rv)
   PetscReal :: aux(1)
   PetscReal :: rs_molar
   PetscReal :: xo, xg, cr, deno, crusp
+  PetscReal :: pb_comp
   !PetscInt :: table_idx
 
   PetscErrorCode :: ierr
@@ -1002,17 +1270,18 @@ function PhaseDensity(option,iphase,p,t,xm_nacl,pb,rv)
         case(TOWG_MODE)
           select case (option%iflow_sub_mode)
             case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+              pb_comp = min(pb,p)
               !Look up the Rs value
               !table_idx =  1
               !call getBlackOilComposition(pb,t,table_idx,xo,xg)
-              call EOSOilRS(t,pb,rs_molar,ierr)
+              call EOSOilRS(t,pb_comp,rs_molar,ierr)
               xo=1.0d0   /(1.0d0+rs_molar)
               xg=rs_molar/(1.0d0+rs_molar)
               !Density and compressibility look-up at bubble point
-              call EOSOilDensity (t,pb,deno,ierr)
-              call EOSOilCompressibility(t,pb,cr,ierr)
+              call EOSOilDensity (t,pb_comp,deno,ierr)
+              call EOSOilCompressibility(t,pb_comp,cr,ierr)
               !Correct for undersaturation
-              crusp=cr*(p-pb)
+              crusp=cr*(p-pb_comp)
               deno=deno*(1.0+crusp*(1.0+0.5*crusp))
               !correct for composition, i.e. add gas component contribution
               deno=deno/xo
