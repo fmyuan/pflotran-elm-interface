@@ -112,11 +112,18 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   class(characteristic_curves_type), pointer :: cc_ptr
   class(one_dim_grid_type), pointer :: one_d_grid
   PetscInt :: i_z
-  PetscInt :: grid_size, i_n, i_press_start
+  PetscInt :: grid_size, i_press_start, i_n
   PetscReal :: dist_dn, dist_up
   PetscInt :: iconn, local_id, ghosted_id
   PetscReal :: dz_conn, z_cell
 
+  PetscInt :: i_owc
+  PetscInt :: i_ogc
+  PetscInt :: i_wgc
+  PetscReal :: dowc_dn, dowc_up
+  PetscReal :: dogc_dn, dogc_up
+  PetscReal :: dwgc_dn, dwgc_up
+  
   PetscReal :: pw_cell
   PetscReal :: po_cell
   PetscReal :: pg_cell
@@ -247,10 +254,19 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
 
   call AllocateGridArrays(grid_size)
 
-  ! Interpolate Pb and Temp on 1d grid
-  !call InterpolatePMInput(condition,option,one_d_grid)
-  ! call InterpolatePMInput(condition,option,one_d_grid,press_at_datum, &
-  !                                 temp_vec,xm_nacl_vec,pb_vec,rv_vec)  
+  if (oil_wat_zone) then
+    call GetZPointProps(owc_z,option,temp_owc,xm_nacl_owc,pb_owc,rv_owc)
+    call one_d_grid%ZLookup(owc_z,i_owc,dowc_dn,dowc_up)
+  end if
+  if (oil_gas_zone) then
+    call GetZPointProps(ogc_z,option,temp_ogc,xm_nacl_ogc,pb_ogc,rv_ogc)
+    call one_d_grid%ZLookup(ogc_z,i_ogc,dogc_dn,dogc_up)
+  end if
+  if (wat_gas_zone) then
+    call GetZPointProps(wgc_z,option,temp_wgc,xm_nacl_wgc,pb_wgc,rv_wgc)
+    call one_d_grid%ZLookup(wgc_z,i_wgc,dwgc_dn,dwgc_up)
+  end if  
+  
 
   do i_z = 1,size(one_d_grid%z(:))
     call GetZPointProps(one_d_grid%z(i_z),option,temp_vec(i_z), &
@@ -265,15 +281,11 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
                 wat_press_vec,wat_den_kg_vec)
     if ( oil_present ) then
       ! compute pw_owc and starts po computation from pw_owc
-      call one_d_grid%ZLookup(owc_z,i_n,dist_dn,dist_up)
-      pw_owc = wat_press_vec(i_n) + wat_den_kg_vec(i_n) * g_z * dist_dn
+      pw_owc = wat_press_vec(i_owc) + wat_den_kg_vec(i_owc) * g_z * dowc_dn
       po_owc = pw_owc + pcow_owc
-      i_press_start = i_n + 1
-
-      call GetZPointProps(owc_z,option,temp_owc,xm_nacl_owc,pb_owc,rv_owc)
-
+      i_press_start = i_owc + 1
       press_start = po_owc + PhaseDensity(option,OIL_PHASE,po_owc,temp_owc, &
-                             xm_nacl_owc,pb_owc,rv_owc) * g_z * dist_up
+                             xm_nacl_owc,pb_owc,rv_owc) * g_z * dowc_up
       !
       call PhaseHydrostaticPressure(one_d_grid,option,OIL_PHASE, &
                   press_start,i_press_start,temp_vec, &
@@ -281,10 +293,25 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
                   oil_press_vec,oil_den_kg_vec)
     end if
     if ( gas_present .and. oil_present ) then
-      !compute po_ogc and starts pg computation from po_ogc
-
+      !compute po_ogc and pg_ogc, then gas pressure profile from pg_ogc
+      po_ogc = oil_press_vec(i_ogc) + oil_den_kg_vec(i_ogc) * g_z * dogc_dn
+      pg_ogc = po_ogc + pcog_ogc
+      i_press_start = i_ogc + 1
+      press_start = pg_ogc + PhaseDensity(option,GAS_PHASE,pg_ogc,temp_ogc, &
+                             xm_nacl_ogc,pb_ogc,rv_ogc) * g_z * dogc_up
     else if ( gas_present .and. (.not.oil_present) ) then
-      !compute po_wgc and starts pg computation from pg_wgc
+      !compute pw_wgc and pg_wgc, then gas pressure profile from pg_wgc
+      pw_wgc = wat_press_vec(i_wgc) + wat_den_kg_vec(i_wgc) * g_z * dwgc_dn
+      pg_wgc = pw_wgc + pcwg_wgc
+      i_press_start = i_wgc + 1
+      press_start = pg_wgc + PhaseDensity(option,GAS_PHASE,pg_wgc,temp_wgc, &
+                             xm_nacl_wgc,pb_wgc,rv_wgc) * g_z * dwgc_up
+    end if
+    if (gas_present) then
+      call PhaseHydrostaticPressure(one_d_grid,option,GAS_PHASE, &
+                  press_start,i_press_start,temp_vec, &
+                  xm_nacl_vec,pb_vec,rv_vec, &
+                  gas_press_vec,gas_den_kg_vec)
     end if
   else if (datum_in_oil) then
     call PhaseHydrostaticPressure(one_d_grid,option,OIL_PHASE, &
@@ -292,13 +319,11 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
                 xm_nacl_vec,pb_vec,rv_vec, &
                 oil_press_vec,oil_den_kg_vec)
     if (wat_present) then
-      call one_d_grid%ZLookup(owc_z,i_n,dist_dn,dist_up)
-      po_owc = oil_press_vec(i_n) + oil_den_kg_vec(i_n) * g_z * dist_dn
+      po_owc = oil_press_vec(i_owc) + oil_den_kg_vec(i_owc) * g_z * dowc_dn
       pw_owc = po_owc - pcow_owc
-      i_press_start = i_n + 1
-      call GetZPointProps(owc_z,option,temp_owc,xm_nacl_owc,pb_owc,rv_owc)
+      i_press_start = i_owc + 1
       press_start = pw_owc + PhaseDensity(option,LIQUID_PHASE,pw_owc,temp_owc, &
-                             xm_nacl_owc,pb_owc,rv_owc) * g_z * dist_up
+                             xm_nacl_owc,pb_owc,rv_owc) * g_z * dowc_up
       !
       call PhaseHydrostaticPressure(one_d_grid,option,LIQUID_PHASE, &
                   press_start,i_press_start,temp_vec, &
@@ -306,13 +331,11 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
                   wat_press_vec,wat_den_kg_vec)
     end if  
     if (gas_present) then
-      call one_d_grid%ZLookup(ogc_z,i_n,dist_dn,dist_up)
-      po_ogc = oil_press_vec(i_n) + oil_den_kg_vec(i_n) * g_z * dist_dn
+      po_ogc = oil_press_vec(i_ogc) + oil_den_kg_vec(i_ogc) * g_z * dogc_dn
       pg_ogc = po_ogc + pcog_ogc
-      i_press_start = i_n + 1
-      call GetZPointProps(ogc_z,option,temp_ogc,xm_nacl_ogc,pb_ogc,rv_ogc)
+      i_press_start = i_ogc + 1
       press_start = pg_ogc + PhaseDensity(option,GAS_PHASE,pg_ogc,temp_ogc, &
-                             xm_nacl_ogc,pb_ogc,rv_ogc) * g_z * dist_up
+                             xm_nacl_ogc,pb_ogc,rv_ogc) * g_z * dogc_up
       !
       call PhaseHydrostaticPressure(one_d_grid,option,GAS_PHASE, &
                   press_start,i_press_start,temp_vec, &
@@ -322,7 +345,38 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
     !check what phase are above water
     !write z function lookup
   else if (datum_in_gas) then
-    
+    call PhaseHydrostaticPressure(one_d_grid,option,GAS_PHASE, &
+                press_at_datum,one_d_grid%idatum,temp_vec, &
+                xm_nacl_vec,pb_vec,rv_vec, &
+                gas_press_vec,gas_den_kg_vec)
+    if (oil_present) then
+      !compute po_ogc then pressure profile
+      pg_ogc = gas_press_vec(i_ogc) + gas_den_kg_vec(i_ogc) * g_z * dogc_dn
+      po_ogc = pg_ogc - po_ogc
+      i_press_start = i_ogc + 1
+      press_start = po_ogc + PhaseDensity(option,OIL_PHASE,po_ogc,temp_ogc, &
+                             xm_nacl_ogc,pb_ogc,rv_ogc) * g_z * dogc_up
+      !
+      call PhaseHydrostaticPressure(one_d_grid,option,OIL_PHASE, &
+                  press_start,i_press_start,temp_vec, &
+                  xm_nacl_vec,pb_vec,rv_vec, &
+                  oil_press_vec,oil_den_kg_vec)
+    end if
+    if ( wat_present .and. oil_present ) then
+      !compute po_owc and pw_owc, then water pressure profile from pw_owc
+      po_owc = oil_press_vec(i_owc) + oil_den_kg_vec(i_owc) * g_z * dowc_dn
+      pw_owc = po_owc - pcow_owc
+      i_press_start = i_owc + 1
+      press_start = pw_owc + PhaseDensity(option,LIQUID_PHASE,pw_owc,temp_owc, &
+                             xm_nacl_owc,pb_owc,rv_owc) * g_z * dowc_up
+    else if ( wat_present .and. (.not.oil_present) ) then
+      !compute pg_wgc and pw_wgc, then water pressure profile
+      pg_wgc = gas_press_vec(i_wgc) + gas_den_kg_vec(i_wgc) * g_z * dwgc_dn
+      pw_wgc = pg_wgc - pcwg_wgc
+      i_press_start = i_wgc + 1
+      press_start = pw_wgc + PhaseDensity(option,LIQUID_PHASE,pw_wgc,temp_wgc, &
+                             xm_nacl_wgc,pb_wgc,rv_wgc) * g_z * dwgc_up
+    end if  
   end if
   
   ! compute saturation for exisitng transition zones
@@ -425,16 +479,30 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
       end if    
     end if
 
+    !currenty not used in TOWG as gas condensate is not supported
+    !to be tested when gas condensate is supported
     if (wat_gas_zone) then
       pwg_cell = pg_cell - pw_cell
       pcwg_min = cc_ptr%gas_wat_sat_func%GetPcMin()
       pcwg_max = cc_ptr%gas_wat_sat_func%GetPcMax()
       if ( pwg_cell <= pcwg_min ) then
         sg_cell = sg_min
+        sw_cell = 1.0 - sg_min
+        pg_cell = pw_cell + pcwg_min !pressure supported by water
       else if ( pwg_cell > pcwg_min .and. pwg_cell < pcwg_max ) then
         !to finsh
+        if ( .not.cc_ptr%gas_wat_sat_func%sat_func_of_pc_available ) then
+          option%io_buffer = 'The Pcgw function used for&
+                             & hydrostatic equilibration is not valid.'
+          call printErrMsg(option)
+        end if
+        call cc_ptr%gas_wat_sat_func%Saturation(pwg_cell,sw_cell, &
+                                                dsat_dp,option)
+        sg_cell = 1.0 - sw_cell
       else if ( pwg_cell >= pcwg_max ) then
-        sg_min = 1.0 - sg_min
+        sw_cell = sw_min 
+        sg_cell = 1.0 - sw_min
+        pw_cell = pg_cell - pcwg_max !pressure supported by gas
       end if
     end if
 
