@@ -4310,7 +4310,7 @@ end subroutine TOWGBOSrcSink
 ! ************************************************************************** !
 
 subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
-                               soil_heat_capacity,option,J)
+                               soil_heat_capacity,option,J,ghosted_id)
   !
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
@@ -4341,6 +4341,7 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
   PetscReal :: jdum(option%nflowdof,option%nflowdof)
   PetscReal :: jalyt(option%nflowdof,option%nflowdof)
   PetscBool :: flagged
+  PetscInt :: ghosted_id
 
   if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare) then
     call TOWGAccumulation(auxvar(ZERO_INTEGER),global_auxvar,material_auxvar, &
@@ -4392,7 +4393,7 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
       flagged = PETSC_FALSE
       call MatCompare(J, jalyt, option%nflowdof, option%nflowdof, towg_dcomp_tol, towg_dcomp_reltol,flagged)
       if (flagged) then
-        print *, "this is accum derivative"
+        print *, "this is accum derivative, ghosted_id: ", ghosted_id
       endif
     endif
 
@@ -4568,6 +4569,7 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
         print *, "this is flux derivative, that was matrix dn"
       endif
 
+#if 0
     call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                   material_auxvar_up,sir_up, &
                   thermal_conductivity_up, &
@@ -4595,6 +4597,7 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
                     thermal_conductivity_dn, &
                     area,dist,towg_parameter, &
                     option,v_darcy,res_pert,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
+#endif
 
     endif
 
@@ -5405,7 +5408,8 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   do ghosted_id = 1, grid%ngmax  ! For each local node do...
     if (patch%imat(ghosted_id) <= 0) cycle
     natural_id = grid%nG2A(ghosted_id)
-    if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare) then
+    if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare &
+        .OR. option%flow%num_as_alyt_derivs) then
       call TOWGAuxVarPerturb(towg%auxvars(:,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
@@ -5427,7 +5431,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
                              material_auxvars(ghosted_id), &
                              material_parameter%soil_heat_capacity(imat), &
                              option, &
-                             Jup) 
+                             Jup,ghosted_id) 
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo

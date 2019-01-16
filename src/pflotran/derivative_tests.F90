@@ -30,7 +30,8 @@ module Derivative_tests_module
   public :: NumCompare_toil, &
             NumCompare_towg_bo, &
             NumCompare_tl3p, &
-            NumCompare_tl4p
+            NumCompare_tl4p, &
+            Num_as_alyt_tl4p
 
 contains
 
@@ -1367,11 +1368,11 @@ end subroutine NumCompare_tl3p
 
 ! ************************************************************************** !
 
-subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
+subroutine Num_as_alyt_tl4p(nphase,ndof,auxvars,option,&
                               dof_op,dof_osat,dof_gsat,dof_temp,&
                               isSat)
   ! intention: given an array of auxvar objects, do differencing 
-  ! to compare analytical derivatives
+  ! to populate auxvars derivative members with numerical derivatives
 
   use PFLOTRAN_Constants_module
   implicit none
@@ -1381,90 +1382,14 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
 
   PetscInt :: iphase,idof
   PetscReal :: pert,p_unpert,p_pert,nderiv,aderiv,diff,rdiff
-  PetscReal :: atol,rtol
-  PetscInt :: probs
 
   PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp
   PetscBool :: isSat
 
 
-  atol = flow_aux_debug_tol
-  rtol = flow_aux_debug_reltol
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  probs = 0
-
-  !! *********  from auxvars BO*********
-  ! xo
-  do idof=1,ndof
-    ! get perturbation for this dof variable
-    pert = auxvars(idof)%pert
-    !do iphase=1,nphase
-    iphase = 1
-      ! get unperturbed value
-      p_unpert = auxvars(0)%bo%xo
-      ! get perturbed value
-      p_pert = auxvars(idof)%bo%xo
-
-      ! numerical derivative
-      nderiv = (p_pert-p_unpert)/pert
-
-      !!! assign
-      !auxvars(0)%bo%D_xo(idof) = nderiv
-
-      ! analytical derivative
-      aderiv = auxvars(0)%bo%D_xo(idof)
-
-      ! difference:
-      diff = abs(aderiv-nderiv)
-      rdiff = diff/abs(nderiv)
-
-      if (diff>atol .OR. rdiff>rtol) then
-        print *, "xo (note phase meaningless):"
-        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *
-        probs = probs + 1
-      endif
-    !enddo
-  enddo
-
-  ! xg
-  do idof=1,ndof
-    ! get perturbation for this dof variable
-    pert = auxvars(idof)%pert
-    !do iphase=1,nphase
-    iphase = 1
-      ! get unperturbed value
-      p_unpert = auxvars(0)%bo%xg
-      ! get perturbed value
-      p_pert = auxvars(idof)%bo%xg
-
-      ! numerical derivative
-      nderiv = (p_pert-p_unpert)/pert
-
-      !!! assign
-      !auxvars(0)%bo%D_xg(idof) = nderiv
-
-      ! analytical derivative
-      aderiv = auxvars(0)%bo%D_xg(idof)
-
-      ! difference:
-      diff = abs(aderiv-nderiv)
-      rdiff = diff/abs(nderiv)
-
-      if (diff>atol .OR. rdiff>rtol) then
-        print *, "xg (note phase meaningless):"
-        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *
-        probs = probs + 1
-      endif
-    !enddo
-  enddo
-
-  !! *********  end offrom auxvars BO*********
-
-
-  !! ********* from auxvars flow *********
-
+#if 0
   ! pres:
   do idof=1,ndof
     ! get perturbation for this dof variable
@@ -1479,56 +1404,11 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       nderiv = (p_pert-p_unpert)/pert
 
       !!! assign
-      !auxvars(0)%D_pres(iphase,idof) = nderiv
+      auxvars(0)%D_pres(iphase,idof) = nderiv
 
-      ! analytical derivative
-      aderiv = auxvars(0)%D_pres(iphase,idof)
-
-      ! difference:
-      diff = abs(aderiv-nderiv)
-      rdiff = diff/abs(nderiv)
-
-      if (diff>atol .OR. rdiff>rtol) then
-        print *, "pres:"
-        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *
-        probs = probs + 1
-      endif
     enddo
   enddo
 
-
-  ! sat:
-  do idof=1,ndof
-    ! get perturbation for this dof variable
-    pert = auxvars(idof)%pert
-    do iphase=1,nphase
-      ! get unperturbed value
-      p_unpert = auxvars(0)%sat(iphase)
-      ! get perturbed value
-      p_pert = auxvars(idof)%sat(iphase)
-
-      ! numerical derivative
-      nderiv = (p_pert-p_unpert)/pert
-
-      !!! assign
-      !auxvars(0)%D_sat(iphase,idof) = nderiv
-
-      ! analytical derivative
-      aderiv = auxvars(0)%D_sat(iphase,idof)
-
-      ! difference:
-      diff = abs(aderiv-nderiv)
-      rdiff = diff/abs(nderiv)
-
-      if (diff>atol .OR. rdiff>rtol) then
-        print *, "sat:"
-        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *
-        probs = probs + 1
-      endif
-    enddo
-  enddo
 
 
   ! pc - needs special treatment because not full (nphase) size:
@@ -1545,23 +1425,15 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       nderiv = (p_pert-p_unpert)/pert
 
       !!! assign
-      !auxvars(0)%D_pc(iphase,idof) = nderiv
+      auxvars(0)%D_pc(iphase,idof) = nderiv
 
-      ! analytical derivative
-      aderiv = auxvars(0)%D_pc(iphase,idof)
-
-      ! difference:
-      diff = abs(aderiv-nderiv)
-      rdiff = diff/abs(nderiv)
-
-      if (diff>atol .OR. rdiff>rtol) then
-        print *, "pc:"
-        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *
-        probs = probs + 1
-      endif
     enddo
   enddo
+#endif
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
   ! den:
   do idof=1,ndof
@@ -1780,6 +1652,198 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
   enddo
   !! ********* end of from auxvars energy flow *********
 
+end subroutine Num_as_alyt_tl4p
+
+! ************************************************************************** !
+
+subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
+                              dof_op,dof_osat,dof_gsat,dof_temp,&
+                              isSat)
+  ! intention: given an array of auxvar objects, do differencing 
+  ! to compare analytical derivatives
+
+  use PFLOTRAN_Constants_module
+  implicit none
+  PetscInt :: nphase,ndof
+  type(auxvar_towg_type) :: auxvars(0:)
+  type(option_type) :: option
+
+  PetscInt :: iphase,idof
+  PetscReal :: pert,p_unpert,p_pert,nderiv,aderiv,diff,rdiff
+  PetscReal :: atol,rtol
+  PetscInt :: probs
+
+  PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp
+  PetscBool :: isSat
+
+
+  atol = flow_aux_debug_tol
+  rtol = flow_aux_debug_reltol
+
+  probs = 0
+
+  !! *********  from auxvars BO*********
+  ! xo
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+    iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%bo%xo
+      ! get perturbed value
+      p_pert = auxvars(idof)%bo%xo
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%bo%D_xo(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "xo (note phase meaningless):"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+
+  ! xg
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+    iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%bo%xg
+      ! get perturbed value
+      p_pert = auxvars(idof)%bo%xg
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%bo%D_xg(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "xg (note phase meaningless):"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+
+  !! *********  end offrom auxvars BO*********
+
+
+  !! ********* from auxvars flow *********
+
+  ! pres:
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    do iphase=1,nphase
+      ! get unperturbed value
+      p_unpert = auxvars(0)%pres(iphase)
+      ! get perturbed value
+      p_pert = auxvars(idof)%pres(iphase)
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%D_pres(iphase,idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "pres:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *
+        probs = probs + 1
+      endif
+    enddo
+  enddo
+
+
+  ! sat:
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    do iphase=1,nphase
+      ! get unperturbed value
+      p_unpert = auxvars(0)%sat(iphase)
+      ! get perturbed value
+      p_pert = auxvars(idof)%sat(iphase)
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%D_sat(iphase,idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "sat:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *
+        probs = probs + 1
+      endif
+    enddo
+  enddo
+
+
+  ! pc - needs special treatment because not full (nphase) size:
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    do iphase=1,nphase-1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%pc(iphase)
+      ! get perturbed value
+      p_pert = auxvars(idof)%pc(iphase)
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%D_pc(iphase,idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "pc:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *, "sats: "
+        print *,auxvars(0)%sat
+        print *, "fm: ", auxvars(0)%tlt%fm
+        print *, auxvars(0)%tlT%D_fm
+        print *
+        probs = probs + 1
+      endif
+    enddo
+  enddo
+
+  !! ***** end of from auxvars flow *********
+
+
   !! ***************  from tl4p intermediates  *********
   if (auxvars(0)%has_TL_test_object) then
       do idof=1,ndof
@@ -1815,7 +1879,7 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
     !do iphase=1,nphase
     iphase = 1
       ! get unperturbed value
-      p_unpert = auxvars(0)%tlT%fm
+      p_unpert = auxvars(0)%tlt%fm
       ! get perturbed value
       p_pert = auxvars(idof)%tlT%fm
 

@@ -1805,7 +1805,7 @@ endif
   fi=1.0-fm
 
   if (getDerivs) then
-    D_fm(dof_gsat)= 0.d0
+    if (.NOT. isSat) D_fm(dof_gsat)= 0.d0
 
     !!! hack for testing
     if (auxvar%has_TL_test_object) then
@@ -1857,7 +1857,7 @@ endif
     ! deriv of pc between oil and water, w.r.t. oil sat:
     auxvar%D_pc(wid,dof_osat) =  -d_pcw_d_swa
     ! deriv of pc between oil and water, w.r.t. slv sat:
-    auxvar%D_pc(wid,dof_osat) =  -d_pcw_d_swa
+    auxvar%D_pc(wid,dof_ssat) =  -d_pcw_d_swa
     ! deriv of pc between oil and water, w.r.t. gas sat:
     if (isSat) then
       auxvar%D_pc(wid,dof_gsat) = -d_pcw_d_swa
@@ -1868,14 +1868,12 @@ endif
     auxvar%D_pc(oid,dof_ssat) = d_pco_d_sva
 
     if (isSat) then
-      ! deriv of pc between vapour and oil w.r.t. oil sat:
+      ! deriv of pc between vapour and oil w.r.t. gas sat:
       auxvar%D_pc(oid,dof_gsat) = d_pco_d_sva
     endif
 
-    ! pressure (to be) saved below
-
     !  Scale Pcog for degree of miscibility
-    !  Need to do chain rule on fi*pc(oid)
+    !  Need to do prod rule on fi*pc(oid)
     !  We have D_fm; D_fi is -D_fm so:
     auxvar%D_pc(oid,:) = ProdRule(fi,-D_fm,auxvar%pc(oid),auxvar%D_pc(oid,:),ndof)
   endif
@@ -1903,7 +1901,7 @@ endif
     auxvar%D_pres(wid,:) = auxvar%D_pres(wid,:) + auxvar%D_pres(oid,:)
 
     ! gas presure, first the pc term:
-    auxvar%D_pres(gid,:) = auxvar%D_pc(gid,:)
+    auxvar%D_pres(gid,:) = auxvar%D_pc(oid,:)
     ! ..then the oil presure term:
     auxvar%D_pres(gid,:) = auxvar%D_pres(gid,:) + auxvar%D_pres(oid,:)
 
@@ -3437,13 +3435,19 @@ subroutine TL4PAuxVarPerturb(auxvar,global_auxvar, &
   !!!    properly by implementation in computeAuxVars(), then all we need to do is
   !!!    comment out the part where it would be overwritten in the routine below.
   if (.NOT. option%flow%numerical_derivatives .AND. option%flow%num_as_alyt_derivs) then
+#if 0
     call NumCompare_tl4p(option%nphase,option%nflowdof,auxvar,option,&
+                            TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
+                            TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof, &
+                            isSaturated)
+#endif
+    call Num_as_alyt_tl4p(option%nphase,option%nflowdof,auxvar,option,&
                             TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
                             TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof, &
                             isSaturated)
 
   endif
-#if 0
+
   ! alternatively, for the finished version we will want this (maybe allow seperate routine to 
   ! do alyt as num anyway?):
   if (option%flow%numerical_derivatives_compare) then 
@@ -3451,8 +3455,13 @@ subroutine TL4PAuxVarPerturb(auxvar,global_auxvar, &
                             TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
                             TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof, &
                             isSaturated)
-  endif
+
+#if 0
+    call TOWGAuxVarCompute(x,auxvar(ZERO_INTEGER),global_auxvar, &
+                           material_auxvar, &
+                           characteristic_curves,natural_id,option)
 #endif
+  endif
 
 
 end subroutine TL4PAuxVarPerturb
@@ -3660,7 +3669,7 @@ subroutine TL4PMiscibilityFraction(sg,ss,fm,dfmdsg,dfmdss)
     fs=ss*svi
 
     ! maybe a good idea but will cause slight discrepencies with previous runs!
-    !if (sg ==0.d0) fs = 1.d0
+    if (sg ==0.d0) fs = 1.d0
 
     call TL4PMiscibilityFractionFromSaturationFraction(fs,fm,dfmdfs)
 
@@ -3968,9 +3977,25 @@ subroutine TL4PMiscibilityFractionFromSaturationFraction(fs,fm,dfmdfs)
     if( fs<=fmis_sl ) then
       fm    =0.0d0
       dfmdfs=0.0
+
+      ! constant slope at endpoint:
+      if (fs == fmis_sl) then
+        deni=0.0
+        if( abs(den)>0.0 ) deni=1.0/(fmis_su-fmis_sl)
+        dfmdfs=deni
+      endif
+
     else if( fs>=fmis_su ) then
       fm    =1.0d0
       dfmdfs=0.0
+
+      ! constant slope at endpoint:
+      if (fs == fmis_su) then
+        deni=0.0
+        if( abs(den)>0.0 ) deni=1.0/(fmis_su-fmis_sl)
+        dfmdfs=deni
+      endif
+
     else
       den=fmis_su-fmis_sl
       deni=0.0
