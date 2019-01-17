@@ -1,20 +1,52 @@
+
 module Mapping_module
 
-  use PFLOTRAN_Constants_module
+#ifdef CLM_PFLOTRAN
+! ************************************************************************** !
 
 #include "petsc/finclude/petscsys.h"
-#include "petsc/finclude/petscviewer.h"
 #include "petsc/finclude/petscvec.h"
 #include "petsc/finclude/petscis.h"
 #include "petsc/finclude/petscmat.h"
-
+#include "petsc/finclude/petsclog.h"
+#include "petsc/finclude/petscviewer.h"
   use petscsys
   use petscvec
   use petscmat
-  use petscis
-  
+
+
+  use PFLOTRAN_Constants_module
+
   implicit none
+
+
   private
+
+  ! Note:
+  !
+  ! CLM has the following:
+  !   (i) 3D subsurface grid (CLM_3DSUB);
+  !   (ii) 2D top-cell grid (CLM_2DTOP).
+  !   (iii) 2D bottom-cell grid (CLM_2DBOT)
+  ! CLM decomposes the 3D subsurface grid across processors in a 2D (i.e.
+  ! cells in Z are not split across processors). Thus, the surface cells of
+  ! 3D subsurface grid are on the same processors as the 2D surface grid.
+  !
+  ! PFLOTRAN has the following:
+  !   (i) 3D subsurface grid (PF_3DSUB);
+  !   (ii) top-face control volumes of 3D subsurface grid (PF_2DTOP);
+  !   (iii) bottom face control volumes of 3D subsurface grid (PF_2DBOT);
+  ! In PFLOTRAN, control volumes in PF_2DSUB and PF_SRF may reside on different
+  ! processors. PF_3DSUB and PF_2DSUB are derived from simulation%realization;
+  ! while PF_SRF refers to simulation%surf_realization.
+
+  PetscInt, parameter, public :: CLM_3DSUB_TO_PF_3DSUB       = 1 ! 3D --> 3D
+  PetscInt, parameter, public :: PF_3DSUB_TO_CLM_3DSUB       = 2 ! 3D --> 3D
+
+  PetscInt, parameter, public :: CLM_2DTOP_TO_PF_2DTOP       = 3 ! TOP face of 3D cell
+  PetscInt, parameter, public :: PF_2DTOP_TO_CLM_2DTOP       = 4 ! TOP face of 3D cell
+  PetscInt, parameter, public :: CLM_2DBOT_TO_PF_2DBOT       = 5 ! BOTTOM face of 3D cell
+  PetscInt, parameter, public :: PF_2DBOT_TO_CLM_2DBOT       = 6 ! BOTTOM face of 3D cell
 
   type, public  :: mapping_type
 
@@ -26,7 +58,7 @@ module Mapping_module
     !
     ! where W - Weight matrix      (nd x ns)
     !       s - Source vector      (ns x 1)
-    !       d - Destination vector (ns x 1)
+    !       d - Destination vector (nd x 1)
     !
     ! In CLM-PFLOTRAN coupling, s and d vectors are decomposed over multiple processors.
     ! The decomposition of vectors need not be in a contiguous order.
@@ -40,12 +72,14 @@ module Mapping_module
     !
 
     character(len=MAXSTRINGLENGTH) :: filename
+    PetscInt                       :: id
 
     ! Note: IDs of source/destination mesh are 0-based
 
     ! Source mesh
     PetscInt           :: s_ncells_loc              ! # of local source mesh cells present
-    PetscInt,pointer   :: s_ids_loc_nidx(:)         ! IDs of source mesh cells
+    PetscInt,pointer   :: s_ids_loc_nidx(:)         ! IDs of local source mesh cells
+    PetscInt,pointer   :: s_locids_loc_nidx(:)      ! loal IDs of local source mesh cells
 
     ! Destination mesh
     PetscInt           :: d_ncells_loc              ! # of local destination mesh cells present
@@ -85,28 +119,20 @@ module Mapping_module
     PetscInt           :: pflotran_nlev             ! Number of PFLOTRAN layers
     PetscInt           :: pflotran_nlev_mapped      ! Number of PFLOTRAN layers mapped
 
-    type(mapping_type), pointer :: next
-
   end type mapping_type
-
-  type, public :: mapping_list_type
-    PetscInt                       :: nmap
-    type(mapping_type), pointer    :: first
-    type(mapping_type), pointer    :: last
-  end type mapping_list_type
 
   public :: MappingCreate, &
             MappingSetSourceMeshCellIds, &
             MappingSetDestinationMeshCellIds, &
+            MappingFromCLMGrids, &
             MappingReadTxtFile, &
             MappingReadHDF5, &
             MappingDecompose, &
             MappingFindDistinctSourceMeshCellIds, &
             MappingCreateWeightMatrix, &
             MappingCreateScatterOfSourceMesh, &
+            MappingFreeNotNeeded, &
             MappingSourceToDestination, &
-            MappingListCreate, &
-            MappingListAddToList, &
             MappingDestroy
 contains
 
@@ -127,12 +153,15 @@ contains
 
     allocate(map)
 
+    map%filename = ''
+    map%id = -999
     map%s_ncells_loc = 0
     nullify(map%s_ids_loc_nidx)
+    nullify(map%s_locids_loc_nidx)
 
     ! Destination mesh
     map%d_ncells_loc = 0
-    map%d_ncells_gh = 0
+    map%d_ncells_gh  = 0
     map%d_ncells_ghd = 0
 
     ! natuaral-index starting with 0
@@ -155,119 +184,256 @@ contains
     nullify(map%s2d_icsr)
     nullify(map%s2d_nonzero_rcount_csr)
 
-    map%wts_mat = PETSC_NULL_MAT
+    map%wts_mat              = PETSC_NULL_MAT
     map%s2d_scat_s_gb2disloc = PETSC_NULL_VECSCATTER
-    map%s_disloc_vec = PETSC_NULL_VEC
+    map%s_disloc_vec         = PETSC_NULL_VEC
 
-    map%clm_nlevsoi = 0
-    map%clm_nlevgrnd = 0
-    map%clm_nlev_mapped = 0
-    map%pflotran_nlev = 0
+    map%clm_nlevsoi          = 0
+    map%clm_nlevgrnd         = 0
+    map%clm_nlev_mapped      = 0
+    map%pflotran_nlev        = 0
     map%pflotran_nlev_mapped = 0
     
-    nullify(map%next)
-
     MappingCreate => map
 
   end function MappingCreate
 
 ! ************************************************************************** !
 
-  subroutine MappingSetSourceMeshCellIds( map, &
-                                          ncells, &
-                                          cell_ids &
-                                        )
-  ! 
-  ! This routine sets cell ids source mesh.
-  ! 
-  ! Author: Gautam Bisht, ORNL
-  ! Date: 2011
-  ! 
+  subroutine MappingFromCLMGrids(map,grid,if_dest_pf,option)
+  !
+  ! This routine directly obtains grids/soils from CLM.
+  ! NOTE: only works with structured/cartsian type of pflotran mesh
+  ! (modified from subroutine:: MappingReadTxtFile below
+  ! Author: Fengming Yuan, ORNL
+  ! Date: Jan. 2016
+  !
+
+    use Option_module
+    use String_module
+    use Grid_module
+    use Grid_Structured_module
+    use PFLOTRAN_Constants_module
 
     implicit none
 
-    type(mapping_type), pointer :: map
+    ! argument
+    type(mapping_type), pointer     :: map
+    type(grid_type), pointer        :: grid
+    PetscBool                       :: if_dest_pf   ! True: PF mesh as destination mesh
+    type(option_type), pointer      :: option
 
-    PetscInt                    :: ncells,ii
-    PetscInt,pointer            :: cell_ids(:)
+    ! local variables
+    PetscInt                        :: temp_int
+    PetscInt                        :: nwts
+    PetscInt,pointer                :: wts_clmid(:), wts_pfid(:)
+    PetscInt                        :: i, j, k, natural_id, grid_count, cell_count
+    PetscInt,pointer                :: wts_row_tmp(:), wts_col_tmp(:)
+    PetscReal,pointer               :: wts_tmp(:)
 
-    map%s_ncells_loc = ncells
-    allocate(map%s_ids_loc_nidx(map%s_ncells_loc))
+    PetscErrorCode                  :: ierr
+    PetscMPIInt                     :: status_mpi(MPI_STATUS_SIZE)
+    PetscInt                        :: nread, cum_nread, nwts_tmp, remainder, irank, ii
 
-    do ii = 1,ncells
-      map%s_ids_loc_nidx(ii) = cell_ids(ii)
-    enddo
+    ! Do the 'entire' domain of grid-mesh conversion/scaling through io_rank and communicate to other ranks
 
-  end subroutine MappingSetSourceMeshCellIds
+    select case(grid%itype)
+      case(STRUCTURED_GRID)
+        option%io_buffer = 'MAPPING INFO: CLM grid/column dimension will be mapped into ' // &
+           'PF structured/cartesian grid mesh.'
+        call printMsg(option)
 
-! ************************************************************************** !
+        select case(grid%structured_grid%itype)
+          case(CARTESIAN_GRID)
+             !
+          case default
+            option%io_buffer = "MAPPING ERROR: Currently only works on structured CARTESIAN_GRID mesh."
+             call printErrMsg(option)
+        end select
 
-  subroutine MappingSetDestinationMeshCellIds(map, &
-                                              ncells_loc, &
-                                              ncells_gh, &
-                                              cell_ids_ghd, &
-                                              loc_or_gh &
-                                              )
-  ! 
-  ! This routine sets the cell ids of destination mesh.
-  ! 
-  ! Author: Gautam Bisht, ORNL
-  ! Date: 2011
-  ! 
+      case default
+        option%io_buffer = "MAPPING ERROR: Currently only works on structured grids."
+        call printErrMsg(option)
+    end select
 
-    implicit none
+    !
+    nwts = -999
+    if (map%clm_nlev_mapped == map%pflotran_nlev_mapped) then
+      if (map%id == CLM_3DSUB_TO_PF_3DSUB .or. map%id == PF_3DSUB_TO_CLM_3DSUB) nwts = grid%structured_grid%nmax
+      if (map%id == CLM_2DTOP_TO_PF_2DTOP .or. map%id == PF_2DTOP_TO_CLM_2DTOP) nwts = grid%structured_grid%nxy
+      if (map%id == CLM_2DBOT_TO_PF_2DBOT .or. map%id == PF_2DBOT_TO_CLM_2DBOT) nwts = grid%structured_grid%nxy
+    else
+      option%io_buffer = 'not equal numbers of soil layers mapped btw CLM and PFLOTRAN! '
+      call printErrMsg(option)
+    end if
 
-    type(mapping_type), pointer :: map
+    !
+    if(option%myrank == option%io_rank) then
+      ! some information on CLM-PFLOTRAN mesh matching-up (passing)
+      write(*,*) 'CLM nlevsoil mapped = ', map%clm_nlev_mapped
+      write(*,*) 'PFLOTRAN nlevsoil mapped = ', map%pflotran_nlev_mapped
+      write(*,*) 'CLM-PFLOTRAN ncell mapped = ', nwts
 
-    PetscInt                    :: ncells_loc, ncells_gh
-    PetscInt,pointer            :: cell_ids_ghd(:), loc_or_gh(:)
+      ! obtain the global cell natural ids for both CLM and PFLTORAN
+      allocate(wts_pfid(nwts))
+      allocate(wts_clmid(nwts))
+      cell_count = 0
 
-    PetscInt                    :: ii
-    PetscInt, pointer           :: index(:),rev_index(:)
-    PetscErrorCode               :: ierr
+      do k = 1, grid%structured_grid%nz
+        do j = 1, grid%structured_grid%ny
+          do i = 1, grid%structured_grid%nx
 
-    ! Initialize
-    map%d_ncells_loc = ncells_loc
-    map%d_ncells_gh  = ncells_gh
-    map%d_ncells_ghd = ncells_loc + ncells_gh
-
-    ! Allocate memory
-    allocate(map%d_ids_ghd_nidx(map%d_ncells_ghd))
-    allocate(map%d_ids_nidx_sor(map%d_ncells_ghd))
-    allocate(map%d_loc_or_gh(   map%d_ncells_ghd))
-    allocate(map%d_nGhd2Sor(    map%d_ncells_ghd))
-    allocate(map%d_nSor2Ghd(    map%d_ncells_ghd))
-    allocate(index(             map%d_ncells_ghd))
-    allocate(rev_index(         map%d_ncells_ghd))
-
-    do ii=1,ncells_loc+ncells_gh
-      map%d_ids_ghd_nidx(ii) = cell_ids_ghd(ii)
-      map%d_loc_or_gh(ii)    = loc_or_gh(ii)
-      index(ii)              = ii
-      rev_index(ii)          = ii
-    enddo
-
-    ! Sort cell_ids_ghd
-    index = index - 1 ! Needs to be 0-based
-    call PetscSortIntWithPermutation(map%d_ncells_ghd,cell_ids_ghd,index,ierr)
-    index = index + 1
-
-    do ii=1,ncells_loc+ncells_gh
-      map%d_ids_nidx_sor(ii) = cell_ids_ghd(index(ii))
-      map%d_nGhd2Sor(ii)     = index(ii)
-    enddo
-
-    ! Sort the index
-    rev_index = rev_index - 1
-    call PetscSortIntWithPermutation(map%d_ncells_ghd,index,rev_index,ierr)
-    map%d_nSor2Ghd = rev_index
-
-    ! Free memory
-    deallocate(index)
-    deallocate(rev_index)
+            ! PF global cell id in natural order (1-based)
+            natural_id = i +                               &   ! x first
+                         (j-1)*grid%structured_grid%nx  +  &   ! y second
+                         (k-1)*grid%structured_grid%nxy        ! z third
 
 
-  end subroutine MappingSetDestinationMeshCellIds
+            ! CLM global grid numering (1-based)
+            grid_count = i +                          &        ! west-east (x: longitudal) direction third
+                        (j-1)*grid%structured_grid%nx          ! south-north (y: latitudal) direction second
+
+            ! cell ids globally
+            if (map%id == CLM_3DSUB_TO_PF_3DSUB .or. map%id == PF_3DSUB_TO_CLM_3DSUB) then  ! 3D subsurface (soil) domain
+              cell_count = cell_count + 1
+              wts_pfid(cell_count)  = natural_id
+              wts_clmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first
+                                      grid%structured_grid%nz-k+1                   ! reverse vertical-numbering
+
+            elseif((map%id == CLM_2DTOP_TO_PF_2DTOP .or. map%id == PF_2DTOP_TO_CLM_2DTOP) &
+               .and. k==grid%structured_grid%nz) then  ! 2D top face
+              cell_count = cell_count + 1
+              wts_pfid(cell_count)  = natural_id
+              wts_clmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first
+                                      grid%structured_grid%nz-k+1                   ! reverse vertical-numbering
+
+            elseif((map%id == CLM_2DBOT_TO_PF_2DBOT .or. map%id == PF_2DBOT_TO_CLM_2DBOT) &
+               .and. k==1) then  ! 2D bottom face
+              cell_count = cell_count + 1
+              wts_pfid(cell_count)  = natural_id
+              wts_clmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first
+                                      grid%structured_grid%nz-k+1                   ! reverse vertical-numbering
+
+            endif
+
+          end do   ! x
+        end do   ! y
+      end do   ! z
+      ! just in case, do the following checking
+      if (cell_count /= nwts) then
+        option%io_buffer = 'not equal numbers of cell_counts mapped btw CLM and PFLOTRAN! '
+        call printErrMsg(option)
+      endif
+
+      ! sort destination mesh id obtained above
+      ! because mapping approach requires 'destination mesh' id (row-id in wts_matrix) in descending order
+      if (if_dest_pf) then
+        ! PF mesh as destination mesh (row-id in wts_matrix), while CLM mesh is source-mesh
+        call PetscSortIntWithArray(nwts,wts_pfid,wts_clmid,ierr)
+
+      else
+        ! CLM mesh as destination mesh (row-id in wts_matrix), while PF mesh is source-mesh
+        call PetscSortIntWithArray(nwts,wts_clmid,wts_pfid,ierr)
+      end if
+
+
+      ! calculting mapping matrix/vecs to be send to each processor equally (almost)
+      nwts_tmp = nwts/option%mycommsize
+      remainder= nwts - nwts_tmp*option%mycommsize
+
+      allocate(wts_row_tmp(nwts_tmp+1))   ! row number is for destination mesh
+      allocate(wts_col_tmp(nwts_tmp+1))
+      allocate(wts_tmp(nwts_tmp+1))
+
+      cum_nread = 0
+      do irank = 0,option%mycommsize-1
+
+        ! Determine the number of rows
+        nread = nwts_tmp
+        if(irank<remainder) nread = nread+1
+        cum_nread = cum_nread + nread
+
+
+        if (irank == option%myrank) then
+          ! Save data locally, if io_rank
+          map%s2d_nwts = nread
+          allocate(map%s2d_icsr(map%s2d_nwts))
+          allocate(map%s2d_jcsr(map%s2d_nwts))
+          allocate(map%s2d_wts( map%s2d_nwts))
+
+          do ii = 1, nread
+            if (if_dest_pf) then
+              map%s2d_icsr(ii) = wts_pfid(cum_nread-nread+ii) - 1        ! 1-based --> 0-based
+              map%s2d_jcsr(ii) = wts_clmid(cum_nread-nread+ii) - 1
+            else
+              map%s2d_icsr(ii) = wts_clmid(cum_nread-nread+ii) - 1        ! 1-based --> 0-based
+              map%s2d_jcsr(ii) = wts_pfid(cum_nread-nread+ii) - 1
+            end if
+           ! set 'wts' to 1.0, assuming 1:1 mapping btw CLM and PF
+           ! i.e. no scaling or weighting of area/volume.
+           ! SO, all data passing MUST be in unit of per area/volume or independent of area/volume.
+            map%s2d_wts(ii)  = 1.d0
+
+          enddo
+
+        else
+          ! Otherwise send data to other ranks
+
+          do ii = 1, nread
+            if (if_dest_pf) then
+              wts_row_tmp(ii) = wts_pfid(cum_nread-nread+ii) - 1        ! 1-based --> 0-based
+              wts_col_tmp(ii) = wts_clmid(cum_nread-nread+ii) - 1
+            else
+              wts_row_tmp(ii) = wts_clmid(cum_nread-nread+ii) - 1        ! 1-based --> 0-based
+              wts_col_tmp(ii) = wts_pfid(cum_nread-nread+ii) - 1
+            end if
+           ! set 'wts' to 1.0, assuming 1:1 mapping btw CLM and PF
+           ! i.e. no scaling or weighting of area/volume.
+           ! SO, all data passing MUST be in unit of per area/volume or independent of area/volume.
+            wts_tmp(ii)  = 1.d0
+
+          enddo
+
+          call MPI_Send(nread,1,MPI_INTEGER,irank,option%myrank,option%mycomm, &
+                        ierr)
+          call MPI_Send(wts_row_tmp,nread,MPI_INTEGER,irank,option%myrank, &
+                        option%mycomm,ierr)
+          call MPI_Send(wts_col_tmp,nread,MPI_INTEGER,irank,option%myrank, &
+                        option%mycomm,ierr)
+          call MPI_Send(wts_tmp,nread,MPI_DOUBLE_PRECISION,irank,option%myrank, &
+                        option%mycomm,ierr)
+
+        endif
+
+      end do
+
+      deallocate(wts_row_tmp)
+      deallocate(wts_col_tmp)
+      deallocate(wts_tmp)
+      deallocate(wts_pfid)
+      deallocate(wts_clmid)
+
+    else
+      ! Other ranks receive data from io_rank
+
+      call MPI_Recv(nread,1,MPI_INTEGER,option%io_rank,MPI_ANY_TAG, &
+                    option%mycomm,status_mpi,ierr)
+
+      map%s2d_nwts = nread
+      allocate(map%s2d_icsr(map%s2d_nwts))
+      allocate(map%s2d_jcsr(map%s2d_nwts))
+      allocate(map%s2d_wts( map%s2d_nwts))
+
+      call MPI_Recv(map%s2d_icsr,nread,MPI_INTEGER,option%io_rank,MPI_ANY_TAG, &
+                    option%mycomm,status_mpi,ierr)
+      call MPI_Recv(map%s2d_jcsr,nread,MPI_INTEGER,option%io_rank,MPI_ANY_TAG, &
+                    option%mycomm,status_mpi,ierr)
+      call MPI_Recv(map%s2d_wts,nread,MPI_DOUBLE_PRECISION,option%io_rank,MPI_ANY_TAG, &
+                    option%mycomm,status_mpi,ierr)
+
+    end if !else of if(option%myrank == option%io_rank)
+
+  end subroutine MappingFromCLMGrids
 
 ! ************************************************************************** !
 
@@ -318,7 +484,7 @@ contains
     ! Read ASCII file through io_rank and communicate to other ranks
     if(option%myrank == option%io_rank) then
 
-      input => InputCreate(20,map_filename,option)
+      input => InputCreate(IUNIT_TEMP,map_filename,option)
 
       nwts     = -1
       prev_row = -1
@@ -354,7 +520,7 @@ contains
             hint = 'num_weights'
             call InputReadInt(input,option,nwts)
             call InputErrorMsg(input,option,'Number of weights',hint)
-            write(*,*),'nwts = ',nwts
+            write(*,*) 'rank = ', option%myrank, 'nwts = ',nwts
           case default
             option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
               '" in explicit grid file.'
@@ -384,26 +550,26 @@ contains
           
           !Perform checks on the data read
           if(wts_row_tmp(ii) < 1) then
-            write(*,string),'Row entry for ii = ',ii,' less than 1'
+            write(*,string) 'Row entry for ii = ',ii,' less than 1'
             option%io_buffer = string
             call printErrMsg(option)
           endif
           
           if(wts_col_tmp(ii) < 1) then
-            write(*,string),'Col entry for ii = ',ii,' less than 1'
+            write(*,string) 'Col entry for ii = ',ii,' less than 1'
             option%io_buffer = string
             call printErrMsg(option)
           endif
           
           if((wts_tmp(ii) < 0.d0).or.(wts_tmp(ii) > 1.d0)) then
-            write(*,string),'Invalid wt value for ii = ',ii
+            write(*,string) 'Invalid wt value for ii = ',ii
             option%io_buffer = string
             call printErrMsg(option)
           endif
           
           ! ensure that row values in the data are stored in ascending order
           if(wts_row_tmp(ii) < prev_row) then
-            write(*,string),'Row value in the mapping data not store in ascending order: ii ',ii
+            write(*,string) 'Row value in the mapping data not store in ascending order: ii ',ii
             option%io_buffer = string
             call printErrMsg(option) 
           endif
@@ -471,21 +637,21 @@ contains
                     
     endif
 
-  ! Broadcast from root information regarding CLM/PFLOTRAN num soil layers
-  temp_int_array(1) = map%clm_nlevsoi
-  temp_int_array(2) = map%clm_nlevgrnd
-  temp_int_array(3) = map%clm_nlev_mapped
-  temp_int_array(4) = map%pflotran_nlev
-  temp_int_array(5) = map%pflotran_nlev_mapped
+    ! Broadcast from root information regarding CLM/PFLOTRAN num soil layers
+    temp_int_array(1) = map%clm_nlevsoi
+    temp_int_array(2) = map%clm_nlevgrnd
+    temp_int_array(3) = map%clm_nlev_mapped
+    temp_int_array(4) = map%pflotran_nlev
+    temp_int_array(5) = map%pflotran_nlev_mapped
 
-  call MPI_Bcast(temp_int_array,FIVE_INTEGER,MPI_INTEGER,option%io_rank, &
+    call MPI_Bcast(temp_int_array,FIVE_INTEGER,MPI_INTEGER,option%io_rank, &
                  option%mycomm,ierr)
     
-  map%clm_nlevsoi = temp_int_array(1)
-  map%clm_nlevgrnd = temp_int_array(2)
-  map%clm_nlev_mapped = temp_int_array(3)
-  map%pflotran_nlev = temp_int_array(4)
-  map%pflotran_nlev_mapped = temp_int_array(5)
+    map%clm_nlevsoi = temp_int_array(1)
+    map%clm_nlevgrnd = temp_int_array(2)
+    map%clm_nlev_mapped = temp_int_array(3)
+    map%pflotran_nlev = temp_int_array(4)
+    map%pflotran_nlev_mapped = temp_int_array(5)
 
   end subroutine MappingReadTxtFile
 
@@ -800,9 +966,120 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine MappingDecompose(map,mycomm)
+  subroutine MappingSetSourceMeshCellIds( map,                           &
+                                          option,                        &
+                                          ncells_loc, ncells_gh,         &
+                                          cell_ids_ghd,                  &
+                                          local_ids_ghd                  &
+                                        )
+  !
+  ! This routine sets cell ids source mesh.
+  !
+  ! Author: Gautam Bisht, ORNL
+  ! Date: 2011
+  !
+
+    use Option_module
+    implicit none
+
+    type(mapping_type), pointer :: map
+    type(option_type),  pointer :: option
+
+    PetscInt                    :: ncells_loc, ncells_gh, iloc, ii
+    PetscInt,pointer            :: cell_ids_ghd(:), local_ids_ghd(:)
+
+    map%s_ncells_loc = ncells_loc
+    allocate(map%s_ids_loc_nidx(map%s_ncells_loc))
+    allocate(map%s_locids_loc_nidx(map%s_ncells_loc))
+
+    iloc = 0
+    do ii = 1,ncells_loc+ncells_gh
+      if (local_ids_ghd(ii)>=1) then
+        iloc = iloc+1
+        map%s_ids_loc_nidx(iloc)    = cell_ids_ghd(ii)
+        map%s_locids_loc_nidx(iloc) = local_ids_ghd(ii)
+      endif
+    enddo
+
+  end subroutine MappingSetSourceMeshCellIds
+
+! ************************************************************************** !
+
+  subroutine MappingSetDestinationMeshCellIds(map, &
+                                              option, &
+                                              ncells_loc, &
+                                              ncells_gh, &
+                                              cell_ids_ghd, &
+                                              loc_or_gh &
+                                              )
+  !
+  ! This routine sets the cell ids of destination mesh.
+  !
+  ! Author: Gautam Bisht, ORNL
+  ! Date: 2011
+  !
+
+    use Utility_module, only : DeallocateArray
+    use Option_module
+    implicit none
+
+    type(mapping_type), pointer :: map
+    type(option_type), pointer  :: option
+
+    PetscInt                    :: ncells_loc, ncells_gh
+    PetscInt,pointer            :: cell_ids_ghd(:), loc_or_gh(:)
+
+    PetscInt                    :: ii
+    PetscInt, pointer           :: index(:),rev_index(:)
+    PetscErrorCode              :: ierr
+
+    ! Initialize
+    map%d_ncells_loc = ncells_loc
+    map%d_ncells_gh  = ncells_gh
+    map%d_ncells_ghd = ncells_loc + ncells_gh
+
+    ! Allocate memory
+    allocate(map%d_ids_ghd_nidx(map%d_ncells_ghd))
+    allocate(map%d_ids_nidx_sor(map%d_ncells_ghd))
+    allocate(map%d_loc_or_gh(   map%d_ncells_ghd))
+    allocate(map%d_nGhd2Sor(    map%d_ncells_ghd))
+    allocate(map%d_nSor2Ghd(    map%d_ncells_ghd))
+    allocate(index(             map%d_ncells_ghd))
+    allocate(rev_index(         map%d_ncells_ghd))
+
+    do ii=1,ncells_loc+ncells_gh
+      map%d_ids_ghd_nidx(ii) = cell_ids_ghd(ii)
+      map%d_loc_or_gh(ii)    = loc_or_gh(ii)
+      index(ii)              = ii
+      rev_index(ii)          = ii
+    enddo
+
+    ! Sort cell_ids_ghd
+    index = index - 1 ! Needs to be 0-based
+    call PetscSortIntWithPermutation(map%d_ncells_ghd,cell_ids_ghd,index,ierr)
+    index = index + 1
+
+    do ii=1,ncells_loc+ncells_gh
+      map%d_ids_nidx_sor(ii) = cell_ids_ghd(index(ii))
+      map%d_nGhd2Sor(ii)     = index(ii)
+    enddo
+
+    ! Sort the index
+    rev_index = rev_index - 1
+    call PetscSortIntWithPermutation(map%d_ncells_ghd,index,rev_index,ierr)
+    map%d_nSor2Ghd = rev_index
+
+    ! free memory locally allocated
+    deallocate(index)
+    deallocate(rev_index)
+
+  end subroutine MappingSetDestinationMeshCellIds
+
+! ************************************************************************** !
+
+  subroutine MappingDecompose(map,option)
   ! 
-  ! This routine decomposes the mapping when running on more than processor,
+  ! This routine decomposes the mapping when running on more than 1 processor,
   ! while accounting for different domain decomposition of source and
   ! destination grid.
   ! 
@@ -816,7 +1093,7 @@ contains
     
     ! argument
     type(mapping_type), pointer   :: map
-    PetscMPIInt :: mycomm
+    type(option_type), pointer    :: option
     
     ! local variables
     Vec                           :: nonzero_row_count_vec           ! MPI
@@ -844,9 +1121,9 @@ contains
     character(len=MAXSTRINGLENGTH):: string
 
     ! 0) Save dataset related to wts in MPI-Vecs
-    call VecCreateMPI(mycomm,map%s2d_nwts,PETSC_DECIDE,row_vec,ierr)
-    call VecCreateMPI(mycomm,map%s2d_nwts,PETSC_DECIDE,col_vec,ierr)
-    call VecCreateMPI(mycomm,map%s2d_nwts,PETSC_DECIDE,wts_vec,ierr)
+    call VecCreateMPI(option%mycomm,map%s2d_nwts,PETSC_DECIDE,row_vec,ierr)
+    call VecCreateMPI(option%mycomm,map%s2d_nwts,PETSC_DECIDE,col_vec,ierr)
+    call VecCreateMPI(option%mycomm,map%s2d_nwts,PETSC_DECIDE,wts_vec,ierr)
 
     call VecGetArrayF90(row_vec,vloc1,ierr)
     call VecGetArrayF90(col_vec,vloc2,ierr)
@@ -868,7 +1145,7 @@ contains
     !    Number of non-zero entries for each row of the global W matrix
 
     ! Create a MPI vector
-    call VecCreateMPI(mycomm,map%d_ncells_loc,PETSC_DECIDE, &
+    call VecCreateMPI(option%mycomm,map%d_ncells_loc,PETSC_DECIDE, &
                       nonzero_row_count_vec,ierr)
 
     call VecSet(nonzero_row_count_vec,0.d0,ierr)
@@ -899,7 +1176,9 @@ contains
     deallocate(row)
     deallocate(row_count)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'nonzero_row_count_vec.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_nonzero_row_count_vec.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecView(nonzero_row_count_vec, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -907,7 +1186,7 @@ contains
     ! 2) Find cummulative sum of the nonzero_row_count_vec
 
     ! Create a MPI vector
-    call VecCreateMPI(mycomm,map%d_ncells_loc,PETSC_DECIDE, &
+    call VecCreateMPI(option%mycomm,map%d_ncells_loc,PETSC_DECIDE, &
                       cumsum_nonzero_row_count_vec,ierr)
     call VecGetArrayF90(nonzero_row_count_vec,vloc1,ierr)
     call VecGetArrayF90(cumsum_nonzero_row_count_vec,vloc2,ierr)
@@ -920,7 +1199,7 @@ contains
 
     cumsum_start = 0
     call MPI_Exscan(INT(vloc2(map%d_ncells_loc)),cumsum_start,ONE_INTEGER_MPI, &
-                    MPIU_INTEGER,MPI_SUM,mycomm,ierr)
+                    MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
 
     do ii = 1,map%d_ncells_loc
       vloc2(ii) = vloc2(ii) + cumsum_start
@@ -930,7 +1209,9 @@ contains
     call VecRestoreArrayF90(cumsum_nonzero_row_count_vec,vloc2,ierr)
 
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'cumsum_nonzero_row_count_vec.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_cumsum_nonzero_row_count_vec.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecView(cumsum_nonzero_row_count_vec, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -941,7 +1222,7 @@ contains
     !    - cell ids of source mesh
     !
     !    Use VecScatter() to save portion of nonzero_row_count_vec and
-    !    cumsum_nonzero_row_count_vec corresponding which correspond to
+    !    cumsum_nonzero_row_count_vec corresponding to
     !    ghosted (local+ghost) cell ids destination mesh on a given proc.
     
     !
@@ -955,21 +1236,25 @@ contains
     do ii = 1,map%d_ncells_ghd
       tmp_int_array(ii) = ii - 1
     enddo
-    call ISCreateBlock(mycomm,1,map%d_ncells_ghd,tmp_int_array, &
+    call ISCreateBlock(option%mycomm,1,map%d_ncells_ghd,tmp_int_array, &
                        PETSC_COPY_VALUES,is_to,ierr)
     deallocate(tmp_int_array)
     
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'is_to.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_to1.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_to,viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
     
-    call ISCreateBlock(mycomm,1,map%d_ncells_ghd, &
+    call ISCreateBlock(option%mycomm,1,map%d_ncells_ghd, &
                       map%d_ids_ghd_nidx, PETSC_COPY_VALUES,is_from,ierr)
 
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'is_from.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_from1.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_from, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -981,7 +1266,9 @@ contains
     call ISDestroy(is_from,ierr)
     call ISDestroy(is_to,ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'vec_scat.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_vscat1a.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecScatterView(vec_scat, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -993,6 +1280,14 @@ contains
     call VecScatterEnd(vec_scat,nonzero_row_count_vec, &
                       nonzero_row_count_loc_vec,INSERT_VALUES,SCATTER_FORWARD, &
                       ierr)
+#ifdef MAP_DEBUG
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_vscat1b.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
+    call VecView(cumsum_nonzero_row_count_vec, viewer,ierr)
+    call PetscViewerDestroy(viewer, ierr)
+#endif
+
     call VecScatterBegin(vec_scat,cumsum_nonzero_row_count_vec, &
                         cumsum_nonzero_row_count_loc_vec,INSERT_VALUES,SCATTER_FORWARD, &
                         ierr)
@@ -1000,6 +1295,14 @@ contains
                       cumsum_nonzero_row_count_loc_vec,INSERT_VALUES,SCATTER_FORWARD, &
                       ierr)
     call VecScatterDestroy(vec_scat,ierr)
+
+#ifdef MAP_DEBUG
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_vscat1c.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
+    call VecView(cumsum_nonzero_row_count_vec, viewer,ierr)
+    call PetscViewerDestroy(viewer, ierr)
+#endif
     
     call VecGetArrayF90(nonzero_row_count_loc_vec,vloc1,ierr)
     call VecGetArrayF90(cumsum_nonzero_row_count_loc_vec,vloc2,ierr)
@@ -1015,8 +1318,11 @@ contains
     map%s2d_s_ncells = count
 
     ! Allocate memory
-    deallocate(map%s2d_wts)
-      
+    if(associated(map%s2d_wts)) deallocate(map%s2d_wts)
+    ! this free allocated memory in reading txt (Line 422/Line 461)
+    ! or hdf mesh file (Line 601) above
+    ! so that same pointer variable can be used but may be changed below
+
     allocate(map%s2d_s_ids_nidx(map%s2d_s_ncells))
     allocate(map%s2d_wts(map%s2d_s_ncells))
     allocate(tmp_int_array(map%s2d_s_ncells))
@@ -1033,10 +1339,12 @@ contains
     enddo
 
     ! Create an index set to scatter from
-    call ISCreateBlock(mycomm,1,map%s2d_s_ncells,tmp_int_array, &
+    call ISCreateBlock(option%mycomm,1,map%s2d_s_ncells,tmp_int_array, &
          PETSC_COPY_VALUES,is_from,ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'is_from2.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_from2.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_from,viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -1045,11 +1353,13 @@ contains
        tmp_int_array(ii) = ii-1
     enddo
 
-    call ISCreateBlock(mycomm,1,map%s2d_s_ncells,tmp_int_array, &
+    call ISCreateBlock(option%mycomm,1,map%s2d_s_ncells,tmp_int_array, &
          PETSC_COPY_VALUES,is_to,ierr)
     deallocate(tmp_int_array)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'is_to2.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_to2.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_to,viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -1062,7 +1372,9 @@ contains
     ! Create scatter context
     call VecScatterCreate(row_vec,is_from,row_loc_vec,is_to,vec_scat,ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'scatter_wts_data.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_vscat2.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecScatterView(vec_scat, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -1105,12 +1417,12 @@ contains
     call VecDestroy(cumsum_nonzero_row_count_vec,ierr)
     call VecDestroy(nonzero_row_count_loc_vec,ierr)
     call VecDestroy(cumsum_nonzero_row_count_loc_vec,ierr)
-    
+
   end subroutine MappingDecompose
 
 ! ************************************************************************** !
 
-  subroutine MappingFindDistinctSourceMeshCellIds(map)
+  subroutine MappingFindDistinctSourceMeshCellIds(map,option)
   ! 
   ! This routine finds distinct cell ids of source mesh
   ! 
@@ -1118,10 +1430,13 @@ contains
   ! Date: 2011
   ! 
   
+    use Option_module
+    
     implicit none
     
     ! argument
     type(mapping_type), pointer   :: map
+    type(option_type), pointer    :: option
     
     ! local variables
     PetscErrorCode               :: ierr
@@ -1140,6 +1455,8 @@ contains
     end if
 
     ! Allocate memory
+    if(associated(map%s2d_jcsr)) deallocate(map%s2d_jcsr)
+    ! it has been allocated before (when reading mesh file either in txt or in hdf5)
     allocate(map%s2d_jcsr( map%s2d_s_ncells))
     allocate(int_array (map%s2d_s_ncells))
     allocate(int_array2(map%s2d_s_ncells))
@@ -1170,7 +1487,7 @@ contains
       int_array(ii)  = map%s2d_s_ids_nidx(ii)
       int_array2(ii) = ii
     enddo
-    
+
     int_array2 = int_array2 - 1
     call PetscSortIntWithPermutation(map%s2d_s_ncells,int_array,int_array2,ierr)
     int_array2 = int_array2 + 1
@@ -1194,6 +1511,7 @@ contains
     int_array4 = int_array4 - 1
     
     map%s2d_s_ncells_dis = count
+
     ! Save the distinct ids
     allocate(map%s2d_s_ids_nidx_dis(map%s2d_s_ncells_dis))
     
@@ -1213,7 +1531,7 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine MappingCreateWeightMatrix(map,myrank)
+  subroutine MappingCreateWeightMatrix(map,option)
   ! 
   ! This routine creates a weight matrix to map data from source to destination
   ! grid.
@@ -1228,13 +1546,13 @@ contains
     
     ! argument
     type(mapping_type), pointer   :: map
-    PetscMPIInt :: myrank
-
+    type(option_type), pointer    :: option
+    
     ! local variables
     PetscInt, pointer            :: index(:)
     PetscInt                     :: ii,jj,kk
     PetscErrorCode               :: ierr
-    character(len=MAXSTRINGLENGTH)     :: string  
+    character(len=MAXSTRINGLENGTH)     :: string, string1
     PetscViewer :: viewer
 
     allocate(index(map%s2d_s_ncells))
@@ -1250,12 +1568,9 @@ contains
     !
     ! size(wts_mat) = [d_ncells_ghd x s2d_s_ncells_dis]
     !
-    call MatCreateSeqAIJ(PETSC_COMM_SELF, &
-         map%d_ncells_ghd,                & ! m
-         map%s2d_s_ncells_dis,            & ! n
-         PETSC_DEFAULT_INTEGER,           & ! nz
-         map%s2d_nonzero_rcount_csr,      & ! nnz
-         map%wts_mat, ierr)
+    call MatCreateSeqAIJ(PETSC_COMM_SELF, map%d_ncells_ghd, &
+         map%s2d_s_ncells_dis, PETSC_DEFAULT_INTEGER, &    ! PETSC_NULL_INTEGER not works here
+         map%s2d_nonzero_rcount_csr, map%wts_mat, ierr)
 
     do ii = 1,map%s2d_s_ncells
        call MatSetValues(map%wts_mat,1,index(ii),1,map%s2d_jcsr(ii), &
@@ -1267,8 +1582,9 @@ contains
     deallocate(index)
 
 #ifdef MAP_DEBUG
-    write(string,*) myrank
-    string = 'mat_wts' // trim(adjustl(string)) // '.out'
+    write(string,*) option%myrank
+    write(string1,*) map%id
+    string = 'mat_wts' // trim(adjustl(string)) // '_' // trim(adjustl(string1)) // '.out'
     call PetscViewerASCIIOpen(PETSC_COMM_SELF, trim(string), viewer, ierr)
     call MatView(map%wts_mat, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
@@ -1278,9 +1594,9 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine MappingCreateScatterOfSourceMesh(map,mycomm)
+  subroutine MappingCreateScatterOfSourceMesh(map,option)
   ! 
-  ! This routine screates a vector scatter context from source to destination
+  ! This routine creates a vector scatter context from source to destination
   ! grid.
   ! 
   ! Author: Gautam Bisht, ORNL
@@ -1293,7 +1609,7 @@ contains
 
     ! argument
     type(mapping_type), pointer  :: map
-    PetscMPIInt :: mycomm
+    type(option_type), pointer   :: option
 
     ! local variables
     Vec :: pindex       ! PETSc index
@@ -1310,13 +1626,15 @@ contains
     PetscScalar,pointer          :: v_loc(:)
     PetscErrorCode               :: ierr
 
+    character(len=MAXSTRINGLENGTH)     :: string
+
     !
     ! Example:
     !
     ! GIVEN:
     ! source vector (MPI):
     !                       p0        |    p1         : processor id
-    !                [ s3 s4 s5 s6 s7 | s3 s1 s0 ]    : natural index
+    !                [ s3 s4 s5 s6 s7 | s2 s1 s0 ]    : natural index
     !                   0  1  2  3  4 |  5  6  7      : PETSc index
     !
     !
@@ -1332,10 +1650,10 @@ contains
     !                [  7  1  3 ]   | [7  6  5  0  1  2  4]  : pindex_req 
 
     ! Create the vectors
-    call VecCreateMPI(mycomm, map%s_ncells_loc, PETSC_DECIDE, pindex, ierr)
-    call VecCreateMPI(mycomm, map%s_ncells_loc, PETSC_DECIDE, nindex, ierr)
-    call VecCreateMPI(mycomm, map%s_ncells_loc, PETSC_DECIDE, N2P  , ierr)
-    call VecCreateMPI(mycomm, map%s2d_s_ncells_dis, PETSC_DECIDE, pindex_req, ierr)
+    call VecCreateMPI(option%mycomm, map%s_ncells_loc, PETSC_DECIDE, pindex, ierr)
+    call VecCreateMPI(option%mycomm, map%s_ncells_loc, PETSC_DECIDE, nindex, ierr)
+    call VecCreateMPI(option%mycomm, map%s_ncells_loc, PETSC_DECIDE, N2P  , ierr)
+    call VecCreateMPI(option%mycomm, map%s2d_s_ncells_dis, PETSC_DECIDE, pindex_req, ierr)
 
 
     ! STEP-1 -
@@ -1343,7 +1661,7 @@ contains
     ! GIVEN:
     ! source vector (MPI):
     !                       p0        |    p1         : processor id
-    !                [ s3 s4 s5 s6 s7 | s3 s1 s0 ]    : natural index
+    !                [ s3 s4 s5 s6 s7 | s2 s1 s0 ]    : natural index
     !                   0  1  2  3  4 |  5  6  7      : PETSc index
     !
     ! source vector (MPI) sorted in asceding order:
@@ -1365,7 +1683,9 @@ contains
     enddo
     call VecRestoreArrayF90(nindex,v_loc,ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'nindex.out',viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_nindex.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecView(nindex,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1378,7 +1698,9 @@ contains
     enddo
     call VecRestoreArrayF90(pindex,v_loc,ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'pindex.out',viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_pindex.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecView(pindex,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1388,11 +1710,12 @@ contains
     do ii=1,map%s_ncells_loc
        tmp_int_array(ii) = istart + ii - 1
     enddo
-    call ISCreateBlock(mycomm, 1, map%s_ncells_loc, tmp_int_array, PETSC_COPY_VALUES, &
+    call ISCreateBlock(option%mycomm, 1, map%s_ncells_loc, tmp_int_array, PETSC_COPY_VALUES, &
          is_from, ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'is_from.out', &
-                              viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_from3.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_from,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1401,12 +1724,13 @@ contains
     do ii=1,map%s_ncells_loc
        tmp_int_array(ii) = map%s_ids_loc_nidx(ii)
     enddo
-    call ISCreateBlock(mycomm, 1, map%s_ncells_loc, tmp_int_array, PETSC_COPY_VALUES, &
+    call ISCreateBlock(option%mycomm, 1, map%s_ncells_loc, tmp_int_array, PETSC_COPY_VALUES, &
          is_to, ierr)
     deallocate(tmp_int_array)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'is_to.out', &
-                              viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_to3.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_to,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1416,7 +1740,9 @@ contains
     call ISDestroy(is_to,ierr)
     call ISDestroy(is_from,ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'vscat.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_vscat3.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecScatterView(vscat, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -1426,7 +1752,9 @@ contains
     call VecScatterEnd(  vscat, pindex, N2P, INSERT_VALUES, SCATTER_FORWARD, ierr)
     call VecScatterDestroy(vscat,ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'N2P.out',viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_N2P.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecView(N2P,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1436,7 +1764,7 @@ contains
     ! GIVEN:
     ! source vector (MPI):
     !                       p0        |    p1         : processor id
-    !                [ s3 s4 s5 s6 s7 | s3 s1 s0 ]    : natural index
+    !                [ s3 s4 s5 s6 s7 | s2 s1 s0 ]    : natural index
     !                   0  1  2  3  4 |  5  6  7      : PETSc index
     !
     ! Indices of MPI vector required to do the sorting (N2P)
@@ -1456,10 +1784,12 @@ contains
     !
 
     ! Create 'is_to'
-    call ISCreateBlock(mycomm, 1, map%s2d_s_ncells_dis, map%s2d_s_ids_nidx_dis, &
+    call ISCreateBlock(option%mycomm, 1, map%s2d_s_ncells_dis, map%s2d_s_ids_nidx_dis, &
          PETSC_COPY_VALUES, is_to, ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'is_to1.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_to4.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_to, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -1470,22 +1800,27 @@ contains
     do ii = 1,map%s2d_s_ncells_dis
        tmp_int_array(ii) = istart + ii - 1
     enddo
-    call ISCreateBlock(mycomm, 1, map%s2d_s_ncells_dis, tmp_int_array, &
+    call ISCreateBlock(option%mycomm, 1, map%s2d_s_ncells_dis, tmp_int_array, &
          PETSC_COPY_VALUES, is_from, ierr)
     deallocate(tmp_int_array)
 
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'is_from1.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_from4.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_from, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
 
     ! Create vector scatter
     call VecScatterCreate(N2P, is_to, pindex_req, is_from, vscat, ierr)
+
     call ISDestroy(is_to,ierr)
     call ISDestroy(is_from, ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'vscat.out',viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_vscat4.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecScatterView(vscat,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1494,7 +1829,9 @@ contains
     call VecScatterBegin(vscat, N2P, pindex_req, INSERT_VALUES, SCATTER_FORWARD, ierr)
     call VecScatterEnd(  vscat, N2P, pindex_req, INSERT_VALUES, SCATTER_FORWARD, ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'pindex_req.out',viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_pindex_req.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecView(pindex_req,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1505,13 +1842,15 @@ contains
     ! to sequential source vectors
 
     call VecGetArrayF90(pindex_req,v_loc,ierr)
-    call ISCreateBlock(mycomm, 1, map%s2d_s_ncells_dis, INT(v_loc),&
-         PETSC_COPY_VALUES, is_to, ierr)
+    call ISCreateBlock(option%mycomm, 1, map%s2d_s_ncells_dis, INT(v_loc),&
+         PETSC_COPY_VALUES, is_from, ierr)
     call VecRestoreArrayF90(pindex_req,v_loc,ierr)
 
-    call VecScatterCreate(N2P, is_to, pindex_req, is_from, map%s2d_scat_s_gb2disloc, ierr)
+    call VecScatterCreate(N2P, is_from, pindex_req, is_to, map%s2d_scat_s_gb2disloc, ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'s2d_scat_s_gb2disloc.out',viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_s2d_scat_s_gb2disloc.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecScatterView(map%s2d_scat_s_gb2disloc,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1525,8 +1864,53 @@ contains
   end subroutine MappingCreateScatterOfSourceMesh
 
 ! ************************************************************************** !
+  ! what needed () in 'MappingSourceToDestination' after initializing mapping is as following 3,
+  ! map%s_disloc_vec
+  ! map%s2d_scat_s_gb2disloc
+  ! map%wts_mat
+  ! the rest map%??? (total 12 pointers) can be deallocated, if allocated memory before,
+  ! so that free memory not needed any more (and avoid possible memory leak).
+  subroutine MappingFreeNotNeeded(map)
 
-  subroutine MappingSourceToDestination(map,s_vec,d_vec)
+    implicit none
+
+    type(mapping_type), pointer :: map
+
+    if(associated(map%s_ids_loc_nidx)) deallocate(map%s_ids_loc_nidx)
+          ! allocated in L187, last used in L1409.
+
+    if(associated(map%d_ids_ghd_nidx)) deallocate(map%d_ids_ghd_nidx)
+          ! allocated in L234, last used in L968
+
+    ! in 'MappingSetDestinationMeshCellIds', the following may not really used
+    if(associated(map%d_ids_nidx_sor)) deallocate(map%d_ids_nidx_sor)   ! allocated in L235, last used in L255
+    if(associated(map%d_loc_or_gh)) deallocate(map%d_loc_or_gh)         ! allocated in L236, last used in L244
+    if(associated(map%d_nGhd2Sor)) deallocate(map%d_nGhd2Sor)           ! allocated in L237, last used in L256
+    if(associated(map%d_nSor2Ghd)) deallocate(map%d_nSor2Ghd)           ! allocated in L238, last used in L262
+    if(associated(map%d_nGhd2Sor)) deallocate(map%d_nGhd2Sor)           ! allocated in L237, last used in L256
+
+    if(associated(map%s2d_icsr)) deallocate(map%s2d_icsr)
+        ! allocated in L420/459 or L599 in reading mapping mesh file either in txt or in hdf5,
+        ! used L888, and in pflotran_model's 'initMapFrom??To??' (btw 2D and 3D mesh)
+
+    if(associated(map%s2d_jcsr)) deallocate(map%s2d_jcsr)
+        ! allocated in L421/460 or L600 in reading mapping mesh file either in txt or in hdf5,
+        ! used L855, and in pflotran_model's 'initMapFrom??To??' (btw 2D and 3D mesh)
+        ! BUT, then re-allocated in L1149 and last used in L1264
+
+    if(associated(map%s2d_wts)) deallocate(map%s2d_wts)
+        ! allocated in L422/461 or L601 in reading mapping mesh file either in txt or in hdf5,
+        ! last used L856,
+        ! BUT, then re-allocated in L1022, last used in L1265
+
+    if(associated(map%s2d_nonzero_rcount_csr)) deallocate(map%s2d_nonzero_rcount_csr)
+          ! allocated in L1005, last used in L1261
+
+  end subroutine MappingFreeNotNeeded
+
+! ************************************************************************** !
+
+  subroutine MappingSourceToDestination(map,option,s_vec,d_vec)
   ! 
   ! This routine maps the data from source to destination grid.
   ! 
@@ -1534,103 +1918,54 @@ contains
   ! Date: 2011
   ! 
   
+    use Option_module
     implicit none
     
     ! argument
     type(mapping_type), pointer :: map
+    type(option_type), pointer  :: option
     Vec                         :: s_vec ! MPI
     Vec                         :: d_vec ! Seq
     
     ! local variables
     PetscErrorCode              :: ierr
-    
+
+    ! a note here:
+    ! what needed after initializing mapping is as following,
+    ! the rest map%??? can be deallocated, if allocated memory before,
+    ! so that free memory not needed any more.
+    ! map%s_disloc_vec
+    ! map%s2d_scat_s_gb2disloc
+    ! map%wts_mat
+
     if (map%s2d_s_ncells > 0) then  
        ! Initialize local vector
-       call VecSet(map%s_disloc_vec, 0.d0, ierr)
+       call VecSet(map%s_disloc_vec, 0.d0, ierr);CHKERRQ(ierr)
+
+       call VecSet(d_vec, 0.d0, ierr);CHKERRQ(ierr)
+
     end if
 
     ! Scatter the source vector
     call VecScatterBegin(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
          INSERT_VALUES, SCATTER_FORWARD, ierr)
+    CHKERRQ(ierr)
+
     call VecScatterEnd(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
          INSERT_VALUES, SCATTER_FORWARD, ierr)
-    
+    CHKERRQ(ierr)
+
     if (map%s2d_s_ncells > 0) then  
        ! Perform Matrix-Vector product
        call MatMult(map%wts_mat, map%s_disloc_vec, d_vec, ierr)
+       CHKERRQ(ierr)
     end if
-  end subroutine
+
+  end subroutine MappingSourceToDestination
 
 ! ************************************************************************** !
 
-function MappingListCreate()
-  !
-  ! This routine creates an empty map-list
-  !
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 11/09/2014
-  !
-
-  implicit none
-
-  type(mapping_list_type), pointer :: MappingListCreate
-
-  type(mapping_list_type), pointer :: map_list
-
-  allocate(map_list)
-  nullify(map_list%first)
-  nullify(map_list%last)
-  map_list%nmap = 0
-
-  MappingListCreate => map_list
-
-end function MappingListCreate
-
-! ************************************************************************** !
-
-subroutine MappingListAddToList(list, map)
-  !
-  ! This routine adds a map to map-list
-  !
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 11/09/2014
-  !
-
-  implicit none
-
-  type(mapping_list_type) :: list
-  type(mapping_type), pointer :: map
-
-  if (.not. associated(list%first)) then
-    list%first => map
-  else
-    list%last%next => map
-  endif
-  list%last => map
-
-  list%nmap = list%nmap + 1
-
-end subroutine MappingListAddToList
-
-! ************************************************************************** !
-
-subroutine MappingListDestroy(list)
-
-  implicit none
-
-  type(mapping_list_type), pointer :: list
-
-  nullify(list%last)
-  call MappingDestroy(list%first)
-
-  deallocate(list)
-  nullify(list)
-
-end subroutine MappingListDestroy
-
-! ************************************************************************** !
-
-recursive subroutine MappingDestroy(map)
+  subroutine MappingDestroy(map)
   !
   ! This routine frees up memoery
   !
@@ -1643,9 +1978,8 @@ recursive subroutine MappingDestroy(map)
     ! argument
     type(mapping_type), pointer :: map
 
-    if (.not.associated(map)) return
-
     if (associated(map%s_ids_loc_nidx)) deallocate(map%s_ids_loc_nidx)
+    if (associated(map%s_locids_loc_nidx)) deallocate(map%s_locids_loc_nidx)
     if (associated(map%d_ids_ghd_nidx)) deallocate(map%d_ids_ghd_nidx)
     if (associated(map%d_ids_nidx_sor)) deallocate(map%d_ids_nidx_sor)
     if (associated(map%d_nGhd2Sor)) deallocate(map%d_nGhd2Sor)
@@ -1671,9 +2005,11 @@ recursive subroutine MappingDestroy(map)
     nullify(map%s2d_icsr)
     nullify(map%s2d_nonzero_rcount_csr)
 
-    call MappingDestroy(map%next)
-
   end subroutine MappingDestroy
 
+! ************************************************************************** !
+#endif
+
 end module Mapping_module
+
 
