@@ -10,8 +10,12 @@ The model coupling aims to provide a full alternative solution for CLM-CN's surf
 ## How do I get set up? ##
 
 **(1)** *git clone the repository*, if not yet properly updating codes. (OPTIONAL)
+
 ```
-git clone https://github.com/fmyuan/pflotran-elm-interface/src/clm-pflotran
+git clone https://code.ornl.gov/alm-pflotran/pflotran-interface
+
+(OR, a backup repo on github.com: 
+git clone https://github.com/fmyuan/pflotran-elm-interface)
 ```
 
 *NOTE: when git clone, checkout branch 'default-release-v3.9'*
