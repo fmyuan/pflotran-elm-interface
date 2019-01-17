@@ -4,7 +4,7 @@ This is the interface, including minimal PFLOTRAN codes, for coupling PFLOTRAN i
 
 The model coupling aims to provide a full alternative solution for CLM-CN's surface-subsurface C/N biogeochemistry and thermal-hydrology, i.e. PFLOTRAN.
 
-***This interface is specifically released for ```PETSC v.3.8x```, and ```E3SM v1.1```. ***
+***This interface is specifically released for ```PETSC v.3.8x or above```, and ```E3SM v1.1 or above```. ***
 
 
 ## How do I get set up? ##
@@ -22,11 +22,12 @@ git clone https://github.com/fmyuan/pflotran-elm-interface/src/clm-pflotran
 cd ./src/clm-pflotran
 ```
 
-***FIRST***, run makefile to copy needed PFLOTRAN source code files (*.F90), if PFLOTRAN codes missing. (OPTIONAL)
+***FIRST***, run makefile to copy or soft-link needed PFLOTRAN source code files (*.F90), if PFLOTRAN codes missing. (OPTIONAL)
 ```
-make PETSC_DIR=$PETSC_DIR copy_common_src
+make copy_common_src
+(OR, make link_common_src)
 
-(OR, make PETSC_DIR=$PETSC_DIR clean_common_src 
+(OR, make clean_common_src 
 to clean PFLOTRAN source code files, and only leave CLM-PFLOTRAN interface codes)
 ```
 
