@@ -11,8 +11,8 @@ SIMULATION
       /
     / ! end of subsurface_flow
   / ! end of process models
-  CHECKPOINT
-  /
+  !CHECKPOINT
+  !/
 END  !! end simulation block
 
 SUBSURFACE
@@ -53,8 +53,9 @@ TIME
 END
 
 #=========================== output options ===================================
+!skip
 OUTPUT
-  FORMAT HDF5
+  !FORMAT HDF5
   TIMES d 0.0 50 100
   PRINT_PRIMAL_GRID
   EXPLICIT_GRID_PRIMAL_GRID_TYPE cell_centered
@@ -67,7 +68,7 @@ OUTPUT
   END
   LINEREPT
 END
-
+!noskip
 #=========================== material properties ==============================
 
 MATERIAL_PROPERTY formation

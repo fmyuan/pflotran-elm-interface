@@ -32,6 +32,7 @@ module Condition_module
     character(len=MAXWORDLENGTH) :: length_units
     type(time_storage_type), pointer :: default_time_storage
     class(dataset_base_type), pointer :: datum
+    type(flow_sub_condition_type), pointer :: datum_z
     type(flow_sub_condition_type), pointer :: pressure
     type(flow_sub_condition_type), pointer :: saturation
     type(flow_sub_condition_type), pointer :: rate
@@ -79,6 +80,8 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: oil_flux
     type(flow_sub_condition_type), pointer :: energy_flux
     type(flow_sub_condition_type), pointer :: owc   ! oil water contact
+    type(flow_sub_condition_type), pointer :: owc_z
+    type(flow_sub_condition_type), pointer :: pcow_owc
     type(flow_sub_condition_type), pointer :: liq_press_grad ! water piezometric head gradient
     ! any new sub conditions must be added to FlowConditionIsTransient
   end type flow_toil_ims_condition_type
@@ -108,7 +111,7 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: pcow_owc
     type(flow_sub_condition_type), pointer :: ogc_z
     type(flow_sub_condition_type), pointer :: pcog_ogc
-    type(flow_sub_condition_type), pointer :: datum_z
+    !type(flow_sub_condition_type), pointer :: datum_z
     ! any new sub conditions must be added to FlowConditionIsTransient
   end type flow_towg_condition_type
 
@@ -225,6 +228,7 @@ function FlowConditionCreate(option)
   nullify(condition%itype)
   nullify(condition%next)
   nullify(condition%datum)
+  nullify(condition%datum_z)
   nullify(condition%default_time_storage)
   condition%is_transient = PETSC_FALSE
   condition%sync_time_with_update = PETSC_FALSE
@@ -334,6 +338,8 @@ function FlowTOilImsConditionCreate(option)
   nullify(toil_ims_condition%oil_flux)
   nullify(toil_ims_condition%energy_flux)
   nullify(toil_ims_condition%owc)
+  nullify(toil_ims_condition%owc_z)
+  nullify(toil_ims_condition%pcow_owc)
   nullify(toil_ims_condition%liq_press_grad)
 
   FlowTOilImsConditionCreate => toil_ims_condition
@@ -383,7 +389,7 @@ function FlowTOWGConditionCreate(option)
   nullify(towg_condition%pcow_owc)
   nullify(towg_condition%ogc_z)
   nullify(towg_condition%pcog_ogc)
-  nullify(towg_condition%datum_z)
+  !nullify(towg_condition%datum_z)
 
   FlowTOWGConditionCreate => towg_condition
 
@@ -626,6 +632,20 @@ function FlowTOilImsSubConditionPtr(sub_condition_name,toil_ims, &
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         toil_ims%rate => sub_condition_ptr
       endif
+    case('OWC_Z','OWC_D')
+      if (associated(toil_ims%owc_z)) then
+        sub_condition_ptr => toil_ims%owc_z
+      else
+        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+        toil_ims%owc_z => sub_condition_ptr
+      endif
+    case('PCOW_OWC')
+      if (associated(toil_ims%pcow_owc)) then
+        sub_condition_ptr => toil_ims%pcow_owc
+      else
+        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+        toil_ims%pcow_owc => sub_condition_ptr
+      endif
     case default
       call InputKeywordUnrecognized(sub_condition_name, &
                                     'toil_ims condition,type',option)
@@ -806,13 +826,6 @@ function FlowTOWGSubConditionPtr(sub_condition_name,towg, &
       else
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         towg%pcog_ogc => sub_condition_ptr
-      endif
-    case('DATUM_Z','DATUM_D')
-      if (associated(towg%datum_z)) then
-        sub_condition_ptr => towg%datum_z
-      else
-        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
-        towg%datum_z => sub_condition_ptr
       endif
     case default
       call InputKeywordUnrecognized(sub_condition_name, &
@@ -2363,6 +2376,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
   type(flow_sub_condition_type), pointer :: sub_condition_ptr
   PetscReal :: default_time
   PetscInt :: default_iphase
+  PetscBool :: comm_card_found
   class(dataset_base_type), pointer :: default_flow_dataset
   class(dataset_base_type), pointer :: default_gradient
   PetscInt :: idof, i
@@ -2384,13 +2398,6 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
   default_time_storage%is_cyclic = PETSC_FALSE
   default_time_storage%time_interpolation_method = INTERPOLATION_STEP
 
-  !select case(option%iflowmode)
-  !  ! do we really need this select case??
-  !  case(TOIL_IMS_MODE)
-  !    toil_ims => FlowTOilImsConditionCreate(option)
-  !    condition%toil_ims => toil_ims
-  !end select
-
   toil_ims => FlowTOilImsConditionCreate(option)
   condition%toil_ims => toil_ims
 
@@ -2411,25 +2418,30 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
     call InputReadWord(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','CONDITION')
 
+    !reads cards common to all modes
+    call FlowConditionCommonRead(condition,input,word,default_time_storage, &
+                                 comm_card_found,option)
+    if (comm_card_found) cycle
+
     select case(trim(word))
 
-      case('CYCLIC')
-        ! by default, is_cyclic is set to PETSC_FALSE
-        default_time_storage%is_cyclic = PETSC_TRUE
-      case('SYNC_TIMESTEP_WITH_UPDATE')
-        condition%sync_time_with_update = PETSC_TRUE
-      case('INTERPOLATION')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
-        call StringToUpper(word)
-        select case(word)
-          case('STEP')
-            default_time_storage%time_interpolation_method = &
-              INTERPOLATION_STEP
-          case('LINEAR')
-            default_time_storage%time_interpolation_method = &
-              INTERPOLATION_LINEAR
-        end select
+      ! case('CYCLIC')
+      !   ! by default, is_cyclic is set to PETSC_FALSE
+      !   default_time_storage%is_cyclic = PETSC_TRUE
+      ! case('SYNC_TIMESTEP_WITH_UPDATE')
+      !   condition%sync_time_with_update = PETSC_TRUE
+      ! case('INTERPOLATION')
+      !   call InputReadWord(input,option,word,PETSC_TRUE)
+      !   call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
+      !   call StringToUpper(word)
+      !   select case(word)
+      !     case('STEP')
+      !       default_time_storage%time_interpolation_method = &
+      !         INTERPOLATION_STEP
+      !     case('LINEAR')
+      !       default_time_storage%time_interpolation_method = &
+      !         INTERPOLATION_LINEAR
+      !   end select
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
         do
           call InputReadPflotranString(input,option)
@@ -2577,16 +2589,32 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
           end select
         enddo
 
-      case('DATUM')
-        dataset_ascii => DatasetAsciiCreate()
-        call DatasetAsciiInit(dataset_ascii)
-        dataset_ascii%array_width = 3
-        dataset_ascii%data_type = DATASET_REAL
-        condition%datum => dataset_ascii
-        nullify(dataset_ascii)
-        internal_units = 'meter'
-        call ConditionReadValues(input,option,word,condition%datum, &
-                                 word,internal_units)
+      ! case('DATUM')
+      !   dataset_ascii => DatasetAsciiCreate()
+      !   call DatasetAsciiInit(dataset_ascii)
+      !   dataset_ascii%array_width = 3
+      !   dataset_ascii%data_type = DATASET_REAL
+      !   condition%datum => dataset_ascii
+      !   nullify(dataset_ascii)
+      !   internal_units = 'meter'
+      !   call ConditionReadValues(input,option,word,condition%datum, &
+      !                            word,internal_units)
+      
+      ! case('DATUM_Z','DATUM_D')
+      !   condition%datum_z => FlowSubConditionCreate(ONE_INTEGER)
+      !   internal_units = 'meter'
+      !   call ConditionReadValues(input,option,word, &
+      !                            condition%datum_z%dataset, &
+      !                            condition%datum_z%units,internal_units)
+      !   !give a condition type to pass verify
+      !   condition%datum_z%itype = DIRICHLET_BC
+      !   condition%datum_z%ctype = 'dirichlet'
+      !   select case(word)
+      !     case('DATUM_D')
+      !       condition%datum_z%dataset%rarray(:) = - &
+      !                                     condition%datum_z%dataset%rarray(:)
+      !   end select
+      
       case('GRADIENT')
         do
           call InputReadPflotranString(input,option)
@@ -2626,8 +2654,8 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
         call InputErrorMsg(input,option,'LIQUID_CONDUCTANCE','CONDITION')
       case('PRESSURE','OIL_PRESSURE','WATER_PRESSURE','LIQUID_SATURATION', &
            'OIL_SATURATION','TEMPERATURE','RATE', 'LIQUID_FLUX','OIL_FLUX', &
-           'ENERGY_FLUX','ENTHALPY','OWC','WATER_PRESSURE_GRAD','WELL_RATE', &
-           'WELL_PRESSURE','WELL_TEMPERATURE')
+           'ENERGY_FLUX','ENTHALPY','WATER_PRESSURE_GRAD','WELL_RATE', &
+           'WELL_PRESSURE','WELL_TEMPERATURE','OWC','OWC_Z','OWC_D','PCOW_OWC')
         !select case(option%iflowmode)
         !  case(TOIL_IMS_MODE)
         !    sub_condition_ptr => FlowTOilImsSubConditionPtr(word,toil_ims, &
@@ -2637,7 +2665,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
           case('PRESSURE','OIL_PRESSURE','WATER_PRESSURE', &
                'LIQUID_SATURATION', 'OIL_SATURATION','TEMPERATURE','RATE', &
                'LIQUID_FLUX','OIL_FLUX', 'ENERGY_FLUX','ENTHALPY','OWC', &
-                'WATER_PRESSURE_GRAD')
+                'WATER_PRESSURE_GRAD','OWC_Z','OWC_D','PCOW_OWC')
             sub_condition_ptr => FlowTOilImsSubConditionPtr(word,toil_ims, &
                                                             option)
           case('WELL_RATE','WELL_PRESSURE','WELL_TEMPERATURE')
@@ -2647,20 +2675,20 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
 
         select case(trim(word))
         !give a type to pass FlowSubConditionVerify.
-          case('OWC','WATER_PRESSURE_GRAD')
+          case('OWC','WATER_PRESSURE_GRAD','OWC_Z','OWC_D','PCOW_OWC')
             sub_condition_ptr%itype = DIRICHLET_BC
             sub_condition_ptr%ctype = 'dirichlet'
         end select
 
         internal_units = 'not_assigned'
         select case(trim(word))
-          case('PRESSURE','OIL_PRESSURE','WATER_PRESSURE')
+        case('PRESSURE','OIL_PRESSURE','WATER_PRESSURE','PCOW_OWC')
             internal_units = 'Pa'
           case('LIQUID_SATURATION','OIL_SATURATION')
             internal_units = 'unitless'
           case('TEMPERATURE')
             internal_units = 'C'
-          case('OWC')
+          case('OWC','OWC_Z','OWC_D')
             internal_units = 'meter'
           case('WATER_PRESSURE_GRAD')
             internal_units = 'Pa/meter'
@@ -2698,6 +2726,9 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
             endif
             sub_condition_ptr%dataset%rarray(:) = 1.d0 - &
               sub_condition_ptr%dataset%rarray(:)
+          case('OWC_D')
+            sub_condition_ptr%dataset%rarray(:) = - &
+                                     sub_condition_ptr%dataset%rarray(:)
         end select
       case default
         call InputKeywordUnrecognized(word,'flow condition',option)
@@ -2706,8 +2737,8 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
   enddo
 
   ! datum, owc, and liq_press_grad are not required
-  string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name) // '/Datum'
-  call DatasetVerify(condition%datum,default_time_storage,string,option)
+  ! string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name) // '/Datum'
+  ! call DatasetVerify(condition%datum,default_time_storage,string,option)
 
   ! phase condition should never be used in TOilIms
   condition%iphase = ZERO_INTEGER
@@ -2728,12 +2759,13 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
         &include a pressure'
       call printErrMsg(option)
     endif
-
-    if (.not.associated(toil_ims%saturation) ) then
-      option%io_buffer = 'TOilIms Phase non-rate condition must &
-        &include liquid or oil saturation'
-      call printErrMsg(option)
-    endif
+    if ( toil_ims%pressure%itype /= HYDROSTATIC_BC ) then
+      if (.not.associated(toil_ims%saturation) ) then
+        option%io_buffer = 'TOilIms Phase non-rate condition must &
+          &include liquid or oil saturation'
+        call printErrMsg(option)
+      endif
+    end if  
     if (.not.associated(toil_ims%temperature)) then
       option%io_buffer = 'TOilIms Phase non-rate condition must &
         &include temperature'
@@ -2827,6 +2859,18 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
   call FlowSubConditionVerify(option,condition,word,toil_ims%rate, &
                               default_time_storage, &
                               PETSC_TRUE)
+  word = 'datum_z'
+  call FlowSubConditionVerify(option,condition,word,condition%datum_z, &
+                              default_time_storage, &
+                              PETSC_TRUE)
+  word = 'owc_z'
+  call FlowSubConditionVerify(option,condition,word,toil_ims%owc_z, &
+                              default_time_storage, &
+                              PETSC_TRUE)
+  word = 'pcow_owc'
+  call FlowSubConditionVerify(option,condition,word,toil_ims%pcow_owc, &
+                              default_time_storage, &
+                              PETSC_TRUE)
   word = 'well pressure'
   call FlowSubConditionVerify(option,condition,word,flow_well%pressure, &
                               default_time_storage, &
@@ -2839,6 +2883,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
   call FlowSubConditionVerify(option,condition,word,flow_well%temperature, &
                               default_time_storage, &
                               PETSC_TRUE)
+
 
   condition%num_sub_conditions = 0
   i = 0
@@ -2862,6 +2907,10 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
     i = i + 1
   if (associated(toil_ims%rate)) &
     i = i + 1
+  if (associated(toil_ims%owc_z)) &
+    i = i + 1
+  if (associated(toil_ims%pcow_owc)) &
+    i = i + 1        
   if (associated(flow_well%pressure)) &
     i = i + 1
   if (associated(flow_well%rate)) &
@@ -2915,6 +2964,14 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => toil_ims%rate
   endif
+  if (associated(toil_ims%owc_z)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => toil_ims%owc_z
+  end if  
+  if (associated(toil_ims%pcow_owc)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => toil_ims%pcow_owc
+  end if
   if (associated(flow_well%pressure)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => flow_well%pressure
@@ -2983,6 +3040,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   PetscInt :: idof, i
   PetscBool :: default_is_cyclic
   PetscBool :: phase_state_found
+  PetscBool :: comm_card_found
   type(time_storage_type), pointer :: default_time_storage
   class(dataset_ascii_type), pointer :: dataset_ascii
   PetscErrorCode :: ierr
@@ -3016,25 +3074,30 @@ subroutine FlowConditionTOWGRead(condition,input,option)
     call InputReadWord(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','CONDITION')
 
+    !reads cards common to all modes
+    call FlowConditionCommonRead(condition,input,word,default_time_storage, &
+                                 comm_card_found,option)
+    if (comm_card_found) cycle
+    
     select case(trim(word))
 
-      case('CYCLIC')
-        ! by default, is_cyclic is set to PETSC_FALSE
-        default_time_storage%is_cyclic = PETSC_TRUE
-      case('SYNC_TIMESTEP_WITH_UPDATE')
-        condition%sync_time_with_update = PETSC_TRUE
-      case('INTERPOLATION')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
-        call StringToUpper(word)
-        select case(word)
-          case('STEP')
-            default_time_storage%time_interpolation_method = &
-              INTERPOLATION_STEP
-          case('LINEAR')
-            default_time_storage%time_interpolation_method = &
-              INTERPOLATION_LINEAR
-        end select
+      ! case('CYCLIC')
+      !   ! by default, is_cyclic is set to PETSC_FALSE
+      !   default_time_storage%is_cyclic = PETSC_TRUE
+      ! case('SYNC_TIMESTEP_WITH_UPDATE')
+      !   condition%sync_time_with_update = PETSC_TRUE
+      ! case('INTERPOLATION')
+      !   call InputReadWord(input,option,word,PETSC_TRUE)
+      !   call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
+      !   call StringToUpper(word)
+      !   select case(word)
+      !     case('STEP')
+      !       default_time_storage%time_interpolation_method = &
+      !         INTERPOLATION_STEP
+      !     case('LINEAR')
+      !       default_time_storage%time_interpolation_method = &
+      !         INTERPOLATION_LINEAR
+      !   end select
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
         do
           call InputReadPflotranString(input,option)
@@ -3134,16 +3197,17 @@ subroutine FlowConditionTOWGRead(condition,input,option)
               call InputKeywordUnrecognized(word,'flow condition,type',option)
           end select
         enddo
-      case('DATUM')
-        dataset_ascii => DatasetAsciiCreate()
-        call DatasetAsciiInit(dataset_ascii)
-        dataset_ascii%array_width = 3
-        dataset_ascii%data_type = DATASET_REAL
-        condition%datum => dataset_ascii
-        nullify(dataset_ascii)
-        internal_units_string = 'meter'
-        call ConditionReadValues(input,option,word,condition%datum, &
-                                 word,internal_units_string)
+      ! case('DATUM')
+      !   dataset_ascii => DatasetAsciiCreate()
+      !   call DatasetAsciiInit(dataset_ascii)
+      !   dataset_ascii%array_width = 3
+      !   dataset_ascii%data_type = DATASET_REAL
+      !   condition%datum => dataset_ascii
+      !   nullify(dataset_ascii)
+      !   internal_units_string = 'meter'
+      !   call ConditionReadValues(input,option,word,condition%datum, &
+      !                            word,internal_units_string)
+
       case('GRADIENT')
         do
           call InputReadPflotranString(input,option)
@@ -3179,7 +3243,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           'GAS_SATURATION','SOLVENT_SATURATION','BUBBLE_POINT','TEMPERATURE', &
           'GAS_IN_OIL_MOLE_FRACTION', 'GAS_IN_GAS_MOLE_FRACTION', &
           'RATE','BHP_PRESSURE', 'LIQUID_FLUX','OIL_FLUX','GAS_FLUX', &
-          'SOLVENT_FLUX','ENERGY_FLUX','ENTHALPY', 'DATUM_Z','DATUM_D', &
+          'SOLVENT_FLUX','ENERGY_FLUX','ENTHALPY', &
           'OWC_Z','OWC_D','PCOW_OWC', 'OGC_Z','OGC_D', 'PCOG_OGC', &
           'WGC_Z','WGC_D','PCWG_WGC')
         sub_condition_ptr => FlowTOWGSubConditionPtr(word,towg,option)
@@ -3217,7 +3281,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
         end select
         select case(trim(word))
         !give a type to pass FlowSubConditionVerify.
-          case('OWC_Z','OWC_D','OGC_Z','OGC_D','DATUM_Z','DATUM_D', &
+          case('OWC_Z','OWC_D','OGC_Z','OGC_D', &
                 'PCOW_OWC','PCOG_OGC','PCWG_WGC')
             sub_condition_ptr%itype = DIRICHLET_BC
             sub_condition_ptr%ctype = 'dirichlet'
@@ -3227,7 +3291,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                             sub_condition_ptr%units,internal_units_string)
         input%force_units = PETSC_FALSE
         select case(trim(word))
-          case('OWC_D','OGC_D','WGC_D','DATUM_D')
+          case('OWC_D','OGC_D','WGC_D')
             sub_condition_ptr%dataset%rbuffer(:) =  - &
                                     sub_condition_ptr%dataset%rbuffer(:)
         end select
@@ -3237,14 +3301,9 @@ subroutine FlowConditionTOWGRead(condition,input,option)
 
   enddo
 
-  !do not add well condition here, instead:
-  !1. define a FLOW_WELL_CONDITION card in the input
-  !2. use two new functions: (i) FlowWellConditionRead,
-  !                         (ii) FlowWellSubConditionPtr
-
   ! datum is not required
-  string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name) // '/Datum'
-  call DatasetVerify(condition%datum,default_time_storage,string,option)
+  ! string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name) // '/Datum'
+  ! call DatasetVerify(condition%datum,default_time_storage,string,option)
 
 
   !initialise phase_state to null
@@ -3305,7 +3364,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
       condition%iphase  = TOWG_ANY_STATE
       phase_state_found = PETSC_TRUE
       !if not present: owc_z, ogc_z, datum_z, pcow_owc, pcog_ogc, pcwg_wgc
-      ! are set to zero by the equilibration function
+      ! are set to zero in the equilibration set up
     end if
 
     !check that a valid phase state has been found
@@ -3449,10 +3508,6 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   call FlowSubConditionVerify(option,condition,word,towg%pcog_ogc, &
                               default_time_storage, &
                               PETSC_TRUE)
-  word = 'datum_z'
-  call FlowSubConditionVerify(option,condition,word,towg%datum_z, &
-                              default_time_storage, &
-                              PETSC_TRUE)
 
   condition%num_sub_conditions = 0
   i = 0
@@ -3497,8 +3552,6 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   if (associated(towg%ogc_z)) &
     i = i + 1
   if (associated(towg%pcog_ogc)) &
-    i = i + 1
-  if (associated(towg%datum_z)) &
     i = i + 1
 
   condition%num_sub_conditions = i
@@ -3591,10 +3644,6 @@ subroutine FlowConditionTOWGRead(condition,input,option)
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => towg%pcog_ogc
   endif
-  if (associated(towg%datum_z)) then
-    i = i + 1
-    condition%sub_condition_ptr(i)%ptr => towg%datum_z
-  endif
 
   ! set condition types
   allocate(condition%itype(condition%num_sub_conditions))
@@ -3607,6 +3656,107 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   call PetscLogEventEnd(logging%event_flow_condition_read,ierr);CHKERRQ(ierr)
 
 end subroutine FlowConditionTOWGRead
+
+! ************************************************************************** !
+
+subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
+                                   card_found,option)
+  !
+  ! Reads flow conditions block common to all modes:
+  !  these are sflow_sub_conditions defined in flow_condition_type
+  !
+  ! Author: Paolo Orsini
+  ! Date: 01/17/19
+  !
+
+  use Option_module
+  use Input_Aux_module
+  use String_module
+  use Logging_module
+  use Time_Storage_module
+  use Dataset_module
+
+  implicit none
+
+
+  type(flow_condition_type) :: condition
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: word
+  type(time_storage_type), pointer :: default_time_storage
+  PetscBool, intent(out) :: card_found
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+!  character(len=MAXWORDLENGTH) :: rate_string
+  character(len=MAXSTRINGLENGTH) :: internal_units_string
+!  class(dataset_base_type), pointer :: default_flow_dataset
+!  class(dataset_base_type), pointer :: default_gradient
+
+  class(dataset_ascii_type), pointer :: dataset_ascii
+!  PetscErrorCode :: ierr
+
+  card_found = PETSC_FALSE
+  select case (trim(word))
+
+    case('CYCLIC')
+      card_found = PETSC_TRUE
+      ! by default, is_cyclic is set to PETSC_FALSE
+      default_time_storage%is_cyclic = PETSC_TRUE
+      
+    case('SYNC_TIMESTEP_WITH_UPDATE')
+      card_found = PETSC_TRUE
+      condition%sync_time_with_update = PETSC_TRUE
+      
+    case('INTERPOLATION')
+      card_found = PETSC_TRUE
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
+      call StringToUpper(word)
+      select case(word)
+        case('STEP')
+          default_time_storage%time_interpolation_method = &
+            INTERPOLATION_STEP
+        case('LINEAR')
+          default_time_storage%time_interpolation_method = &
+            INTERPOLATION_LINEAR
+      end select
+      
+    case('DATUM')
+      card_found = PETSC_TRUE
+      dataset_ascii => DatasetAsciiCreate()
+      call DatasetAsciiInit(dataset_ascii)
+      dataset_ascii%array_width = 3
+      dataset_ascii%data_type = DATASET_REAL
+      condition%datum => dataset_ascii
+      nullify(dataset_ascii)
+      internal_units_string = 'meter'
+      call ConditionReadValues(input,option,word,condition%datum, &
+                               word,internal_units_string)
+      !
+      string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name) // '/Datum'
+      call DatasetVerify(condition%datum,default_time_storage,string,option)      
+    
+    case('DATUM_Z','DATUM_D')
+      card_found = PETSC_TRUE
+      condition%datum_z => FlowSubConditionCreate(ONE_INTEGER)
+      internal_units_string = 'meter'
+      call ConditionReadValues(input,option,word, &
+                               condition%datum_z%dataset, &
+                               condition%datum_z%units,internal_units_string)
+      !give a condition type to pass verify
+      condition%datum_z%itype = DIRICHLET_BC
+      condition%datum_z%ctype = 'dirichlet'
+      select case(word)
+        case('DATUM_D')
+          condition%datum_z%dataset%rarray(:) = - &
+                                        condition%datum_z%dataset%rarray(:)
+      end select
+      call FlowSubConditionVerify(option,condition,word,condition%datum_z, &
+                                  default_time_storage, &
+                                  PETSC_TRUE)
+ end select
+
+end subroutine FlowConditionCommonRead
 
 ! ************************************************************************** !
 
@@ -4996,6 +5146,7 @@ subroutine FlowConditionDestroy(condition)
 
   call DeallocateArray(condition%itype)
 
+  call FlowSubConditionDestroy(condition%datum_z)
   call FlowSubConditionDestroy(condition%pressure)
   call FlowSubConditionDestroy(condition%saturation)
   call FlowSubConditionDestroy(condition%rate)
@@ -5079,6 +5230,8 @@ subroutine FlowToilConditionDestroy(toil_ims_condition)
   call FlowSubConditionDestroy(toil_ims_condition%energy_flux)
   call FlowSubConditionDestroy(toil_ims_condition%rate)
   call FlowSubConditionDestroy(toil_ims_condition%owc)
+  call FlowSubConditionDestroy(toil_ims_condition%owc_z)
+  call FlowSubConditionDestroy(toil_ims_condition%pcow_owc)
   call FlowSubConditionDestroy(toil_ims_condition%liq_press_grad)
 
   deallocate(toil_ims_condition)
@@ -5119,6 +5272,10 @@ subroutine FlowTOWGConditionDestroy(towg_condition)
   call FlowSubConditionDestroy(towg_condition%gas_in_oil_mole_fraction)
   call FlowSubConditionDestroy(towg_condition%gas_in_gas_mole_fraction)
   call FlowSubConditionDestroy(towg_condition%rate)
+  call FlowSubConditionDestroy(towg_condition%owc_z)
+  call FlowSubConditionDestroy(towg_condition%pcow_owc)
+  call FlowSubConditionDestroy(towg_condition%ogc_z)
+  call FlowSubConditionDestroy(towg_condition%pcog_ogc)
 
   deallocate(towg_condition)
   nullify(towg_condition)

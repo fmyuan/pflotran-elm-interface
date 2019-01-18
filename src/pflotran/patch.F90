@@ -2054,13 +2054,13 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
   if ( associated(toil_ims%pressure) ) then
     ! pressure is either hydrostatic or dirichlet
     if (toil_ims%pressure%itype == HYDROSTATIC_BC) then
-      if (toil_ims%saturation%itype /= DIRICHLET_BC) then
-            option%io_buffer = &
-              'Hydrostatic pressure bc for flow condition "' // &
-              trim(flow_condition%name) // &
-              '" requires a saturation bc of type dirichlet'
-            call printErrMsg(option)
-      endif
+      ! if (toil_ims%saturation%itype /= DIRICHLET_BC) then
+      !       option%io_buffer = &
+      !         'Hydrostatic pressure bc for flow condition "' // &
+      !         trim(flow_condition%name) // &
+      !         '" requires a saturation bc of type dirichlet'
+      !       call printErrMsg(option)
+      ! endif
       if (toil_ims%temperature%itype /= DIRICHLET_BC) then
             option%io_buffer = &
               'Hydrostatic pressure bc for flow condition "' // &
@@ -2069,9 +2069,12 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
             call printErrMsg(option)
       endif
       dof2 = PETSC_TRUE
-      call TOIHydrostaticUpdateCoupler(coupler,option,patch%grid, &
+      call HydrostaticMPUpdateCoupler(coupler,option,patch%grid, &
                    patch%characteristic_curves_array,patch%sat_func_id, &
                    patch%imat)
+      ! call TOIHydrostaticUpdateCoupler(coupler,option,patch%grid, &
+      !             patch%characteristic_curves_array,patch%sat_func_id, &
+      !             patch%imat)
       coupler%flow_bc_type(TOIL_IMS_OIL_EQUATION_INDEX) = HYDROSTATIC_BC
       coupler%flow_bc_type(TOIL_IMS_LIQUID_EQUATION_INDEX) = HYDROSTATIC_BC
       coupler%flow_bc_type(TOIL_IMS_ENERGY_EQUATION_INDEX) = DIRICHLET_BC

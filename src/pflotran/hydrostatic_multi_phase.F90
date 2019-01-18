@@ -652,20 +652,9 @@ subroutine HydrostaticPMLoader(condition,option)
       if ( associated(condition%towg%oil_pressure) ) then
         press_at_datum = condition%towg%oil_pressure%dataset%rarray(1)
         press_at_datum_found = PETSC_TRUE
-      end if  
+      end if
       !check if datum defined twice then load value 
-      !common to TOIL once defined condition%toil_ims%datum_z
-      if ( associated(condition%towg%datum_z) .and. &
-           associated(condition%datum) &
-          ) then
-        option%io_buffer = 'TOWG datum defined twice in datum and datum_z'
-        call printErrMsg(option)
-      end if
-      if ( associated(condition%towg%datum_z) ) then
-        datum_z = condition%towg%datum_z%dataset%rarray(1)
-      else if (associated(condition%datum)) then
-        datum_z = condition%datum%rarray(Z_DIRECTION)
-      end if
+
       !extract phase contact information
       if ( associated(condition%towg%owc_z) ) then
         owc_z = condition%towg%owc_z%dataset%rarray(1)
@@ -693,11 +682,11 @@ subroutine HydrostaticPMLoader(condition,option)
           !if ( .not.associated(condition%towg%pbvz_table) ) then
             pb_const = press_at_datum
             pb_is_const = PETSC_TRUE
-            if ( dabs(ogc_z - datum_z) > z_eps ) then
-              option%io_buffer = 'Hydrostatic equilibration: PB table not defined, &
-                                  &datum and OGC must be in the same location'
-              call printErrMsg(option)
-            end if  
+            ! if ( dabs(ogc_z - datum_z) > z_eps ) then
+            !   option%io_buffer = 'Hydrostatic equilibration: PB table not defined, &
+            !                       &datum and OGC must be in the same location'
+            !   call printErrMsg(option)
+            ! end if
           !end if
         case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
           !nothing to do pb not needed  
@@ -722,6 +711,18 @@ subroutine HydrostaticPMLoader(condition,option)
         press_at_datum = condition%toil_ims%pressure%dataset%rarray(1)
         press_at_datum_found = PETSC_TRUE
       end if
+      if ( associated(condition%toil_ims%owc) .and. & 
+           associated(condition%toil_ims%owc_z) ) then
+        option%io_buffer = 'OWC defined twice in owc(1:3) and owc_z'
+        call printErrMsg(option)      
+      else if ( associated(condition%toil_ims%owc) ) then
+         owc_z = condition%toil_ims%owc%dataset%rarray(Z_DIRECTION) 
+      else if ( associated(condition%toil_ims%owc_z) ) then
+        owc_z = condition%toil_ims%owc_z%dataset%rarray(1)
+      end if  
+      if ( associated(condition%toil_ims%pcow_owc) ) then
+        pcow_owc = condition%toil_ims%pcow_owc%dataset%rarray(1)
+      end if
       if ( associated(condition%toil_ims%temperature) ) then
         !gradient or constant 
         temperature = condition%toil_ims%temperature%dataset%rarray(1)
@@ -732,8 +733,32 @@ subroutine HydrostaticPMLoader(condition,option)
       end if
   end select
 
-  !if both temp_grad and rtempvz_table given, returns an error
+  if ( associated(condition%datum_z) .and. &
+       associated(condition%datum) &
+      ) then
+    option%io_buffer = 'TOWG datum defined twice in datum and datum_z'
+    call printErrMsg(option)
+  else if ( associated(condition%datum_z) ) then
+    datum_z = condition%datum_z%dataset%rarray(1)
+  else if (associated(condition%datum)) then
+    datum_z = condition%datum%rarray(Z_DIRECTION)
+  end if
+
+  select case(option%iflowmode)
+    case(TOWG_MODE)
+      select case (option%iflow_sub_mode)
+        case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+          !if ( .not.associated(condition%towg%pbvz_table) ) then
+            if ( dabs(ogc_z - datum_z) > z_eps ) then
+              option%io_buffer = 'Hydrostatic equilibration: PB table not defined, &
+                                  &datum and OGC must be in the same location'
+              call printErrMsg(option)
+            end if  
+          !end if
+      end select    
+  end select
   
+  !if both temp_grad and rtempvz_table given, returns an error
   if (temp_grad_given) then
     if (Uninitialized(temperature)) then
       option%io_buffer = 'MP Equilibration input error: a temperature value &
