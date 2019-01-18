@@ -429,8 +429,6 @@ subroutine SolverReadLinear(solver,input,option)
   select case(solver%itype)
     case(FLOW_CLASS)
       prefix = '-flow_'
-    case(TRANSPORT_CLASS)
-      prefix = '-tran_'
   end select
 
   input%ierr = 0
@@ -948,21 +946,6 @@ subroutine SolverReadNewton(solver,input,option)
           'now specific to each process model and must be defined in ' // &
           'the SIMULATION/PROCESS_MODELS/SUBSURFACE_FLOW/OPTIONS block.'
         call printErrMsg(option)
-
-      case('ITOL_SEC','ITOL_RES_SEC','INF_TOL_SEC')
-        if (.not.option%use_mc) then
-          option%io_buffer = 'NEWTON ITOL_SEC not supported without ' // &
-            'MULTIPLE_CONTINUUM keyword.'
-          call printErrMsg(option)
-        endif
-        if (.not.solver%itype == TRANSPORT_CLASS) then
-          option%io_buffer = 'NEWTON ITOL_SEC supported in ' // &
-            'TRANSPORT only.'
-          call printErrMsg(option)        
-        endif         
-        call InputReadDouble(input,option,solver%newton_inf_res_tol_sec)
-        call InputErrorMsg(input,option,'newton_inf_res_tol_sec', &
-                           'NEWTON_SOLVER')
    
       case('MAXF')
         call InputReadInt(input,option,solver%newton_maxf)
@@ -1512,8 +1495,6 @@ subroutine SolverLinearPrintFailedReason(solver,option)
             select case(solver%itype)
               case(FLOW_CLASS)
                 string = 'Flow'
-              case(TRANSPORT_CLASS)
-                string = 'Transport'
             end select
             call PCFactorGetZeroPivot(pc,zero_pivot_tol, &
                                       ierr);CHKERRQ(ierr)

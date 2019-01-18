@@ -1,3 +1,0 @@
-Command Line:
-
-mpiexec -np N pflow -use_richards -use_analytical -snes_ls basic -ksp_type bcgs 

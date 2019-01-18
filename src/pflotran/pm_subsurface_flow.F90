@@ -199,18 +199,6 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('ANALYTICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_FALSE
 
-    case('ANALYTICAL_DERIVATIVES')
-      option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  Please &
-        &use ANALYTICAL_JACOBIAN instead.'
-
-    case('ANALYTICAL_JACOBIAN_COMPARE')
-      option%flow%numerical_derivatives_compare = PETSC_TRUE
-
-    ! artifact from testing, currently does nothing; will be used again
-    ! in future testing/implementation phases.
-    case('NUMERICAL_AS_ALYT')
-      option%flow%num_as_alyt_derivs = PETSC_TRUE
-
     case('FIX_UPWIND_DIRECTION')
       fix_upwind_direction = PETSC_TRUE
     case('UNFIX_UPWIND_DIRECTION')
@@ -265,21 +253,6 @@ subroutine PMSubsurfaceFlowSetup(this)
 
   ! set the communicator
   this%comm1 => this%realization%comm1
-  if (associated(this%realization%reaction)) then
-    if (this%realization%reaction%update_porosity .or. &
-        this%realization%reaction%update_tortuosity .or. &
-        this%realization%reaction%update_permeability .or. &
-        this%realization%reaction%update_mnrl_surf_with_porosity) then
-      this%store_porosity_for_ts_cut = PETSC_TRUE
-      this%store_porosity_for_transport = PETSC_TRUE
-    endif
-  endif
-  if (this%option%flow%transient_porosity) then
-    this%store_porosity_for_ts_cut = PETSC_TRUE
-    if (this%option%ntrandof > 0) then
-      this%store_porosity_for_transport = PETSC_TRUE
-    endif
-  endif
   
 end subroutine PMSubsurfaceFlowSetup
 
@@ -329,18 +302,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   ! check for uninitialized flow variables
   call RealizUnInitializedVarsTran(this%realization)
 
-  ! overridden in pm_general only
-  if (associated(this%realization%reaction)) then
-    if (this%realization%reaction%update_porosity) then
-      call RealizationCalcMineralPorosity(this%realization)
-      call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                   this%realization%field%work_loc, &
-                                   POROSITY,POROSITY_MINERAL)
-      call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
-                                    this%realization%field%porosity0)
-    endif
-  endif
-  
+
   ! restart
   if (this%revert_parameters_on_restart) then
     call RealizationRevertFlowParameters(this%realization)
@@ -350,15 +312,6 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   endif
   ! update material properties that are a function of mineral vol fracs
   update_initial_porosity = PETSC_TRUE
-  if (associated(this%realization%reaction)) then
-    if (this%realization%reaction%update_porosity .or. &
-        this%realization%reaction%update_tortuosity .or. &
-        this%realization%reaction%update_permeability .or. &
-        this%realization%reaction%update_mineral_surface_area) then
-      call RealizationUpdatePropertiesTS(this%realization)
-      update_initial_porosity = PETSC_FALSE
-    endif
-  endif
   if (update_initial_porosity) then
     call this%comm1%GlobalToLocal(this%realization%field%porosity0, &
                                   this%realization%field%work_loc)
@@ -549,29 +502,8 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
   
   class(pm_subsurface_flow_type) :: this
   PetscViewer :: viewer
-PetscErrorCode :: ierr
+  PetscErrorCode :: ierr
 
-  if (this%option%ntrandof > 0) then ! store initial saturations for transport
-    call GlobalUpdateAuxVars(this%realization,TIME_T,this%option%time)
-    if (this%store_porosity_for_transport) then
-      ! store time t properties for transport
-      call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                   this%realization%field%work_loc,POROSITY, &
-                                   POROSITY_CURRENT)
-      call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
-                                    this%realization%field%porosity_t)
-    endif
-  endif 
-  
-  ! update porosity for time t+dt
-  if (associated(this%realization%reaction)) then
-    if (this%realization%reaction%update_porosity .or. &
-        this%realization%reaction%update_tortuosity .or. &
-        this%realization%reaction%update_permeability .or. &
-        this%realization%reaction%update_mineral_surface_area) then
-      call RealizationUpdatePropertiesTS(this%realization)
-    endif
-  endif
 end subroutine PMSubsurfaceFlowInitializeTimestepB
 
 ! ************************************************************************** !
@@ -700,13 +632,6 @@ subroutine PMSubsurfaceFlowTimeCut(this)
                                  this%realization%field%work_loc,POROSITY, &
                                  POROSITY_MINERAL)
   endif            
-  if (this%option%ngeomechdof > 0) then
-    call this%comm1%GlobalToLocal(this%realization%field%porosity_base_store, &
-                                  this%realization%field%work_loc)
-    call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                 this%realization%field%work_loc,POROSITY, &
-                                 POROSITY_CURRENT)
- endif 
 
 
 end subroutine PMSubsurfaceFlowTimeCut
@@ -729,13 +654,6 @@ subroutine PMSubsurfaceFlowTimeCutPostInit(this)
   
   this%option%flow_dt = this%option%dt
            
-  if (this%option%ngeomechdof > 0) then
-    call this%comm1%GlobalToLocal(this%realization%field%porosity_geomech_store, &
-                                  this%realization%field%work_loc)
-    call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                 this%realization%field%work_loc,POROSITY, &
-                                 POROSITY_CURRENT)
- endif 
 
 end subroutine PMSubsurfaceFlowTimeCutPostInit
 
@@ -754,19 +672,6 @@ subroutine PMSubsurfaceFlowFinalizeTimestep(this)
   
   class(pm_subsurface_flow_type) :: this
 
-  if (this%option%ntrandof > 0) then 
-    ! store final saturations, etc. for transport
-    call GlobalUpdateAuxVars(this%realization,TIME_TpDT,this%option%time)
-    if (this%store_porosity_for_transport) then
-      ! store time t properties for transport
-      call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                   this%realization%field%work_loc,POROSITY, &
-                                   POROSITY_CURRENT)
-      call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
-                                    this%realization%field%porosity_tpdt)
-    endif    
-  endif
-  
   call this%MaxChange()
   
 end subroutine PMSubsurfaceFlowFinalizeTimestep

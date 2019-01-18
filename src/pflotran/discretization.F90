@@ -665,8 +665,8 @@ end subroutine DiscretizationRead
 
 ! ************************************************************************** !
 
-subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
-                                    o_nphase, o_ngeomechdof, o_n_stress_strain_dof, option)
+subroutine DiscretizationCreateDMs(discretization, o_nflowdof, &
+                                    o_nphase, option)
 
   ! 
   ! creates distributed, parallel meshes/grids
@@ -685,14 +685,10 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
   
   type(discretization_type) :: discretization
   PetscInt, intent(in) :: o_nflowdof
-  PetscInt, intent(in) :: o_ntrandof
   PetscInt, intent(in) :: o_nphase
-  PetscInt, intent(in) :: o_ngeomechdof
-  PetscInt, intent(in) :: o_n_stress_strain_dof
   type(option_type) :: option
       
   PetscInt :: ndof
-  !PetscInt, parameter :: stencil_width = 1
   PetscErrorCode :: ierr
   PetscInt :: i
   type(grid_unstructured_type), pointer :: ugrid
@@ -702,7 +698,6 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
       discretization%dm_index_to_ndof(ONEDOF) = 1
       discretization%dm_index_to_ndof(NPHASEDOF) = o_nphase
       discretization%dm_index_to_ndof(NFLOWDOF) = o_nflowdof
-      discretization%dm_index_to_ndof(NTRANDOF) = o_ntrandof
     case(UNSTRUCTURED_GRID)
 
     
@@ -751,20 +746,6 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
                                 discretization%stencil_type,option)
   endif
   
-  if (o_ntrandof > 0) then
-    ndof = o_ntrandof
-    call DiscretizationCreateDM(discretization,discretization%dm_ntrandof, &
-                                ndof,discretization%stencil_width, &
-                                discretization%stencil_type,option)
-  endif
-
-  if (o_ngeomechdof > 0) then
-    ndof = o_n_stress_strain_dof
-    call DiscretizationCreateDM(discretization,discretization%dm_n_stress_strain_dof, &
-                                ndof,discretization%stencil_width, &
-                                discretization%stencil_type,option)
-  endif
-
   select case(discretization%itype)
     case(STRUCTURED_GRID)
       ! this function must be called to set up str_grid%lxs, etc.

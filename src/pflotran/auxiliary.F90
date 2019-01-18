@@ -4,8 +4,6 @@ module Auxiliary_module
   use petscsys
   use Global_Aux_module
   use TH_Aux_module
-  use Richards_Aux_module
-  use Reactive_Transport_Aux_module
   use Material_Aux_class
   use Secondary_Continuum_Aux_module
   use InlineSurface_Aux_module
@@ -18,12 +16,9 @@ module Auxiliary_module
 
   type, public :: auxiliary_type 
     type(global_type), pointer :: Global
-    type(reactive_transport_type), pointer :: RT
     type(th_type), pointer :: TH
-    type(richards_type), pointer :: Richards
     type(material_type), pointer :: Material
     type(sc_heat_type), pointer :: SC_heat
-    type(sc_rt_type), pointer :: SC_RT
     type(inlinesurface_type), pointer :: InlineSurface
   end type auxiliary_type
   
@@ -47,13 +42,10 @@ subroutine AuxInit(aux)
   type(auxiliary_type) :: aux
   
   nullify(aux%Global)
-  nullify(aux%RT)
   nullify(aux%TH)
-  nullify(aux%Richards)
-  
+
   nullify(aux%Material)
   nullify(aux%SC_heat)
-  nullify(aux%SC_RT)
   nullify(aux%InlineSurface)
 
 end subroutine AuxInit
@@ -73,20 +65,15 @@ subroutine AuxDestroy(aux)
   type(auxiliary_type) :: aux
   
   call GlobalAuxDestroy(aux%Global)
-  call RTAuxDestroy(aux%RT)
+
   call THAuxDestroy(aux%TH)
-  call RichardsAuxDestroy(aux%Richards)
   call MaterialAuxDestroy(aux%Material)
   call SecondaryAuxHeatDestroy(aux%SC_heat)
-  call SecondaryAuxRTDestroy(aux%SC_RT)
   call InlineSurfaceAuxDestroy(aux%InlineSurface)
   
   nullify(aux%Global)
-  nullify(aux%RT)
-  nullify(aux%Richards)
   nullify(aux%Material)
   nullify(aux%SC_Heat)
-  nullify(aux%SC_RT)
   nullify(aux%InlineSurface)
 
 end subroutine AuxDestroy

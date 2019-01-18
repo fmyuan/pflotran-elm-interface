@@ -227,8 +227,6 @@ subroutine OutputTecplotBlock(realization_base)
   use Field_module
   use Patch_module
   
-  use Reaction_Aux_module
- 
   implicit none
 
   class(realization_base_type) :: realization_base
@@ -331,8 +329,6 @@ subroutine OutputTecplotBlock(realization_base)
       !  call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
       !                                      X_DIRECTION,PETSC_FALSE)
       !  include_gas_phase = PETSC_TRUE
-      case(NULL_MODE)
-        if (option%transport%nphase > 1) include_gas_phase = PETSC_TRUE
     end select
     if (grid%structured_grid%nx > 1) then
       call OutputFluxVelocitiesTecplotBlk(realization_base,LIQUID_PHASE, &
@@ -467,7 +463,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
              '"qlx [m/' // trim(output_option%tunit) // ']",' // &
              '"qly [m/' // trim(output_option%tunit) // ']",' // &
              '"qlz [m/' // trim(output_option%tunit) // ']"'
-    if (option%nphase > 1 .or. option%transport%nphase > 1) then
+    if (option%nphase>1) then
       variable_count = TEN_INTEGER
       string = trim(string) // &
                ',"qgx [m/' // trim(output_option%tunit) // ']",' // &
@@ -518,7 +514,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
   call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base, &
                                   natural_vec,TECPLOT_REAL)
 
-  if (option%nphase > 1 .or. option%transport%nphase > 1) then
+  if (option%nphase > 1) then
     call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                          global_vec_vy,global_vec_vz,GAS_PHASE)
 
@@ -924,7 +920,6 @@ subroutine OutputTecplotPoint(realization_base)
   use Field_module
   use Patch_module
 
-  use Reaction_Aux_module
  
   implicit none
 
@@ -1085,7 +1080,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
              '"qlx [m/' // trim(output_option%tunit) // ']",' // &
              '"qly [m/' // trim(output_option%tunit) // ']",' // &
              '"qlz [m/' // trim(output_option%tunit) // ']"'
-    if (option%nphase > 1 .or. option%transport%nphase > 1) then
+    if (option%nphase > 1) then
       string = trim(string) // &
                ',"qgx [m/' // trim(output_option%tunit) // ']",' // &
                '"qgy [m/' // trim(output_option%tunit) // ']",' // &
@@ -1126,7 +1121,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
 1001 format(i4,1x)
 1009 format('')
 
-  if (option%nphase > 1 .or. option%transport%nphase > 1) then
+  if (option%nphase > 1) then
     call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgx, &
                                     GLOBAL,option)  
     call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgy, &
@@ -1154,7 +1149,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
     write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vly(ghosted_id)
     write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vlz(ghosted_id)
 
-    if (option%nphase > 1 .or. option%transport%nphase > 1) then
+    if (option%nphase > 1) then
       write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgx(ghosted_id)
       write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgy(ghosted_id)
       write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgz(ghosted_id)
@@ -1176,7 +1171,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
   call VecDestroy(global_vec_vly,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec_vlz,ierr);CHKERRQ(ierr)
 
-  if (option%nphase > 1 .or. option%transport%nphase > 1) then
+  if (option%nphase > 1) then
     call VecRestoreArrayF90(global_vec_vgx,vec_ptr_vgx,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(global_vec_vgy,vec_ptr_vgy,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(global_vec_vgz,vec_ptr_vgz,ierr);CHKERRQ(ierr)
@@ -2015,14 +2010,6 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
       num_in_array = local_size_mpi-iend
     endif
     do iproc_mpi=1,option%mycommsize-1
-#ifdef HANDSHAKE    
-      if (option%io_handshake_buffer_size > 0 .and. &
-          iproc_mpi+max_proc_prefetch >= max_proc) then
-        max_proc = max_proc + option%io_handshake_buffer_size
-        call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                       option%mycomm,ierr)
-      endif
-#endif      
       call MPI_Probe(iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
       recv_size_mpi = status_mpi(MPI_TAG)
       if (datatype == TECPLOT_INTEGER) then
@@ -2077,13 +2064,7 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
         endif
       endif
     enddo
-#ifdef HANDSHAKE    
-    if (option%io_handshake_buffer_size > 0) then
-      max_proc = -1
-      call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                     option%mycomm,ierr)
-    endif
-#endif      
+
     ! Print the remaining values, if they exist
     if (datatype == TECPLOT_INTEGER) then
       if (num_in_array > 0) then
@@ -2105,15 +2086,6 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
         write(fid,1010) real_data(1:num_in_array)
     endif
   else
-#ifdef HANDSHAKE    
-    if (option%io_handshake_buffer_size > 0) then
-      do
-        if (option%myrank < max_proc) exit
-        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%io_rank,option%mycomm, &
-                       ierr)
-      enddo
-    endif
-#endif    
     if (datatype == TECPLOT_INTEGER) then
       call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER,option%io_rank, &
                     local_size_mpi,option%mycomm,ierr)
@@ -2121,16 +2093,6 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
       call MPI_Send(real_data,local_size_mpi,MPI_DOUBLE_PRECISION,option%io_rank, &
                     local_size_mpi,option%mycomm,ierr)
     endif
-#ifdef HANDSHAKE    
-    if (option%io_handshake_buffer_size > 0) then
-      do
-        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%io_rank,option%mycomm, &
-                       ierr)
-        if (max_proc < 0) exit
-      enddo
-    endif
-#endif
-#undef HANDSHAKE
   endif
       
   if (datatype == TECPLOT_INTEGER) then
@@ -2288,11 +2250,10 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
   use Field_module
   use Patch_module
   use Grid_module
-  use Reaction_Aux_module
+
   use Observation_module
   use Variables_module
-  use Secondary_Continuum_Aux_module, only : sec_transport_type, &
-                                             sec_heat_type, sec_continuum_type
+  use Secondary_Continuum_Aux_module, only : sec_heat_type, sec_continuum_type
 
  
   implicit none
@@ -2309,9 +2270,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
   type(output_option_type), pointer :: output_option
   type(observation_type), pointer :: observation
   type(grid_type), pointer :: grid
-  type(sec_transport_type), pointer :: rt_sec_tranport_vars(:)
   type(sec_heat_type), pointer :: sec_heat_vars(:)
-  type(reaction_type), pointer :: reaction   
   PetscReal :: value
   PetscInt :: ivar, isubvar, var_type
   PetscErrorCode :: ierr  
@@ -2328,10 +2287,6 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
   output_option => realization_base%output_option
 
   if (option%use_mc) then
-    if (option%ntrandof > 0) then
-      rt_sec_tranport_vars => patch%aux%SC_RT%sec_transport_vars
-      reaction => realization_base%reaction
-    endif
     if (option%iflowmode == TH_MODE) then
       sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
     endif
@@ -2342,8 +2297,6 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
   ! continua are the same - SK
   if (associated(patch%aux%SC_heat)) then
     dist => sec_heat_vars(1)%sec_continuum%distance
-  elseif (associated(patch%aux%SC_RT)) then
-    dist => rt_sec_tranport_vars(1)%sec_continuum%distance
   endif
 
 
@@ -2429,57 +2382,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
           RealizGetVariableValueAtCell(realization_base,ghosted_id, &
                                        SECONDARY_TEMPERATURE,sec_id)
         endif
-        if (observation%print_secondary_data(2)) then
-          if (associated(reaction)) then
-            if (reaction%naqcomp > 0) then
-              do naqcomp = 1, reaction%naqcomp
-                write(OUTPUT_UNIT,1000,advance='no') &
-                RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                             SECONDARY_CONCENTRATION,sec_id, &
-                                             naqcomp)
-               enddo
-            endif
-          endif
-        endif
-        if (observation%print_secondary_data(3)) then
-          if (associated(reaction)) then
-            if (associated(reaction%mineral)) then
-              if (reaction%mineral%nkinmnrl > 0) then
-                do nkinmnrl = 1, reaction%mineral%nkinmnrl
-                  write(OUTPUT_UNIT,1000,advance='no') &
-                  RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                               SEC_MIN_VOLFRAC,sec_id,nkinmnrl) 
-                enddo
-              endif
-            endif
-          endif
-        endif     
-        if (observation%print_secondary_data(4)) then
-          if (associated(reaction)) then
-            if (associated(reaction%mineral)) then
-              if (reaction%mineral%nkinmnrl > 0) then
-                do nkinmnrl = 1, reaction%mineral%nkinmnrl
-                  write(OUTPUT_UNIT,1000,advance='no') &
-                  RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                               SEC_MIN_RATE,sec_id,nkinmnrl) 
-                enddo
-              endif
-            endif
-          endif
-        endif      
-        if (observation%print_secondary_data(5)) then
-          if (associated(reaction)) then
-            if (associated(reaction%mineral)) then
-              if (reaction%mineral%nkinmnrl > 0) then
-                do nkinmnrl = 1, reaction%mineral%nkinmnrl
-                  write(OUTPUT_UNIT,1000,advance='no') &
-                  RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                               SEC_MIN_SI,sec_id,nkinmnrl) 
-                enddo
-              endif
-            endif
-          endif
-        endif                         
+
       enddo
       write(OUTPUT_UNIT,1009)
     enddo         
@@ -2602,13 +2505,13 @@ subroutine WriteTecplotHeaderSec(fid,realization_base,cell_string, &
                                      
   use Realization_Base_class, only : realization_base_type
   use Option_module
-  use Reaction_Aux_module
+
 
   implicit none
   
   PetscInt :: fid
   class(realization_base_type) :: realization_base
-  type(reaction_type), pointer :: reaction 
+
   PetscBool :: print_secondary_data(5)
   character(len=MAXSTRINGLENGTH) :: cell_string
   PetscInt :: icolumn
@@ -2630,51 +2533,7 @@ subroutine WriteTecplotHeaderSec(fid,realization_base,cell_string, &
       case default
     end select
   endif
-  
-  ! add secondary concentrations to header
-  if (option%ntrandof > 0) then 
-    reaction => realization_base%reaction
-    if (print_secondary_data(2)) then
-      do j = 1, reaction%naqcomp
-        string = 'Free ion ' // trim(reaction%primary_species_names(j))
-        call OutputWriteToHeader(fid,string,'molal',cell_string,icolumn)
-      enddo
-    endif
-  
-  
-    ! add secondary mineral volume fractions to header
-    if (print_secondary_data(3)) then
-      if (reaction%mineral%nkinmnrl > 0) then
-        do j = 1, reaction%mineral%nkinmnrl
-          string = trim(reaction%mineral%mineral_names(j)) // ' VF'
-          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
-        enddo
-      endif
-    endif
     
-     ! add secondary mineral rates to header
-    if (print_secondary_data(4)) then
-      if (reaction%mineral%nkinmnrl > 0) then
-        do j = 1, reaction%mineral%nkinmnrl
-          string = trim(reaction%mineral%mineral_names(j)) // ' Rate'
-          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
-        enddo
-      endif
-    endif
-
-    ! add secondary mineral SI to header
-    if (print_secondary_data(5)) then
-      if (reaction%mineral%nkinmnrl > 0) then
-        do j = 1, reaction%mineral%nkinmnrl
-          string = trim(reaction%mineral%mineral_names(j)) // ' SI'
-          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
-        enddo
-      endif
-    endif
-   
-    
-  endif 
-  
 end subroutine WriteTecplotHeaderSec
 
 ! ************************************************************************** !

@@ -12,7 +12,6 @@ module Realization_Surface_class
   use Surface_Field_module
   use Surface_Material_module
   use Dataset_Base_class
-  use Reaction_Aux_module
   use Output_Aux_module
   
   use PFLOTRAN_Constants_module
@@ -31,10 +30,8 @@ private
     type(surface_field_type), pointer :: surf_field
     type(region_list_type), pointer :: surf_regions
     type(condition_list_type),pointer :: surf_flow_conditions
-    type(tran_condition_list_type),pointer :: surf_transport_conditions
     type(surface_material_property_type), pointer :: surf_material_properties
     type(surface_material_property_ptr_type), pointer :: surf_material_property_array(:)
-    type(reaction_type), pointer :: surf_reaction
     character(len=MAXSTRINGLENGTH) :: surf_filename
     character(len=MAXSTRINGLENGTH) :: subsurf_filename
 
@@ -119,10 +116,6 @@ function RealizSurfCreate(option)
   
   allocate(surf_realization%surf_flow_conditions)
   call FlowConditionInitList(surf_realization%surf_flow_conditions)
-  allocate(surf_realization%surf_transport_conditions)
-  call TranConditionInitList(surf_realization%surf_transport_conditions)
-  
-  nullify(surf_realization%surf_reaction)
   nullify(surf_realization%datasets)
 
   surf_realization%iter_count = 0
@@ -198,7 +191,6 @@ subroutine RealizSurfProcessCouplers(surf_realization)
   do
     if (.not.associated(cur_patch)) exit
     call PatchProcessCouplers(cur_patch,surf_realization%surf_flow_conditions, &
-                              surf_realization%surf_transport_conditions, &
                               surf_realization%option)
     cur_patch => cur_patch%next
   enddo
@@ -360,8 +352,7 @@ subroutine RealizSurfCreateDiscretization(surf_realization)
   discretization => surf_realization%discretization
 
   call DiscretizationCreateDMs(discretization, option%nsurfflowdof, &
-                               ZERO_INTEGER, ZERO_INTEGER, &
-                               ZERO_INTEGER, ZERO_INTEGER, &
+                               ZERO_INTEGER, &
                                option)
 
   ! n degree of freedom, global
@@ -485,9 +476,6 @@ subroutine RealizSurfProcessConditions(surf_realization)
   if (surf_realization%option%nflowdof > 0) then
     call RealizSurfProcessFlowConditions(surf_realization)
   endif
-  if (surf_realization%option%ntrandof > 0) then
-    !call SurfaceRealProcessTranConditions(surf_realization)
-  endif
  
 end subroutine RealizSurfProcessConditions
 
@@ -583,7 +571,7 @@ subroutine RealizSurfProcessFlowConditions(surf_realization)
                            cur_surf_flow_condition%default_time_storage, &
                            string,option)
     select case(option%iflowmode)
-      case(RICHARDS_MODE,TH_MODE)
+      case(TH_MODE)
         do i = 1, size(cur_surf_flow_condition%sub_condition_ptr)
            ! find dataset
           call DatasetFindInList(surf_realization%datasets, &
@@ -1291,7 +1279,6 @@ subroutine RealizSurfDestroy(surf_realization)
   call RegionDestroyList(surf_realization%surf_regions)
   
   call FlowConditionDestroyList(surf_realization%surf_flow_conditions)
-  call TranConditionDestroyList(surf_realization%surf_transport_conditions)
   
   call PatchDestroyList(surf_realization%patch_list)
   
@@ -1337,8 +1324,7 @@ subroutine RealizSurfStrip(surf_realization)
   call RegionDestroyList(surf_realization%surf_regions)
   
   call FlowConditionDestroyList(surf_realization%surf_flow_conditions)
-  call TranConditionDestroyList(surf_realization%surf_transport_conditions)
-  
+
   call PatchDestroyList(surf_realization%patch_list)
   
   if (associated(surf_realization%debug)) deallocate(surf_realization%debug)
@@ -1350,8 +1336,6 @@ subroutine RealizSurfStrip(surf_realization)
   call SurfaceMaterialPropertyDestroy(surf_realization%surf_material_properties)
   
   call DiscretizationDestroy(surf_realization%discretization)
-
-  call ReactionDestroy(surf_realization%reaction,surf_realization%option)
 
 end subroutine RealizSurfStrip
 

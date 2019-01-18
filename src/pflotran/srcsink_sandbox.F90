@@ -107,15 +107,6 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
   character(len=MAXWORDLENGTH) :: word
   class(srcsink_sandbox_base_type), pointer :: new_sandbox, cur_sandbox
   
-  ! Ensure that transport is not being simulated as we have no way for 
-  ! introducting solutes.
-  if (option%ntrandof > 0) then
-    option%io_buffer = 'Reactive transport may not be simulated when a &
-      &SOURCE_SINK_SANDBOX exists in the input file since no source/sink &
-      &capability exists in the source/sink sandbox for solute mass.'
-    call printErrMsg(option)
-  endif
-
   nullify(new_sandbox)
   do 
     call InputReadPflotranString(input,option)
@@ -399,7 +390,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
              ' ' // trim(adjustl(y_string)) // &
              ' ' // trim(adjustl(z_string)) // ')'
     select case(option%iflowmode)
-      case(RICHARDS_MODE, TH_MODE)
+      case(TH_MODE)
         variable_string = ' Water'
         ! cumulative
         units_string = 'kg'
@@ -465,8 +456,6 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
 
   flow_dof_scale = 1.d0
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
-      flow_dof_scale(1) = FMWH2O
     case(TH_MODE)
       flow_dof_scale(1) = FMWH2O
   end select  

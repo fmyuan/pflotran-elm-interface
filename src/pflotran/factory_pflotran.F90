@@ -65,8 +65,8 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   use EOS_module
   use PM_Surface_class
   use PM_Subsurface_Flow_class
-  use PM_RT_class
   
+
   implicit none
   
   class(simulation_base_type), pointer :: simulation
@@ -114,9 +114,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   use Simulation_Subsurface_class
   use Simulation_Surf_Subsurf_class
   use PM_Base_class
-  use PM_Surface_Flow_class
   use PM_Surface_TH_class
-  use PM_Auxiliary_class
   use PMC_Base_class
   use Checkpoint_module
   use Output_Aux_module
@@ -196,18 +194,8 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           select case(trim(word))
             case('SUBSURFACE_FLOW')
               call SubsurfaceReadFlowPM(input,option,new_pm)
-            case('SUBSURFACE_TRANSPORT')
-              call SubsurfaceReadRTPM(input, option, new_pm)
             case('SURFACE_SUBSURFACE')
               call SurfSubsurfaceReadFlowPM(input, option, new_pm)
-            case('AUXILIARY')
-              if (len_trim(pm_name) < 1) then
-                option%io_buffer = 'AUXILIARY process models must have a name.'
-                call printErrMsg(option)
-              endif
-              new_pm => PMAuxiliaryCreate()
-              input%buf = pm_name
-              call PMAuxiliaryRead(input,option,PMAuxiliaryCast(new_pm))
             case default
               call InputKeywordUnrecognized(word, &
                      'SIMULATION,PROCESS_MODELS',option)            

@@ -53,7 +53,7 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
   use Option_module
   use Init_Common_module
   use Init_Surface_module
-  use Surface_Flow_module
+
   use Surface_TH_module
   use Simulation_Aux_module
   use PMC_Base_class
@@ -62,7 +62,6 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
   use PM_Base_class
   use PM_Base_Pointer_module
   use PM_Surface_class
-  use PM_Surface_Flow_class
   use PM_Surface_TH_class
   use Input_Aux_module
   use Realization_Subsurface_class
@@ -81,7 +80,6 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
   class(realization_subsurface_type), pointer :: subsurf_realization
   class(realization_surface_type), pointer :: surf_realization
   class(pmc_base_type), pointer :: cur_process_model_coupler
-  class(pm_surface_flow_type), pointer :: pm_surface_flow
   class(pm_surface_th_type), pointer :: pm_surface_th
   class(pm_base_type), pointer :: cur_pm, prev_pm
   class(pmc_surface_type), pointer :: pmc_surface
@@ -104,7 +102,6 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
   ! we need to remove the surface pm from the list while leaving the
   ! the subsurface pm linkage intact
   nullify(prev_pm)
-  nullify(pm_surface_flow)
   nullify(pm_surface_th)
 
   cur_pm => simulation%process_model_list
@@ -113,13 +110,6 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
     select type(cur_pm)
       class is(pm_surface_th_type)
         pm_surface_th => cur_pm
-        if (associated(prev_pm)) then
-          prev_pm%next => cur_pm%next
-        else
-          simulation%process_model_list => cur_pm%next
-        endif
-      class is(pm_surface_flow_type)
-        pm_surface_flow => cur_pm
         if (associated(prev_pm)) then
           prev_pm%next => cur_pm%next
         else
@@ -135,7 +125,7 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
   ! the master, we need to negate this setting
   simulation%process_model_coupler_list%is_master = PETSC_FALSE
 
-  if (associated(pm_surface_flow) .or. associated(pm_surface_th)) then
+  if (associated(pm_surface_th)) then
     simulation%surf_realization => RealizSurfCreate(option)
     surf_realization => simulation%surf_realization
     surf_realization%output_option => OutputOptionDuplicate(simulation%output_option)
@@ -151,25 +141,6 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
   
     call setSurfaceFlowMode(option)
   
-    if (associated(pm_surface_flow)) then
-      pm_surface_flow%output_option => simulation%output_option
-      pmc_surface => PMCSurfaceCreate()
-      pmc_surface%name = 'PMCSurface'
-      simulation%surf_flow_process_model_coupler => pmc_surface
-      pmc_surface%option => option
-      pmc_surface%checkpoint_option => simulation%checkpoint_option
-      pmc_surface%waypoint_list => simulation%waypoint_list_surfsubsurface
-      pmc_surface%pm_list => pm_surface_flow
-      pmc_surface%pm_ptr%pm => pm_surface_flow
-      pmc_surface%surf_realization => simulation%surf_realization
-      pmc_surface%subsurf_realization => simulation%realization
-      timestepper => TimestepperSurfaceCreate()
-      pmc_surface%timestepper => timestepper
-      ! set up logging stage
-      string = trim(pm_surface_flow%name) // 'Surface'
-      call LoggingCreateStage(string,pmc_surface%stage)
-    endif
-
     if (associated(pm_surface_th)) then
       pm_surface_th%output_option => simulation%output_option
       pmc_surface => PMCSurfaceCreate()
@@ -234,16 +205,6 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
     pmc_surface%timestepper%dt_max = surf_realization%dt_max
     option%surf_subsurf_coupling_flow_dt = surf_realization%dt_coupling
     option%surf_flow_dt=pmc_surface%timestepper%dt_init
-
-    if (associated(pm_surface_flow)) then
-      call pm_surface_flow%PMSurfaceSetRealization(surf_realization)
-      call pm_surface_flow%Setup()
-      call TSSetRHSFunction(timestepper%solver%ts, &
-                            pm_surface_flow%residual_vec, &
-                            PMRHSFunction, &
-                            pmc_surface%pm_ptr, &
-                            ierr);CHKERRQ(ierr)
-    endif
 
     if (associated(pm_surface_th)) then
       call pm_surface_th%PMSurfaceSetRealization(surf_realization)
@@ -323,7 +284,6 @@ subroutine SurfSubsurfaceReadFlowPM(input, option, pm)
 
   use PMC_Base_class
   use PM_Base_class
-  use PM_Surface_Flow_class
   use PM_Surface_TH_class
   use Init_Common_module
 
@@ -353,8 +313,6 @@ subroutine SurfSubsurfaceReadFlowPM(input, option, pm)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
-          case('RICHARDS')
-            pm => PMSurfaceFlowCreate()
           case('TH')
             pm => PMSurfaceTHCreate()
           case default

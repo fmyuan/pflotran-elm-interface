@@ -1629,7 +1629,7 @@ subroutine OutputMAD(realization_base)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
+
   use Variables_module
   use Output_Common_module, only : OutputGetVariableArray
  
@@ -1662,7 +1662,7 @@ subroutine OutputMAD(realization_base)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
-  type(reaction_type), pointer :: reaction
+
   type(output_option_type), pointer :: output_option
   
   Vec :: global_vec
@@ -1685,7 +1685,7 @@ subroutine OutputMAD(realization_base)
   grid => patch%grid
   option => realization_base%option
   field => realization_base%field
-  reaction => realization_base%reaction
+
   output_option => realization_base%output_option
 
 #define ALL
@@ -2091,10 +2091,6 @@ subroutine OutputPrintCouplers(realization_base,istep)
   endif
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
-      allocate(iauxvars(1),auxvar_names(1))
-      iauxvars(1) = RICHARDS_PRESSURE_DOF
-      auxvar_names(1) = 'pressure'
     case(TH_MODE)
       allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = TH_PRESSURE_DOF

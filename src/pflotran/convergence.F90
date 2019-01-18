@@ -240,17 +240,6 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     if (inorm_residual > solver%max_norm) then
       reason = -20
     endif
- 
-    ! This is to check if the secondary continuum residual convergences
-    ! for nonlinear problems specifically transport
-    if (solver%itype == TRANSPORT_CLASS .and. option%use_mc .and. &
-       reason > 0 .and. i_iteration > 0) then
-      if (option%infnorm_res_sec < solver%newton_inf_res_tol_sec) then
-        sec_reason = 1
-      else
-        reason = 0
-      endif
-    endif
     
     ! force the minimum number of iterations
     if (i_iteration < solver%newton_min_iterations) then
@@ -279,8 +268,8 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
         case default
           write(rsn_string,'(i3)') reason
       end select
-      if (option%use_mc .and. option%ntrandof > 0 .and. solver%itype == &
-          TRANSPORT_CLASS) then
+
+      if (option%use_mc) then
         i = int(sec_reason) 
         select case(i)
           case(1)
@@ -344,17 +333,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     endif
   else
   
-    ! This is to check if the secondary continuum residual convergences
-    ! for nonlinear problems specifically transport
-    if (solver%itype == TRANSPORT_CLASS .and. option%use_mc .and. &
-       reason > 0 .and. i_iteration > 0) then
-      if (option%infnorm_res_sec < solver%newton_inf_res_tol_sec) then
-        reason = 13
-      else
-        reason = 0
-      endif
-    endif
-    
+
     ! force the minimum number of iterations
     if (i_iteration < solver%newton_min_iterations) then
       reason = 0

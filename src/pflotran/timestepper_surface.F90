@@ -213,10 +213,10 @@ subroutine TimestepperSurfaceStepDT(this,process_model,stop_flag)
 #include "petsc/finclude/petscts.h"
   use petscts
   use PM_Base_class
-  use PM_Surface_Flow_class
+  use PM_Surface_th_class
   use Option_module
   use Output_module, only : Output
-  use Surface_Flow_module
+  use Surface_th_module
   
   implicit none
 

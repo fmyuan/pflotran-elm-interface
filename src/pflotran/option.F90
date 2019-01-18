@@ -7,7 +7,7 @@ module Option_module
   use petscsys
   use PFLOTRAN_Constants_module
   use Option_Flow_module
-  use Option_Transport_module
+
 
   implicit none
 
@@ -16,7 +16,6 @@ module Option_module
   type, public :: option_type
 
     type(flow_option_type), pointer :: flow
-    type(transport_option_type), pointer :: transport
 
     PetscInt :: id                         ! id of realization
     PetscInt :: successful_exit_code       ! code passed out of PFLOTRAN
@@ -49,20 +48,14 @@ module Option_module
     character(len=MAXWORDLENGTH) :: flowmode
     PetscInt :: iflowmode
     PetscInt :: iflow_sub_mode
-    character(len=MAXWORDLENGTH) :: tranmode
-    PetscInt :: itranmode
 
     PetscInt :: nphase
     PetscInt :: liquid_phase
     PetscInt :: gas_phase
-    PetscInt :: oil_phase
-    PetscInt :: solvent_phase
     PetscInt :: phase_map(MAX_PHASE)
     PetscInt :: nflowdof
     PetscInt :: nflowspec
-    PetscInt :: nmechdof
     PetscInt :: nsec_cells
-    PetscInt :: nwells
     PetscInt :: num_table_indices
     PetscBool :: use_th_freezing
 
@@ -78,30 +71,19 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: surf_initialize_flow_filename
     character(len=MAXSTRINGLENGTH) :: surf_restart_filename
 
-    PetscBool :: geomech_on
-    PetscBool :: geomech_initial
-    PetscInt :: ngeomechdof
-    PetscInt :: n_stress_strain_dof
-    PetscReal :: geomech_time
-    PetscInt :: geomech_subsurf_coupling
-    PetscReal :: geomech_gravity(3)
     PetscBool :: sec_vars_update
     PetscInt :: air_pressure_id
     PetscInt :: capillary_pressure_id
     PetscInt :: vapor_pressure_id
     PetscInt :: saturation_pressure_id
-    PetscInt :: water_id  ! index of water component dof
-    PetscInt :: air_id  ! index of air component dof
-    PetscInt :: oil_id  ! index of oil component dof
+    PetscInt :: water_id   ! index of water component dof
+    PetscInt :: air_id     ! index of air component dof
     PetscInt :: energy_id  ! index of energy dof
-
-    PetscInt :: ntrandof
 
     PetscInt :: iflag
     PetscInt :: status
     PetscBool :: input_record
-    !geh: remove once legacy code is gone.
-!    PetscBool :: init_stage
+
     ! these flags are for printing outside of time step loop
     PetscBool :: print_to_screen
     PetscBool :: print_to_file
@@ -126,9 +108,8 @@ module Option_module
     PetscInt :: ice_model         ! specify water/ice/vapor phase partitioning model
     PetscReal:: frzthw_halfwidth  ! freezing-thawing smoothing half-width (oC)
       
-    PetscReal :: flow_time, tran_time, time  ! The time elapsed in the simulation.
+    PetscReal :: flow_time, time  ! The time elapsed in the simulation.
     PetscReal :: flow_dt ! The size of the time step.
-    PetscReal :: tran_dt
     PetscReal :: dt
     PetscReal :: dt_min
     PetscBool :: match_waypoint
@@ -149,7 +130,7 @@ module Option_module
     PetscReal :: reference_saturation
 
     PetscBool :: converged
-    PetscInt :: convergence
+    PetscInt  :: convergence
 
     PetscReal :: infnorm_res_sec  ! inf. norm of secondary continuum rt residual
 
@@ -157,8 +138,6 @@ module Option_module
 
 !   table lookup
     PetscInt :: itable
-    PetscInt :: co2eos
-    character(len=MAXSTRINGLENGTH) :: co2_database_filename
 
     PetscBool :: restart_flag
     PetscReal :: restart_time
@@ -166,7 +145,7 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: input_filename
 
     PetscLogDouble :: start_time
-    PetscBool :: wallclock_stop_flag
+    PetscBool      :: wallclock_stop_flag
     PetscLogDouble :: wallclock_stop_time
 
     PetscInt :: log_stage(10)
@@ -183,11 +162,11 @@ module Option_module
 
     character(len=MAXSTRINGLENGTH) :: input_prefix
     character(len=MAXSTRINGLENGTH) :: global_prefix
-    character(len=MAXWORDLENGTH) :: group_prefix
-    !PO
+    character(len=MAXWORDLENGTH)   :: group_prefix
+
     character(len=MAXSTRINGLENGTH) :: output_file_name_prefix
     character(len=MAXSTRINGLENGTH) :: output_dir
-    !PO end
+
 
     PetscBool :: steady_state
     PetscBool :: use_matrix_buffer
@@ -199,9 +178,6 @@ module Option_module
     PetscInt :: secondary_continuum_solver     ! Specify secondary continuum solver
 
     PetscInt :: subsurface_simulation_type
-
-    ! For WIPP_type pc-sat characteristic curves that use Pct
-    PetscBool :: pct_updated
 
     ! Type of averaging scheme for relative permeability
     PetscInt :: rel_perm_aveg
@@ -321,7 +297,7 @@ function OptionCreate()
 
   allocate(option)
   option%flow => OptionFlowCreate()
-  option%transport => OptionTransportCreate()
+
 
   ! DO NOT initialize members of the option type here.  One must decide
   ! whether the member needs initialization once for all stochastic
@@ -351,7 +327,7 @@ subroutine OptionInitAll(option)
   ! PFLOTRAN run (regardless of whether stochastic)
 
   call OptionFlowInitAll(option%flow)
-  call OptionTransportInitAll(option%transport)
+
 
   option%id = 0
   option%successful_exit_code = 0
@@ -418,7 +394,7 @@ subroutine OptionInitRealization(option)
   ! These variables should be initialized once at the beginning of every
   ! PFLOTRAN realization or simulation of a single realization
   call OptionFlowInitRealization(option%flow)
-  call OptionTransportInitRealization(option%transport)
+
 
 
   option%fid_out = OUT_UNIT
@@ -441,9 +417,7 @@ subroutine OptionInitRealization(option)
   option%iflowmode = NULL_MODE
   option%iflow_sub_mode = NULL_MODE
   option%nflowdof = 0
-  option%nmechdof = 0
   option%nsec_cells = 0
-  option%nwells = 0
   option%num_table_indices = 0
   option%use_th_freezing = PETSC_FALSE
 
@@ -460,27 +434,12 @@ subroutine OptionInitRealization(option)
   option%surf_restart_flag = PETSC_FALSE
   option%surf_restart_time = UNINITIALIZED_DOUBLE
 
-  option%geomech_on = PETSC_FALSE
-  option%geomech_initial = PETSC_FALSE
-  option%ngeomechdof = 0
-  option%n_stress_strain_dof = 0
-  option%geomech_time = 0.d0
-  option%geomech_subsurf_coupling = 0
-  option%geomech_gravity(:) = 0.d0
-  option%geomech_gravity(3) = -1.d0*EARTH_GRAVITY    ! m/s^2
-
-  option%tranmode = ""
-  option%itranmode = NULL_MODE
-  option%ntrandof = 0
-
   option%phase_map = UNINITIALIZED_INTEGER
 
   option%nphase = 0
 
   option%liquid_phase  = UNINITIALIZED_INTEGER
-  option%oil_phase     = UNINITIALIZED_INTEGER
   option%gas_phase     = UNINITIALIZED_INTEGER
-  option%solvent_phase = UNINITIALIZED_INTEGER
 
   option%air_pressure_id = 0
   option%capillary_pressure_id = 0
@@ -521,17 +480,8 @@ subroutine OptionInitRealization(option)
   option%gravity(:) = 0.d0
   option%gravity(3) = -1.d0*EARTH_GRAVITY ! m/s^2
 
-  !physical constants and defult variables
-!  option%difaq = 1.d-9 ! m^2/s read from input file
-!  option%difaq = 0.d0
-!  option%delhaq = 12.6d0 ! kJ/mol read from input file
-!  option%eqkair = 1.d10 ! Henry's constant for air: Xl = eqkair * pa
-
   ! default brine concentrations
   option%m_nacl = 0.d0
-
-!  option%disp = 0.d0
-
   option%restart_flag = PETSC_FALSE
   option%restart_filename = ""
   option%restart_time = UNINITIALIZED_DOUBLE
@@ -560,7 +510,6 @@ subroutine OptionInitRealization(option)
 
   option%time = 0.d0
   option%flow_dt = 0.d0
-  option%tran_dt = 0.d0
   option%dt = 0.d0
   option%dt_min = 1.d-20   ! Ten zeptoseconds
   option%refactor_dt = 0.d0
@@ -574,17 +523,12 @@ subroutine OptionInitRealization(option)
   option%steady_state = PETSC_FALSE
 
   option%itable = 0
-  option%co2eos = EOS_SPAN_WAGNER
-  option%co2_database_filename = ''
 
-! option%idt_switch = 1
   option%idt_switch = -1
 
   option%use_matrix_buffer = PETSC_FALSE
   option%status = PROCEED
   option%force_newton_iteration = PETSC_FALSE
-  !option%print_explicit_primal_grid = PETSC_FALSE
-  !option%print_explicit_dual_grid = PETSC_FALSE
   option%secondary_continuum_solver = 1
 
   ! initially set to a large value to effectively disable
@@ -595,8 +539,6 @@ subroutine OptionInitRealization(option)
   option%min_allowable_scale = 1.0d-10
 
   option%print_ekg = PETSC_FALSE
-
-  option%pct_updated = PETSC_FALSE
 
   option%inline_surface_flow           = PETSC_FALSE
   option%inline_surface_Mannings_coeff = 0.02d0
@@ -620,9 +562,7 @@ subroutine OptionCheckCommandLine(option)
   type(option_type) :: option
 
   PetscBool :: option_found
-  PetscInt :: temp_int
   PetscErrorCode :: ierr
-  character(len=MAXSTRINGLENGTH) :: string
 
   call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
                            PETSC_NULL_CHARACTER, "-buffer_matrix", &
@@ -1569,7 +1509,7 @@ subroutine OptionDestroy(option)
   type(option_type), pointer :: option
 
   call OptionFlowDestroy(option%flow)
-  call OptionTransportDestroy(option%transport)
+
 
   ! all the below should be placed somewhere other than option.F90
 

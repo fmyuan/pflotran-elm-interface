@@ -127,8 +127,6 @@ subroutine SurfSubsurfaceInitializeRun(this)
     select type(pmc => cur_process_model_coupler)
       class is(pmc_surface_type)
         select case(this%option%iflowmode)
-          case (RICHARDS_MODE)
-            call pmc%PMCSurfaceGetAuxDataAfterRestart()
           case (TH_MODE)
             call pmc%PMCSurfaceGetAuxDataAfterRestart()
           case default

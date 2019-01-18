@@ -377,8 +377,8 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
         ! not yet figure out how to get 'reaction_aux%ncomp' in
         ! and either the 2 vecs are different for flow-transport model and reaction model
         ! BE CAUTIOUS!
-        if (option%nflowdof>0 .or. option%ntrandof>0) then
-          cell_index = floor(real((max_res_index-1)/(option%nflowdof+option%ntrandof)))+1
+        if (option%nflowdof>0) then
+          cell_index = floor(real((max_res_index-1)/option%nflowdof))+1
 
           select type (pm => process_model)
             class is (pm_subsurface_flow_type)
@@ -404,20 +404,19 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
           end select
 
           write(fileid_info, *) ' <--- cell offset ---- cell index --- vec. no. --elem. no. -- solution_vec with max. res ----> '
-          do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
-                cell_index*(option%nflowdof+option%ntrandof)
+          do i=(cell_index-1)*(option%nflowdof)+1, &
+                cell_index*(option%nflowdof)
             write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
                 cell_index, '(',cell_i,cell_j,cell_k, ')', &
-                i, i-(cell_index-1)*(option%nflowdof+option%ntrandof), solution_p(i)
+                i, i-(cell_index-1)*(option%nflowdof), solution_p(i)
           enddo
 
           write(fileid_info, *) '  '
           write(fileid_info, *) ' <--- cell offset ---- cell index --- vec no. --elem. no. -- max. residual_vec ----> '
-          do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
-                cell_index*(option%nflowdof+option%ntrandof)
+          do i=(cell_index-1)*option%nflowdof+1, cell_index*option%nflowdof
             write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
                 cell_index, '(',cell_i,cell_j,cell_k, ')', &
-                i, i-(cell_index-1)*(option%nflowdof+option%ntrandof), residual_p(i)
+                i, i-(cell_index-1)*(option%nflowdof), residual_p(i)
           enddo
 
         endif
@@ -512,8 +511,8 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
           ! not yet figure out how to get 'reaction_aux%ncomp' in
           ! and neither the 2 vecs are different for flow-transport model and reaction model
           ! BE CAUTIOUS!
-          if (option%nflowdof>0 .or. option%ntrandof>0) then
-            cell_index = floor(real((max_res_index-1))/(option%nflowdof+option%ntrandof))+1
+          if (option%nflowdof>0) then
+            cell_index = floor(real((max_res_index-1))/option%nflowdof)+1
 
             select type (pm => process_model)
               class is (pm_subsurface_flow_type)
@@ -537,20 +536,20 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
             end select
 
             write(fileid_info, *) ' <--- cell offset ---- cell index --- vec. no. --elem. no. -- solution_vec with max. res ----> '
-            do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
-                 cell_index*(option%nflowdof+option%ntrandof)
+            do i=(cell_index-1)*(option%nflowdof)+1, &
+                 cell_index*(option%nflowdof)
               write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
                 cell_index, '(',cell_i,cell_j,cell_k, ')', &
-                i, i-(cell_index-1)*(option%nflowdof+option%ntrandof), solution_p(i)
+                i, i-(cell_index-1)*(option%nflowdof), solution_p(i)
             enddo
 
             write(fileid_info, *) '  '
             write(fileid_info, *) ' <--- cell offset ---- cell index --- vec no. --elem. no. -- max. residual_vec ----> '
-            do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
-                  cell_index*(option%nflowdof+option%ntrandof)
+            do i=(cell_index-1)*(option%nflowdof)+1, &
+                  cell_index*(option%nflowdof)
               write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
                 cell_index, '(',cell_i,cell_j,cell_k, ')', &
-                i, i-(cell_index-1)*(option%nflowdof+option%ntrandof), residual_p(i)
+                i, i-(cell_index-1)*(option%nflowdof), residual_p(i)
             enddo
           endif
 

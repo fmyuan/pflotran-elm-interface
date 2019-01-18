@@ -9,8 +9,6 @@ module Condition_module
   use Dataset_Base_class
   use Dataset_Ascii_class
   use Time_Storage_module
-
-  use Transport_Constraint_module
   
   use PFLOTRAN_Constants_module
 
@@ -69,46 +67,16 @@ module Condition_module
     type(flow_condition_type), pointer :: array(:)
   end type condition_list_type
 
-  type, public :: tran_condition_type
-    PetscInt :: id                     ! id from which condition can be referenced
-    PetscInt :: itype                  ! integer describing type of condition
-    PetscBool :: is_transient
-    character(len=MAXWORDLENGTH) :: name  ! name of condition (e.g. initial, recharge)
-    type(tran_constraint_coupler_type), pointer :: constraint_coupler_list
-    type(tran_constraint_coupler_type), pointer :: cur_constraint_coupler
-    type(tran_condition_type), pointer :: next
-  end type tran_condition_type
-
-  type, public :: tran_condition_ptr_type
-    type(tran_condition_type), pointer :: ptr
-  end type tran_condition_ptr_type
-
-  type, public :: tran_condition_list_type
-    PetscInt :: num_conditions
-    type(tran_condition_type), pointer :: first
-    type(tran_condition_type), pointer :: last
-    type(tran_condition_ptr_type), pointer :: array(:)
-  end type tran_condition_list_type
-
   public :: FlowConditionCreate, FlowConditionDestroy, FlowConditionRead, &
-
             FlowConditionAddToList, FlowConditionInitList, &
             FlowConditionDestroyList, &
             FlowConditionGetPtrFromList, FlowConditionUpdate, &
             FlowConditionPrint, &
-            TranConditionCreate, &
-            TranConditionAddToList, TranConditionInitList, &
-            TranConditionDestroyList, TranConditionGetPtrFromList, &
-            TranConstraintAddToList, TranConstraintInitList, &
-            TranConstraintDestroyList, TranConstraintGetPtrFromList, &
-            TranConditionRead, TranConstraintRead, &
-            TranConditionUpdate, &
             FlowConditionIsTransient, &
             ConditionReadValues, &
             GetSubConditionName, &
             FlowConditionUnknownItype, &
-            FlowCondInputRecord, &
-            TranCondInputRecord
+            FlowCondInputRecord
 
 contains
 
@@ -158,36 +126,6 @@ function FlowConditionCreate(option)
 
 end function FlowConditionCreate
 
-! ************************************************************************** !
-
-function TranConditionCreate(option)
-  !
-  ! Creates a transport condition
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/23/07
-  !
-
-  use Option_module
-
-  implicit none
-
-  type(option_type) :: option
-  type(tran_condition_type), pointer :: TranConditionCreate
-
-  type(tran_condition_type), pointer :: condition
-
-  allocate(condition)
-  nullify(condition%constraint_coupler_list)
-  nullify(condition%cur_constraint_coupler)
-  nullify(condition%next)
-  condition%id = 0
-  condition%itype = 0
-  condition%name = ''
-
-  TranConditionCreate => condition
-
-end function TranConditionCreate
 
 ! ************************************************************************** !
 
@@ -898,50 +836,7 @@ subroutine FlowConditionRead(condition,input,option)
       if (associated(energy_flux)) condition%itype(TWO_INTEGER) = energy_flux%itype
       if (associated(energy_rate)) condition%itype(TWO_INTEGER) = energy_rate%itype
     
-    case(RICHARDS_MODE)
-      if (.not.associated(pressure) .and. .not.associated(rate) .and. &
-          .not.associated(saturation) .and. .not.associated(well)) then
-        option%io_buffer = 'pressure, rate and saturation condition null in &
-                           &condition: ' // trim(condition%name)
-        call printErrMsg(option)
-      endif
-
-      if (associated(saturation)) then
-        condition%saturation => saturation
-      endif
-      if (associated(pressure)) then
-        condition%pressure => pressure
-      endif
-      if (associated(rate)) then
-        condition%rate => rate
-      endif
-            
-      condition%num_sub_conditions = 1
-      allocate(condition%sub_condition_ptr(condition%num_sub_conditions))
-      if (associated(pressure)) then
-        condition%sub_condition_ptr(ONE_INTEGER)%ptr => pressure
-      elseif (associated(saturation)) then
-        condition%sub_condition_ptr(ONE_INTEGER)%ptr => saturation
-      elseif (associated(rate)) then
-        condition%sub_condition_ptr(ONE_INTEGER)%ptr => rate
-      elseif (associated(well)) then
-        condition%sub_condition_ptr(ONE_INTEGER)%ptr => well
-      endif
-
-      allocate(condition%itype(ONE_INTEGER))
-      if (associated(pressure)) then
-        condition%itype(ONE_INTEGER) = pressure%itype
-      else if (associated(saturation)) then
-        condition%itype(ONE_INTEGER) = saturation%itype
-      else if (associated(rate)) then
-        condition%itype(ONE_INTEGER) = rate%itype
-      else if (associated(well)) then
-        condition%itype(ONE_INTEGER) = well%itype
-      endif
-
-      ! these are not used with richards
-      if (associated(temperature)) call FlowSubConditionDestroy(temperature)
-      if (associated(enthalpy)) call FlowSubConditionDestroy(enthalpy)
+    case default
 
   end select
 
@@ -950,199 +845,6 @@ subroutine FlowConditionRead(condition,input,option)
   call PetscLogEventEnd(logging%event_flow_condition_read,ierr);CHKERRQ(ierr)
 
 end subroutine FlowConditionRead
-
-! ************************************************************************** !
-
-! ************************************************************************** !
-
-subroutine TranConditionRead(condition,constraint_list,reaction,input,option)
-  !
-  ! Reads a transport condition from the input file
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/14/08
-  !
-
-  use Option_module
-  use Input_Aux_module
-  use String_module
-  use Logging_module
-  use Units_module
-  use Reaction_Aux_module
-
-  implicit none
-
-  type(tran_condition_type) :: condition
-  type(tran_constraint_list_type) :: constraint_list
-  type(reaction_type) :: reaction
-  type(input_type), pointer :: input
-  type(option_type) :: option
-
-  type(tran_constraint_type), pointer :: constraint
-  type(tran_constraint_coupler_type), pointer :: constraint_coupler, cur_coupler
-  character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: word, internal_units
-  PetscReal :: default_time
-  character(len=MAXWORDLENGTH) :: default_time_units
-  PetscInt :: default_iphase
-  PetscInt :: default_itype
-  PetscBool :: found
-  PetscInt :: icomp
-  PetscBool :: minerals_exist
-  PetscErrorCode :: ierr
-  PetscReal :: conversion
-
-  call PetscLogEventBegin(logging%event_tran_condition_read, &
-                          ierr);CHKERRQ(ierr)
-
-  default_time = 0.d0
-  default_iphase = 0
-  default_time_units = ''
-
-  ! read the condition
-  input%ierr = 0
-  do
-
-    call InputReadPflotranString(input,option)
-    call InputReadStringErrorMsg(input,option,'CONDITION')
-
-    if (InputCheckExit(input,option)) exit
-
-    call InputReadWord(input,option,word,PETSC_TRUE)
-    call InputErrorMsg(input,option,'keyword','CONDITION')
-
-    select case(trim(word))
-
-      case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'TYPE','CONDITION')
-        call StringToLower(word)
-        select case(word)
-            case('dirichlet')
-              condition%itype = DIRICHLET_BC
-            case('dirichlet_zero_gradient')
-              condition%itype = DIRICHLET_ZERO_GRADIENT_BC
-            case('equilibrium')
-              condition%itype = EQUILIBRIUM_SS
-            case('neumann')
-              condition%itype = NEUMANN_BC
-            case('mole','mole_rate')
-              condition%itype = MASS_RATE_SS
-            case('zero_gradient')
-              condition%itype = ZERO_GRADIENT_BC
-            case default
-              call InputKeywordUnrecognized(word,'transport condition type', &
-                                            option)
-        end select
-      case('TIME')
-        call InputReadDouble(input,option,default_time)
-        call InputErrorMsg(input,option,'TIME','CONDITION')
-      case('TIME_UNITS')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'UNITS','CONDITION')
-        select case(trim(word))
-          case('s','sec','min','m','hr','h','d','day','y','yr')
-            default_time_units = trim(word)
-          case default
-            option%io_buffer = 'Units "' // trim(word) // '" not recognized.'
-            call printErrMsg(option)
-        end select
-      case('CONSTRAINT_LIST')
-        do
-          call InputReadPflotranString(input,option)
-          call InputReadStringErrorMsg(input,option,'CONSTRAINT')
-
-          if (InputCheckExit(input,option)) exit
-
-          constraint_coupler => TranConstraintCouplerCreate(option)
-          call InputReadDouble(input,option,constraint_coupler%time)
-          call InputErrorMsg(input,option,'time','CONSTRAINT_LIST')
-          ! time units are optional
-          call InputReadWord(input,option,word,PETSC_TRUE)
-          call InputErrorMsg(input,option,'constraint name','CONSTRAINT_LIST')
-          ! read constraint name
-          call InputReadWord(input,option,constraint_coupler%constraint_name, &
-                             PETSC_TRUE)
-          if (InputError(input)) then
-            constraint_coupler%time_units = default_time_units
-            constraint_coupler%constraint_name = trim(word)
-          else
-            constraint_coupler%time_units = word
-          endif
-          ! convert time units
-          if (len_trim(constraint_coupler%time_units) > 0) then
-            internal_units = 'sec'
-            constraint_coupler%time = constraint_coupler%time* &
-              UnitsConvertToInternal(constraint_coupler%time_units, &
-                                     internal_units,option)
-          endif
-          ! add to end of list
-          if (.not.associated(condition%constraint_coupler_list)) then
-            condition%constraint_coupler_list => constraint_coupler
-          else
-            cur_coupler => condition%constraint_coupler_list
-            do
-              if (.not.associated(cur_coupler%next)) exit
-              cur_coupler => cur_coupler%next
-            enddo
-            cur_coupler%next => constraint_coupler
-          endif
-        enddo
-      case('CONSTRAINT')
-        constraint => TranConstraintCreate(option)
-        constraint_coupler => TranConstraintCouplerCreate(option)
-        call InputReadWord(input,option,constraint%name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'constraint','name')
-        option%io_buffer = 'Constraint: ' // trim(constraint%name)
-        call printMsg(option)
-        call TranConstraintRead(constraint,reaction,input,option)
-        call TranConstraintAddToList(constraint,constraint_list)
-        constraint_coupler%aqueous_species => constraint%aqueous_species
-        constraint_coupler%minerals => constraint%minerals
-        constraint_coupler%surface_complexes => constraint%surface_complexes
-        constraint_coupler%colloids => constraint%colloids
-        constraint_coupler%immobile_species => constraint%immobile_species
-        constraint_coupler%time = default_time
-        ! add to end of coupler list
-        if (.not.associated(condition%constraint_coupler_list)) then
-          condition%constraint_coupler_list => constraint_coupler
-        else
-          cur_coupler => condition%constraint_coupler_list
-          do
-            if (.not.associated(cur_coupler%next)) exit
-            cur_coupler => cur_coupler%next
-          enddo
-          cur_coupler%next => constraint_coupler
-        endif
-      case default
-        call InputKeywordUnrecognized(word,'transport condition',option)
-    end select
-
-  enddo
-
-  if (.not.associated(condition%constraint_coupler_list)) then
-    option%io_buffer = 'No CONSTRAINT or CONSTRAINT_LIST defined in &
-                       &Transport Condition "' // trim(condition%name) // '".'
-    call printErrMsg(option)
-  endif
-
-  if (len_trim(default_time_units) > 0) then
-    internal_units = 'sec'
-    conversion = UnitsConvertToInternal(default_time_units,internal_units, &
-                                        option)
-    cur_coupler => condition%constraint_coupler_list
-    do
-      if (.not.associated(cur_coupler)) exit
-      if (len_trim(cur_coupler%time_units) == 0) then
-        cur_coupler%time = cur_coupler%time*conversion
-      endif
-      cur_coupler => cur_coupler%next
-    enddo
-  endif
-
-  call PetscLogEventEnd(logging%event_tran_condition_read,ierr);CHKERRQ(ierr)
-
-end subroutine TranConditionRead
 
 ! ************************************************************************** !
 
@@ -1589,44 +1291,6 @@ end subroutine FlowConditionUpdate
 
 ! ************************************************************************** !
 
-subroutine TranConditionUpdate(condition_list,option)
-  ! 
-  ! Updates a transient transport condition
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/02/07
-  !
-
-  use Option_module
-
-  implicit none
-
-  type(tran_condition_list_type) :: condition_list
-  type(option_type) :: option
-
-  type(tran_condition_type), pointer :: condition
-
-  condition => condition_list%first
-  do
-    if (.not.associated(condition)) exit
-
-    do
-      if (associated(condition%cur_constraint_coupler%next)) then
-        if (option%time >= condition%cur_constraint_coupler%next%time) then
-          condition%cur_constraint_coupler => &
-            condition%cur_constraint_coupler%next
-        else
-          exit
-        endif
-      else
-        exit
-      endif
-    enddo
-    condition => condition%next
-
-  enddo
-
-end subroutine TranConditionUpdate
 
 ! ************************************************************************** !
 
@@ -1710,89 +1374,6 @@ function FlowConditionGetPtrFromList(condition_name,condition_list)
   enddo
 
 end function FlowConditionGetPtrFromList
-
-! ************************************************************************** !
-
-subroutine TranConditionInitList(list)
-  !
-  ! Initializes a transport condition list
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/13/08
-  !
-
-  implicit none
-
-  type(tran_condition_list_type) :: list
-
-  nullify(list%first)
-  nullify(list%last)
-  nullify(list%array)
-  list%num_conditions = 0
-
-end subroutine TranConditionInitList
-
-! ************************************************************************** !
-
-subroutine TranConditionAddToList(new_condition,list)
-  !
-  ! Adds a new condition to a transport condition list
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/13/08
-  !
-
-  implicit none
-
-  type(tran_condition_type), pointer :: new_condition
-  type(tran_condition_list_type) :: list
-
-  list%num_conditions = list%num_conditions + 1
-  new_condition%id = list%num_conditions
-  if (.not.associated(list%first)) list%first => new_condition
-  if (associated(list%last)) list%last%next => new_condition
-  list%last => new_condition
-
-end subroutine TranConditionAddToList
-
-! ************************************************************************** !
-
-function TranConditionGetPtrFromList(condition_name,condition_list)
-  !
-  ! Returns a pointer to the condition matching
-  ! condition_name
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/13/08
-  !
-
-  use String_module
-
-  implicit none
-
-  type(tran_condition_type), pointer :: TranConditionGetPtrFromList
-  character(len=MAXWORDLENGTH) :: condition_name
-  type(tran_condition_list_type) :: condition_list
-
-  PetscInt :: length
-  type(tran_condition_type), pointer :: condition
-
-  nullify(TranConditionGetPtrFromList)
-  condition => condition_list%first
-
-  do
-    if (.not.associated(condition)) exit
-    length = len_trim(condition_name)
-    if (length == len_trim(condition%name) .and. &
-        StringCompare(condition%name,condition_name, &
-                        length)) then
-      TranConditionGetPtrFromList => condition
-      return
-    endif
-    condition => condition%next
-  enddo
-
-end function TranConditionGetPtrFromList
 
 ! ************************************************************************** !
 
@@ -1943,173 +1524,6 @@ end subroutine FlowCondInputRecord
 
 ! **************************************************************************** !
 
-subroutine TranCondInputRecord(tran_condition_list,option)
-  !
-  ! Prints ingested transport condition information to
-  ! the input record file.
-  !
-  ! Author: Jenn Frederick
-  ! Date: 04/19/2016
-  !
-  use Option_module
-  use Dataset_Base_class
-  Use Transport_Constraint_module
-
-  implicit none
-
-  type(tran_condition_list_type), pointer :: tran_condition_list
-  type(option_type), pointer :: option
-
-  type(tran_constraint_coupler_type), pointer :: cur_tcon_coupler
-  type(tran_condition_type), pointer :: cur_tc
-  character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: k
-  PetscInt :: id = INPUT_RECORD_UNIT
-
-  write(id,'(a)') ' '
-  write(id,'(a)') '---------------------------------------------------------&
-                  &-----------------------'
-  write(id,'(a29)',advance='no') '---------------------------: '
-  write(id,'(a)') 'TRANSPORT CONDITIONS'
-
-  cur_tc => tran_condition_list%first
-  do
-    if (.not.associated(cur_tc)) exit
-    write(id,'(a29)',advance='no') 'transport condition name: '
-    write(id,'(a)') adjustl(trim(cur_tc%name))
-    write(id,'(a29)',advance='no') 'transport condition type: '
-    select case (cur_tc%itype)
-      case(DIRICHLET_BC)
-        write(id,'(a)') 'dirichlet'
-      case(DIRICHLET_ZERO_GRADIENT_BC)
-        write(id,'(a)') 'dirichlet_zero_gradient'
-      case(EQUILIBRIUM_SS)
-        write(id,'(a)') 'equilibrium'
-      case(NEUMANN_BC)
-        write(id,'(a)') 'neumann'
-      case(MASS_RATE_SS)
-        write(id,'(a)') 'mole_rate'
-      case(ZERO_GRADIENT_BC)
-        write(id,'(a)') 'zero_gradient'
-    end select
-    write(id,'(a29)',advance='no') 'is transient?: '
-    if (cur_tc%is_transient) then
-      write(id,'(a)') 'YES'
-    else
-      write(id,'(a)') 'NO'
-    endif
-    cur_tcon_coupler => cur_tc%constraint_coupler_list
-    do
-      if (.not.associated(cur_tcon_coupler)) exit
-      write(id,'(a29)',advance='no') 'transport constraint name: '
-      write(id,'(a)') adjustl(trim(cur_tcon_coupler%constraint_name))
-
-      ! aqueous species concentraion constraint
-      if (associated(cur_tcon_coupler%aqueous_species)) then
-        do k = 1,size(cur_tcon_coupler%aqueous_species%names)
-          write(id,'(a29)',advance='no') 'aqueous species constraint: '
-          write(string,*) trim(cur_tcon_coupler%aqueous_species%names(k))
-          select case (cur_tcon_coupler%aqueous_species%constraint_type(k))
-            case(CONSTRAINT_FREE)
-              string = trim(string) // ', free'
-            case(CONSTRAINT_TOTAL)
-              string = trim(string) // ', total'
-            case(CONSTRAINT_TOTAL_SORB)
-              string = trim(string) // ', total_sorb'
-            case(CONSTRAINT_PH)
-              string = trim(string) // ', ph'
-            case(CONSTRAINT_LOG)
-              string = trim(string) // ', log'
-            case(CONSTRAINT_MINERAL)
-              string = trim(string) // ', mineral'
-            case(CONSTRAINT_GAS)
-              string = trim(string) // ', gas'
-            case(CONSTRAINT_SUPERCRIT_CO2)
-              string = trim(string) // ', super critical CO2'
-            case(CONSTRAINT_CHARGE_BAL)
-              string = trim(string) // ', charge balance'
-          end select
-          write(word1,*) cur_tcon_coupler%aqueous_species%constraint_conc(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' mol'
-        enddo
-      endif
-
-      ! free-ion guess constraint
-      if (associated(cur_tcon_coupler%free_ion_guess)) then
-        do k = 1,size(cur_tcon_coupler%free_ion_guess%names)
-          write(id,'(a29)',advance='no') 'free ion guess constraint: '
-          write(string,*) trim(cur_tcon_coupler%free_ion_guess%names(k))
-          write(word1,*) cur_tcon_coupler%free_ion_guess%conc(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' mol'
-        enddo
-      endif
-
-      ! mineral constraint
-      if (associated(cur_tcon_coupler%minerals)) then
-        do k = 1,size(cur_tcon_coupler%minerals%names)
-          write(id,'(a29)',advance='no') 'mineral vol. frac. constraint: '
-          write(string,*) trim(cur_tcon_coupler%minerals%names(k))
-          write(word1,*) cur_tcon_coupler%minerals%constraint_vol_frac(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' m^3/m^3'
-          write(id,'(a29)',advance='no') 'mineral area constraint: '
-          write(string,*) trim(cur_tcon_coupler%minerals%names(k))
-          write(word1,*) cur_tcon_coupler%minerals%constraint_area(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' m^2/m^3'
-        enddo
-      endif
-
-      ! surface complexes constraint
-      if (associated(cur_tcon_coupler%surface_complexes)) then
-        do k = 1,size(cur_tcon_coupler%surface_complexes%names)
-          write(id,'(a29)',advance='no') 'surface complex constraint: '
-          write(string,*) trim(cur_tcon_coupler%surface_complexes%names(k))
-          write(word1,*) cur_tcon_coupler%surface_complexes%constraint_conc(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' mol/m^3'
-        enddo
-      endif
-
-      ! colloids constraint
-      if (associated(cur_tcon_coupler%colloids)) then
-        do k = 1,size(cur_tcon_coupler%colloids%names)
-          write(id,'(a29)',advance='no') 'colloid mobile constraint: '
-          write(string,*) trim(cur_tcon_coupler%colloids%names(k))
-          write(word1,*) cur_tcon_coupler%colloids%constraint_conc_mob(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' mol'
-          write(id,'(a29)',advance='no') 'colloid immobile constraint: '
-          write(string,*) trim(cur_tcon_coupler%colloids%names(k))
-          write(word1,*) cur_tcon_coupler%colloids%constraint_conc_imb(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' mol'
-        enddo
-      endif
-
-      ! immobile species constraint
-      if (associated(cur_tcon_coupler%immobile_species)) then
-        do k = 1,size(cur_tcon_coupler%immobile_species%names)
-          write(id,'(a29)',advance='no') 'immobile species constraint: '
-          write(string,*) trim(cur_tcon_coupler%immobile_species%names(k))
-          write(word1,*) cur_tcon_coupler%immobile_species%constraint_conc(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' mol/m^3'
-        enddo
-      endif
-
-      cur_tcon_coupler => cur_tcon_coupler%next
-    enddo
-
-    write(id,'(a29)') '---------------------------: '
-    cur_tc => cur_tc%next
-  enddo
-
-end subroutine TranCondInputRecord
-
 ! ************************************************************************** !
 
 subroutine FlowConditionDestroyList(condition_list)
@@ -2238,64 +1652,5 @@ subroutine FlowSubConditionDestroy(sub_condition)
 end subroutine FlowSubConditionDestroy
 
 ! ************************************************************************** !
-
-subroutine TranConditionDestroyList(condition_list)
-  !
-  ! Deallocates a list of conditions
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/01/07
-  !
-
-  implicit none
-
-  type(tran_condition_list_type), pointer :: condition_list
-
-  type(tran_condition_type), pointer :: condition, prev_condition
-
-  if (.not.associated(condition_list)) return
-
-  condition => condition_list%first
-  do
-    if (.not.associated(condition)) exit
-    prev_condition => condition
-    condition => condition%next
-    call TranConditionDestroy(prev_condition)
-  enddo
-
-  condition_list%num_conditions = 0
-  nullify(condition_list%first)
-  nullify(condition_list%last)
-  if (associated(condition_list%array)) deallocate(condition_list%array)
-  nullify(condition_list%array)
-
-  deallocate(condition_list)
-  nullify(condition_list)
-
-end subroutine TranConditionDestroyList
-
-! ************************************************************************** !
-
-subroutine TranConditionDestroy(condition)
-  !
-  ! Deallocates a condition
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/23/07
-  !
-
-  implicit none
-
-  type(tran_condition_type), pointer :: condition
-
-  if (.not.associated(condition)) return
-
-  if (associated(condition%constraint_coupler_list)) &
-    call TranConstraintCouplerDestroy(condition%constraint_coupler_list)
-
-  deallocate(condition)
-  nullify(condition)
-
-end subroutine TranConditionDestroy
 
 end module Condition_module

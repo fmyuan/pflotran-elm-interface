@@ -143,7 +143,7 @@ subroutine MassRateSetup(this,grid,option)
   call SSSandboxBaseSetup(this,grid,option)
   ! convert rate from kg/s to mol/s
   select case(option%iflowmode)
-    case(RICHARDS_MODE, TH_MODE)
+    case(TH_MODE)
       this%rate(1) = this%rate(1) / FMWH2O
     case default
       option%io_buffer = 'Rate conversion not set up for flow mode in ' // &
@@ -164,7 +164,7 @@ subroutine MassRateSrcSink(this,Residual,Jacobian,compute_derivative, &
   ! Date: 05/06/14
 
   use Option_module
-  use Reaction_Aux_module
+
   use Material_Aux_class
   
   implicit none

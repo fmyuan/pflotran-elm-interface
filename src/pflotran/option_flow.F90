@@ -14,14 +14,9 @@ module Option_Flow_module
   
     PetscBool :: store_fluxes
     PetscBool :: transient_porosity
-    PetscBool :: creep_closure_on
-    PetscBool :: fracture_on
     PetscBool :: only_vertical_flow
     PetscBool :: density_depends_on_salinity
-    PetscBool :: quasi_3d
     PetscBool :: numerical_derivatives
-    PetscBool :: numerical_derivatives_compare
-    PetscBool :: num_as_alyt_derivs
     PetscBool :: only_energy_eq
 
   end type flow_option_type
@@ -102,14 +97,9 @@ subroutine OptionFlowInitRealization(option)
     
   option%store_fluxes = PETSC_FALSE
   option%transient_porosity = PETSC_FALSE
-  option%creep_closure_on = PETSC_FALSE
-  option%fracture_on = PETSC_FALSE
   option%only_vertical_flow = PETSC_FALSE
   option%density_depends_on_salinity = PETSC_FALSE
-  option%quasi_3d = PETSC_FALSE
   option%numerical_derivatives = PETSC_FALSE
-  option%numerical_derivatives_compare = petsc_false
-  option%num_as_alyt_derivs= petsc_false
   option%only_energy_eq = PETSC_FALSE
 
 end subroutine OptionFlowInitRealization

@@ -990,13 +990,6 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
 #endif
     select case(option%iflowmode)
       !TODO(geh): refactors so that we don't need all these variants?
-      case(RICHARDS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Richards%zero_rows_local, &
-                      realization%patch%aux%Richards%zero_rows_local_ghosted, &
-                      realization%patch%aux%Richards%n_zero_rows, &
-                      realization%patch%aux%Richards%inactive_cells_exist, &
-                      option)
       case(TH_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
                       realization%patch%aux%TH%zero_rows_local, &
@@ -1008,23 +1001,6 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
     deallocate(dof_is_active)
   endif
 
-  if (option%ntrandof > 0) then
-    ! remove ndof above if this is moved
-    if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
-      ndof = realization%reaction%ncomp
-    else
-      ndof = 1
-    endif
-    allocate(dof_is_active(ndof))
-    dof_is_active = PETSC_TRUE  
-    call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                  realization%patch%aux%RT%zero_rows_local, &
-                  realization%patch%aux%RT%zero_rows_local_ghosted, &
-                  realization%patch%aux%RT%n_zero_rows, &
-                  realization%patch%aux%RT%inactive_cells_exist, &
-                  option)
-    deallocate(dof_is_active)
-  endif  
 
 end subroutine InitSubsurfaceSetupZeroArrays
 

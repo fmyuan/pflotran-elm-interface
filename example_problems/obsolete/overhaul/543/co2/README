@@ -1,3 +1,0 @@
-Command Line:
-
-mpiexec -np N pflow -use_mph -use_analytical -snes_ls basic 

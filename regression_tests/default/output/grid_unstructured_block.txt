@@ -1,5 +1,0 @@
-#=========================== discretization ===================================
-GRID
-  TYPE unstructured ./3.ugi
-END
-

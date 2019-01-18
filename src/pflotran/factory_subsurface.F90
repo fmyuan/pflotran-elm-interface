@@ -19,8 +19,8 @@ module Factory_Subsurface_module
   public :: SubsurfaceInitialize, &
             SubsurfaceInitializePostPETSc, &
             SubsurfaceJumpStart, &
-            SubsurfaceReadFlowPM, &
-            SubsurfaceReadRTPM
+            SubsurfaceReadFlowPM
+
 contains
 
 ! ************************************************************************** !
@@ -56,8 +56,7 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   use Option_module
   use PM_Subsurface_Flow_class
   use PM_Base_class
-  use PM_RT_class
-  use PM_Auxiliary_class
+
   use Timestepper_BE_class
   use Realization_Subsurface_class
   use Logging_module
@@ -76,8 +75,6 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
 
   type(option_type), pointer :: option
   class(pm_subsurface_flow_type), pointer :: pm_flow
-  class(pm_rt_type), pointer :: pm_rt
-  class(pm_auxiliary_type), pointer :: pm_auxiliary
   class(realization_subsurface_type), pointer :: realization
 
   option => simulation%option
@@ -85,8 +82,8 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   ! process command line arguments specific to subsurface
   call SubsurfInitCommandLineSettings(option)
 
-  call ExtractPMsFromPMList(simulation,pm_flow,pm_rt, &
-                            pm_auxiliary)
+  call ExtractPMsFromPMList(simulation,   &
+                            pm_flow)
 
   call SubsurfaceSetFlowMode(pm_flow,option)
 
@@ -97,8 +94,8 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   simulation%waypoint_list_subsurface => WaypointListCreate()
 
   ! Setup linkages between PMCs
-  call SetupPMCLinkages(simulation,pm_flow,pm_rt,&
-    pm_auxiliary,realization)
+  call SetupPMCLinkages(simulation,pm_flow, &
+                        realization)
   
   ! SubsurfaceInitSimulation() must be called after pmc linkages are set above.
   call SubsurfaceInitSimulation(simulation)
@@ -110,8 +107,8 @@ end subroutine SubsurfaceInitializePostPetsc
 
 ! ************************************************************************** !
 
-subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_rt,&
-                                pm_auxiliary)
+subroutine ExtractPMsFromPMList(simulation,   &
+                                pm_flow)
   !
   ! Extracts all possible PMs from the PM list
   !
@@ -121,8 +118,7 @@ subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_rt,&
 
   use PM_Subsurface_Flow_class
   use PM_Base_class
-  use PM_RT_class
-  use PM_Auxiliary_class
+
   use Option_module
   use Simulation_Subsurface_class
 
@@ -132,15 +128,12 @@ subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_rt,&
 
   type(option_type), pointer :: option
   class(pm_subsurface_flow_type), pointer :: pm_flow
-  class(pm_rt_type), pointer :: pm_rt
-  class(pm_auxiliary_type), pointer :: pm_auxiliary
+
   class(pm_base_type), pointer :: cur_pm, prev_pm
 
   option => simulation%option
 
   nullify(pm_flow)
-  nullify(pm_rt)
-  nullify(pm_auxiliary)
 
   cur_pm => simulation%process_model_list
   do
@@ -148,10 +141,6 @@ subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_rt,&
     select type(cur_pm)
       class is(pm_subsurface_flow_type)
         pm_flow => cur_pm
-      class is(pm_rt_type)
-        pm_rt => cur_pm
-      class is(pm_auxiliary_type)
-        pm_auxiliary => cur_pm
       class default
         option%io_buffer = &
          'PM Class unrecognized in SubsurfaceInitializePostPetsc.'
@@ -171,8 +160,7 @@ end subroutine ExtractPMsFromPMList
 
 ! ************************************************************************** !
 
-subroutine SetupPMCLinkages(simulation,pm_flow,pm_rt,&
-                            pm_auxiliary, &
+subroutine SetupPMCLinkages(simulation, pm_flow, &
                             realization)
   !
   ! Sets up all PMC linkages
@@ -183,8 +171,7 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_rt,&
 
   use PM_Subsurface_Flow_class
   use PM_Base_class
-  use PM_RT_class
-  use PM_Auxiliary_class
+
   use Realization_Subsurface_class
   use Option_module
   use Input_Aux_module
@@ -193,8 +180,7 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_rt,&
 
   class(simulation_subsurface_type) :: simulation
   class(pm_subsurface_flow_type), pointer :: pm_flow
-  class(pm_rt_type), pointer :: pm_rt
-  class(pm_auxiliary_type), pointer :: pm_auxiliary
+
   class(realization_subsurface_type), pointer :: realization
 
   type(option_type), pointer :: option
@@ -206,16 +192,9 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_rt,&
     call AddPMCSubsurfaceFlow(simulation,pm_flow,'PMCSubsurfaceFlow', &
                               realization,option)
 
-  if (associated(pm_rt))   &
-    call AddPMCSubsurfaceRT(simulation,pm_rt,'PMCSubsurfaceTransport', &
-                            realization,option)
-
   input => InputCreate(IN_UNIT,option%input_filename,option)
   call SubsurfaceReadRequiredCards(simulation,input)
   call SubsurfaceReadInput(simulation,input)
-
-  if (associated(pm_auxiliary)) &
-    call AddPMCAuxiliary(simulation,pm_auxiliary,'SALINITY',realization,option)
 
   call InputDestroy(input)
 
@@ -267,121 +246,6 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
 
 end subroutine AddPMCSubsurfaceFlow
 
-! ************************************************************************** !
-
-subroutine AddPMCSubsurfaceRT(simulation,pm_rt,pmc_name,realization,option)
-
-  !
-  ! Adds a subsurface reactive transport PMC
-  !
-  ! Author: Gautam Bisht
-  ! Date: 06/05/18
-  !
-
-  use PMC_Base_class
-  use PM_RT_class
-  use PMC_Subsurface_class
-  use Realization_Subsurface_class
-  use String_module
-  use Option_module
-  use Logging_module
-
-  implicit none
-
-  class(simulation_subsurface_type) :: simulation
-  class(pm_rt_type), pointer :: pm_rt
-  character(len=*) :: pmc_name
-  class(realization_subsurface_type), pointer :: realization
-  type(option_type), pointer :: option
-
-  class(pmc_subsurface_type), pointer :: pmc_subsurface
-  character(len=MAXSTRINGLENGTH) :: string
-  class(pmc_base_type), pointer :: pmc_dummy
-
-  nullify(pmc_dummy)
-
-  pmc_subsurface => PMCSubsurfaceCreate()
-  call pmc_subsurface%SetName(pmc_name)
-  call pmc_subsurface%SetOption(option)
-  call pmc_subsurface%SetCheckpointOption(simulation%checkpoint_option)
-  call pmc_subsurface%SetWaypointList(simulation%waypoint_list_subsurface)
-  pmc_subsurface%pm_list => pm_rt
-  pmc_subsurface%pm_ptr%pm => pm_rt
-  pmc_subsurface%realization => realization
-
-  ! set up logging stage
-  string = trim(pm_rt%name)
-  call LoggingCreateStage(string,pmc_subsurface%stage)
-  simulation%rt_process_model_coupler => pmc_subsurface
-
-  if (.not.associated(simulation%process_model_coupler_list)) then
-    simulation%process_model_coupler_list => pmc_subsurface
-  else
-    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_subsurface),PM_CHILD, &
-                      PMCCastToBase(simulation%flow_process_model_coupler), &
-                      pmc_dummy,PM_INSERT)
-  endif
-
-end subroutine AddPMCSubsurfaceRT
-
-! ************************************************************************** !
-
-subroutine AddPMCAuxiliary(simulation,pm_auxiliary,pmc_name, &
-                           realization,option)
-
-  !
-  ! Adds an auxiliary PMC
-  !
-  ! Author: Gautam Bisht
-  ! Date: 06/05/18
-  !
-
-  use PMC_Base_class
-  use PM_Auxiliary_class
-  use PMC_Auxiliary_class
-  use PMC_Subsurface_class
-  use Realization_Subsurface_class
-  use String_module
-  use Option_module
-  use Logging_module
-  use Input_Aux_module
-
-  implicit none
-
-  class(simulation_subsurface_type) :: simulation
-  class(pm_auxiliary_type), pointer :: pm_auxiliary
-  character(len=*) :: pmc_name
-  class(realization_subsurface_type), pointer :: realization
-  type(option_type), pointer :: option
-
-  class(pmc_auxiliary_type), pointer :: pmc_auxiliary
-  character(len=MAXSTRINGLENGTH) :: string
-  class(pmc_base_type), pointer :: pmc_dummy
-
-  nullify(pmc_dummy)
-
-  string = 'salinity'
-  if (StringCompareIgnoreCase(pm_auxiliary%ctype,string)) then
-    if (associated(simulation%rt_process_model_coupler)) then
-      pmc_auxiliary => PMCAuxiliaryCreate()
-      call pmc_auxiliary%SetName(pmc_name)
-      call pmc_auxiliary%SetOption(option)
-      pm_auxiliary%realization => realization
-      pmc_auxiliary%pm_list => pm_auxiliary
-      pmc_auxiliary%pm_aux => pm_auxiliary
-      call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_PEER, &
-             PMCCastToBase(simulation%rt_process_model_coupler), &
-             pmc_dummy,PM_APPEND)
-    else
-      option%io_buffer = 'Reactive transport must be included in the &
-           &SIMULATION block in order to use the SALINITY process model.'
-      call printErrMsg(option)
-    endif
-  endif
-
-  call LoggingCreateStage(string,pmc_auxiliary%stage)
-
-end subroutine AddPMCAuxiliary
 
 ! ************************************************************************** !
 
@@ -432,7 +296,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use Option_module
   use PM_Subsurface_Flow_class
   use PM_Base_class
-  use PM_Richards_class
+
   use PM_TH_class
 
   implicit none
@@ -451,13 +315,6 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   endif
 
   select type(pm_flow)
-    class is (pm_richards_type)
-      option%iflowmode = RICHARDS_MODE
-      option%nphase = 1
-      option%liquid_phase = 1
-      option%nflowdof = 1
-      option%nflowspec = 1
-      option%use_isothermal = PETSC_TRUE
     class is (pm_th_type)
       option%iflowmode = TH_MODE
       option%nphase = 1       ! liq, gas, and solid
@@ -486,7 +343,6 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
   use PMC_Base_class
 
   use PM_Base_class
-  use PM_Richards_class
   use PM_TH_class
   use Init_Common_module
 
@@ -514,8 +370,6 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
-          case('RICHARDS')
-            pm => PMRichardsCreate()
           case('TH')
             pm => PMTHCreate()
           case default
@@ -545,41 +399,6 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
 end subroutine SubsurfaceReadFlowPM
 
 ! ************************************************************************** !
-
-subroutine SubsurfaceReadRTPM(input,option,pm)
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/11/13
-  !
-  use Input_Aux_module
-  use Option_module
-  use String_module
-
-  use PMC_Base_class
-  use PM_Base_class
-  use PM_RT_class
-
-  use Init_Common_module
-
-  implicit none
-
-  type(input_type), pointer :: input
-  type(option_type), pointer :: option
-  class(pm_base_type), pointer :: pm
-
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXSTRINGLENGTH) :: error_string
-
-  error_string = 'SIMULATION,PROCESS_MODELS,SUBSURFACE_TRANSPORT'
-
-  pm => PMRTCreate()
-  pm%option => option
-
-  call pm%Read(input)
-
-end subroutine SubsurfaceReadRTPM
-
-! ************************************************************************** !
 subroutine SubsurfaceInitSimulation(simulation)
   !
   ! Author: Glenn Hammond
@@ -596,18 +415,16 @@ subroutine SubsurfaceInitSimulation(simulation)
   use Global_module
   use Init_Subsurface_module
   use Init_Subsurface_Flow_module
-  use Init_Subsurface_Tran_module
+
   use Init_Common_module
   use Waypoint_module
   use Strata_module
   use Regression_module
   use PMC_Subsurface_class
-  use PMC_Auxiliary_class
   use PMC_Base_class
   use PM_Base_class
   use PM_Base_Pointer_module
   use PM_Subsurface_Flow_class
-  use PM_Auxiliary_class
   use Timestepper_BE_class
   use Waypoint_module
 
@@ -616,12 +433,10 @@ subroutine SubsurfaceInitSimulation(simulation)
   class(simulation_subsurface_type) :: simulation
 
   class(pmc_subsurface_type), pointer :: flow_process_model_coupler
-  class(pmc_subsurface_type), pointer :: tran_process_model_coupler
-  class(pmc_auxiliary_type), pointer :: auxiliary_process_model_coupler
+
   class(pmc_base_type), pointer :: cur_process_model_coupler
   class(pmc_base_type), pointer :: cur_process_model_coupler_top
   class(pm_base_type), pointer :: cur_process_model
-  class(pm_auxiliary_type), pointer :: pm_aux
 
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
@@ -636,12 +451,10 @@ subroutine SubsurfaceInitSimulation(simulation)
   realization => simulation%realization
   option => realization%option
 
-! begin from old Init()
   call SubsurfaceSetupRealization(simulation)
   call InitCommonAddOutputWaypoints(option,simulation%output_option, &
                                     simulation%waypoint_list_subsurface)
 
-  !TODO(geh): refactor
   if (associated(simulation%flow_process_model_coupler)) then
     if (associated(simulation%flow_process_model_coupler%timestepper)) then
       simulation%flow_process_model_coupler%timestepper%cur_waypoint => &
@@ -662,9 +475,6 @@ subroutine SubsurfaceInitSimulation(simulation)
   ! always call the flow side since a velocity field still has to be
   ! set if no flow exists
   call InitSubsurfFlowSetupRealization(realization)
-  if (option%ntrandof > 0) then
-    call InitSubsurfTranSetupRealization(realization)
-  endif
   ! InitSubsurfaceSetupZeroArray must come after InitSubsurfaceXXXRealization
   call InitSubsurfaceSetupZeroArrays(realization)
   call OutputVariableAppendDefaults(realization%output_option% &
@@ -678,23 +488,6 @@ subroutine SubsurfaceInitSimulation(simulation)
   !----------------------------------------------------------------------------!
   ! This section for setting up new process model approach
   !----------------------------------------------------------------------------!
-
-  if (StrataEvolves(realization%patch%strata_list)) then
-    allocate(pm_aux)
-    call PMAuxiliaryInit(pm_aux)
-    string = 'EVOLVING_STRATA'
-    call PMAuxiliarySetFunctionPointer(pm_aux,string)
-    pm_aux%realization => realization
-    pm_aux%option => option
-
-    auxiliary_process_model_coupler => PMCAuxiliaryCreate()
-    auxiliary_process_model_coupler%pm_list => pm_aux
-    auxiliary_process_model_coupler%pm_aux => pm_aux
-    auxiliary_process_model_coupler%option => option
-    ! place the material process model as %peer for the top pmc
-    simulation%process_model_coupler_list%peer => &
-      auxiliary_process_model_coupler
-  endif
 
   ! For each ProcessModel, set:
   ! - realization (subsurface or surface),
@@ -741,9 +534,7 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
   use PM_Base_Pointer_module
   use PM_Base_class
   use PM_Subsurface_Flow_class
-  use PM_Richards_class
-  use PM_TH_class
-  use PM_RT_class
+
   use Option_module
   use Simulation_Subsurface_class
   use Realization_Subsurface_class
@@ -775,14 +566,6 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
     ! set realization
     select type(cur_pm)
     !-----------------------------------
-      class is(pm_rt_type)
-        if (.not.associated(realization%reaction)) then
-          option%io_buffer = 'SUBSURFACE_TRANSPORT specified as a &
-            &process model without a corresponding CHEMISTRY block.'
-          call printErrMsg(option)
-        endif
-        call cur_pm%SetRealization(realization)
-    !-----------------------------------
       class is(pm_subsurface_flow_type)
         call cur_pm%SetRealization(realization)
     !-----------------------------------
@@ -792,9 +575,6 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
     !-----------------------------------
       class is(pm_subsurface_flow_type)
         pmc%timestepper%dt = option%flow_dt
-    !-----------------------------------
-      class is(pm_rt_type)
-        pmc%timestepper%dt = option%tran_dt
     !-----------------------------------
     end select
     cur_pm%output_option => simulation%output_option
@@ -832,8 +612,7 @@ subroutine SubsurfaceSetupRealization(simulation)
   use Logging_module
   use Waypoint_module
   use Init_Common_module
-  use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
-  use Reaction_Database_module
+
   use EOS_module
   use Dataset_module
   use Patch_module
@@ -856,20 +635,6 @@ subroutine SubsurfaceSetupRealization(simulation)
 
   ! set reference densities if not specified in input file.
   call EOSReferenceDensity(option)
-
-
-  ! read reaction database
-  if (associated(realization%reaction)) then
-    if (realization%reaction%use_full_geochemistry) then
-        call DatabaseRead(realization%reaction,option)
-        call BasisInit(realization%reaction,option)
-    else
-      ! turn off activity coefficients since the database has not been read
-      realization%reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF
-      allocate(realization%reaction%primary_species_print(option%ntrandof))
-      realization%reaction%primary_species_print = PETSC_TRUE
-    endif
-  endif
 
   ! create grid and allocate vectors
   call RealizationCreateDiscretization(realization)
@@ -896,11 +661,6 @@ subroutine SubsurfaceSetupRealization(simulation)
   ! RealizInitMaterialProperties() where the Material object is created
   call SubsurfAssignVolsToMatAuxVars(realization)
   call RealizationInitAllCouplerAuxVars(realization)
-  if (option%ntrandof > 0) then
-    call printMsg(option,"  Setting up TRAN Realization ")
-    call RealizationInitConstraints(realization)
-    call printMsg(option,"  Finished setting up TRAN Realization ")
-  endif
   call RealizationPrintCouplers(realization)
   if (.not.option%steady_state) then
     ! add waypoints associated with boundary conditions, source/sinks etc. to list
@@ -991,7 +751,6 @@ subroutine SubsurfaceJumpStart(simulation)
 
   use Realization_Subsurface_class
   use Option_module
-  use Reactive_Transport_module, only : RTJumpStartKineticSorption
 
   implicit none
 
@@ -1010,19 +769,6 @@ subroutine SubsurfaceJumpStart(simulation)
   call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
                            PETSC_NULL_CHARACTER, "-vecload_block_size", &
                            failure, ierr);CHKERRQ(ierr)
-
-  if (option%transport%jumpstart_kinetic_sorption .and. &
-      option%time < 1.d-40) then
-    ! only user jumpstart for a restarted simulation
-    if (.not. option%restart_flag) then
-      option%io_buffer = 'Only use JUMPSTART_KINETIC_SORPTION on a &
-        &restarted simulation.  ReactionEquilibrateConstraint() will &
-        &appropriately set sorbed initial concentrations for a normal &
-        &(non-restarted) simulation.'
-      call printErrMsg(option)
-    endif
-    call RTJumpStartKineticSorption(realization)
-  endif
 
 end subroutine SubsurfaceJumpStart
 
@@ -1046,8 +792,6 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   use HDF5_Aux_module
 
   use Simulation_Subsurface_class
-  use Reaction_module  
-  use Reaction_Aux_module  
   use Init_Common_module
 
 #ifdef CLM_PFLOTRAN
@@ -1194,16 +938,6 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         endif
 
 !....................
-      case('CHEMISTRY')
-        if (.not.associated(simulation%rt_process_model_coupler)) then
-          option%io_buffer = 'CHEMISTRY card included when no &
-            &SUBSURFACE_TRANSPORT process model included in SIMULATION block.'
-          call printErrMsg(option)
-        endif
-        !geh: for some reason, we need this with CHEMISTRY read for
-        !     multicontinuum
- !       option%use_mc = PETSC_TRUE
-        call ReactionInit(realization%reaction,input,option)
     end select
   enddo
 
@@ -1236,7 +970,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Realization_Base_class
   use Region_module
   use Condition_module
-  use Transport_Constraint_module
   use Coupler_module
   use Strata_module
   use Observation_module
@@ -1244,13 +977,10 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Waypoint_module
   use Debug_module
   use Patch_module
-  use Reaction_module
-  use Reaction_Aux_module
   use Discretization_module
   use Input_Aux_module
   use String_module
   use Units_module
-  use Reaction_Mineral_module
   use Regression_module
   use Output_Aux_module
   use Output_module
@@ -1266,10 +996,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Timestepper_BE_class
   use Timestepper_Steady_class
   
-#ifdef SOLID_SOLUTION
-  use Reaction_Solid_Solution_module, only : SolidSolutionReadFromInputFile
-#endif
-
   implicit none
 
   class(simulation_subsurface_type) :: simulation
@@ -1300,9 +1026,6 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   type(region_type), pointer :: region
   type(flow_condition_type), pointer :: flow_condition
-  type(tran_condition_type), pointer :: tran_condition
-  type(tran_constraint_type), pointer :: tran_constraint
-  type(tran_constraint_type), pointer :: sec_tran_constraint
   type(coupler_type), pointer :: coupler
   type(strata_type), pointer :: strata
   type(observation_type), pointer :: observation
@@ -1320,12 +1043,10 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(reaction_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   class(dataset_base_type), pointer :: dataset
   class(dataset_ascii_type), pointer :: dataset_ascii
   class(data_mediator_dataset_type), pointer :: flow_data_mediator
-  class(data_mediator_dataset_type), pointer :: rt_data_mediator
   type(waypoint_list_type), pointer :: waypoint_list
   type(input_type), pointer :: input, input_parent
 
@@ -1343,7 +1064,6 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   class(timestepper_base_type), pointer :: temp_timestepper
   class(timestepper_base_type), pointer :: flow_timestepper
-  class(timestepper_BE_type), pointer :: tran_timestepper
 
   internal_units = 'not_assigned'
 
@@ -1356,12 +1076,10 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   option => realization%option
   field => realization%field
-  reaction => realization%reaction
+
 
   flow_timestepper => TimestepperBECreate()
   flow_timestepper%solver%itype = FLOW_CLASS
-  tran_timestepper => TimestepperBECreate()
-  tran_timestepper%solver%itype = TRANSPORT_CLASS
 
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
@@ -1397,10 +1115,6 @@ subroutine SubsurfaceReadInput(simulation,input)
         call DiscretizationRead(realization%discretization,input,option)
 
 !....................
-      case ('CHEMISTRY')
-        call ReactionReadPass2(reaction,input,option)
-
-!....................
       case ('SPECIFIED_VELOCITY')
         if (option%nflowdof > 0) then
           option%io_buffer = 'SPECIFIED_VELOCITY fields may not be used &
@@ -1431,7 +1145,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                 dataset_ascii => DatasetAsciiCreate()
                 dataset_ascii%data_type = DATASET_REAL
                 dataset_ascii%array_width = 3 * &
-                  max(option%nphase,option%transport%nphase)
+                  option%nphase
                 realization%uniform_velocity_dataset => dataset_ascii
 
                 string = input%buf
@@ -1545,40 +1259,6 @@ subroutine SubsurfaceReadInput(simulation,input)
         nullify(flow_condition)
 
 !....................
-      case ('TRANSPORT_CONDITION')
-        if (.not.associated(reaction)) then
-          option%io_buffer = 'TRANSPORT_CONDITIONs not supported without &
-            &CHEMISTRY.'
-          call printErrMsg(option)
-        endif
-        tran_condition => TranConditionCreate(option)
-        call InputReadWord(input,option,tran_condition%name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'TRANSPORT_CONDITION','name')
-        call printMsg(option,tran_condition%name)
-        call TranConditionRead(tran_condition, &
-                               realization%transport_constraints, &
-                               reaction,input,option)
-        call TranConditionAddToList(tran_condition, &
-                                    realization%transport_conditions)
-        nullify(tran_condition)
-
-!....................
-      case('CONSTRAINT')
-        if (.not.associated(reaction)) then
-          option%io_buffer = 'CONSTRAINTs not supported without CHEMISTRY.'
-          call printErrMsg(option)
-        endif
-        tran_constraint => TranConstraintCreate(option)
-        call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'constraint','name')
-        call printMsg(option,tran_constraint%name)
-        call TranConstraintRead(tran_constraint,reaction,input,option)
-        call TranConstraintAddToList(tran_constraint, &
-                                     realization%transport_constraints)
-        nullify(tran_constraint)
-
-
-!....................
       case ('BOUNDARY_CONDITION')
         coupler => CouplerCreate(BOUNDARY_COUPLER_TYPE)
         call InputReadWord(input,option,coupler%name,PETSC_TRUE)
@@ -1618,15 +1298,6 @@ subroutine SubsurfaceReadInput(simulation,input)
         call DataMediatorDatasetRead(flow_data_mediator,input,option)
         call flow_data_mediator%AddToList(realization%flow_data_mediator_list)
         nullify(flow_data_mediator)
-
-!....................
-      case ('RT_MASS_TRANSFER')
-        rt_data_mediator => DataMediatorDatasetCreate()
-        call InputReadWord(input,option,rt_data_mediator%name,PETSC_TRUE)
-        call InputDefaultMsg(input,option,'RT Mass Transfer name')
-        call DataMediatorDatasetRead(rt_data_mediator,input,option)
-        call rt_data_mediator%AddToList(realization%tran_data_mediator_list)
-        nullify(rt_data_mediator)
 
 !....................
       case ('STRATIGRAPHY','STRATA')
@@ -1750,47 +1421,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                                &chemistry THOMAS can be used.'
           call printErrMsg(option)
         end select
-!....................
 
-      case('SECONDARY_CONSTRAINT')
-        if (.not.option%use_mc) then
-          option%io_buffer = 'SECONDARY_CONSTRAINT can only be used with &
-                             &MULTIPLE_CONTINUUM keyword.'
-          call printErrMsg(option)
-        endif
-        if (.not.associated(reaction)) then
-          option%io_buffer = 'SECONDARY_CONSTRAINT not supported without &
-                             &CHEMISTRY.'
-          call printErrMsg(option)
-        endif
-        sec_tran_constraint => TranConstraintCreate(option)
-        call InputReadWord(input,option,sec_tran_constraint%name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'secondary constraint','name')
-        call printMsg(option,sec_tran_constraint%name)
-        call TranConstraintRead(sec_tran_constraint,reaction,input,option)
-        realization%sec_transport_constraint => sec_tran_constraint
-        nullify(sec_tran_constraint)
-
-!......................
-
-      case('BRIN','BRINE')
-        call InputReadStringErrorMsg(input,option,card)
-        call InputReadDouble(input,option,option%m_nacl)
-        call InputDefaultMsg(input,option,'NaCl Concentration')
-
-        call InputReadWord(input,option,word,PETSC_FALSE)
-        call StringToUpper(word)
-        select case(word(1:len_trim(word)))
-          case('MOLAL')
-          case('MASS')
-            option%m_nacl = option%m_nacl /FMWNACL/(1.D0-option%m_nacl)
-          case('MOLE')
-            option%m_nacl = option%m_nacl /FMWH2O/(1.D0-option%m_nacl)
-          case default
-            print *, 'Wrong unit: ', word(1:len_trim(word))
-            stop
-         end select
-         if (OptionPrintToScreen(option)) print *, option%m_nacl
 !......................
 
       case ('RESTART')
@@ -1834,22 +1465,14 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
 
-      case ('CO2_DATABASE')
-        call InputReadFilename(input,option,option%co2_database_filename)
-        call InputErrorMsg(input,option,'CO2_DATABASE','filename')
-
-!....................
-
       case ('TIMESTEPPER')
         call InputReadWord(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word)
           case('FLOW')
             call flow_timestepper%ReadInput(input,option)
-          case('TRAN','TRANSPORT')
-            call tran_timestepper%ReadInput(input,option)
           case default
-            option%io_buffer = 'TIMESTEPPER must specify FLOW or TRANSPORT.'
+            option%io_buffer = 'TIMESTEPPER must specify FLOW.'
             call printErrMsg(option)
         end select
 
@@ -1861,10 +1484,8 @@ subroutine SubsurfaceReadInput(simulation,input)
         select case(word)
           case('FLOW')
             call SolverReadLinear(flow_timestepper%solver,input,option)
-          case('TRAN','TRANSPORT')
-            call SolverReadLinear(tran_timestepper%solver,input,option)
           case default
-            option%io_buffer = 'LINEAR_SOLVER must specify FLOW or TRANSPORT.'
+            option%io_buffer = 'LINEAR_SOLVER must specify FLOW.'
             call printErrMsg(option)
         end select
 
@@ -1876,10 +1497,8 @@ subroutine SubsurfaceReadInput(simulation,input)
         select case(word)
           case('FLOW')
             call SolverReadNewton(flow_timestepper%solver,input,option)
-          case('TRAN','TRANSPORT')
-            call SolverReadNewton(tran_timestepper%solver,input,option)
           case default
-            option%io_buffer = 'NEWTON_SOLVER must specify FLOW or TRANSPORT.'
+            option%io_buffer = 'NEWTON_SOLVER must specify FLOW.'
             call printErrMsg(option)
         end select
 !....................
@@ -1900,11 +1519,9 @@ subroutine SubsurfaceReadInput(simulation,input)
 
       case ('CHARACTERISTIC_CURVES')
 
-        if (.not.(option%iflowmode == NULL_MODE .or. &
-                  option%iflowmode == RICHARDS_MODE .or. &
-                  option%iflowmode == TH_MODE)) then
+        if (.not.(option%iflowmode == TH_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow ' // &
-            'modes other than RICHARDS or TH. '
+            'modes other than TH. '
           call printErrMsg(option)
         endif
         characteristic_curves => CharacteristicCurvesCreate()
@@ -2606,18 +2223,11 @@ subroutine SubsurfaceReadInput(simulation,input)
             flow_timestepper%dt_init = dt_init
             option%flow_dt = dt_init
           endif
-          if (associated(tran_timestepper)) then
-            tran_timestepper%dt_init = dt_init
-            option%tran_dt = dt_init
-          endif
         endif
         if (Initialized(dt_min)) then
           option%dt_min = dt_min
           if (associated(flow_timestepper)) then
             flow_timestepper%dt_min = dt_min
-          endif
-          if (associated(tran_timestepper)) then
-            tran_timestepper%dt_min = dt_min
           endif
         endif
 
@@ -2634,19 +2244,9 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
       case ('ONLY_VERTICAL_FLOW')
         option%flow%only_vertical_flow = PETSC_TRUE
-        if (option%iflowmode /= TH_MODE .and. &
-            option%iflowmode /= RICHARDS_MODE) then
+        if (option%iflowmode /= TH_MODE) then
           option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in RICHARDS &
                              &and TH mode.'
-          call printErrMsg(option)
-        endif
-
-!....................
-      case ('QUASI_3D')
-        option%flow%quasi_3d = PETSC_TRUE
-        option%flow%only_vertical_flow = PETSC_TRUE
-        if (option%iflowmode /= RICHARDS_MODE) then
-          option%io_buffer = 'QUASI_3D implemented in RICHARDS mode.'
           call printErrMsg(option)
         endif
 
@@ -2917,23 +2517,6 @@ subroutine SubsurfaceReadInput(simulation,input)
     call flow_timestepper%Destroy()
     deallocate(flow_timestepper)
     nullify(flow_timestepper)
-  endif
-  if (associated(simulation%rt_process_model_coupler)) then
-    tran_timestepper%name = 'TRAN'
-    if (option%steady_state) then
-      ! transport is currently always BE
-      temp_timestepper => TimestepperSteadyCreateFromBE(tran_timestepper)
-      call tran_timestepper%Destroy()
-      deallocate(tran_timestepper)
-      nullify(tran_timestepper)
-      flow_timestepper => temp_timestepper
-      nullify(temp_timestepper)
-    endif
-    simulation%rt_process_model_coupler%timestepper => tran_timestepper
-  else
-    call tran_timestepper%Destroy()
-    deallocate(tran_timestepper)
-    nullify(tran_timestepper)
   endif
 
 end subroutine SubsurfaceReadInput

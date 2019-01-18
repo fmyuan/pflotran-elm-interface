@@ -216,37 +216,6 @@ set(SHARD_MODE_AUX_SOURCES
 	reactive_transport_aux.F90 
 )
 
-set(CHEM_SOURCES
-	transport_constraint.F90
-	reaction_database.F90
-	reaction_database_aux.F90
-	reaction_database_hpt.F90
-	reaction_gas.F90
-	reaction_gas_aux.F90
-	reaction_immobile.F90
-	reaction_immobile_aux.F90
-	reaction_microbial.F90
-	reaction_microbial_aux.F90
-	reaction_mineral.F90
-	reaction_mineral_aux.F90
-	reaction.F90
-	reaction_aux.F90
-	reaction_sandbox.F90
-	reaction_sandbox_base.F90
-	clm_rspfuncs.F90
-	reaction_sandbox_degas.F90
-	reaction_sandbox_denitr.F90
-	reaction_sandbox_langmu.F90
-	reaction_sandbox_microbial.F90
-	reaction_sandbox_nitrif.F90
-	reaction_sandbox_plantn.F90
-	reaction_sandbox_somdec.F90
-	reaction_solid_solution.F90
-	reaction_solid_solution_aux.F90
-	reaction_surf_complex.F90
-	reaction_surf_complex_aux.F90 
-)
-
 set(GRID_SOURCES
 	connection.F90
 	communicator_base.F90

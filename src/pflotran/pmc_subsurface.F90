@@ -126,10 +126,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   use PM_Base_Pointer_module
   use PM_Base_class
   use PM_Subsurface_Flow_class
-  use PM_Richards_class
   use PM_TH_class
-  use PM_RT_class
-  use Secondary_Continuum_module, only : SecondaryRTUpdateIterate  
+
   use Solver_module
   use Timestepper_Base_class
   use Timestepper_BE_class
@@ -161,21 +159,12 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   ! ----- subsurface flow
     class is(pm_subsurface_flow_type)
       call printMsg(option,"  Beginning setup of FLOW SNES ")
-      if (solver%J_mat_type == MATAIJ .and. &
-          option%iflowmode /= RICHARDS_MODE) then
-
-        option%io_buffer = 'AIJ matrix not supported for current &
-          &mode: '// option%flowmode
-        call printErrMsg(option)
-      endif
       if (OptionPrintToScreen(option)) then
         write(*,'(" number of dofs = ",i3,", number of &
                   &phases = ",i3,i2)') option%nflowdof,option%nphase
         select case(option%iflowmode)
           case(TH_MODE)
             write(*,'(" mode = TH: p, T")')
-          case(RICHARDS_MODE)
-            write(*,'(" mode = Richards: p")')
 
         end select
       endif
@@ -272,11 +261,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
       add_pre_check = PETSC_FALSE
       select type(pm)
-        class is(pm_richards_type)
-          if (Initialized(pm%pressure_dampening_factor) .or. &
-              Initialized(pm%saturation_change_limit)) then
-              add_pre_check = PETSC_TRUE
-          endif
         class is(pm_th_type)
           if (Initialized(pm%pressure_dampening_factor) .or. &
               Initialized(pm%pressure_change_limit) .or. &
@@ -302,123 +286,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
       call printMsg(option,"  Finished setting up FLOW SNES ")
 
-  ! ----- subsurface reactive transport
-    class is(pm_rt_type)
-      call printMsg(option,"  Beginning setup of TRAN SNES ")
-      call SNESSetOptionsPrefix(solver%snes, "tran_",ierr);CHKERRQ(ierr)
-      call SolverCheckCommandLine(solver)
-    
-      if (option%transport%reactive_transport_coupling == &
-          GLOBAL_IMPLICIT) then
-        if (solver%Jpre_mat_type == '') then
-          if (solver%J_mat_type /= MATMFFD) then
-            solver%Jpre_mat_type = solver%J_mat_type
-          else
-            solver%Jpre_mat_type = MATBAIJ
-          endif
-        endif
-        call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                          NTRANDOF, &
-                                          solver%Jpre_mat_type, &
-                                          solver%Jpre,option)
-      else
-        solver%J_mat_type = MATAIJ
-        solver%Jpre_mat_type = MATAIJ
-
-        call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                          ONEDOF, &
-                                          solver%Jpre_mat_type, &
-                                          solver%Jpre,option)
-      endif
-
-      if (solver%J_mat_type /= MATMFFD) then
-        solver%J = solver%Jpre
-      endif
-    
-      call MatSetOptionsPrefix(solver%Jpre,"tran_",ierr);CHKERRQ(ierr)
-    
-      if (solver%use_galerkin_mg) then
-        call DiscretizationCreateInterpolation( &
-                       pm%realization%discretization,NTRANDOF, &
-                       solver%interpolation, &
-                       solver%galerkin_mg_levels_x, &
-                       solver%galerkin_mg_levels_y, &
-                       solver%galerkin_mg_levels_z, &
-                       option)
-      endif
-
-      if (option%transport%reactive_transport_coupling == &
-          GLOBAL_IMPLICIT) then
-
-        if (solver%J_mat_type == MATMFFD) then
-          call MatCreateSNESMF(solver%snes,solver%J, &
-                                ierr);CHKERRQ(ierr)
-        endif
-      
-        ! this could be changed in the future if there is a way to 
-        ! ensure that the linesearch update does not perturb 
-        ! concentrations negative.
-        call SNESGetLineSearch(solver%snes, linesearch, &
-                               ierr);CHKERRQ(ierr)
-        call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
-                                    ierr);CHKERRQ(ierr)
-      
-        if (option%use_mc) then
-          call SNESLineSearchSetPostCheck(linesearch, &
-                                      SecondaryRTUpdateIterate, &
-                                      pm%realization,ierr);CHKERRQ(ierr)
-        endif
-      
-        ! Have PETSc do a SNES_View() at the end of each solve if 
-        ! verbosity > 0.
-        if (option%verbosity >= 2) then
-          string = '-tran_snes_view'
-          call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
-                                        string, ierr);CHKERRQ(ierr)
-        endif
-
-      endif
-
-      if (option%transport%reactive_transport_coupling == &
-          GLOBAL_IMPLICIT) then
-        call SNESSetConvergenceTest(solver%snes, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                  PMCheckConvergence, &
-                                  this%pm_ptr%pm, &
-#else
-                                  PMCheckConvergencePtr, &
-                                  this%pm_ptr, &
-#endif
-                                  PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
-      endif
-      if (pm%print_EKG .or. option%use_mc .or. &
-          pm%check_post_convergence) then
-        call SNESLineSearchSetPostCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                        PMCheckUpdatePost, &
-                                        this%pm_ptr%pm, &
-#else
-                                        PMCheckUpdatePostPtr, &
-                                        this%pm_ptr, &
-#endif
-                                        ierr);CHKERRQ(ierr)
-        if (pm%print_EKG) then
-          pm%check_post_convergence = PETSC_TRUE
-        endif
-      endif
-      if (pm%realization%reaction%check_update) then
-        call SNESLineSearchSetPreCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                       PMCheckUpdatePre, &
-                                       this%pm_ptr%pm, &
-#else
-                                       PMCheckUpdatePrePtr, &
-                                       this%pm_ptr, &
-#endif
-                                       ierr);CHKERRQ(ierr)
-      endif
-      call printMsg(option,"  Finished setting up TRAN SNES ")
   end select
+
   call SNESSetFunction(this%timestepper%solver%snes, &
                        this%pm_ptr%pm%residual_vec, &
 #if defined(USE_PM_AS_PETSC_CONTEXT)
@@ -544,85 +413,6 @@ subroutine PMCSubsurfaceGetAuxDataFromSurf(this)
         option     => pmc%realization%option
 
         select case(this%option%iflowmode)
-          case (RICHARDS_MODE)
-            call VecScatterBegin(pmc%sim_aux%surf_to_subsurf, &
-                                 pmc%sim_aux%surf_mflux_exchange_with_subsurf, &
-                                 pmc%sim_aux%subsurf_mflux_exchange_with_surf, &
-                                 INSERT_VALUES,SCATTER_FORWARD, &
-                                 ierr);CHKERRQ(ierr)
-            call VecScatterEnd(pmc%sim_aux%surf_to_subsurf, &
-                               pmc%sim_aux%surf_mflux_exchange_with_subsurf, &
-                               pmc%sim_aux%subsurf_mflux_exchange_with_surf, &
-                               INSERT_VALUES,SCATTER_FORWARD, &
-                               ierr);CHKERRQ(ierr)
-
-            call VecScatterBegin(pmc%sim_aux%surf_to_subsurf, &
-                                 pmc%sim_aux%surf_head, &
-                                 pmc%sim_aux%subsurf_pres_top_bc, &
-                                 INSERT_VALUES,SCATTER_FORWARD, &
-                                 ierr);CHKERRQ(ierr)
-            call VecScatterEnd(pmc%sim_aux%surf_to_subsurf, &
-                               pmc%sim_aux%surf_head, &
-                               pmc%sim_aux%subsurf_pres_top_bc, &
-                               INSERT_VALUES,SCATTER_FORWARD, &
-                               ierr);CHKERRQ(ierr)
-            call EOSWaterdensity(option%reference_temperature, &
-                                 option%reference_pressure,den,dum1,ierr)
-
-#if 0
-            coupler_list => patch%source_sink_list
-            coupler => coupler_list%first
-            do
-              if (.not.associated(coupler)) exit
-
-              ! FLOW
-              if (associated(coupler%flow_aux_real_var)) then
-
-                ! Find the BC from the list of BCs
-                if (StringCompare(coupler%name,'from_surface_ss')) then
-                  coupler_found = PETSC_TRUE
-                  
-                  call VecGetArrayF90(pmc%sim_aux%subsurf_mflux_exchange_with_surf, &
-                                      mflux_p,ierr);CHKERRQ(ierr)
-                  do iconn = 1,coupler%connection_set%num_connections
-                    !coupler%flow_aux_real_var(ONE_INTEGER,iconn) = -mflux_p(iconn)/dt*den
-                  enddo
-                  call VecRestoreArrayF90(pmc%sim_aux%subsurf_mflux_exchange_with_surf, &
-                                          mflux_p,ierr);CHKERRQ(ierr)
-
-                  call VecSet(pmc%sim_aux%surf_mflux_exchange_with_subsurf,0.d0, &
-                              ierr);CHKERRQ(ierr)
-                endif
-              endif
-
-              coupler => coupler%next
-            enddo
-#endif
-
-            coupler_list => patch%boundary_condition_list
-            coupler => coupler_list%first
-            do
-              if (.not.associated(coupler)) exit
-
-              ! FLOW
-              if (associated(coupler%flow_aux_real_var)) then
-                ! Find the BC from the list of BCs
-                if (StringCompare(coupler%name,'from_surface_bc')) then
-                  coupler_found = PETSC_TRUE
-                  call VecGetArrayF90(pmc%sim_aux%subsurf_pres_top_bc, &
-                                      head_p,ierr);CHKERRQ(ierr)
-                  do iconn = 1,coupler%connection_set%num_connections
-                    surfpress = head_p(iconn)*(abs(option%gravity(3)))*den + &
-                                option%reference_pressure
-                    coupler%flow_aux_real_var(RICHARDS_PRESSURE_DOF,iconn) = &
-                    surfpress
-                  enddo
-                  call VecRestoreArrayF90(pmc%sim_aux%subsurf_pres_top_bc, &
-                                          head_p,ierr);CHKERRQ(ierr)
-                endif
-              endif
-              coupler => coupler%next
-            enddo
 
           case (TH_MODE)
             call VecScatterBegin(pmc%sim_aux%surf_to_subsurf, &
@@ -812,15 +602,6 @@ subroutine PMCSubsurfaceSetAuxDataForSurf(this)
               ! Find the BC from the list of BCs
               if (StringCompare(coupler%name,'from_surface_bc')) then
                 select case(this%option%iflowmode)
-                  case (RICHARDS_MODE)
-                    call VecGetArrayF90(this%sim_aux%subsurf_pres_top_bc, &
-                                        pres_top_bc_p,ierr);CHKERRQ(ierr)
-                    do iconn = 1,coupler%connection_set%num_connections
-                      pres_top_bc_p(iconn) = &
-                        coupler%flow_aux_real_var(RICHARDS_PRESSURE_DOF,iconn)
-                    enddo
-                    call VecRestoreArrayF90(this%sim_aux%subsurf_pres_top_bc, &
-                                            pres_top_bc_p,ierr);CHKERRQ(ierr)
                   case (TH_MODE)
                     call VecGetArrayF90(this%sim_aux%subsurf_pres_top_bc, &
                                         pres_top_bc_p,ierr);CHKERRQ(ierr)

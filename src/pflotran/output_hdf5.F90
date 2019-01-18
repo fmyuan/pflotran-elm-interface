@@ -71,7 +71,6 @@ subroutine OutputHDF5(realization_base,var_list_type)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
   use String_module
   
 ! 64-bit stuff
@@ -252,7 +251,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
   end select
 
   include_gas_phase = PETSC_FALSE
-  if (option%nphase > 1 .or. option%transport%nphase > 1) then
+  if (option%nphase > 1) then
     include_gas_phase = PETSC_TRUE
   endif
   if (output_option%print_hdf5_vel_cent .and. &
@@ -482,7 +481,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
+
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -880,7 +879,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
+
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -2695,8 +2694,6 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   field => realization_base%field
 
   select case(option%iflowmode)
-    case (RICHARDS_MODE)
-      ndof=1
     case (TH_MODE)
       ndof=1
       if (output_option%print_hdf5_mass_flowrate .and. &
@@ -2733,8 +2730,6 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
     if (dof==2 .and. (.not.energy_flowrate)) exit
 
     select case(option%iflowmode)
-      case(RICHARDS_MODE)
-        string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
       case(TH_MODE)
         if (dof==1) then
           string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
@@ -2941,11 +2936,6 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   output_option =>realization_base%output_option
   field => realization_base%field
 
-  if (option%nphase == 1 .and. option%transport%nphase > 1) then
-    option%io_buffer = 'WriteHDF5FaceVelUGrid not supported for gas &
-      &transport without flow in the gas phase.'
-    call printErrMsg(option)
-  endif
   call VecGetLocalSize(field%vx_face_inst,local_size,ierr);CHKERRQ(ierr)
   local_size = local_size/(option%nphase*MAX_FACE_PER_CELL + 1)
 
