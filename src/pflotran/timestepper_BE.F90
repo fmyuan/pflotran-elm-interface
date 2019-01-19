@@ -374,9 +374,6 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
         write(fileid_info, *) ' <-- SNES Solver ERROR @TimeStepperBEStepDT -->'
 
         write(fileid_info, *) 'Time(s): ', option%time, 'rank: ', option%myrank, 'Petsc ErrCode: ', ierr
-        ! not yet figure out how to get 'reaction_aux%ncomp' in
-        ! and either the 2 vecs are different for flow-transport model and reaction model
-        ! BE CAUTIOUS!
         if (option%nflowdof>0) then
           cell_index = floor(real((max_res_index-1)/option%nflowdof))+1
 
@@ -507,10 +504,6 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
             write(fileid_info, *) ' -- MIN. TIME-STEPS (sec.) reached --', this%dt
           endif
 
-
-          ! not yet figure out how to get 'reaction_aux%ncomp' in
-          ! and neither the 2 vecs are different for flow-transport model and reaction model
-          ! BE CAUTIOUS!
           if (option%nflowdof>0) then
             cell_index = floor(real((max_res_index-1))/option%nflowdof)+1
 
@@ -803,8 +796,6 @@ subroutine TimestepperBESetHeader(this,bag,header)
   class(timestepper_BE_type) :: this
   class(stepper_BE_header_type) :: header
   PetscBag :: bag
-  
-  PetscErrorCode :: ierr
   
   header%cumulative_newton_iterations = this%cumulative_newton_iterations
   header%cumulative_linear_iterations = this%cumulative_linear_iterations
@@ -1194,7 +1185,7 @@ subroutine TimestepperBEPrintInfo(this,option)
   allocate(strings(this%ntfac+20))
   strings = '' 
   strings(1) = 'acceleration: ' // &
-                           StringWrite(String1Or2(this%iaccel>0,'on','off'))
+               StringWrite(String1Or2(this%iaccel>0,'on','off'))
   if (this%iaccel > 0) then
     strings(2) = 'acceleration threshold: ' // StringWrite(this%iaccel)
   endif

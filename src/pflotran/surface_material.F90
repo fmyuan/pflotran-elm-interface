@@ -84,8 +84,7 @@ subroutine SurfaceMaterialPropertyRead(surf_material_property,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: keyword, word
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: keyword
 
   do
     call InputReadPflotranString(input,option)
@@ -187,8 +186,6 @@ subroutine SurfaceMaterialPropConvertListToArray(list,array,option)
   type(option_type) :: option
 
   type(surface_material_property_type), pointer :: cur_material_property
-  type(surface_material_property_type), pointer :: prev_material_property
-  type(surface_material_property_type), pointer :: next_material_property
   PetscInt :: i, j, length1,length2, max_internal_id, max_external_id
   PetscInt, allocatable :: id_count(:)
   PetscBool :: error_flag

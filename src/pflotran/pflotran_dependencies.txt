@@ -6,8 +6,6 @@ auxvars_base.o : option.o pflotran_constants.o
 auxvars_flow.o : auxvars_base.o option.o pflotran_constants.o utility.o
 auxvars_flow_energy.o : auxvars_base.o auxvars_flow.o option.o \
                         pflotran_constants.o utility.o
-block_solve.o :
-block_tridiag.o : pflotran_constants.o utility.o
 characteristic_curves.o : characteristic_curves_base.o \
                           characteristic_curves_common.o \
                           input_aux.o option.o \
@@ -213,8 +211,6 @@ material.o : characteristic_curves.o communicator_base.o dataset.o \
              global_aux.o input_aux.o material_aux.o option.o \
              pflotran_constants.o string.o units.o utility.o variables.o
 material_aux.o : option.o pflotran_constants.o utility.o variables.o
-matrix_block_aux.o : option.o pflotran_constants.o utility.o
-matrix_buffer.o : grid.o grid_structured.o pflotran_constants.o
 multisimulation.o : input_aux.o option.o pflotran_constants.o
 observation.o : connection.o input_aux.o option.o pflotran_constants.o \
                 region.o string.o
@@ -369,7 +365,7 @@ regression.o : discretization.o grid.o input_aux.o option.o output.o \
                realization_subsurface.o string.o timestepper_BE.o utility.o
 saturation.o : condition.o connection.o coupler.o grid.o option.o \
                pflotran_constants.o region.o
-secondary_continuum.o : block_solve.o block_tridiag.o condition.o coupler.o \
+secondary_continuum.o : condition.o coupler.o \
                         eos_water.o global_aux.o grid.o material.o \
                         material_aux.o option.o \
                         pflotran_constants.o \
@@ -404,7 +400,6 @@ solver.o : input_aux.o option.o pflotran_constants.o preconditioner_cpr.o \
            solver_cpr.o string.o
 solver_cpr.o : input_aux.o option.o pflotran_constants.o preconditioner_cpr.o \
                string.o
-spline.o : pflotran_constants.o
 srcsink_sandbox.o : grid.o input_aux.o material_aux.o option.o \
                     output_aux.o pflotran_constants.o srcsink_sandbox_base.o \
                     srcsink_sandbox_downreg.o srcsink_sandbox_mass_rate.o \

@@ -372,14 +372,12 @@ subroutine PMCSubsurfaceGetAuxDataFromSurf(this)
 
   class(pmc_subsurface_type) :: this
   
-  class(realization_subsurface_type), pointer :: realization
   type (patch_type),pointer :: patch
   type (grid_type),pointer :: grid
   type (coupler_list_type), pointer :: coupler_list
   type (coupler_type), pointer :: coupler
   type (option_type), pointer :: option
   type (field_type),pointer :: field
-  type (connection_set_type), pointer :: cur_connection_set
   PetscBool :: coupler_found
   PetscInt :: iconn
   PetscReal :: den
@@ -387,7 +385,6 @@ subroutine PMCSubsurfaceGetAuxDataFromSurf(this)
   PetscReal :: surfpress
   PetscReal :: dum1
   PetscReal, pointer :: mflux_p(:)
-  PetscReal, pointer :: hflux_p(:)
   PetscReal, pointer :: head_p(:)
   PetscReal, pointer :: temp_p(:)
   PetscErrorCode :: ierr
@@ -550,25 +547,17 @@ subroutine PMCSubsurfaceSetAuxDataForSurf(this)
 
   class(pmc_subsurface_type) :: this
   
-  class(realization_subsurface_type), pointer :: realization
   type (patch_type),pointer :: patch
   type (grid_type),pointer :: grid
   type (coupler_list_type), pointer :: coupler_list
   type (coupler_type), pointer :: coupler
   type (option_type), pointer :: option
   type (field_type),pointer :: field
-  type (connection_set_type), pointer :: cur_connection_set
-  PetscInt :: local_id
-  PetscInt :: ghosted_id
   PetscInt :: iconn
-  PetscInt :: istart
-  PetscInt :: iend
   PetscReal :: den
   PetscReal :: dum1
-  PetscReal, pointer :: xx_loc_p(:)
   PetscReal, pointer :: pres_top_bc_p(:)
   PetscReal, pointer :: temp_top_bc_p(:)
-  PetscReal, pointer :: head_p(:)
   PetscErrorCode :: ierr
 
 #ifdef DEBUG

@@ -18,7 +18,6 @@ module Field_module
     Vec :: porosity_base_store
     Vec :: porosity_t
     Vec :: porosity_tpdt
-    Vec :: porosity_geomech_store
     Vec :: tortuosity0
     Vec :: ithrm_loc
     Vec :: icap_loc
@@ -35,25 +34,15 @@ module Field_module
     
     ! residual vectors
     Vec :: flow_r          
-    Vec :: tran_r
     
     ! Solution vectors (yy = previous solution, xx = current iterate)
     Vec :: flow_xx, flow_xx_loc, flow_dxx, flow_yy, flow_accum, flow_accum2
-    Vec :: tran_xx, tran_xx_loc, tran_dxx, tran_yy, tran_accum
     Vec :: flow_xxdot, flow_xxdot_loc
 
-    ! vectors for operator splitting
-    Vec :: tran_rhs
-    Vec :: tran_rhs_coef
-    
-    Vec :: tran_log_xx, tran_work_loc
-    
     ! mass transfer
     Vec :: flow_mass_transfer
-    Vec :: tran_mass_transfer
     
     Vec :: flow_ts_mass_balance, flow_total_mass_balance
-    Vec :: tran_ts_mass_balance, tran_total_mass_balance
 
     ! vector that holds the second layer of ghost cells for tvd
     Vec :: tvd_ghosts
@@ -101,7 +90,6 @@ function FieldCreate()
   ! nullify PetscVecs
   field%porosity0 = PETSC_NULL_VEC
   field%porosity_base_store = PETSC_NULL_VEC
-  field%porosity_geomech_store = PETSC_NULL_VEC
   field%porosity_t = PETSC_NULL_VEC
   field%porosity_tpdt = PETSC_NULL_VEC
   field%tortuosity0 = PETSC_NULL_VEC
@@ -130,27 +118,13 @@ function FieldCreate()
   field%flow_xxdot = PETSC_NULL_VEC
   field%flow_xxdot_loc = PETSC_NULL_VEC
 
-  field%tran_r = PETSC_NULL_VEC
-  field%tran_log_xx = PETSC_NULL_VEC
-  field%tran_xx = PETSC_NULL_VEC
-  field%tran_xx_loc = PETSC_NULL_VEC
-  field%tran_dxx = PETSC_NULL_VEC
-  field%tran_yy = PETSC_NULL_VEC
-  field%tran_accum = PETSC_NULL_VEC
-  field%tran_work_loc = PETSC_NULL_VEC
-
   field%tvd_ghosts = PETSC_NULL_VEC
 
-  field%tran_rhs = PETSC_NULL_VEC
-  field%tran_rhs_coef = PETSC_NULL_VEC
   
   field%flow_mass_transfer = PETSC_NULL_VEC
-  field%tran_mass_transfer = PETSC_NULL_VEC
   
   field%flow_ts_mass_balance = PETSC_NULL_VEC
   field%flow_total_mass_balance = PETSC_NULL_VEC
-  field%tran_ts_mass_balance = PETSC_NULL_VEC
-  field%tran_total_mass_balance = PETSC_NULL_VEC
 
   nullify(field%avg_vars_vec)
   field%nvars = 0
@@ -194,9 +168,6 @@ subroutine FieldDestroy(field)
   endif
   if (field%porosity_base_store /= PETSC_NULL_VEC) then
     call VecDestroy(field%porosity_base_store,ierr);CHKERRQ(ierr)
-  endif
-  if (field%porosity_geomech_store /= PETSC_NULL_VEC) then
-    call VecDestroy(field%porosity_geomech_store,ierr);CHKERRQ(ierr)
   endif
   if (field%porosity_t /= PETSC_NULL_VEC) then
     call VecDestroy(field%porosity_t,ierr);CHKERRQ(ierr)
@@ -273,43 +244,9 @@ subroutine FieldDestroy(field)
     call VecDestroy(field%flow_xxdot_loc,ierr);CHKERRQ(ierr)
   endif
   
-  if (field%tran_r /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_r,ierr);CHKERRQ(ierr)
-  endif
-  if (field%tran_log_xx /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_log_xx,ierr);CHKERRQ(ierr)
-  endif
-  if (field%tran_xx /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_xx,ierr);CHKERRQ(ierr)
-  endif
-  if (field%tran_xx_loc /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_xx_loc,ierr);CHKERRQ(ierr)
-  endif
-  if (field%tran_dxx /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_dxx,ierr);CHKERRQ(ierr)
-  endif
-  if (field%tran_yy /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_yy,ierr);CHKERRQ(ierr)
-  endif
-  if (field%tran_accum /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_accum,ierr);CHKERRQ(ierr)
-  endif
-  if (field%tran_work_loc /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_work_loc,ierr);CHKERRQ(ierr)
-  endif
-  
-  if (field%tran_rhs /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_rhs,ierr);CHKERRQ(ierr)
-  endif
-  if (field%tran_rhs_coef /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_rhs_coef,ierr);CHKERRQ(ierr)
-  endif
 
   if (field%flow_mass_transfer /= PETSC_NULL_VEC) then
     call VecDestroy(field%flow_mass_transfer,ierr);CHKERRQ(ierr)
-  endif
-  if (field%tran_mass_transfer /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_mass_transfer,ierr);CHKERRQ(ierr)
   endif
 
   if (field%flow_ts_mass_balance /= PETSC_NULL_VEC) then
@@ -317,12 +254,6 @@ subroutine FieldDestroy(field)
   endif
   if (field%flow_total_mass_balance /= PETSC_NULL_VEC) then
     call VecDestroy(field%flow_total_mass_balance,ierr);CHKERRQ(ierr)
-  endif
-  if (field%tran_ts_mass_balance /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_ts_mass_balance,ierr);CHKERRQ(ierr)
-  endif
-  if (field%tran_total_mass_balance /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_total_mass_balance,ierr);CHKERRQ(ierr)
   endif
     
   if (field%tvd_ghosts /= PETSC_NULL_VEC) then

@@ -255,8 +255,6 @@ subroutine CouplerRead(coupler,input,option)
         call InputReadWord(input,option,coupler%region_name,PETSC_TRUE)
       case('FLOW_CONDITION','SURF_FLOW_CONDITION')
         call InputReadWord(input,option,coupler%flow_condition_name,PETSC_TRUE)
-      case('TRANSPORT_CONDITION')
-        call InputReadWord(input,option,coupler%tran_condition_name,PETSC_TRUE)
       case default
         call InputKeywordUnrecognized(word,'coupler ',option)
     end select 

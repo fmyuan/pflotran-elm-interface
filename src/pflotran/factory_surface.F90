@@ -100,12 +100,11 @@ subroutine SurfaceJumpStart(simulation)
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
 
-  character(len=MAXSTRINGLENGTH) :: string
+
   PetscBool :: snapshot_plot_flag,observation_plot_flag,massbal_plot_flag
   PetscBool :: surf_flow_read
   PetscBool :: failure
   PetscErrorCode :: ierr
-  PetscReal :: surf_flow_prev_dt
 
   surf_realization => simulation%surf_realization
   output_option => simulation%output_option
@@ -271,7 +270,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
   type(option_type), pointer :: option
   type(discretization_type),pointer :: discretization
   type(grid_type), pointer :: grid
-  type(grid_unstructured_type), pointer :: un_str_sfgrid
+
   type(surface_material_property_type),pointer :: surf_material_property
   type(region_type), pointer :: region
   type(flow_condition_type), pointer :: flow_condition

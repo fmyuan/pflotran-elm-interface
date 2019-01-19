@@ -40,7 +40,7 @@ subroutine SurfaceInitReadRequiredCards(surf_realization,input)
   type(discretization_type), pointer :: discretization
   character(len=MAXSTRINGLENGTH) :: string
   type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
+
   type(option_type), pointer :: option
   
   patch          => surf_realization%patch
@@ -198,7 +198,6 @@ subroutine InitSurfaceSetupRealization(surf_realization,subsurf_realization, &
   type(waypoint_list_type) :: waypoint_list
   
   type(option_type), pointer :: option
-  PetscErrorCode :: ierr
   
   option => surf_realization%option
 
@@ -290,9 +289,6 @@ subroutine InitSurfaceSetupSolvers(surf_realization,solver,final_time)
   PetscReal :: final_time
   
   type(option_type), pointer :: option
-  type(convergence_context_type), pointer :: convergence_context
-  SNESLineSearch :: linesearch
-  character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
   
   option => surf_realization%option
@@ -341,11 +337,9 @@ subroutine SurfaceInitMatPropToRegions(surf_realization)
   class(realization_surface_type) :: surf_realization
   
   PetscReal, pointer :: man0_p(:)
-  PetscReal, pointer :: vec_p(:)
   
-  PetscInt :: icell, local_id, ghosted_id, natural_id, surf_material_id
+  PetscInt :: icell, local_id, ghosted_id, surf_material_id
   PetscInt :: istart, iend
-  character(len=MAXSTRINGLENGTH) :: group_name
   character(len=MAXSTRINGLENGTH) :: dataset_name
   PetscErrorCode :: ierr
   
@@ -354,7 +348,6 @@ subroutine SurfaceInitMatPropToRegions(surf_realization)
   type(discretization_type), pointer :: discretization
   type(surface_field_type), pointer :: surf_field
   type(strata_type), pointer :: strata
-  type(patch_type), pointer :: patch  
   type(patch_type), pointer :: cur_patch
 
   type(surface_material_property_type), pointer :: surf_material_property

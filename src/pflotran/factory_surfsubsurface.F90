@@ -86,7 +86,7 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
   class(timestepper_surface_type), pointer :: timestepper
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: init_status
+
   VecScatter :: vscat_surf_to_subsurf
   VecScatter :: vscat_subsurf_to_surf
   Vec :: vec_subsurf_pres
@@ -246,8 +246,6 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
 
   ! sim_aux: Set pointer
   simulation%flow_process_model_coupler%sim_aux => simulation%sim_aux
-  if (associated(simulation%rt_process_model_coupler)) &
-    simulation%rt_process_model_coupler%sim_aux => simulation%sim_aux
   if (option%surf_flow_on .and. &
      associated(simulation%surf_flow_process_model_coupler)) &
     simulation%surf_flow_process_model_coupler%sim_aux => simulation%sim_aux
@@ -374,7 +372,6 @@ subroutine SurfSubsurfCreateSurfSubSurfVScats(realization, surf_realization, &
   type(grid_unstructured_type),pointer :: surf_grid
   type(patch_type),pointer :: cur_patch
   type(region_type),pointer :: cur_region,top_region
-  type(region_type),pointer :: patch_region
 
   Mat :: Mat_vert_to_face_subsurf
   Mat :: Mat_vert_to_face_subsurf_transp
@@ -383,16 +380,12 @@ subroutine SurfSubsurfCreateSurfSubSurfVScats(realization, surf_realization, &
   Mat :: prod
   Vec :: subsurf_petsc_ids,surf_petsc_ids
 
-  PetscViewer :: viewer
-
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt,pointer ::int_array(:)
   PetscInt :: offset
   PetscInt :: int_array4(4)
   PetscInt :: int_array4_0(4)
   PetscInt :: nvertices
   PetscInt :: iface
-  PetscInt :: local_id,ii,jj
+  PetscInt :: local_id,ii
   PetscInt :: cell_type
   PetscInt :: ivertex,vertex_id_local
   PetscReal :: real_array4(4)
@@ -686,45 +679,28 @@ subroutine SurfSubsurfCreateSurfSubSurfVScat( &
   VecScatter :: scatter
 
   Mat :: prod_loc_mat
-  Vec :: source_loc_vec
   Vec :: corr_dest_ids_vec
-  Vec :: corr_dest_ids_vec_ndof
-  Vec :: source_petsc_ids_ndof
+
   IS :: is_tmp1,is_tmp2
   IS :: is_tmp3,is_tmp4
   PetscInt,pointer :: corr_v2_ids(:)
-  VecScatter :: scatter_ndof
-
-  PetscViewer :: viewer
 
   type(option_type),pointer :: option
   type(field_type),pointer :: field
   type(surface_field_type),pointer :: surf_field
 
-  type(dm_ptr_type),pointer :: dm_ptr
-  character(len=MAXSTRINGLENGTH) :: string
   PetscInt,pointer ::int_array(:)
   PetscInt :: offset
-  PetscInt :: int_array4(4)
-  PetscInt :: int_array4_0(4)
-  PetscReal :: real_array4(4)
   PetscInt :: ii,jj
-  PetscReal,pointer :: vec_ptr(:)
-  PetscInt :: ivertex,cell_id,vertex_id_local
   PetscReal :: max_value
 
   PetscInt,pointer :: ia_p(:),ja_p(:)
-  PetscInt :: nrow,rstart,rend,icol(1)
-  PetscInt :: index
-  PetscInt :: vertex_id
-  PetscOffset :: iia,jja,iicol
+  PetscInt :: nrow
   PetscBool :: done
   PetscScalar, pointer :: aa_v(:)
   PetscInt :: row, col
 
   PetscErrorCode :: ierr
-  PetscBool :: found
-  PetscInt :: nlocal
 
   option     => realization%option
   field      => realization%field
@@ -924,38 +900,5 @@ subroutine SurfSubsurfCreateSurfVecs(surf_realization,option,surf_head)
 end subroutine SurfSubsurfCreateSurfVecs
 
 ! ************************************************************************** !
-
-subroutine SurfSubsurfInitCommandLineSettings(option)
-  ! 
-  ! This routine
-  ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 07/01/13
-  ! 
-
-  use Option_module
-  use Input_Aux_module
-  
-  implicit none
-  
-  type(option_type) :: option
-  
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscBool :: option_found
-  PetscBool :: bool_flag
-  
-  string = '-multisimulation'
-  call InputGetCommandLineTruth(string,bool_flag,option_found,option)
-  if (option_found) then
-    option%subsurface_simulation_type = MULTISIMULATION_SIM_TYPE
-  endif
-
-  string = '-stochastic'
-  call InputGetCommandLineTruth(string,bool_flag,option_found,option)
-  if (option_found) then
-    option%subsurface_simulation_type = STOCHASTIC_SIM_TYPE
-  endif
-  
-end subroutine SurfSubsurfInitCommandLineSettings
 
 end module Factory_Surf_Subsurf_module

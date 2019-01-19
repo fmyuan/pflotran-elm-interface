@@ -3,7 +3,6 @@
 util_obj  = \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
-	${common_src}matrix_block_aux.o \
 	${common_src}option.o \
 	${common_src}option_flow.o \
 	${common_src}output_aux.o \
@@ -99,8 +98,6 @@ io_obj = \
 	${common_src}output_vtk.o
 
 misc_obj = \
-	${common_src}block_solve.o \
-	${common_src}block_tridiag.o \
 	${common_src}checkpoint.o \
 	${common_src}condition.o \
 	${common_src}condition_control.o \
@@ -120,7 +117,6 @@ misc_obj = \
 	${common_src}init_subsurface_flow.o \
 	${common_src}integral_flux.o \
 	${common_src}lookup_table.o \
-	${common_src}matrix_buffer.o \
 	${common_src}multisimulation.o \
 	${common_src}observation.o \
 	${common_src}patch.o \
@@ -135,7 +131,6 @@ misc_obj = \
 	${common_src}simulation_aux.o \
 	${common_src}simulation_base.o \
 	${common_src}simulation_subsurface.o \
-	${common_src}spline.o \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \
 	${common_src}timestepper_BE.o \

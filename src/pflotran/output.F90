@@ -26,11 +26,6 @@ module Output_module
   PetscInt, parameter :: TECPLOT_FILE = 0
   PetscInt, parameter ::  HDF5_FILE = 1
 
-  
-  PetscBool :: observation_first
-  PetscBool :: hdf5_first
-  PetscBool :: mass_balance_first
-
   public :: OutputInit, &
             Output, &
             OutputPrintCouplers, &
@@ -108,7 +103,7 @@ subroutine OutputFileRead(input,realization,output_option, &
   PetscReal, pointer :: temp_real_array(:)
 
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: units, internal_units
+  character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: temp_real,temp_real2
   PetscReal :: units_conversion
@@ -1649,13 +1644,9 @@ subroutine OutputMAD(realization_base)
   class(realization_base_type) :: realization_base
 
   integer(HID_T) :: file_id
-  integer(HID_T) :: grp_id
-  integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
+
   integer(HID_T) :: prop_id
-  PetscMPIInt :: rank
   PetscMPIInt, parameter :: ON=1, OFF=0
-  integer(HSIZE_T) :: dims(3)
   
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
@@ -1666,16 +1657,9 @@ subroutine OutputMAD(realization_base)
   type(output_option_type), pointer :: output_option
   
   Vec :: global_vec
-  Vec :: natural_vec
-  PetscReal, pointer :: v_ptr
   
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
-  PetscReal, pointer :: array(:)
-  PetscInt :: i
-  PetscInt :: nviz_flow, nviz_tran, nviz_dof
-  PetscInt :: current_component
-  PetscFortranAddr :: app_ptr
   PetscMPIInt :: hdf5_flag 
   PetscMPIInt :: hdf5_err
   PetscErrorCode :: ierr
@@ -1775,9 +1759,9 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   type(patch_type), pointer :: patch  
   type(discretization_type), pointer :: discretization
   type(output_option_type), pointer :: output_option
-  PetscInt :: iconn, i, direction, iphase, sum_connection
+  PetscInt :: iconn, direction, iphase, sum_connection
   PetscInt :: local_id_up, local_id_dn, local_id
-  PetscInt :: ghosted_id_up, ghosted_id_dn, ghosted_id
+  PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscReal :: flux
   Vec :: global_vec, global_vec2
 
@@ -1785,7 +1769,7 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   PetscInt :: max_loc, min_loc
   character(len=MAXSTRINGLENGTH) :: string
   
-  PetscReal, pointer :: vec_ptr(:), vec2_ptr(:), den_loc_p(:)
+  PetscReal, pointer :: vec_ptr(:)
   PetscReal, allocatable :: sum_area(:)
   PetscErrorCode :: ierr
   
@@ -1937,7 +1921,6 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
   type(discretization_type), pointer :: discretization  
   type(output_option_type), pointer :: output_option
   
-  character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
   
   PetscInt :: iphase

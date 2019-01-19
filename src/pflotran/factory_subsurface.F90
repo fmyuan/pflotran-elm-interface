@@ -432,21 +432,10 @@ subroutine SubsurfaceInitSimulation(simulation)
 
   class(simulation_subsurface_type) :: simulation
 
-  class(pmc_subsurface_type), pointer :: flow_process_model_coupler
-
-  class(pmc_base_type), pointer :: cur_process_model_coupler
   class(pmc_base_type), pointer :: cur_process_model_coupler_top
-  class(pm_base_type), pointer :: cur_process_model
 
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
-  type(waypoint_list_type), pointer :: sync_waypoint_list
-  character(len=MAXSTRINGLENGTH) :: string
-  SNESLineSearch :: linesearch
-  PetscInt :: ndof
-  PetscBool, allocatable :: dof_is_active(:)
-  PetscBool :: failure
-  PetscErrorCode :: ierr
 
   realization => simulation%realization
   option => realization%option
@@ -458,12 +447,6 @@ subroutine SubsurfaceInitSimulation(simulation)
   if (associated(simulation%flow_process_model_coupler)) then
     if (associated(simulation%flow_process_model_coupler%timestepper)) then
       simulation%flow_process_model_coupler%timestepper%cur_waypoint => &
-        simulation%waypoint_list_subsurface%first
-    endif
-  endif
-  if (associated(simulation%rt_process_model_coupler)) then
-    if (associated(simulation%rt_process_model_coupler%timestepper)) then
-      simulation%rt_process_model_coupler%timestepper%cur_waypoint => &
         simulation%waypoint_list_subsurface%first
     endif
   endif
@@ -549,8 +532,6 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
   class(realization_subsurface_type), pointer :: realization
   class(pm_base_type), pointer :: cur_pm
   type(option_type), pointer :: option
-  SNESLineSearch :: linesearch
-  PetscErrorCode :: ierr
 
   realization => simulation%realization
   option => realization%option
@@ -759,7 +740,6 @@ subroutine SubsurfaceJumpStart(simulation)
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: failure
   PetscErrorCode :: ierr
 
@@ -806,7 +786,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: card
-  type(patch_type), pointer :: patch, patch2
+  type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   class(realization_subsurface_type), pointer :: realization
   type(discretization_type), pointer :: discretization
@@ -1000,7 +980,6 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   class(simulation_subsurface_type) :: simulation
 
-  PetscErrorCode :: ierr
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: card
   character(len=MAXSTRINGLENGTH) :: string, temp_string
@@ -1011,7 +990,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscReal :: temp_real, temp_real2
   PetscReal, pointer :: temp_real_array(:)
   PetscInt :: temp_int
-  PetscInt :: id
 
   PetscBool :: vel_cent
   PetscBool :: vel_face
@@ -1022,7 +1000,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscBool :: aveg_energy_flowrate
   PetscBool :: bool_flag
 
-  PetscInt :: flag1, flag2
+  PetscInt :: flag1
 
   type(region_type), pointer :: region
   type(flow_condition_type), pointer :: flow_condition
@@ -1048,7 +1026,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   class(dataset_ascii_type), pointer :: dataset_ascii
   class(data_mediator_dataset_type), pointer :: flow_data_mediator
   type(waypoint_list_type), pointer :: waypoint_list
-  type(input_type), pointer :: input, input_parent
+  type(input_type), pointer :: input
 
 #ifdef CLM_PFLOTRAN
   type(material_property_type), pointer :: material_property_default
@@ -1393,37 +1371,6 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !......................
 
-      case("MULTIPLE_CONTINUUM")
-        option%io_buffer = 'MULTIPLE_CONTINUUM must be entered under the &
-          &SUBSURFACE_TRANSPORT block within the SIMULATION block.'
-        call PrintErrMsg(option)
-
-!......................
-
-      case('SECONDARY_CONTINUUM_SOLVER')
-        if (.not.option%use_mc) then
-          option%io_buffer = 'SECONDARY_CONTINUUM_SOLVER can only be used &
-                             &with MULTIPLE_CONTINUUM keyword.'
-          call printErrMsg(option)
-        endif
-        call InputReadWord(input,option,word,PETSC_FALSE)
-        call StringToUpper(word)
-        select case(word)
-          case('KEARST')
-            option%secondary_continuum_solver = 1
-          case('HINDMARSH')
-            option%secondary_continuum_solver = 2
-          case('THOMAS')
-            option%secondary_continuum_solver = 3
-          case default
-            option%io_buffer = 'SECONDARY_CONTINUUM_SOLVER can be only &
-                               &HINDMARSH or KEARST. For single component &
-                               &chemistry THOMAS can be used.'
-          call printErrMsg(option)
-        end select
-
-!......................
-
       case ('RESTART')
         option%io_buffer = 'The RESTART card within SUBSURFACE block has &
                            &been deprecated.'
@@ -1446,14 +1393,6 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !......................
 
-      case ('NUMERICAL_JACOBIAN_RXN')
-        option%io_buffer = 'The NUMERICAL_JACOBIAN_RXN card within &
-          &SUBSURFACE block must be listed under the SIMULATION/&
-          &PROCESS_MODELS/SUBSURFACE_TRANSPORT block as &
-          &NUMERICAL_JACOBIAN.'
-        call printErrMsg(option)
-
-!......................
 
       case ('NUMERICAL_JACOBIAN_MULTI_COUPLE')
         option%numerical_derivatives_multi_coupling = PETSC_TRUE
@@ -1563,12 +1502,6 @@ subroutine SubsurfaceReadInput(simulation,input)
         call InputErrorMsg(input,option,'io_handshake_buffer_size', &
                            'HANDSHAKE_IO')
 
-      case ('OVERWRITE_RESTART_TRANSPORT')
-        option%io_buffer = 'OVERWRITE_RESTART_TRANSPORT no longer &
-          &supported. Please use SKIP_RESTART in the SUBSURFACE_TRANSPORT &
-          &process model options block.'
-        call PrintErrMsg(option)
-
       case ('OVERWRITE_RESTART_FLOW_PARAMS')
         option%io_buffer = 'OVERWRITE_RESTART_FLOW_PARAMS no longer &
           &supported. Please use REVERT_PARAMETERS_ON_RESTART in &
@@ -1578,12 +1511,6 @@ subroutine SubsurfaceReadInput(simulation,input)
       case ('INITIALIZE_FLOW_FROM_FILE')
         call InputReadFilename(input,option,option%initialize_flow_filename)
         call InputErrorMsg(input,option,'filename','INITIALIZE_FLOW_FROM_FILE')
-
-      case ('INITIALIZE_TRANSPORT_FROM_FILE')
-        call InputReadFilename(input,option, &
-                               option%initialize_transport_filename)
-        call InputErrorMsg(input,option,'filename', &
-                           'INITIALIZE_TRANSPORT_FROM_FILE')
 
       case ('CENTRAL_DIFFERENCE')
         option%use_upwinding = PETSC_FALSE
@@ -1683,27 +1610,22 @@ subroutine SubsurfaceReadInput(simulation,input)
               option%io_buffer = 'PROCESSOR_ID output must now be entered &
                                  &under OUTPUT/VARIABLES card as PROCESS_ID.'
               call printErrMsg(option)
-!              output_option%print_iproc = PETSC_TRUE
             case('PERMEABILITY')
               option%io_buffer = 'PERMEABILITY output must now be entered &
                                  &under OUTPUT/VARIABLES card.'
               call printErrMsg(option)
-!              output_option%print_permeability = PETSC_TRUE
             case('POROSITY')
               option%io_buffer = 'POROSITY output must now be entered under &
                                  &OUTPUT/VARIABLES card.'
               call printErrMsg(option)
-!              output_option%print_porosity = PETSC_TRUE
             case('TORTUOSITY')
               option%io_buffer = 'TORTUOSITY output must now be entered under &
                                  &OUTPUT/VARIABLES card.'
               call printErrMsg(option)
-!              output_option%print_tortuosity = PETSC_TRUE
             case('VOLUME')
               option%io_buffer = 'VOLUME output must now be entered under &
                                  &OUTPUT/VARIABLES card.'
               call printErrMsg(option)
-!              output_option%print_volume = PETSC_TRUE
             case('MASS_BALANCE')
               option%compute_mass_balance_new = PETSC_TRUE
               output_option%periodic_msbl_output_ts_imod = 1

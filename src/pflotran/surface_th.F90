@@ -1,7 +1,5 @@
 module Surface_TH_module
 
-
-
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Surface_Global_Aux_module
@@ -62,13 +60,9 @@ subroutine SurfaceTHSetup(surf_realization)
   type(Surface_TH_auxvar_type), pointer :: Surf_TH_auxvars(:)
   type(Surface_TH_auxvar_type), pointer :: Surf_TH_auxvars_bc(:)
   type(Surface_TH_auxvar_type), pointer :: Surf_TH_auxvars_ss(:)
-  type(fluid_property_type), pointer :: cur_fluid_property
-  type(coupler_type), pointer :: initial_condition
-  type(output_variable_list_type), pointer :: list
-  PetscReal :: area_per_vol
 
+  type(output_variable_list_type), pointer :: list
   PetscInt :: ghosted_id, iconn, sum_connection
-  PetscInt :: i, iphase
   
   option => surf_realization%option
   patch => surf_realization%patch
@@ -222,12 +216,9 @@ subroutine SurfaceTHRHSFunction(ts,t,xx,ff,surf_realization,ierr)
   PetscReal :: dist
   PetscReal :: vel
   PetscReal :: slope, slope_dn
-  PetscReal :: rho          ! density      [kg/m^3]
-  PetscReal :: hw_up, hw_dn ! water height [m]
-  PetscReal :: Res(surf_realization%option%nflowdof), v_darcy
+  PetscReal :: Res(surf_realization%option%nflowdof)
   PetscReal :: qsrc, qsrc_flow
   PetscReal :: esrc
-  PetscReal :: den
   PetscReal :: dum1
 
   PetscViewer :: viewer
@@ -541,16 +532,12 @@ subroutine SurfaceTHComputeMaxDt(surf_realization,max_allowable_dt)
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: iconn
   PetscInt :: sum_connection
-#ifdef SURFACE_TH_DEBUG
-  PetscInt :: max_connection,max_iconn
-#endif
 
   PetscReal :: dx, dy, dz
   PetscReal :: dist
   PetscReal :: vel
   PetscReal :: slope, slope_dn
-  PetscReal :: hw_up, hw_dn ! water height [m]
-  PetscReal :: Res(surf_realization%option%nflowdof), v_darcy
+  PetscReal :: Res(surf_realization%option%nflowdof)
   PetscReal :: max_allowable_dt
   PetscReal :: dt
 
@@ -583,10 +570,6 @@ subroutine SurfaceTHComputeMaxDt(surf_realization,max_allowable_dt)
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
   sum_connection = 0  
-#ifdef SURFACE_TH_DEBUG
-  max_connection = -1
-  max_iconn      = -1
-#endif
   do 
     if (.not.associated(cur_connection_set)) exit
     do iconn = 1, cur_connection_set%num_connections
@@ -618,52 +601,11 @@ subroutine SurfaceTHComputeMaxDt(surf_realization,max_allowable_dt)
       patch%internal_velocities(1,sum_connection) = vel
       patch%internal_flow_fluxes(:,sum_connection) = Res(:)
 
-#ifdef SURFACE_TH_DEBUG
-      if (dt < max_allowable_dt) then
-        max_connection = sum_connection
-        max_iconn      = iconn
-      endif
-#endif
       max_allowable_dt = min(max_allowable_dt, dt)
 
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
-
-#ifdef SURFACE_TH_DEBUG
-  if (max_allowable_dt < 1.d-1) then
-    cur_connection_set => connection_set_list%first
-    ghosted_id_up = cur_connection_set%id_up(max_iconn)
-    ghosted_id_dn = cur_connection_set%id_dn(max_iconn)
-    local_id_up = grid%nG2L(ghosted_id_up)
-    local_id_dn = grid%nG2L(ghosted_id_dn)
-    dx = xc(ghosted_id_dn) - xc(ghosted_id_up)
-    dy = yc(ghosted_id_dn) - yc(ghosted_id_up)
-    dz = zc(ghosted_id_dn) - zc(ghosted_id_up)
-    dist = sqrt(dx*dx + dy*dy + dz*dz)
-    slope = dz/dist
-    print *,"--------------------------"
-    print *,"max_allowable_dt:",max_allowable_dt
-    print *,"connection:",max_iconn
-    print *,"(dx,dy,dz):",dx,dy,dz
-    print *,"dist:      ",dist
-    print *,"slope:     ",slope
-    print *,"flux:      ",patch%internal_velocities(1,max_connection)
-    print *,"dt:        ",dist/abs(patch%internal_velocities(1,max_connection))/3.0d0
-    print *,"up info:",ghosted_id_up
-    print *,"  istate:",surf_global_auxvars(ghosted_id_up)%istate
-    print *,"  head:  ",surf_global_auxvars(ghosted_id_up)%head(1)
-    print *,"  zc:    ",zc(ghosted_id_up)
-    print *,"  temp:  ",surf_global_auxvars(ghosted_id_up)%temp
-    print *,"  is_dry:",surf_global_auxvars(ghosted_id_up)%is_dry
-    print *,"dn info:",ghosted_id_dn
-    print *,"  istate:",surf_global_auxvars(ghosted_id_dn)%istate
-    print *,"  head:  ",surf_global_auxvars(ghosted_id_dn)%head(1)
-    print *,"  zc:    ",zc(ghosted_id_dn)
-    print *,"  temp:  ",surf_global_auxvars(ghosted_id_dn)%temp
-    print *,"  is_dry:",surf_global_auxvars(ghosted_id_dn)%is_dry
-  endif  
-#endif
 
   ! Boundary Flux Terms -----------------------------------
   boundary_condition => patch%boundary_condition_list%first
@@ -1034,14 +976,12 @@ subroutine SurfaceTHUpdateAuxVars(surf_realization)
   type(surface_global_auxvar_type), pointer :: surf_global_auxvars_ss(:)
 
   PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
-  PetscInt :: iphasebc, iphase
-  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:), iphase_loc_p(:)
-  PetscReal, pointer :: perm_xx_loc_p(:), porosity_loc_p(:)
+  PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(surf_realization%option%nflowdof)
   PetscReal :: xxss(surf_realization%option%nflowdof)
   PetscReal :: tsrc1
   PetscErrorCode :: ierr
-  PetscReal :: den,head
+  PetscReal :: head
 
   option => surf_realization%option
   patch => surf_realization%patch
@@ -1265,22 +1205,15 @@ subroutine SurfaceTHUpdateTemperature(surf_realization)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(surface_field_type), pointer :: surf_field
-  type(coupler_type), pointer :: boundary_condition
-  type(coupler_type), pointer :: source_sink
-  type(connection_set_type), pointer :: cur_connection_set
+
   type(Surface_TH_auxvar_type), pointer :: surf_auxvars(:)
   type(Surface_TH_auxvar_type), pointer :: surf_auxvars_bc(:)
-  type(Surface_TH_auxvar_type), pointer :: surf_auxvars_ss(:)
   type(surface_global_auxvar_type), pointer :: surf_global_auxvars(:)
   type(surface_global_auxvar_type), pointer :: surf_global_auxvars_bc(:)
   type(surface_global_auxvar_type), pointer :: surf_global_auxvars_ss(:)
 
-  PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
-  PetscInt :: iphasebc, iphase
-  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:), iphase_loc_p(:)
-  PetscReal, pointer :: perm_xx_loc_p(:), porosity_loc_p(:)
-  PetscReal :: xxbc(surf_realization%option%nflowdof)
-  PetscReal :: xxss(surf_realization%option%nflowdof)
+  PetscInt :: ghosted_id, istart, iend
+  PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: temp,TL,TR
   PetscReal :: den
   PetscReal :: dum1
@@ -1366,13 +1299,9 @@ subroutine SurfaceTHUpdateSurfState(surf_realization)
 
   class(realization_surface_type) :: surf_realization
 
-  type(coupler_list_type), pointer :: coupler_list
-  type(coupler_type), pointer :: coupler
-  type(connection_set_type), pointer :: cur_connection_set
-  type(dm_ptr_type), pointer :: dm_ptr
-  type(grid_type),pointer :: grid,surf_grid
+  type(grid_type),pointer :: surf_grid
   type(option_type), pointer :: option
-  type(patch_type),pointer :: patch,surf_patch
+  type(patch_type),pointer :: patch
   type(surface_field_type),pointer :: surf_field
   type(Surface_TH_auxvar_type), pointer :: surf_auxvars(:)
 
@@ -1381,20 +1310,15 @@ subroutine SurfaceTHUpdateSurfState(surf_realization)
   PetscInt :: local_id
   PetscInt :: ibeg
   PetscInt :: iend
-  PetscInt :: iconn
-  PetscInt :: sum_connection
 
   PetscReal :: den
   PetscReal :: dum1
-  PetscReal, pointer :: avg_vdarcy_p(:)   ! avg darcy velocity [m/s]
   PetscReal, pointer :: xx_p(:)           ! head [m]
   PetscReal, pointer :: surfpress_p(:)
   PetscReal, pointer :: surftemp_p(:)
   PetscReal :: Cwi
   PetscReal :: temp_K
   PetscErrorCode :: ierr
-
-  PetscBool :: coupler_found = PETSC_FALSE
 
   patch      => surf_realization%patch
   option     => surf_realization%option
@@ -1543,26 +1467,18 @@ subroutine SurfaceTHImplicitAtmForcing(surf_realization)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(surface_field_type), pointer :: surf_field
-  type(coupler_type), pointer :: boundary_condition
+
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   type(Surface_TH_auxvar_type), pointer :: surf_auxvars(:)
   type(Surface_TH_auxvar_type), pointer :: surf_auxvars_bc(:)
-  type(Surface_TH_auxvar_type), pointer :: surf_auxvars_ss(:)
   type(surface_global_auxvar_type), pointer :: surf_global_auxvars(:)
-  type(surface_global_auxvar_type), pointer :: surf_global_auxvars_bc(:)
   type(surface_global_auxvar_type), pointer :: surf_global_auxvars_ss(:)
 
-  PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
-  PetscInt :: iphasebc, iphase
-  PetscReal, pointer :: xx_loc_p(:), xx_p(:)
-  PetscReal, pointer :: perm_xx_loc_p(:), porosity_loc_p(:)
-  PetscReal :: xxbc(surf_realization%option%nflowdof)
-  PetscReal :: xxss(surf_realization%option%nflowdof)
-  PetscReal :: temp,ptemp,rtol
-  PetscInt :: iter
+  PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, iconn
+  PetscReal, pointer :: xx_p(:)
+  PetscReal :: temp, rtol
   PetscInt :: niter
-  PetscReal :: den
   PetscReal :: dum1
   PetscReal :: den_iter
   PetscReal :: den_old
@@ -1571,7 +1487,6 @@ subroutine SurfaceTHImplicitAtmForcing(surf_realization)
   PetscReal :: temp_old
   PetscReal :: head
   PetscReal :: beta,RHS,TL,TR
-  PetscBool :: found
   PetscErrorCode :: ierr
 
   option => surf_realization%option

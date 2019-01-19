@@ -226,7 +226,6 @@ subroutine TimestepperSurfaceStepDT(this,process_model,stop_flag)
 
   PetscReal :: time
   PetscReal :: dtime
-  PetscReal :: tmp
   type(solver_type), pointer :: solver
   type(option_type), pointer :: option
   PetscErrorCode :: ierr
@@ -382,8 +381,6 @@ subroutine TimestepperSurfaceSetHeader(this,bag,header)
   class(timestepper_surface_header_type) :: header
   PetscBag :: bag
 
-  PetscErrorCode :: ierr
-
   header%dt_max_allowable = this%dt_max_allowable
   header%surf_subsurf_coupling_flow_dt = this%surf_subsurf_coupling_flow_dt
 
@@ -428,8 +425,6 @@ subroutine TimestepperSurfaceReset(this)
   implicit none
 
   class(timestepper_surface_type) :: this
-
-  PetscErrorCode :: ierr
 
 #if 0
   !TODO(Gautam): set these back to their initial values as if a simulation

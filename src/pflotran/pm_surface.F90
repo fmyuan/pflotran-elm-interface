@@ -357,7 +357,6 @@ subroutine PMSurfaceInputRecord(this)
   
   class(pm_surface_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

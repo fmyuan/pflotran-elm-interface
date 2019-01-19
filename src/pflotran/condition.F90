@@ -3,8 +3,6 @@ module Condition_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
-!  use Reaction_Aux_module
-!  use Reactive_Transport_Aux_module
   use Global_Aux_module
   use Dataset_Base_class
   use Dataset_Ascii_class

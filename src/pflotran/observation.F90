@@ -388,8 +388,6 @@ subroutine ObservationDestroy(observation)
   
   type(observation_type), pointer :: observation
   
-  PetscInt :: i
-  
   if (.not.associated(observation)) return
   
   nullify(observation%region)

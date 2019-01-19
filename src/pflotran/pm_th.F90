@@ -4,8 +4,8 @@ module PM_TH_class
   use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
-!geh: using TH_module here fails with gfortran (internal compiler error)
-!  use TH_module
+  !geh: using TH_module here fails with gfortran (internal compiler error)
+  !  use TH_module
   use Realization_Subsurface_class
   use Communicator_Base_module
   use Option_module
@@ -466,7 +466,7 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   type(TH_auxvar_type), pointer :: TH_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)  
   PetscInt :: local_id, ghosted_id
-  PetscReal :: P0, P1, P_R, delP, delP_old
+  PetscReal :: P0, P1, P_R, delP
   PetscReal :: scale, press_limit, temp_limit
   PetscInt :: iend, istart
 
@@ -832,14 +832,11 @@ subroutine PMTHInputRecord(this)
   implicit none
   
   class(pm_th_type) :: this
-
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
 #ifdef PM_TH_DEBUG
   print *, 'PMTHInputRecord()'
 #endif
-
 
   id = INPUT_RECORD_UNIT
 

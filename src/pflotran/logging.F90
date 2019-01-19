@@ -32,8 +32,6 @@ module Logging_module
     PetscLogEvent :: event_checkpoint
 
     PetscLogEvent :: event_flow_condition_read
-    PetscLogEvent :: event_tran_condition_read
-    PetscLogEvent :: event_tran_constraint_read
     PetscLogEvent :: event_flow_condition_read_values
 
     PetscLogEvent :: event_h5dread_f
@@ -73,29 +71,6 @@ module Logging_module
     PetscLogEvent :: event_output_coordinates_hdf5
     PetscLogEvent :: event_output_hydrograph
     PetscLogEvent :: event_output_secondary_tecplot
-
-    PetscLogEvent :: event_r_residual
-    PetscLogEvent :: event_r_jacobian
-    PetscLogEvent :: event_r_auxvars
-    PetscLogEvent :: event_r_auxvars_bc
-    
-    PetscLogEvent :: event_rt_residual
-    PetscLogEvent :: event_rt_jacobian
-
-    PetscLogEvent :: event_rt_jacobian_flux
-    PetscLogEvent :: event_rt_jacobian_fluxbc
-    PetscLogEvent :: event_rt_jacobian_accum
-    PetscLogEvent :: event_rt_jacobian_zero_calc
-    PetscLogEvent :: event_rt_jacobian_zero
-    PetscLogEvent :: event_rt_jacobian_ss
-    PetscLogEvent :: event_rt_jacobian1
-    PetscLogEvent :: event_rt_jacobian2
-
-    PetscLogEvent :: event_rt_res_reaction
-    PetscLogEvent :: event_rt_jac_reaction
-    PetscLogEvent :: event_rt_react
-    PetscLogEvent :: event_rt_auxvars
-    PetscLogEvent :: event_rt_auxvars_bc
     
     PetscLogEvent :: event_mass_balance
 
@@ -140,7 +115,6 @@ subroutine LoggingCreate()
   call PetscLogStageRegister('Finalization Stage', &
                              logging%stage(FINAL_STAGE),ierr);CHKERRQ(ierr)
                              
-!!  call PetscCookieRegister('PFLOTRAN',logging%class_pflotran,ierr)
   call PetscClassIdRegister('PFLOTRAN',logging%class_pflotran, &
                             ierr);CHKERRQ(ierr)
 
@@ -165,14 +139,6 @@ subroutine LoggingCreate()
   call PetscLogEventRegister('FlowCondRead', &
                              logging%class_pflotran, &
                              logging%event_flow_condition_read, &
-                             ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('TranCondRead', &
-                             logging%class_pflotran, &
-                             logging%event_tran_condition_read, &
-                             ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('TranConstraintRd', &
-                             logging%class_pflotran, &
-                             logging%event_tran_constraint_read, &
                              ierr);CHKERRQ(ierr)
   call PetscLogEventRegister('FlowCondReadVals', &
                              logging%class_pflotran, &
@@ -311,72 +277,6 @@ subroutine LoggingCreate()
                              logging%event_output_hydrograph, &
                              ierr);CHKERRQ(ierr)
 
-  call PetscLogEventRegister('RResidual', &
-                             logging%class_pflotran, &
-                             logging%event_r_residual,ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RJacobian', &
-                             logging%class_pflotran, &
-                             logging%event_r_jacobian,ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RAuxVars', &
-                             logging%class_pflotran, &
-                             logging%event_r_auxvars,ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RAuxVarsBC', &
-                             logging%class_pflotran, &
-                             logging%event_r_auxvars_bc,ierr);CHKERRQ(ierr)
-
-  call PetscLogEventRegister('RTResidual', &
-                             logging%class_pflotran, &
-                             logging%event_rt_residual,ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RTJacobian', &
-                             logging%class_pflotran, &
-                             logging%event_rt_jacobian,ierr);CHKERRQ(ierr)
-
-  call PetscLogEventRegister('RTJacobianFlux', &
-                             logging%class_pflotran, &
-                             logging%event_rt_jacobian_flux, &
-                             ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RTJacobianFluxBC', &
-                             logging%class_pflotran, &
-                             logging%event_rt_jacobian_fluxbc, &
-                             ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RTJacobianAccum', &
-                             logging%class_pflotran, &
-                             logging%event_rt_jacobian_accum, &
-                             ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RTJacobianZeroCalc', &
-                             logging%class_pflotran, &
-                             logging%event_rt_jacobian_zero_calc, &
-                             ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RTJacobianZero', &
-                             logging%class_pflotran, &
-                             logging%event_rt_jacobian_zero, &
-                             ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RTJacobianSS', &
-                             logging%class_pflotran, &
-                             logging%event_rt_jacobian_ss,ierr);CHKERRQ(ierr)
-
-  call PetscLogEventRegister('RTJacobian1', &
-                             logging%class_pflotran, &
-                             logging%event_rt_jacobian1,ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RTJacobian2', &
-                             logging%class_pflotran, &
-                             logging%event_rt_jacobian2,ierr);CHKERRQ(ierr)
-
-  call PetscLogEventRegister('RTResReaction', &
-                             logging%class_pflotran, &
-                             logging%event_rt_res_reaction,ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RTJacReaction', &
-                             logging%class_pflotran, &
-                             logging%event_rt_jac_reaction,ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RTReact', &
-                             logging%class_pflotran, &
-                             logging%event_rt_react,ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RTAuxVars', &
-                             logging%class_pflotran, &
-                             logging%event_rt_auxvars,ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RTAuxVarsBC', &
-                             logging%class_pflotran, &
-                             logging%event_rt_auxvars_bc,ierr);CHKERRQ(ierr)
                              
   call PetscLogEventRegister('MassBalance', &
                              logging%class_pflotran, &
@@ -415,23 +315,6 @@ subroutine LoggingCreateStage(stage_name,stage_id)
   !TODO(geh): fix after PETSc fixes bug in implementation.  PetscLogStageGetId
   !           currently returns the number of stages, not -1, when one exists.
   ! No two stages can have the same name
-#if 0
-  i = 0
-  temp_stage_name = full_stage_name
-  do
-    ! check if stage exists
-    call PetscLogStageGetId(temp_stage_name,temp_stage_id,ierr);CHKERRQ(ierr)
-    if (temp_stage_id > -1) then
-      i = i + 1
-      write(word,*) i
-      ! append count
-      temp_stage_name = trim(full_stage_name) // trim(adjustl(word))
-    else
-      full_stage_name = temp_stage_name
-      exit
-    endif
-  enddo
-#endif
   call PetscLogStageRegister(full_stage_name,stage_id,ierr);CHKERRQ(ierr)
   
   stage_id = logging%stage_count

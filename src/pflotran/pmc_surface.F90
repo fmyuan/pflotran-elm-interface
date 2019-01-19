@@ -106,9 +106,8 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
   PetscReal :: sync_time
   PetscInt :: stop_flag
   character(len=MAXSTRINGLENGTH) :: filename_append
-  class(pmc_base_type), pointer :: pmc_base
   PetscInt :: local_stop_flag
-  PetscBool :: failure
+
   PetscBool :: snapshot_plot_flag
   PetscBool :: observation_plot_flag
   PetscBool :: massbal_plot_flag
@@ -118,7 +117,6 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
   class(pm_base_type), pointer :: cur_pm
   PetscReal :: dt_max_loc
   PetscReal :: dt_max_glb
-  PetscViewer :: viewer
   PetscErrorCode :: ierr
 
   if (stop_flag == TS_STOP_FAILURE) return
@@ -386,7 +384,7 @@ subroutine PMCSurfaceSetAuxData(this)
   PetscReal, pointer :: surf_hflux_p(:)
   PetscBool :: found
   PetscReal :: esrc
-  PetscReal :: atm_temp
+
   PetscErrorCode :: ierr
 
   dt = this%option%surf_subsurf_coupling_flow_dt
@@ -626,7 +624,6 @@ recursive subroutine PMCSurfaceFinalizeRun(this)
   call printMsg(this%option,'PMCSurface%FinalizeRun()')
   
   nullify(this%surf_realization)
-!  nullify(this%surf_timestepper)
   
 end subroutine PMCSurfaceFinalizeRun
 

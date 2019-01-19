@@ -578,23 +578,6 @@ subroutine RealizationProcessConditions(realization)
     cur_data_mediator => cur_data_mediator%next
   enddo
 
-  cur_data_mediator => realization%tran_data_mediator_list
-  do
-    if (.not.associated(cur_data_mediator)) exit
-    call RealizCreateTranMassTransferVec(realization)
-    select type(cur_data_mediator)
-      class is(data_mediator_dataset_type)
-        call DataMediatorDatasetInit(cur_data_mediator, &
-                                     realization%discretization, &
-                                     realization%datasets, &
-                                     realization%option)
-        call cur_data_mediator%Update(realization%field%tran_mass_transfer, &
-                                      realization%option)
-      class default
-    end select
-    cur_data_mediator => cur_data_mediator%next
-  enddo
-
 end subroutine RealizationProcessConditions
 
 ! ************************************************************************** !
@@ -1380,10 +1363,8 @@ subroutine RealizationUpdatePropertiesNI(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(material_property_ptr_type), pointer :: material_property_array(:)
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:) 
   type(discretization_type), pointer :: discretization
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
@@ -1405,10 +1386,8 @@ subroutine RealizationUpdatePropertiesNI(realization)
   discretization => realization%discretization
   patch => realization%patch
   field => realization%field
-  reaction => realization%reaction
   grid => patch%grid
   material_property_array => patch%material_property_array
-  rt_auxvars => patch%aux%RT%auxvars
   material_auxvars => patch%aux%Material%auxvars
 #endif
 

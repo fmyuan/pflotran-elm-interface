@@ -6,7 +6,7 @@ module Lookup_Table_module
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
 
   ! Variable extrapolation types

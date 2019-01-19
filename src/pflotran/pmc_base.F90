@@ -182,7 +182,6 @@ recursive subroutine PMCBaseInputRecord(this)
   class(pmc_base_type) :: this
   
   class(pm_base_type), pointer :: cur_pm
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
@@ -436,7 +435,6 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
   PetscInt :: stop_flag
   
   PetscInt :: local_stop_flag
-  PetscBool :: failure
   PetscBool :: checkpoint_at_this_time_flag
   PetscBool :: snapshot_plot_at_this_time_flag
   PetscBool :: observation_plot_at_this_time_flag
@@ -651,8 +649,6 @@ recursive subroutine FinalizeRun(this)
   implicit none
   
   class(pmc_base_type) :: this
-  
-  character(len=MAXSTRINGLENGTH) :: string
   
 #ifdef DEBUG
   call printMsg(this%option,'PMCBase%FinalizeRun()')
@@ -910,8 +906,6 @@ subroutine PMCBaseSetHeader(this,bag,header)
   class(pmc_base_header_type) :: header
   PetscBag :: bag
   
-  PetscErrorCode :: ierr
-  
   header%plot_number = &
     this%pm_list%realization_base%output_option%plot_number
 
@@ -1115,7 +1109,6 @@ recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   integer(HID_T) :: h5_pm_grp_id
 
   class(pm_base_type), pointer :: cur_pm
-  class(pmc_base_header_type), pointer :: header
   type(pmc_base_header_type) :: dummy_header
   character(len=1),pointer :: dummy_char(:)
   PetscSizeT :: bagsize
@@ -1510,22 +1503,6 @@ subroutine SetAuxData(this)
   class(pmc_base_type) :: this
 
 end subroutine SetAuxData
-
-! ************************************************************************** !
-
-subroutine PMCBaseUpdateMaterialProperties(this)
-  !
-  ! At a prescribed time, updates material properties based on instructions
-  ! provided by a material update waypoint.
-  !
-  ! Author: Glenn Hammond
-  ! Date: 09/18/14
-  
-  implicit none
-  
-  class(pmc_base_type) :: this
-
-end subroutine PMCBaseUpdateMaterialProperties
 
 ! ************************************************************************** !
 

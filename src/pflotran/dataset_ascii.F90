@@ -1,5 +1,5 @@
 module Dataset_Ascii_class
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
@@ -163,7 +163,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
   character(len=MAXSTRINGLENGTH), pointer :: internal_data_units_strings(:) 
   character(len=MAXWORDLENGTH) :: word, internal_units
   PetscReal, pointer :: temp_array(:,:)
-  PetscReal :: temp_time
+
   PetscReal :: conversion
   PetscInt :: max_size, offset
   PetscInt :: row_count, column_count, data_count, i, k

@@ -1,5 +1,5 @@
 module SrcSink_Sandbox_Base_class
-  
+
   use PFLOTRAN_Constants_module
   use Geometry_module
 
@@ -67,7 +67,7 @@ subroutine SSSandboxBaseSetup(this,grid,option)
   type(option_type) :: option
   
   PetscInt :: local_id, ghosted_id
-  PetscInt :: i, iflag
+  PetscInt :: iflag
   PetscErrorCode :: ierr
 
   local_id = 0

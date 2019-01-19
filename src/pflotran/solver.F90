@@ -1,5 +1,5 @@
 module Solver_module
- 
+
 #include "petsc/finclude/petscts.h"
   use petscts
   use PFLOTRAN_Constants_module
@@ -865,7 +865,7 @@ subroutine SolverReadNewton(solver,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: keyword, word, word2
+  character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: boolean
 
@@ -1079,10 +1079,10 @@ subroutine SolverPrintLinearInfo(solver,header,option)
   strings(4) = 'rtol: '// StringWrite(solver%linear_rtol)
   strings(5) = 'dtol: '// StringWrite(solver%linear_dtol)
   strings(6) = 'maximum iteration: ' // &
-                                   StringWrite(solver%linear_max_iterations)
+               StringWrite(solver%linear_max_iterations)
   if (Initialized(solver%linear_zero_pivot_tol)) then
     strings(7) = 'zero pivot tolerance: ' // &
-                                   StringWrite(solver%linear_zero_pivot_tol)
+                  StringWrite(solver%linear_zero_pivot_tol)
   endif
   call StringsCenter(strings,30,':')
   call StringWriteToUnits(fids,strings)

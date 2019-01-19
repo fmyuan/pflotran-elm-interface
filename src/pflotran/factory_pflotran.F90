@@ -130,12 +130,11 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   type(option_type), pointer :: option
   
   type(input_type), pointer :: input
-  character(len=MAXSTRINGLENGTH) :: filename
+
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: pm_name
   character(len=MAXWORDLENGTH) :: simulation_type
-  character(len=MAXWORDLENGTH) :: internal_units  
   
   class(pm_base_type), pointer :: pm_master
   class(pm_base_type), pointer :: cur_pm
@@ -448,16 +447,12 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   
   type(option_type) :: option
   
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: option_found
-  PetscBool :: bool_flag
   PetscBool :: pflotranin_option_found
   PetscBool :: input_prefix_option_found
-  PetscBool :: output_dir_found
-  PetscBool :: output_file_prefix_found
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscInt :: i
-  PetscErrorCode :: ierr
   
   ! check for non-default input filename
   option%input_filename = 'pflotran.in'

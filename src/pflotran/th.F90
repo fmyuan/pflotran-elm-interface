@@ -50,11 +50,8 @@ subroutine THTimeCut(realization)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   
-  PetscErrorCode :: ierr
-
   option => realization%option
   field => realization%field
- 
   call THInitializeTimestep(realization)
  
 end subroutine THTimeCut
@@ -420,8 +417,6 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(TH_auxvar_type),pointer :: TH_auxvars(:)
-
-  PetscErrorCode :: ierr
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscReal :: compressed_porosity
@@ -867,11 +862,8 @@ subroutine THUpdateSolution(realization)
 
   type(field_type), pointer :: field
   type(patch_type), pointer :: cur_patch
-  PetscErrorCode :: ierr
-  PetscViewer :: viewer
   
   field => realization%field
-    
   cur_patch => realization%patch_list%first
   do
     if (.not.associated(cur_patch)) exit
@@ -1126,18 +1118,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   PetscInt :: ithrm
   class(Characteristic_Curves_type), pointer :: sat_func
   PetscReal :: J(option%nflowdof,option%nflowdof)
-     
-  PetscInt :: ispec 
-  PetscReal :: porXvol, mol(option%nflowspec), eng, por1
-
-  PetscInt :: iphase, ideriv
-  type(TH_auxvar_type) :: TH_auxvar_pert
-  type(global_auxvar_type) :: global_auxvar_pert
-  ! leave as type
-  type(material_auxvar_type) :: material_auxvar_pert
-  PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), pert
-  PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
-  PetscReal :: J_pert(option%nflowdof,option%nflowdof)
+  PetscReal :: porXvol
   PetscReal :: vol_frac_prim, tempreal
   PetscReal :: compressed_porosity, dcompressed_porosity_dp
   
@@ -1147,22 +1128,16 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   PetscReal :: u, du_dp, du_dt
   PetscReal :: u_rock, du_rock_dt
 
-  ! ice variables
-  PetscReal :: sat_g, p_g, den_g, p_sat, mol_g, u_g, C_g
-  PetscReal :: dpsat_dt
+  PetscReal :: sat_g, den_g, mol_g, u_g
   PetscReal :: ddeng_dt, dmolg_dt, dsatg_dt, dug_dt
   PetscReal :: ddeng_dp, dmolg_dp, dsatg_dp, dug_dp
   PetscReal :: sat_i, den_i, u_i
   PetscReal :: dsati_dp, dsati_dt
   PetscReal :: ddeni_dp, ddeni_dt
   PetscReal :: dui_dp, dui_dt
-  PetscErrorCode :: ierr
 
 
   J(:,:) = 0.d0
-  
-  ! X = {p, T}; R = {R_p, R_T}
-  
   vol = material_auxvar%volume
   pres = global_auxvar%pres(1)
   temp = global_auxvar%temp
@@ -1306,9 +1281,8 @@ subroutine THAccumulation(auxvar,global_auxvar, &
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   PetscReal :: Res(1:option%nflowdof) 
-  PetscReal ::rock_dencpr,por1
+  PetscReal ::rock_dencpr
 
-  PetscInt :: ispec
   PetscReal :: vol,por,uh,u_rock
   PetscReal :: porXvol, mol(option%nflowspec), eng
   PetscReal :: vol_frac_prim
@@ -1316,9 +1290,8 @@ subroutine THAccumulation(auxvar,global_auxvar, &
   PetscReal :: tc
 
   ! ice variables
-  PetscReal :: sat_g, p_g, den_g, p_sat, mol_g, u_g, C_g
+  PetscReal :: sat_g, den_g, mol_g, u_g
   PetscReal :: sat_i, den_i, u_i
-  PetscErrorCode :: ierr
   
   vol = material_auxvar%volume
   
@@ -1438,12 +1411,10 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: Ddiffgas_avg, Ddiffgas_up, Ddiffgas_dn
   PetscReal :: p_g
   PetscReal :: deng_up, deng_dn
-  PetscReal :: psat_up, psat_dn
   PetscReal :: molg_up, molg_dn
   PetscReal :: satg_up, satg_dn
   PetscReal :: Diffg_up, Diffg_dn
   PetscReal :: ddeng_dt_up, ddeng_dt_dn, ddeng_dp_up, ddeng_dp_dn
-  PetscReal :: dpsat_dt_up, dpsat_dt_dn
   PetscReal :: dmolg_dt_up, dmolg_dt_dn
   PetscReal :: dDiffg_dt_up, dDiffg_dt_dn
   PetscReal :: dDiffg_dp_up, dDiffg_dp_dn
@@ -1454,8 +1425,6 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: dfv_dp_up, dfv_dp_dn
   PetscReal :: dmolg_dp_up, dmolg_dp_dn
   PetscReal :: ugas_ave, dugas_ave_dt, dugas_ave_dp, fdiffgas, fdiffgas_dx
-
-  PetscErrorCode :: ierr
 
   !-------------------------------------------------------------------------
   call ConnectionCalculateDistances(dist,option%gravity,dd_up,dd_dn, &
@@ -1841,15 +1810,13 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   PetscReal :: Ddiffgas_avg, Ddiffgas_up, Ddiffgas_dn
   PetscReal :: p_g
   PetscReal :: deng_up, deng_dn
-  PetscReal :: psat_up, psat_dn
+  !PetscReal :: psat_up, psat_dn
   PetscReal :: molg_up, molg_dn
   PetscReal :: satg_up, satg_dn
   PetscReal :: Diffg_up, Diffg_dn
   PetscReal :: Diffg_ref, p_ref, T_ref
   PetscReal :: fv_up, fv_dn
   PetscReal :: ugas_ave, fdiffgas
-
-  PetscErrorCode :: ierr
 
   !-----------------------------------------------------------------------------
   por_up = material_auxvar_up%porosity
@@ -2030,11 +1997,10 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: dist_gravity  ! distance along gravity vector
           
   PetscReal :: dd_dn
-  PetscInt :: ispec
   PetscReal :: v_darcy
   PetscReal :: fluxm,fluxe,q,density_ave
-  PetscReal :: uh,ukvr,diff,diffdp,DK,Dq
-  PetscReal :: upweight,cond,gravity,dphi
+  PetscReal :: uh,ukvr,diffdp,DK,Dq
+  PetscReal :: upweight,gravity,dphi
 
   PetscReal :: ddiff_dp_dn, ddiff_dt_dn
   PetscReal :: dden_ave_dp_dn, dden_ave_dt_dn
@@ -2050,28 +2016,18 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: Ddiffgas_avg, Ddiffgas_up, Ddiffgas_dn
   PetscReal :: p_g
   PetscReal :: deng_up, deng_dn
-  PetscReal :: psat_up, psat_dn
   PetscReal :: molg_up, molg_dn
   PetscReal :: satg_up, satg_dn
   PetscReal :: Diffg_up, Diffg_dn
   PetscReal :: ddeng_dt_dn, ddeng_dp_dn
-  PetscReal :: dpsat_dt_dn
   PetscReal :: dmolg_dt_dn, dmolg_dp_dn
   PetscReal :: dDiffg_dt_dn
   PetscReal :: dDiffg_dp_dn
   PetscReal :: dsatg_dt_dn, dsatg_dp_dn
   PetscReal :: Diffg_ref, p_ref, T_ref
-  PetscErrorCode :: ierr
-  PetscReal :: v_darcy_allowable
-  PetscReal :: temp_real
-  PetscReal :: dum1
-  PetscReal :: T_th,fct,fctT,dfctT_dT
-  PetscReal :: rho
-  PetscReal :: dq_lin,dP_lin
-  PetscReal :: q_approx,dq_approx
+  PetscReal :: T_th
   PetscBool :: skip_thermal_conduction
   PetscReal :: ugas_ave, dugas_ave_dt, dugas_ave_dp, fdiffgas, fdiffgas_dx
-  PetscReal :: deltaTf
 
   PetscBool :: skip_mass_flow
 
@@ -2507,27 +2463,20 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   PetscReal :: dd_dn
           
   PetscReal :: por_dn,perm_dn,tor_dn
-  PetscInt :: ispec
+
   PetscReal :: fluxm,fluxe,q,density_ave
-  PetscReal :: uh,ukvr,diff,diffdp,DK,Dq
+  PetscReal :: uh,ukvr,diffdp,DK,Dq
   PetscReal :: upweight,cond,gravity,dphi
-  PetscReal :: dphi_orig
   
   ! ice variables
   PetscReal :: Ddiffgas_avg, Ddiffgas_dn, Ddiffgas_up
   PetscReal :: p_g
   PetscReal :: deng_dn, deng_up
-  PetscReal :: psat_dn, psat_up
   PetscReal :: molg_dn, molg_up
   PetscReal :: satg_dn, satg_up
   PetscReal :: Diffg_dn, Diffg_up
   PetscReal :: Diffg_ref, p_ref, T_ref
-  PetscErrorCode :: ierr
-  PetscReal :: fv_up, fv_dn
-  PetscReal :: v_darcy_allowable, temp_real
-  PetscReal :: rho,dum1
-  PetscReal :: q_approx, dq_approx
-  PetscReal :: T_th,fctT,fct
+  PetscReal :: T_th,fctT
   PetscBool :: skip_thermal_conduction,  skip_mass_flow
   PetscReal :: fdiffgas, ugas_ave
   PetscReal :: deltaTf
@@ -2910,27 +2859,18 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
-  PetscInt :: i, jn
-  PetscInt :: ip1, ip2
+  PetscInt :: i
   PetscInt :: local_id, ghosted_id, local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
 
   PetscReal, pointer :: accum_p(:)
 
-  PetscReal, pointer :: r_p(:), xx_loc_p(:), xx_p(:), yy_p(:)
+  PetscReal, pointer :: r_p(:), xx_loc_p(:), yy_p(:)
   PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
 
-  PetscInt :: iphase
   PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
   PetscReal :: dd_up, dd_dn
-  PetscReal :: dd, f_up, f_dn, ff
-  PetscReal :: perm_up, perm_dn
-  PetscReal :: Dk_up, Dk_dn         ! thermal conductivity wet constants at upstream, downstream faces.
-  PetscReal :: Dk_dry_up, Dk_dry_dn ! dry thermal conductivities
-  PetscReal :: Dk_ice_up, Dk_ice_dn ! frozen soil thermal conductivities
-  PetscReal :: alpha_up, alpha_dn
-  PetscReal :: alpha_fr_up, alpha_fr_dn
-  PetscReal :: dw_kg, dw_mol
-  PetscReal :: qsrc1, csrc1, enth_src_h2o, enth_src_co2 , esrc1
+  PetscReal :: Dk_dn         ! thermal conductivity wet constants at upstream, downstream faces.
+  PetscReal :: qsrc1, esrc1
 
   PetscReal :: upweight
   PetscReal :: Res(realization%option%nflowdof)
@@ -2953,24 +2893,14 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set  
   type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
   character(len=MAXSTRINGLENGTH) :: string
-  PetscReal, pointer :: mmsrc(:)
-  PetscReal :: well_status
-  PetscReal :: well_factor
-  PetscReal :: pressure_bh
-  PetscReal :: pressure_max
-  PetscReal :: pressure_min
-  PetscReal :: well_inj_water
-  PetscReal :: Dq, dphi, v_darcy, ukvr
-
-  PetscInt :: iconn, idof, istart, iend, ii
+  PetscReal :: v_darcy
+  PetscInt :: iconn, istart, iend, ii
   PetscInt :: sum_connection
-  PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity
   PetscReal :: vol_frac_prim
   PetscReal :: fluxe_bulk, fluxe_cond
 
   ! secondary continuum variables
-  PetscReal :: sec_density
   PetscReal :: sec_dencpr
   PetscReal :: res_sec_heat
 
@@ -3501,7 +3431,6 @@ subroutine THJacobian(snes,xx,A,B,realization,ierr)
   MatType :: mat_type
   PetscViewer :: viewer
   type(patch_type), pointer :: cur_patch
-  type(grid_type),  pointer :: grid
   type(option_type),  pointer :: option
   PetscReal :: norm
   
@@ -3573,26 +3502,20 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
-  PetscInt :: nvar,neq,nr
-  PetscInt :: ithrm_up, ithrm_dn, i
-  PetscInt :: ip1, ip2 
+  PetscInt :: ithrm_up, ithrm_dn
 
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,iphas,icap_up,icap_dn
+  PetscInt :: icap,icap_up, icap_dn
   PetscInt :: ii, jj
-  PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
-  PetscReal :: qsrc1,csrc1
-  PetscReal :: dd_up, dd_dn, dd, f_up, f_dn
-  PetscReal :: perm_up, perm_dn
-  PetscReal :: Dk_up, Dk_dn         ! thermal conductivity wet constants at upstream, downstream faces.
-  PetscReal :: Dk_dry_up, Dk_dry_dn ! dry thermal conductivities
-  PetscReal :: Dk_ice_up, Dk_ice_dn ! frozen soil thermal conductivities
-  PetscReal :: alpha_up, alpha_dn
-  PetscReal :: alpha_fr_up, alpha_fr_dn
-  PetscReal :: zero, norm
+  PetscReal :: qsrc1
+  PetscReal :: dd_up, dd_dn, f_up
+  PetscReal :: Dk_dn         ! thermal conductivity wet constants at upstream, downstream faces.
+  PetscReal :: Dk_dry_dn     ! dry thermal conductivities
+  PetscReal :: Dk_ice_dn     ! frozen soil thermal conductivities
+  PetscReal :: alpha_dn
+  PetscReal :: alpha_fr_dn
   PetscReal :: upweight
-  PetscReal :: max_dev  
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
@@ -3606,9 +3529,8 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
-  PetscInt :: iconn, idof
+  PetscInt :: iconn
   PetscInt :: sum_connection  
-  PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity 
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -3625,11 +3547,9 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   PetscInt :: ithrm
 
   PetscViewer :: viewer
-  Vec :: debug_vec
   PetscReal :: vol_frac_prim
   
   ! secondary continuum variables
-  PetscReal :: area_prim_sec
   PetscReal :: jac_sec_heat
 
   patch => realization%patch
@@ -4077,9 +3997,7 @@ subroutine THResidualToMass(realization)
 
   implicit none
 
-  Vec :: ts_mass_balance
   type(realization_subsurface_type) :: realization
-  
   type(field_type), pointer :: field
   type(patch_type), pointer :: cur_patch
   type(grid_type), pointer :: grid
@@ -4111,8 +4029,8 @@ subroutine THResidualToMass(realization)
         
       istart = (ghosted_id-1)*option%nflowdof+1
       mass_balance_p(istart) = mass_balance_p(istart)/ &
-                                global_auxvars(ghosted_id)%den(1)* &
-                                global_auxvars(ghosted_id)%den_kg(1)
+                               global_auxvars(ghosted_id)%den(1)* &
+                               global_auxvars(ghosted_id)%den_kg(1)
     enddo
 
     call VecRestoreArrayF90(field%flow_ts_mass_balance,mass_balance_p,  &
@@ -4145,8 +4063,6 @@ subroutine THSetPlotVariables(realization,list)
 
   type(realization_subsurface_type) :: realization
   type(output_variable_list_type), pointer :: list
-
-  type(output_variable_type) :: output_variable
   character(len=MAXWORDLENGTH) :: name, units
   
   if (associated(list%first)) then

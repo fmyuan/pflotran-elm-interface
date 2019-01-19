@@ -1,7 +1,6 @@
 module Surface_Auxiliary_module
 
   use Surface_Global_Aux_module
-!  use Surface_Flow_Aux_module
   use Surface_TH_Aux_module
 
   use PFLOTRAN_Constants_module

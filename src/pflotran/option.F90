@@ -187,12 +187,12 @@ module Option_module
     PetscReal :: max_manning_velocity
     PetscReal :: max_infiltration_velocity
 
-    ! when the scaling factor is too small, stop in reactive transport
+    ! when the scaling factor is too small, stop
     PetscReal :: min_allowable_scale
 
     PetscBool :: print_ekg
 
-    ! flag to use inline surface flow in Richards mode
+    ! flag to use inline surface flow in flow mode
     PetscBool :: inline_surface_flow
     PetscReal :: inline_surface_Mannings_coeff
     character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
@@ -535,7 +535,7 @@ subroutine OptionInitRealization(option)
   option%max_manning_velocity = 1.d20
   option%max_infiltration_velocity = 1.d20
 
-  ! when the scaling factor is too small, stop in reactive transport
+  ! when the scaling factor is too small, stop
   option%min_allowable_scale = 1.0d-10
 
   option%print_ekg = PETSC_FALSE

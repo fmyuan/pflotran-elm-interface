@@ -98,8 +98,6 @@ subroutine SurfaceSimInputRecord(this)
   implicit none
   
   class(simulation_surface_type) :: this
-
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
  
   write(id,'(a29)',advance='no') 'simulation type: '
@@ -131,7 +129,6 @@ subroutine SurfaceInitializeRun(this)
   class(pmc_base_type), pointer :: cur_process_model_coupler_top
   class(pmc_base_type), pointer :: cur_process_model_coupler_below
   PetscInt :: depth
-  PetscErrorCode :: ierr
   
   call printMsg(this%option,'SurfaceInitializeRun: Simulation%InitializeRun()')
 
@@ -174,8 +171,6 @@ subroutine SurfaceFinalizeRun(this)
   implicit none
   
   class(simulation_surface_type) :: this
-  
-  PetscErrorCode :: ierr
 
   class(timestepper_base_type), pointer :: surf_flow_timestepper
 

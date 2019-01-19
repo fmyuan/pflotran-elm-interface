@@ -1,4 +1,5 @@
 module CPR_Preconditioner_module
+
 ! Implements a CPR preconditioner using the PCSHELL
 ! funcitonality of PETSC.
 ! Daniel Stone and Sebastien Loisel
@@ -149,7 +150,7 @@ subroutine CPRT1Apply(p, x, y,ierr)
   KSP :: ksp
   PC :: amg_pc
   ! misc workers, etc:
-  PetscInt :: b,start,end,k,its
+  PetscInt :: its
   Vec :: s, z
 
   call PCShellGetContext(p, ctx, ierr); CHKERRQ(ierr)

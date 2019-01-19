@@ -511,7 +511,7 @@ end subroutine GlobalGetAuxVarVecLoc
 subroutine GlobalWeightAuxVars(realization,weight)
   ! 
   ! Updates the densities and saturations in auxiliary
-  ! variables associated with reactive transport
+  ! variables useful to other modules
   ! 
   ! Author: Glenn Hammond
   ! Date: 11/03/08
@@ -549,8 +549,7 @@ end subroutine GlobalWeightAuxVars
 
 subroutine GlobalUpdateState(realization)
   ! 
-  ! Updates global aux var variables for use in
-  ! reactive transport
+  ! Updates global aux var variables
   ! 
   ! Author: Glenn Hammond
   ! Date: 01/14/09
@@ -576,8 +575,7 @@ end subroutine GlobalUpdateState
 
 subroutine GlobalUpdateAuxVars(realization,time_level,time)
   ! 
-  ! Updates global aux var variables for use in
-  ! reactive transport
+  ! Updates global aux var variables for use
   ! 
   ! Author: Glenn Hammond
   ! Date: 01/14/09

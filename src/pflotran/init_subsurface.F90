@@ -62,8 +62,6 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
   class(realization_subsurface_type) :: realization
   
   PetscInt :: ghosted_id
-  PetscInt :: istart, iend
-  PetscInt :: i
   
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
@@ -138,12 +136,9 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
   
   PetscInt :: icell, local_id, ghosted_id
   PetscInt :: istart, iend
-  PetscInt :: local_min, global_min
-  PetscErrorCode :: ierr
   
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
-  type(field_type), pointer :: field
   type(strata_type), pointer :: strata
   type(patch_type), pointer :: cur_patch
 
@@ -300,14 +295,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscReal, pointer :: perm_xx_p(:)
   PetscReal, pointer :: perm_yy_p(:)
   PetscReal, pointer :: perm_zz_p(:)
-  PetscReal, pointer :: perm_xz_p(:)
-  PetscReal, pointer :: perm_xy_p(:)
-  PetscReal, pointer :: perm_yz_p(:)
-  PetscReal, pointer :: perm_pow_p(:)
   PetscReal, pointer :: vec_p(:)
   PetscReal, pointer :: compress_p(:)
   
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  character(len=MAXSTRINGLENGTH) :: string!, string2
   type(material_property_type), pointer :: material_property
   type(material_property_type), pointer :: null_material_property
   type(option_type), pointer :: option
@@ -318,10 +309,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   type(material_type), pointer :: Material
   PetscInt :: local_id, ghosted_id, material_id
   PetscInt :: i
-  PetscInt :: tempint
-  PetscReal :: tempreal
   PetscErrorCode :: ierr
-  PetscViewer :: viewer
 
   option => realization%option
   discretization => realization%discretization
@@ -561,10 +549,8 @@ subroutine SubsurfReadMaterialIDsFromFile(realization,realization_dependent, &
   type(discretization_type), pointer :: discretization
   character(len=MAXSTRINGLENGTH) :: group_name
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  PetscBool :: append_realization_id
+
   PetscInt :: ghosted_id, natural_id, material_id
-  PetscInt :: fid = 86
-  PetscInt :: status
   PetscInt, pointer :: external_to_internal_mapping(:)
   Vec :: global_vec
   Vec :: local_vec
@@ -653,9 +639,7 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
-  type(input_type), pointer :: input
   type(discretization_type), pointer :: discretization
-  character(len=MAXWORDLENGTH) :: word
   class(dataset_common_hdf5_type), pointer :: dataset_common_hdf5_ptr
   PetscInt :: local_id
   PetscInt :: idirection, temp_int
@@ -974,7 +958,6 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
   
   type(option_type), pointer :: option
   PetscBool, allocatable :: dof_is_active(:)
-  PetscInt :: ndof
   
   option => realization%option
   

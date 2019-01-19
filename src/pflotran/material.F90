@@ -59,10 +59,6 @@ module Material_module
     PetscReal :: min_pressure
     PetscReal :: max_pressure
     PetscReal :: max_permfactor
-    !geh: minral surface area power functions must be defined on a per
-    !     mineral basis, look in reaction_aux.F90
-    !PetscReal :: mnrl_surf_area_volfrac_pwr
-    !PetscReal :: mnrl_surf_area_porosity_pwr
     PetscReal :: permeability_pwr
     PetscReal :: permeability_crit_por
     PetscReal :: permeability_min_scale_fac
@@ -228,9 +224,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: keyword, word, internal_units
+  character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXSTRINGLENGTH) :: buffer_save
 
   PetscInt :: length
   PetscBool :: therm_k_frz
@@ -579,12 +574,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputReadDouble(input,option, &
                              material_property%tortuosity_pwr)
         call InputErrorMsg(input,option,'tortuosity power','MATERIAL_PROPERTY')
-      case('MINERAL_SURFACE_AREA_POWER')
-        option%io_buffer = 'Adjustment of mineral surface area based on ' // &
-          'mineral volume fraction or porosity must be performed on a ' // &
-          'per mineral basis under the MINERAL_KINETICS card.  See ' // &
-          'reaction_aux.F90.'
-          call printErrMsg(option)
       case('SECONDARY_CONTINUUM')
         do
           call InputReadPflotranString(input,option)
@@ -869,41 +858,11 @@ subroutine MaterialPropConvertListToArray(list,array,option)
   type(option_type) :: option
     
   type(material_property_type), pointer :: cur_material_property
-  type(material_property_type), pointer :: prev_material_property
-  type(material_property_type), pointer :: next_material_property
+
   PetscInt :: i, j, length1,length2, max_internal_id, max_external_id
   PetscInt, allocatable :: id_count(:)
   PetscBool :: error_flag
   character(len=MAXSTRINGLENGTH) :: string
-
-#if 0
-! don't necessary need right now, but maybe in future
-  ! reorder into ascending order
-  swapped = PETSC_FALSE
-  do
-    if (.not.swapped) exit
-    cur_material_property => list
-    do 
-      if (.not.associated(cur_material_property)) exit
-      next_material_property => cur_material_property%next
-      if (associated(next_material_property)) then
-        if (cur_material_property%id > next_material_property%id) then
-          ! swap
-          if (associated(prev_material_property)) then
-            prev_material_property%next => next_material_property
-          else
-            list => next_material_property
-          endif
-          cur_material_property%next => next_material_property%next
-          next_material_property%next => cur_material_property
-          swapped = PETSC_TRUE
-        endif
-      endif
-      prev_material_property => cur_material_property
-      cur_material_property => next_material_property
-    enddo
-  enddo
-#endif
 
   ! check to ensure that max internal id is equal to the number of 
   ! material properties and that internal ids are contiguous
@@ -1472,9 +1431,7 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar)
   type(material_type) :: Material ! from realization%patch%aux%Material
   PetscReal :: value
   PetscInt :: ivar
-
   PetscInt :: i
-  class(material_auxvar_type), pointer :: material_auxvars(:)
   
 !  material_auxvars => Material%auxvars
 !geh: can't use this pointer as gfortran does not like it.  Must use
@@ -1544,7 +1501,6 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   
   PetscInt :: ghosted_id
   PetscReal, pointer :: vec_loc_p(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscErrorCode :: ierr
   
 !  material_auxvars => Material%auxvars
@@ -1640,7 +1596,6 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   
   PetscInt :: ghosted_id
   PetscReal, pointer :: vec_loc_p(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscErrorCode :: ierr
   
 !  material_auxvars => Material%auxvars
@@ -1727,8 +1682,7 @@ end subroutine MaterialGetAuxVarVecLoc
 
 subroutine MaterialWeightAuxVars(Material,weight,field,comm1)
   ! 
-  ! Updates the porosities in auxiliary variables associated with 
-  ! reactive transport
+  ! Updates the porosities in auxiliary variables
   ! 
   ! Author: Glenn Hammond
   ! Date: 04/17/14
@@ -1793,7 +1747,7 @@ end subroutine MaterialStoreAuxVars
 
 subroutine MaterialUpdateAuxVars(Material,comm1,vec_loc,time_level,time)
   ! 
-  ! Updates material aux var variables for use in reactive transport
+  ! Updates material aux var variables
   ! 
   ! Author: Glenn Hammond
   ! Date: 01/14/09
@@ -1859,51 +1813,6 @@ subroutine MaterialAuxVarCommunicate(comm,Material,vec_loc,ivar,isubvar)
 
 end subroutine MaterialAuxVarCommunicate
 
-! ************************************************************************** !
-
-subroutine MaterialUpdatePorosity(Material,global_auxvars,porosity_loc)
-  ! 
-  ! Gets values of material auxvar data using a vector.
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 01/09/14
-  ! 
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use Variables_module
-  use Global_Aux_module
-  
-  implicit none
-
-  type(material_type) :: Material ! from realization%patch%aux%Material
-  type(global_auxvar_type) :: global_auxvars(:)
-  Vec :: porosity_loc
-  
-  PetscReal, pointer :: porosity_loc_p(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
-  PetscInt :: ghosted_id
-  PetscReal :: compressed_porosity
-  PetscReal :: dcompressed_porosity_dp
-  PetscErrorCode :: ierr
-  
-  if (soil_compressibility_index > 0) then
-    material_auxvars => Material%auxvars
-    call VecGetArrayReadF90(porosity_loc,porosity_loc_p,ierr);CHKERRQ(ierr)
-    do ghosted_id = 1, Material%num_aux
-      material_auxvars(ghosted_id)%porosity = porosity_loc_p(ghosted_id)
-      call MaterialCompressSoil(material_auxvars(ghosted_id), &
-                                maxval(global_auxvars(ghosted_id)%pres), &
-                                compressed_porosity,dcompressed_porosity_dp)
-      material_auxvars(ghosted_id)%porosity = compressed_porosity
-      material_auxvars(ghosted_id)%dporosity_dp = dcompressed_porosity_dp
-    enddo
-    call VecRestoreArrayReadF90(porosity_loc,porosity_loc_p, &
-                                ierr);CHKERRQ(ierr)
-  endif
-  
-end subroutine MaterialUpdatePorosity
-
 ! **************************************************************************** !
 
 subroutine MaterialPropInputRecord(material_property_list)
@@ -1919,8 +1828,7 @@ subroutine MaterialPropInputRecord(material_property_list)
   type(material_property_type), pointer :: material_property_list
   
   type(material_property_type), pointer :: cur_matprop
-  character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word1
   PetscInt :: id = INPUT_RECORD_UNIT
 
   write(id,'(a)') ' '

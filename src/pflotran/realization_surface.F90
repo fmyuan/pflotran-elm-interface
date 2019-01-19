@@ -213,10 +213,7 @@ subroutine RealizSurfProcessMatProp(surf_realization)
   
   class(realization_surface_type) :: surf_realization
   
-  PetscBool :: found
-  PetscInt :: i
   type(option_type), pointer :: option
-  character(len=MAXSTRINGLENGTH) :: string
 
   type(patch_type), pointer :: cur_patch
   
@@ -267,9 +264,7 @@ subroutine RealizSurfLocalizeRegions(surf_realization)
   class(realization_surface_type) :: surf_realization
   
   type(patch_type), pointer :: cur_patch
-  type (region_type), pointer :: cur_region
   type(option_type), pointer :: option
-  type(region_type), pointer :: patch_region
 
   option => surf_realization%option
 
@@ -343,7 +338,6 @@ subroutine RealizSurfCreateDiscretization(surf_realization)
   type(grid_type), pointer :: grid
   type(surface_field_type), pointer :: surf_field
   type(option_type), pointer :: option
-  type(dm_ptr_type), pointer :: dm_ptr
 
   PetscErrorCode :: ierr
 
@@ -551,11 +545,9 @@ subroutine RealizSurfProcessFlowConditions(surf_realization)
   class(realization_surface_type) :: surf_realization
   
   type(flow_condition_type), pointer :: cur_surf_flow_condition
-  type(flow_sub_condition_type), pointer :: cur_surf_flow_sub_condition
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: dataset_name
-  class(dataset_base_type), pointer :: dataset
+
   PetscInt :: i
   
   option => surf_realization%option
@@ -685,7 +677,7 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
   type(grid_unstructured_type),pointer :: surf_grid
   type(patch_type), pointer            :: cur_patch 
   type(region_type), pointer           :: cur_region, top_region
-  type(region_type), pointer           :: patch_region
+
   type(dm_ptr_type), pointer :: dm_ptr
 
   Mat :: Mat_vert_to_face_subsurf
@@ -697,17 +689,12 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
   Vec :: subsurf_nat_ids, surf_nat_ids
   Vec :: corr_subsurf_nat_ids, corr_surf_nat_ids
 
-  PetscViewer :: viewer
-
-
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt,pointer ::int_array(:)
   PetscInt :: offset
   PetscInt :: int_array4(4)
   PetscInt :: int_array4_0(4)
   PetscInt :: nvertices
   PetscInt :: iface
-  PetscInt :: local_id, ii, jj
+  PetscInt :: local_id, ii
   PetscInt :: cell_type
   PetscInt :: ivertex, vertex_id_local
   PetscReal :: real_array4(4)
@@ -1057,9 +1044,8 @@ subroutine RealizSurfMapSurfSubsurfGrid( &
   Mat :: prod_mat
   PetscInt :: source_grid_flag
   Vec :: source_petsc_ids
-
   Mat :: prod_loc_mat
-  Vec :: source_loc_vec
+
   Vec :: corr_dest_ids_vec
   Vec :: corr_dest_ids_vec_ndof
   Vec :: source_petsc_ids_ndof
@@ -1069,35 +1055,24 @@ subroutine RealizSurfMapSurfSubsurfGrid( &
   VecScatter :: scatter
   VecScatter :: scatter_ndof
 
-  PetscViewer :: viewer
-
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(surface_field_type), pointer :: surf_field
 
   type(dm_ptr_type), pointer :: dm_ptr
-  character(len=MAXSTRINGLENGTH) :: string
+
   PetscInt,pointer ::int_array(:)
   PetscInt :: offset
-  PetscInt :: int_array4(4)
-  PetscInt :: int_array4_0(4)
-  PetscReal :: real_array4(4)
   PetscInt :: ii, jj
-  PetscReal, pointer :: vec_ptr(:)
-  PetscInt :: ivertex, cell_id, vertex_id_local
   PetscReal :: max_value
 
   PetscInt, pointer :: ia_p(:), ja_p(:)
-  PetscInt :: nrow,rstart,rend,icol(1)
-  PetscInt :: index
-  PetscInt :: vertex_id
-  PetscOffset :: iia,jja,iicol
+  PetscInt :: nrow
   PetscBool :: done
   PetscScalar, pointer :: aa_v(:)
   PetscInt :: row, col
 
   PetscErrorCode :: ierr
-  PetscBool :: found
   PetscInt :: nlocal
 
   option     => realization%option
@@ -1390,7 +1365,6 @@ subroutine RealizSurfGetVariable(surf_realization,vec,ivar,isubvar,isubvar1)
 
   call PatchGetVariable(surf_realization%patch, &
                        surf_realization%surf_field, &
-                       !surf_realization%reaction, &
                        surf_realization%option, &
                        surf_realization%output_option, &
                        vec,ivar,isubvar,isubvar1)
@@ -1423,7 +1397,7 @@ subroutine RealizSurfAddWaypointsToList(surf_realization,waypoint_list)
   type(waypoint_type), pointer :: waypoint, cur_waypoint
   type(option_type), pointer :: option
   PetscInt :: itime, isub_condition
-  PetscReal :: temp_real, final_time
+  PetscReal :: final_time
   PetscReal, pointer :: times(:)
 
   option => surf_realization%option

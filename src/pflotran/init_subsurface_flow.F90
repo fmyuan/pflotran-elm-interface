@@ -38,7 +38,6 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
-  PetscErrorCode :: ierr
   
   option => realization%option
   patch => realization%patch

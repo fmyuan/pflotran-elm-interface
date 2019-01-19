@@ -178,8 +178,6 @@ subroutine SimulationInputRecordPrint(this)
   implicit none
   
   class(simulation_base_type) :: this
-
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
   PetscBool :: is_open
 
@@ -269,7 +267,6 @@ subroutine ExecuteRun(this)
   class(simulation_base_type) :: this
   
   PetscReal :: final_time
-  PetscReal :: sync_time
   type(waypoint_type), pointer :: cur_waypoint
   character(len=MAXSTRINGLENGTH) :: append_name
 
@@ -318,8 +315,6 @@ subroutine RunToTime(this,target_time)
   class(simulation_base_type) :: this
   PetscReal :: target_time
   
-  class(pmc_base_type), pointer :: cur_process_model_coupler
-  
 #ifdef DEBUG
   call printMsg(this%option,'SimulationBaseRunToTime()')
 #endif
@@ -344,10 +339,7 @@ subroutine SimulationBaseFinalizeRun(this)
   implicit none
   
   class(simulation_base_type) :: this
-  
   PetscErrorCode :: ierr
-  
-  class(pmc_base_type), pointer :: cur_process_model_coupler
 
 #ifdef DEBUG
   call printMsg(this%option,'SimulationBaseFinalizeRun()')

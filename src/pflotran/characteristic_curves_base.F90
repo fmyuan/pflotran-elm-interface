@@ -1,5 +1,5 @@
 module Characteristic_Curves_Base_module
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
@@ -528,8 +528,6 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   PetscReal :: dice_pc_dp
   PetscReal, parameter :: dpc_dpres = -1.d0
   PetscReal :: PCGL_MAX_FRZ = 1.d8   ! max. soil matrical potential (Pa) for liq. water exists under super-cooling
-
-  PetscErrorCode :: ierr
 
   !---------------------
   !

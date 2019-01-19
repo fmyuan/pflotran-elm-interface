@@ -104,14 +104,12 @@ subroutine SurfaceCheckpointBinary(surf_realization, &
   PetscLogDouble :: tstart, tend  
   
   Vec :: global_vec
-  PetscInt :: int_flag
   
+
   type(surface_field_type), pointer :: surf_field
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
-  type(output_option_type), pointer :: output_option
-  PetscInt :: i, j, k
 
   surf_field => surf_realization%surf_field
   option => surf_realization%option

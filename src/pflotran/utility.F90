@@ -111,7 +111,7 @@ function rnd()
 
   iseed = iseed*125
   iseed = iseed - (iseed/2796203) * 2796203
-  rnd   = iseed/2796203.0
+  rnd   = iseed/2796203.0d0
   return
 end function rnd
 
@@ -275,9 +275,7 @@ subroutine Natural2LocalIndex(ir, nl, llist, llength)
   implicit none
   PetscInt :: nl, ir,na, l_search, itt, llength
   PetscInt :: llist(*)
-  
   PetscInt ::  nori0, nori1, nori
-  
   
   nl=-1
   l_search = llength
@@ -781,62 +779,6 @@ subroutine ludcmp_chunk(A,N,INDX,D,chunk_size,ithread,num_threads)
   return
 
 end subroutine ludcmp_chunk
-
-! ************************************************************************** !
-
-subroutine lubksb_chunk(A,N,INDX,B,chunk_size,ithread,num_threads)
-  ! 
-  ! Solves the set of N linear equations A.X=D. Here A is input, not as a matrix
-  ! A but rather as its LU decomposition. INDX is the input as the permutation
-  ! vector returned bu ludcmp. B is input as the right-hand side vector B, and
-  ! returns with the solution vector X.
-  ! 
-
-  implicit none
-
-  PetscInt :: N
-  PetscInt :: chunk_size
-  PetscInt :: num_threads
-  PetscReal :: A(chunk_size,num_threads,N,N),B(chunk_size,num_threads,N)
-  PetscInt :: INDX(chunk_size,num_threads,N)
-  PetscInt :: ithread
-
-  PetscInt :: i, j, ii, ll
-  PetscReal :: sum
-
-  PetscInt :: ichunk
-
-  do ichunk = 1, chunk_size
-  
-  ii=0
-  do i=1,N
-    ll=INDX(ichunk,ithread,i)
-    sum=B(ichunk,ithread,ll)
-    B(ichunk,ithread,ll)=B(ichunk,ithread,i)
-    if (ii.ne.0) then
-      do j=ii,i-1
-        sum=sum-A(ichunk,ithread,i,j)*B(ichunk,ithread,j)
-      enddo
-    else if (sum.ne.0.d0) then
-      ii=i
-    endif
-    B(ichunk,ithread,i)=sum
-  enddo
-  do i=N,1,-1
-    sum=B(ichunk,ithread,i)
-    if (i.lt.N) then
-      do j=i+1,N
-        sum=sum-A(ichunk,ithread,i,j)*B(ichunk,ithread,j)
-      enddo
-    endif
-    B(ichunk,ithread,i)=sum/A(ichunk,ithread,i,i)
-  enddo
-  
-  enddo ! chunk loop
-  
-  return
-
-end subroutine lubksb_chunk
 
 ! ************************************************************************** !
 

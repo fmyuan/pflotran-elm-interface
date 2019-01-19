@@ -1,5 +1,5 @@
 module Simulation_Subsurface_class
-  
+
 #include "petsc/finclude/petscsys.h"
   use petscsys  
   use Simulation_Base_class
@@ -18,9 +18,7 @@ module Simulation_Subsurface_class
   type, public, extends(simulation_base_type) :: simulation_subsurface_type
     ! pointer to flow process model coupler
     class(pmc_subsurface_type), pointer :: flow_process_model_coupler
-    ! pointer to reactive transport process model coupler
-    class(pmc_subsurface_type), pointer :: rt_process_model_coupler
-    ! pointer to realization object shared by flow and reactive transport
+    ! pointer to realization object shared by flow
     class(realization_subsurface_type), pointer :: realization 
     ! regression object
     type(regression_type), pointer :: regression
@@ -87,7 +85,7 @@ subroutine SubsurfaceSimulationInit(this,option)
   
   call SimulationBaseInit(this,option)
   nullify(this%flow_process_model_coupler)
-  nullify(this%rt_process_model_coupler)
+
   nullify(this%realization)
   nullify(this%regression)
   this%waypoint_list_subsurface => WaypointListCreate()
@@ -119,8 +117,6 @@ subroutine SubsurfaceSimInputRecord(this)
   implicit none
   
   class(simulation_subsurface_type) :: this
-
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
   
   if (OptionPrintToScreen(this%option)) then
@@ -301,9 +297,6 @@ subroutine SubsurfaceFinalizeRun(this)
   implicit none
   
   class(simulation_subsurface_type) :: this
-  
-  PetscErrorCode :: ierr
-  
   class(timestepper_BE_type), pointer :: flow_timestepper
 
 #ifdef DEBUG

@@ -10,7 +10,6 @@ module Characteristic_Curves_module
 
   private
 
-
   type, public :: characteristic_curves_type
     character(len=MAXWORDLENGTH) :: name
     PetscBool :: print_me
@@ -937,55 +936,6 @@ subroutine CharacteristicCurvesTest(characteristic_curves,option)
   endif
   
 end subroutine CharacteristicCurvesTest
-
-! ************************************************************************** !
-
-subroutine CharacteristicCurvesVerify(characteristic_curves,option)
-  ! 
-  ! Checks if required parameters have been set for each curve type.
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 09/29/14
-  !
-  use Option_module
-
-  implicit none
-  
-  class(characteristic_curves_type) :: characteristic_curves
-  type(option_type) :: option
-  
-  character(len=MAXSTRINGLENGTH) :: string
-  
-  string = 'CHARACTERISTIC_CURVES(' // trim(characteristic_curves%name) // &
-           '),'
-
-  if (associated(characteristic_curves%saturation_function)) then
-    call characteristic_curves%saturation_function%Verify(string,option)
-  else
-    option%io_buffer = 'A saturation function has &
-                       &not been set under CHARACTERISTIC_CURVES "' // &
-                       trim(characteristic_curves%name) // '". A &
-                       &PERMEABILITY_FUNCTION block must be specified &
-                       &for the liquid phase.'
-  endif
-  
-  if (associated(characteristic_curves%liq_rel_perm_function) ) then
-    call characteristic_curves%liq_rel_perm_function%Verify(string,option)
-  else
-    option%io_buffer = 'A liquid phase relative permeability function has &
-                       &not been set under CHARACTERISTIC_CURVES "' // &
-                       trim(characteristic_curves%name) // '". A &
-                       &PERMEABILITY_FUNCTION block must be specified &
-                       &for the liquid phase.'
-    call printErrMsg(option)
-  end if
-
-  if (associated(characteristic_curves%gas_rel_perm_function) ) then
-    call characteristic_curves%gas_rel_perm_function%Verify(string,option)
-  end if
-
-  
-end subroutine CharacteristicCurvesVerify
 
 ! **************************************************************************** !
 

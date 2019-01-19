@@ -190,15 +190,13 @@ subroutine GridComputeInternalConnect(grid,option,ugdm)
   use Grid_Unstructured_Polyhedra_module
     
   implicit none
-  
-  PetscInt ierr
 
   type(grid_type) :: grid
   type(option_type) :: option
   type(ugdm_type), optional :: ugdm
   
   type(connection_set_type), pointer :: connection_set, connection_bound_set
-  type(connection_set_type), pointer :: connection_set_2
+
   nullify(connection_set); nullify(connection_bound_set)
   
   select case(grid%itype)
@@ -403,11 +401,6 @@ subroutine GridMapIndices(grid, dm_ptr, sgrid_stencil_type,option)
   type(dm_ptr_type) :: dm_ptr
   PetscEnum :: sgrid_stencil_type
   type(option_type) :: option
-
-  PetscInt, allocatable :: int_tmp(:)
-! PetscInt, pointer :: int_tmp(:)
-  PetscInt :: n
-  PetscOffset :: i_da
   
   select case(grid%itype)
     case(STRUCTURED_GRID)
@@ -468,9 +461,7 @@ subroutine GridComputeCoordinates(grid,origin_global,option,ugdm)
   type(grid_type) :: grid
   PetscReal :: origin_global(3)
   type(option_type) :: option
-  type(ugdm_type), optional :: ugdm ! sp 
-  PetscInt :: icell
-  
+  type(ugdm_type), optional :: ugdm ! sp
   PetscErrorCode :: ierr  
 
   allocate(grid%x(grid%ngmax))
@@ -634,16 +625,8 @@ subroutine GridLocalizeRegions(grid,region_list,option)
   type(option_type) :: option
   
   type(region_type), pointer :: region
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt, allocatable :: temp_int_array(:)
-  PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
-  PetscInt :: i_min, i_max, j_min, j_max, k_min, k_max
-  PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
   PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
-  PetscReal :: x_shift, y_shift, z_shift
-  PetscReal :: del_x, del_y, del_z
   PetscInt :: iflag, global_cell_count
-  PetscBool :: same_point
   PetscErrorCode :: ierr
   
   iflag = 0
@@ -941,12 +924,10 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
   type(grid_unstructured_type) :: ugrid
   type(region_type) :: region
   type(option_type) :: option
-  Vec :: volume
 
   type(unstructured_explicit_type), pointer :: explicit_grid
   type(region_explicit_face_type), pointer :: faceset
   
-  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: icell, count
   PetscInt, allocatable :: int_array(:)
   PetscReal, allocatable :: real_array_2d(:,:)
@@ -1188,7 +1169,6 @@ subroutine GridCreateNaturalToGhostedHash(grid,option)
   type(grid_type) :: grid
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: local_ghosted_id, natural_id
   PetscInt :: num_in_hash, num_ids_per_hash, hash_id, id, ierr, hash_id_2
   PetscInt :: max_num_ids_per_hash
@@ -1361,34 +1341,6 @@ end subroutine GridDestroyHashTable
 
 ! ************************************************************************** !
 
-subroutine GridPrintHashTable(grid)
-  ! 
-  ! UnstructGridPrintHashTable: Prints the hashtable for viewing
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/09/07
-  ! 
-
-  implicit none
-
-  type(grid_type) :: grid
-  
-  PetscInt :: ihash, id, fid
-
-  fid = 87 
-  open(fid,file='hashtable.dat',action='write')
-  do ihash=1,grid%num_hash_bins
-    write(fid,'(a4,i3,a,i5,a2,x,200(i6,x))') 'Hash',ihash,'(', &
-                         grid%hash(1,0,ihash), &
-                         '):', &
-                         (grid%hash(1,id,ihash),id=1,grid%hash(1,0,ihash))
-  enddo
-  close(fid)
-
-end subroutine GridPrintHashTable
-
-! ************************************************************************** !
-
 subroutine GridGetGhostedNeighbors(grid,ghosted_id,stencil_type, &
                                    stencil_width_i,stencil_width_j, &
                                    stencil_width_k,x_count,y_count, &
@@ -1492,9 +1444,7 @@ subroutine GridDestroy(grid)
   implicit none
   
   type(grid_type), pointer :: grid
-  PetscErrorCode :: ierr
-  PetscInt :: ghosted_id
-    
+
   if (.not.associated(grid)) return
       
   call DeallocateArray(grid%nL2G)
@@ -1580,17 +1530,8 @@ subroutine GridLocalizeRegionFromBlock(grid,region,option)
   type(grid_type), pointer :: grid
   type(option_type) :: option
   
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt, allocatable :: temp_int_array(:)
-  PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
-  PetscInt :: i_min, i_max, j_min, j_max, k_min, k_max
-  PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
+  PetscInt :: i, j, k, count
   PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
-  PetscReal :: x_shift, y_shift, z_shift
-  PetscReal :: del_x, del_y, del_z
-  PetscInt :: iflag
-  PetscBool :: same_point
-  PetscErrorCode :: ierr
 
   if (grid%itype /= STRUCTURED_GRID) then
      option%io_buffer='Region definition using BLOCK is only supported for ' //&
@@ -1637,11 +1578,6 @@ subroutine GridLocalizeRegionFromBlock(grid,region,option)
         enddo
       enddo
     enddo
-!   if (region%num_cells > 0) then
-!     region%coordinates(1)%x = grid%x(region%cell_ids(ONE_INTEGER))
-!     region%coordinates(1)%y = grid%y(region%cell_ids(ONE_INTEGER))
-!     region%coordinates(1)%z = grid%z(region%cell_ids(ONE_INTEGER))
-!   endif
   else
     region%num_cells = 0
   endif
@@ -1673,17 +1609,7 @@ subroutine GridLocalizeRegionFromCartBound(grid,region,option)
   type(grid_type), pointer :: grid
   type(option_type) :: option
   
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt, allocatable :: temp_int_array(:)
-  PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
-  PetscInt :: i_min, i_max, j_min, j_max, k_min, k_max
-  PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
   PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
-  PetscReal :: x_shift, y_shift, z_shift
-  PetscReal :: del_x, del_y, del_z
-  PetscInt :: iflag
-  PetscBool :: same_point
-  PetscErrorCode :: ierr
 
   if (grid%itype /= STRUCTURED_GRID) then
     option%io_buffer='Region definition using CARTESIAN_BOUNDARY is ' // &
@@ -1737,9 +1663,7 @@ subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
   type(grid_type), pointer :: grid
   type(option_type) :: option
   
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt, allocatable :: temp_int_array(:)
-  PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
+  PetscInt :: i, j, k, count, ghosted_id, local_id
   PetscInt :: i_min, i_max, j_min, j_max, k_min, k_max
   PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
   PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20

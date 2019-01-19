@@ -53,13 +53,11 @@ subroutine CondControlAssignFlowInitCond(realization)
   
   class(realization_subsurface_type) :: realization
   
-  PetscInt :: icell, iconn, idof, iface
+  PetscInt :: iconn, idof
   PetscInt :: local_id, ghosted_id, iend, ibegin
   PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
   PetscErrorCode :: ierr
-  
-  character(len=MAXSTRINGLENGTH) :: string
-  
+
   type(option_type), pointer :: option
   type(field_type), pointer :: field  
   type(patch_type), pointer :: patch
@@ -68,17 +66,12 @@ subroutine CondControlAssignFlowInitCond(realization)
   type(coupler_type), pointer :: initial_condition
   type(patch_type), pointer :: cur_patch
   class(dataset_base_type), pointer :: dataset
-  type(global_auxvar_type) :: global_aux
+
   PetscBool :: use_dataset
   PetscBool :: dataset_flag(realization%option%nflowdof)
   PetscInt :: num_connections
   PetscInt, pointer :: conn_id_ptr(:)
-  PetscInt :: offset, istate
-  PetscReal :: x(realization%option%nflowdof)
-  PetscReal :: temperature, p_sat
-  PetscReal :: tempreal,pru,sou,sgu,pbu
-  PetscInt :: saturated_state
-  type(global_auxvar_type), pointer :: global_auxvars(:)
+  PetscReal :: tempreal
 
   option => realization%option
   discretization => realization%discretization
@@ -451,16 +444,13 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
   
   class(realization_surface_type) :: surf_realization
   
-  PetscInt :: icell, iconn, idof, iface
+  PetscInt :: icell, iconn, idof
   PetscInt :: local_id, ghosted_id, iend, ibegin
-  PetscReal, pointer :: xx_p(:)!, iphase_loc_p(:)
+  PetscReal, pointer :: xx_p(:)
   PetscErrorCode :: ierr
   
-  PetscReal :: temperature, p_sat
-  PetscReal :: pw, dw_kg, dw_mol, hw
+  PetscReal :: pw, dw_kg, dw_mol
   PetscReal :: temp
-  PetscReal :: dpsat_dt
-  character(len=MAXSTRINGLENGTH) :: string
   
   type(option_type), pointer :: option
   type(surface_field_type), pointer :: surf_field  

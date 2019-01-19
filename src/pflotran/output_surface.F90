@@ -181,11 +181,10 @@ subroutine OutputTecplotFEQUAD(surf_realization,realization)
   class(realization_surface_type) :: surf_realization
   class(realization_subsurface_type) :: realization
   
-  PetscInt :: i
   PetscInt, parameter :: icolumn = -1
-  character(len=MAXSTRINGLENGTH) :: filename, string, string2
+  character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: tmp_global_prefix
-  character(len=MAXWORDLENGTH) :: word
+
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(discretization_type), pointer :: discretization
@@ -193,16 +192,10 @@ subroutine OutputTecplotFEQUAD(surf_realization,realization)
   type(patch_type), pointer :: patch 
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
-  PetscReal, pointer :: vec_ptr(:)
-  Vec :: global_vertex_vec
-  Vec :: global_cconn_vec
   Vec :: global_vec
   Vec :: natural_vec
-  PetscInt :: ivar, isubvar, var_type
   PetscErrorCode :: ierr  
-  
-  type(ugdm_type), pointer :: ugdm_element
-  
+
   discretization => surf_realization%discretization
   patch => surf_realization%patch
   grid => patch%grid
@@ -283,8 +276,7 @@ subroutine OutputTecplotHeader(fid,surf_realization,icolumn)
   class(realization_surface_type) :: surf_realization
   PetscInt :: icolumn
   
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: string
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -429,7 +421,6 @@ subroutine WriteTecplotUGridElements(fid, &
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
-  Vec :: global_cconn_vec
   type(ugdm_type), pointer :: ugdm_element
   PetscReal, pointer :: vec_ptr(:),vec_ptr2(:)
   PetscInt :: ii
@@ -577,7 +568,6 @@ subroutine OutputHydrograph(surf_realization)
   PetscReal :: sum_flux, sum_flux_global
 
   character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXWORDLENGTH) :: word, units
   character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
 
@@ -704,17 +694,8 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
   PetscInt :: var_list_type
 
   integer(HID_T) :: file_id
-  integer(HID_T) :: data_type
   integer(HID_T) :: grp_id
-  integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
-  integer(HID_T) :: memory_space_id
-  integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
-  PetscMPIInt :: rank
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
-  integer(HSIZE_T) :: dims(3)
-  integer(HSIZE_T) :: start(3), length(3), stride(3)
 
   type(grid_type), pointer :: subsurf_grid
   type(grid_type), pointer :: surf_grid
@@ -727,7 +708,6 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
 
   Vec :: global_vec
   Vec :: natural_vec
-  PetscReal, pointer :: v_ptr
 
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: xmf_filename, att_datasetname, group_name
@@ -735,17 +715,10 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
   character(len=MAXSTRINGLENGTH) :: string2
   character(len=MAXSTRINGLENGTH) :: string3
   character(len=MAXWORDLENGTH) :: word
-  character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
-  PetscReal, pointer :: array(:)
-  PetscInt :: i, istart
-  PetscInt :: nviz_flow, nviz_tran, nviz_dof
-  PetscInt :: current_component
   PetscMPIInt, parameter :: ON=1, OFF=0
-  PetscFortranAddr :: app_ptr
   PetscMPIInt :: hdf5_err
   PetscBool :: first
-  PetscInt :: ivar, isubvar, var_type
-  PetscInt :: vert_count
+  PetscInt :: ivar
   PetscErrorCode :: ierr
 
   surf_discretization => surf_realization%discretization
@@ -989,16 +962,13 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   type(option_type), pointer :: option
 
   integer(HID_T) :: file_id
-  integer(HID_T) :: data_type
-  integer(HID_T) :: grp_id
   integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
   integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3)
   integer(HSIZE_T) :: start(3), length(3), stride(3)
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
+  PetscMPIInt :: rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 
@@ -1787,7 +1757,6 @@ subroutine OutputSurfaceGetFlowrates(surf_realization)
   
   PetscInt :: local_id
   PetscInt :: ghosted_id
-  PetscInt :: idual
   PetscInt :: iconn
   PetscInt :: face_id
   PetscInt :: local_id_up,local_id_dn
@@ -1797,26 +1766,17 @@ subroutine OutputSurfaceGetFlowrates(surf_realization)
   PetscInt :: sum_connection
   PetscInt :: offset
   PetscInt :: cell_type
-  PetscInt :: local_size
-  PetscInt :: i
-  PetscInt :: iface
-  PetscInt :: ndof
 
   PetscReal, pointer :: flowrates(:,:,:)
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec_ptr2(:)
   PetscReal, pointer :: vec_ptr3(:)
-  PetscReal, pointer :: double_array(:)
   PetscReal :: dtime
 
   Vec :: natural_flowrates_vec
 
-  PetscMPIInt :: hdf5_err
   PetscErrorCode :: ierr
   
-  character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: unit_string
-
   patch => surf_realization%patch
   grid => patch%grid
   ugrid => grid%unstructured_grid
@@ -1986,64 +1946,41 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
   PetscInt :: var_list_type  
 
   integer(HID_T) :: file_id
-  integer(HID_T) :: data_type
-  integer(HID_T) :: grp_id
   integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
   integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3)
   integer(HSIZE_T) :: start(3), length(3), stride(3)
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
+  PetscMPIInt :: rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(grid_unstructured_type),pointer :: ugrid
-  type(connection_set_list_type), pointer :: connection_set_list
-  type(connection_set_type), pointer :: cur_connection_set
-  type(coupler_type), pointer :: boundary_condition
-  type(ugdm_type),pointer :: ugdm
   type(output_option_type), pointer :: output_option
   type(surface_field_type), pointer :: surf_field
   
-  PetscInt :: local_id
-  PetscInt :: ghosted_id
-  PetscInt :: idual
-  PetscInt :: iconn
-  PetscInt :: face_id
-  PetscInt :: local_id_up,local_id_dn
-  PetscInt :: ghosted_id_up,ghosted_id_dn
   PetscInt :: istart
-  PetscInt :: iface_up,iface_dn
   PetscInt :: dof
-  PetscInt :: sum_connection
   PetscInt :: offset
-  PetscInt :: cell_type
   PetscInt :: local_size
   PetscInt :: i
   PetscInt :: iface
   PetscInt :: ndof
 
-  PetscReal, pointer :: flowrates(:,:,:)
   PetscReal, pointer :: vec_ptr1(:)
   PetscReal, pointer :: vec_ptr2(:)
   PetscReal, pointer :: double_array(:)
-  PetscReal :: dtime
 
   PetscBool :: mass_flowrate
   PetscBool :: energy_flowrate
-
-  Vec :: global_flowrates_vec
-  Vec :: natural_flowrates_vec
 
   PetscMPIInt :: hdf5_err
   PetscErrorCode :: ierr
   
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: unit_string
 
   patch => surf_realization%patch
   grid => patch%grid

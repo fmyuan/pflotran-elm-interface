@@ -16,7 +16,6 @@ module AuxVars_FlowEnergy_module
     PetscReal, pointer :: H(:) ! MJ/kmol
     PetscReal, pointer :: U(:) ! MJ/kmol
 
-
     PetscReal, pointer :: D_H(:,:) ! MJ/kmol
     PetscReal, pointer :: D_U(:,:) ! MJ/kmol
   contains

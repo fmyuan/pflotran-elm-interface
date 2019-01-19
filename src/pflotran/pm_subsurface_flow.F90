@@ -248,9 +248,6 @@ subroutine PMSubsurfaceFlowSetup(this)
   
   class(pm_subsurface_flow_type) :: this
   
-  PetscErrorCode :: ierr
-  class(characteristic_curves_type), pointer :: cur_cc
-
   ! set the communicator
   this%comm1 => this%realization%comm1
   
@@ -358,7 +355,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(material_type), pointer :: Material
+
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(material_property_type), pointer :: material_property
   type(option_type), pointer :: option
@@ -501,8 +498,6 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
   implicit none
   
   class(pm_subsurface_flow_type) :: this
-  PetscViewer :: viewer
-  PetscErrorCode :: ierr
 
 end subroutine PMSubsurfaceFlowInitializeTimestepB
 
@@ -650,11 +645,7 @@ subroutine PMSubsurfaceFlowTimeCutPostInit(this)
   
   class(pm_subsurface_flow_type) :: this
   
-  PetscErrorCode :: ierr
-  
   this%option%flow_dt = this%option%dt
-           
-
 end subroutine PMSubsurfaceFlowTimeCutPostInit
 
 ! ************************************************************************** !
@@ -845,30 +836,6 @@ recursive subroutine PMSubsurfaceFlowFinalizeRun(this)
   endif  
   
 end subroutine PMSubsurfaceFlowFinalizeRun
-
-! ************************************************************************** !
-
-subroutine PMSubsurfaceFlowInputRecord(this)
-  ! 
-  ! Writes ingested information to the input record file.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 03/21/2016
-  ! 
-  
-  implicit none
-  
-  class(pm_subsurface_flow_type) :: this
-
-  character(len=MAXWORDLENGTH) :: word
-  PetscInt :: id
-
-  id = INPUT_RECORD_UNIT
-
-  write(id,'(a29)',advance='no') 'pm: '
-  write(id,'(a)') this%name
-
-end subroutine PMSubsurfaceFlowInputRecord
 
 ! ************************************************************************** !
 

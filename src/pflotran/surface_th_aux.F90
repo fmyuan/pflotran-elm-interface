@@ -170,18 +170,12 @@ subroutine SurfaceTHAuxVarCompute(xx,auxvar,global_auxvar, &
   PetscReal :: xx(option%nflowdof)
   type(Surface_TH_auxvar_type) :: auxvar
   type(surface_global_auxvar_type) :: global_auxvar
-  PetscReal :: por, perm
 
   PetscErrorCode :: ierr
-  PetscReal :: pw,dw_kg,dw_mol,hw,sat_pressure,visl
-  PetscReal :: di_kg, dwi_kg
-    ! Densities of ice and water-ice mixture, respectively.
+  PetscReal :: pw,dw_kg,dw_mol,hw
+  PetscReal :: di_kg
   PetscReal :: unfrozen_fraction
   PetscReal :: kr, ds_dp, dkr_dp
-  PetscReal :: dvis_dt, dvis_dp, dvis_dpsat
-  PetscReal :: dw_dp, dw_dt, hw_dp, hw_dt
-  PetscReal :: dpw_dp
-  PetscReal :: dpsat_dt
   PetscReal :: k_therm_w, k_therm_i
   
   global_auxvar%den_kg(1) = 0.d0
@@ -286,7 +280,6 @@ subroutine SurfaceTHAuxDestroy(aux)
   implicit none
 
   type(Surface_TH_type), pointer :: aux
-  PetscInt :: iaux
   
   if (.not.associated(aux)) return
   

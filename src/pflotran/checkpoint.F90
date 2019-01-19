@@ -528,7 +528,6 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   character(len=MAXSTRINGLENGTH) :: append_name
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: filename
-  PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
   integer(HID_T), intent(out) :: file_id
@@ -577,7 +576,6 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
   integer(HID_T), intent(out) :: file_id
@@ -1312,15 +1310,12 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
   type(waypoint_list_type) :: waypoint_list
   
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: card
   character(len=MAXSTRINGLENGTH) :: temp_string
   character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXWORDLENGTH) :: default_time_units
   type(waypoint_type), pointer :: waypoint
   PetscReal :: units_conversion
   PetscReal :: temp_real
-  PetscReal, pointer :: temp_real_array(:)
-  PetscInt :: i
   PetscBool :: format_binary
   PetscBool :: format_hdf5
 

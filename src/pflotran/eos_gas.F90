@@ -1,5 +1,5 @@
 module EOS_Gas_module
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
@@ -565,71 +565,27 @@ subroutine EOSGasViscosityDerive(T, P_comp, P_gas, Rho_comp, &
   !geh: at very low temperatures, the derivative wrt Rhocomp is very sensitive to
   !     the perturbation.  Need a value as large as 1.d-3 at 2C to match analtyical.
   PetscReal, parameter :: pert_tol = 1.d-8
-  PetscReal :: pert
-    
-  PetscReal :: T_pert
-  PetscReal :: P_comp_pert
-  PetscReal :: P_gas_pert
-  PetscReal :: Rho_comp_pert
-  PetscReal :: V_mix_pert
   PetscReal :: dV_dRhocomp
   PetscReal :: dV_dT_, dV_dPcomp_, dV_dPgas_, dV_dRhocomp_
-  PetscReal :: dum1, dum2, dum3, dum4
   
   dV_dT = 0.d0
   dV_dPgas = 0.d0
   dV_dPcomp = 0.d0
   dV_dRhocomp = 0.d0
-  
-!#define NUMERICAL_DERIVATIVE_VISCOSITY
-#define PARTIALS
-    
+
   ! We have to calcualte the derivative numerically
   call EOSGasViscosityPtr(T, P_comp, P_gas, Rho_comp, V_mix, PETSC_TRUE, &
                           dV_dT_, dV_dPcomp_, dV_dPgas_, dV_dRhocomp_, ierr, &
                           table_idxs)
-#if defined(PARTIALS)
+
   dV_dT_ = dV_dT_ + dV_dRhocomp_*dRho_dT + dV_dPcomp_*dPcomp_dT
   dV_dPgas_ = dV_dPgas_ + dV_dPcomp_*dPcomp_dPgas + dV_dRhocomp_*dRho_dPgas
   ! put dv_dPcomp last to avoid double counting for partials above
   dV_dPcomp_ = dV_dPcomp_ + dV_dRhocomp_*dRho_dPcomp
-#endif
 
-#if defined(NUMERICAL_DERIVATIVE_VISCOSITY)                          
-  ! temperature
-  pert = pert_tol * T
-  T_pert = T + pert
-  call EOSGasViscosityPtr(T_pert, P_comp, P_gas, Rho_comp, V_mix_pert, &
-                          PETSC_FALSE,dum1,dum2,dum3,dum4,ierr,table_idxs)
-  dV_dT = dV_dT + (V_mix_pert - V_mix)/pert
-  ! gas component pressure
-  pert = pert_tol * P_comp
-  P_comp_pert = P_comp + pert
-  call EOSGasViscosityPtr(T, P_comp_pert, P_gas, Rho_comp, V_mix_pert, &
-                          PETSC_FALSE,dum1,dum2,dum3,dum4,ierr,table_idxs)
-  dV_dPcomp = (V_mix_pert - V_mix)/pert
-  ! gas pressure
-  pert = pert_tol * P_gas
-  P_gas_pert = P_gas + pert
-  call EOSGasViscosityPtr(T, P_comp, P_gas_pert, Rho_comp, V_mix_pert, &
-                          PETSC_FALSE,dum1,dum2,dum3,dum4,ierr,table_idxs)
-  dV_dPgas = (V_mix_pert - V_mix)/pert
-  ! component density
-  pert = pert_tol * Rho_comp
-  Rho_comp_pert = Rho_comp + pert
-  call EOSGasViscosityPtr(T, P_comp, P_gas, Rho_comp_pert, V_mix_pert, &
-                          PETSC_FALSE,dum1,dum2,dum3,dum4,ierr,table_idxs)
-  dV_dRhocomp = (V_mix_pert - V_mix)/pert
-#if defined(PARTIALS)
-  dV_dT = dV_dT + dV_dRhocomp * dRho_dT + dV_dPcomp * dPcomp_dT
-  dV_dPgas = dV_dPgas + dV_dPcomp * dPcomp_dPgas + dV_dRhocomp * dRho_dPgas
-  dV_dPcomp = dV_dPcomp + dV_dRhocomp * dRho_dPcomp
-#endif
-#else
   dV_dPcomp = dV_dPcomp_
   dV_dT = dV_dT_
   dV_dPgas = dV_dPgas_
-#endif
 
 end subroutine EOSGasViscosityDerive
 
@@ -704,9 +660,9 @@ subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, &
   PetscReal :: dz1_dxga, dz1_dxgw, dz1_dvis1, dz1_dvis2, dz1_dvis3, &
                dz1_dT, dz1_dRhocomp, dz1_dPcomp, dz1_dPgas
   PetscReal :: dz2_dard, dz2_de, dz2_dg, dz2_dh, dz2_dvis1, dz2_dvis2, &
-               dz2_dvis3, dz2_dT, dz2_dRhocomp, dz2_dPcomp, dz2_dPgas
+               dz2_dT, dz2_dRhocomp, dz2_dPcomp, dz2_dPgas
   PetscReal :: dz3_dard, dz3_de, dz3_dg, dz3_dh, dz3_dvis1, dz3_dvis2, &
-               dz3_dvis3, dz3_dT, dz3_dRhocomp, dz3_dPcomp, dz3_dPgas, &
+               dz3_dT, dz3_dRhocomp, dz3_dPcomp, dz3_dPgas, &
                dz3_dxga, dz3_dxgw
   PetscReal :: dvisg_dz1, dvisg_dz2, dvisg_dz3
   PetscReal :: ard_0point6, one_over_vis1sq, one_over_vis2sq, z1pz2
@@ -981,29 +937,10 @@ subroutine EOSGasViscosityEOSDBase(T, P_comp, P_gas, Rho_comp, V_mix, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  PetscReal :: NaN
-
-  !ierr initialised in EOSEOSProp 
-  !call eos_dbase%EOSProp(T,P_gas,EOS_VISCOSITY,V_mix,ierr)
   call eos_dbase%EOSPropGrad(T,P_gas,EOS_VISCOSITY,V_mix,dV_dT,dV_dPgas,ierr)
 
   dV_dPcomp = 0.0d0
   dV_dRhocomp = 0.0d0
-
-  ! initialize to derivative to NaN so that not mistakenly used.
-  ! NaN = InitToNan()
-  ! 
-  ! dV_dT = NaN
-  ! dV_dPcomp = NaN
-  ! dV_dPgas = NaN
-  ! dV_dRhocomp = NaN
-  ! 
-  ! if (calculate_derivative) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet. 
-  !   print*, "EOSGasViscosityEOSDBase - Viscosity derivatives not supported"
-  !   stop
-  ! end if
   
 end subroutine EOSGasViscosityEOSDBase
 
@@ -1026,30 +963,12 @@ subroutine EOSGasViscosityTable(T, P_comp, P_gas, Rho_comp, V_mix, &
   PetscReal, intent(out) :: dV_dRhocomp ! derivative wrt component density [Pa-s/kmol/m3]
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
-
-  PetscReal :: NaN
-
-  !call pvt_table%EOSProp(T,P_gas,EOS_VISCOSITY,V_mix,table_idxs,ierr)
   
   call pvt_table%EOSPropGrad(T,P_gas,EOS_VISCOSITY,V_mix,dV_dT,dV_dPgas, &
                              ierr,table_idxs)
 
   dV_dPcomp = 0.0d0
   dV_dRhocomp = 0.0d0
-  ! initialize to derivative to NaN so that not mistakenly used.
-  ! NaN = InitToNan()
-  ! 
-  ! dV_dT = NaN
-  ! dV_dPcomp = NaN
-  ! dV_dPgas = NaN
-  ! dV_dRhocomp = NaN
-  ! 
-  ! if (calculate_derivative) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
-  !   print*, "EOSGasViscosityTable - Viscosity derivatives not supported"
-  !   stop
-  ! end if
 
 end subroutine EOSGasViscosityTable
 
@@ -1255,7 +1174,7 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr,table_idxs)
   
   ! Newton method approach
   PetscReal :: a_Newton, b_Newton , a_RT, p_RT
-  PetscReal :: b2, V, f, dfdV, dVd
+  PetscReal :: V, f, dfdV, dVd
   PetscInt :: i
   PetscReal :: coef(4)
   PetscInt, parameter :: maxit = 50
@@ -1540,43 +1459,6 @@ end subroutine EOSGasDensityTable
 
 ! ************************************************************************** !
 
-subroutine EOSGasFugacity(T,P,Rho_gas,phi,ierr)
-! current version is for hydrogen only. See
-! Soave, Giorgio, 1972, "Equilibrium constants from a modified Redlich-Kwong
-! equation of state", Chem. Eng. Sci., V27, pp 1197-1203.
-
-  PetscReal, intent(in) :: T        ! temperature [C]
-  PetscReal, intent(in) :: P        ! pressure [Pa]
-  PetscReal, intent(in) :: Rho_gas  ! gas density [kmol/m^3]
-  PetscReal, intent(out) :: phi     ! fugacity coefficient
-  PetscErrorCode, intent(out) :: ierr
-
-  !for hydrogen
-  ! American Petroleum Institute,
-  ! "Technical Data Book-Petroleum Refining" (1977)
-  PetscReal, parameter :: Tc = 41.67d0   ! critical temperature
-  PetscReal, parameter :: Pc = 2.1029d6  ! critical pressure
-
-  PetscReal :: T_kelvin, Z, V, Tr, LHS
-  PetscReal :: A, B, alpha
-
-  V = 1.d0 / Rho_gas * 1.d-3
-  T_kelvin = T + 273.15d0
-  Tr = T_kelvin/Tc  ! reduced temperature
-  alpha = EXP(0.340d0*(1.d0-Tr))  ! alpha(T)
-
-  A = 0.42747 * alpha * (P/Pc) / (T/Tc)**2
-  B = 0.08664 * (P/Pc) / (T/Tc)
-  Z = P*V / (IDEAL_GAS_CONSTANT*T)
-  
-  ! Fugacity Coefficient
-  LHS = Z - 1.d0 - LOG(Z-B) - A/B * LOG((Z+B)/Z)
-  phi = EXP(LHS)  ! dimensionless (Pa/Pa)
-  
-end subroutine EOSGasFugacity
-
-! ************************************************************************** !
-
 subroutine EOSGasEnergyIdealMethane(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
   
 ! Based on EOSGasEnergyIdeal. Modified for Methane
@@ -1665,12 +1547,6 @@ subroutine EOSGasEnergyEOSDBase(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
   PetscReal, intent(out) :: dU_dT   ! deriv. internal energy wrt temperature [J/kmol/C]
   PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure [J/kmol/Pa]
   PetscErrorCode, intent(out) :: ierr
-
-  PetscReal :: NaN
-
-  !ierr initialised in EOSProp - PO: should do only one lookup here
-  !call eos_dbase%EOSProp(T,P,EOS_ENTHALPY,H,ierr)
-  !call eos_dbase%EOSProp(T,P,EOS_INTERNAL_ENERGY,U,ierr)
 
   call eos_dbase%EOSPropGrad(T,P,EOS_ENTHALPY,H,dH_dT,dH_dP,ierr)
   call eos_dbase%EOSPropGrad(T,P,EOS_INTERNAL_ENERGY,U,dU_dT,dU_dP,ierr)
@@ -2009,8 +1885,8 @@ subroutine EOSGasInputRecord()
   
   implicit none
   
-  character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word1
+
   PetscInt :: id = INPUT_RECORD_UNIT
 
   write(id,'(a29)',advance='no') '---------------------------: '

@@ -183,7 +183,7 @@ module PFLOTRAN_Constants_module
 
   PetscInt, parameter, public :: MAX_PHASE = 4
   
-  ! approaches to coupling reactive transport
+  ! approaches to coupling transport
   PetscInt, parameter, public :: GLOBAL_IMPLICIT = 0
   PetscInt, parameter, public :: OPERATOR_SPLIT = 1
   

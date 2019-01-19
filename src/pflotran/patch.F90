@@ -265,13 +265,9 @@ subroutine PatchConvertListToArray(patch_list)
   implicit none
 
   type(patch_list_type) :: patch_list
-
-  PetscInt :: count
   type(patch_type), pointer :: cur_patch
 
-
   allocate(patch_list%array(patch_list%num_patch_objects))
-
   cur_patch => patch_list%first
   do
     if (.not.associated(cur_patch)) exit
@@ -341,12 +337,10 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
   type(option_type) :: option
 
   type(coupler_type), pointer :: coupler
-  type(coupler_list_type), pointer :: coupler_list
   type(strata_type), pointer :: strata
   type(observation_type), pointer :: observation, next_observation
   type(integral_flux_type), pointer :: integral_flux
-
-  PetscInt :: temp_int, isub
+  PetscInt :: temp_int
   PetscInt :: nphase
   PetscErrorCode :: ierr
 
@@ -720,13 +714,8 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
   type(coupler_list_type), pointer :: coupler_list
   type(patch_type), pointer :: patch
   type(option_type) :: option
-
   PetscInt :: num_connections
-  PetscBool :: force_update_flag
-
   type(coupler_type), pointer :: coupler
-
-  PetscInt :: idof
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: temp_int
 
@@ -831,8 +820,6 @@ subroutine PatchUpdateAllCouplerAuxVars(patch,force_update_flag,option)
   PetscBool :: force_update_flag
   type(option_type) :: option
 
-  PetscInt :: iconn
-
   !geh: no need to update initial conditions as they only need updating
   !     once as performed in PatchInitCouplerAuxVars()
   call PatchUpdateCouplerAuxVars(patch,patch%boundary_condition_list, &
@@ -930,21 +917,11 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   type(patch_type) :: patch
   type(coupler_type), pointer :: coupler
   type(option_type) :: option
-
   type(flow_condition_type), pointer :: flow_condition
-
-  class(dataset_common_hdf5_type), pointer :: dataset
-  PetscBool :: update
-  PetscBool :: dof1, dof2, dof3
-  PetscReal :: temperature, p_sat
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscErrorCode :: ierr
+  character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: apply_temp_cond
   PetscInt :: rate_scale_type
-
-  PetscInt :: idof, num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id
+  PetscInt :: num_connections
   PetscInt :: iphase
 
   num_connections = coupler%connection_set%num_connections
@@ -1161,67 +1138,6 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
 
 end subroutine PatchUpdateCouplerAuxVarsTH
 
-
-! ************************************************************************** !
-
-! ************************************************************************** !
-
-subroutine PatchGetCouplerValueFromDataset(coupler,option,grid,dataset,iconn, &
-                                           value)
-  !
-  ! Gets you an auxiliary variable from a dataset for a given connection.
-  !
-  ! Author: Glenn Hammond/Jennifer M. Frederick
-  ! Date: 04/18/2018
-  !
-
-  use Option_module
-  use Grid_module
-  use Coupler_module
-  use Dataset_Common_HDF5_class
-  use Dataset_Gridded_HDF5_class
-  use Dataset_Ascii_class
-  use Dataset_module
-
-  implicit none
-
-  type(coupler_type) :: coupler
-  type(option_type) :: option
-  type(grid_type) :: grid
-  class(dataset_base_type) :: dataset
-  PetscInt :: iconn
-  PetscReal :: value
-
-  PetscInt :: local_id
-  PetscInt :: ghosted_id
-  PetscReal :: x
-  PetscReal :: y
-  PetscReal :: z
-  PetscReal :: dist(-1:3)
-  
-  select type(dataset)
-    class is(dataset_ascii_type)
-      value = dataset%rarray(1)
-    class is(dataset_gridded_hdf5_type)
-      local_id = coupler%connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
-      x = grid%x(ghosted_id)
-      y = grid%y(ghosted_id)
-      z = grid%z(ghosted_id)
-      if (associated(coupler%connection_set%dist)) then
-        dist = coupler%connection_set%dist(:,iconn)
-        x = x-dist(0)*dist(1)
-        y = y-dist(0)*dist(2)
-        z = z-dist(0)*dist(3)
-      endif
-      call DatasetGriddedHDF5InterpolateReal(dataset,x,y,z,value,option)
-    class default
-      option%io_buffer = 'Unknown dataset class: &
-                         &PatchGetCouplerValueFromDataset().'
-      call printErrMsg(option)
-  end select
-
-end subroutine PatchGetCouplerValueFromDataset
 
 ! ************************************************************************** !
 
@@ -1464,11 +1380,9 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
 
   type(connection_set_type), pointer :: cur_connection_set
   type(grid_type),pointer :: grid
-  PetscErrorCode :: ierr
   PetscInt :: iconn
   PetscInt :: ghosted_id,local_id
   PetscInt,pointer ::cell_ids_nat(:)
-  type(flow_sub_condition_type) :: flow_sub_condition
 
   class(dataset_map_hdf5_type), pointer :: dataset_map_hdf5
   class(dataset_ascii_type), pointer :: dataset_ascii
@@ -1558,8 +1472,8 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   PetscInt :: ncells
 
   PetscInt, allocatable :: int_array(:)
-  PetscInt :: ghosted_id,local_id
-  PetscInt :: ii,count
+  PetscInt :: local_id
+  PetscInt :: ii
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
   PetscInt :: max_id_loc, max_id_global
@@ -1568,7 +1482,6 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   IS :: is_from, is_to
   Vec :: map_ids_1, map_ids_2,map_ids_3
   VecScatter ::vec_scatter
-  PetscViewer :: viewer
 
   ! Step-1: Rearrange map dataset
   max_id_loc = maxval(dataset_map_hdf5%mapping(2,:))
@@ -1709,15 +1622,10 @@ subroutine PatchGetVariable1(patch,field,option,output_option,vec, &
   PetscInt :: isubvar
   PetscInt :: isubvar2
   PetscInt :: iphase
-
   PetscInt :: local_id, ghosted_id
   type(grid_type), pointer :: grid
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
-  PetscReal :: xmass, lnQKgas, ehfac, eh0, pe0, ph0, tk
-  PetscReal :: tempreal
-  PetscInt :: tempint, tempint2
-  PetscInt :: irate, istate, irxn, ifo2, jcomp, comp_id
   PetscInt :: ivar_temp
   PetscErrorCode :: ierr
 
@@ -1881,7 +1789,7 @@ function PatchGetVariableValueAtCell(patch,field,option, &
                                      ivar,isubvar,isubvar2)
   !
   ! Returns variables indexed by ivar,
-  ! isubvar, local id from Reactive Transport type
+  ! isubvar, local id
   !
   ! Author: Glenn Hammond
   ! Date: 02/11/08
@@ -1909,15 +1817,12 @@ function PatchGetVariableValueAtCell(patch,field,option, &
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: ivar
   PetscInt :: isubvar
-  PetscInt :: tempint, tempint2
   PetscInt :: isubvar2
   PetscInt :: iphase
   PetscInt :: ghosted_id
   PetscInt :: local_id
   PetscInt :: ivar_temp
-
-  PetscReal :: value, xmass, lnQKgas, tk, ehfac, eh0, pe0, ph0
-  PetscInt :: irate, istate, irxn, ifo2, jcomp, comp_id
+  PetscReal :: value, xmass
   type(grid_type), pointer :: grid
   PetscReal, pointer :: vec_ptr2(:)
   PetscErrorCode :: ierr
@@ -1992,6 +1897,7 @@ function PatchGetVariableValueAtCell(patch,field,option, &
     case(POROSITY,MINERAL_POROSITY,VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
          SOIL_REFERENCE_PRESSURE)
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar)
+
     case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y, PERMEABILITY_Z, &
          PERMEABILITY_XY,PERMEABILITY_XZ,PERMEABILITY_YZ, &
          GAS_PERMEABILITY,GAS_PERMEABILITY_X,GAS_PERMEABILITY_Y, &
@@ -2068,7 +1974,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
   PetscInt :: vec_format
   PetscInt :: ivar
   PetscInt :: isubvar
-  PetscInt :: iphase, istate
+  PetscInt :: iphase
 
   PetscInt :: local_id, ghosted_id
   type(grid_type), pointer :: grid
@@ -2331,9 +2237,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: iphase
-
   PetscReal :: dt_cfl_1
-  PetscErrorCode :: ierr
 
   field => patch%field
   global_auxvars => patch%aux%Global%auxvars
@@ -2507,7 +2411,6 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
   implicit none
 
   type(option_type), pointer :: option
-  !type(reaction_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   type(surface_field_type), pointer :: surf_field
   type(patch_type), pointer :: patch
@@ -2516,14 +2419,9 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
   PetscInt :: isubvar
   PetscInt :: isubvar2
   PetscInt :: iphase
-
-  PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id
   type(grid_type), pointer :: grid
-  PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
-  PetscReal :: xmass
-  PetscReal :: tempreal
-  PetscInt :: tempint
-  PetscInt :: irate, istate, irxn
+  PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
   grid => patch%grid
@@ -2581,11 +2479,10 @@ subroutine PatchGetCellCenteredVelocities(patch,iphase,velocities)
   PetscReal, intent(out) :: velocities(:,:)
 
   type(grid_type), pointer :: grid
-  type(option_type), pointer :: option
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
-  PetscInt :: sum_connection, iconn, num_connections
+  PetscInt :: sum_connection, iconn
   PetscReal, allocatable :: sum_area(:,:), sum_velocity(:,:)
   PetscReal :: area(3), velocity(3)
   PetscInt :: ghosted_id_up, ghosted_id_dn
@@ -2694,7 +2591,6 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   PetscReal,pointer :: coordinates_and_directions(:,:)
   PetscInt,pointer :: vertices(:,:)
   type(grid_type), pointer :: grid
-  type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(coupler_type), pointer :: boundary_condition
 
@@ -2705,7 +2601,6 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   PetscInt :: array_size
   PetscInt :: sum_connection
   PetscInt :: iconn
-  PetscInt :: ivert
   PetscInt :: i, ii
   PetscInt :: face_id
   PetscInt :: local_id
@@ -2716,7 +2611,6 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   PetscReal :: magnitude
   PetscReal :: v1(3), v2(3), cp(3)
   PetscReal :: x, y, z
-  PetscReal :: coord(3)
   PetscReal :: unit_direction(3) 
   PetscReal, parameter :: absolute_tolerance = 1.d-10
   PetscReal, parameter :: relative_tolerance = 1.d-6
@@ -3062,8 +2956,7 @@ subroutine PatchCouplerInputRecord(patch)
   type(patch_type), pointer :: patch
 
   type(coupler_type), pointer :: cur_coupler
-  character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word1
   PetscInt :: k
   PetscInt :: id = INPUT_RECORD_UNIT
 
@@ -3089,10 +2982,6 @@ subroutine PatchCouplerInputRecord(patch)
       write(id,'(a29)',advance='no') 'flow condition name: '
       write(id,'(a)') adjustl(trim(cur_coupler%flow_condition_name))
     endif
-    if (len_trim(cur_coupler%tran_condition_name) > 0) then
-      write(id,'(a29)',advance='no') 'transport condition name: '
-      write(id,'(a)') adjustl(trim(cur_coupler%tran_condition_name))
-    endif
     write(id,'(a29)') '---------------------------: '
     cur_coupler => cur_coupler%next
   enddo
@@ -3115,10 +3004,6 @@ subroutine PatchCouplerInputRecord(patch)
       write(id,'(a29)',advance='no') 'flow condition name: '
       write(id,'(a)') adjustl(trim(cur_coupler%flow_condition_name))
     endif
-    if (len_trim(cur_coupler%tran_condition_name) > 0) then
-      write(id,'(a29)',advance='no') 'transport condition name: '
-      write(id,'(a)') adjustl(trim(cur_coupler%tran_condition_name))
-    endif
     write(id,'(a29)') '---------------------------: '
     cur_coupler => cur_coupler%next
   enddo
@@ -3140,10 +3025,6 @@ subroutine PatchCouplerInputRecord(patch)
     if (len_trim(cur_coupler%flow_condition_name) > 0) then
       write(id,'(a29)',advance='no') 'flow condition name: '
       write(id,'(a)') adjustl(trim(cur_coupler%flow_condition_name))
-    endif
-    if (len_trim(cur_coupler%tran_condition_name) > 0) then
-      write(id,'(a29)',advance='no') 'transport condition name: '
-      write(id,'(a)') adjustl(trim(cur_coupler%tran_condition_name))
     endif
     write(id,'(a29)') '---------------------------: '
     cur_coupler => cur_coupler%next
@@ -3180,7 +3061,7 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: m3_water           ! [m^3-water]
   PetscReal :: m3_bulk            ! [m^3-bulk]
-  PetscInt :: k, j, m
+  PetscInt :: k
   PetscInt :: local_id, ghosted_id
   PetscErrorCode :: ierr
   PetscReal :: local_total_mass
@@ -3234,7 +3115,7 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: m3_water, kg_water
-  PetscInt :: k, j, m
+  PetscInt :: k
   PetscInt :: local_id, ghosted_id
   PetscErrorCode :: ierr
   PetscReal :: local_water_mass
@@ -3313,63 +3194,6 @@ subroutine PatchGetCompMassInRegionAssign(region_list, &
   enddo
 
 end subroutine PatchGetCompMassInRegionAssign
-
-! ************************************************************************** !
-
-subroutine PatchVerifyDatasetGriddedForFlux(dataset,coupler,option)
-  !
-  ! Verifies that a dataset being used to define fluxes adheres to
-  ! several rules that attempt to minimize mass balance error.
-  !
-  ! Author: Jennifer Frederick
-  ! Date: 11/04/2016
-  !
-
-  use Option_module
-  use Coupler_module
-  use Dataset_Gridded_HDF5_class
-
-  implicit none
-
-  class(dataset_gridded_hdf5_type) :: dataset
-  type(coupler_type) :: coupler
-  type(option_type) :: option
-
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscInt :: i, dataset_size
-
-  ! check if dataset is cell-centered:
-  if (.not.dataset%is_cell_centered) then
-    option%io_buffer = 'Dataset ' // trim(dataset%hdf5_dataset_name) // &
-      " must be cell-centered for fluxes. You must set attribute: &
-      &h5grp.attrs['Cell Centered'] = True."
-    call printErrMsg(option)
-  endif
-  ! check if the dimensions match:
-  dataset_size = 1
-  do i=1,size(dataset%dims)
-    dataset_size = dataset%dims(i)*dataset_size
-  enddo
-  if (coupler%connection_set%num_connections /= dataset_size) then
-    write(string,*) dataset%dims
-    write(string2,*) coupler%connection_set%num_connections
-    option%io_buffer = 'Dataset ' // trim(dataset%hdf5_dataset_name) // &
-      " must have a value for each cell on the boundary defined by &
-      &REGION " // trim(coupler%region%name) // '. The dataset dimension &
-      &is ' // adjustl(trim(string)) // ' but the number of boundary &
-      &connections is ' // adjustl(trim(string2)) // '.'
-    call printErrMsg(option)
-  endif
-  ! check if the interpolation method is STEP:
-  if (.not.dataset%interpolation_method == INTERPOLATION_STEP) then
-    option%io_buffer = 'Dataset ' // trim(dataset%hdf5_dataset_name) // &
-      " must be assigned the STEP interpolation method for fluxes. You &
-      &must set attribute: h5grp.attrs['Interpolation Method'] = &
-      &np.string_('STEP')."
-    call printErrMsg(option)
-  endif
-
-end subroutine PatchVerifyDatasetGriddedForFlux
 
 ! ************************************************************************** !
 

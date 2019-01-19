@@ -41,7 +41,6 @@ module Realization_Base_class
             RealizationGetVariable, &
             RealizGetVariableValueAtCell, &
             RealizationSetVariable, &
-            RealizCreateTranMassTransferVec, &
             RealizCreateFlowMassTransferVec, &
             RealizationBaseStrip
 
@@ -190,7 +189,7 @@ end subroutine RealizationSetVariable
 subroutine RealizCreateFlowMassTransferVec(this)
   ! 
   ! Creates the Vec where mass transfer is summed prior to being added to
-  ! the reactive transport residual.
+  ! the transport residual.
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/20/15
@@ -211,32 +210,6 @@ subroutine RealizCreateFlowMassTransferVec(this)
 end subroutine RealizCreateFlowMassTransferVec
 
 ! ************************************************************************** !
-
-subroutine RealizCreateTranMassTransferVec(this)
-  ! 
-  ! Creates the Vec where mass transfer is summed prior to being added to
-  ! the reactive transport residual.
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/20/15
-  ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  implicit none
-  
-  class(realization_base_type) :: this
-  
-  PetscInt :: ierr
-  
-  if (this%field%tran_mass_transfer == PETSC_NULL_VEC) then
-    call VecDuplicate(this%field%tran_xx,this%field%tran_mass_transfer, &
-                      ierr);CHKERRQ(ierr)
-  endif
-
-end subroutine RealizCreateTranMassTransferVec
-
-! ************************************************************************** !
-
 subroutine RealizationBaseStrip(this)
   ! 
   ! Deallocates members of base realization

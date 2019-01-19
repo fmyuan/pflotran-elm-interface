@@ -143,19 +143,15 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   type(input_type), pointer :: input
   type(discretization_type),pointer :: discretization
   character(len=MAXWORDLENGTH) :: word
-  type(grid_type), pointer :: grid, grid2
+  type(grid_type), pointer :: grid
   type(grid_structured_type), pointer :: str_grid
   type(grid_unstructured_type), pointer :: un_str_grid
   character(len=MAXWORDLENGTH) :: structured_grid_ctype
   character(len=MAXWORDLENGTH) :: unstructured_grid_ctype
 
-  character(len=MAXSTRINGLENGTH) :: string
-
   PetscInt :: structured_grid_itype
   PetscInt :: unstructured_grid_itype
   PetscInt :: nx, ny, nz
-  PetscInt :: i
-  PetscReal :: tempreal
 
   nx = 0
   ny = 0
@@ -367,17 +363,9 @@ subroutine DiscretizationRead(discretization,input,option)
   type(input_type), pointer :: input
   type(discretization_type),pointer :: discretization
   character(len=MAXWORDLENGTH) :: word
-  type(grid_type), pointer :: grid, grid2
-  type(grid_structured_type), pointer :: str_grid
-  type(grid_unstructured_type), pointer :: un_str_grid
-  character(len=MAXWORDLENGTH) :: structured_grid_ctype
-  character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXSTRINGLENGTH) :: string
-
-  PetscInt :: structured_grid_itype
+  type(grid_type), pointer :: grid
   PetscInt :: nx, ny, nz
   PetscInt :: i
-  PetscReal :: tempreal
   PetscBool :: bounds_read
   PetscBool :: dxyz_read
 
@@ -687,10 +675,7 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, &
   PetscInt, intent(in) :: o_nflowdof
   PetscInt, intent(in) :: o_nphase
   type(option_type) :: option
-      
   PetscInt :: ndof
-  PetscErrorCode :: ierr
-  PetscInt :: i
   type(grid_unstructured_type), pointer :: ugrid
 
   select case(discretization%itype)
@@ -786,7 +771,6 @@ subroutine DiscretizationCreateDM(discretization,dm_ptr,ndof,stencil_width, &
   PetscInt :: stencil_width
   PetscEnum :: stencil_type
   type(option_type) :: option
-  PetscErrorCode :: ierr
 
   select case(discretization%itype)
     case(STRUCTURED_GRID)
@@ -818,7 +802,7 @@ subroutine DiscretizationCreateVector(discretization,dm_index,vector, &
   Vec :: vector
   PetscInt :: vector_type
   type(option_type) :: option
-  PetscInt :: ndof
+
   PetscErrorCode :: ierr
   
   type(dm_ptr_type), pointer :: dm_ptr
@@ -938,13 +922,7 @@ subroutine DiscretizationCreateJacobian(discretization,dm_index,mat_type,Jacobia
   MatType :: mat_type
   Mat :: Jacobian
   type(option_type) :: option
-  PetscInt :: ndof, stencilsize
-  PetscInt, pointer :: indices(:)
-  PetscInt :: ngmax
-  PetscInt :: imax, nlevels, ln, npatches, pn, i
   type(dm_ptr_type), pointer :: dm_ptr
-  ISLocalToGlobalMapping :: ptmap
-  PetscInt :: islocal
 
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
 
@@ -1508,7 +1486,7 @@ subroutine DiscretizationUpdateTVDGhosts(discretization,global_vec, &
   type(discretization_type) :: discretization
   Vec :: global_vec
   Vec :: tvd_ghost_vec
-  PetscInt :: dm_index
+
   PetscErrorCode :: ierr
   
   call VecScatterBegin(discretization%tvd_ghost_scatter,global_vec, &

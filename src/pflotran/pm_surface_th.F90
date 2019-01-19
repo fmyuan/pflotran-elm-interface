@@ -122,7 +122,6 @@ subroutine PMSurfaceTHPreSolve(this)
 
   implicit none
 
-  PetscErrorCode :: ierr
   class(pm_surface_th_type) :: this
 
   call PMBasePrintHeader(this)
@@ -145,8 +144,6 @@ subroutine PMSurfaceTHUpdateSolution(this)
   implicit none
 
   class(pm_surface_th_type) :: this
-
-  PetscBool :: force_update_flag = PETSC_FALSE
 
   call PMSurfaceUpdateSolution(this)
   call SurfaceTHUpdateSolution(this%surf_realization)
@@ -263,9 +260,9 @@ subroutine PMSurfaceTHPostSolve(this)
 
   class(pm_surface_th_type) :: this
 
-  PetscReal, pointer :: xx_p(:)
   PetscInt :: local_id
   PetscInt :: istart, iend
+  PetscReal,pointer :: xx_p(:)
   type(surface_field_type), pointer :: surf_field 
   type(grid_type),pointer :: surf_grid
   PetscErrorCode :: ierr
@@ -332,7 +329,6 @@ subroutine PMSurfaceTHInputRecord(this)
   
   class(pm_surface_th_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

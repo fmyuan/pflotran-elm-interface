@@ -121,7 +121,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   
   PetscInt :: fid, icell
   character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  character(len=MAXSTRINGLENGTH) :: string!, string2
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
@@ -447,7 +447,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
   
   PetscInt :: fid, icell
   character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  character(len=MAXSTRINGLENGTH) :: string!, string2
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
@@ -715,7 +715,7 @@ subroutine WriteObservationHeaderSec(fid,realization_base,cell_string, &
   character(len=MAXSTRINGLENGTH) :: cell_string
   PetscInt :: icolumn
   
-  PetscInt :: i,j
+  PetscInt :: i
   character(len=MAXSTRINGLENGTH) :: string
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option  
@@ -759,7 +759,6 @@ subroutine WriteObservationHeaderForBC(fid,realization_base,coupler_name)
   class(realization_base_type) :: realization_base
   character(len=MAXWORDLENGTH) :: coupler_name
   
-  PetscInt :: i
   character(len=MAXSTRINGLENGTH) :: string
   type(option_type), pointer :: option
   
@@ -797,7 +796,7 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
   
   implicit none
   
-  PetscInt :: fid, i
+  PetscInt :: fid
   class(realization_base_type) :: realization_base
   PetscInt :: local_id
   PetscReal :: temp_real
@@ -1033,47 +1032,6 @@ end subroutine WriteObservationDataForBC
 
 ! ************************************************************************** !
 
-subroutine WriteVelocityAtCell(fid,realization_base,local_id)
-  ! 
-  ! Computes velocities at a grid cell
-  ! note: limited to structured grids
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/20/08
-  ! 
-
-  use Realization_Base_class, only : realization_base_type
-  use Option_module
-
-  implicit none
-  
-  PetscInt :: fid
-  class(realization_base_type) :: realization_base
-  type(option_type), pointer :: option
-  PetscInt :: local_id
-  PetscInt :: iphase
-
-  PetscReal :: velocity(1:3)
-  option => realization_base%option
-  
-200 format(3(es14.6))
-
-  iphase = 1
-  velocity = GetVelocityAtCell(fid,realization_base,local_id,iphase)
-  write(fid,200,advance="no") velocity(1:3)* &
-                              realization_base%output_option%tconv
-
-  if (option%nphase > 1) then
-    iphase = 2
-    velocity = GetVelocityAtCell(fid,realization_base,local_id,iphase)
-    write(fid,200,advance="no") velocity(1:3)* &
-                                realization_base%output_option%tconv
-  endif
-
-end subroutine WriteVelocityAtCell
-
-! ************************************************************************** !
-
 subroutine WriteVelocityAtCell2(fid,realization_base,local_id,velocities)
   ! 
   ! Writes the velocity previoiusly calculated and stored in vecs at cell
@@ -1135,7 +1093,6 @@ function GetVelocityAtCell(fid,realization_base,local_id,iphase)
   class(realization_base_type) :: realization_base
   PetscInt :: local_id
 
-  PetscInt :: ghosted_id
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
@@ -1237,9 +1194,7 @@ subroutine WriteVelocityAtCoord(fid,realization_base,region)
   class(realization_base_type) :: realization_base
   type(region_type) :: region
   type(option_type), pointer :: option
-  PetscInt :: local_id
   PetscInt :: iphase
-  PetscReal :: coordinate(3)
 
   PetscReal :: velocity(1:3)
 
@@ -1304,7 +1259,7 @@ function GetVelocityAtCoord(fid,realization_base,local_id,x,y,z,iphase)
   PetscReal :: cell_coord(3), face_coord
   PetscReal :: coordinate(3)
   PetscInt :: direction, iphase
-  PetscReal :: area, weight, distance
+  PetscReal :: weight, distance
   PetscReal :: sum_velocity(1:3), velocity(1:3)
   PetscReal :: sum_weight(1:3)
   
@@ -1315,7 +1270,6 @@ function GetVelocityAtCoord(fid,realization_base,local_id,x,y,z,iphase)
 
   sum_velocity = 0.d0
   sum_weight = 0.d0
-! iphase = 1
 
   ghosted_id = grid%nL2G(local_id)
   
@@ -1428,7 +1382,7 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
 
   implicit none
   
-  PetscInt :: fid,i,naqcomp,nkinmnrl
+  PetscInt :: fid, i
   class(realization_base_type) :: realization_base
   PetscInt :: local_id
   PetscInt :: ghosted_id
@@ -1493,7 +1447,7 @@ subroutine OutputIntegralFlux(realization_base)
 
 
   character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXWORDLENGTH) :: word, units
+  character(len=MAXWORDLENGTH) :: units
   character(len=MAXSTRINGLENGTH) :: string
   type(integral_flux_type), pointer :: integral_flux
   PetscReal :: flow_dof_scale(10)
@@ -1690,36 +1644,23 @@ subroutine OutputMassBalance(realization_base)
   type(mass_balance_region_type), pointer :: cur_mbr
   type(global_auxvar_type), pointer :: global_auxvars_bc_or_ss(:)
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
-
   character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXWORDLENGTH) :: word, units
+  character(len=MAXWORDLENGTH) :: units
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: fid = 86
-  PetscInt :: ios
-  PetscInt :: i,icol
-  PetscInt :: k, j
-  PetscInt :: local_id
-  PetscInt :: ghosted_id
+  PetscInt :: icol
   PetscInt :: iconn
   PetscInt :: offset
   PetscInt :: iphase, ispec
-  PetscInt :: icomp, nmobilecomp
-  PetscInt :: max_tran_size
-  PetscReal :: sum_area(4)
-  PetscReal :: sum_area_global(4)
   PetscReal :: sum_kg(realization_base%option%nflowspec, &
                realization_base%option%nphase)
   PetscReal :: sum_kg_global(realization_base%option%nflowspec, &
                realization_base%option%nphase)
-  PetscReal, allocatable :: sum_mol(:,:), sum_mol_global(:,:)
   
-  PetscReal :: global_total_mass, global_water_mass
+  PetscReal :: global_water_mass
   PetscReal :: sum_kg_water  ! sum of global water mass and fluxes
 
   PetscReal :: sum_trapped(realization_base%option%nphase)
-  PetscReal :: sum_trapped_global(realization_base%option%nphase)
-  PetscReal :: sum_mol_ye(3), sum_mol_global_ye(3)
   
   PetscMPIInt :: int_mpi
   PetscBool :: bcs_done
