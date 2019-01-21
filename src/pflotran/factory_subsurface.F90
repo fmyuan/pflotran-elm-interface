@@ -1721,6 +1721,8 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   use Reaction_Aux_module
   use Init_Common_module
 
+  use Grdecl_class, only : SetUGrdEclCmplLocation
+
   implicit none
 
   class(simulation_subsurface_type) :: simulation
@@ -1734,14 +1736,92 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   type(discretization_type), pointer :: discretization
   type(option_type), pointer :: option
   type(input_type), pointer :: input
+  PetscInt :: ci,cj,ck,ckl,cku
+  PetscBool :: found
+  PetscBool,parameter::cijk_d_true =PETSC_TRUE
+  PetscBool,parameter::cijk_d_false=PETSC_FALSE
+  PetscBool :: qerr
+
+  character(len = MAXSTRINGLENGTH) :: wname
 
   realization => simulation%realization
   patch => realization%patch
   option => realization%option
   discretization => realization%discretization
 
+  qerr  = PETSC_FALSE
+  wname = '<missing>'
+  found = PETSC_FALSE
+
 ! Read in select required cards
 !.........................................................................
+
+!  Search for 'WELL_DATA' section and read well locations if found
+
+  string = "WELL_DATA"
+  call InputFindStringInFile(input,option,string,PETSC_FALSE,found)
+  if( found ) then
+
+! Read the WELL_DATA information
+
+    call InputReadWord(input,option,wname,PETSC_TRUE)
+
+! Search for completion locations
+
+    do
+      call InputReadPflotranString(input,option)
+      if (InputError(input)) exit
+
+      call InputReadWord(input,option,word,PETSC_FALSE)
+      call StringToUpper(word)
+      card = trim(word)
+
+      select case(trim(card))
+        case('CIJK','CIJK_Z')
+          ci  = 1
+          cj  = 1
+          ckl = 1
+          cku = 1
+          call InputReadInt(input,option,ci)
+          call InputErrorMsg(input,option,'cijk I','WELL_DATA')
+          call InputReadInt(input,option,cj)
+          call InputErrorMsg(input,option,'cijk I','WELL_DATA')
+          call InputReadInt(input,option,ckl)
+          call InputErrorMsg(input,option,'cijk KL','WELL_DATA')
+          call InputReadInt(input,option,cku)
+          call InputErrorMsg(input,option,'cijk KU','WELL_DATA')
+          do ck=ckl,cku
+            call SetUGrdEclCmplLocation(wname,ci,cj,ck,cijk_d_false,qerr)
+          enddo
+          if( qerr ) then
+            input%ierr = 1
+            call InputErrorMsg(input,option,'cijk','same well more than once')
+          endif
+        case('CIJK_D')
+          ci  = 1
+          cj  = 1
+          ckl = 1
+          cku = 1
+          call InputReadInt(input,option,ci)
+          call InputErrorMsg(input,option,'cijk_d I','WELL_DATA')
+          call InputReadInt(input,option,cj)
+          call InputErrorMsg(input,option,'cijk_d I','WELL_DATA')
+          call InputReadInt(input,option,ckl)
+          call InputErrorMsg(input,option,'cijk_d KL','WELL_DATA')
+          call InputReadInt(input,option,cku)
+          call InputErrorMsg(input,option,'cijk_d KU','WELL_DATA')
+          do ck=ckl,cku
+            call SetUGrdEclCmplLocation(wname,ci,cj,ck,cijk_d_true,qerr)
+          enddo
+          if( qerr ) then
+            input%ierr = 1
+            call InputErrorMsg(input,option,'cijk_d','same well more than once')
+          endif
+        case('WELL_DATA') ! May be more than one
+          call InputReadWord(input,option,wname,PETSC_TRUE)
+      end select
+    enddo
+  endif
 
   ! GRID information - GRID is a required card for every simulation
   string = "GRID"
