@@ -1989,9 +1989,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Timestepper_BE_class
   use Timestepper_Steady_class
   use Timestepper_TS_class
-#ifdef WELL_CLASS
-  use WellSpec_Base_class
-#endif
   use Well_Data_class
 
 #ifdef SOLID_SOLUTION
@@ -2028,9 +2025,6 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   type(region_type), pointer :: region
   type(flow_condition_type), pointer :: flow_condition
-#ifdef WELL_CLASS
-  class(well_spec_base_type), pointer :: well_spec
-#endif
   class(well_data_type), pointer :: well_data
   type(tran_condition_type), pointer :: tran_condition
   type(tran_constraint_type), pointer :: tran_constraint
@@ -2278,18 +2272,6 @@ subroutine SubsurfaceReadInput(simulation,input)
         end select
         call FlowConditionAddToList(flow_condition,realization%flow_conditions)
         nullify(flow_condition)
-
-!....................
-#ifdef WELL_CLASS
-      case ('WELL_SPEC')
-        well_spec => WellSpecBaseCreate()
-        call InputReadWord(input,option,well_spec%name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'WELL_SPEC','name')
-        call printMsg(option,well_spec%name)
-        call well_spec%Read(input,option)
-        call WellSpecAddToList(well_spec,realization%well_specs)
-        nullify(well_spec)
-#endif
 
       case ('WELL_DATA')
         call WellDataSetFlag()
