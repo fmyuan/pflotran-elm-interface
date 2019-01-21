@@ -1545,7 +1545,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: swa
   PetscReal :: socrs,svcrs,krvm
 
-  PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp,dof_ssat,ndof
+  PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp,dof_ssat,ndof,cploc
 #if 0
   PetscReal,dimension(1:option%nflowdof) :: D_cell_pres,D_kr,D_visc,D_visco,D_viscg
   PetscReal,dimension(1:option%nflowdof) :: D_deno,D_deng,D_sath
@@ -1561,8 +1561,8 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscBool :: getDerivs
 
   PetscReal :: d_xo_dpb,d_xg_dpb
-  PetscReal :: d_pcw_d_swa,d_pco_d_sva
-  PetscReal,dimension(1:option%nflowdof) :: D_fm
+  PetscReal :: d_pcw_d_swa,d_pco_d_sva,dx_dcell_pres
+  PetscReal,dimension(1:option%nflowdof) :: D_fm,D_cell_pres
 
   dof_op = TOWG_OIL_PRESSURE_DOF
   dof_osat = TOWG_OIL_SATURATION_DOF
@@ -1910,7 +1910,18 @@ endif
   endif
 
   cell_pressure = max(auxvar%pres(wid),auxvar%pres(oid),auxvar%pres(gid))
-  !!!! TODO CELL PRESS DERIVS
+
+  if (getDerivs) then
+    ! quick ugly find maxdex:
+    cploc = wid
+    if (auxvar%pres(oid) > auxvar%pres(cploc)) then
+      cploc = oid
+    endif
+    if (auxvar%pres(gid) > auxvar%pres(cploc)) then
+      cploc = gid
+    endif
+    D_cell_pres = auxvar%D_pres(cploc,:)
+  endif
 
 !==============================================================================
 !  Get rock properties
@@ -1923,7 +1934,10 @@ endif
 
     if (soil_compressibility_index > 0) then
       call MaterialCompressSoil(material_auxvar,cell_pressure, &
-                                auxvar%effective_porosity,dummy)
+                                auxvar%effective_porosity,dx_dcell_pres)
+      if (getDerivs) then
+        auxvar%D_por = dx_dcell_pres*D_cell_pres
+      endif
     endif
     if (option%iflag /= TOWG_UPDATE_FOR_DERIVATIVE) then
       material_auxvar%porosity = auxvar%effective_porosity
