@@ -174,9 +174,6 @@ module Option_module
     PetscBool :: compute_mass_balance_new
     PetscBool :: mass_bal_detailed
     PetscBool :: use_touch_options
-    PetscBool :: overwrite_restart_transport
-    PetscBool :: overwrite_restart_flow
-    PetscBool :: overwrite_restart_wf
     PetscInt :: io_handshake_buffer_size
 
     character(len=MAXSTRINGLENGTH) :: initialize_flow_filename
@@ -544,9 +541,6 @@ subroutine OptionInitRealization(option)
   option%mass_bal_detailed = PETSC_FALSE
 
   option%use_touch_options = PETSC_FALSE
-  option%overwrite_restart_transport = PETSC_FALSE
-  option%overwrite_restart_flow = PETSC_FALSE
-  option%overwrite_restart_wf = PETSC_FALSE
 
   option%time = 0.d0
   option%flow_dt = 0.d0

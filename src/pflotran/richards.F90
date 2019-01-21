@@ -68,6 +68,7 @@ subroutine RichardsTimeCut(realization)
   
   type(realization_subsurface_type) :: realization
   
+  richards_ts_cut_count = richards_ts_cut_count + 1
   call RichardsInitializeTimestep(realization)  
  
 end subroutine RichardsTimeCut
@@ -94,6 +95,10 @@ subroutine RichardsSetup(realization)
   call RichardsSetPlotVariables(list)
   list => realization%output_option%output_obs_variable_list
   call RichardsSetPlotVariables(list)
+  
+  richards_ts_count = 0
+  richards_ts_cut_count = 0
+  richards_ni_count = 0
 
 end subroutine RichardsSetup
 
@@ -936,6 +941,8 @@ subroutine RichardsInitializeTimestep(realization)
 
   call RichardsUpdateFixedAccum(realization)
 
+  richards_ni_count = 0
+
   if (realization%option%flow%quasi_3d) &
     call RichardsComputeLateralMassFlux(realization)
 
@@ -993,6 +1000,10 @@ subroutine RichardsUpdateSolutionPatch(realization)
     call RichardsUpdateMassBalancePatch(realization)
   endif
   
+  richards_ts_count = richards_ts_count + 1
+  richards_ts_cut_count = 0
+  richards_ni_count = 0
+
   if (realization%option%update_flow_perm) then
 !TODO(geh): this is in the wrong place  
     call RichardsUpdatePermPatch(realization)
@@ -1263,16 +1274,20 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   call RichardsResidualSourceSink(r,realization,ierr)
 
   if (realization%debug%vecview_residual) then
-    string = 'Rresidual'
+    call DebugWriteFilename(realization%debug,string,'Rresidual','', &
+                            richards_ts_count,richards_ts_cut_count, &
+                            richards_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(r,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
   if (realization%debug%vecview_solution) then
-    string = 'Rxx'
+    call DebugWriteFilename(realization%debug,string,'Rxx','', &
+                            richards_ts_count,richards_ts_cut_count, &
+                            richards_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(xx,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
 
   call PetscLogEventEnd(logging%event_r_residual,ierr);CHKERRQ(ierr)
@@ -2082,10 +2097,12 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
   call RichardsJacobianSourceSink(J,realization,ierr)
 
   if (realization%debug%matview_Jacobian) then
-    string = 'Rjacobian'
+    call DebugWriteFilename(realization%debug,string,'Rjacobian','', &
+                            richards_ts_count,richards_ts_cut_count, &
+                            richards_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
   if (realization%debug%norm_Jacobian) then
     option => realization%option
@@ -2117,6 +2134,7 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
   call PetscLogEventEnd(logging%event_r_jacobian,ierr);CHKERRQ(ierr)
 !  call printErrMsg(option)
 
+  richards_ni_count = richards_ni_count + 1
   
 end subroutine RichardsJacobian
 
@@ -2348,10 +2366,12 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_flux'
+    call DebugWriteFilename(realization%debug,string,'Rjacobian_flux','', &
+                            richards_ts_count,richards_ts_cut_count, &
+                            richards_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
 
 end subroutine RichardsJacobianInternalConn
@@ -2531,10 +2551,12 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_bcflux'
+    call DebugWriteFilename(realization%debug,string,'Rjacobian_bcflux','', &
+                            richards_ts_count,richards_ts_cut_count, &
+                            richards_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)    
   endif
   
 end subroutine RichardsJacobianBoundaryConn
@@ -2642,10 +2664,12 @@ subroutine RichardsJacobianAccumulation(A,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_accum'
+    call DebugWriteFilename(realization%debug,string,'Rjacobian_accum','', &
+                            richards_ts_count,richards_ts_cut_count, &
+                            richards_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
 
 end subroutine RichardsJacobianAccumulation
@@ -2803,10 +2827,12 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_srcsink'
+    call DebugWriteFilename(realization%debug,string,'Rjacobian_srcsink','', &
+                            richards_ts_count,richards_ts_cut_count, &
+                            richards_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
   
 #ifdef BUFFER_MATRIX

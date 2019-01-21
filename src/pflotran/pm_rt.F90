@@ -139,9 +139,10 @@ subroutine PMRTRead(this,input)
   class(pm_rt_type) :: this
   type(input_type), pointer :: input
   
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
+  PetscBool :: found
 
   option => this%option
   
@@ -154,19 +155,28 @@ subroutine PMRTRead(this,input)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadWord(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(word)
+    call StringToUpper(keyword)
     
-    select case(trim(word))
+    found = PETSC_FALSE
+    call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+    if (found) cycle
+
+    select case(trim(keyword))
       case('GLOBAL_IMPLICIT','OPERATOR_SPLIT','OPERATOR_SPLITTING')
       case('MAX_VOLUME_FRACTION_CHANGE')
         call InputReadDouble(input,option,this%volfrac_change_governor)
         call InputDefaultMsg(input,option,'maximum volume fraction change')
       case('ITOL_RELATIVE_UPDATE')
         call InputReadDouble(input,option,rt_itol_rel_update)
-        call InputDefaultMsg(input,option,'rt_itol_rel_update')
+        call InputErrorMsg(input,option,'rt_itol_rel_update', &
+                           'SUBSURFACE_TRANSPORT OPTIONS')
         this%check_post_convergence = PETSC_TRUE
+      case('MINIMUM_SATURATION')
+        call InputReadDouble(input,option,rt_min_saturation)
+        call InputErrorMsg(input,option,'min_saturation', &
+                           'SUBSURFACE_TRANSPORT OPTIONS')
       case('NUMERICAL_JACOBIAN')
         option%transport%numerical_derivatives = PETSC_TRUE
       case('INCLUDE_GAS_PHASE')
@@ -182,7 +192,7 @@ subroutine PMRTRead(this,input)
       case('MULTIPLE_CONTINUUM')
         option%use_mc = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(keyword,error_string,option)
     end select
   enddo
   
@@ -327,11 +337,13 @@ recursive subroutine PMRTInitializeRun(this)
   endif
   
   ! restart
-  if (this%option%restart_flag .and. &
-      this%option%overwrite_restart_transport) then
-    call RTClearActivityCoefficients(this%realization)
-    call CondControlAssignTranInitCond(this%realization)  
-  endif
+  !geh: the below equilibrates the original (non-restarted) chemistry 
+  !     with restarted flow state variables. but we should not need it
+  !     with the skip restart refactor - 12/13/18
+!  if (this%option%restart_flag .and. this%skip_restart) then
+!    call RTClearActivityCoefficients(this%realization)
+!    call CondControlAssignTranInitCond(this%realization)  
+!  endif
   
   ! update boundary concentrations so that activity coefficients can be 
   ! calculated at first time step

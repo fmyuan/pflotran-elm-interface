@@ -1607,7 +1607,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                             general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(r,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization,viewer)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
   if (realization%debug%vecview_solution) then
     call DebugWriteFilename(realization%debug,string,'Gxx','', &
@@ -1615,7 +1615,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                             general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(xx,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization,viewer)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
 
 #ifdef DEBUG_GENERAL_FILEOUTPUT
@@ -1781,7 +1781,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                             general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization,viewer)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
 
 
@@ -1846,7 +1846,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                             general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization,viewer)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
 
   ! Boundary Flux Terms -----------------------------------
@@ -1903,7 +1903,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                             general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization,viewer)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
 
   ! Source/sinks
@@ -1952,7 +1952,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                             general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization,viewer)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
   
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -1999,7 +1999,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                             general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization,viewer)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
   if (realization%debug%norm_Jacobian) then
     option => realization%option
@@ -2549,34 +2549,5 @@ subroutine GeneralDestroy(realization)
   ! auxvars are deallocated in auxiliary.F90.
 
 end subroutine GeneralDestroy
-
-! ************************************************************************** !
-
-subroutine DebugViewerDestroy(realization,viewer)
-  !
-  ! Deallocates PETSc Viewer
-  !
-  ! Author: Heeho Park
-  ! Date: 11/08/18
-  !
-  use Realization_Subsurface_class
-
-  implicit none
-
-  type(realization_subsurface_type) :: realization
-  PetscViewer :: viewer
-  PetscErrorCode :: ierr
-  
-  if (realization%debug%output_format .ge. 3) then
-  !  DEBUG_ASCII_FORMAT = 1
-  !  DEBUG_BINARY_FORMAT = 2 
-  !  DEBUG_MATLAB_FORMAT = 3  popformat required
-  !  DEBUG_NATIVE_FORMAT = 4  popformat required
-    call PetscViewerPopFormat(viewer,ierr);CHKERRQ(ierr)
-  endif
-  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  
-
-end subroutine DebugViewerDestroy
 
 end module General_module

@@ -544,10 +544,11 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
     endif
     
     if (this%is_master .and. associated(this%checkpoint_option)) then
-      if (this%checkpoint_option%periodic_ts_incr > 0 .and. &
-          mod(this%timestepper%steps, &
-              this%checkpoint_option%periodic_ts_incr) == 0) then
-        checkpoint_at_this_timestep_flag = PETSC_TRUE
+      if (this%checkpoint_option%periodic_ts_incr > 0) then
+        if (mod(this%timestepper%steps, &
+                this%checkpoint_option%periodic_ts_incr) == 0) then
+          checkpoint_at_this_timestep_flag = PETSC_TRUE
+        endif
       endif
     endif
 
@@ -1017,6 +1018,11 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
   cur_pm => this%pm_list
   do
     if (.not.associated(cur_pm)) exit
+    if (cur_pm%skip_restart) then
+      this%option%io_buffer = 'Due to sequential nature of binary files, &
+        &skipping restart for binary formatted files is not allowed.'
+      call PrintErrMsg(this%option)
+    endif
     call cur_pm%RestartBinary(viewer)
     cur_pm => cur_pm%next
   enddo
@@ -1207,6 +1213,20 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
   integer(HID_T) :: h5_pmc_grp_id
   integer(HID_T) :: h5_pm_grp_id
 
+  PetscBool :: skip_restart
+
+  ! search pm for skip restart flag which will apply to everything in pmc
+  skip_restart = PETSC_FALSE
+  cur_pm => this%pm_list
+  do
+    if (.not.associated(cur_pm)) exit
+    if (cur_pm%skip_restart) then
+      skip_restart = PETSC_TRUE
+      exit
+    endif
+    cur_pm => cur_pm%next
+  enddo
+
   ! if the top PMC
   if (this%is_master) then
     this%option%io_buffer = 'Restarting with checkpoint file "' // &
@@ -1223,26 +1243,36 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
     call CheckPointReadCompatibilityHDF5(h5_chk_grp_id, &
                                          this%option)
 
-    call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
+    if (.not.skip_restart) then
+      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
 
-    ! read pmc header
-    call PMCBaseGetHeaderHDF5(this, h5_pmc_grp_id, this%option)
+      ! read pmc header
+      call PMCBaseGetHeaderHDF5(this, h5_pmc_grp_id, this%option)
+    endif
 
     if (Initialized(this%option%restart_time)) then
       this%pm_list%realization_base%output_option%plot_number = 0
     endif
   else
-    call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
+    if (.not.skip_restart) then
+      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
+    endif
   endif
 
   if (associated(this%timestepper)) then
-    call this%timestepper%RestartHDF5(h5_pmc_grp_id, this%option)
+    if (.not.skip_restart) then
+      call this%timestepper%RestartHDF5(h5_pmc_grp_id, this%option)
+    endif
 
     if (Initialized(this%option%restart_time)) then
       ! simply a flag to set time back to zero, no matter what the restart
       ! time is set to.
       call this%timestepper%Reset()
       ! note that this sets the target time back to zero.
+    else if (skip_restart) then
+        this%option%io_buffer = 'Restarted simulations that SKIP_RESTART on &
+          &checkpointed process models must restart at time 0.'
+        call PrintErrMsg(this%option)
     endif
 
     ! Point cur_waypoint to the correct waypoint.
@@ -1268,16 +1298,18 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
     this%option%time = this%timestepper%target_time
   endif
 
-  cur_pm => this%pm_list
-  do
-    if (.not.associated(cur_pm)) exit
-    call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id,this%option)
-    call cur_pm%RestartHDF5(h5_pm_grp_id)
-    call h5gclose_f(h5_pm_grp_id, hdf5_err)
-    cur_pm => cur_pm%next
-  enddo
+  if (.not.skip_restart) then
+    cur_pm => this%pm_list
+    do
+      if (.not.associated(cur_pm)) exit
+      call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id,this%option)
+      call cur_pm%RestartHDF5(h5_pm_grp_id)
+      call h5gclose_f(h5_pm_grp_id, hdf5_err)
+      cur_pm => cur_pm%next
+    enddo
 
-  call h5gclose_f(h5_pmc_grp_id, hdf5_err)
+    call h5gclose_f(h5_pmc_grp_id, hdf5_err)
+  endif
 
   if (associated(this%child)) then
     call this%child%RestartHDF5(h5_chk_grp_id)

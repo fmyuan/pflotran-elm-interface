@@ -299,7 +299,7 @@ subroutine PMUFDBRead(this,input)
   type(ERB_1A_type), pointer :: new_ERB1A
   class(ERB_base_type), pointer :: cur_ERB
   PetscBool :: added
-
+  PetscBool :: found
   
   option => this%option
   input%ierr = 0
@@ -315,6 +315,11 @@ subroutine PMUFDBRead(this,input)
     call InputErrorMsg(input,option,'keyword',error_string)
     error_string = 'UFD_BIOSPHERE'
     call StringToUpper(word)
+
+    found = PETSC_FALSE
+    call PMBaseReadSelectCase(this,input,word,found,error_string,option)
+    if (found) cycle
+
     select case(trim(word))
     !-----------------------------------------
     !-----------------------------------------
