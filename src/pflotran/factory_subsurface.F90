@@ -1990,6 +1990,10 @@ subroutine SubsurfaceReadInput(simulation,input)
   class(timestepper_base_type), pointer :: flow_timestepper
   class(timestepper_BE_type), pointer :: tran_timestepper
 
+  PetscInt::iwaytime,nwaytime,mwaytime
+  PetscReal,dimension(:),pointer :: waytime
+  PetscReal wtime
+
   internal_units = 'not_assigned'
 
   realization => simulation%realization
@@ -2213,7 +2217,18 @@ subroutine SubsurfaceReadInput(simulation,input)
         call InputReadWord(input,option,well_data%w_name,PETSC_TRUE)
         call InputErrorMsg(input,option,'WELL_SPEC','name')
         call printMsg(option,well_data%w_name)
-        call well_data%Read(input,option)
+        nwaytime=0
+        mwaytime=1
+        allocate(waytime(mwaytime))
+        call well_data%Read(input,option,waytime,nwaytime,mwaytime)
+        do iwaytime=1,nwaytime
+           wtime=waytime(iwaytime)
+           waypoint => WaypointCreate()
+           waypoint%time = wtime
+           waypoint%update_conditions = PETSC_TRUE
+           call WaypointInsertInList(waypoint,waypoint_list)
+        enddo
+        deallocate(waytime)
         call WellDataAddToList(well_data,realization%well_data)
         nullify(well_data)
 
