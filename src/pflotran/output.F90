@@ -1291,6 +1291,17 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
     call OutputMassBalance(realization_base)
   endif
 
+!  Output Eclipse files for this step if required
+  if( option%write_ecl ) then
+    call OutputEclipseFiles(realization_base)
+  endif
+
+! Output single-line report for this step if required
+  if( option%linerept ) then
+    option%print_to_screen = PETSC_FALSE
+    call OutputLineRept(realization_base,option)
+  endif
+
   ! Output temporally average variables 
   call OutputAvegVars(realization_base)
 
