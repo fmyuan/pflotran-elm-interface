@@ -445,15 +445,15 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
     endif
 
     ! mass_liqwater = volume*saturation*density
-    mass_balance(1) = mass_balance(1) + &
-      global_auxvars(ghosted_id)%den_kg(1)* &
-      global_auxvars(ghosted_id)%sat(1)* &
+    mass_balance(LIQUID_PHASE) = mass_balance(LIQUID_PHASE) + &
+      global_auxvars(ghosted_id)%den_kg(LIQUID_PHASE)* &
+      global_auxvars(ghosted_id)%sat(LIQUID_PHASE)* &
       por* &
       material_auxvars(ghosted_id)%volume
 
    ! currently 'mass' are 3-phase mixture
    ! mass_vapor = volume*saturation_air*density_air*fraction_vapor
-   mass_balance(1) = mass_balance(1) + &
+   mass_balance(GAS_PHASE) = mass_balance(GAS_PHASE) + &
      TH_auxvars(ghosted_id)%ice%den_gas* &
      TH_auxvars(ghosted_id)%ice%sat_gas* &
      TH_auxvars(ghosted_id)%ice%mol_gas*FMWH2O* &
@@ -461,7 +461,7 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
      material_auxvars(ghosted_id)%volume
 
    ! mass_ice = volume*saturation_ice*density_ice
-   mass_balance(1) = mass_balance(1) + &
+   mass_balance(SOLID_PHASE) = mass_balance(SOLID_PHASE) + &
      TH_auxvars(ghosted_id)%ice%den_ice*FMWH2O* &
      TH_auxvars(ghosted_id)%ice%sat_ice* &
      por* &
@@ -1151,10 +1151,10 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   du_dt = TH_auxvar%du_dt
   du_dp = TH_auxvar%du_dp
 
+  ! NOTE: 'u' or 'h' not included in 'TH_auxvar' calculation
   u_rock = rock_dencpr*(temp + 273.15d0)
   du_rock_dt = rock_dencpr
-  ! the following makes sense, but failed somehow (not sure why)
-  if (option%use_isothermal) then
+  if (option%flow%isothermal_eq) then
     u_rock = 0.d0
     du_rock_dt = 0.d0
   endif
@@ -1314,9 +1314,12 @@ subroutine THAccumulation(auxvar,global_auxvar, &
 ! TechNotes, TH Mode: First term of Equation 9
   ! rock_dencpr [MJ/m^3 rock-K]
   tc = global_auxvar%temp
+
+  ! NOTE: 'u' or 'h' not included in 'TH_auxvar' calculation
   u_rock = rock_dencpr * (tc+273.15d0)
-  ! the following makes sense, but failed somehow (not sure why)
-  if (option%use_isothermal) u_rock = 0.d0
+  if (option%flow%isothermal_eq) then
+    u_rock = 0.d0
+  endif
 
   eng = global_auxvar%sat(1) * &
         global_auxvar%den(1) * &
@@ -1539,19 +1542,6 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       duh_dp_dn = auxvar_dn%du_dp
       duh_dt_dn = auxvar_dn%du_dt
     endif      
-
-#if 0
-    call InterfaceApprox(auxvar_up%kvr, auxvar_dn%kvr, &
-                         auxvar_up%dkvr_dp, auxvar_dn%dkvr_dp, &
-                         dphi, &
-                         option%rel_perm_aveg, &
-                         ukvr, dukvr_dp_up, dukvr_dp_dn)
-    call InterfaceApprox(auxvar_up%kvr, auxvar_dn%kvr, &
-                         auxvar_up%dkvr_dt, auxvar_dn%dkvr_dt, &
-                         dphi, &
-                         option%rel_perm_aveg, &
-                         ukvr, dukvr_dt_up, dukvr_dt_dn)
-#endif
 
     if (dabs(ukvr)>floweps) then
       v_darcy= Dq * ukvr * dphi
@@ -3905,29 +3895,6 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
-! zero out isothermal and inactive cells
-#ifdef ISOTHERMAL_MODE_DOES_NOT_WORK
-  zero = 0.d0
-  call MatZeroRowsLocal(A,n_zero_rows,zero_rows_local_ghosted,zero, &
-                        PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                        ierr);CHKERRQ(ierr)
-  do i=1, n_zero_rows
-    ii = mod(zero_rows_local(i),option%nflowdof)
-    ip1 = zero_rows_local_ghosted(i)
-    if (ii == 0) then
-      ip2 = ip1-1
-    else if (ii == option%nflowdof-1) then
-      ip2 = ip1+1
-    else
-      ip2 = ip1
-    endif
-    call MatSetValuesLocal(A,1,ip1,1,ip2,1.d0,INSERT_VALUES, &
-                           ierr);CHKERRQ(ierr)
-  enddo
-
-  call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-#else
   if (patch%aux%TH%inactive_cells_exist) then
     f_up = 1.d0
     call MatZeroRowsLocal(A,patch%aux%TH%n_zero_rows, &
@@ -3935,7 +3902,6 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                           PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
-#endif
 
 end subroutine THJacobianPatch
 
@@ -4136,6 +4102,7 @@ subroutine THSetPlotVariables(realization,list)
                                  EFFECTIVE_POROSITY)
                                  
   endif
+
 ! name = 'Phase'
 ! units = ''
 ! output_variable%iformat = 1 ! integer

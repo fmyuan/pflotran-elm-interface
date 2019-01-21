@@ -52,12 +52,14 @@ module Option_module
     PetscInt :: nphase
     PetscInt :: liquid_phase
     PetscInt :: gas_phase
+    PetscInt :: solid_phase
     PetscInt :: phase_map(MAX_PHASE)
+
     PetscInt :: nflowdof
     PetscInt :: nflowspec
+
     PetscInt :: nsec_cells
     PetscInt :: num_table_indices
-    PetscBool :: use_th_freezing
 
     PetscBool :: surf_flow_on
     PetscInt :: nsurfflowdof
@@ -419,7 +421,6 @@ subroutine OptionInitRealization(option)
   option%nflowdof = 0
   option%nsec_cells = 0
   option%num_table_indices = 0
-  option%use_th_freezing = PETSC_FALSE
 
   option%nsurfflowdof = 0
   option%surf_flow_on = PETSC_FALSE
@@ -440,6 +441,7 @@ subroutine OptionInitRealization(option)
 
   option%liquid_phase  = UNINITIALIZED_INTEGER
   option%gas_phase     = UNINITIALIZED_INTEGER
+  option%solid_phase   = UNINITIALIZED_INTEGER
 
   option%air_pressure_id = 0
   option%capillary_pressure_id = 0
@@ -583,24 +585,9 @@ subroutine OptionCheckCommandLine(option)
   ! check on possible modes
   option_found = PETSC_FALSE
   call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_richards", &
+                           PETSC_NULL_CHARACTER, "-use_th", &
                            option_found, ierr);CHKERRQ(ierr)
-  if (option_found) option%flowmode = "richards"
-  option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_thc", &
-                           option_found, ierr);CHKERRQ(ierr)
-  if (option_found) option%flowmode = "thc"
-  option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_mph", &
-                           option_found, ierr);CHKERRQ(ierr)
-  if (option_found) option%flowmode = "mph"
-  option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_flash2", &
-                           option_found, ierr);CHKERRQ(ierr)
-  if (option_found) option%flowmode = "flash2"
+  if (option_found) option%flowmode = "th"
 
 end subroutine OptionCheckCommandLine
 

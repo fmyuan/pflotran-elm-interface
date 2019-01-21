@@ -141,6 +141,20 @@ subroutine PMTHRead(this,input)
         !    setting the 'th_itol_scaled_res' values. Temperally off now.
         option%io_buffer = ' TH: OPTIONS itol_rel_update IS currently OFF due to mass-balance issue!'
         call printMsg(option)
+
+!....................
+      case ('ISOTHERMAL_EQ')
+        option%flow%isothermal_eq = PETSC_TRUE
+        option%io_buffer = 'TH: ISOTHERMAL_EQ option is ON in TH mode.'
+        call printMsg(option)
+
+!....................
+      case ('ONLY_THERMAL_EQ')
+        option%flow%only_thermal_eq = PETSC_TRUE
+        option%io_buffer = 'TH: ONLY_THERMAL_EQ in ON in TH mode.'
+        call printMsg(option)
+
+!....................
       case('ICE_MODEL')
         option%io_buffer = ' TH: using ICE submode option ON.'
         call printMsg(option)
@@ -172,9 +186,9 @@ subroutine PMTHRead(this,input)
              ' or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO ' // &
              ' or PAINTER_KARRA_EXPLICIT_SMOOTH ' // &
              ' or DALL_AMICO.' // &
-             ' TH MODE with iso-thermal option is ON'
+             ' TH MODE with isothermal_eq option is ON'
 
-            option%use_isothermal = PETSC_TRUE
+            option%flow%isothermal_eq = PETSC_TRUE
 
             call printMsg(option)
           end select

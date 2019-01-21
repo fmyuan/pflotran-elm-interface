@@ -1682,9 +1682,6 @@ subroutine OutputMassBalance(realization_base)
   ! open file
   if (option%myrank == option%io_rank) then
 
-!geh    option%io_buffer = '--> write tecplot mass balance file: ' // trim(filename)
-!geh    call printMsg(option)    
-
     if (output_option%print_column_ids) then
       icol = 1
     else
@@ -1708,14 +1705,14 @@ subroutine OutputMassBalance(realization_base)
         case(TH_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
-          call OutputWriteToHeader(fid,'Global Water Mass in Solid Phase', &
-                                    'kg','',icol)
-          call OutputWriteToHeader(fid,'Global Air Mass in Liquid Phase', &
-                                    'kg','',icol)
           call OutputWriteToHeader(fid,'Global Water Mass in Gas Phase', &
                                     'kg','',icol)
-          call OutputWriteToHeader(fid,'Global Air Mass in Gas Phase', &
+          call OutputWriteToHeader(fid,'Global Water Mass in Solid Phase', &
                                     'kg','',icol)
+          !call OutputWriteToHeader(fid,'Global Air Mass in Liquid Phase', &
+          !                          'kg','',icol)
+          !call OutputWriteToHeader(fid,'Global Air Mass in Gas Phase', &
+          !                          'kg','',icol)
       end select
 
       
@@ -1845,51 +1842,6 @@ subroutine OutputMassBalance(realization_base)
     offset = coupler%connection_set%offset
     
     if (option%nflowdof > 0) then
-
-#if 0
-! compute the total area of the boundary condition
-      if (.not.bcs_done) then
-        sum_area = 0.d0
-        do iconn = 1, coupler%connection_set%num_connections
-          sum_area(1) = sum_area(1) + &
-            coupler%connection_set%area(iconn)
-          if (global_auxvars_bc_or_ss(offset+iconn)%sat(1) >= 0.5d0) then
-            sum_area(2) = sum_area(2) + &
-              coupler%connection_set%area(iconn)
-          endif
-          if (global_auxvars_bc_or_ss(offset+iconn)%sat(1) > 0.99d0) then
-            sum_area(3) = sum_area(3) + &
-              coupler%connection_set%area(iconn)
-          endif
-          sum_area(4) = sum_area(4) + &
-            coupler%connection_set%area(iconn)* &
-            global_auxvars_bc_or_ss(offset+iconn)%sat(1)
-        enddo
-
-        call MPI_Reduce(sum_area,sum_area_global, &
-                        FOUR_INTEGER_MPI,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                        option%io_rank,option%mycomm,ierr)
-                          
-        if (option%myrank == option%io_rank) then
-          print *
-          write(word,'(es16.6)') sum_area_global(1)
-          print *, 'Total area in ' // trim(coupler%name) // &
-                   ' boundary condition: ' // trim(adjustl(word)) // ' m^2'
-          write(word,'(es16.6)') sum_area_global(2)
-          print *, 'Total half-saturated area in '// &
-                   trim(coupler%name) // &
-                   ' boundary condition: ' // trim(adjustl(word)) // ' m^2'
-          write(word,'(es16.6)') sum_area_global(3)
-          print *, 'Total saturated area in '// trim(coupler%name) // &
-                   ' boundary condition: ' // trim(adjustl(word)) // ' m^2'
-          write(word,'(es16.6)') sum_area_global(4)
-          print *, 'Total saturation-weighted area [=sum(saturation*area)] in '//&
-                     trim(coupler%name) // &
-                   ' boundary condition: ' // trim(adjustl(word)) // ' m^2'
-          print *
-        endif
-      endif
-#endif
 
       select case(option%iflowmode)
 

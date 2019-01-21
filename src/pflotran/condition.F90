@@ -333,6 +333,7 @@ subroutine FlowConditionRead(condition,input,option)
   well%name = 'well'
   saturation => FlowSubConditionCreate(option%nphase)
   saturation%name = 'saturation'
+
   temperature => FlowSubConditionCreate(ONE_INTEGER)
   temperature%name = 'temperature'
   concentration => FlowSubConditionCreate(ONE_INTEGER)
@@ -882,18 +883,8 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
   character(len=MAXSTRINGLENGTH) :: string2, filename, hdf5_path
   character(len=MAXWORDLENGTH) :: word, realization_word
   character(len=MAXSTRINGLENGTH) :: error_string
-  PetscInt :: length, i, icount
-  PetscInt :: icol
-  PetscInt :: ndims
-  PetscInt, pointer :: dims(:)
-  PetscReal, pointer :: real_buffer(:)
+  PetscInt :: length, i
   PetscErrorCode :: ierr
-
-#if defined(PETSC_HAVE_HDF5)
-  integer(HID_T) :: file_id
-  integer(HID_T) :: prop_id
-  PetscMPIInt :: hdf5_err
-#endif
 
   call PetscLogEventBegin(logging%event_flow_condition_read_values, &
                           ierr);CHKERRQ(ierr)
@@ -946,67 +937,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
         write(option%io_buffer,'("Reading of HDF5 datasets for flow ", &
                                  &"conditions not currently supported.")')
         call printErrMsg(option)
-#if 0
-#if !defined(PETSC_HAVE_HDF5)
-        write(option%io_buffer,'("PFLOTRAN must be compiled with HDF5 to ", &
-                                 &"read HDF5 formatted flow conditions.")')
-        call printErrMsg(option)
-#else
-        if (len_trim(hdf5_path) < 1) then
-          option%io_buffer = 'No hdf5 path listed under Flow_Condition: ' // &
-                             trim(keyword)
-          call printErrMsg(option)
-        endif
 
-        call h5open_f(hdf5_err)
-        option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
-        call printMsg(option)
-        call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-        call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-        call HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
-        call h5pclose_f(prop_id,hdf5_err)
-
-        hdf5_path = trim(hdf5_path) // trim(realization_word)
-        call HDF5ReadNDimRealArray(option,file_id,hdf5_path,ndims,dims, &
-                                   real_buffer)
-        option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
-        call printMsg(option)
-        call h5fclose_f(file_id,hdf5_err)
-        call h5close_f(hdf5_err)
-
-        ! dims(1) = size of array
-        ! dims(2) = number of data point in time
-        if (dims(1)-1 == flow_dataset%time_series%rank) then
-          ! alright, the 2d data is layed out in C-style.  now place it in
-          ! the appropriate arrays
-          allocate(flow_dataset%time_series%times(dims(2)))
-          flow_dataset%time_series%times = UNINITIALIZED_DOUBLE
-          allocate(flow_dataset%time_series%values(flow_dataset% &
-                                                     time_series%rank,dims(2))) 
-          flow_dataset%time_series%values = UNINITIALIZED_DOUBLE
-          icount = 1
-          do i = 1, dims(2)
-            flow_dataset%time_series%times(i) = real_buffer(icount)
-            icount = icount + 1
-            do icol = 1, flow_dataset%time_series%rank
-              flow_dataset%time_series%values(icol,i) = real_buffer(icount)
-              icount = icount + 1
-            enddo
-          enddo
-        else
-          option%io_buffer = 'HDF condition data set rank does not match &
-            &rank of internal data set.  Email Glenn for additions'
-          call printErrMsg(option)
-        endif
-        if (associated(dims)) deallocate(dims)
-        nullify(dims)
-        if (associated(real_buffer)) deallocate(real_buffer)
-        nullify(real_buffer)
-#endif
-#endif
-! if 0
       else
         i = index(filename,'.',PETSC_TRUE)
         if (i > 2) then
@@ -1042,34 +973,6 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
     error_string = 'CONDITION,' // trim(keyword) // ',SINGLE'
     call DatasetAsciiReadSingle(dataset_ascii,input,data_external_units, &
                                 data_internal_units,error_string,option)
-#if 0
-    allocate(dataset_ascii%rarray(dataset_ascii%array_width))
-    do icol=1,dataset_ascii%array_width
-      call InputReadDouble(input,option,dataset_ascii%rarray(icol))
-      write(input%err_buf,'(a,i2)') trim(keyword) // &
-                                    ' dataset_values, icol = ', icol
-      input%err_buf2 = 'CONDITION'
-      call InputErrorMsg(input,option)
-    enddo
-    string2 = input%buf
-    call InputReadWord(input,option,word,PETSC_TRUE)
-    if (InputError(input)) then
-      call InputCheckMandatoryUnits(input,option)
-      word = trim(keyword) // ' UNITS'
-      call InputDefaultMsg(input,option,word)
-    else
-      input%buf = string2
-      units = ''
-      do icol=1,dataset_ascii%array_width
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,keyword,'CONDITION')
-        dataset_ascii%rarray(icol) = UnitsConvertToInternal(word, &
-                                     internal_unit_strings(icol),option) * &
-                                     dataset_ascii%rarray(icol)
-        units = trim(units) // ' ' // trim(word)
-      enddo
-    endif
-#endif
   endif
 
   deallocate(internal_unit_strings)
@@ -1482,8 +1385,6 @@ subroutine FlowCondInputRecord(flow_condition_list,option)
   type(option_type), pointer :: option
 
   type(flow_condition_type), pointer :: cur_fc
-  character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: k
   PetscInt :: id = INPUT_RECORD_UNIT
 

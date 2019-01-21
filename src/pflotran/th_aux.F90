@@ -13,8 +13,10 @@ module TH_Aux_module
 
   type, public :: TH_auxvar_type
     PetscReal :: avgmw
-    PetscReal :: h
-    PetscReal :: u
+    PetscReal :: transient_por
+
+    PetscReal :: h   ! enthalpy (?)
+    PetscReal :: u   ! internal energy (?)
     PetscReal :: pc
     PetscReal :: vis
     PetscReal :: kvr
@@ -24,11 +26,11 @@ module TH_Aux_module
     PetscReal :: dden_dt
     PetscReal :: dkvr_dp
     PetscReal :: dkvr_dt
+
     PetscReal :: dh_dp
     PetscReal :: dh_dt
     PetscReal :: du_dp
     PetscReal :: du_dt
-    PetscReal :: transient_por
     PetscReal :: Dk_eff
     PetscReal :: dDk_eff_dp
     PetscReal :: dDK_eff_dt
@@ -398,10 +400,10 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
   dp_trunc = 1.d0
 
   ! isothermal, i.e. hydrology only (for simplifying water density calculation)
-  if(option%use_isothermal) temperature = option%reference_temperature
+  if(option%flow%isothermal_eq) temperature = option%reference_temperature
 
-  ! If only solving the energy equation, ensure Res(1)/Derivatives is zero (TODO)
-  !if (option%flow%only_energy_eq) then
+  ! If only solving the thermal equation, ensure Res(1)/Derivatives is zero (TODO)
+  !if (option%flow%only_thermal_eq) then
   !
   !endif
 
@@ -673,33 +675,62 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
 
 
   ! isothermal, i.e. hydrology only
-  if(option%use_isothermal) then
-
+  if(option%flow%isothermal_eq) then
+    ! liq.
+    auxvar%dsat_dt = 0.d0
     auxvar%dden_dt = 0.d0
     auxvar%dkvr_dt = 0.d0
+
+    auxvar%h       = 0.d0
+    auxvar%dh_dp   = 0.d0
+    auxvar%dh_dt   = 0.d0
     auxvar%u       = 0.d0
     auxvar%du_dp   = 0.d0
     auxvar%du_dt   = 0.d0
 
+    ! ice
     auxvar%ice%dsat_ice_dt = 0.d0
     auxvar%ice%dden_ice_dt = 0.d0
+
     auxvar%ice%u_ice       = 0.d0
     auxvar%ice%du_ice_dp   = 0.d0
     auxvar%ice%du_ice_dt   = 0.d0
 
+    ! gas
     auxvar%ice%dsat_gas_dt = 0.d0
     auxvar%ice%dden_gas_dt = 0.d0
     auxvar%ice%dmol_gas_dt = 0.d0
+
     auxvar%ice%u_gas       = 0.d0
     auxvar%ice%du_gas_dp   = 0.d0
     auxvar%ice%du_gas_dt   = 0.d0
 
+    ! thermal conductivity
     auxvar%Dk_eff = 0.d0
     auxvar%dDk_eff_dp = 0.d0
     auxvar%dDk_eff_dt = 0.d0
 
   endif
 
+ ! thermal process only
+  if(option%flow%only_thermal_eq) then
+    ! no flow
+    auxvar%vis = 0.d0
+    auxvar%kvr = 0.d0
+    auxvar%dkvr_dp = 0.d0
+
+    ! all deriv w.r.t. Pressure should be zeroes
+    auxvar%dsat_dp = 0.d0
+    auxvar%dden_dp = 0.d0
+    auxvar%dkvr_dp = 0.d0
+
+    auxvar%dh_dp   = 0.d0
+    auxvar%du_dp   = 0.d0
+
+    auxvar%ice%du_ice_dp   = 0.d0
+    auxvar%ice%du_gas_dp   = 0.d0
+    auxvar%dDk_eff_dp      = 0.d0
+  endif
 
 end subroutine THAuxVarCompute
 

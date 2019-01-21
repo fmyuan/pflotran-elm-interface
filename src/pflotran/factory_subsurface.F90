@@ -304,27 +304,27 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   type(option_type) :: option
   class(pm_subsurface_flow_type), pointer :: pm_flow
 
-  if (.not.associated(pm_flow)) then
-    option%nphase = 1
-    option%liquid_phase = 1
-    option%gas_phase = 2 ! still set gas phase to 2 for transport
-    ! assume default isothermal when only transport
-    option%use_isothermal = PETSC_TRUE
-    option%nflowspec = 1
-    return
-  endif
-
   select type(pm_flow)
     class is (pm_th_type)
       option%iflowmode = TH_MODE
-      option%nphase = 1       ! liq, gas, and solid
-      option%liquid_phase = 1
-      option%gas_phase = 2
-      option%nflowdof = 2     ! water and energy
-      option%nflowspec = 1    ! water
-      option%use_isothermal = PETSC_FALSE
+      !
+      option%nphase       = 3       ! water (liq, gas, and solid)
+      option%liquid_phase = LIQUID_PHASE
+      option%gas_phase    = GAS_PHASE
+      option%solid_phase  = SOLID_PHASE
+      !
+      option%nflowdof  = 2    ! hydraulic pressure (P) and temperature (T)
+      option%nflowspec = 1    ! liq. water
+      !
+      option%flow%isothermal_eq   = PETSC_FALSE    ! Hydrology only
+      option%flow%only_thermal_eq = PETSC_FALSE    ! Thermal process only
+      !
       option%flow%store_fluxes = PETSC_TRUE
     class default
+      option%io_buffer = 'A TH flow MODE (card) must be included in the &
+         & SUBSURFACE_FLOW block.'
+      call printErrMsg(option)
+
   end select
 
 end subroutine SubsurfaceSetFlowMode
@@ -2167,16 +2167,7 @@ subroutine SubsurfaceReadInput(simulation,input)
       case ('ONLY_VERTICAL_FLOW')
         option%flow%only_vertical_flow = PETSC_TRUE
         if (option%iflowmode /= TH_MODE) then
-          option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in RICHARDS &
-                             &and TH mode.'
-          call printErrMsg(option)
-        endif
-
-!....................
-      case ('ONLY_ENERGY_EQ')
-        option%flow%only_energy_eq = PETSC_TRUE
-        if (option%iflowmode /= TH_MODE) then
-          option%io_buffer = 'ONLY_ENERGY_EQ applicable only in TH mode.'
+          option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in TH mode.'
           call printErrMsg(option)
         endif
 

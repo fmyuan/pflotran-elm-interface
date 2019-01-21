@@ -165,23 +165,17 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SRC_SINK_CONNECTION_TYPE = 4
   
   ! dofs for each mode
-  PetscInt, parameter, public :: THC_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: THC_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: THC_CONCENTRATION_DOF = 3
-  PetscInt, parameter, public :: THC_MASS_RATE_DOF = 4
-  PetscInt, parameter, public :: THC_ENTHALPY_DOF = 5
-  
   PetscInt, parameter, public :: TH_PRESSURE_DOF = 1
   PetscInt, parameter, public :: TH_TEMPERATURE_DOF = 2
   PetscInt, parameter, public :: TH_CONDUCTANCE_DOF = 3
+  PetscInt, parameter, public :: TH_ENTHALPY_DOF = 4
 
   ! phase ids
   PetscInt, parameter, public :: LIQUID_PHASE = 1
   PetscInt, parameter, public :: GAS_PHASE = 2
-  PetscInt, parameter, public :: OIL_PHASE = 3
-  PetscInt, parameter, public :: SOLVENT_PHASE = 4
+  PetscInt, parameter, public :: SOLID_PHASE = 3
 
-  PetscInt, parameter, public :: MAX_PHASE = 4
+  PetscInt, parameter, public :: MAX_PHASE = 3
   
   ! approaches to coupling transport
   PetscInt, parameter, public :: GLOBAL_IMPLICIT = 0

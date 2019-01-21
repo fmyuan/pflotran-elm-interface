@@ -392,6 +392,7 @@ subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
   character(len=MAXSTRINGLENGTH), pointer :: internal_data_units_strings(:) 
   character(len=MAXSTRINGLENGTH), pointer :: external_data_units_strings(:) 
   PetscInt :: icol
+  character(len=MAXSTRINGLENGTH), pointer :: string_array(:)
 
   nullify(external_data_units_strings)
 
@@ -405,7 +406,18 @@ subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
     write(input%err_buf,'(a,i2)') 'DatasetAsciiReadSingle: &
                                   & dataset_values, icol = ', icol
     input%err_buf2 = error_string
-    call InputErrorMsg(input,option)
+    if(input%ierr /= 0) then
+      string_array => StringSplit(error_string,',')
+      if (StringFindEntryInList('PRESSURE', string_array)>0) then
+        ! assuming ONE single pressure-type data if not as input for all
+        this%rarray(icol) = this%rarray(1)
+      elseif (StringFindEntryInList('FLUX', string_array)>0) then
+        ! assuming ZERO for not explicitly assigned flux dataset for all
+        this%rarray(icol) = 0.d0
+      else
+        call InputErrorMsg(input,option)
+      endif
+    endif
   enddo
 
   ! read units
