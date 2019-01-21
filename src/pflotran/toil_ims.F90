@@ -3321,18 +3321,6 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
 
       icap_dn = patch%sat_func_id(ghosted_id)
 
-#ifdef WELL_DEBUG
-  write(*,*) 'BC gh = ', ghosted_id
-  write(*,"('BC cell press = ',e26.20)") &
-    patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
-      !this%flow_auxvars(dof,ghosted_id)%pres(i_ph)
-  write(*,"('BC press = ',e26.20)") &
-    patch%aux%TOil_ims%auxvars_bc(sum_connection)%pres(option%oil_phase)
-  write(*,"('BC delta press = ',e26.20)") &
-    patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase) - &
-    patch%aux%TOil_ims%auxvars_bc(sum_connection)%pres(option%oil_phase)
-#endif
-
       call TOilImsBCFlux(boundary_condition%flow_bc_type, &
                      boundary_condition%flow_aux_mapping, &
                      boundary_condition%flow_aux_real_var(:,iconn), &
@@ -3601,27 +3589,8 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
                                 patch%sat_func_id(ghosted_id))%ptr, &
                                 ghosted_id,option)
     endif
-!#ifdef WELL_DEBUG    
-!  write(*,"('after perturb = ',(4(e10.4,1x)))"), patch%aux%TOil_ims%auxvars(0:3,ghosted_id)%pert
-!#endif 
-    ! alternative way to call TOilImsAuxVarPerturb using a type-bound procedure 
-    !call patch%aux%TOil_ims%Perturb(ghosted_id, &
-    !                       global_auxvars(ghosted_id), &
-    !                       material_auxvars(ghosted_id), &
-    !                       patch%characteristic_curves_array( &
-    !                       patch%sat_func_id(ghosted_id))%ptr, &
-    !                       ghosted_id,option)
-
   enddo
 
-#ifdef WELL_DEBUG    
-  write(*,"('AP p011 before = ',e10.4)") patch%aux%TOil_ims%auxvars(0,1)%pres(1)
-  write(*,"('AP p111 before = ',e10.4)") patch%aux%TOil_ims%auxvars(1,1)%pres(1)
-  write(*,"('AP p211 before = ',e10.4)") patch%aux%TOil_ims%auxvars(2,1)%pres(1)
-  write(*,"('AP p311 before = ',e10.4)") patch%aux%TOil_ims%auxvars(3,1)%pres(1)
-#endif 
-
-  
 !#ifdef DEBUG_GENERAL_LOCAL
 !  call GeneralOutputAuxVars(gen_auxvars,global_auxvars,option)
 !#endif 
