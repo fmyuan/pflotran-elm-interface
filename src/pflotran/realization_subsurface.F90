@@ -9,9 +9,6 @@ module Realization_Subsurface_class
   use Input_Aux_module
   use Region_module
   use Condition_module
-#ifdef WELL_CLASS
-  use WellSpec_Base_class
-#endif
   use Well_Data_class
   use Transport_Constraint_module
   use Material_module
@@ -38,9 +35,6 @@ private
 
     type(region_list_type), pointer :: region_list
     type(condition_list_type), pointer :: flow_conditions
-#ifdef WELL_CLASS
-    type(well_spec_list_type), pointer :: well_specs
-#endif
     type(well_data_list_type), pointer :: well_data
     type(tran_condition_list_type), pointer :: transport_conditions
     type(tran_constraint_list_type), pointer :: transport_constraints
@@ -151,10 +145,6 @@ function RealizationCreate2(option)
 
   allocate(realization%flow_conditions)
   call FlowConditionInitList(realization%flow_conditions)
-#ifdef WELL_CLASS
-  allocate(realization%well_specs)
-  call WellSpecInitList(realization%well_specs)
-#endif
 ! Allocate well_data and create its list of wells
   allocate(realization%well_data)
   call WellDataInitList(realization%well_data,option%nphase)
@@ -639,9 +629,6 @@ subroutine RealizationProcessCouplers(realization)
   
   call PatchProcessCouplers( realization%patch,realization%flow_conditions, &
                              realization%transport_conditions, &
-#ifdef WELL_CLASS
-                             realization%well_specs, &
-#endif
                              realization%option)
   
 end subroutine RealizationProcessCouplers
@@ -2566,9 +2553,6 @@ subroutine RealizationDestroyLegacy(realization)
   call RegionDestroyList(realization%region_list)
   
   call FlowConditionDestroyList(realization%flow_conditions)
-#ifdef WELL_CLASS
-  call WellSpecDestroyList(realization%well_specs)
-#endif
 !  Destroy the list of wells held by well_data
   call WellDataDestroyList(realization%well_data)
   call TranConditionDestroyList(realization%transport_conditions)
@@ -2626,9 +2610,6 @@ subroutine RealizationStrip(this)
   call RegionDestroyList(this%region_list)
   
   call FlowConditionDestroyList(this%flow_conditions)
-#ifdef WELL_CLASS
-  call WellSpecDestroyList(this%well_specs)
-#endif
   call TranConditionDestroyList(this%transport_conditions)
   call TranConstraintDestroyList(this%transport_constraints)
 

@@ -507,17 +507,6 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
                  '" not found in region list'
       call printErrMsg(option)
     endif
-#ifdef WELL_CLASS
-    ! Create a well only if a well_spec is associated with the
-    ! source_sink coupler
-    nullify(well_spec)
-    well_spec => WellSpecGetPtrFromList(coupler%well_spec_name,well_specs)
-    if ( associated(well_spec) ) then
-      coupler%well => CreateWell(well_spec,option)
-      option%nwells = option%nwells + 1
-    end if
-    nullify(well_spec)
-#endif
 
     ! pointer to flow condition
     if (option%nflowdof > 0) then

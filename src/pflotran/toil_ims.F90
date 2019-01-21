@@ -3375,22 +3375,6 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
     
     cur_connection_set => source_sink%connection_set
 
-#ifdef WELL_DEBUG
-  print *,'my rank = ',option%myrank,' just before ExplUpdate'
-#endif
-
-#ifdef WELL_CLASS
-    if ( associated(source_sink%well) ) then
-      if (cur_connection_set%num_connections > 0 ) then
-        call source_sink%well%ExplUpdate(grid,option)
-      end if
-    end if 
-#endif
-
-#ifdef WELL_DEBUG
-  print *,'my rank = ',option%myrank,' just after ExplUpdate'
-#endif
- 
     do iconn = 1, cur_connection_set%num_connections      
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
@@ -3412,20 +3396,10 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
          ! use the if well to decide if to call TOilImsSrcSink or the WellRes
          !call source_sink%well%PrintMsg(); 
       !end if
-#ifdef WELL_CLASS
-      if ( associated(source_sink%well) ) then
-        call source_sink%well%ExplRes(iconn,ss_flow_vol_flux, &
-                       toil_ims_isothermal,ghosted_id,ZERO_INTEGER,option,Res,&
-                       Jac_dummy,PETSC_FALSE)
-      else
-#endif
         call TOilImsSrcSink(option,source_sink%flow_condition%toil_ims, &
                            patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id), &
                            global_auxvars(ghosted_id),ss_flow_vol_flux, &
                            scale,Res,Jac_dummy,PETSC_FALSE)
-#ifdef WELL_CLASS
-      end if
-#endif
 
       r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
 
@@ -3443,16 +3417,7 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
       endif
 
     enddo 
-!#ifdef WELL_DEBUG    
-    ! for debugging
-#ifdef WELL_CLASS
-    if ( associated(source_sink%well) ) then
-      if (cur_connection_set%num_connections > 0 ) then
-        call source_sink%well%DataOutput(grid,source_sink%name,option)
-      end if
-    end if
-#endif
-!#endif
+
     source_sink => source_sink%next
   enddo
 
@@ -3841,34 +3806,14 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
       else
         scale = 1.d0
       endif
-      
-#ifdef WELL_CLASS      
-      if (associated(source_sink%well) ) then
-        !Jdn = 0.0d0
-
-        call source_sink%well%ExplJDerivative(iconn,ghosted_id, &
-                        toil_ims_isothermal,TOIL_IMS_ENERGY_EQUATION_INDEX, &
-                         option,Jdn, toil_analytical_derivatives, &
-                         toil_analytical_derivatives_compare, toil_dcomp_tol,&
-                         toil_dcomp_reltol)
-        Jdn = -Jdn  
-
-        call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
-                                      ADD_VALUES,ierr);CHKERRQ(ierr)
-
-      else 
-#endif
         !Jup = 0.d0
-        call TOilImsSrcSinkDerivative(option, &
-                          source_sink%flow_condition%toil_ims, &
-                          patch%aux%TOil_ims%auxvars(:,ghosted_id), &
-                          global_auxvars(ghosted_id), &
-                          scale,Jup)
-        call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
-                                      ADD_VALUES,ierr);CHKERRQ(ierr)
-#ifdef WELL_CLASS
-      end if
-#endif
+      call TOilImsSrcSinkDerivative(option, &
+                        source_sink%flow_condition%toil_ims, &
+                        patch%aux%TOil_ims%auxvars(:,ghosted_id), &
+                        global_auxvars(ghosted_id), &
+                        scale,Jup)
+      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
 
     enddo
     source_sink => source_sink%next
