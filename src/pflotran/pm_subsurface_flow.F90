@@ -563,6 +563,7 @@ subroutine InitialiseAllWells(this)
   use Well_Solver_module
   use Grid_module
   use Material_Aux_class
+  use Grdecl_class, only : UGrdEclWellCmplCleanup
 
   implicit none
 
@@ -601,7 +602,7 @@ subroutine InitialiseAllWells(this)
 
 !  Checks
 
-    if (grid%itype /= STRUCTURED_GRID) then
+    if (grid%itype /= STRUCTURED_GRID .and. (.not. option%is_grdecl) ) then
       option%io_buffer='WELL_DATA well specification can only be used with structured grids'
       call printErrMsg(option)
     endif
@@ -622,6 +623,10 @@ subroutine InitialiseAllWells(this)
     endif
 
   endif ! If num_well>0
+
+! All the well data from grdecl should be safely in well_data, so cleanup grdecl
+
+  call UGrdEclWellCmplCleanup()
 
 end subroutine InitialiseAllWells
 
