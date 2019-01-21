@@ -110,6 +110,9 @@ module PM_TOWG_Aux_module
   contains
     !add bound-procedure
     procedure, public :: Init => InitTOWGAuxVars
+    procedure, public :: FieldVolRefAve => TOWGAuxFieldVolRefAve
+    procedure, public :: GetLocalSol    => TOWGGetLocalSol
+    procedure, public :: IsSolventModel
     !procedure, public :: Perturb => PerturbTOilIms
   end type pm_towg_aux_type
 
@@ -3880,5 +3883,138 @@ subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl)
 end subroutine formMixedDen2
 
 ! ************************************************************************** !
+
+subroutine TOWGAuxFieldVolRefAve(this,grid,material,imat,option)
+  !
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 08/24/18
+  !
+
+  use Option_module
+  use Grid_module
+  use Material_Aux_class
+  use Well_Data_class,only : SetFieldData
+
+  implicit none
+
+  class(pm_towg_aux_type) :: this
+  type(grid_type) :: grid
+  type(material_type), pointer :: material
+  PetscInt, intent(in) :: imat(:)
+  type(option_type) :: option
+
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscInt :: local_id, ghosted_id
+  PetscReal :: ref_por_volume_sh_lc, ref_por_volume_sh_glb
+  PetscReal :: cell_ref_volume, sh
+  PetscReal :: fhpav_lc,fhpav_glb,fhpav
+  PetscInt :: int_mpi
+  PetscErrorCode :: ierr
+
+  ref_por_volume_sh_lc = 0.0d0
+  ref_por_volume_sh_glb = 0.0d0
+  fhpav_lc = 0.0d0
+  fhpav_glb = 0.0d0
+
+  material_auxvars => material%auxvars
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (imat(ghosted_id) <= 0) cycle
+    cell_ref_volume = material_auxvars(ghosted_id)%porosity_base * &
+                            material_auxvars(ghosted_id)%volume
+    sh = this%auxvars(ZERO_INTEGER,ghosted_id)%sat(option%oil_phase) + &
+          this%auxvars(ZERO_INTEGER,ghosted_id)%sat(option%gas_phase)
+    if (this%IsSolventModel()) then
+       sh = sh + this%auxvars(ZERO_INTEGER,ghosted_id)% &
+                                           sat(option%solvent_phase)
+    end if
+    ref_por_volume_sh_lc = ref_por_volume_sh_lc + sh *cell_ref_volume
+    fhpav_lc = fhpav_lc + sh *cell_ref_volume * &
+           this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+  end do
+
+  int_mpi = ONE_INTEGER
+  call MPI_AllReduce(ref_por_volume_sh_lc,ref_por_volume_sh_glb, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                     option%mycomm,ierr)
+  call MPI_AllReduce(fhpav_lc,fhpav_glb, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                     option%mycomm,ierr)
+
+  fhpav = fhpav_glb/ref_por_volume_sh_glb
+
+  call SetFieldData(fhpav)
+
+  nullify(material_auxvars)
+
+end subroutine TOWGAuxFieldVolRefAve
+
+! ************************************************************************** !
+
+subroutine TOWGGetLocalSol(this,grid,material,imat,option,vsoll,isol,zsol)
+  !
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 08/24/18
+
+  use Grid_module
+  use Material_Aux_class
+  use Option_module
+  use String_module,only : StringCompareIgnoreCase
+
+  implicit none
+
+  class(pm_towg_aux_type) :: this
+  type(grid_type) :: grid
+  type(material_type), pointer :: material
+  PetscInt, intent(in) :: imat(:)
+  type(option_type) :: option
+  PetscReal :: vsoll(:,:)
+  PetscInt,intent(in)::isol
+  character(len=8)::zsol
+  PetscInt::iphase
+  PetscBool::ispres
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscInt :: local_id, ghosted_id
+
+  material_auxvars => material%auxvars
+
+  ispres=PETSC_FALSE
+  iphase=0
+
+  if( StringCompareIgnoreCase(zsol,'Pressure') ) ispres=PETSC_TRUE
+  if( StringCompareIgnoreCase(zsol,'Soil')     ) iphase=option%oil_phase
+  if( StringCompareIgnoreCase(zsol,'Sgas')     ) iphase=option%gas_phase
+  if( StringCompareIgnoreCase(zsol,'Swat')     ) iphase=option%liquid_phase
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (imat(ghosted_id) <= 0) cycle
+    if( isPres ) then
+      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+    else if ( iphase>0 ) then
+      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)
+    else
+      vsoll(local_id,isol)=0.0
+    endif
+  end do
+
+end subroutine TOWGGetLocalSol
+
+! ************************************************************************** !
+
+function IsSolventModel(this)
+
+  implicit none
+
+  class(pm_towg_aux_type) :: this
+
+  PetscBool :: IsSolventModel
+
+  IsSolventModel = PETSC_FALSE
+
+  if (towg_miscibility_model == TOWG_SOLVENT_TL) IsSolventModel = PETSC_TRUE
+
+end function IsSolventModel
 
 end module PM_TOWG_Aux_module
