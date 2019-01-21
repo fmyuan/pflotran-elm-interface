@@ -1824,9 +1824,6 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
       coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
         LIQUID_STATE
       if (general%liquid_pressure%itype == HYDROSTATIC_BC) then
-!       option%io_buffer = 'Hydrostatic BC for general phase cannot possibly ' // &
-!         'be set up correctly. - GEH'
-!       call printErrMsg(option)
         if (general%mole_fraction%itype /= DIRICHLET_BC) then
           option%io_buffer = 'Hydrostatic liquid state pressure BC for &
             &flow condition "' // trim(flow_condition%name) // &
@@ -1840,6 +1837,24 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           call printErrMsg(option)
         endif
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
+        do iconn = 1, num_connections
+          if (coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) /= &
+              LIQUID_STATE) then
+            select case(coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn))
+              case(GAS_STATE)
+                string = 'gas state'
+              case(TWO_PHASE_STATE)
+                string = 'two phase state'
+              case(ANY_STATE)
+                string = 'any phase state'
+            end select
+            option%io_buffer = 'A ' // trim(string) // ' cell was found &
+              &within a HYDROSTATIC_BC boundary condition for GENERAL mode. &
+              &A hydrostatic boundary condition may not be used to set &
+              &state variables in the vadose zone for GENERAL mode.'
+            call PrintErrMsg(option)
+          endif
+        enddo
         dof1 = PETSC_TRUE; dof2 = PETSC_TRUE; dof3 = PETSC_TRUE;
       endif
     case(GAS_STATE)
