@@ -30,7 +30,9 @@ module Lookup_Table_module
     procedure, public :: LookupTableVarConvFactors  
     procedure, public :: LookupTableVarsInit
     procedure, public :: LookupTableVarIsPresent
+    procedure, public :: CreateAddLookupTableVar
     procedure, public :: VarDataRead
+    procedure, public :: VarDataReverse
     procedure, public :: VarPointAndUnitConv
     procedure, public :: SetupConstGradExtrap
     procedure, public :: SetupConstValExtrap
@@ -1958,6 +1960,51 @@ end function CreateLookupTableVar2
 
 ! ************************************************************************** !
 
+subroutine CreateAddLookupTableVar(this,var_iname,internal_units,user_units, &
+                                                            data_idx, option)
+
+  ! create and dd a lokup variable to a lookup table
+  !
+  ! Author: Paolo Orsini
+  ! Date: 01/19/2019
+  !
+
+  use Option_module
+
+  implicit none
+
+  class(lookup_table_base_type) :: this
+  PetscInt, intent(in) :: var_iname
+  character(len=MAXWORDLENGTH), intent(in) :: internal_units
+  character(len=MAXWORDLENGTH), intent(in) :: user_units
+  PetscInt, intent(in) :: data_idx
+  type(option_type) :: option
+
+  type(lookup_table_var_type), pointer :: lookup_var => null()
+
+  if ( .not.associated(this%var_array) ) then
+    option%io_buffer = 'CreateAddLookupTableVar: Cannot add a lookup variable &
+                        &without intialising the lookup variable list'
+    call printErrMsg(option)
+  end if
+
+  if ( var_iname > size (this%var_array(:)) .or. &
+       var_iname <= 0 ) then
+    option%io_buffer = 'var_iname must be larger than zero and not larger &
+                        &than the maximum number of lookup variables'
+    call printErrMsg(option)
+  end if
+
+  lookup_var => CreateLookupTableVar(var_iname,internal_units, &
+                                            user_units,data_idx)
+  call LookupTableVarAddToList(lookup_var,this%vars)
+  this%var_array(lookup_var%iname)%ptr => lookup_var
+  nullify(lookup_var)
+
+end subroutine CreateAddLookupTableVar
+
+! ************************************************************************** !
+
 subroutine LookupTableVarInitGradients(this,option)
   !
   ! allocate lookup variable gradients
@@ -2062,6 +2109,29 @@ subroutine VarDataRead(this,input,num_fields,error_string,option)
   call DeallocateArray(tmp_data_array)
   
 end subroutine VarDataRead
+
+! ************************************************************************** !
+
+subroutine VarDataReverse(this,option)
+
+  use Option_module
+
+  implicit none
+
+  class(lookup_table_base_type) :: this
+  type(option_type), intent(inout) :: option
+
+  PetscInt :: num_entries
+
+  if ( .not. associated(this%var_data) ) then
+    option%io_buffer = 'Cannot reverse VarData as not allocated'
+    call printErrMsg(option)
+  end if
+  num_entries = size(this%var_data,2)
+
+  this%var_data = this%var_data( :, num_entries:1:-1 )
+
+end subroutine VarDataReverse
 
 ! ************************************************************************** !
 

@@ -9,6 +9,7 @@ module Condition_module
   use Dataset_Base_class
   use Dataset_Ascii_class
   use Time_Storage_module
+  use Lookup_Table_module
 
   use Transport_Constraint_module
 !  use Reaction_Surface_Complexation_Aux_module
@@ -46,6 +47,7 @@ module Condition_module
     type(flow_toil_ims_condition_type), pointer :: toil_ims
     type(flow_towg_condition_type), pointer :: towg
     type(flow_well_condition_type), pointer :: flow_well  ! flow_well to avoid conflict with well
+    class(lookup_table_general_type), pointer :: rtempvz_table  !temperature variation over z
     ! any new sub conditions must be added to FlowConditionIsTransient
     type(sub_condition_ptr_type), pointer :: sub_condition_ptr(:)
     type(flow_condition_type), pointer :: next ! pointer to next condition_type for linked-lists
@@ -111,7 +113,7 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: pcow_owc
     type(flow_sub_condition_type), pointer :: ogc_z
     type(flow_sub_condition_type), pointer :: pcog_ogc
-    !type(flow_sub_condition_type), pointer :: datum_z
+    class(lookup_table_general_type), pointer :: pbvz_table
     ! any new sub conditions must be added to FlowConditionIsTransient
   end type flow_towg_condition_type
 
@@ -225,6 +227,7 @@ function FlowConditionCreate(option)
   nullify(condition%toil_ims)
   nullify(condition%towg)
   nullify(condition%flow_well)
+  nullify(condition%rtempvz_table)
   nullify(condition%itype)
   nullify(condition%next)
   nullify(condition%datum)
@@ -389,7 +392,7 @@ function FlowTOWGConditionCreate(option)
   nullify(towg_condition%pcow_owc)
   nullify(towg_condition%ogc_z)
   nullify(towg_condition%pcog_ogc)
-  !nullify(towg_condition%datum_z)
+  nullify(towg_condition%pbvz_table)
 
   FlowTOWGConditionCreate => towg_condition
 
@@ -3031,6 +3034,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   character(len=MAXWORDLENGTH) :: rate_string
   character(len=MAXSTRINGLENGTH) :: internal_units_string
   character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: internal_units_word
+  character(len=MAXWORDLENGTH) :: usr_tbl_len_units, usr_tbl_press_units
   type(flow_towg_condition_type), pointer :: towg
   type(flow_sub_condition_type), pointer :: sub_condition_ptr
   PetscReal :: default_time
@@ -3038,9 +3043,12 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   class(dataset_base_type), pointer :: default_flow_dataset
   class(dataset_base_type), pointer :: default_gradient
   PetscInt :: idof, i
+  PetscInt :: data_idx
   PetscBool :: default_is_cyclic
   PetscBool :: phase_state_found
   PetscBool :: comm_card_found
+  PetscBool :: usr_tbl_press_units_found
+  PetscBool :: pbvz_found
   type(time_storage_type), pointer :: default_time_storage
   class(dataset_ascii_type), pointer :: dataset_ascii
   PetscErrorCode :: ierr
@@ -3295,6 +3303,87 @@ subroutine FlowConditionTOWGRead(condition,input,option)
             sub_condition_ptr%dataset%rbuffer(:) =  - &
                                     sub_condition_ptr%dataset%rbuffer(:)
         end select
+      case('BUBBLE_POINT_TABLE')
+        towg%pbvz_table => LookupTableCreateGeneral(ONE_INTEGER)
+        call towg%pbvz_table%LookupTableVarsInit(TWO_INTEGER)
+        !set up default units
+        internal_units_word = 'not_assigned'
+        usr_tbl_len_units = 'm'
+        usr_tbl_press_units = 'Pa'
+        usr_tbl_press_units_found = PETSC_FALSE
+        pbvz_found = PETSC_FALSE
+        do
+          call InputReadPflotranString(input,option)
+          call InputReadStringErrorMsg(input,option, &
+                                                'CONDITION,BUBBLE_POINT_TABLE')
+          if (InputCheckExit(input,option)) exit
+
+          if (InputError(input)) exit
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword', &
+                                               'CONDITION,BUBBLE_POINT_TABLE')
+          call StringToUpper(word)
+          select case (trim(word))
+            case('Z_UNITS','D_UNITS')
+              call InputReadWord(input,option,usr_tbl_len_units,PETSC_TRUE)
+            case('PRESSURE_UNITS')
+              call InputReadWord(input,option,usr_tbl_press_units,PETSC_TRUE)
+              usr_tbl_press_units_found = PETSC_TRUE
+            case('PBVZ','PBVD')
+              data_idx = 1 !elevation/depth in the first column
+              internal_units_word = 'm'
+              call towg%pbvz_table%CreateAddLookupTableVar(ONE_INTEGER, &
+                        internal_units_word,usr_tbl_len_units,data_idx,option)
+              data_idx = 2 !Bubble point pressure in the second column
+              internal_units_word = 'Pa'
+              call towg%pbvz_table%CreateAddLookupTableVar(TWO_INTEGER, &
+                      internal_units_word,usr_tbl_press_units,data_idx,option)
+              string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name)  &
+                                         // '/reading PBVZ or PBVD table'
+              call towg%pbvz_table%VarDataRead(input,TWO_INTEGER,string,option)
+              !table input for decreasing z (or decreasing depth) - needs reversing
+              call towg%pbvz_table%VarDataReverse(option)
+              ! PO todo: move this error to table general reads
+              if ( size(towg%pbvz_table%var_data(1,:)) < 2 ) then
+                option%io_buffer = 'PBVZ, PBVD tables require at least two &
+                                    &entries'
+                call printErrMsg(option)
+              end if
+
+              select case(trim(word))
+                case('PBVD')
+                  !convert depth in elevation z for internal PFLOTRAN use
+                  towg%pbvz_table%var_data(ONE_INTEGER,:) = - &
+                                       towg%pbvz_table%var_data(ONE_INTEGER,:)
+              end select
+
+              call towg%pbvz_table%LookupTableVarConvFactors(option)
+              call towg%pbvz_table%VarPointAndUnitConv(option)
+              call towg%pbvz_table%SetupConstValExtrap(option)
+              call towg%pbvz_table%LookupTableVarInitGradients(option)
+              ! define table axis
+              !PO: to move into table%SetUpIndependentVars(var1,var2), var 2 is optional
+              allocate(towg%pbvz_table%axis1)
+              allocate(towg%pbvz_table%axis1%values( &
+                                        size(towg%pbvz_table%var_data(1,:))))
+              towg%pbvz_table%axis1%values = towg%pbvz_table%var_data(1,:)
+              towg%pbvz_table%dims(1) = size(towg%pbvz_table%axis1%values(:))
+              pbvz_found = PETSC_TRUE
+            case default
+              call InputKeywordUnrecognized(word, &
+                                  'flow condition,BUBBLE_POINT_TABLE',option)
+          end select
+        end do
+        if ( .not. usr_tbl_press_units_found) then
+          option%io_buffer = 'TOWG condition - BUBBLE_POINT_TABLE: &
+            &pressure units must be entered for the bubble point'
+          call printErrMsg(option)
+        end if
+        if ( .not. pbvz_found ) then
+          option%io_buffer = 'TOWG condition - BUBBLE_POINT_TABLE: &
+                              &PBVZ or PBVD tables not found'
+          call printErrMsg(option)
+        end if
       case default
         call InputKeywordUnrecognized(word,'flow condition',option)
     end select
@@ -3371,6 +3460,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
     if( .not.phase_state_found ) then
       option%io_buffer = 'TOWG condition - phase state  &
         &Currently only THREE_PHASE_STATE, LIQ_OIL_STATE and ANY_STATE implemented'
+      call printErrMsg(option)
     endif
 
     !check if conditions are compatible with miscibility model
@@ -3381,6 +3471,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
       option%io_buffer = 'FlowConditionTOWGRead: For TOWG_IMMISCIBLE and &
          &TOWG_TODD_LONGSTAFF only three phase state conditions &
          &are supported other than rate and flux conditions '
+      call printErrMsg(option)
     end if
 
   end if
@@ -3664,6 +3755,7 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
   !
   ! Reads flow conditions block common to all modes:
   !  these are sflow_sub_conditions defined in flow_condition_type
+  !  for each commom card must add card_found = PETSC_TRUE
   !
   ! Author: Paolo Orsini
   ! Date: 01/17/19
@@ -3675,6 +3767,7 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
   use Logging_module
   use Time_Storage_module
   use Dataset_module
+  use Lookup_Table_module
 
   implicit none
 
@@ -3689,11 +3782,21 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
   character(len=MAXSTRINGLENGTH) :: string
 !  character(len=MAXWORDLENGTH) :: rate_string
   character(len=MAXSTRINGLENGTH) :: internal_units_string
+  character(len=MAXWORDLENGTH) :: internal_units_word
+  character(len=MAXWORDLENGTH) :: usr_lenght_units
+  character(len=MAXWORDLENGTH) :: usr_temp_units
+  PetscInt :: data_idx
+  PetscBool :: rtempvz_found
+
 !  class(dataset_base_type), pointer :: default_flow_dataset
 !  class(dataset_base_type), pointer :: default_gradient
 
   class(dataset_ascii_type), pointer :: dataset_ascii
 !  PetscErrorCode :: ierr
+  character(len=MAXWORDLENGTH) :: sub_word
+  class(lookup_table_general_type), pointer :: lkp_table => null()
+  !type(lookup_table_var_type), pointer :: lkp_var => null()
+
 
   card_found = PETSC_FALSE
   select case (trim(word))
@@ -3754,6 +3857,88 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
       call FlowSubConditionVerify(option,condition,word,condition%datum_z, &
                                   default_time_storage, &
                                   PETSC_TRUE)
+    case ('TEMPERATURE_TABLE')
+      card_found = PETSC_TRUE
+      rtempvz_found = PETSC_FALSE
+      condition%rtempvz_table => LookupTableCreateGeneral(ONE_INTEGER)
+      call condition%rtempvz_table%LookupTableVarsInit(TWO_INTEGER)
+      lkp_table => condition%rtempvz_table
+      !set up default units
+      usr_lenght_units = 'm'
+      usr_temp_units = 'C'
+      do
+        call InputReadPflotranString(input,option)
+        call InputReadStringErrorMsg(input,option, &
+                                               'CONDITION,TEMPERATURE_TABLE')
+        if (InputCheckExit(input,option)) exit
+
+        if (InputError(input)) exit
+        call InputReadWord(input,option,sub_word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'keyword', &
+                                                'CONDITION,TEMPERATURE_TABLE')
+        call StringToUpper(sub_word)
+        select case (trim(sub_word))
+          case('Z_UNITS','D_UNITS')
+            call InputReadWord(input,option,usr_lenght_units,PETSC_TRUE)
+          case('TEMPERATURE_UNITS')
+            call InputReadWord(input,option,usr_temp_units,PETSC_TRUE)
+             call StringToUpper(usr_temp_units)
+             if ( trim(usr_temp_units) /= 'C' ) then
+               option%io_buffer = 'TEMPERATURE_TABLE supports only &
+                                   &degree celcius, C'
+               call printErrMsg(option)
+             end if
+          case('RTEMPVZ','RTEMPVD')
+            data_idx = 1 !elevation/depth in the first column
+            internal_units_word = 'm'
+            call lkp_table%CreateAddLookupTableVar(ONE_INTEGER, &
+                         internal_units_word,usr_lenght_units,data_idx,option)
+            data_idx = 2 !temperature in the second column
+            internal_units_word = 'C'
+            call lkp_table%CreateAddLookupTableVar(TWO_INTEGER, &
+                            internal_units_word,usr_temp_units,data_idx,option)
+            string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name)  &
+                      // '/reading RTEMPVZ or RTEMPVD table'
+            call lkp_table%VarDataRead(input,TWO_INTEGER,string,option)
+            !table input for decreasing z (or decreasing depth) - needs reversing
+            call lkp_table%VarDataReverse(option)
+            ! PO todo: move this error to table general reads
+            if ( size(lkp_table%var_data(1,:)) < 2 ) then
+              option%io_buffer = 'RTEMPVZ, RTEMPVD tables require at least two &
+                                  &entries'
+              call printErrMsg(option)
+            end if
+
+            select case(trim(sub_word))
+              case('RTEMPVD')
+                !convert depth in elevation z for internal PFLOTRAN use
+                lkp_table%var_data(ONE_INTEGER,:) = - &
+                                         lkp_table%var_data(ONE_INTEGER,:)
+            end select
+
+            call lkp_table%LookupTableVarConvFactors(option)
+            call lkp_table%VarPointAndUnitConv(option)
+            call lkp_table%SetupConstValExtrap(option)
+            call lkp_table%LookupTableVarInitGradients(option)
+            ! define table axis
+            !PO: to move into table%SetUpIndependentVars(var1,var2), var 2 is optional
+            allocate(lkp_table%axis1)
+            allocate(lkp_table%axis1%values(size(lkp_table%var_data(1,:))))
+            lkp_table%axis1%values = lkp_table%var_data(1,:)
+            lkp_table%dims(1) = size(lkp_table%axis1%values(:))
+            nullify(lkp_table)
+            rtempvz_found = PETSC_TRUE
+          case default
+            call InputKeywordUnrecognized(sub_word, &
+                                    'flow condition,TEMPERATURE_TABLE',option)
+        end select
+        if ( .not. rtempvz_found ) then
+          option%io_buffer = 'Flow condition - TEMPERATURE_TABLE: &
+                              &RTEMPVZ or RTEMPVD tables not found'
+          call printErrMsg(option)
+        end if
+    end do
+
  end select
 
 end subroutine FlowConditionCommonRead
@@ -5161,6 +5346,7 @@ subroutine FlowConditionDestroy(condition)
   call FlowToilConditionDestroy(condition%toil_ims)
   call FlowTOWGConditionDestroy(condition%towg)
   call FlowWellConditionDestroy(condition%flow_well)
+  call LookupTableDestroy(condition%rtempvz_table)
 
   nullify(condition%next)
 
@@ -5276,6 +5462,7 @@ subroutine FlowTOWGConditionDestroy(towg_condition)
   call FlowSubConditionDestroy(towg_condition%pcow_owc)
   call FlowSubConditionDestroy(towg_condition%ogc_z)
   call FlowSubConditionDestroy(towg_condition%pcog_ogc)
+  call LookupTableDestroy(towg_condition%pbvz_table)
 
   deallocate(towg_condition)
   nullify(towg_condition)

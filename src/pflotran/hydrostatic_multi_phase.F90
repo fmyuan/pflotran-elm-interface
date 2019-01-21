@@ -4,6 +4,7 @@ module HydrostaticMultiPhase_module
   use petscsys
   use PFLOTRAN_Constants_module
   use Hydrostatic_Common_module
+  use Lookup_Table_module
 
   implicit none
 
@@ -28,6 +29,8 @@ module HydrostaticMultiPhase_module
   PetscReal :: pcog_ogc
   PetscReal :: wgc_z
   PetscReal :: pcwg_wgc
+  PetscReal :: z_min
+  PetscReal :: z_max
   
   PetscReal :: res_temp_const
   PetscBool :: res_temp_is_const
@@ -44,6 +47,10 @@ module HydrostaticMultiPhase_module
   PetscReal :: pw_wgc
   PetscReal :: pg_wgc
   
+  class(lookup_table_general_type), pointer :: rtempvz_table => null()
+  class(lookup_table_general_type), pointer :: pbvz_table => null()
+  PetscBool :: temp_grad_given
+
   !working arrays
   PetscReal, allocatable :: temp_vec(:)
   PetscReal, allocatable :: xm_nacl_vec(:)
@@ -116,6 +123,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   PetscReal :: dist_dn, dist_up
   PetscInt :: iconn, local_id, ghosted_id
   PetscReal :: dz_conn, z_cell
+  PetscInt :: tbl_size
 
   PetscInt :: i_owc
   PetscInt :: i_ogc
@@ -170,7 +178,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   PetscReal :: gravity_magnitude
   PetscReal :: datum_tmp_3v(3)
   
-  PetscReal :: max_z, min_z
+  !PetscReal :: max_z, min_z
 
 
   condition => coupler%flow_condition
@@ -180,15 +188,28 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   !                          owc_z,pcow_owc,ogc_z,pcog_ogc,wgc_z,pcwg_wgc)  
   
   !determine which are the phase and transition zone present
-  max_z = max(grid%z_max_global,datum_z)+1.d0 ! add 1m buffer
-  min_z = min(grid%z_min_global,datum_z)-1.d0
-  
+  z_max = max(grid%z_max_global,datum_z)+1.d0 ! add 1m buffer
+  z_min = min(grid%z_min_global,datum_z)-1.d0
+
+  if ( associated(rtempvz_table) ) then
+    if ( (rtempvz_table%axis1%values(1) - 1.0) > z_min ) then
+      option%io_buffer = 'Hydrostatic equilibration: Temperature table - &
+                          &range does not cover deepest layers'
+      call printErrMsg(option)
+    end if
+    tbl_size = size(rtempvz_table%axis1%values(:))
+    if ( (rtempvz_table%axis1%values(tbl_size) + 1.0) < z_max  ) then
+      option%io_buffer = 'Hydrostatic equilibration: Temperature table - &
+                          &range does not cover most shallow layers'
+      call printErrMsg(option)
+    end if
+  endif
   ! determine what are the transition zones present
-  if ( owc_z >= min_z .and. owc_z <= max_z ) then
+  if ( owc_z >= z_min .and. owc_z <= z_max ) then
     oil_wat_zone = PETSC_TRUE
   end if
 
-  if ( ogc_z >= min_z .and. ogc_z <= max_z ) then
+  if ( ogc_z >= z_min .and. ogc_z <= z_max ) then
     oil_gas_zone = PETSC_TRUE
   end if
 
@@ -248,7 +269,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   !replace datum_tmp_3v with datum_z when replacing TOIHydrostaticUpdateCoupler
   datum_tmp_3v(1:3) = 0.0d0
   datum_tmp_3v(3) = datum_z
-  one_d_grid => CreateOneDimGrid(min_z,max_z,datum_tmp_3v)
+  one_d_grid => CreateOneDimGrid(z_min,z_max,datum_tmp_3v)
   
   grid_size = size(one_d_grid%z(:))
 
@@ -548,6 +569,13 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
 
   call DeallocateGridArrays()
 
+  if (.not.temp_grad_given) then
+    nullify(rtempvz_table)
+  else
+    call LookupTableDestroy(rtempvz_table)
+  end if
+  nullify(pbvz_table)
+
 end subroutine HydrostaticMPUpdateCoupler
 
 ! ************************************************************************** !
@@ -576,6 +604,8 @@ subroutine HydrostaticMPInit()
   pcog_ogc = 0.0d0
   wgc_z = 0.0d0
   pcwg_wgc = 0.0d0
+  z_min = 0.0d0
+  z_max = 0.0d0
 
   press_at_datum = UNINITIALIZED_DOUBLE
   
@@ -593,6 +623,10 @@ subroutine HydrostaticMPInit()
   pg_ogc = UNINITIALIZED_DOUBLE
   pw_wgc = UNINITIALIZED_DOUBLE
   pg_wgc = UNINITIALIZED_DOUBLE
+
+  nullify(rtempvz_table)
+  temp_grad_given = PETSC_FALSE
+  nullify(pbvz_table)
 
 end subroutine HydrostaticMPInit
 
@@ -630,7 +664,9 @@ subroutine HydrostaticPMLoader(condition,option)
   PetscBool :: press_at_datum_found
   PetscReal :: temperature
   PetscReal :: temp_grad(3)
-  PetscBool :: temp_grad_given
+  !PetscInt :: tbl_size
+  PetscInt :: data_idx
+  character(len=MAXWORDLENGTH) :: units_word
 
   !assign default values
   press_at_datum_found = PETSC_FALSE
@@ -679,15 +715,13 @@ subroutine HydrostaticPMLoader(condition,option)
 
       select case (option%iflow_sub_mode)
         case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
-          !if ( .not.associated(condition%towg%pbvz_table) ) then
+          if ( associated(condition%towg%pbvz_table) ) then
+            pbvz_table => condition%towg%pbvz_table
+            pb_is_const = PETSC_FALSE
+          else
             pb_const = press_at_datum
             pb_is_const = PETSC_TRUE
-            ! if ( dabs(ogc_z - datum_z) > z_eps ) then
-            !   option%io_buffer = 'Hydrostatic equilibration: PB table not defined, &
-            !                       &datum and OGC must be in the same location'
-            !   call printErrMsg(option)
-            ! end if
-          !end if
+          end if
         case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
           !nothing to do pb not needed  
       end select
@@ -748,16 +782,20 @@ subroutine HydrostaticPMLoader(condition,option)
     case(TOWG_MODE)
       select case (option%iflow_sub_mode)
         case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
-          !if ( .not.associated(condition%towg%pbvz_table) ) then
+          if ( .not.associated(pbvz_table) ) then
             if ( dabs(ogc_z - datum_z) > z_eps ) then
               option%io_buffer = 'Hydrostatic equilibration: PB table not defined, &
                                   &datum and OGC must be in the same location'
               call printErrMsg(option)
             end if  
-          !end if
+          end if
       end select    
   end select
   
+  if ( associated(condition%rtempvz_table) ) then
+    rtempvz_table => condition%rtempvz_table
+  end if
+
   !if both temp_grad and rtempvz_table given, returns an error
   if (temp_grad_given) then
     if (Uninitialized(temperature)) then
@@ -766,18 +804,43 @@ subroutine HydrostaticPMLoader(condition,option)
                           &with a temperature gradient'
       call printErrMsg(option)
     end if
-    !build rtempvz_table using temperature and temp_grad
+    rtempvz_table => LookupTableCreateGeneral(ONE_INTEGER)
+    call rtempvz_table%LookupTableVarsInit(TWO_INTEGER)
+    data_idx = 1 !elevation/depth in the first column
+    units_word = 'm'
+    call rtempvz_table%CreateAddLookupTableVar(ONE_INTEGER, &
+                                     units_word,units_word,data_idx,option)
+    data_idx = 2 !temperature in the second column
+    units_word = 'C'
+    call rtempvz_table%CreateAddLookupTableVar(TWO_INTEGER, &
+                                     units_word,units_word,data_idx,option)
+    allocate(rtempvz_table%var_data(2,2))
+    rtempvz_table%var_data(1,1) = z_min
+    rtempvz_table%var_data(2,1) = (z_min - datum_z) * temp_grad(3) + &
+                                  temperature
+    rtempvz_table%var_data(1,2) = z_max
+    rtempvz_table%var_data(2,2) = (z_max - datum_z) * temp_grad(3) + &
+                                  temperature
+    !
+    call rtempvz_table%LookupTableVarConvFactors(option)
+    call rtempvz_table%VarPointAndUnitConv(option)
+    call rtempvz_table%SetupConstValExtrap(option)
+    call rtempvz_table%LookupTableVarInitGradients(option)
+    allocate(rtempvz_table%axis1)
+    allocate(rtempvz_table%axis1%values(2))
+    rtempvz_table%axis1%values(1:2) = rtempvz_table%var_data(1,1:2)
+    rtempvz_table%dims(1) = 2
   end if
   
-  !if ( .not.associated (rtempvz_table) ) then
+  if ( .not.associated(rtempvz_table) ) then
      if (Uninitialized(temperature)) then
        option%io_buffer = 'MP Equilibration input error: a temperature value &
-                           &or table must be input to initialise the rservoir'
+                           &or table must be input to initialise the reservoir'
        call printErrMsg(option)
      end if
      res_temp_is_const = PETSC_TRUE
      res_temp_const = temperature
-  !end if
+  end if
 
 
   if (.not.press_at_datum_found) then
@@ -1136,10 +1199,12 @@ subroutine GetZPointProps(z,option,temp,xm_nacl,pb,rv)
 
   if (res_temp_is_const) then
     temp = res_temp_const
-  end if
-  !else
+  else
     ! inteprolate using rtempvz_table
-  !
+    rtempvz_table%axis1%saved_index = 1
+    call rtempvz_table%SampleAndGradient(TWO_INTEGER,z)
+    temp = rtempvz_table%var_array(TWO_INTEGER)%ptr%sample
+  end if
   
   xm_nacl = option%m_nacl * FMWNACL
   xm_nacl = xm_nacl /(1.d3 + xm_nacl)
@@ -1150,9 +1215,10 @@ subroutine GetZPointProps(z,option,temp,xm_nacl,pb,rv)
         case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
           if (pb_is_const) then
             pb = pb_const
+          else
+            call pbvz_table%SampleAndGradient(TWO_INTEGER,z)
+            pb = pbvz_table%var_array(TWO_INTEGER)%ptr%sample
           end if
-          !else use pb_table
-          !
         case (TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
           ! do nothng as pb is not required
       end select
