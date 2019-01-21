@@ -1562,7 +1562,11 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   PetscReal :: d_xo_dpb,d_xg_dpb
   PetscReal :: d_pcw_d_swa,d_pco_d_sva,dx_dcell_pres,dx_dtemp
-  PetscReal,dimension(1:option%nflowdof) :: D_fm,D_cell_pres
+  PetscReal :: dden_dt,dden_dpres,dh_dt,dh_dpres,du_dt,du_dpres
+  PetscReal :: ddeno_dpb,dcr_dt,dcr_dpb
+  PetscReal :: dcrusp_dpo,dcrusp_dpb,dcrusp_dt,cor,one_p_crusp
+  PetscReal :: dcor_dpo,dcor_dpb,dcor_dt,worker
+  PetscReal,dimension(1:option%nflowdof) :: D_fm,D_cell_pres,D_worker
 
   dof_op = TOWG_OIL_PRESSURE_DOF
   dof_osat = TOWG_OIL_SATURATION_DOF
@@ -1952,6 +1956,7 @@ endif
 ! Water phase thermodynamic properties
 !------------------------------------------------------------------------------
 
+#if 0
   call EOSWaterDensity(t,cell_pressure, &
                        auxvar%den_kg(wid),auxvar%den(wid),ierr)
   call EOSWaterEnthalpy(t,cell_pressure,auxvar%H(wid),ierr)
@@ -1959,8 +1964,8 @@ endif
 
   ! MJ/kmol comp                  ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
   auxvar%U(wid) = auxvar%H(wid) - (cell_pressure / auxvar%den(wid) * 1.d-6)
+#endif
 
-#if 0
   if (getDerivs) then
     call EOSWaterDensity(t,cell_pressure, &
                          auxvar%den_kg(wid),auxvar%den(wid), &
@@ -2001,7 +2006,6 @@ endif
   auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
   ! MJ/kmol comp                  ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
   auxvar%U(wid) = auxvar%H(wid) - (cell_pressure / auxvar%den(wid) * 1.d-6)
-#endif
 
 
 
@@ -2013,6 +2017,7 @@ endif
 ! Gas phase thermodynamic properties. Can be ideal gas default or PVTG table
 !------------------------------------------------------------------------------
 
+#if 0
   call EOSGasDensityEnergy(t,auxvar%pres(gid),auxvar%den(gid), &
                            auxvar%H(gid),auxvar%U(gid),ierr,auxvar%table_idx)
 
@@ -2020,6 +2025,41 @@ endif
 
   auxvar%H(gid) = auxvar%H(gid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(gid) = auxvar%U(gid) * 1.d-6 ! J/kmol -> MJ/kmol
+#endif
+
+
+  if (getDerivs) then
+    call EOSGasDensityEnergy(t,auxvar%pres(gid),auxvar%den(gid),dden_dt,dden_dpres, &
+                                     auxvar%H(gid),dh_dt,dh_dpres,auxvar%U(gid),&
+                                     du_dt,&
+                                     du_dpres,ierr,auxvar%table_idx)
+
+    ! pressure derivatives - den, h and u are functions of gas pressure and temp here
+    auxvar%D_den(gid,:) = auxvar%D_pres(gid,:) * dden_dpres
+    auxvar%D_den(gid,dof_temp) = auxvar%D_den(gid,dof_temp) + dden_dt
+
+    auxvar%D_u(gid,:) = auxvar%D_pres(gid,:) * du_dpres
+    auxvar%D_u(gid,dof_temp) = auxvar%D_u(gid,dof_temp) + du_dt
+
+    auxvar%D_h(gid,:) = auxvar%D_pres(gid,:) * dh_dpres
+    auxvar%D_h(gid,dof_temp) = auxvar%D_h(gid,dof_temp) + dh_dt
+
+
+    auxvar%D_den_kg(gid,:) = auxvar%D_den(gid,:) * EOSGasGetFMW()
+    ! scaling:
+    auxvar%D_H(gid,:) = auxvar%D_H(gid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(gid,:) = auxvar%D_U(gid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+
+  else
+    call EOSGasDensityEnergy(t,auxvar%pres(gid),auxvar%den(gid), &
+                             auxvar%H(gid),auxvar%U(gid),ierr,auxvar%table_idx)
+  endif
+
+  auxvar%den_kg(gid) = auxvar%den(gid) * EOSGasGetFMW()
+
+  auxvar%H(gid) = auxvar%H(gid) * 1.d-6 ! J/kmol -> MJ/kmol
+  auxvar%U(gid) = auxvar%U(gid) * 1.d-6 ! J/kmol -> MJ/kmol
+
 
 !------------------------------------------------------------------------------
 ! /end of Gas phase thermodynamic properties. 
@@ -2029,6 +2069,7 @@ endif
 ! Solvent phase thermodynamic properties. Can be ideal gas default or PVTS table
 !------------------------------------------------------------------------------
 
+#if 0
   call EOSSlvDensityEnergy(t,auxvar%pres(sid), &
                            auxvar%den(sid),auxvar%H(sid),auxvar%U(sid),ierr,&
                            auxvar%table_idx)
@@ -2037,6 +2078,45 @@ endif
 
   auxvar%H(sid) = auxvar%H(sid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(sid) = auxvar%U(sid) * 1.d-6 ! J/kmol -> MJ/kmol
+#endif
+
+  if (getDerivs) then
+
+    call EOSSlvDensityEnergy(t,auxvar%pres(sid), &
+                             auxvar%den(sid),dden_dt,dden_dpres,auxvar%H(sid),dh_dt,dh_dpres&
+                             ,auxvar%U(sid),du_dt,du_dpres,ierr,&
+                             auxvar%table_idx)
+
+    ! pressure derivatives - den, h and u are functions of gas pressure and temp here
+    auxvar%D_den(sid,:) = auxvar%D_pres(sid,:) * dden_dpres
+    auxvar%D_den(sid,dof_temp) = auxvar%D_den(sid,dof_temp) + dden_dt
+
+    auxvar%D_u(sid,:) = auxvar%D_pres(sid,:) * du_dpres
+    auxvar%D_u(sid,dof_temp) = auxvar%D_u(sid,dof_temp) + du_dt
+
+    auxvar%D_h(sid,:) = auxvar%D_pres(sid,:) * dh_dpres
+    auxvar%D_h(sid,dof_temp) = auxvar%D_h(sid,dof_temp) + dh_dt
+
+    auxvar%D_den_kg(sid,:) = auxvar%D_den(sid,:) * EOSSlvGetFMW()
+    ! scaling:
+    auxvar%D_H(sid,:) = auxvar%D_H(sid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(sid,:) = auxvar%D_U(sid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+  else
+    call EOSSlvDensityEnergy(t,auxvar%pres(sid), &
+                             auxvar%den(sid),auxvar%H(sid),auxvar%U(sid),ierr,&
+                             auxvar%table_idx)
+
+  endif
+
+  auxvar%den_kg(sid) = auxvar%den(sid) * EOSSlvGetFMW()
+
+  auxvar%H(sid) = auxvar%H(sid) * 1.d-6 ! J/kmol -> MJ/kmol
+  auxvar%U(sid) = auxvar%U(sid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+
+!------------------------------------------------------------------------------
+! /end of Solvent phase thermodynamic properties.
+!------------------------------------------------------------------------------
 
 !------------------------------------------------------------------------------
 ! Oil phase thermodynamic properties from PVCO
@@ -2044,6 +2124,7 @@ endif
 ! because it is an optional argument (needed only if table lookup)
 !------------------------------------------------------------------------------
 
+#if 0
   call EOSOilDensityEnergy  (auxvar%temp,po,deno,ho,uo,ierr,auxvar%table_idx)
 ! Density and compressibility look-up at bubble point
   call EOSOilDensity        (auxvar%temp,pb,deno      ,ierr,auxvar%table_idx)
@@ -2056,6 +2137,76 @@ endif
   auxvar%den(oid)=deno
   auxvar%H  (oid)=ho
   auxvar%U  (oid)=uo
+#endif
+
+   if (getDerivs) then
+    call EOSOilDensityEnergy(auxvar%temp,po,deno, &
+                             auxvar%D_den(oid,dof_temp),auxvar%D_den(oid,dof_op), &
+                             ho,auxvar%D_H(oid,dof_temp),auxvar%D_H(oid,dof_op), &
+                             uo,auxvar%D_U(oid,dof_temp),auxvar%D_U(oid,dof_op), &
+                             ierr,auxvar%table_idx)
+
+    ! Density and compressibility look-up at bubble point
+    call EOSOilDensity(auxvar%temp,pb,deno,auxvar%D_den(oid,dof_temp),ddeno_dpb,ierr,auxvar%table_idx)
+    call EOSOilCompressibility(auxvar%temp,pb,cr,dcr_dt,dcr_dpb,ierr,auxvar%table_idx)
+
+    if (isSat) then
+      ! pb is pressure:
+      auxvar%D_den(oid,dof_op) = ddeno_dpb
+    else
+      ! pb is a solution variable:
+      auxvar%D_den(oid,dof_gsat) = ddeno_dpb
+    endif
+
+  else
+    call EOSOilDensityEnergy  (auxvar%temp,po,deno,ho,uo,ierr,auxvar%table_idx)
+  ! Density and compressibility look-up at bubble point
+    call EOSOilDensity        (auxvar%temp,pb,deno      ,ierr,auxvar%table_idx)
+    call EOSOilCompressibility(auxvar%temp,pb,cr        ,ierr,auxvar%table_idx)
+  endif
+
+!  Correct for undersaturation: correction not yet available for energy
+! --------- Correct for undersaturation ---------------------------------------
+  crusp=cr*(po-pb)
+
+
+  if (getDerivs) then
+    ! differentiate the correction for undersaturation (see below)
+    ! NOTE: might have to adjust this when corrections are introduced for energy
+    if (isSat) then
+      ! leave density derivs w.r.t. pres, temp, and bubble point as set above since the correction
+      ! is zero.
+    else
+      dcrusp_dpo =  cr !  +  dcr_dpo*(po-pb) but we know dcr_dpo is zero
+      dcrusp_dpb = dcr_dpb*(po-pb) - cr
+      dcrusp_dt =  dcr_dt*(po-pb)
+
+      cor = 1 + crusp + 0.5*crusp*crusp
+      ! dcor/dx = dcrusp/dx + crusp*dcrusp/dx  = (1 + crusp)*dcrusp/dx
+      ! so
+      one_p_crusp = 1.d0 + crusp
+      dcor_dpo = one_p_crusp*dcrusp_dpo
+      dcor_dpb = one_p_crusp*dcrusp_dpb
+      dcor_dt = one_p_crusp*dcrusp_dt
+
+      auxvar%D_den(oid,dof_op) = deno*dcor_dpo ! +  ddeno_dpo*cor but we know ddeno_dpo is zero
+      auxvar%D_den(oid,dof_gsat) = auxvar%D_den(oid,dof_gsat)*cor + deno*dcor_dpb
+      auxvar%D_den(oid,dof_temp) = auxvar%D_den(oid,dof_temp)*cor + deno*dcor_dt
+    endif
+
+  endif
+
+  !crusp=cr*(po-pb) ! moved above
+  deno=deno*(1.0+crusp*(1.0+0.5*crusp))
+  auxvar%den(oid)=deno
+  auxvar%H  (oid)=ho
+  auxvar%U  (oid)=uo
+! --------- /Correct for undersaturation --------------------------------------
+
+
+!------------------------------------------------------------------------------
+! /end of Oil phase thermodynamic properties from PVCO
+!------------------------------------------------------------------------------
 
 !------------------------------------------------------------------------------
 ! Correct oil phase molar density and enthalpy for oil composition
@@ -2065,15 +2216,36 @@ endif
 ! Note xo=1/(1+Rsmolar) so cannot be zero for finite looked up Rsmolar
 !------------------------------------------------------------------------------
 
+!--------------oil molar density correction------------------------------------
+  if (getDerivs) then
+    auxvar%D_den(oid,:) = DivRule(auxvar%den(oid),auxvar%D_den(oid,:), &
+                                  auxvar%bo%xo,auxvar%bo%D_xo,option%nflowdof)
+  endif
   auxvar%den(oid)=auxvar%den(oid)/auxvar%bo%xo
+
+!--------------/oil molar density correction-----------------------------------
+
 
 ! Get oil mass density as (mixture oil molar density).(mixture oil molecular weight)
 
+!--------------oil mass density ------------------------------------------------
+  if (getDerivs) then
+    worker = auxvar%bo%xo*EOSOilGetFMW()     &
+           + auxvar%bo%xg*EOSGasGetFMW()
+    D_worker = auxvar%bo%D_xo*EOSOilGetFMW() &
+             + auxvar%bo%D_xg*EOSGasGetFMW()
+    auxvar%D_den_kg(oid,:) = ProdRule(auxvar%den(oid),auxvar%D_den(oid,:), &
+                                      worker,D_worker,option%nflowdof)
+  endif
   auxvar%den_kg(oid) = auxvar%den(oid) * ( auxvar%bo%xo*EOSOilGetFMW() &
                                           +auxvar%bo%xg*EOSGasGetFMW() )
+!--------------/oil mass density -----------------------------------------------
 
+!--------------H and U scaling -------------------------------------------------
   auxvar%H(oid) = auxvar%H(oid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(oid) = auxvar%U(oid) * 1.d-6 ! J/kmol -> MJ/kmol
+!--------------/H and U scaling ------------------------------------------------
+
 
 !------------------------------------------------------------------------------
 ! Get oil enthalpy/oil mole in oil phase.
@@ -2082,8 +2254,24 @@ endif
 !                                               +xg*(gas enthalpy/gas mole)
 !------------------------------------------------------------------------------
 
+!--------------H and U correction ---------------------------------------------
+!!!!! WORKING HERE
+  if (getDerivs) then
+    auxvar%D_H(oid,:)   = ProdRule(auxvar%bo%xo,auxvar%bo%D_xo,        &
+                                 auxvar%H(oid),auxvar%D_H(oid,:),ndof) &
+                        +  ProdRule(auxvar%bo%xg,auxvar%bo%D_xg,       &
+                                 auxvar%H(gid),auxvar%D_H(gid,:),ndof) 
+
+    auxvar%D_U(oid,:)   = ProdRule(auxvar%bo%xo,auxvar%bo%D_xo,        &
+                                 auxvar%U(oid),auxvar%D_U(oid,:),ndof) &
+                        +  ProdRule(auxvar%bo%xg,auxvar%bo%D_xg,       &
+                                 auxvar%U(gid),auxvar%D_U(gid,:),ndof) 
+    
+
+  endif
   auxvar%H(oid) = auxvar%bo%xo*auxvar%H(oid)+auxvar%bo%xg*auxvar%H(gid)
   auxvar%U(oid) = auxvar%bo%xo*auxvar%U(oid)+auxvar%bo%xg*auxvar%U(gid)
+!--------------/H and U correction --------------------------------------------
 
 !===============================================================================
 ! Fluid mobility calculation

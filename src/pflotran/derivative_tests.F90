@@ -1390,6 +1390,7 @@ subroutine Num_as_alyt_tl4p(nphase,ndof,auxvars,option,&
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
+#if 0
   ! den:
   do idof=1,ndof
     ! get perturbation for this dof variable
@@ -1406,23 +1407,9 @@ subroutine Num_as_alyt_tl4p(nphase,ndof,auxvars,option,&
       !!! assign
       auxvars(0)%D_den(iphase,idof) = nderiv
 
-#if 0
-      ! analytical derivative
-      aderiv = auxvars(0)%D_den(iphase,idof)
-
-      ! difference:
-      diff = abs(aderiv-nderiv)
-      rdiff = diff/abs(nderiv)
-
-      if (diff>atol .OR. rdiff>rtol) then
-        print *, "den:"
-        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *
-        probs = probs + 1
-      endif
-#endif
     enddo
   enddo
+#endif
 
 
   ! den kg:
