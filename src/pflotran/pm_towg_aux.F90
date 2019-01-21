@@ -1561,7 +1561,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscBool :: getDerivs
 
   PetscReal :: d_xo_dpb,d_xg_dpb
-  PetscReal :: d_pcw_d_swa,d_pco_d_sva,dx_dcell_pres
+  PetscReal :: d_pcw_d_swa,d_pco_d_sva,dx_dcell_pres,dx_dtemp
   PetscReal,dimension(1:option%nflowdof) :: D_fm,D_cell_pres
 
   dof_op = TOWG_OIL_PRESSURE_DOF
@@ -1936,7 +1936,7 @@ endif
       call MaterialCompressSoil(material_auxvar,cell_pressure, &
                                 auxvar%effective_porosity,dx_dcell_pres)
       if (getDerivs) then
-        auxvar%D_por = dx_dcell_pres*D_cell_pres
+        auxvar%D_por = dx_dcell_pres * D_cell_pres
       endif
     endif
     if (option%iflag /= TOWG_UPDATE_FOR_DERIVATIVE) then
@@ -1960,6 +1960,55 @@ endif
   ! MJ/kmol comp                  ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
   auxvar%U(wid) = auxvar%H(wid) - (cell_pressure / auxvar%den(wid) * 1.d-6)
 
+#if 0
+  if (getDerivs) then
+    call EOSWaterDensity(t,cell_pressure, &
+                         auxvar%den_kg(wid),auxvar%den(wid), &
+                         dx_dcell_pres, &
+                         dx_dtemp,ierr)
+
+    auxvar%D_den(wid,:) =  dx_dcell_pres * D_cell_pres
+    auxvar%D_den(wid,dof_temp) = auxvar%D_den(wid,dof_temp) + dx_dtemp
+
+    ! kg density should be stored too for completeness:
+    auxvar%D_den_kg(wid,:) = auxvar%D_den(wid,:) * FMWH2O
+
+    call EOSWaterEnthalpy(auxvar%temp, &
+                          cell_pressure, &
+                          auxvar%H(wid), &
+                          dx_dcell_pres, &
+                          dx_dtemp, &
+                          ierr)
+
+
+    auxvar%D_H(wid,:) =  dx_dcell_pres * D_cell_pres
+    auxvar%D_H(wid,dof_temp) = auxvar%D_H(wid,dof_temp) + dx_dtemp
+
+    ! scaling:
+    auxvar%D_H(wid,:) = auxvar%D_H(wid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+
+    ! derivatives corresponding to computation of U(wid) below:
+    auxvar%D_U(wid,:) = auxvar%D_H(wid,:)                                          &
+                      - 1.d-6                                                      &
+                      * DivRule(cell_pressure,D_cell_pres,                         &
+                                auxvar%den(wid),auxvar%D_den(wid,:),option%nflowdof )
+  else
+    call EOSWaterDensity(auxvar%temp,cell_pressure, &
+                         auxvar%den_kg(wid),auxvar%den(wid),ierr)
+    call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
+  endif
+
+  auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
+  ! MJ/kmol comp                  ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
+  auxvar%U(wid) = auxvar%H(wid) - (cell_pressure / auxvar%den(wid) * 1.d-6)
+#endif
+
+
+
+!------------------------------------------------------------------------------
+! /end of Water phase thermodynamic properties
+!------------------------------------------------------------------------------
+
 !------------------------------------------------------------------------------
 ! Gas phase thermodynamic properties. Can be ideal gas default or PVTG table
 !------------------------------------------------------------------------------
@@ -1971,6 +2020,10 @@ endif
 
   auxvar%H(gid) = auxvar%H(gid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(gid) = auxvar%U(gid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+!------------------------------------------------------------------------------
+! /end of Gas phase thermodynamic properties. 
+!------------------------------------------------------------------------------
 
 !------------------------------------------------------------------------------
 ! Solvent phase thermodynamic properties. Can be ideal gas default or PVTS table

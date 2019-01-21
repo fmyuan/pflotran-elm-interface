@@ -1389,51 +1389,6 @@ subroutine Num_as_alyt_tl4p(nphase,ndof,auxvars,option,&
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-#if 0
-  ! pres:
-  do idof=1,ndof
-    ! get perturbation for this dof variable
-    pert = auxvars(idof)%pert
-    do iphase=1,nphase
-      ! get unperturbed value
-      p_unpert = auxvars(0)%pres(iphase)
-      ! get perturbed value
-      p_pert = auxvars(idof)%pres(iphase)
-
-      ! numerical derivative
-      nderiv = (p_pert-p_unpert)/pert
-
-      !!! assign
-      auxvars(0)%D_pres(iphase,idof) = nderiv
-
-    enddo
-  enddo
-
-
-
-  ! pc - needs special treatment because not full (nphase) size:
-  do idof=1,ndof
-    ! get perturbation for this dof variable
-    pert = auxvars(idof)%pert
-    do iphase=1,nphase-1
-      ! get unperturbed value
-      p_unpert = auxvars(0)%pc(iphase)
-      ! get perturbed value
-      p_pert = auxvars(idof)%pc(iphase)
-
-      ! numerical derivative
-      nderiv = (p_pert-p_unpert)/pert
-
-      !!! assign
-      auxvars(0)%D_pc(iphase,idof) = nderiv
-
-    enddo
-  enddo
-#endif
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 
   ! den:
   do idof=1,ndof
@@ -1545,6 +1500,8 @@ subroutine Num_as_alyt_tl4p(nphase,ndof,auxvars,option,&
     enddo
   enddo
 
+
+#if 0
   ! poro:
   do idof=1,ndof
     ! get perturbation for this dof variable
@@ -1560,24 +1517,9 @@ subroutine Num_as_alyt_tl4p(nphase,ndof,auxvars,option,&
 
       !!! assign
       auxvars(0)%D_por(idof) = nderiv
-#if 0
-
-      ! analytical derivative
-      aderiv = auxvars(0)%D_por(idof)
-
-      ! difference:
-      diff = abs(aderiv-nderiv)
-      rdiff = diff/abs(nderiv)
-
-      if (diff>atol .OR. rdiff>rtol) then
-        print *, "poro:"
-        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *
-        probs = probs + 1
-      endif
-#endif
     enddo
   enddo
+#endif
 
   !! ********* end of from auxvars flow *********
 
