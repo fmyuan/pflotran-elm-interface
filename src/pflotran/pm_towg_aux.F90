@@ -3980,9 +3980,11 @@ subroutine TL4PMiscibilityFractionFromSaturationFraction(fs,fm,dfmdfs)
 
       ! constant slope at endpoint:
       if (fs == fmis_sl) then
+        den=fmis_su-fmis_sl
         deni=0.0
         if( abs(den)>0.0 ) deni=1.0/(fmis_su-fmis_sl)
         dfmdfs=deni
+        !print *, "HERE returning dfm endpoint slope, fs=fmis_sl ", fs, fmis_sl, dfmdfs
       endif
 
     else if( fs>=fmis_su ) then
@@ -3991,9 +3993,11 @@ subroutine TL4PMiscibilityFractionFromSaturationFraction(fs,fm,dfmdfs)
 
       ! constant slope at endpoint:
       if (fs == fmis_su) then
+        den=fmis_su-fmis_sl
         deni=0.0
         if( abs(den)>0.0 ) deni=1.0/(fmis_su-fmis_sl)
         dfmdfs=deni
+        !print *, "HERE returning dfm endpoint slope, fs=fmis_su ", fs, fmis_su, dfmdfs
       endif
 
     else
