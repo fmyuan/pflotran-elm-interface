@@ -140,6 +140,8 @@ subroutine OutputFileRead(input,realization,output_option, &
       output_option%print_observation = PETSC_TRUE
     case('MASS_BALANCE_FILE')
       option%compute_mass_balance_new = PETSC_TRUE
+    case('ECLIPSE_FILE')
+      option%write_ecl                = PETSC_TRUE
   end select
 
   do
