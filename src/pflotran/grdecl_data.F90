@@ -117,7 +117,6 @@ module Grdecl_class
   public  :: GetCmplData
   public  :: DeallocatePoroPermArrays
   public  :: GetPoroPermValues
-  public  :: GetGridDimensions
   public  :: WriteStaticDataAndCleanup
   public  :: PermPoroExchangeAndSet
 
@@ -178,20 +177,6 @@ module Grdecl_class
   type(cmpl_data_type), allocatable :: g_cmpl_data(:)
 
 contains
-
-! ************************************************************************** !
-
-subroutine GetGridDimensions(nx,ny,nz)
-
-  implicit none
-
-  PetscInt,intent(out) :: nx,ny,nz
-
-  nx = g_nx
-  ny = g_ny
-  nz = g_nz
-
-end subroutine GetGridDimensions
 
 ! ************************************************************************** !
 
