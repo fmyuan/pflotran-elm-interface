@@ -35,7 +35,7 @@ private
 
     type(region_list_type), pointer :: region_list
     type(condition_list_type), pointer :: flow_conditions
-    type(well_data_list_type), pointer :: well_data
+    type(well_data_list_type), pointer :: well_data=>null()
     type(tran_condition_list_type), pointer :: transport_conditions
     type(tran_constraint_list_type), pointer :: transport_constraints
     
@@ -2539,6 +2539,7 @@ subroutine RealizationDestroyLegacy(realization)
   ! 
 
   use Dataset_module
+  use ewriter, only : ReleaseEwriterBuffers
 
   implicit none
   
@@ -2553,8 +2554,12 @@ subroutine RealizationDestroyLegacy(realization)
   call RegionDestroyList(realization%region_list)
   
   call FlowConditionDestroyList(realization%flow_conditions)
+
 !  Destroy the list of wells held by well_data
   call WellDataDestroyList(realization%well_data)
+!  Release output buffers held by ewriter
+  call ReleaseEwriterBuffers()
+
   call TranConditionDestroyList(realization%transport_conditions)
   call TranConstraintDestroyList(realization%transport_constraints)
 
@@ -2601,6 +2606,7 @@ subroutine RealizationStrip(this)
   ! 
 
   use Dataset_module
+  use ewriter, only : ReleaseEwriterBuffers
 
   implicit none
   
@@ -2610,6 +2616,12 @@ subroutine RealizationStrip(this)
   call RegionDestroyList(this%region_list)
   
   call FlowConditionDestroyList(this%flow_conditions)
+
+!  Destroy the list of wells held by well_data
+  call WellDataDestroyList(this%well_data)
+!  Release output buffers held by ewriter
+  call ReleaseEwriterBuffers()
+
   call TranConditionDestroyList(this%transport_conditions)
   call TranConstraintDestroyList(this%transport_constraints)
 
