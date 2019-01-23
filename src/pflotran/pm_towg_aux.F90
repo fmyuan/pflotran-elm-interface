@@ -3911,6 +3911,8 @@ subroutine TOWGAuxFieldVolRefAve(this,grid,material,imat,option)
   PetscInt :: int_mpi
   PetscErrorCode :: ierr
 
+!  Initial values for sums (with and without hydrocarbon fraction)
+
   rpv_sh_l = 0.0d0
   rpv_sh_g = 0.0d0
   rpv_l   = 0.0d0
@@ -3920,6 +3922,8 @@ subroutine TOWGAuxFieldVolRefAve(this,grid,material,imat,option)
   fhpav_g = 0.0d0
   fpav_l  = 0.0d0
   fpav_g  = 0.0d0
+
+!  Do the summations on this rank
 
   material_auxvars => material%auxvars
 
@@ -3944,6 +3948,8 @@ subroutine TOWGAuxFieldVolRefAve(this,grid,material,imat,option)
 
   end do
 
+!  Do the summations over ranks
+
   int_mpi = ONE_INTEGER
   call MPI_AllReduce(rpv_sh_l,rpv_sh_g, &
                      int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
@@ -3954,11 +3960,15 @@ subroutine TOWGAuxFieldVolRefAve(this,grid,material,imat,option)
   call MPI_AllReduce(fpav_l,fpav_g, &
                      int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
 
+! Form the average pressure: use simpler form if no hydrocarbon volume
+
   if ( rpv_sh_g>0.0 ) then
-    fpav = fhpav_g/rpv_sh_g
+    fpav = fhpav_g/rpv_sh_g  !  Hydrocarbon volume exists
   else if ( rpv_g>0.0 ) then
-    fpav = fpav_g/rpv_g
+    fpav = fpav_g/rpv_g      ! No hydrocarbon, but pore volume exists
   endif
+
+!  Set value
 
   call SetFieldData(fpav)
 

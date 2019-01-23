@@ -1036,7 +1036,7 @@ subroutine TOilImsAuxFieldVolRefAve(this,grid,material,imat,option)
   PetscInt :: local_id, ghosted_id
   PetscReal :: pv,sh,pr
   PetscReal :: rpv_sh_l,rpv_sh_g,rpv_l,rpv_g
-  PetscReal :: fhpav_l,fhpav_g,fpav_l,fpav_g,pav
+  PetscReal :: fhpav_l,fhpav_g,fpav_l,fpav_g,fpav
   PetscInt :: int_mpi
   PetscErrorCode :: ierr
 
