@@ -700,7 +700,7 @@ end subroutine CheckError
 
 subroutine SetError(zerr)
   !
-  ! Set an error message and flag 
+  ! Set an error message and flag
   !
   ! Author: Dave Ponting
   ! Date: 12/11/18
@@ -1733,7 +1733,7 @@ end subroutine DeallocatePoroPermArrays
 
 subroutine GetPoroPermValues(ia,poro,permx,permy,permz)
   !
-  ! Get the perm and porosity values of a given active cell 
+  ! Get the perm and porosity values of a given active cell
   !
   ! Author: Dave Ponting
   ! Date: 12/11/18
@@ -1758,7 +1758,7 @@ end subroutine GetPoroPermValues
 
 function GetNaturalIndex(ix,iy,iz)
   !
-  ! Get the natural cell index (in ix/iy/iz order with ix varying fastest) 
+  ! Get the natural cell index (in ix/iy/iz order with ix varying fastest)
   !
   ! Author: Dave Ponting
   ! Date: 12/11/18
