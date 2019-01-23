@@ -31,7 +31,6 @@ module ewriter
   PetscBool :: e_opened = PETSC_FALSE
 
   PetscInt :: e_istep_summ = 0
-  PetscInt :: e_istep_rest = 0
   PetscInt :: e_sequn_rest = 0
 
   PetscBool :: e_firstSummaryWrite = PETSC_TRUE
@@ -1489,7 +1488,7 @@ subroutine CopyToBufferS(a,sbuf,il,iu)
   PetscInt :: i
 
   do i = il,iu
-    sbuf(i-il+1) = a(i)
+    sbuf(i-il+1) = real(a(i),real32)
   enddo
 
 end subroutine CopyToBufferS
@@ -1512,7 +1511,7 @@ subroutine CopyToBufferD(a,dbuf,il,iu)
   PetscInt :: i
 
   do i = il,iu
-    dbuf(i-il+1) = a(i)
+    dbuf(i-il+1) = real(a(i),real64)
   enddo
 
 end subroutine CopyToBufferD
@@ -1795,7 +1794,8 @@ subroutine GetYMDHMMS(tdays,years,months,days,hours,mins,microsecs)
   PetscReal,intent(in)  :: tdays
   PetscInt ,intent(out) :: years,months,days,hours,mins,microsecs
 
-  PetscReal :: remhours,remmins,remmsecs,tdib,tdiy,tend,dim
+  PetscReal :: remhours,remmins,remmsecs,tdib,tdiy,tend
+  PetscInt  :: dim ! Days in month
 
 !  Days/month normal and leap years
 
