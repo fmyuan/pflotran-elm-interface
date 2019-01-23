@@ -4003,13 +4003,6 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
       !else if ( energy_var == SRC_TEMPERATURE ) then
         if (analytical_derivatives) then
           ! enthalpy derivatives from eos
-#if 0
-          call EOSWaterEnthalpy(temperature, cell_pressure,enthalpy,D_enthalpy(dof_op),D_enthalpy(dof_temp),ierr)
-
-          D_enthalpy(dof_op) = D_enthalpy(dof_op) * dp_dpo
-          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) * dT_dTcell
-          D_enthalpy = D_enthalpy * 1.d-6
-#endif
           ! all anagous to density calls above
           call EOSWaterEnthalpy(temperature, cell_pressure,enthalpy,dx_dcpres,dx_dtcell,ierr)
 
@@ -4054,14 +4047,6 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         ! enthalpy = [J/kmol]
         if (analytical_derivatives) then
           ! enthalpy derivatives from eos
-#if 0
-          call EOSOilEnthalpy(temperature, cell_pressure,enthalpy,D_enthalpy(dof_op),D_enthalpy(dof_temp),ierr)
-
-          D_enthalpy(dof_op) = D_enthalpy(dof_op) * dp_dpo
-          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) * dT_dTcell
-          D_enthalpy = D_enthalpy * 1.d-6
-#endif
-
           ! all anagous to density calls above
           call EOSOilEnthalpy(temperature, cell_pressure,enthalpy,dx_dcpres,dx_dtcell,ierr)
 
@@ -4101,16 +4086,6 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         ! enthalpy = [J/kmol]
         if (analytical_derivatives) then
           ! enthalpy derivatives from eos
-#if 0
-          call EOSGasEnergy(temperature, cell_pressure,enthalpy,D_enthalpy(dof_temp),D_enthalpy(dof_op),&
-                            internal_energy_dummy,dum1,dum2,ierr)
-
-          D_enthalpy(dof_op) = D_enthalpy(dof_op) * dp_dpo
-          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) * dT_dTcell
-
-          D_enthalpy = D_enthalpy * 1.d-6
-#endif
-
           ! all anagous to density calls above
           call EOSGasEnergy(temperature, cell_pressure,enthalpy,dx_dtcell,dx_dcpres,&
                             internal_energy_dummy,dum1,dum2,ierr)
@@ -4165,6 +4140,12 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         end if
         enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
         ! enthalpy units: MJ/kmol
+        if (analytical_derivatives) then
+          ! jac contribution involves using previous residual values, so do it before those
+          ! values change
+          J(option%energy_id,:) = J(option%energy_id,:) + ProdRule(Res(option%solvent_phase),J(option%solvent_phase,:), &
+                                                     enthalpy,D_enthalpy,ndof                           )
+        endif
         Res(option%energy_id) = Res(option%energy_id) + &
                                 Res(option%solvent_phase) * enthalpy
       end if
