@@ -2558,7 +2558,9 @@ subroutine RealizationDestroyLegacy(realization)
 !  Destroy the list of wells held by well_data
   call WellDataDestroyList(realization%well_data)
 !  Release output buffers held by ewriter
-  call ReleaseEwriterBuffers()
+  if (realization%option%write_ecl) then
+    call ReleaseEwriterBuffers()
+  endif
 
   call TranConditionDestroyList(realization%transport_conditions)
   call TranConstraintDestroyList(realization%transport_constraints)
@@ -2620,7 +2622,9 @@ subroutine RealizationStrip(this)
 !  Destroy the list of wells held by well_data
   call WellDataDestroyList(this%well_data)
 !  Release output buffers held by ewriter
-  call ReleaseEwriterBuffers()
+  if (this%option%write_ecl) then
+    call ReleaseEwriterBuffers()
+  endif
 
   call TranConditionDestroyList(this%transport_conditions)
   call TranConstraintDestroyList(this%transport_constraints)
