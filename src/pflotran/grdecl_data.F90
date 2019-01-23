@@ -1,5 +1,8 @@
 module Grdecl_class
 
+!  Module to read a grid using industry-standard Eclipse keyword syntax
+!  and convert it to a Pflotran explicit unstructured grid
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
@@ -121,7 +124,6 @@ module Grdecl_class
   public  :: PermPoroExchangeAndSet
 
   private :: GrdeclReader
-  private :: throwGrdeclException
 
 ! Type containing well location data
 
@@ -188,7 +190,6 @@ subroutine UGrdEclExplicitRead(unstructured_grid,filename,option)
   ! Author: Dave Ponting
   ! Date: 11/05/18
   !
-
   use String_module
 
   implicit none
@@ -218,10 +219,12 @@ subroutine UGrdEclExplicitRead(unstructured_grid,filename,option)
   if (option%myrank == option%io_rank) then
     call GrdeclReader(input,option)
   endif
-  call MPI_Bcast(g_error_flag,ONE_INTEGER_MPI,MPI_INTEGER,option%io_rank,option%mycomm,ierr)
-  if( g_error_flag>0 ) then
+  call MPI_Bcast(g_error_flag,ONE_INTEGER_MPI,MPI_INTEGER, &
+                 option%io_rank,option%mycomm,ierr)
+  if (g_error_flag>0) then
     input%ierr = 1
-    call MPI_Bcast(g_error_string,MAXSTRINGLENGTH,MPI_CHARACTER,option%io_rank,option%mycomm,ierr)
+    call MPI_Bcast(g_error_string,MAXSTRINGLENGTH,MPI_CHARACTER, &
+                   option%io_rank,option%mycomm,ierr)
     call InputErrorMsg(input,option,'GRDECL read error',g_error_string)
   endif
 
@@ -259,34 +262,40 @@ end subroutine UGrdEclExplicitRead
 
 !*****************************************************************************!
 
-subroutine writeStaticDataAndCleanup(option)
-
-  use ewriter,only: writeEclipseFilesGrid, &
-                    writeEclipseFilesInit, &
+subroutine WriteStaticDataAndCleanup(option)
+  !
+  ! If Eclipse files are required, output grid and init files
+  ! Then clean up all the static data arrays which are no longer needed
+  ! Author: Dave Ponting
+  ! Date: 11/05/18
+  !
+  use ewriter,only: WriteEclipseFilesGrid, &
+                    WriteEclipseFilesInit, &
                     SelectFormattedFiles
 
   implicit none
 
   type(option_type) :: option
 
-  PetscInt::iw,nw,nctw,mcpw
+  PetscInt :: iw,nw,nctw,mcpw
   character(len=MAXSTRINGLENGTH) :: efilename
 
 !  Output the Eclipse grid and init files
 
-
   if (option%myrank == option%io_rank) then
-    if( option%write_ecl ) then
+    if (option%write_ecl) then
       nw = g_nwell_data
       mcpw = 1
-      do iw=1,nw
-       nctw=GetGrdNCmpl(iw)
-       if( nctw > mcpw ) mcpw=nctw
+      do iw = 1,nw
+       nctw = GetGrdNCmpl(iw)
+       if (nctw > mcpw) mcpw = nctw
       enddo
       efilename = trim(option%output_file_name_prefix)
-      if( option%write_ecl_form ) call SelectFormattedFiles()
-      call writeEclipseFilesGrid(efilename,g_nx,g_ny,g_nz,g_coord,g_zcorn,g_gtoa,nw,mcpw)
-      call writeEclipseFilesInit(g_kx,g_ky,g_kz,g_mx,g_my,g_mz,g_zloc,g_poro,g_ntg,g_bvol,g_gtoa,g_atoc)
+      if (option%write_ecl_form) call SelectFormattedFiles()
+      call WriteEclipseFilesGrid(efilename,g_nx,g_ny,g_nz, &
+                                 g_coord,g_zcorn,g_gtoa,nw,mcpw)
+      call WriteEclipseFilesInit(g_kx,g_ky,g_kz,g_mx,g_my,g_mz, &
+                                 g_zloc,g_poro,g_ntg,g_bvol,g_gtoa,g_atoc)
     endif
   endif
 
@@ -320,19 +329,19 @@ subroutine SetUGrdEclCmplLocation(wname,ci,cj,ckuser,cijk_d,qerr)
 !  Set up Pflotran ck value
 
   ck = ckuser
-  if( cijk_d ) ck=-ckuser
+  if (cijk_d) ck = -ckuser
 
 !  Find next completion location
 
-  ik=g_ncmpl_data+1
+  ik = g_ncmpl_data+1
 
 !  Have we heard of this well? Allocate if not
 
   found = findWellIndex(wname,iw)
-  if( .not. found ) then
+  if (.not. found) then
 ! Not found, so assume is new
-    iw=g_nwell_data+1
-    if( iw > g_mwell_data ) then
+    iw = g_nwell_data+1
+    if (iw > g_mwell_data) then
       call ExtendWellNames()
     endif
     g_well_data(iw)%w_name = wname
@@ -340,7 +349,7 @@ subroutine SetUGrdEclCmplLocation(wname,ci,cj,ckuser,cijk_d,qerr)
     g_nwell_data           = iw
   else
 ! Found, so should be current WELL_DATA block
-   if( iw /= g_nwell_data ) then
+   if (iw /= g_nwell_data) then
      call setError('Same WELL_DATA well has appeared more than once')
      qerr = PETSC_TRUE
    endif
@@ -348,7 +357,7 @@ subroutine SetUGrdEclCmplLocation(wname,ci,cj,ckuser,cijk_d,qerr)
 
   g_well_data(iw)%iku = ik !  Latest completion
 
-  if( ik > g_mcmpl_data ) then
+  if (ik > g_mcmpl_data) then
     call ExtendCmplData()
   endif
 
@@ -363,6 +372,8 @@ subroutine SetUGrdEclCmplLocation(wname,ci,cj,ckuser,cijk_d,qerr)
   g_ncmpl_data = ik
 
 end subroutine SetUGrdEclCmplLocation
+
+!*****************************************************************************!
 
 subroutine ExtendWellNames()
   !
@@ -380,11 +391,11 @@ subroutine ExtendWellNames()
 
 !  If existing well locations, copy them
 
-  if( g_nwell_data > 0 ) then
+  if (g_nwell_data > 0) then
 
     allocate(temp_well_data(g_nwell_data))
 
-    do iw=1,g_nwell_data
+    do iw = 1,g_nwell_data
       call CopyWellData(temp_well_data(iw),g_well_data(iw))
     enddo
 
@@ -392,19 +403,20 @@ subroutine ExtendWellNames()
 
 ! Deallocate, increase and re-allocate the well data store
 
-  if( allocated(g_well_data) ) deallocate(g_well_data)
+  if (allocated(g_well_data)) deallocate(g_well_data)
+
   mwell_data_new = g_mwell_data + 10
   allocate(g_well_data(mwell_data_new))
 
 !  Copy over the  existing well locations
 
-  do iw=1,g_nwell_data
+  do iw = 1,g_nwell_data
     call CopyWellData(g_well_data(iw),temp_well_data(iw))
   enddo
 
 !  Deallocate the temporary well locations
 
-  if( allocated(temp_well_data) ) deallocate(temp_well_data)
+  if (allocated(temp_well_data)) deallocate(temp_well_data)
 
 !  Store the new dimension
 
@@ -430,11 +442,11 @@ subroutine ExtendCmplData()
 
 !  If existing well locations, copy them
 
-  if( g_ncmpl_data > 0 ) then
+  if (g_ncmpl_data > 0) then
 
     allocate(temp_cmpl_data(g_ncmpl_data))
 
-    do ik=1,g_ncmpl_data
+    do ik = 1,g_ncmpl_data
       call CopyCmplData(temp_cmpl_data(ik),g_cmpl_data(ik))
     enddo
 
@@ -442,19 +454,19 @@ subroutine ExtendCmplData()
 
 ! Deallocate, increase and re-allocate the well locations store
 
-  if( allocated(g_cmpl_data) ) deallocate(g_cmpl_data)
+  if (allocated(g_cmpl_data)) deallocate(g_cmpl_data)
   mcmpl_data_new = g_mcmpl_data + 10
   allocate(g_cmpl_data(mcmpl_data_new))
 
 !  Copy over the  existing well locations
 
-  do ik=1,g_ncmpl_data
+  do ik = 1,g_ncmpl_data
     call CopyCmplData(g_cmpl_data(ik),temp_cmpl_data(ik))
   enddo
 
 !  Deallocate the temporary well locations
 
-  if( allocated(temp_cmpl_data) ) deallocate(temp_cmpl_data)
+  if (allocated(temp_cmpl_data)) deallocate(temp_cmpl_data)
 
 !  Store the new dimension
 
@@ -472,10 +484,12 @@ subroutine UGrdEclWellCmplCleanup
   ! Date: 11/21/18
   !
 
+  implicit none
+
 ! g_well_data
 
-  if( g_mwell_data > 0 ) then
-    if( allocated(g_well_data) ) then
+  if (g_mwell_data > 0) then
+    if (allocated(g_well_data)) then
       deallocate(g_well_data)
       g_mwell_data = 0
     endif
@@ -483,8 +497,8 @@ subroutine UGrdEclWellCmplCleanup
 
 ! g_cmpl_data
 
-  if( g_mcmpl_data > 0 ) then
-    if( allocated(g_cmpl_data) ) then
+  if (g_mcmpl_data > 0) then
+    if (allocated(g_cmpl_data)) then
       deallocate(g_cmpl_data)
       g_mcmpl_data = 0
     endif
@@ -501,7 +515,6 @@ subroutine GrdeclReader(input,option)
   ! Author: Dave Ponting
   ! Date: 12/11/18
   !
-
   use String_module
 
   implicit none
@@ -519,8 +532,8 @@ subroutine GrdeclReader(input,option)
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: zmess
 
-  ierr=0
-  qerr=PETSC_FALSE
+  ierr = 0
+  qerr = PETSC_FALSE
 
 !  Read through items in the grdecl file
 
@@ -555,80 +568,92 @@ subroutine GrdeclReader(input,option)
         call checkDimensRead(qerr);if ( qerr ) exit
         call ReadEZcornArray(g_zcorn,ierr,input,option,qerr)
       case('DX')
-        call ReadEGridArrayR(g_dx,'DX',ierr,input,option,isdep_no,isperm_no,qerr)
-        if( qerr ) then
+        call ReadEGridArrayR(g_dx,'DX',ierr,input,option, &
+                             isdep_no,isperm_no,qerr)
+        if (qerr) then
           call SetError('DX in GRDECL');exit
         endif
       case('DY')
-        call ReadEGridArrayR(g_dy,'DY',ierr,input,option,isdep_no,isperm_no,qerr)
-        if( qerr ) then
+        call ReadEGridArrayR(g_dy,'DY',ierr,input,option, &
+                             isdep_no,isperm_no,qerr)
+        if (qerr) then
           call SetError('DY in GRDECL');exit
         endif
       case('DZ')
-        call ReadEGridArrayR(g_dz,'DZ',ierr,input,option,isdep_no,isperm_no,qerr)
-        if( qerr ) then
+        call ReadEGridArrayR(g_dz,'DZ',ierr,input,option, &
+                             isdep_no,isperm_no,qerr)
+        if (qerr) then
           call SetError('DZ in GRDECL');exit
         endif
       case('PERMX')
-        call ReadEGridArrayR(g_kx,'PERMX',ierr,input,option,isdep_no,isperm_yes,qerr)
-        if( qerr ) then
+        call ReadEGridArrayR(g_kx,'PERMX',ierr,input,option, &
+                             isdep_no,isperm_yes,qerr)
+        if (qerr) then
           call SetError('PERMX in GRDECL');exit
         endif
       case('PERMY')
-        call ReadEGridArrayR(g_ky,'PERMY',ierr,input,option,isdep_no,isperm_yes,qerr)
-        if( qerr ) then
+        call ReadEGridArrayR(g_ky,'PERMY',ierr,input,option, &
+                             isdep_no,isperm_yes,qerr)
+        if (qerr) then
           call SetError('PERMY in GRDECL');exit
         endif
       case('PERMZ')
-        call ReadEGridArrayR(g_kz,'PERMZ',ierr,input,option,isdep_no,isperm_yes,qerr)
-        if( qerr ) then
+        call ReadEGridArrayR(g_kz,'PERMZ',ierr,input,option, &
+                             isdep_no,isperm_yes,qerr)
+        if (qerr) then
           call SetError('PERMZ in GRDECL');exit
         endif
       case('MULTX')
-        call ReadEGridArrayR(g_kx,'MULTX',ierr,input,option,isdep_no,isperm_yes,qerr)
-        if( qerr ) then
+        call ReadEGridArrayR(g_kx,'MULTX',ierr,input,option, &
+                             isdep_no,isperm_yes,qerr)
+        if (qerr) then
           call SetError('MULTX in GRDECL');exit
         endif
       case('MULTY')
-        call ReadEGridArrayR(g_ky,'MULTY',ierr,input,option,isdep_no,isperm_yes,qerr)
-        if( qerr ) then
+        call ReadEGridArrayR(g_ky,'MULTY',ierr,input,option, &
+                             isdep_no,isperm_yes,qerr)
+        if (qerr) then
           call SetError('MULTY in GRDECL');exit
         endif
       case('MULTZ')
-        call ReadEGridArrayR(g_kz,'MULTZ',ierr,input,option,isdep_no,isperm_yes,qerr)
-        if( qerr ) then
+        call ReadEGridArrayR(g_kz,'MULTZ',ierr,input,option, &
+                             isdep_no,isperm_yes,qerr)
+        if (qerr) then
           call SetError('MULTZ in GRDECL');exit
         endif
       case('PORO')
-        call ReadEGridArrayR(g_poro,'PORO',ierr,input,option,isdep_no,isperm_no,qerr)
-        if( qerr ) then
+        call ReadEGridArrayR(g_poro,'PORO',ierr,input,option, &
+                             isdep_no,isperm_no,qerr)
+        if (qerr) then
           call SetError('PORO in GRDECL');exit
         endif
       case('TOPS')
-        call ReadEGridArrayR(g_tops,'TOPS',ierr,input,option,isdep_yes,isperm_no,qerr)
-        if( qerr ) then
+        call ReadEGridArrayR(g_tops,'TOPS',ierr,input,option, &
+                             isdep_yes,isperm_no,qerr)
+        if (qerr) then
           call SetError('TOPS in GRECL');exit
         endif
       case('NTG')
-        call ReadEGridArrayR(g_ntg ,'NTG',ierr,input,option,isdep_no,isperm_no,qerr)
-        if( qerr ) then
+        call ReadEGridArrayR(g_ntg ,'NTG',ierr,input,option, &
+                             isdep_no,isperm_no,qerr)
+        if (qerr) then
           call SetError('NTG in GRECL');exit
         endif
       case('ACTNUM')
         call ReadEGridArrayI(g_actn,'ACTNUM',ierr,input,option,qerr)
-        if( qerr ) then
+        if (qerr) then
           call SetError('ACTNUM in GRECL');exit
         endif
       case('NEWTRAN')
-        g_isnewtran    = PETSC_TRUE
+        g_isnewtran   = PETSC_TRUE
       case('OLDTRAN')
-        g_isnewtran    = PETSC_FALSE
+        g_isnewtran   = PETSC_FALSE
       case('/') ! Isolated un-used terminator on its own line is harmless
       case default
         qerr = PETSC_TRUE
         zmess= 'GRDECL sub-keyword '//trim(word)//' not recognised'
         call SetError(zmess)
-        if ( qerr ) exit
+        if (qerr) exit
     end select
   enddo
 
@@ -642,7 +667,15 @@ subroutine GrdeclReader(input,option)
 
 end subroutine GrdeclReader
 
+! ************************************************************************** !
+
 subroutine CheckError(input,zerr,qerr)
+  !
+  ! Check the error code on the input stream,
+  ! Set an error message and return qerr as true if an error is found
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
@@ -654,7 +687,7 @@ subroutine CheckError(input,zerr,qerr)
 
   ierr = input%ierr
 
-  if( ierr == 0 ) then
+  if (ierr == 0) then
     qerr = PETSC_FALSE
   else
     qerr = PETSC_TRUE
@@ -663,11 +696,18 @@ subroutine CheckError(input,zerr,qerr)
 
 end subroutine CheckError
 
+! ************************************************************************** !
+
 subroutine SetError(zerr)
+  !
+  ! Set an error message and flag 
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
-  character(len=*):: zerr
+  character(len=*) :: zerr
 
   g_error_flag = 1
   g_error_string = zerr
@@ -686,8 +726,8 @@ subroutine ProcessGridData()
 
   implicit none
 
-  PetscInt ::ix,iy,iz,izp,ize,ig,ia,iact,ng,ic
-  PetscReal::porv,bvol,eps
+  PetscInt  :: ix,iy,iz,izp,ize,ig,ia,iact,ng,ic
+  PetscReal :: porv,bvol,eps
 
 !  Pore volume for rock-filled cell
 
@@ -695,7 +735,7 @@ subroutine ProcessGridData()
 
 ! Fill in missing data values
 
-  if( g_iscpg ) then
+  if (g_iscpg) then
 
 !  If corner point data supplied, extract cell dimensions like dx
 
@@ -718,7 +758,7 @@ subroutine ProcessGridData()
 
 ! Allocate and fill in coord and zcorn
 
-    if( .not.g_cpgallocated ) then
+    if (.not.g_cpgallocated) then
       allocate(g_coord(6*g_nxpnyp));g_coord =  0.0
       allocate(g_zcorn(8*g_nxyz  ));g_zcorn =  0.0
       g_cpgallocated = PETSC_TRUE
@@ -735,28 +775,29 @@ subroutine ProcessGridData()
     do iy = 1,g_ny
       do iz = 1,g_nz
 
-        ig=GetNaturalIndex(ix,iy,iz)
+        ig = GetNaturalIndex(ix,iy,iz)
 
 ! Find pore volume
 
-        bvol =0.0
-        porv =0.0
+        bvol = 0.0
+        porv = 0.0
 
-!DKP needs CPG bvol calculation
-        iact=g_actn(ig)
+!  Uses non-dip dx.dy.dz volume calculation
 
-        bvol=g_dx(ig)*g_dy(ig)*g_dz(ig)
-        if( iact == 1 ) then
+        iact = g_actn(ig)
+
+        bvol = g_dx(ig)*g_dy(ig)*g_dz(ig)
+        if (iact == 1) then
           porv = g_poro(ig)*g_ntg(ig)*bvol
         endif
-        if( iact == 2 ) then
+        if (iact == 2) then
           porv = bvol
         endif
-        if( iact == 3 ) then
+        if (iact == 3) then
           porv = eps
         endif
 
-        if( porv > 0.0 ) then
+        if (porv > 0.0) then
           g_na = g_na+1
           g_gtoa(ig) = g_na
         endif
@@ -771,24 +812,24 @@ subroutine ProcessGridData()
 !  Set up a to g
 
   ng = g_nx*g_ny*g_nz
-  do ig=1,ng
+  do ig = 1,ng
     ia = g_gtoa(ig)
-    if( ia>-1 ) then
+    if (ia>-1) then
       g_atog(ia) = ig
     endif
   enddo
 
 !  Set up atoc (loop over cells in Eclipse compresed natural order)
 
-  ic=0
+  ic = 0
   do ize = 1,g_nz
-    izp=g_nz-ize+1
+    izp = g_nz-ize+1
     do iy = 1,g_ny
       do ix = 1,g_nx
-        ig=GetNaturalIndex(ix,iy,izp)
+        ig = GetNaturalIndex(ix,iy,izp)
         ia = g_gtoa(ig)
-        if( ia>-1 ) then
-          ic=ic+1
+        if (ia>-1) then
+          ic = ic+1
           g_atoc(ia) = ic
         endif
       enddo
@@ -848,29 +889,29 @@ subroutine ProcessWellData(qerr)
 
 ! Deal with negative iz case (input using CIJK_D)
 
-      if( iz.lt.0 ) then
-        iz=g_nz+iz+1
-        g_cmpl_data(ik)%ck=iz
+      if (iz.lt.0) then
+        iz = g_nz+iz+1
+        g_cmpl_data(ik)%ck = iz
       endif
 
 !  Check for out-out-range well locations
 
-      if( (ix.lt.1) .or. (ix.gt.g_nx) ) then
-         zmess='Completion I-location out of range, well '// trim(wname)
+      if ((ix.lt.1) .or. (ix.gt.g_nx)) then
+         zmess = 'Completion I-location out of range, well '// trim(wname)
          call SetError(zmess)
          qerr = PETSC_TRUE
          exit outer
       endif
 
-      if( (iy.lt.1) .or. (iy.gt.g_ny) ) then
-         zmess='Completion J-location out of range, well '// trim(wname)
+      if ((iy.lt.1) .or. (iy.gt.g_ny)) then
+         zmess = 'Completion J-location out of range, well '// trim(wname)
          call SetError(zmess)
          qerr = PETSC_TRUE
          exit outer
       endif
 
-      if( (iz.lt.1) .or. (iz.gt.g_nz) ) then
-         zmess='Completion K-location out of range, well '// trim(wname)
+      if ((iz.lt.1) .or. (iz.gt.g_nz)) then
+         zmess = 'Completion K-location out of range, well '// trim(wname)
          call SetError(zmess)
          qerr = PETSC_TRUE
          exit outer
@@ -887,7 +928,7 @@ subroutine ProcessWellData(qerr)
       g_cmpl_data(ik)%dy = g_dy(ig)
       g_cmpl_data(ik)%dz = g_dz(ig)
 
-      if( ia>-1 ) then
+      if (ia>-1) then
         g_cmpl_data(ik)%z = g_z (ia)
       else
         g_cmpl_data(ik)%z = 0.0
@@ -897,17 +938,17 @@ subroutine ProcessWellData(qerr)
 
   enddo outer
 
-  if( .not.qerr ) then
+  if (.not.qerr) then
 
 ! Scan the array and compress out the inactive cells
 
-    ncmpl_active= 0
+    ncmpl_active = 0
     do ik = 1,g_ncmpl_data
 
       ia = g_cmpl_data(ik)%ia
-      if( ia > -1 ) then
+      if (ia > -1) then
         ncmpl_active = ncmpl_active + 1
-        if( ncmpl_active < ik ) then
+        if (ncmpl_active < ik) then
           call CopyCmplData( g_cmpl_data(ncmpl_active),g_cmpl_data(ik) )
         endif
       endif
@@ -916,7 +957,8 @@ subroutine ProcessWellData(qerr)
 
     g_ncmpl_data = ncmpl_active
 
-!  Reset the lower and upper pointers into compressed completion array for each well
+!  Reset the lower and upper pointers into the
+!  compressed completion array for each well
 
     do iw = 1,g_nwell_data
 
@@ -927,9 +969,9 @@ subroutine ProcessWellData(qerr)
 
       do ik = 1,g_ncmpl_data
         jw = g_cmpl_data(ik)%iw
-        if( iw .eq. jw ) then
-          if( ikl .eq. 0 ) ikl = ik
-                           iku = ik
+        if (iw .eq. jw) then
+          if ( ikl .eq. 0 ) ikl = ik
+                            iku = ik
         endif
       enddo
 
@@ -945,16 +987,16 @@ subroutine ProcessWellData(qerr)
       ikl = g_well_data(iw)%ikl
       iku = g_well_data(iw)%iku
 
-      do ik=ikl,iku
+      do ik = ikl,iku
 
         ia = g_cmpl_data(ik)%ia
 
-        do jk=ik+1,iku
+        do jk = ik+1,iku
 
           ja = g_cmpl_data(jk)%ia
 
           g_nc = g_nc + 1
-          if( g_nc == g_mc ) call ReallocateConnectionArrays()
+          if (g_nc == g_mc) call ReallocateConnectionArrays()
           g_cia  (g_nc) = ia
           g_cja  (g_nc) = ja
           g_ccx  (g_nc) = 0.5*(g_x(ia)+g_x(ja))
@@ -975,8 +1017,7 @@ end subroutine ProcessWellData
 
 subroutine DistributeWells(option)
   !
-  ! Reads an Eclgrid file, stores the data, finds connections
-  ! and divides them across the ranks
+  ! Distribute the well information from the I/O ranks to other ranks
   !
   ! Author: Dave Ponting
   ! Date: 11/23/18
@@ -998,7 +1039,7 @@ subroutine DistributeWells(option)
   call BroadcastInt(g_ncmpl_data,option)
 
   if (option%myrank /= option%io_rank) then
-    if( g_ncmpl_data>0 ) then
+    if (g_ncmpl_data>0) then
       allocate(g_cmpl_data(g_ncmpl_data))
     endif
   endif
@@ -1051,11 +1092,17 @@ subroutine DistributeWells(option)
 
   enddo
 
-end subroutine distributeWells
+end subroutine DistributeWells
 
 !*****************************************************************************!
 
 subroutine DistributeCells(explicit_grid,option)
+  !
+  ! Split the generated connections between ranks
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
+  !
 
   implicit none
 
@@ -1098,7 +1145,7 @@ subroutine DistributeCells(explicit_grid,option)
 ! if the cells reside on io_rank
 
         do ial = 1, narank
-          ia=ial + iabase
+          ia = ial + iabase
           explicit_grid%cell_ids      (ial)   =        ia
           explicit_grid%cell_centroids(ial)%x = g_x   (ia)
           explicit_grid%cell_centroids(ial)%y = g_y   (ia)
@@ -1110,8 +1157,8 @@ subroutine DistributeCells(explicit_grid,option)
 ! if the cells reside on another rank
 
         int_mpi = narank*5
-        do ial=1,narank
-          ia=ial + iabase
+        do ial = 1,narank
+          ia = ial + iabase
           temp_real_array(1,ial) = real  (ia)
           temp_real_array(2,ial) = g_x   (ia)
           temp_real_array(3,ial) = g_y   (ia)
@@ -1142,7 +1189,7 @@ subroutine DistributeCells(explicit_grid,option)
 
   deallocate(temp_real_array)
 
-end subroutine distributeCells
+end subroutine DistributeCells
 
 !*****************************************************************************!
 
@@ -1238,6 +1285,8 @@ subroutine DistributeConnections(explicit_grid,option)
 
 end subroutine DistributeConnections
 
+! *************************************************************************** !
+
 subroutine DistributePoroPerm(option)
   !
   ! Split the porosity and permeability between ranks
@@ -1305,25 +1354,25 @@ subroutine CreateElements(unstructured_grid,explicit_grid)
       do ioy = 1,2
         do ioz = 1,2
 
-          if( iox==1 .and. ioy==1 .and. ioz==1 ) xw=x000
-          if( iox==2 .and. ioy==1 .and. ioz==1 ) xw=x100
-          if( iox==1 .and. ioy==2 .and. ioz==1 ) xw=x010
-          if( iox==2 .and. ioy==2 .and. ioz==1 ) xw=x110
-          if( iox==1 .and. ioy==1 .and. ioz==2 ) xw=x001
-          if( iox==2 .and. ioy==1 .and. ioz==2 ) xw=x101
-          if( iox==1 .and. ioy==2 .and. ioz==2 ) xw=x011
-          if( iox==2 .and. ioy==2 .and. ioz==2 ) xw=x111
+          if (iox == 1 .and. ioy == 1 .and. ioz == 1) xw = x000
+          if (iox == 2 .and. ioy == 1 .and. ioz == 1) xw = x100
+          if (iox == 1 .and. ioy == 2 .and. ioz == 1) xw = x010
+          if (iox == 2 .and. ioy == 2 .and. ioz == 1) xw = x110
+          if (iox == 1 .and. ioy == 1 .and. ioz == 2) xw = x001
+          if (iox == 2 .and. ioy == 1 .and. ioz == 2) xw = x101
+          if (iox == 1 .and. ioy == 2 .and. ioz == 2) xw = x011
+          if (iox == 2 .and. ioy == 2 .and. ioz == 2) xw = x111
 
           ivert = ivert + 1
 
           icorn = 0
-          if( ioz == 2 ) icorn = 4
-          if( (iox == 1) .and. (ioy == 1) ) icorn = icorn + 1
-          if( (iox == 2) .and. (ioy == 1) ) icorn = icorn + 2
-          if( (iox == 2) .and. (ioy == 2) ) icorn = icorn + 3
-          if( (iox == 1) .and. (ioy == 2) ) icorn = icorn + 4
+          if (ioz == 2) icorn = 4
+          if ((iox == 1) .and. (ioy == 1)) icorn = icorn + 1
+          if ((iox == 2) .and. (ioy == 1)) icorn = icorn + 2
+          if ((iox == 2) .and. (ioy == 2)) icorn = icorn + 3
+          if ((iox == 1) .and. (ioy == 2)) icorn = icorn + 4
 
-          explicit_grid%cell_vertices(icorn,ia)=ivert
+          explicit_grid%cell_vertices(icorn,ia) = ivert
 
           explicit_grid%vertex_coordinates(ivert)%x = xw(g_xdir)
           explicit_grid%vertex_coordinates(ivert)%y = xw(g_ydir)
@@ -1368,7 +1417,7 @@ end subroutine SetDimens
 
 !*****************************************************************************!
 
-subroutine checkDimensRead(qerr)
+subroutine CheckDimensRead(qerr)
   !
   ! Check that Dimens has been read, throw error if not
   !
@@ -1381,15 +1430,24 @@ subroutine checkDimensRead(qerr)
   PetscBool,intent(inout) :: qerr
 
   qerr = PETSC_FALSE
-  if( .not. g_dimens_read ) then
+  if (.not. g_dimens_read) then
     qerr = PETSC_TRUE
   endif
 
-end subroutine checkDimensRead
+end subroutine CheckDimensRead
 
 !*****************************************************************************!
 
 subroutine AllocateGridArrays()
+  !
+  ! Allocate basic grid arrays:
+  ! cell sizes, perms, mults, poro, ntg, actn, cell locations
+  ! These arrays have the full grid dimension (nx.ny.nz)
+  ! Also allocate map top active order
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
+  !
 
   implicit none
 
@@ -1407,13 +1465,13 @@ subroutine AllocateGridArrays()
 
   allocate(g_tops(g_nxyz));g_tops = UNINITIALIZED_DOUBLE ! To trap unset layers
   allocate(g_poro(g_nxyz));g_poro =  0.0
-  allocate(g_ntg (g_nxyz));g_ntg  =  1.0
+  allocate(g_ntg (g_nxyz));g_ntg  =  1.0 ! Net to gross ration (default to 1)
 
   allocate(g_xloc(g_nxyz ));g_xloc = 0.0
   allocate(g_yloc(g_nxyz ));g_yloc = 0.0
   allocate(g_zloc(g_nxyz ));g_zloc = 0.0
 
-  allocate(g_actn(g_nxyz));g_actn =  1
+  allocate(g_actn(g_nxyz));g_actn =  1 ! Actnum (used to set cells inactive)
   allocate(g_gtoa(g_nxyz));g_gtoa = -1
 
 end subroutine AllocateGridArrays
@@ -1421,6 +1479,12 @@ end subroutine AllocateGridArrays
 !*****************************************************************************!
 
 subroutine AllocateActiveArrays()
+  !
+  ! Allocate active grid arrays (cell x/y/z position and bulk volume)
+  ! Also allocate connection data (active cells connected, centroids, area)
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
@@ -1443,6 +1507,11 @@ end subroutine AllocateActiveArrays
 !*****************************************************************************!
 
 subroutine ReallocateConnectionArrays()
+  !
+  ! Reallocate the connection arrays (used to extend thee arrays)
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   use Utility_module, only: ReallocateArray
 
@@ -1467,20 +1536,26 @@ end subroutine ReAllocateConnectionArrays
 !*****************************************************************************!
 
 subroutine GenerateGridConnections
+  !
+  ! Given the cell locations, generate the connections
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
-  PetscInt:: ix,iy,iz,ig,ia,jg,ja
-  PetscReal:: x,y,z,dx,dy,dz,mx,my,mz
+  PetscInt  :: ix,iy,iz,ig,ia,jg,ja
+  PetscReal :: x,y,z,dx,dy,dz,mx,my,mz
 
-! DKP needs work on the connection areas and the dips.
+! Set up grid connections
+
   do ix = 1,g_nx
     do iy = 1,g_ny
       do iz = 1,g_nz
 
-        ig=GetNaturalIndex(ix,iy,iz)
+        ig = GetNaturalIndex(ix,iy,iz)
         ia = g_gtoa(ig)
-        if( ia>0 ) then
+        if (ia>0) then
 
           dx = g_dx(ig)
           dy = g_dy(ig)
@@ -1502,12 +1577,12 @@ subroutine GenerateGridConnections
 
 ! x-direction
 
-          if( ix < g_nx ) then
+          if (ix < g_nx) then
             jg = GetNaturalIndex(ix+1,iy,iz)
             ja = g_gtoa(jg)
-            if( ja >0 ) then
+            if (ja >0) then
               g_nc = g_nc + 1
-              if( g_nc == g_mc ) call ReallocateConnectionArrays()
+              if (g_nc == g_mc) call ReallocateConnectionArrays()
               g_cia  (g_nc) = ia
               g_cja  (g_nc) = ja
               g_ccx  (g_nc) = x + 0.5*dx
@@ -1519,12 +1594,12 @@ subroutine GenerateGridConnections
 
 ! y-direction
 
-          if( iy < g_ny ) then
+          if (iy< g_ny) then
             jg = GetNaturalIndex(ix,iy+1,iz)
             ja = g_gtoa(jg)
-            if( ja > 0 ) then
+            if (ja > 0) then
               g_nc = g_nc + 1
-              if( g_nc == g_mc ) call ReallocateConnectionArrays()
+              if (g_nc == g_mc) call ReallocateConnectionArrays()
               g_cia  (g_nc) = ia
               g_cja  (g_nc) = ja
               g_ccx  (g_nc) = x
@@ -1536,13 +1611,13 @@ subroutine GenerateGridConnections
 
 ! z-direction
 
-          if( iz < g_nz ) then
+          if (iz < g_nz) then
             jg = GetNaturalIndex(ix,iy,iz+1)
             mz = g_mz(jg)
             ja = g_gtoa(jg)
-            if( ja > 0 ) then
+            if (ja > 0) then
               g_nc = g_nc + 1
-              if( g_nc == g_mc ) call ReallocateConnectionArrays()
+              if (g_nc == g_mc) call ReallocateConnectionArrays()
               g_cia  (g_nc) = ia
               g_cja  (g_nc) = ja
               g_ccx  (g_nc) = x
@@ -1563,12 +1638,17 @@ end subroutine GenerateGridConnections
 !*****************************************************************************!
 
 subroutine DeallocateGridArrays()
+  !
+  ! Deallocate the grid arrays
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   use Utility_module, only : DeallocateArray
 
   implicit none
 
-  if( g_iscpg .and. g_cpgallocated ) then
+  if (g_iscpg .and. g_cpgallocated) then
     call DeallocateArray(g_coord)
     call DeallocateArray(g_zcorn)
     g_cpgallocated = PETSC_FALSE
@@ -1593,6 +1673,11 @@ end subroutine DeallocateGridArrays
 !*****************************************************************************!
 
 subroutine DeallocateActiveArrays
+  !
+  ! Deallocate the active arrays
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   use Utility_module, only : DeallocateArray
 
@@ -1622,6 +1707,11 @@ end subroutine DeallocateActiveArrays
 !*****************************************************************************!
 
 subroutine DeallocatePoroPermArrays(option)
+  !
+  ! Deallocate the perma and porosity arrays
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   use Utility_module, only : DeallocateArray
 
@@ -1642,6 +1732,11 @@ end subroutine DeallocatePoroPermArrays
 !*****************************************************************************!
 
 subroutine GetPoroPermValues(ia,poro,permx,permy,permz)
+  !
+  ! Get the perm and porosity values of a given active cell 
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
@@ -1662,11 +1757,16 @@ end subroutine GetPoroPermValues
 !*****************************************************************************!
 
 function GetNaturalIndex(ix,iy,iz)
+  !
+  ! Get the natural cell index (in ix/iy/iz order with ix varying fastest) 
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
-  PetscInt::GetNaturalIndex
-  PetscInt,intent(in)::ix,iy,iz
+  PetscInt :: GetNaturalIndex
+  PetscInt,intent(in) :: ix,iy,iz
 
   GetNaturalIndex = g_nxy*(iz-1) + g_nx*(iy-1) + ix
 
@@ -1675,28 +1775,34 @@ end function GetNaturalIndex
 !*****************************************************************************!
 
 subroutine GetCellCoordinates(ig,ix,iy,iz)
+  !
+  ! For a given natural cell index, extract the ix,iy,iz location
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
-  PetscInt,intent(in )::ig
-  PetscInt,intent(out)::ix,iy,iz
+  PetscInt,intent(in ) :: ig
+  PetscInt,intent(out) :: ix,iy,iz
 
-  PetscInt :: ir,igtest
+  PetscInt :: ir
 
   iz = (ig-1)/g_nxy+1
   ir = ig-(iz-1)*g_nxy
   iy = (ir-1)/g_nx+1
   ix = ir-(iy-1)*g_nx
 
-  igtest=getNaturalIndex(ix,iy,iz)
-
-  if( ig /= igtest ) call throwGrdeclException('igtest fail')
-
 end subroutine GetCellCoordinates
 
 !*****************************************************************************!
 
 subroutine BroadcastInt(ival,option)
+  !
+  ! Send a PetscInt value from the I/O rank to all the others
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
@@ -1715,7 +1821,14 @@ subroutine BroadcastInt(ival,option)
 
 end subroutine BroadcastInt
 
+!*****************************************************************************!
+
 subroutine BroadcastIntN(ival,option)
+  !
+  ! Send a PetscInt array from the I/O rank to all the others
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
@@ -1729,11 +1842,19 @@ subroutine BroadcastIntN(ival,option)
   n    = size(ival)
   nmpi = n
 
-  call MPI_Bcast(ival,nmpi,MPI_INTEGER,option%io_rank,option%mycomm,ierr)
+  call MPI_Bcast(ival,nmpi,MPI_INTEGER,option%io_rank, &
+                 option%mycomm,ierr)
 
 end subroutine BroadcastIntN
 
+!*****************************************************************************!
+
 subroutine BroadcastRealN(rval,option)
+  !
+  ! Send a PetscReal array from the I/O rank to all the others
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
@@ -1747,13 +1868,19 @@ subroutine BroadcastRealN(rval,option)
   n    = size(rval)
   nmpi = n
 
-  call MPI_Bcast(rval,nmpi,MPI_DOUBLE_PRECISION,option%io_rank,option%mycomm,ierr)
+  call MPI_Bcast(rval,nmpi,MPI_DOUBLE_PRECISION, &
+                 option%io_rank,option%mycomm,ierr)
 
 end subroutine BroadcastRealN
 
 !*****************************************************************************!
 
 subroutine GetLocalCount(ng,nl,nls,rem,option)
+  !
+  ! Find the local count size when splitting an array over all the ranks
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
@@ -1774,6 +1901,12 @@ end subroutine GetLocalCount
 !*****************************************************************************!
 
 subroutine AllocateCells(nal,explicit_grid)
+  !
+  ! Allocate a set of arrays to hold cell properties
+  ! Used when distributing cells over ranks
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
@@ -1797,6 +1930,12 @@ end subroutine AllocateCells
 !*****************************************************************************!
 
 subroutine AllocateConnections(ncl,explicit_grid)
+  !
+  ! Allocate a set of arrays to hold connection properties
+  ! Used when distributing connections over ranks
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
@@ -1821,6 +1960,12 @@ end subroutine AllocateConnections
 !*****************************************************************************!
 
 subroutine FillXYPositionsForLayer(iz)
+  !
+  ! When building a grid from cell size data (dx,dy,dz) set up an iz-layer
+  ! by filling in the x and y locations
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
@@ -1832,7 +1977,7 @@ subroutine FillXYPositionsForLayer(iz)
 ! Fill in x-locations for each y-row
 
   do iy = 1,g_ny
-    sum=0.0
+    sum = 0.0
     do ix = 1,g_nx
       ig  = GetNaturalIndex(ix,iy,iz)
       dx  = g_dx(ig)
@@ -1844,7 +1989,7 @@ subroutine FillXYPositionsForLayer(iz)
 ! Fill in y-locations for each x-row
 
   do ix = 1,g_nx
-    sum=0.0
+    sum = 0.0
     do iy = 1,g_ny
       ig  = GetNaturalIndex(ix,iy,iz)
       dy  = g_dy(ig)
@@ -1858,6 +2003,12 @@ end subroutine FillXYPositionsForLayer
 ! *************************************************************************** !
 
 subroutine FillZPositionsForColumn(ix,iy)
+  !
+  ! When building a grid from cell-size data (dx,dy,dz)
+  ! set up an (ix,iy)-column by filling in the z locations
+  !
+  ! Author: Dave Ponting
+  ! Date: 12/11/18
 
   implicit none
 
@@ -1874,13 +2025,14 @@ subroutine FillZPositionsForColumn(ix,iy)
      igabove = GetNaturalIndex(ix,iy,izabove)
      igbelow = GetNaturalIndex(ix,iy,izbelow)
 
-     if( Uninitialized(g_tops(igbelow)) ) then
+     if (Uninitialized(g_tops(igbelow))) then
        g_tops(igbelow) = g_tops(igabove) - g_dz(igabove)
      endif
 
    enddo
 
 ! Second pass for z-locations
+
    do iz = 1,g_nz
      ig = GetNaturalIndex(ix,iy,iz)
      dz = g_dz(ig)
@@ -1891,13 +2043,12 @@ end subroutine FillZPositionsForColumn
 
 ! *************************************************************************** !
 
-subroutine extractCellDimensionsAndLocationsFromCPG()
+subroutine ExtractCellDimensionsAndLocationsFromCPG()
   !
   ! Extract cell dimensions and locations from COORD/ZCORN data
   !
   ! Author: Dave Ponting
   ! Date: 11/13/18
-  !
 
   use Grdecl_util, only : GetCorners
 
@@ -1921,7 +2072,7 @@ subroutine extractCellDimensionsAndLocationsFromCPG()
 
 !  Given the cell corner locations, find the cell dimensions and locations
 
-        call getHexDims( x000,x100,x010,x110,x001,x101,x011,x111 &
+        call GetHexDims( x000,x100,x010,x110,x001,x101,x011,x111 &
                         ,vdx,vdy,vdz,vpx,vpy,vpz )
 
 !  Find cell index and store locations
@@ -1940,11 +2091,16 @@ subroutine extractCellDimensionsAndLocationsFromCPG()
     enddo
   enddo
 
-end subroutine extractCellDimensionsAndLocationsFromCPG
+end subroutine ExtractCellDimensionsAndLocationsFromCPG
 
 ! *************************************************************************** !
 
 subroutine ExtractCPGFromCellDimensionsAndLocations()
+  !
+  ! Extract corner point locations from cell size data
+  !
+  ! Author: Dave Ponting
+  ! Date: 11/13/18
 
   implicit none
 
@@ -1955,60 +2111,60 @@ subroutine ExtractCPGFromCellDimensionsAndLocations()
 
   iz = 1
 
-  xsum=0.0
-  do ix=1,g_nx
+  xsum = 0.0
+  do ix = 1,g_nx
 
     iy = 1 ! (Use first line of y-values in finding x-spacing)
     ig = GetNaturalIndex(ix,iy,iz)
-    xl=xsum
-    xu=xsum+g_dx(ig)
-    xsum=xu
+    xl = xsum
+    xu = xsum+g_dx(ig)
+    xsum = xu
 
-    ysum=0.0
+    ysum = 0.0
 
-    do iy=1,g_ny
+    do iy = 1,g_ny
 
       ig = GetNaturalIndex(ix,iy,iz)
-      yl=ysum
-      yu=ysum+g_dy(ig)
-      ysum=yu
+      yl = ysum
+      yu = ysum+g_dy(ig)
+      ysum = yu
 
-                                    call setCoordLine(ix  ,iy  ,xl,yl)
-      if( ix==g_nx )                call setCoordLine(ix+1,iy  ,xu,yl)
-      if( iy==g_ny )                call setCoordLine(ix  ,iy+1,xl,yu)
-      if( ix==g_nx .and. iy==g_ny ) call setCoordLine(ix+1,iy+1,xu,yu)
+                                       call setCoordLine(ix  ,iy  ,xl,yl)
+      if (ix == g_nx)                  call setCoordLine(ix+1,iy  ,xu,yl)
+      if (iy == g_ny)                  call setCoordLine(ix  ,iy+1,xl,yu)
+      if (ix == g_nx .and. iy == g_ny) call setCoordLine(ix+1,iy+1,xu,yu)
 
     enddo
   enddo
 
 !  Now the zcorns
 
-  do ix=1,g_nx
-    do iy=1,g_ny
-      do iz=1,g_nz
+  do ix = 1,g_nx
+    do iy = 1,g_ny
+      do iz = 1,g_nz
 
         ig = GetNaturalIndex(ix,iy,iz)
 
-        xc=g_xloc(ig)
-        yc=g_yloc(ig)
-        zc=g_zloc(ig)
+        xc = g_xloc(ig)
+        yc = g_yloc(ig)
+        zc = g_zloc(ig)
 
-        dx=g_dx  (ig)
-        dy=g_dy  (ig)
-        dz=g_dz  (ig)
+        dx = g_dx  (ig)
+        dy = g_dy  (ig)
+        dz = g_dz  (ig)
 
-        ixnb=2*(ix-1)
-        iynb=2*(iy-1)
-        iznb=2*(iz-1)
+        ixnb = 2*(ix-1)
+        iynb = 2*(iy-1)
+        iznb = 2*(iz-1)
 
-        do iox=0,1
+        do iox = 0,1
           xn = xc + 0.5*(2*iox-1)*dx
-          do ioy=0,1
+          do ioy = 0,1
             yn = yc + 0.5*(2*ioy-1)*dy
-            do ioz=0,1
+            do ioz = 0,1
               zn = zc + 0.5*(2*ioz-1)*dz
               jn = 4*g_nxy*(iznb+ioz)+2*g_nx*(iynb+ioy)+ixnb+iox+1
-              g_zcorn(jn)=zn
+              g_zcorn(jn) = zn
             enddo
           enddo
         enddo
@@ -2021,19 +2177,24 @@ end subroutine ExtractCPGFromCellDimensionsAndLocations
 
 ! *************************************************************************** !
 
-subroutine setCoordLine(ixp,iyp,x,y)
+subroutine SetCoordLine(ixp,iyp,x,y)
+  !
+  ! Set up a vertical coordinate line (corner of a pillar of cells)
+  !
+  ! Author: Dave Ponting
+  ! Date: 11/13/18
 
   implicit none
 
   PetscInt,intent(in) :: ixp,iyp
   PetscReal,intent(in) :: x,y
 
-  PetscReal,parameter :: zl=-10000.0
-  PetscReal,parameter :: zu= 10000.0
+  PetscReal,parameter :: zl = -10000.0
+  PetscReal,parameter :: zu =  10000.0
 
   PetscInt :: ibase
 
-  ibase=6*((iyp-1)*g_nxp + (ixp-1))
+  ibase = 6*((iyp-1)*g_nxp + (ixp-1))
 
   g_coord(ibase+1) = x
   g_coord(ibase+2) = y
@@ -2042,22 +2203,22 @@ subroutine setCoordLine(ixp,iyp,x,y)
   g_coord(ibase+5) = y
   g_coord(ibase+6) = zu
 
-end subroutine setCoordLine
+end subroutine SetCoordLine
 
 ! *************************************************************************** !
 
-subroutine getHexDims( x000,x100,x010,x110,x001,x101,x011,x111 &
-                       ,vdx,vdy,vdz,vpx,vpy,vpz )
-
+subroutine GetHexDims( x000,x100,x010,x110,x001,x101,x011,x111, &
+                       vdx,vdy,vdz,vpx,vpy,vpz )
+  !
   ! Given cell corner locations, extract cell dimensions and locations
   !
   ! Author: Dave Ponting
   ! Date: 11/13/18
-  !
 
   implicit none
 
-  PetscReal,dimension(3),intent(in ) :: x000,x100,x010,x110,x001,x101,x011,x111
+  PetscReal,dimension(3),intent(in ) :: x000,x100,x010,x110, &
+                                        x001,x101,x011,x111
   PetscReal             ,intent(out) :: vdx,vdy,vdz,vpx,vpy,vpz
 
   PetscInt  :: idir
@@ -2076,7 +2237,7 @@ subroutine getHexDims( x000,x100,x010,x110,x001,x101,x011,x111 &
 
 !  Cell dimensions are distances between faces: form x,y and z intervals
 
-  do idir=1,g_ndir
+  do idir = 1,g_ndir
 
                      ! 1**        0**
     dx(idir) = 0.25*( x100(idir)-x000(idir) &
@@ -2100,68 +2261,20 @@ subroutine getHexDims( x000,x100,x010,x110,x001,x101,x011,x111 &
 
 !  Find scalar distances
 
-  vdx=GetScalarLength(dx)
-  vdy=GetScalarLength(dy)
-  vdz=GetScalarLength(dz)
+  vdx = GetScalarLength(dx)
+  vdy = GetScalarLength(dy)
+  vdz = GetScalarLength(dz)
 
-end subroutine getHexDims
-
-! *************************************************************************** !
-
-function GetLocationInDepthBlock(icx,icy,icz)
-
-  implicit none
-
-  PetscInt :: GetLocationInDepthBlock
-
-  PetscInt,intent(in) :: icx,icy,icz
-  PetscInt :: ncx,ncy,ncxy
-
-  ncx=2*g_nx
-  ncy=2*g_ny
-  ncxy=ncx*ncy
-
-  GetLocationInDepthBlock=ncxy*(icz-1)+ncx*(icy-1)+icx
-
-end function GetLocationInDepthBlock
-
-! *************************************************************************** !
-
-subroutine fillGeoCorner( x0,x1,d0,d1,xl,yl,zl,xu,yu,zu )
-
-  implicit none
-
-  PetscReal,dimension(3),intent(out) :: x0,x1
-  PetscReal             ,intent(in ) :: d0,d1,xl,yl,zl,xu,yu,zu
-
-  PetscReal :: f0,f1
-
-! Fractions through the zl -> zu interval
-
-  if( abs(zu-zl)>0.0 ) then
-    f0=(d0-zl)/(zu-zl)
-    f1=(d1-zl)/(zu-zl)
-  else
-    f0 = 0.5
-    f1 = 0.5
-  endif
-
-! Fill in values (if d0=zu, then f0=1 and x0->(xu,yu,zu)
-
-  x0(1)=xl+f0*(xu-xl)
-  x1(1)=xl+f1*(xu-xl)
-
-  x0(2)=yl+f0*(yu-yl)
-  x1(2)=yl+f1*(yu-yl)
-
-  x0(3)=d0
-  x1(3)=d1
-
-end subroutine fillGeoCorner
+end subroutine GetHexDims
 
 ! *************************************************************************** !
 
 function GetScalarLength(v)
+  !
+  ! Get the scalar length of a three-vector
+  !
+  ! Author: Dave Ponting
+  ! Date: 11/13/18
 
   implicit none
 
@@ -2169,17 +2282,21 @@ function GetScalarLength(v)
   PetscReal,dimension(g_ndir),intent(in) :: v
   PetscReal :: sum
 
-  sum= v(g_xdir)*v(g_xdir) &
-      +v(g_ydir)*v(g_ydir) &
-      +v(g_zdir)*v(g_zdir)
+  sum = v(g_xdir)*v(g_xdir) &
+       +v(g_ydir)*v(g_ydir) &
+       +v(g_zdir)*v(g_zdir)
 
-  GetScalarLength=sqrt(sum);
+  GetScalarLength = sqrt(sum);
 
 end function GetScalarLength
 
 ! *************************************************************************** !
 
-subroutine getNextWord(word,exitTime,input,option)
+subroutine GetNextWord(word,exitTime,input,option)
+  !
+  ! Get the next white-space-delimited item on the input file
+  ! Author: Dave Ponting
+  ! Date: 11/13/18
 
   implicit none
 
@@ -2206,7 +2323,6 @@ subroutine getNextWord(word,exitTime,input,option)
   j = 0
   exitTime = PETSC_FALSE
 
-
 ! Loop over attempts to find some characters
 
   do
@@ -2216,79 +2332,85 @@ subroutine getNextWord(word,exitTime,input,option)
     lastCharRead = PETSC_FALSE
 
     startcol = g_column
-    do i=startcol,l
-      c=line(i:i)
-      iws=IsWhiteSpace(c)
-      ic=ichar(c)
-      if( (.not. started) .and. (.not.iws) ) started = PETSC_TRUE
-      if(        started  .and. ( iws .or. (i == l) ) ) exit
-      if( started ) then
+    do i = startcol,l
+      c = line(i:i)
+      iws = IsWhiteSpace(c)
+      ic = ichar(c)
+      if ((.not. started) .and. (.not.iws)) started = PETSC_TRUE
+      if (       started  .and. ( iws .or. (i == l) )) exit
+      if (started) then
         j = j + 1
         word(j:j) = c
         somethingRead = PETSC_TRUE
       endif
       g_column = i + 1
-      if( (i == l) .or. (ic == g_iclf) ) lastCharRead=PETSC_TRUE
+      if ((i == l) .or. (ic == g_iclf)) lastCharRead = PETSC_TRUE
     enddo
 
 ! Action on end of line: either exit or read a new line
 
-    if( lastCharRead ) then
-      if( somethingRead ) then
+    if (lastCharRead) then
+      if (somethingRead) then
 ! If something read, is terminator
         exit
       else
 ! If nothing read, read another line
         call InputReadPflotranString(input,option)
-        if (InputCheckExit(input,option)) exitTime=PETSC_FALSE
+        if (InputCheckExit(input,option)) exitTime = PETSC_FALSE
         g_column = 1
         line     = input%buf
         l        = len(line)
       endif
     endif
 
-    if( exitTime .or. somethingRead ) exit
+    if (exitTime .or. somethingRead) exit
 
   enddo
 
 ! Check anything found is right-aligned and look for / teminator
 
-  if( somethingRead  .and. (.not. exitTime) ) then
+  if (somethingRead  .and. (.not. exitTime)) then
 
     c = word(1:1)
-    if( IsWhiteSpace(c) ) then
-      test=adjustl(word)
-      word=test
+    if (IsWhiteSpace(c)) then
+      test = adjustl(word)
+      word = test
     endif
 
 ! Check for / terminator
 
     c = word(1:1)
-    if( c == '/' ) then
+    if (c == '/') then
       exitTime = PETSC_TRUE
     endif
 
   endif
 
-end subroutine getNextWord
+end subroutine GetNextWord
 
 ! *************************************************************************** !
 
 function IsWhiteSpace(c)
+  !
+  ! Indicates that a character is white space
+  ! Author: Dave Ponting
+  ! Date: 11/13/18
 
   implicit none
 
-  PetscBool::isWhiteSpace
-  character,intent(in)::c
+  PetscBool :: isWhiteSpace
+  character,intent(in) :: c
   PetscInt :: ic
 
   IsWhiteSpace = PETSC_FALSE
 
   ic = ichar(c)
-  if( (c == ' ') .or. (ic == g_ictab) .or. (ic == g_iccr) .or. (ic == g_iclf) ) isWhiteSpace = PETSC_TRUE
+  if ( ( c == ' '    ) .or. &
+       (ic == g_ictab) .or. &
+       (ic == g_iccr ) .or. &
+       (ic == g_iclf )        ) isWhiteSpace = PETSC_TRUE
 
 end function IsWhiteSpace
-
 
 ! *************************************************************************** !
 
@@ -2301,7 +2423,6 @@ subroutine ReadEGridArrayI(a,keyword,ierr,input,option,qerr)
   ! Author: Dave Ponting
   ! Date: 11/23/18
   !
-
   implicit none
 
   PetscInt,dimension(:),intent(inout) :: a
@@ -2311,19 +2432,19 @@ subroutine ReadEGridArrayI(a,keyword,ierr,input,option,qerr)
   type(option_type) :: option
   PetscBool,intent(inout) :: qerr
 
-  PetscInt ,dimension(:),allocatable::column_buffer
-  PetscReal,dimension(:),allocatable::ar
+  PetscInt ,dimension(:),allocatable :: column_buffer
+  PetscReal,dimension(:),allocatable :: ar
   PetscInt  :: ix,iy,iz,izpft,ig,igpft,i
 
 ! Do the actual read operation
 
   allocate(ar(g_nxyz))
-  ar=1.0
+  ar = 1.0
 
   call ReadEvalues(ar,g_nxyz,keyword,'GRID',ierr,input,option,qerr)
 
-  do i=1,g_nxyz
-   a(i)=nint(ar(i))
+  do i = 1,g_nxyz
+   a(i) = nint(ar(i))
   enddo
 
 ! Allocate a column buffer to reorder to bottom-up convention
@@ -2369,8 +2490,7 @@ subroutine ReadEGridArrayR(a,keyword,ierr,input,option,is_dep,is_perm,qerr)
   ! If is is a permeability array, convert from mD to m2
   !
   ! Author: Dave Ponting
-  ! Date: 11/23/18
-  !
+  !  Date: 11/23/18
 
   use Grdecl_util, only : GetMDtoM2Conv
 
@@ -2385,7 +2505,7 @@ subroutine ReadEGridArrayR(a,keyword,ierr,input,option,is_dep,is_perm,qerr)
   PetscBool,intent(in) :: is_perm
   PetscBool,intent(inout) :: qerr
 
-  PetscReal,dimension(:),allocatable::column_buffer
+  PetscReal,dimension(:),allocatable :: column_buffer
   PetscInt  :: ix,iy,iz,izpft,ig,igpft,nread
   PetscReal :: flip,conv,v
 
@@ -2395,12 +2515,12 @@ subroutine ReadEGridArrayR(a,keyword,ierr,input,option,is_dep,is_perm,qerr)
 
   call checkDimensRead(qerr)
 
-  if( .not.qerr ) then
+  if (.not.qerr) then
 
 ! Do the actual read operation
 
     nread = size(a)
-    if( nread /= g_nxyz ) then
+    if (nread /= g_nxyz) then
       call SetError(keyword)
       qerr = PETSC_TRUE
     else
@@ -2408,17 +2528,17 @@ subroutine ReadEGridArrayR(a,keyword,ierr,input,option,is_dep,is_perm,qerr)
     endif
   endif
 
-  if( .not.qerr ) then
+  if (.not.qerr) then
 
 ! If is a depth, change signs
 
     flip = 1.0
-    if( is_dep  ) flip = z_flip
+    if (is_dep) flip = z_flip
 
 ! If is perm, change units
 
     conv = 1.0
-    if( is_perm ) conv = GetMDtoM2Conv()
+    if (is_perm) conv = GetMDtoM2Conv()
 
 ! Allocate a column buffer to reorder to bottom-up convention
 
@@ -2442,7 +2562,7 @@ subroutine ReadEGridArrayR(a,keyword,ierr,input,option,is_dep,is_perm,qerr)
           izpft = g_nz - iz + 1
           igpft = GetNaturalIndex(ix,iy,izpft)
           v     = column_buffer(iz)
-          if( Uninitialized(v) ) then
+          if (Uninitialized(v)) then
             a(igpft) = v
           else
             a(igpft) = flip*conv*v
@@ -2460,13 +2580,14 @@ subroutine ReadEGridArrayR(a,keyword,ierr,input,option,is_dep,is_perm,qerr)
 
 end subroutine ReadEGridArrayR
 
+! ************************************************************************** !
+
 subroutine ReadECoordArray(a,ierr,input,option,qerr)
   !
   ! Reads an Eclgrid coord array
   !
   ! Author: Dave Ponting
   ! Date: 11/23/18
-  !
 
   implicit none
 
@@ -2479,7 +2600,7 @@ subroutine ReadECoordArray(a,ierr,input,option,qerr)
   PetscInt  :: i,nread
 
   nread = size(a)
-  if( nread /= 6*g_nxpnyp ) then
+  if (nread /= 6*g_nxpnyp) then
     call SetError('Coord read')
     qerr = PETSC_TRUE
   else
@@ -2496,13 +2617,12 @@ end subroutine ReadECoordArray
 
 subroutine ReadEZcornArray(a,ierr,input,option,qerr)
   !
-  ! Reads an Eclgrid grid array
+  ! Reads an Eclgrid zcorn array
   ! If it is a depth array, then flip sign to Pflotran elevation convention
   ! If is is a permeability array, convert from mD to m2
   !
   ! Author: Dave Ponting
   ! Date: 11/23/18
-  !
 
   implicit none
 
@@ -2512,7 +2632,7 @@ subroutine ReadEZcornArray(a,ierr,input,option,qerr)
   type(option_type) :: option
   PetscBool,intent(inout) :: qerr
 
-  PetscReal,dimension(:),allocatable::column_buffer
+  PetscReal,dimension(:),allocatable :: column_buffer
   PetscInt  :: inx,iny,inz,nnx,nny,nnz,nnxy,inode,nread,inzpft
 
   qerr = PETSC_TRUE
@@ -2520,14 +2640,14 @@ subroutine ReadEZcornArray(a,ierr,input,option,qerr)
 ! Do the actual read operation
 
   nread = size(a)
-  if( nread /= 8*g_nxyz ) then
+  if (nread /= 8*g_nxyz) then
     call SetError('Zcorn read')
     qerr = PETSC_TRUE
   else
     call ReadEvalues(a,nread,'ZCORN','GRID',ierr,input,option,qerr)
   endif
 
-  if( .not.qerr ) then
+  if (.not.qerr) then
 
     nnx = 2*g_nx
     nny = 2*g_ny
@@ -2572,6 +2692,11 @@ end subroutine ReadEZcornArray
 ! *************************************************************************** !
 
 subroutine ReadEvalues(a,n,keyword,section,ierr,input,option,qerr)
+  !
+  ! Read a series of values from an Eclipse syntax file
+  !
+  ! Author: Dave Ponting
+  ! Date: 11/23/18
 
   implicit none
 
@@ -2601,14 +2726,14 @@ subroutine ReadEvalues(a,n,keyword,section,ierr,input,option,qerr)
   nstack = 0
 
   call InputReadPflotranString(input,option)
-  if (InputCheckExit(input,option)) exittime=PETSC_TRUE
+  if (InputCheckExit(input,option)) exittime = PETSC_TRUE
 
-  if( .not. exittime ) then
+  if (.not. exittime) then
 
-    g_column=1
-    do i=1,n
+    g_column = 1
+    do i = 1,n
 
-      if( nstack > 0 ) then
+      if (nstack > 0) then
 
 ! Case of value in stack
 
@@ -2620,12 +2745,12 @@ subroutine ReadEvalues(a,n,keyword,section,ierr,input,option,qerr)
 ! Case of no value if stack
 
         call getNextWord(word,exitTime,input,option)
-        if( exitTime ) exit
+        if (exitTime) exit
 
 ! Look at word, test for repeat count
 
         istar = scan(word,'*')
-        if( istar > 0 ) then
+        if (istar > 0) then
           repc = word(:istar-1)
           hold = word(istar+1:)
           read(repc,*,iostat=ierr) nstack
@@ -2641,7 +2766,7 @@ subroutine ReadEvalues(a,n,keyword,section,ierr,input,option,qerr)
           ierr = 1
           exit
         else
-          a(i)=dval
+          a(i) = dval
         endif
 
       endif
@@ -2650,7 +2775,7 @@ subroutine ReadEvalues(a,n,keyword,section,ierr,input,option,qerr)
 
   endif
 
-  if( ierr == 1 ) then
+  if (ierr == 1) then
     qerr = PETSC_TRUE
   endif
 
@@ -2659,6 +2784,11 @@ end subroutine ReadEvalues
 !*****************************************************************************!
 
 subroutine CopyWellData(wto,wfrom)
+  !
+  ! Copy well data from one structure to another
+  !
+  ! Author: Dave Ponting
+  ! Date: 11/23/18
 
   implicit none
 
@@ -2674,6 +2804,11 @@ end subroutine CopyWellData
 !*****************************************************************************!
 
 subroutine CopyCmplData(clto,clfrom)
+  !
+  ! Copy completion data from one structure to another
+  !
+  ! Author: Dave Ponting
+  ! Date: 11/23/18
 
   implicit none
 
@@ -2699,6 +2834,11 @@ end subroutine CopyCmplData
 !*****************************************************************************!
 
 function FindWellIndex(name,iw)
+  !
+  ! Given a well name, find the well index
+  !
+  ! Author: Dave Ponting
+  ! Date: 11/23/18
 
   implicit none
 
@@ -2713,7 +2853,7 @@ function FindWellIndex(name,iw)
 
   do jw = 1 , g_nwell_data
 
-    if( g_well_data(jw)%w_name .eq. name ) then
+    if (g_well_data(jw)%w_name .eq. name) then
       FindWellIndex = PETSC_TRUE
       iw = jw
       exit
@@ -2725,13 +2865,18 @@ end function findWellIndex
 !*****************************************************************************!
 
 function GetGrdNCmpl(iw)
+  !
+  ! Given a well name, find the number of completions
+  !
+  ! Author: Dave Ponting
+  ! Date: 11/23/18
 
   implicit none
 
   PetscInt            :: GetGrdNCmpl
   PetscInt,intent(in) :: iw
 
- if( iw <= g_nwell_data ) then
+ if (iw <= g_nwell_data) then
    GetGrdNCmpl =g_well_data(iw)%iku - g_well_data(iw)%ikl + 1
  else
    GetGrdNCmpl = 0
@@ -2742,6 +2887,11 @@ end function GetGrdNCmpl
 !*****************************************************************************!
 
 subroutine GetCmplData(iw,ik,ci,cj,ck,ia,dx,dy,dz,z)
+  !
+  ! Given a well index and completion index, return completion data
+  !
+  ! Author: Dave Ponting
+  ! Date: 11/23/18
 
   implicit none
 
@@ -2751,7 +2901,7 @@ subroutine GetCmplData(iw,ik,ci,cj,ck,ia,dx,dy,dz,z)
 
   PetscInt :: ikl,k,ig
 
- if( iw <= g_nwell_data ) then
+ if (iw <= g_nwell_data) then
    ikl = g_well_data(iw)%ikl
  else
    ikl = 0
@@ -2780,7 +2930,7 @@ subroutine IsCPG()
 
   g_iscpg = PETSC_TRUE
 
-  if( .not.g_cpgallocated ) then
+  if (.not.g_cpgallocated) then
     allocate(g_coord(6*g_nxpnyp));g_coord =  0.0
     allocate(g_zcorn(8*g_nxyz  ));g_zcorn =  0.0
     g_cpgallocated = PETSC_TRUE
@@ -2788,7 +2938,18 @@ subroutine IsCPG()
 
 end subroutine isCPG
 
-subroutine PermPoroExchangeAndSet(poro_p,permx_p,permy_p,permz_p,inatsend,nlmax,option)
+! ************************************************************************** !
+
+subroutine PermPoroExchangeAndSet(poro_p,permx_p,permy_p,permz_p, &
+                                  inatsend,nlmax,option)
+  !
+  ! Perm and porosity values from the grdecl file are known on the IO rank
+  ! These are needed on the other ranks, but only for the cells on those ranks
+  ! To avoid over-sending, the other ranks send lists to the IO ranks,
+  ! and the IO ranks send back the required values.
+  !
+  ! Author: Dave Ponting
+  ! Date: 11/23/18
 
   implicit none
 
@@ -2804,14 +2965,14 @@ subroutine PermPoroExchangeAndSet(poro_p,permx_p,permy_p,permz_p,inatsend,nlmax,
   PetscInt :: ilt,ilo,ino
   PetscInt :: nlo,ierr
   PetscMPIInt :: int_mpi,temp_int_array(1),status_mpi(MPI_STATUS_SIZE)
-  PetscMPIInt,parameter :: tag_mpi=0
+  PetscMPIInt,parameter :: tag_mpi = 0
   PetscReal :: poro,permx,permy,permz
 
 !  Work arrays
 
-  PetscInt ,allocatable::winat(:)
-  PetscReal,allocatable::wporo(:)
-  PetscReal,allocatable::wperm(:)
+  PetscInt ,allocatable :: winat(:)
+  PetscReal,allocatable :: wporo(:)
+  PetscReal,allocatable :: wperm(:)
 
 ! Set scalars
 
@@ -2827,14 +2988,16 @@ subroutine PermPoroExchangeAndSet(poro_p,permx_p,permy_p,permz_p,inatsend,nlmax,
 
 !  Consider exchange between irank and iorank
 
-      if( t_rank  == irank ) then
+      if (t_rank  == irank) then
 
 !  This is irank: send nlmax value and then irequest array to ioproc
 
-        temp_int_array(1)=nlmax
-        call MPI_SEND(temp_int_array,ONE_INTEGER_MPI,MPI_INTEGER,iorank,tag_mpi,option%mycomm,ierr)
-        int_mpi=nlmax
-        call MPI_SEND(inatsend      ,int_mpi        ,MPI_INTEGER,iorank,tag_mpi,option%mycomm,ierr)
+        temp_int_array(1) = nlmax
+        call MPI_SEND(temp_int_array,ONE_INTEGER_MPI,MPI_INTEGER, &
+                      iorank,tag_mpi,option%mycomm,ierr)
+        int_mpi = nlmax
+        call MPI_SEND(inatsend      ,int_mpi        ,MPI_INTEGER, &
+                      iorank,tag_mpi,option%mycomm,ierr)
 
 !  Allocate buffers to hold response poro and perm values from ioproc
 
@@ -2843,15 +3006,17 @@ subroutine PermPoroExchangeAndSet(poro_p,permx_p,permy_p,permz_p,inatsend,nlmax,
 
 ! Receive poro and perm values from ioproc
 
-        int_mpi=  nlmax
-        call MPI_RECV(wporo,int_mpi,MPI_DOUBLE_PRECISION,iorank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
-        int_mpi=3*nlmax
-        call MPI_RECV(wperm,int_mpi,MPI_DOUBLE_PRECISION,iorank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+        int_mpi =   nlmax
+        call MPI_RECV(wporo,int_mpi,MPI_DOUBLE_PRECISION,iorank,MPI_ANY_TAG, &
+                      option%mycomm,status_mpi,ierr)
+        int_mpi = 3*nlmax
+        call MPI_RECV(wperm,int_mpi,MPI_DOUBLE_PRECISION,iorank,MPI_ANY_TAG, &
+                      option%mycomm,status_mpi,ierr)
 
 ! Copy buffers into correct storage locations
 
         do ilt = 1,nlmax
-          ibp=3*(ilt-1)
+          ibp = 3*(ilt-1)
           poro_p (ilt) = wporo(ilt  )
           permx_p(ilt) = wperm(ibp+1)
           permy_p(ilt) = wperm(ibp+2)
@@ -2865,15 +3030,16 @@ subroutine PermPoroExchangeAndSet(poro_p,permx_p,permy_p,permz_p,inatsend,nlmax,
 
       endif
 
-      if( t_rank  == iorank ) then
+      if (t_rank  == iorank) then
 
 !  This is IO rank - receive the other rank nlmax value (nlo) from irank
 
-        temp_int_array(1)=0
-        call MPI_RECV(temp_int_array,ONE_INTEGER_MPI,MPI_INTEGER,irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+        temp_int_array(1) = 0
+        call MPI_RECV(temp_int_array,ONE_INTEGER_MPI,MPI_INTEGER, &
+                      irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
         nlo    =temp_int_array(1)
 
-! Allocate work array to hold the received natural addresses and the required values
+! Allocate work array to hold the received natural addresses
 
         allocate(winat(  nlo))
         allocate(wporo(  nlo))
@@ -2881,13 +3047,14 @@ subroutine PermPoroExchangeAndSet(poro_p,permx_p,permy_p,permz_p,inatsend,nlmax,
 
 !  Receive the natural address array fom irank
 
-        int_mpi=nlo
-        call MPI_RECV(winat,int_mpi,MPI_INTEGER,irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+        int_mpi = nlo
+        call MPI_RECV(winat,int_mpi,MPI_INTEGER,irank,MPI_ANY_TAG, &
+                      option%mycomm,status_mpi,ierr)
 
 !  On this (io) proc, set up the perm and poro values to be returned
 
-        do ilo=1,nlo
-          ino=winat(ilo)
+        do ilo = 1,nlo
+          ino = winat(ilo)
           call GetPoroPermValues(ino,poro,permx,permy,permz)
           ibp = 3*(ilo-1)
           wporo(ilo  ) = poro
@@ -2898,10 +3065,12 @@ subroutine PermPoroExchangeAndSet(poro_p,permx_p,permy_p,permz_p,inatsend,nlmax,
 
 !  Send back the poro and perm values to irank
 
-        int_mpi=nlo
-        call MPI_SEND(wporo,int_mpi,MPI_DOUBLE_PRECISION,irank,tag_mpi,option%mycomm,ierr)
-        int_mpi=3*nlo
-        call MPI_SEND(wperm,int_mpi,MPI_DOUBLE_PRECISION,irank,tag_mpi,option%mycomm,ierr)
+        int_mpi = nlo
+        call MPI_SEND(wporo,int_mpi,MPI_DOUBLE_PRECISION, &
+                      irank,tag_mpi,option%mycomm,ierr)
+        int_mpi = 3*nlo
+        call MPI_SEND(wperm,int_mpi,MPI_DOUBLE_PRECISION, &
+                      irank,tag_mpi,option%mycomm,ierr)
 
 ! Free the work arrays
 
@@ -2918,21 +3087,5 @@ subroutine PermPoroExchangeAndSet(poro_p,permx_p,permy_p,permz_p,inatsend,nlmax,
   enddo
 
 end subroutine PermPoroExchangeAndSet
-
-!*****************************************************************************!
-
-subroutine throwGrdeclException(message)
-  !
-  ! Throw a general Grdecl error
-  !
-  ! Author: Dave Ponting
-  ! Date: 08/15/18
-
-  implicit none
-
-  character(len=*) :: message
-  print *,message
-  stop
-end subroutine throwGrdeclException
 
 end module Grdecl_class
