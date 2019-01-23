@@ -2896,7 +2896,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                 auxvar_up%pres(iphase) - &
                  option%reference_pressure < eps) then
               delta_pressure = 0.d0
-              if (analytical_derivatives) then
+              if (analytical_derivatives) then !!!! CHECK is this correct?
                 D_delta_presure_up = 0.d0
                 D_delta_presure_dn = 0.d0
               endif
@@ -2998,7 +2998,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
         call printErrMsg(option)
     end select
 
-    if (dabs(v_darcy(iphase)) > 0.d0) then
+    if (dabs(v_darcy(iphase)) > 0.d0 .OR. analytical_derivatives) then   !!!!! CHECK - need exception for aderivs here too?  -YES
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(iphase) * area
       if (analytical_derivatives) then
@@ -3757,13 +3757,6 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
             call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
           else
             ! there is a density deriv w.r.t. pressure and temp
-#if 0
-            call EOSWaterDensity(temperature,cell_pressure, &
-                                 den_kg,den, &
-                                 D_den(dof_op), &
-                                 D_den(dof_temp), ierr)
-            !D_den(dof_op) = D_den(dof_op) * dp_dpo
-#endif
             call EOSWaterDensity(temperature,cell_pressure, &
                                  den_kg,den, &
                                  dx_dcpres, &
@@ -3853,65 +3846,6 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
             D_den = den * D_cor
             ! correct temp part:
             D_cor(dof_temp) = D_cor(dof_temp) + dden_dt * cor
-
-
-
-# if 0
-            ! density derivs. 
-            ! NOTE - here placing deriv of oil den w.r.t. pb in D_den(dof_gsat) - this is valid if state is unsat.
-            !        otherwise should zero out that entry once we're done using it
-            call EOSOilDensity(temperature,pb,den,D_den(dof_temp),D_den(dof_gsat),ierr,auxvar%table_idx)
-            call EOSOilCompressibility(temperature,pb,cr,dcr_dt,dcr_dpb,ierr,auxvar%table_idx)
-
-
-            !!! TOTIDY
-            ! note that pb is actually constant reference pressure here so we shouldn't
-            ! mistake it for the solution variable pb and assign derivatives 
-            D_den(dof_gsat) = 0.d0
-            dcr_dpb = 0.d0
-
-
-            ! corrected density derivs
-            isSat = ( global_auxvar%istate==TOWG_THREE_PHASE_STATE ) 
-            if (isSat) then
-              ! leave density derivs w.r.t. pres, temp, and bubble point as set above since the correction
-              ! is zero.
-            else
-              crusp=cr*(po-pb)
-              dcrusp_dpo =  cr !  +  dcr_dpo*(po-pb) but we know dcr_dpo is zero
-
-              ! recall potentially cell_pressure is constant - need to multiply derivs by dp_dpo:
-              dcrusp_dpo = dcrusp_dpo * dp_dpo
-
-              !dcrusp_dpb = dcr_dpb*(po-pb) - cr
-              dcrusp_dpb = 0.d0
-              dcrusp_dt =  dcr_dt*(po-pb)
-
-              cor = 1 + crusp + 0.5*crusp*crusp
-              ! dcor/dx = dcrusp/dx + crusp*dcrusp/dx  = (1 + crusp)*dcrusp/dx
-              ! so
-              one_p_crusp = 1.d0 + crusp
-              dcor_dpo = one_p_crusp*dcrusp_dpo
-              !dcor_dpb = one_p_crusp*dcrusp_dpb
-              dcor_dpb = 0.d0
-              dcor_dt = one_p_crusp*dcrusp_dt
-
-              D_den(dof_op) = den*dcor_dpo ! +  ddeno_dpo*cor but we know ddeno_dpo is zero
-              !d_den(dof_gsat) = d_den(dof_gsat)*cor + den*dcor_dpb
-              d_den(dof_gsat) = 0.d0
-              D_den(dof_temp) = D_den(dof_temp)*cor + den*dcor_dt
-            endif
-            if (isSat) then
-               ! done with density computations; we don't actually need deriv w.r.t. pb
-               ! since pb=op in this state. Actual sol variable is gsat and that deriv
-               ! should be 0.
-               D_den(dof_op) =  D_den(dof_gsat)
-               D_den(dof_gsat) = 0.d0
-            endif
-            ! xmfo and xmfg are constants now
-            D_xmfo = 0.d0
-            D_xmfg = 0.d0
-#endif
           endif
 ! Correct for undersaturation: correction not yet available for energy
           crusp=cr*(po-pb)
@@ -3934,11 +3868,6 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
                                auxvar%table_idx)
           else
             ! there is a density deriv w.r.t. pressure and temp at least
-#if 0
-            call EOSGasDensity(temperature,cell_pressure,den,D_den(dof_temp),D_den(dof_op), &
-                                     ierr,auxvar%table_idx)
-            D_den(dof_op) = D_den(dof_op) * dp_dpo
-#endif
             call EOSGasDensity(temperature,cell_pressure,den,dx_dtcell,dx_dcpres, &
                                ierr,auxvar%table_idx)
             ! refer to explaination after analgous water density
@@ -3949,18 +3878,16 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
 
           endif
         case(SOLVENT_PHASE)
-          call EOSSlvDensity(temperature,cell_pressure,den,ierr, &
-                             auxvar%table_idx)
-          if (analytical_derivatives) then
-#if 0
-            call EOSSlvDensity(temperature,cell_pressure,den,    &
-                               D_den(dof_temp), d_den(dof_op),   &
-                               ierr,                             &
+          if (.NOT. analytical_derivatives) then
+            call EOSSlvDensity(temperature,cell_pressure,den,ierr, &
                                auxvar%table_idx)
-            D_den(dof_op) = D_den(dof_op) * dp_dpo
-            D_den(dof_temp) = D_den(dof_temp) * dT_dTcell
-#endif
+          else
+          !!!EOSSlvDensityDerive(T,P,Rho_slv,dRho_dT,dRho_dP,ierr,table_idxs)
+#if 0
             call EOSSlvDensity(temperature,cell_pressure,den,dx_dcpres,dx_dtcell, &
+                               ierr,auxvar%table_idx)
+#endif
+            call EOSSlvDensity(temperature,cell_pressure,den,dx_dtcell,dx_dcpres, &
                                ierr,auxvar%table_idx)
             ! refer to explaination after analgous water density
             ! calls above
