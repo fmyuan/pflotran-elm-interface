@@ -661,10 +661,15 @@ subroutine EOSSlvDensityTable(T, P, Rho_slv, dRho_dT, dRho_dP, ierr, &
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   !Rho from pvt table is in kmol/m3
-  call pvt_table%EOSProp(T,P,EOS_DENSITY,Rho_slv,table_idxs,ierr)
+  !call pvt_table%EOSProp(T,P,EOS_DENSITY,Rho_slv,table_idxs,ierr)
 
+  call pvt_table%EOSPropGrad(T,P,EOS_DENSITY,Rho_slv,dRho_dT,dRho_dP, &
+                             ierr,table_idxs)
+
+#if 0
   dRho_dT = 0.0
   dRho_dP = 0.0
+#endif
 
 end subroutine EOSSlvDensityTable
 

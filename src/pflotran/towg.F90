@@ -4287,11 +4287,23 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
     end if
 
     !--Solvent energy extraction due to solvent production-------------------------
+    
+    !!! TODO
 
     if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
 
       if (qsrc(option%solvent_phase) < 0.d0) then !implies qsrc(option%gas_phase)<=0
         ! auxvar enthalpy units: MJ/kmol
+
+        ! auxvar enthalpy units: MJ/kmol
+        if (analytical_derivatives) then
+          ! jac contribution involves using previous residual values, so do it before those
+          ! values change
+          J(option%energy_id,:) = J(option%energy_id,:)                                             &
+                                + ProdRule(Res(option%solvent_phase),J(option%solvent_phase,:),     &
+                                           auxvar%H(option%solvent_phase),auxvar%D_H(option%solvent_phase,:),ndof )
+        endif
+
         Res(option%energy_id) = Res(option%energy_id) + &
                                 Res(option%solvent_phase) * &
                                 auxvar%H(option%solvent_phase)

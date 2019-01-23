@@ -2242,6 +2242,10 @@ endif
 !--------------/oil mass density -----------------------------------------------
 
 !--------------H and U scaling -------------------------------------------------
+  if (getDerivs) then
+    auxvar%D_H(oid,:) = auxvar%D_H(oid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(oid,:) = auxvar%D_U(oid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+  endif
   auxvar%H(oid) = auxvar%H(oid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(oid) = auxvar%U(oid) * 1.d-6 ! J/kmol -> MJ/kmol
 !--------------/H and U scaling ------------------------------------------------

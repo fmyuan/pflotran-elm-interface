@@ -1512,6 +1512,7 @@ subroutine Num_as_alyt_tl4p(nphase,ndof,auxvars,option,&
 
   !! ********* from auxvars energy flow *********
 
+#if 0
   ! H:
   do idof=1,ndof
     ! get perturbation for this dof variable
@@ -1528,21 +1529,6 @@ subroutine Num_as_alyt_tl4p(nphase,ndof,auxvars,option,&
       !!! assign
       auxvars(0)%D_H(iphase,idof) = nderiv
 
-#if 0
-      ! analytical derivative
-      aderiv = auxvars(0)%D_H(iphase,idof)
-
-      ! difference:
-      diff = abs(aderiv-nderiv)
-      rdiff = diff/abs(nderiv)
-
-      if (diff>atol .OR. rdiff>rtol) then
-        print *, "H:"
-        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *
-        probs = probs + 1
-      endif
-#endif
     enddo
   enddo
 
@@ -1561,24 +1547,9 @@ subroutine Num_as_alyt_tl4p(nphase,ndof,auxvars,option,&
 
       !!! assign
       auxvars(0)%D_U(iphase,idof) = nderiv
-#if 0
-
-      ! analytical derivative
-      aderiv = auxvars(0)%D_U(iphase,idof)
-
-      ! difference:
-      diff = abs(aderiv-nderiv)
-      rdiff = diff/abs(nderiv)
-
-      if (diff>atol .OR. rdiff>rtol) then
-        print *, "U:"
-        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
-        print *
-        probs = probs + 1
-      endif
-#endif
     enddo
   enddo
+#endif
   !! ********* end of from auxvars energy flow *********
 
 end subroutine Num_as_alyt_tl4p
@@ -1736,6 +1707,35 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
     enddo
   enddo
 
+  ! den:
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    do iphase=1,nphase
+      ! get unperturbed value
+      p_unpert = auxvars(0)%den(iphase)
+      ! get perturbed value
+      p_pert = auxvars(idof)%den(iphase)
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%D_den(iphase,idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "den:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *
+        probs = probs + 1
+      endif
+    enddo
+  enddo
+
 
   ! pc - needs special treatment because not full (nphase) size:
   do idof=1,ndof
@@ -1772,6 +1772,65 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
 
   !! ***** end of from auxvars flow *********
 
+  !! ***** from auxvars energy flow *********
+  ! H:
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    do iphase=1,nphase
+      ! get unperturbed value
+      p_unpert = auxvars(0)%H(iphase)
+      ! get perturbed value
+      p_pert = auxvars(idof)%H(iphase)
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%D_H(iphase,idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "H:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *
+        probs = probs + 1
+      endif
+    enddo
+  enddo
+
+  ! U:
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    do iphase=1,nphase
+      ! get unperturbed value
+      p_unpert = auxvars(0)%U(iphase)
+      ! get perturbed value
+      p_pert = auxvars(idof)%U(iphase)
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%D_U(iphase,idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "U:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *
+        probs = probs + 1
+      endif
+    enddo
+  enddo
+  !! ***** end of from auxvars energy flow **
 
   !! ***************  from tl4p intermediates  *********
   if (auxvars(0)%has_TL_test_object) then
