@@ -1,5 +1,7 @@
 module Grdecl_util
 
+! A set of small utilities used by the grdecl and ewriter modules
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
@@ -7,8 +9,6 @@ module Grdecl_util
   implicit none
 
   public:: GetCorners
-  public:: fillGeoCorner
-  public:: GetLocationInDepthBlock
   public:: GetMDtoM2Conv
   public:: GetM2toMDConv
 
@@ -16,14 +16,22 @@ module Grdecl_util
 
   contains
 
-  subroutine GetCorners( ix,iy,iz,x000,x100,x010,x110,x001,x101,x011,x111,coord,zcorn,nx,ny )
+! *************************************************************************** !
+
+subroutine GetCorners( ix,iy,iz,x000,x100,x010,x110,x001,x101,x011,x111, &
+                       coord,zcorn,nx,ny )
+  !
+  ! Return the vertices of a hexahederal grid cell with location (ix,iy,iz)
+  !
+  ! Author: Dave Ponting
+  ! Date  : 09/19/18
 
   implicit none
 
   PetscInt ,intent(in)  :: ix,iy,iz
   PetscReal,dimension(3):: x000,x100,x010,x110,x001,x101,x011,x111
-  PetscReal,dimension(:),intent(in)::coord
-  PetscReal,dimension(:),intent(in)::zcorn
+  PetscReal,dimension(:),intent(in) :: coord
+  PetscReal,dimension(:),intent(in) :: zcorn
   PetscInt ,intent(in)  :: nx,ny
 
   PetscInt  :: ibcx,ibcy,ibcz,ixo,iyo,ixp,iyp,ibase,inx,iny,icl,icu,nxp
@@ -37,8 +45,8 @@ module Grdecl_util
 
 !  Now loop over the four pillars of this cell
 
-  do ixo=1,2
-    do iyo=1,2
+  do ixo = 1,2
+    do iyo = 1,2
 
 !  Find pillar coordinates in the (nx+1).(ny+1) coord array (ix,ix+1),(iy,iy+1)
 
@@ -47,14 +55,14 @@ module Grdecl_util
 
 ! Find base point in the coord data and extract the six pillar points
 
-      ibase=6*(nxp*(iyp-1)+(ixp-1))
+      ibase = 6*(nxp*(iyp-1)+(ixp-1))
 
-      xl=coord(ibase+1)
-      yl=coord(ibase+2)
-      zl=coord(ibase+3)
-      xu=coord(ibase+4)
-      yu=coord(ibase+5)
-      zu=coord(ibase+6)
+      xl = coord(ibase+1)
+      yl = coord(ibase+2)
+      zl = coord(ibase+3)
+      xu = coord(ibase+4)
+      yu = coord(ibase+5)
+      zu = coord(ibase+6)
 
 !  Find coordinates of the depths of the two corners on this pillar
 
@@ -63,21 +71,21 @@ module Grdecl_util
 
 ! Find the coordinates of these corners in the depth array
 
-      icl=GetLocationInDepthBlock(inx,iny,ibcz+1,nx,ny)
-      icu=GetLocationInDepthBlock(inx,iny,ibcz+2,nx,ny)
+      icl = GetLocationInDepthBlock(inx,iny,ibcz+1,nx,ny)
+      icu = GetLocationInDepthBlock(inx,iny,ibcz+2,nx,ny)
 
-      d0=zcorn(icl)
-      d1=zcorn(icu)
+      d0 = zcorn(icl)
+      d1 = zcorn(icu)
 
 !  Fill in the cell corner locations
 
-       if( ixo == 1 ) then
-         if( iyo == 1 ) call fillGeoCorner(x000,x001,d0,d1,xl,yl,zl,xu,yu,zu)
-         if( iyo == 2 ) call fillGeoCorner(x010,x011,d0,d1,xl,yl,zl,xu,yu,zu)
+       if (ixo == 1) then
+         if (iyo == 1) call fillGeoCorner(x000,x001,d0,d1,xl,yl,zl,xu,yu,zu)
+         if (iyo == 2) call fillGeoCorner(x010,x011,d0,d1,xl,yl,zl,xu,yu,zu)
        endif
-       if( ixo == 2 ) then
-         if( iyo == 1 ) call fillGeoCorner(x100,x101,d0,d1,xl,yl,zl,xu,yu,zu)
-         if( ixo == 2 ) call fillGeoCorner(x110,x111,d0,d1,xl,yl,zl,xu,yu,zu)
+       if (ixo == 2) then
+         if (iyo == 1) call fillGeoCorner(x100,x101,d0,d1,xl,yl,zl,xu,yu,zu)
+         if (ixo == 2) call fillGeoCorner(x110,x111,d0,d1,xl,yl,zl,xu,yu,zu)
        endif
 
      enddo
@@ -88,6 +96,12 @@ end subroutine GetCorners
 ! *************************************************************************** !
 
 subroutine fillGeoCorner( x0,x1,d0,d1,xl,yl,zl,xu,yu,zu )
+  !
+  ! For coordinate line from xl,yl,zl to xu,yu,zu,
+  ! find xyz locations at depths d0 and d1
+  !
+  ! Author: Dave Ponting
+  ! Date: 11/13/18
 
   implicit none
 
@@ -98,9 +112,9 @@ subroutine fillGeoCorner( x0,x1,d0,d1,xl,yl,zl,xu,yu,zu )
 
 ! Fractions through the zl -> zu interval
 
-  if( abs(zu-zl)>0.0 ) then
-    f0=(d0-zl)/(zu-zl)
-    f1=(d1-zl)/(zu-zl)
+  if (abs(zu-zl)>0.0) then
+    f0 = (d0-zl)/(zu-zl)
+    f1 = (d1-zl)/(zu-zl)
   else
     f0 = 0.5
     f1 = 0.5
@@ -108,14 +122,14 @@ subroutine fillGeoCorner( x0,x1,d0,d1,xl,yl,zl,xu,yu,zu )
 
 ! Fill in values (if d0=zu, then f0=1 and x0->(xu,yu,zu)
 
-  x0(1)=xl+f0*(xu-xl)
-  x1(1)=xl+f1*(xu-xl)
+  x0(1) = xl+f0*(xu-xl)
+  x1(1) = xl+f1*(xu-xl)
 
-  x0(2)=yl+f0*(yu-yl)
-  x1(2)=yl+f1*(yu-yl)
+  x0(2) = yl+f0*(yu-yl)
+  x1(2) = yl+f1*(yu-yl)
 
-  x0(3)=d0
-  x1(3)=d1
+  x0(3) = d0
+  x1(3) = d1
 
 end subroutine fillGeoCorner
 
@@ -130,15 +144,22 @@ function GetLocationInDepthBlock(icx,icy,icz,nx,ny)
   PetscInt,intent(in) :: icx,icy,icz,nx,ny
   PetscInt :: ncx,ncy,ncxy
 
-  ncx=2*nx
-  ncy=2*ny
-  ncxy=ncx*ncy
+  ncx  = 2*nx
+  ncy  = 2*ny
+  ncxy = ncx*ncy
 
-  GetLocationInDepthBlock=ncxy*(icz-1)+ncx*(icy-1)+icx
+  GetLocationInDepthBlock = ncxy*(icz-1)+ncx*(icy-1)+icx
 
 end function GetLocationInDepthBlock
 
+! ************************************************************************** !
+
 function GetMDtoM2Conv()
+  !
+  ! Get conversion from mD to m2 (for handing Eclipse permeabilities)
+  !
+  ! Author: Dave Ponting
+  ! Date: 01/21/19
 
   implicit none
 
@@ -148,7 +169,14 @@ function GetMDtoM2Conv()
 
 end function GetMDtoM2Conv
 
+! ************************************************************************** !
+
 function GetM2toMDConv()
+  !
+  ! Get conversion from m2 to mD (for handing Eclipse permeabilities)
+  !
+  ! Author: Dave Ponting
+  ! Date: 01/21/19
 
   implicit none
 
