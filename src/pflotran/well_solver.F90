@@ -19,25 +19,29 @@ module Well_Solver_module
 
   private
 
-    PetscInt,parameter :: max_iterTT  = 20     ! Max iterations over target types
-    PetscInt,parameter :: max_iterPW  = 20     ! Max iterations for well solution
-    PetscInt,parameter :: max_iterWBS = 20     ! Max iterations for well solution
+    PetscInt,parameter :: max_iterTT  = 20  ! Max iterations over target types
+    PetscInt,parameter :: max_iterPW  = 20  ! Max iterations for well solution
+    PetscInt,parameter :: max_iterWBS = 20  ! Max iterations for well solution
 
     PetscReal,parameter :: ws_atm   = 1.01325d5  ! Used for default bhp limits
     PetscReal,parameter :: ws_pwmin = 0.1*ws_atm
 
-    PetscBool :: ws_is_black_oil = PETSC_FALSE ! Is black oil (has bubble point)
+    PetscBool :: ws_is_black_oil = PETSC_FALSE ! Is black oil with bubble point
 
     PetscReal :: ws_gravity                    ! Vertical gravity constant
 
     PetscBool :: ws_isothermal = PETSC_TRUE    ! Case is isothermal
 
-    PetscBool :: ws_oil                        ! Bools indicating phases are present
+! Bools indicating phases are present
+
+    PetscBool :: ws_oil
     PetscBool :: ws_gas
     PetscBool :: ws_wat
     PetscBool :: ws_slv
 
-    PetscInt :: ws_loc_soil = -1                 !  Pointers into well solution
+!  Pointers into well solution
+
+    PetscInt :: ws_loc_soil = -1
     PetscInt :: ws_loc_sgpb = -1
     PetscInt :: ws_loc_trel = -1
     PetscInt :: ws_loc_sslv = -1
@@ -85,7 +89,7 @@ module Well_Solver_module
     PetscReal,dimension(:,:),allocatable :: w_kgdpxw ! ...wrt well soln
 
 ! Well component molar densities (moles/unit res. vol.) by component
-    PetscReal,dimension(:)  ,allocatable :: w_mdc    ! Well comp. mol. densities/unit res vol
+    PetscReal,dimension(:)  ,allocatable :: w_mdc    ! Well comp. mol. dens.
     PetscReal,dimension(:)  ,allocatable :: w_mdcpw  ! ...wrt well pressure
     PetscReal,dimension(:,:),allocatable :: w_mdcxw  ! ...wrt well soln
 
@@ -113,9 +117,11 @@ module Well_Solver_module
 
     PetscReal :: w_zref                  ! Reference elevation for well
 
-    PetscReal :: w_gd                               ! Gravity den. (G*well mass den.)
-    PetscReal :: w_gdpw                             ! Gravity den. wrt Pw
-    PetscReal,dimension(:)  ,allocatable :: w_gdxw  ! Gravity den. wrt Xw
+! Gravity density (G*well mass density)
+
+    PetscReal :: w_gd                            ! Grav. den.
+    PetscReal :: w_gdpw                          ! Grav. den. wrt Pw
+    PetscReal,dimension(:),allocatable :: w_gdxw ! Grav. den. wrt Xw
 
     PetscReal :: ws_targets(N_WELL_TT)          ! Well targets by target type
     PetscReal :: ws_actuals(N_WELL_TT)          ! Well actuals by target type
@@ -125,15 +131,16 @@ module Well_Solver_module
 
     PetscInt ,dimension(:),allocatable :: c_ghosted_id ! Cmpl cell ghosted id
     PetscInt ,dimension(:),allocatable :: c_local_id   ! Cmpl cell local   id
-    PetscInt ,dimension(:),allocatable :: c_to_cg      ! Cmpl local to cmpl global
+    PetscInt ,dimension(:),allocatable :: c_to_cg ! Cmpl local to cmpl global
 
-    PetscInt ,dimension(:),allocatable :: cg_ghosted_id ! Global cmpl cell ghosted id
+! Global cmpl cell ghosted id
+    PetscInt ,dimension(:),allocatable :: cg_ghosted_id
 
     PetscReal,dimension(:),allocatable :: c_ccf        ! CCF by completion
     PetscReal,dimension(:),allocatable :: c_z          ! Cmpl elev. by compl.
 
 !  Completion flows for this proc
-    PetscReal,dimension(    :,:),allocatable :: c_flows   ! Cmpl cmp. & heat flows
+    PetscReal,dimension(    :,:),allocatable :: c_flows   ! Comp & heat flows
     PetscReal,dimension(    :,:),allocatable :: c_flowspw ! ..wrt Pw
     PetscReal,dimension(  :,:,:),allocatable :: c_flowsxw ! ..wrt Xw
     PetscReal,dimension(:,:,:,:),allocatable :: c_flowsxc ! ..wrt Xc
@@ -223,6 +230,8 @@ subroutine initialiseWell(well_data,grid,material_auxvars,option)
   use Grid_module
   use Material_Aux_class
   use PM_TOilIms_Aux_module
+
+  implicit none
 
   class(well_data_type) , pointer :: well_data
   type (grid_type)      , pointer :: grid
@@ -372,6 +381,8 @@ subroutine doWellMPISetup(option,num_well,well_data_list)
   ! Date  : 09/19/18
   !
 
+  implicit none
+
   type(option_type), pointer :: option
 
   PetscInt,intent(in) :: num_well
@@ -468,11 +479,11 @@ end subroutine doWellMPISetup
 ! *************************************************************************** !
 
 subroutine SolveWell(aux,option,well_data,r_p)
-!
-! Supervise well solution to obtain residual and Jacobian contributions
-!
-! Author: Dave Ponting
-! Date  : 09/19/18
+  !
+  ! Supervise well solution to obtain residual and Jacobian contributions
+  !
+  ! Author: Dave Ponting
+  ! Date  : 09/19/18
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -773,7 +784,8 @@ subroutine SolveWell(aux,option,well_data,r_p)
     call well_data%setNComp(ws_ncomp)
     call well_data%setWellFlows(w_flows,ws_ncompe)
     call well_data%setCmplFlows(c_flows,c_flowsxc, &
-                                w_ncmpl,ws_ncompe,w_ncmplg,ws_ndof,ws_isothermal)
+                                w_ncmpl,ws_ncompe, &
+                                w_ncmplg,ws_ndof,ws_isothermal)
     call well_data%setActuals(ws_actuals)
 
 !  Update stored well solution
@@ -809,7 +821,8 @@ function solveForWellTarget(pw,option,itt,jwwi)
   PetscInt  :: iterpw,jTT,nconv,ierr
   PetscBool :: finished,possible,usediff
 ! fpsc: flow with positive sign convention
-  PetscReal :: conv_crit,rw,jww,fpsc,ftarg,pwtarg,tactpw,eps,anal,diff,rat,rwe, &
+  PetscReal :: conv_crit,rw,jww,fpsc,ftarg,pwtarg, &
+               tactpw,eps,anal,diff,rat,rwe, &
                bl(1),bg(1)
 
 !  Initialize
@@ -838,7 +851,8 @@ function solveForWellTarget(pw,option,itt,jwwi)
       diff = (rwe-rw)/eps
       rat = (anal+1.0E-10)/(diff+1.0E-10)
       if (abs(rat-1.0)>0.1) then
-        print *,'ws_name,itt,pw,anal,diff,rat,rw ',ws_name(1:10),itt,pw,anal,diff,rat,rw
+        print *,'ws_name,itt,pw,anal,diff,rat,rw ', &
+                 ws_name(1:10),itt,pw,anal,diff,rat,rw
       endif
     else
       call getRwAndJw(option,itt,pw    ,rw ,jww)
@@ -920,6 +934,8 @@ subroutine getRwAndJw(option,itt,pw,rw,jww)
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
+  implicit none
+
   type(option_type), pointer :: option
   PetscInt,intent(in)   :: itt
   PetscReal,intent(in)  :: pw
@@ -946,6 +962,8 @@ function extractResidualandJacobian(pw,option,itt,jww)
   !
   ! Author: Dave Ponting
   ! Date  : 09/19/18
+
+  implicit none
 
   PetscReal :: extractResidualandJacobian
   PetscReal,intent(in) :: pw
@@ -987,6 +1005,8 @@ function getActualFlowForTargetType(pw,option,itt,possible,tactpw)
   !
   ! Author: Dave Ponting
   ! Date  : 09/19/18
+
+  implicit none
 
   PetscReal :: getActualFlowForTargetType
   PetscReal,intent(in) :: pw
@@ -1086,6 +1106,8 @@ subroutine updateMainResidual(option,r_p)
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
+  implicit none
+
   type(option_type), pointer :: option
   PetscReal, pointer :: r_p(:)
 
@@ -1120,6 +1142,8 @@ subroutine allocateWorkArrays()
   !
   ! Author: Dave Ponting
   ! Date  : 09/19/18
+
+  implicit none
 
   allocate(c_local_id  (w_ncmpl          ))
   allocate(c_ghosted_id(w_ncmpl          ))
@@ -1237,6 +1261,8 @@ subroutine freeWorkArrays()
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
+  implicit none
+
   deallocate(c_local_id  )
   deallocate(c_ghosted_id)
   deallocate(c_to_cg     )
@@ -1341,6 +1367,8 @@ subroutine findAllCompletionFlows(pw,option)
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
+  implicit none
+
   PetscReal,intent(in) :: pw
   type(option_type), pointer :: option
   PetscInt :: icmpl,icmplg
@@ -1365,6 +1393,8 @@ subroutine findCompletionFlows(pw,option,icmpl,icmplg)
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
+  implicit none
+
   PetscReal,intent(in) :: pw
   type(option_type), pointer :: option
   PetscInt ,intent(in) :: icmpl
@@ -1381,7 +1411,7 @@ subroutine findCompletionFlows(pw,option,icmpl,icmplg)
   PetscReal,dimension(:), allocatable :: pddxw
 
   allocate(pddxw(ws_nxw))
-  pddxw=0.0
+  pddxw = 0.0
 
 !  Initialise
 
@@ -1728,6 +1758,8 @@ subroutine buildWellFlows1()
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
+  implicit none
+
   PetscInt :: icompe,icmpl,ierr,ixw,jcmplg,jdof
 
   ierr = 0
@@ -1788,6 +1820,8 @@ subroutine buildWellFlows2()
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
+  implicit none
+
   PetscInt :: icompe,icmpl,ierr,jcmplg,jdof
 
   ierr = 0
@@ -1838,6 +1872,8 @@ subroutine findWellboreSolution(pw,option)
   !
   ! Author: Dave Ponting
   ! Date  : 09/19/18
+
+  implicit none
 
   PetscReal,intent(in) :: pw
   type(option_type), pointer :: option
@@ -2062,6 +2098,8 @@ subroutine packWellboreSolution(option)
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
+  implicit none
+
   type(option_type), pointer :: option
 
   if (ws_oil) then
@@ -2094,6 +2132,8 @@ subroutine unpackWellboreSolution(pw,so,sg,sw,ss,pb,t)
   !
   ! Author: Dave Ponting
   ! Date  : 09/19/18
+
+  implicit none
 
   PetscReal,intent(in)  :: pw
   PetscReal,intent(out) :: so,sg,sw,ss,pb,t
@@ -2186,6 +2226,8 @@ subroutine getRwbsAndJwbs(pw,option)
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
+  implicit none
+
   PetscReal,intent(in) :: pw
   type(option_type), pointer :: option
 
@@ -2215,7 +2257,7 @@ subroutine getRwbsAndJwbs(pw,option)
 
   ippref = 1
   if (ws_isproducer) then
-    if(ws_oil) then
+    if (ws_oil) then
        ippref = ipoil
      else
        ippref = ipwat
@@ -2418,6 +2460,8 @@ subroutine findWellboreGravityDensityPredictor()
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
+  implicit none
+
   PetscReal :: sumgdm,sumgds,summ,sums,sp,gdp,mp,wd
   PetscInt  :: icmpl,iphase,ierr
   PetscReal,dimension(FOUR_INTEGER) :: sl
@@ -2476,7 +2520,7 @@ subroutine findWellboreGravityDensityPredictor()
 
 end subroutine findWellboreGravityDensityPredictor
 
-!  **************************************************************************** !
+!  ************************************************************************** !
 
 subroutine findWellborePropertiesAndDerivatives(pw,so,sg,sw,ss,pb,t,option)
   !
@@ -3012,6 +3056,8 @@ subroutine wellSolverLoaderTOWG(aux,option)
   use Auxiliary_module
   use PM_TOWG_Aux_module
 
+  implicit none
+
   type(auxiliary_type) :: aux
   type(option_type), pointer :: option
 
@@ -3044,6 +3090,8 @@ subroutine wellSolverLoaderTOIL(aux,option)
   use Auxiliary_module
   use PM_TOilIms_Aux_module
 
+  implicit none
+
   type(auxiliary_type) :: aux
   type(option_type), pointer :: option
 
@@ -3062,7 +3110,7 @@ subroutine wellSolverLoaderTOIL(aux,option)
 
 end subroutine wellSolverLoaderTOIL
 
-! **************************************************************************** !
+! *************************************************************************** !
 
 subroutine loadCellDataTOWG(auxvar,option,icmpl)
   !
@@ -3072,6 +3120,8 @@ subroutine loadCellDataTOWG(auxvar,option,icmpl)
   ! Date  : 09/19/18
 
   use AuxVars_TOWG_module
+
+  implicit none
 
   class(auxvar_towg_type) :: auxvar
   type(option_type), pointer :: option
@@ -3131,7 +3181,7 @@ subroutine loadCellDataTOWG(auxvar,option,icmpl)
 
 end subroutine loadCellDataTOWG
 
-! **************************************************************************** !
+! *************************************************************************** !
 
 subroutine loadCellDataTOIL(auxvar,option,icmpl)
   !
@@ -3191,6 +3241,8 @@ subroutine invertJacobian(deti)
   !
   ! Author: Dave Ponting
   ! Date  : 09/19/18
+
+  implicit none
 
   PetscReal,intent(out) :: deti
   PetscReal :: det,a,b,c,d,ai,bi,ci,di
@@ -3343,7 +3395,8 @@ subroutine incrTactX(ip,c,tact,tactpw)
 
   do icmplg = 1,w_ncmplg
     do idof = 1,ws_ndof
-      w_tactxc(icmplg,idof) = w_tactxc(icmplg,idof) + w_flowsGxc(ip,icmplg,idof)*c
+      w_tactxc(icmplg,idof) = &
+      w_tactxc(icmplg,idof) + w_flowsGxc(ip,icmplg,idof)*c
     enddo
   enddo
 
@@ -3430,48 +3483,48 @@ subroutine checkSurfaceDensities(option)
 
     if ( iphase == option%oil_phase     ) then
       mw = EOSOilGetFMW()
-      if( mw<0.0 ) then
+      if (mw<0.0) then
         option%io_buffer = 'Oil molecular weight not set';ierr = 1
       endif
       sd = EOSOilGetReferenceDensity()
-      if( sd<0.0 ) then
+      if (sd<0.0) then
         option%io_buffer = 'Oil surface reference density not set';ierr = 1
       endif
     endif
     if ( iphase == option%gas_phase     ) then
       mw = EOSGasGetFMW()
-      if( mw<0.0 ) then
+      if (mw<0.0) then
         option%io_buffer = 'Gas molecular weight not set';ierr = 1
       endif
       sd = EOSGasGetReferenceDensity()
-      if( sd<0.0 ) then
+      if (sd<0.0) then
         option%io_buffer = 'Gas surface reference density not set';ierr = 1
       endif
     endif
     if ( iphase == option%liquid_phase  ) then
       mw = FMWH2O
-      if( mw<0.0 ) then
+      if (mw<0.0) then
         option%io_buffer = 'Water molecular weight not set';ierr = 1
       endif
       sd = option%reference_density(option%liquid_phase)
-      if( sd<0.0 ) then
+      if (sd<0.0) then
         option%io_buffer = 'Water surface reference density not set';ierr = 1
       endif
      endif
     if ( iphase == option%solvent_phase ) then
       mw = EOSSlvGetFMW()
-      if( mw<0.0 ) then
+      if (mw<0.0) then
         option%io_buffer = 'Solvent molecular weight not set';ierr = 1
       endif
       sd = EOSSlvGetReferenceDensity()
-      if( sd<0.0 ) then
+      if (sd<0.0) then
         option%io_buffer = 'Solvent surface reference density not set';ierr = 1
       endif
     endif
 
   enddo
 
-  if( ierr == 1 ) then
+  if (ierr == 1) then
     call printErrMsg(option)
   endif
 
