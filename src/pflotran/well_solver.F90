@@ -369,6 +369,8 @@ subroutine initialiseWell(well_data,grid,material_auxvars,option)
     ws_isothermal = option%use_isothermal
   endif
 
+  call CheckSolverAvailable(option)
+
 end subroutine InitialiseWell
 
 ! *************************************************************************** !
@@ -566,9 +568,6 @@ subroutine SolveWell(aux,option,well_data,r_p)
     loc = loc+1
     ws_loc_sslv = loc
   endif
-  if (.not.ws_wat) then
-    call throwWellSolverException('well_solver assumes water phase is present')
-  endif
 
 !  Check for black oil cases (with dissolved gas)
 
@@ -653,8 +652,6 @@ subroutine SolveWell(aux,option,well_data,r_p)
       call wellSolverLoaderTOWG(aux,option)
     elseif ( option%iflowmode == TOIL_IMS_MODE ) then
       call wellSolverLoaderTOIL(aux,option)
-    else
-      call throwWellSolverException('This mode not yet supported by SolveWell')
     endif
 
 !  Setup well solution
@@ -760,7 +757,7 @@ subroutine SolveWell(aux,option,well_data,r_p)
 !  Check for lack of convergence
 
     if ( .not.finished ) then
-      call throwWellSolverException('Unable to converge target iteration')
+      call throwWellWarning('Unable to converge target iteration')
     endif
 
 !  Find full derivative of flows
@@ -883,7 +880,7 @@ function solveForWellTarget(pw,option,itt,jwwi)
 !  Check for convergence error
 
   if ( .not.finished ) then
-    call throwWellSolverException('Unable to converge well iteration')
+    call throwWellWarning('Unable to converge well iteration')
   endif
 
 !  Check if all other targets satisfied
@@ -2023,7 +2020,7 @@ subroutine findWellboreSolution(pw,option)
 ! Check for lack of convergence
 
   if (.not.finished) then
-    call throwWellSolverException('Unable to converge wellbore solution')
+    call throwWellWarning('Unable to converge wellbore solution')
   endif
 
 !  Use implicit function theorem to find derivatives of Xw wrt Pw and Xc
@@ -3309,10 +3306,6 @@ subroutine invertJacobian(deti)
 
   endif
 
-  if (ws_nxw >3) then
-    call throwWellSolverException('Inversion error:no solver for this ws_nxw')
-  endif
-
 end subroutine invertJacobian
 
 ! *************************************************************************** !
@@ -3461,6 +3454,11 @@ end subroutine findFullFlowDerivatives
 ! *************************************************************************** !
 
 subroutine checkSurfaceDensities(option)
+  !
+  ! Check that a valid surface density calculation exists for the well model
+  !
+  ! Author: Dave Ponting
+  ! Date  : 01/23/19
 
   use EOS_Oil_module
   use EOS_Gas_module
@@ -3532,18 +3530,78 @@ end subroutine checkSurfaceDensities
 
 ! *************************************************************************** !
 
-subroutine throwWellSolverException(message)
+subroutine checkSolverAvailable(option)
+  !
+  ! Check that a well solver exists for this run
+  !
+  ! Author: Dave Ponting
+  ! Date  : 01/23/19
+
+  implicit none
+
+  type (option_type), pointer :: option
+  PetscInt  :: ncmp,iphase,nphase,wsnx
+  PetscBool :: water_found,mode_ok
+
+  ncmp   = option%nphase+1
+  nphase = option%nphase
+
+!  Do we have a direct matrix inverter for this system?
+
+  if (ws_isothermal) then
+    wsnx = ncmp-2
+  else
+    wsnx = ncmp-1
+  endif
+  if (wsnx>3) then
+    option%io_buffer = 'Wellsolver needs n>3 direct solver for this system'
+    call printErrMsg(option)
+  endif
+
+!  Is water present?
+
+  water_found = PETSC_FALSE
+  do iphase = 1,nphase
+    if( iphase ==  option%liquid_phase ) water_found = PETSC_TRUE
+  enddo
+  if (.not.water_found) then
+    option%io_buffer = 'Well solver assumes water phase is present'
+    call printErrMsg(option)
+  endif
+
+!  Is is a supported mode ?
+
+  mode_ok=PETSC_FALSE
+
+  if ( (option%iflowmode == TOWG_MODE    ) .or. &
+       (option%iflowmode == TOIL_IMS_MODE) ) mode_ok = PETSC_TRUE
+
+  if (.not.mode_ok) then
+    option%io_buffer = 'This mode not yet supported by well solver'
+    call printErrMsg(option)
+  endif
+
+  if ( .not.option%is_grdecl ) then
+    option%io_buffer = 'Well solver requires grdecl type input'
+    call printErrMsg(option)
+  endif
+
+end subroutine checkSolverAvailable
+
+! *************************************************************************** !
+
+subroutine throwWellWarning(message)
   !
   ! Issue a general well solver error
   !
   ! Author: Dave Ponting
-  ! Date  : 09/19/18
+  ! Date  : 01/23/19
 
   implicit none
 
   character(len=*) :: message
   print *,message
 
-end subroutine throwWellSolverException
+end subroutine throwWellWarning
 
 end module Well_Solver_module
