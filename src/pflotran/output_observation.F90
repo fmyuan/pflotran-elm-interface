@@ -3177,7 +3177,8 @@ subroutine OutputEclipseFiles(realization_base)
           select type(realization_base)
            class is(realization_subsurface_type)
              call WriteWellHeaders(fid,icol, &
-                                   realization_base,towg_miscibility_model,wecl)
+                                   realization_base, &
+                                   towg_miscibility_model,wecl)
           end select
         endif
 
@@ -3186,7 +3187,8 @@ subroutine OutputEclipseFiles(realization_base)
         select type(realization_base)
          class is(realization_subsurface_type)
            call WriteWellValues(fid,realization_base, &
-                                output_option%tconv,towg_miscibility_model,option,wecl)
+                                output_option%tconv, &
+                                towg_miscibility_model,option,wecl)
         end select
 
       endif ! IMS or TOWG
@@ -3224,7 +3226,7 @@ subroutine WriteWellHeaders(fid,icol,realization,towg_miscibility_model,wecl)
 
   use Realization_Subsurface_class
   use Well_Data_class
-  use ewriter,only:writeEclipseFilesSpec
+  use ewriter,only:WriteEclipseFilesSpec
 
   implicit none
 
@@ -3245,20 +3247,20 @@ subroutine WriteWellHeaders(fid,icol,realization,towg_miscibility_model,wecl)
 
 ! Write out Eclipse files if required
 
-  ni=0
-  mi=0
-  if( wecl ) then
-    mi=1
-    ni=1
+  ni = 0
+  mi = 0
+  if (wecl) then
+    mi = 1
+    ni = 1
     allocate(zm(mi))
     allocate(zn(mi))
     allocate(zu(mi))
-    zm=' '
-    zn=' '
-    zu=' '
-    zm(1)='TIME'
-    zn(1)=' '
-    zu(1)='DAYS'
+    zm = ' '
+    zn = ' '
+    zu = ' '
+    zm(1) = 'TIME'
+    zn(1) = ' '
+    zu(1) = 'DAYS'
   endif
 
 !  Find well list and loop over wells
@@ -3341,8 +3343,8 @@ subroutine WriteWellHeaders(fid,icol,realization,towg_miscibility_model,wecl)
 
 ! Write out Eclipse files if required
 
-  if( wecl ) then
-    call writeEclipseFilesSpec(zm,zn,zu,ni)
+  if (wecl) then
+    call WriteEclipseFilesSpec(zm,zn,zu,ni)
     deallocate(zm)
     deallocate(zn)
     deallocate(zu)
@@ -3443,7 +3445,8 @@ end subroutine WriteWellMassHeaders
 
 ! *************************************************************************** !
 
-subroutine WriteWellValues(fid,realization,tconv,towg_miscibility_model,option,wecl)
+subroutine WriteWellValues(fid,realization,tconv,towg_miscibility_model, &
+                           option,wecl)
   !
   ! Used to write out mas file values specific to TOIL and TOWG modes
   ! This routine must match the headers written by WriteWellHeaders
@@ -3454,7 +3457,7 @@ subroutine WriteWellValues(fid,realization,tconv,towg_miscibility_model,option,w
   use Realization_Subsurface_class
   use Well_Type_Class
   use Well_Data_class
-  use ewriter,only:writeEclipseFilesSumm
+  use ewriter,only:WriteEclipseFilesSumm
   use Option_module
 
   implicit none
@@ -3486,7 +3489,7 @@ subroutine WriteWellValues(fid,realization,tconv,towg_miscibility_model,option,w
   PetscReal,pointer,dimension(:) :: vd
   PetscInt                       :: nd,md
 
-  nd=0
+  nd = 0
 
 !  Find well list and loop over wells
 
@@ -3495,12 +3498,12 @@ subroutine WriteWellValues(fid,realization,tconv,towg_miscibility_model,option,w
 
 !  Set up array of Eclipse summary file data if required
 
-  if( wecl ) then
-    nd=1
-    md=1
+  if (wecl) then
+    nd = 1
+    md = 1
     allocate(vd(md))
-    vd=0.0
-    vd(nd)=option%time/tconv
+    vd = 0.0
+    vd(nd) = option%time/tconv
   endif
 
 !  Loop over wells
@@ -3578,7 +3581,7 @@ subroutine WriteWellValues(fid,realization,tconv,towg_miscibility_model,option,w
     wgor=0.0
     if( wopr .gt. 0.0 ) wgor=wgpr/wopr
 
-!--Write out well values--------------------------------------------------------------
+!  Write out well values
 
     call wrtToTableAndSumm(fid,wopr,vd,nd,md,wecl)
     call wrtToTableAndSumm(fid,wopt,vd,nd,md,wecl)
@@ -3684,8 +3687,8 @@ subroutine WriteWellValues(fid,realization,tconv,towg_miscibility_model,option,w
 
 ! Write out Eclipse files if required
 
-  if( wecl ) then
-    call writeEclipseFilesSumm(vd,nd)
+  if(wecl) then
+    call WriteEclipseFilesSumm(vd,nd)
    endif
 
 end subroutine WriteWellValues
@@ -3694,7 +3697,8 @@ end subroutine WriteWellValues
 
 subroutine WriteWellMassValues(fid,realization,tconv,towg_miscibility_model)
   !
-  ! Used to write out mass rates to the mas file values specific to TOIL and TOWG modes
+  ! Used to write out mass rates to the mas file values
+  ! Specific to TOIL and TOWG modes
   ! This routine must match the headers written by WriteWellMassHeaders
   !
   ! Author: Dave Ponting
@@ -3875,15 +3879,14 @@ end subroutine WriteWellMassValues
 
 subroutine WriteRestValues(realization,tconv,option)
   !
-  ! Used to write out mas file values specific to TOIL and TOWG modes
-  ! This routine must match the headers written by WriteWellHeaders
+  ! Used to write restart file values
   !
   ! Author: Dave Ponting
-  ! Date  : 09/15/18
+  ! Date  : 12/15/18
 
   use Realization_Subsurface_class
   use Well_Data_class
-  use ewriter,only:writeEclipseFilesRest,GetMlmax
+  use ewriter,only:WriteEclipseFilesRest,GetMlmax
   use Option_module
   use Grid_module
   use Patch_module
@@ -3926,9 +3929,11 @@ subroutine WriteRestValues(realization,tconv,option)
   call allocateLocalSolution(vsoll,nsol,zsol,nlmax)
   call loadLocalSolution    (vsoll,nsol,zsol,patch,grid,option)
   well_data_list => realization%well_data
-  call setupWellData(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl,well_data_list)
-  call writeEclipseFilesRest(vsoll,nsol,zsol,tconv,time,is_ioproc, &
-                             wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl,option)
+  call setupWellData(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl, &
+                     well_data_list)
+  call WriteEclipseFilesRest(vsoll,nsol,zsol,tconv,time,is_ioproc, &
+                             wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl, &
+                             idcmpl,option)
   call deleteLocalSolution  (vsoll,zsol)
   call deleteWellData(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
 
@@ -3937,6 +3942,11 @@ end subroutine WriteRestValues
 ! *************************************************************************** !
 
 subroutine OutputLineRept(realization_base,option)
+  !
+  ! Write out single line per step progress reports in TOI_IMS and TOWG mode
+  !
+  ! Author: Dave Ponting
+  ! Date  : 01/15/19
 
   use Realization_Base_class, only : realization_base_type
   use Option_module
@@ -3963,12 +3973,14 @@ subroutine OutputLineRept(realization_base,option)
 
 end subroutine OutputLineRept
 
+! ************************************************************************** !
+
 subroutine WriteLineRept(realization,option,tconv)
   !
   ! Used to write out single line progress reports
   !
   ! Author: Dave Ponting
-  ! Date  : 09/15/18
+  ! Date  : 01/15/19
 
   use Realization_Subsurface_class
   use Well_Type_Class
@@ -3989,10 +4001,14 @@ subroutine WriteLineRept(realization,option,tconv)
                fwpr,fwir, &
                flpr,fgor,fwct,fpav
 
-100 format('Step time    fopt    fopr    fwpr    fgpr    fwir    fgir    fwct    fgor     fpav   ')
-101 format('     days    ksm3    sm3/d   ksm3/d  ksm3/d  ksm3/d  ksm3/d          ksm3/sm3 Bar    ')
-102 format('---- ------- ------- ------- ------- ------- ------- ------- ------- -------- -------')
-103 format(I4,1X,F7.1,1X,F7.1,1X,F7.1,1X,F7.1,1X,F7.1,1X,F7.1,1X,F7.1,1X,F7.5,1X,F8.3,1X,F7.2     )
+100 format('Step time    fopt    fopr    fwpr    ', &
+           'fgpr    fwir    fgir    fwct    fgor     fpav')
+101 format('     days    ksm3    sm3/d   ksm3/d  ', &
+           'ksm3/d  ksm3/d  ksm3/d          ksm3/sm3 Bar')
+102 format('---- ------- ------- ------- ------- ', &
+           '------- ------- ------- ------- -------- -------')
+103 format(I4,1X,F7.1,1X,F7.1,1X,F7.1,1X,F7.1,1X, &
+           F7.1,1X,F7.1,1X,F7.1,1X,F7.5,1X,F8.3,1X,F7.2)
 
   well_data_list => realization%well_data
   option => realization%option
@@ -4035,7 +4051,8 @@ subroutine WriteLineRept(realization,option,tconv)
       write(*,101)
       write(*,102)
     endif
-    write(*,103) linerept_count+1,time,fopt,fopr,fwpr,fgpr,fwir,fgir,fwct,fgor,fpav
+    write(*,103) linerept_count+1,time,fopt,fopr,fwpr,fgpr, &
+                                       fwir,fgir,fwct,fgor,fpav
 
     linerept_count = linerept_count + 1
 
@@ -4045,17 +4062,23 @@ end subroutine WriteLineRept
 
 !*****************************************************************************!
 
-subroutine setupWellData(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl,well_data_list)
+subroutine setupWellData(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl, &
+                         well_data_list)
+  !
+  ! Set up structures containing well locations to be passed to ewriter
+  !
+  ! Author: Dave Ponting
+  ! Date  : 01/15/19
 
   use Well_Data_class
 
   implicit none
 
-  character(len=8),pointer,dimension(:):: wname
-  PetscInt,pointer,dimension(:)::wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl
+  character(len=8),pointer,dimension(:) :: wname
+  PetscInt,pointer,dimension(:) :: wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl
   type(well_data_list_type),pointer :: well_data_list
 
-  PetscInt::iw,nw,mw,ic,ncg,nct,mct,ci,cj,ck,cdd,welltype
+  PetscInt :: iw,nw,mw,ic,ncg,nct,mct,ci,cj,ck,cdd,welltype
   character(len=MAXSTRINGLENGTH) :: name
 
   nw=getnwell(well_data_list)
@@ -4065,19 +4088,19 @@ subroutine setupWellData(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl,well_dat
   allocate(wtype (mw))
   allocate(wncmpl(mw))
 
-  nct=0
+  nct = 0
 
   do iw=1,nw
     call getWellNameI(iw,well_data_list,name)
     welltype = getWellTypeI(iw,well_data_list)
-    ncg=GetWellNCmplGI(iw,well_data_list)
-    nct=nct+ncg
-    wname (iw)=name
-    wtype (iw)=welltype
-    wncmpl(iw)=ncg
+    ncg = GetWellNCmplGI(iw,well_data_list)
+    nct = nct+ncg
+    wname (iw) = name
+    wtype (iw) = welltype
+    wncmpl(iw) = ncg
   enddo
 
-  mct=max(1,nct)
+  mct = max(1,nct)
 
   allocate(ixcmpl(mct))
   allocate(iycmpl(mct))
@@ -4086,19 +4109,19 @@ subroutine setupWellData(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl,well_dat
 
   nct=0
 
-  do iw=1,nw
+  do iw = 1,nw
 
-    ncg=wncmpl(iw)
+    ncg = wncmpl(iw)
 
-    do ic=1,ncg
+    do ic = 1,ncg
       call GetCmplGlobalLocI(iw,ic,ci,cj,ck,cdd,well_data_list)
-      ixcmpl(nct+ic)=ci
-      iycmpl(nct+ic)=cj
-      izcmpl(nct+ic)=ck
-      idcmpl(nct+ic)=cdd
+      ixcmpl(nct+ic) = ci
+      iycmpl(nct+ic) = cj
+      izcmpl(nct+ic) = ck
+      idcmpl(nct+ic) = cdd
     enddo
 
-    nct=nct+ncg
+    nct = nct+ncg
 
   enddo
 
@@ -4107,6 +4130,11 @@ end subroutine setupWellData
 !*****************************************************************************!
 
 subroutine DeleteWellData(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
+  !
+  ! Delete the structures containing well locations to be passed to ewriter
+  !
+  ! Author: Dave Ponting
+  ! Date  : 01/15/19
 
   implicit none
 
@@ -4127,25 +4155,37 @@ end subroutine DeleteWellData
 !*****************************************************************************!
 
 subroutine allocateLocalSolution(vsoll,nsol,zsol,nlmax)
+  !
+  ! Allocate structures containing simulation solutions to be passed to ewriter
+  !
+  ! Author: Dave Ponting
+  ! Date  : 01/15/19
 
   implicit none
 
-  PetscReal,pointer,dimension(:,:)     :: vsoll
-  PetscInt                             :: nsol
-  character(len=8),pointer,dimension(:):: zsol
-  PetscInt,intent(in)                  :: nlmax
+  PetscReal,pointer,dimension(:,:)      :: vsoll
+  PetscInt                              :: nsol
+  character(len=8),pointer,dimension(:) :: zsol
+  PetscInt,intent(in)                   :: nlmax
 
   nsol = 4
   allocate(vsoll(nlmax,nsol))
   allocate(zsol (      nsol))
-  zsol(1)='PRESSURE'
-  zsol(2)='SOIL'
-  zsol(3)='SGAS'
-  zsol(4)='SWAT'
+  zsol(1) = 'PRESSURE'
+  zsol(2) = 'SOIL'
+  zsol(3) = 'SGAS'
+  zsol(4) = 'SWAT'
 
 end subroutine allocateLocalSolution
 
+! ************************************************************************** !
+
 subroutine loadLocalSolution(vsoll,nsol,zsol,patch,grid,option)
+  !
+  ! Load up structures containing simulation solutions to be passed to ewriter
+  !
+  ! Author: Dave Ponting
+  ! Date  : 01/15/19
 
   use Patch_module
   use Grid_module
@@ -4165,18 +4205,29 @@ subroutine loadLocalSolution(vsoll,nsol,zsol,patch,grid,option)
 
   PetscInt :: isol
 
-  do isol=1,nsol
+  do isol = 1,nsol
     select case(option%iflowmode)
       case(TOIL_IMS_MODE)
-        call patch%aux%TOil_ims%GetLocalSol(grid,patch%aux%material,patch%imat,option,vsoll,isol,zsol(isol))
+        call patch%aux%TOil_ims%GetLocalSol(grid,patch%aux%material, &
+                                            patch%imat,option, &
+                                            vsoll,isol,zsol(isol))
       case(TOWG_MODE)
-        call patch%aux%TOWG%GetLocalSol(grid,patch%aux%material,patch%imat,option,vsoll,isol,zsol(isol))
+        call patch%aux%TOWG%GetLocalSol(grid,patch%aux%material, &
+                                        patch%imat,option, &
+                                        vsoll,isol,zsol(isol))
     end select
   enddo
 
 end subroutine loadLocalSolution
 
+! *************************************************************************** !
+
 subroutine deleteLocalSolution(vsoll,zsol)
+  !
+  ! Delete structures containing simulation solutions to be passed to ewriter
+  !
+  ! Author: Dave Ponting
+  ! Date  : 01/15/19
 
   implicit none
 
@@ -4191,6 +4242,12 @@ end subroutine deleteLocalSolution
 ! *************************************************************************** !
 
 subroutine WrtHdrAndSpc(fid,mnem,name,units,icolumn,zm,zn,zu,ni,mi,wecl)
+  !
+  ! Write out mnemonic, name and units values on stream fid
+  ! and/or store in the zm/zn/zu buffers
+  !
+  ! Author: Dave Ponting
+  ! Date  : 12/15/18
 
   use String_module
 
@@ -4202,7 +4259,7 @@ subroutine WrtHdrAndSpc(fid,mnem,name,units,icolumn,zm,zn,zu,ni,mi,wecl)
   character(len=8),allocatable,dimension(:),intent(inout) :: zm,zn,zu
   PetscInt,intent(inout) :: ni
   PetscInt,intent(inout) :: mi
-  PetscBool,intent(in)::wecl
+  PetscBool,intent(in) :: wecl
 
   character(len=8) :: mnemu,nameu,unitsu
 
@@ -4219,23 +4276,30 @@ subroutine WrtHdrAndSpc(fid,mnem,name,units,icolumn,zm,zn,zu,ni,mi,wecl)
 
 !  wecl indicates value storage for Eclipse output required
 
-  if( wecl ) then
+  if (wecl) then
     call checkHeaderBufferSize(zm,zn,zu,ni,mi)
-    ni=ni+1
-    mnemu =mnem
-    nameu =name
-    unitsu=units
+    ni = ni+1
+    mnemu  = mnem
+    nameu  = name
+    unitsu = units
     call StringToUpper(mnemu )
     call StringToUpper(nameu )
     call StringToUpper(unitsu)
-    zm(ni)=mnemu
-    zn(ni)=nameu
-    zu(ni)=unitsu
+    zm(ni) = mnemu
+    zn(ni) = nameu
+    zu(ni) = unitsu
   endif
 
 end subroutine WrtHdrAndSpc
 
+! ************************************************************************** !
+
 subroutine WrtHdrAndSpcMO(fid,mnem,name,units,icolumn)
+  !
+  ! Write out mnemonic, name and units values on stream fid
+  !
+  ! Author: Dave Ponting
+  ! Date  : 12/15/18
 
   use String_module
 
@@ -4257,6 +4321,11 @@ end subroutine WrtHdrAndSpcMO
 ! *************************************************************************** !
 
 subroutine wrtToTableAndSumm(fid,val,vd,nd,md,wecl)
+  !
+  ! Write out values on stream fid and/or store in the vd value buffer
+  !
+  ! Author: Dave Ponting
+  ! Date  : 12/15/18
 
   use Utility_module, only : ReallocateArray
 
@@ -4264,27 +4333,27 @@ subroutine wrtToTableAndSumm(fid,val,vd,nd,md,wecl)
 
 110 format(es14.6)
 
-  PetscInt :: fid
-  PetscReal:: val
+  PetscInt  :: fid
+  PetscReal :: val
   PetscReal,dimension(:),pointer :: vd
   PetscInt,intent(inout) :: nd
   PetscInt,intent(in) :: md
-  PetscBool,intent(in)::wecl
+  PetscBool,intent(in) :: wecl
 
 !  Positive fid indicates -mas file output required
 
-  if( fid.gt.0 ) then
+  if (fid.gt.0) then
     write(fid,110,advance="no") val
   endif
 
 !  wecl indicates value storage for Eclipse output required
 
-  if( wecl ) then
+  if (wecl) then
 !  Check if the buffer has space for another value: reallocate if not
-    if( nd.ge.(md-1) ) call reallocateArray(vd,md)
+    if (nd.ge.(md-1)) call reallocateArray(vd,md)
 !  Store value
-    nd=nd+1
-    vd(nd)=val
+    nd = nd+1
+    vd(nd) = val
   endif
 
 end subroutine wrtToTableAndSumm
@@ -4292,6 +4361,11 @@ end subroutine wrtToTableAndSumm
 ! *************************************************************************** !
 
 subroutine wrtToTable(fid,val)
+  !
+  ! Write out values on stream fid
+  !
+  ! Author: Dave Ponting
+  ! Date  : 12/15/18
 
   use Utility_module, only : ReallocateArray
 
@@ -4306,7 +4380,14 @@ subroutine wrtToTable(fid,val)
 
 end subroutine wrtToTable
 
+! ************************************************************************** !
+
 subroutine checkHeaderBufferSize(zm,zn,zu,ni,mi)
+  !
+  ! Check header buffer is large enough and extend if required
+  !
+  ! Author: Dave Ponting
+  ! Date  : 01/15/19
 
   implicit none
 
@@ -4319,7 +4400,7 @@ subroutine checkHeaderBufferSize(zm,zn,zu,ni,mi)
 
 ! Check if buffer as space for anaother set of values; reallocate if not
 
-  if( ni.ge.(mi-1) ) then
+  if (ni.ge.(mi-1)) then
 
 ! Allocate temporary stores
 
@@ -4329,10 +4410,10 @@ subroutine checkHeaderBufferSize(zm,zn,zu,ni,mi)
 
 ! Copy to temporary stores
 
-   do i=1,ni
-     zmt(i)=zm(i)
-     znt(i)=zn(i)
-     zut(i)=zu(i)
+   do i = 1,ni
+     zmt(i) = zm(i)
+     znt(i) = zn(i)
+     zut(i) = zu(i)
    enddo
 
 !  Deallocate, extend and reallocate actual stores
@@ -4341,22 +4422,22 @@ subroutine checkHeaderBufferSize(zm,zn,zu,ni,mi)
    deallocate(zn)
    deallocate(zu)
 
-   mi=2*mi
+   mi = 2*mi
 
    allocate(zm(mi))
    allocate(zn(mi))
    allocate(zu(mi))
 
-   zm=' '
-   zn=' '
-   zu=' '
+   zm = ' '
+   zn = ' '
+   zu = ' '
 
 !  Copy values back
 
-   do i=1,ni
-     zm(i)=zmt(i)
-     zn(i)=znt(i)
-     zu(i)=zut(i)
+   do i = 1,ni
+     zm(i) = zmt(i)
+     zn(i) = znt(i)
+     zu(i) = zut(i)
    enddo
 
 !  Deallocate the temporary stores
@@ -4369,7 +4450,15 @@ subroutine checkHeaderBufferSize(zm,zn,zu,ni,mi)
 
 end subroutine checkHeaderBufferSize
 
+! ************************************************************************** !
+
 subroutine setupEwriterRestMaps(patch,grid,option)
+  !
+  ! Set up maps required to convert from Pflotran order to that
+  ! required for Eclipse restart files
+  !
+  ! Author: Dave Ponting
+  ! Date  : 01/15/19
 
   use Patch_module
   use Grid_module
@@ -4415,7 +4504,14 @@ subroutine setupEwriterRestMaps(patch,grid,option)
 
 end subroutine setupEwriterRestMaps
 
+! ************************************************************************** !
+
 function GetEclWrtFlg(count,time,deltat,deltas,lastt,lasts)
+  !
+  ! Check if Eclipse output required for this step and time
+  !
+  ! Author: Dave Ponting
+  ! Date  : 01/15/19
 
   implicit none
 
@@ -4430,7 +4526,7 @@ function GetEclWrtFlg(count,time,deltat,deltas,lastt,lasts)
 
   GetEclWrtFlg=PETSC_TRUE
 
-  if( count == 0 ) then
+  if (count == 0) then
 
 !  First call: will write, so set the last-write values to now
 
@@ -4444,30 +4540,29 @@ function GetEclWrtFlg(count,time,deltat,deltas,lastt,lasts)
 
 ! delta-time has been set
 
-    if( deltat > 0.0 ) then
+    if (deltat > 0.0) then
 !  If deltat has elapsed since last write, write and reset last time
-      if( (time-lastt) >= deltat ) then
+      if ((time-lastt) >= deltat) then
         GetEclWrtFlg = PETSC_TRUE
-        if( abs(mod(time,deltat)) == 0.0 ) then
-          lastt=time
+        if (abs(mod(time,deltat)) == 0.0) then
+          lastt = time
         else
-          lastt=deltat*int(time/deltat)
+          lastt = deltat*int(time/deltat)
         endif
       endif
     endif
 
 !  delta-step has been set
 
-    if( deltas > 0 ) then
+    if (deltas > 0) then
 !  If deltas steps since last write, write and reset last step
-      if( (count-lasts) >= deltas ) then
+      if ((count-lasts) >= deltas) then
         GetEclWrtFlg = PETSC_TRUE
-        lasts=count
+        lasts = count
       endif
     endif
   endif
 
 end function GetEclWrtFlg
-
 
 end module Output_Observation_module
