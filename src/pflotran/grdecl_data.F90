@@ -43,7 +43,6 @@ module Grdecl_class
 
 ! z-flip from Eclipse to Pflotran convention
 
-  PetscBool :: g_econv = PETSC_TRUE
   PetscBool :: g_iscpg = PETSC_FALSE
   PetscReal :: z_flip  = -1.0
 
@@ -2509,7 +2508,7 @@ subroutine ReadEGridArrayR(a,keyword,ierr,input,option,is_dep,is_perm,qerr)
   PetscInt  :: ix,iy,iz,izpft,ig,igpft,nread
   PetscReal :: flip,conv,v
 
-  qerr = PETSC_REAL
+  qerr = PETSC_FALSE
 
 ! Check DIMENS read
 
