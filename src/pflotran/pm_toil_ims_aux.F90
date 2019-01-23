@@ -1034,41 +1034,69 @@ subroutine TOilImsAuxFieldVolRefAve(this,grid,material,imat,option)
 
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: local_id, ghosted_id
-  PetscReal :: ref_por_volume_sh_lc, ref_por_volume_sh_glb
-  PetscReal :: cell_ref_volume, sh
-  PetscReal :: fhpav_lc,fhpav_glb,field_hc_press_average
+  PetscReal :: pv,sh,pr
+  PetscReal :: rpv_sh_l,rpv_sh_g,rpv_l,rpv_g
+  PetscReal :: fhpav_l,fhpav_g,fpav_l,fpav_g,pav
   PetscInt :: int_mpi
   PetscErrorCode :: ierr
 
-  ref_por_volume_sh_lc = 0.0d0
-  ref_por_volume_sh_glb = 0.0d0
-  fhpav_lc = 0.0d0
-  fhpav_glb = 0.0d0
+!  Initial values for sums (with and without hydrocarbon fraction)
+
+  rpv_sh_l = 0.0d0
+  rpv_sh_g = 0.0d0
+  rpv_l    = 0.0d0
+  rpv_g    = 0.0d0
+
+  fhpav_l  = 0.0d0
+  fhpav_g  = 0.0d0
+  fpav_l   = 0.0d0
+  fpav_g   = 0.0d0
+
+  fpav = 0.0
+
+!  Do the summations on this rank
 
   material_auxvars => material%auxvars
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (imat(ghosted_id) <= 0) cycle
-    cell_ref_volume = material_auxvars(ghosted_id)%porosity_base * &
+
+    pv = material_auxvars(ghosted_id)%porosity_base * &
                             material_auxvars(ghosted_id)%volume
     sh = this%auxvars(ZERO_INTEGER,ghosted_id)%sat(option%oil_phase)
-    ref_por_volume_sh_lc = ref_por_volume_sh_lc + sh *cell_ref_volume
-    fhpav_lc = fhpav_lc + sh *cell_ref_volume * &
-           this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+    pr = this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+
+    rpv_sh_l = rpv_sh_l + sh * pv
+    rpv_l    = rpv_l    +      pv
+
+    fhpav_l  = fhpav_l + sh * pv * pr
+     fpav_l  =  fpav_l +      pv * pr
   end do
 
+!  Do the summations over ranks
+
   int_mpi = ONE_INTEGER
-  call MPI_AllReduce(ref_por_volume_sh_lc,ref_por_volume_sh_glb, &
-                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                     option%mycomm,ierr)
-  call MPI_AllReduce(fhpav_lc,fhpav_glb, &
-                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                     option%mycomm,ierr)
+  call MPI_AllReduce(rpv_sh_l,rpv_sh_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(fhpav_l,fhpav_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(rpv_l,rpv_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(fpav_l,fpav_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
 
-  field_hc_press_average = fhpav_glb/ref_por_volume_sh_glb
+! Form the average pressure: use simpler form if no hydrocarbon volume
 
-  call SetFieldData(field_hc_press_average)
+  if (rpv_sh_g>0.0) then
+    fpav = fhpav_g/rpv_sh_g  !  Hydrocarbon volume exists
+  else if (rpv_g>0.0 ) then
+    fpav = fpav_g/rpv_g      ! No hydrocarbon, but pore volume exists
+  endif
+
+!  Set value
+
+  call SetFieldData(fpav)
 
   nullify(material_auxvars)
 

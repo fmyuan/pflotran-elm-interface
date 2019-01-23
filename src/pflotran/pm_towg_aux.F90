@@ -3905,46 +3905,62 @@ subroutine TOWGAuxFieldVolRefAve(this,grid,material,imat,option)
 
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: local_id, ghosted_id
-  PetscReal :: ref_por_volume_sh_lc, ref_por_volume_sh_glb
-  PetscReal :: cell_ref_volume, sh
-  PetscReal :: fhpav_lc,fhpav_glb,fhpav
+  PetscReal :: rpv_sh_l, rpv_sh_g,rpv_l, rpv_g
+  PetscReal :: pr,pv,sh
+  PetscReal :: fhpav_l,fhpav_g,fpav_l,fpav_g,fpav
   PetscInt :: int_mpi
   PetscErrorCode :: ierr
 
-  ref_por_volume_sh_lc = 0.0d0
-  ref_por_volume_sh_glb = 0.0d0
-  fhpav_lc = 0.0d0
-  fhpav_glb = 0.0d0
+  rpv_sh_l = 0.0d0
+  rpv_sh_g = 0.0d0
+  rpv_l   = 0.0d0
+  rpv_g   = 0.0d0
+
+  fhpav_l = 0.0d0
+  fhpav_g = 0.0d0
+  fpav_l  = 0.0d0
+  fpav_g  = 0.0d0
 
   material_auxvars => material%auxvars
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (imat(ghosted_id) <= 0) cycle
-    cell_ref_volume = material_auxvars(ghosted_id)%porosity_base * &
-                            material_auxvars(ghosted_id)%volume
+
+    pv = material_auxvars(ghosted_id)%porosity_base * &
+         material_auxvars(ghosted_id)%volume
     sh = this%auxvars(ZERO_INTEGER,ghosted_id)%sat(option%oil_phase) + &
           this%auxvars(ZERO_INTEGER,ghosted_id)%sat(option%gas_phase)
     if (this%IsSolventModel()) then
        sh = sh + this%auxvars(ZERO_INTEGER,ghosted_id)% &
                                            sat(option%solvent_phase)
     end if
-    ref_por_volume_sh_lc = ref_por_volume_sh_lc + sh *cell_ref_volume
-    fhpav_lc = fhpav_lc + sh *cell_ref_volume * &
-           this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+    pr=this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+
+    rpv_sh_l = rpv_sh_l + sh * pv
+    rpv_l    = rpv_l    +      pv
+    fhpav_l  = fhpav_l  + sh * pv * pr
+    fpav_l   = fpav_l   +      pv * pr
+
   end do
 
   int_mpi = ONE_INTEGER
-  call MPI_AllReduce(ref_por_volume_sh_lc,ref_por_volume_sh_glb, &
-                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                     option%mycomm,ierr)
-  call MPI_AllReduce(fhpav_lc,fhpav_glb, &
-                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                     option%mycomm,ierr)
+  call MPI_AllReduce(rpv_sh_l,rpv_sh_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(fhpav_l,fhpav_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(rpv_l,rpv_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(fpav_l,fpav_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
 
-  fhpav = fhpav_glb/ref_por_volume_sh_glb
+  if ( rpv_sh_g>0.0 ) then
+    fpav = fhpav_g/rpv_sh_g
+  else if ( rpv_g>0.0 ) then
+    fpav = fpav_g/rpv_g
+  endif
 
-  call SetFieldData(fhpav)
+  call SetFieldData(fpav)
 
   nullify(material_auxvars)
 
