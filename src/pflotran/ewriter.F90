@@ -970,7 +970,7 @@ subroutine WriteWells(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
     name = wname(iw)
     call StringToUpper(name)
     welltype = wtype(iw)
-    name8 = name
+    name8 = name(1:8)
 
     iewtype = 4
     if (welltype ==  PROD_WELL_TYPE   ) iewtype = 1
@@ -999,7 +999,7 @@ subroutine WriteWells(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
     iwel(ibiwel+ 7) = iewtype ! Well type (water injector or producer)
     iwel(ibiwel+11) = 1       ! Well is open
 
-    zwel(ibzwel+ 1) = name
+    zwel(ibzwel+ 1) = name(1:8)
 
 ! Loop over completions
 
