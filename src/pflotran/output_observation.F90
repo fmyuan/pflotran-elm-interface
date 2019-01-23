@@ -4102,7 +4102,7 @@ subroutine setupWellData(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl, &
     welltype = getWellTypeI(iw,well_data_list)
     ncg = GetWellNCmplGI(iw,well_data_list)
     nct = nct+ncg
-    wname (iw) = name
+    wname (iw) = name(1:8)
     wtype (iw) = welltype
     wncmpl(iw) = ncg
   enddo
