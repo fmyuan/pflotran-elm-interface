@@ -494,7 +494,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 ! Date: 06/01/2016
 !
 ! Two Cautions here: (1) when w.r.t. '_dp', means to 'pc'; while w.r.t. '_dpl' or '_dpres', it's to 'presure head'
-!                 (2) 'p' or 'pc' or 'cp' is capillary potential and always positive; while 'pres' or 'presl' or 'pl' NOT.
+!                 (2) 'p' or 'pc' or 'cp' is capillary potential and always positive; while 'pres' or 'presl' or 'pw' NOT.
 
 
   use Option_module
@@ -513,11 +513,11 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   PetscReal :: pcgl, pw, tk
 
   PetscReal, parameter :: beta = 2.33d0           ! dimensionless -- ratio of soil ice surf. tension
-  PetscReal, parameter :: T0   = 273.15d0         ! freezing-point at standard pressure: in K
+  PetscReal, parameter :: T0   = TC2TK            ! freezing-point at standard pressure: in K
   PetscReal, parameter :: Lf   = HEAT_OF_FUSION   ! fusion heat (in J/kg)
   PetscReal :: gamma, alpha, dalpha_drhol
-  PetscReal :: rhol, drhol_dp, drhol_dt
-  PetscReal :: rhoi
+  PetscReal :: rhol, rhol_mol, drhol_dp, drhol_dt
+  PetscReal :: rhoi, rhoi_mol, drhoi_dp, drhoi_dt
 
   PetscReal :: Tf, dTf_dt, dTf_dp
   PetscReal :: tftheta, dtftheta_dt, dtftheta_dp
@@ -528,6 +528,8 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   PetscReal :: dice_pc_dp
   PetscReal, parameter :: dpc_dpres = -1.d0
   PetscReal :: PCGL_MAX_FRZ = 1.d8   ! max. soil matrical potential (Pa) for liq. water exists under super-cooling
+
+  PetscErrorCode :: ierr
 
   !---------------------
   !
@@ -543,13 +545,32 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
   ! --------------------
 
+#if 0
   ! constant 'rhol' (liq. water)
   rhol     = 999.8d0            ! kg/m3: kmol/m3*kg/kmol
   drhol_dp = 0.d0
   drhol_dt = 0.d0
+#else
+  ! if not constant rhol
+  call EOSWaterDensity(tc, pw, &
+                       rhol, rhol_mol, drhol_dp, drhol_dt,ierr)
+  rhol = rhol_mol * FMWH2O   ! in eos_water.F90, the conversion from mol->kg may not be consistent for all methods.
+  drhol_dp = drhol_dp * FMWH2O
+  drhol_dt = drhol_dt * FMWH2O
+#endif
 
+#if 0
   ! constant 'rhoi' (for ice)
-  rhoi    = 916.7d0             ! kg/m3 at 273.15K
+  rhoi     = 916.7d0             ! kg/m3 at 273.15K
+  drhoi_dp = 0.d0
+  drhoi_dt = 0.d0
+#else
+  call EOSWaterDensityIce(tc, pw, &
+                          rhoi_mol, drhoi_dt, drhoi_dp, ierr)
+  rhoi = rhoi_mol * FMWH2O   ! in eos_water.F90, the conversion from mol->kg may not be consistent for all methods.
+  drhoi_dp = drhoi_dp * FMWH2O
+  drhoi_dt = drhoi_dt * FMWH2O
+#endif
 
   ! --------------------
     gamma       = beta*Lf

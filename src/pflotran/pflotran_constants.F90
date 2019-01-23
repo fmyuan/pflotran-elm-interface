@@ -52,7 +52,9 @@ module PFLOTRAN_Constants_module
 
   ! conversion factors
   PetscReal, parameter, public :: LOG_TO_LN = 2.30258509299d0
-  PetscReal, parameter, public :: LN_TO_LOG = 0.434294481904d0  
+  PetscReal, parameter, public :: LN_TO_LOG = 0.434294481904d0
+
+  PetscReal, parameter, public :: TC2TK = 273.15d0  ! temperature from oC to K
   
   ! constants
                              ! from http://physics.nist.gov/cgi-bin/cuu/Value?r

@@ -15,8 +15,8 @@ module TH_Aux_module
     PetscReal :: avgmw
     PetscReal :: transient_por
 
-    PetscReal :: h   ! enthalpy (?)
-    PetscReal :: u   ! internal energy (?)
+    PetscReal :: h   ! enthalpy
+    PetscReal :: u   ! internal energy
     PetscReal :: pc
     PetscReal :: vis
     PetscReal :: kvr
@@ -473,9 +473,9 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
   if (DTRUNC_FLAG .and. temperature<tcmin) dw_dt = 0.d0
 
   global_auxvar%den(1)    = dw_mol
-  global_auxvar%den_kg(1) = dw_kg
-  auxvar%dden_dt = dw_dt
-  auxvar%dden_dp = dw_dp
+  global_auxvar%den_kg(1) = dw_mol * FMWH2O                 ! in case water mole weight not always in a consistent way.
+  auxvar%dden_dt = dw_dt * FMWH2O
+  auxvar%dden_dp = dw_dp * FMWH2O
 
   !-----------
   call EOSWaterEnthalpy(max(tcmin, temperature),              &
@@ -543,7 +543,7 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
   if(DTRUNC_FLAG) dden_ice_dp = dden_ice_dp * dpresl_dp
   if(DTRUNC_FLAG .and. temperature<=tcmin) dden_ice_dT = 0.d0
 
-  auxvar%ice%den_ice     = den_ice
+  auxvar%ice%den_ice     = den_ice                ! in kmol/m3
   auxvar%ice%dden_ice_dt = dden_ice_dT
   auxvar%ice%dden_ice_dp = dden_ice_dP
 
@@ -677,10 +677,12 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
   ! isothermal, i.e. hydrology only
   if(option%flow%isothermal_eq) then
     ! liq.
+    ! no derivs w.r.t 'T'
     auxvar%dsat_dt = 0.d0
     auxvar%dden_dt = 0.d0
     auxvar%dkvr_dt = 0.d0
 
+    ! no energy states and its derivs w.r.t 'T'
     auxvar%h       = 0.d0
     auxvar%dh_dp   = 0.d0
     auxvar%dh_dt   = 0.d0
@@ -705,7 +707,7 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
     auxvar%ice%du_gas_dp   = 0.d0
     auxvar%ice%du_gas_dt   = 0.d0
 
-    ! thermal conductivity
+    ! NO thermal conductivity
     auxvar%Dk_eff = 0.d0
     auxvar%dDk_eff_dp = 0.d0
     auxvar%dDk_eff_dt = 0.d0

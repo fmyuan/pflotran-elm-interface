@@ -1631,6 +1631,7 @@ subroutine OutputMassBalance(realization_base)
 
   use Global_Aux_module
   use Material_Aux_class
+  use String_module
 
   implicit none
 
@@ -1651,276 +1652,275 @@ subroutine OutputMassBalance(realization_base)
   PetscInt :: icol
   PetscInt :: iconn
   PetscInt :: offset
+
   PetscInt :: iphase, ispec
-  PetscReal :: sum_kg(realization_base%option%nflowspec, &
-               realization_base%option%nphase)
-  PetscReal :: sum_kg_global(realization_base%option%nflowspec, &
-               realization_base%option%nphase)
+  PetscReal :: mass_balance(realization_base%option%nflowspec,realization_base%option%nphase)
+  PetscReal :: sum_local(realization_base%option%nphase)
+  PetscReal :: sum_global(realization_base%option%nphase)
   
   PetscReal :: global_water_mass
-  PetscReal :: sum_kg_water  ! sum of global water mass and fluxes
-
-  PetscReal :: sum_trapped(realization_base%option%nphase)
+  PetscReal :: sum_allwater  ! sum of global water mass and fluxes
   
   PetscMPIInt :: int_mpi
   PetscBool :: bcs_done
   PetscErrorCode :: ierr
-  
+
+  !-----------------------------------------------------------------------------
   patch => realization_base%patch
   grid => patch%grid
   option => realization_base%option
 
   output_option => realization_base%output_option
 
-  if (len_trim(output_option%plot_name) > 2) then
-    filename = trim(output_option%plot_name) // '-mas.dat'
-  else
-    filename = trim(option%global_prefix) // trim(option%group_prefix) // &
+  if (option%nflowspec<=0) return
+
+  do ispec = 1, option%nflowspec  ! not yet output those for energy (TODO)
+
+    if (len_trim(output_option%plot_name) > 2) then
+      filename = trim(output_option%plot_name) // &
+               '_' // trim(StringFormatInt(ispec)) // &
                '-mas.dat'
-  endif
-  
-  ! open file
-  if (option%myrank == option%io_rank) then
-
-    if (output_option%print_column_ids) then
-      icol = 1
     else
-      icol = -1
+      filename = trim(option%global_prefix) // trim(option%group_prefix) // &
+               '_' // trim(StringFormatInt(ispec)) // &
+               '-mas.dat'
     endif
-  
-    if (mass_balance_first .or. .not.FileExists(filename)) then
-      open(unit=fid,file=filename,action="write",status="replace")
 
-      ! write header
-      write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // &
+    !-------------------------
+    ! open file and write headers if first time
+    if (option%myrank == option%io_rank) then
+
+      if (output_option%print_column_ids) then
+        icol = 1
+      else
+        icol = -1
+      endif
+  
+      if (mass_balance_first .or. .not.FileExists(filename)) then
+        open(unit=fid,file=filename,action="write",status="replace")
+
+        ! write header
+        write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // &
         ']"'  
       
-      if (option%iflowmode > 0) then
-        call OutputWriteToHeader(fid,'dt_flow',output_option%tunit,'',icol)
-      endif
-      
-      
-      select case(option%iflowmode)
-          
-        case(TH_MODE)
-          call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
-                                    'kg','',icol)
-          call OutputWriteToHeader(fid,'Global Water Mass in Gas Phase', &
-                                    'kg','',icol)
-          call OutputWriteToHeader(fid,'Global Water Mass in Solid Phase', &
-                                    'kg','',icol)
-          !call OutputWriteToHeader(fid,'Global Air Mass in Liquid Phase', &
-          !                          'kg','',icol)
-          !call OutputWriteToHeader(fid,'Global Air Mass in Gas Phase', &
-          !                          'kg','',icol)
-      end select
-
-      
-      coupler => patch%boundary_condition_list%first
-      bcs_done = PETSC_FALSE
-      do
-        if (.not.associated(coupler)) then
-          if (bcs_done) then
-            exit
-          else
-            bcs_done = PETSC_TRUE
-            if (associated(patch%source_sink_list)) then
-              coupler => patch%source_sink_list%first
-              if (.not.associated(coupler)) exit
-            else
-              exit
-            endif
-          endif
+        if (option%iflowmode > 0) then
+          call OutputWriteToHeader(fid,'dt_flow',output_option%tunit,'',icol)
         endif
-
+      
+        ! total mass
         select case(option%iflowmode)
           case(TH_MODE)
-            string = trim(coupler%name) // ' Water Mass'
-            call OutputWriteToHeader(fid,string,'kg','',icol)
-            
-            units = 'kg/' // trim(output_option%tunit) // ''
-            string = trim(coupler%name) // ' Water Mass'
-            call OutputWriteToHeader(fid,string,units,'',icol)
+            call OutputWriteToHeader(fid,'Global: Water(L)', &
+                                    '-kg','',icol)
+            call OutputWriteToHeader(fid,'Global: Water(G)', &
+                                    '-kg','',icol)
+            call OutputWriteToHeader(fid,'Global: Water(S)', &
+                                    '-kg','',icol)
+          case default
+            ! do nothing
         end select
+
+        ! BC/SS
+        coupler => patch%boundary_condition_list%first
+        bcs_done = PETSC_FALSE
+        do
+          if (.not.associated(coupler)) then
+            if (bcs_done) then
+              exit
+            else
+              bcs_done = PETSC_TRUE
+              if (associated(patch%source_sink_list)) then
+                coupler => patch%source_sink_list%first
+                if (.not.associated(coupler)) exit
+              else
+                exit
+              endif
+            endif
+          endif
+        
+          string = trim(coupler%name) // ': Water(L)'
+          call OutputWriteToHeader(fid,string,'-kg','',icol)
+          string = trim(coupler%name) // ': Water(G)'
+          call OutputWriteToHeader(fid,string,'-kg','',icol)
+          string = trim(coupler%name) // ': Water(S)'
+          call OutputWriteToHeader(fid,string,'-kg','',icol)
+
+          units = 'kg/' // trim(output_option%tunit) // ''
+          string = trim(coupler%name) // ': Water(L)'
+          call OutputWriteToHeader(fid,string,units,'',icol)
+          string = trim(coupler%name) // ': Water(G)'
+          call OutputWriteToHeader(fid,string,units,'',icol)
+          string = trim(coupler%name) // ': Water(S)'
+          call OutputWriteToHeader(fid,string,units,'',icol)
+
+          coupler => coupler%next
+        enddo
+        ! sum of total mass and bc/ss
         if (option%nflowdof > 0) then
           string = ' SUM of All Water Mass and Flux'
           call OutputWriteToHeader(fid,string,'kg','',icol)
         endif
-        
-       coupler => coupler%next
+
+        ! Print the water mass [kg] and species mass [mol] in the specified regions (header)
+        if (associated(output_option%mass_balance_region_list)) then
+          cur_mbr => output_option%mass_balance_region_list
+          do
+            if (.not.associated(cur_mbr)) exit
+            string = 'Region ' // trim(cur_mbr%region_name) // ' Water(L)'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            string = 'Region ' // trim(cur_mbr%region_name) // ' Water(G)'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            string = 'Region ' // trim(cur_mbr%region_name) // ' Water(S)'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+
+
+            cur_mbr => cur_mbr%next
+          enddo
+        endif
       
-      enddo
+        write(fid,'(a)') ''
       
-      ! Print the water mass [kg] and species mass [mol] in the specified regions (header)
-      if (associated(output_option%mass_balance_region_list)) then
-        cur_mbr => output_option%mass_balance_region_list
-        do
-          if (.not.associated(cur_mbr)) exit
-          string = 'Region ' // trim(cur_mbr%region_name) // ' Water Mass'
-          call OutputWriteToHeader(fid,string,'kg','',icol)
-          cur_mbr => cur_mbr%next
-        enddo
+      else
+        open(unit=fid,file=filename,action="write",status="old",position="append")
       endif
-      
-      write(fid,'(a)') '' 
-    else
-      open(unit=fid,file=filename,action="write",status="old",position="append")
-    endif 
     
-  endif     
+    endif
 
 100 format(100es16.8)
 110 format(100es16.8)
 
-  ! write time
-  if (option%myrank == option%io_rank) then
-    write(fid,100,advance="no") option%time/output_option%tconv
-  endif
+    ! ----------------------------------
+    ! write time
+    if (option%myrank == option%io_rank) then
+      write(fid,100,advance="no") option%time/output_option%tconv
+    endif
   
-  if (option%nflowdof > 0) then
-    if (option%myrank == option%io_rank) &
-      write(fid,100,advance="no") option%flow_dt/output_option%tconv
-  endif
+    if (option%nflowdof > 0) then
+      if (option%myrank == option%io_rank) &
+        write(fid,100,advance="no") option%flow_dt/output_option%tconv
+    endif
   
-! print out global mass balance
+    ! ----------------------------------
+    ! print out mass balance data
 
-  if (option%nflowdof > 0) then
-    sum_kg = 0.d0
-    sum_trapped = 0.d0
-    sum_kg_water = 0.d0
-    select type(realization_base)
-      class is(realization_subsurface_type)
-        select case(option%iflowmode)
-          case(TH_MODE)
-            call THComputeMassBalance(realization_base,sum_kg(1,:))
-        end select
-      class default
-        option%io_buffer = 'Unrecognized realization class in MassBalance().'
-        call printErrMsg(option)
-    end select
+    if (option%nflowdof > 0) then
+      select type(realization_base)
+        class is(realization_subsurface_type)
+          select case(option%iflowmode)
+            case(TH_MODE)
+              call THComputeMassBalance(realization_base,mass_balance)
+          end select
+        class default
+          option%io_buffer = 'Unrecognized realization class in MassBalance().'
+          call printErrMsg(option)
+      end select
 
-    int_mpi = option%nflowspec*option%nphase
-    call MPI_Reduce(sum_kg,sum_kg_global, &
+      sum_local = mass_balance(ispec,:)
+      sum_allwater = 0.d0
+
+      int_mpi = option%nflowspec*option%nphase
+      call MPI_Reduce(sum_local,sum_global, &
                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
                     option%io_rank,option%mycomm,ierr)
 
-    if (option%myrank == option%io_rank) then
-      select case(option%iflowmode)
-        case(TH_MODE)
-          do iphase = 1, option%nphase
-            do ispec = 1, option%nflowspec
-              write(fid,110,advance="no") sum_kg_global(ispec,iphase)
-
-              if(ispec==1) &
-              sum_kg_water = sum_kg_water + sum_kg_global(ispec,iphase)
-            enddo
-          enddo
-      end select
-    endif
-  endif
-  
-
-  coupler => patch%boundary_condition_list%first
-  global_auxvars_bc_or_ss => patch%aux%Global%auxvars_bc
-  bcs_done = PETSC_FALSE
-  do 
-    if (.not.associated(coupler)) then
-      if (bcs_done) then
-        exit
-      else
-        bcs_done = PETSC_TRUE
-        if (associated(patch%source_sink_list)) then
-          coupler => patch%source_sink_list%first
-          if (.not.associated(coupler)) exit
-          global_auxvars_bc_or_ss => patch%aux%Global%auxvars_ss
-        else
-          exit
-        endif
+      if (option%myrank == option%io_rank) then
+        do iphase = 1, option%nphase
+          write(fid,110,advance="no") sum_global(iphase)
+            !
+          sum_allwater = sum_allwater + sum_global(iphase)
+        enddo
       endif
     endif
-
-    offset = coupler%connection_set%offset
-    
-    if (option%nflowdof > 0) then
-
-      select case(option%iflowmode)
-
-        case(TH_MODE)
-          ! print out cumulative H2O flux
-          sum_kg = 0.d0
-          do iconn = 1, coupler%connection_set%num_connections
-            sum_kg = sum_kg + global_auxvars_bc_or_ss(offset+iconn)%mass_balance
-          enddo
-
-          int_mpi = option%nphase
-          call MPI_Reduce(sum_kg,sum_kg_global, &
-                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%io_rank,option%mycomm,ierr)
-                              
-          if (option%myrank == option%io_rank) then
-            ! change sign for positive in / negative out
-            write(fid,110,advance="no") -sum_kg_global
-
-            do iphase = 1, option%nphase
-              sum_kg_water = sum_kg_water+sum_kg_global(1, iphase)
-            enddo
-          endif
-
-          ! print out H2O flux
-          sum_kg = 0.d0
-          do iconn = 1, coupler%connection_set%num_connections
-            sum_kg = sum_kg + global_auxvars_bc_or_ss(offset+iconn)%mass_balance_delta
-          enddo
-          ! mass_balance_delta units = delta kmol h2o; must convert to delta kg h2o
-          sum_kg = sum_kg*FMWH2O
-
-          int_mpi = option%nphase
-          call MPI_Reduce(sum_kg,sum_kg_global, &
-                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%io_rank,option%mycomm,ierr)
-                              
-          if (option%myrank == option%io_rank) then
-            ! change sign for positive in / negative out
-            write(fid,110,advance="no") -sum_kg_global*output_option%tconv
-          endif
-
-      end select
-
-      ! sum of all mass-balance items
-      ! print out sum of global water mass and fluxes
-      ! (NOTE: THIS amount MUST BE constant, otherwise error in mass-conservation)
-      select case(option%iflowmode)
-        case(TH_MODE)
-          if (option%myrank == option%io_rank) then
-            write(fid,110,advance="no") sum_kg_water
-          endif
-
-      end select
-
-    endif
-    
-
-    coupler => coupler%next 
-  enddo
   
-  ! Print the total water and component mass in the specified regions (data)
-  if (associated(output_option%mass_balance_region_list)) then
-    cur_mbr => output_option%mass_balance_region_list
+    coupler => patch%boundary_condition_list%first
+    global_auxvars_bc_or_ss => patch%aux%Global%auxvars_bc
+    bcs_done = PETSC_FALSE
     do
-      if (.not.associated(cur_mbr)) exit
-      call PatchGetWaterMassInRegion(cur_mbr%region_cell_ids, &
+      if (.not.associated(coupler)) then
+        if (bcs_done) then
+          exit
+        else
+          bcs_done = PETSC_TRUE
+          if (associated(patch%source_sink_list)) then
+            coupler => patch%source_sink_list%first
+            if (.not.associated(coupler)) exit
+            global_auxvars_bc_or_ss => patch%aux%Global%auxvars_ss
+          else
+            exit
+          endif
+        endif
+      endif
+
+      offset = coupler%connection_set%offset
+      if (option%nflowdof > 0) then
+        ! print out cumulative H2O flux
+        sum_local = 0.d0
+        do iconn = 1, coupler%connection_set%num_connections
+          sum_local = sum_local + global_auxvars_bc_or_ss(offset+iconn)%mass_balance(ispec,:)
+        enddo
+        int_mpi = option%nphase
+        call MPI_Reduce(sum_local,sum_global, &
+                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                          option%io_rank,option%mycomm,ierr)
+                              
+        if (option%myrank == option%io_rank) then
+          ! change sign for positive in / negative out
+          write(fid,110,advance="no") -sum_global
+          !
+          do iphase = 1, option%nphase
+              sum_allwater = sum_allwater+sum_global(iphase)
+          enddo
+        endif
+
+        ! print out H2O flux (mass)
+        sum_local = 0.d0
+        do iconn = 1, coupler%connection_set%num_connections
+          sum_local = sum_local + global_auxvars_bc_or_ss(offset+iconn)%mass_balance_delta(ispec,:)
+        enddo
+        ! mass_balance_delta units = delta kmol h2o; must convert to delta kg h2o
+        sum_local = sum_local*FMWH2O
+
+        int_mpi = option%nphase
+        call MPI_Reduce(sum_local,sum_global, &
+                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                          option%io_rank,option%mycomm,ierr)
+                              
+        if (option%myrank == option%io_rank) then
+          ! change sign for positive in / negative out
+          write(fid,110,advance="no") -sum_global*output_option%tconv   ! ? need checking here
+        endif
+
+      endif
+
+      coupler => coupler%next
+    enddo
+    ! sum of all mass-balance items
+    ! print out sum of global water mass and bc/ss fluxes
+    ! (NOTE: THIS amount MUST BE constant, otherwise error in mass-conservation)
+    if (option%myrank == option%io_rank) then
+      write(fid,110,advance="no") sum_allwater
+    endif
+  
+    ! Print the total water and component mass in the specified regions (data)
+    if (associated(output_option%mass_balance_region_list)) then
+      cur_mbr => output_option%mass_balance_region_list
+      do
+        if (.not.associated(cur_mbr)) exit
+        call PatchGetWaterMassInRegion(cur_mbr%region_cell_ids, &
                                      cur_mbr%num_cells,patch,option, &
                                      global_water_mass)
-      write(fid,110,advance="no") global_water_mass
-      cur_mbr => cur_mbr%next
-    enddo
-  endif
+        write(fid,110,advance="no") global_water_mass
+        cur_mbr => cur_mbr%next
+      enddo
+    endif
   
-  if (option%myrank == option%io_rank) then
-    write(fid,'(a)') ''
-    close(fid)
-  endif
+    if (option%myrank == option%io_rank) then
+      write(fid,'(a)') ''
+      close(fid)
+    endif
   
+  end do  ! ispec =1, nflowspec-1
+
   mass_balance_first = PETSC_FALSE
 
 end subroutine OutputMassBalance
