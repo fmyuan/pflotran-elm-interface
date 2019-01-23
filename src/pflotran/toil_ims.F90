@@ -3413,6 +3413,11 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
     source_sink => source_sink%next
   enddo
 
+! Set up the average pressure (may be needed for voidage calculations)
+
+  call patch%aux%TOil_ims%FieldVolRefAve(grid,patch%aux%material, &
+                                              patch%imat,option)
+
 ! Loop over well_data wells if present
 
   if (WellDataGetFlag()) then

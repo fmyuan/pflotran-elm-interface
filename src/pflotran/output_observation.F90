@@ -3139,6 +3139,13 @@ subroutine OutputEclipseFiles(realization_base)
   option => realization_base%option
   output_option => realization_base%output_option
 
+!  Check that we have grid locations
+
+  if ( .not.option%is_grdecl ) then
+    option%io_buffer = 'Eclipse file output requires grdecl type input'
+    call printErrMsg(option)
+  endif
+
 !  Set useful scalars (negative fid prevents writing to -mas files)
 
   icol =  1
