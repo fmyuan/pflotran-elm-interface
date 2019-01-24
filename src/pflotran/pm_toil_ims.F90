@@ -58,10 +58,6 @@ function PMTOilImsCreate()
   class(pm_toil_ims_type), pointer :: PMToilImsCreate
 
   class(pm_toil_ims_type), pointer :: toil_ims_pm
-  
-!#ifdef PM_TOIL_IMS_DEBUG  
-  print *, 'PMTOilImsCreate()'
-!#endif  
 
   allocate(toil_ims_pm)
 

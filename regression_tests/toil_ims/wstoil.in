@@ -20,14 +20,7 @@ SUBSURFACE
 #=========================== discretization ===================================
 
 GRID
-  TYPE structured
-  ORIGIN 0.d0 0.d0 -2540.508
-  NXYZ 4 4 3
-  DXYZ
-    200
-    200
-    10 10 10 
-  END
+  TYPE grdecl wstoil.grdecl
 END
 
 #=========================set up standard conditions ==========================
@@ -53,7 +46,7 @@ END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 100 d
+  FINAL_TIME 365 d
   INITIAL_TIMESTEP_SIZE 1.0d-5 d
   MINIMUM_TIMESTEP_SIZE 1.0D-10 d
   MAXIMUM_TIMESTEP_SIZE 10 d at 0. d
@@ -68,13 +61,17 @@ OUTPUT
   MASS_BALANCE_FILE
     PERIODIC TIMESTEP 1
   END
+  ECLIPSE_FILE
+    PERIOD_SUM TIMESTEP 5
+    PERIOD_RST TIME 50 d
+  END
+  LINEREPT
 END
 
 #=========================== material properties ==============================
 
 MATERIAL_PROPERTY formation
   ID 1
-  POROSITY 0.1
   TORTUOSITY 1.d0
   ROCK_DENSITY 2.350d3
   SPECIFIC_HEAT 1.0d3
@@ -84,11 +81,6 @@ MATERIAL_PROPERTY formation
   SOIL_COMPRESSIBILITY    4.35d-10 ! 1/Pa
   SOIL_REFERENCE_PRESSURE 1.0D5
   CHARACTERISTIC_CURVES ch1
-  PERMEABILITY
-    PERM_X 0.9869D-12 
-    PERM_Y 0.9869D-12 
-    PERM_Z 0.9869D-12 
-  /
 /
 
 #=========================== saturation functions =============================
