@@ -4008,13 +4008,13 @@ subroutine WriteLineRept(realization,option,tconv)
                fwpr,fwir, &
                flpr,fgor,fwct,fpav
 
-100 format('Step time    fopt    fopr    fwpr    ', &
+100 format('Step  time    fopt    fopr    fwpr    ', &
            'fgpr    fwir    fgir    fwct    fgor     fpav')
 101 format('     days    ksm3    sm3/d   ksm3/d  ', &
            'ksm3/d  ksm3/d  ksm3/d          ksm3/sm3 Bar')
-102 format('---- ------- ------- ------- ------- ', &
+102 format('----- ------- ------- ------- ------- ', &
            '------- ------- ------- ------- -------- -------')
-103 format(I4,1X,F7.1,1X,F7.1,1X,F7.1,1X,F7.1,1X, &
+103 format(I5,1X,F7.1,1X,F7.1,1X,F7.1,1X,F7.1,1X, &
            F7.1,1X,F7.1,1X,F7.1,1X,F7.5,1X,F8.3,1X,F7.2)
 
   well_data_list => realization%well_data
