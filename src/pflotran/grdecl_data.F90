@@ -1647,7 +1647,7 @@ subroutine DeallocateGridArrays()
 
   implicit none
 
-  if (g_iscpg .and. g_cpgallocated) then
+  if (g_cpgallocated) then
     call DeallocateArray(g_coord)
     call DeallocateArray(g_zcorn)
     g_cpgallocated = PETSC_FALSE
