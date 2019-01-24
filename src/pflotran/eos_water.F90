@@ -11,6 +11,7 @@ module EOS_Water_module
   
   ! module variables
   PetscReal :: constant_density
+  PetscReal :: constant_density_ice
   PetscReal :: constant_enthalpy
   PetscReal :: constant_viscosity
   PetscReal :: constant_steam_density
@@ -207,7 +208,7 @@ module EOS_Water_module
             EOSWaterDuanMixture, &
             EOSWaterViscosityNaCl, &
             EOSWaterInternalEnergyIce, &
-            EOSWaterDensityIcePainter, &
+            !EOSWaterDensityIcePainter, &
             EOSWaterSaturationTemperature, &
             EOSWaterDensityIce, &
             EOSWaterDensityTGDPB01, &
@@ -221,7 +222,8 @@ module EOS_Water_module
             EOSWaterSetViscosity, &
             EOSWaterSetSaturationPressure, &
             EOSWaterSetSteamDensity, &
-            EOSWaterSetSteamEnthalpy
+            EOSWaterSetSteamEnthalpy, &
+            EOSWaterSetDensityIce
             
             
   public :: TestEOSWaterBatzleAndWang, &
@@ -237,6 +239,7 @@ subroutine EOSWaterInit()
   implicit none
   
   constant_density = UNINITIALIZED_DOUBLE
+  constant_density_ice = 917.0d0 !UNINITIALIZED_DOUBLE
   constant_viscosity = UNINITIALIZED_DOUBLE
   constant_enthalpy = UNINITIALIZED_DOUBLE
   constant_steam_density = UNINITIALIZED_DOUBLE
@@ -415,6 +418,29 @@ subroutine EOSWaterSetDensity(keyword,aux)
   end select
   
 end subroutine EOSWaterSetDensity
+
+! ************************************************************************** !
+
+subroutine EOSWaterSetDensityIce(keyword,aux)
+
+  implicit none
+
+  character(len=*) :: keyword
+  PetscReal, optional :: aux(*)
+
+  select case(keyword)
+    case('CONSTANT')
+      constant_density_ice = aux(1)
+      EOSWaterDensityIcePtr => EOSWaterDensityIceConstant
+    case('DEFAULT','PAINTER')
+      EOSWaterDensityIcePtr => EOSWaterDensityIcePainter
+    case default
+      print *, 'Unknown pointer type "' // trim(keyword) // &
+        '" in EOSWaterSetDensityIce().'
+      stop
+  end select
+
+end subroutine EOSWaterSetDensityIce
 
 ! ************************************************************************** !
 
@@ -2500,6 +2526,28 @@ subroutine EOSWaterSaturationTemperature(ps,ts_guess,ts,t_ps,ierr)
   t_ps = -tc1/(pc1*fp)
 
 end subroutine EOSWaterSaturationTemperature
+
+! ************************************************************************** !
+
+subroutine EOSWaterDensityIceConstant(T, P, calculate_derivatives, &
+                                     den_ice, dden_ice_dT, dden_ice_dP, ierr)
+  ! T is in deg C, P is in Pa, density is in kmol/m3
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscReal, intent(in) :: P
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: den_ice
+  PetscReal, intent(out) :: dden_ice_dT
+  PetscReal, intent(out) :: dden_ice_dP
+  PetscErrorCode, intent(out) :: ierr
+
+  den_ice = constant_density_ice/FMWH2O ! kg/m^3 -> kmol/m^3
+  dden_ice_dP = 0.d0
+  dden_ice_dT = 0.d0
+
+end subroutine EOSWaterDensityIceConstant
 
 ! ************************************************************************** !
 

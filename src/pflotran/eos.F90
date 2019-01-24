@@ -281,6 +281,39 @@ subroutine EOSRead(input,option)
         endif
         call printErrMsg(option)
       endif
+    !
+    case('ICE')
+      do
+        temparray = 0.d0
+        call InputReadPflotranString(input,option)
+        if (InputCheckExit(input,option)) exit
+        call InputReadWord(input,option,keyword,PETSC_TRUE)
+        call InputErrorMsg(input,option,'keyword','EOS,ICE')
+        call StringToUpper(keyword)
+        select case(trim(keyword))
+          case('DENSITY')
+            temparray = 0.d0
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'DENSITY','EOS,ICE')
+            call StringToUpper(word)
+            select case(trim(word))
+              case('CONSTANT')
+                call InputReadDouble(input,option,temparray(1))
+                call InputErrorMsg(input,option,'VALUE', &
+                                   'EOS,ICE,DENSITY,CONSTANT')
+                call InputReadAndConvertUnits(input,temparray(1), &
+                               'kg/m^3','EOS,ICE,DENSITY,CONSTANT',option)
+              case('DEFAULT','PAINTER')
+                ! nothing
+              case default
+                call InputKeywordUnrecognized(word, &
+                       'EOS,ICE,DENSITY',option)
+
+            end select
+            call EOSWaterSetDensityIce(word,temparray)
+         end select
+      end do
+    !
     case('GAS')
       do
         call InputReadPflotranString(input,option)

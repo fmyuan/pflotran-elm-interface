@@ -40,26 +40,26 @@ module TH_Aux_module
 
   type, public :: th_ice_type
     PetscReal :: sat_ice
-    PetscReal :: sat_gas
+    PetscReal :: sat_air
     PetscReal :: dsat_ice_dp
-    PetscReal :: dsat_gas_dp
+    PetscReal :: dsat_air_dp
     PetscReal :: dsat_ice_dt
-    PetscReal :: dsat_gas_dt
+    PetscReal :: dsat_air_dt
     PetscReal :: den_ice
     PetscReal :: dden_ice_dp
     PetscReal :: dden_ice_dt
     PetscReal :: u_ice
     PetscReal :: du_ice_dt
     PetscReal :: du_ice_dp
-    PetscReal :: den_gas
-    PetscReal :: dden_gas_dt
-    PetscReal :: dden_gas_dp
-    PetscReal :: u_gas
-    PetscReal :: du_gas_dt
-    PetscReal :: du_gas_dp
-    PetscReal :: mol_gas
-    PetscReal :: dmol_gas_dt
-    PetscReal :: dmol_gas_dp
+    PetscReal :: den_air
+    PetscReal :: dden_air_dt
+    PetscReal :: dden_air_dp
+    PetscReal :: u_air
+    PetscReal :: du_air_dt
+    PetscReal :: du_air_dp
+    PetscReal :: molv_air        ! mole fraction of vapor in air
+    PetscReal :: dmolv_air_dt
+    PetscReal :: dmolv_air_dp
     PetscReal :: pres_fh2o
     PetscReal :: dpres_fh2o_dp
     PetscReal :: dpres_fh2o_dt
@@ -199,26 +199,26 @@ subroutine THAuxVarInit(auxvar,option)
   ! (TODO - fully 3-phase in all situations)
     allocate(auxvar%ice)
     auxvar%ice%sat_ice       = uninit_value
-    auxvar%ice%sat_gas       = uninit_value
+    auxvar%ice%sat_air       = uninit_value
     auxvar%ice%dsat_ice_dp   = uninit_value
-    auxvar%ice%dsat_gas_dp   = uninit_value
+    auxvar%ice%dsat_air_dp   = uninit_value
     auxvar%ice%dsat_ice_dt   = uninit_value
-    auxvar%ice%dsat_gas_dt   = uninit_value
+    auxvar%ice%dsat_air_dt   = uninit_value
     auxvar%ice%den_ice       = uninit_value
     auxvar%ice%dden_ice_dp   = uninit_value
     auxvar%ice%dden_ice_dt   = uninit_value
     auxvar%ice%u_ice         = uninit_value
     auxvar%ice%du_ice_dt     = uninit_value
     auxvar%ice%du_ice_dp     = uninit_value
-    auxvar%ice%den_gas       = uninit_value
-    auxvar%ice%dden_gas_dt   = uninit_value
-    auxvar%ice%dden_gas_dp   = uninit_value
-    auxvar%ice%u_gas         = uninit_value
-    auxvar%ice%du_gas_dt     = uninit_value
-    auxvar%ice%du_gas_dp     = uninit_value
-    auxvar%ice%mol_gas       = uninit_value
-    auxvar%ice%dmol_gas_dt   = uninit_value
-    auxvar%ice%dmol_gas_dp   = uninit_value
+    auxvar%ice%den_air       = uninit_value
+    auxvar%ice%dden_air_dt   = uninit_value
+    auxvar%ice%dden_air_dp   = uninit_value
+    auxvar%ice%u_air         = uninit_value
+    auxvar%ice%du_air_dt     = uninit_value
+    auxvar%ice%du_air_dp     = uninit_value
+    auxvar%ice%molv_air       = uninit_value
+    auxvar%ice%dmolv_air_dt   = uninit_value
+    auxvar%ice%dmolv_air_dp   = uninit_value
     auxvar%ice%pres_fh2o     = uninit_value
     auxvar%ice%dpres_fh2o_dp = uninit_value
     auxvar%ice%dpres_fh2o_dt = uninit_value
@@ -263,11 +263,11 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%Dk_eff = auxvar%Dk_eff
   if (associated(auxvar%ice)) then
     auxvar2%ice%sat_ice = auxvar%ice%sat_ice 
-    auxvar2%ice%sat_gas = auxvar%ice%sat_gas
+    auxvar2%ice%sat_air = auxvar%ice%sat_air
     auxvar2%ice%dsat_ice_dp = auxvar%ice%dsat_ice_dp
-    auxvar2%ice%dsat_gas_dp = auxvar%ice%dsat_gas_dp
+    auxvar2%ice%dsat_air_dp = auxvar%ice%dsat_air_dp
     auxvar2%ice%dsat_ice_dt = auxvar%ice%dsat_ice_dt
-    auxvar2%ice%dsat_gas_dt = auxvar%ice%dsat_gas_dt
+    auxvar2%ice%dsat_air_dt = auxvar%ice%dsat_air_dt
     auxvar2%ice%den_ice = auxvar%ice%den_ice
     auxvar2%ice%dden_ice_dp = auxvar%ice%dden_ice_dp
     auxvar2%ice%dden_ice_dt = auxvar%ice%dden_ice_dt
@@ -277,15 +277,15 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
     auxvar2%ice%pres_fh2o = auxvar%ice%pres_fh2o
     auxvar2%ice%dpres_fh2o_dp = auxvar%ice%dpres_fh2o_dp
     auxvar2%ice%dpres_fh2o_dt = auxvar%ice%dpres_fh2o_dt
-    auxvar2%ice%den_gas = auxvar%ice%den_gas
-    auxvar2%ice%dden_gas_dt = auxvar%ice%dden_gas_dt
-    auxvar2%ice%dden_gas_dp = auxvar%ice%dden_gas_dp
-    auxvar2%ice%u_gas = auxvar%ice%u_gas
-    auxvar2%ice%du_gas_dt = auxvar%ice%du_gas_dt
-    auxvar2%ice%du_gas_dp = auxvar%ice%du_gas_dp
-    auxvar2%ice%mol_gas = auxvar%ice%mol_gas
-    auxvar2%ice%dmol_gas_dt = auxvar%ice%dmol_gas_dt
-    auxvar2%ice%dmol_gas_dp = auxvar%ice%dmol_gas_dp
+    auxvar2%ice%den_air = auxvar%ice%den_air
+    auxvar2%ice%dden_air_dt = auxvar%ice%dden_air_dt
+    auxvar2%ice%dden_air_dp = auxvar%ice%dden_air_dp
+    auxvar2%ice%u_air = auxvar%ice%u_air
+    auxvar2%ice%du_air_dt = auxvar%ice%du_air_dt
+    auxvar2%ice%du_air_dp = auxvar%ice%du_air_dp
+    auxvar2%ice%molv_air = auxvar%ice%molv_air
+    auxvar2%ice%dmolv_air_dt = auxvar%ice%dmolv_air_dt
+    auxvar2%ice%dmolv_air_dp = auxvar%ice%dmolv_air_dp
   endif
 
 end subroutine THAuxVarCopy
@@ -337,10 +337,10 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
   PetscReal :: pres_l, dpresl_dp
   PetscReal :: temperature
 
-  PetscReal :: dw_kg, dw_mol, dw_dp, dw_dt        ! liq. water density
-  PetscReal :: den_ice, dden_ice_dp, dden_ice_dt  ! ice density
-  PetscReal :: psat, dpsat_dt                     ! vapor pressure
-  PetscReal :: mol_g, dmolg_dt, dmolg_dp          ! vapor mole fraction in air
+  PetscReal :: dw_kg, dw_mol, dw_dp, dw_dt            ! liq. water density
+  PetscReal :: den_ice, dden_ice_dp, dden_ice_dt      ! ice density
+  PetscReal :: psat, dpsat_dt                         ! vapor pressure
+  PetscReal :: molv_air, dmolv_air_dt, dmolv_air_dp   ! vapor mole fraction in air
 
   PetscReal :: sl, dsl_dp, dsl_dt
   PetscReal :: sg, dsg_dp, dsg_dt
@@ -567,66 +567,60 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
 
   ! ----- Air (incl. vapor) ---------------------------------------------------------
 
-  auxvar%ice%sat_gas = sg
-  auxvar%ice%dsat_gas_dp = dsg_dp
-  auxvar%ice%dsat_gas_dt = dsg_dt
+  auxvar%ice%sat_air = sg
+  auxvar%ice%dsat_air_dp = dsg_dp
+  auxvar%ice%dsat_air_dt = dsg_dt
 
-  ! Calculate the values and derivatives for vapor density and internal energy
+  ! Calculate the values and derivatives for air density and its internal energy
 
-  p_g      = pres_l
+  p_g      = max(pres_l, option%reference_pressure)
   ! the lowest Tk of ~200K for vapor exists in EOS-h2o phase-diagram
   tcmin    = -73.d0
-  Tk_g     = max(tcmin,temperature)+273.15d0
+  Tk_g     = max(tcmin,temperature)+TC2TK
 
   !---------
-  auxvar%ice%den_gas     = p_g/(IDEAL_GAS_CONSTANT*tk_g)*1.d-3                ! in kmol/m3 for all air-mixture
-  auxvar%ice%dden_gas_dt = -p_g/(IDEAL_GAS_CONSTANT*tk_g**2)*1.d-3
-  auxvar%ice%dden_gas_dp = 1.d0/(IDEAL_GAS_CONSTANT*tk_g)*1.d-3
+  auxvar%ice%den_air     = p_g/(IDEAL_GAS_CONSTANT*tk_g)*1.d-3                ! in kmol/m3 for all air-mixture
+  auxvar%ice%dden_air_dt = -p_g/(IDEAL_GAS_CONSTANT*tk_g**2)*1.d-3
+  auxvar%ice%dden_air_dp = 1.d0/(IDEAL_GAS_CONSTANT*tk_g)*1.d-3
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
     ! the following is a MUST for reducing tiny-time step (NOT sure why).
-    auxvar%ice%dden_gas_dp = auxvar%ice%dden_gas_dp*dpresl_dp    ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
-    if (tk_g<=tcmin) auxvar%ice%dden_gas_dt = 0.d0
+    auxvar%ice%dden_air_dp = auxvar%ice%dden_air_dp*dpresl_dp    ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
+    if (tk_g<=tcmin) auxvar%ice%dden_air_dt = 0.d0
   endif
 
   !----------
-  call EOSWaterSaturationPressure(Tk_g-273.15d0, psat, dpsat_dt, ierr)
-  mol_g    = psat/p_g
-  dmolg_dt = dpsat_dt/p_g
-  dmolg_dp = -psat/p_g/p_g
+  ! NOTE: vapor 'molv_air' is included in 'den_air', 'u_air'
+  ! (because 'molv_air', fraction of vapor in air-mixture, going to be as multiplier in all 'air' calculations in 'th.F90')
+!#ifdef NO_VAPOR_DIFFUSION
+  molv_air     = 0.d0   ! no vapor assumed in open-air
+  dmolv_air_dt = 0.d0
+  dmolv_air_dp = 0.d0
+!#else
+#if 0
+  call EOSWaterSaturationPressure(Tk_g-TC2TK, psat, dpsat_dt, ierr)
+  molv_air     = psat/p_g
+  dmolv_air_dt = dpsat_dt/p_g
+  dmolv_air_dp = -psat/p_g/p_g
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
-    dmolg_dp = dmolg_dp * dpresl_dp
+    dmolv_air_dp = dmolv_air_dp * dpresl_dp
     if (tk_g<=tcmin) then
-      dpsat_dt = 0.d0
-      dmolg_dt = 0.d0
+      dpsat_dt     = 0.d0
+      dmolv_air_dt = 0.d0
     endif
   endif
-
-  C_g                    = C_wv*mol_g*FMWH2O + C_a*(1.d0 - mol_g)*FMWAIR          ! in MJ/kmol/K
-  auxvar%ice%u_gas       = C_g*tk_g                                               ! in MJ/kmol
-
-#if 0
-! 2017-01-30: tests show that the following may cause tiny-time recovering issue when re-freezing (so OFF now).
-  ! NOTE: vapor 'mol_gas' is included in 'den_gas', 'u_gas'
-  ! (because 'mol_g', fraction of vapor in air-mixture, going to be as multiplier in all 'gas' calculations in 'th.F90')
-  ! so, if for air-mixture, may assign this to 1.0 ( appears very helpful to reduce time-step)
-  !     if totally ignore gas (all), may assign this to 0.0
-#ifdef NO_VAPOR_DIFFUSION
-  auxvar%ice%mol_gas     = 0.d0   ! no gas (inc. vapor)
-#else
-  auxvar%ice%mol_gas     = 1.d0   ! air-mixture
 #endif
-  auxvar%ice%dmol_gas_dt = 0.d0
-  auxvar%ice%dmol_gas_dp = 0.d0
-#else
-  ! vapor-only (because 'mol_g', fraction of vapor in air-mixture, going to be as multiplier in all 'gas' calculations in 'th.F90'
-  auxvar%ice%mol_gas     = mol_g
-  auxvar%ice%dmol_gas_dt = dmolg_dt
-  auxvar%ice%dmol_gas_dp = dmolg_dp
-#endif
-  auxvar%ice%du_gas_dt   = C_g + (C_wv*dmolg_dt*FMWH2O - C_a*dmolg_dt*FMWAIR)*tk_g
-  auxvar%ice%du_gas_dp   = (C_wv*FMWH2O-C_a*FMWAIR)*dmolg_dp*tk_g
+
+  C_g                    = C_wv*molv_air*FMWH2O + C_a*(1.d0 - molv_air)*FMWAIR          ! in MJ/kmol/K
+  auxvar%ice%u_air       = C_g*tk_g                                                     ! in MJ/kmol
+
+  auxvar%ice%molv_air     = molv_air
+  auxvar%ice%dmolv_air_dt = dmolv_air_dt
+  auxvar%ice%dmolv_air_dp = dmolv_air_dp
+
+  auxvar%ice%du_air_dt   = C_g + (C_wv*dmolv_air_dt*FMWH2O - C_a*dmolv_air_dt*FMWAIR)*tk_g
+  auxvar%ice%du_air_dp   = (C_wv*FMWH2O-C_a*FMWAIR)*dmolv_air_dp*tk_g
 
 
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
@@ -636,15 +630,15 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
     ! 02-07-2017: It may be relevant to soil compressibility.
     !             This also causes LARGE temperature oscillation during F/T - with one layer supper HOT while other supper COLD.
 
-    auxvar%ice%dsat_gas_dp = auxvar%ice%dsat_gas_dp * dp_trunc
-    auxvar%ice%dsat_gas_dt = auxvar%ice%dsat_gas_dt * dt_trunc
+    auxvar%ice%dsat_air_dp = auxvar%ice%dsat_air_dp * dp_trunc
+    auxvar%ice%dsat_air_dt = auxvar%ice%dsat_air_dt * dt_trunc
 
-    auxvar%ice%dden_gas_dp = auxvar%ice%dden_gas_dp * dp_trunc
-    auxvar%ice%dden_gas_dt = auxvar%ice%dden_gas_dt * dt_trunc
-    auxvar%ice%dmol_gas_dp = auxvar%ice%dmol_gas_dp * dp_trunc
-    auxvar%ice%dmol_gas_dt = auxvar%ice%dmol_gas_dt * dt_trunc
-    auxvar%ice%du_gas_dp = auxvar%ice%du_gas_dp * dp_trunc
-    auxvar%ice%du_gas_dt = auxvar%ice%du_gas_dt * dt_trunc
+    auxvar%ice%dden_air_dp = auxvar%ice%dden_air_dp * dp_trunc
+    auxvar%ice%dden_air_dt = auxvar%ice%dden_air_dt * dt_trunc
+    auxvar%ice%dmolv_air_dp = auxvar%ice%dmolv_air_dp * dp_trunc
+    auxvar%ice%dmolv_air_dt = auxvar%ice%dmolv_air_dt * dt_trunc
+    auxvar%ice%du_air_dp = auxvar%ice%du_air_dp * dp_trunc
+    auxvar%ice%du_air_dt = auxvar%ice%du_air_dt * dt_trunc
   endif
 
 
@@ -698,14 +692,14 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
     auxvar%ice%du_ice_dp   = 0.d0
     auxvar%ice%du_ice_dt   = 0.d0
 
-    ! gas
-    auxvar%ice%dsat_gas_dt = 0.d0
-    auxvar%ice%dden_gas_dt = 0.d0
-    auxvar%ice%dmol_gas_dt = 0.d0
+    ! air
+    auxvar%ice%dsat_air_dt = 0.d0
+    auxvar%ice%dden_air_dt = 0.d0
+    auxvar%ice%dmolv_air_dt= 0.d0
 
-    auxvar%ice%u_gas       = 0.d0
-    auxvar%ice%du_gas_dp   = 0.d0
-    auxvar%ice%du_gas_dt   = 0.d0
+    auxvar%ice%u_air       = 0.d0
+    auxvar%ice%du_air_dp   = 0.d0
+    auxvar%ice%du_air_dt   = 0.d0
 
     ! NO thermal conductivity
     auxvar%Dk_eff = 0.d0
@@ -730,7 +724,12 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
     auxvar%du_dp   = 0.d0
 
     auxvar%ice%du_ice_dp   = 0.d0
-    auxvar%ice%du_gas_dp   = 0.d0
+
+    auxvar%ice%dsat_air_dp = 0.d0
+    auxvar%ice%dden_air_dp = 0.d0
+    auxvar%ice%dmolv_air_dp= 0.d0
+    auxvar%ice%du_air_dp   = 0.d0
+
     auxvar%dDk_eff_dp      = 0.d0
   endif
 
@@ -891,7 +890,7 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
           dsi_dpl= 0.d0
         endif
 
-        ! gas component (as difference)
+        ! air component (as difference)
         sg      = 1.d0 - sl - si
         dsg_dpl = -dsl_dpl - dsi_dpl
         dsg_dt  = -dsl_dt - dsi_dt
@@ -915,7 +914,7 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
         dsi_dpl= dsli_dpl - dsl_dpl
         dsi_dt = -dsl_dt                 ! dsli_dt = 0 (see above)
 
-        ! gas phase
+        ! air phase
         sg      = 1.d0 - sl - si
         dsg_dpl = -dsl_dpl - dsi_dpl
         dsg_dt  = -dsl_dt - dsi_dt
@@ -953,7 +952,7 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
   endif
   if ((sg-1.d0)>1.d-15 .or. sg<-1.d-15) then
     print *, tc, pc, sl, si, sg, sli, xplice
-    option%io_buffer = 'TH with ice mode: Gas Saturation error:  >1 or <0'
+    option%io_buffer = 'TH with ice mode: Air Saturation error:  >1 or <0'
     call printErrMsg(option)
   endif
   if (abs((sl + si + sg)-1.d0)>1.d-15) then

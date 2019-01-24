@@ -1677,7 +1677,7 @@ subroutine PatchGetVariable1(patch,field,option,output_option,vec, &
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                  patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas
+                  patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_air
             enddo
           case(ICE_SATURATION)
             do local_id=1,grid%nlmax
@@ -1875,7 +1875,7 @@ function PatchGetVariableValueAtCell(patch,field,option, &
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY) ! still need implementation
             call printErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
           case(GAS_SATURATION)
-            value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_gas
+            value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_air
           case(ICE_SATURATION)
             value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_ice
           case(ICE_DENSITY)
@@ -2053,12 +2053,12 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
           case(GAS_SATURATION)
             if (vec_format == GLOBAL) then
               do local_id=1,grid%nlmax
-                patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas = &
+                patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_air = &
                     vec_ptr(local_id)
               enddo
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
-                patch%aux%TH%auxvars(ghosted_id)%ice%sat_gas = vec_ptr(ghosted_id)
+                patch%aux%TH%auxvars(ghosted_id)%ice%sat_air = vec_ptr(ghosted_id)
               enddo
             endif
           case(ICE_SATURATION)
