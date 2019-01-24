@@ -750,7 +750,7 @@ subroutine WellDataDestroyList(well_data_list,option)
     if (option%io_rank == option%myrank) then
       nwarn=unconv_tg+unconv_wg+unconv_bg
       if (nwarn>0) then
-        print *,'Well model convergence failure counts'
+        print *,'Well model convergence failure counts:'
         if( unconv_tg>0 ) print *,unconv_tg,' mode selection'
         if( unconv_wg>0 ) print *,unconv_wg,' bhp solution'
         if( unconv_bg>0 ) print *,unconv_bg,' wellbore composition'
