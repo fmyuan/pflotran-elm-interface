@@ -48,6 +48,12 @@ module Well_Data_class
 
   PetscBool :: global_info_set = PETSC_FALSE
 
+! Warning counts
+
+  PetscInt :: w_unconv_t = 0
+  PetscInt :: w_unconv_w = 0
+  PetscInt :: w_unconv_b = 0
+
 ! This module contains a list of instances of the well_data_type type
 ! The definition of well_data_type follows
 
@@ -233,7 +239,8 @@ module Well_Data_class
              GetTargetUnitType,getnwell,getWellNameI, &
              GetWellTTValI,GetWellTypeI, &
              GetFieldData, SetFieldData,GetWellNCmplGI,GetCmplGlobalLocI, &
-             FindGroupRates,FindGroupTotals,GetFieldTTVal
+             FindGroupRates,FindGroupTotals,GetFieldTTVal, &
+             IncrementWellWarningCount
 
 ! Private routines within this module
 
@@ -699,18 +706,58 @@ end subroutine WellDataAddToList
 
 ! ************************************************************************** !
 
-subroutine WellDataDestroyList(well_data_list)
+subroutine WellDataDestroyList(well_data_list,option)
   !
   ! De-allocates a whole list of well_data_type items
   !
   ! Author: Dave Ponting
   ! Date: 08/15/18
 
+  use Option_module
+
   implicit none
 
   type(well_data_list_type), pointer :: well_data_list
+  type(option_type) :: option
 
   class(well_data_type), pointer :: well_data, prev_well_data
+
+  PetscInt :: nwarn,unconv_tg,unconv_wg,unconv_bg
+  PetscMPIInt :: ibufl(3),ibufg(3),ierr
+
+!  If wells used, check for warnings
+
+  if (use_wells) then
+
+!  Globalise the warnings
+
+    ibufl(1) = w_unconv_t
+    ibufl(2) = w_unconv_w
+    ibufl(3) = w_unconv_b
+    ibufg    = 0
+    ierr     = 0
+
+    call MPI_Reduce(ibufl,ibufg,THREE_INTEGER_MPI, &
+                    MPI_INTEGER,MPI_SUM, &
+                    option%io_rank,option%mycomm,ierr)
+
+    unconv_tg = ibufg(1)
+    unconv_wg = ibufg(2)
+    unconv_bg = ibufg(3)
+
+!  Report warnings
+
+    if (option%io_rank == option%myrank) then
+      nwarn=unconv_tg+unconv_wg+unconv_bg
+      if (nwarn>0) then
+        print *,'Well model convergence failure counts'
+        if( unconv_tg>0 ) print *,unconv_tg,' mode selection'
+        if( unconv_wg>0 ) print *,unconv_wg,' bhp solution'
+        if( unconv_bg>0 ) print *,unconv_bg,' wellbore composition'
+      endif
+    endif
+
+  endif
 
 !  Skip if list not allocated
 
@@ -2942,6 +2989,27 @@ subroutine FindGroupTotals(list)
   enddo
 
 end subroutine FindGroupTotals
+
+! *************************************************************************** !
+
+subroutine IncrementWellWarningCount( unconv_t, &
+                                      unconv_w, &
+                                      unconv_b )
+  !
+  ! Increment the well iteratin convergence failure counts
+  !
+  ! Author: Dave Ponting
+  ! Date: 01/24/19
+
+  implicit none
+
+  PetscInt,intent(in) :: unconv_t,unconv_w,unconv_b
+
+  w_unconv_t = w_unconv_t + unconv_t
+  w_unconv_w = w_unconv_w + unconv_w
+  w_unconv_b = w_unconv_b + unconv_b
+
+end subroutine IncrementWellWarningCount
 
 ! *************************************************************************** !
 
