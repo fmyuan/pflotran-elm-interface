@@ -224,7 +224,9 @@ module Option_module
     
     !man: impose restrictions on when a grid block can change state 
     PetscBool :: restrict_state_chng
-    
+
+    !man: hydrate
+    PetscBool :: hydrate_flag    
 
   end type option_type
 
@@ -593,10 +595,11 @@ subroutine OptionInitRealization(option)
   option%inline_surface_Mannings_coeff = 0.02d0
   option%inline_surface_region_name    = ""
   
-  option%phase_chng_epsilon = 0.d0 !1.d-6
+  option%phase_chng_epsilon = 1.d-6 !1.d-6
   
   option%restrict_state_chng = PETSC_FALSE
 
+  option%hydrate_flag = PETSC_FALSE
 
 end subroutine OptionInitRealization
 

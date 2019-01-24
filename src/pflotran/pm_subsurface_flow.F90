@@ -39,6 +39,9 @@ module PM_Subsurface_Flow_class
     PetscReal :: pressure_change_limit
     PetscReal :: temperature_change_limit
     PetscInt :: logging_verbosity
+
+    !man : hydrate
+    PetscBool :: hydrate_flag
   contains
 !geh: commented out subroutines can only be called externally
     procedure, public :: Setup => PMSubsurfaceFlowSetup
@@ -121,6 +124,7 @@ subroutine PMSubsurfaceFlowCreate(this)
   this%pressure_change_limit = UNINITIALIZED_DOUBLE
   this%temperature_change_limit = UNINITIALIZED_DOUBLE
   this%logging_verbosity = 0
+  this%hydrate_flag = PETSC_FALSE
 
   call PMBaseInit(this)
 

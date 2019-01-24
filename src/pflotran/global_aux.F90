@@ -9,7 +9,7 @@ module Global_Aux_module
   private 
 
   type, public :: global_auxvar_type
-    PetscInt :: istate
+    PetscInt :: istate, hstate
     PetscReal :: temp
     PetscReal, pointer :: pres(:)
     PetscReal, pointer :: pres_store(:,:)
@@ -104,6 +104,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
   PetscInt :: nphase
   
   auxvar%istate = 0
+  auxvar%hstate = 0
   auxvar%temp = 0.d0
   auxvar%istatechng = PETSC_FALSE
 
@@ -244,6 +245,7 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
   type(option_type) :: option
 
   auxvar2%istate = auxvar%istate
+  auxvar2%hstate = auxvar%hstate
   auxvar2%pres = auxvar%pres
   auxvar2%temp = auxvar%temp
   auxvar2%sat = auxvar%sat
