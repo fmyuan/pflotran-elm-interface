@@ -351,8 +351,7 @@ subroutine RTSetup(realization)
   if (associated(reaction%gas_diffusion_coefficients)) then
     if (rt_parameter%nphase <= 1) then
       option%io_buffer = 'GAS_DIFFUSION_COEFFICIENTS may not be set when &
-        &INCLUDE_GAS_PHASE is not included in the SIMULATION,&
-        &SUBSURFACE_TRANSPORT block.'
+        &an ACTIVE_GAS is not included in the CHEMISTRY block'
       call printErrMsg(option)
     endif
     ! gas diffusion
