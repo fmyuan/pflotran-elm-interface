@@ -316,8 +316,8 @@ subroutine CriticalityInitializeRun(this, realization, option)
     cur_criticality => cur_criticality%next
   enddo
   
-  call VecCreateSeq(PETSC_COMM_SELF, vec_size,this%data_mediator%vec,ierr)
-                    CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF, vec_size,this%data_mediator%vec, &
+                    ierr);CHKERRQ(ierr)
   call VecSetFromOptions(this%data_mediator%vec,ierr); CHKERRQ(ierr)
   
   cur_criticality => this%criticality_list
