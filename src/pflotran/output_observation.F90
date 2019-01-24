@@ -3696,6 +3696,7 @@ subroutine WriteWellValues(fid,realization,tconv,towg_miscibility_model, &
 
   if(wecl) then
     call WriteEclipseFilesSumm(vd,nd)
+    deallocate(vd)
    endif
 
 end subroutine WriteWellValues
