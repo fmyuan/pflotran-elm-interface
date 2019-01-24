@@ -212,6 +212,10 @@ module Well_Solver_module
     PetscReal :: ws_injection_t = 15.0
     PetscReal :: ws_injection_h =  0.0
 
+    PetscInt :: ws_unconv_t = 0
+    PetscInt :: ws_unconv_w = 0
+    PetscInt :: ws_unconv_b = 0
+
   public ::  SolveWell,InitialiseWell,doWellMPISetup
 
 contains
@@ -516,6 +520,10 @@ subroutine SolveWell(aux,option,well_data,r_p)
 
 !  Basic setup
 
+  ws_unconv_t = 0
+  ws_unconv_w = 0
+  ws_unconv_b = 0
+
   welllocationfound = PETSC_FALSE
   welltargetsfound  = PETSC_FALSE
   possible          = PETSC_FALSE
@@ -756,9 +764,7 @@ subroutine SolveWell(aux,option,well_data,r_p)
 
 !  Check for lack of convergence
 
-    if ( .not.finished ) then
-      call throwWellWarning('Unable to converge target iteration')
-    endif
+    if ( .not.finished ) ws_unconv_t = ws_unconv_t + 1
 
 !  Find full derivative of flows
 
@@ -787,6 +793,7 @@ subroutine SolveWell(aux,option,well_data,r_p)
 
 !  Update stored well solution
 
+    call IncrementWellWarningCount(ws_unconv_t,ws_unconv_w,ws_unconv_b)
     call well_data%SetWellSolution(pw,w_pb,w_sp,w_issat,w_trel)
     call well_data%SetWellSolutionSet()
 
@@ -879,9 +886,7 @@ function solveForWellTarget(pw,option,itt,jwwi)
 
 !  Check for convergence error
 
-  if ( .not.finished ) then
-    call throwWellWarning('Unable to converge well iteration')
-  endif
+  if ( .not.finished ) ws_unconv_w = ws_unconv_w + 1
 
 !  Check if all other targets satisfied
 
@@ -2019,9 +2024,7 @@ subroutine findWellboreSolution(pw,option)
 
 ! Check for lack of convergence
 
-  if (.not.finished) then
-    call throwWellWarning('Unable to converge wellbore solution')
-  endif
+  if (.not.finished) ws_unconv_b = ws_unconv_b + 1
 
 !  Use implicit function theorem to find derivatives of Xw wrt Pw and Xc
 
@@ -3587,21 +3590,5 @@ subroutine checkSolverAvailable(option)
   endif
 
 end subroutine checkSolverAvailable
-
-! *************************************************************************** !
-
-subroutine throwWellWarning(message)
-  !
-  ! Issue a general well solver error
-  !
-  ! Author: Dave Ponting
-  ! Date  : 01/23/19
-
-  implicit none
-
-  character(len=*) :: message
-  print *,message
-
-end subroutine throwWellWarning
 
 end module Well_Solver_module
