@@ -12,7 +12,10 @@ END
 SUBSURFACE
 
 #=========================== useful tranport parameters ==================
-UNIFORM_VELOCITY 1.d0 0.d0 0.d0 m/yr
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 1.d0 0.d0 0.d0 m/yr
+END
 
 #=========================== chemistry ========================================
 CHEMISTRY
