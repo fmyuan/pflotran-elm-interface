@@ -314,10 +314,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%solid_phase  = SOLID_PHASE
       !
       option%nflowdof  = 2    ! hydraulic pressure (P) and temperature (T)
-      option%nflowspec = 1    ! liq. water
-      !
-      option%flow%isothermal_eq   = PETSC_FALSE    ! Hydrology only
-      option%flow%only_thermal_eq = PETSC_FALSE    ! Thermal process only
+      option%nflowspec = 1    ! water
       !
       option%flow%store_fluxes = PETSC_TRUE
     class default
@@ -2162,14 +2159,6 @@ subroutine SubsurfaceReadInput(simulation,input)
       case ('HDF5_WRITE_GROUP_SIZE')
         call InputReadInt(input,option,option%hdf5_write_group_size)
         call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
-
-!....................
-      case ('ONLY_VERTICAL_FLOW')
-        option%flow%only_vertical_flow = PETSC_TRUE
-        if (option%iflowmode /= TH_MODE) then
-          option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in TH mode.'
-          call printErrMsg(option)
-        endif
 
 !....................
       case ('RELATIVE_PERMEABILITY_AVERAGE')

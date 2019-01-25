@@ -402,11 +402,6 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
   ! isothermal, i.e. hydrology only (for simplifying water density calculation)
   if(option%flow%isothermal_eq) temperature = option%reference_temperature
 
-  ! If only solving the thermal equation, ensure Res(1)/Derivatives is zero (TODO)
-  !if (option%flow%only_thermal_eq) then
-  !
-  !endif
-
   !--------------------------------------------------------------------
 
   ! general bounds of P/T. We may need to further limit bounds for 3-phase water properties.
@@ -431,7 +426,6 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
                                            sg,  dsg_dp, dsg_dt,          &
                                            kr,  dkr_dp, dkr_dt,          &
                                            option)
-
 
 
 !***************  3-phase water properties **********************************************************
@@ -709,11 +703,11 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
   endif
 
  ! thermal process only
+
   if(option%flow%only_thermal_eq) then
     ! no flow
     auxvar%vis = 0.d0
     auxvar%kvr = 0.d0
-    auxvar%dkvr_dp = 0.d0
 
     ! all deriv w.r.t. Pressure should be zeroes
     auxvar%dsat_dp = 0.d0

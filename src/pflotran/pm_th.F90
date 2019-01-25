@@ -151,7 +151,13 @@ subroutine PMTHRead(this,input)
 !....................
       case ('ONLY_THERMAL_EQ')
         option%flow%only_thermal_eq = PETSC_TRUE
-        option%io_buffer = 'TH: ONLY_THERMAL_EQ in ON in TH mode.'
+        option%io_buffer = 'TH: ONLY_THERMAL_EQ is ON in TH mode.'
+        call printMsg(option)
+
+!....................
+      case ('ONLY_VERTICAL_FLOW')
+        option%flow%only_vertical_flow = PETSC_TRUE
+        option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in TH mode.'
         call printMsg(option)
 
 !....................
