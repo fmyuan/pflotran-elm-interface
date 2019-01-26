@@ -785,6 +785,10 @@ subroutine HydrostaticPMLoader(condition,option)
       if ( associated(condition%towg%ogc_z) ) then
         ogc_z = condition%towg%ogc_z%dataset%rarray(1)
       end if
+      if (option%iflow_sub_mode == TOWG_TODD_LONGSTAFF) then
+        !no solvent allowed in the initial solution - put ogc above domain
+        ogc_z = 1.0d20
+      end if
       if ( associated(condition%towg%pcog_ogc) ) then
         pcog_ogc = condition%towg%pcog_ogc%dataset%rarray(1)
       end if
@@ -1066,6 +1070,8 @@ subroutine HydrostaticPMCellInit(option,z,pw,po,pg,sw,so,sg,iconn,coupler)
         case (TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
           coupler%flow_aux_real_var(THREE_INTEGER,iconn) = sg
           coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = THREE_INTEGER
+          coupler%flow_aux_int_var(TOWG_STATE_INDEX,iconn) = &
+                                                       TOWG_THREE_PHASE_STATE
       end select
       if ( option%iflow_sub_mode == TOWG_SOLVENT_TL ) then
         coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 0.0d0 !imposing zero sovent saturation

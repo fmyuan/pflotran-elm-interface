@@ -3459,10 +3459,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
     !initialise to TOWG_ANY_STATE. Phase state computed in HydrostaticMPUpdateCoupler
     else if ( associated(towg%oil_pressure) .and. &
               towg%oil_pressure%itype == HYDROSTATIC_BC ) then
-      condition%iphase  = TOWG_ANY_STATE
-      phase_state_found = PETSC_TRUE
-      !if not present: owc_z, ogc_z, datum_z, pcow_owc, pcog_ogc, pcwg_wgc
-      ! are set to zero in the equilibration set up
+       condition%iphase  = TOWG_ANY_STATE
+       phase_state_found = PETSC_TRUE
     end if
 
     !check that a valid phase state has been found
@@ -3475,7 +3473,9 @@ subroutine FlowConditionTOWGRead(condition,input,option)
     !check if conditions are compatible with miscibility model
     if ( (towg_miscibility_model == TOWG_IMMISCIBLE .or. &
           towg_miscibility_model == TOWG_TODD_LONGSTAFF) .and. &
-          condition%iphase /= TOWG_THREE_PHASE_STATE  &
+          condition%iphase /= TOWG_THREE_PHASE_STATE .and. &
+          .not.( (associated(towg%oil_pressure) .and. &
+                 towg%oil_pressure%itype == HYDROSTATIC_BC ) )  &
        ) then
       option%io_buffer = 'FlowConditionTOWGRead: For TOWG_IMMISCIBLE and &
          &TOWG_TODD_LONGSTAFF only three phase state conditions &
