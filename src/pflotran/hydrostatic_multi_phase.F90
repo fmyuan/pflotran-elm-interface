@@ -11,6 +11,7 @@ module HydrostaticMultiPhase_module
   private
 
   !module vriables
+  PetscBool :: wat_gas_equil
   PetscBool :: oil_wat_zone
   PetscBool :: oil_gas_zone
   PetscBool :: wat_gas_zone
@@ -50,6 +51,8 @@ module HydrostaticMultiPhase_module
   class(lookup_table_general_type), pointer :: rtempvz_table => null()
   class(lookup_table_general_type), pointer :: pbvz_table => null()
   PetscBool :: temp_grad_given
+  PetscReal :: temp_grad(3)
+  PetscReal :: temp_at_datum
 
   !working arrays
   PetscReal, allocatable :: temp_vec(:)
@@ -191,6 +194,8 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   z_max = max(grid%z_max_global,datum_z)+1.d0 ! add 1m buffer
   z_min = min(grid%z_min_global,datum_z)-1.d0
 
+  if (temp_grad_given) call RTempTableFromGrad(option)
+
   if ( associated(rtempvz_table) ) then
     if ( (rtempvz_table%axis1%values(1) - 1.0) > z_min ) then
       option%io_buffer = 'Hydrostatic equilibration: Temperature table - &
@@ -214,22 +219,25 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   end if
 
   !check that water is heavier than oil and oil heavier than gas
-  if ( owc_z > ogc_z ) then
+  if ( owc_z > ogc_z .and. oil_wat_zone .and. oil_gas_zone ) then
     option%io_buffer = 'Hydrostatic Equilibration input error: owc > ogc'
     call printErrMsg(option)
   end if
 
-  if ( dabs(ogc_z - owc_z) < 0.1d0 ) then
+  if ( dabs(ogc_z - owc_z) < 0.1d0 .and. oil_wat_zone .and. oil_gas_zone ) then
     option%io_buffer = 'Hydrostatic Equilibration error: owc and ogc &
                         &less than 10 cm apart, consider to switch to wgc'
     call printErrMsg(option)
   end if
 
   ! wat_gas_zone determined in HydrostaticPMLoader
-  if (wat_gas_zone) then
+  if (wat_gas_equil) then
     oil_wat_zone = PETSC_FALSE
-    oil_gas_zone = PETSC_FALSE    
-  end if  
+    oil_gas_zone = PETSC_FALSE
+    if ( wgc_z >= z_min .and. wgc_z <= z_max) then
+      wat_gas_zone = PETSC_TRUE
+    end if
+  end if
   
   !works out what are the phases present in the model
   if ( oil_wat_zone .or. wat_gas_zone ) then
@@ -242,7 +250,27 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
 
   if ( oil_gas_zone .or. wat_gas_zone ) then
     gas_present = PETSC_TRUE
-  end if  
+  end if
+
+  !detect single phase cases
+  if ( (.not.oil_wat_zone) .and. (.not.oil_wat_zone) .and. &
+     (  .not.wat_gas_equil) ) then
+    if ( owc_z < z_min .and. ogc_z > z_max ) then
+      oil_present = PETSC_TRUE
+    else if ( owc_z < z_min .and. ogc_z < z_min ) then
+      gas_present = PETSC_TRUE
+    else if ( owc_z > z_max .and. ogc_z > z_max ) then
+      wat_present = PETSC_TRUE
+    end if
+  end if
+
+  if ( wat_gas_equil .and. (.not.wat_gas_zone) ) then
+    if ( wgc_z > z_max ) then
+      wat_present = PETSC_TRUE
+    else if (wgc_z < z_min ) then
+      gas_present = PETSC_TRUE
+    end if
+  end if
 
   !determine where is the datum
   datum_in_wat = PETSC_FALSE
@@ -397,6 +425,12 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
       i_press_start = i_wgc + 1
       press_start = pw_wgc + PhaseDensity(option,LIQUID_PHASE,pw_wgc,temp_wgc, &
                              xm_nacl_wgc,pb_wgc,rv_wgc) * g_z * dwgc_up
+    end if
+    if (wat_present) then
+      call PhaseHydrostaticPressure(one_d_grid,option,LIQUID_PHASE, &
+                  press_start,i_press_start,temp_vec, &
+                  xm_nacl_vec,pb_vec,rv_vec, &
+                  wat_press_vec,wat_den_kg_vec)
     end if  
   end if
   
@@ -438,27 +472,49 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
     sw_min = 0.0d0
     so_min = 0.0d0 !if there is no oil remains zero
     sg_min = 0.0d0 !if there is no gas remains zero
+    sw_max = 1.0d0
+    sg_max = 1.0d0
+    sw_cell = 0.0d0
+    so_cell = 0.0d0
+    sg_cell = 0.0d0
     
-    !get swco from krw as this is available for both WO and WG interfaces
-    if (wat_present ) then
+    !minimum saturations computed if rel perm function available
+    !if not rel perm => phase not present in the problem and s_alpha_min = 0
+    !if (wat_present ) then
+    if (associated(cc_ptr%wat_rel_perm_func_owg)) then
       sw_min = cc_ptr%wat_rel_perm_func_owg%GetConnateSaturation(option)
       sw_max = 1.0
     end if
+    !end if
 
-    if (oil_present) then
-      if ( associated(cc_ptr%ow_rel_perm_func_owg) ) then
-        so_min =  cc_ptr%ow_rel_perm_func_owg%GetConnateSaturation()
-      else if ( associated( cc_ptr%oil_rel_perm_func_owg ) ) then
-        so_min =  cc_ptr%oil_rel_perm_func_owg%GetConnateSaturation()
-      end if  
+    !if (oil_present) then
+    if ( associated(cc_ptr%ow_rel_perm_func_owg) ) then
+      so_min =  cc_ptr%ow_rel_perm_func_owg%GetConnateSaturation()
+    else if ( associated( cc_ptr%oil_rel_perm_func_owg ) ) then
+      so_min =  cc_ptr%oil_rel_perm_func_owg%GetConnateSaturation()
     end if
+    !end if
       
-    if (gas_present) then
-      sg_min = cc_ptr%oil_gas_sat_func%GetConnateSaturation(option)
-    end if
-   
+    !if (gas_present) then
+    if ( associated(cc_ptr%gas_rel_perm_func_owg) ) then
+      sg_min = cc_ptr%gas_rel_perm_func_owg%GetConnateSaturation(option)
+    end if  
+    !end if
+
     sw_max = 1.0 - so_min - sg_min
     sg_max = 1.0 - sw_min - so_min
+   
+    ! if ( wat_present .and. oil_present .and. gas_present ) then
+    !   sw_max = 1.0 - so_min - sg_min
+    !   sg_max = 1.0 - sw_min - so_min
+    ! else if (wat_present .and. oil_present .and. ( .not.gas_present) ) then
+    !   sw_max = 1.0 - so_min
+    ! else if (oil_present .and. gas_present .and. ( .not.wat_present) ) then
+    !   sg_max = 1.0 - so_min
+    ! else if (wat_present .and. gas_present .and. ( .not.oil_present) ) then
+    !   sw_max = 1.0 - sg_min
+    !   sg_max = 1.0 - sw_min
+    ! end if
     
     if (oil_wat_zone) then
       pow_cell = po_cell - pw_cell
@@ -507,8 +563,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
       pcwg_min = cc_ptr%gas_wat_sat_func%GetPcMin()
       pcwg_max = cc_ptr%gas_wat_sat_func%GetPcMax()
       if ( pwg_cell <= pcwg_min ) then
-        sg_cell = sg_min
-        sw_cell = 1.0 - sg_min
+        sw_cell = sw_max
         pg_cell = pw_cell + pcwg_min !pressure supported by water
       else if ( pwg_cell > pcwg_min .and. pwg_cell < pcwg_max ) then
         !to finsh
@@ -521,15 +576,41 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
                                                 dsat_dp,option)
         sg_cell = 1.0 - sw_cell
       else if ( pwg_cell >= pcwg_max ) then
-        sw_cell = sw_min 
-        sg_cell = 1.0 - sw_min
+        sw_cell = sw_min
         pw_cell = pg_cell - pcwg_max !pressure supported by gas
       end if
     end if
 
-    so_cell = 0.0d0
-    if ( wat_present .and. oil_present .and. (.not.gas_present) ) then
+    if ( wat_present .and. (.not.oil_present) .and. (.not.gas_present) ) then
+      sw_cell = sw_max
+      so_cell = so_min
+      sg_cell = sg_min
+      po_cell = pw_cell
+      pg_cell = pw_cell
+    else if (oil_present .and. (.not.wat_present).and.(.not.gas_present)) then
+      so_cell =  1.0 - sw_min - sg_min
+      sw_cell = sw_min
+      sg_cell = sg_min
+      pw_cell = po_cell
+      pg_cell = po_cell
+    else if (gas_present .and. (.not.oil_present).and.(.not.wat_present)) then
+      sg_cell = sg_max
+      so_cell = so_min
+      sw_cell = sw_min
+      po_cell = pg_cell
+      pw_cell = pg_cell
+    else if ( wat_present .and. oil_present .and. (.not.gas_present) ) then
       so_cell =  1.0 - sw_cell
+      sg_cell = sg_min
+      pg_cell = po_cell
+    else if ( oil_present .and. gas_present .and. (.not.wat_present) ) then
+      so_cell =  1.0 - sg_cell
+      sw_cell =  sw_min
+      pw_cell = po_cell
+    else if ( wat_present .and. gas_present .and. (.not.oil_present) ) then
+      sg_cell = 1.0 - sw_cell
+      so_cell = so_min
+      po_cell = pg_cell !should not be needed
     else if ( wat_present .and. oil_present .and. gas_present ) then
       so_cell =  1.0 - sw_cell - sg_cell
       if (so_cell < 0.0 ) then
@@ -589,6 +670,7 @@ subroutine HydrostaticMPInit()
 
   implicit none
 
+  wat_gas_equil = PETSC_FALSE
   oil_wat_zone = PETSC_FALSE
   oil_gas_zone = PETSC_FALSE
   wat_gas_zone = PETSC_FALSE
@@ -622,10 +704,12 @@ subroutine HydrostaticMPInit()
   po_ogc = UNINITIALIZED_DOUBLE
   pg_ogc = UNINITIALIZED_DOUBLE
   pw_wgc = UNINITIALIZED_DOUBLE
-  pg_wgc = UNINITIALIZED_DOUBLE
 
+  pg_wgc = UNINITIALIZED_DOUBLE
   nullify(rtempvz_table)
   temp_grad_given = PETSC_FALSE
+  temp_grad(1:3) = UNINITIALIZED_DOUBLE
+  temp_at_datum = UNINITIALIZED_DOUBLE
   nullify(pbvz_table)
 
 end subroutine HydrostaticMPInit
@@ -663,10 +747,10 @@ subroutine HydrostaticPMLoader(condition,option)
 
   PetscBool :: press_at_datum_found
   PetscReal :: temperature
-  PetscReal :: temp_grad(3)
+  !PetscReal :: temp_grad(3)
   !PetscInt :: tbl_size
-  PetscInt :: data_idx
-  character(len=MAXWORDLENGTH) :: units_word
+  !PetscInt :: data_idx
+  !character(len=MAXWORDLENGTH) :: units_word
 
   !assign default values
   press_at_datum_found = PETSC_FALSE
@@ -729,7 +813,7 @@ subroutine HydrostaticPMLoader(condition,option)
       if (condition%towg%is_wg_equilibration) then
         ogc_z = 1.0d20
         owc_z = -1.0d20
-        wat_gas_zone = PETSC_TRUE
+        wat_gas_equil = PETSC_TRUE
         !the 
         if ( associated(condition%towg%owc_z) ) then
           wgc_z = condition%towg%owc_z%dataset%rarray(1)
@@ -791,9 +875,40 @@ subroutine HydrostaticPMLoader(condition,option)
           end if
       end select    
   end select
+
+  if (.not.press_at_datum_found) then
+    option%io_buffer = 'TOWG Equilibration condition input error: &
+                        &a pressure value at datum must be input'
+    call printErrMsg(option)
+  end if
   
   if ( associated(condition%rtempvz_table) ) then
     rtempvz_table => condition%rtempvz_table
+  end if
+  
+  !ensure that at least a constant temperature value is setup
+  if ( .not.associated(rtempvz_table) .and. (.not.temp_grad_given) ) then
+     if (Uninitialized(temperature)) then
+       option%io_buffer = 'MP Equilibration input error: a temperature value &
+                           &or table must be input to initialise the reservoir'
+       call printErrMsg(option)
+     end if
+     res_temp_is_const = PETSC_TRUE
+     res_temp_const = temperature
+  end if
+  
+  !avoid that both a gradient and a table are defined for the temperature
+  if ( associated(rtempvz_table) .and. temp_grad_given ) then
+    option%io_buffer = 'MP Equilibration input error: define either  &
+                        &a table or a gradient for the reservoir temperature'
+    call printErrMsg(option)
+  end if
+
+  if ( associated(rtempvz_table) .and. Initialized(temperature) ) then
+    option%io_buffer = 'MP Equilibration input warning: a constant temperature &
+                    &and a table have been defined, the constant temperature &
+                    &will be ignored'
+    call printMsg(option)
   end if
 
   !if both temp_grad and rtempvz_table given, returns an error
@@ -804,52 +919,78 @@ subroutine HydrostaticPMLoader(condition,option)
                           &with a temperature gradient'
       call printErrMsg(option)
     end if
-    rtempvz_table => LookupTableCreateGeneral(ONE_INTEGER)
-    call rtempvz_table%LookupTableVarsInit(TWO_INTEGER)
-    data_idx = 1 !elevation/depth in the first column
-    units_word = 'm'
-    call rtempvz_table%CreateAddLookupTableVar(ONE_INTEGER, &
-                                     units_word,units_word,data_idx,option)
-    data_idx = 2 !temperature in the second column
-    units_word = 'C'
-    call rtempvz_table%CreateAddLookupTableVar(TWO_INTEGER, &
-                                     units_word,units_word,data_idx,option)
-    allocate(rtempvz_table%var_data(2,2))
-    rtempvz_table%var_data(1,1) = z_min
-    rtempvz_table%var_data(2,1) = (z_min - datum_z) * temp_grad(3) + &
-                                  temperature
-    rtempvz_table%var_data(1,2) = z_max
-    rtempvz_table%var_data(2,2) = (z_max - datum_z) * temp_grad(3) + &
-                                  temperature
-    !
-    call rtempvz_table%LookupTableVarConvFactors(option)
-    call rtempvz_table%VarPointAndUnitConv(option)
-    call rtempvz_table%SetupConstValExtrap(option)
-    call rtempvz_table%LookupTableVarInitGradients(option)
-    allocate(rtempvz_table%axis1)
-    allocate(rtempvz_table%axis1%values(2))
-    rtempvz_table%axis1%values(1:2) = rtempvz_table%var_data(1,1:2)
-    rtempvz_table%dims(1) = 2
-  end if
-  
-  if ( .not.associated(rtempvz_table) ) then
-     if (Uninitialized(temperature)) then
-       option%io_buffer = 'MP Equilibration input error: a temperature value &
-                           &or table must be input to initialise the reservoir'
-       call printErrMsg(option)
-     end if
-     res_temp_is_const = PETSC_TRUE
-     res_temp_const = temperature
-  end if
-
-
-  if (.not.press_at_datum_found) then
-    option%io_buffer = 'TOWG Equilibration condition input error: &
-                        &a pressure value at datum must be input'
-    call printErrMsg(option)
+    temp_at_datum = temperature
+    ! rtempvz_table => LookupTableCreateGeneral(ONE_INTEGER)
+    ! call rtempvz_table%LookupTableVarsInit(TWO_INTEGER)
+    ! data_idx = 1 !elevation/depth in the first column
+    ! units_word = 'm'
+    ! call rtempvz_table%CreateAddLookupTableVar(ONE_INTEGER, &
+    !                                  units_word,units_word,data_idx,option)
+    ! data_idx = 2 !temperature in the second column
+    ! units_word = 'C'
+    ! call rtempvz_table%CreateAddLookupTableVar(TWO_INTEGER, &
+    !                                  units_word,units_word,data_idx,option)
+    ! allocate(rtempvz_table%var_data(2,2))
+    ! rtempvz_table%var_data(1,1) = z_min
+    ! rtempvz_table%var_data(2,1) = (z_min - datum_z) * temp_grad(3) + &
+    !                               temperature
+    ! rtempvz_table%var_data(1,2) = z_max
+    ! rtempvz_table%var_data(2,2) = (z_max - datum_z) * temp_grad(3) + &
+    !                               temperature
+    ! !
+    ! call rtempvz_table%LookupTableVarConvFactors(option)
+    ! call rtempvz_table%VarPointAndUnitConv(option)
+    ! call rtempvz_table%SetupConstValExtrap(option)
+    ! call rtempvz_table%LookupTableVarInitGradients(option)
+    ! allocate(rtempvz_table%axis1)
+    ! allocate(rtempvz_table%axis1%values(2))
+    ! rtempvz_table%axis1%values(1:2) = rtempvz_table%var_data(1,1:2)
+    ! rtempvz_table%dims(1) = 2
   end if
 
 end subroutine HydrostaticPMLoader
+
+! ************************************************************************** !
+
+subroutine RTempTableFromGrad(option)
+  
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+
+  PetscInt :: data_idx
+  character(len=MAXWORDLENGTH) :: units_word
+
+  rtempvz_table => LookupTableCreateGeneral(ONE_INTEGER)
+  call rtempvz_table%LookupTableVarsInit(TWO_INTEGER)
+  data_idx = 1 !elevation/depth in the first column
+  units_word = 'm'
+  call rtempvz_table%CreateAddLookupTableVar(ONE_INTEGER, &
+                                   units_word,units_word,data_idx,option)
+  data_idx = 2 !temperature in the second column
+  units_word = 'C'
+  call rtempvz_table%CreateAddLookupTableVar(TWO_INTEGER, &
+                                   units_word,units_word,data_idx,option)
+  allocate(rtempvz_table%var_data(2,2))
+  rtempvz_table%var_data(1,1) = z_min
+  rtempvz_table%var_data(2,1) = (z_min - datum_z) * temp_grad(3) + &
+                                temp_at_datum
+  rtempvz_table%var_data(1,2) = z_max
+  rtempvz_table%var_data(2,2) = (z_max - datum_z) * temp_grad(3) + &
+                                temp_at_datum
+  !
+  call rtempvz_table%LookupTableVarConvFactors(option)
+  call rtempvz_table%VarPointAndUnitConv(option)
+  call rtempvz_table%SetupConstValExtrap(option)
+  call rtempvz_table%LookupTableVarInitGradients(option)
+  allocate(rtempvz_table%axis1)
+  allocate(rtempvz_table%axis1%values(2))
+  rtempvz_table%axis1%values(1:2) = rtempvz_table%var_data(1,1:2)
+  rtempvz_table%dims(1) = 2
+
+end subroutine RTempTableFromGrad
 
 ! ************************************************************************** !
 
@@ -875,11 +1016,12 @@ subroutine HydrostaticPMCellInit(option,z,pw,po,pg,sw,so,sg,iconn,coupler)
   
   !PetscReal, intent(out) :: aux_real(:)
   !PetscInt, intent(out) :: aux_int(:)
-  
+  character(len=MAXWORDLENGTH) :: word
   PetscReal :: temp,xm_nacl,pb,rv
   PetscInt :: state
   PetscReal, parameter :: eps_oil   = 1.0d-6
   PetscReal, parameter :: eps_gas   = 1.0d-6
+  PetscReal, parameter :: epsp      = 1.0d3
   
   call GetZPointProps(z,option,temp,xm_nacl,pb,rv)
   
@@ -898,6 +1040,14 @@ subroutine HydrostaticPMCellInit(option,z,pw,po,pg,sw,so,sg,iconn,coupler)
       coupler%flow_aux_mapping(TOWG_OIL_SATURATION_INDEX) = TWO_INTEGER
       select case (option%iflow_sub_mode)
         case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+          !PO correction when the user enter Pb > Po for oil region
+          if( (sg < eps_gas) .and. (pb >= po) .and. (so > eps_oil) ) then
+            pb = po - epsp
+            write(word,*) z
+            option%io_buffer = 'MP Equilibration warning: oil saturated cell &
+                  &found below OGC, resetting to undersaturated z = ' // word
+            call printMsg(option)
+          end if
           ! ---- to go on pm_towg_aux
           ! Put cells into saturated or undersaturated state (one or other in this case)
           state = TOWG_THREE_PHASE_STATE

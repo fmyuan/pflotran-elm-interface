@@ -4556,7 +4556,8 @@ subroutine TL4PViscosity( so   ,sg   ,ss                               , &
     denos= so*sosi*vsqp &
           +ss*sosi*voqp
   else
-    denos= 0.5*(vsqp+voqp)
+    !denos= 0.5*(vsqp+voqp)
+    denos= vsqp !PO assuming no solvent for viso when there is no oil
   endif
 
    if (getDerivs) then
@@ -4577,7 +4578,8 @@ subroutine TL4PViscosity( so   ,sg   ,ss                               , &
     dengs= sg*sgsi*vsqp &
           +ss*sgsi*vgqp
   else
-    dengs= 0.5*(vsqp+vgqp)
+    !dengs= 0.5*(vsqp+vgqp)
+    dengs= vsqp !PO assuming no solvent for visg when there is no gas
   endif
    if (getDerivs) then
     if (sgsi>0.d0) then
@@ -4728,6 +4730,7 @@ subroutine TL4PDensity( so    ,sg    ,ss    ,       &
 !------------------------------------------------------------------------------
 ! Author: Dave Ponting
 ! Date  : Apr 2018
+! Modified by PO: 01/26/2019
 !------------------------------------------------------------------------------
 
   use Derivatives_utilities_module
@@ -4779,7 +4782,7 @@ subroutine TL4PDensity( so    ,sg    ,ss    ,       &
 !--Form the hydrocarbon saturation fractions-----------------------------------
 
   if( sh>0.0 ) then
-
+    !PO intialise value for Sh>0 - overwritten for M=1 or M/=1 in formMixedDen2
     shi=1.0/sh
 
     fo=so*shi
@@ -4791,12 +4794,21 @@ subroutine TL4PDensity( so    ,sg    ,ss    ,       &
       D_fg = DivRule(sg,D_sg,sh,D_sh,ndof)
       D_fs = DivRule(ss,D_ss,sh,D_sh,ndof)
     endif
-
+    
+    !--Form the default mixed density for sh>0----------------------------------
+    denm= fo*deno &
+         +fg*deng &
+         +fs*dens
+    !--Omega-dependent mixing to final density for sh>0-------------------------
+    denotl=tlomegac*deno+tlomega*denm
+    dengtl=tlomegac*deng+tlomega*denm
+    denstl=tlomegac*dens+tlomega*denm
+    
   else
-
-    fo=1.0/3.0
-    fg=1.0/3.0
-    fs=1.0/3.0
+    !PO intialise value for Sh=0 - overwritten for M=1 or M/=1 in formMixedDen2
+    denotl=deno
+    dengtl=deng
+    denstl=dens
 
     if (getDerivs) then
       D_fo = 0.0
@@ -4805,17 +4817,6 @@ subroutine TL4PDensity( so    ,sg    ,ss    ,       &
     endif
 
   endif
-
-!--Form the default mixed density----------------------------------------------
-
-  denm= fo*deno &
-       +fg*deng &
-       +fs*dens
-  ! these aren't needed?
-  denmo=denm
-  denmg=denm
-  denms=denm
-
 
   if (getDerivs) then
     D_denm = ProdRule(fo,D_fo,deno,D_deno,ndof) &
@@ -4827,12 +4828,6 @@ subroutine TL4PDensity( so    ,sg    ,ss    ,       &
     D_denmg = D_denm
     D_denms = D_denm
   endif
-
-!--Omega-dependent mixing to final density-------------------------------------
-
-  denotl=tlomegac*deno+tlomega*denm
-  dengtl=tlomegac*deng+tlomega*denm
-  denstl=tlomegac*dens+tlomega*denm
 
   if (getDerivs) then
     D_denotl=tlomegac*D_deno+tlomega*D_denm
@@ -5130,6 +5125,7 @@ subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl, &
 !------------------------------------------------------------------------------
 ! Author: Dave Ponting
 ! Date  : Apr 2018
+! Modified by PO: 01/26/2019
 !------------------------------------------------------------------------------
 
   use Derivatives_utilities_module
@@ -5143,13 +5139,16 @@ subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl, &
 
   PetscBool              :: getDerivs
   PetscInt               :: ndof
-
   PetscReal,dimension(1:ndof),intent(in) :: D_visa,D_visb,D_visatl,D_dena,D_denb
   PetscReal,dimension(1:ndof),intent(inout) :: D_denatl
 
   PetscReal,dimension(1:ndof) :: D_m,D_me,D_fa,D_mqp,D_meqp
 
   PetscReal :: workerReal
+  
+  PetscReal              :: mc
+  PetscReal,parameter    :: eps_m = 1.0d-6
+  PetscBool              :: m_is_one
 
 !--Form the viscosity ratio and check that it is not unity---------------------
 
@@ -5160,12 +5159,16 @@ subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl, &
   if( visatl>0.0 ) visatli=1.0/visatl
 
   m=visa*visbi
-
+  
   if (getDerivs) then
     D_m = DivRule(visa,D_visa,visb,D_visb,ndof)
   endif
 
-  if( (m.ne.1.0) .and. (visatl>0.0) ) then
+  mc = 1.0 - m
+  m_is_one = PETSC_FALSE
+  if (dabs(mc) < eps_m ) m_is_one = PETSC_TRUE
+
+  if( (.not.m_is_one) .and. (visatl>0.0) ) then
 
 ! Build the interpolation coefficient, fa
 
@@ -5217,6 +5220,10 @@ subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl, &
                + D_denb
     endif
 
+  else
+    !assumes no phase-b in phase a (fa = 1)
+    denatl = dena
+    
   endif
 
 end subroutine formMixedDen2

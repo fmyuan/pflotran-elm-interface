@@ -569,7 +569,7 @@ function FlowTOilImsSubConditionPtr(sub_condition_name,toil_ims, &
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         toil_ims%saturation => sub_condition_ptr
       endif
-    case('TEMPERATURE')
+    case('TEMPERATURE','RTEMP','TEMPERATURE_AT_DATUM')
       if (associated(toil_ims%temperature)) then
         sub_condition_ptr => toil_ims%temperature
       else
@@ -725,7 +725,7 @@ function FlowTOWGSubConditionPtr(sub_condition_name,towg, &
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         towg%bubble_point => sub_condition_ptr
       endif
-    case('TEMPERATURE')
+    case('TEMPERATURE','RTEMP','TEMPERATURE_AT_DATUM')
       if (associated(towg%temperature)) then
         sub_condition_ptr => towg%temperature
       else
@@ -2373,7 +2373,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
 
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: rate_string, internal_units
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, sub_word
   type(flow_toil_ims_condition_type), pointer :: toil_ims
   type(flow_well_condition_type), pointer :: flow_well
   type(flow_sub_condition_type), pointer :: sub_condition_ptr
@@ -2618,7 +2618,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
       !                                     condition%datum_z%dataset%rarray(:)
       !   end select
       
-      case('GRADIENT')
+      case('GRADIENT','GRADIENT_D')
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -2626,14 +2626,11 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
-          call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
-          call StringToUpper(word)
-          select case(option%iflowmode)
-            case(TOIL_IMS_MODE)
-              sub_condition_ptr => &
-                 FlowTOilImsSubConditionPtr(word,toil_ims,option)
-          end select
+          call InputReadWord(input,option,sub_word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword','GRADIENT,TYPE')
+          call StringToUpper(sub_word)
+          sub_condition_ptr => &
+                    FlowTOilImsSubConditionPtr(sub_word,toil_ims,option)
           dataset_ascii => DatasetAsciiCreate()
           call DatasetAsciiInit(dataset_ascii)
           dataset_ascii%array_width = 3
@@ -2641,9 +2638,14 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
           sub_condition_ptr%gradient => dataset_ascii
           nullify(dataset_ascii)
           internal_units = 'unitless/meter'
-          call ConditionReadValues(input,option,word, &
+          call ConditionReadValues(input,option,sub_word, &
                                    sub_condition_ptr%gradient, &
-                                   word, internal_units)
+                                   sub_word, internal_units)
+          select case(trim(word))
+            case('GRADIENT_D')
+              sub_condition_ptr%gradient%rarray(1:3) =  - &
+                                       sub_condition_ptr%gradient%rarray(1:3)
+          end select
           nullify(sub_condition_ptr)
         enddo
       case('CONDUCTANCE')
@@ -2668,7 +2670,8 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
           case('PRESSURE','OIL_PRESSURE','WATER_PRESSURE', &
                'LIQUID_SATURATION', 'OIL_SATURATION','TEMPERATURE','RATE', &
                'LIQUID_FLUX','OIL_FLUX', 'ENERGY_FLUX','ENTHALPY','OWC', &
-                'WATER_PRESSURE_GRAD','OWC_Z','OWC_D','PCOW_OWC')
+                'WATER_PRESSURE_GRAD','OWC_Z','OWC_D','PCOW_OWC', &
+                 'RTEMP','TEMPERATURE_AT_DATUM')
             sub_condition_ptr => FlowTOilImsSubConditionPtr(word,toil_ims, &
                                                             option)
           case('WELL_RATE','WELL_PRESSURE','WELL_TEMPERATURE')
@@ -2678,14 +2681,15 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
 
         select case(trim(word))
         !give a type to pass FlowSubConditionVerify.
-          case('OWC','WATER_PRESSURE_GRAD','OWC_Z','OWC_D','PCOW_OWC')
+          case('OWC','WATER_PRESSURE_GRAD','OWC_Z','OWC_D','PCOW_OWC', &
+               'RTEMP','TEMPERATURE_AT_DATUM')
             sub_condition_ptr%itype = DIRICHLET_BC
             sub_condition_ptr%ctype = 'dirichlet'
         end select
 
         internal_units = 'not_assigned'
         select case(trim(word))
-        case('PRESSURE','OIL_PRESSURE','WATER_PRESSURE','PCOW_OWC')
+          case('PRESSURE','OIL_PRESSURE','WATER_PRESSURE','PCOW_OWC')
             internal_units = 'Pa'
           case('LIQUID_SATURATION','OIL_SATURATION')
             internal_units = 'unitless'
@@ -3033,7 +3037,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: rate_string
   character(len=MAXSTRINGLENGTH) :: internal_units_string
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, sub_word
   character(len=MAXWORDLENGTH) :: internal_units_word
   character(len=MAXWORDLENGTH) :: usr_tbl_len_units, usr_tbl_press_units
   type(flow_towg_condition_type), pointer :: towg
@@ -3216,7 +3220,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
       !   call ConditionReadValues(input,option,word,condition%datum, &
       !                            word,internal_units_string)
 
-      case('GRADIENT')
+      case('GRADIENT','GRADIENT_D')
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -3224,10 +3228,10 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadWord(input,option,sub_word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
-          call StringToUpper(word)
-          sub_condition_ptr => FlowTOWGSubConditionPtr(word,towg,option)
+          call StringToUpper(sub_word)
+          sub_condition_ptr => FlowTOWGSubConditionPtr(sub_word,towg,option)
           dataset_ascii => DatasetAsciiCreate()
           call DatasetAsciiInit(dataset_ascii)
           dataset_ascii%array_width = 3
@@ -3235,9 +3239,14 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           sub_condition_ptr%gradient => dataset_ascii
           nullify(dataset_ascii)
           internal_units_string = 'unitless/meter'
-          call ConditionReadValues(input,option,word, &
+          call ConditionReadValues(input,option,sub_word, &
                                    sub_condition_ptr%gradient, &
-                                   word,internal_units_string)
+                                   sub_word,internal_units_string)
+          select case(trim(word))
+            case ('GRADIENT_D')
+              sub_condition_ptr%gradient%rarray(1:3) = - &
+                                 sub_condition_ptr%gradient%rarray(1:3)
+          end select  
           nullify(sub_condition_ptr)
         enddo
       case('CONDUCTANCE')
@@ -3253,7 +3262,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           'RATE','BHP_PRESSURE', 'LIQUID_FLUX','OIL_FLUX','GAS_FLUX', &
           'SOLVENT_FLUX','ENERGY_FLUX','ENTHALPY', &
           'OWC_Z','OWC_D','PCOW_OWC', 'OGC_Z','OGC_D', 'PCOG_OGC', &
-          'WGC_Z','WGC_D','PCWG_WGC')
+          'WGC_Z','WGC_D','PCWG_WGC','RTEMP','TEMPERATURE_AT_DATUM')
         sub_condition_ptr => FlowTOWGSubConditionPtr(word,towg,option)
         select case(trim(word))
           case('PRESSURE','OIL_PRESSURE','GAS_PRESSURE','BHP_PRESSURE', &
@@ -3265,7 +3274,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           case('OIL_SATURATION','GAS_SATURATION','SOLVENT_SATURATION', &
                'GAS_IN_OIL_MOLE_FRACTION', 'GAS_IN_GAS_MOLE_FRACTION')
             internal_units_string = 'unitless'
-          case('TEMPERATURE')
+          case('TEMPERATURE','RTEMP','TEMPERATURE_AT_DATUM')
             internal_units_string = 'C'
           case('RATE')
             input%force_units = PETSC_TRUE
@@ -3289,8 +3298,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
         end select
         select case(trim(word))
         !give a type to pass FlowSubConditionVerify.
-          case('OWC_Z','OWC_D','OGC_Z','OGC_D', &
-                'PCOW_OWC','PCOG_OGC','PCWG_WGC')
+          case('OWC_Z','OWC_D','OGC_Z','OGC_D','PCOW_OWC','PCOG_OGC', &
+                'PCWG_WGC','RTEMP','TEMPERATURE_AT_DATUM')
             sub_condition_ptr%itype = DIRICHLET_BC
             sub_condition_ptr%ctype = 'dirichlet'
         end select
@@ -3300,8 +3309,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
         input%force_units = PETSC_FALSE
         select case(trim(word))
           case('OWC_D','OGC_D','WGC_D')
-            sub_condition_ptr%dataset%rbuffer(:) =  - &
-                                    sub_condition_ptr%dataset%rbuffer(:)
+            sub_condition_ptr%dataset%rarray(:) =  - &
+                                    sub_condition_ptr%dataset%rarray(:)
         end select
       case('BUBBLE_POINT_TABLE')
         towg%pbvz_table => LookupTableCreateGeneral(ONE_INTEGER)

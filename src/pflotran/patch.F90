@@ -2301,10 +2301,15 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
             dof1 = PETSC_TRUE
             dof2 = PETSC_TRUE
             dof3 = PETSC_TRUE
+            dof_temp = PETSC_TRUE
             coupler%flow_bc_type(TOWG_LIQ_EQ_IDX) = HYDROSTATIC_BC
             coupler%flow_bc_type(TOWG_OIL_EQ_IDX) = HYDROSTATIC_BC
             coupler%flow_bc_type(TOWG_GAS_EQ_IDX) = HYDROSTATIC_BC
             coupler%flow_bc_type(towg_energy_eq_idx) = DIRICHLET_BC
+            if (option%iflow_sub_mode == TOWG_SOLVENT_TL) then
+              dof_solv = PETSC_TRUE
+              coupler%flow_bc_type(TOWG_SOLV_SATURATION_INDEX) = DIRICHLET_BC
+            end if
           case default
             string = GetSubConditionName(towg%oil_pressure%itype)
             option%io_buffer = &
