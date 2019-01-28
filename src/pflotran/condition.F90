@@ -3941,13 +3941,15 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
             call InputKeywordUnrecognized(sub_word, &
                                     'flow condition,TEMPERATURE_TABLE',option)
         end select
-        if ( .not. rtempvz_found ) then
-          option%io_buffer = 'Flow condition - TEMPERATURE_TABLE: &
-                              &RTEMPVZ or RTEMPVD tables not found'
-          call printErrMsg(option)
-        end if
-    end do
-
+      end do
+      if ( .not. rtempvz_found ) then
+        option%io_buffer = 'Flow condition - TEMPERATURE_TABLE: &
+                            &RTEMPVZ or RTEMPVD tables not found'
+        call printErrMsg(option)
+      end if
+   case default
+     ! do nothing - do not throw error as other cards might be found
+     ! in the mode-specific reading routine
  end select
 
 end subroutine FlowConditionCommonRead

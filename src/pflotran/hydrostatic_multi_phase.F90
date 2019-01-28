@@ -746,6 +746,7 @@ subroutine HydrostaticPMLoader(condition,option)
   !add temp_table and pb_table
 
   PetscBool :: press_at_datum_found
+  PetscBool :: temp_is_associated
   PetscReal :: temperature
   !PetscReal :: temp_grad(3)
   !PetscInt :: tbl_size
@@ -754,6 +755,8 @@ subroutine HydrostaticPMLoader(condition,option)
 
   !assign default values
   press_at_datum_found = PETSC_FALSE
+  temp_is_associated = PETSC_FALSE
+
   temperature = UNINITIALIZED_DOUBLE
   temp_grad(1:3) = UNINITIALIZED_DOUBLE
   temp_grad_given = PETSC_FALSE
@@ -766,7 +769,7 @@ subroutine HydrostaticPMLoader(condition,option)
   ! wgc_z = 0.0d0
   ! pcwg_wgc = 0.0d0
 
-
+  !print *, 'flow mode', option%iflowmode
   select case(option%iflowmode)
     case(TOWG_MODE)
       if ( associated(condition%towg%oil_pressure) ) then
@@ -793,11 +796,13 @@ subroutine HydrostaticPMLoader(condition,option)
         pcog_ogc = condition%towg%pcog_ogc%dataset%rarray(1)
       end if
       if ( associated(condition%towg%temperature) ) then
+        temp_is_associated = PETSC_TRUE
         !gradient or constant 
         temperature = condition%towg%temperature%dataset%rarray(1)
         if ( associated(condition%towg%temperature%gradient ) ) then
           temp_grad(1:3) = condition%towg%temperature%gradient%rarray(1:3)
           temp_grad_given = PETSC_TRUE
+          temp_at_datum = temperature
         end if
       end if
 
@@ -846,11 +851,13 @@ subroutine HydrostaticPMLoader(condition,option)
         pcow_owc = condition%toil_ims%pcow_owc%dataset%rarray(1)
       end if
       if ( associated(condition%toil_ims%temperature) ) then
+        temp_is_associated = PETSC_TRUE
         !gradient or constant 
         temperature = condition%toil_ims%temperature%dataset%rarray(1)
         if ( associated(condition%toil_ims%temperature%gradient ) ) then
           temp_grad(1:3) = condition%toil_ims%temperature%gradient%rarray(1:3)
           temp_grad_given = PETSC_TRUE
+          temp_at_datum = temperature
         end if
       end if
   end select
@@ -885,71 +892,34 @@ subroutine HydrostaticPMLoader(condition,option)
                         &a pressure value at datum must be input'
     call printErrMsg(option)
   end if
-  
+
   if ( associated(condition%rtempvz_table) ) then
     rtempvz_table => condition%rtempvz_table
   end if
   
-  !ensure that at least a constant temperature value is setup
-  if ( .not.associated(rtempvz_table) .and. (.not.temp_grad_given) ) then
-     if (Uninitialized(temperature)) then
-       option%io_buffer = 'MP Equilibration input error: a temperature value &
-                           &or table must be input to initialise the reservoir'
-       call printErrMsg(option)
-     end if
-     res_temp_is_const = PETSC_TRUE
-     res_temp_const = temperature
+  !detect constant temperature case
+  if ( temp_is_associated .and. (.not.temp_grad_given) ) then
+    res_temp_is_const = PETSC_TRUE
+    res_temp_const = temperature
+  end if
+
+  !ensure that at either a constant temperature, a gradient with temperature
+  !at datum or a rtempvz are defined
+  !not that if a user defines a gradient without a termperature at datum,
+  !the temperature condition and gradient are destroyed in condition read
+  if ( .not.associated(rtempvz_table) .and. (.not.temp_is_associated) ) then
+     option%io_buffer = 'MP Equilibration input: a temperature value, table &
+                         &or gradient with temperature at datum must be input &
+                         &to initialise the reservoir'
+     call printErrMsg(option)
   end if
   
   !avoid that both a gradient and a table are defined for the temperature
-  if ( associated(rtempvz_table) .and. temp_grad_given ) then
-    option%io_buffer = 'MP Equilibration input error: define either  &
-                        &a table or a gradient for the reservoir temperature'
+  if ( associated(rtempvz_table) .and. temp_is_associated ) then
+    option%io_buffer = 'MP Equilibration: a constant temperature value &
+                    &or gradient with temperature at datum, &
+                    &and a table have been defined. Only one option allowed.'
     call printErrMsg(option)
-  end if
-
-  if ( associated(rtempvz_table) .and. Initialized(temperature) ) then
-    option%io_buffer = 'MP Equilibration input warning: a constant temperature &
-                    &and a table have been defined, the constant temperature &
-                    &will be ignored'
-    call printMsg(option)
-  end if
-
-  !if both temp_grad and rtempvz_table given, returns an error
-  if (temp_grad_given) then
-    if (Uninitialized(temperature)) then
-      option%io_buffer = 'MP Equilibration input error: a temperature value &
-                          &at datum must be input to initialise the rservoir &
-                          &with a temperature gradient'
-      call printErrMsg(option)
-    end if
-    temp_at_datum = temperature
-    ! rtempvz_table => LookupTableCreateGeneral(ONE_INTEGER)
-    ! call rtempvz_table%LookupTableVarsInit(TWO_INTEGER)
-    ! data_idx = 1 !elevation/depth in the first column
-    ! units_word = 'm'
-    ! call rtempvz_table%CreateAddLookupTableVar(ONE_INTEGER, &
-    !                                  units_word,units_word,data_idx,option)
-    ! data_idx = 2 !temperature in the second column
-    ! units_word = 'C'
-    ! call rtempvz_table%CreateAddLookupTableVar(TWO_INTEGER, &
-    !                                  units_word,units_word,data_idx,option)
-    ! allocate(rtempvz_table%var_data(2,2))
-    ! rtempvz_table%var_data(1,1) = z_min
-    ! rtempvz_table%var_data(2,1) = (z_min - datum_z) * temp_grad(3) + &
-    !                               temperature
-    ! rtempvz_table%var_data(1,2) = z_max
-    ! rtempvz_table%var_data(2,2) = (z_max - datum_z) * temp_grad(3) + &
-    !                               temperature
-    ! !
-    ! call rtempvz_table%LookupTableVarConvFactors(option)
-    ! call rtempvz_table%VarPointAndUnitConv(option)
-    ! call rtempvz_table%SetupConstValExtrap(option)
-    ! call rtempvz_table%LookupTableVarInitGradients(option)
-    ! allocate(rtempvz_table%axis1)
-    ! allocate(rtempvz_table%axis1%values(2))
-    ! rtempvz_table%axis1%values(1:2) = rtempvz_table%var_data(1,1:2)
-    ! rtempvz_table%dims(1) = 2
   end if
 
 end subroutine HydrostaticPMLoader
