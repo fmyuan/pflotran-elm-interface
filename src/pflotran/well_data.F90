@@ -469,7 +469,7 @@ subroutine WellDataRead(this,input,option,waytime,nwaytime,mwaytime)
   type(option_type) :: option
   class(well_data_type) :: this
   type(input_type), pointer :: input
-  PetscReal,pointer,dimension(:) :: waytime
+  PetscReal,pointer :: waytime(:)
   PetscInt,intent(inout) :: nwaytime,mwaytime
 
   character(len = MAXWORDLENGTH) :: keyword, word, units
@@ -1352,8 +1352,8 @@ subroutine SetZRefInList(this,option)
 
   PetscInt :: icmpl,ierr
   PetscReal :: ztop,zcmpl
-  PetscReal,dimension(1) :: zl
-  PetscReal,dimension(1) :: zg
+  PetscReal :: zl(1)
+  PetscReal :: zg(1)
 
   zl = 0.0
   zg = 0.0
@@ -1621,9 +1621,9 @@ subroutine SetWellFlowsInList(this,wellflows,ncompe)
   implicit none
 
   class(well_data_type) :: this
-  PetscReal,dimension(:) :: wellflows
-  PetscInt,intent(in)    :: ncompe
-  PetscInt               :: ncompArg,icomp
+  PetscReal             :: wellflows(:)
+  PetscInt,intent(in)   :: ncompe
+  PetscInt              :: ncompArg,icomp
 
   ! If the well flows have not been allocated, allocate them now
 
@@ -1686,16 +1686,16 @@ subroutine SetCmplFlowsInList(this,cmplflows,cmplflowsX, &
   implicit none
 
   class(well_data_type) :: this
-  PetscReal,dimension(:,:)     :: cmplflows
-  PetscReal,dimension(:,:,:,:) :: cmplflowsX
-  PetscInt,intent(in)          :: ncmpl
-  PetscInt,intent(in)          :: ncompe
-  PetscInt,intent(in)          :: ncmplg
-  PetscInt,intent(in)          :: ndof
-  PetscBool,intent(in)         :: isothermal
-  PetscInt                     :: nicmplArg,ncompeArg,njcmplArg,ndofArg, &
-                                  icmpl,icompe,jcmpl,jdof, &
-                                  nicmpl,nicompe,njcmpl,njdof
+  PetscReal             :: cmplflows(:,:)
+  PetscReal             :: cmplflowsX(:,:,:,:)
+  PetscInt,intent(in)   :: ncmpl
+  PetscInt,intent(in)   :: ncompe
+  PetscInt,intent(in)   :: ncmplg
+  PetscInt,intent(in)   :: ndof
+  PetscBool,intent(in)  :: isothermal
+  PetscInt              :: nicmplArg,ncompeArg,njcmplArg,ndofArg, &
+                           icmpl,icompe,jcmpl,jdof, &
+                           nicmpl,nicompe,njcmpl,njdof
 
   wd_isothermal = isothermal
 
