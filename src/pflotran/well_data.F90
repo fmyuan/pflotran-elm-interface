@@ -477,7 +477,7 @@ subroutine WellDataRead(this,input,option,waytime,nwaytime,mwaytime)
   PetscInt :: ci,cj,ckl,cku,ival
   PetscReal :: v = 0.0
 
-  !  Initialise
+  ! Initialise
 
   internal_units = 'not_assigned'
   ci  = 1
@@ -487,7 +487,7 @@ subroutine WellDataRead(this,input,option,waytime,nwaytime,mwaytime)
 
   input%ierr = 0
 
-  !  Start reading data items
+  ! Start reading data items
 
   do
 
@@ -605,7 +605,7 @@ subroutine WellDataRead(this,input,option,waytime,nwaytime,mwaytime)
         endif
       case('CIJK','CIJK_Z','CIJK_D')
       case('BHPL')
-  !  Read a well bhp limit (will be max for injector, min for producer)
+  ! Read a well bhp limit (will be max for injector, min for producer)
         call InputReadDouble(input,option,v)
         call InputErrorMsg(input,option,'BHPL','WELL_DATA')
         call InputReadWord(input,option,word,PETSC_TRUE)
@@ -635,7 +635,7 @@ subroutine WellDataRead(this,input,option,waytime,nwaytime,mwaytime)
             this%w_status    = W_STATUS_SHUT
           endif
       case('TIME')
-  !  Read the time associated with susbsequent instructions
+  ! Read the time associated with susbsequent instructions
         call InputReadDouble(input,option,v)
         call InputErrorMsg(input,option,'TIME','WELL_DATA')
         call InputReadWord(input,option,word,PETSC_TRUE)
@@ -651,7 +651,7 @@ subroutine WellDataRead(this,input,option,waytime,nwaytime,mwaytime)
           waytime(nwaytime+1) = v
           nwaytime = nwaytime + 1
         endif
-  !  Read a surface volume rate (several options)
+  ! Read a surface volume rate (several options)
       case('TARG_OSV')
         call readWellTarget(this,input,option,'TARG_OSV',word,W_TARG_OSV)
       case('TARG_GSV')
@@ -662,7 +662,7 @@ subroutine WellDataRead(this,input,option,waytime,nwaytime,mwaytime)
         call readWellTarget(this,input,option,'TARG_SSV',word,W_TARG_SSV)
       case('TARG_LSV')
         call readWellTarget(this,input,option,'TARG_LSV',word,W_TARG_LSV)
-  !  Read a mass rate (several options)
+  ! Read a mass rate (several options)
       case('TARG_OM' )
         call readWellTarget (this,input,option,'TARG_OM' ,word,W_TARG_OM)
       case('TARG_GM' )
@@ -759,11 +759,11 @@ subroutine WellDataDestroyList(well_data_list,option)
 
   endif
 
-  !  Skip if list not allocated
+  ! Skip if list not allocated
 
   if (.not.associated(well_data_list)) return
 
-  !  Start at the first item and loop through list destroying items
+  ! Start at the first item and loop through list destroying items
 
   well_data => well_data_list%first
   do
@@ -773,7 +773,7 @@ subroutine WellDataDestroyList(well_data_list,option)
     call WellDataDestroy(prev_well_data)
   enddo
 
-  !  Nullify and deallocate the list itself
+  ! Nullify and deallocate the list itself
 
   well_data_list%num_well = 0
   nullify(well_data_list%first)
@@ -799,11 +799,11 @@ subroutine WellDataDestroy(well_data)
 
   class(well_data_type), pointer :: well_data
 
-  !  Skip if item not allocated
+  ! Skip if item not allocated
 
   if (.not.associated(well_data)) return
 
-  !  Clear out and deallocate
+  ! Clear out and deallocate
 
   call well_data%Clear()
 
@@ -994,7 +994,7 @@ function getWellTypeI(iwell,list)
   class(well_data_type), pointer :: well_data
   PetscBool :: found
 
-  !  Default to producer
+  ! Default to producer
   getWellTypeI = PROD_WELL_TYPE
 
   ! Find well with index iwell
@@ -1011,8 +1011,8 @@ end function getWellTypeI
 
 subroutine GetCmplGlobalLocI(iwell,icmplG,ci,cj,ck,cdd,list)
   !
-  !  Get the location for the icmplG'th completion of the iw'th well
-  !  Note this is the global completion count, not that on the proc
+  ! Get the location for the icmplG'th completion of the iw'th well
+  ! Note this is the global completion count, not that on the proc
   !
   ! Author: Dave Ponting
   ! Date: 08/15/18
@@ -1029,7 +1029,7 @@ subroutine GetCmplGlobalLocI(iwell,icmplG,ci,cj,ck,cdd,list)
   ! Find well with index iwell
   found = FindWellInList(iwell,well_data,list)
 
-  !  If found, return completion location
+  ! If found, return completion location
   if (found) then
     call well_data%GetCmplGlobalLoc(icmplG,ci,cj,ck,cdd)
   else
@@ -1045,8 +1045,8 @@ end subroutine GetCmplGlobalLocI
 
 subroutine GetCmplGlobalLocInList(this,icmplG,ci,cj,ck,cdd)
   !
-  !  Given the list elemetn for a well, get the completion details
-  !  Note this is the global completion index, not that on the proc
+  ! Given the list elemetn for a well, get the completion details
+  ! Note this is the global completion index, not that on the proc
   !
   ! Author: Dave Ponting
   ! Date: 08/15/18
@@ -1218,8 +1218,8 @@ subroutine GetCmplLocationInList(this,icmpl,local_id,ghosted_id,onproc,icmplg)
   ! Get the well location (structured grid only)
   ! Error will occur if unstructured grid used with this code
   !
-  !  Author: Dave Ponting
-  !  Date: 08/15/18
+  ! Author: Dave Ponting
+  ! Date: 08/15/18
 
   implicit none
 
@@ -1249,8 +1249,9 @@ end subroutine GetCmplLocationInList
 subroutine GetCmplLocationGInList(this,icmplg,ghosted_id)
   !
   ! Get the well location wrt global completion index
-  !  Author: Dave Ponting
-  !  Date: 08/15/18
+  !
+  ! Author: Dave Ponting
+  ! Date: 08/15/18
 
   implicit none
 
@@ -1357,12 +1358,12 @@ subroutine SetZRefInList(this,option)
   zl = 0.0
   zg = 0.0
 
-  !  Check that not user-set
+  ! Check that not user-set
 
   if (.not.(this%w_z_ref_set)) then
 
-  !  Set to very low evelation and reset to max elevation
-  !  of completion on this proc (may be none)
+  ! Set to very low elevation and reset to max elevation
+  ! of completion on this proc (may be none)
 
     ztop = -1.0D6
     do icmpl = 1,this%w_ncmpl
@@ -1377,11 +1378,11 @@ subroutine SetZRefInList(this,option)
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
     ztop = zg(1)
 
-  !  If still original value (no completions anywhere) reset to zero
+  ! If still original value (no completions anywhere) reset to zero
 
     if (ztop<-0.5D5) ztop = 0.0
 
-  !  Store calculated value
+  ! Store calculated value
 
     this%w_z_ref = ztop
   endif
@@ -1624,7 +1625,7 @@ subroutine SetWellFlowsInList(this,wellflows,ncompe)
   PetscInt,intent(in)    :: ncompe
   PetscInt               :: ncompArg,icomp
 
-  !  If the well flows have not been allocated, allocate them now
+  ! If the well flows have not been allocated, allocate them now
 
   if ((.not.(this%w_wellFlows_Allocated)) .and. (this%w_ncompe.eq.0)) then
     allocate(this%w_wellflows(ncompe))
@@ -1632,7 +1633,7 @@ subroutine SetWellFlowsInList(this,wellflows,ncompe)
     this%w_ncompe = ncompe
   endif
 
-  !  Copy over the well flows (use minimum dimension of stored and arg arrays)
+  ! Copy over the well flows (use minimum dimension of stored and arg arrays)
 
   ncompArg = size(wellFlows)
 
@@ -1658,7 +1659,7 @@ subroutine ZeroWellFlowsInList(this,ncompe)
   class(well_data_type) :: this
   PetscInt,intent(in)   :: ncompe
 
-  !  If the well flows have not been allocated, allocate them now
+  ! If the well flows have not been allocated, allocate them now
 
   if ((.not.(this%w_wellFlows_Allocated)) .and. (this%w_ncompe.eq.0)) then
     allocate(this%w_wellflows(ncompe))
@@ -1698,7 +1699,7 @@ subroutine SetCmplFlowsInList(this,cmplflows,cmplflowsX, &
 
   wd_isothermal = isothermal
 
-  !  If the completion flows have not been allocated, allocate them now
+  ! If the completion flows have not been allocated, allocate them now
 
   if (.not.(this%w_cmplflows_Allocated)) then
     allocate(this%w_cmplflows(ncmpl,ncompe))
@@ -1706,7 +1707,7 @@ subroutine SetCmplFlowsInList(this,cmplflows,cmplflowsX, &
     this%w_cmplflows = 0.0
   endif
 
-  !  If the completion flow derivatives have not been allocated, allocate now
+  ! If the completion flow derivatives have not been allocated, allocate now
 
   if (.not.(this%w_cmplflowsX_Allocated)) then
     allocate(this%w_cmplflowsX(ncmpl,ncompe,ncmplg,ndof))
@@ -1714,7 +1715,7 @@ subroutine SetCmplFlowsInList(this,cmplflows,cmplflowsX, &
     this%w_cmplflowsX = 0.0
   endif
 
-  !  Copy over the completion flows (use min. dim. of stored and arg arrays)
+  ! Copy over the completion flows (use min. dim. of stored and arg arrays)
 
   nicmplArg = size(cmplflows,1)
   ncompeArg = size(cmplflows,2)
@@ -1765,14 +1766,14 @@ subroutine ZeroCmplFlowsInList(this,ncmpl,ncomp)
   PetscInt,intent(in)   :: ncomp
   PetscInt,intent(in)   :: ncmpl
 
-  !  If the completion flows have not been allocated, allocate them now
+  ! If the completion flows have not been allocated, allocate them now
 
   if (.not.(this%w_cmplflows_Allocated)) then
     allocate(this%w_cmplflows(ncmpl,ncomp))
     this%w_cmplflows_allocated = PETSC_TRUE
   endif
 
-  !  Zero the completion flows (use min. dim. of stored and arg arrays)
+  ! Zero the completion flows (use min. dim. of stored and arg arrays)
 
   if (this%w_cmplflows_allocated) then
    this%w_cmplflows = 0.0
@@ -1804,10 +1805,10 @@ subroutine DoUpdateInList(this,dt,option)
 
   if (global_info_set) then
 
-  !  Globalise well flows over all procs-even if well has no cmpls on this proc
+  ! Globalise well flows over all procs-even if well has no cmpls on this proc
 
-  !  Do collective sum back into actuals 
-  !  Note we do all procs to sync all the wells on all the procs
+  ! Do collective sum back into actuals 
+  ! Note we do all procs to sync all the wells on all the procs
 
     call MPI_Allreduce( this%w_actuals,this%w_actualsG,N_WELL_TT &
                        ,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
@@ -1816,7 +1817,7 @@ subroutine DoUpdateInList(this,dt,option)
     deni = 0.0
     if (den>0.0) deni = 1.0/den
 
-  !  Convert sum to average for pressures
+  ! Convert sum to average for pressures
 
     do itt = 1,N_WELL_TT
       vmtype = GetTargetUnitType(itt)
@@ -1833,7 +1834,7 @@ subroutine DoUpdateInList(this,dt,option)
         if (this%w_itype == PROD_WELL_TYPE) then
           this%w_totalsPG(itt) = this%w_totalsPG(itt)+this%w_actualsG(itt)*dt
         else
-  !  Note conversion to unsigned
+  ! Note conversion to unsigned
           this%w_totalsIG(itt) = this%w_totalsIG(itt)-this%w_actualsG(itt)*dt
         endif
       endif
@@ -1841,7 +1842,7 @@ subroutine DoUpdateInList(this,dt,option)
 
   endif
 
-  !  Go through event list and extract any instructions
+  ! Go through event list and extract any instructions
 
   time = option%time
   do ievent = 1,this%w_nevent
@@ -2283,7 +2284,7 @@ subroutine readWellTarget(this,input,option,keyword,word,target_type)
   character(len=MAXWORDLENGTH) :: internal_units,word,units
   PetscReal                    :: v
 
-  !  Read a well surface target rate int v
+  ! Read a well surface target rate int v
   call InputReadDouble(input,option,v)
   call InputErrorMsg(input,option,keyword,'WELL_DATA')
   ! Read the units into word
@@ -2542,7 +2543,7 @@ end function getTargetUnitType
 
 subroutine StoreEvent(this,code,ival,rval)
   !
-  !  Store an event
+  ! Store an event
   !
   ! Author: Dave Ponting
   ! Date: 10/23/18
@@ -2568,8 +2569,8 @@ end subroutine StoreEvent
 
 subroutine CheckEventCount(this)
   !
-  !  Check number of elements in the event arrays
-  !  Allocate if none, and extend if full
+  ! Check number of elements in the event arrays
+  ! Allocate if none, and extend if full
   !
   ! Author: Dave Ponting
   ! Date: 10/23/18
@@ -2604,8 +2605,8 @@ end subroutine CheckEventCount
 
 subroutine CheckCompletionCount(this)
   !
-  !  Check number of elements in the completion arrays
-  !  Allocate if none, and extend if full
+  ! Check number of elements in the completion arrays
+  ! Allocate if none, and extend if full
   !
   ! Author: Dave Ponting
   ! Date: 10/23/18
@@ -2660,7 +2661,7 @@ end subroutine CheckCompletionCount
 
 subroutine AllocOrReallocI(pi,idef,mold,mnew,nreq)
   !
-  !  Allocate or extend a integer array
+  ! Allocate or extend a integer array
   !
   ! Author: Dave Ponting
   ! Date: 10/23/18
@@ -2692,7 +2693,7 @@ end subroutine AllocOrReallocI
 
 subroutine AllocOrReallocR(pr,rdef,mold,mnew,nreq)
   !
-  !  Allocate or extend a real array
+  ! Allocate or extend a real array
   !
   ! Author: Dave Ponting
   ! Date: 10/23/18
@@ -2769,7 +2770,7 @@ subroutine UpdateWellType(this,itype)
   PetscBool :: isbhp,wasbhp
   PetscReal :: old_bhp_limit
 
-  !  Set up old and new target type values
+  ! Set up old and new target type values
 
   wasbhp = PETSC_FALSE
   isbhp  = PETSC_FALSE
@@ -2795,7 +2796,7 @@ subroutine UpdateWellType(this,itype)
 
   this%w_TT    = W_BHP_LIMIT
 
-  !  Store new type
+  ! Store new type
 
   this%w_itype = itype
 
@@ -2805,8 +2806,8 @@ end subroutine UpdateWellType
 
 subroutine getLocalAndGhostedIDs(natural_id,local_id,ghosted_id,onproc,grid)
   !
-  !  Find a completion from its natural id
-  !  This needs a search
+  ! Find a completion from its natural id
+  ! This needs a search
   !
   ! Author: Dave Ponting
   ! Date: 10/23/18
@@ -2823,13 +2824,13 @@ use Grid_module
 
   PetscInt :: il,ig,ia,ighost
 
-  !  Initial values
+  ! Initial values
 
   local_id   = 1
   ghosted_id = 1
   onproc     = PETSC_FALSE
 
-  !  Search local cells
+  ! Search local cells
 
   do il = 1,grid%nlmax
     ig = grid%nL2G(il)
@@ -2842,7 +2843,7 @@ use Grid_module
     endif
   enddo
 
-  !  Search other cells
+  ! Search other cells
 
   if (.not.onproc) then
     do ighost = 1, grid%ngmax
@@ -2861,8 +2862,8 @@ end subroutine getLocalAndGhostedIDs
 
 subroutine GetFieldData(fhpav)
   !
-  !  Get field data not formed from well totals
-  !  Currently just one item, the average hydrocarbon volume pressure 
+  ! Get field data not formed from well totals
+  ! Currently just one item, the average hydrocarbon volume pressure 
   !
   ! Author: Dave Ponting
   ! Date: 10/23/18
@@ -2879,8 +2880,8 @@ end subroutine GetFieldData
 
 subroutine SetFieldData(fhpav)
   !
-  !  Set field data not formed from well totals
-  !  Currently just one item, the average hydrocarbon volume pressure 
+  ! Set field data not formed from well totals
+  ! Currently just one item, the average hydrocarbon volume pressure 
   !
   ! Author: Dave Ponting
   ! Date: 10/23/18
@@ -2897,8 +2898,8 @@ end subroutine SetFieldData
 
 subroutine FindGroupRates(list)
   !
-  !  Find well group rates
-  !  Currently just one group, the whole field
+  ! Find well group rates
+  ! Currently just one group, the whole field
   !
   ! Author: Dave Ponting
   ! Date: 10/23/18
@@ -2929,7 +2930,7 @@ subroutine FindGroupRates(list)
       if (itype == PROD_WELL_TYPE) then
         gactp = gactp+wact
       else
-  !  Note conversion to unsigned
+        ! Note conversion to unsigned
         gacti = gacti-wact
       endif
 
@@ -2948,8 +2949,8 @@ end subroutine FindGroupRates
 
 subroutine FindGroupTotals(list)
   !
-  !  Find well group totals (cumulatives over time)
-  !  Currently just one group, the whole field
+  ! Find well group totals (cumulatives over time)
+  ! Currently just one group, the whole field
   !
   ! Author: Dave Ponting
   ! Date: 10/23/18
