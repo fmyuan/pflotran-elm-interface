@@ -43,17 +43,17 @@ subroutine GetCorners( ix,iy,iz,x000,x100,x010,x110,x001,x101,x011,x111, &
   ibcy = 2*(iy-1)
   ibcz = 2*(iz-1)
 
-!  Now loop over the four pillars of this cell
+  ! Now loop over the four pillars of this cell
 
   do ixo = 1,2
     do iyo = 1,2
 
-!  Find pillar coordinates in the (nx+1).(ny+1) coord array (ix,ix+1),(iy,iy+1)
+    ! Find pillar coordinates in the (nx+1).(ny+1) coord array (ix,ix+1),(iy,iy+1)
 
       ixp = ix+ixo-1
       iyp = iy+iyo-1
 
-! Find base point in the coord data and extract the six pillar points
+      ! Find base point in the coord data and extract the six pillar points
 
       ibase = 6*(nxp*(iyp-1)+(ixp-1))
 
@@ -64,12 +64,12 @@ subroutine GetCorners( ix,iy,iz,x000,x100,x010,x110,x001,x101,x011,x111, &
       yu = coord(ibase+5)
       zu = coord(ibase+6)
 
-!  Find coordinates of the depths of the two corners on this pillar
+      ! Find coordinates of the depths of the two corners on this pillar
 
       inx = ibcx + ixo
       iny = ibcy + iyo
 
-! Find the coordinates of these corners in the depth array
+      ! Find the coordinates of these corners in the depth array
 
       icl = GetLocationInDepthBlock(inx,iny,ibcz+1,nx,ny)
       icu = GetLocationInDepthBlock(inx,iny,ibcz+2,nx,ny)
@@ -77,7 +77,7 @@ subroutine GetCorners( ix,iy,iz,x000,x100,x010,x110,x001,x101,x011,x111, &
       d0 = zcorn(icl)
       d1 = zcorn(icu)
 
-!  Fill in the cell corner locations
+      !  Fill in the cell corner locations
 
        if (ixo == 1) then
          if (iyo == 1) call fillGeoCorner(x000,x001,d0,d1,xl,yl,zl,xu,yu,zu)
@@ -110,7 +110,7 @@ subroutine fillGeoCorner( x0,x1,d0,d1,xl,yl,zl,xu,yu,zu )
 
   PetscReal :: f0,f1
 
-! Fractions through the zl -> zu interval
+  ! Fractions through the zl -> zu interval
 
   if (abs(zu-zl)>0.0) then
     f0 = (d0-zl)/(zu-zl)
@@ -120,7 +120,7 @@ subroutine fillGeoCorner( x0,x1,d0,d1,xl,yl,zl,xu,yu,zu )
     f1 = 0.5
   endif
 
-! Fill in values (if d0=zu, then f0=1 and x0->(xu,yu,zu)
+  ! Fill in values (if d0=zu, then f0=1 and x0->(xu,yu,zu)
 
   x0(1) = xl+f0*(xu-xl)
   x1(1) = xl+f1*(xu-xl)
