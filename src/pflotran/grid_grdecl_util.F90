@@ -29,9 +29,10 @@ subroutine GetCorners( ix,iy,iz,x000,x100,x010,x110,x001,x101,x011,x111, &
   implicit none
 
   PetscInt ,intent(in)  :: ix,iy,iz
-  PetscReal,dimension(3):: x000,x100,x010,x110,x001,x101,x011,x111
-  PetscReal,dimension(:),intent(in) :: coord
-  PetscReal,dimension(:),intent(in) :: zcorn
+  PetscReal:: x000(3),x100(3),x010(3),x110(3), &
+              x001(3),x101(3),x011(3),x111(3)
+  PetscReal,intent(in) :: coord(:)
+  PetscReal,intent(in) :: zcorn(:)
   PetscInt ,intent(in)  :: nx,ny
 
   PetscInt  :: ibcx,ibcy,ibcz,ixo,iyo,ixp,iyp,ibase,inx,iny,icl,icu,nxp
@@ -105,8 +106,8 @@ subroutine fillGeoCorner( x0,x1,d0,d1,xl,yl,zl,xu,yu,zu )
 
   implicit none
 
-  PetscReal,dimension(3),intent(out) :: x0,x1
-  PetscReal             ,intent(in ) :: d0,d1,xl,yl,zl,xu,yu,zu
+  PetscReal,intent(out) :: x0(3),x1(3)
+  PetscReal,intent(in ) :: d0,d1,xl,yl,zl,xu,yu,zu
 
   PetscReal :: f0,f1
 
