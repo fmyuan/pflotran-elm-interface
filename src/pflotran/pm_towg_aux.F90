@@ -1567,6 +1567,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dcrusp_dpo,dcrusp_dpb,dcrusp_dt,cor,one_p_crusp
   PetscReal :: dcor_dpo,dcor_dpb,dcor_dt,worker
   PetscReal,dimension(1:option%nflowdof) :: D_fm,D_cell_pres,D_worker
+  PetscInt :: idex,jdex
 
   dof_op = TOWG_OIL_PRESSURE_DOF
   dof_osat = TOWG_OIL_SATURATION_DOF
@@ -1681,6 +1682,12 @@ endif
     auxvar%bo%bubble_point = x(TOWG_BUBBLE_POINT_3PH_DOF)
     auxvar%sat(gid)        = 0.0
   endif
+#if 0
+  if (dabs(x(TOWG_SOLV_SATURATION_DOF))>0.d0 .AND.   dabs(x(TOWG_SOLV_SATURATION_DOF))<1.e-15) then
+    print *, "silly solvent saturation ", x(TOWG_SOLV_SATURATION_DOF)
+    !x(TOWG_SOLV_SATURATION_DOF) = 0.d0
+  endif
+#endif
   auxvar%sat(sid)        = x(TOWG_SOLV_SATURATION_DOF)
   auxvar%temp = x(towg_energy_dof)
 
@@ -1769,7 +1776,6 @@ endif
 !==============================================================================
 
   !call getBlackOilComposition(pb,t,auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
-  !!!! TODO DERIVS HERE
     !!! new:
 if (getDerivs) then
   call getBlackOilComposition(pb,t, &
@@ -1884,6 +1890,14 @@ endif
 
 !  Scale Pcog for degree of miscibility
   auxvar%pc(oid)=fi*auxvar%pc(oid)
+
+  do idex = 1,4
+    do jdex = 1,5
+      if (isnan(auxvar%D_pc(idex,jdex)))then
+        print *, "nan here pc"
+      endif
+    enddo
+  enddo
 
 !==============================================================================
 !  Get the phase pressures
@@ -2436,12 +2450,31 @@ endif
 !  Make and load mobilities
 !------------------------------------------------------------------------------
 
+  !!! EXPERIMENTAL - DS:
+  !!! only do the computation if krx nonzero.
+  !!! usually if krx zero implies corresponding sat is zero and then
+  !!! might also have visxtl zero - which is very bad indeed.
+
+  if (kro > 0.0) auxvar%mobility(oid) = kro/visotl
+  if (krg > 0.0) auxvar%mobility(gid) = krg/visgtl
+  if (krs > 0.0) auxvar%mobility(sid) = krs/visstl
+#if 0
   auxvar%mobility(oid) = kro/visotl
   auxvar%mobility(gid) = krg/visgtl
   auxvar%mobility(sid) = krs/visstl
+#endif
 
   if (auxvar%mobility(sid) < 0.d0) then 
     print *, "negative solvent mob?" 
+  endif
+  if (isnan(auxvar%mobility(oid))) then
+    print *, "nan mob oil"
+  endif
+  if (isnan(auxvar%mobility(gid))) then
+    print *, "nan mob gas"
+  endif
+  if (isnan(auxvar%mobility(sid))) then
+    print *, "nan mob slv"
   endif
 
 !------------------------------------------------------------------------------
@@ -3111,7 +3144,6 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl &
   PetscReal,dimension(1:ndof)  :: D_viscqpo,D_viscqpg,D_wviscqp,D_denom,D_viscm
   PetscReal,dimension(1:ndof)  :: D_viscoimw,D_viscgimw,D_viscmw,D_numerator
 
-  !!! TODO - input error check
   if (getDerivs .AND. &
       .NOT.(present(D_fo).AND.present(D_fg).AND.present(D_visco).AND.present(D_viscg).AND.&
             present(D_viscotl).AND.present(D_viscgtl)                   )) then
@@ -3244,7 +3276,6 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
   PetscReal,dimension(1:ndof) :: D_m,D_mqp,D_mooeqp,D_mogeqp,D_mooe,D_moge
   PetscReal,dimension(1:ndof) :: D_fo_oe,D_fo_ge,D_denm,P1,P2
 
-  !!! TODO - input error check
   if (getDerivs .AND. &
       .NOT.(present(D_deno).AND.present(D_deng).AND.present(D_visco).AND.present(D_viscg).AND.&
             present(D_viscotl).AND.present(D_viscgtl).AND.present(D_fo).AND.present(D_fg).AND.&
@@ -3917,10 +3948,25 @@ subroutine TL4PMiscibilityFraction(sg,ss,fm,dfmdsg,dfmdss)
 
   PetscReal,intent(in ) :: sg,ss
   PetscReal,intent(out) :: fm,dfmdsg,dfmdss
-  PetscReal             :: svi,fs,sv,dfmdfs
+  PetscReal             :: svi,fs,sv,dfmdfs,svsq,svsqi,sgi,ssi
+  PetscReal             :: sliver
 
+  sliver = 1.d-15 !! experimental
   fm    =0.0
-  dfmdfs=0.0
+
+  !!! TODO - is it correct to return 0 derivs in this case or should we consider
+  !!!        returning a constant slope?
+  !!!
+  !!! Assuming dfmdfs is returned as a nonzero slope, what are the fs derivs
+  !!! that it must be scaled by if ss=sg=0?
+  !!!
+  !!! Indeterminate. Can get 0 or 1 depending on the order of the s->0 limit 
+  !!! operations. It's pretty horrible. For now let's just assume 0.
+  !!! Then a zero sg derivative is correct, and ss derivative is incorrect.
+  !!! With sg kept at zero, fs will jump to 1 with any perturbation in ss
+
+  dfmdsg=0.0
+  dfmdss=0.0
 
   sv=sg+ss
   if( sv>0.0 ) then
@@ -3930,10 +3976,61 @@ subroutine TL4PMiscibilityFraction(sg,ss,fm,dfmdsg,dfmdss)
     ! maybe a good idea but will cause slight discrepencies with previous runs!
     if (sg ==0.d0) fs = 1.d0
 
+    dfmdfs=0.d0
     call TL4PMiscibilityFractionFromSaturationFraction(fs,fm,dfmdfs)
 
-    dfmdsg = -dfmdfs*ss*svi*svi
-    dfmdss =  dfmdfs*sg*svi*svi
+    ! derivatives: note that the derivs of fs can be very problematic
+    ! for near 0 saturations.
+    dfmdsg = 0.0
+    dfmdss = 0.0
+
+    if (sg == 0.d0) then ! attempt to catch case of sg = 0, ss very small
+      ! explicitly, subbing in sg = 0, we have:
+      ! d fs / d sg = - ss / (ss+sg)^2 = -1/ss
+      ! d fs / d ss =   sg / (ss+sg)^2 =  0
+      ! so we do the following:
+     
+      ! still need protection in case ss ~0 but >0.
+      ! then act like ss=sg=0? 
+      ! In that case letting d / dsg pretend to be zero would be correct:
+      ssi = 0.0
+      if (ss > sliver) ssi = 1.0/ss
+      dfmdsg = -dfmdfs*ssi
+
+
+       !!! letting dfmdss be zero is also consistent with ss=sg=0 behaviour at 
+       !!! start of rouitne, 
+       
+       ! leave as default 0:
+       !dfmdss =  0.0
+    elseif (ss == 0.0) then
+      ! could happen that ss = 0 and sg very small can give similar problems, so:
+      ! d fs / d sg = - ss / (ss+sg)^2 = 0
+      ! d fs / d ss =   sg / (ss+sg)^2 = 1/sg
+      ! then:
+      !dfmdsg = 0.0
+      !!! propper practice for the sg inversion, pointless right now but in principle
+      !!! might want to replace >0 with >_sliver or something
+      sgi = 0.d0
+      if (sg > 0.d0) then 
+        sgi = 1.d0/sg
+        dfmdss =  dfmdfs*sgi
+      endif
+    else ! standard trap but can still fail
+      svsq = sv*sv
+      svsqi = 1.0/svsq
+      if (svsq>0.0) then
+        dfmdsg = -dfmdfs*ss*svsqi
+        dfmdss =  dfmdfs*sg*svsqi
+      endif
+    endif
+
+    if (isnan(dfmdsg)) then
+      print *, "nan in fm computation derivs, dfmdsg"
+    endif
+    if (isnan(dfmdss)) then
+      print *, "nan in fm computation derivs, dfmdss"
+    endif
   endif
 
 end subroutine TL4PMiscibilityFraction

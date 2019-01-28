@@ -2198,12 +2198,12 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
     endif
  
  !!! EXPERIMENTAL - turning off the cycle command remains a bad idea
- !if (.NOT. analytical_derivatives) then
+ if (.NOT. analytical_derivatives) then
     if (auxvar_up%mobility(iphase) + &
         auxvar_dn%mobility(iphase) < eps) then
       cycle
     endif
-  !endif
+ endif
 
     istl =(towg_miscibility_model == TOWG_TODD_LONGSTAFF)
     isoil=(option%phase_map(iphase) == OIL_PHASE)
@@ -2444,6 +2444,9 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
 #endif                    
 
 
+!!!! TODO - not quite right here maybe - seem to introduce artificial 
+!!!!        5,4 contributions sometimes?
+
 #ifdef CONDUCTION
   ! add heat conduction flux
   ! based on Somerton et al., 1974:
@@ -2550,6 +2553,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
   Res(energy_id) = Res(energy_id) + heat_flux
 
   if (analytical_derivatives) then
+    !!!! don't need these two anymore
     d_delta_temp_dt_up = 1.d0
     d_delta_temp_dt_dn = - 1.d0
 
@@ -4256,7 +4260,7 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscReal :: jac(option%nflowdof,option%nflowdof)
   PetscReal :: jac_pert(option%nflowdof,option%nflowdof)
-  PetscInt :: idof, irow
+  PetscInt :: idof, irow, idex, jdex
 
   PetscReal :: jdum(option%nflowdof,option%nflowdof)
   PetscReal :: jalyt(option%nflowdof,option%nflowdof)
@@ -4294,6 +4298,16 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
   if (towg_analytical_derivatives) then
     call TOWGAccumulation(auxvar(ZERO_INTEGER),global_auxvar,material_auxvar, &
                           soil_heat_capacity,option,res,PETSC_FALSE,jalyt,PETSC_TRUE)
+
+    do idex = 1,option%nflowdof
+      do jdex = 1,option%nflowdof
+        if (isnan(Jalyt(idex,jdex))) then
+          print *, "NAN HERE! accum", Jalyt(idex,jdex)
+        endif
+      enddo
+    enddo
+
+
     if (towg_isothermal) then
       jalyt(towg_energy_eq_idx,:) = 0.d0
       jalyt(:,towg_energy_eq_idx) = 0.d0
@@ -4314,6 +4328,7 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
       call MatCompare(J, jalyt, option%nflowdof, option%nflowdof, towg_dcomp_tol, towg_dcomp_reltol,flagged)
       if (flagged) then
         print *, "this is accum derivative, ghosted_id: ", ghosted_id
+        print *, auxvar(ZERO_INTEGER)%sat
       endif
     endif
 
@@ -4375,6 +4390,8 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: Jdum_dn(option%nflowdof,option%nflowdof)
 
   PetscBool :: flagged
+
+  PetscInt :: i,j
 
   Jup = 0.d0
   Jdn = 0.d0
@@ -4454,7 +4471,26 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
                   thermal_conductivity_dn, &
                   area,dist,towg_parameter, &
                   option,v_darcy,res,PETSC_FALSE,Jalyt_up,Jalyt_dn,PETSC_TRUE)
-
+    do i = 1,option%nflowdof
+      do j = 1,option%nflowdof
+#if 0
+        if (dabs(Jalyt_up(i,j)) < 1.D-15 ) then
+          !Jalyt_up(i,j) = 0.d0
+        endif
+        if (dabs(Jalyt_dn(i,j)) < 1.D-15 ) then
+          !Jalyt_dn(i,j) = 0.d0
+        endif
+#endif
+        if (isnan(Jalyt_up(i,j))) then
+          print *, "NAN HERE! (flux up)", Jalyt_up(i,j)
+          !Jalyt_up(i,j) = 0.d0
+        endif
+        if (isnan(Jalyt_dn(i,j))) then
+          print *, "NAN HERE! (flux dn)", Jalyt_dn(i,j)
+          !Jalyt_dn(i,j) = 0.d0
+        endif
+      enddo
+    enddo
 
     if (towg_isothermal) then
       Jalyt_up(towg_energy_eq_idx,:) = 0.d0
@@ -4489,7 +4525,6 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
         print *, "this is flux derivative, that was matrix dn"
       endif
 
-#if 0
     call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                   material_auxvar_up,sir_up, &
                   thermal_conductivity_up, &
@@ -4508,7 +4543,7 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
                   area,dist,towg_parameter, &
                   option,v_darcy,res,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
 
-      idof = 2
+      idof = 4
       call TOWGFlux(auxvar_up(idof),global_auxvar_up, &
                     material_auxvar_up,sir_up, &
                     thermal_conductivity_up, &
@@ -4517,7 +4552,6 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
                     thermal_conductivity_dn, &
                     area,dist,towg_parameter, &
                     option,v_darcy,res_pert,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
-#endif
 
     endif
 
