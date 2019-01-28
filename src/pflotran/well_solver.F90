@@ -71,134 +71,134 @@ module Well_Solver_module
 
     PetscReal :: w_sign                    ! Sign (+ve prod,-ve inje)
 
-    PetscReal :: w_trel                          ! Well rel. temp. (deg C)
-    PetscReal :: w_pb                            ! Well bubble point pressure
-    PetscBool :: w_issat                         ! Well state flag
+    PetscReal :: w_trel                    ! Well rel. temp. (deg C)
+    PetscReal :: w_pb                      ! Well bubble point pressure
+    PetscBool :: w_issat                   ! Well state flag
 
-    PetscReal,dimension(:)  ,allocatable :: w_sp    ! Well saturations by phase
-    PetscReal,dimension(:,:),allocatable :: w_spxw ! ...wrt well soln
+    PetscReal, allocatable :: w_sp(:)      ! Well saturations by phase
+    PetscReal, allocatable :: w_spxw(:,:)  ! ...wrt well soln
 
     ! Well molar densities (moles/unit res. vol) by phase
-    PetscReal,dimension(:)  ,allocatable :: w_mdp
-    PetscReal,dimension(:)  ,allocatable :: w_mdppw ! ...wrt well pressure
-    PetscReal,dimension(:,:),allocatable :: w_mdpxw ! ...wrt well soln
+    PetscReal, allocatable :: w_mdp(:)
+    PetscReal, allocatable :: w_mdppw(:)   ! ...wrt well pressure
+    PetscReal, allocatable :: w_mdpxw(:,:) ! ...wrt well soln
 
     ! Well gravity densities (G.Kg/unit res. vol) by phase
-    PetscReal,dimension(:)  ,allocatable :: w_kgdp   ! Well grav dens by phase
-    PetscReal,dimension(:)  ,allocatable :: w_kgdppw ! ...wrt well pressure
-    PetscReal,dimension(:,:),allocatable :: w_kgdpxw ! ...wrt well soln
+    PetscReal, allocatable :: w_kgdp(:)     ! Well grav dens by phase
+    PetscReal, allocatable :: w_kgdppw(:)   ! ...wrt well pressure
+    PetscReal, allocatable :: w_kgdpxw(:,:) ! ...wrt well soln
 
     ! Well component molar densities (moles/unit res. vol.) by component
-    PetscReal,dimension(:)  ,allocatable :: w_mdc    ! Well comp. mol. dens.
-    PetscReal,dimension(:)  ,allocatable :: w_mdcpw  ! ...wrt well pressure
-    PetscReal,dimension(:,:),allocatable :: w_mdcxw  ! ...wrt well soln
+    PetscReal, allocatable :: w_mdc(:)      ! Well comp. mol. dens.
+    PetscReal, allocatable :: w_mdcpw(:)    ! ...wrt well pressure
+    PetscReal, allocatable :: w_mdcxw(:,:)  ! ...wrt well soln
 
     ! Well component mole fractions by component
-    PetscReal,dimension(:)  ,allocatable :: w_zmf    ! Well mole fractions
-    PetscReal,dimension(:)  ,allocatable :: w_zmfpw  ! ...wrt well pressure
-    PetscReal,dimension(:,:),allocatable :: w_zmfxw  ! ...wrt well soln
+    PetscReal, allocatable :: w_zmf(:)      ! Well mole fractions
+    PetscReal, allocatable :: w_zmfpw(:)    ! ...wrt well pressure
+    PetscReal, allocatable :: w_zmfxw(:,:)  ! ...wrt well soln
 
     ! Wellbore phase enthalpy/unit res vol
-    PetscReal,dimension(:)  ,allocatable :: w_hp
-    PetscReal,dimension(:)  ,allocatable :: w_hpdpw  ! ...wrt well pressure
-    PetscReal,dimension(:,:),allocatable :: w_hpdxw  ! ...wrt well soln
+    PetscReal, allocatable :: w_hp(:)
+    PetscReal, allocatable :: w_hpdpw(:)    ! ...wrt well pressure
+    PetscReal, allocatable :: w_hpdxw(:,:)  ! ...wrt well soln
 
     ! Wellbore total enthalpy/unit res vol
 
     PetscReal :: w_h
-    PetscReal :: w_hdpw                               ! ...wrt well pressure
-    PetscReal,dimension(:),allocatable :: w_hdxw      ! ...wrt well soln
+    PetscReal :: w_hdpw                ! ...wrt well pressure
+    PetscReal,allocatable :: w_hdxw(:) ! ...wrt well soln
 
     ! Wellbore total enthalpy/mole
 
     PetscReal :: w_hpm
-    PetscReal :: w_hpmdpw                             ! ...wrt well pressure
-    PetscReal,dimension(:),allocatable :: w_hpmdxw    ! ...wrt well soln
+    PetscReal :: w_hpmdpw                ! ...wrt well pressure
+    PetscReal,allocatable :: w_hpmdxw(:) ! ...wrt well soln
 
     PetscReal :: w_zref                  ! Reference elevation for well
 
     ! Gravity density (G*well mass density)
 
-    PetscReal :: w_gd                            ! Grav. den.
-    PetscReal :: w_gdpw                          ! Grav. den. wrt Pw
-    PetscReal,dimension(:),allocatable :: w_gdxw ! Grav. den. wrt Xw
+    PetscReal :: w_gd                  ! Grav. den.
+    PetscReal :: w_gdpw                ! Grav. den. wrt Pw
+    PetscReal,allocatable :: w_gdxw(:) ! Grav. den. wrt Xw
 
     PetscReal :: ws_targets(N_WELL_TT)          ! Well targets by target type
     PetscReal :: ws_actuals(N_WELL_TT)          ! Well actuals by target type
 
-    PetscReal,dimension(:),allocatable :: ws_svpm ! Well sv/mole   by comp
-    PetscReal,dimension(:),allocatable :: ws_mspm ! Well mass/mole by comp
+    PetscReal,allocatable :: ws_svpm(:) ! Well sv/mole   by comp
+    PetscReal,allocatable :: ws_mspm(:) ! Well mass/mole by comp
 
-    PetscInt ,dimension(:),allocatable :: c_ghosted_id ! Cmpl cell ghosted id
-    PetscInt ,dimension(:),allocatable :: c_local_id   ! Cmpl cell local   id
-    PetscInt ,dimension(:),allocatable :: c_to_cg ! Cmpl local to cmpl global
+    PetscInt ,allocatable :: c_ghosted_id(:) ! Cmpl cell ghosted id
+    PetscInt ,allocatable :: c_local_id(:)   ! Cmpl cell local   id
+    PetscInt ,allocatable :: c_to_cg(:)      ! Cmpl local to cmpl global
 
     ! Global cmpl cell ghosted id
-    PetscInt ,dimension(:),allocatable :: cg_ghosted_id
+    PetscInt ,allocatable :: cg_ghosted_id(:)
 
-    PetscReal,dimension(:),allocatable :: c_ccf        ! CCF by completion
-    PetscReal,dimension(:),allocatable :: c_z          ! Cmpl elev. by compl.
+    PetscReal,allocatable :: c_ccf(:)        ! CCF by completion
+    PetscReal,allocatable :: c_z  (:)        ! Cmpl elev. by compl.
 
     ! Completion flows for this proc
-    PetscReal,dimension(    :,:),allocatable :: c_flows   ! Comp & heat flows
-    PetscReal,dimension(    :,:),allocatable :: c_flowspw ! ..wrt Pw
-    PetscReal,dimension(  :,:,:),allocatable :: c_flowsxw ! ..wrt Xw
-    PetscReal,dimension(:,:,:,:),allocatable :: c_flowsxc ! ..wrt Xc
+    PetscReal,allocatable :: c_flows  (    :,:) ! Comp & heat flows
+    PetscReal,allocatable :: c_flowspw(    :,:) ! ..wrt Pw
+    PetscReal,allocatable :: c_flowsxw(  :,:,:) ! ..wrt Xw
+    PetscReal,allocatable :: c_flowsxc(:,:,:,:) ! ..wrt Xc
 
     ! Well flows for this proc
-    PetscReal,dimension(    :),allocatable :: w_flows     ! Molar   well flows
-    PetscReal,dimension(    :),allocatable :: w_flowspw   ! ..wrt Pw
-    PetscReal,dimension(  :,:),allocatable :: w_flowsxw   ! ..wrt Xw
-    PetscReal,dimension(:,:,:),allocatable :: w_flowsxc   ! ..wrt Xc
+    PetscReal,allocatable :: w_flows  (    :)   ! Molar   well flows
+    PetscReal,allocatable :: w_flowspw(    :)   ! ..wrt Pw
+    PetscReal,allocatable :: w_flowsxw(  :,:)   ! ..wrt Xw
+    PetscReal,allocatable :: w_flowsxc(:,:,:)   ! ..wrt Xc
 
     ! Well flows for all procs
-    PetscReal,dimension(    :),allocatable :: w_flowsG    ! Molar   well flows
-    PetscReal,dimension(    :),allocatable :: w_flowsGpw  ! ..wrt Pw
-    PetscReal,dimension(  :,:),allocatable :: w_flowsGxw  ! ..wrt Xw
-    PetscReal,dimension(:,:,:),allocatable :: w_flowsGxc  ! ..wrt Xc
+    PetscReal,allocatable :: w_flowsG  (    :)  ! Molar   well flows
+    PetscReal,allocatable :: w_flowsGpw(    :)  ! ..wrt Pw
+    PetscReal,allocatable :: w_flowsGxw(  :,:)  ! ..wrt Xw
+    PetscReal,allocatable :: w_flowsGxc(:,:,:)  ! ..wrt Xc
 
     ! Derivative of Xw wrt Pw
-    PetscReal,dimension(  :,:),allocatable :: w_tactxc
-    PetscReal,dimension(  :,:),allocatable :: w_rwxc
+    PetscReal,allocatable :: w_tactxc(  :,:)
+    PetscReal,allocatable :: w_rwxc  (  :,:)
 
     ! Derivative of Xw wrt Pw
-    PetscReal,dimension(    :),allocatable :: w_dxwdpw
-    PetscReal,dimension(  :,:),allocatable :: w_dpwdxc
-    PetscReal,dimension(:,:,:),allocatable :: w_dxwdxc
+    PetscReal,allocatable :: w_dxwdpw(    :)
+    PetscReal,allocatable :: w_dpwdxc(  :,:)
+    PetscReal,allocatable :: w_dxwdxc(:,:,:)
 
     ! Cmpl values this proc
-    PetscReal,dimension(  :),allocatable :: c_p       ! Cmpl pressures
-    PetscReal,dimension(  :),allocatable :: c_t       ! Cmpl temperature
-    PetscReal,dimension(  :),allocatable :: c_pb      ! Cmpl bubble points
-    PetscReal,dimension(:,:),allocatable :: c_mdp     ! Cmpl molar densities
-    PetscReal,dimension(:,:),allocatable :: c_sp      ! Cmpl saturations
-    PetscReal,dimension(:,:),allocatable :: c_mob     ! Cmpl mobilities K/vsc
-    PetscReal,dimension(  :),allocatable :: c_xo      ! Cmpl oil mole fraction
-    PetscReal,dimension(  :),allocatable :: c_xg      ! Cmpl gas mole fraction
-    PetscReal,dimension(:,:),allocatable :: c_kgdp    ! Cmpl mass density
-    PetscReal,dimension(:,:),allocatable :: c_hp      ! Cmpl enthalpy density
+    PetscReal,allocatable :: c_p   (  :)    ! Cmpl pressures
+    PetscReal,allocatable :: c_t   (  :)    ! Cmpl temperature
+    PetscReal,allocatable :: c_pb  (  :)    ! Cmpl bubble points
+    PetscReal,allocatable :: c_mdp (:,:)    ! Cmpl molar densities
+    PetscReal,allocatable :: c_sp  (:,:)    ! Cmpl saturations
+    PetscReal,allocatable :: c_mob (:,:)    ! Cmpl mobilities K/vsc
+    PetscReal,allocatable :: c_xo  (  :)    ! Cmpl oil mole fraction
+    PetscReal,allocatable :: c_xg  (  :)    ! Cmpl gas mole fraction
+    PetscReal,allocatable :: c_kgdp(:,:)    ! Cmpl mass density
+    PetscReal,allocatable :: c_hp  (:,:)    ! Cmpl enthalpy density
 
-    PetscReal,dimension(:,:,:),allocatable :: c_mdpX  ! Cmpl molar dens. wrt Xc
-    PetscReal,dimension(:,:,:),allocatable :: c_spX   ! Cmpl saturations wrt Xc
-    PetscReal,dimension(:,:,:),allocatable :: c_mobX  ! Cmpl mobs~K/vsc  wrt Xc
-    PetscReal,dimension(  :,:),allocatable :: c_xoX   ! Cmpl oil mol frc wrt Xc
-    PetscReal,dimension(  :,:),allocatable :: c_xgX   ! Cmpl gas mol frc wrt Xc
-    PetscReal,dimension(:,:,:),allocatable :: c_kgdpX ! Cmpl mass dens.  wrt Xc
-    PetscReal,dimension(:,:,:),allocatable :: c_hpX   ! Cmpl enth. dens. wrt Xc
+    PetscReal,allocatable :: c_mdpX (:,:,:) ! Cmpl molar dens. wrt Xc
+    PetscReal,allocatable :: c_spX  (:,:,:) ! Cmpl saturations wrt Xc
+    PetscReal,allocatable :: c_mobX (:,:,:) ! Cmpl mobs~K/vsc  wrt Xc
+    PetscReal,allocatable :: c_xoX  (  :,:) ! Cmpl oil mol frc wrt Xc
+    PetscReal,allocatable :: c_xgX  (  :,:) ! Cmpl gas mol frc wrt Xc
+    PetscReal,allocatable :: c_kgdpX(:,:,:) ! Cmpl mass dens.  wrt Xc
+    PetscReal,allocatable :: c_hpX  (:,:,:) ! Cmpl enth. dens. wrt Xc
 
     character(len = MAXSTRINGLENGTH) :: ws_name       ! Well name
 
     PetscInt :: w_comm                                ! Well MPI communicator
 
-    PetscReal,dimension(:    ),allocatable :: xwbs      ! Wellbore sol.
-    PetscReal,dimension(:    ),allocatable :: rwbs      ! Wellbore res.
-    PetscReal,dimension(:    ),allocatable :: rwbshold  ! Stored wellbore res.
-    PetscReal,dimension(:    ),allocatable :: xwbshold  ! Stored wellbore sol.
-    PetscReal,dimension(:    ),allocatable :: rwbspw    ! Wellbore res. wrt Pw
-    PetscReal,dimension(:,:,:),allocatable :: rwbsxc    ! Wellbore res. wrt Xc
-    PetscReal,dimension(:,:  ),allocatable :: jwbs      ! Welbore Jac.
-    PetscReal,dimension(:,:  ),allocatable :: jwbsi     ! Welbore Jac. (inv)
-    PetscReal,dimension(:    ),allocatable :: dxwbs     ! Wellbore sol. change
+    PetscReal,allocatable :: xwbs    (:    )  ! Wellbore sol.
+    PetscReal,allocatable :: rwbs    (:    )  ! Wellbore res.
+    PetscReal,allocatable :: rwbshold(:    )  ! Stored wellbore res.
+    PetscReal,allocatable :: xwbshold(:    )  ! Stored wellbore sol.
+    PetscReal,allocatable :: rwbspw  (:    )  ! Wellbore res. wrt Pw
+    PetscReal,allocatable :: rwbsxc  (:,:,:)  ! Wellbore res. wrt Xc
+    PetscReal,allocatable :: jwbs    (:,:  )  ! Welbore Jac.
+    PetscReal,allocatable :: jwbsi   (:,:  )  ! Welbore Jac. (inv)
+    PetscReal,allocatable :: dxwbs   (:    )  ! Wellbore sol. change
 
     PetscBool :: is_solvent
 
@@ -1410,7 +1410,7 @@ subroutine findCompletionFlows(pw,option,icmpl,icmplg)
                flow,flowpw,flowxw,flowpc,flowxc, &
                hp,hpP,mdc,mdcpw
   PetscReal :: mobX,mdpX,xmfX,hpX
-  PetscReal,dimension(:), allocatable :: pddxw
+  PetscReal, allocatable :: pddxw(:)
 
   allocate(pddxw(ws_nxw))
   pddxw = 0.0
@@ -2237,8 +2237,8 @@ subroutine getRwbsAndJwbs(pw,option)
                ixw,ipoil,ipgas,ipwat,ipslv,eid
   PetscInt  :: jcmplg,jdof,ippref
 
-  PetscReal,dimension(  :),allocatable :: sumxw
-  PetscReal,dimension(:,:),allocatable :: sumxc
+  PetscReal,allocatable :: sumxw(:)
+  PetscReal,allocatable :: sumxc(:,:)
 
   ! Initialise
 
@@ -2464,8 +2464,8 @@ subroutine findWellboreGravityDensityPredictor()
 
   PetscReal :: sumgdm,sumgds,summ,sums,sp,gdp,mp,wd
   PetscInt  :: icmpl,iphase,ierr
-  PetscReal,dimension(FOUR_INTEGER) :: sl
-  PetscReal,dimension(FOUR_INTEGER) :: sg
+  PetscReal :: sl(FOUR_INTEGER)
+  PetscReal :: sg(FOUR_INTEGER)
 
   wd = 0.0
 
@@ -2562,7 +2562,7 @@ subroutine findWellborePropertiesAndDerivatives(pw,so,sg,sw,ss,pb,t,option)
   PetscInt :: ierr,iphase,icomp,icoil,icgas
   PetscInt :: ipoil,ipgas,ipwat,ipslv,ixw
 
-  PetscReal,dimension(:),allocatable :: sumxw
+  PetscReal,allocatable :: sumxw(:)
 
   PetscInt, pointer :: table_idx(:)
 
