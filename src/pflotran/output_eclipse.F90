@@ -464,7 +464,7 @@ subroutine WriteGridFile(coord,zcorn,gtoa)
   ! Author: Dave Ponting
   ! Date: 01/15/19
 
-  use Grdecl_util
+  use Grid_Grdecl_Util_module
 
   implicit none
 
@@ -573,7 +573,7 @@ subroutine WriteInitFile(kx,ky,kz,mx,my,mz,depth,poro,ntg,bvol,gtoa,atoc)
   ! Author: Dave Ponting
   ! Date: 01/15/19
 
-  use Grdecl_util, only : GetM2toMDConv
+  use Grid_Grdecl_Util_module, only : GetM2toMDConv
 
   implicit none
 

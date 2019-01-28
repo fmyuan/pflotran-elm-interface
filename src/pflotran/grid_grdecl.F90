@@ -1,4 +1,4 @@
-module Grdecl_class
+module Grid_Grdecl_module
 
 !  Module to read a grid using industry-standard Eclipse keyword syntax
 !  and convert it to a Pflotran explicit unstructured grid
@@ -1307,7 +1307,7 @@ end subroutine DistributePoroPerm
 
 subroutine CreateElements(unstructured_grid,explicit_grid)
 
-  use Grdecl_util, only : getCorners
+  use Grid_Grdecl_Util_module, only : getCorners
 
   implicit none
 
@@ -2049,7 +2049,7 @@ subroutine ExtractCellDimensionsAndLocationsFromCPG()
   ! Author: Dave Ponting
   ! Date: 11/13/18
 
-  use Grdecl_util, only : GetCorners
+  use Grid_Grdecl_Util_module, only : GetCorners
 
   implicit none
 
@@ -2491,7 +2491,7 @@ subroutine ReadEGridArrayR(a,keyword,ierr,input,option,is_dep,is_perm,qerr)
   ! Author: Dave Ponting
   !  Date: 11/23/18
 
-  use Grdecl_util, only : GetMDtoM2Conv
+  use Grid_Grdecl_Util_module, only : GetMDtoM2Conv
 
   implicit none
 
@@ -3087,4 +3087,4 @@ subroutine PermPoroExchangeAndSet(poro_p,permx_p,permy_p,permz_p, &
 
 end subroutine PermPoroExchangeAndSet
 
-end module Grdecl_class
+end module Grid_Grdecl_module

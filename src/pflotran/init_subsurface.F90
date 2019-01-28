@@ -253,8 +253,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY
   use HDF5_module
-  use Grdecl_class, only : GetPoroPermValues,WriteStaticDataAndCleanup, &
-                           DeallocatePoroPermArrays,PermPoroExchangeAndSet
+  use Grid_Grdecl_module, only : GetPoroPermValues, &
+                                 WriteStaticDataAndCleanup, &
+                                 DeallocatePoroPermArrays, &
+                                 PermPoroExchangeAndSet
   use Utility_module, only : DeallocateArray
   
   implicit none

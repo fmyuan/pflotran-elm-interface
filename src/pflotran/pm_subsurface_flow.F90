@@ -563,7 +563,7 @@ subroutine InitialiseAllWells(this)
   use Well_Solver_module
   use Grid_module
   use Material_Aux_class
-  use Grdecl_class, only : UGrdEclWellCmplCleanup
+  use Grid_Grdecl_module, only : UGrdEclWellCmplCleanup
 
   implicit none
 

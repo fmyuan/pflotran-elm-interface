@@ -1278,7 +1278,7 @@ subroutine FillCmplDataInList(this,iw,grid)
   ! Author: Dave Ponting
   ! Date: 08/15/18
 
-  use Grdecl_class, only : GetGrdNCmpl,GetCmplData
+  use Grid_Grdecl_module, only : GetGrdNCmpl,GetCmplData
   use Grid_module
 
   implicit none

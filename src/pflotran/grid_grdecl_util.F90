@@ -1,4 +1,4 @@
-module Grdecl_util
+module Grid_Grdecl_Util_module
 
 ! A set of small utilities used by the grdecl and Output_Eclipse_module modules
 
@@ -186,4 +186,4 @@ function GetM2toMDConv()
 
 end function GetM2toMDConv
 
-end module Grdecl_util
+end module Grid_Grdecl_Util_module

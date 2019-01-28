@@ -1721,7 +1721,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   use Reaction_Aux_module
   use Init_Common_module
 
-  use Grdecl_class, only : SetUGrdEclCmplLocation
+  use Grid_Grdecl_module, only : SetUGrdEclCmplLocation
 
   implicit none
 

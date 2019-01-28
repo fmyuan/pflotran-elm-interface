@@ -132,7 +132,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
-  use Grdecl_class, only : UGrdEclExplicitRead
+  use Grid_Grdecl_module, only : UGrdEclExplicitRead
 
   implicit none
 

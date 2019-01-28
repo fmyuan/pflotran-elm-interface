@@ -230,7 +230,7 @@ subroutine initialiseWell(well_data,grid,material_auxvars,option)
   ! Date  : 09/19/18
 
   use Well_Data_class
-  use Grdecl_class, only : FindWellIndex
+  use Grid_Grdecl_module, only : FindWellIndex
   use Grid_module
   use Material_Aux_class
   use PM_TOilIms_Aux_module
