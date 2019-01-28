@@ -1026,8 +1026,8 @@ subroutine DistributeWells(option)
   type(option_type) :: option
 
   PetscInt :: iw,ik
-  PetscMPIInt,dimension(12) :: ibuf
-  PetscReal  ,dimension(12) :: rbuf
+  PetscMPIInt :: ibuf(12)
+  PetscReal   :: rbuf(12)
 
   ! First, clean up any existing well and cmpl structures on non IO proc
 
@@ -1318,7 +1318,8 @@ subroutine CreateElements(unstructured_grid,explicit_grid)
 
   PetscInt :: num_vertices,icorn,ivert,ia,ig,ix,iy,iz,iox,ioy,ioz
 
-  PetscReal,dimension(3) :: x000,x100,x010,x110,x001,x101,x011,x111,xw
+  PetscReal :: x000(3),x100(3),x010(3),x110(3), &
+               x001(3),x101(3),x011(3),x111(3),xw(3)
 
   num_vertices = nVertPerCell*g_na
 
@@ -1831,7 +1832,7 @@ subroutine BroadcastIntN(ival,option)
 
   implicit none
 
-  PetscMPIInt,dimension(:),intent(inout) :: ival
+  PetscMPIInt,intent(inout) :: ival(:)
   type(option_type) :: option
 
   PetscInt    :: n,ierr
@@ -1857,7 +1858,7 @@ subroutine BroadcastRealN(rval,option)
 
   implicit none
 
-  PetscReal,dimension(:),intent(inout) :: rval
+  PetscReal,intent(inout) :: rval(:)
   type(option_type) :: option
 
   PetscInt    :: n,ierr
@@ -2056,7 +2057,8 @@ subroutine ExtractCellDimensionsAndLocationsFromCPG()
   PetscInt  :: ix,iy,iz,ig
   PetscReal :: vdx,vdy,vdz,vpx,vpy,vpz
 
-  PetscReal,dimension(3) :: x000,x100,x010,x110,x001,x101,x011,x111
+  PetscReal :: x000(3),x100(3),x010(3),x110(3), &
+               x001(3),x101(3),x011(3),x111(3)
 
   ! For each cell, find base offsets in the
   ! (2.nx).(2.ny).(2.nz) corner z-val array
@@ -2218,12 +2220,12 @@ subroutine GetHexDims( x000,x100,x010,x110,x001,x101,x011,x111, &
 
   implicit none
 
-  PetscReal,dimension(3),intent(in ) :: x000,x100,x010,x110, &
-                                        x001,x101,x011,x111
-  PetscReal             ,intent(out) :: vdx,vdy,vdz,vpx,vpy,vpz
+  PetscReal,intent(in ) :: x000(3),x100(3),x010(3),x110(3), &
+                           x001(3),x101(3),x011(3),x111(3)
+  PetscReal,intent(out) :: vdx,vdy,vdz,vpx,vpy,vpz
 
   PetscInt  :: idir
-  PetscReal,dimension(3) :: dx,dy,dz
+  PetscReal :: dx(3),dy(3),dz(3)
 
   ! Cell centre is just the average
 
@@ -2280,7 +2282,7 @@ function GetScalarLength(v)
   implicit none
 
   PetscReal :: GetScalarLength
-  PetscReal,dimension(g_ndir),intent(in) :: v
+  PetscReal,intent(in) :: v(g_ndir)
   PetscReal :: sum
 
   sum = v(g_xdir)*v(g_xdir) &
@@ -2426,15 +2428,15 @@ subroutine ReadEGridArrayI(a,keyword,ierr,input,option,qerr)
   !
   implicit none
 
-  PetscInt,dimension(:),intent(inout) :: a
+  PetscInt,intent(inout) :: a(:)
   character(len=*) :: keyword
   PetscInt,intent(out) :: ierr
   type(input_type), pointer :: input
   type(option_type) :: option
   PetscBool,intent(inout) :: qerr
 
-  PetscInt ,dimension(:),allocatable :: column_buffer
-  PetscReal,dimension(:),allocatable :: ar
+  PetscInt ,allocatable :: column_buffer(:)
+  PetscReal,allocatable :: ar(:)
   PetscInt  :: ix,iy,iz,izpft,ig,igpft,i
 
   ! Do the actual read operation
@@ -2497,7 +2499,7 @@ subroutine ReadEGridArrayR(a,keyword,ierr,input,option,is_dep,is_perm,qerr)
 
   implicit none
 
-  PetscReal,dimension(:),intent(inout) :: a
+  PetscReal,intent(inout) :: a(:)
   character(len=*) :: keyword
   PetscInt,intent(out) :: ierr
   type(input_type), pointer :: input
@@ -2506,7 +2508,7 @@ subroutine ReadEGridArrayR(a,keyword,ierr,input,option,is_dep,is_perm,qerr)
   PetscBool,intent(in) :: is_perm
   PetscBool,intent(inout) :: qerr
 
-  PetscReal,dimension(:),allocatable :: column_buffer
+  PetscReal,allocatable :: column_buffer(:)
   PetscInt  :: ix,iy,iz,izpft,ig,igpft,nread
   PetscReal :: flip,conv,v
 
@@ -2593,7 +2595,7 @@ subroutine ReadECoordArray(a,ierr,input,option,qerr)
 
   implicit none
 
-  PetscReal,dimension(:),intent(inout) :: a
+  PetscReal,intent(inout) :: a(:)
   PetscInt,intent(out) :: ierr
   type(input_type), pointer :: input
   type(option_type) :: option
@@ -2628,13 +2630,13 @@ subroutine ReadEZcornArray(a,ierr,input,option,qerr)
 
   implicit none
 
-  PetscReal,dimension(:),intent(inout) :: a
+  PetscReal,intent(inout) :: a(:)
   PetscInt,intent(out) :: ierr
   type(input_type), pointer :: input
   type(option_type) :: option
   PetscBool,intent(inout) :: qerr
 
-  PetscReal,dimension(:),allocatable :: column_buffer
+  PetscReal,allocatable :: column_buffer(:)
   PetscInt  :: inx,iny,inz,nnx,nny,nnz,nnxy,inode,nread,inzpft
 
   qerr = PETSC_TRUE
@@ -2703,8 +2705,8 @@ subroutine ReadEvalues(a,n,keyword,section,ierr,input,option,qerr)
 
   implicit none
 
-  PetscReal,dimension(:),intent(inout) :: a
-  PetscInt              ,intent(in)    :: n
+  PetscReal,intent(inout) :: a(:)
+  PetscInt ,intent(in)    :: n
   character(len=*) :: keyword
   character(len=*) :: section
   PetscInt,intent(out) :: ierr
