@@ -268,9 +268,9 @@ subroutine WriteStaticDataAndCleanup(option)
   ! Author: Dave Ponting
   ! Date: 11/05/18
   !
-  use ewriter,only: WriteEclipseFilesGrid, &
-                    WriteEclipseFilesInit, &
-                    SelectFormattedFiles
+  use Output_Eclipse_module,only: WriteEclipseFilesGrid, &
+                                  WriteEclipseFilesInit, &
+                                  SelectFormattedFiles
 
   implicit none
 

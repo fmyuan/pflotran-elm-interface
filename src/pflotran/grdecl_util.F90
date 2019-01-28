@@ -1,6 +1,6 @@
 module Grdecl_util
 
-! A set of small utilities used by the grdecl and ewriter modules
+! A set of small utilities used by the grdecl and Output_Eclipse_module modules
 
 #include "petsc/finclude/petscsys.h"
   use petscsys

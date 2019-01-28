@@ -1,4 +1,4 @@
-module ewriter
+module Output_Eclipse_module
 
 !  Module of routines which write out industry-standard Eclipse files
 !  Eclipse is a trademark of the Schlumberger Corporation
@@ -1636,7 +1636,7 @@ end subroutine SetInteHead
 
 subroutine ReleaseEwriterBuffers()
   !
-  ! Release buffers held by ewriter and close summary and restart files
+  ! Release buffers held by Output_Eclipse_module and close summary and restart files
   !
   ! Author: Dave Ponting
   ! Date: 12/15/18
@@ -1911,4 +1911,4 @@ subroutine ThrowEwriterException(message)
   stop
 end subroutine ThrowEwriterException
 
-end module ewriter
+end module Output_Eclipse_module

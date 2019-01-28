@@ -3233,7 +3233,7 @@ subroutine WriteWellHeaders(fid,icol,realization,towg_miscibility_model,wecl)
 
   use Realization_Subsurface_class
   use Well_Data_class
-  use ewriter,only:WriteEclipseFilesSpec
+  use Output_Eclipse_module,only:WriteEclipseFilesSpec
 
   implicit none
 
@@ -3464,7 +3464,7 @@ subroutine WriteWellValues(fid,realization,tconv,towg_miscibility_model, &
   use Realization_Subsurface_class
   use Well_Type_Class
   use Well_Data_class
-  use ewriter,only:WriteEclipseFilesSumm
+  use Output_Eclipse_module,only:WriteEclipseFilesSumm
   use Option_module
 
   implicit none
@@ -3894,7 +3894,7 @@ subroutine WriteRestValues(realization,tconv,option)
 
   use Realization_Subsurface_class
   use Well_Data_class
-  use ewriter,only:WriteEclipseFilesRest,GetMlmax
+  use Output_Eclipse_module,only:WriteEclipseFilesRest,GetMlmax
   use Option_module
   use Grid_module
   use Patch_module
@@ -4073,7 +4073,7 @@ end subroutine WriteLineRept
 subroutine setupWellData(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl, &
                          well_data_list)
   !
-  ! Set up structures containing well locations to be passed to ewriter
+  ! Setup structures holding well locations for Output_Eclipse_module
   !
   ! Author: Dave Ponting
   ! Date  : 01/15/19
@@ -4139,7 +4139,7 @@ end subroutine setupWellData
 
 subroutine DeleteWellData(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
   !
-  ! Delete the structures containing well locations to be passed to ewriter
+  ! Delete structures holding well locations for Output_Eclipse_module
   !
   ! Author: Dave Ponting
   ! Date  : 01/15/19
@@ -4164,7 +4164,7 @@ end subroutine DeleteWellData
 
 subroutine allocateLocalSolution(vsoll,nsol,zsol,nlmax)
   !
-  ! Allocate structures containing simulation solutions to be passed to ewriter
+  ! Allocate structures holding well locations for Output_Eclipse_module
   !
   ! Author: Dave Ponting
   ! Date  : 01/15/19
@@ -4190,7 +4190,7 @@ end subroutine allocateLocalSolution
 
 subroutine loadLocalSolution(vsoll,nsol,zsol,patch,grid,option)
   !
-  ! Load up structures containing simulation solutions to be passed to ewriter
+  ! Load structures holding well locations for Output_Eclipse_module
   !
   ! Author: Dave Ponting
   ! Date  : 01/15/19
@@ -4232,7 +4232,7 @@ end subroutine loadLocalSolution
 
 subroutine deleteLocalSolution(vsoll,zsol)
   !
-  ! Delete structures containing simulation solutions to be passed to ewriter
+  ! Delete structures holding well locations for Output_Eclipse_module
   !
   ! Author: Dave Ponting
   ! Date  : 01/15/19
@@ -4471,7 +4471,7 @@ subroutine setupEwriterRestMaps(patch,grid,option)
   use Patch_module
   use Grid_module
   use Option_module
-  use ewriter,only: setupRestMaps
+  use Output_Eclipse_module,only: setupRestMaps
 
   implicit none
 
@@ -4502,7 +4502,7 @@ subroutine setupEwriterRestMaps(patch,grid,option)
       ltoa(lid)=nid
   enddo
 
-!  Setup the restart maps in ewriter
+!  Setup the restart maps in Output_Eclipse_module
 
   call setupRestMaps(ltoa,option,nlmax,mlmax)
 

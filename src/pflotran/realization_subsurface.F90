@@ -2539,7 +2539,7 @@ subroutine RealizationDestroyLegacy(realization)
   ! 
 
   use Dataset_module
-  use ewriter, only : ReleaseEwriterBuffers
+  use Output_Eclipse_module, only : ReleaseEwriterBuffers
 
   implicit none
   
@@ -2557,7 +2557,7 @@ subroutine RealizationDestroyLegacy(realization)
 
 !  Destroy the list of wells held by well_data
   call WellDataDestroyList(realization%well_data,realization%option)
-!  Release output buffers held by ewriter
+!  Release output buffers held by Output_Eclipse_module
   if (realization%option%write_ecl) then
     call ReleaseEwriterBuffers()
   endif
@@ -2608,7 +2608,7 @@ subroutine RealizationStrip(this)
   ! 
 
   use Dataset_module
-  use ewriter, only : ReleaseEwriterBuffers
+  use Output_Eclipse_module, only : ReleaseEwriterBuffers
 
   implicit none
   
@@ -2621,7 +2621,7 @@ subroutine RealizationStrip(this)
 
 !  Destroy the list of wells held by well_data
   call WellDataDestroyList(this%well_data,this%option)
-!  Release output buffers held by ewriter
+!  Release output buffers held by Output_Eclipse_module
   if (this%option%write_ecl) then
     call ReleaseEwriterBuffers()
   endif
