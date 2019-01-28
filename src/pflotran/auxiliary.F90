@@ -5,7 +5,6 @@ module Auxiliary_module
   use Global_Aux_module
   use TH_Aux_module
   use Material_Aux_class
-  use Secondary_Continuum_Aux_module
   use InlineSurface_Aux_module
   
   use PFLOTRAN_Constants_module
@@ -18,7 +17,6 @@ module Auxiliary_module
     type(global_type), pointer :: Global
     type(th_type), pointer :: TH
     type(material_type), pointer :: Material
-    type(sc_heat_type), pointer :: SC_heat
     type(inlinesurface_type), pointer :: InlineSurface
   end type auxiliary_type
   
@@ -45,7 +43,6 @@ subroutine AuxInit(aux)
   nullify(aux%TH)
 
   nullify(aux%Material)
-  nullify(aux%SC_heat)
   nullify(aux%InlineSurface)
 
 end subroutine AuxInit
@@ -68,12 +65,10 @@ subroutine AuxDestroy(aux)
 
   call THAuxDestroy(aux%TH)
   call MaterialAuxDestroy(aux%Material)
-  call SecondaryAuxHeatDestroy(aux%SC_heat)
   call InlineSurfaceAuxDestroy(aux%InlineSurface)
   
   nullify(aux%Global)
   nullify(aux%Material)
-  nullify(aux%SC_Heat)
   nullify(aux%InlineSurface)
 
 end subroutine AuxDestroy

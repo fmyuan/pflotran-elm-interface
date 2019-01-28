@@ -207,14 +207,13 @@ module EOS_Water_module
             EOSWaterSteamDensityEnthalpy, &
             EOSWaterDuanMixture, &
             EOSWaterViscosityNaCl, &
-            EOSWaterInternalEnergyIce, &
-            !EOSWaterDensityIcePainter, &
             EOSWaterSaturationTemperature, &
-            EOSWaterDensityIce, &
             EOSWaterDensityTGDPB01, &
             EOSWaterViscosityExt, &
             EOSWaterDensityExt, &
             EOSWaterEnthalpyExt, &
+            EOSWaterInternalEnergyIce, &
+            EOSWaterDensityIce, &
             EOSWaterInputRecord
 
   public :: EOSWaterSetDensity, &
@@ -2629,7 +2628,7 @@ subroutine EOSWaterDensityPainter(t,p,calculate_derivatives,dw,dwmol, &
   PetscReal, parameter :: a = 999.915d0
   PetscReal, parameter :: b = 0.0416516d0
   PetscReal, parameter :: c = -0.0100836d0
-  PetscReal, parameter :: d = 0.000206355
+  PetscReal, parameter :: d = 0.000206355d0
   PetscReal, parameter :: alpha = 5.0d-10     ! in Pa^(-1)
   PetscReal, parameter :: T_ref = 273.15d0    ! in K
   PetscReal, parameter :: P_ref = 1.0d5       ! in Pa
@@ -2646,13 +2645,13 @@ subroutine EOSWaterDensityPainter(t,p,calculate_derivatives,dw,dwmol, &
   dwmol = dw/FMWH2O     ! in mol
 
   ! Internal energy
-  u_J_kg = 4.217*1.0d3*(T_K - T_ref)    ! in J/kg
+  u_J_kg = 4.217d0*1.0d3*(T_K - T_ref)    ! in J/kg
   h_J_kg = u_J_kg + P/dw    ! in J/kg
 
   if (calculate_derivatives) then
     ! Derivatives of density
-    dwp = 1/FMWH2O*den_w_one_bar*alpha    ! in Kmol/Pa
-    dwt = 1/FMWH2O*(1 + alpha*(P - P_ref))*(b + 2.d0*c*(T_K - T_ref) + &
+    dwp = 1.0d0/FMWH2O*den_w_one_bar*alpha    ! in Kmol/Pa
+    dwt = 1.0d0/FMWH2O*(1.d0 + alpha*(P - P_ref))*(b + 2.d0*c*(T_K - T_ref) + &
                               3.d0*d*(T_K - T_ref)**(2.d0))      ! in Kmol/K
   else
     dwp = UNINITIALIZED_DOUBLE
@@ -2685,7 +2684,7 @@ subroutine EOSWaterEnthalpyPainter(T, P, calculate_derivatives, &
   PetscReal, parameter :: a = 999.915d0
   PetscReal, parameter :: b = 0.0416516d0
   PetscReal, parameter :: c = -0.0100836d0
-  PetscReal, parameter :: d = 0.000206355
+  PetscReal, parameter :: d = 0.000206355d0
   PetscReal, parameter :: alpha = 5.0d-10     ! in Pa^(-1)
   PetscReal, parameter :: T_ref = 273.15d0    ! in K
   PetscReal, parameter :: P_ref = 1.0d5       ! in Pa
@@ -2702,19 +2701,19 @@ subroutine EOSWaterEnthalpyPainter(T, P, calculate_derivatives, &
   den_water_kmol = den_water_kg/FMWH2O     ! in mol
 
   ! Internal energy
-  u_J_kg = 4.217*1.0d3*(T_K - T_ref)    ! in J/kg
+  u_J_kg = 4.217d0*1.0d3*(T_K - T_ref)    ! in J/kg
   h_J_kg = u_J_kg + P/den_water_kg    ! in J/kg
   h_J_kmol = h_J_kg*FMWH2O     ! in J/kmol
 
   if (calculate_derivatives) then
     ! Derivatives of density
-    dden_water_dp = 1/FMWH2O*den_w_one_bar*alpha    ! in Kmol/Pa
-    dden_water_dt = 1/FMWH2O*(1 + alpha*(P - P_ref))*(b + 2.d0*c*(T_K - T_ref) + &
+    dden_water_dp = 1.0d0/FMWH2O*den_w_one_bar*alpha    ! in Kmol/Pa
+    dden_water_dt = 1.0d0/FMWH2O*(1.0d0 + alpha*(P - P_ref))*(b + 2.d0*c*(T_K - T_ref) + &
                               3.d0*d*(T_K - T_ref)**(2.d0))      ! in Kmol/K
 
     ! Derivatives of enthalpy
     dh_dp = FMWH2O/den_water_kg   ! in J/kmol/Pa
-    du_dt = 4.217*1.d3                  ! in J/kg/K
+    du_dt = 4.217d0*1.d3                  ! in J/kg/K
     dh_dt = FMWH2O*(du_dt + P*(-1.d0/den_water_kg**(2.d0))* &
                     dden_water_dt*FMWH2O)    ! in MJ/kmol/K
   else

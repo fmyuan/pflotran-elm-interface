@@ -29,7 +29,6 @@ module Solver_module
     PetscReal :: newton_inf_upd_tol    ! infinity tolerance for update
     PetscReal :: newton_inf_rel_update_tol ! infinity norm on relative update (c(i)-c(i-1))/c(i-1)
     PetscReal :: newton_inf_scaled_res_tol ! infinity norm on scale residual (r(i)/accum(i))
-    PetscReal :: newton_inf_res_tol_sec  ! infinity tolerance for secondary continuum residual
     PetscInt :: newton_max_iterations     ! maximum number of iterations
     PetscInt :: newton_min_iterations     ! minimum number of iterations
     PetscInt :: newton_maxf      ! maximum number of function evaluations
@@ -136,7 +135,7 @@ function SolverCreate()
   solver%newton_inf_upd_tol = UNINITIALIZED_DOUBLE
   solver%newton_inf_rel_update_tol = UNINITIALIZED_DOUBLE
   solver%newton_inf_scaled_res_tol = UNINITIALIZED_DOUBLE
-  solver%newton_inf_res_tol_sec = 1.d-10
+
   solver%newton_max_iterations = PETSC_DEFAULT_INTEGER
   solver%newton_min_iterations = 1
   solver%newton_maxf = PETSC_DEFAULT_INTEGER

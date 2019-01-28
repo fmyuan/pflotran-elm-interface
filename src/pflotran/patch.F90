@@ -1884,9 +1884,6 @@ function PatchGetVariableValueAtCell(patch,field,option, &
             call printErrMsg(option,'LIQUID_MOLE_FRACTION not supported by TH')
           case(LIQUID_ENERGY)
             value = patch%aux%TH%auxvars(ghosted_id)%u
-          case(SECONDARY_TEMPERATURE)
-            local_id = grid%nG2L(ghosted_id)
-            value = patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp(isubvar)
           case(EFFECTIVE_POROSITY)
             value = patch%aux%TH%auxvars(ghosted_id)%transient_por
         end select

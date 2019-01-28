@@ -62,24 +62,7 @@ module Material_module
     PetscReal :: permeability_pwr
     PetscReal :: permeability_crit_por
     PetscReal :: permeability_min_scale_fac
-    character(len=MAXWORDLENGTH) :: secondary_continuum_name
-    PetscReal :: secondary_continuum_length
-    PetscReal :: secondary_continuum_matrix_block_size
-    PetscReal :: secondary_continuum_fracture_spacing
-    PetscReal :: secondary_continuum_radius
-    PetscReal :: secondary_continuum_area
-    PetscInt :: secondary_continuum_ncells
-    PetscReal :: secondary_continuum_epsilon
-    PetscReal :: secondary_continuum_aperture
-    PetscReal :: secondary_continuum_init_temp
-    PetscReal :: secondary_continuum_init_conc
-    PetscReal :: secondary_continuum_porosity
-    PetscReal :: secondary_continuum_diff_coeff
-    PetscReal :: secondary_continuum_mnrl_volfrac
-    PetscReal :: secondary_continuum_mnrl_area 
-    PetscBool :: secondary_continuum_log_spacing
-    PetscReal :: secondary_continuum_outer_spacing
-    PetscReal :: secondary_continuum_area_scaling
+
     type(material_property_type), pointer :: next
   end type material_property_type
   
@@ -179,24 +162,7 @@ function MaterialPropertyCreate()
   material_property%min_pressure = 0.d0
   material_property%max_pressure = 1.d6
   material_property%max_permfactor = 1.d0
-  material_property%secondary_continuum_name = ''
-  material_property%secondary_continuum_length = 0.d0
-  material_property%secondary_continuum_matrix_block_size = 0.d0
-  material_property%secondary_continuum_fracture_spacing = 0.d0
-  material_property%secondary_continuum_radius = 0.d0
-  material_property%secondary_continuum_area = 0.d0
-  material_property%secondary_continuum_epsilon = 1.d0
-  material_property%secondary_continuum_aperture = 0.d0
-  material_property%secondary_continuum_init_temp = 100.d0
-  material_property%secondary_continuum_init_conc = 0.d0
-  material_property%secondary_continuum_porosity = 0.5d0
-  material_property%secondary_continuum_diff_coeff = 1.d-9
-  material_property%secondary_continuum_mnrl_volfrac = 0.d0
-  material_property%secondary_continuum_mnrl_area = 0.d0
-  material_property%secondary_continuum_ncells = 0
-  material_property%secondary_continuum_log_spacing = PETSC_FALSE
-  material_property%secondary_continuum_outer_spacing = 1.d-3
-  material_property%secondary_continuum_area_scaling = 1.d0
+
   nullify(material_property%next)
   MaterialPropertyCreate => material_property
 
@@ -574,115 +540,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputReadDouble(input,option, &
                              material_property%tortuosity_pwr)
         call InputErrorMsg(input,option,'tortuosity power','MATERIAL_PROPERTY')
-      case('SECONDARY_CONTINUUM')
-        do
-          call InputReadPflotranString(input,option)
-          call InputReadStringErrorMsg(input,option, &
-                                       'MATERIAL_PROPERTY,SECONDARY_CONTINUUM')
-          
-          if (InputCheckExit(input,option)) exit          
-          
-          if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
-          call InputErrorMsg(input,option,'keyword', &
-                             'MATERIAL_PROPERTY,SECONDARY_CONTINUUM')   
-          select case(trim(word))
-            case('TYPE')
-              call InputReadNChars(input,option, &
-                                   material_property%secondary_continuum_name,&
-                                   MAXWORDLENGTH,PETSC_TRUE)
-              call InputErrorMsg(input,option,'type', &
-                                'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
-            case('MATRIX_BLOCK_SIZE')
-              call InputReadDouble(input,option, &
-                        material_property%secondary_continuum_matrix_block_size)
-              call InputErrorMsg(input,option,'matrix_block_size', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
-            case('FRACTURE_SPACING')
-              call InputReadDouble(input,option, &
-                        material_property%secondary_continuum_fracture_spacing)
-              call InputErrorMsg(input,option,'fracture_spacing', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
-            case('RADIUS')
-              call InputReadDouble(input,option, &
-                                   material_property%secondary_continuum_radius)
-              call InputErrorMsg(input,option,'radius', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
-            case('LENGTH')
-              call InputReadDouble(input,option, &
-                                   material_property%secondary_continuum_length)
-              call InputErrorMsg(input,option,'length', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
-            case('AREA')
-              call InputReadDouble(input,option, &
-                                   material_property%secondary_continuum_area)
-              call InputErrorMsg(input,option,'area', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
-            case('NUM_CELLS')
-              call InputReadInt(input,option, &
-                                   material_property%secondary_continuum_ncells)
-              call InputErrorMsg(input,option,'number of cells', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
-            case('EPSILON')
-              call InputReadDouble(input,option, &
-                             material_property%secondary_continuum_epsilon)
-              call InputErrorMsg(input,option,'epsilon', &
-                           'MATERIAL_PROPERTY')
-            case('APERTURE')
-              call InputReadDouble(input,option, &
-                             material_property%secondary_continuum_aperture)
-              call InputErrorMsg(input,option,'aperture', &
-                           'MATERIAL_PROPERTY')
-            case('TEMPERATURE')
-              call InputReadDouble(input,option, &
-                             material_property%secondary_continuum_init_temp)
-              call InputErrorMsg(input,option,'secondary continuum init temp', &
-                           'MATERIAL_PROPERTY')
-              option%set_secondary_init_temp = PETSC_TRUE
-            case('CONCENTRATION')
-              call InputReadDouble(input,option, &
-                             material_property%secondary_continuum_init_conc)
-              call InputErrorMsg(input,option,'secondary continuum init conc', &
-                           'MATERIAL_PROPERTY')
-              option%set_secondary_init_conc = PETSC_TRUE
-            case('POROSITY')
-              call InputReadDouble(input,option, &
-                             material_property%secondary_continuum_porosity)
-              call InputErrorMsg(input,option,'secondary continuum porosity', &
-                           'MATERIAL_PROPERTY')
-            case('DIFFUSION_COEFFICIENT')
-              call InputReadDouble(input,option, &
-                             material_property%secondary_continuum_diff_coeff)
-              call InputErrorMsg(input,option, &
-                                 'secondary continuum diff coeff', &
-                                 'MATERIAL_PROPERTY')
-            case('MINERAL_VOLFRAC')
-              call InputReadDouble(input,option, &
-                             material_property%secondary_continuum_mnrl_volfrac)
-              call InputErrorMsg(input,option,'secondary cont. mnrl volfrac.', &
-                           'MATERIAL_PROPERTY')  
-            case('MINERAL_AREA')
-              call InputReadDouble(input,option, &
-                             material_property%secondary_continuum_mnrl_area)
-              call InputErrorMsg(input,option,'secondary cont. mnrl area', &
-                           'MATERIAL_PROPERTY')
-            case('LOG_GRID_SPACING')
-              material_property%secondary_continuum_log_spacing = PETSC_TRUE
-            case('OUTER_SPACING')
-              call InputReadDouble(input,option, &
-                             material_property%secondary_continuum_outer_spacing)
-              call InputErrorMsg(input,option,'secondary cont. outer spacing', &
-                           'MATERIAL_PROPERTY')
-            case('AREA_SCALING_FACTOR')
-              call InputReadDouble(input,option, &
-                             material_property%secondary_continuum_area_scaling)
-              call InputErrorMsg(input,option,'secondary area scaling factor', &
-                           'MATERIAL_PROPERTY')
-            case default
-              call InputKeywordUnrecognized(word, &
-                     'MATERIAL_PROPERTY,SECONDARY_CONTINUUM',option)
-          end select
-        enddo
 
       case default
         call InputKeywordUnrecognized(keyword,'MATERIAL_PROPERTY',option)

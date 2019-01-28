@@ -608,7 +608,6 @@ subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   use Grid_module
   use Field_module
   use Option_module
-  use Secondary_Continuum_Aux_module
   use TH_module
   use TH_Aux_module
   use Global_Aux_module
@@ -637,7 +636,6 @@ subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   type(TH_auxvar_type), pointer :: TH_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)  
   type(TH_parameter_type), pointer :: TH_parameter
-  type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id, ghosted_id
@@ -657,7 +655,6 @@ subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   TH_auxvars => patch%aux%TH%auxvars
   TH_parameter => patch%aux%TH%TH_parameter
   global_auxvars => patch%aux%Global%auxvars
-  TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
   material_auxvars => patch%aux%Material%auxvars
   
   dX_changed = PETSC_FALSE
@@ -679,15 +676,11 @@ subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
       
-      if (option%use_mc) then
-        vol_frac_prim = TH_sec_heat_vars(local_id)%epsilon
-      endif
-
       call THAccumulation(TH_auxvars(ghosted_id), &
                            global_auxvars(ghosted_id), &
                            material_auxvars(ghosted_id), &
                            TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
-                           option,vol_frac_prim,Res)
+                           option,Res)
                                                         
       inf_norm = max(inf_norm,min(dabs(dX_p(istart)/X1_p(istart)), &
                                   dabs(r_p(istart)/Res(1)), &

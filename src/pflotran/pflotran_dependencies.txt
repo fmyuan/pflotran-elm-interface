@@ -1,7 +1,7 @@
 auxiliary.o : global_aux.o \
               inlinesurface_aux.o material_aux.o \
               pflotran_constants.o \
-              secondary_continuum_aux.o th_aux.o
+              th_aux.o
 auxvars_base.o : option.o pflotran_constants.o
 auxvars_flow.o : auxvars_base.o option.o pflotran_constants.o utility.o
 auxvars_flow_energy.o : auxvars_base.o auxvars_flow.o option.o \
@@ -258,7 +258,7 @@ output_tecplot.o : connection.o coupler.o discretization.o dm_kludge.o field.o \
                    grid_unstructured_cell.o logging.o observation.o option.o \
                    output_aux.o output_common.o patch.o pflotran_constants.o \
                    realization_base.o region.o \
-                   secondary_continuum_aux.o string.o utility.o variables.o
+                   string.o utility.o variables.o
 output_vtk.o : discretization.o field.o grid.o grid_structured.o logging.o \
                option.o output_aux.o output_common.o patch.o \
                pflotran_constants.o realization_base.o string.o \
@@ -311,7 +311,7 @@ pm_th.o : communicator_base.o communicator_structured.o \
           global.o global_aux.o grid.o input_aux.o material_aux.o option.o \
           patch.o pflotran_constants.o pm_base.o pm_subsurface_flow.o \
           realization_subsurface.o \
-          secondary_continuum_aux.o string.o th.o th_aux.o utility.o
+          string.o th.o th_aux.o utility.o
 pmc_base.o : checkpoint.o hdf5_aux.o logging.o option.o output.o output_aux.o \
              pflotran_constants.o pm_base.o pm_base_pointer.o simulation_aux.o \
              timestepper_base.o utility.o waypoint.o
@@ -322,7 +322,7 @@ pmc_subsurface.o : connection.o convergence.o coupler.o discretization.o \
                    pm_subsurface_flow.o pm_th.o \
                    pmc_base.o \
                    realization_base.o realization_subsurface.o \
-                   secondary_continuum.o solver.o string.o timestepper_BE.o \
+                   solver.o string.o timestepper_BE.o \
                    timestepper_base.o variables.o
 pmc_surface.o : checkpoint.o connection.o coupler.o eos_water.o grid.o \
                 option.o output.o output_aux.o output_surface.o patch.o \
@@ -365,15 +365,6 @@ regression.o : discretization.o grid.o input_aux.o option.o output.o \
                realization_subsurface.o string.o timestepper_BE.o utility.o
 saturation.o : condition.o connection.o coupler.o grid.o option.o \
                pflotran_constants.o region.o
-secondary_continuum.o : condition.o coupler.o \
-                        eos_water.o global_aux.o grid.o material.o \
-                        material_aux.o option.o \
-                        pflotran_constants.o \
-                        realization_subsurface.o \
-                        secondary_continuum_aux.o string.o \
-                        utility.o
-secondary_continuum_aux.o : option.o pflotran_constants.o \
-                            utility.o
 simulation_aux.o : option.o pflotran_constants.o
 simulation_base.o : checkpoint.o eos.o input_aux.o logging.o option.o output.o \
                     output_aux.o pflotran_constants.o pm_base.o pmc_base.o \
@@ -437,7 +428,7 @@ th.o : condition.o connection.o coupler.o debug.o discretization.o eos_water.o \
        field.o fluid.o global_aux.o grid.o logging.o material.o material_aux.o \
        option.o output_aux.o patch.o pflotran_constants.o \
        realization_subsurface.o region.o \
-       secondary_continuum.o secondary_continuum_aux.o string.o th_aux.o \
+       string.o th_aux.o \
        utility.o variables.o
 th_aux.o : characteristic_curves.o eos_water.o global_aux.o material_aux.o option.o \
            pflotran_constants.o

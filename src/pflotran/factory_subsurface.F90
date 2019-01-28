@@ -2272,25 +2272,6 @@ subroutine SubsurfaceReadInput(simulation,input)
       material_property%max_pressure = material_property_default%max_pressure
       material_property%max_permfactor = material_property_default%max_permfactor
       !
-      material_property%secondary_continuum_name = material_property_default%secondary_continuum_name
-      material_property%secondary_continuum_length = material_property_default%secondary_continuum_length
-      material_property%secondary_continuum_matrix_block_size = material_property_default%secondary_continuum_matrix_block_size
-      material_property%secondary_continuum_fracture_spacing = material_property_default%secondary_continuum_fracture_spacing
-      material_property%secondary_continuum_radius = material_property_default%secondary_continuum_radius
-      material_property%secondary_continuum_area = material_property_default%secondary_continuum_area
-      material_property%secondary_continuum_epsilon = material_property_default%secondary_continuum_epsilon
-      material_property%secondary_continuum_aperture = material_property_default%secondary_continuum_aperture
-      material_property%secondary_continuum_init_temp = material_property_default%secondary_continuum_init_temp
-      material_property%secondary_continuum_init_conc = material_property_default%secondary_continuum_init_conc
-      material_property%secondary_continuum_porosity = material_property_default%secondary_continuum_porosity
-      material_property%secondary_continuum_diff_coeff = material_property_default%secondary_continuum_diff_coeff
-      material_property%secondary_continuum_mnrl_volfrac = material_property_default%secondary_continuum_mnrl_volfrac
-      material_property%secondary_continuum_mnrl_area = material_property_default%secondary_continuum_mnrl_area
-      material_property%secondary_continuum_ncells = material_property_default%secondary_continuum_ncells
-      material_property%secondary_continuum_log_spacing = material_property_default%secondary_continuum_log_spacing
-      material_property%secondary_continuum_outer_spacing = material_property_default%secondary_continuum_outer_spacing
-      material_property%secondary_continuum_area_scaling = material_property_default%secondary_continuum_area_scaling
-
       ! editing name as 'CLMsoil+id', and external id to default's + local_id
       material_property%external_id = local_id + material_property_default%external_id ! to avoid duplicated 'id'
       material_property%name = 'CLMsoil' // trim(adjustl(string))

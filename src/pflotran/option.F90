@@ -101,9 +101,6 @@ module Option_module
     PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
 
     PetscBool :: use_isothermal
-    PetscBool :: use_mc           ! If true, multiple continuum formulation is used.
-    PetscBool :: set_secondary_init_temp  ! If true, then secondary init temp is different from prim. init temp
-    PetscBool :: set_secondary_init_conc
 
     PetscBool :: update_flow_perm ! If true, permeability changes due to pressure
 
@@ -133,8 +130,6 @@ module Option_module
 
     PetscBool :: converged
     PetscInt  :: convergence
-
-    PetscReal :: infnorm_res_sec  ! inf. norm of secondary continuum rt residual
 
     PetscReal :: minimum_hydrostatic_pressure
 
@@ -175,9 +170,6 @@ module Option_module
     PetscBool :: force_newton_iteration
     PetscBool :: use_upwinding
     PetscBool :: out_of_table
-
-    ! Specify secondary continuum solver
-    PetscInt :: secondary_continuum_solver     ! Specify secondary continuum solver
 
     PetscInt :: subsurface_simulation_type
 
@@ -407,11 +399,8 @@ subroutine OptionInitRealization(option)
 
   option%use_isothermal = PETSC_FALSE
   option%use_matrix_free = PETSC_FALSE
-  option%use_mc = PETSC_FALSE
-  option%set_secondary_init_temp = PETSC_FALSE
   option%ice_model = UNINITIALIZED_INTEGER !PAINTER_EXPLICIT
   option%frzthw_halfwidth = UNINITIALIZED_DOUBLE
-  option%set_secondary_init_conc = PETSC_FALSE
 
   option%update_flow_perm = PETSC_FALSE
 
@@ -469,8 +458,6 @@ subroutine OptionInitRealization(option)
 
   option%converged = PETSC_FALSE
   option%convergence = CONVERGENCE_OFF
-
-  option%infnorm_res_sec = 0.d0
 
   option%minimum_hydrostatic_pressure = -1.d20
 
@@ -531,7 +518,6 @@ subroutine OptionInitRealization(option)
   option%use_matrix_buffer = PETSC_FALSE
   option%status = PROCEED
   option%force_newton_iteration = PETSC_FALSE
-  option%secondary_continuum_solver = 1
 
   ! initially set to a large value to effectively disable
   option%max_manning_velocity = 1.d20
@@ -575,9 +561,6 @@ subroutine OptionCheckCommandLine(option)
   call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
                            PETSC_NULL_CHARACTER, "-use_isothermal", &
                            option%use_isothermal, ierr);CHKERRQ(ierr)
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_mc", &
-                           option%use_mc, ierr);CHKERRQ(ierr)
 
   call PetscOptionsGetString(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
                              '-restart', option%restart_filename, &

@@ -350,7 +350,7 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
   PetscReal :: visl, dvis_dp, dvis_dt            ! liq. water viscosity
 
   PetscReal :: hw, hw_dp, hw_dt                  ! liq. water enthalpy
-  PetscReal :: u_ice, du_ice_dt
+  PetscReal :: u_ice, du_ice_dt                  ! liq. water internal energy
   PetscReal :: p_g, Tk_g
   PetscReal :: C_g
   PetscReal, parameter :: C_a  = 1.860d-3        ! in MJ/kg/K at 300K, air
@@ -462,7 +462,8 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
 
   !---------
   call EOSWaterDensity(max(tcmin, temperature),               &
-                        pres_l, dw_kg, dw_mol, dw_dp, dw_dt,ierr)
+                       max(option%reference_pressure,pres_l), &
+                        dw_kg, dw_mol, dw_dp, dw_dt,ierr)
   if (DTRUNC_FLAG) dw_dp = dw_dp * dpresl_dp
   if (DTRUNC_FLAG .and. temperature<tcmin) dw_dt = 0.d0
 
@@ -472,8 +473,9 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
   auxvar%dden_dp = dw_dp * FMWH2O
 
   !-----------
-  call EOSWaterEnthalpy(max(tcmin, temperature),              &
-                        pres_l, hw, hw_dp, hw_dt, ierr)
+  call EOSWaterEnthalpy(max(tcmin, temperature),               &
+                        max(option%reference_pressure,pres_l), &
+                        hw, hw_dp, hw_dt, ierr)
   if (DTRUNC_FLAG .and. temperature<tcmin) hw_dt = 0.d0
   hw = hw * option%scale         ! J/kmol -> MJ/kmol
   hw_dp = hw_dp * option%scale
@@ -498,7 +500,9 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
   ! the lowest Tk of 200 for vapor exists in EOS-h2o phase-diagram, but here make it consistent with 'Viscosity'
   if(DTRUNC_FLAG .and. temperature<=tcmin) dpsat_dt = 0.d0
 
-  call EOSWaterViscosity(max(tcmin,temperature), pres_l, psat, dpsat_dt, &
+  call EOSWaterViscosity(max(tcmin,temperature),       &
+                         pres_l,                       &
+                         psat, dpsat_dt,               &
                          visl, dvis_dt,dvis_dp, ierr)
   if(DTRUNC_FLAG .and. temperature<=tcmin) dvis_dt = 0.d0
   if(DTRUNC_FLAG) dvis_dp = dvis_dp*dpresl_dp
@@ -532,7 +536,8 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
   tcmin = -146.d0
 
   !---------------
-  call EOSWaterDensityIce(max(tcmin, temperature), pres_l,          &
+  call EOSWaterDensityIce(max(tcmin, temperature),               &
+                          max(option%reference_pressure,pres_l), &
                           den_ice, dden_ice_dT, dden_ice_dp, ierr)
   if(DTRUNC_FLAG) dden_ice_dp = dden_ice_dp * dpresl_dp
   if(DTRUNC_FLAG .and. temperature<=tcmin) dden_ice_dT = 0.d0
@@ -586,12 +591,12 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
   !----------
   ! NOTE: vapor 'molv_air' is included in 'den_air', 'u_air'
   ! (because 'molv_air', fraction of vapor in air-mixture, going to be as multiplier in all 'air' calculations in 'th.F90')
-!#ifdef NO_VAPOR_DIFFUSION
+#ifdef NO_VAPOR_DIFFUSION
   molv_air     = 0.d0   ! no vapor assumed in open-air
   dmolv_air_dt = 0.d0
   dmolv_air_dp = 0.d0
-!#else
-#if 0
+
+#else
   call EOSWaterSaturationPressure(Tk_g-TC2TK, psat, dpsat_dt, ierr)
   molv_air     = psat/p_g
   dmolv_air_dt = dpsat_dt/p_g
@@ -664,41 +669,29 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
 
   ! isothermal, i.e. hydrology only
   if(option%flow%isothermal_eq) then
-    ! liq.
-    ! no derivs w.r.t 'T'
-    auxvar%dsat_dt = 0.d0
-    auxvar%dden_dt = 0.d0
+    ! NO thermal conductivity and zeroing thermal states
+    auxvar%Dk_eff = 0.d0
+    auxvar%h      = 0.d0
+    auxvar%u      = 0.d0
+    auxvar%ice%u_ice       = 0.d0
+    auxvar%ice%u_air       = 0.d0
+
+#if 0
+! the following may not be needed
+    ! all deriv, except for 'sat', w.r.t. T should be zeroes
     auxvar%dkvr_dt = 0.d0
 
-    ! no energy states and its derivs w.r.t 'T'
-    auxvar%h       = 0.d0
-    auxvar%dh_dp   = 0.d0
-    auxvar%dh_dt   = 0.d0
-    auxvar%u       = 0.d0
-    auxvar%du_dp   = 0.d0
-    auxvar%du_dt   = 0.d0
-
-    ! ice
-    auxvar%ice%dsat_ice_dt = 0.d0
+    auxvar%dden_dt = 0.d0
     auxvar%ice%dden_ice_dt = 0.d0
-
-    auxvar%ice%u_ice       = 0.d0
-    auxvar%ice%du_ice_dp   = 0.d0
-    auxvar%ice%du_ice_dt   = 0.d0
-
-    ! air
-    auxvar%ice%dsat_air_dt = 0.d0
     auxvar%ice%dden_air_dt = 0.d0
     auxvar%ice%dmolv_air_dt= 0.d0
 
-    auxvar%ice%u_air       = 0.d0
-    auxvar%ice%du_air_dp   = 0.d0
-    auxvar%ice%du_air_dt   = 0.d0
-
-    ! NO thermal conductivity
-    auxvar%Dk_eff = 0.d0
-    auxvar%dDk_eff_dp = 0.d0
     auxvar%dDk_eff_dt = 0.d0
+    auxvar%dh_dt   = 0.d0
+    auxvar%du_dt   = 0.d0
+    auxvar%ice%du_ice_dt   = 0.d0
+    auxvar%ice%du_air_dt   = 0.d0
+#endif
 
   endif
 
@@ -709,8 +702,9 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
     auxvar%vis = 0.d0
     auxvar%kvr = 0.d0
 
-    ! all deriv w.r.t. Pressure should be zeroes
-    auxvar%dsat_dp = 0.d0
+#if 0
+! the following may not be needed
+    ! all deriv, except for 'sat', w.r.t. Pressure should be zeroes
     auxvar%dden_dp = 0.d0
     auxvar%dkvr_dp = 0.d0
 
@@ -719,12 +713,12 @@ subroutine THAuxVarCompute(x, auxvar, global_auxvar, &
 
     auxvar%ice%du_ice_dp   = 0.d0
 
-    auxvar%ice%dsat_air_dp = 0.d0
     auxvar%ice%dden_air_dp = 0.d0
     auxvar%ice%dmolv_air_dp= 0.d0
     auxvar%ice%du_air_dp   = 0.d0
 
     auxvar%dDk_eff_dp      = 0.d0
+#endif
   endif
 
 end subroutine THAuxVarCompute
@@ -791,10 +785,6 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
   dsg_dpl = 0.d0
   dsg_dt  = 0.d0
 
-  ice_presl    = pres_l
-  ice_presl_dpl= 1.d0
-  ice_presl_dt = 0.d0
-
   ! initial liq. saturation and derivatives
   call characteristic_curves%saturation_function%Saturation(pc, sli, dsli_dpl, option)  ! a note: in CC modules, already w.r.t 'pres_l' by dpc_dpres = -1.d0
   sl      = sli
@@ -803,6 +793,11 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
   sg      = 1.d0 - sl
   dsg_dpl = -dsl_dpl
   dsg_dt  = -dsl_dt
+
+  ice_presl    = pres_l
+  ice_presl_dpl= 1.d0
+  ice_presl_dt = 0.d0
+
 
   ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pres_l' and 'tc'
   !xplice = pc   ! liq. water PC at ice-liq interface (positive, if no ice it's pc by default)
@@ -924,6 +919,7 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,                &
 
   end select
   ! case option%ice_model
+
 
   if(sl/=sl .or. abs(sl)>huge(sl) .or. &
      si/=si .or. abs(si)>huge(si) .or. &

@@ -142,7 +142,7 @@ subroutine EOSRead(input,option)
                   end select
                 enddo
               case('IFC67','DEFAULT','BATZLE_AND_WANG','TGDPB01','PLANAR', &
-                   'TRANGENSTEIN')
+                   'TRANGENSTEIN','PAINTER')
               case default
                 call InputKeywordUnrecognized(word,'EOS,WATER,DENSITY',option)
             end select

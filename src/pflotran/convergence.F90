@@ -268,26 +268,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
           write(rsn_string,'(i3)') reason
       end select
 
-      if (option%use_mc) then
-        i = int(sec_reason) 
-        select case(i)
-          case(1)
-            sec_string = 'itol_res_sec'
-          case default
-            write(sec_string,'(i3)') sec_reason
-        end select
-        write(out_string,&
-             '(i3," 2r:",es9.2, &
-                & " 2x:",es9.2, &
-                & " 2u:",es9.2, &
-                & " ir:",es9.2, &
-                & " iu:",es9.2, &
-                & " irsec:",es9.2, &
-                & " rsn: ",a, ", ",a)') &
-                i_iteration, fnorm, xnorm, unorm, inorm_residual, &
-                inorm_update, option%infnorm_res_sec, &
-                trim(rsn_string), trim(sec_string)
-      else
+
         write(out_string,'(i3)') i_iteration
         icount = 5
         if (solver%convergence_2r) then
@@ -327,7 +308,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
         else
           out_string = trim(out_string) // ' rsn: ' // trim(rsn_string)
         endif
-      endif
+
       call OptionPrint(out_string,option)
     endif
   else
