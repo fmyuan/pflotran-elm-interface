@@ -78,10 +78,10 @@ module Output_Eclipse_module
 
   ! Mapping arrays (if allocated, released from ReleaseEwriterBuffers)
 
-  PetscInt,allocatable,dimension(:) :: e_atoc
+  PetscInt,allocatable :: e_atoc(:)
   PetscBool :: e_atoc_allocated = PETSC_FALSE
-  PetscInt,allocatable,dimension(:,:) :: e_ltocp
-  PetscInt,allocatable,dimension(:)   :: e_nlmaxp
+  PetscInt,allocatable :: e_ltocp(:,:)
+  PetscInt,allocatable :: e_nlmaxp(:)
   PetscBool :: e_ltoap_allocated = PETSC_FALSE
 
   ! The public interface to this module
@@ -134,9 +134,9 @@ subroutine WriteEclipseFilesGrid(efilename,nx,ny,nz,coord,zcorn,gtoa,nw,mcpw)
 
   character(len=*),intent(in) :: efilename
   PetscInt,intent(in) :: nx,ny,nz,nw,mcpw
-  PetscReal,dimension(:),intent(in) :: coord
-  PetscReal,dimension(:),intent(in) :: zcorn
-  PetscInt ,dimension(:),intent(in) :: gtoa
+  PetscReal,intent(in) :: coord(:)
+  PetscReal,intent(in) :: zcorn(:)
+  PetscInt ,intent(in) :: gtoa (:)
 
   character(len=MAXSTRINGLENGTH) :: specfn,summfn,gridfn,initfn,restfn
 
@@ -205,9 +205,10 @@ subroutine WriteEclipseFilesInit(kx,ky,kz,mx,my,mz, &
 
   implicit none
 
-  PetscReal,dimension(:),intent(in) :: kx,ky,kz,mx,my,mz,depth,poro,ntg,bvol
-  PetscInt,dimension(:),intent(in) :: gtoa
-  PetscInt,dimension(:),intent(in) :: atoc
+  PetscReal,intent(in) :: kx(:),ky(:),kz(:),mx(:),my(:),mz(:), &
+                          depth(:),poro(:),ntg(:),bvol(:)
+  PetscInt ,intent(in) :: gtoa(:)
+  PetscInt ,intent(in) :: atoc(:)
 
   if (e_opened) then
 
@@ -234,7 +235,7 @@ subroutine WriteEclipseFilesSpec(zm,zn,zu,ni)
 
   implicit none
 
-  character(len=8),dimension(:),intent(in) :: zm,zn,zu
+  character(len=8),intent(in) :: zm(:),zn(:),zu(:)
   PetscInt,intent(in):: ni
 
   if (e_opened) then
@@ -263,8 +264,8 @@ subroutine WriteEclipseFilesSumm(vd,nd)
 
   implicit none
 
-  PetscReal,intent(in),dimension(:) :: vd
-  PetscInt ,intent(in)              :: nd
+  PetscReal,intent(in) :: vd(:)
+  PetscInt ,intent(in) :: nd
 
   if (e_opened) then
 
@@ -298,13 +299,14 @@ subroutine WriteEclipseFilesRest( vsoll,nsol,zsol,tconv,time,is_ioproc, &
 
   implicit none
 
-  PetscReal,pointer,dimension(:,:)      :: vsoll
-  PetscInt                              :: nsol
-  character(len=8),pointer,dimension(:) :: zsol
+  PetscReal,pointer :: vsoll(:,:)
+  PetscInt          :: nsol
+  character(len=8),pointer :: zsol(:)
   PetscReal,intent(in) :: tconv,time
   PetscBool,intent(in) :: is_ioproc
-  character(len=8),dimension(:),intent(in) :: wname
-  PetscInt,dimension(:),intent(in) :: wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl
+  character(len=8),intent(in) :: wname(:)
+  PetscInt,intent(in) :: wtype(:),wncmpl(:), &
+                         ixcmpl(:),iycmpl(:),izcmpl(:),idcmpl(:)
   type(option_type),intent(in), pointer :: option
 
   ! Write the file
@@ -362,16 +364,16 @@ subroutine WriteSpecFile(vmnem,vwgname,vunits,ni)
 
   implicit none
 
-  character(len=8),dimension(:),intent(in) :: vmnem,vwgname,vunits
+  character(len=8),intent(in) :: vmnem(:),vwgname(:),vunits(:)
   PetscInt,intent(in):: ni
 
   PetscInt,parameter :: nDimens    = 6
   PetscInt,parameter :: nStartData = 6
 
-  PetscInt,dimension(nDimens   ) :: vdimens
-  PetscInt,dimension(nStartData) :: vstartdat
+  PetscInt :: vdimens(nDimens   )
+  PetscInt :: vstartdat(nStartData)
 
-  PetscInt,allocatable,dimension(:) :: vnums
+  PetscInt,allocatable :: vnums(:)
 
   ! Store the file pointer
 
@@ -425,9 +427,9 @@ subroutine WriteSummFile(vd,nd)
 
   implicit none
 
-  PetscReal,intent(in),dimension(:) :: vd
-  PetscInt ,intent(in)              :: nd
-  PetscInt,dimension(1) :: vi
+  PetscReal,intent(in) :: vd(:)
+  PetscInt ,intent(in) :: nd
+  PetscInt             :: vi(1)
 
   e_fileunit = UNIT_SUMM_WRITE
 
@@ -468,20 +470,21 @@ subroutine WriteGridFile(coord,zcorn,gtoa)
 
   implicit none
 
-  PetscReal,dimension(:),intent(in) :: coord
-  PetscReal,dimension(:),intent(in) :: zcorn
-  PetscInt ,dimension(:),intent(in) :: gtoa
+  PetscReal,intent(in) :: coord(:)
+  PetscReal,intent(in) :: zcorn(:)
+  PetscInt ,intent(in) :: gtoa(:)
 
-  PetscInt,dimension(3) :: vdimens
-  character(len=8),dimension(2) :: vgridunit
+  PetscInt :: vdimens(3)
+  character(len=8) :: vgridunit(2)
 
   PetscInt,parameter :: nCoords  =  7
   PetscInt,parameter :: nCorners = 24
 
-  PetscInt ,dimension(nCoords ) :: vcoords
-  PetscReal,dimension(nCorners) :: vcorners
+  PetscInt  :: vcoords (nCoords )
+  PetscReal :: vcorners(nCorners)
 
-  PetscReal,dimension(3) :: x000,x100,x010,x110,x001,x101,x011,x111
+  PetscReal :: x000(3),x100(3),x010(3),x110(3), &
+               x001(3),x101(3),x011(3),x111(3)
 
   PetscInt  :: ix,iy,izp,ize,igp,ige,ia
 
@@ -577,21 +580,22 @@ subroutine WriteInitFile(kx,ky,kz,mx,my,mz,depth,poro,ntg,bvol,gtoa,atoc)
 
   implicit none
 
-  PetscReal,dimension(:),intent(in) :: kx,ky,kz,mx,my,mz,depth,poro,ntg,bvol
-  PetscInt,dimension(:),intent(in) :: gtoa
-  PetscInt,dimension(:),intent(in) :: atoc
+  PetscReal,intent(in) :: kx(:),ky(:),kz(:),mx(:),my(:),mz(:), &
+                          depth(:),poro(:),ntg(:),bvol(:)
+  PetscInt,intent(in) :: gtoa(:)
+  PetscInt,intent(in) :: atoc(:)
 
   PetscReal,parameter :: flip = -1.0
   PetscReal,parameter :: nofl =  1.0
 
-  PetscInt ,dimension(nInteHead) :: intehead
-  PetscBool,dimension(nLogiHead) :: logihead
-  PetscReal,dimension(nDoubHead) :: doubhead
+  PetscInt  :: intehead(nInteHead)
+  PetscBool :: logihead(nLogiHead)
+  PetscReal :: doubhead(nDoubHead)
 
-  PetscInt,dimension(1) :: vi
+  PetscInt :: vi(1)
 
-  PetscReal,allocatable,dimension(:) :: porv
-  PetscReal,allocatable,dimension(:) :: buf
+  PetscReal,allocatable :: porv(:)
+  PetscReal,allocatable :: buf(:)
 
   PetscInt  :: ix,iy,ize,izp,ig,ia,na
   PetscReal :: cprm,cdef
@@ -696,24 +700,25 @@ subroutine WriteRestFile(vsoll,nsol,zsol,tconv,time,is_ioproc, &
 
   implicit none
 
-  PetscReal,pointer,dimension(:,:)      :: vsoll
-  PetscInt                              :: nsol
-  character(len=8),pointer,dimension(:) :: zsol
+  PetscReal,pointer        :: vsoll(:,:)
+  PetscInt                 :: nsol
+  character(len=8),pointer :: zsol(:)
   PetscReal :: tconv,time,tdays
   PetscBool,intent(in)             :: is_ioproc
-  character(len=8),dimension(:),intent(in) :: wname
-  PetscInt,dimension(:),intent(in) :: wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl
+  character(len=8),intent(in) :: wname(:)
+  PetscInt,intent(in) :: wtype(:),wncmpl(:), &
+                         ixcmpl(:),iycmpl(:),izcmpl(:),idcmpl(:)
 
   type(option_type),intent(in), pointer :: option
 
-  PetscInt ,dimension(nInteHead) :: intehead
-  PetscBool,dimension(nLogiHead) :: logihead
-  PetscReal,dimension(nDoubHead) :: doubhead
+  PetscInt  :: intehead(nInteHead)
+  PetscBool :: logihead(nLogiHead)
+  PetscReal :: doubhead(nDoubHead)
 
-  PetscInt,dimension(1) :: vi
+  PetscInt :: vi(1)
 
-  PetscReal,allocatable,dimension(:) :: varr
-  PetscReal,allocatable,dimension(:) :: vbuf
+  PetscReal,allocatable :: varr(:)
+  PetscReal,allocatable :: vbuf(:)
 
   PetscReal :: conv
   PetscBool :: is_pressure
@@ -849,22 +854,23 @@ subroutine WriteWells(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
 
   implicit none
 
-  character(len=8),dimension(:),intent(in) :: wname
-  PetscInt,dimension(:),intent(in) :: wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl
+  character(len=8),intent(in) :: wname(:)
+  PetscInt,intent(in) :: wtype(:),wncmpl(:), &
+                         ixcmpl(:),iycmpl(:),izcmpl(:),idcmpl(:)
 
-  PetscInt ,allocatable,dimension(:) :: igrp
-  PetscReal,allocatable,dimension(:) :: sgrp
-  PetscReal,allocatable,dimension(:) :: xgrp
-  character(len=8) ,allocatable,dimension(:) :: zgrp
+  PetscInt ,allocatable :: igrp(:)
+  PetscReal,allocatable :: sgrp(:)
+  PetscReal,allocatable :: xgrp(:)
+  character(len=8) ,allocatable :: zgrp(:)
 
-  PetscInt ,allocatable,dimension(:) :: iwel
-  PetscReal,allocatable,dimension(:) :: swel
-  PetscReal,allocatable,dimension(:) :: xwel
-  character(len=8) ,allocatable,dimension(:) :: zwel
+  PetscInt ,allocatable :: iwel(:)
+  PetscReal,allocatable :: swel(:)
+  PetscReal,allocatable :: xwel(:)
+  character(len=8) ,allocatable :: zwel(:)
 
-  PetscInt ,allocatable,dimension(:) :: icon
-  PetscReal,allocatable,dimension(:) :: scon
-  PetscReal,allocatable,dimension(:) :: xcon
+  PetscInt ,allocatable :: icon(:)
+  PetscReal,allocatable :: scon(:)
+  PetscReal,allocatable :: xcon(:)
 
   ! Set up default values
 
@@ -1082,7 +1088,7 @@ subroutine WriteBlockI(a,mnem,n)
 
   implicit none
 
-  PetscInt,dimension(:),intent(in) :: a
+  PetscInt,intent(in) :: a(:)
   character(len=*),intent(in) :: mnem
   PetscInt,intent(in) :: n
 
@@ -1090,7 +1096,7 @@ subroutine WriteBlockI(a,mnem,n)
   PetscInt,parameter :: mrecsize = 1000 ! Values/rec (unformatted)
 
   PetscInt :: il,iu,j,irec,nrec,ninrec
-  integer(kind=int32),allocatable,dimension(:) :: ibuf
+  integer(kind=int32),allocatable :: ibuf(:)
  
   ! Write out an integer header line or record
 
@@ -1143,7 +1149,7 @@ subroutine WriteBlockS(a,mnem,n)
 
   implicit none
 
-  PetscReal,dimension(:),intent(in) :: a
+  PetscReal,intent(in) :: a(:)
   character(len=*),intent(in) :: mnem
   PetscInt,intent(in) :: n
 
@@ -1151,7 +1157,7 @@ subroutine WriteBlockS(a,mnem,n)
   PetscInt,parameter :: mrecsize = 1000 ! Values/rec (unformatted)
 
   PetscInt :: il,iu,j,irec,nrec,ninrec
-  real(kind=real32),allocatable,dimension(:) :: fbuf
+  real(kind=real32),allocatable :: fbuf(:)
  
   ! Write out an single precision header line or record
 
@@ -1204,7 +1210,7 @@ subroutine WriteBlockD(a,mnem,n)
 
   implicit none
 
-  PetscReal,dimension(:),intent(in) :: a
+  PetscReal,intent(in) :: a(:)
   character(len=*),intent(in) :: mnem
   PetscInt,intent(in) :: n
 
@@ -1212,7 +1218,7 @@ subroutine WriteBlockD(a,mnem,n)
   PetscInt,parameter :: mrecsize = 1000 ! Values/rec (unformatted)
 
   PetscInt :: il,iu,j,irec,nrec,ninrec
-  real(kind=real64),allocatable,dimension(:) :: dbuf
+  real(kind=real64),allocatable :: dbuf(:)
 
   ! Write out an integer header line or record
 
@@ -1266,7 +1272,7 @@ subroutine WriteBlockB(a,mnem,n)
 
   implicit none
 
-  PetscBool,dimension(:),intent(in) :: a
+  PetscBool,intent(in) :: a(:)
   character(len=*),intent(in) :: mnem
   PetscInt,intent(in) :: n
 
@@ -1274,7 +1280,7 @@ subroutine WriteBlockB(a,mnem,n)
   PetscInt,parameter :: mrecsize = 1000 ! Values/rec (unformatted)
 
   PetscInt :: il,iu,j,irec,nrec,ninrec
-  integer(kind=int32),allocatable,dimension(:) :: ibuf
+  integer(kind=int32),allocatable :: ibuf(:)
 
   ! Write out an boolean header line or record
 
@@ -1327,7 +1333,7 @@ subroutine WriteBlockC(a,mnem,n)
 
   implicit none
 
-  character(len=8),dimension(:),intent(in) :: a
+  character(len=8),intent(in) :: a(:)
   character(len=*),intent(in) :: mnem
   PetscInt,intent(in) :: n
 
@@ -1421,9 +1427,9 @@ subroutine CmpToCNOBuf(buff,arr,porv,flip,conv)
 
   implicit none
 
-  PetscReal,dimension(:),intent(out) :: buff
-  PetscReal,dimension(:),intent(in)  :: arr
-  PetscReal,dimension(:),intent(in)  :: porv
+  PetscReal,intent(out) :: buff(:)
+  PetscReal,intent(in)  :: arr (:)
+  PetscReal,intent(in)  :: porv(:)
   PetscReal,intent(in) :: flip
   PetscReal,intent(in) :: conv
 
@@ -1458,8 +1464,8 @@ subroutine CopyToBufferI(a,ibuf,il,iu)
 
   implicit none
 
-  PetscInt,dimension(:),intent(in) :: a
-  integer(kind=int32),dimension(:),intent(out):: ibuf
+  PetscInt,intent(in) :: a(:)
+  integer(kind=int32),intent(out):: ibuf(:)
   PetscInt,intent(in) :: il,iu
 
   PetscInt :: i
@@ -1481,8 +1487,8 @@ subroutine CopyToBufferS(a,sbuf,il,iu)
 
   implicit none
 
-  PetscReal,dimension(:),intent(in) :: a
-  real(kind=real32),dimension(:),intent(out):: sbuf
+  PetscReal,intent(in) :: a(:)
+  real(kind=real32),intent(out):: sbuf(:)
   PetscInt,intent(in) :: il,iu
 
   PetscInt :: i
@@ -1504,8 +1510,8 @@ subroutine CopyToBufferD(a,dbuf,il,iu)
 
   implicit none
 
-  PetscReal,dimension(:),intent(in) :: a
-  real(kind=real64),dimension(:),intent(out):: dbuf
+  PetscReal,intent(in) :: a(:)
+  real(kind=real64),intent(out):: dbuf(:)
   PetscInt,intent(in) :: il,iu
 
   PetscInt :: i
@@ -1527,8 +1533,8 @@ subroutine CopyToBufferB(a,ibuf,il,iu)
 
   implicit none
 
-  PetscBool,dimension(:),intent(in) :: a
-  integer(kind=int32),dimension(:),intent(out) :: ibuf
+  PetscBool,intent(in) :: a(:)
+  integer(kind=int32),intent(out) :: ibuf(:)
   PetscInt,intent(in) :: il,iu
 
   PetscInt :: i
@@ -1598,7 +1604,7 @@ subroutine SetInteHead(intehead)
 
   implicit none
 
-  PetscInt,dimension(:) :: intehead
+  PetscInt :: intehead(:)
 
   intehead( 3) = 1           ! Metric units
   intehead( 9) = e_nx         ! x-dimension
@@ -1671,7 +1677,7 @@ subroutine SetupRestMaps(ltoa,option,nlmax,mlmax)
 
   implicit none
 
-  PetscInt,dimension(:) :: ltoa
+  PetscInt :: ltoa(:)
   type(option_type) :: option
   PetscInt,intent(in) ::nlmax,mlmax
 
@@ -1799,12 +1805,9 @@ subroutine GetYMDHMMS(tdays,years,months,days,hours,mins,microsecs)
 
   ! Days/month normal and leap years
 
-  PetscInt,parameter,dimension(12) :: dimn= &
-  !                                     Ja Fe Ma Ap Ma Ju Jl Au Sp Oc No De
-                                      (/31,28,31,30,31,30,31,31,30,31,30,31/)
-  PetscInt,parameter,dimension(12) :: diml= &
-  !                                     Ja Fe Ma Ap Ma Ju Jl Au Sp Oc No De
-                                      (/31,29,31,30,31,30,31,31,30,31,30,31/)
+  !                                  Ja Fe Ma Ap Ma Ju Jl Au Sp Oc No De
+  PetscInt,parameter :: dimn(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
+  PetscInt,parameter :: diml(12) = (/31,29,31,30,31,30,31,31,30,31,30,31/)
 
   ! Days in each 4-year leap year block
 
