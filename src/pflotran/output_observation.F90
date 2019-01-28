@@ -3248,9 +3248,9 @@ subroutine WriteWellHeaders(fid,icol,realization,towg_miscibility_model,wecl)
   PetscInt :: iwell,nwell,ni,mi
   character(len=MAXSTRINGLENGTH) :: name
 
-  character(len=8),allocatable,dimension(:) :: zm
-  character(len=8),allocatable,dimension(:) :: zn
-  character(len=8),allocatable,dimension(:) :: zu
+  character(len=8),allocatable :: zm(:)
+  character(len=8),allocatable :: zn(:)
+  character(len=8),allocatable :: zu(:)
 
 ! Write out Eclipse files if required
 
@@ -3493,8 +3493,8 @@ subroutine WriteWellValues(fid,realization,tconv,towg_miscibility_model, &
                fspr,fspt,fsir,fsit, &
                flpr,flpt,fgor,fwct,fpav
 
-  PetscReal,pointer,dimension(:) :: vd
-  PetscInt                       :: nd,md
+  PetscReal,pointer :: vd(:)
+  PetscInt          :: nd,md
 
   nd = 0
 
@@ -3910,12 +3910,13 @@ subroutine WriteRestValues(realization,tconv,option)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
 
-  PetscReal,pointer,dimension(:,:)     :: vsoll
-  PetscInt                             :: nsol
-  character(len=8),pointer,dimension(:):: zsol
+  PetscReal,pointer       :: vsoll(:,:)
+  PetscInt                :: nsol
+  character(len=8),pointer:: zsol(:)
 
-  character(len=8),pointer,dimension(:):: wname
-  PetscInt,pointer,dimension(:)::wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl
+  character(len=8),pointer:: wname(:)
+  PetscInt,pointer:: wtype(:),wncmpl(:), &
+                     ixcmpl(:),iycmpl(:),izcmpl(:),idcmpl(:)
 
   PetscReal :: time
 
@@ -4082,8 +4083,9 @@ subroutine setupWellData(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl, &
 
   implicit none
 
-  character(len=8),pointer,dimension(:) :: wname
-  PetscInt,pointer,dimension(:) :: wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl
+  character(len=8),pointer :: wname(:)
+  PetscInt,pointer :: wtype(:),wncmpl(:), &
+                      ixcmpl(:),iycmpl(:),izcmpl(:),idcmpl(:)
   type(well_data_list_type),pointer :: well_data_list
 
   PetscInt :: iw,nw,mw,ic,ncg,nct,mct,ci,cj,ck,cdd,welltype
@@ -4146,8 +4148,9 @@ subroutine DeleteWellData(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
 
   implicit none
 
-  character(len=8),pointer,dimension(:):: wname
-  PetscInt,pointer,dimension(:)::wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl
+  character(len=8),pointer:: wname(:)
+  PetscInt,pointer::wtype(:),wncmpl(:), &
+                    ixcmpl(:),iycmpl(:),izcmpl(:),idcmpl(:)
 
   deallocate(wname )
   deallocate(wtype )
@@ -4171,10 +4174,10 @@ subroutine allocateLocalSolution(vsoll,nsol,zsol,nlmax)
 
   implicit none
 
-  PetscReal,pointer,dimension(:,:)      :: vsoll
-  PetscInt                              :: nsol
-  character(len=8),pointer,dimension(:) :: zsol
-  PetscInt,intent(in)                   :: nlmax
+  PetscReal,pointer        :: vsoll(:,:)
+  PetscInt                 :: nsol
+  character(len=8),pointer :: zsol(:)
+  PetscInt,intent(in)      :: nlmax
 
   nsol = 4
   allocate(vsoll(nlmax,nsol))
@@ -4203,9 +4206,9 @@ subroutine loadLocalSolution(vsoll,nsol,zsol,patch,grid,option)
 
   implicit none
 
-  PetscReal,pointer,dimension(:,:)     :: vsoll
-  PetscInt                             :: nsol
-  character(len=8),pointer,dimension(:):: zsol
+  PetscReal,pointer        :: vsoll(:,:)
+  PetscInt                 :: nsol
+  character(len=8),pointer :: zsol(:)
 
   type(patch_type), pointer :: patch
   type(grid_type ), pointer :: grid
@@ -4239,8 +4242,8 @@ subroutine deleteLocalSolution(vsoll,zsol)
 
   implicit none
 
-  PetscReal,pointer,dimension(:,:)     :: vsoll
-  character(len=8),pointer,dimension(:):: zsol
+  PetscReal,pointer        :: vsoll(:,:)
+  character(len=8),pointer :: zsol(:)
 
   deallocate(vsoll)
   deallocate(zsol )
@@ -4264,7 +4267,7 @@ subroutine WrtHdrAndSpc(fid,mnem,name,units,icolumn,zm,zn,zu,ni,mi,wecl)
   PetscInt :: fid
   character(len=*),intent(in) :: mnem,name,units
   PetscInt,intent(in)::icolumn
-  character(len=8),allocatable,dimension(:),intent(inout) :: zm,zn,zu
+  character(len=8),allocatable,intent(inout) :: zm(:),zn(:),zu(:)
   PetscInt,intent(inout) :: ni
   PetscInt,intent(inout) :: mi
   PetscBool,intent(in) :: wecl
@@ -4343,7 +4346,7 @@ subroutine wrtToTableAndSumm(fid,val,vd,nd,md,wecl)
 
   PetscInt  :: fid
   PetscReal :: val
-  PetscReal,dimension(:),pointer :: vd
+  PetscReal,pointer :: vd(:)
   PetscInt,intent(inout) :: nd
   PetscInt,intent(in) :: md
   PetscBool,intent(in) :: wecl
@@ -4399,11 +4402,11 @@ subroutine checkHeaderBufferSize(zm,zn,zu,ni,mi)
 
   implicit none
 
-  character(len=8),allocatable,dimension(:),intent(inout) :: zm,zn,zu
+  character(len=8),allocatable,intent(inout) :: zm(:),zn(:),zu(:)
   PetscInt,intent(inout) :: ni
   PetscInt,intent(inout) :: mi
 
-  character(len=8),allocatable,dimension(:) :: zmt,znt,zut
+  character(len=8),allocatable :: zmt(:),znt(:),zut(:)
   PetscInt::i
 
 ! Check if buffer as space for anaother set of values; reallocate if not
@@ -4483,7 +4486,7 @@ subroutine setupEwriterRestMaps(patch,grid,option)
 
   PetscInt::mlmax
 
-  PetscInt,allocatable,dimension(:)::ltoa
+  PetscInt,allocatable::ltoa(:)
 
 !  First, find the maximum value of nlmax over all procs
 
