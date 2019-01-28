@@ -474,7 +474,7 @@ subroutine doWellMPISetup(option,num_well,well_data_list)
 
   call WellSetGlobalInfoSet()
 
-!  Free completion count buffers
+  ! Free completion count buffers
 
   deallocate(ncpr   )
   deallocate(ncprall)

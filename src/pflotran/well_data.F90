@@ -260,7 +260,7 @@ module Well_Data_class
 
 contains
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WellDataSetFlag()
   !
@@ -292,7 +292,7 @@ function WellDataGetFlag()
 
 end function WellDataGetFlag
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 function WellDataCreate()
   !
@@ -313,7 +313,7 @@ function WellDataCreate()
 
 end function WellDataCreate
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WellDataInit(this)
   !
@@ -682,7 +682,7 @@ subroutine WellDataRead(this,input,option,waytime,nwaytime,mwaytime)
 
 end subroutine WellDataRead
 
-! *************************************************************************** !
+! ************************************************************************** !
 
 subroutine WellDataAddToList(new_well_data,list)
   !
@@ -1573,7 +1573,7 @@ function GetTypeInList(this)
 
 end function GetTypeInList
 
-!*****************************************************************************!
+! ************************************************************************** !
 
 subroutine SetTTInList(this,w_TT)
   !
@@ -1591,7 +1591,7 @@ subroutine SetTTInList(this,w_TT)
 
 end subroutine SetTTInList
 
-!*****************************************************************************!
+! ************************************************************************** !
 
 subroutine SetNCompInList(this,ncomp)
   !
@@ -1609,7 +1609,7 @@ subroutine SetNCompInList(this,ncomp)
 
 end subroutine SetNCompInList
 
-!*****************************************************************************!
+! ************************************************************************** !
 
 subroutine SetWellFlowsInList(this,wellflows,ncompe)
   !

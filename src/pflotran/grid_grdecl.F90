@@ -1973,7 +1973,7 @@ subroutine FillXYPositionsForLayer(iz)
   PetscInt :: ix,iy,ig
   PetscReal :: sum,dx,dy
 
-! Fill in x-locations for each y-row
+  ! Fill in x-locations for each y-row
 
   do iy = 1,g_ny
     sum = 0.0
@@ -1985,7 +1985,7 @@ subroutine FillXYPositionsForLayer(iz)
     enddo
   enddo
 
-! Fill in y-locations for each x-row
+  ! Fill in y-locations for each x-row
 
   do ix = 1,g_nx
     sum = 0.0
