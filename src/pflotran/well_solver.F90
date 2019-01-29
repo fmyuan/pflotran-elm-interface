@@ -3370,7 +3370,7 @@ function invertGauss(j, jinv, n)
   do ir=1, n
     do ic=1, n
       a(ir, ic)=j(ir, ic)
-      if( ir==ic ) e(ir, ic)=1.0
+      if( ir == ic ) e(ir, ic)=1.0
     enddo
     ip(ir)=ir
   enddo

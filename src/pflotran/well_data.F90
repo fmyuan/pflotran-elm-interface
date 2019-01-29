@@ -61,7 +61,7 @@ module Well_Data_class
 
       private
 
-      character(len=MAXSTRINGLENGTH), public :: w_name ! well name
+      character(len = MAXSTRINGLENGTH), public :: w_name ! well name
       PetscInt  :: w_index                            ! well index
       PetscInt  :: w_itype                            ! well integer type
 
@@ -748,7 +748,7 @@ subroutine WellDataDestroyList(well_data_list, option)
     ! Report warnings
 
     if (option%io_rank == option%myrank) then
-      nwarn=unconv_tg+unconv_wg+unconv_bg
+      nwarn = unconv_tg+unconv_wg+unconv_bg
       if (nwarn>0) then
         print *, 'Well model convergence failure counts:'
         if (unconv_tg > 0) print *, unconv_tg, ' mode selection'
@@ -959,7 +959,7 @@ subroutine getWellNameI(iwell, list, name)
 
   PetscInt, intent(in) :: iwell
   type(well_data_list_type), pointer :: list
-  character(len=MAXSTRINGLENGTH), intent(out) :: name
+  character(len = MAXSTRINGLENGTH), intent(out) :: name
 
   class(well_data_type), pointer :: well_data
   PetscBool :: found
@@ -2618,10 +2618,10 @@ subroutine CheckCompletionCount(this)
   PetscInt :: mold, mnew, nreq
   PetscReal :: vneg, vzero, vunity, vrdef
 
-  vneg   =-1.0
-  vzero  = 0.0
-  vunity = 1.0
-  vrdef  = 0.25
+  vneg   = -1.0
+  vzero  =  0.0
+  vunity =  1.0
+  vrdef  =  0.25
 
   if ( this%w_mCmpl == 0 .or. (this%w_ncmpl >= this%w_mcmpl) ) then
 
@@ -2962,8 +2962,8 @@ subroutine FindGroupTotals(list)
   PetscInt :: iw, nw, itt
   PetscReal :: gtotp, gtoti, wtotp, wtoti
 
-  list%f_totalP =0.0
-  list%f_totalI =0.0
+  list%f_totalP = 0.0
+  list%f_totalI = 0.0
 
   nw = list%num_well
 
@@ -3023,7 +3023,7 @@ subroutine throwWellDataException(message)
 
   implicit none
 
-  character(len=*) :: message
+  character(len = *) :: message
   print *, message
   stop
 end subroutine throwWellDataException

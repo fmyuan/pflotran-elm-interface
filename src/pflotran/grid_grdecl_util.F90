@@ -12,7 +12,7 @@ module Grid_Grdecl_Util_module
   public:: GetMDtoM2Conv
   public:: GetM2toMDConv
 
-  PetscReal, parameter :: e_atm=1.01325
+  PetscReal, parameter :: e_atm = 1.01325
 
   contains
 
@@ -124,7 +124,7 @@ subroutine fillGeoCorner(x0, x1, d0, d1, xl, yl, zl, xu ,yu ,zu)
     f1 = 0.5
   endif
 
-  ! Fill in values (if d0=zu, then f0=1 and x0->(xu,yu,zu)
+  ! Fill in values (if d0 = zu, then f0 = 1 and x0->(xu,yu,zu)
 
   x0(1) = xl+f0*(xu-xl)
   x1(1) = xl+f1*(xu-xl)

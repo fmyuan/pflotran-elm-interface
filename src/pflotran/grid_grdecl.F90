@@ -106,7 +106,7 @@ module Grid_Grdecl_module
 
   PetscInt :: g_column = 1
 
-  character(len=MAXSTRINGLENGTH) :: g_error_string = 'OK'
+  character(len = MAXSTRINGLENGTH) :: g_error_string = 'OK'
   PetscInt :: g_error_flag = 0
 
   ! Public access to this module
@@ -130,7 +130,7 @@ module Grid_Grdecl_module
 
     private
 
-    character(len=MAXSTRINGLENGTH), public :: w_name ! well name
+    character(len = MAXSTRINGLENGTH), public :: w_name ! well name
 
     PetscInt :: ikl
     PetscInt :: iku
@@ -195,7 +195,7 @@ subroutine UGrdEclExplicitRead(unstructured_grid, filename, option)
 
   type(grid_unstructured_type) :: unstructured_grid 
   type(unstructured_explicit_type), pointer :: explicit_grid
-  character(len=MAXSTRINGLENGTH) :: filename
+  character(len = MAXSTRINGLENGTH) :: filename
   type(input_type), pointer :: input
   type(option_type) :: option
   PetscInt :: fileid, ierr
@@ -317,7 +317,7 @@ subroutine SetUGrdEclCmplLocation(wname, ci, cj, ckuser, cijk_d, qerr)
 
   implicit none
 
-  character(len=*), intent(in)    :: wname
+  character(len = *), intent(in)    :: wname
   PetscInt        , intent(in)    :: ci, cj, ckuser
   PetscBool       , intent(in)    :: cijk_d
   PetscBool       , intent(inout) :: qerr
@@ -528,8 +528,8 @@ subroutine GrdeclReader(input, option)
 
   PetscInt  :: nx, ny, nz, ierr
   PetscBool :: qerr
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXSTRINGLENGTH) :: zmess
+  character(len = MAXWORDLENGTH) :: word
+  character(len = MAXSTRINGLENGTH) :: zmess
 
   ierr = 0
   qerr = PETSC_FALSE
@@ -679,7 +679,7 @@ subroutine CheckError(input, zerr, qerr)
   implicit none
 
   type(input_type), pointer :: input
-  character(len=*):: zerr
+  character(len = *):: zerr
   PetscBool, intent(inout) :: qerr
 
   PetscInt :: ierr
@@ -706,7 +706,7 @@ subroutine SetError(zerr)
 
   implicit none
 
-  character(len=*) :: zerr
+  character(len = *) :: zerr
 
   g_error_flag = 1
   g_error_string = zerr
@@ -869,7 +869,7 @@ subroutine ProcessWellData(qerr)
   PetscInt :: ik, jk, jw, ikl, iku, ncmpl_active
   PetscBool, intent(inout) :: qerr
 
-  character(len=MAXSTRINGLENGTH) :: wname, zmess
+  character(len = MAXSTRINGLENGTH) :: wname, zmess
 
   ! Loop over wells found, loading completion data into single big array
 
@@ -963,8 +963,8 @@ subroutine ProcessWellData(qerr)
 
       ! Default range will zero-trip
 
-      ikl = 0
-      iku =-1
+      ikl =  0
+      iku = -1
 
       do ik = 1, g_ncmpl_data
         jw = g_cmpl_data(ik)%iw
@@ -1255,7 +1255,7 @@ subroutine DistributeConnections(explicit_grid, option)
           temp_real_array(3, icl) =      g_ccx  (ic)
           temp_real_array(4, icl) =      g_ccy  (ic)
           temp_real_array(5, icl) =      g_ccz  (ic)
-          temp_real_array(6, icl)=       g_carea(ic)
+          temp_real_array(6, icl) =      g_carea(ic)
         enddo
         call MPI_Send(temp_real_array, int_mpi, MPI_DOUBLE_PRECISION, irank, &
                       ncrank, option%mycomm, ierr)
@@ -1351,7 +1351,7 @@ subroutine CreateElements(unstructured_grid, explicit_grid)
                      x001, x101, x011, x111, &
                      g_coord, g_zcorn, g_nx, g_ny )
 
-    explicit_grid%cell_vertices(0, ia)=nVertPerCell
+    explicit_grid%cell_vertices(0, ia) = nVertPerCell
 
     do iox = 1, 2
       do ioy = 1, 2
@@ -1897,7 +1897,7 @@ subroutine GetLocalCount(ng, nl, nls, rem, option)
   nls = nl
 
   rem = ng - nl*option%mycommsize
-  if (option%myrank < rem) nl =nl + 1
+  if (option%myrank < rem) nl = nl + 1
 
 end subroutine GetLocalCount
 
@@ -1996,8 +1996,8 @@ subroutine FillXYPositionsForLayer(iz)
     do iy = 1, g_ny
       ig  = GetNaturalIndex(ix, iy, iz)
       dy  = g_dy(ig)
-      g_yloc(ig)= sum + 0.5*dy
-      sum       = sum +     dy
+      g_yloc(ig) = sum + 0.5*dy
+      sum        = sum +     dy
     enddo
   enddo
 
@@ -2309,13 +2309,13 @@ subroutine GetNextWord(word, exitTime, input, option)
 
   implicit none
 
-  character(len=*), intent(out  ) :: word
+  character(len = *), intent(out  ) :: word
   PetscBool, intent(out) :: exitTime
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: line
-  character(len=MAXWORDLENGTH  ) :: test
+  character(len = MAXSTRINGLENGTH) :: line
+  character(len = MAXWORDLENGTH  ) :: test
 
   character c
   PetscInt :: i, l, j, startcol, ic
@@ -2435,7 +2435,7 @@ subroutine ReadEGridArrayI(a, keyword, ierr, input, option, qerr)
   implicit none
 
   PetscInt, intent(inout) :: a(:)
-  character(len=*) :: keyword
+  character(len = *) :: keyword
   PetscInt, intent(out) :: ierr
   type(input_type), pointer :: input
   type(option_type) :: option
@@ -2506,7 +2506,7 @@ subroutine ReadEGridArrayR(a, keyword, ierr, input, option, is_dep, is_perm, qer
   implicit none
 
   PetscReal, intent(inout) :: a(:)
-  character(len=*) :: keyword
+  character(len = *) :: keyword
   PetscInt, intent(out) :: ierr
   type(input_type), pointer :: input
   type(option_type) :: option
@@ -2713,8 +2713,8 @@ subroutine ReadEvalues(a, n, keyword, section, ierr, input, option, qerr)
 
   PetscReal, intent(inout) :: a(:)
   PetscInt , intent(in)    :: n
-  character(len=*) :: keyword
-  character(len=*) :: section
+  character(len = *) :: keyword
+  character(len = *) :: section
   PetscInt, intent(out) :: ierr
   type(input_type), pointer :: input
   type(option_type) :: option
@@ -2723,9 +2723,9 @@ subroutine ReadEvalues(a, n, keyword, section, ierr, input, option, qerr)
   PetscInt  :: i, iostat, istar, nstack
   PetscReal :: dval
   PetscBool :: exittime
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: repc
-  character(len=MAXWORDLENGTH) :: hold
+  character(len = MAXWORDLENGTH) :: word
+  character(len = MAXWORDLENGTH) :: repc
+  character(len = MAXWORDLENGTH) :: hold
 
   ierr   = 0
   qerr   = PETSC_FALSE
@@ -2764,14 +2764,14 @@ subroutine ReadEvalues(a, n, keyword, section, ierr, input, option, qerr)
         if (istar > 0) then
           repc = word(:istar-1)
           hold = word(istar+1:)
-          read(repc, *, iostat=ierr) nstack
+          read(repc, *, iostat = ierr) nstack
           word = hold
           nstack = nstack - 1
         endif
 
         ! Read the actual value
 
-        read(word, *, iostat=ierr) dval
+        read(word, *, iostat = ierr) dval
         if ( ierr /= 0) then
           call InputErrorMsg(input, option, keyword, section)
           ierr = 1
@@ -2854,8 +2854,8 @@ function FindWellIndex(name, iw)
   implicit none
 
   PetscBool :: FindWellIndex
-  character(len=*), intent(in ) :: name
-  PetscInt        , intent(out) :: iw
+  character(len = *), intent(in ) :: name
+  PetscInt          , intent(out) :: iw
 
   PetscInt :: jw
 
@@ -2888,7 +2888,7 @@ function GetGrdNCmpl(iw)
   PetscInt, intent(in) :: iw
 
  if (iw <= g_nwell_data) then
-   GetGrdNCmpl =g_well_data(iw)%iku - g_well_data(iw)%ikl + 1
+   GetGrdNCmpl = g_well_data(iw)%iku - g_well_data(iw)%ikl + 1
  else
    GetGrdNCmpl = 0
  endif
@@ -3048,7 +3048,7 @@ subroutine PermPoroExchangeAndSet(poro_p, permx_p, permy_p, permz_p, &
         temp_int_array(1) = 0
         call MPI_Recv(temp_int_array, ONE_INTEGER_MPI, MPI_INTEGER, &
                       irank, MPI_ANY_TAG, option%mycomm, status_mpi, ierr)
-        nlo    =temp_int_array(1)
+        nlo    = temp_int_array(1)
 
         ! Allocate work array to hold the received natural addresses
 
