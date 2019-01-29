@@ -1725,12 +1725,6 @@ endif
         x(TOWG_BUBBLE_POINT_3PH_DOF)  =auxvar%pres(oid)-epsp
         ! make sure this bool is still correct:
         isSat = PETSC_FALSE 
-
-       else if ( (auxvar%sat(gid)<(-epseps)) ) then
-        !!! EXPERIMENTAL 
-        !!! gas sat shouldn't be negative. just zero it out and don't change state?
-        auxvar%sat(gid)               =0.0d0
-
       endif
     else
       if(      (auxvar%bo%bubble_point > auxvar%pres(oid)) &
@@ -2509,18 +2503,16 @@ endif
   !!! usually if krx zero implies corresponding sat is zero and then
   !!! might also have visxtl zero - which is very bad indeed.
 
+#if 0
   if (kro > 0.0) auxvar%mobility(oid) = kro/visotl
   if (krg > 0.0) auxvar%mobility(gid) = krg/visgtl
   if (krs > 0.0) auxvar%mobility(sid) = krs/visstl
-#if 0
+#endif
   auxvar%mobility(oid) = kro/visotl
   auxvar%mobility(gid) = krg/visgtl
   auxvar%mobility(sid) = krs/visstl
-#endif
 
-  if (auxvar%mobility(sid) < 0.d0) then 
-    print *, "negative solvent mob?" 
-  endif
+#if 0
   if (isnan(auxvar%mobility(oid))) then
     print *, "nan mob oil"
   endif
@@ -2530,6 +2522,7 @@ endif
   if (isnan(auxvar%mobility(sid))) then
     print *, "nan mob slv"
   endif
+#endif
 
 !------------------------------------------------------------------------------
 !  Load densities
