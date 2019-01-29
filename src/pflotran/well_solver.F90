@@ -436,7 +436,7 @@ subroutine doWellMPISetup(option, num_well, well_data_list)
   ! Do a gather to find out where the other rank completions are
 
     ierr = 0
-    call MPI_ALLREDUCE(ncpr, ncprall, comm_size, &
+    call MPI_Allreduce(ncpr, ncprall, comm_size, &
                        MPI_INTEGER, MPI_SUM, option%mycomm, ierr)
 
   ! Is this a multi-proc well?
@@ -461,8 +461,8 @@ subroutine doWellMPISetup(option, num_well, well_data_list)
 
     if ( ismp ) then
 
-      call MPI_GROUP_INCL (option%mygroup, nrankw, rfortw, group, ierr)
-      call MPI_COMM_CREATE(option%mycomm, option%mygroup, comm, ierr)
+      call MPI_Group_incl (option%mygroup, nrankw, rfortw, group, ierr)
+      call MPI_Comm_create(option%mycomm, option%mygroup, comm, ierr)
 
     endif
 
@@ -865,7 +865,7 @@ function solveForWellTarget(pw, option, itt, jwwi)
     if (w_crossproc) then
       ierr = 0
       bl(1) = Rw
-      call MPI_ALLREDUCE(bl, bg, ONE_INTEGER, &
+      call MPI_Allreduce(bl, bg, ONE_INTEGER, &
                          MPI_DOUBLE_PRECISION, MPI_MAX, w_comm, ierr)
       Rw = bg(1)
     endif
@@ -1954,7 +1954,7 @@ subroutine findWellboreSolution(pw, option)
     if (w_crossproc) then
       ierr = 0
       bl(1) = Rnorm
-      call MPI_ALLREDUCE(bl, bg, ONE_INTEGER, &
+      call MPI_Allreduce(bl, bg, ONE_INTEGER, &
                          MPI_DOUBLE_PRECISION, MPI_SUM, w_comm, ierr)
       Rnorm = bg(1)
     endif
@@ -2498,7 +2498,7 @@ subroutine findWellboreGravityDensityPredictor()
     sl(2) = sumgds
     sl(3) = summ
     sl(4) = sums
-    call MPI_ALLREDUCE(sl, sg, FOUR_INTEGER, &
+    call MPI_Allreduce(sl, sg, FOUR_INTEGER, &
                        MPI_DOUBLE_PRECISION, MPI_SUM, w_comm, ierr)
     sumgdm = sg(1)
     sumgds = sg(2)

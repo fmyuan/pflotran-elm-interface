@@ -812,7 +812,7 @@ subroutine WriteRestFile(vsoll, nsol, zsol, tconv, time, is_ioproc, &
         if (iproco .ne. option%io_rank) then
           liproco = iproco+1
           nlmaxo  = e_nlmaxp(liproco)
-          call MPI_RECV(vbuf, nlmaxo, MPI_DOUBLE_PRECISION, iproco, &
+          call MPI_Recv(vbuf, nlmaxo, MPI_DOUBLE_PRECISION, iproco, &
                         MPI_ANY_TAG, option%mycomm, status_mpi, ierr)
           do il = 1, nlmaxo
             ic = e_ltocp(il, liproco)
@@ -827,7 +827,7 @@ subroutine WriteRestFile(vsoll, nsol, zsol, tconv, time, is_ioproc, &
      do il = 1, e_nlmax
        vbuf(il) = vsoll(il, isol)
      enddo
-     call MPI_SEND(vbuf, e_nlmax, MPI_DOUBLE_PRECISION, ioproc, &
+     call MPI_Send(vbuf, e_nlmax, MPI_DOUBLE_PRECISION, ioproc, &
                    itag, option%mycomm, ierr)
     endif
 
@@ -1732,7 +1732,7 @@ subroutine SetupRestMaps(ltoa, option, nlmax, mlmax)
 
         ! Receive nlmax value from other proc
 
-        call MPI_RECV(ibuf1, nbuf1, MPI_INTEGER, iproco, MPI_ANY_TAG, &
+        call MPI_Recv(ibuf1, nbuf1, MPI_INTEGER, iproco, MPI_ANY_TAG, &
                       option%mycomm, status_mpi, ierr)
 
         ! Store other-proc nlmax value
@@ -1743,7 +1743,7 @@ subroutine SetupRestMaps(ltoa, option, nlmax, mlmax)
 
         ! Receive ltoa map from other proc (temporary store in ltoa)
 
-        call MPI_RECV(ltoa, nlmaxo, MPI_INTEGER, iproco, MPI_ANY_TAG, &
+        call MPI_Recv(ltoa, nlmaxo, MPI_INTEGER, iproco, MPI_ANY_TAG, &
                       option%mycomm, status_mpi, ierr)
 
         ! Copy ltoa into all-proc array
@@ -1761,8 +1761,8 @@ subroutine SetupRestMaps(ltoa, option, nlmax, mlmax)
     ! Send to the IO proc
 
     ibuf1(1) = nlmax
-    call MPI_SEND(ibuf1, nbuf1, MPI_INTEGER, ioproc, itag, option%mycomm, ierr)
-    call MPI_SEND(ltoa , nlmax, MPI_INTEGER, ioproc, itag, option%mycomm, ierr)
+    call MPI_Send(ibuf1, nbuf1, MPI_INTEGER, ioproc, itag, option%mycomm, ierr)
+    call MPI_Send(ltoa , nlmax, MPI_INTEGER, ioproc, itag, option%mycomm, ierr)
 
   endif
 
