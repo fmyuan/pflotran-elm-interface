@@ -29,12 +29,12 @@ module Well_Data_class
 
   ! Well target rate array types: target, actual and total flags
 
-  PetscInt, parameter,public :: VALTYPE_TARGET    = 1
-  PetscInt, parameter,public :: VALTYPE_ACTUAL    = 2
-  PetscInt, parameter,public :: VALTYPE_ACTUALP   = 3
-  PetscInt, parameter,public :: VALTYPE_ACTUALI   = 4
-  PetscInt, parameter,public :: VALTYPE_TOTALP    = 5
-  PetscInt, parameter,public :: VALTYPE_TOTALI    = 6
+  PetscInt, parameter, public :: VALTYPE_TARGET    = 1
+  PetscInt, parameter, public :: VALTYPE_ACTUAL    = 2
+  PetscInt, parameter, public :: VALTYPE_ACTUALP   = 3
+  PetscInt, parameter, public :: VALTYPE_ACTUALI   = 4
+  PetscInt, parameter, public :: VALTYPE_TOTALP    = 5
+  PetscInt, parameter, public :: VALTYPE_TOTALI    = 6
 
   ! Global field pressure
 
@@ -61,7 +61,7 @@ module Well_Data_class
 
       private
 
-      character(len=MAXSTRINGLENGTH),public :: w_name ! well name
+      character(len=MAXSTRINGLENGTH), public :: w_name ! well name
       PetscInt  :: w_index                            ! well index
       PetscInt  :: w_itype                            ! well integer type
 
@@ -160,7 +160,7 @@ module Well_Data_class
       PetscReal, pointer :: w_cmplflowsX(:,:,:,:)
       PetscBool          :: w_cmplflowsX_Allocated
 
-      class(well_data_type),pointer,public :: next !points to next link in list
+      class(well_data_type), pointer, public :: next !points to next link in list
 
   contains
 
@@ -232,31 +232,31 @@ module Well_Data_class
 
   ! The public interface to this module
 
-  public ::  WellDataSetFlag,WellDataGetFlag, &
-             WellDataCreate   ,WellDataInitList, WellDataDestroyList, &
-             WellDataAddToList,GetWellNCmpl, &
-             WellSetGlobalInfo,WellSetGlobalInfoSet, &
-             GetTargetUnitType,getnwell,getWellNameI, &
-             GetWellTTValI,GetWellTypeI, &
-             GetFieldData, SetFieldData,GetWellNCmplGI,GetCmplGlobalLocI, &
-             FindGroupRates,FindGroupTotals,GetFieldTTVal, &
+  public ::  WellDataSetFlag, WellDataGetFlag, &
+             WellDataCreate, WellDataInitList, WellDataDestroyList, &
+             WellDataAddToList, GetWellNCmpl, &
+             WellSetGlobalInfo, WellSetGlobalInfoSet, &
+             GetTargetUnitType, getnwell, getWellNameI, &
+             GetWellTTValI, GetWellTypeI, &
+             GetFieldData, SetFieldData, GetWellNCmplGI, GetCmplGlobalLocI, &
+             FindGroupRates, FindGroupTotals, GetFieldTTVal, &
              IncrementWellWarningCount
 
   ! Private routines within this module
 
   private :: GetNCmplInList, &
-             GetTargetsInList,SetActualsInList,GetTypeInList, &
-             GetTTInList,SetTTInList,SetWellFlowsInList, &
+             GetTargetsInList, SetActualsInList, GetTypeInList, &
+             GetTTInList, SetTTInList, SetWellFlowsInList, &
              DoUpdateInList, &
-             GetCmplLocationInlist,GetCmplLocationGInlist, &
-             FillCmplDataInList,GetCmplRadiusInList, &
-             GetCmplThetaFactorInList,GetCmplSkinFactorInList,  &
-             GetCmplDxInList,GetCmplDYInList,GetCmplDZInList, &
-             SetCCFInList,GetCCFInList, &
+             GetCmplLocationInlist, GetCmplLocationGInlist, &
+             FillCmplDataInList, GetCmplRadiusInList, &
+             GetCmplThetaFactorInList, GetCmplSkinFactorInList,  &
+             GetCmplDxInList, GetCmplDYInList, GetCmplDZInList, &
+             SetCCFInList, GetCCFInList, &
              SetZInList, GetZInList, &
-             SetWellSolutionInList,GetWellSolutionInList   , &
-             SetWellSolutionSetInList,GetWellSolutionSetInList, &
-             FindWellInList,GetWellInjectionPAndTInList
+             SetWellSolutionInList, GetWellSolutionInList   , &
+             SetWellSolutionSetInList, GetWellSolutionSetInList, &
+             FindWellInList, GetWellInjectionPAndTInList
 
 contains
 
@@ -422,7 +422,7 @@ end subroutine WellDataInit
 
 ! ************************************************************************** !
 
-subroutine WellDataInitList(list,nphase)
+subroutine WellDataInitList(list, nphase)
   !
   ! Set up the initial state of a newly created well data list
   !
@@ -432,7 +432,7 @@ subroutine WellDataInitList(list,nphase)
   implicit none
 
   class(well_data_list_type) :: list
-  PetscInt,intent(in) :: nphase
+  PetscInt, intent(in) :: nphase
 
   n_phase = nphase
 
@@ -451,7 +451,7 @@ end subroutine WellDataInitList
 
 ! ************************************************************************** !
 
-subroutine WellDataRead(this,input,option,waytime,nwaytime,mwaytime)
+subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
   !
   ! Reads the data for a well from a WELL_DATA block in the input file
   !
@@ -469,12 +469,12 @@ subroutine WellDataRead(this,input,option,waytime,nwaytime,mwaytime)
   type(option_type) :: option
   class(well_data_type) :: this
   type(input_type), pointer :: input
-  PetscReal,pointer :: waytime(:)
-  PetscInt,intent(inout) :: nwaytime,mwaytime
+  PetscReal, pointer :: waytime(:)
+  PetscInt, intent(inout) :: nwaytime, mwaytime
 
   character(len = MAXWORDLENGTH) :: keyword, word, units
   character(len = MAXWORDLENGTH) :: internal_units
-  PetscInt :: ci,cj,ckl,cku,ival
+  PetscInt :: ci, cj, ckl, cku, ival
   PetscReal :: v = 0.0
 
   ! Initialise
@@ -491,82 +491,82 @@ subroutine WellDataRead(this,input,option,waytime,nwaytime,mwaytime)
 
   do
 
-    call InputReadPflotranString(input,option)
+    call InputReadPflotranString(input, option)
     if (InputError(input)) exit
-    if (InputCheckExit(input,option)) exit
+    if (InputCheckExit(input, option)) exit
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
-    call InputErrorMsg(input,option,'keyword','WELL_DATA')
+    call InputReadWord(input, option, keyword, PETSC_TRUE)
+    call InputErrorMsg(input, option, 'keyword', 'WELL_DATA')
     call StringToUpper(keyword)
 
     select case(trim(keyword))
       case('RADIUS')  ! this has a conversion factor to account for
-        call InputReadDouble(input,option,this%w_radius)
-        call InputErrorMsg(input,option,'well-radius','WELL_DATA')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadDouble(input, option, this%w_radius)
+        call InputErrorMsg(input, option, 'well-radius' , 'WELL_DATA')
+        call InputReadWord(input, option, word, PETSC_TRUE)
         internal_units = 'meter'
         if (InputError(input)) then
           word = trim(keyword) // ' UNITS'
-          call InputDefaultMsg(input,option,word)
+          call InputDefaultMsg(input, option, word)
         else
           units = trim(word)
-          this%w_radius = UnitsConvertToInternal(units,internal_units,option) &
+          this%w_radius = UnitsConvertToInternal(units, internal_units, option) &
                          *this%w_radius
           this%w_radius_set = PETSC_TRUE
         endif
       case('SKIN_FACTOR')
-        call InputReadDouble(input,option,this%w_skin_factor)
+        call InputReadDouble(input, option, this%w_skin_factor)
         this%w_skin_factor_set = PETSC_TRUE
-        call InputErrorMsg(input,option,'skin factor','WELL_DATA')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input, option, 'skin factor', 'WELL_DATA')
+        call InputReadWord(input, option, word, PETSC_TRUE)
       case('THETA_FRACTION')
-        call InputReadDouble(input,option,this%w_theta_frac)
+        call InputReadDouble(input, option, this%w_theta_frac)
         this%w_theta_frac_set = PETSC_TRUE
-        call InputErrorMsg(input,option,'theta angle fraction','WELL_DATA')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input, option, 'theta angle fraction', 'WELL_DATA')
+        call InputReadWord(input, option, word, PETSC_TRUE)
       case('INJECTION_ENTHALPY_P')
-        call InputReadDouble(input,option,v)
-        call InputErrorMsg(input,option, &
-                           'Injection enthalpy pressure','WELL_DATA')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadDouble(input, option, v)
+        call InputErrorMsg(input, option, &
+                           'Injection enthalpy pressure', 'WELL_DATA')
+        call InputReadWord(input, option, word, PETSC_TRUE)
         internal_units = 'Pa'
         if (InputError(input)) then
           word = trim(keyword) // ' UNITS'
-          call InputDefaultMsg(input,option,word)
+          call InputDefaultMsg(input, option, word)
         else
           units = trim(word)
-          v = UnitsConvertToInternal(units,internal_units,option)*v
-          if (this%w_readtime>0.0) then
-            call StoreEvent(this,EVENT_PINJ,ival,v)
+          v = UnitsConvertToInternal(units, internal_units, option)*v
+          if (this%w_readtime > 0.0) then
+            call StoreEvent(this, EVENT_PINJ, ival, v)
           else
             this%w_injection_p = v
           endif
         endif
       case('INJECTION_ENTHALPY_T')
-        call InputReadDouble(input,option,v)
-        call InputErrorMsg(input,option,'injection enthalpy temp','WELL_DATA')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadDouble(input, option, v)
+        call InputErrorMsg(input, option, 'injection enthalpy temp', 'WELL_DATA')
+        call InputReadWord(input, option, word, PETSC_TRUE)
         if (this%w_readtime>0.0) then
-          call StoreEvent(this,EVENT_TINJ,ival,v)
+          call StoreEvent(this, EVENT_TINJ, ival, v)
         else
           this%w_injection_t = v
         endif
       case('WELL_TYPE')
-        call InputReadWord(input,option,keyword,PETSC_TRUE)
-        call InputErrorMsg(input,option,'keyword','WELL_TYPE')
+        call InputReadWord(input, option,  keyword , PETSC_TRUE)
+        call InputErrorMsg(input, option, 'keyword', 'WELL_TYPE')
         call StringToUpper(keyword)
 
         select case(trim(keyword))
-          case('PRODUCER','PROD')
-            call SetWellType(this,PROD_WELL_TYPE)
-          case('OIL_INJECTOR','OIL_INJ')
-            call SetWellType(this,OIL_INJ_WELL_TYPE)
-          case('GAS_INJECTOR','GAS_INJ')
-            call SetWellType(this,GAS_INJ_WELL_TYPE)
-          case('WATER_INJECTOR','WAT_INJ')
-            call SetWellType(this,WAT_INJ_WELL_TYPE)
-          case('SOLVENT_INJECTOR','SLV_INJ')
-            call SetWellType(this,SLV_INJ_WELL_TYPE)
+          case('PRODUCER', 'PROD')
+            call SetWellType(this, PROD_WELL_TYPE)
+          case('OIL_INJECTOR', 'OIL_INJ')
+            call SetWellType(this, OIL_INJ_WELL_TYPE)
+          case('GAS_INJECTOR', 'GAS_INJ')
+            call SetWellType(this, GAS_INJ_WELL_TYPE)
+          case('WATER_INJECTOR', 'WAT_INJ')
+            call SetWellType(this, WAT_INJ_WELL_TYPE)
+          case('SOLVENT_INJECTOR', 'SLV_INJ')
+            call SetWellType(this, SLV_INJ_WELL_TYPE)
           case default
             option%io_buffer = 'WELL_SPEC keyword: ' &
                                //trim(keyword)//' not recognized'
@@ -574,8 +574,8 @@ subroutine WellDataRead(this,input,option,waytime,nwaytime,mwaytime)
         end select
       case('CONST_DRILL_DIR')
         this%w_const_drill_dir_set = PETSC_TRUE
-        call InputReadWord(input,option,keyword,PETSC_TRUE)
-        call InputErrorMsg(input,option,'keyword','CONST_DRILL_DIR')
+        call InputReadWord(input, option, keyword, PETSC_TRUE)
+        call InputErrorMsg(input, option, 'keyword', 'CONST_DRILL_DIR')
         call StringToUpper(keyword)
 
         select case(trim(keyword))
@@ -592,87 +592,87 @@ subroutine WellDataRead(this,input,option,waytime,nwaytime,mwaytime)
         end select
       case('Z_REF')
         this%w_z_ref_set = PETSC_TRUE
-        call InputReadDouble(input,option,v)
-        call InputErrorMsg(input,option,'z_ref','WELL_DATA')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadDouble(input, option, v)
+        call InputErrorMsg(input, option, 'z_ref', 'WELL_DATA')
+        call InputReadWord(input, option, word, PETSC_TRUE)
         internal_units = 'meter'
         if (InputError(input)) then
           word = trim(keyword) // ' UNITS'
-          call InputDefaultMsg(input,option,word)
+          call InputDefaultMsg(input, option, word)
         else
           units = trim(word)
-          this%w_z_ref = UnitsConvertToInternal(units,internal_units,option)*v
+          this%w_z_ref = UnitsConvertToInternal(units, internal_units, option)*v
         endif
-      case('CIJK','CIJK_Z','CIJK_D')
+      case('CIJK', 'CIJK_Z', 'CIJK_D')
       case('BHPL')
   ! Read a well bhp limit (will be max for injector, min for producer)
-        call InputReadDouble(input,option,v)
-        call InputErrorMsg(input,option,'BHPL','WELL_DATA')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadDouble(input, option, v)
+        call InputErrorMsg(input, option, 'BHPL', 'WELL_DATA')
+        call InputReadWord(input, option, word, PETSC_TRUE)
         internal_units = 'Pa'
         if (InputError(input)) then
           word = trim(keyword) // ' UNITS'
-          call InputDefaultMsg(input,option,word)
+          call InputDefaultMsg(input, option, word)
         else
           units = trim(word)
-          v = UnitsConvertToInternal(units,internal_units,option)*v
-          if (this%w_readtime>0.0) then
-            call StoreEvent(this,EVENT_TARG,W_BHP_LIMIT,v)
+          v = UnitsConvertToInternal(units, internal_units, option)*v
+          if (this%w_readtime > 0.0) then
+            call StoreEvent(this, EVENT_TARG, W_BHP_LIMIT, v)
           else
             this%w_targets(W_BHP_LIMIT) = v
           endif
         endif
       case('OPEN')
           if (this%w_readtime>0.0) then
-            call StoreEvent(this,EVENT_OPEN,W_BHP_LIMIT,v)
+            call StoreEvent(this, EVENT_OPEN, W_BHP_LIMIT, v)
           else
             this%w_status    = W_STATUS_OPEN
           endif
       case('SHUT')
           if (this%w_readtime>0.0) then
-            call StoreEvent(this,EVENT_SHUT,W_BHP_LIMIT,v)
+            call StoreEvent(this, EVENT_SHUT, W_BHP_LIMIT, v)
           else
             this%w_status    = W_STATUS_SHUT
           endif
       case('TIME')
   ! Read the time associated with susbsequent instructions
-        call InputReadDouble(input,option,v)
-        call InputErrorMsg(input,option,'TIME','WELL_DATA')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadDouble(input, option, v)
+        call InputErrorMsg(input, option, 'TIME', 'WELL_DATA')
+        call InputReadWord(input, option, word, PETSC_TRUE)
         internal_units = 'sec'
         if (InputError(input)) then
           word = trim(keyword) // ' UNITS'
-          call InputDefaultMsg(input,option,word)
+          call InputDefaultMsg(input, option, word)
         else
           units = trim(word)
-          v = UnitsConvertToInternal(units,internal_units,option)*v
+          v = UnitsConvertToInternal(units, internal_units, option)*v
           this%w_readtime = v
-          if (nwaytime+1>mwaytime) call ReallocateArray(waytime,mwaytime)
+          if (nwaytime+1 > mwaytime) call ReallocateArray(waytime, mwaytime)
           waytime(nwaytime+1) = v
           nwaytime = nwaytime + 1
         endif
   ! Read a surface volume rate (several options)
       case('TARG_OSV')
-        call readWellTarget(this,input,option,'TARG_OSV',word,W_TARG_OSV)
+        call readWellTarget(this, input, option, 'TARG_OSV', word, W_TARG_OSV)
       case('TARG_GSV')
-        call readWellTarget(this,input,option,'TARG_GSV',word,W_TARG_GSV)
+        call readWellTarget(this, input, option, 'TARG_GSV', word, W_TARG_GSV)
       case('TARG_WSV')
-        call readWellTarget(this,input,option,'TARG_WSV',word,W_TARG_WSV)
+        call readWellTarget(this, input, option, 'TARG_WSV', word, W_TARG_WSV)
       case('TARG_SSV')
-        call readWellTarget(this,input,option,'TARG_SSV',word,W_TARG_SSV)
+        call readWellTarget(this, input, option, 'TARG_SSV', word, W_TARG_SSV)
       case('TARG_LSV')
-        call readWellTarget(this,input,option,'TARG_LSV',word,W_TARG_LSV)
+        call readWellTarget(this, input, option, 'TARG_LSV', word, W_TARG_LSV)
   ! Read a mass rate (several options)
       case('TARG_OM' )
-        call readWellTarget (this,input,option,'TARG_OM' ,word,W_TARG_OM)
+        call readWellTarget(this, input, option, 'TARG_OM' , word, W_TARG_OM)
       case('TARG_GM' )
-        call readWellTarget (this,input,option,'TARG_GM' ,word,W_TARG_GM)
+        call readWellTarget(this, input, option, 'TARG_GM' , word, W_TARG_GM)
       case('TARG_WM' )
-        call readWellTarget (this,input,option,'TARG_WM' ,word,W_TARG_WM)
+        call readWellTarget(this, input, option, 'TARG_WM' , word, W_TARG_WM)
       case('TARG_SM' )
-        call readWellTarget (this,input,option,'TARG_SM' ,word,W_TARG_SM)
+        call readWellTarget(this, input, option, 'TARG_SM' , word, W_TARG_SM)
       case('TARG_RV')
-        call readWellTarget (this,input,option,'TARG_RV' ,word,W_TARG_RV)
+        call readWellTarget(this, input, option, 'TARG_RV' , word, W_TARG_RV)
     case default
         option%io_buffer = 'WELL_DATA keyword: ' &
                           //trim(keyword)//' not recognized'
@@ -684,7 +684,7 @@ end subroutine WellDataRead
 
 ! ************************************************************************** !
 
-subroutine WellDataAddToList(new_well_data,list)
+subroutine WellDataAddToList(new_well_data, list)
   !
   ! Add a new well_data_type item to the list (ie data for a new well)
   !
@@ -706,7 +706,7 @@ end subroutine WellDataAddToList
 
 ! ************************************************************************** !
 
-subroutine WellDataDestroyList(well_data_list,option)
+subroutine WellDataDestroyList(well_data_list, option)
   !
   ! De-allocates a whole list of well_data_type items
   !
@@ -722,8 +722,8 @@ subroutine WellDataDestroyList(well_data_list,option)
 
   class(well_data_type), pointer :: well_data, prev_well_data
 
-  PetscInt :: nwarn,unconv_tg,unconv_wg,unconv_bg
-  PetscMPIInt :: ibufl(3),ibufg(3),ierr
+  PetscInt :: nwarn, unconv_tg, unconv_wg, unconv_bg
+  PetscMPIInt :: ibufl(3), ibufg(3), ierr
 
   ! If wells used, check for warnings
 
@@ -737,9 +737,9 @@ subroutine WellDataDestroyList(well_data_list,option)
     ibufg    = 0
     ierr     = 0
 
-    call MPI_Reduce(ibufl,ibufg,THREE_INTEGER_MPI, &
-                    MPI_INTEGER,MPI_SUM, &
-                    option%io_rank,option%mycomm,ierr)
+    call MPI_Reduce(ibufl, ibufg, THREE_INTEGER_MPI, &
+                    MPI_INTEGER, MPI_SUM, &
+                    option%io_rank, option%mycomm, ierr)
 
     unconv_tg = ibufg(1)
     unconv_wg = ibufg(2)
@@ -750,10 +750,10 @@ subroutine WellDataDestroyList(well_data_list,option)
     if (option%io_rank == option%myrank) then
       nwarn=unconv_tg+unconv_wg+unconv_bg
       if (nwarn>0) then
-        print *,'Well model convergence failure counts:'
-        if( unconv_tg>0 ) print *,unconv_tg,' mode selection'
-        if( unconv_wg>0 ) print *,unconv_wg,' bhp solution'
-        if( unconv_bg>0 ) print *,unconv_bg,' wellbore composition'
+        print *, 'Well model convergence failure counts:'
+        if (unconv_tg > 0) print *, unconv_tg, ' mode selection'
+        if (unconv_wg > 0) print *, unconv_wg, ' bhp solution'
+        if (unconv_bg > 0) print *, unconv_bg, ' wellbore composition'
       endif
     endif
 
@@ -886,7 +886,7 @@ end subroutine WellDataClear
 
 ! ************************************************************************** !
 
-function GetWellNCmpl(iwell,list)
+function GetWellNCmpl(iwell, list)
   !
   ! Get the number of completions (on this proc) on a given well
   ! iwell - in - The index of the well (1..m_numwell)
@@ -897,7 +897,7 @@ function GetWellNCmpl(iwell,list)
   implicit none
 
   PetscInt :: GetWellNCmpl
-  PetscInt,intent(in) :: iwell
+  PetscInt, intent(in) :: iwell
   type(well_data_list_type), pointer :: list
   class(well_data_type), pointer :: well_data
 
@@ -906,7 +906,7 @@ function GetWellNCmpl(iwell,list)
   GetWellNCmpl = 0
 
   ! Find well with index iwell
-  found = FindWellInList(iwell,well_data,list)
+  found = FindWellInList(iwell, well_data, list)
 
   ! If found, return number of completions
   if (found) then
@@ -917,7 +917,7 @@ end function GetWellNCmpl
 
 ! ************************************************************************** !
 
-function GetWellNCmplGI(iwell,list)
+function GetWellNCmplGI(iwell, list)
   !
   ! Get the number of completions (on this proc) on a given well
   ! iwell - in - The index of the well (1..m_numwell)
@@ -928,7 +928,7 @@ function GetWellNCmplGI(iwell,list)
   implicit none
 
   PetscInt :: GetWellNCmplGI
-  PetscInt,intent(in) :: iwell
+  PetscInt, intent(in) :: iwell
   type(well_data_list_type), pointer :: list
   class(well_data_type), pointer :: well_data
 
@@ -937,7 +937,7 @@ function GetWellNCmplGI(iwell,list)
   GetWellNCmplGI = 0
 
   ! Find well with index iwell
-  found = FindWellInList(iwell,well_data,list)
+  found = FindWellInList(iwell, well_data, list)
 
   ! If found, return number of completions
   if (found) then
@@ -948,7 +948,7 @@ end function GetWellNCmplGI
 
 ! ************************************************************************** !
 
-subroutine getWellNameI(iwell,list,name)
+subroutine getWellNameI(iwell, list, name)
   !
   ! Get the name of the (iwell)th well
   !
@@ -957,9 +957,9 @@ subroutine getWellNameI(iwell,list,name)
 
   implicit none
 
-  PetscInt,intent(in) :: iwell
+  PetscInt, intent(in) :: iwell
   type(well_data_list_type), pointer :: list
-  character(len=MAXSTRINGLENGTH),intent(out) :: name
+  character(len=MAXSTRINGLENGTH), intent(out) :: name
 
   class(well_data_type), pointer :: well_data
   PetscBool :: found
@@ -967,7 +967,7 @@ subroutine getWellNameI(iwell,list,name)
   name = ''
 
   ! Find well with index iwell
-  found = FindWellInList(iwell,well_data,list)
+  found = FindWellInList(iwell, well_data, list)
 
   ! If found, return name (otherwise leave at default)
   if (found) then
@@ -978,7 +978,7 @@ end subroutine getWellNameI
 
 ! ************************************************************************** !
 
-function getWellTypeI(iwell,list)
+function getWellTypeI(iwell, list)
   !
   ! Get the type of the (iwell)th well
   !
@@ -987,7 +987,7 @@ function getWellTypeI(iwell,list)
 
   implicit none
 
-  PetscInt,intent(in) :: iwell
+  PetscInt, intent(in) :: iwell
   type(well_data_list_type), pointer :: list
   PetscInt :: getWellTypeI
 
@@ -998,7 +998,7 @@ function getWellTypeI(iwell,list)
   getWellTypeI = PROD_WELL_TYPE
 
   ! Find well with index iwell
-  found = FindWellInList(iwell,well_data,list)
+  found = FindWellInList(iwell, well_data, list)
 
   ! If found, return name (otherwise leave at default)
   if (found) then
@@ -1009,7 +1009,7 @@ end function getWellTypeI
 
 ! ************************************************************************** !
 
-subroutine GetCmplGlobalLocI(iwell,icmplG,ci,cj,ck,cdd,list)
+subroutine GetCmplGlobalLocI(iwell, icmplG, ci, cj, ck, cdd, list)
   !
   ! Get the location for the icmplG'th completion of the iw'th well
   ! Note this is the global completion count, not that on the proc
@@ -1019,19 +1019,19 @@ subroutine GetCmplGlobalLocI(iwell,icmplG,ci,cj,ck,cdd,list)
 
   implicit none
 
-  PetscInt,intent(in) :: iwell
-  PetscInt,intent(in) :: icmplG
-  PetscInt,intent(out) :: ci,cj,ck,cdd
+  PetscInt, intent(in) :: iwell
+  PetscInt, intent(in) :: icmplG
+  PetscInt, intent(out) :: ci, cj, ck, cdd
   type(well_data_list_type), pointer :: list
   class(well_data_type), pointer :: well_data
   PetscBool :: found
 
   ! Find well with index iwell
-  found = FindWellInList(iwell,well_data,list)
+  found = FindWellInList(iwell, well_data, list)
 
   ! If found, return completion location
   if (found) then
-    call well_data%GetCmplGlobalLoc(icmplG,ci,cj,ck,cdd)
+    call well_data%GetCmplGlobalLoc(icmplG, ci, cj, ck, cdd)
   else
     ci  = 1
     cj  = 1
@@ -1043,7 +1043,7 @@ end subroutine GetCmplGlobalLocI
 
 ! ************************************************************************** !
 
-subroutine GetCmplGlobalLocInList(this,icmplG,ci,cj,ck,cdd)
+subroutine GetCmplGlobalLocInList(this, icmplG, ci, cj, ck, cdd)
   !
   ! Given the list elemetn for a well, get the completion details
   ! Note this is the global completion index, not that on the proc
@@ -1054,8 +1054,8 @@ subroutine GetCmplGlobalLocInList(this,icmplG,ci,cj,ck,cdd)
   implicit none
 
   class(well_data_type) :: this
-  PetscInt,intent(in) :: icmplG
-  PetscInt,intent(out) :: ci,cj,ck,cdd
+  PetscInt, intent(in)  :: icmplG
+  PetscInt, intent(out) :: ci, cj, ck, cdd
 
   ci  = 1
   cj  = 1
@@ -1073,7 +1073,7 @@ end subroutine GetCmplGlobalLocInList
 
 ! ************************************************************************** !
 
-function getFieldTTVal(itt,valType,list)
+function getFieldTTVal(itt, valType, list)
   !
   ! Get value of the (itt)th target type of the (0)th group
   !
@@ -1083,8 +1083,8 @@ function getFieldTTVal(itt,valType,list)
   implicit none
 
   PetscReal :: getFieldTTVal
-  PetscInt,intent(in) :: itt
-  PetscInt,intent(in) :: valType
+  PetscInt, intent(in) :: itt
+  PetscInt, intent(in) :: valType
   type(well_data_list_type), pointer :: list
 
   getFieldTTVal = 0.0
@@ -1098,7 +1098,7 @@ end function getFieldTTVal
 
 ! ************************************************************************** !
 
-function GetWellTTValI(iwell,itt,valType,list)
+function GetWellTTValI(iwell, itt, valType, list)
   !
   ! Get value of the (itt)th target type of the (iwell)th well
   !
@@ -1108,9 +1108,9 @@ function GetWellTTValI(iwell,itt,valType,list)
   implicit none
 
   PetscReal :: getWellTTValI
-  PetscInt,intent(in) :: iwell
-  PetscInt,intent(in) :: itt
-  PetscInt,intent(in) :: valType
+  PetscInt, intent(in) :: iwell
+  PetscInt, intent(in) :: itt
+  PetscInt, intent(in) :: valType
   type(well_data_list_type), pointer :: list
 
   class(well_data_type), pointer :: well_data
@@ -1120,18 +1120,18 @@ function GetWellTTValI(iwell,itt,valType,list)
   GetWellTTValI = 0.0
 
   ! Find well with index iwell
-  found = FindWellInList(iwell,well_data,list)
+  found = FindWellInList(iwell, well_data, list)
 
   ! Find value of target type itt
   if (found) then
-    GetWellTTValI = well_data%GetWellTTVal(itt,valType)
+    GetWellTTValI = well_data%GetWellTTVal(itt, valType)
   endif
 
 end function GetWellTTValI
 
 ! ************************************************************************** !
 
-function GetWellTTValInList(this,itt,valType)
+function GetWellTTValInList(this, itt, valType)
   !
   ! Get value of the (itt)th target type for a given well
   !
@@ -1142,8 +1142,8 @@ function GetWellTTValInList(this,itt,valType)
 
   PetscReal :: GetWellTTValInList
   class(well_data_type) :: this
-  PetscInt,intent(in) :: itt
-  PetscInt,intent(in) :: valType
+  PetscInt, intent(in) :: itt
+  PetscInt, intent(in) :: valType
 
   ! May be the required value, the actual value or the time-total value
   GetWellTTValInList = 0.0
@@ -1156,7 +1156,7 @@ end function GetWellTTValInList
 
 ! ************************************************************************** !
 
-subroutine WellSetGlobalInfo(iwell,nrankw,ncmplg,ismp,group,comm,list)
+subroutine WellSetGlobalInfo(iwell, nrankw, ncmplg, ismp, group, comm, list)
   !
   ! Set a package of useful global information for the (iwell) the well
   !
@@ -1165,15 +1165,15 @@ subroutine WellSetGlobalInfo(iwell,nrankw,ncmplg,ismp,group,comm,list)
   !
   ! nrankw - number of ranks on which this well appears
   ! ncmplg - number of global completions (ie over all procs)
-  ! ismp   - bool indicatig this is a cross-processor well
+  ! ismp   - bool indicating this is a cross-processor well
   ! group  - MPI group index
   ! comm   - MPI communicator index
 
   implicit none
 
-  PetscInt   ,intent(in) :: iwell,ncmplg
-  PetscBool  ,intent(in) :: ismp
-  PetscMPIInt,intent(in) :: group,comm
+  PetscInt   , intent(in) :: iwell, ncmplg
+  PetscBool  , intent(in) :: ismp
+  PetscMPIInt, intent(in) :: group, comm
   type(well_data_list_type), pointer :: list
 
   class(well_data_type), pointer :: well_data
@@ -1181,7 +1181,7 @@ subroutine WellSetGlobalInfo(iwell,nrankw,ncmplg,ismp,group,comm,list)
   PetscInt :: nrankw
 
   ! Find well in list
-  found = FindWellInList(iwell,well_data,list)
+  found = FindWellInList(iwell, well_data, list)
 
   ! Set values if found
   if (found) then
@@ -1213,7 +1213,7 @@ end subroutine WellSetGlobalInfoSet
 
 ! ************************************************************************** !
 
-subroutine GetCmplLocationInList(this,icmpl,local_id,ghosted_id,onproc,icmplg)
+subroutine GetCmplLocationInList(this, icmpl, local_id, ghosted_id, onproc, icmplg)
   !
   ! Get the well location (structured grid only)
   ! Error will occur if unstructured grid used with this code
@@ -1225,11 +1225,11 @@ subroutine GetCmplLocationInList(this,icmpl,local_id,ghosted_id,onproc,icmplg)
 
   class(well_data_type) :: this
 
-  PetscInt ,intent(in ) :: icmpl
-  PetscInt ,intent(out) :: local_id
-  PetscInt ,intent(out) :: ghosted_id
-  PetscBool,intent(out) :: onproc
-  PetscInt ,intent(out) :: icmplg
+  PetscInt , intent(in ) :: icmpl
+  PetscInt , intent(out) :: local_id
+  PetscInt , intent(out) :: ghosted_id
+  PetscBool, intent(out) :: onproc
+  PetscInt , intent(out) :: icmplg
 
   PetscInt :: ncmpl
 
@@ -1246,7 +1246,7 @@ end subroutine GetCmplLocationInList
 
 ! ************************************************************************** !
 
-subroutine GetCmplLocationGInList(this,icmplg,ghosted_id)
+subroutine GetCmplLocationGInList(this, icmplg, ghosted_id)
   !
   ! Get the well location wrt global completion index
   !
@@ -1257,8 +1257,8 @@ subroutine GetCmplLocationGInList(this,icmplg,ghosted_id)
 
   class(well_data_type) :: this
 
-  PetscInt ,intent(in ) :: icmplg
-  PetscInt ,intent(out) :: ghosted_id
+  PetscInt, intent(in ) :: icmplg
+  PetscInt, intent(out) :: ghosted_id
 
   PetscInt :: ncmplg
 
@@ -1272,24 +1272,24 @@ end subroutine GetCmplLocationGInList
 
 ! ************************************************************************** !
 
-subroutine FillCmplDataInList(this,iw,grid)
+subroutine FillCmplDataInList(this, iw, grid)
   !
   ! Fill in any user-supplied completion data
   !
   ! Author: Dave Ponting
   ! Date: 08/15/18
 
-  use Grid_Grdecl_module, only : GetGrdNCmpl,GetCmplData
+  use Grid_Grdecl_module, only : GetGrdNCmpl, GetCmplData
   use Grid_module
 
   implicit none
 
   class(well_data_type) :: this
-  PetscInt,intent(in) :: iw
+  PetscInt, intent(in) :: iw
   type(grid_type), pointer :: grid
 
-  PetscInt  :: icmpl,ci,cj,ck,ia,local_id,ghosted_id
-  PetscReal :: dx,dy,dz,z
+  PetscInt  :: icmpl, ci, cj, ck, ia, local_id, ghosted_id
+  PetscReal :: dx, dy, dz, z
   PetscBool :: onproc
 
   local_id   = 1
@@ -1299,11 +1299,11 @@ subroutine FillCmplDataInList(this,iw,grid)
 
   call CheckCompletionCount(this)
 
-  do icmpl = 1,this%w_ncmpl
+  do icmpl = 1, this%w_ncmpl
 
-    call GetCmplData(iw,icmpl,ci,cj,ck,ia,dx,dy,dz,z)
+    call GetCmplData(iw, icmpl, ci, cj, ck, ia, dx, dy, dz, z)
 
-    call getLocalAndGhostedIDs(ia,local_id,ghosted_id,onproc,grid)
+    call getLocalAndGhostedIDs(ia, local_id, ghosted_id, onproc, grid)
 
     this%c_ci        (icmpl) = ci
     this%c_cj        (icmpl) = cj
@@ -1336,7 +1336,7 @@ end subroutine FillCmplDataInList
 
 ! ************************************************************************** !
 
-subroutine SetZRefInList(this,option)
+subroutine SetZRefInList(this, option)
   !
   ! Set the reference elevation for this well (if the user has not set a value)
   !
@@ -1350,8 +1350,8 @@ subroutine SetZRefInList(this,option)
   class(well_data_type) :: this
   type(option_type) :: option
 
-  PetscInt :: icmpl,ierr
-  PetscReal :: ztop,zcmpl
+  PetscInt :: icmpl, ierr
+  PetscReal :: ztop, zcmpl
   PetscReal :: zl(1)
   PetscReal :: zg(1)
 
@@ -1366,7 +1366,7 @@ subroutine SetZRefInList(this,option)
   ! of completion on this proc (may be none)
 
     ztop = -1.0D6
-    do icmpl = 1,this%w_ncmpl
+    do icmpl = 1, this%w_ncmpl
       zcmpl = this%c_Z(icmpl)
       if (zcmpl > ztop) ztop = zcmpl
     enddo
@@ -1374,8 +1374,8 @@ subroutine SetZRefInList(this,option)
   ! Take global max to find final value
 
     zl(1) = ztop
-    call MPI_Allreduce(zl,zg,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+    call MPI_Allreduce(zl, zg, ONE_INTEGER_MPI, &
+                       MPI_DOUBLE_PRECISION, MPI_MAX, option%mycomm, ierr)
     ztop = zg(1)
 
   ! If still original value (no completions anywhere) reset to zero
@@ -1409,7 +1409,7 @@ end function GetZRefInList
 
 ! ************************************************************************** !
 
-subroutine SetWellSolutionInList(this,pw,pb,sp,issat,trel)
+subroutine SetWellSolutionInList(this, pw, pb, sp, issat, trel)
   !
   ! Set the wellbore solution for this well (as obtained by well_solver)
   !
@@ -1419,11 +1419,11 @@ subroutine SetWellSolutionInList(this,pw,pb,sp,issat,trel)
   implicit none
 
   class(well_data_type) :: this
-  PetscReal,intent(in) :: pw
-  PetscReal,intent(in) :: pb
-  PetscReal,intent(in) :: sp(:)
-  PetscBool,intent(in) :: issat
-  PetscReal,intent(in) :: trel
+  PetscReal, intent(in) :: pw
+  PetscReal, intent(in) :: pb
+  PetscReal, intent(in) :: sp(:)
+  PetscBool, intent(in) :: issat
+  PetscReal, intent(in) :: trel
 
   this%w_pw     = pw
   this%w_pb     = pb
@@ -1435,7 +1435,7 @@ end subroutine SetWellSolutionInList
 
 ! ************************************************************************** !
 
-subroutine GetWellSolutionInList(this,pw,pb,sp,issat,trel)
+subroutine GetWellSolutionInList(this, pw, pb, sp, issat, trel)
   !
   ! Set the wellbore solution for this well (as predictor for well_solver)
   !
@@ -1445,11 +1445,11 @@ subroutine GetWellSolutionInList(this,pw,pb,sp,issat,trel)
   implicit none
 
   class(well_data_type) :: this
-  PetscReal,intent(out) :: pw
-  PetscReal,intent(out) :: pb
-  PetscReal,intent(out) :: sp(:)
-  PetscBool,intent(out) :: issat
-  PetscReal,intent(out) :: trel
+  PetscReal, intent(out) :: pw
+  PetscReal, intent(out) :: pb
+  PetscReal, intent(out) :: sp(:)
+  PetscBool, intent(out) :: issat
+  PetscReal, intent(out) :: trel
 
   pw     = this%w_pw
   pb     = this%w_pb
@@ -1496,7 +1496,7 @@ end function GetWellSolutionSetInList
 
 ! ************************************************************************** !
 
-function GetTargetsInList(this,targets)
+function GetTargetsInList(this, targets)
   !
   ! Get the current well targets
   !
@@ -1510,7 +1510,7 @@ function GetTargetsInList(this,targets)
   class(well_data_type) :: this
   PetscReal, intent(out) :: targets(N_WELL_TT)
 
-  do iTarget = 1,N_WELL_TT
+  do iTarget = 1, N_WELL_TT
     targets(iTarget) = this%w_targets(iTarget)
   enddo
   GetTargetsInList = PETSC_TRUE
@@ -1519,7 +1519,7 @@ end function GetTargetsInList
 
 ! ************************************************************************** !
 
-subroutine SetActualsInList(this,actuals)
+subroutine SetActualsInList(this, actuals)
   !
   ! Get the actual values for each well target
   !
@@ -1532,7 +1532,7 @@ subroutine SetActualsInList(this,actuals)
   class(well_data_type) :: this
   PetscReal, intent(in) :: actuals(N_WELL_TT)
 
-  do iTarget = 1,N_WELL_TT
+  do iTarget = 1, N_WELL_TT
     this%w_actuals(iTarget) = actuals(iTarget)
   enddo
 
@@ -1575,7 +1575,7 @@ end function GetTypeInList
 
 ! ************************************************************************** !
 
-subroutine SetTTInList(this,w_TT)
+subroutine SetTTInList(this, w_TT)
   !
   ! Set the well target type
   !
@@ -1593,7 +1593,7 @@ end subroutine SetTTInList
 
 ! ************************************************************************** !
 
-subroutine SetNCompInList(this,ncomp)
+subroutine SetNCompInList(this, ncomp)
   !
   ! Set the number of components in the problem
   !
@@ -1603,7 +1603,7 @@ subroutine SetNCompInList(this,ncomp)
   implicit none
 
   class(well_data_type) :: this
-  PetscInt,intent(in)   :: nComp
+  PetscInt, intent(in)   :: nComp
 
   this%w_ncompe = ncomp+1
 
@@ -1611,7 +1611,7 @@ end subroutine SetNCompInList
 
 ! ************************************************************************** !
 
-subroutine SetWellFlowsInList(this,wellflows,ncompe)
+subroutine SetWellFlowsInList(this, wellflows, ncompe)
   !
   ! Set the well flows
   !
@@ -1622,8 +1622,8 @@ subroutine SetWellFlowsInList(this,wellflows,ncompe)
 
   class(well_data_type) :: this
   PetscReal             :: wellflows(:)
-  PetscInt,intent(in)   :: ncompe
-  PetscInt              :: ncompArg,icomp
+  PetscInt, intent(in)  :: ncompe
+  PetscInt              :: ncompArg, icomp
 
   ! If the well flows have not been allocated, allocate them now
 
@@ -1638,7 +1638,7 @@ subroutine SetWellFlowsInList(this,wellflows,ncompe)
   ncompArg = size(wellFlows)
 
   if (this%w_wellFlows_Allocated) then
-    do icomp = 1,min(ncompArg,this%w_ncompe)
+    do icomp = 1, min(ncompArg, this%w_ncompe)
       this%w_wellflows(icomp) = wellflows(icomp)
     enddo
   endif
@@ -1647,7 +1647,7 @@ end subroutine SetWellFlowsInList
 
 ! ************************************************************************** !
 
-subroutine ZeroWellFlowsInList(this,ncompe)
+subroutine ZeroWellFlowsInList(this, ncompe)
   !
   ! Set the well flows
   !
@@ -1657,11 +1657,11 @@ subroutine ZeroWellFlowsInList(this,ncompe)
   implicit none
 
   class(well_data_type) :: this
-  PetscInt,intent(in)   :: ncompe
+  PetscInt, intent(in)  :: ncompe
 
   ! If the well flows have not been allocated, allocate them now
 
-  if ((.not.(this%w_wellFlows_Allocated)) .and. (this%w_ncompe.eq.0)) then
+  if ((.not.(this%w_wellFlows_Allocated)) .and. (this%w_ncompe == 0)) then
     allocate(this%w_wellflows(ncompe))
     this%w_wellFlows_Allocated = PETSC_TRUE
     this%w_ncompe = ncompe
@@ -1675,8 +1675,8 @@ end subroutine ZeroWellFlowsInList
 
 ! ************************************************************************** !
 
-subroutine SetCmplFlowsInList(this,cmplflows,cmplflowsX, &
-                              ncmpl,ncompe,ncmplg,ndof,isothermal)
+subroutine SetCmplFlowsInList(this, cmplflows, cmplflowsX, &
+                              ncmpl, ncompe, ncmplg, ndof, isothermal)
   !
   ! Set the completion flows
   !
@@ -1688,21 +1688,21 @@ subroutine SetCmplFlowsInList(this,cmplflows,cmplflowsX, &
   class(well_data_type) :: this
   PetscReal             :: cmplflows(:,:)
   PetscReal             :: cmplflowsX(:,:,:,:)
-  PetscInt,intent(in)   :: ncmpl
-  PetscInt,intent(in)   :: ncompe
-  PetscInt,intent(in)   :: ncmplg
-  PetscInt,intent(in)   :: ndof
-  PetscBool,intent(in)  :: isothermal
-  PetscInt              :: nicmplArg,ncompeArg,njcmplArg,ndofArg, &
-                           icmpl,icompe,jcmpl,jdof, &
-                           nicmpl,nicompe,njcmpl,njdof
+  PetscInt, intent(in)  :: ncmpl
+  PetscInt, intent(in)  :: ncompe
+  PetscInt, intent(in)  :: ncmplg
+  PetscInt, intent(in)  :: ndof
+  PetscBool, intent(in) :: isothermal
+  PetscInt              :: nicmplArg, ncompeArg, njcmplArg, ndofArg, &
+                           icmpl, icompe, jcmpl, jdof, &
+                           nicmpl, nicompe, njcmpl, njdof
 
   wd_isothermal = isothermal
 
   ! If the completion flows have not been allocated, allocate them now
 
   if (.not.(this%w_cmplflows_Allocated)) then
-    allocate(this%w_cmplflows(ncmpl,ncompe))
+    allocate(this%w_cmplflows(ncmpl, ncompe))
     this%w_cmplflows_allocated = PETSC_TRUE
     this%w_cmplflows = 0.0
   endif
@@ -1710,40 +1710,40 @@ subroutine SetCmplFlowsInList(this,cmplflows,cmplflowsX, &
   ! If the completion flow derivatives have not been allocated, allocate now
 
   if (.not.(this%w_cmplflowsX_Allocated)) then
-    allocate(this%w_cmplflowsX(ncmpl,ncompe,ncmplg,ndof))
+    allocate(this%w_cmplflowsX(ncmpl, ncompe, ncmplg, ndof))
     this%w_cmplflowsX_allocated = PETSC_TRUE
     this%w_cmplflowsX = 0.0
   endif
 
   ! Copy over the completion flows (use min. dim. of stored and arg arrays)
 
-  nicmplArg = size(cmplflows,1)
-  ncompeArg = size(cmplflows,2)
+  nicmplArg = size(cmplflows, 1)
+  ncompeArg = size(cmplflows, 2)
 
   if (this%w_cmplflows_allocated) then
-    do icmpl = 1,min(nicmplArg,this%w_ncmpl)
-      do icompe = 1,min(ncompeArg,this%w_ncompe)
-        this%w_cmplflows(icmpl,icompe) = cmplflows(icmpl,icompe)
+    do icmpl = 1, min(nicmplArg, this%w_ncmpl)
+      do icompe = 1, min(ncompeArg, this%w_ncompe)
+        this%w_cmplflows(icmpl, icompe) = cmplflows(icmpl, icompe)
       enddo
     enddo
   endif
 
-  nicmplArg = size(cmplflowsX,1)
-  ncompeArg = size(cmplflowsX,2)
-  njcmplArg = size(cmplflowsX,3)
-  ndofArg   = size(cmplflowsX,4)
+  nicmplArg = size(cmplflowsX, 1)
+  ncompeArg = size(cmplflowsX, 2)
+  njcmplArg = size(cmplflowsX, 3)
+  ndofArg   = size(cmplflowsX, 4)
 
   if (this%w_cmplflowsX_allocated) then
-    nicmpl  = min(nicmplArg,this%w_ncmpl )
-    nicompe = min(ncompeArg,this%w_ncompe)
-    njcmpl  = min(njcmplArg,this%w_ncmplg)
-    njdof   = min(ndofArg  ,ndof)
-    do icmpl = 1,nicmpl
-      do icompe = 1,nicompe
-        do jcmpl = 1,njcmpl
-          do jdof = 1,njdof
-             this%w_cmplflowsX(icmpl,icompe,jcmpl,jdof) = &
-                    cmplflowsX(icmpl,icompe,jcmpl,jdof)
+    nicmpl  = min(nicmplArg, this%w_ncmpl )
+    nicompe = min(ncompeArg, this%w_ncompe)
+    njcmpl  = min(njcmplArg, this%w_ncmplg)
+    njdof   = min(ndofArg, ndof)
+    do icmpl = 1, nicmpl
+      do icompe = 1, nicompe
+        do jcmpl = 1, njcmpl
+          do jdof = 1, njdof
+             this%w_cmplflowsX(icmpl, icompe, jcmpl, jdof) = &
+                    cmplflowsX(icmpl, icompe, jcmpl, jdof)
           enddo
         enddo
       enddo
@@ -1753,7 +1753,7 @@ end subroutine SetCmplFlowsInList
 
 ! ************************************************************************** !
 
-subroutine ZeroCmplFlowsInList(this,ncmpl,ncomp)
+subroutine ZeroCmplFlowsInList(this, ncmpl, ncomp)
   !
   ! Set the completion flows
   !
@@ -1763,13 +1763,13 @@ subroutine ZeroCmplFlowsInList(this,ncmpl,ncomp)
   implicit none
 
   class(well_data_type) :: this
-  PetscInt,intent(in)   :: ncomp
-  PetscInt,intent(in)   :: ncmpl
+  PetscInt, intent(in)   :: ncomp
+  PetscInt, intent(in)   :: ncmpl
 
   ! If the completion flows have not been allocated, allocate them now
 
   if (.not.(this%w_cmplflows_Allocated)) then
-    allocate(this%w_cmplflows(ncmpl,ncomp))
+    allocate(this%w_cmplflows(ncmpl, ncomp))
     this%w_cmplflows_allocated = PETSC_TRUE
   endif
 
@@ -1783,7 +1783,7 @@ end subroutine ZeroCmplFlowsInList
 
 ! ************************************************************************** !
 
-subroutine DoUpdateInList(this,dt,option)
+subroutine DoUpdateInList(this, dt, option)
   !
   ! Update this well at the end of a timestep
   !
@@ -1795,11 +1795,11 @@ subroutine DoUpdateInList(this,dt,option)
   implicit none
 
   class(well_data_type) :: this
-  PetscReal,intent(in) :: dt
+  PetscReal, intent(in) :: dt
   type(option_type) :: option
 
-  PetscInt :: itt,vmtype,ierr,ievent,event_code,itarg,itype
-  PetscReal :: den,deni,time,event_time,vtarg
+  PetscInt :: itt, vmtype, ierr, ievent, event_code, itarg, itype
+  PetscReal :: den, deni, time, event_time, vtarg
 
   ! Check that simulation has started
 
@@ -1810,8 +1810,8 @@ subroutine DoUpdateInList(this,dt,option)
   ! Do collective sum back into actuals 
   ! Note we do all procs to sync all the wells on all the procs
 
-    call MPI_Allreduce( this%w_actuals,this%w_actualsG,N_WELL_TT &
-                       ,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+    call MPI_Allreduce( this%w_actuals, this%w_actualsG, N_WELL_TT &
+                       , MPI_DOUBLE_PRECISION, MPI_SUM, option%mycomm, ierr)
 
     den = this%w_nrankw
     deni = 0.0
@@ -1819,7 +1819,7 @@ subroutine DoUpdateInList(this,dt,option)
 
   ! Convert sum to average for pressures
 
-    do itt = 1,N_WELL_TT
+    do itt = 1, N_WELL_TT
       vmtype = GetTargetUnitType(itt)
       if (vmtype == TT_P) then
         this%w_actualsG(itt) = this%w_actualsG(itt)*deni
@@ -1828,7 +1828,7 @@ subroutine DoUpdateInList(this,dt,option)
 
   ! Increment the well totals and zero actuals for next step
 
-    do itt = 1,N_WELL_TT
+    do itt = 1, N_WELL_TT
       vmtype = GetTargetUnitType(itt)
       if (vmtype /= TT_P) then
         if (this%w_itype == PROD_WELL_TYPE) then
@@ -1845,7 +1845,7 @@ subroutine DoUpdateInList(this,dt,option)
   ! Go through event list and extract any instructions
 
   time = option%time
-  do ievent = 1,this%w_nevent
+  do ievent = 1, this%w_nevent
     event_time = this%w_event_time(ievent)
     if (.not.this%w_event_used(ievent)) then
       if (event_time<(time+w_event_time_eps)) then
@@ -1857,7 +1857,7 @@ subroutine DoUpdateInList(this,dt,option)
         endif
         if (event_code == EVENT_TYPE) then
           itype = this%w_event_ival(ievent)
-          call UpdateWellType(this,itype)
+          call UpdateWellType(this, itype)
         endif
         if (event_code == EVENT_OPEN) then
           this%w_status = W_STATUS_OPEN
@@ -1874,7 +1874,7 @@ end subroutine DoUpdateInList
 
 ! ************************************************************************** !
 
-subroutine DoIncrJacInList(this,option,nflowdof,Jup,A)
+subroutine DoIncrJacInList(this, option, nflowdof, Jup, A)
   !
   ! Increment Jacobian
   !
@@ -1889,11 +1889,11 @@ subroutine DoIncrJacInList(this,option,nflowdof,Jup,A)
 
   class(well_data_type) :: this
   type(option_type) :: option
-  PetscInt ,intent(in ) :: nflowdof
-  PetscReal,intent(out) :: Jup(nflowdof,nflowdof)
+  PetscInt , intent(in ) :: nflowdof
+  PetscReal, intent(out) :: Jup(nflowdof, nflowdof)
   Mat :: A
 
-  PetscInt :: ghosted_id,ghosted_jd,ierr,icmpl,jcmplg,ncmpl,ncmplg,i,j
+  PetscInt :: ghosted_id, ghosted_jd, ierr, icmpl, jcmplg, ncmpl, ncmplg, i, j
 
   ncmpl  = this%GetNCmpl()
   ncmplg = this%GetNCmplG()
@@ -1902,29 +1902,29 @@ subroutine DoIncrJacInList(this,option,nflowdof,Jup,A)
 
   ! Loop over all connection terms d(flow(icmpl)/d(Xc(jcmpl))
 
-  do icmpl = 1,ncmpl
+  do icmpl = 1, ncmpl
 
     ghosted_id = this%c_ghosted_id(icmpl)
 
-    do jcmplg = 1,ncmplg
+    do jcmplg = 1, ncmplg
 
       ghosted_jd = this%cg_ghosted_id(jcmplg)
 
       Jup = 0.0
 
-      do i = 1,nflowdof
-        do j = 1,nflowdof
-          Jup(i,j) = this%w_cmplflowsX(icmpl,i,jcmplg,j)
+      do i = 1, nflowdof
+        do j = 1, nflowdof
+          Jup(i, j) = this%w_cmplflowsX(icmpl, i, jcmplg, j)
         enddo
       enddo
 
       if (wd_isothermal) then
-        Jup(option%energy_id,:) = 0.d0
-        Jup(:,option%energy_id) = 0.d0
+        Jup(option%energy_id, :) = 0.d0
+        Jup(:, option%energy_id) = 0.d0
       endif
 
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_jd-1,Jup, &
-                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+      call MatSetValuesBlockedLocal(A, 1, ghosted_id-1, 1, ghosted_jd-1, Jup, &
+                                    ADD_VALUES, ierr);CHKERRQ(ierr)
 
     enddo
 
@@ -1991,7 +1991,7 @@ end function GetCommInList
 
 ! *************************************************************************** !
 
-function GetCmplDrillingDirectionInList(this,icmpl)
+function GetCmplDrillingDirectionInList(this, icmpl)
   !
   ! Get drilling direction for (icmpl) th completion on this well on this proc
   !
@@ -2001,7 +2001,7 @@ function GetCmplDrillingDirectionInList(this,icmpl)
   implicit none
 
   PetscInt :: GetCmplDrillingDirectionInList
-  PetscInt,intent(in) :: icmpl
+  PetscInt, intent(in) :: icmpl
 
   class(well_data_type) :: this
 
@@ -2011,7 +2011,7 @@ end function GetCmplDrillingDirectionInList
 
 ! *************************************************************************** !
 
-function GetCmplRadiusInList(this,icmpl)
+function GetCmplRadiusInList(this, icmpl)
   !
   ! Get wellbore radius for (icmpl) th completion on this well on this proc
   !
@@ -2021,7 +2021,7 @@ function GetCmplRadiusInList(this,icmpl)
   implicit none
 
   PetscReal :: GetCmplRadiusInList
-  PetscInt,intent(in) :: icmpl
+  PetscInt, intent(in) :: icmpl
   class(well_data_type) :: this
 
   GetCmplRadiusInList = this%c_radius(icmpl)
@@ -2030,7 +2030,7 @@ end function GetCmplRadiusInList
 
 ! *************************************************************************** !
 
-function GetCmplSkinFactorInList(this,icmpl)
+function GetCmplSkinFactorInList(this, icmpl)
   !
   ! Get skin factor for (icmpl) th completion on this well on this proc
   !
@@ -2040,7 +2040,7 @@ function GetCmplSkinFactorInList(this,icmpl)
   implicit none
 
   PetscReal :: GetCmplSkinFactorInList
-  PetscInt,intent(in) :: icmpl
+  PetscInt, intent(in) :: icmpl
   class(well_data_type) :: this
 
   GetCmplSkinFactorInList = this%c_skin_factor(icmpl)
@@ -2049,7 +2049,7 @@ end function GetCmplSkinFactorInList
 
 ! *************************************************************************** !
 
-function GetCmplDxInList(this,icmpl)
+function GetCmplDxInList(this, icmpl)
   !
   ! Get cell dx size for (icmpl) th completion on this well on this proc
   ! This is usually -1, indicating that grid value should be used
@@ -2062,7 +2062,7 @@ function GetCmplDxInList(this,icmpl)
 
   PetscReal             :: GetCmplDxInList
   class(well_data_type) :: this
-  PetscInt,intent(in)   :: icmpl
+  PetscInt, intent(in)  :: icmpl
 
   GetCmplDxInList = this%c_dx(icmpl)
 
@@ -2070,7 +2070,7 @@ end function GetCmplDxInList
 
 ! *************************************************************************** !
 
-function GetCmplDyInList(this,icmpl)
+function GetCmplDyInList(this, icmpl)
   !
   ! Get cell dy size for (icmpl) th completion on this well on this proc
   !
@@ -2081,7 +2081,7 @@ function GetCmplDyInList(this,icmpl)
 
   PetscReal             :: GetCmplDyInList
   class(well_data_type) :: this
-  PetscInt,intent(in)   :: icmpl
+  PetscInt, intent(in)   :: icmpl
 
   GetCmplDyInList = this%c_dy(icmpl)
 
@@ -2089,7 +2089,7 @@ end function GetCmplDyInList
 
 ! *************************************************************************** !
 
-function GetCmplDzInList(this,icmpl)
+function GetCmplDzInList(this, icmpl)
   !
   ! Get cell dz size for (icmpl) th completion on this well on this proc
   !
@@ -2100,7 +2100,7 @@ function GetCmplDzInList(this,icmpl)
 
   PetscReal             :: GetCmplDzInList
   class(well_data_type) :: this
-  PetscInt,intent(in)   :: icmpl
+  PetscInt, intent(in)  :: icmpl
 
   GetCmplDzInList = this%c_dz(icmpl)
 
@@ -2108,7 +2108,7 @@ end function GetCmplDzInList
 
 ! *************************************************************************** !
 
-function GetCmplThetaFactorInList(this,icmpl)
+function GetCmplThetaFactorInList(this, icmpl)
   !
   ! Get theta factor for (icmpl) th completion on this well on this proc
   !
@@ -2119,7 +2119,7 @@ function GetCmplThetaFactorInList(this,icmpl)
 
   PetscReal             :: GetCmplThetaFactorInList
   class(well_data_type) :: this
-  PetscInt,intent(in)   :: icmpl
+  PetscInt, intent(in)  :: icmpl
 
   GetCmplThetaFactorInList = this%c_theta_frac(icmpl)
 
@@ -2127,7 +2127,7 @@ end function GetCmplThetaFactorInList
 
 ! *************************************************************************** !
 
-subroutine GetNameInList(this,name)
+subroutine GetNameInList(this, name)
   !
   ! Get name of this well
   !
@@ -2136,7 +2136,7 @@ subroutine GetNameInList(this,name)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH),intent(out) :: name
+  character(len=MAXSTRINGLENGTH), intent(out) :: name
   class(well_data_type) :: this
 
   name = this%w_name
@@ -2145,7 +2145,7 @@ end subroutine GetNameInList
 
 ! *************************************************************************** !
 
-subroutine SetCCFInList(this,icmpl,ccf)
+subroutine SetCCFInList(this, icmpl, ccf)
   !
   ! Set completion connection factor for the (icmpl)th completion on this well
   !
@@ -2155,7 +2155,7 @@ subroutine SetCCFInList(this,icmpl,ccf)
   implicit none
 
   PetscReal :: ccf
-  PetscInt,intent(in) :: icmpl
+  PetscInt, intent(in) :: icmpl
   class(well_data_type) :: this
 
   this%c_ccf(icmpl) = ccf
@@ -2164,7 +2164,7 @@ end subroutine SetCCFInList
 
 ! ************************************************************************** !
 
-function GetCCFInList(this,icmpl)
+function GetCCFInList(this, icmpl)
   !
   ! Get completion connection factor for the (icmpl)th completion on this well
   !
@@ -2174,7 +2174,7 @@ function GetCCFInList(this,icmpl)
   implicit none
 
   PetscReal :: GetCCFInList
-  PetscInt,intent(in) :: icmpl
+  PetscInt, intent(in) :: icmpl
   class(well_data_type) :: this
 
   GetCCFInList = this%c_ccf(icmpl)
@@ -2183,7 +2183,7 @@ end function GetCCFInList
 
 ! *************************************************************************** !
 
-subroutine SetZInList(this,icmpl,z)
+subroutine SetZInList(this, icmpl, z)
   !
   ! Set elevation for the (icmpl)th completion on this well
   !
@@ -2193,7 +2193,7 @@ subroutine SetZInList(this,icmpl,z)
   implicit none
 
   PetscReal :: z
-  PetscInt,intent(in) :: icmpl
+  PetscInt, intent(in) :: icmpl
   class(well_data_type) :: this
 
   this%c_z(icmpl) = z
@@ -2202,7 +2202,7 @@ end subroutine SetZInList
 
 ! *************************************************************************** !
 
-function GetZInList(this,icmpl)
+function GetZInList(this, icmpl)
   !
   ! Get elevation for the (icmpl)th completion on this well
   !
@@ -2212,7 +2212,7 @@ function GetZInList(this,icmpl)
   implicit none
 
   PetscReal :: GetZInList
-  PetscInt,intent(in) :: icmpl
+  PetscInt, intent(in) :: icmpl
   class(well_data_type) :: this
 
   GetZInList = this%c_z(icmpl)
@@ -2239,7 +2239,7 @@ end function GetTTInList
 
 ! *************************************************************************** !
 
-subroutine GetWellInjectionPAndTInList(this,injection_p,injection_t)
+subroutine GetWellInjectionPAndTInList(this, injection_p, injection_t)
   !
   ! Get current target injection pressure and temperature
   ! (for specific enthalpy calculation)
@@ -2250,8 +2250,8 @@ subroutine GetWellInjectionPAndTInList(this,injection_p,injection_t)
   implicit none
   class(well_data_type) :: this
 
-  PetscReal,intent(out) :: injection_p
-  PetscReal,intent(out) :: injection_t
+  PetscReal, intent(out) :: injection_p
+  PetscReal, intent(out) :: injection_t
 
   injection_p = this%w_injection_p
   injection_t = this%w_injection_t
@@ -2260,7 +2260,7 @@ end subroutine GetWellInjectionPAndTInList
 
 ! *************************************************************************** !
 
-subroutine readWellTarget(this,input,option,keyword,word,target_type)
+subroutine readWellTarget(this, input, option, keyword, word, target_type)
   !
   ! Read a general well target from the input file
   !
@@ -2275,20 +2275,20 @@ subroutine readWellTarget(this,input,option,keyword,word,target_type)
   implicit none
 
   class(well_data_type) :: this
-  type(option_type)           :: option
-  type(input_type), pointer   :: input
-  character(len=*),intent(in) :: keyword
-  PetscInt, intent(in)        :: target_type
-  PetscInt                    :: vmtype
+  type(option_type)            :: option
+  type(input_type), pointer    :: input
+  character(len=*), intent(in) :: keyword
+  PetscInt, intent(in)         :: target_type
+  PetscInt                     :: vmtype
 
-  character(len=MAXWORDLENGTH) :: internal_units,word,units
+  character(len=MAXWORDLENGTH) :: internal_units, word, units
   PetscReal                    :: v
 
   ! Read a well surface target rate int v
-  call InputReadDouble(input,option,v)
-  call InputErrorMsg(input,option,keyword,'WELL_DATA')
+  call InputReadDouble(input, option, v)
+  call InputErrorMsg(input, option, keyword, 'WELL_DATA')
   ! Read the units into word
-  call InputReadWord(input,option,word,PETSC_TRUE)
+  call InputReadWord(input, option, word, PETSC_TRUE)
   vmtype=GetTargetUnitType(target_type)
 
   internal_units = 'unitless'
@@ -2299,13 +2299,13 @@ subroutine readWellTarget(this,input,option,keyword,word,target_type)
   if (InputError(input)) then
     ! case of error, re-use word in error message
     word = trim(keyword) // ' UNITS'
-    call InputDefaultMsg(input,option,word)
+    call InputDefaultMsg(input, option, word)
   else
     ! All OK, convert units and store
     units = trim(word)
-    v = UnitsConvertToInternal(units,internal_units,option)*v
+    v = UnitsConvertToInternal(units, internal_units, option)*v
     if (this%w_readtime>0.0) then
-      call StoreEvent(this,EVENT_TARG,target_type,v)
+      call StoreEvent(this, EVENT_TARG, target_type, v)
     else
       this%w_targets(target_type) = v
     endif
@@ -2315,7 +2315,7 @@ end subroutine readWellTarget
 
 ! *************************************************************************** !
 
-subroutine SetWellType(this,well_type)
+subroutine SetWellType(this, well_type)
   !
   ! Store a well type
   !
@@ -2331,16 +2331,16 @@ subroutine SetWellType(this,well_type)
 
   if (this%w_readtime>0.0) then
    rval = 0.0
-   call StoreEvent(this,EVENT_TYPE,well_type,rval)
+   call StoreEvent(this, EVENT_TYPE, well_type, rval)
   else
-    call UpdateWellType(this,well_type)
+    call UpdateWellType(this, well_type)
   endif
 
 end subroutine SetWellType
 
 ! *************************************************************************** !
 
-subroutine MarkCmplForDeletionInList(this,icmpl)
+subroutine MarkCmplForDeletionInList(this, icmpl)
   !
   ! Mark completion icmpl for deletion
   !
@@ -2350,7 +2350,7 @@ subroutine MarkCmplForDeletionInList(this,icmpl)
   implicit none
 
   class(well_data_type) :: this
-  PetscInt,Intent(in) :: icmpl
+  PetscInt, intent(in) :: icmpl
 
   this%c_mfd(icmpl) = PETSC_TRUE
 
@@ -2368,15 +2368,15 @@ subroutine DeleteMarkedCompletionsInList(this)
   implicit none
 
   class(well_data_type) :: this
-  PetscInt :: icmpl,jcmpl
+  PetscInt :: icmpl, jcmpl
 
   this%w_ncmplg = this%w_ncmpl
-  this%w_mcmplg = max(1,this%w_ncmplg)
+  this%w_mcmplg = max(1, this%w_ncmplg)
 
   allocate(this%cg_ghosted_id(this%w_mcmplg))
 
   jcmpl = 0
-  do icmpl = 1,this%w_ncmpl
+  do icmpl = 1, this%w_ncmpl
 
     this%cg_ghosted_id(icmpl) = this%c_ghosted_id(icmpl)
 
@@ -2414,7 +2414,7 @@ end subroutine DeleteMarkedCompletionsInList
 
 ! *************************************************************************** !
 
-function FindWellInList(iwell,well_data,list)
+function FindWellInList(iwell, well_data, list)
   !
   ! Find the well_data item for a given well index
   !
@@ -2424,7 +2424,7 @@ function FindWellInList(iwell,well_data,list)
   implicit none
 
   PetscBool :: FindWellInList
-  PetscInt,intent(in) :: iwell
+  PetscInt, intent(in) :: iwell
   class(well_data_type), pointer :: well_data
   type (well_data_list_type), pointer :: list
 
@@ -2443,7 +2443,7 @@ end function FindWellInList
 
 ! *************************************************************************** !
 
-function FindWellInListZ(wname,well_data,list)
+function FindWellInListZ(wname, well_data, list)
   !
   ! Find the well_data item for a given well index
   !
@@ -2453,7 +2453,7 @@ function FindWellInListZ(wname,well_data,list)
   implicit none
 
   PetscBool :: FindWellInListZ
-  character(len=*),intent(in) :: wname
+  character(len=*), intent(in) :: wname
   class(well_data_type), pointer :: well_data
   type (well_data_list_type), pointer :: list
 
@@ -2518,7 +2518,7 @@ function GetTargetUnitType(itt)
   implicit none
 
   PetscInt :: GetTargetUnitType
-  PetscInt,intent(in) :: itt
+  PetscInt, intent(in) :: itt
 
   GetTargetUnitType = -1
   if (itt == W_BHP_LIMIT) GetTargetUnitType = TT_P
@@ -2541,7 +2541,7 @@ end function getTargetUnitType
 
 ! *************************************************************************** !
 
-subroutine StoreEvent(this,code,ival,rval)
+subroutine StoreEvent(this, code, ival, rval)
   !
   ! Store an event
   !
@@ -2551,9 +2551,9 @@ subroutine StoreEvent(this,code,ival,rval)
   implicit none
 
   class(well_data_type)  :: this
-  PetscInt,intent(in)    :: code
-  PetscInt,intent(in)    :: ival
-  PetscReal,intent(in)   :: rval
+  PetscInt,  intent(in)  :: code
+  PetscInt,  intent(in)  :: ival
+  PetscReal, intent(in)  :: rval
 
   call checkEventCount(this)
 
@@ -2579,7 +2579,7 @@ subroutine CheckEventCount(this)
 
   class(well_data_type) :: this
 
-  PetscInt :: mold,mnew,nreq
+  PetscInt :: mold, mnew, nreq
   PetscReal :: vzero
 
   vzero = 0.0
@@ -2590,11 +2590,11 @@ subroutine CheckEventCount(this)
     mold = this%w_mevent
     mnew = mold
 
-    call AllocOrReallocI(this%w_event_code,-1         ,mold,mnew,nreq)
-    call AllocOrReallocR(this%w_event_time,vzero      ,mold,mnew,nreq)
-    call AllocOrReallocI(this%w_event_ival,0          ,mold,mnew,nreq)
-    call AllocOrReallocR(this%w_event_rval,vzero      ,mold,mnew,nreq)
-    call AllocOrReallocB(this%w_event_used,PETSC_FALSE,mold,mnew,nreq)
+    call AllocOrReallocI(this%w_event_code, -1         , mold, mnew, nreq)
+    call AllocOrReallocR(this%w_event_time, vzero      , mold, mnew, nreq)
+    call AllocOrReallocI(this%w_event_ival, 0          , mold, mnew, nreq)
+    call AllocOrReallocR(this%w_event_rval, vzero      , mold, mnew, nreq)
+    call AllocOrReallocB(this%w_event_used, PETSC_FALSE, mold, mnew, nreq)
 
     this%w_mevent = mnew
   endif
@@ -2615,8 +2615,8 @@ subroutine CheckCompletionCount(this)
 
   class(well_data_type) :: this
 
-  PetscInt :: mold,mnew,nreq
-  PetscReal :: vneg,vzero,vunity,vrdef
+  PetscInt :: mold, mnew, nreq
+  PetscReal :: vneg, vzero, vunity, vrdef
 
   vneg   =-1.0
   vzero  = 0.0
@@ -2629,27 +2629,27 @@ subroutine CheckCompletionCount(this)
     mnew = mold
     nreq = this%w_ncmpl
 
-    call AllocOrReallocI(this%c_ci         ,0          ,mold,mnew,nreq)
-    call AllocOrReallocI(this%c_cj         ,0          ,mold,mnew,nreq)
-    call AllocOrReallocI(this%c_ck         ,0          ,mold,mnew,nreq)
+    call AllocOrReallocI(this%c_ci         , 0          , mold, mnew, nreq)
+    call AllocOrReallocI(this%c_cj         , 0          , mold, mnew, nreq)
+    call AllocOrReallocI(this%c_ck         , 0          , mold, mnew, nreq)
 
-    call AllocOrReallocI(this%c_local_id   ,0          ,mold,mnew,nreq)
-    call AllocOrReallocI(this%c_ghosted_id ,0          ,mold,mnew,nreq)
-    call AllocOrReallocB(this%c_onproc     ,PETSC_FALSE,mold,mnew,nreq)
-    call AllocOrReallocI(this%c_to_cg      ,0          ,mold,mnew,nreq)
+    call AllocOrReallocI(this%c_local_id   , 0          , mold, mnew, nreq)
+    call AllocOrReallocI(this%c_ghosted_id , 0          , mold, mnew, nreq)
+    call AllocOrReallocB(this%c_onproc     , PETSC_FALSE, mold, mnew, nreq)
+    call AllocOrReallocI(this%c_to_cg      , 0          , mold, mnew, nreq)
 
-    call AllocOrReallocR(this%c_dx         ,vneg       ,mold,mnew,nreq)
-    call AllocOrReallocR(this%c_dy         ,vneg       ,mold,mnew,nreq)
-    call AllocOrReallocR(this%c_dz         ,vneg       ,mold,mnew,nreq)
+    call AllocOrReallocR(this%c_dx         , vneg       , mold, mnew, nreq)
+    call AllocOrReallocR(this%c_dy         , vneg       , mold, mnew, nreq)
+    call AllocOrReallocR(this%c_dz         , vneg       , mold, mnew, nreq)
 
-    call AllocOrReallocR(this%c_radius     ,vrdef      ,mold,mnew,nreq)
-    call AllocOrReallocR(this%c_skin_factor,vzero      ,mold,mnew,nreq)
-    call AllocOrReallocR(this%c_theta_frac ,vunity     ,mold,mnew,nreq)
-    call AllocOrReallocI(this%c_drill_dir  ,Z_DIRECTION,mold,mnew,nreq)
-    call AllocOrReallocR(this%c_z          ,vzero      ,mold,mnew,nreq)
-    call AllocOrReallocR(this%c_ccf        ,vzero      ,mold,mnew,nreq)
+    call AllocOrReallocR(this%c_radius     , vrdef      , mold, mnew, nreq)
+    call AllocOrReallocR(this%c_skin_factor, vzero      , mold, mnew, nreq)
+    call AllocOrReallocR(this%c_theta_frac , vunity     , mold, mnew, nreq)
+    call AllocOrReallocI(this%c_drill_dir  , Z_DIRECTION, mold, mnew, nreq)
+    call AllocOrReallocR(this%c_z          , vzero      , mold, mnew, nreq)
+    call AllocOrReallocR(this%c_ccf        , vzero      , mold, mnew, nreq)
 
-    call AllocOrReallocB(this%c_mfd        ,PETSC_FALSE,mold,mnew,nreq)
+    call AllocOrReallocB(this%c_mfd        , PETSC_FALSE, mold, mnew, nreq)
 
     this%w_mcmpl = mnew
 
@@ -2659,7 +2659,7 @@ end subroutine CheckCompletionCount
 
 ! ************************************************************************** !
 
-subroutine AllocOrReallocI(pi,idef,mold,mnew,nreq)
+subroutine AllocOrReallocI(pi, idef, mold, mnew, nreq)
   !
   ! Allocate or extend a integer array
   !
@@ -2683,7 +2683,7 @@ subroutine AllocOrReallocI(pi,idef,mold,mnew,nreq)
     allocate(pi(mnew))
     pi = idef
   else
-    call ReallocateArray(pi,mnew)
+    call ReallocateArray(pi, mnew)
     pi(mold+1:mnew) = idef
   endif
 
@@ -2691,7 +2691,7 @@ end subroutine AllocOrReallocI
 
 ! ************************************************************************** !
 
-subroutine AllocOrReallocR(pr,rdef,mold,mnew,nreq)
+subroutine AllocOrReallocR(pr, rdef, mold, mnew, nreq)
   !
   ! Allocate or extend a real array
   !
@@ -2715,7 +2715,7 @@ subroutine AllocOrReallocR(pr,rdef,mold,mnew,nreq)
     allocate(pr(mnew))
     pr = rdef
   else
-    call ReallocateArray(pr,mnew)
+    call ReallocateArray(pr, mnew)
     pr(mold+1:mnew) = rdef
   endif
 
@@ -2723,7 +2723,7 @@ end subroutine AllocOrReallocR
 
 ! ************************************************************************** !
 
-subroutine AllocOrReallocB(pb,bdef,mold,mnew,nreq)
+subroutine AllocOrReallocB(pb, bdef, mold, mnew, nreq)
   !
   ! Allocate or extend a bool array
   !
@@ -2747,7 +2747,7 @@ subroutine AllocOrReallocB(pb,bdef,mold,mnew,nreq)
     allocate(pb(mnew))
     pb = bdef
   else
-    call ReallocateArray(pb,mnew)
+    call ReallocateArray(pb, mnew)
     pb(mold+1:mnew) = bdef
   endif
 
@@ -2755,7 +2755,7 @@ end subroutine AllocOrReallocB
 
 ! *************************************************************************** !
 
-subroutine UpdateWellType(this,itype)
+subroutine UpdateWellType(this, itype)
   !
   ! Update the type of a well
   ! This needs care, as the well will generally need a fresh solve.
@@ -2766,8 +2766,8 @@ subroutine UpdateWellType(this,itype)
   implicit none
 
   class(well_data_type) :: this
-  PetscInt,intent(in)   :: itype
-  PetscBool :: isbhp,wasbhp
+  PetscInt, intent(in)   :: itype
+  PetscBool :: isbhp, wasbhp
   PetscReal :: old_bhp_limit
 
   ! Set up old and new target type values
@@ -2804,7 +2804,7 @@ end subroutine UpdateWellType
 
 ! *************************************************************************** !
 
-subroutine getLocalAndGhostedIDs(natural_id,local_id,ghosted_id,onproc,grid)
+subroutine getLocalAndGhostedIDs(natural_id, local_id, ghosted_id, onproc, grid)
   !
   ! Find a completion from its natural id
   ! This needs a search
@@ -2816,13 +2816,13 @@ use Grid_module
 
   implicit none
 
-  PetscInt, intent(in)  :: natural_id
-  PetscInt, intent(out) :: local_id
-  PetscInt, intent(out) :: ghosted_id
-  PetscBool,intent(out) :: onproc
+  PetscInt,  intent(in)  :: natural_id
+  PetscInt,  intent(out) :: local_id
+  PetscInt,  intent(out) :: ghosted_id
+  PetscBool, intent(out) :: onproc
   type(grid_type), pointer :: grid
 
-  PetscInt :: il,ig,ia,ighost
+  PetscInt :: il, ig, ia, ighost
 
   ! Initial values
 
@@ -2832,7 +2832,7 @@ use Grid_module
 
   ! Search local cells
 
-  do il = 1,grid%nlmax
+  do il = 1, grid%nlmax
     ig = grid%nL2G(il)
     ia = grid%nG2A(ig)
     if (ia == natural_id) then
@@ -2870,7 +2870,7 @@ subroutine GetFieldData(fhpav)
 
   implicit none
 
-  PetscReal,intent(out) :: fhpav
+  PetscReal, intent(out) :: fhpav
 
   fhpav = f_hpav
 
@@ -2888,7 +2888,7 @@ subroutine SetFieldData(fhpav)
 
   implicit none
 
-  PetscReal,intent(in) :: fhpav
+  PetscReal, intent(in) :: fhpav
 
   f_hpav = fhpav
 
@@ -2906,26 +2906,26 @@ subroutine FindGroupRates(list)
 
   implicit none
 
-   type(well_data_list_type),pointer :: list
+   type(well_data_list_type), pointer :: list
 
-  PetscInt :: iw,nw,itt,itype
-  PetscReal :: gactp,gacti,wact
+  PetscInt :: iw, nw, itt, itype
+  PetscReal :: gactp, gacti, wact
 
   list%f_actualP = 0.0
   list%f_actualI = 0.0
 
   nw = list%num_well
 
-  do itt = 1,N_WELL_TT
+  do itt = 1, N_WELL_TT
 
     gactp = 0.0
     gacti = 0.0
 
-    do iw = 1,nw
+    do iw = 1, nw
 
-      itype = getWellTypeI(iw,list)
+      itype = getWellTypeI(iw, list)
 
-      wact = GetWellTTValI(iw,itt,VALTYPE_ACTUAL,list)
+      wact = GetWellTTValI(iw, itt, VALTYPE_ACTUAL, list)
 
       if (itype == PROD_WELL_TYPE) then
         gactp = gactp+wact
@@ -2957,25 +2957,25 @@ subroutine FindGroupTotals(list)
 
   implicit none
 
-  type(well_data_list_type),pointer :: list
+  type(well_data_list_type), pointer :: list
 
-  PetscInt :: iw,nw,itt
-  PetscReal :: gtotp,gtoti,wtotp,wtoti
+  PetscInt :: iw, nw, itt
+  PetscReal :: gtotp, gtoti, wtotp, wtoti
 
   list%f_totalP =0.0
   list%f_totalI =0.0
 
   nw = list%num_well
 
-  do itt = 1,N_WELL_TT
+  do itt = 1, N_WELL_TT
 
     gtotp = 0.0
     gtoti = 0.0
 
-    do iw = 1,nw
+    do iw = 1, nw
 
-      wtotp = GetWellTTValI(iw,itt,VALTYPE_TOTALP,list)
-      wtoti = GetWellTTValI(iw,itt,VALTYPE_TOTALI,list)
+      wtotp = GetWellTTValI(iw, itt, VALTYPE_TOTALP, list)
+      wtoti = GetWellTTValI(iw, itt, VALTYPE_TOTALI, list)
 
       gtotp = gtotp + wtotp
       gtoti = gtoti + wtoti
@@ -3004,7 +3004,7 @@ subroutine IncrementWellWarningCount( unconv_t, &
 
   implicit none
 
-  PetscInt,intent(in) :: unconv_t,unconv_w,unconv_b
+  PetscInt, intent(in) :: unconv_t, unconv_w, unconv_b
 
   w_unconv_t = w_unconv_t + unconv_t
   w_unconv_w = w_unconv_w + unconv_w
@@ -3024,7 +3024,7 @@ subroutine throwWellDataException(message)
   implicit none
 
   character(len=*) :: message
-  print *,message
+  print *, message
   stop
 end subroutine throwWellDataException
 
