@@ -6,7 +6,7 @@ module Output_Eclipse_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
-  use, intrinsic :: iso_fortran_env, only: int32,real32,real64
+  use, intrinsic :: iso_fortran_env, only: int32, real32, real64
 
   implicit none
 
@@ -14,17 +14,17 @@ module Output_Eclipse_module
 
   ! Block types in Eclipse files: integer, single, double, bool and char
 
-  PetscInt,parameter :: e_typeI = 1
-  PetscInt,parameter :: e_typeS = 2
-  PetscInt,parameter :: e_typeD = 3
-  PetscInt,parameter :: e_typeB = 4
-  PetscInt,parameter :: e_typeC = 5
+  PetscInt, parameter :: e_typeI = 1
+  PetscInt, parameter :: e_typeS = 2
+  PetscInt, parameter :: e_typeD = 3
+  PetscInt, parameter :: e_typeB = 4
+  PetscInt, parameter :: e_typeC = 5
 
   ! Size of headers of various types
 
-  PetscInt,parameter :: nInteHead = 500
-  PetscInt,parameter :: nLogihead = 200
-  PetscInt,parameter :: nDoubhead = 200
+  PetscInt, parameter :: nInteHead = 500
+  PetscInt, parameter :: nLogihead = 200
+  PetscInt, parameter :: nDoubhead = 200
 
   ! Status flags and counts
 
@@ -78,10 +78,10 @@ module Output_Eclipse_module
 
   ! Mapping arrays (if allocated, released from ReleaseEwriterBuffers)
 
-  PetscInt,allocatable :: e_atoc(:)
+  PetscInt, allocatable :: e_atoc(:)
   PetscBool :: e_atoc_allocated = PETSC_FALSE
-  PetscInt,allocatable :: e_ltocp(:,:)
-  PetscInt,allocatable :: e_nlmaxp(:)
+  PetscInt, allocatable :: e_ltocp(:,:)
+  PetscInt, allocatable :: e_nlmaxp(:)
   PetscBool :: e_ltoap_allocated = PETSC_FALSE
 
   ! The public interface to this module
@@ -93,7 +93,7 @@ module Output_Eclipse_module
   public :: WriteEclipseFilesSumm
   public :: WriteEclipseFilesRest
   public :: ReleaseEwriterBuffers
-  public :: SetupRestMaps,GetMlmax
+  public :: SetupRestMaps, GetMlmax
 
   private ::  SetProblemSize, &
               WriteSpecFile, &
@@ -121,7 +121,7 @@ end subroutine SelectFormattedFiles
 
 ! ************************************************************************** !
 
-subroutine WriteEclipseFilesGrid(efilename,nx,ny,nz,coord,zcorn,gtoa,nw,mcpw)
+subroutine WriteEclipseFilesGrid(efilename, nx, ny, nz, coord, zcorn, gtoa, nw, mcpw)
   !
   ! The first Eclipse file to be written is the grid file
   ! This call opens all five types of file and sets e_opened
@@ -132,46 +132,46 @@ subroutine WriteEclipseFilesGrid(efilename,nx,ny,nz,coord,zcorn,gtoa,nw,mcpw)
 
   implicit none
 
-  character(len=*),intent(in) :: efilename
-  PetscInt,intent(in) :: nx,ny,nz,nw,mcpw
-  PetscReal,intent(in) :: coord(:)
-  PetscReal,intent(in) :: zcorn(:)
-  PetscInt ,intent(in) :: gtoa (:)
+  character(len=*), intent(in) :: efilename
+  PetscInt, intent(in) :: nx, ny, nz, nw, mcpw
+  PetscReal, intent(in) :: coord(:)
+  PetscReal, intent(in) :: zcorn(:)
+  PetscInt , intent(in) :: gtoa (:)
 
-  character(len=MAXSTRINGLENGTH) :: specfn,summfn,gridfn,initfn,restfn
+  character(len=MAXSTRINGLENGTH) :: specfn, summfn, gridfn, initfn, restfn
 
   if (e_formatted) then
 
-    specfn = trim(efilename)//'.fsmspec'
-    summfn = trim(efilename)//'.funsmry'
-    gridfn = trim(efilename)//'.fgrid'
-    initfn = trim(efilename)//'.finit'
-    restfn = trim(efilename)//'.funrst'
+    specfn = trim(efilename) // '.fsmspec'
+    summfn = trim(efilename) // '.funsmry'
+    gridfn = trim(efilename) // '.fgrid'
+    initfn = trim(efilename) // '.finit'
+    restfn = trim(efilename) // '.funrst'
 
-    open(unit=UNIT_SPEC_WRITE,status='replace',form='formatted',file=specfn)
-    open(unit=UNIT_SUMM_WRITE,status='replace',form='formatted',file=summfn)
-    open(unit=UNIT_GRID_WRITE,status='replace',form='formatted',file=gridfn)
-    open(unit=UNIT_INIT_WRITE,status='replace',form='formatted',file=initfn)
-    open(unit=UNIT_REST_WRITE,status='replace',form='formatted',file=restfn)
+    open(unit=UNIT_SPEC_WRITE, status='replace', form='formatted', file=specfn)
+    open(unit=UNIT_SUMM_WRITE, status='replace', form='formatted', file=summfn)
+    open(unit=UNIT_GRID_WRITE, status='replace', form='formatted', file=gridfn)
+    open(unit=UNIT_INIT_WRITE, status='replace', form='formatted', file=initfn)
+    open(unit=UNIT_REST_WRITE, status='replace', form='formatted', file=restfn)
 
   else
 
-    specfn = trim(efilename)//'.smspec'
-    summfn = trim(efilename)//'.unsmry'
-    gridfn = trim(efilename)//'.grid'
-    initfn = trim(efilename)//'.init'
-    restfn = trim(efilename)//'.unrst'
+    specfn = trim(efilename) // '.smspec'
+    summfn = trim(efilename) // '.unsmry'
+    gridfn = trim(efilename) // '.grid'
+    initfn = trim(efilename) // '.init'
+    restfn = trim(efilename) // '.unrst'
 
-    open(unit=UNIT_SPEC_WRITE,status='replace',form='unformatted', &
-                              file=specfn,convert='big_endian')
-    open(unit=UNIT_SUMM_WRITE,status='replace',form='unformatted', &
-                              file=summfn,convert='big_endian')
-    open(unit=UNIT_GRID_WRITE,status='replace',form='unformatted', &
-                              file=gridfn,convert='big_endian')
-    open(unit=UNIT_INIT_WRITE,status='replace',form='unformatted', &
-                              file=initfn,convert='big_endian')
-    open(unit=UNIT_REST_WRITE,status='replace',form='unformatted', &
-                              file=restfn,convert='big_endian')
+    open(unit=UNIT_SPEC_WRITE, status='replace', form='unformatted', &
+                              file=specfn, convert='big_endian')
+    open(unit=UNIT_SUMM_WRITE, status='replace', form='unformatted', &
+                              file=summfn, convert='big_endian')
+    open(unit=UNIT_GRID_WRITE, status='replace', form='unformatted', &
+                              file=gridfn, convert='big_endian')
+    open(unit=UNIT_INIT_WRITE, status='replace', form='unformatted', &
+                              file=initfn, convert='big_endian')
+    open(unit=UNIT_REST_WRITE, status='replace', form='unformatted', &
+                              file=restfn, convert='big_endian')
 
   endif
 
@@ -181,11 +181,11 @@ subroutine WriteEclipseFilesGrid(efilename,nx,ny,nz,coord,zcorn,gtoa,nw,mcpw)
 
   ! Store problem size
 
-  call SetProblemSize(nx,ny,nz,nw,mcpw)
+  call SetProblemSize(nx, ny, nz, nw, mcpw)
 
   ! Write grid file
 
-  call WriteGridFile(coord,zcorn,gtoa)
+  call WriteGridFile(coord, zcorn, gtoa)
 
   ! Grid file output complete, so can close
 
@@ -195,8 +195,8 @@ end subroutine WriteEclipseFilesGrid
 
 !*****************************************************************************!
 
-subroutine WriteEclipseFilesInit(kx,ky,kz,mx,my,mz, &
-                                 depth,poro,ntg,bvol,gtoa,atoc)
+subroutine WriteEclipseFilesInit(kx, ky, kz, mx, my, mz, &
+                                 depth, poro, ntg, bvol, gtoa, atoc)
   !
   ! Writes init file: this contains static values like pore volumes and perms
   !
@@ -205,16 +205,16 @@ subroutine WriteEclipseFilesInit(kx,ky,kz,mx,my,mz, &
 
   implicit none
 
-  PetscReal,intent(in) :: kx(:),ky(:),kz(:),mx(:),my(:),mz(:), &
-                          depth(:),poro(:),ntg(:),bvol(:)
-  PetscInt ,intent(in) :: gtoa(:)
-  PetscInt ,intent(in) :: atoc(:)
+  PetscReal, intent(in) :: kx(:), ky(:), kz(:), mx(:), my(:), mz(:), &
+                           depth(:), poro(:), ntg(:), bvol(:)
+  PetscInt , intent(in) :: gtoa(:)
+  PetscInt , intent(in) :: atoc(:)
 
   if (e_opened) then
 
   ! Write init file
 
-    call WriteInitFile(kx,ky,kz,mx,my,mz,depth,poro,ntg,bvol,gtoa,atoc)
+    call WriteInitFile(kx, ky, kz, mx, my, mz, depth, poro, ntg, bvol, gtoa, atoc)
 
   ! Init file complete, so can close
 
@@ -226,7 +226,7 @@ end subroutine WriteEclipseFilesInit
 
 ! ************************************************************************** !
 
-subroutine WriteEclipseFilesSpec(zm,zn,zu,ni)
+subroutine WriteEclipseFilesSpec(zm, zn, zu, ni)
   !
   ! Writes spec file: this is an index to the values in the summary files
   !
@@ -235,14 +235,14 @@ subroutine WriteEclipseFilesSpec(zm,zn,zu,ni)
 
   implicit none
 
-  character(len=8),intent(in) :: zm(:),zn(:),zu(:)
-  PetscInt,intent(in):: ni
+  character(len=8), intent(in) :: zm(:), zn(:), zu(:)
+  PetscInt, intent(in):: ni
 
   if (e_opened) then
 
   ! Write spec file
 
-    call WriteSpecFile(zm,zn,zu,ni)
+    call WriteSpecFile(zm, zn, zu, ni)
 
   ! Spec file complete, so can close
 
@@ -254,7 +254,7 @@ end subroutine WriteEclipseFilesSpec
 
 !*****************************************************************************!
 
-subroutine WriteEclipseFilesSumm(vd,nd)
+subroutine WriteEclipseFilesSumm(vd, nd)
   !
   ! Writes summary file for this step
   ! Contains well, group and field information, mainly for line graph plotting
@@ -264,14 +264,14 @@ subroutine WriteEclipseFilesSumm(vd,nd)
 
   implicit none
 
-  PetscReal,intent(in) :: vd(:)
-  PetscInt ,intent(in) :: nd
+  PetscReal, intent(in) :: vd(:)
+  PetscInt , intent(in) :: nd
 
   if (e_opened) then
 
   ! Write summary file
 
-    call WriteSummFile(vd,nd)
+    call WriteSummFile(vd, nd)
 
   ! Output is for this step, so flush so that files can be read at run-time
 
@@ -283,9 +283,9 @@ end subroutine WriteEclipseFilesSumm
 
 !*****************************************************************************!
 
-subroutine WriteEclipseFilesRest( vsoll,nsol,zsol,tconv,time,is_ioproc, &
-                                  wname,wtype,wncmpl, &
-                                  ixcmpl,iycmpl,izcmpl,idcmpl,option)
+subroutine WriteEclipseFilesRest( vsoll, nsol, zsol, tconv, time, is_ioproc, &
+                                  wname, wtype, wncmpl, &
+                                  ixcmpl, iycmpl, izcmpl, idcmpl, option)
   !
   ! Writes restart file for this step
   ! Contains arrays like saturations, plus well and completion status
@@ -299,20 +299,20 @@ subroutine WriteEclipseFilesRest( vsoll,nsol,zsol,tconv,time,is_ioproc, &
 
   implicit none
 
-  PetscReal,pointer :: vsoll(:,:)
-  PetscInt          :: nsol
-  character(len=8),pointer :: zsol(:)
-  PetscReal,intent(in) :: tconv,time
-  PetscBool,intent(in) :: is_ioproc
-  character(len=8),intent(in) :: wname(:)
-  PetscInt,intent(in) :: wtype(:),wncmpl(:), &
-                         ixcmpl(:),iycmpl(:),izcmpl(:),idcmpl(:)
-  type(option_type),intent(in), pointer :: option
+  PetscReal, pointer :: vsoll(:,:)
+  PetscInt           :: nsol
+  character(len=8), pointer :: zsol(:)
+  PetscReal, intent(in) :: tconv, time
+  PetscBool, intent(in) :: is_ioproc
+  character(len=8), intent(in) :: wname(:)
+  PetscInt, intent(in) :: wtype(:), wncmpl(:), &
+                         ixcmpl(:), iycmpl(:), izcmpl(:), idcmpl(:)
+  type(option_type), intent(in), pointer :: option
 
   ! Write the file
 
-  call WriteRestFile( vsoll,nsol,zsol,tconv,time,is_ioproc, &
-                      wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl,option )
+  call WriteRestFile( vsoll, nsol, zsol, tconv, time, is_ioproc, &
+                      wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl, option )
 
   ! Flush on the I/O processor
 
@@ -322,17 +322,17 @@ end subroutine WriteEclipseFilesRest
 
 !*****************************************************************************!
 
-subroutine SetProblemSize(nx,ny,nz,nw,ncpw)
+subroutine SetProblemSize(nx, ny, nz, nw, ncpw)
   !
   ! Store problem size variables:
-  ! grid dimensions,number of wells,number of completions per well
+  ! grid dimensions, number of wells, number of completions per well
   !
   ! Author: Dave Ponting
   ! Date: 01/15/19
 
   implicit none
 
-  PetscInt,intent(in) :: nx,ny,nz,nw,ncpw
+  PetscInt, intent(in) :: nx, ny, nz, nw, ncpw
 
   e_nx = nx
   e_ny = ny
@@ -342,11 +342,11 @@ subroutine SetProblemSize(nx,ny,nz,nw,ncpw)
   e_nxyz = e_nx*e_ny*e_nz
 
   e_nwell  = nw
-  e_nwelmx = max(e_nwelmx,e_nwell)
-  e_ncwmax = max(3*nz,ncpw)
+  e_nwelmx = max(e_nwelmx, e_nwell)
+  e_ncwmax = max(3*nz, ncpw)
 
   e_ngroup = 1
-  e_ngrpmx = max(e_ngrpmx,e_ngroup)
+  e_ngrpmx = max(e_ngrpmx, e_ngroup)
   e_nwgmax = nw
 
   e_nigrp  = e_nwgmax+50
@@ -355,7 +355,7 @@ end subroutine SetProblemSize
 
 !*****************************************************************************!
 
-subroutine WriteSpecFile(vmnem,vwgname,vunits,ni)
+subroutine WriteSpecFile(vmnem, vwgname, vunits, ni)
   !
   ! Write the spec file, containing mnemonics, well/group names and units
   !
@@ -364,16 +364,16 @@ subroutine WriteSpecFile(vmnem,vwgname,vunits,ni)
 
   implicit none
 
-  character(len=8),intent(in) :: vmnem(:),vwgname(:),vunits(:)
-  PetscInt,intent(in):: ni
+  character(len=8), intent(in) :: vmnem(:), vwgname(:), vunits(:)
+  PetscInt, intent(in):: ni
 
-  PetscInt,parameter :: nDimens    = 6
-  PetscInt,parameter :: nStartData = 6
+  PetscInt, parameter :: nDimens    = 6
+  PetscInt, parameter :: nStartData = 6
 
-  PetscInt :: vdimens(nDimens   )
+  PetscInt :: vdimens  (nDimens   )
   PetscInt :: vstartdat(nStartData)
 
-  PetscInt,allocatable :: vnums(:)
+  PetscInt, allocatable :: vnums(:)
 
   ! Store the file pointer
 
@@ -403,12 +403,12 @@ subroutine WriteSpecFile(vmnem,vwgname,vunits,ni)
 
   ! Write out values
 
-  call WriteBlockI(vdimens  ,'DIMENS'  ,nDimens   )
-  call WriteBlockC(vmnem    ,'KEYWORDS',ni)
-  call WriteBlockC(vwgname  ,'WGNAMES' ,ni)
-  call WriteBlockI(vnums    ,'NUMS'    ,ni)
-  call WriteBlockC(vunits   ,'UNITS'   ,ni)
-  call WriteBlockI(vstartdat,'STARTDAT',nStartData)
+  call WriteBlockI(vdimens  , 'DIMENS'  , nDimens   )
+  call WriteBlockC(vmnem    , 'KEYWORDS', ni)
+  call WriteBlockC(vwgname  , 'WGNAMES' , ni)
+  call WriteBlockI(vnums    , 'NUMS'    , ni)
+  call WriteBlockC(vunits   , 'UNITS'   , ni)
+  call WriteBlockI(vstartdat, 'STARTDAT', nStartData)
 
   ! Deallocations
 
@@ -418,7 +418,7 @@ end subroutine WriteSpecFile
 
 !*****************************************************************************!
 
-subroutine WriteSummFile(vd,nd)
+subroutine WriteSummFile(vd, nd)
   !
   ! Write the summ file, containing values to match the mnemonics in spec file
   !
@@ -427,9 +427,9 @@ subroutine WriteSummFile(vd,nd)
 
   implicit none
 
-  PetscReal,intent(in) :: vd(:)
-  PetscInt ,intent(in) :: nd
-  PetscInt             :: vi(1)
+  PetscReal, intent(in) :: vd(:)
+  PetscInt , intent(in) :: nd
+  PetscInt              :: vi(1)
 
   e_fileunit = UNIT_SUMM_WRITE
 
@@ -442,24 +442,24 @@ subroutine WriteSummFile(vd,nd)
   ! Write out SEQHDR first step and then MINISTEP and values at each step
 
   if (e_firstSummaryWrite) then
-    call WriteBlockI(vi,'SEQHDR',1)
+    call WriteBlockI(vi, 'SEQHDR', 1)
     e_firstSummaryWrite = PETSC_FALSE
   endif
 
   ! Step counter (starting from 1)
 
   vi(1) = e_istep_summ
-  call WriteBlockI(vi,'MINISTEP',1)
+  call WriteBlockI(vi, 'MINISTEP', 1)
 
   ! Summary values for this step
 
-  call WriteBlockS(vd,'PARAMS',nd)
+  call WriteBlockS(vd, 'PARAMS', nd)
 
 end subroutine WriteSummFile
 
 !*****************************************************************************!
 
-subroutine WriteGridFile(coord,zcorn,gtoa)
+subroutine WriteGridFile(coord, zcorn, gtoa)
   !
   ! Write the grid file, containing cell vertex information
   !
@@ -470,23 +470,23 @@ subroutine WriteGridFile(coord,zcorn,gtoa)
 
   implicit none
 
-  PetscReal,intent(in) :: coord(:)
-  PetscReal,intent(in) :: zcorn(:)
-  PetscInt ,intent(in) :: gtoa(:)
+  PetscReal, intent(in) :: coord(:)
+  PetscReal, intent(in) :: zcorn(:)
+  PetscInt , intent(in) :: gtoa(:)
 
   PetscInt :: vdimens(3)
   character(len=8) :: vgridunit(2)
 
-  PetscInt,parameter :: nCoords  =  7
-  PetscInt,parameter :: nCorners = 24
+  PetscInt, parameter :: nCoords  =  7
+  PetscInt, parameter :: nCorners = 24
 
   PetscInt  :: vcoords (nCoords )
   PetscReal :: vcorners(nCorners)
 
-  PetscReal :: x000(3),x100(3),x010(3),x110(3), &
-               x001(3),x101(3),x011(3),x111(3)
+  PetscReal :: x000(3), x100(3), x010(3), x110(3), &
+               x001(3), x101(3), x011(3), x111(3)
 
-  PetscInt  :: ix,iy,izp,ize,igp,ige,ia
+  PetscInt  :: ix, iy, izp, ize, igp, ige, ia
 
   ! Store the file pointer
 
@@ -498,12 +498,12 @@ subroutine WriteGridFile(coord,zcorn,gtoa)
   vdimens(2) = e_ny
   vdimens(3) = e_nz
 
-  call WriteBlockI(vdimens,'DIMENS',3)
+  call WriteBlockI(vdimens, 'DIMENS', 3)
 
   vgridunit(1) = 'METRIC'
   vgridunit(2) = ' '
 
-  call WriteBlockC(vgridunit,'GRIDUNIT',2)
+  call WriteBlockC(vgridunit, 'GRIDUNIT', 2)
 
   ! Set up storage for coord and corners data
 
@@ -515,10 +515,10 @@ subroutine WriteGridFile(coord,zcorn,gtoa)
   igp = 0
   ige = 0
 
-  do ize = 1,e_nz
+  do ize = 1, e_nz
    izp = e_nz-ize+1 ! Get the Pflotran k-up index
-    do iy = 1,e_ny
-      do ix = 1,e_nx
+    do iy = 1, e_ny
+      do ix = 1, e_nx
 
         ige = ige +1
 
@@ -527,8 +527,10 @@ subroutine WriteGridFile(coord,zcorn,gtoa)
 
   ! Get the corners of this cell
 
-        call GetCorners( ix,iy,izp,x000,x100,x010,x110,x001,x101,x011,x111, &
-                         coord,zcorn,e_nx,e_ny )
+        call GetCorners( ix, iy, izp, &
+                         x000, x100, x010, x110, &
+                         x001, x101, x011, x111, &
+                         coord, zcorn, e_nx, e_ny )
 
   ! Fill in COORDS data for this cell (location in ijk grid)
 
@@ -558,8 +560,8 @@ subroutine WriteGridFile(coord,zcorn,gtoa)
 
   ! Write out values and increment cell counter
 
-        call WriteBlockI(vcoords ,'COORDS' ,nCoords )
-        call WriteBlockS(vcorners,'CORNERS',nCorners)
+        call WriteBlockI(vcoords  , 'COORDS' , nCoords )
+        call WriteBlockS(vcorners , 'CORNERS', nCorners)
 
       enddo
     enddo
@@ -569,7 +571,7 @@ end subroutine WriteGridFile
 
 !*****************************************************************************!
 
-subroutine WriteInitFile(kx,ky,kz,mx,my,mz,depth,poro,ntg,bvol,gtoa,atoc)
+subroutine WriteInitFile(kx, ky, kz, mx, my, mz, depth, poro, ntg, bvol, gtoa, atoc)
   !
   ! Write the init file, containing static cell information, like perms
   !
@@ -580,13 +582,13 @@ subroutine WriteInitFile(kx,ky,kz,mx,my,mz,depth,poro,ntg,bvol,gtoa,atoc)
 
   implicit none
 
-  PetscReal,intent(in) :: kx(:),ky(:),kz(:),mx(:),my(:),mz(:), &
-                          depth(:),poro(:),ntg(:),bvol(:)
-  PetscInt,intent(in) :: gtoa(:)
-  PetscInt,intent(in) :: atoc(:)
+  PetscReal, intent(in) :: kx(:), ky(:), kz(:), mx(:), my(:), mz(:), &
+                           depth(:), poro(:), ntg(:), bvol(:)
+  PetscInt, intent(in) :: gtoa(:)
+  PetscInt, intent(in) :: atoc(:)
 
-  PetscReal,parameter :: flip = -1.0
-  PetscReal,parameter :: nofl =  1.0
+  PetscReal, parameter :: flip = -1.0
+  PetscReal, parameter :: nofl =  1.0
 
   PetscInt  :: intehead(nInteHead)
   PetscBool :: logihead(nLogiHead)
@@ -594,11 +596,11 @@ subroutine WriteInitFile(kx,ky,kz,mx,my,mz,depth,poro,ntg,bvol,gtoa,atoc)
 
   PetscInt :: vi(1)
 
-  PetscReal,allocatable :: porv(:)
-  PetscReal,allocatable :: buf(:)
+  PetscReal, allocatable :: porv(:)
+  PetscReal, allocatable :: buf(:)
 
-  PetscInt  :: ix,iy,ize,izp,ig,ia,na
-  PetscReal :: cprm,cdef
+  PetscInt  :: ix, iy, ize, izp, ig, ia, na
+  PetscReal :: cprm, cdef
 
   ! Store the file pointer
 
@@ -623,10 +625,10 @@ subroutine WriteInitFile(kx,ky,kz,mx,my,mz,depth,poro,ntg,bvol,gtoa,atoc)
   ! Prepare full (all cells) porv array
 
   e_na = 0
-  do ize = 1,e_nz
+  do ize = 1, e_nz
     izp = e_nz-ize+1
-    do iy = 1,e_ny
-      do ix = 1,e_nx
+    do iy = 1, e_ny
+      do ix = 1, e_nx
         ig = e_nx*e_ny*(izp-1) + e_nx*(iy-1) + ix
         ia = gtoa(ig)
         if (ia>0) then
@@ -646,25 +648,25 @@ subroutine WriteInitFile(kx,ky,kz,mx,my,mz,depth,poro,ntg,bvol,gtoa,atoc)
   ! Write operations
 
   vi(1) = 1
-  call WriteBlockI(vi,'SEQNUM',1)
+  call WriteBlockI(vi, 'SEQNUM', 1)
 
-  call WriteBlockI(intehead,'INTEHEAD',nIntehead)
-  call WriteBlockB(logihead,'LOGIHEAD',nLogihead)
-  call WriteBlockD(doubhead,'DOUBHEAD',nDoubhead)
+  call WriteBlockI(intehead, 'INTEHEAD', nIntehead)
+  call WriteBlockB(logihead, 'LOGIHEAD', nLogihead)
+  call WriteBlockD(doubhead, 'DOUBHEAD', nDoubhead)
 
-  call WriteBlockS(porv,"PORV",e_nxyz)
+  call WriteBlockS(porv, 'PORV', e_nxyz)
 
-  call CmpToCNOBuf(buf,kx   ,porv,nofl,cprm);call WriteBlockS(buf,"PERMX",e_na)
-  call CmpToCNOBuf(buf,ky   ,porv,nofl,cprm);call WriteBlockS(buf,"PERMY",e_na)
-  call CmpToCNOBuf(buf,kz   ,porv,nofl,cprm);call WriteBlockS(buf,"PERMZ",e_na)
+  call CmpToCNOBuf(buf, kx   , porv, nofl, cprm);call WriteBlockS(buf, 'PERMX', e_na)
+  call CmpToCNOBuf(buf, ky   , porv, nofl, cprm);call WriteBlockS(buf, 'PERMY', e_na)
+  call CmpToCNOBuf(buf, kz   , porv, nofl, cprm);call WriteBlockS(buf, 'PERMZ', e_na)
 
-  call CmpToCNOBuf(buf,mx   ,porv,nofl,cdef);call WriteBlockS(buf,"MULTX",e_na)
-  call CmpToCNOBuf(buf,my   ,porv,nofl,cdef);call WriteBlockS(buf,"MULTY",e_na)
-  call CmpToCNOBuf(buf,mz   ,porv,nofl,cdef);call WriteBlockS(buf,"MULTZ",e_na)
+  call CmpToCNOBuf(buf, mx   , porv, nofl, cdef);call WriteBlockS(buf, 'MULTX', e_na)
+  call CmpToCNOBuf(buf, my   , porv, nofl, cdef);call WriteBlockS(buf, 'MULTY', e_na)
+  call CmpToCNOBuf(buf, mz   , porv, nofl, cdef);call WriteBlockS(buf, 'MULTZ', e_na)
 
-  call CmpToCNOBuf(buf,poro ,porv,nofl,cdef);call WriteBlockS(buf,"PORO" ,e_na)
-  call CmpToCNOBuf(buf,depth,porv,flip,cdef);call WriteBlockS(buf,"DEPTH",e_na)
-  call CmpToCNOBuf(buf,ntg  ,porv,nofl,cdef);call WriteBlockS(buf,"NTOG" ,e_na)
+  call CmpToCNOBuf(buf, poro , porv, nofl, cdef);call WriteBlockS(buf, 'PORO' , e_na)
+  call CmpToCNOBuf(buf, depth, porv, flip, cdef);call WriteBlockS(buf, 'DEPTH', e_na)
+  call CmpToCNOBuf(buf, ntg  , porv, nofl, cdef);call WriteBlockS(buf, 'NTOG' , e_na)
 
   ! Deallocate
 
@@ -686,8 +688,8 @@ end subroutine WriteInitFile
 
 !*****************************************************************************!
 
-subroutine WriteRestFile(vsoll,nsol,zsol,tconv,time,is_ioproc, &
-                         wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl,option)
+subroutine WriteRestFile(vsoll, nsol, zsol, tconv, time, is_ioproc, &
+                         wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl, option)
   !
   ! Write the rest file, containing dynamic cell information, like saturations
   ! This routine is called by all ranks, but only the I/O rank writes the file
@@ -700,16 +702,16 @@ subroutine WriteRestFile(vsoll,nsol,zsol,tconv,time,is_ioproc, &
 
   implicit none
 
-  PetscReal,pointer        :: vsoll(:,:)
-  PetscInt                 :: nsol
-  character(len=8),pointer :: zsol(:)
-  PetscReal :: tconv,time,tdays
-  PetscBool,intent(in)             :: is_ioproc
-  character(len=8),intent(in) :: wname(:)
-  PetscInt,intent(in) :: wtype(:),wncmpl(:), &
-                         ixcmpl(:),iycmpl(:),izcmpl(:),idcmpl(:)
+  PetscReal, pointer        :: vsoll(:,:)
+  PetscInt                  :: nsol
+  character(len=8), pointer :: zsol(:)
+  PetscReal :: tconv, time, tdays
+  PetscBool, intent(in)       :: is_ioproc
+  character(len=8), intent(in) :: wname(:)
+  PetscInt, intent(in) :: wtype(:), wncmpl(:), &
+                          ixcmpl(:), iycmpl(:), izcmpl(:), idcmpl(:)
 
-  type(option_type),intent(in), pointer :: option
+  type(option_type), intent(in), pointer :: option
 
   PetscInt  :: intehead(nInteHead)
   PetscBool :: logihead(nLogiHead)
@@ -717,16 +719,16 @@ subroutine WriteRestFile(vsoll,nsol,zsol,tconv,time,is_ioproc, &
 
   PetscInt :: vi(1)
 
-  PetscReal,allocatable :: varr(:)
-  PetscReal,allocatable :: vbuf(:)
+  PetscReal, allocatable :: varr(:)
+  PetscReal, allocatable :: vbuf(:)
 
   PetscReal :: conv
   PetscBool :: is_pressure
 
-  PetscInt :: isol,hours,mins,microsecs,years,months,days,ic,il,nproc, &
-              iproco,nlmaxo,iproct,ioproc,lioproc,liproct,liproco
+  PetscInt :: isol, hours, mins, microsecs, years, months, days, ic, il, nproc, &
+              iproco, nlmaxo, iproct, ioproc, lioproc, liproct, liproco
 
-  PetscMPIInt :: status_mpi(MPI_STATUS_SIZE),ierr,itag
+  PetscMPIInt :: status_mpi(MPI_STATUS_SIZE), ierr, itag
 
   ! Set up useful scalars
 
@@ -756,7 +758,7 @@ subroutine WriteRestFile(vsoll,nsol,zsol,tconv,time,is_ioproc, &
 
   ! Get date and time
 
-    call GetYMDHMMS(tdays,years,months,days,hours,mins,microsecs)
+    call GetYMDHMMS(tdays, years, months, days, hours, mins, microsecs)
 
     intehead(65)  = days
     intehead(66)  = months
@@ -773,15 +775,15 @@ subroutine WriteRestFile(vsoll,nsol,zsol,tconv,time,is_ioproc, &
 
     e_sequn_rest = e_sequn_rest+1
     vi(1) = e_sequn_rest
-    call WriteBlockI(vi,'SEQNUM',1)
+    call WriteBlockI(vi, 'SEQNUM', 1)
 
-    call WriteBlockI(intehead,'INTEHEAD',nIntehead)
-    call WriteBlockB(logihead,'LOGIHEAD',nLogihead)
-    call WriteBlockD(doubhead,'DOUBHEAD',nDoubhead)
+    call WriteBlockI(intehead, 'INTEHEAD' , nIntehead)
+    call WriteBlockB(logihead, 'LOGIHEAD' , nLogihead)
+    call WriteBlockD(doubhead, 'DOUBHEAD' , nDoubhead)
 
   ! Write wells
 
-    call WriteWells(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
+    call WriteWells(wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl)
 
   endif
 
@@ -791,42 +793,42 @@ subroutine WriteRestFile(vsoll,nsol,zsol,tconv,time,is_ioproc, &
 
   ! Loop over the solution arrays to be written
 
-  do isol =1 ,nsol
+  do isol =1, nsol
 
-    is_pressure = StringCompareIgnoreCase(zsol(isol),'PRESSURE')
+    is_pressure = StringCompareIgnoreCase(zsol(isol), 'PRESSURE')
 
     conv = 1.0
     if (is_pressure) conv = 1.0E-5 ! Conv. from Pflotran Pa to Eclipse Bars
 
     if (is_ioproc) then
       ! Add the local bit on this proc
-      do il = 1,e_nlmax
-        ic = e_ltocp(il,liproct)
-        varr(ic) = conv*vsoll(il,isol)
+      do il = 1, e_nlmax
+        ic = e_ltocp(il, liproct)
+        varr(ic) = conv*vsoll(il, isol)
       enddo
       ! Receive the values from other procs
-      do iproco = 0,nproc-1
+      do iproco = 0, nproc-1
 
         if (iproco .ne. option%io_rank) then
           liproco = iproco+1
           nlmaxo  = e_nlmaxp(liproco)
-          call MPI_RECV(vbuf,nlmaxo,MPI_DOUBLE_PRECISION,iproco, &
-                        MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
-          do il = 1,nlmaxo
-            ic = e_ltocp(il,liproco)
+          call MPI_RECV(vbuf, nlmaxo, MPI_DOUBLE_PRECISION, iproco, &
+                        MPI_ANY_TAG, option%mycomm, status_mpi, ierr)
+          do il = 1, nlmaxo
+            ic = e_ltocp(il, liproco)
             varr(ic) = conv*vbuf(il)
           enddo
         endif
       enddo
       ! Write out the whole thing
-      call WriteBlockS(varr,zsol(isol),e_na)
+      call WriteBlockS(varr, zsol(isol), e_na)
     else
     ! Send values to the IO proc
-     do il = 1,e_nlmax
-       vbuf(il) = vsoll(il,isol)
+     do il = 1, e_nlmax
+       vbuf(il) = vsoll(il, isol)
      enddo
-     call MPI_SEND(vbuf,e_nlmax,MPI_DOUBLE_PRECISION,ioproc, &
-                   itag,option%mycomm,ierr)
+     call MPI_SEND(vbuf, e_nlmax, MPI_DOUBLE_PRECISION, ioproc, &
+                   itag, option%mycomm, ierr)
     endif
 
   enddo
@@ -842,7 +844,7 @@ end subroutine WriteRestFile
 
 !*****************************************************************************!
 
-subroutine WriteWells(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
+subroutine WriteWells(wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl)
   !
   ! Write well information onto the rest file
   !
@@ -854,40 +856,40 @@ subroutine WriteWells(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
 
   implicit none
 
-  character(len=8),intent(in) :: wname(:)
-  PetscInt,intent(in) :: wtype(:),wncmpl(:), &
-                         ixcmpl(:),iycmpl(:),izcmpl(:),idcmpl(:)
+  character(len=8), intent(in) :: wname(:)
+  PetscInt, intent(in) :: wtype(:), wncmpl(:), &
+                          ixcmpl(:), iycmpl(:), izcmpl(:), idcmpl(:)
 
-  PetscInt ,allocatable :: igrp(:)
-  PetscReal,allocatable :: sgrp(:)
-  PetscReal,allocatable :: xgrp(:)
-  character(len=8) ,allocatable :: zgrp(:)
+  PetscInt , allocatable :: igrp(:)
+  PetscReal, allocatable :: sgrp(:)
+  PetscReal, allocatable :: xgrp(:)
+  character(len=8), allocatable :: zgrp(:)
 
-  PetscInt ,allocatable :: iwel(:)
-  PetscReal,allocatable :: swel(:)
-  PetscReal,allocatable :: xwel(:)
-  character(len=8) ,allocatable :: zwel(:)
+  PetscInt , allocatable :: iwel(:)
+  PetscReal, allocatable :: swel(:)
+  PetscReal, allocatable :: xwel(:)
+  character(len=8), allocatable :: zwel(:)
 
-  PetscInt ,allocatable :: icon(:)
-  PetscReal,allocatable :: scon(:)
-  PetscReal,allocatable :: xcon(:)
+  PetscInt , allocatable :: icon(:)
+  PetscReal, allocatable :: scon(:)
+  PetscReal, allocatable :: xcon(:)
 
   ! Set up default values
 
-  PetscInt     ,parameter :: idef = 0
-  PetscReal    ,parameter :: sdef = 0.0
-  PetscReal    ,parameter :: ddef = 0.0
-  character(len=8),parameter :: zdef = ' '
+  PetscInt     , parameter :: idef = 0
+  PetscReal    , parameter :: sdef = 0.0
+  PetscReal    , parameter :: ddef = 0.0
+  character(len=8), parameter :: zdef = ' '
 
-  PetscInt :: ntigrp,ntsgrp,ntxgrp,ntzgrp, &
-              ntiwel,ntswel,ntxwel,ntzwel, &
-              nticon,ntscon,ntxcon,ig,iwg,iw,ik
+  PetscInt :: ntigrp, ntsgrp, ntxgrp, ntzgrp, &
+              ntiwel, ntswel, ntxwel, ntzwel, &
+              nticon, ntscon, ntxcon, ig, iwg, iw, ik
 
-  PetscInt :: iwpx,iwpy,iwpz,iewtype,icpx,icpy,icpz, &
-              ibigrp,ibzgrp,ibiwel,ibzwel,ibicon,ibscon,welltype, &
-              cdd,ibcmpl,ncmpl
+  PetscInt :: iwpx, iwpy, iwpz, iewtype, icpx, icpy, icpz, &
+              ibigrp, ibzgrp, ibiwel, ibzwel, ibicon, ibscon, welltype, &
+              cdd, ibcmpl, ncmpl
 
-  PetscReal :: sccf,skh
+  PetscReal :: sccf, skh
 
   character(len=8) :: name8
   character(len=MAXSTRINGLENGTH) :: name
@@ -949,7 +951,7 @@ subroutine WriteWells(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
 
   ! Fill in required values
 
-  do ig = 1,e_ngroup
+  do ig = 1, e_ngroup
 
   ! Find required base pointers into well structures
 
@@ -958,7 +960,7 @@ subroutine WriteWells(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
 
   ! Set the required values
 
-     do iwg = 1,e_nwgmax
+     do iwg = 1, e_nwgmax
        igrp(ibigrp+iwg) = iwg
      enddo
      igrp(ibigrp+e_nwgmax+1) = e_nwgmax
@@ -969,7 +971,7 @@ subroutine WriteWells(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
   ! Loop over the well and completions filling up the data structure
 
   ibcmpl = 0
-  do iw = 1,e_nwell
+  do iw = 1, e_nwell
 
     ! Get name and type of this well
 
@@ -1009,7 +1011,7 @@ subroutine WriteWells(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
 
     ! Loop over completions
 
-    do ik = 1,ncmpl
+    do ik = 1, ncmpl
 
       ! Set up completion location
 
@@ -1045,19 +1047,19 @@ subroutine WriteWells(wname,wtype,wncmpl,ixcmpl,iycmpl,izcmpl,idcmpl)
 
   ! Write out data
 
-  call WriteBlockI(iwel,'IWEL',ntiwel)
-  call WriteBlockS(swel,'SWEL',ntswel)
-  call WriteBlockD(xwel,'XWEL',ntxwel)
-  call WriteBlockC(zwel,'ZWEL',ntzwel)
+  call WriteBlockI(iwel, 'IWEL' , ntiwel)
+  call WriteBlockS(swel, 'SWEL' , ntswel)
+  call WriteBlockD(xwel, 'XWEL' , ntxwel)
+  call WriteBlockC(zwel, 'ZWEL' , ntzwel)
 
-  call WriteBlockI(igrp,'IGRP',ntigrp)
-  call WriteBlockS(sgrp,'SGRP',ntsgrp)
-  call WriteBlockD(xgrp,'XGRP',ntxgrp)
-  call WriteBlockC(zgrp,'ZGRP',ntzgrp)
+  call WriteBlockI(igrp, 'IGRP' , ntigrp)
+  call WriteBlockS(sgrp, 'SGRP' , ntsgrp)
+  call WriteBlockD(xgrp, 'XGRP' , ntxgrp)
+  call WriteBlockC(zgrp, 'ZGRP' , ntzgrp)
 
-  call WriteBlockI(icon,'ICON',nticon)
-  call WriteBlockS(scon,'SCON',ntscon)
-  call WriteBlockD(xcon,'XCON',ntxcon)
+  call WriteBlockI(icon, 'ICON' , nticon)
+  call WriteBlockS(scon, 'SCON' , ntscon)
+  call WriteBlockD(xcon, 'XCON' , ntxcon)
 
   ! Release the well arrays
 
@@ -1079,7 +1081,7 @@ end subroutine WriteWells
 
 !*****************************************************************************!
 
-subroutine WriteBlockI(a,mnem,n)
+subroutine WriteBlockI(a, mnem, n)
   !
   ! Write out a block of int*32 data
   !
@@ -1088,19 +1090,19 @@ subroutine WriteBlockI(a,mnem,n)
 
   implicit none
 
-  PetscInt,intent(in) :: a(:)
-  character(len=*),intent(in) :: mnem
-  PetscInt,intent(in) :: n
+  PetscInt, intent(in) :: a(:)
+  character(len=*), intent(in) :: mnem
+  PetscInt, intent(in) :: n
 
-  PetscInt,parameter :: blksize  = 6    ! Values/line (formatted)
-  PetscInt,parameter :: mrecsize = 1000 ! Values/rec (unformatted)
+  PetscInt, parameter :: blksize  = 6    ! Values/line (formatted)
+  PetscInt, parameter :: mrecsize = 1000 ! Values/rec (unformatted)
 
-  PetscInt :: il,iu,j,irec,nrec,ninrec
-  integer(kind=int32),allocatable :: ibuf(:)
+  PetscInt :: il, iu, j, irec, nrec, ninrec
+  integer(kind=int32), allocatable :: ibuf(:)
  
   ! Write out an integer header line or record
 
-  call WriteHeader(e_typeI,mnem,n)
+  call WriteHeader(e_typeI, mnem, n)
 
   ! Write out n values
 
@@ -1108,8 +1110,8 @@ subroutine WriteBlockI(a,mnem,n)
 
   ! Formatted case: write out in lines of 6 values per line, I11 format
 
-    do il = 1,n,blksize
-      iu = min(il+blksize-1,n)
+    do il = 1, n, blksize
+      iu = min(il+blksize-1, n)
       write(e_fileunit,'(6(1x,i11))') (a(j),j=il,iu)
     enddo
 
@@ -1121,14 +1123,14 @@ subroutine WriteBlockI(a,mnem,n)
 
     ! Loop over the number of records required
 
-    nrec = GetNumberOfRecords(n,mrecsize)
-    do irec = 1,nrec
+    nrec = GetNumberOfRecords(n, mrecsize)
+    do irec = 1, nrec
       ! Get record details
-      call GetRecordDetails(irec,n,mrecsize,il,iu,ninrec)
+      call GetRecordDetails(irec, n, mrecsize, il, iu, ninrec)
       ! Copy to buffer
-      call CopyToBufferI(a,ibuf,il,iu)
+      call CopyToBufferI(a, ibuf, il, iu)
       ! Write out the record
-      write(e_fileunit) (ibuf(j),j=1,ninrec)
+      write(e_fileunit) (ibuf(j), j=1, ninrec)
     enddo
 
     ! Delete the buffer
@@ -1140,7 +1142,7 @@ end subroutine WriteBlockI
 
 !*****************************************************************************!
 
-subroutine WriteBlockS(a,mnem,n)
+subroutine WriteBlockS(a, mnem, n)
   !
   ! Write out a block of real*32 data
   !
@@ -1149,19 +1151,19 @@ subroutine WriteBlockS(a,mnem,n)
 
   implicit none
 
-  PetscReal,intent(in) :: a(:)
-  character(len=*),intent(in) :: mnem
-  PetscInt,intent(in) :: n
+  PetscReal, intent(in) :: a(:)
+  character(len=*), intent(in) :: mnem
+  PetscInt, intent(in) :: n
 
-  PetscInt,parameter :: blksize = 4 ! Values/line (formatted)
-  PetscInt,parameter :: mrecsize = 1000 ! Values/rec (unformatted)
+  PetscInt, parameter :: blksize = 4 ! Values/line (formatted)
+  PetscInt, parameter :: mrecsize = 1000 ! Values/rec (unformatted)
 
-  PetscInt :: il,iu,j,irec,nrec,ninrec
-  real(kind=real32),allocatable :: fbuf(:)
+  PetscInt :: il, iu, j, irec, nrec, ninrec
+  real(kind=real32), allocatable :: fbuf(:)
  
   ! Write out an single precision header line or record
 
-  call WriteHeader(e_typeS,mnem,n)
+  call WriteHeader(e_typeS, mnem, n)
 
   ! Write out n values
 
@@ -1169,8 +1171,8 @@ subroutine WriteBlockS(a,mnem,n)
 
     ! Formatted case: write out in lines of 6 values per line, I11 format
 
-    do il = 1,n,blksize
-      iu = min(il+blksize-1,n)
+    do il = 1, n, blksize
+      iu = min(il+blksize-1, n)
       write(e_fileunit,'(4(1x,e16.8))') (a(j),j=il,iu)
     enddo
 
@@ -1182,14 +1184,14 @@ subroutine WriteBlockS(a,mnem,n)
 
     ! Loop over the number of records required
 
-    nrec = GetNumberOfRecords(n,mrecsize)
-    do irec = 1,nrec
+    nrec = GetNumberOfRecords(n, mrecsize)
+    do irec = 1, nrec
       ! Get record details
-      call GetRecordDetails(irec,n,mrecsize,il,iu,ninrec)
+      call GetRecordDetails(irec, n, mrecsize, il, iu, ninrec)
       ! Copy to buffer
-      call CopyToBufferS(a,fbuf,il,iu)
+      call CopyToBufferS(a, fbuf, il, iu)
       ! Write out the record
-      write(e_fileunit) (fbuf(j),j=1,ninrec)
+      write(e_fileunit) (fbuf(j), j=1, ninrec)
     enddo
 
     ! Delete the buffer
@@ -1201,7 +1203,7 @@ end subroutine WriteBlockS
 
 !*****************************************************************************!
 
-subroutine WriteBlockD(a,mnem,n)
+subroutine WriteBlockD(a, mnem, n)
   !
   ! Write out a block of real*64 data
   !
@@ -1210,19 +1212,19 @@ subroutine WriteBlockD(a,mnem,n)
 
   implicit none
 
-  PetscReal,intent(in) :: a(:)
-  character(len=*),intent(in) :: mnem
-  PetscInt,intent(in) :: n
+  PetscReal, intent(in) :: a(:)
+  character(len=*), intent(in) :: mnem
+  PetscInt, intent(in) :: n
 
-  PetscInt,parameter :: blksize = 3 ! Values/line (formatted)
-  PetscInt,parameter :: mrecsize = 1000 ! Values/rec (unformatted)
+  PetscInt, parameter :: blksize = 3 ! Values/line (formatted)
+  PetscInt, parameter :: mrecsize = 1000 ! Values/rec (unformatted)
 
-  PetscInt :: il,iu,j,irec,nrec,ninrec
-  real(kind=real64),allocatable :: dbuf(:)
+  PetscInt :: il, iu, j, irec, nrec, ninrec
+  real(kind=real64), allocatable :: dbuf(:)
 
   ! Write out an integer header line or record
 
-  call WriteHeader(e_typeD,mnem,n)
+  call WriteHeader(e_typeD, mnem, n)
 
   ! Write out n values
 
@@ -1230,8 +1232,8 @@ subroutine WriteBlockD(a,mnem,n)
 
     ! Formatted case: write out in lines of 6 values per line, I11 format
 
-    do il = 1,n,blksize
-      iu = min(il+blksize-1,n)
+    do il = 1, n, blksize
+      iu = min(il+blksize-1, n)
       write(e_fileunit,'(3(1x,e22.14))') (a(j),j=il,iu)
     enddo
 
@@ -1243,14 +1245,14 @@ subroutine WriteBlockD(a,mnem,n)
 
     ! Loop over the number of records required
 
-    nrec = GetNumberOfRecords(n,mrecsize)
-    do irec = 1,nrec
+    nrec = GetNumberOfRecords(n, mrecsize)
+    do irec = 1, nrec
       ! Get record details
-      call GetRecordDetails(irec,n,mrecsize,il,iu,ninrec)
+      call GetRecordDetails(irec, n, mrecsize, il, iu, ninrec)
       ! Copy to buffer
-      call CopyToBufferD(a,dbuf,il,iu)
+      call CopyToBufferD(a, dbuf, il, iu)
       ! Write out the record
-      write(e_fileunit) (dbuf(j),j=1,ninrec)
+      write(e_fileunit) (dbuf(j), j=1, ninrec)
     enddo
 
     ! Delete the buffer
@@ -1263,7 +1265,7 @@ end subroutine WriteBlockD
 
 !*****************************************************************************!
 
-subroutine WriteBlockB(a,mnem,n)
+subroutine WriteBlockB(a, mnem, n)
   !
   ! Write out a block of bool*32 data
   !
@@ -1272,19 +1274,19 @@ subroutine WriteBlockB(a,mnem,n)
 
   implicit none
 
-  PetscBool,intent(in) :: a(:)
-  character(len=*),intent(in) :: mnem
-  PetscInt,intent(in) :: n
+  PetscBool, intent(in) :: a(:)
+  character(len=*), intent(in) :: mnem
+  PetscInt, intent(in) :: n
 
-  PetscInt,parameter :: blksize = 25 ! Values/line (formatted)
-  PetscInt,parameter :: mrecsize = 1000 ! Values/rec (unformatted)
+  PetscInt, parameter :: blksize = 25 ! Values/line (formatted)
+  PetscInt, parameter :: mrecsize = 1000 ! Values/rec (unformatted)
 
-  PetscInt :: il,iu,j,irec,nrec,ninrec
-  integer(kind=int32),allocatable :: ibuf(:)
+  PetscInt :: il, iu, j, irec, nrec, ninrec
+  integer(kind=int32), allocatable :: ibuf(:)
 
   ! Write out an boolean header line or record
 
-  call WriteHeader(e_typeB,mnem,n)
+  call WriteHeader(e_typeB, mnem, n)
 
   ! Write out n bool values
 
@@ -1292,8 +1294,8 @@ subroutine WriteBlockB(a,mnem,n)
 
     ! Formatted case: write out in lines of 6 values per line, I11 format
 
-    do il = 1,n,blksize
-      iu = min(il+blksize-1,n)
+    do il = 1, n, blksize
+      iu = min(il+blksize-1, n)
       write(e_fileunit,'(25(1X,L2))') (a(j),j=il,iu)
     enddo
 
@@ -1305,12 +1307,12 @@ subroutine WriteBlockB(a,mnem,n)
 
 ! Loop over the number of records required
 
-    nrec = GetNumberOfRecords(n,mrecsize)
-    do irec = 1,nrec
+    nrec = GetNumberOfRecords(n, mrecsize)
+    do irec = 1, nrec
       ! Get record details
-      call GetRecordDetails(irec,n,mrecsize,il,iu,ninrec)
+      call GetRecordDetails(irec, n, mrecsize, il, iu, ninrec)
       ! Copy to buffer
-      call CopyToBufferB(a,ibuf,il,iu)
+      call CopyToBufferB(a, ibuf, il, iu)
       ! Write out the record
       write(e_fileunit) (ibuf(j),j=1,ninrec)
     enddo
@@ -1324,7 +1326,7 @@ end subroutine WriteBlockB
 
 !*****************************************************************************!
 
-subroutine WriteBlockC(a,mnem,n)
+subroutine WriteBlockC(a, mnem, n)
   !
   ! Write out a block of char*8 data
   !
@@ -1333,20 +1335,20 @@ subroutine WriteBlockC(a,mnem,n)
 
   implicit none
 
-  character(len=8),intent(in) :: a(:)
-  character(len=*),intent(in) :: mnem
-  PetscInt,intent(in) :: n
+  character(len=8), intent(in) :: a(:)
+  character(len=*), intent(in) :: mnem
+  PetscInt, intent(in) :: n
 
-  PetscInt,parameter :: blksize  = 7   ! Values/line (formatted)
-  PetscInt,parameter :: mrecsize = 105 ! Values/rec  (unformatted)
+  PetscInt, parameter :: blksize  = 7   ! Values/line (formatted)
+  PetscInt, parameter :: mrecsize = 105 ! Values/rec  (unformatted)
 
-  PetscInt :: il,iu,j,irec,nrec,ninrec
+  PetscInt :: il, iu, j, irec, nrec, ninrec
 
 10 format(7(1X,"'",A8, "'"))
 
   ! Write out an integer header line or record
 
-  call WriteHeader(e_typeC,mnem,n)
+  call WriteHeader(e_typeC, mnem, n)
 
   ! Write out n integer values
 
@@ -1354,8 +1356,8 @@ subroutine WriteBlockC(a,mnem,n)
 
   ! Formatted case: write out in lines of 7 values per line, A8 format
 
-    do il = 1,n,blksize
-      iu = min(il+blksize-1,n)
+    do il = 1, n, blksize
+      iu = min(il+blksize-1, n)
       write(e_fileunit,10) (a(j),j=il,iu)
     enddo
 
@@ -1363,10 +1365,10 @@ subroutine WriteBlockC(a,mnem,n)
 
   ! Loop over the number of records required
 
-    nrec = GetNumberOfRecords(n,mrecsize)
-    do irec = 1,nrec
+    nrec = GetNumberOfRecords(n, mrecsize)
+    do irec = 1, nrec
   ! Get record details
-      call GetRecordDetails(irec,n,mrecsize,il,iu,ninrec)
+      call GetRecordDetails(irec, n, mrecsize, il, iu, ninrec)
   ! Write out the record
       write(e_fileunit) (a(j),j=il,iu)
     enddo
@@ -1377,7 +1379,7 @@ end subroutine WriteBlockC
 
 !*****************************************************************************!
 
-subroutine WriteHeader(itype,mnem,n)
+subroutine WriteHeader(itype, mnem, n)
   !
   ! Write out a block header of type itype
   !
@@ -1386,12 +1388,12 @@ subroutine WriteHeader(itype,mnem,n)
 
   implicit none
 
-  PetscInt,intent(in) :: itype
-  character(len=*),intent(in) :: mnem
+  PetscInt, intent(in) :: itype
+  character(len=*), intent(in) :: mnem
   character(len=8) :: zmnem8
   character(len=4) :: ztype4
 
-  PetscInt,intent(in) :: n
+  PetscInt, intent(in) :: n
   integer(kind=int32) :: n4
 
 10 format(1X,"'",A8,"'",1X,I11,1X,"'",A4,"'")
@@ -1408,16 +1410,16 @@ subroutine WriteHeader(itype,mnem,n)
   if (itype == e_typeC) ztype4 = 'CHAR'
 
   if (e_formatted) then
-    write(e_fileunit,10) zmnem8,n,ztype4
+    write(e_fileunit, 10) zmnem8, n, ztype4
   else
-    write(e_fileunit) zmnem8,n4,ztype4
+    write(e_fileunit) zmnem8, n4, ztype4
   endif
 
 end subroutine WriteHeader
 
 !*****************************************************************************!
 
-subroutine CmpToCNOBuf(buff,arr,porv,flip,conv)
+subroutine CmpToCNOBuf(buff, arr, porv, flip, conv)
   !
   ! Compress an array to compressed natural order
   ! This is x-fastest, z-slowest, with inactive cells removed
@@ -1427,21 +1429,21 @@ subroutine CmpToCNOBuf(buff,arr,porv,flip,conv)
 
   implicit none
 
-  PetscReal,intent(out) :: buff(:)
-  PetscReal,intent(in)  :: arr (:)
-  PetscReal,intent(in)  :: porv(:)
-  PetscReal,intent(in) :: flip
-  PetscReal,intent(in) :: conv
+  PetscReal, intent(out) :: buff(:)
+  PetscReal, intent(in)  :: arr (:)
+  PetscReal, intent(in)  :: porv(:)
+  PetscReal, intent(in)  :: flip
+  PetscReal, intent(in)  :: conv
 
-  PetscInt :: ig,ia,ix,iy,ize,izp
+  PetscInt :: ig, ia, ix, iy, ize, izp
 
   ! Loop in natural order, skipping inactive cells and holding a count
 
   ia = 0
-  do ize = 1,e_nz
+  do ize = 1, e_nz
     izp = e_nz-ize+1
-    do iy = 1,e_ny
-      do ix = 1,e_nx
+    do iy = 1, e_ny
+      do ix = 1, e_nx
         ig = e_nx*e_ny*(izp-1) + e_nx*(iy-1) + ix
         if (porv(ig)>0.0) then
           ia = ia+1
@@ -1455,7 +1457,7 @@ end subroutine CmpToCNOBuf
 
 !*****************************************************************************!
 
-subroutine CopyToBufferI(a,ibuf,il,iu)
+subroutine CopyToBufferI(a, ibuf, il, iu)
   !
   ! Copy values to an int*32 buffer
   !
@@ -1464,13 +1466,13 @@ subroutine CopyToBufferI(a,ibuf,il,iu)
 
   implicit none
 
-  PetscInt,intent(in) :: a(:)
-  integer(kind=int32),intent(out):: ibuf(:)
-  PetscInt,intent(in) :: il,iu
+  PetscInt, intent(in) :: a(:)
+  integer(kind=int32), intent(out):: ibuf(:)
+  PetscInt, intent(in) :: il, iu
 
   PetscInt :: i
 
-  do i = il,iu
+  do i = il, iu
     ibuf(i-il+1) = a(i)
   enddo
 
@@ -1478,7 +1480,7 @@ end subroutine CopyToBufferI
 
 !*****************************************************************************!
 
-subroutine CopyToBufferS(a,sbuf,il,iu)
+subroutine CopyToBufferS(a, sbuf, il, iu)
   !
   ! Copy values to an real*32 buffer
   !
@@ -1487,21 +1489,21 @@ subroutine CopyToBufferS(a,sbuf,il,iu)
 
   implicit none
 
-  PetscReal,intent(in) :: a(:)
-  real(kind=real32),intent(out):: sbuf(:)
-  PetscInt,intent(in) :: il,iu
+  PetscReal, intent(in) :: a(:)
+  real(kind=real32), intent(out):: sbuf(:)
+  PetscInt, intent(in) :: il, iu
 
   PetscInt :: i
 
-  do i = il,iu
-    sbuf(i-il+1) = real(a(i),real32)
+  do i = il, iu
+    sbuf(i-il+1) = real(a(i), real32)
   enddo
 
 end subroutine CopyToBufferS
 
 !*****************************************************************************!
 
-subroutine CopyToBufferD(a,dbuf,il,iu)
+subroutine CopyToBufferD(a, dbuf, il, iu)
   !
   ! Copy values to an real*64 buffer
   !
@@ -1510,21 +1512,21 @@ subroutine CopyToBufferD(a,dbuf,il,iu)
 
   implicit none
 
-  PetscReal,intent(in) :: a(:)
-  real(kind=real64),intent(out):: dbuf(:)
-  PetscInt,intent(in) :: il,iu
+  PetscReal, intent(in) :: a(:)
+  real(kind=real64), intent(out):: dbuf(:)
+  PetscInt, intent(in) :: il, iu
 
   PetscInt :: i
 
-  do i = il,iu
-    dbuf(i-il+1) = real(a(i),real64)
+  do i = il, iu
+    dbuf(i-il+1) = real(a(i), real64)
   enddo
 
 end subroutine CopyToBufferD
 
 !*****************************************************************************!
 
-subroutine CopyToBufferB(a,ibuf,il,iu)
+subroutine CopyToBufferB(a, ibuf, il, iu)
   !
   ! Copy bool to an int*32 buffer (false->0;true->1)
   !
@@ -1533,13 +1535,13 @@ subroutine CopyToBufferB(a,ibuf,il,iu)
 
   implicit none
 
-  PetscBool,intent(in) :: a(:)
-  integer(kind=int32),intent(out) :: ibuf(:)
-  PetscInt,intent(in) :: il,iu
+  PetscBool, intent(in) :: a(:)
+  integer(kind=int32), intent(out) :: ibuf(:)
+  PetscInt, intent(in) :: il, iu
 
   PetscInt :: i
 
-  do i = il,iu
+  do i = il, iu
     if (a(i)) then
       ibuf(i-il+1) = 1
     else
@@ -1551,7 +1553,7 @@ end subroutine CopyToBufferB
 
 !*****************************************************************************!
 
-subroutine GetRecordDetails(iRec,n,mInRec,il,iu,nInRec)
+subroutine GetRecordDetails(iRec, n, mInRec, il, iu, nInRec)
   !
   ! Given the number of values to be written, get details of (iRec)th record
   !
@@ -1560,8 +1562,8 @@ subroutine GetRecordDetails(iRec,n,mInRec,il,iu,nInRec)
 
   implicit none
 
-  PetscInt,intent(in ) :: iRec,n,mInRec
-  PetscInt,intent(out) :: il,iu,nInRec
+  PetscInt, intent(in ) :: iRec, n, mInRec
+  PetscInt, intent(out) :: il, iu, nInRec
 
   PetscInt :: iumax
 
@@ -1575,7 +1577,7 @@ end subroutine GetRecordDetails
 
 !*****************************************************************************!
 
-function GetNumberOfRecords(n,mrecsize)
+function GetNumberOfRecords(n, mrecsize)
   !
   ! Given the number of values, and the record size, return number of records
   !
@@ -1586,7 +1588,7 @@ function GetNumberOfRecords(n,mrecsize)
 
   PetscInt :: GetNumberOfRecords
 
-  PetscInt,intent(in) :: n,mrecsize
+  PetscInt, intent(in) :: n, mrecsize
 
   GetNumberOfRecords = (n+mrecsize-1)/mrecsize
 
@@ -1666,7 +1668,7 @@ end subroutine ReleaseEwriterBuffers
 
 !*****************************************************************************!
 
-subroutine SetupRestMaps(ltoa,option,nlmax,mlmax)
+subroutine SetupRestMaps(ltoa, option, nlmax, mlmax)
   !
   ! Set up the local to compressed natural mapping by proc
   !
@@ -1679,11 +1681,12 @@ subroutine SetupRestMaps(ltoa,option,nlmax,mlmax)
 
   PetscInt :: ltoa(:)
   type(option_type) :: option
-  PetscInt,intent(in) ::nlmax,mlmax
+  PetscInt, intent(in) ::nlmax, mlmax
 
-  PetscInt :: iproct,nproc,ioproc,iproco,lproco,ibuf1(1),nbuf1,nlmaxo, &
-              liproct,lioproc,il,ia,ic
-  PetscMPIInt :: status_mpi(MPI_STATUS_SIZE),ierr,itag
+  PetscInt :: iproct, nproc, ioproc, iproco, lproco, &
+              ibuf1(1), nbuf1, nlmaxo, &
+              liproct, lioproc, il, ia, ic
+  PetscMPIInt :: status_mpi(MPI_STATUS_SIZE), ierr, itag
 
   ! Set up useful scalars
 
@@ -1709,28 +1712,28 @@ subroutine SetupRestMaps(ltoa,option,nlmax,mlmax)
 
     ! Allocate the all-proc arrays
 
-    allocate(e_ltocp (mlmax,nproc))
-    allocate(e_nlmaxp(      nproc))
+    allocate(e_ltocp (mlmax, nproc))
+    allocate(e_nlmaxp(       nproc))
 
     ! Store this-proc values
 
     e_ltoap_allocated = PETSC_TRUE
-    do il = 1,nlmax
+    do il = 1, nlmax
       ia =   ltoa(il)
       ic = e_atoc(ia)
-      e_ltocp (il,liproct) = ic
+      e_ltocp (il, liproct) = ic
     enddo
     e_nlmaxp(liproct) = nlmax
 
     ! Receive from other procs
 
-    do iproco = 0,nproc-1
+    do iproco = 0, nproc-1
       if (iproco .ne. option%io_rank) then
 
         ! Receive nlmax value from other proc
 
-        call MPI_RECV(ibuf1,nbuf1,MPI_INTEGER,iproco,MPI_ANY_TAG, &
-                      option%mycomm,status_mpi,ierr)
+        call MPI_RECV(ibuf1, nbuf1, MPI_INTEGER, iproco, MPI_ANY_TAG, &
+                      option%mycomm, status_mpi, ierr)
 
         ! Store other-proc nlmax value
 
@@ -1740,15 +1743,15 @@ subroutine SetupRestMaps(ltoa,option,nlmax,mlmax)
 
         ! Receive ltoa map from other proc (temporary store in ltoa)
 
-        call MPI_RECV(ltoa,nlmaxo,MPI_INTEGER,iproco,MPI_ANY_TAG, &
-                      option%mycomm,status_mpi,ierr)
+        call MPI_RECV(ltoa, nlmaxo, MPI_INTEGER, iproco, MPI_ANY_TAG, &
+                      option%mycomm, status_mpi, ierr)
 
         ! Copy ltoa into all-proc array
 
-        do il = 1,nlmaxo
+        do il = 1, nlmaxo
           ia =   ltoa(il)
           ic = e_atoc(ia)
-          e_ltocp (il,lproco) = ic
+          e_ltocp (il, lproco) = ic
         enddo
 
       endif
@@ -1758,8 +1761,8 @@ subroutine SetupRestMaps(ltoa,option,nlmax,mlmax)
     ! Send to the IO proc
 
     ibuf1(1) = nlmax
-    call MPI_SEND(ibuf1,nbuf1,MPI_INTEGER,ioproc,itag,option%mycomm,ierr)
-    call MPI_SEND(ltoa ,nlmax,MPI_INTEGER,ioproc,itag,option%mycomm,ierr)
+    call MPI_SEND(ibuf1, nbuf1, MPI_INTEGER, ioproc, itag, option%mycomm, ierr)
+    call MPI_SEND(ltoa , nlmax, MPI_INTEGER, ioproc, itag, option%mycomm, ierr)
 
   endif
 
@@ -1788,37 +1791,38 @@ end function GetMlmax
 
 ! ************************************************************************** !
 
-subroutine GetYMDHMMS(tdays,years,months,days,hours,mins,microsecs)
+subroutine GetYMDHMMS(tdays, years, months, days, hours, mins, microsecs)
   !
-  ! For a time since 2000, find the date. !A somewhat approximate calendar,
-  ! as it ignores thepecial (100 and 400 year) leap years
+  ! For a time since 2000, find the date.
+  ! A somewhat approximate calendar, as it
+  ! ignores the special (100 and 400 year) leap years
   ! Author: Dave Ponting
   ! Date: 12/15/18
 
   implicit none
 
-  PetscReal,intent(in)  :: tdays
-  PetscInt ,intent(out) :: years,months,days,hours,mins,microsecs
+  PetscReal, intent(in)  :: tdays
+  PetscInt , intent(out) :: years, months, days, hours, mins, microsecs
 
-  PetscReal :: remhours,remmins,remmsecs,tdib,tdiy,tend
+  PetscReal :: remhours, remmins, remmsecs, tdib, tdiy, tend
   PetscInt  :: dim ! Days in month
 
   ! Days/month normal and leap years
 
-  !                                  Ja Fe Ma Ap Ma Ju Jl Au Sp Oc No De
-  PetscInt,parameter :: dimn(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
-  PetscInt,parameter :: diml(12) = (/31,29,31,30,31,30,31,31,30,31,30,31/)
+  !                                   Ja  Fe  Ma  Ap  Ma  Ju  Jl  Au  Sp  Oc  No  De
+  PetscInt, parameter :: dimn(12) = (/31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31/)
+  PetscInt, parameter :: diml(12) = (/31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31/)
 
   ! Days in each 4-year leap year block
 
-  PetscReal,parameter :: dp4y = 1461.0
-  PetscReal,parameter :: dp3y = 1095.0
-  PetscReal,parameter :: dp2y =  730.0
-  PetscReal,parameter :: dp1y =  365.0
+  PetscReal, parameter :: dp4y = 1461.0
+  PetscReal, parameter :: dp3y = 1095.0
+  PetscReal, parameter :: dp2y =  730.0
+  PetscReal, parameter :: dp1y =  365.0
 
-  PetscReal,parameter :: epst =  0.000001
+  PetscReal, parameter :: epst =  0.000001
 
-  PetscInt  :: n4y,yinb,imon
+  PetscInt  :: n4y, yinb, imon
   PetscBool :: is_leap
 
   ! Find number of 4-year blocks, and subtract this to get days in block
@@ -1831,7 +1835,7 @@ subroutine GetYMDHMMS(tdays,years,months,days,hours,mins,microsecs)
   is_leap = PETSC_FALSE
   if (tdib > dp3y) is_leap = PETSC_TRUE
 
-  ! Set up days in year, subtract off 1,2 or 3 normal years to find time in year
+  ! Set up days in year, subtract off 1, 2 or 3 normal years to find time in year
 
   tdiy = tdib
   yinb = 0
@@ -1852,7 +1856,7 @@ subroutine GetYMDHMMS(tdays,years,months,days,hours,mins,microsecs)
   days   = int(tdiy)+1
 
   tend = 0.0
-  do imon = 1,11
+  do imon = 1, 11
     if (is_leap) then
       dim = diml(imon)
     else
@@ -1910,7 +1914,7 @@ subroutine ThrowEwriterException(message)
   implicit none
 
   character(len=*) :: message
-  print *,message
+  print *, message
   stop
 end subroutine ThrowEwriterException
 
