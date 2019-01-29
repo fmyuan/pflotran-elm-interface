@@ -569,7 +569,7 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
             call SetWellType(this, SLV_INJ_WELL_TYPE)
           case default
             option%io_buffer = 'WELL_SPEC keyword: ' &
-                               //trim(keyword)//' not recognized'
+                               // trim(keyword) // ' not recognized'
             call printErrMsg(option)
         end select
       case('CONST_DRILL_DIR')
@@ -587,7 +587,7 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
             this%w_const_drill_dir = Z_DIRECTION
           case default
             option%io_buffer = &
-            'WELL_SPEC keyword: '//trim(keyword)//' not recognized'
+            'WELL_SPEC keyword: ' // trim(keyword) // ' not recognized'
             call printErrMsg(option)
         end select
       case('Z_REF')
@@ -675,7 +675,7 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
         call readWellTarget(this, input, option, 'TARG_RV' , word, W_TARG_RV)
     case default
         option%io_buffer = 'WELL_DATA keyword: ' &
-                          //trim(keyword)//' not recognized'
+                           // trim(keyword) // ' not recognized'
         call printErrMsg(option)
     end select
   enddo

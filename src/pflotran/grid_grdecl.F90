@@ -896,21 +896,21 @@ subroutine ProcessWellData(qerr)
       ! Check for out-of-range well locations
 
       if ((ix.lt.1) .or. (ix.gt.g_nx)) then
-         zmess = 'Completion I-location out of range, well '// trim(wname)
+         zmess = 'Completion I-location out of range, well ' // trim(wname)
          call SetError(zmess)
          qerr = PETSC_TRUE
          exit outer
       endif
 
       if ((iy.lt.1) .or. (iy.gt.g_ny)) then
-         zmess = 'Completion J-location out of range, well '// trim(wname)
+         zmess = 'Completion J-location out of range, well ' // trim(wname)
          call SetError(zmess)
          qerr = PETSC_TRUE
          exit outer
       endif
 
       if ((iz.lt.1) .or. (iz.gt.g_nz)) then
-         zmess = 'Completion K-location out of range, well '// trim(wname)
+         zmess = 'Completion K-location out of range, well ' // trim(wname)
          call SetError(zmess)
          qerr = PETSC_TRUE
          exit outer
