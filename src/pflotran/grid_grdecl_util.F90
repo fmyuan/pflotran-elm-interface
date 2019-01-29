@@ -12,14 +12,16 @@ module Grid_Grdecl_Util_module
   public:: GetMDtoM2Conv
   public:: GetM2toMDConv
 
-  PetscReal,parameter :: e_atm=1.01325
+  PetscReal, parameter :: e_atm=1.01325
 
   contains
 
 ! *************************************************************************** !
 
-subroutine GetCorners( ix,iy,iz,x000,x100,x010,x110,x001,x101,x011,x111, &
-                       coord,zcorn,nx,ny )
+subroutine GetCorners( ix, iy, iz, &
+                       x000, x100, x010, x110, &
+                       x001, x101, x011, x111, &
+                       coord, zcorn, nx, ny )
   !
   ! Return the vertices of a hexahederal grid cell with location (ix,iy,iz)
   !
@@ -28,15 +30,16 @@ subroutine GetCorners( ix,iy,iz,x000,x100,x010,x110,x001,x101,x011,x111, &
 
   implicit none
 
-  PetscInt ,intent(in)  :: ix,iy,iz
-  PetscReal:: x000(3),x100(3),x010(3),x110(3), &
-              x001(3),x101(3),x011(3),x111(3)
-  PetscReal,intent(in) :: coord(:)
-  PetscReal,intent(in) :: zcorn(:)
-  PetscInt ,intent(in)  :: nx,ny
+  PetscInt , intent(in)  :: ix, iy, iz
+  PetscReal:: x000(3), x100(3), x010(3), x110(3), &
+              x001(3), x101(3), x011(3), x111(3)
+  PetscReal, intent(in) :: coord(:)
+  PetscReal, intent(in) :: zcorn(:)
+  PetscInt , intent(in)  :: nx, ny
 
-  PetscInt  :: ibcx,ibcy,ibcz,ixo,iyo,ixp,iyp,ibase,inx,iny,icl,icu,nxp
-  PetscReal :: xl,yl,zl,xu,yu,zu,d0,d1
+  PetscInt  :: ibcx, ibcy, ibcz, ixo, iyo, ixp, iyp, &
+               ibase, inx, iny, icl, icu, nxp
+  PetscReal :: xl, yl, zl, xu, yu, zu, d0, d1
 
   nxp = nx+1
 
@@ -46,8 +49,8 @@ subroutine GetCorners( ix,iy,iz,x000,x100,x010,x110,x001,x101,x011,x111, &
 
   ! Now loop over the four pillars of this cell
 
-  do ixo = 1,2
-    do iyo = 1,2
+  do ixo = 1, 2
+    do iyo = 1, 2
 
     ! Find pillar coordinates in the (nx+1).(ny+1) coord array (ix,ix+1),(iy,iy+1)
 
@@ -72,8 +75,8 @@ subroutine GetCorners( ix,iy,iz,x000,x100,x010,x110,x001,x101,x011,x111, &
 
       ! Find the coordinates of these corners in the depth array
 
-      icl = GetLocationInDepthBlock(inx,iny,ibcz+1,nx,ny)
-      icu = GetLocationInDepthBlock(inx,iny,ibcz+2,nx,ny)
+      icl = GetLocationInDepthBlock(inx, iny, ibcz+1, nx, ny)
+      icu = GetLocationInDepthBlock(inx, iny, ibcz+2, nx, ny)
 
       d0 = zcorn(icl)
       d1 = zcorn(icu)
@@ -81,12 +84,12 @@ subroutine GetCorners( ix,iy,iz,x000,x100,x010,x110,x001,x101,x011,x111, &
       !  Fill in the cell corner locations
 
        if (ixo == 1) then
-         if (iyo == 1) call fillGeoCorner(x000,x001,d0,d1,xl,yl,zl,xu,yu,zu)
-         if (iyo == 2) call fillGeoCorner(x010,x011,d0,d1,xl,yl,zl,xu,yu,zu)
+         if (iyo == 1) call fillGeoCorner(x000, x001, d0, d1, xl, yl, zl, xu, yu, zu)
+         if (iyo == 2) call fillGeoCorner(x010, x011, d0, d1, xl, yl, zl, xu, yu, zu)
        endif
        if (ixo == 2) then
-         if (iyo == 1) call fillGeoCorner(x100,x101,d0,d1,xl,yl,zl,xu,yu,zu)
-         if (ixo == 2) call fillGeoCorner(x110,x111,d0,d1,xl,yl,zl,xu,yu,zu)
+         if (iyo == 1) call fillGeoCorner(x100, x101, d0, d1, xl, yl, zl, xu, yu, zu)
+         if (ixo == 2) call fillGeoCorner(x110, x111, d0, d1, xl, yl, zl, xu, yu, zu)
        endif
 
      enddo
@@ -96,7 +99,7 @@ end subroutine GetCorners
 
 ! *************************************************************************** !
 
-subroutine fillGeoCorner( x0,x1,d0,d1,xl,yl,zl,xu,yu,zu )
+subroutine fillGeoCorner(x0, x1, d0, d1, xl, yl, zl, xu ,yu ,zu)
   !
   ! For coordinate line from xl,yl,zl to xu,yu,zu,
   ! find xyz locations at depths d0 and d1
@@ -106,10 +109,10 @@ subroutine fillGeoCorner( x0,x1,d0,d1,xl,yl,zl,xu,yu,zu )
 
   implicit none
 
-  PetscReal,intent(out) :: x0(3),x1(3)
-  PetscReal,intent(in ) :: d0,d1,xl,yl,zl,xu,yu,zu
+  PetscReal, intent(out) :: x0(3), x1(3)
+  PetscReal, intent(in ) :: d0, d1, xl, yl, zl, xu, yu, zu
 
-  PetscReal :: f0,f1
+  PetscReal :: f0, f1
 
   ! Fractions through the zl -> zu interval
 
@@ -136,14 +139,14 @@ end subroutine fillGeoCorner
 
 ! *************************************************************************** !
 
-function GetLocationInDepthBlock(icx,icy,icz,nx,ny)
+function GetLocationInDepthBlock(icx, icy, icz, nx, ny)
 
   implicit none
 
   PetscInt :: GetLocationInDepthBlock
 
-  PetscInt,intent(in) :: icx,icy,icz,nx,ny
-  PetscInt :: ncx,ncy,ncxy
+  PetscInt, intent(in) :: icx, icy, icz, nx, ny
+  PetscInt :: ncx, ncy, ncxy
 
   ncx  = 2*nx
   ncy  = 2*ny
