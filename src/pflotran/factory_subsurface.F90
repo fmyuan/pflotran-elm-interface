@@ -2279,8 +2279,8 @@ subroutine SubsurfaceReadInput(simulation,input)
         call InputReadWord(input,option,well_data%w_name,PETSC_TRUE)
         call InputErrorMsg(input,option,'WELL_SPEC','name')
         call printMsg(option,well_data%w_name)
-        nwaytime=0
-        mwaytime=1
+        nwaytime = 0
+        mwaytime = 1
         allocate(waytime(mwaytime))
         call well_data%Read(input,option,waytime,nwaytime,mwaytime)
         do iwaytime=1,nwaytime
