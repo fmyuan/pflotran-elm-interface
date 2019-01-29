@@ -624,7 +624,11 @@ subroutine getBlackOilComposition(bubble_point,temperature,table_idxs,xo,xg,&
     ! (see above: xg = 1 - xo)
     dxo_dt = -drs_molar_dt/(1.0d0+rs_molar)/(1.0d0+rs_molar)
     dxg_dt = -dxo_dt
+    if (dabs(dxo_dpb) < 1.d-10) then
+      print *, "dxo dpb is ", dxo_dpb
+    endif
   endif
+
 
 end subroutine getBlackOilComposition
 
@@ -1691,6 +1695,22 @@ endif
   auxvar%sat(sid)        = x(TOWG_SOLV_SATURATION_DOF)
   auxvar%temp = x(towg_energy_dof)
 
+
+#if 0
+  if (auxvar%sat(wid) < 0.d0) then
+    print *, "pre state check, water sat negative, ", auxvar%sat(wid)
+  endif
+  if (auxvar%sat(oid) < 0.d0) then
+    print *, "pre state check, oil sat negative, ", auxvar%sat(oid)
+  endif
+  if (auxvar%sat(gid) < 0.d0) then
+    print *, "pre state check, gas sat negative, ", auxvar%sat(gid)
+  endif
+  if (auxvar%sat(sid) < 0.d0) then
+    print *, "pre state check, solvent sat negative, ", auxvar%sat(sid)
+  endif
+#endif
+
 !==============================================================================
 ! Check if this state still valid and flip if not (but not on diff call)
 !==============================================================================
@@ -1705,6 +1725,12 @@ endif
         x(TOWG_BUBBLE_POINT_3PH_DOF)  =auxvar%pres(oid)-epsp
         ! make sure this bool is still correct:
         isSat = PETSC_FALSE 
+
+       else if ( (auxvar%sat(gid)<(-epseps)) ) then
+        !!! EXPERIMENTAL 
+        !!! gas sat shouldn't be negative. just zero it out and don't change state?
+        auxvar%sat(gid)               =0.0d0
+
       endif
     else
       if(      (auxvar%bo%bubble_point > auxvar%pres(oid)) &
@@ -1734,6 +1760,26 @@ endif
       endif
     endif
   endif
+
+#if 0
+  if (auxvar%sat(wid) < 0.d0) then
+    print *, "post state check, water sat negative, ", auxvar%sat(wid)
+  endif
+  if (auxvar%sat(oid) < 0.d0) then
+    print *, "post state check, oil sat negative, ", auxvar%sat(oid)
+  endif
+  if (auxvar%sat(gid) < 0.d0) then
+    print *, "post state check, gas sat negative, ", auxvar%sat(gid)
+    print *, "option iflag: ", option%iflag, ", update for deriv flag: ", TOWG_UPDATE_FOR_DERIVATIVE
+    print *, "oil sat now : ", auxvar%sat(oid), ", eps_oil: ", eps_oil
+    print *, ", bo now: ", auxvar%bo%bubble_point, ", oil pres now ", auxvar%pres(oid)
+
+
+  endif
+  if (auxvar%sat(sid) < 0.d0) then
+    print *, "post state check, solvent sat negative, ", auxvar%sat(sid)
+  endif
+#endif
 
 !==============================================================================
 ! Set up the final saturation value (water)
@@ -1891,6 +1937,7 @@ endif
 !  Scale Pcog for degree of miscibility
   auxvar%pc(oid)=fi*auxvar%pc(oid)
 
+if (getDerivs) then
   do idex = 1,4
     do jdex = 1,5
       if (isnan(auxvar%D_pc(idex,jdex)))then
@@ -1898,6 +1945,7 @@ endif
       endif
     enddo
   enddo
+endif
 
 !==============================================================================
 !  Get the phase pressures
@@ -1940,6 +1988,12 @@ endif
     endif
     D_cell_pres = auxvar%D_pres(cploc,:)
   endif
+
+    !!! hack for testing
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%cellpres= cell_pressure
+      auxvar%tlT%D_cellpres= D_cell_pres
+    endif
 
 !==============================================================================
 !  Get rock properties
@@ -3973,8 +4027,11 @@ subroutine TL4PMiscibilityFraction(sg,ss,fm,dfmdsg,dfmdss)
     svi=1.0/sv
     fs=ss*svi
 
+!!! TODO - put on a switch
+#if 0
     ! maybe a good idea but will cause slight discrepencies with previous runs!
     if (sg ==0.d0) fs = 1.d0
+#endif
 
     dfmdfs=0.d0
     call TL4PMiscibilityFractionFromSaturationFraction(fs,fm,dfmdfs)

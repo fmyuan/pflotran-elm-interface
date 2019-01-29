@@ -1607,6 +1607,9 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "xo (note phase meaningless):"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        if (aderiv*nderiv < 0.0) then
+          print *, "SIGN ERROR XO"
+        endif
         print *
         probs = probs + 1
       endif
@@ -1637,6 +1640,9 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "xg (note phase meaningless):"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        if (aderiv*nderiv < 0.0) then
+          print *, "SIGN ERROR XG"
+        endif
         print *
         probs = probs + 1
       endif
@@ -1671,6 +1677,9 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "pres:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        if (aderiv*nderiv < 0.0) then
+          print *, "SIGN ERROR pres"
+        endif
         print *
         probs = probs + 1
       endif
@@ -1701,6 +1710,9 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "sat:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        if (aderiv*nderiv < 0.0) then
+          print *, "SIGN ERROR sat"
+        endif
         print *
         probs = probs + 1
       endif
@@ -1730,6 +1742,9 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "den:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        if (aderiv*nderiv < 0.0) then
+          print *, "SIGN ERROR den"
+        endif
         print *
         probs = probs + 1
       endif
@@ -1764,6 +1779,9 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
         print *,auxvars(0)%sat
         print *, "fm: ", auxvars(0)%tlt%fm
         print *, auxvars(0)%tlT%D_fm
+        if (aderiv*nderiv < 0.0) then
+          print *, "SIGN ERROR PC"
+        endif
         print *
         probs = probs + 1
       endif
@@ -1796,6 +1814,12 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "H:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        if (aderiv*nderiv < 0.0) then
+          print *, "SIGN ERROR H"
+        endif
+        if (aderiv == 0.0 .AND. dabs(nderiv) > 0.0) then
+          print *, "missing aderiv contribution? H" 
+        endif
         print *
         probs = probs + 1
       endif
@@ -1825,6 +1849,9 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "U:"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        if (aderiv*nderiv < 0.0) then
+          print *, "SIGN ERROR U"
+        endif
         print *
         probs = probs + 1
       endif
@@ -1834,6 +1861,34 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
 
   !! ***************  from tl4p intermediates  *********
   if (auxvars(0)%has_TL_test_object) then
+      do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+      iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%tlT%cellpres
+      ! get perturbed value
+      p_pert = auxvars(idof)%tlT%cellpres
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+      ! analytical derivative
+      aderiv = auxvars(0)%tlT%D_cellpres(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "cellpres (note phase meaningless):"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *,
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+
       do idof=1,ndof
     ! get perturbation for this dof variable
     pert = auxvars(idof)%pert

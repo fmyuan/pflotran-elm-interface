@@ -2198,6 +2198,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
     endif
  
  !!! EXPERIMENTAL - turning off the cycle command remains a bad idea
+ !!! update - this seems to be fixed now
  if (.NOT. analytical_derivatives) then
     if (auxvar_up%mobility(iphase) + &
         auxvar_dn%mobility(iphase) < eps) then
@@ -2467,7 +2468,8 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
 
     D_k_eff_up = 0.d0
     do i = 1,ndof
-      if (abs(D_sat_liquid_up(i)) < epsilon(sat_liquid) .OR.  sat_liquid_pos == 0.d0) then
+      !if (abs(D_sat_liquid_up(i)) < epsilon(sat_liquid) .OR.  sat_liquid_pos == 0.d0) then 
+      if (sat_liquid_pos == 0.d0) then 
         D_k_eff_up(i) = 0.d0 
       else
         D_k_eff_up(i) = 0.5d0*D_sat_liquid_up(i)/sqrt(sat_liquid_pos)
@@ -2492,7 +2494,8 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
                       auxvar_dn%D_sat(option%oil_phase,:)
     D_k_eff_dn = 0.d0
     do i = 1,ndof
-      if (abs(D_sat_liquid_dn(i)) < epsilon(sat_liquid) .OR.  sat_liquid_pos == 0.d0) then
+      !if (abs(D_sat_liquid_dn(i)) < epsilon(sat_liquid) .OR.  sat_liquid_pos == 0.d0) then 
+      if (sat_liquid_pos == 0.d0) then
         D_k_eff_dn(i) = 0.d0 
       else
         D_k_eff_dn(i) = 0.5d0*D_sat_liquid_dn(i)/sqrt(sat_liquid_pos)
@@ -3123,7 +3126,8 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                       auxvar_dn%D_sat(option%oil_phase,:)
     D_k_eff_dn = 0.d0
     do i = 1,ndof
-      if (abs(D_sat_liquid_dn(i)) < epsilon(sat_liquid) .OR.  sat_liquid_pos == 0.d0) then
+      !if (abs(D_sat_liquid_dn(i)) < epsilon(sat_liquid) .OR.  sat_liquid_pos == 0.d0) then  ! probably don't need this
+      if (sat_liquid_pos == 0.d0) then
         D_k_eff_dn(i) = 0.d0 
       else
         D_k_eff_dn(i) = 0.5d0*D_sat_liquid_dn(i)/sqrt(sat_liquid_pos)
@@ -5942,6 +5946,8 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     if ( (X_p(saturation_index) - dX_p(saturation_index)) < 0.d0 ) then
       dX_p(saturation_index) = X_p(saturation_index)
     end if
+    !!! TODO - make on a switch
+#if 0
 ! Stop SOLVENT saturation going negative
     if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
       saturation_index = offset + TOWG_SOLV_SATURATION_DOF 
@@ -5949,6 +5955,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
         dX_p(saturation_index) = X_p(saturation_index)
       end if
     endif
+#endif
   enddo
 
 #if 0
@@ -6046,6 +6053,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     if (dabs(del_temperature) > max_temperature_change) then
        temp_real = dabs(max_temperature_change/del_temperature)
        temp_scale = min(temp_scale,temp_real)
+       print *, "here is temperature change scaling, ", temp_scale
     endif
 #endif
 !LIMIT_MAX_TEMPERATURE_CHANGE
@@ -6060,6 +6068,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   ! it performs an homogenous scaling using the smallest scaling factor
   ! over all subdomains domains
   if (scale < 0.9999d0) then
+    print *, "I will now scale by ", scale
     dX_p = scale*dX_p
   endif
 

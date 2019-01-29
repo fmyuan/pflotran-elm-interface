@@ -71,6 +71,7 @@ module AuxVars_TOWG_module
     PetscReal :: krom,krgm,krsm,krvm,kroi,krog,krow
     PetscReal :: fm,viso
     PetscReal :: uoil,uvap
+    PetscReal :: cellpres
     PetscReal, pointer :: D_krotl(:),D_krgtl(:),D_viscotl(:),D_viscgtl(:)
     PetscReal, pointer :: D_denotl(:),D_dengtl(:)
     PetscReal, pointer :: D_krstl(:),D_viscstl(:),D_denstl(:)
@@ -78,6 +79,7 @@ module AuxVars_TOWG_module
     PetscReal, pointer :: D_krog(:),D_krow(:)
     PetscReal, pointer :: D_fm(:),D_viso(:)
     PetscReal, pointer :: D_uoil(:),D_uvap(:)
+    PetscReal, pointer :: D_cellpres(:)
   end type tl_auxvar_testing_type
 
   public :: AuxVarTOWGStrip
@@ -173,6 +175,9 @@ subroutine AuxVarTOWGInit(this,option)
     this%tlT%D_uoil = 0.d0
     allocate(this%tlT%D_uvap(option%nflowdof))
     this%tlT%D_uvap = 0.d0
+
+    allocate(this%tlT%D_cellpres(option%nflowdof))
+    this%tlT%D_cellpres= 0.d0
   endif
 
   call AuxVarFlowInit(this,option)
@@ -342,6 +347,7 @@ subroutine AuxVarTOWGStrip(this)
     call DeallocateArray(this%tlT%D_uoil)
     call DeallocateArray(this%tlT%D_uvap)
 
+    call DeallocateArray(this%tlT%D_cellpres)
     deallocate(this%tlT)
   endif
 
