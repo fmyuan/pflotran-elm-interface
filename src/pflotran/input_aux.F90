@@ -1302,6 +1302,7 @@ subroutine InputFindStringInFile2(input, option, string, print_warning)
   ! Rewinds file and finds the first occurrence of
   ! 'string'.  Note that the line must start with 'string'
   ! in order to match and that line is NOT returned
+  ! This version of the overload can cope with a section that is not present
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/07/07
@@ -1315,66 +1316,26 @@ subroutine InputFindStringInFile2(input, option, string, print_warning)
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: print_warning
-  
-  character(len=MAXWORDLENGTH) :: word
-  PetscBool :: found = PETSC_FALSE
-  PetscInt :: length1, length2
+  PetscBool :: found
 
-  input%ierr = 0
-
-  length1 = len_trim(string)
-
-  do 
-    call InputReadPflotranString(input,option)
-    if (InputError(input)) exit
-    call InputReadWord(input,option,word,PETSC_TRUE)
-    if (InputError(input)) exit
-    length2 = len_trim(word)
-    if (length1 == length2 .and. StringCompare(string,word,length1)) then
-      found = PETSC_TRUE
-      exit
-    endif
-  enddo
+  found = PETSC_FALSE
   
-  ! if not found, rewind once and try again.  this approach avoids excessive 
-  ! reading if successive searches for strings are in descending order in 
-  ! the file.
-  if (InputError(input)) then
-    input%ierr = 0
-    call InputRewind(input)
-    do 
-      call InputReadPflotranString(input,option)
-      if (InputError(input)) exit
-      call InputReadWord(input,option,word,PETSC_TRUE)
-      if (InputError(input)) exit
-      length2 = len_trim(word)
-      if (length1 == length2 .and. StringCompare(string,word,length1)) then
-        found = PETSC_TRUE
-        exit
-      endif
-    enddo
-  endif    
-  
-  if (.not.found .and. print_warning) then
-    option%io_buffer = 'Card (' // trim(string) // ') not found in input file.'
-    call printWrnMsg(option)
-    input%ierr = 1
-  endif
+  call InputFindStringInFile3(input, option, string, print_warning,found)
   
 end subroutine InputFindStringInFile2
 
 ! ************************************************************************** !
 
-subroutine InputFindStringInFile3(input, option, string,print_warning, found)
+subroutine InputFindStringInFile3(input, option, string, print_warning,found)
   !
   ! Rewinds file and finds the first occurrence of
   ! 'string'.  Note that the line must start with 'string'
   ! in order to match and that line is NOT returned
-  ! This version of the overload can cope with a section which
-  ! may not be present
+  ! This routine differs from InputFindStringInFile2 only in that the
+  ! result of the search is returned in the 'found' argument
   !
-  ! Author: Glenn Hammond, modified Dave Ponting
-  ! Date: 01/20/19
+  ! Author: Glenn Hammond
+  ! Date: 03/07/07
   !
 
   use String_module
@@ -1384,11 +1345,10 @@ subroutine InputFindStringInFile3(input, option, string,print_warning, found)
   type(input_type), pointer :: input
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: string
-  PetscBool,intent(in) :: print_warning
-  PetscBool,intent(out) :: found
+  PetscBool :: print_warning
+  PetscBool :: found
 
   character(len=MAXWORDLENGTH) :: word
-
   PetscInt :: length1, length2
 
   input%ierr = 0
