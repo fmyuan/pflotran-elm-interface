@@ -738,6 +738,10 @@ subroutine TOilImsUpdateSolution(realization)
       call well_data%DoUpdate(dt,option)
       well_data => well_data%next
     enddo
+
+    call FindGroupRates (well_data_list)
+    call FindGroupTotals(well_data_list)
+
   endif
 
   if (realization%option%compute_mass_balance_new) then
@@ -3321,18 +3325,6 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
 
       icap_dn = patch%sat_func_id(ghosted_id)
 
-#ifdef WELL_DEBUG
-  write(*,*) 'BC gh = ', ghosted_id
-  write(*,"('BC cell press = ',e26.20)") &
-    patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
-      !this%flow_auxvars(dof,ghosted_id)%pres(i_ph)
-  write(*,"('BC press = ',e26.20)") &
-    patch%aux%TOil_ims%auxvars_bc(sum_connection)%pres(option%oil_phase)
-  write(*,"('BC delta press = ',e26.20)") &
-    patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase) - &
-    patch%aux%TOil_ims%auxvars_bc(sum_connection)%pres(option%oil_phase)
-#endif
-
       call TOilImsBCFlux(boundary_condition%flow_bc_type, &
                      boundary_condition%flow_aux_mapping, &
                      boundary_condition%flow_aux_real_var(:,iconn), &
@@ -3375,22 +3367,6 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
     
     cur_connection_set => source_sink%connection_set
 
-#ifdef WELL_DEBUG
-  print *,'my rank = ',option%myrank,' just before ExplUpdate'
-#endif
-
-#ifdef WELL_CLASS
-    if ( associated(source_sink%well) ) then
-      if (cur_connection_set%num_connections > 0 ) then
-        call source_sink%well%ExplUpdate(grid,option)
-      end if
-    end if 
-#endif
-
-#ifdef WELL_DEBUG
-  print *,'my rank = ',option%myrank,' just after ExplUpdate'
-#endif
- 
     do iconn = 1, cur_connection_set%num_connections      
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
@@ -3412,20 +3388,10 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
          ! use the if well to decide if to call TOilImsSrcSink or the WellRes
          !call source_sink%well%PrintMsg(); 
       !end if
-#ifdef WELL_CLASS
-      if ( associated(source_sink%well) ) then
-        call source_sink%well%ExplRes(iconn,ss_flow_vol_flux, &
-                       toil_ims_isothermal,ghosted_id,ZERO_INTEGER,option,Res,&
-                       Jac_dummy,PETSC_FALSE)
-      else
-#endif
         call TOilImsSrcSink(option,source_sink%flow_condition%toil_ims, &
                            patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id), &
                            global_auxvars(ghosted_id),ss_flow_vol_flux, &
                            scale,Res,Jac_dummy,PETSC_FALSE)
-#ifdef WELL_CLASS
-      end if
-#endif
 
       r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
 
@@ -3443,20 +3409,16 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
       endif
 
     enddo 
-!#ifdef WELL_DEBUG    
-    ! for debugging
-#ifdef WELL_CLASS
-    if ( associated(source_sink%well) ) then
-      if (cur_connection_set%num_connections > 0 ) then
-        call source_sink%well%DataOutput(grid,source_sink%name,option)
-      end if
-    end if
-#endif
-!#endif
+
     source_sink => source_sink%next
   enddo
 
-! Loop over well_data wells if present
+  ! Set up the average pressure (may be needed for voidage calculations)
+
+  call patch%aux%TOil_ims%FieldVolRefAve(grid,patch%aux%material, &
+                                              patch%imat,option)
+
+  ! Loop over well_data wells if present
 
   if (WellDataGetFlag()) then
     jerr = 0
@@ -3636,27 +3598,8 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
                                 patch%sat_func_id(ghosted_id))%ptr, &
                                 ghosted_id,option)
     endif
-!#ifdef WELL_DEBUG    
-!  write(*,"('after perturb = ',(4(e10.4,1x)))"), patch%aux%TOil_ims%auxvars(0:3,ghosted_id)%pert
-!#endif 
-    ! alternative way to call TOilImsAuxVarPerturb using a type-bound procedure 
-    !call patch%aux%TOil_ims%Perturb(ghosted_id, &
-    !                       global_auxvars(ghosted_id), &
-    !                       material_auxvars(ghosted_id), &
-    !                       patch%characteristic_curves_array( &
-    !                       patch%sat_func_id(ghosted_id))%ptr, &
-    !                       ghosted_id,option)
-
   enddo
 
-#ifdef WELL_DEBUG    
-  write(*,"('AP p011 before = ',e10.4)") patch%aux%TOil_ims%auxvars(0,1)%pres(1)
-  write(*,"('AP p111 before = ',e10.4)") patch%aux%TOil_ims%auxvars(1,1)%pres(1)
-  write(*,"('AP p211 before = ',e10.4)") patch%aux%TOil_ims%auxvars(2,1)%pres(1)
-  write(*,"('AP p311 before = ',e10.4)") patch%aux%TOil_ims%auxvars(3,1)%pres(1)
-#endif 
-
-  
 !#ifdef DEBUG_GENERAL_LOCAL
 !  call GeneralOutputAuxVars(gen_auxvars,global_auxvars,option)
 !#endif 
@@ -3841,34 +3784,14 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
       else
         scale = 1.d0
       endif
-      
-#ifdef WELL_CLASS      
-      if (associated(source_sink%well) ) then
-        !Jdn = 0.0d0
-
-        call source_sink%well%ExplJDerivative(iconn,ghosted_id, &
-                        toil_ims_isothermal,TOIL_IMS_ENERGY_EQUATION_INDEX, &
-                         option,Jdn, toil_analytical_derivatives, &
-                         toil_analytical_derivatives_compare, toil_dcomp_tol,&
-                         toil_dcomp_reltol)
-        Jdn = -Jdn  
-
-        call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
-                                      ADD_VALUES,ierr);CHKERRQ(ierr)
-
-      else 
-#endif
         !Jup = 0.d0
-        call TOilImsSrcSinkDerivative(option, &
-                          source_sink%flow_condition%toil_ims, &
-                          patch%aux%TOil_ims%auxvars(:,ghosted_id), &
-                          global_auxvars(ghosted_id), &
-                          scale,Jup)
-        call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
-                                      ADD_VALUES,ierr);CHKERRQ(ierr)
-#ifdef WELL_CLASS
-      end if
-#endif
+      call TOilImsSrcSinkDerivative(option, &
+                        source_sink%flow_condition%toil_ims, &
+                        patch%aux%TOil_ims%auxvars(:,ghosted_id), &
+                        global_auxvars(ghosted_id), &
+                        scale,Jup)
+      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
 
     enddo
     source_sink => source_sink%next

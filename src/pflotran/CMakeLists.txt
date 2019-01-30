@@ -166,6 +166,7 @@ set(UTIL_SOURCES
 	variables.F90
 	derivative_tests.F90
 	derivatives_utilities.F90
+	grid_grdecl_util.F90
 )
 
 set(EOS_SOURCES
@@ -296,6 +297,7 @@ set(GRID_SOURCES
 	grid_unstructured_aux.F90
 	grid_unstructured.F90
 	grid_unstructured_polyhedra.F90
+	grid_grdecl.F90
 )
 
 set(RELATIONS_SOURCES
@@ -345,6 +347,7 @@ set(IO_SOURCES
 	output_surface.F90
 	output_tecplot.F90
 	output_vtk.F90
+	output_eclipse.F90
 )
 
 set(MISC_SOURCES
@@ -402,16 +405,9 @@ set(MISC_SOURCES
 )
 
 set(WELL_SOURCES
-	well_spec_base.F90
-	well_base.F90
 	well_data.F90
+	well_type.F90
 	well_solver.F90
-	well_flow.F90
-	well_flow_energy.F90
-	well_water_injector.F90
-	well_oil_producer.F90
-	well_toil_ims.F90
-	well.F90
 )
 
 set(SURFACE_SOURCES
