@@ -299,7 +299,7 @@ end subroutine UGrdEclExplicitRead
 
 !*****************************************************************************!
 
-subroutine WriteStaticDataAndCleanup(eclipse_options,option)
+subroutine WriteStaticDataAndCleanup(write_ecl,eclipse_options,option)
   !
   ! If Eclipse files are required, output grid and init files
   ! Then clean up all the static data arrays which are no longer needed
@@ -313,21 +313,23 @@ subroutine WriteStaticDataAndCleanup(eclipse_options,option)
 
   implicit none
 
+  PetscBool, intent(in) :: write_ecl
   type(output_option_eclipse_type), pointer :: eclipse_options
   type(option_type) :: option
 
   PetscInt :: iw, nw, nctw, mcpw
+
   character(len=MAXSTRINGLENGTH) :: efilename
 
   ! Output the Eclipse grid and init files
 
   if (option%myrank == option%io_rank) then
-    if (eclipse_options%write_ecl) then
+    if (write_ecl) then
       nw = g_nwell_data
       mcpw = 1
       do iw = 1, nw
-       nctw = GetGrdNCmpl(iw)
-       if (nctw > mcpw) mcpw = nctw
+        nctw = GetGrdNCmpl(iw)
+        if (nctw > mcpw) mcpw = nctw
       enddo
       efilename = trim(option%output_file_name_prefix)
       if (eclipse_options%write_ecl_form) call SelectFormattedFiles()
