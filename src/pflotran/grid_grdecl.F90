@@ -2534,7 +2534,8 @@ end subroutine ReadEGridArrayI
 
 ! *************************************************************************** !
 
-subroutine ReadEGridArrayR(a, keyword, ierr, input, option, is_dep, is_perm, qerr)
+subroutine ReadEGridArrayR(a, keyword, ierr, input, option, &
+                           is_dep, is_perm, qerr)
   !
   ! Reads an Eclgrid grid array
   ! If it is a depth array, then flip sign to Pflotran elevation convention
@@ -3060,11 +3061,11 @@ subroutine PermPoroExchangeAndSet(poro_p, permx_p, permy_p, permz_p, &
         ! Receive poro and perm values from ioproc
 
         int_mpi =   nlmax
-        call MPI_Recv(wporo, int_mpi, MPI_DOUBLE_PRECISION, iorank, MPI_ANY_TAG, &
-                      option%mycomm, status_mpi, ierr)
+        call MPI_Recv(wporo, int_mpi, MPI_DOUBLE_PRECISION, iorank, &
+                      MPI_ANY_TAG, option%mycomm, status_mpi, ierr)
         int_mpi = 3*nlmax
-        call MPI_Recv(wperm, int_mpi, MPI_DOUBLE_PRECISION, iorank, MPI_ANY_TAG, &
-                      option%mycomm, status_mpi, ierr)
+        call MPI_Recv(wperm, int_mpi, MPI_DOUBLE_PRECISION, iorank, &
+                      MPI_ANY_TAG, option%mycomm, status_mpi, ierr)
 
         ! Copy buffers into correct storage locations
 
