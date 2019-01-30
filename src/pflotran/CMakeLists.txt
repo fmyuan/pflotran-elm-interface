@@ -166,7 +166,7 @@ set(UTIL_SOURCES
 	variables.F90
 	derivative_tests.F90
 	derivatives_utilities.F90
-	grdecl_util.F90
+	grid_grdecl_util.F90
 )
 
 set(EOS_SOURCES
@@ -297,7 +297,7 @@ set(GRID_SOURCES
 	grid_unstructured_aux.F90
 	grid_unstructured.F90
 	grid_unstructured_polyhedra.F90
-	grdecl_data.F90
+	grid_grdecl.F90
 )
 
 set(RELATIONS_SOURCES
@@ -347,7 +347,7 @@ set(IO_SOURCES
 	output_surface.F90
 	output_tecplot.F90
 	output_vtk.F90
-	ewriter.F90
+	output_eclipse.F90
 )
 
 set(MISC_SOURCES

@@ -111,7 +111,7 @@ derivatives_utilities.o :
 discretization.o : dm_kludge.o grid.o grid_structured.o grid_unstructured.o \
                    grid_unstructured_aux.o grid_unstructured_explicit.o \
                    grid_unstructured_polyhedra.o input_aux.o material_aux.o \
-                   option.o pflotran_constants.o string.o grdecl_data.o
+                   option.o pflotran_constants.o string.o grid_grdecl.o
 dm_kludge.o : grid_unstructured_aux.o pflotran_constants.o
 eos.o : co2_span_wagner.o eos_database.o eos_gas.o eos_oil.o eos_slv.o \
         eos_water.o input_aux.o option.o pflotran_constants.o string.o
@@ -124,7 +124,7 @@ eos_oil.o : eos_database.o input_aux.o lookup_table.o option.o \
 eos_slv.o : eos_database.o input_aux.o lookup_table.o option.o \
             pflotran_constants.o
 eos_water.o : geometry.o pflotran_constants.o utility.o
-ewriter.o : grdecl_util.o well_type.o option.o string.o pflotran_constants.o
+output_eclipse.o : grid_grdecl_util.o well_type.o option.o string.o pflotran_constants.o
 factory_geomechanics.o : condition_control.o convergence.o discretization.o \
                          factory_subsurface.o geomech_grid.o \
                          geomech_grid_aux.o geomechanics_condition.o \
@@ -157,7 +157,7 @@ factory_subsurface.o : characteristic_curves.o checkpoint.o condition.o \
                        dataset_ascii.o dataset_base.o dataset_common_hdf5.o \
                        debug.o discretization.o eos.o eos_water.o field.o \
                        fluid.o general.o global.o grid.o grid_structured.o \
-                       grid_unstructured_aux.o grdecl_data.o hdf5_aux.o init_common.o \
+                       grid_unstructured_aux.o grid_grdecl.o hdf5_aux.o init_common.o \
                        init_subsurface.o init_subsurface_flow.o \
                        init_subsurface_transport.o input_aux.o integral_flux.o \
                        logging.o material.o observation.o option.o output.o \
@@ -295,9 +295,9 @@ global.o : communicator_base.o connection.o coupler.o field.o global_aux.o \
            grid.o material.o option.o patch.o pflotran_constants.o \
            realization_base.o realization_subsurface.o variables.o
 global_aux.o : option.o pflotran_constants.o utility.o
-grdecl_data.o : grid_unstructured_aux.o option.o input_aux.o \
-                string.o ewriter.o grdecl_util.o utility.o pflotran_constants.o
-grdecl_util.o : pflotran_constants.o
+grid_grdecl.o : grid_unstructured_aux.o option.o input_aux.o output_aux.o \
+                string.o output_eclipse.o grid_grdecl_util.o utility.o pflotran_constants.o
+grid_grdecl_util.o : pflotran_constants.o
 grid.o : connection.o dm_kludge.o geometry.o grid_structured.o \
          grid_unstructured.o grid_unstructured_aux.o \
          grid_unstructured_explicit.o grid_unstructured_polyhedra.o logging.o \
@@ -352,7 +352,7 @@ init_subsurface.o : dataset_base.o dataset_common_hdf5.o \
                     input_aux.o logging.o material.o material_aux.o option.o \
                     patch.o pflotran_constants.o realization_subsurface.o \
                     region.o srcsink_sandbox.o strata.o utility.o variables.o \
-                    wipp.o grdecl_data.o
+                    wipp.o grid_grdecl.o
 init_subsurface_flow.o : co2_sw.o condition_control.o coupler.o \
                          discretization.o field.o flash2.o general.o grid.o \
                          hdf5.o immis.o init_common.o material.o miscible.o \
@@ -448,7 +448,7 @@ output_observation.o : connection.o coupler.o discretization.o field.o \
                        reactive_transport_aux.o realization_base.o \
                        realization_subsurface.o region.o richards.o th.o \
                        toil_ims.o towg.o utility.o variables.o \
-                       well_data.o well_type.o ewriter.o wipp_flow.o wipp_flow_aux.o
+                       well_data.o well_type.o output_eclipse.o wipp_flow.o wipp_flow_aux.o
 output_surface.o : connection.o coupler.o discretization.o field.o grid.o \
                    grid_unstructured_aux.o grid_unstructured_cell.o hdf5.o \
                    hdf5_aux.o input_aux.o logging.o option.o output_aux.o \
@@ -550,7 +550,7 @@ pm_subsurface_flow.o : auxvars_flow.o characteristic_curves.o \
                        pm_base.o realization_base.o realization_subsurface.o \
                        srcsink_sandbox.o string.o upwind_direction.o \
                        variables.o well_data.o well_solver.o wipp.o \
-                       grdecl_data.o
+                       grid_grdecl.o
 pm_surface.o : checkpoint_surface.o communicator_base.o \
                communicator_unstructured.o condition.o discretization.o \
                global.o grid.o input_aux.o option.o pflotran_constants.o \
@@ -793,7 +793,7 @@ realization_subsurface.o : characteristic_curves.o communicator_structured.o \
                            reactive_transport_aux.o realization_base.o \
                            region.o saturation_function.o strata.o string.o \
                            time_storage.o transport_constraint.o variables.o \
-                           waypoint.o well_data.o ewriter.o
+                           waypoint.o well_data.o output_eclipse.o
 realization_surface.o : condition.o coupler.o dataset.o dataset_base.o debug.o \
                         discretization.o dm_kludge.o field.o grid.o \
                         grid_unstructured.o grid_unstructured_aux.o \
@@ -971,11 +971,11 @@ utility.o : input_aux.o option.o pflotran_constants.o string.o
 variables.o :
 waypoint.o : option.o output_aux.o pflotran_constants.o utility.o
 well_data.o : input_aux.o option.o pflotran_constants.o string.o units.o \
-              utility.o well_type.o grdecl_data.o
+              utility.o well_type.o grid_grdecl.o
 well_solver.o : auxiliary.o auxvars_toil_ims.o auxvars_towg.o eos_gas.o \
                 eos_oil.o eos_slv.o eos_water.o grid.o material_aux.o option.o \
                 pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
-                well_data.o well_type.o grdecl_data.o
+                well_data.o well_type.o grid_grdecl.o
 well_type.o : pflotran_constants.o
 wipp.o : characteristic_curves_base.o characteristic_curves_wipp.o input_aux.o \
          lookup_table.o material_aux.o option.o pflotran_constants.o string.o \

@@ -19,7 +19,7 @@ util_obj  = \
 	${common_src}variables.o \
 	${common_src}derivative_tests.o \
 	${common_src}derivatives_utilities.o \
-	${common_src}grdecl_util.o
+	${common_src}grid_grdecl_util.o
 
 eos_obj = \
 	${common_src}co2_sw.o \
@@ -146,7 +146,7 @@ grid_obj = \
 	${common_src}grid_unstructured_aux.o \
 	${common_src}grid_unstructured.o \
 	${common_src}grid_unstructured_polyhedra.o \
-	${common_src}grdecl_data.o
+	${common_src}grid_grdecl.o
 
 relations_obj = \
 	${common_src}saturation.o \
@@ -181,7 +181,7 @@ srcsink_obj = \
 	${common_src}srcsink_sandbox_wipp_well.o
 
 io_obj = \
-	${common_src}ewriter.o \
+	${common_src}output_eclipse.o \
 	${common_src}hdf5.o \
 	${common_src}hdf5_aux.o \
 	${common_src}output.o \
