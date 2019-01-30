@@ -350,7 +350,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
   enddo
   
-  if( GetIsGrdecl() ) then
+  if (GetIsGrdecl()) then
     if (option%myrank .ne. option%io_rank) then
       allocate(inatsend(  grid%nlmax))
     endif
@@ -411,32 +411,35 @@ subroutine InitSubsurfAssignMatProperties(realization)
     por0_p(local_id) = material_property%porosity
     tor0_p(local_id) = material_property%tortuosity
 
-    if( GetIsGrdecl() ) then
+    if (GetIsGrdecl()) then
 
       natural_id = grid%nG2A(ghosted_id)
 
       if (option%myrank == option%io_rank) then
-!  Simply set up the values on the I/O proc
+  !  Simply set up the values on the I/O proc
         call GetPoroPermValues(natural_id,poro,permx,permy,permz)
         por0_p(local_id)    = poro
         perm_xx_p(local_id) = permx
         perm_yy_p(local_id) = permy
         perm_zz_p(local_id) = permz
       else
-!  Add to the request list on other procs
+  !  Add to the request list on other procs
         inatsend(local_id)=natural_id
       endif
 
     endif
   enddo
 
-  if( GetIsGrdecl() ) then
-    call PermPoroExchangeAndSet(por0_p,perm_xx_p,perm_yy_p,perm_zz_p,inatsend,grid%nlmax,option)
+  if (GetIsGrdecl()) then
+    call PermPoroExchangeAndSet(por0_p,perm_xx_p,perm_yy_p,perm_zz_p, &
+                                inatsend,grid%nlmax,option)
     if (option%myrank .ne. option%io_rank) then
       call DeallocateArray(inatsend)
     endif
     write_ecl = realization%output_option%write_ecl
-    call WriteStaticDataAndCleanup(write_ecl,realization%output_option%eclipse_options,option)
+    call WriteStaticDataAndCleanup(write_ecl, &
+                                realization%output_option%eclipse_options, &
+                                option)
     call DeallocatePoroPermArrays(option)
   endif
 
