@@ -1453,13 +1453,31 @@ subroutine Num_as_alyt_tl4p(nphase,ndof,auxvars,option,&
     ! get perturbation for this dof variable
     pert = auxvars(idof)%pert
     do iphase=1,nphase
+
+      !!!! extra care to take because might be nan:
+      !!!! this can happen when scaled visc etc 
+      !!!! is zero then mob involves div by 0
+      !!!! That happens at extreme saturation, e.g. 0
+      !!!! In that case mob should be really be 0 
+      !!!! since the corresponding scaled kr would also be 0
+
       ! get unperturbed value
       p_unpert = auxvars(0)%mobility(iphase)
+
+      !if (isnan(p_unpert)) p_unpert = 0.0
+
       ! get perturbed value
       p_pert = auxvars(idof)%mobility(iphase)
 
+      !if (isnan(p_pert)) p_pert = 0.0
+
       ! numerical derivative
       nderiv = (p_pert-p_unpert)/pert
+
+      if (isnan(nderiv)) then
+        print *, "here"
+      endif
+
 
       !!! assign
       auxvars(0)%D_mobility(iphase,idof) = nderiv

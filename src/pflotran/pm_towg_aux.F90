@@ -1880,6 +1880,15 @@ endif
 !  endif
   swa = 1 - soa - sva
 
+
+#if 0
+if (getDerivs) then
+  if (dabs(sv)>0.d0 .AND.  sv < 1.d-300) then
+    print *, "near 0 vap sat"
+  endif
+endif
+#endif
+
 !--Pcow------------------------------------------------------------------------
 
   call characteristic_curves%oil_wat_sat_func% &
@@ -2484,6 +2493,8 @@ endif
 
   call TL4PViscosity(so,sg,ss,viso,visg,viss,visotl,visgtl,visstl)
 
+
+
 !--Form the Todd-Longstaff densities (for Darcy flow only)---------------------
 
   deno=auxvar%den_kg(oid)
@@ -2503,14 +2514,24 @@ endif
   !!! usually if krx zero implies corresponding sat is zero and then
   !!! might also have visxtl zero - which is very bad indeed.
 
-#if 0
+  !!! HAVE to do this if using analytical derivatives at all - nan mobility
+  !!! finds its way into jacoian through product etc rule and destroys convergence.
+  !!! This problem does not come up if we allow the 
+  !!! if (mob < eps) then cycle endif 
+  !!! type exceptions in jacobian contributions, but we really need these not
+  !!! to be allowed
+
+if (getDerivs) then
   if (kro > 0.0) auxvar%mobility(oid) = kro/visotl
   if (krg > 0.0) auxvar%mobility(gid) = krg/visgtl
   if (krs > 0.0) auxvar%mobility(sid) = krs/visstl
-#endif
+else
+  !!! probably dumb but for now we want to preserve behaviour if
+  !!! analytical derivatives deactivated
   auxvar%mobility(oid) = kro/visotl
   auxvar%mobility(gid) = krg/visgtl
   auxvar%mobility(sid) = krs/visstl
+endif
 
 #if 0
   if (isnan(auxvar%mobility(oid))) then
@@ -4239,6 +4260,13 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
   viscotl=viscom_w*visco_wc
   viscgtl=viscgm_w*viscg_wc
   viscstl=viscsm_w*viscs_wc
+
+#if 0
+  if (viscgtl == 0.d0) then
+    print *, "gas visc 0 here!"
+  endif
+#endif
+
 
 end subroutine TL4PViscosity
 

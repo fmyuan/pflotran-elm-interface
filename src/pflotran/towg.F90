@@ -5392,6 +5392,12 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
                              Jup,ghosted_id) 
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
+
+#if 0
+    if (local_id == 670) then
+      print *, "look at 670 jac here, accum"
+    endif
+#endif
   enddo
 
   if (realization%debug%matview_Jacobian_detailed) then
@@ -5455,6 +5461,31 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
         call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                       Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
+
+#if 0
+      if (local_id_up == 5) then
+        print *, "look at 5 jac here, jac_up, nbr ", local_id_dn, " has slvsat " &
+                  , towg%auxvars(0,ghosted_id_dn)%sat(4), "and gas sat "           &
+                  , towg%auxvars(0,ghosted_id_dn)%sat(3)
+      endif
+      if (local_id_dn == 5) then
+        print *, "look at 5 jac here, jac_dn, nbr ", local_id_up, " has slvsat " &
+                  , towg%auxvars(0,ghosted_id_up)%sat(4), "and gas sat "        &
+                  , towg%auxvars(0,ghosted_id_up)%sat(3)
+      endif
+
+      if (local_id_up == 670) then
+        print *, "look at 670 jac here, jac_up, nbr ", local_id_dn, " has slvsat " &
+                  , towg%auxvars(0,ghosted_id_dn)%sat(4), "and gas sat "           &
+                  , towg%auxvars(0,ghosted_id_dn)%sat(3)
+      endif
+      if (local_id_dn == 670) then
+        print *, "look at 670 jac here, jac_dn, nbr ", local_id_up, " has slvsat " &
+                  , towg%auxvars(0,ghosted_id_up)%sat(4), "and gas sat "        &
+                  , towg%auxvars(0,ghosted_id_up)%sat(3)
+      endif
+#endif
+
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
@@ -5510,6 +5541,12 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
       Jdn = -Jdn
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
+
+#if 0
+      if (local_id_dn == 670) then
+        print *, "look at 670 jac here, bc"
+      endif
+#endif
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -5550,6 +5587,13 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
 
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
+
+
+#if 0
+      if (local_id == 670) then
+        print *, "look at 670 jac here, srcsink"
+      endif
+#endif
 
     enddo
     source_sink => source_sink%next
@@ -5905,6 +5949,8 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   SNES :: snes
   PetscInt :: newton_iteration,istate
 
+  PetscReal :: scand
+
   type(global_auxvar_type), pointer :: global_auxvars(:)
 
 # if 0
@@ -5956,7 +6002,22 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
       end if
     endif
 #endif
+
+    !!! HACK - use this space to query if newton solver is suggesting
+    !!!        odd values for solvent sat
+    if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+      saturation_index = offset + TOWG_SOLV_SATURATION_DOF 
+      scand = X_p(saturation_index) - dX_p(saturation_index)
+      if ( dabs(scand) >0.d0 .AND. dabs(scand) < 1.d-318 ) then
+      !if (offset == 20 .OR. offset == 3345) then
+        !print *, "strange ssat value from newton solver here"
+        print *, "offset: ", offset, "localdex: ", local_id
+        print *, " sat: ", X_p(saturation_index), " sat update: ", dX_p(saturation_index), " result: ", scand
+      end if
+    endif
+
   enddo
+
 
 #if 0
     ! appleyard, not currently functional:
@@ -6002,6 +6063,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     if (dabs(del_pressure) > max_pressure_change) then
       temp_real = dabs(max_pressure_change/del_pressure)
       temp_scale = min(temp_scale,temp_real)
+        print *, "pressure change scale", temp_scale
      endif
 #endif
 #ifdef TRUNCATE_PRESSURE
@@ -6009,6 +6071,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
       if (dabs(del_pressure) > 1.d-40) then
         temp_real = tolerance * dabs(pressure0 / del_pressure)
         temp_scale = min(temp_scale,temp_real)
+        print *, "pressure change scale 2", temp_scale
       endif
     endif
 #endif
@@ -6022,6 +6085,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     if (dabs(del_saturation) > max_saturation_change) then
        temp_real = dabs(max_saturation_change/del_saturation)
        temp_scale = min(temp_scale,temp_real)
+       print *, "oil saturation change", temp_scale
     endif
     !gas saturation location
     saturation_index = offset + TOWG_GAS_SATURATION_3PH_DOF
@@ -6032,11 +6096,13 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
       if (dabs(del_saturation) > max_saturation_change) then
          temp_real = dabs(max_saturation_change/del_saturation)
          temp_scale = min(temp_scale,temp_real)
+         print *, "gas sat scale", temp_scale
       endif
     else if( istate == TOWG_LIQ_OIL_STATE ) then ! Is bubble point variable
       if (dabs(del_saturation) > max_pb_change) then
          temp_real = dabs(max_pb_change/del_saturation)
          temp_scale = min(temp_scale,temp_real)
+         print *, "pb scaling", temp_scale
       endif
       ! let's try avoiding negative pb values:
       if ((X_p(saturation_index) - dX_p(saturation_index))  < 0.d0) then
