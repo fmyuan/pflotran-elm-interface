@@ -65,23 +65,7 @@ module Option_module
     PetscInt :: nwells
     PetscInt :: num_table_indices
     PetscBool :: use_th_freezing
-! Controls for Eclipse format input and output
-    PetscBool :: is_grdecl              ! Indicates eclgrd file input used
-    PetscBool :: write_ecl              ! Indicates Eclipse files to be written
-    PetscBool :: write_ecl_form         ! Indicates Eclipse files are formatted
-! Write well mass rates and totals as well as surface volumes
-    PetscBool :: write_masses
-! For output of Eclipse summary and restart files, hold:
-! The interval in time or step count between writes
-! The last time or step count at which the file was written
-    PetscReal :: write_ecl_sum_deltat
-    PetscReal :: write_ecl_rst_deltat
-    PetscInt  :: write_ecl_sum_deltas
-    PetscInt  :: write_ecl_rst_deltas
-    PetscReal :: write_ecl_sum_lastt
-    PetscReal :: write_ecl_rst_lastt
-    PetscInt  :: write_ecl_sum_lasts
-    PetscInt  :: write_ecl_rst_lasts
+
 ! Indicates request for one-line-per-step console output
     PetscBool :: linerept
 
@@ -458,23 +442,6 @@ subroutine OptionInitRealization(option)
   option%nwells = 0
   option%num_table_indices = 0
   option%use_th_freezing = PETSC_FALSE
-
-!  Initial defaults for Eclipse format input and output
-  option%is_grdecl       = PETSC_FALSE
-
-  option%write_ecl       = PETSC_FALSE
-  option%write_ecl_form  = PETSC_FALSE
-  option%write_masses    = PETSC_FALSE
-
-  option%write_ecl_sum_deltat = -1.0
-  option%write_ecl_rst_deltat = -1.0
-  option%write_ecl_sum_deltas =  1
-  option%write_ecl_rst_deltas =  10
-
-  option%write_ecl_sum_lastt =  -1.0
-  option%write_ecl_rst_lastt =  -1.0
-  option%write_ecl_sum_lasts =  -1
-  option%write_ecl_rst_lasts =  -1
 
   option%linerept = PETSC_FALSE
 
