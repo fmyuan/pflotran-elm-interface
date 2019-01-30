@@ -3164,8 +3164,10 @@ subroutine OutputEclipseFiles(realization_base)
   sum_ls  = output_option%eclipse_options%write_ecl_sum_lasts
   rst_ls  = output_option%eclipse_options%write_ecl_rst_lasts
 
-  write_summ=GetEclWrtFlg(ewriter_summ_count, time, sum_dt, sum_ds, sum_lt, sum_ls)
-  write_rest=GetEclWrtFlg(ewriter_rest_count, time, rst_dt, rst_ds, rst_lt, rst_ls)
+  write_summ=GetEclWrtFlg(ewriter_summ_count, &
+                          time, sum_dt, sum_ds, sum_lt, sum_ls)
+  write_rest=GetEclWrtFlg(ewriter_rest_count, &
+                          time, rst_dt, rst_ds, rst_lt, rst_ls)
 
   output_option%eclipse_options%write_ecl_sum_lastt = sum_lt
   output_option%eclipse_options%write_ecl_rst_lastt = rst_lt
@@ -3225,7 +3227,8 @@ end subroutine OutputEclipseFiles
 
 ! *************************************************************************** !
 
-subroutine WriteWellHeaders(fid, icol, realization, towg_miscibility_model, wecl)
+subroutine WriteWellHeaders(fid, icol, realization, &
+                            towg_miscibility_model, wecl)
   !
   ! Used to write out file headers specific to TOIL and TOWG modes
   ! This routine must match the headers written by write_well_values
@@ -3284,71 +3287,71 @@ subroutine WriteWellHeaders(fid, icol, realization, towg_miscibility_model, wecl
 
   ! Oil rates and totals
 
-    call WrtHdrAndSpc(fid, 'wopr', name, 'm^3/d' , icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'wopt', name, 'm^3'   , icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'woir', name, 'm^3/d' , icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'woit', name, 'm^3'   , icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wopr', name, 'm^3/d' , icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wopt', name, 'm^3'   , icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'woir', name, 'm^3/d' , icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'woit', name, 'm^3'   , icol, zm, zn, zu, ni, mi, wecl)
 
   ! Gas rates and totals
 
-    call WrtHdrAndSpc(fid, 'wgpr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'wgpt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'wgir', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'wgit', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wgpr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wgpt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wgir', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wgit', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
 
   ! Water rates and totals
 
-    call WrtHdrAndSpc(fid, 'wwpr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'wwpt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'wwir', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'wwit', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wwpr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wwpt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wwir', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wwit', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
 
   ! Solvent rates and totals if required
 
     if( towg_miscibility_model == TOWG_SOLVENT_TL) then
-      call WrtHdrAndSpc(fid, 'wspr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHdrAndSpc(fid, 'wspt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHdrAndSpc(fid, 'wsir', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHdrAndSpc(fid, 'wsit', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'wspr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'wspt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'wsir', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'wsit', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
     endif
 
   ! Liquid rates and totals
 
-    call WrtHdrAndSpc(fid, 'wlpr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'wlpt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'wgor', name, 'bar'  , icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'wwct', name, 'bar'  , icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'wbhp', name, 'bar'  , icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wlpr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wlpt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wgor', name, 'bar'  , icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wwct', name, 'bar'  , icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'wbhp', name, 'bar'  , icol, zm, zn, zu, ni, mi, wecl)
 
   enddo
 
-  call WrtHdrAndSpc(fid, 'fopr', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-  call WrtHdrAndSpc(fid, 'fopt', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
-  call WrtHdrAndSpc(fid, 'foir', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-  call WrtHdrAndSpc(fid, 'foit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fopr', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fopt', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'foir', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'foit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
 
-  call WrtHdrAndSpc(fid, 'fgpr', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-  call WrtHdrAndSpc(fid, 'fgpt', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
-  call WrtHdrAndSpc(fid, 'fgir', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-  call WrtHdrAndSpc(fid, 'fgit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fgpr', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fgpt', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fgir', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fgit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
 
-  call WrtHdrAndSpc(fid, 'fwpr', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-  call WrtHdrAndSpc(fid, 'fwpt', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
-  call WrtHdrAndSpc(fid, 'fwir', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-  call WrtHdrAndSpc(fid, 'fwit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fwpr', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fwpt', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fwir', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fwit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
 
   if( towg_miscibility_model == TOWG_SOLVENT_TL) then
-    call WrtHdrAndSpc(fid, 'fspr', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'fspt', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'fsir', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHdrAndSpc(fid, 'fsit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'fspr', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'fspt', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'fsir', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+    call WrtHrd(fid, 'fsit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
   endif
 
-  call WrtHdrAndSpc(fid, 'flpr', 'field', 'm^3/d'  , icol, zm, zn, zu, ni, mi, wecl)
-  call WrtHdrAndSpc(fid, 'flpt', 'field', 'm^3'    , icol, zm, zn, zu, ni, mi, wecl)
-  call WrtHdrAndSpc(fid, 'fgor', 'field', 'm^3/m^3', icol, zm, zn, zu, ni, mi, wecl)
-  call WrtHdrAndSpc(fid, 'fwct', 'field', 'm^3/m^3', icol, zm, zn, zu, ni, mi, wecl)
-  call WrtHdrAndSpc(fid, 'fpav', 'field', 'Bar    ', icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'flpr', 'field', 'm^3/d'  , icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'flpt', 'field', 'm^3'    , icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fgor', 'field', 'm^3/m^3', icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fwct', 'field', 'm^3/m^3', icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fpav', 'field', 'Bar    ', icol, zm, zn, zu, ni, mi, wecl)
 
   ! Write out Eclipse files if required
 
@@ -3398,56 +3401,56 @@ subroutine WriteWellMassHeaders(fid, icol, realization, towg_miscibility_model)
 
   ! Oil mass rates and totals
 
-    call WrtHdrAndSpcMO(fid, 'wompr', name, 'kg/d', icol)
-    call WrtHdrAndSpcMO(fid, 'wompt', name, 'kg'  , icol)
-    call WrtHdrAndSpcMO(fid, 'womir', name, 'kg/d', icol)
-    call WrtHdrAndSpcMO(fid, 'womit', name, 'kg'  , icol)
+    call WrtHrdMO(fid, 'wompr', name, 'kg/d', icol)
+    call WrtHrdMO(fid, 'wompt', name, 'kg'  , icol)
+    call WrtHrdMO(fid, 'womir', name, 'kg/d', icol)
+    call WrtHrdMO(fid, 'womit', name, 'kg'  , icol)
 
   ! Gas mass rates and totals
 
-    call WrtHdrAndSpcMO(fid, 'wgmpr' , name, 'kg/d', icol)
-    call WrtHdrAndSpcMO(fid, 'wgmpt' , name, 'kg'  , icol)
-    call WrtHdrAndSpcMO(fid, 'wgmir' , name, 'kg/d', icol)
-    call WrtHdrAndSpcMO(fid, 'wgmit' , name, 'kg'  , icol)
+    call WrtHrdMO(fid, 'wgmpr' , name, 'kg/d', icol)
+    call WrtHrdMO(fid, 'wgmpt' , name, 'kg'  , icol)
+    call WrtHrdMO(fid, 'wgmir' , name, 'kg/d', icol)
+    call WrtHrdMO(fid, 'wgmit' , name, 'kg'  , icol)
 
   ! Water mass rates and totals
 
-    call WrtHdrAndSpcMO(fid, 'wwmpr', name, 'kg/d', icol)
-    call WrtHdrAndSpcMO(fid, 'wwmpt', name, 'kg'  , icol)
-    call WrtHdrAndSpcMO(fid, 'wwmir', name, 'kg/d', icol)
-    call WrtHdrAndSpcMO(fid, 'wwmit', name, 'kg'  , icol)
+    call WrtHrdMO(fid, 'wwmpr', name, 'kg/d', icol)
+    call WrtHrdMO(fid, 'wwmpt', name, 'kg'  , icol)
+    call WrtHrdMO(fid, 'wwmir', name, 'kg/d', icol)
+    call WrtHrdMO(fid, 'wwmit', name, 'kg'  , icol)
 
   ! Solvent mass rates and totals if required
 
     if( towg_miscibility_model == TOWG_SOLVENT_TL) then
-      call WrtHdrAndSpcMO(fid, 'wsmpr', name, 'kg/d', icol)
-      call WrtHdrAndSpcMO(fid, 'wsmpt', name, 'kg'  , icol)
-      call WrtHdrAndSpcMO(fid, 'wsmir', name, 'kg/d', icol)
-      call WrtHdrAndSpcMO(fid, 'wsmit', name, 'kg'  , icol)
+      call WrtHrdMO(fid, 'wsmpr', name, 'kg/d', icol)
+      call WrtHrdMO(fid, 'wsmpt', name, 'kg'  , icol)
+      call WrtHrdMO(fid, 'wsmir', name, 'kg/d', icol)
+      call WrtHrdMO(fid, 'wsmit', name, 'kg'  , icol)
     endif
 
   enddo
 
-  call WrtHdrAndSpcMO(fid, 'fompr', 'field', 'kg/d', icol)
-  call WrtHdrAndSpcMO(fid, 'fompt', 'field', 'kg'  , icol)
-  call WrtHdrAndSpcMO(fid, 'fomir', 'field', 'kg/d', icol)
-  call WrtHdrAndSpcMO(fid, 'fomit', 'field', 'kg'  , icol)
+  call WrtHrdMO(fid, 'fompr', 'field', 'kg/d', icol)
+  call WrtHrdMO(fid, 'fompt', 'field', 'kg'  , icol)
+  call WrtHrdMO(fid, 'fomir', 'field', 'kg/d', icol)
+  call WrtHrdMO(fid, 'fomit', 'field', 'kg'  , icol)
 
-  call WrtHdrAndSpcMO(fid, 'fgmpr', 'field', 'kg/d', icol)
-  call WrtHdrAndSpcMO(fid, 'fgmpt', 'field', 'kg'  , icol)
-  call WrtHdrAndSpcMo(fid, 'fgmir', 'field', 'kg/d', icol)
-  call WrtHdrAndSpcMO(fid, 'fgmit', 'field', 'kg'  , icol)
+  call WrtHrdMO(fid, 'fgmpr', 'field', 'kg/d', icol)
+  call WrtHrdMO(fid, 'fgmpt', 'field', 'kg'  , icol)
+  call WrtHrdMo(fid, 'fgmir', 'field', 'kg/d', icol)
+  call WrtHrdMO(fid, 'fgmit', 'field', 'kg'  , icol)
 
-  call WrtHdrAndSpcMO(fid, 'fwmpr', 'field', 'kg/d', icol)
-  call WrtHdrAndSpcMO(fid, 'fwmpt', 'field', 'kg'  , icol)
-  call WrtHdrAndSpcMO(fid, 'fwmir', 'field', 'kg/d', icol)
-  call WrtHdrAndSpcMO(fid, 'fwmit', 'field', 'kg'  , icol)
+  call WrtHrdMO(fid, 'fwmpr', 'field', 'kg/d', icol)
+  call WrtHrdMO(fid, 'fwmpt', 'field', 'kg'  , icol)
+  call WrtHrdMO(fid, 'fwmir', 'field', 'kg/d', icol)
+  call WrtHrdMO(fid, 'fwmit', 'field', 'kg'  , icol)
 
   if( towg_miscibility_model == TOWG_SOLVENT_TL) then
-    call WrtHdrAndSpcMO(fid, 'fsmpr', 'field', 'kg/d', icol)
-    call WrtHdrAndSpcMO(fid, 'fsmpt', 'field', 'kg'  , icol)
-    call WrtHdrAndSpcMO(fid, 'fsmir', 'field', 'kg/d', icol)
-    call WrtHdrAndSpcMO(fid, 'fsmit', 'field', 'kg'  , icol)
+    call WrtHrdMO(fid, 'fsmpr', 'field', 'kg/d', icol)
+    call WrtHrdMO(fid, 'fsmpt', 'field', 'kg'  , icol)
+    call WrtHrdMO(fid, 'fsmir', 'field', 'kg/d', icol)
+    call WrtHrdMO(fid, 'fsmit', 'field', 'kg'  , icol)
   endif
 
 end subroutine WriteWellMassHeaders
@@ -4073,7 +4076,8 @@ end subroutine WriteLineRept
 
 !*****************************************************************************!
 
-subroutine setupWellData(wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl, &
+subroutine setupWellData(wname, wtype, wncmpl, &
+                         ixcmpl, iycmpl, izcmpl, idcmpl, &
                          well_data_list)
   !
   ! Setup structures holding well locations for Output_Eclipse_module
@@ -4254,7 +4258,7 @@ end subroutine deleteLocalSolution
 
 ! *************************************************************************** !
 
-subroutine WrtHdrAndSpc(fid, mnem, name, units, icolumn, zm, zn, zu, ni, mi, wecl)
+subroutine WrtHrd(fid, mnem, name, units, icolumn, zm, zn, zu, ni, mi, wecl)
   !
   ! Write out mnemonic, name and units values on stream fid
   ! and/or store in the zm/zn/zu buffers
@@ -4303,11 +4307,11 @@ subroutine WrtHdrAndSpc(fid, mnem, name, units, icolumn, zm, zn, zu, ni, mi, wec
     zu(ni) = unitsu
   endif
 
-end subroutine WrtHdrAndSpc
+end subroutine WrtHrd
 
 ! ************************************************************************** !
 
-subroutine WrtHdrAndSpcMO(fid, mnem, name, units, icolumn)
+subroutine WrtHrdMO(fid, mnem, name, units, icolumn)
   !
   ! Write out mnemonic, name and units values on stream fid
   !
@@ -4329,7 +4333,7 @@ subroutine WrtHdrAndSpcMO(fid, mnem, name, units, icolumn)
   cell   = ' '
   call OutputWriteToHeader(fid, string, units, cell, icolumn)
 
-end subroutine WrtHdrAndSpcMO
+end subroutine WrtHrdMO
 
 ! *************************************************************************** !
 
