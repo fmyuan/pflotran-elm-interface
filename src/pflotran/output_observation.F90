@@ -3128,11 +3128,11 @@ subroutine OutputEclipseFiles(realization_base)
   type(output_option_type), pointer :: output_option
 
   PetscInt :: fid, icol
-  PetscBool, parameter:: wecl=PETSC_TRUE
+  PetscBool, parameter:: wecl = PETSC_TRUE
   PetscBool :: write_summ, write_rest,is_grdecl
   PetscInt  :: sum_ds, rst_ds, sum_ls, rst_ls
   PetscReal :: sum_dt, rst_dt, sum_lt, rst_lt, time
-  PetscReal, parameter :: eps=0.001
+  PetscReal, parameter :: eps = 0.001
 
   patch => realization_base%patch
   grid => patch%grid
@@ -3582,13 +3582,13 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
 
   !  Set up dependent values (liquid rates and ratios)
 
-    wlpr=wopr+wwpr
-    wlpt=wopt+wwpt
+    wlpr = wopr+wwpr
+    wlpt = wopt+wwpt
 
-    wwct=0.0
-    if( wlpr .gt. 0.0 ) wwct=wwpr/wlpr
-    wgor=0.0
-    if( wopr .gt. 0.0 ) wgor=wgpr/wopr
+    wwct = 0.0
+    if( wlpr .gt. 0.0 ) wwct = wwpr/wlpr
+    wgor = 0.0
+    if( wopr .gt. 0.0 ) wgor = wgpr/wopr
 
   !  Write out well values
 
@@ -3651,13 +3651,13 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
     fsit = 0.0
   endif
 
-  flpr=fopr+fwpr
-  flpt=fopt+fwpt
+  flpr = fopr+fwpr
+  flpt = fopt+fwpt
 
-  fwct=0.0
-  fgor=0.0
-  if( flpr.gt.0.0 ) fwct=fwpr/flpr
-  if( fopr.gt.0.0 ) fgor=fgpr/fopr
+  fwct = 0.0
+  fgor = 0.0
+  if( flpr.gt.0.0 ) fwct = fwpr/flpr
+  if( fopr.gt.0.0 ) fgor = fgpr/fopr
 
   !  Convert field pressure to Bars
 
@@ -3934,7 +3934,7 @@ subroutine WriteRestValues(realization, tconv, option)
   grid => realization%patch%grid
   patch => realization%patch
 
-  nlmax=grid%nlmax
+  nlmax = grid%nlmax
   mlmax = GetMlmax()
 
   call allocateLocalSolution(vsoll, nsol, zsol, nlmax)
@@ -4024,7 +4024,7 @@ subroutine WriteLineRept(realization, option, tconv)
   well_data_list => realization%well_data
   option => realization%option
 
-  time=option%time/tconv
+  time = option%time/tconv
   if( time>0.0 ) then
 
   !  Get the field values
@@ -4045,12 +4045,12 @@ subroutine WriteLineRept(realization, option, tconv)
     fwpr = fwpr*tconv
     fwir = fwir*tconv
 
-    flpr=fopr+fwpr
+    flpr = fopr+fwpr
 
-    fwct=0.0
-    fgor=0.0
-    if( flpr.gt.0.0 ) fwct=fwpr/flpr
-    if( fopr.gt.0.0 ) fgor=fgpr/fopr
+    fwct = 0.0
+    fgor = 0.0
+    if( flpr.gt.0.0 ) fwct = fwpr/flpr
+    if( fopr.gt.0.0 ) fgor = fgpr/fopr
 
   !  Convert field pressure to Bars
 
@@ -4093,8 +4093,8 @@ subroutine setupWellData(wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl, &
   PetscInt :: iw, nw, mw, ic, ncg, nct, mct, ci, cj, ck, cdd, welltype
   character(len=MAXSTRINGLENGTH) :: name
 
-  nw=getnwell(well_data_list)
-  mw=max(1, nw)
+  nw = getnwell(well_data_list)
+  mw = max(1, nw)
 
   allocate(wname (mw))
   allocate(wtype (mw))
@@ -4119,7 +4119,7 @@ subroutine setupWellData(wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl, &
   allocate(izcmpl(mct))
   allocate(idcmpl(mct))
 
-  nct=0
+  nct = 0
 
   do iw = 1, nw
 
@@ -4492,8 +4492,8 @@ subroutine setupEwriterRestMaps(patch, grid, option)
 
   !  First, find the maximum value of nlmax over all procs
 
-  nlmax=grid%nlmax
-  ierr=0
+  nlmax = grid%nlmax
+  ierr  = 0
   call MPI_AllReduce(nlmax, mlmax, ONE_INTEGER_MPI, MPI_INTEGER, MPI_MAX, &
                      option%mycomm, ierr)
 
@@ -4504,7 +4504,7 @@ subroutine setupEwriterRestMaps(patch, grid, option)
     gid        = grid%nL2G(lid  )
     nid = grid%nG2A(gid)
     if (patch%imat(gid) <= 0) cycle
-      ltoa(lid)=nid
+      ltoa(lid) = nid
   enddo
 
   !  Setup the restart maps in Output_Eclipse_module
