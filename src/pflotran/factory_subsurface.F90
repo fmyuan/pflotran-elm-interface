@@ -2831,10 +2831,11 @@ subroutine SubsurfaceReadInput(simulation,input)
               call OutputFileRead(input,realization,output_option, &
                                   waypoint_list,trim(word))
             case('ECLIPSE_FILE')
+              call CreateOutputOptionEclipse(output_option)
               call OutputFileRead(input,realization,output_option, &
                                   waypoint_list,trim(word))
             case('LINEREPT')
-              option%linerept = PETSC_TRUE
+               option%linerept = PETSC_TRUE
             case('TIME_UNITS')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'Output Time Units','OUTPUT')
