@@ -244,7 +244,8 @@ subroutine initialiseWell(well_data, grid, material_auxvars, option)
 
   PetscInt  :: icmpl, icmplg, ncmpl
   PetscInt  :: drilling_direction
-  PetscReal :: dx, dy, dz, ccf, dx1, dx2, dh, k1, k2, radius, skinfactor, thetafactor, r0
+  PetscReal :: dx, dy, dz, ccf, dx1, dx2, dh, k1, k2, &
+               radius, skinfactor, thetafactor, r0
 
   PetscInt  :: iw
   PetscBool :: onproc, found
@@ -468,7 +469,8 @@ subroutine doWellMPISetup(option, num_well, well_data_list)
 
     ! Set global number of completions, multi-proc flag, group and communicator
 
-    call WellSetGlobalInfo(iwell, nrankw, ncmplg, ismp, group, comm, well_data_list)
+    call WellSetGlobalInfo(iwell, nrankw, ncmplg, ismp, &
+                           group, comm, well_data_list)
 
   enddo
 
@@ -641,7 +643,8 @@ subroutine SolveWell(aux, option, well_data, r_p)
     call allocateWorkArrays()
 
     do icmpl = 1, w_ncmpl
-      call well_data%GetCmplLocation(icmpl, local_id, ghosted_id, onproc, icmplg)
+      call well_data%GetCmplLocation(icmpl, local_id, &
+                                     ghosted_id, onproc, icmplg)
       c_local_id  (icmpl) = local_id
       c_ghosted_id(icmpl) = ghosted_id
       c_to_cg     (icmpl) = icmplg
@@ -774,7 +777,8 @@ subroutine SolveWell(aux, option, well_data, r_p)
 
     call updateMainResidual(option, r_p)
 
-    ! Get actuals for each target for this proc (will be globalised in well_data)
+    ! Get actuals for each target for this proc
+    ! (will be globalised in well_data)
 
     do jTT = 1, N_WELL_TT
       ws_actuals(jTT) = &
@@ -1477,7 +1481,8 @@ subroutine findCompletionFlows(pw, option, icmpl, icmplg)
 
           if (pdd > 0.0) then
 
-            ! Producing completion: mobility and molar density are cell functions
+            ! Producing completion: mobility and molar density
+            ! are cell functions
 
             mob   = c_mob(icmpl, iphase)
             mdp   = c_mdp(icmpl, iphase)
@@ -1495,7 +1500,8 @@ subroutine findCompletionFlows(pw, option, icmpl, icmplg)
             ! Wellbore solution derivatives
             do ixw = 1, ws_nxw
               flowxw = ccf*xmf*mob*mdp*pddxw(ixw)
-              c_flowsxw(icmpl, icomp, ixw) = c_flowsxw(icmpl, icomp, ixw)+flowxw
+              c_flowsxw(icmpl, icomp, ixw) = &
+              c_flowsxw(icmpl, icomp, ixw)+flowxw
             enddo
 
             ! Cell solution derivatives (diagonal in completion index)
@@ -1548,7 +1554,8 @@ subroutine findCompletionFlows(pw, option, icmpl, icmplg)
             do ixw = 1, ws_nxw
               flowxw = ccf*mobt*( w_mdcxw(icomp, ixw)*pdd        &
                                  +mdc                *pddxw(ixw) )
-              c_flowsxw(icmpl, icomp, ixw) = c_flowsxw(icmpl, icomp, ixw)+flowxw
+              c_flowsxw(icmpl, icomp, ixw) = &
+              c_flowsxw(icmpl, icomp, ixw)+flowxw
             enddo
 
             ! Cell solution derivatives (diagonal in completion index)
@@ -1786,8 +1793,9 @@ subroutine buildWellFlows1()
       enddo
       do jcmplg = 1, w_ncmplg
         do jdof = 1, ws_ndof
-          w_flowsxc(icompe, jcmplg, jdof) &
-        = w_flowsxc(icompe, jcmplg, jdof) + c_flowsxc(icmpl, icompe, jcmplg, jdof)
+           w_flowsxc(icompe, jcmplg, jdof) &
+        =  w_flowsxc(icompe, jcmplg, jdof) &
+         + c_flowsxc(icmpl, icompe, jcmplg, jdof)
         enddo
       enddo
     enddo
@@ -1842,8 +1850,9 @@ subroutine buildWellFlows2()
       w_flowspw(icompe) = w_flowspw(icompe) + c_flowspw(icmpl, icompe)
       do jcmplg = 1, w_ncmplg
         do jdof = 1, ws_ndof
-          w_flowsxc(icompe, jcmplg, jdof) &
-        = w_flowsxc(icompe, jcmplg, jdof) + c_flowsxc(icmpl, icompe, jcmplg, jdof)
+           w_flowsxc(icompe, jcmplg, jdof) &
+        =  w_flowsxc(icompe, jcmplg, jdof) &
+         + c_flowsxc(icmpl, icompe, jcmplg, jdof)
         enddo
       enddo
     enddo
@@ -2048,8 +2057,9 @@ subroutine findWellboreSolution(pw, option)
       do jdof = 1, ws_ndof
 
         do irw = 1, ws_nxw
-          w_dxwdxc(ixw, jcmplg, jdof) &
-        = w_dxwdxc(ixw, jcmplg, jdof) - jwbsi(ixw, irw)*rwbsxc(irw, jcmplg, jdof)
+           w_dxwdxc(ixw, jcmplg, jdof) &
+        =  w_dxwdxc(ixw, jcmplg, jdof) &
+         - jwbsi(ixw, irw)*rwbsxc(irw, jcmplg, jdof)
         enddo
 
       enddo
@@ -2073,7 +2083,8 @@ subroutine findWellboreSolution(pw, option)
 
           sum = 0.0
           do ixw = 1, ws_nxw
-            sum = sum + c_flowsxw(icmpl, icompe, ixw)*w_dxwdxc(ixw, jcmplg, jdof)
+            sum = sum + c_flowsxw(icmpl, icompe, ixw) &
+                       *w_dxwdxc(ixw, jcmplg, jdof)
           enddo
 
             c_flowsxc(icmpl, icompe, jcmplg, jdof) &
@@ -2306,7 +2317,8 @@ subroutine getRwbsAndJwbs(pw, option)
 
     do jcmplg = 1, w_ncmplg
       do jdof = 1, ws_ndof
-        sumxc(jcmplg, jdof) = sumxc(jcmplg, jdof) + w_flowsGxc(icomp, jcmplg, jdof)
+        sumxc(jcmplg, jdof) =  sumxc(jcmplg, jdof) &
+                             + w_flowsGxc(icomp, jcmplg, jdof)
       enddo
     enddo
 
@@ -2362,8 +2374,9 @@ subroutine getRwbsAndJwbs(pw, option)
       rwbspw(icompc) = rwbspw(icompc) - (  sumpw*w_zmf  (icompc) &
                                          + sum  *w_zmfpw(icompc) )
       do ixw = 1, ws_nxw
-        jwbs(icompc, ixw) = jwbs(icompc, ixw)-( sumxw(ixw)*w_zmf  (icompc     ) &
-                                               +sum       *w_zmfxw(icompc, ixw) )
+        jwbs(icompc, ixw) =  jwbs(icompc, ixw) &
+                           - (  sumxw(ixw)*w_zmf  (icompc     ) &
+                              + sum       *w_zmfxw(icompc, ixw) )
       enddo
 
       do jcmplg = 1, w_ncmplg
@@ -2522,7 +2535,8 @@ end subroutine findWellboreGravityDensityPredictor
 
 !  ************************************************************************** !
 
-subroutine findWellborePropertiesAndDerivatives(pw, so, sg, sw, ss, pb, t, option)
+subroutine findWellborePropertiesAndDerivatives(pw, so, sg, sw, ss, &
+                                                pb, t, option)
   !
   ! Find values and derivs of properties used to obtain well gravity density
   !
@@ -2920,10 +2934,10 @@ subroutine findWellborePropertiesAndDerivatives(pw, so, sg, sw, ss, pb, t, optio
         do ixw = 1, ws_nxw
           w_mdcxw(icoil, ixw) = w_mdcxw(icoil, ixw) &
                                + xo*(  w_spxw(iphase, ixw)*mdp &
-                                     + sp                 *w_mdpxw(iphase, ixw) )
+                                     + sp*w_mdpxw(iphase, ixw) )
           w_mdcxw(icgas, ixw) = w_mdcxw(icgas, ixw) &
                                + xg*(  w_spxw(iphase, ixw)*mdp &
-                                     + sp                 *w_mdpxw(iphase, ixw) )
+                                     + sp*w_mdpxw(iphase, ixw) )
           if (ixw == ixwpb) then
             w_mdcxw(icoil, ixw) = w_mdcxw(icoil, ixw) + xopb*sp*mdp
             w_mdcxw(icgas, ixw) = w_mdcxw(icgas, ixw) + xgpb*sp*mdp
@@ -3071,7 +3085,8 @@ subroutine wellSolverLoaderTOWG(aux, option)
 
   do icmpl = 1, w_ncmpl
     ghosted_id = c_ghosted_id(icmpl)
-    call loadCellDataTOWG(towg%auxvars(ZERO_INTEGER, ghosted_id), option, icmpl)
+    call loadCellDataTOWG(towg%auxvars(ZERO_INTEGER, ghosted_id), &
+                          option, icmpl)
   enddo
 
 end subroutine wellSolverLoaderTOWG
@@ -3105,7 +3120,8 @@ subroutine wellSolverLoaderTOIL(aux, option)
 
   do icmpl = 1, w_ncmpl
     ghosted_id = c_ghosted_id(icmpl)
-    call loadCellDataTOIL(toil%auxvars(ZERO_INTEGER, ghosted_id), option, icmpl)
+    call loadCellDataTOIL(toil%auxvars(ZERO_INTEGER, ghosted_id), &
+                          option, icmpl)
   enddo
 
 end subroutine wellSolverLoaderTOIL
@@ -3430,13 +3446,15 @@ function invertGauss(j, jinv, n)
     pivotinv = 0.0
     if (fabsPivot > 0.0) pivotinv = 1.0/pivot
 
-    ! Go down the column, subtracting pivotinv times equation ic from equation ir
+    ! Go down the column, subtracting value pivotinv
+    ! times equation ic from equation ir
 
     do ir = ic+1, n
       irp = ip(ir)
       v = a(irp, ic)*pivotinv
 
-      ! Carry out pivoting operation on row of matrix and all the right hand sides
+      ! Carry out pivoting operation on row of matrix
+      ! and all the right hand sides
 
       do jc = 1, n
         a(irp, jc) = a(irp, jc)-v*a(icp, jc)
