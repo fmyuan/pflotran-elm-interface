@@ -160,7 +160,8 @@ module Well_Data_class
       PetscReal, pointer :: w_cmplflowsX(:,:,:,:)
       PetscBool          :: w_cmplflowsX_Allocated
 
-      class(well_data_type), pointer, public :: next !points to next link in list
+      ! points to next link in list
+      class(well_data_type), pointer, public :: next
 
   contains
 
@@ -510,8 +511,8 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
           call InputDefaultMsg(input, option, word)
         else
           units = trim(word)
-          this%w_radius = UnitsConvertToInternal(units, internal_units, option) &
-                         *this%w_radius
+          this%w_radius = this%w_radius &
+                         *UnitsConvertToInternal(units,internal_units, option)
           this%w_radius_set = PETSC_TRUE
         endif
       case('SKIN_FACTOR')
@@ -544,7 +545,8 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
         endif
       case('INJECTION_ENTHALPY_T')
         call InputReadDouble(input, option, v)
-        call InputErrorMsg(input, option, 'injection enthalpy temp', 'WELL_DATA')
+        call InputErrorMsg(input, option, 'injection enthalpy temp', &
+                           'WELL_DATA')
         call InputReadWord(input, option, word, PETSC_TRUE)
         if (this%w_readtime>0.0) then
           call StoreEvent(this, EVENT_TINJ, ival, v)
@@ -601,7 +603,8 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
           call InputDefaultMsg(input, option, word)
         else
           units = trim(word)
-          this%w_z_ref = UnitsConvertToInternal(units, internal_units, option)*v
+          this%w_z_ref = v*UnitsConvertToInternal(units, internal_units, &
+                                                  option)
         endif
       case('CIJK', 'CIJK_Z', 'CIJK_D')
       case('BHPL')
@@ -1213,7 +1216,8 @@ end subroutine WellSetGlobalInfoSet
 
 ! ************************************************************************** !
 
-subroutine GetCmplLocationInList(this, icmpl, local_id, ghosted_id, onproc, icmplg)
+subroutine GetCmplLocationInList(this, icmpl, local_id, &
+                                 ghosted_id, onproc, icmplg)
   !
   ! Get the well location (structured grid only)
   ! Error will occur if unstructured grid used with this code
@@ -2804,7 +2808,8 @@ end subroutine UpdateWellType
 
 ! *************************************************************************** !
 
-subroutine getLocalAndGhostedIDs(natural_id, local_id, ghosted_id, onproc, grid)
+subroutine getLocalAndGhostedIDs(natural_id, local_id, &
+                                 ghosted_id, onproc, grid)
   !
   ! Find a completion from its natural id
   ! This needs a search
