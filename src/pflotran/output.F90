@@ -377,7 +377,7 @@ subroutine OutputFileRead(input,realization,output_option, &
         call StringToUpper(word)
         select case(trim(word))
           case('TIME')
-            deltat=-1.0
+            deltat = -1.0
             string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIME'
             call InputReadDouble(input,option,temp_real)
             call InputErrorMsg(input,option,'time increment',string)
@@ -388,24 +388,24 @@ subroutine OutputFileRead(input,realization,output_option, &
                  internal_units,option)
             deltat = temp_real*units_conversion
             if( is_sum ) then
-              output_option%eclipse_options%write_ecl_sum_deltat=deltat
-              output_option%eclipse_options%write_ecl_sum_deltas=-1
+              output_option%eclipse_options%write_ecl_sum_deltat = deltat
+              output_option%eclipse_options%write_ecl_sum_deltas = -1
             endif
             if( is_rst ) then
-              output_option%eclipse_options%write_ecl_rst_deltat=deltat
-              output_option%eclipse_options%write_ecl_rst_deltas=-1
+              output_option%eclipse_options%write_ecl_rst_deltat = deltat
+              output_option%eclipse_options%write_ecl_rst_deltas = -1
             endif
           case('TIMESTEP')
-            deltas=-1
+            deltas = -1
             string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIMESTEP'
               call InputReadInt(input,option,deltas)
             if( is_sum ) then
-              output_option%eclipse_options%write_ecl_sum_deltas=deltas
-              output_option%eclipse_options%write_ecl_sum_deltat=-1.0
+              output_option%eclipse_options%write_ecl_sum_deltas = deltas
+              output_option%eclipse_options%write_ecl_sum_deltat = -1.0
             endif
             if( is_rst ) then
-              output_option%eclipse_options%write_ecl_rst_deltas=deltas
-              output_option%eclipse_options%write_ecl_rst_deltat=-1.0
+              output_option%eclipse_options%write_ecl_rst_deltas = deltas
+              output_option%eclipse_options%write_ecl_rst_deltat = -1.0
             endif
         end select
 !...................
