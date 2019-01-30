@@ -2549,16 +2549,16 @@ subroutine RealizationDestroyLegacy(realization)
     
   call FieldDestroy(realization%field)
 
-!  call OptionDestroy(realization%option) !geh it will be destroy externally
+  !  call OptionDestroy(realization%option) !geh it will be destroy externally
   call OutputOptionDestroy(realization%output_option)
   call RegionDestroyList(realization%region_list)
   
   call FlowConditionDestroyList(realization%flow_conditions)
 
-!  Destroy the list of wells held by well_data
+  !  Destroy the list of wells held by well_data
   call WellDataDestroyList(realization%well_data,realization%option)
-!  Release output buffers held by Output_Eclipse_module
-  if (realization%option%write_ecl) then
+  !  Release output buffers held by Output_Eclipse_module
+  if (realization%output_option%write_ecl) then
     call ReleaseEwriterBuffers()
   endif
 
@@ -2619,10 +2619,10 @@ subroutine RealizationStrip(this)
   
   call FlowConditionDestroyList(this%flow_conditions)
 
-!  Destroy the list of wells held by well_data
+  !  Destroy the list of wells held by well_data
   call WellDataDestroyList(this%well_data,this%option)
-!  Release output buffers held by Output_Eclipse_module
-  if (this%option%write_ecl) then
+  !  Release output buffers held by Output_Eclipse_module
+  if (this%output_option%write_ecl) then
     call ReleaseEwriterBuffers()
   endif
 
