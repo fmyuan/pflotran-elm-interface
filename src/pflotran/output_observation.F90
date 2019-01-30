@@ -4057,7 +4057,7 @@ subroutine WriteLineRept(realization, option, tconv)
     call GetFieldData(fpav)
     fpav = fpav*1.0D-5
 
-    if( mod(linerept_count, 20) == 0 ) then
+    if (mod(linerept_count, 20) == 0) then
       write(*, 100)
       write(*, 101)
       write(*, 102)
