@@ -442,7 +442,7 @@ subroutine SFConstantVerify(this,name,option)
   endif
   call SFBaseVerify(this,string,option)
   select case(option%iflowmode)
-    case(RICHARDS_MODE,TH_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE,TH_MODE)
       if (Initialized(this%constant_capillary_pressure)) then
         option%io_buffer = 'CONSTANT_CAPILLARY_PRESSURE is not supported for &
           &Richards or TH flow modes as CONSTANT_SATURATION must be applied. &

@@ -2596,7 +2596,6 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('CHARACTERISTIC_CURVES')
-
         if (.not.(option%iflowmode == NULL_MODE .or. &
                   option%iflowmode == RICHARDS_MODE .or. &
                   option%iflowmode == RICHARDS_TS_MODE .or. &
@@ -3372,9 +3371,10 @@ subroutine SubsurfaceReadInput(simulation,input)
       case ('ONLY_VERTICAL_FLOW')
         option%flow%only_vertical_flow = PETSC_TRUE
         if (option%iflowmode /= TH_MODE .and. &
-            option%iflowmode /= RICHARDS_MODE) then
-          option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in RICHARDS &
-                             &and TH mode.'
+            option%iflowmode /= RICHARDS_MODE .and. &
+            option%iflowmode /= RICHARDS_TS_MODE) then
+          option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in RICHARDS, &
+                              &RICHARDS_TSand TH mode.'
           call printErrMsg(option)
         endif
 
@@ -3382,8 +3382,10 @@ subroutine SubsurfaceReadInput(simulation,input)
       case ('QUASI_3D')
         option%flow%quasi_3d = PETSC_TRUE
         option%flow%only_vertical_flow = PETSC_TRUE
-        if (option%iflowmode /= RICHARDS_MODE) then
-          option%io_buffer = 'QUASI_3D implemented in RICHARDS mode.'
+        if (option%iflowmode /= RICHARDS_MODE .and. &
+            option%iflowmode /= RICHARDS_TS_MODE) then
+          option%io_buffer = 'QUASI_3D implemented in RICHARDS and &
+                              &RICHARDS_TS mode.'
           call printErrMsg(option)
         endif
 

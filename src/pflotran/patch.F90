@@ -3896,7 +3896,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
     select case(option%iflowmode)
       !geh: This is a scaling factor that is stored that would be applied to
       !     all phases.
-      case(RICHARDS_MODE,G_MODE,TH_MODE,TOIL_IMS_MODE,WF_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,TH_MODE,TOIL_IMS_MODE,WF_MODE)
         source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
           vec_ptr(local_id)
       case(MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE)
@@ -3959,7 +3959,9 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
     call printErrMsg(option)
   endif
 
-  if (option%iflowmode/=RICHARDS_MODE.and.option%iflowmode/=TH_MODE) then
+  if (option%iflowmode/=RICHARDS_MODE .and. &
+      option%iflowmode/=TH_MODE .and. &
+      option%iflowmode/=RICHARDS_TS_MODE) then
     option%io_buffer='PatchUpdateHetroCouplerAuxVars only implemented '// &
       ' for RICHARDS or TH mode.'
     call printErrMsg(option)

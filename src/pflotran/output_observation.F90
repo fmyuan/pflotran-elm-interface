@@ -827,7 +827,7 @@ subroutine WriteObservationHeaderForBC(fid,realization_base,coupler_name)
     case(IMS_MODE)
     case(TH_MODE)
     case(MIS_MODE)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       string = ',"Darcy flux ' // trim(coupler_name) // &
                ' [m^3/' // trim(realization_base%output_option%tunit) // ']"'
     case default
@@ -1089,7 +1089,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
           & for WIPP Flow, and perhaps the other multiphase flow modes.'
         call printErrMsg(option)
       case(MIS_MODE)
-      case(RICHARDS_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE)
         sum_volumetric_flux = 0.d0
         if (associated(connection_set)) then
           do iconn = 1, connection_set%num_connections
@@ -1665,7 +1665,7 @@ subroutine OutputIntegralFlux(realization_base)
 
   flow_dof_scale = 1.d0
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       flow_dof_scale(1) = FMWH2O
     case(TH_MODE)
       flow_dof_scale(1) = FMWH2O
@@ -1721,7 +1721,8 @@ subroutine OutputIntegralFlux(realization_base)
       do
         if (.not.associated(integral_flux)) exit
         select case(option%iflowmode)
-          case(RICHARDS_MODE,TH_MODE,MIS_MODE,G_MODE,MPH_MODE,FLASH2_MODE, &
+          case(RICHARDS_MODE,RICHARDS_TS_MODE, &
+               TH_MODE,MIS_MODE,G_MODE,MPH_MODE,FLASH2_MODE, &
                IMS_MODE,WF_MODE)
             string = trim(integral_flux%name) // ' Water'
             call OutputWriteToHeader(fid,string,'kg','',icol)
@@ -2025,7 +2026,7 @@ subroutine OutputMassBalance(realization_base)
       endif
       
       select case(option%iflowmode)
-        case(RICHARDS_MODE)
+        case(RICHARDS_MODE,RICHARDS_TS_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass','kg','',icol)
           
         case(TH_MODE)
@@ -2139,7 +2140,7 @@ subroutine OutputMassBalance(realization_base)
         endif
 
         select case(option%iflowmode)
-          case(RICHARDS_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE)
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,'kg','',icol)
             
@@ -2294,7 +2295,7 @@ subroutine OutputMassBalance(realization_base)
             write(fid,'(a)',advance="no") ',"' // &
               'Plane Water Flux [mol/s]","Plane CO2 Flux [mol/s]",' // &
               '"Plane Energy Flux [MJ/s]"'
-          case(RICHARDS_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE)
             write(fid,'(a)',advance="no") ',"' // &
               'Plane Water Flux [mol/s]"'
           case(TH_MODE)
@@ -2345,7 +2346,7 @@ subroutine OutputMassBalance(realization_base)
     select type(realization_base)
       class is(realization_subsurface_type)
         select case(option%iflowmode)
-          case(RICHARDS_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE)
             call RichardsComputeMassBalance(realization_base,sum_kg(1,:))
           case(TH_MODE)
             call THComputeMassBalance(realization_base,sum_kg(1,:))
@@ -2386,7 +2387,7 @@ subroutine OutputMassBalance(realization_base)
 
     if (option%myrank == option%io_rank) then
       select case(option%iflowmode)
-        case(RICHARDS_MODE,IMS_MODE,MIS_MODE,G_MODE, &
+        case(RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE,G_MODE, &
              TH_MODE)
           do iphase = 1, option%nphase
             do ispec = 1, option%nflowspec
@@ -2557,7 +2558,7 @@ subroutine OutputMassBalance(realization_base)
 #endif
 
       select case(option%iflowmode)
-        case(RICHARDS_MODE)
+        case(RICHARDS_MODE,RICHARDS_TS_MODE)
           ! print out cumulative H2O flux
           sum_kg = 0.d0
           do iconn = 1, coupler%connection_set%num_connections
