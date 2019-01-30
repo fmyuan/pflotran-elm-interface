@@ -141,7 +141,7 @@ subroutine OutputFileRead(input,realization,output_option, &
     case('MASS_BALANCE_FILE')
       option%compute_mass_balance_new = PETSC_TRUE
     case('ECLIPSE_FILE')
-      option%write_ecl                = PETSC_TRUE
+      output_option%write_ecl = PETSC_TRUE
   end select
 
   do
@@ -180,13 +180,13 @@ subroutine OutputFileRead(input,realization,output_option, &
       case('WRITE_MASS_RATES')
         select case(trim(block_name))
           case('MASS_BALANCE_FILE')
-              option%write_masses = PETSC_TRUE
+            output_option%write_masses = PETSC_TRUE
         end select
 
       case('FORMATTED')
         select case(trim(block_name))
           case('ECLIPSE_FILE')
-              option%write_ecl_form = PETSC_TRUE
+            output_option%eclipse_options%write_ecl_form = PETSC_TRUE
         end select
 !...............................
       case('TOTAL_MASS_REGIONS')
@@ -388,24 +388,24 @@ subroutine OutputFileRead(input,realization,output_option, &
                  internal_units,option)
             deltat = temp_real*units_conversion
             if( is_sum ) then
-              option%write_ecl_sum_deltat=deltat
-              option%write_ecl_sum_deltas=-1
+              output_option%eclipse_options%write_ecl_sum_deltat=deltat
+              output_option%eclipse_options%write_ecl_sum_deltas=-1
             endif
             if( is_rst ) then
-              option%write_ecl_rst_deltat=deltat
-              option%write_ecl_rst_deltas=-1
+              output_option%eclipse_options%write_ecl_rst_deltat=deltat
+              output_option%eclipse_options%write_ecl_rst_deltas=-1
             endif
           case('TIMESTEP')
             deltas=-1
             string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIMESTEP'
               call InputReadInt(input,option,deltas)
             if( is_sum ) then
-              option%write_ecl_sum_deltas=deltas
-              option%write_ecl_sum_deltat=-1.0
+              output_option%eclipse_options%write_ecl_sum_deltas=deltas
+              output_option%eclipse_options%write_ecl_sum_deltat=-1.0
             endif
             if( is_rst ) then
-              option%write_ecl_rst_deltas=deltas
-              option%write_ecl_rst_deltat=-1.0
+              output_option%eclipse_options%write_ecl_rst_deltas=deltas
+              output_option%eclipse_options%write_ecl_rst_deltat=-1.0
             endif
         end select
 !...................
@@ -1345,7 +1345,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
   endif
 
 !  Output Eclipse files for this step if required
-  if( option%write_ecl ) then
+  if( realization_base%output_option%write_ecl ) then
     call OutputEclipseFiles(realization_base)
   endif
 
