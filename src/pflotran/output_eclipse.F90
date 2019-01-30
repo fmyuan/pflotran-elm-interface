@@ -121,7 +121,8 @@ end subroutine SelectFormattedFiles
 
 ! ************************************************************************** !
 
-subroutine WriteEclipseFilesGrid(efilename, nx, ny, nz, coord, zcorn, gtoa, nw, mcpw)
+subroutine WriteEclipseFilesGrid(efilename, nx, ny, nz, &
+                                 coord, zcorn, gtoa, nw, mcpw)
   !
   ! The first Eclipse file to be written is the grid file
   ! This call opens all five types of file and sets e_opened
@@ -148,11 +149,16 @@ subroutine WriteEclipseFilesGrid(efilename, nx, ny, nz, coord, zcorn, gtoa, nw, 
     initfn = trim(efilename) // '.finit'
     restfn = trim(efilename) // '.funrst'
 
-    open(unit = UNIT_SPEC_WRITE, status = 'replace', form = 'formatted', file = specfn)
-    open(unit = UNIT_SUMM_WRITE, status = 'replace', form = 'formatted', file = summfn)
-    open(unit = UNIT_GRID_WRITE, status = 'replace', form = 'formatted', file = gridfn)
-    open(unit = UNIT_INIT_WRITE, status = 'replace', form = 'formatted', file = initfn)
-    open(unit = UNIT_REST_WRITE, status = 'replace', form = 'formatted', file = restfn)
+    open(unit = UNIT_SPEC_WRITE, status = 'replace', form = 'formatted', &
+         file = specfn)
+    open(unit = UNIT_SUMM_WRITE, status = 'replace', form = 'formatted', &
+         file = summfn)
+    open(unit = UNIT_GRID_WRITE, status = 'replace', form = 'formatted', &
+         file = gridfn)
+    open(unit = UNIT_INIT_WRITE, status = 'replace', form = 'formatted', &
+         file = initfn)
+    open(unit = UNIT_REST_WRITE, status = 'replace', form = 'formatted', &
+         file = restfn)
 
   else
 
@@ -163,15 +169,15 @@ subroutine WriteEclipseFilesGrid(efilename, nx, ny, nz, coord, zcorn, gtoa, nw, 
     restfn = trim(efilename) // '.unrst'
 
     open(unit = UNIT_SPEC_WRITE, status = 'replace', form = 'unformatted', &
-                              file = specfn, convert = 'big_endian')
+         file = specfn, convert = 'big_endian')
     open(unit = UNIT_SUMM_WRITE, status = 'replace', form = 'unformatted', &
-                              file = summfn, convert = 'big_endian')
+         file = summfn, convert = 'big_endian')
     open(unit = UNIT_GRID_WRITE, status = 'replace', form = 'unformatted', &
-                              file = gridfn, convert = 'big_endian')
+         file = gridfn, convert = 'big_endian')
     open(unit = UNIT_INIT_WRITE, status = 'replace', form = 'unformatted', &
-                               file = initfn, convert = 'big_endian')
+         file = initfn, convert = 'big_endian')
     open(unit = UNIT_REST_WRITE, status = 'replace', form = 'unformatted', &
-                              file = restfn, convert = 'big_endian')
+         file = restfn, convert = 'big_endian')
 
   endif
 
@@ -214,7 +220,8 @@ subroutine WriteEclipseFilesInit(kx, ky, kz, mx, my, mz, &
 
   ! Write init file
 
-    call WriteInitFile(kx, ky, kz, mx, my, mz, depth, poro, ntg, bvol, gtoa, atoc)
+    call WriteInitFile(kx, ky, kz, &
+                       mx, my, mz, depth, poro, ntg, bvol, gtoa, atoc)
 
   ! Init file complete, so can close
 
@@ -312,7 +319,8 @@ subroutine WriteEclipseFilesRest( vsoll, nsol, zsol, tconv, time, is_ioproc, &
   ! Write the file
 
   call WriteRestFile( vsoll, nsol, zsol, tconv, time, is_ioproc, &
-                      wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl, option )
+                      wname, wtype, wncmpl, &
+                      ixcmpl, iycmpl, izcmpl, idcmpl, option )
 
   ! Flush on the I/O processor
 
@@ -571,7 +579,8 @@ end subroutine WriteGridFile
 
 !*****************************************************************************!
 
-subroutine WriteInitFile(kx, ky, kz, mx, my, mz, depth, poro, ntg, bvol, gtoa, atoc)
+subroutine WriteInitFile(kx, ky, kz, &
+                         mx, my, mz, depth, poro, ntg, bvol, gtoa, atoc)
   !
   ! Write the init file, containing static cell information, like perms
   !
@@ -656,24 +665,34 @@ subroutine WriteInitFile(kx, ky, kz, mx, my, mz, depth, poro, ntg, bvol, gtoa, a
 
   call WriteBlockS(porv, 'PORV', e_nxyz)
 
-  call CmpToCNOBuf(buf, kx   , porv, nofl, cprm);call WriteBlockS(buf, 'PERMX', e_na)
-  call CmpToCNOBuf(buf, ky   , porv, nofl, cprm);call WriteBlockS(buf, 'PERMY', e_na)
-  call CmpToCNOBuf(buf, kz   , porv, nofl, cprm);call WriteBlockS(buf, 'PERMZ', e_na)
+  call CmpToCNOBuf(buf, kx   , porv, nofl, cprm)
+  call WriteBlockS(buf, 'PERMX', e_na)
+  call CmpToCNOBuf(buf, ky   , porv, nofl, cprm)
+  call WriteBlockS(buf, 'PERMY', e_na)
+  call CmpToCNOBuf(buf, kz   , porv, nofl, cprm)
+  call WriteBlockS(buf, 'PERMZ', e_na)
 
-  call CmpToCNOBuf(buf, mx   , porv, nofl, cdef);call WriteBlockS(buf, 'MULTX', e_na)
-  call CmpToCNOBuf(buf, my   , porv, nofl, cdef);call WriteBlockS(buf, 'MULTY', e_na)
-  call CmpToCNOBuf(buf, mz   , porv, nofl, cdef);call WriteBlockS(buf, 'MULTZ', e_na)
+  call CmpToCNOBuf(buf, mx   , porv, nofl, cdef)
+  call WriteBlockS(buf, 'MULTX', e_na)
+  call CmpToCNOBuf(buf, my   , porv, nofl, cdef)
+  call WriteBlockS(buf, 'MULTY', e_na)
+  call CmpToCNOBuf(buf, mz   , porv, nofl, cdef)
+  call WriteBlockS(buf, 'MULTZ', e_na)
 
-  call CmpToCNOBuf(buf, poro , porv, nofl, cdef);call WriteBlockS(buf, 'PORO' , e_na)
-  call CmpToCNOBuf(buf, depth, porv, flip, cdef);call WriteBlockS(buf, 'DEPTH', e_na)
-  call CmpToCNOBuf(buf, ntg  , porv, nofl, cdef);call WriteBlockS(buf, 'NTOG' , e_na)
+  call CmpToCNOBuf(buf, poro , porv, nofl, cdef)
+  call WriteBlockS(buf, 'PORO' , e_na)
+  call CmpToCNOBuf(buf, depth, porv, flip, cdef)
+  call WriteBlockS(buf, 'DEPTH', e_na)
+  call CmpToCNOBuf(buf, ntg  , porv, nofl, cdef)
+  call WriteBlockS(buf, 'NTOG' , e_na)
 
   ! Deallocate
 
   deallocate(porv)
   deallocate(buf)
 
-  ! Allocate the active to compressed natural mapping, check active count agrees
+  ! Allocate the active to compressed natural mapping,
+  ! check active count agrees
 
   allocate(e_atoc(e_na))
   e_atoc_allocated = PETSC_TRUE
@@ -689,7 +708,8 @@ end subroutine WriteInitFile
 !*****************************************************************************!
 
 subroutine WriteRestFile(vsoll, nsol, zsol, tconv, time, is_ioproc, &
-                         wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl, option)
+                         wname, wtype, wncmpl, &
+                         ixcmpl, iycmpl, izcmpl, idcmpl, option)
   !
   ! Write the rest file, containing dynamic cell information, like saturations
   ! This routine is called by all ranks, but only the I/O rank writes the file
@@ -725,7 +745,8 @@ subroutine WriteRestFile(vsoll, nsol, zsol, tconv, time, is_ioproc, &
   PetscReal :: conv
   PetscBool :: is_pressure
 
-  PetscInt :: isol, hours, mins, microsecs, years, months, days, ic, il, nproc, &
+  PetscInt :: isol, hours, mins, microsecs, years, months, days, &
+              ic, il, nproc, &
               iproco, nlmaxo, iproct, ioproc, lioproc, liproct, liproco
 
   PetscMPIInt :: status_mpi(MPI_STATUS_SIZE), ierr, itag
@@ -1644,7 +1665,8 @@ end subroutine SetInteHead
 
 subroutine ReleaseEwriterBuffers()
   !
-  ! Release buffers held by Output_Eclipse_module and close summary and restart files
+  ! Release buffers held by Output_Eclipse_module and
+  ! close summary and restart files
   !
   ! Author: Dave Ponting
   ! Date: 12/15/18
@@ -1809,9 +1831,11 @@ subroutine GetYMDHMMS(tdays, years, months, days, hours, mins, microsecs)
 
   ! Days/month normal and leap years
 
-  !                                   Ja  Fe  Ma  Ap  Ma  Ju  Jl  Au  Sp  Oc  No  De
-  PetscInt, parameter :: dimn(12) = (/31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31/)
-  PetscInt, parameter :: diml(12) = (/31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31/)
+  !                        Ja  Fe  Ma  Ap  Ma  Ju  Jl  Au  Sp  Oc  No  De
+  PetscInt, parameter :: dimn(12) = &
+                         (/31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31/)
+  PetscInt, parameter :: diml(12) = &
+                         (/31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31/)
 
   ! Days in each 4-year leap year block
 
@@ -1835,7 +1859,8 @@ subroutine GetYMDHMMS(tdays, years, months, days, hours, mins, microsecs)
   is_leap = PETSC_FALSE
   if (tdib > dp3y) is_leap = PETSC_TRUE
 
-  ! Set up days in year, subtract off 1, 2 or 3 normal years to find time in year
+  ! Set up days in year, subtract off 1, 2 or 3
+  ! normal years to find time in year
 
   tdiy = tdib
   yinb = 0
