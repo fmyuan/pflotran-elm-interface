@@ -569,7 +569,7 @@ subroutine InitialiseAllWells(this)
 
   class(pm_subsurface_flow_type) :: this
   class(well_data_type), pointer :: well_data
-  type(well_data_list_type),pointer :: well_data_list
+  type(well_data_list_type), pointer :: well_data_list
   type(grid_type), pointer :: grid
   type(material_auxvar_type), pointer :: type_material_auxvars(:)
   class(material_auxvar_type), pointer :: class_material_auxvars(:)
@@ -578,18 +578,18 @@ subroutine InitialiseAllWells(this)
   PetscInt  :: num_well
   PetscBool :: cast_ok,is_grdecl
 
-! Loop over wells
+  ! Loop over wells
 
   well_data_list => this%realization%well_data
   num_well=getnwell(well_data_list)
-  if( num_well > 0 ) then
+  if (num_well > 0) then
 
     well_data => well_data_list%first
     option => this%realization%option
 
     grid => this%realization%patch%grid
 
-!  Specialise polymorphic class pointer to type pointer
+  !  Specialise polymorphic class pointer to type pointer
 
     cast_ok = PETSC_FALSE
     type_material_auxvars => null()
@@ -600,15 +600,15 @@ subroutine InitialiseAllWells(this)
       class default
     end select
 
-!  Checks
+  !  Checks
 
     is_grdecl = GetIsGrdecl()
-    if (grid%itype /= STRUCTURED_GRID .and. (.not. is_grdecl) ) then
+    if (grid%itype /= STRUCTURED_GRID .and. (.not. is_grdecl)) then
       option%io_buffer='WELL_DATA well specification can only be used with structured grids'
       call printErrMsg(option)
     endif
 
-    if( .not. cast_ok ) then
+    if (.not.cast_ok) then
       option%io_buffer='WELL_DATA call cannot cast CLASS to TYPE'
       call printErrMsg(option)
     else
@@ -625,7 +625,8 @@ subroutine InitialiseAllWells(this)
 
   endif ! If num_well>0
 
-! All the well data from grdecl should be safely in well_data, so cleanup grdecl
+  ! All the well data from grdecl should be safely in well_data,
+  ! so cleanup grdecl
 
   call UGrdEclWellCmplCleanup()
 

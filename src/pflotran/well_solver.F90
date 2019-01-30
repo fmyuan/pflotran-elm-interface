@@ -3281,7 +3281,7 @@ subroutine invertJacobian(deti)
     c = jwbs(2, 1)
     d = jwbs(2, 2)
 
-    det = a*d-b*c;
+    det = a*d-b*c
 
     deti = 0.0
     if (abs(det)>0.0) deti = 1.0/det
@@ -3403,7 +3403,7 @@ function invertGauss(j, jinv, n)
 
     irbest  = ic
     irbestp = ip(irbest)
-    best = abs(a(irbestp, ic));
+    best = abs(a(irbestp, ic))
 
     ! Loop down the column looking for better pivot rows
 
@@ -3422,8 +3422,8 @@ function invertGauss(j, jinv, n)
       ! Find current pointers to these rows and swap them
       irap = ip(irbest)
       irbp = ip(ic)
-      ip(irbest) = irbp;
-      ip(ic    ) = irap;
+      ip(irbest) = irbp
+      ip(ic    ) = irap
     endif
 
     ! Now do the actual elimination, zeroing
@@ -3435,12 +3435,12 @@ function invertGauss(j, jinv, n)
     ! to detect zero determinants
 
     pivot = a(icp, ic)
-    fabspivot = abs(pivot);
+    fabspivot = abs(pivot)
     if (firstdet) then
       det = fabsPivot
       firstdet = PETSC_FALSE
     else
-      det = min(det, fabsPivot);
+      det = min(det, fabsPivot)
     endif
 
     pivotinv = 0.0
