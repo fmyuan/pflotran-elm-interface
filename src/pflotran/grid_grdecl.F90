@@ -28,6 +28,10 @@ module Grid_Grdecl_module
 
   PetscInt, parameter :: g_ndir = 3
 
+  ! Master flag indicating grdecl system is being used
+
+  PetscBool :: g_is_grdecl = PETSC_FALSE
+
   ! Problem dimensions (set defaults for single cell)
 
   PetscInt :: g_nx     = 1
@@ -111,6 +115,8 @@ module Grid_Grdecl_module
 
   ! Public access to this module
 
+  public  :: SetIsGrdecl
+  public  :: GetIsGrdecl
   public  :: UGrdEclExplicitRead
   public  :: SetUGrdEclCmplLocation
   public  :: UGrdEclWellCmplCleanup
@@ -178,6 +184,38 @@ module Grid_Grdecl_module
   type(cmpl_data_type), allocatable :: g_cmpl_data(:)
 
 contains
+
+! ************************************************************************** !
+
+subroutine SetIsGrdecl()
+  !
+  ! Set flag indicating that a combined grid/well Jacobian is required
+  !
+  ! Author: Dave Ponting
+  ! Date: 01/30/18
+  !
+  implicit none
+
+  g_is_grdecl = PETSC_TRUE
+
+end subroutine SetIsGrdecl
+
+! ************************************************************************** !
+
+function GetIsGrdecl()
+  !
+  ! Get flag indicating that a combined grid/well Jacobian is being used
+  !
+  ! Author: Dave Ponting
+  ! Date: 01/30/18
+  !
+  implicit none
+
+  PetscBool :: GetIsGrdecl
+
+  GetIsGrdecl = g_is_grdecl
+
+end function GetIsGrdecl
 
 ! ************************************************************************** !
 
@@ -261,19 +299,21 @@ end subroutine UGrdEclExplicitRead
 
 !*****************************************************************************!
 
-subroutine WriteStaticDataAndCleanup(option)
+subroutine WriteStaticDataAndCleanup(eclipse_options,option)
   !
   ! If Eclipse files are required, output grid and init files
   ! Then clean up all the static data arrays which are no longer needed
   ! Author: Dave Ponting
   ! Date: 11/05/18
   !
+  use Output_Aux_module, only : output_option_eclipse_type
   use Output_Eclipse_module, only: WriteEclipseFilesGrid, &
                                    WriteEclipseFilesInit, &
                                    SelectFormattedFiles
 
   implicit none
 
+  type(output_option_eclipse_type), pointer :: eclipse_options
   type(option_type) :: option
 
   PetscInt :: iw, nw, nctw, mcpw
@@ -282,7 +322,7 @@ subroutine WriteStaticDataAndCleanup(option)
   ! Output the Eclipse grid and init files
 
   if (option%myrank == option%io_rank) then
-    if (option%write_ecl) then
+    if (eclipse_options%write_ecl) then
       nw = g_nwell_data
       mcpw = 1
       do iw = 1, nw
@@ -290,7 +330,7 @@ subroutine WriteStaticDataAndCleanup(option)
        if (nctw > mcpw) mcpw = nctw
       enddo
       efilename = trim(option%output_file_name_prefix)
-      if (option%write_ecl_form) call SelectFormattedFiles()
+      if (eclipse_options%write_ecl_form) call SelectFormattedFiles()
       call WriteEclipseFilesGrid(efilename, g_nx, g_ny, g_nz, &
                                  g_coord, g_zcorn, g_gtoa, nw, mcpw)
       call WriteEclipseFilesInit(g_kx, g_ky, g_kz, g_mx, g_my, g_mz, &
