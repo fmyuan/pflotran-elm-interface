@@ -2910,7 +2910,7 @@ subroutine OutputMassBalance(realization_base)
           sum_kg(1,1) = sum_kg(1,1)*towg_fmw_comp(1) 
           sum_kg(2,1) = sum_kg(2,1)*towg_fmw_comp(2)
           sum_kg(3,1) = sum_kg(3,1)*towg_fmw_comp(3)
-          if ( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+          if (towg_miscibility_model == TOWG_SOLVENT_TL) then
             sum_kg(4,1) = sum_kg(4,1)*towg_fmw_comp(4)
           endif
 
@@ -3002,7 +3002,7 @@ subroutine OutputMassBalance(realization_base)
   if (WellDataGetFlag()) then
     if(     option%iflowmode == TOIL_IMS_MODE &
        .or. option%iflowmode == TOWG_MODE       ) then
-    if ( option%myrank == option%io_rank) then
+    if (option%myrank == option%io_rank) then
         select type(realization_base)
          class is(realization_subsurface_type)
           call WriteWellValues(fid,realization_base, &
@@ -3143,7 +3143,7 @@ subroutine OutputEclipseFiles(realization_base)
 
   is_grdecl = GetIsGrdecl()
 
-  if ( .not.is_grdecl ) then
+  if (.not.is_grdecl) then
     option%io_buffer = 'Eclipse file output requires grdecl type input'
     call printErrMsg(option)
   endif
@@ -3177,9 +3177,9 @@ subroutine OutputEclipseFiles(realization_base)
   if( write_summ ) then
     if (option%myrank == option%io_rank) then
       if (     option%iflowmode == TOIL_IMS_MODE &
-          .or. option%iflowmode == TOWG_MODE       ) then
+          .or. option%iflowmode == TOWG_MODE      ) then
 
-        if ( ewriter_summ_count == 0 ) then
+        if (ewriter_summ_count == 0) then
 
   !  Write out well and field headers if required
 
@@ -3974,7 +3974,7 @@ subroutine OutputLineRept(realization_base, option)
 
   if(     option%iflowmode == TOIL_IMS_MODE &
      .or. option%iflowmode == TOWG_MODE       ) then
-  if ( option%myrank == option%io_rank) then
+  if (option%myrank == option%io_rank) then
       select type(realization_base)
        class is(realization_subsurface_type)
         call WriteLineRept(realization_base, option, tconv)

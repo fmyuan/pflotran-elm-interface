@@ -2431,7 +2431,7 @@ function FindWellInList(iwell, well_data, list)
   FindWellInList = PETSC_FALSE
   well_data => list%first
   do
-    if ( .not.associated(well_data) ) exit
+    if (.not.associated(well_data)) exit
     if (iwell == well_data%w_index) then
       FindWellInList = PETSC_TRUE
       exit
@@ -2460,7 +2460,7 @@ function FindWellInListZ(wname, well_data, list)
   FindWellInListZ = PETSC_FALSE
   well_data => list%first
   do
-    if ( .not.associated(well_data) ) exit
+    if (.not.associated(well_data)) exit
     if (wname == well_data%w_name) then
       FindWellInListZ = PETSC_TRUE
       exit
@@ -2533,7 +2533,7 @@ function GetTargetUnitType(itt)
   if (itt == W_TARG_SM  ) GetTargetUnitType = TT_M
   if (itt == W_TARG_RV  ) GetTargetUnitType = TT_M
 
-  if ( itt == -1 ) then
+  if (itt == -1) then
     call  throwWellDataException('Unable to identify target unit type')
   endif
 
@@ -2623,7 +2623,7 @@ subroutine CheckCompletionCount(this)
   vunity =  1.0
   vrdef  =  0.25
 
-  if ( this%w_mCmpl == 0 .or. (this%w_ncmpl >= this%w_mcmpl) ) then
+  if (this%w_mCmpl == 0 .or. (this%w_ncmpl >= this%w_mcmpl)) then
 
     mold = this%w_mCmpl
     mnew = mold
@@ -2788,7 +2788,7 @@ subroutine UpdateWellType(this, itype)
 
   ! if prod/inj status has not changed, leave the bhp limit alone
 
-  if ( ( wasbhp .and. isbhp ) .or. ( (.not.wasbhp) .and. (.not.isbhp) ) ) then
+  if ((wasbhp .and. isbhp) .or. ((.not.wasbhp) .and. (.not.isbhp))) then
     this%w_targets(W_BHP_LIMIT) = old_bhp_limit
   endif
 

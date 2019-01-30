@@ -1011,8 +1011,8 @@ subroutine ProcessWellData(qerr)
       do ik = 1, g_ncmpl_data
         jw = g_cmpl_data(ik)%iw
         if (iw .eq. jw) then
-          if ( ikl .eq. 0 ) ikl = ik
-                            iku = ik
+          if (ikl == 0) ikl = ik
+                        iku = ik
         endif
       enddo
 
@@ -2456,10 +2456,10 @@ function IsWhiteSpace(c)
   IsWhiteSpace = PETSC_FALSE
 
   ic = ichar(c)
-  if ( ( c == ' '    ) .or. &
-       (ic == g_ictab) .or. &
-       (ic == g_iccr ) .or. &
-       (ic == g_iclf )        ) isWhiteSpace = PETSC_TRUE
+  if (( c == ' '    ) .or. &
+      (ic == g_ictab) .or. &
+      (ic == g_iccr ) .or. &
+      (ic == g_iclf )      ) isWhiteSpace = PETSC_TRUE
 
 end function IsWhiteSpace
 
@@ -2814,7 +2814,7 @@ subroutine ReadEvalues(a, n, keyword, section, ierr, input, option, qerr)
         ! Read the actual value
 
         read(word, *, iostat = ierr) dval
-        if ( ierr /= 0) then
+        if (ierr /= 0) then
           call InputErrorMsg(input, option, keyword, section)
           ierr = 1
           exit
