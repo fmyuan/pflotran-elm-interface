@@ -3724,11 +3724,13 @@ subroutine checkSolverAvailable(option)
   ! Author: Dave Ponting
   ! Date  : 01/23/19
 
+  use Grid_Grdecl_module, only : GetIsGrdecl
+
   implicit none
 
   type (option_type), pointer :: option
   PetscInt  :: ncmp, iphase, nphase, wsnx
-  PetscBool :: water_found, mode_ok
+  PetscBool :: water_found, mode_ok,is_grdecl
 
   ncmp   = option%nphase+1
   nphase = option%nphase
@@ -3768,7 +3770,8 @@ subroutine checkSolverAvailable(option)
     call printErrMsg(option)
   endif
 
-  if ( .not.option%is_grdecl ) then
+  is_grdecl = GetIsGrdecl()
+  if (.not.is_grdecl) then
     option%io_buffer = 'Well solver requires grdecl type input'
     call printErrMsg(option)
   endif
