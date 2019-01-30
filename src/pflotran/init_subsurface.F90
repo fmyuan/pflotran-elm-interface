@@ -256,7 +256,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
   use Grid_Grdecl_module, only : GetPoroPermValues, &
                                  WriteStaticDataAndCleanup, &
                                  DeallocatePoroPermArrays, &
-                                 PermPoroExchangeAndSet
+                                 PermPoroExchangeAndSet, &
+                                 GetIsGrdecl
   use Utility_module, only : DeallocateArray
   
   implicit none
@@ -292,6 +293,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscErrorCode :: ierr
   PetscViewer :: viewer
   PetscInt ,pointer,dimension(:)::inatsend
+  PetscBool :: write_ecl
 
   option => realization%option
   discretization => realization%discretization
@@ -348,7 +350,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
   enddo
   
-  if( option%is_grdecl ) then
+  if( GetIsGrdecl() ) then
     if (option%myrank .ne. option%io_rank) then
       allocate(inatsend(  grid%nlmax))
     endif
@@ -409,7 +411,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
     por0_p(local_id) = material_property%porosity
     tor0_p(local_id) = material_property%tortuosity
 
-    if( option%is_grdecl ) then
+    if( GetIsGrdecl() ) then
 
       natural_id = grid%nG2A(ghosted_id)
 
@@ -428,12 +430,13 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
   enddo
 
-  if( option%is_grdecl ) then
+  if( GetIsGrdecl() ) then
     call PermPoroExchangeAndSet(por0_p,perm_xx_p,perm_yy_p,perm_zz_p,inatsend,grid%nlmax,option)
     if (option%myrank .ne. option%io_rank) then
       call DeallocateArray(inatsend)
     endif
-    call WriteStaticDataAndCleanup(option)
+    write_ecl = realization%output_option%write_ecl
+    call WriteStaticDataAndCleanup(write_ecl,realization%output_option%eclipse_options,option)
     call DeallocatePoroPermArrays(option)
   endif
 
