@@ -52,7 +52,8 @@ subroutine GetCorners( ix, iy, iz, &
   do ixo = 1, 2
     do iyo = 1, 2
 
-    ! Find pillar coordinates in the (nx+1).(ny+1) coord array (ix,ix+1),(iy,iy+1)
+      ! Find pillar coordinates in the (nx+1).(ny+1)
+      ! coord array (ix,ix+1),(iy,iy+1)
 
       ixp = ix+ixo-1
       iyp = iy+iyo-1
@@ -84,12 +85,16 @@ subroutine GetCorners( ix, iy, iz, &
       !  Fill in the cell corner locations
 
        if (ixo == 1) then
-         if (iyo == 1) call fillGeoCorner(x000, x001, d0, d1, xl, yl, zl, xu, yu, zu)
-         if (iyo == 2) call fillGeoCorner(x010, x011, d0, d1, xl, yl, zl, xu, yu, zu)
+         if (iyo == 1) call fillGeoCorner(x000, x001, d0, d1, xl, yl, zl, &
+                                                              xu, yu, zu)
+         if (iyo == 2) call fillGeoCorner(x010, x011, d0, d1, xl, yl, zl, &
+                                                              xu, yu, zu)
        endif
        if (ixo == 2) then
-         if (iyo == 1) call fillGeoCorner(x100, x101, d0, d1, xl, yl, zl, xu, yu, zu)
-         if (ixo == 2) call fillGeoCorner(x110, x111, d0, d1, xl, yl, zl, xu, yu, zu)
+         if (iyo == 1) call fillGeoCorner(x100, x101, d0, d1, xl, yl, zl, &
+                                                              xu, yu, zu)
+         if (ixo == 2) call fillGeoCorner(x110, x111, d0, d1, xl, yl, zl, &
+                                                              xu, yu, zu)
        endif
 
      enddo
