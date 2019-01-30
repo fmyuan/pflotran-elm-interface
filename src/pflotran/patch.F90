@@ -1190,10 +1190,12 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
 
               case(RICHARDS_MODE, RICHARDS_TS_MODE)
                 temp_int = 1
-                select case(coupler%flow_condition%pressure%itype)
-                  case(CONDUCTANCE_BC,HET_CONDUCTANCE_BC)
-                    temp_int = temp_int + 1
-                end select
+                if (associated(coupler%flow_condition%pressure)) then
+                  select case(coupler%flow_condition%pressure%itype)
+                    case(CONDUCTANCE_BC,HET_CONDUCTANCE_BC)
+                      temp_int = temp_int + 1
+                  end select
+                endif
                 allocate(coupler%flow_aux_real_var(temp_int,num_connections))
                 allocate(coupler%flow_aux_int_var(1,num_connections))
                 coupler%flow_aux_real_var = 0.d0
