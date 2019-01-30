@@ -881,7 +881,7 @@ function solveForWellTarget(pw, option, itt, jwwi)
       jwwi = 0.0
     endif
     pw = pw-rw*jwwi
-    if (pw.lt.ws_pwmin) pw = ws_pwmin
+    if (pw < ws_pwmin) pw = ws_pwmin
   enddo
 
   ! Check for convergence error
@@ -3149,7 +3149,7 @@ subroutine loadCellDataTOWG(auxvar, option, icmpl)
         c_mobX (icmpl, iphase, idof) = auxvar%D_mobility(iphase, idof)
         c_kgdpX(icmpl, iphase, idof) = auxvar%D_den_kg  (iphase, idof)
         c_hpX  (icmpl, iphase, idof) = auxvar%D_H       (iphase, idof)
-        if (ws_isothermal .and. (idof.eq.towg_energy_dof)) then
+        if (ws_isothermal .and. (idof == towg_energy_dof)) then
           c_mdpX (icmpl, iphase, idof) = 0.0
           c_spX  (icmpl, iphase, idof) = 0.0
           c_mobX (icmpl, iphase, idof) = 0.0
@@ -3170,7 +3170,7 @@ subroutine loadCellDataTOWG(auxvar, option, icmpl)
       do idof = 1, ws_ndof
         c_xoX(icmpl, idof) = auxvar%bo%D_xo(idof)
         c_xgX(icmpl, idof) = auxvar%bo%D_xg(idof)
-        if (ws_isothermal .and. (idof.eq.towg_energy_dof)) then
+        if (ws_isothermal .and. (idof == towg_energy_dof)) then
           c_xoX(icmpl, idof) = 0.0
           c_xgX(icmpl, idof) = 0.0
         endif
@@ -3219,7 +3219,7 @@ subroutine loadCellDataTOIL(auxvar, option, icmpl)
         c_mobX (icmpl, iphase, idof) = auxvar%D_mobility(iphase, idof)
         c_kgdpX(icmpl, iphase, idof) = auxvar%D_den_kg  (iphase, idof)
         c_hpX  (icmpl, iphase, idof) = auxvar%D_H       (iphase, idof)
-        if (ws_isothermal .and. (idof.eq.TOIL_IMS_ENERGY_DOF)) then
+        if (ws_isothermal .and. (idof == TOIL_IMS_ENERGY_DOF)) then
           c_mdpX (icmpl, iphase, idof) = 0.0
           c_spX  (icmpl, iphase, idof) = 0.0
           c_mobX (icmpl, iphase, idof) = 0.0

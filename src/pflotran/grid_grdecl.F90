@@ -930,28 +930,28 @@ subroutine ProcessWellData(qerr)
 
       ! Deal with negative iz case (input using CIJK_D)
 
-      if (iz.lt.0) then
+      if (iz < 0) then
         iz = g_nz+iz+1
         g_cmpl_data(ik)%ck = iz
       endif
 
       ! Check for out-of-range well locations
 
-      if ((ix.lt.1) .or. (ix.gt.g_nx)) then
+      if ((ix < 1) .or. (ix > g_nx)) then
          zmess = 'Completion I-location out of range, well ' // trim(wname)
          call SetError(zmess)
          qerr = PETSC_TRUE
          exit outer
       endif
 
-      if ((iy.lt.1) .or. (iy.gt.g_ny)) then
+      if ((iy < 1) .or. (iy > g_ny)) then
          zmess = 'Completion J-location out of range, well ' // trim(wname)
          call SetError(zmess)
          qerr = PETSC_TRUE
          exit outer
       endif
 
-      if ((iz.lt.1) .or. (iz.gt.g_nz)) then
+      if ((iz < 1) .or. (iz > g_nz)) then
          zmess = 'Completion K-location out of range, well ' // trim(wname)
          call SetError(zmess)
          qerr = PETSC_TRUE
@@ -3037,7 +3037,7 @@ subroutine PermPoroExchangeAndSet(poro_p, permx_p, permy_p, permz_p, &
 
   do irank = 0, option%mycommsize-1
 
-    if (irank .ne. iorank) then
+    if (irank /= iorank) then
 
       ! Consider exchange between irank and iorank
 

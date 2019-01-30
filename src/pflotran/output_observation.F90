@@ -3586,9 +3586,9 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
     wlpt = wopt+wwpt
 
     wwct = 0.0
-    if( wlpr .gt. 0.0 ) wwct = wwpr/wlpr
+    if( wlpr > 0.0 ) wwct = wwpr/wlpr
     wgor = 0.0
-    if( wopr .gt. 0.0 ) wgor = wgpr/wopr
+    if( wopr > 0.0 ) wgor = wgpr/wopr
 
   !  Write out well values
 
@@ -3656,8 +3656,8 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
 
   fwct = 0.0
   fgor = 0.0
-  if( flpr.gt.0.0 ) fwct = fwpr/flpr
-  if( fopr.gt.0.0 ) fgor = fgpr/fopr
+  if( flpr > 0.0 ) fwct = fwpr/flpr
+  if( fopr > 0.0 ) fgor = fgpr/fopr
 
   !  Convert field pressure to Bars
 
@@ -4049,8 +4049,8 @@ subroutine WriteLineRept(realization, option, tconv)
 
     fwct = 0.0
     fgor = 0.0
-    if( flpr.gt.0.0 ) fwct = fwpr/flpr
-    if( fopr.gt.0.0 ) fgor = fgpr/fopr
+    if( flpr > 0.0 ) fwct = fwpr/flpr
+    if( fopr > 0.0 ) fgor = fgpr/fopr
 
   !  Convert field pressure to Bars
 
@@ -4281,7 +4281,7 @@ subroutine WrtHdrAndSpc(fid, mnem, name, units, icolumn, zm, zn, zu, ni, mi, wec
 
   !  Positive fid indicates -mas file output required
 
-  if( fid .gt. 0 ) then
+  if( fid > 0 ) then
     string = trim(name) // ' ' // trim(mnem)
     cell   = ' '
     call OutputWriteToHeader(fid, string, units, cell, icolumn)
@@ -4355,7 +4355,7 @@ subroutine wrtToTableAndSumm(fid, val, vd, nd, md, wecl)
 
   !  Positive fid indicates -mas file output required
 
-  if (fid.gt.0) then
+  if (fid > 0) then
     write(fid, 110, advance="no") val
   endif
 
@@ -4413,7 +4413,7 @@ subroutine checkHeaderBufferSize(zm, zn, zu, ni, mi)
 
   ! Check if buffer as space for anaother set of values; reallocate if not
 
-  if (ni.ge.(mi-1)) then
+  if (ni >= (mi-1)) then
 
   ! Allocate temporary stores
 

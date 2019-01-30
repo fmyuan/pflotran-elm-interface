@@ -809,7 +809,7 @@ subroutine WriteRestFile(vsoll, nsol, zsol, tconv, time, is_ioproc, &
       ! Receive the values from other procs
       do iproco = 0, nproc-1
 
-        if (iproco .ne. option%io_rank) then
+        if (iproco /= option%io_rank) then
           liproco = iproco+1
           nlmaxo  = e_nlmaxp(liproco)
           call MPI_Recv(vbuf, nlmaxo, MPI_DOUBLE_PRECISION, iproco, &
@@ -1728,7 +1728,7 @@ subroutine SetupRestMaps(ltoa, option, nlmax, mlmax)
     ! Receive from other procs
 
     do iproco = 0, nproc-1
-      if (iproco .ne. option%io_rank) then
+      if (iproco /= option%io_rank) then
 
         ! Receive nlmax value from other proc
 
@@ -1863,12 +1863,12 @@ subroutine GetYMDHMMS(tdays, years, months, days, hours, mins, microsecs)
       dim = dimn(imon)
     endif
     tend = tend+dim
-    if (tdiy.ge.tend) then
+    if (tdiy >= tend) then
       months = imon+1
       days   = days-dim
     endif
   enddo
-  if (days.gt.31) days = 31
+  if (days > 31) days = 31
 
   ! Set up years
 

@@ -1627,7 +1627,7 @@ subroutine SetWellFlowsInList(this, wellflows, ncompe)
 
   ! If the well flows have not been allocated, allocate them now
 
-  if ((.not.(this%w_wellFlows_Allocated)) .and. (this%w_ncompe.eq.0)) then
+  if ((.not.(this%w_wellFlows_Allocated)) .and. (this%w_ncompe == 0)) then
     allocate(this%w_wellflows(ncompe))
     this%w_wellFlows_Allocated = PETSC_TRUE
     this%w_ncompe = ncompe
@@ -2584,7 +2584,7 @@ subroutine CheckEventCount(this)
 
   vzero = 0.0
 
-  if (this%w_mevent == 0 .or. (this%w_nevent .ge. (this%w_mevent-1) ) ) then
+  if (this%w_mevent == 0 .or. (this%w_nevent >= (this%w_mevent-1) ) ) then
 
     nreq = this%w_nevent+1
     mold = this%w_mevent
