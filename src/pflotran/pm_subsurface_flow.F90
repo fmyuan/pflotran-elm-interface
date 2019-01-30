@@ -563,7 +563,7 @@ subroutine InitialiseAllWells(this)
   use Well_Solver_module
   use Grid_module
   use Material_Aux_class
-  use Grid_Grdecl_module, only : UGrdEclWellCmplCleanup
+  use Grid_Grdecl_module, only : UGrdEclWellCmplCleanup, GetIsGrdecl
 
   implicit none
 
@@ -576,7 +576,7 @@ subroutine InitialiseAllWells(this)
   type(option_type), pointer :: option
 
   PetscInt  :: num_well
-  PetscBool :: cast_ok
+  PetscBool :: cast_ok,is_grdecl
 
 ! Loop over wells
 
@@ -602,7 +602,8 @@ subroutine InitialiseAllWells(this)
 
 !  Checks
 
-    if (grid%itype /= STRUCTURED_GRID .and. (.not. option%is_grdecl) ) then
+    is_grdecl = GetIsGrdecl()
+    if (grid%itype /= STRUCTURED_GRID .and. (.not. is_grdecl) ) then
       option%io_buffer='WELL_DATA well specification can only be used with structured grids'
       call printErrMsg(option)
     endif
