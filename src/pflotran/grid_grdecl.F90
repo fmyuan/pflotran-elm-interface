@@ -2337,7 +2337,7 @@ function GetScalarLength(v)
        +v(g_ydir)*v(g_ydir) &
        +v(g_zdir)*v(g_zdir)
 
-  GetScalarLength = sqrt(sum);
+  GetScalarLength = sqrt(sum)
 
 end function GetScalarLength
 
