@@ -132,7 +132,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
-  use Grid_Grdecl_module, only : UGrdEclExplicitRead
+  use Grid_Grdecl_module, only : UGrdEclExplicitRead, SetIsGrdecl, GetIsGrdecl
 
   implicit none
 
@@ -178,7 +178,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
         call InputErrorMsg(input,option,'type','GRID')   
         call StringToLower(discretization%ctype)
         if( discretization%ctype=='grdecl' ) then
-          option%is_grdecl       = PETSC_TRUE
+          call SetIsGrdecl()
           discretization%ctype='unstructured_explicit'
         endif
         select case(trim(discretization%ctype))
@@ -270,7 +270,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           grid%unstructured_grid => un_str_grid
         case(EXPLICIT_UNSTRUCTURED_GRID)
           un_str_grid%explicit_grid => UGridExplicitCreate()
-          if( option%is_grdecl ) then
+          if( GetIsGrdecl() ) then
             call UGrdEclExplicitRead(un_str_grid, &
                                      discretization%filename,option)
           else
