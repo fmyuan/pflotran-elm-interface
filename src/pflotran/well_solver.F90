@@ -354,7 +354,7 @@ subroutine initialiseWell(well_data, grid, material_auxvars, option)
                       thetaFactor / &
                       ( dlog(r0/radius) + skinfactor )
      else
-       ccf= 0.0
+       ccf = 0.0
      endif
 
       call well_data%setCCF(icmpl, ccf)
@@ -2028,7 +2028,7 @@ subroutine findWellboreSolution(pw, option)
 
   ! Use implicit function theorem to find derivatives of Xw wrt Pw and Xc
 
-  ! Find dXw/dPw=-(1/(dRwbs/dXw))*(dRbs/dPw)
+  ! Find dXw/dPw = -(1/(dRwbs/dXw))*(dRbs/dPw)
 
   w_dxwdpw = 0.0
   do ixw = 1, ws_nxw
@@ -2039,7 +2039,7 @@ subroutine findWellboreSolution(pw, option)
 
   enddo
 
-  ! Sort out dXw/dXc=-(1/(dRwbs/dXw))*(dRwbs/dXc)
+  ! Sort out dXw/dXc = -(1/(dRwbs/dXw))*(dRwbs/dXc)
 
   w_dxwdxc = 0.0
 
@@ -3348,96 +3348,99 @@ function invertGauss(j, jinv, n)
   PetscReal, intent(out)::jinv(:,:)
   PetscInt , intent(in) ::n
 
-  PetscInt, parameter::m=4
   PetscReal::det
   PetscBool::firstdet
-  PetscReal:: a(m, m)
-  PetscReal:: e(m, m)
-  PetscInt :: ip(m)
+  PetscReal,allocatable:: a(:,:)
+  PetscReal,allocatable:: e(:,:)
+  PetscInt,allocatable :: ip(:)
 
   PetscInt :: ir, ic, iclast, iclastp, irbest &
              , irbestp, irp, irap, irbp, icp, jcp, jc
   PetscReal:: fabsFinal, best, fval, pivot, pivotinv, fabsPivot, v, d, dinv
 
-  det=0.0
+  allocate(a(n, n))
+  allocate(e(n, n))
+  allocate(ip(n))
+
+  det = 0.0
   firstdet = PETSC_TRUE
-  a=0.0
-  e=0.0
+  a = 0.0
+  e = 0.0
 
   ! Store working matrix a and unit rhs matrix, set up pivot matrix.
   ! The actual location of the irth row will be ip(ir)
 
-  do ir=1, n
-    do ic=1, n
-      a(ir, ic)=j(ir, ic)
-      if( ir == ic ) e(ir, ic)=1.0
+  do ir = 1, n
+    do ic = 1, n
+      a(ir, ic) = j(ir, ic)
+      if( ir == ic ) e(ir, ic) = 1.0
     enddo
-    ip(ir)=ir
+    ip(ir) = ir
   enddo
 
   ! Pivot by column into upper triangular form - no need to do the last column
 
-  do ic=1, n-1
+  do ic = 1, n-1
 
     ! Find the row with max absolute value in this column
     ! starting from diagonal element
 
-    irbest =ic
-    irbestp=ip(irbest)
-    best=abs(a(irbestp, ic));
+    irbest  = ic
+    irbestp = ip(irbest)
+    best = abs(a(irbestp, ic));
 
     ! Loop down the column looking for better pivot rows
 
-    do ir=ic+1, n
-      irp=ip(ir)
-      fval=abs(a(irp, ic))
-      if( fval>best ) then
-        irbest=ir
-        best=fval
+    do ir = ic+1, n
+      irp = ip(ir)
+      fval = abs(a(irp, ic))
+      if( fval > best ) then
+        irbest = ir
+        best   = fval
       endif
     enddo
 
     ! Check if irbest is not ic, pivot if so
 
-    if( irbest /=ic ) then
+    if (irbest /= ic) then
       ! Find current pointers to these rows and swap them
-      irap=ip(irbest)
-      irbp=ip(ic)
-      ip(irbest)=irbp;
-      ip(ic    )=irap;
+      irap = ip(irbest)
+      irbp = ip(ic)
+      ip(irbest) = irbp;
+      ip(ic    ) = irap;
     endif
 
     ! Now do the actual elimination, zeroing
     ! entries in column ic below the diagonal
 
-    icp=ip(ic)
+    icp = ip(ic)
 
     ! Find the inverse pivot, keeping track of the smallest pivot
     ! to detect zero determinants
 
-    pivot=a(icp, ic)
-    fabspivot=abs(pivot);
-    if( firstdet ) then
-      det=fabsPivot
-      firstdet=PETSC_FALSE
+    pivot = a(icp, ic)
+    fabspivot = abs(pivot);
+    if (firstdet) then
+      det = fabsPivot
+      firstdet = PETSC_FALSE
     else
-      det=min(det, fabsPivot);
+      det = min(det, fabsPivot);
     endif
 
-    pivotinv=0.0
-    if( fabsPivot>0.0 ) pivotinv=1.0/pivot
+    pivotinv = 0.0
+    if (fabsPivot > 0.0) pivotinv = 1.0/pivot
 
     ! Go down the column, subtracting pivotinv times equation ic from equation ir
 
-    do ir=ic+1, n
-      irp=ip(ir)
-      v=a(irp, ic)*pivotinv
+    do ir = ic+1, n
+      irp = ip(ir)
+      v = a(irp, ic)*pivotinv
 
       ! Carry out pivoting operation on row of matrix and all the right hand sides
 
-      do jc=1, n
-        a(irp, jc)=a(irp, jc)-v*a(icp, jc)
-        e(irp, jc)=e(irp, jc)-v*e(icp, jc)
+      do jc = 1, n
+        a(irp, jc) = a(irp, jc)-v*a(icp, jc)
+        e(irp, jc) = e(irp, jc)-v*e(icp, jc)
       enddo
     enddo
   enddo
@@ -3445,52 +3448,56 @@ function invertGauss(j, jinv, n)
   ! Include final equation in the determinant check
   ! (no need to set firstDet now as will not be used again)
 
-  iclast =   n
-  iclastp=ip(n)
-  fabsFinal=abs(a(iclastp, iclast))
-  if( firstdet ) then
-    det=         fabsFinal
+  iclast  =    n
+  iclastp = ip(n)
+  fabsFinal = abs(a(iclastp, iclast))
+  if (firstdet) then
+    det =          fabsFinal
   else
-    det=min(det, fabsFinal)
+    det = min(det, fabsFinal)
   endif
 
   ! Back-substitute each of the right hand sides
 
-  do ic=1, n
+  do ic = 1, n
 
     ! For this rhs, back substitute by row in reverse order
 
-    do ir=n, 1, -1
+    do ir = n, 1, -1
 
-      irp=ip(ir)
+      irp = ip(ir)
 
       ! Use previously evaluated solution values
 
-      if( ir<n ) then
-        do jc=ir+1, n
-          jcp=ip(jc)
-          e(irp, ic)=e(irp, ic)-a(irp, jc)*e(jcp, ic)
+      if (ir<n) then
+        do jc = ir+1, n
+          jcp = ip(jc)
+          e(irp, ic) = e(irp, ic)-a(irp, jc)*e(jcp, ic)
         enddo
       endif
 
       ! And finally establish value using inverse diagonal
 
-      d=a(irp, ir)
-      dinv=0.0
-      if( abs(d)>0.0 ) dinv=1.0/d
-      e(irp, ic)=e(irp, ic)*dinv
+      d    = a(irp, ir)
+      dinv = 0.0
+      if (abs(d) > 0.0) dinv = 1.0/d
+      e(irp, ic) = e(irp, ic)*dinv
     enddo
   enddo
 
   ! Put inverse matrix back into Jinv
 
-  do ir=1, n
-    do ic=1, n
-      Jinv(ir, ic)=e(ip(ir), ic)
+  do ir = 1, n
+    do ic = 1, n
+      Jinv(ir, ic) = e(ip(ir), ic)
     enddo
   enddo
 
   invertGauss = det
+
+  deallocate(a)
+  deallocate(e)
+  deallocate(ip)
 
 end function invertGauss
 
@@ -3760,7 +3767,7 @@ subroutine checkSolverAvailable(option)
 
   ! Is is a supported mode ?
 
-  mode_ok=PETSC_FALSE
+  mode_ok = PETSC_FALSE
 
   if ( (option%iflowmode == TOWG_MODE    ) .or. &
        (option%iflowmode == TOIL_IMS_MODE) ) mode_ok = PETSC_TRUE
