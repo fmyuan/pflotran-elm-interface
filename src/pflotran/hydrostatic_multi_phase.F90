@@ -628,8 +628,10 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
           po_cell = pw_cell + pcow
         else if ( pwg_cell > pcwg_min .and. pwg_cell < pcwg_max ) then
           !call Non-linear solution of: Pcwg(Sw) = Pcog(1-Sw) + Pcow(Sw) = pwg_cell
-          option%io_buffer = 'hydrostatic: Sw + Sg > 1 not supported yet'
-          call printErrMsg(option)
+          !option%io_buffer = 'hydrostatic: Sw + Sg > 1 not supported yet'
+          !call printErrMsg(option)
+          call SolvePcwg(cc_ptr,sw_min,sw_max,pw_cell,pg_cell,sw_cell,option)
+          sg_cell = 1.0 - sw_cell
         else if ( pwg_cell >= pcwg_max ) then
           sw_cell = sw_min
           sg_cell = 1.0 - sw_min
@@ -1055,6 +1057,121 @@ subroutine HydrostaticPMCellInit(option,z,pw,po,pg,sw,so,sg,iconn,coupler)
   end select
   
 end subroutine HydrostaticPMCellInit
+
+! ************************************************************************** !
+
+subroutine SolvePcwg(cc,sw_min,sw_max,pw,pg,sw,option)
+  !
+  ! Given Pcow, Pcog,pw,pg,sw_min,sw_max solves the non-linear equation:
+  ! Pcwg(Sw) = Pcow(Sw) + Pcog(Sg = 1-Sw) = Pg - Pw
+  ! in Sw
+  !
+  ! Author: Paolo Orsini
+  ! Date: 01/29/19
+
+  use Characteristic_Curves_module
+  use Option_module
+
+  implicit none
+
+  class(characteristic_curves_type), pointer :: cc
+  PetscReal, intent(in) :: sw_min
+  PetscReal, intent(in) :: sw_max
+  PetscReal, intent(in) :: pw
+  PetscReal, intent(in) :: pg
+  PetscReal, intent(out) :: sw
+  type(option_type) :: option
+
+  PetscReal, parameter :: eps_den = 1.0d-15
+  PetscReal, parameter :: conv_tol = 1.0d-8
+  PetscInt, parameter :: max_it = 100
+
+  PetscBool :: has_converged
+  PetscBool :: updated_by_newton
+  PetscReal :: s0, s1, sl, su, sg, sn
+  PetscReal :: res_sl, res_s1, dres_s1
+  PetscReal :: res_s0
+  !PetscReal :: dres_s0
+  PetscReal :: pcow, dpcowdsw, pcog, dpcogdsg
+
+  PetscInt :: it
+
+  sl = sw_min
+  su = sw_max
+  s0 = (sl + su) / 2.0
+  has_converged = PETSC_FALSE
+  updated_by_newton = PETSC_FALSE
+
+  do it = 1,max_it
+    !bisection
+    call cc%oil_wat_sat_func%CapillaryPressure(s0,pcow,dpcowdsw,option)
+    sg = 1.0 - s0
+    call cc%oil_gas_sat_func%CapillaryPressure(sg,pcog,dpcogdsg,option)
+    res_s0 = pcow + pcog - (pg - pw)
+    call cc%oil_wat_sat_func%CapillaryPressure(sl,pcow,dpcowdsw,option)
+    sg = 1.0 - sl
+    call cc%oil_gas_sat_func%CapillaryPressure(sg,pcog,dpcogdsg,option)
+    res_sl = pcow + pcog - (pg - pw)
+    if ( (res_sl > 0.0 .and. res_s0 < 0.0 ) .or. &
+         (res_sl < 0.0 .and. res_s0 > 0.0 ) )  then
+      su = s0
+    else
+      sl = s0
+    end if
+    if (updated_by_newton) then
+      s1 = s0               !next Neeton step starting form last Newton guess
+    else
+      s1 = (sl + su) / 2.0  !bisect
+    end if
+    !attempt Newton after bisection
+    call cc%oil_wat_sat_func%CapillaryPressure(s1,pcow,dpcowdsw,option)
+    sg = 1.0 - s1
+    call cc%oil_gas_sat_func%CapillaryPressure(sg,pcog,dpcogdsg,option)
+    res_s1 = pcow + pcog - (pg - pw)
+    dres_s1 = dpcowdsw - dpcogdsg
+    updated_by_newton = PETSC_FALSE
+    if ( abs(dres_s1) > eps_den ) then
+      sn = s1 - res_s1 / dres_s1
+      if ( sn >= sl .and. sn <= su ) then
+        updated_by_newton = PETSC_TRUE
+        s0 = s1
+        s1 = sn
+      end if
+    end if
+    ! End of Newton after bisection
+    !Newton only
+    ! call cc%oil_wat_sat_func%CapillaryPressure(s0,pcow,dpcowdsw,option)
+    ! sg = 1.0 - s0
+    ! call cc%oil_gas_sat_func%CapillaryPressure(sg,pcog,dpcogdsg,option)
+    ! res_s0 = pcow + pcog - (pg - pw)
+    ! dres_s0 = dpcowdsw - dpcogdsg
+    ! if ( abs(dres_s0) > eps_den ) then
+    !   sn = s0 - res_s0 / dres_s0
+    !   if ( sn >= sl .and. sn <= su ) then
+    !     s1 = sn
+    !   else if ( sn < sl ) then
+    !     s1 = sl
+    !   else if (sn > su) then
+    !     s1 = su
+    !   end if
+    ! end if
+    !End Newton only
+    if ( abs( s1 - s0 ) < conv_tol  ) then
+      sw = s1
+      has_converged = PETSC_TRUE
+      exit
+    end if
+    s0 = s1
+  end do
+
+  if ( .not.has_converged ) then
+    option%io_buffer = 'hydrostatic: Sw + Sg > 1, Solusion of Pcwg(Sw) failed'
+    call printMsg(option)
+  end if
+
+end subroutine SolvePcwg
+
+! ************************************************************************** !
   
 ! coupler%flow_aux_real_var(1,iconn) = po_cell      
 ! call characteristic_curves%oil_wat_sat_func%Saturation( &
