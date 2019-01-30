@@ -2622,9 +2622,7 @@ subroutine RealizationStrip(this)
   !  Destroy the list of wells held by well_data
   call WellDataDestroyList(this%well_data,this%option)
   !  Release output buffers held by Output_Eclipse_module
-  if (this%output_option%write_ecl) then
-    call ReleaseEwriterBuffers()
-  endif
+  call ReleaseEwriterBuffers()
 
   call TranConditionDestroyList(this%transport_conditions)
   call TranConstraintDestroyList(this%transport_constraints)
