@@ -2660,7 +2660,8 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
       case('PRESSURE','OIL_PRESSURE','WATER_PRESSURE','LIQUID_SATURATION', &
            'OIL_SATURATION','TEMPERATURE','RATE', 'LIQUID_FLUX','OIL_FLUX', &
            'ENERGY_FLUX','ENTHALPY','WATER_PRESSURE_GRAD','WELL_RATE', &
-           'WELL_PRESSURE','WELL_TEMPERATURE','OWC','OWC_Z','OWC_D','PCOW_OWC')
+           'WELL_PRESSURE','WELL_TEMPERATURE','OWC','OWC_Z','OWC_D', &
+            'RTEMP','TEMPERATURE_AT_DATUM','PCOW_OWC')
         !select case(option%iflowmode)
         !  case(TOIL_IMS_MODE)
         !    sub_condition_ptr => FlowTOilImsSubConditionPtr(word,toil_ims, &
@@ -2693,7 +2694,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
             internal_units = 'Pa'
           case('LIQUID_SATURATION','OIL_SATURATION')
             internal_units = 'unitless'
-          case('TEMPERATURE')
+          case('TEMPERATURE','RTEMP','TEMPERATURE_AT_DATUM')
             internal_units = 'C'
           case('OWC','OWC_Z','OWC_D')
             internal_units = 'meter'
