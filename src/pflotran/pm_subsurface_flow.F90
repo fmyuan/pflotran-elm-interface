@@ -132,7 +132,6 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
   use Input_Aux_module
   use String_module
   use Option_module
-  use AuxVars_Flow_module
   use Upwind_Direction_module
  
   implicit none
@@ -205,16 +204,6 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('UPWIND_DIR_UPDATE_FREQUENCY')
       call InputReadInt(input,option,upwind_dir_update_freq)
       call InputErrorMsg(input,option,keyword,error_string)
-
-    case('DEBUG_TOL')
-      call InputReadDouble(input,option,flow_aux_debug_tol)
-      call InputErrorMsg(input,option,'DEBUG_TOL',error_string)
-    case('DEBUG_RELTOL')
-      call InputReadDouble(input,option,flow_aux_debug_reltol)
-      call InputErrorMsg(input,option,'DEBUG_RELTOL',error_string)
-
-    case('GEOMETRIC_PENALTY')
-      flow_aux_use_GP= PETSC_TRUE
 
     case('REVERT_PARAMETERS_ON_RESTART')
       this%revert_parameters_on_restart = PETSC_TRUE

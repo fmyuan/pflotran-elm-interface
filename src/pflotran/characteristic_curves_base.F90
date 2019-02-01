@@ -596,22 +596,22 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         dice_pc_dt = 0.d0
         dice_pc_dp = 1.d0
 
-        if(tc<0.d0) then
+        if(tc<=0.d0) then
 
-          ice_pc = -1.0d0*rhoi*beta*Lf*(-tc)/T0  ! in positive value
-          dice_pc_dt = rhoi*beta*Lf/T0
-          dice_pc_dp = 0.d0
+          ice_pc = -1.0d0*rhoi*beta*Lf*tc/T0               ! in positive value
+          dice_pc_dt = -beta*Lf/T0*(rhoi+tc*drhoi_dt)
+          dice_pc_dp = -beta*Lf/T0*(tc*drhoi_dp)
 
-         endif
+        endif
 
-       case (PAINTER_KARRA_EXPLICIT, PAINTER_KARRA_EXPLICIT_SMOOTH)
+      case (PAINTER_KARRA_EXPLICIT, PAINTER_KARRA_EXPLICIT_SMOOTH)
 
          ! The following is a slightly-modified version from PKE in saturation_function module
          ! without smoothing of freezing-thawing zone
 
          ! explicit model from Painter & Karra, VJZ (2014)
-         tftheta = xTf/T0                              ! P.-K. Eq.(18): theta: (Tk-T0)/T0, assuming Tf~T0 (ignored FP depression) in Eq. (12)
-         dtftheta_dt = 1.0d0/T0
+         tftheta = -xTf/T0                              ! P.-K. Eq.(18): theta: (Tk-T0)/T0, assuming Tf~T0 (ignored FP depression) in Eq. (12)
+         dtftheta_dt = -1.0d0/T0
          dtftheta_dp = 0.d0
 
          ice_pc     = gamma * rhol*tftheta           ! P.-K. Eq.(18), first term (i.e. ice only), but in positive value as all in CC equations
@@ -634,7 +634,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
          if (option%ice_model==PAINTER_KARRA_EXPLICIT_SMOOTH .and. deltaTf>1.0d-50) then
 
 
-!#if 0
+#if 0
            ! F.-M. Yuan (2017-03-14): OFF
            ! symmetrically smoothing over 'T0', so may create a gap from Tf ~ T0-deltaTf (Tf could be far away from T0)
            if (abs(xTf)<deltaTf) then
@@ -658,7 +658,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
              ! Then it means the smoothing_curve ends exactly with the original format
            endif
 
-#if 0
+#endif
 
            ! using the new Heaveside Smoothing function:
            ! ice_pc@Tf-deltaTf --> ice_pc = pcgl @T0+deltaTf  (note: @Tf, ice_pc = pcgl by PKE, so this smoothing actually span over a large ranges around Tf~T0)
@@ -667,7 +667,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
            dice_pc_dt = dice_pc_dt * Hfunc + (ice_pc - pcgl) * dHfunc
            dice_pc_dp = (dice_pc_dp - 1.0d0) * Hfunc + 1.0d0          ! dHfunc_dp = 0, dpcgl_dp = 1
            ice_pc = (ice_pc - pcgl) * Hfunc + pcgl                    ! do this after derivatives
-#endif
+
          endif !(option%ice_model==PAINTER_KARRA_EXPLICIT_SMOOTH)
          ! -----------
 

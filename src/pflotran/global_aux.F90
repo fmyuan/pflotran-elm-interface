@@ -11,21 +11,20 @@ module Global_Aux_module
   type, public :: global_auxvar_type
     PetscInt :: istate
     PetscReal :: temp
-    PetscReal, pointer :: pres(:)
+    PetscReal, pointer :: pres(:)           ! (nphase)
     PetscReal, pointer :: pres_store(:,:)
     PetscReal, pointer :: temp_store(:)
     PetscReal, pointer :: sat(:)
-    PetscReal, pointer :: sat_store(:,:)
+    PetscReal, pointer :: sat_store(:,:)    ! (nphase, timesteps)
     PetscReal, pointer :: den(:)            ! kmol/m^3
     PetscReal, pointer :: den_kg(:)         ! kg/m^3
     PetscReal, pointer :: den_store(:,:)
     PetscReal, pointer :: den_kg_store(:,:)
     PetscReal, pointer :: fugacoeff(:)
     PetscReal, pointer :: fugacoeff_store(:,:)
-    PetscReal, pointer :: xmass(:)
-    PetscReal, pointer :: mass_balance(:,:) ! kg
+    PetscReal, pointer :: xmass(:)          ! for convertion from molarity (moles/L solution) to molality(moles/kg solvent)
+    PetscReal, pointer :: mass_balance(:,:) ! kg (nflowspec, nphase)
     PetscReal, pointer :: mass_balance_delta(:,:) ! kmol
-    PetscReal, pointer :: dphi(:,:) !geh: why here?
   end type global_auxvar_type
   
   type, public :: global_type
@@ -116,7 +115,6 @@ subroutine GlobalAuxVarInit(auxvar,option)
   nullify(auxvar%xmass)
   nullify(auxvar%mass_balance)
   nullify(auxvar%mass_balance_delta)
-  nullify(auxvar%dphi)
 
   nphase = option%nphase
 
@@ -180,7 +178,6 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%sat = auxvar%sat
   auxvar2%den = auxvar%den
   auxvar2%den_kg = auxvar%den_kg
-  auxvar2%dphi = auxvar%dphi
   
   if (associated(auxvar2%fugacoeff)) then
     auxvar2%fugacoeff = auxvar%fugacoeff  
@@ -287,7 +284,6 @@ subroutine GlobalAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%fugacoeff)
   call DeallocateArray(auxvar%den_kg)
   call DeallocateArray(auxvar%xmass)
-  call DeallocateArray(auxvar%dphi)
 
   call DeallocateArray(auxvar%pres_store)
   call DeallocateArray(auxvar%temp_store)
