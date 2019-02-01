@@ -9,6 +9,9 @@ module Criticality_module
 ! to waste form criticality.
 ! ===========================================================================
 #include "petsc/finclude/petscsys.h"
+#if PETSC_VERSION_GE(3,11,0)
+#define VecScatterCreate VecScatterCreateWithData
+#endif
   use petscsys
   use PFLOTRAN_Constants_module
   use Data_Mediator_Vec_class
