@@ -1570,7 +1570,9 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: ddeno_dpb,dcr_dt,dcr_dpb
   PetscReal :: dcrusp_dpo,dcrusp_dpb,dcrusp_dt,cor,one_p_crusp
   PetscReal :: dcor_dpo,dcor_dpb,dcor_dt,worker
+  PetscReal :: dps_dt
   PetscReal,dimension(1:option%nflowdof) :: D_fm,D_cell_pres,D_worker
+  PetscReal,dimension(1:option%nflowdof) :: D_visc,D_kr
   PetscInt :: idex,jdex
 
   dof_op = TOWG_OIL_PRESSURE_DOF
@@ -2330,7 +2332,6 @@ endif
 !------------------------------------------------------------------------------
 
 !--------------H and U correction ---------------------------------------------
-!!!!! WORKING HERE
   if (getDerivs) then
     auxvar%D_H(oid,:)   = ProdRule(auxvar%bo%xo,auxvar%bo%D_xo,        &
                                  auxvar%H(oid),auxvar%D_H(oid,:),ndof) &
@@ -2359,12 +2360,45 @@ endif
   call characteristic_curves%wat_rel_perm_func_owg% &
                 RelativePermeability(sw,krw,dkrw_satw,option,auxvar%table_idx)
 
+#if 0
   call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
 ! use cell_pressure; cell_pressure - psat calculated internally
   call EOSWaterViscosity(t,cell_pressure,wat_sat_pres,visw,ierr)
 
   auxvar%mobility(wid) = krw/visw
+#endif
+
+
+!!!! WORKING HERE
+   if (getDerivs) then
+    call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,dps_dt,ierr)
+
+    call EOSWaterViscosity(auxvar%temp, cell_pressure, &
+                           wat_sat_pres, dps_dt, visw, &
+                           dx_dtemp,  dx_dcell_pres, ierr)
+
+    ! pressure deriv (dvw_dp) is a a cell pressure derivative:
+    D_visc = 0.d0
+    D_visc = dx_dcell_pres * D_cell_pres
+    D_visc(dof_temp) = D_visc(dof_temp) + dx_dtemp
+
+  else
+    call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
+
+    ! use cell_pressure; cell_pressure - psat calculated internally
+    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr)
+  endif
+
+  auxvar%mobility(wid) = krw/visw
+  if (getDerivs) then
+    D_kr = 0.d0
+    D_kr(dof_osat) = -dkrw_satw
+    if (isSat) D_kr(dof_gsat) = -dkrw_satw
+    D_kr(dof_ssat) = -dkrw_satw
+
+    auxvar%D_mobility(wid,:) = DivRule(krw,D_kr,visw,D_visc,ndof)
+  endif
 
 !-------------------------------------------------------------------------------
 !  Hydrocarbon mobilities
