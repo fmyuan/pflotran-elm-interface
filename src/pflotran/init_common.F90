@@ -103,7 +103,7 @@ subroutine setSurfaceFlowMode(option)
   type(option_type) :: option
   
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       option%nsurfflowdof = ONE_INTEGER
     case(TH_MODE)
       option%nsurfflowdof = TWO_INTEGER

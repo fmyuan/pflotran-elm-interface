@@ -228,7 +228,8 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   field => realization%field
   patch => realization%patch
 
-  if (option%iflowmode /= RICHARDS_MODE) then
+  if (option%iflowmode /= RICHARDS_MODE .and. & 
+      option%iflowmode /= RICHARDS_TS_MODE) then
     option%io_buffer = 'Reading of flow initial conditions from HDF5 ' // &
                        'file (' // trim(filename) // &
                        'not currently not supported for mode: ' // &

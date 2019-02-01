@@ -2159,7 +2159,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
         option%reference_density(option%liquid_phase)
       global_auxvar%temp = option%reference_temperature
       global_auxvar%sat(iphase) = option%reference_saturation
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       global_auxvar%temp = option%reference_temperature
   end select
         

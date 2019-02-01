@@ -1000,7 +1000,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
 #endif
     select case(option%iflowmode)
       !TODO(geh): refactors so that we don't need all these variants?
-      case(RICHARDS_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
                       realization%patch%aux%Richards%zero_rows_local, &
                       realization%patch%aux%Richards%zero_rows_local_ghosted, &

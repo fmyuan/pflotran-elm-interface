@@ -141,6 +141,8 @@ subroutine SubsurfaceSimInputRecord(this)
       write(id,'(a)') 'multi-phase'
     case(RICHARDS_MODE)
       write(id,'(a)') 'richards'
+    case(RICHARDS_TS_MODE)
+      write(id,'(a)') 'richards_ts'
     case(IMS_MODE)
       write(id,'(a)') 'immiscible'
     case(FLASH2_MODE)
