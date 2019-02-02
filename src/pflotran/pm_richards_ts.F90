@@ -180,7 +180,6 @@ subroutine PMRichardsTSIFunction(this,ts,time,U,Udot,F,ierr)
   call IFunctionAccumulation(F,realization,ierr)
 
 end subroutine PMRichardsTSIFunction
-#
 ! ************************************************************************** !
 subroutine IFunctionAccumulation(F,realization,ierr)
   !
