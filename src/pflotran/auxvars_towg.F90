@@ -69,17 +69,20 @@ module AuxVars_TOWG_module
     PetscReal :: krotl,krgtl,viscotl,viscgtl,denotl,dengtl
     PetscReal :: krstl,viscstl,denstl
     PetscReal :: krom,krgm,krsm,krvm,kroi,krog,krow
-    PetscReal :: fm,viso
+    PetscReal :: fm,viso,viss,visg
     PetscReal :: uoil,uvap
     PetscReal :: cellpres
+    PetscReal  :: krsi,krgi
     PetscReal, pointer :: D_krotl(:),D_krgtl(:),D_viscotl(:),D_viscgtl(:)
     PetscReal, pointer :: D_denotl(:),D_dengtl(:)
     PetscReal, pointer :: D_krstl(:),D_viscstl(:),D_denstl(:)
     PetscReal, pointer :: D_krom(:),D_krgm(:),D_krsm(:),D_krvm(:),D_kroi(:)
     PetscReal, pointer :: D_krog(:),D_krow(:)
-    PetscReal, pointer :: D_fm(:),D_viso(:)
+    PetscReal, pointer :: D_fm(:),D_viso(:),D_visg(:),D_viss(:)
     PetscReal, pointer :: D_uoil(:),D_uvap(:)
     PetscReal, pointer :: D_cellpres(:)
+    PetscReal, pointer :: D_krsi(:),D_krgi(:)
+
   end type tl_auxvar_testing_type
 
   public :: AuxVarTOWGStrip
@@ -170,6 +173,10 @@ subroutine AuxVarTOWGInit(this,option)
     this%tlT%D_fm = 0.d0
     allocate(this%tlT%D_viso(option%nflowdof))
     this%tlT%D_viso = 0.d0
+    allocate(this%tlT%D_visg(option%nflowdof))
+    this%tlT%D_visg = 0.d0
+    allocate(this%tlT%D_viss(option%nflowdof))
+    this%tlT%D_viss = 0.d0
 
     allocate(this%tlT%D_uoil(option%nflowdof))
     this%tlT%D_uoil = 0.d0
@@ -178,6 +185,12 @@ subroutine AuxVarTOWGInit(this,option)
 
     allocate(this%tlT%D_cellpres(option%nflowdof))
     this%tlT%D_cellpres= 0.d0
+
+    allocate(this%tlT%D_krsi(option%nflowdof))
+    this%tlT%D_krsi= 0.d0
+
+    allocate(this%tlT%D_krgi(option%nflowdof))
+    this%tlT%D_krgi= 0.d0
   endif
 
   call AuxVarFlowInit(this,option)
@@ -343,11 +356,16 @@ subroutine AuxVarTOWGStrip(this)
 
     call DeallocateArray(this%tlT%D_fm)
     call DeallocateArray(this%tlT%D_viso)
+    call DeallocateArray(this%tlT%D_visg)
+    call DeallocateArray(this%tlT%D_viss)
 
     call DeallocateArray(this%tlT%D_uoil)
     call DeallocateArray(this%tlT%D_uvap)
 
     call DeallocateArray(this%tlT%D_cellpres)
+
+    call DeallocateArray(this%tlT%D_krsi)
+    call DeallocateArray(this%tlT%D_krgi)
     deallocate(this%tlT)
   endif
 

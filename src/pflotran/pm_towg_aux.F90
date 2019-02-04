@@ -1573,14 +1573,28 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dps_dt
   PetscReal :: dkro_sato,dkrog_uoil
   PetscReal ::num
+  PetscReal :: dvo_dt,dvo_dpb,dcvisc_dt,dcvisc_dpb
+  PetscReal :: one_p_cvusp,dvo_dp,dviso_dpb
+  PetscReal :: dcvusp_dpo,dcvusp_dpb,dcvusp_dt
   PetscReal,dimension(1:option%nflowdof) :: D_fm,D_cell_pres,D_worker
   PetscReal,dimension(1:option%nflowdof) :: D_visc,D_kr
   PetscReal,dimension(1:option%nflowdof) :: D_uoil,D_uvap
   PetscReal,dimension(1:option%nflowdof) :: D_krog,D_krow,D_sv,D_sw
   PetscReal,dimension(1:option%nflowdof) :: D_num,D_den,D_kroi,D_sh,D_krh
   PetscReal,dimension(1:option%nflowdof) :: D_krom,D_krvm,D_krgm,D_krsm
+  PetscReal,dimension(1:option%nflowdof) :: D_viso,D_visg,D_viss
+  PetscReal, dimension(1:option%nflowdof)::D_krgi,D_krsi
 
   PetscInt :: idex,jdex
+
+  !!! VARIABLES HERE
+
+
+#if 0
+      dcvusp_dpo = cvisc ! cvisc is independent of po here
+      dcvusp_dpb = dcvisc_dpb*(po-pb) - cvisc
+      dcvusp_dt = dcvisc_dt*(po-pb)
+#endif
 
   dof_op = TOWG_OIL_PRESSURE_DOF
   dof_osat = TOWG_OIL_SATURATION_DOF
@@ -2418,7 +2432,6 @@ endif
   !old:
   !call TL4PScaleCriticals(sgcr,sogcr,fm,so,sv,uoil,uvap)
 
-!!! WORKING HERE
   ! new:
   call TL4PScaleCriticals(sgcr,sogcr,fm,so,sv,uoil,uvap, &
                           getDerivs,ndof,dof_osat,dof_gsat,dof_ssat,&
@@ -2514,7 +2527,6 @@ if (getDerivs) then
   endif
 endif
 
-!!! WORKING HERE
 
 !--Miscible lookup (Krow at Sh=So+Sg+Ss)
   call characteristic_curves%oil_rel_perm_func_owg% &
@@ -2650,12 +2662,73 @@ endif
 !--If PVCO defined in EOS OIL, the viscosities are extracted via table lookup--
 
 ! Viscosity and viscosibility look-up at bubble point
+#if 0
   call EOSOilViscosity    (auxvar%temp,pb, &
                            auxvar%den(oid), viso, ierr,auxvar%table_idx)
   call EOSOilViscosibility(auxvar%temp,pb,cvisc,ierr,auxvar%table_idx)
 
+#endif
+  ! Viscosity and viscosibility look-up at bubble point
+if (getDerivs) then
+  call EOSOilViscosity(auxvar%temp,pb,auxvar%den(oid),viso,dvo_dt,dvo_dpb,ierr,auxvar%table_idx)
+  call EOSOilViscosibility(auxvar%temp,pb,cvisc,dcvisc_dt,dcvisc_dpb,ierr, &
+                           auxvar%table_idx)
+else
+  call EOSOilViscosity    (auxvar%temp,pb, &
+                           auxvar%den(oid), viso, ierr,auxvar%table_idx)
+  call EOSOilViscosibility(auxvar%temp,pb,cvisc,ierr,auxvar%table_idx)
+endif
+
+
+!----------Correct oil viscosity-----------------------------------------------
   cvusp=cvisc*(po-pb)
+
+  if (getDerivs) then
+    ! get derivatives of corrected viso
+
+    ! if saturated:
+      ! 1) cvusp = 0; cor = 1 constants
+      ! 2) pb is really oil pressure so pb derivs equal to po derivs
+    if (.NOT. isSat) then
+      ! 1) cvusp, cor now vary
+      ! 2) pb derivs diferent from po derivs
+      ! 3) have to apply corrector visc = cor*visc, so apply corresponding correctors
+      !    to derivs too
+
+      dcvusp_dpo = cvisc ! cvisc is independent of po here
+      dcvusp_dpb = dcvisc_dpb*(po-pb) - cvisc
+      dcvusp_dt = dcvisc_dt*(po-pb)
+
+      cor = (1.0+cvusp*(1.0+0.5*cvusp))
+      ! dcor/dx = dcvusp/dx + cvusp*dcvusp so:
+      one_p_cvusp = 1.d0 + cvusp
+      dcor_dpo = dcvusp_dpo*one_p_cvusp
+      dcor_dpb = dcvusp_dpb*one_p_cvusp
+      dcor_dt = dcvusp_dt*one_p_cvusp
+
+      dvo_dp = viso*dcor_dpo ! viso is independent of po here
+      dvo_dpb = viso*dcor_dpb + dviso_dpb*cor
+      dvo_dt = viso*dcor_dt + dvo_dt*cor
+
+    endif
+    D_viso = 0.d0
+    !D_viso(dof_op) = dvo_dp
+    ! no osat deriv
+    if (isSat) then
+      D_viso(dof_op) = dvo_dpb
+    else
+      D_viso(dof_op) = dvo_dp
+      D_viso(dof_gsat) = dvo_dpb
+    endif
+    ! no ssat deriv
+    D_viso(dof_temp) = dvo_dt
+
+  endif
+
+  !cvusp=cvisc*(po-pb) !!! moved above
   viso=viso*(1.0+cvusp*(1.0+0.5*cvusp))
+
+!----------/Correct oil viscosity----------------------------------------------
 
 !-------------------------------------------------------------------------------
 !  Vapour (gas and solvent) mobilities (rel. perm / viscosity)
@@ -2675,17 +2748,106 @@ endif
     krsi=0.0
   endif
 
+    if (getDerivs) then
+    ! existence of dkrv_satv implies:
+    ! dkrvi_sg = dkrv_satv
+    ! dkrvi_ss = dkrv_satv
+    ! b/c sv = ss + sg
+    D_krgi = 0.d0
+    D_krsi = 0.d0
+    if( sv>0.0 ) then
+#if 0
+      if (isSat) D_krgi(dof_gsat) = (krvi + sg*dkrv_satv)/sv - sg*krvi/sv/sv
+      D_krgi(dof_ssat) = (sg*dkrv_satv)/sv - sg*krvi/sv/sv
+
+      if (isSat) D_krsi(dof_gsat) =  (ss*dkrv_satv)/sv - ss*krvi/sv/sv
+      D_krsi(dof_ssat) =  (krvi + ss*dkrv_satv)/sv - ss*krvi/sv/sv
+#endif
+      if (isSat) D_krgi(dof_gsat) = sg*dkrv_satv/sv + ss*krvi/sv/sv
+      D_krgi(dof_ssat) =            sg*dkrv_satv/sv - sg*krvi/sv/sv
+
+      if (isSat) D_krsi(dof_gsat) = ss*dkrv_satv/sv - ss*krvi/sv/sv
+      D_krsi(dof_ssat) =            ss*dkrv_satv/sv + sg*krvi/sv/sv
+    else
+      ! nothing, or maybe constant slope?
+    endif
+  endif
+
+!!! hack for tesing
+if (getDerivs) then
+  !if (auxvar%tl%stores_everything) then
+  if (auxvar%has_TL_test_object) then
+    auxvar%tlT%krgi = krgi
+    auxvar%tlT%D_krgi = D_krgi
+
+    auxvar%tlT%krsi = krsi
+    auxvar%tlT%D_krsi = D_krsi
+  endif
+endif
+
+!!! WORKING HERE
 !--If PVDG defined in EOS GAS, the viscosities are extracted via table lookup--
 
+#if 0
   call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
                        auxvar%pres(gid),auxvar%den(gid),visg,ierr,&
                        auxvar%table_idx)
+#endif
+
+  if (getDerivs) then
+      D_visg = 0.d0
+      call  EOSGasViscosity(auxvar%temp,auxvar%pres(gid),auxvar%pres(gid),&
+                            auxvar%den(gid), &
+                            auxvar%D_den(gid,dof_temp), auxvar%D_den(gid,dof_temp), auxvar%D_den(gid,dof_op), &
+                            0.d0,1.d0, &                      ! dPcomp_dT, dPcomp_dPgas
+                            visg, dx_dtemp, dummy, dx_dcell_pres, ierr, &
+                            auxvar%table_idx)
+
+    ! pressure deriv is a a gas pressure derivative:
+    D_visg = dx_dcell_pres * auxvar%D_pres(gid,:)
+    D_visg(dof_temp) = D_visg(dof_temp) + dx_dtemp
+
+  else
+    call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
+                         auxvar%pres(gid),auxvar%den(gid),visg,ierr,&
+                         auxvar%table_idx)
+  endif
 
 !--If PVDS defined in EOS SLV, the viscosities are extracted via table lookup--
 
+#if 0
   call EOSSlvViscosity(auxvar%temp,auxvar%pres(sid), &
                        viss,ierr,&
                        auxvar%table_idx)
+#endif
+  if (getDerivs) then
+    call EOSSlvViscosity(auxvar%temp,auxvar%pres(sid), &
+                         viss,dx_dtemp,dx_dcell_pres,ierr,&
+                         auxvar%table_idx)
+
+    ! pressure deriv is a a solvent pressure derivative:
+    !D_viss = dx_dcell_pres * D_cell_pres
+    D_viss = dx_dcell_pres * auxvar%D_pres(sid,:)
+    D_viss(dof_temp) = D_viss(dof_temp) + dx_dtemp
+  else
+    call EOSSlvViscosity(auxvar%temp,auxvar%pres(sid), &
+                         viss,ierr,&
+                         auxvar%table_idx)
+  endif
+
+!!! hack for tesing
+if (getDerivs) then
+  !if (auxvar%tl%stores_everything) then
+  if (auxvar%has_TL_test_object) then
+    auxvar%tlT%viso = viso
+    auxvar%tlT%visg = visg
+    auxvar%tlT%viss = viss
+
+    auxvar%tlT%D_viso = D_viso
+    auxvar%tlT%D_visg = D_visg
+    auxvar%tlT%D_visS = D_viss
+  endif
+endif
 
 !-------------------------------------------------------------------------------
 !  Form the Todd-Longstaff rel perms
