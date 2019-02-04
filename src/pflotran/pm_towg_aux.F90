@@ -1536,7 +1536,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: krs ,viss,visstl
   PetscReal :: dummy,po,pb
   PetscReal :: dkrw_sato,dkrw_satg,dkrw_satw
-  PetscReal :: dkro_sato,dkro_satg
+  !PetscReal :: dkro_sato,dkro_satg
   PetscReal :: dkrg_sato,dkrg_satg
   PetscReal :: dkrv_sato,dkrv_satv,krvi
   PetscErrorCode :: ierr
@@ -1571,8 +1571,15 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dcrusp_dpo,dcrusp_dpb,dcrusp_dt,cor,one_p_crusp
   PetscReal :: dcor_dpo,dcor_dpb,dcor_dt,worker
   PetscReal :: dps_dt
+  PetscReal :: dkro_sato,dkrog_uoil
+  PetscReal ::num
   PetscReal,dimension(1:option%nflowdof) :: D_fm,D_cell_pres,D_worker
   PetscReal,dimension(1:option%nflowdof) :: D_visc,D_kr
+  PetscReal,dimension(1:option%nflowdof) :: D_uoil,D_uvap
+  PetscReal,dimension(1:option%nflowdof) :: D_krog,D_krow,D_sv,D_sw
+  PetscReal,dimension(1:option%nflowdof) :: D_num,D_den,D_kroi,D_sh,D_krh
+  PetscReal,dimension(1:option%nflowdof) :: D_krom,D_krvm,D_krgm,D_krsm
+
   PetscInt :: idex,jdex
 
   dof_op = TOWG_OIL_PRESSURE_DOF
@@ -2370,7 +2377,6 @@ endif
 #endif
 
 
-!!!! WORKING HERE
    if (getDerivs) then
     call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,dps_dt,ierr)
 
@@ -2409,7 +2415,36 @@ endif
   call characteristic_curves%GetOWGCriticalAndConnateSats(swcr,sgcr,dummy, &
                       sowcr,sogcr,swco,option)
 
-  call TL4PScaleCriticals(sgcr,sogcr,fm,so,sv,uoil,uvap)
+  !old:
+  !call TL4PScaleCriticals(sgcr,sogcr,fm,so,sv,uoil,uvap)
+
+!!! WORKING HERE
+  ! new:
+  call TL4PScaleCriticals(sgcr,sogcr,fm,so,sv,uoil,uvap, &
+                          getDerivs,ndof,dof_osat,dof_gsat,dof_ssat,&
+                          D_fm,D_uoil,D_uvap)
+  !!! turn off gas derivs if not saturated:
+  if (.not. isSat) then
+    D_uoil(dof_gsat) = 0.d0
+    D_uvap(dof_gsat) = 0.d0
+  endif
+
+!!! hack for tesing
+if (getDerivs) then
+  if (auxvar%has_TL_test_object) then
+    auxvar%tlT%uoil = uoil
+    auxvar%tlT%uvap = uvap
+
+    auxvar%tlT%D_uoil = D_uoil
+    auxvar%tlT%D_uvap = D_uvap
+  endif
+endif
+
+
+
+ ! duoil_soil means have to consider subsequent oil sat derivs
+ ! duvap_sv "                               " gas and slv derivs,
+ ! since sv = ss + sg
 
 !-------------------------------------------------------------------------------
 ! Oil mobility (rel. perm / viscosity)
@@ -2425,7 +2460,21 @@ endif
 
 ! Get Krog(Uo) directly from the krow member function of kro
   call characteristic_curves%oil_rel_perm_func_owg% &
-              RelPermOG(uoil,krog,dkro_sato,option,auxvar%table_idx)
+              RelPermOG(uoil,krog,dkrog_uoil,option,auxvar%table_idx)
+
+  D_krog = D_uoil*dkrog_uoil
+  D_krow = 0.d0
+  D_krow(dof_osat) = dkro_sato
+
+  D_sv = 0.d0
+  D_sv(dof_ssat) = 1.d0
+  if (isSat) D_sv(dof_gsat) = 1.d0
+
+  D_sw = 0.d0
+  D_sw(dof_ssat) = -1.d0
+  D_sw(dof_osat) = -1.d0
+  if (isSat) D_sw(dof_gsat) = -1.d0
+
 
 ! Form the Eclipse three-phase Kro expression
 
@@ -2435,6 +2484,37 @@ endif
   else
     kroi=0.5*(krog+krow)
   endif
+
+    if (getDerivs) then
+    ! kroi = num/den
+    if (den>0.0) then
+      num=(sv*krog+(sw-swco)*krow)
+      D_num = ProdRule(sv,D_sv,krog,D_krog,ndof)     &
+            + ProdRule(sw-swco,D_sw,krow,D_krow,ndof)
+      D_den = 0.d0
+      D_den(dof_osat) = -1.d0
+      D_kroi = DivRule(num,D_num,den,D_den,ndof)
+    else
+      D_kroi = 0.5*(D_krog+D_krow)
+    endif
+  endif
+
+!!! hack for tesing
+if (getDerivs) then
+  !if (auxvar%tl%stores_everything) then
+  if (auxvar%has_TL_test_object) then
+    auxvar%tlT%kroi = kroi
+    auxvar%tlT%D_kroi = D_kroi
+
+    auxvar%tlT%krog = krog
+    auxvar%tlT%D_krog = D_krog
+
+    auxvar%tlT%krow = krow
+    auxvar%tlT%D_krow = D_krow
+  endif
+endif
+
+!!! WORKING HERE
 
 !--Miscible lookup (Krow at Sh=So+Sg+Ss)
   call characteristic_curves%oil_rel_perm_func_owg% &
@@ -2447,6 +2527,13 @@ endif
   socrs=fi*sogcr
   svcrs=fi*sgcr
 
+    
+  if (getDerivs) then
+    D_sh = 0.d0;D_sh(dof_osat)=1.d0;D_sh(dof_ssat)=1.d0
+    if (isSat) D_sh(dof_gsat) = 1.d0
+    D_krh = dkrh_sath*D_sh
+  endif
+
 ! For non-zero Krom, must have So and Sh > Socrs
   if( (sh .gt. (socrs+epss)) .and. (so .ge. socrs) ) then
     krom=krh*(so-socrs)/(sh-socrs)
@@ -2454,12 +2541,68 @@ endif
     krom=0.0
   endif
 
+ ! recall sh = so + sg + ss
+  if (getDerivs) then
+    D_krom = 0.d0
+    if( (sh .gt. (socrs+epss)) .and. (so .ge. socrs) ) then
+      num = krh*(so-socrs)
+      worker = so-socrs
+      ! D_socrs = sogcr*D_fi = -sogcr*D_fm so:
+      D_worker = sogcr*D_fm; D_worker(dof_osat) = D_worker(dof_osat) + 1.d0
+      D_num = ProdRule(krh,D_krh,worker,D_worker,ndof)
+
+      den = sh - socrs
+      D_den = D_sh + sogcr*D_fm
+
+      D_krom = DivRule(num,D_num,den,D_den,ndof)
+
+    else
+      D_krom = 0.d0
+    endif
+  endif
+!!! hack for tesing
+if (getDerivs) then
+  !if (auxvar%tl%stores_everything) then
+  if (auxvar%has_TL_test_object) then
+    auxvar%tlT%krom = krom
+    auxvar%tlT%D_krom = D_krom
+  endif
+endif
+
 ! For non-zero Krvm, must have Sv and Sh > Svcrs
   if( (sh .gt. (svcrs+epss)) .and. (sv .ge. svcrs) ) then
     krvm=krh*(sv-svcrs)/(sh-svcrs)
   else
     krvm=0.0
   endif
+
+  if (getDerivs) then
+    D_krvm = 0.d0
+    if((sh .gt. (svcrs+epss)) .and. (sv .ge. svcrs)) then
+      num= krh*(sv-svcrs)
+      worker = sv-svcrs
+      ! D_svcrs = sgcr*D_fi = -sgcr*D_fm so:
+      !D_worker = sogcr*D_fm; D_worker(dof_ssat) = D_worker(dof_ssat) + 1.d0 !!!! MISTAKE? should not be sogcr
+      D_worker = sgcr*D_fm; D_worker(dof_ssat) = D_worker(dof_ssat) + 1.d0
+      if (isSat) D_worker(dof_gsat) = D_worker(dof_gsat) + 1.d0
+      D_num= ProdRule(krh,D_krh,worker,D_worker,ndof)
+
+      deno= sh - svcrs
+      D_den= D_sh + sgcr*D_fm
+
+      D_krvm = DivRule(num,D_num,den,D_den,ndof)
+    else
+      D_krvm = 0.d0
+    endif
+  endif
+!!! hack for tesing
+if (getDerivs) then
+  !if (auxvar%tl%stores_everything) then
+  if (auxvar%has_TL_test_object) then
+    auxvar%tlT%krvm = krvm
+    auxvar%tlT%D_krvm = D_krvm
+  endif
+endif
 
 ! Now split vapour Krvm into Krgm and Krsm pro rata saturations
 
@@ -2470,6 +2613,37 @@ endif
     krgm=0.0
     krsm=0.0
   endif
+
+   if (getDerivs) then
+    D_krgm = 0.d0
+    D_krsm = 0.d0
+    if( sv .gt. 0.0) then
+
+      num = krvm*sg;
+      ! prod rule be we know only one nonzero deriv of sg so:
+      D_num= D_krvm*sg
+      if (isSat) D_num(dof_gsat) = D_num(dof_gsat) + krvm
+      D_krgm = DivRule(num,D_num,sv,D_sv,ndof)
+
+      num= krvm*ss;
+      ! prod rule be we know only one nonzero deriv of ss so:
+      D_num = D_krvm*ss; D_num(dof_ssat) = D_num(dof_ssat) + krvm
+      ! worker and D_worker unchanged
+      D_krsm = DivRule(num,D_num,sv,D_sv,ndof)
+    endif
+  endif
+!!! hack for tesing
+if (getDerivs) then
+  !if (auxvar%tl%stores_everything) then
+  if (auxvar%has_TL_test_object) then
+    auxvar%tlT%krgm = krgm
+    auxvar%tlT%D_krgm = D_krgm
+
+    auxvar%tlT%krsm = krsm
+    auxvar%tlT%D_krsm = D_krsm
+  endif
+endif
+
 
 !--Oil viscosities--------------------------------------------------------------*/
 
@@ -4481,7 +4655,11 @@ end subroutine TL4PMiscibilityFractionFromSaturationFraction
 
 ! ************************************************************************** !
 
-subroutine TL4PScaleCriticals(sgcr,sogcr,fm,soil,svap,uoil,uvap)
+!subroutine TL4PScaleCriticals(sgcr,sogcr,fm,soil,svap,uoil,uvap)
+subroutine TL4PScaleCriticals(sgcr,sogcr,fm,soil,svap,uoil,uvap &
+                              ,getDerivs,ndof &
+                              ,dof_soil,dof_sgas,dof_ssol &
+                              ,D_fm,D_uoil,D_uvap)
 
 !------------------------------------------------------------------------------
 ! Obtain lookup args modified for scaling (to be used against unscaled data)
@@ -4492,23 +4670,64 @@ subroutine TL4PScaleCriticals(sgcr,sogcr,fm,soil,svap,uoil,uvap)
 
   implicit none
 
+#if 0
   PetscReal,intent(in ) :: sgcr,sogcr,fm,soil,svap
   PetscReal,intent(out) :: uoil,uvap
   PetscReal             :: ugcr,uogcr,fi
+#endif
+  PetscReal,intent(in ) :: sgcr,sogcr,fm,soil,svap
+  PetscBool,intent(in) :: getDerivs
+  PetscInt,intent(in) :: ndof,dof_soil,dof_sgas,dof_ssol
+  PetscReal,dimension(1:ndof),intent(in) :: D_fm
+  PetscReal             :: ugcr,uogcr,fi
+  PetscReal             :: duvap_dugcr,duoil_duogcr
+  PetscReal             :: duoil_soil,duvap_svap
+
+  PetscReal,intent(out) :: uoil,uvap
+
+  PetscReal,dimension(1:ndof),intent(out) :: D_uoil,D_uvap
+
+!!! TODO - ORDER CORRECTLY efficiency?
+  PetscReal,dimension(1:ndof) :: D_fi,D_ugcr,D_uogcr
 
   fi=1.0-fm
 
   ugcr =fi*sgcr
   uogcr=fi*sogcr
 
+  if (getDerivs) then
+    D_ugcr  = -1.d0*D_fm*sgcr
+    D_uogcr = -1.d0*D_fm*sogcr
+  endif
+
+#if 0
   call TL4PScaleLookupSaturation(sgcr ,ugcr ,svap,uvap)
   call TL4PScaleLookupSaturation(sogcr,uogcr,soil,uoil)
+#endif
+
+  call TL4PScaleLookupSaturation(sgcr ,ugcr ,svap,uvap,duvap_svap,duvap_dugcr)
+  call TL4PScaleLookupSaturation(sogcr,uogcr,soil,uoil,duoil_soil,duoil_duogcr)
+
+  if (getDerivs) then
+    D_uoil = 0.d0
+    ! uoil = uoil(uogcr,so)
+    D_uoil = duoil_duogcr*D_uogcr
+    D_uoil(dof_soil) = D_uoil(dof_soil) + duoil_soil
+
+    D_uvap = 0.d0
+    ! uvap = uvqp(ugcr,sv) ; sv = so + sg
+    D_uvap = duvap_dugcr*D_ugcr
+    D_uvap(dof_sgas) = D_uvap(dof_sgas) + duvap_svap
+    D_uvap(dof_ssol) = D_uvap(dof_ssol) + duvap_svap
+  endif
 
 end subroutine TL4PScaleCriticals
 
 ! ************************************************************************** !
 
-subroutine TL4PScaleLookupSaturation(sl,ul,s,u)
+!subroutine TL4PScaleLookupSaturation(sl,ul,s,u)
+subroutine TL4PScaleLookupSaturation(sl,ul,s,u,du_s,du_ul)
+
 
 !------------------------------------------------------------------------------
 ! Transform a true saturation to a value to be used with unscaled data
@@ -4524,6 +4743,8 @@ subroutine TL4PScaleLookupSaturation(sl,ul,s,u)
   PetscReal             :: slc
   PetscReal             :: sli,slci
 
+  PetscReal,intent(out) :: du_s,du_ul
+
 !--Form safe inverses----------------------------------------------------------
 
   sli=0.0
@@ -4537,9 +4758,15 @@ subroutine TL4PScaleLookupSaturation(sl,ul,s,u)
   if( s<=sl ) then
 ! First interval: scale by ul/sl so s=sl maps to ul
     u=s*ul*sli
+
+    du_s = ul*sli
+    du_ul = s*sli
   else
 ! Second interval: scale so that s=sl maps to ul, s=1 maps to 1
     u=ul+(s-sl)*(1.0-ul)*slci
+
+    du_s = (1.0-ul)*slci
+    du_ul = 1.0 - (s-sl)*slci
   endif
 
 end subroutine TL4PScaleLookupSaturation

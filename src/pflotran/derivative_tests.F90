@@ -2019,6 +2019,11 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "krvm (note phase meaningless):"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *, "sats:"
+        print *, auxvars(0)%sat
+        print *, "fm: ", auxvars(0)%tlT%fm
+        print *, "dfm: "
+        print *, auxvars(0)%tlT%D_fm(:)
         print *,
         probs = probs + 1
       endif
@@ -2047,6 +2052,11 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "krgm (note phase meaningless):"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *, "sats:"
+        print *, auxvars(0)%sat
+        print *, "fm: ", auxvars(0)%tlT%fm
+        print *, "dfm: "
+        print *, auxvars(0)%tlT%D_fm(:)
         print *,
         probs = probs + 1
       endif
@@ -2075,6 +2085,11 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "krsm (note phase meaningless):"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *, "sats:"
+        print *, auxvars(0)%sat
+        print *, "fm: ", auxvars(0)%tlT%fm
+        print *, "dfm: "
+        print *, auxvars(0)%tlT%D_fm(:)
         print *,
         probs = probs + 1
       endif
@@ -2131,6 +2146,10 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "kroi (note phase meaningless):"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *, "sats: "
+        print *,auxvars(0)%sat
+        print *, "fm: ", auxvars(0)%tlt%fm
+        print *, auxvars(0)%tlT%D_fm
         print *,
         probs = probs + 1
       endif

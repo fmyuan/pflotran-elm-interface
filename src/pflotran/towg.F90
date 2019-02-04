@@ -6003,6 +6003,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     endif
 #endif
 
+#if 0
     !!! HACK - use this space to query if newton solver is suggesting
     !!!        odd values for solvent sat
     if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
@@ -6015,6 +6016,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
         print *, " sat: ", X_p(saturation_index), " sat update: ", dX_p(saturation_index), " result: ", scand
       end if
     endif
+#endif
 
   enddo
 
