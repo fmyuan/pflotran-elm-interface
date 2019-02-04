@@ -1584,6 +1584,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal,dimension(1:option%nflowdof) :: D_krom,D_krvm,D_krgm,D_krsm
   PetscReal,dimension(1:option%nflowdof) :: D_viso,D_visg,D_viss
   PetscReal, dimension(1:option%nflowdof)::D_krgi,D_krsi
+  PetscReal, dimension(1:option%nflowdof)::D_kro,D_krg,D_krs
 
   PetscInt :: idex,jdex
 
@@ -2785,7 +2786,6 @@ if (getDerivs) then
   endif
 endif
 
-!!! WORKING HERE
 !--If PVDG defined in EOS GAS, the viscosities are extracted via table lookup--
 
 #if 0
@@ -2853,11 +2853,38 @@ endif
 !  Form the Todd-Longstaff rel perms
 !-------------------------------------------------------------------------------
 
+!!! WORKING HERE
+#if 0
   call TL4PRelativePermeabilities( so,sg,sw,ss,sv,sh,fm, &
                                    swcr,sgcr,sowcr,sogcr,swco, &
                                    kroi,krgi,krsi, &
                                    krom,krgm,krsm, &
                                    kro ,krg ,krs  )
+#endif
+
+  call TL4PRelativePermeabilities( so,sg,sw,ss,sv,sh,fm, &
+                                 swcr,sgcr,sowcr,sogcr,swco, &
+                                 kroi,krgi,krsi, &
+                                 krom,krgm,krsm, &
+                                 kro ,krg ,krs,   &
+                                 getDerivs,ndof,  &
+                                 D_fm,            &           ! fm derivs (in)
+                                 D_kroi,D_krgi,D_krsi, &      ! imiscible k derivs (in)
+                                 D_krom,D_krgm,D_krsm, &      ! miskible k derivs  (in)
+                                 D_kro ,D_krg ,D_krs   )      ! true k derivs     (out)
+
+  !!! hack for tesing
+  if (getDerivs) then
+    !if (auxvar%tl%stores_everything) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%krotl = kro
+      auxvar%tlT%krgtl = krg
+      auxvar%tlT%krstl = krs
+      auxvar%tlT%D_krotl = D_kro
+      auxvar%tlT%D_krgtl = D_krg
+      auxvar%tlT%D_krstl = D_krs
+    endif
+  endif
 
 !--Form the Todd-Longstaff viscosities-----------------------------------------
 
@@ -4482,7 +4509,12 @@ subroutine TL4PRelativePermeabilities( so  ,sg  ,sw   ,ss   ,sv  ,sh, fm , &
                                        swcr,sgcr,sowcr,sogcr,swco, &
                                        kroi,krgi,krsi, &
                                        krom,krgm,krsm, &
-                                       kro ,krg ,krs  )
+                                       kro ,krg ,krs,  &
+                                   getDerivs,ndof,     &
+                                   D_fm ,            &           ! fm derivs (in)
+                                   D_kroi,D_krgi,D_krsi, &       ! imiscible k derivs (in)
+                                   D_krom,D_krgm,D_krsm, &      ! miskible k derivs  (in)
+                                   D_kro ,D_krg ,D_krs   )      ! true k derivs     (out)
 
 !------------------------------------------------------------------------------
 ! Set up the interpolated TL4P relative permeabilities
@@ -4492,6 +4524,7 @@ subroutine TL4PRelativePermeabilities( so  ,sg  ,sw   ,ss   ,sv  ,sh, fm , &
 ! Date  : Apr 2018
 !------------------------------------------------------------------------------
 
+  use Derivatives_utilities_module
   implicit none
 
   PetscReal,intent(in ) :: so  ,sg  ,sw   ,ss   ,sv  ,sh,fm 
@@ -4501,6 +4534,15 @@ subroutine TL4PRelativePermeabilities( so  ,sg  ,sw   ,ss   ,sv  ,sh, fm , &
   PetscReal,intent(out) :: kro ,krg ,krs
 
   PetscReal svi,fs,fi
+
+  PetscBool :: getDerivs
+  PetscInt :: ndof
+
+  PetscReal,dimension(1:ndof),intent(in)  :: D_fm
+  PetscReal,dimension(1:ndof),intent(in)  :: D_kroi,D_krgi,D_krsi
+  PetscReal,dimension(1:ndof),intent(in)  :: D_krom,D_krgm,D_krsm
+  PetscReal,dimension(1:ndof),intent(out)  :: D_kro,D_krg,D_krs
+
 
   kro=0.0
   krg=0.0
@@ -4513,6 +4555,19 @@ subroutine TL4PRelativePermeabilities( so  ,sg  ,sw   ,ss   ,sv  ,sh, fm , &
   kro=fm*krom+fi*kroi
   krg=fm*krgm+fi*krgi
   krs=fm*krsm+fi*krsi
+
+
+  if (getDerivs) then
+
+   D_kro = ProdRule(fm,D_fm,krom,D_krom,ndof) &
+         + ProdRule(fi,-D_fm,kroi,D_kroi,ndof)   ! does this force creaton of new array?
+
+   D_krg = ProdRule(fm,D_fm,krgm,D_krgm,ndof) &
+         + ProdRule(fi,-D_fm,krgi,D_krgi,ndof)   ! does this force creaton of new array?
+
+   D_krs = ProdRule(fm,D_fm,krsm,D_krsm,ndof) &
+         + ProdRule(fi,-D_fm,krsi,D_krsi,ndof)   ! does this force creaton of new array?
+  endif
 
 end subroutine TL4PRelativePermeabilities
 
