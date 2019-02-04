@@ -1585,6 +1585,8 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal,dimension(1:option%nflowdof) :: D_viso,D_visg,D_viss
   PetscReal, dimension(1:option%nflowdof)::D_krgi,D_krsi
   PetscReal, dimension(1:option%nflowdof)::D_kro,D_krg,D_krs
+  PetscReal, dimension(1:option%nflowdof)::D_so,D_sg,D_ss
+  PetscReal, dimension(1:option%nflowdof)::D_visotl,D_visgtl,D_visstl
 
   PetscInt :: idex,jdex
 
@@ -2853,7 +2855,6 @@ endif
 !  Form the Todd-Longstaff rel perms
 !-------------------------------------------------------------------------------
 
-!!! WORKING HERE
 #if 0
   call TL4PRelativePermeabilities( so,sg,sw,ss,sv,sh,fm, &
                                    swcr,sgcr,sowcr,sogcr,swco, &
@@ -2888,9 +2889,47 @@ endif
 
 !--Form the Todd-Longstaff viscosities-----------------------------------------
 
+!!! WORKING HERE
+#if 0
   call TL4PViscosity(so,sg,ss,viso,visg,viss,visotl,visgtl,visstl)
+#endif
+
+  if (getDerivs) then
+    !!! can cause problems if we pass in these
+    !!! auxvar members directly if they are not allocated
+    !!! (i.e. when running numerical) and in parallel, crashes
+    !!! some tl np2 regtests
+    D_so = auxvar%D_sat(oid,:)
+    D_sg = auxvar%D_sat(gid,:)
+    D_ss = auxvar%D_sat(sid,:)
+  else
+    !!! they shouldn't be used in this case but might as well
+    D_so = 0.d0
+    D_sg = 0.d0
+    D_ss = 0.d0
+  endif
+
+  call TL4PViscosity(so,sg,ss,viso,visg,viss,visotl,visgtl,visstl, &
+                         getDerivs,ndof,          &
+                         D_so,D_sg,D_ss,          & 
+                         dof_osat,dof_gsat,dof_ssat, &
+                         D_viso,D_visg,D_viss, &         ! visc derivs in
+                         D_visotl,D_visgtl,D_visstl, &   ! tl visc derivs out
+                         isSat)
 
 
+  !!! hack for tesing
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%viscotl = visotl
+      auxvar%tlT%viscgtl = visgtl
+      auxvar%tlT%viscstl = visstl
+
+      auxvar%tlT%D_viscotl = D_visotl
+      auxvar%tlT%D_viscgtl = D_visgtl
+      auxvar%tlT%D_viscstl = D_visstl
+    endif
+  endif
 
 !--Form the Todd-Longstaff densities (for Darcy flow only)---------------------
 
@@ -4575,7 +4614,13 @@ end subroutine TL4PRelativePermeabilities
 
 subroutine TL4PViscosity( so   ,sg   ,ss   , &
                            visco,viscg,viscs, &
-                           viscotl,viscgtl,viscstl)
+                           viscotl,viscgtl,viscstl, &
+                           getDerivs,ndof,          &
+                           D_so,D_sg,D_ss,          &
+                           dof_osat,dof_gsat,dof_ssat, &
+                           D_visco,D_viscg,D_viscs, &         ! visc derivs in
+                           D_viscotl,D_viscgtl,D_viscstl, &   ! tl visc derivs out
+                           isSat)
 
 !------------------------------------------------------------------------------
 ! Set up the interpolated TL4P viscosities
@@ -4584,10 +4629,20 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
 ! Date  : Apr 2018
 !------------------------------------------------------------------------------
 
+  use Derivatives_utilities_module
   implicit none
 
   PetscReal,intent(in ) :: so     ,sg     ,ss
   PetscReal,intent(in ) :: visco  ,viscg  ,viscs
+
+  PetscBool,intent(in ) :: getDerivs,isSat
+  PetscInt ,intent(in ) :: ndof,dof_osat,dof_gsat,dof_ssat
+  PetscReal,dimension(1:ndof),intent(in)   :: D_visco,D_viscg,D_viscs
+  PetscReal,dimension(1:ndof),intent(in)   :: D_so,D_sg,D_ss
+
+  PetscReal,dimension(1:ndof),intent(out)  :: D_viscotl,D_viscgtl,D_viscstl
+
+
   PetscReal,intent(out) :: viscotl,viscgtl,viscstl
   PetscReal             :: viscom ,viscgm ,viscsm
   PetscReal             :: viscoimw,viscgimw,viscsimw
@@ -4600,6 +4655,16 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
   PetscReal             :: tlomegac
   PetscReal             :: viscom_w,viscgm_w,viscsm_w
   PetscReal             :: visco_wc,viscg_wc,viscs_wc
+
+  PetscReal,dimension(1:ndof)  :: D_voqp,D_vgqp,D_vsqp
+  PetscReal,dimension(1:ndof)  :: D_denos,D_dengs,D_denogs
+  PetscReal,dimension(1:ndof)  :: D_viscom,D_viscgm,D_viscsm
+  PetscReal,dimension(1:ndof)  :: D_viscom_w,D_viscgm_w,D_viscsm_w
+  PetscReal,dimension(1:ndof)  :: D_visco_wc,D_viscg_wc,D_viscs_wc
+  PetscReal,dimension(1:ndof)  :: D_worker
+  PetscReal,dimension(1:ndof)  :: D_sos,D_sgs,D_sh
+  PetscReal :: workerReal
+  PetscReal :: sosi_sq,worker,sgsi_sq,shi_sq
 
 !--Set up complement of the Todd Longstaff omega-------------------------------
 
@@ -4619,11 +4684,27 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
   shi=0.0
   if( sh>0.0  ) shi=1.0/sh
 
+  if (getDerivs) then
+    D_sos = D_so + D_ss
+    D_sgs = D_sg + D_ss
+    D_sh  = D_so + D_sg + D_ss
+  endif
+
 !--Use quarter-power mixing rule-----------------------------------------------
 
   voqp=visco**0.25
   vgqp=viscg**0.25
   vsqp=viscs**0.25
+
+  if (getDerivs) then
+    workerReal = 0.25
+    D_voqp = PowerRule(visco,D_visco,workerReal,ndof)
+    D_vgqp = PowerRule(viscg,D_viscg,workerReal,ndof)
+    D_vsqp = PowerRule(viscs,D_viscs,workerReal,ndof)
+  endif
+!--/Use quarter-power mixing rule----------------------------------------------
+
+!------------ denos and derivatives--------------------------------------------
 
   if( sosi>0.0 ) then
     denos= so*sosi*vsqp &
@@ -4632,13 +4713,38 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
     denos= 0.5*(vsqp+voqp)
   endif
 
+   if (getDerivs) then
+    if (sosi>0.d0) then
+
+      D_denos = ProdDivRule(so,D_so,vsqp,D_vsqp,sos,D_sos,ndof) &
+              + ProdDivRule(ss,D_ss,voqp,D_voqp,sos,D_sos,ndof) 
+    else
+      D_denos= 0.5*(D_vsqp+D_voqp)
+    endif
+  endif
+
+!------------ /denos and derivatives--------------------------------------------
+
+
+!------------ dengs and derivatives--------------------------------------------
   if( sgsi>0.0 ) then
     dengs= sg*sgsi*vsqp &
           +ss*sgsi*vgqp
   else
     dengs= 0.5*(vsqp+vgqp)
   endif
+   if (getDerivs) then
+    if (sgsi>0.d0) then
 
+      D_dengs = ProdDivRule(sg,D_sg,vsqp,D_vsqp,sgs,D_sgs,ndof) &
+              + ProdDivRule(ss,D_ss,vgqp,D_vgqp,sgs,D_sgs,ndof) 
+    else
+      D_dengs= 0.5*(D_vsqp+D_vgqp)
+    endif
+  endif
+!------------/dengs and derivatives--------------------------------------------
+
+!------------ denogs and derivatives--------------------------------------------
   if( shi>0.0 ) then
     denogs = so*shi*vgqp*vsqp &
             +sg*shi*vsqp*voqp &
@@ -4648,10 +4754,31 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
              +vsqp*voqp &
              +voqp*vgqp )/3.0
   endif
+   if (getDerivs) then
+    if (shi>0.d0) then
+
+     D_denogs = ProdProdDivRule(so,D_so,vgqp,D_vgqp,vsqp,D_vsqp,sh,D_sh,ndof) &
+              + ProdProdDivRule(sg,D_sg,vsqp,D_vsqp,voqp,D_voqp,sh,D_sh,ndof) &
+              + ProdProdDivRule(ss,D_ss,voqp,D_voqp,vgqp,D_vgqp,sh,D_sh,ndof)
+    else
+      D_denogs = ProdRule(vgqp,D_vgqp,vsqp,D_vsqp,ndof) &
+         + ProdRule(vsqp,D_vsqp,voqp,D_voqp,ndof) &
+         + ProdRule(voqp,D_voqp,vgqp,D_vgqp,ndof)
+      D_denogs = D_denogs/3.0
+    endif
+   endif
+!------------ /denogs and derivatives--------------------------------------------
 
   denos =denos **4.0
   dengs =dengs **4.0
   denogs=denogs**4.0
+
+  if (getDerivs) then
+    workerReal = 4.d0
+    D_denos  = PowerRule(denos,D_denos,workerReal,ndof)
+    D_dengs  = PowerRule(dengs,D_dengs,workerReal,ndof)
+    D_denogs = PowerRule(denogs,D_denogs,workerReal,ndof)
+  endif
 
   denosi =0.0
   if( denos >0.0 ) denosi =1.0/denos
@@ -4668,11 +4795,23 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
   viscgm=viscg      *viscs*dengsi
   viscsm=visco*viscg*viscs*denogsi
 
+  if (getDerivs) then
+    D_viscom = ProdDivRule(visco,D_visco,viscs,D_viscs,denos,D_denos,ndof)
+    D_viscgm = ProdDivRule(viscg,D_viscg,viscs,D_viscs,dengs,D_dengs,ndof)
+    D_viscsm = ProdProdDivRule(visco,D_visco,viscg,D_viscg,viscs,D_viscs,denogs,D_denogs,ndof)
+  endif
+
 !--Construct mixed forms to power omega----------------------------------------
 
   viscom_w=viscom**val_tl_omega
   viscgm_w=viscgm**val_tl_omega
   viscsm_w=viscsm**val_tl_omega
+
+  if (getDerivs) then
+    D_viscom_w = PowerRule(viscom,D_viscom,val_tl_omega,ndof)
+    D_viscgm_w = PowerRule(viscgm,D_viscgm,val_tl_omega,ndof)
+    D_viscsm_w = PowerRule(viscsm,D_viscsm,val_tl_omega,ndof)
+  endif
 
 !--Construct original forms to power omega-------------------------------------
 
@@ -4680,11 +4819,24 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
   viscg_wc=viscg**tlomegac
   viscs_wc=viscs**tlomegac
 
+  if (getDerivs) then
+    D_visco_wc = PowerRule(visco,D_visco,tlomegac,ndof)
+    D_viscg_wc = PowerRule(viscg,D_viscg,tlomegac,ndof)
+    D_viscs_wc = PowerRule(viscs,D_viscs,tlomegac,ndof)
+  endif
+
 !--Combine---------------------------------------------------------------------
 
   viscotl=viscom_w*visco_wc
   viscgtl=viscgm_w*viscg_wc
   viscstl=viscsm_w*viscs_wc
+
+  if (getDerivs) then
+    D_viscotl = ProdRule(viscom_w,D_viscom_w,visco_wc,D_visco_wc,ndof)
+    D_viscgtl = ProdRule(viscgm_w,D_viscgm_w,viscg_wc,D_viscg_wc,ndof)
+    D_viscstl = ProdRule(viscsm_w,D_viscsm_w,viscs_wc,D_viscs_wc,ndof)
+  endif
+
 
 #if 0
   if (viscgtl == 0.d0) then
