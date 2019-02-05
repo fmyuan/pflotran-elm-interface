@@ -5,7 +5,7 @@ module Well_Data_class
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
-  use Well_Type_Class
+  use Well_Type_class
 
   implicit none
 
