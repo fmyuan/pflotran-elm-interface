@@ -172,10 +172,6 @@ ifdef towg_debug
   MYFLAGS += ${FC_DEFINE_FLAG}TOWG_DEBUG
 endif
 
-ifdef well_class
-  MYFLAGS += ${FC_DEFINE_FLAG}WELL_CLASS
-endif
-
 ifdef have_hdf5
 LIBS +=  -L${HDF5_LIB} -lhdf5_fortran -lhdf5 -lz 
 endif

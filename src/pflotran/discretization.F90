@@ -132,6 +132,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
+  use Grid_Grdecl_module, only : UGrdEclExplicitRead, SetIsGrdecl, GetIsGrdecl
 
   implicit none
 
@@ -176,6 +177,10 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
         call InputReadWord(input,option,discretization%ctype,PETSC_TRUE)
         call InputErrorMsg(input,option,'type','GRID')   
         call StringToLower(discretization%ctype)
+        if( discretization%ctype=='grdecl' ) then
+          call SetIsGrdecl()
+          discretization%ctype='unstructured_explicit'
+        endif
         select case(trim(discretization%ctype))
           case('structured')
             discretization%itype = STRUCTURED_GRID
@@ -265,8 +270,13 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           grid%unstructured_grid => un_str_grid
         case(EXPLICIT_UNSTRUCTURED_GRID)
           un_str_grid%explicit_grid => UGridExplicitCreate()
-          call UGridExplicitRead(un_str_grid, &
-                                 discretization%filename,option)
+          if (GetIsGrdecl()) then
+            call UGrdEclExplicitRead(un_str_grid, &
+                                     discretization%filename,option)
+          else
+            call UGridExplicitRead(un_str_grid, &
+                                   discretization%filename,option)
+          endif
           grid%unstructured_grid => un_str_grid
         case(POLYHEDRA_UNSTRUCTURED_GRID)
           un_str_grid%polyhedra_grid => UGridPolyhedraCreate()
