@@ -1587,9 +1587,11 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal, dimension(1:option%nflowdof)::D_kro,D_krg,D_krs
   PetscReal, dimension(1:option%nflowdof)::D_so,D_sg,D_ss
   PetscReal, dimension(1:option%nflowdof)::D_visotl,D_visgtl,D_visstl
+  PetscReal, dimension(1:option%nflowdof)::D_deno,D_deng,D_dens
+  PetscReal, dimension(1:option%nflowdof)::D_denotl,D_dengtl,D_denstl
 
-  PetscReal :: denos,dengs,denogs,denos_pre
-  PetscReal, dimension(1:option%nflowdof)::D_denos,D_dengs,D_denogs,D_denos_pre
+  PetscReal :: denos,dengs,denogs,denos_pre,denog
+  PetscReal, dimension(1:option%nflowdof)::D_denos,D_dengs,D_denogs,D_denos_pre,D_denog
 
   PetscInt :: idex,jdex
 
@@ -2953,9 +2955,55 @@ endif
   deng=auxvar%den_kg(gid)
   dens=auxvar%den_kg(sid)
 
+#if 0
   call TL4PDensity( so,sg,ss,                            &
                     viso,visg,viss,visotl,visgtl,visstl, &
                     deno,deng,dens,denotl,dengtl,denstl )
+#endif
+
+    if (getDerivs) then
+    !!! can cause problems if we pass in these
+    !!! auxvar members directly if they are not allocated
+    !!! (i.e. when running numerical) and in parallel, crashes
+    !!! some tl np2 regtests
+    D_deno = auxvar%D_den_kg(oid,:)
+    D_deng = auxvar%D_den_kg(gid,:)
+    D_dens = auxvar%D_den_kg(sid,:)
+  else
+    !!! they shouldn't be used in this case but might as well
+    D_deno = 0.d0
+    D_deng = 0.d0
+    D_dens = 0.d0
+  endif
+
+  call TL4PDensity( so,sg,ss,                            &
+                    viso,visg,viss,visotl,visgtl,visstl, &
+                    deno,deng,dens,denotl,dengtl,denstl , &
+                        getDerivs, ndof ,      &
+                        D_so,D_sg,D_ss,                   &
+                        dof_osat,dof_gsat,dof_ssat, &
+                        D_deno,D_deng,D_dens,  &
+                        D_viso,D_visg,D_viss,       &
+                        D_visotl,D_visgtl,D_visstl, &
+                        D_denotl,D_dengtl,D_denstl, &
+                        isSat, &
+                        denog,D_denog)
+
+!!! hack for tesing
+if (getDerivs) then
+  if (auxvar%has_TL_test_object) then
+    auxvar%tlT%denotl = denotl
+    auxvar%tlT%dengtl = dengtl
+    auxvar%tlT%denstl = denstl
+
+    auxvar%tlT%denog = denog
+    auxvar%tlT%D_denog = D_denog
+
+    auxvar%tlT%D_denotl = D_denotl
+    auxvar%tlT%D_dengtl = D_dengtl
+    auxvar%tlT%D_denstl = D_denstl
+  endif
+endif
 
 !------------------------------------------------------------------------------
 !  Make and load mobilities
@@ -2972,6 +3020,26 @@ endif
   !!! if (mob < eps) then cycle endif 
   !!! type exceptions in jacobian contributions, but we really need these not
   !!! to be allowed
+
+#if 0
+if (getDerivs) then
+  auxvar%D_mobility(oid,:) = 0.0
+  auxvar%D_mobility(gid,:) = 0.0
+  auxvar%D_mobility(sid,:) = 0.0
+  if (kro > 0.0) then
+    auxvar%mobility(oid) = kro/visotl
+    auxvar%D_mobility(oid,:) = DivRule(kro,D_kro,visotl,D_visotl,ndof)
+  endif
+  if (krg > 0.0) then 
+    auxvar%mobility(gid) = krg/visgtl
+    auxvar%D_mobility(gid,:) = DivRule(krg,D_krg,visgtl,D_visgtl,ndof)
+  endif
+  if (krs > 0.0) then
+    auxvar%mobility(sid) = krs/visstl
+    auxvar%D_mobility(sid,:) = DivRule(krs,D_krs,visstl,D_visstl,ndof)
+  endif
+else
+#endif
 
 if (getDerivs) then
   if (kro > 0.0) auxvar%mobility(oid) = kro/visotl
@@ -3004,6 +3072,14 @@ endif
   auxvar%den_kg(oid)=denotl
   auxvar%den_kg(gid)=dengtl
   auxvar%den_kg(sid)=denstl
+
+#if 0
+  if (getDerivs) then
+    auxvar%D_den_kg(oid,:)=D_denotl
+    auxvar%D_den_kg(gid,:)=D_dengtl
+    auxvar%D_den_kg(sid,:)=D_denstl
+  endif
+#endif
 
 end subroutine TL4PAuxVarCompute
 
@@ -4744,6 +4820,7 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
     endif
   endif
 
+#if 0
   if (getDerivs) then
     ! find in tl_derivatives.F90
     !call TL4P_Util_1(so,vsqp,D_vsqp,ss,voqp,D_voqp,sosi,dof_osat,dof_ssat,denos,D_denos,ndof)
@@ -4766,6 +4843,7 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
       D_denos_alt= 0.5*(D_vsqp+D_voqp)
     endif
   endif
+#endif
 
 !------------ /denos and derivatives--------------------------------------------
 
@@ -4909,7 +4987,16 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
                         viso  ,visg  ,viss  , &
                         visotl,visgtl,visstl, &
                         deno  ,deng  ,dens  , &
-                        denotl,dengtl,denstl )
+                        denotl,dengtl,denstl,  &
+                        getDerivs, ndof ,      &
+                        D_so,D_sg,D_ss,             &
+                        dof_osat,dof_gsat,dof_ssat, &
+                        D_deno,D_deng,D_dens,       &
+                        D_viso,D_visg,D_viss,       &
+                        D_visotl,D_visgtl,D_visstl, &
+                        D_denotl,D_dengtl,D_denstl, &
+                        isSat, &
+                        denog,D_denog)
 
 !------------------------------------------------------------------------------
 ! Set up the interpolated TL4P gravity densities
@@ -4918,15 +5005,36 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
 ! Date  : Apr 2018
 !------------------------------------------------------------------------------
 
+  use Derivatives_utilities_module
   implicit none
 
   PetscReal,intent(in ) :: so    ,sg    ,ss
   PetscReal,intent(in ) :: viso  ,visg  ,viss
   PetscReal,intent(in ) :: visotl,visgtl,visstl
   PetscReal,intent(in ) :: deno  ,deng  ,dens
+
+
+  PetscBool,intent(in ) :: getDerivs,isSat
+  PetscInt ,intent(in ) :: ndof,dof_osat,dof_gsat,dof_ssat
+  PetscReal,dimension(1:ndof),intent(in)  :: D_so,D_sg,D_ss
+  PetscReal,dimension(1:ndof),intent(in)  :: D_deno,D_deng,D_dens
+  PetscReal,dimension(1:ndof),intent(in)  :: D_viso,D_visg,D_viss
+  PetscReal,dimension(1:ndof),intent(in)  :: D_visotl,D_visgtl,D_visstl
+
   PetscReal,intent(out) :: denotl,dengtl,denstl
+  PetscReal,dimension(1:ndof),intent(out) :: D_denotl,D_dengtl,D_denstl
+
   PetscReal             :: tlomega,tlomegac,sh,shi,fo,fg,fs,denm,sog,sogi,go,gg
   PetscReal             :: visoqp,visgqp,d,d4,d4i,visog,denog,denmo,denmg,denms
+
+  PetscReal,dimension(1:ndof) :: D_denm,D_denog
+  PetscReal,dimension(1:ndof) :: D_d,D_d4,D_visoqp,D_visgqp,D_visog
+  PetscReal,dimension(1:ndof) :: D_sog,D_sh,D_fo,D_fg,D_fs,D_go,D_gg
+  PetscReal,dimension(1:ndof) :: D_denmo,D_denmg,D_denms
+  PetscReal :: workerReal
+
+  PetscReal,dimension(1:ndof) :: D_worker
+  PetscReal :: sgoi_sq
 
 !--Initialise------------------------------------------------------------------
 
@@ -4940,6 +5048,10 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
 
   sh=so+sg+ss
 
+  if (getDerivs) then
+    D_sh  = D_so + D_sg + D_ss
+  endif
+
 !--Form the hydrocarbon saturation fractions-----------------------------------
 
   if( sh>0.0 ) then
@@ -4950,11 +5062,23 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
     fg=sg*shi
     fs=ss*shi
 
+    if (getDerivs) then
+      D_fo = DivRule(so,D_so,sh,D_sh,ndof)
+      D_fg = DivRule(sg,D_sg,sh,D_sh,ndof)
+      D_fs = DivRule(ss,D_ss,sh,D_sh,ndof)
+    endif
+
   else
 
     fo=1.0/3.0
     fg=1.0/3.0
     fs=1.0/3.0
+
+    if (getDerivs) then
+      D_fo = 0.0
+      D_fg = 0.0
+      D_fs = 0.0
+    endif
 
   endif
 
@@ -4963,15 +5087,34 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
   denm= fo*deno &
        +fg*deng &
        +fs*dens
+  ! these aren't needed?
   denmo=denm
   denmg=denm
   denms=denm
+
+
+  if (getDerivs) then
+    D_denm = ProdRule(fo,D_fo,deno,D_deno,ndof) &
+           + ProdRule(fg,D_fg,deng,D_deng,ndof) &
+           + ProdRule(fs,D_fs,dens,D_dens,ndof) 
+
+    ! don't need this
+    D_denmo = D_denm
+    D_denmg = D_denm
+    D_denms = D_denm
+  endif
 
 !--Omega-dependent mixing to final density-------------------------------------
 
   denotl=tlomegac*deno+tlomega*denm
   dengtl=tlomegac*deng+tlomega*denm
   denstl=tlomegac*dens+tlomega*denm
+
+  if (getDerivs) then
+    D_denotl=tlomegac*D_deno+tlomega*D_denm
+    D_dengtl=tlomegac*D_deng+tlomega*D_denm
+    D_denstl=tlomegac*D_dens+tlomega*D_denm
+  endif
 
 !--Now the main calculation: start with forming an oil-gas viscosity estimate--
 
@@ -4980,17 +5123,52 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
     sogi=1.0/sog
     go=so*sogi
     gg=sg*sogi
+    if (getDerivs) then
+      D_sog=D_so+D_sg
+      D_go = DivRule(so,D_so,sog,D_sog,ndof)
+      D_gg = DivRule(sg,D_sg,sog,D_sog,ndof)
+    endif
   else
     go=0.5
     gg=0.5
+    if (getDerivs) then
+      D_sog=0.0
+      D_go = 0.0 
+      D_gg = 0.0
+    endif
   endif
 
   denog=go*deno+gg*deng
+  if (getDerivs) then
+    if( sog>0.0 ) then
+#if 0
+      D_denog = ProdDivRule(so,D_so,deno,D_deno,sog,D_sog,ndof) &
+              + ProdDivRule(sg,D_sg,deng,D_deng,sog,D_sog,ndof)
+#endif
+      D_denog = ProdRule(go,D_go,deno,D_deno,ndof) &
+              + ProdRule(gg,D_gg,deng,D_deng,ndof)
+    else
+    endif
+  endif
 
 !--Form the quarter-powers of the two viscosities (unless zero value is OK)----
 
   if( viso>0.0 ) visoqp=viso**0.25
   if( visg>0.0 ) visgqp=visg**0.25
+
+  if (getDerivs) then
+    workerReal = 0.25
+    if (viso>0.0) then
+      D_visoqp = PowerRule(viso,D_viso,workerReal,ndof)
+    else
+      D_visoqp = 0.d0
+    endif
+    if (visg>0.0) then
+      D_visgqp = PowerRule(visg,D_visg,workerReal,ndof)
+    else
+      D_visgqp = 0.d0
+    endif
+  endif
 
 !--Form 1/4 power combination (note indices to get inverses)---------------- --
 
@@ -4998,14 +5176,40 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
   d4=d**4.0
   if( d4>0.0 ) d4i=1.0/d4
 
+  if (getDerivs) then 
+    D_d = ProdRule(go,D_go,visgqp,D_visgqp,ndof) &
+        + ProdRule(gg,D_gg,visoqp,D_visoqp,ndof)
+    workerReal = 4.0
+    D_d4 = PowerRule(d,D_d,workerReal,ndof)
+
+  endif
+
 ! Form value
   visog=viso*visg*d4i
+  if (getDerivs) then
+    D_visog = ProdDivRule(viso,D_viso,visg,D_visg,d4,D_d4,ndof)
+  endif
 
 !--Now form the viscosity-weighted values--------------------------------------
 
+#if 0
   call formMixedDen2(viso,viss ,visotl,deno,dens ,denotl)
   call formMixedDen2(visg,viss ,visgtl,deng,dens ,dengtl)
   call formMixedDen2(viss,visog,visstl,dens,denog,denstl)
+#endif
+
+  call formMixedDen2(viso,viss,visotl,deno,dens ,denotl,    &
+                     getDerivs,ndof,                        &
+                     D_viso,D_viss,D_visotl,D_deno,D_dens,  &
+                     D_denotl)
+  call formMixedDen2(visg,viss,visgtl,deng,dens ,dengtl,    &
+                     getDerivs,ndof,                        &
+                     D_visg,D_viss,D_visgtl,D_deng,D_dens,  &
+                     D_dengtl)
+  call formMixedDen2(viss,visog,visstl,dens,denog,denstl,   &
+                     getDerivs,ndof,                        &
+                     D_viss,D_visog,D_visstl,D_dens,D_denog,&
+                     D_denstl)
 
 end subroutine TL4PDensity
 
@@ -5198,7 +5402,10 @@ end subroutine TL4PScaleLookupSaturation
 
 ! ************************************************************************** !
 
-subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl)
+subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl, &
+                         getDerivs,ndof,                    &
+                         D_visa,D_visb,D_visatl,D_dena,D_denb,       &
+                         D_denatl)
 
 !------------------------------------------------------------------------------
 ! Obtain interpolated Todd-Longstaff density to match Todd-Longstaff viscosity
@@ -5207,6 +5414,7 @@ subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl)
 ! Date  : Apr 2018
 !------------------------------------------------------------------------------
 
+  use Derivatives_utilities_module
   implicit none
 
   PetscReal,intent(in)   :: visa,visb,visatl,dena,denb
@@ -5214,6 +5422,16 @@ subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl)
   PetscReal              :: visbi,visatli
   PetscReal              :: m,me,mqp,meqp,mqpm1,mqpm1i
   PetscReal              :: fa,fb
+
+  PetscBool              :: getDerivs
+  PetscInt               :: ndof
+
+  PetscReal,dimension(1:ndof),intent(in) :: D_visa,D_visb,D_visatl,D_dena,D_denb
+  PetscReal,dimension(1:ndof),intent(inout) :: D_denatl
+
+  PetscReal,dimension(1:ndof) :: D_m,D_me,D_fa,D_mqp,D_meqp
+
+  PetscReal :: workerReal
 
 !--Form the viscosity ratio and check that it is not unity---------------------
 
@@ -5224,14 +5442,29 @@ subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl)
   if( visatl>0.0 ) visatli=1.0/visatl
 
   m=visa*visbi
+
+  if (getDerivs) then
+    D_m = DivRule(visa,D_visa,visb,D_visb,ndof)
+  endif
+
   if( (m.ne.1.0) .and. (visatl>0.0) ) then
 
 ! Build the interpolation coefficient, fa
 
     me=visa*visatli
 
+    if (getDerivs) then
+      D_me = DivRule(visa,D_visa,visatl,D_visatl,ndof)
+    endif
+
     mqp =M**0.25
     meqp=Me**0.25
+
+    if (getDerivs) then
+      workerReal = 0.25
+      D_mqp = PowerRule(m,D_m,workerReal,ndof)
+      D_meqp = PowerRule(me,D_me,workerReal,ndof)
+    endif
 
     mqpm1=mqp-1.0
 
@@ -5245,11 +5478,26 @@ subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl)
     if( fa<0.0 ) fa=0.0
     if( fa>1.0 ) fa=1.0
 
+    if (getDerivs) then
+      if (fa >= 0.0 .AND. fa <= 1.0) then
+        D_fa = DivRule(mqp-meqp,D_mqp-D_meqp,mqpm1,D_mqp,ndof)
+      else
+        D_fa = 0.d0
+      endif
+    endif
+
     fb=1.0-fa
 
 ! Construct output density and over-write existing default value
 
     denatl=dena*fa+denb*fb
+
+    if (getDerivs) then
+      ! i.e. denatl = dena*fa+denb(1-fa)
+      !             = fa*(dena-denb) + denb
+      D_denatl = ProdRule(fa,D_fa,dena-denb,D_dena-D_denb,ndof) &
+               + D_denb
+    endif
 
   endif
 

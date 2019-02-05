@@ -2612,6 +2612,34 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
     !do iphase=1,nphase
     iphase = 1
       ! get unperturbed value
+      p_unpert = auxvars(0)%tlT%denog
+      ! get perturbed value
+      p_pert = auxvars(idof)%tlT%denog
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+      ! analytical derivative
+      aderiv = auxvars(0)%tlT%D_denog(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "denog, internal to density (note phase meaningless):"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *,
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+    iphase = 1
+      ! get unperturbed value
       p_unpert = auxvars(0)%tlT%denotl
       ! get perturbed value
       p_pert = auxvars(idof)%tlT%denotl
