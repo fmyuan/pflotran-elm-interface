@@ -2403,6 +2403,125 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
     !do iphase=1,nphase
     iphase = 1
       ! get unperturbed value
+      p_unpert = auxvars(0)%tlT%denos_pre
+      ! get perturbed value
+      p_pert = auxvars(idof)%tlT%denos_pre
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+      ! analytical derivative
+      aderiv = auxvars(0)%tlT%D_denos_pre(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "denos_pre, internal to visc calcs (note phase meaningless):"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *, "sats: "
+        print *,auxvars(0)%sat
+        print *,
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+    iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%tlT%denos
+      ! get perturbed value
+      p_pert = auxvars(idof)%tlT%denos
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+      ! analytical derivative
+      aderiv = auxvars(0)%tlT%D_denos(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "denos, internal to visc calcs (note phase meaningless):"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *, "sats: "
+        print *,auxvars(0)%sat
+        print *,
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+    iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%tlT%dengs
+      ! get perturbed value
+      p_pert = auxvars(idof)%tlT%dengs
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+      ! analytical derivative
+      aderiv = auxvars(0)%tlT%D_dengs(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "dengs, internal to visc calcs (note phase meaningless):"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *, "sats: "
+        print *,auxvars(0)%sat
+        print *,
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+    iphase = 1
+      ! get unperturbed value
+      p_unpert = auxvars(0)%tlT%denogs
+      ! get perturbed value
+      p_pert = auxvars(idof)%tlT%denogs
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+      ! analytical derivative
+      aderiv = auxvars(0)%tlT%D_denogs(idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "denogs, internal to visc calcs (note phase meaningless):"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *, "sats: "
+        print *,auxvars(0)%sat
+        print *,
+        probs = probs + 1
+      endif
+    !enddo
+  enddo
+
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    !do iphase=1,nphase
+    iphase = 1
+      ! get unperturbed value
       p_unpert = auxvars(0)%tlT%viscotl
       ! get perturbed value
       p_pert = auxvars(idof)%tlT%viscotl
@@ -2419,6 +2538,8 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "viscotl (note phase meaningless):"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *, "sats: "
+        print *,auxvars(0)%sat
         print *,
         probs = probs + 1
       endif
@@ -2447,6 +2568,8 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "viscgtl (note phase meaningless):"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *, "sats: "
+        print *,auxvars(0)%sat
         print *,
         probs = probs + 1
       endif
@@ -2475,6 +2598,8 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
       if (diff>atol .OR. rdiff>rtol) then
         print *, "viscstl (note phase meaningless):"
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *, "sats: "
+        print *,auxvars(0)%sat
         print *,
         probs = probs + 1
       endif

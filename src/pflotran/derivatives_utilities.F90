@@ -238,24 +238,42 @@ implicit none
   PetscReal :: w, x, y, z
   PetscReal, dimension(1:n) :: dw, dx, dy, dz
   PetscReal, dimension(1:n) :: ProdProdDivRule
-  PetscReal :: sq_denom
+  PetscReal :: sq_denom,term1,term2,totterm
 
   PetscInt :: i
 
   ProdProdDivRule = 0.d0
 
   
+#if 0
   if( abs(z)<EPSILON(w) ) then
     return
   endif
+#endif
   sq_denom = z*z
+
+  !!! seems to be problematic:
+#if 0
   if( abs(sq_denom)<EPSILON(w) ) then
+    return
+  endif
+#endif
+
+!!! try just avoiding division by 0?
+  if( abs(z)< 0.0 ) then
+    return
+  endif
+  if( abs(sq_denom)< 0.d0 ) then
     return
   endif
 
 
   do i = 1,n
-    ProdProdDivRule(i) = (dw(i)*x*y + w*dx(i)*y +  w*x*dy(i))/z - dz(i)*w*x*y/sq_denom
+    term1 = (dw(i)*x*y + w*dx(i)*y +  w*x*dy(i))/z
+    term2 = -dz(i)*w*x*y/sq_denom
+    totterm = term1+term2
+    ProdProdDivRule(i) = totterm
+    !ProdProdDivRule(i) = (dw(i)*x*y + w*dx(i)*y +  w*x*dy(i))/z - dz(i)*w*x*y/sq_denom
   enddo
 
 end function ProdProdDivRule

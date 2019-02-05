@@ -1588,6 +1588,9 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal, dimension(1:option%nflowdof)::D_so,D_sg,D_ss
   PetscReal, dimension(1:option%nflowdof)::D_visotl,D_visgtl,D_visstl
 
+  PetscReal :: denos,dengs,denogs,denos_pre
+  PetscReal, dimension(1:option%nflowdof)::D_denos,D_dengs,D_denogs,D_denos_pre
+
   PetscInt :: idex,jdex
 
   !!! VARIABLES HERE
@@ -2915,7 +2918,9 @@ endif
                          dof_osat,dof_gsat,dof_ssat, &
                          D_viso,D_visg,D_viss, &         ! visc derivs in
                          D_visotl,D_visgtl,D_visstl, &   ! tl visc derivs out
-                         isSat)
+                         isSat,               &
+                         denos,D_denos,dengs,D_dengs,denogs,D_denogs, &
+                         denos_pre,D_denos_pre)
 
 
   !!! hack for tesing
@@ -2925,9 +2930,20 @@ endif
       auxvar%tlT%viscgtl = visgtl
       auxvar%tlT%viscstl = visstl
 
+      auxvar%tlT%denos = denos
+      auxvar%tlT%dengs = dengs
+      auxvar%tlt%denogs = denogs
+
+      auxvar%tlT%denos_pre = denos_pre
+      auxvar%tlT%D_denos_pre = D_denos_pre
+
       auxvar%tlT%D_viscotl = D_visotl
       auxvar%tlT%D_viscgtl = D_visgtl
       auxvar%tlT%D_viscstl = D_visstl
+
+      auxvar%tlT%D_denos = D_denos
+      auxvar%tlT%D_dengs = D_dengs
+      auxvar%tlT%D_denogs = D_denogs
     endif
   endif
 
@@ -4620,7 +4636,9 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
                            dof_osat,dof_gsat,dof_ssat, &
                            D_visco,D_viscg,D_viscs, &         ! visc derivs in
                            D_viscotl,D_viscgtl,D_viscstl, &   ! tl visc derivs out
-                           isSat)
+                           isSat,                          &
+                           denos,D_denos,dengs,D_dengs,denogs,D_denogs, &
+                           denos_pre,D_denos_pre)
 
 !------------------------------------------------------------------------------
 ! Set up the interpolated TL4P viscosities
@@ -4662,7 +4680,10 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
   PetscReal,dimension(1:ndof)  :: D_viscom_w,D_viscgm_w,D_viscsm_w
   PetscReal,dimension(1:ndof)  :: D_visco_wc,D_viscg_wc,D_viscs_wc
   PetscReal,dimension(1:ndof)  :: D_worker
+  PetscReal,dimension(1:ndof)  :: D_1,D_2,D_3,D_denos_alt
   PetscReal,dimension(1:ndof)  :: D_sos,D_sgs,D_sh
+  PetscReal,dimension(1:ndof)  :: D_denos_pre
+  PetscReal :: denos_pre
   PetscReal :: workerReal
   PetscReal :: sosi_sq,worker,sgsi_sq,shi_sq
 
@@ -4723,6 +4744,29 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
     endif
   endif
 
+  if (getDerivs) then
+    ! find in tl_derivatives.F90
+    !call TL4P_Util_1(so,vsqp,D_vsqp,ss,voqp,D_voqp,sosi,dof_osat,dof_ssat,denos,D_denos,ndof)
+    if (sosi>0.d0) then
+      sosi_sq = sosi*sosi
+
+      worker = so*sosi
+      D_worker=0.d0
+      D_worker(dof_osat) =  ss*sosi_sq
+      D_worker(dof_ssat) = -so*sosi_sq
+      D_denos_alt = ProdRule(worker,D_worker,vsqp,D_vsqp,ndof)
+
+      worker = ss*sosi
+      D_worker=0.d0
+      D_worker(dof_osat) = -ss*sosi_sq
+      D_worker(dof_ssat) =  so*sosi_sq
+      D_denos_alt = D_denos_alt  &
+              + ProdRule(worker,D_worker,voqp,D_voqp,ndof)
+    else
+      D_denos_alt= 0.5*(D_vsqp+D_voqp)
+    endif
+  endif
+
 !------------ /denos and derivatives--------------------------------------------
 
 
@@ -4757,9 +4801,17 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
    if (getDerivs) then
     if (shi>0.d0) then
 
+#if 0
      D_denogs = ProdProdDivRule(so,D_so,vgqp,D_vgqp,vsqp,D_vsqp,sh,D_sh,ndof) &
               + ProdProdDivRule(sg,D_sg,vsqp,D_vsqp,voqp,D_voqp,sh,D_sh,ndof) &
               + ProdProdDivRule(ss,D_ss,voqp,D_voqp,vgqp,D_vgqp,sh,D_sh,ndof)
+#endif
+    D_1 = ProdProdDivRule(so,D_so,vgqp,D_vgqp,vsqp,D_vsqp,sh,D_sh,ndof)
+    D_2 = ProdProdDivRule(sg,D_sg,vsqp,D_vsqp,voqp,D_voqp,sh,D_sh,ndof) 
+    D_3 = ProdProdDivRule(ss,D_ss,voqp,D_voqp,vgqp,D_vgqp,sh,D_sh,ndof)
+    D_denogs = D_1 + D_2 + D_3
+
+
     else
       D_denogs = ProdRule(vgqp,D_vgqp,vsqp,D_vsqp,ndof) &
          + ProdRule(vsqp,D_vsqp,voqp,D_voqp,ndof) &
@@ -4769,9 +4821,8 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
    endif
 !------------ /denogs and derivatives--------------------------------------------
 
-  denos =denos **4.0
-  dengs =dengs **4.0
-  denogs=denogs**4.0
+  denos_pre = denos
+  D_denos_pre = D_denos
 
   if (getDerivs) then
     workerReal = 4.d0
@@ -4779,6 +4830,11 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
     D_dengs  = PowerRule(dengs,D_dengs,workerReal,ndof)
     D_denogs = PowerRule(denogs,D_denogs,workerReal,ndof)
   endif
+
+  denos =denos **4.0
+  dengs =dengs **4.0
+  denogs=denogs**4.0
+
 
   denosi =0.0
   if( denos >0.0 ) denosi =1.0/denos

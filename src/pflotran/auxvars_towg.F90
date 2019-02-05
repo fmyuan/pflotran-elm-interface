@@ -73,6 +73,8 @@ module AuxVars_TOWG_module
     PetscReal :: uoil,uvap
     PetscReal :: cellpres
     PetscReal  :: krsi,krgi
+    PetscReal  :: denos,dengs,denogs,denos_pre
+
     PetscReal, pointer :: D_krotl(:),D_krgtl(:),D_viscotl(:),D_viscgtl(:)
     PetscReal, pointer :: D_denotl(:),D_dengtl(:)
     PetscReal, pointer :: D_krstl(:),D_viscstl(:),D_denstl(:)
@@ -82,6 +84,7 @@ module AuxVars_TOWG_module
     PetscReal, pointer :: D_uoil(:),D_uvap(:)
     PetscReal, pointer :: D_cellpres(:)
     PetscReal, pointer :: D_krsi(:),D_krgi(:)
+    PetscReal, pointer :: D_denos(:),D_dengs(:),D_denogs(:),D_denos_pre(:)
 
   end type tl_auxvar_testing_type
 
@@ -191,6 +194,16 @@ subroutine AuxVarTOWGInit(this,option)
 
     allocate(this%tlT%D_krgi(option%nflowdof))
     this%tlT%D_krgi= 0.d0
+
+    allocate(this%tlT%D_denos(option%nflowdof))
+    this%tlT%D_denos= 0.d0
+    allocate(this%tlT%D_dengs(option%nflowdof))
+    this%tlT%D_dengs= 0.d0
+    allocate(this%tlT%D_denogs(option%nflowdof))
+    this%tlT%D_denogs= 0.d0
+
+    allocate(this%tlT%D_denos_pre(option%nflowdof))
+    this%tlT%D_denos_pre= 0.d0
   endif
 
   call AuxVarFlowInit(this,option)
@@ -366,6 +379,11 @@ subroutine AuxVarTOWGStrip(this)
 
     call DeallocateArray(this%tlT%D_krsi)
     call DeallocateArray(this%tlT%D_krgi)
+
+    call DeallocateArray(this%tlT%D_denos)
+    call DeallocateArray(this%tlT%D_dengs)
+    call DeallocateArray(this%tlT%D_denogs)
+    call DeallocateArray(this%tlT%D_denos_pre)
     deallocate(this%tlT)
   endif
 
