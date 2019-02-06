@@ -4360,8 +4360,8 @@ subroutine RTMaxChange(realization,dcmax,dvfmax)
   implicit none
   
   type(realization_subsurface_type) :: realization
-  PetscReal :: dcmax
-  PetscReal :: dvfmax
+  PetscReal :: dcmax(:)
+  PetscReal :: dvfmax(:)
   
   type(option_type), pointer :: option
   type(field_type), pointer :: field 
@@ -4387,8 +4387,7 @@ subroutine RTMaxChange(realization,dcmax,dvfmax)
   call VecWAXPY(field%tran_dxx,-1.d0,field%tran_xx,field%tran_yy, &
                 ierr);CHKERRQ(ierr)
   
-  call VecStrideNorm(field%tran_dxx,ZERO_INTEGER,NORM_INFINITY,dcmax, &
-                     ierr);CHKERRQ(ierr)
+  call VecStrideNormAll(field%tran_dxx,NORM_INFINITY,dcmax,ierr);CHKERRQ(ierr)
                      
 #if 1
   ! update mineral volume fractions
@@ -4401,7 +4400,7 @@ subroutine RTMaxChange(realization,dcmax,dvfmax)
         delta_volfrac = rt_auxvars(ghosted_id)%mnrl_rate(imnrl)* &
                         reaction%mineral%kinmnrl_molar_vol(imnrl)* &
                         option%tran_dt
-        dvfmax = max(dabs(delta_volfrac),dvfmax)
+        dvfmax(imnrl) = max(dabs(delta_volfrac),dvfmax(imnrl))
       enddo
     enddo
   endif 
