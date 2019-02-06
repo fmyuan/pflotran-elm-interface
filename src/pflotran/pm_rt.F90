@@ -555,7 +555,8 @@ subroutine PMRTFinalizeTimestep(this)
     if (this%realization%reaction%mineral%nkinmnrl > 0) then
       write(*,'("               dvfmx= ",1pe12.4," dvf/dt= ",1pe12.4, &
             &" [1/s]")') &
-        this%max_volfrac_change, this%max_volfrac_change/this%option%tran_dt
+        maxval(this%max_volfrac_change), &
+        maxval(this%max_volfrac_change)/this%option%tran_dt
     endif
   endif
   if (this%option%print_file_flag) then  
@@ -567,7 +568,8 @@ subroutine PMRTFinalizeTimestep(this)
     if (this%realization%reaction%mineral%nkinmnrl > 0) then
       write(this%option%fid_out, &
         '("               dvfmx= ",1pe12.4," dvf/dt= ",1pe12.4," [1/s]")') &
-        this%max_volfrac_change, this%max_volfrac_change/this%option%tran_dt
+        maxval(this%max_volfrac_change), &
+        maxval(this%max_volfrac_change)/this%option%tran_dt
     endif
   endif
   

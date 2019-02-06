@@ -682,7 +682,13 @@ subroutine RTInitializeTimestep(realization)
   use Realization_Subsurface_class
 
   type(realization_subsurface_type) :: realization
+  PetscErrorCode :: ierr
   
+  ! copying of solution to tran_yy for temporary storage in case of 
+  ! time step cut must be performed here as tran_xx change outside of
+  ! reactive transport (e.g. pm_ufd_decay)
+  call VecCopy(realization%field%tran_xx,realization%field%tran_yy, &
+               ierr);CHKERRQ(ierr)
   call RTUpdateFixedAccumulation(realization)
   ! geh: never use transport coefs evaluated at time k
 !  call RTUpdateTransportCoefs(realization)
@@ -731,8 +737,6 @@ subroutine RTUpdateEquilibriumState(realization)
   reaction => realization%reaction
   grid => patch%grid
 
-  call VecCopy(realization%field%tran_xx,realization%field%tran_yy, &
-               ierr);CHKERRQ(ierr)
   call DiscretizationGlobalToLocal(realization%discretization, &
                                    realization%field%tran_xx, &
                                    realization%field%tran_xx_loc,NTRANDOF)
