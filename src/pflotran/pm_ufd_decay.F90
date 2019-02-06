@@ -1153,11 +1153,12 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   PetscReal :: norm
   PetscReal :: residual(this%num_isotopes)
   PetscReal :: solution(this%num_isotopes)
+  PetscReal :: prev_solution(this%num_isotopes)
   PetscReal :: rhs(this%num_isotopes)
   PetscInt :: indices(this%num_isotopes)
   PetscReal :: Jacobian(this%num_isotopes,this%num_isotopes)
   PetscReal :: rate, rate_constant, stoich, one_over_dt
-  PetscReal, parameter :: tolerance = 1.d-12
+  PetscReal, parameter :: tolerance = 1.d-6
   PetscInt :: idaughter
   PetscInt :: it
 ! -----------------------------------------------------------------------
@@ -1272,11 +1273,13 @@ subroutine PMUFDDecaySolve(this,time,ierr)
 
     else
       ! implicit solution approach
-      residual = 1.d0 ! to start, must set bigger than tolerance
+      prev_solution = 1.d0 ! to start, must set bigger than tolerance
       solution = mass_iso_tot0 ! to start, set solution to initial mass
       it = 0
       do ! nonlinear loop
-        if (dot_product(residual,residual) < tolerance) exit ! 2-norm(residual)
+        ! inf norm relative change in concentration
+        if (maxval(abs(solution-prev_solution)/prev_solution) < tolerance) exit
+        prev_solution = solution
         it = it + 1
         residual = 0.d0 ! set to zero because we are summing
         ! f(M_e^{k+1,p}) = (M_e^{k+1,p} - M_e^k)/dt -R(M_e^{k+1,p})
