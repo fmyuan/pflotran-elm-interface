@@ -4978,19 +4978,20 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
     D_viscotl = ProdRule(viscom_w,D_viscom_w,visco_wc,D_visco_wc,ndof)
     D_viscgtl = ProdRule(viscgm_w,D_viscgm_w,viscg_wc,D_viscg_wc,ndof)
     D_viscstl = ProdRule(viscsm_w,D_viscsm_w,viscs_wc,D_viscs_wc,ndof)
+
+    do i = 1,ndof
+      if (isnan(D_viscotl(i))) then
+        print *, "viscotl nan deriv at ", i
+      endif
+      if (isnan(D_viscgtl(i))) then
+        print *, "viscgtl nan deriv at ", i
+      endif
+      if (isnan(D_viscstl(i))) then
+        print *, "viscstl nan deriv at ", i
+      endif
+    enddo
   endif
 
-  do i = 1,ndof
-    if (isnan(D_viscotl(i))) then
-      print *, "viscotl nan deriv at ", i
-    endif
-    if (isnan(D_viscgtl(i))) then
-      print *, "viscgtl nan deriv at ", i
-    endif
-    if (isnan(D_viscstl(i))) then
-      print *, "viscstl nan deriv at ", i
-    endif
-  enddo
 
 
 #if 0
@@ -5235,7 +5236,7 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
                      D_viss,D_visog,D_visstl,D_dens,D_denog,&
                      D_denstl)
 
-
+if (getDerivs) then
   do i = 1,ndof
     if (isnan(D_denotl(i))) then
       print *, "denotl nan deriv at ", i
@@ -5247,6 +5248,7 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
       print *, "denstl nan deriv at ", i
     endif
   enddo
+endif
 
 end subroutine TL4PDensity
 
