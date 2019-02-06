@@ -1550,12 +1550,6 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: socrs,svcrs,krvm
 
   PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp,dof_ssat,ndof,cploc
-#if 0
-  PetscReal,dimension(1:option%nflowdof) :: D_cell_pres,D_kr,D_visc,D_visco,D_viscg
-  PetscReal,dimension(1:option%nflowdof) :: D_deno,D_deng,D_sath
-  PetscReal,dimension(1:option%nflowdof) :: D_krotl,D_krgtl,D_viscotl,D_viscgtl,D_denotl,D_dengtl
-  PetscReal :: d_x_d_cp,d_x_d_T,d_ps_d_T
-#endif
 
   PetscReal, parameter :: eps_oil=1.0d-5
   PetscReal, parameter :: eps_gas=1.0d-8
@@ -2551,6 +2545,7 @@ endif
   if (getDerivs) then
     D_sh = 0.d0;D_sh(dof_osat)=1.d0;D_sh(dof_ssat)=1.d0
     if (isSat) D_sh(dof_gsat) = 1.d0
+    !!! TODO D_sh above should just be sum of existing sat deriv arrays
     D_krh = dkrh_sath*D_sh
   endif
 
@@ -2569,6 +2564,7 @@ endif
       worker = so-socrs
       ! D_socrs = sogcr*D_fi = -sogcr*D_fm so:
       D_worker = sogcr*D_fm; D_worker(dof_osat) = D_worker(dof_osat) + 1.d0
+      !!! TODO - just add oil sat deriv to sogcr*Dfm
       D_num = ProdRule(krh,D_krh,worker,D_worker,ndof)
 
       den = sh - socrs
@@ -2579,6 +2575,10 @@ endif
     else
       D_krom = 0.d0
     endif
+  endif
+
+  if ((so .ge. socrs) .AND. D_krom(2) == 0.0 .AND. abs(auxvar%sat(3)) > 0.0 .AND. abs(auxvar%sat(4)) > 0.0) then
+    print *, "odd krom deriv here"
   endif
 !!! hack for tesing
 if (getDerivs) then
@@ -2599,7 +2599,8 @@ endif
   if (getDerivs) then
     D_krvm = 0.d0
     if((sh .gt. (svcrs+epss)) .and. (sv .ge. svcrs)) then
-      num= krh*(sv-svcrs)
+      num = krh*(sv-svcrs)
+      den = sh-svcrs
       worker = sv-svcrs
       ! D_svcrs = sgcr*D_fi = -sgcr*D_fm so:
       !D_worker = sogcr*D_fm; D_worker(dof_ssat) = D_worker(dof_ssat) + 1.d0 !!!! MISTAKE? should not be sogcr
@@ -2715,7 +2716,7 @@ endif
       dcor_dt = dcvusp_dt*one_p_cvusp
 
       dvo_dp = viso*dcor_dpo ! viso is independent of po here
-      dvo_dpb = viso*dcor_dpb + dviso_dpb*cor
+      dvo_dpb = viso*dcor_dpb + dvo_dpb*cor
       dvo_dt = viso*dcor_dt + dvo_dt*cor
 
     endif
@@ -3021,25 +3022,35 @@ endif
   !!! type exceptions in jacobian contributions, but we really need these not
   !!! to be allowed
 
-#if 0
 if (getDerivs) then
+    auxvar%D_mobility(oid,:) = DivRule(kro,D_kro,visotl,D_visotl,ndof)
+    auxvar%D_mobility(gid,:) = DivRule(krg,D_krg,visgtl,D_visgtl,ndof)
+    auxvar%D_mobility(sid,:) = DivRule(krs,D_krs,visstl,D_visstl,ndof)
+#if 0
   auxvar%D_mobility(oid,:) = 0.0
   auxvar%D_mobility(gid,:) = 0.0
   auxvar%D_mobility(sid,:) = 0.0
   if (kro > 0.0) then
     auxvar%mobility(oid) = kro/visotl
     auxvar%D_mobility(oid,:) = DivRule(kro,D_kro,visotl,D_visotl,ndof)
+  else
+    !print *, "zero out oil mob, kr and visc are ", kro, visotl
   endif
   if (krg > 0.0) then 
     auxvar%mobility(gid) = krg/visgtl
     auxvar%D_mobility(gid,:) = DivRule(krg,D_krg,visgtl,D_visgtl,ndof)
+  else
+    !print *, "zero out gas mob, kr and visc are ", krg, visgtl
   endif
   if (krs > 0.0) then
     auxvar%mobility(sid) = krs/visstl
     auxvar%D_mobility(sid,:) = DivRule(krs,D_krs,visstl,D_visstl,ndof)
+  else
+    !!! note: this has been observed to proc a lot
+    !print *, "zero out slv mob, kr and visc are ", krs, visstl
   endif
-else
 #endif
+endif
 
 if (getDerivs) then
   if (kro > 0.0) auxvar%mobility(oid) = kro/visotl
@@ -3053,7 +3064,6 @@ else
   auxvar%mobility(sid) = krs/visstl
 endif
 
-#if 0
   if (isnan(auxvar%mobility(oid))) then
     print *, "nan mob oil"
   endif
@@ -3063,7 +3073,6 @@ endif
   if (isnan(auxvar%mobility(sid))) then
     print *, "nan mob slv"
   endif
-#endif
 
 !------------------------------------------------------------------------------
 !  Load densities
@@ -3073,13 +3082,11 @@ endif
   auxvar%den_kg(gid)=dengtl
   auxvar%den_kg(sid)=denstl
 
-#if 0
   if (getDerivs) then
     auxvar%D_den_kg(oid,:)=D_denotl
     auxvar%D_den_kg(gid,:)=D_dengtl
     auxvar%D_den_kg(sid,:)=D_denstl
   endif
-#endif
 
 end subroutine TL4PAuxVarCompute
 
@@ -4763,6 +4770,8 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
   PetscReal :: workerReal
   PetscReal :: sosi_sq,worker,sgsi_sq,shi_sq
 
+  PetscInt :: i
+
 !--Set up complement of the Todd Longstaff omega-------------------------------
 
   tlomegac=1.0-val_tl_omega
@@ -4971,6 +4980,18 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
     D_viscstl = ProdRule(viscsm_w,D_viscsm_w,viscs_wc,D_viscs_wc,ndof)
   endif
 
+  do i = 1,ndof
+    if (isnan(D_viscotl(i))) then
+      print *, "viscotl nan deriv at ", i
+    endif
+    if (isnan(D_viscgtl(i))) then
+      print *, "viscgtl nan deriv at ", i
+    endif
+    if (isnan(D_viscstl(i))) then
+      print *, "viscstl nan deriv at ", i
+    endif
+  enddo
+
 
 #if 0
   if (viscgtl == 0.d0) then
@@ -5035,6 +5056,7 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
 
   PetscReal,dimension(1:ndof) :: D_worker
   PetscReal :: sgoi_sq
+  PetscInt :: i
 
 !--Initialise------------------------------------------------------------------
 
@@ -5148,6 +5170,8 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
       D_denog = ProdRule(go,D_go,deno,D_deno,ndof) &
               + ProdRule(gg,D_gg,deng,D_deng,ndof)
     else
+      !!! TODO  - maybe something better needed here
+      D_denog = 0.0
     endif
   endif
 
@@ -5210,6 +5234,19 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
                      getDerivs,ndof,                        &
                      D_viss,D_visog,D_visstl,D_dens,D_denog,&
                      D_denstl)
+
+
+  do i = 1,ndof
+    if (isnan(D_denotl(i))) then
+      print *, "denotl nan deriv at ", i
+    endif
+    if (isnan(D_dengtl(i))) then
+      print *, "dengtl nan deriv at ", i
+    endif
+    if (isnan(D_denstl(i))) then
+      print *, "denstl nan deriv at ", i
+    endif
+  enddo
 
 end subroutine TL4PDensity
 

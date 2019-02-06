@@ -4306,7 +4306,7 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
     do idex = 1,option%nflowdof
       do jdex = 1,option%nflowdof
         if (isnan(Jalyt(idex,jdex))) then
-          print *, "NAN HERE! accum", Jalyt(idex,jdex)
+          print *, "NAN HERE! accum", Jalyt(idex,jdex), idex, jdex
         endif
       enddo
     enddo
@@ -4486,11 +4486,11 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
         endif
 #endif
         if (isnan(Jalyt_up(i,j))) then
-          print *, "NAN HERE! (flux up)", Jalyt_up(i,j)
+          print *, "NAN HERE! (flux up)", Jalyt_up(i,j), i, j
           !Jalyt_up(i,j) = 0.d0
         endif
         if (isnan(Jalyt_dn(i,j))) then
-          print *, "NAN HERE! (flux dn)", Jalyt_dn(i,j)
+          print *, "NAN HERE! (flux dn)", Jalyt_dn(i,j), i, j
           !Jalyt_dn(i,j) = 0.d0
         endif
       enddo
@@ -6065,7 +6065,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     if (dabs(del_pressure) > max_pressure_change) then
       temp_real = dabs(max_pressure_change/del_pressure)
       temp_scale = min(temp_scale,temp_real)
-        print *, "pressure change scale", temp_scale
+        !print *, "pressure change scale", temp_scale
      endif
 #endif
 #ifdef TRUNCATE_PRESSURE
@@ -6073,7 +6073,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
       if (dabs(del_pressure) > 1.d-40) then
         temp_real = tolerance * dabs(pressure0 / del_pressure)
         temp_scale = min(temp_scale,temp_real)
-        print *, "pressure change scale 2", temp_scale
+        !print *, "pressure change scale 2", temp_scale
       endif
     endif
 #endif
@@ -6087,7 +6087,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     if (dabs(del_saturation) > max_saturation_change) then
        temp_real = dabs(max_saturation_change/del_saturation)
        temp_scale = min(temp_scale,temp_real)
-       print *, "oil saturation change", temp_scale
+       !print *, "oil saturation change", temp_scale
     endif
     !gas saturation location
     saturation_index = offset + TOWG_GAS_SATURATION_3PH_DOF
@@ -6098,13 +6098,13 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
       if (dabs(del_saturation) > max_saturation_change) then
          temp_real = dabs(max_saturation_change/del_saturation)
          temp_scale = min(temp_scale,temp_real)
-         print *, "gas sat scale", temp_scale
+         !print *, "gas sat scale", temp_scale
       endif
     else if( istate == TOWG_LIQ_OIL_STATE ) then ! Is bubble point variable
       if (dabs(del_saturation) > max_pb_change) then
          temp_real = dabs(max_pb_change/del_saturation)
          temp_scale = min(temp_scale,temp_real)
-         print *, "pb scaling", temp_scale
+         !print *, "pb scaling", temp_scale
       endif
       ! let's try avoiding negative pb values:
       if ((X_p(saturation_index) - dX_p(saturation_index))  < 0.d0) then
@@ -6121,7 +6121,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     if (dabs(del_temperature) > max_temperature_change) then
        temp_real = dabs(max_temperature_change/del_temperature)
        temp_scale = min(temp_scale,temp_real)
-       print *, "here is temperature change scaling, ", temp_scale
+       !print *, "here is temperature change scaling, ", temp_scale
     endif
 #endif
 !LIMIT_MAX_TEMPERATURE_CHANGE
@@ -6136,7 +6136,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   ! it performs an homogenous scaling using the smallest scaling factor
   ! over all subdomains domains
   if (scale < 0.9999d0) then
-    print *, "I will now scale by ", scale
+    !print *, "I will now scale by ", scale
     dX_p = scale*dX_p
   endif
 

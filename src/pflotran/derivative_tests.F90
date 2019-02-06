@@ -1412,6 +1412,7 @@ subroutine Num_as_alyt_tl4p(nphase,ndof,auxvars,option,&
 #endif
 
 
+#if 0
   ! den kg:
   do idof=1,ndof
     ! get perturbation for this dof variable
@@ -1446,8 +1447,10 @@ subroutine Num_as_alyt_tl4p(nphase,ndof,auxvars,option,&
 #endif
     enddo
   enddo
+#endif
 
 
+#if 0
   ! mob:
   do idof=1,ndof
     ! get perturbation for this dof variable
@@ -1504,6 +1507,7 @@ subroutine Num_as_alyt_tl4p(nphase,ndof,auxvars,option,&
 #endif
     enddo
   enddo
+#endif
 
 
 #if 0
@@ -1673,6 +1677,89 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
 
 
   !! ********* from auxvars flow *********
+
+  ! mob:
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    do iphase=1,nphase
+
+      !!!! extra care to take because might be nan:
+      !!!! this can happen when scaled visc etc 
+      !!!! is zero then mob involves div by 0
+      !!!! That happens at extreme saturation, e.g. 0
+      !!!! In that case mob should be really be 0 
+      !!!! since the corresponding scaled kr would also be 0
+
+      ! get unperturbed value
+      p_unpert = auxvars(0)%mobility(iphase)
+
+      !if (isnan(p_unpert)) p_unpert = 0.0
+
+      ! get perturbed value
+      p_pert = auxvars(idof)%mobility(iphase)
+
+      !if (isnan(p_pert)) p_pert = 0.0
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      if (isnan(nderiv)) then
+        print *, "here"
+      endif
+
+      ! analytical derivative
+      aderiv = auxvars(0)%D_mobility(iphase,idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "mob:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *,  "sats: ", auxvars(0)%sat
+        print *,  "mob0: ", p_unpert
+        print *,  "mob pert: ", p_pert
+        print *,  "mob diff: ", p_pert - p_unpert
+        print *,  "pert in dof is: ", pert
+        if (auxvars(0)%sat(3)>0.0 .AND. auxvars(0)%sat(4)>0.0) then
+          print *, "mob generic saturatons"
+        endif
+        print *
+        probs = probs + 1
+      endif
+    enddo
+  enddo
+
+  ! den kg:
+  do idof=1,ndof
+    ! get perturbation for this dof variable
+    pert = auxvars(idof)%pert
+    do iphase=1,nphase
+      ! get unperturbed value
+      p_unpert = auxvars(0)%den_kg(iphase)
+      ! get perturbed value
+      p_pert = auxvars(idof)%den_kg(iphase)
+
+      ! numerical derivative
+      nderiv = (p_pert-p_unpert)/pert
+
+      ! analytical derivative
+      aderiv = auxvars(0)%D_den_kg(iphase,idof)
+
+      ! difference:
+      diff = abs(aderiv-nderiv)
+      rdiff = diff/abs(nderiv)
+
+      if (diff>atol .OR. rdiff>rtol) then
+        print *, "den_kg:"
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+        print *
+        probs = probs + 1
+      endif
+    enddo
+  enddo
 
   ! pres:
   do idof=1,ndof
@@ -2087,6 +2174,9 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
         print *, "fm: ", auxvars(0)%tlT%fm
         print *, "dfm: "
         print *, auxvars(0)%tlT%D_fm(:)
+        if (auxvars(0)%sat(3)>0.0 .AND. auxvars(0)%sat(4)>0.0) then
+          print *, "krvm generic saturatons"
+        endif
         print *,
         probs = probs + 1
       endif
@@ -2659,6 +2749,11 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
         print *,
         probs = probs + 1
       endif
+      if (isnan(aderiv)) then 
+        print *, "denotl (note phase meaningless):"
+        print *, "AUXVAR IS NAN "
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+      endif
     !enddo
   enddo
 
@@ -2686,6 +2781,11 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
         print *,
         probs = probs + 1
+      endif
+      if (isnan(aderiv)) then 
+        print *, "dengtl (note phase meaningless):"
+        print *, "AUXVAR IS NAN "
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
       endif
     !enddo
   enddo
@@ -2715,6 +2815,11 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
         print *,
         probs = probs + 1
       endif
+      if (isnan(aderiv)) then 
+        print *, "denstl (note phase meaningless):"
+        print *, "AUXVAR IS NAN "
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+      endif
     !enddo
   enddo
 
@@ -2743,6 +2848,11 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
         print *,
         probs = probs + 1
       endif
+      if (isnan(aderiv)) then 
+        print *, "uoil (note phase meaningless):"
+        print *, "AUXVAR IS NAN "
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
+      endif
     !enddo
   enddo
 
@@ -2770,6 +2880,11 @@ subroutine NumCompare_tl4p(nphase,ndof,auxvars,option,&
         call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
         print *,
         probs = probs + 1
+      endif
+      if (isnan(aderiv)) then 
+        print *, "uvap (note phase meaningless):"
+        print *, "AUXVAR IS NAN "
+        call NumCompareOutput(idof,iphase,nderiv,aderiv,diff,rdiff)
       endif
     !enddo
   enddo
