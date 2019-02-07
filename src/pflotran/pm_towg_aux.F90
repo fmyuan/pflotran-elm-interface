@@ -2403,11 +2403,6 @@ endif
 
 !--sh and krh derivs:---------------------------------------------------------
   if (getDerivs) then
-#if 0
-    D_sh = 0.d0;D_sh(dof_osat)=1.d0;D_sh(dof_ssat)=1.d0
-    if (isSat) D_sh(dof_gsat) = 1.d0
-#endif
-    !!! TODO D_sh above should just be sum of existing sat deriv arrays
     D_sh(:) = auxvar%D_sat(dof_osat,:) + auxvar%D_sat(dof_gsat,:) + auxvar%D_sat(dof_ssat,:)
     D_krh = dkrh_sath*D_sh
   endif
@@ -2428,10 +2423,6 @@ endif
       num = krh*(so-socrs)
       worker = so-socrs
       ! D_socrs = sogcr*D_fi = -sogcr*D_fm so:
-#if 0
-      D_worker = sogcr*D_fm; D_worker(dof_osat) = D_worker(dof_osat) + 1.d0
-#endif
-      !!! TODO - just add oil sat deriv to sogcr*Dfm
       D_worker = sogcr*D_fm + auxvar%D_sat(dof_osat,:)
 
       D_num = ProdRule(krh,D_krh,worker,D_worker,ndof)
@@ -2455,6 +2446,7 @@ endif
   endif
 !--/krom and derivs:---------------------------------------------------------
 
+!--krvm and derivs:----------------------------------------------------------
 ! For non-zero Krvm, must have Sv and Sh > Svcrs
   if( (sh .gt. (svcrs+epss)) .and. (sv .ge. svcrs) ) then
     krvm=krh*(sv-svcrs)/(sh-svcrs)
@@ -2469,9 +2461,13 @@ endif
       den = sh-svcrs
       worker = sv-svcrs
       ! D_svcrs = sgcr*D_fi = -sgcr*D_fm so:
-      !D_worker = sogcr*D_fm; D_worker(dof_ssat) = D_worker(dof_ssat) + 1.d0 !!!! MISTAKE? should not be sogcr
+
+#if 0
       D_worker = sgcr*D_fm; D_worker(dof_ssat) = D_worker(dof_ssat) + 1.d0
       if (isSat) D_worker(dof_gsat) = D_worker(dof_gsat) + 1.d0
+#endif
+
+      D_worker = sgcr*D_fm + D_sv
       D_num= ProdRule(krh,D_krh,worker,D_worker,ndof)
 
       deno= sh - svcrs
@@ -2482,17 +2478,19 @@ endif
       D_krvm = 0.d0
     endif
   endif
-!!! hack for tesing
-    ! store variables if debugging mode wants to:
-if (getDerivs) then
-  if (auxvar%has_TL_test_object) then
-    auxvar%tlT%krvm = krvm
-    auxvar%tlT%D_krvm = D_krvm
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%krvm = krvm
+      auxvar%tlT%D_krvm = D_krvm
+    endif
   endif
-endif
+!--/krvm and derivs----------------------------------------------------------
+
 
 ! Now split vapour Krvm into Krgm and Krsm pro rata saturations
 
+!--krgm, krsm and derivs:----------------------------------------------------
   if( sv .gt. 0.0 ) then
     krgm=krvm*sg/sv
     krsm=krvm*ss/sv
@@ -2507,52 +2505,45 @@ endif
     if( sv .gt. 0.0) then
 
       num = krvm*sg;
-      ! prod rule be we know only one nonzero deriv of sg so:
+      ! prod rule but we know there's only one nonzero deriv of sg so:
       D_num= D_krvm*sg
       if (isSat) D_num(dof_gsat) = D_num(dof_gsat) + krvm
       D_krgm = DivRule(num,D_num,sv,D_sv,ndof)
 
       num= krvm*ss;
-      ! prod rule be we know only one nonzero deriv of ss so:
+      ! prod rule but we know there's only one nonzero deriv of ss so:
       D_num = D_krvm*ss; D_num(dof_ssat) = D_num(dof_ssat) + krvm
       ! worker and D_worker unchanged
       D_krsm = DivRule(num,D_num,sv,D_sv,ndof)
     endif
   endif
-!!! hack for tesing
-    ! store variables if debugging mode wants to:
-if (getDerivs) then
-  if (auxvar%has_TL_test_object) then
-    auxvar%tlT%krgm = krgm
-    auxvar%tlT%D_krgm = D_krgm
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%krgm = krgm
+      auxvar%tlT%D_krgm = D_krgm
 
-    auxvar%tlT%krsm = krsm
-    auxvar%tlT%D_krsm = D_krsm
+      auxvar%tlT%krsm = krsm
+      auxvar%tlT%D_krsm = D_krsm
+    endif
   endif
-endif
+!--/krgm, krsm and derivs---------------------------------------------------
 
 
 !--Oil viscosities--------------------------------------------------------------*/
 
 !--If PVCO defined in EOS OIL, the viscosities are extracted via table lookup--
 
-! Viscosity and viscosibility look-up at bubble point
-#if 0
-  call EOSOilViscosity    (auxvar%temp,pb, &
-                           auxvar%den(oid), viso, ierr,auxvar%table_idx)
-  call EOSOilViscosibility(auxvar%temp,pb,cvisc,ierr,auxvar%table_idx)
-
-#endif
   ! Viscosity and viscosibility look-up at bubble point
-if (getDerivs) then
-  call EOSOilViscosity(auxvar%temp,pb,auxvar%den(oid),viso,dvo_dt,dvo_dpb,ierr,auxvar%table_idx)
-  call EOSOilViscosibility(auxvar%temp,pb,cvisc,dcvisc_dt,dcvisc_dpb,ierr, &
-                           auxvar%table_idx)
-else
-  call EOSOilViscosity    (auxvar%temp,pb, &
-                           auxvar%den(oid), viso, ierr,auxvar%table_idx)
-  call EOSOilViscosibility(auxvar%temp,pb,cvisc,ierr,auxvar%table_idx)
-endif
+  if (getDerivs) then
+    call EOSOilViscosity(auxvar%temp,pb,auxvar%den(oid),viso,dvo_dt,dvo_dpb,ierr,auxvar%table_idx)
+    call EOSOilViscosibility(auxvar%temp,pb,cvisc,dcvisc_dt,dcvisc_dpb,ierr, &
+                             auxvar%table_idx)
+  else
+    call EOSOilViscosity    (auxvar%temp,pb, &
+                             auxvar%den(oid), viso, ierr,auxvar%table_idx)
+    call EOSOilViscosibility(auxvar%temp,pb,cvisc,ierr,auxvar%table_idx)
+  endif
 
 
 !----------Correct oil viscosity-----------------------------------------------
@@ -2587,8 +2578,6 @@ endif
 
     endif
     D_viso = 0.d0
-    !D_viso(dof_op) = dvo_dp
-    ! no osat deriv
     if (isSat) then
       D_viso(dof_op) = dvo_dpb
     else
@@ -2602,8 +2591,7 @@ endif
 
   !cvusp=cvisc*(po-pb) !!! moved above
   viso=viso*(1.0+cvusp*(1.0+0.5*cvusp))
-
-!----------/Correct oil viscosity----------------------------------------------
+!----------/Correct oil viscosity-----------------------------------------------
 
 !-------------------------------------------------------------------------------
 !  Vapour (gas and solvent) mobilities (rel. perm / viscosity)
@@ -2615,6 +2603,7 @@ endif
 
 !  Obtain all the immiscible limit rel. perms. from Krvi
 
+!-0=-krgi, krsi, and derivs:-----------------------------------------------------
   if( sv>0.0 ) then
     krgi=sg*krvi/sv
     krsi=ss*krvi/sv
@@ -2631,16 +2620,11 @@ endif
     D_krgi = 0.d0
     D_krsi = 0.d0
     if( sv>0.0 ) then
-#if 0
-      if (isSat) D_krgi(dof_gsat) = (krvi + sg*dkrv_satv)/sv - sg*krvi/sv/sv
-      D_krgi(dof_ssat) = (sg*dkrv_satv)/sv - sg*krvi/sv/sv
-
-      if (isSat) D_krsi(dof_gsat) =  (ss*dkrv_satv)/sv - ss*krvi/sv/sv
-      D_krsi(dof_ssat) =  (krvi + ss*dkrv_satv)/sv - ss*krvi/sv/sv
-#endif
+      ! (would also be straightforward to replace this with a proddivrule() call)
       if (isSat) D_krgi(dof_gsat) = sg*dkrv_satv/sv + ss*krvi/sv/sv
       D_krgi(dof_ssat) =            sg*dkrv_satv/sv - sg*krvi/sv/sv
 
+      ! (would also be straightforward to replace this with a proddivrule() call)
       if (isSat) D_krsi(dof_gsat) = ss*dkrv_satv/sv - ss*krvi/sv/sv
       D_krsi(dof_ssat) =            ss*dkrv_satv/sv + sg*krvi/sv/sv
     else
@@ -2648,26 +2632,19 @@ endif
     endif
   endif
 
-!!! hack for tesing
-    ! store variables if debugging mode wants to:
-if (getDerivs) then
-  if (auxvar%has_TL_test_object) then
-    auxvar%tlT%krgi = krgi
-    auxvar%tlT%D_krgi = D_krgi
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%krgi = krgi
+      auxvar%tlT%D_krgi = D_krgi
 
-    auxvar%tlT%krsi = krsi
-    auxvar%tlT%D_krsi = D_krsi
+      auxvar%tlT%krsi = krsi
+      auxvar%tlT%D_krsi = D_krsi
+    endif
   endif
-endif
+!--/krgi, krsi, and derivs:-----------------------------------------------------
 
 !--If PVDG defined in EOS GAS, the viscosities are extracted via table lookup--
-
-#if 0
-  call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
-                       auxvar%pres(gid),auxvar%den(gid),visg,ierr,&
-                       auxvar%table_idx)
-#endif
-
   if (getDerivs) then
       D_visg = 0.d0
       call  EOSGasViscosity(auxvar%temp,auxvar%pres(gid),auxvar%pres(gid),&
@@ -2689,11 +2666,6 @@ endif
 
 !--If PVDS defined in EOS SLV, the viscosities are extracted via table lookup--
 
-#if 0
-  call EOSSlvViscosity(auxvar%temp,auxvar%pres(sid), &
-                       viss,ierr,&
-                       auxvar%table_idx)
-#endif
   if (getDerivs) then
     call EOSSlvViscosity(auxvar%temp,auxvar%pres(sid), &
                          viss,dx_dt,dx_dcell_pres,ierr,&
@@ -2709,31 +2681,22 @@ endif
                          auxvar%table_idx)
   endif
 
-!!! hack for tesing
-    ! store variables if debugging mode wants to:
-if (getDerivs) then
-  if (auxvar%has_TL_test_object) then
-    auxvar%tlT%viso = viso
-    auxvar%tlT%visg = visg
-    auxvar%tlT%viss = viss
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%viso = viso
+      auxvar%tlT%visg = visg
+      auxvar%tlT%viss = viss
 
-    auxvar%tlT%D_viso = D_viso
-    auxvar%tlT%D_visg = D_visg
-    auxvar%tlT%D_visS = D_viss
+      auxvar%tlT%D_viso = D_viso
+      auxvar%tlT%D_visg = D_visg
+      auxvar%tlT%D_visS = D_viss
+    endif
   endif
-endif
 
 !-------------------------------------------------------------------------------
 !  Form the Todd-Longstaff rel perms
 !-------------------------------------------------------------------------------
-
-#if 0
-  call TL4PRelativePermeabilities( so,sg,sw,ss,sv,sh,fm, &
-                                   swcr,sgcr,sowcr,sogcr,swco, &
-                                   kroi,krgi,krsi, &
-                                   krom,krgm,krsm, &
-                                   kro ,krg ,krs  )
-#endif
 
   call TL4PRelativePermeabilities( so,sg,sw,ss,sv,sh,fm, &
                                  swcr,sgcr,sowcr,sogcr,swco, &
