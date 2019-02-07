@@ -1561,7 +1561,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal, parameter :: epseps =1.0d-10
   
 !----------------- intermediate derivatives and related variables: ------------------------------------------------
-  PetscBool :: getDerivs                                                                 ! utility flag
+  PetscBool :: getDerivs,mobSanityCheck                                                  ! utility flags
   PetscReal :: d_xo_dpb,d_xg_dpb                                                         ! xo and xg wrt bubble point
   PetscReal :: d_pcw_d_swa,d_pco_d_sva                                                   ! cap pres derivs, returned args
   PetscReal :: dx_dcell_pres,dx_dpres,dx_dt                                              ! used as return args for several routines
@@ -1605,6 +1605,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   dof_temp = towg_energy_dof
   dof_ssat = TOWG_SOLV_SATURATION_DOF
   ndof = option%nflowdof
+  mobSanityCheck = PETSC_FALSE !!! hardcoded for now
 
 if (towg_analytical_derivatives) then
   if (.NOT. auxvar%has_derivs) then
@@ -2835,24 +2836,25 @@ endif
   !!! type exceptions in jacobian contributions, but we really need these not
   !!! to be allowed
 
-if (getDerivs) then
+  if (getDerivs) then
     auxvar%D_mobility(oid,:) = DivRule(kro,D_kro,visotl,D_visotl,ndof)
     auxvar%D_mobility(gid,:) = DivRule(krg,D_krg,visgtl,D_visgtl,ndof)
     auxvar%D_mobility(sid,:) = DivRule(krs,D_krs,visstl,D_visstl,ndof)
-endif
+  endif
 
-if (getDerivs) then
-  if (kro > 0.0) auxvar%mobility(oid) = kro/visotl
-  if (krg > 0.0) auxvar%mobility(gid) = krg/visgtl
-  if (krs > 0.0) auxvar%mobility(sid) = krs/visstl
-else
-  !!! probably dumb but for now we want to preserve behaviour if
-  !!! analytical derivatives deactivated
-  auxvar%mobility(oid) = kro/visotl
-  auxvar%mobility(gid) = krg/visgtl
-  auxvar%mobility(sid) = krs/visstl
-endif
+  if (mobSanityCheck) then
+    if (kro > 0.0) auxvar%mobility(oid) = kro/visotl
+    if (krg > 0.0) auxvar%mobility(gid) = krg/visgtl
+    if (krs > 0.0) auxvar%mobility(sid) = krs/visstl
+  else
+    auxvar%mobility(oid) = kro/visotl
+    auxvar%mobility(gid) = krg/visgtl
+    auxvar%mobility(sid) = krs/visstl
+  endif
 
+#if 0
+!!! we may wish to have a robust optional error check for things like these, it can
+!!! happen surprisingly often if saturations become marginal
   if (isnan(auxvar%mobility(oid))) then
     print *, "nan mob oil"
   endif
@@ -2862,6 +2864,7 @@ endif
   if (isnan(auxvar%mobility(sid))) then
     print *, "nan mob slv"
   endif
+#endif
 
 !------------------------------------------------------------------------------
 !  Load densities
@@ -4638,12 +4641,6 @@ subroutine TL4PViscosity( so   ,sg   ,ss                               , &
      D_denogs = ProdProdDivRule(so,D_so,vgqp,D_vgqp,vsqp,D_vsqp,sh,D_sh,ndof) &
               + ProdProdDivRule(sg,D_sg,vsqp,D_vsqp,voqp,D_voqp,sh,D_sh,ndof) &
               + ProdProdDivRule(ss,D_ss,voqp,D_voqp,vgqp,D_vgqp,sh,D_sh,ndof)
-#if 0
-    D_1 = ProdProdDivRule(so,D_so,vgqp,D_vgqp,vsqp,D_vsqp,sh,D_sh,ndof)
-    D_2 = ProdProdDivRule(sg,D_sg,vsqp,D_vsqp,voqp,D_voqp,sh,D_sh,ndof) 
-    D_3 = ProdProdDivRule(ss,D_ss,voqp,D_voqp,vgqp,D_vgqp,sh,D_sh,ndof)
-    D_denogs = D_1 + D_2 + D_3
-#endif
     else
       D_denogs = ProdRule(vgqp,D_vgqp,vsqp,D_vsqp,ndof) &
          + ProdRule(vsqp,D_vsqp,voqp,D_voqp,ndof) &
