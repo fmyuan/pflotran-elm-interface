@@ -2445,9 +2445,8 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
 #endif                    
 
 
-!!!! TODO - not quite right here maybe - seem to introduce artificial 
-!!!!        5,4 contributions sometimes?
-
+!!! Note energy contributions in tl4p mode analytical derivatives development was often questionable. 
+!!! May be bug or potential for improvment here.
 #ifdef CONDUCTION
   ! add heat conduction flux
   ! based on Somerton et al., 1974:
@@ -3703,7 +3702,6 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
   ! if not given, approximates BHP with pressure of perforated cell
   if ( associated(src_sink_condition%bhp_pressure) ) then
     cell_pressure = src_sink_condition%bhp_pressure%dataset%rarray(1)
-    !!!! TODO - should do something with D_cpres here?
     ! there should be no cell (oil) pressure dependence - zero out later on pressure derivs
     if (analytical_derivatives) then
       dp_dpo = 0.d0
@@ -3713,8 +3711,7 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         maxval(auxvar%pres(option%liquid_phase:option%gas_phase))
     if (analytical_derivatives) then
       dp_dpo = 1.d0
-      ! this is stupid but figuring out maxloc might take all day so do 
-      ! this quickly:
+      ! find dex corresponding to cell pres
       cp_loc = option%liquid_phase
       do idex = option%liquid_phase,option%gas_phase
         if (auxvar%pres(idex) > auxvar%pres(cp_loc)) then
@@ -4203,9 +4200,6 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
     end if
 
     !--Solvent energy extraction due to solvent production-------------------------
-    
-    !!! TODO
-
     if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
 
       if (qsrc(option%solvent_phase) < 0.d0) then !implies qsrc(option%gas_phase)<=0
@@ -4303,6 +4297,9 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
     call TOWGAccumulation(auxvar(ZERO_INTEGER),global_auxvar,material_auxvar, &
                           soil_heat_capacity,option,res,PETSC_FALSE,jalyt,PETSC_TRUE)
 
+#if 0
+!!! we may wish to have an option for a robust checker for this at some point, it can happen surpringly 
+!!! easilly with marginal saturations
     do idex = 1,option%nflowdof
       do jdex = 1,option%nflowdof
         if (isnan(Jalyt(idex,jdex))) then
@@ -4310,6 +4307,7 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
         endif
       enddo
     enddo
+#endif
 
 
     if (towg_isothermal) then
@@ -4475,16 +4473,12 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
                   thermal_conductivity_dn, &
                   area,dist,towg_parameter, &
                   option,v_darcy,res,PETSC_FALSE,Jalyt_up,Jalyt_dn,PETSC_TRUE)
+
+#if 0
+!!! we may wish to have an option for a robust checker for this at some point, it can happen surpringly 
+!!! easilly with marginal saturations
     do i = 1,option%nflowdof
       do j = 1,option%nflowdof
-#if 0
-        if (dabs(Jalyt_up(i,j)) < 1.D-15 ) then
-          !Jalyt_up(i,j) = 0.d0
-        endif
-        if (dabs(Jalyt_dn(i,j)) < 1.D-15 ) then
-          !Jalyt_dn(i,j) = 0.d0
-        endif
-#endif
         if (isnan(Jalyt_up(i,j))) then
           print *, "NAN HERE! (flux up)", Jalyt_up(i,j), i, j
           !Jalyt_up(i,j) = 0.d0
@@ -4495,6 +4489,7 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
         endif
       enddo
     enddo
+#endif
 
     if (towg_isothermal) then
       Jalyt_up(towg_energy_eq_idx,:) = 0.d0
@@ -5909,8 +5904,11 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   PetscInt :: newton_iteration,istate
 
   PetscReal :: scand
+  PetscBool :: slvSatTruncate
 
   type(global_auxvar_type), pointer :: global_auxvars(:)
+
+  slvSatTruncate = PETSC_FALSE !!! hardcode for now, awaiting implementation of switch
 
 # if 0
   !! for appleyard:
@@ -5951,32 +5949,14 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     if ( (X_p(saturation_index) - dX_p(saturation_index)) < 0.d0 ) then
       dX_p(saturation_index) = X_p(saturation_index)
     end if
-    !!! TODO - make on a switch
-#if 0
-! Stop SOLVENT saturation going negative
-    if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+
+    ! Stop SOLVENT saturation going negative (if that's even a good idea)
+    if( slvSatTruncate .AND. towg_miscibility_model == TOWG_SOLVENT_TL ) then
       saturation_index = offset + TOWG_SOLV_SATURATION_DOF 
       if ( (X_p(saturation_index) - dX_p(saturation_index)) < 0.d0 ) then
         dX_p(saturation_index) = X_p(saturation_index)
       end if
     endif
-#endif
-
-#if 0
-    !!! HACK - use this space to query if newton solver is suggesting
-    !!!        odd values for solvent sat
-    if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
-      saturation_index = offset + TOWG_SOLV_SATURATION_DOF 
-      scand = X_p(saturation_index) - dX_p(saturation_index)
-      if ( dabs(scand) >0.d0 .AND. dabs(scand) < 1.d-318 ) then
-      !if (offset == 20 .OR. offset == 3345) then
-        !print *, "strange ssat value from newton solver here"
-        print *, "offset: ", offset, "localdex: ", local_id
-        print *, " sat: ", X_p(saturation_index), " sat update: ", dX_p(saturation_index), " result: ", scand
-      end if
-    endif
-#endif
-
   enddo
 
 
@@ -6024,7 +6004,6 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     if (dabs(del_pressure) > max_pressure_change) then
       temp_real = dabs(max_pressure_change/del_pressure)
       temp_scale = min(temp_scale,temp_real)
-        !print *, "pressure change scale", temp_scale
      endif
 #endif
 #ifdef TRUNCATE_PRESSURE
@@ -6032,7 +6011,6 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
       if (dabs(del_pressure) > 1.d-40) then
         temp_real = tolerance * dabs(pressure0 / del_pressure)
         temp_scale = min(temp_scale,temp_real)
-        !print *, "pressure change scale 2", temp_scale
       endif
     endif
 #endif
@@ -6046,7 +6024,6 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     if (dabs(del_saturation) > max_saturation_change) then
        temp_real = dabs(max_saturation_change/del_saturation)
        temp_scale = min(temp_scale,temp_real)
-       !print *, "oil saturation change", temp_scale
     endif
     !gas saturation location
     saturation_index = offset + TOWG_GAS_SATURATION_3PH_DOF
@@ -6057,18 +6034,14 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
       if (dabs(del_saturation) > max_saturation_change) then
          temp_real = dabs(max_saturation_change/del_saturation)
          temp_scale = min(temp_scale,temp_real)
-         !print *, "gas sat scale", temp_scale
       endif
     else if( istate == TOWG_LIQ_OIL_STATE ) then ! Is bubble point variable
       if (dabs(del_saturation) > max_pb_change) then
          temp_real = dabs(max_pb_change/del_saturation)
          temp_scale = min(temp_scale,temp_real)
-         !print *, "pb scaling", temp_scale
       endif
       ! let's try avoiding negative pb values:
       if ((X_p(saturation_index) - dX_p(saturation_index))  < 0.d0) then
-         !print *, "negative pb! ", X_p(saturation_index)
-        !print *, dX_p(saturation_index), ", ", X_p(saturation_index) - dX_p(saturation_index)
       dX_p(saturation_index) = X_p(saturation_index) - 0.5
       endif
     endif
@@ -6080,7 +6053,6 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     if (dabs(del_temperature) > max_temperature_change) then
        temp_real = dabs(max_temperature_change/del_temperature)
        temp_scale = min(temp_scale,temp_real)
-       !print *, "here is temperature change scaling, ", temp_scale
     endif
 #endif
 !LIMIT_MAX_TEMPERATURE_CHANGE
@@ -6095,7 +6067,6 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   ! it performs an homogenous scaling using the smallest scaling factor
   ! over all subdomains domains
   if (scale < 0.9999d0) then
-    !print *, "I will now scale by ", scale
     dX_p = scale*dX_p
   endif
 

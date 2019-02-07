@@ -4105,47 +4105,21 @@ subroutine TL4PAuxVarPerturb(auxvar,global_auxvar, &
      auxvar(TOWG_OIL_PRESSURE_DOF)%pert / towg_pressure_scale
 
 
-  !!! EXPERIMENTAL - DS
-  !!! Here is a way of replacing analytical auxvar derivatives with differenced ones.
-  !!! Idea is to go through each of the D_xyz variable arrays in the auxvar object, calculate
-  !!! a differencing approximation using the perturbed auxvar objects we have here,
-  !!! and populate the D_xyz array with the numerical derivatives.
-
-  !!! In this way we can:
-  !!! 1) Test analytical derivative implementations of Jacobian contributions
-  !!!    independently of auxvar analytical derivative implementations - the 
-  !!!    analytical derivatives in the Jac contributions need D_xyz to be populated.
-  !!!
-  !!! 2) Implement and test auxvar derivatives piecemeal - when some D_xyz is populated
-  !!!    properly by implementation in computeAuxVars(), then all we need to do is
-  !!!    comment out the part where it would be overwritten in the routine below.
-  if (.NOT. option%flow%numerical_derivatives .AND. option%flow%num_as_alyt_derivs) then
 #if 0
-    call NumCompare_tl4p(option%nphase,option%nflowdof,auxvar,option,&
-                            TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
-                            TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof, &
-                            isSaturated)
-#endif
+!!! no longer functional, was used for development testing
+  if (.NOT. option%flow%numerical_derivatives .AND. option%flow%num_as_alyt_derivs) then
     call Num_as_alyt_tl4p(option%nphase,option%nflowdof,auxvar,option,&
                             TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
                             TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof, &
                             isSaturated)
-
   endif
+#endif
 
-  ! alternatively, for the finished version we will want this (maybe allow seperate routine to 
-  ! do alyt as num anyway?):
-  if (option%flow%numerical_derivatives_compare) then 
+  if (.NOT. option%flow%numerical_derivatives .AND. option%flow%numerical_derivatives_compare) then 
     call NumCompare_tl4p(option%nphase,option%nflowdof,auxvar,option,&
                             TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
                             TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof, &
                             isSaturated)
-
-#if 0
-    call TOWGAuxVarCompute(x,auxvar(ZERO_INTEGER),global_auxvar, &
-                           material_auxvar, &
-                           characteristic_curves,natural_id,option)
-#endif
   endif
 
 

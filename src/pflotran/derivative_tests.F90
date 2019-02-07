@@ -1368,6 +1368,7 @@ end subroutine NumCompare_tl3p
 
 ! ************************************************************************** !
 
+!!! no longer functional, was used for development testing
 subroutine Num_as_alyt_tl4p(nphase,ndof,auxvars,option,&
                               dof_op,dof_osat,dof_gsat,dof_temp,&
                               isSat)
