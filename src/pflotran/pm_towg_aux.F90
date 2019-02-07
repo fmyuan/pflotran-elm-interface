@@ -1501,6 +1501,10 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 ! Author: Dave Ponting
 ! Date  : Apr 2018
 !------------------------------------------------------------------------------
+! Modified: Daniel Stone
+! Date  : Feb 2019
+! Reason : Adding analytical derivatives code
+!------------------------------------------------------------------------------
 
   use Option_module
   use Global_Aux_module
@@ -1536,7 +1540,6 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: krs ,viss,visstl
   PetscReal :: dummy,po,pb
   PetscReal :: dkrw_sato,dkrw_satg,dkrw_satw
-  !PetscReal :: dkro_sato,dkro_satg
   PetscReal :: dkrg_sato,dkrg_satg
   PetscReal :: dkrv_sato,dkrv_satv,krvi
   PetscErrorCode :: ierr
@@ -1556,48 +1559,46 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal, parameter :: epss   =1.0d-4
   PetscReal, parameter :: epsp   =1.0d3
   PetscReal, parameter :: epseps =1.0d-10
-  PetscBool :: getDerivs
-
-  PetscReal :: d_xo_dpb,d_xg_dpb
-  PetscReal :: d_pcw_d_swa,d_pco_d_sva,dx_dcell_pres,dx_dtemp
-  PetscReal :: dden_dt,dden_dpres,dh_dt,dh_dpres,du_dt,du_dpres
-  PetscReal :: ddeno_dpb,dcr_dt,dcr_dpb
-  PetscReal :: dcrusp_dpo,dcrusp_dpb,dcrusp_dt,cor,one_p_crusp
-  PetscReal :: dcor_dpo,dcor_dpb,dcor_dt,worker
-  PetscReal :: dps_dt
-  PetscReal :: dkro_sato,dkrog_uoil
-  PetscReal ::num
-  PetscReal :: dvo_dt,dvo_dpb,dcvisc_dt,dcvisc_dpb
-  PetscReal :: one_p_cvusp,dvo_dp,dviso_dpb
-  PetscReal :: dcvusp_dpo,dcvusp_dpb,dcvusp_dt
-  PetscReal,dimension(1:option%nflowdof) :: D_fm,D_cell_pres,D_worker
-  PetscReal,dimension(1:option%nflowdof) :: D_visc,D_kr
-  PetscReal,dimension(1:option%nflowdof) :: D_uoil,D_uvap
-  PetscReal,dimension(1:option%nflowdof) :: D_krog,D_krow,D_sv,D_sw
-  PetscReal,dimension(1:option%nflowdof) :: D_num,D_den,D_kroi,D_sh,D_krh
-  PetscReal,dimension(1:option%nflowdof) :: D_krom,D_krvm,D_krgm,D_krsm
-  PetscReal,dimension(1:option%nflowdof) :: D_viso,D_visg,D_viss
-  PetscReal, dimension(1:option%nflowdof)::D_krgi,D_krsi
-  PetscReal, dimension(1:option%nflowdof)::D_kro,D_krg,D_krs
-  PetscReal, dimension(1:option%nflowdof)::D_so,D_sg,D_ss
-  PetscReal, dimension(1:option%nflowdof)::D_visotl,D_visgtl,D_visstl
-  PetscReal, dimension(1:option%nflowdof)::D_deno,D_deng,D_dens
-  PetscReal, dimension(1:option%nflowdof)::D_denotl,D_dengtl,D_denstl
-
-  PetscReal :: denos,dengs,denogs,denos_pre,denog
-  PetscReal, dimension(1:option%nflowdof)::D_denos,D_dengs,D_denogs,D_denos_pre,D_denog
+  
+!----------------- intermediate derivatives and related variables: ------------------------------------------------
+  PetscBool :: getDerivs                                                                 ! utility flag
+  PetscReal :: d_xo_dpb,d_xg_dpb                                                         ! xo and xg wrt bubble point
+  PetscReal :: d_pcw_d_swa,d_pco_d_sva                                                   ! cap pres derivs, returned args
+  PetscReal :: dx_dcell_pres,dx_dpres,dx_dt                                              ! used as return args for several routines
+  PetscReal :: dh_dt,dh_dpres,du_dt,du_dpres                                             ! used as return args for several routines
+  PetscReal :: ddeno_dpb,dcr_dt,dcr_dpb                                                  ! intermediates for oil den lookup and correction
+  PetscReal :: dcrusp_dpo,dcrusp_dpb,dcrusp_dt,cor,one_p_crusp                           ! as above
+  PetscReal :: dcor_dpo,dcor_dpb,dcor_dt,worker                                          ! as above
+  PetscReal :: dps_dt                                                                    ! return arg from routine, water sat pres deriv
+  PetscReal :: dkro_sato,dkrog_uoil                                                      ! kro and krog deriv routine return args
+  PetscReal :: num                                                                       ! intermediate used for sevral krxx derivs
+  PetscReal :: dvo_dt,dvo_dpb,dcvisc_dt,dcvisc_dpb                                       ! intermediates for oil visc lookup and correction
+  PetscReal :: one_p_cvusp,dvo_dp,dviso_dpb                                              ! as above
+  PetscReal :: dcvusp_dpo,dcvusp_dpb,dcvusp_dt                                           ! as above
+  PetscReal :: denos,dengs,denogs,denos_pre,denog                                        ! for debugging, variables internal to tl visc/den
+  ! arrays of derivatives, D_xx(i) is derivative of variable xx w.r.t. to variable index i
+  ! (e.g. D_fm(dof_ssat) = deriv of fm w.r.t. solvent sat):
+  PetscReal,dimension(1:option%nflowdof) :: D_fm,D_cell_pres                             ! fm and cell pressure 
+  PetscReal,dimension(1:option%nflowdof) :: D_worker                                     ! utility used in a few places
+  PetscReal,dimension(1:option%nflowdof) :: D_visc,D_kr                                  ! intermeds, for water mob derivs
+  PetscReal,dimension(1:option%nflowdof) :: D_uoil,D_uvap                                ! derivs of uoil and uvap
+  PetscReal,dimension(1:option%nflowdof) :: D_sv,D_sw,D_sh                               ! composite saturation derivatives
+  PetscReal,dimension(1:option%nflowdof) :: D_num,D_den                                  ! intermediates used in several places
+  PetscReal,dimension(1:option%nflowdof) :: D_krom,D_krvm,D_krgm,D_krsm                  ! various kr intermediates
+  PetscReal,dimension(1:option%nflowdof) :: D_kroi,D_krh,D_krog,D_krow                   ! as above
+  PetscReal,dimension(1:option%nflowdof) :: D_krgi,D_krsi                                ! as above
+  PetscReal,dimension(1:option%nflowdof) :: D_viso,D_visg,D_viss                         ! viscosity derivs
+  PetscReal,dimension(1:option%nflowdof) :: D_kro,D_krg,D_krs                            ! tl relperm derivs
+  PetscReal,dimension(1:option%nflowdof) :: D_so,D_sg,D_ss                               ! for input to routine
+  PetscReal,dimension(1:option%nflowdof) :: D_deno,D_deng,D_dens                         ! as above
+  PetscReal,dimension(1:option%nflowdof) :: D_visotl,D_visgtl,D_visstl                   ! tl visc derivs
+  PetscReal,dimension(1:option%nflowdof) :: D_denotl,D_dengtl,D_denstl                   ! tl den derivs
+  PetscReal,dimension(1:option%nflowdof) :: D_denos,D_dengs,D_denogs,D_denos_pre,D_denog ! for debugging
 
   PetscInt :: idex,jdex
+!-----------------/intermediate derivatives and related variables: -------------------------------------------------
 
-  !!! VARIABLES HERE
-
-
-#if 0
-      dcvusp_dpo = cvisc ! cvisc is independent of po here
-      dcvusp_dpb = dcvisc_dpb*(po-pb) - cvisc
-      dcvusp_dt = dcvisc_dt*(po-pb)
-#endif
-
+  ! used for indexing into derivative arrays:
   dof_op = TOWG_OIL_PRESSURE_DOF
   dof_osat = TOWG_OIL_SATURATION_DOF
   dof_gsat = TOWG_GAS_SATURATION_3PH_DOF
@@ -1711,30 +1712,8 @@ endif
     auxvar%bo%bubble_point = x(TOWG_BUBBLE_POINT_3PH_DOF)
     auxvar%sat(gid)        = 0.0
   endif
-#if 0
-  if (dabs(x(TOWG_SOLV_SATURATION_DOF))>0.d0 .AND.   dabs(x(TOWG_SOLV_SATURATION_DOF))<1.e-15) then
-    print *, "silly solvent saturation ", x(TOWG_SOLV_SATURATION_DOF)
-    !x(TOWG_SOLV_SATURATION_DOF) = 0.d0
-  endif
-#endif
   auxvar%sat(sid)        = x(TOWG_SOLV_SATURATION_DOF)
   auxvar%temp = x(towg_energy_dof)
-
-
-#if 0
-  if (auxvar%sat(wid) < 0.d0) then
-    print *, "pre state check, water sat negative, ", auxvar%sat(wid)
-  endif
-  if (auxvar%sat(oid) < 0.d0) then
-    print *, "pre state check, oil sat negative, ", auxvar%sat(oid)
-  endif
-  if (auxvar%sat(gid) < 0.d0) then
-    print *, "pre state check, gas sat negative, ", auxvar%sat(gid)
-  endif
-  if (auxvar%sat(sid) < 0.d0) then
-    print *, "pre state check, solvent sat negative, ", auxvar%sat(sid)
-  endif
-#endif
 
 !==============================================================================
 ! Check if this state still valid and flip if not (but not on diff call)
@@ -1743,6 +1722,8 @@ endif
   if (option%iflag /= TOWG_UPDATE_FOR_DERIVATIVE) then
     if( isSat ) then
       if( (auxvar%sat(gid)<(-epseps)) .and. (auxvar%sat(oid)>eps_oil) ) then
+        ! warning: be aware that it can indeed happen that negative gas saturation will be accepted
+        ! if oil sat is <= eps_oil.
 ! Gas saturation has gone negative and significant oil in cell
         global_auxvar%istate          =TOWG_LIQ_OIL_STATE
         auxvar%sat(gid)               =0.0d0
@@ -1779,26 +1760,6 @@ endif
       endif
     endif
   endif
-
-#if 0
-  if (auxvar%sat(wid) < 0.d0) then
-    print *, "post state check, water sat negative, ", auxvar%sat(wid)
-  endif
-  if (auxvar%sat(oid) < 0.d0) then
-    print *, "post state check, oil sat negative, ", auxvar%sat(oid)
-  endif
-  if (auxvar%sat(gid) < 0.d0) then
-    print *, "post state check, gas sat negative, ", auxvar%sat(gid)
-    print *, "option iflag: ", option%iflag, ", update for deriv flag: ", TOWG_UPDATE_FOR_DERIVATIVE
-    print *, "oil sat now : ", auxvar%sat(oid), ", eps_oil: ", eps_oil
-    print *, ", bo now: ", auxvar%bo%bubble_point, ", oil pres now ", auxvar%pres(oid)
-
-
-  endif
-  if (auxvar%sat(sid) < 0.d0) then
-    print *, "post state check, solvent sat negative, ", auxvar%sat(sid)
-  endif
-#endif
 
 !==============================================================================
 ! Set up the final saturation value (water)
@@ -2066,10 +2027,10 @@ endif
     call EOSWaterDensity(t,cell_pressure, &
                          auxvar%den_kg(wid),auxvar%den(wid), &
                          dx_dcell_pres, &
-                         dx_dtemp,ierr)
+                         dx_dt,ierr)
 
     auxvar%D_den(wid,:) =  dx_dcell_pres * D_cell_pres
-    auxvar%D_den(wid,dof_temp) = auxvar%D_den(wid,dof_temp) + dx_dtemp
+    auxvar%D_den(wid,dof_temp) = auxvar%D_den(wid,dof_temp) + dx_dt
 
     ! kg density should be stored too for completeness:
     auxvar%D_den_kg(wid,:) = auxvar%D_den(wid,:) * FMWH2O
@@ -2078,12 +2039,12 @@ endif
                           cell_pressure, &
                           auxvar%H(wid), &
                           dx_dcell_pres, &
-                          dx_dtemp, &
+                          dx_dt, &
                           ierr)
 
 
     auxvar%D_H(wid,:) =  dx_dcell_pres * D_cell_pres
-    auxvar%D_H(wid,dof_temp) = auxvar%D_H(wid,dof_temp) + dx_dtemp
+    auxvar%D_H(wid,dof_temp) = auxvar%D_H(wid,dof_temp) + dx_dt
 
     ! scaling:
     auxvar%D_H(wid,:) = auxvar%D_H(wid,:) * 1.d-6 ! J/kmol -> MJ/kmol
@@ -2125,14 +2086,14 @@ endif
 
 
   if (getDerivs) then
-    call EOSGasDensityEnergy(t,auxvar%pres(gid),auxvar%den(gid),dden_dt,dden_dpres, &
+    call EOSGasDensityEnergy(t,auxvar%pres(gid),auxvar%den(gid),dx_dt,dx_dpres, &
                                      auxvar%H(gid),dh_dt,dh_dpres,auxvar%U(gid),&
                                      du_dt,&
                                      du_dpres,ierr,auxvar%table_idx)
 
     ! pressure derivatives - den, h and u are functions of gas pressure and temp here
-    auxvar%D_den(gid,:) = auxvar%D_pres(gid,:) * dden_dpres
-    auxvar%D_den(gid,dof_temp) = auxvar%D_den(gid,dof_temp) + dden_dt
+    auxvar%D_den(gid,:) = auxvar%D_pres(gid,:) * dx_dpres
+    auxvar%D_den(gid,dof_temp) = auxvar%D_den(gid,dof_temp) + dx_dt
 
     auxvar%D_u(gid,:) = auxvar%D_pres(gid,:) * du_dpres
     auxvar%D_u(gid,dof_temp) = auxvar%D_u(gid,dof_temp) + du_dt
@@ -2179,13 +2140,13 @@ endif
   if (getDerivs) then
 
     call EOSSlvDensityEnergy(t,auxvar%pres(sid), &
-                             auxvar%den(sid),dden_dt,dden_dpres,auxvar%H(sid),dh_dt,dh_dpres&
+                             auxvar%den(sid),dx_dt,dx_dpres,auxvar%H(sid),dh_dt,dh_dpres&
                              ,auxvar%U(sid),du_dt,du_dpres,ierr,&
                              auxvar%table_idx)
 
     ! pressure derivatives - den, h and u are functions of gas pressure and temp here
-    auxvar%D_den(sid,:) = auxvar%D_pres(sid,:) * dden_dpres
-    auxvar%D_den(sid,dof_temp) = auxvar%D_den(sid,dof_temp) + dden_dt
+    auxvar%D_den(sid,:) = auxvar%D_pres(sid,:) * dx_dpres
+    auxvar%D_den(sid,dof_temp) = auxvar%D_den(sid,dof_temp) + dx_dt
 
     auxvar%D_u(sid,:) = auxvar%D_pres(sid,:) * du_dpres
     auxvar%D_u(sid,dof_temp) = auxvar%D_u(sid,dof_temp) + du_dt
@@ -2398,12 +2359,12 @@ endif
 
     call EOSWaterViscosity(auxvar%temp, cell_pressure, &
                            wat_sat_pres, dps_dt, visw, &
-                           dx_dtemp,  dx_dcell_pres, ierr)
+                           dx_dt,  dx_dcell_pres, ierr)
 
     ! pressure deriv (dvw_dp) is a a cell pressure derivative:
     D_visc = 0.d0
     D_visc = dx_dcell_pres * D_cell_pres
-    D_visc(dof_temp) = D_visc(dof_temp) + dx_dtemp
+    D_visc(dof_temp) = D_visc(dof_temp) + dx_dt
 
   else
     call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
@@ -2808,12 +2769,12 @@ endif
                             auxvar%den(gid), &
                             auxvar%D_den(gid,dof_temp), auxvar%D_den(gid,dof_temp), auxvar%D_den(gid,dof_op), &
                             0.d0,1.d0, &                      ! dPcomp_dT, dPcomp_dPgas
-                            visg, dx_dtemp, dummy, dx_dcell_pres, ierr, &
+                            visg, dx_dt, dummy, dx_dcell_pres, ierr, &
                             auxvar%table_idx)
 
     ! pressure deriv is a a gas pressure derivative:
     D_visg = dx_dcell_pres * auxvar%D_pres(gid,:)
-    D_visg(dof_temp) = D_visg(dof_temp) + dx_dtemp
+    D_visg(dof_temp) = D_visg(dof_temp) + dx_dt
 
   else
     call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
@@ -2830,13 +2791,13 @@ endif
 #endif
   if (getDerivs) then
     call EOSSlvViscosity(auxvar%temp,auxvar%pres(sid), &
-                         viss,dx_dtemp,dx_dcell_pres,ierr,&
+                         viss,dx_dt,dx_dcell_pres,ierr,&
                          auxvar%table_idx)
 
     ! pressure deriv is a a solvent pressure derivative:
     !D_viss = dx_dcell_pres * D_cell_pres
     D_viss = dx_dcell_pres * auxvar%D_pres(sid,:)
-    D_viss(dof_temp) = D_viss(dof_temp) + dx_dtemp
+    D_viss(dof_temp) = D_viss(dof_temp) + dx_dt
   else
     call EOSSlvViscosity(auxvar%temp,auxvar%pres(sid), &
                          viss,ierr,&
