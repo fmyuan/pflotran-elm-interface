@@ -1767,6 +1767,7 @@ endif
 
   auxvar%sat(wid) = 1.d0 - auxvar%sat(oid) - auxvar%sat(gid) - auxvar%sat(sid)
 
+  ! trivial saturation derivatives:
   if (getDerivs) then
     auxvar%D_sat(oid,dof_osat) =  1.d0 ! diff oil sat by oil sat
     auxvar%D_sat(sid,dof_ssat) =  1.d0 ! diff solvent sat by solvent sat
@@ -1801,36 +1802,24 @@ endif
 ! Look up the Rs value
 !==============================================================================
 
-  !call getBlackOilComposition(pb,t,auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
-    !!! new:
-if (getDerivs) then
-  call getBlackOilComposition(pb,t, &
-                              auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg, &
-                              d_xo_dpb,d_xg_dpb,&
-                              auxvar%bo%D_xo(dof_temp),auxvar%bo%D_xg(dof_temp))
-  if (isSat) then
-    ! bubble point is cell pressure
-    auxvar%bo%D_xo(dof_op) = d_xo_dpb
-    auxvar%bo%D_xg(dof_op) = d_xg_dpb
+  if (getDerivs) then
+    call getBlackOilComposition(pb,t, &
+                                auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg, &
+                                d_xo_dpb,d_xg_dpb,&
+                                auxvar%bo%D_xo(dof_temp),auxvar%bo%D_xg(dof_temp))
+    if (isSat) then
+      ! bubble point is cell pressure
+      auxvar%bo%D_xo(dof_op) = d_xo_dpb
+      auxvar%bo%D_xg(dof_op) = d_xg_dpb
+    else
+      ! bubble point is a solution variable
+      auxvar%bo%D_xo(dof_gsat) = d_xo_dpb
+      auxvar%bo%D_xg(dof_gsat) = d_xg_dpb
+    endif
   else
-    ! bubble point is a solution variable
-    auxvar%bo%D_xo(dof_gsat) = d_xo_dpb
-    auxvar%bo%D_xg(dof_gsat) = d_xg_dpb
+    call getBlackOilComposition(pb,t, &
+                                auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
   endif
-else
-  call getBlackOilComposition(pb,t, &
-                              auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
-endif
-
-if (auxvar%bo%xo < 0.d0) then
-  print *, "xo negative ", auxvar%bo%xo, " pb is ", auxvar%bo%bubble_point
-  option%io_buffer = 'xo has gone negative; xo and bubble point are'
-  call printMsg(option)
-  write(option%io_buffer,*) auxvar%bo%xo
-  call printMsg(option)
-  write(option%io_buffer,*) auxvar%bo%bubble_point
-  call printMsg(option)
-endif
 
 !==============================================================================
 !  Get the miscible-immiscible mixing fractions (functions of fs=Ss/(Sg+Ss))
@@ -1842,13 +1831,11 @@ endif
 
   if (getDerivs) then
     if (.NOT. isSat) D_fm(dof_gsat)= 0.d0
-
-    !!! hack for testing
+    ! store variables if debugging mode wants to:
     if (auxvar%has_TL_test_object) then
       auxvar%tlT%fm = fm
       auxvar%tlT%D_fm = D_fm
     endif
-
   endif
 
 !==============================================================================
@@ -1865,16 +1852,6 @@ endif
 !    sva=(1.0d0-eps_oil)*sv/sh
 !  endif
   swa = 1 - soa - sva
-
-
-#if 0
-if (getDerivs) then
-  if (dabs(sv)>0.d0 .AND.  sv < 1.d-300) then
-    print *, "near 0 vap sat"
-  endif
-endif
-#endif
-
 !--Pcow------------------------------------------------------------------------
 
   call characteristic_curves%oil_wat_sat_func% &
@@ -1917,24 +1894,13 @@ endif
       auxvar%D_pc(oid,dof_gsat) = d_pco_d_sva
     endif
 
-    !  Scale Pcog for degree of miscibility
-    !  Need to do prod rule on fi*pc(oid)
-    !  We have D_fm; D_fi is -D_fm so:
+    !  Scale Pcog for degree of miscibility (derivs)
+    ! note fi = 1 - fm so D_fi = -D_fm:
     auxvar%D_pc(oid,:) = ProdRule(fi,-D_fm,auxvar%pc(oid),auxvar%D_pc(oid,:),ndof)
   endif
 
 !  Scale Pcog for degree of miscibility
   auxvar%pc(oid)=fi*auxvar%pc(oid)
-
-if (getDerivs) then
-  do idex = 1,4
-    do jdex = 1,5
-      if (isnan(auxvar%D_pc(idex,jdex)))then
-        print *, "nan here pc"
-      endif
-    enddo
-  enddo
-endif
 
 !==============================================================================
 !  Get the phase pressures
@@ -1979,6 +1945,8 @@ endif
   endif
 
     !!! hack for testing
+    ! store variables if debugging mode wants to:
+    ! store variables if debugging mode wants to:
     if (auxvar%has_TL_test_object) then
       auxvar%tlT%cellpres= cell_pressure
       auxvar%tlT%D_cellpres= D_cell_pres
@@ -2405,7 +2373,7 @@ endif
     D_uvap(dof_gsat) = 0.d0
   endif
 
-!!! hack for tesing
+    ! store variables if debugging mode wants to:
 if (getDerivs) then
   if (auxvar%has_TL_test_object) then
     auxvar%tlT%uoil = uoil
@@ -2476,6 +2444,7 @@ endif
   endif
 
 !!! hack for tesing
+    ! store variables if debugging mode wants to:
 if (getDerivs) then
   !if (auxvar%tl%stores_everything) then
   if (auxvar%has_TL_test_object) then
@@ -2542,6 +2511,7 @@ endif
     print *, "odd krom deriv here"
   endif
 !!! hack for tesing
+    ! store variables if debugging mode wants to:
 if (getDerivs) then
   !if (auxvar%tl%stores_everything) then
   if (auxvar%has_TL_test_object) then
@@ -2578,6 +2548,7 @@ endif
     endif
   endif
 !!! hack for tesing
+    ! store variables if debugging mode wants to:
 if (getDerivs) then
   !if (auxvar%tl%stores_everything) then
   if (auxvar%has_TL_test_object) then
@@ -2615,6 +2586,7 @@ endif
     endif
   endif
 !!! hack for tesing
+    ! store variables if debugging mode wants to:
 if (getDerivs) then
   !if (auxvar%tl%stores_everything) then
   if (auxvar%has_TL_test_object) then
@@ -2744,6 +2716,7 @@ endif
   endif
 
 !!! hack for tesing
+    ! store variables if debugging mode wants to:
 if (getDerivs) then
   !if (auxvar%tl%stores_everything) then
   if (auxvar%has_TL_test_object) then
@@ -2805,6 +2778,7 @@ endif
   endif
 
 !!! hack for tesing
+    ! store variables if debugging mode wants to:
 if (getDerivs) then
   !if (auxvar%tl%stores_everything) then
   if (auxvar%has_TL_test_object) then
@@ -2842,6 +2816,7 @@ endif
                                  D_kro ,D_krg ,D_krs   )      ! true k derivs     (out)
 
   !!! hack for tesing
+    ! store variables if debugging mode wants to:
   if (getDerivs) then
     !if (auxvar%tl%stores_everything) then
     if (auxvar%has_TL_test_object) then
@@ -2888,6 +2863,7 @@ endif
 
 
   !!! hack for tesing
+    ! store variables if debugging mode wants to:
   if (getDerivs) then
     if (auxvar%has_TL_test_object) then
       auxvar%tlT%viscotl = visotl
@@ -2952,6 +2928,7 @@ endif
                         denog,D_denog)
 
 !!! hack for tesing
+    ! store variables if debugging mode wants to:
 if (getDerivs) then
   if (auxvar%has_TL_test_object) then
     auxvar%tlT%denotl = denotl
@@ -4513,21 +4490,8 @@ subroutine TL4PMiscibilityFraction(sg,ss,fm,dfmdsg,dfmdss)
   PetscReal,intent(in ) :: sg,ss
   PetscReal,intent(out) :: fm,dfmdsg,dfmdss
   PetscReal             :: svi,fs,sv,dfmdfs,svsq,svsqi,sgi,ssi
-  PetscReal             :: sliver
 
-  sliver = 1.d-15 !! experimental
   fm    =0.0
-
-  !!! TODO - is it correct to return 0 derivs in this case or should we consider
-  !!!        returning a constant slope?
-  !!!
-  !!! Assuming dfmdfs is returned as a nonzero slope, what are the fs derivs
-  !!! that it must be scaled by if ss=sg=0?
-  !!!
-  !!! Indeterminate. Can get 0 or 1 depending on the order of the s->0 limit 
-  !!! operations. It's pretty horrible. For now let's just assume 0.
-  !!! Then a zero sg derivative is correct, and ss derivative is incorrect.
-  !!! With sg kept at zero, fs will jump to 1 with any perturbation in ss
 
   dfmdsg=0.0
   dfmdss=0.0
@@ -4537,9 +4501,9 @@ subroutine TL4PMiscibilityFraction(sg,ss,fm,dfmdsg,dfmdss)
     svi=1.0/sv
     fs=ss*svi
 
-!!! TODO - put on a switch
 #if 0
-    ! maybe a good idea but will cause slight discrepencies with previous runs!
+    ! to be considered - the rounding errors this avoids come up often. Note this has indeed been observed to change
+    ! the convergence behaviour of numerical and anlytical runs slightly
     if (sg ==0.d0) fs = 1.d0
 #endif
 
@@ -4550,34 +4514,23 @@ subroutine TL4PMiscibilityFraction(sg,ss,fm,dfmdsg,dfmdss)
     ! for near 0 saturations.
     dfmdsg = 0.0
     dfmdss = 0.0
-
     if (sg == 0.d0) then ! attempt to catch case of sg = 0, ss very small
       ! explicitly, subbing in sg = 0, we have:
       ! d fs / d sg = - ss / (ss+sg)^2 = -1/ss
       ! d fs / d ss =   sg / (ss+sg)^2 =  0
       ! so we do the following:
-     
-      ! still need protection in case ss ~0 but >0.
-      ! then act like ss=sg=0? 
-      ! In that case letting d / dsg pretend to be zero would be correct:
       ssi = 0.0
-      if (ss > sliver) ssi = 1.0/ss
+      if (ss > 0.0) ssi = 1.0/ss
       dfmdsg = -dfmdfs*ssi
 
-
-       !!! letting dfmdss be zero is also consistent with ss=sg=0 behaviour at 
-       !!! start of rouitne, 
-       
-       ! leave as default 0:
-       !dfmdss =  0.0
+      ! leave as default 0:
+      !dfmdss =  0.0
     elseif (ss == 0.0) then
       ! could happen that ss = 0 and sg very small can give similar problems, so:
       ! d fs / d sg = - ss / (ss+sg)^2 = 0
       ! d fs / d ss =   sg / (ss+sg)^2 = 1/sg
       ! then:
       !dfmdsg = 0.0
-      !!! propper practice for the sg inversion, pointless right now but in principle
-      !!! might want to replace >0 with >_sliver or something
       sgi = 0.d0
       if (sg > 0.d0) then 
         sgi = 1.d0/sg
@@ -4592,12 +4545,16 @@ subroutine TL4PMiscibilityFraction(sg,ss,fm,dfmdsg,dfmdss)
       endif
     endif
 
+#if 0
+!!! I'll leave these commented out but we may well want a nice robust error check for this at some point just in case
     if (isnan(dfmdsg)) then
       print *, "nan in fm computation derivs, dfmdsg"
     endif
     if (isnan(dfmdss)) then
       print *, "nan in fm computation derivs, dfmdss"
     endif
+#endif
+
   endif
 
 end subroutine TL4PMiscibilityFraction
@@ -5255,7 +5212,6 @@ subroutine TL4PMiscibilityFractionFromSaturationFraction(fs,fm,dfmdfs)
         deni=0.0
         if( abs(den)>0.0 ) deni=1.0/(fmis_su-fmis_sl)
         dfmdfs=deni
-        !print *, "HERE returning dfm endpoint slope, fs=fmis_sl ", fs, fmis_sl, dfmdfs
       endif
 
     else if( fs>=fmis_su ) then
@@ -5268,7 +5224,6 @@ subroutine TL4PMiscibilityFractionFromSaturationFraction(fs,fm,dfmdfs)
         deni=0.0
         if( abs(den)>0.0 ) deni=1.0/(fmis_su-fmis_sl)
         dfmdfs=deni
-        !print *, "HERE returning dfm endpoint slope, fs=fmis_su ", fs, fmis_su, dfmdfs
       endif
 
     else
