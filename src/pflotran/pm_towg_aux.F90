@@ -2259,16 +2259,6 @@ endif
   call characteristic_curves%wat_rel_perm_func_owg% &
                 RelativePermeability(sw,krw,dkrw_satw,option,auxvar%table_idx)
 
-#if 0
-  call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
-
-! use cell_pressure; cell_pressure - psat calculated internally
-  call EOSWaterViscosity(t,cell_pressure,wat_sat_pres,visw,ierr)
-
-  auxvar%mobility(wid) = krw/visw
-#endif
-
-
    if (getDerivs) then
     call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,dps_dt,ierr)
 
@@ -2307,35 +2297,26 @@ endif
   call characteristic_curves%GetOWGCriticalAndConnateSats(swcr,sgcr,dummy, &
                       sowcr,sogcr,swco,option)
 
-  !old:
-  !call TL4PScaleCriticals(sgcr,sogcr,fm,so,sv,uoil,uvap)
-
-  ! new:
   call TL4PScaleCriticals(sgcr,sogcr,fm,so,sv,uoil,uvap, &
                           getDerivs,ndof,dof_osat,dof_gsat,dof_ssat,&
                           D_fm,D_uoil,D_uvap)
-  !!! turn off gas derivs if not saturated:
+
   if (.not. isSat) then
     D_uoil(dof_gsat) = 0.d0
     D_uvap(dof_gsat) = 0.d0
   endif
 
-    ! store variables if debugging mode wants to:
-if (getDerivs) then
-  if (auxvar%has_TL_test_object) then
-    auxvar%tlT%uoil = uoil
-    auxvar%tlT%uvap = uvap
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%uoil = uoil
+      auxvar%tlT%uvap = uvap
 
-    auxvar%tlT%D_uoil = D_uoil
-    auxvar%tlT%D_uvap = D_uvap
+      auxvar%tlT%D_uoil = D_uoil
+      auxvar%tlT%D_uvap = D_uvap
+    endif
   endif
-endif
 
-
-
- ! duoil_soil means have to consider subsequent oil sat derivs
- ! duvap_sv "                               " gas and slv derivs,
- ! since sv = ss + sg
 
 !-------------------------------------------------------------------------------
 ! Oil mobility (rel. perm / viscosity)
@@ -2353,6 +2334,7 @@ endif
   call characteristic_curves%oil_rel_perm_func_owg% &
               RelPermOG(uoil,krog,dkrog_uoil,option,auxvar%table_idx)
 
+!--Some simple intermediate derivs:-------------------------------------------
   D_krog = D_uoil*dkrog_uoil
   D_krow = 0.d0
   D_krow(dof_osat) = dkro_sato
@@ -2365,19 +2347,21 @@ endif
   D_sw(dof_ssat) = -1.d0
   D_sw(dof_osat) = -1.d0
   if (isSat) D_sw(dof_gsat) = -1.d0
+!--/Some simple intermediate derivs:------------------------------------------
 
 
 ! Form the Eclipse three-phase Kro expression
 
+
+!--kroi and derivs:----------------------------------------------------------
   den=sv+sw-swco
   if( den>0.0 ) then
     kroi=(sv*krog+(sw-swco)*krow)/den
   else
     kroi=0.5*(krog+krow)
   endif
-
-    if (getDerivs) then
-    ! kroi = num/den
+  
+  if (getDerivs) then
     if (den>0.0) then
       num=(sv*krog+(sw-swco)*krow)
       D_num = ProdRule(sv,D_sv,krog,D_krog,ndof)     &
@@ -2390,21 +2374,20 @@ endif
     endif
   endif
 
-!!! hack for tesing
-    ! store variables if debugging mode wants to:
-if (getDerivs) then
-  !if (auxvar%tl%stores_everything) then
-  if (auxvar%has_TL_test_object) then
-    auxvar%tlT%kroi = kroi
-    auxvar%tlT%D_kroi = D_kroi
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%kroi = kroi
+      auxvar%tlT%D_kroi = D_kroi
 
-    auxvar%tlT%krog = krog
-    auxvar%tlT%D_krog = D_krog
+      auxvar%tlT%krog = krog
+      auxvar%tlT%D_krog = D_krog
 
-    auxvar%tlT%krow = krow
-    auxvar%tlT%D_krow = D_krow
+      auxvar%tlT%krow = krow
+      auxvar%tlT%D_krow = D_krow
+    endif
   endif
-endif
+!--/kroi and derivs:---------------------------------------------------------
 
 
 !--Miscible lookup (Krow at Sh=So+Sg+Ss)
@@ -2460,7 +2443,6 @@ endif
 !!! hack for tesing
     ! store variables if debugging mode wants to:
 if (getDerivs) then
-  !if (auxvar%tl%stores_everything) then
   if (auxvar%has_TL_test_object) then
     auxvar%tlT%krom = krom
     auxvar%tlT%D_krom = D_krom
@@ -2497,7 +2479,6 @@ endif
 !!! hack for tesing
     ! store variables if debugging mode wants to:
 if (getDerivs) then
-  !if (auxvar%tl%stores_everything) then
   if (auxvar%has_TL_test_object) then
     auxvar%tlT%krvm = krvm
     auxvar%tlT%D_krvm = D_krvm
@@ -2535,7 +2516,6 @@ endif
 !!! hack for tesing
     ! store variables if debugging mode wants to:
 if (getDerivs) then
-  !if (auxvar%tl%stores_everything) then
   if (auxvar%has_TL_test_object) then
     auxvar%tlT%krgm = krgm
     auxvar%tlT%D_krgm = D_krgm
@@ -2665,7 +2645,6 @@ endif
 !!! hack for tesing
     ! store variables if debugging mode wants to:
 if (getDerivs) then
-  !if (auxvar%tl%stores_everything) then
   if (auxvar%has_TL_test_object) then
     auxvar%tlT%krgi = krgi
     auxvar%tlT%D_krgi = D_krgi
@@ -2727,7 +2706,6 @@ endif
 !!! hack for tesing
     ! store variables if debugging mode wants to:
 if (getDerivs) then
-  !if (auxvar%tl%stores_everything) then
   if (auxvar%has_TL_test_object) then
     auxvar%tlT%viso = viso
     auxvar%tlT%visg = visg
@@ -2765,7 +2743,6 @@ endif
   !!! hack for tesing
     ! store variables if debugging mode wants to:
   if (getDerivs) then
-    !if (auxvar%tl%stores_everything) then
     if (auxvar%has_TL_test_object) then
       auxvar%tlT%krotl = kro
       auxvar%tlT%krgtl = krg
@@ -5186,7 +5163,6 @@ end subroutine TL4PMiscibilityFractionFromSaturationFraction
 
 ! ************************************************************************** !
 
-!subroutine TL4PScaleCriticals(sgcr,sogcr,fm,soil,svap,uoil,uvap)
 subroutine TL4PScaleCriticals(sgcr,sogcr,fm,soil,svap,uoil,uvap &
                               ,getDerivs,ndof &
                               ,dof_soil,dof_sgas,dof_ssol &
@@ -5201,24 +5177,18 @@ subroutine TL4PScaleCriticals(sgcr,sogcr,fm,soil,svap,uoil,uvap &
 
   implicit none
 
-#if 0
-  PetscReal,intent(in ) :: sgcr,sogcr,fm,soil,svap
-  PetscReal,intent(out) :: uoil,uvap
-  PetscReal             :: ugcr,uogcr,fi
-#endif
-  PetscReal,intent(in ) :: sgcr,sogcr,fm,soil,svap
-  PetscBool,intent(in) :: getDerivs
-  PetscInt,intent(in) :: ndof,dof_soil,dof_sgas,dof_ssol
-  PetscReal,dimension(1:ndof),intent(in) :: D_fm
-  PetscReal             :: ugcr,uogcr,fi
-  PetscReal             :: duvap_dugcr,duoil_duogcr
-  PetscReal             :: duoil_soil,duvap_svap
+  PetscReal,intent(in )                   :: sgcr,sogcr,fm,soil,svap
+  PetscBool,intent(in)                    :: getDerivs
+  PetscInt,intent(in)                     :: ndof,dof_soil,dof_sgas,dof_ssol
+  PetscReal,dimension(1:ndof),intent(in)  :: D_fm
 
-  PetscReal,intent(out) :: uoil,uvap
 
+  PetscReal,intent(out)                   :: uoil,uvap
   PetscReal,dimension(1:ndof),intent(out) :: D_uoil,D_uvap
 
-!!! TODO - ORDER CORRECTLY efficiency?
+  PetscReal                               :: ugcr,uogcr,fi
+  PetscReal                               :: duvap_dugcr,duoil_duogcr
+  PetscReal                               :: duoil_soil,duvap_svap
   PetscReal,dimension(1:ndof) :: D_fi,D_ugcr,D_uogcr
 
   fi=1.0-fm
@@ -5231,22 +5201,15 @@ subroutine TL4PScaleCriticals(sgcr,sogcr,fm,soil,svap,uoil,uvap &
     D_uogcr = -1.d0*D_fm*sogcr
   endif
 
-#if 0
-  call TL4PScaleLookupSaturation(sgcr ,ugcr ,svap,uvap)
-  call TL4PScaleLookupSaturation(sogcr,uogcr,soil,uoil)
-#endif
-
   call TL4PScaleLookupSaturation(sgcr ,ugcr ,svap,uvap,duvap_svap,duvap_dugcr)
   call TL4PScaleLookupSaturation(sogcr,uogcr,soil,uoil,duoil_soil,duoil_duogcr)
 
   if (getDerivs) then
     D_uoil = 0.d0
-    ! uoil = uoil(uogcr,so)
     D_uoil = duoil_duogcr*D_uogcr
     D_uoil(dof_soil) = D_uoil(dof_soil) + duoil_soil
 
     D_uvap = 0.d0
-    ! uvap = uvqp(ugcr,sv) ; sv = so + sg
     D_uvap = duvap_dugcr*D_ugcr
     D_uvap(dof_sgas) = D_uvap(dof_sgas) + duvap_svap
     D_uvap(dof_ssol) = D_uvap(dof_ssol) + duvap_svap
