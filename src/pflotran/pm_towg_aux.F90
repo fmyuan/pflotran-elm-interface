@@ -2401,14 +2401,19 @@ endif
   socrs=fi*sogcr
   svcrs=fi*sgcr
 
-    
+!--sh and krh derivs:---------------------------------------------------------
   if (getDerivs) then
+#if 0
     D_sh = 0.d0;D_sh(dof_osat)=1.d0;D_sh(dof_ssat)=1.d0
     if (isSat) D_sh(dof_gsat) = 1.d0
+#endif
     !!! TODO D_sh above should just be sum of existing sat deriv arrays
+    D_sh(:) = auxvar%D_sat(dof_osat,:) + auxvar%D_sat(dof_gsat,:) + auxvar%D_sat(dof_ssat,:)
     D_krh = dkrh_sath*D_sh
   endif
+!--/sh and krh derivs:--------------------------------------------------------
 
+!--krom and derivs:----------------------------------------------------------
 ! For non-zero Krom, must have So and Sh > Socrs
   if( (sh .gt. (socrs+epss)) .and. (so .ge. socrs) ) then
     krom=krh*(so-socrs)/(sh-socrs)
@@ -2423,8 +2428,12 @@ endif
       num = krh*(so-socrs)
       worker = so-socrs
       ! D_socrs = sogcr*D_fi = -sogcr*D_fm so:
+#if 0
       D_worker = sogcr*D_fm; D_worker(dof_osat) = D_worker(dof_osat) + 1.d0
+#endif
       !!! TODO - just add oil sat deriv to sogcr*Dfm
+      D_worker = sogcr*D_fm + auxvar%D_sat(dof_osat,:)
+
       D_num = ProdRule(krh,D_krh,worker,D_worker,ndof)
 
       den = sh - socrs
@@ -2437,17 +2446,14 @@ endif
     endif
   endif
 
-  if ((so .ge. socrs) .AND. D_krom(2) == 0.0 .AND. abs(auxvar%sat(3)) > 0.0 .AND. abs(auxvar%sat(4)) > 0.0) then
-    print *, "odd krom deriv here"
+ ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%krom = krom
+      auxvar%tlT%D_krom = D_krom
+   endif
   endif
-!!! hack for tesing
-    ! store variables if debugging mode wants to:
-if (getDerivs) then
-  if (auxvar%has_TL_test_object) then
-    auxvar%tlT%krom = krom
-    auxvar%tlT%D_krom = D_krom
-  endif
-endif
+!--/krom and derivs:---------------------------------------------------------
 
 ! For non-zero Krvm, must have Sv and Sh > Svcrs
   if( (sh .gt. (svcrs+epss)) .and. (sv .ge. svcrs) ) then
