@@ -1916,6 +1916,8 @@ subroutine DoIncrJacInList(this, option, nflowdof, Jup, A)
 
       Jup = 0.0
 
+!!!! EXPERIMENTAL - DS
+if (this%w_cmplflows_allocated) then
       do i = 1, nflowdof
         do j = 1, nflowdof
           Jup(i, j) = this%w_cmplflowsX(icmpl, i, jcmplg, j)
@@ -1926,6 +1928,7 @@ subroutine DoIncrJacInList(this, option, nflowdof, Jup, A)
         Jup(option%energy_id, :) = 0.d0
         Jup(:, option%energy_id) = 0.d0
       endif
+endif
 
       call MatSetValuesBlockedLocal(A, 1, ghosted_id-1, 1, ghosted_jd-1, Jup, &
                                     ADD_VALUES, ierr);CHKERRQ(ierr)
