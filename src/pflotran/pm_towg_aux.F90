@@ -1916,15 +1916,11 @@ endif
     ! oil by oil:
     auxvar%D_pres(oid,dof_op) = 1.d0
 
-    ! water presure, first the pc term:
-    auxvar%D_pres(wid,:) = -auxvar%D_pc(wid,:)
-    ! ..then the oil presure term:
-    auxvar%D_pres(wid,:) = auxvar%D_pres(wid,:) + auxvar%D_pres(oid,:)
+    ! water pressure: 
+    auxvar%D_pres(wid,:) = -auxvar%D_pc(wid,:) + auxvar%D_pres(oid,:)
 
-    ! gas presure, first the pc term:
-    auxvar%D_pres(gid,:) = auxvar%D_pc(oid,:)
-    ! ..then the oil presure term:
-    auxvar%D_pres(gid,:) = auxvar%D_pres(gid,:) + auxvar%D_pres(oid,:)
+    ! gas pressure:
+    auxvar%D_pres(gid,:) = auxvar%D_pc(oid,:) + auxvar%D_pres(oid,:)
 
     ! solvent pressure: 
     auxvar%D_pres(sid,:) = auxvar%D_pres(gid,:)
@@ -1933,7 +1929,7 @@ endif
   cell_pressure = max(auxvar%pres(wid),auxvar%pres(oid),auxvar%pres(gid))
 
   if (getDerivs) then
-    ! quick ugly find maxdex:
+    ! find dex corresponding to cell pres:
     cploc = wid
     if (auxvar%pres(oid) > auxvar%pres(cploc)) then
       cploc = oid
@@ -1944,13 +1940,11 @@ endif
     D_cell_pres = auxvar%D_pres(cploc,:)
   endif
 
-    !!! hack for testing
-    ! store variables if debugging mode wants to:
-    ! store variables if debugging mode wants to:
-    if (auxvar%has_TL_test_object) then
-      auxvar%tlT%cellpres= cell_pressure
-      auxvar%tlT%D_cellpres= D_cell_pres
-    endif
+  ! store variables if debugging mode wants to:
+  if (auxvar%has_TL_test_object) then
+    auxvar%tlT%cellpres= cell_pressure
+    auxvar%tlT%D_cellpres= D_cell_pres
+  endif
 
 !==============================================================================
 !  Get rock properties
@@ -1980,16 +1974,6 @@ endif
 !------------------------------------------------------------------------------
 ! Water phase thermodynamic properties
 !------------------------------------------------------------------------------
-
-#if 0
-  call EOSWaterDensity(t,cell_pressure, &
-                       auxvar%den_kg(wid),auxvar%den(wid),ierr)
-  call EOSWaterEnthalpy(t,cell_pressure,auxvar%H(wid),ierr)
-  auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
-
-  ! MJ/kmol comp                  ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
-  auxvar%U(wid) = auxvar%H(wid) - (cell_pressure / auxvar%den(wid) * 1.d-6)
-#endif
 
   if (getDerivs) then
     call EOSWaterDensity(t,cell_pressure, &
@@ -2042,17 +2026,6 @@ endif
 ! Gas phase thermodynamic properties. Can be ideal gas default or PVTG table
 !------------------------------------------------------------------------------
 
-#if 0
-  call EOSGasDensityEnergy(t,auxvar%pres(gid),auxvar%den(gid), &
-                           auxvar%H(gid),auxvar%U(gid),ierr,auxvar%table_idx)
-
-  auxvar%den_kg(gid) = auxvar%den(gid) * EOSGasGetFMW()
-
-  auxvar%H(gid) = auxvar%H(gid) * 1.d-6 ! J/kmol -> MJ/kmol
-  auxvar%U(gid) = auxvar%U(gid) * 1.d-6 ! J/kmol -> MJ/kmol
-#endif
-
-
   if (getDerivs) then
     call EOSGasDensityEnergy(t,auxvar%pres(gid),auxvar%den(gid),dx_dt,dx_dpres, &
                                      auxvar%H(gid),dh_dt,dh_dpres,auxvar%U(gid),&
@@ -2093,17 +2066,6 @@ endif
 !------------------------------------------------------------------------------
 ! Solvent phase thermodynamic properties. Can be ideal gas default or PVTS table
 !------------------------------------------------------------------------------
-
-#if 0
-  call EOSSlvDensityEnergy(t,auxvar%pres(sid), &
-                           auxvar%den(sid),auxvar%H(sid),auxvar%U(sid),ierr,&
-                           auxvar%table_idx)
-
-  auxvar%den_kg(sid) = auxvar%den(sid) * EOSSlvGetFMW()
-
-  auxvar%H(sid) = auxvar%H(sid) * 1.d-6 ! J/kmol -> MJ/kmol
-  auxvar%U(sid) = auxvar%U(sid) * 1.d-6 ! J/kmol -> MJ/kmol
-#endif
 
   if (getDerivs) then
 
@@ -2149,46 +2111,31 @@ endif
 ! because it is an optional argument (needed only if table lookup)
 !------------------------------------------------------------------------------
 
-#if 0
-  call EOSOilDensityEnergy  (auxvar%temp,po,deno,ho,uo,ierr,auxvar%table_idx)
-! Density and compressibility look-up at bubble point
-  call EOSOilDensity        (auxvar%temp,pb,deno      ,ierr,auxvar%table_idx)
-  call EOSOilCompressibility(auxvar%temp,pb,cr        ,ierr,auxvar%table_idx)
+  if (getDerivs) then
+   call EOSOilDensityEnergy(auxvar%temp,po,deno, &
+                            auxvar%D_den(oid,dof_temp),auxvar%D_den(oid,dof_op), &
+                            ho,auxvar%D_H(oid,dof_temp),auxvar%D_H(oid,dof_op), &
+                            uo,auxvar%D_U(oid,dof_temp),auxvar%D_U(oid,dof_op), &
+                            ierr,auxvar%table_idx)
 
-!  Correct for undersaturation: correction not yet available for energy
+   ! Density and compressibility look-up at bubble point
+   call EOSOilDensity(auxvar%temp,pb,deno,auxvar%D_den(oid,dof_temp),ddeno_dpb,ierr,auxvar%table_idx)
+   call EOSOilCompressibility(auxvar%temp,pb,cr,dcr_dt,dcr_dpb,ierr,auxvar%table_idx)
 
-  crusp=cr*(po-pb)
-  deno=deno*(1.0+crusp*(1.0+0.5*crusp))
-  auxvar%den(oid)=deno
-  auxvar%H  (oid)=ho
-  auxvar%U  (oid)=uo
-#endif
+   if (isSat) then
+     ! pb is pressure:
+     auxvar%D_den(oid,dof_op) = ddeno_dpb
+   else
+     ! pb is a solution variable:
+     auxvar%D_den(oid,dof_gsat) = ddeno_dpb
+   endif
 
-   if (getDerivs) then
-    call EOSOilDensityEnergy(auxvar%temp,po,deno, &
-                             auxvar%D_den(oid,dof_temp),auxvar%D_den(oid,dof_op), &
-                             ho,auxvar%D_H(oid,dof_temp),auxvar%D_H(oid,dof_op), &
-                             uo,auxvar%D_U(oid,dof_temp),auxvar%D_U(oid,dof_op), &
-                             ierr,auxvar%table_idx)
-
-    ! Density and compressibility look-up at bubble point
-    call EOSOilDensity(auxvar%temp,pb,deno,auxvar%D_den(oid,dof_temp),ddeno_dpb,ierr,auxvar%table_idx)
-    call EOSOilCompressibility(auxvar%temp,pb,cr,dcr_dt,dcr_dpb,ierr,auxvar%table_idx)
-
-    if (isSat) then
-      ! pb is pressure:
-      auxvar%D_den(oid,dof_op) = ddeno_dpb
-    else
-      ! pb is a solution variable:
-      auxvar%D_den(oid,dof_gsat) = ddeno_dpb
-    endif
-
-  else
-    call EOSOilDensityEnergy  (auxvar%temp,po,deno,ho,uo,ierr,auxvar%table_idx)
-  ! Density and compressibility look-up at bubble point
-    call EOSOilDensity        (auxvar%temp,pb,deno      ,ierr,auxvar%table_idx)
-    call EOSOilCompressibility(auxvar%temp,pb,cr        ,ierr,auxvar%table_idx)
-  endif
+ else
+   call EOSOilDensityEnergy  (auxvar%temp,po,deno,ho,uo,ierr,auxvar%table_idx)
+   ! Density and compressibility look-up at bubble point
+   call EOSOilDensity        (auxvar%temp,pb,deno      ,ierr,auxvar%table_idx)
+   call EOSOilCompressibility(auxvar%temp,pb,cr        ,ierr,auxvar%table_idx)
+ endif
 
 !  Correct for undersaturation: correction not yet available for energy
 ! --------- Correct for undersaturation ---------------------------------------
