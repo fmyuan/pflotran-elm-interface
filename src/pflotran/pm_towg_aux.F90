@@ -2461,12 +2461,6 @@ endif
       den = sh-svcrs
       worker = sv-svcrs
       ! D_svcrs = sgcr*D_fi = -sgcr*D_fm so:
-
-#if 0
-      D_worker = sgcr*D_fm; D_worker(dof_ssat) = D_worker(dof_ssat) + 1.d0
-      if (isSat) D_worker(dof_gsat) = D_worker(dof_gsat) + 1.d0
-#endif
-
       D_worker = sgcr*D_fm + D_sv
       D_num= ProdRule(krh,D_krh,worker,D_worker,ndof)
 
@@ -2698,19 +2692,18 @@ endif
 !  Form the Todd-Longstaff rel perms
 !-------------------------------------------------------------------------------
 
-  call TL4PRelativePermeabilities( so,sg,sw,ss,sv,sh,fm, &
-                                 swcr,sgcr,sowcr,sogcr,swco, &
-                                 kroi,krgi,krsi, &
-                                 krom,krgm,krsm, &
-                                 kro ,krg ,krs,   &
-                                 getDerivs,ndof,  &
-                                 D_fm,            &           ! fm derivs (in)
-                                 D_kroi,D_krgi,D_krsi, &      ! imiscible k derivs (in)
-                                 D_krom,D_krgm,D_krsm, &      ! miskible k derivs  (in)
-                                 D_kro ,D_krg ,D_krs   )      ! true k derivs     (out)
+  call TL4PRelativePermeabilities( so,sg,sw,ss,sv,sh,fm,      &
+                                 swcr,sgcr,sowcr,sogcr,swco,  &
+                                 kroi,krgi,krsi,              &
+                                 krom,krgm,krsm,              &
+                                 kro ,krg ,krs,               &
+                                 getDerivs,ndof,              &
+                                 D_fm,                        & ! fm derivs (in)
+                                 D_kroi,D_krgi,D_krsi,        & ! imiscible k derivs (in)
+                                 D_krom,D_krgm,D_krsm,        & ! miskible k derivs  (in)
+                                 D_kro ,D_krg ,D_krs   )        ! true k derivs     (out)
 
-  !!! hack for tesing
-    ! store variables if debugging mode wants to:
+  ! store variables if debugging mode wants to:
   if (getDerivs) then
     if (auxvar%has_TL_test_object) then
       auxvar%tlT%krotl = kro
@@ -2724,39 +2717,34 @@ endif
 
 !--Form the Todd-Longstaff viscosities-----------------------------------------
 
-!!! WORKING HERE
-#if 0
-  call TL4PViscosity(so,sg,ss,viso,visg,viss,visotl,visgtl,visstl)
-#endif
-
   if (getDerivs) then
-    !!! can cause problems if we pass in these
-    !!! auxvar members directly if they are not allocated
-    !!! (i.e. when running numerical) and in parallel, crashes
-    !!! some tl np2 regtests
+    ! can cause problems if we pass in these
+    ! auxvar members directly if they are not allocated
+    ! (i.e. when running numerical) and in parallel, crashes
+    ! some tl np2 regtests.
+    ! (alternative: optional arguments)
     D_so = auxvar%D_sat(oid,:)
     D_sg = auxvar%D_sat(gid,:)
     D_ss = auxvar%D_sat(sid,:)
   else
-    !!! they shouldn't be used in this case but might as well
+    ! they shouldn't be used in this case but for robustness:
     D_so = 0.d0
     D_sg = 0.d0
     D_ss = 0.d0
   endif
 
   call TL4PViscosity(so,sg,ss,viso,visg,viss,visotl,visgtl,visstl, &
-                         getDerivs,ndof,          &
-                         D_so,D_sg,D_ss,          & 
-                         dof_osat,dof_gsat,dof_ssat, &
-                         D_viso,D_visg,D_viss, &         ! visc derivs in
-                         D_visotl,D_visgtl,D_visstl, &   ! tl visc derivs out
-                         isSat,               &
-                         denos,D_denos,dengs,D_dengs,denogs,D_denogs, &
-                         denos_pre,D_denos_pre)
+                     getDerivs,ndof,                               &
+                     D_so,D_sg,D_ss,                               & 
+                     dof_osat,dof_gsat,dof_ssat,                   &
+                     D_viso,D_visg,D_viss,                         & ! visc derivs in
+                     D_visotl,D_visgtl,D_visstl,                   & ! tl visc derivs out
+                     isSat,                                        &
+                     denos,D_denos,dengs,D_dengs,denogs,D_denogs,  &
+                     denos_pre,D_denos_pre)
 
 
-  !!! hack for tesing
-    ! store variables if debugging mode wants to:
+  ! store variables if debugging mode wants to:
   if (getDerivs) then
     if (auxvar%has_TL_test_object) then
       auxvar%tlT%viscotl = visotl
@@ -2786,56 +2774,50 @@ endif
   deng=auxvar%den_kg(gid)
   dens=auxvar%den_kg(sid)
 
-#if 0
-  call TL4PDensity( so,sg,ss,                            &
-                    viso,visg,viss,visotl,visgtl,visstl, &
-                    deno,deng,dens,denotl,dengtl,denstl )
-#endif
-
-    if (getDerivs) then
-    !!! can cause problems if we pass in these
-    !!! auxvar members directly if they are not allocated
-    !!! (i.e. when running numerical) and in parallel, crashes
-    !!! some tl np2 regtests
+  if (getDerivs) then
+    ! can cause problems if we pass in these
+    ! auxvar members directly if they are not allocated
+    ! (i.e. when running numerical) and in parallel, crashes
+    ! some tl np2 regtests
+    ! (alternative: optional arguments)
     D_deno = auxvar%D_den_kg(oid,:)
     D_deng = auxvar%D_den_kg(gid,:)
     D_dens = auxvar%D_den_kg(sid,:)
   else
-    !!! they shouldn't be used in this case but might as well
+    ! they shouldn't be used in this case but might as well
     D_deno = 0.d0
     D_deng = 0.d0
     D_dens = 0.d0
   endif
 
-  call TL4PDensity( so,sg,ss,                            &
-                    viso,visg,viss,visotl,visgtl,visstl, &
+  call TL4PDensity( so,sg,ss,                             &
+                    viso,visg,viss,visotl,visgtl,visstl,  &
                     deno,deng,dens,denotl,dengtl,denstl , &
-                        getDerivs, ndof ,      &
-                        D_so,D_sg,D_ss,                   &
-                        dof_osat,dof_gsat,dof_ssat, &
-                        D_deno,D_deng,D_dens,  &
-                        D_viso,D_visg,D_viss,       &
-                        D_visotl,D_visgtl,D_visstl, &
-                        D_denotl,D_dengtl,D_denstl, &
-                        isSat, &
-                        denog,D_denog)
+                    getDerivs, ndof ,                     &
+                    D_so,D_sg,D_ss,                       &
+                    dof_osat,dof_gsat,dof_ssat,           &
+                    D_deno,D_deng,D_dens,                 &
+                    D_viso,D_visg,D_viss,                 &
+                    D_visotl,D_visgtl,D_visstl,           &
+                    D_denotl,D_dengtl,D_denstl,           &
+                    isSat,                                &
+                    denog,D_denog)
 
-!!! hack for tesing
-    ! store variables if debugging mode wants to:
-if (getDerivs) then
-  if (auxvar%has_TL_test_object) then
-    auxvar%tlT%denotl = denotl
-    auxvar%tlT%dengtl = dengtl
-    auxvar%tlT%denstl = denstl
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%denotl = denotl
+      auxvar%tlT%dengtl = dengtl
+      auxvar%tlT%denstl = denstl
 
-    auxvar%tlT%denog = denog
-    auxvar%tlT%D_denog = D_denog
+      auxvar%tlT%denog = denog
+      auxvar%tlT%D_denog = D_denog
 
-    auxvar%tlT%D_denotl = D_denotl
-    auxvar%tlT%D_dengtl = D_dengtl
-    auxvar%tlT%D_denstl = D_denstl
+      auxvar%tlT%D_denotl = D_denotl
+      auxvar%tlT%D_dengtl = D_dengtl
+      auxvar%tlT%D_denstl = D_denstl
+    endif
   endif
-endif
 
 !------------------------------------------------------------------------------
 !  Make and load mobilities
@@ -2857,30 +2839,6 @@ if (getDerivs) then
     auxvar%D_mobility(oid,:) = DivRule(kro,D_kro,visotl,D_visotl,ndof)
     auxvar%D_mobility(gid,:) = DivRule(krg,D_krg,visgtl,D_visgtl,ndof)
     auxvar%D_mobility(sid,:) = DivRule(krs,D_krs,visstl,D_visstl,ndof)
-#if 0
-  auxvar%D_mobility(oid,:) = 0.0
-  auxvar%D_mobility(gid,:) = 0.0
-  auxvar%D_mobility(sid,:) = 0.0
-  if (kro > 0.0) then
-    auxvar%mobility(oid) = kro/visotl
-    auxvar%D_mobility(oid,:) = DivRule(kro,D_kro,visotl,D_visotl,ndof)
-  else
-    !print *, "zero out oil mob, kr and visc are ", kro, visotl
-  endif
-  if (krg > 0.0) then 
-    auxvar%mobility(gid) = krg/visgtl
-    auxvar%D_mobility(gid,:) = DivRule(krg,D_krg,visgtl,D_visgtl,ndof)
-  else
-    !print *, "zero out gas mob, kr and visc are ", krg, visgtl
-  endif
-  if (krs > 0.0) then
-    auxvar%mobility(sid) = krs/visstl
-    auxvar%D_mobility(sid,:) = DivRule(krs,D_krs,visstl,D_visstl,ndof)
-  else
-    !!! note: this has been observed to proc a lot
-    !print *, "zero out slv mob, kr and visc are ", krs, visstl
-  endif
-#endif
 endif
 
 if (getDerivs) then
@@ -4455,15 +4413,15 @@ end subroutine TL4PMiscibilityFraction
 ! ************************************************************************** !
 
 subroutine TL4PRelativePermeabilities( so  ,sg  ,sw   ,ss   ,sv  ,sh, fm , &
-                                       swcr,sgcr,sowcr,sogcr,swco, &
-                                       kroi,krgi,krsi, &
-                                       krom,krgm,krsm, &
-                                       kro ,krg ,krs,  &
-                                   getDerivs,ndof,     &
-                                   D_fm ,            &           ! fm derivs (in)
-                                   D_kroi,D_krgi,D_krsi, &       ! imiscible k derivs (in)
-                                   D_krom,D_krgm,D_krsm, &      ! miskible k derivs  (in)
-                                   D_kro ,D_krg ,D_krs   )      ! true k derivs     (out)
+                                       swcr,sgcr,sowcr,sogcr,swco,         &
+                                       kroi,krgi,krsi,                     &
+                                       krom,krgm,krsm,                     &
+                                       kro ,krg ,krs,                      &
+                                       getDerivs,ndof,                     &
+                                       D_fm ,                              & ! fm derivs (in)
+                                       D_kroi,D_krgi,D_krsi,               & ! imiscible k derivs (in)
+                                       D_krom,D_krgm,D_krsm,               & ! miskible k derivs  (in)
+                                       D_kro ,D_krg ,D_krs   )               ! true k derivs     (out)
 
 !------------------------------------------------------------------------------
 ! Set up the interpolated TL4P relative permeabilities
@@ -4476,21 +4434,22 @@ subroutine TL4PRelativePermeabilities( so  ,sg  ,sw   ,ss   ,sv  ,sh, fm , &
   use Derivatives_utilities_module
   implicit none
 
-  PetscReal,intent(in ) :: so  ,sg  ,sw   ,ss   ,sv  ,sh,fm 
-  PetscReal,intent(in ) :: swcr,sgcr,sowcr,sogcr,swco
-  PetscReal,intent(in ) :: kroi,krgi,krsi
-  PetscReal,intent(in ) :: krom,krgm,krsm
-  PetscReal,intent(out) :: kro ,krg ,krs
+  PetscReal,intent(in )                    :: so  ,sg  ,sw   ,ss   ,sv  ,sh,fm 
+  PetscReal,intent(in )                    :: swcr,sgcr,sowcr,sogcr,swco
+  PetscReal,intent(in )                    :: kroi,krgi,krsi
+  PetscReal,intent(in )                    :: krom,krgm,krsm
+  PetscReal,dimension(1:ndof),intent(in)   :: D_fm
+  PetscReal,dimension(1:ndof),intent(in)   :: D_kroi,D_krgi,D_krsi
+  PetscReal,dimension(1:ndof),intent(in)   :: D_krom,D_krgm,D_krsm
+
+  PetscReal,intent(out)                    :: kro ,krg ,krs
+  PetscReal,dimension(1:ndof),intent(out)  :: D_kro,D_krg,D_krs
 
   PetscReal svi,fs,fi
 
   PetscBool :: getDerivs
   PetscInt :: ndof
 
-  PetscReal,dimension(1:ndof),intent(in)  :: D_fm
-  PetscReal,dimension(1:ndof),intent(in)  :: D_kroi,D_krgi,D_krsi
-  PetscReal,dimension(1:ndof),intent(in)  :: D_krom,D_krgm,D_krsm
-  PetscReal,dimension(1:ndof),intent(out)  :: D_kro,D_krg,D_krs
 
 
   kro=0.0
@@ -4509,29 +4468,29 @@ subroutine TL4PRelativePermeabilities( so  ,sg  ,sw   ,ss   ,sv  ,sh, fm , &
   if (getDerivs) then
 
    D_kro = ProdRule(fm,D_fm,krom,D_krom,ndof) &
-         + ProdRule(fi,-D_fm,kroi,D_kroi,ndof)   ! does this force creaton of new array?
+         + ProdRule(fi,-D_fm,kroi,D_kroi,ndof)   
 
    D_krg = ProdRule(fm,D_fm,krgm,D_krgm,ndof) &
-         + ProdRule(fi,-D_fm,krgi,D_krgi,ndof)   ! does this force creaton of new array?
+         + ProdRule(fi,-D_fm,krgi,D_krgi,ndof)   
 
    D_krs = ProdRule(fm,D_fm,krsm,D_krsm,ndof) &
-         + ProdRule(fi,-D_fm,krsi,D_krsi,ndof)   ! does this force creaton of new array?
+         + ProdRule(fi,-D_fm,krsi,D_krsi,ndof)   
   endif
 
 end subroutine TL4PRelativePermeabilities
 
 ! ************************************************************************** !
 
-subroutine TL4PViscosity( so   ,sg   ,ss   , &
-                           visco,viscg,viscs, &
-                           viscotl,viscgtl,viscstl, &
-                           getDerivs,ndof,          &
-                           D_so,D_sg,D_ss,          &
-                           dof_osat,dof_gsat,dof_ssat, &
-                           D_visco,D_viscg,D_viscs, &         ! visc derivs in
-                           D_viscotl,D_viscgtl,D_viscstl, &   ! tl visc derivs out
-                           isSat,                          &
-                           denos,D_denos,dengs,D_dengs,denogs,D_denogs, &
+subroutine TL4PViscosity( so   ,sg   ,ss                               , &
+                           visco,viscg,viscs                           , &
+                           viscotl,viscgtl,viscstl                     , &
+                           getDerivs,ndof                              , &
+                           D_so,D_sg,D_ss                              , &
+                           dof_osat,dof_gsat,dof_ssat                  , &
+                           D_visco,D_viscg,D_viscs                     , & ! visc derivs in
+                           D_viscotl,D_viscgtl,D_viscstl               , & ! tl visc derivs out
+                           isSat                                       , &
+                           denos,D_denos,dengs,D_dengs,denogs,D_denogs , &
                            denos_pre,D_denos_pre)
 
 !------------------------------------------------------------------------------
@@ -4544,18 +4503,20 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
   use Derivatives_utilities_module
   implicit none
 
+  ! in :
   PetscReal,intent(in ) :: so     ,sg     ,ss
   PetscReal,intent(in ) :: visco  ,viscg  ,viscs
-
   PetscBool,intent(in ) :: getDerivs,isSat
   PetscInt ,intent(in ) :: ndof,dof_osat,dof_gsat,dof_ssat
   PetscReal,dimension(1:ndof),intent(in)   :: D_visco,D_viscg,D_viscs
   PetscReal,dimension(1:ndof),intent(in)   :: D_so,D_sg,D_ss
 
+
+  ! out:
   PetscReal,dimension(1:ndof),intent(out)  :: D_viscotl,D_viscgtl,D_viscstl
-
-
   PetscReal,intent(out) :: viscotl,viscgtl,viscstl
+
+  ! intermediates:
   PetscReal             :: viscom ,viscgm ,viscsm
   PetscReal             :: viscoimw,viscgimw,viscsimw
   PetscReal             :: sos,sosi
@@ -4574,7 +4535,7 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
   PetscReal,dimension(1:ndof)  :: D_viscom_w,D_viscgm_w,D_viscsm_w
   PetscReal,dimension(1:ndof)  :: D_visco_wc,D_viscg_wc,D_viscs_wc
   PetscReal,dimension(1:ndof)  :: D_worker
-  PetscReal,dimension(1:ndof)  :: D_1,D_2,D_3,D_denos_alt
+  !PetscReal,dimension(1:ndof)  :: D_1,D_2,D_3,D_denos_alt
   PetscReal,dimension(1:ndof)  :: D_sos,D_sgs,D_sh
   PetscReal,dimension(1:ndof)  :: D_denos_pre
   PetscReal :: denos_pre
@@ -4640,31 +4601,6 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
     endif
   endif
 
-#if 0
-  if (getDerivs) then
-    ! find in tl_derivatives.F90
-    !call TL4P_Util_1(so,vsqp,D_vsqp,ss,voqp,D_voqp,sosi,dof_osat,dof_ssat,denos,D_denos,ndof)
-    if (sosi>0.d0) then
-      sosi_sq = sosi*sosi
-
-      worker = so*sosi
-      D_worker=0.d0
-      D_worker(dof_osat) =  ss*sosi_sq
-      D_worker(dof_ssat) = -so*sosi_sq
-      D_denos_alt = ProdRule(worker,D_worker,vsqp,D_vsqp,ndof)
-
-      worker = ss*sosi
-      D_worker=0.d0
-      D_worker(dof_osat) = -ss*sosi_sq
-      D_worker(dof_ssat) =  so*sosi_sq
-      D_denos_alt = D_denos_alt  &
-              + ProdRule(worker,D_worker,voqp,D_voqp,ndof)
-    else
-      D_denos_alt= 0.5*(D_vsqp+D_voqp)
-    endif
-  endif
-#endif
-
 !------------ /denos and derivatives--------------------------------------------
 
 
@@ -4699,17 +4635,15 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
    if (getDerivs) then
     if (shi>0.d0) then
 
-#if 0
      D_denogs = ProdProdDivRule(so,D_so,vgqp,D_vgqp,vsqp,D_vsqp,sh,D_sh,ndof) &
               + ProdProdDivRule(sg,D_sg,vsqp,D_vsqp,voqp,D_voqp,sh,D_sh,ndof) &
               + ProdProdDivRule(ss,D_ss,voqp,D_voqp,vgqp,D_vgqp,sh,D_sh,ndof)
-#endif
+#if 0
     D_1 = ProdProdDivRule(so,D_so,vgqp,D_vgqp,vsqp,D_vsqp,sh,D_sh,ndof)
     D_2 = ProdProdDivRule(sg,D_sg,vsqp,D_vsqp,voqp,D_voqp,sh,D_sh,ndof) 
     D_3 = ProdProdDivRule(ss,D_ss,voqp,D_voqp,vgqp,D_vgqp,sh,D_sh,ndof)
     D_denogs = D_1 + D_2 + D_3
-
-
+#endif
     else
       D_denogs = ProdRule(vgqp,D_vgqp,vsqp,D_vsqp,ndof) &
          + ProdRule(vsqp,D_vsqp,voqp,D_voqp,ndof) &
@@ -4790,6 +4724,9 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
     D_viscgtl = ProdRule(viscgm_w,D_viscgm_w,viscg_wc,D_viscg_wc,ndof)
     D_viscstl = ProdRule(viscsm_w,D_viscsm_w,viscs_wc,D_viscs_wc,ndof)
 
+! we may wish to uncomment and have as an optional error check at some point; 
+! a lot can go wrong when the system gets to marginal saturations
+#if 0
     do i = 1,ndof
       if (isnan(D_viscotl(i))) then
         print *, "viscotl nan deriv at ", i
@@ -4801,34 +4738,27 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
         print *, "viscstl nan deriv at ", i
       endif
     enddo
-  endif
-
-
-
-#if 0
-  if (viscgtl == 0.d0) then
-    print *, "gas visc 0 here!"
-  endif
 #endif
+  endif
 
 
 end subroutine TL4PViscosity
 
 ! ************************************************************************** !
 
-subroutine TL4PDensity( so    ,sg    ,ss    , &
-                        viso  ,visg  ,viss  , &
-                        visotl,visgtl,visstl, &
-                        deno  ,deng  ,dens  , &
-                        denotl,dengtl,denstl,  &
-                        getDerivs, ndof ,      &
-                        D_so,D_sg,D_ss,             &
+subroutine TL4PDensity( so    ,sg    ,ss    ,       &
+                        viso  ,visg  ,viss  ,       &
+                        visotl,visgtl,visstl,       &
+                        deno  ,deng  ,dens  ,       &
+                        denotl,dengtl,denstl,       &
+                        getDerivs, ndof     ,       &
+                        D_so,D_sg,D_ss      ,       &
                         dof_osat,dof_gsat,dof_ssat, &
                         D_deno,D_deng,D_dens,       &
                         D_viso,D_visg,D_viss,       &
                         D_visotl,D_visgtl,D_visstl, &
                         D_denotl,D_dengtl,D_denstl, &
-                        isSat, &
+                        isSat               ,       &
                         denog,D_denog)
 
 !------------------------------------------------------------------------------
@@ -4859,14 +4789,12 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
 
   PetscReal             :: tlomega,tlomegac,sh,shi,fo,fg,fs,denm,sog,sogi,go,gg
   PetscReal             :: visoqp,visgqp,d,d4,d4i,visog,denog,denmo,denmg,denms
-
   PetscReal,dimension(1:ndof) :: D_denm,D_denog
   PetscReal,dimension(1:ndof) :: D_d,D_d4,D_visoqp,D_visgqp,D_visog
   PetscReal,dimension(1:ndof) :: D_sog,D_sh,D_fo,D_fg,D_fs,D_go,D_gg
   PetscReal,dimension(1:ndof) :: D_denmo,D_denmg,D_denms
-  PetscReal :: workerReal
-
   PetscReal,dimension(1:ndof) :: D_worker
+  PetscReal :: workerReal
   PetscReal :: sgoi_sq
   PetscInt :: i
 
@@ -4932,7 +4860,7 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
            + ProdRule(fg,D_fg,deng,D_deng,ndof) &
            + ProdRule(fs,D_fs,dens,D_dens,ndof) 
 
-    ! don't need this
+    ! don't need this if denmo etc aren't needed
     D_denmo = D_denm
     D_denmg = D_denm
     D_denms = D_denm
@@ -4975,14 +4903,10 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
   denog=go*deno+gg*deng
   if (getDerivs) then
     if( sog>0.0 ) then
-#if 0
-      D_denog = ProdDivRule(so,D_so,deno,D_deno,sog,D_sog,ndof) &
-              + ProdDivRule(sg,D_sg,deng,D_deng,sog,D_sog,ndof)
-#endif
       D_denog = ProdRule(go,D_go,deno,D_deno,ndof) &
               + ProdRule(gg,D_gg,deng,D_deng,ndof)
     else
-      !!! TODO  - maybe something better needed here
+      ! better handling of this case may be possible
       D_denog = 0.0
     endif
   endif
@@ -5028,12 +4952,6 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
 
 !--Now form the viscosity-weighted values--------------------------------------
 
-#if 0
-  call formMixedDen2(viso,viss ,visotl,deno,dens ,denotl)
-  call formMixedDen2(visg,viss ,visgtl,deng,dens ,dengtl)
-  call formMixedDen2(viss,visog,visstl,dens,denog,denstl)
-#endif
-
   call formMixedDen2(viso,viss,visotl,deno,dens ,denotl,    &
                      getDerivs,ndof,                        &
                      D_viso,D_viss,D_visotl,D_deno,D_dens,  &
@@ -5047,6 +4965,9 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
                      D_viss,D_visog,D_visstl,D_dens,D_denog,&
                      D_denstl)
 
+#if 0
+! we may wish to uncomment and have as an optional error check at some point; 
+! a lot can go wrong when the system gets to marginal saturations
 if (getDerivs) then
   do i = 1,ndof
     if (isnan(D_denotl(i))) then
@@ -5060,6 +4981,7 @@ if (getDerivs) then
     endif
   enddo
 endif
+#endif
 
 end subroutine TL4PDensity
 

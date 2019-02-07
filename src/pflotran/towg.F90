@@ -5393,11 +5393,6 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
 
-#if 0
-    if (local_id == 670) then
-      print *, "look at 670 jac here, accum"
-    endif
-#endif
   enddo
 
   if (realization%debug%matview_Jacobian_detailed) then
@@ -5461,31 +5456,6 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
         call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                       Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
-
-#if 0
-      if (local_id_up == 5) then
-        print *, "look at 5 jac here, jac_up, nbr ", local_id_dn, " has slvsat " &
-                  , towg%auxvars(0,ghosted_id_dn)%sat(4), "and gas sat "           &
-                  , towg%auxvars(0,ghosted_id_dn)%sat(3)
-      endif
-      if (local_id_dn == 5) then
-        print *, "look at 5 jac here, jac_dn, nbr ", local_id_up, " has slvsat " &
-                  , towg%auxvars(0,ghosted_id_up)%sat(4), "and gas sat "        &
-                  , towg%auxvars(0,ghosted_id_up)%sat(3)
-      endif
-
-      if (local_id_up == 670) then
-        print *, "look at 670 jac here, jac_up, nbr ", local_id_dn, " has slvsat " &
-                  , towg%auxvars(0,ghosted_id_dn)%sat(4), "and gas sat "           &
-                  , towg%auxvars(0,ghosted_id_dn)%sat(3)
-      endif
-      if (local_id_dn == 670) then
-        print *, "look at 670 jac here, jac_dn, nbr ", local_id_up, " has slvsat " &
-                  , towg%auxvars(0,ghosted_id_up)%sat(4), "and gas sat "        &
-                  , towg%auxvars(0,ghosted_id_up)%sat(3)
-      endif
-#endif
-
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
@@ -5542,11 +5512,6 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
 
-#if 0
-      if (local_id_dn == 670) then
-        print *, "look at 670 jac here, bc"
-      endif
-#endif
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -5588,12 +5553,6 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
 
-
-#if 0
-      if (local_id == 670) then
-        print *, "look at 670 jac here, srcsink"
-      endif
-#endif
 
     enddo
     source_sink => source_sink%next
