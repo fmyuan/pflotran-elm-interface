@@ -20,7 +20,7 @@ module PM_TOWG_Aux_module
 
   PetscInt, public :: towg_debug_cell_id = UNINITIALIZED_INTEGER
   PetscReal, parameter, public :: towg_pressure_scale = 1.d0
-
+  
   PetscReal, public :: val_tl_omega = 0.0d0
   PetscReal, public :: fmis_sl      = 0.0d0
   PetscReal, public :: fmis_su      = 1.0d0
@@ -96,6 +96,8 @@ module PM_TOWG_Aux_module
 
   !alternative density computation for tl4p, sometimes problematic?
   PetscBool, public :: TL4P_altDensity = PETSC_FALSE
+  !switches for some minor changes
+  PetscBool, public :: TL4P_slv_sat_truncate,TL4P_safemobs
 
   ! it might be required for thermal diffusion terms and tough conv criteria
   type, public :: towg_parameter_type
@@ -1605,7 +1607,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   dof_temp = towg_energy_dof
   dof_ssat = TOWG_SOLV_SATURATION_DOF
   ndof = option%nflowdof
-  mobSanityCheck = PETSC_FALSE !!! hardcoded for now
+  mobSanityCheck = TL4P_safemobs
 
 if (towg_analytical_derivatives) then
   if (.NOT. auxvar%has_derivs) then
@@ -2824,17 +2826,6 @@ endif
 !  Make and load mobilities
 !------------------------------------------------------------------------------
 
-  !!! EXPERIMENTAL - DS:
-  !!! only do the computation if krx nonzero.
-  !!! usually if krx zero implies corresponding sat is zero and then
-  !!! might also have visxtl zero - which is very bad indeed.
-
-  !!! HAVE to do this if using analytical derivatives at all - nan mobility
-  !!! finds its way into jacoian through product etc rule and destroys convergence.
-  !!! This problem does not come up if we allow the 
-  !!! if (mob < eps) then cycle endif 
-  !!! type exceptions in jacobian contributions, but we really need these not
-  !!! to be allowed
 
   if (getDerivs) then
     auxvar%D_mobility(oid,:) = DivRule(kro,D_kro,visotl,D_visotl,ndof)

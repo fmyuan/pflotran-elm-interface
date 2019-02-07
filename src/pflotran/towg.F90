@@ -5904,11 +5904,11 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   PetscInt :: newton_iteration,istate
 
   PetscReal :: scand
-  PetscBool :: slvSatTruncate
+  PetscBool :: slv_sat_truncate
 
   type(global_auxvar_type), pointer :: global_auxvars(:)
 
-  slvSatTruncate = PETSC_FALSE !!! hardcode for now, awaiting implementation of switch
+  slv_sat_truncate = TL4P_slv_sat_truncate
 
 # if 0
   !! for appleyard:
@@ -5951,7 +5951,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
     end if
 
     ! Stop SOLVENT saturation going negative (if that's even a good idea)
-    if( slvSatTruncate .AND. towg_miscibility_model == TOWG_SOLVENT_TL ) then
+    if( slv_sat_truncate .AND. towg_miscibility_model == TOWG_SOLVENT_TL ) then
       saturation_index = offset + TOWG_SOLV_SATURATION_DOF 
       if ( (X_p(saturation_index) - dX_p(saturation_index)) < 0.d0 ) then
         dX_p(saturation_index) = X_p(saturation_index)
