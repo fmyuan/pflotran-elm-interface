@@ -29,7 +29,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   use Material_module
   
 
-  use TH_module
+  use Flowmode_module
   use Condition_Control_module
   
   implicit none

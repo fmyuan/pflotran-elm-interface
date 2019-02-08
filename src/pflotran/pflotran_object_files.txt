@@ -28,12 +28,12 @@ mode_aux_obj = \
 	${common_src}pm_base_pointer.o \
 	${common_src}pm_subsurface_flow.o \
 	${common_src}pm_th.o \
-	${common_src}th_aux.o \
+	${common_src}flowmode_aux.o \
 	${common_src}inlinesurface_aux.o
 
 mode_obj = \
 	${common_src}global.o \
-	${common_src}th.o \
+	${common_src}flowmode.o \
 	${common_src}inlinesurface.o
 
 shared_mode_aux_obj = \

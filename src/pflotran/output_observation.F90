@@ -1244,7 +1244,7 @@ subroutine OutputMassBalance(realization_base)
   use Utility_module
   use Output_Aux_module
   
-  use TH_module, only : THComputeMassBalance
+  use Flowmode_module, only : THComputeMassBalance
 
   use Global_Aux_module
   use Material_Aux_class

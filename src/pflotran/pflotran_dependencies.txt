@@ -1,7 +1,7 @@
 auxiliary.o : global_aux.o \
               inlinesurface_aux.o material_aux.o \
               pflotran_constants.o \
-              th_aux.o
+              flowmode_aux.o
 auxvars_base.o : option.o pflotran_constants.o
 auxvars_flow.o : auxvars_base.o option.o pflotran_constants.o utility.o
 auxvars_flow_energy.o : auxvars_base.o auxvars_flow.o option.o \
@@ -164,7 +164,7 @@ init_subsurface_flow.o : condition_control.o coupler.o \
                          discretization.o field.o grid.o \
                          hdf5.o init_common.o material.o \
                          option.o patch.o pflotran_constants.o \
-                         realization_subsurface.o th.o 
+                         realization_subsurface.o flowmode.o 
 inlinesurface.o : global_aux.o inlinesurface_aux.o material_aux.o option.o \
                   pflotran_constants.o
 inlinesurface_aux.o : global_aux.o option.o utility.o
@@ -211,7 +211,7 @@ output_observation.o : connection.o coupler.o discretization.o field.o \
                        option.o output_aux.o output_common.o patch.o \
                        pflotran_constants.o \
                        realization_base.o \
-                       realization_subsurface.o region.o th.o \
+                       realization_subsurface.o region.o flowmode.o \
                        utility.o variables.o
 output_tecplot.o : connection.o coupler.o discretization.o dm_kludge.o field.o \
                    grid.o grid_structured.o grid_unstructured_aux.o \
@@ -229,7 +229,7 @@ patch.o : auxiliary.o characteristic_curves.o condition.o connection.o \
           pflotran_constants.o \
           region.o \
           saturation.o strata.o string.o \
-          th_aux.o \
+          flowmode_aux.o \
           utility.o variables.o
 pflotran.o : factory_pflotran.o factory_subsurface.o \
              multisimulation.o option.o pflotran_constants.o \
@@ -258,7 +258,7 @@ pm_th.o : communicator_base.o communicator_structured.o \
           global.o global_aux.o grid.o input_aux.o material_aux.o option.o \
           patch.o pflotran_constants.o pm_base.o pm_subsurface_flow.o \
           realization_subsurface.o \
-          string.o th.o th_aux.o utility.o
+          string.o flowmode.o flowmode_aux.o utility.o
 pmc_base.o : checkpoint.o hdf5_aux.o logging.o option.o output.o output_aux.o \
              pflotran_constants.o pm_base.o pm_base_pointer.o simulation_aux.o \
              timestepper_base.o utility.o waypoint.o
@@ -329,13 +329,13 @@ srcsink_sandbox_mass_rate.o : grid.o input_aux.o material_aux.o \
 strata.o : input_aux.o material.o option.o pflotran_constants.o region.o \
            string.o units.o
 string.o : pflotran_constants.o
-th.o : condition.o connection.o coupler.o debug.o discretization.o eos_water.o \
+flowmode.o : condition.o connection.o coupler.o debug.o discretization.o eos_water.o \
        field.o fluid.o global_aux.o grid.o logging.o material.o material_aux.o \
        option.o output_aux.o patch.o pflotran_constants.o \
        realization_subsurface.o region.o \
-       string.o th_aux.o \
+       string.o flowmode_aux.o \
        utility.o variables.o
-th_aux.o : characteristic_curves.o eos_water.o global_aux.o material_aux.o option.o \
+flowmode_aux.o : characteristic_curves.o eos_water.o global_aux.o material_aux.o option.o \
            pflotran_constants.o
 time_storage.o : option.o pflotran_constants.o
 timestepper_BE.o : checkpoint.o convergence.o hdf5_aux.o input_aux.o option.o \
@@ -346,9 +346,6 @@ timestepper_base.o : input_aux.o option.o output.o pflotran_constants.o \
 timestepper_steady.o : convergence.o option.o output.o pflotran_constants.o \
                        pm_base.o solver.o \
                        timestepper_BE.o timestepper_base.o waypoint.o
-timestepper_surface.o : option.o output.o pflotran_constants.o pm_base.o \
-                        pm_surface_th.o solver.o surface_th.o \
-                        timestepper_base.o utility.o waypoint.o
 units.o : option.o pflotran_constants.o
 upwind_direction.o : option.o
 utility.o : input_aux.o option.o pflotran_constants.o string.o

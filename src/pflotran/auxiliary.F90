@@ -3,7 +3,7 @@ module Auxiliary_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use Global_Aux_module
-  use TH_Aux_module
+  use Flowmode_Aux_module
   use Material_Aux_class
   use InlineSurface_Aux_module
   

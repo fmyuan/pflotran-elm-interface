@@ -1586,7 +1586,7 @@ subroutine PatchGetVariable1(patch,field,option,output_option,vec, &
   use Option_module
   use Field_module
 
-  use TH_Aux_module
+  use Flowmode_Aux_module
   use Output_Aux_module
   use Variables_module
   use Material_Aux_class
@@ -1781,7 +1781,7 @@ function PatchGetVariableValueAtCell(patch,field,option, &
   use Option_module
   use Field_module
 
-  use TH_Aux_module
+  use Flowmode_Aux_module
   use Output_Aux_module
   use Variables_module
   use Material_Aux_class

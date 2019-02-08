@@ -1,4 +1,4 @@
-module TH_Aux_module
+module Flowmode_Aux_module
 
   use PFLOTRAN_Constants_module
 
@@ -954,4 +954,4 @@ subroutine THAuxDestroy(aux)
 
   end subroutine THAuxDestroy
 
-end module TH_Aux_module
+end module Flowmode_Aux_module

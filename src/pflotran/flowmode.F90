@@ -1,8 +1,8 @@
-module TH_module
+module Flowmode_module
 
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
-  use TH_Aux_module
+  use Flowmode_Aux_module
   use Global_Aux_module
   use Material_Aux_class
   use PFLOTRAN_Constants_module
@@ -3866,4 +3866,4 @@ subroutine THDestroy(patch)
 
 end subroutine THDestroy
 
-end module TH_module
+end module Flowmode_module

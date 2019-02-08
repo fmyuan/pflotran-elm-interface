@@ -87,7 +87,7 @@ subroutine PMTHRead(this,input)
   use Utility_module
   use EOS_Water_module  
   use Option_module
-  use TH_Aux_module
+  use Flowmode_Aux_module
  
   implicit none
   
@@ -251,7 +251,7 @@ subroutine PMTHInitializeTimestep(this)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THInitializeTimestep
+  use Flowmode_module, only : THInitializeTimestep
   use Option_module
 
   implicit none
@@ -403,7 +403,7 @@ subroutine PMTHResidual(this,snes,xx,r,ierr)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THResidual
+  use Flowmode_module, only : THResidual
 
   implicit none
   
@@ -431,7 +431,7 @@ subroutine PMTHJacobian(this,snes,xx,A,B,ierr)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THJacobian
+  use Flowmode_module, only : THJacobian
 
   implicit none
   
@@ -464,7 +464,7 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   use Field_module
   use Option_module
   use Patch_module
-  use TH_Aux_module
+  use Flowmode_Aux_module
   use Global_Aux_module
 
   implicit none
@@ -608,8 +608,8 @@ subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   use Grid_module
   use Field_module
   use Option_module
-  use TH_module
-  use TH_Aux_module
+  use Flowmode_module
+  use Flowmode_Aux_module
   use Global_Aux_module
   use Material_Aux_class
   use Patch_module
@@ -712,7 +712,7 @@ subroutine PMTHTimeCut(this)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THTimeCut
+  use Flowmode_module, only : THTimeCut
 
   implicit none
   
@@ -737,7 +737,7 @@ subroutine PMTHUpdateSolution(this)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THUpdateSolution
+  use Flowmode_module, only : THUpdateSolution
 
   implicit none
   
@@ -759,7 +759,7 @@ subroutine PMTHUpdateAuxVars(this)
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
-  use TH_module, only : THUpdateAuxVars
+  use Flowmode_module, only : THUpdateAuxVars
   
   implicit none
   
@@ -783,7 +783,7 @@ subroutine PMTHMaxChange(this)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THMaxChange
+  use Flowmode_module, only : THMaxChange
   use Option_module
 
   implicit none
@@ -817,7 +817,7 @@ subroutine PMTHComputeMassBalance(this,mass_balance_array)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THComputeMassBalance
+  use Flowmode_module, only : THComputeMassBalance
 
   implicit none
   
@@ -870,7 +870,7 @@ subroutine PMTHDestroy(this)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THDestroy
+  use Flowmode_module, only : THDestroy
 
   implicit none
   
