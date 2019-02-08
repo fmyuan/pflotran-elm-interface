@@ -231,7 +231,7 @@ subroutine SubsurfaceSimulationJumpStart(this)
       master_timestepper%max_time_step >= 0) then
     if (output_option%print_initial_snap) snapshot_plot_flag = PETSC_TRUE
     if (output_option%print_initial_obs) observation_plot_flag = PETSC_TRUE
-    if (output_option%print_initial_massbal) massbal_plot_flag = PETSC_FALSE
+    if (output_option%print_initial_massbal) massbal_plot_flag = PETSC_TRUE
     call Output(this%realization,snapshot_plot_flag,observation_plot_flag, &
                 massbal_plot_flag)
   endif

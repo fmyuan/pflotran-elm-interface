@@ -2,7 +2,6 @@ module Init_Subsurface_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
-  !geh: there can be no dependencies on simulation object in this file
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -975,10 +974,10 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
       !TODO(geh): refactors so that we don't need all these variants?
       case(TH_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%TH%zero_rows_local, &
-                      realization%patch%aux%TH%zero_rows_local_ghosted, &
-                      realization%patch%aux%TH%n_zero_rows, &
-                      realization%patch%aux%TH%inactive_cells_exist, &
+                      realization%patch%aux%Flow%zero_rows_local, &
+                      realization%patch%aux%Flow%zero_rows_local_ghosted, &
+                      realization%patch%aux%Flow%n_zero_rows, &
+                      realization%patch%aux%Flow%inactive_cells_exist, &
                       option)
     end select
     deallocate(dof_is_active)

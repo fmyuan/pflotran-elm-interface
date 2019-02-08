@@ -515,7 +515,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   PetscReal, parameter :: beta = 2.33d0           ! dimensionless -- ratio of soil ice surf. tension
   PetscReal, parameter :: T0   = TC2TK            ! freezing-point at standard pressure: in K
   PetscReal, parameter :: Lf   = HEAT_OF_FUSION   ! fusion heat (in J/kg)
-  PetscReal :: gamma, alpha, dalpha_drhol
+  PetscReal :: gammar, alpha, dalpha_drhol
   PetscReal :: rhol, rhol_mol, drhol_dp, drhol_dt
   PetscReal :: rhoi, rhoi_mol, drhoi_dp, drhoi_dt
 
@@ -536,140 +536,117 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   pcgl = max(0.d0, option%reference_pressure - pres_l)       ! always non-negative (0 = saturated)
   if (pcgl > abs(this%pcmax)) pcgl = this%pcmax
 
-  PCGL_MAX_FRZ = this%pcmax-1.0d0
-
   Tk = tc + T0
 
   ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pw' and 'tc'
   pw = max(option%reference_pressure, pres_l)
 
   ! --------------------
-
-#if 0
-  ! constant 'rhol' (liq. water)
-  rhol     = 999.8d0            ! kg/m3: kmol/m3*kg/kmol
-  drhol_dp = 0.d0
-  drhol_dt = 0.d0
-#else
   ! if not constant rhol
   call EOSWaterDensity(tc, pw, &
                        rhol, rhol_mol, drhol_dp, drhol_dt,ierr)
   rhol = rhol_mol * FMWH2O   ! in eos_water.F90, the conversion from mol->kg may not be consistent for all methods.
   drhol_dp = drhol_dp * FMWH2O
   drhol_dt = drhol_dt * FMWH2O
-#endif
 
-#if 0
-  ! constant 'rhoi' (for ice)
-  rhoi     = 916.7d0             ! kg/m3 at 273.15K
-  drhoi_dp = 0.d0
-  drhoi_dt = 0.d0
-#else
   call EOSWaterDensityIce(tc, pw, &
                           rhoi_mol, drhoi_dt, drhoi_dp, ierr)
   rhoi = rhoi_mol * FMWH2O   ! in eos_water.F90, the conversion from mol->kg may not be consistent for all methods.
   drhoi_dp = drhoi_dp * FMWH2O
   drhoi_dt = drhoi_dt * FMWH2O
-#endif
 
   ! --------------------
-    gamma       = beta*Lf
-    alpha       = gamma/T0*rhol
-    dalpha_drhol= gamma/T0
-
-    Tf     = T0 - 1.d0/alpha*min(PCGL_MAX_FRZ,pcgl)                               ! P.-K. Eq.(10), omiga=1/beta
-    dTf_dt = pcgl/alpha/alpha*(dalpha_drhol*drhol_dt)
-    dTf_dp = (pcgl*dalpha_drhol*drhol_dp - alpha)/alpha/alpha   ! dpcgl_dp = 1.0
-    if(pcgl>PCGL_MAX_FRZ) then
-      dTf_dt = 0.d0
-      dTf_dp = 0.d0
-    endif
-
-    xTf = Tk - T0
 
     select case (option%ice_model)
 
       case (PAINTER_EXPLICIT)
 
         ! explicit model from Painter (Comp. Geosci, 2011)
+
+        ! @T0+deltaTF, ice_pc
         ice_pc = pcgl
         dice_pc_dt = 0.d0
         dice_pc_dp = 1.d0
 
-        if(tc<=0.d0) then
+        if(Tk<=T0) then
 
-          ice_pc = -1.0d0*rhoi*beta*Lf*tc/T0               ! in positive value
-          dice_pc_dt = -beta*Lf/T0*(rhoi+tc*drhoi_dt)
-          dice_pc_dp = -beta*Lf/T0*(tc*drhoi_dp)
+          ! @deltaTF, ice_pc = 10*pcgl (reverse function of 'ice_pc' below)
+          ! So that, ice_pc will not less than pcgl, i.e. freezing will not allow more ice than total water available
+          deltaTf = 10.d0*pcgl*T0/(rhoi*beta*Lf)
+          if(Tk>deltaTF+T0) Tk=deltaTF+T0
+
+          ice_pc = - rhoi*beta*Lf*(Tk-T0)/T0               ! in positive value
+          dice_pc_dt = - beta*Lf/T0*(rhoi+(Tk-T0)*drhoi_dt)
+          dice_pc_dp = - beta*Lf/T0*((Tk-T0)*drhoi_dp)
+
+          ! smoothing from T0 ~ deltaTf
+          call HFunctionSmooth(tc+T0, T0, deltaTf+T0, Hfunc, dHfunc)
+          dice_pc_dt = dice_pc_dt * Hfunc + (ice_pc - pcgl) * dHfunc
+          dice_pc_dp = (dice_pc_dp - 1.0d0) * Hfunc + 1.0d0          ! dHfunc_dp = 0, dpcgl_dp = 1
+          ice_pc = (ice_pc - pcgl) * Hfunc + pcgl                    ! do this after derivatives
 
         endif
 
       case (PAINTER_KARRA_EXPLICIT, PAINTER_KARRA_EXPLICIT_SMOOTH)
 
+        gammar      = beta*Lf
+        alpha       = gammar/T0*rhol
+        dalpha_drhol= gammar/T0
+
+        ! freezing-point depression due to capilliary pressure
+        PCGL_MAX_FRZ = min(10.d0*alpha, this%pcmax)                 ! 'Tf' of max. 10oK below T0, otherwise, it could be crazy.
+        Tf     = T0 - 1.d0/alpha*pcgl !min(PCGL_MAX_FRZ,pcgl)             ! P.-K. Eq.(10), omiga=1/beta. Unit: Kelvin
+        dTf_dt = pcgl/alpha/alpha*(dalpha_drhol*drhol_dt)
+        dTf_dp = (pcgl*dalpha_drhol*drhol_dp - alpha)/alpha/alpha   ! dpcgl_dp = 1.0
+        !if(pcgl>PCGL_MAX_FRZ) then
+        !  dTf_dt = 0.d0
+        !  dTf_dp = 0.d0
+        !endif
+
+        !--------------------------------------------
+        deltaTf = 1.0d-50              ! half-width of smoothing zone (by default, nearly NO smoothing)
+        if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = option%frzthw_halfwidth
+        if (option%ice_model==PAINTER_KARRA_EXPLICIT_SMOOTH .and. deltaTf>1.0d-50) then
+          ! if smoothing, only need to calculate the two ends
+          if (Tk<T0+deltaTf .and. Tk>=Tf-deltaTf) then
+            Tk=Tf-deltaTf
+          endif
+        endif
+        !--------------------------------------------
+
+
          ! The following is a slightly-modified version from PKE in saturation_function module
          ! without smoothing of freezing-thawing zone
 
          ! explicit model from Painter & Karra, VJZ (2014)
-         tftheta = -xTf/T0                              ! P.-K. Eq.(18): theta: (Tk-T0)/T0, assuming Tf~T0 (ignored FP depression) in Eq. (12)
+         tftheta = -(Tk-T0)/T0                              ! P.-K. Eq.(18): theta: (Tk-T0)/T0, assuming Tf~T0 (ignored FP depression) in Eq. (12)
          dtftheta_dt = -1.0d0/T0
          dtftheta_dp = 0.d0
 
-         ice_pc     = gamma * rhol*tftheta           ! P.-K. Eq.(18), first term (i.e. ice only), but in positive value as all in CC equations
+         ice_pc     = gammar * rhol*tftheta                  ! P.-K. Eq.(18), first term (i.e. ice only), but in positive value as all in CC equations
          tempreal   = rhol*dtftheta_dt+tftheta*drhol_dt
-         dice_pc_dt = gamma * tempreal
+         dice_pc_dt = gammar * tempreal
          tempreal   = rhol*dtftheta_dp+tftheta*drhol_dp
-         dice_pc_dp = gamma * tempreal
+         dice_pc_dp = gammar * tempreal
 
-         ! Heaviside function to truncate Eq. (18) at 'Tf': Tf = T0-1/alpha*pcgl, i.e. -alpha*(Tf-T0)=pcgl, the left side IS exactly ice_pc @Tf
+         ! Heaviside function to truncate Eq. (18) at 'Tf', pcgl@>Tf and ice_pc@<Tf
+         ! Tf = T0-1/alpha*pcgl, i.e. -alpha*(Tf-T0)=pcgl, the left side IS exactly ice_pc @Tf
          Hfunc = sign(0.5d0, -(Tk-Tf))+0.5d0
          dice_pc_dt =  dice_pc_dt*Hfunc                          ! no need to adjust dice_pc_dt due to dpcgl_dt = 0
          dice_pc_dp =  dice_pc_dp*Hfunc + (1.d0-Hfunc)           ! dpcgl_dp = 1.0
          ice_pc     =  ice_pc*Hfunc + pcgl*(1.d0-Hfunc)
 
-         ! -----------
-         ! smoothing 'ice_pc' when Tk ranging within deltaTf of T0, from PKE's PCice to 0.0
-         ! from ATS, authored by Scott Painter et al.
-         deltaTf = 1.0d-50              ! half-width of smoothing zone (by default, nearly NO smoothing)
-         if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = option%frzthw_halfwidth
+        !--------------------------------------------
          if (option%ice_model==PAINTER_KARRA_EXPLICIT_SMOOTH .and. deltaTf>1.0d-50) then
-
-
-#if 0
-           ! F.-M. Yuan (2017-03-14): OFF
-           ! symmetrically smoothing over 'T0', so may create a gap from Tf ~ T0-deltaTf (Tf could be far away from T0)
-           if (abs(xTf)<deltaTf) then
-             a = deltaTf/4.0d0
-             b = -0.5d0
-             c = 0.25d0/deltaTf
-
-             tempreal   = a+b*xTf+c*xTf*xTf
-             ice_pc     = alpha*tempreal
-             dice_pc_dt = alpha*(b+2.0d0*c*xTf) + &
-             dalpha_drhol*drhol_dt*tempreal        ! in case we need this later
-
-             ! a note here:
-             ! (1) if xTf=-deltaTf (negative over Tf0), tempreal = deltaTf/4.0 + 0.5*deltaTf + 0.25*deltaTf = 1.0 * deltaTf
-             !                   so, ice_pc = alpha * deltaTf = -alpha * xTf;
-             !
-             !                     and, b+2*c*xTf = -1, so ice_pc_dt = -alpha
-             ! (2) if xTf=deltaTf (positive over Tf0), tempreal = deltaTf/4.0 - 0.5*deltaTf + 0.25*deltaTf = 0
-             !                   so, ice_pc = 0.
-             !                     and, b+2*x*xTf = 0, ice_pc_dt = 0
-             ! Then it means the smoothing_curve ends exactly with the original format
-           endif
-
-#endif
-
-           ! using the new Heaveside Smoothing function:
-           ! ice_pc@Tf-deltaTf --> ice_pc = pcgl @T0+deltaTf  (note: @Tf, ice_pc = pcgl by PKE, so this smoothing actually span over a large ranges around Tf~T0)
-           ! (note: Tf could be far way from T0, and 'ice_pc' above trucated at 'Tf'; So this smoothing will span over Tf-deltaTf ~ T0+deltaTf asymmetrically)
-           call HFunctionSmooth(Tk, Tf-deltaTf, T0+deltaTf, Hfunc, dHfunc)
-           dice_pc_dt = dice_pc_dt * Hfunc + (ice_pc - pcgl) * dHfunc
-           dice_pc_dp = (dice_pc_dp - 1.0d0) * Hfunc + 1.0d0          ! dHfunc_dp = 0, dpcgl_dp = 1
-           ice_pc = (ice_pc - pcgl) * Hfunc + pcgl                    ! do this after derivatives
-
-         endif !(option%ice_model==PAINTER_KARRA_EXPLICIT_SMOOTH)
-         ! -----------
+            ! using the new Heaveside Smoothing function:
+            ! ice_pc@Tf-deltaTf --> ice_pc = pcgl @T0+deltaTf
+            !  note: @Tf, ice_pc = pcgl by PKE, so this smoothing actually span over a larger range around Tf~T0)
+            call HFunctionSmooth(tc+T0, Tf-deltaTf, Tf+deltaTf, Hfunc, dHfunc)
+            dice_pc_dt = dice_pc_dt * Hfunc + (ice_pc - pcgl) * dHfunc
+            dice_pc_dp = (dice_pc_dp - 1.0d0) * Hfunc + 1.0d0          ! dHfunc_dp = 0, dpcgl_dp = 1
+            ice_pc = (ice_pc - pcgl) * Hfunc + pcgl                    ! do this after derivatives
+          endif !(option%ice_model==PAINTER_KARRA_EXPLICIT_SMOOTH)
+        !--------------------------------------------
 
        case (DALL_AMICO)
 

@@ -4,8 +4,6 @@ module PM_TH_class
   use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
-  !geh: using TH_module here fails with gfortran (internal compiler error)
-  !  use TH_module
   use Realization_Subsurface_class
   use Communicator_Base_module
   use Option_module
@@ -58,10 +56,6 @@ function PMTHCreate()
 
   class(pm_th_type), pointer :: th_pm
   
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHCreate()'
-#endif  
-
   allocate(th_pm)
 
   nullify(th_pm%commN)
@@ -100,10 +94,6 @@ subroutine PMTHRead(this,input)
   PetscBool :: found
   PetscReal :: tempreal
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHRead()'
-#endif
-
   option => this%option
   
   error_string = 'TH Options'
@@ -126,16 +116,16 @@ subroutine PMTHRead(this,input)
     
     select case(trim(word))
       case('ITOL_SCALED_RESIDUAL')
-        call InputReadDouble(input,option,th_itol_scaled_res)
-        call InputDefaultMsg(input,option,'th_itol_scaled_res')
+        call InputReadDouble(input,option,flow_itol_scaled_res)
+        call InputDefaultMsg(input,option,'flow_itol_scaled_res')
         this%check_post_convergence = PETSC_FALSE!PETSC_TRUE
         ! A NOTE (fmyuan, 2018-10-17): this option may have mass-balance issue if not carefully
         !    setting the 'th_itol_scaled_res' values. Temperally off now.
         option%io_buffer = ' TH: OPTIONS itol_scaled_residual IS currently OFF due to mass-balance issue!'
         call printMsg(option)
       case('ITOL_RELATIVE_UPDATE')
-        call InputReadDouble(input,option,th_itol_rel_update)
-        call InputDefaultMsg(input,option,'th_itol_rel_update')
+        call InputReadDouble(input,option,flow_itol_rel_update)
+        call InputDefaultMsg(input,option,'flow_itol_rel_update')
         this%check_post_convergence = PETSC_FALSE!PETSC_TRUE
         ! A NOTE (fmyuan, 2018-10-17): this option may have mass-balance issue if not carefully
         !    setting the 'th_itol_scaled_res' values. Temperally off now.
@@ -224,10 +214,6 @@ subroutine PMTHSetup(this)
   
   class(pm_th_type) :: this
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHSetup()'
-#endif
-
   call PMSubsurfaceFlowSetup(this)
   
   ! set up communicator
@@ -251,16 +237,12 @@ subroutine PMTHInitializeTimestep(this)
   ! Date: 03/90/13
   ! 
 
-  use Flowmode_module, only : THInitializeTimestep
+  use Flowmode_module, only : FlowmodeInitializeTimestep
   use Option_module
 
   implicit none
   
   class(pm_th_type) :: this
-
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHInitializeTimeStep()'
-#endif
 
   call PMSubsurfaceFlowInitializeTimestepA(this)
 
@@ -272,7 +254,7 @@ subroutine PMTHInitializeTimestep(this)
   call this%comm1%LocalToLocal(this%realization%field%iphas_loc, &
                                this%realization%field%iphas_loc)
 
-  call THInitializeTimestep(this%realization)
+  call FlowmodeInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)
   
 end subroutine PMTHInitializeTimestep
@@ -293,10 +275,6 @@ subroutine PMTHPreSolve(this)
   
   class(pm_th_type) :: this
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHPreSolve()'
-#endif
-
   call PMSubsurfaceFlowPreSolve(this)
 
 end subroutine PMTHPreSolve
@@ -314,10 +292,8 @@ subroutine PMTHPostSolve(this)
   
   class(pm_th_type) :: this
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHPostSolve()'
-#endif
-  
+  ! nothing ?
+
 end subroutine PMTHPostSolve
 
 ! ************************************************************************** !
@@ -352,10 +328,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: dt_tfac
   PetscInt :: ifac
   
-#ifdef PM_TH_DEBUG
-  call printMsg(this%option,'PMTH%UpdateTimestep()')
-#endif
-  
+
   if (iacceleration > 0) then
     fac = 0.5d0
     if (num_newton_iterations >= iacceleration) then
@@ -403,7 +376,7 @@ subroutine PMTHResidual(this,snes,xx,r,ierr)
   ! Date: 03/90/13
   ! 
 
-  use Flowmode_module, only : THResidual
+  use Flowmode_module, only : FlowmodeResidual
 
   implicit none
   
@@ -413,11 +386,7 @@ subroutine PMTHResidual(this,snes,xx,r,ierr)
   Vec :: r
   PetscErrorCode :: ierr
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHResidual()'
-#endif
-  
-  call THResidual(snes,xx,r,this%realization,ierr)
+  call FlowmodeResidual(snes,xx,r,this%realization,ierr)
 
 end subroutine PMTHResidual
 
@@ -431,7 +400,7 @@ subroutine PMTHJacobian(this,snes,xx,A,B,ierr)
   ! Date: 03/90/13
   ! 
 
-  use Flowmode_module, only : THJacobian
+  use Flowmode_module, only : FlowmodeJacobian
 
   implicit none
   
@@ -441,11 +410,7 @@ subroutine PMTHJacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
   
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHJacobian()'
-#endif
-
-  call THJacobian(snes,xx,A,B,this%realization,ierr)
+  call FlowmodeJacobian(A,B,this%realization,ierr)
 
 end subroutine PMTHJacobian
 
@@ -483,22 +448,18 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  type(TH_auxvar_type), pointer :: TH_auxvars(:)
+  type(flow_auxvar_type), pointer :: flow_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)  
   PetscInt :: local_id, ghosted_id
   PetscReal :: P0, P1, P_R, delP
   PetscReal :: scale, press_limit, temp_limit
   PetscInt :: iend, istart
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHCheckUpdatePre()'
-#endif
-  
   patch => this%realization%patch
   grid => patch%grid
   option => this%realization%option
   field => this%realization%field
-  TH_auxvars => patch%aux%TH%auxvars
+  flow_auxvars => patch%aux%Flow%auxvars
   global_auxvars => patch%aux%Global%auxvars
 
   if (Initialized(this%pressure_change_limit)) then
@@ -633,27 +594,23 @@ subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(TH_auxvar_type), pointer :: TH_auxvars(:)
+  type(flow_auxvar_type), pointer :: flow_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)  
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(flow_parameter_type), pointer :: flow_parameters(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
-  PetscInt :: local_id, ghosted_id
-  PetscReal :: Res(2)
+  PetscInt :: local_id, ghosted_id, ithrm
+  PetscReal :: Res(this%realization%option%nflowdof)
   PetscReal :: inf_norm, global_inf_norm
   PetscReal :: vol_frac_prim
   PetscInt :: istart, iend
   
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHCheckUpdatePost()'
-#endif
-
   patch => this%realization%patch
   grid => patch%grid
   option => this%realization%option
   field => this%realization%field
-  TH_auxvars => patch%aux%TH%auxvars
-  TH_parameter => patch%aux%TH%TH_parameter
+  flow_auxvars => patch%aux%Flow%auxvars
+  flow_parameters => patch%aux%Flow%flow_parameters
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
   
@@ -675,11 +632,11 @@ subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
+      ithrm = int(ithrm_loc_p(ghosted_id))
       
-      call THAccumulation(TH_auxvars(ghosted_id), &
-                           global_auxvars(ghosted_id), &
-                           material_auxvars(ghosted_id), &
-                           TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+      call FlowmodeAccumulation(flow_auxvars(ghosted_id), &
+                           material_auxvars(ghosted_id),  &
+                           flow_parameters(ithrm),        &
                            option,Res)
                                                         
       inf_norm = max(inf_norm,min(dabs(dX_p(istart)/X1_p(istart)), &
@@ -692,7 +649,7 @@ subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
                        MPI_DOUBLE_PRECISION, &
                        MPI_MAX,option%mycomm,ierr)
     option%converged = PETSC_TRUE
-    if (global_inf_norm > th_itol_scaled_res) then
+    if (global_inf_norm > flow_itol_scaled_res) then
       option%converged = PETSC_FALSE
     endif
     call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
@@ -712,18 +669,14 @@ subroutine PMTHTimeCut(this)
   ! Date: 03/90/13
   ! 
 
-  use Flowmode_module, only : THTimeCut
+  use Flowmode_module, only : FlowmodeTimeCut
 
   implicit none
   
   class(pm_th_type) :: this
-
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHTimeCut()'
-#endif
   
   call PMSubsurfaceFlowTimeCut(this)
-  call THTimeCut(this%realization)
+  call FlowmodeTimeCut(this%realization)
 
 end subroutine PMTHTimeCut
 
@@ -737,18 +690,14 @@ subroutine PMTHUpdateSolution(this)
   ! Date: 03/90/13
   ! 
 
-  use Flowmode_module, only : THUpdateSolution
+  use Flowmode_module, only : FlowmodeUpdateSolution
 
   implicit none
   
   class(pm_th_type) :: this
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHUpdateSolution()'
-#endif
-  
   call PMSubsurfaceFlowUpdateSolution(this)
-  call THUpdateSolution(this%realization)
+  call FlowmodeUpdateSolution(this%realization)
 
 end subroutine PMTHUpdateSolution     
 
@@ -759,17 +708,13 @@ subroutine PMTHUpdateAuxVars(this)
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
-  use Flowmode_module, only : THUpdateAuxVars
+  use Flowmode_module, only : FlowmodeUpdateAuxVars
   
   implicit none
   
   class(pm_th_type) :: this
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHUpdateAuxVars()'
-#endif
-
-  call THUpdateAuxVars(this%realization)
+  call FlowmodeUpdateAuxVars(this%realization)
 
 end subroutine PMTHUpdateAuxVars   
 
@@ -783,7 +728,7 @@ subroutine PMTHMaxChange(this)
   ! Date: 03/90/13
   ! 
 
-  use Flowmode_module, only : THMaxChange
+  use Flowmode_module, only : FlowmodeMaxChange
   use Option_module
 
   implicit none
@@ -791,12 +736,7 @@ subroutine PMTHMaxChange(this)
   class(pm_th_type) :: this
   character(len=MAXSTRINGLENGTH) :: string
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHMaxChange()'
-#endif
-
-  
-  call THMaxChange(this%realization,this%max_pressure_change, &
+  call FlowmodeMaxChange(this%realization,this%max_pressure_change, &
                    this%max_temperature_change)
 
 #ifndef CLM_PFLOTRAN
@@ -817,18 +757,14 @@ subroutine PMTHComputeMassBalance(this,mass_balance_array)
   ! Date: 03/90/13
   ! 
 
-  use Flowmode_module, only : THComputeMassBalance
+  use Flowmode_module, only : FlowmodeComputeMassBalance
 
   implicit none
   
   class(pm_th_type) :: this
   PetscReal :: mass_balance_array(:)
-
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHComputeMassBalance()'
-#endif
   
-  call THComputeMassBalance(this%realization,mass_balance_array)
+  call FlowmodeComputeMassBalance(this%realization,mass_balance_array)
 
 end subroutine PMTHComputeMassBalance
 
@@ -846,10 +782,6 @@ subroutine PMTHInputRecord(this)
   
   class(pm_th_type) :: this
   PetscInt :: id
-
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHInputRecord()'
-#endif
 
   id = INPUT_RECORD_UNIT
 
@@ -870,16 +802,12 @@ subroutine PMTHDestroy(this)
   ! Date: 03/90/13
   ! 
 
-  use Flowmode_module, only : THDestroy
+  use Flowmode_module, only : FlowmodeDestroy
 
   implicit none
   
   class(pm_th_type) :: this
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHDestroy()'
-#endif
-  
   if (associated(this%next)) then
     call this%next%Destroy()
   endif
@@ -887,7 +815,7 @@ subroutine PMTHDestroy(this)
   call this%commN%Destroy()
 
   ! preserve this ordering
-  call THDestroy(this%realization%patch)
+  call FlowmodeDestroy(this%realization%patch)
   call PMSubsurfaceFlowDestroy(this)
 
 end subroutine PMTHDestroy

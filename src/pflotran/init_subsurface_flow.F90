@@ -45,16 +45,9 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   ! initialize FLOW
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
-    select case(option%iflowmode)
+     select case(option%iflowmode)
       case(TH_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           patch%material_property_array, &
-                           patch%characteristic_curves_array, &
-                           realization%option)
-    end select
-    select case(option%iflowmode)
-      case(TH_MODE)
-        call THSetup(realization)
+        call FlowmodeSetup(realization)
       case default
         option%io_buffer = 'Unknown flowmode found during <Mode>Setup'
         call printErrMsg(option)
@@ -71,7 +64,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   
     select case(option%iflowmode)
       case(TH_MODE)
-        call THUpdateAuxVars(realization)
+        call FlowmodeUpdateAuxVars(realization)
       case default
         option%io_buffer = 'Unknown flowmode found during <Mode>UpdateAuxVars'
         call printErrMsg(option)

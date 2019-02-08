@@ -1022,7 +1022,6 @@ subroutine RealizUpdateAllCouplerAuxVars(realization,force_update_flag)
   class(realization_subsurface_type) :: realization
   PetscBool :: force_update_flag
 
-  !TODO(geh): separate flow from transport in these calls
   call PatchUpdateAllCouplerAuxVars(realization%patch,force_update_flag, &
                                     realization%option)
 

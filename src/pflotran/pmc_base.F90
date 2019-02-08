@@ -499,6 +499,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
       ! have to update option%time for conditions
       this%option%time = this%timestepper%target_time
       call cur_pm%UpdateSolution()
+      call cur_pm%UpdateAuxVars()
       call this%timestepper%UpdateDT(cur_pm)
       cur_pm => cur_pm%next
     enddo

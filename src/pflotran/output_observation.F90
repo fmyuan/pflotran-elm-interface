@@ -1244,7 +1244,7 @@ subroutine OutputMassBalance(realization_base)
   use Utility_module
   use Output_Aux_module
   
-  use Flowmode_module, only : THComputeMassBalance
+  use Flowmode_module, only : FlowmodeComputeMassBalance
 
   use Global_Aux_module
   use Material_Aux_class
@@ -1425,7 +1425,7 @@ subroutine OutputMassBalance(realization_base)
         class is(realization_subsurface_type)
           select case(option%iflowmode)
             case(TH_MODE)
-              call THComputeMassBalance(realization_base,mass_balance)
+              call FlowmodeComputeMassBalance(realization_base,mass_balance)
           end select
         class default
           option%io_buffer = 'Unrecognized realization class in MassBalance().'
@@ -1469,7 +1469,8 @@ subroutine OutputMassBalance(realization_base)
       endif
 
       offset = coupler%connection_set%offset
-      if (option%nflowdof > 0) then
+      if (option%nflowdof > 0 &
+         .and. option%compute_mass_balance_new) then
         ! print out cumulative H2O flux
         sum_local = 0.d0
         do iconn = 1, coupler%connection_set%num_connections

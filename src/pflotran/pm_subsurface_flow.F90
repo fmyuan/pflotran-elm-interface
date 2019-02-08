@@ -282,6 +282,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
 
   ! must come before RealizUnInitializedVarsTran
   call PMSubsurfaceFlowSetSoilRefPres(this%realization)
+
   ! check for uninitialized flow variables
   call RealizUnInitializedVarsTran(this%realization)
 
@@ -289,9 +290,6 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   ! restart
   if (this%revert_parameters_on_restart) then
     call RealizationRevertFlowParameters(this%realization)
-!geh: for testing only.  In general, we only revert parameter, not flow.
-!    call CondControlAssignFlowInitCond(this%realization)
-!    call this%UpdateAuxVars()
   endif
   ! update material properties that are a function of mineral vol fracs
   update_initial_porosity = PETSC_TRUE

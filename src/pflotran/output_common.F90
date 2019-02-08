@@ -1635,7 +1635,6 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(global_auxvar_type), pointer :: global_auxvar(:)
-  type(material_parameter_type), pointer :: material_parameter
 
 
   PetscReal, pointer :: vec_proc_ptr(:)
@@ -1647,7 +1646,6 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   PetscInt :: sum_connection, count
   Vec :: vec_proc
   PetscInt :: icap_up, icap_dn
-  PetscReal :: sir_up, sir_dn
   PetscReal, parameter :: eps = 1.D-8
   PetscReal :: upweight
 
@@ -1657,7 +1655,6 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   field => realization_base%field
   grid => patch%grid
   global_auxvar => patch%aux%Global%auxvars
-  material_parameter => patch%aux%Material%material_parameter
  
   allocate(density(count))
   call VecGetArrayF90(vec_proc,vec_proc_ptr,ierr);CHKERRQ(ierr)
@@ -1677,11 +1674,8 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
       if (option%myrank == int(vec_proc_ptr(sum_connection))) then
         count = count + 1
-        sir_up = material_parameter%soil_residual_saturation(1,icap_up)
-        sir_dn = material_parameter%soil_residual_saturation(1,icap_dn)
 
-        if (global_auxvar(ghosted_id_up)%sat(1) > sir_up .or. &
-            global_auxvar(ghosted_id_dn)%sat(1) > sir_dn) then
+          upweight = 0.5d0
           if (global_auxvar(ghosted_id_up)%sat(1) <eps) then 
             upweight = 0.d0
           else if (global_auxvar(ghosted_id_dn)%sat(1) <eps) then 
@@ -1690,7 +1684,6 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
     
           density(count) = upweight*global_auxvar(ghosted_id_up)%den(1)+ &
                   (1.D0 - upweight)*global_auxvar(ghosted_id_dn)%den(1)
-        endif
       endif  
           
     enddo

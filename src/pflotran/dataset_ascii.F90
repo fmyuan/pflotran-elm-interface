@@ -339,6 +339,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
         trim(word) // ') and rank in file ('
       write(word,*) data_count
       option%io_buffer = trim(option%io_buffer) // trim(word) // ').'
+      if (option%iflowmode /= TH_MODE) &
       call printErrMsg(option)
     endif
   else
@@ -510,6 +511,7 @@ subroutine DatasetAsciiVerify(this,dataset_error,option)
       option%io_buffer = &
         '"array_width" is not equal to "dims(1)"'
       call printMsg(option)
+      if (option%iflowmode /= TH_MODE) &
       dataset_error = PETSC_TRUE
     endif
     ! set initial values

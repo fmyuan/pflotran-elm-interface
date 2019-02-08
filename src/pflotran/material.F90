@@ -84,7 +84,6 @@ module Material_module
             MaterialPropertyRead, &
             MaterialInitAuxIndices, &
             MaterialAssignPropertyToAux, &
-            MaterialSetup, &
             MaterialUpdateAuxVars, &
             MaterialStoreAuxVars, &
             MaterialWeightAuxVars, &
@@ -921,7 +920,7 @@ end subroutine MaterialApplyMapping
 
 ! ************************************************************************** !
 
-subroutine MaterialSetup(material_parameter, material_property_array, &
+subroutine MaterialSetup(material_property_array, &
                          characteristic_curves_array, option)
   ! 
   ! Creates arrays for material parameter object
@@ -934,45 +933,11 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
   
   implicit none
   
-  type(material_parameter_type) :: material_parameter
   type(material_property_ptr_type) :: material_property_array(:)
   type(characteristic_curves_ptr_type) :: characteristic_curves_array(:)
   type(option_type), pointer :: option
-  
-  PetscInt :: num_characteristic_curves
-  PetscInt :: num_mat_prop
-  PetscInt :: i
-  
-  num_mat_prop = size(material_property_array)
-  num_characteristic_curves = size(characteristic_curves_array)
-  
-  allocate(material_parameter%soil_residual_saturation(option%nphase, &
-                                                   num_characteristic_curves))
-  material_parameter%soil_residual_saturation = UNINITIALIZED_DOUBLE
-  do i = 1, num_characteristic_curves
-    if (associated(characteristic_curves_array(i)%ptr)) then
-      material_parameter%soil_residual_saturation(:,i) = &
-        CharCurvesGetGetResidualSats(characteristic_curves_array(i)%ptr,option)
-    endif
-  enddo
 
-  if (option%iflowmode == TH_MODE) then
-    allocate(material_parameter%soil_heat_capacity(num_mat_prop))
-    allocate(material_parameter%soil_thermal_conductivity(2,num_mat_prop))
-    material_parameter%soil_heat_capacity = UNINITIALIZED_DOUBLE
-    material_parameter%soil_thermal_conductivity = UNINITIALIZED_DOUBLE
-    do i = 1, num_mat_prop
-      if (associated(material_property_array(i)%ptr)) then
-        ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J
-        material_parameter%soil_heat_capacity(i) = &
-          material_property_array(i)%ptr%specific_heat * option%scale ! J -> MJ
-        material_parameter%soil_thermal_conductivity(1,i) = &
-          material_property_array(i)%ptr%thermal_conductivity_dry
-        material_parameter%soil_thermal_conductivity(2,i) = &
-          material_property_array(i)%ptr%thermal_conductivity_wet
-      endif
-    enddo
-  endif
+  ! duplicated subroutine - not needed
   
 end subroutine MaterialSetup
   

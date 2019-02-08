@@ -15,7 +15,7 @@ module Auxiliary_module
 
   type, public :: auxiliary_type 
     type(global_type), pointer :: Global
-    type(th_type), pointer :: TH
+    type(flowmode_type), pointer :: Flow
     type(material_type), pointer :: Material
     type(inlinesurface_type), pointer :: InlineSurface
   end type auxiliary_type
@@ -40,7 +40,7 @@ subroutine AuxInit(aux)
   type(auxiliary_type) :: aux
   
   nullify(aux%Global)
-  nullify(aux%TH)
+  nullify(aux%Flow)
 
   nullify(aux%Material)
   nullify(aux%InlineSurface)
@@ -63,7 +63,7 @@ subroutine AuxDestroy(aux)
   
   call GlobalAuxDestroy(aux%Global)
 
-  call THAuxDestroy(aux%TH)
+  call FlowmodeAuxDestroy(aux%Flow)
   call MaterialAuxDestroy(aux%Material)
   call InlineSurfaceAuxDestroy(aux%InlineSurface)
   
