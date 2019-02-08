@@ -54,9 +54,6 @@ module Output_Aux_module
     PetscBool :: print_tecplot_vel_face
     PetscBool :: print_fluxes
     
-    PetscBool :: print_vtk 
-    PetscBool :: print_vtk_vel_cent
-
     PetscBool :: print_observation 
     PetscBool :: print_column_ids
 
@@ -209,8 +206,6 @@ function OutputOptionCreate()
   output_option%print_tecplot_vel_cent = PETSC_FALSE
   output_option%print_fluxes = PETSC_FALSE
   output_option%print_tecplot_vel_face = PETSC_FALSE
-  output_option%print_vtk = PETSC_FALSE
-  output_option%print_vtk_vel_cent = PETSC_FALSE
   output_option%print_observation = PETSC_FALSE
   output_option%print_column_ids = PETSC_FALSE
   output_option%print_mad = PETSC_FALSE
@@ -300,8 +295,6 @@ function OutputOptionDuplicate(output_option)
   output_option2%print_tecplot_vel_cent = output_option%print_tecplot_vel_cent
   output_option2%print_fluxes = output_option%print_fluxes
   output_option2%print_tecplot_vel_face = output_option%print_tecplot_vel_face
-  output_option2%print_vtk = output_option%print_vtk
-  output_option2%print_vtk_vel_cent = output_option%print_vtk_vel_cent
   output_option2%print_observation = output_option%print_observation
   output_option2%print_column_ids = output_option%print_column_ids
   output_option2%print_mad = output_option%print_mad

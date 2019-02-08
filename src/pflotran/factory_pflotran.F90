@@ -63,7 +63,6 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   use Simulation_Base_class
   use Logging_module
   use EOS_module
-  use PM_Surface_class
   use PM_Subsurface_Flow_class
   
 
@@ -112,17 +111,16 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   
   use Simulation_Base_class
   use Simulation_Subsurface_class
-  use Simulation_Surf_Subsurf_class
+
   use PM_Base_class
-  use PM_Surface_TH_class
   use PMC_Base_class
+
   use Checkpoint_module
   use Output_Aux_module
   use Waypoint_module
   use Units_module
   
   use Factory_Subsurface_module
-  use Factory_Surf_Subsurf_module
   
   implicit none
   
@@ -193,8 +191,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           select case(trim(word))
             case('SUBSURFACE_FLOW')
               call SubsurfaceReadFlowPM(input,option,new_pm)
-            case('SURFACE_SUBSURFACE')
-              call SurfSubsurfaceReadFlowPM(input, option, new_pm)
             case default
               call InputKeywordUnrecognized(word, &
                      'SIMULATION,PROCESS_MODELS',option)            
@@ -299,8 +295,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   select case(simulation_type)
     case('SUBSURFACE')
       simulation => SubsurfaceSimulationCreate(option)
-    case('SURFACE_SUBSURFACE')
-      simulation => SurfSubsurfaceSimulationCreate(option)
     case default
       if (len_trim(simulation_type) == 0) then
         option%io_buffer = 'A SIMULATION_TYPE (e.g. "SIMULATION_TYPE &
@@ -317,8 +311,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   select type(simulation)
     class is(simulation_subsurface_type)
       call SubsurfaceInitialize(simulation)  
-    class is(simulation_surfsubsurface_type)
-      call SurfSubsurfaceInitialize(simulation)
   end select
   
 end subroutine PFLOTRANReadSimulation

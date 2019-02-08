@@ -1919,8 +1919,6 @@ subroutine SubsurfaceReadInput(simulation,input)
                   if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
                     output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
                   endif
-                case ('VTK')
-                  output_option%print_vtk = PETSC_TRUE
                 case default
                   call InputKeywordUnrecognized(word,'OUTPUT,FORMAT',option)
               end select
@@ -1982,8 +1980,6 @@ subroutine SubsurfaceReadInput(simulation,input)
             output_option%print_tecplot_vel_cent = PETSC_TRUE
           if (output_option%print_hdf5) &
             output_option%print_hdf5_vel_cent = PETSC_TRUE
-          if (output_option%print_vtk) &
-            output_option%print_vtk_vel_cent = PETSC_TRUE
         endif
         if (vel_face) then
           if (output_option%print_tecplot) &

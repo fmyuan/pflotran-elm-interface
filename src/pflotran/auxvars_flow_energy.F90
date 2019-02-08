@@ -1,4 +1,4 @@
-module AuxVars_FlowEnergy_module
+module AuxVars_Flow_Energy_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -61,6 +61,8 @@ subroutine AuxVarFlowEnergyInit(this,option)
     this%D_U = 0.d0
   endif
 
+  call AuxVarFlowInit(this, option)
+
 end subroutine AuxVarFlowEnergyInit
 
 ! ************************************************************************** !
@@ -88,5 +90,5 @@ end subroutine AuxVarFlowEnergyStrip
 
 ! ************************************************************************** !
 
-end module AuxVars_FlowEnergy_module
+end module AuxVars_Flow_Energy_module
 

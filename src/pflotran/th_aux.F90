@@ -1,7 +1,6 @@
 module TH_Aux_module
 
   use PFLOTRAN_Constants_module
-  use AuxVars_FlowEnergy_module
 
   implicit none
 

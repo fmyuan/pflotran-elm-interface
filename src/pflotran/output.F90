@@ -7,7 +7,6 @@ module Output_module
 
   use Output_HDF5_module
   use Output_Tecplot_module
-  use Output_VTK_module
   use Output_Observation_module
   
   use PFLOTRAN_Constants_module
@@ -20,11 +19,8 @@ module Output_module
   PetscInt, parameter :: TECPLOT_INTEGER = 0
   PetscInt, parameter :: TECPLOT_REAL = 1
 
-  PetscInt, parameter :: VTK_INTEGER = 0
-  PetscInt, parameter :: VTK_REAL = 1
-
   PetscInt, parameter :: TECPLOT_FILE = 0
-  PetscInt, parameter ::  HDF5_FILE = 1
+  PetscInt, parameter :: HDF5_FILE = 1
 
   public :: OutputInit, &
             Output, &
@@ -450,9 +446,6 @@ subroutine OutputFileRead(input,realization,output_option, &
               output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
             endif
         !.............
-          case ('VTK')
-            output_option%print_vtk = PETSC_TRUE
-        !.............
           case default
             call InputKeywordUnrecognized(word,string,option)
         end select
@@ -527,8 +520,6 @@ subroutine OutputFileRead(input,realization,output_option, &
          output_option%print_tecplot_vel_cent = PETSC_TRUE
     if (output_option%print_hdf5) &
          output_option%print_hdf5_vel_cent = PETSC_TRUE
-    if (output_option%print_vtk) &
-         output_option%print_vtk_vel_cent = PETSC_TRUE
   endif
 
   if (vel_face) then
@@ -1222,18 +1213,6 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
             tend-tstart
       call printMsg(option)        
     endif
-
-    if (realization_base%output_option%print_vtk) then
-      call PetscTime(tstart,ierr);CHKERRQ(ierr)
-      call PetscLogEventBegin(logging%event_output_vtk,ierr);CHKERRQ(ierr)
-      call OutputVTK(realization_base)
-
-      call PetscLogEventEnd(logging%event_output_vtk,ierr);CHKERRQ(ierr)
-      call PetscTime(tend,ierr);CHKERRQ(ierr)
-      write(option%io_buffer,'(f10.2," Seconds to write to VTK file(s)")') &
-            tend-tstart
-      call printMsg(option) 
-    endif
       
     if (realization_base%output_option%print_mad) then
       call PetscTime(tstart,ierr);CHKERRQ(ierr)
@@ -1421,10 +1400,6 @@ subroutine OutputInputRecord(output_option,waypoint_list)
   if (output_option%print_mad) then
     write(id,'(a29)',advance='no') 'format: '
     write(id,'(a)') 'mad'
-  endif
-  if (output_option%print_vtk) then
-    write(id,'(a29)',advance='no') 'format: '
-    write(id,'(a)') 'vtk'
   endif
   write(id,'(a29)',advance='no') 'periodic timestep: '
   if (output_option%periodic_snap_output_ts_imod == 100000000) then
