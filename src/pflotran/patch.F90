@@ -544,13 +544,6 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
               temp_int = 1
             endif
           end if
-          if (associated(coupler%flow_condition%flow_well)) then
-            if ( associated(coupler%flow_condition%flow_well%rate) .or. &
-                 associated(coupler%flow_condition%flow_well%pressure) &
-               ) then
-              temp_int = 1
-            endif
-          end if
           if (temp_int == 0) then
             option%io_buffer = 'FLOW_CONDITIONs associated with &
               &SOURCE_SINKs must have a RATE or WELL expression within them.'
@@ -2054,13 +2047,6 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
   if ( associated(toil_ims%pressure) ) then
     ! pressure is either hydrostatic or dirichlet
     if (toil_ims%pressure%itype == HYDROSTATIC_BC) then
-      ! if (toil_ims%saturation%itype /= DIRICHLET_BC) then
-      !       option%io_buffer = &
-      !         'Hydrostatic pressure bc for flow condition "' // &
-      !         trim(flow_condition%name) // &
-      !         '" requires a saturation bc of type dirichlet'
-      !       call printErrMsg(option)
-      ! endif
       if (toil_ims%temperature%itype /= DIRICHLET_BC) then
             option%io_buffer = &
               'Hydrostatic pressure bc for flow condition "' // &
@@ -2072,9 +2058,6 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
       call HydrostaticMPUpdateCoupler(coupler,option,patch%grid, &
                    patch%characteristic_curves_array,patch%sat_func_id, &
                    patch%imat)
-      ! call TOIHydrostaticUpdateCoupler(coupler,option,patch%grid, &
-      !             patch%characteristic_curves_array,patch%sat_func_id, &
-      !             patch%imat)
       coupler%flow_bc_type(TOIL_IMS_OIL_EQUATION_INDEX) = HYDROSTATIC_BC
       coupler%flow_bc_type(TOIL_IMS_LIQUID_EQUATION_INDEX) = HYDROSTATIC_BC
       coupler%flow_bc_type(TOIL_IMS_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
@@ -2116,9 +2099,6 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
       select case(toil_ims%saturation%itype)
         case(DIRICHLET_BC)
           coupler%flow_aux_mapping(TOIL_IMS_OIL_SATURATION_INDEX) = real_count
-          !coupler%flow_aux_real_var(real_count,1:num_connections) = &
-          !  toil_ims%saturation%dataset%rarray(1)
-          !dof2 = PETSC_TRUE
           coupler%flow_bc_type(TOIL_IMS_OIL_EQUATION_INDEX) = DIRICHLET_BC
           select type(selector => toil_ims%saturation%dataset)
             class is(dataset_ascii_type)
@@ -2148,10 +2128,6 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
       select case(toil_ims%temperature%itype)
         case(DIRICHLET_BC)
           coupler%flow_aux_mapping(TOIL_IMS_TEMPERATURE_INDEX) = real_count
-          !temperature = toil_ims%temperature%dataset%rarray(1)
-          !coupler%flow_aux_real_var(real_count,1:num_connections) = &
-          !  temperature
-          !dof3 = PETSC_TRUE
           coupler%flow_bc_type(TOIL_IMS_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
           select type(selector => toil_ims%temperature%dataset)
             class is(dataset_ascii_type)
@@ -2251,18 +2227,13 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
   type(option_type) :: option
 
   type(flow_condition_type), pointer :: flow_condition
-  type(tran_condition_type), pointer :: tran_condition
   type(flow_towg_condition_type), pointer :: towg
-  PetscBool :: update
   PetscBool :: dof1, dof2, dof3, dof_solv, dof_temp
-  PetscReal :: temperature,bubble_point,soil,sgas,pressure
-  PetscReal :: dummy_real
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscErrorCode :: ierr
+  PetscReal :: bubble_point,soil,sgas,pressure
+  character(len=MAXSTRINGLENGTH) :: string
 
-  PetscInt :: idof, num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id,state
+  PetscInt :: num_connections
+  PetscInt :: state
   ! use to map flow_aux_map to the flow_aux_real_var array
   PetscInt :: real_count
   PetscReal, parameter :: eps_oil   = 1.0d-6

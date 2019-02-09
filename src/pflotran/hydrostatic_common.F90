@@ -1,5 +1,6 @@
 module Hydrostatic_Common_module
- 
+
+#if 0 
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
@@ -8,7 +9,6 @@ module Hydrostatic_Common_module
 
   private
 
-#if 0
   type, public :: one_dim_grid_type
     PetscReal :: delta_z
     PetscReal :: min_z
@@ -20,7 +20,6 @@ module Hydrostatic_Common_module
     procedure, public :: InterpFromWellConnTo1DGrid
     procedure, public :: ZLookup
   end type one_dim_grid_type
-#endif
 
   public :: GetCellOnPhaseConact, &
             ! PhaseHydrostaticPressure, &
@@ -92,8 +91,6 @@ function GetCellOnPhaseConact(connection_set,grid,imat,z_phase_contact,option)
 end function GetCellOnPhaseConact
 
 ! ************************************************************************** !
-
-#if 0
 
 subroutine PhaseHydrostaticPressure(one_d_grid,option,iphase,press_start, &
                                     id_start,temp_v,xm_nacl_v,pb_v,rv_v, &
@@ -310,8 +307,6 @@ end function PhaseDensity
 
 ! ************************************************************************** !
 
-#endif
-
 function PressInterp(ipressure,dist_x,dist_y,dist_z_for_pressure,gravity, &
                      pressure_array,density_array,pressure_gradient)
 
@@ -390,7 +385,7 @@ end function PressGrad
 
 ! ************************************************************************** !
 
-#if 0
+
 
 subroutine CompVertTempProfile(one_d_grid,temp_grad,temp_at_datum, &
                                temp_profile)
