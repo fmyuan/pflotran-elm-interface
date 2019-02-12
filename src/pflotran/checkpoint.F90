@@ -1432,7 +1432,10 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
                                                   option)
         checkpoint_option%tconv = 1.d0/units_conversion
         checkpoint_option%tunit = trim(word)
-!geh: this needs to be tested.
+!geh: this needs to be tested to verify that the upper version replicates
+!     the lower, and then the lower can be removed. Why use the upper version?
+!     It allows the times to wrap to lower lines using line continuation '\'
+!TODO(anyone)
 #if 0
         temp_string = 'CHECKPOINT,TIMES'
         nullify(temp_real_array)

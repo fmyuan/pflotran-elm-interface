@@ -1006,7 +1006,6 @@ subroutine FlowConditionRead(condition,input,option)
                                        concentration, enthalpy, rate, well,&
                                        sub_condition_ptr, saturation, &
                                        energy_rate, energy_flux
-  PetscReal :: default_time
   PetscInt :: default_iphase
   PetscInt :: idof
   type(time_storage_type), pointer :: default_time_storage
@@ -1017,7 +1016,6 @@ subroutine FlowConditionRead(condition,input,option)
   call PetscLogEventBegin(logging%event_flow_condition_read, &
                           ierr);CHKERRQ(ierr)
 
-  default_time = 0.d0
   default_iphase = 0
 
   default_time_storage => TimeStorageCreate()
@@ -1263,9 +1261,6 @@ subroutine FlowConditionRead(condition,input,option)
               call InputKeywordUnrecognized(word,'condition bc type',option)
           end select
         enddo
-      case('TIME','TIMES')
-        call InputReadDouble(input,option,default_time)
-        call InputErrorMsg(input,option,'TIME','CONDITION')
       case('IPHASE')
         call InputReadInt(input,option,default_iphase)
         call InputErrorMsg(input,option,'IPHASE','CONDITION')
