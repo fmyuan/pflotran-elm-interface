@@ -185,6 +185,11 @@ ifdef scorpio
   MYFLAGS += -I${SCORPIO_DIR}/include
 endif
 
+ifdef codecov
+  MYFLAGS += -fprofile-arcs -ftest-coverage
+  LIBS += -lgcov
+endif
+
 ###############################################################################
 # Assign additional compiler/preprocessor flags
 ###############################################################################
@@ -313,7 +318,7 @@ check : FORCE
 	fi
 
 clean-pflotran :
-	-rm -f $(CLEANFILES) *.o *.mod *.a;
+	-rm -f $(CLEANFILES) *.o *.mod *.a *.gcov *.gcda *.gcno;
 
 # Flags
 echo-flags :
